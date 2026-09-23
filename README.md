@@ -43,3 +43,13 @@ is the mount development pressures.
   EPUB actually look like on disk, measured from real samples.
 - [`doc/briefs/`](doc/briefs/) — design briefs for Claude Design, one per
   surface.
+
+## Board labels
+
+Tracked on the **Tsundoku** board in Kumiko. Beyond the defaults (`Feature`,
+`Bug`, `Design`, `Infra`, `Docs`):
+
+- **`Phase 1`**: needed before the tablet can be emptied. The filter answers
+  "what is left before this replaces Mihon and Hentoid".
+- **`Blocked`**: waiting on something outside the card (a design handoff, a
+  sample from the tablet). Say what in the card body.
