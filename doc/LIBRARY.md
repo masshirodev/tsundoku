@@ -145,6 +145,18 @@ gone.
   scroll, and sets the scroll again once they're back, since SvelteKit scrolls
   before it restores. It then re-reads them, in case a rating changed on the
   series screen.
+- **The shelf can move under the pages** (a series hidden, volumes grouped,
+  a scan's arrivals). Pages are by position, so a page can repeat a card
+  already shown, which is dropped (a repeated key would stop the grid
+  drawing). A page shorter than asked for is the end, whatever `total` said.
+- **The grid never stalls with its end on screen.** The observer only speaks
+  when the end comes near, so whenever the list settles (a page in, a refresh,
+  a page dropped because the list changed under it) the grid checks again.
+- **The place to come back to is noted when a navigation begins**
+  (`beforeNavigate`). By the time SvelteKit takes the snapshot, the waiting
+  outline may already cover the library, with its scroll at 0. Coming back,
+  the scroll is set each frame until it lands, for up to two seconds, or
+  until the reader touches or scrolls.
 - **CACHED** isn't paged. Only the tablet knows which series it holds, so the
   server sends the whole shelf for it to narrow down.
 - **Sorts page cleanly** because every order ends in the series id, so no card

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { goto, invalidateAll } from '$app/navigation';
+	import { beforeNavigate, goto, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { tick, untrack } from 'svelte';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
@@ -56,7 +56,12 @@
 	/** Bumped whenever the list changes under a request, so a late answer is dropped. */
 	let generation = 0;
 	const series = $derived(data.series.length ? [...data.series, ...more] : more);
-	const hasMore = $derived(data.shelf !== 'cached' && series.length < data.total);
+	/**
+	 * A page shorter than asked for is the end, whatever `total` said: the shelf
+	 * can shrink after the first page (a series hidden, volumes grouped).
+	 */
+	let ended = $state(false);
+	const hasMore = $derived(!ended && data.shelf !== 'cached' && series.length < data.total);
 	const listKey = $derived(`${data.shelf}|${data.tag ?? ''}|${data.sort}|${data.reveal}`);
 	let shownKey = '';
 
@@ -79,16 +84,28 @@
 		const gen = generation;
 		const next = await fetchPage(series.length, data.pageSize);
 		if (gen === generation) {
-			if (next) more = [...more, ...next];
-			else moreFailed = true;
+			if (next) {
+				// Pages are by position, and the shelf can move under them (a series
+				// hidden or grouped since): one already shown is not shown twice.
+				const have = new Set(series.map((c) => c.id));
+				more = [...more, ...next.filter((c) => !have.has(c.id))];
+				if (next.length < data.pageSize) ended = true;
+			} else moreFailed = true;
 		}
-		loadingMore = false;
-		// The observer only speaks when the end comes near. A page that didn't
-		// push it away again (a tall screen) would leave the grid stalled.
-		if (next && gen === generation) {
-			await tick();
-			if (endNode && endNode.getBoundingClientRect().top < innerHeight * 2.5) void loadMore();
-		}
+		if (gen === generation) loadingMore = false;
+		void keepGoing();
+	}
+
+	/**
+	 * The observer only speaks when the end comes near. Whenever the list
+	 * settles -- a page in, a refresh, a page dropped because the list changed
+	 * under it -- the end may still be near without having moved, so ask again
+	 * rather than leave the grid stalled.
+	 */
+	async function keepGoing() {
+		await tick();
+		if (loadingMore || moreFailed || !endNode) return;
+		if (endNode.getBoundingClientRect().top < innerHeight * 2.5) void loadMore();
 	}
 
 	// A new shelf, tag or sort starts again from its first page. The same one
@@ -101,15 +118,22 @@
 			generation += 1;
 			loadingMore = false;
 			moreFailed = false;
+			ended = false;
 			if (key !== shownKey) {
 				shownKey = key;
 				more = [];
+				void keepGoing();
 				return;
 			}
-			if (more.length === 0) return;
+			if (more.length === 0) return void keepGoing();
 			const gen = generation;
 			void fetchPage(first.length, more.length).then((pageAgain) => {
-				if (pageAgain && gen === generation) more = pageAgain;
+				if (gen !== generation) return;
+				if (pageAgain) {
+					const have = new Set(data.series.map((c) => c.id));
+					more = pageAgain.filter((c) => !have.has(c.id));
+				}
+				void keepGoing();
 			});
 		});
 	});
@@ -120,19 +144,52 @@
 	 * only the first page is there to scroll through, so the scroll is set
 	 * again once the pages are back. Capped, since it's kept in sessionStorage.
 	 */
+	/**
+	 * Scroll to `y` once the page is tall enough to: on a slow return the
+	 * waiting outline covers the grid for a moment, and a scroll then lands
+	 * short. Tried each frame for two seconds, and given up the moment the
+	 * reader touches or scrolls themselves.
+	 */
+	function settleScroll(y: number) {
+		const until = performance.now() + 2000;
+		let stop = false;
+		const halt = () => (stop = true);
+		const opts = { once: true, passive: true } as const;
+		addEventListener('pointerdown', halt, opts);
+		addEventListener('wheel', halt, opts);
+		addEventListener('keydown', halt, opts);
+		const place = () => {
+			if (stop) return;
+			scrollTo(0, y);
+			if (Math.abs(scrollY - y) > 2 && performance.now() < until) requestAnimationFrame(place);
+		};
+		place();
+	}
+
+	/**
+	 * Where the grid was when a navigation began. By the time SvelteKit takes
+	 * the snapshot, the waiting outline may have covered the library and its
+	 * scroll gone to 0 (doc/WAITING.md), so the place is noted first.
+	 */
+	let leftAt: number | null = null;
+	beforeNavigate(() => {
+		leftAt = scrollY;
+	});
+
 	export const snapshot: Snapshot<{ key: string; more: SeriesCard[]; y: number }> = {
-		capture: () => ({ key: listKey, more: more.slice(0, 4000), y: scrollY }),
+		capture: () => ({ key: listKey, more: more.slice(0, 4000), y: leftAt ?? scrollY }),
 		restore: async (v) => {
 			if (!v || v.key !== listKey || v.more.length === 0) return;
 			generation += 1;
 			shownKey = v.key;
-			more = v.more;
+			const have = new Set(data.series.map((c) => c.id));
+			more = v.more.filter((c) => !have.has(c.id));
 			await tick();
-			scrollTo(0, v.y);
+			settleScroll(v.y);
 			// What they say now: a rating may have changed on the series screen.
 			const gen = generation;
 			const again = await fetchPage(data.series.length, v.more.length);
-			if (again && gen === generation) more = again;
+			if (again && gen === generation) more = again.filter((c) => !have.has(c.id));
 		}
 	};
 
@@ -181,8 +238,14 @@
 	 * or books mixed with novels, can't be grouped.
 	 */
 	const groupPick = $derived.by(() => {
-		const out: { seriesId: number; title: string; hue: number; addedAt: number; kind: string }[] =
-			[];
+		const out: {
+			seriesId: number;
+			title: string;
+			hue: number;
+			addedAt: number;
+			kind: string;
+			cover: number | null;
+		}[] = [];
 		const pool = data.person
 			? data.person.items
 					.filter((i) => i.groupable || (i.kind === 'novel' && i.entryId === null))
@@ -191,7 +254,8 @@
 						title: i.title,
 						hue: hueFor(i.title),
 						addedAt: i.addedAt,
-						kind: i.kind
+						kind: i.kind,
+						cover: i.cover
 					}))
 			: series
 					.filter((c) => (c.kind === 'doujin' && c.entryCount === 1) || c.kind === 'novel')
@@ -200,7 +264,8 @@
 						title: c.title,
 						hue: c.hue,
 						addedAt: c.addedAt,
-						kind: c.kind
+						kind: c.kind,
+						cover: c.cover
 					}));
 		for (const b of pool) if (selected.has(b.id)) out.push({ seriesId: b.id, ...b });
 		return out;
