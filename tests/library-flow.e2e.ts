@@ -124,6 +124,16 @@ test('the rating bars open the six cells on the tile, and a cell saves', async (
 	await expect(bars).toHaveAttribute('aria-label', 'Unrated');
 });
 
+test('the app’s name goes home, and DOWNLOADED is a shelf', async ({ page }) => {
+	await page.goto('/?shelf=rated4&sort=title');
+	const downloaded = page.getByRole('link', { name: /^DOWNLOADED/ }).filter({ visible: true });
+	await downloaded.click();
+	await expect(page).toHaveURL(/shelf=downloaded/);
+	await expect(page.locator('.grid .tile').first()).toBeVisible();
+	await page.getByRole('link', { name: 'Library' }).filter({ visible: true }).first().click();
+	await expect(page).toHaveURL(/\/$/);
+});
+
 test('hidden means hidden, until /reveal, and HIDE AGAIN ends it', async ({ page }) => {
 	await page.goto('/');
 	const sheet = await longPress(page, TITLE);

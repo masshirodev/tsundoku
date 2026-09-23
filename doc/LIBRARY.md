@@ -22,6 +22,7 @@ state is the result of real data or real input.
 | History          | **N OPEN · HISTORY →** on CONTINUE, and a HISTORY row in the desktop sidebar, open [`HISTORY.md`](HISTORY.md)'s screen.                                                                                                     |
 | Incognito        | Typing `/incognito`. A dashed INCOGNITO · NOTHING SAVED band with END, on every screen ([`PRIVACY.md`](PRIVACY.md)).                                                                                                        |
 | PEOPLE shelf     | `?shelf=people`. Exists while a favourite person has a visible book, and lists them as chips instead of a grid.                                                                                                             |
+| DOWNLOADED shelf | `?shelf=downloaded`. Series with at least one chapter on disk (`entries.available`), so what can be read without the internet. Most of a Mihon library is only known from its backup.                                       |
 | Reveal on        | Typing exactly `/reveal` in search and pressing Enter. A **session** cookie, so closing the app also ends it. HIDE AGAIN, or `/hide`, ends it.                                                                              |
 | Empty            | No visible series and no scan job.                                                                                                                                                                                          |
 | Importing        | A `scan_jobs` row with no `finished_at`. Series the scanner found but hasn't indexed (`indexed_at IS NULL`) draw as dashed "indexing" tiles.                                                                                |
@@ -44,6 +45,9 @@ sheet, or in the bulk bar when every selected tile is hidden, makes that series
 HIDE takes it back. Grouping keeps a series of books public only if every book
 was. The rule is written once, in `src/lib/server/visibility.ts`, and every
 query uses it.
+
+The app's name (the wordmark, in the library header and the desktop sidebar)
+is a link to the library.
 
 ## Rating
 

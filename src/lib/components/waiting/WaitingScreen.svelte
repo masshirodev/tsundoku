@@ -29,7 +29,8 @@
 <div class="waiting" aria-busy="true">
 	{#if to.kind === 'library'}
 		<TopBar label="Library">
-			{#snippet left()}<div class="brand"><Wordmark /></div>{/snippet}
+			{#snippet left()}<a class="brand" href={resolve('/')} aria-label="Library"><Wordmark /></a
+				>{/snippet}
 			{#snippet middle()}<span class="hint">/ search</span>{/snippet}
 			{#snippet right()}<span class="cellish">SELECT</span>{/snippet}
 		</TopBar>
@@ -86,6 +87,8 @@
 	}
 	.brand {
 		padding: 0 var(--pad);
+		color: inherit;
+		text-decoration: none;
 	}
 	.hint,
 	.title {

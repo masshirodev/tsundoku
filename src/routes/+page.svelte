@@ -269,7 +269,8 @@
 	{:else}
 		<TopBar label="Library">
 			{#snippet left()}
-				<div class="brand"><Wordmark /></div>
+				<!-- The app's name goes home: the library as it opens. -->
+				<a class="brand" href={resolve('/')} aria-label="Library"><Wordmark /></a>
 			{/snippet}
 			{#snippet middle()}
 				<a class="search-hint" href={resolve('/search')}
@@ -544,6 +545,8 @@
 	}
 	.brand {
 		padding: 0 var(--pad);
+		color: inherit;
+		text-decoration: none;
 	}
 	.search-hint .long,
 	.search-hint .short {

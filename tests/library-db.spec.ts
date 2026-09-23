@@ -174,6 +174,25 @@ describe('writes touch only what was asked', () => {
 	});
 });
 
+describe('the DOWNLOADED shelf', () => {
+	it('lists series with a chapter on disk, and counts them the same way', () => {
+		const db = getDb();
+		const target = lib.listSeries({ reveal: false }).find((c) => c.title === 'Chainsaw Man')!;
+		const before = lib.listSeries({ reveal: false, shelf: 'downloaded' });
+		expect(titles(before)).toContain('Chainsaw Man');
+		// Only known from a backup: every chapter read online, none on disk.
+		db.prepare(`UPDATE entries SET available = 0 WHERE series_id = ?`).run(target.id);
+		const after = lib.listSeries({ reveal: false, shelf: 'downloaded' });
+		expect(titles(after)).not.toContain('Chainsaw Man');
+		expect(after.length).toBe(before.length - 1);
+		const shelf = lib
+			.listShelves({ reveal: false, withNew: false })
+			.find((s) => s.key === 'downloaded');
+		expect(shelf).toMatchObject({ name: 'Downloaded', kind: 'smart', count: after.length });
+		db.prepare(`UPDATE entries SET available = 1 WHERE series_id = ?`).run(target.id);
+	});
+});
+
 describe('scan state', () => {
 	it('reports a running scan over a finished one, and forgets a dismissed one', () => {
 		const db = getDb();

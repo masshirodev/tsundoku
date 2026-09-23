@@ -119,7 +119,8 @@
 			desktop, so the server can send it without knowing the screen.
 		-->
 			<aside class="sidebar" aria-label="Shelves">
-				<div class="brand"><Wordmark size={17} /></div>
+				<!-- The app's name is the way home, from any screen. -->
+				<a class="brand" href={resolve('/')} aria-label="Library"><Wordmark size={17} /></a>
 				<div class="side-label">SHELVES</div>
 				<ShelfTabs
 					vertical
@@ -235,6 +236,8 @@
 		align-items: center;
 		height: 64px;
 		padding: 0 24px;
+		color: inherit;
+		text-decoration: none;
 		border-bottom: var(--hairline);
 		flex-shrink: 0;
 	}

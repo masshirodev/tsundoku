@@ -113,6 +113,13 @@ const CURRENT_SCAN_ID = `SELECT id FROM scan_jobs WHERE finished_at IS NULL OR d
 function shelfClause(shelf: string): { sql: string; params: unknown[] } {
 	if (shelf === 'favourites') return { sql: 's.favourite = 1', params: [] };
 	if (shelf === 'rated4') return { sql: 's.rating >= 4', params: [] };
+	// Something to read without the internet: a chapter on disk. Most of a
+	// Mihon library is read online and only known from the backup.
+	if (shelf === 'downloaded')
+		return {
+			sql: 'EXISTS (SELECT 1 FROM entries e WHERE e.series_id = s.id AND e.available = 1)',
+			params: []
+		};
 	if (shelf === 'new') {
 		return {
 			// The import the band is about, not the newest one: a later rescan
@@ -253,6 +260,12 @@ export function listShelves(opts: { reveal: boolean; withNew: boolean }): Shelf[
 	if (opts.withNew)
 		shelves.push({ key: 'new', name: 'New', kind: 'smart', count: n(shelfClause('new').sql) });
 	shelves.push({ key: 'all', name: 'All', kind: 'smart', count: n('1') });
+	shelves.push({
+		key: 'downloaded',
+		name: 'Downloaded',
+		kind: 'smart',
+		count: n(shelfClause('downloaded').sql)
+	});
 	shelves.push({
 		key: 'favourites',
 		name: 'Favourites',
