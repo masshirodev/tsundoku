@@ -64,6 +64,7 @@ The projects are the devices the design draws: `tablet-portrait` (800×1280),
 | `series-flow.e2e.ts`    | tablet-portrait | Writes, like `library-flow`: rating, FAV, direction, tags, range select, `#`, hide.                                                             |
 | `books-flow.e2e.ts`     | tablet-portrait | Writes: person pages and FAV, a book's own rating, TAKE OUT, grouping, suggestions.                                                             |
 | `history-flow.e2e.ts`   | tablet-portrait | Writes: REMOVE and UNDO on history rows.                                                                                                        |
+| `offline-flow.e2e.ts`   | tablet-portrait | Writes: the service worker and device cache, reading offline, the pending queue's replay, ↓ CACHE / REMOVE CACHE.                               |
 | `unlock-gate.e2e.ts`    | gate (last)     | The `/reveal` fingerprint gate with a virtual authenticator. Its own project, run after every other, because enrolling gates `/reveal` for all. |
 | `reader-layout.e2e.ts`  | all             | The reader's frame per device: the page on true black, the 64 / 56 / 64px controls. Reads in incognito, so it writes nothing.                   |
 | `reader-flow.e2e.ts`    | tablet-portrait | Writes: tap zones, the boundary, progress and resume, the READING sheet, vertical crossing, the end-of-series rating, incognito.                |
@@ -88,7 +89,7 @@ Hitorigoto", and one saw the other's rating. So `library-flow` owns Kusuriya and
 the three it multi-selects, `books-flow` owns every Kaori Mama title and the
 Hakka Kousha / Aoi Rin people, `history-flow` owns Mushoku Tensei's history
 rows, `privacy-flow` owns Yofukashi no Uta, `reader-flow` owns Hikaru ga Shinda Natsu,
-The Greatest Estate Developer and Chainsaw Man, `reader-layout` reads Sousou no Frieren, and `series-flow` owns Mount Hua, Tower of God, Ame
+The Greatest Estate Developer and Chainsaw Man, `reader-layout` reads Sousou no Frieren (incognito), `offline-flow` owns Drawing: Saikyou Mangaka, and `series-flow` owns Mount Hua, Tower of God, Ame
 no Hi and Lookism. Pick an unused series for a new flow, and say which in the
 file's header.
 

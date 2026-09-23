@@ -18,6 +18,7 @@
 		kind,
 		seriesTitle,
 		next,
+		nextCached = false,
 		rating,
 		favourite,
 		incognito,
@@ -37,6 +38,8 @@
 		kind: string;
 		seriesTitle: string;
 		next: Next | null;
+		/** The next chapter is cached on the tablet (doc/OFFLINE.md). */
+		nextCached?: boolean;
 		rating: number;
 		favourite: boolean;
 		incognito: boolean;
@@ -104,7 +107,7 @@
 				<div class="big" class:faded={variant !== 'chapter'}>{nextTitle}</div>
 				<div class="sub">
 					{#if variant === 'chapter'}
-						{next.pageCount} PAGES
+						{next.pageCount} PAGES{nextCached ? ' · ↓ CACHED' : ''}
 					{:else if variant === 'missing'}
 						○ NOT DOWNLOADED
 					{:else}

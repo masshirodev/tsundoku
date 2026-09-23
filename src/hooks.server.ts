@@ -1,6 +1,6 @@
 import { error, redirect, type Handle } from '@sveltejs/kit';
 import { SESSION_COOKIE, authMode, isValidSession } from '$lib/server/auth';
-import { themeOf } from '$lib/server/prefs';
+import { isRevealed, themeOf } from '$lib/server/prefs';
 
 const PUBLIC_PATHS = new Set(['/login']);
 
@@ -30,8 +30,19 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	// The theme is on <html> in the first byte, so light mode never flashes dark.
 	const theme = themeOf(event.cookies);
-	return resolve(event, {
+	const response = await resolve(event, {
 		transformPageChunk: ({ html }) =>
 			html.replace('<html lang="en">', `<html lang="en" data-theme="${theme}">`)
 	});
+	// Anything rendered while reveal is on may show hidden titles: no copy of
+	// it is kept anywhere, the service worker's offline screens included
+	// (doc/OFFLINE.md).
+	if (isRevealed(event.cookies)) {
+		try {
+			response.headers.set('cache-control', 'no-store');
+		} catch {
+			// An immutable response (a fetch passed through): nothing of ours to store.
+		}
+	}
+	return response;
 };

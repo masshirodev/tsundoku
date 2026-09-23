@@ -13,6 +13,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { offline } from '$lib/offline.svelte';
+	import { cacheMany, dropMany } from '$lib/cache/device';
 	import { orderBooks } from '$lib/library/books';
 	import { withParam, readHref } from '$lib/library/links';
 	import {
@@ -138,10 +139,29 @@
 	}
 
 	// ---- device cache ------------------------------------------------------------------
-	// Which entries are cached on this device. The reader is what will fill the
-	// cache; until it exists this is honestly empty.
-	const cachedEntries = $derived(new Set<number>());
+	// Which entries are cached on this device (doc/OFFLINE.md): the reader keeps
+	// the next chapters, and ↓ CACHE adds the selection. A hidden series is never
+	// cached, nor anything while revealed or incognito.
+	const cachedEntries = $derived(new Set(offline.entries[series.id] ?? []));
 	const cachedCount = $derived(offline.cached[series.id] ?? 0);
+	const mayCache = $derived(!series.hidden && !data.reveal && !data.incognito && offline.online);
+	const toCache = $derived(
+		mayCache
+			? series.entries
+					.filter((e) => selected.has(e.id) && e.available && !cachedEntries.has(e.id))
+					.map((e) => e.id)
+			: []
+	);
+	const toDrop = $derived([...selected].filter((id) => cachedEntries.has(id)));
+	let caching = $state(false);
+	async function cacheSelection() {
+		caching = true;
+		try {
+			await cacheMany(series.id, toCache);
+		} finally {
+			caching = false;
+		}
+	}
 
 	// `?edit=tags` (the library sheet's TAGS button) opens straight into editing.
 	// svelte-ignore state_referenced_locally
@@ -316,9 +336,13 @@
 			<button type="submit" name="read" value="0" disabled={counts.markUnread === 0}>
 				<span>MARK UNREAD</span><span class="n">{counts.markUnread}</span>
 			</button>
-			<!-- Device caching arrives with the reader; see doc/SERIES.md. -->
-			<button type="button" disabled><span>↓ CACHE</span><span class="n">—</span></button>
-			<button type="button" disabled><span>REMOVE CACHE</span><span class="n">—</span></button>
+			<!-- The device cache (doc/OFFLINE.md): counts are what each would change. -->
+			<button type="button" disabled={toCache.length === 0 || caching} onclick={cacheSelection}>
+				<span>{caching ? '↓ CACHING…' : '↓ CACHE'}</span><span class="n">{toCache.length}</span>
+			</button>
+			<button type="button" disabled={toDrop.length === 0} onclick={() => dropMany(toDrop)}>
+				<span>REMOVE CACHE</span><span class="n">{toDrop.length}</span>
+			</button>
 		</form>
 	{/if}
 </div>

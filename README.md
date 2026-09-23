@@ -18,7 +18,7 @@ yet" in [`doc/LIBRARY.md`](doc/LIBRARY.md) and [`doc/SERIES.md`](doc/SERIES.md).
 ```sh
 yarn install
 yarn run seed     # the design's sample library, into data/tsundoku.sqlite
-yarn run dev      # localhost:42143, no token needed in development
+yarn run dev      # localhost:42143; with a token in .env, it asks for it too
 yarn run import   # import $LIBRARY_ROOT/Mihon/ and H/.Hentoid/ (doc/IMPORT-*.md)
 ```
 
@@ -84,6 +84,8 @@ is the mount development pressures.
   state, where it departs from the handoff, and what it doesn't do yet.
 - [`doc/SERIES.md`](doc/SERIES.md) — the series screen: frame, states,
   departures, and what waits on the reader.
+- [`doc/OFFLINE.md`](doc/OFFLINE.md) — the device cache, the service worker,
+  and reading offline without losing stats.
 - [`doc/SERVING.md`](doc/SERVING.md) — HTTPS through `tailscale serve`, and
   the plain-http fallback.
 - [`doc/READER.md`](doc/READER.md) — the image reader: touch, modes, spreads,

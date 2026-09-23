@@ -96,8 +96,6 @@ Specific and honest, so a deliberate gap isn't mistaken for an oversight:
   straight into its SHELVES & TAGS sheet.
 - **TAG in the bulk bar is disabled.** Tags are edited one series at a time, on
   the series screen. Neither handoff draws a bulk tag editor.
-- **Nothing is ever cached**, because the reader is what will cache chapters.
-  The offline state is complete but has nothing to report as available.
 - **No list view.** Direction 1b offered GRID ▦ / LIST ☰, and Turn 3 dropped it.
   It isn't built.
 - **IMPORT LOG and SETTINGS** in the desktop sidebar are shown, disabled, and go

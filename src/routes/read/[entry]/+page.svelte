@@ -5,6 +5,8 @@
 	import { resolve } from '$app/paths';
 	import { page as appPage } from '$app/state';
 	import { offline } from '$lib/offline.svelte';
+	import { keepAhead } from '$lib/cache/device';
+	import { flushPending, queuePending } from '$lib/cache/pending';
 	import {
 		ProgressClock,
 		metaLine,
@@ -123,7 +125,16 @@
 		const id = data.entry.id;
 		if (id === shown) return;
 		shown = id;
-		at = data.start;
+		// `?p` from the URL itself too: offline, the page and its data come
+		// from the cache, rendered for whatever page it was cached at.
+		const asked = appPage.url.searchParams.get('p');
+		const n = Number(asked);
+		at =
+			asked === 'last'
+				? Math.max(0, pages.length - 1)
+				: Number.isInteger(n) && n >= 1
+					? Math.min(n - 1, Math.max(0, pages.length - 1))
+					: data.start;
 		atEnd = false;
 		shift = false;
 		sheet = false;
@@ -132,7 +143,11 @@
 		rating = data.series.books ? data.entry.rating : data.series.rating;
 		favourite = data.series.books ? data.entry.favourite : data.series.favourite;
 		clock.resume(Date.now());
-		void send('open', data.start);
+		void send('open', at);
+		// Keep this chapter and the next ones on the tablet -- never for a
+		// hidden series, while revealed, or incognito: those leave nothing.
+		if (!data.series.hidden && !data.reveal && !data.incognito)
+			void keepAhead(data.series.id, data.series.entries, id);
 	});
 
 	const group = $derived(groups[spreadOf(groups, at)] ?? [at]);
@@ -168,13 +183,17 @@
 			});
 	}
 
+	/** The next chapter is on the tablet: it opens with no network. */
+	const nextCached = $derived(
+		data.next ? (offline.entries[data.series.id] ?? []).includes(data.next.id) : false
+	);
 	const endVariant = $derived(
 		!data.next
 			? 'series'
-			: !offline.online
-				? 'offline'
-				: !data.next.available
-					? 'missing'
+			: !data.next.available
+				? 'missing'
+				: !offline.online && !nextCached
+					? 'offline'
 					: 'chapter'
 	);
 
@@ -203,18 +222,23 @@
 
 	async function send(kind: 'open' | 'page' | 'finish' | 'close', page: number) {
 		if (!data.manifest) return;
+		const now = Date.now();
 		const body = JSON.stringify({
 			seriesId: data.series.id,
 			entryId: data.entry.id,
 			kind,
 			page,
-			durationMs: kind === 'open' ? 0 : clock.lap(Date.now())
+			durationMs: kind === 'open' ? 0 : clock.lap(now),
+			at: now
 		});
 		if (kind === 'close') {
-			navigator.sendBeacon?.(
-				resolve('/api/reading'),
-				new Blob([body], { type: 'application/json' })
-			);
+			const sent =
+				offline.online &&
+				navigator.sendBeacon?.(
+					resolve('/api/reading'),
+					new Blob([body], { type: 'application/json' })
+				);
+			if (!sent) queuePending(body);
 			return;
 		}
 		try {
@@ -224,9 +248,14 @@
 				headers: { 'content-type': 'application/json' },
 				keepalive: true
 			});
-			if (res.ok) saved = ((await res.json()) as { saved: boolean }).saved;
+			if (res.ok) {
+				saved = ((await res.json()) as { saved: boolean }).saved;
+				void flushPending();
+			}
 		} catch {
-			// Offline: progress catches up with the next event that gets through.
+			// Offline: kept on the tablet with its own time, and sent when the
+			// workstation answers again (doc/OFFLINE.md).
+			queuePending(body);
 		}
 	}
 
@@ -265,7 +294,8 @@
 	$effect(() => {
 		nextPages = null;
 		const n = data.next;
-		if (mode !== 'vertical' || !n?.available || !offline.online) return;
+		// Offline, a cached next chapter still loads: the service worker answers.
+		if (mode !== 'vertical' || !n?.available || (!offline.online && !nextCached)) return;
 		let cancelled = false;
 		void fetch(resolve('/api/entries/[id]/pages', { id: String(n.id) }))
 			.then((r) => (r.ok ? r.json() : null))
@@ -416,6 +446,7 @@
 				{position}
 				next={data.next?.available ? data.next : null}
 				{nextPages}
+				{nextCached}
 				nextSrc={(i) => (data.next ? pageSrc(data.next.id, nextVersion, i) : '')}
 				onpage={(i) => {
 					at = i;
@@ -435,6 +466,7 @@
 				kind={data.series.kind}
 				seriesTitle={data.series.title}
 				next={data.next}
+				{nextCached}
 				{rating}
 				{favourite}
 				incognito={data.incognito}
@@ -457,6 +489,7 @@
 				kind={data.series.kind}
 				seriesTitle={data.series.title}
 				next={data.next}
+				{nextCached}
 				{rating}
 				{favourite}
 				incognito={data.incognito}

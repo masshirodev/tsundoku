@@ -152,11 +152,10 @@ re-acquired when the app comes back to the foreground. A browser that refuses
   pages would glare. The reader root pins the dark tokens.
 - **Six rating cells, 0–5,** as everywhere else (design README, departure 6).
   The handoff drew seven, with "—".
-- **No "↓ CACHED" on the next chapter:** nothing is cached on the device yet
-  (service workers need HTTPS, card "Serve over HTTPS with tailscale cert, then
-  the fingerprint gate for /reveal"). The boundary says "24 PAGES", not a claim
-  it can't make. The offline sentence drops "Chapters 1–41 are cached" for the
-  same reason.
+- **"↓ CACHED" only when it's true:** the boundary pages say it when the next
+  chapter is on the tablet ([`OFFLINE.md`](OFFLINE.md)), and offline a cached
+  next chapter continues as usual. The offline sentence drops "Chapters 1–41
+  are cached": it names what can't open, not a count.
 - **Not downloaded** is a boundary and a screen the handoff didn't draw. It
   came in with the Mihon import.
 - **FIT is dimmed in vertical,** with "VERTICAL FITS WIDTH", and SPREADS with
@@ -172,6 +171,5 @@ re-acquired when the app comes back to the foreground. A browser that refuses
 - **The lookup panel** is phase 2 (card "Japanese layer").
 - **SET AS COVER** (card "Set any page as the cover"), and the addendum's
   CROP BORDERS, SIDE PADDING and WIDE PAGES rows (their own cards).
-- **Offline caching** of the next chapters waits on HTTPS.
 - **Page thumbnails** in the page grid are still placeholders.
 - **Novels** use a text reader of their own (card "Text reader").

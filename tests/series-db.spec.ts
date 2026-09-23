@@ -110,18 +110,21 @@ describe('the reading log', () => {
 			duration_ms: number;
 		}[];
 
+	// After the seed's own reading, which ends on 2026-09-22.
+	const T = Date.UTC(2026, 8, 23);
+
 	it('moves progress and appends the event together', () => {
 		const id = idOf('Chainsaw Man');
 		const entry = series.seriesPage(id, false)!.entries[198];
 		const before = events(id).length; // the seed's own past reading
-		series.recordReading({ seriesId: id, entryId: entry.id, kind: 'open', page: 0, now: 1000 });
+		series.recordReading({ seriesId: id, entryId: entry.id, kind: 'open', page: 0, now: T + 1000 });
 		series.recordReading({
 			seriesId: id,
 			entryId: entry.id,
 			kind: 'page',
 			page: 5,
 			durationMs: 42_000,
-			now: 2000
+			now: T + 2000
 		});
 		series.recordReading({
 			seriesId: id,
@@ -129,15 +132,32 @@ describe('the reading log', () => {
 			kind: 'finish',
 			page: 23,
 			durationMs: 90_000,
-			now: 3000
+			now: T + 3000
 		});
 		const after = series.seriesPage(id, false)!.entries[198];
-		expect(after).toMatchObject({ lastPosition: 23, lastOpenedAt: 3000, readAt: 3000 });
+		expect(after).toMatchObject({ lastPosition: 23, lastOpenedAt: T + 3000, readAt: T + 3000 });
 		expect(events(id).slice(before)).toEqual([
 			{ kind: 'open', entry_id: entry.id, page: 0, duration_ms: 0 },
 			{ kind: 'page', entry_id: entry.id, page: 5, duration_ms: 42_000 },
 			{ kind: 'finish', entry_id: entry.id, page: 23, duration_ms: 90_000 }
 		]);
+	});
+
+	it('logs an event read offline at its own time, without moving progress back', () => {
+		const id = idOf('Chainsaw Man');
+		const entry = series.seriesPage(id, false)!.entries[198];
+		// Already opened later than the replayed event.
+		series.recordReading({
+			seriesId: id,
+			entryId: entry.id,
+			kind: 'page',
+			page: 20,
+			now: T + 9000
+		});
+		series.recordReading({ seriesId: id, entryId: entry.id, kind: 'page', page: 7, now: T + 8000 });
+		const after = series.seriesPage(id, false)!.entries[198];
+		expect(after).toMatchObject({ lastPosition: 20, lastOpenedAt: T + 9000 });
+		expect(events(id).at(-1)).toMatchObject({ kind: 'page', page: 7 });
 	});
 
 	it('refuses an entry that belongs to another series, writing nothing', () => {

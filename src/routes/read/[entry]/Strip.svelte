@@ -23,6 +23,7 @@
 		position,
 		next,
 		nextPages,
+		nextCached = false,
 		nextSrc,
 		onpage,
 		oncross,
@@ -41,6 +42,7 @@
 		next: { name: string; title: string; pageCount: number } | null;
 		/** The next chapter's pages once fetched; null until then, or when it can't be read. */
 		nextPages: Page[] | null;
+		nextCached?: boolean;
 		nextSrc: (i: number) => string;
 		onpage: (i: number) => void;
 		/** Called with the next chapter's first page's position on screen. */
@@ -102,7 +104,7 @@
 			<div class="next">
 				<div class="kicker">NEXT</div>
 				<div class="name">{next.title || next.name}</div>
-				<div class="sub">{next.pageCount} PAGES</div>
+				<div class="sub">{next.pageCount} PAGES{nextCached ? ' · ↓ CACHED' : ''}</div>
 			</div>
 			<div class="go">{nextPages ? '↓ KEEP SCROLLING' : '↓ LOADING'}</div>
 		</section>

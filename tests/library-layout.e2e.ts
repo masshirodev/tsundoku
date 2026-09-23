@@ -71,7 +71,9 @@ test('the library frame matches the design for this device', async ({ page }, in
 
 test('covers are 2:2.9 and badges sit flush in their corners', async ({ page }) => {
 	await page.goto('/');
-	const tile = page.locator('.grid .tile', { hasText: 'Drawing: Saikyou' });
+	// Not one a flow file opens: opening a series clears its +N (offline-flow
+	// reads Drawing). reader-layout reads Frieren only in incognito.
+	const tile = page.locator('.grid .tile', { hasText: 'Sousou no Frieren' });
 	const cover = tile.locator('.cover');
 	const box = (await cover.boundingBox())!;
 	expect(box.height / box.width).toBeCloseTo(2.9 / 2, 1);
@@ -81,7 +83,7 @@ test('covers are 2:2.9 and badges sit flush in their corners', async ({ page }) 
 	expect(Math.round(favBox.x + favBox.width)).toBe(Math.round(box.x + box.width));
 	expect(Math.round(favBox.y)).toBe(Math.round(box.y));
 
-	const fresh = tile.getByText('+3', { exact: true });
+	const fresh = tile.getByText('+1', { exact: true });
 	const freshBox = (await fresh.boundingBox())!;
 	expect(Math.round(freshBox.x)).toBe(Math.round(box.x));
 	expect(Math.round(freshBox.y + freshBox.height)).toBe(Math.round(box.y + box.height));

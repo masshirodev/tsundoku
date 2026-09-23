@@ -66,7 +66,15 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			mode: modeOf(effectiveDirection(series)),
 			books,
 			count: series.entries.length,
-			single: series.entries.length === 1
+			single: series.entries.length === 1,
+			hidden: series.hidden,
+			// For the device cache policy: what comes next, and what is on disk.
+			entries: series.entries.map((e) => ({
+				id: e.id,
+				position: e.number,
+				readAt: e.readAt,
+				available: e.available
+			}))
 		},
 		entry: {
 			id: entry.id,

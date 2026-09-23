@@ -176,17 +176,17 @@ export function recordReading(e: ReadingEvent): void {
 			`INSERT INTO reading_events (at, series_id, entry_id, kind, page, duration_ms)
 			VALUES (?, ?, ?, ?, ?, ?)`
 		).run(now, e.seriesId, e.entryId, e.kind, page, duration);
-		if (e.kind === 'finish') {
-			db.prepare(
-				`UPDATE entries SET read_at = COALESCE(read_at, ?), last_opened_at = ?,
-				last_position = COALESCE(?, last_position) WHERE id = ?`
-			).run(now, now, page, e.entryId);
-		} else {
-			db.prepare(
-				`UPDATE entries SET last_opened_at = ?, last_position = COALESCE(?, last_position)
-				WHERE id = ?`
-			).run(now, page, e.entryId);
-		}
+		// Position and last-opened only move forward in time: an event read
+		// offline and sent later is logged at its own time, but never drags the
+		// entry back past something read since (doc/OFFLINE.md).
+		const newer = `(last_opened_at IS NULL OR @now >= last_opened_at)`;
+		db.prepare(
+			`UPDATE entries SET
+				read_at = CASE WHEN @finish THEN COALESCE(read_at, @now) ELSE read_at END,
+				last_position = CASE WHEN ${newer} THEN COALESCE(@page, last_position) ELSE last_position END,
+				last_opened_at = MAX(COALESCE(last_opened_at, 0), @now)
+			WHERE id = @id`
+		).run({ now, page, finish: e.kind === 'finish' ? 1 : 0, id: e.entryId });
 	}).immediate();
 }
 

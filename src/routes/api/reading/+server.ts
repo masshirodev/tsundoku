@@ -21,6 +21,14 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 	const kind = String(body?.kind ?? '');
 	const page = body?.page == null ? undefined : Number(body.page);
 	const durationMs = body?.durationMs == null ? undefined : Number(body.durationMs);
+	// Read offline and sent later: the event keeps the time it happened, so
+	// history puts it on the right day. Never in the future, never older than
+	// a month (doc/OFFLINE.md).
+	const now = Date.now();
+	const at =
+		body?.at == null || !Number.isFinite(Number(body.at))
+			? now
+			: Math.min(now, Math.max(now - 30 * 24 * 3600_000, Number(body.at)));
 	if (
 		!Number.isInteger(seriesId) ||
 		!Number.isInteger(entryId) ||
@@ -40,7 +48,8 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 		entryId,
 		kind: kind as 'open' | 'page' | 'finish' | 'close',
 		page,
-		durationMs
+		durationMs,
+		now: at
 	});
 	return json({ saved: true });
 };
