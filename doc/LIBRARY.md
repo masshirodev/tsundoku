@@ -37,6 +37,14 @@ as a series that doesn't exist). A hidden root isn't even named as a shelf. So
 while reveal is off, a hidden title never reaches the browser at all.
 `tests/library-db.spec.ts` and `tests/library-flow.e2e.ts` both assert it.
 
+**One book out of a hidden root.** A root hides everything in it (the Hentoid
+import, Mihon's local folder). UNHIDE on a series in one, on its screen, its
+sheet, or in the bulk bar when every selected tile is hidden, makes that series
+**public**: shown while reveal is off, while the rest of the root stays hidden.
+HIDE takes it back. Grouping keeps a series of books public only if every book
+was. The rule is written once, in `src/lib/server/visibility.ts`, and every
+query uses it.
+
 ## Rating
 
 An integer 0–5 where **0 is unrated** (the owner's scale, 2026-09-22). The

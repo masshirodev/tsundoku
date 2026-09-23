@@ -1,4 +1,5 @@
 import { getDb } from './db';
+import { visibleWhere } from './visibility';
 import type { HistoryDay } from '$lib/library/history';
 import type { Kind } from '$lib/library/types';
 
@@ -17,7 +18,7 @@ const READING = `('open', 'page', 'finish', 'close')`;
 const DAY = `date(re.at / 1000, 'unixepoch', 'localtime')`;
 
 function visible(reveal: boolean): string {
-	return reveal ? '1' : '(s.hidden = 0 AND r.hidden = 0)';
+	return visibleWhere(reveal);
 }
 
 /**

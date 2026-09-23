@@ -1,4 +1,5 @@
 import { getDb } from './db';
+import { HIDDEN_SQL, VISIBLE_SQL } from './visibility';
 import { isPersonNamespace, type TagItem, type TagPage } from '$lib/library/books';
 import type { Kind, Rating } from '$lib/library/types';
 
@@ -14,7 +15,7 @@ import type { Kind, Rating } from '$lib/library/types';
  * while reveal is off.
  */
 
-const VISIBLE = `(s.hidden = 0 AND r.hidden = 0)`;
+const VISIBLE = VISIBLE_SQL;
 
 export function parseTagKey(key: string): { namespace: string; value: string } {
 	const at = key.indexOf(':');
@@ -36,7 +37,7 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 	const books = db
 		.prepare(
 			`SELECT e.id AS entryId, s.id AS seriesId, e.title, s.title AS seriesTitle, e.rating, e.favourite,
-				(s.hidden OR r.hidden) AS hidden, e.page_count AS pages, e.read_at, e.last_position, e.position,
+				${HIDDEN_SQL} AS hidden, e.page_count AS pages, e.read_at, e.last_position, e.position,
 				e.added_at AS addedAt,
 				(SELECT COUNT(*) FROM entries x WHERE x.series_id = s.id) AS total
 			FROM entry_tags et JOIN entries e ON e.id = et.entry_id
@@ -64,7 +65,7 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 	const series = db
 		.prepare(
 			`SELECT s.id AS seriesId, s.title, s.kind, COALESCE(s.rating, 0) AS rating, s.favourite,
-				(s.hidden OR r.hidden) AS hidden, s.added_at AS addedAt,
+				${HIDDEN_SQL} AS hidden, s.added_at AS addedAt,
 				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) AS entries,
 				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.read_at IS NOT NULL) AS readCount,
 				(SELECT COALESCE(SUM(page_count), 0) FROM entries e WHERE e.series_id = s.id) AS pages,

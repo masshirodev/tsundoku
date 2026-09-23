@@ -1,4 +1,5 @@
 import { getDb } from './db';
+import { VISIBLE_SQL, visibleWhere } from './visibility';
 import { seriesDetail } from './library';
 import type { Direction, SeriesEntry, SeriesPage, SeriesTag } from '$lib/library/series';
 
@@ -200,7 +201,7 @@ export function readableEntry(seriesId: number, entryId: number, reveal: boolean
 		getDb()
 			.prepare(
 				`SELECT 1 FROM entries e JOIN series s ON s.id = e.series_id JOIN roots r ON r.id = s.root_id
-				WHERE e.id = ? AND s.id = ? AND (? OR (s.hidden = 0 AND r.hidden = 0))`
+				WHERE e.id = ? AND s.id = ? AND (? OR ${VISIBLE_SQL})`
 			)
 			.get(entryId, seriesId, reveal ? 1 : 0) !== undefined
 	);
@@ -248,7 +249,7 @@ export function suggestTags(
 	reveal: boolean,
 	limit = 6
 ): TagSuggestion[] {
-	const visible = reveal ? '1' : '(s.hidden = 0 AND r.hidden = 0)';
+	const visible = visibleWhere(reveal);
 	const prefix = `${input.value.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 	const rows = getDb()
 		.prepare(

@@ -46,6 +46,31 @@ describe('hidden means hidden', () => {
 	});
 });
 
+describe('one book out of a hidden root', () => {
+	const idOf = (title: string) =>
+		lib.listSeries({ reveal: true }).find((s) => s.title === title)!.id;
+
+	it('UNHIDE makes it public while the rest of the root stays hidden, and HIDE takes it back', () => {
+		const book = 'Kōhai no Himitsu Nikki';
+		const id = idOf(book);
+		lib.setHidden([id], false);
+		const shown = titles(lib.listSeries({ reveal: false }));
+		expect(shown).toContain(book);
+		// Its neighbours in the Hentoid root are still hidden.
+		for (const t of hiddenTitles.filter((t) => t !== book)) expect(shown).not.toContain(t);
+		expect(lib.listSeries({ reveal: true }).find((s) => s.id === id)?.hidden).toBe(false);
+
+		lib.setHidden([id], true);
+		expect(titles(lib.listSeries({ reveal: false }))).not.toContain(book);
+		lib.setHidden([id], false);
+		lib.setHidden([id], true);
+		expect(countPublic()).toBe(0);
+	});
+});
+
+const countPublic = () =>
+	(getDb().prepare(`SELECT COUNT(*) AS n FROM series WHERE public = 1`).get() as { n: number }).n;
+
 describe('shelves', () => {
 	it('counts the smart shelves from the data', () => {
 		const shelves = lib.listShelves({ reveal: false, withNew: false });

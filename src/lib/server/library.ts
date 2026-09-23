@@ -1,4 +1,5 @@
 import { getDb } from './db';
+import { HIDDEN_SQL, VISIBLE_SQL } from './visibility.ts';
 import { likePattern } from '$lib/library/search';
 import type { Sort } from '$lib/library/labels';
 import type {
@@ -19,7 +20,7 @@ import type {
  * rather than filtered in the page, so a hidden title never reaches the
  * browser at all while reveal is off.
  */
-const VISIBLE = `(s.hidden = 0 AND r.hidden = 0)`;
+const VISIBLE = VISIBLE_SQL;
 const visibility = (reveal: boolean) => (reveal ? '1' : VISIBLE);
 
 type CardRow = {
@@ -45,7 +46,7 @@ type CardRow = {
  */
 const CARD_SELECT = `
 	SELECT s.id, s.title, s.kind, s.rating, s.favourite,
-		(s.hidden OR r.hidden) AS hidden, s.hue, s.indexed_at, s.added_at,
+		${HIDDEN_SQL} AS hidden, s.hue, s.indexed_at, s.added_at,
 		(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) AS entry_count,
 		(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.read_at IS NOT NULL) AS read_count,
 		(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.added_at > (
@@ -379,11 +380,20 @@ export function setFavourite(ids: number[], favourite: boolean): number {
 		.run(favourite ? 1 : 0, ...ids).changes;
 }
 
+/**
+ * HIDE and UNHIDE. Hiding sets the series' own flag and takes back any
+ * `public`. Unhiding clears it, and in a hidden root also makes the series
+ * public -- otherwise UNHIDE would change nothing the owner could see.
+ */
 export function setHidden(ids: number[], hidden: boolean): number {
 	if (ids.length === 0) return 0;
 	return getDb()
-		.prepare(`UPDATE series SET hidden = ? WHERE id IN (${inList(ids)})`)
-		.run(hidden ? 1 : 0, ...ids).changes;
+		.prepare(
+			`UPDATE series SET hidden = ?,
+				public = CASE WHEN ? = 1 THEN 0 ELSE (SELECT r.hidden FROM roots r WHERE r.id = series.root_id) END
+			WHERE id IN (${inList(ids)})`
+		)
+		.run(hidden ? 1 : 0, hidden ? 1 : 0, ...ids).changes;
 }
 
 export function setInCollection(ids: number[], collectionId: number, on: boolean): number {

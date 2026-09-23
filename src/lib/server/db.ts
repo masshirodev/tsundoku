@@ -257,6 +257,12 @@ const MIGRATIONS: string[] = [
 		transports TEXT NOT NULL DEFAULT '[]',
 		created_at INTEGER NOT NULL
 	);
+	`,
+	`
+	-- Public despite a hidden root (src/lib/server/visibility.ts). A root hides
+	-- everything in it; UNHIDE on one of its series sets this, so a single
+	-- book can come out while the rest of the root stays hidden.
+	ALTER TABLE series ADD COLUMN public INTEGER NOT NULL DEFAULT 0;
 	`
 ];
 

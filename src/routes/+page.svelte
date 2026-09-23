@@ -82,6 +82,9 @@
 		return out;
 	});
 	const canGroup = $derived(selected.size > 0 && groupBooks.length === selected.size);
+	const allHidden = $derived(
+		selected.size > 0 && data.series.filter((s) => selected.has(s.id)).every((s) => s.hidden)
+	);
 
 	/** A tap opens the series; a long press opens the sheet (see CoverTile). */
 	function press(id: number) {
@@ -386,7 +389,13 @@
 				<button type="button" class="group" disabled={!canGroup} onclick={() => (grouping = true)}
 					>GROUP</button
 				>
-				<button type="submit" name="do" value="hide" disabled={selected.size === 0}>HIDE</button>
+				<!-- With reveal on and only hidden tiles selected, the same cell unhides them. -->
+				<button
+					type="submit"
+					name="do"
+					value={allHidden ? 'unhide' : 'hide'}
+					disabled={selected.size === 0}>{allHidden ? 'UNHIDE' : 'HIDE'}</button
+				>
 			{/snippet}
 		</BulkBar>
 	</form>

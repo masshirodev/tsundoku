@@ -1,4 +1,5 @@
 import { createReadStream, type ReadStream } from 'node:fs';
+import { VISIBLE_SQL } from '../visibility.ts';
 import { open, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb } from '../db.ts';
@@ -53,7 +54,7 @@ function entryRow(entryId: number, reveal: boolean): EntryRow | null {
 			.prepare(
 				`SELECT e.id, e.file, e.page_count, e.available, s.path, s.hue
 				FROM entries e JOIN series s ON s.id = e.series_id JOIN roots r ON r.id = s.root_id
-				WHERE e.id = ? AND (? OR (s.hidden = 0 AND r.hidden = 0))`
+				WHERE e.id = ? AND (? OR ${VISIBLE_SQL})`
 			)
 			.get(entryId, reveal ? 1 : 0) as EntryRow | undefined) ?? null
 	);

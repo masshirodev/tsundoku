@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import { VISIBLE_SQL } from './visibility.ts';
 import { getDb } from './db.ts';
 import { hueFor } from '../library/cover.ts';
 import { setKey, suggestionSets, type Candidate, type Suggestion } from '../library/books.ts';
@@ -159,13 +160,24 @@ export function groupIntoSeries(opts: {
 				target = Number(
 					db
 						.prepare(
-							`INSERT INTO series (root_id, title, kind, rating, favourite, hidden, hue, added_at, indexed_at, source, path)
-							VALUES (?, ?, 'doujin', 0, 0, ?, ?, ?, ?, ?, ?)`
+							`INSERT INTO series (root_id, title, kind, rating, favourite, hidden, public, hue, added_at, indexed_at, source, path)
+							VALUES (?, ?, 'doujin', 0, 0, ?, ?, ?, ?, ?, ?, ?)`
 						)
 						.run(
 							root,
 							name,
 							Math.max(...singles.map((s) => s.hidden)),
+							// Public only if every book was: grouping never shows a hidden one.
+							Math.min(
+								...singles.map(
+									(s) =>
+										(
+											db.prepare(`SELECT public FROM series WHERE id = ?`).get(s.id) as {
+												public: number;
+											}
+										).public
+								)
+							),
 							hueFor(name),
 							Math.min(...singles.map((s) => s.added_at)),
 							now,
@@ -206,8 +218,8 @@ export function takeOut(seriesId: number, entryIds: number[], now = Date.now()):
 				const single = Number(
 					db
 						.prepare(
-							`INSERT INTO series (root_id, title, kind, rating, favourite, hidden, hue, added_at, indexed_at, source, path)
-							VALUES (?, ?, 'doujin', ?, ?, ?, ?, ?, ?, ?, (SELECT path FROM series WHERE id = ?))`
+							`INSERT INTO series (root_id, title, kind, rating, favourite, hidden, public, hue, added_at, indexed_at, source, path)
+							VALUES (?, ?, 'doujin', ?, ?, ?, (SELECT public FROM series WHERE id = ?), ?, ?, ?, ?, (SELECT path FROM series WHERE id = ?))`
 						)
 						.run(
 							series.root_id,
@@ -215,6 +227,7 @@ export function takeOut(seriesId: number, entryIds: number[], now = Date.now()):
 							e.rating,
 							e.favourite,
 							series.hidden,
+							seriesId,
 							hueFor(title),
 							e.added_at,
 							now,
@@ -320,7 +333,7 @@ export function setBookFavourite(seriesId: number, entryId: number, on: boolean)
 
 // ---- suggestions -------------------------------------------------------------
 
-const VISIBLE = `(s.hidden = 0 AND r.hidden = 0)`;
+const VISIBLE = VISIBLE_SQL;
 
 /** Visible doujin singletons: the only things a suggestion may name. */
 function singletonCandidates(reveal: boolean): (Candidate & { hue: number; addedAt: number })[] {

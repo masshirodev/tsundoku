@@ -113,6 +113,9 @@ export const actions: Actions = {
 			setFavourite(target, true);
 		} else if (form.get('do') === 'hide') {
 			setHidden(target, true);
+		} else if (form.get('do') === 'unhide') {
+			// Out of a hidden root too: each becomes public (src/lib/server/visibility.ts).
+			setHidden(target, false);
 		}
 		return { ok: true };
 	},
