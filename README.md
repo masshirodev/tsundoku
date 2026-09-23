@@ -21,6 +21,7 @@ yarn run seed     # the design's sample library, into data/tsundoku.sqlite
 yarn run dev      # localhost:42143; with a token in .env, it asks for it too
 yarn run import   # import $LIBRARY_ROOT/Mihon/ and H/.Hentoid/ (doc/IMPORT-*.md)
 yarn run backup   # snapshot the database to /mnt/backup/tsundoku (doc/BACKUPS.md)
+yarn run covers   # make cover thumbnails; --local to use files only (doc/COVERS.md)
 ```
 
 On the tablet it's served over HTTPS on the tailnet, behind a token.
@@ -91,6 +92,10 @@ is the mount development pressures.
   and reading offline without losing stats.
 - [`doc/SERVING.md`](doc/SERVING.md) — HTTPS through `tailscale serve`, and
   the plain-http fallback.
+- [`doc/COVERS.md`](doc/COVERS.md) — where covers come from, the thumbnail
+  cache, fetching from source sites, and sharp against the system libvips.
+- [`doc/WAITING.md`](doc/WAITING.md) — the time between a tap and the next
+  screen: pressed, the line, outlines, not answering, and failed saves.
 - [`doc/TEXT-READER.md`](doc/TEXT-READER.md) — the text reader: the book
   downloaded once, pages from CSS columns, positions as paragraph and
   character, vertical Japanese, and departures.
