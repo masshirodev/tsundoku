@@ -252,3 +252,13 @@ describe('a series of books', () => {
 		expect(addedMonth(Date.UTC(2023, 4, 9))).toBe('2023-05');
 	});
 });
+
+describe('formatNumber', () => {
+	it('writes a chapter number as people do, whatever precision it was stored at', async () => {
+		const { formatNumber } = await import('$lib/library/series');
+		expect(formatNumber(2.0999999046325684)).toBe('2.1');
+		expect(formatNumber(2.200000047683716)).toBe('2.2');
+		expect(formatNumber(41)).toBe('41');
+		expect(formatNumber(12.5)).toBe('12.5');
+	});
+});

@@ -37,6 +37,19 @@ describe('protobuf', () => {
 		expect(m.bool(6, true)).toBe(true);
 	});
 
+	it('reads a chapter number as it was meant, not as float32 stored it', () => {
+		const m = new Message(
+			encode([
+				[9, { f32: 2.1 }],
+				[10, { f32: 152.4 }],
+				[11, { f32: 2.2 }]
+			])
+		);
+		expect(m.float(9)).toBe(2.1);
+		expect(m.float(10)).toBe(152.4);
+		expect(m.float(11)).toBe(2.2);
+	});
+
 	it('refuses a truncated message rather than reading past it', () => {
 		const good = encode([[2, 'abcdef']]);
 		expect(() => readMessage(good.subarray(0, good.length - 2))).toThrow(/truncated/);

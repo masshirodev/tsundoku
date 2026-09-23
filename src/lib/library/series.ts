@@ -126,7 +126,8 @@ export function currentEntry(entries: SeriesEntry[]): SeriesEntry | null {
 /** Only the chapters, when a book marks its front and back matter. */
 export const chaptersOf = (entries: SeriesEntry[]) => entries.filter((e) => !e.matter);
 
-export const formatNumber = (n: number) => String(n);
+/** A chapter number as people write it: 2.1, not 2.0999999046325684. */
+export const formatNumber = (n: number) => String(Math.round(n * 10_000) / 10_000);
 
 /** Page the reader is on, 1-based, and the fraction through the entry. */
 export function entryProgress(e: SeriesEntry): { page: number; fraction: number } | null {

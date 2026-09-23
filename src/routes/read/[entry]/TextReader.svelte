@@ -184,22 +184,45 @@
 
 	/** Label the wide blocks once laid out: how much is hidden, and OPEN when anything is. */
 	function labelWide(root: HTMLElement) {
-		for (const box of root.querySelectorAll<HTMLElement>('.wide')) {
-			const body = box.querySelector<HTMLElement>('.wide-body');
-			const inner = body?.firstElementChild as HTMLElement | null;
-			const label = box.querySelector<HTMLElement>('.wlabel');
-			if (!body || !inner || !label) continue;
-			const cut = inner.scrollWidth > body.clientWidth + 1;
-			box.classList.toggle('cut', cut);
-			if (box.classList.contains('code')) {
-				const cols = Math.max(...(inner.textContent ?? '').split('\n').map((l) => l.length));
-				const shown = Math.floor((body.clientWidth - 28) / (inner.scrollWidth / Math.max(1, cols)));
-				label.textContent = cut ? `LISTING · ${cols} COLUMNS, ${shown} SHOWN` : 'LISTING';
-			} else {
-				label.textContent = cut
-					? `TABLE · ${inner.scrollWidth}PX, ${body.clientWidth} SHOWN`
-					: 'TABLE';
+		for (const box of root.querySelectorAll<HTMLElement>('.wide')) labelOne(box);
+	}
+
+	// A block measured before its column had its final width would never
+	// offer OPEN. The browser says when each one's size settles or changes, so
+	// every wide block is labelled from its real layout, whenever that is.
+	let wideObserver: ResizeObserver | null = null;
+	onMount(() => {
+		wideObserver = new ResizeObserver((entries) => {
+			for (const e of entries) {
+				const box = (e.target as HTMLElement).closest<HTMLElement>('.wide');
+				if (box) labelOne(box);
 			}
+		});
+		return () => wideObserver?.disconnect();
+	});
+	function watchWide(root: HTMLElement | null) {
+		if (!root || !wideObserver) return;
+		for (const body of root.querySelectorAll<HTMLElement>('.wide .wide-body')) {
+			wideObserver.observe(body);
+			if (body.firstElementChild) wideObserver.observe(body.firstElementChild);
+		}
+	}
+
+	function labelOne(box: HTMLElement) {
+		const body = box.querySelector<HTMLElement>('.wide-body');
+		const inner = body?.firstElementChild as HTMLElement | null;
+		const label = box.querySelector<HTMLElement>('.wlabel');
+		if (!body || !inner || !label) return;
+		const cut = inner.scrollWidth > body.clientWidth + 1;
+		box.classList.toggle('cut', cut);
+		if (box.classList.contains('code')) {
+			const cols = Math.max(...(inner.textContent ?? '').split('\n').map((l) => l.length));
+			const shown = Math.floor((body.clientWidth - 28) / (inner.scrollWidth / Math.max(1, cols)));
+			label.textContent = cut ? `LISTING · ${cols} COLUMNS, ${shown} SHOWN` : 'LISTING';
+		} else {
+			label.textContent = cut
+				? `TABLE · ${inner.scrollWidth}PX, ${body.clientWidth} SHOWN`
+				: 'TABLE';
 		}
 	}
 
@@ -285,6 +308,7 @@
 		// eslint-disable-next-line svelte/no-dom-manipulating
 		blocksEl?.replaceChildren(...ch.blocks);
 		if (vertical && blocksEl) tateChuYoko(blocksEl);
+		watchWide(blocksEl);
 		finished = false;
 		page = 0;
 		if (pageEl) pageEl.scrollTop = 0;

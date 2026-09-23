@@ -92,10 +92,17 @@ export class Message {
 		const f = this.first(no);
 		return f?.wire === 0 ? f.value !== 0n : fallback;
 	}
+	/**
+	 * A 32-bit float, at the precision it actually has. 2.1 can't be stored
+	 * exactly in 32 bits; read back as a double it is 2.0999999046325684, which
+	 * is what reached the chapter list. Seven significant digits is all a
+	 * float32 holds, so rounding to them gives back the number that was meant.
+	 */
 	float(no: number, fallback = 0): number {
 		const f = this.first(no);
 		if (f?.wire !== 5) return fallback;
-		return new DataView(f.value.buffer, f.value.byteOffset, 4).getFloat32(0, true);
+		const raw = new DataView(f.value.buffer, f.value.byteOffset, 4).getFloat32(0, true);
+		return Number.isFinite(raw) ? Number(raw.toPrecision(7)) : raw;
 	}
 	str(no: number, fallback = ''): string {
 		const f = this.first(no);

@@ -522,6 +522,11 @@
 		padding-left: var(--pad);
 		display: flex;
 		align-items: center;
+		/* A long number is cut, never drawn over the title. */
+		overflow: hidden;
+		white-space: nowrap;
+		padding-right: 8px;
+		box-sizing: border-box;
 		font: 500 14px var(--font-mono);
 		color: var(--text-2);
 	}

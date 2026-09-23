@@ -314,6 +314,12 @@ const MIGRATIONS: string[] = [
 	ALTER TABLE series ADD COLUMN cover_key TEXT NOT NULL DEFAULT '';
 	ALTER TABLE series ADD COLUMN cover_at INTEGER;
 	ALTER TABLE series ADD COLUMN cover_failed_at INTEGER;
+	`,
+	// Rung 15: chapter numbers from Mihon's backup were stored at float32
+	// precision (2.0999999046325684 for 2.1). The decoder rounds them now;
+	// these are the ones already imported.
+	`
+	UPDATE entries SET position = round(position, 4) WHERE position != round(position, 4);
 	`
 ];
 
