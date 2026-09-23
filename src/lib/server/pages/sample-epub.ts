@@ -23,6 +23,14 @@ const LINES = [
 	'The corridor beyond was lined with portraits, and every one of them was of the same man at a different age.'
 ];
 
+/** A Japanese book's lines, with ruby and a two-digit number to set upright. */
+const JA_LINES = [
+	'執事は扉の前に立ったまま、<ruby>帽子<rt>ぼうし</rt></ruby>を胸に当てていた。インクの<ruby>匂<rt>にお</rt></ruby>いが上着に移るのを恐れるかのように、それ以上は一歩も入ってこない。',
+	'「大きさは？」',
+	'報酬は、春から工房が稼いだ額をすべて足したよりも多かった。納期は12日後。上等の紙を一帖買い、線に四日、陰影に二日。',
+	'奥で筆を片付けるふりをしていたミラが、一本取り落とした。'
+];
+
 const esc = (s: string) =>
 	s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -36,10 +44,14 @@ ${body}
 </html>`;
 
 /** Paragraphs for chapter `n`: the same lines, rotated, and marked with where they are. */
-function paragraphs(n: number, count: number): string {
+function paragraphs(n: number, count: number, ja = false): string {
 	const out: string[] = [];
 	for (let i = 0; i < count; i++)
-		out.push(`<p>${esc(LINES[(n + i) % LINES.length])} (${n}.${i + 1})</p>`);
+		out.push(
+			ja
+				? `<p>${JA_LINES[(n + i) % JA_LINES.length]}</p>`
+				: `<p>${esc(LINES[(n + i) % LINES.length])} (${n}.${i + 1})</p>`
+		);
 	return out.join('\n');
 }
 
@@ -73,7 +85,9 @@ export function sampleEpub(o: {
 </container>`
 		}
 	];
+	const ja = (o.language ?? 'en').startsWith('ja');
 	const chapter = (n: number, label: string) => {
+		if (ja) return doc(label, `<h1>${esc(label)}</h1>\n${paragraphs(n, 14, true)}`);
 		let body = `<h1>${esc(label)}</h1>\n${paragraphs(n, 14)}`;
 		if (n === 1)
 			body =

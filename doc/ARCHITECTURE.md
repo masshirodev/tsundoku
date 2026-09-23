@@ -91,6 +91,8 @@ WebToEpub-style ones already on the phone) import directly.
 2. **Japanese layer.** mokuro worker, the shared lookup package, mining into
    Kumiko Flashcards, reading time into Kumiko.
 3. **Text reader.** EPUB and web-novel import, horizontal and vertical setting,
-   furigana.
+   furigana. EPUB import and the reader landed on 2026-09-23
+   ([`TEXT-READER.md`](TEXT-READER.md), [`IMPORT-EPUB.md`](IMPORT-EPUB.md));
+   furigana generation and pasted web novels are still to come.
 4. **Extras.** Offline caching beyond the next chapters, stats, and possibly a
    Komga-compatible API so stock Mihon can read the library as a fallback.

@@ -101,6 +101,18 @@ sw.addEventListener('fetch', (event) => {
 		);
 		return;
 	}
+	// A novel's EPUB, whole (doc/TEXT-READER.md): the kept copy first, by its
+	// exact versioned URL. Only the reader writes it (src/lib/cache/device.ts),
+	// never this worker, so incognito and hidden books leave nothing behind.
+	if (/^\/api\/series\/\d+\/epub$/.test(path)) {
+		event.respondWith(
+			caches
+				.open(ENTRIES)
+				.then((c) => c.match(req))
+				.then((hit) => hit ?? fetch(req))
+		);
+		return;
+	}
 	// A cached chapter's manifest and reader page: fresh when online.
 	if (/^\/api\/entries\/\d+\/pages$/.test(path) || /^\/read\/\d+(\/__data\.json)?$/.test(path)) {
 		event.respondWith(networkFirst(req, [ENTRIES, SCREENS]));

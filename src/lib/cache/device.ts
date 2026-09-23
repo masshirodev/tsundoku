@@ -126,6 +126,62 @@ export async function keepAhead(
 	await offline.refresh();
 }
 
+/**
+ * A novel is kept whole (doc/TEXT-READER.md): the EPUB the reader already
+ * downloaded, the open entry's reader page and data, and a marker for every
+ * entry, so the offline screens count the book as read-offline-able. The
+ * book's size goes on the first marker, so the budget weighs it once.
+ */
+export async function cacheBook(o: {
+	seriesId: number;
+	entryIds: number[];
+	openEntryId: number;
+	url: string;
+	bytes: Uint8Array;
+	version: string;
+}): Promise<void> {
+	if (!offline.online) return;
+	const cache = await open();
+	if (!cache) return;
+	try {
+		if (!(await cache.match(o.url)))
+			await cache.put(
+				o.url,
+				new Response(o.bytes as BodyInit, {
+					headers: {
+						'content-type': 'application/epub+zip',
+						'content-length': String(o.bytes.length)
+					}
+				})
+			);
+		for (const url of [`/read/${o.openEntryId}`, `/read/${o.openEntryId}/__data.json`]) {
+			const res = await fetch(url, { credentials: 'same-origin' });
+			if (res.ok && !/no-store/.test(res.headers.get('cache-control') ?? ''))
+				await cache.put(url, res);
+		}
+		const now = Date.now();
+		for (const [i, entryId] of o.entryIds.entries()) {
+			const marker = markerPath(o.seriesId, entryId);
+			if (await cache.match(marker)) continue;
+			const m: Marker = {
+				seriesId: o.seriesId,
+				entryId,
+				at: now,
+				bytes: i === 0 ? o.bytes.length : 0,
+				version: o.version,
+				pages: 0
+			};
+			await cache.put(
+				marker,
+				new Response(JSON.stringify(m), { headers: { 'content-type': 'application/json' } })
+			);
+		}
+		await offline.refresh();
+	} catch {
+		// Storage full or refused: the book still reads this session.
+	}
+}
+
 /** ↓ CACHE and REMOVE CACHE from the series screen's selection. */
 export async function cacheMany(seriesId: number, ids: number[]): Promise<void> {
 	for (const id of ids) await cacheEntry(seriesId, id);

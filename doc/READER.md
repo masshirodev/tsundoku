@@ -172,4 +172,5 @@ re-acquired when the app comes back to the foreground. A browser that refuses
 - **SET AS COVER** (card "Set any page as the cover"), and the addendum's
   CROP BORDERS, SIDE PADDING and WIDE PAGES rows (their own cards).
 - **Page thumbnails** in the page grid are still placeholders.
-- **Novels** use a text reader of their own (card "Text reader").
+- **Novels** use a text reader of their own on the same route:
+  [`TEXT-READER.md`](TEXT-READER.md).

@@ -101,10 +101,10 @@ width, row height (60 / 52px) and rail width (56 / 44px) per device.
 
 ## What it does not do yet
 
-- **Novels don't open yet.** CONTINUE, `▶ CH. N`, a chapter row, a doujin
-  page and a book's ▶ all open the image reader ([`READER.md`](READER.md)), but
-  novels wait on the text reader ("Enable novel entries on the series screen
-  once the text reader exists"). A chapter that isn't downloaded doesn't open.
+- **A chapter that isn't downloaded doesn't open.** Everything else does:
+  CONTINUE, `▶ CH. N`, a chapter row, a doujin page and a book's ▶ open the
+  image reader ([`READER.md`](READER.md)), and a novel's the text reader
+  ([`TEXT-READER.md`](TEXT-READER.md)).
 - **Covers and page thumbnails** are the striped placeholder until the
   importers extract artwork.
 - **Alternative titles, source, status, description, per-entry titles and page

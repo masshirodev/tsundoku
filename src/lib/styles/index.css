@@ -8,6 +8,10 @@
 @import '@fontsource/ibm-plex-sans/400.css';
 @import '@fontsource/ibm-plex-sans/500.css';
 @import '@fontsource/ibm-plex-sans/600.css';
+/* Body text in the text reader (Index Text Reader): its default FONT. */
+@import '@fontsource/ibm-plex-serif/400.css';
+@import '@fontsource/ibm-plex-serif/400-italic.css';
+@import '@fontsource/ibm-plex-serif/500.css';
 /*
  * Japanese and Korean for titles, from the series and reader handoffs. Each
  * weight is split into ~120 unicode-range chunks, so a page downloads only the

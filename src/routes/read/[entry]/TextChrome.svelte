@@ -1,0 +1,377 @@
+<script lang="ts">
+	import { ratingBars } from '$lib/library/rating';
+	import type { Rating } from '$lib/library/types';
+
+	/**
+	 * The text reader's controls (Index Text Reader 1c): a 64px top bar -- back,
+	 * the series and where you are in the book, rating, FAV -- and a bottom
+	 * block with the chapter and its page, a scrubber across the chapter, and
+	 * four cells: previous chapter, CONTENTS, READING, next. Vertical Japanese
+	 * mirrors the bottom: the scrubber fills from the right and the next
+	 * chapter is on the left.
+	 */
+	let {
+		title,
+		meta,
+		incognito,
+		rating,
+		favourite,
+		chapter,
+		pageText,
+		page,
+		pages,
+		vertical,
+		prevLabel,
+		nextLabel,
+		settings,
+		seriesHref,
+		bottom = true,
+		onfav,
+		onscrub,
+		onprev,
+		onnext,
+		oncontents,
+		onreading
+	}: {
+		title: string;
+		meta: string;
+		incognito: boolean;
+		rating: number;
+		favourite: boolean;
+		chapter: string;
+		pageText: string;
+		/** 0-based page in the chapter, and how many there are. */
+		page: number;
+		pages: number;
+		vertical: boolean;
+		prevLabel: string | null;
+		nextLabel: string | null;
+		settings: string;
+		seriesHref: string;
+		/** A sheet takes the bottom's place. */
+		bottom?: boolean;
+		onfav: () => void;
+		onscrub: (page: number) => void;
+		onprev: () => void;
+		onnext: () => void;
+		oncontents: () => void;
+		onreading: () => void;
+	} = $props();
+
+	const fraction = $derived(pages <= 1 ? 1 : page / (pages - 1));
+
+	let track = $state<HTMLElement | null>(null);
+	let dragging = false;
+	function scrubAt(e: PointerEvent) {
+		if (!track) return;
+		const r = track.getBoundingClientRect();
+		let f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+		if (vertical) f = 1 - f;
+		onscrub(Math.round(f * Math.max(0, pages - 1)));
+	}
+
+	type Cell = { key: string; text: string; grow: boolean; on: (() => void) | null };
+	const cells = $derived.by((): Cell[] => {
+		const prev: Cell = {
+			key: 'prev',
+			text: prevLabel ? `← ${prevLabel}` : '',
+			grow: false,
+			on: prevLabel ? onprev : null
+		};
+		const next: Cell = {
+			key: 'next',
+			text: nextLabel ? `${nextLabel} →` : '',
+			grow: false,
+			on: nextLabel ? onnext : null
+		};
+		const middle: Cell[] = [
+			{ key: 'contents', text: 'CONTENTS', grow: false, on: oncontents },
+			{ key: 'reading', text: settings, grow: true, on: onreading }
+		];
+		// Vertical reads right to left: the next chapter is the left-hand cell.
+		return vertical
+			? [
+					{ ...next, text: nextLabel ? `← ${nextLabel}` : '' },
+					...middle,
+					{ ...prev, text: prevLabel ? `${prevLabel} →` : '' }
+				]
+			: [prev, ...middle, next];
+	});
+</script>
+
+<header class="top">
+	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- seriesHref is resolved by the caller -->
+	<a class="back" href={seriesHref} aria-label="Back to the series">←</a>
+	<div class="names">
+		<div class="title">{title}</div>
+		<div class="meta">{meta}</div>
+	</div>
+	{#if incognito}<div class="incog">INCOGNITO</div>{/if}
+	<div class="bars" role="img" aria-label={rating === 0 ? 'Unrated' : `Rated ${rating} of 5`}>
+		{#each ratingBars(rating as Rating) as b, i (i)}<span class="bar {b}"></span>{/each}
+	</div>
+	<button type="button" class="fav" class:on={favourite} aria-pressed={favourite} onclick={onfav}
+		>FAV</button
+	>
+</header>
+
+{#if bottom}
+	<footer class="bottom">
+		<div class="chapter">
+			<div class="ch">{chapter}</div>
+			<div class="left">{pageText}</div>
+		</div>
+		<div class="scrub">
+			<div class="end">{vertical ? pages : 1}</div>
+			<div
+				class="track"
+				bind:this={track}
+				role="slider"
+				tabindex="0"
+				aria-label="Page in chapter"
+				aria-valuemin={1}
+				aria-valuemax={Math.max(1, pages)}
+				aria-valuenow={page + 1}
+				onpointerdown={(e) => {
+					dragging = true;
+					(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+					scrubAt(e);
+				}}
+				onpointermove={(e) => dragging && scrubAt(e)}
+				onpointerup={() => (dragging = false)}
+				onkeydown={(e) => {
+					if (e.key === 'ArrowRight') onscrub(Math.min(pages - 1, page + (vertical ? -1 : 1)));
+					if (e.key === 'ArrowLeft') onscrub(Math.max(0, page + (vertical ? 1 : -1)));
+				}}
+			>
+				<div
+					class="fill"
+					style:left={vertical ? 'auto' : '0'}
+					style:right={vertical ? '0' : 'auto'}
+					style:width="{fraction * 100}%"
+				></div>
+				<div class="thumb" style:left="{(vertical ? 1 - fraction : fraction) * 100}%"></div>
+			</div>
+			<div class="end right">{vertical ? 1 : pages}</div>
+		</div>
+		<div class="cells">
+			{#each cells as c (c.key)}
+				<button
+					type="button"
+					class="cell"
+					class:grow={c.grow}
+					disabled={!c.on}
+					onclick={() => c.on?.()}>{c.text}</button
+				>
+			{/each}
+		</div>
+	</footer>
+{/if}
+
+<style>
+	.top {
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: 0;
+		z-index: 20;
+		display: flex;
+		align-items: stretch;
+		height: 64px;
+		background: var(--surface-page);
+		border-bottom: var(--hairline);
+	}
+	.back {
+		width: 64px;
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-right: var(--hairline);
+		font: 500 18px var(--font-mono);
+		color: var(--text-1);
+		text-decoration: none;
+	}
+	.names {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 3px;
+		padding: 0 18px;
+	}
+	.title {
+		font: 500 16px/1.2 var(--font-sans);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.meta {
+		font: 400 12px var(--font-mono);
+		color: var(--text-2);
+		letter-spacing: 0.04em;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.incog {
+		display: flex;
+		align-items: center;
+		padding: 0 18px;
+		border-left: 1px dashed var(--line-2);
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.04em;
+	}
+	.bars {
+		width: 108px;
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		gap: 3px;
+		padding: 0 18px;
+		box-sizing: border-box;
+		border-left: var(--hairline);
+	}
+	.bar {
+		flex: 1;
+		height: 6px;
+	}
+	.bar.on {
+		background: var(--accent);
+	}
+	.bar.off,
+	.bar.none {
+		background: var(--line-2);
+	}
+	button {
+		border: 0;
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-1);
+		cursor: pointer;
+	}
+	.fav {
+		display: flex;
+		align-items: center;
+		padding: 0 20px;
+		border-left: var(--hairline);
+		font: 500 14px var(--font-mono);
+		color: var(--text-2);
+	}
+	.fav.on {
+		background: var(--accent);
+		color: var(--on-accent);
+	}
+	.bottom {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 20;
+		display: flex;
+		flex-direction: column;
+		background: var(--surface-page);
+		border-top: var(--hairline);
+	}
+	.chapter {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 18px;
+		height: 48px;
+		padding: 0 24px;
+		border-bottom: var(--hairline);
+	}
+	.ch {
+		flex: 1;
+		min-width: 0;
+		font: 500 15px var(--font-sans);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.left {
+		font: 500 13px var(--font-mono);
+		color: var(--text-2);
+		white-space: nowrap;
+	}
+	.scrub {
+		display: flex;
+		align-items: center;
+		gap: 18px;
+		height: 56px;
+		padding: 0 24px;
+	}
+	.end {
+		min-width: 24px;
+		font: 500 13px var(--font-mono);
+		color: var(--text-2);
+	}
+	.end.right {
+		text-align: right;
+	}
+	.track {
+		position: relative;
+		flex: 1;
+		height: 4px;
+		background: var(--line-1);
+		touch-action: none;
+		cursor: pointer;
+	}
+	.track::before {
+		content: '';
+		position: absolute;
+		inset: -20px 0;
+	}
+	.fill {
+		position: absolute;
+		top: 0;
+		height: 4px;
+		background: var(--accent);
+	}
+	.thumb {
+		position: absolute;
+		top: -10px;
+		width: 4px;
+		height: 24px;
+		margin-left: -2px;
+		background: var(--text-1);
+	}
+	.cells {
+		display: flex;
+		align-items: stretch;
+		height: 64px;
+		border-top: var(--hairline);
+	}
+	.cell {
+		flex: 0 0 auto;
+		min-width: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0 24px;
+		border-right: var(--hairline);
+		font: 500 14px var(--font-mono);
+		white-space: nowrap;
+		overflow: hidden;
+	}
+	.cell:last-child {
+		border-right: 0;
+	}
+	.cell.grow {
+		flex: 1 1 auto;
+	}
+	.cell:disabled {
+		cursor: default;
+	}
+	@media (max-width: 599px) {
+		.bars {
+			display: none;
+		}
+		.cell {
+			padding: 0 12px;
+			font-size: 13px;
+		}
+	}
+</style>

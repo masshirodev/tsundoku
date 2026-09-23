@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { tick } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { longpress } from '$lib/actions/longpress';
 	import {
 		currentEntry,
@@ -29,7 +29,8 @@
 		descending = $bindable(false),
 		onrow,
 		onselect,
-		onlong
+		onlong,
+		onclose
 	}: {
 		series: SeriesPage;
 		selecting: boolean;
@@ -41,7 +42,16 @@
 		onselect: () => void;
 		/** A long press on a row: mark it and everything before it read. */
 		onlong?: (entry: SeriesEntry) => void;
+		/**
+		 * The text reader's CONTENTS sheet (Index Text Reader, contents): the
+		 * same list, headed CONTENTS with a ✕ instead of SELECT, and no # or
+		 * rail below 60 entries, where they'd only get in the way.
+		 */
+		onclose?: () => void;
 	} = $props();
+
+	const sheet = $derived(onclose !== undefined);
+	const tools = $derived(!sheet || series.entries.length >= 60);
 
 	let expanded = $state(false);
 	const rows = $derived(listRows(series.entries, { descending, expanded }));
@@ -77,6 +87,11 @@
 			setTimeout(() => (flash = null), 1200);
 		}
 	}
+
+	// In the reader's CONTENTS sheet the list opens on the chapter being read.
+	onMount(() => {
+		if (sheet && current) void jumpTo(current);
+	});
 
 	let jumping = $state(false);
 	let jumpValue = $state('');
@@ -166,11 +181,11 @@
 			</form>
 		{:else}
 			<div class="title">
-				<span>01 — {novel ? 'CONTENTS' : 'CHAPTERS'}</span>
+				<span>{sheet ? '' : '01 — '}{novel ? 'CONTENTS' : 'CHAPTERS'}</span>
 				<span class="long">{listCount(series.entries)}</span>
 				<span class="short">{series.entries.length}</span>
 			</div>
-			{#if !selecting}
+			{#if !selecting && tools}
 				<button type="button" class="tool" onclick={openJump} aria-label="Go to chapter number"
 					>#</button
 				>
@@ -179,12 +194,18 @@
 						? `${formatNumber(last)} → ${formatNumber(first)}`
 						: `${formatNumber(first)} → ${formatNumber(last)}`}
 				</button>
+			{/if}
+			{#if sheet}
+				<button type="button" class="tool close" onclick={onclose} aria-label="Close contents"
+					>✕</button
+				>
+			{:else if !selecting}
 				<button type="button" class="tool" onclick={onselect}>SELECT</button>
 			{/if}
 		{/if}
 	</div>
 
-	<div class="body" class:with-rail={!selecting && series.entries.length > 1}>
+	<div class="body" class:with-rail={!selecting && series.entries.length > 1 && tools}>
 		<ol class="rows">
 			{#each rows as row (row.type === 'fold' ? 'fold' : row.type === 'section' ? row.key : row.entry.id)}
 				{#if row.type === 'section'}
@@ -244,7 +265,7 @@
 			{/each}
 		</ol>
 
-		{#if !selecting && series.entries.length > 1}
+		{#if !selecting && series.entries.length > 1 && tools}
 			<div class="rail">
 				<div
 					class="track"
@@ -395,11 +416,11 @@
 		padding: 0;
 		min-width: 0;
 	}
-	.fold button,
 	/* Known from the backup, no file on disk: listed, not readable. */
 	.entry.missing:not(.read) .t {
 		color: var(--text-2);
 	}
+	.fold button,
 	.entry-btn {
 		width: 100%;
 		height: var(--row-h);

@@ -38,6 +38,11 @@ test('the series frame matches the design for this device', async ({ page }, inf
 
 	const row = (await page.locator('.entry-btn').first().boundingBox())!;
 	expect(row.height).toBe(frame.row);
+	// The fold is a row like the others, the full width of the list. It lost
+	// its shared rule once (0ae283a) and shrank to a bordered button.
+	const fold = (await page.locator('.fold button').boundingBox())!;
+	expect(fold.height).toBe(frame.row);
+	expect(fold.width).toBeCloseTo(row.width, 0);
 	const rail = (await page.locator('.rail').boundingBox())!;
 	expect(rail.width).toBe(frame.rail);
 });

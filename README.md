@@ -91,6 +91,11 @@ is the mount development pressures.
   and reading offline without losing stats.
 - [`doc/SERVING.md`](doc/SERVING.md) — HTTPS through `tailscale serve`, and
   the plain-http fallback.
+- [`doc/TEXT-READER.md`](doc/TEXT-READER.md) — the text reader: the book
+  downloaded once, pages from CSS columns, positions as paragraph and
+  character, vertical Japanese, and departures.
+- [`doc/IMPORT-EPUB.md`](doc/IMPORT-EPUB.md) — the EPUB importer: what the
+  real books' tables of contents look like, matter, and rescanning.
 - [`doc/DUPLICATES.md`](doc/DUPLICATES.md) — one chapter from several
   scanlators: which copy represents it, read state, and the SCANLATOR row.
 - [`doc/BACKUPS.md`](doc/BACKUPS.md) — nightly and pre-migration database

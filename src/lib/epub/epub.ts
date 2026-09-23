@@ -24,6 +24,8 @@ export type Package = {
 	ncx: string | null;
 	nav: string | null;
 	cover: string | null;
+	/** The spine turns right to left: a vertical Japanese book. */
+	rtl: boolean;
 };
 
 export class EpubError extends Error {}
@@ -166,7 +168,8 @@ export function parsePackage(xml: string, opfPath: string): Package {
 		spine,
 		ncx,
 		nav,
-		cover
+		cover,
+		rtl: attrs(spineTag)['page-progression-direction'] === 'rtl'
 	};
 }
 

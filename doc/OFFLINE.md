@@ -43,6 +43,17 @@ come the library's CACHED shelf and dimmed uncached tiles, CONTINUE's "N OF M
 CACHED", the series screen's `↓` column and "↓ N CACHED" on FILE, and the
 reader's "↓ CACHED" on the next chapter.
 
+## Novels are kept whole
+
+A novel's EPUB is the unit, not its chapters ([`TEXT-READER.md`](TEXT-READER.md)).
+The reader downloads the whole book on first open, and `cacheBook` puts that
+same download in `tsundoku-entries`, with the open entry's reader page and data
+and a marker for every entry. The book's size goes on the first marker, so the
+budget weighs it once. The service worker answers
+`/api/series/<id>/epub?v=…` from the cache first, but never writes it: only
+the reader does, and it doesn't while a series is hidden, during reveal or in
+incognito.
+
 ## The service worker
 
 `src/service-worker.ts` answers from three caches:

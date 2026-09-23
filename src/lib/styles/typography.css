@@ -2,6 +2,8 @@
 	--font-mono: 'IBM Plex Mono', ui-monospace, monospace;
 	/* Latin first, then JP, then KR: a mixed title takes each script from its own face. */
 	--font-sans: 'IBM Plex Sans', 'IBM Plex Sans JP', 'IBM Plex Sans KR', system-ui, sans-serif;
+	/* The text reader's body type; Japanese falls back to Plex Sans JP, having no Plex serif. */
+	--font-serif: 'IBM Plex Serif', 'IBM Plex Sans JP', 'IBM Plex Sans KR', Georgia, serif;
 	/* mono = chrome, labels, numbers. sans = titles and prose. */
 	--type-wordmark: 500 18px/1 var(--font-mono);
 	--type-label: 500 13px/1.2 var(--font-mono); /* section labels, uppercase, +0.06em */
