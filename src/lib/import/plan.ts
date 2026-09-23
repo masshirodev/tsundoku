@@ -29,6 +29,8 @@ export type PlannedEntry = {
 	 * (a folder of loose images). Archives list their own at read time.
 	 */
 	pages?: string[];
+	/** Who translated this copy of the chapter; '' when the source doesn't say. */
+	scanlator?: string;
 	/** A cover image that isn't a page (Hentoid's thumb), relative to `file`. */
 	coverFile?: string | null;
 	/** Perceptual hash of the cover, as the source computed it, in hex. */

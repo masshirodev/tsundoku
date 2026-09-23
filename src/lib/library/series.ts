@@ -51,6 +51,14 @@ export type SeriesPage = SeriesCard & {
 	/** Collection ids this series is on. */
 	collections: number[];
 	entries: SeriesEntry[];
+	/**
+	 * One chapter, several scanlators (doc/DUPLICATES.md): how many copies the
+	 * list leaves out, who translated the series' chapters, and the owner's
+	 * pick among them (null: automatic).
+	 */
+	duplicates: number;
+	scanlators: { name: string; count: number }[];
+	scanlator: string | null;
 };
 
 // ---- direction -----------------------------------------------------------

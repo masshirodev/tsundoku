@@ -1,6 +1,7 @@
 import { getDb } from './db';
 import { VISIBLE_SQL, visibleWhere } from './visibility';
 import { seriesDetail } from './library';
+import { scanlatorsOf } from './duplicates';
 import type { Direction, SeriesEntry, SeriesPage, SeriesTag } from '$lib/library/series';
 
 /**
@@ -17,6 +18,7 @@ type SeriesRow = {
 	description: string;
 	direction: Direction | null;
 	path: string;
+	scanlator: string | null;
 };
 
 type EntryRow = {
@@ -52,7 +54,7 @@ export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
 	const db = getDb();
 	const row = db
 		.prepare(
-			`SELECT alt_titles, source, status, description, direction, path FROM series WHERE id = ?`
+			`SELECT alt_titles, source, status, description, direction, path, scanlator FROM series WHERE id = ?`
 		)
 		.get(id) as SeriesRow;
 	const entries = (
@@ -60,7 +62,7 @@ export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
 			.prepare(
 				`SELECT id, position, label, title, read_at, last_position, last_opened_at, page_count, file, bytes,
 					rating, favourite, added_at, cover_page, available
-				FROM entries WHERE series_id = ? ORDER BY position, id`
+				FROM entries WHERE series_id = ? AND shadowed = 0 ORDER BY position, id`
 			)
 			.all(id) as EntryRow[]
 	).map((e): SeriesEntry => ({
@@ -104,7 +106,14 @@ export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
 		direction: row.direction,
 		path: row.path,
 		tags,
-		entries
+		entries,
+		duplicates: (
+			db
+				.prepare(`SELECT COUNT(*) AS n FROM entries WHERE series_id = ? AND shadowed = 1`)
+				.get(id) as { n: number }
+		).n,
+		scanlators: scanlatorsOf(id),
+		scanlator: row.scanlator
 	};
 }
 
@@ -135,8 +144,15 @@ export function markEntries(
 			const log = db.prepare(
 				`INSERT INTO reading_events (at, series_id, entry_id, kind) VALUES (?, ?, ?, ?)`
 			);
+			// The copies a chapter's representative stands for follow it, or the
+			// next reconcile would carry an old "read" back (doc/DUPLICATES.md).
+			const copies = db.prepare(
+				`UPDATE entries SET read_at = ? WHERE series_id = ? AND shadowed = 1
+				AND position = (SELECT position FROM entries WHERE id = ?)`
+			);
 			for (const { id } of changing) {
 				update.run(read ? now : null, id);
+				copies.run(read ? now : null, seriesId, id);
 				// A manual mark is logged as a mark, not as reading: stats count it as
 				// finished, never as time spent.
 				log.run(now, seriesId, id, read ? 'mark_read' : 'mark_unread');

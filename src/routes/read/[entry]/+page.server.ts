@@ -1,4 +1,4 @@
-import { error } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { getDb } from '$lib/server/db';
 import { isIncognito, isRevealed } from '$lib/server/prefs';
@@ -21,7 +21,19 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 	if (!series) error(404, 'not found');
 	const index = series.entries.findIndex((e) => e.id === entryId);
 	const entry = series.entries[index];
-	if (!entry) error(404, 'not found');
+	if (!entry) {
+		// A copy of a chapter another copy represents (doc/DUPLICATES.md): an
+		// old link, or a cached screen, opens the chapter it stands for.
+		const rep = getDb()
+			.prepare(
+				`SELECT r.id FROM entries c JOIN entries r
+					ON r.series_id = c.series_id AND r.position = c.position AND r.shadowed = 0
+				WHERE c.id = ? AND c.shadowed = 1 LIMIT 1`
+			)
+			.get(entryId) as { id: number } | undefined;
+		if (rep) redirect(307, `/read/${rep.id}${url.search}`);
+		error(404, 'not found');
+	}
 
 	const books = isBookSeries(series);
 	const name = (i: number) =>

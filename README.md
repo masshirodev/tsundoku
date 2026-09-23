@@ -91,6 +91,8 @@ is the mount development pressures.
   and reading offline without losing stats.
 - [`doc/SERVING.md`](doc/SERVING.md) — HTTPS through `tailscale serve`, and
   the plain-http fallback.
+- [`doc/DUPLICATES.md`](doc/DUPLICATES.md) — one chapter from several
+  scanlators: which copy represents it, read state, and the SCANLATOR row.
 - [`doc/BACKUPS.md`](doc/BACKUPS.md) — nightly and pre-migration database
   snapshots, retention, the systemd timer, and restoring.
 - [`doc/READER.md`](doc/READER.md) — the image reader: touch, modes, spreads,

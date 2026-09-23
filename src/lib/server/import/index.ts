@@ -14,6 +14,7 @@ import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { hentoidBytes, hentoidRoot, planHentoidFolder } from './hentoid.ts';
 import { ensureRoot, finishJob, writeSeries } from './write.ts';
+import { reconcileDuplicates } from '../duplicates.ts';
 import type { PlannedSeries } from '../../import/plan.ts';
 
 /**
@@ -216,6 +217,8 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 			created += out.seriesCreated;
 			summary.sources.push(out);
 		}
+		// Once every source is in: a chapter from two scanlators is one chapter.
+		reconcileDuplicates(undefined, db);
 		summary.failedFiles = p.failedFiles;
 		p.bytesDone = p.bytesTotal;
 		flush();

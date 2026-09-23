@@ -10,6 +10,7 @@ import {
 } from '$lib/server/library';
 import { addTag, markEntries, removeTag, seriesPage, setDirection } from '$lib/server/series';
 import { isRevealed } from '$lib/server/prefs';
+import { setScanlator } from '$lib/server/duplicates';
 import { parseRating } from '$lib/library/rating';
 import { isBookSeries, parseDirection, parseTag } from '$lib/library/series';
 import {
@@ -111,6 +112,16 @@ export const actions: Actions = {
 		const direction = parseDirection((await request.formData()).get('direction'), s.kind);
 		if (!direction) return fail(400, { message: 'no such direction for this kind' });
 		setDirection(s.id, direction);
+		return { ok: true };
+	},
+
+	/** SCANLATOR: whose copy of a duplicated chapter the list shows. '' is automatic. */
+	scanlator: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const name = String((await request.formData()).get('scanlator') ?? '');
+		if (name !== '' && !s.scanlators.some((x) => x.name === name))
+			return fail(400, { message: 'no chapters from that scanlator' });
+		setScanlator(s.id, name === '' ? null : name);
 		return { ok: true };
 	},
 

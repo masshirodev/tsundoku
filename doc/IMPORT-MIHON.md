@@ -150,6 +150,9 @@ Idempotent: a second run over the same folder changes nothing
   that is still empty, are refreshed;
 - **history rows aren't duplicated**, since an event with the same entry, time
   and kind is written once.
+- **each chapter's scanlator is recorded,** from the backup or the CBZ's
+  `<Translator>`, and after every source is written, a chapter from two
+  scanlators is collapsed to one ([`DUPLICATES.md`](DUPLICATES.md)).
 
 The FINISHED band counts **visible series that arrived**, because it is shown
 while reveal may be off. A rescan that brought no new series closes its own

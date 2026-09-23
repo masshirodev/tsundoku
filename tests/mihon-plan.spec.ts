@@ -247,6 +247,11 @@ describe('the plan', () => {
 		});
 	});
 
+	it('keeps who translated each chapter, from the backup', () => {
+		const e = byTitle('Drawing: Saikyou Mangaka').entries;
+		expect(e.map((x) => x.scanlator)).toEqual(['', '', 'Night Owl Scans']);
+	});
+
 	it('slots a chapter without a number in by the source’s order', () => {
 		const e = byTitle('Academy’s Undercover Professor').entries;
 		const order = [...e].sort((a, b) => a.position - b.position).map((x) => x.label);

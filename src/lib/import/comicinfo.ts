@@ -13,6 +13,8 @@ export type ComicInfo = {
 	summary: string;
 	writer: string;
 	penciller: string;
+	/** Mihon writes the chapter's scanlator here. */
+	translator: string;
 	genres: string[];
 	/** Every URL in `Web`: Mihon puts the tracker's and the chapter's there. */
 	web: string[];
@@ -59,6 +61,7 @@ export function parseComicInfo(xml: string): ComicInfo {
 		summary: element(xml, 'Summary'),
 		writer: element(xml, 'Writer'),
 		penciller: element(xml, 'Penciller'),
+		translator: element(xml, 'Translator'),
 		genres: list(element(xml, 'Genre')),
 		web: element(xml, 'Web')
 			.split(/\s+/)

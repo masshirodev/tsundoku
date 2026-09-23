@@ -264,6 +264,15 @@ const MIGRATIONS: string[] = [
 	-- everything in it; UNHIDE on one of its series sets this, so a single
 	-- book can come out while the rest of the root stays hidden.
 	ALTER TABLE series ADD COLUMN public INTEGER NOT NULL DEFAULT 0;
+	`,
+	// Rung 10: one chapter, several scanlators (doc/DUPLICATES.md). A shadowed
+	// entry is a copy of a chapter another entry represents; everything that
+	// lists or counts chapters skips it. series.scanlator is the owner's
+	// preference, NULL meaning automatic.
+	`
+	ALTER TABLE entries ADD COLUMN scanlator TEXT NOT NULL DEFAULT '';
+	ALTER TABLE entries ADD COLUMN shadowed INTEGER NOT NULL DEFAULT 0;
+	ALTER TABLE series ADD COLUMN scanlator TEXT;
 	`
 ];
 

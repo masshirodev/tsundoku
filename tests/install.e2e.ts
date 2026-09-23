@@ -6,8 +6,10 @@ import { expect, test } from './fixtures';
 test('Chromium finds nothing stopping an install', async ({ page, browserName }) => {
 	test.skip(browserName !== 'chromium', 'installability is a Chromium question');
 	await page.goto('/');
+	// The worker caches every asset before it takes control, which under a full
+	// parallel run can take longer than 15s.
 	await page.waitForFunction(() => navigator.serviceWorker?.controller !== null, null, {
-		timeout: 15000
+		timeout: 30000
 	});
 	const cdp = await page.context().newCDPSession(page);
 	const { installabilityErrors } = await cdp.send('Page.getInstallabilityErrors');

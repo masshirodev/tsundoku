@@ -35,8 +35,12 @@
 		const text = q;
 		clearTimeout(timer);
 		if (text === data.q) return;
+		const parsed = parseSearch(text);
+		// A command with no results on screen has nothing to clear. Navigating
+		// anyway raced the command itself: /reveal's goto('/') could land first
+		// and be replaced by this one 180ms later, leaving you on /search.
+		if (parsed.type !== 'query' && data.q === '') return;
 		timer = setTimeout(() => {
-			const parsed = parseSearch(text);
 			const target = searchHref(parsed.type === 'query' ? parsed.text : '');
 			// eslint-disable-next-line svelte/no-navigation-without-resolve -- searchHref() resolves
 			void goto(target, { replaceState: true, keepFocus: true, noScroll: true });

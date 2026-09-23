@@ -52,6 +52,9 @@ width, row height (60 / 52px) and rail width (56 / 44px) per device.
 - **Direction** is stored per series (`series.direction`), and `NULL` means the
   kind's default: manhwa scrolls, manga and doujin read R→L, novels page. The
   reader's REMEMBER will write the same field.
+- **One row per chapter,** even when Mihon had it from two scanlators. The
+  SCANLATOR row, shown only on a series with duplicates, picks whose copy
+  represents a chapter ([`DUPLICATES.md`](DUPLICATES.md)).
 - **The fold** only forms when it would hide at least three rows, because a
   fold of one saves nothing. It sits at the bottom when the list is flipped to
   newest-first. The flip is remembered per series on the device (localStorage).
@@ -76,6 +79,9 @@ width, row height (60 / 52px) and rail width (56 / 44px) per device.
 - **The fold row's SHOW** expands in place and stays expanded for the visit.
 - **Novels' untitled entries show their label** ("Vol. 13"), not "Chapter 13".
   The sample library's novels are volumes.
+- **SCANLATOR** is a row the handoff doesn't have. It's in the shelves-row
+  idiom (outlined chips, the chosen one inverted), placed after DIRECTION, and
+  only drawn when there are duplicates to hide.
 - **The FILE row counts files, not entries.** A novel's chapters share one EPUB,
   so it reads "1 EPUB". A Hentoid book is a folder of loose images, so it reads
   "1 FOLDER", not the handoff's "1 CBZ", which doesn't match what Hentoid stores

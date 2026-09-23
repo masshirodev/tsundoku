@@ -183,6 +183,34 @@
 		</div>
 	</form>
 
+	{#if series.duplicates > 0 && series.scanlators.length > 1}
+		<!-- One chapter, several scanlators (doc/DUPLICATES.md): whose copy the list shows. -->
+		<form method="POST" action="?/scanlator" use:enhance class="row top">
+			<div class="label">SCANLATOR</div>
+			<div class="picks">
+				<button
+					type="submit"
+					name="scanlator"
+					value=""
+					class:on={series.scanlator === null}
+					aria-pressed={series.scanlator === null}>AUTO</button
+				>
+				{#each series.scanlators as s (s.name)}
+					<button
+						type="submit"
+						name="scanlator"
+						value={s.name}
+						class:on={series.scanlator === s.name}
+						aria-pressed={series.scanlator === s.name}>{s.name} · {s.count}</button
+					>
+				{/each}
+				<span class="none"
+					>{series.duplicates} DUPLICATE{series.duplicates === 1 ? '' : 'S'} HIDDEN</span
+				>
+			</div>
+		</form>
+	{/if}
+
 	<div class="row">
 		<div class="label">SHELVES</div>
 		<div class="chips">
@@ -465,6 +493,33 @@
 	.seg button.on {
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
+	}
+	.picks {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 8px;
+		padding: 10px 14px;
+	}
+	.picks button {
+		min-height: 36px;
+		padding: 0 12px;
+		border: 1px solid var(--line-2);
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-1);
+		font: 500 13px var(--font-mono);
+		cursor: pointer;
+	}
+	.picks button.on {
+		border-color: var(--surface-inverse);
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+	}
+	.picks .none {
+		flex-basis: 100%;
 	}
 	.chips {
 		flex: 1;

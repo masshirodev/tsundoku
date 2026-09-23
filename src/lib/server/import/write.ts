@@ -159,8 +159,9 @@ export function writeSeries(
 			);
 			const insert = db.prepare(
 				`INSERT INTO entries (series_id, position, label, title, added_at, read_at, last_position,
-					last_opened_at, page_count, file, bytes, source_url, available, cover_file, cover_phash)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+					last_opened_at, page_count, file, bytes, source_url, available, cover_file, cover_phash,
+					scanlator)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			);
 			const log = db.prepare(
 				`INSERT INTO reading_events (at, series_id, entry_id, kind, page, duration_ms)
@@ -193,7 +194,8 @@ export function writeSeries(
 							e.sourceUrl,
 							e.available ? 1 : 0,
 							e.coverFile ?? null,
-							e.coverPhash ?? null
+							e.coverPhash ?? null,
+							e.scanlator ?? ''
 						).lastInsertRowid
 					);
 					setPages(db, entryId, e);
@@ -206,6 +208,9 @@ export function writeSeries(
 					if (e.available) filesAttached += 1;
 				} else {
 					entryId = had.id;
+					// Rung 10 came after the first imports: a rescan fills it in.
+					if (e.scanlator)
+						db.prepare(`UPDATE entries SET scanlator = ? WHERE id = ?`).run(e.scanlator, entryId);
 					if (e.available) {
 						if (!had.available) filesAttached += 1;
 						db.prepare(

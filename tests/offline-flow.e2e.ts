@@ -19,9 +19,10 @@ async function seriesUrl(page: Page) {
 }
 
 async function controlled(page: Page) {
-	// The service worker has to be in charge before anything is cached.
+	// The service worker has to be in charge before anything is cached. It
+	// caches every asset first, which under a full parallel run passes 15s.
 	await page.waitForFunction(() => navigator.serviceWorker?.controller !== null, null, {
-		timeout: 15000
+		timeout: 30000
 	});
 }
 

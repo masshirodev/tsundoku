@@ -49,7 +49,7 @@ export function backup(): Uint8Array {
 			[13, 1_690_000_000_000],
 			[16, chapter(1, '/chapters/AAA1', [[4, true]])],
 			[16, chapter(2, '/chapters/AAA2', [[6, 4]])],
-			[16, chapter(3, '/chapters/AAA3')],
+			[16, chapter(3, '/chapters/AAA3', [[3, 'Night Owl Scans']])],
 			[17, 1],
 			[
 				104,

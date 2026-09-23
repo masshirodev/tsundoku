@@ -7,8 +7,17 @@
  *
  * The same code START SCAN runs. See doc/IMPORT-MIHON.md, doc/IMPORT-HENTOID.md.
  */
+import { fileURLToPath } from 'node:url';
 import { databasePath } from '../src/lib/server/db.ts';
 import { libraryRoot, runImport, sourcesIn } from '../src/lib/server/import/index.ts';
+
+// DATABASE_PATH and LIBRARY_ROOT live in .env; without it this would import
+// into the dev database. Shell variables still win.
+try {
+	process.loadEnvFile(fileURLToPath(new URL('../.env', import.meta.url)));
+} catch {
+	// No .env: the defaults.
+}
 
 const flag = process.argv.indexOf('--root');
 const library = flag >= 0 ? process.argv[flag + 1] : libraryRoot();
