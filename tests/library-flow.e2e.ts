@@ -288,3 +288,20 @@ test('back from a series deep in the grid comes back to its pages and its place'
 	await expect(page.locator('.grid .tile', { hasText: title })).toBeAttached();
 	await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(y - 300);
 });
+
+test('the sync timer’s scan: behind the session, and says where it looked', async ({
+	page,
+	browser
+}) => {
+	await page.goto('/');
+	const res = await page.request.post('/api/scan');
+	expect(res.status()).toBe(200);
+	// The e2e library folder is empty (playwright.config.ts): nothing starts.
+	expect(await res.json()).toMatchObject({ started: false, looked: expect.any(String) });
+
+	// Contexts inherit the project's signed-in storage unless told otherwise.
+	const stranger = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+	const out = await stranger.request.post(`${new URL(page.url()).origin}/api/scan`);
+	expect(out.status()).toBe(401);
+	await stranger.close();
+});

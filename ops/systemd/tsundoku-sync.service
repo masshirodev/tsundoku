@@ -1,0 +1,15 @@
+# Import what Syncthing brought from the tablet (doc/SYNC.md). A user unit: install with
+#   ln -s ~/projects/tsundoku/ops/systemd/tsundoku-sync.{service,timer} ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now tsundoku-sync.timer
+[Unit]
+Description=tsundoku: import what the tablet synced
+RequiresMountsFor=/mnt/hdd2
+Wants=syncthing.service
+After=syncthing.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/projects/tsundoku
+# mise's shim, so the unit gets the project's Node without a login shell.
+ExecStart=%h/.local/share/mise/shims/node --experimental-strip-types scripts/sync-import.ts
+Nice=10

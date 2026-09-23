@@ -21,16 +21,8 @@ function expectedToken(): string | null {
 	return token && token.length > 0 ? token : null;
 }
 
-/**
- * The session value is derived from the token rather than stored, so there is
- * no session table to keep and rotating the token invalidates every cookie.
- * The salt makes the cookie useless as a way to recover the token itself.
- */
-const SALT = 'tsundoku/v1';
-
-export function sessionValueFor(token: string): string {
-	return createHash('sha256').update(`${SALT}:${token}`).digest('hex');
-}
+export { sessionValueFor } from './session.ts';
+import { sessionValueFor } from './session.ts';
 
 function constantTimeEquals(a: string, b: string): boolean {
 	const left = Buffer.from(a);

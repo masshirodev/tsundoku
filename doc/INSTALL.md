@@ -13,6 +13,9 @@ no browser bar and no status bar. The page is the interface there too.
 3. Chrome's menu → **Install app** (or the install prompt, if it offers one).
 4. In the installed app, type **`/lock`** in search to put `/reveal` behind this
    tablet's fingerprint ([`PRIVACY.md`](PRIVACY.md)).
+5. Set up **Syncthing**, so what Mihon and Hentoid download reaches the
+   library by itself, and can be deleted from the tablet after
+   ([`SYNC.md`](SYNC.md)).
 
 The home-screen shortcuts (long-press the icon) open **History** and **Search**.
 
