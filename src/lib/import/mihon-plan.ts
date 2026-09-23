@@ -339,6 +339,7 @@ function fromBackup(
 		direction: directionOf(m.viewer, kind),
 		addedAt: seriesAdded,
 		sourceUrl: m.url,
+		coverUrl: m.thumbnailUrl,
 		path: downloaded?.path ?? '',
 		entries: withPositions(rows, pos)
 	};

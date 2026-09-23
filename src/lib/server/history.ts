@@ -55,6 +55,7 @@ export function historyDays(
 			`SELECT re.series_id AS seriesId, ${DAY} AS day, MAX(re.at) AS lastAt,
 				MIN(e.position) AS firstPos, MAX(e.position) AS lastPos,
 				s.title, s.kind, s.hue, s.status,
+				s.cover_at AS cover,
 				(SELECT COUNT(*) FROM entries x WHERE x.series_id = s.id) AS entryCount
 			${scope('JOIN entries e ON e.id = re.entry_id')} AND ${DAY} >= @oldest
 			GROUP BY re.series_id, day
@@ -69,6 +70,7 @@ export function historyDays(
 		title: string;
 		kind: Kind;
 		hue: number;
+		cover: number | null;
 		status: string;
 		entryCount: number;
 	}[];
@@ -103,6 +105,7 @@ export function historyDays(
 			title: g.title,
 			kind: g.kind,
 			hue: g.hue,
+			cover: g.cover,
 			day: g.day,
 			lastAt: g.lastAt,
 			entryCount: g.entryCount,

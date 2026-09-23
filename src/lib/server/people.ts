@@ -66,6 +66,7 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 		.prepare(
 			`SELECT s.id AS seriesId, s.title, s.kind, COALESCE(s.rating, 0) AS rating, s.favourite,
 				${HIDDEN_SQL} AS hidden, s.added_at AS addedAt,
+				s.cover_at AS cover,
 				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) AS entries,
 				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.read_at IS NOT NULL) AS readCount,
 				(SELECT COALESCE(SUM(page_count), 0) FROM entries e WHERE e.series_id = s.id) AS pages,
@@ -87,12 +88,14 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 		readCount: number;
 		pages: number;
 		lastPosition: number | null;
+		cover: number | null;
 	}[];
 
 	const items: TagItem[] = [
 		...books.map((b): TagItem => ({
 			key: `b${b.entryId}`,
 			seriesId: b.seriesId,
+			cover: null,
 			entryId: b.entryId,
 			title: b.title || b.seriesTitle,
 			kind: 'doujin',
@@ -115,6 +118,7 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 		...series.map((s): TagItem => ({
 			key: `s${s.seriesId}`,
 			seriesId: s.seriesId,
+			cover: s.cover,
 			entryId: null,
 			title: s.title,
 			kind: s.kind,

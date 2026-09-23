@@ -36,6 +36,7 @@ type CardRow = {
 	entry_count: number;
 	read_count: number;
 	new_count: number;
+	cover_at: number | null;
 };
 
 /**
@@ -67,6 +68,7 @@ function cardQuery(where: string, order: string, limit = ''): string {
 	)
 	SELECT s.id, s.title, s.kind, s.rating, s.favourite,
 		${HIDDEN_SQL} AS hidden, s.hue, s.indexed_at, s.added_at,
+		s.cover_at,
 		COALESCE(t.entry_count, 0) AS entry_count,
 		COALESCE(t.read_count, 0) AS read_count,
 		COALESCE(f.n, 0) AS new_count
@@ -88,7 +90,8 @@ function toCard(row: CardRow): SeriesCard {
 		readCount: row.read_count,
 		hue: row.hue,
 		indexed: row.indexed_at !== null,
-		addedAt: row.added_at
+		addedAt: row.added_at,
+		cover: row.cover_at
 	};
 }
 

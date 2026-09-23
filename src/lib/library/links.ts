@@ -57,3 +57,10 @@ function library(params: URLSearchParams): string {
 	const search = params.toString();
 	return search === '' ? resolve('/') : `${resolve('/')}?${search}`;
 }
+
+/**
+ * A series' cover thumbnail, versioned so it's cached for good, or null for
+ * none yet: the tile keeps its stripes (doc/COVERS.md).
+ */
+export const coverSrc = (seriesId: number, cover: number | null | undefined) =>
+	cover ? `${resolve('/api/series/[id]/cover', { id: String(seriesId) })}?v=${cover}` : null;

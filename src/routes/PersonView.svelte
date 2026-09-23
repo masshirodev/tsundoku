@@ -6,7 +6,7 @@
 	import Badge from '$lib/components/content/Badge.svelte';
 	import { hueFor } from '$lib/library/cover';
 	import { count } from '$lib/library/labels';
-	import { seriesHref, tagHref } from '$lib/library/links';
+	import { coverSrc, seriesHref, tagHref } from '$lib/library/links';
 	import type { TagItem, TagPage } from '$lib/library/books';
 	import { phone } from '$lib/device.svelte';
 
@@ -216,6 +216,7 @@
 			<li class:unselectable={selecting && i.entryId !== null}>
 				<BookTile
 					title={i.title}
+					src={coverSrc(i.seriesId, i.cover)}
 					hue={hueFor(i.title)}
 					rating={i.rating}
 					favourite={i.favourite}

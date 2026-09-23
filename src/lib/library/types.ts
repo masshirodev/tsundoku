@@ -29,6 +29,8 @@ export type SeriesCard = {
 	readCount: number;
 	/** Hue for the striped cover placeholder, 0-359. */
 	hue: number;
+	/** The cover thumbnail's version, or null when there's none yet (doc/COVERS.md). */
+	cover: number | null;
 	/** False while the scanner has found the series but not yet indexed it. */
 	indexed: boolean;
 	addedAt: number;

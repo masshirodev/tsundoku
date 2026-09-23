@@ -108,9 +108,18 @@ export function writeSeries(
 					`UPDATE series SET
 						path = CASE WHEN ? != '' THEN ? ELSE path END,
 						status = CASE WHEN status = '' THEN ? ELSE status END,
-						description = CASE WHEN description = '' THEN ? ELSE description END
+						description = CASE WHEN description = '' THEN ? ELSE description END,
+						cover_url = CASE WHEN ? != '' THEN ? ELSE cover_url END
 					WHERE id = ?`
-				).run(s.path, s.path, s.status, s.description, seriesId);
+				).run(
+					s.path,
+					s.path,
+					s.status,
+					s.description,
+					s.coverUrl ?? '',
+					s.coverUrl ?? '',
+					seriesId
+				);
 			} else {
 				created = true;
 				seriesId = Number(
@@ -118,8 +127,8 @@ export function writeSeries(
 						.prepare(
 							`INSERT INTO series (root_id, title, kind, rating, favourite, hidden, hue, added_at,
 								indexed_at, scan_job_id, alt_titles, source, status, description, direction, path,
-								source_url, origin_key)
-							VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, ?, ?)`
+								source_url, origin_key, cover_url)
+							VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, ?, ?, ?)`
 						)
 						.run(
 							opts.rootId,
@@ -138,7 +147,8 @@ export function writeSeries(
 							s.direction,
 							s.path,
 							s.sourceUrl,
-							s.originKey
+							s.originKey,
+							s.coverUrl ?? ''
 						).lastInsertRowid
 				);
 				for (const t of s.tags)

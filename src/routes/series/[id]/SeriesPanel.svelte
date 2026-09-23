@@ -16,7 +16,7 @@
 	import type { Shelf } from '$lib/library/types';
 	import { isBookSeries } from '$lib/library/series';
 	import { isPersonNamespace, suggestionLabel, type Suggestion } from '$lib/library/books';
-	import { tagHref, readHref } from '$lib/library/links';
+	import { coverSrc, tagHref, readHref } from '$lib/library/links';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -124,7 +124,8 @@
 			(s) => s.kind === 'collection' && series.collections.includes(Number(s.key.slice(2)))
 		)
 	);
-	const noCover = $derived(series.kind === 'novel');
+	// A novel without a cover image of its own is set in type, not striped.
+	const noCover = $derived(series.kind === 'novel' && !series.cover);
 	let aboutOpen = $state(false);
 </script>
 
@@ -133,7 +134,11 @@
 		<div
 			class="cover"
 			class:typeset={noCover}
-			style:background={noCover ? undefined : coverPlaceholder(series.hue)}
+			style:background={noCover
+				? undefined
+				: series.cover
+					? `center / cover no-repeat url(${coverSrc(series.id, series.cover)}), ${coverPlaceholder(series.hue)}`
+					: coverPlaceholder(series.hue)}
 		>
 			{#if noCover}
 				<span class="nocover">NO COVER · EPUB</span>

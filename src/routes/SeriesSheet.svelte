@@ -7,7 +7,7 @@
 	import Switch from '$lib/components/controls/Switch.svelte';
 	import TagChip from '$lib/components/controls/TagChip.svelte';
 	import { sheetMeta } from '$lib/library/labels';
-	import { seriesHref, readHref } from '$lib/library/links';
+	import { coverSrc, seriesHref, readHref } from '$lib/library/links';
 	import type { SeriesDetail, Shelf } from '$lib/library/types';
 	import type { SubmitFunction } from '@sveltejs/kit';
 
@@ -70,7 +70,7 @@
 <Sheet open={id !== null && detail !== null} {onclose} label={detail?.title ?? 'Series'}>
 	{#if detail}
 		<div class="head">
-			<Cover hue={detail.hue} width={96} height={139} />
+			<Cover src={coverSrc(detail.id, detail.cover)} hue={detail.hue} width={96} height={139} />
 			<div class="text">
 				<h2>{detail.title}</h2>
 				<div class="meta">{sheetMeta(detail)}</div>

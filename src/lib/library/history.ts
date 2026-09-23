@@ -15,6 +15,8 @@ export type HistoryDay = {
 	title: string;
 	kind: Kind;
 	hue: number;
+	/** The cover thumbnail's version, or null (doc/COVERS.md). */
+	cover: number | null;
 	/** Local calendar day, `YYYY-MM-DD`. */
 	day: string;
 	/** The last event that day, epoch ms. */

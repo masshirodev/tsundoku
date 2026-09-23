@@ -26,6 +26,7 @@ export type SeriesPreview = {
 	hidden: boolean;
 	entryCount: number;
 	readCount: number;
+	cover: number | null;
 };
 
 class Waiting {

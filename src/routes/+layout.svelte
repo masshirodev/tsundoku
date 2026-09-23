@@ -86,7 +86,8 @@
 		favourite: false,
 		hidden: false,
 		entryCount: 0,
-		readCount: 0
+		readCount: 0,
+		cover: null
 	});
 	/** ← BACK while not answering: stay here, which ends the wait. */
 	function stay() {

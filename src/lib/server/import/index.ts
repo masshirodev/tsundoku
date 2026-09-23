@@ -16,6 +16,7 @@ import { hentoidBytes, hentoidRoot, planHentoidFolder } from './hentoid.ts';
 import { epubBytes, epubRoot, planEpubFolder } from './epub.ts';
 import { ensureRoot, finishJob, writeSeries } from './write.ts';
 import { reconcileDuplicates } from '../duplicates.ts';
+import { refreshCovers } from '../covers.ts';
 import type { PlannedSeries } from '../../import/plan.ts';
 
 /**
@@ -160,11 +161,23 @@ let running: Promise<ImportSummary> | null = null;
  * Import every device folder under `library`. One at a time: a second call
  * while one runs gets the running one.
  */
-export function runImport(library: string, opts: { now?: number } = {}): Promise<ImportSummary> {
+export function runImport(
+	library: string,
+	opts: { now?: number; covers?: boolean } = {}
+): Promise<ImportSummary> {
 	if (running) return running;
 	running = run(sourcesIn(library), opts.now ?? Date.now()).finally(() => {
 		running = null;
 	});
+	// Covers follow the scan, in the background: the library is usable at once,
+	// and tiles gain their covers as they're made (doc/COVERS.md). Opt-in, so
+	// the specs never write to the library disk or reach the internet.
+	if (opts.covers)
+		void running
+			.then(() => refreshCovers())
+			.catch((e: unknown) => {
+				console.error('tsundoku: covers after the scan failed:', e);
+			});
 	return running;
 }
 
@@ -256,7 +269,7 @@ export function startScan(
 	root = libraryRoot()
 ): { started: true } | { started: false; looked: string } {
 	if (sourcesIn(root).length === 0) return { started: false, looked: root };
-	runImport(root).catch((e: unknown) => {
+	runImport(root, { covers: true }).catch((e: unknown) => {
 		// The job row is already marked finished with a failure; the log says why.
 		console.error('[import] failed:', e);
 	});

@@ -27,6 +27,7 @@
 		readCount: preview.readCount,
 		hue: preview.hue,
 		indexed: true,
+		cover: preview.cover,
 		addedAt: 0,
 		collections: [],
 		altTitles: [],

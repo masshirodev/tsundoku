@@ -28,7 +28,7 @@ if (sources.length === 0) {
 }
 const started = Date.now();
 console.log(`importing ${sources.map((s) => s.root).join(', ')} into ${databasePath()} …`);
-const summary = await runImport(library);
+const summary = await runImport(library, { covers: false });
 for (const s of summary.sources) {
 	console.log(`\n${s.name}`);
 	if (s.backup !== undefined) console.log(`  backup:          ${s.backup ?? '(none found)'}`);
@@ -40,3 +40,4 @@ for (const s of summary.sources) {
 }
 console.log(`\nunreadable:        ${summary.failedFiles}`);
 console.log(`took:              ${((Date.now() - started) / 1000).toFixed(1)}s`);
+console.log(`\ncovers:            run \`yarn run covers\` (the app does this after START SCAN)`);

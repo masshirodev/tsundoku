@@ -158,8 +158,8 @@ Specific and honest, so a deliberate gap isn't mistaken for an oversight:
   It isn't built.
 - **IMPORT LOG and SETTINGS** in the desktop sidebar are shown, disabled, and go
   nowhere.
-- **No real covers.** Every cover is the striped placeholder until the importers
-  extract artwork.
+- **Covers** come from the files or the source site ([`COVERS.md`](COVERS.md)). A
+  series with none keeps the striped placeholder.
 - **Sorting** cycles recently read → A–Z → rating → recently added through the
   label on the right of `02 — SHELVES`. The mock shows the label but not what
   tapping it does.

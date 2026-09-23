@@ -17,6 +17,7 @@
 	let {
 		title,
 		hue,
+		src = null,
 		rating = 0,
 		favourite = false,
 		number,
@@ -33,6 +34,8 @@
 	}: {
 		title: string;
 		hue: number;
+		/** The cover thumbnail, when there is one (doc/COVERS.md). */
+		src?: string | null;
 		rating?: Rating;
 		favourite?: boolean;
 		/** "04": the reading position, when the grid is one series. */
@@ -104,7 +107,7 @@
 	onclick={click}
 	oncontextmenu={contextmenu}
 >
-	<Cover {hue} ring={selected}>
+	<Cover {src} {hue} ring={selected}>
 		{#if favourite}<Badge tone="accent" corner="top-right">FAV</Badge>{/if}
 		{#if number}
 			<span class="num" class:on={current || !!moving} class:big={!!moving}>{number}</span>

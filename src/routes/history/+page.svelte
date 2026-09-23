@@ -5,7 +5,7 @@
 	import Band from '$lib/components/chrome/Band.svelte';
 	import Cover from '$lib/components/content/Cover.svelte';
 	import { longpress } from '$lib/actions/longpress';
-	import { seriesHref } from '$lib/library/links';
+	import { coverSrc, seriesHref } from '$lib/library/links';
 	import type { HistoryRow } from '$lib/library/history';
 
 	/**
@@ -89,7 +89,14 @@
 									}
 								}}
 							>
-								<span class="cov"><Cover hue={r.hue} width={44} height={62} /></span>
+								<span class="cov"
+									><Cover
+										src={coverSrc(r.seriesId, r.cover)}
+										hue={r.hue}
+										width={44}
+										height={62}
+									/></span
+								>
 								<span class="text">
 									<span class="t">{r.title}</span>
 									{#if isPressed}

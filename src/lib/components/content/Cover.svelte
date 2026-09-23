@@ -28,7 +28,12 @@
 	} = $props();
 
 	const background = $derived(
-		dashed ? 'transparent' : src ? `center / cover no-repeat url(${src})` : coverPlaceholder(hue)
+		dashed
+			? 'transparent'
+			: // The stripes stay underneath: an image that fails leaves the placeholder.
+				src
+				? `center / cover no-repeat url(${src}), ${coverPlaceholder(hue)}`
+				: coverPlaceholder(hue)
 	);
 </script>
 

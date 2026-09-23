@@ -10,6 +10,7 @@ const day = (
 		title: 'T',
 		kind: 'manhwa',
 		hue: 0,
+		cover: null,
 		day: '2026-09-23',
 		lastAt: 0,
 		entryCount: 400,

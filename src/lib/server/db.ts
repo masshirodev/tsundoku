@@ -303,6 +303,17 @@ const MIGRATIONS: string[] = [
 	END;
 	CREATE INDEX reading_events_by_day ON reading_events(day, series_id);
 	CREATE INDEX reading_events_entry ON reading_events(entry_id, at);
+	`,
+	// Rung 14: covers (doc/COVERS.md). cover_url is where the source site
+	// keeps it (Mihon's backup has one per series); cover_key names the file,
+	// page or URL the thumbnail was made from, so a changed source makes a new
+	// one; cover_at is when, and the version in the thumbnail's URL. NULL:
+	// no cover yet, and the tile keeps its stripes.
+	`
+	ALTER TABLE series ADD COLUMN cover_url TEXT NOT NULL DEFAULT '';
+	ALTER TABLE series ADD COLUMN cover_key TEXT NOT NULL DEFAULT '';
+	ALTER TABLE series ADD COLUMN cover_at INTEGER;
+	ALTER TABLE series ADD COLUMN cover_failed_at INTEGER;
 	`
 ];
 

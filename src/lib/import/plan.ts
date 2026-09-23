@@ -65,6 +65,8 @@ export type PlannedSeries = {
 	direction: Direction | null;
 	addedAt: number;
 	sourceUrl: string;
+	/** The source site's cover image, when the source knows one (Mihon's backup). */
+	coverUrl?: string;
 	/** Where the entries' files are relative to, or '' for a series with nothing on disk. */
 	path: string;
 	entries: PlannedEntry[];

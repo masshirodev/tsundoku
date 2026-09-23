@@ -14,6 +14,7 @@ import { coverPlaceholder, hueFor } from '$lib/library/cover';
 import type { ContinueItem, SeriesCard } from '$lib/library/types';
 
 const card = (over: Partial<SeriesCard> = {}): SeriesCard => ({
+	cover: null,
 	id: 1,
 	title: 'Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru',
 	kind: 'manga',

@@ -8,7 +8,7 @@
 	import { count, kindLabel } from '$lib/library/labels';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { searchHref, shelfHref, tagHref } from '$lib/library/links';
+	import { coverSrc, searchHref, shelfHref, tagHref } from '$lib/library/links';
 	import { parseSearch, splitMatch } from '$lib/library/search';
 	import {
 		browserSupportsWebAuthn,
@@ -218,7 +218,7 @@
 		{#each r.titles as item (item.id)}
 			{@const m = splitMatch(item.title, query)}
 			<button type="button" class="hit" onclick={() => (sheetId = item.id)}>
-				<Cover hue={item.hue} width={44} height={62} />
+				<Cover src={coverSrc(item.id, item.cover)} hue={item.hue} width={44} height={62} />
 				<span class="text">
 					<span class="title">{m.pre}<mark>{m.mid}</mark>{m.post}</span>
 					<span class="why">{kindLabel(item.kind)} · {item.why}</span>

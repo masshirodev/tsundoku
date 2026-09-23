@@ -26,7 +26,7 @@
 	import { desktop, phone, wide } from '$lib/device.svelte';
 	import { offline } from '$lib/offline.svelte';
 	import { continueSub, count, nextSort, progress, SORT_LABEL } from '$lib/library/labels';
-	import { readHref, seriesHref, shelfHref, withParam } from '$lib/library/links';
+	import { coverSrc, readHref, seriesHref, shelfHref, withParam } from '$lib/library/links';
 	import type { Rating, Shelf } from '$lib/library/types';
 
 	let { data, form } = $props();
@@ -104,7 +104,8 @@
 				favourite: favNow.get(s.id) ?? s.favourite,
 				hidden: s.hidden,
 				entryCount: s.entryCount,
-				readCount: s.readCount
+				readCount: s.readCount,
+				cover: s.cover
 			};
 		// eslint-disable-next-line svelte/no-navigation-without-resolve -- seriesHref() resolves
 		void goto(seriesHref(id, data.tag ? null : data.shelf));
@@ -371,6 +372,7 @@
 							title={item.title}
 							meta={continueSub(item, isOffline ? { cached } : undefined)}
 							progress={progress(item)}
+							src={coverSrc(item.id, item.cover)}
 							hue={item.hue}
 							unavailable={isOffline && !cached}
 							onresume={item.resumeId !== null
@@ -410,6 +412,7 @@
 				{#each shown as s (s.id)}
 					{@const cached = cachedCount(s.id)}
 					<CoverTile
+						src={coverSrc(s.id, s.cover)}
 						title={s.title}
 						hue={s.hue}
 						rating={ratingNow.get(s.id) ?? s.rating}

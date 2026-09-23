@@ -147,6 +147,8 @@ export const bookNumber = (index: number) => String(index + 1).padStart(2, '0');
 export type TagItem = {
 	key: string;
 	seriesId: number;
+	/** The series' cover version (doc/COVERS.md); null for a book in a series of books, which has none of its own yet. */
+	cover: number | null;
 	/** Set when this is a book inside a series of books. */
 	entryId: number | null;
 	title: string;
