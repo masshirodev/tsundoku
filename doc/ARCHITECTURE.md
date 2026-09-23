@@ -11,7 +11,7 @@ tablet / phone (PWA) ──tailnet──> tsundoku  (workstation: SvelteKit + SQ
 ```
 
 **It runs on the workstation, not the VPS, and is not a Kumiko module.** The
-library is ~130 GB of images. Serving it from the VPS means uploading it there
+library is ~166 GB (measured 2026-09-23) of images. Serving it from the VPS means uploading it there
 and streaming every page back through a CPU-throttled box; serving it from here
 means it never leaves the house. Kumiko is reached over its API the way yomu
 already does, so tsundoku stays a separate process with its own database.

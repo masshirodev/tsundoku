@@ -12,10 +12,16 @@ import type { PlannedSeries } from '../../import/plan.ts';
 
 const IMAGE = /\.(jpe?g|png|webp|gif|avif|jxl)$/i;
 
-/** `H/.Hentoid` under the library folder, where the device keeps it. */
+/**
+ * The Hentoid folder under the library folder: `H/.Hentoid` as the phone
+ * keeps it, `.Hentoid`, or `Hentoid` as the tablet copy was named.
+ */
 export function hentoidRoot(libraryRoot: string): string | null {
-	const path = join(libraryRoot, 'H', '.Hentoid');
-	return existsSync(path) ? path : null;
+	for (const p of [['H', '.Hentoid'], ['.Hentoid'], ['Hentoid']]) {
+		const path = join(libraryRoot, ...p);
+		if (existsSync(path)) return path;
+	}
+	return null;
 }
 
 async function dirs(path: string): Promise<string[]> {

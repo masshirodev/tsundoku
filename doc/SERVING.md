@@ -36,6 +36,14 @@ else serves: it stops and says to pick another with `TSUNDOKU_HTTPS_PORT`.
 The pure parts (reading the tailnet name, the origin, whether a port is free,
 ours or taken) are in `src/lib/server/bind.ts`, tested in `tests/bind.spec.ts`.
 
+## Which library it serves
+
+`yarn run serve` reads `.env`, where `DATABASE_PATH=data/library.sqlite` and
+`LIBRARY_ROOT=/mnt/hdd2/tsundoku/tablet` point it at the real library: the
+copy of the tablet's `Mihon/`, `Hentoid/` and `Library/`. `yarn run dev` doesn't
+put `.env` into `process.env`, so development keeps the sample library in
+`data/tsundoku.sqlite`. `/scan` in the served app rescans the tablet copy.
+
 ## Plain http, the old way
 
 `TSUNDOKU_SERVE=http yarn run serve` binds the tailnet address directly on

@@ -94,6 +94,47 @@ tag only their Korean titles, so it outvoted every Japanese one.
   the real backup) slots in after the numbered chapter before it in the
   source's own order.
 
+## Local source
+
+Mihon's `local/` folder holds books put on the device by hand. On this tablet
+that's 2136 Hentoid exports (47 GB), each a `chapter_1` folder and a
+`cover.jpg`, named `artist - Title - [id]`. The `[id]` is the gallery's real id,
+the same one in Hentoid's own `contentV2.json`, not something Mihon invents: a
+local manga's URL is just its folder name.
+
+- They import into their own **hidden root, "Mihon local"**
+  (`src/lib/import/mihon-local-plan.ts`), as single doujin books. The title
+  and an `artist:` tag come from the folder name, `cover.jpg` is the cover,
+  and the book is tagged `source:mihon local`.
+- The backup's local manga (source `0`, 328 on this tablet, none in the library)
+  add their read state where the folder name matches. They are **never** also
+  made into not-downloaded series in the visible Mihon root.
+- 240 of them are also in Hentoid under the same id. Both copies are kept for
+  "Duplicate book detection" to settle.
+
+## The tablet's layout
+
+The copy in `/mnt/hdd2/tsundoku/tablet` differs from the phone samples, and the
+importer handles both:
+
+- **every `downloads*` folder:** Android left `downloads (1)` to `(7)` beside
+  the real one;
+- **the newest backup by the date in its name,** since a debug build writes
+  `app.mihon.debug_<date>.tachibk`;
+- **the Hentoid root at `H/.Hentoid`, `.Hentoid` or `Hentoid`.**
+
+The first import of the real library (2026-09-23) read 166 GB in about 35
+seconds:
+
+| Source      | Series | Entries | Files attached | Skipped                           |
+| ----------- | ------ | ------- | -------------- | --------------------------------- |
+| Mihon       | 373    | 43,887  | 1,076          | 76 browsed only                   |
+| Mihon local | 2,135  | 2,135   | 2,135          | 1 folder of no images             |
+| Hentoid     | 4,341  | 4,868   | 4,868          | 3 galleries on disk twice, merged |
+
+Folder names with `#` (52 of them) are harmless: pages are addressed by entry
+id and number, never by path.
+
 ## Rescanning
 
 Idempotent: a second run over the same folder changes nothing

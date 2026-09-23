@@ -11,6 +11,7 @@ import {
 	type DownloadedSeries,
 	type MihonPlan
 } from '../../import/mihon-plan.ts';
+import type { LocalFolder } from '../../import/mihon-local-plan.ts';
 
 /**
  * The Mihon importer (doc/IMPORT-MIHON.md). It reads a copy of the device's
@@ -39,7 +40,12 @@ async function dirs(path: string): Promise<string[]> {
 export async function newestBackup(root: string): Promise<string | null> {
 	const folder = join(root, 'autobackup');
 	try {
-		const names = (await readdir(folder)).filter((n) => /\.(tachibk|proto\.gz)$/.test(n)).sort();
+		// By the date in the name: `app.mihon_…` and a debug build's
+		// `app.mihon.debug_…` would not sort together by name.
+		const stamp = (n: string) => /(\d{4}-\d{2}-\d{2}_\d{2}-\d{2})/.exec(n)?.[1] ?? n;
+		const names = (await readdir(folder))
+			.filter((n) => /\.(tachibk|proto\.gz)$/.test(n))
+			.sort((a, b) => stamp(a).localeCompare(stamp(b)));
 		return names.length ? join(folder, names[names.length - 1]) : null;
 	} catch {
 		return null;
@@ -83,41 +89,102 @@ export async function scanDownloads(
 	progress: (p: { bytes: number; failed: boolean }) => void = () => {}
 ): Promise<DownloadedSeries[]> {
 	const out: DownloadedSeries[] = [];
-	const downloads = join(root, 'downloads');
-	for (const sourceDir of await dirs(downloads)) {
-		for (const dir of await dirs(join(downloads, sourceDir))) {
-			const path = join(downloads, sourceDir, dir);
-			const chapters: DownloadedChapter[] = [];
-			for (const entry of await readdir(path, { withFileTypes: true })) {
-				const isChapter =
-					(entry.isFile() && /\.cbz$/i.test(entry.name)) ||
-					(entry.isDirectory() && !entry.name.startsWith('.') && !entry.name.endsWith('_tmp'));
-				if (!isChapter) continue;
-				try {
-					const c = await readChapter(path, entry.name);
-					chapters.push(c);
-					progress({ bytes: c.bytes, failed: false });
-				} catch {
-					progress({ bytes: 0, failed: true });
+	for (const downloads of await downloadFolders(root))
+		for (const sourceDir of await dirs(downloads)) {
+			for (const dir of await dirs(join(downloads, sourceDir))) {
+				const path = join(downloads, sourceDir, dir);
+				const chapters: DownloadedChapter[] = [];
+				for (const entry of await readdir(path, { withFileTypes: true })) {
+					const isChapter =
+						(entry.isFile() && /\.cbz$/i.test(entry.name)) ||
+						(entry.isDirectory() && !entry.name.startsWith('.') && !entry.name.endsWith('_tmp'));
+					if (!isChapter) continue;
+					try {
+						const c = await readChapter(path, entry.name);
+						chapters.push(c);
+						progress({ bytes: c.bytes, failed: false });
+					} catch {
+						progress({ bytes: 0, failed: true });
+					}
 				}
+				// The local source's own folder is planned apart (scanLocal).
+				if (chapters.length && sourceDir !== 'local') out.push({ sourceDir, dir, path, chapters });
 			}
-			if (chapters.length) out.push({ sourceDir, dir, path, chapters });
 		}
+	return out;
+}
+
+/**
+ * Every downloads folder: Android sometimes leaves `downloads (1)`,
+ * `downloads (2)`... beside the real one when a folder is recreated, and
+ * any of them may hold chapters.
+ */
+export async function downloadFolders(root: string): Promise<string[]> {
+	return (await dirs(root))
+		.filter((d) => /^downloads( \(\d+\))?$/.test(d))
+		.map((d) => join(root, d));
+}
+
+/** Mihon's local source: `<root>/local/<series>/<chapter folder or archive>` and a cover beside them. */
+export async function scanLocal(
+	root: string,
+	progress: (p: { bytes: number; failed: boolean }) => void = () => {}
+): Promise<LocalFolder[]> {
+	const local = join(root, 'local');
+	const out: LocalFolder[] = [];
+	for (const dir of await dirs(local)) {
+		const path = join(local, dir);
+		const chapters: DownloadedChapter[] = [];
+		let cover: string | null = null;
+		for (const entry of await readdir(path, { withFileTypes: true })) {
+			if (entry.isFile() && /^cover\.(jpe?g|png|webp)$/i.test(entry.name)) {
+				cover = entry.name;
+				continue;
+			}
+			const isChapter =
+				(entry.isFile() && /\.(cbz|zip)$/i.test(entry.name)) ||
+				(entry.isDirectory() && !entry.name.startsWith('.'));
+			if (!isChapter) continue;
+			try {
+				const c = await readChapter(path, entry.name);
+				if (c.pages === 0) continue;
+				chapters.push(c);
+				progress({ bytes: c.bytes, failed: false });
+			} catch {
+				progress({ bytes: 0, failed: true });
+			}
+		}
+		if (chapters.length) out.push({ sourceDir: 'local', dir, path, chapters, cover });
 	}
 	return out;
+}
+
+/** Bytes of the local folder's chapters, for the progress band's total. */
+export async function localBytes(root: string): Promise<number> {
+	let total = 0;
+	const local = join(root, 'local');
+	for (const d of await dirs(local))
+		for (const e of await readdir(join(local, d), { withFileTypes: true })) {
+			const p = join(local, d, e.name);
+			if (e.isFile() && /\.(cbz|zip)$/i.test(e.name)) total += (await stat(p)).size;
+			else if (e.isDirectory())
+				for (const f of await readdir(p, { withFileTypes: true }))
+					if (f.isFile()) total += (await stat(join(p, f.name))).size;
+		}
+	return total;
 }
 
 /** Bytes of every chapter archive, for the progress band's total. */
 export async function downloadBytes(root: string): Promise<number> {
 	let total = 0;
-	const downloads = join(root, 'downloads');
-	for (const s of await dirs(downloads))
-		for (const d of await dirs(join(downloads, s))) {
-			for (const e of await readdir(join(downloads, s, d), { withFileTypes: true })) {
-				if (e.isFile() && /\.cbz$/i.test(e.name))
-					total += (await stat(join(downloads, s, d, e.name))).size;
+	for (const downloads of await downloadFolders(root))
+		for (const s of await dirs(downloads))
+			for (const d of await dirs(join(downloads, s))) {
+				for (const e of await readdir(join(downloads, s, d), { withFileTypes: true })) {
+					if (e.isFile() && /\.cbz$/i.test(e.name))
+						total += (await stat(join(downloads, s, d, e.name))).size;
+				}
 			}
-		}
 	return total;
 }
 

@@ -1,7 +1,7 @@
 # Import formats
 
 Measured on 2026-09-22 from real data pulled off the phone (`ssh termux`) into
-`/mnt/hdd2/tsundoku/samples`. The tablet holds the bulk (~130 GB) in the same
+`/mnt/hdd2/tsundoku/samples`. The tablet holds the bulk (~166 GB (measured 2026-09-23)) in the same
 apps, so the same layouts are expected there — confirm before trusting that.
 
 The samples are copyrighted and partly explicit. **They stay on `/mnt/hdd2` and

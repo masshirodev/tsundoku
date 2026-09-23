@@ -1,6 +1,17 @@
 import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
-import { downloadBytes, mihonRoot, planMihonFolder } from './mihon.ts';
+import {
+	downloadBytes,
+	localBytes,
+	mihonRoot,
+	newestBackup,
+	planMihonFolder,
+	readBackup,
+	scanLocal
+} from './mihon.ts';
+import { planMihonLocal } from '../../import/mihon-local-plan.ts';
+import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 import { hentoidBytes, hentoidRoot, planHentoidFolder } from './hentoid.ts';
 import { ensureRoot, finishJob, writeSeries } from './write.ts';
 import type { PlannedSeries } from '../../import/plan.ts';
@@ -21,7 +32,7 @@ export function libraryRoot(): string {
 }
 
 type Source = {
-	name: 'Mihon' | 'Hentoid';
+	name: 'Mihon' | 'Mihon local' | 'Hentoid';
 	root: string;
 	/** The Hentoid root is hidden: its books show only with /reveal. */
 	hidden: boolean;
@@ -50,6 +61,39 @@ export function sourcesIn(library: string): Source[] {
 			markMissing: true,
 			bytes: () => downloadBytes(mihon),
 			plan: (progress, now) => planMihonFolder(mihon, progress, now)
+		});
+	// Mihon's local source: books put on the tablet by hand, hidden like
+	// Hentoid's (doc/IMPORT-MIHON.md, "Local source").
+	const local = mihon ? join(mihon, 'local') : null;
+	if (mihon && local && existsSync(local))
+		out.push({
+			name: 'Mihon local',
+			root: local,
+			hidden: true,
+			markMissing: false,
+			bytes: () => localBytes(mihon),
+			plan: async (progress, now) => {
+				const folders = await scanLocal(mihon, progress);
+				const backupPath = await newestBackup(mihon);
+				const backup = backupPath ? await readBackup(backupPath) : null;
+				const present = new Set(folders.map((f) => f.dir));
+				return {
+					series: planMihonLocal(backup, folders, local, now),
+					skipped: 0,
+					// A local folder deleted from the device: its entries stay, not downloaded.
+					after: (db, rootId) => {
+						const rows = db
+							.prepare(
+								`SELECT e.id, e.file FROM entries e JOIN series s ON s.id = e.series_id
+								WHERE s.root_id = ? AND e.available = 1`
+							)
+							.all(rootId) as { id: number; file: string }[];
+						for (const r of rows)
+							if (!present.has(r.file.split('/')[0]))
+								db.prepare(`UPDATE entries SET available = 0 WHERE id = ?`).run(r.id);
+					}
+				};
+			}
 		});
 	const hentoid = hentoidRoot(library);
 	if (hentoid)

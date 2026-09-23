@@ -120,6 +120,31 @@ export function backup(): Uint8Array {
 			[16, chapter(1, '/series/myst/1')],
 			[17, 5]
 		],
+		// Mihon's local source (0): a folder it knows, read to the end.
+		[
+			[1, 0n],
+			[2, 'aoi rin - Local Book - [555]'],
+			[3, 'aoi rin - Local Book - [555]'],
+			[
+				16,
+				[
+					[1, 'aoi rin - Local Book - [555]/chapter_1'],
+					[2, 'chapter_1'],
+					[4, true],
+					[6, 2],
+					[10, 0]
+				]
+			],
+			[100, false],
+			[
+				104,
+				[
+					[1, 'aoi rin - Local Book - [555]/chapter_1'],
+					[2, 1_760_000_000_000],
+					[3, 90_000]
+				]
+			]
+		],
 		// Browsed only: not in the library.
 		[
 			[1, ASURA],
@@ -220,6 +245,18 @@ export function writeMihonFolder(dir: string): string {
 			})
 		)
 	);
+
+	// The local source: a folder of images per book, and a cover beside it.
+	for (const name of ['aoi rin - Local Book - [555]', ' - No Artist Here - [777]']) {
+		const book = join(root, 'local', name, 'chapter_1');
+		mkdirSync(book, { recursive: true });
+		for (const p of ['001.jpg', '002.jpg', '003.jpg'])
+			writeFileSync(join(book, p), Buffer.alloc(16, 1));
+		writeFileSync(join(root, 'local', name, 'cover.jpg'), Buffer.alloc(16, 2));
+	}
+	// Android's leftover second downloads folder, with a chapter in it.
+	const extra = join(root, 'downloads (1)', 'Weeb Central (EN)', 'Drawing_ Saikyou Mangaka');
+	mkdirSync(extra, { recursive: true });
 
 	const orphan = join(root, 'downloads', 'Asura Scans (EN)', 'Not In The Backup');
 	mkdirSync(orphan, { recursive: true });

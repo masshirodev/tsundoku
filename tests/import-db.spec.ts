@@ -232,3 +232,39 @@ describe('the Hentoid import', () => {
 		expect(entries(s.id).map((e) => e.available)).toEqual([0]);
 	});
 });
+
+describe('Mihon’s local source', () => {
+	it('imports each local folder as a single book in its own hidden root', () => {
+		const root = db().prepare(`SELECT name, hidden FROM roots WHERE path LIKE '%/local'`).get();
+		expect(root).toEqual({ name: 'Mihon local', hidden: 1 });
+		const book = series('Local Book');
+		expect(book).toMatchObject({ kind: 'doujin', rating: 0 });
+		const e = db().prepare(`SELECT * FROM entries WHERE series_id = ?`).get(book.id) as Record<
+			string,
+			unknown
+		>;
+		expect(e).toMatchObject({
+			label: 'Book',
+			file: 'aoi rin - Local Book - [555]/chapter_1',
+			page_count: 3,
+			cover_file: '../cover.jpg',
+			read_at: 1_760_000_000_000
+		});
+		const tags = db()
+			.prepare(
+				`SELECT t.namespace, t.value FROM series_tags st JOIN tags t ON t.id = st.tag_id WHERE st.series_id = ?`
+			)
+			.all(book.id);
+		expect(tags).toContainEqual({ namespace: 'artist', value: 'aoi rin' });
+		expect(series('No Artist Here')).toBeDefined();
+	});
+
+	it('never turns the backup’s local manga into series in the visible Mihon root', () => {
+		const n = (
+			db()
+				.prepare(`SELECT COUNT(*) n FROM series WHERE title = 'aoi rin - Local Book - [555]'`)
+				.get() as { n: number }
+		).n;
+		expect(n).toBe(0);
+	});
+});
