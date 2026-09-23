@@ -39,20 +39,41 @@ type CardRow = {
 };
 
 /**
- * The per-series aggregates every card needs. `new_count` is the entries that
+ * The per-series aggregates every card needs, for the series `where` picks
+ * (with `s` and `r` in scope), in `order`. `new_count` is the entries that
  * arrived after the series was last opened -- "+3" means three chapters came
  * in since you last read it, not three unread. A series never opened has no
  * "new", only unread, so it reports 0 (the comparison with NULL is false).
+ *
+ * One grouped pass over the picked series' entries, not a subquery per
+ * series: correlated counts re-ran MAX(last_opened_at) for every entry row,
+ * and took the real library's ALL shelf 1.9 s (card "Make the library fast").
+ * This takes about 16 ms, with the covering index `entries_card` (rung 12).
+ * MATERIALIZED keeps SQLite from flattening it back into the slow shape.
  */
-const CARD_SELECT = `
+function cardQuery(where: string, order: string, limit = ''): string {
+	return `
+	WITH picked AS MATERIALIZED (
+		SELECT s.id FROM series s JOIN roots r ON r.id = s.root_id WHERE ${where}
+	), stats AS MATERIALIZED (
+		SELECT e.series_id,
+			SUM(e.shadowed = 0 AND e.matter = '') AS entry_count,
+			SUM(e.shadowed = 0 AND e.matter = '' AND e.read_at IS NOT NULL) AS read_count,
+			MAX(e.last_opened_at) AS last_opened
+		FROM entries e WHERE e.series_id IN (SELECT id FROM picked) GROUP BY e.series_id
+	), fresh AS MATERIALIZED (
+		SELECT e.series_id, COUNT(*) AS n FROM entries e JOIN stats t ON t.series_id = e.series_id
+		WHERE e.shadowed = 0 AND e.added_at > t.last_opened GROUP BY e.series_id
+	)
 	SELECT s.id, s.title, s.kind, s.rating, s.favourite,
 		${HIDDEN_SQL} AS hidden, s.hue, s.indexed_at, s.added_at,
-		(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0 AND e.matter = '') AS entry_count,
-		(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0 AND e.matter = '' AND e.read_at IS NOT NULL) AS read_count,
-		(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0 AND e.added_at > (
-			SELECT MAX(x.last_opened_at) FROM entries x WHERE x.series_id = s.id
-		)) AS new_count
-	FROM series s JOIN roots r ON r.id = s.root_id`;
+		COALESCE(t.entry_count, 0) AS entry_count,
+		COALESCE(t.read_count, 0) AS read_count,
+		COALESCE(f.n, 0) AS new_count
+	FROM picked p JOIN series s ON s.id = p.id JOIN roots r ON r.id = s.root_id
+	LEFT JOIN stats t ON t.series_id = s.id LEFT JOIN fresh f ON f.series_id = s.id
+	ORDER BY ${order} ${limit}`;
+}
 
 function toCard(row: CardRow): SeriesCard {
 	return {
@@ -72,7 +93,7 @@ function toCard(row: CardRow): SeriesCard {
 }
 
 const ORDER: Record<Sort, string> = {
-	recent: `(SELECT MAX(e.last_opened_at) FROM entries e WHERE e.series_id = s.id) DESC NULLS LAST, s.added_at DESC, s.id DESC`,
+	recent: `t.last_opened DESC NULLS LAST, s.added_at DESC, s.id DESC`,
 	title: `s.title COLLATE NOCASE ASC, s.id ASC`,
 	rating: `s.rating DESC, s.title COLLATE NOCASE ASC`,
 	added: `s.added_at DESC, s.id DESC`
@@ -123,10 +144,11 @@ export function listSeries(opts: {
 	const tag = tagClause(opts.tag ?? null);
 	const rows = getDb()
 		.prepare(
-			`${CARD_SELECT}
-			WHERE ${visibility(opts.reveal)} AND ${shelf.sql} AND ${tag.sql}
-			ORDER BY ${ORDER[opts.sort ?? 'recent']}
-			LIMIT ?`
+			cardQuery(
+				`${visibility(opts.reveal)} AND ${shelf.sql} AND ${tag.sql}`,
+				ORDER[opts.sort ?? 'recent'],
+				'LIMIT ?'
+			)
 		)
 		.all(...shelf.params, ...tag.params, opts.limit ?? 5000) as CardRow[];
 	return rows.map(toCard);
@@ -177,12 +199,7 @@ export function continueReading(
 			AND EXISTS (SELECT 1 FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0 AND e.matter = '' AND e.read_at IS NULL)`;
 	const total = (db.prepare(`SELECT COUNT(*) AS n ${open}`).get() as { n: number }).n;
 	const rows = db
-		.prepare(
-			`${CARD_SELECT}
-			WHERE s.id IN (SELECT s.id ${open})
-			ORDER BY (SELECT MAX(e.last_opened_at) FROM entries e WHERE e.series_id = s.id) DESC
-			LIMIT ?`
-		)
+		.prepare(cardQuery(`s.id IN (SELECT s.id ${open})`, `t.last_opened DESC`, 'LIMIT ?'))
 		.all(limit) as CardRow[];
 	// A book in a series of books is named by its place in the owner's order
 	// ("Book 3"), since its own label is just "Book" (doc/BOOKS.md).
@@ -301,10 +318,11 @@ export function search(query: string, reveal: boolean, limit = 30): SearchResult
 		.n;
 	const rows = db
 		.prepare(
-			`${CARD_SELECT}
-			WHERE s.id IN (SELECT s.id ${matched})
-			ORDER BY (s.title LIKE @like ESCAPE '\\') DESC, s.title COLLATE NOCASE
-			LIMIT @limit`
+			cardQuery(
+				`s.id IN (SELECT s.id ${matched})`,
+				`(s.title LIKE @like ESCAPE '\\') DESC, s.title COLLATE NOCASE`,
+				'LIMIT @limit'
+			)
 		)
 		.all({ like, limit }) as CardRow[];
 	const firstTag = db.prepare(
@@ -334,7 +352,7 @@ export function search(query: string, reveal: boolean, limit = 30): SearchResult
 
 export function seriesDetail(id: number, reveal: boolean): SeriesDetail | null {
 	const db = getDb();
-	const row = db.prepare(`${CARD_SELECT} WHERE s.id = ? AND ${visibility(reveal)}`).get(id) as
+	const row = db.prepare(cardQuery(`s.id = ? AND ${visibility(reveal)}`, 's.id')).get(id) as
 		CardRow | undefined;
 	if (!row) return null;
 	const collections = (

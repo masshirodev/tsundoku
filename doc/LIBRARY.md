@@ -84,6 +84,33 @@ A tile's `+N` counts entries that **arrived after the series was last opened**.
 It is not the unread count. Drawing has 18 unread and 3 new. A series never
 opened has no "new", only unread.
 
+## Speed
+
+Every card needs its entry, read and new counts, and the default sort needs
+each series' last-opened time. These used to be correlated subqueries, one set
+per series. SQLite re-ran the "new since last opened" MAX for every entry row,
+so a 1,429-chapter web novel alone cost about two million reads. The real
+library's ALL shelf took 1.9 s on the workstation.
+
+`cardQuery` (`src/lib/server/library.ts`) now works in one pass:
+
+1. it picks the series first;
+2. it groups their entries once for the counts and the last-opened time;
+3. it counts what's new against that.
+
+The steps are `MATERIALIZED`, so SQLite can't flatten them back into the slow
+shape. The counts are read from a covering index, `entries_card` (rung 12).
+
+Measured on the real library (6,872 series, 257 visible; 2026-09-23), same
+rows before and after:
+
+| Query     | Before   | After |
+| --------- | -------- | ----- |
+| ALL shelf | 1,920 ms | 18 ms |
+| CONTINUE  | 222 ms   | 22 ms |
+| Search    | 272 ms   | 57 ms |
+| NEW shelf | 379 ms   | 6 ms  |
+
 ## Where it departs from the handoff
 
 - **"N OPEN" counts every series in progress**, not the rows shown. The mock

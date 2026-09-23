@@ -283,6 +283,11 @@ const MIGRATIONS: string[] = [
 	ALTER TABLE entries ADD COLUMN locator TEXT NOT NULL DEFAULT '';
 	ALTER TABLE entries ADD COLUMN matter TEXT NOT NULL DEFAULT '';
 	ALTER TABLE entries ADD COLUMN last_offset INTEGER;
+	`,
+	// Rung 12: the library's cards count from this index alone, never the
+	// table (library.ts, cardQuery; card "Make the library fast").
+	`
+	CREATE INDEX entries_card ON entries(series_id, shadowed, matter, read_at, added_at, last_opened_at);
 	`
 ];
 
