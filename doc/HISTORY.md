@@ -74,3 +74,12 @@ series. That's rare, harmless, and cheaper than re-homing removals.
 - **The empty state sits in the upper half** of the screen, as the mock draws
   it (the empty block and the list share the height), not centred on the page.
 - A row's cover is the series' placeholder until the importers supply covers.
+
+## Speed
+
+An event's day, in the workstation's time, is stored on the event (`day`,
+rung 13), filled by a trigger when it's written. History used to work it out
+with `date(at, 'localtime')` several times per event on every request, and the
+19,000 events imported from Mihon took the screen to 306 ms. It now takes 5 ms.
+The day an event belongs to is decided once, in the time zone the workstation
+had when it was written, which is also when the owner read it.

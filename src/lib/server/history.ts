@@ -15,7 +15,8 @@ import type { Kind } from '$lib/library/types';
  */
 
 const READING = `('open', 'page', 'finish', 'close')`;
-const DAY = `date(re.at / 1000, 'unixepoch', 'localtime')`;
+/** The event's day in the workstation's time, stored when it was written (rung 13). */
+const DAY = `re.day`;
 
 function visible(reveal: boolean): string {
 	return visibleWhere(reveal);

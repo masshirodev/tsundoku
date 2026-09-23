@@ -288,6 +288,21 @@ const MIGRATIONS: string[] = [
 	// table (library.ts, cardQuery; card "Make the library fast").
 	`
 	CREATE INDEX entries_card ON entries(series_id, shadowed, matter, read_at, added_at, last_opened_at);
+	`,
+	// Rung 13: an event's day, in the workstation's time, worked out once when
+	// it's written instead of for every event on every history request (the
+	// imported 19,000 events took history to 330 ms). A trigger fills it, so
+	// no writer has to remember to. And the log by entry, for history's
+	// "last page seen that day".
+	`
+	ALTER TABLE reading_events ADD COLUMN day TEXT;
+	UPDATE reading_events SET day = date(at / 1000, 'unixepoch', 'localtime');
+	CREATE TRIGGER reading_events_day AFTER INSERT ON reading_events WHEN NEW.day IS NULL
+	BEGIN
+		UPDATE reading_events SET day = date(NEW.at / 1000, 'unixepoch', 'localtime') WHERE id = NEW.id;
+	END;
+	CREATE INDEX reading_events_by_day ON reading_events(day, series_id);
+	CREATE INDEX reading_events_entry ON reading_events(entry_id, at);
 	`
 ];
 

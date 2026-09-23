@@ -17,6 +17,19 @@ const idOf = (title: string) => lib.listSeries({ reveal: true }).find((s) => s.t
 // Local times on days after the seed, so these rows are the newest.
 const at = (d: number, h: number, m = 0) => new Date(2030, 0, d, h, m).getTime();
 
+describe('an event’s day', () => {
+	it('is the workstation’s local day, filled in when the event is written', () => {
+		const id = idOf('Dungeon Meshi');
+		const entry = series.seriesPage(id, false)!.entries[0].id;
+		const when = at(3, 23, 30);
+		series.recordReading({ seriesId: id, entryId: entry, kind: 'page', page: 1, now: when });
+		const row = getDb()
+			.prepare(`SELECT day FROM reading_events WHERE entry_id = ? AND at = ?`)
+			.get(entry, when) as { day: string };
+		expect(row.day).toBe('2030-01-03');
+	});
+});
+
 describe('history', () => {
 	it('has the seed reading, newest day first, hidden series only with reveal', () => {
 		const shown = history.historyDays(false).rows;

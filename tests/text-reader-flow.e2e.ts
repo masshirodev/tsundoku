@@ -92,10 +92,18 @@ test('a wide block opens whole, and an illustration full screen', async ({ page 
 	await expect(page.getByRole('dialog', { name: 'Illustration' })).toBeVisible();
 	await page.getByRole('dialog', { name: 'Illustration' }).click();
 	await expect(page.getByRole('dialog', { name: 'Illustration' })).toHaveCount(0);
-	for (let i = 0; i < 8 && !(await page.locator('.wide.cut').first().isVisible()); i++)
-		await forward(page);
+	// Turn until OPEN is on this page: a block on the next one is laid out,
+	// and "visible" to Playwright, but translated off-screen.
+	const open = page.locator('.wide.code .open');
+	const onScreen = async () => {
+		if ((await open.count()) === 0) return false;
+		const b = await open.boundingBox();
+		const v = page.viewportSize()!;
+		return !!b && b.x >= 0 && b.x + b.width <= v.width;
+	};
+	for (let i = 0; i < 8 && !(await onScreen()); i++) await forward(page);
 	await expect(page.locator('.wide.code .wlabel')).toHaveText(/^LISTING · \d+ COLUMNS, \d+ SHOWN$/);
-	await page.locator('.wide.code .open').click();
+	await open.click();
 	const view = page.getByRole('dialog', { name: 'Listing' });
 	await expect(view.locator('pre')).toContainText('walk the import descriptors');
 	await view.getByRole('button', { name: 'Close' }).click();
