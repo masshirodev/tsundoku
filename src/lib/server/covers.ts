@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import type { ReadStream } from 'node:fs';
 import { getDb } from './db.ts';
@@ -7,6 +8,7 @@ import { VISIBLE_SQL } from './visibility.ts';
 import { readPage } from './pages/index.ts';
 import { SAMPLE_PREFIX } from './pages/sample.ts';
 import { readEpub } from './import/epub.ts';
+import { bookCoverVersion } from '../library/cover.ts';
 import { listZip, readMember } from './zip.ts';
 
 /**
@@ -290,4 +292,70 @@ export async function readCover(
 	} catch {
 		return null;
 	}
+}
+
+// ---- books ---------------------------------------------------------------------
+
+/**
+ * A book's own cover, for its tile in a series of books (doc/COVERS.md,
+ * "Books"): the page the owner chose (`cover_page`), else the cover file its
+ * folder carries (Hentoid's thumbnail), else its first page. Made on first ask
+ * and kept beside the series' covers, named by what it was made from, so a
+ * new choice makes a new one.
+ */
+export async function readBookCover(
+	entryId: number,
+	reveal: boolean
+): Promise<{ body: Buffer; version: string } | null> {
+	const row = getDb()
+		.prepare(
+			`SELECT e.cover_page, e.cover_file, e.file, s.path FROM entries e
+			JOIN series s ON s.id = e.series_id JOIN roots r ON r.id = s.root_id
+			WHERE e.id = ? AND e.available = 1 AND (? OR ${VISIBLE_SQL})`
+		)
+		.get(entryId, reveal ? 1 : 0) as
+		| { cover_page: number | null; cover_file: string | null; file: string; path: string }
+		| undefined;
+	if (!row) return null;
+	const version = bookCoverVersion(row.cover_page);
+	const key = createHash('sha1')
+		.update(`${row.cover_page ?? ''}|${row.cover_file ?? ''}|${row.path}|${row.file}`)
+		.digest('hex')
+		.slice(0, 12);
+	const dir = join(coverDir(), 'books');
+	const path = join(dir, `${entryId}-${key}.webp`);
+	try {
+		return { body: await readFile(path), version };
+	} catch {
+		// Not made yet, or made from something else: made below.
+	}
+	const page = async (n: number) => {
+		const p = await readPage(entryId, n, true);
+		return p ? bytesOf(p.body) : null;
+	};
+	let made: Buffer | null = null;
+	try {
+		if (row.cover_page !== null) {
+			const b = await page(row.cover_page);
+			if (b) made = await thumbnail(b, true);
+		}
+		if (!made && row.cover_file && !row.path.startsWith(SAMPLE_PREFIX)) {
+			const b = await readFile(join(row.path, row.file, row.cover_file)).catch(() => null);
+			if (b) made = await thumbnail(b);
+		}
+		if (!made) {
+			const b = await page(0);
+			if (b) made = await thumbnail(b, true);
+		}
+	} catch {
+		return null;
+	}
+	if (!made) return null;
+	await mkdir(dir, { recursive: true });
+	// One file per book: what it was made from before is gone.
+	for (const f of await readdir(dir).catch(() => [] as string[]))
+		if (f.startsWith(`${entryId}-`)) await unlink(join(dir, f)).catch(() => undefined);
+	await writeFile(`${path}.partial`, made);
+	await rename(`${path}.partial`, path);
+	return { body: made, version };
 }

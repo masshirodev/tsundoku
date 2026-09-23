@@ -4,6 +4,7 @@
 	import Cover from '$lib/components/content/Cover.svelte';
 	import { moveItem, orderBooks, sharedStart, type OrderMode } from '$lib/library/books';
 	import { addedMonth } from '$lib/library/series';
+	import { coverSrc } from '$lib/library/links';
 
 	/**
 	 * Grouping books by hand (Index Books, state 6): NEW SERIES or ADD TO
@@ -15,7 +16,13 @@
 	 * the books left unticked are recorded as not belonging (the whole set is
 	 * stored as dismissed, so the suggestion doesn't return).
 	 */
-	type Book = { seriesId: number; title: string; hue: number; addedAt: number };
+	type Book = {
+		seriesId: number;
+		title: string;
+		hue: number;
+		addedAt: number;
+		cover?: number | null;
+	};
 
 	let {
 		open,
@@ -178,7 +185,9 @@
 						>
 					{/if}
 					<span class="num">{numbers[b.seriesId]}</span>
-					<span class="cov"><Cover hue={b.hue} width={34} height={49} /></span>
+					<span class="cov"
+						><Cover src={coverSrc(b.seriesId, b.cover)} hue={b.hue} width={34} height={49} /></span
+					>
 					<span class="t">{b.title}</span>
 					<span class="d">{addedMonth(b.addedAt)}</span>
 					<button

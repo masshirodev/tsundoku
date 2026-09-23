@@ -148,3 +148,15 @@ test('a single book with look-alikes is offered as one series, and NOT A SERIES 
 	await page.getByRole('button', { name: 'UNDO' }).click();
 	await expect(page.getByText('MIGHT BE ONE SERIES')).toBeVisible();
 });
+
+test('every book in a series shows its own cover, made from its pages', async ({ page }) => {
+	await reveal(page);
+	const covers: number[] = [];
+	page.on('response', (r) => {
+		if (/\/api\/entries\/\d+\/cover\?v=/.test(r.url()))
+			covers.push(r.headers()['content-type'] === 'image/webp' ? r.status() : -1);
+	});
+	await openBooks(page);
+	await expect.poll(() => covers.length).toBeGreaterThanOrEqual(4);
+	expect(covers.every((s) => s === 200)).toBe(true);
+});

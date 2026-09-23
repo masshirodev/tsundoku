@@ -1,3 +1,4 @@
+import { bookCoverVersion } from './cover';
 import { resolve } from '$app/paths';
 
 /**
@@ -64,5 +65,9 @@ function library(params: URLSearchParams): string {
  * A series' cover thumbnail, versioned so it's cached for good, or null for
  * none yet: the tile keeps its stripes (doc/COVERS.md).
  */
+/** A book's own cover, in a series of books; `v` follows the page chosen as its cover. */
+export const bookCoverSrc = (entryId: number, coverPage: number | null) =>
+	`${resolve('/api/entries/[id]/cover', { id: String(entryId) })}?v=${bookCoverVersion(coverPage)}`;
+
 export const coverSrc = (seriesId: number, cover: number | null | undefined) =>
 	cover ? `${resolve('/api/series/[id]/cover', { id: String(seriesId) })}?v=${cover}` : null;

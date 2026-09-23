@@ -57,9 +57,28 @@ update to libvips, run `yarn install --force` if thumbnails stop working.
 libvips' warning about the optional openslide module is silenced
 (`VIPS_WARNING=0`).
 
+## Books
+
+A book inside a series of books has a cover of its own
+(`readBookCover`, `GET /api/entries/<id>/cover?v=<version>`). It's made from
+the first of these that works:
+
+1. the page the owner chose as its cover (`entries.cover_page`);
+2. the cover file its folder carries (Hentoid's thumbnail, `cover_file`);
+3. its first page, cropped from the top like a series' page cover.
+
+It's made the first time a tile asks, not at a scan, and kept in
+`$COVER_DIR/books/<entry>-<hash>.webp`. The hash is of what it was made from, so
+another cover page, file or folder makes a new one, and the old one is deleted.
+The URL's `v` is `first`, or `p<n>` once a page is chosen, so a choice changes
+the URL and the old copy isn't served from the browser's cache. A book not on
+disk has none. A hidden series' books are a 404 while reveal is off.
+
+It's drawn on the series screen's BOOKS grid and on person pages. The
+suggestion band (MIGHT BE ONE SERIES), the group sheet's rows and a person
+page's strip of series use the series' own cover.
+
 ## What it doesn't do yet
 
-- **Books inside a series of books** show the series' cover, not their own.
-  Each book's own thumbnail (Hentoid has one per book) needs a per-entry cover.
 - **Set any page as the cover** is card c26.
 - **Page thumbnails** in a doujin's page grid are still placeholders.

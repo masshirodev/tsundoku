@@ -199,7 +199,7 @@ shelf leaves out a favourite person with no visible books for the same reason.
   Each book names its own folder relative to the series path, which grouping
   and take-out copy over ([`IMPORT-HENTOID.md`](IMPORT-HENTOID.md)), and a
   rescan finds a grouped book where it now lives.
-- **Covers are placeholders** until the importers (c6, c7) supply them, and
-  `cover_phash` is a column waiting for them. Cover similarity would make a
-  better suggestion signal than titles.
+- **`cover_phash` is a column waiting to be filled.** Every book has a real
+  cover now ([`COVERS.md`](COVERS.md), "Books"), and cover similarity would make
+  a better suggestion signal than titles.
 - **The READ button waits on the reader** (c13).

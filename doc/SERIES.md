@@ -103,6 +103,9 @@ width, row height (60 / 52px) and rail width (56 / 44px) per device.
 
 ## What it does not do yet
 
+- **The cover resumes.** A tap on it goes where ▶ CONTINUE goes, once that is
+  known (not while the series is still drawn in outline). The owner asked for
+  it on 2026-09-23: the biggest thing on the screen is the way in.
 - **A chapter that isn't downloaded doesn't open.** Everything else does:
   CONTINUE, `▶ CH. N`, a chapter row, a doujin page and a book's ▶ open the
   image reader ([`READER.md`](READER.md)), and a novel's the text reader

@@ -174,3 +174,15 @@ test('a tapped suggestion wins over the half-typed text beside it', async ({ pag
 	await sheet.getByRole('button', { name: 'Remove genre:isekai' }).click();
 	await expect(sheet.getByRole('button', { name: 'Remove genre:isekai' })).toHaveCount(0);
 });
+
+test('the cover resumes, as ▶ CONTINUE does', async ({ page }) => {
+	await open(page, 'Tower of God');
+	const cta = await page
+		.getByRole('link', { name: /▶ (CONTINUE|START|READ)/ })
+		.first()
+		.getAttribute('href');
+	const cover = page.locator('.panel a.cover');
+	await expect(cover).toHaveAttribute('href', cta!);
+	await cover.click();
+	await page.waitForURL(/\/read\/\d+/);
+});

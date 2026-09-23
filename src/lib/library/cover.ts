@@ -21,3 +21,11 @@ export function hueFor(seed: string): number {
 	}
 	return (h >>> 0) % 360;
 }
+
+/**
+ * What a book cover's URL carries (doc/COVERS.md, "Books"): the page chosen as
+ * its cover, so choosing another is a new URL. Shared by the link and the
+ * route that checks it.
+ */
+export const bookCoverVersion = (coverPage: number | null) =>
+	coverPage === null ? 'first' : `p${coverPage}`;

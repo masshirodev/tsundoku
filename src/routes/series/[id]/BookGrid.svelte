@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { bookCoverSrc } from '$lib/library/links';
 	import BookTile from '$lib/components/content/BookTile.svelte';
 	import { hueFor } from '$lib/library/cover';
 	import { phone, wide } from '$lib/device.svelte';
@@ -126,6 +127,7 @@
 				onkeydown={(ev) => key(ev, e.id)}
 			>
 				<BookTile
+					src={e.available ? bookCoverSrc(e.id, e.coverPage) : null}
 					title={e.title || `Book ${i + 1}`}
 					hue={hueFor(e.title || series.title)}
 					rating={reordering ? 0 : e.rating}

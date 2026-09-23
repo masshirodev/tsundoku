@@ -602,15 +602,17 @@ export function setBookFavourite(seriesId: number, entryId: number, on: boolean)
 const VISIBLE = VISIBLE_SQL;
 
 /** Visible doujin singletons: the only things a suggestion may name. */
-function singletonCandidates(reveal: boolean): (Candidate & { hue: number; addedAt: number })[] {
+function singletonCandidates(
+	reveal: boolean
+): (Candidate & { hue: number; addedAt: number; cover: number | null })[] {
 	return getDb()
 		.prepare(
-			`SELECT s.id AS seriesId, s.title, s.hue, s.added_at AS addedAt
+			`SELECT s.id AS seriesId, s.title, s.hue, s.added_at AS addedAt, s.cover_at AS cover
 			FROM series s JOIN roots r ON r.id = s.root_id
 			WHERE s.kind = 'doujin' AND ${reveal ? '1' : VISIBLE}
 			AND (SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) = 1`
 		)
-		.all() as (Candidate & { hue: number; addedAt: number })[];
+		.all() as (Candidate & { hue: number; addedAt: number; cover: number | null })[];
 }
 
 /**

@@ -6,7 +6,7 @@
 	import Badge from '$lib/components/content/Badge.svelte';
 	import { hueFor } from '$lib/library/cover';
 	import { count } from '$lib/library/labels';
-	import { coverSrc, seriesHref, tagHref } from '$lib/library/links';
+	import { bookCoverSrc, coverSrc, seriesHref, tagHref } from '$lib/library/links';
 	import type { TagItem, TagPage } from '$lib/library/books';
 	import { phone } from '$lib/device.svelte';
 
@@ -166,7 +166,7 @@
 			{#each page.series as s (s.id)}
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- seriesHref() resolves -->
 				<a class="strip-tile" href={seriesHref(s.id, `tag:${tagKey}`)}>
-					<Cover hue={hueFor(s.title)}>
+					<Cover src={coverSrc(s.id, s.cover)} hue={hueFor(s.title)}>
 						{#if s.favourite}<Badge tone="accent" corner="top-right">FAV</Badge>{/if}
 						<Badge corner="bottom-left">{s.books} BOOKS</Badge>
 					</Cover>
@@ -216,7 +216,9 @@
 			<li class:unselectable={selecting && i.entryId !== null}>
 				<BookTile
 					title={i.title}
-					src={coverSrc(i.seriesId, i.cover)}
+					src={i.entryId !== null
+						? bookCoverSrc(i.entryId, i.coverPage)
+						: coverSrc(i.seriesId, i.cover)}
 					hue={hueFor(i.title)}
 					rating={i.rating}
 					favourite={i.favourite}

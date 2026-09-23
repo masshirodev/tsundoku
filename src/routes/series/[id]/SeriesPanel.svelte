@@ -127,11 +127,20 @@
 	// A novel without a cover image of its own is set in type, not striped.
 	const noCover = $derived(series.kind === 'novel' && !series.cover);
 	let aboutOpen = $state(false);
+	/** Where the cover goes: the same place as ▶ CONTINUE, once it's known. */
+	const resumeHref = $derived(action.entry && !outline ? readHref(action.entry.id) : undefined);
 </script>
 
 <section class="panel" aria-label="About this series">
 	<div class="identity">
-		<div
+		<!-- The cover resumes, as ▶ CONTINUE does: the biggest thing on the screen is the way in.
+		     A second way for the finger only: CONTINUE is the one a screen reader and Tab find. -->
+		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves -->
+		<svelte:element
+			this={resumeHref ? 'a' : 'div'}
+			href={resumeHref}
+			aria-hidden={resumeHref ? 'true' : undefined}
+			tabindex={resumeHref ? -1 : undefined}
 			class="cover"
 			class:typeset={noCover}
 			style:background={noCover
@@ -146,7 +155,7 @@
 			{/if}
 			{#if series.hidden}<Badge tone="reveal" corner="top-left">HIDDEN</Badge>{/if}
 			{#if favourite}<Badge tone="accent" corner="top-right">FAV</Badge>{/if}
-		</div>
+		</svelte:element>
 		<div class="names">
 			<div class="meta">{outline ? series.kind.toUpperCase() : seriesMeta(series)}</div>
 			<h1>{series.title}</h1>
@@ -235,7 +244,9 @@
 					<span
 						class="sugg-cover"
 						class:this={b.seriesId === series.id}
-						style:background={coverPlaceholder(b.hue)}
+						style:background={b.cover
+							? `center / cover no-repeat url(${coverSrc(b.seriesId, b.cover)}), ${coverPlaceholder(b.hue)}`
+							: coverPlaceholder(b.hue)}
 						title={b.title}
 					></span>
 				{/each}
@@ -465,6 +476,11 @@
 		width: var(--cov-w);
 		aspect-ratio: var(--cover-ratio);
 		align-self: flex-start;
+	}
+	a.cover {
+		display: block;
+		color: inherit;
+		text-decoration: none;
 	}
 	.cover.typeset {
 		background: var(--surface-panel);

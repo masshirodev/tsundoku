@@ -78,7 +78,10 @@ export function stemKey(title: string): string | null {
 export type Candidate = { seriesId: number; title: string };
 
 /** A suggestion as the screen shows it: its set's key, and its books. */
-export type Suggestion = { key: string; books: (Candidate & { hue: number; addedAt: number })[] };
+export type Suggestion = {
+	key: string;
+	books: (Candidate & { hue: number; addedAt: number; cover: number | null })[];
+};
 
 /** Sorted, comma-joined ids: how a set of series is stored and compared. */
 export const setKey = (ids: number[]) => [...new Set(ids)].sort((a, b) => a - b).join(',');
@@ -147,8 +150,10 @@ export const bookNumber = (index: number) => String(index + 1).padStart(2, '0');
 export type TagItem = {
 	key: string;
 	seriesId: number;
-	/** The series' cover version (doc/COVERS.md); null for a book in a series of books, which has none of its own yet. */
+	/** The series' cover version (doc/COVERS.md); null for a book in a series of books, which has its own (`coverPage`). */
 	cover: number | null;
+	/** A book in a series of books: the page chosen as its cover, for its own thumbnail. */
+	coverPage: number | null;
 	/** Set when this is a book inside a series of books. */
 	entryId: number | null;
 	title: string;
@@ -177,7 +182,14 @@ export type TagPage = {
 	favourite: boolean;
 	items: TagItem[];
 	/** Series of books carrying the tag (the 02 — SERIES strip). */
-	series: { id: number; title: string; books: number; read: number; favourite: boolean }[];
+	series: {
+		id: number;
+		title: string;
+		books: number;
+		read: number;
+		favourite: boolean;
+		cover: number | null;
+	}[];
 	/** For a circle: the artists on its books, most books first. */
 	members: { value: string; count: number }[];
 	counts: { books: number; series: number; single: number; read: number; favourite: number };

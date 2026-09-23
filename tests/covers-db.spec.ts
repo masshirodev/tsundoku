@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -9,7 +9,7 @@ process.env.DATABASE_PATH = ':memory:';
 process.env.COVER_DIR = join(work, 'covers');
 
 const { getDb } = await import('$lib/server/db');
-const { readCover, refreshCovers } = await import('$lib/server/covers');
+const { readBookCover, readCover, refreshCovers } = await import('$lib/server/covers');
 const { samplePage } = await import('$lib/server/pages/sample');
 const { zip } = await import('./helpers/zip-writer');
 
@@ -135,5 +135,51 @@ describe('covers', () => {
 		expect(await readCover(hidden, false)).toBeNull();
 		expect((await readCover(hidden, true))?.at).toBe(5000);
 		expect(await readCover(local, false)).not.toBeNull();
+	});
+});
+
+describe('book covers', () => {
+	const entryOf = (seriesId: number) =>
+		(db.prepare(`SELECT id FROM entries WHERE series_id = ?`).get(seriesId) as { id: number }).id;
+	const made = (entryId: number) =>
+		readdirSync(join(work, 'covers', 'books')).filter((f) => f.startsWith(`${entryId}-`));
+
+	it('come from the first page, as a thumbnail kept on the library disk', async () => {
+		const e = entryOf(downloaded);
+		const c = await readBookCover(e, false);
+		expect(c?.version).toBe('first');
+		expect(c!.body.subarray(8, 12).toString()).toBe('WEBP');
+		expect(made(e)).toHaveLength(1);
+	});
+
+	it('follow the page the owner chose, replacing the one made before', async () => {
+		const e = entryOf(downloaded);
+		const before = made(e);
+		db.prepare(`UPDATE entries SET cover_page = 0 WHERE id = ?`).run(e);
+		expect((await readBookCover(e, false))?.version).toBe('p0');
+		expect(made(e)).toHaveLength(1);
+		expect(made(e)).not.toEqual(before);
+	});
+
+	it('use the cover file a folder carries', async () => {
+		const e = entryOf(local);
+		expect((await readBookCover(e, false))?.body.length).toBeGreaterThan(0);
+	});
+
+	it('are nothing for a book not on disk, and hidden with their series', async () => {
+		expect(await readBookCover(entryOf(bare), false)).toBeNull();
+		mkdirSync(join(work, 'h', 'Hidden Book'), { recursive: true });
+		writeFileSync(
+			join(work, 'h', 'Hidden Book', 'Chapter 1.cbz'),
+			zip([{ name: '001.png', data: png }])
+		);
+		const hidden = series({
+			title: 'Hidden Book',
+			root: 2,
+			path: join(work, 'h', 'Hidden Book'),
+			file: 'Chapter 1.cbz'
+		});
+		expect(await readBookCover(entryOf(hidden), false)).toBeNull();
+		expect(await readBookCover(entryOf(hidden), true)).not.toBeNull();
 	});
 });

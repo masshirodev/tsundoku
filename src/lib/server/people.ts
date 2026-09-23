@@ -38,7 +38,7 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 		.prepare(
 			`SELECT e.id AS entryId, s.id AS seriesId, e.title, s.title AS seriesTitle, e.rating, e.favourite,
 				${HIDDEN_SQL} AS hidden, e.page_count AS pages, e.read_at, e.last_position, e.position,
-				e.added_at AS addedAt,
+				e.added_at AS addedAt, e.cover_page AS coverPage,
 				(SELECT COUNT(*) FROM entries x WHERE x.series_id = s.id) AS total
 			FROM entry_tags et JOIN entries e ON e.id = et.entry_id
 			JOIN series s ON s.id = e.series_id JOIN roots r ON r.id = s.root_id
@@ -58,6 +58,7 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 		last_position: number | null;
 		position: number;
 		addedAt: number;
+		coverPage: number | null;
 		total: number;
 	}[];
 
@@ -96,6 +97,7 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 			key: `b${b.entryId}`,
 			seriesId: b.seriesId,
 			cover: null,
+			coverPage: b.coverPage,
 			entryId: b.entryId,
 			title: b.title || b.seriesTitle,
 			kind: 'doujin',
@@ -119,6 +121,7 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 			key: `s${s.seriesId}`,
 			seriesId: s.seriesId,
 			cover: s.cover,
+			coverPage: null,
 			entryId: null,
 			title: s.title,
 			kind: s.kind,
@@ -144,13 +147,20 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 
 	const bookSeries = new Map<
 		number,
-		{ id: number; title: string; books: number; read: number; favourite: boolean }
+		{
+			id: number;
+			title: string;
+			books: number;
+			read: number;
+			favourite: boolean;
+			cover: number | null;
+		}
 	>();
 	for (const b of books) {
 		if (!bookSeries.has(b.seriesId)) {
 			const s = db
 				.prepare(
-					`SELECT s.id, s.title, s.favourite,
+					`SELECT s.id, s.title, s.favourite, s.cover_at AS cover,
 						(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) AS books,
 						(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.read_at IS NOT NULL) AS read
 					FROM series s WHERE s.id = ?`
@@ -161,6 +171,7 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 				favourite: number;
 				books: number;
 				read: number;
+				cover: number | null;
 			};
 			bookSeries.set(b.seriesId, { ...s, favourite: s.favourite === 1 });
 		}
