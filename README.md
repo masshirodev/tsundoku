@@ -80,6 +80,8 @@ is the mount development pressures.
   state, where it departs from the handoff, and what it doesn't do yet.
 - [`doc/SERIES.md`](doc/SERIES.md) — the series screen: frame, states,
   departures, and what waits on the reader.
+- [`doc/READING-LOG.md`](doc/READING-LOG.md) — the append-only reading log that
+  stats, history and tracking will be derived from, and why it exists first.
 - [`doc/design/README.md`](doc/design/README.md) — the imported design system,
   where each part lives in the code, and its departures. `doc/design/handoff/` is
   the untouched mirror of the design project.

@@ -145,6 +145,35 @@ const MIGRATIONS: string[] = [
 	ALTER TABLE entries ADD COLUMN page_count INTEGER NOT NULL DEFAULT 0;
 	ALTER TABLE entries ADD COLUMN file TEXT NOT NULL DEFAULT '';
 	ALTER TABLE entries ADD COLUMN bytes INTEGER NOT NULL DEFAULT 0;
+	`,
+	`
+	-- The reading log: append-only, one row per thing that happened. Stats,
+	-- history and tracker sync are all derived from it later, so it has to be
+	-- written from the first page ever read -- a log can be re-summarised any
+	-- number of ways, a missing one cannot be reconstructed. See
+	-- doc/READING-LOG.md.
+	CREATE TABLE reading_events (
+		id INTEGER PRIMARY KEY,
+		at INTEGER NOT NULL,
+		series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+		entry_id INTEGER REFERENCES entries(id) ON DELETE SET NULL,
+		kind TEXT NOT NULL CHECK (kind IN ('open', 'page', 'finish', 'close', 'mark_read', 'mark_unread')),
+		-- 0-based page (or text position) the event happened at, when it has one.
+		page INTEGER,
+		-- Reading time this event accounts for: the gap since the previous event
+		-- in the same sitting, capped by the reader so an idle tablet is not time.
+		duration_ms INTEGER NOT NULL DEFAULT 0 CHECK (duration_ms >= 0)
+	);
+	CREATE INDEX reading_events_at ON reading_events(at);
+	CREATE INDEX reading_events_series ON reading_events(series_id, at);
+
+	-- Captured at import for later work, so nothing has to be re-scanned for it:
+	-- where each series and entry came from (tracker matching, provenance), and
+	-- a perceptual hash of each entry's cover (duplicate detection -- Hentoid
+	-- already ships one per image).
+	ALTER TABLE series ADD COLUMN source_url TEXT NOT NULL DEFAULT '';
+	ALTER TABLE entries ADD COLUMN source_url TEXT NOT NULL DEFAULT '';
+	ALTER TABLE entries ADD COLUMN cover_phash TEXT;
 	`
 ];
 

@@ -98,13 +98,76 @@ export function markEntries(
 	now = Date.now()
 ): number {
 	if (ids.length === 0) return 0;
+	const db = getDb();
 	const marks = ids.map(() => '?').join(',');
-	return getDb()
-		.prepare(
-			`UPDATE entries SET read_at = ${read ? '?' : 'NULL'}
-			WHERE series_id = ? AND id IN (${marks}) AND (read_at IS ${read ? '' : 'NOT '}NULL)`
-		)
-		.run(...(read ? [now] : []), seriesId, ...ids).changes;
+	return db
+		.transaction(() => {
+			// Only the entries that actually change state, so the log records what
+			// happened rather than what was asked for.
+			const changing = db
+				.prepare(
+					`SELECT id FROM entries WHERE series_id = ? AND id IN (${marks})
+					AND read_at IS ${read ? '' : 'NOT '}NULL`
+				)
+				.all(seriesId, ...ids) as { id: number }[];
+			const update = db.prepare(`UPDATE entries SET read_at = ? WHERE id = ?`);
+			const log = db.prepare(
+				`INSERT INTO reading_events (at, series_id, entry_id, kind) VALUES (?, ?, ?, ?)`
+			);
+			for (const { id } of changing) {
+				update.run(read ? now : null, id);
+				// A manual mark is logged as a mark, not as reading: stats count it as
+				// finished, never as time spent.
+				log.run(now, seriesId, id, read ? 'mark_read' : 'mark_unread');
+			}
+			return changing.length;
+		})
+		.immediate();
+}
+
+export type ReadingEvent = {
+	seriesId: number;
+	entryId: number;
+	kind: 'open' | 'page' | 'finish' | 'close';
+	page?: number | null;
+	durationMs?: number;
+	now?: number;
+};
+
+/**
+ * What the reader will call on every open, page turn, finish and close: it
+ * moves the entry's position and appends the event, in one transaction, so
+ * progress and the log can never disagree.
+ *
+ * Built ahead of the reader on purpose (doc/READING-LOG.md). The reader's
+ * incognito mode is the one caller that must not reach this at all.
+ */
+export function recordReading(e: ReadingEvent): void {
+	const db = getDb();
+	const now = e.now ?? Date.now();
+	const page = e.page ?? null;
+	const duration = Math.max(0, Math.round(e.durationMs ?? 0));
+	db.transaction(() => {
+		const owned = db
+			.prepare(`SELECT 1 FROM entries WHERE id = ? AND series_id = ?`)
+			.get(e.entryId, e.seriesId);
+		if (!owned) throw new Error(`entry ${e.entryId} is not in series ${e.seriesId}`);
+		db.prepare(
+			`INSERT INTO reading_events (at, series_id, entry_id, kind, page, duration_ms)
+			VALUES (?, ?, ?, ?, ?, ?)`
+		).run(now, e.seriesId, e.entryId, e.kind, page, duration);
+		if (e.kind === 'finish') {
+			db.prepare(
+				`UPDATE entries SET read_at = COALESCE(read_at, ?), last_opened_at = ?,
+				last_position = COALESCE(?, last_position) WHERE id = ?`
+			).run(now, now, page, e.entryId);
+		} else {
+			db.prepare(
+				`UPDATE entries SET last_opened_at = ?, last_position = COALESCE(?, last_position)
+				WHERE id = ?`
+			).run(now, page, e.entryId);
+		}
+	}).immediate();
 }
 
 export function setDirection(seriesId: number, direction: Direction | null): void {

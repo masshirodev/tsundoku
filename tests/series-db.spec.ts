@@ -96,3 +96,65 @@ describe('tags', () => {
 		).toBe(1);
 	});
 });
+
+describe('the reading log', () => {
+	const events = (seriesId: number) =>
+		getDb()
+			.prepare(
+				`SELECT kind, entry_id, page, duration_ms FROM reading_events WHERE series_id = ? ORDER BY id`
+			)
+			.all(seriesId) as {
+			kind: string;
+			entry_id: number;
+			page: number | null;
+			duration_ms: number;
+		}[];
+
+	it('moves progress and appends the event together', () => {
+		const id = idOf('Chainsaw Man');
+		const entry = series.seriesPage(id, false)!.entries[198];
+		series.recordReading({ seriesId: id, entryId: entry.id, kind: 'open', page: 0, now: 1000 });
+		series.recordReading({
+			seriesId: id,
+			entryId: entry.id,
+			kind: 'page',
+			page: 5,
+			durationMs: 42_000,
+			now: 2000
+		});
+		series.recordReading({
+			seriesId: id,
+			entryId: entry.id,
+			kind: 'finish',
+			page: 23,
+			durationMs: 90_000,
+			now: 3000
+		});
+		const after = series.seriesPage(id, false)!.entries[198];
+		expect(after).toMatchObject({ lastPosition: 23, lastOpenedAt: 3000, readAt: 3000 });
+		expect(events(id)).toEqual([
+			{ kind: 'open', entry_id: entry.id, page: 0, duration_ms: 0 },
+			{ kind: 'page', entry_id: entry.id, page: 5, duration_ms: 42_000 },
+			{ kind: 'finish', entry_id: entry.id, page: 23, duration_ms: 90_000 }
+		]);
+	});
+
+	it('refuses an entry that belongs to another series, writing nothing', () => {
+		const a = idOf('Chainsaw Man');
+		const other = series.seriesPage(idOf('Dungeon Meshi'), false)!.entries[0].id;
+		const before = events(a).length;
+		expect(() => series.recordReading({ seriesId: a, entryId: other, kind: 'open' })).toThrow();
+		expect(events(a)).toHaveLength(before);
+	});
+
+	it('logs manual marks as marks, one per entry that actually changed', () => {
+		const id = idOf('Boku no Kokoro no Yabai Yatsu');
+		const s = series.seriesPage(id, false)!;
+		const read = s.entries[0].id;
+		const unread = s.entries[159].id;
+		series.markEntries(id, [read, unread], true);
+		expect(events(id)).toEqual([
+			{ kind: 'mark_read', entry_id: unread, page: null, duration_ms: 0 }
+		]);
+	});
+});
