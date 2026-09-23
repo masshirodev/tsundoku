@@ -42,9 +42,10 @@ Two reader engines over one library.
 
 The owner's organisation, which is the reason this app exists:
 
-- **Rating: 0–5**, integer, on the series. `NULL` is _unrated_, and is kept
-  distinct from a deliberate 0 — "I rated this nothing" and "I have not rated
-  this" are different answers to "what did I think of it".
+- **Rating: 0–5**, integer, on the series. **0 is unrated** and 1–5 is the
+  judgement; there is no separate "rated nothing". Decided by the owner on
+  2026-09-22, and the same convention Hentoid uses. (An earlier draft kept
+  `NULL` for unrated apart from a deliberate 0; migration rung 2 retired it.)
 - **Favourite**: a boolean on the series. Deliberately separate from rating —
   a favourite is "keep this at hand", not "this is a 5".
 - **Collections**: owner-made, ordered, a series can sit in many. These replace

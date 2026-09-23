@@ -53,7 +53,7 @@ export const actions: Actions = {
 	rate: async ({ request }) => {
 		const form = await request.formData();
 		const rating = parseRating(form.get('rating'));
-		if (rating === undefined) return fail(400, { message: 'rating must be 0-5 or empty' });
+		if (rating === undefined) return fail(400, { message: 'rating must be 0-5' });
 		setRating(ids(form), rating);
 		return { ok: true };
 	},
@@ -90,7 +90,7 @@ export const actions: Actions = {
 		if (target.length === 0) return fail(400, { message: 'nothing selected' });
 		if (form.has('rating')) {
 			const rating = parseRating(form.get('rating'));
-			if (rating === undefined) return fail(400, { message: 'rating must be 0-5 or empty' });
+			if (rating === undefined) return fail(400, { message: 'rating must be 0-5' });
 			setRating(target, rating);
 		} else if (form.get('do') === 'fav') {
 			setFavourite(target, true);

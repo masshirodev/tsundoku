@@ -1,11 +1,12 @@
 <script lang="ts">
-	import { RATING_OPTIONS, ratingLabel } from '$lib/library/rating';
+	import { RATING_OPTIONS } from '$lib/library/rating';
 	import type { Rating } from '$lib/library/types';
 
 	/**
-	 * Seven cells: `—` (unrated) then 0-5, the chosen one filled with the
-	 * accent. `value` undefined means "no single value", which is the bulk bar:
-	 * rating three series at once has no current rating to show.
+	 * Six cells, 0-5. 0 is unrated: choosing it clears the rating, and while a
+	 * series is unrated no cell is filled and the label reads UNRATED (the
+	 * series handoff's convention). `value` undefined means "no single value",
+	 * which is the bulk bar: three series at once have no current rating.
 	 *
 	 * Cells are submit buttons when `name` is given, so the picker works inside
 	 * a plain form with no script.
@@ -33,22 +34,22 @@
 <div class="picker" style:height="{height}px" role="group" aria-label={label ?? 'Rating'}>
 	{#if label}
 		<div class="label" style:width={labelWidth != null ? `${labelWidth}px` : undefined}>
-			{label}
+			{value === 0 && label.toLowerCase() === 'rating' ? 'UNRATED' : label.toUpperCase()}
 		</div>
 	{/if}
 	{#each RATING_OPTIONS as option (option)}
-		{@const on = value !== undefined && option === value}
+		{@const on = value !== undefined && value !== 0 && option === value}
 		<button
 			type={name ? 'submit' : 'button'}
 			{name}
-			value={option === null ? '' : String(option)}
+			value={String(option)}
 			class="cell"
 			class:on
-			class:clear={option === null}
+			class:clear={option === 0}
 			style:font-size="{fontSize}px"
 			aria-pressed={on}
-			aria-label={option === null ? 'Unrated' : `Rate ${option}`}
-			onclick={() => onchange?.(option)}>{ratingLabel(option)}</button
+			aria-label={option === 0 ? 'Unrated' : `Rate ${option}`}
+			onclick={() => onchange?.(option)}>{option}</button
 		>
 	{/each}
 </div>

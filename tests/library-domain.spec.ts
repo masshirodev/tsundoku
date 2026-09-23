@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RATING_OPTIONS, parseRating, ratingBars, ratingLabel } from '$lib/library/rating';
+import { RATING_OPTIONS, isRated, parseRating, ratingBars } from '$lib/library/rating';
 import { likePattern, parseSearch, splitMatch } from '$lib/library/search';
 import {
 	continueSub,
@@ -29,12 +29,13 @@ const card = (over: Partial<SeriesCard> = {}): SeriesCard => ({
 });
 
 describe('rating', () => {
-	// The one rule the whole rating design exists for: unrated and a deliberate
-	// zero must never draw the same thing.
-	it('draws unrated with no track and zero with a hollow one', () => {
-		expect(ratingBars(null)).toEqual(['none', 'none', 'none', 'none', 'none']);
-		expect(ratingBars(0)).toEqual(['off', 'off', 'off', 'off', 'off']);
-		expect(ratingBars(null)).not.toEqual(ratingBars(0));
+	// 0 is unrated (the owner's scale): it draws no track at all, so it never
+	// looks like a series someone rated low.
+	it('draws unrated (0) with no track and a rated series with its track', () => {
+		expect(ratingBars(0)).toEqual(['none', 'none', 'none', 'none', 'none']);
+		expect(ratingBars(1)).toEqual(['on', 'off', 'off', 'off', 'off']);
+		expect(isRated(0)).toBe(false);
+		expect(isRated(1)).toBe(true);
 	});
 
 	it('fills bars up to the rating', () => {
@@ -42,14 +43,13 @@ describe('rating', () => {
 		expect(ratingBars(5)).toEqual(['on', 'on', 'on', 'on', 'on']);
 	});
 
-	it('offers clear, then 0 through 5, in the order the picker draws them', () => {
-		expect(RATING_OPTIONS).toEqual([null, 0, 1, 2, 3, 4, 5]);
-		expect(RATING_OPTIONS.map(ratingLabel)).toEqual(['—', '0', '1', '2', '3', '4', '5']);
+	it('offers 0 through 5, 0 clearing the rating', () => {
+		expect(RATING_OPTIONS).toEqual([0, 1, 2, 3, 4, 5]);
 	});
 
 	it('parses form values, refusing rather than clamping out-of-range input', () => {
-		expect(parseRating('')).toBeNull();
-		expect(parseRating('—')).toBeNull();
+		expect(parseRating('')).toBe(0);
+		expect(parseRating(null)).toBeUndefined();
 		expect(parseRating('0')).toBe(0);
 		expect(parseRating('5')).toBe(5);
 		expect(parseRating('6')).toBeUndefined();

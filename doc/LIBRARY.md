@@ -35,10 +35,16 @@ while reveal is off, a hidden title never reaches the browser at all.
 
 ## Rating
 
-An integer 0–5, with `NULL` for unrated, in the schema (`CHECK`), the domain
-(`$lib/library/rating.ts`), the picker (`—` clears to unrated) and the tile (no
-track at all for unrated, five empty bars for 0). Out-of-range input is refused,
-never clamped: a clamped 7 would silently become a 5 nobody chose.
+An integer 0–5 where **0 is unrated** (the owner's scale, 2026-09-22). The
+picker is six cells, 0–5: choosing 0 clears a rating, and while a series is
+unrated no cell is filled and the row's label reads UNRATED. That's the series
+handoff's convention, and the library uses it too. On a tile, unrated draws no
+track at all, and a rated series draws its filled bars plus the rest of the
+track. Out-of-range input is refused, never clamped: a clamped 7 would silently
+become a 5 nobody chose.
+
+The library handoff drew a seventh `—` cell to keep a deliberate 0 apart from
+unrated. That distinction is gone, and so is the cell.
 
 ## New chapters
 

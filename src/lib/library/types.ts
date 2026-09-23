@@ -9,10 +9,10 @@ export type Kind = 'manga' | 'manhwa' | 'doujin' | 'novel';
 export const KINDS: readonly Kind[] = ['manga', 'manhwa', 'doujin', 'novel'];
 
 /**
- * 0-5, or null for unrated. The two are different answers to "what did I
- * think of it" and must never be collapsed -- see doc/ARCHITECTURE.md.
+ * 0-5, where 0 is unrated and 1-5 is the owner's judgement. A series is
+ * rated or it is not; there is no "rated nothing".
  */
-export type Rating = 0 | 1 | 2 | 3 | 4 | 5 | null;
+export type Rating = 0 | 1 | 2 | 3 | 4 | 5;
 
 export type SeriesCard = {
 	id: number;

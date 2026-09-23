@@ -68,7 +68,7 @@ Root: `<shared storage>/H/.Hentoid/` (the user-chosen `H` folder).
 | `attributes.{TAG,ARTIST,CIRCLE,…}`                          | namespaced tags (`artist:`, `circle:`, `language:`, …) |
 | `attributes.LANGUAGE`                                       | includes the pseudo-language `translated`; keep as tag |
 | **`favourite`**                                             | → favourite                                            |
-| **`rating`** (0 = unrated)                                  | → rating; Hentoid 0 imports as `NULL`, not as 0        |
+| **`rating`** (0 = unrated)                                  | → rating, as is: 0 is unrated here too                 |
 | `reads`, `lastReadDate`, `lastReadPageIndex`, `completed`   | → progress                                             |
 | `imageFiles[]` (`order`, `name`, `isCover`, `chapterOrder`) | page order; `isCover` is the thumb, not a page         |
 | `chapters[]`                                                | present on multi-chapter sources (Hentai2Read)         |

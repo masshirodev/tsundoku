@@ -53,7 +53,7 @@ export const SAMPLE_ROWS: Row[] = [
 	{
 		title: 'Kusuriya no Hitorigoto',
 		kind: 'manga',
-		rating: null,
+		rating: 0,
 		favourite: false,
 		entries: 71,
 		read: 21,
@@ -85,7 +85,7 @@ export const SAMPLE_ROWS: Row[] = [
 	{
 		title: 'Hoshi no Umi no Tabibito',
 		kind: 'doujin',
-		rating: null,
+		rating: 0,
 		favourite: false,
 		entries: 1,
 		read: 0,
@@ -124,7 +124,7 @@ export const SAMPLE_ROWS: Row[] = [
 	{
 		title: 'Return of the Mount Hua Sect',
 		kind: 'manhwa',
-		rating: null,
+		rating: 0,
 		favourite: false,
 		entries: 120,
 		read: 86,
@@ -163,7 +163,7 @@ export const SAMPLE_ROWS: Row[] = [
 	{
 		title: 'Tower of God',
 		kind: 'manhwa',
-		rating: null,
+		rating: 0,
 		favourite: false,
 		entries: 600,
 		read: 593,
@@ -184,7 +184,7 @@ export const SAMPLE_ROWS: Row[] = [
 	{
 		title: 'Villainess Level 99',
 		kind: 'novel',
-		rating: null,
+		rating: 0,
 		favourite: false,
 		entries: 20,
 		read: 1,
@@ -224,7 +224,7 @@ export const SAMPLE_ROWS: Row[] = [
 	{
 		title: 'Tensei Shitara Ken Deshita',
 		kind: 'novel',
-		rating: null,
+		rating: 0,
 		favourite: false,
 		entries: 15,
 		read: 0,
@@ -245,7 +245,7 @@ export const SAMPLE_ROWS: Row[] = [
 	{
 		title: 'Isekai Yakkyoku',
 		kind: 'manga',
-		rating: null,
+		rating: 0,
 		favourite: false,
 		entries: 50,
 		read: 0,
@@ -269,7 +269,7 @@ export const HIDDEN_ROWS: Row[] = [
 	{
 		title: 'Kōhai no Himitsu Nikki',
 		kind: 'doujin',
-		rating: null,
+		rating: 0,
 		favourite: false,
 		entries: 1,
 		read: 0,
@@ -278,7 +278,7 @@ export const HIDDEN_ROWS: Row[] = [
 	{
 		title: 'Onsen Ryokan no Yoru',
 		kind: 'doujin',
-		rating: null,
+		rating: 0,
 		favourite: false,
 		entries: 1,
 		read: 0,
@@ -287,7 +287,7 @@ export const HIDDEN_ROWS: Row[] = [
 	{
 		title: 'Rakugaki Collection Vol. 3',
 		kind: 'doujin',
-		rating: null,
+		rating: 0,
 		favourite: false,
 		entries: 1,
 		read: 0,

@@ -26,36 +26,32 @@ async function longPress(page: Page, title: string) {
 	return sheet;
 }
 
-test('rating from the sheet persists, and unrated stays distinct from 0', async ({ page }) => {
+test('rating from the sheet persists, and 0 clears it back to unrated', async ({ page }) => {
 	await page.goto('/');
 	let sheet = await longPress(page, TITLE);
-	await expect(sheet.getByRole('button', { name: 'Unrated' })).toHaveAttribute(
-		'aria-pressed',
-		'true'
-	);
+	// Unrated: no cell is filled and the label says so.
+	await expect(sheet.getByText('UNRATED', { exact: true })).toBeVisible();
+	for (const name of ['Unrated', 'Rate 1', 'Rate 5']) {
+		await expect(sheet.getByRole('button', { name })).toHaveAttribute('aria-pressed', 'false');
+	}
 
-	await sheet.getByRole('button', { name: 'Rate 0' }).click();
-	await expect(sheet.getByRole('button', { name: 'Rate 0' })).toHaveAttribute(
+	await sheet.getByRole('button', { name: 'Rate 2' }).click();
+	await expect(sheet.getByRole('button', { name: 'Rate 2' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
 	);
 	await page.keyboard.press('Escape');
-
-	// The tile now draws five empty bars, not the no-track of unrated.
 	const bars = page.locator('.grid .tile', { hasText: TITLE }).getByRole('img');
-	await expect(bars).toHaveAttribute('aria-label', 'Rated 0 of 5');
+	await expect(bars).toHaveAttribute('aria-label', 'Rated 2 of 5');
 
 	await page.reload();
 	sheet = await longPress(page, TITLE);
-	await expect(sheet.getByRole('button', { name: 'Rate 0' })).toHaveAttribute(
+	await expect(sheet.getByRole('button', { name: 'Rate 2' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
 	);
 	await sheet.getByRole('button', { name: 'Unrated' }).click();
-	await expect(sheet.getByRole('button', { name: 'Unrated' })).toHaveAttribute(
-		'aria-pressed',
-		'true'
-	);
+	await expect(sheet.getByText('UNRATED', { exact: true })).toBeVisible();
 	await page.keyboard.press('Escape');
 	await expect(bars).toHaveAttribute('aria-label', 'Unrated');
 });

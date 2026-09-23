@@ -54,7 +54,7 @@ const MIGRATIONS: string[] = [
 		root_id INTEGER NOT NULL REFERENCES roots(id) ON DELETE CASCADE,
 		title TEXT NOT NULL,
 		kind TEXT NOT NULL CHECK (kind IN ('manga', 'manhwa', 'doujin', 'novel')),
-		-- NULL is unrated, and is a different answer from 0.
+		-- Rung 2 settled this: 0 is unrated and NULL is never written.
 		rating INTEGER CHECK (rating IS NULL OR rating BETWEEN 0 AND 5),
 		favourite INTEGER NOT NULL DEFAULT 0,
 		hidden INTEGER NOT NULL DEFAULT 0,
@@ -119,6 +119,13 @@ const MIGRATIONS: string[] = [
 		failed_files INTEGER NOT NULL DEFAULT 0,
 		dismissed_at INTEGER
 	);
+	`,
+	`
+	-- 0 is unrated (the owner's scale, 2026-09-22), so there is no separate
+	-- NULL. The column keeps rung 1's nullable CHECK because SQLite cannot
+	-- tighten a constraint without rebuilding a table four others reference;
+	-- the code never writes NULL, and this clears the ones rung 1 allowed.
+	UPDATE series SET rating = 0 WHERE rating IS NULL;
 	`
 ];
 

@@ -16,7 +16,7 @@
 		title,
 		src,
 		hue,
-		rating = null,
+		rating = 0,
 		favourite = false,
 		newCount = 0,
 		hidden = false,

@@ -19,5 +19,5 @@ Tailscale. Read `README.md` and `doc/ARCHITECTURE.md` before changing anything.
   page.
 - Before committing: `yarn run check && yarn run lint && yarn run test`, plus
   `yarn run test:e2e` when the UI changed. See `doc/TESTING.md`.
-- Rating is an integer 0–5 with `NULL` meaning unrated; never collapse the two.
+- Rating is an integer 0–5 and **0 means unrated**. Never write `NULL`.
 - Push to `main`.

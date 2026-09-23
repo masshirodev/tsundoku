@@ -26,7 +26,7 @@ type CardRow = {
 	id: number;
 	title: string;
 	kind: Kind;
-	rating: number | null;
+	rating: number;
 	favourite: number;
 	hidden: number;
 	hue: number;
@@ -71,7 +71,7 @@ function toCard(row: CardRow): SeriesCard {
 const ORDER: Record<Sort, string> = {
 	recent: `(SELECT MAX(e.last_opened_at) FROM entries e WHERE e.series_id = s.id) DESC NULLS LAST, s.added_at DESC, s.id DESC`,
 	title: `s.title COLLATE NOCASE ASC, s.id ASC`,
-	rating: `s.rating DESC NULLS LAST, s.title COLLATE NOCASE ASC`,
+	rating: `s.rating DESC, s.title COLLATE NOCASE ASC`,
 	added: `s.added_at DESC, s.id DESC`
 };
 

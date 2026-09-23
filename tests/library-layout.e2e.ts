@@ -87,7 +87,9 @@ test('covers are 2:2.9 and badges sit flush in their corners', async ({ page }) 
 	expect(Math.round(freshBox.y + freshBox.height)).toBe(Math.round(box.y + box.height));
 });
 
-test('unrated draws no track at all; zero draws five empty bars', async ({ page }) => {
+test('unrated (0) draws no track at all; a rated series draws its whole track', async ({
+	page
+}) => {
 	await page.goto('/');
 	const bars = async (title: string) =>
 		page
@@ -95,10 +97,12 @@ test('unrated draws no track at all; zero draws five empty bars', async ({ page 
 			.locator('.bars .bar')
 			.evaluateAll((els) => els.map((e) => getComputedStyle(e).backgroundColor));
 	const unrated = await bars('Hoshi no Umi no Tabibito');
-	const zero = await bars('Yofukashi no Uta');
+	const one = await bars('Lookism');
 	expect(unrated).toHaveLength(5);
 	for (const c of unrated) expect(c).toBe('rgba(0, 0, 0, 0)');
-	for (const c of zero) expect(c).not.toBe('rgba(0, 0, 0, 0)');
+	// Rated 1: one filled bar and four empty ones, all of them drawn.
+	for (const c of one) expect(c).not.toBe('rgba(0, 0, 0, 0)');
+	expect(new Set(one).size).toBe(2);
 });
 
 test('nothing is rounded and nothing casts a shadow', async ({ page }) => {

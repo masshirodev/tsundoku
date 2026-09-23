@@ -89,14 +89,21 @@ describe('search', () => {
 });
 
 describe('writes touch only what was asked', () => {
-	it('rates, clears to unrated, and keeps 0 distinct from unrated', () => {
+	it('rates, clears to unrated (0), and leaves other series alone', () => {
 		const [a, b] = lib.listSeries({ reveal: false, sort: 'title' });
+		const before = lib.seriesDetail(b.id, false)!.rating;
+		expect(lib.setRating([a.id], 3)).toBe(1);
+		expect(lib.seriesDetail(a.id, false)!.rating).toBe(3);
 		expect(lib.setRating([a.id], 0)).toBe(1);
 		expect(lib.seriesDetail(a.id, false)!.rating).toBe(0);
-		expect(lib.setRating([a.id], null)).toBe(1);
-		expect(lib.seriesDetail(a.id, false)!.rating).toBeNull();
-		const before = lib.seriesDetail(b.id, false)!.rating;
 		expect(lib.seriesDetail(b.id, false)!.rating).toBe(before);
+	});
+
+	it('never leaves a NULL rating behind after the migrations', () => {
+		const { n } = getDb()
+			.prepare('SELECT COUNT(*) AS n FROM series WHERE rating IS NULL')
+			.get() as { n: number };
+		expect(n).toBe(0);
 	});
 
 	it('applies a bulk action to exactly the selected series', () => {

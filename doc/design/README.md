@@ -88,7 +88,15 @@ departure isn't written down here, it's a bug.
 5. **The grid pads its last row** with empty cells in the page colour. The mock
    always has full rows. A real library doesn't, and the `--line-1` ground
    would otherwise show as grey blocks.
-6. **Theme switching is a search command** (`/light`, `/dark`), in the same idiom
+6. **The rating picker has six cells, 0–5, and 0 is unrated.** The library
+   handoff drew seven (`—` then 0–5), and the series handoff drew six with no
+   way back to unrated. The owner settled it on 2026-09-22: 0 is unrated. So
+   every picker is the series one: six cells, none filled while unrated, the
+   label reading UNRATED, and 0 clears a rating.
+7. **Plex Sans JP and KR are self-hosted too**, for the series and reader
+   titles. Fontsource splits them into `unicode-range` chunks, so only the
+   characters on screen are downloaded.
+8. **Theme switching is a search command** (`/light`, `/dark`), in the same idiom
    as `/reveal`. The Turn 3 matrix draws no theme control, and the UI kit's THEME
    button was a prototype convenience.
 
