@@ -76,6 +76,54 @@ test('favourite toggles from the sheet and shows on the tile', async ({ page }) 
 	await expect(page.getByRole('switch')).toHaveAttribute('aria-checked', 'false');
 });
 
+test('FAV toggles on the cover in one tap, without opening anything', async ({ page }) => {
+	await page.goto('/');
+	const tile = page.locator('.grid .tile', { hasText: TITLE });
+	const fav = tile.getByRole('button', { name: 'Favourite' });
+	await expect(fav).toHaveAttribute('aria-pressed', 'false');
+
+	await fav.click();
+	await expect(fav).toHaveAttribute('aria-pressed', 'true');
+	await expect(tile.getByText('FAV', { exact: true })).toBeVisible();
+	await expect(page).toHaveURL(/\/$/);
+	await expect(page.getByRole('dialog')).toHaveCount(0);
+
+	await page.reload();
+	await expect(fav).toHaveAttribute('aria-pressed', 'true');
+	await fav.click();
+	await expect(fav).toHaveAttribute('aria-pressed', 'false');
+	await page.reload();
+	await expect(tile.getByText('FAV', { exact: true })).toHaveCount(0);
+});
+
+test('the rating bars open the six cells on the tile, and a cell saves', async ({ page }) => {
+	await page.goto('/');
+	const tile = page.locator('.grid .tile', { hasText: TITLE });
+	const bars = tile.getByRole('img');
+	await tile.getByRole('button', { name: /^Rate, / }).click();
+	const picker = tile.getByRole('group', { name: 'Rating' });
+	await expect(picker.getByRole('button')).toHaveCount(6);
+
+	await picker.getByRole('button', { name: 'Rate 4' }).click();
+	await expect(picker).toHaveCount(0);
+	await expect(bars).toHaveAttribute('aria-label', 'Rated 4 of 5');
+	await expect(page).toHaveURL(/\/$/);
+
+	await page.reload();
+	await expect(bars).toHaveAttribute('aria-label', 'Rated 4 of 5');
+	// A tap elsewhere closes it without choosing.
+	await tile.getByRole('button', { name: /^Rate, / }).click();
+	await expect(picker).toBeVisible();
+	await page.evaluate(() =>
+		document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+	);
+	await expect(picker).toHaveCount(0);
+
+	await tile.getByRole('button', { name: /^Rate, / }).click();
+	await picker.getByRole('button', { name: 'Unrated' }).click();
+	await expect(bars).toHaveAttribute('aria-label', 'Unrated');
+});
+
 test('hidden means hidden, until /reveal, and HIDE AGAIN ends it', async ({ page }) => {
 	await page.goto('/');
 	const sheet = await longPress(page, TITLE);

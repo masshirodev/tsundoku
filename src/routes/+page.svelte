@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import { deserialize, enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { SvelteSet } from 'svelte/reactivity';
+	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import { page } from '$app/state';
 	import Banner from '$lib/components/chrome/Banner.svelte';
 	import BulkBar from '$lib/components/chrome/BulkBar.svelte';
@@ -24,7 +24,7 @@
 	import { offline } from '$lib/offline.svelte';
 	import { continueSub, count, nextSort, progress, SORT_LABEL } from '$lib/library/labels';
 	import { readHref, seriesHref, shelfHref, withParam } from '$lib/library/links';
-	import type { Shelf } from '$lib/library/types';
+	import type { Rating, Shelf } from '$lib/library/types';
 
 	let { data, form } = $props();
 
@@ -91,6 +91,43 @@
 		if (selecting) toggle(id);
 		// eslint-disable-next-line svelte/no-navigation-without-resolve -- seriesHref() resolves
 		else void goto(seriesHref(id, data.tag ? null : data.shelf));
+	}
+
+	// ---- on the tile ------------------------------------------------------
+	// FAV and the rating are edited on the cover itself (see CoverTile). The
+	// tile shows the change at once; the server's answer replaces it, and a
+	// write that failed puts the old value back.
+	const favNow = new SvelteMap<number, boolean>();
+	const ratingNow = new SvelteMap<number, Rating>();
+
+	async function write(action: 'favourite' | 'rate', fields: Record<string, string>) {
+		const body = new FormData();
+		for (const [k, v] of Object.entries(fields)) body.set(k, v);
+		try {
+			const res = await fetch(`/?/${action}`, {
+				method: 'POST',
+				body,
+				headers: { 'x-sveltekit-action': 'true' }
+			});
+			const result = deserialize(await res.text());
+			if (result.type !== 'success') throw new Error(result.type);
+		} finally {
+			await invalidateAll();
+		}
+	}
+
+	function favourite(id: number, on: boolean) {
+		favNow.set(id, on);
+		void write('favourite', { id: String(id), on: on ? '1' : '0' })
+			.catch(() => {})
+			.finally(() => favNow.delete(id));
+	}
+
+	function rate(id: number, rating: Rating) {
+		ratingNow.set(id, rating);
+		void write('rate', { id: String(id), rating: String(rating) })
+			.catch(() => {})
+			.finally(() => ratingNow.delete(id));
 	}
 
 	// ---- derived view ------------------------------------------------------
@@ -327,8 +364,8 @@
 					<CoverTile
 						title={s.title}
 						hue={s.hue}
-						rating={s.rating}
-						favourite={s.favourite}
+						rating={ratingNow.get(s.id) ?? s.rating}
+						favourite={favNow.get(s.id) ?? s.favourite}
 						newCount={s.newCount}
 						hidden={s.hidden}
 						indexing={!s.indexed}
@@ -338,6 +375,8 @@
 						selected={selected.has(s.id)}
 						onpress={() => press(s.id)}
 						onlongpress={() => (selecting ? toggle(s.id) : (sheetId = s.id))}
+						onfavourite={isOffline ? undefined : (on) => favourite(s.id, on)}
+						onrate={isOffline ? undefined : (r) => rate(s.id, r)}
 					/>
 				{/each}
 				{#each { length: fillers }, i (i)}

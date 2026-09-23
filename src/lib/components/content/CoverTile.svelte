@@ -2,11 +2,18 @@
 	import Cover from './Cover.svelte';
 	import Badge from './Badge.svelte';
 	import RatingBars from './RatingBars.svelte';
+	import { RATING_OPTIONS } from '$lib/library/rating';
 	import type { Rating } from '$lib/library/types';
 
 	/**
 	 * One cell of the library grid. Badges are pinned flush to the cover's
 	 * corners: FAV top-right, +N bottom-left, HIDDEN top-left, ↓N bottom-right.
+	 *
+	 * With `onfavourite` and `onrate`, both are edited on the tile itself
+	 * (doc/LIBRARY.md): the top-right corner toggles FAV in one tap, and the
+	 * rating bars open the six cells over the foot of the tile. Neither opens
+	 * the series, and neither is offered while selecting, when every tap is a
+	 * pick.
 	 *
 	 * A press is a tap; a long press (450ms, or the context menu) opens the
 	 * sheet. A pointer that travels is a scroll, not a press, so it cancels both
@@ -26,7 +33,9 @@
 		dimmed = false,
 		indexing = false,
 		onpress,
-		onlongpress
+		onlongpress,
+		onfavourite,
+		onrate
 	}: {
 		title: string;
 		src?: string | null;
@@ -42,7 +51,38 @@
 		indexing?: boolean;
 		onpress?: () => void;
 		onlongpress?: () => void;
+		onfavourite?: (on: boolean) => void;
+		onrate?: (rating: Rating) => void;
 	} = $props();
+
+	const editable = $derived(!selectable);
+	let picking = $state(false);
+	let tile = $state<HTMLElement | null>(null);
+
+	// The picker closes on a tap anywhere else, or Esc, without choosing.
+	$effect(() => {
+		if (!picking) return;
+		const away = (e: PointerEvent) => {
+			if (!tile?.contains(e.target as Node)) picking = false;
+		};
+		const esc = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') picking = false;
+		};
+		window.addEventListener('pointerdown', away, true);
+		window.addEventListener('keydown', esc);
+		return () => {
+			window.removeEventListener('pointerdown', away, true);
+			window.removeEventListener('keydown', esc);
+		};
+	});
+	$effect(() => {
+		if (!editable) picking = false;
+	});
+
+	function rate(n: Rating) {
+		picking = false;
+		if (n !== rating) onrate?.(n);
+	}
 
 	const HOLD_MS = 450;
 	const SLOP_PX = 10;
@@ -99,41 +139,93 @@
 		<div class="skel-rating"></div>
 	</div>
 {:else}
-	<button
-		type="button"
-		class="tile"
-		class:dimmed
-		aria-pressed={selectable ? selected : undefined}
-		onpointerdown={down}
-		onpointermove={move}
-		onpointerup={() => timer && cancel()}
-		onpointercancel={cancel}
-		onpointerleave={cancel}
-		onclick={click}
-		oncontextmenu={contextmenu}
-	>
-		<Cover {src} {hue} ring={selected}>
-			{#if hidden}<Badge tone="reveal" corner="top-left">HIDDEN</Badge>{/if}
-			{#if favourite}<Badge tone="accent" corner="top-right">FAV</Badge>{/if}
-			{#if newCount > 0}<Badge corner="bottom-left">+{newCount}</Badge>{/if}
-			{#if cached != null}<Badge tone="inverse" corner="bottom-right">↓ {cached}</Badge>{/if}
-			{#if selectable}
-				<span class="check" class:on={selected} aria-hidden="true">{selected ? '✓' : ''}</span>
-			{/if}
-		</Cover>
-		<span class="title">{title}</span>
-		<RatingBars value={rating} />
-	</button>
+	<div class="tile" class:dimmed bind:this={tile}>
+		<button
+			type="button"
+			class="open"
+			aria-pressed={selectable ? selected : undefined}
+			onpointerdown={down}
+			onpointermove={move}
+			onpointerup={() => timer && cancel()}
+			onpointercancel={cancel}
+			onpointerleave={cancel}
+			onclick={click}
+			oncontextmenu={contextmenu}
+		>
+			<Cover {src} {hue} ring={selected}>
+				{#if hidden}<Badge tone="reveal" corner="top-left">HIDDEN</Badge>{/if}
+				{#if favourite && !(editable && onfavourite)}
+					<Badge tone="accent" corner="top-right">FAV</Badge>
+				{/if}
+				{#if newCount > 0}<Badge corner="bottom-left">+{newCount}</Badge>{/if}
+				{#if cached != null}<Badge tone="inverse" corner="bottom-right">↓ {cached}</Badge>{/if}
+				{#if selectable}
+					<span class="check" class:on={selected} aria-hidden="true">{selected ? '✓' : ''}</span>
+				{/if}
+			</Cover>
+			<span class="title">{title}</span>
+		</button>
+
+		{#if editable && onrate}
+			<button
+				type="button"
+				class="rating"
+				aria-label={rating === 0 ? 'Rate, unrated' : `Rate, rated ${rating} of 5`}
+				aria-expanded={picking}
+				onclick={() => (picking = !picking)}
+			>
+				<RatingBars value={rating} />
+			</button>
+		{:else}
+			<RatingBars value={rating} />
+		{/if}
+
+		{#if editable && onfavourite}
+			<button
+				type="button"
+				class="fav"
+				aria-label="Favourite"
+				aria-pressed={favourite}
+				onclick={() => onfavourite(!favourite)}
+			>
+				{#if favourite}
+					<Badge tone="accent" corner="top-right">FAV</Badge>
+				{:else}
+					<span class="ghost" aria-hidden="true">☆</span>
+				{/if}
+			</button>
+		{/if}
+
+		{#if picking}
+			<div class="picker" role="group" aria-label="Rating">
+				{#each RATING_OPTIONS as n (n)}
+					<button
+						type="button"
+						class="cell"
+						class:on={n > 0 && n <= rating}
+						class:muted={rating === 0}
+						aria-pressed={rating !== 0 && n === rating}
+						aria-label={n === 0 ? 'Unrated' : `Rate ${n}`}
+						onclick={() => rate(n)}>{n}</button
+					>
+				{/each}
+			</div>
+		{/if}
+	</div>
 {/if}
 
 <style>
 	.tile {
+		position: relative;
 		background: var(--surface-page);
 		padding: 10px;
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
 		min-width: 0;
+		container-type: inline-size;
+	}
+	button {
 		/* reset the button */
 		border: 0;
 		border-radius: 0;
@@ -146,10 +238,82 @@
 		-webkit-user-select: none;
 		-webkit-touch-callout: none;
 		touch-action: manipulation;
+		background: transparent;
+		padding: 0;
 	}
-	.tile:active:not([data-state]) {
+	.open {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		min-width: 0;
+	}
+	.tile:has(.open:active) {
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
+	}
+	/* The bars are 4px; the button reaches into the gap above and the padding
+	   below so a finger finds it, without moving anything. */
+	.rating {
+		display: block;
+		padding: 8px 0;
+		margin: -8px 0;
+	}
+	.fav {
+		position: absolute;
+		top: 10px;
+		right: 10px;
+		width: 44px;
+		height: 44px;
+	}
+	.ghost {
+		position: absolute;
+		top: 0;
+		right: 0;
+		padding: 2px 5px;
+		font: var(--type-badge);
+		background: var(--surface-page);
+		color: var(--text-2);
+		opacity: 0.75;
+	}
+	.picker {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 2;
+		display: grid;
+		grid-template-columns: repeat(6, 1fr);
+		border-top: var(--rule-strong);
+		background: var(--surface-page);
+	}
+	.cell {
+		height: 44px;
+		border-right: var(--hairline);
+		font: 500 15px var(--font-mono);
+		text-align: center;
+		color: var(--text-1);
+	}
+	.cell:last-child {
+		border-right: 0;
+	}
+	.cell.muted {
+		color: var(--text-2);
+	}
+	.cell.on {
+		background: var(--accent);
+		color: var(--on-accent);
+	}
+	/* A phone column is too narrow for six cells a finger can tell apart. */
+	@container (max-width: 180px) {
+		.picker {
+			grid-template-columns: repeat(3, 1fr);
+		}
+		.cell:nth-child(3) {
+			border-right: 0;
+		}
+		.cell:nth-child(-n + 3) {
+			border-bottom: var(--hairline);
+		}
 	}
 	.dimmed {
 		opacity: 0.35;

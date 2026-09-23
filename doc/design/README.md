@@ -128,6 +128,9 @@ departure isn't written down here, it's a bug.
     readme says there is no logo and not to draw a mark, but an installed app
     needs an icon, and every icon in the system is a set glyph. See
     `doc/INSTALL.md`.
+16. **Tiles edit FAV and the rating in place:** a ☆ / FAV toggle in the
+    cover's top-right corner and the six rating cells over the tile's foot.
+    The handoff's tiles only display them. See `doc/LIBRARY.md`, "On the tile".
 
 Behavioural departures (what the library does that the mock never had to decide)
 are in [`../LIBRARY.md`](../LIBRARY.md).

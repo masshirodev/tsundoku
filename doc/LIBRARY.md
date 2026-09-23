@@ -58,6 +58,26 @@ become a 5 nobody chose.
 The library handoff drew a seventh `—` cell to keep a deliberate 0 apart from
 unrated. That distinction is gone, and so is the cell.
 
+## On the tile
+
+FAV and the rating are edited on the cover itself, without the long-press
+sheet (the owner's ask, 2026-09-23):
+
+- **FAV:** the cover's top-right corner is a 44px toggle. One tap favourites or
+  unfavourites, with no dialog. A favourite shows the usual FAV badge there; a
+  series that isn't one shows a faint ☆ in the same place, so there is
+  something to aim at.
+- **Rating:** a tap on the rating bars lays the six cells, 0–5, over the foot
+  of the tile. A cell saves and closes; a tap anywhere else, or Esc, closes
+  without choosing. Tiles narrower than 180px (the phone, and the 9-column
+  landscape grid) lay them out 3 × 2 so a finger can tell them apart.
+
+Neither opens the series. Both show the change at once and put the old value
+back if the write fails; they use the same `favourite` and `rate` actions as
+the sheet. They're gone while selecting (every tap is a pick then) and while
+offline (writes need the workstation). `CoverTile` takes them as `onfavourite`
+and `onrate`; without those it draws the plain badge and bars.
+
 ## New chapters
 
 A tile's `+N` counts entries that **arrived after the series was last opened**.
@@ -86,6 +106,9 @@ opened has no "new", only unread.
   sheet's SHELVES row. The mock draws the button but not what it opens.
 - **+ ADD in the sheet** expands the non-member shelves as outlined chips, plus a
   field for a new shelf, in the same chip idiom. The mock stops at the button.
+- **FAV and the rating are editable on the tile** (see "On the tile" above).
+  The handoff only reads them there, and edits them in the long-press sheet,
+  which still does.
 - **The login screen** isn't in the handoff. It's assembled from the empty state's
   parts: numbered label, hairline field, primary button.
 
