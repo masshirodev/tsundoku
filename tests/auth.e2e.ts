@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 import { E2E_TOKEN } from '../playwright.config';
 
 // Start signed out: this spec is about the door, not the room.

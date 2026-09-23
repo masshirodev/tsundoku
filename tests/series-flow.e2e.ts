@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 /**
  * The series screen end to end, on the seeded library. Writes run serially on
@@ -15,6 +16,8 @@ async function open(page: Page, title: string, shelf = 'all') {
 	await page.goto(
 		shelf === 'all' ? '/?sort=title' : `/?shelf=${encodeURIComponent(shelf)}&sort=title`
 	);
+	// Under the full parallel run hydration can trail the load event.
+	await page.waitForLoadState('networkidle');
 	await page.locator('.grid .tile', { hasText: title }).click();
 	await expect(page.getByRole('heading', { name: title })).toBeVisible();
 }

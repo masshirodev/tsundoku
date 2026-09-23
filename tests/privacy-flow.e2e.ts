@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 /**
  * Incognito and leaving the app end to end (doc/PRIVACY.md). Serial,

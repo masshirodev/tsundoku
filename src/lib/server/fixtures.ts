@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
 import { hueFor } from '../library/cover.ts';
+import { SAMPLE_PREFIX } from './pages/sample.ts';
 import { groupIntoSeries } from './books.ts';
 import type { Kind, Rating } from '$lib/library/types';
 
@@ -427,8 +428,8 @@ export function seedSample(db: Database.Database, now = Date.now()): void {
 					.prepare(`INSERT INTO roots (name, path, hidden) VALUES (?, ?, ?)`)
 					.run(name, path, hidden ? 1 : 0).lastInsertRowid
 			);
-		const main = root('Library', '/mnt/hdd2/tsundoku/library', false);
-		const hentoid = root('Hentoid', '/mnt/hdd2/tsundoku/library/hentoid', true);
+		const main = root('Library', `${SAMPLE_PREFIX}library`, false);
+		const hentoid = root('Hentoid', `${SAMPLE_PREFIX}hentoid`, true);
 
 		const shelves = new Map<string, number>();
 		const shelf = (name: string) => {
@@ -482,7 +483,9 @@ export function seedSample(db: Database.Database, now = Date.now()): void {
 					row.source ?? (rootId === hentoid ? 'hentoid' : 'mihon'),
 					row.status ?? '',
 					SAMPLE_ABOUT,
-					`${rootId === hentoid ? '/mnt/hdd2/tsundoku/library/hentoid' : '/mnt/hdd2/tsundoku/library'}/${row.title}`
+					// No files behind the samples: the reader draws their pages
+					// (src/lib/server/pages/sample.ts), which the prefix says.
+					`${SAMPLE_PREFIX}${rootId === hentoid ? 'hentoid' : 'library'}/${row.title}`
 				).lastInsertRowid
 			);
 			const unit = row.kind === 'novel' ? 'Vol.' : row.kind === 'doujin' ? 'Book' : 'Ch.';

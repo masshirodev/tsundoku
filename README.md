@@ -81,6 +81,8 @@ is the mount development pressures.
   state, where it departs from the handoff, and what it doesn't do yet.
 - [`doc/SERIES.md`](doc/SERIES.md) — the series screen: frame, states,
   departures, and what waits on the reader.
+- [`doc/READER.md`](doc/READER.md) — the image reader: touch, modes, spreads,
+  boundaries, where pages come from, progress, and departures.
 - [`doc/BOOKS.md`](doc/BOOKS.md) — series of books, grouping by hand, title
   suggestions, and person and tag pages.
 - [`doc/IMPORT-MIHON.md`](doc/IMPORT-MIHON.md) — the Mihon importer: where it

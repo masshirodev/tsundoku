@@ -120,6 +120,10 @@ departure isn't written down here, it's a bug.
     month rail, which is deferred (`doc/HISTORY.md`).
 13. **CONTINUE counts a book by its number** ("Book 3 of 4"). The mock never
     drew a series of books in CONTINUE.
+14. **The reader is always dark** and uses the six-cell rating. Its other
+    departures (no "↓ CACHED" claim before there's a device cache, the
+    NOT DOWNLOADED boundary, dimmed rows in the READING sheet) are listed in
+    `doc/READER.md`, next to the reader they describe.
 
 Behavioural departures (what the library does that the mock never had to decide)
 are in [`../LIBRARY.md`](../LIBRARY.md).

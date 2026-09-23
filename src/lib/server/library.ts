@@ -145,6 +145,25 @@ export function countSeries(reveal: boolean): number {
  * `total` is how many are open, which is what the section label counts; the
  * screen shows fewer on a phone.
  */
+/**
+ * Where ▶ resumes a series: the unread entry opened last, else the first
+ * unread one, else the first. The same rule as the series screen's CONTINUE
+ * (`currentEntry`), in SQL for the library's lists.
+ */
+export function resumeEntry(seriesId: number): { id: number; label: string } | null {
+	return (
+		(getDb()
+			.prepare(
+				`SELECT id, label FROM entries WHERE series_id = ?
+				ORDER BY (read_at IS NULL AND last_opened_at IS NOT NULL) DESC,
+					CASE WHEN read_at IS NULL AND last_opened_at IS NOT NULL THEN -last_opened_at END,
+					(read_at IS NULL) DESC, position
+				LIMIT 1`
+			)
+			.get(seriesId) as { id: number; label: string } | undefined) ?? null
+	);
+}
+
 export function continueReading(
 	reveal: boolean,
 	limit = 4
@@ -177,7 +196,12 @@ export function continueReading(
 		const card = toCard(row);
 		const entryLabel =
 			card.kind === 'doujin' && card.entryCount > 1 ? `Book ${entry.rank}` : entry.label;
-		return { ...card, entryLabel, lastReadAt: entry.last_opened_at };
+		return {
+			...card,
+			entryLabel,
+			lastReadAt: entry.last_opened_at,
+			resumeId: resumeEntry(row.id)?.id ?? null
+		};
 	});
 	return { items, total };
 }
@@ -323,16 +347,13 @@ export function seriesDetail(id: number, reveal: boolean): SeriesDetail | null {
 			WHERE st.series_id = ? AND t.namespace = 'artist' ORDER BY t.value LIMIT 1`
 		)
 		.get(id) as { value: string } | undefined;
-	const next = db
-		.prepare(
-			`SELECT label FROM entries WHERE series_id = ? AND read_at IS NULL ORDER BY position LIMIT 1`
-		)
-		.get(id) as { label: string } | undefined;
+	const next = resumeEntry(id);
 	return {
 		...toCard(row),
 		collections,
 		artist: artist?.value ?? null,
-		nextEntry: next?.label ?? null
+		nextEntry: next?.label ?? null,
+		nextEntryId: next?.id ?? null
 	};
 }
 

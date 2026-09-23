@@ -90,9 +90,10 @@ Specific and honest, so a deliberate gap isn't mistaken for an oversight:
   ([`IMPORT-MIHON.md`](IMPORT-MIHON.md), [`IMPORT-HENTOID.md`](IMPORT-HENTOID.md)).
   With neither folder present, it says where it looked. Development still runs
   on `yarn run seed`'s sample titles unless you import.
-- **No reader.** The resume buttons and `▶ CH. N` in the sheet are disabled
-  until "Image reader from the Index handoff" lands. SERIES and TAGS in the sheet
-  open the series screen, TAGS straight into its SHELVES & TAGS sheet.
+- **The resume buttons open the reader** ([`READER.md`](READER.md)): a
+  CONTINUE row's ▶ and the sheet's `▶ CH. N` resume where the series was left
+  (`resumeEntry`). SERIES and TAGS in the sheet open the series screen, TAGS
+  straight into its SHELVES & TAGS sheet.
 - **TAG in the bulk bar is disabled.** Tags are edited one series at a time, on
   the series screen. Neither handoff draws a bulk tag editor.
 - **Nothing is ever cached**, because the reader is what will cache chapters.

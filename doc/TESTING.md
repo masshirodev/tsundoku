@@ -54,17 +54,26 @@ purpose.
 The projects are the devices the design draws: `tablet-portrait` (800×1280),
 `tablet-landscape` (1280×800), `phone` (Pixel 7) and `desktop` (1440×900).
 
-| Spec                    | Runs on         | Why                                                                                                               |
-| ----------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `auth.e2e.ts`           | all             | Read-only.                                                                                                        |
-| `library-layout.e2e.ts` | all             | The frame on each device, including with JavaScript switched off.                                                 |
-| `library-frame.e2e.ts`  | tablet-portrait | **Generated.** Pins the tablet measurements the handoff was extracted at.                                         |
-| `library-flow.e2e.ts`   | tablet-portrait | Writes to the shared seeded database, so it runs serially, on one device, and each test restores what it changed. |
-| `series-layout.e2e.ts`  | all             | The series frame per device: header or 440px panel, row and rail sizes; doujin and novel shapes.                  |
-| `series-flow.e2e.ts`    | tablet-portrait | Writes, like `library-flow`: rating, FAV, direction, tags, range select, `#`, hide.                               |
-| `books-flow.e2e.ts`     | tablet-portrait | Writes: person pages and FAV, a book's own rating, TAKE OUT, grouping, suggestions.                               |
-| `history-flow.e2e.ts`   | tablet-portrait | Writes: REMOVE and UNDO on history rows.                                                                          |
-| `privacy-flow.e2e.ts`   | tablet-portrait | Writes: `/incognito`, `/api/reading`, leaving and returning, and that a reload isn't leaving.                     |
+| Spec                    | Runs on         | Why                                                                                                                              |
+| ----------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `auth.e2e.ts`           | all             | Read-only.                                                                                                                       |
+| `library-layout.e2e.ts` | all             | The frame on each device, including with JavaScript switched off.                                                                |
+| `library-frame.e2e.ts`  | tablet-portrait | **Generated.** Pins the tablet measurements the handoff was extracted at.                                                        |
+| `library-flow.e2e.ts`   | tablet-portrait | Writes to the shared seeded database, so it runs serially, on one device, and each test restores what it changed.                |
+| `series-layout.e2e.ts`  | all             | The series frame per device: header or 440px panel, row and rail sizes; doujin and novel shapes.                                 |
+| `series-flow.e2e.ts`    | tablet-portrait | Writes, like `library-flow`: rating, FAV, direction, tags, range select, `#`, hide.                                              |
+| `books-flow.e2e.ts`     | tablet-portrait | Writes: person pages and FAV, a book's own rating, TAKE OUT, grouping, suggestions.                                              |
+| `history-flow.e2e.ts`   | tablet-portrait | Writes: REMOVE and UNDO on history rows.                                                                                         |
+| `reader-layout.e2e.ts`  | all             | The reader's frame per device: the page on true black, the 64 / 56 / 64px controls. Reads in incognito, so it writes nothing.    |
+| `reader-flow.e2e.ts`    | tablet-portrait | Writes: tap zones, the boundary, progress and resume, the READING sheet, vertical crossing, the end-of-series rating, incognito. |
+| `privacy-flow.e2e.ts`   | tablet-portrait | Writes: `/incognito`, `/api/reading`, leaving and returning, and that a reload isn't leaving.                                    |
+
+**Every e2e spec imports `test` from `tests/fixtures.ts`,** whose
+`page.goto` also waits for the network to settle: SvelteKit hydrates after
+`load`, and a click that lands before hydration opens nothing. That was the
+suite's recurring flake. A client-side navigation into the reader doesn't
+change the document, so no load state covers it; `readerReady(page)` waits
+for the reader's own stylesheet instead (its ground turns true black).
 
 **Read-only specs read series no flow file owns.** They run on the other
 devices at the same time as the flows, against the same database: the phone's
@@ -77,7 +86,8 @@ writing the same series will race. That happened once: both rated "Kusuriya no
 Hitorigoto", and one saw the other's rating. So `library-flow` owns Kusuriya and
 the three it multi-selects, `books-flow` owns every Kaori Mama title and the
 Hakka Kousha / Aoi Rin people, `history-flow` owns Mushoku Tensei's history
-rows, `privacy-flow` owns Yofukashi no Uta, and `series-flow` owns Mount Hua, Tower of God, Ame
+rows, `privacy-flow` owns Yofukashi no Uta, `reader-flow` owns Hikaru ga Shinda Natsu,
+The Greatest Estate Developer and Chainsaw Man, `reader-layout` reads Sousou no Frieren, and `series-flow` owns Mount Hua, Tower of God, Ame
 no Hi and Lookism. Pick an unused series for a new flow, and say which in the
 file's header.
 

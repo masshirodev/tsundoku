@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { coverPlaceholder } from '$lib/library/cover';
 	import { entryProgress, type SeriesEntry, type SeriesPage } from '$lib/library/series';
+	import { readHref } from '$lib/library/links';
 
 	/**
 	 * A doujin reads as a book, so its contents are its pages rather than a
 	 * chapter list of one. The page last opened carries the accent ring.
 	 *
-	 * Thumbnails are the striped placeholder until the importers extract real
-	 * ones; each page will open the reader directly once the reader exists.
+	 * Thumbnails are the striped placeholder until covers and thumbnails are
+	 * served; each page opens the reader at that page.
 	 */
 	let { series, book: only }: { series: SeriesPage; book?: SeriesEntry | null } = $props();
 
@@ -40,6 +41,10 @@
 				style:background={coverPlaceholder((series.hue + n * 11) % 360)}
 				aria-current={n === current ? 'page' : undefined}
 			>
+				{#if book?.available}
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves -->
+					<a class="open" href={readHref(book.id, n)} aria-label="Read from page {n}"></a>
+				{/if}
 				<span class="n">{n}</span>
 			</li>
 		{/each}
@@ -47,6 +52,10 @@
 </section>
 
 <style>
+	.open {
+		position: absolute;
+		inset: 0;
+	}
 	.list {
 		display: flex;
 		flex-direction: column;

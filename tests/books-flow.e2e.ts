@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 /**
  * Series of books, person pages, grouping and suggestions end to end
@@ -21,6 +22,7 @@ async function reveal(page: Page) {
 
 async function openBooks(page: Page) {
 	await page.goto('/?shelf=all&sort=title');
+	await page.waitForLoadState('networkidle');
 	await page
 		.locator('.grid .tile', { hasText: 'Kaori Mama' })
 		.filter({ hasNotText: /Duty|Illustrations/ })
@@ -40,6 +42,7 @@ test('a person page is a 404 while reveal is off, and a grid of their books with
 
 	await reveal(page);
 	await page.goto(CIRCLE);
+	await page.waitForLoadState('networkidle');
 	await expect(page.getByRole('heading', { name: 'Hakka Kousha' })).toBeVisible();
 	// Four books in the series, two single books: six in all.
 	await expect(page.getByRole('tab', { name: /^ALL 6/ })).toBeVisible();
@@ -49,6 +52,7 @@ test('a person page is a 404 while reveal is off, and a grid of their books with
 test('FAV on a person adds the PEOPLE shelf, and taking it back removes it', async ({ page }) => {
 	await reveal(page);
 	await page.goto(CIRCLE);
+	await page.waitForLoadState('networkidle');
 	await page.getByRole('button', { name: 'FAV', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'FAV ✓' })).toBeVisible();
 
@@ -56,6 +60,7 @@ test('FAV on a person adds the PEOPLE shelf, and taking it back removes it', asy
 	await expect(page.getByRole('link', { name: /Hakka Kousha/ })).toBeVisible();
 
 	await page.goto(CIRCLE);
+	await page.waitForLoadState('networkidle');
 	await page.getByRole('button', { name: 'FAV ✓' }).click();
 	await expect(page.getByRole('button', { name: 'FAV', exact: true })).toBeVisible();
 	await page.goto('/');
@@ -105,6 +110,7 @@ test('TAKE OUT makes a single book again, and UNDO puts it back in its place', a
 test('grouping two single books from the person page, then UNDO', async ({ page }) => {
 	await reveal(page);
 	await page.goto(CIRCLE);
+	await page.waitForLoadState('networkidle');
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
 	await page.locator('.grid li', { hasText: 'Holiday Duty' }).getByRole('button').click();
 	await page.locator('.grid li', { hasText: 'Illustrations 2024' }).getByRole('button').click();
@@ -121,6 +127,7 @@ test('grouping two single books from the person page, then UNDO', async ({ page 
 	await expect(page).toHaveURL(/\/($|\?)/);
 
 	await page.goto(CIRCLE);
+	await page.waitForLoadState('networkidle');
 	await expect(page.getByRole('tab', { name: /^ALL 6/ })).toBeVisible();
 	await expect(page.locator('.grid li', { hasText: 'Holiday Duty' })).toBeVisible();
 });
@@ -130,6 +137,7 @@ test('a single book with look-alikes is offered as one series, and NOT A SERIES 
 }) => {
 	await reveal(page);
 	await page.goto(CIRCLE);
+	await page.waitForLoadState('networkidle');
 	await page.locator('.grid li', { hasText: 'Holiday Duty' }).getByRole('button').click();
 	await expect(page.getByText('MIGHT BE ONE SERIES')).toBeVisible();
 

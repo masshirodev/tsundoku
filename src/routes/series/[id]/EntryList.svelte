@@ -204,7 +204,7 @@
 						<button
 							type="button"
 							class="entry-btn"
-							disabled={!selecting}
+							disabled={!selecting && !e.available}
 							aria-pressed={selecting ? on : undefined}
 							onclick={() => onrow(e)}
 						>

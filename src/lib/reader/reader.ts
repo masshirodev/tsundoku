@@ -1,0 +1,207 @@
+import type { Direction } from '$lib/library/series';
+import type { Kind } from '$lib/library/types';
+
+/**
+ * The image reader's rules (doc/READER.md), pure so they can be tested
+ * without a browser: which tap does what, how pages pair into spreads, what
+ * the chrome says, and when progress is worth sending.
+ */
+
+export type Mode = 'rtl' | 'ltr' | 'vertical';
+export type Fit = 'width' | 'height' | 'screen';
+export type Action = 'next' | 'prev' | 'chrome';
+
+/** The reader's mode for a series direction; a novel's layouts aren't image modes. */
+export function modeOf(direction: Direction): Mode {
+	return direction === 'ltr' ? 'ltr' : direction === 'vertical' ? 'vertical' : 'rtl';
+}
+
+// ---- touch ----------------------------------------------------------------------
+
+/**
+ * Tap zones (Reader States 1f): two 16% edge strips turn, the middle shows or
+ * hides the controls. Right-to-left reads forward to the left, so the left
+ * strip turns forward there; left-to-right mirrors it. Vertical scroll has no
+ * turn: every tap is the controls. Phase 2 adds one rule on top -- a tap on
+ * an OCR'd bubble opens the lookup -- and these zones stay as they are.
+ */
+export const EDGE = 0.16;
+
+export function tapAction(x: number, width: number, mode: Mode): Action {
+	if (mode === 'vertical' || width <= 0) return 'chrome';
+	const f = x / width;
+	if (f < EDGE) return mode === 'rtl' ? 'next' : 'prev';
+	if (f > 1 - EDGE) return mode === 'rtl' ? 'prev' : 'next';
+	return 'chrome';
+}
+
+/** A swipe turns anywhere: dragging the page towards the reading direction's start. */
+export const SWIPE_PX = 40;
+
+export function swipeAction(dx: number, dy: number, mode: Mode): Action | null {
+	if (mode === 'vertical' || Math.abs(dx) < SWIPE_PX || Math.abs(dx) < Math.abs(dy) * 1.5)
+		return null;
+	// R->L: the next page lies to the left, so it is pulled in by dragging right.
+	return dx > 0 === (mode === 'rtl') ? 'next' : 'prev';
+}
+
+// ---- spreads ---------------------------------------------------------------------
+
+export type Page = { w: number; h: number };
+
+/** A page wider than it is tall is a spread already: it is shown alone. */
+export const isWide = (p: Page) => p.w > 0 && p.h > 0 && p.w > p.h * 1.1;
+
+/**
+ * Pages grouped into what one screen shows. Without spreads, one page each.
+ * With spreads (landscape only), pages pair up after the first, which is a
+ * cover shown alone; a wide page stands alone and restarts the pairing after
+ * it. `shift` moves the pairing by one, for a chapter whose spreads split
+ * wrong (SHIFT PAIRING). Indices are in reading order; which one sits on the
+ * left is the view's business.
+ */
+export function spreads(pages: Page[], on: boolean, shift = false): number[][] {
+	if (!on) return pages.map((_, i) => [i]);
+	const out: number[][] = [];
+	let i = 0;
+	// The cover stands alone; shifting pairs it instead.
+	if (pages.length && !shift) out.push([i++]);
+	while (i < pages.length) {
+		if (isWide(pages[i]) || i + 1 >= pages.length || isWide(pages[i + 1])) {
+			out.push([i]);
+			i += 1;
+		} else {
+			out.push([i, i + 1]);
+			i += 2;
+		}
+	}
+	return out;
+}
+
+/** The spread holding page `page`. */
+export const spreadOf = (groups: number[][], page: number) =>
+	Math.max(
+		0,
+		groups.findIndex((g) => g.includes(page))
+	);
+
+// ---- what the chrome says --------------------------------------------------------
+
+export type EntryRef = { id: number; label: string; number: number };
+
+/** "CH. 41", "BOOK 2", "VOL. 3": an entry as the chrome names it. */
+export function entryName(e: { label: string } | null, kind: Kind, bookIndex?: number): string {
+	if (!e) return '';
+	if (kind === 'doujin' && bookIndex !== undefined) return `BOOK ${bookIndex + 1}`;
+	return e.label.toUpperCase();
+}
+
+/** "Ch. 42" -> "Chapter 42", as the boundary pages name what comes next. */
+export function spelledOut(label: string): string {
+	return label
+		.replace(/^ch\.?\s*/i, 'Chapter ')
+		.replace(/^vol\.?\s*/i, 'Volume ')
+		.replace(/^book\b/i, 'Book');
+}
+
+/** "P. 14 OF 22", or "P. 14–15 OF 22" for a spread. */
+export function pageLabel(group: number[], total: number): string {
+	if (group.length === 0) return '';
+	const a = group[0] + 1;
+	const b = group[group.length - 1] + 1;
+	return a === b ? `P. ${a} OF ${total}` : `P. ${Math.min(a, b)}–${Math.max(a, b)} OF ${total}`;
+}
+
+/** "MANGA · CH. 41 OF 58 · P. 14 OF 22", and NOT SAVED while incognito. */
+export function metaLine(o: {
+	kind: Kind;
+	entry: string;
+	count: number;
+	page: string;
+	incognito: boolean;
+	single: boolean;
+}): string {
+	const parts = [o.kind.toUpperCase()];
+	if (!o.single) parts.push(`${o.entry} OF ${o.count}`);
+	if (o.page) parts.push(o.page);
+	if (o.incognito) parts.push('NOT SAVED');
+	return parts.join(' · ');
+}
+
+const MODE_NAME: Record<Mode, string> = { rtl: 'R→L', ltr: 'L→R', vertical: 'VERTICAL' };
+const FIT_NAME: Record<Fit, string> = {
+	width: 'FIT WIDTH',
+	height: 'FIT HEIGHT',
+	screen: 'FIT SCREEN'
+};
+export const modeName = (m: Mode) => MODE_NAME[m];
+
+/** The middle cell: "R→L · SPREAD · FIT SCREEN". */
+export function settingsLabel(mode: Mode, fit: Fit, spread: boolean): string {
+	if (mode === 'vertical') return 'VERTICAL · FIT WIDTH';
+	return [MODE_NAME[mode], spread ? 'SPREAD' : null, FIT_NAME[fit]].filter(Boolean).join(' · ');
+}
+
+/**
+ * The chapter cells follow the reading direction: in R->L the next chapter
+ * is on the left ("← CH. 42") and the previous on the right ("CH. 40 →").
+ */
+export function chapterCells(
+	mode: Mode,
+	prev: string | null,
+	next: string | null
+): {
+	left: { label: string; to: 'prev' | 'next' } | null;
+	right: { label: string; to: 'prev' | 'next' } | null;
+} {
+	const cell = (label: string | null, to: 'prev' | 'next', arrow: 'l' | 'r') =>
+		label ? { label: arrow === 'l' ? `← ${label}` : `${label} →`, to } : null;
+	return mode === 'rtl'
+		? { left: cell(next, 'next', 'l'), right: cell(prev, 'prev', 'r') }
+		: { left: cell(prev, 'prev', 'l'), right: cell(next, 'next', 'r') };
+}
+
+/**
+ * The scrubber fills with the reading direction: from the right in R->L.
+ * Returns the fill's left edge and width, as percentages, and the page a
+ * point on the track means.
+ */
+export function scrubFill(
+	page: number,
+	total: number,
+	mode: Mode
+): { left: number; width: number } {
+	const width = total <= 0 ? 0 : ((page + 1) / total) * 100;
+	return mode === 'rtl' ? { left: 100 - width, width } : { left: 0, width };
+}
+
+export function scrubPage(fraction: number, total: number, mode: Mode): number {
+	const f = Math.min(1, Math.max(0, mode === 'rtl' ? 1 - fraction : fraction));
+	return Math.min(total - 1, Math.max(0, Math.floor(f * total)));
+}
+
+// ---- progress ------------------------------------------------------------------------
+
+/**
+ * Reading time, as the reading log wants it (doc/READING-LOG.md): the gap
+ * since the last event in the same sitting, capped, so a tablet left open on
+ * a page overnight is not eight hours of reading.
+ */
+export const IDLE_CAP_MS = 2 * 60_000;
+
+export class ProgressClock {
+	private last: number;
+	constructor(now: number) {
+		this.last = now;
+	}
+	/** Time read since the last event, capped, and restart the clock. */
+	lap(now: number): number {
+		const d = Math.max(0, Math.min(IDLE_CAP_MS, now - this.last));
+		this.last = now;
+		return d;
+	}
+	/** Coming back from the background: time away is not reading. */
+	resume(now: number): void {
+		this.last = now;
+	}
+}

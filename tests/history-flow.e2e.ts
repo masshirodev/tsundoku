@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 /**
  * History end to end (doc/HISTORY.md). Serial, tablet-portrait only. This

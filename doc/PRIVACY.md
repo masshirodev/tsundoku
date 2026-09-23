@@ -23,7 +23,7 @@ CONTINUE. **The row is never written.** It isn't written and then hidden.
   MARK READ still saves too, for the same reason.
 - **How it shows:** outside the reader, a panel band reads **INCOGNITO ·
   NOTHING SAVED** with END. Dashed is Index's "not stored yet"; magenta stays
-  reveal's. In the reader (card c13), a 2px dashed rule runs along the top
+  reveal's. In the reader ([`READER.md`](READER.md)), a 2px dashed rule runs along the top
   edge, with an INCOGNITO cell and NOT SAVED on the meta line.
 - A **session cookie**, and it also ends when the app goes to the background
   (below). END ends it by hand.

@@ -16,7 +16,7 @@
 	import type { Shelf } from '$lib/library/types';
 	import { isBookSeries } from '$lib/library/series';
 	import { isPersonNamespace, suggestionLabel, type Suggestion } from '$lib/library/books';
-	import { tagHref } from '$lib/library/links';
+	import { tagHref, readHref } from '$lib/library/links';
 	import Band from '$lib/components/chrome/Band.svelte';
 
 	/**
@@ -109,9 +109,13 @@
 		</form>
 	</div>
 
-	<!-- The reader is its own card (doc/SERIES.md); until it exists this names
-	     where it would open and does not pretend to open it. -->
-	<button type="button" class="cta" bind:this={cta} disabled aria-describedby="cta-note">
+	<!-- eslint-disable svelte/no-navigation-without-resolve -- readHref() resolves -->
+	<a
+		class="cta"
+		bind:this={cta}
+		href={action.entry ? readHref(action.entry.id) : undefined}
+		aria-disabled={!action.entry}
+	>
 		<span>▶ {action.label}</span>
 		<span class="cta-meta">
 			<span class="long"
@@ -119,8 +123,8 @@
 			>
 			<span class="short">{action.short || action.meta}</span>
 		</span>
-	</button>
-	<span id="cta-note" class="sr-only">The reader is not built yet.</span>
+	</a>
+	<!-- eslint-enable svelte/no-navigation-without-resolve -->
 
 	{#if suggestion}
 		<!-- Index Books, state 7: under CONTINUE, on this book's screen only. -->
@@ -419,8 +423,11 @@
 		letter-spacing: 0.04em;
 		text-align: left;
 	}
-	.cta:disabled {
-		cursor: default;
+	.cta {
+		text-decoration: none;
+	}
+	.cta[aria-disabled='true'] {
+		pointer-events: none;
 	}
 	.cta-meta .short {
 		display: none;
@@ -659,12 +666,5 @@
 	}
 	.file-meta {
 		color: var(--text-1);
-	}
-	.sr-only {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip-path: inset(50%);
 	}
 </style>

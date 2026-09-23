@@ -14,7 +14,7 @@
 	import { page } from '$app/state';
 	import { offline } from '$lib/offline.svelte';
 	import { orderBooks } from '$lib/library/books';
-	import { withParam } from '$lib/library/links';
+	import { withParam, readHref } from '$lib/library/links';
 	import {
 		bulkCounts,
 		continueAction,
@@ -93,7 +93,9 @@
 	let rangeArmed = $state(false);
 
 	function onrow(e: SeriesEntry) {
-		if (!selecting) return;
+		// A tap on a chapter reads it; while selecting, it selects.
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves
+		if (!selecting) return void goto(readHref(e.id));
 		if (rangeArmed && anchor !== null) {
 			for (const id of rangeBetween(series.entries, anchor, e.id)) selected.add(id);
 			rangeArmed = false;
@@ -217,7 +219,10 @@
 				<span class="back-label">{data.back.label.toUpperCase()}</span>
 			</a>
 			<div class="mid title">{series.title}</div>
-			<button type="button" class="cell go" disabled>▶ {action.short || action.label}</button>
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves -->
+			<a class="cell go" href={action.entry ? readHref(action.entry.id) : undefined}
+				>▶ {action.short || action.label}</a
+			>
 		</header>
 	{/if}
 
@@ -448,6 +453,7 @@
 	}
 	.go {
 		display: none;
+		text-decoration: none;
 		background: var(--accent);
 		color: var(--on-accent);
 	}

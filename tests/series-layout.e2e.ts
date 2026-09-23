@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 /**
  * The series frame per device, from Index Series.dc.html: metadata is a header
@@ -49,7 +49,7 @@ test('a doujin reads as a book: pages, not a chapter list', async ({ page }) => 
 	await expect(page.locator('.entry')).toHaveCount(0);
 	await expect(page.locator('.page')).toHaveCount(30);
 	await expect(page.locator('.page[aria-current="page"]')).toContainText('18');
-	await expect(page.getByRole('button', { name: /READ FROM P\. 18/ })).toBeVisible();
+	await expect(page.getByRole('link', { name: /READ FROM P\. 18/ })).toBeVisible();
 });
 
 test('a novel shows its contents without numbers, and a typeset cover', async ({ page }) => {

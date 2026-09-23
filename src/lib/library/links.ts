@@ -40,6 +40,15 @@ export function seriesHref(
 	return search === '' ? base : `${base}?${search}`;
 }
 
+/**
+ * The reader on an entry: at a page (1-based) when given, otherwise where
+ * the entry was left (doc/READER.md).
+ */
+export function readHref(entryId: number, page?: number): string {
+	const base = resolve('/read/[entry]', { entry: String(entryId) });
+	return page ? `${base}?p=${page}` : base;
+}
+
 export function searchHref(query: string): string {
 	return query === '' ? resolve('/search') : `${resolve('/search')}?q=${encodeURIComponent(query)}`;
 }

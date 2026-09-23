@@ -5,6 +5,7 @@
 	import { RATING_OPTIONS } from '$lib/library/rating';
 	import { hueFor } from '$lib/library/cover';
 	import { entryProgress, type SeriesEntry, type SeriesPage } from '$lib/library/series';
+	import { readHref } from '$lib/library/links';
 	import type { SubmitFunction } from '@sveltejs/kit';
 
 	/**
@@ -130,8 +131,8 @@
 		{/if}
 
 		<div class="actions">
-			<!-- The reader is its own card; this names where it would open. -->
-			<button type="button" class="primary" disabled>▶ {page ? `P. ${page}` : 'READ'}</button>
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves -->
+			<a class="primary" href={readHref(book.id)}>▶ {page ? `P. ${page}` : 'READ'}</a>
 			<button type="button" onclick={() => onpages(book)}>PAGES</button>
 			<!-- Editing a single book's tags waits on the tag editor being scoped to books. -->
 			<button type="button" disabled>TAGS</button>
@@ -297,9 +298,15 @@
 		border-right: 0;
 	}
 	.actions .primary {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		background: var(--accent);
 		color: var(--on-accent);
 		border-right: 0;
+		font: 500 15px var(--font-mono);
+		text-decoration: none;
 	}
 	.actions button:not(.primary):disabled {
 		opacity: 0.4;

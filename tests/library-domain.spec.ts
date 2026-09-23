@@ -112,7 +112,8 @@ describe('labels', () => {
 		const item: ContinueItem = {
 			...card({ kind: 'manhwa', entryCount: 243 }),
 			entryLabel: 'Ch. 214',
-			lastReadAt: 0
+			lastReadAt: 0,
+			resumeId: null
 		};
 		expect(continueSub(item)).toBe('MANHWA · Ch. 214 of 243');
 		expect(continueSub(item, { cached: true })).toBe('MANHWA · Ch. 214 of 243 · CACHED');
@@ -123,7 +124,8 @@ describe('labels', () => {
 		const book = (entryCount: number, entryLabel: string): ContinueItem => ({
 			...card({ kind: 'doujin', entryCount }),
 			entryLabel,
-			lastReadAt: 0
+			lastReadAt: 0,
+			resumeId: null
 		});
 		expect(continueSub(book(4, 'Book 3'))).toBe('DOUJIN · Book 3 of 4');
 		expect(continueSub(book(1, 'Book'))).toBe('DOUJIN');

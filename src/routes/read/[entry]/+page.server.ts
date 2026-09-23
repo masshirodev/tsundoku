@@ -1,0 +1,87 @@
+import { error } from '@sveltejs/kit';
+import type { PageServerLoad } from './$types';
+import { getDb } from '$lib/server/db';
+import { isIncognito, isRevealed } from '$lib/server/prefs';
+import { seriesPage } from '$lib/server/series';
+import { manifest } from '$lib/server/pages';
+import { effectiveDirection, isBookSeries } from '$lib/library/series';
+import { entryName, modeOf, spelledOut } from '$lib/reader/reader';
+
+/**
+ * The reader (doc/READER.md). `/read/<entry>?p=<page>`, `p` 1-based. With no
+ * `p` it resumes where the entry was left, or starts it.
+ */
+export const load: PageServerLoad = async ({ params, url, cookies }) => {
+	const reveal = isRevealed(cookies);
+	const entryId = Number(params.entry);
+	const row = getDb().prepare(`SELECT series_id FROM entries WHERE id = ?`).get(entryId) as
+		{ series_id: number } | undefined;
+	// Hidden means hidden: a hidden series is the same 404 as a missing one.
+	const series = row ? seriesPage(row.series_id, reveal) : null;
+	if (!series) error(404, 'not found');
+	const index = series.entries.findIndex((e) => e.id === entryId);
+	const entry = series.entries[index];
+	if (!entry) error(404, 'not found');
+
+	const books = isBookSeries(series);
+	const name = (i: number) =>
+		series.entries[i] ? entryName(series.entries[i], series.kind, books ? i : undefined) : null;
+	const neighbour = (i: number) => {
+		const e = series.entries[i];
+		return e
+			? {
+					id: e.id,
+					name: name(i)!,
+					// What the boundary pages call it: its own title, or "Chapter 42".
+					title: e.title || spelledOut(books ? `Book ${i + 1}` : e.label),
+					pageCount: e.pageCount,
+					available: e.available
+				}
+			: null;
+	};
+
+	const m = await manifest(entryId, reveal);
+	const pages = m?.pages ?? [];
+	const p = url.searchParams.get('p');
+	const asked = Number(p);
+	// `p=last`: stepping back from the next chapter's first page lands here.
+	const start =
+		p === 'last'
+			? Math.max(0, pages.length - 1)
+			: Number.isInteger(asked) && asked >= 1
+				? Math.min(asked - 1, Math.max(0, pages.length - 1))
+				: entry.readAt === null && entry.lastPosition !== null
+					? Math.min(entry.lastPosition, Math.max(0, pages.length - 1))
+					: 0;
+
+	return {
+		series: {
+			id: series.id,
+			title: series.title,
+			kind: series.kind,
+			rating: series.rating,
+			favourite: series.favourite,
+			direction: series.direction,
+			defaultMode: modeOf(effectiveDirection({ kind: series.kind, direction: null })),
+			mode: modeOf(effectiveDirection(series)),
+			books,
+			count: series.entries.length,
+			single: series.entries.length === 1
+		},
+		entry: {
+			id: entry.id,
+			index,
+			name: name(index)!,
+			title: entry.title,
+			readAt: entry.readAt,
+			rating: entry.rating,
+			favourite: entry.favourite
+		},
+		manifest: m,
+		pages,
+		start,
+		prev: neighbour(index - 1),
+		next: neighbour(index + 1),
+		incognito: isIncognito(cookies)
+	};
+};

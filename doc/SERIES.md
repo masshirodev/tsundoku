@@ -85,12 +85,13 @@ width, row height (60 / 52px) and rail width (56 / 44px) per device.
 
 ## What it does not do yet
 
-- **Nothing opens the reader.** CONTINUE, `▶ CH. N`, the rows and the doujin
-  pages are shown but inert until "Image reader from the Index handoff" lands.
-  Novels additionally wait on the text reader ("Enable novel entries on the
-  series screen once the text reader exists").
+- **Novels don't open yet.** CONTINUE, `▶ CH. N`, a chapter row, a doujin
+  page and a book's ▶ all open the image reader ([`READER.md`](READER.md)), but
+  novels wait on the text reader ("Enable novel entries on the series screen
+  once the text reader exists"). A chapter that isn't downloaded doesn't open.
 - **↓ CACHE and REMOVE CACHE** are disabled, and the per-row `↓` column is
-  always empty: caching chapters on the device arrives with the reader.
+  always empty: caching chapters on the device needs a service worker, which
+  needs HTTPS.
 - **Covers and page thumbnails** are the striped placeholder until the
   importers extract artwork.
 - **Alternative titles, source, status, description, per-entry titles and page

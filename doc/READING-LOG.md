@@ -17,8 +17,9 @@ Every page read before the log existed is lost to them for good.
   In a single transaction it appends the event and moves the entry's
   `last_position` / `last_opened_at` (and `read_at` on `finish`), so progress
   and the log can never disagree. It refuses an entry that isn't in the named
-  series and writes nothing. The reader doesn't exist yet. **When it's built,
-  it posts to `/api/reading` and nothing else to record progress.**
+  series and writes nothing. The reader ([`READER.md`](READER.md)) posts to
+  `/api/reading` and nothing else to record progress: open, page (once
+  settled), finish, and close by beacon.
 - **`markEntries()`** logs `mark_read` / `mark_unread`, but only for entries
   that actually changed state. A manual mark counts as finished, never as time
   spent.

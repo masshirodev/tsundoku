@@ -7,7 +7,7 @@
 	import Switch from '$lib/components/controls/Switch.svelte';
 	import TagChip from '$lib/components/controls/TagChip.svelte';
 	import { sheetMeta } from '$lib/library/labels';
-	import { seriesHref } from '$lib/library/links';
+	import { seriesHref, readHref } from '$lib/library/links';
 	import type { SeriesDetail, Shelf } from '$lib/library/types';
 	import type { SubmitFunction } from '@sveltejs/kit';
 
@@ -124,10 +124,14 @@
 		</SheetRow>
 
 		<div class="actions">
-			<!-- The reader is its own card; see doc/LIBRARY.md. -->
-			<button type="button" class="primary" disabled>
-				▶ {(detail.nextEntry ?? 'READ').toUpperCase()}
-			</button>
+			{#if detail.nextEntryId !== null}
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves -->
+				<a class="primary" href={readHref(detail.nextEntryId)}
+					>▶ {(detail.nextEntry ?? 'READ').toUpperCase()}</a
+				>
+			{:else}
+				<button type="button" class="primary" disabled>▶ READ</button>
+			{/if}
 			<!-- eslint-disable svelte/no-navigation-without-resolve -- seriesHref() resolves -->
 			<a href={seriesHref(detail.id)}>SERIES</a>
 			<a href={seriesHref(detail.id, null, { edit: 'tags' })}>TAGS</a>

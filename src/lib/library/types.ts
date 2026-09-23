@@ -38,6 +38,8 @@ export type ContinueItem = SeriesCard & {
 	/** Label of the entry being read, e.g. "Ch. 41" or "Vol. 13". */
 	entryLabel: string;
 	lastReadAt: number;
+	/** The entry ▶ opens (`resumeEntry`). */
+	resumeId: number | null;
 };
 
 /** What the long-press sheet shows. */
@@ -47,6 +49,8 @@ export type SeriesDetail = SeriesCard & {
 	artist: string | null;
 	/** Label of the first unread entry, for the resume button. */
 	nextEntry: string | null;
+	/** The entry that button opens. */
+	nextEntryId: number | null;
 };
 
 export type ShelfKind = 'smart' | 'collection' | 'root';

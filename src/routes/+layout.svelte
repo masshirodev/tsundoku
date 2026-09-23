@@ -19,66 +19,77 @@
 	<meta name="theme-color" content={data.theme === 'light' ? '#f5f4ef' : '#0e0f10'} />
 </svelte:head>
 
-<div class="app" class:revealed={data.reveal}>
-	{#if page.url.pathname !== '/login'}
-		<!--
+{#if page.route.id?.startsWith('/read')}
+	<!--
+		The reader is the page and nothing else (doc/READER.md): no sidebar, no
+		banners. Reveal keeps its frame, so hidden pages are never mistaken for
+		ordinary ones, and leaving the app still blanks it.
+	-->
+	{@render children()}
+	{#if data.reveal}<div class="reveal-frame" aria-hidden="true"></div>{/if}
+	<PrivacyShield armed={data.reveal || data.incognito} />
+{:else}
+	<div class="app" class:revealed={data.reveal}>
+		{#if page.url.pathname !== '/login'}
+			<!--
 			The desktop sidebar. Rendered on every device and shown only on a
 			desktop, so the server can send it without knowing the screen.
 		-->
-		<aside class="sidebar" aria-label="Shelves">
-			<div class="brand"><Wordmark size={17} /></div>
-			<div class="side-label">SHELVES</div>
-			<ShelfTabs
-				vertical
-				shelves={data.shelves}
-				active={activeShelf}
-				href={(k) => shelfHref(page.url, k)}
-			/>
-			<div class="spacer"></div>
-			<div class="side-foot">
-				<a
-					href={resolve('/history')}
-					aria-current={page.url.pathname === '/history' ? 'page' : undefined}>HISTORY</a
-				>
-				<!-- Neither screen exists yet; see doc/LIBRARY.md, "What it does not do yet". -->
-				<span aria-disabled="true">IMPORT LOG</span>
-				<span aria-disabled="true">SETTINGS</span>
-			</div>
-		</aside>
-	{/if}
+			<aside class="sidebar" aria-label="Shelves">
+				<div class="brand"><Wordmark size={17} /></div>
+				<div class="side-label">SHELVES</div>
+				<ShelfTabs
+					vertical
+					shelves={data.shelves}
+					active={activeShelf}
+					href={(k) => shelfHref(page.url, k)}
+				/>
+				<div class="spacer"></div>
+				<div class="side-foot">
+					<a
+						href={resolve('/history')}
+						aria-current={page.url.pathname === '/history' ? 'page' : undefined}>HISTORY</a
+					>
+					<!-- Neither screen exists yet; see doc/LIBRARY.md, "What it does not do yet". -->
+					<span aria-disabled="true">IMPORT LOG</span>
+					<span aria-disabled="true">SETTINGS</span>
+				</div>
+			</aside>
+		{/if}
 
-	<div class="main">
+		<div class="main">
+			{#if data.reveal}
+				<Banner kind="reveal" title="HIDDEN SHOWN">
+					{#snippet action()}
+						<form method="POST" action="/?/command" use:enhance>
+							<input type="hidden" name="command" value="hide" />
+							<button type="submit">HIDE AGAIN</button>
+						</form>
+					{/snippet}
+				</Banner>
+			{/if}
+			{#if data.incognito}
+				<!-- Dashed is Index's "not stored yet"; magenta stays reveal's. -->
+				<Band title="INCOGNITO · NOTHING SAVED" dashed>
+					{#snippet action()}
+						<form method="POST" action="/?/command" use:enhance>
+							<input type="hidden" name="command" value="incognito-end" />
+							<button type="submit">END</button>
+						</form>
+					{/snippet}
+				</Band>
+			{/if}
+			{@render children()}
+		</div>
+
+		<PrivacyShield armed={data.reveal || data.incognito} />
+
 		{#if data.reveal}
-			<Banner kind="reveal" title="HIDDEN SHOWN">
-				{#snippet action()}
-					<form method="POST" action="/?/command" use:enhance>
-						<input type="hidden" name="command" value="hide" />
-						<button type="submit">HIDE AGAIN</button>
-					</form>
-				{/snippet}
-			</Banner>
+			<!-- The 4px magenta frame: on every screen for as long as reveal is on. -->
+			<div class="reveal-frame" aria-hidden="true"></div>
 		{/if}
-		{#if data.incognito}
-			<!-- Dashed is Index's "not stored yet"; magenta stays reveal's. -->
-			<Band title="INCOGNITO · NOTHING SAVED" dashed>
-				{#snippet action()}
-					<form method="POST" action="/?/command" use:enhance>
-						<input type="hidden" name="command" value="incognito-end" />
-						<button type="submit">END</button>
-					</form>
-				{/snippet}
-			</Band>
-		{/if}
-		{@render children()}
 	</div>
-
-	<PrivacyShield armed={data.reveal || data.incognito} />
-
-	{#if data.reveal}
-		<!-- The 4px magenta frame: on every screen for as long as reveal is on. -->
-		<div class="reveal-frame" aria-hidden="true"></div>
-	{/if}
-</div>
+{/if}
 
 <style>
 	.app {

@@ -23,7 +23,7 @@
 	import { desktop, phone, wide } from '$lib/device.svelte';
 	import { offline } from '$lib/offline.svelte';
 	import { continueSub, count, nextSort, progress, SORT_LABEL } from '$lib/library/labels';
-	import { seriesHref, shelfHref, withParam } from '$lib/library/links';
+	import { readHref, seriesHref, shelfHref, withParam } from '$lib/library/links';
 	import type { Shelf } from '$lib/library/types';
 
 	let { data, form } = $props();
@@ -289,6 +289,10 @@
 							progress={progress(item)}
 							hue={item.hue}
 							unavailable={isOffline && !cached}
+							onresume={item.resumeId !== null
+								? // eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves
+									() => goto(readHref(item.resumeId!))
+								: undefined}
 						/>
 					{/each}
 				</div>
