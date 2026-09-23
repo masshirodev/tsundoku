@@ -18,6 +18,8 @@ test('the series frame matches the design for this device', async ({ page }, inf
 	test.skip(!frame, 'no frame drawn for this project');
 	await page.goto('/?sort=title');
 	await page.locator('.grid .tile', { hasText: 'Tower of God' }).click();
+	// The title shows at once from the tile (doc/WAITING.md): wait for the screen itself.
+	await page.waitForURL(/\/series\/\d+/);
 	await expect(page.getByRole('heading', { name: 'Tower of God' })).toBeVisible();
 
 	const panel = (await page.locator('.panel-col').boundingBox())!;

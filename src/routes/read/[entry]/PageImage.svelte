@@ -11,7 +11,8 @@
 		h,
 		fit = 'screen',
 		share = 1,
-		side = 'center'
+		side = 'center',
+		chapter = ''
 	}: {
 		src: string;
 		/** 1-based, as the reader names it. */
@@ -23,7 +24,13 @@
 		share?: number;
 		/** In a spread, the two pages meet at the gutter rather than float in their halves. */
 		side?: 'left' | 'right' | 'center';
+		/**
+		 * The chapter, named in the box on a chapter's first page (Loading
+		 * States 1n): arriving from the previous chapter, that's what's loading.
+		 */
+		chapter?: string;
 	} = $props();
+	const name = $derived(chapter ? `${chapter} · P. ${number}` : `P. ${number}`);
 
 	let status = $state<'loading' | 'loaded' | 'failed'>('loading');
 	let attempt = $state(0);
@@ -50,13 +57,13 @@
 	/>
 	{#if status === 'loading'}
 		<div class="loading" aria-hidden="true">
-			<div class="n">P. {number}</div>
+			<div class="n">{name}</div>
 			<div class="bar"><div></div></div>
 		</div>
 	{:else if status === 'failed'}
 		<div class="failed" role="alert">
 			<div class="msg">
-				<div class="t">P. {number} DID NOT LOAD</div>
+				<div class="t">{name} DID NOT LOAD</div>
 				<div class="d">WORKSTATION DID NOT ANSWER</div>
 			</div>
 			<button

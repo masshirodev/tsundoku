@@ -11,6 +11,7 @@
 	import BookSheet from './BookSheet.svelte';
 	import GroupSheet from '../../GroupSheet.svelte';
 	import Band from '$lib/components/chrome/Band.svelte';
+	import NavLine from '$lib/components/waiting/NavLine.svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { offline } from '$lib/offline.svelte';
@@ -255,6 +256,7 @@
 			<a class="cell go" href={action.entry ? readHref(action.entry.id) : undefined}
 				>▶ {action.short || action.label}</a
 			>
+			<NavLine />
 		</header>
 	{/if}
 

@@ -19,6 +19,9 @@ async function open(page: Page, title: string, shelf = 'all') {
 	// Under the full parallel run hydration can trail the load event.
 	await page.waitForLoadState('networkidle');
 	await page.locator('.grid .tile', { hasText: title }).click();
+	// The title shows at once from the tile (doc/WAITING.md): wait for the
+	// screen itself, which is there once the URL has moved.
+	await page.waitForURL(/\/series\/\d+/);
 	await expect(page.getByRole('heading', { name: title })).toBeVisible();
 }
 

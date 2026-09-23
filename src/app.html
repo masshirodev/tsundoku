@@ -14,6 +14,43 @@
 		/>
 		<link rel="apple-touch-icon" href="%sveltekit.assets%/icons/apple-touch-icon.png" />
 		<meta name="mobile-web-app-capable" content="yes" />
+		<script>
+			// Waiting (doc/WAITING.md): the header's progress line fills only as a
+			// screen's data actually arrives. SvelteKit keeps its own reference to
+			// fetch when it starts, so the byte count is added here, before it
+			// does. Only a screen's __data.json is counted, and nothing about the
+			// response changes: the same bytes, passed straight through.
+			(() => {
+				const native = window.fetch.bind(window);
+				window.fetch = async (input, init) => {
+					const res = await native(input, init);
+					const url =
+						typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+					if (!res.body || !/\/__data\.json(\?|$)/.test(url)) return res;
+					const total = Number(res.headers.get('content-length')) || 0;
+					const tell = (loaded) =>
+						dispatchEvent(new CustomEvent('tsundoku:bytes', { detail: { url, loaded, total } }));
+					let loaded = 0;
+					tell(0);
+					const reader = res.body.getReader();
+					const body = new ReadableStream({
+						async pull(c) {
+							const { done, value } = await reader.read();
+							if (done) return c.close();
+							loaded += value.length;
+							tell(loaded);
+							c.enqueue(value);
+						},
+						cancel: (r) => reader.cancel(r)
+					});
+					return new Response(body, {
+						status: res.status,
+						statusText: res.statusText,
+						headers: res.headers
+					});
+				};
+			})();
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

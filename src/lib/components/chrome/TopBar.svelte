@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import NavLine from '$lib/components/waiting/NavLine.svelte';
 
 	/**
 	 * A row of cells split by hairlines: left, a flexible middle, right.
@@ -27,10 +28,13 @@
 	{#if left}<div class="cell left">{@render left()}</div>{/if}
 	<div class="middle">{@render middle?.()}</div>
 	{#if right}<div class="cell right">{@render right()}</div>{/if}
+	<!-- While a screen is on its way, the bottom rule is its progress (doc/WAITING.md). -->
+	<NavLine />
 </header>
 
 <style>
 	.bar {
+		position: relative;
 		flex-shrink: 0;
 		display: flex;
 		align-items: stretch;

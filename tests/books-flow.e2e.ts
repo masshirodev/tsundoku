@@ -27,6 +27,7 @@ async function openBooks(page: Page) {
 		.locator('.grid .tile', { hasText: 'Kaori Mama' })
 		.filter({ hasNotText: /Duty|Illustrations/ })
 		.click();
+	await page.waitForURL(/\/series\/\d+/);
 	await expect(page.getByRole('heading', { name: 'Kaori Mama', exact: true })).toBeVisible();
 }
 

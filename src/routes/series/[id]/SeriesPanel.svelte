@@ -18,6 +18,10 @@
 	import { isPersonNamespace, suggestionLabel, type Suggestion } from '$lib/library/books';
 	import { tagHref, readHref } from '$lib/library/links';
 	import Band from '$lib/components/chrome/Band.svelte';
+	import { invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
+	import { postAction, saves } from '$lib/saves.svelte';
+	import type { Rating } from '$lib/library/types';
 
 	/**
 	 * The series' metadata: a header that scrolls away in portrait, a 440px
@@ -34,7 +38,8 @@
 		suggestion = null,
 		dismissedKey = null,
 		onreview,
-		cta = $bindable<HTMLElement | null>(null)
+		cta = $bindable<HTMLElement | null>(null),
+		outline = false
 	}: {
 		series: SeriesPage;
 		shelves: Shelf[];
@@ -48,7 +53,68 @@
 		onreview?: () => void;
 		/** The CONTINUE bar, observed by the page to know when it scrolled away. */
 		cta?: HTMLElement | null;
+		/**
+		 * Waiting (Loading States 1g, 1h): only what the tapped tile knew is
+		 * real -- cover, title, kind, rating, FAV, counts. The rest is drawn in
+		 * outline, and CONTINUE doesn't open until its chapter is known.
+		 */
+		outline?: boolean;
 	} = $props();
+
+	// Rating and FAV show their new value at once and save behind it. A save
+	// that fails keeps the value, drawn dashed, with RETRY and PUT BACK in the
+	// layout's band (Loading States 1o).
+	const actionBase = $derived(resolve('/series/[id]', { id: String(series.id) }));
+	let ratingNow = $state<Rating | null>(null);
+	let favNow = $state<boolean | null>(null);
+	const rating = $derived(ratingNow ?? series.rating);
+	const favourite = $derived(favNow ?? series.favourite);
+	$effect(() => {
+		// The stored values moved (the save landed, or the page changed): drop the local ones.
+		void series.rating;
+		void series.favourite;
+		void series.id;
+		if (!saves.unsaved(`rating:${series.id}`)) ratingNow = null;
+		if (!saves.unsaved(`fav:${series.id}`)) favNow = null;
+	});
+	async function rate(n: Rating) {
+		const was = series.rating;
+		ratingNow = n;
+		const save = () => postAction(`${actionBase}?/rate`, { rating: String(n) });
+		saves.clear(`rating:${series.id}`);
+		if (await save()) return void invalidateAll();
+		saves.fail({
+			what: `RATING ${n} NOT SAVED`,
+			putBackLabel: `PUT BACK ${was}`,
+			key: `rating:${series.id}`,
+			retry: async () => {
+				const ok = await save();
+				if (ok) void invalidateAll();
+				return ok;
+			},
+			putBack: () => (ratingNow = null)
+		});
+	}
+	async function toggleFav() {
+		const on = !favourite;
+		favNow = on;
+		const save = () => postAction(`${actionBase}?/favourite`, { on: on ? '1' : '0' });
+		saves.clear(`fav:${series.id}`);
+		if (await save()) return void invalidateAll();
+		saves.fail({
+			what: on ? 'FAV NOT SAVED' : 'UNFAV NOT SAVED',
+			putBackLabel: on ? 'PUT BACK · NOT FAV' : 'PUT BACK · FAV',
+			key: `fav:${series.id}`,
+			retry: async () => {
+				const ok = await save();
+				if (ok) void invalidateAll();
+				return ok;
+			},
+			putBack: () => (favNow = null)
+		});
+	}
+	const ratingUnsaved = $derived(saves.unsaved(`rating:${series.id}`));
+	const favUnsaved = $derived(saves.unsaved(`fav:${series.id}`));
 
 	const action = $derived(continueAction(series));
 	const direction = $derived(effectiveDirection(series));
@@ -74,59 +140,83 @@
 				<span class="nocover-title">{series.title}</span>
 			{/if}
 			{#if series.hidden}<Badge tone="reveal" corner="top-left">HIDDEN</Badge>{/if}
-			{#if series.favourite}<Badge tone="accent" corner="top-right">FAV</Badge>{/if}
+			{#if favourite}<Badge tone="accent" corner="top-right">FAV</Badge>{/if}
 		</div>
 		<div class="names">
-			<div class="meta">{seriesMeta(series)}</div>
+			<div class="meta">{outline ? series.kind.toUpperCase() : seriesMeta(series)}</div>
 			<h1>{series.title}</h1>
-			{#each series.altTitles as alt (alt)}<div class="alt">{alt}</div>{/each}
+			{#if outline}
+				<div class="out-lines" aria-hidden="true">
+					<i style:width="46%"></i><i style:width="62%"></i>
+				</div>
+			{:else}
+				{#each series.altTitles as alt (alt)}<div class="alt">{alt}</div>{/each}
+			{/if}
 		</div>
 	</div>
 
 	<div class="rating-row">
-		<div class="label">{series.rating === 0 ? 'UNRATED' : 'RATING'}</div>
-		<form method="POST" action="?/rate" use:enhance class="cells">
+		<div class="label" class:unsaved-label={ratingUnsaved}>
+			{ratingUnsaved ? 'NOT SAVED' : rating === 0 ? 'UNRATED' : 'RATING'}
+		</div>
+		<div class="cells" class:unsaved={ratingUnsaved} role="group" aria-label="Rating">
 			{#each RATING_OPTIONS as n (n)}
 				<!-- Cells fill up to the rating; 0 (unrated) fills none. -->
-				{@const on = n > 0 && n <= series.rating}
+				{@const on = n > 0 && n <= rating}
 				<button
-					type="submit"
-					name="rating"
-					value={n}
+					type="button"
 					class="cell"
 					class:on
-					class:muted={series.rating === 0}
-					aria-pressed={series.rating !== 0 && n === series.rating}
-					aria-label={n === 0 ? 'Unrated' : `Rate ${n}`}>{n}</button
+					class:muted={rating === 0}
+					aria-pressed={rating !== 0 && n === rating}
+					aria-label={n === 0 ? 'Unrated' : `Rate ${n}`}
+					onclick={() => rate(n as Rating)}>{n}</button
 				>
 			{/each}
-		</form>
-		<form method="POST" action="?/favourite" use:enhance class="fav-form">
-			<input type="hidden" name="on" value={series.favourite ? '0' : '1'} />
-			<button type="submit" class="fav" class:on={series.favourite} aria-pressed={series.favourite}>
-				{series.favourite ? 'FAV ✓' : 'FAV'}
+		</div>
+		<div class="fav-form">
+			<button
+				type="button"
+				class="fav"
+				class:on={favourite}
+				class:unsaved={favUnsaved}
+				aria-pressed={favourite}
+				onclick={toggleFav}
+			>
+				{favourite ? 'FAV ✓' : 'FAV'}
 			</button>
-		</form>
+		</div>
 	</div>
 
 	<!-- eslint-disable svelte/no-navigation-without-resolve -- readHref() resolves -->
 	<a
 		class="cta"
 		bind:this={cta}
-		href={action.entry ? readHref(action.entry.id) : undefined}
-		aria-disabled={!action.entry}
+		href={action.entry && !outline ? readHref(action.entry.id) : undefined}
+		aria-disabled={!action.entry || outline}
 	>
-		<span>▶ {action.label}</span>
-		<span class="cta-meta">
-			<span class="long"
-				>{action.meta}{series.kind === 'doujin' && cached > 0 ? ' · ↓ CACHED' : ''}</span
-			>
-			<span class="short">{action.short || action.meta}</span>
-		</span>
+		<span>▶ {outline ? 'CONTINUE' : action.label}</span>
+		{#if outline}
+			<i class="cta-out" aria-hidden="true"></i>
+		{:else}
+			<span class="cta-meta">
+				<span class="long"
+					>{action.meta}{series.kind === 'doujin' && cached > 0 ? ' · ↓ CACHED' : ''}</span
+				>
+				<span class="short">{action.short || action.meta}</span>
+			</span>
+		{/if}
 	</a>
 	<!-- eslint-enable svelte/no-navigation-without-resolve -->
 
-	{#if suggestion}
+	{#if outline}
+		{#each [directionRowLabel(series.kind), 'SHELVES', 'TAGS', 'FILE'] as label, i (label)}
+			<div class="row out-row" aria-hidden="true">
+				<div class="label">{label}</div>
+				<div class="out-lines"><i style:width={['34%', '52%', '74%', '60%'][i]}></i></div>
+			</div>
+		{/each}
+	{:else if suggestion}
 		<!-- Index Books, state 7: under CONTINUE, on this book's screen only. -->
 		<section class="sugg" aria-label="Might be one series">
 			<div class="sugg-head">
@@ -168,124 +258,167 @@
 		</Band>
 	{/if}
 
-	<form method="POST" action="?/direction" use:enhance class="row">
-		<div class="label">{directionRowLabel(series.kind)}</div>
-		<div class="seg">
-			{#each directionOptions(series.kind) as d (d.value)}
-				<button
-					type="submit"
-					name="direction"
-					value={d.value}
-					class:on={d.value === direction}
-					aria-pressed={d.value === direction}>{d.label}</button
-				>
-			{/each}
-		</div>
-	</form>
+	{#if !outline}
+		<form method="POST" action="?/direction" use:enhance class="row">
+			<div class="label">{directionRowLabel(series.kind)}</div>
+			<div class="seg">
+				{#each directionOptions(series.kind) as d (d.value)}
+					<button
+						type="submit"
+						name="direction"
+						value={d.value}
+						class:on={d.value === direction}
+						aria-pressed={d.value === direction}>{d.label}</button
+					>
+				{/each}
+			</div>
+		</form>
 
-	{#if series.duplicates > 0 && series.scanlators.length > 1}
-		<!-- One chapter, several scanlators (doc/DUPLICATES.md): whose copy the list shows. -->
-		<form method="POST" action="?/scanlator" use:enhance class="row top">
-			<div class="label">SCANLATOR</div>
-			<div class="picks">
-				<button
-					type="submit"
-					name="scanlator"
-					value=""
-					class:on={series.scanlator === null}
-					aria-pressed={series.scanlator === null}>AUTO</button
-				>
-				{#each series.scanlators as s (s.name)}
+		{#if series.duplicates > 0 && series.scanlators.length > 1}
+			<!-- One chapter, several scanlators (doc/DUPLICATES.md): whose copy the list shows. -->
+			<form method="POST" action="?/scanlator" use:enhance class="row top">
+				<div class="label">SCANLATOR</div>
+				<div class="picks">
 					<button
 						type="submit"
 						name="scanlator"
-						value={s.name}
-						class:on={series.scanlator === s.name}
-						aria-pressed={series.scanlator === s.name}>{s.name} · {s.count}</button
+						value=""
+						class:on={series.scanlator === null}
+						aria-pressed={series.scanlator === null}>AUTO</button
 					>
-				{/each}
-				<span class="none"
-					>{series.duplicates} DUPLICATE{series.duplicates === 1 ? '' : 'S'} HIDDEN</span
-				>
-			</div>
-		</form>
-	{/if}
-
-	<div class="row">
-		<div class="label">SHELVES</div>
-		<div class="chips">
-			{#each onShelves as s (s.key)}<span class="chip">{s.name}</span>{/each}
-			{#if onShelves.length === 0}<span class="none">ON NO SHELF</span>{/if}
-		</div>
-		<button type="button" class="edit" onclick={onedit}>EDIT</button>
-	</div>
-
-	<div class="row top">
-		<div class="label">TAGS</div>
-		<div class="tags">
-			{#each tags.groups as g (g.namespace)}
-				<div class="tag-line">
-					<span class="ns">{g.namespace}</span>
-					<span class="vals">
-						{#if isPersonNamespace(g.namespace)}
-							<!-- People open their person page (Index Books). -->
-							<!-- eslint-disable svelte/no-navigation-without-resolve -- tagHref() resolves -->
-							{#each g.values as v, i (v)}{#if i > 0}<span class="sep"> · </span>{/if}<a
-									class="person"
-									href={tagHref(`${g.namespace}:${v}`)}>{v}</a
-								>{/each}
-							<!-- eslint-enable svelte/no-navigation-without-resolve -->
-						{:else}
-							{g.values.join(' · ')}
-						{/if}
-					</span>
+					{#each series.scanlators as s (s.name)}
+						<button
+							type="submit"
+							name="scanlator"
+							value={s.name}
+							class:on={series.scanlator === s.name}
+							aria-pressed={series.scanlator === s.name}>{s.name} · {s.count}</button
+						>
+					{/each}
+					<span class="none"
+						>{series.duplicates} DUPLICATE{series.duplicates === 1 ? '' : 'S'} HIDDEN</span
+					>
 				</div>
-			{/each}
-			{#if tags.groups.length === 0}<span class="none">NO TAGS</span>{/if}
-			{#if tags.more > 0}<div class="more">+ {tags.more} MORE</div>{/if}
-			{#if isBookSeries(series)}
-				<div class="more">FROM ITS {series.entries.length} BOOKS · EACH KEEPS ITS OWN</div>
-			{/if}
-		</div>
-		<button type="button" class="edit" onclick={onedit}>EDIT</button>
-	</div>
-
-	{#if series.description}
-		<div class="row top">
-			<div class="label">ABOUT</div>
-			<div class="about">
-				<p class:open={aboutOpen}>{series.description}</p>
-				<button type="button" class="more" onclick={() => (aboutOpen = !aboutOpen)}>
-					{aboutOpen ? 'LESS ↑' : 'MORE ↓'}
-				</button>
-			</div>
-		</div>
-	{/if}
-
-	<div class="row file-row">
-		<div class="label">FILE</div>
-		<div class="file">
-			{#if series.path}<div class="path">{series.path}</div>{/if}
-			<div class="file-meta">
-				{fileMeta(series.entries)}{series.kind !== 'doujin' && cached > 0
-					? ` · ↓ ${cached} CACHED`
-					: ''}
-			</div>
-		</div>
-		{#if isBookSeries(series)}
-			<!-- Every book back out as a single; the series goes. -->
-			<form method="POST" action="?/ungroup" class="hide-form">
-				<button type="submit" class="edit">UNGROUP</button>
 			</form>
 		{/if}
-		<form method="POST" action="?/hide" use:enhance class="hide-form">
-			<input type="hidden" name="on" value={series.hidden ? '0' : '1'} />
-			<button type="submit" class="edit">{series.hidden ? 'UNHIDE' : 'HIDE'}</button>
-		</form>
-	</div>
+
+		<div class="row">
+			<div class="label">SHELVES</div>
+			<div class="chips">
+				{#each onShelves as s (s.key)}<span class="chip">{s.name}</span>{/each}
+				{#if onShelves.length === 0}<span class="none">ON NO SHELF</span>{/if}
+			</div>
+			<button type="button" class="edit" onclick={onedit}>EDIT</button>
+		</div>
+
+		<div class="row top">
+			<div class="label">TAGS</div>
+			<div class="tags">
+				{#each tags.groups as g (g.namespace)}
+					<div class="tag-line">
+						<span class="ns">{g.namespace}</span>
+						<span class="vals">
+							{#if isPersonNamespace(g.namespace)}
+								<!-- People open their person page (Index Books). -->
+								<!-- eslint-disable svelte/no-navigation-without-resolve -- tagHref() resolves -->
+								{#each g.values as v, i (v)}{#if i > 0}<span class="sep"> · </span>{/if}<a
+										class="person"
+										href={tagHref(`${g.namespace}:${v}`)}>{v}</a
+									>{/each}
+								<!-- eslint-enable svelte/no-navigation-without-resolve -->
+							{:else}
+								{g.values.join(' · ')}
+							{/if}
+						</span>
+					</div>
+				{/each}
+				{#if tags.groups.length === 0}<span class="none">NO TAGS</span>{/if}
+				{#if tags.more > 0}<div class="more">+ {tags.more} MORE</div>{/if}
+				{#if isBookSeries(series)}
+					<div class="more">FROM ITS {series.entries.length} BOOKS · EACH KEEPS ITS OWN</div>
+				{/if}
+			</div>
+			<button type="button" class="edit" onclick={onedit}>EDIT</button>
+		</div>
+
+		{#if series.description}
+			<div class="row top">
+				<div class="label">ABOUT</div>
+				<div class="about">
+					<p class:open={aboutOpen}>{series.description}</p>
+					<button type="button" class="more" onclick={() => (aboutOpen = !aboutOpen)}>
+						{aboutOpen ? 'LESS ↑' : 'MORE ↓'}
+					</button>
+				</div>
+			</div>
+		{/if}
+
+		<div class="row file-row">
+			<div class="label">FILE</div>
+			<div class="file">
+				{#if series.path}<div class="path">{series.path}</div>{/if}
+				<div class="file-meta">
+					{fileMeta(series.entries)}{series.kind !== 'doujin' && cached > 0
+						? ` · ↓ ${cached} CACHED`
+						: ''}
+				</div>
+			</div>
+			{#if isBookSeries(series)}
+				<!-- Every book back out as a single; the series goes. -->
+				<form method="POST" action="?/ungroup" class="hide-form">
+					<button type="submit" class="edit">UNGROUP</button>
+				</form>
+			{/if}
+			<form method="POST" action="?/hide" use:enhance class="hide-form">
+				<input type="hidden" name="on" value={series.hidden ? '0' : '1'} />
+				<button type="submit" class="edit">{series.hidden ? 'UNHIDE' : 'HIDE'}</button>
+			</form>
+		</div>
+	{/if}
 </section>
 
 <style>
+	/* Waiting: what isn't known yet, as flat grey bars (Loading States 1g). */
+	.out-lines {
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 10px;
+		padding-top: 6px;
+	}
+	.out-row .out-lines {
+		flex: 1;
+		padding: 10px 14px;
+	}
+	.out-lines i,
+	.cta-out {
+		display: block;
+		height: 10px;
+		background: var(--line-1);
+	}
+	.cta-out {
+		width: 150px;
+		background: rgba(14, 15, 16, 0.28);
+	}
+	.out-row {
+		min-height: 58px;
+	}
+	/* Not stored yet (Loading States 1o): dashed, Index's mark for it. */
+	.cells.unsaved .cell.on {
+		background: transparent;
+		color: var(--accent);
+		outline: 1.5px dashed var(--accent);
+		outline-offset: -7px;
+	}
+	.unsaved-label {
+		color: var(--text-1) !important;
+	}
+	.fav.unsaved {
+		background: transparent;
+		color: var(--accent);
+		outline: 1.5px dashed var(--accent);
+		outline-offset: -7px;
+	}
 	.panel {
 		display: flex;
 		flex-direction: column;

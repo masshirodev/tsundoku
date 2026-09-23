@@ -9,8 +9,90 @@
 	import Wordmark from '$lib/components/chrome/Wordmark.svelte';
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
 	import { shelfHref } from '$lib/library/links';
+	import { onMount } from 'svelte';
+	import { afterNavigate, beforeNavigate, goto } from '$app/navigation';
+	import { waiting } from '$lib/waiting.svelte';
+	import { saves } from '$lib/saves.svelte';
+	import WaitingScreen from '$lib/components/waiting/WaitingScreen.svelte';
+	import StalledBand from '$lib/components/waiting/StalledBand.svelte';
+	import SaveBand from '$lib/components/waiting/SaveBand.svelte';
+	import SeriesOutline from './series/[id]/SeriesOutline.svelte';
 
 	let { data, children } = $props();
+
+	// ---- waiting (doc/WAITING.md) -------------------------------------------------
+	// The element a tap landed on, so it can hold its pressed look until the
+	// next screen draws. Captured before any handler runs, so a tile's own
+	// goto() finds it.
+	let lastTap: { el: Element; at: number } | null = null;
+	onMount(() => {
+		const tap = (e: Event) => {
+			const el = (e.target as Element | null)?.closest('a[href], button, [role="tab"]');
+			lastTap = el ? { el, at: Date.now() } : null;
+		};
+		addEventListener('click', tap, true);
+		return () => removeEventListener('click', tap, true);
+	});
+	let navSeq = 0;
+	beforeNavigate((nav) => {
+		if (nav.willUnload || !nav.to) return;
+		const seq = ++navSeq;
+		const from = lastTap && Date.now() - lastTap.at < 400 ? lastTap.el : null;
+		lastTap = null;
+		waiting.start(nav.to.url, nav.to.route.id, from);
+		// A navigation that fails or is replaced ends its wait too.
+		void nav.complete.then(
+			() => undefined,
+			() => seq === navSeq && waiting.end()
+		);
+	});
+	afterNavigate(() => {
+		waiting.end();
+		// Something reached the workstation: a failed save tries again.
+		saves.nudge();
+	});
+
+	const past = (p: 'line' | 'outline') =>
+		waiting.phase === 'stalled' ||
+		waiting.phase === 'outline' ||
+		(p === 'line' && waiting.phase === 'line');
+	/**
+	 * What replaces the old screen while the next is on its way. Series and
+	 * person pages open with what's known once the line shows; the library
+	 * and history in outline from 1 s. Search never outlines: its last answer
+	 * stays. A screen going to itself (a shelf tab on the library) outlines
+	 * its own content instead.
+	 */
+	const cover = $derived.by((): 'series' | 'screen' | null => {
+		const to = waiting.to;
+		if (!past('line')) return null;
+		if (to.kind === 'series') {
+			if (page.route.id === '/series/[id]' && page.params.id === String(to.id)) return null;
+			return waiting.preview || past('outline') ? 'series' : null;
+		}
+		if (to.kind === 'person') return 'screen';
+		if (to.kind === 'library' && !(page.route.id === '/' && !page.url.searchParams.has('tag')))
+			return past('outline') ? 'screen' : null;
+		if (to.kind === 'history' && page.route.id !== '/history')
+			return past('outline') ? 'screen' : null;
+		return null;
+	});
+	const blankPreview = $derived({
+		id: waiting.to.kind === 'series' ? waiting.to.id : 0,
+		title: '',
+		kind: 'manga',
+		hue: 0,
+		rating: 0 as const,
+		favourite: false,
+		hidden: false,
+		entryCount: 0,
+		readCount: 0
+	});
+	/** ← BACK while not answering: stay here, which ends the wait. */
+	function stay() {
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- the current URL
+		void goto(page.url.href, { replaceState: true, noScroll: true, keepFocus: true });
+	}
 
 	const activeShelf = $derived(page.url.searchParams.get('shelf') ?? (data.scan ? 'new' : 'all'));
 </script>
@@ -79,9 +161,18 @@
 					{/snippet}
 				</Band>
 			{/if}
-			{@render children()}
+			<StalledBand onback={stay} />
+			{#if cover === 'series'}
+				<SeriesOutline preview={waiting.preview ?? blankPreview} />
+			{:else if cover === 'screen'}
+				<WaitingScreen to={waiting.to} shelves={data.shelves} active={activeShelf} />
+			{/if}
+			<div class="route-view" class:covered={cover !== null}>
+				{@render children()}
+			</div>
 		</div>
 
+		<SaveBand />
 		<PrivacyShield armed={data.reveal || data.incognito} />
 
 		{#if data.reveal}
@@ -92,6 +183,22 @@
 {/if}
 
 <style>
+	/* The old screen stays mounted under an outline, so coming back to it loses nothing. */
+	.route-view {
+		display: contents;
+	}
+	.route-view.covered {
+		display: none;
+	}
+	/* The tapped element holds its pressed inversion until the next screen draws. */
+	:global(.nav-pressed) {
+		background: var(--surface-inverse) !important;
+		color: var(--text-inverse) !important;
+	}
+	:global(.tile:has(.nav-pressed)) {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+	}
 	.app {
 		display: flex;
 		min-height: 100dvh;

@@ -371,6 +371,9 @@
 		atEnd = false;
 		page = Math.max(0, Math.min(pages - 1, to));
 		await tick();
+		// Wide blocks are measured again as they come into view: one measured
+		// before its column had a width would otherwise never offer OPEN.
+		if (blocksEl) labelWide(blocksEl);
 		pos = positionOnPage() ?? pos;
 		noteSpeed();
 		if (page >= pages - 1) markFinished();

@@ -511,6 +511,7 @@
 				<PageImage
 					src={src(i)}
 					number={i + 1}
+					chapter={i === 0 ? data.entry.name : ''}
 					w={pages[i].w}
 					h={pages[i].h}
 					{fit}

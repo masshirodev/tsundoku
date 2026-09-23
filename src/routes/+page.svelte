@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { deserialize, enhance } from '$app/forms';
+	import { enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
@@ -11,6 +11,9 @@
 	import Wordmark from '$lib/components/chrome/Wordmark.svelte';
 	import ContinueRow from '$lib/components/content/ContinueRow.svelte';
 	import CoverTile from '$lib/components/content/CoverTile.svelte';
+	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
+	import { waiting } from '$lib/waiting.svelte';
+	import { postAction, saves } from '$lib/saves.svelte';
 	import Button from '$lib/components/controls/Button.svelte';
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
 	import SeriesSheet from './SeriesSheet.svelte';
@@ -88,46 +91,87 @@
 
 	/** A tap opens the series; a long press opens the sheet (see CoverTile). */
 	function press(id: number) {
-		if (selecting) toggle(id);
+		if (selecting) return toggle(id);
+		// The series screen opens with what this tile already knows (doc/WAITING.md).
+		const s = data.series.find((x) => x.id === id);
+		if (s)
+			waiting.preview = {
+				id: s.id,
+				title: s.title,
+				kind: s.kind,
+				hue: s.hue,
+				rating: ratingNow.get(s.id) ?? s.rating,
+				favourite: favNow.get(s.id) ?? s.favourite,
+				hidden: s.hidden,
+				entryCount: s.entryCount,
+				readCount: s.readCount
+			};
 		// eslint-disable-next-line svelte/no-navigation-without-resolve -- seriesHref() resolves
-		else void goto(seriesHref(id, data.tag ? null : data.shelf));
+		void goto(seriesHref(id, data.tag ? null : data.shelf));
 	}
+
+	// A shelf tab on its way past 1 s: the grid in outline, CONTINUE and the
+	// tabs kept as they are (Loading States 1c).
+	const outlined = $derived(
+		(waiting.phase === 'outline' || waiting.phase === 'stalled') && waiting.to.kind === 'library'
+	);
 
 	// ---- on the tile ------------------------------------------------------
 	// FAV and the rating are edited on the cover itself (see CoverTile). The
-	// tile shows the change at once; the server's answer replaces it, and a
-	// write that failed puts the old value back.
+	// tile shows the change at once and saves behind it. A write that fails
+	// keeps the new value, and the layout's band offers RETRY and PUT BACK
+	// (doc/WAITING.md).
 	const favNow = new SvelteMap<number, boolean>();
 	const ratingNow = new SvelteMap<number, Rating>();
 
-	async function write(action: 'favourite' | 'rate', fields: Record<string, string>) {
-		const body = new FormData();
-		for (const [k, v] of Object.entries(fields)) body.set(k, v);
-		try {
-			const res = await fetch(`/?/${action}`, {
-				method: 'POST',
-				body,
-				headers: { 'x-sveltekit-action': 'true' }
-			});
-			const result = deserialize(await res.text());
-			if (result.type !== 'success') throw new Error(result.type);
-		} finally {
-			await invalidateAll();
-		}
+	async function write(
+		action: 'favourite' | 'rate',
+		key: string,
+		fields: Record<string, string>,
+		failure: { what: string; putBackLabel: string; putBack: () => void },
+		settle: () => void
+	) {
+		const save = async () => {
+			const ok = await postAction(`/?/${action}`, fields);
+			if (ok) {
+				await invalidateAll();
+				settle();
+			}
+			return ok;
+		};
+		saves.clear(key);
+		if (!(await save())) saves.fail({ ...failure, key, retry: save });
 	}
 
 	function favourite(id: number, on: boolean) {
 		favNow.set(id, on);
-		void write('favourite', { id: String(id), on: on ? '1' : '0' })
-			.catch(() => {})
-			.finally(() => favNow.delete(id));
+		void write(
+			'favourite',
+			`fav:${id}`,
+			{ id: String(id), on: on ? '1' : '0' },
+			{
+				what: on ? 'FAV NOT SAVED' : 'UNFAV NOT SAVED',
+				putBackLabel: on ? 'PUT BACK · NOT FAV' : 'PUT BACK · FAV',
+				putBack: () => favNow.delete(id)
+			},
+			() => favNow.delete(id)
+		);
 	}
 
 	function rate(id: number, rating: Rating) {
+		const was = data.series.find((s) => s.id === id)?.rating ?? 0;
 		ratingNow.set(id, rating);
-		void write('rate', { id: String(id), rating: String(rating) })
-			.catch(() => {})
-			.finally(() => ratingNow.delete(id));
+		void write(
+			'rate',
+			`rating:${id}`,
+			{ id: String(id), rating: String(rating) },
+			{
+				what: `RATING ${rating} NOT SAVED`,
+				putBackLabel: `PUT BACK ${was}`,
+				putBack: () => ratingNow.delete(id)
+			},
+			() => ratingNow.delete(id)
+		);
 	}
 
 	// ---- derived view ------------------------------------------------------
@@ -343,6 +387,8 @@
 			{#snippet right()}
 				{#if selecting}
 					TAP TO ADD
+				{:else if outlined}
+					LOADING
 				{:else if scanning}
 					NEWEST FIRST
 				{:else}
@@ -357,7 +403,9 @@
 			<ShelfTabs shelves={tabs} active={activeShelf} href={(k) => shelfHref(page.url, k)} />
 		</div>
 
-		{#if data.shelf !== 'people'}
+		{#if outlined}
+			<GridOutline />
+		{:else if data.shelf !== 'people'}
 			<div class="grid">
 				{#each shown as s (s.id)}
 					{@const cached = cachedCount(s.id)}
