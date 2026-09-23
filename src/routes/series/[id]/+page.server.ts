@@ -39,6 +39,7 @@ function seriesId(raw: string): number {
  */
 function backTo(from: string | null, shelves: { key: string; name: string }[]) {
 	if (from === 'continue') return { label: 'Continue · Library', href: '/' };
+	if (from === 'history') return { label: 'History', href: '/history' };
 	// From a person or tag page: back to it, named by the person.
 	if (from?.startsWith('tag:')) {
 		const tag = from.slice(4);

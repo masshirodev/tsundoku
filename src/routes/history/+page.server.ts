@@ -1,0 +1,65 @@
+import { fail } from '@sveltejs/kit';
+import type { Actions, PageServerLoad } from './$types';
+import { isRevealed } from '$lib/server/prefs';
+import { historyDays, isDay, removeHistoryRow, restoreHistoryRow } from '$lib/server/history';
+import { clock, dayKey, dayLabel, historyMeta, type HistoryRow } from '$lib/library/history';
+
+/** Days per page; `?before=` continues from the last one shown. */
+const PAGE_DAYS = 60;
+
+export const load: PageServerLoad = ({ cookies, url }) => {
+	const reveal = isRevealed(cookies);
+	const before = url.searchParams.get('before');
+	// The index a page's first day carries, so page two carries on from 61.
+	const from = Math.max(1, Number(url.searchParams.get('n')) || 1);
+	const { rows, older } = historyDays(reveal, {
+		before: before && isDay(before) ? before : null,
+		days: PAGE_DAYS
+	});
+
+	// Days and times are the workstation's, the same clock SQLite grouped by,
+	// so both are rendered here rather than in the tablet's time zone.
+	const today = dayKey(new Date());
+	const days: { day: string; left: string; right: string; rows: HistoryRow[] }[] = [];
+	for (const r of rows) {
+		let d = days[days.length - 1];
+		if (!d || d.day !== r.day) {
+			const label = dayLabel(
+				r.day,
+				from + days.length,
+				today,
+				d?.day ?? (before && isDay(before) ? before : null)
+			);
+			d = { day: r.day, ...label, rows: [] };
+			days.push(d);
+		}
+		d.rows.push({
+			...r,
+			meta: historyMeta(r),
+			metaShort: historyMeta(r, true),
+			time: clock(r.lastAt)
+		});
+	}
+	return { days, older, next: from + days.length };
+};
+
+function target(form: FormData) {
+	const series = Number(form.get('series'));
+	const day = String(form.get('day') ?? '');
+	return Number.isInteger(series) && series > 0 && isDay(day) ? { series, day } : null;
+}
+
+export const actions: Actions = {
+	remove: async ({ request }) => {
+		const t = target(await request.formData());
+		if (!t) return fail(400, { message: 'no such row' });
+		removeHistoryRow(t.series, t.day);
+		return { removed: t };
+	},
+	undo: async ({ request }) => {
+		const t = target(await request.formData());
+		if (!t) return fail(400, { message: 'no such row' });
+		restoreHistoryRow(t.series, t.day);
+		return { restored: t };
+	}
+};

@@ -570,5 +570,25 @@ export function seedSample(db: Database.Database, now = Date.now()): void {
 				log.run(e.last_opened_at - (i + 1) * day, e.series_id, prev.id, 'finish', 0, 15 * minutes)
 			);
 		}
+		// And one binge: the most recently read series had eight chapters in the
+		// same sitting, so history has a range to show ("CH. 33 → 41").
+		const latest = [...opened].sort((a, b) => b.last_opened_at - a.last_opened_at)[0];
+		if (latest) {
+			const binge = db
+				.prepare(
+					`SELECT id FROM entries WHERE series_id = ? AND position < ? ORDER BY position DESC LIMIT 8`
+				)
+				.all(latest.series_id, latest.position) as { id: number }[];
+			binge.forEach((prev, i) =>
+				log.run(
+					latest.last_opened_at - (i + 2) * 12 * minutes,
+					latest.series_id,
+					prev.id,
+					'finish',
+					0,
+					12 * minutes
+				)
+			);
+		}
 	}).immediate();
 }

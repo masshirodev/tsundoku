@@ -2,7 +2,10 @@
 	import '$lib/styles/index.css';
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
+	import { resolve } from '$app/paths';
 	import Banner from '$lib/components/chrome/Banner.svelte';
+	import Band from '$lib/components/chrome/Band.svelte';
+	import PrivacyShield from '$lib/components/chrome/PrivacyShield.svelte';
 	import Wordmark from '$lib/components/chrome/Wordmark.svelte';
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
 	import { shelfHref } from '$lib/library/links';
@@ -32,8 +35,12 @@
 				href={(k) => shelfHref(page.url, k)}
 			/>
 			<div class="spacer"></div>
-			<!-- Neither screen exists yet; see doc/LIBRARY.md, "What it does not do yet". -->
 			<div class="side-foot">
+				<a
+					href={resolve('/history')}
+					aria-current={page.url.pathname === '/history' ? 'page' : undefined}>HISTORY</a
+				>
+				<!-- Neither screen exists yet; see doc/LIBRARY.md, "What it does not do yet". -->
 				<span aria-disabled="true">IMPORT LOG</span>
 				<span aria-disabled="true">SETTINGS</span>
 			</div>
@@ -51,8 +58,21 @@
 				{/snippet}
 			</Banner>
 		{/if}
+		{#if data.incognito}
+			<!-- Dashed is Index's "not stored yet"; magenta stays reveal's. -->
+			<Band title="INCOGNITO · NOTHING SAVED" dashed>
+				{#snippet action()}
+					<form method="POST" action="/?/command" use:enhance>
+						<input type="hidden" name="command" value="incognito-end" />
+						<button type="submit">END</button>
+					</form>
+				{/snippet}
+			</Band>
+		{/if}
 		{@render children()}
 	</div>
+
+	<PrivacyShield armed={data.reveal || data.incognito} />
 
 	{#if data.reveal}
 		<!-- The 4px magenta frame: on every screen for as long as reveal is on. -->
@@ -113,6 +133,7 @@
 		flex-direction: column;
 		border-top: var(--hairline);
 	}
+	.side-foot a,
 	.side-foot span {
 		display: flex;
 		align-items: center;
@@ -121,8 +142,16 @@
 		font: 500 13px var(--font-mono);
 		color: var(--text-2);
 	}
-	.side-foot span + span {
+	.side-foot > * + * {
 		border-top: var(--hairline);
+	}
+	.side-foot a {
+		color: var(--text-1);
+		text-decoration: none;
+	}
+	.side-foot a[aria-current='page'] {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
 	}
 	.reveal-frame {
 		position: fixed;

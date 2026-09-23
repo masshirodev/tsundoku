@@ -82,6 +82,10 @@ is the mount development pressures.
   departures, and what waits on the reader.
 - [`doc/BOOKS.md`](doc/BOOKS.md) — series of books, grouping by hand, title
   suggestions, and person and tag pages.
+- [`doc/HISTORY.md`](doc/HISTORY.md) — the history screen: one row per series
+  per day, removing a row, days and time zones.
+- [`doc/PRIVACY.md`](doc/PRIVACY.md) — incognito, blanking on leave, and the
+  deferred fingerprint gate.
 - [`doc/READING-LOG.md`](doc/READING-LOG.md) — the append-only reading log that
   stats, history and tracking will be derived from, and why it exists first.
 - [`doc/design/README.md`](doc/design/README.md) — the imported design system,

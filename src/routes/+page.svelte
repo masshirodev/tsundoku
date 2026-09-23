@@ -265,7 +265,10 @@
 						{#if isOffline}
 							{contShown.filter((c) => cachedCount(c.id) > 0).length} OF {contShown.length} CACHED
 						{:else}
-							{count(data.cont.total)} OPEN
+							<!-- History is CONTINUE going further back (Index Addendum). -->
+							<a class="to-history" href={resolve('/history')}
+								>{count(data.cont.total)} OPEN · HISTORY →</a
+							>
 						{/if}
 					{/snippet}
 				</SectionLabel>
@@ -437,6 +440,13 @@
 	}
 	.cont-section {
 		display: contents;
+	}
+	.to-history {
+		color: inherit;
+		text-decoration: none;
+	}
+	.to-history:active {
+		color: var(--text-1);
 	}
 	/* Phone: the Japanese wordmark, four continue rows and the long search hint
 	   do not fit, and multi-select needs the room the continue shelf takes. */

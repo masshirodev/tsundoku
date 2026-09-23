@@ -107,6 +107,19 @@ departure isn't written down here, it's a bug.
 8. **Theme switching is a search command** (`/light`, `/dark`), in the same idiom
    as `/reveal`. The Turn 3 matrix draws no theme control, and the UI kit's THEME
    button was a prototype convenience.
+9. **Grids pad their last row everywhere,** not just the library's: the
+   person page's grid and its SERIES strip do the same, for the same reason as 5.
+10. **The incognito band is on every screen, not only the library.** The
+    addendum puts it in the library. Outside the reader, the layout draws it
+    under the reveal banner, so END is always one tap away.
+11. **The blank screen is drawn on every trip to the background,** not only
+    while reveal or incognito is on. It costs nothing, and the thumbnail never
+    shows a page. Only when one of them was on does the return land on the
+    library. See `doc/PRIVACY.md`.
+12. **History pages by 60 days, with EARLIER →,** in place of `historyLong`'s
+    month rail, which is deferred (`doc/HISTORY.md`).
+13. **CONTINUE counts a book by its number** ("Book 3 of 4"). The mock never
+    drew a series of books in CONTINUE.
 
 Behavioural departures (what the library does that the mock never had to decide)
 are in [`../LIBRARY.md`](../LIBRARY.md).

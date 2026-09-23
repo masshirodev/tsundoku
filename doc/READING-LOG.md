@@ -9,12 +9,16 @@ Every page read before the log existed is lost to them for good.
 
 ## Who writes it
 
-- **`recordReading()`** (`src/lib/server/series.ts`) is the reader's one call.
+- **`POST /api/reading`** (`src/routes/api/reading/+server.ts`) is the
+  reader's one call. It checks the entry is readable, a hidden one only while
+  reveal is on, and then, unless incognito is on, calls `recordReading()`. It
+  answers `{ saved }` either way ([`PRIVACY.md`](PRIVACY.md)).
+- **`recordReading()`** (`src/lib/server/series.ts`) does the write.
   In a single transaction it appends the event and moves the entry's
   `last_position` / `last_opened_at` (and `read_at` on `finish`), so progress
   and the log can never disagree. It refuses an entry that isn't in the named
   series and writes nothing. The reader doesn't exist yet. **When it's built,
-  it calls this and nothing else to record progress.**
+  it posts to `/api/reading` and nothing else to record progress.**
 - **`markEntries()`** logs `mark_read` / `mark_unread`, but only for entries
   that actually changed state. A manual mark counts as finished, never as time
   spent.
@@ -34,7 +38,10 @@ Deleting a series deletes its events. Deleting an entry keeps its events with
 ## Rules for what reads it later
 
 - **Incognito reading must never reach `recordReading()`.** It isn't "write,
-  then hide": the row mustn't exist. That's the whole promise of incognito.
+  then hide": the row mustn't exist. That's the whole promise of incognito,
+  and `/api/reading` keeps it.
+- **History** ([`HISTORY.md`](HISTORY.md)) reads `open`, `page`, `finish` and
+  `close`, never the marks.
 - **Hidden series are logged like any other.** Stats and history then apply the
   same reveal filter as everything else, so a hidden series' reading counts
   only while reveal is on.

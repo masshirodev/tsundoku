@@ -154,7 +154,7 @@ export const actions: Actions = {
 		return { ok: true };
 	},
 
-	/** Search commands land here: /reveal, /hide, /light, /dark. */
+	/** Search commands land here: /reveal, /hide, /light, /dark, /incognito, and END. */
 	command: async ({ request, cookies, url }) => {
 		const form = await request.formData();
 		if (!runCommand(cookies, String(form.get('command')), url)) {

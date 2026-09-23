@@ -10,6 +10,12 @@ import type { Cookies } from '@sveltejs/kit';
  */
 export const REVEAL_COOKIE = 'tsundoku_reveal';
 export const THEME_COOKIE = 'tsundoku_theme';
+/**
+ * Incognito reading (doc/PRIVACY.md): while set, the reader's progress calls
+ * are refused before they reach the log. A session cookie like reveal, and
+ * like reveal it ends when the app goes to the background.
+ */
+export const INCOGNITO_COOKIE = 'tsundoku_incognito';
 
 export type Theme = 'dark' | 'light';
 
@@ -20,6 +26,24 @@ export function isRevealed(cookies: Cookies): boolean {
 export function setRevealed(cookies: Cookies, on: boolean, secure: boolean): void {
 	if (on) cookies.set(REVEAL_COOKIE, '1', { path: '/', httpOnly: true, sameSite: 'lax', secure });
 	else cookies.delete(REVEAL_COOKIE, { path: '/' });
+}
+
+export function isIncognito(cookies: Cookies): boolean {
+	return cookies.get(INCOGNITO_COOKIE) === '1';
+}
+
+export function setIncognito(cookies: Cookies, on: boolean, secure: boolean): void {
+	if (on)
+		cookies.set(INCOGNITO_COOKIE, '1', { path: '/', httpOnly: true, sameSite: 'lax', secure });
+	else cookies.delete(INCOGNITO_COOKIE, { path: '/' });
+}
+
+/** Leaving the app ends both session modes: nothing hidden or untracked survives a trip to the background. */
+export function endSessionModes(cookies: Cookies): boolean {
+	const was = isRevealed(cookies) || isIncognito(cookies);
+	cookies.delete(REVEAL_COOKIE, { path: '/' });
+	cookies.delete(INCOGNITO_COOKIE, { path: '/' });
+	return was;
 }
 
 export function themeOf(cookies: Cookies): Theme {
@@ -36,12 +60,17 @@ export function setTheme(cookies: Cookies, theme: Theme, secure: boolean): void 
 	});
 }
 
-/** Apply a search-field command. Shared by the search form and the reveal banner. */
+/**
+ * Apply a search-field command. Shared by the search form, the reveal banner
+ * and the incognito band. `incognito-end` is END's, not something typed.
+ */
 export function runCommand(cookies: Cookies, command: string, url: URL): boolean {
 	const secure = url.protocol === 'https:';
 	if (command === 'reveal') setRevealed(cookies, true, secure);
 	else if (command === 'hide') setRevealed(cookies, false, secure);
 	else if (command === 'light' || command === 'dark') setTheme(cookies, command, secure);
+	else if (command === 'incognito') setIncognito(cookies, true, secure);
+	else if (command === 'incognito-end') setIncognito(cookies, false, secure);
 	else return false;
 	return true;
 }

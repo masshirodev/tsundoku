@@ -188,6 +188,22 @@ export function recordReading(e: ReadingEvent): void {
 	}).immediate();
 }
 
+/**
+ * Whether the entry is in the series and the series can be read now: a
+ * hidden one only while reveal is on. The reader asks this on every page
+ * turn, so it is one indexed lookup rather than the whole series page.
+ */
+export function readableEntry(seriesId: number, entryId: number, reveal: boolean): boolean {
+	return (
+		getDb()
+			.prepare(
+				`SELECT 1 FROM entries e JOIN series s ON s.id = e.series_id JOIN roots r ON r.id = s.root_id
+				WHERE e.id = ? AND s.id = ? AND (? OR (s.hidden = 0 AND r.hidden = 0))`
+			)
+			.get(entryId, seriesId, reveal ? 1 : 0) !== undefined
+	);
+}
+
 export function setDirection(seriesId: number, direction: Direction | null): void {
 	getDb().prepare(`UPDATE series SET direction = ? WHERE id = ?`).run(direction, seriesId);
 }
