@@ -103,11 +103,6 @@
     "@eslint/core" "^1.2.1"
     levn "^0.4.1"
 
-"@fontsource/ibm-plex-mono@^5.3.0":
-  version "5.3.0"
-  resolved "https://registry.yarnpkg.com/@fontsource/ibm-plex-mono/-/ibm-plex-mono-5.3.0.tgz#1879699d104602d5331e28e103f33c3b1b766b17"
-  integrity sha512-eTgnZjZEGk1QtD3ZstF+Vclo2HLAni8YMy34/DxllwZvyz1lR/1RF/xTiAquOBO7MvqBx8D2Ig2WCPMVfdZu7Q==
-
 "@fontsource/ibm-plex-sans-jp@^5.3.0":
   version "5.3.0"
   resolved "https://registry.yarnpkg.com/@fontsource/ibm-plex-sans-jp/-/ibm-plex-sans-jp-5.3.0.tgz#8887c32762f343fc1aa8e78a928c26f057a6393d"
@@ -153,6 +148,18 @@
   version "0.4.3"
   resolved "https://registry.yarnpkg.com/@humanwhocodes/retry/-/retry-0.4.3.tgz#c2b9d2e374ee62c586d3adbea87199b1d7a7a6ba"
   integrity sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ==
+
+"@ibm/plex-mono@^2.5.0":
+  version "2.5.0"
+  resolved "https://registry.yarnpkg.com/@ibm/plex-mono/-/plex-mono-2.5.0.tgz#152c0b1dda619ef5f032db258bda798cf278125e"
+  integrity sha512-STBJIPxPomOYPmBMO7z5TKPJUotAF9u3gAUumTqVgwgrAO+K4FRNh0MlhsoJjKhJKsMbBJR10/bk4inkj/wc1w==
+  dependencies:
+    "@ibm/telemetry-js" "^1.6.1"
+
+"@ibm/telemetry-js@^1.6.1":
+  version "1.11.0"
+  resolved "https://registry.yarnpkg.com/@ibm/telemetry-js/-/telemetry-js-1.11.0.tgz#3270e7b7ec8f30eb940e1d28448315ea9287062e"
+  integrity sha512-RO/9j+URJnSfseWg9ZkEX9p+a3Ousd33DBU7rOafoZB08RqdzxFVYJ2/iM50dkBuD0o7WX7GYt1sLbNgCoE+pA==
 
 "@jridgewell/gen-mapping@^0.3.5":
   version "0.3.13"

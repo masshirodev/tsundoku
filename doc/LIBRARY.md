@@ -12,17 +12,17 @@ Routes: `/` (the library, with `?shelf=`, `?tag=`, `?sort=`), `/search?q=`, and
 The mock draws each state from a `state` prop. The code has no such prop: every
 state is the result of real data or real input.
 
-| State            | What drives it                                                                                                                                 |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Home             | Default.                                                                                                                                       |
-| Long-press sheet | Pressing and holding a tile for 450ms, or a right-click. **A plain tap opens it too** (see Departures). Esc or the scrim closes it.            |
-| Search           | `/search`. Results follow the typing, 180ms behind it, by replacing the URL.                                                                   |
-| Multi-select     | SELECT in the header. Taps then toggle tiles, and the bulk bar applies a rating, FAV, + SHELF or HIDE to exactly the selection.                |
-| Reveal on        | Typing exactly `/reveal` in search and pressing Enter. A **session** cookie, so closing the app also ends it. HIDE AGAIN, or `/hide`, ends it. |
-| Empty            | No visible series and no scan job.                                                                                                             |
-| Importing        | A `scan_jobs` row with no `finished_at`. Series the scanner found but hasn't indexed (`indexed_at IS NULL`) draw as dashed "indexing" tiles.   |
-| Import finished  | The latest finished job nobody has dismissed. TIDY NEW dismisses it and opens the NEW shelf.                                                   |
-| Offline          | `navigator.onLine` is false. What counts as cached is read from the `tsundoku-entries` Cache Storage bucket.                                   |
+| State            | What drives it                                                                                                                                       |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Home             | Default.                                                                                                                                             |
+| Long-press sheet | Pressing and holding a tile for 450ms, or a right-click. A plain tap opens the series screen ([`SERIES.md`](SERIES.md)). Esc or the scrim closes it. |
+| Search           | `/search`. Results follow the typing, 180ms behind it, by replacing the URL.                                                                         |
+| Multi-select     | SELECT in the header. Taps then toggle tiles, and the bulk bar applies a rating, FAV, + SHELF or HIDE to exactly the selection.                      |
+| Reveal on        | Typing exactly `/reveal` in search and pressing Enter. A **session** cookie, so closing the app also ends it. HIDE AGAIN, or `/hide`, ends it.       |
+| Empty            | No visible series and no scan job.                                                                                                                   |
+| Importing        | A `scan_jobs` row with no `finished_at`. Series the scanner found but hasn't indexed (`indexed_at IS NULL`) draw as dashed "indexing" tiles.         |
+| Import finished  | The latest finished job nobody has dismissed. TIDY NEW dismisses it and opens the NEW shelf.                                                         |
+| Offline          | `navigator.onLine` is false. What counts as cached is read from the `tsundoku-entries` Cache Storage bucket.                                         |
 
 ## Hidden means hidden
 
@@ -54,9 +54,6 @@ opened has no "new", only unread.
 
 ## Where it departs from the handoff
 
-- **A tap opens the sheet as well as a long-press.** The mock expects a tap to
-  open the series screen, which doesn't exist yet. The UI kit does the same
-  thing. Once the series screen exists, a tap goes there.
 - **"N OPEN" counts every series in progress**, not the rows shown. The mock
   derives it from how many rows it drew (4 on tablet, 2 on phone). Here it's a
   fact about the library, and the phone shows two rows of it.
@@ -86,11 +83,11 @@ Specific and honest, so a deliberate gap isn't mistaken for an oversight:
   into a development database. The importing and finished states are fully built
   and only need a scanner writing `scan_jobs` rows. Cards: "Mihon importer",
   "Hentoid importer into a hidden root".
-- **No reader and no series screen.** The resume buttons, `▶ CH. N`, and SERIES in
-  the sheet are disabled until those handoffs come back (`doc/briefs/READER.md`,
-  `SERIES.md`).
-- **No tag editor.** TAGS in the sheet and TAG in the bulk bar are disabled. The
-  mock draws the buttons but no editor.
+- **No reader.** The resume buttons and `▶ CH. N` in the sheet are disabled
+  until "Image reader from the Index handoff" lands. SERIES and TAGS in the sheet
+  open the series screen, TAGS straight into its SHELVES & TAGS sheet.
+- **TAG in the bulk bar is disabled.** Tags are edited one series at a time, on
+  the series screen. Neither handoff draws a bulk tag editor.
 - **Nothing is ever cached**, because the reader is what will cache chapters.
   The offline state is complete but has nothing to report as available.
 - **No list view.** Direction 1b offered GRID ▦ / LIST ☰, and Turn 3 dropped it.

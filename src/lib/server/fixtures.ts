@@ -25,11 +25,38 @@ type Row = {
 	openedAgo: number | null;
 	shelves?: string[];
 	tags?: string[];
+	/** Series-screen metadata. Anything left out gets a plain default. */
+	alts?: string[];
+	source?: string;
+	status?: string;
+	/** 1-based page the open entry is on. Defaults to about a fifth of the way. */
+	lastPage?: number;
+};
+
+/**
+ * The description every sample series gets: plainly a fixture, and long
+ * enough to exercise the ABOUT row's two-line clamp and MORE.
+ */
+const SAMPLE_ABOUT =
+	'Development sample. The Mihon importer fills this from ComicInfo.xml (Summary), ' +
+	'Hentoid has none, and an EPUB supplies its own dc:description. Real descriptions ' +
+	'are often long and scraped with odd formatting, which is why this row clamps to two ' +
+	'lines and opens on MORE.';
+
+const PAGES: Record<Kind, number> = { manga: 24, manhwa: 54, doujin: 30, novel: 100 };
+const BYTES: Record<Kind, number> = {
+	manga: 14_000_000,
+	manhwa: 16_000_000,
+	doujin: 84_000_000,
+	novel: 0
 };
 
 export const SAMPLE_ROWS: Row[] = [
 	{
 		title: 'Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru',
+		alts: ['ドローイング 最強漫画家はお絵かきスキルで異世界無双する'],
+		source: 'weeb central',
+		status: 'ongoing',
 		kind: 'manga',
 		rating: 4,
 		favourite: true,
@@ -42,6 +69,9 @@ export const SAMPLE_ROWS: Row[] = [
 	},
 	{
 		title: "Omniscient Reader's Viewpoint",
+		alts: ['전지적 독자 시점', 'Jeonjijeok Dokja Sijeom'],
+		source: 'asura',
+		status: 'completed',
 		kind: 'manhwa',
 		rating: 5,
 		favourite: true,
@@ -52,6 +82,9 @@ export const SAMPLE_ROWS: Row[] = [
 	},
 	{
 		title: 'Kusuriya no Hitorigoto',
+		alts: ['薬屋のひとりごと'],
+		source: 'mihon',
+		status: 'ongoing',
 		kind: 'manga',
 		rating: 0,
 		favourite: false,
@@ -64,6 +97,9 @@ export const SAMPLE_ROWS: Row[] = [
 	},
 	{
 		title: 'Mushoku Tensei',
+		alts: ['無職転生 ～異世界行ったら本気だす～'],
+		source: 'epub',
+		status: 'completed',
 		kind: 'novel',
 		rating: 4,
 		favourite: false,
@@ -84,12 +120,15 @@ export const SAMPLE_ROWS: Row[] = [
 	},
 	{
 		title: 'Hoshi no Umi no Tabibito',
+		alts: ['星の海の旅人'],
+		source: 'hentoid',
+		lastPage: 18,
 		kind: 'doujin',
 		rating: 0,
 		favourite: false,
 		entries: 1,
 		read: 0,
-		openedAgo: null
+		openedAgo: 200
 	},
 	{
 		title: 'The Greatest Estate Developer',
@@ -162,6 +201,9 @@ export const SAMPLE_ROWS: Row[] = [
 	},
 	{
 		title: 'Tower of God',
+		alts: ['신의 탑', 'Sin-ui Tap'],
+		source: 'mihon',
+		status: 'ongoing',
 		kind: 'manhwa',
 		rating: 0,
 		favourite: false,
@@ -324,12 +366,14 @@ export function seedSample(db: Database.Database, now = Date.now()): void {
 		for (const name of ['To finish', 'Isekai pile', 'Raws (JP)']) shelf(name);
 
 		const insertSeries = db.prepare(
-			`INSERT INTO series (root_id, title, kind, rating, favourite, hue, added_at, indexed_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+			`INSERT INTO series (root_id, title, kind, rating, favourite, hue, added_at, indexed_at,
+				alt_titles, source, status, description, path)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 		);
 		const insertEntry = db.prepare(
-			`INSERT INTO entries (series_id, position, label, added_at, read_at, last_opened_at)
-			VALUES (?, ?, ?, ?, ?, ?)`
+			`INSERT INTO entries (series_id, position, label, added_at, read_at, last_opened_at,
+				last_position, page_count, file, bytes)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 		);
 		const tag = db.prepare(
 			`INSERT INTO tags (namespace, value) VALUES (?, ?) ON CONFLICT DO UPDATE SET value = value RETURNING id`
@@ -352,7 +396,12 @@ export function seedSample(db: Database.Database, now = Date.now()): void {
 					row.favourite ? 1 : 0,
 					hueFor(row.title),
 					added,
-					added
+					added,
+					JSON.stringify(row.alts ?? []),
+					row.source ?? (rootId === hentoid ? 'hentoid' : 'mihon'),
+					row.status ?? '',
+					SAMPLE_ABOUT,
+					`${rootId === hentoid ? '/mnt/hdd2/tsundoku/library/hentoid' : '/mnt/hdd2/tsundoku/library'}/${row.title}`
 				).lastInsertRowid
 			);
 			const unit = row.kind === 'novel' ? 'Vol.' : row.kind === 'doujin' ? 'Book' : 'Ch.';
@@ -367,13 +416,23 @@ export function seedSample(db: Database.Database, now = Date.now()): void {
 					row.fresh && row.openedAgo !== null && n > row.entries - row.fresh
 						? now - Math.floor(row.openedAgo / 2) * minutes
 						: added;
+				const pages = PAGES[row.kind];
+				const inProgress = opened && !read;
+				// A novel is one EPUB for every chapter; a doujin is a folder of
+				// loose images (Hentoid's layout); everything else is a CBZ each.
+				const file =
+					row.kind === 'novel' ? 'book.epub' : row.kind === 'doujin' ? '' : `Chapter ${n}.cbz`;
 				insertEntry.run(
 					id,
 					n,
 					row.entries === 1 && row.kind === 'doujin' ? 'Book' : `${unit} ${n}`,
 					arrived,
 					read ? added : null,
-					opened ? now - row.openedAgo! * minutes : read ? added : null
+					opened ? now - row.openedAgo! * minutes : read ? added : null,
+					inProgress ? (row.lastPage ?? Math.max(1, Math.round(pages * 0.22))) - 1 : null,
+					pages,
+					file,
+					row.kind === 'novel' ? (n === 1 ? 3_100_000 : 0) : BYTES[row.kind]
 				);
 			}
 			for (const t of row.tags ?? []) {

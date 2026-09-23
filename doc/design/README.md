@@ -66,7 +66,15 @@ departure isn't written down here, it's a bug.
 1. **Fonts are self-hosted.** The design loads Plex from Google Fonts and notes
    "swap for self-hosted files in production". This is an offline-capable PWA on a
    tailnet, and a reader that loses its type when the Wi-Fi drops isn't
-   offline-capable. So the fonts come from `@fontsource`.
+   offline-capable. Sans (and JP, KR) come from `@fontsource`. **Mono comes from
+   IBM's complete build (`@ibm/plex-mono`) instead,** because Google's subsets
+   (which Fontsource ships) include `↑↓` but not `←→`. Every left or right arrow
+   in the chrome (`R→L`, `TIDY NEW →`, `← SERIES`) fell back to another font and
+   was drawn over its neighbours. See `src/lib/styles/fonts-mono.css`.
+   - **Known gap:** `▶ ✕ ● ○ ▦ ☰` aren't in any Plex Mono build, so the
+     readme's "Unicode glyphs set in Plex Mono" is untrue for them. They fall
+     back to the device's font. The design readme's own remedy, a 1.5px line-icon
+     set, is the fix if one of them ever renders badly on the tablet.
 2. **Screen over sketch.** Where a component sketch and `Index Library.dc.html`
    disagree, the screen wins. Concretely:
    - `SectionLabel` takes its top padding as a prop, because the screen uses 18px

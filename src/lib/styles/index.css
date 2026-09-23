@@ -4,8 +4,7 @@
  * is an offline-capable PWA on a tailnet, and a reader that loses its type
  * when the Wi-Fi drops is not offline-capable. See doc/design/README.md.
  */
-@import '@fontsource/ibm-plex-mono/400.css';
-@import '@fontsource/ibm-plex-mono/500.css';
+@import './fonts-mono.css';
 @import '@fontsource/ibm-plex-sans/400.css';
 @import '@fontsource/ibm-plex-sans/500.css';
 @import '@fontsource/ibm-plex-sans/600.css';

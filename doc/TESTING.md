@@ -50,6 +50,16 @@ The projects are the devices the design draws: `tablet-portrait` (800×1280),
 | `library-layout.e2e.ts` | all             | The frame on each device, including with JavaScript switched off.                                                 |
 | `library-frame.e2e.ts`  | tablet-portrait | **Generated.** Pins the tablet measurements the handoff was extracted at.                                         |
 | `library-flow.e2e.ts`   | tablet-portrait | Writes to the shared seeded database, so it runs serially, on one device, and each test restores what it changed. |
+| `series-layout.e2e.ts`  | all             | The series frame per device: header or 440px panel, row and rail sizes; doujin and novel shapes.                  |
+| `series-flow.e2e.ts`    | tablet-portrait | Writes, like `library-flow`: rating, FAV, direction, tags, range select, `#`, hide.                               |
+
+**Each flow file owns its series.** Flow files run serially inside themselves
+but in parallel with each other, against the one seeded database. Two files
+writing the same series will race. That happened once: both rated "Kusuriya no
+Hitorigoto", and one saw the other's rating. So `library-flow` owns Kusuriya and
+the three it multi-selects, and `series-flow` owns Mount Hua, Tower of God, Ame
+no Hi and Lookism. Pick an unused series for a new flow, and say which in the
+file's header.
 
 ### Regenerating the frame spec
 

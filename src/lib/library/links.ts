@@ -24,6 +24,22 @@ export function withParam(current: URL, key: string, value: string | null): stri
 	return library(params);
 }
 
+/**
+ * A series, remembering where it was opened from so its back cell can say so:
+ * a shelf key, `continue`, or nothing for the whole library.
+ */
+export function seriesHref(
+	id: number,
+	from: string | null = null,
+	extra: Record<string, string> = {}
+): string {
+	const params = new URLSearchParams(extra);
+	if (from && from !== 'all') params.set('from', from);
+	const base = resolve('/series/[id]', { id: String(id) });
+	const search = params.toString();
+	return search === '' ? base : `${base}?${search}`;
+}
+
 export function searchHref(query: string): string {
 	return query === '' ? resolve('/search') : `${resolve('/search')}?q=${encodeURIComponent(query)}`;
 }

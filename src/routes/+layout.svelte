@@ -16,7 +16,7 @@
 	<meta name="theme-color" content={data.theme === 'light' ? '#f5f4ef' : '#0e0f10'} />
 </svelte:head>
 
-<div class="app">
+<div class="app" class:revealed={data.reveal}>
 	{#if page.url.pathname !== '/login'}
 		<!--
 			The desktop sidebar. Rendered on every device and shown only on a
@@ -64,6 +64,10 @@
 	.app {
 		display: flex;
 		min-height: 100dvh;
+	}
+	/* The reveal banner's height, for screens that size themselves to the viewport. */
+	.app.revealed {
+		--banner-h: 52px;
 	}
 	.main {
 		flex: 1;

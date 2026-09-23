@@ -7,6 +7,7 @@
 	import Switch from '$lib/components/controls/Switch.svelte';
 	import TagChip from '$lib/components/controls/TagChip.svelte';
 	import { sheetMeta } from '$lib/library/labels';
+	import { seriesHref } from '$lib/library/links';
 	import type { SeriesDetail, Shelf } from '$lib/library/types';
 	import type { SubmitFunction } from '@sveltejs/kit';
 
@@ -123,12 +124,14 @@
 		</SheetRow>
 
 		<div class="actions">
-			<!-- The reader and the series screen wait on their own handoffs; see doc/LIBRARY.md. -->
+			<!-- The reader is its own card; see doc/LIBRARY.md. -->
 			<button type="button" class="primary" disabled>
 				▶ {(detail.nextEntry ?? 'READ').toUpperCase()}
 			</button>
-			<button type="button" disabled>SERIES</button>
-			<button type="button" disabled>TAGS</button>
+			<!-- eslint-disable svelte/no-navigation-without-resolve -- seriesHref() resolves -->
+			<a href={seriesHref(detail.id)}>SERIES</a>
+			<a href={seriesHref(detail.id, null, { edit: 'tags' })}>TAGS</a>
+			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 			<form method="POST" action="/?/hide" use:enhance={afterHide}>
 				<input type="hidden" name="id" value={detail.id} />
 				<input type="hidden" name="on" value={detail.hidden ? '0' : '1'} />
@@ -211,7 +214,8 @@
 		flex: 1;
 		display: flex;
 	}
-	.actions button {
+	.actions button,
+	.actions > a {
 		flex: 1;
 		display: flex;
 		align-items: center;
@@ -238,7 +242,11 @@
 	.actions button:not(.primary):disabled {
 		opacity: 0.4;
 	}
-	.actions button:active:not(:disabled) {
+	.actions > a {
+		border-right: var(--hairline);
+	}
+	.actions button:active:not(:disabled),
+	.actions > a:active {
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
 	}

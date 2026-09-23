@@ -1,0 +1,62 @@
+import { expect, test } from '@playwright/test';
+
+/**
+ * The series frame per device, from Index Series.dc.html: metadata is a header
+ * above the list in portrait and a 440px panel beside it in landscape; rows
+ * are 60px (52px on a phone); the rail is 56px (44px on a phone).
+ */
+type Frame = { side: boolean; row: number; rail: number };
+const FRAMES: Record<string, Frame> = {
+	'tablet-portrait': { side: false, row: 60, rail: 56 },
+	'tablet-landscape': { side: true, row: 60, rail: 56 },
+	phone: { side: false, row: 52, rail: 44 },
+	desktop: { side: true, row: 60, rail: 56 }
+};
+
+test('the series frame matches the design for this device', async ({ page }, info) => {
+	const frame = FRAMES[info.project.name];
+	test.skip(!frame, 'no frame drawn for this project');
+	await page.goto('/?sort=title');
+	await page.locator('.grid .tile', { hasText: 'Tower of God' }).click();
+	await expect(page.getByRole('heading', { name: 'Tower of God' })).toBeVisible();
+
+	const panel = (await page.locator('.panel-col').boundingBox())!;
+	const list = (await page.locator('.list-col').boundingBox())!;
+	if (frame.side) {
+		expect(panel.width).toBe(440);
+		expect(Math.round(list.x)).toBe(Math.round(panel.x + panel.width));
+		// Each column scrolls on its own.
+		expect(await page.locator('.panel-col').evaluate((n) => getComputedStyle(n).overflowY)).toBe(
+			'auto'
+		);
+		expect(await page.locator('.list-col').evaluate((n) => getComputedStyle(n).overflowY)).toBe(
+			'auto'
+		);
+	} else {
+		expect(list.y).toBeGreaterThanOrEqual(panel.y + panel.height - 1);
+	}
+
+	const row = (await page.locator('.entry-btn').first().boundingBox())!;
+	expect(row.height).toBe(frame.row);
+	const rail = (await page.locator('.rail').boundingBox())!;
+	expect(rail.width).toBe(frame.rail);
+});
+
+test('a doujin reads as a book: pages, not a chapter list', async ({ page }) => {
+	await page.goto('/?sort=title');
+	await page.locator('.grid .tile', { hasText: 'Hoshi no Umi no Tabibito' }).click();
+	await expect(page.getByText('01 — PAGES')).toBeVisible();
+	await expect(page.locator('.entry')).toHaveCount(0);
+	await expect(page.locator('.page')).toHaveCount(30);
+	await expect(page.locator('.page[aria-current="page"]')).toContainText('18');
+	await expect(page.getByRole('button', { name: /READ FROM P\. 18/ })).toBeVisible();
+});
+
+test('a novel shows its contents without numbers, and a typeset cover', async ({ page }) => {
+	await page.goto('/?sort=title');
+	await page.locator('.grid .tile', { hasText: 'Mushoku Tensei' }).click();
+	await expect(page.getByText('01 — CONTENTS')).toBeVisible();
+	await expect(page.getByText('NO COVER · EPUB')).toBeVisible();
+	await expect(page.getByText('LAYOUT', { exact: true })).toBeVisible();
+	await expect(page.locator('.entry .num')).toHaveCount(0);
+});

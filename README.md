@@ -8,10 +8,10 @@ PWA. It replaces the five apps that currently split that job (Mihon, Hentoid,
 Moon+ Reader, and whichever browser tab a web novel lives in this week), and it
 is organised the owner's way rather than any one of theirs.
 
-Status: **the library screen is built** from the "Index" design system, in all
-nine states on phone, tablet and desktop, against a sample library. There's no
-scanner, reader or series screen yet, so nothing real can be read. See
-[`doc/LIBRARY.md`](doc/LIBRARY.md), "What it does not do yet".
+Status: **the library and series screens are built** from the "Index" design
+system, on phone, tablet and desktop, against a sample library. There's no
+scanner and no reader yet, so nothing real can be read. See "What it does not do
+yet" in [`doc/LIBRARY.md`](doc/LIBRARY.md) and [`doc/SERIES.md`](doc/SERIES.md).
 
 ## Running it
 
@@ -78,6 +78,8 @@ is the mount development pressures.
   EPUB actually look like on disk, measured from real samples.
 - [`doc/LIBRARY.md`](doc/LIBRARY.md) — the library screen: what drives each
   state, where it departs from the handoff, and what it doesn't do yet.
+- [`doc/SERIES.md`](doc/SERIES.md) — the series screen: frame, states,
+  departures, and what waits on the reader.
 - [`doc/design/README.md`](doc/design/README.md) — the imported design system,
   where each part lives in the code, and its departures. `doc/design/handoff/` is
   the untouched mirror of the design project.

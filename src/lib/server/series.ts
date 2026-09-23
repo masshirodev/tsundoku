@@ -1,0 +1,181 @@
+import { getDb } from './db';
+import { seriesDetail } from './library';
+import type { Direction, SeriesEntry, SeriesPage, SeriesTag } from '$lib/library/series';
+
+/**
+ * Everything the series screen reads, and the writes only it makes. Reads
+ * take `reveal` like every read in library.ts: a hidden series answers null
+ * while reveal is off, so the page 404s exactly as for a series that does not
+ * exist.
+ */
+
+type SeriesRow = {
+	alt_titles: string;
+	source: string;
+	status: string;
+	description: string;
+	direction: Direction | null;
+	path: string;
+};
+
+type EntryRow = {
+	id: number;
+	position: number;
+	label: string;
+	title: string;
+	read_at: number | null;
+	last_position: number | null;
+	last_opened_at: number | null;
+	page_count: number;
+	file: string;
+	bytes: number;
+};
+
+function parseAlts(raw: string): string[] {
+	try {
+		const v: unknown = JSON.parse(raw);
+		return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+	} catch {
+		return [];
+	}
+}
+
+export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
+	const card = seriesDetail(id, reveal);
+	if (!card) return null;
+	const db = getDb();
+	const row = db
+		.prepare(
+			`SELECT alt_titles, source, status, description, direction, path FROM series WHERE id = ?`
+		)
+		.get(id) as SeriesRow;
+	const entries = (
+		db
+			.prepare(
+				`SELECT id, position, label, title, read_at, last_position, last_opened_at, page_count, file, bytes
+				FROM entries WHERE series_id = ? ORDER BY position, id`
+			)
+			.all(id) as EntryRow[]
+	).map((e): SeriesEntry => ({
+		id: e.id,
+		number: e.position,
+		label: e.label,
+		title: e.title,
+		readAt: e.read_at,
+		lastPosition: e.last_position,
+		lastOpenedAt: e.last_opened_at,
+		pageCount: e.page_count,
+		file: e.file,
+		bytes: e.bytes
+	}));
+	const tags = db
+		.prepare(
+			`SELECT t.namespace, t.value FROM series_tags st JOIN tags t ON t.id = st.tag_id
+			WHERE st.series_id = ? ORDER BY t.namespace, t.value COLLATE NOCASE`
+		)
+		.all(id) as SeriesTag[];
+	return {
+		...card,
+		altTitles: parseAlts(row.alt_titles),
+		source: row.source,
+		status: row.status,
+		description: row.description,
+		direction: row.direction,
+		path: row.path,
+		tags,
+		entries
+	};
+}
+
+/**
+ * Mark entries read or unread. Only ids belonging to `seriesId` are touched,
+ * so a crafted form cannot reach into another series.
+ */
+export function markEntries(
+	seriesId: number,
+	ids: number[],
+	read: boolean,
+	now = Date.now()
+): number {
+	if (ids.length === 0) return 0;
+	const marks = ids.map(() => '?').join(',');
+	return getDb()
+		.prepare(
+			`UPDATE entries SET read_at = ${read ? '?' : 'NULL'}
+			WHERE series_id = ? AND id IN (${marks}) AND (read_at IS ${read ? '' : 'NOT '}NULL)`
+		)
+		.run(...(read ? [now] : []), seriesId, ...ids).changes;
+}
+
+export function setDirection(seriesId: number, direction: Direction | null): void {
+	getDb().prepare(`UPDATE series SET direction = ? WHERE id = ?`).run(direction, seriesId);
+}
+
+export function addTag(seriesId: number, tag: SeriesTag): void {
+	const db = getDb();
+	db.transaction(() => {
+		const { id } = db
+			.prepare(
+				`INSERT INTO tags (namespace, value) VALUES (?, ?)
+				ON CONFLICT (namespace, value) DO UPDATE SET value = excluded.value RETURNING id`
+			)
+			.get(tag.namespace, tag.value) as { id: number };
+		db.prepare(`INSERT OR IGNORE INTO series_tags (series_id, tag_id) VALUES (?, ?)`).run(
+			seriesId,
+			id
+		);
+	}).immediate();
+}
+
+export function removeTag(seriesId: number, tag: SeriesTag): number {
+	return getDb()
+		.prepare(
+			`DELETE FROM series_tags WHERE series_id = ? AND tag_id =
+			(SELECT id FROM tags WHERE namespace = ? AND value = ?)`
+		)
+		.run(seriesId, tag.namespace, tag.value).changes;
+}
+
+export type TagSuggestion = SeriesTag & { count: number; onThis: boolean };
+
+/**
+ * Existing tags that start with what is being typed, so a new tag reuses an
+ * old spelling instead of adding a second one. Counts are over visible series
+ * only: a suggestion must not reveal how many hidden series carry a tag.
+ */
+export function suggestTags(
+	seriesId: number,
+	input: SeriesTag,
+	reveal: boolean,
+	limit = 6
+): TagSuggestion[] {
+	const visible = reveal ? '1' : '(s.hidden = 0 AND r.hidden = 0)';
+	const prefix = `${input.value.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+	const rows = getDb()
+		.prepare(
+			`SELECT t.namespace, t.value,
+				COUNT(DISTINCT CASE WHEN ${visible} THEN s.id END) AS n,
+				MAX(st.series_id = ?) AS on_this
+			FROM tags t
+			LEFT JOIN series_tags st ON st.tag_id = t.id
+			LEFT JOIN series s ON s.id = st.series_id
+			LEFT JOIN roots r ON r.id = s.root_id
+			WHERE t.value LIKE ? ESCAPE '\\' ${input.namespace ? 'AND t.namespace = ?' : ''}
+			GROUP BY t.id
+			HAVING n > 0 OR on_this = 1
+			ORDER BY on_this DESC, n DESC, t.value COLLATE NOCASE
+			LIMIT ?`
+		)
+		.all(seriesId, prefix, ...(input.namespace ? [input.namespace] : []), limit) as {
+		namespace: string;
+		value: string;
+		n: number;
+		on_this: number | null;
+	}[];
+	return rows.map((r) => ({
+		namespace: r.namespace,
+		value: r.value,
+		count: r.n,
+		onThis: r.on_this === 1
+	}));
+}

@@ -18,7 +18,7 @@
 	import { desktop, phone, wide } from '$lib/device.svelte';
 	import { offline } from '$lib/offline.svelte';
 	import { continueSub, count, nextSort, progress, SORT_LABEL } from '$lib/library/labels';
-	import { shelfHref, withParam } from '$lib/library/links';
+	import { seriesHref, shelfHref, withParam } from '$lib/library/links';
 	import type { Shelf } from '$lib/library/types';
 
 	let { data, form } = $props();
@@ -45,9 +45,11 @@
 	let sheetId = $state<number | null>(null);
 	let pickerOpen = $state(false);
 
+	/** A tap opens the series; a long press opens the sheet (see CoverTile). */
 	function press(id: number) {
 		if (selecting) toggle(id);
-		else sheetId = id;
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- seriesHref() resolves
+		else void goto(seriesHref(id, data.tag ? null : data.shelf));
 	}
 
 	// ---- derived view ------------------------------------------------------

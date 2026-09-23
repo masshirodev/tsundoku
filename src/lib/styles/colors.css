@@ -37,6 +37,10 @@
 	--accent: var(--lime-400);
 	--on-accent: var(--graphite-950);
 	--accent-highlight: oklch(0.86 0.17 125 / 0.3);
+	/* A selected list row: the series handoff's multi-select tint. */
+	--accent-select: oklch(0.86 0.17 125 / 0.12);
+	/* Long prose (a series' ABOUT): softer than --text-1, firmer than --text-2. */
+	--text-prose: #b4b6b8;
 	/* Reserved for reveal mode: the banner, the inset frame, HIDDEN badges. */
 	--reveal: var(--magenta-400);
 	--on-reveal: var(--graphite-950);
@@ -62,6 +66,8 @@
 	--accent: var(--green-600);
 	--on-accent: #ffffff;
 	--accent-highlight: oklch(0.52 0.13 150 / 0.22);
+	--accent-select: oklch(0.52 0.13 150 / 0.12);
+	--text-prose: oklch(0.35 0.01 95);
 	--reveal: var(--magenta-600);
 	--on-reveal: #ffffff;
 	--scrim: rgba(20, 20, 15, 0.4);

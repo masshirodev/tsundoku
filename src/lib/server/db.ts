@@ -126,6 +126,25 @@ const MIGRATIONS: string[] = [
 	-- tighten a constraint without rebuilding a table four others reference;
 	-- the code never writes NULL, and this clears the ones rung 1 allowed.
 	UPDATE series SET rating = 0 WHERE rating IS NULL;
+	`,
+	`
+	-- What the series screen shows. Alternative titles are a JSON array of
+	-- strings; direction is NULL until the owner picks one, and the reader
+	-- falls back to the kind's default (see $lib/library/series.ts).
+	ALTER TABLE series ADD COLUMN alt_titles TEXT NOT NULL DEFAULT '[]';
+	ALTER TABLE series ADD COLUMN source TEXT NOT NULL DEFAULT '';
+	ALTER TABLE series ADD COLUMN status TEXT NOT NULL DEFAULT '';
+	ALTER TABLE series ADD COLUMN description TEXT NOT NULL DEFAULT '';
+	ALTER TABLE series ADD COLUMN direction TEXT
+		CHECK (direction IS NULL OR direction IN ('rtl', 'ltr', 'vertical', 'paged', 'scroll'));
+	ALTER TABLE series ADD COLUMN path TEXT NOT NULL DEFAULT '';
+
+	-- Per entry: its own title ("Ashes at Veyne"), how many pages it has, and
+	-- the file it lives in, relative to the series path, with its size.
+	ALTER TABLE entries ADD COLUMN title TEXT NOT NULL DEFAULT '';
+	ALTER TABLE entries ADD COLUMN page_count INTEGER NOT NULL DEFAULT 0;
+	ALTER TABLE entries ADD COLUMN file TEXT NOT NULL DEFAULT '';
+	ALTER TABLE entries ADD COLUMN bytes INTEGER NOT NULL DEFAULT 0;
 	`
 ];
 

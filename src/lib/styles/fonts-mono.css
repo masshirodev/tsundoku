@@ -1,0 +1,24 @@
+/*
+ * IBM Plex Mono from IBM's own complete build, not Fontsource. Fontsource ships
+ * Google Fonts' subsets, whose latin range has ↑ and ↓ but not ← and →, so every
+ * left or right arrow in the chrome (R→L, TIDY NEW →, ← SERIES) fell back to a
+ * system font of a different width and was drawn over its neighbours. The
+ * complete build has all four, and ✓. Two weights: the design uses no others.
+ *
+ * Still absent from every Plex Mono build: ▶ ✕ ● ○ ▦ ☰. Those fall back to the
+ * system font; see doc/design/README.md, "Departures".
+ */
+@font-face {
+	font-family: 'IBM Plex Mono';
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+	src: url('@ibm/plex-mono/fonts/complete/woff2/IBMPlexMono-Regular.woff2') format('woff2');
+}
+@font-face {
+	font-family: 'IBM Plex Mono';
+	font-style: normal;
+	font-weight: 500;
+	font-display: swap;
+	src: url('@ibm/plex-mono/fonts/complete/woff2/IBMPlexMono-Medium.woff2') format('woff2');
+}
