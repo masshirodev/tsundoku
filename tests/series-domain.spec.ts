@@ -37,7 +37,12 @@ function chapters(n: number, read: number, page: number | null = null, pages = 5
 			lastOpenedAt: open ? 100 : done ? 1 : null,
 			pageCount: pages,
 			file: `Chapter ${number}.cbz`,
-			bytes: 16_000_000
+			bytes: 16_000_000,
+			rating: 0 as const,
+			favourite: false,
+			addedAt: number,
+			coverPage: null,
+			tags: []
 		};
 	});
 }

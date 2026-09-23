@@ -1,4 +1,4 @@
-import type { Kind, SeriesCard } from './types';
+import type { Kind, Rating, SeriesCard } from './types';
 
 /**
  * The series screen's rules, as pure functions. Everything the screen derives
@@ -24,6 +24,12 @@ export type SeriesEntry = {
 	pageCount: number;
 	file: string;
 	bytes: number;
+	/** A book's own fields, used inside a series of books (doc/BOOKS.md). */
+	rating: Rating;
+	favourite: boolean;
+	addedAt: number;
+	coverPage: number | null;
+	tags: SeriesTag[];
 };
 
 export type SeriesTag = { namespace: string; value: string };

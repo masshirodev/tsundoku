@@ -4,7 +4,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 process.env.DATABASE_PATH = ':memory:';
 
 const { getDb } = await import('$lib/server/db');
-const { seedSample, SAMPLE_ROWS, HIDDEN_ROWS } = await import('$lib/server/fixtures');
+const { seedSample, SAMPLE_ROWS, HIDDEN_TITLES } = await import('$lib/server/fixtures');
 const lib = await import('$lib/server/library');
 
 beforeAll(() => {
@@ -12,7 +12,7 @@ beforeAll(() => {
 });
 
 const titles = (cards: { title: string }[]) => cards.map((c) => c.title);
-const hiddenTitles = HIDDEN_ROWS.map((r) => r.title);
+const hiddenTitles = HIDDEN_TITLES;
 
 describe('hidden means hidden', () => {
 	it('lists, counts and searches nothing hidden while reveal is off', () => {
@@ -29,13 +29,13 @@ describe('hidden means hidden', () => {
 	});
 
 	it('shows hidden series, marked, and the hidden root as a shelf, while reveal is on', () => {
-		expect(lib.countSeries(true)).toBe(SAMPLE_ROWS.length + HIDDEN_ROWS.length);
+		expect(lib.countSeries(true)).toBe(SAMPLE_ROWS.length + HIDDEN_TITLES.length);
 		const hidden = lib.listSeries({ reveal: true }).filter((c) => c.hidden);
 		expect(titles(hidden).sort()).toEqual([...hiddenTitles].sort());
 		const root = lib
 			.listShelves({ reveal: true, withNew: false })
 			.find((s) => s.name === 'Hentoid');
-		expect(root).toMatchObject({ kind: 'root', count: HIDDEN_ROWS.length });
+		expect(root).toMatchObject({ kind: 'root', count: HIDDEN_TITLES.length });
 	});
 
 	it('refuses the sheet for a hidden series while reveal is off', () => {

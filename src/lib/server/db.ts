@@ -174,6 +174,46 @@ const MIGRATIONS: string[] = [
 	ALTER TABLE series ADD COLUMN source_url TEXT NOT NULL DEFAULT '';
 	ALTER TABLE entries ADD COLUMN source_url TEXT NOT NULL DEFAULT '';
 	ALTER TABLE entries ADD COLUMN cover_phash TEXT;
+	`,
+	`
+	-- Books (doc/BOOKS.md). A doujin series of two or more entries is a series
+	-- of books, and each book keeps its own rating (0 = unrated), favourite,
+	-- cover page and tags. In a one-book series those live on the series, and
+	-- grouping or taking out moves them between the two.
+	ALTER TABLE entries ADD COLUMN rating INTEGER NOT NULL DEFAULT 0
+		CHECK (rating BETWEEN 0 AND 5);
+	ALTER TABLE entries ADD COLUMN favourite INTEGER NOT NULL DEFAULT 0;
+	-- 0-based page used as the cover; NULL is the first page.
+	ALTER TABLE entries ADD COLUMN cover_page INTEGER;
+	CREATE TABLE entry_tags (
+		entry_id INTEGER NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
+		tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+		PRIMARY KEY (entry_id, tag_id)
+	);
+
+	-- People the owner keeps close: "watch this circle". Only artist, circle
+	-- and author tags can be favourited.
+	CREATE TABLE person_favourites (
+		namespace TEXT NOT NULL CHECK (namespace IN ('artist', 'circle', 'author')),
+		value TEXT NOT NULL,
+		added_at INTEGER NOT NULL,
+		PRIMARY KEY (namespace, value)
+	);
+
+	-- "Not a series": a dismissed suggestion, stored against the set of series
+	-- it named (sorted ids, comma-joined). A suggestion whose set lies inside a
+	-- dismissed one never comes back.
+	CREATE TABLE suggestion_dismissals (
+		series_ids TEXT PRIMARY KEY,
+		dismissed_at INTEGER NOT NULL
+	);
+
+	-- History rows the owner removed. Only the row goes; progress stays.
+	CREATE TABLE history_removed (
+		series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+		day TEXT NOT NULL,
+		PRIMARY KEY (series_id, day)
+	);
 	`
 ];
 

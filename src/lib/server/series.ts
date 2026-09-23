@@ -29,6 +29,10 @@ type EntryRow = {
 	page_count: number;
 	file: string;
 	bytes: number;
+	rating: number;
+	favourite: number;
+	added_at: number;
+	cover_page: number | null;
 };
 
 function parseAlts(raw: string): string[] {
@@ -52,7 +56,8 @@ export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
 	const entries = (
 		db
 			.prepare(
-				`SELECT id, position, label, title, read_at, last_position, last_opened_at, page_count, file, bytes
+				`SELECT id, position, label, title, read_at, last_position, last_opened_at, page_count, file, bytes,
+					rating, favourite, added_at, cover_page
 				FROM entries WHERE series_id = ? ORDER BY position, id`
 			)
 			.all(id) as EntryRow[]
@@ -66,8 +71,21 @@ export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
 		lastOpenedAt: e.last_opened_at,
 		pageCount: e.page_count,
 		file: e.file,
-		bytes: e.bytes
+		bytes: e.bytes,
+		rating: e.rating as SeriesEntry['rating'],
+		favourite: e.favourite === 1,
+		addedAt: e.added_at,
+		coverPage: e.cover_page,
+		tags: []
 	}));
+	if (entries.length > 1) {
+		// A series of books: each book carries its own tags.
+		const byEntry = db.prepare(
+			`SELECT t.namespace, t.value FROM entry_tags et JOIN tags t ON t.id = et.tag_id
+			WHERE et.entry_id = ? ORDER BY t.namespace, t.value COLLATE NOCASE`
+		);
+		for (const e of entries) e.tags = byEntry.all(e.id) as SeriesTag[];
+	}
 	const tags = db
 		.prepare(
 			`SELECT t.namespace, t.value FROM series_tags st JOIN tags t ON t.id = st.tag_id

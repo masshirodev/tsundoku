@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
 import { hueFor } from '../library/cover.ts';
+import { groupIntoSeries } from './books.ts';
 import type { Kind, Rating } from '$lib/library/types';
 
 /**
@@ -337,6 +338,86 @@ export const HIDDEN_ROWS: Row[] = [
 	}
 ];
 
+/**
+ * A circle's books, for the books screens (doc/BOOKS.md), in the hidden
+ * Hentoid root like every Hentoid import. The first four are grouped into the
+ * series "Kaori Mama" after seeding; the last two stay singletons that share
+ * its title stem, so a suggestion appears on either. Titles are the design
+ * handoff's samples.
+ */
+const BOOK_TAGS = ['circle:Hakka Kousha', 'artist:Aoi Rin', 'genre:comedy', 'language:japanese'];
+export const BOOK_ROWS: Row[] = [
+	{
+		title: 'Kaori Mama on Bath Duty',
+		kind: 'doujin',
+		rating: 4,
+		favourite: false,
+		entries: 1,
+		read: 1,
+		openedAgo: 4000,
+		tags: BOOK_TAGS
+	},
+	{
+		title: 'Kaori Mama on Laundry Duty',
+		kind: 'doujin',
+		rating: 3,
+		favourite: false,
+		entries: 1,
+		read: 1,
+		openedAgo: 3000,
+		tags: BOOK_TAGS
+	},
+	{
+		title: 'Kaori Mama on Night Duty',
+		kind: 'doujin',
+		rating: 0,
+		favourite: true,
+		entries: 1,
+		read: 0,
+		openedAgo: 90,
+		lastPage: 12,
+		tags: BOOK_TAGS
+	},
+	{
+		title: 'Kaori Mama on Festival Duty',
+		kind: 'doujin',
+		rating: 4,
+		favourite: false,
+		entries: 1,
+		read: 0,
+		openedAgo: null,
+		tags: BOOK_TAGS
+	},
+	{
+		title: 'Kaori Mama on Holiday Duty',
+		kind: 'doujin',
+		rating: 0,
+		favourite: false,
+		entries: 1,
+		read: 0,
+		openedAgo: null,
+		tags: BOOK_TAGS
+	},
+	{
+		title: 'Kaori Mama Illustrations 2024',
+		kind: 'doujin',
+		rating: 0,
+		favourite: false,
+		entries: 1,
+		read: 0,
+		openedAgo: null,
+		tags: ['circle:Hakka Kousha', 'artist:Aoi Rin']
+	}
+];
+export const BOOK_SERIES_TITLE = 'Kaori Mama';
+/** Series in the hidden root once seeding has grouped the books. */
+export const HIDDEN_TITLES = [
+	...HIDDEN_ROWS.map((r) => r.title),
+	BOOK_SERIES_TITLE,
+	BOOK_ROWS[4].title,
+	BOOK_ROWS[5].title
+];
+
 export function seedSample(db: Database.Database, now = Date.now()): void {
 	const minutes = 60_000;
 	db.transaction(() => {
@@ -444,5 +525,50 @@ export function seedSample(db: Database.Database, now = Date.now()): void {
 		};
 		SAMPLE_ROWS.forEach((row, i) => add(main, row, i));
 		HIDDEN_ROWS.forEach((row, i) => add(hentoid, row, i + SAMPLE_ROWS.length));
+		BOOK_ROWS.forEach((row, i) => add(hentoid, row, i + SAMPLE_ROWS.length + HIDDEN_ROWS.length));
+	}).immediate();
+
+	// Group the first four books, the way the owner would by hand.
+	const idOf = (title: string) =>
+		(db.prepare(`SELECT id FROM series WHERE title = ?`).get(title) as { id: number }).id;
+	groupIntoSeries({
+		seriesIds: BOOK_ROWS.slice(0, 4).map((r) => idOf(r.title)),
+		name: BOOK_SERIES_TITLE,
+		now
+	});
+
+	// A few days of past reading, so history has something to show before the
+	// reader exists to write it. Written straight to the log, as the reader's
+	// recordReading() would have.
+	db.transaction(() => {
+		const log = db.prepare(
+			`INSERT INTO reading_events (at, series_id, entry_id, kind, page, duration_ms) VALUES (?, ?, ?, ?, ?, ?)`
+		);
+		const day = 24 * 60 * minutes;
+		const opened = db
+			.prepare(
+				`SELECT e.id, e.series_id, e.last_opened_at, e.last_position, e.position FROM entries e
+				WHERE e.last_opened_at IS NOT NULL AND e.read_at IS NULL`
+			)
+			.all() as {
+			id: number;
+			series_id: number;
+			last_opened_at: number;
+			last_position: number | null;
+			position: number;
+		}[];
+		for (const e of opened) {
+			log.run(e.last_opened_at - 20 * minutes, e.series_id, e.id, 'open', 0, 0);
+			log.run(e.last_opened_at, e.series_id, e.id, 'page', e.last_position ?? 0, 20 * minutes);
+			// The chapters before it were finished over the previous days.
+			const earlier = db
+				.prepare(
+					`SELECT id FROM entries WHERE series_id = ? AND position < ? ORDER BY position DESC LIMIT 3`
+				)
+				.all(e.series_id, e.position) as { id: number }[];
+			earlier.forEach((prev, i) =>
+				log.run(e.last_opened_at - (i + 1) * day, e.series_id, prev.id, 'finish', 0, 15 * minutes)
+			);
+		}
 	}).immediate();
 }

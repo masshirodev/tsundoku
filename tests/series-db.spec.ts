@@ -113,6 +113,7 @@ describe('the reading log', () => {
 	it('moves progress and appends the event together', () => {
 		const id = idOf('Chainsaw Man');
 		const entry = series.seriesPage(id, false)!.entries[198];
+		const before = events(id).length; // the seed's own past reading
 		series.recordReading({ seriesId: id, entryId: entry.id, kind: 'open', page: 0, now: 1000 });
 		series.recordReading({
 			seriesId: id,
@@ -132,7 +133,7 @@ describe('the reading log', () => {
 		});
 		const after = series.seriesPage(id, false)!.entries[198];
 		expect(after).toMatchObject({ lastPosition: 23, lastOpenedAt: 3000, readAt: 3000 });
-		expect(events(id)).toEqual([
+		expect(events(id).slice(before)).toEqual([
 			{ kind: 'open', entry_id: entry.id, page: 0, duration_ms: 0 },
 			{ kind: 'page', entry_id: entry.id, page: 5, duration_ms: 42_000 },
 			{ kind: 'finish', entry_id: entry.id, page: 23, duration_ms: 90_000 }
@@ -152,8 +153,9 @@ describe('the reading log', () => {
 		const s = series.seriesPage(id, false)!;
 		const read = s.entries[0].id;
 		const unread = s.entries[159].id;
+		const before = events(id).length;
 		series.markEntries(id, [read, unread], true);
-		expect(events(id)).toEqual([
+		expect(events(id).slice(before)).toEqual([
 			{ kind: 'mark_read', entry_id: unread, page: null, duration_ms: 0 }
 		]);
 	});
