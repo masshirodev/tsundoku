@@ -43,7 +43,23 @@ because hidden pages must never pass for ordinary ones.
   spatial (in R→L, ← is forward), Space and PageDown go forward, and Esc
   toggles the controls.
 
-`tapAction`, `swipeAction` and the rest of the reader's rules are in
+## Mouse
+
+On a PC, in L→R and R→L, the buttons turn the page, not the side you click on
+(`mouseAction`):
+
+- **A click anywhere turns forward**, the middle of the page included;
+- **a right click turns back**, and the browser's menu never opens over the
+  page;
+- **the middle button** shows the controls, as Esc does;
+- **vertical scroll** keeps the touch rules: the wheel scrolls, and a click
+  shows the controls.
+
+The pointer's type decides, so a finger on the tablet keeps the strips above.
+With the controls up, a click only puts them away, as a tap does. The owner
+asked for this on 2026-09-23.
+
+`tapAction`, `mouseAction`, `swipeAction` and the rest of the reader's rules are in
 `src/lib/reader/reader.ts`. `tests/reader-domain.spec.ts` covers them.
 
 ## Modes

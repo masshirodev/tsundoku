@@ -38,7 +38,8 @@ test('the page fills the screen on true black, with nothing over it', async ({ p
 test('the controls: a 64px bar on top, a 56px scrubber and 64px cells below', async ({ page }) => {
 	await open(page);
 	const vp = page.viewportSize()!;
-	await page.mouse.click(vp.width / 2, vp.height / 2);
+	// The middle button: a left click would turn the page (mouseAction).
+	await page.mouse.click(vp.width / 2, vp.height / 2, { button: 'middle' });
 	const top = await page.getByRole('banner', { name: 'Reader' }).boundingBox();
 	expect(top).toMatchObject({ y: 0, height: 64 });
 	const scrub = await page.locator('.scrub').boundingBox();

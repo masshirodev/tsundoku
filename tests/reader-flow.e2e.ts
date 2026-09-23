@@ -18,10 +18,10 @@ async function seriesId(page: Page, title: string) {
 	return Number(page.url().match(/\/series\/(\d+)/)![1]);
 }
 
-/** Tap at a fraction of the screen's width, mid-height. */
+/** Tap at a fraction of the screen's width, mid-height: a finger, not a mouse (mouseAction). */
 async function tap(page: Page, x: number) {
 	const vp = page.viewportSize()!;
-	await page.mouse.click(vp.width * x, vp.height / 2);
+	await page.touchscreen.tap(vp.width * x, vp.height / 2);
 }
 
 const meta = (page: Page) => page.locator('header[aria-label="Reader"] .meta');
@@ -62,6 +62,31 @@ test('the middle shows the controls; in R→L the left edge turns forward', asyn
 	await tap(page, 0.95);
 	await tap(page, 0.5);
 	await expect(meta(page)).toContainText('P. 3 OF');
+});
+
+test('with a mouse, a click turns forward and a right click back, in R→L as in L→R', async ({
+	page
+}) => {
+	await seriesId(page, 'Hikaru ga Shinda Natsu');
+	await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.click();
+	await readerReady(page);
+	const entry = page.url().match(/\/read\/(\d+)/)![1];
+	await page.goto(`/read/${entry}?p=3`);
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	const vp = page.viewportSize()!;
+	// Anywhere, the middle included: the buttons, not the side, say which way.
+	await page.mouse.click(vp.width * 0.5, vp.height / 2);
+	await page.mouse.click(vp.width * 0.95, vp.height / 2);
+	await expect(page).toHaveURL(/p=5/);
+	await page.mouse.click(vp.width * 0.05, vp.height / 2, { button: 'right' });
+	await expect(page).toHaveURL(/p=4/);
+	await expect(page.getByRole('banner', { name: 'Reader' })).toHaveCount(0);
+	await page.mouse.click(vp.width * 0.5, vp.height / 2, { button: 'middle' });
+	await expect(meta(page)).toContainText('P. 4 OF');
 });
 
 test('the last page leads to the chapter boundary, and a tap on into the next chapter', async ({

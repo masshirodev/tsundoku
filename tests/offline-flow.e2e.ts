@@ -80,7 +80,7 @@ test('opening a chapter keeps it and the next two on the tablet, and they read o
 		.toBeNull();
 	await page.goto(`/read/${entry + 1}`);
 	await readerReady(page);
-	await page.mouse.click(400, 640);
+	await page.mouse.click(400, 640, { button: 'middle' });
 	await expect(page.locator('header[aria-label="Reader"] .meta')).toContainText('P. 3 OF');
 });
 

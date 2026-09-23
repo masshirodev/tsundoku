@@ -11,8 +11,24 @@ import {
 	spreadOf,
 	spreads,
 	swipeAction,
+	mouseAction,
 	tapAction
 } from '$lib/reader/reader';
+
+describe('mouse buttons', () => {
+	it('click turns forward and right click back, whichever way the pages run', () => {
+		for (const mode of ['ltr', 'rtl'] as const) {
+			expect(mouseAction(0, mode)).toBe('next');
+			expect(mouseAction(2, mode)).toBe('prev');
+			expect(mouseAction(1, mode)).toBe('chrome');
+		}
+	});
+
+	it('leaves vertical to the touch rules', () => {
+		expect(mouseAction(0, 'vertical')).toBeNull();
+		expect(mouseAction(2, 'vertical')).toBeNull();
+	});
+});
 
 describe('tap zones', () => {
 	it('turns forward on the left edge in R→L, the right edge in L→R', () => {

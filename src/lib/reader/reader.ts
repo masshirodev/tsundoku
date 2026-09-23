@@ -35,6 +35,21 @@ export function tapAction(x: number, width: number, mode: Mode): Action {
 	return 'chrome';
 }
 
+/**
+ * A mouse, on a PC (doc/READER.md, "Mouse"): in L->R and R->L a click anywhere
+ * turns forward and a right click turns back, whichever way the pages run --
+ * the buttons are about reading on, not about sides. The middle button shows
+ * the controls, as Esc does. Vertical scrolls with the wheel, so its clicks
+ * keep the touch rules (null).
+ */
+export function mouseAction(button: number, mode: Mode): Action | null {
+	if (mode === 'vertical') return null;
+	if (button === 0) return 'next';
+	if (button === 2) return 'prev';
+	if (button === 1) return 'chrome';
+	return null;
+}
+
 /** A swipe turns anywhere: dragging the page towards the reading direction's start. */
 export const SWIPE_PX = 40;
 

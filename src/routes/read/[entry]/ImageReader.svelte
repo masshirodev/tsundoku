@@ -16,6 +16,7 @@
 		spreadOf,
 		spreads,
 		swipeAction,
+		mouseAction,
 		tapAction,
 		type Fit,
 		type Mode,
@@ -316,6 +317,10 @@
 	function pointerdown(e: PointerEvent) {
 		down = { x: e.clientX, y: e.clientY };
 	}
+	/** A right click turns back (mouseAction), so the page never opens the browser's menu. */
+	function contextmenu(e: MouseEvent) {
+		if (mode !== 'vertical') e.preventDefault();
+	}
 	function pointerup(e: PointerEvent) {
 		if (!down) return;
 		const dx = e.clientX - down.x;
@@ -332,7 +337,9 @@
 			chrome = false;
 			return;
 		}
-		const action = tapAction(e.clientX, window.innerWidth, mode);
+		const action =
+			(e.pointerType === 'mouse' ? mouseAction(e.button, mode) : null) ??
+			tapAction(e.clientX, window.innerWidth, mode);
 		if (action === 'chrome') chrome = true;
 		else if (action === 'next') next();
 		else prev();
@@ -482,7 +489,12 @@
 		{/if}
 	{:else if atEnd}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div class="stage" onpointerdown={pointerdown} onpointerup={pointerup}>
+		<div
+			class="stage"
+			onpointerdown={pointerdown}
+			onpointerup={pointerup}
+			oncontextmenu={contextmenu}
+		>
 			<EndPage
 				variant={endVariant}
 				entryName={data.entry.name}
@@ -506,7 +518,12 @@
 	{:else}
 		<!-- Taps and swipes are read here; the keyboard has its own path above. -->
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div class="stage fit-{fit}" onpointerdown={pointerdown} onpointerup={pointerup}>
+		<div
+			class="stage fit-{fit}"
+			onpointerdown={pointerdown}
+			onpointerup={pointerup}
+			oncontextmenu={contextmenu}
+		>
 			{#each ordered as i, k (src(i))}
 				<PageImage
 					src={src(i)}
