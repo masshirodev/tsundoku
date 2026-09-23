@@ -4,6 +4,7 @@ import {
 	bookMeta,
 	booksCount,
 	isBookSeries,
+	isVolumeSeries,
 	bulkCounts,
 	continueAction,
 	currentEntry,
@@ -50,6 +51,7 @@ function chapters(n: number, read: number, page: number | null = null, pages = 5
 			locator: '',
 			matter: '' as const,
 			lastOffset: null,
+			volume: '',
 			tags: []
 		};
 	});
@@ -260,5 +262,42 @@ describe('formatNumber', () => {
 		expect(formatNumber(2.200000047683716)).toBe('2.2');
 		expect(formatNumber(41)).toBe('41');
 		expect(formatNumber(12.5)).toBe('12.5');
+	});
+});
+
+describe('volumes of a novel', () => {
+	/** Two books of 12 chapters each, grouped: the first read through, the second at chapter 3. */
+	function volumes(): SeriesEntry[] {
+		return chapters(24, 14, 3).map((e, i) => ({
+			...e,
+			file: i < 12 ? 'Vol 1.epub' : 'Vol 2.epub',
+			volume: i < 12 ? 'Frieren: Volume 1' : 'Frieren: Volume 2',
+			matter: i === 0 || i === 12 ? ('front' as const) : ('' as const)
+		}));
+	}
+
+	it('heads each volume in CONTENTS, with its own matter and one current entry', () => {
+		const rows = listRows(volumes());
+		const sections = rows.filter((r) => r.type === 'section');
+		expect(sections.map((r) => r.label)).toEqual([
+			'VOL. 1 · FRIEREN: VOLUME 1',
+			'FRONT MATTER',
+			'VOL. 2 · FRIEREN: VOLUME 2',
+			'FRONT MATTER'
+		]);
+		expect(sections[0].detail).toBe('11 · 11 READ');
+		expect(new Set(rows.map((r) => (r.type === 'section' ? r.key : ''))).size).toBe(5);
+		expect(rows.filter((r) => r.type === 'entry' && r.state === 'progress')).toHaveLength(1);
+		// The volume being read holds the only fold; the first is shown whole.
+		expect(rows.filter((r) => r.type === 'fold')).toHaveLength(0);
+		expect(rows.filter((r) => r.type === 'entry')).toHaveLength(24);
+	});
+
+	it('is a series of volumes only with two or more books', () => {
+		expect(isVolumeSeries({ kind: 'novel', entries: volumes() })).toBe(true);
+		expect(isVolumeSeries({ kind: 'novel', entries: chapters(5, 0) })).toBe(false);
+		expect(
+			isVolumeSeries({ kind: 'novel', entries: volumes().filter((e) => e.file === 'Vol 1.epub') })
+		).toBe(false);
 	});
 });

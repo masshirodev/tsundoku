@@ -14,7 +14,7 @@
 		type SeriesPage
 	} from '$lib/library/series';
 	import type { Shelf } from '$lib/library/types';
-	import { isBookSeries } from '$lib/library/series';
+	import { isBookSeries, isVolumeSeries } from '$lib/library/series';
 	import { isPersonNamespace, suggestionLabel, type Suggestion } from '$lib/library/books';
 	import { coverSrc, tagHref, readHref } from '$lib/library/links';
 	import Band from '$lib/components/chrome/Band.svelte';
@@ -368,8 +368,8 @@
 						: ''}
 				</div>
 			</div>
-			{#if isBookSeries(series)}
-				<!-- Every book back out as a single; the series goes. -->
+			{#if isBookSeries(series) || isVolumeSeries(series)}
+				<!-- Every book (or volume) back out on its own; the series goes. -->
 				<form method="POST" action="?/ungroup" class="hide-form">
 					<button type="submit" class="edit">UNGROUP</button>
 				</form>

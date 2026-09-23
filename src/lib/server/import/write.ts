@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import { posix } from 'node:path';
 import { getDb } from '../db.ts';
 import { hueFor } from '../../library/cover.ts';
 import type { PlannedEntry, PlannedSeries } from '../../import/plan.ts';
@@ -103,7 +104,31 @@ export function writeSeries(
 				if (moved) seriesId = moved.id;
 			}
 
-			if (seriesId !== null) {
+			// A book grouped as a volume of a novel (doc/BOOKS.md): the series is
+			// the owner's, holding other books too. This book's entries are found
+			// by its own prefix; its files are named from the series' folder; and
+			// its chapters keep the volume's place among the others.
+			const own = s.source === 'epub' ? `${s.originKey}!` : '';
+			let volume: { path: string; name: string } | null = null;
+			if (seriesId !== null && own) {
+				const row = db
+					.prepare(
+						`SELECT path,
+							(SELECT COUNT(*) FROM entries WHERE series_id = s.id AND substr(source_url, 1, ?) != ?) AS others,
+							(SELECT volume FROM entries WHERE series_id = s.id AND substr(source_url, 1, ?) = ? AND volume != '' LIMIT 1) AS name
+						FROM series s WHERE id = ?`
+					)
+					.get(own.length, own, own.length, own, seriesId) as {
+					path: string;
+					others: number;
+					name: string | null;
+				};
+				if (row.others > 0) volume = { path: row.path, name: row.name ?? s.title };
+			}
+			const fileOf = (e: PlannedEntry) =>
+				volume ? posix.relative(volume.path, posix.join(s.path, e.file)) : e.file;
+
+			if (seriesId !== null && volume === null) {
 				db.prepare(
 					`UPDATE series SET
 						path = CASE WHEN ? != '' THEN ? ELSE path END,
@@ -120,7 +145,7 @@ export function writeSeries(
 					s.coverUrl ?? '',
 					seriesId
 				);
-			} else {
+			} else if (seriesId === null) {
 				created = true;
 				seriesId = Number(
 					db
@@ -170,8 +195,8 @@ export function writeSeries(
 			const insert = db.prepare(
 				`INSERT INTO entries (series_id, position, label, title, added_at, read_at, last_position,
 					last_opened_at, page_count, file, bytes, source_url, available, cover_file, cover_phash,
-					scanlator, locator, matter)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+					scanlator, locator, matter, volume)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			);
 			const log = db.prepare(
 				`INSERT INTO reading_events (at, series_id, entry_id, kind, page, duration_ms)
@@ -182,8 +207,9 @@ export function writeSeries(
 			let filesAttached = 0;
 			const planned = new Set<string>();
 			for (const e of s.entries) {
-				if (e.available) planned.add(e.file);
-				const had = find.get({ series: seriesId, url: e.sourceUrl, file: e.file }) as
+				const file = fileOf(e);
+				if (e.available) planned.add(file);
+				const had = find.get({ series: seriesId, url: e.sourceUrl, file }) as
 					| { id: number; read_at: number | null; last_opened_at: number | null; available: number }
 					| undefined;
 				let entryId: number;
@@ -191,7 +217,8 @@ export function writeSeries(
 					entryId = Number(
 						insert.run(
 							seriesId,
-							e.position,
+							// Placed among the other volumes below.
+							volume ? VOLUME_PENDING + e.position : e.position,
 							e.label,
 							e.title,
 							e.addedAt,
@@ -199,7 +226,7 @@ export function writeSeries(
 							e.lastPosition,
 							e.lastOpenedAt,
 							e.pageCount,
-							e.file,
+							file,
 							e.bytes,
 							e.sourceUrl,
 							e.available ? 1 : 0,
@@ -207,7 +234,8 @@ export function writeSeries(
 							e.coverPhash ?? null,
 							e.scanlator ?? '',
 							e.locator ?? '',
-							e.matter ?? ''
+							e.matter ?? '',
+							volume?.name ?? ''
 						).lastInsertRowid
 					);
 					setPages(db, entryId, e);
@@ -226,15 +254,15 @@ export function writeSeries(
 					// A book's structure is the file's: a new edition moves its places.
 					if (e.locator !== undefined)
 						db.prepare(
-							`UPDATE entries SET locator = ?, matter = ?, position = ?, label = ?, bytes = ? WHERE id = ?`
-						).run(e.locator, e.matter ?? '', e.position, e.label, e.bytes, entryId);
+							`UPDATE entries SET locator = ?, matter = ?, position = COALESCE(?, position), label = ?, bytes = ? WHERE id = ?`
+						).run(e.locator, e.matter ?? '', volume ? null : e.position, e.label, e.bytes, entryId);
 					if (e.available) {
 						if (!had.available) filesAttached += 1;
 						db.prepare(
 							`UPDATE entries SET available = 1, file = ?, bytes = ?, page_count = ?,
 								cover_file = COALESCE(?, cover_file), cover_phash = COALESCE(?, cover_phash)
 							WHERE id = ?`
-						).run(e.file, e.bytes, e.pageCount, e.coverFile ?? null, e.coverPhash ?? null, entryId);
+						).run(file, e.bytes, e.pageCount, e.coverFile ?? null, e.coverPhash ?? null, entryId);
 						setPages(db, entryId, e);
 					}
 					// Read state only moves forward: never un-read what tsundoku read.
@@ -258,12 +286,16 @@ export function writeSeries(
 						duration: Math.max(0, e.history.durationMs)
 					});
 			}
+			if (volume) placeVolume(db, seriesId, own, s.entries);
 			if (opts.markMissing && s.path !== '') {
-				const onDisk = db
-					.prepare(
-						`SELECT id, file FROM entries WHERE series_id = ? AND available = 1 AND file != ''`
-					)
-					.all(seriesId) as { id: number; file: string }[];
+				// A volume answers only for its own entries: the others are other files.
+				const onDisk = (
+					db
+						.prepare(
+							`SELECT id, file, source_url FROM entries WHERE series_id = ? AND available = 1 AND file != ''`
+						)
+						.all(seriesId) as { id: number; file: string; source_url: string }[]
+				).filter((r) => !volume || r.source_url.startsWith(own));
 				for (const r of onDisk)
 					if (!planned.has(r.file))
 						db.prepare(`UPDATE entries SET available = 0 WHERE id = ?`).run(r.id);
@@ -271,6 +303,37 @@ export function writeSeries(
 			return { created, entriesAdded, filesAttached };
 		})
 		.immediate();
+}
+
+/** Above any real position: a volume's new entries, until placeVolume puts them in their run. */
+const VOLUME_PENDING = 1e9;
+
+/**
+ * Put one volume's entries back into its run in a series of volumes, in the
+ * book's order: where its first entry already was, or at the end if it had
+ * none there. The other volumes keep their order, and positions run 1..n.
+ */
+function placeVolume(
+	db: Database.Database,
+	seriesId: number,
+	own: string,
+	planned: PlannedEntry[]
+): void {
+	const rows = db
+		.prepare(
+			`SELECT id, source_url, position FROM entries WHERE series_id = ? ORDER BY position, id`
+		)
+		.all(seriesId) as { id: number; source_url: string; position: number }[];
+	const mine = (r: { source_url: string }) => r.source_url.startsWith(own);
+	const order = new Map(planned.map((e, i) => [e.sourceUrl, i]));
+	const rank = (r: { source_url: string }) => order.get(r.source_url) ?? planned.length;
+	const volume = rows.filter(mine).sort((a, b) => rank(a) - rank(b));
+	const others = rows.filter((r) => !mine(r));
+	const first = rows.findIndex((r) => mine(r) && r.position < VOLUME_PENDING);
+	const at = first < 0 ? others.length : rows.slice(0, first).filter((r) => !mine(r)).length;
+	const all = [...others.slice(0, at), ...volume, ...others.slice(at)];
+	const set = db.prepare(`UPDATE entries SET position = ? WHERE id = ?`);
+	all.forEach((r, i) => set.run(i + 1, r.id));
 }
 
 /**

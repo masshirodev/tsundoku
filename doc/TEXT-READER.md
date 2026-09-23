@@ -32,6 +32,15 @@ unzips it on the tablet (`src/lib/epub/unzip.ts`, with the browser's own
 A 591-chapter web novel is 2–5 MB and an illustrated light novel is up to about
 30 MB.
 
+A novel grouped from several books ([`BOOKS.md`](BOOKS.md), "Volumes of a
+novel") is one download **per volume**. The URL names the file
+(`…/epub?v=<version>&f=<file>`); a series of one book leaves `f` out, so the
+copy a device already keeps stays valid. The reader opens the volume the
+chapter is in, and moving past a volume's last chapter shows OPENING while the
+next one downloads, once. An entry's documents run up to the next entry **of
+its own file**. Scroll doesn't preload across a volume's end. Each volume is
+kept in the device cache with markers for its own entries.
+
 ## A chapter's text
 
 An entry starts at its locator (`doc.xhtml#anchor`) and runs up to the next
@@ -187,8 +196,4 @@ There's always ← SERIES and LIBRARY.
   the top stops there, and `← CH.` goes back.
 - **The budget ignores books' weight after the first marker,** and letting go
   of an entry's marker doesn't delete the EPUB from the device cache.
-- **Covers.** The EPUB's cover image isn't used for the library tile yet.
-- **Volumes of one work are separate series** (six Beginning After The End
-  books are six series). Grouping them is the same idea as grouping doujin
-  books, not built for novels.
 - **Pasted web-novel chapters** (ARCHITECTURE.md, "Web novels").

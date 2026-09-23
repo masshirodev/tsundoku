@@ -4,7 +4,7 @@ import { getDb } from '$lib/server/db';
 import { isIncognito, isRevealed } from '$lib/server/prefs';
 import { seriesPage } from '$lib/server/series';
 import { manifest } from '$lib/server/pages';
-import { epubVersion } from '$lib/server/epub';
+import { epubVersions } from '$lib/server/epub';
 import { effectiveDirection, isBookSeries } from '$lib/library/series';
 import { entryName, modeOf, spelledOut } from '$lib/reader/reader';
 
@@ -38,7 +38,10 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 
 	// A novel is read as text, from its EPUB (doc/TEXT-READER.md).
 	if (series.kind === 'novel') {
-		const version = await epubVersion(series.id, reveal);
+		// One EPUB per volume: a novel grouped from several books reads each
+		// from its own file (doc/BOOKS.md).
+		const versions = await epubVersions(series.id, reveal);
+		const version = versions[entry.file] ?? null;
 		return {
 			text: true as const,
 			series,
@@ -56,6 +59,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			version,
 			/** "1 EPUB · 3.1 MB" while it opens: the file's size, from its version. */
 			bytes: version && /^\d+-/.test(version) ? Number(version.split('-')[0]) : 0,
+			versions,
 			incognito: isIncognito(cookies)
 		};
 	}

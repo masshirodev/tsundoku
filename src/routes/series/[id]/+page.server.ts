@@ -1,4 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
+import { refreshCovers } from '$lib/server/covers';
 import type { Actions, PageServerLoad } from './$types';
 import {
 	collectionExists,
@@ -32,6 +33,7 @@ import {
 	setBookRating,
 	suggestionFor,
 	takeOut,
+	takeOutVolumes,
 	undoDismissal
 } from '$lib/server/books';
 
@@ -232,20 +234,36 @@ export const actions: Actions = {
 		return { ok: true };
 	},
 
-	/** UNDO after ADD TO EXISTING: take the books just added back out. */
+	/**
+	 * UNDO after ADD TO EXISTING: take the books just added back out. For a
+	 * novel the entries named are each volume's first, and the whole volume goes.
+	 */
 	undoAdd: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
-		takeOut(s.id, entryIds(await request.formData()));
+		const ids = entryIds(await request.formData());
+		if (s.kind === 'novel')
+			takeOutVolumes(
+				s.id,
+				s.entries.filter((e) => ids.includes(e.id)).map((e) => e.file)
+			);
+		else takeOut(s.id, ids);
 		redirect(303, `/series/${s.id}`);
 	},
 
-	/** UNGROUP: every book back out as a single; the series goes. */
+	/**
+	 * UNGROUP: every book back out as a single, or every volume of a novel
+	 * back into a series of its own (doc/BOOKS.md); the series goes.
+	 */
 	ungroup: async ({ params, cookies }) => {
 		const s = target(params, cookies);
-		takeOut(
-			s.id,
-			s.entries.map((e) => e.id)
-		);
+		if (s.kind === 'novel') {
+			const made = takeOutVolumes(s.id);
+			void refreshCovers({ ids: made, remote: false });
+		} else
+			takeOut(
+				s.id,
+				s.entries.map((e) => e.id)
+			);
 		redirect(303, '/?sort=added');
 	},
 

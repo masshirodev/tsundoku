@@ -19,10 +19,12 @@ import {
 	GroupingError,
 	dismissSuggestion,
 	groupIntoSeries,
-	seriesOfBooks
+	seriesOfBooks,
+	seriesOfVolumes
 } from '$lib/server/books';
 import { setPersonFavourite, tagPage } from '$lib/server/people';
 import { libraryRoot, startScan } from '$lib/server/import';
+import { refreshCovers } from '$lib/server/covers';
 import { isGated } from '$lib/server/unlock';
 
 export const load: PageServerLoad = async ({ url, cookies, parent }) => {
@@ -49,6 +51,7 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		tag,
 		person,
 		existing: seriesOfBooks(reveal),
+		existingVolumes: seriesOfVolumes(reveal),
 		sort,
 		empty: total === 0 && !scan,
 		libraryRoot: libraryRoot(),
@@ -139,8 +142,13 @@ export const actions: Actions = {
 		}
 		if (suggested.length > 0) dismissSuggestion(suggested);
 		const order = String(form.get('order') ?? '');
-		const params = new URLSearchParams({ created: String(result.entryIds.length), order });
-		if (into !== undefined) params.set('added', result.entryIds.join(','));
+		// Volumes of a novel are counted, and undone, by the volume, not the chapter.
+		const moved = result.volumes ?? result.entryIds;
+		const params = new URLSearchParams({ created: String(moved.length), order });
+		if (result.volumes) params.set('unit', 'volumes');
+		if (into !== undefined) params.set('added', moved.join(','));
+		// The new series' cover, from its first volume: off the request, never waited on.
+		if (result.volumes) void refreshCovers({ ids: [result.seriesId], remote: false });
 		redirect(303, `/series/${result.seriesId}?${params}`);
 	},
 

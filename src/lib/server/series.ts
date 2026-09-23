@@ -40,6 +40,7 @@ type EntryRow = {
 	locator: string;
 	matter: string;
 	last_offset: number | null;
+	volume: string;
 };
 
 function parseAlts(raw: string): string[] {
@@ -64,7 +65,7 @@ export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
 		db
 			.prepare(
 				`SELECT id, position, label, title, read_at, last_position, last_opened_at, page_count, file, bytes,
-					rating, favourite, added_at, cover_page, available, locator, matter, last_offset
+					rating, favourite, added_at, cover_page, available, locator, matter, last_offset, volume
 				FROM entries WHERE series_id = ? AND shadowed = 0 ORDER BY position, id`
 			)
 			.all(id) as EntryRow[]
@@ -87,6 +88,7 @@ export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
 		locator: e.locator,
 		matter: e.matter as SeriesEntry['matter'],
 		lastOffset: e.last_offset,
+		volume: e.volume,
 		tags: []
 	}));
 	if (entries.length > 1) {

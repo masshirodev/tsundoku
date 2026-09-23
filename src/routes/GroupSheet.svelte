@@ -22,12 +22,15 @@
 		books,
 		existing,
 		suggested = false,
+		noun = 'BOOKS',
 		onclose
 	}: {
 		open: boolean;
 		books: Book[];
 		existing: { id: number; title: string; books: number }[];
 		suggested?: boolean;
+		/** VOLUMES when grouping novels (doc/BOOKS.md): the same sheet, the same steps. */
+		noun?: 'BOOKS' | 'VOLUMES';
 		onclose: () => void;
 	} = $props();
 
@@ -89,7 +92,7 @@
 	const title = $derived(
 		suggested
 			? `SUGGESTED · ${chosen.length} OF ${books.length} TICKED`
-			: `GROUP ${books.length} BOOKS`
+			: `GROUP ${books.length} ${noun}`
 	);
 </script>
 
@@ -140,7 +143,7 @@
 							onchange={() => (into = s.id)}
 						/>
 						<span class="ex-title">{s.title}</span>
-						<span class="dim">{s.books} BOOKS</span>
+						<span class="dim">{s.books} {s.books === 1 ? noun.slice(0, -1) : noun}</span>
 					</label>
 				{/each}
 			</div>
@@ -209,7 +212,9 @@
 
 		<div class="foot">
 			<button type="submit" class="create" disabled={!canCreate}>
-				{mode === 'new' ? `CREATE SERIES · ${chosen.length} BOOKS` : `ADD ${chosen.length} BOOKS`}
+				{mode === 'new'
+					? `CREATE SERIES · ${chosen.length} ${noun}`
+					: `ADD ${chosen.length} ${noun}`}
 			</button>
 			{#if suggested}
 				<button type="submit" class="not" formaction="?/dismiss">NOT A SERIES</button>

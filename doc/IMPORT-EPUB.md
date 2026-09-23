@@ -62,6 +62,21 @@ Idempotent. An entry is found again by its locator. A new edition of a file
 moves its entries' places, labels and matter, and the owner's read state stays
 on the entry.
 
+A book the owner grouped as a volume of a novel ([`BOOKS.md`](BOOKS.md),
+"Volumes of a novel") no longer has a series with its origin key. The writer
+finds it by its entries' source URLs (`epub:<relPath>!<locator>`), as it finds
+a grouped Hentoid book. Then, because the series holds other books too
+(`src/lib/server/import/write.ts`):
+
+- it leaves the series' path alone and names the file from the series' folder;
+- it answers only for this book's own entries (those whose source URL starts
+  with `epub:<relPath>!`), so the other volumes are never marked missing;
+- a new chapter joins under the volume's title, and `placeVolume` puts the
+  book's entries back in the book's order in the volume's run, with the other
+  volumes in theirs, so positions stay 1…n.
+
+After UNGROUP a volume has its origin key again and is found by it.
+
 ## Measured
 
 On the tablet copy (2026-09-23): 23 EPUBs, which plan into 5,302 entries:

@@ -106,20 +106,42 @@
 
 	// ---- the book ----------------------------------------------------------------------------
 	let book = $state<OpenBook | null>(null);
+	/** The file `book` is: a novel grouped from several EPUBs has one per volume. */
+	let bookFile = $state<string | null>(null);
 	let failure = $state<BookFailure | null>(null);
 	let downloaded = $state(0);
-	async function load() {
+	const volumes = $derived(Object.keys(data.versions).length);
+	/** The URL names the file only for a series of volumes: a single book keeps its old URL. */
+	const fileParam = (file: string) => (volumes > 1 ? file : undefined);
+	const versionOf = (file: string) => data.versions[file] ?? null;
+	/** "1 EPUB · 3.1 MB" while a volume opens: its size, from its version. */
+	const bytesOf = (file: string | undefined) => {
+		const v = file ? versionOf(file) : null;
+		return v && /^\d+-/.test(v) ? Number(v.split('-')[0]) : 0;
+	};
+	/** Open the volume `file`, the one on screen until it's ready. False when it didn't open. */
+	async function openFile(file: string): Promise<boolean> {
 		failure = null;
-		if (!data.version) {
+		if (bookFile === file && book) return true;
+		const version = versionOf(file);
+		if (!version) {
 			failure = new BookFailure('missing', 'THE FILE IS NOT THERE');
-			return;
+			return false;
 		}
+		downloaded = 0;
 		try {
-			book = await openBook(series.id, data.version, (f) => (downloaded = f));
+			book = await openBook(series.id, version, (f) => (downloaded = f), fileParam(file));
+			bookFile = file;
+			return true;
 		} catch (e) {
 			failure =
 				e instanceof BookFailure ? e : new BookFailure('broken', 'THE PACKAGE WOULD NOT PARSE');
+			return false;
 		}
+	}
+	async function load() {
+		const e = entries[index];
+		if (e) await openFile(e.file);
 	}
 	onMount(() => {
 		void load();
@@ -291,14 +313,36 @@
 		}
 	}
 
+	/**
+	 * An entry's documents, from the book it lives in: among a series of
+	 * volumes, an entry runs up to the next entry of its own file.
+	 */
+	function docsOf(b: OpenBook, i: number) {
+		const same = entries.filter((e) => e.file === entries[i].file);
+		return entryDocs(
+			b.pkg.spine,
+			same.map((e) => e.locator),
+			same.indexOf(entries[i])
+		);
+	}
+
+	/** The chapter a move into another volume is opening, so RETRY opens it again. */
+	let switching: { i: number; at: 'start' | 'end' | TextPosition } | null = null;
+	function retry() {
+		if (switching) void openChapter(switching.i, switching.at);
+		else void load();
+	}
+
 	async function openChapter(i: number, at: 'start' | 'end' | TextPosition) {
 		if (!book || !entries[i]) return;
-		const docs = entryDocs(
-			book.pkg.spine,
-			entries.map((e) => e.locator),
-			i
-		);
-		const ch = await chapterBlocks(book.zip, docs, book.images);
+		if (entries[i].file !== bookFile) {
+			// Into another volume: its book downloads once, the OPENING screen over it.
+			switching = { i, at };
+			chapter = null;
+			if (!(await openFile(entries[i].file)) || !book) return;
+		}
+		switching = null;
+		const ch = await chapterBlocks(book.zip, docsOf(book, i), book.images);
 		index = i;
 		atEnd = false;
 		chapter = ch;
@@ -326,13 +370,9 @@
 
 	/** Scroll: the next chapter is already below this one, so reading carries on. */
 	async function loadNext() {
-		if (!book || !nextEntry || layout !== 'scroll') return;
-		const docs = entryDocs(
-			book.pkg.spine,
-			entries.map((e) => e.locator),
-			index + 1
-		);
-		nextChapter = await chapterBlocks(book.zip, docs, book.images);
+		// The next volume is another download: it opens when reading reaches it.
+		if (!book || !nextEntry || layout !== 'scroll' || nextEntry.file !== bookFile) return;
+		nextChapter = await chapterBlocks(book.zip, docsOf(book, index + 1), book.images);
 		await tick();
 		// eslint-disable-next-line svelte/no-dom-manipulating -- as blocksEl, above
 		nextEl?.replaceChildren(...nextChapter.blocks);
@@ -340,9 +380,12 @@
 		for (const b of nextChapter.blocks) delete b.dataset.b;
 	}
 
+	// Once only: moving into another volume empties `chapter` too, while its book opens.
+	let started = false;
 	// The first chapter, once the book is open: where the URL, or the server, says.
 	$effect(() => {
-		if (!book || chapter || !blocksEl) return;
+		if (!book || chapter || !blocksEl || started) return;
+		started = true;
 		untrack(() => {
 			const at = appPage.url.searchParams.get('at');
 			const p = appPage.url.searchParams.get('p');
@@ -534,14 +577,17 @@
 
 	/** Keep the book on the tablet, never for a hidden series, while revealed, or incognito. */
 	function keepBook() {
-		if (!book || !data.version || series.hidden || data.reveal || data.incognito || !entry) return;
+		if (!book || !bookFile || series.hidden || data.reveal || data.incognito || !entry) return;
+		const version = versionOf(bookFile);
+		if (!version) return;
+		const file = bookFile;
 		void cacheBook({
 			seriesId: series.id,
-			entryIds: entries.map((e) => e.id),
+			entryIds: entries.filter((e) => e.file === file).map((e) => e.id),
 			openEntryId: entry.id,
-			url: bookUrl(series.id, data.version),
+			url: bookUrl(series.id, version, fileParam(file)),
 			bytes: book.bytes,
-			version: data.version
+			version
 		});
 	}
 
@@ -926,18 +972,18 @@
 		<TextScreen
 			kind="failed"
 			title={series.title}
-			bytes={data.bytes}
+			bytes={bytesOf(entries[index]?.file)}
 			reason={failure.kind}
 			detail={failure.detail}
 			{seriesHref}
 			{libraryHref}
-			onretry={() => void load()}
+			onretry={retry}
 		/>
 	{:else if !chapter}
 		<TextScreen
 			kind="loading"
 			chapters={chapters.length}
-			bytes={data.bytes}
+			bytes={bytesOf(entries[index]?.file)}
 			progress={downloaded}
 		/>
 	{/if}

@@ -10,7 +10,12 @@ import { readEpubFile } from '$lib/server/epub';
  * downloads a book once. `private`, as every page is.
  */
 export const GET: RequestHandler = async ({ params, cookies, url }) => {
-	const book = await readEpubFile(Number(params.id), isRevealed(cookies));
+	// `f`: one volume's file, in a novel grouped from several EPUBs.
+	const book = await readEpubFile(
+		Number(params.id),
+		isRevealed(cookies),
+		url.searchParams.get('f') ?? undefined
+	);
 	if (!book) error(404, 'not found');
 	const body = Buffer.isBuffer(book.body)
 		? new Uint8Array(book.body)

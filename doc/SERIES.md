@@ -93,7 +93,9 @@ width, row height (60 / 52px) and rail width (56 / 44px) per device.
   idiom (outlined chips, the chosen one inverted), placed after DIRECTION, and
   only drawn when there are duplicates to hide.
 - **The FILE row counts files, not entries.** A novel's chapters share one EPUB,
-  so it reads "1 EPUB". A Hentoid book is a folder of loose images, so it reads
+  so it reads "1 EPUB" (a novel grouped from six books reads "6 EPUB", with
+  UNGROUP beside it and a heading per volume in CONTENTS, [`BOOKS.md`](BOOKS.md)).
+  A Hentoid book is a folder of loose images, so it reads
   "1 FOLDER", not the handoff's "1 CBZ", which doesn't match what Hentoid stores
   (`IMPORT-FORMATS.md`).
 - **`#`** is an inline field in the list header. The handoff names it but

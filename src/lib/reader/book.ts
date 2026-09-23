@@ -36,8 +36,15 @@ export class BookFailure extends Error {
 	}
 }
 
-export const bookUrl = (seriesId: number, version: string) =>
-	`${resolve('/api/series/[id]/epub', { id: String(seriesId) })}?v=${encodeURIComponent(version)}`;
+/**
+ * `file`: one volume, in a novel grouped from several EPUBs (doc/BOOKS.md).
+ * Left out for a series of one book, so its URL -- and the copy the device
+ * cache already keeps under it -- stays what it was.
+ */
+export const bookUrl = (seriesId: number, version: string, file?: string) =>
+	`${resolve('/api/series/[id]/epub', { id: String(seriesId) })}?v=${encodeURIComponent(version)}${
+		file ? `&f=${encodeURIComponent(file)}` : ''
+	}`;
 
 // Module state shared by every reader in the session, never rendered.
 const open = new Map<string, Promise<OpenBook>>();
@@ -106,9 +113,10 @@ async function parse(bytes: Uint8Array): Promise<OpenBook> {
 export function openBook(
 	seriesId: number,
 	version: string,
-	progress: (fraction: number) => void = () => {}
+	progress: (fraction: number) => void = () => {},
+	file?: string
 ): Promise<OpenBook> {
-	const url = bookUrl(seriesId, version);
+	const url = bookUrl(seriesId, version, file);
 	let p = open.get(url);
 	if (!p) {
 		p = download(url, progress).then(parse);

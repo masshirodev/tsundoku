@@ -51,12 +51,67 @@ series, not to any book.
 
 `GroupingError` is thrown, and the route answers 400, when:
 
-- a series given isn't a singleton (manga, novels and series of books can't be
-  grouped, only books added to them);
+- a series given isn't a singleton (manga and series of books can't be grouped,
+  only books added to them). Novels group by their own rules (below);
 - the books come from different library roots (a series can't span Mihon and
   Hentoid, because its folder has to live somewhere);
 - a new series would hold fewer than two books, or has no name;
 - a book is moved (MOVE TO… on its sheet) to a series in another root.
+
+## Volumes of a novel
+
+Every EPUB imports as a series of its own ([`IMPORT-EPUB.md`](IMPORT-EPUB.md)),
+so a work in several books arrives as several series: six Beginning After The
+End books are six tiles. GROUP gathers them into one. Select the novels on the
+library grid (the NOVELS shelf helps), or on their author's page, and tap
+GROUP. The same group sheet reads VOLUMES instead of BOOKS: name the series,
+order the volumes by date added, by title or by hand, then CREATE SERIES, or
+ADD TO EXISTING to put them after another novel.
+
+GROUP is offered when every selected item can be grouped **and all are one
+kind**: doujin singletons together, or novels together, never mixed.
+
+The model is the same tables again:
+
+| Thing             | What it is                                                                                     |
+| ----------------- | ---------------------------------------------------------------------------------------------- |
+| Volume            | Every entry of one EPUB file, in a `novel` series.                                             |
+| Series of volumes | A `novel` whose entries come from two or more files (`isVolumeSeries()`).                      |
+| `entries.volume`  | The title of the book an entry came from, set by grouping (rung 16). `''` in a one-book novel. |
+| An entry's `file` | Relative to the series' path, as always. Grouping takes the folder the volumes share.          |
+
+What grouping does (`groupVolumes` in `src/lib/server/books.ts`):
+
+- every entry moves to the series, keeping its read state, position in the
+  book and log rows. Positions run 1…n across the volumes, in the order chosen;
+- each file is re-expressed from the shared folder
+  (`Light novels/Frieren Vol 1.epub`);
+- the series takes the highest rating of its volumes, FAV if any had it, all
+  their tags and shelves, and the first volume's cover (made off the request);
+- the emptied series are deleted.
+
+A novel doesn't keep a rating per volume the way a book in a series does: a
+volume isn't a thing the library shows on its own.
+
+On the series screen, CONTENTS heads each volume ("VOL. 2 · FRIEREN: VOLUME
+2 · 12 · 3 READ"), each with its own front and back matter. Only the volume
+being read folds its read chapters. The text reader downloads each volume's
+EPUB on its own, when reading reaches it ([`TEXT-READER.md`](TEXT-READER.md)).
+
+**UNGROUP** (`takeOutVolumes`) gives every volume a series of its own again:
+
+- its book's title;
+- its folder and file name;
+- the series' rating, FAV, tags and shelves;
+- the date its entries arrived;
+- its original origin key, so the next scan finds it by its file as before.
+
+Progress was on the entries all along. If one volume is left, it's a plain
+book again. The created band's UNDO does the same; after ADD TO EXISTING, it
+takes out only the volumes just added.
+
+**Rescans** keep a grouped volume where it is ([`IMPORT-EPUB.md`](IMPORT-EPUB.md),
+"Rescanning").
 
 ## Order
 
@@ -130,7 +185,9 @@ shelf leaves out a favourite person with no visible books for the same reason.
 | Series screen: books grid, book sheet  | `src/routes/series/[id]/BookGrid.svelte`, `BookSheet.svelte` |
 | Group sheet (library and suggestion)   | `src/routes/GroupSheet.svelte`                               |
 | Person page                            | `src/routes/PersonView.svelte`                               |
+| Volumes of a novel                     | `src/lib/server/books.ts` (`groupVolumes`, `takeOutVolumes`) |
 | Tests                                  | `tests/books-domain.spec.ts`, `tests/books-db.spec.ts`       |
+| Tests, volumes                         | `tests/epub-import-db.spec.ts`, `tests/volumes-flow.e2e.ts`  |
 
 ## Known gaps
 

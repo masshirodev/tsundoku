@@ -63,27 +63,39 @@
 	let grouping = $state(false);
 
 	/**
-	 * The books GROUP would take: selected doujin singletons, from the library
-	 * grid or a person page. GROUP is offered only when every selected item is
-	 * one -- a manga or a series of books can't be grouped.
+	 * What GROUP would take: selected doujin singletons, or selected novels
+	 * (volumes, doc/BOOKS.md), from the library grid or a person page. GROUP is
+	 * offered only when every selected item is one, all of one kind -- a manga,
+	 * or books mixed with novels, can't be grouped.
 	 */
-	const groupBooks = $derived.by(() => {
-		const out: { seriesId: number; title: string; hue: number; addedAt: number }[] = [];
+	const groupPick = $derived.by(() => {
+		const out: { seriesId: number; title: string; hue: number; addedAt: number; kind: string }[] =
+			[];
 		const pool = data.person
 			? data.person.items
-					.filter((i) => i.groupable)
+					.filter((i) => i.groupable || (i.kind === 'novel' && i.entryId === null))
 					.map((i) => ({
 						id: i.seriesId,
 						title: i.title,
 						hue: hueFor(i.title),
-						addedAt: i.addedAt
+						addedAt: i.addedAt,
+						kind: i.kind
 					}))
 			: data.series
-					.filter((c) => c.kind === 'doujin' && c.entryCount === 1)
-					.map((c) => ({ id: c.id, title: c.title, hue: c.hue, addedAt: c.addedAt }));
+					.filter((c) => (c.kind === 'doujin' && c.entryCount === 1) || c.kind === 'novel')
+					.map((c) => ({
+						id: c.id,
+						title: c.title,
+						hue: c.hue,
+						addedAt: c.addedAt,
+						kind: c.kind
+					}));
 		for (const b of pool) if (selected.has(b.id)) out.push({ seriesId: b.id, ...b });
 		return out;
 	});
+	const groupKinds = $derived(new Set(groupPick.map((b) => b.kind)));
+	const groupBooks = $derived(groupKinds.size === 1 ? groupPick : []);
+	const volumes = $derived(groupKinds.has('novel'));
 	const canGroup = $derived(selected.size > 0 && groupBooks.length === selected.size);
 	const allHidden = $derived(
 		selected.size > 0 && data.series.filter((s) => selected.has(s.id)).every((s) => s.hidden)
@@ -502,7 +514,8 @@
 <GroupSheet
 	open={grouping}
 	books={groupBooks}
-	existing={data.existing}
+	existing={(volumes ? data.existingVolumes : data.existing).filter((s) => !selected.has(s.id))}
+	noun={volumes ? 'VOLUMES' : 'BOOKS'}
 	onclose={() => (grouping = false)}
 />
 

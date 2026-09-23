@@ -40,6 +40,11 @@ export type SeriesEntry = {
 	matter: '' | 'front' | 'back';
 	/** Text: the character in paragraph `lastPosition` the reader stopped at. */
 	lastOffset: number | null;
+	/**
+	 * A novel grouped from several EPUBs: the title of the book this entry is
+	 * in (doc/BOOKS.md). '' for a series of one book.
+	 */
+	volume: string;
 	tags: SeriesTag[];
 };
 
@@ -165,6 +170,22 @@ export function entryTitle(e: SeriesEntry, kind: Kind): string {
 	return e.title ? `Chapter ${n} - ${e.title}` : `Chapter ${n}`;
 }
 
+/** A series' entries by volume: one run per file, in reading order. */
+export function volumesIn(entries: SeriesEntry[]): SeriesEntry[][] {
+	if (!entries.some((e) => e.volume)) return entries.length ? [entries] : [];
+	const out: SeriesEntry[][] = [];
+	for (const e of entries) {
+		const last = out[out.length - 1];
+		if (last && last[0].file === e.file) last.push(e);
+		else out.push([e]);
+	}
+	return out;
+}
+
+/** A novel grouped from several EPUBs (doc/BOOKS.md): UNGROUP splits it again. */
+export const isVolumeSeries = (s: Pick<SeriesPage, 'kind' | 'entries'>) =>
+	s.kind === 'novel' && volumesIn(s.entries).length > 1;
+
 /** A doujin series of two or more books: its contents are a cover grid of books. */
 export const isBookSeries = (s: Pick<SeriesPage, 'kind' | 'entries'>) =>
 	s.kind === 'doujin' && s.entries.length > 1;
@@ -264,7 +285,7 @@ export function continueAction(series: Pick<SeriesPage, 'kind' | 'entries'>): {
 export type Row =
 	| { type: 'fold'; from: number; to: number; count: number }
 	| { type: 'entry'; entry: SeriesEntry; state: EntryState }
-	| { type: 'section'; key: 'front' | 'chapters' | 'back'; label: string; detail: string };
+	| { type: 'section'; key: string; label: string; detail: string };
 
 /**
  * The chapter list in reading order. Everything read before the last two
@@ -279,6 +300,42 @@ export function listRows(
 	entries: SeriesEntry[],
 	opts: { descending?: boolean; expanded?: boolean } = {}
 ): Row[] {
+	// A novel grouped from several books lists each under its own heading,
+	// with its own front and back matter (doc/BOOKS.md). Only the volume being
+	// read folds its read chapters, so one list never holds two folds.
+	const volumes = volumesIn(entries);
+	if (volumes.length > 1) {
+		const cur = currentEntry(entries);
+		const ordered = opts.descending ? [...volumes].reverse() : volumes;
+		return ordered.flatMap((vol, i): Row[] => {
+			const n = opts.descending ? volumes.length - i : i + 1;
+			const chapters = chaptersOf(vol);
+			const read = chapters.filter((e) => e.readAt !== null).length;
+			const inner = listRows(
+				vol.map((e) => ({ ...e, volume: '' })),
+				{ ...opts, expanded: opts.expanded || !cur || !vol.includes(cur) }
+			)
+				.filter((r) => !(r.type === 'section' && r.key === 'chapters'))
+				.map((r): Row => {
+					if (r.type === 'section') return { ...r, key: `v${n}:${r.key}` };
+					if (r.type === 'entry') {
+						// The state against the whole series: one entry is current, not one per volume.
+						const entry = vol.find((e) => e.id === r.entry.id)!;
+						return { type: 'entry', entry, state: entryState(entry, cur) };
+					}
+					return r;
+				});
+			return [
+				{
+					type: 'section',
+					key: `v${n}`,
+					label: `VOL. ${n} · ${(vol[0].volume || 'UNTITLED').toUpperCase()}`,
+					detail: `${chapters.length} · ${read} READ`
+				},
+				...inner
+			];
+		});
+	}
 	// A book with front and back matter lists it apart, under its own labels,
 	// around the chapters (Index Text Reader, contentsLN).
 	if (entries.some((e) => e.matter)) {

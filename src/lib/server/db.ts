@@ -320,6 +320,13 @@ const MIGRATIONS: string[] = [
 	// these are the ones already imported.
 	`
 	UPDATE entries SET position = round(position, 4) WHERE position != round(position, 4);
+	`,
+	// Rung 16: volumes (doc/BOOKS.md, "Volumes of a novel"). A novel grouped
+	// from several EPUBs keeps each entry's book title here, so CONTENTS can
+	// head each volume and UNGROUP can give each its name back. '' in a
+	// series of one book.
+	`
+	ALTER TABLE entries ADD COLUMN volume TEXT NOT NULL DEFAULT '';
 	`
 ];
 

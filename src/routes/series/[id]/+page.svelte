@@ -69,6 +69,8 @@
 	/** "SERIES CREATED · 6 BOOKS", from the grouping sheet's redirect. */
 	const created = $derived(Number(page.url.searchParams.get('created')) || 0);
 	const added = $derived(page.url.searchParams.get('added'));
+	// Grouped novels are counted by the volume (doc/BOOKS.md).
+	const unit = $derived(page.url.searchParams.get('unit') === 'volumes' ? 'VOLUMES' : 'BOOKS');
 	const createdOrder = $derived(page.url.searchParams.get('order') ?? 'BY DATE ADDED');
 	const takenOut = $derived(form && 'takenOut' in form ? form.takenOut : null);
 	const markedThrough = $derived(form && 'markedThrough' in form ? form.markedThrough : null);
@@ -301,7 +303,7 @@
 		</Band>
 	{:else if created > 0 && !reordering}
 		<Band
-			title={added ? `${created} BOOKS ADDED` : `SERIES CREATED · ${created} BOOKS`}
+			title={added ? `${created} ${unit} ADDED` : `SERIES CREATED · ${created} ${unit}`}
 			detail={added ? 'AT THE END · ORDER TO CHANGE' : `ORDERED ${createdOrder} · ORDER TO CHANGE`}
 		>
 			{#snippet action()}
