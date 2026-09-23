@@ -27,6 +27,7 @@ Which file is the spec:
 | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Library Themes.dc.html`                                  | The exploration canvas. Turn 1 (four directions) and Turn 2 (four palettes) are history. Turn 3 is the chosen system in every state and on every device. |
 | `Index Text Reader.dc.html`, `Text Reader States.dc.html` | The text reader's screen and its states (2026-09-23), from the brief `doc/briefs/done/TEXT-READER.md`. See `doc/TEXT-READER.md`.                         |
+| `Loading States.dc.html`                                  | Waiting on every screen (2026-09-23), from the brief `doc/briefs/done/LOADING.md`. See `doc/WAITING.md`.                                                 |
 | `Index Library.dc.html`                                   | **The screen spec.** A single parametric screen (`state` × `device` × `palette`) that Turn 3 renders nine ways. Measurements come from here.             |
 | `components/**/*.jsx`                                     | Sketches of the component set. They give the API and intent; where one disagrees with `Index Library.dc.html`, the screen wins (see Departures).         |
 | `tokens/*.css`                                            | Tokens, transcribed into `src/lib/styles/`.                                                                                                              |
