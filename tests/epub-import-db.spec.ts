@@ -23,6 +23,11 @@ writeFileSync(
 	})
 );
 writeFileSync(join(library, 'Library', 'broken.epub'), 'not a zip');
+// A second book laid out like the first, as publishers' books are.
+writeFileSync(
+	join(library, 'Library', 'Frieren Vol 2.epub'),
+	sampleEpub({ title: 'Frieren: Volume 2', hue: 120, chapters: ['Chapter 3', 'Chapter 4'] })
+);
 
 const db = () => getDb();
 const idOf = (title: string) =>
@@ -32,6 +37,7 @@ describe('the EPUB import', () => {
 	it('makes each EPUB a novel series, its contents the entries, in reading order', async () => {
 		const r = await runImport(library);
 		expect(r.sources.map((s) => s.name)).toEqual(['Library']);
+		expect(r.sources[0].seriesCreated).toBe(3);
 		expect(r.failedFiles).toBe(1);
 		const s = seriesPage(idOf('Frieren: Volume 1'), false)!;
 		expect(s.kind).toBe('novel');
@@ -44,6 +50,17 @@ describe('the EPUB import', () => {
 		]);
 		expect(s.entries.every((e) => e.file === 'Frieren Vol 1.epub' && e.bytes > 0)).toBe(true);
 		expect(s.tags).toContainEqual({ namespace: 'author', value: 'Development Sample' });
+	});
+
+	it('keeps two books with the same inside apart', () => {
+		const two = seriesPage(idOf('Frieren: Volume 2'), false)!;
+		expect(two.entries.map((e) => e.label)).toEqual([
+			'Cover',
+			'Chapter 3',
+			'Chapter 4',
+			'Afterword'
+		]);
+		expect(two.entries.every((e) => e.file === 'Frieren Vol 2.epub')).toBe(true);
 	});
 
 	it('counts chapters, not matter, and starts on the first chapter', () => {

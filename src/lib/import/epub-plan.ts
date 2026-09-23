@@ -53,7 +53,7 @@ export function planEpub(f: EpubFile): PlannedSeries {
 					position: 1,
 					label: 'Book',
 					title: '',
-					sourceUrl: `epub:${pkg?.spine[0]?.href ?? ''}`,
+					sourceUrl: `epub:${f.relPath}!${pkg?.spine[0]?.href ?? ''}`,
 					locator: pkg?.spine[0]?.href ?? '',
 					matter: '',
 					available: true,
@@ -75,8 +75,10 @@ export function planEpub(f: EpubFile): PlannedSeries {
 			position: i + 1,
 			label: e.label,
 			title: '',
-			// The place in the book is the entry's identity: a rescan finds it by it.
-			sourceUrl: `epub:${e.locator}`,
+			// The book and the place in it are the entry's identity: a rescan finds
+			// it by them. The place alone isn't -- half of all EPUBs have an
+			// OEBPS/Text/cover.xhtml, and the writer would take them for one book.
+			sourceUrl: `epub:${f.relPath}!${e.locator}`,
 			locator: e.locator,
 			matter: e.matter,
 			available: true,
