@@ -19,6 +19,9 @@ test.describe.configure({ mode: 'serial' });
 
 async function longPress(page: Page, title: string) {
 	const tile = page.locator('.grid .tile', { hasText: title });
+	// Under a full parallel run hydration can trail the load event, and a
+	// right-click before it opens nothing.
+	await page.waitForLoadState('networkidle');
 	await tile.scrollIntoViewIfNeeded();
 	await tile.click({ button: 'right' }); // the context menu is the long press
 	const sheet = page.getByRole('dialog', { name: title });

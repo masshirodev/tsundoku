@@ -31,8 +31,12 @@
 
 	// ---- series of books ---------------------------------------------------------------
 
-	/** The book whose sheet is open (long-press). */
-	let sheetBook = $state<SeriesEntry | null>(null);
+	/**
+	 * The book whose sheet is open (long-press), by id: the sheet reads the
+	 * entry from the current data, so a rating or FAV it saves shows at once.
+	 */
+	let sheetBookId = $state<number | null>(null);
+	const sheetBook = $derived(series.entries.find((e) => e.id === sheetBookId) ?? null);
 	let reordering = $state(false);
 	let order = $state<number[]>([]);
 	let reviewing = $state(false);
@@ -54,7 +58,7 @@
 
 	/** A book of this series opened on its own: its page grid. */
 	function openBook(e: SeriesEntry) {
-		sheetBook = null;
+		sheetBookId = null;
 		// eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam() resolves
 		void goto(withParam(page.url, 'book', String(e.id)));
 	}
@@ -272,7 +276,7 @@
 					{reordering}
 					bind:order
 					onbook={openBook}
-					onlong={(e) => (sheetBook = e)}
+					onlong={(e) => (sheetBookId = e.id)}
 					onorder={startOrder}
 				/>
 			{:else if doujin}
@@ -318,7 +322,7 @@
 	{series}
 	book={sheetBook}
 	others={data.otherSeries}
-	onclose={() => (sheetBook = null)}
+	onclose={() => (sheetBookId = null)}
 	onpages={openBook}
 />
 
