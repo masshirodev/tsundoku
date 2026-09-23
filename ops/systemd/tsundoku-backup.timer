@@ -1,0 +1,11 @@
+[Unit]
+Description=tsundoku: nightly database snapshot
+
+[Timer]
+OnCalendar=*-*-* 04:00
+# A night the workstation was off is made up at the next boot.
+Persistent=true
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target

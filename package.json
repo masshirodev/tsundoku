@@ -23,7 +23,8 @@
 		"test:all": "yarn run test && yarn run test:e2e",
 		"serve": "node --experimental-strip-types scripts/serve.ts",
 		"seed": "node --experimental-strip-types scripts/seed.ts",
-		"import": "node --experimental-strip-types scripts/import.ts"
+		"import": "node --experimental-strip-types scripts/import.ts",
+		"backup": "node --experimental-strip-types scripts/backup.ts"
 	},
 	"dependencies": {
 		"@fontsource/ibm-plex-sans": "^5.3.0",

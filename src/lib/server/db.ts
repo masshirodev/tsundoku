@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { snapshotBeforeMigration } from './backup.ts';
 
 /**
  * The library database. One file, one connection per process.
@@ -24,7 +25,7 @@ export function getDb(): Database.Database {
 	db.pragma('journal_mode = WAL');
 	db.pragma('foreign_keys = ON');
 	db.pragma('busy_timeout = 5000');
-	migrate(db);
+	migrate(db, path);
 	return db;
 }
 
@@ -266,8 +267,20 @@ const MIGRATIONS: string[] = [
 	`
 ];
 
-function migrate(conn: Database.Database): void {
+function migrate(conn: Database.Database, path: string): void {
 	const current = conn.pragma('user_version', { simple: true }) as number;
+	// A database with data in it is copied before its schema moves
+	// (doc/BACKUPS.md). A new one (rung 0) has nothing to lose.
+	if (current > 0 && current < MIGRATIONS.length && path !== ':memory:') {
+		try {
+			const kept = snapshotBeforeMigration(conn, path, current);
+			console.log(`tsundoku: before migrating past v${current}, saved ${kept}`);
+		} catch (e) {
+			// Refusing to start would take the library down over a full backup
+			// disk; the nightly snapshot is still the net under this.
+			console.warn(`tsundoku: no snapshot before migrating past v${current}: ${String(e)}`);
+		}
+	}
 	for (let i = current; i < MIGRATIONS.length; i++) {
 		conn
 			.transaction(() => {

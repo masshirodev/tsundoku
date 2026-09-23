@@ -70,7 +70,9 @@ export default defineConfig({
 				env: {
 					DATABASE_PATH: databasePath,
 					TSUNDOKU_TOKEN: E2E_TOKEN,
-					LIBRARY_ROOT: join(tmpdir(), 'tsundoku-e2e-empty-library')
+					LIBRARY_ROOT: join(tmpdir(), 'tsundoku-e2e-empty-library'),
+					// Nor may a snapshot of the test database land beside the real ones.
+					BACKUP_DIR: join(tmpdir(), 'tsundoku-e2e-backups')
 				},
 				port: previewPort,
 				reuseExistingServer: !process.env.CI,
