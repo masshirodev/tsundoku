@@ -116,6 +116,46 @@ rows before and after:
 | Search    | 272 ms   | 57 ms |
 | NEW shelf | 379 ms   | 6 ms  |
 
+## Pages
+
+The grid arrives a page of 120 cards at a time (`GRID_PAGE`,
+`src/lib/library/paging.ts`), because the real library's ALL shelf, with reveal
+on, is 6,800 series. The whole shelf in one answer made the first load drag, and
+a silent 5,000-card cap left the last 1,800 off the grid entirely. The cap is
+gone.
+
+- **The first page** comes with the screen, with the shelf's `total`
+  (`countListed`).
+- **The rest** comes from `GET /api/library?shelf&tag&sort&offset&limit`. It's
+  asked for when the end of the grid comes within one and a half screens
+  (an `IntersectionObserver` on the row below the grid). After each page the
+  reader checks again, since on a tall screen a page may not push the end out
+  of reach.
+- **The row below the grid** reads `240 OF 6,812`, then LOADING while a page
+  is on its way. A page that fails says `THE REST DID NOT LOAD` with RETRY.
+  Offline, it says `THE REST NEEDS THE WORKSTATION`.
+- **A re-read of the same shelf** (a rating saved, a scan in progress) re-reads
+  every loaded page after the first as well, in one request, so a tile deep in
+  the grid shows the server's value. A new shelf, tag or sort starts again from
+  its first page. A request answered after the list changed is dropped.
+- **SELECT ALL** means the whole shelf. The ids of pages not yet loaded come
+  from `/api/library?ids`, without their cards.
+- **Back** (the gesture, or the browser's) comes back to the pages and the place
+  it left. A SvelteKit snapshot keeps the loaded cards (up to 4,000) and the
+  scroll, and sets the scroll again once they're back, since SvelteKit scrolls
+  before it restores. It then re-reads them, in case a rating changed on the
+  series screen.
+- **CACHED** isn't paged. Only the tablet knows which series it holds, so the
+  server sends the whole shelf for it to narrow down.
+- **Sorts page cleanly** because every order ends in the series id, so no card
+  appears on two pages or on none.
+- **Hidden means hidden** here as on the screen: the endpoint reads the reveal
+  cookie as the screen does.
+
+The end-to-end tests shrink the page with a `tsundoku_grid_page` cookie
+(`pageSizeOf`), so the seed's twenty-odd series make several pages. Nothing
+else sets it.
+
 ## Where it departs from the handoff
 
 - **"N OPEN" counts every series in progress**, not the rows shown. The mock

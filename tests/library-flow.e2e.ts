@@ -202,3 +202,75 @@ test('START SCAN with nothing to import says where it looked', async ({ request 
 	});
 	expect(await res.text()).toContain('NOTHING TO IMPORT');
 });
+
+test('the grid loads a page at a time, says when the rest did not come, and SELECT ALL takes the whole shelf', async ({
+	page
+}) => {
+	// A page of six, so the seed's twenty-odd series make several pages.
+	await page
+		.context()
+		.addCookies([{ name: 'tsundoku_grid_page', value: '6', url: 'http://localhost' }]);
+	// The workstation stops answering for pages (not for SELECT ALL's ids).
+	const pages = (url: URL) => url.pathname === '/api/library' && !url.searchParams.has('ids');
+	await page.route(pages, (route) => route.abort());
+	await page.goto('/?shelf=all&sort=title');
+	const tiles = page.locator('.grid .tile');
+	await expect(tiles).toHaveCount(6);
+	const more = page.locator('.more');
+	await expect(more).toContainText(/^6 OF \d+ · THE REST\s+DID NOT LOAD/);
+	const total = Number(/OF (\d+)/.exec((await more.textContent()) ?? '')![1]);
+	expect(total).toBeGreaterThan(12);
+
+	// SELECT ALL counts the series not loaded too.
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await page.getByRole('button', { name: 'SELECT ALL' }).click();
+	await expect(page.getByText(`${total} SELECTED`)).toBeVisible();
+	await page.getByRole('button', { name: 'Stop selecting' }).click();
+
+	// Back again: RETRY, and the pages come in until the shelf is whole.
+	await page.unroute(pages);
+	await more.getByRole('button', { name: 'RETRY' }).click();
+	for (let i = 0; i < 20 && (await more.count()) > 0; i++) {
+		await more.scrollIntoViewIfNeeded().catch(() => undefined);
+		await page.waitForTimeout(150);
+	}
+	await expect(tiles).toHaveCount(total);
+	await expect(more).toHaveCount(0);
+});
+
+test('a page of the grid never carries a hidden series', async ({ page }) => {
+	await page.goto('/');
+	const request = page.request;
+	const res = await request.get('/api/library?shelf=all&sort=title&offset=0&limit=500');
+	expect(res.ok()).toBe(true);
+	const body = await res.text();
+	expect(body).not.toContain('Onsen Ryokan');
+	const ids = await (await request.get('/api/library?shelf=all&ids=1')).json();
+	expect(ids.ids.length).toBe(JSON.parse(body).series.length);
+});
+
+test('back from a series deep in the grid comes back to its pages and its place', async ({
+	page
+}) => {
+	await page
+		.context()
+		.addCookies([{ name: 'tsundoku_grid_page', value: '6', url: 'http://localhost' }]);
+	// A phone: three columns, so the seed runs far past what's loaded on arrival.
+	await page.setViewportSize({ width: 360, height: 400 });
+	await page.goto('/?shelf=all&sort=title');
+	const tiles = page.locator('.grid .tile');
+	const more = page.locator('.more');
+	for (let i = 0; i < 20 && (await more.count()) > 0; i++) {
+		await more.scrollIntoViewIfNeeded().catch(() => undefined);
+		await page.waitForTimeout(150);
+	}
+	const total = await tiles.count();
+	const last = tiles.last();
+	await last.scrollIntoViewIfNeeded();
+	await last.click();
+	await page.waitForURL(/\/series\//);
+	await page.goBack();
+	await page.waitForURL(/\/\?shelf=all/);
+	await expect(tiles).toHaveCount(total);
+	await expect(page.locator('.grid .tile').last()).toBeInViewport();
+});

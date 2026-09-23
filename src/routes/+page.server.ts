@@ -3,6 +3,7 @@ import type { Actions, PageServerLoad } from './$types';
 import {
 	collectionExists,
 	continueReading,
+	countListed,
 	countSeries,
 	createCollection,
 	dismissScan,
@@ -26,6 +27,7 @@ import { setPersonFavourite, tagPage } from '$lib/server/people';
 import { libraryRoot, startScan } from '$lib/server/import';
 import { refreshCovers } from '$lib/server/covers';
 import { isGated } from '$lib/server/unlock';
+import { pageSizeOf } from '$lib/library/paging';
 
 export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	const { scan } = await parent();
@@ -46,6 +48,7 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	if (tag && !person) error(404, 'not found');
 
 	const total = countSeries(reveal);
+	const pageSize = pageSizeOf(cookies.get('tsundoku_grid_page'));
 	return {
 		shelf,
 		tag,
@@ -57,7 +60,21 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		libraryRoot: libraryRoot(),
 		cont: continueReading(reveal),
 		// PEOPLE lists favourite people (from the layout), not series.
-		series: shelf === 'people' ? [] : listSeries({ reveal, shelf, tag, sort })
+		// The first page; the grid asks /api/library for the rest as it scrolls.
+		// CACHED is the exception: only the tablet knows which series it holds,
+		// so it gets them all, to narrow down itself.
+		series:
+			shelf === 'people'
+				? []
+				: listSeries({
+						reveal,
+						shelf,
+						tag,
+						sort,
+						limit: shelf === 'cached' ? undefined : pageSize
+					}),
+		total: shelf === 'people' ? 0 : countListed({ reveal, shelf, tag, sort }),
+		pageSize
 	};
 };
 

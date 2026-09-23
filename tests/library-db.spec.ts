@@ -193,6 +193,27 @@ describe('the DOWNLOADED shelf', () => {
 	});
 });
 
+describe('pages of a shelf', () => {
+	it('page through the same list the whole shelf is, without gaps or repeats', () => {
+		for (const sort of ['recent', 'title', 'rating', 'added'] as const) {
+			const whole = lib.listSeries({ reveal: true, sort }).map((c) => c.id);
+			const paged: number[] = [];
+			for (let offset = 0; offset < whole.length; offset += 7)
+				paged.push(...lib.listSeries({ reveal: true, sort, limit: 7, offset }).map((c) => c.id));
+			expect(paged).toEqual(whole);
+		}
+	});
+
+	it('count and list ids for exactly what the shelf shows, hidden left out', () => {
+		for (const shelf of ['all', 'favourites', 'k:novel']) {
+			const cards = lib.listSeries({ reveal: false, shelf });
+			expect(lib.countListed({ reveal: false, shelf })).toBe(cards.length);
+			expect(lib.listedIds({ reveal: false, shelf }).sort()).toEqual(cards.map((c) => c.id).sort());
+		}
+		expect(lib.countListed({ reveal: true })).toBeGreaterThan(lib.countListed({ reveal: false }));
+	});
+});
+
 describe('the kind shelves', () => {
 	it('list one kind each, counted the same way, and only kinds the library has', () => {
 		const shelves = lib.listShelves({ reveal: false, withNew: false });

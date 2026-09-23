@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { tick, untrack } from 'svelte';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import { page } from '$app/state';
 	import Banner from '$lib/components/chrome/Banner.svelte';
@@ -27,7 +28,9 @@
 	import { offline } from '$lib/offline.svelte';
 	import { continueSub, count, nextSort, progress, SORT_LABEL } from '$lib/library/labels';
 	import { coverSrc, readHref, seriesHref, shelfHref, withParam } from '$lib/library/links';
-	import type { Rating, Shelf } from '$lib/library/types';
+	import type { Rating, SeriesCard, Shelf } from '$lib/library/types';
+	import { pageQuery } from '$lib/library/paging';
+	import type { Snapshot } from './$types';
 
 	let { data, form } = $props();
 
@@ -42,6 +45,115 @@
 	});
 	const justImported = $derived(data.scan !== null && data.scan.finishedAt !== null);
 	const isOffline = $derived(!offline.online);
+
+	// ---- pages ------------------------------------------------------------
+	// The grid arrives a page at a time (doc/LIBRARY.md, "Pages"): the server
+	// sends the first, and the rest are asked for as the end of the grid comes
+	// near. `more` is every page after the first.
+	let more = $state<SeriesCard[]>([]);
+	let loadingMore = $state(false);
+	let moreFailed = $state(false);
+	/** Bumped whenever the list changes under a request, so a late answer is dropped. */
+	let generation = 0;
+	const series = $derived(data.series.length ? [...data.series, ...more] : more);
+	const hasMore = $derived(data.shelf !== 'cached' && series.length < data.total);
+	const listKey = $derived(`${data.shelf}|${data.tag ?? ''}|${data.sort}|${data.reveal}`);
+	let shownKey = '';
+
+	async function fetchPage(offset: number, limit: number): Promise<SeriesCard[] | null> {
+		try {
+			const res = await fetch(
+				`/api/library?${pageQuery({ shelf: data.shelf, tag: data.tag, sort: data.sort, offset, limit })}`
+			);
+			if (!res.ok) return null;
+			return ((await res.json()) as { series: SeriesCard[] }).series;
+		} catch {
+			return null;
+		}
+	}
+
+	async function loadMore() {
+		if (loadingMore || !hasMore || isOffline) return;
+		loadingMore = true;
+		moreFailed = false;
+		const gen = generation;
+		const next = await fetchPage(series.length, data.pageSize);
+		if (gen === generation) {
+			if (next) more = [...more, ...next];
+			else moreFailed = true;
+		}
+		loadingMore = false;
+		// The observer only speaks when the end comes near. A page that didn't
+		// push it away again (a tall screen) would leave the grid stalled.
+		if (next && gen === generation) {
+			await tick();
+			if (endNode && endNode.getBoundingClientRect().top < innerHeight * 2.5) void loadMore();
+		}
+	}
+
+	// A new shelf, tag or sort starts again from its first page. The same one
+	// re-read (a rating saved, a scan's progress) reads the pages after the
+	// first again too, so a tile deep in the grid shows what the server says.
+	$effect(() => {
+		const key = listKey;
+		const first = data.series;
+		untrack(() => {
+			generation += 1;
+			loadingMore = false;
+			moreFailed = false;
+			if (key !== shownKey) {
+				shownKey = key;
+				more = [];
+				return;
+			}
+			if (more.length === 0) return;
+			const gen = generation;
+			void fetchPage(first.length, more.length).then((pageAgain) => {
+				if (pageAgain && gen === generation) more = pageAgain;
+			});
+		});
+	});
+
+	/**
+	 * Back to the library (the back gesture) comes back to the same place: the
+	 * pages loaded and the scroll. SvelteKit scrolls before it restores, when
+	 * only the first page is there to scroll through, so the scroll is set
+	 * again once the pages are back. Capped, since it's kept in sessionStorage.
+	 */
+	export const snapshot: Snapshot<{ key: string; more: SeriesCard[]; y: number }> = {
+		capture: () => ({ key: listKey, more: more.slice(0, 4000), y: scrollY }),
+		restore: async (v) => {
+			if (!v || v.key !== listKey || v.more.length === 0) return;
+			generation += 1;
+			shownKey = v.key;
+			more = v.more;
+			await tick();
+			scrollTo(0, v.y);
+			// What they say now: a rating may have changed on the series screen.
+			const gen = generation;
+			const again = await fetchPage(data.series.length, v.more.length);
+			if (again && gen === generation) more = again;
+		}
+	};
+
+	/** Asks for the next page while the end of the grid is still a screen or two away. */
+	let endNode: HTMLElement | null = null;
+	function nearEnd(node: HTMLElement) {
+		endNode = node;
+		const io = new IntersectionObserver(
+			(seen) => {
+				if (seen.some((e) => e.isIntersecting)) void loadMore();
+			},
+			{ rootMargin: '0px 0px 150% 0px' }
+		);
+		io.observe(node);
+		return {
+			destroy: () => {
+				io.disconnect();
+				if (endNode === node) endNode = null;
+			}
+		};
+	}
 
 	// ---- selection -------------------------------------------------------
 	let selecting = $state(false);
@@ -81,7 +193,7 @@
 						addedAt: i.addedAt,
 						kind: i.kind
 					}))
-			: data.series
+			: series
 					.filter((c) => (c.kind === 'doujin' && c.entryCount === 1) || c.kind === 'novel')
 					.map((c) => ({
 						id: c.id,
@@ -98,14 +210,14 @@
 	const volumes = $derived(groupKinds.has('novel'));
 	const canGroup = $derived(selected.size > 0 && groupBooks.length === selected.size);
 	const allHidden = $derived(
-		selected.size > 0 && data.series.filter((s) => selected.has(s.id)).every((s) => s.hidden)
+		selected.size > 0 && series.filter((s) => selected.has(s.id)).every((s) => s.hidden)
 	);
 
 	/** A tap opens the series; a long press opens the sheet (see CoverTile). */
 	function press(id: number) {
 		if (selecting) return toggle(id);
 		// The series screen opens with what this tile already knows (doc/WAITING.md).
-		const s = data.series.find((x) => x.id === id);
+		const s = series.find((x) => x.id === id);
 		if (s)
 			waiting.preview = {
 				id: s.id,
@@ -172,7 +284,7 @@
 	}
 
 	function rate(id: number, rating: Rating) {
-		const was = data.series.find((s) => s.id === id)?.rating ?? 0;
+		const was = series.find((s) => s.id === id)?.rating ?? 0;
 		ratingNow.set(id, rating);
 		void write(
 			'rate',
@@ -226,11 +338,36 @@
 	 * server lists everything and this narrows it.
 	 */
 	const shown = $derived(
-		data.shelf === 'cached' ? data.series.filter((s) => cachedCount(s.id) > 0) : data.series
+		data.shelf === 'cached' ? series.filter((s) => cachedCount(s.id) > 0) : series
 	);
 
-	/** Fill the last grid row, so the hairline ground never shows as a block. */
-	const fillers = $derived((columns - (shown.length % columns)) % columns);
+	/**
+	 * Fill the last grid row, so the hairline ground never shows as a block.
+	 * Not while pages remain: the next one carries on the row.
+	 */
+	const fillers = $derived(hasMore ? 0 : (columns - (shown.length % columns)) % columns);
+
+	/**
+	 * SELECT ALL means the whole shelf, pages not yet loaded included: their
+	 * ids come without their cards.
+	 */
+	async function selectAll() {
+		shown.forEach((s) => selected.add(s.id));
+		if (!hasMore) return;
+		try {
+			const q = pageQuery({
+				shelf: data.shelf,
+				tag: data.tag,
+				sort: data.sort,
+				offset: 0,
+				limit: 0
+			});
+			const res = await fetch(`/api/library?${q}&ids=1`);
+			if (res.ok) for (const id of ((await res.json()) as { ids: number[] }).ids) selected.add(id);
+		} catch {
+			// Offline: the loaded pages stay selected, which is what's on screen.
+		}
+	}
 
 	const gb = (bytes: number) => (bytes / 1e9).toFixed(1).replace(/\.0$/, '');
 
@@ -257,11 +394,7 @@
 				<div class="selected-count" aria-live="polite">{selected.size} SELECTED</div>
 			{/snippet}
 			{#snippet right()}
-				<button
-					type="button"
-					class="cell-btn"
-					onclick={() => shown.forEach((s) => selected.add(s.id))}>SELECT ALL</button
-				>
+				<button type="button" class="cell-btn" onclick={() => void selectAll()}>SELECT ALL</button>
 			{/snippet}
 		</TopBar>
 	{:else if data.person}
@@ -447,6 +580,28 @@
 					<div class="filler" aria-hidden="true"></div>
 				{/each}
 			</div>
+			{#if hasMore}
+				<!-- The end of what's loaded: coming near it asks for the next page. -->
+				<div class="more" use:nearEnd>
+					{#if moreFailed}
+						<span
+							>{series.length.toLocaleString('en-US')} OF {data.total.toLocaleString('en-US')} · THE REST
+							DID NOT LOAD</span
+						>
+						<button type="button" onclick={() => void loadMore()}>RETRY</button>
+					{:else if isOffline}
+						<span
+							>{series.length.toLocaleString('en-US')} OF {data.total.toLocaleString('en-US')} · THE REST
+							NEEDS THE WORKSTATION</span
+						>
+					{:else}
+						<span
+							>{series.length.toLocaleString('en-US')} OF {data.total.toLocaleString('en-US')}</span
+						>
+						<span>{loadingMore ? 'LOADING' : ''}</span>
+					{/if}
+				</div>
+			{/if}
 		{/if}
 
 		{#if data.shelf === 'people'}
@@ -663,6 +818,29 @@
 	}
 	.filler {
 		background: var(--surface-page);
+	}
+	/* The end of the loaded pages: a label row, like the section labels. */
+	.more {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+		min-height: 44px;
+		padding: 0 var(--pad);
+		font: var(--type-label);
+		letter-spacing: var(--tracking-label);
+		color: var(--text-2);
+		border-top: var(--hairline);
+	}
+	.more button {
+		min-height: 44px;
+		padding: 0 12px;
+		font: inherit;
+		letter-spacing: inherit;
+		color: var(--text-1);
+		background: none;
+		border: 0;
+		cursor: pointer;
 	}
 	.none {
 		margin: 0;

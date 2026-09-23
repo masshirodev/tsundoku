@@ -98,7 +98,7 @@ function toCard(row: CardRow): SeriesCard {
 const ORDER: Record<Sort, string> = {
 	recent: `t.last_opened DESC NULLS LAST, s.added_at DESC, s.id DESC`,
 	title: `s.title COLLATE NOCASE ASC, s.id ASC`,
-	rating: `s.rating DESC, s.title COLLATE NOCASE ASC`,
+	rating: `s.rating DESC, s.title COLLATE NOCASE ASC, s.id ASC`,
 	added: `s.added_at DESC, s.id DESC`
 };
 
@@ -155,25 +155,56 @@ function tagClause(tag: string | null): { sql: string; params: unknown[] } {
 	};
 }
 
-export function listSeries(opts: {
+type ListOpts = {
 	reveal: boolean;
 	shelf?: string;
 	tag?: string | null;
 	sort?: Sort;
-	limit?: number;
-}): SeriesCard[] {
+};
+
+function listWhere(opts: ListOpts): { sql: string; params: unknown[] } {
 	const shelf = shelfClause(opts.shelf ?? 'all');
 	const tag = tagClause(opts.tag ?? null);
+	return {
+		sql: `${visibility(opts.reveal)} AND ${shelf.sql} AND ${tag.sql}`,
+		params: [...shelf.params, ...tag.params]
+	};
+}
+
+/**
+ * A shelf's cards in order. `limit` and `offset` page through it: the library
+ * grid loads a page at a time as it scrolls (doc/LIBRARY.md, "Pages"). With
+ * no limit, all of them.
+ */
+export function listSeries(opts: ListOpts & { limit?: number; offset?: number }): SeriesCard[] {
+	const where = listWhere(opts);
 	const rows = getDb()
-		.prepare(
-			cardQuery(
-				`${visibility(opts.reveal)} AND ${shelf.sql} AND ${tag.sql}`,
-				ORDER[opts.sort ?? 'recent'],
-				'LIMIT ?'
-			)
-		)
-		.all(...shelf.params, ...tag.params, opts.limit ?? 5000) as CardRow[];
+		.prepare(cardQuery(where.sql, ORDER[opts.sort ?? 'recent'], 'LIMIT ? OFFSET ?'))
+		// SQLite reads a negative LIMIT as none.
+		.all(...where.params, opts.limit ?? -1, opts.offset ?? 0) as CardRow[];
 	return rows.map(toCard);
+}
+
+/** How many cards a shelf holds: what paging runs up to. */
+export function countListed(opts: ListOpts): number {
+	const where = listWhere(opts);
+	return (
+		getDb()
+			.prepare(
+				`SELECT COUNT(*) AS n FROM series s JOIN roots r ON r.id = s.root_id WHERE ${where.sql}`
+			)
+			.get(...where.params) as { n: number }
+	).n;
+}
+
+/** Every id on a shelf, in no order: SELECT ALL, without loading every card. */
+export function listedIds(opts: ListOpts): number[] {
+	const where = listWhere(opts);
+	return (
+		getDb()
+			.prepare(`SELECT s.id FROM series s JOIN roots r ON r.id = s.root_id WHERE ${where.sql}`)
+			.all(...where.params) as { id: number }[]
+	).map((r) => r.id);
 }
 
 export function countSeries(reveal: boolean): number {
