@@ -139,6 +139,9 @@ shelf leaves out a favourite person with no visible books for the same reason.
 - **Grouping moves no files.** The books stay in their Hentoid folders, and the
   series lives only in the database. Moving folders on disk would fight the
   Hentoid importer's rescans. FILE on a series of books says "N FOLDERS".
+  Each book names its own folder relative to the series path, which grouping
+  and take-out copy over ([`IMPORT-HENTOID.md`](IMPORT-HENTOID.md)), and a
+  rescan finds a grouped book where it now lives.
 - **Covers are placeholders** until the importers (c6, c7) supply them, and
   `cover_phash` is a column waiting for them. Cover similarity would make a
   better suggestion signal than titles.

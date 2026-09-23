@@ -3,33 +3,31 @@
  * running -- the way to do the first, large import:
  *
  *   yarn run import                       # LIBRARY_ROOT, or /mnt/hdd2/tsundoku/library
- *   yarn run import -- --root <folder>    # a folder holding Mihon/
+ *   yarn run import -- --root <folder>    # a folder holding Mihon/ and/or H/.Hentoid/
  *
- * The same code START SCAN runs. See doc/IMPORT-MIHON.md.
+ * The same code START SCAN runs. See doc/IMPORT-MIHON.md, doc/IMPORT-HENTOID.md.
  */
 import { databasePath } from '../src/lib/server/db.ts';
-import { importMihon, mihonRoot } from '../src/lib/server/import/mihon.ts';
+import { libraryRoot, runImport, sourcesIn } from '../src/lib/server/import/index.ts';
 
 const flag = process.argv.indexOf('--root');
-const libraryRoot =
-	flag >= 0 ? process.argv[flag + 1] : (process.env.LIBRARY_ROOT ?? '/mnt/hdd2/tsundoku/library');
-const root = mihonRoot(libraryRoot);
-if (!root) {
-	console.error(`no Mihon/ folder in ${libraryRoot}; nothing to import.`);
+const library = flag >= 0 ? process.argv[flag + 1] : libraryRoot();
+const sources = sourcesIn(library);
+if (sources.length === 0) {
+	console.error(`no Mihon/ or H/.Hentoid/ in ${library}; nothing to import.`);
 	process.exit(1);
 }
 const started = Date.now();
-console.log(`importing ${root} into ${databasePath()} …`);
-const s = await importMihon(root);
-console.log(
-	[
-		`backup:          ${s.backup ?? '(none found)'}`,
-		`series created:  ${s.seriesCreated}`,
-		`series updated:  ${s.seriesUpdated}`,
-		`chapters added:  ${s.entriesAdded}`,
-		`files attached:  ${s.filesAttached}`,
-		`browsed only:    ${s.skipped} (not imported)`,
-		`unreadable:      ${s.failedFiles}`,
-		`took:            ${((Date.now() - started) / 1000).toFixed(1)}s`
-	].join('\n')
-);
+console.log(`importing ${sources.map((s) => s.root).join(', ')} into ${databasePath()} …`);
+const summary = await runImport(library);
+for (const s of summary.sources) {
+	console.log(`\n${s.name}`);
+	if (s.backup !== undefined) console.log(`  backup:          ${s.backup ?? '(none found)'}`);
+	console.log(`  series created:  ${s.seriesCreated}`);
+	console.log(`  series updated:  ${s.seriesUpdated}`);
+	console.log(`  entries added:   ${s.entriesAdded}`);
+	console.log(`  files attached:  ${s.filesAttached}`);
+	if (s.skipped) console.log(`  browsed only:    ${s.skipped} (not imported)`);
+}
+console.log(`\nunreadable:        ${summary.failedFiles}`);
+console.log(`took:              ${((Date.now() - started) / 1000).toFixed(1)}s`);

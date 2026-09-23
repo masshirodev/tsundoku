@@ -96,7 +96,8 @@ test('unrated (0) draws no track at all; a rated series draws its whole track', 
 			.locator('.grid .tile', { hasText: title })
 			.locator('.bars .bar')
 			.evaluateAll((els) => els.map((e) => getComputedStyle(e).backgroundColor));
-	const unrated = await bars('Hoshi no Umi no Tabibito');
+	// Not one a flow file rates: flows run beside this spec, on the same database.
+	const unrated = await bars('Villainess Level 99');
 	const one = await bars('Lookism');
 	expect(unrated).toHaveLength(5);
 	for (const c of unrated) expect(c).toBe('rgba(0, 0, 0, 0)');

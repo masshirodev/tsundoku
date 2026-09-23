@@ -177,7 +177,9 @@ export const actions: Actions = {
 	scan: async () => {
 		const r = startScan();
 		if (!r.started) {
-			return fail(400, { scanMessage: `NOTHING TO IMPORT · NO Mihon/ FOLDER IN ${r.looked}` });
+			return fail(400, {
+				scanMessage: `NOTHING TO IMPORT · NO Mihon/ OR H/.Hentoid/ FOLDER IN ${r.looked}`
+			});
 		}
 		redirect(303, '/');
 	}

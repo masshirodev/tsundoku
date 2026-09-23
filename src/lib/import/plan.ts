@@ -1,0 +1,65 @@
+import type { Direction } from '$lib/library/series';
+import type { Kind, Rating } from '$lib/library/types';
+
+/**
+ * What an importer will write, shared by every importer and by the one
+ * writer (src/lib/server/import/write.ts). An importer works out a plan
+ * without touching the database; the writer applies it idempotently.
+ */
+
+export type PlannedEntry = {
+	position: number;
+	label: string;
+	title: string;
+	/** The entry's identity across rescans: a chapter URL, or an importer key. */
+	sourceUrl: string;
+	available: boolean;
+	/** Relative to the series path: a CBZ, or a book's folder. */
+	file: string;
+	bytes: number;
+	pageCount: number;
+	addedAt: number;
+	readAt: number | null;
+	lastPosition: number | null;
+	lastOpenedAt: number | null;
+	/** The source's last read of this entry, imported into the reading log. */
+	history: { at: number; finished: boolean; page: number | null; durationMs: number } | null;
+	/**
+	 * The pages, in order, relative to `file`, when the importer knows them
+	 * (a folder of loose images). Archives list their own at read time.
+	 */
+	pages?: string[];
+	/** A cover image that isn't a page (Hentoid's thumb), relative to `file`. */
+	coverFile?: string | null;
+	/** Perceptual hash of the cover, as the source computed it, in hex. */
+	coverPhash?: string | null;
+	/**
+	 * A book's own tags, for an entry that is a book in a series of books:
+	 * person pages find those by their own tags (doc/BOOKS.md).
+	 */
+	tags?: PlannedTag[];
+};
+
+export type PlannedTag = { namespace: string; value: string };
+
+export type PlannedSeries = {
+	/** The series' identity across rescans ("mihon:<source>:<url>", "hentoid:<site>:<url>"). */
+	originKey: string;
+	/** `series.source`: 'mihon', 'hentoid'. */
+	source: string;
+	title: string;
+	kind: Kind;
+	rating: Rating;
+	favourite: boolean;
+	hidden: boolean;
+	shelves: string[];
+	tags: PlannedTag[];
+	description: string;
+	status: string;
+	direction: Direction | null;
+	addedAt: number;
+	sourceUrl: string;
+	/** Where the entries' files are relative to, or '' for a series with nothing on disk. */
+	path: string;
+	entries: PlannedEntry[];
+};

@@ -19,7 +19,7 @@ yet" in [`doc/LIBRARY.md`](doc/LIBRARY.md) and [`doc/SERIES.md`](doc/SERIES.md).
 yarn install
 yarn run seed     # the design's sample library, into data/tsundoku.sqlite
 yarn run dev      # localhost:42143, no token needed in development
-yarn run import   # import $LIBRARY_ROOT/Mihon/ (doc/IMPORT-MIHON.md)
+yarn run import   # import $LIBRARY_ROOT/Mihon/ and H/.Hentoid/ (doc/IMPORT-*.md)
 ```
 
 On the tablet it's served like kirisute: built, bound to the tailnet address
@@ -85,6 +85,8 @@ is the mount development pressures.
   suggestions, and person and tag pages.
 - [`doc/IMPORT-MIHON.md`](doc/IMPORT-MIHON.md) — the Mihon importer: where it
   reads, what becomes what, the categories-as-ratings rule, and rescanning.
+- [`doc/IMPORT-HENTOID.md`](doc/IMPORT-HENTOID.md) — the Hentoid importer: the
+  hidden root, multi-chapter books, and finding grouped books again.
 - [`doc/HISTORY.md`](doc/HISTORY.md) — the history screen: one row per series
   per day, removing a row, days and time zones.
 - [`doc/PRIVACY.md`](doc/PRIVACY.md) — incognito, blanking on leave, and the

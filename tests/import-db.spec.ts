@@ -1,16 +1,25 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';
 
 const { getDb } = await import('$lib/server/db');
-const { importMihon } = await import('$lib/server/import/mihon');
+const { runImport } = await import('$lib/server/import');
 const { writeMihonFolder } = await import('./helpers/mihon-fixture');
+const { writeHentoidFolder } = await import('./helpers/hentoid-fixture');
+const { groupIntoSeries } = await import('$lib/server/books');
 
 const root = writeMihonFolder(mkdtempSync(join(tmpdir(), 'tsundoku-mihon-')));
+const library = dirname(root);
+const hentoid = writeHentoidFolder(library);
+/** The Mihon part of a run's summary, flattened with the job's own fields. */
+const importMihon = async (now?: number) => {
+	const r = await runImport(library, { now });
+	return { jobId: r.jobId, failedFiles: r.failedFiles, ...r.sources[0] };
+};
 const db = () => getDb();
 const series = (title: string) =>
 	db().prepare(`SELECT * FROM series WHERE title = ?`).get(title) as Record<string, unknown> & {
@@ -33,7 +42,7 @@ const count = (sql: string) => (db().prepare(sql).get() as { n: number }).n;
 
 let first: Awaited<ReturnType<typeof importMihon>>;
 beforeAll(async () => {
-	first = await importMihon(root, { now: 1_800_000_000_000 });
+	first = await importMihon(1_800_000_000_000);
 });
 
 describe('the Mihon import', () => {
@@ -100,7 +109,7 @@ describe('a rescan', () => {
 			count(`SELECT COUNT(*) n FROM entries`),
 			count(`SELECT COUNT(*) n FROM reading_events`)
 		];
-		const again = await importMihon(root, { now: 1_800_000_100_000 });
+		const again = await importMihon(1_800_000_100_000);
 		expect(again).toMatchObject({
 			seriesCreated: 0,
 			seriesUpdated: 5,
@@ -129,9 +138,97 @@ describe('a rescan', () => {
 				'Unknown_Chapter 3_abc3.cbz'
 			)
 		);
-		await importMihon(root);
+		await importMihon();
 		const after = db().prepare(`SELECT title, rating FROM series WHERE id = ?`).get(d.id);
 		expect(after).toEqual({ title: 'Drawing (mine)', rating: 1 });
 		expect(entries(d.id).map((e) => e.available)).toEqual([0, 1, 0]);
+	});
+});
+
+describe('the Hentoid import', () => {
+	const bookSeries = (title: string) => series(title);
+	const pagesOf = (entryId: number) =>
+		(
+			db()
+				.prepare(`SELECT file FROM entry_pages WHERE entry_id = ? ORDER BY position`)
+				.all(entryId) as { file: string }[]
+		).map((p) => p.file);
+
+	it('lands every book in the hidden Hentoid root', () => {
+		const root = db().prepare(`SELECT name, hidden FROM roots WHERE path = ?`).get(hentoid);
+		expect(root).toEqual({ name: 'Hentoid', hidden: 1 });
+		for (const t of ['Summer Days', 'Summer Days 2', 'Quiet Rooms', 'Lost Json'])
+			expect(bookSeries(t)).toMatchObject({ kind: 'doujin', source: 'hentoid' });
+	});
+
+	it('keeps a book’s rating, FAV and progress, with its pages and cover', () => {
+		const s = bookSeries('Summer Days');
+		expect(s).toMatchObject({ rating: 4, favourite: 1, path: hentoid });
+		const e = db().prepare(`SELECT * FROM entries WHERE series_id = ?`).get(s.id) as Record<
+			string,
+			unknown
+		> & { id: number };
+		expect(e).toMatchObject({
+			label: 'Book',
+			file: 'nhentai/Aoi Rin - Summer Days - [111]',
+			page_count: 4,
+			cover_file: 'thumb.jpg'
+		});
+		expect(e.read_at).toBe(1_750_000_000_000);
+		expect(pagesOf(e.id)).toEqual(['0001.jpg', '0002.jpg', '0003.jpg', '0004.jpg']);
+	});
+
+	it('splits a multi-chapter book into a series of books', () => {
+		const s = bookSeries('Quiet Rooms');
+		const books = db()
+			.prepare(
+				`SELECT id, label, page_count, read_at, last_position FROM entries WHERE series_id = ? ORDER BY position`
+			)
+			.all(s.id) as {
+			id: number;
+			label: string;
+			page_count: number;
+			read_at: number | null;
+			last_position: number | null;
+		}[];
+		expect(books.map((b) => [b.label, b.page_count])).toEqual([
+			['Ch. 1', 3],
+			['Ch. 1.5', 2],
+			['Ch. 2', 2]
+		]);
+		expect(books[1]).toMatchObject({ read_at: null, last_position: 1 });
+		expect(pagesOf(books[2].id)).toEqual(['0006.jpg', '0007.jpg']);
+		const tags = db()
+			.prepare(
+				`SELECT t.namespace, t.value FROM entry_tags et JOIN tags t ON t.id = et.tag_id WHERE et.entry_id = ?`
+			)
+			.all(books[0].id);
+		expect(tags).toContainEqual({ namespace: 'artist', value: 'mori' });
+	});
+
+	it('does not count hidden arrivals on the band', () => {
+		const job = db()
+			.prepare(`SELECT series_found FROM scan_jobs WHERE id = ?`)
+			.get(first.jobId) as { series_found: number };
+		// Four visible Mihon series; Bunk Beds and every Hentoid book are hidden.
+		expect(job.series_found).toBe(4);
+	});
+
+	it('finds a book the owner grouped, instead of making it again', async () => {
+		const a = bookSeries('Summer Days');
+		const b = bookSeries('Summer Days 2');
+		const { seriesId } = groupIntoSeries({ seriesIds: [a.id, b.id], name: 'Summer Days' });
+		const before = count(`SELECT COUNT(*) n FROM series`);
+		await importMihon();
+		expect(count(`SELECT COUNT(*) n FROM series`)).toBe(before);
+		const grouped = db().prepare(`SELECT path FROM series WHERE id = ?`).get(seriesId);
+		expect(grouped).toEqual({ path: hentoid });
+	});
+
+	it('marks a deleted book folder not downloaded, keeping its entry', async () => {
+		rmSync(join(hentoid, 'nhentai', 'someone - Lost Json - [333]'), { recursive: true });
+		await importMihon();
+		const s = bookSeries('Lost Json');
+		expect(entries(s.id).map((e) => e.available)).toEqual([0]);
 	});
 });

@@ -1,4 +1,5 @@
 import type { ComicInfo } from './comicinfo';
+import type { PlannedEntry, PlannedSeries, PlannedTag } from './plan';
 import type { MihonBackup, MihonChapter, MihonManga } from './mihon-backup';
 import { defaultDirection, type Direction } from '../library/series.ts';
 import type { Kind, Rating } from '$lib/library/types';
@@ -31,44 +32,9 @@ export type DownloadedSeries = {
 	chapters: DownloadedChapter[];
 };
 
-// ---- what gets written ---------------------------------------------------------
+// ---- what gets written: see plan.ts --------------------------------------------
 
-export type PlannedEntry = {
-	position: number;
-	label: string;
-	title: string;
-	sourceUrl: string;
-	available: boolean;
-	file: string;
-	bytes: number;
-	pageCount: number;
-	addedAt: number;
-	readAt: number | null;
-	lastPosition: number | null;
-	lastOpenedAt: number | null;
-	/** Mihon's one history row for this chapter, imported into the reading log. */
-	history: { at: number; finished: boolean; page: number | null; durationMs: number } | null;
-};
-
-export type PlannedTag = { namespace: string; value: string };
-
-export type PlannedSeries = {
-	originKey: string;
-	title: string;
-	kind: Kind;
-	rating: Rating;
-	hidden: boolean;
-	shelves: string[];
-	tags: PlannedTag[];
-	description: string;
-	status: string;
-	direction: Direction | null;
-	addedAt: number;
-	sourceUrl: string;
-	/** The download folder, or '' for a series with nothing on disk. */
-	path: string;
-	entries: PlannedEntry[];
-};
+export type { PlannedEntry, PlannedSeries, PlannedTag } from './plan';
 
 // ---- categories ---------------------------------------------------------------
 
@@ -353,6 +319,8 @@ function fromBackup(
 	const pos = positions(rows);
 	return {
 		originKey: `mihon:${m.source}:${m.url}`,
+		source: 'mihon',
+		favourite: false,
 		title: m.title,
 		kind,
 		rating: effects.reduce<Rating>((a, e) => (e.rating > a ? e.rating : a), 0),
@@ -416,6 +384,8 @@ function fromDownloadOnly(d: DownloadedSeries, now: number): PlannedSeries {
 	const sourceName = info?.source || d.sourceDir.replace(/\s*\([^)]*\)\s*$/, '');
 	return {
 		originKey: `mihon-dir:${d.sourceDir}/${d.dir}`,
+		source: 'mihon',
+		favourite: false,
 		title: info?.series || d.dir,
 		kind,
 		rating: effects.reduce<Rating>((a, e) => (e.rating > a ? e.rating : a), 0),

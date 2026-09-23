@@ -227,6 +227,23 @@ const MIGRATIONS: string[] = [
 	-- sets it back to 1.
 	ALTER TABLE entries ADD COLUMN available INTEGER NOT NULL DEFAULT 1;
 	CREATE INDEX entries_source_url ON entries(series_id, source_url);
+	`,
+	`
+	-- Pages, for entries that are folders of loose images (Hentoid). The
+	-- source's own order is the reading order, and a multi-chapter Hentoid
+	-- book is one folder split between several entries -- which only a
+	-- stored list can say. Archives (CBZ) list their pages at read time.
+	CREATE TABLE entry_pages (
+		entry_id INTEGER NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
+		position INTEGER NOT NULL,
+		-- Relative to the entry's file (its folder).
+		file TEXT NOT NULL,
+		PRIMARY KEY (entry_id, position)
+	);
+
+	-- A cover image that isn't a page: Hentoid's thumb. Relative to the
+	-- entry's file. cover_page, when the owner sets one, wins.
+	ALTER TABLE entries ADD COLUMN cover_file TEXT;
 	`
 ];
 

@@ -141,11 +141,26 @@ export function groupIntoSeries(opts: {
 				if (singles.some((s) => s.root_id !== root)) {
 					throw new GroupingError('books from different library roots cannot share a series');
 				}
+				// Books name their own folders relative to the series path, and an
+				// importer's books all share one (Hentoid's is its root), so the new
+				// series takes it; books with different paths fall back to the root's.
+				const paths = new Set(
+					singles.map(
+						(s) =>
+							(db.prepare(`SELECT path FROM series WHERE id = ?`).get(s.id) as { path: string })
+								.path
+					)
+				);
+				const path =
+					paths.size === 1
+						? [...paths][0]
+						: (db.prepare(`SELECT path FROM roots WHERE id = ?`).get(root) as { path: string })
+								.path;
 				target = Number(
 					db
 						.prepare(
-							`INSERT INTO series (root_id, title, kind, rating, favourite, hidden, hue, added_at, indexed_at, source)
-							VALUES (?, ?, 'doujin', 0, 0, ?, ?, ?, ?, ?)`
+							`INSERT INTO series (root_id, title, kind, rating, favourite, hidden, hue, added_at, indexed_at, source, path)
+							VALUES (?, ?, 'doujin', 0, 0, ?, ?, ?, ?, ?, ?)`
 						)
 						.run(
 							root,
@@ -154,7 +169,8 @@ export function groupIntoSeries(opts: {
 							hueFor(name),
 							Math.min(...singles.map((s) => s.added_at)),
 							now,
-							singles.every((s) => s.source === singles[0].source) ? singles[0].source : ''
+							singles.every((s) => s.source === singles[0].source) ? singles[0].source : '',
+							path
 						).lastInsertRowid
 				);
 				next = 1;
@@ -190,8 +206,8 @@ export function takeOut(seriesId: number, entryIds: number[], now = Date.now()):
 				const single = Number(
 					db
 						.prepare(
-							`INSERT INTO series (root_id, title, kind, rating, favourite, hidden, hue, added_at, indexed_at, source)
-							VALUES (?, ?, 'doujin', ?, ?, ?, ?, ?, ?, ?)`
+							`INSERT INTO series (root_id, title, kind, rating, favourite, hidden, hue, added_at, indexed_at, source, path)
+							VALUES (?, ?, 'doujin', ?, ?, ?, ?, ?, ?, ?, (SELECT path FROM series WHERE id = ?))`
 						)
 						.run(
 							series.root_id,
@@ -202,7 +218,8 @@ export function takeOut(seriesId: number, entryIds: number[], now = Date.now()):
 							hueFor(title),
 							e.added_at,
 							now,
-							series.source
+							series.source,
+							seriesId
 						).lastInsertRowid
 				);
 				db.prepare(

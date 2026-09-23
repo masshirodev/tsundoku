@@ -85,10 +85,11 @@ opened has no "new", only unread.
 
 Specific and honest, so a deliberate gap isn't mistaken for an oversight:
 
-- **Only the Mihon importer exists.** START SCAN (and `/scan` later) imports
-  `$LIBRARY_ROOT/Mihon/` ([`IMPORT-MIHON.md`](IMPORT-MIHON.md)), and with no
-  such folder it says where it looked. Hentoid and EPUB come next. Development
-  still runs on `yarn run seed`'s sample titles unless you import.
+- **Mihon and Hentoid import; EPUB doesn't yet.** START SCAN (and `/scan`
+  later) imports `$LIBRARY_ROOT/Mihon/` and `$LIBRARY_ROOT/H/.Hentoid/`
+  ([`IMPORT-MIHON.md`](IMPORT-MIHON.md), [`IMPORT-HENTOID.md`](IMPORT-HENTOID.md)).
+  With neither folder present, it says where it looked. Development still runs
+  on `yarn run seed`'s sample titles unless you import.
 - **No reader.** The resume buttons and `▶ CH. N` in the sheet are disabled
   until "Image reader from the Index handoff" lands. SERIES and TAGS in the sheet
   open the series screen, TAGS straight into its SHELVES & TAGS sheet.

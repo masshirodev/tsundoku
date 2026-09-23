@@ -38,7 +38,8 @@ owner's, copyrighted and partly explicit. `tests/helpers/` holds a protobuf
 encoder and a zip writer, and `mihon-fixture.ts` uses them to synthesise a
 `Mihon/` folder of the same shape in a temp directory: a backup with the
 rating categories, and CBZs whose ComicInfo matches by URL, by number, or not at
-all. `import-db.spec.ts` runs the real importer over it. The e2e server gets an
+all. `hentoid-fixture.ts` does the same for `H/.Hentoid/`: a finished book, one
+read partway, a three-chapter book, and a folder with no JSON. `import-db.spec.ts` runs the real importer over it. The e2e server gets an
 empty `LIBRARY_ROOT`, so START SCAN there can never import into the database the
 suite asserts against.
 
@@ -64,6 +65,11 @@ The projects are the devices the design draws: `tablet-portrait` (800×1280),
 | `books-flow.e2e.ts`     | tablet-portrait | Writes: person pages and FAV, a book's own rating, TAKE OUT, grouping, suggestions.                               |
 | `history-flow.e2e.ts`   | tablet-portrait | Writes: REMOVE and UNDO on history rows.                                                                          |
 | `privacy-flow.e2e.ts`   | tablet-portrait | Writes: `/incognito`, `/api/reading`, leaving and returning, and that a reload isn't leaving.                     |
+
+**Read-only specs read series no flow file owns.** They run on the other
+devices at the same time as the flows, against the same database: the phone's
+layout spec once read Hoshi no Umi no Tabibito's rating in the moment
+`library-flow` had it set to 5.
 
 **Each flow file owns its series.** Flow files run serially inside themselves
 but in parallel with each other, against the one seeded database. Two files
