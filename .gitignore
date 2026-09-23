@@ -11,3 +11,6 @@ node_modules/
 samples/
 /temp/
 .husky/_
+
+# Handoff bundles as downloaded; their contents are mirrored in doc/design/handoff/.
+doc/design/*.zip

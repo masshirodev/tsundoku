@@ -87,8 +87,8 @@ is the mount development pressures.
   the untouched mirror of the design project.
 - [`doc/TESTING.md`](doc/TESTING.md) — the two test runners, the device
   projects, and regenerating the frame spec.
-- [`doc/briefs/`](doc/briefs/) — design briefs for Claude Design, one per
-  surface.
+- [`doc/briefs/`](doc/briefs/) — design briefs for Claude Design. A brief moves
+  to `doc/briefs/done/` once its handoff is back.
 
 ## Board labels
 
