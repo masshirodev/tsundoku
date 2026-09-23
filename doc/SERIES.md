@@ -55,6 +55,13 @@ width, row height (60 / 52px) and rail width (56 / 44px) per device.
 - **One row per chapter,** even when Mihon had it from two scanlators. The
   SCANLATOR row, shown only on a series with duplicates, picks whose copy
   represents a chapter ([`DUPLICATES.md`](DUPLICATES.md)).
+- **A long press on a chapter row reads it and everything before it,** in
+  reading order, whatever order the list is sorted in. A band says "MARKED
+  READ THROUGH CH. 41 · 38 CHAPTERS" and offers UNDO, which unmarks exactly
+  the chapters that changed and leaves the ones already read alone. It's the
+  common case after an import, in one gesture where RANGE takes three taps.
+  It's logged as marks (`mark_read`), not reading. It works on not-downloaded
+  rows too, which a tap doesn't open, and is off while selecting.
 - **The fold** only forms when it would hide at least three rows, because a
   fold of one saves nothing. It sits at the bottom when the list is flipped to
   newest-first. The flip is remembered per series on the device (localStorage).
@@ -79,6 +86,9 @@ width, row height (60 / 52px) and rail width (56 / 44px) per device.
 - **The fold row's SHOW** expands in place and stays expanded for the visit.
 - **Novels' untitled entries show their label** ("Vol. 13"), not "Chapter 13".
   The sample library's novels are volumes.
+- **Long press on a chapter row** (mark read through it) isn't in the
+  handoff. It's Mihon's "mark previous as read", and it reuses the books
+  handoff's confirmation band for UNDO.
 - **SCANLATOR** is a row the handoff doesn't have. It's in the shelves-row
   idiom (outlined chips, the chosen one inverted), placed after DIRECTION, and
   only drawn when there are duplicates to hide.

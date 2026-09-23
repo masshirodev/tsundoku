@@ -108,6 +108,21 @@ test('multi-select marks a range read, counting what it will change', async ({ p
 	await expect(markRead).toContainText('4');
 });
 
+test('a long press on a chapter reads everything up to it, and UNDO puts it back', async ({
+	page
+}) => {
+	await open(page, 'Return of the Mount Hua Sect');
+	const row = (n: number) => page.locator(`.entry:has(.num:text-is("${n}")) .entry-btn`);
+	const unread = await page.locator('.entry.unread').count();
+	await row(95).click({ button: 'right' }); // the context menu is the long press
+	await expect(page.getByText('MARKED READ THROUGH CH. 95')).toBeVisible();
+	await expect(page).toHaveURL(/\/series\/\d+/);
+	await expect(page.locator('.entry:has(.num:text-is("95"))')).not.toHaveClass(/unread/);
+	await page.getByRole('button', { name: 'UNDO' }).click();
+	await expect(page.getByText('MARKED READ THROUGH CH. 95')).toHaveCount(0);
+	await expect(page.locator('.entry.unread')).toHaveCount(unread);
+});
+
 test('# jumps into the fold and opens it', async ({ page }) => {
 	await open(page, 'Tower of God');
 	await expect(page.getByRole('button', { name: /↑ 1 – 591/ })).toBeVisible();

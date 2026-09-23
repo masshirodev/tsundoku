@@ -162,6 +162,25 @@ export function markEntries(
 		.immediate();
 }
 
+/**
+ * A long press on a chapter row (doc/SERIES.md): that chapter and every one
+ * before it in reading order, read. Returns the ids that changed, so UNDO can
+ * put back exactly those, and not a chapter that was already read.
+ */
+export function markReadThrough(seriesId: number, entryId: number, now = Date.now()): number[] {
+	const db = getDb();
+	const ids = (
+		db
+			.prepare(
+				`SELECT e.id FROM entries e JOIN entries t ON t.id = ? AND t.series_id = e.series_id
+				WHERE e.series_id = ? AND e.shadowed = 0 AND e.read_at IS NULL AND e.position <= t.position`
+			)
+			.all(entryId, seriesId) as { id: number }[]
+	).map((r) => r.id);
+	markEntries(seriesId, ids, true, now);
+	return ids;
+}
+
 export type ReadingEvent = {
 	seriesId: number;
 	entryId: number;

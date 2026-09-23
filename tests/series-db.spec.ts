@@ -55,6 +55,39 @@ describe('marking entries', () => {
 	});
 });
 
+describe('markReadThrough', () => {
+	it('reads a chapter and everything before it, and returns only what changed', () => {
+		const id = idOf('Dungeon Meshi');
+		const s = series.seriesPage(id, false)!;
+		const through = s.entries[5];
+		const already = s.entries
+			.slice(0, 6)
+			.filter((e) => e.readAt !== null)
+			.map((e) => e.id);
+		const changed = series.markReadThrough(id, through.id);
+		expect(changed.sort()).toEqual(
+			s.entries
+				.slice(0, 6)
+				.map((e) => e.id)
+				.filter((x) => !already.includes(x))
+				.sort()
+		);
+		const after = series.seriesPage(id, false)!.entries;
+		expect(after.slice(0, 6).every((e) => e.readAt !== null)).toBe(true);
+		expect(after[6].readAt).toBe(s.entries[6].readAt);
+		// UNDO puts back exactly those.
+		series.markEntries(id, changed, false);
+		expect(series.seriesPage(id, false)!.entries.map((e) => e.readAt !== null)).toEqual(
+			s.entries.map((e) => e.readAt !== null)
+		);
+	});
+
+	it('cannot reach into another series', () => {
+		const other = series.seriesPage(idOf('Tower of God'), false)!.entries[3].id;
+		expect(series.markReadThrough(idOf('Dungeon Meshi'), other)).toEqual([]);
+	});
+});
+
 describe('direction', () => {
 	it('stores the owner’s choice and clears back to the default', () => {
 		const id = idOf('Sousou no Frieren');

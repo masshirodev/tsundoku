@@ -8,7 +8,14 @@ import {
 	setInCollection,
 	setRating
 } from '$lib/server/library';
-import { addTag, markEntries, removeTag, seriesPage, setDirection } from '$lib/server/series';
+import {
+	addTag,
+	markEntries,
+	markReadThrough,
+	removeTag,
+	seriesPage,
+	setDirection
+} from '$lib/server/series';
 import { isRevealed } from '$lib/server/prefs';
 import { setScanlator } from '$lib/server/duplicates';
 import { parseRating } from '$lib/library/rating';
@@ -280,5 +287,15 @@ export const actions: Actions = {
 		const read = form.get('read') === '1';
 		const changed = markEntries(s.id, entryIds(form), read);
 		return { ok: true, changed };
+	},
+
+	/** A long press on a chapter row: it and everything before it, read. */
+	markThrough: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const through = Number((await request.formData()).get('through'));
+		const entry = s.entries.find((e) => e.id === through);
+		if (!entry) return fail(400, { message: 'no such chapter in this series' });
+		const ids = markReadThrough(s.id, entry.id);
+		return { markedThrough: { ids, label: entry.label, number: entry.number } };
 	}
 };

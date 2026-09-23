@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
+	import { longpress } from '$lib/actions/longpress';
 	import {
 		currentEntry,
 		entryAtFraction,
@@ -27,7 +28,8 @@
 		cached,
 		descending = $bindable(false),
 		onrow,
-		onselect
+		onselect,
+		onlong
 	}: {
 		series: SeriesPage;
 		selecting: boolean;
@@ -37,6 +39,8 @@
 		descending?: boolean;
 		onrow: (entry: SeriesEntry) => void;
 		onselect: () => void;
+		/** A long press on a row: mark it and everything before it read. */
+		onlong?: (entry: SeriesEntry) => void;
 	} = $props();
 
 	let expanded = $state(false);
@@ -204,9 +208,10 @@
 						<button
 							type="button"
 							class="entry-btn"
-							disabled={!selecting && !e.available}
+							aria-disabled={!selecting && !e.available}
 							aria-pressed={selecting ? on : undefined}
-							onclick={() => onrow(e)}
+							use:longpress={() => !selecting && onlong?.(e)}
+							onclick={() => (selecting || e.available) && onrow(e)}
 						>
 							{#if selecting}
 								<span class="check" aria-hidden="true"
@@ -408,11 +413,11 @@
 	.entry {
 		scroll-margin-top: calc(var(--list-top, 0px) + 52px);
 	}
-	.entry-btn:disabled {
+	.entry-btn[aria-disabled='true'] {
 		cursor: default;
 		color: inherit;
 	}
-	.entry-btn:not(:disabled) {
+	.entry-btn:not([aria-disabled='true']) {
 		cursor: pointer;
 	}
 	.fold button {

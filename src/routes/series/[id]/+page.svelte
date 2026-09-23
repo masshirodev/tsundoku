@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { SvelteSet } from 'svelte/reactivity';
+	import { tick } from 'svelte';
 	import { browser } from '$app/environment';
 	import SeriesPanel from './SeriesPanel.svelte';
 	import EntryList from './EntryList.svelte';
@@ -69,6 +70,17 @@
 	const added = $derived(page.url.searchParams.get('added'));
 	const createdOrder = $derived(page.url.searchParams.get('order') ?? 'BY DATE ADDED');
 	const takenOut = $derived(form && 'takenOut' in form ? form.takenOut : null);
+	const markedThrough = $derived(form && 'markedThrough' in form ? form.markedThrough : null);
+
+	// A long press on a chapter row: it and everything before it, read. The
+	// band that follows offers UNDO for exactly the chapters that changed.
+	let throughForm = $state<HTMLFormElement | null>(null);
+	let throughId = $state(0);
+	async function markThrough(e: SeriesEntry) {
+		throughId = e.id;
+		await tick();
+		throughForm?.requestSubmit();
+	}
 	const dismissedKey = $derived(form && 'dismissed' in form ? form.dismissed : null);
 	const action = $derived(continueAction(series));
 
@@ -246,7 +258,33 @@
 		</header>
 	{/if}
 
-	{#if takenOut}
+	<form method="POST" action="?/markThrough" use:enhance bind:this={throughForm} hidden>
+		<input type="hidden" name="through" value={throughId} />
+	</form>
+
+	{#if markedThrough}
+		<Band
+			title={markedThrough.ids.length === 0
+				? `NOTHING TO MARK · ALL READ THROUGH ${markedThrough.label.toUpperCase()}`
+				: `MARKED READ THROUGH ${markedThrough.label.toUpperCase()}`}
+			detail={markedThrough.ids.length === 0
+				? undefined
+				: `${markedThrough.ids.length} CHAPTER${markedThrough.ids.length === 1 ? '' : 'S'}`}
+		>
+			{#snippet action()}
+				{#if markedThrough.ids.length > 0}
+					<form method="POST" action="?/mark" use:enhance>
+						{#each markedThrough.ids as id (id)}<input
+								type="hidden"
+								name="entry"
+								value={id}
+							/>{/each}
+						<button type="submit" name="read" value="0">UNDO</button>
+					</form>
+				{/if}
+			{/snippet}
+		</Band>
+	{:else if takenOut}
 		<Band
 			title="TAKEN OUT · {takenOut.title?.toUpperCase()}"
 			detail="A SINGLE BOOK AGAIN · KEEPS ITS RATING, FAV, TAGS AND PAGE"
@@ -315,6 +353,7 @@
 					bind:descending={() => descending, setDescending}
 					{onrow}
 					onselect={() => (selecting = true)}
+					onlong={markThrough}
 				/>
 			{/if}
 		</div>
