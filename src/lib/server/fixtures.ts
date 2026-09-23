@@ -454,8 +454,8 @@ export function seedSample(db: Database.Database, now = Date.now()): void {
 		);
 		const insertEntry = db.prepare(
 			`INSERT INTO entries (series_id, position, label, added_at, read_at, last_opened_at,
-				last_position, page_count, file, bytes)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+				last_position, page_count, file, bytes, locator)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 		);
 		const tag = db.prepare(
 			`INSERT INTO tags (namespace, value) VALUES (?, ?) ON CONFLICT DO UPDATE SET value = value RETURNING id`
@@ -516,7 +516,9 @@ export function seedSample(db: Database.Database, now = Date.now()): void {
 					inProgress ? (row.lastPage ?? Math.max(1, Math.round(pages * 0.22))) - 1 : null,
 					pages,
 					file,
-					row.kind === 'novel' ? (n === 1 ? 3_100_000 : 0) : BYTES[row.kind]
+					row.kind === 'novel' ? (n === 1 ? 3_100_000 : 0) : BYTES[row.kind],
+					// The generated EPUB's chapter n (pages/sample-epub.ts).
+					row.kind === 'novel' ? `OEBPS/ch${n}.xhtml` : ''
 				);
 			}
 			for (const t of row.tags ?? []) {

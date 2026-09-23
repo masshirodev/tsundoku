@@ -1,0 +1,27 @@
+import { error } from '@sveltejs/kit';
+import { Readable } from 'node:stream';
+import type { RequestHandler } from './$types';
+import { isRevealed } from '$lib/server/prefs';
+import { readEpubFile } from '$lib/server/epub';
+
+/**
+ * A novel's EPUB, whole (doc/TEXT-READER.md). Asked for with `?v=<version>`,
+ * which changes when the file does, so it's cached as immutable: the tablet
+ * downloads a book once. `private`, as every page is.
+ */
+export const GET: RequestHandler = async ({ params, cookies, url }) => {
+	const book = await readEpubFile(Number(params.id), isRevealed(cookies));
+	if (!book) error(404, 'not found');
+	const body = Buffer.isBuffer(book.body)
+		? new Uint8Array(book.body)
+		: (Readable.toWeb(book.body) as ReadableStream<Uint8Array>);
+	return new Response(body, {
+		headers: {
+			'content-type': 'application/epub+zip',
+			'content-length': String(book.size),
+			'cache-control': url.searchParams.has('v')
+				? 'private, max-age=31536000, immutable'
+				: 'private, no-cache'
+		}
+	});
+};

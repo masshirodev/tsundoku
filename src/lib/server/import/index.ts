@@ -13,6 +13,7 @@ import { planMihonLocal } from '../../import/mihon-local-plan.ts';
 import { join } from 'node:path';
 import { existsSync } from 'node:fs';
 import { hentoidBytes, hentoidRoot, planHentoidFolder } from './hentoid.ts';
+import { epubBytes, epubRoot, planEpubFolder } from './epub.ts';
 import { ensureRoot, finishJob, writeSeries } from './write.ts';
 import { reconcileDuplicates } from '../duplicates.ts';
 import type { PlannedSeries } from '../../import/plan.ts';
@@ -33,7 +34,7 @@ export function libraryRoot(): string {
 }
 
 type Source = {
-	name: 'Mihon' | 'Mihon local' | 'Hentoid';
+	name: 'Mihon' | 'Mihon local' | 'Hentoid' | 'Library';
 	root: string;
 	/** The Hentoid root is hidden: its books show only with /reveal. */
 	hidden: boolean;
@@ -123,6 +124,20 @@ export function sourcesIn(library: string): Source[] {
 					}
 				};
 			}
+		});
+	// Moon+ Reader's books: every EPUB under Library/ (doc/IMPORT-EPUB.md).
+	const books = epubRoot(library);
+	if (books)
+		out.push({
+			name: 'Library',
+			root: books,
+			hidden: false,
+			markMissing: false,
+			bytes: () => epubBytes(books),
+			plan: async (progress, now) => ({
+				series: await planEpubFolder(books, library, progress, now),
+				skipped: 0
+			})
 		});
 	return out;
 }

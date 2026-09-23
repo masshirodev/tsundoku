@@ -273,6 +273,16 @@ const MIGRATIONS: string[] = [
 	ALTER TABLE entries ADD COLUMN scanlator TEXT NOT NULL DEFAULT '';
 	ALTER TABLE entries ADD COLUMN shadowed INTEGER NOT NULL DEFAULT 0;
 	ALTER TABLE series ADD COLUMN scanlator TEXT;
+	`,
+	// Rung 11: a novel's entries are places in one EPUB (doc/TEXT-READER.md).
+	// locator is where the entry starts, 'doc.xhtml#anchor' inside the zip;
+	// matter marks front and back matter, which is listed apart and never
+	// counts as a chapter; last_offset is the character a text position is
+	// at, beside last_position's paragraph.
+	`
+	ALTER TABLE entries ADD COLUMN locator TEXT NOT NULL DEFAULT '';
+	ALTER TABLE entries ADD COLUMN matter TEXT NOT NULL DEFAULT '';
+	ALTER TABLE entries ADD COLUMN last_offset INTEGER;
 	`
 ];
 

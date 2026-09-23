@@ -186,8 +186,11 @@
 
 	<div class="body" class:with-rail={!selecting && series.entries.length > 1}>
 		<ol class="rows">
-			{#each rows as row (row.type === 'fold' ? 'fold' : row.entry.id)}
-				{#if row.type === 'fold'}
+			{#each rows as row (row.type === 'fold' ? 'fold' : row.type === 'section' ? row.key : row.entry.id)}
+				{#if row.type === 'section'}
+					<!-- A book's front and back matter, listed apart (doc/TEXT-READER.md). -->
+					<li class="section"><span>{row.label}</span><span>{row.detail}</span></li>
+				{:else if row.type === 'fold'}
 					<li class="fold">
 						<button type="button" onclick={() => (expanded = true)}>
 							<span>↑ {formatNumber(row.from)} – {formatNumber(row.to)}</span>
@@ -202,6 +205,7 @@
 						id="entry-{e.id}"
 						class="entry {row.state}"
 						class:missing={!e.available}
+						class:matter={!!e.matter}
 						class:selected={selecting && on}
 						class:flash={flash === e.id}
 					>
@@ -419,6 +423,21 @@
 	}
 	.entry-btn:not([aria-disabled='true']) {
 		cursor: pointer;
+	}
+	.section {
+		display: flex;
+		justify-content: space-between;
+		padding: 16px var(--pad) 8px;
+		border-bottom: var(--hairline);
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+	}
+	/* Front and back matter: reachable, but not read as chapters. */
+	.entry.matter .entry-btn {
+		height: 44px;
+		font-size: 14px;
+		color: var(--text-2);
 	}
 	.fold button {
 		align-items: center;

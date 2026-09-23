@@ -15,7 +15,8 @@ import {
  * can run as often as you like.
  *
  * Books aren't chapters: a series of doujin books is never collapsed, even
- * if two books ended up at the same position.
+ * if two books ended up at the same position, and neither is a novel, whose
+ * entries are places in one EPUB ("Chapter 2 (1)" and "(2)" are both 2).
  */
 export function reconcileDuplicates(seriesIds?: number[], db: Database.Database = getDb()): number {
 	const only =
@@ -27,7 +28,7 @@ export function reconcileDuplicates(seriesIds?: number[], db: Database.Database 
 			const groups = db
 				.prepare(
 					`SELECT e.series_id, e.position FROM entries e JOIN series s ON s.id = e.series_id
-					WHERE s.kind != 'doujin' ${only.replace('series_id', 'e.series_id')}
+					WHERE s.kind NOT IN ('doujin', 'novel') ${only.replace('series_id', 'e.series_id')}
 					GROUP BY e.series_id, e.position HAVING COUNT(*) > 1`
 				)
 				.all() as { series_id: number; position: number }[];

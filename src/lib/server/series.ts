@@ -37,6 +37,9 @@ type EntryRow = {
 	added_at: number;
 	cover_page: number | null;
 	available: number;
+	locator: string;
+	matter: string;
+	last_offset: number | null;
 };
 
 function parseAlts(raw: string): string[] {
@@ -61,7 +64,7 @@ export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
 		db
 			.prepare(
 				`SELECT id, position, label, title, read_at, last_position, last_opened_at, page_count, file, bytes,
-					rating, favourite, added_at, cover_page, available
+					rating, favourite, added_at, cover_page, available, locator, matter, last_offset
 				FROM entries WHERE series_id = ? AND shadowed = 0 ORDER BY position, id`
 			)
 			.all(id) as EntryRow[]
@@ -81,6 +84,9 @@ export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
 		addedAt: e.added_at,
 		coverPage: e.cover_page,
 		available: e.available === 1,
+		locator: e.locator,
+		matter: e.matter as SeriesEntry['matter'],
+		lastOffset: e.last_offset,
 		tags: []
 	}));
 	if (entries.length > 1) {
@@ -186,6 +192,9 @@ export type ReadingEvent = {
 	entryId: number;
 	kind: 'open' | 'page' | 'finish' | 'close';
 	page?: number | null;
+	/** Text: the character in paragraph `page`, and the paragraphs in the entry. */
+	offset?: number;
+	total?: number;
 	durationMs?: number;
 	now?: number;
 };
@@ -220,9 +229,18 @@ export function recordReading(e: ReadingEvent): void {
 			`UPDATE entries SET
 				read_at = CASE WHEN @finish THEN COALESCE(read_at, @now) ELSE read_at END,
 				last_position = CASE WHEN ${newer} THEN COALESCE(@page, last_position) ELSE last_position END,
+				last_offset = CASE WHEN ${newer} AND @page IS NOT NULL THEN @offset ELSE last_offset END,
+				page_count = COALESCE(@total, page_count),
 				last_opened_at = MAX(COALESCE(last_opened_at, 0), @now)
 			WHERE id = @id`
-		).run({ now, page, finish: e.kind === 'finish' ? 1 : 0, id: e.entryId });
+		).run({
+			now,
+			page,
+			offset: e.offset ?? null,
+			total: e.total ?? null,
+			finish: e.kind === 'finish' ? 1 : 0,
+			id: e.entryId
+		});
 	}).immediate();
 }
 

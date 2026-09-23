@@ -21,6 +21,10 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 	const kind = String(body?.kind ?? '');
 	const page = body?.page == null ? undefined : Number(body.page);
 	const durationMs = body?.durationMs == null ? undefined : Number(body.durationMs);
+	// Text (doc/TEXT-READER.md): `page` is the paragraph, `offset` the
+	// character in it, `total` how many paragraphs the entry has.
+	const offset = body?.offset == null ? undefined : Number(body.offset);
+	const total = body?.total == null ? undefined : Number(body.total);
 	// Read offline and sent later: the event keeps the time it happened, so
 	// history puts it on the right day. Never in the future, never older than
 	// a month (doc/OFFLINE.md).
@@ -34,7 +38,9 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 		!Number.isInteger(entryId) ||
 		!KINDS.has(kind) ||
 		(page !== undefined && (!Number.isInteger(page) || page < 0)) ||
-		(durationMs !== undefined && !Number.isFinite(durationMs))
+		(durationMs !== undefined && !Number.isFinite(durationMs)) ||
+		(offset !== undefined && (!Number.isInteger(offset) || offset < 0)) ||
+		(total !== undefined && (!Number.isInteger(total) || total < 1))
 	) {
 		error(400, 'bad reading event');
 	}
@@ -48,6 +54,8 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 		entryId,
 		kind: kind as 'open' | 'page' | 'finish' | 'close',
 		page,
+		offset,
+		total,
 		durationMs,
 		now: at
 	});

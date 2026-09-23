@@ -29,6 +29,10 @@ export type PlannedEntry = {
 	 * (a folder of loose images). Archives list their own at read time.
 	 */
 	pages?: string[];
+	/** A novel's entry: where it starts inside its EPUB, 'doc.xhtml#anchor'. */
+	locator?: string;
+	/** Front or back matter of a book, which isn't a chapter. */
+	matter?: '' | 'front' | 'back';
 	/** Who translated this copy of the chapter; '' when the source doesn't say. */
 	scanlator?: string;
 	/** A cover image that isn't a page (Hentoid's thumb), relative to `file`. */

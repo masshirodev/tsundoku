@@ -34,6 +34,12 @@ export type SeriesEntry = {
 	 * online, or not copied over yet (doc/IMPORT-MIHON.md).
 	 */
 	available: boolean;
+	/** A novel's place in its EPUB, 'doc.xhtml#anchor' (doc/TEXT-READER.md). */
+	locator: string;
+	/** Front or back matter: listed apart, never counted as a chapter. */
+	matter: '' | 'front' | 'back';
+	/** Text: the character in paragraph `lastPosition` the reader stopped at. */
+	lastOffset: number | null;
 	tags: SeriesTag[];
 };
 
@@ -105,13 +111,20 @@ export function parseDirection(raw: unknown, kind: Kind): Direction | undefined 
  * finished, else the first unread one. Null when everything is read.
  */
 export function currentEntry(entries: SeriesEntry[]): SeriesEntry | null {
+	// Front and back matter are never where a book is "at": a new light novel
+	// starts on its first chapter, and an unread afterword doesn't keep a
+	// finished book open.
+	const chapters = entries.some((e) => !e.matter) ? entries.filter((e) => !e.matter) : entries;
 	let opened: SeriesEntry | null = null;
-	for (const e of entries) {
+	for (const e of chapters) {
 		if (e.readAt !== null || e.lastOpenedAt === null) continue;
 		if (!opened || e.lastOpenedAt > opened.lastOpenedAt!) opened = e;
 	}
-	return opened ?? entries.find((e) => e.readAt === null) ?? null;
+	return opened ?? chapters.find((e) => e.readAt === null) ?? null;
 }
+
+/** Only the chapters, when a book marks its front and back matter. */
+export const chaptersOf = (entries: SeriesEntry[]) => entries.filter((e) => !e.matter);
 
 export const formatNumber = (n: number) => String(n);
 
@@ -249,7 +262,8 @@ export function continueAction(series: Pick<SeriesPage, 'kind' | 'entries'>): {
 
 export type Row =
 	| { type: 'fold'; from: number; to: number; count: number }
-	| { type: 'entry'; entry: SeriesEntry; state: EntryState };
+	| { type: 'entry'; entry: SeriesEntry; state: EntryState }
+	| { type: 'section'; key: 'front' | 'chapters' | 'back'; label: string; detail: string };
 
 /**
  * The chapter list in reading order. Everything read before the last two
@@ -264,6 +278,42 @@ export function listRows(
 	entries: SeriesEntry[],
 	opts: { descending?: boolean; expanded?: boolean } = {}
 ): Row[] {
+	// A book with front and back matter lists it apart, under its own labels,
+	// around the chapters (Index Text Reader, contentsLN).
+	if (entries.some((e) => e.matter)) {
+		const cur = currentEntry(entries);
+		const front = entries.filter((e) => e.matter === 'front');
+		const back = entries.filter((e) => e.matter === 'back');
+		const chapters = chaptersOf(entries);
+		const row = (entry: SeriesEntry): Row => ({
+			type: 'entry',
+			entry,
+			state: entryState(entry, cur)
+		});
+		const read = chapters.filter((e) => e.readAt !== null).length;
+		const middle = listRows(chapters, opts).filter((r) => r.type !== 'section');
+		return [
+			...(front.length
+				? [
+						{ type: 'section', key: 'front', label: 'FRONT MATTER', detail: String(front.length) },
+						...front.map(row)
+					]
+				: []),
+			{
+				type: 'section',
+				key: 'chapters',
+				label: 'CHAPTERS',
+				detail: `${chapters.length} · ${read} READ`
+			},
+			...middle,
+			...(back.length
+				? [
+						{ type: 'section', key: 'back', label: 'BACK MATTER', detail: String(back.length) },
+						...back.map(row)
+					]
+				: [])
+		] as Row[];
+	}
 	const cur = currentEntry(entries);
 	const rows: Row[] = entries.map((entry) => ({
 		type: 'entry',
@@ -295,7 +345,10 @@ export function listRows(
 }
 
 export function listCount(entries: SeriesEntry[]): string {
-	const read = entries.filter((e) => e.readAt !== null).length;
+	const chapters = chaptersOf(entries);
+	const read = chapters.filter((e) => e.readAt !== null).length;
+	if (chapters.length < entries.length)
+		return `${entries.length} ENTRIES · ${chapters.length} CHAPTERS`;
 	return `${entries.length} · ${read} READ`;
 }
 

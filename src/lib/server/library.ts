@@ -47,8 +47,8 @@ type CardRow = {
 const CARD_SELECT = `
 	SELECT s.id, s.title, s.kind, s.rating, s.favourite,
 		${HIDDEN_SQL} AS hidden, s.hue, s.indexed_at, s.added_at,
-		(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0) AS entry_count,
-		(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0 AND e.read_at IS NOT NULL) AS read_count,
+		(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0 AND e.matter = '') AS entry_count,
+		(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0 AND e.matter = '' AND e.read_at IS NOT NULL) AS read_count,
 		(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0 AND e.added_at > (
 			SELECT MAX(x.last_opened_at) FROM entries x WHERE x.series_id = s.id
 		)) AS new_count
@@ -155,7 +155,7 @@ export function resumeEntry(seriesId: number): { id: number; label: string } | n
 	return (
 		(getDb()
 			.prepare(
-				`SELECT id, label FROM entries WHERE series_id = ? AND shadowed = 0
+				`SELECT id, label FROM entries WHERE series_id = ? AND shadowed = 0 AND matter = ''
 				ORDER BY (read_at IS NULL AND last_opened_at IS NOT NULL) DESC,
 					CASE WHEN read_at IS NULL AND last_opened_at IS NOT NULL THEN -last_opened_at END,
 					(read_at IS NULL) DESC, position
@@ -174,7 +174,7 @@ export function continueReading(
 		FROM series s JOIN roots r ON r.id = s.root_id
 		WHERE ${visibility(reveal)}
 			AND EXISTS (SELECT 1 FROM entries e WHERE e.series_id = s.id AND e.last_opened_at IS NOT NULL)
-			AND EXISTS (SELECT 1 FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0 AND e.read_at IS NULL)`;
+			AND EXISTS (SELECT 1 FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0 AND e.matter = '' AND e.read_at IS NULL)`;
 	const total = (db.prepare(`SELECT COUNT(*) AS n ${open}`).get() as { n: number }).n;
 	const rows = db
 		.prepare(
