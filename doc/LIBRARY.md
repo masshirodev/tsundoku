@@ -85,11 +85,10 @@ opened has no "new", only unread.
 
 Specific and honest, so a deliberate gap isn't mistaken for an oversight:
 
-- **No scanner or importers.** START SCAN answers "the scanner is not built yet".
-  The library you see is `yarn run seed`, the handoff's sample titles, written
-  into a development database. The importing and finished states are fully built
-  and only need a scanner writing `scan_jobs` rows. Cards: "Mihon importer",
-  "Hentoid importer into a hidden root".
+- **Only the Mihon importer exists.** START SCAN (and `/scan` later) imports
+  `$LIBRARY_ROOT/Mihon/` ([`IMPORT-MIHON.md`](IMPORT-MIHON.md)), and with no
+  such folder it says where it looked. Hentoid and EPUB come next. Development
+  still runs on `yarn run seed`'s sample titles unless you import.
 - **No reader.** The resume buttons and `▶ CH. N` in the sheet are disabled
   until "Image reader from the Index handoff" lands. SERIES and TAGS in the sheet
   open the series screen, TAGS straight into its SHELVES & TAGS sheet.

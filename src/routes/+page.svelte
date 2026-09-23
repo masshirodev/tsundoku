@@ -29,6 +29,14 @@
 	let { data, form } = $props();
 
 	const scanning = $derived(data.scan !== null && data.scan.finishedAt === null);
+
+	// While an import runs on the workstation, follow it: the band's bytes and
+	// the arriving grid come from the job row, re-read every two seconds.
+	$effect(() => {
+		if (!scanning) return;
+		const timer = setInterval(() => void invalidateAll(), 2000);
+		return () => clearInterval(timer);
+	});
 	const justImported = $derived(data.scan !== null && data.scan.finishedAt !== null);
 	const isOffline = $derived(!offline.online);
 

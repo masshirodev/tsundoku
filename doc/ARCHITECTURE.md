@@ -51,8 +51,10 @@ The owner's organisation, which is the reason this app exists:
 - **Collections**: owner-made, ordered, a series can sit in many. These replace
   Mihon categories.
 - **Tags**: free-form, with a `namespace` (`genre`, `artist`, `circle`,
-  `source`, `language`, or none). Every imported category or attribute becomes a
-  tag; nothing imported becomes structure.
+  `source`, `language`, or none). Every imported category or attribute is kept
+  as a tag. The one exception, settled with the owner: Mihon categories that
+  are really a rating scale also set the rating, a shelf, and hiding
+  ([`IMPORT-MIHON.md`](IMPORT-MIHON.md)).
 - **Hidden**: a library root or a series can be hidden. Hidden items are not
   listed, counted, searched or suggested until a reveal toggle is on. The Hentoid
   import lands in a hidden root by default.

@@ -29,6 +29,11 @@ export type SeriesEntry = {
 	favourite: boolean;
 	addedAt: number;
 	coverPage: number | null;
+	/**
+	 * False for a chapter a backup knows but whose file isn't on disk: read
+	 * online, or not copied over yet (doc/IMPORT-MIHON.md).
+	 */
+	available: boolean;
 	tags: SeriesTag[];
 };
 
@@ -120,6 +125,7 @@ export function entryState(e: SeriesEntry, current: SeriesEntry | null): EntrySt
 /** The right-hand status: READ, "P. 12 / 54" (or "P. 12" on a phone), "38%", or nothing. */
 export function entryStatus(e: SeriesEntry, state: EntryState, kind: Kind, short = false): string {
 	if (state === 'read') return 'READ';
+	if (!e.available) return short ? 'NO FILE' : 'NOT DOWNLOADED';
 	if (state !== 'progress') return '';
 	const p = entryProgress(e);
 	if (!p) return '';
@@ -402,9 +408,11 @@ export function parseTag(raw: string): SeriesTag | null {
  * no file name is a folder of loose images (Hentoid's layout).
  */
 export function fileMeta(entries: SeriesEntry[]): string {
+	const onDisk = entries.filter((e) => e.available);
+	if (onDisk.length === 0 && entries.length > 0) return 'NOT DOWNLOADED';
 	const byExt = new Map<string, Set<string>>();
 	let bytes = 0;
-	for (const e of entries) {
+	for (const e of onDisk) {
 		bytes += e.bytes;
 		const ext = /\.([a-z0-9]+)$/i.exec(e.file)?.[1]?.toUpperCase() ?? 'FOLDER';
 		const files = byExt.get(ext) ?? new Set<string>();
@@ -414,7 +422,9 @@ export function fileMeta(entries: SeriesEntry[]): string {
 	const kinds = [...byExt.entries()].map(
 		([ext, files]) => `${files.size} ${ext === 'FOLDER' && files.size > 1 ? 'FOLDERS' : ext}`
 	);
-	return [...kinds, formatBytes(bytes)].filter(Boolean).join(' · ');
+	const partial =
+		onDisk.length < entries.length ? `${onDisk.length} OF ${entries.length} DOWNLOADED` : '';
+	return [partial, ...kinds, formatBytes(bytes)].filter(Boolean).join(' · ');
 }
 
 export function formatBytes(bytes: number): string {

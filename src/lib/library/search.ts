@@ -6,14 +6,15 @@
 export type SearchInput =
 	{ type: 'empty' } | { type: 'query'; text: string } | { type: 'command'; command: Command };
 
-export type Command = 'reveal' | 'hide' | 'light' | 'dark' | 'incognito';
+export type Command = 'reveal' | 'hide' | 'light' | 'dark' | 'incognito' | 'scan';
 
 const COMMANDS: Record<string, Command> = {
 	'/reveal': 'reveal',
 	'/hide': 'hide',
 	'/light': 'light',
 	'/dark': 'dark',
-	'/incognito': 'incognito'
+	'/incognito': 'incognito',
+	'/scan': 'scan'
 };
 
 export function parseSearch(raw: string): SearchInput {

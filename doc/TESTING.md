@@ -33,6 +33,15 @@ Each spec file gets its own process (`pool: 'forks'`, `isolate: true`), and
 database sets `process.env.DATABASE_PATH = ':memory:'` **before** importing
 anything from `$lib/server`, then seeds it with `seedSample()`.
 
+**Importer specs never read real data.** The samples on `/mnt/hdd2` are the
+owner's, copyrighted and partly explicit. `tests/helpers/` holds a protobuf
+encoder and a zip writer, and `mihon-fixture.ts` uses them to synthesise a
+`Mihon/` folder of the same shape in a temp directory: a backup with the
+rating categories, and CBZs whose ComicInfo matches by URL, by number, or not at
+all. `import-db.spec.ts` runs the real importer over it. The e2e server gets an
+empty `LIBRARY_ROOT`, so START SCAN there can never import into the database the
+suite asserts against.
+
 ## E2E specs
 
 `playwright.config.ts` builds the app, seeds a fresh database under the system

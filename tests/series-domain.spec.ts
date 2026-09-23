@@ -46,6 +46,7 @@ function chapters(n: number, read: number, page: number | null = null, pages = 5
 			favourite: false,
 			addedAt: number,
 			coverPage: null,
+			available: true,
 			tags: []
 		};
 	});

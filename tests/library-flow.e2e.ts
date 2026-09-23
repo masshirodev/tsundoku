@@ -134,10 +134,12 @@ test('multi-select applies a rating to exactly the selection', async ({ page }) 
 		await expect(tile(t).getByRole('img')).toHaveAttribute('aria-label', 'Unrated');
 });
 
-test('START SCAN says the scanner is not built rather than pretending', async ({ request }) => {
+test('START SCAN with nothing to import says where it looked', async ({ request }) => {
+	// playwright.config.ts points LIBRARY_ROOT at an empty folder, so a scan
+	// here can never import into the shared seeded database.
 	const res = await request.post('/?/scan', {
 		headers: { origin: 'http://localhost:4183', 'x-sveltekit-action': 'true' },
 		form: {}
 	});
-	expect(await res.text()).toContain('NOT BUILT YET');
+	expect(await res.text()).toContain('NOTHING TO IMPORT');
 });

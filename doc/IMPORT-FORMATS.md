@@ -40,8 +40,10 @@ Gzip-compressed protobuf (~1.7 MB compressed, ~6.9 MB raw). Holds the library
 categories, and history. It is the only place read progress for downloaded
 series lives, and the only record of series followed but not downloaded.
 
-Decode with Mihon's published `Backup` proto schema. Categories become tags,
-not collections — see the data model.
+Decode with Mihon's published `Backup` proto schema. The owner's categories
+turned out to be a rating scale with "+" twins for adult series, so they become
+ratings, shelves and hiding, not plain tags.
+[`IMPORT-MIHON.md`](IMPORT-MIHON.md) has the mapping and every other rule.
 
 ## Hentoid
 

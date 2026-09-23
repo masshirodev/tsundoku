@@ -33,6 +33,7 @@ type EntryRow = {
 	favourite: number;
 	added_at: number;
 	cover_page: number | null;
+	available: number;
 };
 
 function parseAlts(raw: string): string[] {
@@ -57,7 +58,7 @@ export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
 		db
 			.prepare(
 				`SELECT id, position, label, title, read_at, last_position, last_opened_at, page_count, file, bytes,
-					rating, favourite, added_at, cover_page
+					rating, favourite, added_at, cover_page, available
 				FROM entries WHERE series_id = ? ORDER BY position, id`
 			)
 			.all(id) as EntryRow[]
@@ -76,6 +77,7 @@ export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
 		favourite: e.favourite === 1,
 		addedAt: e.added_at,
 		coverPage: e.cover_page,
+		available: e.available === 1,
 		tags: []
 	}));
 	if (entries.length > 1) {

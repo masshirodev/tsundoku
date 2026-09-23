@@ -2,6 +2,7 @@ import { redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { search } from '$lib/server/library';
 import { isRevealed, runCommand } from '$lib/server/prefs';
+import { startScan } from '$lib/server/import';
 import { parseSearch } from '$lib/library/search';
 
 export const load: PageServerLoad = ({ url, cookies }) => {
@@ -22,7 +23,9 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const input = parseSearch(String(form.get('q') ?? ''));
 		if (input.type === 'command') {
-			runCommand(cookies, input.command, url);
+			// /scan rescans the device copies; the library shows the job.
+			if (input.command === 'scan') startScan();
+			else runCommand(cookies, input.command, url);
 			redirect(303, '/');
 		}
 		if (input.type === 'empty') redirect(303, '/search');

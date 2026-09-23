@@ -1,6 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { env } from '$env/dynamic/private';
 import {
 	collectionExists,
 	continueReading,
@@ -23,6 +22,7 @@ import {
 	seriesOfBooks
 } from '$lib/server/books';
 import { setPersonFavourite, tagPage } from '$lib/server/people';
+import { libraryRoot, startScan } from '$lib/server/import';
 
 export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	const { scan } = await parent();
@@ -50,7 +50,7 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		existing: seriesOfBooks(reveal),
 		sort,
 		empty: total === 0 && !scan,
-		libraryRoot: env.LIBRARY_ROOT ?? '/mnt/hdd2/tsundoku/library',
+		libraryRoot: libraryRoot(),
 		cont: continueReading(reveal),
 		// PEOPLE lists favourite people (from the layout), not series.
 		series: shelf === 'people' ? [] : listSeries({ reveal, shelf, tag, sort })
@@ -170,11 +170,15 @@ export const actions: Actions = {
 	},
 
 	/**
-	 * START SCAN. The scanner and importers are the next cards on the board
-	 * (doc/ARCHITECTURE.md, phase 1); until they exist this says so rather
-	 * than pretending to start something.
+	 * START SCAN: the importers run in the background and the library follows
+	 * the job (doc/IMPORT-MIHON.md). With nothing to import it says where it
+	 * looked, rather than pretending to start.
 	 */
 	scan: async () => {
-		return fail(501, { scanMessage: 'THE SCANNER IS NOT BUILT YET · SEE THE TSUNDOKU BOARD' });
+		const r = startScan();
+		if (!r.started) {
+			return fail(400, { scanMessage: `NOTHING TO IMPORT · NO Mihon/ FOLDER IN ${r.looked}` });
+		}
+		redirect(303, '/');
 	}
 };

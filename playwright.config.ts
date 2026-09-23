@@ -60,7 +60,13 @@ export default defineConfig({
 				command:
 					`rm -f ${databasePath}* && yarn run seed && yarn run build && ` +
 					`yarn run preview --port ${previewPort} --strictPort`,
-				env: { DATABASE_PATH: databasePath, TSUNDOKU_TOKEN: E2E_TOKEN },
+				// An empty library folder: START SCAN must never import real files
+				// into the seeded database the suite asserts against.
+				env: {
+					DATABASE_PATH: databasePath,
+					TSUNDOKU_TOKEN: E2E_TOKEN,
+					LIBRARY_ROOT: join(tmpdir(), 'tsundoku-e2e-empty-library')
+				},
 				port: previewPort,
 				reuseExistingServer: !process.env.CI,
 				timeout: 180_000

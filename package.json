@@ -22,7 +22,8 @@
 		"test:e2e:install": "playwright install chromium",
 		"test:all": "yarn run test && yarn run test:e2e",
 		"serve": "node --experimental-strip-types scripts/serve.ts",
-		"seed": "node --experimental-strip-types scripts/seed.ts"
+		"seed": "node --experimental-strip-types scripts/seed.ts",
+		"import": "node --experimental-strip-types scripts/import.ts"
 	},
 	"dependencies": {
 		"@fontsource/ibm-plex-sans": "^5.3.0",

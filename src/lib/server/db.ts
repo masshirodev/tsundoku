@@ -214,6 +214,19 @@ const MIGRATIONS: string[] = [
 		day TEXT NOT NULL,
 		PRIMARY KEY (series_id, day)
 	);
+	`,
+	`
+	-- Importers (doc/IMPORT-MIHON.md). A series an importer created carries
+	-- the key it will find it by next time -- "mihon:<source id>:<url>" --
+	-- so a rescan updates it instead of adding a second copy.
+	ALTER TABLE series ADD COLUMN origin_key TEXT;
+	CREATE UNIQUE INDEX series_origin ON series(origin_key) WHERE origin_key IS NOT NULL;
+
+	-- 0 for an entry known from a backup whose file isn't on disk: a chapter
+	-- read online, or not copied over yet. A later scan that finds the file
+	-- sets it back to 1.
+	ALTER TABLE entries ADD COLUMN available INTEGER NOT NULL DEFAULT 1;
+	CREATE INDEX entries_source_url ON entries(series_id, source_url);
 	`
 ];
 

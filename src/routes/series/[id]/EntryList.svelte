@@ -197,6 +197,7 @@
 					<li
 						id="entry-{e.id}"
 						class="entry {row.state}"
+						class:missing={!e.available}
 						class:selected={selecting && on}
 						class:flash={flash === e.id}
 					>
@@ -386,6 +387,10 @@
 		min-width: 0;
 	}
 	.fold button,
+	/* Known from the backup, no file on disk: listed, not readable. */
+	.entry.missing:not(.read) .t {
+		color: var(--text-2);
+	}
 	.entry-btn {
 		width: 100%;
 		height: var(--row-h);
