@@ -99,3 +99,8 @@ Tracked on the **Tsundoku** board in Kumiko. Beyond the defaults (`Feature`,
   "what is left before this replaces Mihon and Hentoid".
 - **`Blocked`**: waiting on something outside the card (a design handoff, a
   sample from the tablet). Say what in the card body.
+- **`Later`**: deliberately parked. Wanted, but not before the tablet is emptied
+  (so never alongside `Phase 1`). The filter answers "what did we choose to
+  postpone", which plain Backlog doesn't. When a card needs groundwork laid now
+  so nothing is lost while it waits, the groundwork is its own card (for
+  example the reading log under stats).
