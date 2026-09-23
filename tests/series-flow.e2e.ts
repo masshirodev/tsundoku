@@ -136,6 +136,8 @@ test('hiding a series with reveal off leaves it, and it is then unreachable', as
 	await page.goto('/search');
 	await page.getByRole('searchbox').fill('/reveal');
 	await page.getByRole('searchbox').press('Enter');
+	// /reveal asks the server whether a fingerprint is needed before it goes.
+	await page.waitForURL(/\/$/);
 	await page.goto(url);
 	await page.getByRole('button', { name: 'UNHIDE' }).click();
 	await expect(page.getByRole('button', { name: 'HIDE', exact: true })).toBeVisible();

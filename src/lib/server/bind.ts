@@ -98,3 +98,50 @@ export function originFor(host: string, port: number): string {
 	const authority = host.includes(':') ? `[${host}]` : host;
 	return `http://${authority}:${port}`;
 }
+
+// ---- HTTPS through `tailscale serve` ----------------------------------------------
+//
+// The reader needs a secure context: WebAuthn (the /reveal fingerprint gate),
+// the screen wake lock, and service workers all refuse plain http. Tailscale
+// already holds a certificate for this machine's tailnet name and renews it
+// itself; `tailscale serve` terminates TLS with it and proxies to the app,
+// which then only needs to listen on 127.0.0.1 -- tighter than the tailnet
+// bind, since nothing but the proxy can reach it. doc/SERVING.md.
+
+/** `tailscale serve` accepts HTTPS on these ports only. */
+export const TAILSCALE_HTTPS_PORTS = [443, 8443, 10000] as const;
+
+/** This machine's tailnet name from `tailscale status --json`, if HTTPS certificates are enabled for it. */
+export function tailnetName(status: unknown): string | null {
+	const s = status as { Self?: { DNSName?: string }; CertDomains?: string[] | null } | null;
+	const name = s?.Self?.DNSName?.replace(/\.$/, '') ?? '';
+	if (!name) return null;
+	return (s?.CertDomains ?? []).includes(name) ? name : null;
+}
+
+export function httpsOrigin(name: string, port: number): string {
+	return port === 443 ? `https://${name}` : `https://${name}:${port}`;
+}
+
+/**
+ * What `tailscale serve status --json` says about an HTTPS port: free, already
+ * proxying to `target` (nothing to do), or taken by something else -- which
+ * is never overwritten; the port has to be chosen again.
+ */
+export function serveState(
+	status: unknown,
+	name: string,
+	httpsPort: number,
+	target: string
+): 'free' | 'ours' | 'taken' {
+	const s = status as {
+		TCP?: Record<string, unknown>;
+		Web?: Record<string, { Handlers?: Record<string, { Proxy?: string }> }>;
+	} | null;
+	const web = s?.Web?.[`${name}:${httpsPort}`];
+	if (!web && !s?.TCP?.[String(httpsPort)]) return 'free';
+	const handlers = Object.entries(web?.Handlers ?? {});
+	return handlers.length === 1 && handlers[0][0] === '/' && handlers[0][1].Proxy === target
+		? 'ours'
+		: 'taken';
+}

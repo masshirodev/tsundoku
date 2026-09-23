@@ -4,6 +4,9 @@ import {
 	isTailnetAddress,
 	isWildcard,
 	originFor,
+	httpsOrigin,
+	serveState,
+	tailnetName,
 	resolveBindHost
 } from '$lib/server/bind';
 
@@ -107,5 +110,34 @@ describe('originFor', () => {
 		expect(originFor('fd7a:115c:a1e0::b901:2195', 42141)).toBe(
 			'http://[fd7a:115c:a1e0::b901:2195]:42141'
 		);
+	});
+});
+
+describe('https through tailscale serve', () => {
+	const name = 'workstation.example.ts.net';
+
+	it('reads the tailnet name only when it has a certificate', () => {
+		expect(tailnetName({ Self: { DNSName: `${name}.` }, CertDomains: [name] })).toBe(name);
+		expect(tailnetName({ Self: { DNSName: `${name}.` }, CertDomains: null })).toBeNull();
+		expect(tailnetName(null)).toBeNull();
+	});
+
+	it('writes the origin, without :443', () => {
+		expect(httpsOrigin(name, 8443)).toBe(`https://${name}:8443`);
+		expect(httpsOrigin(name, 443)).toBe(`https://${name}`);
+	});
+
+	it('never takes over a port something else serves', () => {
+		const status = {
+			TCP: { '443': { HTTPS: true }, '8443': { HTTPS: true } },
+			Web: {
+				[`${name}:443`]: { Handlers: { '/': { Proxy: 'http://127.0.0.1:42138' } } },
+				[`${name}:8443`]: { Handlers: { '/': { Proxy: 'http://127.0.0.1:42143' } } }
+			}
+		};
+		expect(serveState(status, name, 443, 'http://127.0.0.1:42143')).toBe('taken');
+		expect(serveState(status, name, 8443, 'http://127.0.0.1:42143')).toBe('ours');
+		expect(serveState(status, name, 10000, 'http://127.0.0.1:42143')).toBe('free');
+		expect(serveState({}, name, 8443, 'http://127.0.0.1:42143')).toBe('free');
 	});
 });

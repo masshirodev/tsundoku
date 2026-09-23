@@ -58,12 +58,39 @@ restart ends them, but an Android PWA may keep its session across a swipe.
 If that turns out to happen on the tablet, the fix is a server-side idle
 expiry on both cookies.
 
-## The fingerprint gate for `/reveal` (deferred)
+## The fingerprint gate for `/reveal`
 
-Optionally, `/reveal` would ask for the device's fingerprint or screen lock
-through WebAuthn before anything hidden appears. The design is drawn (`fpPrompt`,
-`fpFail`, `fpCancel`): the prompt is Android's own, and the search screen
-behind it shows nothing hidden. It isn't built, because **WebAuthn needs a
-secure context and tsundoku is served over plain http on the tailnet**. It
-waits on serving over HTTPS with `tailscale cert`, which service workers and
-installing the PWA also need. The card for it is on the Tsundoku board.
+Once a device is enrolled, `/reveal` needs that device's fingerprint or screen
+lock: a WebAuthn assertion from a **platform** authenticator, with user
+verification **required**. The prompt is Android's own. tsundoku draws only
+the COMMAND row behind it, which holds nothing hidden (the addendum's
+fpPrompt, fpFail and fpCancel states).
+
+- **`/lock`** enrols the device you're on. It's allowed while there is no gate
+  yet, or while reveal is on, that is, only by someone already past the gate.
+  More than one device can be enrolled.
+- **`/reveal`** asks `/api/unlock/options`. With no device enrolled, it's the
+  plain command it always was. With one, the device signs a fresh challenge,
+  `/api/unlock/verify` checks it (origin, relying party, user verified,
+  counter), and only then sets the reveal cookie.
+- **`/unlock`** removes the gate. That also takes the fingerprint: otherwise
+  anyone holding the session could remove the gate and then reveal.
+- **The server enforces it,** not the page. While the gate is on, a plain POST
+  of `/reveal` (a browser without JavaScript, a crafted request) does nothing:
+  `runCommand` refuses it.
+- **Ceremonies** are single-use, expire in two minutes, and are tied to the
+  browser by an httpOnly, `SameSite=Strict` cookie. Credentials are the
+  `unlock_credentials` table (rung 8).
+- **A refused fingerprint and a cancelled prompt look the same** from the
+  browser: both are `NotAllowedError`. So both show the design's failure
+  state, NOT UNLOCKED with TRY AGAIN and "FINGERPRINT NOT ACCEPTED · NOTHING
+  SHOWN / SCREEN LOCK ALSO WORKS", rather than guessing which it was. That's a
+  departure from fpCancel, which drew a cancel as the field emptied.
+
+WebAuthn needs a secure context, which the tailnet now provides
+([`SERVING.md`](SERVING.md)). The relying party is whatever host the app is
+served on: the tailnet name in production, localhost in development and
+tests. `tests/unlock-gate.e2e.ts` runs the whole flow with Chromium's virtual
+authenticator, including a refused fingerprint. It runs as its own Playwright
+project after all the others, because enrolling gates `/reveal` for the shared
+database.

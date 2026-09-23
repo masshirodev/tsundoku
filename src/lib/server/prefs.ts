@@ -64,10 +64,19 @@ export function setTheme(cookies: Cookies, theme: Theme, secure: boolean): void 
  * Apply a search-field command. Shared by the search form, the reveal banner
  * and the incognito band. `incognito-end` is END's, not something typed.
  */
-export function runCommand(cookies: Cookies, command: string, url: URL): boolean {
+export function runCommand(
+	cookies: Cookies,
+	command: string,
+	url: URL,
+	opts: { gated?: boolean } = {}
+): boolean {
 	const secure = url.protocol === 'https:';
-	if (command === 'reveal') setRevealed(cookies, true, secure);
-	else if (command === 'hide') setRevealed(cookies, false, secure);
+	// Behind the fingerprint gate, reveal only comes from /api/unlock/verify
+	// (doc/PRIVACY.md): a plain POST of "/reveal" does nothing.
+	if (command === 'reveal') {
+		if (opts.gated) return false;
+		setRevealed(cookies, true, secure);
+	} else if (command === 'hide') setRevealed(cookies, false, secure);
 	else if (command === 'light' || command === 'dark') setTheme(cookies, command, secure);
 	else if (command === 'incognito') setIncognito(cookies, true, secure);
 	else if (command === 'incognito-end') setIncognito(cookies, false, secure);

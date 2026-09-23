@@ -25,7 +25,12 @@ const databasePath = (process.env.PLAYWRIGHT_DATABASE_PATH ??= join(
 // server, and a test glob that is the exact complement of vitest's
 // (`*.e2e.ts` here, `*.spec.ts` there) so no file is collected by both runners.
 //
-const DEVICE_IGNORE = ['**/build/**', '**/*-flow.e2e.ts', '**/library-frame.e2e.ts'];
+const DEVICE_IGNORE = [
+	'**/build/**',
+	'**/*-flow.e2e.ts',
+	'**/library-frame.e2e.ts',
+	'**/unlock-gate.e2e.ts'
+];
 
 // The projects are the devices the design system names: the tablet the library
 // is read on, in both orientations, and a phone. A frame assertion that holds
@@ -74,6 +79,8 @@ export default defineConfig({
 	projects: [
 		{
 			name: 'tablet-portrait',
+			// The gate changes /reveal for everyone; it runs last, in its own project.
+			testIgnore: ['**/build/**', '**/unlock-gate.e2e.ts'],
 			use: { ...devices['Galaxy Tab S4'], viewport: { width: 800, height: 1280 } }
 		},
 		// Flow specs write to the shared seeded database, so they run once, above.
@@ -89,6 +96,12 @@ export default defineConfig({
 			name: 'desktop',
 			testIgnore: DEVICE_IGNORE,
 			use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } }
+		},
+		{
+			name: 'gate',
+			testMatch: '**/unlock-gate.e2e.ts',
+			dependencies: ['tablet-portrait', 'tablet-landscape', 'phone', 'desktop'],
+			use: { ...devices['Galaxy Tab S4'], viewport: { width: 800, height: 1280 } }
 		}
 	]
 });

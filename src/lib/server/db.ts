@@ -244,6 +244,19 @@ const MIGRATIONS: string[] = [
 	-- A cover image that isn't a page: Hentoid's thumb. Relative to the
 	-- entry's file. cover_page, when the owner sets one, wins.
 	ALTER TABLE entries ADD COLUMN cover_file TEXT;
+	`,
+	`
+	-- The /reveal gate (doc/PRIVACY.md): WebAuthn credentials of the devices
+	-- that may unlock it -- the tablet's fingerprint or screen lock. While
+	-- there are none, /reveal works as it always did.
+	CREATE TABLE unlock_credentials (
+		-- The credential id, base64url.
+		id TEXT PRIMARY KEY,
+		public_key BLOB NOT NULL,
+		counter INTEGER NOT NULL DEFAULT 0,
+		transports TEXT NOT NULL DEFAULT '[]',
+		created_at INTEGER NOT NULL
+	);
 	`
 ];
 

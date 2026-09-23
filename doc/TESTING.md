@@ -54,19 +54,20 @@ purpose.
 The projects are the devices the design draws: `tablet-portrait` (800×1280),
 `tablet-landscape` (1280×800), `phone` (Pixel 7) and `desktop` (1440×900).
 
-| Spec                    | Runs on         | Why                                                                                                                              |
-| ----------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `auth.e2e.ts`           | all             | Read-only.                                                                                                                       |
-| `library-layout.e2e.ts` | all             | The frame on each device, including with JavaScript switched off.                                                                |
-| `library-frame.e2e.ts`  | tablet-portrait | **Generated.** Pins the tablet measurements the handoff was extracted at.                                                        |
-| `library-flow.e2e.ts`   | tablet-portrait | Writes to the shared seeded database, so it runs serially, on one device, and each test restores what it changed.                |
-| `series-layout.e2e.ts`  | all             | The series frame per device: header or 440px panel, row and rail sizes; doujin and novel shapes.                                 |
-| `series-flow.e2e.ts`    | tablet-portrait | Writes, like `library-flow`: rating, FAV, direction, tags, range select, `#`, hide.                                              |
-| `books-flow.e2e.ts`     | tablet-portrait | Writes: person pages and FAV, a book's own rating, TAKE OUT, grouping, suggestions.                                              |
-| `history-flow.e2e.ts`   | tablet-portrait | Writes: REMOVE and UNDO on history rows.                                                                                         |
-| `reader-layout.e2e.ts`  | all             | The reader's frame per device: the page on true black, the 64 / 56 / 64px controls. Reads in incognito, so it writes nothing.    |
-| `reader-flow.e2e.ts`    | tablet-portrait | Writes: tap zones, the boundary, progress and resume, the READING sheet, vertical crossing, the end-of-series rating, incognito. |
-| `privacy-flow.e2e.ts`   | tablet-portrait | Writes: `/incognito`, `/api/reading`, leaving and returning, and that a reload isn't leaving.                                    |
+| Spec                    | Runs on         | Why                                                                                                                                             |
+| ----------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `auth.e2e.ts`           | all             | Read-only.                                                                                                                                      |
+| `library-layout.e2e.ts` | all             | The frame on each device, including with JavaScript switched off.                                                                               |
+| `library-frame.e2e.ts`  | tablet-portrait | **Generated.** Pins the tablet measurements the handoff was extracted at.                                                                       |
+| `library-flow.e2e.ts`   | tablet-portrait | Writes to the shared seeded database, so it runs serially, on one device, and each test restores what it changed.                               |
+| `series-layout.e2e.ts`  | all             | The series frame per device: header or 440px panel, row and rail sizes; doujin and novel shapes.                                                |
+| `series-flow.e2e.ts`    | tablet-portrait | Writes, like `library-flow`: rating, FAV, direction, tags, range select, `#`, hide.                                                             |
+| `books-flow.e2e.ts`     | tablet-portrait | Writes: person pages and FAV, a book's own rating, TAKE OUT, grouping, suggestions.                                                             |
+| `history-flow.e2e.ts`   | tablet-portrait | Writes: REMOVE and UNDO on history rows.                                                                                                        |
+| `unlock-gate.e2e.ts`    | gate (last)     | The `/reveal` fingerprint gate with a virtual authenticator. Its own project, run after every other, because enrolling gates `/reveal` for all. |
+| `reader-layout.e2e.ts`  | all             | The reader's frame per device: the page on true black, the 64 / 56 / 64px controls. Reads in incognito, so it writes nothing.                   |
+| `reader-flow.e2e.ts`    | tablet-portrait | Writes: tap zones, the boundary, progress and resume, the READING sheet, vertical crossing, the end-of-series rating, incognito.                |
+| `privacy-flow.e2e.ts`   | tablet-portrait | Writes: `/incognito`, `/api/reading`, leaving and returning, and that a reload isn't leaving.                                                   |
 
 **Every e2e spec imports `test` from `tests/fixtures.ts`,** whose
 `page.goto` also waits for the network to settle: SvelteKit hydrates after

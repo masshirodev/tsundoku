@@ -3,6 +3,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { search } from '$lib/server/library';
 import { isRevealed, runCommand } from '$lib/server/prefs';
 import { startScan } from '$lib/server/import';
+import { isGated } from '$lib/server/unlock';
 import { parseSearch } from '$lib/library/search';
 
 export const load: PageServerLoad = ({ url, cookies }) => {
@@ -25,7 +26,7 @@ export const actions: Actions = {
 		if (input.type === 'command') {
 			// /scan rescans the device copies; the library shows the job.
 			if (input.command === 'scan') startScan();
-			else runCommand(cookies, input.command, url);
+			else runCommand(cookies, input.command, url, { gated: isGated() });
 			redirect(303, '/');
 		}
 		if (input.type === 'empty') redirect(303, '/search');

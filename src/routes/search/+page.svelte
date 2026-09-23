@@ -10,6 +10,11 @@
 	import { page } from '$app/state';
 	import { searchHref, shelfHref, tagHref } from '$lib/library/links';
 	import { parseSearch, splitMatch } from '$lib/library/search';
+	import {
+		browserSupportsWebAuthn,
+		startAuthentication,
+		startRegistration
+	} from '@simplewebauthn/browser';
 
 	let { data } = $props();
 
@@ -40,11 +45,104 @@
 	});
 
 	const query = $derived(parseSearch(data.q).type === 'query' ? data.q.trim() : '');
+
+	// ---- the fingerprint gate (Index Addendum, states fpPrompt/fpFail/fpCancel) -----
+	// /reveal behind an enrolled device, /lock to enrol this one, /unlock to
+	// take the gate away (doc/PRIVACY.md). The prompt is Android's own; what
+	// sits behind it is this COMMAND row, and nothing hidden.
+	type Gate = {
+		command: string;
+		purpose: 'reveal' | 'enrol' | 'remove';
+		status: 'waiting' | 'failed' | 'done';
+		text: string;
+	};
+	let gate = $state<Gate | null>(null);
+	let form = $state<HTMLFormElement | null>(null);
+	let plain = false;
+
+	const PURPOSE = { reveal: 'reveal', lock: 'enrol', unlock: 'remove' } as const;
+
+	// Typing something else puts the command row away.
+	$effect(() => {
+		if (gate && q.trim().toLowerCase() !== gate.command) gate = null;
+	});
+
+	function onsubmit(e: SubmitEvent) {
+		if (plain) return;
+		const input = parseSearch(q);
+		if (input.type !== 'command' || !(input.command in PURPOSE)) return;
+		e.preventDefault();
+		void ceremony(input.command as keyof typeof PURPOSE);
+	}
+
+	async function post(path: '/api/unlock/options' | '/api/unlock/verify', body: object) {
+		return fetch(resolve(path), {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify(body)
+		});
+	}
+
+	async function ceremony(command: keyof typeof PURPOSE) {
+		const purpose = PURPOSE[command];
+		const fail = (text = 'NOT UNLOCKED') =>
+			(gate = { command: `/${command}`, purpose, status: 'failed', text });
+		gate = {
+			command: `/${command}`,
+			purpose,
+			status: 'waiting',
+			text: 'COMMAND · WAITING FOR THE DEVICE'
+		};
+		const res = await post('/api/unlock/options', { purpose });
+		if (!res.ok)
+			return fail(
+				purpose === 'enrol' ? 'REVEAL FIRST · ONLY AN UNLOCKED SESSION ADDS A DEVICE' : undefined
+			);
+		const o = await res.json();
+		if (!o.gated && purpose === 'reveal') {
+			// No device enrolled: /reveal is the plain command it always was.
+			plain = true;
+			form?.requestSubmit();
+			return;
+		}
+		if (!o.gated && purpose === 'remove') {
+			gate = {
+				command: '/unlock',
+				purpose,
+				status: 'done',
+				text: 'NO LOCK · /reveal ASKS NOTHING'
+			};
+			return;
+		}
+		if (!browserSupportsWebAuthn()) return fail('THIS BROWSER CANNOT ASK THE DEVICE · NEEDS HTTPS');
+		try {
+			const response =
+				o.kind === 'register'
+					? await startRegistration({ optionsJSON: o.options })
+					: await startAuthentication({ optionsJSON: o.options });
+			const v = await post('/api/unlock/verify', { purpose, response });
+			if (!v.ok) return fail();
+		} catch {
+			// Cancelled or refused: the browser can't say which (both are
+			// NotAllowedError), so both are the same honest answer.
+			return fail(purpose === 'enrol' ? 'NOT ENROLLED' : undefined);
+		}
+		if (purpose === 'reveal') return goto(resolve('/'), { invalidateAll: true });
+		gate = {
+			command: `/${command}`,
+			purpose,
+			status: 'done',
+			text:
+				purpose === 'enrol'
+					? 'LOCKED · /reveal NOW ASKS THIS DEVICE'
+					: 'UNLOCKED · /reveal ASKS NOTHING'
+		};
+	}
 </script>
 
 <svelte:head><title>search · tsundoku</title></svelte:head>
 
-<form method="POST" class="search">
+<form method="POST" class="search" bind:this={form} {onsubmit}>
 	<TopBar strong label="Search bar">
 		{#snippet left()}
 			<a class="cell" href={resolve('/')} aria-label="Back to library">←</a>
@@ -65,7 +163,26 @@
 	</TopBar>
 </form>
 
-{#if data.result && query}
+{#if gate}
+	<div class="label first">COMMAND</div>
+	<div class="cmd" role="status">
+		<span class="c">{gate.command}</span>
+		<span class="s">{gate.text}</span>
+		{#if gate.status === 'failed'}
+			<button
+				type="button"
+				class="again"
+				onclick={() => ceremony(gate!.command.slice(1) as 'reveal' | 'lock' | 'unlock')}
+				>TRY AGAIN</button
+			>
+		{/if}
+	</div>
+	{#if gate.status === 'failed' && gate.purpose !== 'enrol'}
+		<div class="fp-note">
+			<span>FINGERPRINT NOT ACCEPTED · NOTHING SHOWN</span><span>SCREEN LOCK ALSO WORKS</span>
+		</div>
+	{/if}
+{:else if data.result && query}
 	{@const r = data.result}
 	{#if r.tags.length > 0 || r.shelves.length > 0}
 		<div class="label first">TAGS &amp; SHELVES</div>
@@ -115,6 +232,52 @@
 />
 
 <style>
+	.cmd {
+		display: flex;
+		align-items: stretch;
+		min-height: 64px;
+		border-top: var(--hairline);
+		border-bottom: var(--hairline);
+	}
+	.c {
+		display: flex;
+		align-items: center;
+		padding: 0 var(--pad);
+		font: 500 16px var(--font-mono);
+	}
+	.s {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		padding: 0 18px;
+		font: 400 13px var(--font-mono);
+		color: var(--text-2);
+	}
+	.again {
+		display: flex;
+		align-items: center;
+		padding: 0 var(--pad);
+		border: 0;
+		border-left: var(--hairline);
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-1);
+		font: 500 14px var(--font-mono);
+		cursor: pointer;
+	}
+	.again:active {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+	}
+	.fp-note {
+		display: flex;
+		justify-content: space-between;
+		gap: 12px;
+		padding: 14px var(--pad);
+		border-bottom: var(--hairline);
+		font: 400 13px var(--font-mono);
+		color: var(--text-2);
+	}
 	.search {
 		display: contents;
 	}

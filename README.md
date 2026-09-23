@@ -22,23 +22,26 @@ yarn run dev      # localhost:42143, no token needed in development
 yarn run import   # import $LIBRARY_ROOT/Mihon/ and H/.Hentoid/ (doc/IMPORT-*.md)
 ```
 
-On the tablet it's served like kirisute: built, bound to the tailnet address
-only, and behind a token.
+On the tablet it's served over HTTPS on the tailnet, behind a token.
+[`doc/SERVING.md`](doc/SERVING.md) has the details.
 
 ```sh
 echo "TSUNDOKU_TOKEN=$(node -e "console.log(require('crypto').randomBytes(18).toString('base64url'))")" >> .env
 yarn run build
-yarn run serve    # http://<tailnet address>:42143
+yarn run serve    # https://workstation.example.ts.net:8443
 ```
 
-`serve` refuses to start without the token, and refuses a wildcard bind unless
-`TSUNDOKU_BIND_ANY=1` says so by name. The workstation has no firewall, so
-0.0.0.0 would serve the library to the whole LAN. `.env.example` lists every
-variable.
+`serve` runs the app on 127.0.0.1 and has `tailscale serve` terminate TLS
+with the tailnet's certificate: the reader's fingerprint gate, wake lock and
+offline chapters all need a secure context. It refuses to start without the
+token. `TSUNDOKU_SERVE=http` is the old plain-http tailnet bind. `.env.example`
+lists every variable.
 
 Search doubles as the command line. Type these exactly and press Enter:
 `/reveal` and `/hide` (show or hide hidden series), `/light` and `/dark`
-(theme), `/incognito` (read without saving), `/scan` (rescan the device copies).
+(theme), `/incognito` (read without saving), `/scan` (rescan the device copies),
+`/lock` and `/unlock` (put `/reveal` behind this device's fingerprint, or take
+it away).
 
 ## Checks
 
@@ -81,6 +84,8 @@ is the mount development pressures.
   state, where it departs from the handoff, and what it doesn't do yet.
 - [`doc/SERIES.md`](doc/SERIES.md) — the series screen: frame, states,
   departures, and what waits on the reader.
+- [`doc/SERVING.md`](doc/SERVING.md) — HTTPS through `tailscale serve`, and
+  the plain-http fallback.
 - [`doc/READER.md`](doc/READER.md) — the image reader: touch, modes, spreads,
   boundaries, where pages come from, progress, and departures.
 - [`doc/BOOKS.md`](doc/BOOKS.md) — series of books, grouping by hand, title

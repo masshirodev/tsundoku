@@ -23,6 +23,7 @@ import {
 } from '$lib/server/books';
 import { setPersonFavourite, tagPage } from '$lib/server/people';
 import { libraryRoot, startScan } from '$lib/server/import';
+import { isGated } from '$lib/server/unlock';
 
 export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	const { scan } = await parent();
@@ -157,7 +158,7 @@ export const actions: Actions = {
 	/** Search commands land here: /reveal, /hide, /light, /dark, /incognito, and END. */
 	command: async ({ request, cookies, url }) => {
 		const form = await request.formData();
-		if (!runCommand(cookies, String(form.get('command')), url)) {
+		if (!runCommand(cookies, String(form.get('command')), url, { gated: isGated() })) {
 			return fail(400, { message: 'unknown command' });
 		}
 		redirect(303, '/');
