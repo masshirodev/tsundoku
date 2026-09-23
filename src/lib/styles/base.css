@@ -1,0 +1,19 @@
+html,
+body {
+	margin: 0;
+	background: var(--surface-page);
+	color: var(--text-1);
+	font-family: var(--font-sans);
+}
+a {
+	color: var(--accent);
+	text-decoration: none;
+}
+a:hover {
+	color: var(--text-1);
+}
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}

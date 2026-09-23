@@ -1,0 +1,10 @@
+yarn.lock
+/static/
+/build/
+/.svelte-kit/
+/coverage/
+/test-results/
+/playwright-report/
+.claude/
+# Verbatim mirror of the Claude Design project; see doc/design/README.md.
+/doc/design/handoff/

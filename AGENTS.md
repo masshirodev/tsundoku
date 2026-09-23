@@ -9,6 +9,15 @@ Tailscale. Read `README.md` and `doc/ARCHITECTURE.md` before changing anything.
 - Library files live on `/mnt/hdd2`, never under `/`.
 - Exposure rules are kirisute's: tailnet bind only, cookie auth, `ORIGIN`
   derived from the bound address.
-- Screens are built from a design handoff. Briefs live in `doc/briefs/`.
+- Screens are built from a design handoff. Briefs live in `doc/briefs/`; the
+  design system is `doc/design/` (read its README before touching a component),
+  and `doc/design/handoff/` is a verbatim mirror: never edit it.
+- Colours come from tokens in `src/lib/styles/`, never literals. `--reveal`
+  (magenta) is reserved for reveal mode: the banner, the frame, HIDDEN badges.
+- Device layout is CSS media queries, not script, so the first paint is right.
+- Hidden means hidden: filter in SQL (`src/lib/server/library.ts`), never in the
+  page.
+- Before committing: `yarn run check && yarn run lint && yarn run test`, plus
+  `yarn run test:e2e` when the UI changed. See `doc/TESTING.md`.
 - Rating is an integer 0–5 with `NULL` meaning unrated; never collapse the two.
 - Push to `main`.

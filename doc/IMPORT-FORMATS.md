@@ -62,17 +62,17 @@ Root: `<shared storage>/H/.Hentoid/` (the user-chosen `H` folder).
 
 `contentV2.json`, per book:
 
-| Field                                   | Use                                                     |
-| --------------------------------------- | ------------------------------------------------------- |
-| `title`, `site`, `url`                  | title; `source` tag; provenance                         |
-| `attributes.{TAG,ARTIST,CIRCLE,…}`      | namespaced tags (`artist:`, `circle:`, `language:`, …)  |
-| `attributes.LANGUAGE`                   | includes the pseudo-language `translated`; keep as tag  |
-| **`favourite`**                         | → favourite                                             |
-| **`rating`** (0 = unrated)              | → rating; Hentoid 0 imports as `NULL`, not as 0         |
-| `reads`, `lastReadDate`, `lastReadPageIndex`, `completed` | → progress                            |
-| `imageFiles[]` (`order`, `name`, `isCover`, `chapterOrder`) | page order; `isCover` is the thumb, not a page |
-| `chapters[]`                            | present on multi-chapter sources (Hentai2Read)          |
-| `downloadDate`                          | added-at                                                |
+| Field                                                       | Use                                                    |
+| ----------------------------------------------------------- | ------------------------------------------------------ |
+| `title`, `site`, `url`                                      | title; `source` tag; provenance                        |
+| `attributes.{TAG,ARTIST,CIRCLE,…}`                          | namespaced tags (`artist:`, `circle:`, `language:`, …) |
+| `attributes.LANGUAGE`                                       | includes the pseudo-language `translated`; keep as tag |
+| **`favourite`**                                             | → favourite                                            |
+| **`rating`** (0 = unrated)                                  | → rating; Hentoid 0 imports as `NULL`, not as 0        |
+| `reads`, `lastReadDate`, `lastReadPageIndex`, `completed`   | → progress                                             |
+| `imageFiles[]` (`order`, `name`, `isCover`, `chapterOrder`) | page order; `isCover` is the thumb, not a page         |
+| `chapters[]`                                                | present on multi-chapter sources (Hentai2Read)         |
+| `downloadDate`                                              | added-at                                               |
 
 Other files in `.Hentoid/`: `queue.json`, `bookmarks.json` (search bookmarks,
 not books), and logs. None are imported.

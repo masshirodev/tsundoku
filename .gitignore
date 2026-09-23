@@ -1,6 +1,13 @@
 node_modules/
 .svelte-kit/
-build/
+/build/
+/coverage/
+/test-results/
+/playwright-report/
 .env
-data/
+.env.*
+!.env.example
+/data/
 samples/
+/temp/
+.husky/_

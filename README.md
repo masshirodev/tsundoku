@@ -8,8 +8,43 @@ PWA. It replaces the five apps that currently split that job (Mihon, Hentoid,
 Moon+ Reader, and whichever browser tab a web novel lives in this week), and it
 is organised the owner's way rather than any one of theirs.
 
-Status: **pre-code.** The architecture and the import formats are written down;
-the screens are waiting on a design handoff. See [`doc/`](doc/).
+Status: **the library screen is built** from the "Index" design system, in all
+nine states on phone, tablet and desktop, against a sample library. There's no
+scanner, reader or series screen yet, so nothing real can be read. See
+[`doc/LIBRARY.md`](doc/LIBRARY.md), "What it does not do yet".
+
+## Running it
+
+```sh
+yarn install
+yarn run seed     # the design's sample library, into data/tsundoku.sqlite
+yarn run dev      # localhost:42143, no token needed in development
+```
+
+On the tablet it's served like kirisute: built, bound to the tailnet address
+only, and behind a token.
+
+```sh
+echo "TSUNDOKU_TOKEN=$(node -e "console.log(require('crypto').randomBytes(18).toString('base64url'))")" >> .env
+yarn run build
+yarn run serve    # http://<tailnet address>:42143
+```
+
+`serve` refuses to start without the token, and refuses a wildcard bind unless
+`TSUNDOKU_BIND_ANY=1` says so by name. The workstation has no firewall, so
+0.0.0.0 would serve the library to the whole LAN. `.env.example` lists every
+variable.
+
+Search doubles as the command line. Type these exactly and press Enter:
+`/reveal` and `/hide` (show or hide hidden series), `/light` and `/dark`
+(theme).
+
+## Checks
+
+```sh
+yarn run check && yarn run lint && yarn run test
+yarn run test:e2e    # when the UI changed; see doc/TESTING.md
+```
 
 ## Why this exists instead of Mihon, Komga or Kavita
 
@@ -25,12 +60,12 @@ the screens are waiting on a design handoff. See [`doc/`](doc/).
 
 ## Where things live
 
-| What                  | Where                                                    |
-| --------------------- | -------------------------------------------------------- |
-| This repository       | `~/projects/tsundoku` (workstation)                      |
-| Library files         | `/mnt/hdd2/tsundoku/library` (the mount with real room)  |
-| Import samples        | `/mnt/hdd2/tsundoku/samples` — **never commit these**    |
-| Served on             | the tailnet address only, like kirisute                  |
+| What            | Where                                                   |
+| --------------- | ------------------------------------------------------- |
+| This repository | `~/projects/tsundoku` (workstation)                     |
+| Library files   | `/mnt/hdd2/tsundoku/library` (the mount with real room) |
+| Import samples  | `/mnt/hdd2/tsundoku/samples` — **never commit these**   |
+| Served on       | the tailnet address only, like kirisute                 |
 
 The library is roughly 130 GB. It does not go under `/`, which is also home and
 is the mount development pressures.
@@ -41,6 +76,13 @@ is the mount development pressures.
   model, how it talks to Kumiko and yomu, and the phases.
 - [`doc/IMPORT-FORMATS.md`](doc/IMPORT-FORMATS.md) — what Mihon, Hentoid and
   EPUB actually look like on disk, measured from real samples.
+- [`doc/LIBRARY.md`](doc/LIBRARY.md) — the library screen: what drives each
+  state, where it departs from the handoff, and what it doesn't do yet.
+- [`doc/design/README.md`](doc/design/README.md) — the imported design system,
+  where each part lives in the code, and its departures. `doc/design/handoff/` is
+  the untouched mirror of the design project.
+- [`doc/TESTING.md`](doc/TESTING.md) — the two test runners, the device
+  projects, and regenerating the frame spec.
 - [`doc/briefs/`](doc/briefs/) — design briefs for Claude Design, one per
   surface.
 

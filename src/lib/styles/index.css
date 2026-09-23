@@ -1,0 +1,16 @@
+/*
+ * Entry point, the counterpart of the design system's styles.css. Fonts are
+ * self-hosted through @fontsource rather than loaded from Google Fonts: this
+ * is an offline-capable PWA on a tailnet, and a reader that loses its type
+ * when the Wi-Fi drops is not offline-capable. See doc/design/README.md.
+ */
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import './colors.css';
+@import './typography.css';
+@import './spacing.css';
+@import './base.css';
+@import './layout.css';

@@ -1,0 +1,82 @@
+#!/usr/bin/env sh
+
+# Whole-tree checks. Unlike Kumiko's pre-push, which runs on a throttled VPS and
+# leaves the suites out for cost, this repository only ever lives on the
+# workstation, so the unit suite is affordable here and runs. The e2e suite is
+# still a manual `yarn run test:e2e`: it builds the app, which is minutes.
+# See doc/TESTING.md.
+#
+# Skip flags (set to any non-empty value):
+#   SKIP_HOOKS SKIP_TYPECHECK SKIP_LINT SKIP_TESTS SKIP_ALL
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+DIM='\033[2m'
+BOLD='\033[1m'
+RESET='\033[0m'
+
+step() { printf "\n${CYAN}${BOLD}> %s${RESET}\n" "$1"; }
+ok() { printf "${GREEN}[ok] %s${RESET}\n" "$1"; }
+skip() { printf "${YELLOW}[skip] %s${RESET}\n" "$1"; }
+fail() { printf "${RED}[fail] %s${RESET}\n" "$1"; }
+
+if [ -n "$SKIP_ALL" ]; then
+	printf "${YELLOW}${BOLD}pre-push: SKIP_ALL set - skipping every check${RESET}\n"
+	exit 0
+fi
+
+printf "${BOLD}pre-push: running repository checks${RESET}\n"
+printf "${DIM}  skip flags: SKIP_HOOKS SKIP_TYPECHECK SKIP_LINT SKIP_TESTS SKIP_ALL${RESET}\n"
+
+# `.husky/_` is gitignored, so a `git worktree add` checkout has no hooks at all
+# and git says nothing. This catches the half case where pre-push runs and
+# pre-commit does not; `yarn run check` catches the whole case.
+if [ -n "$SKIP_HOOKS" ]; then
+	skip "hook arming"
+else
+	step "hook arming"
+	if ! yarn run hooks:check; then
+		fail "git hooks are not armed for this checkout"
+		exit 1
+	fi
+	ok "hooks armed"
+fi
+
+if [ -n "$SKIP_TYPECHECK" ]; then
+	skip "typecheck"
+else
+	step "typecheck"
+	# `yarn run check`, never `yarn check` - yarn 1 has a builtin `check` that
+	# exits 0 in about a second without ever typechecking.
+	if ! yarn run check; then
+		fail "typecheck failed"
+		exit 1
+	fi
+	ok "typecheck passed"
+fi
+
+if [ -n "$SKIP_LINT" ]; then
+	skip "lint"
+else
+	step "lint"
+	if ! yarn run lint; then
+		fail "lint failed"
+		exit 1
+	fi
+	ok "lint passed"
+fi
+
+if [ -n "$SKIP_TESTS" ]; then
+	skip "unit tests"
+else
+	step "unit tests"
+	if ! yarn run test; then
+		fail "unit tests failed"
+		exit 1
+	fi
+	ok "unit tests passed"
+fi
+
+printf "\n${GREEN}${BOLD}[ok] pre-push checks passed${RESET}\n"

@@ -1,0 +1,32 @@
+/*
+ * Layout variables per device, mirroring src/lib/device.svelte.ts. Phone first:
+ * 16px page padding, 60px header, 3 grid columns.
+ */
+:root {
+	--pad: var(--pad-phone);
+	--header-h: var(--header-phone);
+	--grid-cols: 3;
+	--cont-cols: 1;
+	--cont-count: 2;
+}
+@media (min-width: 600px) {
+	:root {
+		--pad: var(--pad-tablet);
+		--header-h: var(--header-tablet);
+		--grid-cols: 6;
+		--cont-count: 4;
+	}
+}
+@media (min-width: 1024px) {
+	:root {
+		--grid-cols: 9;
+		--cont-cols: 2;
+	}
+}
+@media (min-width: 1024px) and (pointer: fine) {
+	:root {
+		--header-h: var(--header-desktop);
+		--grid-cols: 8;
+		--sheet-left: var(--sidebar-w);
+	}
+}

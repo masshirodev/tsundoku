@@ -1,0 +1,71 @@
+/*
+ * Index theme, from the Claude Design system (doc/design/). Dark (Graphite /
+ * lime) is the default; light (Paper / ink) via [data-theme="light"].
+ * Transcribed verbatim -- change the design system first, then this.
+ */
+:root {
+	/* base — graphite */
+	--graphite-950: #0e0f10;
+	--graphite-900: #16181a;
+	--graphite-800: #1e2022;
+	--graphite-700: #2a2c2e;
+	--graphite-600: #3a3d40;
+	--graphite-400: #8b8d90;
+	--graphite-100: #e8e8e6;
+	--lime-400: oklch(0.86 0.17 125);
+	--magenta-400: oklch(0.72 0.2 350);
+	/* base — paper */
+	--paper-50: oklch(0.965 0.006 95);
+	--paper-100: oklch(0.93 0.008 95);
+	--paper-200: oklch(0.86 0.008 95);
+	--paper-300: oklch(0.8 0.01 95);
+	--paper-600: oklch(0.5 0.012 95);
+	--paper-950: oklch(0.2 0.01 95);
+	--green-600: oklch(0.52 0.13 150);
+	--magenta-600: oklch(0.55 0.2 350);
+
+	/* semantic */
+	--surface-page: var(--graphite-950);
+	--surface-panel: var(--graphite-900);
+	--surface-inverse: var(--graphite-100);
+	--line-1: var(--graphite-700);
+	--line-2: var(--graphite-600);
+	--line-subtle: var(--graphite-800);
+	--text-1: var(--graphite-100);
+	--text-2: var(--graphite-400);
+	--text-inverse: var(--graphite-950);
+	--accent: var(--lime-400);
+	--on-accent: var(--graphite-950);
+	--accent-highlight: oklch(0.86 0.17 125 / 0.3);
+	/* Reserved for reveal mode: the banner, the inset frame, HIDDEN badges. */
+	--reveal: var(--magenta-400);
+	--on-reveal: var(--graphite-950);
+	--scrim: rgba(0, 0, 0, 0.6);
+	--rating-on: var(--accent);
+	--rating-off: var(--line-2);
+	--rating-unrated: transparent;
+	--cover-l: 0.36;
+	--cover-c: 0.015;
+	color-scheme: dark;
+}
+
+[data-theme='light'] {
+	--surface-page: var(--paper-50);
+	--surface-panel: var(--paper-100);
+	--surface-inverse: var(--paper-950);
+	--line-1: var(--paper-200);
+	--line-2: var(--paper-300);
+	--line-subtle: var(--paper-100);
+	--text-1: var(--paper-950);
+	--text-2: var(--paper-600);
+	--text-inverse: var(--paper-50);
+	--accent: var(--green-600);
+	--on-accent: #ffffff;
+	--accent-highlight: oklch(0.52 0.13 150 / 0.22);
+	--reveal: var(--magenta-600);
+	--on-reveal: #ffffff;
+	--scrim: rgba(20, 20, 15, 0.4);
+	--cover-l: 0.78;
+	--cover-c: 0.03;
+	color-scheme: light;
+}

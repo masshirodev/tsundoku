@@ -1,0 +1,96 @@
+# The design system ("Index")
+
+tsundoku's look comes from a Claude Design project, direction **1b Index**, with
+palette **2a Graphite / lime** as the dark default and **2d Paper / ink** as the
+light theme. The project's own readme is the authority on the look itself, so
+read [`handoff/readme.md`](handoff/readme.md) first. This file only covers how the
+system got into the code.
+
+- Project: `https://claude.ai/design/p/630f3cfa-f63f-4765-87a0-3c700e62dbda`
+- Imported: 2026-09-22, all 91 files, byte-for-byte.
+
+## `handoff/` is a mirror, not source
+
+`handoff/` holds the design project exactly as it was exported, including
+`support.js`, the React component sketches, the specimen cards and the
+exploration canvas. Don't edit it. Prettier and ESLint skip it, and it's kept so
+that a later change to the design can be diffed against what the code was built
+from.
+
+To refresh it, mirror the project again (`list_files` + `read_file` through the
+`claude_design` MCP, decoding `&lt; &gt; &amp;`) over the top, then `git diff
+doc/design/handoff` shows what the designer changed.
+
+Which file is the spec:
+
+| File                     | What it is                                                                                                                                               |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Library Themes.dc.html` | The exploration canvas. Turn 1 (four directions) and Turn 2 (four palettes) are history. Turn 3 is the chosen system in every state and on every device. |
+| `Index Library.dc.html`  | **The screen spec.** A single parametric screen (`state` × `device` × `palette`) that Turn 3 renders nine ways. Measurements come from here.             |
+| `components/**/*.jsx`    | Sketches of the component set. They give the API and intent; where one disagrees with `Index Library.dc.html`, the screen wins (see Departures).         |
+| `tokens/*.css`           | Tokens, transcribed into `src/lib/styles/`.                                                                                                              |
+| `ui_kits/library/`       | A click-through prototype. Useful for intent (tap and long-press both open the sheet, for example), not for measurements.                                |
+
+## Where it lives in the code
+
+| Design system                                                    | Code                                                                                           |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `tokens/colors.css`, `typography.css`, `spacing.css`, `base.css` | `src/lib/styles/*.css`, verbatim apart from formatting                                         |
+| `tokens/fonts.css` (Google Fonts)                                | `@fontsource/ibm-plex-{mono,sans}`, self-hosted (see Departures)                               |
+| `styles.css`                                                     | `src/lib/styles/index.css`, plus `layout.css` for the per-device variables                     |
+| `components/content/*`                                           | `src/lib/components/content/`: Badge, Cover, CoverTile, ContinueRow, ProgressBar, RatingBars   |
+| `components/controls/*`                                          | `src/lib/components/controls/`: Button, RatingPicker, SearchField, ShelfTabs, Switch, TagChip  |
+| `components/chrome/*`                                            | `src/lib/components/chrome/`: Banner, BulkBar, SectionLabel, Sheet, SheetRow, TopBar, Wordmark |
+
+The components are Svelte 5 ports, not wrappers. Styles are scoped CSS that reads
+tokens, and none of them hardcode a colour.
+
+## Palette and scale, settled separately
+
+`reconcile-tokens.mjs` on the screen spec found **7 distinct colours, all 7
+already tokens**. So the code uses tokens and never literals, and a palette
+change in `colors.css` carries everywhere.
+
+It found **15 distinct lengths and no length ladder they sit on**. The `--space-*`
+tokens exist, but the screen's interior density (10px tile padding, 8px gaps, 17px
+row titles, 18px/12px label padding) is hand-set and doesn't round to them. The
+literals are transcribed as they are, and
+[`tests/library-frame.e2e.ts`](../../tests/library-frame.e2e.ts) pins them so a
+later tidy-up can't round them onto a ladder that was never there.
+
+## Departures
+
+Every place the code deliberately differs from the design, with the reason. If a
+departure isn't written down here, it's a bug.
+
+1. **Fonts are self-hosted.** The design loads Plex from Google Fonts and notes
+   "swap for self-hosted files in production". This is an offline-capable PWA on a
+   tailnet, and a reader that loses its type when the Wi-Fi drops isn't
+   offline-capable. So the fonts come from `@fontsource`.
+2. **Screen over sketch.** Where a component sketch and `Index Library.dc.html`
+   disagree, the screen wins. Concretely:
+   - `SectionLabel` takes its top padding as a prop, because the screen uses 18px
+     above CONTINUE and 24px elsewhere, and the sketch hardcodes 24px.
+   - `Banner`'s progress band is 16px/10px, not the sketch's 14px/8px.
+   - The finished band is 60px with a 3px line gap. The offline band is 48px on
+     one line.
+3. **Device layout is CSS, not props.** The sketches switch layouts with props
+   (`compact`, `vertical`), which in SvelteKit would only be decided after
+   hydration, so the server's first paint would be the tablet layout on every
+   device and then jump. Grid columns, continue rows, the phone's compact row and
+   the desktop sidebar are media queries in `src/lib/styles/layout.css` and the
+   components. `tests/library-layout.e2e.ts` checks this with JavaScript switched
+   off.
+4. **"Desktop" means a fine pointer.** The design draws desktop at 1440px and
+   landscape tablet at 1280px, both wider than 1024px. They're told apart by
+   `(pointer: fine)`, so a tablet in landscape keeps the touch layout with no
+   sidebar.
+5. **The grid pads its last row** with empty cells in the page colour. The mock
+   always has full rows. A real library doesn't, and the `--line-1` ground
+   would otherwise show as grey blocks.
+6. **Theme switching is a search command** (`/light`, `/dark`), in the same idiom
+   as `/reveal`. The Turn 3 matrix draws no theme control, and the UI kit's THEME
+   button was a prototype convenience.
+
+Behavioural departures (what the library does that the mock never had to decide)
+are in [`../LIBRARY.md`](../LIBRARY.md).

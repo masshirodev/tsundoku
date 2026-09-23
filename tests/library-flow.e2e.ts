@@ -1,0 +1,144 @@
+import { expect, test, type Page } from '@playwright/test';
+
+/**
+ * One complete flow with real data, end to end: rate, favourite, shelve and
+ * hide from the long-press sheet, then reveal and unhide. This is the walk
+ * doc/design's HANDOFF asks for early, because it is what surfaces an
+ * invariant a mock never had to satisfy.
+ *
+ * Each test restores what it changed, so the order they run in does not
+ * matter and the seeded library stays the one the other specs expect.
+ */
+
+const TITLE = 'Kusuriya no Hitorigoto';
+
+// These write to the one seeded database the preview server holds, so they run
+// in order, and only on the tablet project (the others ignore `*-flow.e2e.ts`
+// in playwright.config.ts). The frame specs are read-only and run everywhere.
+test.describe.configure({ mode: 'serial' });
+
+async function longPress(page: Page, title: string) {
+	const tile = page.locator('.grid .tile', { hasText: title });
+	await tile.scrollIntoViewIfNeeded();
+	await tile.click({ button: 'right' }); // the context menu is the long press
+	const sheet = page.getByRole('dialog', { name: title });
+	await expect(sheet).toBeVisible();
+	return sheet;
+}
+
+test('rating from the sheet persists, and unrated stays distinct from 0', async ({ page }) => {
+	await page.goto('/');
+	let sheet = await longPress(page, TITLE);
+	await expect(sheet.getByRole('button', { name: 'Unrated' })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
+
+	await sheet.getByRole('button', { name: 'Rate 0' }).click();
+	await expect(sheet.getByRole('button', { name: 'Rate 0' })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
+	await page.keyboard.press('Escape');
+
+	// The tile now draws five empty bars, not the no-track of unrated.
+	const bars = page.locator('.grid .tile', { hasText: TITLE }).getByRole('img');
+	await expect(bars).toHaveAttribute('aria-label', 'Rated 0 of 5');
+
+	await page.reload();
+	sheet = await longPress(page, TITLE);
+	await expect(sheet.getByRole('button', { name: 'Rate 0' })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
+	await sheet.getByRole('button', { name: 'Unrated' }).click();
+	await expect(sheet.getByRole('button', { name: 'Unrated' })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
+	await page.keyboard.press('Escape');
+	await expect(bars).toHaveAttribute('aria-label', 'Unrated');
+});
+
+test('favourite toggles from the sheet and shows on the tile', async ({ page }) => {
+	await page.goto('/');
+	const tile = page.locator('.grid .tile', { hasText: TITLE });
+	await expect(tile.getByText('FAV', { exact: true })).toHaveCount(0);
+
+	const sheet = await longPress(page, TITLE);
+	await sheet.getByRole('switch').click();
+	await expect(sheet.getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+	await page.keyboard.press('Escape');
+	await expect(tile.getByText('FAV', { exact: true })).toBeVisible();
+
+	await longPress(page, TITLE);
+	await page.getByRole('switch').click();
+	await expect(page.getByRole('switch')).toHaveAttribute('aria-checked', 'false');
+});
+
+test('hidden means hidden, until /reveal, and HIDE AGAIN ends it', async ({ page }) => {
+	await page.goto('/');
+	const sheet = await longPress(page, TITLE);
+	await sheet.getByRole('button', { name: 'HIDE', exact: true }).click();
+	await expect(page.locator('.grid .tile', { hasText: TITLE })).toHaveCount(0);
+
+	// Search does not find it either.
+	await page.goto(`/search?q=${encodeURIComponent('Kusuriya')}`);
+	await expect(page.getByText('TITLES')).toBeVisible();
+	await expect(page.locator('.hit')).toHaveCount(0);
+
+	// Reveal is the exact typed command, run on Enter.
+	await page.getByRole('searchbox').fill('/reveal');
+	await page.getByRole('searchbox').press('Enter');
+	await expect(page).toHaveURL('/');
+	await expect(page.getByText('HIDDEN SHOWN')).toBeVisible();
+	const tile = page.locator('.grid .tile', { hasText: TITLE });
+	await expect(tile.getByText('HIDDEN', { exact: true })).toBeVisible();
+
+	// Unhide it, then end reveal.
+	await longPress(page, TITLE);
+	await page.getByRole('button', { name: 'UNHIDE' }).click();
+	await expect(tile.getByText('HIDDEN', { exact: true })).toHaveCount(0);
+	await page.getByRole('button', { name: 'HIDE AGAIN' }).click();
+	await expect(page.getByText('HIDDEN SHOWN')).toHaveCount(0);
+	await expect(page.locator('.grid .tile', { hasText: TITLE })).toBeVisible();
+});
+
+test('nothing hints at the hidden root while reveal is off', async ({ page }) => {
+	await page.goto('/');
+	await expect(page.getByText(/HENTOID/i)).toHaveCount(0);
+	await expect(page.getByText(/hidden/i)).toHaveCount(0);
+	const res = await page.request.get('/search?q=Onsen');
+	expect(await res.text()).not.toContain('Onsen Ryokan');
+});
+
+test('multi-select applies a rating to exactly the selection', async ({ page }) => {
+	await page.goto('/?sort=title');
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	const tile = (title: string) => page.locator('.grid .tile', { hasText: title });
+	// Two unrated series, so clearing them afterwards restores them exactly.
+	const picked = ['Hoshi no Umi no Tabibito', 'Isekai Yakkyoku'];
+	for (const t of picked) await tile(t).click();
+	await expect(page.getByText('2 SELECTED')).toBeVisible();
+
+	const bystander = tile('Isekai Ojisan').getByRole('img');
+	await expect(bystander).toHaveAttribute('aria-label', 'Rated 3 of 5');
+
+	const toolbar = page.getByRole('toolbar');
+	await toolbar.getByRole('button', { name: 'Rate 5' }).click();
+	for (const t of picked)
+		await expect(tile(t).getByRole('img')).toHaveAttribute('aria-label', 'Rated 5 of 5');
+	await expect(bystander).toHaveAttribute('aria-label', 'Rated 3 of 5');
+
+	await toolbar.getByRole('button', { name: 'Unrated' }).click();
+	for (const t of picked)
+		await expect(tile(t).getByRole('img')).toHaveAttribute('aria-label', 'Unrated');
+});
+
+test('START SCAN says the scanner is not built rather than pretending', async ({ request }) => {
+	const res = await request.post('/?/scan', {
+		headers: { origin: 'http://localhost:4183', 'x-sveltekit-action': 'true' },
+		form: {}
+	});
+	expect(await res.text()).toContain('NOT BUILT YET');
+});
