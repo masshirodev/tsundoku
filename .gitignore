@@ -14,3 +14,4 @@ samples/
 
 # Handoff bundles as downloaded; their contents are mirrored in doc/design/handoff/.
 doc/design/*.zip
+/.serving/

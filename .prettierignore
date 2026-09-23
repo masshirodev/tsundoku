@@ -1,6 +1,7 @@
 yarn.lock
 /static/
 /build/
+/.serving/
 /.svelte-kit/
 /coverage/
 /test-results/

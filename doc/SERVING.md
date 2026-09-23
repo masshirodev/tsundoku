@@ -67,3 +67,18 @@ caching don't work this way.
 
 `tailscale serve --https=8443 off` removes the mapping. The app is then only
 reachable from the workstation itself.
+
+## The server runs from a copy of the build
+
+`yarn run serve` copies `build/` into `.serving/<timestamp>/` when it starts,
+and runs from that copy. It deletes the copies older servers left behind.
+
+This matters because `build/` is rebuilt in place, by `yarn run build` and by
+every e2e run (Playwright builds before starting its preview server). A server
+running straight out of `build/` lost its scripts and styles to the rebuild,
+and crashed on the first request for one that was gone. On 2026-09-23 that
+happened mid-chapter on the tablet: the first two pages arrived, then nothing.
+With the copy, the live server keeps serving what it started with until it's
+restarted.
+
+To ship a change: `yarn run build`, then restart `yarn run serve`.

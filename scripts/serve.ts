@@ -21,7 +21,7 @@
  * module load.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { cpSync, existsSync, readdirSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
 	BindRefused,
@@ -34,7 +34,15 @@ import {
 } from '../src/lib/server/bind.ts';
 
 const root = new URL('../', import.meta.url);
-const entry = new URL('build/index.js', root);
+const built = new URL('build/', root);
+// The server runs from its own copy of the build, taken now. `build/` is
+// rebuilt in place by `yarn run build` and by every e2e run, and a server
+// serving it lost its scripts under it and crashed on the first request for
+// one that was gone (doc/SERVING.md). The copy sits inside the project, so it
+// still finds node_modules.
+const servingDir = new URL('.serving/', root);
+const snapshot = new URL(`${Date.now()}/`, servingDir);
+const entry = new URL('index.js', snapshot);
 
 // A plain node process gets none of Vite's .env loading, and the token lives
 // there. Shell variables still win: loadEnvFile does not overwrite them.
@@ -49,7 +57,7 @@ const fail = (message: string): never => {
 	process.exit(1);
 };
 
-if (!existsSync(entry)) fail('no build/ found. Run `yarn run build` first.');
+if (!existsSync(new URL('index.js', built))) fail('no build/ found. Run `yarn run build` first.');
 if (!process.env.TSUNDOKU_TOKEN)
 	fail(
 		'TSUNDOKU_TOKEN is not set. Generate one into .env:\n' +
@@ -136,6 +144,11 @@ process.env.HOST = host!;
 process.env.PORT = String(port);
 process.env.ORIGIN = origin!;
 process.env.NODE_ENV = 'production';
+
+// Older copies belong to servers that have stopped; this one replaces them.
+for (const old of existsSync(servingDir) ? readdirSync(servingDir) : [])
+	rmSync(new URL(old, servingDir), { recursive: true, force: true });
+cpSync(built, snapshot, { recursive: true });
 
 console.log(`tsundoku  ${origin!}  (${note!})`);
 
