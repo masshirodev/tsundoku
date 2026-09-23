@@ -124,6 +124,10 @@ departure isn't written down here, it's a bug.
     departures (no "↓ CACHED" claim before there's a device cache, the
     NOT DOWNLOADED boundary, dimmed rows in the READING sheet) are listed in
     `doc/READER.md`, next to the reader they describe.
+15. **The app icon is typeset, not drawn:** 積 in Plex Sans JP on graphite. The
+    readme says there is no logo and not to draw a mark, but an installed app
+    needs an icon, and every icon in the system is a set glyph. See
+    `doc/INSTALL.md`.
 
 Behavioural departures (what the library does that the mock never had to decide)
 are in [`../LIBRARY.md`](../LIBRARY.md).

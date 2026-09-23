@@ -84,6 +84,8 @@ is the mount development pressures.
   state, where it departs from the handoff, and what it doesn't do yet.
 - [`doc/SERIES.md`](doc/SERIES.md) — the series screen: frame, states,
   departures, and what waits on the reader.
+- [`doc/INSTALL.md`](doc/INSTALL.md) — installing on the tablet, the manifest,
+  and the typeset 積 icon.
 - [`doc/OFFLINE.md`](doc/OFFLINE.md) — the device cache, the service worker,
   and reading offline without losing stats.
 - [`doc/SERVING.md`](doc/SERVING.md) — HTTPS through `tailscale serve`, and
