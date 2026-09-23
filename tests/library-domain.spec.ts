@@ -162,3 +162,13 @@ describe('cover placeholder', () => {
 		expect(hueFor('Dungeon Meshi')).toBeLessThan(360);
 	});
 });
+
+describe('shelf links', () => {
+	it('name ALL, so it never falls through to NEW while an import band is up', async () => {
+		const { shelfHref } = await import('$lib/library/links');
+		expect(shelfHref(new URL('https://x/?shelf=new&sort=title'), 'all')).toBe(
+			'/?shelf=all&sort=title'
+		);
+		expect(shelfHref(new URL('https://x/'), 'rated4')).toBe('/?shelf=rated4');
+	});
+});

@@ -102,13 +102,23 @@ const ORDER: Record<Sort, string> = {
 	added: `s.added_at DESC, s.id DESC`
 };
 
+/**
+ * The import the library is showing: the one running, else the newest one
+ * nobody has dismissed. The band, and the NEW shelf, are both about it.
+ */
+const CURRENT_SCAN_ID = `SELECT id FROM scan_jobs WHERE finished_at IS NULL OR dismissed_at IS NULL
+	ORDER BY (finished_at IS NULL) DESC, id DESC LIMIT 1`;
+
 /** Where a shelf key narrows the listing. Unknown keys fall back to all. */
 function shelfClause(shelf: string): { sql: string; params: unknown[] } {
 	if (shelf === 'favourites') return { sql: 's.favourite = 1', params: [] };
 	if (shelf === 'rated4') return { sql: 's.rating >= 4', params: [] };
 	if (shelf === 'new') {
 		return {
-			sql: 's.scan_job_id = (SELECT MAX(id) FROM scan_jobs)',
+			// The import the band is about, not the newest one: a later rescan
+			// that found nothing closes its own band, and must not empty NEW
+			// under a band still saying "23 SERIES".
+			sql: `s.scan_job_id = (${CURRENT_SCAN_ID})`,
 			params: []
 		};
 	}
@@ -452,12 +462,8 @@ export function collectionExists(id: number): boolean {
  * finished one nobody has dismissed yet.
  */
 export function currentScan(): ScanJob | null {
-	const row = getDb()
-		.prepare(
-			`SELECT * FROM scan_jobs WHERE finished_at IS NULL OR dismissed_at IS NULL
-			ORDER BY (finished_at IS NULL) DESC, id DESC LIMIT 1`
-		)
-		.get() as Record<string, number | string | null> | undefined;
+	const row = getDb().prepare(`SELECT * FROM scan_jobs WHERE id = (${CURRENT_SCAN_ID})`).get() as
+		Record<string, number | string | null> | undefined;
 	if (!row) return null;
 	return {
 		id: row.id as number,

@@ -198,6 +198,26 @@ describe('scan state', () => {
 		lib.dismissScan(done);
 		expect(lib.currentScan()).toBeNull();
 	});
+
+	it('keeps NEW on the import the band is about, after a rescan that brought nothing', () => {
+		const db = getDb();
+		const brought = Number(
+			db
+				.prepare(`INSERT INTO scan_jobs (started_at, finished_at, series_found) VALUES (10, 11, 1)`)
+				.run().lastInsertRowid
+		);
+		const target = lib.listSeries({ reveal: false }).find((s) => s.title === 'Dungeon Meshi')!;
+		db.prepare(`UPDATE series SET scan_job_id = ? WHERE id = ?`).run(brought, target.id);
+		// A later rescan found nothing new and closed its own band.
+		db.prepare(
+			`INSERT INTO scan_jobs (started_at, finished_at, series_found, dismissed_at) VALUES (12, 13, 0, 13)`
+		).run();
+		expect(lib.currentScan()?.id).toBe(brought);
+		expect(titles(lib.listSeries({ reveal: false, shelf: 'new' }))).toEqual(['Dungeon Meshi']);
+		const shelf = lib.listShelves({ reveal: false, withNew: true }).find((s) => s.key === 'new');
+		expect(shelf?.count).toBe(1);
+		lib.dismissScan(brought);
+	});
 });
 
 describe('new chapters', () => {

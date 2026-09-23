@@ -7,7 +7,9 @@ import { resolve } from '$app/paths';
  */
 export function shelfHref(current: URL, shelf: string): string {
 	const params = new URLSearchParams();
-	if (shelf !== 'all') params.set('shelf', shelf);
+	// Always named, ALL included: with an import band up, a library with no
+	// shelf in its URL opens on NEW, so ALL has to say it's ALL.
+	params.set('shelf', shelf);
 	const sort = current.searchParams.get('sort');
 	if (sort) params.set('sort', sort);
 	return library(params);
