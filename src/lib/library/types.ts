@@ -58,7 +58,7 @@ export type SeriesDetail = SeriesCard & {
 export type ShelfKind = 'smart' | 'collection' | 'root';
 
 export type Shelf = {
-	/** `all`, `favourites`, `rated4`, `new`, `c:<id>` for a collection, `r:<id>` for a root. */
+	/** `all`, `favourites`, `rated4`, `new`, `downloaded`, `k:<kind>` for manga/manhwa/novels, `c:<id>` for a collection, `r:<id>` for a root. */
 	key: string;
 	name: string;
 	kind: ShelfKind;

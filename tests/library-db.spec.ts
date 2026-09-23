@@ -193,6 +193,30 @@ describe('the DOWNLOADED shelf', () => {
 	});
 });
 
+describe('the kind shelves', () => {
+	it('list one kind each, counted the same way, and only kinds the library has', () => {
+		const shelves = lib.listShelves({ reveal: false, withNew: false });
+		const all = lib.listSeries({ reveal: false });
+		for (const kind of ['manga', 'manhwa', 'novel'] as const) {
+			const want = all.filter((c) => c.kind === kind);
+			const shelf = shelves.find((s) => s.key === `k:${kind}`);
+			if (want.length === 0) {
+				expect(shelf).toBeUndefined();
+				continue;
+			}
+			const listed = lib.listSeries({ reveal: false, shelf: `k:${kind}` });
+			expect(listed.every((c) => c.kind === kind)).toBe(true);
+			expect(listed.length).toBe(want.length);
+			expect(shelf).toMatchObject({ kind: 'smart', count: want.length });
+		}
+		// The sample library has manga, manhwa and novels, so none of the above was vacuous.
+		expect(shelves.filter((s) => s.key.startsWith('k:')).length).toBe(3);
+		expect(shelves.some((s) => s.key === 'k:doujin')).toBe(false);
+		// A key naming no kind shelf falls back to all, as any unknown key does.
+		expect(lib.listSeries({ reveal: false, shelf: 'k:doujin' }).length).toBe(all.length);
+	});
+});
+
 describe('scan state', () => {
 	it('reports a running scan over a finished one, and forgets a dismissed one', () => {
 		const db = getDb();

@@ -129,6 +129,8 @@ function shelfClause(shelf: string): { sql: string; params: unknown[] } {
 			params: []
 		};
 	}
+	const kind = /^k:(manga|manhwa|novel)$/.exec(shelf);
+	if (kind) return { sql: 's.kind = ?', params: [kind[1]] };
 	const collection = /^c:(\d+)$/.exec(shelf);
 	if (collection) {
 		return {
@@ -244,6 +246,13 @@ export function continueReading(
 	return { items, total };
 }
 
+/** The kinds with a shelf of their own. Doujins are books, grouped by other means. */
+const KIND_SHELVES = [
+	['manga', 'Manga'],
+	['manhwa', 'Manhwa'],
+	['novel', 'Novels']
+] as const;
+
 export function listShelves(opts: { reveal: boolean; withNew: boolean }): Shelf[] {
 	const db = getDb();
 	const where = visibility(opts.reveal);
@@ -273,6 +282,12 @@ export function listShelves(opts: { reveal: boolean; withNew: boolean }): Shelf[
 		count: n('s.favourite = 1')
 	});
 	shelves.push({ key: 'rated4', name: 'Rated 4+', kind: 'smart', count: n('s.rating >= 4') });
+	// One shelf per kind of reading, only while the library has some: a
+	// library of manga alone doesn't need a MANHWA shelf reading 0.
+	for (const [kind, name] of KIND_SHELVES) {
+		const count = n('s.kind = ?', kind);
+		if (count > 0) shelves.push({ key: `k:${kind}`, name, kind: 'smart', count });
+	}
 
 	const collections = db
 		.prepare(`SELECT id, name FROM collections ORDER BY position, id`)
