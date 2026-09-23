@@ -15,6 +15,11 @@
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
 	import SeriesSheet from './SeriesSheet.svelte';
 	import ShelfPicker from './ShelfPicker.svelte';
+	import PersonView from './PersonView.svelte';
+	import GroupSheet from './GroupSheet.svelte';
+	import TagChip from '$lib/components/controls/TagChip.svelte';
+	import { tagHref } from '$lib/library/links';
+	import { hueFor } from '$lib/library/cover';
 	import { desktop, phone, wide } from '$lib/device.svelte';
 	import { offline } from '$lib/offline.svelte';
 	import { continueSub, count, nextSort, progress, SORT_LABEL } from '$lib/library/labels';
@@ -44,6 +49,31 @@
 	// ---- sheets ------------------------------------------------------------
 	let sheetId = $state<number | null>(null);
 	let pickerOpen = $state(false);
+	let grouping = $state(false);
+
+	/**
+	 * The books GROUP would take: selected doujin singletons, from the library
+	 * grid or a person page. GROUP is offered only when every selected item is
+	 * one -- a manga or a series of books can't be grouped.
+	 */
+	const groupBooks = $derived.by(() => {
+		const out: { seriesId: number; title: string; hue: number; addedAt: number }[] = [];
+		const pool = data.person
+			? data.person.items
+					.filter((i) => i.groupable)
+					.map((i) => ({
+						id: i.seriesId,
+						title: i.title,
+						hue: hueFor(i.title),
+						addedAt: i.addedAt
+					}))
+			: data.series
+					.filter((c) => c.kind === 'doujin' && c.entryCount === 1)
+					.map((c) => ({ id: c.id, title: c.title, hue: c.hue, addedAt: c.addedAt }));
+		for (const b of pool) if (selected.has(b.id)) out.push({ seriesId: b.id, ...b });
+		return out;
+	});
+	const canGroup = $derived(selected.size > 0 && groupBooks.length === selected.size);
 
 	/** A tap opens the series; a long press opens the sheet (see CoverTile). */
 	function press(id: number) {
@@ -129,6 +159,20 @@
 				>
 			{/snippet}
 		</TopBar>
+	{:else if data.person}
+		<TopBar label="Library">
+			{#snippet left()}
+				<a class="cell-btn back" href={resolve('/')} aria-label="Back to library">←</a>
+			{/snippet}
+			{#snippet middle()}
+				<div class="tag-title">
+					<span class="ns">{data.person?.namespace || 'tag'}</span><span>{data.person?.value}</span>
+				</div>
+			{/snippet}
+			{#snippet right()}
+				<button type="button" class="cell-btn" onclick={() => (selecting = true)}>SELECT</button>
+			{/snippet}
+		</TopBar>
 	{:else}
 		<TopBar label="Library">
 			{#snippet left()}
@@ -205,6 +249,14 @@
 				{#if form && 'scanMessage' in form}<div class="scan-message">{form.scanMessage}</div>{/if}
 			</form>
 		</section>
+	{:else if data.person}
+		<PersonView
+			page={data.person}
+			{selecting}
+			{selected}
+			onselect={(i) =>
+				selected.has(i.seriesId) ? selected.delete(i.seriesId) : selected.add(i.seriesId)}
+		/>
 	{:else}
 		{#if showContinue}
 			<div class="cont-section">
@@ -250,31 +302,48 @@
 			<ShelfTabs shelves={tabs} active={activeShelf} href={(k) => shelfHref(page.url, k)} />
 		</div>
 
-		<div class="grid">
-			{#each shown as s (s.id)}
-				{@const cached = cachedCount(s.id)}
-				<CoverTile
-					title={s.title}
-					hue={s.hue}
-					rating={s.rating}
-					favourite={s.favourite}
-					newCount={s.newCount}
-					hidden={s.hidden}
-					indexing={!s.indexed}
-					cached={isOffline && cached > 0 ? cached : null}
-					dimmed={isOffline && cached === 0}
-					selectable={selecting}
-					selected={selected.has(s.id)}
-					onpress={() => press(s.id)}
-					onlongpress={() => (selecting ? toggle(s.id) : (sheetId = s.id))}
-				/>
-			{/each}
-			{#each { length: fillers }, i (i)}
-				<div class="filler" aria-hidden="true"></div>
-			{/each}
-		</div>
+		{#if data.shelf !== 'people'}
+			<div class="grid">
+				{#each shown as s (s.id)}
+					{@const cached = cachedCount(s.id)}
+					<CoverTile
+						title={s.title}
+						hue={s.hue}
+						rating={s.rating}
+						favourite={s.favourite}
+						newCount={s.newCount}
+						hidden={s.hidden}
+						indexing={!s.indexed}
+						cached={isOffline && cached > 0 ? cached : null}
+						dimmed={isOffline && cached === 0}
+						selectable={selecting}
+						selected={selected.has(s.id)}
+						onpress={() => press(s.id)}
+						onlongpress={() => (selecting ? toggle(s.id) : (sheetId = s.id))}
+					/>
+				{/each}
+				{#each { length: fillers }, i (i)}
+					<div class="filler" aria-hidden="true"></div>
+				{/each}
+			</div>
+		{/if}
 
-		{#if shown.length === 0}
+		{#if data.shelf === 'people'}
+			<!-- The PEOPLE shelf: favourite people, each opening their page. -->
+			<div class="people">
+				{#each data.people as p (p.namespace + ':' + p.value)}
+					<TagChip
+						namespace={p.namespace}
+						value={p.value}
+						count={p.count}
+						href={tagHref(`${p.namespace}:${p.value}`)}
+					/>
+				{/each}
+			</div>
+			{#if data.people.length === 0}
+				<p class="none">NO FAVOURITE PEOPLE · FAV ONE FROM THEIR PAGE</p>
+			{/if}
+		{:else if shown.length === 0}
 			<p class="none">NOTHING ON THIS SHELF</p>
 		{/if}
 	{/if}
@@ -290,7 +359,7 @@
 			}}
 	>
 		{#each [...selected] as id (id)}<input type="hidden" name="id" value={id} />{/each}
-		<BulkBar columns={4}>
+		<BulkBar columns={5}>
 			{#snippet actions()}
 				<button type="submit" name="do" value="fav" disabled={selected.size === 0}>FAV</button>
 				<button type="button" disabled={selected.size === 0} onclick={() => (pickerOpen = true)}
@@ -298,6 +367,10 @@
 				>
 				<!-- No tag editor is designed yet; see doc/LIBRARY.md. -->
 				<button type="button" disabled>TAG</button>
+				<!-- Index Books: GROUP, for singles only. -->
+				<button type="button" class="group" disabled={!canGroup} onclick={() => (grouping = true)}
+					>GROUP</button
+				>
 				<button type="submit" name="do" value="hide" disabled={selected.size === 0}>HIDE</button>
 			{/snippet}
 		</BulkBar>
@@ -311,6 +384,13 @@
 	onchange={() => invalidateAll()}
 />
 
+<GroupSheet
+	open={grouping}
+	books={groupBooks}
+	existing={data.existing}
+	onclose={() => (grouping = false)}
+/>
+
 <ShelfPicker
 	open={pickerOpen}
 	ids={[...selected]}
@@ -319,6 +399,26 @@
 />
 
 <style>
+	.tag-title {
+		flex: 1;
+		gap: 10px;
+		padding: 0 18px;
+		font: 500 16px var(--font-mono);
+		white-space: nowrap;
+		overflow: hidden;
+	}
+	.tag-title .ns {
+		color: var(--text-2);
+	}
+	.back {
+		font: 500 16px var(--font-mono);
+	}
+	.people {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+		padding: 18px var(--pad);
+	}
 	.library {
 		display: flex;
 		flex-direction: column;

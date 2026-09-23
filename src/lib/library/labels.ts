@@ -26,8 +26,15 @@ export function percent(fraction: number): string {
 export function continueSub(item: ContinueItem, offline?: { cached: boolean }): string {
 	const kind = kindLabel(item.kind);
 	if (offline && !offline.cached) return `${kind} · NOT CACHED`;
-	const where = item.entryCount > 0 ? `${item.entryLabel} of ${item.entryCount}` : item.entryLabel;
-	return offline ? `${kind} · ${where} · CACHED` : `${kind} · ${where}`;
+	// A single book has nothing to count: "DOUJIN", not "DOUJIN · Book of 1".
+	const where =
+		item.kind === 'doujin' && item.entryCount <= 1
+			? null
+			: item.entryCount > 0
+				? `${item.entryLabel} of ${item.entryCount}`
+				: item.entryLabel;
+	const parts = [kind, where, offline ? 'CACHED' : null].filter((p) => p !== null);
+	return parts.join(' · ');
 }
 
 /** Novels are counted in volumes, everything with pages in chapters. */

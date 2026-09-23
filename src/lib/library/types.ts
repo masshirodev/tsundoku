@@ -31,6 +31,7 @@ export type SeriesCard = {
 	hue: number;
 	/** False while the scanner has found the series but not yet indexed it. */
 	indexed: boolean;
+	addedAt: number;
 };
 
 export type ContinueItem = SeriesCard & {

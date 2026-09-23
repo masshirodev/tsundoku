@@ -4,7 +4,8 @@ import { beforeAll, describe, expect, it } from 'vitest';
 process.env.DATABASE_PATH = ':memory:';
 
 const { getDb } = await import('$lib/server/db');
-const { seedSample, SAMPLE_ROWS, HIDDEN_TITLES } = await import('$lib/server/fixtures');
+const { seedSample, SAMPLE_ROWS, HIDDEN_TITLES, BOOK_SERIES_TITLE } =
+	await import('$lib/server/fixtures');
 const lib = await import('$lib/server/library');
 
 beforeAll(() => {
@@ -74,6 +75,11 @@ describe('continue reading', () => {
 		expect(items[0].entryLabel).toBe('Ch. 41');
 		expect(total).toBeGreaterThanOrEqual(items.length);
 		for (const item of items) expect(item.readCount).toBeLessThan(item.entryCount);
+	});
+
+	it('names a book in a series of books by its place in the owner order', () => {
+		const book = lib.continueReading(true, 50).items.find((i) => i.title === BOOK_SERIES_TITLE);
+		expect(book?.entryLabel).toMatch(/^Book \d+$/);
 	});
 });
 

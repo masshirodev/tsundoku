@@ -14,6 +14,10 @@
 		type SeriesPage
 	} from '$lib/library/series';
 	import type { Shelf } from '$lib/library/types';
+	import { isBookSeries } from '$lib/library/series';
+	import { isPersonNamespace, suggestionLabel, type Suggestion } from '$lib/library/books';
+	import { tagHref } from '$lib/library/links';
+	import Band from '$lib/components/chrome/Band.svelte';
 
 	/**
 	 * The series' metadata: a header that scrolls away in portrait, a 440px
@@ -27,6 +31,9 @@
 		shelves,
 		cached,
 		onedit,
+		suggestion = null,
+		dismissedKey = null,
+		onreview,
 		cta = $bindable<HTMLElement | null>(null)
 	}: {
 		series: SeriesPage;
@@ -34,6 +41,11 @@
 		/** Entries of this series cached on the device. */
 		cached: number;
 		onedit: () => void;
+		/** "Might be one series": only on a single book, only visible books. */
+		suggestion?: Suggestion | null;
+		/** Set just after NOT A SERIES, so the band can offer UNDO. */
+		dismissedKey?: string | null;
+		onreview?: () => void;
 		/** The CONTINUE bar, observed by the page to know when it scrolled away. */
 		cta?: HTMLElement | null;
 	} = $props();
@@ -110,6 +122,48 @@
 	</button>
 	<span id="cta-note" class="sr-only">The reader is not built yet.</span>
 
+	{#if suggestion}
+		<!-- Index Books, state 7: under CONTINUE, on this book's screen only. -->
+		<section class="sugg" aria-label="Might be one series">
+			<div class="sugg-head">
+				<span>MIGHT BE ONE SERIES</span>
+				<span class="dim"
+					>{suggestion.books.length} BOOKS · {suggestionLabel(suggestion.books)}</span
+				>
+			</div>
+			<div class="sugg-covers">
+				{#each suggestion.books as b (b.seriesId)}
+					<span
+						class="sugg-cover"
+						class:this={b.seriesId === series.id}
+						style:background={coverPlaceholder(b.hue)}
+						title={b.title}
+					></span>
+				{/each}
+			</div>
+			<div class="sugg-actions">
+				<button type="button" onclick={() => onreview?.()}>REVIEW →</button>
+				<form method="POST" action="?/dismiss" use:enhance>
+					{#each suggestion.books as b (b.seriesId)}<input
+							type="hidden"
+							name="series"
+							value={b.seriesId}
+						/>{/each}
+					<button type="submit" class="dim">NOT A SERIES</button>
+				</form>
+			</div>
+		</section>
+	{:else if dismissedKey}
+		<Band title="NOT A SERIES · WON'T ASK AGAIN">
+			{#snippet action()}
+				<form method="POST" action="?/undoDismiss" use:enhance>
+					<input type="hidden" name="key" value={dismissedKey} />
+					<button type="submit">UNDO</button>
+				</form>
+			{/snippet}
+		</Band>
+	{/if}
+
 	<form method="POST" action="?/direction" use:enhance class="row">
 		<div class="label">{directionRowLabel(series.kind)}</div>
 		<div class="seg">
@@ -140,11 +194,26 @@
 			{#each tags.groups as g (g.namespace)}
 				<div class="tag-line">
 					<span class="ns">{g.namespace}</span>
-					<span class="vals">{g.values.join(' · ')}</span>
+					<span class="vals">
+						{#if isPersonNamespace(g.namespace)}
+							<!-- People open their person page (Index Books). -->
+							<!-- eslint-disable svelte/no-navigation-without-resolve -- tagHref() resolves -->
+							{#each g.values as v, i (v)}{#if i > 0}<span class="sep"> · </span>{/if}<a
+									class="person"
+									href={tagHref(`${g.namespace}:${v}`)}>{v}</a
+								>{/each}
+							<!-- eslint-enable svelte/no-navigation-without-resolve -->
+						{:else}
+							{g.values.join(' · ')}
+						{/if}
+					</span>
 				</div>
 			{/each}
 			{#if tags.groups.length === 0}<span class="none">NO TAGS</span>{/if}
 			{#if tags.more > 0}<div class="more">+ {tags.more} MORE</div>{/if}
+			{#if isBookSeries(series)}
+				<div class="more">FROM ITS {series.entries.length} BOOKS · EACH KEEPS ITS OWN</div>
+			{/if}
 		</div>
 		<button type="button" class="edit" onclick={onedit}>EDIT</button>
 	</div>
@@ -164,13 +233,19 @@
 	<div class="row file-row">
 		<div class="label">FILE</div>
 		<div class="file">
-			<div class="path">{series.path}</div>
+			{#if series.path}<div class="path">{series.path}</div>{/if}
 			<div class="file-meta">
 				{fileMeta(series.entries)}{series.kind !== 'doujin' && cached > 0
 					? ` · ↓ ${cached} CACHED`
 					: ''}
 			</div>
 		</div>
+		{#if isBookSeries(series)}
+			<!-- Every book back out as a single; the series goes. -->
+			<form method="POST" action="?/ungroup" class="hide-form">
+				<button type="submit" class="edit">UNGROUP</button>
+			</form>
+		{/if}
 		<form method="POST" action="?/hide" use:enhance class="hide-form">
 			<input type="hidden" name="on" value={series.hidden ? '0' : '1'} />
 			<button type="submit" class="edit">{series.hidden ? 'UNHIDE' : 'HIDE'}</button>
@@ -488,6 +563,80 @@
 	}
 	.about p.open {
 		display: block;
+	}
+	.person {
+		color: inherit;
+		text-decoration: underline;
+		text-underline-offset: 4px;
+		text-decoration-color: var(--line-2);
+	}
+	.person:active {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+	}
+	.sugg {
+		display: flex;
+		flex-direction: column;
+		background: var(--surface-panel);
+		border-bottom: var(--hairline);
+	}
+	.sugg-head {
+		display: flex;
+		justify-content: space-between;
+		gap: 12px;
+		padding: 16px var(--pad) 12px;
+		font: 500 13px var(--font-mono);
+		letter-spacing: var(--tracking-label);
+	}
+	.dim {
+		color: var(--text-2);
+	}
+	.sugg-covers {
+		display: flex;
+		gap: 8px;
+		padding: 0 var(--pad) 16px;
+		overflow-x: auto;
+	}
+	.sugg-cover {
+		width: 64px;
+		aspect-ratio: var(--cover-ratio);
+		flex-shrink: 0;
+	}
+	.sugg-cover.this {
+		box-shadow: inset 0 0 0 2px var(--accent);
+	}
+	.sugg-actions {
+		display: flex;
+		height: 56px;
+		border-top: var(--hairline);
+	}
+	.sugg-actions > button,
+	.sugg-actions > form {
+		flex: 1;
+		display: flex;
+	}
+	.sugg-actions button {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border: 0;
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-1);
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.04em;
+		cursor: pointer;
+	}
+	.sugg-actions > button {
+		border-right: var(--hairline);
+	}
+	.sugg-actions button.dim {
+		color: var(--text-2);
+	}
+	.sugg-actions button:active {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
 	}
 	.file-row {
 		min-height: 64px;

@@ -12,17 +12,19 @@ Routes: `/` (the library, with `?shelf=`, `?tag=`, `?sort=`), `/search?q=`, and
 The mock draws each state from a `state` prop. The code has no such prop: every
 state is the result of real data or real input.
 
-| State            | What drives it                                                                                                                                       |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Home             | Default.                                                                                                                                             |
-| Long-press sheet | Pressing and holding a tile for 450ms, or a right-click. A plain tap opens the series screen ([`SERIES.md`](SERIES.md)). Esc or the scrim closes it. |
-| Search           | `/search`. Results follow the typing, 180ms behind it, by replacing the URL.                                                                         |
-| Multi-select     | SELECT in the header. Taps then toggle tiles, and the bulk bar applies a rating, FAV, + SHELF or HIDE to exactly the selection.                      |
-| Reveal on        | Typing exactly `/reveal` in search and pressing Enter. A **session** cookie, so closing the app also ends it. HIDE AGAIN, or `/hide`, ends it.       |
-| Empty            | No visible series and no scan job.                                                                                                                   |
-| Importing        | A `scan_jobs` row with no `finished_at`. Series the scanner found but hasn't indexed (`indexed_at IS NULL`) draw as dashed "indexing" tiles.         |
-| Import finished  | The latest finished job nobody has dismissed. TIDY NEW dismisses it and opens the NEW shelf.                                                         |
-| Offline          | `navigator.onLine` is false. What counts as cached is read from the `tsundoku-entries` Cache Storage bucket.                                         |
+| State            | What drives it                                                                                                                                                                                                              |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Home             | Default.                                                                                                                                                                                                                    |
+| Long-press sheet | Pressing and holding a tile for 450ms, or a right-click. A plain tap opens the series screen ([`SERIES.md`](SERIES.md)). Esc or the scrim closes it.                                                                        |
+| Search           | `/search`. Results follow the typing, 180ms behind it, by replacing the URL.                                                                                                                                                |
+| Multi-select     | SELECT in the header. Taps then toggle tiles, and the bulk bar applies FAV, + SHELF, TAG, GROUP or HIDE to exactly the selection. GROUP is enabled only when every selected tile is a single book ([`BOOKS.md`](BOOKS.md)). |
+| Person / tag     | `/?tag=namespace:value`, from a tag on the series screen or a chip. The person header replaces CONTINUE ([`BOOKS.md`](BOOKS.md)). A tag with nothing visible is a 404.                                                      |
+| PEOPLE shelf     | `?shelf=people`. Exists while a favourite person has a visible book, and lists them as chips instead of a grid.                                                                                                             |
+| Reveal on        | Typing exactly `/reveal` in search and pressing Enter. A **session** cookie, so closing the app also ends it. HIDE AGAIN, or `/hide`, ends it.                                                                              |
+| Empty            | No visible series and no scan job.                                                                                                                                                                                          |
+| Importing        | A `scan_jobs` row with no `finished_at`. Series the scanner found but hasn't indexed (`indexed_at IS NULL`) draw as dashed "indexing" tiles.                                                                                |
+| Import finished  | The latest finished job nobody has dismissed. TIDY NEW dismisses it and opens the NEW shelf.                                                                                                                                |
+| Offline          | `navigator.onLine` is false. What counts as cached is read from the `tsundoku-entries` Cache Storage bucket.                                                                                                                |
 
 ## Hidden means hidden
 
@@ -67,6 +69,9 @@ opened has no "new", only unread.
 - **During an import the grid defaults to the NEW shelf**, sorted newest first,
   and NEW is prepended to the usual shelves. The mock shows only ALL and NEW
   because its library was empty before the import.
+- **CONTINUE names a book by its number.** A series of books reads
+  "DOUJIN · Book 3 of 4", counted in the owner's order, and a single book reads
+  just "DOUJIN" instead of the meaningless "Book of 1".
 - **+ SHELF in the bulk bar** opens a sheet of shelf chips, reusing the long-press
   sheet's SHELVES row. The mock draws the button but not what it opens.
 - **+ ADD in the sheet** expands the non-member shelves as outlined chips, plus a

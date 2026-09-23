@@ -11,7 +11,21 @@ import {
 import { addTag, markEntries, removeTag, seriesPage, setDirection } from '$lib/server/series';
 import { isRevealed } from '$lib/server/prefs';
 import { parseRating } from '$lib/library/rating';
-import { parseDirection, parseTag } from '$lib/library/series';
+import { isBookSeries, parseDirection, parseTag } from '$lib/library/series';
+import {
+	GroupingError,
+	dismissSuggestion,
+	groupIntoSeries,
+	moveBook,
+	reorderBooks,
+	rootOf,
+	seriesOfBooks,
+	setBookFavourite,
+	setBookRating,
+	suggestionFor,
+	takeOut,
+	undoDismissal
+} from '$lib/server/books';
 
 function seriesId(raw: string): number {
 	const id = Number(raw);
@@ -25,6 +39,11 @@ function seriesId(raw: string): number {
  */
 function backTo(from: string | null, shelves: { key: string; name: string }[]) {
 	if (from === 'continue') return { label: 'Continue · Library', href: '/' };
+	// From a person or tag page: back to it, named by the person.
+	if (from?.startsWith('tag:')) {
+		const tag = from.slice(4);
+		return { label: tag.slice(tag.indexOf(':') + 1), href: `/?tag=${encodeURIComponent(tag)}` };
+	}
 	const shelf = from ? shelves.find((s) => s.key === from) : undefined;
 	if (shelf && shelf.key !== 'all') {
 		return { label: shelf.name, href: `/?shelf=${encodeURIComponent(shelf.key)}` };
@@ -39,10 +58,21 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 	const series = seriesPage(seriesId(params.id), reveal);
 	if (!series) error(404, 'not found');
 	const { shelves } = await parent();
+	const books = isBookSeries(series);
+	const single = series.kind === 'doujin' && series.entries.length === 1;
+	const bookParam = Number(url.searchParams.get('book'));
+	const root = rootOf(series.id);
 	return {
 		series,
 		back: backTo(url.searchParams.get('from'), shelves),
-		editing: url.searchParams.get('edit') === 'tags'
+		editing: url.searchParams.get('edit') === 'tags',
+		// A book of a series of books opened on its own: its pages.
+		book: books ? (series.entries.find((e) => e.id === bookParam) ?? null) : null,
+		// Only a single book can be suggested into a series.
+		suggestion: single ? suggestionFor(series.id, reveal) : null,
+		// Where a book can move to, or singles can be added: same root only.
+		otherSeries: seriesOfBooks(reveal).filter((o) => o.rootId === root && o.id !== series.id),
+		created: url.searchParams.get('created') === '1'
 	};
 };
 
@@ -123,6 +153,111 @@ export const actions: Actions = {
 			namespace: String(form.get('namespace') ?? ''),
 			value: String(form.get('value') ?? '')
 		});
+		return { ok: true };
+	},
+
+	// ---- books ------------------------------------------------------------------
+
+	bookRate: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const form = await request.formData();
+		const rating = parseRating(form.get('rating'));
+		if (rating === undefined) return fail(400, { message: 'rating must be 0-5' });
+		setBookRating(s.id, Number(form.get('entry')), rating);
+		return { ok: true };
+	},
+
+	bookFavourite: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const form = await request.formData();
+		setBookFavourite(s.id, Number(form.get('entry')), form.get('on') === '1');
+		return { ok: true };
+	},
+
+	reorder: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		reorderBooks(s.id, entryIds(await request.formData()));
+		return { ok: true };
+	},
+
+	/** TAKE OUT one book: it becomes a single with its rating, FAV, tags and page. */
+	takeOut: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const form = await request.formData();
+		const entry = Number(form.get('entry'));
+		const position = s.entries.findIndex((e) => e.id === entry);
+		const title = s.entries[position]?.title;
+		const [single] = takeOut(s.id, [entry]);
+		if (!single) return fail(400, { message: 'that book is not in this series' });
+		if (s.entries.length === 1) redirect(303, `/series/${single}`);
+		return { takenOut: { single, title, position } };
+	},
+
+	/** Put a taken-out book back where it was. */
+	undoTakeOut: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const form = await request.formData();
+		const single = Number(form.get('single'));
+		const position = Number(form.get('position'));
+		try {
+			const {
+				entryIds: [entry]
+			} = groupIntoSeries({ seriesIds: [single], into: s.id });
+			const order = s.entries.map((e) => e.id);
+			order.splice(position, 0, entry);
+			reorderBooks(s.id, order);
+		} catch (e) {
+			if (e instanceof GroupingError) return fail(400, { message: e.message });
+			throw e;
+		}
+		return { ok: true };
+	},
+
+	/** UNDO after ADD TO EXISTING: take the books just added back out. */
+	undoAdd: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		takeOut(s.id, entryIds(await request.formData()));
+		redirect(303, `/series/${s.id}`);
+	},
+
+	/** UNGROUP: every book back out as a single; the series goes. */
+	ungroup: async ({ params, cookies }) => {
+		const s = target(params, cookies);
+		takeOut(
+			s.id,
+			s.entries.map((e) => e.id)
+		);
+		redirect(303, '/?sort=added');
+	},
+
+	move: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const form = await request.formData();
+		try {
+			moveBook(s.id, Number(form.get('entry')), Number(form.get('to')));
+		} catch (e) {
+			if (e instanceof GroupingError) return fail(400, { message: e.message });
+			throw e;
+		}
+		if (s.entries.length === 1) redirect(303, `/series/${Number(form.get('to'))}`);
+		return { ok: true };
+	},
+
+	/** NOT A SERIES: store the suggestion's set as dismissed. */
+	dismiss: async ({ request, params, cookies }) => {
+		target(params, cookies);
+		const form = await request.formData();
+		// From the grouping sheet the whole suggested set is sent as `suggested`;
+		// from the band it's `series`. Either way the full set is what's dismissed.
+		const raw =
+			form.getAll('suggested').length > 0 ? form.getAll('suggested') : form.getAll('series');
+		const ids = raw.map(Number).filter(Number.isInteger);
+		return { dismissed: dismissSuggestion(ids) };
+	},
+
+	undoDismiss: async ({ request, params, cookies }) => {
+		target(params, cookies);
+		undoDismissal(String((await request.formData()).get('key') ?? ''));
 		return { ok: true };
 	},
 

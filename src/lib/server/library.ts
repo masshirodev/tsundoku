@@ -31,6 +31,7 @@ type CardRow = {
 	hidden: number;
 	hue: number;
 	indexed_at: number | null;
+	added_at: number;
 	entry_count: number;
 	read_count: number;
 	new_count: number;
@@ -44,7 +45,7 @@ type CardRow = {
  */
 const CARD_SELECT = `
 	SELECT s.id, s.title, s.kind, s.rating, s.favourite,
-		(s.hidden OR r.hidden) AS hidden, s.hue, s.indexed_at,
+		(s.hidden OR r.hidden) AS hidden, s.hue, s.indexed_at, s.added_at,
 		(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) AS entry_count,
 		(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.read_at IS NOT NULL) AS read_count,
 		(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.added_at > (
@@ -64,7 +65,8 @@ function toCard(row: CardRow): SeriesCard {
 		entryCount: row.entry_count,
 		readCount: row.read_count,
 		hue: row.hue,
-		indexed: row.indexed_at !== null
+		indexed: row.indexed_at !== null,
+		addedAt: row.added_at
 	};
 }
 
@@ -162,13 +164,20 @@ export function continueReading(
 			LIMIT ?`
 		)
 		.all(limit) as CardRow[];
+	// A book in a series of books is named by its place in the owner's order
+	// ("Book 3"), since its own label is just "Book" (doc/BOOKS.md).
 	const last = db.prepare(
-		`SELECT label, last_opened_at FROM entries WHERE series_id = ? AND last_opened_at IS NOT NULL
-		ORDER BY last_opened_at DESC LIMIT 1`
+		`SELECT e.label, e.last_opened_at,
+			(SELECT COUNT(*) FROM entries x WHERE x.series_id = e.series_id AND x.position <= e.position) AS rank
+		FROM entries e WHERE e.series_id = ? AND e.last_opened_at IS NOT NULL
+		ORDER BY e.last_opened_at DESC LIMIT 1`
 	);
 	const items = rows.map((row) => {
-		const entry = last.get(row.id) as { label: string; last_opened_at: number };
-		return { ...toCard(row), entryLabel: entry.label, lastReadAt: entry.last_opened_at };
+		const entry = last.get(row.id) as { label: string; last_opened_at: number; rank: number };
+		const card = toCard(row);
+		const entryLabel =
+			card.kind === 'doujin' && card.entryCount > 1 ? `Book ${entry.rank}` : entry.label;
+		return { ...card, entryLabel, lastReadAt: entry.last_opened_at };
 	});
 	return { items, total };
 }

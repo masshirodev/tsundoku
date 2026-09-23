@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3';
 import { getDb } from './db.ts';
 import { hueFor } from '../library/cover.ts';
-import { setKey, suggestionSets, type Candidate } from '../library/books.ts';
+import { setKey, suggestionSets, type Candidate, type Suggestion } from '../library/books.ts';
 import type { Rating } from '$lib/library/types';
 
 /**
@@ -317,8 +317,6 @@ function singletonCandidates(reveal: boolean): (Candidate & { hue: number; added
 		.all() as (Candidate & { hue: number; addedAt: number })[];
 }
 
-export type Suggestion = { key: string; books: (Candidate & { hue: number; addedAt: number })[] };
-
 /**
  * The suggestion that includes this singleton, if any. It counts only what
  * the viewer can see, so it never mentions a hidden book while reveal is off.
@@ -353,4 +351,29 @@ export function dismissSuggestion(seriesIds: number[], now = Date.now()): string
 
 export function undoDismissal(key: string): void {
 	getDb().prepare(`DELETE FROM suggestion_dismissals WHERE series_ids = ?`).run(key);
+}
+
+export type BookSeriesOption = { id: number; title: string; books: number; rootId: number };
+
+/**
+ * Series of books the viewer can see: where MOVE TO… and ADD TO EXISTING can
+ * send a book. Grouping still refuses a target in another root.
+ */
+export function seriesOfBooks(reveal: boolean): BookSeriesOption[] {
+	return getDb()
+		.prepare(
+			`SELECT s.id, s.title, s.root_id AS rootId,
+				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) AS books
+			FROM series s JOIN roots r ON r.id = s.root_id
+			WHERE s.kind = 'doujin' AND ${reveal ? '1' : VISIBLE}
+			AND (SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) > 1
+			ORDER BY s.title COLLATE NOCASE`
+		)
+		.all() as BookSeriesOption[];
+}
+
+export function rootOf(seriesId: number): number | null {
+	const row = getDb().prepare(`SELECT root_id FROM series WHERE id = ?`).get(seriesId) as
+		{ root_id: number } | undefined;
+	return row?.root_id ?? null;
 }

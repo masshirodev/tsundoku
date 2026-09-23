@@ -3,6 +3,8 @@
  * (doc/BOOKS.md). Tested in tests/books-domain.spec.ts.
  */
 
+import type { Kind, Rating } from './types';
+
 /** Namespaces that name a person, and so get a person page with a FAV. */
 export const PERSON_NAMESPACES = ['artist', 'circle', 'author'] as const;
 export type PersonNamespace = (typeof PERSON_NAMESPACES)[number];
@@ -75,6 +77,9 @@ export function stemKey(title: string): string | null {
 
 export type Candidate = { seriesId: number; title: string };
 
+/** A suggestion as the screen shows it: its set's key, and its books. */
+export type Suggestion = { key: string; books: (Candidate & { hue: number; addedAt: number })[] };
+
 /** Sorted, comma-joined ids: how a set of series is stored and compared. */
 export const setKey = (ids: number[]) => [...new Set(ids)].sort((a, b) => a - b).join(',');
 
@@ -136,3 +141,42 @@ export function moveItem<T>(items: T[], from: number, to: number): T[] {
 
 /** Two-digit reading position on a book tile: 01, 02, …, 10, 11. */
 export const bookNumber = (index: number) => String(index + 1).padStart(2, '0');
+
+// ---- person and tag pages -------------------------------------------------------
+
+export type TagItem = {
+	key: string;
+	seriesId: number;
+	/** Set when this is a book inside a series of books. */
+	entryId: number | null;
+	title: string;
+	kind: Kind;
+	rating: Rating;
+	favourite: boolean;
+	hidden: boolean;
+	/** Pages or entries, and how far: drives the meta line. */
+	pages: number;
+	read: boolean;
+	progress: number | null;
+	/** For a book in a series: the series and the book's place in it. */
+	seriesTitle: string | null;
+	position: number | null;
+	total: number | null;
+	/** A doujin singleton: something GROUP can take. */
+	groupable: boolean;
+	addedAt: number;
+	entries: number;
+};
+
+export type TagPage = {
+	namespace: string;
+	value: string;
+	person: boolean;
+	favourite: boolean;
+	items: TagItem[];
+	/** Series of books carrying the tag (the 02 — SERIES strip). */
+	series: { id: number; title: string; books: number; read: number; favourite: boolean }[];
+	/** For a circle: the artists on its books, most books first. */
+	members: { value: string; count: number }[];
+	counts: { books: number; series: number; single: number; read: number; favourite: number };
+};

@@ -6,13 +6,65 @@
 	import EntryList from './EntryList.svelte';
 	import PageGrid from './PageGrid.svelte';
 	import EditSheet from './EditSheet.svelte';
+	import BookGrid from './BookGrid.svelte';
+	import BookSheet from './BookSheet.svelte';
+	import GroupSheet from '../../GroupSheet.svelte';
+	import Band from '$lib/components/chrome/Band.svelte';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { offline } from '$lib/offline.svelte';
-	import { bulkCounts, continueAction, rangeBetween, type SeriesEntry } from '$lib/library/series';
+	import { orderBooks } from '$lib/library/books';
+	import { withParam } from '$lib/library/links';
+	import {
+		bulkCounts,
+		continueAction,
+		isBookSeries,
+		rangeBetween,
+		type SeriesEntry
+	} from '$lib/library/series';
 
 	let { data, form } = $props();
 
 	const series = $derived(data.series);
 	const doujin = $derived(series.kind === 'doujin');
+	const books = $derived(isBookSeries(series));
+
+	// ---- series of books ---------------------------------------------------------------
+
+	/** The book whose sheet is open (long-press). */
+	let sheetBook = $state<SeriesEntry | null>(null);
+	let reordering = $state(false);
+	let order = $state<number[]>([]);
+	let reviewing = $state(false);
+
+	function startOrder() {
+		order = series.entries.map((e) => e.id);
+		reordering = true;
+	}
+
+	function orderBy(mode: 'date' | 'title') {
+		const byId = new Map(series.entries.map((e) => [e.id, e]));
+		order = orderBooks(
+			order
+				.map((id) => byId.get(id)!)
+				.map((e) => ({ id: e.id, title: e.title, addedAt: e.addedAt })),
+			mode
+		).map((e) => e.id);
+	}
+
+	/** A book of this series opened on its own: its page grid. */
+	function openBook(e: SeriesEntry) {
+		sheetBook = null;
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam() resolves
+		void goto(withParam(page.url, 'book', String(e.id)));
+	}
+
+	/** "SERIES CREATED · 6 BOOKS", from the grouping sheet's redirect. */
+	const created = $derived(Number(page.url.searchParams.get('created')) || 0);
+	const added = $derived(page.url.searchParams.get('added'));
+	const createdOrder = $derived(page.url.searchParams.get('order') ?? 'BY DATE ADDED');
+	const takenOut = $derived(form && 'takenOut' in form ? form.takenOut : null);
+	const dismissedKey = $derived(form && 'dismissed' in form ? form.dismissed : null);
 	const action = $derived(continueAction(series));
 
 	// ---- compact top bar ---------------------------------------------------------
@@ -117,6 +169,42 @@
 				>ALL UNREAD</button
 			>
 		</header>
+	{:else if reordering}
+		<form
+			method="POST"
+			action="?/reorder"
+			use:enhance={() =>
+				async ({ update }) => {
+					await update();
+					reordering = false;
+				}}
+			class="bar inverse"
+			aria-label="Reorder"
+		>
+			<button
+				type="button"
+				class="cell x"
+				aria-label="Cancel reordering"
+				onclick={() => (reordering = false)}>✕</button
+			>
+			<div class="mid count">
+				<span class="long">REORDER · {series.entries.length}</span><span class="short">REORDER</span
+				>
+			</div>
+			<button type="button" class="cell" onclick={() => orderBy('date')}>BY DATE</button>
+			<button type="button" class="cell" onclick={() => orderBy('title')}>BY TITLE</button>
+			{#each order as id (id)}<input type="hidden" name="entry" value={id} />{/each}
+			<button type="submit" class="cell done">DONE</button>
+		</form>
+	{:else if data.book}
+		<header class="bar" aria-label="Book">
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam() resolves -->
+			<a class="cell back" href={withParam(page.url, 'book', null)}>
+				<span class="arrow">←</span>
+				<span class="back-label">{series.title.toUpperCase()}</span>
+			</a>
+			<div class="mid title shown">{data.book.title}</div>
+		</header>
 	{:else}
 		<header class="bar" class:compact={!ctaVisible} aria-label="Series">
 			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- data.back.href is a library URL built on the server -->
@@ -129,8 +217,39 @@
 		</header>
 	{/if}
 
+	{#if takenOut}
+		<Band
+			title="TAKEN OUT · {takenOut.title?.toUpperCase()}"
+			detail="A SINGLE BOOK AGAIN · KEEPS ITS RATING, FAV, TAGS AND PAGE"
+		>
+			{#snippet action()}
+				<form method="POST" action="?/undoTakeOut" use:enhance>
+					<input type="hidden" name="single" value={takenOut.single} />
+					<input type="hidden" name="position" value={takenOut.position} />
+					<button type="submit">UNDO</button>
+				</form>
+			{/snippet}
+		</Band>
+	{:else if created > 0 && !reordering}
+		<Band
+			title={added ? `${created} BOOKS ADDED` : `SERIES CREATED · ${created} BOOKS`}
+			detail={added ? 'AT THE END · ORDER TO CHANGE' : `ORDERED ${createdOrder} · ORDER TO CHANGE`}
+		>
+			{#snippet action()}
+				<form method="POST" action={added ? '?/undoAdd' : '?/ungroup'}>
+					{#each (added ?? '').split(',').filter(Boolean) as id (id)}<input
+							type="hidden"
+							name="entry"
+							value={id}
+						/>{/each}
+					<button type="submit">UNDO</button>
+				</form>
+			{/snippet}
+		</Band>
+	{/if}
+
 	<div class="body">
-		{#if !selecting}
+		{#if !selecting && !reordering && !data.book}
 			<div class="panel-col">
 				<SeriesPanel
 					{series}
@@ -138,11 +257,25 @@
 					cached={cachedCount}
 					bind:cta
 					onedit={() => (editing = true)}
+					suggestion={data.suggestion}
+					{dismissedKey}
+					onreview={() => (reviewing = true)}
 				/>
 			</div>
 		{/if}
 		<div class="list-col">
-			{#if doujin}
+			{#if data.book}
+				<PageGrid {series} book={data.book} />
+			{:else if books}
+				<BookGrid
+					{series}
+					{reordering}
+					bind:order
+					onbook={openBook}
+					onlong={(e) => (sheetBook = e)}
+					onorder={startOrder}
+				/>
+			{:else if doujin}
 				<PageGrid {series} />
 			{:else}
 				<EntryList
@@ -180,6 +313,24 @@
 		</form>
 	{/if}
 </div>
+
+<BookSheet
+	{series}
+	book={sheetBook}
+	others={data.otherSeries}
+	onclose={() => (sheetBook = null)}
+	onpages={openBook}
+/>
+
+{#if data.suggestion}
+	<GroupSheet
+		open={reviewing}
+		suggested
+		books={data.suggestion.books}
+		existing={data.otherSeries}
+		onclose={() => (reviewing = false)}
+	/>
+{/if}
 
 <EditSheet
 	open={editing}
@@ -248,6 +399,24 @@
 	}
 	.inverse .cell:disabled {
 		opacity: 0.4;
+	}
+	.cell.done {
+		background: var(--accent);
+		color: var(--on-accent);
+	}
+	.mid .short {
+		display: none;
+	}
+	@media (max-width: 599px) {
+		.mid .long {
+			display: none;
+		}
+		.mid .short {
+			display: inline;
+		}
+	}
+	.title.shown {
+		visibility: visible;
 	}
 	.cell.armed {
 		background: var(--accent);

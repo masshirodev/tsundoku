@@ -137,6 +137,40 @@ export function entryTitle(e: SeriesEntry, kind: Kind): string {
 	return e.title ? `Chapter ${n} - ${e.title}` : `Chapter ${n}`;
 }
 
+/** A doujin series of two or more books: its contents are a cover grid of books. */
+export const isBookSeries = (s: Pick<SeriesPage, 'kind' | 'entries'>) =>
+	s.kind === 'doujin' && s.entries.length > 1;
+
+export type BookState = 'read' | 'progress' | 'unread';
+
+/** A book tile's meta line: "28 P · READ", "P. 12 / 30" (in accent, with a bar), or "24 P". */
+export function bookMeta(
+	e: SeriesEntry,
+	current: SeriesEntry | null
+): {
+	text: string;
+	state: BookState;
+	progress?: number;
+} {
+	if (e.readAt !== null) return { text: `${e.pageCount} P · READ`, state: 'read' };
+	const p = entryProgress(e);
+	if (current && e.id === current.id && p) {
+		return { text: `P. ${p.page} / ${e.pageCount}`, state: 'progress', progress: p.fraction };
+	}
+	return { text: `${e.pageCount} P`, state: 'unread' };
+}
+
+/** "6 · 3 READ" for a series of books. */
+export function booksCount(entries: SeriesEntry[]): string {
+	return `${entries.length} · ${entries.filter((e) => e.readAt !== null).length} READ`;
+}
+
+/** "2023-05": when a book was added, for the reorder screen and the grouping sheet. */
+export function addedMonth(ms: number): string {
+	const d = new Date(ms);
+	return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
 /** The big accent button, and the facts to its right. */
 export function continueAction(series: Pick<SeriesPage, 'kind' | 'entries'>): {
 	label: string;
@@ -146,6 +180,19 @@ export function continueAction(series: Pick<SeriesPage, 'kind' | 'entries'>): {
 } {
 	const { kind, entries } = series;
 	const cur = currentEntry(entries);
+	if (isBookSeries(series)) {
+		if (!cur)
+			return { label: 'READ AGAIN', meta: `${entries.length} BOOKS`, short: '', entry: entries[0] };
+		const n = entries.indexOf(cur) + 1;
+		const p = entryProgress(cur);
+		const started = entries.some((e) => e.readAt !== null || e.lastOpenedAt !== null);
+		return {
+			label: started ? 'CONTINUE' : 'START',
+			meta: p ? `BOOK ${n} · P. ${p.page} OF ${cur.pageCount}` : `BOOK ${n}`,
+			short: `BOOK ${n}`,
+			entry: cur
+		};
+	}
 	if (kind === 'doujin') {
 		const book = entries[0] ?? null;
 		const pages = book?.pageCount ?? 0;
@@ -299,6 +346,7 @@ export function railTicks(entries: SeriesEntry[]): { label: string; fraction: nu
 
 /** "MANHWA · MIHON · ONGOING" */
 export function seriesMeta(s: Pick<SeriesPage, 'kind' | 'source' | 'status' | 'entries'>): string {
+	if (isBookSeries(s)) return `DOUJIN SERIES · ${s.entries.length} BOOKS`;
 	const kind = s.kind === 'novel' ? 'WEB NOVEL' : s.kind.toUpperCase();
 	const parts = [kind];
 	if (s.source) parts.push(s.source.toUpperCase());
@@ -363,7 +411,9 @@ export function fileMeta(entries: SeriesEntry[]): string {
 		files.add(e.file || `#${e.id}`);
 		byExt.set(ext, files);
 	}
-	const kinds = [...byExt.entries()].map(([ext, files]) => `${files.size} ${ext}`);
+	const kinds = [...byExt.entries()].map(
+		([ext, files]) => `${files.size} ${ext === 'FOLDER' && files.size > 1 ? 'FOLDERS' : ext}`
+	);
 	return [...kinds, formatBytes(bytes)].filter(Boolean).join(' · ');
 }
 

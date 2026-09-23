@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+	addedMonth,
+	bookMeta,
+	booksCount,
+	isBookSeries,
 	bulkCounts,
 	continueAction,
 	currentEntry,
@@ -211,5 +215,36 @@ describe('metadata', () => {
 
 	it('summarises the files by type and size', () => {
 		expect(fileMeta(chapters(612, 0))).toBe('612 CBZ · 9.8 GB');
+	});
+});
+
+describe('a series of books', () => {
+	const books = chapters(6, 3, 12, 30).map((e, i) => ({ ...e, title: `Kaori Mama ${i + 1}` }));
+	const doujins = { kind: 'doujin' as const, entries: books };
+
+	it('is a doujin series of two or more books, never one', () => {
+		expect(isBookSeries(doujins)).toBe(true);
+		expect(isBookSeries({ kind: 'doujin', entries: books.slice(0, 1) })).toBe(false);
+		expect(isBookSeries({ kind: 'manga', entries: books })).toBe(false);
+	});
+
+	it('continues at the book in progress, naming it by position', () => {
+		expect(continueAction(doujins)).toMatchObject({
+			label: 'CONTINUE',
+			meta: 'BOOK 4 · P. 12 OF 30',
+			short: 'BOOK 4'
+		});
+		expect(seriesMeta({ ...doujins, source: 'hentoid', status: '' })).toBe(
+			'DOUJIN SERIES · 6 BOOKS'
+		);
+		expect(booksCount(books)).toBe('6 · 3 READ');
+	});
+
+	it('writes each tile’s meta line', () => {
+		const cur = currentEntry(books);
+		expect(bookMeta(books[0], cur)).toEqual({ text: '30 P · READ', state: 'read' });
+		expect(bookMeta(books[3], cur)).toMatchObject({ text: 'P. 12 / 30', state: 'progress' });
+		expect(bookMeta(books[4], cur)).toEqual({ text: '30 P', state: 'unread' });
+		expect(addedMonth(Date.UTC(2023, 4, 9))).toBe('2023-05');
 	});
 });

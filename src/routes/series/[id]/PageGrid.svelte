@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { coverPlaceholder } from '$lib/library/cover';
-	import { entryProgress, type SeriesPage } from '$lib/library/series';
+	import { entryProgress, type SeriesEntry, type SeriesPage } from '$lib/library/series';
 
 	/**
 	 * A doujin reads as a book, so its contents are its pages rather than a
@@ -9,9 +9,10 @@
 	 * Thumbnails are the striped placeholder until the importers extract real
 	 * ones; each page will open the reader directly once the reader exists.
 	 */
-	let { series }: { series: SeriesPage } = $props();
+	let { series, book: only }: { series: SeriesPage; book?: SeriesEntry | null } = $props();
 
-	const book = $derived(series.entries[0]);
+	/** A one-book doujin shows its book; a book of a series is passed in. */
+	const book = $derived(only ?? series.entries[0]);
 	const pages = $derived(book?.pageCount ?? 0);
 	const current = $derived(book && book.readAt === null ? (entryProgress(book)?.page ?? 0) : 0);
 	const countLabel = $derived(

@@ -25,6 +25,7 @@ const card = (over: Partial<SeriesCard> = {}): SeriesCard => ({
 	readCount: 41,
 	hue: 30,
 	indexed: true,
+	addedAt: 0,
 	...over
 });
 
@@ -116,6 +117,17 @@ describe('labels', () => {
 		expect(continueSub(item)).toBe('MANHWA · Ch. 214 of 243');
 		expect(continueSub(item, { cached: true })).toBe('MANHWA · Ch. 214 of 243 · CACHED');
 		expect(continueSub(item, { cached: false })).toBe('MANHWA · NOT CACHED');
+	});
+
+	it('counts books in a series of books, and nothing for a single book', () => {
+		const book = (entryCount: number, entryLabel: string): ContinueItem => ({
+			...card({ kind: 'doujin', entryCount }),
+			entryLabel,
+			lastReadAt: 0
+		});
+		expect(continueSub(book(4, 'Book 3'))).toBe('DOUJIN · Book 3 of 4');
+		expect(continueSub(book(1, 'Book'))).toBe('DOUJIN');
+		expect(continueSub(book(1, 'Book'), { cached: true })).toBe('DOUJIN · CACHED');
 	});
 
 	it('writes the sheet meta line in the design voice', () => {
