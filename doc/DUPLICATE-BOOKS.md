@@ -52,12 +52,17 @@ For each pair (`reviewQueue`):
   a tenth), MAYBE otherwise (often a volume and the collection that holds it),
   SAME BOOK · ENGLISH AND JAPANESE for a fold.
 - **The pick** (`pick`): which copy to keep, by the first rule that tells them
-  apart, with its reason in words:
-  1. **Complete over partial**: the one with pages the other lacks
-     ("MORE PAGES · B IS MISSING P 12–13");
-  2. **Sharper**: larger pages, by a tenth or more (the median page's size);
-  3. **What you chose**: the one read, rated, FAV'd, shelved or in a series;
-  4. **Older**: downloaded first.
+  apart, with its reason in words. Resolution counts for more than a page or
+  two, but not for a much shorter book (the owner, 2026-09-24):
+  1. **Complete over partial**, when the page counts are far apart (more than
+     two pages and a tenth, the line between LIKELY and MAYBE): the one with
+     the pages the other lacks ("MORE PAGES · A IS MISSING P 31–96");
+  2. **Sharper**: larger pages, by a tenth or more (the median page's size),
+     when the counts are close; a credits page one site added doesn't beat a
+     sharper scan;
+  3. **More pages**, a few, when the pages are as sharp;
+  4. **What you chose**: the one read, rated, FAV'd, shelved or in a series;
+  5. **Older**: downloaded first.
 
 ## The review
 

@@ -37,7 +37,7 @@ test('the pick comes selected with its reason; the other side can be chosen inst
 	await expect(page.locator('.conf')).toHaveText('LIKELY SAME');
 	// Same pages, sharper [Digital]: rule 2 picks B.
 	await expect(page.locator('.s2')).toContainText('PICK · B · SHARPER');
-	await expect(page.locator('.s2')).toContainText('RULE 2 OF 4 · SHARPER');
+	await expect(page.locator('.s2')).toContainText('RULE 2 OF 5 · SHARPER');
 	await expect(tagOf(page, 'B')).toHaveText('KEEP · PICK');
 	await expect(tagOf(page, 'A')).toHaveText('TO TRASH');
 	await expect(page.locator('.plabel')).toContainText(/\d+ MATCH · 0 ALONE/);

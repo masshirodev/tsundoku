@@ -3,7 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { untrack } from 'svelte';
 	import { bookCoverSrc, pageThumbSrc } from '$lib/library/links';
-	import { carryOver, type Copy } from '$lib/library/dupes';
+	import { RULES, carryOver, type Copy } from '$lib/library/dupes';
 
 	/**
 	 * Duplicate books (Pair Review; doc/DUPLICATE-BOOKS.md): one pair at a
@@ -273,7 +273,7 @@
 					<span
 						>{fold
 							? 'FOLD, KEEP APART, OR SKIP'
-							: `RULE ${pair.pick!.rule} OF 4 · ${pair.pick!.ruleName}`}</span
+							: `RULE ${pair.pick!.rule} OF ${RULES.length} · ${pair.pick!.ruleName}`}</span
 					>
 				</div>
 			</div>

@@ -107,34 +107,41 @@ describe('pages, lined up', () => {
 
 describe('the pick', () => {
 	const same = (n: number) => Array.from({ length: n }, (_, i) => ({ a: i + 1, b: i + 1 }));
-	it('1: complete over partial', () => {
-		const rows = [...same(11), { a: 12, b: null }, { a: 13, b: null }, { a: null, b: 12 }];
-		const p = pick(copy({}), copy({ pages: 23 }), rows);
-		expect(p).toMatchObject({ keep: 'a', rule: 1, why: 'MORE PAGES · B IS MISSING P 12–13' });
-	});
-	it('2: sharper, when both are complete', () => {
+	const credits = [{ a: null, b: 1 }, ...same(24).map((r) => ({ a: r.a, b: r.b + 1 }))];
+	it('1: far more pages win, however sharp the other', () => {
+		const rows = [...same(30), ...Array.from({ length: 66 }, (_, i) => ({ a: null, b: 31 + i }))];
 		const p = pick(
-			copy({ width: 900, height: 1273 }),
-			copy({ width: 1600, height: 2263 }),
-			same(24)
+			copy({ pages: 30, width: 1600, height: 2263 }),
+			copy({ pages: 96, width: 900, height: 1273 }),
+			rows
 		);
+		expect(p).toMatchObject({ keep: 'b', rule: 1, ruleName: 'COMPLETE OVER PARTIAL' });
+		expect(p.why).toBe('MORE PAGES · A IS MISSING P 31–96');
+	});
+	it('2: sharper wins over a page or two more', () => {
+		const p = pick(copy({ width: 1600, height: 2263 }), copy({ pages: 25 }), credits);
 		expect(p).toMatchObject({
-			keep: 'b',
+			keep: 'a',
 			rule: 2,
-			why: 'SHARPER · B IS 1600 × 2263, A IS 900 × 1273'
+			why: 'SHARPER · A IS 1600 × 2263, B IS 1280 × 1810'
 		});
 	});
-	it('3: the one the owner read, rated or shelved', () => {
-		const p = pick(copy({}), copy({ rating: 3, read: 'read' }), same(24));
-		expect(p).toMatchObject({ keep: 'b', rule: 3 });
+	it('3: a few more pages, when the pages are as sharp', () => {
+		const rows = [...same(11), { a: 12, b: null }, { a: 13, b: null }, { a: null, b: 12 }];
+		const p = pick(copy({}), copy({ pages: 23 }), rows);
+		expect(p).toMatchObject({ keep: 'a', rule: 3, why: 'MORE PAGES · B IS MISSING P 12–13' });
 	});
-	it('4: the one downloaded first', () => {
+	it('4: the one the owner read, rated or shelved', () => {
+		const p = pick(copy({}), copy({ rating: 3, read: 'read' }), same(24));
+		expect(p).toMatchObject({ keep: 'b', rule: 4 });
+	});
+	it('5: the one downloaded first', () => {
 		const p = pick(
 			copy({ addedAt: Date.UTC(2024, 1, 3) }),
 			copy({ addedAt: Date.UTC(2023, 5, 11) }),
 			same(24)
 		);
-		expect(p).toMatchObject({ keep: 'b', rule: 4, why: 'DOWNLOADED FIRST · 2023-06-11' });
+		expect(p).toMatchObject({ keep: 'b', rule: 5, why: 'DOWNLOADED FIRST · 2023-06-11' });
 	});
 });
 

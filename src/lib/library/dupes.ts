@@ -173,14 +173,20 @@ export function confidence(a: Copy, b: Copy): Confidence {
 
 export type Pick = {
 	keep: 'a' | 'b';
-	/** Which of the four rules decided: 1 complete, 2 sharper, 3 the owner's, 4 older. */
-	rule: 1 | 2 | 3 | 4;
+	/** Which rule decided: 1 far more pages, 2 sharper, 3 a few more pages, 4 the owner's, 5 older. */
+	rule: 1 | 2 | 3 | 4 | 5;
 	ruleName: string;
 	/** Why, in the review's words: "MORE PAGES · B IS MISSING P 12–13". */
 	why: string;
 };
 
-const RULES = ['COMPLETE OVER PARTIAL', 'SHARPER', 'WHAT YOU CHOSE', 'OLDER'] as const;
+export const RULES = [
+	'COMPLETE OVER PARTIAL',
+	'SHARPER',
+	'MORE PAGES',
+	'WHAT YOU CHOSE',
+	'OLDER'
+] as const;
 
 /** How much the owner has done with a copy: read, rated, FAV, shelved, in a series. */
 const tended = (c: Copy) =>
@@ -192,26 +198,39 @@ const tended = (c: Copy) =>
 
 const day = (at: number) => new Date(at).toISOString().slice(0, 10);
 
+/** Page counts far apart: more than two pages and a tenth (the "maybe" line, as `confidence` draws it). */
+export const farApart = (a: Copy, b: Copy) =>
+	Math.abs(a.pages - b.pages) > Math.max(2, Math.max(a.pages, b.pages) * 0.1);
+
 /**
  * Which copy to keep (doc/DUPLICATE-BOOKS.md, "How the pick is made"): the
- * first rule that tells them apart decides.
+ * first rule that tells them apart decides. Sharper pages win over a page or
+ * two more (a credits page one site added); far more pages win over sharper
+ * (the owner, 2026-09-24).
  */
 export function pick(a: Copy, b: Copy, rows: PageRow[]): Pick {
 	const onlyA = rows.filter((r) => r.a !== null && r.b === null).map((r) => r.a!);
 	const onlyB = rows.filter((r) => r.b !== null && r.a === null).map((r) => r.b!);
-	const decide = (keep: 'a' | 'b', rule: 1 | 2 | 3 | 4, why: string): Pick => ({
+	const decide = (keep: 'a' | 'b', rule: Pick['rule'], why: string): Pick => ({
 		keep,
 		rule,
 		ruleName: RULES[rule - 1],
 		why
 	});
-	// 1. Complete over partial: pages one has that the other lacks.
-	if (onlyA.length !== onlyB.length) {
+	const morePages = (rule: 1 | 3): Pick => {
 		const keep = onlyA.length > onlyB.length ? 'a' : 'b';
 		const lacks = keep === 'a' ? onlyA : onlyB;
 		const other = keep === 'a' ? 'B' : 'A';
-		return decide(keep, 1, `MORE PAGES · ${other} IS MISSING ${pageList(lacks)}`);
-	}
+		return decide(
+			keep,
+			rule,
+			lacks.length
+				? `MORE PAGES · ${other} IS MISSING ${pageList(lacks)}`
+				: `MORE PAGES · ${(keep === 'a' ? a : b).pages} AGAINST ${(keep === 'a' ? b : a).pages}`
+		);
+	};
+	// 1. Far more pages: the complete book over a part of it, however sharp.
+	if (farApart(a, b) && onlyA.length !== onlyB.length) return morePages(1);
 	// 2. Sharper: larger pages, by a tenth or more.
 	const area = (c: Copy) => c.width * c.height;
 	if (area(a) && area(b) && Math.max(area(a), area(b)) >= 1.1 * Math.min(area(a), area(b))) {
@@ -224,14 +243,16 @@ export function pick(a: Copy, b: Copy, rows: PageRow[]): Pick {
 			`SHARPER · ${K} IS ${k.width} × ${k.height}, ${O} IS ${o.width} × ${o.height}`
 		);
 	}
-	// 3. What the owner already chose.
+	// 3. A few more pages, when the pages are as sharp.
+	if (onlyA.length !== onlyB.length) return morePages(3);
+	// 4. What the owner already chose.
 	if (tended(a) !== tended(b)) {
 		const keep = tended(a) > tended(b) ? 'a' : 'b';
-		return decide(keep, 3, `YOU READ, RATED OR SHELVED ${keep === 'a' ? 'A' : 'B'}`);
+		return decide(keep, 4, `YOU READ, RATED OR SHELVED ${keep === 'a' ? 'A' : 'B'}`);
 	}
-	// 4. Older: downloaded first.
+	// 5. Older: downloaded first.
 	const keep = a.addedAt <= b.addedAt ? 'a' : 'b';
-	return decide(keep, 4, `DOWNLOADED FIRST · ${day(keep === 'a' ? a.addedAt : b.addedAt)}`);
+	return decide(keep, 5, `DOWNLOADED FIRST · ${day(keep === 'a' ? a.addedAt : b.addedAt)}`);
 }
 
 /**
