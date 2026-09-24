@@ -70,6 +70,22 @@ test('the series screen offers the pair too, and REVIEW opens on it', async ({ p
 	await expect(page.locator('.counter')).toHaveText('01 OF 01');
 });
 
+test('the actions stay on screen under the reveal banner, however long the pair', async ({
+	page
+}) => {
+	await command(page, '/reveal');
+	await page.goto('/duplicates');
+	const keep = page.getByRole('button', { name: 'KEEP BOTH', exact: true });
+	const vh = page.viewportSize()!.height;
+	const box = (await keep.boundingBox())!;
+	expect(box.y + box.height).toBeLessThanOrEqual(vh);
+	// Scrolled to the pages, they're still there.
+	await page.locator('.plabel').scrollIntoViewIfNeeded();
+	const after = (await keep.boundingBox())!;
+	expect(after.y + after.height).toBeLessThanOrEqual(vh);
+	expect(after.y).toBeGreaterThan(vh - 100);
+});
+
 test('side by side in landscape, one above the other in portrait', async ({ page }) => {
 	await command(page, '/reveal');
 	await page.goto('/duplicates');

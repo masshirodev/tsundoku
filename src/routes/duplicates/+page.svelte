@@ -401,13 +401,19 @@
 		--cover-w: 132px;
 		--pair-min: 200px;
 		--act-font: 14px;
-		height: 100dvh;
+		/*
+		 * The page scrolls as any screen does, under whatever the layout puts
+		 * above it (the reveal banner, the incognito band): a fixed 100dvh
+		 * pushed the actions off the bottom once one was there. The actions
+		 * stay in reach by sticking to the bottom instead.
+		 */
+		flex: 1;
+		min-height: 100dvh;
 		display: flex;
 		flex-direction: column;
 		background: var(--surface-page);
 		color: var(--text-1);
 		font-family: var(--font-sans);
-		overflow: hidden;
 	}
 	@media (max-width: 599px) {
 		.review {
@@ -546,8 +552,6 @@
 	}
 	.scroll {
 		flex: 1;
-		min-height: 0;
-		overflow-y: auto;
 	}
 	.summary {
 		display: flex;
@@ -814,9 +818,13 @@
 		color: var(--accent);
 	}
 	.actions {
+		position: sticky;
+		bottom: 0;
+		z-index: 5;
 		flex-shrink: 0;
 		display: grid;
 		border-top: 1px solid var(--line-1);
+		background: var(--surface-page);
 	}
 	.actions button {
 		min-height: 64px;

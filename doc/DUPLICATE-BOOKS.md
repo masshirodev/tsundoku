@@ -110,6 +110,11 @@ that's all of them.
 
 ## Where it departs from the handoff
 
+- **The page scrolls, and the actions stick to the bottom.** The mock is a
+  screen of its own height with only its middle scrolling; in the app the
+  layout's reveal banner (always there for these pairs) or incognito band sits
+  above it, and a fixed height pushed the actions off the bottom. Found by the
+  owner on 2026-09-24.
 - **Page thumbnails are the pages'**, not the mock's stripes; covers are the
   books' own covers (`/api/entries/<id>/cover`).
 - **A page alone says ONLY IN A / ONLY IN B**, one wording for both sides; the
