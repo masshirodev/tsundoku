@@ -1,7 +1,8 @@
 import { error, fail, redirect } from '@sveltejs/kit';
-import { refreshCovers } from '$lib/server/covers';
+import { automaticCover, refreshCovers } from '$lib/server/covers';
 import { DeleteError, deleteBook, deleteSeries } from '$lib/server/delete';
 import type { Actions, PageServerLoad } from './$types';
+import { getDb } from '$lib/server/db';
 import { ocrPlace, restoreNotText, setSeriesOcr } from '$lib/server/japanese/ocr';
 import { wordsOf } from '$lib/server/japanese/mining';
 import { decide, twinOf } from '$lib/server/dupes';
@@ -90,11 +91,36 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		created: url.searchParams.get('created') === '1',
 		// Japanese (doc/JAPANESE.md): OCR's progress, and the words looked up. Never for novels.
 		ocr: series.kind === 'novel' ? null : ocrPlace(series.id),
+		// The PAGES grid's page menu (c26): where the covers come from now.
+		cover: coverState(series.id),
 		// A book here with a likely twin (doc/DUPLICATE-BOOKS.md): the band.
 		twin: twinBand(series.id, reveal),
 		words: series.kind === 'novel' ? null : wordsOf(series.id, reveal)
 	};
 };
+
+/** The series' chosen cover, what automatic would give, and which entries' files carry one. */
+function coverState(seriesId: number) {
+	const db = getDb();
+	const s = db.prepare(`SELECT cover_entry, cover_page FROM series WHERE id = ?`).get(seriesId) as {
+		cover_entry: number | null;
+		cover_page: number | null;
+	};
+	return {
+		chosen:
+			s.cover_entry !== null && s.cover_page !== null
+				? { entry: s.cover_entry, page: s.cover_page }
+				: null,
+		automatic: automaticCover(seriesId),
+		files: (
+			db
+				.prepare(
+					`SELECT id FROM entries WHERE series_id = ? AND cover_file IS NOT NULL AND cover_file != ''`
+				)
+				.all(seriesId) as { id: number }[]
+		).map((r) => r.id)
+	};
+}
 
 /** The series screen's SAME BOOK AS band: the other copy, and how alike. */
 function twinBand(seriesId: number, reveal: boolean) {
@@ -109,6 +135,13 @@ function twinBand(seriesId: number, reveal: boolean) {
 		pages: `${matched} OF ${Math.max(p.a.pages, p.b.pages)} PAGES MATCH`
 	};
 }
+
+/**
+ * Covers after the books move (c57): a series of books wears its first
+ * book's cover, and a book taken out is a new series with none yet. Off the
+ * request, never waited on, from the workstation's files only.
+ */
+const recover = (ids: number[]) => void refreshCovers({ ids, remote: false });
 
 /** Resolve the series a form acted on, refusing one reveal would hide. */
 function target(params: { id: string }, cookies: Parameters<Actions[string]>[0]['cookies']) {
@@ -247,6 +280,7 @@ export const actions: Actions = {
 	reorder: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
 		reorderBooks(s.id, entryIds(await request.formData()));
+		recover([s.id]);
 		return { ok: true };
 	},
 
@@ -259,6 +293,7 @@ export const actions: Actions = {
 		const title = s.entries[position]?.title;
 		const [single] = takeOut(s.id, [entry]);
 		if (!single) return fail(400, { message: 'that book is not in this series' });
+		recover([s.id, single]);
 		if (s.entries.length === 1) redirect(303, `/series/${single}`);
 		return { takenOut: { single, title, position } };
 	},
@@ -276,6 +311,7 @@ export const actions: Actions = {
 			const order = s.entries.map((e) => e.id);
 			order.splice(position, 0, entry);
 			reorderBooks(s.id, order);
+			recover([s.id]);
 		} catch (e) {
 			if (e instanceof GroupingError) return fail(400, { message: e.message });
 			throw e;
@@ -295,7 +331,7 @@ export const actions: Actions = {
 				s.id,
 				s.entries.filter((e) => ids.includes(e.id)).map((e) => e.file)
 			);
-		else takeOut(s.id, ids);
+		else recover([s.id, ...takeOut(s.id, ids)]);
 		redirect(303, `/series/${s.id}`);
 	},
 
@@ -309,9 +345,11 @@ export const actions: Actions = {
 			const made = takeOutVolumes(s.id);
 			void refreshCovers({ ids: made, remote: false });
 		} else
-			takeOut(
-				s.id,
-				s.entries.map((e) => e.id)
+			recover(
+				takeOut(
+					s.id,
+					s.entries.map((e) => e.id)
+				)
 			);
 		redirect(303, '/?sort=added');
 	},
@@ -321,6 +359,7 @@ export const actions: Actions = {
 		const form = await request.formData();
 		try {
 			moveBook(s.id, Number(form.get('entry')), Number(form.get('to')));
+			recover([s.id, Number(form.get('to'))]);
 		} catch (e) {
 			if (e instanceof GroupingError) return fail(400, { message: e.message });
 			throw e;

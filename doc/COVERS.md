@@ -11,14 +11,22 @@ fails to load leaves the stripes.
 
 `src/lib/server/covers.ts` takes the first source that has one:
 
-1. **A cover the files carry:** Hentoid's thumbnail, Mihon local's
+0. **A page the owner chose** (see "Chosen", below), cut from its top as any
+   page is: `chosen:<entry>:<page>`.
+1. **A series of books wears its first book's cover** (card c57): the page
+   chosen for that book, else Hentoid's thumbnail, else its first page, which
+   is what the book's own tile shows in BOOKS: `book:<entry>:…`. It follows
+   the order: reordering, taking a book out, moving one or grouping remake
+   the cover (off the request), and a book taken out, a new series, gets its
+   own at once.
+2. **A cover the files carry:** Hentoid's thumbnail, Mihon local's
    `cover.jpg`, an EPUB's cover image. Real covers.
-2. **The source site's cover URL,** which Mihon's backup has for every series
+3. **The source site's cover URL,** which Mihon's backup has for every series
    (`series.cover_url`, rung 14). It's fetched with a browser's user agent and
    the site's own origin as the referrer, three at a time, and only by the
    cover pass, never while a screen waits. The owner approved fetching them on
    2026-09-23.
-3. **The first page of the first downloaded entry,** cut from the top to the
+4. **The first page of the first downloaded entry,** cut from the top to the
    tile's 2:2.9 shape. This is last because a Mihon chapter's first page is so
    often a scanlator's credits or recruitment banner, and a webtoon page is a
    tall strip that would shrink to a sliver.
@@ -99,3 +107,58 @@ grid; the thumbnails are a few KB each.
 ## What it doesn't do yet
 
 - **Set any page as the cover** is card c26.
+
+## Chosen
+
+A long press on a page picks it as a cover (Page Menu, card c26; the
+handoff's `Page Menu.dc.html`). The first page is often wrong: an
+advertisement, a scanlator's credits, a table of contents.
+
+**Where:** in the image reader, a long press (450ms without moving, a
+finger, or the left button held on desktop) on the page itself: the page
+under the finger, in the strip too, and the pressed half of a spread. The
+release that follows turns nothing, and the right button still turns back.
+On the series screen, a long press on a cell of the PAGES grid, which also
+marks the chosen page with a COVER corner.
+
+**The menu** (`PageMenu.svelte`): the pressed page keeps its light, ringed in
+the accent with its number in the corner, the rest under a scrim that takes
+every tap; ✕, the scrim or Esc close it. A preview shows the page as a tile
+would crop it (in the reader). One row per thing the page can become, each
+saying where that cover comes from now (`menuRows`,
+`src/lib/library/cover-menu.ts`):
+
+| Reading                   | Rows                                                            |
+| ------------------------- | --------------------------------------------------------------- |
+| A single doujin           | **COVER**: the book and its series are one tile.                |
+| A book in a series        | **BOOK** (its tile in BOOKS) and **SERIES** (the series' tile). |
+| A manga or manhwa chapter | **SERIES**: a chapter has no tile.                              |
+
+A row whose cover is already this page says **✓ THIS PAGE**, names what
+automatic would give, and offers **BACK TO AUTOMATIC**. Offline the menu
+still opens, its rows dimmed, with **○ OFFLINE · COVERS NEED THE
+WORKSTATION**: nothing is queued.
+
+**What it stores:** `POST /api/covers` sets a book's `entries.cover_page` and
+a series' `cover_entry` and `cover_page` (rung 23), answers with what was
+there, and remakes the series' thumbnail before answering. A single sets
+both. **UNDO** is the same call with the answer: the reader's band (**BOOK
+COVER · P. 14 / SUMMER AFTERNOON · WAS P. 1, AUTOMATIC**) stays 6 seconds,
+until the next turn or scroll, or until the controls open. A save that
+fails goes to the app's own RETRY / PUT BACK band.
+
+### Where it departs from the handoff
+
+- **The grid's band is the screen's Band**, under the PAGES head, not pinned
+  to the foot as the reader's is: the series screen scrolls, and its bands
+  sit at the top of what they're about.
+- **A chosen series cover names its chapter** when it's another one's page
+  ("NOW CH. 3 · P. 14 · CHOSEN"); the mock only drew a chosen page of the
+  same book.
+- **The meta line of a manga** carries the chapter and its place ("MANHWA ·
+  CH. 88 · 88 OF 120"); the mock's "CH. 88 OF 120" assumes the chapter's
+  number is its place.
+
+### Not yet
+
+- **No page menu in the text reader**: a novel's cover is its EPUB's.

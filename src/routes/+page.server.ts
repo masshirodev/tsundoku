@@ -175,8 +175,9 @@ export const actions: Actions = {
 		const params = new URLSearchParams({ created: String(moved.length), order });
 		if (result.volumes) params.set('unit', 'volumes');
 		if (into !== undefined) params.set('added', moved.join(','));
-		// The new series' cover, from its first volume: off the request, never waited on.
-		if (result.volumes) void refreshCovers({ ids: [result.seriesId], remote: false });
+		// The new series' cover, from its first book or volume (c57): off the
+		// request, never waited on.
+		void refreshCovers({ ids: [result.seriesId], remote: false });
 		redirect(303, `/series/${result.seriesId}?${params}`);
 	},
 

@@ -5,6 +5,7 @@ import { isIncognito, isRevealed } from '$lib/server/prefs';
 import { seriesPage } from '$lib/server/series';
 import { manifest } from '$lib/server/pages';
 import { ocrStatus } from '$lib/server/japanese/ocr';
+import { automaticCover } from '$lib/server/covers';
 import { epubVersions } from '$lib/server/epub';
 import { effectiveDirection, isBookSeries } from '$lib/library/series';
 import { entryName, modeOf, spelledOut } from '$lib/reader/reader';
@@ -88,6 +89,18 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 	};
 
 	const m = await manifest(entryId, reveal);
+	const coverRow = getDb()
+		.prepare(`SELECT cover_entry, cover_page FROM series WHERE id = ?`)
+		.get(series.id) as { cover_entry: number | null; cover_page: number | null };
+	const withCoverFile = new Set(
+		(
+			getDb()
+				.prepare(
+					`SELECT id FROM entries WHERE series_id = ? AND cover_file IS NOT NULL AND cover_file != ''`
+				)
+				.all(series.id) as { id: number }[]
+		).map((r) => r.id)
+	);
 	const pages = m?.pages ?? [];
 	const p = url.searchParams.get('p');
 	const asked = Number(p);
@@ -120,9 +133,21 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			entries: series.entries.map((e) => ({
 				id: e.id,
 				position: e.number,
+				label: e.label,
 				readAt: e.readAt,
-				available: e.available
-			}))
+				available: e.available,
+				// The page menu (c26): each entry's own cover, and whether its files carry one.
+				coverPage: e.coverPage,
+				hasCoverFile: withCoverFile.has(e.id)
+			})),
+			// Where the series' tile comes from: the page menu says it, and offers the way back.
+			cover: {
+				chosen:
+					coverRow.cover_entry !== null && coverRow.cover_page !== null
+						? { entry: coverRow.cover_entry, page: coverRow.cover_page }
+						: null,
+				automatic: automaticCover(series.id)
+			}
 		},
 		entry: {
 			id: entry.id,

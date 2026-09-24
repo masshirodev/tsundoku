@@ -9,8 +9,14 @@ process.env.DATABASE_PATH = ':memory:';
 process.env.COVER_DIR = join(work, 'covers');
 
 const { getDb } = await import('$lib/server/db');
-const { readBookCover, readCover, readPageThumb, refreshCovers } =
-	await import('$lib/server/covers');
+const {
+	automaticCover,
+	readBookCover,
+	readCover,
+	readPageThumb,
+	refreshCovers,
+	refreshSeriesCover
+} = await import('$lib/server/covers');
 const { samplePage } = await import('$lib/server/pages/sample');
 const { zip } = await import('./helpers/zip-writer');
 
@@ -202,5 +208,57 @@ describe('page thumbnails', () => {
 	it("are nothing for a page that isn't there", async () => {
 		expect(await readPageThumb(entryOf(downloaded), 99, false)).toBeNull();
 		expect(await readPageThumb(entryOf(bare), 0, false)).toBeNull();
+	});
+});
+
+describe('covers the owner chose (c26), and a series of books’ first book (c57)', () => {
+	const key = (id: number) => row(id).cover_key;
+	const entryOf = (seriesId: number) =>
+		(db.prepare(`SELECT id FROM entries WHERE series_id = ?`).get(seriesId) as { id: number }).id;
+
+	it('a chosen page wins over every other source, and automatic comes back', async () => {
+		const e = entryOf(downloaded);
+		db.prepare(`UPDATE series SET cover_entry = ?, cover_page = 0 WHERE id = ?`).run(e, downloaded);
+		await refreshSeriesCover(downloaded);
+		expect(key(downloaded)).toBe(`chosen:${e}:0`);
+		db.prepare(`UPDATE series SET cover_entry = NULL, cover_page = NULL WHERE id = ?`).run(
+			downloaded
+		);
+		await refreshSeriesCover(downloaded);
+		expect(key(downloaded)).not.toMatch(/^chosen:/);
+	});
+
+	it('a series of books wears its first book’s cover, following the page chosen for it and the order', async () => {
+		mkdirSync(join(work, 'Books'), { recursive: true });
+		const two = zip([
+			{ name: '001.png', data: png },
+			{ name: '002.png', data: samplePage(200, 2) }
+		]);
+		writeFileSync(join(work, 'Books', 'A.cbz'), two);
+		writeFileSync(join(work, 'Books', 'B.cbz'), two);
+		const id = Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, added_at, path) VALUES (1, 'Books', 'doujin', 0, ?)`
+				)
+				.run(join(work, 'Books')).lastInsertRowid
+		);
+		const put = db.prepare(
+			`INSERT INTO entries (series_id, position, label, added_at, file, available) VALUES (?, ?, ?, 0, ?, 1)`
+		);
+		const a = Number(put.run(id, 1, 'Book 1', 'A.cbz').lastInsertRowid);
+		const b = Number(put.run(id, 2, 'Book 2', 'B.cbz').lastInsertRowid);
+		expect(automaticCover(id)).toBe('book');
+		await refreshSeriesCover(id);
+		expect(key(id)).toBe(`book:${a}:p0`);
+		db.prepare(`UPDATE entries SET cover_page = 1 WHERE id = ?`).run(a);
+		await refreshSeriesCover(id);
+		expect(key(id)).toBe(`book:${a}:p1`);
+		// Reordered: the new first book's cover.
+		db.prepare(
+			`UPDATE entries SET position = CASE id WHEN ? THEN 2 ELSE 1 END WHERE series_id = ?`
+		).run(a, id);
+		await refreshSeriesCover(id);
+		expect(key(id)).toBe(`book:${b}:p0`);
 	});
 });

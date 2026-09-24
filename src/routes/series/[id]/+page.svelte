@@ -369,7 +369,7 @@
 		{/if}
 		<div class="list-col">
 			{#if data.book}
-				<PageGrid {series} book={data.book} />
+				<PageGrid {series} book={data.book} cover={data.cover} />
 			{:else if books}
 				<BookGrid
 					{series}
@@ -380,7 +380,7 @@
 					onorder={startOrder}
 				/>
 			{:else if doujin}
-				<PageGrid {series} />
+				<PageGrid {series} cover={data.cover} />
 			{:else}
 				<EntryList
 					{series}

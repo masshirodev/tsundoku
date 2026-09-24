@@ -2,6 +2,14 @@
 	import { coverPlaceholder } from '$lib/library/cover';
 	import { entryProgress, type SeriesEntry, type SeriesPage } from '$lib/library/series';
 	import { pageThumbSrc, readHref } from '$lib/library/links';
+	import { resolve } from '$app/paths';
+	import { invalidateAll } from '$app/navigation';
+	import { longpress } from '$lib/actions/longpress';
+	import { offline } from '$lib/offline.svelte';
+	import { saves } from '$lib/saves.svelte';
+	import Band from '$lib/components/chrome/Band.svelte';
+	import PageMenu from '$lib/components/content/PageMenu.svelte';
+	import { bandFor, menuRows, type Automatic, type MenuRow } from '$lib/library/cover-menu';
 
 	/**
 	 * A doujin reads as a book, so its contents are its pages rather than a
@@ -11,7 +19,20 @@
 	 * (doc/COVERS.md, "Page thumbnails"), over the striped placeholder while it
 	 * loads; only the cells on screen ask. Each page opens the reader there.
 	 */
-	let { series, book: only }: { series: SeriesPage; book?: SeriesEntry | null } = $props();
+	let {
+		series,
+		book: only,
+		cover
+	}: {
+		series: SeriesPage;
+		book?: SeriesEntry | null;
+		/** The series' chosen cover and what automatic gives: the page menu's rows (c26). */
+		cover: {
+			chosen: { entry: number; page: number } | null;
+			automatic: Automatic;
+			files: number[];
+		};
+	} = $props();
 
 	/** A one-book doujin shows its book; a book of a series is passed in. */
 	const book = $derived(only ?? series.entries[0]);
@@ -26,6 +47,71 @@
 					? `${pages} · LAST OPENED P. ${current}`
 					: String(pages)
 	);
+
+	// ---- the page menu (Page Menu 1i): long-press a cell ----------------------------------
+	let menu = $state<{ page: number; rect: DOMRect } | null>(null);
+	type CoverBody = {
+		entryId: number;
+		book?: number | null;
+		series?: { entry: number; page: number } | null;
+	};
+	let band = $state<{ title: string; detail: string; undo: CoverBody } | null>(null);
+	const rows = $derived(
+		menu && book
+			? menuRows({
+					kind: only ? 'book' : 'single',
+					entry: book.id,
+					page: menu.page,
+					book: { coverPage: book.coverPage, hasFile: cover.files.includes(book.id) },
+					series: cover,
+					labelOf: (id) => series.entries.find((e) => e.id === id)?.label ?? ''
+				})
+			: []
+	);
+	async function post(b: CoverBody): Promise<boolean> {
+		try {
+			const r = await fetch(resolve('/api/covers'), {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(b)
+			});
+			return r.ok;
+		} catch {
+			return false;
+		}
+	}
+	async function choose(row: MenuRow) {
+		const m = menu;
+		if (!m || !book) return;
+		const b: CoverBody = { entryId: book.id };
+		const undo: CoverBody = { entryId: book.id };
+		if (row.target !== 'series') {
+			b.book = row.isThis ? null : m.page;
+			undo.book = book.coverPage;
+		}
+		if (row.target !== 'book') {
+			b.series = row.isThis ? null : { entry: book.id, page: m.page };
+			undo.series = cover.chosen;
+		}
+		const text = bandFor(row, m.page, only ? book.title || book.label : series.title);
+		menu = null;
+		if (await post(b)) {
+			band = { ...text, undo };
+			await invalidateAll();
+		} else
+			saves.fail({
+				what: `${row.target === 'book' ? 'BOOK COVER' : row.target === 'series' ? 'SERIES COVER' : 'COVER'} NOT SAVED`,
+				putBackLabel: 'PUT BACK',
+				key: `cover:${book.id}`,
+				retry: async () => (await post(b)) && (await invalidateAll(), true),
+				putBack: () => undefined
+			});
+	}
+	async function undoBand() {
+		const u = band?.undo;
+		band = null;
+		if (u && (await post(u))) await invalidateAll();
+	}
 </script>
 
 <section class="list" aria-label="Pages">
@@ -33,6 +119,13 @@
 		<span>01 — PAGES</span>
 		<span>{countLabel}</span>
 	</div>
+	{#if band}
+		<Band title={band.title} detail={band.detail}>
+			{#snippet action()}
+				<button type="button" onclick={undoBand}>UNDO</button>
+			{/snippet}
+		</Band>
+	{/if}
 	<ol class="grid">
 		{#each { length: pages }, i (i)}
 			{@const n = i + 1}
@@ -41,7 +134,9 @@
 				class:current={n === current}
 				style:background={coverPlaceholder((series.hue + n * 11) % 360)}
 				aria-current={n === current ? 'page' : undefined}
+				data-cell={i}
 			>
+				{#if book?.coverPage === i}<span class="is-cover">COVER</span>{/if}
 				{#if book?.available}
 					<img
 						class="thumb"
@@ -51,14 +146,36 @@
 						decoding="async"
 						draggable="false"
 					/>
-					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves -->
-					<a class="open" href={readHref(book.id, n)} aria-label="Read from page {n}"></a>
+					<!-- eslint-disable svelte/no-navigation-without-resolve -- readHref() resolves -->
+					<a
+						class="open"
+						href={readHref(book.id, n)}
+						aria-label="Read from page {n}"
+						use:longpress={() => {
+							const cell = document.querySelector(`[data-cell="${i}"]`);
+							if (cell) menu = { page: i, rect: cell.getBoundingClientRect() };
+						}}
+					></a>
+					<!-- eslint-enable svelte/no-navigation-without-resolve -->
 				{/if}
 				<span class="n">{n}</span>
 			</li>
 		{/each}
 	</ol>
 </section>
+
+{#if menu && book}
+	<PageMenu
+		page={menu.page}
+		{pages}
+		rect={menu.rect}
+		{rows}
+		offline={!offline.online}
+		readHref={readHref(book.id, menu.page + 1)}
+		onchoose={choose}
+		onclose={() => (menu = null)}
+	/>
+{/if}
 
 <style>
 	.open {
@@ -131,6 +248,18 @@
 		background: var(--surface-page);
 		color: var(--text-1);
 		font: 500 12px var(--font-mono);
+	}
+	/* The page chosen as the book's cover (Page Menu 1i). */
+	.is-cover {
+		position: absolute;
+		left: 0;
+		top: 0;
+		z-index: 1;
+		padding: 2px 5px;
+		background: var(--accent);
+		color: var(--on-accent);
+		font: 500 12px/1 var(--font-mono);
+		pointer-events: none;
 	}
 	.current .n {
 		background: var(--accent);

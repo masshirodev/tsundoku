@@ -9,6 +9,10 @@
 	import { offline } from '$lib/offline.svelte';
 	import { keepAhead } from '$lib/cache/device';
 	import { flushPending, queuePending } from '$lib/cache/pending';
+	import { SvelteMap } from 'svelte/reactivity';
+	import PageMenu from '$lib/components/content/PageMenu.svelte';
+	import { bandFor, menuRows, type MenuKind, type MenuRow } from '$lib/library/cover-menu';
+	import { saves } from '$lib/saves.svelte';
 	import {
 		ProgressClock,
 		metaLine,
@@ -821,18 +825,216 @@
 			: null
 	);
 
+	// ---- the page menu: a long-pressed page as a cover (Page Menu, c26) ----------------------
+	// doc/COVERS.md, "Chosen". Held 450ms without moving: a finger, or the left
+	// button on desktop. The release that follows turns nothing.
+	const HOLD_MS = 450;
+	let press: ReturnType<typeof setTimeout> | undefined;
+	/** The press opened the menu: the pointerup (and click) after it are its own. */
+	let pressed = false;
+	type Menu = {
+		entry: number;
+		page: number;
+		pages: number;
+		rect: { left: number; top: number; width: number; height: number };
+		preview: string;
+		title: string;
+		meta: string;
+	};
+	let menu = $state<Menu | null>(null);
+	// The covers as they stand, updated as the owner chooses (the tile follows on the workstation).
+	// svelte-ignore state_referenced_locally
+	let seriesCover = $state(data.series.cover);
+	// svelte-ignore state_referenced_locally
+	const bookCovers = new SvelteMap(data.series.entries.map((e) => [e.id, e.coverPage]));
+	// svelte-ignore state_referenced_locally
+	const coverFiles = new Set(data.series.entries.filter((e) => e.hasCoverFile).map((e) => e.id));
+	const labelOf = (id: number) => data.series.entries.find((e) => e.id === id)?.label ?? '';
+	const menuKind = $derived<MenuKind>(
+		data.series.kind !== 'doujin' ? 'series' : data.series.books ? 'book' : 'single'
+	);
+	const menuRowsNow = $derived(
+		menu
+			? menuRows({
+					kind: menuKind,
+					entry: menu.entry,
+					page: menu.page,
+					book: {
+						coverPage: bookCovers.get(menu.entry) ?? null,
+						hasFile: coverFiles.has(menu.entry)
+					},
+					series: seriesCover,
+					labelOf
+				})
+			: []
+	);
+
+	function startPress(e: PointerEvent) {
+		clearTimeout(press);
+		pressed = false;
+		if (e.pointerType === 'mouse' && e.button !== 0) return;
+		const { clientX: x, clientY: y } = e;
+		press = setTimeout(() => openMenu(x, y), HOLD_MS);
+	}
+	const cancelPress = () => clearTimeout(press);
+
+	/** The page under the finger -- not the one under the middle of the screen -- and its place. */
+	function openMenu(x: number, y: number) {
+		if (lookup || sheet || !data.manifest) return;
+		for (const el of document.elementsFromPoint(x, y)) {
+			const pg = el.closest<HTMLElement>('[data-page]');
+			if (!pg) continue;
+			if (pg.closest('[aria-hidden="true"]')) return;
+			const slot = pg.closest<HTMLElement>('[data-entry]');
+			const entry = slot ? Number(slot.dataset.entry) : data.entry.id;
+			const page = Number(pg.dataset.page) - 1;
+			const c = entry === data.entry.id ? null : strip.find((s) => s.id === entry);
+			const r = pg.getBoundingClientRect();
+			pressed = true;
+			chrome = false;
+			coverBand = null;
+			const name = c ? c.name : data.entry.name;
+			menu = {
+				entry,
+				page,
+				pages: c ? c.pageCount : pages.length,
+				rect: { left: r.left, top: r.top, width: r.width, height: r.height },
+				preview: c ? pageSrc(c.id, c.version, page) : src(page),
+				title:
+					menuKind === 'book'
+						? c
+							? c.title || c.name
+							: data.entry.title || data.entry.name
+						: data.series.title,
+				meta:
+					menuKind === 'book'
+						? `DOUJIN · ${name.toUpperCase()} OF ${data.series.count} · ${data.series.title.toUpperCase()}`
+						: menuKind === 'single'
+							? `DOUJIN · ${pages.length} PAGES`
+							: `${data.series.kind.toUpperCase()} · ${name.toUpperCase()} · ${
+									data.series.entries.findIndex((e) => e.id === entry) + 1
+								} OF ${data.series.count}`
+			};
+			return;
+		}
+	}
+	// The strip holds still while the menu is open.
+	$effect(() => {
+		if (mode !== 'vertical' || !menu) return;
+		const html = document.documentElement;
+		html.style.overflow = 'hidden';
+		return () => {
+			html.style.overflow = '';
+		};
+	});
+
+	type CoverBody = {
+		entryId: number;
+		book?: number | null;
+		series?: { entry: number; page: number } | null;
+	};
+	let coverBand = $state<{ title: string; detail: string; undo: CoverBody } | null>(null);
+	let bandTimer: ReturnType<typeof setTimeout> | undefined;
+
+	/** Apply a choice here at once; the workstation is told behind it. */
+	function applyLocal(b: CoverBody) {
+		if ('book' in b) bookCovers.set(b.entryId, b.book ?? null);
+		if ('series' in b) seriesCover = { ...seriesCover, chosen: b.series ?? null };
+	}
+	function undoOf(b: CoverBody): CoverBody {
+		const u: CoverBody = { entryId: b.entryId };
+		if ('book' in b) u.book = bookCovers.get(b.entryId) ?? null;
+		if ('series' in b) u.series = seriesCover.chosen;
+		return u;
+	}
+	async function postCover(b: CoverBody): Promise<boolean> {
+		try {
+			const r = await fetch(resolve('/api/covers'), {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(b)
+			});
+			return r.ok;
+		} catch {
+			return false;
+		}
+	}
+	function showBand(b: { title: string; detail: string; undo: CoverBody }) {
+		coverBand = b;
+		clearTimeout(bandTimer);
+		bandTimer = setTimeout(() => (coverBand = null), 6000);
+	}
+
+	async function choose(row: MenuRow) {
+		const m = menu;
+		if (!m) return;
+		const at = { entry: m.entry, page: m.page };
+		const b: CoverBody = { entryId: m.entry };
+		if (row.target !== 'series') b.book = row.isThis ? null : m.page;
+		if (row.target !== 'book') b.series = row.isThis ? null : at;
+		const undo = undoOf(b);
+		const band = bandFor(row, m.page, m.title);
+		menu = null;
+		applyLocal(b);
+		showBand({ ...band, undo });
+		if (await postCover(b)) return;
+		// Not stored: the choice stays, dashed, with RETRY and PUT BACK (doc/WAITING.md).
+		coverBand = null;
+		const what =
+			row.target === 'book' ? 'BOOK COVER' : row.target === 'series' ? 'SERIES COVER' : 'COVER';
+		saves.fail({
+			what: `${what} NOT SAVED`,
+			putBackLabel: 'PUT BACK',
+			key: `cover:${m.entry}`,
+			retry: () => postCover(b),
+			putBack: () => applyLocal(undo)
+		});
+	}
+	async function undoCover() {
+		const band = coverBand;
+		if (!band) return;
+		coverBand = null;
+		applyLocal(band.undo);
+		if (!(await postCover(band.undo)))
+			saves.fail({
+				what: 'COVER NOT PUT BACK',
+				putBackLabel: 'LEAVE IT',
+				key: `cover:${band.undo.entryId}`,
+				retry: () => postCover(band.undo),
+				putBack: () => undefined
+			});
+	}
+	// The band goes on the next turn or scroll, or when the controls open.
+	$effect(() => {
+		void at;
+		void chrome;
+		untrack(() => {
+			if (coverBand && chrome) coverBand = null;
+		});
+	});
+	let bandAt = -1;
+	$effect(() => {
+		const a = at;
+		untrack(() => {
+			if (coverBand && bandAt !== -1 && a !== bandAt) coverBand = null;
+			bandAt = a;
+		});
+	});
+
 	// ---- touch -----------------------------------------------------------------------------
 	let down: { x: number; y: number } | null = null;
 	let dragging = false;
 	function pointerdown(e: PointerEvent) {
 		down = { x: e.clientX, y: e.clientY };
 		dragging = false;
+		startPress(e);
 	}
 	/**
 	 * The page follows a sideways drag. Not under FIT HEIGHT, where the browser
 	 * pans the page sideways itself, nor with reduced motion.
 	 */
 	function pointermove(e: PointerEvent) {
+		if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 10) cancelPress();
 		if (!down || animating || fit === 'height' || reduceMotion.current) return;
 		const dx = e.clientX - down.x;
 		const dy = e.clientY - down.y;
@@ -844,15 +1046,24 @@
 		drag = after(dirAt(side)) ? dx : dx / 4;
 	}
 	function pointercancel() {
+		cancelPress();
 		down = null;
 		if (dragging) void settleBack();
 		dragging = false;
 	}
 	/** A right click turns back (mouseAction), so the page never opens the browser's menu. */
 	function contextmenu(e: MouseEvent) {
-		if (mode !== 'vertical') e.preventDefault();
+		if (mode !== 'vertical' || menu || pressed) e.preventDefault();
 	}
 	function pointerup(e: PointerEvent) {
+		cancelPress();
+		if (pressed) {
+			// The press opened the page menu; lifting the finger is part of it.
+			pressed = false;
+			down = null;
+			dragging = false;
+			return;
+		}
 		if (!down) return;
 		// A link or button on the end page is its own; the page doesn't turn under it.
 		if ((e.target as Element | null)?.closest?.('a, button')) {
@@ -905,8 +1116,8 @@
 	});
 
 	function keydown(e: KeyboardEvent) {
-		// The lookup has the keyboard: Escape closes it (the panel's own).
-		if (lookup) return;
+		// The lookup, or the page menu, has the keyboard: Escape closes it (their own).
+		if (lookup || menu) return;
 		if (sheet) {
 			if (e.key === 'Escape') sheet = false;
 			return;
@@ -1005,7 +1216,24 @@
 		</div>
 	{:else if mode === 'vertical'}
 		{#key stripSession}
-			<div class="lane-lift" style:transform={lift ? `translateY(${-lift}px)` : undefined}>
+			<!-- svelte-ignore a11y_no_static_element_interactions -->
+			<div
+				class="lane-lift"
+				style:transform={lift ? `translateY(${-lift}px)` : undefined}
+				onpointerdown={(e) => {
+					down = { x: e.clientX, y: e.clientY };
+					startPress(e);
+				}}
+				onpointermove={(e) => {
+					if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 10) cancelPress();
+				}}
+				onpointerup={() => {
+					cancelPress();
+					down = null;
+				}}
+				onpointercancel={cancelPress}
+				oncontextmenu={(e) => (menu || pressed) && e.preventDefault()}
+			>
 				<Strip
 					chapters={strip}
 					{sides}
@@ -1013,6 +1241,11 @@
 					onpage={stripPage}
 					onend={(id) => id === data.entry.id && markFinished()}
 					ontap={(e) => {
+						// The click after a long press belongs to the page menu.
+						if (pressed) {
+							pressed = false;
+							return;
+						}
 						if (!tapBlocks(e.clientX, e.clientY)) chrome = !chrome;
 					}}
 					rings={ringsOn}
@@ -1122,6 +1355,39 @@
 
 	{#if data.incognito}<div class="dashed" aria-hidden="true"></div>{/if}
 	{#if dim > 0}<div class="dim" style:opacity={dim} aria-hidden="true"></div>{/if}
+
+	{#if menu}
+		<PageMenu
+			page={menu.page}
+			pages={menu.pages}
+			rect={menu.rect}
+			title={menu.title}
+			meta={menu.meta}
+			preview={menu.preview}
+			rows={menuRowsNow}
+			offline={!offline.online}
+			onchoose={choose}
+			onclose={() => (menu = null)}
+		/>
+	{/if}
+
+	{#if coverBand}
+		<div class="cover-band" role="status">
+			<div class="cb-text">
+				<div class="cb-t">{coverBand.title}</div>
+				<div class="cb-d">{coverBand.detail}</div>
+			</div>
+			<button
+				type="button"
+				onpointerdown={(e) => e.stopPropagation()}
+				onpointerup={(e) => e.stopPropagation()}
+				onclick={(e) => {
+					e.stopPropagation();
+					void undoCover();
+				}}>UNDO</button
+			>
+		</div>
+	{/if}
 
 	{#if lookup}
 		<LookupPanel
@@ -1321,6 +1587,58 @@
 		.lane-lift {
 			transition: none;
 		}
+	}
+	/* Page Menu 1c: the band after a cover is chosen, where SaveBand sits. */
+	.cover-band {
+		position: fixed;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 30;
+		display: flex;
+		align-items: stretch;
+		justify-content: space-between;
+		gap: 12px;
+		height: 60px;
+		padding-left: 24px;
+		background: var(--surface-panel);
+		border-top: var(--rule-strong);
+	}
+	.cb-text {
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 3px;
+		min-width: 0;
+	}
+	.cb-t {
+		font: 500 14px/1.2 var(--font-mono);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.cb-d {
+		font: 400 13px/1.3 var(--font-mono);
+		color: var(--text-2);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.cover-band button {
+		display: flex;
+		align-items: center;
+		padding: 0 24px;
+		border: 0;
+		border-left: var(--hairline);
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-1);
+		font: 500 14px/1.2 var(--font-mono);
+		cursor: pointer;
+	}
+	.cover-band button:active {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
 	}
 	/* Index Japanese 1c, NOT TEXT: a band at the foot, UNDO until the next tap. */
 	.dropped {

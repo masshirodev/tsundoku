@@ -439,6 +439,14 @@ const MIGRATIONS: string[] = [
 		at INTEGER NOT NULL,
 		applied_at INTEGER
 	);
+	`,
+	// Rung 23: a series cover the owner chose (doc/COVERS.md, "Chosen"): a page
+	// of one of its entries, from the reader's page menu or the PAGES grid.
+	// Both NULL is automatic. A book's own choice was already
+	// entries.cover_page (rung 9).
+	`
+	ALTER TABLE series ADD COLUMN cover_entry INTEGER REFERENCES entries(id) ON DELETE SET NULL;
+	ALTER TABLE series ADD COLUMN cover_page INTEGER;
 	`
 ];
 

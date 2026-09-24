@@ -46,6 +46,9 @@ width, row height (60 / 52px) and rail width (56 / 44px) per device.
 
 ## Rules worth knowing
 
+- **A long press on a PAGES cell** opens the page menu: set it as the book's
+  or series' cover, or read from it; the chosen page wears a COVER corner
+  ([`COVERS.md`](COVERS.md), "Chosen").
 - **SAME BOOK AS …** is a band under CONTINUE on a book with a likely twin,
   with KEEP BOTH and REVIEW → ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md)).
 - **OCR and WORDS** sit under DIRECTION on every series that isn't a novel:

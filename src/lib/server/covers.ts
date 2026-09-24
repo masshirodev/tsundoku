@@ -42,6 +42,8 @@ type SeriesRow = {
 	id: number;
 	path: string;
 	kind: string;
+	cover_entry: number | null;
+	cover_page: number | null;
 	cover_url: string;
 	cover_key: string;
 	cover_at: number | null;
@@ -120,6 +122,99 @@ function pageSource(s: SeriesRow): Source | null {
 			return page ? bytesOf(page.body) : null;
 		}
 	};
+}
+
+/**
+ * A page the owner chose as the series' cover (the page menu), cut to the
+ * tile from its top as any page is.
+ */
+function chosenSource(s: SeriesRow): Source | null {
+	if (s.cover_entry === null || s.cover_page === null) return null;
+	const entry = s.cover_entry;
+	const page = s.cover_page;
+	return {
+		key: `chosen:${entry}:${page}`,
+		crop: true,
+		read: async () => {
+			const p = await readPage(entry, page, true);
+			return p ? bytesOf(p.body) : null;
+		}
+	};
+}
+
+/**
+ * A series of books (doujins grouped by the owner) wears its first book's
+ * cover: the page chosen for it, Hentoid's thumbnail, or its first page --
+ * what the book's own tile shows in BOOKS (card c57).
+ */
+function firstBookSource(s: SeriesRow): Source | null {
+	if (s.kind !== 'doujin') return null;
+	const db = getDb();
+	const books = db
+		.prepare(
+			`SELECT id, file, cover_page, cover_file FROM entries WHERE series_id = ? AND shadowed = 0 ORDER BY position, id`
+		)
+		.all(s.id) as {
+		id: number;
+		file: string;
+		cover_page: number | null;
+		cover_file: string | null;
+	}[];
+	if (books.length < 2) return null;
+	const b = books[0];
+	if (b.cover_page !== null)
+		return {
+			key: `book:${b.id}:p${b.cover_page}`,
+			crop: true,
+			read: async () => {
+				const p = await readPage(b.id, b.cover_page!, true);
+				return p ? bytesOf(p.body) : null;
+			}
+		};
+	if (b.cover_file && s.path && !s.path.startsWith(SAMPLE_PREFIX)) {
+		const path = join(s.path, b.file, b.cover_file);
+		return { key: `book:${b.id}:${path}`, read: () => readFile(path).catch(() => null) };
+	}
+	if (!s.path || s.path.startsWith(SAMPLE_PREFIX)) return null;
+	return {
+		key: `book:${b.id}:p0`,
+		crop: true,
+		read: async () => {
+			const p = await readPage(b.id, 0, true);
+			return p ? bytesOf(p.body) : null;
+		}
+	};
+}
+
+/**
+ * Where a series' cover comes from without a chosen page: what the page
+ * menu's BACK TO AUTOMATIC would give. Only looks; reads nothing.
+ */
+export function automaticCover(seriesId: number): 'book' | 'file' | 'url' | 'page' | 'none' {
+	const s = seriesRow(seriesId);
+	if (!s) return 'none';
+	if (firstBookSource(s)) return 'book';
+	if (ownSource(s)) return 'file';
+	if (remoteSource(s)) return 'url';
+	if (pageSource(s)) return 'page';
+	return 'none';
+}
+
+function seriesRow(id: number): SeriesRow | null {
+	return (
+		(getDb()
+			.prepare(
+				`SELECT id, path, kind, cover_entry, cover_page, cover_url, cover_key, cover_at, cover_failed_at
+				FROM series WHERE id = ?`
+			)
+			.get(id) as SeriesRow | undefined) ?? null
+	);
+}
+
+/** Bring one series' cover up to date now, from the workstation's files only. */
+export async function refreshSeriesCover(seriesId: number): Promise<CoverResult> {
+	const s = seriesRow(seriesId);
+	return s ? refreshCover(s, false) : 'none';
 }
 
 function remoteSource(s: SeriesRow): Source | null {
@@ -208,6 +303,12 @@ export async function refreshCover(
 		return true;
 	};
 
+	// The owner's choice, then a series of books' first book, then the rest.
+	for (const source of [chosenSource(s), firstBookSource(s)]) {
+		if (!source) continue;
+		if (fresh(source.key)) return 'kept';
+		if (await make(source)) return 'made';
+	}
 	const own = ownSource(s);
 	if (own) {
 		if (fresh(own.key)) return 'kept';
@@ -250,7 +351,8 @@ export async function refreshCovers(
 	const where = opts.ids ? `WHERE id IN (${opts.ids.map(Number).join(',') || 'NULL'})` : '';
 	const rows = db
 		.prepare(
-			`SELECT id, path, kind, cover_url, cover_key, cover_at, cover_failed_at FROM series ${where} ORDER BY id`
+			`SELECT id, path, kind, cover_entry, cover_page, cover_url, cover_key, cover_at, cover_failed_at
+			FROM series ${where} ORDER BY id`
 		)
 		.all() as SeriesRow[];
 	const counts: Record<CoverResult, number> = { made: 0, kept: 0, none: 0, failed: 0 };
@@ -261,7 +363,8 @@ export async function refreshCovers(
 	const remote = opts.remote ?? true;
 	const needsRemote: SeriesRow[] = [];
 	for (const s of rows) {
-		if (!ownSource(s) && remote && remoteSource(s)) needsRemote.push(s);
+		if (!chosenSource(s) && !firstBookSource(s) && !ownSource(s) && remote && remoteSource(s))
+			needsRemote.push(s);
 		else tally(await refreshCover(s, false, opts.now));
 	}
 	let next = 0;

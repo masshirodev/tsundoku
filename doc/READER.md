@@ -41,6 +41,8 @@ because hidden pages must never pass for ordinary ones.
 - **Vertical scroll never turns on a tap.** Every tap is the controls, and
   scrolling is how you move.
 - **With the controls up, a tap on the page only puts them away.**
+- **A long press on a page opens the page menu**: set it as the book's or
+  the series' cover ([`COVERS.md`](COVERS.md), "Chosen").
 - **No hardware keys, by the owner's choice.** On desktop the arrows are
   spatial (in R→L, ← is forward), Space and PageDown go forward, and Esc
   toggles the controls.
