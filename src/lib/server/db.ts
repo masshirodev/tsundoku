@@ -352,6 +352,21 @@ const MIGRATIONS: string[] = [
 		title TEXT NOT NULL DEFAULT '',
 		deleted_at INTEGER NOT NULL
 	) WITHOUT ROWID;
+	`,
+	// Rung 19: OCR (doc/JAPANESE.md). A page's text blocks, as mokuro read them
+	// on the workstation, their boxes in fractions of the page. An entry notes
+	// when it was read whole (ocr_at) or last failed (ocr_failed_at). A series'
+	// ocr: NULL decides by language, 1 always, 0 never.
+	`
+	CREATE TABLE page_text (
+		entry_id INTEGER NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
+		page INTEGER NOT NULL,
+		blocks TEXT NOT NULL,
+		PRIMARY KEY (entry_id, page)
+	) WITHOUT ROWID;
+	ALTER TABLE entries ADD COLUMN ocr_at INTEGER;
+	ALTER TABLE entries ADD COLUMN ocr_failed_at INTEGER;
+	ALTER TABLE series ADD COLUMN ocr INTEGER;
 	`
 ];
 

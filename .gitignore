@@ -15,3 +15,6 @@ samples/
 # Handoff bundles as downloaded; their contents are mirrored in doc/design/handoff/.
 doc/design/*.zip
 /.serving/
+
+# kuromoji's dictionary, ~18MB, copied from kotoba by `yarn prepare` (kotoba-sync-dict).
+/static/dict/

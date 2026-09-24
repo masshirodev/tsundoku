@@ -8,7 +8,7 @@
 		"dev": "vite dev --port 42143",
 		"build": "vite build",
 		"preview": "vite preview --port 42143",
-		"prepare": "svelte-kit sync || echo ''; husky || true",
+		"prepare": "svelte-kit sync || echo ''; husky || true; node node_modules/kotoba/scripts/sync-dict.js static/dict || true",
 		"hooks:check": "node scripts/hooks-armed.mjs",
 		"check": "node scripts/hooks-armed.mjs && svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
@@ -27,7 +27,8 @@
 		"backup": "node --experimental-strip-types scripts/backup.ts",
 		"covers": "node --experimental-strip-types scripts/covers.ts",
 		"sync-import": "node --experimental-strip-types scripts/sync-import.ts",
-		"sync-setup": "node --experimental-strip-types scripts/sync-setup.ts"
+		"sync-setup": "node --experimental-strip-types scripts/sync-setup.ts",
+		"ocr": "node --experimental-strip-types scripts/ocr.ts"
 	},
 	"dependencies": {
 		"@fontsource/ibm-plex-sans": "^5.3.0",
@@ -39,6 +40,7 @@
 		"@simplewebauthn/server": "^14.0.2",
 		"@sveltejs/adapter-node": "^5.5.7",
 		"better-sqlite3": "^12.11.1",
+		"kotoba": "link:../kotoba",
 		"sharp": "^0.34.5"
 	},
 	"devDependencies": {

@@ -1,0 +1,14 @@
+# Read Japanese chapters with mokuro on the GPU (doc/JAPANESE.md). A user unit: install with
+#   ln -s ~/projects/tsundoku/ops/systemd/tsundoku-ocr.{service,timer} ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now tsundoku-ocr.timer
+[Unit]
+Description=tsundoku: OCR waiting Japanese chapters
+RequiresMountsFor=/mnt/hdd2
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/projects/tsundoku
+# mise's shim, so the unit gets the project's Node without a login shell.
+ExecStart=%h/.local/share/mise/shims/node --experimental-strip-types scripts/ocr.ts
+Nice=10
+IOSchedulingClass=idle

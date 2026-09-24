@@ -394,6 +394,11 @@
   resolved "https://registry.yarnpkg.com/@oxc-project/types/-/types-0.150.0.tgz#e9be0840114655016b16f1c05ddaaa01df5b8853"
   integrity sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==
 
+"@patdx/kuromoji@^1.0.4":
+  version "1.0.4"
+  resolved "https://registry.yarnpkg.com/@patdx/kuromoji/-/kuromoji-1.0.4.tgz#f479f556b85957dac07f1d563a9623c7354d06de"
+  integrity sha512-RyDyFh33XLxbsANNnai2h9LyR8AS1NCkqbO8Ts836g8cCb9XPBHQgzFjkja6PSGH8SKMaPUISIft7l9NUkm2PQ==
+
 "@peculiar/asn1-android@^2.6.0":
   version "2.9.5"
   resolved "https://registry.yarnpkg.com/@peculiar/asn1-android/-/asn1-android-2.9.5.tgz#b582afa9d8d990e7c098a98213b454a1269a81cd"
@@ -1803,6 +1808,10 @@ known-css-properties@^0.37.0:
   version "0.37.0"
   resolved "https://registry.yarnpkg.com/known-css-properties/-/known-css-properties-0.37.0.tgz#10ebe49b9dbb6638860ff8a002fb65a053f4aec5"
   integrity sha512-JCDrsP4Z1Sb9JwG0aJ8Eo2r7k4Ou5MwmThS/6lcIe1ICyb7UBJKGRIUUdqc2ASdE/42lgz6zFUnzAIhtXnBVrQ==
+
+"kotoba@link:../kotoba":
+  version "0.0.0"
+  uid ""
 
 levn@^0.4.1:
   version "0.4.1"

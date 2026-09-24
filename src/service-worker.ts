@@ -23,7 +23,9 @@ const sw = self as unknown as ServiceWorkerGlobalScope;
 const SHELL = `tsundoku-shell-${version}`;
 const ENTRIES = 'tsundoku-entries';
 const SCREENS = 'tsundoku-screens';
-const ASSETS = new Set([...build, ...files]);
+// kuromoji's dictionary (~18MB, static/dict) is fetched when a lookup first
+// needs it (doc/JAPANESE.md), never precached with the app shell.
+const ASSETS = new Set([...build, ...files.filter((f) => !f.startsWith('/dict/'))]);
 
 sw.addEventListener('install', (event) => {
 	event.waitUntil(
