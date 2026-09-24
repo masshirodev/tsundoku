@@ -204,6 +204,16 @@ Between each two is a 320px band, ruled above and below, naming the chapter
 that ended and the one that starts, with ↕ KEEP SCROLLING (↓ LOADING while
 its pages are on their way).
 
+**Pages are asked for as they near the screen** (`loading="lazy"` on the
+strip's images; every page's box is sized from the manifest already, so the
+browser knows where each is). The strip used to ask for all three chapters'
+pages at once, well over a hundred images: on a slow or relayed link (Firefox
+on another PC, 2026-09-24) they starved the ones being read, which sat on
+their loading box while pages far below downloaded, and the service worker's
+fetches timed out. Measured on a link throttled to 4 Mbit/s and 300ms: before,
+one page shown after 40 seconds; after, each page shown within half a second
+of scrolling to it.
+
 - **Across a band, either way.** Once a page of another chapter crosses the
   middle of the screen, the reader moves to that chapter: the URL, the
   controls, the progress events and the rating follow (a navigation with

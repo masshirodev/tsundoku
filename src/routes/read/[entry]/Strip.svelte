@@ -94,6 +94,7 @@
 							w={p.w}
 							h={p.h}
 							fit="strip"
+							lazy
 							rings={rings(c.id, i)}
 						/>
 					</div>

@@ -18,6 +18,7 @@
 		rotate = false,
 		inset = null,
 		rings = [],
+		lazy = false,
 		chapter = ''
 	}: {
 		src: string;
@@ -38,6 +39,11 @@
 		inset?: Inset | null;
 		/** OCR'd text blocks outlined on the page (doc/JAPANESE.md), in fractions of what's shown. */
 		rings?: Ring[];
+		/**
+		 * Asked for only as it nears the screen (the vertical strip): three
+		 * chapters' pages at once starve the ones being read on a slow link.
+		 */
+		lazy?: boolean;
 		/**
 		 * The chapter, named in the box on a chapter's first page (Loading
 		 * States 1n): arriving from the previous chapter, that's what's loading.
@@ -87,6 +93,7 @@
 				? 'left center'
 				: 'center'}
 		alt="Page {number}"
+		loading={lazy ? 'lazy' : undefined}
 		draggable="false"
 		class:hidden={status !== 'loaded'}
 		onload={() => (status = 'loaded')}
