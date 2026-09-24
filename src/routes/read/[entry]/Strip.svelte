@@ -18,12 +18,15 @@
 	 */
 	let {
 		chapters,
+		sides = 0,
 		src,
 		onpage,
 		onend,
 		ontap
 	}: {
 		chapters: StripChapter[];
+		/** Each side's margin, percent of the width: the strip is the rest, centred. */
+		sides?: number;
 		src: (c: StripChapter, i: number) => string;
 		/** A page crossed the middle of the screen: which chapter, which page. */
 		onpage: (chapter: number, i: number) => void;
@@ -59,35 +62,40 @@
 	});
 </script>
 
-<!-- A tap anywhere shows the controls; scrolling is the only way to move. -->
+<!-- A tap anywhere shows the controls, the side margins included; scrolling is the only way to move. -->
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="strip" bind:this={root} onclick={ontap}>
-	{#each chapters as c, k (c.id)}
-		{#if k > 0}
-			{@const ended = chapters[k - 1]}
-			<section class="band" aria-label="Chapter boundary" data-between="{ended.id}-{c.id}">
-				<div class="kicker"><span>END · {ended.name}</span><span>{ended.position}</span></div>
-				<div class="rule"></div>
-				<div class="next">
-					<div class="kicker">NEXT</div>
-					<div class="name">{c.title || c.name}</div>
-					<div class="sub">{c.pageCount} PAGES{c.cached ? ' · ↓ CACHED' : ''}</div>
-				</div>
-				<div class="go">{c.pages ? '↕ KEEP SCROLLING' : '↓ LOADING'}</div>
-			</section>
-		{/if}
-		{#if c.pages}
-			{#each c.pages as p, i (src(c, i))}
-				<div data-role="page" data-entry={c.id} data-index={i} class="slot">
-					<PageImage src={src(c, i)} number={i + 1} w={p.w} h={p.h} fit="strip" />
-				</div>
-			{/each}
-			<div data-role="end" data-entry={c.id} class="marker"></div>
-		{/if}
-	{/each}
+<div class="lane" onclick={ontap}>
+	<div class="strip" bind:this={root} style:width="{100 - 2 * sides}%">
+		{#each chapters as c, k (c.id)}
+			{#if k > 0}
+				{@const ended = chapters[k - 1]}
+				<section class="band" aria-label="Chapter boundary" data-between="{ended.id}-{c.id}">
+					<div class="kicker"><span>END · {ended.name}</span><span>{ended.position}</span></div>
+					<div class="rule"></div>
+					<div class="next">
+						<div class="kicker">NEXT</div>
+						<div class="name">{c.title || c.name}</div>
+						<div class="sub">{c.pageCount} PAGES{c.cached ? ' · ↓ CACHED' : ''}</div>
+					</div>
+					<div class="go">{c.pages ? '↕ KEEP SCROLLING' : '↓ LOADING'}</div>
+				</section>
+			{/if}
+			{#if c.pages}
+				{#each c.pages as p, i (src(c, i))}
+					<div data-role="page" data-entry={c.id} data-index={i} class="slot">
+						<PageImage src={src(c, i)} number={i + 1} w={p.w} h={p.h} fit="strip" />
+					</div>
+				{/each}
+				<div data-role="end" data-entry={c.id} class="marker"></div>
+			{/if}
+		{/each}
+	</div>
 </div>
 
 <style>
+	.lane {
+		width: 100%;
+	}
 	.strip {
 		display: flex;
 		flex-direction: column;

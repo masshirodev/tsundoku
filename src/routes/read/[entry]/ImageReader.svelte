@@ -21,6 +21,9 @@
 		type Fit,
 		type Mode,
 		type Page,
+		wideTreatment,
+		firstHalf,
+		type Wide,
 		stripWindow,
 		type StripChapter
 	} from '$lib/reader/reader';
@@ -29,6 +32,7 @@
 	import ReadingSheet from './ReadingSheet.svelte';
 	import EndPage from './EndPage.svelte';
 	import Strip from './Strip.svelte';
+	import type { Inset } from '$lib/reader/crop';
 
 	/**
 	 * The image reader (Index Reader; doc/READER.md). The page is the
@@ -65,11 +69,20 @@
 	let fit = $state<Fit>('screen');
 	let spreadsOn = $state(false);
 	let dim = $state(0);
+	/** Vertical: each side's margin, percent of the width (doc/READER.md, "Vertical"). */
+	let sides = $state(0);
+	/** A wide page outside spreads: whole, in halves, or turned (doc/READER.md, "Wide pages"). */
+	let wide = $state<Wide>('fit');
+	/** Paged: crop each page's plain border (doc/READER.md, "Crop borders"). */
+	let crop = $state(false);
 	let shift = $state(false);
 	onMount(() => {
 		fit = stored<Fit>('fit', 'screen');
 		spreadsOn = stored('spreads', false);
 		dim = stored('dim', 0);
+		sides = stored('sides', 0);
+		wide = stored('wide', 'fit');
+		crop = stored('crop', false);
 	});
 
 	const landscape = new MediaQuery('(orientation: landscape)', false);
@@ -118,6 +131,8 @@
 	/** The page the reader is on (0-based); the end page is `pages.length`. */
 	let at = $state(0);
 	let atEnd = $state(false);
+	/** A split wide page: 0 is the half read first, 1 the other. */
+	let half = $state<0 | 1>(0);
 	let chrome = $state(false);
 	let sheet = $state(false);
 
@@ -138,6 +153,7 @@
 					? Math.min(n - 1, Math.max(0, pages.length - 1))
 					: data.start;
 		atEnd = false;
+		half = 0;
 		shift = false;
 		sheet = false;
 		finished = false;
@@ -154,14 +170,48 @@
 
 	const group = $derived(groups[spreadOf(groups, at)] ?? [at]);
 
+	// ---- crop borders ----------------------------------------------------------------------
+	// Measured on the workstation, once per page (src/lib/server/pages/crops.ts);
+	// asked for only while CROP BORDERS is on and the pages are paged.
+	let crops = $state<{ entry: number; insets: Inset[] } | null>(null);
+	$effect(() => {
+		if (!crop || mode === 'vertical' || !data.manifest) return;
+		const id = data.entry.id;
+		if (crops?.entry === id) return;
+		let cancelled = false;
+		void fetch(resolve('/api/entries/[id]/crops', { id: String(id) }))
+			.then((r) => (r.ok ? (r.json() as Promise<{ crops: Inset[] }>) : null))
+			.then((r) => {
+				if (!cancelled && r) crops = { entry: id, insets: r.crops };
+			})
+			.catch(() => undefined);
+		return () => {
+			cancelled = true;
+		};
+	});
+	const insetOf = (i: number) =>
+		crop && mode !== 'vertical' && crops?.entry === data.entry.id
+			? (crops.insets[i] ?? null)
+			: null;
+
+	const treatment = (i: number) => wideTreatment(pages[i], { mode, spreads: useSpreads, wide });
+	/** This screen is half of a split wide page. */
+	const splitHere = $derived(group.length === 1 && treatment(group[0]) === 'split');
+
 	function go(to: number) {
 		if (pages.length === 0) return;
 		atEnd = false;
+		half = 0;
 		at = Math.max(0, Math.min(pages.length - 1, to));
 	}
 
 	function next() {
 		if (atEnd) return continueOn();
+		if (splitHere && half === 0) {
+			half = 1;
+			return;
+		}
+		half = 0;
 		const g = spreadOf(groups, at);
 		if (g >= groups.length - 1) {
 			atEnd = true;
@@ -176,9 +226,16 @@
 			atEnd = false;
 			return;
 		}
+		if (splitHere && half === 1) {
+			half = 0;
+			return;
+		}
 		const g = spreadOf(groups, at);
-		if (g > 0) at = groups[g - 1][0];
-		else if (data.prev?.available)
+		if (g > 0) {
+			at = groups[g - 1][0];
+			// Back into a split page: its second half, the one just before.
+			half = treatment(at) === 'split' ? 1 : 0;
+		} else if (data.prev?.available)
 			// eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve()
 			void goto(`${resolve('/read/[entry]', { entry: String(data.prev.id) })}?p=last`, {
 				replaceState: true
@@ -568,6 +625,7 @@
 		{#key stripSession}
 			<Strip
 				chapters={strip}
+				{sides}
 				src={(c, i) => pageSrc(c.id, c.version, i)}
 				onpage={stripPage}
 				onend={(id) => id === data.entry.id && markFinished()}
@@ -642,6 +700,15 @@
 					{fit}
 					share={ordered.length}
 					side={ordered.length === 1 ? 'center' : k === 0 ? 'left' : 'right'}
+					half={splitHere
+						? half === 0
+							? firstHalf(mode)
+							: firstHalf(mode) === 'left'
+								? 'right'
+								: 'left'
+						: null}
+					rotate={ordered.length === 1 && treatment(i) === 'rotate'}
+					inset={insetOf(i)}
 				/>
 			{/each}
 		</div>
@@ -684,6 +751,9 @@
 			{seriesMode}
 			{fit}
 			spreads={spreadsOn}
+			{sides}
+			{wide}
+			{crop}
 			landscape={landscape.current}
 			{dim}
 			{rating}
@@ -696,6 +766,19 @@
 			onspreads={(on) => {
 				spreadsOn = on;
 				store('spreads', on);
+			}}
+			oncrop={(on) => {
+				crop = on;
+				store('crop', on);
+			}}
+			onwide={(w) => {
+				wide = w;
+				half = 0;
+				store('wide', w);
+			}}
+			onsides={(n) => {
+				sides = n;
+				store('sides', n);
 			}}
 			ondim={(d) => {
 				dim = d;

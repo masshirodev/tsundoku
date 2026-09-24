@@ -327,6 +327,21 @@ const MIGRATIONS: string[] = [
 	// series of one book.
 	`
 	ALTER TABLE entries ADD COLUMN volume TEXT NOT NULL DEFAULT '';
+	`,
+	// Rung 17: page borders (doc/READER.md, "Crop borders"). Each page's
+	// plain margin, found once on the workstation, as fractions of its width
+	// and height. All zero: nothing worth cropping. A row per page looked at,
+	// so none is decoded twice.
+	`
+	CREATE TABLE page_crops (
+		entry_id INTEGER NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
+		page INTEGER NOT NULL,
+		top REAL NOT NULL,
+		right REAL NOT NULL,
+		bottom REAL NOT NULL,
+		left REAL NOT NULL,
+		PRIMARY KEY (entry_id, page)
+	) WITHOUT ROWID;
 	`
 ];
 

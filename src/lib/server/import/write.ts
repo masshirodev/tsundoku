@@ -311,6 +311,9 @@ export function writeSeries(
 						).run(e.locator, e.matter ?? '', volume ? null : e.position, e.label, e.bytes, entryId);
 					if (e.available && !elsewhere) {
 						if (!had.available) filesAttached += 1;
+						// Another file: its pages' borders are measured again (doc/READER.md, "Crop borders").
+						if (had.file !== file)
+							db.prepare(`DELETE FROM page_crops WHERE entry_id = ?`).run(entryId);
 						db.prepare(
 							`UPDATE entries SET available = 1, file = ?, bytes = ?, page_count = ?,
 								cover_file = COALESCE(?, cover_file), cover_phash = COALESCE(?, cover_phash)

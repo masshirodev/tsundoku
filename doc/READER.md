@@ -73,9 +73,11 @@ asked for this on 2026-09-23.
 The mode starts from the series' direction (or its kind's default). The
 READING sheet changes it **for the session**, and REMEMBER makes it the
 series' own, using the series screen's `direction` action. FIT (width, height
-or screen), SPREADS and DIM belong to the **device**, kept in this browser's
-`localStorage` under `tsundoku.reader.*`: they're about the screen, not the
-book.
+or screen), SPREADS, CROP BORDERS, WIDE PAGES, SIDES and DIM belong to the
+**device**, kept in this browser's `localStorage` under `tsundoku.reader.*`:
+they're about the screen, not the book. A row that doesn't apply to the mode
+is dimmed with the reason (PAGED ONLY, VERTICAL ONLY), never removed, so the
+sheet doesn't jump when MODE changes.
 
 ### Spreads
 
@@ -84,6 +86,44 @@ stands alone, then pages pair up. A wide page (wider than it is tall) is
 already a spread, so it stands alone and restarts the pairing. SHIFT PAIRING
 moves the pairing by one for a chapter whose spreads split wrong. In R→L the
 first page of a pair sits on the right, and the two meet at the gutter.
+
+### Crop borders
+
+CROP BORDERS (paged) shows each page without its plain white or black
+margin, so the art uses the screen.
+
+- **Measured on the workstation, once a page** (`cropsFor`,
+  `src/lib/server/pages/crops.ts`). The first time a chapter is asked for
+  (`GET /api/entries/<id>/crops`), each page is shrunk to 300px wide and
+  trimmed of its corner's colour with some tolerance for scans (sharp's
+  `trim`, threshold 24). The result goes into `page_crops` (rung 17) as
+  fractions of the page, so the tablet never decodes a page to measure it,
+  and no page is measured twice. A rescan that gives the chapter another file
+  drops its rows.
+- **Left alone** (`insetOf`, `src/lib/reader/crop.ts`): a margin under 1% (the
+  page would only twitch), and any trim that would keep under 60% of the
+  width or height. A lone figure on white is art, not border.
+- **Drawn with `object-view-box`**: the file is never changed, and the page's
+  box takes the cropped shape from the numbers, so nothing jumps when the
+  image arrives.
+- Offline, a chapter whose crops weren't fetched shows uncropped.
+
+### Wide pages
+
+WIDE PAGES decides what happens to a page wider than it is tall on a screen
+showing one page: paged, and not in spreads (spreads show a wide page whole
+anyway, so the row is dimmed there).
+
+- **WHOLE:** as before, the page fit to the screen.
+- **SPLIT:** its two halves, one screen each, in reading order. In R→L the
+  right half comes first. Forward and back step through the halves before
+  leaving the page, and going back into a split page lands on its second
+  half. Each half is the one image at twice the box's width, so nothing
+  more is downloaded.
+- **ROTATE:** turned a quarter clockwise, to fill a portrait screen. Turn the
+  tablet to read it.
+
+The rules are `wideTreatment` and `firstHalf` in `src/lib/reader/reader.ts`.
 
 ## Boundaries
 
@@ -133,6 +173,9 @@ its pages are on their way).
 - **CH. ← / →** in the controls go to a neighbour already on the strip by
   scrolling to it, and to anything else by starting the strip over there.
 - **The scrubber** moves within the chapter being read.
+- **SIDES** (0, 10, 20 or 30% a side) brings the strip in from both edges, for
+  a strip that fit to a landscape tablet's width would be enormous. A tap on
+  the margins still shows the controls.
 
 Tested in `tests/reader-flow.e2e.ts`: across the band and back, and that
 nothing moves when chapters arrive above or when the reader crosses a band.
@@ -218,8 +261,7 @@ re-acquired when the app comes back to the foreground. A browser that refuses
 ## Not yet
 
 - **The lookup panel** is phase 2 (card "Japanese layer").
-- **SET AS COVER** (card "Set any page as the cover"), and the addendum's
-  CROP BORDERS, SIDE PADDING and WIDE PAGES rows (their own cards).
+- **SET AS COVER** (card "Set any page as the cover"), waiting on its design.
 - **Page thumbnails** in the page grid are still placeholders.
 - **Novels** use a text reader of their own on the same route:
   [`TEXT-READER.md`](TEXT-READER.md).

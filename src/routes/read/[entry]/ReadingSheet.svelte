@@ -1,19 +1,23 @@
 <script lang="ts">
-	import { modeName, type Fit, type Mode } from '$lib/reader/reader';
+	import { modeName, type Fit, type Mode, type Wide } from '$lib/reader/reader';
 	import { RATING_OPTIONS } from '$lib/library/rating';
 
 	/**
-	 * READING (Index Reader, state 1b with the sheet): mode, fit, spreads, dim
+	 * READING (Index Reader, state 1b with the sheet): mode, fit, spreads, crop
+	 * borders, wide pages, sides, dim
 	 * and the rating, over a scrim. A row that doesn't apply is dimmed with the
 	 * reason, not removed, so the sheet doesn't jump when MODE changes (the
 	 * addendum's rule). Mode is this session's until REMEMBER makes it the
-	 * series'; fit, spreads and dim belong to the device.
+	 * series'; fit, spreads, crop, wide pages, sides and dim belong to the device.
 	 */
 	let {
 		mode,
 		seriesMode,
 		fit,
 		spreads,
+		sides,
+		wide,
+		crop,
 		landscape,
 		dim,
 		rating,
@@ -21,6 +25,9 @@
 		onremember,
 		onfit,
 		onspreads,
+		onsides,
+		onwide,
+		oncrop,
 		ondim,
 		onrate,
 		onclose
@@ -30,6 +37,12 @@
 		seriesMode: Mode;
 		fit: Fit;
 		spreads: boolean;
+		/** Vertical: each side's margin, percent of the screen's width. */
+		sides: number;
+		/** A wide page outside spreads: whole, in halves, or turned. */
+		wide: Wide;
+		/** Paged: each page's plain border cropped away. */
+		crop: boolean;
 		landscape: boolean;
 		/** 0 to 0.8. */
 		dim: number;
@@ -38,6 +51,9 @@
 		onremember: () => void;
 		onfit: (f: Fit) => void;
 		onspreads: (on: boolean) => void;
+		onsides: (percent: number) => void;
+		onwide: (w: Wide) => void;
+		oncrop: (on: boolean) => void;
 		ondim: (d: number) => void;
 		onrate: (r: number) => void;
 		onclose: () => void;
@@ -49,8 +65,16 @@
 		['height', 'HEIGHT'],
 		['screen', 'SCREEN']
 	];
+	const SIDES = [0, 10, 20, 30];
+	const WIDES: [Wide, string][] = [
+		['fit', 'WHOLE'],
+		['split', 'SPLIT'],
+		['rotate', 'ROTATE']
+	];
 	const paged = $derived(mode !== 'vertical');
 	const spreadsApply = $derived(paged && landscape);
+	/** Wide pages are treated only where spreads aren't showing them whole. */
+	const wideApplies = $derived(paged && !(spreadsApply && spreads));
 
 	let dimTrack = $state<HTMLElement | null>(null);
 	let sliding = false;
@@ -127,6 +151,69 @@
 				<span>{spreads ? 'ON' : 'OFF'}</span>
 			</button>
 			<span class="note">{paged ? 'LANDSCAPE ONLY' : 'PAGED ONLY'}</span>
+		</div>
+	</div>
+
+	<!-- White or black margins around the art, measured on the workstation. -->
+	<div class="row">
+		<div class="label">CROP BORDERS</div>
+		<div class="body split" class:off={!paged}>
+			<button
+				type="button"
+				class="switch"
+				role="switch"
+				aria-checked={paged && crop}
+				disabled={!paged}
+				onclick={() => oncrop(!crop)}
+			>
+				<span class="track" class:on={paged && crop}><span class="knob"></span></span>
+				<span>{paged && crop ? 'ON' : 'OFF'}</span>
+			</button>
+			<span class="note">{paged ? 'WHITE OR BLACK MARGINS' : 'PAGED ONLY'}</span>
+		</div>
+	</div>
+
+	<!-- A page wider than it is tall, on a screen showing one page: split it or turn it. -->
+	<div class="row">
+		<div class="label">WIDE PAGES</div>
+		<div class="body col" class:off={!wideApplies}>
+			<div class="seg" role="radiogroup" aria-label="Wide pages">
+				{#each WIDES as [w, name] (w)}
+					<button
+						type="button"
+						role="radio"
+						aria-checked={wideApplies && wide === w}
+						class:on={wideApplies && wide === w}
+						disabled={!wideApplies}
+						onclick={() => onwide(w)}>{name}</button
+					>
+				{/each}
+			</div>
+			{#if !wideApplies}
+				<div class="under">
+					<span class="note">{paged ? 'SPREADS SHOW THEM WHOLE' : 'PAGED ONLY'}</span>
+				</div>
+			{/if}
+		</div>
+	</div>
+
+	<!-- A strip fit to the width of a landscape tablet is enormous: margins bring it in. -->
+	<div class="row">
+		<div class="label">SIDES</div>
+		<div class="body col" class:off={paged}>
+			<div class="seg" role="radiogroup" aria-label="Side margins">
+				{#each SIDES as n (n)}
+					<button
+						type="button"
+						role="radio"
+						aria-checked={!paged && sides === n}
+						class:on={!paged && sides === n}
+						disabled={paged}
+						onclick={() => onsides(n)}>{n === 0 ? 'NONE' : `${n}%`}</button
+					>
+				{/each}
+			</div>
+			{#if paged}<div class="under"><span class="note">VERTICAL ONLY</span></div>{/if}
 		</div>
 	</div>
 

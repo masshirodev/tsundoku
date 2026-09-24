@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { croppedSize, viewBox, type Inset } from '$lib/reader/crop';
 	/**
 	 * One page (Index Reader, states loading and failed). While the image is
 	 * on its way, the page's own box -- sized from the manifest, so nothing
@@ -12,6 +13,9 @@
 		fit = 'screen',
 		share = 1,
 		side = 'center',
+		half = null,
+		rotate = false,
+		inset = null,
 		chapter = ''
 	}: {
 		src: string;
@@ -24,6 +28,12 @@
 		share?: number;
 		/** In a spread, the two pages meet at the gutter rather than float in their halves. */
 		side?: 'left' | 'right' | 'center';
+		/** A wide page split in two: which half this screen shows (doc/READER.md, "Wide pages"). */
+		half?: 'left' | 'right' | null;
+		/** A wide page turned a quarter, to fill a portrait screen. */
+		rotate?: boolean;
+		/** Its plain border, cropped away (doc/READER.md, "Crop borders"). */
+		inset?: Inset | null;
 		/**
 		 * The chapter, named in the box on a chapter's first page (Loading
 		 * States 1n): arriving from the previous chapter, that's what's loading.
@@ -38,11 +48,34 @@
 
 	// One component per page: the reader keys them by source, so a new page
 	// starts fresh and there is no reset to race a cached image's onload.
-	const ratio = $derived(w > 0 && h > 0 ? `${w} / ${h}` : '800 / 1136');
+	// Cropped, the page takes the shape of what's left, so its box is right before it loads.
+	const cropped = $derived(inset && !half && !rotate ? inset : null);
+	const size = $derived(cropped ? croppedSize(w, h, cropped) : { w, h });
+	const ratio = $derived(
+		!(w > 0 && h > 0)
+			? '800 / 1136'
+			: cropped
+				? `${size.w} / ${size.h}`
+				: half
+					? `${w / 2} / ${h}`
+					: rotate
+						? `${h} / ${w}`
+						: `${w} / ${h}`
+	);
 </script>
 
-<div class="page fit-{fit}" style:aspect-ratio={ratio} style:--share={share} data-page={number}>
+<div
+	class="page fit-{fit}"
+	class:half={!!half}
+	class:rotate
+	style:aspect-ratio={ratio}
+	style:--share={share}
+	style:--wh={w > 0 && h > 0 ? w / h : 1}
+	data-page={number}
+>
 	<img
+		class:right={half === 'right'}
+		style:object-view-box={viewBox(cropped)}
 		src={url}
 		style:object-position={side === 'left'
 			? 'right center'
@@ -112,6 +145,30 @@
 	}
 	img.hidden {
 		visibility: hidden;
+	}
+	/* Half a wide page: the whole image at twice the box's width, one half showing. */
+	.half,
+	.rotate {
+		overflow: hidden;
+	}
+	.half img {
+		width: 200%;
+		max-width: none;
+		object-fit: fill;
+	}
+	.half img.right {
+		transform: translateX(-50%);
+	}
+	/* A wide page turned a quarter: laid out in the box's turned shape, then turned. */
+	.rotate img {
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		width: calc(100% * var(--wh));
+		height: calc(100% / var(--wh));
+		max-width: none;
+		object-fit: fill;
+		transform: translate(-50%, -50%) rotate(90deg);
 	}
 	.loading {
 		position: absolute;

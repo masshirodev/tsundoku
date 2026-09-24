@@ -274,3 +274,97 @@ test('incognito shows a dashed rule, INCOGNITO, and NOT SAVED', async ({ page })
 	await expect(page.getByRole('banner', { name: 'Reader' }).getByText('INCOGNITO')).toBeVisible();
 	await expect(meta(page)).toContainText('NOT SAVED');
 });
+
+test('vertical: SIDES brings the strip in from both edges, and is kept on the device', async ({
+	page
+}) => {
+	await seriesId(page, 'The Greatest Estate Developer');
+	await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.click();
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	const vw = page.viewportSize()!.width;
+	const width = () => page.locator('.strip').evaluate((e) => e.getBoundingClientRect().width);
+	expect(await width()).toBe(vw);
+	await tap(page, 0.5);
+	await page.getByRole('button', { name: /VERTICAL/ }).click();
+	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+	await sheet.getByRole('radio', { name: '20%' }).click();
+	expect(await width()).toBeCloseTo(vw * 0.6, 0);
+	await page.reload();
+	await readerReady(page);
+	expect(await width()).toBeCloseTo(vw * 0.6, 0);
+	// Put back for the rest of the file.
+	await page.evaluate(() => localStorage.removeItem('tsundoku.reader.sides'));
+});
+
+test('wide pages: SPLIT reads the halves in order, ROTATE turns the page, WHOLE as before', async ({
+	page
+}) => {
+	await seriesId(page, 'Hikaru ga Shinda Natsu');
+	const href = await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.getAttribute('href');
+	// The sample's seventh page is twice as wide as it is tall.
+	await page.goto(`${href}?p=7`);
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	const box = page.locator('.stage .page');
+	const img = box.locator('img');
+	// WHOLE: the page as it is.
+	await expect(box).not.toHaveClass(/half|rotate/);
+
+	await tap(page, 0.5);
+	await page.getByRole('button', { name: /R→L/ }).click();
+	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+	await sheet.getByRole('radio', { name: 'SPLIT' }).click();
+	await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+	await tap(page, 0.5);
+
+	// R→L: the right half first, then the left, then the next page.
+	await expect(box).toHaveClass(/half/);
+	await expect(img).toHaveClass(/right/);
+	await tap(page, 0.05);
+	await expect(img).not.toHaveClass(/right/);
+	await expect(page).toHaveURL(/p=7/);
+	await tap(page, 0.05);
+	await expect(page).toHaveURL(/p=8/, { timeout: 5000 });
+	await expect(box).not.toHaveClass(/half/);
+	// Back comes into the second half.
+	await tap(page, 0.95);
+	await expect(box).toHaveClass(/half/);
+	await expect(img).not.toHaveClass(/right/);
+
+	await tap(page, 0.5);
+	await page.getByRole('button', { name: /R→L/ }).click();
+	await sheet.getByRole('radio', { name: 'ROTATE' }).click();
+	await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+	await expect(box).toHaveClass(/rotate/);
+	expect(await img.evaluate((e) => getComputedStyle(e).transform)).not.toBe('none');
+	await page.evaluate(() => localStorage.removeItem('tsundoku.reader.wide'));
+});
+
+test('CROP BORDERS shows each page without its plain margin, sized to what is left', async ({
+	page
+}) => {
+	await seriesId(page, 'Hikaru ga Shinda Natsu');
+	const href = await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.getAttribute('href');
+	await page.goto(`${href}?p=2`);
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	const img = page.locator('.stage .page img');
+	const box = () => img.evaluate((e) => getComputedStyle(e).getPropertyValue('object-view-box'));
+	expect(await box()).toMatch(/^(none|)$/);
+	await tap(page, 0.5);
+	await page.getByRole('button', { name: /R→L/ }).click();
+	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+	await sheet.locator('.row', { hasText: 'CROP BORDERS' }).getByRole('switch').click();
+	await expect.poll(box).toMatch(/^inset\(/);
+	await page.evaluate(() => localStorage.removeItem('tsundoku.reader.crop'));
+});

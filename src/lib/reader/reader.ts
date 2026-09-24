@@ -253,3 +253,21 @@ export function stripWindow<C extends { id: number }>(
 	const keep = (c: C) => held.find((h) => h.id === c.id) ?? c;
 	return [...(prev ? [keep(prev)] : []), keep(current), ...(next ? [keep(next)] : [])];
 }
+
+/**
+ * A wide page outside spreads (doc/READER.md, "Wide pages"): shown whole
+ * (FIT), as its two halves one after the other (SPLIT), or turned a quarter
+ * to fill a portrait screen (ROTATE). Spreads show a wide page whole anyway.
+ */
+export type Wide = 'fit' | 'split' | 'rotate';
+
+export function wideTreatment(
+	p: Page | undefined,
+	o: { mode: Mode; spreads: boolean; wide: Wide }
+): Wide {
+	if (!p || o.mode === 'vertical' || o.spreads || !isWide(p)) return 'fit';
+	return o.wide;
+}
+
+/** The half read first: the right one in R->L, where reading starts on the right. */
+export const firstHalf = (mode: Mode): 'left' | 'right' => (mode === 'rtl' ? 'right' : 'left');
