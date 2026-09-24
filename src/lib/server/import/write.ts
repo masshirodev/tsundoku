@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
 import { posix } from 'node:path';
+import { fileIn, isUnder, widenTo } from '../paths.ts';
 import { getDb } from '../db.ts';
 import { hueFor } from '../../library/cover.ts';
 import type { PlannedEntry, PlannedSeries } from '../../import/plan.ts';
@@ -33,6 +34,22 @@ export function ensureRoot(
 			.prepare(`INSERT INTO roots (name, path, hidden) VALUES (?, ?, ?)`)
 			.run(name, path, hidden ? 1 : 0).lastInsertRowid
 	);
+}
+
+/**
+ * The root of this name, whatever its path: another device's copy of a
+ * source (doc/SYNC.md, "Two devices") shares the library folder's root, and
+ * makes it only if there's none yet.
+ */
+export function ensureNamedRoot(
+	db: Database.Database,
+	name: string,
+	path: string,
+	hidden: boolean
+): number {
+	const row = db.prepare(`SELECT id FROM roots WHERE name = ? ORDER BY id LIMIT 1`).get(name) as
+		{ id: number } | undefined;
+	return row?.id ?? ensureRoot(db, name, path, hidden);
 }
 
 function ensureShelf(db: Database.Database, name: string): number {
@@ -76,6 +93,11 @@ export function writeSeries(
 		now: number;
 		/** Entries of this series whose file is no longer planned become not downloaded. */
 		markMissing?: boolean;
+		/**
+		 * The device folder this plan was read from (doc/SYNC.md, "Two devices").
+		 * A series whose files are outside it has them on another device too.
+		 */
+		deviceRoot?: string;
 	},
 	db: Database.Database = getDb()
 ): WriteResult {
@@ -125,10 +147,35 @@ export function writeSeries(
 				};
 				if (row.others > 0) volume = { path: row.path, name: row.name ?? s.title };
 			}
+			// A series another device has files in too (doc/SYNC.md, "Two devices"):
+			// its path is left where it is, widened only when this device brings a
+			// file the series has no copy of, and this device's files are named from
+			// there. The same manga downloaded on the tablet and the phone is one
+			// series, its chapters from whichever device has them.
+			let shared: string | null = null;
+			if (seriesId !== null && volume === null && opts.deviceRoot && s.path !== '') {
+				const { path } = db.prepare(`SELECT path FROM series WHERE id = ?`).get(seriesId) as {
+					path: string;
+				};
+				if (path !== '' && path !== s.path && !isUnder(path, opts.deviceRoot)) {
+					const have = db.prepare(
+						`SELECT 1 FROM entries WHERE series_id = ? AND source_url = ? AND available = 1`
+					);
+					const brings = s.entries
+						.filter((e) => e.available && (e.sourceUrl === '' || !have.get(seriesId, e.sourceUrl)))
+						.map((e) => posix.join(s.path, e.file));
+					shared = brings.length ? widenTo(db, seriesId, brings) : path;
+				}
+			}
 			const fileOf = (e: PlannedEntry) =>
-				volume ? posix.relative(volume.path, posix.join(s.path, e.file)) : e.file;
+				volume
+					? posix.relative(volume.path, posix.join(s.path, e.file))
+					: shared !== null
+						? fileIn(shared, posix.join(s.path, e.file))
+						: e.file;
 
 			if (seriesId !== null && volume === null) {
+				const path = shared === null ? s.path : '';
 				db.prepare(
 					`UPDATE series SET
 						path = CASE WHEN ? != '' THEN ? ELSE path END,
@@ -136,15 +183,7 @@ export function writeSeries(
 						description = CASE WHEN description = '' THEN ? ELSE description END,
 						cover_url = CASE WHEN ? != '' THEN ? ELSE cover_url END
 					WHERE id = ?`
-				).run(
-					s.path,
-					s.path,
-					s.status,
-					s.description,
-					s.coverUrl ?? '',
-					s.coverUrl ?? '',
-					seriesId
-				);
+				).run(path, path, s.status, s.description, s.coverUrl ?? '', s.coverUrl ?? '', seriesId);
 			} else if (seriesId === null) {
 				created = true;
 				seriesId = Number(
@@ -187,8 +226,11 @@ export function writeSeries(
 					).run(ensureShelf(db, shelf), seriesId);
 			}
 
+			const seriesPath = (
+				db.prepare(`SELECT path FROM series WHERE id = ?`).get(seriesId) as { path: string }
+			).path;
 			const find = db.prepare(
-				`SELECT id, read_at, last_opened_at, available FROM entries
+				`SELECT id, read_at, last_opened_at, available, file FROM entries
 				WHERE series_id = @series AND ((@url != '' AND source_url = @url) OR (@url = '' AND file = @file))
 				LIMIT 1`
 			);
@@ -210,8 +252,19 @@ export function writeSeries(
 				const file = fileOf(e);
 				if (e.available) planned.add(file);
 				const had = find.get({ series: seriesId, url: e.sourceUrl, file }) as
-					| { id: number; read_at: number | null; last_opened_at: number | null; available: number }
+					| {
+							id: number;
+							read_at: number | null;
+							last_opened_at: number | null;
+							available: number;
+							file: string;
+					  }
 					| undefined;
+				// Another device's copy, already here: kept, rather than swapped for this one.
+				const elsewhere =
+					!!had?.available &&
+					(shared !== null || volume !== null) &&
+					!isUnder(posix.join(seriesPath, had.file), s.path);
 				let entryId: number;
 				if (!had) {
 					entryId = Number(
@@ -256,7 +309,7 @@ export function writeSeries(
 						db.prepare(
 							`UPDATE entries SET locator = ?, matter = ?, position = COALESCE(?, position), label = ?, bytes = ? WHERE id = ?`
 						).run(e.locator, e.matter ?? '', volume ? null : e.position, e.label, e.bytes, entryId);
-					if (e.available) {
+					if (e.available && !elsewhere) {
 						if (!had.available) filesAttached += 1;
 						db.prepare(
 							`UPDATE entries SET available = 1, file = ?, bytes = ?, page_count = ?,
@@ -295,7 +348,10 @@ export function writeSeries(
 							`SELECT id, file, source_url FROM entries WHERE series_id = ? AND available = 1 AND file != ''`
 						)
 						.all(seriesId) as { id: number; file: string; source_url: string }[]
-				).filter((r) => !volume || r.source_url.startsWith(own));
+				)
+					.filter((r) => !volume || r.source_url.startsWith(own))
+					// With another device's files in the series, this one answers for its own only.
+					.filter((r) => shared === null || isUnder(posix.join(seriesPath, r.file), s.path));
 				for (const r of onDisk)
 					if (!planned.has(r.file))
 						db.prepare(`UPDATE entries SET available = 0 WHERE id = ?`).run(r.id);

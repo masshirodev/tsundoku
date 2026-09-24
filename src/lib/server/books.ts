@@ -1,10 +1,13 @@
 import type Database from 'better-sqlite3';
 import { posix } from 'node:path';
+import { commonDir, fileIn, widenTo } from './paths.ts';
 import { VISIBLE_SQL } from './visibility.ts';
 import { getDb } from './db.ts';
 import { hueFor } from '../library/cover.ts';
 import { setKey, suggestionSets, type Candidate, type Suggestion } from '../library/books.ts';
 import type { Rating } from '$lib/library/types';
+
+const { dirname, join, relative, basename } = posix;
 
 /**
  * Grouping books into series and taking them out again (doc/BOOKS.md).
@@ -67,6 +70,7 @@ export function isSingleton(seriesId: number): boolean {
  */
 function absorb(db: Database.Database, singleton: SeriesRow, target: number, position: number) {
 	const [entryId] = entryIdsOf(db, singleton.id);
+	rehome(db, entryId, singleton.id, target);
 	db.prepare(
 		`UPDATE entries SET series_id = ?, position = ?,
 			title = CASE WHEN title = '' THEN ? ELSE title END,
@@ -90,6 +94,20 @@ function absorb(db: Database.Database, singleton: SeriesRow, target: number, pos
 	);
 	db.prepare(`DELETE FROM series WHERE id = ?`).run(singleton.id);
 	return entryId;
+}
+
+/**
+ * An entry's file named from the series it's moving to, whose path widens if
+ * it doesn't already hold it: books from two folders, or two devices, keep
+ * pointing at their files (src/lib/server/paths.ts).
+ */
+function rehome(db: Database.Database, entryId: number, from: number, to: number) {
+	const e = db.prepare(`SELECT file FROM entries WHERE id = ?`).get(entryId) as { file: string };
+	const fromPath = pathOf(db, from);
+	if (e.file === '' || fromPath === '') return;
+	const abs = join(fromPath, e.file);
+	const toPath = widenTo(db, to, [abs]);
+	db.prepare(`UPDATE entries SET file = ? WHERE id = ?`).run(fileIn(toPath, abs), entryId);
 }
 
 export type GroupResult = {
@@ -211,21 +229,6 @@ export function groupIntoSeries(opts: {
  * series takes the folder the volumes share and each file is re-expressed
  * from there.
  */
-
-const { dirname, join, relative, basename } = posix;
-
-/** The deepest folder every path is in. */
-export function commonDir(paths: string[]): string {
-	if (paths.length === 0) return '';
-	const split = paths.map((p) => p.split('/'));
-	const out: string[] = [];
-	for (let i = 0; i < split[0].length; i++) {
-		const part = split[0][i];
-		if (split.some((p) => p[i] !== part)) break;
-		out.push(part);
-	}
-	return out.join('/');
-}
 
 type VolumeEntry = {
 	id: number;
@@ -570,6 +573,7 @@ export function moveBook(fromSeries: number, entryId: number, toSeries: number):
 					p: number;
 				}
 			).p + 1;
+		rehome(db, entryId, fromSeries, toSeries);
 		db.prepare(`UPDATE entries SET series_id = ?, position = ? WHERE id = ?`).run(
 			toSeries,
 			next,

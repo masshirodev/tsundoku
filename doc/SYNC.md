@@ -12,7 +12,8 @@ download. What the tablet downloads reaches the workstation through
 4. delete it on the tablet to free the space. **The workstation keeps it.**
 
 The tablet has far less room than the workstation. The workstation is the
-archive; the tablet is a place to download.
+archive; the tablet is a place to download. The phone downloads too
+(below, "Two devices").
 
 ## How it's set up
 
@@ -86,6 +87,59 @@ It only asks when:
 
 `yarn run sync-import -- --force` asks regardless of the sequences.
 
+## Two devices
+
+The tablet (a Xiaomi Pad, `21051182G`) and the phone (a Galaxy Z Fold6,
+`SM-F956B`) both download, and both sync. Each device keeps its own copy:
+
+| Device | On the workstation                                   |
+| ------ | ---------------------------------------------------- |
+| Tablet | `LIBRARY_ROOT/{Mihon,Hentoid,Library}`               |
+| Phone  | `LIBRARY_ROOT/devices/phone/{Mihon,Hentoid,Library}` |
+
+Why not one shared folder: the same chapter downloaded on both devices would
+be two versions of one path, and Syncthing would keep a conflict copy. Mihon
+also keeps one backup per device, and one device's would replace the other's
+every scan. So the devices stay apart on disk, and the importer merges them.
+
+**The importer reads every device** (`sourcesIn`, src/lib/server/import/index.ts):
+the library folder's own sources, then each folder under `devices/`. A
+series is keyed the same on every device, so the phone's copy of a series is
+found as the same series:
+
+- Mihon: `mihon:<source>:<url>`, from the backup;
+- Hentoid: `hentoid:<site>:<url>`;
+- EPUB: `epub:Library/<path>`, named from the device's own folder.
+
+What that means for each series:
+
+- **One series, chapters from whichever device has them.** A series with files
+  on both devices takes the folder they share as its path, and each entry
+  names its file from there (`widenTo`, src/lib/server/paths.ts):
+  `Mihon/downloads/…` from the tablet, `devices/phone/Mihon/downloads/…` from
+  the phone. Everything that reads a file joins the series path and the
+  entry's file, so nothing else needed to know.
+- **A chapter both devices have** keeps the copy already there. The second
+  device's copy is on disk, unused.
+- **A series only one device has** stays in that device's folder, as before.
+- **Missing is per device.** A device answers only for files in its own
+  folder, so the phone deleting a chapter never marks the tablet's copy not
+  downloaded. Deletes are ignored on the workstation anyway (above), so this
+  only comes up when a file is deleted here.
+- **One root per source.** The phone's Mihon, Hentoid and Library join the
+  tablet's roots of the same name (`ensureNamedRoot`). There's one hidden
+  Hentoid shelf, and a book grouped on the tablet is still found when the
+  phone has it.
+- **Read progress** comes from both devices' Mihon backups, and only moves
+  forward, so reading on either counts.
+
+Grouping books and MOVE TO… name each book's file the same way
+(`rehome`, src/lib/server/books.ts). Grouping a tablet book with a
+phone-only one keeps both readable. Before this, grouping books from two
+folders silently broke the one not in the new series' folder.
+
+Tested in `tests/devices-import-db.spec.ts`.
+
 ## Setting it up
 
 On the workstation (done 2026-09-23):
@@ -118,13 +172,19 @@ On the tablet:
    every 6 or 12 hours. The backup is where read progress, categories and
    covers come from ([`IMPORT-MIHON.md`](IMPORT-MIHON.md)).
 
+The phone is set up the same way, with the same three labels.
+
 Back on the workstation:
 
 ```sh
-yarn run sync-setup                          # what the tablet offers; changes nothing
-yarn run sync-setup -- --device <tablet ID>  # accept the tablet
-yarn run sync-setup -- --apply               # accept the three folders
+yarn run sync-setup                                        # what's offered; changes nothing
+yarn run sync-setup -- --device <tablet ID> --device <phone ID>   # accept both
+yarn run sync-setup -- --apply --device-dir <phone ID>=phone      # accept the folders
 ```
+
+`--device-dir` puts that device's folders under `devices/phone/`. A device
+without one gets the library folder itself, so give it to every device but
+the tablet.
 
 A folder whose label isn't recognised is left for `--as <folder id>=Mihon`
 (or `Hentoid`, `Library`).
