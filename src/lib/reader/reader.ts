@@ -271,3 +271,16 @@ export function wideTreatment(
 
 /** The half read first: the right one in R->L, where reading starts on the right. */
 export const firstHalf = (mode: Mode): 'left' | 'right' => (mode === 'rtl' ? 'right' : 'left');
+
+/**
+ * The pages to have loaded before they're asked for (doc/READER.md,
+ * "Preloading"): the next two screens and the one before, in the order
+ * they're likely needed. `groups` are the screens (spreads or single pages),
+ * `g` the one showing.
+ */
+export function pagesAhead(groups: number[][], g: number): number[] {
+	return [g + 1, g - 1, g + 2].flatMap((k) => groups[k] ?? []);
+}
+
+/** Close enough to the chapter's end to fetch the next chapter's first pages. */
+export const nearEnd = (groups: number[][], g: number) => g >= groups.length - 2;

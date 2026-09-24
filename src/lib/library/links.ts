@@ -23,11 +23,17 @@ export function tagHref(tagKey: string): string {
 	return library(new URLSearchParams({ tag: tagKey }));
 }
 
+/**
+ * The screen showing, with one parameter set or removed. The screen's own
+ * path, whichever it is: the series screen opens a book with `?book=` this
+ * way, and building it on the library's path sent that tap home.
+ */
 export function withParam(current: URL, key: string, value: string | null): string {
 	const params = new URLSearchParams(current.searchParams);
 	if (value === null) params.delete(key);
 	else params.set(key, value);
-	return library(params);
+	const query = params.toString();
+	return query ? `${current.pathname}?${query}` : current.pathname;
 }
 
 /**
@@ -71,6 +77,13 @@ function library(params: URLSearchParams): string {
 /** A book's own cover, in a series of books; `v` follows the page chosen as its cover. */
 export const bookCoverSrc = (entryId: number, coverPage: number | null) =>
 	`${resolve('/api/entries/[id]/cover', { id: String(entryId) })}?v=${bookCoverVersion(coverPage)}`;
+
+/**
+ * A page's thumbnail in a book's page grid (0-based page). `v` follows the
+ * book's size and page count: it changes when the file does.
+ */
+export const pageThumbSrc = (e: { id: number; bytes: number; pageCount: number }, page: number) =>
+	`${resolve('/api/entries/[id]/pages/[n]/thumb', { id: String(e.id), n: String(page) })}?v=${e.bytes}-${e.pageCount}`;
 
 export const coverSrc = (seriesId: number, cover: number | null | undefined) =>
 	cover ? `${resolve('/api/series/[id]/cover', { id: String(seriesId) })}?v=${cover}` : null;

@@ -9,7 +9,8 @@ process.env.DATABASE_PATH = ':memory:';
 process.env.COVER_DIR = join(work, 'covers');
 
 const { getDb } = await import('$lib/server/db');
-const { readBookCover, readCover, refreshCovers } = await import('$lib/server/covers');
+const { readBookCover, readCover, readPageThumb, refreshCovers } =
+	await import('$lib/server/covers');
 const { samplePage } = await import('$lib/server/pages/sample');
 const { zip } = await import('./helpers/zip-writer');
 
@@ -181,5 +182,25 @@ describe('book covers', () => {
 		});
 		expect(await readBookCover(entryOf(hidden), false)).toBeNull();
 		expect(await readBookCover(entryOf(hidden), true)).not.toBeNull();
+	});
+});
+
+describe('page thumbnails', () => {
+	const entryOf = (seriesId: number) =>
+		(db.prepare(`SELECT id FROM entries WHERE series_id = ?`).get(seriesId) as { id: number }).id;
+
+	it('are small WebPs of the page, made once and kept', async () => {
+		const e = entryOf(downloaded);
+		const t = await readPageThumb(e, 0, false);
+		expect(t!.subarray(8, 12).toString()).toBe('WEBP');
+		const kept = readdirSync(join(work, 'covers', 'pages', String(e)));
+		expect(kept).toHaveLength(1);
+		expect(await readPageThumb(e, 0, false)).toEqual(t);
+		expect(readdirSync(join(work, 'covers', 'pages', String(e)))).toEqual(kept);
+	});
+
+	it("are nothing for a page that isn't there", async () => {
+		expect(await readPageThumb(entryOf(downloaded), 99, false)).toBeNull();
+		expect(await readPageThumb(entryOf(bare), 0, false)).toBeNull();
 	});
 });

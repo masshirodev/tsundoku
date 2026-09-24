@@ -78,7 +78,24 @@ It's drawn on the series screen's BOOKS grid and on person pages. The
 suggestion band (MIGHT BE ONE SERIES), the group sheet's rows and a person
 page's strip of series use the series' own cover.
 
+## Page thumbnails
+
+A book's page grid (a single doujin's screen, or `?book=` in a series of
+books) shows each page as a thumbnail (`readPageThumb`,
+`GET /api/entries/<id>/pages/<n>/thumb`):
+
+- 320px wide, WebP, the page's own shape, shown cut from the top to the cell;
+- made the first time it's asked for and kept as
+  `$COVER_DIR/pages/<entry>/<page>-<version>.webp`, the version being the
+  chapter's manifest version, so a changed file makes new ones;
+- asked for lazily: only the cells near the screen ask, over the striped
+  placeholder while they load. The URL's `v` follows the book's size and page
+  count, so it's kept as immutable and changes with the file;
+- a hidden book's pages are a 404 while reveal is off, as the pages are.
+
+A page is about 1MB, so the full pages would have been 30MB for a 30-page
+grid; the thumbnails are a few KB each.
+
 ## What it doesn't do yet
 
 - **Set any page as the cover** is card c26.
-- **Page thumbnails** in a doujin's page grid are still placeholders.

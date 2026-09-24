@@ -68,6 +68,26 @@ Paged turns slide, as in Mihon; they don't pop (the owner asked on
 The track is in `ImageReader.svelte` (`turn`, `after`, `screens`); tested in
 `tests/reader-flow.e2e.ts`.
 
+## Preloading
+
+A turned-to page is already there, not a box saying "P. 15" (the owner
+asked on 2026-09-23).
+
+- **Paged:** the next two screens and the one before are fetched and decoded
+  as soon as a page shows (`pagesAhead`, `src/lib/reader/reader.ts`), next
+  first. Page URLs carry their version, so the browser keeps them as
+  immutable; the reader holds the decoded images (a dozen at most) so a turn
+  draws at once. That also means the neighbour sliding in beside a swipe is
+  usually already drawn.
+- **Near a chapter's end** (its last two screens), the next chapter's first
+  two pages are fetched too, so going on past the end page doesn't wait
+  either. Not while offline.
+- **Vertical** needs none of this: every page of the chapters on the strip is
+  in the page and loads as it comes.
+
+The device cache (`keepAhead`, doc/OFFLINE.md) is a different thing: it
+keeps whole chapters for reading offline.
+
 ## Mouse
 
 On a PC, in L→R and R→L, the buttons turn the page, not the side you click on
@@ -287,6 +307,5 @@ re-acquired when the app comes back to the foreground. A browser that refuses
 
 - **The lookup panel** is phase 2 (card "Japanese layer").
 - **SET AS COVER** (card "Set any page as the cover"), waiting on its design.
-- **Page thumbnails** in the page grid are still placeholders.
 - **Novels** use a text reader of their own on the same route:
   [`TEXT-READER.md`](TEXT-READER.md).

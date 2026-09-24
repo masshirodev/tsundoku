@@ -57,6 +57,13 @@ test('a doujin reads as a book: pages, not a chapter list', async ({ page }) => 
 	await expect(page.locator('.page')).toHaveCount(30);
 	await expect(page.locator('.page[aria-current="page"]')).toContainText('18');
 	await expect(page.getByRole('link', { name: /READ FROM P\. 18/ })).toBeVisible();
+	// Each page shows its thumbnail, made on the workstation.
+	const thumb = page.locator('.page img.thumb').first();
+	// Lazy: only a cell near the screen asks, and on a phone the grid is below the panel.
+	await thumb.scrollIntoViewIfNeeded();
+	await expect
+		.poll(() => thumb.evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth))
+		.toBeGreaterThan(0);
 });
 
 test('a novel shows its contents without numbers, and a typeset cover', async ({ page }) => {

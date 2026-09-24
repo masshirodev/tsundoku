@@ -11,6 +11,8 @@ import {
 	spreadOf,
 	spreads,
 	swipeAction,
+	pagesAhead,
+	nearEnd,
 	stripWindow,
 	mouseAction,
 	tapAction
@@ -161,5 +163,20 @@ describe("the vertical strip's chapters", () => {
 
 	it('has no neighbour where there is none to read', () => {
 		expect(stripWindow([], ch(5), null, null)).toEqual([ch(5)]);
+	});
+});
+
+describe('preloading', () => {
+	const groups = [[0], [1, 2], [3], [4], [5]];
+	it('fetches the next two screens and the one before, the next first', () => {
+		expect(pagesAhead(groups, 1)).toEqual([3, 0, 4]);
+		expect(pagesAhead(groups, 0)).toEqual([1, 2, 3]);
+		// The last screen: only the one before it, page 4.
+		expect(pagesAhead(groups, 4)).toEqual([4]);
+	});
+
+	it('reaches for the next chapter in the last two screens', () => {
+		expect(nearEnd(groups, 2)).toBe(false);
+		expect(nearEnd(groups, 3)).toBe(true);
 	});
 });

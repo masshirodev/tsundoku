@@ -67,7 +67,7 @@
 	/** A book of this series opened on its own: its page grid. */
 	function openBook(e: SeriesEntry) {
 		sheetBookId = null;
-		// eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam() resolves
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam() keeps the current, resolved path
 		void goto(withParam(page.url, 'book', String(e.id)));
 	}
 
@@ -260,7 +260,7 @@
 		</form>
 	{:else if data.book}
 		<header class="bar" aria-label="Book">
-			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam() resolves -->
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam() keeps the current, resolved path -->
 			<a class="cell back" href={withParam(page.url, 'book', null)}>
 				<span class="arrow">←</span>
 				<span class="back-label">{series.title.toUpperCase()}</span>

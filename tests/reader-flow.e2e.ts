@@ -405,3 +405,23 @@ test('paged: the page follows a drag with the next beside it, and a swipe slides
 	await expect(page.locator('.stage .screen')).toHaveCount(1);
 	await expect(page).toHaveURL(/p=4/);
 });
+
+test('paged: the next pages and the one before are fetched before they’re turned to', async ({
+	page
+}) => {
+	await seriesId(page, 'Hikaru ga Shinda Natsu');
+	const href = await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.getAttribute('href');
+	const asked = new Set<number>();
+	page.on('request', (r) => {
+		const m = /\/api\/entries\/\d+\/pages\/(\d+)\?/.exec(r.url());
+		if (m) asked.add(Number(m[1]));
+	});
+	await page.goto(`${href}?p=3`);
+	await readerReady(page);
+	// Page 3 on screen (index 2): 4 and 5 ahead, 2 behind, without a turn.
+	await expect.poll(() => [1, 3, 4].every((i) => asked.has(i))).toBe(true);
+	await expect(page).toHaveURL(/p=3/);
+});

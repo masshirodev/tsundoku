@@ -110,8 +110,6 @@ width, row height (60 / 52px) and rail width (56 / 44px) per device.
   CONTINUE, `▶ CH. N`, a chapter row, a doujin page and a book's ▶ open the
   image reader ([`READER.md`](READER.md)), and a novel's the text reader
   ([`TEXT-READER.md`](TEXT-READER.md)).
-- **Page thumbnails** in a doujin's page grid are the striped placeholder.
-  Series covers are real ([`COVERS.md`](COVERS.md)).
 - **Alternative titles, source, status, description, per-entry titles and page
   counts** come from the sample seed. The importers will fill them from
   `ComicInfo.xml`, `contentV2.json` and the EPUB's metadata.

@@ -455,7 +455,7 @@
 		// RANDOM shuffles anew each time it's chosen; the other orders need no seed.
 		if (next === 'random') url.searchParams.set('seed', String(newSeed()));
 		else url.searchParams.delete('seed');
-		// eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam() resolves
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam() keeps the current, resolved path
 		void goto(withParam(url, 'sort', next), {
 			noScroll: true,
 			keepFocus: true

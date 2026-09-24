@@ -25,6 +25,8 @@
 		wideTreatment,
 		firstHalf,
 		type Wide,
+		pagesAhead,
+		nearEnd,
 		stripWindow,
 		type StripChapter
 	} from '$lib/reader/reader';
@@ -242,6 +244,44 @@
 				replaceState: true
 			});
 	}
+
+	// ---- preloading -----------------------------------------------------------------------
+	// Paged: the next screens and the one before are fetched and decoded before
+	// they're turned to, so a turn shows a finished page, not a box saying
+	// "P. 15" (doc/READER.md, "Preloading"). The browser's cache keeps the bytes;
+	// the images are held here so they stay decoded. Vertical has every page of
+	// its strip in the page already.
+	// Not state: nothing draws from it, it only keeps the images alive.
+	// eslint-disable-next-line svelte/prefer-svelte-reactivity
+	const preloaded = new Map<string, HTMLImageElement>();
+	function preload(url: string) {
+		if (preloaded.has(url)) return;
+		const img = new Image();
+		img.decoding = 'async';
+		img.src = url;
+		void img.decode?.().catch(() => undefined);
+		preloaded.set(url, img);
+		// A handful is plenty: the ones around the page being read.
+		if (preloaded.size > 12) preloaded.delete(preloaded.keys().next().value!);
+	}
+	let nextFirst = 0;
+	$effect(() => {
+		if (mode === 'vertical' || !data.manifest || pages.length === 0) return;
+		const g = spreadOf(groups, at);
+		untrack(() => {
+			for (const i of pagesAhead(groups, g)) preload(src(i));
+			// The end in sight: the next chapter's first pages too.
+			const n = data.next;
+			if (!nearEnd(groups, g) || !n?.available || nextFirst === n.id || !offline.online) return;
+			nextFirst = n.id;
+			void fetch(resolve('/api/entries/[id]/pages', { id: String(n.id) }))
+				.then((r) => (r.ok ? (r.json() as Promise<{ pages: Page[]; version: string }>) : null))
+				.then((m) => {
+					if (m) for (const i of [0, 1]) if (m.pages[i]) preload(pageSrc(n.id, m.version, i));
+				})
+				.catch(() => undefined);
+		});
+	});
 
 	// ---- the slide between pages ------------------------------------------------------------
 	// Paged turns slide (doc/READER.md, "Turning pages"): the page follows the

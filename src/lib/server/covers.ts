@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { ReadStream } from 'node:fs';
 import { getDb } from './db.ts';
 import { VISIBLE_SQL } from './visibility.ts';
-import { readPage } from './pages/index.ts';
+import { manifest, readPage } from './pages/index.ts';
 import { SAMPLE_PREFIX } from './pages/sample.ts';
 import { readEpub } from './import/epub.ts';
 import { bookCoverVersion } from '../library/cover.ts';
@@ -358,4 +358,48 @@ export async function readBookCover(
 	await writeFile(`${path}.partial`, made);
 	await rename(`${path}.partial`, path);
 	return { body: made, version };
+}
+
+// ---- page thumbnails ---------------------------------------------------------------
+
+const PAGE_THUMB_WIDTH = 320;
+
+/**
+ * A page's thumbnail, for a book's page grid (doc/COVERS.md, "Page
+ * thumbnails"): 320px wide, its own shape, made on first ask and kept as
+ * `$COVER_DIR/pages/<entry>/<page>-<version>.webp`, so a chapter whose file
+ * changes gets new ones. Hidden means hidden, as for the page itself.
+ */
+export async function readPageThumb(
+	entryId: number,
+	page: number,
+	reveal: boolean
+): Promise<Buffer | null> {
+	const m = await manifest(entryId, reveal);
+	if (!m || !Number.isInteger(page) || page < 0 || page >= m.pages.length) return null;
+	const version = createHash('sha1').update(m.version).digest('hex').slice(0, 10);
+	const dir = join(coverDir(), 'pages', String(entryId));
+	const path = join(dir, `${page}-${version}.webp`);
+	try {
+		return await readFile(path);
+	} catch {
+		// Not made yet: made below.
+	}
+	const body = await readPage(entryId, page, reveal);
+	if (!body) return null;
+	let thumb: Buffer;
+	try {
+		const s = await sharp();
+		thumb = await s(await bytesOf(body.body), { failOn: 'none', animated: false })
+			.rotate()
+			.resize({ width: PAGE_THUMB_WIDTH, withoutEnlargement: true })
+			.webp({ quality: 72 })
+			.toBuffer();
+	} catch {
+		return null;
+	}
+	await mkdir(dir, { recursive: true });
+	await writeFile(`${path}.partial`, thumb);
+	await rename(`${path}.partial`, path);
+	return thumb;
 }

@@ -1,14 +1,15 @@
 <script lang="ts">
 	import { coverPlaceholder } from '$lib/library/cover';
 	import { entryProgress, type SeriesEntry, type SeriesPage } from '$lib/library/series';
-	import { readHref } from '$lib/library/links';
+	import { pageThumbSrc, readHref } from '$lib/library/links';
 
 	/**
 	 * A doujin reads as a book, so its contents are its pages rather than a
 	 * chapter list of one. The page last opened carries the accent ring.
 	 *
-	 * Thumbnails are the striped placeholder until covers and thumbnails are
-	 * served; each page opens the reader at that page.
+	 * Each page shows its thumbnail, made on the workstation on first ask
+	 * (doc/COVERS.md, "Page thumbnails"), over the striped placeholder while it
+	 * loads; only the cells on screen ask. Each page opens the reader there.
 	 */
 	let { series, book: only }: { series: SeriesPage; book?: SeriesEntry | null } = $props();
 
@@ -42,6 +43,14 @@
 				aria-current={n === current ? 'page' : undefined}
 			>
 				{#if book?.available}
+					<img
+						class="thumb"
+						src={pageThumbSrc(book, i)}
+						alt=""
+						loading="lazy"
+						decoding="async"
+						draggable="false"
+					/>
 					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves -->
 					<a class="open" href={readHref(book.id, n)} aria-label="Read from page {n}"></a>
 				{/if}
@@ -55,6 +64,15 @@
 	.open {
 		position: absolute;
 		inset: 0;
+	}
+	/* Over the stripes, which show until it arrives. Cut from the top, as a cover is. */
+	.thumb {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		object-position: top;
 	}
 	.list {
 		display: flex;

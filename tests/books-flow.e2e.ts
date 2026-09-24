@@ -160,3 +160,18 @@ test('every book in a series shows its own cover, made from its pages', async ({
 	await expect.poll(() => covers.length).toBeGreaterThanOrEqual(4);
 	expect(covers.every((s) => s === 200)).toBe(true);
 });
+
+test('a tap on a book opens its pages on the series screen, and ← goes back to the books', async ({
+	page
+}) => {
+	await reveal(page);
+	await openBooks(page);
+	const series = page.url().replace(/\?.*$/, '');
+	const books = page.getByRole('region', { name: 'Books' });
+	await books.getByRole('button', { name: /Laundry Duty/ }).click();
+	await expect(page).toHaveURL(new RegExp(`^${series}\\?(.*&)?book=\\d+`));
+	await expect(page.getByText('01 — PAGES')).toBeVisible();
+	await page.locator('a.cell.back').click();
+	await expect(page).toHaveURL(new RegExp(`^${series}(\\?(?!.*book=).*)?$`));
+	await expect(books).toBeVisible();
+});
