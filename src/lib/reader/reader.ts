@@ -284,3 +284,23 @@ export function pagesAhead(groups: number[][], g: number): number[] {
 
 /** Close enough to the chapter's end to fetch the next chapter's first pages. */
 export const nearEnd = (groups: number[][], g: number) => g >= groups.length - 2;
+
+/** How near the top or bottom of the window the pointer brings the controls up. */
+export const HOVER_EDGE = 56;
+
+/**
+ * A mouse resting at the top or bottom of the window shows the controls, as
+ * a PC reader's bars do (doc/READER.md, "Mouse"): a click turns the page, so
+ * clicking can't be how they're reached. Controls the pointer brought up go
+ * away when it leaves the bars and the edge; ones opened otherwise (the
+ * middle button, Esc) stay until put away.
+ */
+export function hoverAction(
+	y: number,
+	height: number,
+	o: { shown: boolean; byHover: boolean; overBars: boolean }
+): 'show' | 'hide' | null {
+	const atEdge = y <= HOVER_EDGE || y >= height - HOVER_EDGE;
+	if (!o.shown) return atEdge ? 'show' : null;
+	return o.byHover && !atEdge && !o.overBars ? 'hide' : null;
+}

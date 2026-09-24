@@ -425,3 +425,30 @@ test('paged: the next pages and the one before are fetched before they’re turn
 	await expect.poll(() => [1, 3, 4].every((i) => asked.has(i))).toBe(true);
 	await expect(page).toHaveURL(/p=3/);
 });
+
+test('a mouse at the top or bottom of the window brings the controls up, and leaving puts them away', async ({
+	page
+}) => {
+	await seriesId(page, 'Hikaru ga Shinda Natsu');
+	await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.click();
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	const vp = page.viewportSize()!;
+	const bar = page.getByRole('banner', { name: 'Reader' });
+
+	await page.mouse.move(vp.width / 2, vp.height / 2);
+	await expect(bar).toHaveCount(0);
+	await page.mouse.move(vp.width / 2, 8);
+	await expect(bar).toBeVisible();
+	// On the bar, below the edge band: they stay.
+	await page.mouse.move(vp.width / 2, 60);
+	await expect(bar).toBeVisible();
+	await page.mouse.move(vp.width / 2, vp.height / 2);
+	await expect(bar).toHaveCount(0);
+	await page.mouse.move(vp.width / 2, vp.height - 8);
+	await expect(page.getByRole('contentinfo', { name: 'Reader controls' })).toBeVisible();
+	await page.mouse.move(vp.width / 2, vp.height / 2);
+});

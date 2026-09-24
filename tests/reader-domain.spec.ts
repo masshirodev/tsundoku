@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	hoverAction,
 	ProgressClock,
 	IDLE_CAP_MS,
 	chapterCells,
@@ -178,5 +179,23 @@ describe('preloading', () => {
 	it('reaches for the next chapter in the last two screens', () => {
 		expect(nearEnd(groups, 2)).toBe(false);
 		expect(nearEnd(groups, 3)).toBe(true);
+	});
+});
+
+describe('the mouse at the edge of the window', () => {
+	const h = 900;
+	const hidden = { shown: false, byHover: false, overBars: false };
+	it('shows the controls at the top or the bottom', () => {
+		expect(hoverAction(10, h, hidden)).toBe('show');
+		expect(hoverAction(h - 10, h, hidden)).toBe('show');
+		expect(hoverAction(h / 2, h, hidden)).toBeNull();
+	});
+	it('keeps them while the pointer is on the bars, and puts them away after', () => {
+		const up = { shown: true, byHover: true, overBars: true };
+		expect(hoverAction(120, h, up)).toBeNull();
+		expect(hoverAction(h / 2, h, { ...up, overBars: false })).toBe('hide');
+	});
+	it("never hides controls it didn't bring up", () => {
+		expect(hoverAction(h / 2, h, { shown: true, byHover: false, overBars: false })).toBeNull();
 	});
 });

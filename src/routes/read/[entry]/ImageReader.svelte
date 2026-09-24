@@ -18,6 +18,7 @@
 		spreads,
 		swipeAction,
 		mouseAction,
+		hoverAction,
 		tapAction,
 		type Fit,
 		type Mode,
@@ -884,6 +885,25 @@
 		else void turn(action);
 	}
 
+	// ---- the mouse at the window's edge ------------------------------------------------------
+	/** The controls came up because the pointer reached an edge: they go when it leaves. */
+	let byHover = false;
+	function hover(e: PointerEvent) {
+		if (e.pointerType !== 'mouse' || e.buttons !== 0 || sheet || lookup || !data.manifest) return;
+		const overBars = !!(e.target as Element | null)?.closest?.(
+			'header[aria-label="Reader"], footer[aria-label="Reader controls"]'
+		);
+		const act = hoverAction(e.clientY, innerHeight, { shown: chrome, byHover, overBars });
+		if (act === 'show') {
+			chrome = true;
+			byHover = true;
+		} else if (act === 'hide') chrome = false;
+	}
+	// Opened or closed any other way, they're no longer the pointer's.
+	$effect(() => {
+		if (!chrome) byHover = false;
+	});
+
 	function keydown(e: KeyboardEvent) {
 		// The lookup has the keyboard: Escape closes it (the panel's own).
 		if (lookup) return;
@@ -973,7 +993,7 @@
 </script>
 
 <svelte:head><title>{data.series.title} · {data.entry.name}</title></svelte:head>
-<svelte:window onkeydown={keydown} />
+<svelte:window onkeydown={keydown} onpointermove={hover} />
 
 <div class="reader" class:vertical={mode === 'vertical'} class:incognito={data.incognito}>
 	{#if !data.manifest}

@@ -102,6 +102,13 @@ On a PC, in L→R and R→L, the buttons turn the page, not the side you click o
 - **vertical scroll** keeps the touch rules: the wheel scrolls, and a click
   shows the controls.
 
+- **the mouse at the top or bottom of the window** (within 56px) shows the
+  controls, as a PC reader's bars do; they stay while the pointer is on them
+  and go when it moves back onto the page. Controls brought up any other way
+  stay until put away (`hoverAction`). The owner asked for this on 2026-09-24:
+  with a click turning the page, clicking couldn't reach them. The text reader
+  does the same.
+
 The pointer's type decides, so a finger on the tablet keeps the strips above.
 With the controls up, a click only puts them away, as a tap does. The owner
 asked for this on 2026-09-23.

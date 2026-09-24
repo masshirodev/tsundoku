@@ -13,7 +13,7 @@
 	import { PHONE_W, type Placement } from '$lib/japanese/panel';
 	import { flushLookups } from '$lib/japanese/lookups';
 	import LookupPanel from '$lib/components/japanese/LookupPanel.svelte';
-	import { ProgressClock, swipeAction, tapAction } from '$lib/reader/reader';
+	import { ProgressClock, hoverAction, swipeAction, tapAction } from '$lib/reader/reader';
 	import { BookFailure, bookUrl, openBook, type OpenBook } from '$lib/reader/book';
 	import {
 		chapterBlocks,
@@ -743,6 +743,22 @@
 		else prev();
 	}
 
+	/** The controls came up because the mouse reached an edge: they go when it leaves. */
+	let byHover = false;
+	function hover(e: PointerEvent) {
+		if (e.pointerType !== 'mouse' || e.buttons !== 0) return;
+		if (sheet || contents || lookup || fullImage || wide || atEnd) return;
+		const overBars = !!(e.target as Element | null)?.closest?.('header, footer');
+		const act = hoverAction(e.clientY, innerHeight, { shown: chrome, byHover, overBars });
+		if (act === 'show') {
+			chrome = true;
+			byHover = true;
+		} else if (act === 'hide') chrome = false;
+	}
+	$effect(() => {
+		if (!chrome) byHover = false;
+	});
+
 	function keydown(e: KeyboardEvent) {
 		// The lookup has the keyboard: Escape closes it (the panel's own).
 		if (lookup) return;
@@ -844,7 +860,7 @@
 </script>
 
 <svelte:head><title>{series.title} · {entry?.label ?? ''}</title></svelte:head>
-<svelte:window onkeydown={keydown} />
+<svelte:window onkeydown={keydown} onpointermove={hover} />
 
 <div
 	class="text-reader"
