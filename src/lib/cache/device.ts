@@ -48,6 +48,10 @@ export async function cacheEntry(seriesId: number, entryId: number): Promise<boo
 		const manifestRes = await fetch(`/api/entries/${entryId}/pages`);
 		if (!manifestRes.ok) return false;
 		const manifest = (await manifestRes.clone().json()) as { version: string; pages: unknown[] };
+		// Its OCR'd text, for lookups offline (doc/JAPANESE.md): refreshed every
+		// time, since OCR reads a chapter after it's kept.
+		const text = await fetch(`/api/entries/${entryId}/text`, { credentials: 'same-origin' });
+		if (text.ok) await cache.put(`/api/entries/${entryId}/text`, text);
 		const marker = markerPath(seriesId, entryId);
 		const had = await cache.match(marker);
 		if (had && ((await had.json()) as Marker).version === manifest.version) return true;
@@ -98,6 +102,7 @@ export async function dropEntry(entryId: number): Promise<void> {
 		if (
 			(marker && marker.entryId === entryId) ||
 			path.startsWith(`/api/entries/${entryId}/pages`) ||
+			path === `/api/entries/${entryId}/text` ||
 			path === `/read/${entryId}` ||
 			path === `/read/${entryId}/__data.json`
 		)

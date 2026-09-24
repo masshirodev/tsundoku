@@ -108,9 +108,9 @@ The image reader's rules, and its code (`tapAction`, `swipeAction`):
 - in vertical Japanese the left strip turns forward;
 - in scroll a tap never turns.
 
-Everywhere else a tap shows the controls. That includes the text, for now:
-in phase 2 a tap on a word becomes the lookup, and the top and bottom
-margins, which are empty on every page, keep showing the controls.
+Everywhere else a tap shows the controls, the text included. In a Japanese
+book a **long press** on a word looks it up in the shared lookup panel; taps
+are unchanged ([`JAPANESE.md`](JAPANESE.md), "In a book").
 
 A tap on an illustration opens it full screen: black ground, pinch to zoom, one
 finger pans, the zoom level shows for a moment, and a tap closes it. A tap on

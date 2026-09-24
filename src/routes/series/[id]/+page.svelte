@@ -361,6 +361,8 @@
 					suggestion={data.suggestion}
 					{dismissedKey}
 					onreview={() => (reviewing = true)}
+					ocr={data.ocr}
+					words={data.words}
 				/>
 			</div>
 		{/if}

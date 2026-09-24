@@ -46,6 +46,10 @@ width, row height (60 / 52px) and rail width (56 / 44px) per device.
 
 ## Rules worth knowing
 
+- **OCR and WORDS** sit under DIRECTION on every series that isn't a novel:
+  how far OCR has read it on the workstation, with **OCR** to switch it on
+  for one not seen as Japanese, and the words looked up in it waiting for
+  review. [`JAPANESE.md`](JAPANESE.md) has the states.
 - **Rating** is six cells, 0–5, and 0 is unrated. On this screen the cells
   **fill up to** the rating (the handoff's convention). The library's pickers
   highlight the one chosen cell. Both clear with 0.

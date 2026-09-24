@@ -29,7 +29,10 @@
 		libraryHref,
 		onrate,
 		onfav,
-		onback
+		onback,
+		words = 0,
+		wordsHref = '',
+		nextOcr = false
 	}: {
 		/** chapter: next is readable; missing: next has no file; offline: no network; series: nothing next. */
 		variant: 'chapter' | 'missing' | 'offline' | 'series';
@@ -52,6 +55,14 @@
 		onrate: (n: number) => void;
 		onfav: () => void;
 		onback: () => void;
+		/**
+		 * Japanese: distinct words looked up in this chapter, and where to
+		 * review them (Index Japanese 3a, endch). None, or incognito: no row.
+		 */
+		words?: number;
+		wordsHref?: string;
+		/** The next chapter has its text read already. */
+		nextOcr?: boolean;
 	} = $props();
 
 	const back = $derived(mode === 'rtl' ? '→' : '←');
@@ -108,7 +119,7 @@
 				<div class="big" class:faded={variant !== 'chapter'}>{nextTitle}</div>
 				<div class="sub">
 					{#if variant === 'chapter'}
-						{next.pageCount} PAGES{nextCached ? ' · ↓ CACHED' : ''}
+						{next.pageCount} PAGES{nextCached ? ' · ↓ CACHED' : ''}{nextOcr ? ' · OCR ✓' : ''}
 					{:else if variant === 'missing'}
 						○ NOT DOWNLOADED
 					{:else}
@@ -116,6 +127,14 @@
 					{/if}
 				</div>
 			</div>
+			{#if words > 0 && !incognito}
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved by the page -->
+				<a class="words" href={wordsHref}>
+					<span class="wl">WORDS</span>
+					<span class="wn">{words} LOOKED UP IN {entryName}</span>
+					<span class="wr">REVIEW →</span>
+				</a>
+			{/if}
 			{#if variant === 'chapter'}
 				<div class="go">
 					{mode === 'rtl' ? '← TAP OR SWIPE TO CONTINUE' : 'TAP OR SWIPE TO CONTINUE →'}
@@ -229,6 +248,45 @@
 	.sub {
 		font: 400 15px var(--font-mono);
 		color: var(--text-2);
+	}
+	/* A row on the boundary page, not a prompt. */
+	.words {
+		display: flex;
+		align-items: stretch;
+		height: 72px;
+		border-top: var(--hairline);
+		border-bottom: var(--hairline);
+		color: var(--text-1);
+		text-decoration: none;
+	}
+	.wl {
+		display: flex;
+		align-items: center;
+		width: 120px;
+		flex-shrink: 0;
+		border-right: var(--hairline);
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+	}
+	.wn {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		align-items: center;
+		padding: 0 18px;
+		font: 500 15px var(--font-mono);
+	}
+	.wr {
+		display: flex;
+		align-items: center;
+		padding: 0 24px;
+		border-left: var(--hairline);
+		font: 500 14px var(--font-mono);
+	}
+	.words:active {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
 	}
 	.go {
 		font: 500 16px var(--font-mono);

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { ocrLines, type OcrPlace } from '$lib/japanese/ocr';
 	import { enhance } from '$app/forms';
 	import Badge from '$lib/components/content/Badge.svelte';
 	import { coverPlaceholder } from '$lib/library/cover';
@@ -40,7 +41,9 @@
 		dismissedKey = null,
 		onreview,
 		cta = $bindable<HTMLElement | null>(null),
-		outline = false
+		outline = false,
+		ocr = null,
+		words = null
 	}: {
 		series: SeriesPage;
 		shelves: Shelf[];
@@ -62,7 +65,12 @@
 		 * outline, and CONTINUE doesn't open until its chapter is known.
 		 */
 		outline?: boolean;
+		/** OCR's progress on the workstation (Index Japanese 4a); null for novels. */
+		ocr?: OcrPlace | null;
+		/** Words looked up in it: waiting for review, and sent to Kumiko. */
+		words?: { toReview: number; sent: number } | null;
 	} = $props();
+	const ocrRow = $derived(ocr ? ocrLines(ocr) : null);
 
 	// Rating and FAV show their new value at once and save behind it. A save
 	// that fails keeps the value, drawn dashed, with RETRY and PUT BACK in the
@@ -292,6 +300,31 @@
 				{/each}
 			</div>
 		</form>
+
+		{#if ocrRow}
+			<!-- Japanese (doc/JAPANESE.md): how far OCR has read it, on the panel ground. -->
+			<form method="POST" action="?/ocr" use:enhance class="row panel-row ocr-row">
+				<div class="label">OCR</div>
+				<div class="ocr">
+					<div class="oa">{ocrRow.a}</div>
+					{#if ocrRow.bar !== null}
+						<div class="obar"><div style:width="{ocrRow.bar * 100}%"></div></div>
+					{/if}
+					{#if ocrRow.b}<div class="ob">{ocrRow.b}</div>{/if}
+				</div>
+				{#if ocrRow.offer}<button type="submit" class="edit">OCR</button>{/if}
+			</form>
+			{#if ocr?.japanese && words && (words.toReview > 0 || words.sent > 0)}
+				<div class="row panel-row">
+					<div class="label">WORDS</div>
+					<div class="wcount">
+						<span>{words.toReview} TO REVIEW</span><span class="ws">{words.sent} SENT</span>
+					</div>
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
+					<a class="edit" href="{resolve('/words')}?series={series.id}">REVIEW →</a>
+				</div>
+			{/if}
+		{/if}
 
 		{#if series.duplicates > 0 && series.scanlators.length > 1}
 			<!-- One chapter, several scanlators (doc/DUPLICATES.md): whose copy the list shows. -->
@@ -633,6 +666,52 @@
 		border-bottom: var(--hairline);
 		min-height: 60px;
 	}
+	/* Index Japanese 4a: OCR and WORDS sit on the panel ground, under DIRECTION. */
+	.panel-row {
+		background: var(--surface-panel);
+		min-height: 56px;
+	}
+	.ocr-row {
+		min-height: 64px;
+	}
+	.ocr {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 8px;
+		padding: 10px 14px;
+	}
+	.oa {
+		font: 500 14px var(--font-mono);
+	}
+	.ob {
+		font: 400 13px var(--font-mono);
+		color: var(--text-2);
+	}
+	.obar {
+		height: 2px;
+		background: var(--line-1);
+	}
+	.obar div {
+		height: 2px;
+		background: var(--accent);
+	}
+	.wcount {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		align-items: center;
+		gap: 14px;
+		padding: 10px 14px;
+		font: 500 14px var(--font-mono);
+	}
+	.ws {
+		font-weight: 400;
+		font-size: 13px;
+		color: var(--text-2);
+	}
 	.seg {
 		flex: 1;
 		display: flex;
@@ -713,6 +792,9 @@
 		font: 500 13px var(--font-mono);
 		letter-spacing: 0.04em;
 		cursor: pointer;
+	}
+	a.edit {
+		text-decoration: none;
 	}
 	.hide-form {
 		display: flex;

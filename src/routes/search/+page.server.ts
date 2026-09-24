@@ -25,6 +25,7 @@ export const actions: Actions = {
 		const input = parseSearch(String(form.get('q') ?? ''));
 		if (input.type === 'command') {
 			// /scan rescans the device copies; the library shows the job.
+			if (input.command === 'words') redirect(303, '/words');
 			if (input.command === 'scan') startScan();
 			else runCommand(cookies, input.command, url, { gated: isGated() });
 			redirect(303, '/');

@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import type { ReadStream } from 'node:fs';
 import { join } from 'node:path';
@@ -6,7 +7,13 @@ import { promisify } from 'node:util';
 import { getDb } from '../db.ts';
 import { VISIBLE_SQL } from '../visibility.ts';
 import { manifest, readPage } from '../pages/index.ts';
-import { blocksOf, pageIndexOf, type MokuroPage, type TextBlock } from '../../japanese/ocr.ts';
+import {
+	blocksOf,
+	pageIndexOf,
+	type MokuroPage,
+	type OcrPlace,
+	type TextBlock
+} from '../../japanese/ocr.ts';
 
 /**
  * OCR on the workstation (doc/JAPANESE.md): mokuro, on the GPU, reads a
@@ -194,6 +201,7 @@ export function pageText(entryId: number, reveal: boolean): (TextBlock[] | null)
 }
 
 export type OcrStatus = { japanese: boolean; done: number; total: number };
+export type { OcrPlace } from '../../japanese/ocr.ts';
 
 /** How far a series' OCR has got: its downloaded chapters, and those read. */
 export function ocrStatus(seriesId: number): OcrStatus {
@@ -210,9 +218,86 @@ export function ocrStatus(seriesId: number): OcrStatus {
 	return { japanese: !!s?.japanese, done: c.done ?? 0, total: c.total };
 }
 
+/** Where a series stands on the workstation: the series screen's OCR row. */
+export function ocrPlace(seriesId: number, now = Date.now()): OcrPlace {
+	const status = ocrStatus(seriesId);
+	const none = { ...status, ahead: null, next: null, failed: 0, running: false };
+	if (!status.japanese) return none;
+	const db = getDb();
+	const queue = ocrQueue(1_000_000, now);
+	const order = [...new Set(queue.map((j) => j.seriesId))];
+	const at = order.indexOf(seriesId);
+	const first = queue.find((j) => j.seriesId === seriesId);
+	const next = first
+		? ((
+				db.prepare(`SELECT label FROM entries WHERE id = ?`).get(first.entryId) as
+					{ label: string } | undefined
+			)?.label.toUpperCase() ?? null)
+		: null;
+	const failed = (
+		db
+			.prepare(
+				`SELECT COUNT(*) AS n FROM entries WHERE series_id = ? AND available = 1 AND shadowed = 0
+				AND ocr_at IS NULL AND ocr_failed_at >= ?`
+			)
+			.get(seriesId, now - RETRY_MS) as { n: number }
+	).n;
+	return {
+		...status,
+		ahead: at < 0 ? null : at,
+		next,
+		failed,
+		// scripts/ocr.ts holds this while a run is on the GPU.
+		running: at === 0 && existsSync(join(scratchDir(), 'ocr.lock'))
+	};
+}
+
 /** OCR on for a series (it's Japanese the workstation didn't see), off, or back to by language. */
 export function setSeriesOcr(seriesId: number, on: boolean | null): void {
 	getDb()
 		.prepare(`UPDATE series SET ocr = ? WHERE id = ?`)
 		.run(on === null ? null : on ? 1 : 0, seriesId);
+}
+
+/**
+ * NOT TEXT (doc/JAPANESE.md): a block OCR got wrong is taken out of its page
+ * for good. Returns the block, so UNDO can put it back where it was.
+ */
+export function dropBlock(entryId: number, page: number, index: number): TextBlock | null {
+	const db = getDb();
+	const row = db
+		.prepare(`SELECT blocks FROM page_text WHERE entry_id = ? AND page = ?`)
+		.get(entryId, page) as { blocks: string } | undefined;
+	if (!row) return null;
+	const blocks = JSON.parse(row.blocks) as TextBlock[];
+	const [dropped] = blocks.splice(index, 1);
+	if (!dropped) return null;
+	db.prepare(`UPDATE page_text SET blocks = ? WHERE entry_id = ? AND page = ?`).run(
+		JSON.stringify(blocks),
+		entryId,
+		page
+	);
+	return dropped;
+}
+
+/** UNDO after NOT TEXT: the block back at its place. */
+export function restoreBlock(
+	entryId: number,
+	page: number,
+	index: number,
+	block: TextBlock
+): boolean {
+	const db = getDb();
+	const row = db
+		.prepare(`SELECT blocks FROM page_text WHERE entry_id = ? AND page = ?`)
+		.get(entryId, page) as { blocks: string } | undefined;
+	if (!row) return false;
+	const blocks = JSON.parse(row.blocks) as TextBlock[];
+	blocks.splice(Math.min(Math.max(0, index), blocks.length), 0, block);
+	db.prepare(`UPDATE page_text SET blocks = ? WHERE entry_id = ? AND page = ?`).run(
+		JSON.stringify(blocks),
+		entryId,
+		page
+	);
+	return true;
 }

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { croppedSize, viewBox, type Inset } from '$lib/reader/crop';
+	import type { Ring } from '$lib/japanese/blocks';
 	/**
 	 * One page (Index Reader, states loading and failed). While the image is
 	 * on its way, the page's own box -- sized from the manifest, so nothing
@@ -16,6 +17,7 @@
 		half = null,
 		rotate = false,
 		inset = null,
+		rings = [],
 		chapter = ''
 	}: {
 		src: string;
@@ -34,6 +36,8 @@
 		rotate?: boolean;
 		/** Its plain border, cropped away (doc/READER.md, "Crop borders"). */
 		inset?: Inset | null;
+		/** OCR'd text blocks outlined on the page (doc/JAPANESE.md), in fractions of what's shown. */
+		rings?: Ring[];
 		/**
 		 * The chapter, named in the box on a chapter's first page (Loading
 		 * States 1n): arriving from the previous chapter, that's what's loading.
@@ -88,6 +92,19 @@
 		onload={() => (status = 'loaded')}
 		onerror={() => (status = 'failed')}
 	/>
+	{#if status === 'loaded'}
+		{#each rings as r, k (k)}
+			<div
+				class="ring"
+				class:selected={r.selected}
+				aria-hidden="true"
+				style:left="{r.box[0] * 100}%"
+				style:top="{r.box[1] * 100}%"
+				style:width="{r.box[2] * 100}%"
+				style:height="{r.box[3] * 100}%"
+			></div>
+		{/each}
+	{/if}
 	{#if status === 'loading'}
 		<div class="loading" aria-hidden="true">
 			<div class="n">{name}</div>
@@ -169,6 +186,22 @@
 		max-width: none;
 		object-fit: fill;
 		transform: translate(-50%, -50%) rotate(90deg);
+	}
+	/*
+	 * Index Japanese 1a: an ink outline with a dark edge either side, so it
+	 * reads on white paper and on black art; the block being looked up, in the
+	 * accent.
+	 */
+	.ring {
+		position: absolute;
+		pointer-events: none;
+		box-shadow:
+			0 0 0 1px var(--graphite-950),
+			0 0 0 2px var(--graphite-100),
+			0 0 0 3px var(--graphite-950);
+	}
+	.ring.selected {
+		box-shadow: 0 0 0 3px var(--accent);
 	}
 	.loading {
 		position: absolute;

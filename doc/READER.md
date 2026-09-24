@@ -31,8 +31,10 @@ because hidden pages must never pass for ordinary ones.
 
 - **Two 16% edge strips turn the page; the middle shows or hides the controls**
   (Reader States 1f). Thirds would give two-thirds of the page to turning,
-  which is where most speech bubbles are. Phase 2 adds a single rule on top: a
-  tap on an OCR'd bubble opens the lookup. The zones stay as they are.
+  which is where most speech bubbles are. A Japanese series adds a single rule
+  on top: a tap on an OCR'd text block opens the lookup, winning over the
+  strips where they overlap. The zones stay as they are
+  ([`JAPANESE.md`](JAPANESE.md), "The tap rule").
 - **R→L reads forward to the left:** the left strip turns forward, and a swipe
   to the right pulls the next page in. L→R mirrors both.
 - **A swipe turns anywhere:** at least 40px, and mostly sideways.

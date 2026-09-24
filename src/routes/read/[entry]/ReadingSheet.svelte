@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { modeName, type Fit, type Mode, type Wide } from '$lib/reader/reader';
+	import type { BlocksShown } from '$lib/japanese/blocks';
 	import { RATING_OPTIONS } from '$lib/library/rating';
 
 	/**
@@ -21,6 +22,8 @@
 		landscape,
 		dim,
 		rating,
+		blocks = null,
+		onblocks = () => undefined,
 		onmode,
 		onremember,
 		onfit,
@@ -47,6 +50,9 @@
 		/** 0 to 0.8. */
 		dim: number;
 		rating: number;
+		/** A Japanese series: when its text blocks are outlined (doc/JAPANESE.md). Null hides the row. */
+		blocks?: BlocksShown | null;
+		onblocks?: (b: BlocksShown) => void;
 		onmode: (m: Mode) => void;
 		onremember: () => void;
 		onfit: (f: Fit) => void;
@@ -66,6 +72,11 @@
 		['screen', 'SCREEN']
 	];
 	const SIDES = [0, 10, 20, 30];
+	const BLOCKS: [BlocksShown, string][] = [
+		['controls', 'WITH CONTROLS'],
+		['always', 'ALWAYS'],
+		['never', 'NEVER']
+	];
 	const WIDES: [Wide, string][] = [
 		['fit', 'WHOLE'],
 		['split', 'SPLIT'],
@@ -216,6 +227,27 @@
 			{#if paged}<div class="under"><span class="note">VERTICAL ONLY</span></div>{/if}
 		</div>
 	</div>
+
+	{#if blocks}
+		<!-- Japanese: where the OCR'd text blocks are, outlined. A tap on one looks it up either way. -->
+		<div class="row">
+			<div class="label">BLOCKS</div>
+			<div class="body col">
+				<div class="seg" role="radiogroup" aria-label="Text blocks">
+					{#each BLOCKS as [b, name] (b)}
+						<button
+							type="button"
+							role="radio"
+							aria-checked={blocks === b}
+							class:on={blocks === b}
+							onclick={() => onblocks(b)}>{name}</button
+						>
+					{/each}
+				</div>
+				<div class="under"><span class="note">OUTLINES OCR'D TEXT BLOCKS</span></div>
+			</div>
+		</div>
+	{/if}
 
 	<div class="row dim">
 		<div class="label">DIM</div>

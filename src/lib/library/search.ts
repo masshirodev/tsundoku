@@ -7,7 +7,7 @@ export type SearchInput =
 	{ type: 'empty' } | { type: 'query'; text: string } | { type: 'command'; command: Command };
 
 export type Command =
-	'reveal' | 'hide' | 'light' | 'dark' | 'incognito' | 'scan' | 'lock' | 'unlock';
+	'reveal' | 'hide' | 'light' | 'dark' | 'incognito' | 'scan' | 'lock' | 'unlock' | 'words';
 
 const COMMANDS: Record<string, Command> = {
 	'/reveal': 'reveal',
@@ -18,7 +18,9 @@ const COMMANDS: Record<string, Command> = {
 	'/scan': 'scan',
 	// The fingerprint gate: enrol this device, or take the gate away.
 	'/lock': 'lock',
-	'/unlock': 'unlock'
+	'/unlock': 'unlock',
+	// The words looked up in Japanese, waiting for review (doc/JAPANESE.md).
+	'/words': 'words'
 };
 
 export function parseSearch(raw: string): SearchInput {

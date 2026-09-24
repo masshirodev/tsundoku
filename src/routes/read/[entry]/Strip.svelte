@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import PageImage from './PageImage.svelte';
 	import type { StripChapter } from '$lib/reader/reader';
+	import type { Ring } from '$lib/japanese/blocks';
 
 	/**
 	 * Vertical scroll (Index Reader, states vertical and endchV): pages
@@ -22,7 +23,8 @@
 		src,
 		onpage,
 		onend,
-		ontap
+		ontap,
+		rings = () => []
 	}: {
 		chapters: StripChapter[];
 		/** Each side's margin, percent of the width: the strip is the rest, centred. */
@@ -32,7 +34,10 @@
 		onpage: (chapter: number, i: number) => void;
 		/** A chapter's end came into view: it's read. */
 		onend: (chapter: number) => void;
-		ontap: () => void;
+		/** A tap: the reader decides, a text block or the controls. */
+		ontap: (e: MouseEvent) => void;
+		/** A page's OCR'd text blocks to outline (doc/JAPANESE.md). */
+		rings?: (chapter: number, i: number) => Ring[];
 	} = $props();
 
 	let root = $state<HTMLElement | null>(null);
@@ -62,7 +67,7 @@
 	});
 </script>
 
-<!-- A tap anywhere shows the controls, the side margins included; scrolling is the only way to move. -->
+<!-- A tap anywhere shows the controls, the side margins included, unless it's on a text block; scrolling is the only way to move. -->
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 <div class="lane" onclick={ontap}>
 	<div class="strip" bind:this={root} style:width="{100 - 2 * sides}%">
@@ -83,7 +88,14 @@
 			{#if c.pages}
 				{#each c.pages as p, i (src(c, i))}
 					<div data-role="page" data-entry={c.id} data-index={i} class="slot">
-						<PageImage src={src(c, i)} number={i + 1} w={p.w} h={p.h} fit="strip" />
+						<PageImage
+							src={src(c, i)}
+							number={i + 1}
+							w={p.w}
+							h={p.h}
+							fit="strip"
+							rings={rings(c.id, i)}
+						/>
 					</div>
 				{/each}
 				<div data-role="end" data-entry={c.id} class="marker"></div>

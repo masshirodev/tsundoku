@@ -542,6 +542,33 @@ export function seedSample(db: Database.Database, now = Date.now()): void {
 		now
 	});
 
+	// Japanese (doc/JAPANESE.md): Drawing is read with OCR, and its chapters up
+	// to the one in progress have text -- the handoff's own three bubbles on
+	// every page, clear of mid-height so a tap there still shows the controls.
+	const drawing = idOf(SAMPLE_ROWS[0].title);
+	const bubbles = JSON.stringify([
+		{
+			box: [0.68, 0.06, 0.2, 0.1],
+			vertical: true,
+			lines: ['この絵、', '本当に君が', '描いたのか？']
+		},
+		{ box: [0.12, 0.28, 0.2, 0.12], vertical: true, lines: ['等身大で'] },
+		{ box: [0.58, 0.72, 0.22, 0.11], vertical: true, lines: ['明後日の十時に、', '東門へ。'] }
+	]);
+	db.transaction(() => {
+		db.prepare(`UPDATE series SET ocr = 1 WHERE id = ?`).run(drawing);
+		const read = db
+			.prepare(
+				`SELECT id, page_count FROM entries WHERE series_id = ? AND position <= ? ORDER BY position`
+			)
+			.all(drawing, SAMPLE_ROWS[0].read + 1) as { id: number; page_count: number }[];
+		const put = db.prepare(`INSERT INTO page_text (entry_id, page, blocks) VALUES (?, ?, ?)`);
+		for (const e of read) {
+			for (let p = 0; p < e.page_count; p++) put.run(e.id, p, bubbles);
+			db.prepare(`UPDATE entries SET ocr_at = ? WHERE id = ?`).run(now, e.id);
+		}
+	}).immediate();
+
 	// A few days of past reading, so history has something to show before the
 	// reader exists to write it. Written straight to the log, as the reader's
 	// recordReading() would have.

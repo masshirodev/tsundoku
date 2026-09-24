@@ -115,8 +115,11 @@ sw.addEventListener('fetch', (event) => {
 		);
 		return;
 	}
-	// A cached chapter's manifest and reader page: fresh when online.
-	if (/^\/api\/entries\/\d+\/pages$/.test(path) || /^\/read\/\d+(\/__data\.json)?$/.test(path)) {
+	// A cached chapter's manifest, OCR'd text and reader page: fresh when online.
+	if (
+		/^\/api\/entries\/\d+\/(pages|text)$/.test(path) ||
+		/^\/read\/\d+(\/__data\.json)?$/.test(path)
+	) {
 		event.respondWith(networkFirst(req, [ENTRIES, SCREENS]));
 		return;
 	}

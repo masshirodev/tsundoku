@@ -2,6 +2,8 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { refreshCovers } from '$lib/server/covers';
 import { DeleteError, deleteBook, deleteSeries } from '$lib/server/delete';
 import type { Actions, PageServerLoad } from './$types';
+import { ocrPlace, setSeriesOcr } from '$lib/server/japanese/ocr';
+import { wordsOf } from '$lib/server/japanese/mining';
 import {
 	collectionExists,
 	createCollection,
@@ -84,7 +86,10 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		suggestion: single ? suggestionFor(series.id, reveal) : null,
 		// Where a book can move to, or singles can be added: same root only.
 		otherSeries: seriesOfBooks(reveal).filter((o) => o.rootId === root && o.id !== series.id),
-		created: url.searchParams.get('created') === '1'
+		created: url.searchParams.get('created') === '1',
+		// Japanese (doc/JAPANESE.md): OCR's progress, and the words looked up. Never for novels.
+		ocr: series.kind === 'novel' ? null : ocrPlace(series.id),
+		words: series.kind === 'novel' ? null : wordsOf(series.id, reveal)
 	};
 };
 
@@ -122,6 +127,14 @@ export const actions: Actions = {
 		const direction = parseDirection((await request.formData()).get('direction'), s.kind);
 		if (!direction) return fail(400, { message: 'no such direction for this kind' });
 		setDirection(s.id, direction);
+		return { ok: true };
+	},
+
+	/** OCR on the NOT DETECTED row: the series is Japanese, and its chapters queue. */
+	ocr: async ({ params, cookies }) => {
+		const s = target(params, cookies);
+		if (s.kind === 'novel') return fail(400, { message: 'novels are text already' });
+		setSeriesOcr(s.id, true);
 		return { ok: true };
 	},
 

@@ -4,6 +4,7 @@ import { getDb } from '$lib/server/db';
 import { isIncognito, isRevealed } from '$lib/server/prefs';
 import { seriesPage } from '$lib/server/series';
 import { manifest } from '$lib/server/pages';
+import { ocrStatus } from '$lib/server/japanese/ocr';
 import { epubVersions } from '$lib/server/epub';
 import { effectiveDirection, isBookSeries } from '$lib/library/series';
 import { entryName, modeOf, spelledOut } from '$lib/reader/reader';
@@ -76,7 +77,12 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 					// What the boundary pages call it: its own title, or "Chapter 42".
 					title: e.title || spelledOut(books ? `Book ${i + 1}` : e.label),
 					pageCount: e.pageCount,
-					available: e.available
+					available: e.available,
+					/** Its text read by OCR already: the end page says so (doc/JAPANESE.md). */
+					ocr: !!(
+						getDb().prepare(`SELECT ocr_at FROM entries WHERE id = ?`).get(e.id) as
+							{ ocr_at: number | null } | undefined
+					)?.ocr_at
 				}
 			: null;
 	};
@@ -132,6 +138,8 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		start,
 		prev: neighbour(index - 1),
 		next: neighbour(index + 1),
+		/** Japanese: its pages get text blocks to look words up in (doc/JAPANESE.md). */
+		ocr: ocrStatus(series.id),
 		incognito: isIncognito(cookies)
 	};
 };

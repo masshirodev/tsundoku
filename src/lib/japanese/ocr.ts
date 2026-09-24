@@ -62,3 +62,58 @@ export function blockAt(blocks: TextBlock[], x: number, y: number): TextBlock | 
 
 /** A block's text as one run, for the tokenizer: its lines joined. */
 export const blockText = (b: TextBlock) => b.lines.join('');
+
+/** Where a series stands with OCR on the workstation (src/lib/server/japanese/ocr.ts). */
+export type OcrPlace = {
+	japanese: boolean;
+	done: number;
+	total: number;
+	/** Series ahead of it in the queue; null when none of its chapters wait. */
+	ahead: number | null;
+	/** Its first chapter waiting: "CH. 42". */
+	next: string | null;
+	/** Chapters that didn't read, waiting a week to be tried again. */
+	failed: number;
+	/** A run is on the GPU, and this series is first. */
+	running: boolean;
+};
+
+/**
+ * The series screen's OCR row (Index Japanese 4a): two lines, a bar while
+ * running, and OCR offered when the series isn't seen as Japanese.
+ */
+export function ocrLines(p: OcrPlace): {
+	a: string;
+	b: string | null;
+	bar: number | null;
+	offer: boolean;
+} {
+	if (!p.japanese)
+		return {
+			a: 'NOT DETECTED AS JAPANESE',
+			b: 'OCR MAKES THE PAGES LOOKUP-READY',
+			bar: null,
+			offer: true
+		};
+	const count = `${p.done} OF ${p.total} CHAPTERS`;
+	if (p.total === 0) return { a: 'NO CHAPTERS DOWNLOADED', b: null, bar: null, offer: false };
+	if (p.done >= p.total) return { a: count, b: null, bar: null, offer: false };
+	if (p.ahead === null)
+		return {
+			a: count,
+			b: `${p.failed} DIDN'T READ · TRIED AGAIN IN A WEEK`,
+			bar: null,
+			offer: false
+		};
+	if (p.ahead > 0)
+		return {
+			a: `${count} · QUEUED`,
+			b: `WAITING FOR ${p.ahead} SERIES ON THE WORKSTATION`,
+			bar: null,
+			offer: false
+		};
+	const next = p.next ? ` · ${p.next} NEXT` : '';
+	return p.running
+		? { a: count, b: `RUNNING ON THE WORKSTATION${next}`, bar: p.done / p.total, offer: false }
+		: { a: count, b: `NEXT ON THE WORKSTATION · EVERY HALF HOUR`, bar: null, offer: false };
+}

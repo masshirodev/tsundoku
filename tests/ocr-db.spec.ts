@@ -110,6 +110,20 @@ describe('OCR on the workstation', () => {
 		);
 	});
 
+	it('places a series in the queue, with its next chapter and those that failed', () => {
+		const now = Date.UTC(2026, 8, 24) + 3600_000;
+		const p = ocr.ocrPlace(chainsaw, now);
+		expect(p).toMatchObject({ japanese: true, done: 2, ahead: 0, failed: 1, running: false });
+		expect(p.next).toMatch(/^CH\. /);
+		// A series first in line reads as running only while a run holds the lock.
+		writeFileSync(join(work, 'scratch', 'ocr.lock'), String(process.pid));
+		expect(ocr.ocrPlace(chainsaw, now).running).toBe(true);
+		// Not Japanese: nothing to place.
+		ocr.setSeriesOcr(chainsaw, false);
+		expect(ocr.ocrPlace(chainsaw, now)).toMatchObject({ japanese: false, ahead: null });
+		ocr.setSeriesOcr(chainsaw, true);
+	});
+
 	it('keeps a hidden series’ text hidden while reveal is off', () => {
 		const hidden = (
 			db

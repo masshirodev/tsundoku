@@ -17,6 +17,10 @@ chapters of the series (`keepFor` in `src/lib/cache/policy.ts`):
 - the whole cache stays under **2 GB**, and the oldest-cached entries go first,
   never the ones being read now (`evict`).
 
+A kept chapter keeps its OCR'd text too (`/api/entries/<id>/text`), fetched
+again on every visit, so a Japanese chapter's lookups work offline
+([`JAPANESE.md`](JAPANESE.md)).
+
 **By hand,** the series screen's SELECT has **↓ CACHE** and **REMOVE CACHE**,
 each showing how many of the selection it would change.
 

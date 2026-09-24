@@ -9,6 +9,10 @@
 	import { cacheBook } from '$lib/cache/device';
 	import { flushPending, queuePending } from '$lib/cache/pending';
 	import { entryDocs } from '$lib/epub/epub';
+	import { paragraphAt } from '$lib/japanese/paragraph';
+	import { PHONE_W, type Placement } from '$lib/japanese/panel';
+	import { flushLookups } from '$lib/japanese/lookups';
+	import LookupPanel from '$lib/components/japanese/LookupPanel.svelte';
 	import { ProgressClock, swipeAction, tapAction } from '$lib/reader/reader';
 	import { BookFailure, bookUrl, openBook, type OpenBook } from '$lib/reader/book';
 	import {
@@ -628,16 +632,74 @@
 	let fullImage = $state<{ src: string; alt: string } | null>(null);
 	let wide = $state<{ title: string; meta: string; html: string; code: boolean } | null>(null);
 
+	// ---- Japanese: a long press looks a word up (doc/JAPANESE.md, "In a book") -------------
+	// A book's page is all text, so a tap can't be the lookup's as it is on a
+	// manga page: taps keep turning and showing the controls, and a long press
+	// on a word opens the shared panel, in a column away from it.
+	const japanese = $derived(/^ja\b/i.test(book?.pkg.language ?? ''));
+	type Lookup = { text: string; at: number; n: number; place: Placement };
+	let lookup = $state<Lookup | null>(null);
+	let press: ReturnType<typeof setTimeout> | undefined;
+	/** The long press fired: the finger lifting afterwards isn't a tap. */
+	let pressed = false;
+	const PRESS_MS = 450;
+	function lookUpAt(x: number, y: number) {
+		const root = blocksEl?.contains(document.elementFromPoint(x, y)) ? blocksEl : nextEl;
+		const hit = root ? paragraphAt(root, x, y) : null;
+		if (!hit) return;
+		pressed = true;
+		chrome = false;
+		lookup = {
+			text: hit.text,
+			at: hit.at,
+			n: hit.n,
+			place:
+				innerWidth < PHONE_W
+					? { kind: 'phone', lift: 0 }
+					: { kind: 'side', side: x < innerWidth / 2 ? 'right' : 'left' }
+		};
+	}
+	$effect(() => {
+		if (!japanese) return;
+		void flushLookups();
+		const online = () => void flushLookups();
+		addEventListener('online', online);
+		return () => removeEventListener('online', online);
+	});
+
 	let down: { x: number; y: number } | null = null;
 	function pointerdown(e: PointerEvent) {
 		// A press on the controls, a sheet or an overlay is theirs, not the page's.
 		const t = e.target as HTMLElement;
-		down = t.closest('header, footer, [role="dialog"], .contents, .scrim, .screen, .loading')
+		down = t.closest(
+			'header, footer, [role="dialog"], .contents, .scrim, .screen, .loading, [aria-label="Lookup"]'
+		)
 			? null
 			: { x: e.clientX, y: e.clientY };
+		pressed = false;
+		clearTimeout(press);
+		if (down && japanese && !atEnd) {
+			const { x, y } = down;
+			press = setTimeout(() => lookUpAt(x, y), PRESS_MS);
+		}
+	}
+	function pointermove(e: PointerEvent) {
+		if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 10) clearTimeout(press);
 	}
 	function pointerup(e: PointerEvent) {
+		clearTimeout(press);
+		if (pressed) {
+			pressed = false;
+			down = null;
+			return;
+		}
 		if (!down) return;
+		// With the lookup open, a tap anywhere else closes it.
+		if (lookup) {
+			down = null;
+			lookup = null;
+			return;
+		}
 		const dx = e.clientX - down.x;
 		const dy = e.clientY - down.y;
 		down = null;
@@ -682,6 +744,8 @@
 	}
 
 	function keydown(e: KeyboardEvent) {
+		// The lookup has the keyboard: Escape closes it (the panel's own).
+		if (lookup) return;
 		if (fullImage || wide) {
 			if (e.key === 'Escape') fullImage = wide = null;
 			return;
@@ -798,7 +862,10 @@
 	style:--side="{f.x}px"
 	role="presentation"
 	onpointerdown={pointerdown}
+	onpointermove={pointermove}
 	onpointerup={pointerup}
+	onpointercancel={() => clearTimeout(press)}
+	oncontextmenu={(e) => japanese && e.preventDefault()}
 >
 	<div
 		class="page"
@@ -948,6 +1015,20 @@
 				onclose={() => (contents = false)}
 			/>
 		</div>
+	{/if}
+
+	{#if lookup && entry}
+		<LookupPanel
+			text={lookup.text}
+			start={lookup.at}
+			context="{short(entry)} · ¶ {lookup.n}"
+			placement={lookup.place}
+			incognito={data.incognito}
+			seriesId={series.id}
+			entryId={entry.id}
+			place="¶ {lookup.n}"
+			onclose={() => (lookup = null)}
+		/>
 	{/if}
 
 	{#if dim > 0}<div class="dim" style:opacity={dim} aria-hidden="true"></div>{/if}

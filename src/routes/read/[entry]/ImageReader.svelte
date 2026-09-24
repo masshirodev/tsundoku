@@ -36,6 +36,18 @@
 	import EndPage from './EndPage.svelte';
 	import Strip from './Strip.svelte';
 	import type { Inset } from '$lib/reader/crop';
+	import type { TextBlock } from '$lib/japanese/ocr';
+	import {
+		hitBlock,
+		outlined,
+		rings,
+		shownBlocks,
+		type BlocksShown,
+		type Ring
+	} from '$lib/japanese/blocks';
+	import { placement, type Placement } from '$lib/japanese/panel';
+	import { flushLookups } from '$lib/japanese/lookups';
+	import LookupPanel from '$lib/components/japanese/LookupPanel.svelte';
 
 	/**
 	 * The image reader (Index Reader; doc/READER.md). The page is the
@@ -78,6 +90,8 @@
 	let wide = $state<Wide>('fit');
 	/** Paged: crop each page's plain border (doc/READER.md, "Crop borders"). */
 	let crop = $state(false);
+	/** Japanese: when the text blocks are outlined (doc/JAPANESE.md, "The tap rule"). */
+	let blocksShown = $state<BlocksShown>('controls');
 	let shift = $state(false);
 	onMount(() => {
 		fit = stored<Fit>('fit', 'screen');
@@ -86,6 +100,7 @@
 		sides = stored('sides', 0);
 		wide = stored('wide', 'fit');
 		crop = stored('crop', false);
+		blocksShown = stored<BlocksShown>('blocks', 'controls');
 	});
 
 	const landscape = new MediaQuery('(orientation: landscape)', false);
@@ -203,6 +218,7 @@
 
 	function go(to: number) {
 		if (pages.length === 0) return;
+		lookup = null;
 		atEnd = false;
 		half = 0;
 		at = Math.max(0, Math.min(pages.length - 1, to));
@@ -344,6 +360,7 @@
 	/** A turn asked for mid-slide: taken as soon as this one lands, so quick taps all count. */
 	let queued: 'next' | 'prev' | null = null;
 	async function turn(dir: 'next' | 'prev') {
+		lookup = null;
 		if (animating) {
 			queued = dir;
 			return;
@@ -563,7 +580,8 @@
 					name: data.entry.name,
 					title: data.entry.title,
 					pageCount: pages.length,
-					available: true
+					available: true,
+					ocr: false
 				},
 				pages,
 				data.manifest?.version ?? ''
@@ -634,6 +652,174 @@
 		});
 	}
 
+	// ---- Japanese: text blocks and lookup ---------------------------------------------------
+	// A Japanese series' pages carry the text blocks OCR read on the workstation
+	// (doc/JAPANESE.md). A tap on one opens the lookup; every other tap does
+	// what it always did. Kept chapters carry their text for offline.
+	let text = $state<{ entry: number; pages: (TextBlock[] | null)[]; lookedUp: number } | null>(
+		null
+	);
+	async function loadText(id: number) {
+		try {
+			const r = await fetch(resolve('/api/entries/[id]/text', { id: String(id) }));
+			if (!r.ok) return;
+			const t = (await r.json()) as { pages: (TextBlock[] | null)[]; lookedUp: number };
+			if (id === data.entry.id) text = { entry: id, ...t };
+		} catch {
+			// Offline and not kept: the pages read as they do without OCR.
+		}
+	}
+	$effect(() => {
+		if (!data.ocr.japanese || !data.manifest) return;
+		const id = data.entry.id;
+		untrack(() => {
+			lookup = null;
+			dropped = null;
+			if (text?.entry !== id) void loadText(id);
+		});
+	});
+	// The end page's WORDS row counts this chapter's lookups, these included.
+	$effect(() => {
+		if (atEnd && data.ocr.japanese && offline.online) untrack(() => void loadText(data.entry.id));
+	});
+	onMount(() => {
+		void flushLookups();
+		const online = () => void flushLookups();
+		addEventListener('online', online);
+		return () => removeEventListener('online', online);
+	});
+
+	/** Blocks on a split or turned wide page aren't offered: the page isn't where OCR saw it. */
+	const blocksOn = (entry: number, i: number) =>
+		text?.entry === entry && treatment(i) !== 'split' && treatment(i) !== 'rotate'
+			? shownBlocks(text.pages[i] ?? null, mode === 'vertical' ? null : insetOf(i))
+			: [];
+
+	type Lookup = { entry: number; page: number; index: number; block: TextBlock; place: Placement };
+	let lookup = $state<Lookup | null>(null);
+	const ringsOn = (entry: number, i: number): Ring[] =>
+		rings(
+			blocksOn(entry, i),
+			outlined(blocksShown, chrome),
+			lookup?.entry === entry && lookup.page === i ? lookup.index : null
+		);
+
+	/** The text block under a point on screen, on the page being read. */
+	function blockUnder(x: number, y: number): (Omit<Lookup, 'place'> & { rect: DOMRect }) | null {
+		for (const el of document.elementsFromPoint(x, y)) {
+			const pg = el.closest<HTMLElement>('[data-page]');
+			if (!pg) continue;
+			// A neighbour screen, mid-slide: not the page being read.
+			if (pg.closest('[aria-hidden="true"]')) return null;
+			const slot = pg.closest<HTMLElement>('[data-entry]');
+			const entry = slot ? Number(slot.dataset.entry) : data.entry.id;
+			const page = Number(pg.dataset.page) - 1;
+			const r = pg.getBoundingClientRect();
+			const hit = hitBlock(blocksOn(entry, page), (x - r.left) / r.width, (y - r.top) / r.height);
+			const block = hit && text?.pages[page]?.[hit.index];
+			if (!hit || !block) return null;
+			const [bx, by, bw, bh] = hit.box;
+			return {
+				entry,
+				page,
+				index: hit.index,
+				block,
+				rect: new DOMRect(r.left + bx * r.width, r.top + by * r.height, bw * r.width, bh * r.height)
+			};
+		}
+		return null;
+	}
+
+	/**
+	 * The tap rule (Japanese States 1a): with the lookup open, a block moves it
+	 * and anywhere else closes it; otherwise a block opens it, winning over the
+	 * edge strips. True when the tap was the lookup's.
+	 */
+	function tapBlocks(x: number, y: number): boolean {
+		dropped = null;
+		const hit = text ? blockUnder(x, y) : null;
+		if (!hit && !lookup) return false;
+		if (!hit) {
+			lookup = null;
+			return true;
+		}
+		const { rect, ...at } = hit;
+		lookup = { ...at, place: placement(rect, innerWidth, innerHeight) };
+		chrome = false;
+		return true;
+	}
+
+	const lookupContext = $derived(
+		lookup
+			? `${mode === 'vertical' ? `${data.entry.name} · ` : ''}P. ${lookup.page + 1} · BLOCK ${lookup.index + 1}`
+			: ''
+	);
+	/** Phone: the page slides up so the block clears the panel, and back on close. */
+	const lift = $derived(lookup?.place.kind === 'phone' ? lookup.place.lift : 0);
+	// Vertical: the strip holds still while the panel is open.
+	$effect(() => {
+		if (mode !== 'vertical' || !lookup) return;
+		const html = document.documentElement;
+		html.style.overflow = 'hidden';
+		return () => {
+			html.style.overflow = '';
+		};
+	});
+
+	/** NOT TEXT: the block goes for good; the band offers UNDO until the next tap. */
+	let dropped = $state<{ entry: number; page: number; index: number; block: TextBlock } | null>(
+		null
+	);
+	const textUrl = (id: number) => resolve('/api/entries/[id]/text', { id: String(id) });
+	function setBlocks(page: number, blocks: TextBlock[]) {
+		if (text) text.pages[page] = blocks;
+	}
+	async function notText() {
+		const l = lookup;
+		const blocks = l && text?.entry === l.entry ? text.pages[l.page] : null;
+		if (!l || !blocks) return;
+		lookup = null;
+		setBlocks(
+			l.page,
+			blocks.filter((_, k) => k !== l.index)
+		);
+		dropped = { entry: l.entry, page: l.page, index: l.index, block: l.block };
+		const ok = await fetch(textUrl(l.entry), {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ drop: { page: l.page, index: l.index } })
+		})
+			.then((r) => r.ok)
+			.catch(() => false);
+		if (!ok) {
+			// The workstation didn't take it: the block is back, as it still is there.
+			setBlocks(l.page, blocks);
+			dropped = null;
+		}
+	}
+	async function undoNotText() {
+		const d = dropped;
+		dropped = null;
+		const blocks = d && text?.entry === d.entry ? text.pages[d.page] : null;
+		if (!d || !blocks) return;
+		setBlocks(d.page, [...blocks.slice(0, d.index), d.block, ...blocks.slice(d.index)]);
+		await fetch(textUrl(d.entry), {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ restore: { page: d.page, index: d.index, block: d.block } })
+		}).catch(() => undefined);
+	}
+
+	/** The top bar says a Japanese page has no text yet, with the controls up. */
+	const noText = $derived(
+		data.ocr.japanese &&
+			!atEnd &&
+			mode !== 'vertical' &&
+			(text?.entry !== data.entry.id || text.pages[at] == null)
+			? { done: data.ocr.done, total: data.ocr.total }
+			: null
+	);
+
 	// ---- touch -----------------------------------------------------------------------------
 	let down: { x: number; y: number } | null = null;
 	let dragging = false;
@@ -667,6 +853,11 @@
 	}
 	function pointerup(e: PointerEvent) {
 		if (!down) return;
+		// A link or button on the end page is its own; the page doesn't turn under it.
+		if ((e.target as Element | null)?.closest?.('a, button')) {
+			down = null;
+			return;
+		}
 		const dx = e.clientX - down.x;
 		const dy = e.clientY - down.y;
 		down = null;
@@ -679,6 +870,8 @@
 		}
 		if (dragged) return void settleBack();
 		if (Math.hypot(dx, dy) > 10) return;
+		// A text block, touched or clicked (not the right or middle button).
+		if ((e.pointerType !== 'mouse' || e.button === 0) && tapBlocks(e.clientX, e.clientY)) return;
 		// With the controls up, a tap on the page only puts them away.
 		if (chrome) {
 			chrome = false;
@@ -692,6 +885,8 @@
 	}
 
 	function keydown(e: KeyboardEvent) {
+		// The lookup has the keyboard: Escape closes it (the panel's own).
+		if (lookup) return;
 		if (sheet) {
 			if (e.key === 'Escape') sheet = false;
 			return;
@@ -757,6 +952,7 @@
 	// ---- what the chrome says -----------------------------------------------------------
 	const seriesHref = $derived(resolve('/series/[id]', { id: String(data.series.id) }));
 	const libraryHref = resolve('/');
+	const wordsHref = $derived(`${resolve('/words')}?series=${data.series.id}`);
 	const meta = $derived(
 		metaLine({
 			kind: data.series.kind,
@@ -789,14 +985,19 @@
 		</div>
 	{:else if mode === 'vertical'}
 		{#key stripSession}
-			<Strip
-				chapters={strip}
-				{sides}
-				src={(c, i) => pageSrc(c.id, c.version, i)}
-				onpage={stripPage}
-				onend={(id) => id === data.entry.id && markFinished()}
-				ontap={() => (chrome = !chrome)}
-			/>
+			<div class="lane-lift" style:transform={lift ? `translateY(${-lift}px)` : undefined}>
+				<Strip
+					chapters={strip}
+					{sides}
+					src={(c, i) => pageSrc(c.id, c.version, i)}
+					onpage={stripPage}
+					onend={(id) => id === data.entry.id && markFinished()}
+					ontap={(e) => {
+						if (!tapBlocks(e.clientX, e.clientY)) chrome = !chrome;
+					}}
+					rings={ringsOn}
+				/>
+			</div>
 		{/key}
 		{#if !data.next?.available}
 			<EndPage
@@ -817,6 +1018,9 @@
 				onrate={rate}
 				onfav={toggleFav}
 				onback={() => undefined}
+				words={text?.entry === data.entry.id ? text.lookedUp : 0}
+				{wordsHref}
+				nextOcr={data.next?.ocr ?? false}
 			/>
 		{/if}
 	{:else if atEnd}
@@ -845,6 +1049,9 @@
 				onrate={rate}
 				onfav={toggleFav}
 				onback={() => (atEnd = false)}
+				words={text?.entry === data.entry.id ? text.lookedUp : 0}
+				{wordsHref}
+				nextOcr={data.next?.ocr ?? false}
 			/>
 		</div>
 	{:else}
@@ -852,6 +1059,7 @@
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
 			class="stage fit-{fit}"
+			style:transform={lift ? `translateY(${-lift}px)` : undefined}
 			onpointerdown={pointerdown}
 			onpointermove={pointermove}
 			onpointerup={pointerup}
@@ -883,6 +1091,7 @@
 								half={sc.split ? halfSide(sc.half) : null}
 								rotate={sc.pages.length === 1 && treatment(i) === 'rotate'}
 								inset={insetOf(i)}
+								rings={sc.pos === 0 ? ringsOn(data.entry.id, i) : []}
 							/>
 						{/each}
 					</div>
@@ -894,8 +1103,38 @@
 	{#if data.incognito}<div class="dashed" aria-hidden="true"></div>{/if}
 	{#if dim > 0}<div class="dim" style:opacity={dim} aria-hidden="true"></div>{/if}
 
+	{#if lookup}
+		<LookupPanel
+			text={lookup.block.lines.join('')}
+			context={lookupContext}
+			placement={lookup.place}
+			incognito={data.incognito}
+			seriesId={data.series.id}
+			entryId={lookup.entry}
+			place="P. {lookup.page + 1}"
+			onclose={() => (lookup = null)}
+			onnottext={notText}
+		/>
+	{/if}
+
+	{#if dropped}
+		<div class="dropped" role="status">
+			<span>BLOCK {dropped.index + 1} · NOT TEXT · NO LONGER TAPPABLE</span>
+			<button
+				type="button"
+				onpointerdown={(e) => e.stopPropagation()}
+				onpointerup={(e) => e.stopPropagation()}
+				onclick={(e) => {
+					e.stopPropagation();
+					void undoNotText();
+				}}>UNDO</button
+			>
+		</div>
+	{/if}
+
 	{#if chrome && data.manifest}
 		<Chrome
+			{noText}
 			{title}
 			{meta}
 			backHref={seriesHref}
@@ -934,6 +1173,11 @@
 			landscape={landscape.current}
 			{dim}
 			{rating}
+			blocks={data.ocr.japanese ? blocksShown : null}
+			onblocks={(b) => {
+				blocksShown = b;
+				store('blocks', b);
+			}}
 			onmode={(m) => (mode = m)}
 			onremember={remember}
 			onfit={(f) => {
@@ -1046,6 +1290,58 @@
 		z-index: 25;
 		border-top: 2px dashed var(--text-2);
 		pointer-events: none;
+	}
+	/* Phone: the page slides up under the lookup, and back. */
+	.stage,
+	.lane-lift {
+		transition: transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.stage,
+		.lane-lift {
+			transition: none;
+		}
+	}
+	/* Index Japanese 1c, NOT TEXT: a band at the foot, UNDO until the next tap. */
+	.dropped {
+		position: fixed;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 30;
+		height: 64px;
+		display: flex;
+		align-items: stretch;
+		background: var(--surface-page);
+		border-top: var(--rule-strong);
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.04em;
+	}
+	.dropped span {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		padding: 0 24px;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.dropped button {
+		display: flex;
+		align-items: center;
+		padding: 0 24px;
+		border: 0;
+		border-left: var(--hairline);
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-1);
+		font: inherit;
+		cursor: pointer;
+	}
+	.dropped button:active {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
 	}
 	.dim {
 		position: fixed;

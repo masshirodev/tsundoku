@@ -367,6 +367,33 @@ const MIGRATIONS: string[] = [
 	ALTER TABLE entries ADD COLUMN ocr_at INTEGER;
 	ALTER TABLE entries ADD COLUMN ocr_failed_at INTEGER;
 	ALTER TABLE series ADD COLUMN ocr INTEGER;
+	`,
+	// Rung 20: mining (doc/JAPANESE.md). Every lookup, with the sentence and
+	// the place it was met in; and what became of a word: 'pending' (approved,
+	// not in Kumiko yet), 'sent', or 'rejected'. A word decided once isn't
+	// offered again. (A block marked NOT TEXT is simply taken out of its
+	// page_text; UNDO puts back the block the reader still holds.)
+	`
+	CREATE TABLE lookups (
+		id INTEGER PRIMARY KEY,
+		at INTEGER NOT NULL,
+		series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+		entry_id INTEGER REFERENCES entries(id) ON DELETE SET NULL,
+		place TEXT NOT NULL DEFAULT '',
+		lemma TEXT NOT NULL,
+		surface TEXT NOT NULL,
+		reading TEXT,
+		pos TEXT NOT NULL DEFAULT '',
+		sentence TEXT NOT NULL DEFAULT ''
+	);
+	CREATE INDEX lookups_lemma ON lookups(lemma, at);
+	CREATE INDEX lookups_series ON lookups(series_id);
+	CREATE TABLE mined (
+		lemma TEXT PRIMARY KEY,
+		status TEXT NOT NULL CHECK (status IN ('pending', 'sent', 'rejected')),
+		decided_at INTEGER NOT NULL,
+		note_id TEXT
+	) WITHOUT ROWID;
 	`
 ];
 

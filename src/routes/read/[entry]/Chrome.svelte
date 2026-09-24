@@ -27,7 +27,8 @@
 		onsheet,
 		onscrub,
 		onchapter,
-		onshift
+		onshift,
+		noText = null
 	}: {
 		title: string;
 		meta: string;
@@ -49,6 +50,11 @@
 		onscrub: (page: number) => void;
 		onchapter: (to: 'prev' | 'next') => void;
 		onshift: () => void;
+		/**
+		 * A Japanese page OCR hasn't read yet (Index Japanese 1c, noOcr): the
+		 * series' chapters read so far. Dashed, as what isn't stored yet is.
+		 */
+		noText?: { done: number; total: number } | null;
 	} = $props();
 
 	const cells = $derived(chapterCells(mode, prev, next));
@@ -72,6 +78,12 @@
 		<div class="meta">{meta}</div>
 	</div>
 	{#if incognito}<div class="incognito">INCOGNITO</div>{/if}
+	{#if noText}
+		<div class="notext">
+			<div>NO TEXT YET</div>
+			<div class="sub">OCR · {noText.done} OF {noText.total}</div>
+		</div>
+	{/if}
 	<button
 		type="button"
 		class="rating"
@@ -195,6 +207,22 @@
 		border-left: 1px dashed var(--line-2);
 		font: 500 13px var(--font-mono);
 		letter-spacing: 0.04em;
+	}
+	.notext {
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 3px;
+		padding: 0 18px;
+		border-left: 1px dashed var(--line-2);
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.04em;
+		white-space: nowrap;
+	}
+	.notext .sub {
+		font-weight: 400;
+		font-size: 12px;
+		color: var(--text-2);
 	}
 	button {
 		border: 0;
