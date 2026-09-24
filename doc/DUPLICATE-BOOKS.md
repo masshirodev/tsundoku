@@ -5,7 +5,7 @@ once on the phone) is found by its cover and settled by the owner, one pair
 at a time. Nothing is ever removed automatically. Card c36. Designed in
 `Pair Review.dc.html` and `Duplicate Books.dc.html` in
 [`design/handoff/`](design/handoff/), the handoff for the brief
-[`briefs/DUPLICATE-BOOKS.md`](briefs/DUPLICATE-BOOKS.md).
+[`briefs/done/DUPLICATE-BOOKS.md`](briefs/done/DUPLICATE-BOOKS.md).
 
 (Chapters duplicated by several scanlators are another thing, settled on
 their own: [`DUPLICATES.md`](DUPLICATES.md).)
