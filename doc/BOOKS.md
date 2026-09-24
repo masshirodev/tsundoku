@@ -53,10 +53,20 @@ series, not to any book.
 
 - a series given isn't a singleton (manga and series of books can't be grouped,
   only books added to them). Novels group by their own rules (below);
-- the books come from different library roots (a series can't span Mihon and
-  Hentoid, because its folder has to live somewhere);
+- the books are hidden and visible at once: a series can't straddle a hidden
+  source and a visible one, or a hidden book would show in a visible series.
+  Books from **different sources that are alike** do group: the same work is
+  often in both Mihon's local source and Hentoid (the owner's _Akiko-san to
+  Issho_), both hidden. The series lives in the first book's source, its path
+  widens to hold every book's folder, and a rescan finds each book in it
+  whichever source it came from. Until 2026-09-23 any two sources were
+  refused, and the refusal never reached the screen;
 - a new series would hold fewer than two books, or has no name;
-- a book is moved (MOVE TO… on its sheet) to a series in another root.
+- a book is moved (MOVE TO… on its sheet) to a series that's hidden when it
+  isn't, or the other way round.
+
+A refusal is always shown: in the group sheet, which stays open, and on the
+series screen as a band ("… · NOTHING CHANGED").
 
 ## Volumes of a novel
 

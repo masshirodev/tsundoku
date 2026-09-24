@@ -47,6 +47,9 @@
 	let ticked = $state<number[]>([]);
 	let name = $state('');
 	let into = $state<number | null>(null);
+	/** Why the last try didn't group, from the server; shown until the next. */
+	let refused = $state('');
+	let busy = $state(false);
 
 	// Each time the sheet opens, start from the given books.
 	$effect(() => {
@@ -60,6 +63,7 @@
 		mode = 'new';
 		into = existing[0]?.id ?? null;
 		ticked = books.map((b) => b.seriesId);
+		refused = '';
 		name = sharedStart(books.map((b) => b.title));
 	});
 
@@ -104,7 +108,28 @@
 </script>
 
 <Sheet {open} {onclose} label="Group into a series">
-	<form method="POST" action="/?/group" use:enhance class="group">
+	<!-- A refusal says why, in the sheet, which stays open (it used to be dropped). -->
+	<form
+		method="POST"
+		action="/?/group"
+		class="group"
+		use:enhance={() => {
+			refused = '';
+			busy = true;
+			return async ({ result, update }) => {
+				busy = false;
+				if (result.type === 'failure') {
+					refused = String(result.data?.groupMessage ?? 'DID NOT GROUP');
+					return;
+				}
+				if (result.type === 'error') {
+					refused = 'DID NOT GROUP · THE WORKSTATION DID NOT ANSWER';
+					return;
+				}
+				await update();
+			};
+		}}
+	>
 		<div class="head">
 			<div class="h-title">{title}</div>
 			<button type="button" class="cancel" onclick={onclose}>CANCEL</button>
@@ -219,8 +244,11 @@
 		<input type="hidden" name="order" value={orderLabel} />
 		<input type="hidden" name="mode" value={mode} />
 
+		{#if refused}
+			<div class="refused" role="alert">{refused}</div>
+		{/if}
 		<div class="foot">
-			<button type="submit" class="create" disabled={!canCreate}>
+			<button type="submit" class="create" disabled={!canCreate || busy}>
 				{mode === 'new'
 					? `CREATE SERIES · ${chosen.length} ${noun}`
 					: `ADD ${chosen.length} ${noun}`}
@@ -428,6 +456,14 @@
 	.nudge:active:not(:disabled) {
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
+	}
+	.refused {
+		padding: 14px var(--pad);
+		border-top: var(--hairline);
+		font: 500 13px var(--font-mono);
+		letter-spacing: var(--tracking-label);
+		color: var(--text-1);
+		background: var(--surface-panel);
 	}
 	.foot {
 		display: flex;

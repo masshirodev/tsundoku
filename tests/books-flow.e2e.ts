@@ -175,3 +175,21 @@ test('a tap on a book opens its pages on the series screen, and ← goes back to
 	await expect(page).toHaveURL(new RegExp(`^${series}(\\?(?!.*book=).*)?$`));
 	await expect(books).toBeVisible();
 });
+
+test('a group that can’t be made says why, and the sheet stays open', async ({ page }) => {
+	await reveal(page);
+	await page.goto('/?shelf=all&sort=title');
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	// A hidden book and a visible one: they can't share a series.
+	for (const t of ['Onsen Ryokan no Yoru', 'Hoshi no Umi no Tabibito'])
+		await page.locator('.grid .tile', { hasText: t }).click();
+	await page.getByRole('button', { name: /GROUP/ }).click();
+	const sheet = page.getByRole('dialog', { name: 'Group into a series' });
+	await sheet.getByRole('textbox', { name: 'Series name' }).fill('Mixed');
+	await sheet.getByRole('button', { name: /CREATE SERIES/ }).click();
+	await expect(sheet.getByRole('alert')).toHaveText(
+		/HIDDEN AND VISIBLE BOOKS CAN.T SHARE A SERIES/
+	);
+	await expect(sheet).toBeVisible();
+});

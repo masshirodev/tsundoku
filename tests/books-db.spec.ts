@@ -77,11 +77,11 @@ describe('grouping', () => {
 		).toThrow(books.GroupingError);
 	});
 
-	it('refuses to mix library roots, so a hidden book never joins a visible series', () => {
+	it('refuses to mix hidden and visible, so a hidden book never joins a visible series', () => {
 		const visible = idOf('Hoshi no Umi no Tabibito')!;
 		const hidden = idOf(BOOK_ROWS[4].title)!;
 		expect(() => books.groupIntoSeries({ seriesIds: [visible, hidden], name: 'Mixed' })).toThrow(
-			/root/
+			/hidden and visible/
 		);
 	});
 });

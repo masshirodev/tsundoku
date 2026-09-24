@@ -32,6 +32,9 @@
 	} from '$lib/library/series';
 
 	let { data, form } = $props();
+	const refusal = $derived(
+		form && 'message' in form && typeof form.message === 'string' ? form.message.toUpperCase() : ''
+	);
 
 	const series = $derived(data.series);
 	const doujin = $derived(series.kind === 'doujin');
@@ -286,6 +289,11 @@
 	<form method="POST" action="?/markThrough" use:enhance bind:this={throughForm} hidden>
 		<input type="hidden" name="through" value={throughId} />
 	</form>
+
+	<!-- An action refused (a move, a take-out, a delete): it says why, never silently. -->
+	{#if refusal}
+		<Band title={refusal} detail="NOTHING CHANGED" />
+	{/if}
 
 	{#if markedThrough}
 		<Band

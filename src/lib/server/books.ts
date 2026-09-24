@@ -56,6 +56,25 @@ function entryIdsOf(db: Database.Database, seriesId: number): number[] {
 
 export class GroupingError extends Error {}
 
+/**
+ * Books from different sources can share a series -- the same work is often in
+ * both Mihon's local source and Hentoid -- as long as they're alike: all hidden
+ * or all visible. A series can't straddle a hidden source and a visible one,
+ * or a hidden book would show in a visible series. Where the files are is no
+ * obstacle: a series' path widens to hold them (src/lib/server/paths.ts).
+ */
+function alike(db: Database.Database, rootIds: number[]): boolean {
+	const hidden = new Set(
+		rootIds.map(
+			(id) =>
+				(db.prepare(`SELECT hidden FROM roots WHERE id = ?`).get(id) as { hidden: number }).hidden
+		)
+	);
+	return hidden.size <= 1;
+}
+
+const MIXED = "hidden and visible books can't share a series";
+
 /** A series that is one doujin book, and so can be grouped. */
 export function isSingleton(seriesId: number): boolean {
 	const db = getDb();
@@ -148,8 +167,8 @@ export function groupIntoSeries(opts: {
 			if (opts.into != null) {
 				const t = seriesRow(db, opts.into);
 				if (!t || t.kind !== 'doujin') throw new GroupingError('no such series of books');
-				if (singles.some((s) => s.root_id !== t.root_id)) {
-					throw new GroupingError('books from another library root cannot join this series');
+				if (!alike(db, [t.root_id, ...singles.map((s) => s.root_id)])) {
+					throw new GroupingError(MIXED);
 				}
 				target = t.id;
 				next =
@@ -165,8 +184,13 @@ export function groupIntoSeries(opts: {
 				const name = (opts.name ?? '').trim();
 				if (name === '') throw new GroupingError('a series needs a name');
 				const root = singles[0].root_id;
-				if (singles.some((s) => s.root_id !== root)) {
-					throw new GroupingError('books from different library roots cannot share a series');
+				if (
+					!alike(
+						db,
+						singles.map((s) => s.root_id)
+					)
+				) {
+					throw new GroupingError(MIXED);
 				}
 				// Books name their own folders relative to the series path, and an
 				// importer's books all share one (Hentoid's is its root), so the new
@@ -274,14 +298,18 @@ function groupVolumes(
 	now: number
 ): GroupResult {
 	const root = books[0].root_id;
-	if (books.some((b) => b.root_id !== root))
-		throw new GroupingError('volumes from different library roots cannot share a series');
+	if (
+		!alike(
+			db,
+			books.map((b) => b.root_id)
+		)
+	)
+		throw new GroupingError(MIXED);
 	let target: SeriesRow;
 	if (opts.into != null) {
 		const t = seriesRow(db, opts.into);
 		if (!t || t.kind !== 'novel') throw new GroupingError('no such novel');
-		if (t.root_id !== root)
-			throw new GroupingError('volumes from another library root cannot join this series');
+		if (!alike(db, [t.root_id, root])) throw new GroupingError(MIXED);
 		if (books.some((b) => b.id === t.id)) throw new GroupingError('a series cannot join itself');
 		target = t;
 	} else {
@@ -559,8 +587,7 @@ export function moveBook(fromSeries: number, entryId: number, toSeries: number):
 		const to = seriesRow(db, toSeries);
 		const from = seriesRow(db, fromSeries);
 		if (!to || !from || to.kind !== 'doujin') throw new GroupingError('no such series of books');
-		if (to.root_id !== from.root_id)
-			throw new GroupingError('books cannot move between library roots');
+		if (!alike(db, [to.root_id, from.root_id])) throw new GroupingError(MIXED);
 		const owned = db
 			.prepare(`SELECT 1 FROM entries WHERE id = ? AND series_id = ?`)
 			.get(entryId, fromSeries);

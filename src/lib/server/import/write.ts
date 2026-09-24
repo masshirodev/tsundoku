@@ -119,7 +119,9 @@ export function writeSeries(
 						{ id: number } | undefined
 				)?.id ?? null;
 			let created = false;
-			// Grouped since the last scan: the entries are elsewhere in this root.
+			// Grouped since the last scan: the entries are in another series, in
+			// this source or another -- a Mihon local book grouped with Hentoid's
+			// is in a series of Hentoid's root (doc/BOOKS.md).
 			if (seriesId === null) {
 				const moved = s.entries
 					.filter((e) => e.sourceUrl !== '')
@@ -128,9 +130,9 @@ export function writeSeries(
 							db
 								.prepare(
 									`SELECT e.series_id AS id FROM entries e JOIN series s ON s.id = e.series_id
-									WHERE s.root_id = ? AND e.source_url = ? LIMIT 1`
+									WHERE e.source_url = ? LIMIT 1`
 								)
-								.get(opts.rootId, e.sourceUrl) as { id: number } | undefined
+								.get(e.sourceUrl) as { id: number } | undefined
 					)
 					.find((r) => r !== undefined);
 				if (moved) seriesId = moved.id;
