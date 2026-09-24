@@ -21,7 +21,8 @@
 		others,
 		onclose,
 		onpages,
-		ondelete
+		ondelete,
+		ontags
 	}: {
 		series: SeriesPage;
 		book: SeriesEntry | null;
@@ -30,6 +31,8 @@
 		onpages: (book: SeriesEntry) => void;
 		/** DELETE: the page asks first (doc/DELETING.md). */
 		ondelete?: (book: SeriesEntry) => void;
+		/** TAGS: the book's own tags, in the shelves-and-tags sheet's book mode. */
+		ontags?: (book: SeriesEntry) => void;
 	} = $props();
 
 	let moving = $state(false);
@@ -145,8 +148,7 @@
 			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves -->
 			<a class="primary" href={readHref(book.id)}>▶ {page ? `P. ${page}` : 'READ'}</a>
 			<button type="button" onclick={() => onpages(book)}>PAGES</button>
-			<!-- Editing a single book's tags waits on the tag editor being scoped to books. -->
-			<button type="button" disabled>TAGS</button>
+			<button type="button" onclick={() => ontags?.(book)}>TAGS</button>
 		</div>
 	{/if}
 </Sheet>

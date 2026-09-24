@@ -47,6 +47,11 @@
 	 * entry from the current data, so a rating or FAV it saves shows at once.
 	 */
 	let sheetBookId = $state<number | null>(null);
+	/** The book whose tags are being edited (TAGS on its sheet), by id so it follows the data. */
+	let tagsBookId = $state<number | null>(null);
+	const tagsBook = $derived(
+		tagsBookId === null ? null : (series.entries.find((e) => e.id === tagsBookId) ?? null)
+	);
 	const sheetBook = $derived(series.entries.find((e) => e.id === sheetBookId) ?? null);
 	let reordering = $state(false);
 	let order = $state<number[]>([]);
@@ -433,6 +438,10 @@
 		sheetBookId = null;
 		deletingBook = b;
 	}}
+	ontags={(b) => {
+		sheetBookId = null;
+		tagsBookId = b.id;
+	}}
 />
 
 <!-- Deleting asks first (doc/DELETING.md). -->
@@ -487,6 +496,15 @@
 	shelves={data.shelves}
 	tagMessage={form && 'tagMessage' in form ? form.tagMessage : undefined}
 	onclose={() => (editing = false)}
+/>
+<!-- A book's own tags (doc/BOOKS.md): the same sheet, the book's tags only. -->
+<EditSheet
+	open={tagsBook !== null}
+	{series}
+	shelves={data.shelves}
+	book={tagsBook}
+	tagMessage={form && 'tagMessage' in form ? form.tagMessage : undefined}
+	onclose={() => (tagsBookId = null)}
 />
 
 <style>

@@ -47,6 +47,14 @@ that:
 A series of books has a rating and FAV of its own too: they belong to the
 series, not to any book.
 
+**TAGS on a book's sheet** edits that book's own tags (`entry_tags`), in the
+shelves-and-tags sheet with the shelves left out: they belong to the series
+(`EditSheet`'s book mode, `addBookTag` / `removeBookTag`). A series of books
+carries every tag its books carry, which is what the library's tag filters
+and person pages find it by, so a tag added to a book is added to the series
+too, and one taken off the last book that has it leaves the series.
+Suggestions mark ✓ ON THIS by the book's tags, not the series'.
+
 ### Rules grouping enforces
 
 `GroupingError` is thrown, and the route answers 400, when:
@@ -201,8 +209,6 @@ shelf leaves out a favourite person with no visible books for the same reason.
 
 ## Known gaps
 
-- **TAGS on a book's sheet is disabled.** The tag editor edits `series_tags`;
-  scoping it to `entry_tags` is its own change.
 - **Grouping moves no files.** The books stay in their Hentoid folders, and the
   series lives only in the database. Moving folders on disk would fight the
   Hentoid importer's rescans. FILE on a series of books says "N FOLDERS".

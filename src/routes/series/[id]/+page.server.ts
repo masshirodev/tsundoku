@@ -39,7 +39,9 @@ import {
 	suggestionFor,
 	takeOut,
 	takeOutVolumes,
-	undoDismissal
+	undoDismissal,
+	addBookTag,
+	removeBookTag
 } from '$lib/server/books';
 
 function seriesId(raw: string): number {
@@ -260,6 +262,27 @@ export const actions: Actions = {
 	},
 
 	// ---- books ------------------------------------------------------------------
+
+	/** TAGS on a book's sheet: its own tags (doc/BOOKS.md, "Every book keeps its own"). */
+	bookTag: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const form = await request.formData();
+		const tag = parseTag(String(form.get('pick') ?? form.get('tag') ?? ''));
+		if (!tag) return fail(400, { tagMessage: 'TYPE A TAG AS NAMESPACE:VALUE' });
+		if (!addBookTag(s.id, Number(form.get('entry')), tag))
+			return fail(400, { tagMessage: 'THAT BOOK IS NOT IN THIS SERIES' });
+		return { ok: true };
+	},
+
+	bookUntag: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const form = await request.formData();
+		removeBookTag(s.id, Number(form.get('entry')), {
+			namespace: String(form.get('namespace') ?? ''),
+			value: String(form.get('value') ?? '')
+		});
+		return { ok: true };
+	},
 
 	bookRate: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);

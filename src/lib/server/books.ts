@@ -722,3 +722,80 @@ export function rootOf(seriesId: number): number | null {
 		{ root_id: number } | undefined;
 	return row?.root_id ?? null;
 }
+
+// ---- a book's own tags (doc/BOOKS.md, "Every book keeps its own") -------------
+
+/**
+ * Tag one book of a series of books. The series carries every tag its books
+ * carry (grouping unites them), so the series gets it too: the library's tag
+ * filters and person pages find the series by it.
+ */
+export function addBookTag(
+	seriesId: number,
+	entryId: number,
+	tag: { namespace: string; value: string }
+): boolean {
+	const db = getDb();
+	return db
+		.transaction((): boolean => {
+			if (
+				!db.prepare(`SELECT 1 FROM entries WHERE id = ? AND series_id = ?`).get(entryId, seriesId)
+			)
+				return false;
+			const { id } = db
+				.prepare(
+					`INSERT INTO tags (namespace, value) VALUES (?, ?)
+					ON CONFLICT (namespace, value) DO UPDATE SET value = excluded.value RETURNING id`
+				)
+				.get(tag.namespace, tag.value) as { id: number };
+			db.prepare(`INSERT OR IGNORE INTO entry_tags (entry_id, tag_id) VALUES (?, ?)`).run(
+				entryId,
+				id
+			);
+			db.prepare(`INSERT OR IGNORE INTO series_tags (series_id, tag_id) VALUES (?, ?)`).run(
+				seriesId,
+				id
+			);
+			return true;
+		})
+		.immediate();
+}
+
+/**
+ * Take a tag off one book. The series keeps it while another of its books
+ * still has it; with none left, it goes from the series too.
+ */
+export function removeBookTag(
+	seriesId: number,
+	entryId: number,
+	tag: { namespace: string; value: string }
+): boolean {
+	const db = getDb();
+	return db
+		.transaction((): boolean => {
+			const t = db
+				.prepare(`SELECT id FROM tags WHERE namespace = ? AND value = ?`)
+				.get(tag.namespace, tag.value) as { id: number } | undefined;
+			if (!t) return false;
+			const gone = db
+				.prepare(
+					`DELETE FROM entry_tags WHERE tag_id = ? AND entry_id = ?
+					AND entry_id IN (SELECT id FROM entries WHERE series_id = ?)`
+				)
+				.run(t.id, entryId, seriesId).changes;
+			if (!gone) return false;
+			const still = db
+				.prepare(
+					`SELECT 1 FROM entry_tags et JOIN entries e ON e.id = et.entry_id
+					WHERE et.tag_id = ? AND e.series_id = ? LIMIT 1`
+				)
+				.get(t.id, seriesId);
+			if (!still)
+				db.prepare(`DELETE FROM series_tags WHERE series_id = ? AND tag_id = ?`).run(
+					seriesId,
+					t.id
+				);
+			return true;
+		})
+		.immediate();
+}

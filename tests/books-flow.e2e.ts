@@ -193,3 +193,26 @@ test('a group that can’t be made says why, and the sheet stays open', async ({
 	);
 	await expect(sheet).toBeVisible();
 });
+
+test('TAGS on a book’s sheet edits that book’s tags, and the series follows', async ({ page }) => {
+	await reveal(page);
+	await openBooks(page);
+	const books = page.getByRole('region', { name: 'Books' });
+	await longPress(page, books.getByRole('button', { name: /Laundry Duty/ }));
+	const sheet = page.getByRole('dialog', { name: /Laundry Duty/ });
+	await sheet.getByRole('button', { name: 'TAGS' }).click();
+	const tags = page.getByRole('dialog', { name: 'Book tags' });
+	await expect(tags).toContainText('TAGS · KAORI MAMA ON LAUNDRY DUTY');
+	// The book's own tags, and no shelves: those belong to the series.
+	await expect(tags.getByText('SHELVES', { exact: true })).toHaveCount(0);
+	await tags.getByRole('textbox', { name: /Add a tag/ }).fill('tag:e2e-beach');
+	await tags.getByRole('textbox', { name: /Add a tag/ }).press('Enter');
+	await expect(tags.locator('.chip', { hasText: 'e2e-beach' })).toBeVisible();
+
+	// Taken off again: gone from the book, and from the series with it.
+	await tags.getByRole('button', { name: 'Remove tag:e2e-beach' }).click();
+	await expect(tags.locator('.chip', { hasText: 'e2e-beach' })).toHaveCount(0);
+	await tags.getByRole('button', { name: 'DONE' }).click();
+	await page.goto('/?tag=' + encodeURIComponent('tag:e2e-beach'));
+	await expect(page.locator('.grid .tile', { hasText: 'Kaori Mama' })).toHaveCount(0);
+});

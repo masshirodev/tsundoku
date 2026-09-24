@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import Sheet from '$lib/components/chrome/Sheet.svelte';
-	import { parseTag, type SeriesPage, type SeriesTag } from '$lib/library/series';
+	import { parseTag, type SeriesEntry, type SeriesPage, type SeriesTag } from '$lib/library/series';
 	import { count } from '$lib/library/labels';
 	import type { Shelf } from '$lib/library/types';
 	import type { SubmitFunction } from '@sveltejs/kit';
@@ -16,14 +16,21 @@
 		series,
 		shelves,
 		tagMessage,
+		book = null,
 		onclose
 	}: {
 		open: boolean;
 		series: SeriesPage;
 		shelves: Shelf[];
 		tagMessage?: string;
+		/**
+		 * One book of a series of books: its own tags, nothing else (shelves
+		 * belong to the series). doc/BOOKS.md, "Every book keeps its own".
+		 */
+		book?: SeriesEntry | null;
 		onclose: () => void;
 	} = $props();
+	const tags = $derived(book ? book.tags : series.tags);
 
 	type Suggestion = SeriesTag & { count: number; onThis: boolean };
 
@@ -39,7 +46,7 @@
 
 	const grouped = $derived.by(() => {
 		const by: Record<string, string[]> = {};
-		for (const t of series.tags) (by[t.namespace] ??= []).push(t.value);
+		for (const t of tags) (by[t.namespace] ??= []).push(t.value);
 		return Object.entries(by);
 	});
 
@@ -53,7 +60,9 @@
 			return;
 		}
 		timer = setTimeout(async () => {
-			const res = await fetch(`/api/series/${series.id}/tags?q=${encodeURIComponent(text)}`);
+			const res = await fetch(
+				`/api/series/${series.id}/tags?q=${encodeURIComponent(text)}${book ? `&entry=${book.id}` : ''}`
+			);
 			suggestions = res.ok ? await res.json() : [];
 		}, 150);
 		return () => clearTimeout(timer);
@@ -69,49 +78,55 @@
 		};
 </script>
 
-<Sheet {open} {onclose} label="Shelves and tags">
+<Sheet {open} {onclose} label={book ? 'Book tags' : 'Shelves and tags'}>
 	<div class="head">
-		<div class="h-title">SHELVES &amp; TAGS</div>
+		<div class="h-title">
+			{book ? `TAGS · ${(book.title || book.label).toUpperCase()}` : 'SHELVES & TAGS'}
+		</div>
 		<button type="button" class="done" onclick={onclose}>DONE</button>
 	</div>
-
-	<div class="label"><span>SHELVES</span><span>IN {onCount} · YOUR ORDER</span></div>
-	<ul class="shelves">
-		{#each collections as c (c.key)}
-			{@const on = series.collections.includes(Number(c.key.slice(2)))}
+	{#if !book}
+		<div class="label"><span>SHELVES</span><span>IN {onCount} · YOUR ORDER</span></div>
+		<ul class="shelves">
+			{#each collections as c (c.key)}
+				{@const on = series.collections.includes(Number(c.key.slice(2)))}
+				<li>
+					<form method="POST" action="?/shelf" use:enhance={reset}>
+						<input type="hidden" name="collection" value={c.key.slice(2)} />
+						<input type="hidden" name="on" value={on ? '0' : '1'} />
+						<button type="submit" class="shelf" role="checkbox" aria-checked={on}>
+							<span class="box" class:on>{on ? '✓' : ''}</span>
+							<span class="name">{c.name}</span>
+							<span class="n">{count(c.count)}</span>
+						</button>
+					</form>
+				</li>
+			{/each}
 			<li>
-				<form method="POST" action="?/shelf" use:enhance={reset}>
-					<input type="hidden" name="collection" value={c.key.slice(2)} />
-					<input type="hidden" name="on" value={on ? '0' : '1'} />
-					<button type="submit" class="shelf" role="checkbox" aria-checked={on}>
-						<span class="box" class:on>{on ? '✓' : ''}</span>
-						<span class="name">{c.name}</span>
-						<span class="n">{count(c.count)}</span>
-					</button>
-				</form>
+				{#if naming}
+					<form method="POST" action="?/shelf" use:enhance={reset} class="new">
+						<!-- svelte-ignore a11y_autofocus -->
+						<input
+							name="name"
+							bind:value={newShelf}
+							placeholder="Shelf name"
+							aria-label="New shelf name"
+							autofocus
+						/>
+						<button type="submit" disabled={newShelf.trim() === ''}>ADD</button>
+					</form>
+				{:else}
+					<button type="button" class="shelf add" onclick={() => (naming = true)}
+						>+ NEW SHELF</button
+					>
+				{/if}
 			</li>
-		{/each}
-		<li>
-			{#if naming}
-				<form method="POST" action="?/shelf" use:enhance={reset} class="new">
-					<!-- svelte-ignore a11y_autofocus -->
-					<input
-						name="name"
-						bind:value={newShelf}
-						placeholder="Shelf name"
-						aria-label="New shelf name"
-						autofocus
-					/>
-					<button type="submit" disabled={newShelf.trim() === ''}>ADD</button>
-				</form>
-			{:else}
-				<button type="button" class="shelf add" onclick={() => (naming = true)}>+ NEW SHELF</button>
-			{/if}
-		</li>
-	</ul>
+		</ul>
+	{/if}
 
-	<div class="label tags-label"><span>TAGS</span><span>{series.tags.length}</span></div>
-	<form method="POST" action="?/tag" use:enhance={reset} class="tag-form">
+	<div class="label tags-label"><span>TAGS</span><span>{tags.length}</span></div>
+	<form method="POST" action={book ? '?/bookTag' : '?/tag'} use:enhance={reset} class="tag-form">
+		{#if book}<input type="hidden" name="entry" value={book.id} />{/if}
 		<label class="field">
 			<span aria-hidden="true">/</span>
 			<input
@@ -146,7 +161,13 @@
 				<div class="ns">{ns || 'tag'}</div>
 				<div class="vals">
 					{#each values as v (v)}
-						<form method="POST" action="?/untag" use:enhance={reset} class="chip">
+						<form
+							method="POST"
+							action={book ? '?/bookUntag' : '?/untag'}
+							use:enhance={reset}
+							class="chip"
+						>
+							{#if book}<input type="hidden" name="entry" value={book.id} />{/if}
 							<input type="hidden" name="namespace" value={ns} />
 							<input type="hidden" name="value" value={v} />
 							<span>{v}</span>

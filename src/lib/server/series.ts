@@ -302,7 +302,9 @@ export function suggestTags(
 	seriesId: number,
 	input: SeriesTag,
 	reveal: boolean,
-	limit = 6
+	limit = 6,
+	/** A book of the series: ✓ ON THIS is the book's own tags, not the series'. */
+	entryId?: number
 ): TagSuggestion[] {
 	const visible = visibleWhere(reveal);
 	const prefix = `${input.value.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
@@ -327,10 +329,21 @@ export function suggestTags(
 		n: number;
 		on_this: number | null;
 	}[];
+	const onBook = entryId
+		? new Set(
+				(
+					getDb()
+						.prepare(
+							`SELECT t.namespace || ':' || t.value AS k FROM entry_tags et JOIN tags t ON t.id = et.tag_id WHERE et.entry_id = ?`
+						)
+						.all(entryId) as { k: string }[]
+				).map((r) => r.k)
+			)
+		: null;
 	return rows.map((r) => ({
 		namespace: r.namespace,
 		value: r.value,
 		count: r.n,
-		onThis: r.on_this === 1
+		onThis: onBook ? onBook.has(`${r.namespace}:${r.value}`) : r.on_this === 1
 	}));
 }

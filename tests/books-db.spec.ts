@@ -168,3 +168,50 @@ describe('suggestions', () => {
 		expect(books.suggestionFor(holiday, true)).not.toBeNull();
 	});
 });
+
+describe('a book’s own tags', () => {
+	const tagsOf = (entryId: number) =>
+		(
+			getDb()
+				.prepare(
+					`SELECT t.namespace || ':' || t.value AS k FROM entry_tags et JOIN tags t ON t.id = et.tag_id WHERE et.entry_id = ?`
+				)
+				.all(entryId) as { k: string }[]
+		).map((r) => r.k);
+	const seriesTags = (id: number) =>
+		series.seriesPage(id, true)!.tags.map((t) => `${t.namespace}:${t.value}`);
+
+	it('tags the one book, and the series carries it too', () => {
+		const id = idOf(BOOK_SERIES_TITLE)!;
+		const [a, b] = series.seriesPage(id, true)!.entries;
+		expect(books.addBookTag(id, a.id, { namespace: 'tag', value: 'beach' })).toBe(true);
+		expect(tagsOf(a.id)).toContain('tag:beach');
+		expect(tagsOf(b.id)).not.toContain('tag:beach');
+		expect(seriesTags(id)).toContain('tag:beach');
+		// A book that isn't in this series is refused.
+		expect(books.addBookTag(id + 999, a.id, { namespace: 'tag', value: 'x' })).toBe(false);
+	});
+
+	it('keeps it on the series while another book has it, and drops it with the last', () => {
+		const id = idOf(BOOK_SERIES_TITLE)!;
+		const [a, b] = series.seriesPage(id, true)!.entries;
+		const beach = { namespace: 'tag', value: 'beach' };
+		books.addBookTag(id, a.id, beach);
+		books.addBookTag(id, b.id, beach);
+		expect(books.removeBookTag(id, a.id, beach)).toBe(true);
+		expect(tagsOf(a.id)).not.toContain('tag:beach');
+		expect(seriesTags(id)).toContain('tag:beach');
+		books.removeBookTag(id, b.id, beach);
+		expect(seriesTags(id)).not.toContain('tag:beach');
+	});
+
+	it('suggests with ✓ ON THIS for the book’s tags, not the series’', () => {
+		const id = idOf(BOOK_SERIES_TITLE)!;
+		const [a, b] = series.seriesPage(id, true)!.entries;
+		books.addBookTag(id, a.id, { namespace: 'tag', value: 'beach' });
+		const onA = series.suggestTags(id, { namespace: 'tag', value: 'bea' }, true, 6, a.id);
+		const onB = series.suggestTags(id, { namespace: 'tag', value: 'bea' }, true, 6, b.id);
+		expect(onA.find((s) => s.value === 'beach')?.onThis).toBe(true);
+		expect(onB.find((s) => s.value === 'beach')?.onThis).toBe(false);
+	});
+});

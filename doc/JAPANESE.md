@@ -15,7 +15,8 @@ from the handoff is under **Departures**.
 
 The tokenizer, JMdict, furigana, romaji and the mining rules live in
 **kotoba** (`~/projects/kotoba`, `masshirodev/kotoba`, private), extracted from
-yomu on 2026-09-23 so neither app copies the other. tsundoku depends on it by
+yomu on 2026-09-23 so neither app copies the other; yomu has used it since
+2026-09-24 (its own copies are gone). tsundoku depends on it by
 path (`"kotoba": "link:../kotoba"`); its README says how an app sets up.
 
 - `kotoba` (browser): `tokenize` with kuromoji, `furigana`, `toRomaji`,
