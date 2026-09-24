@@ -46,6 +46,8 @@ width, row height (60 / 52px) and rail width (56 / 44px) per device.
 
 ## Rules worth knowing
 
+- **SAME BOOK AS …** is a band under CONTINUE on a book with a likely twin,
+  with KEEP BOTH and REVIEW → ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md)).
 - **OCR and WORDS** sit under DIRECTION on every series that isn't a novel:
   how far OCR has read it on the workstation, with **OCR** to switch it on
   for one not seen as Japanese, and the words looked up in it waiting for

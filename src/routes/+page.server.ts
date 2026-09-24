@@ -1,5 +1,6 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
+import { applyPending, reviewQueue } from '$lib/server/dupes';
 import {
 	collectionExists,
 	continueReading,
@@ -49,6 +50,10 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	if (tag && !person) error(404, 'not found');
 
 	const total = countSeries(reveal);
+	// Duplicate books (doc/DUPLICATE-BOOKS.md): a decision the review left
+	// waiting is carried out, then the pairs still to review are counted.
+	await applyPending();
+	const dupes = reviewQueue(reveal).length;
 	// RANDOM's shuffle: one per choice of RANDOM, kept in the URL.
 	const seed = parseSeed(url.searchParams.get('seed'));
 	const pageSize = pageSizeOf(cookies.get('tsundoku_grid_page'));
@@ -61,6 +66,7 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		sort,
 		seed,
 		empty: total === 0 && !scan,
+		dupes,
 		libraryRoot: libraryRoot(),
 		cont: continueReading(reveal),
 		// PEOPLE lists favourite people (from the layout), not series.

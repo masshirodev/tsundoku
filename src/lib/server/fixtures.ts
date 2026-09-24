@@ -336,6 +336,17 @@ export const HIDDEN_ROWS: Row[] = [
 		entries: 1,
 		read: 0,
 		openedAgo: null
+	},
+	// Rakugaki's twin, downloaded again from another site: the duplicate the
+	// review offers (doc/DUPLICATE-BOOKS.md). Rated and read, so KEEP carries over.
+	{
+		title: 'Rakugaki Collection Vol. 3 [Digital]',
+		kind: 'doujin',
+		rating: 4,
+		favourite: true,
+		entries: 1,
+		read: 1,
+		openedAgo: 3000
 	}
 ];
 
@@ -541,6 +552,38 @@ export function seedSample(db: Database.Database, now = Date.now()): void {
 		name: BOOK_SERIES_TITLE,
 		now
 	});
+
+	// Duplicate books (doc/DUPLICATE-BOOKS.md): Rakugaki and its [Digital]
+	// twin share a cover hash and every page's, and the pair is found already,
+	// as `findDuplicates` would after an import.
+	db.transaction(() => {
+		const twins = ['Rakugaki Collection Vol. 3', 'Rakugaki Collection Vol. 3 [Digital]'].map(
+			(t) =>
+				db
+					.prepare(
+						`SELECT e.id, e.page_count FROM entries e JOIN series s ON s.id = e.series_id WHERE s.title = ?`
+					)
+					.get(t) as { id: number; page_count: number }
+		);
+		const pages = Array.from({ length: twins[0].page_count }, (_, i) =>
+			(0x9e3779b97f4a7c15n * BigInt(i + 7)).toString(16).slice(-16).padStart(16, '1')
+		);
+		for (const t of twins) {
+			db.prepare(`UPDATE entries SET cover_phash = ? WHERE id = ?`).run('5a3c96e1c3a50f78', t.id);
+			const put = db.prepare(`INSERT INTO page_hashes (entry_id, page, hash) VALUES (?, ?, ?)`);
+			pages.forEach((h, i) => put.run(t.id, i, h));
+		}
+		const [a, b] = twins.map((t) => t.id).sort((x, y) => x - y);
+		db.prepare(`INSERT INTO dupe_pairs (a, b, bits, rows, found_at) VALUES (?, ?, 0, ?, ?)`).run(
+			a,
+			b,
+			JSON.stringify({
+				rows: pages.map((_, i) => ({ a: i + 1, b: i + 1 })),
+				sizes: { [a]: [1280, 1810], [b]: [1600, 2263] }
+			}),
+			now
+		);
+	}).immediate();
 
 	// Japanese (doc/JAPANESE.md): Drawing is read with OCR, and its chapters up
 	// to the one in progress have text -- the handoff's own three bubbles on

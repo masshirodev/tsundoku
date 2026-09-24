@@ -362,6 +362,7 @@
 					{dismissedKey}
 					onreview={() => (reviewing = true)}
 					ocr={data.ocr}
+					twin={data.twin}
 					words={data.words}
 				/>
 			</div>

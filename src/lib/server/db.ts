@@ -410,6 +410,35 @@ const MIGRATIONS: string[] = [
 		at INTEGER NOT NULL
 	);
 	CREATE INDEX not_text_entry ON not_text(entry_id, page);
+	`,
+	// Rung 22: duplicate books (doc/DUPLICATE-BOOKS.md). Each page's own
+	// perceptual hash (Hentoid hashes covers only), for the books in a
+	// candidate pair; the pairs found, with their pages lined up; and what the
+	// owner decided about each, by pair, so a settled pair never comes back.
+	// A decision waits (applied_at NULL) until the next one, which is what
+	// makes UNDO possible for a KEEP that deletes.
+	`
+	CREATE TABLE page_hashes (
+		entry_id INTEGER NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
+		page INTEGER NOT NULL,
+		hash TEXT NOT NULL,
+		PRIMARY KEY (entry_id, page)
+	) WITHOUT ROWID;
+	CREATE TABLE dupe_pairs (
+		a INTEGER NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
+		b INTEGER NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
+		bits INTEGER NOT NULL,
+		rows TEXT NOT NULL,
+		found_at INTEGER NOT NULL,
+		PRIMARY KEY (a, b)
+	) WITHOUT ROWID;
+	CREATE TABLE dupe_decisions (
+		pair TEXT PRIMARY KEY,
+		decision TEXT NOT NULL CHECK (decision IN ('keep', 'both', 'group', 'fold', 'apart')),
+		keep INTEGER,
+		at INTEGER NOT NULL,
+		applied_at INTEGER
+	);
 	`
 ];
 

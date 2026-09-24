@@ -43,7 +43,8 @@
 		cta = $bindable<HTMLElement | null>(null),
 		outline = false,
 		ocr = null,
-		words = null
+		words = null,
+		twin = null
 	}: {
 		series: SeriesPage;
 		shelves: Shelf[];
@@ -69,6 +70,8 @@
 		ocr?: OcrPlace | null;
 		/** Words looked up in it: waiting for review, and sent to Kumiko. */
 		words?: { toReview: number; sent: number } | null;
+		/** A likely twin of a book here (doc/DUPLICATE-BOOKS.md): the SAME BOOK AS band. */
+		twin?: { key: string; title: string; conf: string; pages: string } | null;
 	} = $props();
 	const ocrRow = $derived(ocr ? ocrLines(ocr) : null);
 
@@ -283,6 +286,26 @@
 				</form>
 			{/snippet}
 		</Band>
+	{/if}
+
+	{#if !outline && twin}
+		<!-- Duplicate Books 1d: the group suggestion's treatment, for a twin. -->
+		<div class="twin" role="status">
+			<div class="tw-text">
+				<div class="tw-title">SAME BOOK AS {twin.title.toUpperCase()}</div>
+				<div class="tw-meta">
+					{twin.conf === 'likely' ? 'LIKELY' : twin.conf === 'maybe' ? 'MAYBE' : 'OTHER LANGUAGE'} · {twin.pages}
+				</div>
+			</div>
+			<div class="tw-acts">
+				<form method="POST" action="?/keepBoth" use:enhance>
+					<input type="hidden" name="pair" value={twin.key} />
+					<button type="submit">KEEP BOTH</button>
+				</form>
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
+				<a href="{resolve('/duplicates')}?pair={encodeURIComponent(twin.key)}">REVIEW →</a>
+			</div>
+		</div>
 	{/if}
 
 	{#if !outline}
@@ -672,6 +695,58 @@
 		align-items: stretch;
 		border-bottom: var(--hairline);
 		min-height: 60px;
+	}
+	.twin {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		height: 60px;
+		padding-left: var(--pad);
+		border-bottom: 1px solid var(--line-1);
+		background: var(--surface-panel);
+		font: 500 14px/1.2 var(--font-mono);
+	}
+	.tw-text {
+		display: flex;
+		flex-direction: column;
+		gap: 3px;
+		min-width: 0;
+	}
+	.tw-title {
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.tw-meta {
+		font: 400 13px/1.3 var(--font-mono);
+		color: var(--text-2);
+	}
+	.tw-acts {
+		align-self: stretch;
+		display: flex;
+	}
+	.tw-acts form {
+		display: flex;
+	}
+	.tw-acts button,
+	.tw-acts a {
+		display: flex;
+		align-items: center;
+		padding: 0 24px;
+		border: 0;
+		border-left: 1px solid var(--line-1);
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-1);
+		font: 500 14px var(--font-mono);
+		text-decoration: none;
+		cursor: pointer;
+	}
+	.tw-acts a {
+		border-left: 0;
+		background: var(--accent);
+		color: var(--on-accent);
 	}
 	/* Index Japanese 4a: OCR and WORDS sit on the panel ground, under DIRECTION. */
 	.panel-row {

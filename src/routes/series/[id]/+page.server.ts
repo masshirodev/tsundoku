@@ -4,6 +4,7 @@ import { DeleteError, deleteBook, deleteSeries } from '$lib/server/delete';
 import type { Actions, PageServerLoad } from './$types';
 import { ocrPlace, restoreNotText, setSeriesOcr } from '$lib/server/japanese/ocr';
 import { wordsOf } from '$lib/server/japanese/mining';
+import { decide, twinOf } from '$lib/server/dupes';
 import {
 	collectionExists,
 	createCollection,
@@ -89,9 +90,25 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		created: url.searchParams.get('created') === '1',
 		// Japanese (doc/JAPANESE.md): OCR's progress, and the words looked up. Never for novels.
 		ocr: series.kind === 'novel' ? null : ocrPlace(series.id),
+		// A book here with a likely twin (doc/DUPLICATE-BOOKS.md): the band.
+		twin: twinBand(series.id, reveal),
 		words: series.kind === 'novel' ? null : wordsOf(series.id, reveal)
 	};
 };
+
+/** The series screen's SAME BOOK AS band: the other copy, and how alike. */
+function twinBand(seriesId: number, reveal: boolean) {
+	const p = twinOf(seriesId, reveal);
+	if (!p) return null;
+	const other = p.a.seriesId === seriesId ? p.b : p.a;
+	const matched = p.rows.filter((r) => r.a !== null && r.b !== null).length;
+	return {
+		key: p.key,
+		title: other.title,
+		conf: p.conf,
+		pages: `${matched} OF ${Math.max(p.a.pages, p.b.pages)} PAGES MATCH`
+	};
+}
 
 /** Resolve the series a form acted on, refusing one reveal would hide. */
 function target(params: { id: string }, cookies: Parameters<Actions[string]>[0]['cookies']) {
@@ -135,6 +152,18 @@ export const actions: Actions = {
 		const s = target(params, cookies);
 		if (s.kind === 'novel') return fail(400, { message: 'novels are text already' });
 		setSeriesOcr(s.id, true);
+		return { ok: true };
+	},
+
+	/** KEEP BOTH on the SAME BOOK AS band: the pair never comes back. */
+	keepBoth: async ({ request, params, cookies }) => {
+		target(params, cookies);
+		const pair = String((await request.formData()).get('pair') ?? '');
+		try {
+			await decide(pair, 'both', null, isRevealed(cookies));
+		} catch {
+			return fail(409, { message: 'that pair is settled already' });
+		}
 		return { ok: true };
 	},
 

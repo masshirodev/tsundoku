@@ -549,6 +549,19 @@
 		<Banner kind="info" title="○ OFFLINE" detail="CACHED STILL OPENS" />
 	{/if}
 
+	{#if data.dupes > 0 && !data.empty}
+		<!-- Only while there are pairs the viewer can see (doc/DUPLICATE-BOOKS.md). -->
+		<Banner
+			kind="action"
+			title="{String(data.dupes).padStart(2, '0')} POSSIBLE DUPLICATE{data.dupes === 1 ? '' : 'S'}"
+			detail="SAME COVER, DOWNLOADED TWICE"
+		>
+			{#snippet action()}
+				<a href={resolve('/duplicates')}>REVIEW →</a>
+			{/snippet}
+		</Banner>
+	{/if}
+
 	{#if data.empty}
 		<section class="empty">
 			<div class="empty-label">00 — LIBRARY EMPTY</div>

@@ -318,9 +318,16 @@ export function startScan(
 	root = libraryRoot()
 ): { started: true } | { started: false; looked: string } {
 	if (sourcesIn(root).length === 0) return { started: false, looked: root };
-	runImport(root, { covers: true }).catch((e: unknown) => {
-		// The job row is already marked finished with a failure; the log says why.
-		console.error('[import] failed:', e);
-	});
+	runImport(root, { covers: true })
+		// New books are compared with the rest (doc/DUPLICATE-BOOKS.md). Loaded
+		// here, not above: finding also runs from a plain node script.
+		.then(() => import('../dupes.ts'))
+		.then(({ findDuplicates }) =>
+			findDuplicates({ log: (line) => console.log(`[import] ${line}`) })
+		)
+		.catch((e: unknown) => {
+			// The job row is already marked finished with a failure; the log says why.
+			console.error('[import] failed:', e);
+		});
 	return { started: true };
 }

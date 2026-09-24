@@ -28,7 +28,8 @@
 		"covers": "node --experimental-strip-types scripts/covers.ts",
 		"sync-import": "node --experimental-strip-types scripts/sync-import.ts",
 		"sync-setup": "node --experimental-strip-types scripts/sync-setup.ts",
-		"ocr": "node --experimental-strip-types scripts/ocr.ts"
+		"ocr": "node --experimental-strip-types scripts/ocr.ts",
+		"dupes": "node --experimental-strip-types scripts/dupes.ts"
 	},
 	"dependencies": {
 		"@fontsource/ibm-plex-sans": "^5.3.0",

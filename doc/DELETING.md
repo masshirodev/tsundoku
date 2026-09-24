@@ -5,11 +5,12 @@ duplicate, the same book downloaded twice. Every delete asks first.
 
 ## Where
 
-| From                                | Deletes                                            |
-| ----------------------------------- | -------------------------------------------------- |
-| The series screen, the FILE row     | The series, every chapter or book in it.           |
-| A book's sheet in a series of books | That book; the series keeps the rest (renumbered). |
-| The library's bulk bar (SELECT)     | Every selected series.                             |
+| From                                | Deletes                                                                                                                                        |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| The series screen, the FILE row     | The series, every chapter or book in it.                                                                                                       |
+| A book's sheet in a series of books | That book; the series keeps the rest (renumbered).                                                                                             |
+| The library's bulk bar (SELECT)     | Every selected series.                                                                                                                         |
+| The duplicates review, KEEP         | The other copy of a book ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md)); the review is its confirmation, and UNDO works until the next decision. |
 
 Each opens a confirmation (`ConfirmSheet`, `src/lib/components/chrome/`): the
 question, what it will do, CANCEL, and the action in full ink, as TAKE OUT is.

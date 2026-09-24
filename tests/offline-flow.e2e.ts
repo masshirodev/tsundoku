@@ -30,6 +30,7 @@ test('opening a chapter keeps it and the next two on the tablet, and they read o
 	page,
 	context
 }) => {
+	test.setTimeout(120_000);
 	const series = await seriesUrl(page);
 	await controlled(page);
 	await page.getByRole('link', { name: /▶/ }).first().click();
@@ -37,7 +38,8 @@ test('opening a chapter keeps it and the next two on the tablet, and they read o
 	const entry = Number(page.url().match(/\/read\/(\d+)/)![1]);
 
 	// While the chapter is open, it and the next two are cached; each is
-	// marked only once all its pages are in.
+	// marked only once all its pages (and its OCR text) are in. Three whole
+	// chapters take a while under the full parallel run.
 	await expect
 		.poll(
 			() =>
@@ -45,7 +47,7 @@ test('opening a chapter keeps it and the next two on the tablet, and they read o
 					const keys = await (await caches.open('tsundoku-entries')).keys();
 					return keys.filter((k) => k.url.includes('/__cache/')).length;
 				}),
-			{ timeout: 30000 }
+			{ timeout: 60000 }
 		)
 		.toBe(3);
 	// And the series screen's ↓ column shows them.
