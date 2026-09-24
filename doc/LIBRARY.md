@@ -168,6 +168,15 @@ The end-to-end tests shrink the page with a `tsundoku_grid_page` cookie
 (`pageSizeOf`), so the seed's twenty-odd series make several pages. Nothing
 else sets it.
 
+## The top bar stays
+
+On a phone and the tablet, the bar with the name, `/ search` and SELECT
+(and the selection bar that replaces it) is sticky: it stays at the top while
+the grid scrolls under it (`TopBar`'s `sticky`, opaque, z-index 8: over the
+tiles, under the bulk bar and sheets). On a desktop it scrolls away as
+before, since the sidebar already stays. The owner asked for it on 2026-09-23;
+the handoff draws a still screen and doesn't say.
+
 ## Where it departs from the handoff
 
 - **"N OPEN" counts every series in progress**, not the rows shown. The mock

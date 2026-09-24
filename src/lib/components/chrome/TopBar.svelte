@@ -5,7 +5,9 @@
 	/**
 	 * A row of cells split by hairlines: left, a flexible middle, right.
 	 * `inverse` is multi-select mode; `strong` is the full-ink rule under an
-	 * active mode surface such as search.
+	 * active mode surface such as search. `sticky` keeps it at the top while the
+	 * screen scrolls under it, on a phone and the tablet; on a desktop the
+	 * sidebar already stays.
 	 */
 	let {
 		left,
@@ -13,6 +15,7 @@
 		right,
 		inverse = false,
 		strong = false,
+		sticky = false,
 		label
 	}: {
 		left?: Snippet;
@@ -20,11 +23,12 @@
 		right?: Snippet;
 		inverse?: boolean;
 		strong?: boolean;
+		sticky?: boolean;
 		label?: string;
 	} = $props();
 </script>
 
-<header class="bar" class:inverse class:strong aria-label={label}>
+<header class="bar" class:inverse class:strong class:sticky aria-label={label}>
 	{#if left}<div class="cell left">{@render left()}</div>{/if}
 	<div class="middle">{@render middle?.()}</div>
 	{#if right}<div class="cell right">{@render right()}</div>{/if}
@@ -44,6 +48,21 @@
 	}
 	.strong {
 		border-bottom: var(--rule-strong);
+	}
+	/* Above the tiles and their badges (2–6), under the bulk bar (10) and sheets (20). */
+	.sticky {
+		position: sticky;
+		top: 0;
+		z-index: 8;
+	}
+	.sticky:not(.inverse) {
+		background: var(--surface-page);
+	}
+	@media (min-width: 1024px) and (pointer: fine) {
+		.sticky {
+			position: relative;
+			z-index: auto;
+		}
 	}
 	.inverse {
 		background: var(--surface-inverse);

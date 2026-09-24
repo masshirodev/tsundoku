@@ -449,7 +449,7 @@
 
 <div class="library" class:selecting>
 	{#if selecting}
-		<TopBar inverse label="Selection">
+		<TopBar inverse sticky label="Selection">
 			{#snippet left()}
 				<button type="button" class="cell-btn x" aria-label="Stop selecting" onclick={stopSelecting}
 					>✕</button
@@ -463,7 +463,7 @@
 			{/snippet}
 		</TopBar>
 	{:else if data.person}
-		<TopBar label="Library">
+		<TopBar sticky label="Library">
 			{#snippet left()}
 				<a class="cell-btn back" href={resolve('/')} aria-label="Back to library">←</a>
 			{/snippet}
@@ -477,7 +477,7 @@
 			{/snippet}
 		</TopBar>
 	{:else}
-		<TopBar label="Library">
+		<TopBar sticky label="Library">
 			{#snippet left()}
 				<!-- The app's name goes home: the library as it opens. -->
 				<a class="brand" href={resolve('/')} aria-label="Library"><Wordmark /></a>

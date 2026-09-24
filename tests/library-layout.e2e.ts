@@ -139,3 +139,21 @@ test('the first paint is already the right layout, before any script runs', asyn
 	expect(tracks).toHaveLength(frame.cols);
 	await context.close();
 });
+
+test('the bar with the name, search and SELECT stays on top as the grid scrolls, except on a desktop', async ({
+	page
+}, info) => {
+	await page.goto('/?sort=title');
+	await page.waitForLoadState('networkidle');
+	const bar = page.getByRole('banner', { name: 'Library' });
+	await page.evaluate(() => scrollTo(0, 250));
+	await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(200);
+	const top = (await bar.boundingBox())!.y;
+	if (FRAMES[info.project.name].sidebar) expect(top).toBeLessThan(-200);
+	else {
+		expect(top).toBe(0);
+		// Opaque: tiles pass under it, not through it.
+		const bg = await bar.evaluate((e) => getComputedStyle(e).backgroundColor);
+		expect(bg).not.toBe('rgba(0, 0, 0, 0)');
+	}
+});
