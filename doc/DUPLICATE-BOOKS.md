@@ -37,7 +37,11 @@ languages). Page distances split cleanly: the same page lands at 0–12 bits, a
 different one at 23 and up. Every pair involves the hidden Hentoid root.
 
 It runs after every import (`startScan`, so the sync timer's too) and by
-hand with `yarn run dupes`. Pages already hashed aren't hashed again; lining
+hand with `yarn run dupes`. For a pair that counts, it also makes every page's
+thumbnail (`readPageThumb`, kept on disk), so the review never waits on them;
+the review itself fetches the next pair's covers and first pages while the
+owner decides, and draws each pair afresh, so the last pair's images never
+linger under the next one's text (the owner, 2026-09-24). Pages already hashed aren't hashed again; lining
 them up again is cheap and follows any change in how pages are matched. It
 logs counts, never titles.
 

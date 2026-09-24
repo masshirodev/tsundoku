@@ -3,6 +3,7 @@ import type { ReadStream } from 'node:fs';
 import { getDb } from './db.ts';
 import { VISIBLE_SQL } from './visibility.ts';
 import { manifest, readPage } from './pages/index.ts';
+import { readPageThumb } from './covers.ts';
 // Deleting and grouping are loaded only to carry a decision out: finding runs
 // from a plain node script (scripts/dupes.ts), and they bring the app's
 // Vite-only imports with them.
@@ -222,9 +223,19 @@ export async function findDuplicates(
 		// again is cheap, and follows any change in how pages are matched.
 		const fresh = !known.has(pairKey(p.a, p.b));
 		const [ha, hb] = [await pageHashes(p.a), await pageHashes(p.b)];
+
 		if (fresh) hashed += 2;
+		const rows = matchPages(ha, hb);
+		// The review shows every page of both: made now, not while the owner
+		// waits -- for pairs it will show, not covers merely alike.
+		if (sameBook(rows, ha.length, hb.length))
+			for (const [id, n] of [
+				[p.a, ha.length],
+				[p.b, hb.length]
+			] as const)
+				for (let i = 0; i < n; i++) await readPageThumb(id, i, true);
 		const stored: Stored = {
-			rows: matchPages(ha, hb),
+			rows,
 			sizes: { [p.a]: await pageSize(p.a), [p.b]: await pageSize(p.b) }
 		};
 		put.run(

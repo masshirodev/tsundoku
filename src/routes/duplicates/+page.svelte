@@ -217,6 +217,19 @@
 		);
 		return out;
 	});
+	// The next pair's covers and first pages, fetched while this one is decided.
+	$effect(() => {
+		const next = queue[1] ? byKey.get(queue[1]) : null;
+		if (!next) return;
+		for (const k of ['a', 'b'] as const) {
+			new Image().src = bookCoverSrc(next.art[k].id, next.art[k].coverPage);
+			for (const r of next.rows.slice(0, 12)) {
+				const p = r[k];
+				if (p !== null) new Image().src = pageThumbSrc(next.art[k], p - 1);
+			}
+		}
+	});
+
 	const actionCols = $derived(
 		fold ? '1fr 1fr 2fr' : actions.length === 4 ? '1fr 1fr 1fr 1.4fr' : '1fr 1fr 1.4fr'
 	);
@@ -256,124 +269,127 @@
 			<a class="home" href={resolve('/')}>BACK TO LIBRARY</a>
 		</section>
 	{:else}
-		<div class="scroll">
-			<div class="summary">
-				<div class="s1">
-					<span class="conf {pair.conf}"
-						>{pair.conf === 'likely'
-							? 'LIKELY SAME'
-							: pair.conf === 'maybe'
-								? 'MAYBE'
-								: `SAME BOOK · ${langs}`}</span
-					>
-					<span>COVER ALIKE · {matched} OF {most} PAGES MATCH</span>
+		<!-- A new pair is drawn afresh: reused images would show the last pair's pages under this one's text. -->
+		{#key pair.key}
+			<div class="scroll">
+				<div class="summary">
+					<div class="s1">
+						<span class="conf {pair.conf}"
+							>{pair.conf === 'likely'
+								? 'LIKELY SAME'
+								: pair.conf === 'maybe'
+									? 'MAYBE'
+									: `SAME BOOK · ${langs}`}</span
+						>
+						<span>COVER ALIKE · {matched} OF {most} PAGES MATCH</span>
+					</div>
+					<div class="s2">
+						<span class:against>{reason}</span>
+						<span
+							>{fold
+								? 'FOLD, KEEP APART, OR SKIP'
+								: `RULE ${pair.pick!.rule} OF ${RULES.length} · ${pair.pick!.ruleName}`}</span
+						>
+					</div>
 				</div>
-				<div class="s2">
-					<span class:against>{reason}</span>
-					<span
-						>{fold
-							? 'FOLD, KEEP APART, OR SKIP'
-							: `RULE ${pair.pick!.rule} OF ${RULES.length} · ${pair.pick!.ruleName}`}</span
-					>
-				</div>
-			</div>
 
-			<div class="sides">
-				{#each ['a', 'b'] as const as k (k)}
-					{@const c = pair[k]}
-					{@const kept = sel === k}
-					<!-- A radio between the two copies; a fold's editions aren't chosen between. -->
-					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-					<div
-						class="side"
-						class:kept
-						class:fold
-						role={fold ? undefined : 'radio'}
-						aria-checked={fold ? undefined : kept}
-						tabindex={fold ? undefined : 0}
-						onclick={() => !fold && (chosen = k)}
-						onkeydown={(e) => {
-							if (!fold && (e.key === 'Enter' || e.key === ' ')) {
-								e.preventDefault();
-								chosen = k;
-							}
-						}}
-					>
-						<div class="sh">
-							<div class="letter">{k.toUpperCase()}</div>
-							<div class="source">
-								{(c.site || '—').toUpperCase()} · {(c.language || '—').toUpperCase()}{c.hidden
-									? ' · HIDDEN ROOT'
-									: ''}
-							</div>
-							<div class="tag" class:on={kept}>{tagOf(k)}</div>
-						</div>
-						<div class="body">
-							<div class="cover" class:ring={kept}>
-								<img
-									src={bookCoverSrc(pair.art[k].id, pair.art[k].coverPage)}
-									alt=""
-									loading="lazy"
-								/>
-								{#if c.favourite}<span class="fav">FAV</span>{/if}
-								{#if c.hidden}<span class="hid">HIDDEN</span>{/if}
-							</div>
-							<div class="info">
-								<div class="title" class:quiet={!fold && !kept}>{c.title}</div>
-								<div class="rows">
-									{#each rowsOf(c, pair[other(k)]) as row (row.label)}
-										<div class="row" class:differ={row.differ}>
-											<span class="rl"
-												>{#if row.differ}<i></i>{/if}{row.label}</span
-											>
-											<span class="rv">{row.value}</span>
-										</div>
-									{/each}
+				<div class="sides">
+					{#each ['a', 'b'] as const as k (k)}
+						{@const c = pair[k]}
+						{@const kept = sel === k}
+						<!-- A radio between the two copies; a fold's editions aren't chosen between. -->
+						<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+						<div
+							class="side"
+							class:kept
+							class:fold
+							role={fold ? undefined : 'radio'}
+							aria-checked={fold ? undefined : kept}
+							tabindex={fold ? undefined : 0}
+							onclick={() => !fold && (chosen = k)}
+							onkeydown={(e) => {
+								if (!fold && (e.key === 'Enter' || e.key === ' ')) {
+									e.preventDefault();
+									chosen = k;
+								}
+							}}
+						>
+							<div class="sh">
+								<div class="letter">{k.toUpperCase()}</div>
+								<div class="source">
+									{(c.site || '—').toUpperCase()} · {(c.language || '—').toUpperCase()}{c.hidden
+										? ' · HIDDEN ROOT'
+										: ''}
 								</div>
-								{#if kept && carry.length}
-									<div class="carry">
-										TAKES OVER FROM {other(k).toUpperCase()} · {carry.join(' · ')}
+								<div class="tag" class:on={kept}>{tagOf(k)}</div>
+							</div>
+							<div class="body">
+								<div class="cover" class:ring={kept}>
+									<img
+										src={bookCoverSrc(pair.art[k].id, pair.art[k].coverPage)}
+										alt=""
+										loading="lazy"
+									/>
+									{#if c.favourite}<span class="fav">FAV</span>{/if}
+									{#if c.hidden}<span class="hid">HIDDEN</span>{/if}
+								</div>
+								<div class="info">
+									<div class="title" class:quiet={!fold && !kept}>{c.title}</div>
+									<div class="rows">
+										{#each rowsOf(c, pair[other(k)]) as row (row.label)}
+											<div class="row" class:differ={row.differ}>
+												<span class="rl"
+													>{#if row.differ}<i></i>{/if}{row.label}</span
+												>
+												<span class="rv">{row.value}</span>
+											</div>
+										{/each}
 									</div>
-								{/if}
+									{#if kept && carry.length}
+										<div class="carry">
+											TAKES OVER FROM {other(k).toUpperCase()} · {carry.join(' · ')}
+										</div>
+									{/if}
+								</div>
 							</div>
 						</div>
-					</div>
-				{/each}
-			</div>
+					{/each}
+				</div>
 
-			<div class="plabel">
-				<div>02 — PAGES</div>
-				<div>{matched} MATCH · {pair.rows.length - matched} ALONE</div>
-			</div>
-			<div class="pages">
-				{#each pair.rows as r, n (n)}
-					{@const alone = r.a === null || r.b === null}
-					<div class="pp" class:alone>
-						<div class="two">
-							{#each [['a', r.a], ['b', r.b]] as const as [k, p] (k)}
-								<div class="thumb" class:none={p === null}>
-									{#if p !== null}
-										<img src={pageThumbSrc(pair.art[k], p - 1)} alt="" loading="lazy" />
-									{/if}
-									<span class="pl" class:dim={p === null}
-										>{p === null ? 'NONE' : `${k.toUpperCase()} ${p}`}</span
-									>
-								</div>
-							{/each}
+				<div class="plabel">
+					<div>02 — PAGES</div>
+					<div>{matched} MATCH · {pair.rows.length - matched} ALONE</div>
+				</div>
+				<div class="pages">
+					{#each pair.rows as r, n (n)}
+						{@const alone = r.a === null || r.b === null}
+						<div class="pp" class:alone>
+							<div class="two">
+								{#each [['a', r.a], ['b', r.b]] as const as [k, p] (k)}
+									<div class="thumb" class:none={p === null}>
+										{#if p !== null}
+											<img src={pageThumbSrc(pair.art[k], p - 1)} alt="" loading="lazy" />
+										{/if}
+										<span class="pl" class:dim={p === null}
+											>{p === null ? 'NONE' : `${k.toUpperCase()} ${p}`}</span
+										>
+									</div>
+								{/each}
+							</div>
+							<div class="note" class:acc={alone}>
+								{alone
+									? r.a === null
+										? 'ONLY IN B'
+										: 'ONLY IN A'
+									: r.a === r.b
+										? `SAME · P ${r.a}`
+										: `P ${r.a} = P ${r.b}`}
+							</div>
 						</div>
-						<div class="note" class:acc={alone}>
-							{alone
-								? r.a === null
-									? 'ONLY IN B'
-									: 'ONLY IN A'
-								: r.a === r.b
-									? `SAME · P ${r.a}`
-									: `P ${r.a} = P ${r.b}`}
-						</div>
-					</div>
-				{/each}
+					{/each}
+				</div>
 			</div>
-		</div>
+		{/key}
 
 		<div class="actions" style:grid-template-columns={actionCols}>
 			{#each actions as act, i (act.label)}
