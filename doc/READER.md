@@ -43,6 +43,31 @@ because hidden pages must never pass for ordinary ones.
   spatial (in R→L, ← is forward), Space and PageDown go forward, and Esc
   toggles the controls.
 
+## Turning pages
+
+Paged turns slide, as in Mihon; they don't pop (the owner asked on
+2026-09-23).
+
+- **The page follows a sideways drag,** with the screen it would turn to
+  beside it: in R→L the next page lies to the left, and is pulled in by
+  dragging right. Let go past the swipe threshold (`swipeAction`: 40px, mostly
+  sideways) and it slides the rest of the way; short of it, it goes back.
+  Where there's no page that way in this chapter (the end page or the chapter
+  before), the drag gives a quarter as much and the turn happens as before.
+- **Taps, keys and clicks slide too:** the neighbour is drawn beside the page,
+  and both slide over in 220ms.
+- **Quick taps all count.** A turn asked for mid-slide is taken the moment the
+  slide lands.
+- **Nothing redraws at the end.** The screens are keyed, so the neighbour's
+  element becomes the page's own, with its image already decoded.
+- **Split wide pages slide half to half,** since each half is a screen.
+- **FIT HEIGHT** lets the browser pan the page sideways, so it doesn't follow
+  the finger there; turns still slide. **Reduced motion** turns without any
+  slide.
+
+The track is in `ImageReader.svelte` (`turn`, `after`, `screens`); tested in
+`tests/reader-flow.e2e.ts`.
+
 ## Mouse
 
 On a PC, in L→R and R→L, the buttons turn the page, not the side you click on

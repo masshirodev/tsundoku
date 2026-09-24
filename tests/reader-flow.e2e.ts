@@ -312,7 +312,7 @@ test('wide pages: SPLIT reads the halves in order, ROTATE turns the page, WHOLE 
 	await page.goto(`${href}?p=7`);
 	await readerReady(page);
 	await page.waitForLoadState('networkidle');
-	const box = page.locator('.stage .page');
+	const box = page.locator('.stage .screen:not([aria-hidden]) .page');
 	const img = box.locator('img');
 	// WHOLE: the page as it is.
 	await expect(box).not.toHaveClass(/half|rotate/);
@@ -358,7 +358,7 @@ test('CROP BORDERS shows each page without its plain margin, sized to what is le
 	await page.goto(`${href}?p=2`);
 	await readerReady(page);
 	await page.waitForLoadState('networkidle');
-	const img = page.locator('.stage .page img');
+	const img = page.locator('.stage .screen:not([aria-hidden]) .page img');
 	const box = () => img.evaluate((e) => getComputedStyle(e).getPropertyValue('object-view-box'));
 	expect(await box()).toMatch(/^(none|)$/);
 	await tap(page, 0.5);
@@ -367,4 +367,41 @@ test('CROP BORDERS shows each page without its plain margin, sized to what is le
 	await sheet.locator('.row', { hasText: 'CROP BORDERS' }).getByRole('switch').click();
 	await expect.poll(box).toMatch(/^inset\(/);
 	await page.evaluate(() => localStorage.removeItem('tsundoku.reader.crop'));
+});
+
+test('paged: the page follows a drag with the next beside it, and a swipe slides it in', async ({
+	page
+}) => {
+	await seriesId(page, 'Hikaru ga Shinda Natsu');
+	const href = await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.getAttribute('href');
+	await page.goto(`${href}?p=3`);
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	const vp = page.viewportSize()!;
+	const track = page.locator('.stage .track');
+	const x = () => track.evaluate((e) => new DOMMatrix(getComputedStyle(e).transform).m41);
+
+	// R→L: the next page lies to the left, so it's pulled in by dragging right.
+	await page.mouse.move(vp.width / 2, vp.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(vp.width / 2 + 120, vp.height / 2, { steps: 6 });
+	expect(await x()).toBeCloseTo(120, -1);
+	await expect(page.locator('.stage .screen')).toHaveCount(2);
+	await expect(page.locator('.stage .screen[aria-hidden] img')).toHaveAttribute('alt', 'Page 4');
+	await page.mouse.up();
+	await expect(page).toHaveURL(/p=4/, { timeout: 5000 });
+	await expect(page.locator('.stage .screen')).toHaveCount(1);
+	expect(await x()).toBe(0);
+
+	// Too short to turn: back into place.
+	await page.mouse.move(vp.width / 2, vp.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(vp.width / 2 + 25, vp.height / 2, { steps: 4 });
+	await page.mouse.up();
+	await expect.poll(x).toBe(0);
+	await expect(page.locator('.stage .screen')).toHaveCount(1);
+	await expect(page).toHaveURL(/p=4/);
 });

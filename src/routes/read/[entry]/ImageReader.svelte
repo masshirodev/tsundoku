@@ -242,6 +242,109 @@
 			});
 	}
 
+	// ---- the slide between pages ------------------------------------------------------------
+	// Paged turns slide (doc/READER.md, "Turning pages"): the page follows the
+	// finger, and a turn -- swipe, tap, key or click -- carries it the rest of
+	// the way with the neighbouring screen sliding in beside it. The track
+	// holds the screen being read and, while one is showing, that neighbour.
+	type Screen = { key: string; pos: -1 | 0 | 1; pages: number[]; split: boolean; half: 0 | 1 };
+	const TURN_MS = 220;
+	const reduceMotion = new MediaQuery('(prefers-reduced-motion: reduce)', false);
+	/** How far the track is dragged, in px; or while sliding, where it's going. */
+	let drag = $state(0);
+	let slideTo = $state<string | null>(null);
+	let animating = $state(false);
+	/** The side a neighbour is shown on, while dragging or sliding. */
+	let peek = $state<-1 | 1 | null>(null);
+
+	/** Which way the screen on a side is: in R->L the next page lies to the left. */
+	const dirAt = (side: -1 | 1): 'next' | 'prev' =>
+		(side === 1) === (mode !== 'rtl') ? 'next' : 'prev';
+	const sideOf = (dir: 'next' | 'prev'): -1 | 1 => (dirAt(1) === dir ? 1 : -1);
+
+	/** The screen a turn would show, when it's another screen of pages in this chapter. */
+	function after(dir: 'next' | 'prev'): { at: number; half: 0 | 1 } | null {
+		if (atEnd || pages.length === 0) return null;
+		const g = spreadOf(groups, at);
+		if (dir === 'next') {
+			if (splitHere && half === 0) return { at, half: 1 };
+			if (g >= groups.length - 1) return null;
+			return { at: groups[g + 1][0], half: 0 };
+		}
+		if (splitHere && half === 1) return { at, half: 0 };
+		if (g <= 0) return null;
+		const to = groups[g - 1][0];
+		return { at: to, half: treatment(to) === 'split' ? 1 : 0 };
+	}
+
+	function screenAt(atI: number, halfV: 0 | 1, pos: -1 | 0 | 1): Screen {
+		const g = groups[spreadOf(groups, atI)] ?? [atI];
+		const split = g.length === 1 && treatment(g[0]) === 'split';
+		return {
+			key: `${g.join(',')}${split ? `:${halfV}` : ''}`,
+			pos,
+			pages: mode === 'rtl' ? [...g].reverse() : g,
+			split,
+			half: halfV
+		};
+	}
+	const screens = $derived.by((): Screen[] => {
+		const out = [screenAt(at, half, 0)];
+		if (peek !== null) {
+			const n = after(dirAt(peek));
+			if (n) out.push(screenAt(n.at, n.half, peek));
+		}
+		return out;
+	});
+	const halfSide = (h: 0 | 1) =>
+		h === 0 ? firstHalf(mode) : firstHalf(mode) === 'left' ? 'right' : 'left';
+
+	/** Turn a page, sliding: the neighbour comes in, then becomes the page being read. */
+	/** A turn asked for mid-slide: taken as soon as this one lands, so quick taps all count. */
+	let queued: 'next' | 'prev' | null = null;
+	async function turn(dir: 'next' | 'prev') {
+		if (animating) {
+			queued = dir;
+			return;
+		}
+		const n = after(dir);
+		if (!n || reduceMotion.current) {
+			drag = 0;
+			peek = null;
+			return dir === 'next' ? next() : prev();
+		}
+		peek = sideOf(dir);
+		await tick();
+		await new Promise((r) => requestAnimationFrame(r));
+		animating = true;
+		slideTo = `${-peek * 100}%`;
+		await new Promise((r) => setTimeout(r, TURN_MS));
+		// The neighbour's element becomes the page's (same key), so nothing redraws.
+		animating = false;
+		slideTo = null;
+		drag = 0;
+		peek = null;
+		if (dir === 'next') next();
+		else prev();
+		const then = queued;
+		queued = null;
+		if (then) void turn(then);
+	}
+
+	/** A drag that didn't turn: back into place. */
+	async function settleBack() {
+		if (reduceMotion.current || drag === 0) {
+			drag = 0;
+			peek = null;
+			return;
+		}
+		animating = true;
+		drag = 0;
+		await new Promise((r) => setTimeout(r, TURN_MS));
+		animating = false;
+		peek = null;
+	}
+
 	/** The next chapter is on the tablet: it opens with no network. */
 	const nextCached = $derived(
 		data.next ? (offline.entries[data.series.id] ?? []).includes(data.next.id) : false
@@ -492,8 +595,30 @@
 
 	// ---- touch -----------------------------------------------------------------------------
 	let down: { x: number; y: number } | null = null;
+	let dragging = false;
 	function pointerdown(e: PointerEvent) {
 		down = { x: e.clientX, y: e.clientY };
+		dragging = false;
+	}
+	/**
+	 * The page follows a sideways drag. Not under FIT HEIGHT, where the browser
+	 * pans the page sideways itself, nor with reduced motion.
+	 */
+	function pointermove(e: PointerEvent) {
+		if (!down || animating || fit === 'height' || reduceMotion.current) return;
+		const dx = e.clientX - down.x;
+		const dy = e.clientY - down.y;
+		if (!dragging && (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy))) return;
+		dragging = true;
+		const side: -1 | 1 = dx < 0 ? 1 : -1;
+		peek = side;
+		// Nothing more that way in this chapter: it gives, but only a little.
+		drag = after(dirAt(side)) ? dx : dx / 4;
+	}
+	function pointercancel() {
+		down = null;
+		if (dragging) void settleBack();
+		dragging = false;
 	}
 	/** A right click turns back (mouseAction), so the page never opens the browser's menu. */
 	function contextmenu(e: MouseEvent) {
@@ -505,10 +630,13 @@
 		const dy = e.clientY - down.y;
 		down = null;
 		const swipe = swipeAction(dx, dy, mode);
-		if (swipe) {
+		const dragged = dragging;
+		dragging = false;
+		if (swipe && swipe !== 'chrome') {
 			chrome = false;
-			return swipe === 'next' ? next() : prev();
+			return void turn(swipe);
 		}
+		if (dragged) return void settleBack();
 		if (Math.hypot(dx, dy) > 10) return;
 		// With the controls up, a tap on the page only puts them away.
 		if (chrome) {
@@ -519,8 +647,7 @@
 			(e.pointerType === 'mouse' ? mouseAction(e.button, mode) : null) ??
 			tapAction(e.clientX, window.innerWidth, mode);
 		if (action === 'chrome') chrome = true;
-		else if (action === 'next') next();
-		else prev();
+		else void turn(action);
 	}
 
 	function keydown(e: KeyboardEvent) {
@@ -535,14 +662,13 @@
 		if (left || right) {
 			e.preventDefault();
 			// Arrows are spatial: in R->L, left is forward.
-			if (left === (mode === 'rtl')) next();
-			else prev();
+			void turn(left === (mode === 'rtl') ? 'next' : 'prev');
 		} else if (e.key === ' ' || e.key === 'PageDown') {
 			e.preventDefault();
-			next();
+			void turn('next');
 		} else if (e.key === 'PageUp') {
 			e.preventDefault();
-			prev();
+			void turn('prev');
 		}
 	}
 
@@ -607,7 +733,6 @@
 			: data.series.title
 	);
 	// In R->L the first page sits on the right of a spread.
-	const ordered = $derived(mode === 'rtl' ? [...group].reverse() : group);
 </script>
 
 <svelte:head><title>{data.series.title} · {data.entry.name}</title></svelte:head>
@@ -687,30 +812,41 @@
 		<div
 			class="stage fit-{fit}"
 			onpointerdown={pointerdown}
+			onpointermove={pointermove}
 			onpointerup={pointerup}
+			onpointercancel={pointercancel}
 			oncontextmenu={contextmenu}
 		>
-			{#each ordered as i, k (src(i))}
-				<PageImage
-					src={src(i)}
-					number={i + 1}
-					chapter={i === 0 ? data.entry.name : ''}
-					w={pages[i].w}
-					h={pages[i].h}
-					{fit}
-					share={ordered.length}
-					side={ordered.length === 1 ? 'center' : k === 0 ? 'left' : 'right'}
-					half={splitHere
-						? half === 0
-							? firstHalf(mode)
-							: firstHalf(mode) === 'left'
-								? 'right'
-								: 'left'
-						: null}
-					rotate={ordered.length === 1 && treatment(i) === 'rotate'}
-					inset={insetOf(i)}
-				/>
-			{/each}
+			<div
+				class="track"
+				class:animating
+				style:transform="translateX({slideTo ?? `${drag}px`})"
+				style:--turn-ms="{TURN_MS}ms"
+			>
+				{#each screens as sc (sc.key)}
+					<div
+						class="screen fit-{fit}"
+						style:transform={sc.pos === 0 ? undefined : `translateX(${sc.pos * 100}%)`}
+						aria-hidden={sc.pos === 0 ? undefined : 'true'}
+					>
+						{#each sc.pages as i, k (src(i))}
+							<PageImage
+								src={src(i)}
+								number={i + 1}
+								chapter={i === 0 ? data.entry.name : ''}
+								w={pages[i].w}
+								h={pages[i].h}
+								{fit}
+								share={sc.pages.length}
+								side={sc.pages.length === 1 ? 'center' : k === 0 ? 'left' : 'right'}
+								half={sc.split ? halfSide(sc.half) : null}
+								rotate={sc.pages.length === 1 && treatment(i) === 'rotate'}
+								inset={insetOf(i)}
+							/>
+						{/each}
+					</div>
+				{/each}
+			</div>
 		</div>
 	{/if}
 
@@ -818,24 +954,48 @@
 		-webkit-touch-callout: none;
 	}
 	.stage {
+		position: relative;
 		width: 100vw;
 		height: 100dvh;
+		overflow: hidden;
+		touch-action: none;
+	}
+	.stage.fit-width {
+		touch-action: pan-y;
+	}
+	.stage.fit-height {
+		touch-action: pan-x;
+	}
+	/* The screens side by side, moved as one: by the finger, or sliding. */
+	.track {
+		position: absolute;
+		inset: 0;
+		will-change: transform;
+	}
+	.track.animating {
+		transition: transform var(--turn-ms) cubic-bezier(0.2, 0.8, 0.2, 1);
+	}
+	.screen {
+		position: absolute;
+		inset: 0;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		overflow: hidden;
-		touch-action: none;
 	}
 	/* Fit width and fit height let the page overflow and scroll the other way. */
-	.stage.fit-width {
+	.screen.fit-width {
 		align-items: flex-start;
 		overflow-y: auto;
-		touch-action: pan-y;
 	}
-	.stage.fit-height {
+	.screen.fit-height {
 		overflow-x: auto;
 		justify-content: safe center;
-		touch-action: pan-x;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.track.animating {
+			transition: none;
+		}
 	}
 	.dashed {
 		position: fixed;
