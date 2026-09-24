@@ -394,6 +394,22 @@ const MIGRATIONS: string[] = [
 		decided_at INTEGER NOT NULL,
 		note_id TEXT
 	) WITHOUT ROWID;
+	`,
+	// Rung 21: NOT TEXT keeps what it takes (doc/JAPANESE.md, "NOT TEXT").
+	// Rung 20 only took a block out of its page, so once the band's UNDO was
+	// gone the block was too. Each one is kept here with where it was, for the
+	// series screen's RESTORE, and so reading a chapter again doesn't bring
+	// it back.
+	`
+	CREATE TABLE not_text (
+		id INTEGER PRIMARY KEY,
+		entry_id INTEGER NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
+		page INTEGER NOT NULL,
+		idx INTEGER NOT NULL,
+		block TEXT NOT NULL,
+		at INTEGER NOT NULL
+	);
+	CREATE INDEX not_text_entry ON not_text(entry_id, page);
 	`
 ];
 

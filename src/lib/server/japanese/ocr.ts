@@ -100,13 +100,19 @@ export function storeChapter(entryId: number, pages: MokuroPage[], now = Date.no
 	const db = getDb();
 	return db
 		.transaction((): number => {
+			const notText = new Map<number, TextBlock[]>();
+			for (const r of db
+				.prepare(`SELECT page, block FROM not_text WHERE entry_id = ?`)
+				.all(entryId) as { page: number; block: string }[])
+				notText.set(r.page, [...(notText.get(r.page) ?? []), JSON.parse(r.block) as TextBlock]);
 			db.prepare(`DELETE FROM page_text WHERE entry_id = ?`).run(entryId);
 			const put = db.prepare(`INSERT INTO page_text (entry_id, page, blocks) VALUES (?, ?, ?)`);
 			let blocks = 0;
 			for (const p of pages) {
 				const i = pageIndexOf(p.img_path);
 				if (i === null) continue;
-				const b = blocksOf(p);
+				// Read again, a block marked NOT TEXT stays out.
+				const b = blocksOf(p).filter((x) => !(notText.get(i) ?? []).some((d) => sameBox(d, x)));
 				put.run(entryId, i, JSON.stringify(b));
 				blocks += b.length;
 			}
@@ -221,7 +227,14 @@ export function ocrStatus(seriesId: number): OcrStatus {
 /** Where a series stands on the workstation: the series screen's OCR row. */
 export function ocrPlace(seriesId: number, now = Date.now()): OcrPlace {
 	const status = ocrStatus(seriesId);
-	const none = { ...status, ahead: null, next: null, failed: 0, running: false };
+	const none = {
+		...status,
+		ahead: null,
+		next: null,
+		failed: 0,
+		running: false,
+		notText: notTextCount(seriesId)
+	};
 	if (!status.japanese) return none;
 	const db = getDb();
 	const queue = ocrQueue(1_000_000, now);
@@ -248,7 +261,8 @@ export function ocrPlace(seriesId: number, now = Date.now()): OcrPlace {
 		next,
 		failed,
 		// scripts/ocr.ts holds this while a run is on the GPU.
-		running: at === 0 && existsSync(join(scratchDir(), 'ocr.lock'))
+		running: at === 0 && existsSync(join(scratchDir(), 'ocr.lock')),
+		notText: notTextCount(seriesId)
 	};
 }
 
@@ -260,24 +274,62 @@ export function setSeriesOcr(seriesId: number, on: boolean | null): void {
 }
 
 /**
- * NOT TEXT (doc/JAPANESE.md): a block OCR got wrong is taken out of its page
- * for good. Returns the block, so UNDO can put it back where it was.
+ * NOT TEXT (doc/JAPANESE.md): a block OCR got wrong is taken out of its page,
+ * and kept aside (`not_text`) so it can be restored. Returns the block, so
+ * UNDO can put it back where it was.
  */
-export function dropBlock(entryId: number, page: number, index: number): TextBlock | null {
+export function dropBlock(
+	entryId: number,
+	page: number,
+	index: number,
+	now = Date.now()
+): TextBlock | null {
+	const db = getDb();
+	return db
+		.transaction((): TextBlock | null => {
+			const row = db
+				.prepare(`SELECT blocks FROM page_text WHERE entry_id = ? AND page = ?`)
+				.get(entryId, page) as { blocks: string } | undefined;
+			if (!row) return null;
+			const blocks = JSON.parse(row.blocks) as TextBlock[];
+			const [dropped] = blocks.splice(index, 1);
+			if (!dropped) return null;
+			db.prepare(`UPDATE page_text SET blocks = ? WHERE entry_id = ? AND page = ?`).run(
+				JSON.stringify(blocks),
+				entryId,
+				page
+			);
+			db.prepare(
+				`INSERT INTO not_text (entry_id, page, idx, block, at) VALUES (?, ?, ?, ?, ?)`
+			).run(entryId, page, index, JSON.stringify(dropped), now);
+			return dropped;
+		})
+		.immediate();
+}
+
+const sameBox = (a: TextBlock, b: TextBlock) => a.box.every((n, i) => n === b.box[i]);
+
+/** Put a block back at its place on its page, and off the NOT TEXT list. */
+function putBack(entryId: number, page: number, index: number, block: TextBlock): boolean {
 	const db = getDb();
 	const row = db
 		.prepare(`SELECT blocks FROM page_text WHERE entry_id = ? AND page = ?`)
 		.get(entryId, page) as { blocks: string } | undefined;
-	if (!row) return null;
+	if (!row) return false;
 	const blocks = JSON.parse(row.blocks) as TextBlock[];
-	const [dropped] = blocks.splice(index, 1);
-	if (!dropped) return null;
+	if (!blocks.some((b) => sameBox(b, block)))
+		blocks.splice(Math.min(Math.max(0, index), blocks.length), 0, block);
 	db.prepare(`UPDATE page_text SET blocks = ? WHERE entry_id = ? AND page = ?`).run(
 		JSON.stringify(blocks),
 		entryId,
 		page
 	);
-	return dropped;
+	for (const r of db
+		.prepare(`SELECT id, block FROM not_text WHERE entry_id = ? AND page = ?`)
+		.all(entryId, page) as { id: number; block: string }[])
+		if (sameBox(JSON.parse(r.block) as TextBlock, block))
+			db.prepare(`DELETE FROM not_text WHERE id = ?`).run(r.id);
+	return true;
 }
 
 /** UNDO after NOT TEXT: the block back at its place. */
@@ -288,16 +340,39 @@ export function restoreBlock(
 	block: TextBlock
 ): boolean {
 	const db = getDb();
-	const row = db
-		.prepare(`SELECT blocks FROM page_text WHERE entry_id = ? AND page = ?`)
-		.get(entryId, page) as { blocks: string } | undefined;
-	if (!row) return false;
-	const blocks = JSON.parse(row.blocks) as TextBlock[];
-	blocks.splice(Math.min(Math.max(0, index), blocks.length), 0, block);
-	db.prepare(`UPDATE page_text SET blocks = ? WHERE entry_id = ? AND page = ?`).run(
-		JSON.stringify(blocks),
-		entryId,
-		page
-	);
-	return true;
+	return db.transaction(() => putBack(entryId, page, index, block)).immediate();
+}
+
+/** How many of a series' blocks are marked NOT TEXT: the series screen's RESTORE. */
+export function notTextCount(seriesId: number): number {
+	return (
+		getDb()
+			.prepare(
+				`SELECT COUNT(*) AS n FROM not_text t JOIN entries e ON e.id = t.entry_id WHERE e.series_id = ?`
+			)
+			.get(seriesId) as { n: number }
+	).n;
+}
+
+/** RESTORE: every block of a series marked NOT TEXT, back where it was. */
+export function restoreNotText(seriesId: number): number {
+	const db = getDb();
+	return db
+		.transaction((): number => {
+			const rows = db
+				.prepare(
+					`SELECT t.entry_id, t.page, t.idx, t.block FROM not_text t JOIN entries e ON e.id = t.entry_id
+					WHERE e.series_id = ? ORDER BY t.entry_id, t.page, t.idx`
+				)
+				.all(seriesId) as { entry_id: number; page: number; idx: number; block: string }[];
+			let n = 0;
+			for (const r of rows)
+				if (putBack(r.entry_id, r.page, r.idx, JSON.parse(r.block) as TextBlock)) n += 1;
+			// A page read again since has no place for it: nothing to keep it for.
+			db.prepare(
+				`DELETE FROM not_text WHERE entry_id IN (SELECT id FROM entries WHERE series_id = ?)`
+			).run(seriesId);
+			return n;
+		})
+		.immediate();
 }

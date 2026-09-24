@@ -311,8 +311,15 @@
 						<div class="obar"><div style:width="{ocrRow.bar * 100}%"></div></div>
 					{/if}
 					{#if ocrRow.b}<div class="ob">{ocrRow.b}</div>{/if}
+					{#if ocr && ocr.notText > 0}
+						<div class="ob">{ocr.notText} MARKED NOT TEXT</div>
+					{/if}
 				</div>
 				{#if ocrRow.offer}<button type="submit" class="edit">OCR</button>{/if}
+				{#if ocr && ocr.notText > 0}
+					<!-- NOT TEXT is kept, not deleted: this puts every such block back. -->
+					<button type="submit" class="edit" formaction="?/restoreText">RESTORE</button>
+				{/if}
 			</form>
 			{#if ocr?.japanese && words && (words.toReview > 0 || words.sent > 0)}
 				<div class="row panel-row">

@@ -76,6 +76,8 @@ export type OcrPlace = {
 	failed: number;
 	/** A run is on the GPU, and this series is first. */
 	running: boolean;
+	/** Blocks marked NOT TEXT, kept for RESTORE. */
+	notText: number;
 };
 
 /**

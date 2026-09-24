@@ -158,10 +158,17 @@ their own times when the workstation answers again.
 ### NOT TEXT
 
 OCR sometimes reads a drawing as text. **NOT TEXT** in the panel's header takes
-that block out of its page for good (`POST /api/entries/<id>/text`
-`{drop}`); a band at the foot says `BLOCK 2 · NOT TEXT · NO LONGER TAPPABLE`
-with **UNDO** (`{restore}`) until the next tap. The page drops it at once; if
-the workstation doesn't take it, it comes back.
+that block out of its page (`POST /api/entries/<id>/text` `{drop}`); a band at
+the foot says `BLOCK 2 · NOT TEXT · NO LONGER TAPPABLE` with **UNDO**
+(`{restore}`) until the next tap. The page drops it at once; if the workstation
+doesn't take it, it comes back.
+
+The block isn't deleted: rung 21 keeps it in `not_text` with where it was.
+Once the band is gone, the series screen's OCR row says **2 MARKED NOT TEXT**
+with **RESTORE**, which puts every such block of the series back
+(`restoreNotText`). A chapter OCR reads again keeps them out. Until
+2026-09-24, NOT TEXT deleted outright; the owner lost a block to a stray tap
+before UNDO, and it was put back by reading the chapter again.
 
 ### In a book (text reader)
 

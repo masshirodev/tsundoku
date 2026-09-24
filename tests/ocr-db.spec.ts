@@ -124,6 +124,38 @@ describe('OCR on the workstation', () => {
 		ocr.setSeriesOcr(chainsaw, true);
 	});
 
+	it('keeps a block marked NOT TEXT, for UNDO, for RESTORE, and out of a second reading', () => {
+		const [entry] = db
+			.prepare(
+				`SELECT entry_id AS id FROM page_text p JOIN entries e ON e.id = p.entry_id WHERE e.series_id = ? LIMIT 1`
+			)
+			.all(chainsaw) as { id: number }[];
+		const before = ocr.pageText(entry.id, false)![0]!;
+		const dropped = ocr.dropBlock(entry.id, 0, 0)!;
+		expect(ocr.pageText(entry.id, false)![0]).toHaveLength(before.length - 1);
+		expect(ocr.notTextCount(chainsaw)).toBe(1);
+
+		// UNDO: back, and off the list.
+		expect(ocr.restoreBlock(entry.id, 0, 0, dropped)).toBe(true);
+		expect(ocr.pageText(entry.id, false)![0]).toEqual(before);
+		expect(ocr.notTextCount(chainsaw)).toBe(0);
+
+		// The band gone: read again, it stays out; RESTORE puts it back.
+		ocr.dropBlock(entry.id, 0, 0);
+		ocr.storeChapter(entry.id, [
+			{
+				img_path: '0000.jpg',
+				img_width: 800,
+				img_height: 1136,
+				blocks: [{ box: [80, 114, 240, 454], vertical: true, lines: ['テスト'] }]
+			}
+		]);
+		expect(ocr.pageText(entry.id, false)![0]).toEqual([]);
+		expect(ocr.restoreNotText(chainsaw)).toBe(1);
+		expect(ocr.pageText(entry.id, false)![0]).toEqual(before);
+		expect(ocr.notTextCount(chainsaw)).toBe(0);
+	});
+
 	it('keeps a hidden series’ text hidden while reveal is off', () => {
 		const hidden = (
 			db

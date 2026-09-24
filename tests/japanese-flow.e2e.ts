@@ -84,8 +84,10 @@ test('blocks are outlined with the controls, and a tap on one looks it up', asyn
 	await expect(page.getByRole('banner', { name: 'Reader' })).toHaveCount(0);
 });
 
-test('NOT TEXT takes a block out, and UNDO puts it back', async ({ page }) => {
-	const { entry } = await series(page);
+test('NOT TEXT takes a block out, UNDO puts it back, and so does RESTORE later', async ({
+	page
+}) => {
+	const { id: seriesOf, entry } = await series(page);
 	await command(page, '/incognito');
 	await page.waitForURL(/\/$/);
 	await page.goto(`/read/${entry}?p=2`);
@@ -107,6 +109,18 @@ test('NOT TEXT takes a block out, and UNDO puts it back', async ({ page }) => {
 	await expect.poll(blocksOnPage2).toBe(3);
 	await tapBlock(page, THIRD);
 	await expect(panel(page)).toContainText('BLOCK 3');
+
+	// Marked again, and the band tapped away: the series screen restores it.
+	await panel(page).getByRole('button', { name: 'NOT TEXT' }).click();
+	await expect.poll(blocksOnPage2).toBe(2);
+	const vp = page.viewportSize()!;
+	await page.touchscreen.tap(vp.width / 2, vp.height / 2);
+	await expect(page.getByRole('status')).toHaveCount(0);
+	await page.goto(`/series/${seriesOf}`);
+	await expect(page.getByText('1 MARKED NOT TEXT')).toBeVisible();
+	await page.getByRole('button', { name: 'RESTORE' }).click();
+	await expect(page.getByText('1 MARKED NOT TEXT')).toHaveCount(0);
+	await expect.poll(blocksOnPage2).toBe(3);
 });
 
 test('BLOCKS in READING outlines them always, or never', async ({ page }) => {

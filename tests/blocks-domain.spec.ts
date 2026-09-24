@@ -56,6 +56,7 @@ describe("the series screen's OCR row", () => {
 		next: 'CH. 42',
 		failed: 0,
 		running: true,
+		notText: 0,
 		...p
 	});
 

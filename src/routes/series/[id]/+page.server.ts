@@ -2,7 +2,7 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { refreshCovers } from '$lib/server/covers';
 import { DeleteError, deleteBook, deleteSeries } from '$lib/server/delete';
 import type { Actions, PageServerLoad } from './$types';
-import { ocrPlace, setSeriesOcr } from '$lib/server/japanese/ocr';
+import { ocrPlace, restoreNotText, setSeriesOcr } from '$lib/server/japanese/ocr';
 import { wordsOf } from '$lib/server/japanese/mining';
 import {
 	collectionExists,
@@ -136,6 +136,12 @@ export const actions: Actions = {
 		if (s.kind === 'novel') return fail(400, { message: 'novels are text already' });
 		setSeriesOcr(s.id, true);
 		return { ok: true };
+	},
+
+	/** RESTORE on the OCR row: every block marked NOT TEXT, back where it was. */
+	restoreText: async ({ params, cookies }) => {
+		const s = target(params, cookies);
+		return { restored: restoreNotText(s.id) };
 	},
 
 	/** SCANLATOR: whose copy of a duplicated chapter the list shows. '' is automatic. */
