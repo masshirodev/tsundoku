@@ -22,7 +22,9 @@ const rows = (id: number) =>
 		.n;
 
 describe('page borders, measured on the workstation', () => {
-	it('finds the sample pages’ paper margin, once per page', async () => {
+	// Every page is decoded with sharp: 2-3s alone, past vitest's 5s default
+	// when it shares the CPU with the whole suite (pre-push runs it all).
+	it('finds the sample pages’ paper margin, once per page', { timeout: 30_000 }, async () => {
 		const id = entryOf('Hikaru ga Shinda Natsu');
 		const crops = (await cropsFor(id, false))!;
 		expect(crops.length).toBeGreaterThan(10);
