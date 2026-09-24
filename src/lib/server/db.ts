@@ -342,6 +342,16 @@ const MIGRATIONS: string[] = [
 		left REAL NOT NULL,
 		PRIMARY KEY (entry_id, page)
 	) WITHOUT ROWID;
+	`,
+	// Rung 18: deleted books (doc/DELETING.md). What the owner deleted, by the
+	// keys the importers find it by -- a series' origin key, a chapter's or
+	// book's source URL -- so a rescan or a sync never brings it back.
+	`
+	CREATE TABLE tombstones (
+		key TEXT PRIMARY KEY,
+		title TEXT NOT NULL DEFAULT '',
+		deleted_at INTEGER NOT NULL
+	) WITHOUT ROWID;
 	`
 ];
 

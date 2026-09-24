@@ -1,4 +1,7 @@
 <script lang="ts">
+	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
+	import { stepsBackTo } from '$lib/back';
+	import type { ActionResult } from '@sveltejs/kit';
 	import { backLink } from '$lib/back';
 	import { enhance } from '$app/forms';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -13,7 +16,7 @@
 	import GroupSheet from '../../GroupSheet.svelte';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import NavLine from '$lib/components/waiting/NavLine.svelte';
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { offline } from '$lib/offline.svelte';
 	import { cacheMany, dropMany } from '$lib/cache/device';
@@ -22,6 +25,7 @@
 	import {
 		bulkCounts,
 		continueAction,
+		fileMeta,
 		isBookSeries,
 		rangeBetween,
 		type SeriesEntry
@@ -87,6 +91,22 @@
 	}
 	const dismissedKey = $derived(form && 'dismissed' in form ? form.dismissed : null);
 	const action = $derived(continueAction(series));
+
+	// ---- deleting ------------------------------------------------------------------
+	let deletingSeries = $state(false);
+	let deletingBook = $state<SeriesEntry | null>(null);
+	/**
+	 * A deleted series has no page to stay on: back where it was opened from,
+	 * the way ← goes (src/lib/back.ts), so the shelf comes back as it was.
+	 */
+	async function leaveDeleted(r: ActionResult) {
+		if (r.type !== 'success') return;
+		deletingSeries = false;
+		const steps = stepsBackTo(new URL(data.back.href, location.href));
+
+		if (steps) history.go(-steps);
+		else await goto(data.back.href, { replaceState: true });
+	}
 
 	// ---- compact top bar ---------------------------------------------------------
 	// Once CONTINUE has scrolled away, the top bar carries the title and a ▶ cell.
@@ -329,6 +349,7 @@
 					cached={cachedCount}
 					bind:cta
 					onedit={() => (editing = true)}
+					ondelete={() => (deletingSeries = true)}
 					suggestion={data.suggestion}
 					{dismissedKey}
 					onreview={() => (reviewing = true)}
@@ -397,6 +418,46 @@
 	others={data.otherSeries}
 	onclose={() => (sheetBookId = null)}
 	onpages={openBook}
+	ondelete={(b) => {
+		sheetBookId = null;
+		deletingBook = b;
+	}}
+/>
+
+<!-- Deleting asks first (doc/DELETING.md). -->
+<ConfirmSheet
+	open={deletingSeries}
+	title="DELETE {series.title.toUpperCase()}?"
+	lines={[
+		`${series.entries.length} ${series.entries.length === 1 ? 'ENTRY' : 'ENTRIES'} · ${fileMeta(series.entries)}`,
+		'ITS FILES MOVE TO THE TRASH FOLDER ON THE WORKSTATION.',
+		'ITS READING HISTORY GOES WITH IT.',
+		'A SCAN OR A SYNC WON’T BRING IT BACK.'
+	]}
+	confirm="DELETE"
+	action="?/delete"
+	fields={{}}
+	onclose={() => (deletingSeries = false)}
+	ondone={leaveDeleted}
+/>
+<ConfirmSheet
+	open={deletingBook !== null}
+	title="DELETE {(deletingBook?.title || 'THIS BOOK').toUpperCase()}?"
+	lines={[
+		`FROM ${series.title.toUpperCase()} · ${deletingBook ? fileMeta([deletingBook]) : ''}`,
+		'ITS FILES MOVE TO THE TRASH FOLDER ON THE WORKSTATION.',
+		'THE SERIES KEEPS ITS OTHER BOOKS.',
+		'A SCAN OR A SYNC WON’T BRING IT BACK.'
+	]}
+	confirm="DELETE BOOK"
+	action="?/deleteBook"
+	fields={{ entry: String(deletingBook?.id ?? '') }}
+	onclose={() => (deletingBook = null)}
+	ondone={async (r) => {
+		deletingBook = null;
+		if (r.type === 'redirect') await goto(r.location);
+		else await invalidateAll();
+	}}
 />
 
 {#if data.suggestion}

@@ -35,6 +35,7 @@
 		shelves,
 		cached,
 		onedit,
+		ondelete,
 		suggestion = null,
 		dismissedKey = null,
 		onreview,
@@ -46,6 +47,8 @@
 		/** Entries of this series cached on the device. */
 		cached: number;
 		onedit: () => void;
+		/** DELETE: the page asks first (doc/DELETING.md). */
+		ondelete?: () => void;
 		/** "Might be one series": only on a single book, only visible books. */
 		suggestion?: Suggestion | null;
 		/** Set just after NOT A SERIES, so the band can offer UNDO. */
@@ -389,6 +392,7 @@
 				<input type="hidden" name="on" value={series.hidden ? '0' : '1'} />
 				<button type="submit" class="edit">{series.hidden ? 'UNHIDE' : 'HIDE'}</button>
 			</form>
+			<button type="button" class="edit" onclick={ondelete}>DELETE</button>
 		</div>
 	{/if}
 </section>

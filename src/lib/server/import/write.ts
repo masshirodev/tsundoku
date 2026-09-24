@@ -101,6 +101,16 @@ export function writeSeries(
 	},
 	db: Database.Database = getDb()
 ): WriteResult {
+	// Deleted by the owner (doc/DELETING.md): passed by, and so are its deleted
+	// chapters or books, however many backups and devices still carry them.
+	const buried = db.prepare(`SELECT 1 FROM tombstones WHERE key = ?`);
+	const gone = (key: string) => key !== '' && !!buried.get(key);
+	if (gone(s.originKey)) return { created: false, entriesAdded: 0, filesAttached: 0 };
+	if (s.entries.some((e) => gone(e.sourceUrl))) {
+		s = { ...s, entries: s.entries.filter((e) => !gone(e.sourceUrl)) };
+		// Every book of it deleted: nothing left to make a series of.
+		if (s.entries.length === 0) return { created: false, entriesAdded: 0, filesAttached: 0 };
+	}
 	return db
 		.transaction((): WriteResult => {
 			let seriesId: number | null =

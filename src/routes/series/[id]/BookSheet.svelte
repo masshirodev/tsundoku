@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { fileMeta } from '$lib/library/series';
 	import { enhance } from '$app/forms';
 	import Sheet from '$lib/components/chrome/Sheet.svelte';
 	import Cover from '$lib/components/content/Cover.svelte';
@@ -19,13 +20,16 @@
 		book,
 		others,
 		onclose,
-		onpages
+		onpages,
+		ondelete
 	}: {
 		series: SeriesPage;
 		book: SeriesEntry | null;
 		others: { id: number; title: string; books: number }[];
 		onclose: () => void;
 		onpages: (book: SeriesEntry) => void;
+		/** DELETE: the page asks first (doc/DELETING.md). */
+		ondelete?: (book: SeriesEntry) => void;
 	} = $props();
 
 	let moving = $state(false);
@@ -107,6 +111,13 @@
 				<input type="hidden" name="entry" value={book.id} />
 				<button type="submit" class="cellbtn inverse">TAKE OUT</button>
 			</form>
+		</div>
+
+		<!-- This book's files, and deleting it: a duplicate is the usual reason. -->
+		<div class="series-row">
+			<div class="label">FILES</div>
+			<div class="series-name">{fileMeta([book])}</div>
+			<button type="button" class="cellbtn" onclick={() => book && ondelete?.(book)}>DELETE</button>
 		</div>
 
 		{#if moving}

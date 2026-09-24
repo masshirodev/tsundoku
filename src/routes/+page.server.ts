@@ -26,6 +26,7 @@ import {
 import { setPersonFavourite, tagPage } from '$lib/server/people';
 import { libraryRoot, startScan } from '$lib/server/import';
 import { refreshCovers } from '$lib/server/covers';
+import { deleteSeries } from '$lib/server/delete';
 import { isGated } from '$lib/server/unlock';
 import { pageSizeOf } from '$lib/library/paging';
 
@@ -207,6 +208,12 @@ export const actions: Actions = {
 	 * the job (doc/IMPORT-MIHON.md). With nothing to import it says where it
 	 * looked, rather than pretending to start.
 	 */
+	/** DELETE in the bulk bar, after its confirmation (doc/DELETING.md). */
+	delete: async ({ request, cookies }) => {
+		const r = await deleteSeries(ids(await request.formData()), isRevealed(cookies));
+		return { deleted: r.series };
+	},
+
 	scan: async () => {
 		const r = startScan();
 		if (!r.started) {

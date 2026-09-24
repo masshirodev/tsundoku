@@ -1,4 +1,5 @@
 <script lang="ts">
+	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
 	import { backLink } from '$lib/back';
 	import { enhance } from '$app/forms';
 	import { beforeNavigate, goto, invalidateAll } from '$app/navigation';
@@ -230,6 +231,14 @@
 	}
 
 	// ---- sheets ------------------------------------------------------------
+	let deleting = $state(false);
+	/** The first few titles, so the question names what it's about. */
+	const deletingTitles = $derived.by(() => {
+		const names = series.filter((c) => selected.has(c.id)).map((c) => c.title);
+		if (names.length === 0) return '';
+		const shown = names.slice(0, 3).join(', ').toUpperCase();
+		return names.length > 3 ? `${shown} AND ${selected.size - 3} MORE` : shown;
+	});
 	let sheetId = $state<number | null>(null);
 	let pickerOpen = $state(false);
 	let grouping = $state(false);
@@ -709,7 +718,7 @@
 			}}
 	>
 		{#each [...selected] as id (id)}<input type="hidden" name="id" value={id} />{/each}
-		<BulkBar columns={5}>
+		<BulkBar columns={6}>
 			{#snippet actions()}
 				<button type="submit" name="do" value="fav" disabled={selected.size === 0}>FAV</button>
 				<button type="button" disabled={selected.size === 0} onclick={() => (pickerOpen = true)}
@@ -727,6 +736,10 @@
 					name="do"
 					value={allHidden ? 'unhide' : 'hide'}
 					disabled={selected.size === 0}>{allHidden ? 'UNHIDE' : 'HIDE'}</button
+				>
+				<!-- Asks first (doc/DELETING.md): duplicates are cleared in bulk. -->
+				<button type="button" disabled={selected.size === 0} onclick={() => (deleting = true)}
+					>DELETE</button
 				>
 			{/snippet}
 		</BulkBar>
@@ -746,6 +759,26 @@
 	existing={(volumes ? data.existingVolumes : data.existing).filter((s) => !selected.has(s.id))}
 	noun={volumes ? 'VOLUMES' : 'BOOKS'}
 	onclose={() => (grouping = false)}
+/>
+
+<ConfirmSheet
+	open={deleting}
+	title="DELETE {selected.size} SERIES?"
+	lines={[
+		`${selected.size} SELECTED${deletingTitles ? ` · ${deletingTitles}` : ''}`,
+		'THEIR FILES MOVE TO THE TRASH FOLDER ON THE WORKSTATION.',
+		'THEIR READING HISTORY GOES WITH THEM.',
+		'A SCAN OR A SYNC WON’T BRING THEM BACK.'
+	]}
+	confirm="DELETE {selected.size}"
+	action="?/delete"
+	fields={{ id: [...selected].map(String) }}
+	onclose={() => (deleting = false)}
+	ondone={async () => {
+		deleting = false;
+		stopSelecting();
+		await invalidateAll();
+	}}
 />
 
 <ShelfPicker

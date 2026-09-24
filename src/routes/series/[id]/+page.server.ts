@@ -1,5 +1,6 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { refreshCovers } from '$lib/server/covers';
+import { DeleteError, deleteBook, deleteSeries } from '$lib/server/delete';
 import type { Actions, PageServerLoad } from './$types';
 import {
 	collectionExists,
@@ -305,6 +306,33 @@ export const actions: Actions = {
 		const read = form.get('read') === '1';
 		const changed = markEntries(s.id, entryIds(form), read);
 		return { ok: true, changed };
+	},
+
+	/**
+	 * DELETE, after its confirmation (doc/DELETING.md): the series, its files
+	 * to the trash, a tombstone so it stays gone.
+	 */
+	delete: async ({ params, cookies }) => {
+		const s = target(params, cookies);
+		await deleteSeries([s.id], isRevealed(cookies));
+		// The page leaves by itself, the way its ← does (src/lib/back.ts).
+		return { deletedSeries: s.id };
+	},
+
+	/** DELETE on a book's sheet: that book only; the series keeps the rest. */
+	deleteBook: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const entry = Number((await request.formData()).get('entry'));
+		let gone: boolean;
+		try {
+			gone = (await deleteBook(s.id, entry, isRevealed(cookies))).seriesGone;
+		} catch (e) {
+			if (e instanceof DeleteError) return fail(400, { message: e.message });
+			throw e;
+		}
+		// Its last book: the series went too.
+		if (gone) redirect(303, '/');
+		return { deletedBook: entry };
 	},
 
 	/** A long press on a chapter row: it and everything before it, read. */
