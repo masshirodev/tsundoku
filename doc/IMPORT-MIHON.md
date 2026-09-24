@@ -198,5 +198,5 @@ content.
 - **Trackers** (MyAnimeList links in the backup) aren't imported. The
   phone's backup links 110 series to MAL (tracker 1), all of which match a
   series here by URL. The tablet's Mihon is a debug build whose backups carry
-  none (measured 2026-09-24). Brief: `doc/briefs/CATALOGUE-LINKS.md`, card c37
+  none (measured 2026-09-24). Brief: `doc/briefs/done/CATALOGUE-LINKS.md`, card c37
   ("Link series to MyAnimeList / AniList: covers, then tracking").
