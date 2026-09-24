@@ -15,7 +15,7 @@ import {
 } from '$lib/server/library';
 import { isRevealed, runCommand } from '$lib/server/prefs';
 import { parseRating } from '$lib/library/rating';
-import { parseSort } from '$lib/library/labels';
+import { parseSeed, parseSort } from '$lib/library/labels';
 import {
 	GroupingError,
 	dismissSuggestion,
@@ -48,6 +48,8 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	if (tag && !person) error(404, 'not found');
 
 	const total = countSeries(reveal);
+	// RANDOM's shuffle: one per choice of RANDOM, kept in the URL.
+	const seed = parseSeed(url.searchParams.get('seed'));
 	const pageSize = pageSizeOf(cookies.get('tsundoku_grid_page'));
 	return {
 		shelf,
@@ -56,6 +58,7 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		existing: seriesOfBooks(reveal),
 		existingVolumes: seriesOfVolumes(reveal),
 		sort,
+		seed,
 		empty: total === 0 && !scan,
 		libraryRoot: libraryRoot(),
 		cont: continueReading(reveal),
@@ -71,6 +74,7 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 						shelf,
 						tag,
 						sort,
+						seed,
 						limit: shelf === 'cached' ? undefined : pageSize
 					}),
 		total: shelf === 'people' ? 0 : countListed({ reveal, shelf, tag, sort }),

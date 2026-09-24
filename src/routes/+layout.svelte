@@ -11,6 +11,7 @@
 	import { shelfHref } from '$lib/library/links';
 	import { onMount } from 'svelte';
 	import { afterNavigate, beforeNavigate, goto } from '$app/navigation';
+	import { noteVisit } from '$lib/back';
 	import { waiting } from '$lib/waiting.svelte';
 	import { saves } from '$lib/saves.svelte';
 	import WaitingScreen from '$lib/components/waiting/WaitingScreen.svelte';
@@ -47,6 +48,8 @@
 		);
 	});
 	afterNavigate(() => {
+		// Where this history entry is, so a back link can go back to it (src/lib/back.ts).
+		noteVisit();
 		waiting.end();
 		// Something reached the workstation: a failed save tries again.
 		saves.nudge();

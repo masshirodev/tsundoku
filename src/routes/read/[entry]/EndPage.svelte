@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { backLink } from '$lib/back';
 	import { RATING_OPTIONS } from '$lib/library/rating';
 	import type { Mode } from '$lib/reader/reader';
 
@@ -142,14 +143,14 @@
 
 	<div class="foot">
 		<!-- eslint-disable svelte/no-navigation-without-resolve -- both hrefs are resolved by the page -->
-		<a class="fcell" href={seriesHref}>← SERIES</a>
+		<a class="fcell" href={seriesHref} use:backLink>← SERIES</a>
 		<span class="spacer"></span>
 		{#if variant === 'chapter'}
 			<button type="button" class="fcell right dim" onclick={onback}
 				>{mode === 'rtl' ? `${lastPage} · BACK ${back}` : `${back} BACK · ${lastPage}`}</button
 			>
 		{:else}
-			<a class="fcell right" href={libraryHref}>LIBRARY</a>
+			<a class="fcell right" href={libraryHref} use:backLink>LIBRARY</a>
 		{/if}
 		<!-- eslint-enable svelte/no-navigation-without-resolve -->
 	</div>

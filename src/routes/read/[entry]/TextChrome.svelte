@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { backLink } from '$lib/back';
 	import { ratingBars } from '$lib/library/rating';
 	import type { Rating } from '$lib/library/types';
 
@@ -101,7 +102,7 @@
 
 <header class="top">
 	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- seriesHref is resolved by the caller -->
-	<a class="back" href={seriesHref} aria-label="Back to the series">←</a>
+	<a class="back" href={seriesHref} aria-label="Back to the series" use:backLink>←</a>
 	<div class="names">
 		<div class="title">{title}</div>
 		<div class="meta">{meta}</div>

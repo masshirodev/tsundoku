@@ -13,6 +13,9 @@ export function shelfHref(current: URL, shelf: string): string {
 	params.set('shelf', shelf);
 	const sort = current.searchParams.get('sort');
 	if (sort) params.set('sort', sort);
+	// The same shuffle on another shelf.
+	const seed = current.searchParams.get('seed');
+	if (sort === 'random' && seed) params.set('seed', seed);
 	return library(params);
 }
 

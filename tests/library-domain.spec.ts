@@ -5,6 +5,7 @@ import {
 	continueSub,
 	count,
 	nextSort,
+	parseSeed,
 	parseSort,
 	percent,
 	progress,
@@ -140,9 +141,19 @@ describe('labels', () => {
 		);
 	});
 
+	it("reads RANDOM's seed as a whole number, or 1", () => {
+		expect(parseSeed('4242')).toBe(4242);
+		expect(parseSeed('1; DROP TABLE series')).toBe(1);
+		expect(parseSeed('-3')).toBe(1);
+		expect(parseSeed(null)).toBe(1);
+		expect(parseSeed(String(2 ** 31))).toBe(1);
+	});
+
 	it('cycles sorts and falls back to recent', () => {
 		expect(nextSort('recent')).toBe('title');
-		expect(nextSort('added')).toBe('recent');
+		expect(nextSort('added')).toBe('random');
+		expect(nextSort('random')).toBe('recent');
+		expect(parseSort('random')).toBe('random');
 		expect(parseSort('nonsense')).toBe('recent');
 		expect(parseSort(null)).toBe('recent');
 	});

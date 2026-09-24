@@ -95,7 +95,24 @@ function toCard(row: CardRow): SeriesCard {
 	};
 }
 
-const ORDER: Record<Sort, string> = {
+/**
+ * RANDOM: a multiplicative hash of the id and the seed, so a seed is one fixed
+ * shuffle -- paging through it never repeats a card, and back finds it again.
+ * The seed is an integer parsed from the URL (parseSeed), never text.
+ */
+const randomOrder = (seed: number) => {
+	const k = Math.trunc(seed);
+	// Mixed, then squared, modulo a prime under 2^31: every step stays inside
+	// SQLite's 64-bit integers, and neighbouring ids and seeds land far apart.
+	// The seed is its own term, apart from the id: added to it, seed n + 1 would
+	// only be seed n's order shifted by one.
+	const h = `((s.id * 1103515245 + ${k} * 40503 + 12345) % 2147483647)`;
+	return `((${h} * ${h}) % 2147483647), s.id`;
+};
+
+const orderOf = (sort: Sort, seed = 1) => (sort === 'random' ? randomOrder(seed) : ORDER[sort]);
+
+const ORDER: Record<Exclude<Sort, 'random'>, string> = {
 	recent: `t.last_opened DESC NULLS LAST, s.added_at DESC, s.id DESC`,
 	title: `s.title COLLATE NOCASE ASC, s.id ASC`,
 	rating: `s.rating DESC, s.title COLLATE NOCASE ASC, s.id ASC`,
@@ -176,10 +193,12 @@ function listWhere(opts: ListOpts): { sql: string; params: unknown[] } {
  * grid loads a page at a time as it scrolls (doc/LIBRARY.md, "Pages"). With
  * no limit, all of them.
  */
-export function listSeries(opts: ListOpts & { limit?: number; offset?: number }): SeriesCard[] {
+export function listSeries(
+	opts: ListOpts & { limit?: number; offset?: number; seed?: number }
+): SeriesCard[] {
 	const where = listWhere(opts);
 	const rows = getDb()
-		.prepare(cardQuery(where.sql, ORDER[opts.sort ?? 'recent'], 'LIMIT ? OFFSET ?'))
+		.prepare(cardQuery(where.sql, orderOf(opts.sort ?? 'recent', opts.seed), 'LIMIT ? OFFSET ?'))
 		// SQLite reads a negative LIMIT as none.
 		.all(...where.params, opts.limit ?? -1, opts.offset ?? 0) as CardRow[];
 	return rows.map(toCard);

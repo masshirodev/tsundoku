@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { backLink } from '$lib/back';
 	import { enhance } from '$app/forms';
 	import { beforeNavigate, goto, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -26,7 +27,7 @@
 	import { hueFor } from '$lib/library/cover';
 	import { desktop, phone, wide } from '$lib/device.svelte';
 	import { offline } from '$lib/offline.svelte';
-	import { continueSub, count, nextSort, progress, SORT_LABEL } from '$lib/library/labels';
+	import { continueSub, count, newSeed, nextSort, progress, SORT_LABEL } from '$lib/library/labels';
 	import { coverSrc, readHref, seriesHref, shelfHref, withParam } from '$lib/library/links';
 	import type { Rating, SeriesCard, Shelf } from '$lib/library/types';
 	import { pageQuery } from '$lib/library/paging';
@@ -62,13 +63,15 @@
 	 */
 	let ended = $state(false);
 	const hasMore = $derived(!ended && data.shelf !== 'cached' && series.length < data.total);
-	const listKey = $derived(`${data.shelf}|${data.tag ?? ''}|${data.sort}|${data.reveal}`);
+	const listKey = $derived(
+		`${data.shelf}|${data.tag ?? ''}|${data.sort}|${data.seed}|${data.reveal}`
+	);
 	let shownKey = '';
 
 	async function fetchPage(offset: number, limit: number): Promise<SeriesCard[] | null> {
 		try {
 			const res = await fetch(
-				`/api/library?${pageQuery({ shelf: data.shelf, tag: data.tag, sort: data.sort, offset, limit })}`
+				`/api/library?${pageQuery({ shelf: data.shelf, tag: data.tag, sort: data.sort, seed: data.seed, offset, limit })}`
 			);
 			if (!res.ok) return null;
 			return ((await res.json()) as { series: SeriesCard[] }).series;
@@ -437,8 +440,14 @@
 	const gb = (bytes: number) => (bytes / 1e9).toFixed(1).replace(/\.0$/, '');
 
 	function sortNext() {
+		const next = nextSort(data.sort);
+		const url = new URL(page.url);
+		url.searchParams.set('sort', next);
+		// RANDOM shuffles anew each time it's chosen; the other orders need no seed.
+		if (next === 'random') url.searchParams.set('seed', String(newSeed()));
+		else url.searchParams.delete('seed');
 		// eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam() resolves
-		void goto(withParam(page.url, 'sort', nextSort(data.sort)), {
+		void goto(withParam(url, 'sort', next), {
 			noScroll: true,
 			keepFocus: true
 		});
@@ -465,7 +474,7 @@
 	{:else if data.person}
 		<TopBar sticky label="Library">
 			{#snippet left()}
-				<a class="cell-btn back" href={resolve('/')} aria-label="Back to library">←</a>
+				<a class="cell-btn back" href={resolve('/')} aria-label="Back to library" use:backLink>←</a>
 			{/snippet}
 			{#snippet middle()}
 				<div class="tag-title">

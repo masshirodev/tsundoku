@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { backLink } from '$lib/back';
 	import { onMount, tick, untrack } from 'svelte';
 	import type { PageData } from './$types';
 	import { MediaQuery } from 'svelte/reactivity';
@@ -744,7 +745,7 @@
 			<div class="mt">{data.entry.name} IS NOT DOWNLOADED</div>
 			<div class="md">IT WAS READ ONLINE, OR ISN'T COPIED OVER YET</div>
 			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved above -->
-			<a href={seriesHref}>← SERIES</a>
+			<a href={seriesHref} use:backLink>← SERIES</a>
 		</div>
 	{:else if mode === 'vertical'}
 		{#key stripSession}

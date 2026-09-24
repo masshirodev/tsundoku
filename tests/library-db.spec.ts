@@ -195,13 +195,28 @@ describe('the DOWNLOADED shelf', () => {
 
 describe('pages of a shelf', () => {
 	it('page through the same list the whole shelf is, without gaps or repeats', () => {
-		for (const sort of ['recent', 'title', 'rating', 'added'] as const) {
+		for (const sort of ['recent', 'title', 'rating', 'added', 'random'] as const) {
 			const whole = lib.listSeries({ reveal: true, sort }).map((c) => c.id);
 			const paged: number[] = [];
 			for (let offset = 0; offset < whole.length; offset += 7)
 				paged.push(...lib.listSeries({ reveal: true, sort, limit: 7, offset }).map((c) => c.id));
 			expect(paged).toEqual(whole);
 		}
+	});
+
+	it('RANDOM is one shuffle per seed: the same every time, another with another seed', () => {
+		const ids = (seed: number) =>
+			lib.listSeries({ reveal: false, sort: 'random', seed }).map((c) => c.id);
+		const byTitle = lib.listSeries({ reveal: false, sort: 'title' }).map((c) => c.id);
+		expect(ids(42)).toEqual(ids(42));
+		expect(ids(42)).not.toEqual(ids(43));
+		expect([...ids(42)].sort()).toEqual([...byTitle].sort());
+		expect(ids(42)).not.toEqual(byTitle);
+		// Paged with a seed, as the grid asks for it: the same cards, in order.
+		const paged = [0, 5, 10, 15, 20, 25].flatMap((offset) =>
+			lib.listSeries({ reveal: false, sort: 'random', seed: 42, limit: 5, offset }).map((c) => c.id)
+		);
+		expect(paged).toEqual(ids(42));
 	});
 
 	it('count and list ids for exactly what the shelf shows, hidden left out', () => {

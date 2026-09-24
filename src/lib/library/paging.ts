@@ -23,6 +23,8 @@ export function pageQuery(o: {
 	shelf: string;
 	tag: string | null;
 	sort: string;
+	/** RANDOM's shuffle. */
+	seed?: number;
 	offset: number;
 	limit: number;
 }): string {
@@ -33,5 +35,6 @@ export function pageQuery(o: {
 		limit: String(o.limit)
 	});
 	if (o.tag) q.set('tag', o.tag);
+	if (o.sort === 'random' && o.seed) q.set('seed', String(o.seed));
 	return q.toString();
 }

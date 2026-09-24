@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { isRevealed } from '$lib/server/prefs';
 import { listSeries, listedIds } from '$lib/server/library';
-import { parseSort } from '$lib/library/labels';
+import { parseSeed, parseSort } from '$lib/library/labels';
 import { GRID_MAX, GRID_PAGE } from '$lib/library/paging';
 
 /**
@@ -25,5 +25,6 @@ export const GET: RequestHandler = ({ url, cookies }) => {
 	};
 	const limit = Math.min(whole(url.searchParams.get('limit'), GRID_PAGE), GRID_MAX);
 	const offset = whole(url.searchParams.get('offset'), 0);
-	return json({ series: listSeries({ ...opts, limit, offset }) }, { headers });
+	const seed = parseSeed(url.searchParams.get('seed'));
+	return json({ series: listSeries({ ...opts, limit, offset, seed }) }, { headers });
 };

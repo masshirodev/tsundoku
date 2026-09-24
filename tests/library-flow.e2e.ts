@@ -305,3 +305,63 @@ test('the sync timer’s scan: behind the session, and says where it looked', as
 	expect(out.status()).toBe(401);
 	await stranger.close();
 });
+
+test('the app’s own ← buttons come back to the shelf, the order, the pages and the place', async ({
+	page
+}) => {
+	await page
+		.context()
+		.addCookies([{ name: 'tsundoku_grid_page', value: '6', url: 'http://localhost' }]);
+	await page.setViewportSize({ width: 360, height: 640 });
+	await page.goto('/?shelf=downloaded&sort=title');
+	const tiles = page.locator('.grid .tile');
+	const more = page.locator('.more');
+	for (let i = 0; i < 20 && (await more.count()) > 0; i++) {
+		await more.scrollIntoViewIfNeeded({ timeout: 1000 }).catch(() => undefined);
+		await page.waitForTimeout(150);
+	}
+	const last = tiles.last();
+	const title = (await last.locator('.title').textContent())!.trim();
+	await last.scrollIntoViewIfNeeded();
+	const y = await page.evaluate(() => scrollY);
+	expect(y).toBeGreaterThan(400);
+
+	// Into the series, into the reader, and back out with the app's own buttons.
+	await last.click();
+	await page.waitForURL(/\/series\//);
+	await page.locator('a.cta').click();
+	await page.waitForURL(/\/read\//);
+	await page.waitForLoadState('networkidle');
+	const vp = page.viewportSize()!;
+	await page.touchscreen.tap(vp.width / 2, 30);
+	await page.getByRole('link', { name: 'Back to the series' }).click();
+	await page.waitForURL(/\/series\//);
+	await page.locator('a.cell.back').click();
+
+	await page.waitForURL(/\/\?/);
+	expect(page.url()).toMatch(/shelf=downloaded/);
+	expect(page.url()).toMatch(/sort=title/);
+	await expect(page.locator('.grid .tile', { hasText: title })).toBeAttached();
+	await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(y - 300);
+});
+
+test('RANDOM shuffles anew each time it’s chosen, and keeps its shuffle across tabs', async ({
+	page
+}) => {
+	await page.goto('/?shelf=all&sort=added');
+	await page.getByRole('button', { name: 'Change sort' }).click();
+	await expect(page).toHaveURL(/sort=random&seed=\d+|seed=\d+&sort=random|sort=random.*seed=\d+/);
+	await expect(page.getByRole('button', { name: 'Change sort' })).toHaveText('RANDOM');
+	const seed = new URL(page.url()).searchParams.get('seed');
+	const order = await page.locator('.grid .tile .title').allTextContents();
+	await page.reload();
+	expect(await page.locator('.grid .tile .title').allTextContents()).toEqual(order);
+	// Another tab keeps the shuffle; leaving RANDOM drops it.
+	await page
+		.getByRole('link', { name: /^DOWNLOADED/ })
+		.first()
+		.click();
+	await expect(page).toHaveURL(new RegExp(`seed=${seed}`));
+	await page.getByRole('button', { name: 'Change sort' }).click();
+	await expect(page).not.toHaveURL(/seed=/);
+});

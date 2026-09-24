@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { backLink } from '$lib/back';
 	import { chapterCells, scrubFill, scrubPage, type Mode } from '$lib/reader/reader';
 
 	/**
@@ -65,7 +66,7 @@
 
 <header class="top" aria-label="Reader">
 	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- backHref is resolved by the page -->
-	<a class="back" href={backHref} aria-label="Back to the series">←</a>
+	<a class="back" href={backHref} aria-label="Back to the series" use:backLink>←</a>
 	<div class="where">
 		<div class="title">{title}</div>
 		<div class="meta">{meta}</div>

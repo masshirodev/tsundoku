@@ -168,6 +168,22 @@ The end-to-end tests shrink the page with a `tsundoku_grid_page` cookie
 (`pageSizeOf`), so the seed's twenty-odd series make several pages. Nothing
 else sets it.
 
+## Random
+
+The sort label cycles RECENTLY READ → A–Z → RATING → RECENTLY ADDED →
+**RANDOM**. RANDOM is a shuffle kept in the URL (`sort=random&seed=…`):
+
+- the database orders by a hash of the series id and the seed
+  (`randomOrder`, `src/lib/server/library.ts`), so one seed is one fixed order.
+  Pages never repeat a card, a reload shows the same order, and going back
+  finds it again;
+- choosing RANDOM again (going round the cycle) picks a new seed, a new
+  shuffle;
+- another tab keeps the shuffle; leaving RANDOM drops the seed.
+
+The seed only ever reaches SQL as an integer (`parseSeed`). Going back to a
+screen as it was left is [`NAVIGATION.md`](NAVIGATION.md).
+
 ## The top bar stays
 
 On a phone and the tablet, the bar with the name, `/ search` and SELECT

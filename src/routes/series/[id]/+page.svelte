@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { backLink } from '$lib/back';
 	import { enhance } from '$app/forms';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { tick } from 'svelte';
@@ -249,7 +250,7 @@
 	{:else}
 		<header class="bar" class:compact={!ctaVisible} aria-label="Series">
 			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- data.back.href is a library URL built on the server -->
-			<a class="cell back" href={data.back.href}>
+			<a class="cell back" href={data.back.href} use:backLink>
 				<span class="arrow">←</span>
 				<span class="back-label">{data.back.label.toUpperCase()}</span>
 			</a>

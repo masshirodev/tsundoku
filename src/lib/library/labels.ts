@@ -48,15 +48,16 @@ export function sheetMeta(item: SeriesCard): string {
 	return parts.join(' · ');
 }
 
-export type Sort = 'recent' | 'title' | 'rating' | 'added';
+export type Sort = 'recent' | 'title' | 'rating' | 'added' | 'random';
 
-export const SORTS: readonly Sort[] = ['recent', 'title', 'rating', 'added'];
+export const SORTS: readonly Sort[] = ['recent', 'title', 'rating', 'added', 'random'];
 
 export const SORT_LABEL: Record<Sort, string> = {
 	recent: 'RECENTLY READ ↓',
 	title: 'A–Z ↓',
 	rating: 'RATING ↓',
-	added: 'RECENTLY ADDED ↓'
+	added: 'RECENTLY ADDED ↓',
+	random: 'RANDOM'
 };
 
 export function nextSort(sort: Sort): Sort {
@@ -66,3 +67,16 @@ export function nextSort(sort: Sort): Sort {
 export function parseSort(raw: string | null): Sort {
 	return SORTS.includes(raw as Sort) ? (raw as Sort) : 'recent';
 }
+
+/**
+ * RANDOM's shuffle, from the URL (doc/LIBRARY.md, "Random"): the same seed is
+ * the same order, so pages never overlap and back comes back to it. Any
+ * other value is 1.
+ */
+export function parseSeed(raw: string | null): number {
+	const n = Number(raw);
+	return Number.isInteger(n) && n > 0 && n < 2 ** 31 ? n : 1;
+}
+
+/** A new shuffle, each time RANDOM is chosen. */
+export const newSeed = () => 1 + Math.floor(Math.random() * (2 ** 31 - 2));
