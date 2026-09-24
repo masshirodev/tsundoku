@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 	import type { PageData } from './$types';
 	import { MediaQuery } from 'svelte/reactivity';
-	import { beforeNavigate, goto, replaceState } from '$app/navigation';
+	import { afterNavigate, beforeNavigate, goto, replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page as appPage } from '$app/state';
 	import { offline } from '$lib/offline.svelte';
@@ -20,7 +20,9 @@
 		tapAction,
 		type Fit,
 		type Mode,
-		type Page
+		type Page,
+		stripWindow,
+		type StripChapter
 	} from '$lib/reader/reader';
 	import PageImage from './PageImage.svelte';
 	import Chrome from './Chrome.svelte';
@@ -118,8 +120,6 @@
 	let atEnd = $state(false);
 	let chrome = $state(false);
 	let sheet = $state(false);
-	/** Vertical: where the next chapter's first page sat when the reader crossed into it. */
-	let crossOffset = $state(0);
 
 	// A new entry (or the first): start where the server says.
 	let shown = 0;
@@ -199,10 +199,9 @@
 					: 'chapter'
 	);
 
-	function continueOn(offset = 0) {
+	function continueOn() {
 		if (endVariant !== 'chapter' || !data.next) return;
 		markFinished();
-		crossOffset = offset;
 		void goto(resolve('/read/[entry]', { entry: String(data.next.id) }), {
 			replaceState: true,
 			noScroll: true
@@ -290,27 +289,149 @@
 		if (to?.route.id !== '/read/[entry]') void send('close', group[0]);
 	});
 
-	// ---- the vertical strip's next chapter ----------------------------------------------
-	let nextPages = $state<Page[] | null>(null);
-	let nextVersion = $state('');
-	$effect(() => {
-		nextPages = null;
-		const n = data.next;
-		// Offline, a cached next chapter still loads: the service worker answers.
-		if (mode !== 'vertical' || !n?.available || (!offline.online && !nextCached)) return;
-		let cancelled = false;
-		void fetch(resolve('/api/entries/[id]/pages', { id: String(n.id) }))
-			.then((r) => (r.ok ? r.json() : null))
-			.then((m: { pages: Page[]; version: string } | null) => {
-				if (cancelled || !m) return;
-				nextPages = m.pages;
-				nextVersion = m.version;
-			})
-			.catch(() => undefined);
-		return () => {
-			cancelled = true;
-		};
+	// ---- the vertical strip -------------------------------------------------------------
+	// The strip holds the chapter being read and its neighbours, and reading
+	// carries on across a band in either direction (doc/READER.md, "Vertical").
+	// Crossing one moves the reader to that chapter with replaceState-like
+	// navigation, so the URL, the controls and progress follow; the strip
+	// itself stays, so nothing on screen moves.
+	let strip = $state<StripChapter[]>([]);
+	/** Bumped when the strip starts over: the chapter jumped to isn't on it. */
+	let stripSession = $state(0);
+	/** Set while a scroll across a band is navigating: the strip is already there. */
+	let crossing: number | null = null;
+
+	const chapterPosition = (id: number) =>
+		`${data.series.entries.findIndex((e) => e.id === id) + 1} OF ${data.series.count}`;
+	const isCached = (id: number) => (offline.entries[data.series.id] ?? []).includes(id);
+	/** A neighbour the strip can show: on disk, and reachable from here. */
+	const readable = (n: typeof data.next) =>
+		n?.available && (offline.online || isCached(n.id)) ? n : null;
+	const stripChapter = (
+		n: NonNullable<typeof data.next>,
+		pages: Page[] | null = null,
+		version = ''
+	): StripChapter => ({
+		id: n.id,
+		name: n.name,
+		title: n.title,
+		pageCount: n.pageCount,
+		position: chapterPosition(n.id),
+		cached: isCached(n.id),
+		pages,
+		version
 	});
+
+	/**
+	 * Change the strip without moving what's on screen. A chapter arriving or
+	 * leaving above the page being read would shove it down or up; the page
+	 * under the middle of the screen is put back where it was. By hand, since
+	 * the browser's scroll anchoring does nothing at the very top of a page.
+	 */
+	async function keepPlace(change: () => void) {
+		const anchor = document
+			.elementFromPoint(innerWidth / 2, innerHeight / 2)
+			?.closest<HTMLElement>('[data-role="page"], .band');
+		const before = anchor?.getBoundingClientRect().top;
+		change();
+		await tick();
+		if (anchor?.isConnected && before !== undefined)
+			window.scrollBy(0, anchor.getBoundingClientRect().top - before);
+	}
+
+	async function loadStripPages(id: number) {
+		try {
+			const r = await fetch(resolve('/api/entries/[id]/pages', { id: String(id) }));
+			const m = r.ok ? ((await r.json()) as { pages: Page[]; version: string }) : null;
+			if (!m) return;
+			void keepPlace(() => {
+				strip = strip.map((c) => (c.id === id ? { ...c, pages: m.pages, version: m.version } : c));
+			});
+		} catch {
+			// Offline and not kept: the band says LOADING, and the chapter opens from the controls.
+		}
+	}
+
+	$effect(() => {
+		if (mode !== 'vertical' || !data.manifest) return;
+		const id = data.entry.id;
+		untrack(() => {
+			const current = stripChapter(
+				{
+					id,
+					name: data.entry.name,
+					title: data.entry.title,
+					pageCount: pages.length,
+					available: true
+				},
+				pages,
+				data.manifest?.version ?? ''
+			);
+			const onStrip = strip.some((c) => c.id === id);
+			const scrolledHere = crossing === id;
+			crossing = null;
+			const prev = readable(data.prev);
+			const next = readable(data.next);
+			const held = stripWindow(
+				onStrip ? strip : [],
+				current,
+				prev && stripChapter(prev),
+				next && stripChapter(next)
+			);
+			if (!onStrip) {
+				// Opened here, or jumped to a chapter not on the strip: start over at it.
+				strip = held;
+				stripSession += 1;
+				placeAt = { id, page: at };
+				void tick().then(place);
+			} else {
+				void keepPlace(() => (strip = held));
+				// CH. → from the controls, to a neighbour already on the strip: go to it.
+				if (!scrolledHere) {
+					placeAt = { id, page: at };
+					void tick().then(place);
+				}
+			}
+			for (const c of held) if (!c.pages) void loadStripPages(c.id);
+		});
+	});
+
+	/**
+	 * Where the strip should open: a page's top at the top of the screen. Done
+	 * once the page is laid out, and again after SvelteKit's own scroll on
+	 * arrival, which would otherwise put it back at the top of the document.
+	 */
+	let placeAt: { id: number; page: number } | null = null;
+	function place() {
+		if (!placeAt) return;
+		document
+			.querySelector(`[data-entry="${placeAt.id}"][data-index="${placeAt.page}"]`)
+			?.scrollIntoView({ block: 'start' });
+	}
+	afterNavigate(() => {
+		place();
+		placeAt = null;
+	});
+
+	/** A page crossed the middle of the screen, maybe in another chapter. */
+	function stripPage(chapter: number, i: number) {
+		if (chapter === data.entry.id) {
+			at = i;
+			// A fast scroll can skip the end marker; the last page is enough.
+			if (i >= pages.length - 1) markFinished();
+			return;
+		}
+		if (crossing !== null) return;
+		// Onward past the band: the chapter just left is read.
+		if (chapter === data.next?.id) markFinished();
+		crossing = chapter;
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve()
+		void goto(`${resolve('/read/[entry]', { entry: String(chapter) })}?p=${i + 1}`, {
+			replaceState: true,
+			noScroll: true,
+			keepFocus: true
+		});
+	}
 
 	// ---- touch -----------------------------------------------------------------------------
 	let down: { x: number; y: number } | null = null;
@@ -444,25 +565,12 @@
 			<a href={seriesHref}>← SERIES</a>
 		</div>
 	{:else if mode === 'vertical'}
-		{#key data.entry.id}
+		{#key stripSession}
 			<Strip
-				{pages}
-				{src}
-				start={data.start}
-				offset={crossOffset}
-				ended="END · {data.entry.name}"
-				{position}
-				next={data.next?.available ? data.next : null}
-				{nextPages}
-				{nextCached}
-				nextSrc={(i) => (data.next ? pageSrc(data.next.id, nextVersion, i) : '')}
-				onpage={(i) => {
-					at = i;
-					// A fast scroll can skip the end marker; the last page is enough.
-					if (i >= pages.length - 1) markFinished();
-				}}
-				onend={markFinished}
-				oncross={(top) => continueOn(top)}
+				chapters={strip}
+				src={(c, i) => pageSrc(c.id, c.version, i)}
+				onpage={stripPage}
+				onend={(id) => id === data.entry.id && markFinished()}
 				ontap={() => (chrome = !chrome)}
 			/>
 		{/key}
@@ -561,7 +669,9 @@
 			onsheet={() => (sheet = true)}
 			onscrub={(p) =>
 				mode === 'vertical'
-					? document.querySelector(`[data-index="${p}"]`)?.scrollIntoView({ block: 'start' })
+					? document
+							.querySelector(`[data-entry="${data.entry.id}"][data-index="${p}"]`)
+							?.scrollIntoView({ block: 'start' })
 					: go(p)}
 			onchapter={chapter}
 			onshift={() => (shift = !shift)}

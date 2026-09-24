@@ -92,10 +92,8 @@ first page of a pair sits on the right, and the two meet at the gutter.
   arrow follows the direction), and going forward opens the next chapter.
   Going back from a chapter's first page opens the previous chapter at its
   last page.
-- **Vertical:** the strip carries on. A 320px band, ruled above and below,
-  names the two chapters, and the next chapter's pages follow. Once its first
-  page crosses the middle of the screen, the reader moves to it
-  (`replaceState`), keeping that page where it was on screen, so nothing jumps.
+- **Vertical:** the strip carries on, both ways, as in Mihon's webtoon
+  reader. See "Vertical", below.
 - **The end of what's available:** "END · LAST AVAILABLE", the series' title,
   and, only while the series is unrated, RATING and FAV. The rating prompt
   never interrupts twice.
@@ -103,6 +101,41 @@ first page of a pair sits on the right, and the two meet at the gutter.
   the boundary says so, "○ NOT DOWNLOADED", and doesn't pretend it opens.
 - **Offline:** "○ OFFLINE · CACHED STILL OPENS" and "○ NOT CACHED" on the next
   chapter.
+
+## Vertical
+
+The strip holds a **window of chapters**: the one being read, the one
+before it and the one after (`stripWindow`, `src/lib/reader/reader.ts`).
+Between each two is a 320px band, ruled above and below, naming the chapter
+that ended and the one that starts, with ↕ KEEP SCROLLING (↓ LOADING while
+its pages are on their way).
+
+- **Across a band, either way.** Once a page of another chapter crosses the
+  middle of the screen, the reader moves to that chapter: the URL, the
+  controls, the progress events and the rating follow (a navigation with
+  `replaceState` and `noScroll`). The strip stays as it is, so nothing on
+  screen moves. Going on past a band marks the chapter left as read. Going
+  back up past one goes back into the chapter before, still loaded, as Mihon
+  does. The old strip unloaded the chapter behind and locked the reader into
+  the next one.
+- **The window moves with the reader.** Arriving in a chapter loads its
+  neighbours (their manifests, then pages as they scroll in) and lets go of
+  anything further away.
+- **Nothing jumps.** A chapter arriving or leaving above the page being read
+  would shove it. `keepPlace` notes the page under the middle of the screen
+  first and puts it back after. It does this by hand: the browser's scroll
+  anchoring is off on the strip (`overflow-anchor: none`), since it does
+  nothing at the very top of a page and would otherwise do it twice.
+- **Opening** puts the page the reader resumes at at the top of the screen.
+  That happens after SvelteKit's own scroll on arrival (`afterNavigate`),
+  which used to put it back at the top of the document. So the strip used to
+  open a chapter on its first page, whatever its progress said.
+- **CH. ← / →** in the controls go to a neighbour already on the strip by
+  scrolling to it, and to anything else by starting the strip over there.
+- **The scrubber** moves within the chapter being read.
+
+Tested in `tests/reader-flow.e2e.ts`: across the band and back, and that
+nothing moves when chapters arrive above or when the reader crosses a band.
 
 ## Loading, failure, missing
 

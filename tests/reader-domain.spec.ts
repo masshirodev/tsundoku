@@ -11,6 +11,7 @@ import {
 	spreadOf,
 	spreads,
 	swipeAction,
+	stripWindow,
 	mouseAction,
 	tapAction
 } from '$lib/reader/reader';
@@ -145,5 +146,20 @@ describe('reading time', () => {
 		expect(c.lap(30_000 + 10 * 60_000)).toBe(IDLE_CAP_MS);
 		c.resume(10_000_000);
 		expect(c.lap(10_005_000)).toBe(5_000);
+	});
+});
+
+describe("the vertical strip's chapters", () => {
+	const ch = (id: number, loaded = false) => ({ id, loaded });
+	it('holds the chapter being read and its neighbours, keeping what it had loaded', () => {
+		const held = [ch(1, true), ch(2, true), ch(3, true)];
+		// Onward into 3: 1 goes, 2 and 3 stay as they were, 4 comes.
+		expect(stripWindow(held, ch(3), ch(2), ch(4))).toEqual([ch(2, true), ch(3, true), ch(4)]);
+		// Back into 1: 3 goes, 0 comes above.
+		expect(stripWindow(held, ch(1), ch(0), ch(2))).toEqual([ch(0), ch(1, true), ch(2, true)]);
+	});
+
+	it('has no neighbour where there is none to read', () => {
+		expect(stripWindow([], ch(5), null, null)).toEqual([ch(5)]);
 	});
 });

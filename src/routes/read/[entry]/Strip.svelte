@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { onMount, tick } from 'svelte';
+	import { onMount } from 'svelte';
 	import PageImage from './PageImage.svelte';
-	import type { Page } from '$lib/reader/reader';
+	import type { StripChapter } from '$lib/reader/reader';
 
 	/**
 	 * Vertical scroll (Index Reader, states vertical and endchV): pages
@@ -9,79 +9,51 @@
 	 * loads, so the strip never jumps. The current page is the one under the
 	 * middle of the screen.
 	 *
-	 * At the end, the strip carries on into the next chapter: a 320px band
-	 * ruled above and below names the chapter that ended and the one that
-	 * starts, then the next chapter's pages follow. Once its first page
-	 * reaches the top, the reader moves to it (`oncross`).
+	 * The strip holds a window of chapters, as Mihon's webtoon reader does:
+	 * the one being read and its neighbours, with a 320px band ruled above and
+	 * below between each two naming the chapter that ended and the one that
+	 * starts. Reading carries on across a band either way; the reader follows
+	 * (`onpage` names the chapter as well as the page), and the chapters on
+	 * the strip move with it (doc/READER.md, "Vertical").
 	 */
 	let {
-		pages,
+		chapters,
 		src,
-		start,
-		offset = 0,
-		ended,
-		position,
-		next,
-		nextPages,
-		nextCached = false,
-		nextSrc,
 		onpage,
-		oncross,
 		onend,
 		ontap
 	}: {
-		pages: Page[];
-		src: (i: number) => string;
-		start: number;
-		/** Where the start page's top sits on screen: kept across a crossing so nothing jumps. */
-		offset?: number;
-		/** "END · CH. 213" */
-		ended: string;
-		/** "213 OF 243" */
-		position: string;
-		next: { name: string; title: string; pageCount: number } | null;
-		/** The next chapter's pages once fetched; null until then, or when it can't be read. */
-		nextPages: Page[] | null;
-		nextCached?: boolean;
-		nextSrc: (i: number) => string;
-		onpage: (i: number) => void;
-		/** Called with the next chapter's first page's position on screen. */
-		oncross: (top: number) => void;
-		/** The strip's end came into view: the chapter is read. */
-		onend: () => void;
+		chapters: StripChapter[];
+		src: (c: StripChapter, i: number) => string;
+		/** A page crossed the middle of the screen: which chapter, which page. */
+		onpage: (chapter: number, i: number) => void;
+		/** A chapter's end came into view: it's read. */
+		onend: (chapter: number) => void;
 		ontap: () => void;
 	} = $props();
 
 	let root = $state<HTMLElement | null>(null);
 
 	onMount(() => {
-		let crossed = false;
-		const current = new IntersectionObserver(
+		const current_ = new IntersectionObserver(
 			(entries) => {
 				for (const e of entries) {
 					if (!e.isIntersecting) continue;
 					const el = e.target as HTMLElement;
-					if (el.dataset.role === 'page') onpage(Number(el.dataset.index));
-					else if (el.dataset.role === 'end') onend();
-					else if (el.dataset.role === 'next' && !crossed) {
-						crossed = true;
-						oncross(el.getBoundingClientRect().top);
-					}
+					const chapter = Number(el.dataset.entry);
+					if (el.dataset.role === 'page') onpage(chapter, Number(el.dataset.index));
+					else if (el.dataset.role === 'end') onend(chapter);
 				}
 			},
 			// A thin line across the middle of the screen: whatever crosses it is current.
 			{ rootMargin: '-50% 0px -50% 0px' }
 		);
-		const watch = () => root?.querySelectorAll('[data-role]').forEach((el) => current.observe(el));
+		const watch = () => root?.querySelectorAll('[data-role]').forEach((el) => current_.observe(el));
 		watch();
 		const later = new MutationObserver(watch);
 		if (root) later.observe(root, { childList: true, subtree: true });
-		void tick().then(() => {
-			const el = root?.querySelector<HTMLElement>(`[data-index="${start}"]`);
-			if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - offset });
-		});
 		return () => {
-			current.disconnect();
+			current_.disconnect();
 			later.disconnect();
 		};
 	});
@@ -90,32 +62,29 @@
 <!-- A tap anywhere shows the controls; scrolling is the only way to move. -->
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 <div class="strip" bind:this={root} onclick={ontap}>
-	{#each pages as p, i (src(i))}
-		<div data-role="page" data-index={i} class="slot">
-			<PageImage src={src(i)} number={i + 1} w={p.w} h={p.h} fit="strip" />
-		</div>
-	{/each}
-	<div data-role="end" class="marker"></div>
-
-	{#if next}
-		<section class="band" aria-label="Chapter boundary">
-			<div class="kicker"><span>{ended}</span><span>{position}</span></div>
-			<div class="rule"></div>
-			<div class="next">
-				<div class="kicker">NEXT</div>
-				<div class="name">{next.title || next.name}</div>
-				<div class="sub">{next.pageCount} PAGES{nextCached ? ' · ↓ CACHED' : ''}</div>
-			</div>
-			<div class="go">{nextPages ? '↓ KEEP SCROLLING' : '↓ LOADING'}</div>
-		</section>
-		{#if nextPages}
-			{#each nextPages as p, i (nextSrc(i))}
-				<div class="slot" data-role={i === 0 ? 'next' : undefined}>
-					<PageImage src={nextSrc(i)} number={i + 1} w={p.w} h={p.h} fit="strip" />
+	{#each chapters as c, k (c.id)}
+		{#if k > 0}
+			{@const ended = chapters[k - 1]}
+			<section class="band" aria-label="Chapter boundary" data-between="{ended.id}-{c.id}">
+				<div class="kicker"><span>END · {ended.name}</span><span>{ended.position}</span></div>
+				<div class="rule"></div>
+				<div class="next">
+					<div class="kicker">NEXT</div>
+					<div class="name">{c.title || c.name}</div>
+					<div class="sub">{c.pageCount} PAGES{c.cached ? ' · ↓ CACHED' : ''}</div>
+				</div>
+				<div class="go">{c.pages ? '↕ KEEP SCROLLING' : '↓ LOADING'}</div>
+			</section>
+		{/if}
+		{#if c.pages}
+			{#each c.pages as p, i (src(c, i))}
+				<div data-role="page" data-entry={c.id} data-index={i} class="slot">
+					<PageImage src={src(c, i)} number={i + 1} w={p.w} h={p.h} fit="strip" />
 				</div>
 			{/each}
+			<div data-role="end" data-entry={c.id} class="marker"></div>
 		{/if}
-	{/if}
+	{/each}
 </div>
 
 <style>
@@ -125,6 +94,12 @@
 		width: 100%;
 		max-width: 100vw;
 		margin: 0 auto;
+		/* The reader keeps the place itself as chapters come and go above it
+		   (ImageReader's keepPlace); the browser's anchoring would do it twice. */
+		overflow-anchor: none;
+	}
+	:global(html:has(.strip)) {
+		overflow-anchor: none;
 	}
 	.slot {
 		display: flex;

@@ -159,11 +159,75 @@ test('vertical scroll: pages stitched, a ruled band, then the next chapter', asy
 	await readerReady(page);
 	await page.waitForLoadState('networkidle');
 	const before = page.url().replace(/\?.*$/, '');
+	const first = before.match(/\/read\/(\d+)/)![1];
 	await expect(page.locator('.strip')).toBeVisible();
-	await page.evaluate(() => document.querySelector('.band')?.scrollIntoView({ block: 'center' }));
-	await expect(page.getByText('↓ KEEP SCROLLING')).toBeVisible();
+	// The band into the next chapter: the last one, since the previous chapter may sit above.
+	const band = page.locator(`.band[data-between^="${first}-"]`);
+	await band.evaluate((b) => b.scrollIntoView({ block: 'center' }));
+	await expect(band.getByText('↕ KEEP SCROLLING')).toBeVisible();
 	for (let i = 0; i < 10; i++) await page.mouse.wheel(0, 400);
 	await expect(page).not.toHaveURL(new RegExp(`^${before}(\\?|$)`), { timeout: 5000 });
+
+	// Like Mihon: the chapter just left is still there, and scrolling back up
+	// past the band goes back into it.
+	await expect(page.locator(`[data-entry="${first}"][data-role="page"]`).first()).toBeAttached();
+	for (let i = 0; i < 12; i++) await page.mouse.wheel(0, -400);
+	await expect(page).toHaveURL(new RegExp(`/read/${first}\\?`), { timeout: 5000 });
+});
+
+test('vertical: nothing moves when chapters arrive above, or when the reader crosses a band', async ({
+	page
+}) => {
+	await seriesId(page, 'The Greatest Estate Developer');
+	await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.click();
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	const first = page.url().match(/\/read\/(\d+)/)![1];
+	const topOf = (sel: string) =>
+		page
+			.locator(sel)
+			.first()
+			.evaluate((e) => Math.round(e.getBoundingClientRect().top));
+	// Opened where it was left, with the previous chapter loaded above it
+	// since: that page of this chapter still starts at the top, not a band's
+	// height or a chapter's height away.
+	await expect(page.locator(`[data-entry="${first}"][data-index="0"]`)).toBeAttached();
+	await expect(page.locator(`.band[data-between$="-${first}"]`)).toBeAttached();
+	await expect(
+		page.locator(`[data-role="page"]:not([data-entry="${first}"])`).first()
+	).toBeAttached();
+	const atTop = await page.evaluate(() => {
+		const el = document.elementFromPoint(innerWidth / 2, 2)?.closest<HTMLElement>('[data-role]');
+		return (
+			el && {
+				entry: el.dataset.entry,
+				index: el.dataset.index,
+				top: Math.round(el.getBoundingClientRect().top)
+			}
+		);
+	});
+	expect(atTop).toMatchObject({ entry: first });
+	expect(Math.abs(atTop!.top)).toBeLessThan(4);
+
+	// Put the next chapter's first page just over the middle line, and let the
+	// reader cross into it and reshape the strip.
+	const nextId = await page
+		.locator(`.band[data-between^="${first}-"]`)
+		.getAttribute('data-between')
+		.then((b) => b!.split('-')[1]);
+	const target = `[data-entry="${nextId}"][data-index="0"]`;
+	await page.locator(target).evaluate((e) => {
+		const y = innerHeight / 2 - 40;
+		scrollBy(0, e.getBoundingClientRect().top - y);
+	});
+	await expect(page).toHaveURL(new RegExp(`/read/${nextId}\\?`));
+	await page.waitForLoadState('networkidle');
+	await expect.poll(() => topOf(target)).toBeGreaterThan(0);
+	const vh = page.viewportSize()!.height;
+	expect(Math.abs((await topOf(target)) - (vh / 2 - 40))).toBeLessThan(4);
 });
 
 test('the end of the series asks for a rating while unrated, and it saves', async ({ page }) => {

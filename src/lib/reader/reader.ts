@@ -220,3 +220,36 @@ export class ProgressClock {
 		this.last = now;
 	}
 }
+
+/**
+ * A chapter on the vertical strip (doc/READER.md, "Vertical"): the strip holds
+ * the one being read and its neighbours, as Mihon's webtoon reader does.
+ */
+export type StripChapter = {
+	id: number;
+	name: string;
+	title: string;
+	pageCount: number;
+	/** "213 OF 243" */
+	position: string;
+	cached: boolean;
+	/** Null while its manifest is on its way. */
+	pages: Page[] | null;
+	version: string;
+};
+
+/**
+ * The strip's chapters once `current` is the one being read: it and its
+ * neighbours, in reading order. What the strip already holds is kept (its
+ * pages are loaded); a neighbour it doesn't hold yet comes as `make` builds it.
+ * Anything further away goes.
+ */
+export function stripWindow<C extends { id: number }>(
+	held: C[],
+	current: C,
+	prev: C | null,
+	next: C | null
+): C[] {
+	const keep = (c: C) => held.find((h) => h.id === c.id) ?? c;
+	return [...(prev ? [keep(prev)] : []), keep(current), ...(next ? [keep(next)] : [])];
+}
