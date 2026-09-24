@@ -10,6 +10,8 @@
 	import Band from '$lib/components/chrome/Band.svelte';
 	import PageMenu from '$lib/components/content/PageMenu.svelte';
 	import { bandFor, menuRows, type Automatic, type MenuRow } from '$lib/library/cover-menu';
+	import type { BookEditions } from '$lib/server/editions';
+	import { baseToEdition } from '$lib/library/editions';
 
 	/**
 	 * A doujin reads as a book, so its contents are its pages rather than a
@@ -22,7 +24,8 @@
 	let {
 		series,
 		book: only,
-		cover
+		cover,
+		editions = null
 	}: {
 		series: SeriesPage;
 		book?: SeriesEntry | null;
@@ -32,20 +35,49 @@
 			automatic: Automatic;
 			files: number[];
 		};
+		/** A folded book (doc/EDITIONS.md): the grid is the opening edition's pages. */
+		editions?: BookEditions | null;
 	} = $props();
 
-	/** A one-book doujin shows its book; a book of a series is passed in. */
-	const book = $derived(only ?? series.entries[0]);
+	const opening = $derived(
+		editions && !only ? (editions.editions.find((e) => e.entryId === editions.opens) ?? null) : null
+	);
+	/**
+	 * A one-book doujin shows its book; a book of a series is passed in. A
+	 * folded book shows the edition it opens in, at the book's place in it.
+	 */
+	const book = $derived.by(() => {
+		const b = only ?? series.entries[0];
+		if (!b || !opening || opening.base) return b;
+		return {
+			...b,
+			id: opening.entryId,
+			pageCount: opening.pages,
+			coverPage: null,
+			lastPosition:
+				b.lastPosition === null ? null : baseToEdition(opening.rows, b.lastPosition).page
+		};
+	});
+	/** Pages only the shown edition has: "29 · EN ONLY". */
+	const onlyHere = $derived(new Set(opening?.only ?? []));
 	const pages = $derived(book?.pageCount ?? 0);
 	const current = $derived(book && book.readAt === null ? (entryProgress(book)?.page ?? 0) : 0);
 	const countLabel = $derived(
 		!book
 			? '0'
-			: book.readAt !== null
-				? `${pages} · READ`
-				: current > 0
-					? `${pages} · LAST OPENED P. ${current}`
-					: String(pages)
+			: opening
+				? [
+						pages,
+						opening.code,
+						book.readAt !== null ? 'READ' : current > 0 ? `AT P. ${current}` : ''
+					]
+						.filter(Boolean)
+						.join(' · ')
+				: book.readAt !== null
+					? `${pages} · READ`
+					: current > 0
+						? `${pages} · LAST OPENED P. ${current}`
+						: String(pages)
 	);
 
 	// ---- the page menu (Page Menu 1i): long-press a cell ----------------------------------
@@ -152,13 +184,17 @@
 						href={readHref(book.id, n)}
 						aria-label="Read from page {n}"
 						use:longpress={() => {
+							// An edition's page isn't a cover the book can wear (doc/EDITIONS.md).
+							if (opening && !opening.base) return;
 							const cell = document.querySelector(`[data-cell="${i}"]`);
 							if (cell) menu = { page: i, rect: cell.getBoundingClientRect() };
 						}}
 					></a>
 					<!-- eslint-enable svelte/no-navigation-without-resolve -->
 				{/if}
-				<span class="n">{n}</span>
+				<span class="n" class:only={onlyHere.has(n)}
+					>{onlyHere.has(n) ? `${n} · ${opening?.code} ONLY` : n}</span
+				>
 			</li>
 		{/each}
 	</ol>
@@ -260,6 +296,9 @@
 		color: var(--on-accent);
 		font: 500 12px/1 var(--font-mono);
 		pointer-events: none;
+	}
+	.n.only {
+		color: var(--accent);
 	}
 	.current .n {
 		background: var(--accent);

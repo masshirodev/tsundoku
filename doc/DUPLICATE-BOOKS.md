@@ -87,6 +87,12 @@ the owner is ("12 OF 98").
 - **Actions:** KEEP BOTH, GROUP AS A SERIES (absent when both books are
   already in series of books), SKIP, and KEEP A or B. A fold: KEEP APART,
   SKIP, FOLD INTO ONE BOOK.
+- **A book folded already** (Pair Review 3b) and a new language: SAME BOOK ·
+  A THIRD LANGUAGE, with KEEP APART, SKIP and ADD AS A THIRD LANGUAGE.
+- **Part of a bigger book** (3c): two languages where the longer has many
+  pages the shorter's don't match (fewer than 6 in 10). The shorter is one
+  story in a collection, so nothing folds: KEEP APART or SKIP only. The line
+  says where the story sits in the collection.
 
 ### Deciding
 
@@ -102,7 +108,7 @@ of this visit's queue and comes up again next time.
 | KEEP BOTH         | Nothing. The pair is never offered again, even after a rescan.                                                                                                                                                                                                                     |
 | GROUP AS A SERIES | The two become a series of books through the grouping that exists ([`BOOKS.md`](BOOKS.md)), named by their titles' shared start. A book already in a series brings the other into it.                                                                                              |
 | KEEP APART        | As KEEP BOTH, for a fold.                                                                                                                                                                                                                                                          |
-| FOLD              | Recorded, and the pair leaves the review; see "Not yet".                                                                                                                                                                                                                           |
+| FOLD              | The two become one book in two languages ([`EDITIONS.md`](EDITIONS.md)): the folded side, else A, is the base. The band offers OPEN →, which carries it out now and opens the book.                                                                                                |
 
 ## The ways in
 
@@ -133,17 +139,17 @@ that's all of them.
   books**: they can't become one without taking one apart.
 - **The phone heading** says DUPLICATES and the actions set in 12px under
   600px, as the mock's phone frame does; the switch is a width, not a device.
-- **The fold's detail line** names the two languages; the mock's "OPENS IN
-  ENGLISH, THE ONE LAST READ" describes the folded book, which isn't built.
+- **The fold's detail line** names the two languages and says nothing is
+  deleted.
 
 ## Not yet
 
-- **FOLD INTO ONE BOOK is recorded but not carried out.** The handoff drew the
-  offer, not the folded book: its tile, its screen's language choice, and the
-  reader's switch to the same page in the other language. Card c60 ("Book
-  editions: fold two languages into one book") holds it, and it wants its own
-  design round. Until then a folded pair stays as two books, out of the review,
-  and its decision waits (`applied_at` NULL).
+- ~~FOLD INTO ONE BOOK is recorded but not carried out.~~ Done in card c60
+  ("Book editions: fold two languages into one book"): [`EDITIONS.md`](EDITIONS.md).
+  Folds recorded before it are carried out on the next decision or library
+  load, as any pending decision is.
+- **FOLD AS LANGUAGES from the library's selection** brings in pairs the
+  covers didn't find ([`EDITIONS.md`](EDITIONS.md), "The screens").
 - **Books Hentoid didn't hash** (Mihon's local books, and a few others: 2,929
   of 6,998) are never compared. Hashing their covers here (`imageHash` does
   it) would bring them in.

@@ -56,7 +56,7 @@ export function historyDays(
 				MIN(e.position) AS firstPos, MAX(e.position) AS lastPos,
 				s.title, s.kind, s.hue, s.status,
 				s.cover_at AS cover,
-				(SELECT COUNT(*) FROM entries x WHERE x.series_id = s.id) AS entryCount
+				(SELECT COUNT(*) FROM entries x WHERE x.edition_of IS NULL AND x.series_id = s.id) AS entryCount
 			${scope('JOIN entries e ON e.id = re.entry_id')} AND ${DAY} >= @oldest
 			GROUP BY re.series_id, day
 			ORDER BY day DESC, lastAt DESC`
@@ -77,8 +77,8 @@ export function historyDays(
 
 	const entryAt = db.prepare(
 		`SELECT e.id, e.label, e.page_count AS pageCount,
-			(SELECT COUNT(*) FROM entries x WHERE x.series_id = e.series_id AND x.position <= e.position) AS rank
-		FROM entries e WHERE e.series_id = ? AND e.position = ?`
+			(SELECT COUNT(*) FROM entries x WHERE x.edition_of IS NULL AND x.series_id = e.series_id AND x.position <= e.position) AS rank
+		FROM entries e WHERE e.series_id = ? AND e.position = ? AND e.edition_of IS NULL`
 	);
 	const lastSeen = db.prepare(
 		`SELECT

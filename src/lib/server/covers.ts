@@ -10,6 +10,8 @@ import { SAMPLE_PREFIX } from './pages/sample.ts';
 import { readEpub } from './import/epub.ts';
 import { bookCoverVersion } from '../library/cover.ts';
 import { listZip, readMember } from './zip.ts';
+import { getSetting } from './settings.ts';
+import { openingEdition } from '../library/editions.ts';
 
 /**
  * Covers (doc/COVERS.md). One thumbnail per series, made once and kept on the
@@ -187,6 +189,58 @@ function firstBookSource(s: SeriesRow): Source | null {
 }
 
 /**
+ * A book folded from several languages (doc/EDITIONS.md) wears the cover of
+ * the edition it opens in: that edition's Hentoid thumbnail, or its first
+ * page. Null when it opens in its own, base, edition: the usual chain covers it.
+ */
+function editionSource(s: SeriesRow): Source | null {
+	if (s.kind !== 'doujin' || !s.path || s.path.startsWith(SAMPLE_PREFIX)) return null;
+	const db = getDb();
+	const eds = db
+		.prepare(
+			`SELECT id, file, cover_file, language, edition_of FROM entries WHERE series_id = ?
+			AND (shadowed = 0 OR edition_of IS NOT NULL) AND language IS NOT NULL ORDER BY edition_of IS NOT NULL, id`
+		)
+		.all(s.id) as {
+		id: number;
+		file: string;
+		cover_file: string | null;
+		language: string;
+		edition_of: number | null;
+	}[];
+	if (eds.length < 2 || !eds.some((e) => e.edition_of !== null)) return null;
+	const own = db
+		.prepare(`SELECT edition_lang, edition_read FROM series WHERE id = ?`)
+		.get(s.id) as {
+		edition_lang: string | null;
+		edition_read: string | null;
+	};
+	const pick = openingEdition(
+		eds.map((e) => ({
+			entryId: e.id,
+			language: e.language,
+			rows: [],
+			base: e.edition_of === null
+		})),
+		{ own: own.edition_lang, preferred: getSetting('edition_language'), lastRead: own.edition_read }
+	);
+	const e = eds.find((x) => x.id === pick.entryId)!;
+	if (e.edition_of === null) return null;
+	if (e.cover_file) {
+		const path = join(s.path, e.file, e.cover_file);
+		return { key: `edition:${e.id}:${path}`, read: () => readFile(path).catch(() => null) };
+	}
+	return {
+		key: `edition:${e.id}:p0`,
+		crop: true,
+		read: async () => {
+			const p = await readPage(e.id, 0, true);
+			return p ? bytesOf(p.body) : null;
+		}
+	};
+}
+
+/**
  * Where a series' cover comes from without a chosen page: what the page
  * menu's BACK TO AUTOMATIC would give. Only looks; reads nothing.
  */
@@ -303,8 +357,8 @@ export async function refreshCover(
 		return true;
 	};
 
-	// The owner's choice, then a series of books' first book, then the rest.
-	for (const source of [chosenSource(s), firstBookSource(s)]) {
+	// The owner's choice, then a folded book's opening edition, then a series of books' first book, then the rest.
+	for (const source of [chosenSource(s), editionSource(s), firstBookSource(s)]) {
 		if (!source) continue;
 		if (fresh(source.key)) return 'kept';
 		if (await make(source)) return 'made';

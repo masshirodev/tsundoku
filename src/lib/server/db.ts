@@ -447,6 +447,22 @@ const MIGRATIONS: string[] = [
 	`
 	ALTER TABLE series ADD COLUMN cover_entry INTEGER REFERENCES entries(id) ON DELETE SET NULL;
 	ALTER TABLE series ADD COLUMN cover_page INTEGER;
+	`,
+	// Rung 24: one book in several languages (doc/EDITIONS.md). An edition is
+	// an entry folded into another book's series: edition_of names the book's
+	// own entry (its base), it's shadowed so every list and count passes it by
+	// as it does a duplicate chapter, and edition_rows lines its pages up with
+	// the base's. series.edition_lang is a book's own choice of language
+	// (LANGUAGE on its screen), edition_read the one last read; settings holds
+	// the library's own preferences, the preferred language first.
+	`
+	ALTER TABLE entries ADD COLUMN edition_of INTEGER REFERENCES entries(id) ON DELETE SET NULL;
+	ALTER TABLE entries ADD COLUMN language TEXT;
+	ALTER TABLE entries ADD COLUMN edition_rows TEXT;
+	CREATE INDEX entries_edition ON entries(edition_of) WHERE edition_of IS NOT NULL;
+	ALTER TABLE series ADD COLUMN edition_lang TEXT;
+	ALTER TABLE series ADD COLUMN edition_read TEXT;
+	CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL) WITHOUT ROWID;
 	`
 ];
 

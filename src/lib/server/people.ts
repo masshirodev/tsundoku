@@ -39,11 +39,11 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 			`SELECT e.id AS entryId, s.id AS seriesId, e.title, s.title AS seriesTitle, e.rating, e.favourite,
 				${HIDDEN_SQL} AS hidden, e.page_count AS pages, e.read_at, e.last_position, e.position,
 				e.added_at AS addedAt, e.cover_page AS coverPage,
-				(SELECT COUNT(*) FROM entries x WHERE x.series_id = s.id) AS total
+				(SELECT COUNT(*) FROM entries x WHERE x.edition_of IS NULL AND x.series_id = s.id) AS total
 			FROM entry_tags et JOIN entries e ON e.id = et.entry_id
 			JOIN series s ON s.id = e.series_id JOIN roots r ON r.id = s.root_id
 			WHERE et.tag_id = ? AND ${where}
-			AND (SELECT COUNT(*) FROM entries x WHERE x.series_id = s.id) > 1`
+			AND (SELECT COUNT(*) FROM entries x WHERE x.edition_of IS NULL AND x.series_id = s.id) > 1`
 		)
 		.all(tag.id) as {
 		entryId: number;
@@ -68,14 +68,14 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 			`SELECT s.id AS seriesId, s.title, s.kind, COALESCE(s.rating, 0) AS rating, s.favourite,
 				${HIDDEN_SQL} AS hidden, s.added_at AS addedAt,
 				s.cover_at AS cover,
-				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) AS entries,
-				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.read_at IS NOT NULL) AS readCount,
-				(SELECT COALESCE(SUM(page_count), 0) FROM entries e WHERE e.series_id = s.id) AS pages,
-				(SELECT e.last_position FROM entries e WHERE e.series_id = s.id AND e.read_at IS NULL
+				(SELECT COUNT(*) FROM entries e WHERE e.edition_of IS NULL AND e.series_id = s.id) AS entries,
+				(SELECT COUNT(*) FROM entries e WHERE e.edition_of IS NULL AND e.series_id = s.id AND e.read_at IS NOT NULL) AS readCount,
+				(SELECT COALESCE(SUM(page_count), 0) FROM entries e WHERE e.edition_of IS NULL AND e.series_id = s.id) AS pages,
+				(SELECT e.last_position FROM entries e WHERE e.edition_of IS NULL AND e.series_id = s.id AND e.read_at IS NULL
 					AND e.last_opened_at IS NOT NULL ORDER BY e.last_opened_at DESC LIMIT 1) AS lastPosition
 			FROM series_tags st JOIN series s ON s.id = st.series_id JOIN roots r ON r.id = s.root_id
 			WHERE st.tag_id = ? AND ${where}
-			AND NOT (s.kind = 'doujin' AND (SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) > 1)`
+			AND NOT (s.kind = 'doujin' AND (SELECT COUNT(*) FROM entries e WHERE e.edition_of IS NULL AND e.series_id = s.id) > 1)`
 		)
 		.all(tag.id) as {
 		seriesId: number;
@@ -161,8 +161,8 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 			const s = db
 				.prepare(
 					`SELECT s.id, s.title, s.favourite, s.cover_at AS cover,
-						(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) AS books,
-						(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.read_at IS NOT NULL) AS read
+						(SELECT COUNT(*) FROM entries e WHERE e.edition_of IS NULL AND e.series_id = s.id) AS books,
+						(SELECT COUNT(*) FROM entries e WHERE e.edition_of IS NULL AND e.series_id = s.id AND e.read_at IS NOT NULL) AS read
 					FROM series s WHERE s.id = ?`
 				)
 				.get(b.seriesId) as {

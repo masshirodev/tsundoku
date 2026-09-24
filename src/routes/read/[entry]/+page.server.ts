@@ -9,6 +9,8 @@ import { automaticCover } from '$lib/server/covers';
 import { epubVersions } from '$lib/server/epub';
 import { effectiveDirection, isBookSeries } from '$lib/library/series';
 import { entryName, modeOf, spelledOut } from '$lib/reader/reader';
+import { bookEditions } from '$lib/server/editions';
+import { baseToEdition } from '$lib/library/editions';
 
 /**
  * The reader (doc/READER.md). `/read/<entry>?p=<page>`, `p` 1-based. With no
@@ -17,13 +19,44 @@ import { entryName, modeOf, spelledOut } from '$lib/reader/reader';
 export const load: PageServerLoad = async ({ params, url, cookies }) => {
 	const reveal = isRevealed(cookies);
 	const entryId = Number(params.entry);
-	const row = getDb().prepare(`SELECT series_id FROM entries WHERE id = ?`).get(entryId) as
-		{ series_id: number } | undefined;
+	const row = getDb()
+		.prepare(`SELECT series_id, edition_of, title, page_count FROM entries WHERE id = ?`)
+		.get(entryId) as
+		{ series_id: number; edition_of: number | null; title: string; page_count: number } | undefined;
 	// Hidden means hidden: a hidden series is the same 404 as a missing one.
 	const series = row ? seriesPage(row.series_id, reveal) : null;
 	if (!series) error(404, 'not found');
-	const index = series.entries.findIndex((e) => e.id === entryId);
-	const entry = series.entries[index];
+
+	// A folded book (doc/EDITIONS.md): one book, read in any of its languages.
+	const folded = series.kind === 'doujin' ? bookEditions(series.id) : null;
+	const p0 = url.searchParams.get('p');
+	if (folded && !row!.edition_of && !url.searchParams.has('ed') && folded.opens !== entryId) {
+		// The book itself opens in its opening edition, at the same page.
+		const to = folded.editions.find((e) => e.entryId === folded.opens)!;
+		const asked = Number(p0);
+		const q =
+			Number.isInteger(asked) && asked >= 1
+				? `?p=${baseToEdition(to.rows, asked - 1).page + 1}`
+				: '';
+		redirect(307, `/read/${to.entryId}${q}`);
+	}
+	const edition = folded?.editions.find((e) => e.entryId === entryId) ?? null;
+	const index = series.entries.findIndex((e) => e.id === (row!.edition_of ?? entryId));
+	const baseEntry = series.entries[index];
+	// An edition reads as the book: its own pages and title, the book's place in them.
+	const entry =
+		baseEntry && row!.edition_of && edition
+			? {
+					...baseEntry,
+					id: entryId,
+					title: row!.title,
+					pageCount: row!.page_count,
+					lastPosition:
+						baseEntry.lastPosition === null
+							? null
+							: baseToEdition(edition.rows, baseEntry.lastPosition).page
+				}
+			: baseEntry;
 	if (!entry) {
 		// A copy of a chapter another copy represents (doc/DUPLICATES.md): an
 		// old link, or a cached screen, opens the chapter it stands for.
@@ -102,7 +135,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		).map((r) => r.id)
 	);
 	const pages = m?.pages ?? [];
-	const p = url.searchParams.get('p');
+	const p = p0;
 	const asked = Number(p);
 	// `p=last`: stepping back from the next chapter's first page lands here.
 	const start =
@@ -118,7 +151,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		text: false as const,
 		series: {
 			id: series.id,
-			title: series.title,
+			title: edition?.title || series.title,
 			kind: series.kind,
 			rating: series.rating,
 			favourite: series.favourite,
@@ -165,6 +198,20 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		next: neighbour(index + 1),
 		/** Japanese: its pages get text blocks to look words up in (doc/JAPANESE.md). */
 		ocr: ocrStatus(series.id),
-		incognito: isIncognito(cookies)
+		incognito: isIncognito(cookies),
+		/** Its languages, for the switch in the top bar; null for a book in one. */
+		editions: folded
+			? {
+					current: entryId,
+					list: folded.editions.map((e) => ({
+						entryId: e.entryId,
+						code: e.code,
+						base: e.base,
+						pages: e.pages,
+						rows: e.rows,
+						title: e.title
+					}))
+				}
+			: null
 	};
 };

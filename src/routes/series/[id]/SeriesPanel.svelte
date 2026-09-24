@@ -23,6 +23,9 @@
 	import { resolve } from '$app/paths';
 	import { postAction, saves } from '$lib/saves.svelte';
 	import type { Rating } from '$lib/library/types';
+	import type { BookEditions } from '$lib/server/editions';
+	import { baseToEdition, langName } from '$lib/library/editions';
+	import UnfoldSheet from './UnfoldSheet.svelte';
 
 	/**
 	 * The series' metadata: a header that scrolls away in portrait, a 440px
@@ -44,7 +47,8 @@
 		outline = false,
 		ocr = null,
 		words = null,
-		twin = null
+		twin = null,
+		editions = null
 	}: {
 		series: SeriesPage;
 		shelves: Shelf[];
@@ -72,7 +76,40 @@
 		words?: { toReview: number; sent: number } | null;
 		/** A likely twin of a book here (doc/DUPLICATE-BOOKS.md): the SAME BOOK AS band. */
 		twin?: { key: string; title: string; conf: string; pages: string } | null;
+		/** One book in several languages (doc/EDITIONS.md): LANGUAGE, EDITIONS and FOLDED. */
+		editions?: BookEditions | null;
 	} = $props();
+
+	// ---- a folded book (Editions 1b, 1c) ---------------------------------------------------
+	/** The edition it opens in: its title leads, READ opens it, its pages are the grid. */
+	const opening = $derived(
+		editions ? (editions.editions.find((e) => e.entryId === editions.opens) ?? null) : null
+	);
+	/** Where the book is, in the opening edition's pages (0-based). */
+	const openingAt = $derived(
+		editions && opening && editions.at !== null
+			? opening.base
+				? editions.at
+				: baseToEdition(opening.rows, editions.at).page
+			: null
+	);
+	const sameSize = $derived(
+		!!editions &&
+			editions.editions[0].size !== '' &&
+			editions.editions.every((e) => e.size === editions.editions[0].size)
+	);
+	/** The language READ would open in without this book's own choice. */
+	const defaultLanguage = $derived(
+		editions
+			? editions.editions.some((e) => e.language === editions.preferred)
+				? editions.preferred
+				: (editions.lastRead ?? editions.editions[0].language)
+			: ''
+	);
+	const foldedOn = $derived(
+		editions?.folded ? new Date(editions.folded).toLocaleDateString('sv-SE') : null
+	);
+	let unfolding = $state(false);
 	const ocrRow = $derived(ocr ? ocrLines(ocr) : null);
 
 	// Rating and FAV show their new value at once and save behind it. A save
@@ -142,7 +179,18 @@
 	const noCover = $derived(series.kind === 'novel' && !series.cover);
 	let aboutOpen = $state(false);
 	/** Where the cover goes: the same place as ▶ CONTINUE, once it's known. */
-	const resumeHref = $derived(action.entry && !outline ? readHref(action.entry.id) : undefined);
+	const resumeHref = $derived(
+		opening && !outline
+			? readHref(opening.entryId)
+			: action.entry && !outline
+				? readHref(action.entry.id)
+				: undefined
+	);
+	const ctaLabel = $derived(
+		opening && editions && !editions.read && openingAt !== null
+			? `READ FROM P. ${openingAt + 1}`
+			: action.label
+	);
 </script>
 
 <section class="panel" aria-label="About this series">
@@ -171,12 +219,23 @@
 			{#if favourite}<Badge tone="accent" corner="top-right">FAV</Badge>{/if}
 		</svelte:element>
 		<div class="names">
-			<div class="meta">{outline ? series.kind.toUpperCase() : seriesMeta(series)}</div>
-			<h1>{series.title}</h1>
+			<div class="meta">
+				{outline
+					? series.kind.toUpperCase()
+					: editions
+						? `DOUJIN · ${editions.editions.length} LANGUAGES`
+						: seriesMeta(series)}
+			</div>
+			<h1>{opening?.title || series.title}</h1>
 			{#if outline}
 				<div class="out-lines" aria-hidden="true">
 					<i style:width="46%"></i><i style:width="62%"></i>
 				</div>
+			{:else if editions && opening}
+				<!-- The other editions' titles, each with its language. -->
+				{#each editions.editions.filter((e) => e !== opening) as e (e.entryId)}
+					<div class="alt ed-alt"><span class="ed-code">{e.code}</span><span>{e.title}</span></div>
+				{/each}
 			{:else}
 				{#each series.altTitles as alt (alt)}<div class="alt">{alt}</div>{/each}
 			{/if}
@@ -217,21 +276,21 @@
 	</div>
 
 	<!-- eslint-disable svelte/no-navigation-without-resolve -- readHref() resolves -->
-	<a
-		class="cta"
-		bind:this={cta}
-		href={action.entry && !outline ? readHref(action.entry.id) : undefined}
-		aria-disabled={!action.entry || outline}
-	>
-		<span>▶ {outline ? 'CONTINUE' : action.label}</span>
+	<a class="cta" bind:this={cta} href={resumeHref} aria-disabled={!resumeHref}>
+		<span>▶ {outline ? 'CONTINUE' : ctaLabel}</span>
 		{#if outline}
 			<i class="cta-out" aria-hidden="true"></i>
 		{:else}
 			<span class="cta-meta">
-				<span class="long"
-					>{action.meta}{series.kind === 'doujin' && cached > 0 ? ' · ↓ CACHED' : ''}</span
-				>
-				<span class="short">{action.short || action.meta}</span>
+				{#if opening}
+					<span class="long">{opening.code} · {opening.pages} PAGES</span>
+					<span class="short">{opening.code}</span>
+				{:else}
+					<span class="long"
+						>{action.meta}{series.kind === 'doujin' && cached > 0 ? ' · ↓ CACHED' : ''}</span
+					>
+					<span class="short">{action.short || action.meta}</span>
+				{/if}
 			</span>
 		{/if}
 	</a>
@@ -306,6 +365,35 @@
 				<a href="{resolve('/duplicates')}?pair={encodeURIComponent(twin.key)}">REVIEW →</a>
 			</div>
 		</div>
+	{/if}
+
+	{#if !outline && editions && opening}
+		<!-- LANGUAGE (Editions 1b): which edition it opens in. The default language clears the book's own choice. -->
+		<form method="POST" action="?/language" use:enhance class="row">
+			<div class="label">LANGUAGE</div>
+			<div class="seg">
+				{#each editions.editions as e (e.entryId)}
+					<button
+						type="submit"
+						name="language"
+						value={e.language === defaultLanguage ? '' : e.language}
+						class:on={e === opening}
+						aria-pressed={e === opening}
+						><span class="lg-long">{e.code} · {langName(e.language)}</span><span class="lg-short"
+							>{e.code}</span
+						></button
+					>
+				{/each}
+			</div>
+		</form>
+		{#if editions.own && editions.own !== defaultLanguage}
+			<form method="POST" action="?/language" use:enhance class="row panel-row override">
+				<div class="ov">
+					THIS BOOK OPENS IN {langName(editions.own)} · OTHERS IN {langName(editions.preferred)}
+				</div>
+				<button type="submit" name="language" value="" class="edit">RESET</button>
+			</form>
+		{/if}
 	{/if}
 
 	{#if !outline}
@@ -435,30 +523,89 @@
 			</div>
 		{/if}
 
-		<div class="row file-row">
-			<div class="label">FILE</div>
-			<div class="file">
-				{#if series.path}<div class="path">{series.path}</div>{/if}
-				<div class="file-meta">
-					{fileMeta(series.entries)}{series.kind !== 'doujin' && cached > 0
-						? ` · ↓ ${cached} CACHED`
-						: ''}
+		{#if editions && opening}
+			<!-- EDITIONS (Editions 1b): each language's copy, what only it has, and where it is. -->
+			<div class="row top">
+				<div class="label">EDITIONS</div>
+				<div class="eds">
+					{#each editions.editions as e (e.entryId)}
+						<div class="ed">
+							<div class="ed-cell" class:on={e === opening}>{e.code}</div>
+							<div class="ed-text">
+								<div class="ed-line">
+									{[e.site.toUpperCase(), `${e.pages} PAGES`, sameSize ? '' : e.size]
+										.filter(Boolean)
+										.join(' · ')}
+								</div>
+								<div class="ed-note" class:only={e.only.length > 0}>
+									{e.only.length
+										? `P. ${e.only.join(', ')} · ONLY IN ${e.code}`
+										: 'EVERY PAGE MATCHED'}
+								</div>
+								<div class="path">{e.file}</div>
+							</div>
+						</div>
+					{/each}
+					{#if sameSize}<div class="ed-shared">
+							EVERY EDITION · {editions.editions[0].size}
+						</div>{/if}
 				</div>
 			</div>
-			{#if isBookSeries(series) || isVolumeSeries(series)}
-				<!-- Every book (or volume) back out on its own; the series goes. -->
-				<form method="POST" action="?/ungroup" class="hide-form">
-					<button type="submit" class="edit">UNGROUP</button>
+			<div class="row file-row">
+				<div class="label">FOLDED</div>
+				<div class="file">{foldedOn ? `${foldedOn} · ` : ''}FROM THE DUPLICATES REVIEW</div>
+				<button type="button" class="edit" onclick={() => (unfolding = true)}>UNFOLD</button>
+				<form method="POST" action="?/hide" use:enhance class="hide-form">
+					<input type="hidden" name="on" value={series.hidden ? '0' : '1'} />
+					<button type="submit" class="edit">{series.hidden ? 'UNHIDE' : 'HIDE'}</button>
 				</form>
-			{/if}
-			<form method="POST" action="?/hide" use:enhance class="hide-form">
-				<input type="hidden" name="on" value={series.hidden ? '0' : '1'} />
-				<button type="submit" class="edit">{series.hidden ? 'UNHIDE' : 'HIDE'}</button>
-			</form>
-			<button type="button" class="edit" onclick={ondelete}>DELETE</button>
-		</div>
+			</div>
+		{:else}
+			<div class="row file-row">
+				<div class="label">FILE</div>
+				<div class="file">
+					{#if series.path}<div class="path">{series.path}</div>{/if}
+					<div class="file-meta">
+						{fileMeta(series.entries)}{series.kind !== 'doujin' && cached > 0
+							? ` · ↓ ${cached} CACHED`
+							: ''}
+					</div>
+				</div>
+				{#if isBookSeries(series) || isVolumeSeries(series)}
+					<!-- Every book (or volume) back out on its own; the series goes. -->
+					<form method="POST" action="?/ungroup" class="hide-form">
+						<button type="submit" class="edit">UNGROUP</button>
+					</form>
+				{/if}
+				<form method="POST" action="?/hide" use:enhance class="hide-form">
+					<input type="hidden" name="on" value={series.hidden ? '0' : '1'} />
+					<button type="submit" class="edit">{series.hidden ? 'UNHIDE' : 'HIDE'}</button>
+				</form>
+				<button type="button" class="edit" onclick={ondelete}>DELETE</button>
+			</div>
+		{/if}
 	{/if}
 </section>
+
+{#if editions}
+	<UnfoldSheet
+		open={unfolding}
+		lines={editions.editions.map((e) => ({
+			code: e.code,
+			title: e.title,
+			detail: [
+				editions.read
+					? 'READ'
+					: editions.at === null
+						? `${e.pages} PAGES`
+						: `P. ${(e.base ? editions.at : baseToEdition(e.rows, editions.at).page) + 1} OF ${e.pages}`,
+				`RATING ${series.rating}`,
+				`${series.collections.length} SHEL${series.collections.length === 1 ? 'F' : 'VES'}`
+			].join(' · ')
+		}))}
+		onclose={() => (unfolding = false)}
+	/>
+{/if}
 
 <style>
 	/* Waiting: what isn't known yet, as flat grey bars (Loading States 1g). */
@@ -682,10 +829,12 @@
 		display: none;
 	}
 	@media (max-width: 599px) {
-		.cta-meta .long {
+		.cta-meta .long,
+		.lg-long {
 			display: none;
 		}
-		.cta-meta .short {
+		.cta-meta .short,
+		.lg-short {
 			display: inline;
 		}
 	}
@@ -1024,6 +1173,78 @@
 	}
 	.file-row {
 		min-height: 64px;
+	}
+	.ed-alt {
+		display: flex;
+		align-items: baseline;
+		gap: 10px;
+	}
+	.ed-code {
+		flex-shrink: 0;
+		font: 500 12px var(--font-mono);
+		letter-spacing: var(--tracking-label);
+	}
+	.lg-short {
+		display: none;
+	}
+	.override {
+		min-height: 48px;
+	}
+	.ov {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		align-items: center;
+		padding: 0 var(--pad);
+		font: 400 13px/1.3 var(--font-mono);
+		color: var(--text-2);
+	}
+	.eds {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+	}
+	.ed {
+		display: flex;
+		align-items: stretch;
+		border-bottom: 1px solid var(--line-subtle);
+	}
+	.ed-cell {
+		width: 56px;
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-right: 1px solid var(--line-subtle);
+		font: 500 14px var(--font-mono);
+	}
+	.ed-cell.on {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+	}
+	.ed-text {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		padding: 10px 14px;
+		font: 400 12px/1.3 var(--font-mono);
+		color: var(--text-2);
+	}
+	.ed-line {
+		font-size: 13px;
+		font-weight: 500;
+		color: var(--text-1);
+	}
+	.ed-note.only {
+		color: var(--accent);
+	}
+	.ed-shared {
+		padding: 12px 14px;
+		font: 400 12px var(--font-mono);
+		color: var(--text-2);
 	}
 	.file {
 		flex: 1;

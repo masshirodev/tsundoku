@@ -32,6 +32,7 @@
 		selected = false,
 		dimmed = false,
 		indexing = false,
+		languages = [],
 		onpress,
 		onlongpress,
 		onfavourite,
@@ -49,6 +50,8 @@
 		selected?: boolean;
 		dimmed?: boolean;
 		indexing?: boolean;
+		/** A folded book's languages, the one it opens in first (doc/EDITIONS.md). */
+		languages?: string[];
 		onpress?: () => void;
 		onlongpress?: () => void;
 		onfavourite?: (on: boolean) => void;
@@ -157,7 +160,9 @@
 				{#if favourite && !(editable && onfavourite)}
 					<Badge tone="accent" corner="top-right">FAV</Badge>
 				{/if}
-				{#if newCount > 0}<Badge corner="bottom-left">+{newCount}</Badge>{/if}
+				{#if newCount > 0}<Badge corner="bottom-left">+{newCount}</Badge>
+				{:else if languages.length > 1}<Badge corner="bottom-left">{languages.join(' · ')}</Badge
+					>{/if}
 				{#if cached != null}<Badge tone="inverse" corner="bottom-right">↓ {cached}</Badge>{/if}
 				{#if selectable}
 					<span class="check" class:on={selected} aria-hidden="true">{selected ? '✓' : ''}</span>

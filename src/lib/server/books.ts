@@ -46,12 +46,17 @@ function seriesRow(db: Database.Database, id: number): SeriesRow | undefined {
 
 function entryIdsOf(db: Database.Database, seriesId: number): number[] {
 	return (
-		db
-			.prepare(`SELECT id FROM entries WHERE series_id = ? ORDER BY position, id`)
-			.all(seriesId) as {
-			id: number;
-		}[]
-	).map((r) => r.id);
+		(
+			db
+				// An edition isn't a book of the series (doc/EDITIONS.md): it's its base's.
+				.prepare(
+					`SELECT id FROM entries WHERE series_id = ? AND edition_of IS NULL ORDER BY position, id`
+				)
+				.all(seriesId) as {
+				id: number;
+			}[]
+		).map((r) => r.id)
+	);
 }
 
 export class GroupingError extends Error {}
@@ -796,6 +801,224 @@ export function removeBookTag(
 					t.id
 				);
 			return true;
+		})
+		.immediate();
+}
+
+// ---- one book in several languages (doc/EDITIONS.md) ------------------------------
+
+export class EditionError extends Error {}
+
+type EditionRow = {
+	id: number;
+	series_id: number;
+	title: string;
+	page_count: number;
+	language: string | null;
+	edition_rows: string | null;
+	read_at: number | null;
+	last_position: number | null;
+	last_opened_at: number | null;
+};
+
+/** A single doujin's language, from its `language:` tag. */
+function languageOfSeries(db: Database.Database, seriesId: number): string | null {
+	return (
+		(
+			db
+				.prepare(
+					`SELECT t.value FROM series_tags st JOIN tags t ON t.id = st.tag_id
+					WHERE st.series_id = ? AND t.namespace = 'language' AND t.value NOT IN ('translated', 'rewrite')
+					ORDER BY t.value LIMIT 1`
+				)
+				.get(seriesId) as { value: string } | undefined
+		)?.value ?? null
+	);
+}
+
+/**
+ * FOLD: other single books become editions of `baseSeries`' book (a single
+ * doujin, folded already or not). Each edition's entry moves into the book's
+ * series, shadowed so it's no book of its own, with its language and its
+ * pages lined up with the book's (`rowsOf`, from the duplicates review). The
+ * book takes over what the others had: the higher rating, FAV, their shelves
+ * and tags, the further page. Their series go; nothing on disk moves.
+ */
+export function foldEditions(
+	baseSeries: number,
+	others: number[],
+	rowsOf: (otherEntry: number) => { a: number | null; b: number | null }[],
+	now = Date.now()
+): number[] {
+	const db = getDb();
+	return db
+		.transaction((): number[] => {
+			const base = seriesRow(db, baseSeries);
+			if (!base || base.kind !== 'doujin') throw new EditionError('no such book');
+			const [baseEntry] = entryIdsOf(db, baseSeries);
+			if (!baseEntry || entryIdsOf(db, baseSeries).length !== 1)
+				throw new EditionError('only a single book folds: this is a series of books');
+			const baseLang = db.prepare(`SELECT language FROM entries WHERE id = ?`).get(baseEntry) as {
+				language: string | null;
+			};
+			const langs = new Set(
+				(
+					db
+						.prepare(
+							`SELECT language FROM entries WHERE (id = ? OR edition_of = ?) AND language IS NOT NULL`
+						)
+						.all(baseEntry, baseEntry) as { language: string }[]
+				).map((r) => r.language)
+			);
+			if (!baseLang.language) {
+				const l = languageOfSeries(db, baseSeries);
+				if (!l) throw new EditionError('the book has no language tag');
+				db.prepare(`UPDATE entries SET language = ? WHERE id = ?`).run(l, baseEntry);
+				langs.add(l);
+			}
+			const position = (
+				db.prepare(`SELECT position FROM entries WHERE id = ?`).get(baseEntry) as {
+					position: number;
+				}
+			).position;
+			const folded: number[] = [];
+			for (const id of others) {
+				const s = seriesRow(db, id);
+				const ids = s ? entryIdsOf(db, id) : [];
+				if (!s || s.kind !== 'doujin' || ids.length !== 1)
+					throw new EditionError('only single books fold into another');
+				if (!alike(db, [base.root_id, s.root_id])) throw new EditionError(MIXED);
+				const lang = languageOfSeries(db, id);
+				if (!lang) throw new EditionError('a book without a language tag can’t be an edition');
+				if (langs.has(lang))
+					throw new EditionError(`the book has a ${lang} edition already: that’s a duplicate`);
+				langs.add(lang);
+				const entry = ids[0];
+				// Its own title stays with it: the book's screen names every edition.
+				db.prepare(
+					`UPDATE entries SET title = CASE WHEN title = '' THEN ? ELSE title END WHERE id = ?`
+				).run(s.title, entry);
+				rehome(db, entry, id, baseSeries);
+				db.prepare(
+					`UPDATE entries SET series_id = ?, position = ?, shadowed = 1, edition_of = ?,
+						language = ?, edition_rows = ?
+					WHERE id = ?`
+				).run(baseSeries, position, baseEntry, lang, JSON.stringify(rowsOf(entry)), entry);
+				// What the owner did with it: kept by the book.
+				db.prepare(
+					`UPDATE series SET rating = MAX(COALESCE(rating, 0), ?), favourite = MAX(favourite, ?) WHERE id = ?`
+				).run(s.rating, s.favourite, baseSeries);
+				db.prepare(
+					`INSERT OR IGNORE INTO series_tags (series_id, tag_id) SELECT ?, tag_id FROM series_tags WHERE series_id = ?`
+				).run(baseSeries, id);
+				db.prepare(
+					`INSERT OR IGNORE INTO entry_tags (entry_id, tag_id) SELECT ?, tag_id FROM series_tags WHERE series_id = ?`
+				).run(entry, id);
+				db.prepare(
+					`INSERT OR IGNORE INTO collection_series (collection_id, series_id)
+					SELECT collection_id, ? FROM collection_series WHERE series_id = ?`
+				).run(baseSeries, id);
+				db.prepare(`UPDATE reading_events SET series_id = ? WHERE series_id = ?`).run(
+					baseSeries,
+					id
+				);
+				db.prepare(`DELETE FROM series WHERE id = ?`).run(id);
+				folded.push(entry);
+			}
+			void now;
+			return folded;
+		})
+		.immediate();
+}
+
+/** A folded book's editions, the book's own entry first. */
+export function editionsOf(seriesId: number): EditionRow[] {
+	const db = getDb();
+	const [base] = entryIdsOf(db, seriesId);
+	if (base === undefined) return [];
+	return db
+		.prepare(
+			`SELECT id, series_id, title, page_count, language, edition_rows, read_at, last_position, last_opened_at
+			FROM entries WHERE id = ? OR edition_of = ? ORDER BY edition_of IS NOT NULL, id`
+		)
+		.all(base, base) as EditionRow[];
+}
+
+/**
+ * UNFOLD: each edition becomes a single book again, with the book's rating,
+ * FAV and shelves, its own language, and the book's progress matched to its
+ * own pages (`toEdition`). Nothing on disk moves; the duplicates review won't
+ * offer the pair again. Returns the new series.
+ */
+export function unfoldEditions(
+	seriesId: number,
+	toEdition: (rows: { a: number | null; b: number | null }[], basePage: number) => number,
+	now = Date.now()
+): number[] {
+	const db = getDb();
+	return db
+		.transaction((): number[] => {
+			const base = seriesRow(db, seriesId);
+			const eds = editionsOf(seriesId);
+			if (!base || eds.length < 2) throw new EditionError('not a folded book');
+			const [own, ...rest] = eds;
+			const created: number[] = [];
+			for (const e of rest) {
+				const single = Number(
+					db
+						.prepare(
+							`INSERT INTO series (root_id, title, kind, rating, favourite, hidden, public, hue, added_at, indexed_at, source, path)
+							SELECT root_id, ?, 'doujin', rating, favourite, hidden, public, ?, added_at, ?, source, path
+							FROM series WHERE id = ?`
+						)
+						.run(e.title || base.title, hueFor(e.title || base.title), now, seriesId)
+						.lastInsertRowid
+				);
+				const rows = JSON.parse(e.edition_rows ?? '[]') as { a: number | null; b: number | null }[];
+				const page = own.last_position === null ? null : toEdition(rows, own.last_position);
+				db.prepare(
+					`UPDATE entries SET series_id = ?, position = 1, shadowed = 0, edition_of = NULL,
+						edition_rows = NULL, read_at = ?, last_position = ?, last_opened_at = ?
+					WHERE id = ?`
+				).run(single, own.read_at, own.read_at === null ? page : null, own.last_opened_at, e.id);
+				// Its tags back from the book: everything but the book's other languages.
+				db.prepare(
+					`INSERT OR IGNORE INTO series_tags (series_id, tag_id)
+					SELECT ?, st.tag_id FROM series_tags st JOIN tags t ON t.id = st.tag_id
+					WHERE st.series_id = ? AND t.namespace != 'language'`
+				).run(single, seriesId);
+				db.prepare(
+					`INSERT OR IGNORE INTO series_tags (series_id, tag_id)
+					SELECT ?, id FROM tags WHERE namespace = 'language' AND value = ?`
+				).run(single, e.language);
+				db.prepare(
+					`DELETE FROM series_tags WHERE series_id = ? AND tag_id =
+					(SELECT id FROM tags WHERE namespace = 'language' AND value = ?)`
+				).run(seriesId, e.language);
+				db.prepare(
+					`INSERT OR IGNORE INTO collection_series (collection_id, series_id)
+					SELECT collection_id, ? FROM collection_series WHERE series_id = ?`
+				).run(single, seriesId);
+				db.prepare(`UPDATE reading_events SET series_id = ? WHERE entry_id = ?`).run(single, e.id);
+				created.push(single);
+				// The pair is settled: the duplicates review won't offer it again.
+				db.prepare(
+					`INSERT OR REPLACE INTO dupe_decisions (pair, decision, keep, at, applied_at)
+					VALUES (?, 'apart', NULL, ?, ?)`
+				).run(own.id < e.id ? `${own.id},${e.id}` : `${e.id},${own.id}`, now, now);
+			}
+			// And from each other: three languages unfold into three books, none offered again.
+			for (const x of rest)
+				for (const y of rest)
+					if (x.id < y.id)
+						db.prepare(
+							`INSERT OR REPLACE INTO dupe_decisions (pair, decision, keep, at, applied_at)
+							VALUES (?, 'apart', NULL, ?, ?)`
+						).run(`${x.id},${y.id}`, now, now);
+			db.prepare(`UPDATE series SET edition_lang = NULL, edition_read = NULL WHERE id = ?`).run(
+				seriesId
+			);
+			return created;
 		})
 		.immediate();
 }

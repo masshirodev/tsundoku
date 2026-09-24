@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3';
 import { hueFor } from '../library/cover.ts';
 import { SAMPLE_PREFIX } from './pages/sample.ts';
-import { groupIntoSeries } from './books.ts';
+import { foldEditions, groupIntoSeries } from './books.ts';
 import type { Kind, Rating } from '$lib/library/types';
 
 /**
@@ -422,12 +422,41 @@ export const BOOK_ROWS: Row[] = [
 	}
 ];
 export const BOOK_SERIES_TITLE = 'Kaori Mama';
+/**
+ * One book in two languages (doc/EDITIONS.md): downloaded twice, in English
+ * and in Japanese, and folded after seeding into the English one. The
+ * Japanese series is gone once folded; its entry is the book's edition.
+ */
+export const EDITION_ROWS: Row[] = [
+	{
+		title: 'Harbour Lights',
+		kind: 'doujin',
+		rating: 3,
+		favourite: false,
+		entries: 1,
+		read: 0,
+		openedAgo: 600,
+		lastPage: 13,
+		tags: ['circle:Minato Koubou', 'language:english']
+	},
+	{
+		title: '港の灯',
+		kind: 'doujin',
+		rating: 0,
+		favourite: false,
+		entries: 1,
+		read: 0,
+		openedAgo: null,
+		tags: ['circle:Minato Koubou', 'language:japanese']
+	}
+];
 /** Series in the hidden root once seeding has grouped the books. */
 export const HIDDEN_TITLES = [
 	...HIDDEN_ROWS.map((r) => r.title),
 	BOOK_SERIES_TITLE,
 	BOOK_ROWS[4].title,
-	BOOK_ROWS[5].title
+	BOOK_ROWS[5].title,
+	EDITION_ROWS[0].title
 ];
 
 export function seedSample(db: Database.Database, now = Date.now()): void {
@@ -542,6 +571,9 @@ export function seedSample(db: Database.Database, now = Date.now()): void {
 		SAMPLE_ROWS.forEach((row, i) => add(main, row, i));
 		HIDDEN_ROWS.forEach((row, i) => add(hentoid, row, i + SAMPLE_ROWS.length));
 		BOOK_ROWS.forEach((row, i) => add(hentoid, row, i + SAMPLE_ROWS.length + HIDDEN_ROWS.length));
+		EDITION_ROWS.forEach((row, i) =>
+			add(hentoid, row, i + SAMPLE_ROWS.length + HIDDEN_ROWS.length + BOOK_ROWS.length)
+		);
 	}).immediate();
 
 	// Group the first four books, the way the owner would by hand.
@@ -552,6 +584,11 @@ export function seedSample(db: Database.Database, now = Date.now()): void {
 		name: BOOK_SERIES_TITLE,
 		now
 	});
+
+	// Fold the Japanese download into the English one: every page matched.
+	foldEditions(idOf(EDITION_ROWS[0].title), [idOf(EDITION_ROWS[1].title)], () =>
+		Array.from({ length: PAGES.doujin }, (_, i) => ({ a: i + 1, b: i + 1 }))
+	);
 
 	// Duplicate books (doc/DUPLICATE-BOOKS.md): Rakugaki and its [Digital]
 	// twin share a cover hash and every page's, and the pair is found already,

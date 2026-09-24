@@ -34,6 +34,13 @@ export type SeriesCard = {
 	/** False while the scanner has found the series but not yet indexed it. */
 	indexed: boolean;
 	addedAt: number;
+	/**
+	 * A book folded from several languages (doc/EDITIONS.md): their codes,
+	 * the one it opens in first ("EN · JA"). Absent for any other.
+	 */
+	languages?: string[];
+	/** Its `language:` tag (one, not "translated"): what FOLD AS LANGUAGES reads. */
+	language?: string | null;
 };
 
 export type ContinueItem = SeriesCard & {

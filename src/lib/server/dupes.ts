@@ -10,6 +10,7 @@ import { readPageThumb } from './covers.ts';
 const deleting = () => import('./delete.ts');
 const grouping = () => import('./books.ts');
 import { sharedStart } from '../library/books.ts';
+import { langCode, partOfBigger } from '../library/editions.ts';
 import {
 	candidatePairs,
 	confidence,
@@ -71,7 +72,7 @@ function copyOf(entryId: number, size: [number, number] = [0, 0]): Copy | null {
 				e.read_at, e.last_position, e.rating AS erating, e.favourite AS efav,
 				s.rating AS srating, s.favourite AS sfav, NOT ${VISIBLE_SQL} AS hidden, e.position,
 				(SELECT COUNT(*) FROM entries x WHERE x.series_id = s.id AND x.shadowed = 0) AS books,
-				${TAG('language')} AS language, ${TAG('source')} AS site
+				COALESCE(e.language, ${TAG('language')}) AS language, ${TAG('source')} AS site
 			FROM entries e JOIN series s ON s.id = e.series_id JOIN roots r ON r.id = s.root_id
 			WHERE e.id = ?`
 		)
@@ -211,7 +212,11 @@ export async function findDuplicates(
 		)
 	);
 	const keep = new Set(found.map((p) => pairKey(p.a, p.b)));
-	for (const r of db.prepare(`SELECT a, b FROM dupe_pairs`).all() as { a: number; b: number }[])
+	// A pair the owner asked for (FOLD AS LANGUAGES, bits -1) stays until it's settled.
+	for (const r of db.prepare(`SELECT a, b FROM dupe_pairs WHERE bits >= 0`).all() as {
+		a: number;
+		b: number;
+	}[])
 		if (!keep.has(pairKey(r.a, r.b)))
 			db.prepare(`DELETE FROM dupe_pairs WHERE a = ? AND b = ?`).run(r.a, r.b);
 	let hashed = 0;
@@ -256,6 +261,39 @@ export async function findDuplicates(
 	return { pairs: found.length, hashed };
 }
 
+/**
+ * FOLD AS LANGUAGES, from the library's selection (doc/EDITIONS.md): books
+ * the covers didn't pair, offered to the review as if they had. Their pages
+ * are hashed and lined up with the first's; a pair already settled is asked
+ * again, since the owner asked. Stored with bits -1: first in the review, and
+ * kept by the next import's pass, which drops pairs the covers no longer make.
+ * Returns the first pair's key, or null when
+ * the pages don't match (they aren't one book).
+ */
+export async function offerFold(entryIds: number[], now = Date.now()): Promise<string | null> {
+	const db = getDb();
+	const [first, ...rest] = entryIds;
+	let key: string | null = null;
+	for (const other of rest) {
+		const [a, b] = first < other ? [first, other] : [other, first];
+		const [ha, hb] = [await pageHashes(a), await pageHashes(b)];
+		const rows = matchPages(ha, hb);
+		if (!sameBook(rows, ha.length, hb.length)) continue;
+		for (const [id, n] of [
+			[a, ha.length],
+			[b, hb.length]
+		] as const)
+			for (let i = 0; i < n; i++) await readPageThumb(id, i, true);
+		const stored: Stored = { rows, sizes: { [a]: await pageSize(a), [b]: await pageSize(b) } };
+		db.prepare(
+			`INSERT OR REPLACE INTO dupe_pairs (a, b, bits, rows, found_at) VALUES (?, ?, -1, ?, ?)`
+		).run(a, b, JSON.stringify(stored), now);
+		db.prepare(`DELETE FROM dupe_decisions WHERE pair = ?`).run(pairKey(a, b));
+		key ??= pairKey(a, b);
+	}
+	return key;
+}
+
 // ---- the review -------------------------------------------------------------------------
 
 export type Pair = {
@@ -268,7 +306,24 @@ export type Pair = {
 	/** The pick, for a duplicate; null for a fold, where nothing goes. */
 	pick: Pick | null;
 	bits: number;
+	/**
+	 * A fold where one side is a folded book already: its languages' codes
+	 * ("EN · JA"), and the offer is ADD AS A THIRD LANGUAGE (Pair Review 3b).
+	 */
+	folded: { side: 'a' | 'b'; codes: string[] } | null;
+	/** A fold that's part of a bigger book (3c): no FOLD, only KEEP APART or SKIP. */
+	part: boolean;
 };
+
+/** A book's editions' languages, when it's folded: ["EN", "JA"]. */
+function foldedCodes(entryId: number): string[] | null {
+	const rows = getDb()
+		.prepare(
+			`SELECT language FROM entries WHERE (id = ? OR edition_of = ?) AND language IS NOT NULL ORDER BY edition_of IS NOT NULL, id`
+		)
+		.all(entryId, entryId) as { language: string }[];
+	return rows.length > 1 ? rows.map((r) => langCode(r.language)) : null;
+}
 
 /**
  * The pairs to review, closest first: none decided, both books still there
@@ -295,6 +350,8 @@ export function reviewQueue(reveal: boolean): Pair[] {
 		if (!reveal && (a.hidden || b.hidden)) continue;
 		if (!sameBook(stored.rows, a.pages, b.pages)) continue;
 		const kind = kindOf(a, b);
+		const fa = foldedCodes(r.a);
+		const fb = foldedCodes(r.b);
 		out.push({
 			key: pairKey(r.a, r.b),
 			kind,
@@ -303,7 +360,9 @@ export function reviewQueue(reveal: boolean): Pair[] {
 			b,
 			rows: stored.rows,
 			pick: kind === 'dup' ? pick(a, b, stored.rows) : null,
-			bits: r.bits
+			bits: r.bits,
+			folded: fa ? { side: 'a', codes: fa } : fb ? { side: 'b', codes: fb } : null,
+			part: kind === 'fold' && partOfBigger(stored.rows, a.pages, b.pages)
 		});
 	}
 	return out;
@@ -356,12 +415,12 @@ export async function applyPending(now = Date.now()): Promise<number> {
 	let n = 0;
 	for (const d of waiting) {
 		const [a, b] = d.pair.split(',').map(Number);
-		if (d.decision === 'fold') continue; // Waits for editions (doc/DUPLICATE-BOOKS.md, "Not yet").
 		try {
 			if (d.decision === 'keep' && d.keep) await keepOne(d.keep, d.keep === a ? b : a, now);
 			if (d.decision === 'group') await group(a, b, now);
+			if (d.decision === 'fold') await fold(a, b);
 		} catch {
-			// A book gone since, or a grouping refused: the decision stands, nothing more to do.
+			// A book gone since, or a grouping or fold refused: the decision stands, nothing more to do.
 		}
 		db.prepare(`UPDATE dupe_decisions SET applied_at = ? WHERE pair = ?`).run(now, d.pair);
 		n += 1;
@@ -446,6 +505,30 @@ async function keepOne(keepId: number, loseId: number, now: number): Promise<voi
 	const { deleteBook, deleteSeries } = await deleting();
 	if (loser.n <= 1) await deleteSeries([loser.series_id], true, now);
 	else await deleteBook(loser.series_id, loseId, true, now);
+}
+
+/**
+ * FOLD INTO ONE BOOK (doc/EDITIONS.md): the two, or a folded book and a new
+ * language, become one book. The folded side, if there is one, is the base;
+ * otherwise A. Its pages are lined up with the other's as the pair was.
+ */
+async function fold(a: number, b: number): Promise<void> {
+	const db = getDb();
+	const stored = db.prepare(`SELECT rows FROM dupe_pairs WHERE a = ? AND b = ?`).get(a, b) as
+		{ rows: string } | undefined;
+	if (!stored) return;
+	const rows = (JSON.parse(stored.rows) as Stored).rows;
+	const baseIsB = foldedCodes(b) !== null && foldedCodes(a) === null;
+	const [base, other] = baseIsB ? [b, a] : [a, b];
+	const lined = baseIsB ? rows.map((r) => ({ a: r.b, b: r.a })) : rows;
+	const seriesOf = (id: number) =>
+		(db.prepare(`SELECT series_id FROM entries WHERE id = ?`).get(id) as { series_id: number })
+			.series_id;
+	const { foldEditions } = await grouping();
+	const book = seriesOf(base);
+	foldEditions(book, [seriesOf(other)], () => lined);
+	// Its tile wears the opening edition's cover (doc/EDITIONS.md); off the decision.
+	void import('./covers.ts').then((c) => c.refreshSeriesCover(book)).catch(() => undefined);
 }
 
 /**

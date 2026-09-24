@@ -369,6 +369,7 @@
 					ocr={data.ocr}
 					twin={data.twin}
 					words={data.words}
+					editions={data.editions}
 				/>
 			</div>
 		{/if}
@@ -385,7 +386,7 @@
 					onorder={startOrder}
 				/>
 			{:else if doujin}
-				<PageGrid {series} cover={data.cover} />
+				<PageGrid {series} cover={data.cover} editions={data.editions} />
 			{:else}
 				<EntryList
 					{series}

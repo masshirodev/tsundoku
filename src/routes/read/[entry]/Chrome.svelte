@@ -28,7 +28,9 @@
 		onscrub,
 		onchapter,
 		onshift,
-		noText = null
+		noText = null,
+		languages = [],
+		onlanguage
 	}: {
 		title: string;
 		meta: string;
@@ -55,6 +57,9 @@
 		 * series' chapters read so far. Dashed, as what isn't stored yet is.
 		 */
 		noText?: { done: number; total: number } | null;
+		/** A folded book's languages (doc/EDITIONS.md): one cell each, the one read inverted. */
+		languages?: { code: string; on: boolean; entryId: number }[];
+		onlanguage?: (entryId: number) => void;
 	} = $props();
 
 	const cells = $derived(chapterCells(mode, prev, next));
@@ -84,16 +89,32 @@
 			<div class="sub">OCR · {noText.done} OF {noText.total}</div>
 		</div>
 	{/if}
+	{#each languages as l (l.entryId)}
+		<button
+			type="button"
+			class="lang"
+			class:on={l.on}
+			aria-pressed={l.on}
+			aria-label="Read in {l.code}"
+			onclick={() => !l.on && onlanguage?.(l.entryId)}>{l.code}</button
+		>
+	{/each}
 	<button
 		type="button"
 		class="rating"
+		class:folded={languages.length > 1}
 		aria-label={rating ? `Rated ${rating} of 5 · reading settings` : 'Unrated · reading settings'}
 		onclick={onsheet}
 	>
 		{#each [1, 2, 3, 4, 5] as n (n)}<span class:on={n <= rating}></span>{/each}
 	</button>
-	<button type="button" class="fav" class:on={favourite} aria-pressed={favourite} onclick={onfav}
-		>FAV</button
+	<button
+		type="button"
+		class="fav"
+		class:folded={languages.length > 1}
+		class:on={favourite}
+		aria-pressed={favourite}
+		onclick={onfav}>FAV</button
 	>
 </header>
 
@@ -342,7 +363,25 @@
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
 	}
+	.lang {
+		width: 64px;
+		flex-shrink: 0;
+		border-left: var(--hairline);
+		font: 500 14px var(--font-mono);
+	}
+	.lang.on {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+	}
 	@media (max-width: 599px) {
+		.lang {
+			width: 52px;
+		}
+		/* The phone's bar gives the rating's and FAV's room to the languages (Editions 2e). */
+		.rating.folded,
+		.fav.folded {
+			display: none;
+		}
 		.cell {
 			padding: 0 14px;
 			font-size: 13px;

@@ -35,7 +35,10 @@ export function reconcileDuplicates(seriesIds?: number[], db: Database.Database 
 
 			// Whatever isn't in a group any more (a copy removed, a preference
 			// changed) comes back into view first.
-			db.prepare(`UPDATE entries SET shadowed = 0 WHERE shadowed = 1 ${only}`).run();
+			// An edition (doc/EDITIONS.md) is shadowed for another reason: it stays so.
+			db.prepare(
+				`UPDATE entries SET shadowed = 0 WHERE shadowed = 1 AND edition_of IS NULL ${only}`
+			).run();
 
 			const copiesOf = db.prepare(
 				`SELECT id, available, scanlator, read_at, last_opened_at, last_position

@@ -33,7 +33,8 @@
 		place,
 		start = null,
 		onclose,
-		onnottext
+		onnottext,
+		other = null
 	}: {
 		/** The block's or paragraph's text. */
 		text: string;
@@ -50,6 +51,8 @@
 		onclose: () => void;
 		/** Image reader only: the block isn't text. */
 		onnottext?: () => void;
+		/** A folded book: "EN P. 13 →", the same page in its other language. */
+		other?: { label: string; go: () => void } | null;
 	} = $props();
 
 	let tokens = $state<Token[] | null>(null);
@@ -163,6 +166,10 @@
 >
 	<div class="head">
 		<span class="ctx">LOOKUP · {context}</span>
+		{#if other}
+			<!-- A folded book (doc/EDITIONS.md): the same page in its other language. -->
+			<button type="button" class="cell" onclick={other.go}>{other.label}</button>
+		{/if}
 		{#if onnottext}
 			<button type="button" class="cell" onclick={onnottext}>NOT TEXT</button>
 		{/if}

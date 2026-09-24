@@ -53,6 +53,7 @@
 	import { placement, type Placement } from '$lib/japanese/panel';
 	import { flushLookups } from '$lib/japanese/lookups';
 	import LookupPanel from '$lib/components/japanese/LookupPanel.svelte';
+	import { between } from '$lib/library/editions';
 
 	/**
 	 * The image reader (Index Reader; doc/READER.md). The page is the
@@ -159,6 +160,52 @@
 	let chrome = $state(false);
 	let sheet = $state(false);
 
+	// ---- editions (doc/EDITIONS.md): one book, read in any of its languages -------------
+	const editions = $derived(data.editions);
+	const here = $derived(editions?.list.find((e) => e.entryId === data.entry.id) ?? null);
+	/**
+	 * After a switch: where it landed, said until the next page turn. Set just
+	 * before the new edition loads, and kept by the page it landed on.
+	 */
+	let switched = $state<{
+		at: number;
+		main: string;
+		short: string;
+		detail: string;
+		miss: boolean;
+	} | null>(null);
+	let landing: typeof switched = null;
+	/** The same page in another edition: the matched one, or the nearest that has a match. */
+	function switchTo(entryId: number, page = at) {
+		const to = editions?.list.find((e) => e.entryId === entryId);
+		if (!here || !to || to === here) return;
+		const land = between(here, to, page);
+		landing = land.exact
+			? {
+					at: land.page,
+					main: `${to.code} P. ${land.page + 1} · THE SAME PAGE AS ${here.code} P. ${page + 1}`,
+					short: `${to.code} P. ${land.page + 1} · SAME PAGE AS ${here.code}`,
+					detail: 'SHOWN UNTIL THE NEXT PAGE TURN',
+					miss: false
+				}
+			: {
+					at: land.page,
+					main: `${here.code} P. ${page + 1} ISN’T IN ${to.code}`,
+					short: `${here.code} P. ${page + 1} ISN’T IN ${to.code}`,
+					detail: `OPENED ${to.code} P. ${land.page + 1}, THE NEAREST MATCHED PAGE`,
+					miss: true
+				};
+		lookup = null;
+		// `ed`: this edition, asked for -- not the one the book opens in.
+		const href = `${resolve('/read/[entry]', { entry: String(to.entryId) })}?p=${land.page + 1}&ed=1`;
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve()
+		void goto(href, { replaceState: true, noScroll: true });
+	}
+	/** From the lookup panel: the page in the book's other language, read side by side in time. */
+	const otherEdition = $derived(
+		here && editions ? (editions.list.find((e) => e !== here) ?? null) : null
+	);
+
 	// A new entry (or the first): start where the server says.
 	let shown = 0;
 	$effect(() => {
@@ -178,6 +225,8 @@
 		atEnd = false;
 		half = 0;
 		shift = false;
+		switched = landing;
+		landing = null;
 		sheet = false;
 		finished = false;
 		// A book in a series of books shows its own rating and FAV.
@@ -1200,6 +1249,8 @@
 			? `${data.series.title} · ${data.entry.title || data.entry.name}`
 			: data.series.title
 	);
+	/** "DOUJIN · EN · P. 13 OF 29": a folded book says which language this is. */
+	const metaShown = $derived(here ? meta.replace(/^([^·]+) · /, `$1 · ${here.code} · `) : meta);
 	// In R->L the first page sits on the right of a spread.
 </script>
 
@@ -1398,6 +1449,12 @@
 			seriesId={data.series.id}
 			entryId={lookup.entry}
 			place="P. {lookup.page + 1}"
+			other={otherEdition && here
+				? {
+						label: `${otherEdition.code} P. ${between(here, otherEdition, lookup.page).page + 1} →`,
+						go: () => switchTo(otherEdition.entryId, lookup!.page)
+					}
+				: null}
 			onclose={() => (lookup = null)}
 			onnottext={notText}
 		/>
@@ -1418,11 +1475,29 @@
 		</div>
 	{/if}
 
+	{#if switched && switched.at === at && !atEnd}
+		<!-- After a language switch (Editions 2b, 2c): where it landed, until the next turn. -->
+		<div class="switched" class:under={chrome} role="status">
+			<div class="sw-main" class:miss={switched.miss}>
+				<span class="long">{switched.main}</span><span class="short">{switched.short}</span>
+			</div>
+			<div class="sw-detail">
+				<span class="long">{switched.detail}</span><span class="short"
+					>{switched.miss ? switched.detail : 'UNTIL THE NEXT TURN'}</span
+				>
+			</div>
+		</div>
+	{/if}
+
 	{#if chrome && data.manifest}
 		<Chrome
 			{noText}
 			{title}
-			{meta}
+			meta={metaShown}
+			languages={editions && here
+				? editions.list.map((e) => ({ code: e.code, on: e === here, entryId: e.entryId }))
+				: []}
+			onlanguage={(id) => switchTo(id)}
 			backHref={seriesHref}
 			incognito={data.incognito}
 			{rating}
@@ -1716,5 +1791,49 @@
 		color: var(--text-1);
 		font: 500 15px var(--font-mono);
 		text-decoration: none;
+	}
+	.switched {
+		position: fixed;
+		left: 0;
+		right: 0;
+		top: 0;
+		z-index: 19;
+		min-height: 60px;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 4px;
+		padding: 10px 18px;
+		background: var(--surface-panel);
+		border-bottom: var(--hairline);
+		color: var(--text-1);
+		pointer-events: none;
+	}
+	.switched.under {
+		top: 64px;
+	}
+	.sw-main {
+		font: 500 14px/1.3 var(--font-mono);
+	}
+	.sw-main.miss {
+		color: var(--accent);
+	}
+	.sw-detail {
+		font: 400 12px/1.3 var(--font-mono);
+		color: var(--text-2);
+	}
+	.switched .short {
+		display: none;
+	}
+	@media (max-width: 599px) {
+		.switched {
+			padding: 10px 16px;
+		}
+		.switched .long {
+			display: none;
+		}
+		.switched .short {
+			display: inline;
+		}
 	}
 </style>

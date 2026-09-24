@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { langCode } from '$lib/library/editions';
 	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
 	import { backLink } from '$lib/back';
 	import { enhance } from '$app/forms';
@@ -286,6 +287,20 @@
 	const groupBooks = $derived(groupKinds.size === 1 ? groupPick : []);
 	const volumes = $derived(groupKinds.has('novel'));
 	const canGroup = $derived(selected.size > 0 && groupBooks.length === selected.size);
+	/**
+	 * FOLD AS LANGUAGES (doc/EDITIONS.md): two or three single books, each in
+	 * a language of its own, none folded already. Their codes, or null.
+	 */
+	const foldCodes = $derived.by(() => {
+		if (selected.size < 2 || selected.size > 3) return null;
+		const picked = series.filter((s) => selected.has(s.id));
+		if (picked.length !== selected.size) return null;
+		if (picked.some((s) => s.kind !== 'doujin' || s.entryCount !== 1 || !s.language || s.languages))
+			return null;
+		const langs = picked.map((s) => s.language!);
+		return new Set(langs).size === langs.length ? langs.map(langCode) : null;
+	});
+	const foldMessage = $derived(form && 'foldMessage' in form ? String(form.foldMessage) : '');
 	const allHidden = $derived(
 		selected.size > 0 && series.filter((s) => selected.has(s.id)).every((s) => s.hidden)
 	);
@@ -662,6 +677,7 @@
 						newCount={s.newCount}
 						hidden={s.hidden}
 						indexing={!s.indexed}
+						languages={s.languages}
 						cached={isOffline && cached > 0 ? cached : null}
 						dimmed={isOffline && cached === 0}
 						selectable={selecting}
@@ -731,6 +747,9 @@
 			}}
 	>
 		{#each [...selected] as id (id)}<input type="hidden" name="id" value={id} />{/each}
+		{#if foldMessage}
+			<div class="fold-refused" role="status">{foldMessage}</div>
+		{/if}
 		<BulkBar columns={6}>
 			{#snippet actions()}
 				<button type="submit" name="do" value="fav" disabled={selected.size === 0}>FAV</button>
@@ -739,10 +758,19 @@
 				>
 				<!-- No tag editor is designed yet; see doc/LIBRARY.md. -->
 				<button type="button" disabled>TAG</button>
-				<!-- Index Books: GROUP, for singles only. -->
-				<button type="button" class="group" disabled={!canGroup} onclick={() => (grouping = true)}
-					>GROUP</button
-				>
+				{#if foldCodes}
+					<!-- Editions 1f: books in different languages fold, rather than group. -->
+					<button type="submit" class="fold" formaction="?/fold"
+						><span class="long">FOLD AS LANGUAGES</span><span class="short">FOLD</span><span
+							class="sub">{foldCodes.join(' · ')}</span
+						></button
+					>
+				{:else}
+					<!-- Index Books: GROUP, for singles only. -->
+					<button type="button" class="group" disabled={!canGroup} onclick={() => (grouping = true)}
+						>GROUP</button
+					>
+				{/if}
 				<!-- With reveal on and only hidden tiles selected, the same cell unhides them. -->
 				<button
 					type="submit"
@@ -1044,5 +1072,38 @@
 	.scan-message {
 		font: var(--type-meta);
 		color: var(--text-2);
+	}
+	/* FOLD AS LANGUAGES: the accent cell, its languages under it (Editions 1f). */
+	.fold {
+		flex-direction: column;
+		gap: 2px;
+		background: var(--accent) !important;
+		color: var(--on-accent) !important;
+	}
+	.fold .sub {
+		font: 400 12px var(--font-mono);
+	}
+	.fold .short {
+		display: none;
+	}
+	@media (max-width: 599px) {
+		.fold .long {
+			display: none;
+		}
+		.fold .short {
+			display: inline;
+		}
+	}
+	.fold-refused {
+		position: fixed;
+		left: var(--sheet-left, 0);
+		right: 0;
+		bottom: calc(121px + env(safe-area-inset-bottom));
+		z-index: 10;
+		padding: 14px var(--pad, 24px);
+		background: var(--surface-panel);
+		border-top: var(--hairline);
+		font: 500 13px var(--font-mono);
+		color: var(--accent);
 	}
 </style>

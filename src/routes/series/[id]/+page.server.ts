@@ -41,8 +41,12 @@ import {
 	takeOutVolumes,
 	undoDismissal,
 	addBookTag,
-	removeBookTag
+	removeBookTag,
+	EditionError,
+	unfoldEditions
 } from '$lib/server/books';
+import { bookEditions, setBookLanguage } from '$lib/server/editions';
+import { baseToEdition } from '$lib/library/editions';
 
 function seriesId(raw: string): number {
 	const id = Number(raw);
@@ -97,6 +101,8 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		cover: coverState(series.id),
 		// A book here with a likely twin (doc/DUPLICATE-BOOKS.md): the band.
 		twin: twinBand(series.id, reveal),
+		// One book in several languages (doc/EDITIONS.md): its LANGUAGE and EDITIONS rows.
+		editions: series.kind === 'doujin' ? bookEditions(series.id) : null,
 		words: series.kind === 'novel' ? null : wordsOf(series.id, reveal)
 	};
 };
@@ -160,6 +166,34 @@ const entryIds = (form: FormData) =>
 		.filter((n) => Number.isInteger(n) && n > 0);
 
 export const actions: Actions = {
+	/** LANGUAGE on a folded book: which edition it opens in; empty is the SETTINGS default. */
+	language: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const eds = bookEditions(s.id);
+		if (!eds) return fail(400, { message: 'not a folded book' });
+		const l = String((await request.formData()).get('language') ?? '');
+		if (l && !eds.editions.some((e) => e.language === l))
+			return fail(400, { message: 'no edition in that language' });
+		setBookLanguage(s.id, l || null);
+		// Its tile wears the opening edition's cover.
+		recover([s.id]);
+		return { ok: true };
+	},
+
+	/** UNFOLD: each edition a book of its own again, at the page this one is at. */
+	unfold: async ({ params, cookies }) => {
+		const s = target(params, cookies);
+		let created: number[];
+		try {
+			created = unfoldEditions(s.id, (rows, page) => baseToEdition(rows, page).page);
+		} catch (e) {
+			if (e instanceof EditionError) return fail(400, { message: e.message });
+			throw e;
+		}
+		recover([s.id, ...created]);
+		return { ok: true, unfolded: true };
+	},
+
 	rate: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
 		const rating = parseRating((await request.formData()).get('rating'));

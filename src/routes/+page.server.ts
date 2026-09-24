@@ -1,6 +1,7 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { applyPending, reviewQueue } from '$lib/server/dupes';
+import { applyPending, offerFold, reviewQueue } from '$lib/server/dupes';
+import { getDb } from '$lib/server/db';
 import {
 	collectionExists,
 	continueReading,
@@ -149,6 +150,29 @@ export const actions: Actions = {
 			setHidden(target, false);
 		}
 		return { ok: true };
+	},
+
+	/**
+	 * FOLD AS LANGUAGES (doc/EDITIONS.md): two or three single books, one per
+	 * language, go to the duplicates review as a pair to fold -- the review is
+	 * where editions are folded, whoever found them.
+	 */
+	fold: async ({ request }) => {
+		const target = ids(await request.formData());
+		if (target.length < 2 || target.length > 3)
+			return fail(400, { foldMessage: 'FOLD TWO OR THREE BOOKS' });
+		const rows = getDb()
+			.prepare(
+				`SELECT s.id, s.kind, (SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0) AS n,
+					(SELECT MIN(e.id) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0) AS entry
+				FROM series s WHERE s.id IN (${target.map(() => '?').join(',')})`
+			)
+			.all(...target) as { id: number; kind: string; n: number; entry: number }[];
+		if (rows.length !== target.length || rows.some((r) => r.kind !== 'doujin' || r.n !== 1))
+			return fail(400, { foldMessage: 'ONLY SINGLE BOOKS FOLD' });
+		const key = await offerFold(target.map((id) => rows.find((r) => r.id === id)!.entry));
+		if (!key) return fail(400, { foldMessage: 'THEIR PAGES DON’T MATCH · NOT ONE BOOK' });
+		redirect(303, `/duplicates?pair=${encodeURIComponent(key)}`);
 	},
 
 	/**

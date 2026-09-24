@@ -1,5 +1,7 @@
 import { getDb } from './db';
 import { HIDDEN_SQL, VISIBLE_SQL } from './visibility.ts';
+import { getSetting } from './settings.ts';
+import { langCode, openingEdition } from '$lib/library/editions';
 import { likePattern } from '$lib/library/search';
 import type { Sort } from '$lib/library/labels';
 import type {
@@ -37,6 +39,7 @@ type CardRow = {
 	read_count: number;
 	new_count: number;
 	cover_at: number | null;
+	language?: string | null;
 };
 
 /**
@@ -62,6 +65,11 @@ function cardQuery(where: string, order: string, limit = ''): string {
 			SUM(e.shadowed = 0 AND e.matter = '' AND e.read_at IS NOT NULL) AS read_count,
 			MAX(e.last_opened_at) AS last_opened
 		FROM entries e WHERE e.series_id IN (SELECT id FROM picked) GROUP BY e.series_id
+	), langs AS MATERIALIZED (
+		SELECT st.series_id, MIN(t.value) AS language FROM series_tags st JOIN tags t ON t.id = st.tag_id
+		WHERE st.series_id IN (SELECT id FROM picked) AND t.namespace = 'language'
+			AND t.value NOT IN ('translated', 'rewrite', 'speechless', 'text cleaned')
+		GROUP BY st.series_id
 	), fresh AS MATERIALIZED (
 		SELECT e.series_id, COUNT(*) AS n FROM entries e JOIN stats t ON t.series_id = e.series_id
 		WHERE e.shadowed = 0 AND e.added_at > t.last_opened GROUP BY e.series_id
@@ -71,10 +79,66 @@ function cardQuery(where: string, order: string, limit = ''): string {
 		s.cover_at,
 		COALESCE(t.entry_count, 0) AS entry_count,
 		COALESCE(t.read_count, 0) AS read_count,
-		COALESCE(f.n, 0) AS new_count
+		COALESCE(f.n, 0) AS new_count,
+		l.language
 	FROM picked p JOIN series s ON s.id = p.id JOIN roots r ON r.id = s.root_id
 	LEFT JOIN stats t ON t.series_id = s.id LEFT JOIN fresh f ON f.series_id = s.id
+	LEFT JOIN langs l ON l.series_id = s.id
 	ORDER BY ${order} ${limit}`;
+}
+
+/**
+ * Folded books among `cards` (doc/EDITIONS.md): each wears its opening
+ * edition's title and says its languages. One indexed look at the editions,
+ * however long the page; a library without any folded book pays nothing more.
+ */
+function withEditions(cards: SeriesCard[]): SeriesCard[] {
+	const db = getDb();
+	const rows = db
+		.prepare(
+			`SELECT e.series_id, e.id, e.title, e.language, e.edition_of FROM entries e
+			WHERE e.edition_of IS NOT NULL OR e.id IN (SELECT edition_of FROM entries WHERE edition_of IS NOT NULL)
+			ORDER BY e.edition_of IS NOT NULL, e.id`
+		)
+		.all() as {
+		series_id: number;
+		id: number;
+		title: string;
+		language: string | null;
+		edition_of: number | null;
+	}[];
+	if (!rows.length) return cards;
+	const bySeries = Map.groupBy(rows, (r) => r.series_id);
+	const state = new Map(
+		(
+			db
+				.prepare(
+					`SELECT id, edition_lang, edition_read FROM series WHERE id IN (${[...bySeries.keys()].join(',')})`
+				)
+				.all() as { id: number; edition_lang: string | null; edition_read: string | null }[]
+		).map((s) => [s.id, s])
+	);
+	const preferred = getSetting('edition_language');
+	return cards.map((c) => {
+		const eds = bySeries.get(c.id);
+		if (!eds || eds.length < 2) return c;
+		const s = state.get(c.id);
+		const pick = openingEdition(
+			eds.map((e) => ({
+				entryId: e.id,
+				language: e.language ?? '',
+				rows: [],
+				base: e.edition_of === null
+			})),
+			{ own: s?.edition_lang ?? null, preferred, lastRead: s?.edition_read ?? null }
+		);
+		const first = eds.find((e) => e.id === pick.entryId)!;
+		return {
+			...c,
+			title: first.title || c.title,
+			languages: [first, ...eds.filter((e) => e !== first)].map((e) => langCode(e.language ?? '??'))
+		};
+	});
 }
 
 function toCard(row: CardRow): SeriesCard {
@@ -91,7 +155,8 @@ function toCard(row: CardRow): SeriesCard {
 		hue: row.hue,
 		indexed: row.indexed_at !== null,
 		addedAt: row.added_at,
-		cover: row.cover_at
+		cover: row.cover_at,
+		language: row.language ?? null
 	};
 }
 
@@ -201,7 +266,7 @@ export function listSeries(
 		.prepare(cardQuery(where.sql, orderOf(opts.sort ?? 'recent', opts.seed), 'LIMIT ? OFFSET ?'))
 		// SQLite reads a negative LIMIT as none.
 		.all(...where.params, opts.limit ?? -1, opts.offset ?? 0) as CardRow[];
-	return rows.map(toCard);
+	return withEditions(rows.map(toCard));
 }
 
 /** How many cards a shelf holds: what paging runs up to. */
@@ -281,9 +346,10 @@ export function continueReading(
 		FROM entries e WHERE e.series_id = ? AND e.shadowed = 0 AND e.last_opened_at IS NOT NULL
 		ORDER BY e.last_opened_at DESC LIMIT 1`
 	);
-	const items = rows.map((row) => {
+	const cards = withEditions(rows.map(toCard));
+	const items = rows.map((row, i) => {
 		const entry = last.get(row.id) as { label: string; last_opened_at: number; rank: number };
-		const card = toCard(row);
+		const card = cards[i];
 		const entryLabel =
 			card.kind === 'doujin' && card.entryCount > 1 ? `Book ${entry.rank}` : entry.label;
 		return {

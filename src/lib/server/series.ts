@@ -1,4 +1,5 @@
 import { getDb } from './db';
+import { editionToBase } from '$lib/library/editions';
 import { VISIBLE_SQL, visibleWhere } from './visibility';
 import { seriesDetail } from './library';
 import { scanlatorsOf } from './duplicates';
@@ -117,7 +118,9 @@ export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
 		entries,
 		duplicates: (
 			db
-				.prepare(`SELECT COUNT(*) AS n FROM entries WHERE series_id = ? AND shadowed = 1`)
+				.prepare(
+					`SELECT COUNT(*) AS n FROM entries WHERE series_id = ? AND shadowed = 1 AND edition_of IS NULL`
+				)
 				.get(id) as { n: number }
 		).n,
 		scanlators: scanlatorsOf(id),
@@ -212,9 +215,31 @@ export type ReadingEvent = {
 export function recordReading(e: ReadingEvent): void {
 	const db = getDb();
 	const now = e.now ?? Date.now();
-	const page = e.page ?? null;
+	let page = e.page ?? null;
+	let total = e.total ?? null;
+	let entryId = e.entryId;
 	const duration = Math.max(0, Math.round(e.durationMs ?? 0));
 	db.transaction(() => {
+		// An edition of a folded book (doc/EDITIONS.md) keeps no progress of its
+		// own: its page is the base's matched page, so every language resumes
+		// at the same place, and the one read is remembered.
+		const ed = db
+			.prepare(
+				`SELECT edition_of, edition_rows, language FROM entries WHERE id = ? AND series_id = ?`
+			)
+			.get(e.entryId, e.seriesId) as
+			| { edition_of: number | null; edition_rows: string | null; language: string | null }
+			| undefined;
+		if (ed?.edition_of) {
+			entryId = ed.edition_of;
+			if (page !== null) page = editionToBase(JSON.parse(ed.edition_rows ?? '[]'), page).page;
+			total = null;
+		}
+		if (ed?.language)
+			db.prepare(
+				`UPDATE series SET edition_read = ? WHERE id = ?
+				AND EXISTS (SELECT 1 FROM entries WHERE series_id = ? AND edition_of IS NOT NULL)`
+			).run(ed.language, e.seriesId, e.seriesId);
 		const owned = db
 			.prepare(`SELECT 1 FROM entries WHERE id = ? AND series_id = ?`)
 			.get(e.entryId, e.seriesId);
@@ -222,7 +247,7 @@ export function recordReading(e: ReadingEvent): void {
 		db.prepare(
 			`INSERT INTO reading_events (at, series_id, entry_id, kind, page, duration_ms)
 			VALUES (?, ?, ?, ?, ?, ?)`
-		).run(now, e.seriesId, e.entryId, e.kind, page, duration);
+		).run(now, e.seriesId, entryId, e.kind, page, duration);
 		// Position and last-opened only move forward in time: an event read
 		// offline and sent later is logged at its own time, but never drags the
 		// entry back past something read since (doc/OFFLINE.md).
@@ -239,9 +264,9 @@ export function recordReading(e: ReadingEvent): void {
 			now,
 			page,
 			offset: e.offset ?? null,
-			total: e.total ?? null,
+			total,
 			finish: e.kind === 'finish' ? 1 : 0,
-			id: e.entryId
+			id: entryId
 		});
 	}).immediate();
 }

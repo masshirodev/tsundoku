@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { beforeNavigate } from '$app/navigation';
+	import { beforeNavigate, goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { untrack } from 'svelte';
 	import { bookCoverSrc, pageThumbSrc } from '$lib/library/links';
 	import { RULES, carryOver, type Copy } from '$lib/library/dupes';
+	import { langCode } from '$lib/library/editions';
 
 	/**
 	 * Duplicate books (Pair Review; doc/DUPLICATE-BOOKS.md): one pair at a
@@ -33,6 +34,8 @@
 		detail: string;
 		pair: string | null;
 		before: { queue: string[]; done: number } | null;
+		/** After a fold: OPEN → the folded book, once the fold is carried out. */
+		open?: number;
 	};
 	let undo = $state<Undo | null>(null);
 	/** The side the owner tapped, against or with the pick; null follows the pick. */
@@ -44,6 +47,23 @@
 	const total = data.pairs.length;
 	const pair = $derived<Pair | null>(queue.length ? (byKey.get(queue[0]) ?? null) : null);
 	const fold = $derived(pair?.kind === 'fold');
+	/** A fold where one side is folded already (Pair Review 3b), or a part of a bigger book (3c). */
+	const third = $derived(fold && !!pair?.folded);
+	const part = $derived(fold && !!pair?.part && !pair?.folded);
+	/** A part: which is the story, which the collection, and where the one sits in the other. */
+	const partWhere = $derived.by(() => {
+		if (!pair || !part) return null;
+		const [s, l] = pair.a.pages <= pair.b.pages ? (['a', 'b'] as const) : (['b', 'a'] as const);
+		const inL = pair.rows.filter((r) => r.a !== null && r.b !== null).map((r) => r[l]!);
+		return {
+			short: s.toUpperCase(),
+			long: l.toUpperCase(),
+			from: Math.min(...inL),
+			to: Math.max(...inL),
+			matched: inL.length,
+			pages: pair[s].pages
+		};
+	});
 	const sel = $derived<'a' | 'b' | null>(fold || !pair ? null : (chosen ?? pair.pick!.keep));
 	const against = $derived(!!pair && !fold && sel !== pair.pick!.keep);
 	const other = (k: 'a' | 'b'): 'a' | 'b' => (k === 'a' ? 'b' : 'a');
@@ -75,9 +95,10 @@
 	const rowsOf = (c: Copy, o: Copy) =>
 		FIELDS.map(([label, show]) => ({ label, value: show(c), differ: show(c) !== show(o) }));
 
-	const lang2 = (c: Copy) => (c.language || '??').slice(0, 2).toUpperCase();
+	const lang2 = (c: Copy) => (c.language ? langCode(c.language) : '??');
 	function tagOf(k: 'a' | 'b'): string {
 		if (!pair) return '';
+		if (pair.folded?.side === k) return `FOLDED · ${pair.folded.codes.join(' · ')}`;
 		if (fold) return `EDITION · ${lang2(pair[k])}`;
 		if (sel !== k) return 'TO TRASH';
 		return sel === pair.pick!.keep ? 'KEEP · PICK' : 'KEEP · YOURS';
@@ -86,11 +107,15 @@
 	const reason = $derived(
 		!pair
 			? ''
-			: fold
-				? 'TWO EDITIONS OF ONE BOOK · NOTHING IS OFFERED FOR DELETION'
-				: against
-					? `YOUR PICK · ${L} · TSUNDOKU PICKED ${pair.pick!.keep.toUpperCase()}: ${pair.pick!.why}`
-					: `PICK · ${L} · ${pair.pick!.why}`
+			: third
+				? `${pair.folded!.side.toUpperCase()} IS ONE BOOK IN ${pair.folded!.codes.length} LANGUAGES · ${pair.folded!.side === 'a' ? 'B' : 'A'} WOULD BE ITS ${pair.folded!.codes.length === 2 ? 'THIRD' : 'NEXT'} · NOTHING IS DELETED`
+				: part && partWhere
+					? `${partWhere.short} IS ONE STORY INSIDE ${partWhere.long}’S COLLECTION, AT ${partWhere.long} P ${partWhere.from}–${partWhere.to} · A PART DOESN’T FOLD`
+					: fold
+						? 'TWO EDITIONS OF ONE BOOK · NOTHING IS OFFERED FOR DELETION'
+						: against
+							? `YOUR PICK · ${L} · TSUNDOKU PICKED ${pair.pick!.keep.toUpperCase()}: ${pair.pick!.why}`
+							: `PICK · ${L} · ${pair.pick!.why}`
 	);
 	const langs = $derived(
 		pair
@@ -115,7 +140,8 @@
 	async function decide(
 		decision: 'keep' | 'both' | 'group' | 'fold' | 'apart' | 'skip',
 		title: string,
-		detail: string
+		detail: string,
+		open?: number
 	) {
 		if (!pair || busy) return;
 		const key = pair.key;
@@ -135,7 +161,7 @@
 			}
 			queue = queue.slice(1);
 			done += 1;
-			undo = { title, detail, pair: key, before };
+			undo = { title, detail, pair: key, before, open };
 		} else {
 			busy = false;
 			queue = [...queue.slice(1), key];
@@ -175,6 +201,34 @@
 	const actions = $derived.by((): Act[] => {
 		if (!pair) return [];
 		const a = pair.a;
+		const apart: Act[] = [
+			{
+				label: 'KEEP APART',
+				run: () => decide('apart', 'KEPT APART · WON’T ASK AGAIN', 'TWO BOOKS, AS BEFORE')
+			},
+			{ label: 'SKIP', run: () => decide('skip', 'SKIPPED', 'COMES UP AGAIN LATER') }
+		];
+		if (part) return apart;
+		if (third) {
+			const f = pair.folded!;
+			const book = pair[f.side];
+			const add = pair[f.side === 'a' ? 'b' : 'a'];
+			const codes = [...f.codes, lang2(add)];
+			return [
+				...apart,
+				{
+					label: `ADD AS A ${codes.length === 3 ? 'THIRD' : 'NEW'} LANGUAGE`,
+					run: () =>
+						decide(
+							'fold',
+							`ADDED · ${book.title.toUpperCase()} IN ${codes.length} LANGUAGES`,
+							codes.join(' · '),
+							book.seriesId
+						),
+					strong: true
+				}
+			];
+		}
 		if (fold)
 			return [
 				{
@@ -184,7 +238,13 @@
 				{ label: 'SKIP', run: () => decide('skip', 'SKIPPED', 'COMES UP AGAIN LATER') },
 				{
 					label: 'FOLD INTO ONE BOOK',
-					run: () => decide('fold', 'FOLDED · ONE BOOK, 2 LANGUAGES', langs),
+					run: () =>
+						decide(
+							'fold',
+							'FOLDED · ONE BOOK IN 2 LANGUAGES',
+							`${lang2(pair.a)} · ${lang2(pair.b)} · NOTHING DELETED`,
+							pair.a.seriesId
+						),
 					strong: true
 				}
 			];
@@ -231,8 +291,23 @@
 	});
 
 	const actionCols = $derived(
-		fold ? '1fr 1fr 2fr' : actions.length === 4 ? '1fr 1fr 1fr 1.4fr' : '1fr 1fr 1.4fr'
+		part
+			? '1fr 1fr'
+			: fold
+				? '1fr 1fr 2fr'
+				: actions.length === 4
+					? '1fr 1fr 1fr 1.4fr'
+					: '1fr 1fr 1.4fr'
 	);
+
+	/** OPEN → after a fold: carried out first, so the book screen shows it folded. */
+	async function openFolded(seriesId: number) {
+		busy = true;
+		await post({ apply: true });
+		undo = null;
+		busy = false;
+		await goto(resolve('/series/[id]', { id: String(seriesId) }));
+	}
 	const counter = $derived(
 		pair ? `${String(done + 1).padStart(2, '0')} OF ${String(total).padStart(2, '0')}` : '00'
 	);
@@ -258,6 +333,10 @@
 				<div class="line dim">{undo.detail}</div>
 			</div>
 			{#if undo.pair}<button type="button" class="undo" onclick={undoLast}>UNDO</button>{/if}
+			{#if undo.open}
+				{@const open = undo.open}
+				<button type="button" class="undo open" onclick={() => openFolded(open)}>OPEN →</button>
+			{/if}
 		</div>
 	{/if}
 
@@ -274,21 +353,33 @@
 			<div class="scroll">
 				<div class="summary">
 					<div class="s1">
-						<span class="conf {pair.conf}"
-							>{pair.conf === 'likely'
-								? 'LIKELY SAME'
-								: pair.conf === 'maybe'
-									? 'MAYBE'
-									: `SAME BOOK · ${langs}`}</span
+						<span class="conf {pair.conf}" class:third class:outline={part}
+							>{third
+								? `SAME BOOK · A ${pair.folded!.codes.length === 2 ? 'THIRD' : 'NEW'} LANGUAGE`
+								: part
+									? 'PART OF A BIGGER BOOK'
+									: pair.conf === 'likely'
+										? 'LIKELY SAME'
+										: pair.conf === 'maybe'
+											? 'MAYBE'
+											: `SAME BOOK · ${langs}`}</span
 						>
-						<span>COVER ALIKE · {matched} OF {most} PAGES MATCH</span>
+						<span
+							>{part && partWhere
+								? `${partWhere.short}’S PAGES FOUND INSIDE ${partWhere.long} · ${partWhere.matched} OF ${partWhere.pages} MATCH`
+								: `COVER ALIKE · ${matched} OF ${most} PAGES MATCH`}</span
+						>
 					</div>
 					<div class="s2">
 						<span class:against>{reason}</span>
 						<span
-							>{fold
-								? 'FOLD, KEEP APART, OR SKIP'
-								: `RULE ${pair.pick!.rule} OF ${RULES.length} · ${pair.pick!.ruleName}`}</span
+							>{part
+								? 'KEEP APART OR SKIP'
+								: third
+									? 'ADD, KEEP APART, OR SKIP'
+									: fold
+										? 'FOLD, KEEP APART, OR SKIP'
+										: `RULE ${pair.pick!.rule} OF ${RULES.length} · ${pair.pick!.ruleName}`}</span
 						>
 					</div>
 				</div>
@@ -528,6 +619,11 @@
 		font: 500 14px/1.2 var(--font-mono);
 		cursor: pointer;
 	}
+	.undo.open {
+		background: var(--accent);
+		color: var(--on-accent);
+		white-space: nowrap;
+	}
 	.undo:active,
 	.home:active {
 		background: var(--surface-inverse);
@@ -598,6 +694,12 @@
 	.conf.lang {
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
+	}
+	/* A part of a bigger book: nothing to fold, so the tag isn't filled. */
+	.conf.lang.outline {
+		background: transparent;
+		color: var(--text-1);
+		box-shadow: inset 0 0 0 1px var(--line-2);
 	}
 	.s2 {
 		display: flex;

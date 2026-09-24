@@ -240,8 +240,10 @@ Specific and honest, so a deliberate gap isn't mistaken for an oversight:
   the series screen. Neither handoff draws a bulk tag editor.
 - **No list view.** Direction 1b offered GRID ▦ / LIST ☰, and Turn 3 dropped it.
   It isn't built.
-- **IMPORT LOG and SETTINGS** in the desktop sidebar are shown, disabled, and go
-  nowhere.
+- **IMPORT LOG** in the desktop sidebar is shown, disabled, and goes nowhere.
+  SETTINGS opens [`SETTINGS.md`](SETTINGS.md)'s screen.
+- **A folded book** (one book in several languages) is one tile with its
+  languages in a corner badge, `EN · JA` ([`EDITIONS.md`](EDITIONS.md)).
 - **Covers** come from the files or the source site ([`COVERS.md`](COVERS.md)). A
   series with none keeps the striped placeholder.
 - **Sorting** cycles recently read → A–Z → rating → recently added through the

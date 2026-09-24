@@ -137,9 +137,12 @@
 						href={resolve('/history')}
 						aria-current={page.url.pathname === '/history' ? 'page' : undefined}>HISTORY</a
 					>
-					<!-- Neither screen exists yet; see doc/LIBRARY.md, "What it does not do yet". -->
+					<!-- Not built yet; see doc/LIBRARY.md, "What it does not do yet". -->
 					<span aria-disabled="true">IMPORT LOG</span>
-					<span aria-disabled="true">SETTINGS</span>
+					<a
+						href={resolve('/settings')}
+						aria-current={page.url.pathname === '/settings' ? 'page' : undefined}>SETTINGS</a
+					>
 				</div>
 			</aside>
 		{/if}

@@ -48,6 +48,14 @@ export const JAPANESE_SQL = `(s.ocr = 1 OR (s.ocr IS NULL AND s.kind != 'novel' 
 		WHERE st.series_id = s.id AND t.namespace = 'language' AND t.value = 'japanese')
 )))`;
 
+/**
+ * Which of a Japanese series' entries OCR reads: its chapters, and in a book
+ * folded from several languages (doc/EDITIONS.md) only the Japanese edition,
+ * which may be an edition rather than the book's own entry.
+ */
+const OCR_ENTRY = (e: string) =>
+	`(${e}shadowed = 0 OR ${e}edition_of IS NOT NULL) AND (${e}language IS NULL OR ${e}language = 'japanese')`;
+
 export type OcrJob = { entryId: number; seriesId: number };
 
 /** The chapters waiting to be read, most recently read series first. */
@@ -56,7 +64,7 @@ export function ocrQueue(limit: number, now = Date.now()): OcrJob[] {
 		.prepare(
 			`SELECT e.id AS entryId, s.id AS seriesId FROM entries e JOIN series s ON s.id = e.series_id
 			WHERE ${JAPANESE_SQL} AND s.kind != 'novel'
-				AND e.available = 1 AND e.shadowed = 0 AND e.ocr_at IS NULL
+				AND e.available = 1 AND ${OCR_ENTRY('e.')} AND e.ocr_at IS NULL
 				AND (e.ocr_failed_at IS NULL OR e.ocr_failed_at < ?)
 			ORDER BY (SELECT MAX(x.last_opened_at) FROM entries x WHERE x.series_id = s.id) DESC NULLS LAST,
 				s.id, e.position
@@ -218,7 +226,7 @@ export function ocrStatus(seriesId: number): OcrStatus {
 	const c = db
 		.prepare(
 			`SELECT COUNT(*) AS total, SUM(ocr_at IS NOT NULL) AS done FROM entries
-			WHERE series_id = ? AND available = 1 AND shadowed = 0`
+			WHERE series_id = ? AND available = 1 AND ${OCR_ENTRY('')}`
 		)
 		.get(seriesId) as { total: number; done: number | null };
 	return { japanese: !!s?.japanese, done: c.done ?? 0, total: c.total };
@@ -250,7 +258,7 @@ export function ocrPlace(seriesId: number, now = Date.now()): OcrPlace {
 	const failed = (
 		db
 			.prepare(
-				`SELECT COUNT(*) AS n FROM entries WHERE series_id = ? AND available = 1 AND shadowed = 0
+				`SELECT COUNT(*) AS n FROM entries WHERE series_id = ? AND available = 1 AND ${OCR_ENTRY('')}
 				AND ocr_at IS NULL AND ocr_failed_at >= ?`
 			)
 			.get(seriesId, now - RETRY_MS) as { n: number }
