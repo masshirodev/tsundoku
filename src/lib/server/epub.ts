@@ -5,6 +5,8 @@ import { getDb } from './db.ts';
 import { VISIBLE_SQL } from './visibility.ts';
 import { SAMPLE_PREFIX } from './pages/sample.ts';
 import { sampleEpub } from './pages/sample-epub.ts';
+import { readMember, withZip } from './zip.ts';
+import { Zip } from '../epub/unzip.ts';
 
 /**
  * A novel's EPUB, whole (doc/TEXT-READER.md). The reader downloads it once
@@ -109,4 +111,93 @@ export async function readEpubFile(
 	} catch {
 		return null;
 	}
+}
+
+// ---- file by file (doc/TEXT-READER.md, "A chapter at a time") ------------------------------
+
+export type BookFileInfo = { name: string; size: number };
+
+/** The file is there, but isn't a zip an EPUB can be read from. */
+export class BrokenBook extends Error {}
+
+/** An opened book's listing, kept for a few books: a chapter asks for several files. */
+type Listing = {
+	version: string;
+	files: BookFileInfo[];
+	read: (name: string) => Promise<Buffer | null>;
+};
+const listings = new Map<string, Listing>();
+
+async function listingOf(
+	seriesId: number,
+	reveal: boolean,
+	file?: string
+): Promise<Listing | null> {
+	const row = bookRow(seriesId, reveal, file);
+	if (!row) return null;
+	const version = await versionOf(row);
+	if (!version) return null;
+	const key = `${row.path}/${row.file}@${version}`;
+	const had = listings.get(key);
+	if (had) return had;
+	let listing: Listing;
+	if (row.path.startsWith(SAMPLE_PREFIX)) {
+		// The sample books are made in memory; the browser's reader reads them here too.
+		const book = (await readEpubFile(seriesId, reveal, file))!.body as Buffer;
+		const zip = new Zip(new Uint8Array(book));
+		const files: BookFileInfo[] = [];
+		for (const name of zip.names) files.push({ name, size: (await zip.bytesOf(name)).length });
+		listing = {
+			version,
+			files,
+			read: async (name) => (zip.has(name) ? Buffer.from(await zip.bytesOf(name)) : null)
+		};
+	} else {
+		const path = join(row.path, row.file);
+		let members: Awaited<ReturnType<typeof listZipOf>>;
+		try {
+			members = await listZipOf(path);
+		} catch (e) {
+			if ((e as NodeJS.ErrnoException).code === 'ENOENT') return null;
+			throw new BrokenBook(e instanceof Error ? e.message.toUpperCase() : 'NOT A ZIP');
+		}
+		const byName = new Map(members.map((m) => [m.name, m]));
+		listing = {
+			version,
+			files: members
+				.filter((m) => !m.name.endsWith('/'))
+				.map((m) => ({ name: m.name, size: m.size })),
+			read: async (name) => {
+				const m = byName.get(name);
+				return m ? withZip(path, (fh) => readMember(fh, m)).catch(() => null) : null;
+			}
+		};
+	}
+	listings.set(key, listing);
+	if (listings.size > 8) listings.delete(listings.keys().next().value!);
+	return listing;
+}
+
+const listZipOf = (path: string) => withZip(path, async (_, m) => m);
+
+/** The files in a book, with their sizes unpacked. Hidden means hidden: null while reveal is off. */
+export async function epubFiles(
+	seriesId: number,
+	reveal: boolean,
+	file?: string
+): Promise<{ version: string; files: BookFileInfo[] } | null> {
+	const l = await listingOf(seriesId, reveal, file);
+	return l ? { version: l.version, files: l.files } : null;
+}
+
+/** One file of a book, unpacked; null for a name the book doesn't have. */
+export async function epubMember(
+	seriesId: number,
+	reveal: boolean,
+	name: string,
+	file?: string
+): Promise<{ version: string; body: Buffer } | null> {
+	const l = await listingOf(seriesId, reveal, file);
+	const body = l ? await l.read(name) : null;
+	return l && body ? { version: l.version, body } : null;
 }

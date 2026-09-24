@@ -7,6 +7,7 @@
 	import type { PageData } from './$types';
 	import { offline } from '$lib/offline.svelte';
 	import { cacheBook } from '$lib/cache/device';
+	import { MemberUnavailable } from '$lib/epub/remote';
 	import { flushPending, queuePending } from '$lib/cache/pending';
 	import { entryDocs } from '$lib/epub/epub';
 	import { paragraphAt } from '$lib/japanese/paragraph';
@@ -49,8 +50,9 @@
 	 * The text reader (Index Text Reader; doc/TEXT-READER.md). The text is the
 	 * interface: nothing is on screen but the page and a 2px progress line
 	 * until a tap in a margin, or for now anywhere in the text, asks for the
-	 * controls. The whole book is downloaded once and read on the tablet, so
-	 * moving between chapters happens here, without a page load.
+	 * controls. The first chapter opens file by file while the whole book
+	 * downloads behind it (src/lib/reader/book.ts); moving between chapters
+	 * happens here, without a page load.
 	 */
 	let { data }: { data: Extract<PageData, { text: true }> } = $props();
 
@@ -346,7 +348,19 @@
 			if (!(await openFile(entries[i].file)) || !book) return;
 		}
 		switching = null;
-		const ch = await chapterBlocks(book.zip, docsOf(book, i), book.images);
+		let ch: Awaited<ReturnType<typeof chapterBlocks>>;
+		try {
+			ch = await chapterBlocks(book.zip, docsOf(book, i), book.images);
+		} catch (e) {
+			// Offline, and this chapter isn't one kept on the tablet: RETRY once it's back.
+			switching = { i, at };
+			chapter = null;
+			failure =
+				e instanceof MemberUnavailable
+					? new BookFailure('offline', 'THIS CHAPTER IS NOT ON THE TABLET')
+					: new BookFailure('broken', 'THE CHAPTER WOULD NOT READ');
+			return;
+		}
 		index = i;
 		atEnd = false;
 		chapter = ch;
@@ -369,6 +383,10 @@
 		clock.resume(Date.now());
 		void send('open');
 		keepBook();
+		// The chapters either side, ready in memory: turning into one never waits.
+		for (const j of [i - 1, i + 1])
+			if (entries[j]?.file === bookFile)
+				for (const d of docsOf(book, j)) void book.zip.bytesOf(d.href).catch(() => undefined);
 		if (layout === 'scroll') void loadNext();
 	}
 
@@ -376,7 +394,12 @@
 	async function loadNext() {
 		// The next volume is another download: it opens when reading reaches it.
 		if (!book || !nextEntry || layout !== 'scroll' || nextEntry.file !== bookFile) return;
-		nextChapter = await chapterBlocks(book.zip, docsOf(book, index + 1), book.images);
+		try {
+			nextChapter = await chapterBlocks(book.zip, docsOf(book, index + 1), book.images);
+		} catch {
+			// Offline and not kept: the band says so, and reading stops at it.
+			return;
+		}
 		await tick();
 		// eslint-disable-next-line svelte/no-dom-manipulating -- as blocksEl, above
 		nextEl?.replaceChildren(...nextChapter.blocks);
@@ -579,19 +602,29 @@
 		if (to?.route.id !== '/read/[entry]') void send('close');
 	});
 
-	/** Keep the book on the tablet, never for a hidden series, while revealed, or incognito. */
+	/**
+	 * Keep the book on the tablet once the whole of it has arrived (it
+	 * downloads behind the first chapter), never for a hidden series, while
+	 * revealed, or incognito.
+	 */
 	function keepBook() {
 		if (!book || !bookFile || series.hidden || data.reveal || data.incognito || !entry) return;
 		const version = versionOf(bookFile);
 		if (!version) return;
 		const file = bookFile;
-		void cacheBook({
-			seriesId: series.id,
-			entryIds: entries.filter((e) => e.file === file).map((e) => e.id),
-			openEntryId: entry.id,
-			url: bookUrl(series.id, version, fileParam(file)),
-			bytes: book.bytes,
-			version
+		const openEntryId = entry.id;
+		const seriesId = series.id;
+		const entryIds = entries.filter((e) => e.file === file).map((e) => e.id);
+		void book.whole.then((bytes) => {
+			if (!bytes) return;
+			void cacheBook({
+				seriesId,
+				entryIds,
+				openEntryId,
+				url: bookUrl(seriesId, version, fileParam(file)),
+				bytes,
+				version
+			});
 		});
 	}
 

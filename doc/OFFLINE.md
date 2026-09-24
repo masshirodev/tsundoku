@@ -50,7 +50,7 @@ reader's "↓ CACHED" on the next chapter.
 ## Novels are kept whole
 
 A novel's EPUB is the unit, not its chapters ([`TEXT-READER.md`](TEXT-READER.md)).
-The reader downloads the whole book on first open, and `cacheBook` puts that
+The reader downloads the whole book in the background on first open (it reads the first chapter file by file meanwhile, doc/TEXT-READER.md, "Opening"), and `cacheBook` puts that
 same download in `tsundoku-entries`, with the open entry's reader page and data
 and a marker for every entry. The book's size goes on the first marker, so the
 budget weighs it once. The service worker answers

@@ -1,5 +1,5 @@
 import { resolveHref, splitHref, type DocRange } from '$lib/epub/epub';
-import type { Zip } from '$lib/epub/unzip';
+import type { ZipReader } from '$lib/epub/unzip';
 
 /**
  * The text reader's DOM side (doc/TEXT-READER.md): a chapter's XHTML, from
@@ -88,7 +88,7 @@ export type Images = {
 	url(path: string): Promise<string | null>;
 };
 
-export function bookImages(zip: Zip): Images & { revoke(): void } {
+export function bookImages(zip: ZipReader): Images & { revoke(): void } {
 	const made = new Map<string, Promise<string | null>>();
 	const type = (p: string) =>
 		/\.png$/i.test(p)
@@ -310,7 +310,7 @@ export type Chapter = { blocks: HTMLElement[]; chars: number };
 
 /** An entry's blocks, from its documents in the book, each numbered with `data-b`. */
 export async function chapterBlocks(
-	zip: Zip,
+	zip: ZipReader,
 	docs: DocRange[],
 	images: Images,
 	out: Document = document

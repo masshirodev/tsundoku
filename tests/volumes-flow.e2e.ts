@@ -39,7 +39,7 @@ test('GROUP takes novels as volumes; CONTENTS heads each; the reader crosses; UN
 	await list.getByText('Vol. 15', { exact: true }).first().click();
 	await page.waitForURL(/\/read\//);
 	await expect(page.locator('.blocks h1').first()).toHaveText('Vol. 15', { timeout: 15000 });
-	const books = page.waitForRequest((r) => /\/epub\?v=.*&f=/.test(r.url()));
+	const books = page.waitForRequest((r) => /\/epub\/files\?v=.*&f=/.test(r.url()));
 	const v = page.viewportSize()!;
 	for (
 		let i = 0;

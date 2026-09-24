@@ -13,21 +13,30 @@ the library is [`IMPORT-EPUB.md`](IMPORT-EPUB.md).
 **The text is the interface.** Nothing is on screen but the page and a 2px
 progress line along the bottom edge until a tap asks for the controls.
 
-## The book is downloaded once
+## Opening
 
-The reader doesn't ask the workstation for a chapter. It downloads the whole
-EPUB (`GET /api/series/<id>/epub?v=<version>`, `private`, `immutable`) and
-unzips it on the tablet (`src/lib/epub/unzip.ts`, with the browser's own
-`DecompressionStream`, so no library is shipped). Then:
+A book **opens at once, a chapter first, and downloads whole behind it**
+(`src/lib/reader/book.ts`, since 2026-09-24):
 
-- moving to another chapter happens in the page, with no load, and the URL
-  follows with `replaceState`;
-- the book is kept in the device cache (`cacheBook`, `src/lib/cache/device.ts`)
-  with a marker for every entry. The service worker answers the download from
-  there, so the next session opens offline. As everywhere else, a hidden
-  series, reveal and incognito leave nothing (doc/OFFLINE.md);
-- the first open shows OPENING with the download's progress and the file's
-  size. After that, a book opens straight to its place.
+1. the reader asks for the book's list of files
+   (`GET /api/series/<id>/epub/files?v=<version>`), then only what the chapter
+   needs, one file at a time (`…/epub/file?v=…&p=<name>`: its documents and
+   their images, unpacked on the workstation). The chapters either side come
+   right behind, so a turn into them doesn't wait;
+2. meanwhile the whole EPUB downloads in the background
+   (`GET /api/series/<id>/epub?v=<version>`, `private`, `immutable`). When it
+   arrives, every chapter reads from memory (`BookZip`,
+   `src/lib/epub/remote.ts`) and moving between chapters happens in the page,
+   with no load; the URL follows with `replaceState`;
+3. the whole book is kept in the device cache (`cacheBook`,
+   `src/lib/cache/device.ts`) with a marker for every entry. As everywhere
+   else, a hidden series, reveal and incognito leave nothing (doc/OFFLINE.md);
+4. a book already kept opens from the device, whole, as before: the OPENING
+   screen with the file's size, and no network.
+
+A file that isn't a zip answers `/files` with a 422, and the reader says
+BROKEN EPUB. Offline, a chapter of a book not yet kept whole says THIS CHAPTER
+IS NOT ON THE TABLET, with RETRY.
 
 A 591-chapter web novel is 2–5 MB and an illustrated light novel is up to about
 30 MB.

@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
 import { sampleEpub } from '../src/lib/server/pages/sample-epub';
+import { Zip } from '../src/lib/epub/unzip';
 import { expect, test } from './fixtures';
 
 /**
@@ -110,6 +111,24 @@ test('a wide block opens whole, and an illustration full screen', async ({ page 
 	await expect(view).toHaveCount(0);
 });
 
+/** Answer the reader's asks -- file by file, then whole -- from a book made here (doc/TEXT-READER.md). */
+async function serveBook(page: Page, epub: Buffer) {
+	const zip = new Zip(new Uint8Array(epub));
+	const files = await Promise.all(
+		zip.names.map(async (name) => ({ name, size: (await zip.bytesOf(name)).length }))
+	);
+	await page.route('**/api/series/*/epub/files?*', (r) => r.fulfill({ json: { files } }));
+	// And the whole book, downloading behind the first chapter.
+	await page.route('**/api/series/*/epub?*', (r) =>
+		r.fulfill({ body: epub, contentType: 'application/epub+zip' })
+	);
+	await page.route('**/api/series/*/epub/file?*', async (r) => {
+		const name = new URL(r.request().url()).searchParams.get('p') ?? '';
+		if (!zip.has(name)) return r.fulfill({ status: 404, body: 'not found' });
+		await r.fulfill({ body: Buffer.from(await zip.bytesOf(name)) });
+	});
+}
+
 test('a Japanese book is set vertically, with furigana and upright numbers', async ({ page }) => {
 	const ja = sampleEpub({
 		title: TITLE,
@@ -117,9 +136,7 @@ test('a Japanese book is set vertically, with furigana and upright numbers', asy
 		language: 'ja',
 		chapters: Array.from({ length: 33 }, (_, i) => `第${i + 1}話`)
 	});
-	await page.route('**/api/series/*/epub?*', (r) =>
-		r.fulfill({ body: ja, contentType: 'application/epub+zip' })
-	);
+	await serveBook(page, ja);
 	await openBook(page);
 	await expect(page.locator('.flow')).toHaveCSS('writing-mode', 'vertical-rl');
 	await expect(page.locator('.blocks rt').first()).toHaveText('ぼうし');
@@ -133,8 +150,8 @@ test('a Japanese book is set vertically, with furigana and upright numbers', asy
 });
 
 test('a file that is not an EPUB says so, and offers the way back', async ({ page }) => {
-	await page.route('**/api/series/*/epub?*', (r) =>
-		r.fulfill({ body: 'not a zip', contentType: 'application/epub+zip' })
+	await page.route('**/api/series/*/epub/files?*', (r) =>
+		r.fulfill({ status: 422, json: { message: 'NOT A ZIP' } })
 	);
 	await page.goto('/');
 	await page.locator('.grid .tile', { hasText: TITLE }).click();

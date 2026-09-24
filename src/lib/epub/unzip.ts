@@ -8,6 +8,14 @@
 
 export class UnzipError extends Error {}
 
+/** What the reader reads a book through: a zip in memory, or one on the workstation. */
+export interface ZipReader {
+	readonly names: string[];
+	has(name: string): boolean;
+	bytesOf(name: string): Promise<Uint8Array>;
+	textOf(name: string): Promise<string>;
+}
+
 type Member = { name: string; method: number; compressedSize: number; offset: number };
 
 const EOCD = 0x06054b50;
@@ -15,7 +23,7 @@ const CENTRAL = 0x02014b50;
 const LOCAL = 0x04034b50;
 const utf8 = new TextDecoder();
 
-export class Zip {
+export class Zip implements ZipReader {
 	readonly names: string[];
 	private readonly members: Map<string, Member>;
 	private readonly view: DataView;

@@ -144,6 +144,23 @@ describe('volumes grouped into one novel', () => {
 		expect(await readEpubFile(id, false, 'elsewhere.epub')).toBeNull();
 	});
 
+	it('lists a volume’s files and reads one, without sending the book', async () => {
+		const { epubFiles, epubMember, epubVersions } = await import('$lib/server/epub');
+		const id = idOf('Frieren');
+		const book = await epubFiles(id, false, 'Frieren Vol 2.epub');
+		expect(book?.version).toBe((await epubVersions(id, false))['Frieren Vol 2.epub']);
+		const names = book!.files.map((f) => f.name);
+		expect(names).toContain('META-INF/container.xml');
+		expect(book!.files.every((f) => f.size >= 0 && !f.name.endsWith('/'))).toBe(true);
+		const container = await epubMember(id, false, 'META-INF/container.xml', 'Frieren Vol 2.epub');
+		expect(container!.body.toString('utf8')).toContain('rootfile');
+		expect(container!.body.length).toBe(
+			book!.files.find((f) => f.name === 'META-INF/container.xml')!.size
+		);
+		expect(await epubMember(id, false, 'nothing/here.xhtml', 'Frieren Vol 2.epub')).toBeNull();
+		expect(await epubFiles(id, false, 'elsewhere.epub')).toBeNull();
+	});
+
 	it('changes nothing on a rescan: no copy, no reordering, nothing marked missing', async () => {
 		const before = vol();
 		const r = await runImport(library);
