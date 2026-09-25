@@ -58,7 +58,6 @@ async function readFolder(root: string, folder: string): Promise<HentoidFolder |
 	const files = names
 		.filter((n) => IMAGE.test(n))
 		.sort((a, b) => a.localeCompare(b, 'en', { numeric: true, sensitivity: 'base' }));
-	if (files.length === 0) return null;
 	let bytes = 0;
 	for (const f of files) bytes += (await stat(join(path, f))).size;
 	let content = null;
@@ -77,19 +76,28 @@ export async function planHentoidFolder(
 	root: string,
 	progress: (p: { bytes: number; failed: boolean }) => void,
 	now: number
-): Promise<{ series: PlannedSeries[]; folders: Set<string> }> {
+): Promise<{ series: PlannedSeries[]; folders: Set<string>; pageless: Set<string> }> {
 	const series: PlannedSeries[] = [];
 	const folders = new Set<string>();
+	// Folders there, but with no pages: downloads that failed (Hentoid's
+	// status ERROR), or its "(1)" copies holding only the thumbnail. Not books.
+	const pageless = new Set<string>();
 	for (const folder of await bookFolders(root)) {
 		try {
 			const f = await readFolder(root, folder);
 			if (!f) continue;
+			const planned = planHentoidBook(f, root, now);
+			if (planned.entries.length === 0) {
+				pageless.add(folder);
+				progress({ bytes: 0, failed: false });
+				continue;
+			}
 			folders.add(folder);
-			series.push(planHentoidBook(f, root, now));
+			series.push(planned);
 			progress({ bytes: f.bytes, failed: false });
 		} catch {
 			progress({ bytes: 0, failed: true });
 		}
 	}
-	return { series, folders };
+	return { series, folders, pageless };
 }

@@ -192,7 +192,12 @@ export function planHentoidBook(f: HentoidFolder, rootPath: string, now: number)
 	const book = f.content;
 	const byStem = new Map(f.files.map((file) => [stem(file), file]));
 	const cover = book?.images.find((i) => i.isCover) ?? null;
-	const coverFile = cover ? (byStem.get(cover.name) ?? null) : null;
+	// Hentoid names its cover thumb.<ext>. Without a JSON to say so, that name
+	// is all there is -- and it's never a page: a folder holding only it is a
+	// download that failed, not a one-page book (doc/IMPORT-HENTOID.md).
+	const coverFile = cover
+		? (byStem.get(cover.name) ?? null)
+		: (f.files.find((file) => /^thumb\./i.test(file)) ?? null);
 	// Pages in Hentoid's order, the cover excluded; files it doesn't list follow.
 	const listed = (book?.images ?? [])
 		.filter((i) => !i.isCover && i.status !== 'ERROR')

@@ -63,6 +63,17 @@ shelves, tags) are never overwritten. Two things are Hentoid's own:
   source URL, and updates them in place. Without that, every rescan would
   bring back every grouped book as a duplicate.
 - **A deleted book folder** leaves its entry, marked not downloaded.
+- **A folder with no pages isn't a book** (card c64). A download that failed
+  leaves its `contentV2.json` (status `ERROR`) and the thumbnail. Hentoid's
+  " (1)" copy of a folder can hold only the thumbnail. `thumb.*` is Hentoid's
+  cover and never a page, JSON or not, so neither makes a series. What an
+  earlier import made of such a folder is removed after the import, while
+  untouched: an entry never opened, unrated and not a favourite, and a series
+  left with no entries, unrated, not a favourite, on no shelf and not linked
+  (`prunePageless`). That's no delete and buries nothing, so a download
+  finished later imports as it would have. On the real library (2026-09-24)
+  that was 8 empty series and 6 one-page "books" of a thumbnail, from 37
+  failed downloads and 53 " (1)" folders.
 
 ## Hidden means hidden
 

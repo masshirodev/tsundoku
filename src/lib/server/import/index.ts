@@ -83,6 +83,46 @@ export function sourcesIn(library: string): Source[] {
  * The entries of `rootId` whose files are in `folder`, named from there: what
  * one device's copy answers for, when another device's files share the root.
  */
+/**
+ * What earlier imports made of folders that turn out to hold no pages: an
+ * entry planned from nothing but the thumbnail, and a series left with no
+ * entries at all. Removed only while untouched -- never opened, unrated, not
+ * a favourite, on no shelf, not linked. Not a delete: no tombstone, so a
+ * download finished later imports as it would have.
+ */
+export function prunePageless(
+	db: Database.Database,
+	rootId: number,
+	folder: string,
+	pageless: Set<string>
+): { entries: number; series: number } {
+	const all = db
+		.prepare(
+			`SELECT e.id, s.path, e.file FROM entries e JOIN series s ON s.id = e.series_id
+			WHERE s.root_id = ? AND e.read_at IS NULL AND e.last_position IS NULL
+				AND e.last_opened_at IS NULL AND e.rating = 0 AND e.favourite = 0`
+		)
+		.all(rootId) as { id: number; path: string; file: string }[];
+	const drop = db.prepare(`DELETE FROM entries WHERE id = ?`);
+	let entries = 0;
+	for (const r of all) {
+		const abs = join(r.path, r.file);
+		if (isUnder(abs, folder) && pageless.has(relative(folder, abs))) {
+			drop.run(r.id);
+			entries += 1;
+		}
+	}
+	const series = db
+		.prepare(
+			`DELETE FROM series WHERE root_id = ? AND COALESCE(rating, 0) = 0 AND favourite = 0
+				AND NOT EXISTS (SELECT 1 FROM entries e WHERE e.series_id = series.id)
+				AND NOT EXISTS (SELECT 1 FROM collection_series c WHERE c.series_id = series.id)
+				AND NOT EXISTS (SELECT 1 FROM series_links l WHERE l.series_id = series.id)`
+		)
+		.run(rootId).changes;
+	return { entries, series };
+}
+
 function entriesIn(
 	db: Database.Database,
 	rootId: number,
@@ -152,15 +192,18 @@ function sourcesAt(library: string, device: string | null): Source[] {
 			markMissing: false,
 			bytes: () => hentoidBytes(hentoid),
 			plan: async (progress, now) => {
-				const { series, folders } = await planHentoidFolder(hentoid, progress, now);
+				const { series, folders, pageless } = await planHentoidFolder(hentoid, progress, now);
 				return {
 					series,
 					skipped: 0,
-					// A book folder deleted from the device: its entries stay, not downloaded.
 					after: (db, rootId) => {
+						// A book folder deleted from the device: its entries stay, not downloaded.
 						for (const r of entriesIn(db, rootId, hentoid))
 							if (!folders.has(r.rel))
 								db.prepare(`UPDATE entries SET available = 0 WHERE id = ?`).run(r.id);
+						// A folder with no pages was never a book (c64): what an earlier
+						// import made of it goes, unless the owner touched it.
+						prunePageless(db, rootId, hentoid, pageless);
 					}
 				};
 			}
