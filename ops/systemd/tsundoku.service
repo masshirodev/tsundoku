@@ -1,0 +1,24 @@
+# Serve the library (doc/SERVING.md), from boot, and again whenever it stops.
+# A user unit; lingering (loginctl enable-linger) starts it without a login.
+# Install with
+#   ln -s ~/projects/tsundoku/ops/systemd/tsundoku.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now tsundoku.service
+# A deploy is `yarn run build`, then `systemctl --user restart tsundoku`.
+[Unit]
+Description=tsundoku: serve the library over the tailnet
+RequiresMountsFor=/mnt/hdd2
+# Never give up: at boot tailscaled may not be up yet, and serve.ts exits
+# until it is (`tailscale status` fails), so it's tried every ten seconds.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=%h/projects/tsundoku
+# mise's shim, so the unit gets the project's Node without a login shell.
+# serve.ts reads .env itself (the token, the real library's database).
+ExecStart=%h/.local/share/mise/shims/node --experimental-strip-types scripts/serve.ts
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target

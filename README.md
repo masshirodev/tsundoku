@@ -32,6 +32,7 @@ On the tablet it's served over HTTPS on the tailnet, behind a token.
 echo "TSUNDOKU_TOKEN=$(node -e "console.log(require('crypto').randomBytes(18).toString('base64url'))")" >> .env
 yarn run build
 yarn run serve    # https://workstation.example.ts.net:8443
+# or, from boot with auto-restart: systemctl --user restart tsundoku (doc/SERVING.md)
 ```
 
 `serve` runs the app on 127.0.0.1 and has `tailscale serve` terminate TLS

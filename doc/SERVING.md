@@ -9,6 +9,32 @@ yarn run build
 yarn run serve     # https://workstation.example.ts.net:8443
 ```
 
+## From boot, and again when it stops
+
+`ops/systemd/tsundoku.service` runs `yarn run serve`'s script as a user
+service. It starts at boot without anyone logged in (the user lingers:
+`loginctl enable-linger`), and `Restart=always` brings it back ten seconds
+after it stops, however it stopped. At boot, tailscaled may not be up yet;
+`serve` exits until it is, and the unit keeps trying (`StartLimitIntervalSec=0`).
+
+```sh
+# once
+ln -s ~/projects/tsundoku/ops/systemd/tsundoku.service ~/.config/systemd/user/
+systemctl --user daemon-reload && systemctl --user enable --now tsundoku.service
+
+# a deploy
+yarn run build && systemctl --user restart tsundoku
+
+# what it's doing
+systemctl --user status tsundoku
+journalctl --user -u tsundoku -f
+```
+
+With the service on, don't also run `yarn run serve` by hand: the second
+one would find the port taken. A restart snapshots the build into
+`.serving/` as `serve` always has, so building while it runs is safe.
+Installed on 2026-09-24; a kill -9 was back within ten seconds.
+
 ## HTTPS, through `tailscale serve`
 
 The reader needs a **secure context**. WebAuthn (the `/reveal` fingerprint gate),
