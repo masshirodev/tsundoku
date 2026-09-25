@@ -7,7 +7,9 @@ import {
 	idsLine,
 	isCutShort,
 	scoreToRating,
-	searchTitle,
+	bracketed,
+	cleanTitle,
+	searchTitles,
 	sureMatch,
 	whyLine,
 	type Candidate,
@@ -149,17 +151,32 @@ async function byIds(ids: number[], field: 'id_in' | 'idMal_in'): Promise<Candid
 	return out;
 }
 
-/** AniList's search for each title, five titles to a request, best match first. */
-async function searchMany(titles: string[], per = 6): Promise<Candidate[][]> {
+/** The AniList formats a kind can be: a novel is a NOVEL, anything else a comic. */
+const formatsOf = (kind: Kind): string[] => (kind === 'novel' ? ['NOVEL'] : ['MANGA', 'ONE_SHOT']);
+
+/**
+ * AniList's search for each title, only in its kind's formats, five titles to
+ * a request, best match first. The format keeps a novel out of a manhwa's
+ * candidates (The Beginning After the End is both), and the other way round.
+ */
+async function searchMany(
+	queries: { title: string; kind: Kind }[],
+	per = 6
+): Promise<Candidate[][]> {
 	const out: Candidate[][] = [];
-	for (let i = 0; i < titles.length; i += 5) {
-		const chunk = titles.slice(i, i + 5);
-		const vars = Object.fromEntries(chunk.map((t, j) => [`q${j}`, t]));
-		const query = `query (${chunk.map((_, j) => `$q${j}: String`).join(', ')}) {
+	for (let i = 0; i < queries.length; i += 5) {
+		const chunk = queries.slice(i, i + 5);
+		const vars = Object.fromEntries(
+			chunk.flatMap((q, j) => [
+				[`q${j}`, q.title],
+				[`f${j}`, formatsOf(q.kind)]
+			])
+		);
+		const query = `query (${chunk.map((_, j) => `$q${j}: String, $f${j}: [MediaFormat]`).join(', ')}) {
 			${chunk
 				.map(
 					(_, j) =>
-						`s${j}: Page(perPage: ${per}) { media(search: $q${j}, type: MANGA, sort: SEARCH_MATCH) { ...M } }`
+						`s${j}: Page(perPage: ${per}) { media(search: $q${j}, type: MANGA, format_in: $f${j}, sort: SEARCH_MATCH) { ...M } }`
 				)
 				.join('\n')}
 		} ${MEDIA}`;
@@ -466,6 +483,14 @@ const titlesOfRow = (r: { title: string; alt_titles: string }): string[] => {
 };
 
 /**
+ * The titles a sure match may equal: the series' own, each cleaned
+ * (`cleanTitle`), and what their brackets hold.
+ */
+const matchTitles = (titles: string[]): string[] => [
+	...new Set(titles.flatMap((t) => [t, cleanTitle(t), ...bracketed(t)]))
+];
+
+/**
  * Search AniList for each: a sure match links at once ('exact'); otherwise the
  * first four results wait for the review, and a search that found nothing
  * does too, so the owner can search again or paste a link.
@@ -475,8 +500,21 @@ export async function searchSeries(
 	now = Date.now()
 ): Promise<{ linked: number; offered: number }> {
 	const db = getDb();
-	const queries = rows.map((r) => r.query ?? searchTitle(r.title));
-	const results = await searchMany(queries);
+	// The owner's own title for a SEARCH AGAIN, as typed; the pass's cleaned,
+	// with a shorter one to fall back on.
+	const tries = rows.map((r) => (r.query ? [r.query] : searchTitles(r.title)));
+	const found = await searchMany(tries.map((t, i) => ({ title: t[0], kind: rows[i].kind })));
+	const queries = tries.map((t) => t[0]);
+	const again = rows.map((_, i) => i).filter((i) => found[i].length === 0 && tries[i].length > 1);
+	if (again.length) {
+		const second = await searchMany(again.map((i) => ({ title: tries[i][1], kind: rows[i].kind })));
+		again.forEach((i, j) => {
+			if (second[j].length) {
+				found[i] = second[j];
+				queries[i] = tries[i][1];
+			}
+		});
+	}
 	let linked = 0;
 	let offered = 0;
 	const saveSearch = db.prepare(
@@ -488,17 +526,21 @@ export async function searchSeries(
 		`INSERT OR REPLACE INTO link_candidates (series_id, anilist_id, rank, data) VALUES (?, ?, ?, ?)`
 	);
 	rows.forEach((r, i) => {
-		const found = results[i] ?? [];
+		const hits = found[i] ?? [];
 		// The by-hand query is the owner's choice of title, so it counts as one of the series'.
-		const sure = sureMatch([...titlesOfRow(r), ...(r.query ? [r.query] : [])], r.kind, found);
+		const sure = sureMatch(
+			matchTitles([...titlesOfRow(r), ...(r.query ? [r.query] : [])]),
+			r.kind,
+			hits
+		);
 		db.transaction(() => {
-			saveSearch.run(r.id, queries[i], now, found.length);
+			saveSearch.run(r.id, queries[i], now, hits.length);
 			clear.run(r.id);
 			if (sure) {
 				link(r.id, sure, 'exact', now);
 				linked += 1;
 			} else {
-				found
+				hits
 					.slice(0, 4)
 					.forEach((c, rank) => offer.run(r.id, c.anilistId, rank, JSON.stringify(c)));
 				offered += 1;
@@ -506,6 +548,43 @@ export async function searchSeries(
 		})();
 	});
 	return { linked, offered };
+}
+
+/**
+ * Search again every series the pass searched and couldn't link, with the
+ * titles cleaned as they are now: `yarn run links --again`. The owner's own
+ * SEARCH AGAIN titles, NONE OF THESE and UNLINK are left alone.
+ */
+export function requeueSearched(): number {
+	const db = getDb();
+	return db.transaction(() => {
+		const ids = (
+			db
+				.prepare(
+					`SELECT ls.series_id AS id, ls.query, s.title FROM link_searches ls JOIN series s ON s.id = ls.series_id
+					WHERE ls.searched_at IS NOT NULL
+						AND NOT EXISTS (SELECT 1 FROM series_links l WHERE l.series_id = ls.series_id)
+						AND NOT EXISTS (SELECT 1 FROM link_decisions d WHERE d.series_id = ls.series_id)`
+				)
+				.all() as { id: number; query: string; title: string }[]
+		)
+			// The pass's own query: the title, the title without Mihon's "...", or a
+			// cleaning of it. Anything else the owner typed.
+			.filter(
+				(r) =>
+					r.query === r.title ||
+					r.query === r.title.replace(/\s*(\.\.\.|…)$/, '') ||
+					searchTitles(r.title).includes(r.query)
+			)
+			.map((r) => r.id);
+		const del = db.prepare(`DELETE FROM link_searches WHERE series_id = ?`);
+		const clear = db.prepare(`DELETE FROM link_candidates WHERE series_id = ?`);
+		for (const id of ids) {
+			del.run(id);
+			clear.run(id);
+		}
+		return ids.length;
+	})();
 }
 
 export type PassResult = {
@@ -789,4 +868,122 @@ export function seriesAccess(seriesId: number, reveal: boolean): { hidden: boole
 		.get(seriesId) as { hidden: number } | undefined;
 	if (!r || (r.hidden && !reveal)) return null;
 	return { hidden: !!r.hidden };
+}
+
+// ---- SEARCH AGAIN, now ----------------------------------------------------------------------
+
+/** What a search replaced, so its UNDO can put it back. One per series, this process only. */
+type Before = {
+	search: {
+		query: string;
+		searched_at: number | null;
+		found: number;
+		skipped_at: number | null;
+	} | null;
+	candidates: { anilist_id: number; rank: number; data: string }[];
+};
+const before = new Map<number, Before>();
+
+export type SearchNow =
+	| { outcome: 'linked'; candidate: Candidate }
+	| { outcome: 'found'; found: number }
+	| { outcome: 'queued'; was: QueuedFrom };
+
+/**
+ * SEARCH AGAIN (and FIND on a series never searched): AniList asked at once,
+ * with this title only. An exact match links there and then; otherwise what
+ * it found replaces the candidates. AniList out of reach, the search waits
+ * for the next pass instead, as it used to. The owner's call, 2026-09-24: a
+ * pass can be hours off, and one request is a second's wait.
+ */
+export async function searchNow(
+	seriesId: number,
+	query: string,
+	now = Date.now()
+): Promise<SearchNow> {
+	const db = getDb();
+	const q = query.trim();
+	if (!q) throw new Error('a title to search');
+	const row = db
+		.prepare(`SELECT id, title, alt_titles, kind FROM series WHERE id = ?`)
+		.get(seriesId) as Omit<SearchRow, 'query'> | undefined;
+	if (!row) throw new Error('no such series');
+	const snapshot: Before = {
+		search:
+			(db
+				.prepare(
+					`SELECT query, searched_at, found, skipped_at FROM link_searches WHERE series_id = ?`
+				)
+				.get(seriesId) as Before['search'] | undefined) ?? null,
+		candidates: db
+			.prepare(`SELECT anilist_id, rank, data FROM link_candidates WHERE series_id = ?`)
+			.all(seriesId) as Before['candidates']
+	};
+	try {
+		const r = await searchSeries([{ ...row, query: q }], now);
+		before.set(seriesId, snapshot);
+		if (r.linked) {
+			const l = linkOf(db, seriesId)!;
+			return {
+				outcome: 'linked',
+				candidate: asCandidate(l)
+			};
+		}
+		const found = (
+			db.prepare(`SELECT found FROM link_searches WHERE series_id = ?`).get(seriesId) as {
+				found: number;
+			}
+		).found;
+		return { outcome: 'found', found };
+	} catch (e) {
+		if (!(e instanceof Unreachable)) throw e;
+		before.delete(seriesId);
+		return { outcome: 'queued', was: queueSearch(seriesId, q) };
+	}
+}
+
+/** The link a search just made, as a candidate for the band's words. */
+function asCandidate(l: LinkRow): Candidate {
+	return {
+		anilistId: l.anilist_id ?? 0,
+		malId: l.mal_id,
+		title: l.title,
+		alts: [],
+		format: '',
+		country: '',
+		year: null,
+		chapters: null,
+		volumes: null,
+		status: '',
+		coverUrl: l.cover_url
+	};
+}
+
+/**
+ * UNDO a SEARCH AGAIN: the link it made goes, and the search and candidates
+ * it replaced come back. A search that waited for the pass (AniList out of
+ * reach) is taken back as before, with what `searchNow` returned.
+ */
+export function undoSearch(seriesId: number, was: QueuedFrom | undefined): void {
+	const db = getDb();
+	const b = before.get(seriesId);
+	if (!b) {
+		unqueueSearch(seriesId, was ?? null);
+		return;
+	}
+	db.transaction(() => {
+		const l = linkOf(db, seriesId);
+		if (l?.via === 'exact') undoLink(seriesId);
+		db.prepare(`DELETE FROM link_candidates WHERE series_id = ?`).run(seriesId);
+		db.prepare(`DELETE FROM link_searches WHERE series_id = ?`).run(seriesId);
+		if (b.search)
+			db.prepare(
+				`INSERT INTO link_searches (series_id, query, searched_at, found, skipped_at) VALUES (?, ?, ?, ?, ?)`
+			).run(seriesId, b.search.query, b.search.searched_at, b.search.found, b.search.skipped_at);
+		const put = db.prepare(
+			`INSERT INTO link_candidates (series_id, anilist_id, rank, data) VALUES (?, ?, ?, ?)`
+		);
+		for (const c of b.candidates) put.run(seriesId, c.anilist_id, c.rank, c.data);
+	})();
+	before.delete(seriesId);
 }

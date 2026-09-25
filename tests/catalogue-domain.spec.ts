@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+	bracketed,
+	cleanTitle,
+	searchTitles,
 	candidateKind,
 	candidateRows,
 	idsLine,
@@ -175,5 +178,53 @@ describe('the review’s words', () => {
 		expect(idsLine(132215, 128830)).toBe('ANILIST 132215 · MAL 128830');
 		expect(idsLine(118400, null)).toBe('ANILIST 118400');
 		expect(idsLine(null, 128830)).toBe('MAL 128830');
+	});
+});
+
+describe('cleaning a title before it’s searched', () => {
+	it('drops what the files and sources add', () => {
+		expect(cleanTitle('One Piece (Official Colored)')).toBe('One Piece');
+		expect(cleanTitle('Hero Killer (Beolkkul)')).toBe('Hero Killer');
+		expect(cleanTitle('The Apothecary Diaries: Volume 4')).toBe('The Apothecary Diaries');
+		expect(cleanTitle('Alya Sometimes Hides Her Feelings in Russian, Vol. 1')).toBe(
+			'Alya Sometimes Hides Her Feelings in Russian'
+		);
+		expect(cleanTitle('Kino no Tabi - Volume 1')).toBe('Kino no Tabi');
+		expect(cleanTitle('The Beginning After the End: Book 10: Retribution')).toBe(
+			'The Beginning After the End'
+		);
+		expect(cleanTitle('The Beginning After The End 08')).toBe('The Beginning After The End');
+		expect(cleanTitle('Lord of the Mysteries: 1-1429')).toBe('Lord of the Mysteries');
+		expect(cleanTitle('Pick Me Up! c1-591')).toBe('Pick Me Up!');
+		expect(cleanTitle('SSS-Class Suicide Hunter Novel')).toBe('SSS-Class Suicide Hunter');
+		expect(cleanTitle('Second Life Ranker Novel (Ranker Who Lives Twice Novel)')).toBe(
+			'Second Life Ranker'
+		);
+	});
+
+	it('leaves a plain title, and a number that is the title’s own, as they are', () => {
+		expect(cleanTitle('Tower of God')).toBe('Tower of God');
+		expect(cleanTitle('Kaiju No. 8')).toBe('Kaiju No. 8');
+		expect(cleanTitle('Mob Psycho 100')).toBe('Mob Psycho 100');
+		expect(cleanTitle('86')).toBe('86');
+	});
+
+	it('falls back to the part before a subtitle', () => {
+		expect(
+			searchTitles('Clevatess - The King of Devil Beasts, The Baby and the Brave of Undead')
+		).toEqual([
+			'Clevatess - The King of Devil Beasts, The Baby and the Brave of Undead',
+			'Clevatess'
+		]);
+		expect(searchTitles('Mushoku Tensei: Jobless Reincarnation Vol. 2')).toEqual([
+			'Mushoku Tensei: Jobless Reincarnation',
+			'Mushoku Tensei'
+		]);
+		expect(searchTitles('Player')).toEqual(['Player']);
+	});
+
+	it('reads what’s in brackets as another title', () => {
+		expect(bracketed('Hero Killer (Beolkkul)')).toEqual(['Beolkkul']);
+		expect(bracketed('Player')).toEqual([]);
 	});
 });

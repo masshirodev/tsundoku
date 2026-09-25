@@ -57,7 +57,39 @@ romaji, native, synonyms) can equal any of the series' own (title and
 - Manga and manhwa count as one kind: AniList calls both MANGA, and Mihon's
   guess between them can be wrong.
 - A title Mihon cut short with `...` never matches exactly. It's searched
-  with the stub taken off (`searchTitle`) and goes to the review.
+  with the stub taken off and goes to the review.
+
+### Cleaning a title before it's searched
+
+Most searches that found nothing on the first pass (2026-09-24) were titles
+with something added by the files or the source. `cleanTitle` takes off:
+
+- brackets: `One Piece (Official Colored)`;
+- volumes, books, parts and seasons: `The Apothecary Diaries: Volume 4`,
+  `The Beginning After the End: Book 10: Retribution`;
+- chapter ranges: `Lord of the Mysteries: 1-1429`, `Pick Me Up! c1-591`;
+- a zero-padded number: `The Beginning After The End 08`;
+- the kind: `SSS-Class Suicide Hunter Novel`.
+
+A number that's the title's own (`Kaiju No. 8`, `Mob Psycho 100`, `86`)
+stays. If the clean title finds nothing, the part before a subtitle is
+searched once more (`Clevatess - The King of Devil Beasts, …` →
+`Clevatess`). For a sure match, the cleaned title and what the brackets hold
+(`Hero Killer (Beolkkul)` → `Beolkkul`) count as titles of the series too.
+A title the owner types into SEARCH AGAIN is searched as typed.
+
+### Manga or novel
+
+AniList holds a comic and its novel as two entries under the same title
+(The Beginning After the End is both). The search asks only for the
+series' own kind's formats: `NOVEL` for a novel, `MANGA` and `ONE_SHOT` for
+anything else. So a novel never takes up one of a comic's candidate slots,
+and the other way round. A series whose kind is wrong here won't find its
+entry; PASTE A LINK is the way round that.
+
+Some entries AniList's search doesn't return at all. On 2026-09-24 that
+included the manhwa of The Beginning After the End (only the anime came
+back) and Leveling Up With the Gods. Those are PASTE A LINK too.
 
 **Anything less is never linked silently.** The first four results wait in
 the review. So does a search that found nothing, so the owner can search
@@ -92,7 +124,8 @@ key.
 - by hand, with `yarn run links`.
 
 It resolves waiting MAL links, then searches up to 60 series (all of them by
-hand; `--limit` caps it). A SEARCH AGAIN goes first, then series with no
+hand; `--limit` caps it, and `--again` first searches again every series a
+pass searched and couldn't link, with titles cleaned as they are now). A SEARCH AGAIN goes first, then series with no
 cover. Five titles go to a request, as aliased `Page` queries.
 
 AniList asks for no more than 30 requests a minute (its degraded limit), so
@@ -142,9 +175,13 @@ desktop and in tablet landscape.
   - its cover, titles, and a line saying why it might be the one (`whyLine`);
   - FORMAT, YEAR, CHAPTERS and STATUS, drawn strong where they agree with the
     series (`candidateRows`).
-- **NONE OF THESE** is remembered. **SKIP** sends it to the back. **SEARCH
-  AGAIN** queues an edited title for the next pass. **PASTE A LINK** reads
-  the link as one candidate, sending only its id.
+- **NONE OF THESE** is remembered. **SKIP** sends it to the back.
+  **PASTE A LINK** reads the link as one candidate, sending only its id.
+- **SEARCH AGAIN asks AniList at once** with the edited title. An equal
+  title links there and then. Otherwise the new candidates replace these, on
+  the same series. With AniList out of reach, the search waits for the next
+  pass instead, and the band says so. FIND on a series never searched
+  searches as the review opens.
 - Every decision is carried out at once. UNDO takes back LINK (and a rating it
   gave), NONE OF THESE and SEARCH AGAIN. SKIP has no UNDO, as in the mock.
 - `?series=N` is one series only: FIND or CHANGE on its screen. It has no
@@ -176,6 +213,10 @@ desktop and in tablet landscape.
   pass may be hours off.
 - **The candidate letter for a pasted link** is the one after the search's
   candidates. The mock drew E with none.
+- **SEARCH AGAIN searches now**, not in the next cover pass. That was the
+  owner's call on 2026-09-24: the pass only runs after an import, which can
+  be hours off, and one request is a second's wait. It still falls back to
+  the pass when AniList can't be reached.
 - **SKIP is offered when nothing was found too** (1c drew only SEARCH AGAIN
   and PASTE A LINK), the owner's addition, so such a series doesn't block the
   queue.

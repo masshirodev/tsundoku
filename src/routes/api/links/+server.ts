@@ -8,15 +8,15 @@ import {
 	link,
 	noneOfThese,
 	offered,
-	queueSearch,
 	readPasted,
 	reviewItem,
+	searchNow,
+	undoSearch,
 	seriesAccess,
 	skip,
 	undoLink,
 	undoNone,
 	unlink,
-	unqueueSearch,
 	type QueuedFrom
 } from '$lib/server/catalogue';
 import { parsePasted } from '$lib/library/catalogue';
@@ -28,7 +28,7 @@ type Body = {
 	pasted?: boolean;
 	none?: boolean;
 	skip?: boolean;
-	/** SEARCH AGAIN: the title to search in the next pass. */
+	/** SEARCH AGAIN: the title to search, now (the next pass, if AniList is out of reach). */
 	search?: string;
 	/** PASTE A LINK: read as one candidate; nothing is linked yet. */
 	paste?: string;
@@ -61,7 +61,8 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 		}
 		if (b.undo === 'none') return json({ ok: undoNone(seriesId) });
 		if (b.undo === 'search') {
-			unqueueSearch(seriesId, b.was ?? null);
+			undoSearch(seriesId, b.was ?? undefined);
+			recover(false);
 			return json({ ok: true });
 		}
 		if (b.unlink) {
@@ -79,7 +80,10 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 		}
 		if (typeof b.search === 'string') {
 			if (access.hidden) error(409, 'hidden series are never searched');
-			return json({ was: queueSearch(seriesId, b.search) });
+			const r = await searchNow(seriesId, b.search);
+			// A search that linked gives the series its cover in the background.
+			if (r.outcome === 'linked') recover(true);
+			return json({ ...r, item: reviewItem(seriesId, reveal) });
 		}
 		if (typeof b.paste === 'string') {
 			const p = parsePasted(b.paste);

@@ -46,6 +46,7 @@ const media = (o: {
 let entries: ReturnType<typeof media>[] = [];
 let searches: Record<string, ReturnType<typeof media>[]> = {};
 const asked: string[] = [];
+const formatsAsked: string[] = [];
 
 const fake: typeof fetch = async (_url, init) => {
 	const { query, variables } = JSON.parse(String(init?.body)) as {
@@ -64,8 +65,14 @@ const fake: typeof fetch = async (_url, init) => {
 		return reply({ Page: { media: entries.filter((m) => ids.includes(m.id)) } });
 	}
 	const out: Record<string, unknown> = {};
-	for (const [k, q] of Object.entries(variables))
-		out[k.replace('q', 's')] = { media: searches[q as string] ?? [] };
+	for (const [k, q] of Object.entries(variables)) {
+		if (!k.startsWith('q')) continue;
+		const formats = variables[k.replace('q', 'f')] as string[];
+		formatsAsked.push(formats.join(','));
+		out[k.replace('q', 's')] = {
+			media: (searches[q as string] ?? []).filter((m) => formats.includes(m.format))
+		};
+	}
 	return reply(out);
 };
 
@@ -74,6 +81,7 @@ beforeEach(() => {
 	entries = [];
 	searches = {};
 	asked.length = 0;
+	formatsAsked.length = 0;
 	delete process.env.TSUNDOKU_ANILIST;
 	for (const t of ['series_links', 'link_searches', 'link_candidates', 'link_decisions'])
 		db.prepare(`DELETE FROM ${t}`).run();
@@ -129,6 +137,42 @@ describe('searching', () => {
 		expect(cat.linkQueueCount(false)).toBe(1);
 		// Both titles went in one request.
 		expect(asked).toEqual(['search']);
+	});
+
+	it('asks for a comic’s formats for a comic and a novel’s for a novel: TBATE is both', async () => {
+		const tog = idOf('Tower of God');
+		const novel = idOf('Mushoku Tensei');
+		const both = [
+			media({ id: 1, english: 'Tower of God', format: 'NOVEL' }),
+			media({ id: 2, english: 'Tower of God' })
+		];
+		searches['Tower of God'] = both;
+		searches['Mushoku Tensei'] = [
+			media({ id: 3, english: 'Mushoku Tensei' }),
+			media({ id: 4, english: 'Mushoku Tensei', format: 'NOVEL' })
+		];
+		await cat.searchSeries(
+			cat.searchable(10_000).filter((r) => r.id === tog || r.id === novel),
+			NOW
+		);
+		expect(formatsAsked.sort()).toEqual(['MANGA,ONE_SHOT', 'NOVEL']);
+		expect(linkRow(tog)).toMatchObject({ anilist_id: 2 });
+		expect(linkRow(novel)).toMatchObject({ anilist_id: 4 });
+	});
+
+	it('cleans a title before searching, and falls back to the part before a subtitle', async () => {
+		const tog = idOf('Tower of God');
+		db.prepare(`UPDATE series SET title = 'Tower of God: Season 3 (Official)' WHERE id = ?`).run(
+			tog
+		);
+		searches['Tower of God'] = [media({ id: 9, english: 'Tower of God' })];
+		await cat.searchSeries(
+			cat.searchable(10_000).filter((r) => r.id === tog),
+			NOW
+		);
+		// Cleaned, the title is equal: a sure link.
+		expect(linkRow(tog)).toMatchObject({ anilist_id: 9, via: 'exact' });
+		db.prepare(`UPDATE series SET title = 'Tower of God' WHERE id = ?`).run(tog);
 	});
 
 	it('keeps a search that found nothing in the review, for SEARCH AGAIN or a link', async () => {

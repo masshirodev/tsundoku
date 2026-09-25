@@ -50,7 +50,7 @@ test('NONE OF THESE leaves the queue, and its UNDO brings it back', async ({ pag
 	await expect(page.locator('.title')).toHaveText('Return of the Mount Hua Sect');
 });
 
-test('with nothing found: SEARCH AGAIN queues the edited title, and UNDO takes it back', async ({
+test('with nothing found: SEARCH AGAIN, AniList out of reach, waits for the pass; UNDO takes it back', async ({
 	page
 }) => {
 	await page.goto('/links');
@@ -66,7 +66,13 @@ test('with nothing found: SEARCH AGAIN queues the edited title, and UNDO takes i
 	await page.locator('.actions button', { hasText: 'SEARCH AGAIN' }).click();
 	await page.getByLabel('Title to search on AniList').fill('Call of the Night');
 	await page.getByRole('button', { name: 'SEARCH', exact: true }).click();
-	await expect(page.locator('.band .line').first()).toHaveText('QUEUED · “Call of the Night”');
+	// AniList is off for the suite, so the search waits for the pass, and says why.
+	await expect(page.getByText('○ ANILIST UNREACHABLE · LINK STILL WORKS')).toBeVisible();
+	const done = page.locator('.band', { has: page.getByRole('button', { name: 'UNDO' }) });
+	await expect(done.locator('.line').first()).toHaveText('QUEUED · “Call of the Night”');
+	await expect(done.locator('.line').nth(1)).toHaveText(
+		'ANILIST UNREACHABLE · SEARCHED IN THE NEXT COVER PASS'
+	);
 	// Out of the review until the next pass...
 	await expect(page.locator('.title')).toHaveText('Return of the Mount Hua Sect');
 	await expect(page.locator('.counter')).toHaveText('02 OF 02');

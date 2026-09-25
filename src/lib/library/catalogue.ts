@@ -45,18 +45,61 @@ export function normaliseTitle(t: string): string {
 	);
 }
 
+const BRACKETS = /\s*[([{【][^)\]}】]*[)\]}】]/g;
+
 /**
- * What to search AniList for. Mihon cuts long titles short with "..." (or
- * "…"), and a search with the stub on finds nothing, so it goes; a trailing
- * "and" or "of" left by the cut goes with it.
+ * A title as AniList would know it: without what the files and sources add.
+ * Measured on the owner's library (2026-09-24), the searches that found
+ * nothing were mostly these:
+ *
+ * - brackets: "One Piece (Official Colored)", "Hero Killer (Beolkkul)";
+ * - volumes and books: "The Apothecary Diaries: Volume 4", "Alya …, Vol. 1",
+ *   "The Beginning After the End: Book 10: Retribution";
+ * - chapter ranges: "Lord of the Mysteries: 1-1429", "Pick Me Up! c1-591";
+ * - a zero-padded number: "The Beginning After The End 08";
+ * - the kind: "SSS-Class Suicide Hunter Novel";
+ * - and Mihon's "..." when it cut a long title short.
  */
-export function searchTitle(t: string): string {
+export function cleanTitle(t: string): string {
 	let s = t.trim();
 	if (/(\.\.\.|…)$/.test(s)) {
 		s = s.replace(/(\.\.\.|…)$/, '').trim();
-		s = s.replace(/[\s,:;–—-]+(and|of|the|a|to|in|with|for)$/i, '').trim();
+		// The cut often leaves a dangling "and" or "of".
+		s = s.replace(/[\s,:;–—-]+(and|of|the|a|to|in|with|for)$/i, '');
 	}
-	return s;
+	s = s.replace(BRACKETS, ' ');
+	for (let i = 0; i < 4; i++) {
+		const was = s;
+		s = s
+			.replace(/[\s,:;–—-]*\b(vol(ume)?|book|part|season)\.?\s*\d+\b.*$/i, '')
+			.replace(/[\s,:;–—-]+c?\d+\s*[-–]\s*\d+$/i, '')
+			.replace(/\s+0\d+$/, '')
+			.replace(/\s+(light\s+novel|web\s+novel|novel|ln|wn)$/i, '')
+			.replace(/[\s,:;–—-]+$/, '')
+			.trim();
+		if (s === was) break;
+	}
+	s = s.replace(/\s{2,}/g, ' ').trim();
+	return s || t.trim();
+}
+
+/**
+ * What to search AniList for, in order: the clean title, then, should that
+ * find nothing, only the part before a subtitle ("Clevatess - The King of
+ * Devil Beasts, …" → "Clevatess").
+ */
+export function searchTitles(t: string): string[] {
+	const clean = cleanTitle(t);
+	const short = clean.split(/\s*:\s+|\s+[-–—]\s+/)[0].trim();
+	return short && short !== clean && short.length >= 3 ? [clean, short] : [clean];
+}
+
+/** The first of `searchTitles`: what the pass searches first. */
+export const searchTitle = (t: string) => searchTitles(t)[0];
+
+/** What's in a title's brackets, as more titles of the series ("Hero Killer (Beolkkul)"). */
+export function bracketed(t: string): string[] {
+	return [...t.matchAll(/[([{【]([^)\]}】]+)[)\]}】]/g)].map((m) => m[1].trim()).filter(Boolean);
 }
 
 /** Whether Mihon cut the title short: the review's hint says so. */

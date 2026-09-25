@@ -3,7 +3,8 @@
 	import { resolve } from '$app/paths';
 	import { coverSrc } from '$lib/library/links';
 	import { coverPlaceholder, hueFor } from '$lib/library/cover';
-	import { anilistUrl, parsePasted } from '$lib/library/catalogue';
+	import { anilistUrl, idsLine, parsePasted } from '$lib/library/catalogue';
+	import { SvelteMap } from 'svelte/reactivity';
 	import { offline } from '$lib/offline.svelte';
 	import type { QueuedFrom, ReviewCandidate } from '$lib/server/catalogue';
 
@@ -22,7 +23,7 @@
 	type Item = (typeof data.items)[number];
 
 	// svelte-ignore state_referenced_locally
-	const byId = new Map(data.items.map((i) => [i.seriesId, i]));
+	const byId = new SvelteMap(data.items.map((i) => [i.seriesId, i]));
 	// svelte-ignore state_referenced_locally
 	const total = data.items.length;
 	// svelte-ignore state_referenced_locally
@@ -42,6 +43,8 @@
 		/** What the workstation is asked to take back; null: nothing to take back (SKIP). */
 		undo: { kind: 'link' | 'none' | 'search'; series: number; was?: QueuedFrom } | null;
 		before: { queue: number[]; done: number };
+		/** A search's UNDO: the series as it was before, candidates and all. */
+		restore?: Item;
 	};
 	let undo = $state<Undo | null>(null);
 
@@ -148,6 +151,7 @@
 			failed = NO_ANSWER;
 			return;
 		}
+		if (u.restore) byId.set(u.restore.seriesId, u.restore);
 		queue = u.before.queue;
 		done = u.before.done;
 		undo = null;
@@ -164,15 +168,82 @@
 			'link'
 		);
 	}
-	function searchAgain() {
-		if (!item || !query.trim()) return;
-		decide(
-			{ search: query.trim() },
-			`QUEUED · “${query.trim()}”`,
-			'SEARCHED IN THE NEXT COVER PASS · BACK IN THE QUEUE WITH WHAT IT FINDS',
-			'search'
-		);
+	/**
+	 * SEARCH AGAIN, at once (the owner's call, 2026-09-24; the handoff queued it
+	 * for the next cover pass). An exact match links; otherwise the new
+	 * candidates replace these, on the same series. AniList out of reach, it
+	 * waits for the pass after all, and says so.
+	 */
+	let searchingNow = $state(false);
+	async function searchAgain() {
+		if (!item || !query.trim() || busy) return;
+		const id = item.seriesId;
+		const q = query.trim();
+		const prev = item;
+		const beforeQ = { queue: [...queue], done };
+		busy = true;
+		searchingNow = true;
+		failed = null;
+		const r = await post({ series: id, search: q });
+		busy = false;
+		searchingNow = false;
+		if (!r?.ok) {
+			failed = NO_ANSWER;
+			return;
+		}
+		const a = (await r.json()) as {
+			outcome: 'linked' | 'found' | 'queued';
+			candidate?: { anilistId: number; malId: number | null; title: string };
+			found?: number;
+			was?: QueuedFrom;
+			item: Item | null;
+		};
+		const back = { kind: 'search' as const, series: id, was: a.was ?? undefined };
+		if (a.outcome === 'linked' && single) {
+			await goto(resolve('/series/[id]', { id: String(id) }), { invalidateAll: true });
+			return;
+		}
+		if (a.outcome === 'linked' || a.outcome === 'queued') {
+			if (a.outcome === 'queued') nonet = true;
+			queue = queue.slice(1);
+			done += 1;
+			undo =
+				a.outcome === 'linked'
+					? {
+							title: `LINKED · ${a.candidate!.title.toUpperCase()}`,
+							detail: `THE SAME TITLE ON ANILIST · ${idsLine(a.candidate!.anilistId, a.candidate!.malId)}`,
+							undo: back,
+							before: beforeQ,
+							restore: prev
+						}
+					: {
+							title: `QUEUED · “${q}”`,
+							detail: 'ANILIST UNREACHABLE · SEARCHED IN THE NEXT COVER PASS',
+							undo: back,
+							before: beforeQ
+						};
+			return;
+		}
+		if (a.item) byId.set(id, a.item);
+		// Drawn afresh: the new candidates, nothing chosen, the panels shut.
+		shown = null;
+		undo = {
+			title: `SEARCHED · “${q}” · ${a.found ?? 0} FOUND`,
+			detail: a.found ? 'NO TITLE EQUAL · TAP ONE TO LINK' : 'NOTHING UNDER THIS TITLE EITHER',
+			undo: back,
+			before: beforeQ,
+			restore: prev
+		};
 	}
+
+	// FIND on a series never searched: searched as the review opens.
+	let autoSearched = false;
+	$effect(() => {
+		if (autoSearched || !single || !item || item.searched || single.queued || noSearch || off)
+			return;
+		autoSearched = true;
+		void searchAgain();
+	});
 
 	// ---- a pasted link, read as one candidate (Link Review 1d) ------------------------------
 	let reading = 0;
@@ -312,7 +383,7 @@
 				: single?.queued
 					? `A SEARCH FOR “${item.query}” WAITS FOR THE NEXT COVER PASS`
 					: !item.searched
-						? 'NOT SEARCHED YET · SEARCH AGAIN QUEUES ONE FOR THE NEXT COVER PASS'
+						? 'NOT SEARCHED YET · SEARCH AGAIN ASKS ANILIST NOW'
 						: `SEARCHED ANILIST FOR “${item.query}” IN THE COVER PASS · ${item.found} FOUND${item.found ? ' · NO TITLE EQUAL, SO NOTHING WAS LINKED' : ''}`
 	);
 	const hint = $derived(
@@ -517,11 +588,13 @@
 								autocomplete="off"
 								autofocus
 							/>
-							<button type="submit" class="go" disabled={netDim || busy}>SEARCH</button>
+							<button type="submit" class="go" disabled={netDim || busy}
+								>{searchingNow ? 'SEARCHING…' : 'SEARCH'}</button
+							>
 						</form>
 						<div class="fnote">
-							RUNS IN THE NEXT COVER PASS, NOT WHILE YOU WAIT. THE SERIES COMES BACK INTO THE QUEUE
-							WITH WHAT IT FINDS.
+							ANILIST IS ASKED NOW, WITH THIS TITLE ONLY. AN EQUAL TITLE LINKS; ANYTHING ELSE COMES
+							BACK HERE TO CHOOSE FROM.
 						</div>
 					{/if}
 

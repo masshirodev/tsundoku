@@ -5,6 +5,7 @@
  *
  *   yarn run links              # every series not yet searched
  *   yarn run links --limit 100  # at most 100
+ *   yarn run links --again      # search again what the pass couldn't link
  *
  * Logs counts only, never titles. Covers follow with `yarn run covers`.
  */
@@ -16,7 +17,8 @@ try {
 	// No .env: the defaults.
 }
 
-const { refreshLinks, linkCount } = await import('../src/lib/server/catalogue.ts');
+const { refreshLinks, linkCount, requeueSearched } = await import('../src/lib/server/catalogue.ts');
+if (process.argv.includes('--again')) console.log(`links: ${requeueSearched()} to search again`);
 const at = process.argv.indexOf('--limit');
 const limit = at > 0 ? Number(process.argv[at + 1]) : 100_000;
 const started = Date.now();
