@@ -99,6 +99,22 @@ there, and The Beginning After the End's novel isn't there at all. MAL
 lists more of them. Searching MAL needs a client id, which comes with the
 tracking delivery.
 
+### A novel linked to its comic's entry: cover and details only
+
+The owner's call, 2026-09-24: a novel AniList doesn't have as a novel may
+link to its comic's entry, for the cover and the details. When a novel's
+search finds nothing in `NOVEL`, it's searched once more in the comic
+formats. What that finds is offered, marked **A COMIC · COVER ONLY, NEVER
+TRACKED**, and **never linked by itself**, even on an equal title: a comic
+is another work under the same name. A pasted manga link on a novel is the
+same, and so is the other way round (a comic linked to a novel's entry).
+
+The link keeps the entry's format (`series_links.format`, rung 26), and
+`coverOnly` tells such a link from the rest. Its LINK row says **THE
+COMIC'S ENTRY · COVER AND DETAILS ONLY, NEVER TRACKED**. **Tracking must
+never send progress through one:** a novel's chapter 300 isn't the
+manhwa's.
+
 **Anything less is never linked silently.** The first four results wait in
 the review. So does a search that found nothing, so the owner can search
 again or paste a link.

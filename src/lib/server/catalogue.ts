@@ -4,6 +4,7 @@ import { HIDDEN_SQL, VISIBLE_SQL, visibleWhere } from './visibility.ts';
 import {
 	candidateRows,
 	coverLines,
+	coverOnly,
 	idsLine,
 	isCutShort,
 	scoreToRating,
@@ -201,6 +202,7 @@ type LinkRow = {
 	resolved_at: number | null;
 	filled_rating: number | null;
 	score: number | null;
+	format: string | null;
 };
 
 function linkOf(db: Database.Database, seriesId: number): LinkRow | null {
@@ -279,13 +281,13 @@ export function link(seriesId: number, c: Candidate, via: Via, now = Date.now())
 	const db = getDb();
 	db.transaction(() => {
 		db.prepare(
-			`INSERT INTO series_links (series_id, anilist_id, mal_id, via, title, cover_url, linked_at, resolved_at)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			`INSERT INTO series_links (series_id, anilist_id, mal_id, via, title, cover_url, linked_at, resolved_at, format)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT (series_id) DO UPDATE SET anilist_id = excluded.anilist_id, mal_id = excluded.mal_id,
 				via = excluded.via, title = excluded.title, cover_url = excluded.cover_url,
 				linked_at = excluded.linked_at, resolved_at = excluded.resolved_at,
-				filled_rating = NULL, score = NULL`
-		).run(seriesId, c.anilistId, c.malId, via, c.title, c.coverUrl, now, now);
+				filled_rating = NULL, score = NULL, format = excluded.format`
+		).run(seriesId, c.anilistId, c.malId, via, c.title, c.coverUrl, now, now, c.format || null);
 		db.prepare(`DELETE FROM link_decisions WHERE series_id = ?`).run(seriesId);
 	})();
 }
@@ -422,8 +424,8 @@ export async function resolveLinks(now = Date.now()): Promise<number> {
 		])
 	);
 	const set = db.prepare(
-		`UPDATE series_links SET anilist_id = ?, mal_id = COALESCE(?, mal_id), title = ?, cover_url = ?, resolved_at = ?
-		WHERE series_id = ?`
+		`UPDATE series_links SET anilist_id = ?, mal_id = COALESCE(?, mal_id), title = ?, cover_url = ?, resolved_at = ?,
+			format = ? WHERE series_id = ?`
 	);
 	const none = db.prepare(`UPDATE series_links SET resolved_at = ? WHERE series_id = ?`);
 	let n = 0;
@@ -431,7 +433,7 @@ export async function resolveLinks(now = Date.now()): Promise<number> {
 		for (const w of waiting) {
 			const c = w.anilist_id !== null ? al.get(w.anilist_id) : mal.get(w.mal_id);
 			if (c) {
-				set.run(c.anilistId, c.malId, c.title, c.coverUrl, now, w.series_id);
+				set.run(c.anilistId, c.malId, c.title, c.coverUrl, now, c.format || null, w.series_id);
 				n += 1;
 			} else none.run(now, w.series_id);
 		}
@@ -515,6 +517,24 @@ export async function searchSeries(
 			}
 		});
 	}
+	// A novel AniList doesn't have as a novel: its comic's entry, offered only,
+	// for the cover and the details (`coverOnly`; never linked by itself).
+	const crossed = new Set<number>();
+	const comics = rows
+		.map((_, i) => i)
+		.filter((i) => found[i].length === 0 && rows[i].kind === 'novel');
+	if (comics.length) {
+		const third = await searchMany(
+			comics.map((i) => ({ title: tries[i][0], kind: 'manga' as Kind }))
+		);
+		comics.forEach((i, j) => {
+			if (third[j].length) {
+				found[i] = third[j];
+				queries[i] = tries[i][0];
+				crossed.add(i);
+			}
+		});
+	}
 	let linked = 0;
 	let offered = 0;
 	const saveSearch = db.prepare(
@@ -528,11 +548,9 @@ export async function searchSeries(
 	rows.forEach((r, i) => {
 		const hits = found[i] ?? [];
 		// The by-hand query is the owner's choice of title, so it counts as one of the series'.
-		const sure = sureMatch(
-			matchTitles([...titlesOfRow(r), ...(r.query ? [r.query] : [])]),
-			r.kind,
-			hits
-		);
+		const sure = crossed.has(i)
+			? null
+			: sureMatch(matchTitles([...titlesOfRow(r), ...(r.query ? [r.query] : [])]), r.kind, hits);
 		db.transaction(() => {
 			saveSearch.run(r.id, queries[i], now, hits.length);
 			clear.run(r.id);
@@ -792,6 +810,8 @@ export type LinkState = {
 		ids: string;
 		/** A MAL link AniList hasn't been asked about yet. */
 		resolving: boolean;
+		/** Across kinds (a novel to its comic's entry): cover and details only, never tracked. */
+		coverOnly: boolean;
 	} | null;
 	/** Not linked: what the last pass found. */
 	candidates: number;
@@ -822,7 +842,8 @@ export function linkState(seriesId: number): LinkState | null {
 					title: l.title,
 					via: l.via,
 					ids: idsLine(l.anilist_id, l.mal_id),
-					resolving: l.resolved_at === null
+					resolving: l.resolved_at === null,
+					coverOnly: coverOnly(r.kind, l.format ?? '')
 				}
 			: null,
 		candidates: item.candidates.length,

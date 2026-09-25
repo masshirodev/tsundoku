@@ -371,3 +371,28 @@ describe('the series screen', () => {
 		expect(cat.linkState(id)?.cover.a).toBe('FROM THE ANILIST LINK');
 	});
 });
+
+describe('a novel AniList lacks', () => {
+	beforeEach(() => {
+		cat.setAnilistFetch(fake);
+		for (const t of ['series_links', 'link_searches', 'link_candidates', 'link_decisions'])
+			db.prepare(`DELETE FROM ${t}`).run();
+	});
+
+	it('is offered its comic’s entry, never linked to it by itself, and says it’s cover only', async () => {
+		const novel = idOf('Mushoku Tensei');
+		searches['Mushoku Tensei'] = [media({ id: 21, english: 'Mushoku Tensei', format: 'MANGA' })];
+		const r = await cat.searchSeries(
+			cat.searchable(10_000).filter((x) => x.id === novel),
+			NOW
+		);
+		// An equal title, but a comic: offered, not linked.
+		expect(r).toEqual({ linked: 0, offered: 1 });
+		expect(formatsAsked).toEqual(['NOVEL', 'MANGA,ONE_SHOT']);
+		const [item] = cat.linkQueue(false).filter((q) => q.seriesId === novel);
+		expect(item.candidates[0].why).toMatch(/^A COMIC · COVER ONLY, NEVER TRACKED/);
+		cat.link(novel, cat.offered(novel, 21)!, 'review', NOW);
+		expect(cat.linkState(novel)?.linked).toMatchObject({ coverOnly: true });
+		expect(linkRow(novel)).toMatchObject({ format: 'MANGA' });
+	});
+});

@@ -159,6 +159,19 @@ export function sureMatch(
 	return same.length === 1 ? same[0] : null;
 }
 
+/**
+ * A link across kinds: a novel linked to its comic's entry, or a comic to its
+ * novel's (the owner's call, 2026-09-24: AniList lacks many web novels, and
+ * the comic's entry still has the cover and the details). Such a link is for
+ * those only: a novel's chapter 300 isn't the manhwa's, so tracking never
+ * sends progress through it, and it's never made without the owner.
+ */
+export function coverOnly(seriesKind: Kind, format: string): boolean {
+	const k = candidateKind({ format, country: '' });
+	if (k === null || !format) return false;
+	return (seriesKind === 'novel') !== (k === 'novel');
+}
+
 export type Pasted = { service: 'anilist' | 'mal'; id: number };
 
 /**
@@ -238,6 +251,12 @@ export function whyLine(
 	if (sameKind && close) parts.push('SAME KIND, CHAPTERS CLOSE');
 	else if (sameKind && !shared.length) parts.push('SAME KIND');
 	if (c.malId === null) parts.push('NOT ON MAL');
+	if (coverOnly(series.kind, c.format))
+		parts.unshift(
+			series.kind === 'novel'
+				? 'A COMIC · COVER ONLY, NEVER TRACKED'
+				: 'A NOVEL · COVER ONLY, NEVER TRACKED'
+		);
 	return parts.join(' · ');
 }
 

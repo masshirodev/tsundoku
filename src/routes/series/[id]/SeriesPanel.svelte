@@ -99,6 +99,11 @@
 			return [
 				l.ids,
 				viaLabel(l.via),
+				l.coverOnly
+					? series.kind === 'novel'
+						? 'THE COMIC’S ENTRY · COVER AND DETAILS ONLY, NEVER TRACKED'
+						: 'THE NOVEL’S ENTRY · COVER AND DETAILS ONLY, NEVER TRACKED'
+					: '',
 				l.resolving ? 'ANILIST ASKED IN THE NEXT COVER PASS' : '',
 				link.hidden ? 'HIDDEN SERIES ARE NEVER SEARCHED' : ''
 			]

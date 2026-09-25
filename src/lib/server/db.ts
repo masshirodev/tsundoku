@@ -506,6 +506,13 @@ const MIGRATIONS: string[] = [
 		decision TEXT NOT NULL CHECK (decision IN ('none', 'unlinked')),
 		at INTEGER NOT NULL
 	);
+	`,
+	// Rung 26: the linked entry's AniList format (MANGA, NOVEL, ONE_SHOT), so a
+	// link across kinds -- a novel to its comic's entry -- is known for what
+	// it is: cover and details only, never tracked (doc/LINKS.md). NULL until
+	// AniList has been asked.
+	`
+	ALTER TABLE series_links ADD COLUMN format TEXT;
 	`
 ];
 
