@@ -237,6 +237,8 @@
 			? { label: `LINK ${selectedLetter}`, run: linkChosen, strong: true, dim: off }
 			: { label: 'TAP ONE TO LINK', run: () => {}, dim: true };
 		if (pasted) return [{ label: 'CANCEL', run: cancelPaste, dim: off }, link];
+		// SKIP too with nothing found: the owner's addition to 1c, so a series
+		// with no answer yet doesn't block the queue.
 		if (!item.candidates.length)
 			return [
 				{
@@ -249,7 +251,16 @@
 					label: 'PASTE A LINK',
 					run: () => ((pasting = !pasting), (searching = false)),
 					dim: netDim
-				}
+				},
+				...(single
+					? []
+					: [
+							{
+								label: 'SKIP',
+								run: () => decide({ skip: true }, 'SKIPPED', 'COMES UP AGAIN LATER', 'skip'),
+								dim: off
+							}
+						])
 			];
 		return [
 			{
@@ -279,7 +290,7 @@
 		pasted || !item?.candidates.length
 			? pasted
 				? '1fr 1.4fr'
-				: '1fr 1fr'
+				: actions.map(() => '1fr').join(' ')
 			: actions.length === 3
 				? '1fr 1fr 1.4fr'
 				: '1fr 1.4fr'

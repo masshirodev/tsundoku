@@ -176,6 +176,9 @@ desktop and in tablet landscape.
   pass may be hours off.
 - **The candidate letter for a pasted link** is the one after the search's
   candidates. The mock drew E with none.
+- **SKIP is offered when nothing was found too** (1c drew only SEARCH AGAIN
+  and PASTE A LINK), the owner's addition, so such a series doesn't block the
+  queue.
 - **The paste field stays usable while AniList is unreachable**, so a blip can
   be retried. The mock (1g) dims PASTE A LINK and SEARCH AGAIN, and so do the
   action cells here.

@@ -108,11 +108,10 @@
 {#if page.route.id?.startsWith('/read')}
 	<!--
 		The reader is the page and nothing else (doc/READER.md): no sidebar, no
-		banners. Reveal keeps its frame, so hidden pages are never mistaken for
-		ordinary ones, and leaving the app still blanks it.
+		banners, and no reveal frame either -- the owner's call, 2026-09-24: it
+		crowds the page. Leaving the app still blanks it.
 	-->
 	{@render children()}
-	{#if data.reveal}<div class="reveal-frame" aria-hidden="true"></div>{/if}
 	<PrivacyShield armed={data.reveal || data.incognito} />
 {:else}
 	<div class="app" class:revealed={data.reveal}>
@@ -184,7 +183,7 @@
 		<PrivacyShield armed={data.reveal || data.incognito} />
 
 		{#if data.reveal}
-			<!-- The 4px magenta frame: on every screen for as long as reveal is on. -->
+			<!-- The 4px magenta frame: on every screen but the reader, for as long as reveal is on. -->
 			<div class="reveal-frame" aria-hidden="true"></div>
 		{/if}
 	</div>

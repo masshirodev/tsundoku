@@ -24,8 +24,10 @@ the entry the library's ▶ opens, by the same rule as the series screen's
 CONTINUE.
 
 ← goes back to the series. The root layout draws nothing else around the
-reader: no sidebar, no banners, no incognito band. The reveal frame stays,
-because hidden pages must never pass for ordinary ones.
+reader: no sidebar, no banners, no incognito band, and no reveal frame. The
+frame used to stay, so hidden pages would never pass for ordinary ones; the
+owner took it out on 2026-09-24, since it crowds the page. The privacy shield
+still blanks the reader when the app goes to the background.
 
 ## Touch
 

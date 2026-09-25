@@ -57,6 +57,12 @@ test('with nothing found: SEARCH AGAIN queues the edited title, and UNDO takes i
 	await page.getByRole('button', { name: 'SKIP' }).click();
 	await expect(page.locator('.title')).toHaveText('Yofukashi no Uta');
 	await expect(page.getByText('AniList found nothing under this title.')).toBeVisible();
+	// Nothing found can be skipped too.
+	await expect(page.locator('.actions button')).toHaveText([
+		'SEARCH AGAIN',
+		'PASTE A LINK',
+		'SKIP'
+	]);
 	await page.locator('.actions button', { hasText: 'SEARCH AGAIN' }).click();
 	await page.getByLabel('Title to search on AniList').fill('Call of the Night');
 	await page.getByRole('button', { name: 'SEARCH', exact: true }).click();
