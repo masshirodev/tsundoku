@@ -30,7 +30,8 @@
 		"sync-setup": "node --experimental-strip-types scripts/sync-setup.ts",
 		"ocr": "node --experimental-strip-types scripts/ocr.ts",
 		"dupes": "node --experimental-strip-types scripts/dupes.ts",
-		"links": "node --experimental-strip-types scripts/links.ts"
+		"links": "node --experimental-strip-types scripts/links.ts",
+		"secrets:pull": "sh scripts/secrets-pull.sh"
 	},
 	"dependencies": {
 		"@fontsource/ibm-plex-sans": "^5.3.0",

@@ -7,6 +7,8 @@ node_modules/
 .env
 .env.*
 !.env.example
+# Infisical's machine identity for secrets-pull (doc/SECRETS.md): never tracked.
+.infisical-identity
 /data/
 samples/
 /temp/
