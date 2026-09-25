@@ -5,6 +5,7 @@
 # it starts and restarts without the VPS (the ISP can blackhole it).
 #
 #   yarn run secrets:pull
+#   yarn run secrets:pull --dry-run   # what would change, by name; writes nothing
 #
 # Needs .infisical-identity beside it (untracked, mode 600), in the VPS's
 # shape (~/projects/infisical/compose-with-secrets.sh there):
@@ -12,6 +13,9 @@
 #   INFISICAL_ENVIRONMENT, INFISICAL_API_URL
 # Prints key names only, never a value.
 set -eu
+
+dry=
+[ "${1:-}" = "--dry-run" ] && dry=1
 
 cd "${SECRETS_DIR:-$(dirname "$0")/..}"
 identity=.infisical-identity
@@ -74,9 +78,13 @@ if [ -f .env ]; then
 		b=$(grep -m1 "^$k=" "$work/env" | cut -d= -f2- | sed 's/^"\(.*\)"$/\1/')
 		[ "$a" = "$b" ] || printf '  ~ %s\n' "$k"
 	done
-	cp -p .env .env.bak
-	chmod 600 .env.bak
 fi
+if [ -n "$dry" ]; then
+	printf 'dry run: %s keys in Infisical (%s). .env left as it is.\n' \
+		"$(keys "$work/env" | wc -l | tr -d ' ')" "$INFISICAL_ENVIRONMENT"
+	exit 0
+fi
+[ -f .env ] && cp -p .env .env.bak && chmod 600 .env.bak
 mv "$work/env" .env
 printf '.env written: %s keys from %s (%s). The last one is .env.bak.\n' \
 	"$(keys .env | wc -l | tr -d ' ')" "$INFISICAL_API_URL" "$INFISICAL_ENVIRONMENT"

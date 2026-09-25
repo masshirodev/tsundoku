@@ -51,13 +51,18 @@ in `.env` is dropped. The script names each one it drops.
 
    It's untracked (`.gitignore`), and so is `.env.bak`.
 
-5. `yarn run secrets:pull`. The first time, it should list no changes.
+5. `yarn run secrets:pull --dry-run`, then `yarn run secrets:pull`. The
+   first time, it should list no changes but what you added. Done on
+   2026-09-25: the import brought the five `.env` keys across, and the owner
+   added the serving settings (`HOST`, `PORT`, `TSUNDOKU_SERVE`,
+   `TSUNDOKU_HTTPS_PORT`, `TSUNDOKU_BIND_ANY`), all at their defaults.
 
 ## A change
 
 Change the value in Infisical, then:
 
 ```sh
+yarn run secrets:pull --dry-run    # what would change, by name; writes nothing
 yarn run secrets:pull && systemctl --user restart tsundoku
 ```
 
