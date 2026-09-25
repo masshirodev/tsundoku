@@ -7,7 +7,7 @@ import { zip } from './zip-writer';
 /**
  * A synthetic Mihon folder shaped like the real one (doc/IMPORT-FORMATS.md):
  * two sources, the owner's rating categories with their "+" twins, a series
- * with downloads matched by URL (Weeb Central), one matched only by number
+ * with downloads matched by URL (Weeb Central) and tracked on MAL, one matched only by number
  * (Asura adds a slug hash to its URLs), a hidden "+" series, a browsed-only
  * series, and a download the backup doesn't know.
  */
@@ -51,6 +51,29 @@ export function backup(): Uint8Array {
 			[16, chapter(2, '/chapters/AAA2', [[6, 4]])],
 			[16, chapter(3, '/chapters/AAA3', [[3, 'Night Owl Scans']])],
 			[17, 1],
+			// Tracked on MyAnimeList (tracker 1), scored 9; and on Kitsu (3), which
+			// tsundoku doesn't link to.
+			[
+				18,
+				[
+					[1, 1],
+					[2, 5_000_001n],
+					[4, 'https://myanimelist.net/manga/147272'],
+					[5, 'Drawing: The Strongest Mangaka'],
+					[6, { f32: 2 }],
+					[8, { f32: 9 }],
+					[9, 1],
+					[100, 147272n]
+				]
+			],
+			[
+				18,
+				[
+					[1, 3],
+					[5, 'Drawing'],
+					[100, 99n]
+				]
+			],
 			[
 				104,
 				[

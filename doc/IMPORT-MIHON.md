@@ -195,8 +195,9 @@ content.
   CONTINUE is the owner's call.
 - **ZIP64 archives** are reported as unreadable, not read. A chapter is nowhere
   near 4 GB.
-- **Trackers** (MyAnimeList links in the backup) aren't imported. The
-  phone's backup links 110 series to MAL (tracker 1), all of which match a
-  series here by URL. The tablet's Mihon is a debug build whose backups carry
-  none (measured 2026-09-24). Brief: `doc/briefs/done/CATALOGUE-LINKS.md`, card c37
-  ("Link series to MyAnimeList / AniList: covers, then tracking").
+- **Trackers** are read for one thing: a MyAnimeList tracker (tracker 1)
+  links its series to the MAL entry, with its score for an unrated series'
+  rating ([`LINKS.md`](LINKS.md)). Status and chapter aren't kept yet, and
+  other trackers are skipped. The phone's backup links 110 series to MAL,
+  all of which match a series here by URL. The tablet's Mihon is a debug
+  build whose backups carry none (measured 2026-09-24).

@@ -70,6 +70,8 @@ The projects are the devices the design draws: `tablet-portrait` (800×1280),
 | `reader-layout.e2e.ts`  | all             | The reader's frame per device: the page on true black, the 64 / 56 / 64px controls. Reads in incognito, so it writes nothing.                   |
 | `reader-flow.e2e.ts`    | tablet-portrait | Writes: tap zones, the boundary, progress and resume, the READING sheet, vertical crossing, the end-of-series rating, incognito.                |
 | `privacy-flow.e2e.ts`   | tablet-portrait | Writes: `/incognito`, `/api/reading`, leaving and returning, and that a reload isn't leaving.                                                   |
+| `links-layout.e2e.ts`   | all             | The link review's frame per device (Link Review): the series above or beside its candidates, the mock's widths and heights.                     |
+| `links-flow.e2e.ts`     | tablet-portrait | Writes: the links band, LINK and UNDO, NONE OF THESE, SEARCH AGAIN, a paste with AniList off (`TSUNDOKU_ANILIST=off`), the series rows.         |
 
 **Every e2e spec imports `test` from `tests/fixtures.ts`,** whose
 `page.goto` also waits for the network to settle: SvelteKit hydrates after

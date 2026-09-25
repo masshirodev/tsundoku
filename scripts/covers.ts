@@ -1,7 +1,7 @@
 /**
  * Bring every series' cover up to date (doc/COVERS.md):
  *
- *   yarn run covers            # from files, then from the source sites
+ *   yarn run covers            # links, then from files, the source sites and the links
  *   yarn run covers --local    # from files only; nothing leaves the workstation
  *
  * The import runs the same thing after every scan.
@@ -17,6 +17,14 @@ try {
 
 const remote = !process.argv.includes('--local');
 const started = Date.now();
+if (remote) {
+	// Links first (doc/LINKS.md), so a series linked now has its cover in this run.
+	const { refreshLinks } = await import('../src/lib/server/catalogue.ts');
+	const l = await refreshLinks({ log: (line) => console.log(`  ${line}`) });
+	console.log(
+		`links: ${l.resolved} resolved, ${l.searched} searched, ${l.linked} linked, ${l.offered} to review${l.unreachable ? ' (AniList unreachable)' : ''}`
+	);
+}
 let done = 0;
 const counts = await refreshCovers({
 	remote,

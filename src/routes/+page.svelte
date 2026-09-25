@@ -577,6 +577,23 @@
 		</Banner>
 	{/if}
 
+	{#if data.toLink > 0 && !data.empty}
+		<!-- Below duplicates, which are older and fewer (Catalogue Links 1a; doc/LINKS.md). -->
+		<Banner
+			kind="action"
+			title="{String(data.toLink).padStart(2, '0')} SERIES TO LINK"
+			detail={isOffline ? 'THE REVIEW NEEDS THE WORKSTATION' : 'FOUND ON ANILIST, NOT FOR CERTAIN'}
+		>
+			{#snippet action()}
+				{#if isOffline}
+					<span class="dimmed" aria-disabled="true">REVIEW →</span>
+				{:else}
+					<a href={resolve('/links')} aria-label="Review the series to link">REVIEW →</a>
+				{/if}
+			{/snippet}
+		</Banner>
+	{/if}
+
 	{#if data.empty}
 		<section class="empty">
 			<div class="empty-label">00 — LIBRARY EMPTY</div>

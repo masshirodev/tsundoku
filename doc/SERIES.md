@@ -51,6 +51,9 @@ width, row height (60 / 52px) and rail width (56 / 44px) per device.
   ([`COVERS.md`](COVERS.md), "Chosen").
 - **SAME BOOK AS …** is a band under CONTINUE on a book with a likely twin,
   with KEEP BOTH and REVIEW → ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md)).
+- **LINK and COVER** sit under SHELVES on every series but a doujin: its
+  MyAnimeList / AniList entry with OPEN ↗, CHANGE and UNLINK, or FIND and
+  PASTE A LINK; and where its cover comes from ([`LINKS.md`](LINKS.md)).
 - **OCR and WORDS** sit under DIRECTION on every series that isn't a novel:
   how far OCR has read it on the workstation, with **OCR** to switch it on
   for one not seen as Japanese, and the words looked up in it waiting for

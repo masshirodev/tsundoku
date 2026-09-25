@@ -12,6 +12,7 @@ import { bookCoverVersion } from '../library/cover.ts';
 import { listZip, readMember } from './zip.ts';
 import { getSetting } from './settings.ts';
 import { openingEdition } from '../library/editions.ts';
+import { linkCover } from './catalogue.ts';
 
 /**
  * Covers (doc/COVERS.md). One thumbnail per series, made once and kept on the
@@ -21,7 +22,9 @@ import { openingEdition } from '../library/editions.ts';
  *    an EPUB's cover image;
  * 2. the source site's cover URL (Mihon's backup), fetched by
  *    `refreshCovers` -- never while a screen waits;
- * 3. the first page of the first downloaded entry, cropped from the top to
+ * 3. the cover of the series' AniList entry, once it's linked
+ *    (doc/LINKS.md), fetched by `refreshCovers` as the site's is;
+ * 4. the first page of the first downloaded entry, cropped from the top to
  *    the tile's shape. Last, because a chapter's first page is so often a
  *    scanlator's credits, or a sliver of a webtoon strip.
  *
@@ -244,12 +247,16 @@ function editionSource(s: SeriesRow): Source | null {
  * Where a series' cover comes from without a chosen page: what the page
  * menu's BACK TO AUTOMATIC would give. Only looks; reads nothing.
  */
-export function automaticCover(seriesId: number): 'book' | 'file' | 'url' | 'page' | 'none' {
+export function automaticCover(
+	seriesId: number
+): 'book' | 'file' | 'url' | 'link' | 'page' | 'none' {
 	const s = seriesRow(seriesId);
 	if (!s) return 'none';
 	if (firstBookSource(s)) return 'book';
 	if (ownSource(s)) return 'file';
-	if (remoteSource(s)) return 'url';
+	// A site that refused stands aside for the link, as it does in refreshCover.
+	if (remoteSource(s) && !(s.cover_failed_at !== null && linkSource(s))) return 'url';
+	if (linkSource(s)) return 'link';
 	if (pageSource(s)) return 'page';
 	return 'none';
 }
@@ -291,6 +298,22 @@ function remoteSource(s: SeriesRow): Source | null {
 			});
 			if (!res.ok) return null;
 			return Buffer.from(await res.arrayBuffer());
+		}
+	};
+}
+
+/** The linked AniList entry's cover (doc/LINKS.md). */
+function linkSource(s: SeriesRow): Source | null {
+	const l = linkCover(s.id);
+	if (!l) return null;
+	return {
+		key: `link:anilist:${l.anilistId}`,
+		read: async () => {
+			const res = await fetch(l.url, {
+				headers: { accept: 'image/avif,image/webp,image/*,*/*;q=0.8' },
+				signal: AbortSignal.timeout(15_000)
+			});
+			return res.ok ? Buffer.from(await res.arrayBuffer()) : null;
 		}
 	};
 }
@@ -381,6 +404,11 @@ export async function refreshCover(
 			db.prepare(`UPDATE series SET cover_failed_at = ? WHERE id = ?`).run(now, s.id);
 		}
 	}
+	const linked = linkSource(s);
+	if (linked) {
+		if (fresh(linked.key)) return 'kept';
+		if (remote && (await make(linked))) return 'made';
+	}
 	const page = pageSource(s);
 	if (page) {
 		if (fresh(page.key)) return site && remote ? 'failed' : 'kept';
@@ -417,7 +445,13 @@ export async function refreshCovers(
 	const remote = opts.remote ?? true;
 	const needsRemote: SeriesRow[] = [];
 	for (const s of rows) {
-		if (!chosenSource(s) && !firstBookSource(s) && !ownSource(s) && remote && remoteSource(s))
+		if (
+			!chosenSource(s) &&
+			!firstBookSource(s) &&
+			!ownSource(s) &&
+			remote &&
+			(remoteSource(s) || linkSource(s))
+		)
 			needsRemote.push(s);
 		else tally(await refreshCover(s, false, opts.now));
 	}

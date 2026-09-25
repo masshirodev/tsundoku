@@ -6,6 +6,7 @@ import { getDb } from '$lib/server/db';
 import { ocrPlace, restoreNotText, setSeriesOcr } from '$lib/server/japanese/ocr';
 import { wordsOf } from '$lib/server/japanese/mining';
 import { decide, twinOf } from '$lib/server/dupes';
+import { linkState, unlink } from '$lib/server/catalogue';
 import {
 	collectionExists,
 	createCollection,
@@ -103,7 +104,9 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		twin: twinBand(series.id, reveal),
 		// One book in several languages (doc/EDITIONS.md): its LANGUAGE and EDITIONS rows.
 		editions: series.kind === 'doujin' ? bookEditions(series.id) : null,
-		words: series.kind === 'novel' ? null : wordsOf(series.id, reveal)
+		words: series.kind === 'novel' ? null : wordsOf(series.id, reveal),
+		// Its MyAnimeList / AniList entry (doc/LINKS.md): the LINK and COVER rows.
+		link: linkState(series.id)
 	};
 };
 
@@ -249,6 +252,14 @@ export const actions: Actions = {
 		if (name !== '' && !s.scanlators.some((x) => x.name === name))
 			return fail(400, { message: 'no chapters from that scanlator' });
 		setScanlator(s.id, name === '' ? null : name);
+		return { ok: true };
+	},
+
+	// UNLINK (Series Link 1k): gone, and an import won't bring it back (doc/LINKS.md).
+	unlink: async ({ params, cookies }) => {
+		const s = target(params, cookies);
+		unlink(s.id);
+		recover([s.id]);
 		return { ok: true };
 	},
 

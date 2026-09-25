@@ -262,6 +262,14 @@ function tagsFor(p: {
 	return out;
 }
 
+/** Mihon's MyAnimeList tracker (id 1). The others aren't catalogues tsundoku links to. */
+const MAL_TRACKER = 1;
+
+export function malLinkOf(m: MihonManga): { id: number; score: number } | undefined {
+	const t = m.trackers.find((x) => x.service === MAL_TRACKER && x.mediaId > 0);
+	return t ? { id: t.mediaId, score: t.score > 0 ? t.score : 0 } : undefined;
+}
+
 function fromBackup(
 	m: MihonManga,
 	backup: MihonBackup,
@@ -340,6 +348,7 @@ function fromBackup(
 		addedAt: seriesAdded,
 		sourceUrl: m.url,
 		coverUrl: m.thumbnailUrl,
+		malLink: malLinkOf(m),
 		path: downloaded?.path ?? '',
 		entries: withPositions(rows, pos)
 	};

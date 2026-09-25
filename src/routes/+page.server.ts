@@ -1,6 +1,7 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { applyPending, offerFold, reviewQueue } from '$lib/server/dupes';
+import { linkQueueCount } from '$lib/server/catalogue';
 import { getDb } from '$lib/server/db';
 import {
 	collectionExists,
@@ -55,6 +56,8 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	// waiting is carried out, then the pairs still to review are counted.
 	await applyPending();
 	const dupes = reviewQueue(reveal).length;
+	// Catalogue links AniList found, not for certain (doc/LINKS.md).
+	const toLink = linkQueueCount(reveal);
 	// RANDOM's shuffle: one per choice of RANDOM, kept in the URL.
 	const seed = parseSeed(url.searchParams.get('seed'));
 	const pageSize = pageSizeOf(cookies.get('tsundoku_grid_page'));
@@ -68,6 +71,7 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		seed,
 		empty: total === 0 && !scan,
 		dupes,
+		toLink,
 		libraryRoot: libraryRoot(),
 		cont: continueReading(reveal),
 		// PEOPLE lists favourite people (from the layout), not series.

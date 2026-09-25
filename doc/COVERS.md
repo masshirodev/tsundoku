@@ -26,7 +26,12 @@ fails to load leaves the stripes.
    the site's own origin as the referrer, three at a time, and only by the
    cover pass, never while a screen waits. The owner approved fetching them on
    2026-09-23.
-4. **The first page of the first downloaded entry,** cut from the top to the
+4. **The linked AniList entry's cover** ([`LINKS.md`](LINKS.md)): a series
+   linked to its catalogue entry (from Mihon's MAL tracker, an exact title,
+   or the review) wears the entry's cover. It comes after the site's, and a
+   site that refused stands aside for it. `link:anilist:<id>`, fetched only
+   in a remote pass, as the site's is.
+5. **The first page of the first downloaded entry,** cut from the top to the
    tile's 2:2.9 shape. This is last because a Mihon chapter's first page is so
    often a scanlator's credits or recruitment banner, and a webtoon page is a
    tall strip that would shrink to a sliver.
@@ -106,7 +111,8 @@ grid; the thumbnails are a few KB each.
 
 ## What it doesn't do yet
 
-- **Set any page as the cover** is card c26.
+- **Uploading an image, or cropping.** A cover the files lack comes from a
+  catalogue link now ([`LINKS.md`](LINKS.md)).
 
 ## Chosen
 

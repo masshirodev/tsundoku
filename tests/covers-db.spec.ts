@@ -130,6 +130,31 @@ describe('covers', () => {
 		expect(fetch).toHaveBeenCalledTimes(1);
 	});
 
+	it('come from a catalogue link when the site refuses, before a first page (doc/LINKS.md)', async () => {
+		const dead = series({
+			title: 'Dead URL',
+			available: false,
+			coverUrl: 'https://gone.example/cover.jpg'
+		});
+		db.prepare(
+			`INSERT INTO series_links (series_id, anilist_id, mal_id, via, cover_url, linked_at, resolved_at)
+			VALUES (?, 85143, 122663, 'mihon', 'https://s4.anilist.co/cover/85143.jpg', 0, 0)`
+		).run(dead);
+		const fetch = vi.fn(async (url: string) =>
+			url.includes('anilist')
+				? new Response(new Uint8Array(png), { status: 200 })
+				: new Response('gone', { status: 404 })
+		);
+		vi.stubGlobal('fetch', fetch);
+		await refreshCovers({ ids: [dead], remote: true, now: 30_000 });
+		expect(row(dead)).toMatchObject({ cover_key: 'link:anilist:85143', cover_failed_at: 30_000 });
+		expect(automaticCover(dead)).toBe('link');
+		// Local only: kept as it is, and nothing asked.
+		fetch.mockClear();
+		expect((await refreshCovers({ ids: [dead], remote: false, now: 40_000 })).kept).toBe(1);
+		expect(fetch).not.toHaveBeenCalled();
+	});
+
 	it('are hidden with their series', async () => {
 		const hidden = series({
 			title: 'Hidden',

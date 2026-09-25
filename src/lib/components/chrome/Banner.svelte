@@ -148,6 +148,17 @@
 		white-space: nowrap;
 		cursor: pointer;
 	}
+	/* An action that needs the workstation, offline (Catalogue Links 1a): not accent, dimmed. */
+	.act :global(.dimmed) {
+		align-self: stretch;
+		display: flex;
+		align-items: center;
+		padding: 0 var(--pad);
+		border-left: var(--hairline);
+		font: var(--type-control);
+		white-space: nowrap;
+		opacity: 0.35;
+	}
 	.info {
 		align-items: center;
 		justify-content: space-between;

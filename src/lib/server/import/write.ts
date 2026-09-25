@@ -3,6 +3,7 @@ import { posix } from 'node:path';
 import { fileIn, isUnder, widenTo } from '../paths.ts';
 import { getDb } from '../db.ts';
 import { hueFor } from '../../library/cover.ts';
+import { linkFromTracker } from '../catalogue.ts';
 import type { PlannedEntry, PlannedSeries } from '../../import/plan.ts';
 
 /**
@@ -355,6 +356,8 @@ export function writeSeries(
 					});
 			}
 			if (volume) placeVolume(db, seriesId, own, s.entries);
+			// Mihon's MAL tracker: a sure catalogue link (doc/LINKS.md).
+			if (s.malLink) linkFromTracker(db, seriesId, s.malLink, opts.now);
 			if (opts.markMissing && s.path !== '') {
 				// A volume answers only for its own entries: the others are other files.
 				const onDisk = (

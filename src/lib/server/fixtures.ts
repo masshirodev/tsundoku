@@ -649,6 +649,80 @@ export function seedSample(db: Database.Database, now = Date.now()): void {
 		}
 	}).immediate();
 
+	// Catalogue links (doc/LINKS.md), as a cover pass would leave them, with
+	// made-up AniList and MAL ids: The Greatest Estate Developer linked from
+	// Mihon's MAL tracker; Mount Hua with three candidates to review, one
+	// under another English title; Yofukashi no Uta searched and nothing found.
+	db.transaction(() => {
+		const cand = (o: {
+			id: number;
+			mal: number | null;
+			title: string;
+			alts: string[];
+			format?: string;
+			chapters: number | null;
+			volumes?: number | null;
+			year: number;
+			status: string;
+		}) => ({
+			anilistId: o.id,
+			malId: o.mal,
+			title: o.title,
+			alts: o.alts,
+			format: o.format ?? 'MANGA',
+			country: 'KR',
+			year: o.year,
+			chapters: o.chapters,
+			volumes: o.volumes ?? null,
+			status: o.status,
+			coverUrl: ''
+		});
+		db.prepare(
+			`INSERT INTO series_links (series_id, anilist_id, mal_id, via, title, linked_at, resolved_at)
+			VALUES (?, 900001, 800001, 'mihon', 'The Greatest Estate Developer', ?, ?)`
+		).run(idOf('The Greatest Estate Developer'), now, now);
+		const hua = idOf('Return of the Mount Hua Sect');
+		const search = db.prepare(
+			`INSERT INTO link_searches (series_id, query, searched_at, found) VALUES (?, ?, ?, ?)`
+		);
+		search.run(hua, 'Return of the Mount Hua Sect', now, 3);
+		const offer = db.prepare(
+			`INSERT INTO link_candidates (series_id, anilist_id, rank, data) VALUES (?, ?, ?, ?)`
+		);
+		[
+			cand({
+				id: 900101,
+				mal: 800101,
+				title: 'Return of the Blossoming Blade',
+				alts: ['Hwasan Gwihwan', '화산귀환'],
+				chapters: 150,
+				year: 2021,
+				status: 'RELEASING'
+			}),
+			cand({
+				id: 900102,
+				mal: 800102,
+				title: 'Mount Hua Sect Chronicles',
+				alts: ['Hwasanpa Yeondaegi'],
+				chapters: 42,
+				year: 2023,
+				status: 'RELEASING'
+			}),
+			cand({
+				id: 900103,
+				mal: null,
+				title: 'Return of the Mount Hua Sect',
+				alts: [],
+				format: 'NOVEL',
+				chapters: null,
+				volumes: 12,
+				year: 2019,
+				status: 'FINISHED'
+			})
+		].forEach((c, rank) => offer.run(hua, c.anilistId, rank, JSON.stringify(c)));
+		search.run(idOf('Yofukashi no Uta'), 'Yofukashi no Uta', now, 0);
+	}).immediate();
+
 	// A few days of past reading, so history has something to show before the
 	// reader exists to write it. Written straight to the log, as the reader's
 	// recordReading() would have.

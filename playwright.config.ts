@@ -72,7 +72,9 @@ export default defineConfig({
 					TSUNDOKU_TOKEN: E2E_TOKEN,
 					LIBRARY_ROOT: join(tmpdir(), 'tsundoku-e2e-empty-library'),
 					// Nor may a snapshot of the test database land beside the real ones.
-					BACKUP_DIR: join(tmpdir(), 'tsundoku-e2e-backups')
+					BACKUP_DIR: join(tmpdir(), 'tsundoku-e2e-backups'),
+					// Nor may it reach AniList: a paste reads as unreachable (doc/LINKS.md).
+					TSUNDOKU_ANILIST: 'off'
 				},
 				port: previewPort,
 				reuseExistingServer: !process.env.CI,

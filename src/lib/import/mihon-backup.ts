@@ -4,7 +4,8 @@ import { Message } from './protobuf.ts';
  * Mihon's `.tachibk` (gunzipped), decoded into the parts tsundoku imports.
  * Field numbers are Mihon's published `Backup` schema, checked against a
  * real backup on 2026-09-23 (doc/IMPORT-MIHON.md has the table). Everything
- * else in the file -- preferences, extension repos, trackers -- is skipped.
+ * else in the file -- preferences, extension repos -- is skipped. Trackers
+ * were read from 2026-09-24, for catalogue links (doc/LINKS.md).
  */
 
 export type MihonChapter = {
@@ -21,6 +22,21 @@ export type MihonChapter = {
 	number: number;
 	/** 0 is the newest chapter in the source's own list. */
 	sourceOrder: number;
+};
+
+/**
+ * A tracker link (BackupTracking). `service` is Mihon's tracker id: 1 is
+ * MyAnimeList, 2 AniList. `status` is the tracker's own numbering, `score`
+ * its own scale (0 to 10 on MAL), and 0 means none.
+ */
+export type MihonTracker = {
+	service: number;
+	mediaId: number;
+	title: string;
+	status: number;
+	score: number;
+	lastChapterRead: number;
+	totalChapters: number;
 };
 
 export type MihonHistory = { url: string; lastRead: number; readDuration: number };
@@ -46,6 +62,7 @@ export type MihonManga = {
 	/** In the library. False for a series only ever browsed. */
 	favorite: boolean;
 	history: MihonHistory[];
+	trackers: MihonTracker[];
 };
 
 export type MihonCategory = { name: string; order: number };
@@ -72,6 +89,19 @@ function chapter(m: Message): MihonChapter {
 	};
 }
 
+function tracker(t: Message): MihonTracker {
+	return {
+		service: t.num(1),
+		// media_id (100) replaced the 32-bit media_id_int (3).
+		mediaId: t.has(100) ? Number(t.big(100)) : t.num(3),
+		title: t.str(5),
+		status: t.num(9),
+		score: t.float(8),
+		lastChapterRead: t.float(6),
+		totalChapters: t.num(7)
+	};
+}
+
 function manga(m: Message): MihonManga {
 	return {
 		source: m.big(1).toString(),
@@ -94,7 +124,8 @@ function manga(m: Message): MihonManga {
 			url: h.str(1),
 			lastRead: h.num(2),
 			readDuration: h.num(3)
-		}))
+		})),
+		trackers: m.messages(18).map(tracker)
 	};
 }
 

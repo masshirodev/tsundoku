@@ -370,6 +370,7 @@
 					twin={data.twin}
 					words={data.words}
 					editions={data.editions}
+					link={data.link}
 				/>
 			</div>
 		{/if}

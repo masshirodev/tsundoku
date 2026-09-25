@@ -67,6 +67,11 @@ export type PlannedSeries = {
 	sourceUrl: string;
 	/** The source site's cover image, when the source knows one (Mihon's backup). */
 	coverUrl?: string;
+	/**
+	 * Its MyAnimeList entry, from a tracker in Mihon's backup (doc/LINKS.md),
+	 * with the score given there (0 to 10, 0 for none).
+	 */
+	malLink?: { id: number; score: number };
 	/** Where the entries' files are relative to, or '' for a series with nothing on disk. */
 	path: string;
 	entries: PlannedEntry[];

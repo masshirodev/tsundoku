@@ -18,6 +18,7 @@ import { epubBytes, epubRoot, planEpubFolder } from './epub.ts';
 import { ensureRoot, ensureNamedRoot, finishJob, writeSeries } from './write.ts';
 import { reconcileDuplicates } from '../duplicates.ts';
 import { refreshCovers } from '../covers.ts';
+import { refreshLinks } from '../catalogue.ts';
 import type { PlannedSeries } from '../../import/plan.ts';
 
 /**
@@ -213,8 +214,15 @@ export function runImport(
 	// Covers follow the scan, in the background: the library is usable at once,
 	// and tiles gain their covers as they're made (doc/COVERS.md). Opt-in, so
 	// the specs never write to the library disk or reach the internet.
+	// Catalogue links go first (doc/LINKS.md): a series linked in this pass
+	// has its cover from the link in the same pass.
 	if (opts.covers)
 		void running
+			.then(() =>
+				refreshLinks({ log: (line) => console.log(`[import] ${line}`) }).catch((e: unknown) => {
+					console.error('tsundoku: links after the scan failed:', e);
+				})
+			)
 			.then(() => refreshCovers())
 			.catch((e: unknown) => {
 				console.error('tsundoku: covers after the scan failed:', e);

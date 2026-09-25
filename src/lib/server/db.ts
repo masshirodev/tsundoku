@@ -463,6 +463,49 @@ const MIGRATIONS: string[] = [
 	ALTER TABLE series ADD COLUMN edition_lang TEXT;
 	ALTER TABLE series ADD COLUMN edition_read TEXT;
 	CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL) WITHOUT ROWID;
+	`,
+	// Rung 25: catalogue links (doc/LINKS.md). A series' MyAnimeList / AniList
+	// entry, and where the link came from. anilist_id is NULL for a MAL link
+	// AniList hasn't been asked about yet (resolved_at NULL) or doesn't have.
+	// filled_rating is the rating the link's score gave an unrated series, kept
+	// so UNDO can take it back and so it's given once. The search is kept per
+	// series (a NULL searched_at is a SEARCH AGAIN waiting for the next pass),
+	// with what it found; a decision is NONE OF THESE, or an UNLINK that an
+	// import mustn't undo.
+	`
+	CREATE TABLE series_links (
+		series_id INTEGER PRIMARY KEY REFERENCES series(id) ON DELETE CASCADE,
+		anilist_id INTEGER,
+		mal_id INTEGER,
+		via TEXT NOT NULL CHECK (via IN ('mihon', 'exact', 'review', 'pasted', 'list')),
+		title TEXT NOT NULL DEFAULT '',
+		cover_url TEXT NOT NULL DEFAULT '',
+		linked_at INTEGER NOT NULL,
+		resolved_at INTEGER,
+		filled_rating INTEGER,
+		score REAL
+	);
+	CREATE INDEX series_links_anilist ON series_links(anilist_id);
+	CREATE INDEX series_links_mal ON series_links(mal_id);
+	CREATE TABLE link_searches (
+		series_id INTEGER PRIMARY KEY REFERENCES series(id) ON DELETE CASCADE,
+		query TEXT NOT NULL,
+		searched_at INTEGER,
+		found INTEGER NOT NULL DEFAULT 0,
+		skipped_at INTEGER
+	);
+	CREATE TABLE link_candidates (
+		series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+		anilist_id INTEGER NOT NULL,
+		rank INTEGER NOT NULL,
+		data TEXT NOT NULL,
+		PRIMARY KEY (series_id, anilist_id)
+	) WITHOUT ROWID;
+	CREATE TABLE link_decisions (
+		series_id INTEGER PRIMARY KEY REFERENCES series(id) ON DELETE CASCADE,
+		decision TEXT NOT NULL CHECK (decision IN ('none', 'unlinked')),
+		at INTEGER NOT NULL
+	);
 	`
 ];
 

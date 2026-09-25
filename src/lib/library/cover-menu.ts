@@ -9,7 +9,7 @@ export type MenuKind = 'single' | 'book' | 'series';
 export type Target = 'cover' | 'book' | 'series';
 
 /** Where a series' cover comes from without a chosen page (`automaticCover`). */
-export type Automatic = 'book' | 'file' | 'url' | 'page' | 'none';
+export type Automatic = 'book' | 'file' | 'url' | 'link' | 'page' | 'none';
 
 export type BookCover = { coverPage: number | null; hasFile: boolean };
 export type SeriesCover = {
@@ -43,6 +43,7 @@ const AUTO: Record<Automatic, string> = {
 	book: 'THE FIRST BOOK’S COVER',
 	file: 'THE FILES’ COVER',
 	url: 'THE SOURCE SITE’S',
+	link: 'THE ANILIST LINK’S',
 	page: 'P. 1',
 	none: 'NO COVER'
 };
@@ -50,6 +51,7 @@ const AUTO_NOW: Record<Automatic, string> = {
 	book: 'FROM THE FIRST BOOK',
 	file: 'FROM THE FILES',
 	url: 'FROM THE SOURCE SITE',
+	link: 'FROM THE ANILIST LINK',
 	page: 'P. 1 · AUTOMATIC',
 	none: 'NONE YET'
 };

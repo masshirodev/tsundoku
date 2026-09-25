@@ -92,6 +92,13 @@ describe('the Mihon import', () => {
 		]);
 	});
 
+	it('links a series its MAL tracker names, and no other tracker (doc/LINKS.md)', () => {
+		const d = series('Drawing: Saikyou Mangaka');
+		const links = db().prepare(`SELECT series_id, mal_id, via, score FROM series_links`).all();
+		// Rated already ("Good"), so the score gives it nothing.
+		expect(links).toEqual([{ series_id: d.id, mal_id: 147272, via: 'mihon', score: 9 }]);
+	});
+
 	it('counts only visible arrivals on the band', () => {
 		const job = db().prepare(`SELECT * FROM scan_jobs WHERE id = ?`).get(first.jobId) as Record<
 			string,

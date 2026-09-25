@@ -26,6 +26,9 @@
 	import type { BookEditions } from '$lib/server/editions';
 	import { baseToEdition, langName } from '$lib/library/editions';
 	import UnfoldSheet from './UnfoldSheet.svelte';
+	import type { LinkState } from '$lib/server/catalogue';
+	import { anilistUrl, malUrl, viaLabel } from '$lib/library/catalogue';
+	import { offline } from '$lib/offline.svelte';
 
 	/**
 	 * The series' metadata: a header that scrolls away in portrait, a 440px
@@ -48,7 +51,8 @@
 		ocr = null,
 		words = null,
 		twin = null,
-		editions = null
+		editions = null,
+		link = null
 	}: {
 		series: SeriesPage;
 		shelves: Shelf[];
@@ -78,7 +82,46 @@
 		twin?: { key: string; title: string; conf: string; pages: string } | null;
 		/** One book in several languages (doc/EDITIONS.md): LANGUAGE, EDITIONS and FOLDED. */
 		editions?: BookEditions | null;
+		/** Its catalogue link (doc/LINKS.md): the LINK and COVER rows. Null for a doujin. */
+		link?: LinkState | null;
 	} = $props();
+
+	// ---- the LINK and COVER rows (Series Link 1k–1t) ---------------------------------------
+	const linkOff = $derived(!offline.online);
+	const linkPrimary = $derived(
+		!link?.linked ? 'Not linked' : link.linked.title || link.linked.ids || 'Linked'
+	);
+	const linkMeta = $derived.by(() => {
+		if (!link) return '';
+		const l = link.linked;
+		if (l) {
+			if (linkOff) return '○ OFFLINE · CHANGES NEED THE WORKSTATION';
+			return [
+				l.ids,
+				viaLabel(l.via),
+				l.resolving ? 'ANILIST ASKED IN THE NEXT COVER PASS' : '',
+				link.hidden ? 'HIDDEN SERIES ARE NEVER SEARCHED' : ''
+			]
+				.filter(Boolean)
+				.join(' · ');
+		}
+		if (linkOff) return '○ OFFLINE · FINDING NEEDS THE WORKSTATION';
+		if (link.hidden) return 'HIDDEN SERIES ARE NEVER SEARCHED · PASTE A LINK';
+		if (link.queued) return 'A SEARCH WAITS FOR THE NEXT COVER PASS';
+		if (link.candidates)
+			return `${link.candidates} CANDIDATE${link.candidates === 1 ? '' : 'S'} FROM THE LAST COVER PASS · NONE EXACT`;
+		return link.searched ? 'NOTHING FOUND IN THE LAST COVER PASS' : 'NOT SEARCHED YET';
+	});
+	const findHref = $derived(`${resolve('/links')}?series=${series.id}`);
+	const openHref = $derived(
+		link?.linked
+			? link.linked.anilistId
+				? anilistUrl(link.linked.anilistId)
+				: link.linked.malId
+					? malUrl(link.linked.malId)
+					: null
+			: null
+	);
 
 	// ---- a folded book (Editions 1b, 1c) ---------------------------------------------------
 	/** The edition it opens in: its title leads, READ opens it, its pages are the grid. */
@@ -480,6 +523,53 @@
 			</div>
 			<button type="button" class="edit" onclick={onedit}>EDIT</button>
 		</div>
+
+		{#if link}
+			<!-- LINK and COVER (Series Link 1k–1t; doc/LINKS.md). The cells drop below the row where it's narrow. -->
+			{#snippet linkCells()}
+				{#if link?.linked}
+					{#if openHref}
+						<a class="lc" href={openHref} target="_blank" rel="noopener noreferrer external"
+							>OPEN ↗</a
+						>
+					{/if}
+					{#if linkOff}
+						<span class="lc dim" aria-disabled="true">CHANGE</span>
+						<span class="lc dim" aria-disabled="true">UNLINK</span>
+					{:else}
+						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
+						<a class="lc" href={findHref}>CHANGE</a>
+						<form method="POST" action="?/unlink" use:enhance class="lc-form">
+							<button type="submit" class="lc">UNLINK</button>
+						</form>
+					{/if}
+				{:else if linkOff}
+					<span class="lc acc dim" aria-disabled="true">FIND</span>
+					<span class="lc dim" aria-disabled="true">PASTE A LINK</span>
+				{:else}
+					<!-- eslint-disable svelte/no-navigation-without-resolve -- built from resolve() -->
+					{#if !link?.hidden}<a class="lc acc" href={findHref}>FIND</a>{/if}
+					<a class="lc" class:acc={link?.hidden} href="{findHref}&paste">PASTE A LINK</a>
+					<!-- eslint-enable svelte/no-navigation-without-resolve -->
+				{/if}
+			{/snippet}
+			<div class="row link-row">
+				<div class="label">LINK</div>
+				<div class="lk">
+					<div class="lk-a" class:muted={!link.linked}>{linkPrimary}</div>
+					<div class="lk-b">{linkMeta}</div>
+				</div>
+				<div class="lcs inline">{@render linkCells()}</div>
+			</div>
+			<div class="lcs stack">{@render linkCells()}</div>
+			<div class="row cover-row">
+				<div class="label">COVER</div>
+				<div class="cv">
+					<div class="cv-a">{link.cover.a}</div>
+					{#if link.cover.b}<div>{link.cover.b}</div>{/if}
+				</div>
+			</div>
+		{/if}
 
 		<div class="row top">
 			<div class="label">TAGS</div>
@@ -1173,6 +1263,109 @@
 	}
 	.file-row {
 		min-height: 64px;
+	}
+	/* LINK and COVER (Series Link): the mock's literals. */
+	.link-row {
+		min-height: 68px;
+	}
+	.lk {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 5px;
+		padding: 10px 14px;
+	}
+	.lk-a {
+		font: 500 15px/1.3 var(--font-sans);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.lk-a.muted {
+		color: var(--text-2);
+	}
+	.lk-b {
+		font: 400 13px/1.35 var(--font-mono);
+		color: var(--text-2);
+		text-wrap: pretty;
+	}
+	.lcs {
+		display: flex;
+		--cell-pad: 20px;
+	}
+	.lcs.stack {
+		display: none;
+	}
+	.lc-form {
+		display: flex;
+	}
+	.lc {
+		display: flex;
+		align-items: center;
+		padding: 0 var(--cell-pad);
+		border: 0;
+		border-left: var(--hairline);
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-1);
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.04em;
+		white-space: nowrap;
+		text-decoration: none;
+		cursor: pointer;
+	}
+	.lc.acc {
+		background: var(--accent);
+		color: var(--on-accent);
+	}
+	.lc.dim {
+		opacity: 0.35;
+		cursor: default;
+	}
+	/* Narrow (the phone, and the 440px landscape panel): the cells drop below, in equal columns (1t). */
+	@media (max-width: 599px), (min-width: 1024px) {
+		.link-row {
+			border-bottom: 0;
+		}
+		.lcs.inline {
+			display: none;
+		}
+		.lcs.stack {
+			display: grid;
+			grid-auto-flow: column;
+			grid-auto-columns: minmax(0, 1fr);
+			min-height: 52px;
+			border-top: var(--hairline);
+			border-bottom: var(--hairline);
+			--cell-pad: 14px;
+		}
+		.lcs.stack .lc {
+			justify-content: center;
+			border-left: 0;
+			border-right: var(--hairline);
+		}
+		.lcs.stack .lc-form .lc {
+			flex: 1;
+		}
+	}
+	.cover-row {
+		min-height: 64px;
+	}
+	.cv {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 5px;
+		padding: 10px 14px;
+		font: 400 13px var(--font-mono);
+		color: var(--text-2);
+	}
+	.cv-a {
+		color: var(--text-1);
 	}
 	.ed-alt {
 		display: flex;
