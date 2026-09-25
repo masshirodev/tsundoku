@@ -266,6 +266,8 @@ export function runImport(
 					console.error('tsundoku: links after the scan failed:', e);
 				})
 			)
+			// The owner's lists, when signed in: links and what each says (doc/TRACKING.md).
+			.then(() => import('../tracking.ts').then((t) => t.readLists()))
 			.then(() => refreshCovers())
 			.catch((e: unknown) => {
 				console.error('tsundoku: covers after the scan failed:', e);

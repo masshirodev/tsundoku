@@ -513,6 +513,44 @@ const MIGRATIONS: string[] = [
 	// AniList has been asked.
 	`
 	ALTER TABLE series_links ADD COLUMN format TEXT;
+	`,
+	// Rung 27: tracking (doc/TRACKING.md). The owner's sign-ins, one per
+	// catalogue; what each catalogue's list says of a linked series (status in
+	// tsundoku's words, score out of 10, chapter), with when it was read and
+	// when tsundoku last sent to it; and what waits to be sent -- one row per
+	// series and catalogue, the furthest wanted, gone once it's sent.
+	`
+	CREATE TABLE tracker_accounts (
+		service TEXT PRIMARY KEY CHECK (service IN ('anilist', 'mal')),
+		user_id TEXT NOT NULL,
+		user_name TEXT NOT NULL,
+		access_token TEXT NOT NULL,
+		refresh_token TEXT,
+		expires_at INTEGER,
+		signed_in_at INTEGER NOT NULL,
+		list_read_at INTEGER
+	);
+	CREATE TABLE tracker_state (
+		series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+		service TEXT NOT NULL CHECK (service IN ('anilist', 'mal')),
+		status TEXT,
+		score REAL,
+		progress INTEGER NOT NULL DEFAULT 0,
+		read_at INTEGER,
+		sent_at INTEGER,
+		PRIMARY KEY (series_id, service)
+	) WITHOUT ROWID;
+	CREATE TABLE tracker_sends (
+		series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+		service TEXT NOT NULL CHECK (service IN ('anilist', 'mal')),
+		progress INTEGER,
+		status TEXT,
+		score REAL,
+		wanted_at INTEGER NOT NULL,
+		failed_at INTEGER,
+		error TEXT,
+		PRIMARY KEY (series_id, service)
+	) WITHOUT ROWID;
 	`
 ];
 

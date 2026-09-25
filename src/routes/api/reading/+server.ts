@@ -2,6 +2,7 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { isIncognito, isRevealed } from '$lib/server/prefs';
 import { readableEntry, recordReading } from '$lib/server/series';
+import { afterReading } from '$lib/server/tracking';
 
 const KINDS = new Set(['open', 'page', 'finish', 'close']);
 
@@ -59,5 +60,8 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 		durationMs,
 		now: at
 	});
+	// A chapter finished moves the catalogues forward (doc/TRACKING.md). Incognito
+	// never gets here: nothing recorded, nothing sent.
+	if (kind === 'finish') afterReading(seriesId);
 	return json({ saved: true });
 };

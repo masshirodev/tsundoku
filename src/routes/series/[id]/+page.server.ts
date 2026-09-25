@@ -7,6 +7,8 @@ import { ocrPlace, restoreNotText, setSeriesOcr } from '$lib/server/japanese/ocr
 import { wordsOf } from '$lib/server/japanese/mining';
 import { decide, twinOf } from '$lib/server/dupes';
 import { linkState, unlink } from '$lib/server/catalogue';
+import { afterReading, editTracking, sendPending, trackingOf } from '$lib/server/tracking';
+import { STATUSES, type Status } from '$lib/library/tracking';
 import {
 	collectionExists,
 	createCollection,
@@ -106,7 +108,9 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		editions: series.kind === 'doujin' ? bookEditions(series.id) : null,
 		words: series.kind === 'novel' ? null : wordsOf(series.id, reveal),
 		// Its MyAnimeList / AniList entry (doc/LINKS.md): the LINK and COVER rows.
-		link: linkState(series.id)
+		link: linkState(series.id),
+		// What each catalogue's list says, and what tsundoku sent (doc/TRACKING.md).
+		tracking: trackingOf(series.id)
 	};
 };
 
@@ -252,6 +256,35 @@ export const actions: Actions = {
 		if (name !== '' && !s.scanlators.some((x) => x.name === name))
 			return fail(400, { message: 'no chapters from that scanlator' });
 		setScanlator(s.id, name === '' ? null : name);
+		return { ok: true };
+	},
+
+	// The TRACKING sheet (Series Link 1m): status and score, to both catalogues, now.
+	tracking: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const form = await request.formData();
+		const status = String(form.get('status') ?? '');
+		const score = form.get('score');
+		const edit: { status?: Status; score?: number | null } = {};
+		if (status) {
+			if (!(STATUSES as string[]).includes(status)) return fail(400, { message: 'no such status' });
+			edit.status = status as Status;
+		}
+		if (score !== null) {
+			// "—" clears it: 0 is no score on both catalogues.
+			const n = score === '' ? 0 : Number(score);
+			if (!(Number.isInteger(n) && n >= 0 && n <= 10))
+				return fail(400, { message: 'a score is 1 to 10, or none' });
+			edit.score = n;
+		}
+		if (editTracking(s.id, edit) > 0) await sendPending({ seriesId: s.id });
+		return { ok: true };
+	},
+
+	// TRY AGAIN on the TRACKING row (Series Link 1n): what failed, sent now.
+	retryTracking: async ({ params, cookies }) => {
+		const s = target(params, cookies);
+		await sendPending({ seriesId: s.id });
 		return { ok: true };
 	},
 
@@ -460,6 +493,8 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const read = form.get('read') === '1';
 		const changed = markEntries(s.id, entryIds(form), read);
+		// Marked read here is read here: the catalogues move forward (doc/TRACKING.md).
+		if (read) afterReading(s.id);
 		return { ok: true, changed };
 	},
 
@@ -497,6 +532,7 @@ export const actions: Actions = {
 		const entry = s.entries.find((e) => e.id === through);
 		if (!entry) return fail(400, { message: 'no such chapter in this series' });
 		const ids = markReadThrough(s.id, entry.id);
+		afterReading(s.id);
 		return { markedThrough: { ids, label: entry.label, number: entry.number } };
 	}
 };

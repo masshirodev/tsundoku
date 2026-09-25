@@ -19,3 +19,11 @@ covers, since a tile wears its opening edition's cover.
 
 The counts (N FOLDED, N BOOKS DO) follow reveal: hidden books aren't counted
 while hidden.
+
+## 02 — Catalogues
+
+The AniList and MAL sign-ins, one row each ([`TRACKING.md`](TRACKING.md)):
+who's signed in, whether the list was read, and what didn't send. The row
+offers SIGN IN →, SIGN OUT or TRY AGAIN. The header counts the links and
+the series waiting in the link review ([`LINKS.md`](LINKS.md)). Coming back
+from a sign-in, a band says how it went (`?signin=ok|failed|refused|unconfigured`).

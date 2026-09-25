@@ -72,6 +72,7 @@ The projects are the devices the design draws: `tablet-portrait` (800×1280),
 | `privacy-flow.e2e.ts`   | tablet-portrait | Writes: `/incognito`, `/api/reading`, leaving and returning, and that a reload isn't leaving.                                                   |
 | `links-layout.e2e.ts`   | all             | The link review's frame per device (Link Review): the series above or beside its candidates, the mock's widths and heights.                     |
 | `links-flow.e2e.ts`     | tablet-portrait | Writes: the links band, LINK and UNDO, NONE OF THESE, SEARCH AGAIN, a paste with AniList off (`TSUNDOKU_ANILIST=off`), the series rows.         |
+| `tracking-flow.e2e.ts`  | tablet-portrait | Read-only: the TRACKING row and SETTINGS with nothing signed in, and a refused sign-in's band.                                                  |
 
 **Every e2e spec imports `test` from `tests/fixtures.ts`,** whose
 `page.goto` also waits for the network to settle: SvelteKit hydrates after

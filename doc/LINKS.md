@@ -15,9 +15,9 @@ scrapping").
   - `src/routes/links/`: the review screen.
   - `src/routes/api/links/`: its decisions.
 
-This is the first of two deliveries. It covers links and covers. Tracking
-(reading and writing status, score and chapter on both catalogues) is the
-second, and isn't built yet (see "Not yet").
+This was the first of two deliveries: links and covers. Tracking, reading
+and writing status, score and chapter on both catalogues, is the second, in
+[`TRACKING.md`](TRACKING.md).
 
 ## What the owner decided (2026-09-24)
 
@@ -37,7 +37,7 @@ second, and isn't built yet (see "Not yet").
 | `exact`  | The pass's AniList search found one entry whose title equals one of the series' | Yes, at once    |
 | `review` | The owner chose a candidate in the review                                       | The owner's say |
 | `pasted` | The owner pasted an AniList or MAL link                                         | The owner's say |
-| `list`   | The owner's AniList list, once signed in (not yet: see "Not yet")               | —               |
+| `list`   | The owner's AniList list, once signed in ([`TRACKING.md`](TRACKING.md))         | Yes, at once    |
 
 Measured on 2026-09-24:
 

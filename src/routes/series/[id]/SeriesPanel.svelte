@@ -29,6 +29,9 @@
 	import type { LinkState } from '$lib/server/catalogue';
 	import { anilistUrl, malUrl, viaLabel } from '$lib/library/catalogue';
 	import { offline } from '$lib/offline.svelte';
+	import TrackingSheet from './TrackingSheet.svelte';
+	import type { Tracking } from '$lib/server/tracking';
+	import { trackLine } from '$lib/library/tracking';
 
 	/**
 	 * The series' metadata: a header that scrolls away in portrait, a 440px
@@ -52,7 +55,8 @@
 		words = null,
 		twin = null,
 		editions = null,
-		link = null
+		link = null,
+		tracking = null
 	}: {
 		series: SeriesPage;
 		shelves: Shelf[];
@@ -84,7 +88,45 @@
 		editions?: BookEditions | null;
 		/** Its catalogue link (doc/LINKS.md): the LINK and COVER rows. Null for a doujin. */
 		link?: LinkState | null;
+		/** What the catalogues' lists say of it, and what was sent (doc/TRACKING.md). */
+		tracking?: Tracking | null;
 	} = $props();
+
+	// ---- the TRACKING row (Series Link 1k–1s) ------------------------------------------------
+	let trackingOpen = $state(false);
+	const trackLines = $derived.by(() => {
+		if (!tracking) return [];
+		if (tracking.hidden)
+			return [
+				{
+					left: 'NOTHING SENT · HIDDEN SERIES STAY OFF BOTH LISTS',
+					right: '',
+					strong: false,
+					alert: false
+				}
+			];
+		if (tracking.coverOnly)
+			return [
+				{ left: 'NEVER TRACKED · COVER AND DETAILS ONLY', right: '', strong: false, alert: false }
+			];
+		const mainIsEmpty = !tracking.facts.find((f) => f.service === 'anilist')?.state;
+		return tracking.facts
+			.filter((f) => f.linked)
+			.map((f) => trackLine(f, { now: Date.now(), offline: linkOff, mainIsEmpty }));
+	});
+	const trackFailed = $derived(!!tracking?.facts.some((f) => f.waiting?.failedAt));
+	const trackSignIn = $derived(
+		!!tracking &&
+			!tracking.hidden &&
+			!tracking.coverOnly &&
+			tracking.facts.some((f) => f.linked && !f.signedIn)
+	);
+	const trackEditable = $derived(
+		!!tracking &&
+			!tracking.hidden &&
+			!tracking.coverOnly &&
+			tracking.facts.some((f) => f.linked && f.signedIn)
+	);
 
 	// ---- the LINK and COVER rows (Series Link 1k–1t) ---------------------------------------
 	const linkOff = $derived(!offline.online);
@@ -567,6 +609,42 @@
 				<div class="lcs inline">{@render linkCells()}</div>
 			</div>
 			<div class="lcs stack">{@render linkCells()}</div>
+			{#if link.linked && tracking}
+				{#snippet trackCells()}
+					{#if trackFailed && !linkOff}
+						<form method="POST" action="?/retryTracking" use:enhance class="lc-form">
+							<button type="submit" class="lc">TRY AGAIN</button>
+						</form>
+					{/if}
+					{#if trackSignIn && !linkOff}
+						<a class="lc" href={resolve('/settings')}>SIGN IN →</a>
+					{/if}
+					{#if trackEditable}
+						{#if linkOff}
+							<span class="lc dim" aria-disabled="true">EDIT</span>
+						{:else}
+							<button type="button" class="lc" onclick={() => (trackingOpen = true)}>EDIT</button>
+						{/if}
+					{/if}
+				{/snippet}
+				<!-- TRACKING (Series Link 1k–1s; doc/TRACKING.md): each catalogue's word, and what was sent. -->
+				<div class="row track-row">
+					<div class="label">TRACKING</div>
+					<div class="tk">
+						{#each trackLines as t, i (i)}
+							<div class="tl">
+								<div class="tl-l" class:strong={t.strong}>{t.left}</div>
+								{#if t.right}<div class="tl-r" class:alert={t.alert}>{t.right}</div>{/if}
+							</div>
+						{/each}
+					</div>
+					<div class="lcs inline">{@render trackCells()}</div>
+				</div>
+				{#if trackEditable || trackFailed || trackSignIn}
+					<div class="lcs stack">{@render trackCells()}</div>
+				{/if}
+				<TrackingSheet open={trackingOpen} {tracking} onclose={() => (trackingOpen = false)} />
+			{/if}
 			<div class="row cover-row">
 				<div class="label">COVER</div>
 				<div class="cv">
@@ -1353,6 +1431,45 @@
 		}
 		.lcs.stack .lc-form .lc {
 			flex: 1;
+		}
+	}
+	.track-row {
+		min-height: 72px;
+	}
+	.tk {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 8px;
+		padding: 12px 14px;
+	}
+	.tl {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 2px 12px;
+	}
+	.tl-l {
+		font: 400 14px/1.3 var(--font-mono);
+		color: var(--text-2);
+	}
+	.tl-l.strong {
+		font-weight: 500;
+		color: var(--text-1);
+	}
+	.tl-r {
+		font: 400 12px/1.3 var(--font-mono);
+		color: var(--text-2);
+	}
+	.tl-r.alert {
+		color: var(--text-1);
+	}
+	@media (max-width: 599px), (min-width: 1024px) {
+		.track-row {
+			border-bottom: 0;
 		}
 	}
 	.cover-row {

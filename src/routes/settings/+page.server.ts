@@ -6,13 +6,16 @@ import { getSetting, setSetting } from '$lib/server/settings';
 import { VISIBLE_SQL } from '$lib/server/visibility';
 import { refreshCovers } from '$lib/server/covers';
 import { PREFERRED } from '$lib/library/editions';
+import { linkCount, linkQueueCount } from '$lib/server/catalogue';
+import { accounts, retry, signOut } from '$lib/server/tracking';
+import { SERVICES, type Service } from '$lib/library/tracking';
 
 /**
  * SETTINGS (Editions 1e; doc/SETTINGS.md): the library's own preferences, as
  * opposed to a device's. One so far: the language a folded book opens in.
  * Counts follow reveal, as every list does: hidden books aren't counted.
  */
-export const load: PageServerLoad = async ({ cookies }) => {
+export const load: PageServerLoad = async ({ cookies, url }) => {
 	const reveal = isRevealed(cookies);
 	const folded = getDb()
 		.prepare(
@@ -25,11 +28,40 @@ export const load: PageServerLoad = async ({ cookies }) => {
 		preferred: getSetting('edition_language'),
 		choices: [...PREFERRED],
 		folded: folded.length,
-		overridden: folded.filter((f) => f.edition_lang !== null).length
+		overridden: folded.filter((f) => f.edition_lang !== null).length,
+		// CATALOGUES (Catalogue Links 1u, 1v; doc/TRACKING.md).
+		catalogues: {
+			linked: linkCount(),
+			toReview: linkQueueCount(reveal),
+			accounts: accounts()
+		},
+		// How a sign-in went, coming back from the catalogue.
+		signin: url.searchParams.has('signin')
+			? {
+					outcome: url.searchParams.get('signin') ?? '',
+					service: url.searchParams.get('service') ?? ''
+				}
+			: null
 	};
 };
 
+const serviceOf = async (request: Request): Promise<Service | null> => {
+	const s = String((await request.formData()).get('service') ?? '') as Service;
+	return SERVICES.includes(s) ? s : null;
+};
+
 export const actions: Actions = {
+	signOut: async ({ request }) => {
+		const s = await serviceOf(request);
+		if (!s) return fail(400, { message: 'which catalogue' });
+		signOut(s);
+		return { ok: true };
+	},
+	retry: async ({ request }) => {
+		const s = await serviceOf(request);
+		if (!s) return fail(400, { message: 'which catalogue' });
+		return { retried: await retry(s) };
+	},
 	language: async ({ request }) => {
 		const l = String((await request.formData()).get('language') ?? '');
 		if (!(PREFERRED as readonly string[]).includes(l))

@@ -371,6 +371,7 @@
 					words={data.words}
 					editions={data.editions}
 					link={data.link}
+					tracking={data.tracking}
 				/>
 			</div>
 		{/if}

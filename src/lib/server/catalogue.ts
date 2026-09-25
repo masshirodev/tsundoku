@@ -7,6 +7,7 @@ import {
 	coverOnly,
 	idsLine,
 	isCutShort,
+	normaliseTitle,
 	scoreToRating,
 	bracketed,
 	cleanTitle,
@@ -37,6 +38,8 @@ const ANILIST = 'https://graphql.anilist.co';
 
 /** Nothing reached AniList: no internet, AniList down, or switched off for the specs. */
 export class Unreachable extends Error {}
+/** A catalogue refused the owner's sign-in: expired or revoked (doc/TRACKING.md). */
+export class SignedOut extends Error {}
 
 type Fetch = typeof fetch;
 let fetcher: Fetch = (...a) => fetch(...a);
@@ -52,7 +55,11 @@ export function setAnilistFetch(f: Fetch | null, gapMs = 0): void {
 	last = 0;
 }
 
-async function post(query: string, variables: Record<string, unknown>): Promise<unknown> {
+async function post(
+	query: string,
+	variables: Record<string, unknown>,
+	token?: string
+): Promise<unknown> {
 	if (process.env.TSUNDOKU_ANILIST === 'off') throw new Unreachable('switched off');
 	for (let attempt = 0; attempt < 3; attempt++) {
 		const wait = Math.max(0, last + spacing - Date.now());
@@ -62,7 +69,11 @@ async function post(query: string, variables: Record<string, unknown>): Promise<
 		try {
 			res = await fetcher(ANILIST, {
 				method: 'POST',
-				headers: { 'content-type': 'application/json', accept: 'application/json' },
+				headers: {
+					'content-type': 'application/json',
+					accept: 'application/json',
+					...(token ? { authorization: `Bearer ${token}` } : {})
+				},
 				body: JSON.stringify({ query, variables }),
 				signal: AbortSignal.timeout(20_000)
 			});
@@ -81,6 +92,8 @@ async function post(query: string, variables: Record<string, unknown>): Promise<
 		} | null;
 		// A 404 inside the body is AniList's "no such entry", not a failure.
 		if (body?.errors?.every((e) => e.status === 404)) return body.data ?? null;
+		if (res.status === 401 || body?.errors?.some((e) => e.status === 401))
+			throw new SignedOut('AniList refused the sign-in');
 		if (!res.ok || !body || body.errors?.length)
 			throw new Error(`AniList ${res.status}: ${body?.errors?.[0]?.message ?? 'no answer'}`);
 		return body.data;
@@ -89,23 +102,31 @@ async function post(query: string, variables: Record<string, unknown>): Promise<
 }
 
 /** One request at a time, whoever asks: the pass and a paste share the one limit. */
-function anilist(query: string, variables: Record<string, unknown>): Promise<unknown> {
+function anilist(
+	query: string,
+	variables: Record<string, unknown>,
+	token?: string
+): Promise<unknown> {
 	const run = chain.then(
-		() => post(query, variables),
-		() => post(query, variables)
+		() => post(query, variables, token),
+		() => post(query, variables, token)
 	);
 	chain = run.catch(() => undefined);
 	return run;
 }
 
-const MEDIA = `fragment M on Media {
+/** An AniList query as the owner, for tracking (doc/TRACKING.md); the same one-at-a-time limit. */
+export const anilistAs = (token: string, query: string, variables: Record<string, unknown> = {}) =>
+	anilist(query, variables, token);
+
+export const MEDIA = `fragment M on Media {
 	id idMal format countryOfOrigin status chapters volumes synonyms
 	title { romaji english native }
 	startDate { year }
 	coverImage { extraLarge large }
 }`;
 
-type Media = {
+export type Media = {
 	id: number;
 	idMal: number | null;
 	format: string | null;
@@ -289,6 +310,28 @@ export function link(seriesId: number, c: Candidate, via: Via, now = Date.now())
 				filled_rating = NULL, score = NULL, format = excluded.format`
 		).run(seriesId, c.anilistId, c.malId, via, c.title, c.coverUrl, now, now, c.format);
 		db.prepare(`DELETE FROM link_decisions WHERE series_id = ?`).run(seriesId);
+	})();
+}
+
+/**
+ * A link from the owner's AniList list (doc/TRACKING.md): sure, since it's
+ * their own entry, and its score fills an unrated series' rating once (1w).
+ */
+export function linkFromList(
+	seriesId: number,
+	c: Candidate,
+	score: number | null,
+	now = Date.now()
+): void {
+	const db = getDb();
+	db.transaction(() => {
+		link(seriesId, c, 'list', now);
+		const filled = fill(db, seriesId, score);
+		db.prepare(`UPDATE series_links SET score = ?, filled_rating = ? WHERE series_id = ?`).run(
+			score || null,
+			filled,
+			seriesId
+		);
 	})();
 }
 
@@ -1013,4 +1056,30 @@ export function undoSearch(seriesId: number, was: QueuedFrom | undefined): void 
 		for (const c of b.candidates) put.run(seriesId, c.anilist_id, c.rank, c.data);
 	})();
 	before.delete(seriesId);
+}
+
+/**
+ * Series an entry on the owner's list could link to, by title: linkable, in
+ * view, not linked and not settled -- each under its titles, cleaned and
+ * normalised as a sure match compares them (doc/TRACKING.md).
+ */
+export function linkableByTitle(): Map<string, { id: number; kind: Kind }[]> {
+	const rows = getDb()
+		.prepare(
+			`SELECT s.id, s.title, s.alt_titles, s.kind FROM series s JOIN roots r ON r.id = s.root_id
+			WHERE ${LINKABLE} AND ${VISIBLE_SQL}
+				AND NOT EXISTS (SELECT 1 FROM series_links l WHERE l.series_id = s.id)
+				AND NOT EXISTS (SELECT 1 FROM link_decisions d WHERE d.series_id = s.id)`
+		)
+		.all() as { id: number; title: string; alt_titles: string; kind: Kind }[];
+	const out = new Map<string, { id: number; kind: Kind }[]>();
+	for (const r of rows)
+		for (const t of matchTitles(titlesOfRow(r))) {
+			const k = normaliseTitle(t);
+			if (!k) continue;
+			const list = out.get(k) ?? [];
+			if (!list.some((x) => x.id === r.id)) list.push({ id: r.id, kind: r.kind });
+			out.set(k, list);
+		}
+	return out;
 }
