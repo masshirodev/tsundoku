@@ -9,8 +9,15 @@
 	import { bookCoverSrc, coverSrc, seriesHref, tagHref } from '$lib/library/links';
 	import type { TagItem, TagPage } from '$lib/library/books';
 	import { phone } from '$lib/device.svelte';
-	import RatingSlider from '$lib/components/controls/RatingSlider.svelte';
-	import { DEFAULT_MIN, minLabel } from '$lib/library/rating';
+	import FilterPanel from '$lib/components/controls/FilterPanel.svelte';
+	import {
+		activeCount,
+		filterWords,
+		languagesAmong,
+		matches,
+		NO_FILTERS,
+		type Filters
+	} from '$lib/library/filters';
 
 	/**
 	 * A person or tag page (Index Books, states 4, 5 and 8): the library at
@@ -24,21 +31,28 @@
 		page,
 		selecting,
 		selected,
-		onselect
+		onselect,
+		reveal = false
 	}: {
 		page: TagPage;
+		/** HIDDEN is in the panel only while reveal is on. */
+		reveal?: boolean;
 		selecting: boolean;
 		selected: Set<number>;
 		onselect: (item: TagItem) => void;
 	} = $props();
 
-	type Filter = 'all' | 'unread' | 'fav' | 'rated4';
+	// FAV and RATED left the tabs for the FILTER panel, as the library's
+	// shelves did (Library Filters 3i). The page filters on the device: it
+	// holds every item already.
+	type Filter = 'all' | 'unread';
 	type Sort = 'added' | 'title' | 'rating';
 	let filter = $state<Filter>('all');
 	let sort = $state<Sort>('added');
 	let bySeries = $state(false);
-	/** RATED's threshold (c67, turn 2): out of 10, 4+ to start, as the shelf's. */
-	let min = $state(DEFAULT_MIN);
+	let filters = $state<Filters>(NO_FILTERS);
+	const nFilters = $derived(activeCount(filters));
+	const languages = $derived(languagesAmong(page.items));
 
 	// Cosmetic: pad a short last row so the hairline background doesn't show
 	// as a grey slab. The column counts themselves are CSS.
@@ -48,20 +62,12 @@
 	const tagKey = $derived(`${page.namespace}:${page.value}`);
 	const counts = $derived({
 		all: page.items.length,
-		unread: page.items.filter((i) => !i.read).length,
-		fav: page.items.filter((i) => i.favourite).length,
-		rated4: page.items.filter((i) => i.rating >= min).length
+		unread: page.items.filter((i) => !i.read).length
 	});
+	/** The tab's own items, before the panel narrows them: what "12 OF 38" is out of. */
+	const onTab = $derived(page.items.filter((i) => filter !== 'unread' || !i.read));
 	const shown = $derived.by(() => {
-		let items = page.items.filter((i) =>
-			filter === 'unread'
-				? !i.read
-				: filter === 'fav'
-					? i.favourite
-					: filter === 'rated4'
-						? i.rating >= min
-						: true
-		);
+		let items = onTab.filter((i) => matches(i, filters));
 		if (bySeries) {
 			// One tile per series of books: its first matching book stands for it.
 			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- local to this derivation, never reactive state
@@ -186,46 +192,63 @@
 	{/if}
 
 	<div class="label section">
-		<span>{page.series.length > 0 ? '03' : '02'} — {page.person ? 'BOOKS' : 'SERIES'}</span>
+		<span
+			>{page.series.length > 0 ? '03' : '02'} — {page.person
+				? 'BOOKS'
+				: 'SERIES'}{#if nFilters}<span class="extra"
+					>{` · ${filterWords(filters).join(' · ')}`}</span
+				>{/if}</span
+		>
 		<button type="button" onclick={() => (sort = nextSort[sort])} aria-label="Change sort"
 			>{SORT_LABEL[sort]}</button
 		>
 	</div>
-	<div class="tabs" role="tablist" aria-label="Filter">
-		{#each [['all', 'ALL'], ['unread', 'UNREAD'], ['fav', 'FAV'], ['rated4', `RATED ${minLabel(min)}`]] as [key, name] (key)}
-			<button
-				type="button"
-				role="tab"
-				aria-selected={filter === key}
-				class:on={filter === key}
-				onclick={() => (filter = key as Filter)}
-				>{name} <span class="n">{count(counts[key as Filter])}</span></button
-			>
-		{/each}
-		<span class="spacer"></span>
-		{#if page.series.length > 0}
-			<button
-				type="button"
-				class="by-series"
-				class:on={bySeries}
-				aria-pressed={bySeries}
-				onclick={() => (bySeries = !bySeries)}>BY SERIES</button
-			>
-		{/if}
+	<div class="bar">
+		<div class="tabs" role="tablist" aria-label="Filter">
+			{#each [['all', 'ALL'], ['unread', 'UNREAD']] as [key, name] (key)}
+				<button
+					type="button"
+					role="tab"
+					aria-selected={filter === key}
+					class:on={filter === key}
+					onclick={() => (filter = key as Filter)}
+					>{name}
+					<span class="n"
+						>{filter === key && nFilters
+							? `${count(shown.length)} OF ${count(onTab.length)}`
+							: count(counts[key as Filter])}</span
+					></button
+				>
+			{/each}
+			<span class="spacer"></span>
+			{#if page.series.length > 0}
+				<button
+					type="button"
+					class="by-series"
+					class:on={bySeries}
+					aria-pressed={bySeries}
+					onclick={() => (bySeries = !bySeries)}>BY SERIES</button
+				>
+			{/if}
+		</div>
+		<FilterPanel
+			{filters}
+			{languages}
+			{reveal}
+			title={page.person ? 'BOOKS' : 'SERIES'}
+			count={nFilters ? `${count(shown.length)} OF ${count(onTab.length)}` : count(onTab.length)}
+			onchange={(f) => (filters = f)}
+		/>
 	</div>
 
-	{#if filter === 'rated4'}
-		<RatingSlider
-			mode="min"
-			label="AT LEAST"
-			value={min}
-			height={52}
-			labelWidth={84}
-			pad={16}
-			borderTop={false}
-			onchange={(n) => (min = n)}
-			count={{ text: String(shown.length), sub: 'BOOKS', width: 60, phoneWidth: 60 }}
-		/>
+	{#if shown.length === 0 && nFilters > 0}
+		<div class="empty-result">
+			<p class="empty-title">Nothing on this page matches these filters.</p>
+			<p class="empty-sub">It holds {count(onTab.length)}.</p>
+			<button type="button" class="empty-clear" onclick={() => (filters = NO_FILTERS)}
+				>✕ CLEAR · SHOW {count(onTab.length)}</button
+			>
+		</div>
 	{/if}
 
 	<ol class="grid">
@@ -421,11 +444,57 @@
 		color: var(--text-2);
 		white-space: nowrap;
 	}
-	.tabs {
+	/* The tabs scroll; FILTER stays pinned at the end, its panel under the bar. */
+	.bar {
+		position: relative;
+		z-index: 5;
 		display: flex;
 		border-top: var(--hairline);
 		border-bottom: var(--hairline);
+	}
+	.tabs {
+		position: relative;
+		z-index: 5;
+		background: var(--surface-page);
+		flex: 1;
+		min-width: 0;
+		display: flex;
 		overflow-x: auto;
+		scrollbar-width: none;
+	}
+	.extra {
+		color: var(--text-1);
+	}
+	.empty-result {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 20px;
+		padding: 64px var(--pad);
+	}
+	.empty-title,
+	.empty-sub {
+		margin: 0;
+	}
+	.empty-title {
+		font: 500 22px/1.3 var(--font-sans);
+		text-wrap: pretty;
+	}
+	.empty-sub {
+		font: 400 15px/1.5 var(--font-sans);
+		color: var(--text-prose);
+	}
+	.empty-clear {
+		display: flex;
+		align-items: center;
+		height: 52px;
+		padding: 0 24px;
+		border: 0;
+		border-radius: 0;
+		background: var(--accent);
+		color: var(--on-accent);
+		font: 500 14px var(--font-mono);
+		cursor: pointer;
 	}
 	.tabs button {
 		padding: 14px 16px;

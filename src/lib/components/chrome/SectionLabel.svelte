@@ -10,12 +10,24 @@
 		index,
 		text,
 		top = 24,
+		extra = '',
 		right
-	}: { index?: number; text: string; top?: number; right?: Snippet } = $props();
+	}: {
+		index?: number;
+		text: string;
+		top?: number;
+		/** What narrows it, in full ink after the text: " · RATED 4+ · NOT FAV" (doc/FILTERS.md). */
+		extra?: string;
+		right?: Snippet;
+	} = $props();
 </script>
 
 <div class="label" style:padding-top="{top}px">
-	<div>{index != null ? `${String(index).padStart(2, '0')} — ` : ''}{text.toUpperCase()}</div>
+	<div>
+		{index != null
+			? `${String(index).padStart(2, '0')} — `
+			: ''}{text.toUpperCase()}{#if extra}<span class="extra">{` · ${extra}`}</span>{/if}
+	</div>
 	{#if right}<div class="right">{@render right()}</div>{/if}
 </div>
 
@@ -32,6 +44,10 @@
 	}
 	.right {
 		display: flex;
+		white-space: nowrap;
+	}
+	.extra {
+		color: var(--text-1);
 	}
 	.right :global(button) {
 		all: unset;

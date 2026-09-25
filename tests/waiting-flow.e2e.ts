@@ -20,8 +20,8 @@ test('a slow shelf: the tab is pressed, then the line, then the grid in outline'
 	page
 }) => {
 	await page.goto('/?sort=title');
-	await slow(page, '**/__data.json?*shelf=rated4*', 2500);
-	const tab = page.getByRole('link', { name: /^RATED 4\+/ }).filter({ visible: true });
+	await slow(page, '**/__data.json?*shelf=k*manga*', 2500);
+	const tab = page.getByRole('link', { name: /^MANGA/ }).filter({ visible: true });
 	await tab.click();
 	await expect(tab).toHaveClass(/nav-pressed/);
 	await expect(page.getByRole('progressbar', { name: 'Loading' }).first()).toBeVisible();

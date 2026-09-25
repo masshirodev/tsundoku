@@ -3,7 +3,7 @@ import { HIDDEN_SQL, VISIBLE_SQL } from './visibility.ts';
 import { getSetting } from './settings.ts';
 import { langCode, openingEdition } from '$lib/library/editions';
 import { likePattern } from '$lib/library/search';
-import { DEFAULT_MIN, minLabel } from '$lib/library/rating';
+import { dayStart, type Filters } from '$lib/library/filters';
 import type { Sort } from '$lib/library/labels';
 import type {
 	ContinueItem,
@@ -40,6 +40,7 @@ type CardRow = {
 	read_count: number;
 	new_count: number;
 	cover_at: number | null;
+	available: number;
 	language?: string | null;
 };
 
@@ -64,7 +65,8 @@ function cardQuery(where: string, order: string, limit = ''): string {
 		SELECT e.series_id,
 			SUM(e.shadowed = 0 AND e.matter = '') AS entry_count,
 			SUM(e.shadowed = 0 AND e.matter = '' AND e.read_at IS NOT NULL) AS read_count,
-			MAX(e.last_opened_at) AS last_opened
+			MAX(e.last_opened_at) AS last_opened,
+			MAX(e.available) AS available
 		FROM entries e WHERE e.series_id IN (SELECT id FROM picked) GROUP BY e.series_id
 	), langs AS MATERIALIZED (
 		SELECT st.series_id, MIN(t.value) AS language FROM series_tags st JOIN tags t ON t.id = st.tag_id
@@ -81,6 +83,7 @@ function cardQuery(where: string, order: string, limit = ''): string {
 		COALESCE(t.entry_count, 0) AS entry_count,
 		COALESCE(t.read_count, 0) AS read_count,
 		COALESCE(f.n, 0) AS new_count,
+		COALESCE(t.available, 0) AS available,
 		l.language
 	FROM picked p JOIN series s ON s.id = p.id JOIN roots r ON r.id = s.root_id
 	LEFT JOIN stats t ON t.series_id = s.id LEFT JOIN fresh f ON f.series_id = s.id
@@ -157,6 +160,7 @@ function toCard(row: CardRow): SeriesCard {
 		indexed: row.indexed_at !== null,
 		addedAt: row.added_at,
 		cover: row.cover_at,
+		downloaded: row.available === 1,
 		language: row.language ?? null
 	};
 }
@@ -193,18 +197,24 @@ const CURRENT_SCAN_ID = `SELECT id FROM scan_jobs WHERE finished_at IS NULL OR d
 	ORDER BY (finished_at IS NULL) DESC, id DESC LIMIT 1`;
 
 /** Where a shelf key narrows the listing. Unknown keys fall back to all. */
-function shelfClause(shelf: string, min = DEFAULT_MIN): { sql: string; params: unknown[] } {
-	if (shelf === 'favourites') return { sql: 's.favourite = 1', params: [] };
-	// RATED keeps its key from the days it was RATED 4+; its threshold is
-	// `?min=` now, out of 10 (c67, turn 2).
-	if (shelf === 'rated4') return { sql: 's.rating >= ?', params: [min] };
-	// Something to read without the internet: a chapter on disk. Most of a
-	// Mihon library is read online and only known from the backup.
-	if (shelf === 'downloaded')
-		return {
-			sql: 'EXISTS (SELECT 1 FROM entries e WHERE e.series_id = s.id AND e.available = 1)',
-			params: []
-		};
+/**
+ * A single book: a doujin series holding one (isSingleton, src/lib/server/books.ts).
+ * ONE-OFF is these; SERIES is everything else (Library Filters turn 3). A
+ * Mihon series with one chapter so far is still a series.
+ */
+const ONE_OFF_SQL = `(s.kind = 'doujin' AND (SELECT COUNT(*) FROM entries e
+	WHERE e.series_id = s.id AND e.shadowed = 0) <= 1)`;
+
+/** Something to read without the internet: a chapter on disk. */
+const DOWNLOADED_SQL =
+	'EXISTS (SELECT 1 FROM entries e WHERE e.series_id = s.id AND e.available = 1)';
+
+/** `language:` values that describe a book rather than name a language. */
+const NOT_LANGUAGES = `('translated', 'rewrite', 'speechless', 'text cleaned')`;
+
+function shelfClause(shelf: string): { sql: string; params: unknown[] } {
+	if (shelf === 'series') return { sql: `NOT ${ONE_OFF_SQL}`, params: [] };
+	if (shelf === 'oneoff') return { sql: ONE_OFF_SQL, params: [] };
 	if (shelf === 'new') {
 		return {
 			// The import the band is about, not the newest one: a later rescan
@@ -245,17 +255,93 @@ type ListOpts = {
 	shelf?: string;
 	tag?: string | null;
 	sort?: Sort;
-	/** The RATED shelf's threshold, 1-10; the default is 8 (4+). */
-	min?: number;
+	/** The FILTER panel's narrowing (doc/FILTERS.md), on top of the shelf. */
+	filters?: Filters;
 };
 
+/**
+ * The `language:` values and edition languages that write as `code` (`ja`
+ * is `japanese`), across the whole library: what `?lang=` asks for. Names,
+ * because that's how both are stored.
+ */
+function languageNames(code: string): string[] {
+	const rows = getDb()
+		.prepare(
+			`SELECT t.value AS name FROM tags t WHERE t.namespace = 'language'
+				AND t.value NOT IN ${NOT_LANGUAGES}
+			UNION SELECT DISTINCT language FROM entries WHERE language IS NOT NULL`
+		)
+		.all() as { name: string }[];
+	return rows.map((r) => r.name).filter((n) => langCode(n).toLowerCase() === code);
+}
+
+/**
+ * The filters as SQL, with `s` in scope. HIDDEN is only ever asked for with
+ * reveal on: parseFilters drops it otherwise, and this checks again.
+ */
+function filterClause(f: Filters | undefined, reveal: boolean): { sql: string; params: unknown[] } {
+	if (!f) return { sql: '1', params: [] };
+	const sql: string[] = [];
+	const params: unknown[] = [];
+	if (f.unrated) sql.push('s.rating = 0');
+	else if (f.min !== null) {
+		sql.push('s.rating >= ?');
+		params.push(f.min);
+	}
+	if (f.fav !== null) {
+		sql.push('s.favourite = ?');
+		params.push(f.fav);
+	}
+	if (f.lang) {
+		const names = languageNames(f.lang);
+		if (names.length === 0) sql.push('0');
+		else {
+			const marks = names.map(() => '?').join(', ');
+			// A folded book matches each of its languages (doc/EDITIONS.md).
+			sql.push(`(s.id IN (SELECT st.series_id FROM series_tags st JOIN tags t ON t.id = st.tag_id
+				WHERE t.namespace = 'language' AND t.value IN (${marks}))
+				OR EXISTS (SELECT 1 FROM entries e WHERE e.series_id = s.id AND e.language IN (${marks})))`);
+			params.push(...names, ...names);
+		}
+	}
+	if (f.added) {
+		sql.push('s.added_at >= ?');
+		params.push(dayStart(f.added));
+	}
+	if (f.dl !== null) sql.push(f.dl ? DOWNLOADED_SQL : `NOT ${DOWNLOADED_SQL}`);
+	if (f.hidden && reveal) sql.push(HIDDEN_SQL);
+	return { sql: sql.length ? sql.join(' AND ') : '1', params };
+}
+
 function listWhere(opts: ListOpts): { sql: string; params: unknown[] } {
-	const shelf = shelfClause(opts.shelf ?? 'all', opts.min);
+	const shelf = shelfClause(opts.shelf ?? 'all');
 	const tag = tagClause(opts.tag ?? null);
+	const filters = filterClause(opts.filters, opts.reveal);
 	return {
-		sql: `${visibility(opts.reveal)} AND ${shelf.sql} AND ${tag.sql}`,
-		params: [...shelf.params, ...tag.params]
+		sql: `${visibility(opts.reveal)} AND ${shelf.sql} AND ${tag.sql} AND ${filters.sql}`,
+		params: [...shelf.params, ...tag.params, ...filters.params]
 	};
+}
+
+/**
+ * The languages on a shelf as it stands without filters, as lower-case codes:
+ * what LANGUAGE offers. Only what the viewer can see; never `translated`.
+ */
+export function languagesOn(opts: Omit<ListOpts, 'filters'>): string[] {
+	const where = listWhere({ ...opts, filters: undefined });
+	const rows = getDb()
+		.prepare(
+			`WITH picked AS MATERIALIZED (
+				SELECT s.id FROM series s JOIN roots r ON r.id = s.root_id WHERE ${where.sql}
+			)
+			SELECT DISTINCT t.value AS name FROM series_tags st JOIN tags t ON t.id = st.tag_id
+				WHERE st.series_id IN (SELECT id FROM picked) AND t.namespace = 'language'
+					AND t.value NOT IN ${NOT_LANGUAGES}
+			UNION SELECT DISTINCT e.language FROM entries e
+				WHERE e.series_id IN (SELECT id FROM picked) AND e.language IS NOT NULL`
+		)
+		.all(...where.params) as { name: string }[];
+	return [...new Set(rows.map((r) => langCode(r.name).toLowerCase()))].sort();
 }
 
 /**
@@ -390,26 +476,10 @@ export function listShelves(opts: { reveal: boolean; withNew: boolean }): Shelf[
 	if (opts.withNew)
 		shelves.push({ key: 'new', name: 'New', kind: 'smart', count: n(shelfClause('new').sql) });
 	shelves.push({ key: 'all', name: 'All', kind: 'smart', count: n('1') });
-	shelves.push({
-		key: 'downloaded',
-		name: 'Downloaded',
-		kind: 'smart',
-		count: n(shelfClause('downloaded').sql)
-	});
-	shelves.push({
-		key: 'favourites',
-		name: 'Favourites',
-		kind: 'smart',
-		count: n('s.favourite = 1')
-	});
-	// Counted at the default threshold; the screen renames and recounts it
-	// while another one is in the URL (withMin).
-	shelves.push({
-		key: 'rated4',
-		name: `Rated ${minLabel(DEFAULT_MIN)}`,
-		kind: 'smart',
-		count: n('s.rating >= ?', DEFAULT_MIN)
-	});
+	// DOWNLOADED, FAVOURITES and RATED became filters (Library Filters turn
+	// 3); SERIES and ONE-OFF split the library by what a thing is instead.
+	shelves.push({ key: 'series', name: 'Series', kind: 'smart', count: n(`NOT ${ONE_OFF_SQL}`) });
+	shelves.push({ key: 'oneoff', name: 'One-off', kind: 'smart', count: n(ONE_OFF_SQL) });
 	// One shelf per kind of reading, only while the library has some: a
 	// library of manga alone doesn't need a MANHWA shelf reading 0.
 	for (const [kind, name] of KIND_SHELVES) {

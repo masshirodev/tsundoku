@@ -7,6 +7,9 @@ const { getDb } = await import('$lib/server/db');
 const { seedSample, SAMPLE_ROWS, HIDDEN_TITLES, BOOK_SERIES_TITLE } =
 	await import('$lib/server/fixtures');
 const lib = await import('$lib/server/library');
+const { NO_FILTERS } = await import('$lib/library/filters');
+type Filters = import('$lib/library/filters').Filters;
+const only = (patch: Partial<Filters>): Filters => ({ ...NO_FILTERS, ...patch });
 
 beforeAll(() => {
 	seedSample(getDb(), Date.UTC(2026, 8, 22));
@@ -76,8 +79,11 @@ describe('shelves', () => {
 		const shelves = lib.listShelves({ reveal: false, withNew: false });
 		const byKey = Object.fromEntries(shelves.map((s) => [s.key, s.count]));
 		expect(byKey.all).toBe(SAMPLE_ROWS.length);
-		expect(byKey.favourites).toBe(SAMPLE_ROWS.filter((r) => r.favourite).length);
-		expect(byKey.rated4).toBe(SAMPLE_ROWS.filter((r) => r.rating !== null && r.rating >= 8).length);
+		// FAVOURITES, RATED and DOWNLOADED are filters since c68, not shelves.
+		expect(byKey.favourites).toBeUndefined();
+		expect(byKey.rated4).toBeUndefined();
+		expect(byKey.downloaded).toBeUndefined();
+		expect(byKey.series + byKey.oneoff).toBe(byKey.all);
 	});
 
 	it('narrows the listing to a collection', () => {
@@ -142,14 +148,11 @@ describe('writes touch only what was asked', () => {
 			.listSeries({ reveal: false, sort: 'title' })
 			.slice(0, 3)
 			.map((c) => c.id);
-		const favBefore = lib
-			.listShelves({ reveal: false, withNew: false })
-			.find((s) => s.key === 'favourites')!.count;
+		const favs = () => lib.countListed({ reveal: false, filters: only({ fav: 1 }) });
+		const favBefore = favs();
 		const alreadyFav = ids.filter((id) => lib.seriesDetail(id, false)!.favourite).length;
 		expect(lib.setFavourite(ids, true)).toBe(3);
-		const favAfter = lib
-			.listShelves({ reveal: false, withNew: false })
-			.find((s) => s.key === 'favourites')!.count;
+		const favAfter = favs();
 		expect(favAfter - favBefore).toBe(3 - alreadyFav);
 	});
 
@@ -174,22 +177,93 @@ describe('writes touch only what was asked', () => {
 	});
 });
 
-describe('the DOWNLOADED shelf', () => {
-	it('lists series with a chapter on disk, and counts them the same way', () => {
+describe('the FILTER panel (c68, doc/FILTERS.md)', () => {
+	const list = (filters: Filters, reveal = false, shelf = 'all') =>
+		lib.listSeries({ reveal, shelf, filters });
+	const everything = (reveal = false) => lib.listSeries({ reveal });
+
+	it('DOWNLOADED: a chapter on disk, and NO its complement, counted the same way', () => {
 		const db = getDb();
-		const target = lib.listSeries({ reveal: false }).find((c) => c.title === 'Chainsaw Man')!;
-		const before = lib.listSeries({ reveal: false, shelf: 'downloaded' });
+		const target = everything().find((c) => c.title === 'Chainsaw Man')!;
+		const before = list(only({ dl: 1 }));
 		expect(titles(before)).toContain('Chainsaw Man');
+		expect(target.downloaded).toBe(true);
 		// Only known from a backup: every chapter read online, none on disk.
 		db.prepare(`UPDATE entries SET available = 0 WHERE series_id = ?`).run(target.id);
-		const after = lib.listSeries({ reveal: false, shelf: 'downloaded' });
+		const after = list(only({ dl: 1 }));
 		expect(titles(after)).not.toContain('Chainsaw Man');
 		expect(after.length).toBe(before.length - 1);
-		const shelf = lib
-			.listShelves({ reveal: false, withNew: false })
-			.find((s) => s.key === 'downloaded');
-		expect(shelf).toMatchObject({ name: 'Downloaded', kind: 'smart', count: after.length });
+		expect(titles(list(only({ dl: 0 })))).toContain('Chainsaw Man');
+		expect(lib.countListed({ reveal: false, filters: only({ dl: 1 }) })).toBe(after.length);
+		expect(after.length + list(only({ dl: 0 })).length).toBe(everything().length);
 		db.prepare(`UPDATE entries SET available = 1 WHERE series_id = ?`).run(target.id);
+	});
+
+	it('RATING: at least a threshold, or unrated, and the two split the rated from the rest', () => {
+		const all = everything();
+		expect(list(only({ min: 8 })).every((c) => c.rating >= 8)).toBe(true);
+		expect(list(only({ min: 8 })).length).toBe(all.filter((c) => c.rating >= 8).length);
+		expect(list(only({ unrated: true })).length).toBe(all.filter((c) => c.rating === 0).length);
+		expect(list(only({ min: 1 })).length + list(only({ unrated: true })).length).toBe(all.length);
+	});
+
+	it('FAV and NOT FAV split the shelf', () => {
+		const shelf = 'k:manga';
+		const whole = lib.countListed({ reveal: false, shelf });
+		const fav = lib.countListed({ reveal: false, shelf, filters: only({ fav: 1 }) });
+		const not = lib.countListed({ reveal: false, shelf, filters: only({ fav: 0 }) });
+		expect(fav + not).toBe(whole);
+		expect(list(only({ fav: 0 }), false, shelf).some((c) => c.favourite)).toBe(false);
+	});
+
+	it('combine with each other and with the shelf', () => {
+		const combined = list(only({ min: 6, fav: 1 }), false, 'k:manga');
+		const byHand = everything().filter((c) => c.kind === 'manga' && c.rating >= 6 && c.favourite);
+		expect(titles(combined).sort()).toEqual(titles(byHand).sort());
+	});
+
+	it('DATE ADDED: on or after the start of that day', () => {
+		const all = everything();
+		const days = [...new Set(all.map((c) => c.addedAt))].sort((a, b) => a - b);
+		const mid = new Date(days[Math.floor(days.length / 2)]);
+		const day = `${mid.getFullYear()}-${String(mid.getMonth() + 1).padStart(2, '0')}-${String(mid.getDate()).padStart(2, '0')}`;
+		const start = new Date(mid.getFullYear(), mid.getMonth(), mid.getDate()).getTime();
+		expect(list(only({ added: day })).length).toBe(all.filter((c) => c.addedAt >= start).length);
+	});
+
+	it('LANGUAGE: only what the shelf holds, never "translated", and nothing while reveal is off', () => {
+		// The sample's languages are all on hidden books, as the real library's are.
+		expect(lib.languagesOn({ reveal: false, shelf: 'all' })).toEqual([]);
+		const langs = lib.languagesOn({ reveal: true, shelf: 'all' });
+		expect(langs).toEqual(expect.arrayContaining(['ja', 'en']));
+		expect(langs).not.toContain('tr');
+		expect(lib.languagesOn({ reveal: true, shelf: 'k:manhwa' })).toEqual([]);
+		const ja = list(only({ lang: 'ja' }), true);
+		expect(ja.length).toBeGreaterThan(0);
+		expect(ja.every((c) => c.hidden)).toBe(true);
+		// Hidden means hidden: with reveal off, a language finds nothing.
+		expect(list(only({ lang: 'ja' }), false)).toEqual([]);
+	});
+
+	it('HIDDEN: only hidden, and only ever with reveal on', () => {
+		const hidden = list(only({ hidden: true }), true);
+		expect(titles(hidden).sort()).toEqual([...hiddenTitles].sort());
+		// Asked for with reveal off, it narrows nothing to hidden ones.
+		expect(list(only({ hidden: true }), false).some((c) => c.hidden)).toBe(false);
+	});
+});
+
+describe('SERIES and ONE-OFF (c68)', () => {
+	it('split the library: a single doujin book is a one-off, everything else a series', () => {
+		const oneoff = lib.listSeries({ reveal: true, shelf: 'oneoff' });
+		const series = lib.listSeries({ reveal: true, shelf: 'series' });
+		expect(oneoff.length + series.length).toBe(lib.countListed({ reveal: true }));
+		expect(oneoff.every((c) => c.kind === 'doujin' && c.entryCount <= 1)).toBe(true);
+		expect(titles(series)).toContain(BOOK_SERIES_TITLE);
+		// A Mihon series is a series whatever it holds so far.
+		expect(series.filter((c) => c.kind !== 'doujin').length).toBe(
+			lib.listSeries({ reveal: true }).filter((c) => c.kind !== 'doujin').length
+		);
 	});
 });
 
@@ -220,7 +294,7 @@ describe('pages of a shelf', () => {
 	});
 
 	it('count and list ids for exactly what the shelf shows, hidden left out', () => {
-		for (const shelf of ['all', 'favourites', 'k:novel']) {
+		for (const shelf of ['all', 'series', 'oneoff', 'k:novel']) {
 			const cards = lib.listSeries({ reveal: false, shelf });
 			expect(lib.countListed({ reveal: false, shelf })).toBe(cards.length);
 			expect(lib.listedIds({ reveal: false, shelf }).sort()).toEqual(cards.map((c) => c.id).sort());

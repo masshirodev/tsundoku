@@ -173,6 +173,10 @@ export type TagItem = {
 	groupable: boolean;
 	addedAt: number;
 	entries: number;
+	/** Its languages as codes (EN, JA): what the FILTER panel's LANGUAGE reads. */
+	languages: string[];
+	/** A chapter or the book on disk. */
+	downloaded: boolean;
 };
 
 export type TagPage = {

@@ -54,24 +54,14 @@ The owner's call on c67 (2026-09-25, "go with your recommendation"):
   stays 9 (`scoreToRating`; other scales are read as out of 10 first). UNDO
   takes it back. A series already rated keeps its rating.
 
-## RATED at a threshold (turn 2)
+## AT LEAST (turn 2, then the FILTER panel)
 
-- **The shelf keeps its name and gains halves:** RATED 4+, RATED 3.5+. The
-  threshold is `?min=` (1–10), out of 10 in the URL and written in five steps
-  on screen (`minLabel`). 4+ (8 and up) is the default, as RATED 4+ always was.
-  The shelf key is still `rated4`, so old links keep working.
-- **While the shelf is showing, an AT LEAST row sits under the tabs:** the
-  same slider in mode `min`, filled from the threshold up, with no 0 cell
-  (a threshold never includes unrated) and a count cell, `N SERIES`. Each
-  half is a link (`minHref`), so it works without script.
-- **The threshold lasts while you stay on RATED.** Another shelf drops it,
-  and RATED is back at 4+ next time (`shelfHref`).
-- The server counts the shelf list at the default. The screen renames RATED
-  and takes the grid's own count while another threshold is showing
-  (`withMin`), in the tabs and in the desktop sidebar alike, so the list is
-  never counted twice per navigation.
-- **The person page has the same filter**, held on the page (no URL), with a
-  `N BOOKS` count.
+The RATED shelf's threshold, drawn as the slider in mode `min` (filled from
+the threshold up, no 0 cell, written in five steps: `minLabel`), shipped with
+c67 as an AT LEAST band under the tabs. Since c68 the rating is a row of the
+FILTER panel instead, and RATED is no longer a shelf: `?min=8` narrows any
+shelf, and an old `?shelf=rated4` link redirects to it
+([`FILTERS.md`](FILTERS.md)).
 
 ## Where it departs from the handoff
 
@@ -85,9 +75,5 @@ The owner's call on c67 (2026-09-25, "go with your recommendation"):
    narrower 0 cell). The handoff doesn't draw the tile at all.
 3. **The TRACKING sheet has no SCORE row** (above). The Catalogue Links
    handoff (1m) drew one, from before ratings were out of 10.
-4. **No AT LEAST row offline.** Another threshold is another page load, and
-   offline the tabs are the CACHED set anyway.
-5. **The person page's row uses the phone's sizes on a tablet too** (52px,
-   84px label, 60px count). The handoff drew it at 360 only.
-6. **The 0 cell carries no `aria-pressed`.** Unrated is said by the label,
+4. **The 0 cell carries no `aria-pressed`.** Unrated is said by the label,
    UNRATED, as before.

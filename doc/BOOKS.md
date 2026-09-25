@@ -182,9 +182,10 @@ guards keep it from matching everything:
   **everything else as its series** (matched by `series_tags`). Tapping a book
   opens its series with `?book=` so the book's pages are showing, and ← comes
   back here.
-- Filters ALL / UNREAD / FAV / RATED 4+ (an AT LEAST row moves the threshold,
-  [`RATINGS.md`](RATINGS.md)), sorts, and BY SERIES (one tile per
-  series of books).
+- Tabs ALL / UNREAD and BY SERIES (one tile per series of books), sorts, and
+  the library's FILTER panel, filtering on the device: rating, FAV, language,
+  date added, downloaded, and hidden while reveal is on
+  ([`FILTERS.md`](FILTERS.md)).
 - SELECT and the library's bulk bar work here. **GROUP** in the bulk bar is
   offered only when every selected item is a singleton. Books already in a
   series can't be selected.

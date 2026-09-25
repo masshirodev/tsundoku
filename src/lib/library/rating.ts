@@ -70,33 +70,10 @@ export function readout(n: number, mode: SliderMode = 'rate'): { num: string; su
 	return { num: String(n), sub: `${n % 2 ? `${(n - 1) / 2}½` : n / 2} OF 5` };
 }
 
-// ---- the RATED shelf and filter (turn 2) --------------------------------------------------
+// ---- AT LEAST, in the FILTER panel (doc/FILTERS.md) ---------------------------------------
 
-/** 4+ (8 and up) is where the shelf starts, as RATED 4+ always did. */
+/** 4+ (8 and up) is where AT LEAST starts, as RATED 4+ always did. */
 export const DEFAULT_MIN = 8;
 
 /** A threshold in the slider's own five steps, so the name matches the blocks: 4+, 3.5+. */
 export const minLabel = (min: number) => `${min / 2}+`;
-
-/** `?min=` from a URL: 1-10, else the default. */
-export function parseMin(raw: string | null): number {
-	if (raw === null || raw === '') return DEFAULT_MIN;
-	const n = Number(raw);
-	return Number.isInteger(n) && n >= 1 && n <= RATING_MAX ? n : DEFAULT_MIN;
-}
-
-/**
- * The shelf list as the screen names it: the server counts RATED at the
- * default, so another threshold renames it (RATED 3.5+) and, when the screen
- * knows it, takes the count the grid is showing.
- */
-export function withMin<T extends { key: string; name: string; count: number }>(
-	shelves: T[],
-	min: number,
-	count?: number
-): T[] {
-	if (min === DEFAULT_MIN && count === undefined) return shelves;
-	return shelves.map((s) =>
-		s.key === 'rated4' ? { ...s, name: `Rated ${minLabel(min)}`, count: count ?? s.count } : s
-	);
-}

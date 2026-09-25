@@ -11,16 +11,32 @@
 		shelves,
 		active,
 		href,
-		vertical = false
+		vertical = false,
+		bare = false,
+		newHref
 	}: {
 		shelves: Shelf[];
 		active: string;
 		href: (key: string) => string;
 		vertical?: boolean;
+		/** Inside a bar that draws the rules (the tabs beside FILTER). */
+		bare?: boolean;
+		/** + NEW, the last tab (Library Filters 3g): a new shelf. */
+		newHref?: string;
 	} = $props();
+
+	let nav = $state<HTMLElement | null>(null);
+	// A row that scrolls keeps the active shelf in view, as the mocks draw it
+	// (Library Filters 3d): MANGA shouldn't hide off the end behind FILTER.
+	$effect(() => {
+		if (vertical || !nav) return;
+		void active;
+		const on = nav.querySelector<HTMLElement>('.on');
+		if (on) nav.scrollLeft += on.getBoundingClientRect().left - nav.getBoundingClientRect().left;
+	});
 </script>
 
-<nav class="tabs" class:vertical aria-label="Shelves">
+<nav class="tabs" class:vertical class:bare aria-label="Shelves" bind:this={nav}>
 	{#each shelves as shelf (shelf.key)}
 		<!-- Callers build `href` with resolve() (src/lib/library/links.ts). -->
 		<!-- eslint-disable svelte/no-navigation-without-resolve -->
@@ -33,10 +49,14 @@
 			data-sveltekit-keepfocus
 		>
 			<span>{shelf.name.toUpperCase()}</span>
-			<span class="n">{count(shelf.count)}</span>
+			<span class="n">{shelf.countText ?? count(shelf.count)}</span>
 		</a>
 		<!-- eslint-enable svelte/no-navigation-without-resolve -->
 	{/each}
+	{#if newHref}
+		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the caller's href resolves -->
+		<a class="tab new" href={newHref} data-sveltekit-noscroll>+ NEW</a>
+	{/if}
 </nav>
 
 <style>
@@ -65,6 +85,14 @@
 	}
 	.n {
 		opacity: 0.6;
+	}
+	.bare {
+		flex: 1;
+		min-width: 0;
+		border: 0;
+	}
+	.new {
+		color: var(--text-2);
 	}
 	.on,
 	.on:hover,

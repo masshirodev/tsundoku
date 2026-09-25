@@ -1,3 +1,4 @@
+import { filterParams, type Filters } from './filters';
 /**
  * The library grid loads a page of cards at a time as it scrolls
  * (doc/LIBRARY.md, "Pages"). About five screens of tiles on the tablet: the
@@ -25,8 +26,8 @@ export function pageQuery(o: {
 	sort: string;
 	/** RANDOM's shuffle. */
 	seed?: number;
-	/** The RATED shelf's threshold (c67), 1-10. */
-	min?: number;
+	/** The FILTER panel's narrowing, sent as the URL carries it. */
+	filters?: Filters;
 	offset: number;
 	limit: number;
 }): string {
@@ -37,7 +38,7 @@ export function pageQuery(o: {
 		limit: String(o.limit)
 	});
 	if (o.tag) q.set('tag', o.tag);
-	if (o.shelf === 'rated4' && o.min) q.set('min', String(o.min));
+	for (const [k, v] of o.filters ? filterParams(o.filters) : []) q.set(k, v);
 	if (o.sort === 'random' && o.seed) q.set('seed', String(o.seed));
 	return q.toString();
 }

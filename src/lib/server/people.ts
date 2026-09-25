@@ -2,6 +2,7 @@ import { getDb } from './db';
 import { HIDDEN_SQL, VISIBLE_SQL } from './visibility';
 import { isPersonNamespace, type TagItem, type TagPage } from '$lib/library/books';
 import type { Kind, Rating } from '$lib/library/types';
+import { langCode } from '$lib/library/editions';
 
 /**
  * Person and tag pages (doc/BOOKS.md): every book or series carrying a tag,
@@ -38,7 +39,7 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 		.prepare(
 			`SELECT e.id AS entryId, s.id AS seriesId, e.title, s.title AS seriesTitle, e.rating, e.favourite,
 				${HIDDEN_SQL} AS hidden, e.page_count AS pages, e.read_at, e.last_position, e.position,
-				e.added_at AS addedAt, e.cover_page AS coverPage,
+				e.added_at AS addedAt, e.cover_page AS coverPage, e.available AS downloaded,
 				(SELECT COUNT(*) FROM entries x WHERE x.edition_of IS NULL AND x.series_id = s.id) AS total
 			FROM entry_tags et JOIN entries e ON e.id = et.entry_id
 			JOIN series s ON s.id = e.series_id JOIN roots r ON r.id = s.root_id
@@ -59,6 +60,7 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 		position: number;
 		addedAt: number;
 		coverPage: number | null;
+		downloaded: number;
 		total: number;
 	}[];
 
@@ -68,6 +70,7 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 			`SELECT s.id AS seriesId, s.title, s.kind, COALESCE(s.rating, 0) AS rating, s.favourite,
 				${HIDDEN_SQL} AS hidden, s.added_at AS addedAt,
 				s.cover_at AS cover,
+				EXISTS (SELECT 1 FROM entries e WHERE e.series_id = s.id AND e.available = 1) AS downloaded,
 				(SELECT COUNT(*) FROM entries e WHERE e.edition_of IS NULL AND e.series_id = s.id) AS entries,
 				(SELECT COUNT(*) FROM entries e WHERE e.edition_of IS NULL AND e.series_id = s.id AND e.read_at IS NOT NULL) AS readCount,
 				(SELECT COALESCE(SUM(page_count), 0) FROM entries e WHERE e.edition_of IS NULL AND e.series_id = s.id) AS pages,
@@ -90,7 +93,51 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 		pages: number;
 		lastPosition: number | null;
 		cover: number | null;
+		downloaded: number;
 	}[];
+
+	// Each item's languages, as codes, for the FILTER panel's LANGUAGE (Library
+	// Filters 3i): a book's own tags and edition, a series' tags and editions.
+	const NOT_LANGUAGES = `('translated', 'rewrite', 'speechless', 'text cleaned')`;
+	const codes = (rows: { id: number; name: string }[]) => {
+		const out = new Map<number, string[]>();
+		for (const r of rows) {
+			const c = langCode(r.name);
+			const list = out.get(r.id) ?? [];
+			if (!list.includes(c)) list.push(c);
+			out.set(r.id, list);
+		}
+		return out;
+	};
+	const bookLangs = codes(
+		db
+			.prepare(
+				`SELECT et.entry_id AS id, t.value AS name FROM entry_tags et JOIN tags t ON t.id = et.tag_id
+				WHERE t.namespace = 'language' AND t.value NOT IN ${NOT_LANGUAGES}
+					AND et.entry_id IN (SELECT value FROM json_each(?))
+				UNION SELECT id, language FROM entries
+				WHERE language IS NOT NULL AND id IN (SELECT value FROM json_each(?))`
+			)
+			.all(
+				JSON.stringify(books.map((b) => b.entryId)),
+				JSON.stringify(books.map((b) => b.entryId))
+			) as {
+			id: number;
+			name: string;
+		}[]
+	);
+	const seriesIds = JSON.stringify(series.map((s) => s.seriesId));
+	const seriesLangs = codes(
+		db
+			.prepare(
+				`SELECT st.series_id AS id, t.value AS name FROM series_tags st JOIN tags t ON t.id = st.tag_id
+				WHERE t.namespace = 'language' AND t.value NOT IN ${NOT_LANGUAGES}
+					AND st.series_id IN (SELECT value FROM json_each(?))
+				UNION SELECT series_id, language FROM entries
+				WHERE language IS NOT NULL AND series_id IN (SELECT value FROM json_each(?))`
+			)
+			.all(seriesIds, seriesIds) as { id: number; name: string }[]
+	);
 
 	const items: TagItem[] = [
 		...books.map((b): TagItem => ({
@@ -115,7 +162,9 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 			total: b.total,
 			groupable: false,
 			addedAt: b.addedAt,
-			entries: 1
+			entries: 1,
+			languages: bookLangs.get(b.entryId) ?? [],
+			downloaded: b.downloaded === 1
 		})),
 		...series.map((s): TagItem => ({
 			key: `s${s.seriesId}`,
@@ -139,7 +188,9 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 			total: null,
 			groupable: s.kind === 'doujin' && s.entries === 1,
 			addedAt: s.addedAt,
-			entries: s.entries
+			entries: s.entries,
+			languages: seriesLangs.get(s.seriesId) ?? [],
+			downloaded: s.downloaded === 1
 		}))
 	].sort((a, b) => b.addedAt - a.addedAt || a.key.localeCompare(b.key));
 

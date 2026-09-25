@@ -10,6 +10,7 @@ import {
 	countSeries,
 	createCollection,
 	dismissScan,
+	languagesOn,
 	listSeries,
 	setFavourite,
 	setHidden,
@@ -17,7 +18,8 @@ import {
 	setRating
 } from '$lib/server/library';
 import { isRevealed, runCommand } from '$lib/server/prefs';
-import { parseMin, parseRating } from '$lib/library/rating';
+import { parseRating } from '$lib/library/rating';
+import { activeCount, legacyShelf, parseFilters } from '$lib/library/filters';
 import { parseSeed, parseSort } from '$lib/library/labels';
 import {
 	GroupingError,
@@ -39,8 +41,23 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	// While a scan is running or just finished, the grid defaults to what it
 	// brought in: "02 — ARRIVING" / "02 — JUST IMPORTED".
 	const shelf = url.searchParams.get('shelf') ?? (scan ? 'new' : 'all');
+	// FAVOURITES, RATED and DOWNLOADED are filters now (doc/FILTERS.md): an
+	// old link lands on the same books.
+	const legacy = legacyShelf(shelf, url.searchParams);
+	if (legacy) redirect(308, `/?${legacy}`);
 	const tag = url.searchParams.get('tag');
-	const min = parseMin(url.searchParams.get('min'));
+	const filters = parseFilters(url.searchParams, reveal);
+	// LANGUAGE offers what the shelf holds; the shelf's own size is what
+	// "44 OF 188" is out of, counted only while a filter narrows it.
+	const languages =
+		shelf === 'people' || shelf === 'cached' ? [] : languagesOn({ reveal, shelf, tag });
+	// A language this shelf doesn't hold drops, rather than emptying the grid
+	// (Library Filters 1c: MANHWA offers none, so switching to it drops JA).
+	if (filters.lang && shelf !== 'cached' && !languages.includes(filters.lang)) {
+		const next = new URLSearchParams(url.searchParams);
+		next.delete('lang');
+		redirect(307, `/?${next}`);
+	}
 	const sort =
 		scan && !scan.finishedAt && !url.searchParams.has('sort')
 			? 'added'
@@ -65,7 +82,12 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	return {
 		shelf,
 		tag,
-		min,
+		filters,
+		languages,
+		shelfTotal:
+			activeCount(filters) > 0 && shelf !== 'people' && shelf !== 'cached'
+				? countListed({ reveal, shelf, tag })
+				: null,
 		person,
 		existing: seriesOfBooks(reveal),
 		existingVolumes: seriesOfVolumes(reveal),
@@ -87,12 +109,13 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 						reveal,
 						shelf,
 						tag,
-						min,
+						// CACHED narrows on the device, filters and all.
+						filters: shelf === 'cached' ? undefined : filters,
 						sort,
 						seed,
 						limit: shelf === 'cached' ? undefined : pageSize
 					}),
-		total: shelf === 'people' ? 0 : countListed({ reveal, shelf, tag, min, sort }),
+		total: shelf === 'people' ? 0 : countListed({ reveal, shelf, tag, filters, sort }),
 		pageSize
 	};
 };
@@ -137,6 +160,16 @@ export const actions: Actions = {
 		}
 		setInCollection(target, collection, form.get('on') !== '0');
 		return { ok: true };
+	},
+
+	/**
+	 * + NEW (Library Filters 3g, 3j): a shelf by name alone, landing on it.
+	 * A name already taken lands on that shelf rather than making a twin.
+	 */
+	newShelf: async ({ request }) => {
+		const name = String((await request.formData()).get('name') ?? '').trim();
+		if (name === '') return fail(400, { message: 'a shelf needs a name' });
+		redirect(303, `/?shelf=c:${createCollection(name)}`);
 	},
 
 	/** The bulk bar: a rating cell or one of the action cells. */

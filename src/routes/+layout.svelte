@@ -8,8 +8,7 @@
 	import PrivacyShield from '$lib/components/chrome/PrivacyShield.svelte';
 	import Wordmark from '$lib/components/chrome/Wordmark.svelte';
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
-	import { shelfHref } from '$lib/library/links';
-	import { parseMin, withMin } from '$lib/library/rating';
+	import { shelfHref, withParam } from '$lib/library/links';
 	import { onMount } from 'svelte';
 	import { afterNavigate, beforeNavigate, goto } from '$app/navigation';
 	import { noteVisit } from '$lib/back';
@@ -100,12 +99,13 @@
 	}
 
 	const activeShelf = $derived(page.url.searchParams.get('shelf') ?? (data.scan ? 'new' : 'all'));
-	// RATED named and counted at the threshold in the URL, as the tabs are (c67).
-	const shelves = $derived.by(() => {
-		if (page.route.id !== '/' || activeShelf !== 'rated4') return data.shelves;
-		const total = (page.data as { total?: number }).total;
-		return withMin(data.shelves, parseMin(page.url.searchParams.get('min')), total);
-	});
+	// The sidebar keeps plain totals: on the desktop a filtered count lives in
+	// the section label (Library Filters 3j). PEOPLE comes after + NEW SHELF.
+	const shelvesAbove = $derived(data.shelves.filter((s) => s.key !== 'people'));
+	const shelvesBelow = $derived(data.shelves.filter((s) => s.key === 'people'));
+	/** + NEW SHELF is a field in place while the URL says so, so it works without script. */
+	const naming = $derived(page.url.searchParams.get('new') === 'shelf');
+	const stopNaming = $derived(withParam(page.url, 'new', null));
 </script>
 
 <svelte:head>
@@ -131,7 +131,44 @@
 				<!-- The app's name is the way home, from any screen. -->
 				<a class="brand" href={resolve('/')} aria-label="Library"><Wordmark size={17} /></a>
 				<div class="side-label">SHELVES</div>
-				<ShelfTabs vertical {shelves} active={activeShelf} href={(k) => shelfHref(page.url, k)} />
+				<ShelfTabs
+					vertical
+					shelves={shelvesAbove}
+					active={activeShelf}
+					href={(k) => shelfHref(page.url, k)}
+				/>
+				{#if naming}
+					<form class="new-shelf" method="POST" action="/?/newShelf">
+						<!-- The field exists to take this one name. -->
+						<!-- svelte-ignore a11y_autofocus -->
+						<input
+							name="name"
+							aria-label="New shelf name"
+							autocomplete="off"
+							required
+							autofocus
+							onkeydown={(e) => {
+								if (e.key !== 'Escape') return;
+								// eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam keeps the current, resolved path
+								void goto(stopNaming, { noScroll: true, replaceState: true });
+							}}
+						/>
+						<div class="new-hint">↵ CREATE · ESC CANCEL</div>
+					</form>
+				{:else}
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam keeps the current, resolved path -->
+					<a class="new-link" href={withParam(page.url, 'new', 'shelf')} data-sveltekit-noscroll
+						>+ NEW SHELF</a
+					>
+				{/if}
+				{#if shelvesBelow.length}
+					<ShelfTabs
+						vertical
+						shelves={shelvesBelow}
+						active={activeShelf}
+						href={(k) => shelfHref(page.url, k)}
+					/>
+				{/if}
 				<div class="spacer"></div>
 				<div class="side-foot">
 					<a
@@ -256,6 +293,39 @@
 	}
 	.spacer {
 		flex: 1;
+	}
+	/* + NEW SHELF, and the field it turns into (Library Filters 3j). */
+	.new-link {
+		display: flex;
+		align-items: center;
+		height: 44px;
+		padding: 0 24px;
+		font: 500 14px var(--font-mono);
+		color: var(--text-2);
+	}
+	.new-link:hover {
+		color: var(--text-1);
+	}
+	.new-shelf {
+		padding: 4px 12px 0;
+	}
+	.new-shelf input {
+		box-sizing: border-box;
+		width: 100%;
+		height: 40px;
+		padding: 0 12px;
+		border: 1px solid var(--text-1);
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-1);
+		font: 400 15px var(--font-sans);
+		caret-color: var(--accent);
+		outline: none;
+	}
+	.new-hint {
+		padding: 8px 12px;
+		font: 400 12px var(--font-mono);
+		color: var(--text-2);
 	}
 	.side-foot {
 		display: flex;

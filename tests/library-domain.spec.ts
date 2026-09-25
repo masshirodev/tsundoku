@@ -4,8 +4,6 @@ import {
 	halfOn,
 	isRated,
 	minLabel,
-	parseMin,
-	withMin,
 	parseRating,
 	ratingBars,
 	ratingText,
@@ -106,11 +104,6 @@ describe('the blocky slider (Ratings out of 10)', () => {
 		expect(minLabel(8)).toBe('4+');
 		expect(minLabel(7)).toBe('3.5+');
 		expect(DEFAULT_MIN).toBe(8);
-		expect(parseMin('7')).toBe(7);
-		expect(parseMin(null)).toBe(8);
-		expect(parseMin('0')).toBe(8);
-		expect(parseMin('11')).toBe(8);
-		expect(parseMin('')).toBe(8);
 	});
 });
 
@@ -235,39 +228,28 @@ describe('shelf links', () => {
 		expect(shelfHref(new URL('https://x/'), 'rated4')).toBe('/?shelf=rated4');
 	});
 
-	it('keep RATED’s threshold only while staying on RATED (c67)', async () => {
-		const { shelfHref, minHref } = await import('$lib/library/links');
-		const on = new URL('https://x/?shelf=rated4&min=7&sort=title');
-		expect(shelfHref(on, 'rated4')).toBe('/?shelf=rated4&sort=title&min=7');
-		expect(shelfHref(on, 'all')).toBe('/?shelf=all&sort=title');
-		expect(minHref(on, 5)).toBe('/?shelf=rated4&min=5&sort=title');
-		expect(minHref(new URL('https://x/?shelf=all'), 9)).toBe('/?shelf=rated4&min=9');
+	it('carry the filters to another shelf, since they narrow any shelf (c68)', async () => {
+		const { shelfHref } = await import('$lib/library/links');
+		const on = new URL('https://x/?shelf=k:manhwa&min=7&fav=0&sort=title&new=shelf');
+		expect(shelfHref(on, 'all')).toBe('/?shelf=all&sort=title&min=7&fav=0');
 	});
 });
 
-describe('RATED at a threshold (c67, turn 2)', () => {
-	const shelves = [
-		{ key: 'all', name: 'All', count: 40 },
-		{ key: 'rated4', name: 'Rated 4+', count: 12 }
-	];
-
-	it('leaves the list alone at the default', () => {
-		expect(withMin(shelves, 8)).toBe(shelves);
-	});
-
-	it('renames RATED in its own five steps, and takes the count the grid shows', () => {
-		expect(withMin(shelves, 7, 15)[1]).toEqual({ key: 'rated4', name: 'Rated 3.5+', count: 15 });
-		expect(withMin(shelves, 7)[1].count).toBe(12);
-		expect(withMin(shelves, 7, 15)[0]).toBe(shelves[0]);
-	});
-
-	it('asks the next page for the same threshold, and only on RATED', async () => {
+describe('paging (c68)', () => {
+	it('asks the next page for the same filters', async () => {
 		const { pageQuery } = await import('$lib/library/paging');
-		const q = (shelf: string) =>
-			new URLSearchParams(
-				pageQuery({ shelf, tag: null, sort: 'title', min: 7, offset: 0, limit: 60 })
-			);
-		expect(q('rated4').get('min')).toBe('7');
-		expect(q('all').get('min')).toBeNull();
+		const { NO_FILTERS } = await import('$lib/library/filters');
+		const q = new URLSearchParams(
+			pageQuery({
+				shelf: 'all',
+				tag: null,
+				sort: 'title',
+				filters: { ...NO_FILTERS, min: 7, lang: 'ja' },
+				offset: 0,
+				limit: 60
+			})
+		);
+		expect(q.get('min')).toBe('7');
+		expect(q.get('lang')).toBe('ja');
 	});
 });

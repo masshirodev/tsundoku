@@ -131,44 +131,11 @@ test('the rating bars open the slider on the tile, and a half saves', async ({ p
 	await expect(bars).toHaveAttribute('aria-label', 'Unrated');
 });
 
-test('RATED takes a threshold: AT LEAST is links, and the shelf is named for it (c67)', async ({
-	page
-}) => {
-	await page.goto('/?shelf=rated4&sort=title');
-	const row = page.getByRole('group', { name: 'At least' });
-	await expect(row.getByRole('link', { name: 'At least 4+' })).toHaveAttribute(
-		'aria-current',
-		'true'
-	);
-	const counted = async () => Number(await page.locator('.count .c-text').textContent());
-	const at4 = await counted();
-	expect(at4).toBe(await page.locator('.grid .tile').count());
-
-	await row.getByRole('link', { name: 'At least 3+' }).click();
-	await expect(page).toHaveURL(/shelf=rated4.*min=6|min=6.*shelf=rated4/);
-	await expect(
-		page.getByRole('link', { name: /^RATED 3\+/ }).filter({ visible: true })
-	).toBeVisible();
-	await expect(row.getByRole('link', { name: 'At least 3+' })).toHaveAttribute(
-		'aria-current',
-		'true'
-	);
-	expect(await counted()).toBeGreaterThan(at4);
-
-	// Another shelf drops the threshold; RATED comes back at 4+.
-	await page.getByRole('link', { name: /^ALL/ }).filter({ visible: true }).click();
-	await expect(page).not.toHaveURL(/min=/);
-	await expect(row).toHaveCount(0);
-	await expect(
-		page.getByRole('link', { name: /^RATED 4\+/ }).filter({ visible: true })
-	).toBeVisible();
-});
-
-test('the app’s name goes home, and DOWNLOADED is a shelf', async ({ page }) => {
-	await page.goto('/?shelf=rated4&sort=title');
-	const downloaded = page.getByRole('link', { name: /^DOWNLOADED/ }).filter({ visible: true });
-	await downloaded.click();
-	await expect(page).toHaveURL(/shelf=downloaded/);
+test('the app’s name goes home, and SERIES is a shelf', async ({ page }) => {
+	await page.goto('/?shelf=k:manga&sort=title');
+	const series = page.getByRole('link', { name: /^SERIES/ }).filter({ visible: true });
+	await series.click();
+	await expect(page).toHaveURL(/shelf=series/);
 	await expect(page.locator('.grid .tile').first()).toBeVisible();
 	await page.getByRole('link', { name: 'Library' }).filter({ visible: true }).first().click();
 	await expect(page).toHaveURL(/\/$/);
@@ -347,7 +314,7 @@ test('the app’s own ← buttons come back to the shelf, the order, the pages a
 		.context()
 		.addCookies([{ name: 'tsundoku_grid_page', value: '6', url: 'http://localhost' }]);
 	await page.setViewportSize({ width: 360, height: 640 });
-	await page.goto('/?shelf=downloaded&sort=title');
+	await page.goto('/?shelf=series&sort=title');
 	const tiles = page.locator('.grid .tile');
 	const more = page.locator('.more');
 	for (let i = 0; i < 20 && (await more.count()) > 0; i++) {
@@ -373,7 +340,7 @@ test('the app’s own ← buttons come back to the shelf, the order, the pages a
 	await page.locator('a.cell.back').click();
 
 	await page.waitForURL(/\/\?/);
-	expect(page.url()).toMatch(/shelf=downloaded/);
+	expect(page.url()).toMatch(/shelf=series/);
 	expect(page.url()).toMatch(/sort=title/);
 	await expect(page.locator('.grid .tile', { hasText: title })).toBeAttached();
 	await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(y - 300);
@@ -392,7 +359,7 @@ test('RANDOM shuffles anew each time it’s chosen, and keeps its shuffle across
 	expect(await page.locator('.grid .tile .title').allTextContents()).toEqual(order);
 	// Another tab keeps the shuffle; leaving RANDOM drops it.
 	await page
-		.getByRole('link', { name: /^DOWNLOADED/ })
+		.getByRole('link', { name: /^SERIES/ })
 		.first()
 		.click();
 	await expect(page).toHaveURL(new RegExp(`seed=${seed}`));

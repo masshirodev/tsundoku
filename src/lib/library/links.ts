@@ -1,3 +1,4 @@
+import { FILTER_PARAMS } from './filters';
 import { bookCoverVersion } from './cover';
 import { resolve } from '$app/paths';
 
@@ -16,17 +17,11 @@ export function shelfHref(current: URL, shelf: string): string {
 	// The same shuffle on another shelf.
 	const seed = current.searchParams.get('seed');
 	if (sort === 'random' && seed) params.set('seed', seed);
-	// RATED's threshold, kept only while staying on RATED.
-	const min = current.searchParams.get('min');
-	if (shelf === 'rated4' && min) params.set('min', min);
-	return library(params);
-}
-
-/** RATED at another threshold (c67, turn 2): a link, so it works without script. */
-export function minHref(current: URL, min: number): string {
-	const params = new URLSearchParams(current.searchParams);
-	params.set('shelf', 'rated4');
-	params.set('min', String(min));
+	// The filters narrow any shelf, so they come along (doc/FILTERS.md).
+	for (const k of FILTER_PARAMS) {
+		const v = current.searchParams.get(k);
+		if (v !== null) params.set(k, v);
+	}
 	return library(params);
 }
 

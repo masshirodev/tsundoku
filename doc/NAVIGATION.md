@@ -2,7 +2,7 @@
 
 Going back comes back to the screen as it was left: the same shelf or tag,
 the same order, the pages the grid had loaded, and the place in them. The
-owner's example: DOWNLOADED, A–Z, scrolled a few pages down; open a book, read
+owner's example: MANGA, A–Z, scrolled a few pages down; open a book, read
 it or not, go back, and be exactly there.
 
 ## Two ways back, one result

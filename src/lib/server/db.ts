@@ -617,6 +617,13 @@ const MIGRATIONS: string[] = [
 	ALTER TABLE entries ADD COLUMN rating INTEGER NOT NULL DEFAULT 0 CHECK (rating BETWEEN 0 AND 10);
 	UPDATE entries SET rating = rating5 * 2;
 	UPDATE series_links SET filled_rating = filled_rating * 2 WHERE filled_rating IS NOT NULL;
+	`,
+	`
+	-- Rung 30: the library's FILTER panel (doc/FILTERS.md) asks every card
+	-- whether it has a chapter on disk, so the card index covers that too:
+	-- without it, the whole revealed library's cards took twice as long.
+	DROP INDEX entries_card;
+	CREATE INDEX entries_card ON entries(series_id, shadowed, matter, read_at, added_at, last_opened_at, available);
 	`
 ];
 

@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { langCode } from '$lib/library/editions';
 	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
 	import { backLink } from '$lib/back';
 	import { enhance } from '$app/forms';
@@ -20,8 +19,18 @@
 	import { postAction, saves } from '$lib/saves.svelte';
 	import Button from '$lib/components/controls/Button.svelte';
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
-	import RatingSlider from '$lib/components/controls/RatingSlider.svelte';
-	import { withMin } from '$lib/library/rating';
+	import FilterPanel from '$lib/components/controls/FilterPanel.svelte';
+	import NewShelfSheet from './NewShelfSheet.svelte';
+	import {
+		activeCount,
+		filterParams,
+		filterWords,
+		matches,
+		NO_FILTERS,
+		withFilters,
+		type Filters
+	} from '$lib/library/filters';
+	import { langCode } from '$lib/library/editions';
 	import SeriesSheet from './SeriesSheet.svelte';
 	import ShelfPicker from './ShelfPicker.svelte';
 	import PersonView from './PersonView.svelte';
@@ -32,14 +41,7 @@
 	import { desktop, phone, wide } from '$lib/device.svelte';
 	import { offline } from '$lib/offline.svelte';
 	import { continueSub, count, newSeed, nextSort, progress, SORT_LABEL } from '$lib/library/labels';
-	import {
-		coverSrc,
-		minHref,
-		readHref,
-		seriesHref,
-		shelfHref,
-		withParam
-	} from '$lib/library/links';
+	import { coverSrc, readHref, seriesHref, shelfHref, withParam } from '$lib/library/links';
 	import type { Rating, SeriesCard, Shelf } from '$lib/library/types';
 	import { pageQuery } from '$lib/library/paging';
 	import type { Snapshot } from './$types';
@@ -75,14 +77,14 @@
 	let ended = $state(false);
 	const hasMore = $derived(!ended && data.shelf !== 'cached' && series.length < data.total);
 	const listKey = $derived(
-		`${data.shelf}|${data.tag ?? ''}|${data.min}|${data.sort}|${data.seed}|${data.reveal}`
+		`${data.shelf}|${data.tag ?? ''}|${filterParams(data.filters)}|${data.sort}|${data.seed}|${data.reveal}`
 	);
 	let shownKey = '';
 
 	async function fetchPage(offset: number, limit: number): Promise<SeriesCard[] | null> {
 		try {
 			const res = await fetch(
-				`/api/library?${pageQuery({ shelf: data.shelf, tag: data.tag, min: data.min, sort: data.sort, seed: data.seed, offset, limit })}`
+				`/api/library?${pageQuery({ shelf: data.shelf, tag: data.tag, filters: data.filters, sort: data.sort, seed: data.seed, offset, limit })}`
 			);
 			if (!res.ok) return null;
 			return ((await res.json()) as { series: SeriesCard[] }).series;
@@ -410,9 +412,60 @@
 
 	const cachedCount = (id: number) => offline.cached[id] ?? 0;
 
-	/** RATED's threshold (c67, turn 2): its row shows while the shelf is on screen. */
-	const rated = $derived(data.shelf === 'rated4' && !data.tag);
-	const shelves = $derived(withMin(data.shelves, data.min, rated ? data.total : undefined));
+	/** A card's languages as codes: a folded book's, else its `language:` tag. */
+	const codesOf = (s: SeriesCard) => s.languages ?? (s.language ? [langCode(s.language)] : []);
+
+	/**
+	 * CACHED is a device shelf: only the tablet knows what it holds, so the
+	 * server lists everything and this narrows it, filters included: the
+	 * device can answer every one of them.
+	 */
+	const cachedSeries = $derived(series.filter((s) => cachedCount(s.id) > 0));
+	const shown = $derived(
+		data.shelf === 'cached'
+			? cachedSeries.filter((s) => matches({ ...s, languages: codesOf(s) }, data.filters))
+			: series
+	);
+
+	// ---- filters (doc/FILTERS.md) ---------------------------------------------
+	const nFilters = $derived(activeCount(data.filters));
+	const filterHref = (f: Filters) => `${resolve('/')}?${withFilters(page.url.searchParams, f)}`;
+	/** What DATE ADDED's form carries without script: the URL, less its own field. */
+	const keepParams = $derived(
+		[...withFilters(page.url.searchParams, { ...data.filters, added: null })].filter(
+			([k]) => k !== 'new'
+		) as [string, string][]
+	);
+	/** The shelf the grid shows, before and after filtering: "44 OF 188". */
+	const showing = $derived(data.shelf === 'cached' ? shown.length : data.total);
+	const shelfSize = $derived.by(() => {
+		if (data.shelf === 'cached') return cachedSeries.length;
+		return data.shelfTotal ?? data.total;
+	});
+	const outOf = $derived(
+		`${showing.toLocaleString('en-US')} OF ${shelfSize.toLocaleString('en-US')}`
+	);
+	const shelfName = $derived(
+		data.shelf === 'cached'
+			? 'Cached'
+			: (data.shelves.find((s) => s.key === data.shelf)?.name ?? 'Shelves')
+	);
+	/** An empty shelf offers nothing to filter (3h): no FILTER cell, one line on filling it. */
+	const canFilter = $derived(
+		data.shelf !== 'people' && !data.tag && (nFilters > 0 || shelfSize > 0)
+	);
+	const languagesHere = $derived(
+		data.shelf === 'cached'
+			? [...new Set(cachedSeries.flatMap((s) => codesOf(s)).map((l) => l.toLowerCase()))].sort()
+			: data.languages
+	);
+	const newOpen = $derived(page.url.searchParams.get('new') === 'shelf');
+
+	const shelves = $derived(
+		nFilters > 0
+			? data.shelves.map((s) => (s.key === data.shelf ? { ...s, countText: outOf } : s))
+			: data.shelves
+	);
 
 	const tabs = $derived.by((): Shelf[] => {
 		if (!isOffline) return shelves;
@@ -422,6 +475,7 @@
 			kind: 'smart',
 			count: Object.keys(offline.cached).length
 		};
+		if (data.shelf === 'cached' && nFilters > 0) cached.countText = outOf;
 		return [cached, ...shelves.filter((s) => s.key !== 'new')];
 	});
 
@@ -435,15 +489,11 @@
 		if (scanning) return 'Arriving';
 		if (isOffline) return 'On this device';
 		if (justImported && data.shelf === 'new') return 'Just imported';
-		return 'Shelves';
+		// The shelf by name, and what narrows it (Library Filters 3b).
+		return shelfName;
 	});
-
-	/**
-	 * CACHED is a device shelf: only the tablet knows what it holds, so the
-	 * server lists everything and this narrows it.
-	 */
-	const shown = $derived(
-		data.shelf === 'cached' ? series.filter((s) => cachedCount(s.id) > 0) : series
+	const sectionExtra = $derived(
+		data.tag || scanning || isOffline || nFilters === 0 ? '' : filterWords(data.filters).join(' · ')
 	);
 
 	/**
@@ -463,7 +513,7 @@
 			const q = pageQuery({
 				shelf: data.shelf,
 				tag: data.tag,
-				min: data.min,
+				filters: data.filters,
 				sort: data.sort,
 				offset: 0,
 				limit: 0
@@ -536,6 +586,22 @@
 				>
 			{/snippet}
 			{#snippet right()}
+				{#if canFilter}
+					<!-- The desktop's FILTER, beside SELECT (3j); the tablet's sits on the tabs. -->
+					<div class="filter-desk">
+						<FilterPanel
+							wide
+							filters={data.filters}
+							languages={languagesHere}
+							reveal={data.reveal}
+							title={shelfName.toUpperCase()}
+							count={nFilters ? outOf : shelfSize.toLocaleString('en-US')}
+							href={filterHref}
+							formAction={resolve('/')}
+							keep={keepParams}
+						/>
+					</div>
+				{/if}
 				<button
 					type="button"
 					class="cell-btn"
@@ -633,6 +699,7 @@
 	{:else if data.person}
 		<PersonView
 			page={data.person}
+			reveal={data.reveal}
 			{selecting}
 			{selected}
 			onselect={(i) =>
@@ -673,8 +740,9 @@
 			</div>
 		{/if}
 
-		<SectionLabel index={2} text={sectionText}>
+		<SectionLabel index={2} text={sectionText} extra={sectionExtra}>
 			{#snippet right()}
+				{#if nFilters > 0}<span class="desk-count">{outOf} ·&nbsp;</span>{/if}
 				{#if selecting}
 					TAP TO ADD
 				{:else if outlined}
@@ -690,20 +758,26 @@
 		</SectionLabel>
 
 		<div class="tabs">
-			<ShelfTabs shelves={tabs} active={activeShelf} href={(k) => shelfHref(page.url, k)} />
-		</div>
-		{#if rated && !isOffline}
-			<RatingSlider
-				mode="min"
-				label="AT LEAST"
-				value={data.min}
-				height={60}
-				borderTop={false}
-				borderBottom={false}
-				href={(n) => minHref(page.url, n)}
-				count={{ text: String(data.total), sub: 'SERIES' }}
+			<ShelfTabs
+				bare
+				shelves={tabs}
+				active={activeShelf}
+				href={(k) => shelfHref(page.url, k)}
+				newHref={isOffline ? undefined : withParam(page.url, 'new', 'shelf')}
 			/>
-		{/if}
+			{#if canFilter}
+				<FilterPanel
+					filters={data.filters}
+					languages={languagesHere}
+					reveal={data.reveal}
+					title={shelfName.toUpperCase()}
+					count={nFilters ? outOf : shelfSize.toLocaleString('en-US')}
+					href={filterHref}
+					formAction={resolve('/')}
+					keep={keepParams}
+				/>
+			{/if}
+		</div>
 
 		{#if outlined}
 			<GridOutline />
@@ -774,6 +848,26 @@
 			{#if data.people.length === 0}
 				<p class="none">NO FAVOURITE PEOPLE · FAV ONE FROM THEIR PAGE</p>
 			{/if}
+		{:else if shown.length === 0 && nFilters > 0 && !outlined}
+			<!-- Filters that leave nothing (3f): a narrow question about one shelf, not an empty library. -->
+			<div class="empty-result">
+				<p class="empty-title">Nothing on {shelfName} matches these filters.</p>
+				<p class="empty-sub">The shelf holds {shelfSize.toLocaleString('en-US')}.</p>
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- filterHref resolves -->
+				<a class="empty-clear" href={filterHref(NO_FILTERS)} data-sveltekit-noscroll
+					>✕ CLEAR · SHOW {shelfSize.toLocaleString('en-US')}</a
+				>
+			</div>
+		{:else if shown.length === 0 && data.shelf.startsWith('c:') && !outlined}
+			<!-- A new shelf (3h): empty until something is added, and says how. -->
+			<div class="empty-shelf">
+				<p class="empty-title">Nothing on {shelfName} yet.</p>
+				<p class="empty-sub">
+					Long-press a cover and tick it under SHELVES, or SELECT several and + SHELF.
+				</p>
+				<button type="button" class="empty-select" onclick={() => (selecting = true)}>SELECT</button
+				>
+			</div>
 		{:else if shown.length === 0}
 			<p class="none">NOTHING ON THIS SHELF</p>
 		{/if}
@@ -828,6 +922,10 @@
 			{/snippet}
 		</BulkBar>
 	</form>
+{/if}
+
+{#if newOpen}
+	<NewShelfSheet closeHref={withParam(page.url, 'new', null)} />
 {/if}
 
 <SeriesSheet
@@ -942,12 +1040,92 @@
 			display: inline;
 		}
 	}
-	/* Desktop: the wordmark and the shelves move into the sidebar. */
+	/* The tabs and, pinned at their end, FILTER (Library Filters 3a): the bar
+	   draws the rules, the tabs scroll under the pinned cell. */
+	.tabs {
+		position: relative;
+		z-index: 5;
+		display: flex;
+		border-top: var(--hairline);
+		border-bottom: var(--hairline);
+	}
+	/* The tabs stay lit above FILTER's scrim, as the mock draws them. */
+	.tabs > :global(nav) {
+		position: relative;
+		z-index: 5;
+		background: var(--surface-page);
+	}
+	.filter-desk,
+	.desk-count {
+		display: none;
+	}
+	/* Not positioned: its panel hangs from the top bar's right edge, 640 wide (3j). */
+	.filter-desk {
+		align-self: stretch;
+	}
+	/* Desktop: the wordmark and the shelves move into the sidebar, FILTER into
+	   the top bar beside SELECT, and the count into the section label (3j). */
 	@media (min-width: 1024px) and (pointer: fine) {
 		.library :global(header .left:has(.brand)),
 		.tabs {
 			display: none;
 		}
+		.filter-desk {
+			display: flex;
+		}
+		.desk-count {
+			display: inline;
+		}
+	}
+	/* Filters that leave nothing (3f), and a shelf with nothing yet (3h). */
+	.empty-result,
+	.empty-shelf {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 20px;
+		padding: 64px var(--pad);
+	}
+	.empty-shelf {
+		gap: 16px;
+		padding: 48px var(--pad);
+	}
+	.empty-title,
+	.empty-sub {
+		margin: 0;
+	}
+	.empty-result .empty-title {
+		font: 500 22px/1.3 var(--font-sans);
+		text-wrap: pretty;
+	}
+	.empty-shelf .empty-title {
+		font: 500 20px/1.3 var(--font-sans);
+	}
+	.empty-sub {
+		font: 400 15px/1.5 var(--font-sans);
+		color: var(--text-prose);
+		text-wrap: pretty;
+	}
+	.empty-clear {
+		display: flex;
+		align-items: center;
+		height: 52px;
+		padding: 0 24px;
+		background: var(--accent);
+		color: var(--on-accent);
+		font: 500 14px var(--font-mono);
+	}
+	.empty-select {
+		display: flex;
+		align-items: center;
+		height: 48px;
+		padding: 0 20px;
+		border: 1px solid var(--line-2);
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-1);
+		font: 500 14px var(--font-mono);
+		cursor: pointer;
 	}
 	.search-hint {
 		flex: 1;

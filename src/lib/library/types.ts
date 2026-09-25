@@ -35,6 +35,8 @@ export type SeriesCard = {
 	/** False while the scanner has found the series but not yet indexed it. */
 	indexed: boolean;
 	addedAt: number;
+	/** A chapter on disk, so readable without the internet: what ?dl= asks. */
+	downloaded?: boolean;
 	/**
 	 * A book folded from several languages (doc/EDITIONS.md): their codes,
 	 * the one it opens in first ("EN · JA"). Absent for any other.
@@ -66,11 +68,13 @@ export type SeriesDetail = SeriesCard & {
 export type ShelfKind = 'smart' | 'collection' | 'root';
 
 export type Shelf = {
-	/** `all`, `favourites`, `rated4`, `new`, `downloaded`, `k:<kind>` for manga/manhwa/novels, `c:<id>` for a collection, `r:<id>` for a root. */
+	/** `all`, `new`, `series`, `oneoff`, `k:<kind>` for manga/manhwa/novels, `c:<id>` for a collection, `r:<id>` for a root, `people`. */
 	key: string;
 	name: string;
 	kind: ShelfKind;
 	count: number;
+	/** Written in place of the count: the active tab's "44 OF 188" while filtered. */
+	countText?: string;
 };
 
 export type TagHit = { namespace: string; value: string; count: number; key: string };
