@@ -25,5 +25,5 @@ console.log(`links: ${r.resolved} MAL links resolved`);
 console.log(`  searched:  ${r.searched}`);
 console.log(`  linked:    ${r.linked} (exact)`);
 console.log(`  to review: ${r.offered}`);
-if (r.unreachable) console.log('  AniList unreachable: the next run carries on');
+if (r.unreachable) console.log(`  AniList unreachable (${r.reason}): the next run carries on`);
 console.log(`${linkCount()} linked in all, took ${Math.round((Date.now() - started) / 1000)}s`);

@@ -514,6 +514,8 @@ export type PassResult = {
 	linked: number;
 	offered: number;
 	unreachable: boolean;
+	/** Why AniList couldn't be reached, for the log. */
+	reason?: string;
 };
 
 /**
@@ -537,8 +539,10 @@ export async function refreshLinks(
 			opts.log?.(`links: ${out.searched} of ${rows.length} searched`);
 		}
 	} catch (e) {
-		if (e instanceof Unreachable) out.unreachable = true;
-		else throw e;
+		if (e instanceof Unreachable) {
+			out.unreachable = true;
+			out.reason = e.message;
+		} else throw e;
 	}
 	return out;
 }
