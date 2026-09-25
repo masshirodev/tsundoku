@@ -130,7 +130,11 @@ AniList gets it as `scoreRaw` (its 100) whatever format the owner shows, and
 
 - **Novels.** A novel's progress isn't sent. An EPUB's entries are its
   chapters or its volumes, depending on the file, so what counts as a
-  chapter on the list needs its own rule.
+  chapter on the list needs its own rule. Nor are they on AniList or MAL,
+  mostly. They'll be tracked through **Ranobe** (`~/projects/ranobe`, the
+  owner's own database) when it's ready, with MangaUpdates as the fallback:
+  card c66 ("Track novels through Ranobe, once it's ready"), deferred on
+  2026-09-25.
 - **MAL search**, for novels AniList lacks ([`LINKS.md`](LINKS.md)), now
   that the client id is here.
 - **Reading MAL's list to link.** Only AniList's list links; MAL's only
