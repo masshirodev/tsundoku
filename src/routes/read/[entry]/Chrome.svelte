@@ -103,7 +103,7 @@
 		type="button"
 		class="rating"
 		class:folded={languages.length > 1}
-		aria-label={rating ? `Rated ${rating} of 5 · reading settings` : 'Unrated · reading settings'}
+		aria-label={rating ? `Rated ${rating} of 10 · reading settings` : 'Unrated · reading settings'}
 		onclick={onsheet}
 	>
 		{#each [1, 2, 3, 4, 5] as n (n)}<span class:on={n <= rating}></span>{/each}

@@ -5,6 +5,8 @@
 	import { bookCoverSrc, pageThumbSrc } from '$lib/library/links';
 	import { RULES, carryOver, type Copy } from '$lib/library/dupes';
 	import { langCode } from '$lib/library/editions';
+	import { ratingText } from '$lib/library/rating';
+	import type { Rating } from '$lib/library/types';
 
 	/**
 	 * Duplicate books (Pair Review; doc/DUPLICATE-BOOKS.md): one pair at a
@@ -80,7 +82,7 @@
 		['PAGES', (c) => String(c.pages)],
 		['PAGE SIZE', (c) => (c.width ? `${c.width} × ${c.height}` : '—')],
 		['ADDED', (c) => day(c.addedAt)],
-		['RATING', (c) => (c.rating ? `${c.rating} OF 5` : 'UNRATED')],
+		['RATING', (c) => ratingText(c.rating as Rating)],
 		['FAV', (c) => (c.favourite ? 'FAV' : '—')],
 		['READ', (c) => (c.read === 'read' ? 'READ' : c.read ? `P ${c.read} OF ${c.pages}` : 'UNREAD')],
 		['SHELVES', (c) => (c.shelves.length ? c.shelves.join(', ').toUpperCase() : '—')],

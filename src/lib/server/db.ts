@@ -573,6 +573,24 @@ const MIGRATIONS: string[] = [
 		WHERE o.series_id = entries.series_id AND o.position = entries.position AND o.shadowed = 0
 	) WHERE shadowed = 1 AND unread_at IS NULL;
 	UPDATE entries SET read_at = NULL WHERE unread_at IS NOT NULL AND read_at < unread_at;
+	`,
+	// Rung 29: ratings out of 10 (card c67; doc/SERIES.md, "Rating"). Five
+	// steps with halves, as Ranobe rates. Existing ratings convert exactly,
+	// x2: a 4 chosen out of five is an 8, never an 8-or-9, and 0 stays
+	// unrated. SQLite can't change a CHECK in place, and rebuilding series and
+	// entries would touch every table that references them, so the old column
+	// is renamed (rating5, kept and no longer read or written) and a new
+	// rating takes its name with a 0-10 CHECK: every query naming rating reads
+	// the new one. A link's filled_rating is compared with the rating by UNDO,
+	// so it doubles too.
+	`
+	ALTER TABLE series RENAME COLUMN rating TO rating5;
+	ALTER TABLE series ADD COLUMN rating INTEGER NOT NULL DEFAULT 0 CHECK (rating BETWEEN 0 AND 10);
+	UPDATE series SET rating = COALESCE(rating5, 0) * 2;
+	ALTER TABLE entries RENAME COLUMN rating TO rating5;
+	ALTER TABLE entries ADD COLUMN rating INTEGER NOT NULL DEFAULT 0 CHECK (rating BETWEEN 0 AND 10);
+	UPDATE entries SET rating = rating5 * 2;
+	UPDATE series_links SET filled_rating = filled_rating * 2 WHERE filled_rating IS NOT NULL;
 	`
 ];
 
@@ -590,7 +608,17 @@ function migrate(conn: Database.Database, path: string): void {
 			console.warn(`tsundoku: no snapshot before migrating past v${current}: ${String(e)}`);
 		}
 	}
-	for (let i = current; i < MIGRATIONS.length; i++) {
+	climb(conn);
+}
+
+/**
+ * Climb the ladder from wherever `conn` stands, up to rung `upTo`. Exported so
+ * a test can stop a database at an old rung, fill it as it was, and watch the
+ * next rung move it (tests/migrations-db.spec.ts).
+ */
+export function climb(conn: Database.Database, upTo = MIGRATIONS.length): void {
+	const current = conn.pragma('user_version', { simple: true }) as number;
+	for (let i = current; i < Math.min(upTo, MIGRATIONS.length); i++) {
 		conn
 			.transaction(() => {
 				conn.exec(MIGRATIONS[i]);

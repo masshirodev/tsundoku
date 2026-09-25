@@ -251,11 +251,13 @@ test('the end of the series asks for a rating while unrated, and it saves', asyn
 	await page.waitForLoadState('networkidle');
 	await tap(page, 0.05);
 	await expect(page.getByText('END · LAST AVAILABLE')).toBeVisible();
-	await expect(page.getByText('SHOWN WHILE UNRATED · RATING SAVES ON TAP')).toBeVisible();
-	await page.getByRole('button', { name: 'Rate 4' }).click();
+	await expect(page.getByText('SHOWN WHILE UNRATED · RATING SAVES WHEN YOU LET GO')).toBeVisible();
+	await page.getByRole('button', { name: 'Rate 8 of 10' }).click();
 	await page.goto(`/series/${id}`);
 	await expect(
-		page.getByRole('region', { name: 'About this series' }).getByRole('button', { name: 'Rate 4' })
+		page
+			.getByRole('region', { name: 'About this series' })
+			.getByRole('button', { name: 'Rate 8 of 10' })
 	).toHaveAttribute('aria-pressed', 'true');
 });
 

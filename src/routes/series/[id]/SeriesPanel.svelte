@@ -3,7 +3,7 @@
 	import { enhance } from '$app/forms';
 	import Badge from '$lib/components/content/Badge.svelte';
 	import { coverPlaceholder } from '$lib/library/cover';
-	import { RATING_OPTIONS } from '$lib/library/rating';
+	import RatingSlider from '$lib/components/controls/RatingSlider.svelte';
 	import {
 		continueAction,
 		directionOptions,
@@ -332,38 +332,15 @@
 		</div>
 	</div>
 
-	<div class="rating-row">
-		<div class="label" class:unsaved-label={ratingUnsaved}>
-			{ratingUnsaved ? 'NOT SAVED' : rating === 0 ? 'UNRATED' : 'RATING'}
-		</div>
-		<div class="cells" class:unsaved={ratingUnsaved} role="group" aria-label="Rating">
-			{#each RATING_OPTIONS as n (n)}
-				<!-- Cells fill up to the rating; 0 (unrated) fills none. -->
-				{@const on = n > 0 && n <= rating}
-				<button
-					type="button"
-					class="cell"
-					class:on
-					class:muted={rating === 0}
-					aria-pressed={rating !== 0 && n === rating}
-					aria-label={n === 0 ? 'Unrated' : `Rate ${n}`}
-					onclick={() => rate(n as Rating)}>{n}</button
-				>
-			{/each}
-		</div>
-		<div class="fav-form">
-			<button
-				type="button"
-				class="fav"
-				class:on={favourite}
-				class:unsaved={favUnsaved}
-				aria-pressed={favourite}
-				onclick={toggleFav}
-			>
-				{favourite ? 'FAV ✓' : 'FAV'}
-			</button>
-		</div>
-	</div>
+	<!-- RATING (Ratings out of 10 1a, 1b): the blocky slider, FAV at its end. -->
+	<RatingSlider
+		value={rating}
+		unsaved={ratingUnsaved}
+		height={64}
+		phoneHeight={52}
+		onchange={(n) => rate(n as Rating)}
+		fav={{ on: favourite, onclick: toggleFav, unsaved: favUnsaved }}
+	/>
 
 	<!-- eslint-disable svelte/no-navigation-without-resolve -- readHref() resolves -->
 	<a class="cta" bind:this={cta} href={resumeHref} aria-disabled={!resumeHref}>
@@ -806,30 +783,12 @@
 	.out-row {
 		min-height: 58px;
 	}
-	/* Not stored yet (Loading States 1o): dashed, Index's mark for it. */
-	.cells.unsaved .cell.on {
-		background: transparent;
-		color: var(--accent);
-		outline: 1.5px dashed var(--accent);
-		outline-offset: -7px;
-	}
-	.unsaved-label {
-		color: var(--text-1) !important;
-	}
-	.fav.unsaved {
-		background: transparent;
-		color: var(--accent);
-		outline: 1.5px dashed var(--accent);
-		outline-offset: -7px;
-	}
 	.panel {
 		display: flex;
 		flex-direction: column;
 		--label-w: 120px;
 		--cov-w: 184px;
 		--title-size: 28px;
-		--rating-h: 64px;
-		--fav-w: 96px;
 		--cta-h: 64px;
 		--ns-w: 72px;
 	}
@@ -845,8 +804,6 @@
 			--label-w: 84px;
 			--cov-w: 104px;
 			--title-size: 20px;
-			--rating-h: 52px;
-			--fav-w: 60px;
 			--cta-h: 56px;
 			--ns-w: 56px;
 		}
@@ -925,55 +882,6 @@
 	.top .label {
 		align-items: flex-start;
 		padding-top: 18px;
-	}
-
-	.rating-row {
-		flex-shrink: 0;
-		display: flex;
-		align-items: stretch;
-		height: var(--rating-h);
-		border-top: var(--hairline);
-		border-bottom: var(--hairline);
-	}
-	.cells {
-		flex: 1;
-		display: flex;
-	}
-	.cell {
-		flex: 1;
-		min-width: 0;
-		border: 0;
-		border-right: var(--hairline);
-		border-radius: 0;
-		padding: 0;
-		background: transparent;
-		color: var(--text-1);
-		font: 500 16px var(--font-mono);
-		cursor: pointer;
-	}
-	.cell.muted {
-		color: var(--text-2);
-	}
-	.cell.on {
-		background: var(--accent);
-		color: var(--on-accent);
-	}
-	.fav-form {
-		display: flex;
-	}
-	.fav {
-		width: var(--fav-w);
-		border: 0;
-		border-radius: 0;
-		background: transparent;
-		color: var(--text-2);
-		font: 500 14px var(--font-mono);
-		letter-spacing: 0.04em;
-		cursor: pointer;
-	}
-	.fav.on {
-		background: var(--accent);
-		color: var(--on-accent);
 	}
 
 	.cta {
@@ -1203,8 +1111,6 @@
 	.hide-form {
 		display: flex;
 	}
-	.cell:active:not(.on),
-	.fav:active:not(.on),
 	.seg button:active:not(.on),
 	.edit:active {
 		background: var(--surface-inverse);

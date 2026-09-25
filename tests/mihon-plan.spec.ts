@@ -108,9 +108,9 @@ describe('ComicInfo', () => {
 
 describe('the rules', () => {
 	it('reads the owner’s categories as ratings, shelves and hiding', () => {
-		expect(categoryEffect('Amazing')).toEqual({ rating: 5, shelf: null, adult: false });
-		expect(categoryEffect('Good+')).toEqual({ rating: 4, shelf: null, adult: true });
-		expect(categoryEffect('Okay')).toMatchObject({ rating: 3 });
+		expect(categoryEffect('Amazing')).toEqual({ rating: 10, shelf: null, adult: false });
+		expect(categoryEffect('Good+')).toEqual({ rating: 8, shelf: null, adult: true });
+		expect(categoryEffect('Okay')).toMatchObject({ rating: 6 });
 		expect(categoryEffect('To Read+')).toEqual({ rating: 0, shelf: 'To Read', adult: true });
 		expect(categoryEffect('Dropped')).toMatchObject({ rating: 0, shelf: 'Dropped' });
 		expect(categoryEffect('Isekai pile')).toMatchObject({ rating: 0, shelf: 'Isekai pile' });
@@ -220,12 +220,12 @@ describe('the plan', () => {
 
 	it('rates, shelves and hides by category, and keeps the category as a tag', () => {
 		expect(byTitle('Drawing: Saikyou Mangaka')).toMatchObject({
-			rating: 4,
+			rating: 8,
 			hidden: false,
 			shelves: []
 		});
-		expect(byTitle('Academy’s Undercover Professor')).toMatchObject({ rating: 5, kind: 'manhwa' });
-		expect(byTitle('Bunk Beds')).toMatchObject({ rating: 4, hidden: true });
+		expect(byTitle('Academy’s Undercover Professor')).toMatchObject({ rating: 10, kind: 'manhwa' });
+		expect(byTitle('Bunk Beds')).toMatchObject({ rating: 8, hidden: true });
 		expect(byTitle('Myst, Might, Mayhem')).toMatchObject({ rating: 0, shelves: ['To Read'] });
 		expect(byTitle('Bunk Beds').tags).toContainEqual({ namespace: 'mihon', value: 'Good+' });
 	});

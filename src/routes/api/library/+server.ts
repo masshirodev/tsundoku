@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { isRevealed } from '$lib/server/prefs';
 import { listSeries, listedIds } from '$lib/server/library';
 import { parseSeed, parseSort } from '$lib/library/labels';
+import { parseMin } from '$lib/library/rating';
 import { GRID_MAX, GRID_PAGE } from '$lib/library/paging';
 
 /**
@@ -15,6 +16,7 @@ export const GET: RequestHandler = ({ url, cookies }) => {
 		reveal: isRevealed(cookies),
 		shelf: url.searchParams.get('shelf') ?? 'all',
 		tag: url.searchParams.get('tag'),
+		min: parseMin(url.searchParams.get('min')),
 		sort: parseSort(url.searchParams.get('sort'))
 	};
 	const headers = { 'cache-control': 'private, no-store' };

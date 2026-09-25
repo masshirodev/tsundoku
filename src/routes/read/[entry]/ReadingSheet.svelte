@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { modeName, type Fit, type Mode, type Wide } from '$lib/reader/reader';
 	import type { BlocksShown } from '$lib/japanese/blocks';
-	import { RATING_OPTIONS } from '$lib/library/rating';
+	import RatingSlider from '$lib/components/controls/RatingSlider.svelte';
 
 	/**
 	 * READING (Index Reader, state 1b with the sheet): mode, fit, spreads, crop
@@ -280,20 +280,8 @@
 		</div>
 	</div>
 
-	<div class="row rate">
-		<div class="label">RATING</div>
-		{#each RATING_OPTIONS as n (n)}
-			<button
-				type="button"
-				class="cell"
-				class:on={n > 0 && n <= rating}
-				class:muted={rating === 0}
-				aria-pressed={rating !== 0 && n === rating}
-				aria-label={n === 0 ? 'Unrated' : `Rate ${n}`}
-				onclick={() => onrate(n)}>{n}</button
-			>
-		{/each}
-	</div>
+	<!-- Ratings out of 10: the blocky slider, as on the series screen. -->
+	<RatingSlider value={rating} borderTop={false} fontSize={15} onchange={onrate} />
 	<div class="foot"></div>
 </div>
 
@@ -483,21 +471,6 @@
 		width: 44px;
 		text-align: right;
 		font: 500 14px var(--font-mono);
-	}
-	.rate .cell {
-		flex: 1;
-		border-right: var(--hairline);
-		font: 500 15px var(--font-mono);
-	}
-	.rate .cell:last-child {
-		border-right: 0;
-	}
-	.rate .cell.muted {
-		color: var(--text-2);
-	}
-	.rate .cell.on {
-		background: var(--accent);
-		color: var(--on-accent);
 	}
 	.foot {
 		height: 24px;

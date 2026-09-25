@@ -16,6 +16,17 @@ export function shelfHref(current: URL, shelf: string): string {
 	// The same shuffle on another shelf.
 	const seed = current.searchParams.get('seed');
 	if (sort === 'random' && seed) params.set('seed', seed);
+	// RATED's threshold, kept only while staying on RATED.
+	const min = current.searchParams.get('min');
+	if (shelf === 'rated4' && min) params.set('min', min);
+	return library(params);
+}
+
+/** RATED at another threshold (c67, turn 2): a link, so it works without script. */
+export function minHref(current: URL, min: number): string {
+	const params = new URLSearchParams(current.searchParams);
+	params.set('shelf', 'rated4');
+	params.set('min', String(min));
 	return library(params);
 }
 

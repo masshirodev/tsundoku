@@ -164,7 +164,7 @@ describe('reading the lists', () => {
 		});
 		expect(
 			(db.prepare(`SELECT rating FROM series WHERE id = ?`).get(tog) as { rating: number }).rating
-		).toBe(4);
+		).toBe(8);
 		expect(state(tog, 'anilist')).toMatchObject({ status: 'reading', progress: 590, score: 8 });
 	});
 

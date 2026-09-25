@@ -76,23 +76,23 @@ test('a rating that doesn’t save stays, dashed, until PUT BACK', async ({ page
 	await page.waitForURL(/\/series\/\d+/);
 	await page.route('**/series/*?/rate', (route) => route.abort());
 	const panel = page.getByRole('region', { name: 'About this series' });
-	await expect(panel.getByRole('button', { name: 'Rate 5' })).toHaveAttribute(
+	await expect(panel.getByRole('button', { name: 'Rate 10 of 10' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
 	);
-	await panel.getByRole('button', { name: 'Rate 2' }).click();
-	await expect(page.getByText('RATING 2 NOT SAVED')).toBeVisible();
+	await panel.getByRole('button', { name: 'Rate 4 of 10' }).click();
+	await expect(page.getByText('RATING 4 NOT SAVED')).toBeVisible();
 	await expect(panel.getByText('NOT SAVED', { exact: true })).toBeVisible();
-	await expect(panel.getByRole('button', { name: 'Rate 2' })).toHaveAttribute(
+	await expect(panel.getByRole('button', { name: 'Rate 4 of 10' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
 	);
 	// RETRY still can't reach it; PUT BACK shows what's stored.
 	await page.getByRole('button', { name: 'RETRY' }).click();
-	await expect(page.getByText('RATING 2 NOT SAVED')).toBeVisible();
-	await page.getByRole('button', { name: 'PUT BACK 5' }).click();
-	await expect(page.getByText('RATING 2 NOT SAVED')).toHaveCount(0);
-	await expect(panel.getByRole('button', { name: 'Rate 5' })).toHaveAttribute(
+	await expect(page.getByText('RATING 4 NOT SAVED')).toBeVisible();
+	await page.getByRole('button', { name: 'PUT BACK 10' }).click();
+	await expect(page.getByText('RATING 4 NOT SAVED')).toHaveCount(0);
+	await expect(panel.getByRole('button', { name: 'Rate 10 of 10' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
 	);

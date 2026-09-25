@@ -81,7 +81,7 @@ describe('deciding', () => {
 		const s = db
 			.prepare(`SELECT rating, favourite FROM series WHERE id = ?`)
 			.get(seriesOf(ONE)) as { rating: number; favourite: number };
-		expect(s).toEqual({ rating: 4, favourite: 1 });
+		expect(s).toEqual({ rating: 8, favourite: 1 });
 		const e = db.prepare(`SELECT read_at FROM entries WHERE id = ?`).get(keep) as {
 			read_at: number | null;
 		};

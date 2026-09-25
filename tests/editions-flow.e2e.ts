@@ -113,7 +113,7 @@ test('UNFOLD makes two books again', async ({ page }) => {
 	await panel(page).getByRole('button', { name: 'UNFOLD' }).click();
 	const sheet = page.getByRole('dialog', { name: 'Unfold into 2 books' });
 	await expect(sheet).toContainText('UNFOLD INTO 2 BOOKS');
-	await expect(sheet).toContainText('P. 13 OF 30 · RATING 3');
+	await expect(sheet).toContainText('P. 13 OF 30 · RATING 6');
 	await expect(sheet).toContainText('THE DUPLICATES REVIEW WON’T OFFER THEM AGAIN');
 	await sheet.getByRole('button', { name: 'UNFOLD' }).click();
 	await expect(panel(page).locator('form[action="?/language"]')).toHaveCount(0);

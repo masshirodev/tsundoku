@@ -46,7 +46,7 @@ test('the pick comes selected with its reason; the other side can be chosen inst
 	await expect(tagOf(page, 'A')).toHaveText('KEEP · YOURS');
 	await expect(page.locator('.s2')).toContainText('YOUR PICK · A · TSUNDOKU PICKED B');
 	// What A would take over from B: B was rated, FAV'd and read.
-	await expect(page.locator('.carry')).toContainText('TAKES OVER FROM B · RATING 4 · FAV · READ');
+	await expect(page.locator('.carry')).toContainText('TAKES OVER FROM B · RATING 8 · FAV · READ');
 });
 
 test('KEEP waits: UNDO brings the pair back, nothing deleted', async ({ page }) => {

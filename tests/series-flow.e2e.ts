@@ -43,14 +43,14 @@ test('rating fills up to the choice, 0 clears it, and FAV toggles', async ({ pag
 	const panel = page.getByRole('region', { name: 'About this series' });
 	await expect(panel.getByText('UNRATED', { exact: true })).toBeVisible();
 
-	await panel.getByRole('button', { name: 'Rate 3' }).click();
+	await panel.getByRole('button', { name: 'Rate 6 of 10' }).click();
 	await expect(panel.getByText('RATING', { exact: true })).toBeVisible();
-	await expect(panel.getByRole('button', { name: 'Rate 3' })).toHaveAttribute(
+	await expect(panel.getByRole('button', { name: 'Rate 6 of 10' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
 	);
 	await page.reload();
-	await expect(panel.getByRole('button', { name: 'Rate 3' })).toHaveAttribute(
+	await expect(panel.getByRole('button', { name: 'Rate 6 of 10' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
 	);

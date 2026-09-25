@@ -3,7 +3,7 @@
 	import { enhance } from '$app/forms';
 	import Sheet from '$lib/components/chrome/Sheet.svelte';
 	import Cover from '$lib/components/content/Cover.svelte';
-	import { RATING_OPTIONS } from '$lib/library/rating';
+	import RatingSlider from '$lib/components/controls/RatingSlider.svelte';
 	import { hueFor } from '$lib/library/cover';
 	import { entryProgress, type SeriesEntry, type SeriesPage } from '$lib/library/series';
 	import { readHref } from '$lib/library/links';
@@ -74,21 +74,18 @@
 		</div>
 
 		<div class="rating-row">
-			<div class="label">{book.rating === 0 ? 'UNRATED' : 'RATING'}</div>
-			<form method="POST" action="?/bookRate" use:enhance class="cells">
+			<!-- Ratings out of 10 1c: the book's own rating, the halves submit buttons. -->
+			<form method="POST" action="?/bookRate" use:enhance class="rate-form">
 				<input type="hidden" name="entry" value={book.id} />
-				{#each RATING_OPTIONS as n (n)}
-					<button
-						type="submit"
-						name="rating"
-						value={n}
-						class="cell"
-						class:on={n > 0 && n <= book.rating}
-						class:muted={book.rating === 0}
-						aria-pressed={book.rating !== 0 && n === book.rating}
-						aria-label={n === 0 ? 'Unrated' : `Rate ${n}`}>{n}</button
-					>
-				{/each}
+				<RatingSlider
+					value={book.rating}
+					name="rating"
+					height={63}
+					phoneHeight={63}
+					borderTop={false}
+					borderBottom={false}
+					fontSize={15}
+				/>
 			</form>
 			<form method="POST" action="?/bookFavourite" use:enhance class="fav-form">
 				<input type="hidden" name="entry" value={book.id} />
@@ -193,9 +190,9 @@
 		height: 64px;
 		border-bottom: var(--hairline);
 	}
-	.cells {
+	.rate-form {
 		flex: 1;
-		display: flex;
+		min-width: 0;
 	}
 	button {
 		border: 0;
@@ -207,17 +204,6 @@
 	button:disabled {
 		cursor: default;
 	}
-	.cell {
-		flex: 1;
-		min-width: 0;
-		padding: 0;
-		border-right: var(--hairline);
-		font: 500 15px var(--font-mono);
-	}
-	.cell.muted {
-		color: var(--text-2);
-	}
-	.cell.on,
 	.fav.on {
 		background: var(--accent);
 		color: var(--on-accent);
@@ -228,6 +214,7 @@
 	}
 	.fav {
 		width: 96px;
+		border-left: var(--hairline);
 		font: 500 14px var(--font-mono);
 		letter-spacing: 0.04em;
 		color: var(--text-2);
@@ -324,7 +311,6 @@
 	.actions button:not(.primary):disabled {
 		opacity: 0.4;
 	}
-	.cell:active:not(.on),
 	.fav:active:not(.on),
 	.cellbtn:active:not(:disabled),
 	.targets button:active,

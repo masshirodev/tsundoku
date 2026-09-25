@@ -69,9 +69,9 @@ width, row height (60 / 52px) and rail width (56 / 44px) per device.
   finishing the chapter here, forgets the unmark. (Until 2026-09-25 an
   unmarked chapter came back read on the next import. The rung repaired what
   it had undone, from the reading log.)
-- **Rating** is six cells, 0–5, and 0 is unrated. On this screen the cells
-  **fill up to** the rating (the handoff's convention). The library's pickers
-  highlight the one chosen cell. Both clear with 0.
+- **Rating** is out of 10, set with the blocky slider, and 0 is unrated. It
+  fills up to the rating, FAV sits at its end, and on a linked series it is
+  also the score AniList and MAL get ([`RATINGS.md`](RATINGS.md)).
 - **Direction** is stored per series (`series.direction`), and `NULL` means the
   kind's default: manhwa scrolls, manga and doujin read R→L, novels page. The
   reader's REMEMBER will write the same field.

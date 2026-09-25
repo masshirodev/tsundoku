@@ -9,10 +9,11 @@ export type Kind = 'manga' | 'manhwa' | 'doujin' | 'novel';
 export const KINDS: readonly Kind[] = ['manga', 'manhwa', 'doujin', 'novel'];
 
 /**
- * 0-5, where 0 is unrated and 1-5 is the owner's judgement. A series is
- * rated or it is not; there is no "rated nothing".
+ * 0-10, where 0 is unrated and 1-10 is the owner's judgement: five steps with
+ * halves (rung 29, card c67). A series is rated or it is not; there is no
+ * "rated nothing".
  */
-export type Rating = 0 | 1 | 2 | 3 | 4 | 5;
+export type Rating = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 
 export type SeriesCard = {
 	id: number;

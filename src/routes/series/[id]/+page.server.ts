@@ -204,7 +204,7 @@ export const actions: Actions = {
 	rate: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
 		const rating = parseRating((await request.formData()).get('rating'));
-		if (rating === undefined) return fail(400, { message: 'rating must be 0-5' });
+		if (rating === undefined) return fail(400, { message: 'rating must be 0-10' });
 		setRating([s.id], rating);
 		return { ok: true };
 	},
@@ -259,25 +259,13 @@ export const actions: Actions = {
 		return { ok: true };
 	},
 
-	// The TRACKING sheet (Series Link 1m): status and score, to both catalogues, now.
+	// The TRACKING sheet (Series Link 1m): status, to both catalogues, now. The
+	// score is the rating (c67), sent by the RATING row's own save.
 	tracking: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
-		const form = await request.formData();
-		const status = String(form.get('status') ?? '');
-		const score = form.get('score');
-		const edit: { status?: Status; score?: number | null } = {};
-		if (status) {
-			if (!(STATUSES as string[]).includes(status)) return fail(400, { message: 'no such status' });
-			edit.status = status as Status;
-		}
-		if (score !== null) {
-			// "—" clears it: 0 is no score on both catalogues.
-			const n = score === '' ? 0 : Number(score);
-			if (!(Number.isInteger(n) && n >= 0 && n <= 10))
-				return fail(400, { message: 'a score is 1 to 10, or none' });
-			edit.score = n;
-		}
-		if (editTracking(s.id, edit) > 0) await sendPending({ seriesId: s.id });
+		const status = String((await request.formData()).get('status') ?? '');
+		if (!(STATUSES as string[]).includes(status)) return fail(400, { message: 'no such status' });
+		if (editTracking(s.id, { status: status as Status }) > 0) await sendPending({ seriesId: s.id });
 		return { ok: true };
 	},
 
@@ -366,7 +354,7 @@ export const actions: Actions = {
 		const s = target(params, cookies);
 		const form = await request.formData();
 		const rating = parseRating(form.get('rating'));
-		if (rating === undefined) return fail(400, { message: 'rating must be 0-5' });
+		if (rating === undefined) return fail(400, { message: 'rating must be 0-10' });
 		setBookRating(s.id, Number(form.get('entry')), rating);
 		return { ok: true };
 	},

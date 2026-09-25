@@ -56,7 +56,7 @@ describe('the Mihon import', () => {
 
 	it('attaches the files it found, with page counts, and marks the rest not downloaded', () => {
 		const d = series('Drawing: Saikyou Mangaka');
-		expect(d).toMatchObject({ rating: 4, hidden: 0, source: 'mihon', status: 'ongoing' });
+		expect(d).toMatchObject({ rating: 8, hidden: 0, source: 'mihon', status: 'ongoing' });
 		expect(entries(d.id).map((e) => [e.label, e.available, e.page_count])).toEqual([
 			['Ch. 1', 0, 0],
 			['Ch. 2', 1, 12],
@@ -70,7 +70,7 @@ describe('the Mihon import', () => {
 	});
 
 	it('hides the "+" series and shelves To Read', () => {
-		expect(series('Bunk Beds')).toMatchObject({ hidden: 1, rating: 4 });
+		expect(series('Bunk Beds')).toMatchObject({ hidden: 1, rating: 8 });
 		const shelf = db()
 			.prepare(
 				`SELECT c.name FROM collections c JOIN collection_series cs ON cs.collection_id = c.id
@@ -188,7 +188,7 @@ describe('the Hentoid import', () => {
 
 	it('keeps a book’s rating, FAV and progress, with its pages and cover', () => {
 		const s = bookSeries('Summer Days');
-		expect(s).toMatchObject({ rating: 4, favourite: 1, path: hentoid });
+		expect(s).toMatchObject({ rating: 8, favourite: 1, path: hentoid });
 		const e = db().prepare(`SELECT * FROM entries WHERE series_id = ?`).get(s.id) as Record<
 			string,
 			unknown

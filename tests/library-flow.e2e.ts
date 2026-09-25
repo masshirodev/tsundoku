@@ -35,22 +35,22 @@ test('rating from the sheet persists, and 0 clears it back to unrated', async ({
 	let sheet = await longPress(page, TITLE);
 	// Unrated: no cell is filled and the label says so.
 	await expect(sheet.getByText('UNRATED', { exact: true })).toBeVisible();
-	for (const name of ['Unrated', 'Rate 1', 'Rate 5']) {
+	for (const name of ['Rate 1 of 10', 'Rate 10 of 10']) {
 		await expect(sheet.getByRole('button', { name })).toHaveAttribute('aria-pressed', 'false');
 	}
 
-	await sheet.getByRole('button', { name: 'Rate 2' }).click();
-	await expect(sheet.getByRole('button', { name: 'Rate 2' })).toHaveAttribute(
+	await sheet.getByRole('button', { name: 'Rate 4 of 10' }).click();
+	await expect(sheet.getByRole('button', { name: 'Rate 4 of 10' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
 	);
 	await page.keyboard.press('Escape');
 	const bars = page.locator('.grid .tile', { hasText: TITLE }).getByRole('img');
-	await expect(bars).toHaveAttribute('aria-label', 'Rated 2 of 5');
+	await expect(bars).toHaveAttribute('aria-label', 'Rated 4 of 10');
 
 	await page.reload();
 	sheet = await longPress(page, TITLE);
-	await expect(sheet.getByRole('button', { name: 'Rate 2' })).toHaveAttribute(
+	await expect(sheet.getByRole('button', { name: 'Rate 4 of 10' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
 	);
@@ -102,21 +102,22 @@ test('FAV toggles on the cover in one tap, without opening anything', async ({ p
 	await expect(tile.getByText('FAV', { exact: true })).toHaveCount(0);
 });
 
-test('the rating bars open the six cells on the tile, and a cell saves', async ({ page }) => {
+test('the rating bars open the slider on the tile, and a half saves', async ({ page }) => {
 	await page.goto('/');
 	const tile = page.locator('.grid .tile', { hasText: TITLE });
 	const bars = tile.getByRole('img');
 	await tile.getByRole('button', { name: /^Rate, / }).click();
-	const picker = tile.getByRole('group', { name: 'Rating' });
-	await expect(picker.getByRole('button')).toHaveCount(6);
+	const picker = tile.locator('.picker');
+	// The 0 cell and ten halves (c67).
+	await expect(picker.getByRole('button')).toHaveCount(11);
 
-	await picker.getByRole('button', { name: 'Rate 4' }).click();
+	await picker.getByRole('button', { name: 'Rate 7 of 10' }).click();
 	await expect(picker).toHaveCount(0);
-	await expect(bars).toHaveAttribute('aria-label', 'Rated 4 of 5');
+	await expect(bars).toHaveAttribute('aria-label', 'Rated 7 of 10');
 	await expect(page).toHaveURL(/\/$/);
 
 	await page.reload();
-	await expect(bars).toHaveAttribute('aria-label', 'Rated 4 of 5');
+	await expect(bars).toHaveAttribute('aria-label', 'Rated 7 of 10');
 	// A tap elsewhere closes it without choosing.
 	await tile.getByRole('button', { name: /^Rate, / }).click();
 	await expect(picker).toBeVisible();
@@ -128,6 +129,39 @@ test('the rating bars open the six cells on the tile, and a cell saves', async (
 	await tile.getByRole('button', { name: /^Rate, / }).click();
 	await picker.getByRole('button', { name: 'Unrated' }).click();
 	await expect(bars).toHaveAttribute('aria-label', 'Unrated');
+});
+
+test('RATED takes a threshold: AT LEAST is links, and the shelf is named for it (c67)', async ({
+	page
+}) => {
+	await page.goto('/?shelf=rated4&sort=title');
+	const row = page.getByRole('group', { name: 'At least' });
+	await expect(row.getByRole('link', { name: 'At least 4+' })).toHaveAttribute(
+		'aria-current',
+		'true'
+	);
+	const counted = async () => Number(await page.locator('.count .c-text').textContent());
+	const at4 = await counted();
+	expect(at4).toBe(await page.locator('.grid .tile').count());
+
+	await row.getByRole('link', { name: 'At least 3+' }).click();
+	await expect(page).toHaveURL(/shelf=rated4.*min=6|min=6.*shelf=rated4/);
+	await expect(
+		page.getByRole('link', { name: /^RATED 3\+/ }).filter({ visible: true })
+	).toBeVisible();
+	await expect(row.getByRole('link', { name: 'At least 3+' })).toHaveAttribute(
+		'aria-current',
+		'true'
+	);
+	expect(await counted()).toBeGreaterThan(at4);
+
+	// Another shelf drops the threshold; RATED comes back at 4+.
+	await page.getByRole('link', { name: /^ALL/ }).filter({ visible: true }).click();
+	await expect(page).not.toHaveURL(/min=/);
+	await expect(row).toHaveCount(0);
+	await expect(
+		page.getByRole('link', { name: /^RATED 4\+/ }).filter({ visible: true })
+	).toBeVisible();
 });
 
 test('the app’s name goes home, and DOWNLOADED is a shelf', async ({ page }) => {
@@ -186,13 +220,13 @@ test('multi-select applies a rating to exactly the selection', async ({ page }) 
 	await expect(page.getByText('2 SELECTED')).toBeVisible();
 
 	const bystander = tile('Isekai Ojisan').getByRole('img');
-	await expect(bystander).toHaveAttribute('aria-label', 'Rated 3 of 5');
+	await expect(bystander).toHaveAttribute('aria-label', 'Rated 6 of 10');
 
 	const toolbar = page.getByRole('toolbar');
-	await toolbar.getByRole('button', { name: 'Rate 5' }).click();
+	await toolbar.getByRole('button', { name: 'Rate 10 of 10' }).click();
 	for (const t of picked)
-		await expect(tile(t).getByRole('img')).toHaveAttribute('aria-label', 'Rated 5 of 5');
-	await expect(bystander).toHaveAttribute('aria-label', 'Rated 3 of 5');
+		await expect(tile(t).getByRole('img')).toHaveAttribute('aria-label', 'Rated 10 of 10');
+	await expect(bystander).toHaveAttribute('aria-label', 'Rated 6 of 10');
 
 	await toolbar.getByRole('button', { name: 'Unrated' }).click();
 	for (const t of picked)

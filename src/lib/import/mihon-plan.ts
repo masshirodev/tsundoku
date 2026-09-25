@@ -40,7 +40,8 @@ export type { PlannedEntry, PlannedSeries, PlannedTag } from './plan';
 
 /**
  * The owner's Mihon categories are a rating scale, each with a "+" twin for
- * adult series: Amazing, Good, Okay rate 5, 4, 3; Dropped, IDR and To Read
+ * adult series: Amazing, Good, Okay rate 10, 8, 6 (5, 4, 3 before c67
+ * made ratings out of 10); Dropped, IDR and To Read
  * stay unrated and become shelves; any other category is a shelf too. A "+"
  * hides the series. The category itself is kept as a `mihon:` tag.
  */
@@ -51,7 +52,7 @@ export function categoryEffect(name: string): {
 } {
 	const adult = name.trim().endsWith('+');
 	const base = name.trim().replace(/\+$/, '').trim();
-	const rating = ({ amazing: 5, good: 4, okay: 3 } as Record<string, Rating>)[base.toLowerCase()];
+	const rating = ({ amazing: 10, good: 8, okay: 6 } as Record<string, Rating>)[base.toLowerCase()];
 	return rating ? { rating, shelf: null, adult } : { rating: 0, shelf: base, adult };
 }
 

@@ -27,7 +27,7 @@ describe('a seeded series of books', () => {
 	it('keeps each book’s own rating, favourite, title and tags', () => {
 		const s = series.seriesPage(idOf(BOOK_SERIES_TITLE)!, true)!;
 		expect(s.entries.map((e) => e.title)).toEqual(BOOK_ROWS.slice(0, 4).map((r) => r.title));
-		expect(s.entries.map((e) => e.rating)).toEqual([4, 3, 0, 4]);
+		expect(s.entries.map((e) => e.rating)).toEqual([8, 6, 0, 8]);
 		expect(s.entries.map((e) => e.favourite)).toEqual([false, false, true, false]);
 		expect(s.entries[0].tags).toContainEqual({ namespace: 'circle', value: 'Hakka Kousha' });
 		// The series has its own rating, unrated until set: nothing was averaged.

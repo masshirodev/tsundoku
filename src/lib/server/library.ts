@@ -3,6 +3,7 @@ import { HIDDEN_SQL, VISIBLE_SQL } from './visibility.ts';
 import { getSetting } from './settings.ts';
 import { langCode, openingEdition } from '$lib/library/editions';
 import { likePattern } from '$lib/library/search';
+import { DEFAULT_MIN, minLabel } from '$lib/library/rating';
 import type { Sort } from '$lib/library/labels';
 import type {
 	ContinueItem,
@@ -192,9 +193,11 @@ const CURRENT_SCAN_ID = `SELECT id FROM scan_jobs WHERE finished_at IS NULL OR d
 	ORDER BY (finished_at IS NULL) DESC, id DESC LIMIT 1`;
 
 /** Where a shelf key narrows the listing. Unknown keys fall back to all. */
-function shelfClause(shelf: string): { sql: string; params: unknown[] } {
+function shelfClause(shelf: string, min = DEFAULT_MIN): { sql: string; params: unknown[] } {
 	if (shelf === 'favourites') return { sql: 's.favourite = 1', params: [] };
-	if (shelf === 'rated4') return { sql: 's.rating >= 4', params: [] };
+	// RATED keeps its key from the days it was RATED 4+; its threshold is
+	// `?min=` now, out of 10 (c67, turn 2).
+	if (shelf === 'rated4') return { sql: 's.rating >= ?', params: [min] };
 	// Something to read without the internet: a chapter on disk. Most of a
 	// Mihon library is read online and only known from the backup.
 	if (shelf === 'downloaded')
@@ -242,10 +245,12 @@ type ListOpts = {
 	shelf?: string;
 	tag?: string | null;
 	sort?: Sort;
+	/** The RATED shelf's threshold, 1-10; the default is 8 (4+). */
+	min?: number;
 };
 
 function listWhere(opts: ListOpts): { sql: string; params: unknown[] } {
-	const shelf = shelfClause(opts.shelf ?? 'all');
+	const shelf = shelfClause(opts.shelf ?? 'all', opts.min);
 	const tag = tagClause(opts.tag ?? null);
 	return {
 		sql: `${visibility(opts.reveal)} AND ${shelf.sql} AND ${tag.sql}`,
@@ -397,7 +402,14 @@ export function listShelves(opts: { reveal: boolean; withNew: boolean }): Shelf[
 		kind: 'smart',
 		count: n('s.favourite = 1')
 	});
-	shelves.push({ key: 'rated4', name: 'Rated 4+', kind: 'smart', count: n('s.rating >= 4') });
+	// Counted at the default threshold; the screen renames and recounts it
+	// while another one is in the URL (withMin).
+	shelves.push({
+		key: 'rated4',
+		name: `Rated ${minLabel(DEFAULT_MIN)}`,
+		kind: 'smart',
+		count: n('s.rating >= ?', DEFAULT_MIN)
+	});
 	// One shelf per kind of reading, only while the library has some: a
 	// library of manga alone doesn't need a MANHWA shelf reading 0.
 	for (const [kind, name] of KIND_SHELVES) {
@@ -543,9 +555,15 @@ function inList(ids: number[]): string {
 
 export function setRating(ids: number[], rating: Rating): number {
 	if (ids.length === 0) return 0;
-	return getDb()
+	const changed = getDb()
 		.prepare(`UPDATE series SET rating = ? WHERE id IN (${inList(ids)})`)
 		.run(rating, ...ids).changes;
+	// The rating is the score AniList and MAL get (doc/TRACKING.md, "One
+	// number"): sent behind the answer, never waited on.
+	void import('./tracking.ts')
+		.then((t) => t.afterRating(ids, rating))
+		.catch((e: unknown) => console.error('tsundoku: sending a rating as a score failed:', e));
+	return changed;
 }
 
 export function setFavourite(ids: number[], favourite: boolean): number {

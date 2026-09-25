@@ -74,15 +74,15 @@ test('a book keeps its own rating, and the series its own', async ({ page }) => 
 	const books = page.getByRole('region', { name: 'Books' });
 	await longPress(page, books.getByRole('button', { name: /Laundry Duty/ }));
 	const sheet = page.getByRole('dialog', { name: /Laundry Duty/ });
-	await sheet.getByRole('button', { name: 'Rate 4' }).click();
-	await expect(sheet.getByRole('button', { name: 'Rate 4' })).toHaveAttribute(
+	await sheet.getByRole('button', { name: 'Rate 8 of 10' }).click();
+	await expect(sheet.getByRole('button', { name: 'Rate 8 of 10' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
 	);
 
 	await page.reload();
 	await longPress(page, books.getByRole('button', { name: /Laundry Duty/ }));
-	await expect(sheet.getByRole('button', { name: 'Rate 4' })).toHaveAttribute(
+	await expect(sheet.getByRole('button', { name: 'Rate 8 of 10' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
 	);

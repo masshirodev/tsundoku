@@ -3,7 +3,7 @@
 	import Sheet from '$lib/components/chrome/Sheet.svelte';
 	import SheetRow from '$lib/components/chrome/SheetRow.svelte';
 	import Cover from '$lib/components/content/Cover.svelte';
-	import RatingPicker from '$lib/components/controls/RatingPicker.svelte';
+	import RatingSlider from '$lib/components/controls/RatingSlider.svelte';
 	import Switch from '$lib/components/controls/Switch.svelte';
 	import TagChip from '$lib/components/controls/TagChip.svelte';
 	import { sheetMeta } from '$lib/library/labels';
@@ -80,7 +80,8 @@
 
 		<form method="POST" action="/?/rate" use:enhance={after}>
 			<input type="hidden" name="id" value={detail.id} />
-			<RatingPicker value={detail.rating} name="rating" />
+			<!-- Ratings out of 10 1c: the blocky slider, the halves submit buttons. -->
+			<RatingSlider value={detail.rating} name="rating" borderTop={false} fontSize={15} />
 		</form>
 
 		<SheetRow label="Favourite">

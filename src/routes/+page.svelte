@@ -20,6 +20,8 @@
 	import { postAction, saves } from '$lib/saves.svelte';
 	import Button from '$lib/components/controls/Button.svelte';
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
+	import RatingSlider from '$lib/components/controls/RatingSlider.svelte';
+	import { withMin } from '$lib/library/rating';
 	import SeriesSheet from './SeriesSheet.svelte';
 	import ShelfPicker from './ShelfPicker.svelte';
 	import PersonView from './PersonView.svelte';
@@ -30,7 +32,14 @@
 	import { desktop, phone, wide } from '$lib/device.svelte';
 	import { offline } from '$lib/offline.svelte';
 	import { continueSub, count, newSeed, nextSort, progress, SORT_LABEL } from '$lib/library/labels';
-	import { coverSrc, readHref, seriesHref, shelfHref, withParam } from '$lib/library/links';
+	import {
+		coverSrc,
+		minHref,
+		readHref,
+		seriesHref,
+		shelfHref,
+		withParam
+	} from '$lib/library/links';
 	import type { Rating, SeriesCard, Shelf } from '$lib/library/types';
 	import { pageQuery } from '$lib/library/paging';
 	import type { Snapshot } from './$types';
@@ -66,14 +75,14 @@
 	let ended = $state(false);
 	const hasMore = $derived(!ended && data.shelf !== 'cached' && series.length < data.total);
 	const listKey = $derived(
-		`${data.shelf}|${data.tag ?? ''}|${data.sort}|${data.seed}|${data.reveal}`
+		`${data.shelf}|${data.tag ?? ''}|${data.min}|${data.sort}|${data.seed}|${data.reveal}`
 	);
 	let shownKey = '';
 
 	async function fetchPage(offset: number, limit: number): Promise<SeriesCard[] | null> {
 		try {
 			const res = await fetch(
-				`/api/library?${pageQuery({ shelf: data.shelf, tag: data.tag, sort: data.sort, seed: data.seed, offset, limit })}`
+				`/api/library?${pageQuery({ shelf: data.shelf, tag: data.tag, min: data.min, sort: data.sort, seed: data.seed, offset, limit })}`
 			);
 			if (!res.ok) return null;
 			return ((await res.json()) as { series: SeriesCard[] }).series;
@@ -401,15 +410,19 @@
 
 	const cachedCount = (id: number) => offline.cached[id] ?? 0;
 
+	/** RATED's threshold (c67, turn 2): its row shows while the shelf is on screen. */
+	const rated = $derived(data.shelf === 'rated4' && !data.tag);
+	const shelves = $derived(withMin(data.shelves, data.min, rated ? data.total : undefined));
+
 	const tabs = $derived.by((): Shelf[] => {
-		if (!isOffline) return data.shelves;
+		if (!isOffline) return shelves;
 		const cached: Shelf = {
 			key: 'cached',
 			name: 'Cached',
 			kind: 'smart',
 			count: Object.keys(offline.cached).length
 		};
-		return [cached, ...data.shelves.filter((s) => s.key !== 'new')];
+		return [cached, ...shelves.filter((s) => s.key !== 'new')];
 	});
 
 	const activeShelf = $derived(data.tag ? '' : data.shelf);
@@ -450,6 +463,7 @@
 			const q = pageQuery({
 				shelf: data.shelf,
 				tag: data.tag,
+				min: data.min,
 				sort: data.sort,
 				offset: 0,
 				limit: 0
@@ -678,6 +692,18 @@
 		<div class="tabs">
 			<ShelfTabs shelves={tabs} active={activeShelf} href={(k) => shelfHref(page.url, k)} />
 		</div>
+		{#if rated && !isOffline}
+			<RatingSlider
+				mode="min"
+				label="AT LEAST"
+				value={data.min}
+				height={60}
+				borderTop={false}
+				borderBottom={false}
+				href={(n) => minHref(page.url, n)}
+				count={{ text: String(data.total), sub: 'SERIES' }}
+			/>
+		{/if}
 
 		{#if outlined}
 			<GridOutline />

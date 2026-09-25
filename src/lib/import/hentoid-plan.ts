@@ -259,7 +259,8 @@ export function planHentoidBook(f: HentoidFolder, rootPath: string, now: number)
 	const tags = book ? tagsOf(book) : [];
 	if (entries.length > 1) for (const e of entries) e.tags = tags;
 
-	const rating = Math.max(0, Math.min(5, Math.round(book?.rating ?? 0))) as Rating;
+	// Hentoid's stars are out of 5; tsundoku rates out of 10 (c67).
+	const rating = (Math.max(0, Math.min(5, Math.round(book?.rating ?? 0))) * 2) as Rating;
 	return {
 		originKey,
 		source: 'hentoid',

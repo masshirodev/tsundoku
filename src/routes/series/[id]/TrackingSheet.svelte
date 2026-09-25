@@ -6,16 +6,15 @@
 	import type { Tracking } from '$lib/server/tracking';
 
 	/**
-	 * TRACKING (Series Link 1m; doc/TRACKING.md): status and score, set once
-	 * for both catalogues, and each one's progress from the reading here. A tap
-	 * sends at once; DONE only closes. The score is out of 10: the owner's
-	 * rating above stays theirs, and is never sent as a score.
+	 * TRACKING (Series Link 1m; doc/TRACKING.md): status, set once for both
+	 * catalogues, and each one's progress from the reading here. A tap sends at
+	 * once; DONE only closes. No SCORE row since c67: the rating above is out
+	 * of 10 as the catalogues' score is, and is what they get, one number.
 	 */
 	let { open, tracking, onclose }: { open: boolean; tracking: Tracking; onclose: () => void } =
 		$props();
 
 	const status = $derived(tracking.status);
-	const score = $derived(tracking.score ? Math.round(tracking.score) : 0);
 	const both = $derived(
 		tracking.facts
 			.filter((f) => f.linked && f.signedIn)
@@ -71,21 +70,6 @@
 	</form>
 
 	<div class="sl">
-		<div>SCORE</div>
-		<div>OUT OF 10 · ANILIST’S 100 SHOWN AS 10</div>
-	</div>
-	<form method="POST" action="?/tracking" use:enhance class="scores">
-		<button type="submit" name="score" value="" class:none={score === 0} aria-pressed={score === 0}
-			>—</button
-		>
-		{#each [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as n (n)}
-			<button type="submit" name="score" value={n} class:on={n <= score} aria-pressed={n === score}
-				>{n}</button
-			>
-		{/each}
-	</form>
-
-	<div class="sl">
 		<div>PROGRESS</div>
 		<div>FROM YOUR READING</div>
 	</div>
@@ -104,7 +88,7 @@
 		<p>
 			THE CHAPTER ONLY MOVES FORWARD. A LOWER ONE IS NEVER SENT, SO MIHON ON THE PHONE CAN BE AHEAD.
 		</p>
-		<p>YOUR RATING ABOVE STAYS YOURS. THE SCORE IS WHAT THE CATALOGUES SEE.</p>
+		<p>YOUR RATING IS THE SCORE BOTH CATALOGUES GET: SET IT IN THE RATING ROW.</p>
 	</div>
 </Sheet>
 
@@ -155,8 +139,7 @@
 		grid-template-columns: repeat(5, minmax(0, 1fr));
 		border-top: 1px solid var(--line-1);
 	}
-	.statuses button,
-	.scores button {
+	.statuses button {
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -176,20 +159,6 @@
 	.statuses button.on {
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
-	}
-	.scores {
-		display: grid;
-		grid-template-columns: repeat(11, minmax(0, 1fr));
-		height: 56px;
-		border-top: 1px solid var(--line-1);
-		border-bottom: 1px solid var(--line-1);
-	}
-	.scores button {
-		font: 500 15px var(--font-mono);
-	}
-	.scores button.on {
-		background: var(--accent);
-		color: var(--on-accent);
 	}
 	.progress {
 		display: flex;

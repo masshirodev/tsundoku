@@ -77,7 +77,7 @@ describe('shelves', () => {
 		const byKey = Object.fromEntries(shelves.map((s) => [s.key, s.count]));
 		expect(byKey.all).toBe(SAMPLE_ROWS.length);
 		expect(byKey.favourites).toBe(SAMPLE_ROWS.filter((r) => r.favourite).length);
-		expect(byKey.rated4).toBe(SAMPLE_ROWS.filter((r) => r.rating !== null && r.rating >= 4).length);
+		expect(byKey.rated4).toBe(SAMPLE_ROWS.filter((r) => r.rating !== null && r.rating >= 8).length);
 	});
 
 	it('narrows the listing to a collection', () => {

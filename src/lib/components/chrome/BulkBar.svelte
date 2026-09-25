@@ -1,17 +1,26 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import RatingPicker from '../controls/RatingPicker.svelte';
+	import RatingSlider from '../controls/RatingSlider.svelte';
 
 	/**
 	 * Pinned to the bottom while selecting: a RATE row over a row of actions.
-	 * The rate cells submit `rating` with whichever form wraps this bar; the
+	 * The rate slider's halves submit `rating` with whichever form wraps this
+	 * bar, and a drag submits the half it ends on (Ratings out of 10 1c); the
 	 * actions are supplied by the caller, one grid cell each.
 	 */
 	let { actions, columns }: { actions: Snippet; columns: number } = $props();
 </script>
 
 <div class="bulk" role="toolbar" aria-label="Selection actions">
-	<RatingPicker label="Rate" labelWidth={null} height={60} fontSize={16} name="rating" />
+	<!-- Several series at once: nothing filled, no number (1c). -->
+	<RatingSlider
+		label="RATE"
+		labelWidth={null}
+		height={60}
+		phoneHeight={60}
+		borderTop={false}
+		name="rating"
+	/>
 	<div class="actions" style:grid-template-columns="repeat({columns}, 1fr)">
 		{@render actions()}
 	</div>

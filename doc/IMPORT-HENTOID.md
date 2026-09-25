@@ -17,7 +17,7 @@ $LIBRARY_ROOT/H/.Hentoid/<site folder>/<book folder>/
 | --------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | a book                                                    | a doujin **single book**: one series, one entry labelled `Book`                               |
 | a book with 2+ `chapters` (Hentai2Read)                   | a **series of books**, one book per chapter (`Ch. 1`, `Ch. 1.5`, …)                           |
-| `rating` (0 = unrated), `favourite`                       | the series' rating and FAV, as they are                                                       |
+| `rating` (0 = unrated), `favourite`                       | the series' rating (Hentoid's stars ×2, out of 10) and FAV                                    |
 | `completed`, `reads`, `lastReadPageIndex`, `lastReadDate` | read state, the page, and one reading-log row                                                 |
 | `attributes`                                              | tags: `artist:`, `circle:`, `tag:`, `language:`, `category:`, `character:`, `parody:` (SERIE) |
 | `site`                                                    | a `source:` tag (`nhentai`, `hentai2read`)                                                    |

@@ -108,7 +108,7 @@
 		<div class="meta">{meta}</div>
 	</div>
 	{#if incognito}<div class="incog">INCOGNITO</div>{/if}
-	<div class="bars" role="img" aria-label={rating === 0 ? 'Unrated' : `Rated ${rating} of 5`}>
+	<div class="bars" role="img" aria-label={rating === 0 ? 'Unrated' : `Rated ${rating} of 10`}>
 		{#each ratingBars(rating as Rating) as b, i (i)}<span class="bar {b}"></span>{/each}
 	</div>
 	<button type="button" class="fav" class:on={favourite} aria-pressed={favourite} onclick={onfav}
@@ -244,6 +244,10 @@
 	.bar.off,
 	.bar.none {
 		background: var(--line-2);
+	}
+	/* A half: the left half of the bar (Ratings out of 10 1e). */
+	.bar.half {
+		background: linear-gradient(to right, var(--accent) 50%, var(--line-2) 50%);
 	}
 	button {
 		border: 0;

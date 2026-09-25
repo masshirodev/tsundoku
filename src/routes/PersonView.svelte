@@ -9,6 +9,8 @@
 	import { bookCoverSrc, coverSrc, seriesHref, tagHref } from '$lib/library/links';
 	import type { TagItem, TagPage } from '$lib/library/books';
 	import { phone } from '$lib/device.svelte';
+	import RatingSlider from '$lib/components/controls/RatingSlider.svelte';
+	import { DEFAULT_MIN, minLabel } from '$lib/library/rating';
 
 	/**
 	 * A person or tag page (Index Books, states 4, 5 and 8): the library at
@@ -35,6 +37,8 @@
 	let filter = $state<Filter>('all');
 	let sort = $state<Sort>('added');
 	let bySeries = $state(false);
+	/** RATED's threshold (c67, turn 2): out of 10, 4+ to start, as the shelf's. */
+	let min = $state(DEFAULT_MIN);
 
 	// Cosmetic: pad a short last row so the hairline background doesn't show
 	// as a grey slab. The column counts themselves are CSS.
@@ -46,7 +50,7 @@
 		all: page.items.length,
 		unread: page.items.filter((i) => !i.read).length,
 		fav: page.items.filter((i) => i.favourite).length,
-		rated4: page.items.filter((i) => i.rating >= 4).length
+		rated4: page.items.filter((i) => i.rating >= min).length
 	});
 	const shown = $derived.by(() => {
 		let items = page.items.filter((i) =>
@@ -55,7 +59,7 @@
 				: filter === 'fav'
 					? i.favourite
 					: filter === 'rated4'
-						? i.rating >= 4
+						? i.rating >= min
 						: true
 		);
 		if (bySeries) {
@@ -188,7 +192,7 @@
 		>
 	</div>
 	<div class="tabs" role="tablist" aria-label="Filter">
-		{#each [['all', 'ALL'], ['unread', 'UNREAD'], ['fav', 'FAV'], ['rated4', 'RATED 4+']] as [key, name] (key)}
+		{#each [['all', 'ALL'], ['unread', 'UNREAD'], ['fav', 'FAV'], ['rated4', `RATED ${minLabel(min)}`]] as [key, name] (key)}
 			<button
 				type="button"
 				role="tab"
@@ -209,6 +213,20 @@
 			>
 		{/if}
 	</div>
+
+	{#if filter === 'rated4'}
+		<RatingSlider
+			mode="min"
+			label="AT LEAST"
+			value={min}
+			height={52}
+			labelWidth={84}
+			pad={16}
+			borderTop={false}
+			onchange={(n) => (min = n)}
+			count={{ text: String(shown.length), sub: 'BOOKS', width: 60, phoneWidth: 60 }}
+		/>
+	{/if}
 
 	<ol class="grid">
 		{#each shown as i (i.key)}

@@ -2,7 +2,7 @@
 	import Cover from './Cover.svelte';
 	import Badge from './Badge.svelte';
 	import RatingBars from './RatingBars.svelte';
-	import { RATING_OPTIONS } from '$lib/library/rating';
+	import RatingSlider from '$lib/components/controls/RatingSlider.svelte';
 	import type { Rating } from '$lib/library/types';
 
 	/**
@@ -11,7 +11,7 @@
 	 *
 	 * With `onfavourite` and `onrate`, both are edited on the tile itself
 	 * (doc/LIBRARY.md): the top-right corner toggles FAV in one tap, and the
-	 * rating bars open the six cells over the foot of the tile. Neither opens
+	 * rating bars open the blocky slider over the foot of the tile. Neither opens
 	 * the series, and neither is offered while selecting, when every tap is a
 	 * pick.
 	 *
@@ -175,7 +175,7 @@
 			<button
 				type="button"
 				class="rating"
-				aria-label={rating === 0 ? 'Rate, unrated' : `Rate, rated ${rating} of 5`}
+				aria-label={rating === 0 ? 'Rate, unrated' : `Rate, rated ${rating} of 10`}
 				aria-expanded={picking}
 				onclick={() => (picking = !picking)}
 			>
@@ -202,18 +202,20 @@
 		{/if}
 
 		{#if picking}
-			<div class="picker" role="group" aria-label="Rating">
-				{#each RATING_OPTIONS as n (n)}
-					<button
-						type="button"
-						class="cell"
-						class:on={n > 0 && n <= rating}
-						class:muted={rating === 0}
-						aria-pressed={rating !== 0 && n === rating}
-						aria-label={n === 0 ? 'Unrated' : `Rate ${n}`}
-						onclick={() => rate(n)}>{n}</button
-					>
-				{/each}
+			<!-- The blocky slider, compact at the tile's foot: the handoff doesn't draw this one (doc/SERIES.md, "Rating"). -->
+			<div class="picker">
+				<RatingSlider
+					value={rating}
+					label={null}
+					height={44}
+					phoneHeight={44}
+					zeroWidth={28}
+					phoneZeroWidth={24}
+					borderTop={false}
+					borderBottom={false}
+					fontSize={14}
+					onchange={(n) => rate(n as Rating)}
+				/>
 			</div>
 		{/if}
 	</div>
@@ -286,39 +288,8 @@
 		right: 0;
 		bottom: 0;
 		z-index: 2;
-		display: grid;
-		grid-template-columns: repeat(6, 1fr);
 		border-top: var(--rule-strong);
 		background: var(--surface-page);
-	}
-	.cell {
-		height: 44px;
-		border-right: var(--hairline);
-		font: 500 15px var(--font-mono);
-		text-align: center;
-		color: var(--text-1);
-	}
-	.cell:last-child {
-		border-right: 0;
-	}
-	.cell.muted {
-		color: var(--text-2);
-	}
-	.cell.on {
-		background: var(--accent);
-		color: var(--on-accent);
-	}
-	/* A phone column is too narrow for six cells a finger can tell apart. */
-	@container (max-width: 180px) {
-		.picker {
-			grid-template-columns: repeat(3, 1fr);
-		}
-		.cell:nth-child(3) {
-			border-right: 0;
-		}
-		.cell:nth-child(-n + 3) {
-			border-bottom: var(--hairline);
-		}
 	}
 	.dimmed {
 		opacity: 0.35;

@@ -42,10 +42,12 @@ Two reader engines over one library.
 
 The owner's organisation, which is the reason this app exists:
 
-- **Rating: 0–5**, integer, on the series. **0 is unrated** and 1–5 is the
-  judgement; there is no separate "rated nothing". Decided by the owner on
-  2026-09-22, and the same convention Hentoid uses. (An earlier draft kept
-  `NULL` for unrated apart from a deliberate 0; migration rung 2 retired it.)
+- **Rating: 0–10**, integer, on the series. **0 is unrated** and 1–10 is the
+  judgement, five steps with halves; there is no separate "rated nothing".
+  0 as unrated was decided by the owner on 2026-09-22, the same convention
+  Hentoid uses; out of 10 came with c67 (2026-09-25), and rung 29 doubled the
+  old 0–5 ([`RATINGS.md`](RATINGS.md)). (An earlier draft kept `NULL` for
+  unrated apart from a deliberate 0; migration rung 2 retired it.)
 - **Favourite**: a boolean on the series. Deliberately separate from rating —
   a favourite is "keep this at hand", not "this is a 5".
 - **Collections**: owner-made, ordered, a series can sit in many. These replace

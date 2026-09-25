@@ -58,9 +58,9 @@ left unfinished by a process that died is closed at the next start.
 
 | Category               | Rating | Shelf    | Hidden |
 | ---------------------- | ------ | -------- | ------ |
-| Amazing                | 5      |          |        |
-| Good                   | 4      |          |        |
-| Okay                   | 3      |          |        |
+| Amazing                | 10     |          |        |
+| Good                   | 8      |          |        |
+| Okay                   | 6      |          |        |
 | Dropped, IDR, To Read  | 0      | its name |        |
 | any other category     | 0      | its name |        |
 | any of them with a "+" | same   | same     | yes    |

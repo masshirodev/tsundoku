@@ -643,6 +643,16 @@ export async function sendPending(
 	return { sent, failed };
 }
 
+/**
+ * A rating set here is the score both catalogues get (c67: one number, out
+ * of 10 on every side). 0, unrated, clears the score. Same rules as any send:
+ * never a hidden series, never through a cover-only link.
+ */
+export async function afterRating(seriesIds: number[], rating: number): Promise<void> {
+	for (const id of seriesIds)
+		if (editTracking(id, { score: rating }) > 0) await sendPending({ seriesId: id });
+}
+
 /** After a chapter is finished or marked read: queue, then send, off the request. */
 export function afterReading(seriesId: number): void {
 	if (queueProgress(seriesId) > 0)

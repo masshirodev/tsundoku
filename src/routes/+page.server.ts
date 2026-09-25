@@ -17,7 +17,7 @@ import {
 	setRating
 } from '$lib/server/library';
 import { isRevealed, runCommand } from '$lib/server/prefs';
-import { parseRating } from '$lib/library/rating';
+import { parseMin, parseRating } from '$lib/library/rating';
 import { parseSeed, parseSort } from '$lib/library/labels';
 import {
 	GroupingError,
@@ -40,6 +40,7 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	// brought in: "02 — ARRIVING" / "02 — JUST IMPORTED".
 	const shelf = url.searchParams.get('shelf') ?? (scan ? 'new' : 'all');
 	const tag = url.searchParams.get('tag');
+	const min = parseMin(url.searchParams.get('min'));
 	const sort =
 		scan && !scan.finishedAt && !url.searchParams.has('sort')
 			? 'added'
@@ -64,6 +65,7 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	return {
 		shelf,
 		tag,
+		min,
 		person,
 		existing: seriesOfBooks(reveal),
 		existingVolumes: seriesOfVolumes(reveal),
@@ -85,11 +87,12 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 						reveal,
 						shelf,
 						tag,
+						min,
 						sort,
 						seed,
 						limit: shelf === 'cached' ? undefined : pageSize
 					}),
-		total: shelf === 'people' ? 0 : countListed({ reveal, shelf, tag, sort }),
+		total: shelf === 'people' ? 0 : countListed({ reveal, shelf, tag, min, sort }),
 		pageSize
 	};
 };
@@ -106,7 +109,7 @@ export const actions: Actions = {
 	rate: async ({ request }) => {
 		const form = await request.formData();
 		const rating = parseRating(form.get('rating'));
-		if (rating === undefined) return fail(400, { message: 'rating must be 0-5' });
+		if (rating === undefined) return fail(400, { message: 'rating must be 0-10' });
 		setRating(ids(form), rating);
 		return { ok: true };
 	},
@@ -143,7 +146,7 @@ export const actions: Actions = {
 		if (target.length === 0) return fail(400, { message: 'nothing selected' });
 		if (form.has('rating')) {
 			const rating = parseRating(form.get('rating'));
-			if (rating === undefined) return fail(400, { message: 'rating must be 0-5' });
+			if (rating === undefined) return fail(400, { message: 'rating must be 0-10' });
 			setRating(target, rating);
 		} else if (form.get('do') === 'fav') {
 			setFavourite(target, true);

@@ -26,8 +26,9 @@ and writing status, score and chapter on both catalogues, is the second, in
    main list.
 3. **The tablet's Mihon stays untracked.** The owner tracks on the phone only.
 4. **A score fills an unrated series' rating, once** (Catalogue Links 1w): when
-   the link is made, 9 out of 10 becomes 4 out of 5 (halved, rounded down).
-   UNDO takes it back. A rating set here is never sent back as a score.
+   the link is made, 9 out of 10 stays 9 (halved to 4 out of 5 until c67 made
+   ratings out of 10). UNDO takes it back. Since c67 the rating _is_ the score
+   sent back ([`RATINGS.md`](RATINGS.md)).
 
 ## Where a link comes from
 

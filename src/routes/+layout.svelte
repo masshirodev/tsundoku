@@ -9,6 +9,7 @@
 	import Wordmark from '$lib/components/chrome/Wordmark.svelte';
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
 	import { shelfHref } from '$lib/library/links';
+	import { parseMin, withMin } from '$lib/library/rating';
 	import { onMount } from 'svelte';
 	import { afterNavigate, beforeNavigate, goto } from '$app/navigation';
 	import { noteVisit } from '$lib/back';
@@ -99,6 +100,12 @@
 	}
 
 	const activeShelf = $derived(page.url.searchParams.get('shelf') ?? (data.scan ? 'new' : 'all'));
+	// RATED named and counted at the threshold in the URL, as the tabs are (c67).
+	const shelves = $derived.by(() => {
+		if (page.route.id !== '/' || activeShelf !== 'rated4') return data.shelves;
+		const total = (page.data as { total?: number }).total;
+		return withMin(data.shelves, parseMin(page.url.searchParams.get('min')), total);
+	});
 </script>
 
 <svelte:head>
@@ -124,12 +131,7 @@
 				<!-- The app's name is the way home, from any screen. -->
 				<a class="brand" href={resolve('/')} aria-label="Library"><Wordmark size={17} /></a>
 				<div class="side-label">SHELVES</div>
-				<ShelfTabs
-					vertical
-					shelves={data.shelves}
-					active={activeShelf}
-					href={(k) => shelfHref(page.url, k)}
-				/>
+				<ShelfTabs vertical {shelves} active={activeShelf} href={(k) => shelfHref(page.url, k)} />
 				<div class="spacer"></div>
 				<div class="side-foot">
 					<a

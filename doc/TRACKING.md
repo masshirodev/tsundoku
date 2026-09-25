@@ -21,7 +21,11 @@ link.
   disagree, AniList's word is shown, and MAL's only where AniList has
   nothing.
 - **A score fills an unrated series' rating once**, when a link is made from
-  the list (Catalogue Links 1w). A rating set here is never sent as a score.
+  the list (Catalogue Links 1w).
+- **The rating is the score** (c67, 2026-09-25). Both are out of 10, so
+  setting a rating on a linked series sends it as the score, and there is no
+  second number ([`RATINGS.md`](RATINGS.md)). Until c67 a rating was never
+  sent, and the sheet set a score of its own.
 
 ## Signing in
 
@@ -93,10 +97,9 @@ answer), **SIGN-IN EXPIRED** (a 401), **REFUSED IT** (anything else). It's
 sent again with the next chapter read, or now with **TRY AGAIN** on the
 TRACKING row or SETTINGS.
 
-**The sheet** (TRACKING · EDIT, 1m) sets status and score for both
-catalogues at once. A tap sends it; DONE only closes. The score is out of 10.
-AniList gets it as `scoreRaw` (its 100) whatever format the owner shows, and
-"—" clears it (0 on both).
+**The sheet** (TRACKING · EDIT, 1m) sets status for both catalogues at once.
+A tap sends it; DONE only closes. It has no SCORE row since c67: the score is
+the rating, sent when the rating is set. AniList gets it as `scoreRaw` (its 100) whatever format the owner shows, and unrated clears it (0 on both).
 
 ## The screens
 

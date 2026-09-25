@@ -121,11 +121,12 @@ describe('a pasted link', () => {
 });
 
 describe('score to rating (Catalogue Links 1w)', () => {
-	it('halves a score out of 10 and rounds down', () => {
-		expect(scoreToRating(9)).toBe(4);
-		expect(scoreToRating(10)).toBe(5);
-		expect(scoreToRating(8)).toBe(4);
-		expect(scoreToRating(7.5)).toBe(3);
+	it('keeps a score out of 10 as it is, rounded (c67)', () => {
+		expect(scoreToRating(9)).toBe(9);
+		expect(scoreToRating(10)).toBe(10);
+		expect(scoreToRating(8)).toBe(8);
+		expect(scoreToRating(7.5)).toBe(8);
+		expect(scoreToRating(7.4)).toBe(7);
 	});
 
 	it('gives any score at least 1, and none 0', () => {
@@ -135,8 +136,9 @@ describe('score to rating (Catalogue Links 1w)', () => {
 	});
 
 	it('reads another scale as out of 10', () => {
-		expect(scoreToRating(90, 100)).toBe(4);
-		expect(scoreToRating(5, 5)).toBe(5);
+		expect(scoreToRating(90, 100)).toBe(9);
+		expect(scoreToRating(5, 5)).toBe(10);
+		expect(scoreToRating(3, 5)).toBe(6);
 	});
 });
 

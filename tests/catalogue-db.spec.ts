@@ -280,14 +280,14 @@ describe('Mihon’s MAL tracker', () => {
 		return id;
 	};
 
-	it('links at once, and an unrated series takes the score, halved', () => {
+	it('links at once, and an unrated series takes the score (c67: out of 10, as the score is)', () => {
 		const id = tracked('Tower of God');
 		cat.linkFromTracker(db, id, { id: 122663, score: 9 }, NOW);
-		expect(linkRow(id)).toMatchObject({ mal_id: 122663, via: 'mihon', filled_rating: 4 });
-		expect(ratingOf(id)).toBe(4);
+		expect(linkRow(id)).toMatchObject({ mal_id: 122663, via: 'mihon', filled_rating: 9 });
+		expect(ratingOf(id)).toBe(9);
 		// Found again on the next import: nothing changes.
 		cat.linkFromTracker(db, id, { id: 122663, score: 9 }, NOW + 1);
-		expect(linkRow(id)).toMatchObject({ linked_at: NOW, filled_rating: 4 });
+		expect(linkRow(id)).toMatchObject({ linked_at: NOW, filled_rating: 9 });
 	});
 
 	it('leaves a rated series’ rating alone', () => {
@@ -351,7 +351,7 @@ describe('Mihon’s MAL tracker', () => {
 	it('UNDO right after a link takes back the rating it gave', () => {
 		const id = tracked('Tower of God');
 		cat.linkFromTracker(db, id, { id: 122663, score: 8 }, NOW);
-		expect(ratingOf(id)).toBe(4);
+		expect(ratingOf(id)).toBe(8);
 		cat.undoLink(id);
 		expect(ratingOf(id)).toBe(0);
 	});

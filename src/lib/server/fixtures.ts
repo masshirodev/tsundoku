@@ -60,7 +60,7 @@ export const SAMPLE_ROWS: Row[] = [
 		source: 'weeb central',
 		status: 'ongoing',
 		kind: 'manga',
-		rating: 4,
+		rating: 8,
 		favourite: true,
 		entries: 58,
 		read: 40,
@@ -75,7 +75,7 @@ export const SAMPLE_ROWS: Row[] = [
 		source: 'asura',
 		status: 'completed',
 		kind: 'manhwa',
-		rating: 5,
+		rating: 10,
 		favourite: true,
 		entries: 243,
 		read: 213,
@@ -103,7 +103,7 @@ export const SAMPLE_ROWS: Row[] = [
 		source: 'epub',
 		status: 'completed',
 		kind: 'novel',
-		rating: 4,
+		rating: 8,
 		favourite: false,
 		entries: 26,
 		read: 12,
@@ -113,7 +113,7 @@ export const SAMPLE_ROWS: Row[] = [
 	{
 		title: 'Sousou no Frieren',
 		kind: 'manga',
-		rating: 5,
+		rating: 10,
 		favourite: true,
 		entries: 140,
 		read: 139,
@@ -135,7 +135,7 @@ export const SAMPLE_ROWS: Row[] = [
 	{
 		title: 'The Greatest Estate Developer',
 		kind: 'manhwa',
-		rating: 3,
+		rating: 6,
 		favourite: false,
 		entries: 156,
 		read: 144,
@@ -156,7 +156,7 @@ export const SAMPLE_ROWS: Row[] = [
 	{
 		title: 'Natsu no Owari ni Kimi to',
 		kind: 'doujin',
-		rating: 4,
+		rating: 8,
 		favourite: true,
 		entries: 1,
 		read: 1,
@@ -176,7 +176,7 @@ export const SAMPLE_ROWS: Row[] = [
 	{
 		title: 'Honzuki no Gekokujou',
 		kind: 'novel',
-		rating: 5,
+		rating: 10,
 		favourite: true,
 		entries: 33,
 		read: 33,
@@ -186,7 +186,7 @@ export const SAMPLE_ROWS: Row[] = [
 	{
 		title: 'Dungeon Meshi',
 		kind: 'manga',
-		rating: 5,
+		rating: 10,
 		favourite: false,
 		entries: 97,
 		read: 97,
@@ -195,7 +195,7 @@ export const SAMPLE_ROWS: Row[] = [
 	{
 		title: 'Ame no Hi no Toshokan',
 		kind: 'doujin',
-		rating: 2,
+		rating: 4,
 		favourite: false,
 		entries: 1,
 		read: 1,
@@ -218,7 +218,7 @@ export const SAMPLE_ROWS: Row[] = [
 	{
 		title: 'Hikaru ga Shinda Natsu',
 		kind: 'manga',
-		rating: 4,
+		rating: 8,
 		favourite: true,
 		entries: 30,
 		read: 28,
@@ -239,7 +239,7 @@ export const SAMPLE_ROWS: Row[] = [
 	{
 		title: 'Sekai no Owari no Kissaten',
 		kind: 'doujin',
-		rating: 3,
+		rating: 6,
 		favourite: false,
 		entries: 1,
 		read: 1,
@@ -248,7 +248,7 @@ export const SAMPLE_ROWS: Row[] = [
 	{
 		title: 'Boku no Kokoro no Yabai Yatsu',
 		kind: 'manga',
-		rating: 4,
+		rating: 8,
 		favourite: false,
 		entries: 160,
 		read: 159,
@@ -258,7 +258,7 @@ export const SAMPLE_ROWS: Row[] = [
 	{
 		title: 'Lookism',
 		kind: 'manhwa',
-		rating: 1,
+		rating: 2,
 		favourite: false,
 		entries: 500,
 		read: 480,
@@ -279,7 +279,7 @@ export const SAMPLE_ROWS: Row[] = [
 	{
 		title: 'Chainsaw Man',
 		kind: 'manga',
-		rating: 4,
+		rating: 8,
 		favourite: false,
 		entries: 200,
 		read: 198,
@@ -299,7 +299,7 @@ export const SAMPLE_ROWS: Row[] = [
 	{
 		title: 'Isekai Ojisan',
 		kind: 'manga',
-		rating: 3,
+		rating: 6,
 		favourite: false,
 		entries: 55,
 		read: 55,
@@ -342,7 +342,7 @@ export const HIDDEN_ROWS: Row[] = [
 	{
 		title: 'Rakugaki Collection Vol. 3 [Digital]',
 		kind: 'doujin',
-		rating: 4,
+		rating: 8,
 		favourite: true,
 		entries: 1,
 		read: 1,
@@ -362,7 +362,7 @@ export const BOOK_ROWS: Row[] = [
 	{
 		title: 'Kaori Mama on Bath Duty',
 		kind: 'doujin',
-		rating: 4,
+		rating: 8,
 		favourite: false,
 		entries: 1,
 		read: 1,
@@ -372,7 +372,7 @@ export const BOOK_ROWS: Row[] = [
 	{
 		title: 'Kaori Mama on Laundry Duty',
 		kind: 'doujin',
-		rating: 3,
+		rating: 6,
 		favourite: false,
 		entries: 1,
 		read: 1,
@@ -393,7 +393,7 @@ export const BOOK_ROWS: Row[] = [
 	{
 		title: 'Kaori Mama on Festival Duty',
 		kind: 'doujin',
-		rating: 4,
+		rating: 8,
 		favourite: false,
 		entries: 1,
 		read: 0,
@@ -431,7 +431,7 @@ export const EDITION_ROWS: Row[] = [
 	{
 		title: 'Harbour Lights',
 		kind: 'doujin',
-		rating: 3,
+		rating: 6,
 		favourite: false,
 		entries: 1,
 		read: 0,

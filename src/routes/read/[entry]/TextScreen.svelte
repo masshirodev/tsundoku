@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { RATING_OPTIONS } from '$lib/library/rating';
+	import RatingSlider from '$lib/components/controls/RatingSlider.svelte';
 	import { formatBytes } from '$lib/library/series';
 
 	/**
@@ -75,18 +75,16 @@
 				<h1>{props.title}</h1>
 				{#if props.askRating}
 					<div class="ask">
-						<div class="row">
-							<div class="label">RATING</div>
-							{#each RATING_OPTIONS as n (n)}
-								<button
-									type="button"
-									class="cell"
-									class:on={n > 0 && n <= props.rating}
-									aria-label={n === 0 ? 'Unrated' : `Rate ${n}`}
-									onclick={() => props.kind === 'end' && props.onrate(n)}>{n}</button
-								>
-							{/each}
-						</div>
+						<!-- Ratings out of 10 1d: the blocky slider, as the image reader's end page. -->
+						<RatingSlider
+							value={props.rating}
+							height={72}
+							phoneHeight={72}
+							pad={0}
+							phonePad={0}
+							borderTop={false}
+							onchange={(n) => props.kind === 'end' && props.onrate(n)}
+						/>
 						<div class="row">
 							<div class="label">FAV</div>
 							<button
@@ -101,7 +99,7 @@
 							</button>
 						</div>
 					</div>
-					<div class="note">SHOWN WHILE UNRATED · RATING SAVES ON TAP</div>
+					<div class="note">SHOWN WHILE UNRATED · RATING SAVES WHEN YOU LET GO</div>
 				{/if}
 			{/if}
 		</div>
@@ -225,19 +223,6 @@
 		background: transparent;
 		color: var(--text-1);
 		cursor: pointer;
-	}
-	.cell {
-		flex: 1;
-		font: 500 16px var(--font-mono);
-		color: var(--text-2);
-		border-right: var(--hairline);
-	}
-	.cell:last-child {
-		border-right: 0;
-	}
-	.cell.on {
-		background: var(--accent);
-		color: var(--on-accent);
 	}
 	.switch {
 		display: flex;

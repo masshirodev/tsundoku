@@ -12,26 +12,27 @@ Routes: `/` (the library, with `?shelf=`, `?tag=`, `?sort=`), `/search?q=`, and
 The mock draws each state from a `state` prop. The code has no such prop: every
 state is the result of real data or real input.
 
-| State            | What drives it                                                                                                                                                                                                                    |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Home             | Default.                                                                                                                                                                                                                          |
-| Long-press sheet | Pressing and holding a tile for 450ms, or a right-click. A plain tap opens the series screen ([`SERIES.md`](SERIES.md)). Esc or the scrim closes it.                                                                              |
-| Search           | `/search`. Results follow the typing, 180ms behind it, by replacing the URL.                                                                                                                                                      |
-| Multi-select     | SELECT in the header. Taps then toggle tiles, and the bulk bar applies FAV, + SHELF, TAG, GROUP or HIDE to exactly the selection. GROUP is enabled only when every selected tile is a single book ([`BOOKS.md`](BOOKS.md)).       |
-| Person / tag     | `/?tag=namespace:value`, from a tag on the series screen or a chip. The person header replaces CONTINUE ([`BOOKS.md`](BOOKS.md)). A tag with nothing visible is a 404.                                                            |
-| History          | **N OPEN · HISTORY →** on CONTINUE, and a HISTORY row in the desktop sidebar, open [`HISTORY.md`](HISTORY.md)'s screen.                                                                                                           |
-| Incognito        | Typing `/incognito`. A dashed INCOGNITO · NOTHING SAVED band with END, on every screen ([`PRIVACY.md`](PRIVACY.md)).                                                                                                              |
-| Words            | Typing `/words`. The words looked up while reading Japanese, waiting for review ([`JAPANESE.md`](JAPANESE.md)).                                                                                                                   |
-| Duplicates band  | Pairs of books with alike covers to review, only those the viewer can see: **N POSSIBLE DUPLICATES · REVIEW →** ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md)).                                                                     |
-| Links band       | Series AniList found, not for certain, to review, only those the viewer can see: **N SERIES TO LINK · REVIEW →**, below duplicates. Offline, its REVIEW cell dims ([`LINKS.md`](LINKS.md)).                                       |
-| PEOPLE shelf     | `?shelf=people`. Exists while a favourite person has a visible book, and lists them as chips instead of a grid.                                                                                                                   |
-| DOWNLOADED shelf | `?shelf=downloaded`. Series with at least one chapter on disk (`entries.available`), so what can be read without the internet. Most of a Mihon library is only known from its backup.                                             |
-| Kind shelves     | `?shelf=k:manga`, `k:manhwa`, `k:novel`: MANGA, MANHWA and NOVELS, after RATED 4+. Each lists one kind and shows only while the library has some. Doujins have no kind shelf; they're books, grouped and found by person and tag. |
-| Reveal on        | Typing exactly `/reveal` in search and pressing Enter. A **session** cookie, so closing the app also ends it. HIDE AGAIN, or `/hide`, ends it.                                                                                    |
-| Empty            | No visible series and no scan job.                                                                                                                                                                                                |
-| Importing        | A `scan_jobs` row with no `finished_at`. Series the scanner found but hasn't indexed (`indexed_at IS NULL`) draw as dashed "indexing" tiles.                                                                                      |
-| Import finished  | The latest finished job nobody has dismissed. TIDY NEW dismisses it and opens the NEW shelf.                                                                                                                                      |
-| Offline          | `navigator.onLine` is false. What counts as cached is read from the `tsundoku-entries` Cache Storage bucket.                                                                                                                      |
+| State            | What drives it                                                                                                                                                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Home             | Default.                                                                                                                                                                                                                       |
+| Long-press sheet | Pressing and holding a tile for 450ms, or a right-click. A plain tap opens the series screen ([`SERIES.md`](SERIES.md)). Esc or the scrim closes it.                                                                           |
+| Search           | `/search`. Results follow the typing, 180ms behind it, by replacing the URL.                                                                                                                                                   |
+| Multi-select     | SELECT in the header. Taps then toggle tiles, and the bulk bar applies FAV, + SHELF, TAG, GROUP or HIDE to exactly the selection. GROUP is enabled only when every selected tile is a single book ([`BOOKS.md`](BOOKS.md)).    |
+| Person / tag     | `/?tag=namespace:value`, from a tag on the series screen or a chip. The person header replaces CONTINUE ([`BOOKS.md`](BOOKS.md)). A tag with nothing visible is a 404.                                                         |
+| History          | **N OPEN · HISTORY →** on CONTINUE, and a HISTORY row in the desktop sidebar, open [`HISTORY.md`](HISTORY.md)'s screen.                                                                                                        |
+| Incognito        | Typing `/incognito`. A dashed INCOGNITO · NOTHING SAVED band with END, on every screen ([`PRIVACY.md`](PRIVACY.md)).                                                                                                           |
+| Words            | Typing `/words`. The words looked up while reading Japanese, waiting for review ([`JAPANESE.md`](JAPANESE.md)).                                                                                                                |
+| Duplicates band  | Pairs of books with alike covers to review, only those the viewer can see: **N POSSIBLE DUPLICATES · REVIEW →** ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md)).                                                                  |
+| Links band       | Series AniList found, not for certain, to review, only those the viewer can see: **N SERIES TO LINK · REVIEW →**, below duplicates. Offline, its REVIEW cell dims ([`LINKS.md`](LINKS.md)).                                    |
+| PEOPLE shelf     | `?shelf=people`. Exists while a favourite person has a visible book, and lists them as chips instead of a grid.                                                                                                                |
+| DOWNLOADED shelf | `?shelf=downloaded`. Series with at least one chapter on disk (`entries.available`), so what can be read without the internet. Most of a Mihon library is only known from its backup.                                          |
+| RATED shelf      | `?shelf=rated4&min=N`: series rated N out of 10 and up, named in five steps (RATED 4+, RATED 3.5+); 8 by default. An AT LEAST row under the tabs moves it ([`RATINGS.md`](RATINGS.md)).                                        |
+| Kind shelves     | `?shelf=k:manga`, `k:manhwa`, `k:novel`: MANGA, MANHWA and NOVELS, after RATED. Each lists one kind and shows only while the library has some. Doujins have no kind shelf; they're books, grouped and found by person and tag. |
+| Reveal on        | Typing exactly `/reveal` in search and pressing Enter. A **session** cookie, so closing the app also ends it. HIDE AGAIN, or `/hide`, ends it.                                                                                 |
+| Empty            | No visible series and no scan job.                                                                                                                                                                                             |
+| Importing        | A `scan_jobs` row with no `finished_at`. Series the scanner found but hasn't indexed (`indexed_at IS NULL`) draw as dashed "indexing" tiles.                                                                                   |
+| Import finished  | The latest finished job nobody has dismissed. TIDY NEW dismisses it and opens the NEW shelf.                                                                                                                                   |
+| Offline          | `navigator.onLine` is false. What counts as cached is read from the `tsundoku-entries` Cache Storage bucket.                                                                                                                   |
 
 ## Hidden means hidden
 
@@ -55,13 +56,12 @@ is a link to the library.
 
 ## Rating
 
-An integer 0–5 where **0 is unrated** (the owner's scale, 2026-09-22). The
-picker is six cells, 0–5: choosing 0 clears a rating, and while a series is
-unrated no cell is filled and the row's label reads UNRATED. That's the series
-handoff's convention, and the library uses it too. On a tile, unrated draws no
-track at all, and a rated series draws its filled bars plus the rest of the
-track. Out-of-range input is refused, never clamped: a clamped 7 would silently
-become a 5 nobody chose.
+An integer 0–10 where **0 is unrated**, set with the blocky slider: five
+blocks with halves, drag and let go, 0 on the left clears. While a series is
+unrated no block is filled and the label reads UNRATED. On a tile, unrated
+draws no track at all, and a rated series draws its filled bars (a half is the
+left half of one) plus the rest of the track. The whole account, from the
+scale to the catalogues, is [`RATINGS.md`](RATINGS.md).
 
 The library handoff drew a seventh `—` cell to keep a deliberate 0 apart from
 unrated. That distinction is gone, and so is the cell.
@@ -75,10 +75,9 @@ sheet (the owner's ask, 2026-09-23):
   unfavourites, with no dialog. A favourite shows the usual FAV badge there; a
   series that isn't one shows a faint ☆ in the same place, so there is
   something to aim at.
-- **Rating:** a tap on the rating bars lays the six cells, 0–5, over the foot
-  of the tile. A cell saves and closes; a tap anywhere else, or Esc, closes
-  without choosing. Tiles narrower than 180px (the phone, and the 9-column
-  landscape grid) lay them out 3 × 2 so a finger can tell them apart.
+- **Rating:** a tap on the rating bars lays a compact slider over the foot of
+  the tile. Letting go saves and closes; a tap anywhere else, or Esc, closes
+  without choosing.
 
 Neither opens the series. Both show the change at once and put the old value
 back if the write fails; they use the same `favourite` and `rate` actions as

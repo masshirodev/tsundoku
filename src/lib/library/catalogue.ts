@@ -194,14 +194,15 @@ export const malUrl = (id: number) => `https://myanimelist.net/manga/${id}`;
 
 /**
  * A catalogue's score as a rating here, for an unrated series when a link is
- * made (the owner's decision, Catalogue Links 1w): out of 10, halved and
- * rounded down, 9 → 4. Any score at all is at least 1, since 0 is unrated.
- * `outOf` is the score's own scale (AniList's 100-point one is 100).
+ * made (the owner's decision, Catalogue Links 1w). Both are out of 10 since
+ * c67, so a whole score is the rating as it is, 9 -> 9. Another scale is read
+ * as out of 10 and rounded to the nearest half-step: AniList's 100 is asked
+ * for as POINT_10, so that's for a scale nobody sends yet. Any score at all is
+ * at least 1, since 0 is unrated.
  */
 export function scoreToRating(score: number, outOf = 10): number {
 	if (!(score > 0) || !(outOf > 0)) return 0;
-	const ten = (score / outOf) * 10;
-	return Math.min(5, Math.max(1, Math.floor(ten / 2)));
+	return Math.min(10, Math.max(1, Math.round((score / outOf) * 10)));
 }
 
 /** The words that carry a title: none of the small ones every title has. */

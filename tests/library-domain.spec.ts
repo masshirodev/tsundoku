@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { RATING_OPTIONS, isRated, parseRating, ratingBars } from '$lib/library/rating';
+import {
+	DEFAULT_MIN,
+	halfOn,
+	isRated,
+	minLabel,
+	parseMin,
+	withMin,
+	parseRating,
+	ratingBars,
+	ratingText,
+	readout,
+	valueAt
+} from '$lib/library/rating';
 import { likePattern, parseSearch, splitMatch } from '$lib/library/search';
 import {
 	continueSub,
@@ -36,29 +48,69 @@ describe('rating', () => {
 	// looks like a series someone rated low.
 	it('draws unrated (0) with no track and a rated series with its track', () => {
 		expect(ratingBars(0)).toEqual(['none', 'none', 'none', 'none', 'none']);
-		expect(ratingBars(1)).toEqual(['on', 'off', 'off', 'off', 'off']);
+		expect(ratingBars(2)).toEqual(['on', 'off', 'off', 'off', 'off']);
 		expect(isRated(0)).toBe(false);
 		expect(isRated(1)).toBe(true);
 	});
 
-	it('fills bars up to the rating', () => {
-		expect(ratingBars(4)).toEqual(['on', 'on', 'on', 'on', 'off']);
-		expect(ratingBars(5)).toEqual(['on', 'on', 'on', 'on', 'on']);
+	it('fills bars up to the rating out of 10, a half the left half of a bar (1e)', () => {
+		expect(ratingBars(8)).toEqual(['on', 'on', 'on', 'on', 'off']);
+		expect(ratingBars(7)).toEqual(['on', 'on', 'on', 'half', 'off']);
+		expect(ratingBars(1)).toEqual(['half', 'off', 'off', 'off', 'off']);
+		expect(ratingBars(10)).toEqual(['on', 'on', 'on', 'on', 'on']);
 	});
 
-	it('offers 0 through 5, 0 clearing the rating', () => {
-		expect(RATING_OPTIONS).toEqual([0, 1, 2, 3, 4, 5]);
+	it('writes a rating out as the stored number out of 10 (1f)', () => {
+		expect(ratingText(7)).toBe('7 OF 10');
+		expect(ratingText(0)).toBe('UNRATED');
 	});
 
-	it('parses form values, refusing rather than clamping out-of-range input', () => {
+	it('parses form values 0-10, refusing rather than clamping out-of-range input', () => {
 		expect(parseRating('')).toBe(0);
 		expect(parseRating(null)).toBeUndefined();
 		expect(parseRating('0')).toBe(0);
-		expect(parseRating('5')).toBe(5);
-		expect(parseRating('6')).toBeUndefined();
+		expect(parseRating('7')).toBe(7);
+		expect(parseRating('10')).toBe(10);
+		expect(parseRating('11')).toBeUndefined();
 		expect(parseRating('-1')).toBeUndefined();
 		expect(parseRating('2.5')).toBeUndefined();
 		expect(parseRating('four')).toBeUndefined();
+	});
+});
+
+describe('the blocky slider (Ratings out of 10)', () => {
+	it('snaps a finger to one of ten halves, off the left end clearing', () => {
+		expect(valueAt(0.1, 500)).toBe(1);
+		expect(valueAt(349, 500)).toBe(7);
+		expect(valueAt(351, 500)).toBe(8);
+		expect(valueAt(600, 500)).toBe(10);
+		expect(valueAt(-10, 500)).toBe(0);
+		// A threshold never includes unrated: off the left end is still 1.
+		expect(valueAt(-10, 500, 'min')).toBe(1);
+	});
+
+	it('fills up to a rating, and from a threshold up', () => {
+		expect([...Array(10).keys()].filter((i) => halfOn(i, 7))).toEqual([0, 1, 2, 3, 4, 5, 6]);
+		expect([...Array(10).keys()].filter((i) => halfOn(i, 7, 'min'))).toEqual([6, 7, 8, 9]);
+		expect([...Array(10).keys()].filter((i) => halfOn(i, 0, 'min'))).toEqual([]);
+	});
+
+	it('reads out the value in five steps while dragging (1b, turn 2)', () => {
+		expect(readout(7)).toEqual({ num: '7', sub: '3½ OF 5' });
+		expect(readout(8)).toEqual({ num: '8', sub: '4 OF 5' });
+		expect(readout(0)).toEqual({ num: '0', sub: 'UNRATED' });
+		expect(readout(7, 'min')).toEqual({ num: '3.5+', sub: '7–10' });
+	});
+
+	it('names a threshold in five steps, 4+ by default', () => {
+		expect(minLabel(8)).toBe('4+');
+		expect(minLabel(7)).toBe('3.5+');
+		expect(DEFAULT_MIN).toBe(8);
+		expect(parseMin('7')).toBe(7);
+		expect(parseMin(null)).toBe(8);
+		expect(parseMin('0')).toBe(8);
+		expect(parseMin('11')).toBe(8);
+		expect(parseMin('')).toBe(8);
 	});
 });
 
@@ -181,5 +233,41 @@ describe('shelf links', () => {
 			'/?shelf=all&sort=title'
 		);
 		expect(shelfHref(new URL('https://x/'), 'rated4')).toBe('/?shelf=rated4');
+	});
+
+	it('keep RATED’s threshold only while staying on RATED (c67)', async () => {
+		const { shelfHref, minHref } = await import('$lib/library/links');
+		const on = new URL('https://x/?shelf=rated4&min=7&sort=title');
+		expect(shelfHref(on, 'rated4')).toBe('/?shelf=rated4&sort=title&min=7');
+		expect(shelfHref(on, 'all')).toBe('/?shelf=all&sort=title');
+		expect(minHref(on, 5)).toBe('/?shelf=rated4&min=5&sort=title');
+		expect(minHref(new URL('https://x/?shelf=all'), 9)).toBe('/?shelf=rated4&min=9');
+	});
+});
+
+describe('RATED at a threshold (c67, turn 2)', () => {
+	const shelves = [
+		{ key: 'all', name: 'All', count: 40 },
+		{ key: 'rated4', name: 'Rated 4+', count: 12 }
+	];
+
+	it('leaves the list alone at the default', () => {
+		expect(withMin(shelves, 8)).toBe(shelves);
+	});
+
+	it('renames RATED in its own five steps, and takes the count the grid shows', () => {
+		expect(withMin(shelves, 7, 15)[1]).toEqual({ key: 'rated4', name: 'Rated 3.5+', count: 15 });
+		expect(withMin(shelves, 7)[1].count).toBe(12);
+		expect(withMin(shelves, 7, 15)[0]).toBe(shelves[0]);
+	});
+
+	it('asks the next page for the same threshold, and only on RATED', async () => {
+		const { pageQuery } = await import('$lib/library/paging');
+		const q = (shelf: string) =>
+			new URLSearchParams(
+				pageQuery({ shelf, tag: null, sort: 'title', min: 7, offset: 0, limit: 60 })
+			);
+		expect(q('rated4').get('min')).toBe('7');
+		expect(q('all').get('min')).toBeNull();
 	});
 });

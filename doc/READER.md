@@ -310,8 +310,8 @@ re-acquired when the app comes back to the foreground. A browser that refuses
 - **The reader is always dark,** whatever the library's theme. Its ground is
   true black so letterboxing vanishes on OLED, and light chrome over black
   pages would glare. The reader root pins the dark tokens.
-- **Six rating cells, 0–5,** as everywhere else (design README, departure 6).
-  The handoff drew seven, with "—".
+- **The blocky slider, 0–10,** as everywhere else
+  ([`RATINGS.md`](RATINGS.md)). The handoff drew seven cells, with "—".
 - **"↓ CACHED" only when it's true:** the boundary pages say it when the next
   chapter is on the tablet ([`OFFLINE.md`](OFFLINE.md)), and offline a cached
   next chapter continues as usual. The offline sentence drops "Chapters 1–41

@@ -25,6 +25,8 @@ export function pageQuery(o: {
 	sort: string;
 	/** RANDOM's shuffle. */
 	seed?: number;
+	/** The RATED shelf's threshold (c67), 1-10. */
+	min?: number;
 	offset: number;
 	limit: number;
 }): string {
@@ -35,6 +37,7 @@ export function pageQuery(o: {
 		limit: String(o.limit)
 	});
 	if (o.tag) q.set('tag', o.tag);
+	if (o.shelf === 'rated4' && o.min) q.set('min', String(o.min));
 	if (o.sort === 'random' && o.seed) q.set('seed', String(o.seed));
 	return q.toString();
 }
