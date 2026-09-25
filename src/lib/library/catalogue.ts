@@ -57,11 +57,13 @@ const BRACKETS = /\s*[([{【][^)\]}】]*[)\]}】]/g;
  *   "The Beginning After the End: Book 10: Retribution";
  * - chapter ranges: "Lord of the Mysteries: 1-1429", "Pick Me Up! c1-591";
  * - a zero-padded number: "The Beginning After The End 08";
+ * - curly quotes, which AniList's search doesn't match: "Swordmaster’s";
  * - the kind: "SSS-Class Suicide Hunter Novel";
  * - and Mihon's "..." when it cut a long title short.
  */
 export function cleanTitle(t: string): string {
-	let s = t.trim();
+	// AniList's search misses a curly apostrophe: "Swordmaster’s" finds nothing.
+	let s = t.trim().replace(/[’‘]/g, "'").replace(/[“”]/g, '"');
 	if (/(\.\.\.|…)$/.test(s)) {
 		s = s.replace(/(\.\.\.|…)$/, '').trim();
 		// The cut often leaves a dangling "and" or "of".

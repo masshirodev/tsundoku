@@ -69,7 +69,10 @@ with something added by the files or the source. `cleanTitle` takes off:
   `The Beginning After the End: Book 10: Retribution`;
 - chapter ranges: `Lord of the Mysteries: 1-1429`, `Pick Me Up! c1-591`;
 - a zero-padded number: `The Beginning After The End 08`;
-- the kind: `SSS-Class Suicide Hunter Novel`.
+- the kind: `SSS-Class Suicide Hunter Novel`;
+- curly quotes, turned straight: AniList's search finds nothing for
+  `Swordmaster’s Youngest Son`, and "The Swordmaster's Son" for the same with
+  `'`.
 
 A number that's the title's own (`Kaiju No. 8`, `Mob Psycho 100`, `86`)
 stays. If the clean title finds nothing, the part before a subtitle is
@@ -90,6 +93,11 @@ entry; PASTE A LINK is the way round that.
 Some entries AniList's search doesn't return at all. On 2026-09-24 that
 included the manhwa of The Beginning After the End (only the anime came
 back) and Leveling Up With the Gods. Those are PASTE A LINK too.
+
+AniList also lacks many web novels: Lord of the Mysteries is only a manga
+there, and The Beginning After the End's novel isn't there at all. MAL
+lists more of them. Searching MAL needs a client id, which comes with the
+tracking delivery.
 
 **Anything less is never linked silently.** The first four results wait in
 the review. So does a search that found nothing, so the owner can search

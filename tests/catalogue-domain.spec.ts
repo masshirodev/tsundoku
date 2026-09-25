@@ -44,7 +44,7 @@ describe('titles', () => {
 
 	it('searches without the stub Mihon cut a long title to', () => {
 		expect(searchTitle('Returned as the Sword Saint’s Youngest Son and...')).toBe(
-			'Returned as the Sword Saint’s Youngest Son'
+			"Returned as the Sword Saint's Youngest Son"
 		);
 		expect(searchTitle('The Regressed Son of a Duke is an Assass…')).toBe(
 			'The Regressed Son of a Duke is an Assass'
@@ -196,6 +196,7 @@ describe('cleaning a title before it’s searched', () => {
 		expect(cleanTitle('The Beginning After The End 08')).toBe('The Beginning After The End');
 		expect(cleanTitle('Lord of the Mysteries: 1-1429')).toBe('Lord of the Mysteries');
 		expect(cleanTitle('Pick Me Up! c1-591')).toBe('Pick Me Up!');
+		expect(cleanTitle('Swordmaster’s Youngest Son')).toBe("Swordmaster's Youngest Son");
 		expect(cleanTitle('SSS-Class Suicide Hunter Novel')).toBe('SSS-Class Suicide Hunter');
 		expect(cleanTitle('Second Life Ranker Novel (Ranker Who Lives Twice Novel)')).toBe(
 			'Second Life Ranker'
