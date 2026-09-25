@@ -243,7 +243,7 @@ export function writeSeries(
 				db.prepare(`SELECT path FROM series WHERE id = ?`).get(seriesId) as { path: string }
 			).path;
 			const find = db.prepare(
-				`SELECT id, read_at, last_opened_at, available, file FROM entries
+				`SELECT id, read_at, unread_at, last_opened_at, available, file FROM entries
 				WHERE series_id = @series AND ((@url != '' AND source_url = @url) OR (@url = '' AND file = @file))
 				LIMIT 1`
 			);
@@ -268,6 +268,7 @@ export function writeSeries(
 					| {
 							id: number;
 							read_at: number | null;
+							unread_at: number | null;
 							last_opened_at: number | null;
 							available: number;
 							file: string;
@@ -334,8 +335,14 @@ export function writeSeries(
 						).run(file, e.bytes, e.pageCount, e.coverFile ?? null, e.coverPhash ?? null, entryId);
 						setPages(db, entryId, e);
 					}
-					// Read state only moves forward: never un-read what tsundoku read.
-					if (e.readAt !== null && had.read_at === null)
+					// Read state only moves forward: never un-read what tsundoku read. And
+					// what the owner marked unread stays unread, unless the source read
+					// it again since (rung 28): Mihon keeps its old "read" forever.
+					if (
+						e.readAt !== null &&
+						had.read_at === null &&
+						(had.unread_at === null || e.readAt > had.unread_at)
+					)
 						db.prepare(`UPDATE entries SET read_at = ? WHERE id = ?`).run(e.readAt, entryId);
 					if (
 						e.lastOpenedAt !== null &&

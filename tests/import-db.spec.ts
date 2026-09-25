@@ -11,6 +11,7 @@ const { runImport } = await import('$lib/server/import');
 const { writeMihonFolder } = await import('./helpers/mihon-fixture');
 const { writeHentoidFolder } = await import('./helpers/hentoid-fixture');
 const { groupIntoSeries } = await import('$lib/server/books');
+const { markEntries } = await import('$lib/server/series');
 
 const root = writeMihonFolder(mkdtempSync(join(tmpdir(), 'tsundoku-mihon-')));
 const library = dirname(root);
@@ -131,6 +132,23 @@ describe('a rescan', () => {
 			.prepare(`SELECT dismissed_at FROM scan_jobs WHERE id = ?`)
 			.get(again.jobId) as { dismissed_at: number };
 		expect(job.dismissed_at).not.toBeNull();
+	});
+
+	it('keeps a chapter the owner marked unread unread, though Mihon still says read (rung 28)', async () => {
+		const d = series('Drawing: Saikyou Mangaka');
+		const ch1 = db()
+			.prepare(`SELECT id FROM entries WHERE series_id = ? AND label = 'Ch. 1'`)
+			.get(d.id) as { id: number };
+		expect(markEntries(d.id, [ch1.id], false, 1_800_000_200_000)).toBe(1);
+		await importMihon(1_800_000_300_000);
+		const after = db().prepare(`SELECT read_at, unread_at FROM entries WHERE id = ?`).get(ch1.id);
+		// Mihon's read is from before the unmark: it doesn't come back.
+		expect(after).toEqual({ read_at: null, unread_at: 1_800_000_200_000 });
+		// Marked read again, the unmark is forgotten.
+		markEntries(d.id, [ch1.id], true, 1_800_000_400_000);
+		expect(db().prepare(`SELECT unread_at FROM entries WHERE id = ?`).get(ch1.id)).toEqual({
+			unread_at: null
+		});
 	});
 
 	it('keeps what the owner changed, and marks a file that went away', async () => {

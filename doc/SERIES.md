@@ -61,6 +61,14 @@ width, row height (60 / 52px) and rail width (56 / 44px) per device.
   how far OCR has read it on the workstation, with **OCR** to switch it on
   for one not seen as Japanese, and the words looked up in it waiting for
   review. [`JAPANESE.md`](JAPANESE.md) has the states.
+- **Marked unread stays unread.** The import moves read state only forward,
+  from Mihon's and Hentoid's own records, and Mihon keeps a chapter's old
+  "read" for good. So MARK UNREAD is remembered (`entries.unread_at`, rung
+  28), and an import brings a read back only when it's newer than the unmark:
+  a chapter read again on the phone since still counts. MARK READ, or
+  finishing the chapter here, forgets the unmark. (Until 2026-09-25 an
+  unmarked chapter came back read on the next import. The rung repaired what
+  it had undone, from the reading log.)
 - **Rating** is six cells, 0–5, and 0 is unrated. On this screen the cells
   **fill up to** the rating (the handoff's convention). The library's pickers
   highlight the one chosen cell. Both clear with 0.

@@ -151,19 +151,20 @@ export function markEntries(
 					AND read_at IS ${read ? '' : 'NOT '}NULL`
 				)
 				.all(seriesId, ...ids) as { id: number }[];
-			const update = db.prepare(`UPDATE entries SET read_at = ? WHERE id = ?`);
+			// Marked unread is remembered (rung 28), so an import doesn't bring an old read back.
+			const update = db.prepare(`UPDATE entries SET read_at = ?, unread_at = ? WHERE id = ?`);
 			const log = db.prepare(
 				`INSERT INTO reading_events (at, series_id, entry_id, kind) VALUES (?, ?, ?, ?)`
 			);
 			// The copies a chapter's representative stands for follow it, or the
 			// next reconcile would carry an old "read" back (doc/DUPLICATES.md).
 			const copies = db.prepare(
-				`UPDATE entries SET read_at = ? WHERE series_id = ? AND shadowed = 1
+				`UPDATE entries SET read_at = ?, unread_at = ? WHERE series_id = ? AND shadowed = 1
 				AND position = (SELECT position FROM entries WHERE id = ?)`
 			);
 			for (const { id } of changing) {
-				update.run(read ? now : null, id);
-				copies.run(read ? now : null, seriesId, id);
+				update.run(read ? now : null, read ? null : now, id);
+				copies.run(read ? now : null, read ? null : now, seriesId, id);
 				// A manual mark is logged as a mark, not as reading: stats count it as
 				// finished, never as time spent.
 				log.run(now, seriesId, id, read ? 'mark_read' : 'mark_unread');
@@ -255,6 +256,7 @@ export function recordReading(e: ReadingEvent): void {
 		db.prepare(
 			`UPDATE entries SET
 				read_at = CASE WHEN @finish THEN COALESCE(read_at, @now) ELSE read_at END,
+				unread_at = CASE WHEN @finish THEN NULL ELSE unread_at END,
 				last_position = CASE WHEN ${newer} THEN COALESCE(@page, last_position) ELSE last_position END,
 				last_offset = CASE WHEN ${newer} AND @page IS NOT NULL THEN @offset ELSE last_offset END,
 				page_count = COALESCE(@total, page_count),

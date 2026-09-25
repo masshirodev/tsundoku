@@ -551,6 +551,28 @@ const MIGRATIONS: string[] = [
 		error TEXT,
 		PRIMARY KEY (series_id, service)
 	) WITHOUT ROWID;
+	`,
+	// Rung 28: when the owner marked an entry unread (doc/SERIES.md, "Marked
+	// unread stays unread"). The import moves read state only forward, from
+	// Mihon's and Hentoid's own records, so a MARK UNREAD came back read on
+	// the next import. Now a read from an import counts only when it's newer
+	// than the unmark. Backfilled from the log: an unmark not undone since by a
+	// read or a MARK READ; and a read an import put back, older than the
+	// unmark, goes again. Copies (duplicate chapters) follow their chapter.
+	`
+	ALTER TABLE entries ADD COLUMN unread_at INTEGER;
+	UPDATE entries SET unread_at = (
+		SELECT MAX(r.at) FROM reading_events r WHERE r.entry_id = entries.id AND r.kind = 'mark_unread'
+	);
+	UPDATE entries SET unread_at = NULL WHERE unread_at IS NOT NULL AND EXISTS (
+		SELECT 1 FROM reading_events r WHERE r.entry_id = entries.id
+			AND r.kind IN ('finish', 'mark_read') AND r.at > entries.unread_at
+	);
+	UPDATE entries SET unread_at = (
+		SELECT MAX(o.unread_at) FROM entries o
+		WHERE o.series_id = entries.series_id AND o.position = entries.position AND o.shadowed = 0
+	) WHERE shadowed = 1 AND unread_at IS NULL;
+	UPDATE entries SET read_at = NULL WHERE unread_at IS NOT NULL AND read_at < unread_at;
 	`
 ];
 
