@@ -70,6 +70,28 @@ copy of the tablet's `Mihon/`, `Hentoid/` and `Library/`. `yarn run dev` doesn't
 put `.env` into `process.env`, so development keeps the sample library in
 `data/tsundoku.sqlite`. `/scan` in the served app rescans the tablet copy.
 
+## Who migrates
+
+**The served app, and nothing else that touches the live database.** The
+timers (`tsundoku-ocr`, `tsundoku-sync`, `tsundoku-backup`) run `scripts/*.ts`
+straight from the working tree, where a new migration rung sits for as long as
+it is being written. On 2026-09-25 the OCR timer, firing mid-c67, climbed the
+live database to rung 29 while the served app was still the previous build.
+No rating was written in between and every value checked out, but the old
+code was serving a schema it didn't know.
+
+So their units set `TSUNDOKU_MIGRATE=off`, and `getDb()` then refuses any
+database whose `user_version` differs from the code's ladder, in either
+direction, without touching it. A timer run between an edit and its deploy
+fails with "Deploy first" in its journal, and the first run after the deploy
+works. The served app migrates on its first request after
+`yarn run build && systemctl --user restart tsundoku`, snapshot first as
+always ([`BACKUPS.md`](BACKUPS.md)).
+
+A one-off script run by hand (`yarn run links`, `yarn run import`, …) has no
+such guard: running one from a tree with an unshipped rung migrates the live
+database. Deploy first, or set `TSUNDOKU_MIGRATE=off` yourself.
+
 ## Plain http, the old way
 
 `TSUNDOKU_SERVE=http yarn run serve` binds the tailnet address directly on

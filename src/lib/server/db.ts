@@ -25,8 +25,34 @@ export function getDb(): Database.Database {
 	db.pragma('journal_mode = WAL');
 	db.pragma('foreign_keys = ON');
 	db.pragma('busy_timeout = 5000');
-	migrate(db, path);
-	return db;
+	const conn = db;
+	try {
+		if (process.env.TSUNDOKU_MIGRATE === 'off') refuseDrift(conn);
+		else migrate(conn, path);
+	} catch (e) {
+		db = null;
+		conn.close();
+		throw e;
+	}
+	return conn;
+}
+
+/**
+ * A timer run (OCR, sync, backup) never moves the schema: it runs
+ * `scripts/*.ts` from the working tree, which may hold a rung not yet
+ * shipped, and on 2026-09-25 the OCR timer climbed the live database to
+ * rung 29 under the served app's older code (doc/SERVING.md, "Who migrates").
+ * The served app migrates when it ships; until then a timer run whose ladder
+ * differs from the database's refuses, and the next run after the deploy
+ * does the work.
+ */
+function refuseDrift(conn: Database.Database): void {
+	const current = conn.pragma('user_version', { simple: true }) as number;
+	if (current !== MIGRATIONS.length)
+		throw new Error(
+			`tsundoku: the database is at v${current} and this code at v${MIGRATIONS.length}; ` +
+				'with TSUNDOKU_MIGRATE=off it is left for the served app to migrate. Deploy first.'
+		);
 }
 
 /** For specs only: drop the memo so the next `getDb()` opens afresh. */

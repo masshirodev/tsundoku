@@ -8,6 +8,9 @@ RequiresMountsFor=/mnt/hdd2
 [Service]
 Type=oneshot
 WorkingDirectory=%h/projects/tsundoku
+# Runs scripts/ from the working tree: never let it migrate the live database
+# (doc/SERVING.md, "Who migrates").
+Environment=TSUNDOKU_MIGRATE=off
 # mise's shim, so the unit gets the project's Node without a login shell.
 ExecStart=%h/.local/share/mise/shims/node --experimental-strip-types scripts/ocr.ts
 Nice=10
