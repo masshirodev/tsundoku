@@ -3,7 +3,7 @@ import type { ReadStream } from 'node:fs';
 import { getDb } from './db.ts';
 import { VISIBLE_SQL } from './visibility.ts';
 import { manifest, readPage } from './pages/index.ts';
-import { readPageThumb } from './covers.ts';
+import { readPageThumb, refreshCovers } from './covers.ts';
 // Deleting and grouping are loaded only to carry a decision out: finding runs
 // from a plain node script (scripts/dupes.ts), and they bring the app's
 // Vite-only imports with them.
@@ -406,15 +406,31 @@ export function undoDecision(key: string): boolean {
 	);
 }
 
-/** Carry out the decisions waiting: on the next decision, or leaving the review. */
+/** The series two books are in now: before a decision, and after it, when they've moved. */
+function seriesOfEntries(ids: number[]): number[] {
+	return (
+		getDb()
+			.prepare(`SELECT DISTINCT series_id FROM entries WHERE id IN (${ids.map(Number).join(',')})`)
+			.all() as { series_id: number }[]
+	).map((r) => r.series_id);
+}
+
+/**
+ * Carry out the decisions waiting: on the next decision, or leaving the review.
+ * The covers of every series a decision touched are remade after, off the
+ * request, from the files: GROUP makes a series of books, which wears its
+ * first book's cover; FOLD and KEEP change what a series holds (card c63).
+ */
 export async function applyPending(now = Date.now()): Promise<number> {
 	const db = getDb();
 	const waiting = db
 		.prepare(`SELECT pair, decision, keep FROM dupe_decisions WHERE applied_at IS NULL`)
 		.all() as { pair: string; decision: Decision; keep: number | null }[];
 	let n = 0;
+	const touched = new Set<number>();
 	for (const d of waiting) {
 		const [a, b] = d.pair.split(',').map(Number);
+		for (const id of seriesOfEntries([a, b])) touched.add(id);
 		try {
 			if (d.decision === 'keep' && d.keep) await keepOne(d.keep, d.keep === a ? b : a, now);
 			if (d.decision === 'group') await group(a, b, now);
@@ -423,8 +439,14 @@ export async function applyPending(now = Date.now()): Promise<number> {
 			// A book gone since, or a grouping or fold refused: the decision stands, nothing more to do.
 		}
 		db.prepare(`UPDATE dupe_decisions SET applied_at = ? WHERE pair = ?`).run(now, d.pair);
+		for (const id of seriesOfEntries([a, b])) touched.add(id);
 		n += 1;
 	}
+	// A series deleted since (KEEP's loser, a grouped singleton) has no row: nothing to make.
+	if (touched.size)
+		void refreshCovers({ ids: [...touched], remote: false }).catch((e: unknown) => {
+			console.error('tsundoku: covers after the duplicates review failed:', e);
+		});
 	return n;
 }
 

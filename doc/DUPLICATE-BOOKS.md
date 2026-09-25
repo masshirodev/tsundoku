@@ -102,6 +102,13 @@ or when the library next loads. So **UNDO** only forgets it; nothing is
 deleted and then brought back. SKIP isn't recorded: the pair goes to the back
 of this visit's queue and comes up again next time.
 
+Once decisions are carried out, the covers of every series they touched,
+before and after, are remade from the files, off the request. That covers a
+new series of books (its first book's cover), a fold, and a KEEP's series.
+Until 2026-09-25 (card c63), GROUP here left the new series with no cover
+until the next import; the library's GROUP and the series screen always
+remade theirs.
+
 | Decision          | Carried out                                                                                                                                                                                                                                                                        |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | KEEP              | The kept copy takes over the higher rating, FAV, read state or the further page, the other's shelves, and its place in a series of books (moving in where it was). Then the other is **deleted** as any delete is: files to the trash, a tombstone ([`DELETING.md`](DELETING.md)). |

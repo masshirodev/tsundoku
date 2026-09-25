@@ -18,7 +18,8 @@ fails to load leaves the stripes.
    is what the book's own tile shows in BOOKS: `book:<entry>:…`. It follows
    the order: reordering, taking a book out, moving one or grouping remake
    the cover (off the request), and a book taken out, a new series, gets its
-   own at once.
+   own at once. That includes the duplicates review's GROUP, FOLD and KEEP
+   ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md), "Deciding"; card c63).
 2. **A cover the files carry:** Hentoid's thumbnail, Mihon local's
    `cover.jpg`, an EPUB's cover image. Real covers.
 3. **The source site's cover URL,** which Mihon's backup has for every series
