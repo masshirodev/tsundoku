@@ -287,7 +287,7 @@ export function link(seriesId: number, c: Candidate, via: Via, now = Date.now())
 				via = excluded.via, title = excluded.title, cover_url = excluded.cover_url,
 				linked_at = excluded.linked_at, resolved_at = excluded.resolved_at,
 				filled_rating = NULL, score = NULL, format = excluded.format`
-		).run(seriesId, c.anilistId, c.malId, via, c.title, c.coverUrl, now, now, c.format || null);
+		).run(seriesId, c.anilistId, c.malId, via, c.title, c.coverUrl, now, now, c.format);
 		db.prepare(`DELETE FROM link_decisions WHERE series_id = ?`).run(seriesId);
 	})();
 }
@@ -409,7 +409,11 @@ export async function readPasted(p: Pasted): Promise<Candidate> {
 export async function resolveLinks(now = Date.now()): Promise<number> {
 	const db = getDb();
 	const waiting = db
-		.prepare(`SELECT series_id, anilist_id, mal_id FROM series_links WHERE resolved_at IS NULL`)
+		// Also a link from before rung 26, which doesn't know its entry's format yet.
+		.prepare(
+			`SELECT series_id, anilist_id, mal_id FROM series_links
+			WHERE resolved_at IS NULL OR (format IS NULL AND anilist_id IS NOT NULL)`
+		)
 		.all() as { series_id: number; anilist_id: number | null; mal_id: number | null }[];
 	if (!waiting.length) return 0;
 	const byMal = waiting.filter((w) => w.anilist_id === null && w.mal_id !== null);
@@ -427,13 +431,15 @@ export async function resolveLinks(now = Date.now()): Promise<number> {
 		`UPDATE series_links SET anilist_id = ?, mal_id = COALESCE(?, mal_id), title = ?, cover_url = ?, resolved_at = ?,
 			format = ? WHERE series_id = ?`
 	);
-	const none = db.prepare(`UPDATE series_links SET resolved_at = ? WHERE series_id = ?`);
+	const none = db.prepare(
+		`UPDATE series_links SET resolved_at = ?, format = COALESCE(format, '') WHERE series_id = ?`
+	);
 	let n = 0;
 	db.transaction(() => {
 		for (const w of waiting) {
 			const c = w.anilist_id !== null ? al.get(w.anilist_id) : mal.get(w.mal_id);
 			if (c) {
-				set.run(c.anilistId, c.malId, c.title, c.coverUrl, now, c.format || null, w.series_id);
+				set.run(c.anilistId, c.malId, c.title, c.coverUrl, now, c.format, w.series_id);
 				n += 1;
 			} else none.run(now, w.series_id);
 		}

@@ -23,7 +23,7 @@ const at = process.argv.indexOf('--limit');
 const limit = at > 0 ? Number(process.argv[at + 1]) : 100_000;
 const started = Date.now();
 const r = await refreshLinks({ limit, log: (line) => console.log(`  ${line}`) });
-console.log(`links: ${r.resolved} MAL links resolved`);
+console.log(`links: ${r.resolved} resolved on AniList`);
 console.log(`  searched:  ${r.searched}`);
 console.log(`  linked:    ${r.linked} (exact)`);
 console.log(`  to review: ${r.offered}`);
