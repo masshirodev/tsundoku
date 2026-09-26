@@ -319,6 +319,32 @@ test('vertical: turning the device keeps the page being read under the middle', 
 	await expect(page).toHaveURL(new RegExp(`/read/${entry}\\?p=3`));
 });
 
+test('a finger held on a page never opens the browser’s image menu; a right click still does', async ({
+	page
+}) => {
+	await seriesId(page, 'The Greatest Estate Developer');
+	await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.click();
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	// The vertical strip is where the reader lets a right click through, so
+	// it's the one place the difference shows.
+	const img = page.locator('[data-role="page"] img').first();
+	const held = (pointerType: string) =>
+		img.evaluate((el, pointerType) => {
+			el.dispatchEvent(new PointerEvent('pointerdown', { pointerType, bubbles: true }));
+			const shown = el.dispatchEvent(
+				new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
+			);
+			el.dispatchEvent(new PointerEvent('pointerup', { pointerType, bubbles: true }));
+			return shown;
+		}, pointerType);
+	expect(await held('touch')).toBe(false);
+	expect(await held('mouse')).toBe(true);
+});
+
 test('vertical: SIDES brings the strip in from both edges, and is kept on the device', async ({
 	page
 }) => {

@@ -17,3 +17,7 @@ a:hover {
 *::after {
 	box-sizing: border-box;
 }
+/* iOS shows its image callout without a contextmenu event to cancel; the layout covers the rest. */
+img {
+	-webkit-touch-callout: none;
+}

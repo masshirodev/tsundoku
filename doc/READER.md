@@ -45,6 +45,8 @@ still blanks the reader when the app goes to the background.
 - **With the controls up, a tap on the page only puts them away.**
 - **A long press on a page opens the page menu**: set it as the book's or
   the series' cover ([`COVERS.md`](COVERS.md), "Chosen").
+- **Never the browser's image menu.** A finger held on a page doesn't
+  offer to save or share it, in any mode ([`TOUCH.md`](TOUCH.md)).
 - **No hardware keys, by the owner's choice.** On desktop the arrows are
   spatial (in R→L, ← is forward), Space and PageDown go forward, and Esc
   toggles the controls.

@@ -34,6 +34,23 @@
 		addEventListener('click', tap, true);
 		return () => removeEventListener('click', tap, true);
 	});
+
+	// A finger held on an image opens the browser's menu (save, share, open
+	// in new tab) over the page being read. Only for touch: a mouse's right
+	// click keeps its menu where the screen doesn't claim it (doc/TOUCH.md).
+	onMount(() => {
+		let touch = false;
+		const down = (e: PointerEvent) => (touch = e.pointerType !== 'mouse');
+		const menu = (e: MouseEvent) => {
+			if (touch && (e.target as Element | null)?.closest('img, .page')) e.preventDefault();
+		};
+		addEventListener('pointerdown', down, true);
+		addEventListener('contextmenu', menu);
+		return () => {
+			removeEventListener('pointerdown', down, true);
+			removeEventListener('contextmenu', menu);
+		};
+	});
 	let navSeq = 0;
 	beforeNavigate((nav) => {
 		if (nav.willUnload || !nav.to) return;
