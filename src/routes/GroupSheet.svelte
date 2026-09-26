@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { settleReplacing } from '$lib/back';
+	import { page } from '$app/state';
 	import Sheet from '$lib/components/chrome/Sheet.svelte';
 	import Cover from '$lib/components/content/Cover.svelte';
 	import { moveItem, orderBooks, sharedStart, type OrderMode } from '$lib/library/books';
@@ -126,7 +128,11 @@
 					refused = 'DID NOT GROUP · THE WORKSTATION DID NOT ANSWER';
 					return;
 				}
-				await update();
+				// From a singleton's own screen, that series is gone once grouped: the
+				// new one takes its place in history, or back lands on a 404. From the
+				// library, the library stays to go back to.
+				if (page.route.id === '/series/[id]') await settleReplacing({ result, update });
+				else await update();
 			};
 		}}
 	>

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { ocrLines, type OcrPlace } from '$lib/japanese/ocr';
 	import { enhance } from '$app/forms';
+	import { replacing } from '$lib/back';
 	import Badge from '$lib/components/content/Badge.svelte';
 	import { coverPlaceholder } from '$lib/library/cover';
 	import RatingSlider from '$lib/components/controls/RatingSlider.svelte';
@@ -705,7 +706,7 @@
 				<div class="label">FOLDED</div>
 				<div class="file">{foldedOn ? `${foldedOn} · ` : ''}FROM THE DUPLICATES REVIEW</div>
 				<button type="button" class="edit" onclick={() => (unfolding = true)}>UNFOLD</button>
-				<form method="POST" action="?/hide" use:enhance class="hide-form">
+				<form method="POST" action="?/hide" use:enhance={replacing} class="hide-form">
 					<input type="hidden" name="on" value={series.hidden ? '0' : '1'} />
 					<button type="submit" class="edit">{series.hidden ? 'UNHIDE' : 'HIDE'}</button>
 				</form>
@@ -723,11 +724,11 @@
 				</div>
 				{#if isBookSeries(series) || isVolumeSeries(series)}
 					<!-- Every book (or volume) back out on its own; the series goes. -->
-					<form method="POST" action="?/ungroup" class="hide-form">
+					<form method="POST" action="?/ungroup" use:enhance={replacing} class="hide-form">
 						<button type="submit" class="edit">UNGROUP</button>
 					</form>
 				{/if}
-				<form method="POST" action="?/hide" use:enhance class="hide-form">
+				<form method="POST" action="?/hide" use:enhance={replacing} class="hide-form">
 					<input type="hidden" name="on" value={series.hidden ? '0' : '1'} />
 					<button type="submit" class="edit">{series.hidden ? 'UNHIDE' : 'HIDE'}</button>
 				</form>

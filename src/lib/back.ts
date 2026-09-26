@@ -9,6 +9,9 @@
  * SvelteKit's own index in `history.state`.
  */
 
+import { goto } from '$app/navigation';
+import type { ActionResult, SubmitFunction } from '@sveltejs/kit';
+
 const KEY = 'tsundoku.history';
 const INDEX = 'sveltekit:history';
 const KEEP = 200;
@@ -76,3 +79,27 @@ export function backLink(a: HTMLAnchorElement) {
 	a.addEventListener('click', click);
 	return { destroy: () => a.removeEventListener('click', click) };
 }
+
+/**
+ * Follow an action's redirect in place of the screen it was sent from, rather
+ * than on top of it. For actions that end what their screen shows (grouping a
+ * singleton away, UNGROUP, taking out or moving a series' last book, HIDE,
+ * deleting a series' last book): pushed, the old screen stays in history and
+ * the system's back lands on a 404 (doc/NAVIGATION.md, "Screens that are gone").
+ * Anything but a redirect is handled as `use:enhance` would.
+ */
+export async function settleReplacing({
+	result,
+	update
+}: {
+	result: ActionResult;
+	update: () => Promise<void>;
+}): Promise<void> {
+	if (result.type === 'redirect')
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- our own action's redirect
+		await goto(result.location, { replaceState: true, invalidateAll: true });
+	else await update();
+}
+
+/** `use:enhance={replacing}`: see `settleReplacing`. */
+export const replacing: SubmitFunction = () => settleReplacing;

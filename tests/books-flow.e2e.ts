@@ -216,3 +216,32 @@ test('TAGS on a book’s sheet edits that book’s tags, and the series follows'
 	await page.goto('/?tag=' + encodeURIComponent('tag:e2e-beach'));
 	await expect(page.locator('.grid .tile', { hasText: 'Kaori Mama' })).toHaveCount(0);
 });
+
+test('grouping from a single book’s own screen, then back: where it was opened from, not a 404', async ({
+	page
+}) => {
+	await reveal(page);
+	await page.goto(CIRCLE);
+	await page.waitForLoadState('networkidle');
+	await page.locator('.grid li', { hasText: 'Holiday Duty' }).getByRole('button').click();
+	await page.waitForURL(/\/series\/\d+/);
+	await page.getByRole('button', { name: 'REVIEW →' }).click();
+	const sheet = page.getByRole('dialog', { name: 'Group into a series' });
+	await sheet.getByRole('textbox', { name: 'Series name' }).fill('Kaori Mama Extras');
+	await sheet.getByRole('button', { name: /CREATE SERIES/ }).click();
+	await expect(page).toHaveURL(/\/series\/\d+\?created=/);
+	const created = page.url();
+
+	// The system's back: the single book's screen is gone, so it's the circle.
+	await page.goBack();
+	await expect(page).toHaveURL(new RegExp(`${CIRCLE.replace(/[?]/g, '\\?')}$`));
+	await expect(page.locator('.grid')).toBeVisible();
+
+	// Put back for the rest of the file.
+	await page.goto(created);
+	await page.getByRole('button', { name: 'UNDO' }).click();
+	await expect(page).toHaveURL(/\/($|\?)/);
+	// UNGROUP replaced the gone series too: back is the circle again, not a 404.
+	await page.goBack();
+	await expect(page).toHaveURL(new RegExp(`${CIRCLE.replace(/[?]/g, '\\?')}$`));
+});

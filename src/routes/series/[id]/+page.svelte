@@ -1,6 +1,6 @@
 <script lang="ts">
 	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
-	import { stepsBackTo } from '$lib/back';
+	import { replacing, stepsBackTo } from '$lib/back';
 	import type { ActionResult } from '@sveltejs/kit';
 	import { backLink } from '$lib/back';
 	import { enhance } from '$app/forms';
@@ -341,7 +341,7 @@
 			detail={added ? 'AT THE END · ORDER TO CHANGE' : `ORDERED ${createdOrder} · ORDER TO CHANGE`}
 		>
 			{#snippet action()}
-				<form method="POST" action={added ? '?/undoAdd' : '?/ungroup'}>
+				<form method="POST" action={added ? '?/undoAdd' : '?/ungroup'} use:enhance={replacing}>
 					{#each (added ?? '').split(',').filter(Boolean) as id (id)}<input
 							type="hidden"
 							name="entry"
@@ -478,7 +478,8 @@
 	onclose={() => (deletingBook = null)}
 	ondone={async (r) => {
 		deletingBook = null;
-		if (r.type === 'redirect') await goto(r.location);
+		// The series' last book: the series went with it.
+		if (r.type === 'redirect') await goto(r.location, { replaceState: true });
 		else await invalidateAll();
 	}}
 />

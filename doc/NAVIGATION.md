@@ -37,3 +37,33 @@ and a person page's ←.
 
 Tested in `tests/library-flow.e2e.ts` ("the app's own ← buttons come back…"),
 which fails without it.
+
+## Screens that are gone
+
+Some actions end what their own screen shows, then redirect somewhere else:
+
+| Action, on the series screen                  | Goes to                  |
+| --------------------------------------------- | ------------------------ |
+| GROUP (a singleton, from its suggestion)      | the new series           |
+| UNGROUP, or the UNDO after SERIES CREATED     | the library              |
+| TAKE OUT or MOVE TO… on the series' last book | that book, or its target |
+| HIDE, with reveal off                         | the library              |
+| DELETE on the series' last book               | the library              |
+
+Followed as an ordinary navigation, each one pushed a new history entry on
+top of a screen that no longer exists, so the system's back (a swipe on
+Android) landed on a 404: grouping two books from one's own screen and
+swiping back did exactly that (2026-09-25). Each now **replaces** the gone
+screen in history (`replacing` / `settleReplacing` in `src/lib/back.ts`), so
+back goes to wherever that screen was opened from. DELETE on the series
+itself already did (`leaveDeleted`).
+
+GROUP from the library or a person page still pushes: the screen it was sent
+from is still there to go back to.
+
+Only the entry being left is replaced. A gone series further back in history
+(opened, left, then grouped from somewhere else) still answers 404 if the
+back gesture walks that far.
+
+Tested in `tests/books-flow.e2e.ts` ("grouping from a single book's own
+screen, then back…"), which fails without it.

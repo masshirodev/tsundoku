@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { fileMeta } from '$lib/library/series';
 	import { enhance } from '$app/forms';
+	import { settleReplacing } from '$lib/back';
 	import Sheet from '$lib/components/chrome/Sheet.svelte';
 	import Cover from '$lib/components/content/Cover.svelte';
 	import RatingSlider from '$lib/components/controls/RatingSlider.svelte';
@@ -46,12 +47,11 @@
 		if (!book) moving = false;
 	});
 
-	const close: SubmitFunction =
-		() =>
-		async ({ update }) => {
-			await update();
-			onclose();
-		};
+	const close: SubmitFunction = () => async (input) => {
+		// Taking out or moving the last book redirects away from a series that's gone.
+		await settleReplacing(input);
+		onclose();
+	};
 </script>
 
 <Sheet open={book !== null} {onclose} label={book?.title ?? 'Book'}>
