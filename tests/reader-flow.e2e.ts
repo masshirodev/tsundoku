@@ -277,6 +277,48 @@ test('incognito shows a dashed rule, INCOGNITO, and NOT SAVED', async ({ page })
 	await expect(meta(page)).toContainText('NOT SAVED');
 });
 
+test('vertical: turning the device keeps the page being read under the middle', async ({
+	page
+}) => {
+	await seriesId(page, 'The Greatest Estate Developer');
+	await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.click();
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	const entry = page.url().match(/\/read\/(\d+)/)![1];
+	// A few pages in, a third of the way down one.
+	const target = page.locator(`[data-entry="${entry}"][data-index="2"]`);
+	await target.evaluate((e) => {
+		const r = e.getBoundingClientRect();
+		scrollBy(0, r.top + r.height / 3 - innerHeight / 2);
+	});
+	const middle = () =>
+		page.evaluate(() => {
+			const el = document
+				.elementFromPoint(innerWidth / 2, innerHeight / 2)
+				?.closest<HTMLElement>('[data-role="page"]');
+			if (!el) return null;
+			const r = el.getBoundingClientRect();
+			return {
+				entry: el.dataset.entry,
+				index: el.dataset.index,
+				at: Math.round(((innerHeight / 2 - r.top) / r.height) * 100)
+			};
+		});
+	await expect.poll(middle).toEqual({ entry, index: '2', at: 33 });
+	const portrait = page.viewportSize()!;
+	await page.setViewportSize({ width: portrait.height, height: portrait.width });
+	await expect.poll(middle).toMatchObject({ entry, index: '2' });
+	expect(Math.abs((await middle())!.at - 33)).toBeLessThanOrEqual(1);
+	await page.setViewportSize(portrait);
+	await expect.poll(middle).toMatchObject({ entry, index: '2' });
+	expect(Math.abs((await middle())!.at - 33)).toBeLessThanOrEqual(1);
+	// The reader didn't wander off with the layout either.
+	await expect(page).toHaveURL(new RegExp(`/read/${entry}\\?p=3`));
+});
+
 test('vertical: SIDES brings the strip in from both edges, and is kept on the device', async ({
 	page
 }) => {

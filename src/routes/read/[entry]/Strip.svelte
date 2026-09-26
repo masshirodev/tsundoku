@@ -42,9 +42,70 @@
 
 	let root = $state<HTMLElement | null>(null);
 
+	/**
+	 * Where the reader is: the page (or band) under the middle of the screen,
+	 * and how far down it the middle falls, as a fraction. Noted on every
+	 * scroll, at the width it was noted at, since by the time a rotation is
+	 * seen the layout has already changed under it.
+	 */
+	let place: { el: HTMLElement; at: number; width: number } | null = null;
+	/** Set while the place is being put back: pages crossing the middle meanwhile aren't read. */
+	let settling = false;
+
+	function note() {
+		if (!root || settling) return;
+		const width = root.clientWidth;
+		// Already relaid out at a new width: what's under the middle now is the jump, not the place.
+		if (place && place.width !== width) return;
+		const el = document
+			.elementFromPoint(innerWidth / 2, innerHeight / 2)
+			?.closest<HTMLElement>('[data-role="page"], .band');
+		if (!el || !root.contains(el)) return;
+		const r = el.getBoundingClientRect();
+		place = { el, at: r.height ? (innerHeight / 2 - r.top) / r.height : 0, width };
+	}
+
+	/**
+	 * The strip changed width (a rotation, SIDES, a resized window): every
+	 * page's height scaled with it but the scroll offset didn't, which lands
+	 * pages away. Put the same point of the same page back under the middle.
+	 */
+	function restore() {
+		if (!root) return;
+		const width = root.clientWidth;
+		if (!place || place.width === width) return;
+		const { el, at } = place;
+		if (el.isConnected) {
+			settling = true;
+			const r = el.getBoundingClientRect();
+			window.scrollBy(0, r.top + at * r.height - innerHeight / 2);
+			requestAnimationFrame(() =>
+				requestAnimationFrame(() => {
+					settling = false;
+				})
+			);
+		}
+		place = { el, at, width };
+	}
+
 	onMount(() => {
+		let noting = 0;
+		const onscroll = () => {
+			if (noting) return;
+			noting = requestAnimationFrame(() => {
+				noting = 0;
+				note();
+			});
+		};
+		addEventListener('scroll', onscroll, { passive: true });
+		const resized = new ResizeObserver(restore);
+		if (root) resized.observe(root);
+		// The first place, before any scroll: where the strip opened.
+		requestAnimationFrame(note);
+
 		const current_ = new IntersectionObserver(
 			(entries) => {
+				if (settling) return;
 				for (const e of entries) {
 					if (!e.isIntersecting) continue;
 					const el = e.target as HTMLElement;
@@ -61,6 +122,9 @@
 		const later = new MutationObserver(watch);
 		if (root) later.observe(root, { childList: true, subtree: true });
 		return () => {
+			removeEventListener('scroll', onscroll);
+			cancelAnimationFrame(noting);
+			resized.disconnect();
 			current_.disconnect();
 			later.disconnect();
 		};

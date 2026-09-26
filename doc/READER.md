@@ -234,6 +234,16 @@ of scrolling to it.
   first and puts it back after. It does this by hand: the browser's scroll
   anchoring is off on the strip (`overflow-anchor: none`), since it does
   nothing at the very top of a page and would otherwise do it twice.
+- **Nor on turning the device.** Portrait to landscape, or back, changes the
+  strip's width, and every page's height scales with it while the scroll
+  offset doesn't: in a manhwa that landed several pages away (2026-09-25).
+  The strip notes on every scroll which page is under the middle of the
+  screen and how far down it, and when its width changes (a `ResizeObserver`,
+  so SIDES and a resized window too) it puts that point back under the
+  middle. It notes the place ahead of time because by the time a rotation is
+  seen the layout has already moved; and pages crossing the middle while it
+  settles aren't read, or the reader would follow the jump into another page
+  or chapter.
 - **Opening** puts the page the reader resumes at at the top of the screen.
   That happens after SvelteKit's own scroll on arrival (`afterNavigate`),
   which used to put it back at the top of the document. So the strip used to
@@ -245,7 +255,8 @@ of scrolling to it.
   a strip that fit to a landscape tablet's width would be enormous. A tap on
   the margins still shows the controls.
 
-Tested in `tests/reader-flow.e2e.ts`: across the band and back, and that
+Tested in `tests/reader-flow.e2e.ts`: across the band and back, that the page
+being read stays put through a rotation both ways, and that
 nothing moves when chapters arrive above or when the reader crosses a band.
 
 ## Loading, failure, missing
