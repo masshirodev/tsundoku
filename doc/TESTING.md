@@ -33,6 +33,12 @@ Each spec file gets its own process (`pool: 'forks'`, `isolate: true`), and
 database sets `process.env.DATABASE_PATH = ':memory:'` **before** importing
 anything from `$lib/server`, then seeds it with `seedSample()`.
 
+**`strip-types-db.spec.ts` loads the modules the scripts reach under Node's
+own type stripping.** The scripts and timers run `src/lib/server` without
+Vite, and Node refuses TypeScript that needs compiling (a parameter property,
+an enum). Vitest compiles it happily, and `node --check` passes it, so only a
+real import shows it.
+
 **Importer specs never read real data.** The samples on `/mnt/hdd2` are the
 owner's, copyrighted and partly explicit. `tests/helpers/` holds a protobuf
 encoder and a zip writer, and `mihon-fixture.ts` uses them to synthesise a

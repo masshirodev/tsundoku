@@ -111,9 +111,13 @@ until it's decided. Approved, its edition becomes the series' and the pass
 maps and sends at once. Rejected or withdrawn, it's never suggested again
 (the owner said no). A suggestion that couldn't be sent is tried again.
 
-An app's own account on Ranobe would have every suggestion wait for review.
-The owner's token is their own account, so what Ranobe does with it is its
-rule: it may apply the bundle at once. Either answer is handled.
+**The owner's token applies them at once.** It is their own account, a
+moderator's, so Ranobe approves the bundle as it's sent, with the owner as
+reviewer. That happened in the first pass, 2026-09-27. An app's own account
+(Ranobe's `ACCOUNTS.md`, "An app's account") would have every suggestion wait
+for review instead, and the pass handles that too. If the owner wants to
+review what tsundoku suggests before it's live, the token has to move to such
+an account.
 
 ## Sending
 
@@ -150,8 +154,12 @@ Shadow, Kino's Journey, Mushoku Tensei, The Apothecary Diaries), each with
 only its Japanese original edition. Apothecary's edition has no units yet.
 None of the Korean web novels is on Ranobe (The Beginning After the End, Lord
 of the Mysteries, Omniscient Reader's Viewpoint, and the rest), and only 3
-novel entries were read, all in one Ranobe doesn't have. So the first pass
-links and suggests, and sends nothing.
+novel entries were read, all in one Ranobe doesn't have.
+
+The first pass (`yarn run ranobe`, right after the deploy) linked 8 series to
+those 5 works. It suggested an English edition for each, which Ranobe applied
+at once (bundles 1–5, editions e1180–e1184), and mapped 109 entries onto their
+volumes. It sent no reads, since none of them is read yet.
 
 ## Not yet
 

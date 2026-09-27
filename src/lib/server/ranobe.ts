@@ -43,12 +43,16 @@ export const configured = () => token() !== '';
 
 /** Ranobe answered, and said no. `code` is from its closed list (API-V1.md, "Errors"). */
 export class Refused extends Error {
-	constructor(
-		readonly status: number,
-		readonly code: string,
-		readonly details: Record<string, unknown> = {}
-	) {
+	// Plain fields, not parameter properties: scripts run this file with
+	// Node's type stripping, which can't compile those.
+	readonly status: number;
+	readonly code: string;
+	readonly details: Record<string, unknown>;
+	constructor(status: number, code: string, details: Record<string, unknown> = {}) {
 		super(`Ranobe ${status} ${code}`);
+		this.status = status;
+		this.code = code;
+		this.details = details;
 	}
 }
 
