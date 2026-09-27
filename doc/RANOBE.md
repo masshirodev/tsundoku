@@ -15,7 +15,7 @@ its numbers.
   `ranobe_works`, `ranobe_suggestions`.
 - Specs: `tests/ranobe-domain.spec.ts`, `tests/ranobe-db.spec.ts`.
 
-**Part 1 has no screen.** The brief for part 2 is [`briefs/RANOBE.md`](briefs/RANOBE.md): choosing a work on `/links` for a novel the ids
+**Part 1 has no screen.** The brief for part 2 is [`briefs/done/RANOBE.md`](briefs/done/RANOBE.md): choosing a work on `/links` for a novel the ids
 don't find, a Ranobe line on the TRACKING row and a Ranobe cell on SETTINGS
 all wait for a design handoff. Until then the pass and the sends run on their
 own, and `yarn run ranobe` prints what they did.
