@@ -2,7 +2,7 @@ import { basename, join } from 'node:path';
 import { getDb } from './db.ts';
 import { readEpub } from './import/epub.ts';
 import { ELIGIBLE_SQL, Refused, api, linkWork, searchOne, suggestConfigured } from './ranobe.ts';
-import { cleanTitle, normaliseTitle } from '../library/catalogue.ts';
+import { bracketed, cleanTitle, normaliseTitle } from '../library/catalogue.ts';
 import { epubLang, suggestedPeople, volumeOf, workBundle } from '../library/ranobe.ts';
 
 /**
@@ -55,11 +55,22 @@ export async function suggestWork(
 ): Promise<{ outcome: 'suggested'; bundle: number } | { outcome: 'found'; found: number }> {
 	if (!suggestConfigured()) throw new CannotSuggest('no RANOBE_SUGGEST_TOKEN');
 	const { series, file, pkg } = await fromFile(seriesId);
-	const title = cleanTitle(pkg.title || series.title) || series.title;
+	const raw = pkg.title || series.title;
+	const title = cleanTitle(raw) || series.title;
 	const found = await searchOne(seriesId, title, now);
 	if (found) return { outcome: 'found', found };
+	// A sibling volume already suggested the work: this one joins that bundle,
+	// and is linked with it, rather than suggest the same novel twice.
+	const joined = pendingSibling(seriesId);
+	if (joined !== null) {
+		keep(seriesId, joined, now);
+		return { outcome: 'suggested', bundle: joined };
+	}
 	const bundle = workBundle({
 		title,
+		aliases: bracketed(raw)
+			.map((a) => cleanTitle(a))
+			.filter(Boolean),
 		volume: volumeOf(series.title, basename(file)),
 		people: suggestedPeople(pkg.authors),
 		lang: epubLang(pkg.language),
@@ -72,14 +83,34 @@ export async function suggestWork(
 		body: bundle
 	});
 	if (!answer) throw new Refused(0, 'no_answer');
+	keep(seriesId, answer.bundle, now);
+	return { outcome: 'suggested', bundle: answer.bundle };
+}
+
+function keep(seriesId: number, bundle: number, now: number): void {
 	getDb()
 		.prepare(
 			`INSERT INTO ranobe_work_suggestions (series_id, bundle, status, sent_at) VALUES (?, ?, 'pending', ?)
 			ON CONFLICT (series_id) DO UPDATE SET bundle = excluded.bundle, status = 'pending', work = NULL,
 				sent_at = excluded.sent_at, checked_at = NULL`
 		)
-		.run(seriesId, answer.bundle, now);
-	return { outcome: 'suggested', bundle: answer.bundle };
+		.run(seriesId, bundle, now);
+}
+
+/** A pending bundle suggested from a series with this one's title before a volume number. */
+function pendingSibling(seriesId: number): number | null {
+	const db = getDb();
+	const key = (t: string) => normaliseTitle(cleanTitle(t) || t);
+	const me = db.prepare(`SELECT title FROM series WHERE id = ?`).get(seriesId) as {
+		title: string;
+	};
+	const rows = db
+		.prepare(
+			`SELECT s.title, w.bundle FROM ranobe_work_suggestions w JOIN series s ON s.id = w.series_id
+			WHERE w.status = 'pending' AND w.series_id != ?`
+		)
+		.all(seriesId) as { title: string; bundle: number }[];
+	return rows.find((r) => key(r.title) === key(me.title))?.bundle ?? null;
 }
 
 /** UNDO of SUGGEST: the bundle withdrawn on Ranobe, and the series back in the review. */
@@ -91,12 +122,19 @@ export async function withdrawWork(seriesId: number): Promise<boolean> {
 		)
 		.get(seriesId) as { bundle: number } | undefined;
 	if (!s) return false;
-	try {
-		await api(`/bundles/${s.bundle}/withdraw`, { method: 'POST', as: 'suggest', body: {} });
-	} catch (e) {
-		// Decided already: nothing left to withdraw; the pass reads how.
-		if (!(e instanceof Refused && e.status === 409)) throw e;
-	}
+	// A bundle other volumes joined stays for them; only the last one out withdraws it.
+	const shared = db
+		.prepare(
+			`SELECT COUNT(*) AS n FROM ranobe_work_suggestions WHERE bundle = ? AND series_id != ? AND status = 'pending'`
+		)
+		.get(s.bundle, seriesId) as { n: number };
+	if (!shared.n)
+		try {
+			await api(`/bundles/${s.bundle}/withdraw`, { method: 'POST', as: 'suggest', body: {} });
+		} catch (e) {
+			// Decided already: nothing left to withdraw; the pass reads how.
+			if (!(e instanceof Refused && e.status === 409)) throw e;
+		}
 	db.prepare(`DELETE FROM ranobe_work_suggestions WHERE series_id = ?`).run(seriesId);
 	return true;
 }

@@ -518,6 +518,8 @@ export function suggestedPeople(creators: { name: string; role: string }[]): Sug
  */
 export function workBundle(o: {
 	title: string;
+	/** Other titles the file gives, in brackets: "(Ranker Who Lives Twice Novel)". */
+	aliases?: string[];
 	volume: string | null;
 	people: SuggestedPerson[];
 	lang: string | null;
@@ -560,7 +562,7 @@ export function workBundle(o: {
 					hidden: false,
 					originalLang: original,
 					titles: [{ lang: o.lang ?? 'en', title: o.title, latin: null, official: false }],
-					aliases: [],
+					aliases: [...new Set(o.aliases ?? [])].filter((a) => a && a !== o.title),
 					status: 'unknown',
 					adult: false,
 					synopses: [],

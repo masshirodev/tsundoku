@@ -181,6 +181,11 @@ YET, and says what it needs. Never for a hidden series or Hentoid.
 3. **One bundle, through the app account**: the authors as people, then the
    work crediting them (`workBundle`). `source` is `epub:<file name>`, and the
    `reason` says which parts are guesses.
+   **A sibling volume joins it.** When another series with this one's title
+   before a volume number already waits on a suggestion, SUGGEST joins that
+   bundle instead of sending a second one: The Beginning After the End is
+   seven series, and one novel. Its UNDO leaves the bundle standing for the
+   others; only the last one out withdraws it.
 4. **The series leaves the review** while it waits. Its LINK row says
    `SUGGESTED TO RANOBE · BUNDLE 7 · WAITS FOR YOUR REVIEW THERE`, and its
    TRACKING line `RANOBE · SUGGESTED, WAITING FOR YOUR REVIEW`. UNDO in the
@@ -203,7 +208,10 @@ they're fan rips. So:
   a person under the native name. None left, and the work goes without an
   author.
 - **The title** is the file's, with the volume cut off, in the file's own
-  language, and never `official`.
+  language, and never `official`. A second title in brackets goes along as
+  an alias ("Second Life Ranker Novel (Ranker Who Lives Twice Novel)"). A
+  translator group in the title ("… - Mythic Regressor") stays: no rule tells
+  it from a subtitle, so the owner cuts it on Ranobe.
 - **The kind is a guess**: a series that is one volume is a light novel, one
   of chapters a web novel.
 - **The original language is a guess** from the authors' script (Hangul is

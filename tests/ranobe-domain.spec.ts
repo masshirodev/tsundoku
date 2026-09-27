@@ -409,6 +409,16 @@ describe('suggesting a novel (c72)', () => {
 			file: 'orv.epub'
 		});
 		expect(ko.items[1].snapshot).toMatchObject({ kind: 'web_novel', originalLang: 'ko' });
+		// A second title in brackets goes along as an alias (Second Life Ranker's file).
+		const slr = workBundle({
+			title: 'Second Life Ranker',
+			aliases: ['Ranker Who Lives Twice', 'Second Life Ranker'],
+			volume: null,
+			people: [],
+			lang: 'en',
+			file: 'slr.epub'
+		});
+		expect(slr.items[0].snapshot.aliases).toEqual(['Ranker Who Lives Twice']);
 	});
 
 	it('says a suggestion waits, on the TRACKING row', () => {

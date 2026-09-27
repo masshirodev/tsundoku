@@ -29,6 +29,9 @@ book('TBATE - Book 5.epub', 'The Beginning After the End: Book 5: Convergence', 
 book('TBATE - Book 6.epub', 'The Beginning After the End: Book 6: Transcendence', [
 	{ name: 'TurtleMe', role: 'aut' }
 ]);
+book('TBATE - Book 7.epub', 'The Beginning After the End: Book 7: Divergence', [
+	{ name: 'TurtleMe', role: 'aut' }
+]);
 book('SSS.epub', 'SSS-Class Suicide Hunter Novel', [{ name: 'To be implemented' }]);
 book('ORV.epub', "Omniscient Reader's Viewpoint", [{ name: 'Sing-shong (싱숑)' }]);
 await runImport(library);
@@ -38,6 +41,7 @@ const idOf = (title: string) =>
 	(db.prepare(`SELECT id FROM series WHERE title = ?`).get(title) as { id: number }).id;
 const B5 = idOf('The Beginning After the End: Book 5: Convergence');
 const B6 = idOf('The Beginning After the End: Book 6: Transcendence');
+const B7 = idOf('The Beginning After the End: Book 7: Divergence');
 const SSS = idOf('SSS-Class Suicide Hunter Novel');
 const ORV = idOf("Omniscient Reader's Viewpoint");
 
@@ -172,6 +176,18 @@ describe('with it', () => {
 		expect(orv[1].snapshot).toMatchObject({ originalLang: 'ko' });
 	});
 
+	it('a sibling volume joins the bundle waiting, rather than suggest the novel twice', async () => {
+		expect(await sg.suggestWork(B7, NOW)).toEqual({ outcome: 'suggested', bundle: 7 });
+		expect(posted()).toHaveLength(0);
+		expect(inQueue(B7)).toBe(false);
+		// Its UNDO leaves the bundle standing for Book 5: nothing is withdrawn on Ranobe.
+		calls = [];
+		expect(await sg.withdrawWork(B7)).toBe(true);
+		expect(calls.some((c) => c.path.endsWith('/withdraw'))).toBe(false);
+		expect(rv.ranobeSeries(B5)?.facts.suggested).toBe(true);
+		await sg.suggestWork(B7, NOW);
+	});
+
 	it('UNDO withdraws the bundle, and the series comes back to the review', async () => {
 		expect(await sg.withdrawWork(SSS)).toBe(true);
 		const w = calls.find((c) => c.path.endsWith('/withdraw'));
@@ -181,11 +197,15 @@ describe('with it', () => {
 
 	it('waits while it’s pending, then links on approval and searches the siblings again', async () => {
 		let r = await rb.syncRanobe(NOW + 1);
-		expect(r?.suggestions).toEqual({ approved: 0, waiting: 2 });
+		expect(r?.suggestions).toEqual({ approved: 0, waiting: 3 });
 		bundles.get(7)!.status = 'approved';
 		catalogue = { 'The Beginning After the End': 'w907' };
 		r = await rb.syncRanobe(NOW + 2);
-		expect(r?.suggestions.approved).toBe(1);
+		// Book 5 and Book 7, which joined its bundle.
+		expect(r?.suggestions.approved).toBe(2);
+		expect(db.prepare(`SELECT work FROM ranobe_links WHERE series_id = ?`).get(B7)).toEqual({
+			work: 'w907'
+		});
 		expect(db.prepare(`SELECT work, via FROM ranobe_links WHERE series_id = ?`).get(B5)).toEqual({
 			work: 'w907',
 			via: 'review'
