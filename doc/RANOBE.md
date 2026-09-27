@@ -44,6 +44,13 @@ handoff (part 2).
   it's approved. Mapping English volumes onto the Japanese edition was the
   alternative: it would sync at once, and it would say the Japanese volumes
   were read.
+- **Suggestions go through an app account and wait** (2026-09-27, card c72).
+  The owner's token is a moderator's, so anything it suggests is applied at
+  once, and the EPUBs' metadata is too rough for that. Tsundoku suggests
+  through Ranobe's `tsundoku` app account instead, whose edits always wait for
+  the owner, who corrects them in Ranobe's own editor before approving. That's
+  Ranobe's own plan (its `ACCOUNTS.md`, "An app's account"). The owner's token
+  stays for the library.
 
 ## The token
 
@@ -56,6 +63,20 @@ for Ranobe's dev server). The e2e server's `TSUNDOKU_ANILIST=off`, or
 `TSUNDOKU_RANOBE=off`, keeps it off the network.
 
 Checked on 2026-09-27: the token authenticates, and the library was empty.
+
+**`RANOBE_SUGGEST_TOKEN`**, the second token, is the app account's, with
+`catalogue:read,catalogue:write` only. Every suggestion goes through it:
+works and people (below), and editions. Without it, no work is suggested, and
+a missing edition still goes through the owner's token, applied at once, as
+it did before c72. Made once, on the VPS, in `/srv/ranobe`:
+
+```sh
+yarn run user:create tsundoku app
+yarn run token:create tsundoku "Tsundoku suggestions" catalogue:read,catalogue:write
+```
+
+Then into Infisical (project `tsundoku`, `prod`) as `RANOBE_SUGGEST_TOKEN`,
+`yarn run secrets:pull`, and a restart.
 
 ## Privacy
 
@@ -138,13 +159,61 @@ until it's decided. Approved, its edition becomes the series' and the pass
 maps and sends at once. Rejected or withdrawn, it's never suggested again
 (the owner said no). A suggestion that couldn't be sent is tried again.
 
-**The owner's token applies them at once.** It is their own account, a
-moderator's, so Ranobe approves the bundle as it's sent, with the owner as
-reviewer. That happened in the first pass, 2026-09-27. An app's own account
-(Ranobe's `ACCOUNTS.md`, "An app's account") would have every suggestion wait
-for review instead, and the pass handles that too. If the owner wants to
-review what tsundoku suggests before it's live, the token has to move to such
-an account.
+**Through the app account, they wait.** With `RANOBE_SUGGEST_TOKEN` set, an
+edition suggestion waits for the owner on Ranobe like any other, and the pass
+asks after it until it's decided. Without it, the owner's token sends it, and
+a moderator's suggestion is applied as sent. That's what happened in the
+first pass, 2026-09-27: bundles 1–5, approved at once with the owner as
+reviewer.
+
+## Suggesting a novel
+
+For a novel Ranobe hasn't got (card c72; the contract's step 12). **Only on
+the owner's tap**, SUGGEST TO RANOBE in the review's nothing-found state (1d),
+and only with `RANOBE_SUGGEST_TOKEN`. Without it the row stays dimmed, NOT
+YET, and says what it needs. Never for a hidden series or Hentoid.
+
+1. **Ranobe is searched once more**, by the title with the volume cut off. If
+   it has the work now, nothing is suggested: the candidates come back to
+   choose from.
+2. **The EPUB is read** (`parsePackage`: dc:title, dc:creator with its role,
+   dc:language, dc:publisher, an ISBN among dc:identifier).
+3. **One bundle, through the app account**: the authors as people, then the
+   work crediting them (`workBundle`). `source` is `epub:<file name>`, and the
+   `reason` says which parts are guesses.
+4. **The series leaves the review** while it waits. Its LINK row says
+   `SUGGESTED TO RANOBE · BUNDLE 7 · WAITS FOR YOUR REVIEW THERE`, and its
+   TRACKING line `RANOBE · SUGGESTED, WAITING FOR YOUR REVIEW`. UNDO in the
+   review withdraws the bundle (`POST /bundles/{id}/withdraw`).
+5. **Each pass asks after it** (`checkWorkSuggestions`, before the search).
+   Approved: the series is linked to the work it made, and its siblings (the
+   same title before a volume number) are searched again in the same pass, so
+   the new work comes to them as a candidate. Rejected or withdrawn on
+   Ranobe: settled as NOT ON RANOBE, since the owner said no.
+
+**What the files give, and what's guessed.** Measured on 2026-09-27 over the
+15 unlinked novels: no ISBN and no publisher on any but a textbook, since
+they're fan rips. So:
+
+- **Authors** come cleaned (`suggestedPeople`). Only `aut` when the file gives
+  roles. A placeholder ("To be implemented") or a ripper's credit ("Goldengato
+  https://jnovels.com") is dropped. The same name spelt twice ("Turtle Me",
+  "TurtleMe") is kept once. A native name in brackets is split out, "Sing-shong
+  (싱숑)" becoming 싱숑 with Sing-shong as its romanisation, since Ranobe files
+  a person under the native name. None left, and the work goes without an
+  author.
+- **The title** is the file's, with the volume cut off, in the file's own
+  language, and never `official`.
+- **The kind is a guess**: a series that is one volume is a light novel, one
+  of chapters a web novel.
+- **The original language is a guess** from the authors' script (Hangul is
+  Korean, kana Japanese, Han Chinese), and `und`, undetermined, when it
+  doesn't say. It's never the file's language: that's the translation's.
+
+Ranobe's bundle lists **duplicates** while it's pending: an existing person or
+work whose name or title normalises the same. The owner sees them in the
+review there. Tsundoku can't ask about people itself, since Ranobe's search
+is works only.
 
 ## Sending
 
@@ -256,6 +325,12 @@ queue with AniList's: it's one review.
 
 ## Where it departs from the handoff
 
+- **SUGGEST TO RANOBE** (1d) was drawn dimmed, `LATER · FROM THE EPUB’S OWN
+TITLE, AUTHOR, PUBLISHER AND ISBN` / `NOT YET`. With the app account's token
+  it's live: `FROM THE EPUB’S OWN TITLE AND AUTHOR · WAITS FOR YOUR REVIEW ON
+RANOBE`, with a SUGGEST cell. Publisher and ISBN go unmentioned, since the
+  files have neither. Without the token it's the mock's row, saying what's
+  missing (card c72).
 - **"Token for masshiro"** reads **Token in .env**. Ranobe has no endpoint
   naming a token's account (`/me/tokens` is session-only), so the name
   can't be known from here.
@@ -298,12 +373,14 @@ the End is 7 of them, one per volume.
   Settling The Beginning After the End as not on Ranobe is seven decisions
   today, one per volume. The same list after NOT ON RANOBE would make it one,
   and would need its own drawing.
-- **The suggestions waiting on review**, on a screen. The owner's token has
-  them applied at once, so none waits today.
-- **Suggesting works and people** (step 12): the EPUB importer reading
-  `dc:title`, `dc:creator`, `dc:publisher`, `dc:language` and the ISBN, and
-  suggesting a novel Ranobe lacks. That is how the Korean web novels get
-  there.
+- **The app account itself.** It's made on the VPS, by the owner (above).
+  Until `RANOBE_SUGGEST_TOKEN` is in Infisical, SUGGEST TO RANOBE stays NOT
+  YET.
+- **The suggestions waiting on review**, on a screen of their own. SETTINGS
+  counts them (`N SUGGESTED`) and each series says so, but the list is
+  Ranobe's queue.
+- **Suggesting on import**, without a tap. Deliberately not: the owner
+  decided each one should be asked for.
 - **Rereads** (step 10): a new read-through. Today a read sent again lands in
   the current one as a duplicate.
 - **The other direction** (step 11): `GET /me/reads?since=` and

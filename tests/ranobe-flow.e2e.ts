@@ -181,6 +181,10 @@ test('nothing found: NOT ON RANOBE, and UNDO (1d)', async ({ page }) => {
 	await page.goto('/links?series=' + ids.lotm + '&service=ranobe');
 	await expect(page.getByText('Ranobe doesn’t have this novel.')).toBeVisible();
 	await expect(page.locator('.suggest .sy')).toHaveText('NOT YET');
+	// Suggesting needs the app account's token (c72); this preview has none, and says so.
+	await expect(page.locator('.suggest .sd')).toHaveText(
+		'NEEDS RANOBE_SUGGEST_TOKEN, THE APP ACCOUNT’S · DOC/RANOBE.MD'
+	);
 	await page.goto('/links');
 	// Skip the two TBATE volumes to reach it.
 	await page.getByRole('button', { name: 'SKIP' }).click();

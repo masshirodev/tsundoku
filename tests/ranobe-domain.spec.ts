@@ -3,12 +3,16 @@ import { ago } from '$lib/library/tracking';
 import {
 	chapterOf,
 	coverNote,
+	epubLang,
 	halfRead,
 	parseRanobeUrl,
 	ranobeLines,
 	ranobeRows,
 	ranobeWhy,
+	scriptLang,
+	suggestedPeople,
 	unitsLabel,
+	workBundle,
 	type RanobeCandidate,
 	type RanobeFacts,
 	chooseEdition,
@@ -247,6 +251,7 @@ describe('the TRACKING line', () => {
 		hidden: false,
 		linked: true,
 		edition: true,
+		suggested: false,
 		suggestionRefused: false,
 		lang: 'en',
 		remote: {
@@ -336,5 +341,96 @@ describe('the TRACKING line', () => {
 		).toEqual({ unit: 'v6', read: 1, of: 3 });
 		// A web novel's chapter is one entry: never half.
 		expect(halfRead([{ unit: 'c1', readAt: null }])).toBeNull();
+	});
+});
+
+describe('suggesting a novel (c72)', () => {
+	it('reads a language from a script, and from an EPUB’s tag', () => {
+		expect(scriptLang('백덕수')).toBe('ko');
+		expect(scriptLang('香月美夜')).toBe('zh');
+		expect(scriptLang('かづき みや')).toBe('ja');
+		expect(scriptLang('TurtleMe')).toBeNull();
+		expect(epubLang('en_US')).toBe('en-US');
+		expect(epubLang('eng')).toBe('en');
+		expect(epubLang('en')).toBe('en');
+		expect(epubLang('')).toBeNull();
+	});
+
+	it('keeps authors, and drops what isn’t one (the files’ own creators)', () => {
+		// The Beginning After The End 08: a ripper's credit beside the author.
+		expect(
+			suggestedPeople([
+				{ name: 'Goldengato https://jnovels.com', role: '' },
+				{ name: 'Turtle Me', role: '' }
+			])
+		).toEqual([{ name: 'Turtle Me', latin: null, lang: null }]);
+		// SSS-Class Suicide Hunter: a placeholder, nobody.
+		expect(suggestedPeople([{ name: 'To be implemented', role: '' }])).toEqual([]);
+		// Omniscient Reader's Viewpoint: the native name leads, the romanisation beside it.
+		expect(suggestedPeople([{ name: 'Sing-shong (싱숑)', role: '' }])).toEqual([
+			{ name: '싱숑', latin: 'Sing-shong', lang: 'ko' }
+		]);
+		// One name spelt twice, and an illustrator when roles are given.
+		expect(
+			suggestedPeople([
+				{ name: 'TurtleMe', role: 'aut' },
+				{ name: 'Turtle Me', role: 'aut' },
+				{ name: 'Someone Draws', role: 'ill' }
+			])
+		).toEqual([{ name: 'TurtleMe', latin: null, lang: null }]);
+	});
+
+	it('builds the bundle: the people first, the work crediting them', () => {
+		const b = workBundle({
+			title: 'The Beginning After the End',
+			volume: '5',
+			people: [{ name: 'TurtleMe', latin: null, lang: null }],
+			lang: 'en',
+			file: 'TBATE - Book 5.epub'
+		});
+		expect(b.source).toBe('epub:TBATE - Book 5.epub');
+		expect(b.items.map((i) => [i.key, i.type])).toEqual([
+			['author1', 'person'],
+			['work', 'work']
+		]);
+		expect(b.items[1].snapshot).toMatchObject({
+			kind: 'light_novel',
+			originalLang: 'und',
+			titles: [{ lang: 'en', title: 'The Beginning After the End', latin: null, official: false }],
+			credits: [{ personId: '@author1', orgId: null, role: 'author', note: null }]
+		});
+		expect(b.reason).toContain('guesses');
+		// The author's script says the original language; chapters say a web novel.
+		const ko = workBundle({
+			title: 'Omniscient Reader’s Viewpoint',
+			volume: null,
+			people: [{ name: '싱숑', latin: 'Sing-shong', lang: 'ko' }],
+			lang: 'en',
+			file: 'orv.epub'
+		});
+		expect(ko.items[1].snapshot).toMatchObject({ kind: 'web_novel', originalLang: 'ko' });
+	});
+
+	it('says a suggestion waits, on the TRACKING row', () => {
+		const r = ranobeLines(
+			{
+				configured: true,
+				hidden: false,
+				linked: false,
+				suggested: true,
+				edition: false,
+				suggestionRefused: false,
+				lang: 'en',
+				remote: null,
+				sentAt: null,
+				failed: null,
+				half: null
+			},
+			{ now: NOW, offline: false, ago, clock: () => '09:14' }
+		);
+		expect(r?.lines[0]).toMatchObject({
+			l: 'RANOBE · SUGGESTED, WAITING FOR YOUR REVIEW',
+			r: 'NOTHING SENT YET'
+		});
 	});
 });

@@ -22,6 +22,7 @@ on 2026-09-24.
 | `KUMIKO_TOKEN`, `KUMIKO_DECK`      | Mined words to Kumiko ([`JAPANESE.md`](JAPANESE.md))     |
 | `ANILIST_CLIENT_*`, `MAL_CLIENT_*` | Tracking sign-ins ([`TRACKING.md`](TRACKING.md))         |
 | `RANOBE_TOKEN`                     | Novels to Ranobe ([`RANOBE.md`](RANOBE.md))              |
+| `RANOBE_SUGGEST_TOKEN`             | Suggestions to Ranobe, as its app account (RANOBE.md)    |
 
 A pull writes Infisical's list and nothing else, so a key that exists only
 in `.env` is dropped. The script names each one it drops.

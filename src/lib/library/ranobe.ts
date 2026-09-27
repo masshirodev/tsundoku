@@ -273,6 +273,8 @@ export type RanobeFacts = {
 	configured: boolean;
 	hidden: boolean;
 	linked: boolean;
+	/** Suggested to Ranobe from its EPUB, waiting for the owner there (card c72). */
+	suggested: boolean;
 	/** The edition the series reads; null while it waits on one. */
 	edition: boolean;
 	/** The suggestion for it was refused or withdrawn. */
@@ -343,6 +345,14 @@ export function ranobeLines(
 	if (f.hidden)
 		return {
 			lines: [line('NOTHING SENT · HIDDEN SERIES STAY OFF RANOBE', '', false)],
+			retry: false
+		};
+	if (!f.linked && f.suggested)
+		return {
+			lines: [
+				line('RANOBE · SUGGESTED, WAITING FOR YOUR REVIEW', 'NOTHING SENT YET'),
+				line('LINKED IN THE PASS AFTER YOU APPROVE IT ON RANOBE', '', false)
+			],
 			retry: false
 		};
 	if (!f.linked)
@@ -425,4 +435,151 @@ export function halfRead(
 	}
 	for (const [unit, u] of by) if (u.of > 1 && u.read > 0 && u.read < u.of) return { unit, ...u };
 	return null;
+}
+
+// ---- suggesting a work (card c72; doc/RANOBE.md, "Suggesting a novel") ----------------------
+
+/** The language a name's script says: Hangul is Korean, kana Japanese, Han alone Chinese. */
+export function scriptLang(s: string): string | null {
+	if (/\p{Script=Hangul}/u.test(s)) return 'ko';
+	if (/[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(s)) return 'ja';
+	if (/\p{Script=Han}/u.test(s)) return 'zh';
+	return null;
+}
+
+const LANG3: Record<string, string> = {
+	eng: 'en',
+	jpn: 'ja',
+	kor: 'ko',
+	chi: 'zh',
+	zho: 'zh',
+	por: 'pt',
+	spa: 'es',
+	fre: 'fr',
+	fra: 'fr',
+	ger: 'de',
+	deu: 'de'
+};
+
+/** An EPUB's dc:language as a BCP 47 tag: `en_US` is `en-US`, `eng` is `en`. Null when unreadable. */
+export function epubLang(raw: string): string | null {
+	const t = raw.trim().replace(/_/g, '-');
+	const [base, ...rest] = t.split('-');
+	const b = (LANG3[base.toLowerCase()] ?? base).toLowerCase();
+	if (!/^[a-z]{2,3}$/.test(b)) return null;
+	const region = rest.filter((r) => /^[A-Za-z0-9]{2,8}$/.test(r));
+	return [b, ...region.map((r) => (r.length === 2 ? r.toUpperCase() : r))].join('-');
+}
+
+/** A name that is no author: a file's placeholder, or a ripper's credit with a URL in it. */
+const NOT_A_NAME =
+	/^(to be implemented|unknown|anonymous|n\/?a|none|author|various|admin)$|https?:\/\/|www\.|\.(com|net|org|io)\b/i;
+
+export type SuggestedPerson = { name: string; latin: string | null; lang: string | null };
+
+/**
+ * The EPUB's creators as the people to suggest: authors only when the file
+ * names roles, placeholders and rippers' credits dropped, the same name
+ * spelt twice kept once ("Turtle Me", "TurtleMe"), and a native name in
+ * brackets split out ("Sing-shong (싱숑)"). Ranobe files a person under the
+ * native name, with the romanisation beside it.
+ */
+export function suggestedPeople(creators: { name: string; role: string }[]): SuggestedPerson[] {
+	const roled = creators.some((c) => c.role);
+	const out: SuggestedPerson[] = [];
+	const seen = new Set<string>();
+	for (const c of creators) {
+		if (roled && c.role && c.role.toLowerCase() !== 'aut') continue;
+		const name = c.name.replace(/\s+/g, ' ').trim();
+		if (!name || NOT_A_NAME.test(name)) continue;
+		const m = name.match(/^(.+?)\s*[(（]([^)）]+)[)）]$/);
+		const [a, b] = m ? [m[1].trim(), m[2].trim()] : [name, ''];
+		const native = [a, b].find((x) => x && scriptLang(x)) ?? null;
+		const latin = [a, b].find((x) => x && !scriptLang(x)) ?? null;
+		const key = (native ?? latin ?? '').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+		if (!key || seen.has(key)) continue;
+		seen.add(key);
+		out.push(
+			native
+				? { name: native, latin, lang: scriptLang(native) }
+				: { name: latin!, latin: null, lang: null }
+		);
+	}
+	return out;
+}
+
+/**
+ * The bundle a series suggests (API-V1.md, "Bundles"): its authors as
+ * people, then the work crediting them. Only what the file says, and two
+ * guesses the owner corrects on Ranobe before approving: the kind (a series
+ * that is one volume is a light novel, one of chapters a web novel), and the
+ * original language (the author's script; `und`, undetermined, when it
+ * doesn't say).
+ */
+export function workBundle(o: {
+	title: string;
+	volume: string | null;
+	people: SuggestedPerson[];
+	lang: string | null;
+	file: string;
+}): {
+	reason: string;
+	source: string;
+	items: { key: string; type: 'person' | 'work'; snapshot: Record<string, unknown> }[];
+} {
+	const people = o.people.map((p, i) => ({
+		key: `author${i + 1}`,
+		type: 'person' as const,
+		snapshot: {
+			hidden: false,
+			name: p.name,
+			reading: null,
+			latin: p.latin,
+			lang: p.lang,
+			aliases: [],
+			description: null,
+			externalIds: []
+		}
+	}));
+	const original = o.people.map((p) => p.lang).find((l) => l !== null) ?? 'und';
+	const kind = o.volume !== null ? 'light_novel' : 'web_novel';
+	return {
+		reason: [
+			`From Tsundoku: an EPUB${o.volume ? ` of volume ${o.volume}` : ''} that Ranobe's search didn't find.`,
+			'The title and author are the file’s own.',
+			`The kind (${kind === 'light_novel' ? 'light novel, from a volume' : 'web novel, from chapters'}) and the original language (${original}) are guesses.`
+		].join(' '),
+		source: `epub:${o.file}`,
+		items: [
+			...people,
+			{
+				key: 'work',
+				type: 'work',
+				snapshot: {
+					kind,
+					hidden: false,
+					originalLang: original,
+					titles: [{ lang: o.lang ?? 'en', title: o.title, latin: null, official: false }],
+					aliases: [],
+					status: 'unknown',
+					adult: false,
+					synopses: [],
+					coverImageId: null,
+					bannerImageId: null,
+					images: [],
+					attributes: {},
+					credits: people.map((p) => ({
+						personId: `@${p.key}`,
+						orgId: null,
+						role: 'author',
+						note: null
+					})),
+					cast: [],
+					tags: [],
+					relations: [],
+					externalIds: []
+				}
+			}
+		]
+	};
 }

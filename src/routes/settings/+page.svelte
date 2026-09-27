@@ -175,7 +175,7 @@
 						<div class="meta">
 							{rbPassHead}{#if rb.toChoose}
 								· <a class="choose" href={resolve('/links')}>{rb.toChoose} TO CHOOSE</a>{/if}
-							· {count(rb.notOn)} NOT ON RANOBE
+							· {count(rb.notOn)} NOT ON RANOBE{rb.suggested ? ` · ${rb.suggested} SUGGESTED` : ''}
 						</div>
 					{:else}
 						<div class="name muted">Not configured</div>
@@ -218,6 +218,17 @@
 				<p>
 					THE TOKEN IS RANOBE_TOKEN IN .ENV, FROM INFISICAL. THERE’S NOTHING TO SIGN IN TO HERE.
 				</p>
+				{#if rb.suggests}
+					<p>
+						SUGGESTIONS GO THROUGH RANOBE_SUGGEST_TOKEN, THE APP ACCOUNT’S, AND WAIT FOR YOU ON
+						RANOBE.
+					</p>
+				{:else}
+					<p>
+						WITHOUT RANOBE_SUGGEST_TOKEN NO NOVEL IS SUGGESTED, AND A MISSING EDITION GOES THROUGH
+						YOUR OWN TOKEN, APPLIED AT ONCE.
+					</p>
+				{/if}
 			{:else}
 				<p>
 					NOTHING TO TAP. WITHOUT A TOKEN NOTHING IS LOOKED UP OR SENT, AND NOVELS SHOW NO RANOBE

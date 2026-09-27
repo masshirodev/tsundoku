@@ -74,6 +74,8 @@ export function sampleEpub(o: {
 	/** The entries' own labels, in order: one chapter each. */
 	chapters: string[];
 	language?: string;
+	/** Its dc:creators, each with an EPUB 2 role when given. "Development Sample" when left out. */
+	creators?: { name: string; role?: string }[];
 }): Buffer {
 	const files: { name: string; data: string | Buffer; deflate?: boolean }[] = [
 		{ name: 'mimetype', data: 'application/epub+zip' },
@@ -128,10 +130,10 @@ export function sampleEpub(o: {
 		name: 'OEBPS/content.opf',
 		data: `<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id">
-<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+<metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
 <dc:identifier id="id">sample:${esc(o.title)}</dc:identifier>
 <dc:title>${esc(o.title)}</dc:title>
-<dc:creator>Development Sample</dc:creator>
+${(o.creators ?? [{ name: 'Development Sample' }]).map((c) => `<dc:creator${c.role ? ` opf:role="${esc(c.role)}"` : ''}>${esc(c.name)}</dc:creator>`).join('\n')}
 <dc:language>${o.language ?? 'en'}</dc:language>
 </metadata>
 <manifest>

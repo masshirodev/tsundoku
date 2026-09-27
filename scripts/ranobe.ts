@@ -24,6 +24,9 @@ if (!r) {
 }
 console.log(`ranobe: ${r.linked} linked by id, ${r.searched} searched by title for the review`);
 console.log(
+	`  suggested: ${r.suggestions.approved} approved and linked, ${r.suggestions.waiting} waiting for your review`
+);
+console.log(
 	`  editions:  ${r.editions.found} found, ${r.editions.suggested} suggested, ${r.editions.waiting} waiting on review`
 );
 console.log(`  mapped:    ${r.mapped} entries onto units`);

@@ -1,7 +1,15 @@
 import { basename } from 'node:path';
 import { getDb } from './db.ts';
 import { HIDDEN_SQL } from './visibility.ts';
-import { ELIGIBLE_SQL, configured, linkWork, readWork, searchOne, unlinkSeries } from './ranobe.ts';
+import {
+	ELIGIBLE_SQL,
+	configured,
+	linkWork,
+	readWork,
+	searchOne,
+	suggestConfigured,
+	unlinkSeries
+} from './ranobe.ts';
 import { cleanTitle, coverOnly, isCutShort, normaliseTitle } from '../library/catalogue.ts';
 import {
 	RANOBE_KINDS,
@@ -94,10 +102,11 @@ const ROW_SQL = `SELECT s.id, s.title, s.alt_titles, s.kind, s.hue, s.source, s.
 	LEFT JOIN ranobe_searches rs ON rs.series_id = s.id
 	LEFT JOIN series_links l ON l.series_id = s.id`;
 
-/** Waiting on Ranobe: eligible, not linked there, not settled. */
+/** Waiting on Ranobe: eligible, not linked there, not settled, not suggested and waiting. */
 const WAITING_SQL = `${ELIGIBLE_SQL}
 	AND s.id NOT IN (SELECT series_id FROM ranobe_links)
-	AND s.id NOT IN (SELECT series_id FROM ranobe_decisions)`;
+	AND s.id NOT IN (SELECT series_id FROM ranobe_decisions)
+	AND s.id NOT IN (SELECT series_id FROM ranobe_work_suggestions WHERE status = 'pending')`;
 
 const titlesOf = (r: Pick<Row, 'title' | 'alt_titles'>) => [
 	r.title,
@@ -604,22 +613,29 @@ export function ranobeSeries(seriesId: number): RanobeSeries | null {
 		db.prepare(`SELECT decision FROM ranobe_decisions WHERE series_id = ?`).get(seriesId) as
 			{ decision: string } | undefined
 	)?.decision;
+	const suggested = db
+		.prepare(
+			`SELECT bundle FROM ranobe_work_suggestions WHERE series_id = ? AND status = 'pending'`
+		)
+		.get(seriesId) as { bundle: number } | undefined;
 	const unlinkedMeta = s.hidden
 		? 'HIDDEN SERIES ARE NEVER LOOKED UP ON RANOBE'
-		: decision === 'none'
-			? 'NOT ON RANOBE · SETTLED IN THE REVIEW · NOTHING SENT'
-			: decision === 'unlinked'
-				? 'UNLINKED · A PASS WON’T LINK IT AGAIN'
-				: search?.searched_at && search.found
-					? `${search.found} CANDIDATE${search.found === 1 ? '' : 'S'} FROM THE LAST PASS · NONE CHOSEN`
-					: [
-							anilist ? `${anilist} · COVER AND DETAILS` : '',
-							search?.searched_at
-								? 'RANOBE FOUND NOTHING BY ITS IDS OR ITS TITLE'
-								: 'NOT SEARCHED ON RANOBE YET'
-						]
-							.filter(Boolean)
-							.join(' · ');
+		: suggested
+			? `SUGGESTED TO RANOBE · BUNDLE ${suggested.bundle} · WAITS FOR YOUR REVIEW THERE`
+			: decision === 'none'
+				? 'NOT ON RANOBE · SETTLED IN THE REVIEW · NOTHING SENT'
+				: decision === 'unlinked'
+					? 'UNLINKED · A PASS WON’T LINK IT AGAIN'
+					: search?.searched_at && search.found
+						? `${search.found} CANDIDATE${search.found === 1 ? '' : 'S'} FROM THE LAST PASS · NONE CHOSEN`
+						: [
+								anilist ? `${anilist} · COVER AND DETAILS` : '',
+								search?.searched_at
+									? 'RANOBE FOUND NOTHING BY ITS IDS OR ITS TITLE'
+									: 'NOT SEARCHED ON RANOBE YET'
+							]
+								.filter(Boolean)
+								.join(' · ');
 	return {
 		unlinkedMeta,
 		configured: configured(),
@@ -644,6 +660,7 @@ export function ranobeSeries(seriesId: number): RanobeSeries | null {
 			configured: configured(),
 			hidden: !!s.hidden,
 			linked: !!s.work,
+			suggested: !!suggested,
 			edition: !!s.edition,
 			suggestionRefused: refused,
 			lang,
@@ -685,6 +702,10 @@ export async function retryRanobe(seriesId?: number): Promise<void> {
 
 export type RanobeAccount = {
 	configured: boolean;
+	/** The app account's token is there: novels can be suggested, and wait for the owner. */
+	suggests: boolean;
+	/** Suggestions waiting for the owner on Ranobe. */
+	suggested: number;
 	failed: { count: number; at: number | null; error: string | null };
 	lastSent: number | null;
 	passAt: number | null;
@@ -713,6 +734,12 @@ export function ranobeAccount(): RanobeAccount {
 		).n;
 	return {
 		configured: configured(),
+		suggests: suggestConfigured(),
+		suggested: (
+			db
+				.prepare(`SELECT COUNT(*) AS n FROM ranobe_work_suggestions WHERE status = 'pending'`)
+				.get() as { n: number }
+		).n,
 		failed: { count: f.n, at: f.at, error: f.error },
 		lastSent: (
 			db.prepare(`SELECT MAX(sent_at) AS at FROM ranobe_units`).get() as { at: number | null }

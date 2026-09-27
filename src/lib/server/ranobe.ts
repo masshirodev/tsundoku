@@ -43,6 +43,15 @@ const token = () => process.env.RANOBE_TOKEN ?? '';
 /** Whether Ranobe can be written to at all: a token in .env (doc/SECRETS.md). */
 export const configured = () => token() !== '';
 
+/**
+ * The app account's token (Ranobe's ACCOUNTS.md, "An app's account"), for
+ * suggestions only. Its edits always wait for a person, where the owner's
+ * own token -- a moderator's -- would have them applied as sent. The
+ * owner's stays for the library.
+ */
+const suggestToken = () => process.env.RANOBE_SUGGEST_TOKEN ?? '';
+export const suggestConfigured = () => configured() && suggestToken() !== '';
+
 /** Ranobe answered, and said no. `code` is from its closed list (API-V1.md, "Errors"). */
 export class Refused extends Error {
 	// Plain fields, not parameter properties: scripts run this file with
@@ -68,7 +77,7 @@ export function setRanobeFetch(f: Fetch | null): void {
 
 export async function api<T>(
 	path: string,
-	init: { method?: string; body?: unknown; key?: string } = {}
+	init: { method?: string; body?: unknown; key?: string; as?: 'suggest' } = {}
 ): Promise<T | null> {
 	// The e2e server reaches no catalogue at all, Ranobe included.
 	if (process.env.TSUNDOKU_ANILIST === 'off' || process.env.TSUNDOKU_RANOBE === 'off')
@@ -80,7 +89,7 @@ export async function api<T>(
 				method: init.method ?? 'GET',
 				headers: {
 					accept: 'application/json',
-					authorization: `Bearer ${token()}`,
+					authorization: `Bearer ${init.as === 'suggest' ? suggestToken() : token()}`,
 					...(init.body !== undefined ? { 'content-type': 'application/json' } : {}),
 					...(init.key ? { 'idempotency-key': init.key } : {})
 				},
@@ -366,6 +375,7 @@ export async function searchNovels(now = Date.now(), limit = 200): Promise<numbe
 			WHERE ${ELIGIBLE_SQL} AND rs.searched_at IS NULL
 				AND s.id NOT IN (SELECT series_id FROM ranobe_links)
 				AND s.id NOT IN (SELECT series_id FROM ranobe_decisions)
+				AND s.id NOT IN (SELECT series_id FROM ranobe_work_suggestions WHERE status = 'pending')
 			ORDER BY s.id LIMIT ?`
 		)
 		.all(limit) as { id: number; title: string; query: string | null }[];
@@ -556,6 +566,8 @@ async function suggestEdition(work: string, lang: string, now: number): Promise<
 	}));
 	const answer = await api<BundleAnswer>('/bundles', {
 		method: 'POST',
+		// Through the app account when there is one, so it waits for the owner.
+		...(suggestConfigured() ? { as: 'suggest' as const } : {}),
 		key: `tsundoku-edition-${work}-${lang}-${now}`,
 		body: {
 			reason: `From Tsundoku: the owner reads this work in ${lang}${
@@ -900,6 +912,8 @@ export type SyncSummary = {
 	linked: number;
 	/** Novels searched by title, for the review. */
 	searched: number;
+	/** Suggested novels: approved since the last pass (and linked), still waiting. */
+	suggestions: { approved: number; waiting: number };
 	editions: { found: number; suggested: number; waiting: number };
 	mapped: number;
 	sent: { read: number; unread: number; works: number; failed: number };
@@ -918,6 +932,7 @@ export async function syncRanobe(now = Date.now()): Promise<SyncSummary | null> 
 	const out: SyncSummary = {
 		linked: 0,
 		searched: 0,
+		suggestions: { approved: 0, waiting: 0 },
 		editions: { found: 0, suggested: 0, waiting: 0 },
 		mapped: 0,
 		sent: { read: 0, unread: 0, works: 0, failed: 0 },
@@ -935,6 +950,12 @@ export async function syncRanobe(now = Date.now()): Promise<SyncSummary | null> 
 		}
 	};
 	await step('lookup', async () => void (out.linked = await matchByLookup(now)));
+	// Suggested novels first: one approved since links its series, and has its
+	// siblings searched again in the next step, which now finds it.
+	await step('suggestions', async () => {
+		const { checkWorkSuggestions } = await import('./ranobe-suggest.ts');
+		out.suggestions = await checkWorkSuggestions(now);
+	});
 	await step('search', async () => void (out.searched = await searchNovels(now)));
 	await step('editions', async () => void (out.editions = await resolveEditions(now)));
 	await step('units', async () => void (out.mapped = await mapSeries({ now })));

@@ -711,6 +711,20 @@ const MIGRATIONS: string[] = [
 	ALTER TABLE ranobe_works ADD COLUMN remote_rating INTEGER;
 	ALTER TABLE ranobe_works ADD COLUMN remote_favourite INTEGER;
 	ALTER TABLE ranobe_works ADD COLUMN state_at INTEGER;
+	`,
+	// Rung 33: a novel suggested to Ranobe from its EPUB (card c72; doc/RANOBE.md,
+	// "Suggesting a novel"). One per series: the bundle, how it stands, and the
+	// work it made once approved. A pending one keeps the series out of the
+	// review; an approved one links it.
+	`
+	CREATE TABLE ranobe_work_suggestions (
+		series_id INTEGER PRIMARY KEY REFERENCES series(id) ON DELETE CASCADE,
+		bundle INTEGER NOT NULL,
+		status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'rejected', 'withdrawn')),
+		work TEXT,
+		sent_at INTEGER NOT NULL,
+		checked_at INTEGER
+	);
 	`
 ];
 

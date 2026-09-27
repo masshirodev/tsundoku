@@ -2,7 +2,7 @@ import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { isRevealed } from '$lib/server/prefs';
 import { linkQueue, linkState, reviewItem, seriesAccess } from '$lib/server/catalogue';
-import { configured } from '$lib/server/ranobe';
+import { configured, suggestConfigured } from '$lib/server/ranobe';
 import { ranobeItem, ranobeQueue, ranobeSeries } from '$lib/server/ranobe-review';
 
 /**
@@ -31,7 +31,8 @@ export const load: PageServerLoad = ({ cookies, url }) => {
 					linked: state.link?.title ?? null,
 					queued: item.queued
 				},
-				paste: url.searchParams.has('paste')
+				paste: url.searchParams.has('paste'),
+				canSuggest: suggestConfigured()
 			};
 		}
 		const item = reviewItem(id, reveal);
@@ -44,7 +45,8 @@ export const load: PageServerLoad = ({ cookies, url }) => {
 				linked: state.linked?.title || state.linked?.ids || null,
 				queued: state.queued
 			},
-			paste: url.searchParams.has('paste')
+			paste: url.searchParams.has('paste'),
+			canSuggest: suggestConfigured()
 		};
 	}
 	return {
@@ -53,6 +55,8 @@ export const load: PageServerLoad = ({ cookies, url }) => {
 			...linkQueue(reveal).map((i) => ({ ...i, service: 'anilist' as const }))
 		],
 		single: null,
-		paste: false
+		paste: false,
+		// SUGGEST TO RANOBE needs the app account's token (doc/RANOBE.md).
+		canSuggest: suggestConfigured()
 	};
 };

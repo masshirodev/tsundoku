@@ -52,7 +52,7 @@
 	/** The workstation answered that the catalogue couldn't be reached (Link Review 1g). */
 	let nonet = $state<Service | null>(null);
 
-	type UndoKind = 'link' | 'none' | 'search' | 'many';
+	type UndoKind = 'link' | 'none' | 'search' | 'many' | 'suggest';
 	type Undo = {
 		title: string;
 		detail: string;
@@ -367,6 +367,55 @@
 			undo: back,
 			before: beforeQ,
 			restore: it
+		};
+	}
+
+	/**
+	 * SUGGEST TO RANOBE (card c72): the EPUB's work and authors, sent through
+	 * the app account, waiting for the owner on Ranobe. Ranobe is searched
+	 * once more first: a work that arrived since comes back as candidates.
+	 */
+	async function suggestIt() {
+		if (!item || busy || item.service !== 'ranobe') return;
+		const it = item;
+		const before = { queue: [...queue], done };
+		busy = true;
+		failed = null;
+		const r = await post('ranobe', { series: it.seriesId, suggest: true });
+		busy = false;
+		if (!r?.ok) {
+			if (r?.status === 503) nonet = 'ranobe';
+			failed = r?.status === 503 ? 'RANOBE DID NOT ANSWER · NOTHING SENT' : NO_ANSWER;
+			return;
+		}
+		const a = (await r.json()) as {
+			outcome: 'suggested' | 'found';
+			bundle?: number;
+			found?: number;
+			item: Item | null;
+		};
+		if (a.outcome === 'found') {
+			if (a.item) byKey.set(qk(a.item), a.item);
+			shown = null;
+			undo = {
+				title: `RANOBE HAS IT NOW · ${a.found} FOUND`,
+				detail: 'NOTHING SUGGESTED · TAP ONE TO LINK',
+				undo: null,
+				before
+			};
+			return;
+		}
+		if (single) {
+			await backToSeries(it.seriesId);
+			return;
+		}
+		queue = queue.slice(1);
+		done += 1;
+		undo = {
+			title: 'SUGGESTED TO RANOBE · WAITS FOR YOUR REVIEW THERE',
+			detail: `BUNDLE ${a.bundle} · LINKED IN THE PASS AFTER YOU APPROVE IT`,
+			undo: { kind: 'suggest', service: 'ranobe', series: it.seriesId },
+			before
 		};
 	}
 
@@ -789,13 +838,31 @@
 								HERE, AND IT ISN’T ASKED ABOUT AGAIN. ITS AUTHOR AND TITLE ARE NEVER SENT.
 							</div>
 						</div>
-						<div class="suggest" aria-disabled="true">
-							<div class="st">
-								<div class="sn">SUGGEST TO RANOBE</div>
-								<div class="sd">LATER · FROM THE EPUB’S OWN TITLE, AUTHOR, PUBLISHER AND ISBN</div>
+						{#if data.canSuggest && !noSearch}
+							<div class="suggest live">
+								<div class="st">
+									<div class="sn">SUGGEST TO RANOBE</div>
+									<div class="sd">
+										FROM THE EPUB’S OWN TITLE AND AUTHOR · WAITS FOR YOUR REVIEW ON RANOBE
+									</div>
+								</div>
+								<button type="button" class="sy" disabled={busy || netDim} onclick={suggestIt}
+									>SUGGEST</button
+								>
 							</div>
-							<div class="sy">NOT YET</div>
-						</div>
+						{:else}
+							<div class="suggest" aria-disabled="true">
+								<div class="st">
+									<div class="sn">SUGGEST TO RANOBE</div>
+									<div class="sd">
+										{noSearch
+											? 'HIDDEN SERIES ARE NEVER SUGGESTED'
+											: 'NEEDS RANOBE_SUGGEST_TOKEN, THE APP ACCOUNT’S · DOC/RANOBE.MD'}
+									</div>
+								</div>
+								<div class="sy">NOT YET</div>
+							</div>
+						{/if}
 					{:else}
 						<div class="nothing">
 							<p>AniList found nothing under this title.</p>
@@ -1481,6 +1548,25 @@
 		border-left: 1px solid var(--line-1);
 		font: 500 13px var(--font-mono);
 		letter-spacing: 0.04em;
+	}
+	/* Live once the app account's token is there (card c72): the dimmed row, switched on. */
+	.suggest.live {
+		opacity: 1;
+	}
+	button.sy {
+		border-top: 0;
+		border-right: 0;
+		border-bottom: 0;
+		background: transparent;
+		color: var(--text-1);
+		cursor: pointer;
+	}
+	button.sy:disabled {
+		opacity: 0.35;
+		cursor: default;
+	}
+	button.sy:not(:disabled):active {
+		background: var(--surface-panel);
 	}
 
 	/* THE SAME WORK FOR THESE? (Ranobe Review 1b), transcribed as the rest. */

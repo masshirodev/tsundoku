@@ -17,7 +17,17 @@ export type TocPoint = { label: string; href: string; depth: number };
 export type Package = {
 	title: string;
 	creators: string[];
+	/**
+	 * Each creator with its MARC role (`aut`, `ill`, `trl`…), from an EPUB 2
+	 * `opf:role` or an EPUB 3 `<meta refines="#id" property="role">`; '' when
+	 * the file doesn't say. For suggesting a novel to Ranobe (doc/RANOBE.md).
+	 */
+	authors: { name: string; role: string }[];
 	language: string;
+	/** dc:publisher, or ''. */
+	publisher: string;
+	/** An ISBN among dc:identifier, digits only (10 or 13), or null. */
+	isbn: string | null;
 	manifest: ManifestItem[];
 	spine: SpineItem[];
 	/** The NCX, and the EPUB 3 navigation document, when the package names them. */
@@ -160,10 +170,41 @@ export function parsePackage(xml: string, opfPath: string): Package {
 	]
 		.map((m) => textOf(m[1]))
 		.filter(Boolean);
+	// EPUB 3 gives a creator's role in a meta that refines its id.
+	const refined = new Map<string, string>();
+	for (const m of xml.matchAll(/<(?:[\w-]+:)?meta\b([^>]*)>([\s\S]*?)<\/(?:[\w-]+:)?meta>/gi)) {
+		const a = attrs(`<meta ${m[1]}>`);
+		if (a.property === 'role' && a.refines?.startsWith('#'))
+			refined.set(a.refines.slice(1), textOf(m[2]));
+	}
+	const authors = [
+		...xml.matchAll(/<(?:[\w-]+:)?creator\b([^>]*)>([\s\S]*?)<\/(?:[\w-]+:)?creator>/gi)
+	]
+		.map((m) => {
+			const a = attrs(`<creator ${m[1]}>`);
+			return {
+				name: textOf(m[2]),
+				role: (a['opf:role'] ?? a.role ?? (a.id ? refined.get(a.id) : undefined) ?? '').trim()
+			};
+		})
+		.filter((c) => c.name);
+	const isbn =
+		[...xml.matchAll(/<(?:[\w-]+:)?identifier\b([^>]*)>([\s\S]*?)<\/(?:[\w-]+:)?identifier>/gi)]
+			.map((m) => {
+				const scheme = attrs(`<identifier ${m[1]}>`)['opf:scheme'] ?? '';
+				const v = textOf(m[2]);
+				const isIsbn = /isbn/i.test(scheme) || /^urn:isbn:/i.test(v);
+				const digits = v.replace(/^urn:isbn:/i, '').replace(/[\s-]/g, '');
+				return isIsbn && /^(\d{9}[\dX]|\d{13})$/i.test(digits) ? digits.toUpperCase() : null;
+			})
+			.find((x) => x !== null) ?? null;
 	return {
 		title: firstText(xml, 'title'),
 		creators: [...new Set(creators)],
+		authors,
 		language: firstText(xml, 'language'),
+		publisher: firstText(xml, 'publisher'),
+		isbn,
 		manifest,
 		spine,
 		ncx,

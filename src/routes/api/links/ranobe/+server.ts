@@ -21,6 +21,7 @@ import {
 	undoSearch
 } from '$lib/server/ranobe-review';
 import { parseRanobeUrl } from '$lib/library/ranobe';
+import { CannotSuggest, suggestWork, withdrawWork } from '$lib/server/ranobe-suggest';
 
 type Body = {
 	series?: number;
@@ -37,7 +38,9 @@ type Body = {
 	paste?: string;
 	unlink?: boolean;
 	retry?: boolean;
-	undo?: 'link' | 'none' | 'search' | 'many';
+	/** SUGGEST TO RANOBE (card c72): the EPUB's work and authors, as a bundle that waits for the owner. */
+	suggest?: boolean;
+	undo?: 'link' | 'none' | 'search' | 'many' | 'suggest';
 };
 
 /**
@@ -65,6 +68,12 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			return json({ ok: true });
 		}
 		if (b.undo === 'none') return json({ ok: undoNone(seriesId) });
+		if (b.undo === 'suggest') return json({ ok: await withdrawWork(seriesId) });
+		if (b.suggest) {
+			if (!searchableOnRanobe(seriesId)) error(409, 'hidden series are never suggested');
+			const r = await suggestWork(seriesId);
+			return json({ ...r, item: ranobeItem(seriesId) });
+		}
 		if (b.undo === 'search') {
 			undoSearch(seriesId);
 			return json({ ok: true });
@@ -110,6 +119,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 	} catch (e) {
 		if (e instanceof Unreachable) error(503, 'Ranobe unreachable');
 		if (e instanceof NotACandidate) error(409, 'not a candidate');
+		if (e instanceof CannotSuggest) error(409, e.message);
 		throw e;
 	}
 	error(400, 'what to do');
