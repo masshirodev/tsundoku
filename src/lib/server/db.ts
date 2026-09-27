@@ -624,6 +624,58 @@ const MIGRATIONS: string[] = [
 	-- without it, the whole revealed library's cards took twice as long.
 	DROP INDEX entries_card;
 	CREATE INDEX entries_card ON entries(series_id, shadowed, matter, read_at, added_at, last_opened_at, available);
+	`,
+	// Rung 31: Ranobe (card c66; doc/RANOBE.md). A novel links to a Ranobe
+	// work, and several series may share one: a volume per EPUB. The edition
+	// is NULL until one in the series' language exists, and volume is the
+	// series' own number when it is one volume. Each entry keeps its unit.
+	// ranobe_units is a unit read here against what was sent, so a send is
+	// the difference and nothing sent from elsewhere is ever taken back.
+	// ranobe_works holds the rating and favourite waiting to go, and
+	// ranobe_suggestions the editions suggested to Ranobe, one per work and
+	// language.
+	`
+	CREATE TABLE ranobe_links (
+		series_id INTEGER PRIMARY KEY REFERENCES series(id) ON DELETE CASCADE,
+		work TEXT NOT NULL,
+		edition TEXT,
+		lang TEXT NOT NULL,
+		volume TEXT,
+		via TEXT NOT NULL CHECK (via IN ('lookup', 'review', 'pasted')),
+		title TEXT NOT NULL DEFAULT '',
+		linked_at INTEGER NOT NULL,
+		mapped_at INTEGER
+	);
+	CREATE INDEX ranobe_links_work ON ranobe_links(work);
+	ALTER TABLE entries ADD COLUMN ranobe_unit TEXT;
+	CREATE TABLE ranobe_units (
+		unit TEXT PRIMARY KEY,
+		work TEXT NOT NULL,
+		read_at INTEGER,
+		sent_at INTEGER,
+		failed_at INTEGER,
+		error TEXT
+	) WITHOUT ROWID;
+	CREATE TABLE ranobe_works (
+		work TEXT PRIMARY KEY,
+		rating INTEGER,
+		favourite INTEGER,
+		wanted_at INTEGER,
+		sent_at INTEGER,
+		failed_at INTEGER,
+		error TEXT
+	) WITHOUT ROWID;
+	CREATE TABLE ranobe_suggestions (
+		work TEXT NOT NULL,
+		lang TEXT NOT NULL,
+		bundle INTEGER,
+		status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'rejected', 'withdrawn', 'failed')),
+		edition TEXT,
+		sent_at INTEGER NOT NULL,
+		checked_at INTEGER,
+		error TEXT,
+		PRIMARY KEY (work, lang)
+	) WITHOUT ROWID;
 	`
 ];
 

@@ -15,12 +15,13 @@ on 2026-09-24.
 
 **Every key `.env` has, the non-secret ones too:**
 
-| Key                                | What for                                                       |
-| ---------------------------------- | -------------------------------------------------------------- |
-| `TSUNDOKU_TOKEN`                   | Signing in to the app ([`INSTALL.md`](INSTALL.md))             |
-| `DATABASE_PATH`, `LIBRARY_ROOT`    | Which library `serve` opens ([`SERVING.md`](SERVING.md))       |
-| `KUMIKO_TOKEN`, `KUMIKO_DECK`      | Mined words to Kumiko ([`JAPANESE.md`](JAPANESE.md))           |
-| `ANILIST_CLIENT_*`, `MAL_CLIENT_*` | Tracking sign-ins, once they're built ([`LINKS.md`](LINKS.md)) |
+| Key                                | What for                                                 |
+| ---------------------------------- | -------------------------------------------------------- |
+| `TSUNDOKU_TOKEN`                   | Signing in to the app ([`INSTALL.md`](INSTALL.md))       |
+| `DATABASE_PATH`, `LIBRARY_ROOT`    | Which library `serve` opens ([`SERVING.md`](SERVING.md)) |
+| `KUMIKO_TOKEN`, `KUMIKO_DECK`      | Mined words to Kumiko ([`JAPANESE.md`](JAPANESE.md))     |
+| `ANILIST_CLIENT_*`, `MAL_CLIENT_*` | Tracking sign-ins ([`TRACKING.md`](TRACKING.md))         |
+| `RANOBE_TOKEN`                     | Novels to Ranobe ([`RANOBE.md`](RANOBE.md))              |
 
 A pull writes Infisical's list and nothing else, so a key that exists only
 in `.env` is dropped. The script names each one it drops.

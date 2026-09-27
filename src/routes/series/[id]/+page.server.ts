@@ -8,6 +8,7 @@ import { wordsOf } from '$lib/server/japanese/mining';
 import { decide, twinOf } from '$lib/server/dupes';
 import { linkState, unlink } from '$lib/server/catalogue';
 import { afterReading, editTracking, sendPending, trackingOf } from '$lib/server/tracking';
+import { afterReading as ranobeAfterReading } from '$lib/server/ranobe';
 import { STATUSES, type Status } from '$lib/library/tracking';
 import {
 	collectionExists,
@@ -483,6 +484,8 @@ export const actions: Actions = {
 		const changed = markEntries(s.id, entryIds(form), read);
 		// Marked read here is read here: the catalogues move forward (doc/TRACKING.md).
 		if (read) afterReading(s.id);
+		// Ranobe is told of an unmark too: a read tsundoku sent is taken back (doc/RANOBE.md).
+		else ranobeAfterReading(s.id);
 		return { ok: true, changed };
 	},
 

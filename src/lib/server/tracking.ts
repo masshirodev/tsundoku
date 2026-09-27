@@ -11,6 +11,7 @@ import {
 	toCandidate,
 	type Media
 } from './catalogue.ts';
+import * as ranobe from './ranobe.ts';
 import { cleanTitle, coverOnly, normaliseTitle, type Kind } from '../library/catalogue.ts';
 import {
 	SERVICES,
@@ -653,8 +654,12 @@ export async function afterRating(seriesIds: number[], rating: number): Promise<
 		if (editTracking(id, { score: rating }) > 0) await sendPending({ seriesId: id });
 }
 
-/** After a chapter is finished or marked read: queue, then send, off the request. */
+/**
+ * After a chapter is finished or marked read: queue, then send, off the
+ * request. A novel's reading goes to Ranobe instead (doc/RANOBE.md).
+ */
 export function afterReading(seriesId: number): void {
+	ranobe.afterReading(seriesId);
 	if (queueProgress(seriesId) > 0)
 		void sendPending({ seriesId }).catch((e: unknown) =>
 			console.error('tsundoku: sending progress failed:', e)

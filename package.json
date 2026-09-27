@@ -31,6 +31,7 @@
 		"ocr": "node --experimental-strip-types scripts/ocr.ts",
 		"dupes": "node --experimental-strip-types scripts/dupes.ts",
 		"links": "node --experimental-strip-types scripts/links.ts",
+		"ranobe": "node --experimental-strip-types scripts/ranobe.ts",
 		"secrets:pull": "sh scripts/secrets-pull.sh"
 	},
 	"dependencies": {

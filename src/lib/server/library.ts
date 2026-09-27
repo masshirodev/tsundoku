@@ -633,14 +633,22 @@ export function setRating(ids: number[], rating: Rating): number {
 	void import('./tracking.ts')
 		.then((t) => t.afterRating(ids, rating))
 		.catch((e: unknown) => console.error('tsundoku: sending a rating as a score failed:', e));
+	// And a novel's rating is its work's on Ranobe (doc/RANOBE.md).
+	void import('./ranobe.ts')
+		.then((r) => r.afterRating(ids, rating))
+		.catch((e: unknown) => console.error('tsundoku: sending a rating to Ranobe failed:', e));
 	return changed;
 }
 
 export function setFavourite(ids: number[], favourite: boolean): number {
 	if (ids.length === 0) return 0;
-	return getDb()
+	const changed = getDb()
 		.prepare(`UPDATE series SET favourite = ? WHERE id IN (${inList(ids)})`)
 		.run(favourite ? 1 : 0, ...ids).changes;
+	void import('./ranobe.ts')
+		.then((r) => r.afterFavourite(ids, favourite))
+		.catch((e: unknown) => console.error('tsundoku: sending a favourite to Ranobe failed:', e));
+	return changed;
 }
 
 /**

@@ -268,6 +268,12 @@ export function runImport(
 			)
 			// The owner's lists, when signed in: links and what each says (doc/TRACKING.md).
 			.then(() => import('../tracking.ts').then((t) => t.readLists()))
+			// Novels to Ranobe: links by id, editions, units, reads (doc/RANOBE.md).
+			.then(() =>
+				import('../ranobe.ts').then((r) =>
+					r.syncRanobe().catch((e: unknown) => console.error('tsundoku: Ranobe pass failed:', e))
+				)
+			)
 			.then(() => refreshCovers())
 			.catch((e: unknown) => {
 				console.error('tsundoku: covers after the scan failed:', e);

@@ -23,6 +23,7 @@ yarn run import   # import $LIBRARY_ROOT/Mihon/ and H/.Hentoid/ (doc/IMPORT-*.md
 yarn run backup   # snapshot the database to /mnt/backup/tsundoku (doc/BACKUPS.md)
 yarn run covers   # make cover thumbnails; --local to use files only (doc/COVERS.md)
 yarn run links    # link series to MAL / AniList, searching every one (doc/LINKS.md)
+yarn run ranobe   # novels to Ranobe: link, suggest editions, send reads (doc/RANOBE.md)
 yarn run secrets:pull  # write .env from Infisical on the VPS (doc/SECRETS.md)
 ```
 
