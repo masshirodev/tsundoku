@@ -22,7 +22,7 @@ if (!r) {
 	console.log('ranobe: no RANOBE_TOKEN in .env, nothing to do (doc/SECRETS.md)');
 	process.exit(0);
 }
-console.log(`ranobe: ${r.linked} linked by id`);
+console.log(`ranobe: ${r.linked} linked by id, ${r.searched} searched by title for the review`);
 console.log(
 	`  editions:  ${r.editions.found} found, ${r.editions.suggested} suggested, ${r.editions.waiting} waiting on review`
 );

@@ -176,3 +176,253 @@ export const iso = (at: number) => new Date(at).toISOString();
 
 /** Tsundoku's rating out of 10 as Ranobe's: 0, unrated, is null. */
 export const ratingOut = (rating: number): number | null => (rating > 0 ? rating : null);
+
+// ---- the review (Ranobe Review; doc/RANOBE.md, "The review") --------------------------------
+
+/** A work Ranobe's search answered, as kept for the review. */
+export type RanobeCandidate = {
+	work: string;
+	kind: string;
+	title: string;
+	/** The title or alias that matched: why it's there at all. */
+	matched: string;
+	status: string;
+	years: string;
+	units: Record<string, number>;
+	cover: { url: string; sensitive: boolean } | null;
+	/** Chosen for another series of the same title just now (1c): "VOL. 2". */
+	prior?: string;
+};
+
+const KIND_LABEL: Record<string, string> = {
+	light_novel: 'LIGHT NOVEL',
+	web_novel: 'WEB NOVEL'
+};
+export const kindLabel = (kind: string) =>
+	KIND_LABEL[kind] ?? kind.replace(/_/g, ' ').toUpperCase();
+
+/** "33 VOLUMES · 470 CHAPTERS", volumes first; "1 VOLUME". */
+export function unitsLabel(units: Record<string, number>): string {
+	const order = ['volume', 'chapter'];
+	return Object.entries(units)
+		.filter(([, n]) => n > 0)
+		.sort(([a], [b]) => {
+			const ia = order.indexOf(a);
+			const ib = order.indexOf(b);
+			return (ia < 0 ? 9 : ia) - (ib < 0 ? 9 : ib);
+		})
+		.map(([t, n]) => `${n.toLocaleString('en')} ${t.toUpperCase()}${n === 1 ? '' : 'S'}`)
+		.join(' · ');
+}
+
+/** A Ranobe work's page: `ranobe.ink/w2`, `https://ranobe.ink/w2`, `/w2`. Null for anything else. */
+export function parseRanobeUrl(text: string): string | null {
+	const m = text.trim().match(/^(?:(?:https?:\/\/)?(?:www\.)?ranobe\.ink)?\/(w\d+)(?:[/?#].*)?$/i);
+	return m ? m[1].toLowerCase() : null;
+}
+export const ranobeUrl = (ref: string) => `https://ranobe.ink/${ref}`;
+
+/** "RANOBE W388 · WEB NOVEL". */
+export const ranobeIds = (c: Pick<RanobeCandidate, 'work' | 'kind'>) =>
+	`RANOBE ${c.work.toUpperCase()} · ${kindLabel(c.kind)}`;
+
+/**
+ * Why a candidate is there, in the review's words: chosen for a sibling
+ * just now; the title equal once the volume is taken off; or what matched.
+ */
+export function ranobeWhy(
+	series: { title: string; base: string },
+	c: RanobeCandidate,
+	normalise: (t: string) => string
+): string {
+	if (c.prior) return `CHOSEN FOR ${c.prior} JUST NOW`;
+	const n = normalise(c.title);
+	if (n === normalise(series.title)) return 'TITLE EQUAL';
+	if (n === normalise(series.base)) {
+		const cut = series.title.slice(series.base.length).replace(/^[\s,:;–—-]+/, '');
+		return cut ? `TITLE EQUAL WITHOUT “${cut.toUpperCase()}”` : 'TITLE EQUAL';
+	}
+	if (c.matched && normalise(c.matched) !== n) return `MATCHED “${c.matched}”`;
+	return 'SHARES THE TITLE';
+}
+
+export type RanobeRow = { label: string; value: string; agree: boolean };
+
+/** MATCHED, KIND, YEARS, STATUS, UNITS: the review's candidate rows (1a). */
+export function ranobeRows(c: RanobeCandidate): RanobeRow[] {
+	return [
+		{ label: 'MATCHED', value: c.matched || c.title, agree: true },
+		{ label: 'KIND', value: kindLabel(c.kind), agree: false },
+		{ label: 'YEARS', value: c.years || '—', agree: false },
+		{
+			label: 'STATUS',
+			value: c.status ? c.status.replace(/_/g, ' ').toUpperCase() : '—',
+			agree: false
+		},
+		{ label: 'UNITS', value: unitsLabel(c.units) || '—', agree: false }
+	];
+}
+
+/** Under the candidate's cover: a missing one, or one Ranobe flags as not to be shown. */
+export const coverNote = (c: Pick<RanobeCandidate, 'cover'>) =>
+	!c.cover ? 'NO COVER' : c.cover.sensitive ? 'SENSITIVE · NOT SHOWN' : null;
+
+// ---- the TRACKING line (Ranobe Series 2a–2k) -------------------------------------------------
+
+export type RanobeFacts = {
+	configured: boolean;
+	hidden: boolean;
+	linked: boolean;
+	/** The edition the series reads; null while it waits on one. */
+	edition: boolean;
+	/** The suggestion for it was refused or withdrawn. */
+	suggestionRefused: boolean;
+	lang: string;
+	/** What Ranobe says of the entry, as last read or answered. */
+	remote: {
+		status: string | null;
+		progress: { type: string; number: string; of: number | null } | null;
+		rating: number | null;
+		favourite: boolean;
+	} | null;
+	sentAt: number | null;
+	/** The first unit that didn't go, and why. */
+	failed: { unit: string; error: string; at: number } | null;
+	/** A unit partly read here: VOL. 6, 6 of 9. */
+	half: { unit: string; read: number; of: number } | null;
+};
+
+export type TrackLineOut = { l: string; r: string; strong: boolean; rStrong: boolean };
+
+const LANG_NAME: Record<string, string> = { en: 'ENGLISH', ja: 'JAPANESE', pt: 'PORTUGUESE' };
+export const langName = (lang: string) => LANG_NAME[lang.split('-')[0]] ?? lang.toUpperCase();
+
+/** "VOL. 5", "CH. 254", from a unit ref or a type and number. */
+export function unitLabel(u: string | { type: string; number: string }): string {
+	const [type, number] =
+		typeof u === 'string' ? (u.split(':').slice(1) as [string, string]) : [u.type, u.number];
+	const short: Record<string, string> = { volume: 'VOL.', chapter: 'CH.' };
+	return `${short[type] ?? type.toUpperCase()} ${number}`;
+}
+
+/** "READING · VOL. 5 OF 6 · 8 · FAV": status, how far, rating, as far as known. */
+export function remoteLine(r: NonNullable<RanobeFacts['remote']>): string {
+	return [
+		r.status ? r.status.replace(/_/g, ' ').toUpperCase() : '',
+		r.progress
+			? `${unitLabel(r.progress)}${r.progress.of ? ` OF ${r.progress.of.toLocaleString('en')}` : ''}`
+			: '',
+		r.rating ? String(r.rating) : '',
+		r.favourite ? 'FAV' : ''
+	]
+		.filter(Boolean)
+		.join(' · ');
+}
+
+/**
+ * The TRACKING row's lines for a novel (2a–2k): the first is what Ranobe
+ * says, with what tsundoku did on the right; a second, quiet one only when
+ * there's more to say. Null: no Ranobe line at all (no token).
+ */
+export function ranobeLines(
+	f: RanobeFacts,
+	o: {
+		now: number;
+		offline: boolean;
+		ago: (at: number, now: number) => string;
+		clock: (at: number) => string;
+	}
+): { lines: TrackLineOut[]; retry: boolean } | null {
+	if (!f.configured) return null;
+	const line = (l: string, r = '', strong = true, rStrong = false): TrackLineOut => ({
+		l,
+		r,
+		strong,
+		rStrong
+	});
+	if (f.hidden)
+		return {
+			lines: [line('NOTHING SENT · HIDDEN SERIES STAY OFF RANOBE', '', false)],
+			retry: false
+		};
+	if (!f.linked)
+		return {
+			lines: [line('NOT ON RANOBE', 'NOTHING SENT · READS STAY HERE', false)],
+			retry: false
+		};
+	if (!f.edition)
+		return {
+			lines: [
+				line('RANOBE · WAITING ON AN EDITION', 'NOTHING SENT'),
+				line(
+					`NO ${langName(f.lang)} EDITION ON RANOBE${f.suggestionRefused ? ' · THE ONE SUGGESTED WAS REFUSED' : ' · ONE IS SUGGESTED IN THE NEXT PASS'}`,
+					'',
+					false
+				)
+			],
+			retry: false
+		};
+	const said = f.remote ? remoteLine(f.remote) : '';
+	if (f.failed && !o.offline) {
+		const second =
+			f.failed.error === 'RANOBE REFUSED THE TOKEN'
+				? line('A NEW RANOBE_TOKEN IN .ENV, THEN TRY AGAIN', '', false)
+				: f.failed.error === 'RANOBE REFUSED IT'
+					? line(
+							`THE EDITION HAS NO ${unitLabel(f.failed.unit)} · TRIED AGAIN WITH THE NEXT SEND`,
+							'',
+							false
+						)
+					: line(said ? `${said} · AS RANOBE LAST SAID` : 'NOTHING ON RANOBE YET', '', false);
+		return {
+			lines: [
+				line(
+					`RANOBE · ${unitLabel(f.failed.unit)} NOT SENT`,
+					`${f.failed.error} · ${o.clock(f.failed.at)}`,
+					true,
+					true
+				),
+				second
+			],
+			retry: true
+		};
+	}
+	const right = o.offline
+		? f.sentAt
+			? `AS OF ${o.clock(f.sentAt)}`
+			: ''
+		: f.sentAt
+			? `SENT ${o.ago(f.sentAt, o.now)}`
+			: f.remote
+				? 'ON YOUR LIBRARY'
+				: 'ADDED ON THE FIRST READ';
+	const lines = [line(said ? `RANOBE · ${said}` : 'RANOBE · NOT IN YOUR LIBRARY YET', right)];
+	if (f.half && !o.offline)
+		lines.push(
+			line(
+				`${unitLabel(f.half.unit)} · ${f.half.read} OF ${f.half.of} CHAPTERS READ HERE`,
+				`SENT ONCE ALL ${f.half.of} ARE`,
+				false
+			)
+		);
+	return { lines, retry: false };
+}
+
+/**
+ * A unit partly read here, for the quiet second line (2b): the first, in
+ * reading order, with some but not all of its entries read. Only units that
+ * span several entries count: a web novel's chapter is one entry.
+ */
+export function halfRead(
+	entries: { unit: string; readAt: number | null }[]
+): { unit: string; read: number; of: number } | null {
+	const by = new Map<string, { read: number; of: number }>();
+	for (const e of entries) {
+		const u = by.get(e.unit) ?? { read: 0, of: 0 };
+		u.of += 1;
+		if (e.readAt !== null) u.read += 1;
+		by.set(e.unit, u);
+	}
+	for (const [unit, u] of by) if (u.of > 1 && u.read > 0 && u.read < u.of) return { unit, ...u };
+	return null;
+}

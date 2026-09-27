@@ -2,10 +2,11 @@ import { basename } from 'node:path';
 import { getDb } from './db.ts';
 import { VISIBLE_SQL } from './visibility.ts';
 import { SignedOut, Unreachable } from './catalogue.ts';
-import { coverOnly } from '../library/catalogue.ts';
+import { cleanTitle, coverOnly } from '../library/catalogue.ts';
 import {
 	DEFAULT_LANG,
 	RANOBE_KINDS,
+	RANOBE_SEARCH_KINDS,
 	chooseEdition,
 	iso,
 	mapUnits,
@@ -14,6 +15,7 @@ import {
 	unitsRead,
 	volumeOf,
 	type EditionSummary,
+	type RanobeCandidate,
 	type Unit
 } from '../library/ranobe.ts';
 import type { Kind } from '../library/types.ts';
@@ -64,7 +66,7 @@ export function setRanobeFetch(f: Fetch | null): void {
 	fetcher = f ?? ((...a) => fetch(...a));
 }
 
-async function api<T>(
+export async function api<T>(
 	path: string,
 	init: { method?: string; body?: unknown; key?: string } = {}
 ): Promise<T | null> {
@@ -106,7 +108,7 @@ async function api<T>(
 	throw new Unreachable('rate limited');
 }
 
-const why = (e: unknown) =>
+export const why = (e: unknown) =>
 	e instanceof SignedOut
 		? 'RANOBE REFUSED THE TOKEN'
 		: e instanceof Unreachable
@@ -117,10 +119,10 @@ const why = (e: unknown) =>
  * The series Ranobe may hear of: of a kind it tracks, not hidden, not from
  * Hentoid. The one place the rule is spelled, over `series s JOIN roots r`.
  */
-const ELIGIBLE_SQL = `(s.kind IN (${RANOBE_KINDS.map((k) => `'${k}'`).join(', ')})
+export const ELIGIBLE_SQL = `(s.kind IN (${RANOBE_KINDS.map((k) => `'${k}'`).join(', ')})
 	AND ${VISIBLE_SQL} AND s.source != 'hentoid')`;
 
-function eligible(seriesId: number): boolean {
+export function eligible(seriesId: number): boolean {
 	return !!getDb()
 		.prepare(
 			`SELECT 1 FROM series s JOIN roots r ON r.id = s.root_id WHERE s.id = ? AND ${ELIGIBLE_SQL}`
@@ -144,6 +146,7 @@ export async function matchByLookup(now = Date.now()): Promise<number> {
 				(SELECT e.language FROM entries e WHERE e.series_id = s.id AND e.language IS NOT NULL LIMIT 1) AS lang
 			FROM series s JOIN roots r ON r.id = s.root_id JOIN series_links l ON l.series_id = s.id
 			WHERE ${ELIGIBLE_SQL} AND s.id NOT IN (SELECT series_id FROM ranobe_links)
+				AND s.id NOT IN (SELECT series_id FROM ranobe_decisions)
 				AND (l.anilist_id IS NOT NULL OR l.mal_id IS NOT NULL)`
 		)
 		.all() as {
@@ -161,10 +164,6 @@ export async function matchByLookup(now = Date.now()): Promise<number> {
 		...(r.anilist_id ? [`anilist:${r.anilist_id}`] : []),
 		...(r.mal_id ? [`mal:${r.mal_id}`] : [])
 	];
-	const put = db.prepare(
-		`INSERT INTO ranobe_links (series_id, work, lang, volume, via, linked_at) VALUES (?, ?, ?, ?, 'lookup', ?)
-		ON CONFLICT (series_id) DO NOTHING`
-	);
 	let linked = 0;
 	// 200 keys a request; a series asks with at most two.
 	for (let i = 0; i < asked.length; i += 100) {
@@ -179,12 +178,270 @@ export async function matchByLookup(now = Date.now()): Promise<number> {
 					.map((k) => answer?.results[k]?.ref)
 					.find((ref) => ref && /^w\d+$/.test(ref));
 				if (!work) continue;
-				const volume = volumeOf(r.title, r.file ? basename(r.file) : '');
-				linked += put.run(r.id, work, r.lang ?? DEFAULT_LANG, volume, now).changes;
+				if (linkWork(r.id, work, 'lookup', now, { replace: false })) linked += 1;
 			}
 		})();
 	}
 	return linked;
+}
+
+/**
+ * Link a series to a work: its language and volume worked out from its
+ * files, a decision about it gone. `replace: false` leaves a link that's
+ * there alone. The edition follows in the next pass (or at once, when the
+ * work's links already have one in the language). True when it linked.
+ */
+export function linkWork(
+	seriesId: number,
+	work: string,
+	via: 'lookup' | 'review' | 'pasted',
+	now = Date.now(),
+	o: { replace?: boolean; title?: string } = {}
+): boolean {
+	const db = getDb();
+	const r = db
+		.prepare(
+			`SELECT s.title,
+				(SELECT e.file FROM entries e WHERE e.series_id = s.id AND e.file != '' LIMIT 1) AS file,
+				(SELECT e.language FROM entries e WHERE e.series_id = s.id AND e.language IS NOT NULL LIMIT 1) AS lang
+			FROM series s WHERE s.id = ?`
+		)
+		.get(seriesId) as { title: string; file: string | null; lang: string | null } | undefined;
+	if (!r) return false;
+	const lang = r.lang ?? DEFAULT_LANG;
+	const volume = volumeOf(r.title, r.file ? basename(r.file) : '');
+	// A sibling of the same work in the same language already knows the edition.
+	const known = db
+		.prepare(
+			`SELECT edition, title FROM ranobe_links WHERE work = ? AND lang = ? AND edition IS NOT NULL LIMIT 1`
+		)
+		.get(work, lang) as { edition: string; title: string } | undefined;
+	return db.transaction(() => {
+		if (
+			o.replace === false &&
+			db.prepare(`SELECT 1 FROM ranobe_links WHERE series_id = ?`).get(seriesId)
+		)
+			return false;
+		db.prepare(`DELETE FROM ranobe_decisions WHERE series_id = ?`).run(seriesId);
+		db.prepare(`UPDATE entries SET ranobe_unit = NULL WHERE series_id = ?`).run(seriesId);
+		db.prepare(
+			`INSERT INTO ranobe_links (series_id, work, edition, lang, volume, via, title, linked_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT (series_id) DO UPDATE SET work = excluded.work, edition = excluded.edition, lang = excluded.lang,
+				volume = excluded.volume, via = excluded.via, title = excluded.title, linked_at = excluded.linked_at, mapped_at = NULL`
+		).run(
+			seriesId,
+			work,
+			known?.edition ?? null,
+			lang,
+			volume,
+			via,
+			known?.title ?? o.title ?? '',
+			now
+		);
+		return true;
+	})();
+}
+
+/**
+ * UNLINK: the link goes and the entries lose their units. What was sent
+ * stays on Ranobe. With `decide`, a pass never links it again (the owner
+ * said no); UNDO of a LINK just made passes false.
+ */
+export function unlinkSeries(seriesId: number, now = Date.now(), decide = true): void {
+	const db = getDb();
+	db.transaction(() => {
+		db.prepare(`DELETE FROM ranobe_links WHERE series_id = ?`).run(seriesId);
+		db.prepare(`UPDATE entries SET ranobe_unit = NULL WHERE series_id = ?`).run(seriesId);
+		if (decide)
+			db.prepare(
+				`INSERT INTO ranobe_decisions (series_id, decision, at) VALUES (?, 'unlinked', ?)
+				ON CONFLICT (series_id) DO UPDATE SET decision = 'unlinked', at = excluded.at`
+			).run(seriesId, now);
+	})();
+}
+
+// ---- searching ------------------------------------------------------------------------------
+
+type SearchItem = {
+	ref: string;
+	kind: { id: string };
+	title: string;
+	matched: string;
+	status: string;
+	years: string;
+	cover: { url: string; sensitive: boolean } | null;
+	units: Record<string, number>;
+};
+
+const asCandidate = (i: SearchItem): RanobeCandidate => ({
+	work: i.ref,
+	kind: i.kind.id,
+	title: i.title,
+	matched: i.matched ?? '',
+	status: i.status ?? '',
+	years: i.years ?? '',
+	units: i.units ?? {},
+	cover: i.cover?.url
+		? {
+				url: i.cover.url.startsWith('/') ? `${ORIGIN()}${i.cover.url}` : i.cover.url,
+				sensitive: !!i.cover.sensitive
+			}
+		: null
+});
+const ORIGIN = () => new URL(BASE()).origin;
+
+/** A work as a candidate, from `/works/{ref}`: PASTE A LINK. Null: no such work. */
+export async function readWork(ref: string): Promise<RanobeCandidate | null> {
+	try {
+		const w = await api<{
+			ref: string;
+			title: string;
+			kind: { id: string };
+			cover: { url: string; sensitive: boolean } | null;
+			editions: EditionSummary[];
+			snapshot?: { status?: string };
+		}>(`/works/${ref}`);
+		if (!w) return null;
+		const units: Record<string, number> = {};
+		for (const e of w.editions ?? [])
+			for (const [t, n] of Object.entries(e.units ?? {})) units[t] = Math.max(units[t] ?? 0, n);
+		return asCandidate({
+			ref: w.ref,
+			kind: w.kind,
+			title: w.title,
+			matched: 'FROM YOUR LINK',
+			status: w.snapshot?.status ?? '',
+			years: '',
+			cover: w.cover,
+			units
+		});
+	} catch (e) {
+		if (e instanceof Refused && (e.status === 404 || e.status === 410)) return null;
+		throw e;
+	}
+}
+
+/**
+ * Search Ranobe for one series' title, novels only, and keep what it
+ * found as the series' candidates (contract step 2). A work chosen for a
+ * sibling just now stays first. Only the title is sent.
+ */
+export async function searchOne(
+	seriesId: number,
+	query: string,
+	now = Date.now()
+): Promise<number> {
+	const db = getDb();
+	const q = query.trim();
+	const a = await api<{ items: SearchItem[] }>(
+		`/search?q=${encodeURIComponent(q)}&kind=${RANOBE_SEARCH_KINDS}&limit=10`
+	);
+	const items = a?.items ?? [];
+	db.transaction(() => {
+		db.prepare(`DELETE FROM ranobe_candidates WHERE series_id = ? AND rank >= 0`).run(seriesId);
+		const put = db.prepare(
+			`INSERT INTO ranobe_candidates (series_id, work, rank, data) VALUES (?, ?, ?, ?)
+			ON CONFLICT (series_id, work) DO NOTHING`
+		);
+		items.forEach((i, rank) => put.run(seriesId, i.ref, rank, JSON.stringify(asCandidate(i))));
+		db.prepare(
+			`INSERT INTO ranobe_searches (series_id, query, searched_at, found) VALUES (?, ?, ?, ?)
+			ON CONFLICT (series_id) DO UPDATE SET query = excluded.query, searched_at = excluded.searched_at,
+				found = excluded.found, skipped_at = NULL`
+		).run(seriesId, q, now, items.length);
+	})();
+	return items.length;
+}
+
+/**
+ * Every eligible novel the ids didn't link, not settled and not searched
+ * yet (or waiting on a SEARCH AGAIN), searched by its title with the volume
+ * taken off. Nothing is linked from a search: the owner chooses on /links.
+ */
+export async function searchNovels(now = Date.now(), limit = 200): Promise<number> {
+	const rows = getDb()
+		.prepare(
+			`SELECT s.id, s.title, rs.query FROM series s JOIN roots r ON r.id = s.root_id
+			LEFT JOIN ranobe_searches rs ON rs.series_id = s.id
+			WHERE ${ELIGIBLE_SQL} AND rs.searched_at IS NULL
+				AND s.id NOT IN (SELECT series_id FROM ranobe_links)
+				AND s.id NOT IN (SELECT series_id FROM ranobe_decisions)
+			ORDER BY s.id LIMIT ?`
+		)
+		.all(limit) as { id: number; title: string; query: string | null }[];
+	let n = 0;
+	for (const r of rows)
+		try {
+			await searchOne(r.id, r.query || cleanTitle(r.title) || r.title, now);
+			n += 1;
+		} catch (e) {
+			if (!(e instanceof Refused)) throw e;
+			console.error('tsundoku: a Ranobe search was refused:', e.code);
+		}
+	return n;
+}
+
+// ---- what Ranobe says -----------------------------------------------------------------------
+
+type EntryAnswer = {
+	work: string;
+	status?: string;
+	rating?: number | null;
+	favourite?: boolean;
+	progress?: { type: string; number: string; of: number | null } | null;
+};
+
+/** Keep what Ranobe answered of an entry: from the library, a PUT, or a read's answer. */
+function saveRemote(e: EntryAnswer, now: number): void {
+	getDb()
+		.prepare(
+			`INSERT INTO ranobe_works (work, status, progress_type, progress_number, progress_of, remote_rating, remote_favourite, state_at)
+			VALUES (@work, @status, @ptype, @pnum, @pof, @rating, @fav, @now)
+			ON CONFLICT (work) DO UPDATE SET
+				status = COALESCE(@status, status),
+				progress_type = CASE WHEN @hasProgress THEN @ptype ELSE progress_type END,
+				progress_number = CASE WHEN @hasProgress THEN @pnum ELSE progress_number END,
+				progress_of = CASE WHEN @hasProgress THEN @pof ELSE progress_of END,
+				remote_rating = CASE WHEN @hasRating THEN @rating ELSE remote_rating END,
+				remote_favourite = COALESCE(@fav, remote_favourite),
+				state_at = @now`
+		)
+		.run({
+			work: e.work,
+			status: e.status ?? null,
+			hasProgress: e.progress !== undefined ? 1 : 0,
+			ptype: e.progress?.type ?? null,
+			pnum: e.progress?.number ?? null,
+			pof: e.progress?.of ?? null,
+			hasRating: e.rating !== undefined ? 1 : 0,
+			rating: e.rating ?? null,
+			fav: e.favourite === undefined ? null : e.favourite ? 1 : 0,
+			now
+		});
+}
+
+/** The owner's library on Ranobe, for the works linked here: the TRACKING line's words. */
+export async function readLibrary(now = Date.now()): Promise<number> {
+	const works = new Set(
+		(getDb().prepare(`SELECT DISTINCT work FROM ranobe_links`).all() as { work: string }[]).map(
+			(r) => r.work
+		)
+	);
+	if (!works.size) return 0;
+	let cursor: string | null = null;
+	let n = 0;
+	do {
+		const page: { items: EntryAnswer[]; nextCursor: string | null } | null = await api(
+			`/me/library?limit=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`
+		);
+		for (const e of page?.items ?? [])
+			if (works.has(e.work)) {
+				saveRemote(e, now);
+				n += 1;
+			}
+		cursor = page?.nextCursor ?? null;
+	} while (cursor);
+	return n;
 }
 
 // ---- editions -------------------------------------------------------------------------------
@@ -465,7 +722,7 @@ async function flushNow(o: { backfill?: boolean; now?: number }) {
 	while (reads.length) {
 		const batch = reads.slice(0, 500);
 		try {
-			await api('/me/reads', {
+			const answer = await api<{ entries?: EntryAnswer[] }>('/me/reads', {
 				method: 'POST',
 				body: {
 					reads: batch.map((r) => ({ unit: r.unit, at: iso(r.read_at) })),
@@ -474,6 +731,8 @@ async function flushNow(o: { backfill?: boolean; now?: number }) {
 			});
 			db.transaction(() => {
 				for (const r of batch) sent.run(now, r.unit);
+				for (const e of answer?.entries ?? [])
+					saveRemote({ work: e.work, progress: e.progress ?? null }, now);
 			})();
 			out.read += batch.length;
 			reads = reads.slice(500);
@@ -550,15 +809,20 @@ async function putEntry(work: string, fields: Record<string, unknown>): Promise<
 	} catch (e) {
 		if (!(e instanceof Refused && e.status === 404)) throw e;
 	}
+	let answer: EntryAnswer | null;
 	try {
-		await api(`/me/library/${work}`, { method: 'PUT', body: { ...fields, rev } });
+		answer = await api<EntryAnswer>(`/me/library/${work}`, {
+			method: 'PUT',
+			body: { ...fields, rev }
+		});
 	} catch (e) {
 		if (!(e instanceof Refused && e.code === 'stale_rev')) throw e;
-		await api(`/me/library/${work}`, {
+		answer = await api<EntryAnswer>(`/me/library/${work}`, {
 			method: 'PUT',
 			body: { ...fields, rev: e.details.currentRev }
 		});
 	}
+	if (answer) saveRemote({ ...answer, work }, Date.now());
 }
 
 /** The works these series read on Ranobe, for the ones it may hear of. */
@@ -634,6 +898,8 @@ export function afterFavourite(seriesIds: number[], favourite: boolean): void {
 
 export type SyncSummary = {
 	linked: number;
+	/** Novels searched by title, for the review. */
+	searched: number;
 	editions: { found: number; suggested: number; waiting: number };
 	mapped: number;
 	sent: { read: number; unread: number; works: number; failed: number };
@@ -642,7 +908,8 @@ export type SyncSummary = {
 
 /**
  * The whole pass, after an import and from `yarn run ranobe`: link what the
- * ids answer, settle editions, map units, and send what's read. What was
+ * ids answer, search the rest for the review, settle editions, map units,
+ * read the library, and send what's read. What was
  * read before is sent marked as a backfill (API-V1.md step 7): entries'
  * `read_at`, never a replay of the reading log.
  */
@@ -650,20 +917,38 @@ export async function syncRanobe(now = Date.now()): Promise<SyncSummary | null> 
 	if (!configured()) return null;
 	const out: SyncSummary = {
 		linked: 0,
+		searched: 0,
 		editions: { found: 0, suggested: 0, waiting: 0 },
 		mapped: 0,
 		sent: { read: 0, unread: 0, works: 0, failed: 0 },
 		unreachable: false
 	};
-	try {
-		out.linked = await matchByLookup(now);
-		out.editions = await resolveEditions(now);
-		out.mapped = await mapSeries({ now });
+	// Each step on its own: one Ranobe refuses doesn't keep the reads from
+	// going. Out of reach, the rest would only fail the same way.
+	const step = async (name: string, run: () => Promise<void> | void) => {
+		if (out.unreachable) return;
+		try {
+			await run();
+		} catch (e) {
+			if (e instanceof Unreachable) out.unreachable = true;
+			else console.error(`tsundoku: Ranobe ${name} failed:`, e);
+		}
+	};
+	await step('lookup', async () => void (out.linked = await matchByLookup(now)));
+	await step('search', async () => void (out.searched = await searchNovels(now)));
+	await step('editions', async () => void (out.editions = await resolveEditions(now)));
+	await step('units', async () => void (out.mapped = await mapSeries({ now })));
+	await step('reads', async () => {
 		refreshUnits();
 		out.sent = await flush({ backfill: true, now });
-	} catch (e) {
-		if (!(e instanceof Unreachable)) throw e;
-		out.unreachable = true;
-	}
+	});
+	await step('library', async () => void (await readLibrary(now)));
+	// SETTINGS' LAST PASS line: when it ran, whatever it managed.
+	getDb()
+		.prepare(
+			`INSERT INTO settings (key, value) VALUES ('ranobe_pass_at', ?)
+			ON CONFLICT (key) DO UPDATE SET value = excluded.value`
+		)
+		.run(String(now));
 	return out;
 }

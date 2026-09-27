@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
+import { ago } from '$lib/library/tracking';
 import {
 	chapterOf,
+	coverNote,
+	halfRead,
+	parseRanobeUrl,
+	ranobeLines,
+	ranobeRows,
+	ranobeWhy,
+	unitsLabel,
+	type RanobeCandidate,
+	type RanobeFacts,
 	chooseEdition,
 	mapUnits,
 	ratingOut,
@@ -12,6 +22,8 @@ import {
 	type EditionSummary,
 	type MappedEntry
 } from '$lib/library/ranobe';
+
+const NOW = Date.UTC(2026, 8, 27, 14, 20);
 
 describe('volumeOf', () => {
 	it('reads the volume a one-volume EPUB is, from its title or file', () => {
@@ -164,5 +176,165 @@ describe('ratingOut', () => {
 	it('sends 1 to 10 as it is, and unrated as null', () => {
 		expect(ratingOut(7)).toBe(7);
 		expect(ratingOut(0)).toBeNull();
+	});
+});
+
+describe('the review', () => {
+	const cand = (over: Partial<RanobeCandidate> = {}): RanobeCandidate => ({
+		work: 'w388',
+		kind: 'web_novel',
+		title: 'The Beginning After the End',
+		matched: 'The Beginning After the End',
+		status: 'ongoing',
+		years: '2017–',
+		units: { chapter: 470, volume: 9 },
+		cover: { url: 'https://ranobe.ink/img/1.jpg', sensitive: false },
+		...over
+	});
+	const norm = (t: string) =>
+		t
+			.toLowerCase()
+			.replace(/[^\p{L}\p{N}]+/gu, ' ')
+			.trim();
+
+	it('says why a candidate is there', () => {
+		const series = {
+			title: 'The Beginning After the End, Vol. 2',
+			base: 'The Beginning After the End'
+		};
+		expect(ranobeWhy(series, cand(), norm)).toBe('TITLE EQUAL WITHOUT “VOL. 2”');
+		expect(ranobeWhy(series, cand({ prior: 'VOL. 2' }), norm)).toBe('CHOSEN FOR VOL. 2 JUST NOW');
+		expect(
+			ranobeWhy(
+				{ title: 'Honzuki', base: 'Honzuki' },
+				cand({ title: 'Ascendance of a Bookworm', matched: '本好きの下剋上' }),
+				norm
+			)
+		).toBe('MATCHED “本好きの下剋上”');
+	});
+
+	it('lists units volumes first, and kinds in words', () => {
+		expect(unitsLabel({ chapter: 470, volume: 9 })).toBe('9 VOLUMES · 470 CHAPTERS');
+		expect(unitsLabel({ volume: 1 })).toBe('1 VOLUME');
+		expect(unitsLabel({ chapter: 1432 })).toBe('1,432 CHAPTERS');
+		expect(ranobeRows(cand()).map((r) => r.value)).toEqual([
+			'The Beginning After the End',
+			'WEB NOVEL',
+			'2017–',
+			'ONGOING',
+			'9 VOLUMES · 470 CHAPTERS'
+		]);
+	});
+
+	it('never draws a sensitive cover, and says there is none', () => {
+		expect(coverNote(cand({ cover: null }))).toBe('NO COVER');
+		expect(coverNote(cand({ cover: { url: 'x', sensitive: true } }))).toBe('SENSITIVE · NOT SHOWN');
+		expect(coverNote(cand())).toBeNull();
+	});
+
+	it('reads a pasted Ranobe link for its work only', () => {
+		expect(parseRanobeUrl('https://ranobe.ink/w2')).toBe('w2');
+		expect(parseRanobeUrl('ranobe.ink/W388?tab=editions')).toBe('w388');
+		expect(parseRanobeUrl('/w7')).toBe('w7');
+		expect(parseRanobeUrl('https://ranobe.ink/e3')).toBeNull();
+		expect(parseRanobeUrl('https://anilist.co/manga/2')).toBeNull();
+	});
+});
+
+describe('the TRACKING line', () => {
+	const base: RanobeFacts = {
+		configured: true,
+		hidden: false,
+		linked: true,
+		edition: true,
+		suggestionRefused: false,
+		lang: 'en',
+		remote: {
+			status: 'reading',
+			progress: { type: 'volume', number: '5', of: 6 },
+			rating: 8,
+			favourite: false
+		},
+		sentAt: NOW - 12 * 60_000,
+		failed: null,
+		half: null
+	};
+	const o = { now: NOW, offline: false, ago, clock: () => '09:14' };
+	const lines = (f: Partial<RanobeFacts>, more: Partial<typeof o> = {}) =>
+		ranobeLines({ ...base, ...f }, { ...o, ...more });
+
+	it('says what Ranobe says, and what was done (2a, 2c)', () => {
+		expect(lines({})?.lines[0]).toMatchObject({
+			l: 'RANOBE · READING · VOL. 5 OF 6 · 8',
+			r: 'SENT 12 MIN AGO'
+		});
+		expect(
+			lines({
+				remote: {
+					status: 'reading',
+					progress: { type: 'chapter', number: '254', of: 1432 },
+					rating: 9,
+					favourite: true
+				}
+			})?.lines[0].l
+		).toBe('RANOBE · READING · CH. 254 OF 1,432 · 9 · FAV');
+	});
+
+	it('adds a quiet line for half a volume (2b), never offline', () => {
+		const r = lines({ half: { unit: 'e1:volume:6', read: 6, of: 9 } });
+		expect(r?.lines[1]).toMatchObject({
+			l: 'VOL. 6 · 6 OF 9 CHAPTERS READ HERE',
+			r: 'SENT ONCE ALL 9 ARE',
+			strong: false
+		});
+		expect(
+			lines({ half: { unit: 'e1:volume:6', read: 6, of: 9 } }, { offline: true })?.lines
+		).toHaveLength(1);
+	});
+
+	it('says why a send failed, with TRY AGAIN (2d–2f)', () => {
+		const f = (error: string) => lines({ failed: { unit: 'e1:volume:5', error, at: NOW } });
+		expect(f('RANOBE DID NOT ANSWER')?.lines[0]).toMatchObject({
+			l: 'RANOBE · VOL. 5 NOT SENT',
+			r: 'RANOBE DID NOT ANSWER · 09:14',
+			rStrong: true
+		});
+		expect(f('RANOBE DID NOT ANSWER')?.retry).toBe(true);
+		expect(f('RANOBE REFUSED THE TOKEN')?.lines[1].l).toBe(
+			'A NEW RANOBE_TOKEN IN .ENV, THEN TRY AGAIN'
+		);
+		expect(f('RANOBE REFUSED IT')?.lines[1].l).toBe(
+			'THE EDITION HAS NO VOL. 5 · TRIED AGAIN WITH THE NEXT SEND'
+		);
+	});
+
+	it('covers the states without a send (2g–2j)', () => {
+		expect(lines({ edition: false, suggestionRefused: true })?.lines.map((l) => l.l)).toEqual([
+			'RANOBE · WAITING ON AN EDITION',
+			'NO ENGLISH EDITION ON RANOBE · THE ONE SUGGESTED WAS REFUSED'
+		]);
+		expect(lines({ linked: false })?.lines[0]).toMatchObject({
+			l: 'NOT ON RANOBE',
+			r: 'NOTHING SENT · READS STAY HERE'
+		});
+		expect(lines({}, { offline: true })?.lines[0].r).toBe('AS OF 09:14');
+		expect(lines({ hidden: true })?.lines[0].l).toBe(
+			'NOTHING SENT · HIDDEN SERIES STAY OFF RANOBE'
+		);
+		expect(lines({ configured: false })).toBeNull();
+	});
+
+	it('finds the unit read partway, in order', () => {
+		expect(
+			halfRead([
+				{ unit: 'v5', readAt: 1 },
+				{ unit: 'v5', readAt: 1 },
+				{ unit: 'v6', readAt: 1 },
+				{ unit: 'v6', readAt: null },
+				{ unit: 'v6', readAt: null }
+			])
+		).toEqual({ unit: 'v6', read: 1, of: 3 });
+		// A web novel's chapter is one entry: never half.
+		expect(halfRead([{ unit: 'c1', readAt: null }])).toBeNull();
 	});
 });

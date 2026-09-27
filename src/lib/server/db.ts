@@ -676,6 +676,41 @@ const MIGRATIONS: string[] = [
 		error TEXT,
 		PRIMARY KEY (work, lang)
 	) WITHOUT ROWID;
+	`,
+	// Rung 32: choosing a Ranobe work (c66 part 2; doc/RANOBE.md, "The
+	// review"). A novel the ids didn't find is searched on Ranobe by title and
+	// its candidates wait for the owner, as link_searches and link_candidates
+	// do for AniList; a decision is NOT ON RANOBE, or an UNLINK a pass mustn't
+	// undo. ranobe_works gains what Ranobe itself says of the entry -- status,
+	// how far in the edition's units, rating, favourite -- read with the
+	// library and from each send's answer, for the TRACKING line.
+	`
+	CREATE TABLE ranobe_searches (
+		series_id INTEGER PRIMARY KEY REFERENCES series(id) ON DELETE CASCADE,
+		query TEXT NOT NULL,
+		searched_at INTEGER,
+		found INTEGER NOT NULL DEFAULT 0,
+		skipped_at INTEGER
+	);
+	CREATE TABLE ranobe_candidates (
+		series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+		work TEXT NOT NULL,
+		rank INTEGER NOT NULL,
+		data TEXT NOT NULL,
+		PRIMARY KEY (series_id, work)
+	) WITHOUT ROWID;
+	CREATE TABLE ranobe_decisions (
+		series_id INTEGER PRIMARY KEY REFERENCES series(id) ON DELETE CASCADE,
+		decision TEXT NOT NULL CHECK (decision IN ('none', 'unlinked')),
+		at INTEGER NOT NULL
+	);
+	ALTER TABLE ranobe_works ADD COLUMN status TEXT;
+	ALTER TABLE ranobe_works ADD COLUMN progress_type TEXT;
+	ALTER TABLE ranobe_works ADD COLUMN progress_number TEXT;
+	ALTER TABLE ranobe_works ADD COLUMN progress_of INTEGER;
+	ALTER TABLE ranobe_works ADD COLUMN remote_rating INTEGER;
+	ALTER TABLE ranobe_works ADD COLUMN remote_favourite INTEGER;
+	ALTER TABLE ranobe_works ADD COLUMN state_at INTEGER;
 	`
 ];
 

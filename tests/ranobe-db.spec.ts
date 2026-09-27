@@ -112,6 +112,12 @@ const fake: typeof fetch = async (input, init) => {
 	}
 	if (path.startsWith('/me/reads/') && method === 'DELETE')
 		return json({ removed: 1, progress: null });
+	if (path === '/search') return json({ items: [], nextCursor: null });
+	if (path === '/me/library')
+		return json({
+			items: [...library].map(([work, e]) => ({ work, ...e, status: 'reading' })),
+			nextCursor: null
+		});
 	const entry = path.match(/^\/me\/library\/(w\d+)$/);
 	if (entry) {
 		const had = library.get(entry[1]);
