@@ -93,7 +93,10 @@ describe('OCR on the workstation', () => {
 		expect(existsSync(join(work, 'scratch', '_ocr'))).toBe(false);
 		expect(ocr.ocrStatus(chainsaw).done).toBe(2);
 		expect(ocr.ocrQueue(500).some((j) => j.entryId === first.entryId)).toBe(false);
-	});
+		// A real batch through the fake mokuro: about 4 s alone, so the default
+		// 5 s failed it whenever the workstation was busy (2026-09-27, load 59),
+		// and the tests after it, which read what it stored, failed with it.
+	}, 30_000);
 
 	it('marks a failed run, and tries it again only after a week', async () => {
 		process.env.FAKE_MOKURO_FAIL = '1';
