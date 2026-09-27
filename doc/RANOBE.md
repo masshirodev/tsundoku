@@ -78,6 +78,21 @@ yarn run token:create tsundoku "Tsundoku suggestions" catalogue:read,catalogue:w
 Then into Infisical (project `tsundoku`, `prod`) as `RANOBE_SUGGEST_TOKEN`,
 `yarn run secrets:pull`, and a restart.
 
+**In production those two don't run as written**: `/srv/ranobe` has no dev
+dependencies, and the image bundles `create-user` but not `create-token`
+(Ranobe card c86). Done on 2026-09-27 as:
+
+```sh
+docker exec ranobe-app node build/tools/create-user.mjs tsundoku app
+# create-token.ts bundled on the workstation with tools:build's esbuild flags,
+# then piped in: the container's root filesystem is read-only.
+docker exec -i ranobe-app node --input-type=module - tsundoku "Tsundoku suggestions" \
+  catalogue:read,catalogue:write < /tmp/create-token.mjs
+```
+
+Checked the same day: the token authenticates, and `/me/library/counts`
+refuses it `403 insufficient_scope` (it's the app's, not the owner's).
+
 ## Privacy
 
 What tsundoku never sends anywhere else, it never sends Ranobe, and that
@@ -381,9 +396,6 @@ the End is 7 of them, one per volume.
   Settling The Beginning After the End as not on Ranobe is seven decisions
   today, one per volume. The same list after NOT ON RANOBE would make it one,
   and would need its own drawing.
-- **The app account itself.** It's made on the VPS, by the owner (above).
-  Until `RANOBE_SUGGEST_TOKEN` is in Infisical, SUGGEST TO RANOBE stays NOT
-  YET.
 - **The suggestions waiting on review**, on a screen of their own. SETTINGS
   counts them (`N SUGGESTED`) and each series says so, but the list is
   Ranobe's queue.
