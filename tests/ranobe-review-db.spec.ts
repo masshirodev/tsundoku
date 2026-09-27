@@ -249,6 +249,7 @@ describe('the series screen and SETTINGS', () => {
 		expect(a.linked).toBe(
 			(db.prepare(`SELECT COUNT(*) AS n FROM ranobe_links`).get() as { n: number }).n
 		);
-		expect(a.toChoose).toBe(rv.ranobeQueue().length);
+		// TO CHOOSE and NOT ON RANOBE never count one series twice.
+		expect(a.toChoose).toBe(rv.ranobeQueue().filter((i) => i.found > 0).length);
 	});
 });

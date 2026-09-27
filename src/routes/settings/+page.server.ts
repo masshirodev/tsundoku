@@ -8,6 +8,7 @@ import { refreshCovers } from '$lib/server/covers';
 import { PREFERRED } from '$lib/library/editions';
 import { linkCount, linkQueueCount } from '$lib/server/catalogue';
 import { accounts, retry, signOut } from '$lib/server/tracking';
+import { ranobeAccount, ranobeQueueCount, retryRanobe } from '$lib/server/ranobe-review';
 import { SERVICES, type Service } from '$lib/library/tracking';
 
 /**
@@ -32,8 +33,10 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 		// CATALOGUES (Catalogue Links 1u, 1v; doc/TRACKING.md).
 		catalogues: {
 			linked: linkCount(),
-			toReview: linkQueueCount(reveal),
-			accounts: accounts()
+			toReview: linkQueueCount(reveal) + ranobeQueueCount(),
+			accounts: accounts(),
+			// The third row (Ranobe 3a–3c; doc/RANOBE.md): no sign-in, a token in .env.
+			ranobe: ranobeAccount()
 		},
 		// How a sign-in went, coming back from the catalogue.
 		signin: url.searchParams.has('signin')
@@ -61,6 +64,10 @@ export const actions: Actions = {
 		const s = await serviceOf(request);
 		if (!s) return fail(400, { message: 'which catalogue' });
 		return { retried: await retry(s) };
+	},
+	retryRanobe: async () => {
+		await retryRanobe();
+		return { ok: true };
 	},
 	language: async ({ request }) => {
 		const l = String((await request.formData()).get('language') ?? '');

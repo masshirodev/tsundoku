@@ -54,6 +54,8 @@ export type RanobeReviewItem = {
 	query: string;
 	found: number;
 	searched: boolean;
+	/** A SEARCH AGAIN waiting for the next pass (Ranobe was out of reach). */
+	queued: boolean;
 	cutShort: boolean;
 	/** THIS SERIES' rows (1a): SOURCE, ENTRIES, LANGUAGE, ANILIST. */
 	rows: { label: string; value: string }[];
@@ -176,6 +178,7 @@ function itemOf(r: Row): RanobeReviewItem {
 		query: r.query || cleanTitle(r.title) || r.title,
 		found: r.found ?? 0,
 		searched: r.searched_at !== null,
+		queued: r.searched_at === null && r.query !== null,
 		cutShort: isCutShort(r.title),
 		rows: [
 			{ label: 'SOURCE', value: r.source.toUpperCase() },
@@ -510,6 +513,8 @@ export type RanobeSeries = {
 		/** "ENGLISH EDITION", "BY CHAPTER", "2 SERIES SHARE IT", the AniList id. */
 		meta: string;
 	} | null;
+	/** Not linked: the LINK row's meta line (2h, 2j). */
+	unlinkedMeta: string;
 	facts: RanobeFacts;
 };
 
@@ -592,7 +597,31 @@ export function ranobeSeries(seriesId: number): RanobeSeries | null {
 				.get(s.work, lang)
 		: false;
 	const anilist = s.anilist_id ? `ANILIST ${s.anilist_id}` : '';
+	const search = db
+		.prepare(`SELECT searched_at, found FROM ranobe_searches WHERE series_id = ?`)
+		.get(seriesId) as { searched_at: number | null; found: number } | undefined;
+	const decision = (
+		db.prepare(`SELECT decision FROM ranobe_decisions WHERE series_id = ?`).get(seriesId) as
+			{ decision: string } | undefined
+	)?.decision;
+	const unlinkedMeta = s.hidden
+		? 'HIDDEN SERIES ARE NEVER LOOKED UP ON RANOBE'
+		: decision === 'none'
+			? 'NOT ON RANOBE · SETTLED IN THE REVIEW · NOTHING SENT'
+			: decision === 'unlinked'
+				? 'UNLINKED · A PASS WON’T LINK IT AGAIN'
+				: search?.searched_at && search.found
+					? `${search.found} CANDIDATE${search.found === 1 ? '' : 'S'} FROM THE LAST PASS · NONE CHOSEN`
+					: [
+							anilist ? `${anilist} · COVER AND DETAILS` : '',
+							search?.searched_at
+								? 'RANOBE FOUND NOTHING BY ITS IDS OR ITS TITLE'
+								: 'NOT SEARCHED ON RANOBE YET'
+						]
+							.filter(Boolean)
+							.join(' · ');
 	return {
+		unlinkedMeta,
 		configured: configured(),
 		hidden: !!s.hidden,
 		link: s.work
@@ -690,7 +719,10 @@ export function ranobeAccount(): RanobeAccount {
 		).at,
 		passAt: pass ? Number(pass.value) : null,
 		linked: count(`${ELIGIBLE_SQL} AND s.id IN (SELECT series_id FROM ranobe_links)`),
-		toChoose: ranobeQueueCount(),
+		// Disjoint from notOn (3c): a choice waits only where Ranobe found something.
+		toChoose: count(
+			`${WAITING_SQL} AND s.id IN (SELECT series_id FROM ranobe_searches WHERE searched_at IS NOT NULL AND found > 0)`
+		),
 		// Settled as not there, or searched and nothing found.
 		notOn: count(`${WAITING_SQL.replace(
 			'AND s.id NOT IN (SELECT series_id FROM ranobe_decisions)',

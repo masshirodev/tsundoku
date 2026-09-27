@@ -32,7 +32,9 @@
 	import { offline } from '$lib/offline.svelte';
 	import TrackingSheet from './TrackingSheet.svelte';
 	import type { Tracking } from '$lib/server/tracking';
-	import { trackLine } from '$lib/library/tracking';
+	import { ago, clock, trackLine } from '$lib/library/tracking';
+	import { ranobeLines } from '$lib/library/ranobe';
+	import type { RanobeSeries } from '$lib/server/ranobe-review';
 
 	/**
 	 * The series' metadata: a header that scrolls away in portrait, a 440px
@@ -57,7 +59,8 @@
 		twin = null,
 		editions = null,
 		link = null,
-		tracking = null
+		tracking = null,
+		ranobe = null
 	}: {
 		series: SeriesPage;
 		shelves: Shelf[];
@@ -91,7 +94,27 @@
 		link?: LinkState | null;
 		/** What the catalogues' lists say of it, and what was sent (doc/TRACKING.md). */
 		tracking?: Tracking | null;
+		/**
+		 * A novel's Ranobe link and line (doc/RANOBE.md). With a token, they
+		 * stand in for AniList's LINK and TRACKING rows: Ranobe is where a
+		 * novel's reads go. Null for a comic.
+		 */
+		ranobe?: RanobeSeries | null;
 	} = $props();
+
+	// ---- Ranobe's LINK and TRACKING rows (Ranobe Series 2a–2k) --------------------------------
+	const onRanobe = $derived(!!ranobe?.configured);
+	const ranobeFindHref = $derived(`${resolve('/links')}?series=${series.id}&service=ranobe`);
+	const ranobeTrack = $derived(
+		ranobe
+			? ranobeLines(ranobe.facts, {
+					now: Date.now(),
+					offline: !offline.online,
+					ago,
+					clock
+				})
+			: null
+	);
 
 	// ---- the TRACKING row (Series Link 1k–1s) ------------------------------------------------
 	let trackingOpen = $state(false);
@@ -549,7 +572,86 @@
 			<button type="button" class="edit" onclick={onedit}>EDIT</button>
 		</div>
 
-		{#if link}
+		{#if onRanobe && ranobe}
+			<!-- Ranobe's LINK and TRACKING (Ranobe Series 2a–2k; doc/RANOBE.md). No EDIT: Ranobe works status out from the reads, and the RATING row is what it gets. -->
+			{#snippet ranobeCells()}
+				{#if ranobe?.link}
+					<a class="lc" href={ranobe.link.href} target="_blank" rel="noopener noreferrer external"
+						>RANOBE ↗</a
+					>
+					{#if linkOff}
+						<span class="lc dim" aria-disabled="true">CHANGE</span>
+						<span class="lc dim" aria-disabled="true">UNLINK</span>
+					{:else}
+						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
+						<a class="lc" href={ranobeFindHref}>CHANGE</a>
+						<form method="POST" action="?/unlinkRanobe" use:enhance class="lc-form">
+							<button type="submit" class="lc">UNLINK</button>
+						</form>
+					{/if}
+				{:else if linkOff}
+					{#if !ranobe?.hidden}<span class="lc acc dim" aria-disabled="true">FIND</span>{/if}
+					<span class="lc dim" aria-disabled="true">PASTE A LINK</span>
+				{:else}
+					<!-- eslint-disable svelte/no-navigation-without-resolve -- built from resolve() -->
+					{#if !ranobe?.hidden}<a class="lc acc" href={ranobeFindHref}>FIND</a>{/if}
+					<a class="lc" href="{ranobeFindHref}&paste">PASTE A LINK</a>
+					<!-- eslint-enable svelte/no-navigation-without-resolve -->
+				{/if}
+			{/snippet}
+			<div class="row link-row">
+				<div class="label">LINK</div>
+				<div class="lk">
+					<div class="lk-a" class:muted={!ranobe.link}>
+						{ranobe.link ? ranobe.link.title : ranobe.hidden ? 'Not linked' : 'Not on Ranobe'}
+					</div>
+					<div class="lk-b">
+						{ranobe.link
+							? linkOff
+								? '○ OFFLINE · CHANGES NEED THE WORKSTATION'
+								: ranobe.link.meta
+							: linkOff
+								? '○ OFFLINE · FINDING NEEDS THE WORKSTATION'
+								: ranobe.unlinkedMeta}
+					</div>
+				</div>
+				<div class="lcs inline">{@render ranobeCells()}</div>
+			</div>
+			<div class="lcs stack">{@render ranobeCells()}</div>
+			{#if ranobeTrack}
+				{#snippet ranobeTrackCells()}
+					{#if ranobeTrack?.retry && !linkOff}
+						<form method="POST" action="?/retryRanobe" use:enhance class="lc-form">
+							<button type="submit" class="lc">TRY AGAIN</button>
+						</form>
+					{/if}
+				{/snippet}
+				<div class="row track-row">
+					<div class="label">TRACKING</div>
+					<div class="tk">
+						{#each ranobeTrack.lines as t, i (i)}
+							<div class="tl">
+								<div class="tl-l" class:strong={t.strong}>{t.l}</div>
+								{#if t.r}<div class="tl-r" class:alert={t.rStrong}>{t.r}</div>{/if}
+							</div>
+						{/each}
+					</div>
+					<div class="lcs inline">{@render ranobeTrackCells()}</div>
+				</div>
+				{#if ranobeTrack.retry && !linkOff}
+					<div class="lcs stack">{@render ranobeTrackCells()}</div>
+				{/if}
+			{/if}
+			{#if link}
+				<div class="row cover-row">
+					<div class="label">COVER</div>
+					<div class="cv">
+						<div class="cv-a">{link.cover.a}</div>
+						{#if link.cover.b}<div>{link.cover.b}</div>{/if}
+					</div>
+				</div>
+			{/if}
+		{:else if link}
 			<!-- LINK and COVER (Series Link 1k–1t; doc/LINKS.md). The cells drop below the row where it's narrow. -->
 			{#snippet linkCells()}
 				{#if link?.linked}

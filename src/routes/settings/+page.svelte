@@ -41,6 +41,24 @@
 		};
 	}
 	const anyFailed = $derived(data.catalogues.accounts.some((a) => a.failed.count > 0));
+
+	// ---- RANOBE (Ranobe 3a–3c; doc/RANOBE.md) ---------------------------------------------------
+	const rb = $derived(data.catalogues.ranobe);
+	const rbSend = $derived.by((): { text: string; alert: boolean } => {
+		if (rb.failed.count)
+			return {
+				text: `${rb.failed.count} UNIT${rb.failed.count === 1 ? '' : 'S'} NOT SENT · ${rb.failed.error ?? 'RANOBE DID NOT ANSWER'}${rb.failed.at ? ` · ${clock(rb.failed.at)}` : ''}`,
+				alert: true
+			};
+		return {
+			text: `NOVELS · READ AND WRITTEN · ${rb.lastSent ? `LAST SENT ${clock(rb.lastSent)}` : 'NOTHING SENT YET'}`,
+			alert: false
+		};
+	});
+	/** The pass's line (3c). TO CHOOSE, between these, opens /links, and is left out with nothing to choose. */
+	const rbPassHead = $derived(
+		`${rb.passAt ? `LAST PASS ${clock(rb.passAt)}` : 'NO PASS YET'} · ${count(rb.linked)} LINKED`
+	);
 	const signinBand = $derived.by(() => {
 		const s = data.signin;
 		if (!s) return null;
@@ -147,6 +165,29 @@
 					{/if}
 				</div>
 			{/each}
+			<div class="row acct ranobe">
+				<div class="label">RANOBE</div>
+				<div class="who">
+					{#if rb.configured}
+						<!-- Ranobe has no endpoint naming a token's account: the mock's "Token for masshiro" can't be known (doc/RANOBE.md). -->
+						<div class="name">Token in .env</div>
+						<div class="meta" class:alert={rbSend.alert}>{rbSend.text}</div>
+						<div class="meta">
+							{rbPassHead}{#if rb.toChoose}
+								· <a class="choose" href={resolve('/links')}>{rb.toChoose} TO CHOOSE</a>{/if}
+							· {count(rb.notOn)} NOT ON RANOBE
+						</div>
+					{:else}
+						<div class="name muted">Not configured</div>
+						<div class="meta">NO TOKEN · RANOBE_TOKEN IN .ENV</div>
+					{/if}
+				</div>
+				{#if rb.configured && rb.failed.count}
+					<form method="POST" action="?/retryRanobe" use:enhance class="cell-form">
+						<button type="submit" class="cell" disabled={off}>TRY AGAIN</button>
+					</form>
+				{/if}
+			</div>
 		</div>
 		<div class="notes">
 			<p>READING HERE MOVES PROGRESS FORWARD ON BOTH. A LOWER CHAPTER IS NEVER SENT.</p>
@@ -162,6 +203,27 @@
 				NEVER ARE.
 			</p>
 			<p>COVERS FROM A LINK NEED NO SIGN-IN.</p>
+			{#if rb.configured}
+				<p>
+					NOVELS GO TO RANOBE, COMICS TO ANILIST AND MAL. A SERIES IS TRACKED ON ONE SIDE, NEVER
+					BOTH.
+				</p>
+				<p>A VOLUME IS SENT ONCE ALL OF IT IS READ. MARK UNREAD TAKES BACK WHAT WAS SENT.</p>
+				<p>
+					INCOGNITO READING, HIDDEN SERIES AND HENTOID BOOKS SEND NOTHING, AND ARE NEVER LOOKED UP.
+				</p>
+				{#if rb.failed.count}
+					<p>WHAT WASN’T SENT GOES WITH THE NEXT SEND, OR NOW WITH TRY AGAIN.</p>
+				{/if}
+				<p>
+					THE TOKEN IS RANOBE_TOKEN IN .ENV, FROM INFISICAL. THERE’S NOTHING TO SIGN IN TO HERE.
+				</p>
+			{:else}
+				<p>
+					NOTHING TO TAP. WITHOUT A TOKEN NOTHING IS LOOKED UP OR SENT, AND NOVELS SHOW NO RANOBE
+					LINE.
+				</p>
+			{/if}
 		</div>
 	</section>
 </div>
@@ -273,6 +335,15 @@
 	}
 	.acct {
 		min-height: 68px;
+	}
+	/* Three lines: the send, then the pass (Ranobe 3a). */
+	.acct.ranobe {
+		min-height: 84px;
+	}
+	.choose {
+		color: inherit;
+		text-decoration: underline;
+		text-underline-offset: 3px;
 	}
 	.who {
 		flex: 1;

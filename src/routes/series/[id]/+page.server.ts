@@ -7,6 +7,8 @@ import { ocrPlace, restoreNotText, setSeriesOcr } from '$lib/server/japanese/ocr
 import { wordsOf } from '$lib/server/japanese/mining';
 import { decide, twinOf } from '$lib/server/dupes';
 import { linkState, unlink } from '$lib/server/catalogue';
+import { unlinkSeries } from '$lib/server/ranobe';
+import { ranobeSeries, retryRanobe } from '$lib/server/ranobe-review';
 import { afterReading, editTracking, sendPending, trackingOf } from '$lib/server/tracking';
 import { afterReading as ranobeAfterReading } from '$lib/server/ranobe';
 import { STATUSES, type Status } from '$lib/library/tracking';
@@ -111,7 +113,9 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		// Its MyAnimeList / AniList entry (doc/LINKS.md): the LINK and COVER rows.
 		link: linkState(series.id),
 		// What each catalogue's list says, and what tsundoku sent (doc/TRACKING.md).
-		tracking: trackingOf(series.id)
+		tracking: trackingOf(series.id),
+		// A novel's Ranobe link and line (doc/RANOBE.md). Null for a comic.
+		ranobe: ranobeSeries(series.id)
 	};
 };
 
@@ -274,6 +278,21 @@ export const actions: Actions = {
 	retryTracking: async ({ params, cookies }) => {
 		const s = target(params, cookies);
 		await sendPending({ seriesId: s.id });
+		return { ok: true };
+	},
+
+	// Ranobe's UNLINK (Ranobe Series 2a): the link goes, and no pass brings it
+	// back. What was sent stays on Ranobe (doc/RANOBE.md).
+	unlinkRanobe: async ({ params, cookies }) => {
+		const s = target(params, cookies);
+		unlinkSeries(s.id);
+		return { ok: true };
+	},
+
+	// TRY AGAIN on the Ranobe line (2d–2f): what failed, sent now.
+	retryRanobe: async ({ params, cookies }) => {
+		const s = target(params, cookies);
+		await retryRanobe(s.id);
 		return { ok: true };
 	},
 

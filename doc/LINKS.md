@@ -19,6 +19,11 @@ This was the first of two deliveries: links and covers. Tracking, reading
 and writing status, score and chapter on both catalogues, is the second, in
 [`TRACKING.md`](TRACKING.md).
 
+**The review is shared with Ranobe** since 2026-09-27 (card c66): a novel
+the Ranobe pass couldn't link by its ids comes to the same `/links`, with
+Ranobe's candidates, ahead of its AniList item if it has one. That half is
+[`RANOBE.md`](RANOBE.md), "The review".
+
 ## What the owner decided (2026-09-24)
 
 1. **Titles of series that aren't hidden may be sent to AniList** to search.

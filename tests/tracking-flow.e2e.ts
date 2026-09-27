@@ -25,8 +25,14 @@ test('SETTINGS lists both catalogues, not signed in, and why they can’t be yet
 	await page.goto('/settings');
 	await expect(page.getByRole('heading', { name: '02 — CATALOGUES' })).toBeVisible();
 	const rows = page.locator('.acct');
-	await expect(rows.locator('.label')).toHaveText(['ANILIST', 'MAL']);
-	await expect(rows.locator('.name')).toHaveText(['Not signed in', 'Not signed in']);
+	// Ranobe's row is there without a token too, saying so (Ranobe 3b; doc/RANOBE.md).
+	await expect(rows.locator('.label')).toHaveText(['ANILIST', 'MAL', 'RANOBE']);
+	await expect(rows.locator('.name')).toHaveText([
+		'Not signed in',
+		'Not signed in',
+		'Not configured'
+	]);
+	await expect(rows.nth(2).locator('.meta')).toHaveText('NO TOKEN · RANOBE_TOKEN IN .ENV');
 	// The e2e server has no app keys: no SIGN IN to offer.
 	await expect(rows.first().locator('.meta')).toHaveText(
 		'THE APP ISN’T REGISTERED · SEE DOC/SECRETS.MD'

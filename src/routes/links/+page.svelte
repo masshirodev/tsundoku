@@ -4,16 +4,23 @@
 	import { coverSrc } from '$lib/library/links';
 	import { coverPlaceholder, hueFor } from '$lib/library/cover';
 	import { anilistUrl, idsLine, parsePasted } from '$lib/library/catalogue';
+	import { langName, parseRanobeUrl } from '$lib/library/ranobe';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { offline } from '$lib/offline.svelte';
 	import type { QueuedFrom, ReviewCandidate } from '$lib/server/catalogue';
+	import type { RanobeReviewCandidate, Sibling } from '$lib/server/ranobe-review';
 
 	/**
-	 * The link review (Link Review; doc/LINKS.md): one series at a time, the
-	 * candidates AniList found for it, none of them for certain. Nothing is
-	 * preselected: a match under another title is the owner's to judge, so a
-	 * tap chooses one and LINK makes it. Each decision is carried out at once;
-	 * UNDO takes the last one back.
+	 * The link review (Link Review, Ranobe Review; doc/LINKS.md,
+	 * doc/RANOBE.md): one series at a time, the candidates a catalogue found
+	 * for it, none of them for certain. Nothing is preselected: a match under
+	 * another title is the owner's to judge, so a tap chooses one and LINK
+	 * makes it. Each decision is carried out at once; UNDO takes the last one
+	 * back.
+	 *
+	 * An item is AniList's or Ranobe's. A novel unsure on both comes up twice,
+	 * Ranobe first. Ranobe's LINK may offer the same work to the series with
+	 * the same title before a volume number (1b).
 	 *
 	 * `?series=` is one series only (FIND or CHANGE on its screen): deciding
 	 * goes back to it.
@@ -21,54 +28,82 @@
 	let { data } = $props();
 
 	type Item = (typeof data.items)[number];
+	type Service = Item['service'];
+	type Cand = ReviewCandidate | RanobeReviewCandidate;
+	const SERVICE_NAME: Record<Service, string> = { anilist: 'ANILIST', ranobe: 'RANOBE' };
+
+	/** An item's place in the queue: a novel can be in it once per catalogue. */
+	const qk = (i: { service: Service; seriesId: number }) => `${i.service}:${i.seriesId}`;
+	const keyOf = (c: Cand) => ('work' in c ? c.work : String(c.anilistId));
+	const hrefOf = (c: Cand) => ('href' in c ? c.href : anilistUrl(c.anilistId));
 
 	// svelte-ignore state_referenced_locally
-	const byId = new SvelteMap(data.items.map((i) => [i.seriesId, i]));
+	const byKey = new SvelteMap(data.items.map((i) => [qk(i), i]));
 	// svelte-ignore state_referenced_locally
 	const total = data.items.length;
 	// svelte-ignore state_referenced_locally
 	const single = data.single;
 	// The queue is this visit's: SKIP sends a series to the back of it.
 	// svelte-ignore state_referenced_locally
-	let queue = $state<number[]>(data.items.map((i) => i.seriesId));
+	let queue = $state<string[]>(data.items.map(qk));
 	let done = $state(0);
 	let busy = $state(false);
 	let failed = $state<string | null>(null);
-	/** The workstation answered that AniList couldn't be reached (Link Review 1g). */
-	let nonet = $state(false);
+	/** The workstation answered that the catalogue couldn't be reached (Link Review 1g). */
+	let nonet = $state<Service | null>(null);
 
+	type UndoKind = 'link' | 'none' | 'search' | 'many';
 	type Undo = {
 		title: string;
 		detail: string;
 		/** What the workstation is asked to take back; null: nothing to take back (SKIP). */
-		undo: { kind: 'link' | 'none' | 'search'; series: number; was?: QueuedFrom } | null;
-		before: { queue: number[]; done: number };
+		undo: {
+			kind: UndoKind;
+			service: Service;
+			series: number;
+			was?: QueuedFrom;
+			many?: number[];
+		} | null;
+		before: { queue: string[]; done: number };
 		/** A search's UNDO: the series as it was before, candidates and all. */
 		restore?: Item;
+		/** LINK N MORE's UNDO: the siblings as they were drawn. */
+		restoreMany?: Item[];
 	};
 	let undo = $state<Undo | null>(null);
 
-	const item = $derived<Item | null>(queue.length ? (byId.get(queue[0]) ?? null) : null);
-	let chosen = $state<number | null>(null);
+	const item = $derived<Item | null>(queue.length ? (byKey.get(queue[0]) ?? null) : null);
+	const ranobe = $derived(item?.service === 'ranobe');
+	const name = $derived(item ? SERVICE_NAME[item.service] : '');
+	let chosen = $state<string | null>(null);
 	let searching = $state(false);
 	let pasting = $state(false);
 	let query = $state('');
 	let pasteText = $state('');
-	let pasted = $state<ReviewCandidate | null>(null);
+	let pasted = $state<Cand | null>(null);
 	let pasteNote = $state<string | null>(null);
 
+	/** THE SAME WORK FOR THESE? (1b): after a Ranobe LINK, until decided. */
+	let sibs = $state<{
+		work: string;
+		title: string;
+		series: number;
+		rows: Sibling[];
+		picked: number[];
+	} | null>(null);
+
 	// A new series starts clean: nothing chosen, the panels shut.
-	let shown = $state<number | null>(null);
+	let shown = $state<string | null>(null);
 	$effect.pre(() => {
-		const id = item?.seriesId ?? null;
-		if (id === shown) return;
-		shown = id;
+		const k = item ? qk(item) : null;
+		if (k === shown) return;
+		shown = k;
 		chosen = null;
 		pasted = null;
 		pasteText = '';
 		pasteNote = null;
 		searching = false;
-		pasting = data.paste && id !== null;
+		pasting = data.paste && k !== null;
 		query = item ? editedTitle(item) : '';
 	});
 
@@ -80,18 +115,24 @@
 	const off = $derived(!offline.online);
 	/** Hidden series are never searched (Series Link 1s): only a pasted link. */
 	const noSearch = $derived(!!single?.hidden);
-	const cands = $derived<ReviewCandidate[]>(pasted ? [pasted] : (item?.candidates ?? []));
+	const cands = $derived<Cand[]>(
+		pasted ? [pasted] : ((item?.candidates as Cand[] | undefined) ?? [])
+	);
 	const letter = (i: number) =>
 		String.fromCharCode(65 + (pasted ? (item?.candidates.length ?? 0) : i));
-	const selected = $derived(cands.find((c) => c.anilistId === chosen) ?? null);
+	const selected = $derived(cands.find((c) => keyOf(c) === chosen) ?? null);
 	const selectedLetter = $derived(
-		selected ? letter(cands.findIndex((c) => c.anilistId === chosen)) : ''
+		selected ? letter(cands.findIndex((c) => keyOf(c) === chosen)) : ''
 	);
 
 	// ---- the workstation -------------------------------------------------------------------
-	async function post(body: object): Promise<Response | null> {
+	const API: Record<Service, string> = {
+		anilist: resolve('/api/links'),
+		ranobe: resolve('/api/links/ranobe')
+	};
+	async function post(service: Service, body: object): Promise<Response | null> {
 		try {
-			return await fetch(resolve('/api/links'), {
+			return await fetch(API[service], {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
 				body: JSON.stringify(body)
@@ -102,89 +143,168 @@
 	}
 	const NO_ANSWER = 'THE WORKSTATION DID NOT ANSWER · NOTHING CHANGED';
 
+	async function backToSeries(id: number) {
+		await goto(resolve('/series/[id]', { id: String(id) }), { invalidateAll: true });
+	}
+
 	/** One decision: sent, then the next series (or back to its screen, for one series). */
 	async function decide(
 		body: object,
 		title: string,
 		detail: string,
-		kind: 'link' | 'none' | 'search' | 'skip'
-	): Promise<void> {
-		if (!item || busy) return;
-		const id = item.seriesId;
+		kind: UndoKind | 'skip'
+	): Promise<Record<string, unknown> | null> {
+		if (!item || busy) return null;
+		const it = item;
 		const before = { queue: [...queue], done };
 		busy = true;
 		failed = null;
-		const r = await post({ series: id, ...body });
+		const r = await post(it.service, { series: it.seriesId, ...body });
 		busy = false;
 		if (!r || !r.ok) {
-			if (r?.status === 503) nonet = true;
-			failed = r?.status === 503 ? 'ANILIST DID NOT ANSWER · NOTHING CHANGED' : NO_ANSWER;
-			return;
+			if (r?.status === 503) nonet = it.service;
+			failed =
+				r?.status === 503
+					? `${SERVICE_NAME[it.service]} DID NOT ANSWER · NOTHING CHANGED`
+					: NO_ANSWER;
+			return null;
 		}
-		const answer = (await r.json().catch(() => ({}))) as { was?: QueuedFrom };
-		if (single) {
-			await goto(resolve('/series/[id]', { id: String(id) }), { invalidateAll: true });
-			return;
+		const answer = (await r.json().catch(() => ({}))) as Record<string, unknown>;
+		const siblings = (answer.siblings as Sibling[] | undefined) ?? [];
+		if (single && !siblings.length) {
+			await backToSeries(it.seriesId);
+			return null;
 		}
 		if (kind === 'skip') {
-			queue = [...queue.slice(1), id];
+			queue = [...queue.slice(1), qk(it)];
 			undo = { title, detail, undo: null, before };
-			return;
+			return answer;
 		}
 		queue = queue.slice(1);
 		done += 1;
 		undo = {
 			title,
 			detail,
-			undo: { kind, series: id, was: kind === 'search' ? (answer.was ?? null) : undefined },
+			undo: {
+				kind: kind as UndoKind,
+				service: it.service,
+				series: it.seriesId,
+				was: kind === 'search' ? ((answer.was as QueuedFrom) ?? null) : undefined
+			},
 			before
 		};
+		return answer;
 	}
 
 	async function undoLast() {
 		const u = undo;
 		if (!u?.undo || busy) return;
 		busy = true;
-		const r = await post({ series: u.undo.series, undo: u.undo.kind, was: u.undo.was });
+		const r = await post(u.undo.service, {
+			series: u.undo.series,
+			undo: u.undo.kind,
+			was: u.undo.was,
+			many: u.undo.many
+		});
 		busy = false;
 		if (!r?.ok) {
 			failed = NO_ANSWER;
 			return;
 		}
-		if (u.restore) byId.set(u.restore.seriesId, u.restore);
+		if (u.restore) byKey.set(qk(u.restore), u.restore);
+		for (const i of u.restoreMany ?? []) byKey.set(qk(i), i);
 		queue = u.before.queue;
 		done = u.before.done;
 		undo = null;
+		sibs = null;
 		shown = null;
 	}
 
-	function linkChosen() {
+	async function linkChosen() {
 		if (!item || !selected) return;
 		const c = selected;
-		decide(
-			{ link: c.anilistId, pasted: !!pasted },
+		const it = item;
+		if (!('work' in c)) {
+			decide(
+				{ link: c.anilistId, pasted: !!pasted },
+				`LINKED · ${c.title.toUpperCase()}`,
+				`${c.ids} · ${it.hasCover ? 'COVER STAYS AS IT IS' : 'ITS COVER COMES FROM THE LINK'}`,
+				'link'
+			);
+			return;
+		}
+		const unit = c.ids.endsWith('WEB NOVEL') ? 'CHAPTERS' : 'VOLUMES';
+		const answer = await decide(
+			{ link: c.work, pasted: !!pasted },
 			`LINKED · ${c.title.toUpperCase()}`,
-			`${c.ids} · ${item.hasCover ? 'COVER STAYS AS IT IS' : 'ITS COVER COMES FROM THE LINK'}`,
+			`RANOBE ${c.work.toUpperCase()} · ${unit} MAPPED IN THE NEXT PASS`,
 			'link'
 		);
+		const rows = (answer?.siblings as Sibling[] | undefined) ?? [];
+		// The siblings as the review now draws them: the work first, chosen just now (1c).
+		for (const i of (answer?.items as Item[] | undefined) ?? []) byKey.set(qk(i), i);
+		if (rows.length) sibs = { work: c.work, title: c.title, series: it.seriesId, rows, picked: [] };
 	}
+
+	// ---- THE SAME WORK FOR THESE? (Ranobe Review 1b) ------------------------------------------
+	const sibAll = $derived(!!sibs && sibs.picked.length === sibs.rows.length);
+	function toggleSib(id: number) {
+		if (!sibs) return;
+		sibs.picked = sibs.picked.includes(id)
+			? sibs.picked.filter((x) => x !== id)
+			: [...sibs.picked, id];
+	}
+	async function notThese() {
+		const id = sibs?.series;
+		sibs = null;
+		if (single && id !== undefined) await backToSeries(id);
+	}
+	async function linkMore() {
+		const s = sibs;
+		if (!s || !s.picked.length || busy) return;
+		const before = { queue: [...queue], done };
+		const restoreMany = s.picked
+			.map((id) => byKey.get(`ranobe:${id}`))
+			.filter((i): i is Item => !!i);
+		busy = true;
+		failed = null;
+		const r = await post('ranobe', { series: s.series, many: s.picked, work: s.work });
+		busy = false;
+		if (!r?.ok) {
+			failed = r?.status === 503 ? 'RANOBE DID NOT ANSWER · NOTHING CHANGED' : NO_ANSWER;
+			return;
+		}
+		const { linked } = (await r.json()) as { linked: number[] };
+		const gone = new Set(linked.map((id) => `ranobe:${id}`));
+		queue = queue.filter((k) => !gone.has(k));
+		done += linked.length;
+		sibs = null;
+		undo = {
+			title: `LINKED ${linked.length + 1} SERIES · ${s.title.toUpperCase()}`,
+			detail: `RANOBE ${s.work.toUpperCase()} · VOLUMES MAPPED IN THE NEXT PASS`,
+			undo: { kind: 'many', service: 'ranobe', series: s.series, many: linked },
+			before,
+			restoreMany
+		};
+		if (single) await backToSeries(s.series);
+	}
+
 	/**
 	 * SEARCH AGAIN, at once (the owner's call, 2026-09-24; the handoff queued it
-	 * for the next cover pass). An exact match links; otherwise the new
-	 * candidates replace these, on the same series. AniList out of reach, it
-	 * waits for the pass after all, and says so.
+	 * for the next cover pass). On AniList an exact match links; otherwise, and
+	 * always on Ranobe, the new candidates replace these, on the same series.
+	 * Out of reach, it waits for the pass after all, and says so.
 	 */
 	let searchingNow = $state(false);
 	async function searchAgain() {
 		if (!item || !query.trim() || busy) return;
-		const id = item.seriesId;
+		const it = item;
 		const q = query.trim();
-		const prev = item;
 		const beforeQ = { queue: [...queue], done };
 		busy = true;
 		searchingNow = true;
 		failed = null;
-		const r = await post({ series: id, search: q });
+		const r = await post(it.service, { series: it.seriesId, search: q });
 		busy = false;
 		searchingNow = false;
 		if (!r?.ok) {
@@ -198,13 +318,18 @@
 			was?: QueuedFrom;
 			item: Item | null;
 		};
-		const back = { kind: 'search' as const, series: id, was: a.was ?? undefined };
+		const back = {
+			kind: 'search' as const,
+			service: it.service,
+			series: it.seriesId,
+			was: a.was ?? undefined
+		};
 		if (a.outcome === 'linked' && single) {
-			await goto(resolve('/series/[id]', { id: String(id) }), { invalidateAll: true });
+			await backToSeries(it.seriesId);
 			return;
 		}
 		if (a.outcome === 'linked' || a.outcome === 'queued') {
-			if (a.outcome === 'queued') nonet = true;
+			if (a.outcome === 'queued') nonet = it.service;
 			queue = queue.slice(1);
 			done += 1;
 			undo =
@@ -214,25 +339,34 @@
 							detail: `THE SAME TITLE ON ANILIST · ${idsLine(a.candidate!.anilistId, a.candidate!.malId)}`,
 							undo: back,
 							before: beforeQ,
-							restore: prev
+							restore: it
 						}
 					: {
 							title: `QUEUED · “${q}”`,
-							detail: 'ANILIST UNREACHABLE · SEARCHED IN THE NEXT COVER PASS',
+							// AniList's search runs in the cover pass; Ranobe's in its own.
+							detail:
+								it.service === 'ranobe'
+									? 'RANOBE UNREACHABLE · SEARCHED IN THE NEXT PASS'
+									: 'ANILIST UNREACHABLE · SEARCHED IN THE NEXT COVER PASS',
 							undo: back,
-							before: beforeQ
+							before: beforeQ,
+							restore: it
 						};
 			return;
 		}
-		if (a.item) byId.set(id, a.item);
+		if (a.item) byKey.set(qk(a.item), a.item);
 		// Drawn afresh: the new candidates, nothing chosen, the panels shut.
 		shown = null;
 		undo = {
 			title: `SEARCHED · “${q}” · ${a.found ?? 0} FOUND`,
-			detail: a.found ? 'NO TITLE EQUAL · TAP ONE TO LINK' : 'NOTHING UNDER THIS TITLE EITHER',
+			detail: a.found
+				? it.service === 'ranobe'
+					? 'TAP ONE TO LINK'
+					: 'NO TITLE EQUAL · TAP ONE TO LINK'
+				: 'NOTHING UNDER THIS TITLE EITHER',
 			undo: back,
 			before: beforeQ,
-			restore: prev
+			restore: it
 		};
 	}
 
@@ -245,40 +379,53 @@
 		void searchAgain();
 	});
 
-	// ---- a pasted link, read as one candidate (Link Review 1d) ------------------------------
+	// ---- a pasted link, read as one candidate (Link Review 1d, Ranobe Review 1e) --------------
 	let reading = 0;
 	async function readPaste(text: string) {
 		pasteText = text;
-		const p = parsePasted(text);
-		if (!p || !item) {
+		if (!item) return;
+		const it = item;
+		const r1 = it.service === 'ranobe';
+		const ok = r1 ? parseRanobeUrl(text) !== null : parsePasted(text) !== null;
+		if (!ok) {
 			pasted = null;
-			pasteNote = text.trim() ? 'NOT AN ANILIST OR MAL MANGA LINK' : null;
+			pasteNote = text.trim()
+				? r1
+					? 'NOT A RANOBE WORK LINK'
+					: 'NOT AN ANILIST OR MAL MANGA LINK'
+				: null;
 			return;
 		}
 		const mine = ++reading;
 		pasteNote = 'READING…';
-		const r = await post({ series: item.seriesId, paste: text });
+		const r = await post(it.service, { series: it.seriesId, paste: text });
 		if (mine !== reading) return;
 		if (!r) {
 			pasteNote = NO_ANSWER;
 			return;
 		}
 		if (r.status === 503) {
-			nonet = true;
-			pasteNote = 'ANILIST DID NOT ANSWER · TRY AGAIN WHEN IT’S BACK';
+			nonet = it.service;
+			pasteNote = `${SERVICE_NAME[it.service]} DID NOT ANSWER · TRY AGAIN WHEN IT’S BACK`;
 			return;
 		}
 		if (!r.ok) {
 			pasted = null;
-			pasteNote =
-				p.service === 'mal' ? 'ANILIST HAS NO ENTRY FOR THAT MAL ID' : 'NO SUCH ANILIST ENTRY';
+			pasteNote = r1
+				? 'NO SUCH WORK ON RANOBE'
+				: parsePasted(text)?.service === 'mal'
+					? 'ANILIST HAS NO ENTRY FOR THAT MAL ID'
+					: 'NO SUCH ANILIST ENTRY';
 			return;
 		}
-		const { candidate } = (await r.json()) as { candidate: ReviewCandidate };
+		const { candidate } = (await r.json()) as { candidate: Cand };
 		pasted = candidate;
-		chosen = candidate.anilistId;
-		nonet = false;
-		pasteNote = `READ AS ANILIST ${candidate.anilistId} · ONLY THE ID WAS SENT, NEVER THE TITLE`;
+		chosen = keyOf(candidate);
+		nonet = null;
+		pasteNote =
+			'work' in candidate
+				? `READ AS RANOBE ${candidate.work.toUpperCase()} · ITS ${langName('en')} EDITION IS TAKEN, OR SUGGESTED, IN THE NEXT PASS`
+				: `READ AS ANILIST ${candidate.anilistId} · ONLY THE ID WAS SENT, NEVER THE TITLE`;
 	}
 	function cancelPaste() {
 		pasting = false;
@@ -290,16 +437,22 @@
 
 	// ---- actions -----------------------------------------------------------------------------
 	type Act = { label: string; run: () => void; strong?: boolean; dim?: boolean };
-	const netDim = $derived(off || nonet);
+	const netDim = $derived(off || (item !== null && nonet === item.service));
+	const openSearch = () => ((searching = !searching), (pasting = false));
+	const openPaste = () => ((pasting = !pasting), (searching = false));
+	const notOn = () =>
+		decide(
+			{ none: true },
+			'NOT ON RANOBE · WON’T ASK AGAIN',
+			'NOTHING SENT · ITS TRACKING ROW SAYS NOT ON RANOBE',
+			'none'
+		);
+	const skipIt = () => decide({ skip: true }, 'SKIPPED', 'COMES UP AGAIN LATER', 'skip');
 	const tools = $derived.by((): Act[] => {
 		if (!item || pasted || !item.candidates.length) return [];
 		return [
-			{
-				label: 'SEARCH AGAIN',
-				run: () => ((searching = !searching), (pasting = false)),
-				dim: netDim || noSearch
-			},
-			{ label: 'PASTE A LINK', run: () => ((pasting = !pasting), (searching = false)), dim: netDim }
+			{ label: 'SEARCH AGAIN', run: openSearch, dim: netDim || noSearch },
+			{ label: 'PASTE A LINK', run: openPaste, dim: netDim }
 		];
 	});
 	const actions = $derived.by((): Act[] => {
@@ -308,52 +461,35 @@
 			? { label: `LINK ${selectedLetter}`, run: linkChosen, strong: true, dim: off }
 			: { label: 'TAP ONE TO LINK', run: () => {}, dim: true };
 		if (pasted) return [{ label: 'CANCEL', run: cancelPaste, dim: off }, link];
+		const search: Act = {
+			label: 'SEARCH AGAIN',
+			run: searching ? searchAgain : () => ((searching = true), (pasting = false)),
+			strong: searching,
+			dim: netDim || noSearch
+		};
+		const paste: Act = { label: 'PASTE A LINK', run: openPaste, dim: netDim };
+		// Ranobe with nothing found (1d): NOT ON RANOBE settles it.
+		if (!item.candidates.length && ranobe)
+			return [...(single ? [] : [{ label: 'NOT ON RANOBE', run: notOn, dim: off }]), search, paste];
 		// SKIP too with nothing found: the owner's addition to 1c, so a series
 		// with no answer yet doesn't block the queue.
 		if (!item.candidates.length)
-			return [
-				{
-					label: 'SEARCH AGAIN',
-					run: searching ? searchAgain : () => ((searching = true), (pasting = false)),
-					strong: searching,
-					dim: netDim || noSearch
-				},
-				{
-					label: 'PASTE A LINK',
-					run: () => ((pasting = !pasting), (searching = false)),
-					dim: netDim
-				},
-				...(single
-					? []
-					: [
-							{
-								label: 'SKIP',
-								run: () => decide({ skip: true }, 'SKIPPED', 'COMES UP AGAIN LATER', 'skip'),
-								dim: off
-							}
-						])
-			];
+			return [search, paste, ...(single ? [] : [{ label: 'SKIP', run: skipIt, dim: off }])];
 		return [
 			{
 				label: 'NONE OF THESE',
-				run: () =>
-					decide(
-						{ none: true },
-						'NONE OF THESE · WON’T ASK AGAIN',
-						'FIND AND PASTE A LINK STILL WORK ON ITS SERIES SCREEN',
-						'none'
-					),
+				run: ranobe
+					? notOn
+					: () =>
+							decide(
+								{ none: true },
+								'NONE OF THESE · WON’T ASK AGAIN',
+								'FIND AND PASTE A LINK STILL WORK ON ITS SERIES SCREEN',
+								'none'
+							),
 				dim: off
 			},
-			...(single
-				? []
-				: [
-						{
-							label: 'SKIP',
-							run: () => decide({ skip: true }, 'SKIPPED', 'COMES UP AGAIN LATER', 'skip'),
-							dim: off
-						}
-					]),
+			...(single ? [] : [{ label: 'SKIP', run: skipIt, dim: off }]),
 			link
 		];
 	});
@@ -380,22 +516,48 @@
 			? ''
 			: noSearch
 				? 'HIDDEN SERIES ARE NEVER SEARCHED · ONLY A PASTED LINK, WHICH SENDS NOTHING BUT ITS ID'
-				: single?.queued
-					? `A SEARCH FOR “${item.query}” WAITS FOR THE NEXT COVER PASS`
-					: !item.searched
-						? 'NOT SEARCHED YET · SEARCH AGAIN ASKS ANILIST NOW'
-						: `SEARCHED ANILIST FOR “${item.query}” IN THE COVER PASS · ${item.found} FOUND${item.found ? ' · NO TITLE EQUAL, SO NOTHING WAS LINKED' : ''}`
+				: item.service === 'ranobe'
+					? item.searchedLine
+					: single?.queued
+						? `A SEARCH FOR “${item.query}” WAITS FOR THE NEXT COVER PASS`
+						: !item.searched
+							? 'NOT SEARCHED YET · SEARCH AGAIN ASKS ANILIST NOW'
+							: `SEARCHED ANILIST FOR “${item.query}” IN THE COVER PASS · ${item.found} FOUND${item.found ? ' · NO TITLE EQUAL, SO NOTHING WAS LINKED' : ''}`
 	);
 	const hint = $derived(
 		item?.cutShort
 			? 'THE TITLE ENDS IN “...”, SO MIHON PROBABLY CUT IT SHORT. SEARCH AGAIN WITH THE END TRIMMED OR COMPLETED, OR PASTE THE ENTRY’S LINK.'
 			: 'SEARCH AGAIN UNDER ANOTHER TITLE, OR PASTE THE ENTRY’S LINK.'
 	);
+	/** THIS SERIES' rows: Ranobe's four (1a), or AniList's. */
+	const seriesRows = $derived.by((): { label: string; value: string }[] => {
+		if (!item) return [];
+		if (item.service === 'ranobe') return item.rows;
+		return [
+			{ label: 'SOURCE', value: [item.sourceKind, item.source].filter(Boolean).join(' · ') },
+			{ label: 'CHAPTERS', value: String(item.chapters) },
+			{ label: 'COVER', value: [item.cover.a, item.cover.b].filter(Boolean).join(' · ') }
+		];
+	});
+	const candCount = $derived(
+		pasted
+			? 'work' in pasted
+				? `RANOBE ${pasted.work.toUpperCase()}`
+				: `ANILIST ${pasted.anilistId}`
+			: cands.length
+				? ranobe
+					? `${cands.length} FOUND · A WORK, NOT AN EDITION`
+					: `${cands.length} FOUND · TAP ONE`
+				: ranobe
+					? 'NOVELS · 0 FOUND'
+					: '0 FOUND'
+	);
 
 	// The next series' candidate covers, fetched while this one is decided.
 	$effect(() => {
-		const next = queue[1] ? byId.get(queue[1]) : null;
-		for (const c of next?.candidates ?? []) if (c.coverUrl) new Image().src = c.coverUrl;
+		const next = queue[1] ? byKey.get(queue[1]) : null;
+		for (const c of (next?.candidates as Cand[] | undefined) ?? [])
+			if (c.coverUrl) new Image().src = c.coverUrl;
 	});
 </script>
 
@@ -422,7 +584,7 @@
 	{:else if nonet}
 		<div class="band two" role="status">
 			<div class="bt">
-				<div class="line">○ ANILIST UNREACHABLE · LINK STILL WORKS</div>
+				<div class="line">○ {SERVICE_NAME[nonet]} UNREACHABLE · LINK STILL WORKS</div>
 				<div class="line dim">
 					THE WORKSTATION HAS NO INTERNET · SEARCH AGAIN AND PASTE A LINK WAIT FOR IT
 				</div>
@@ -442,17 +604,78 @@
 		</div>
 	{/if}
 
-	{#if !item}
+	{#if sibs}
+		<div class="sibs">
+			<div class="sibhead">
+				<div class="sibq">THE SAME WORK FOR THESE?</div>
+				<div class="siblead">{sibs.title}</div>
+				<div class="sibwhy">
+					{sibs.rows.length}
+					{sibs.rows.length === 1
+						? 'MORE SERIES WAITING ON RANOBE HAS'
+						: 'MORE SERIES WAITING ON RANOBE HAVE'}
+					THIS TITLE BEFORE A VOLUME NUMBER.
+				</div>
+			</div>
+			<div class="ch">
+				<div>01 — SERIES</div>
+				<div>
+					{sibs.picked.length
+						? `${sibs.picked.length} OF ${sibs.rows.length} TAPPED`
+						: `${sibs.rows.length} · TAP THE ONES THAT ARE`}
+				</div>
+			</div>
+			<div class="siblist">
+				{#each sibs.rows as r (r.seriesId)}
+					{@const on = sibs.picked.includes(r.seriesId)}
+					<button
+						type="button"
+						class="sib"
+						class:on
+						aria-pressed={on}
+						onclick={() => toggleSib(r.seriesId)}
+					>
+						<span class="tickcell"><span class="tick">{on ? '✓' : ''}</span></span>
+						<span class="sibcover" style:background={coverPlaceholder(hueFor(r.title))}></span>
+						<span class="sibtext">
+							<span class="sibtitle">{r.title}</span>
+							<span class="sibmeta">{r.meta}</span>
+						</span>
+					</button>
+				{/each}
+			</div>
+			<div class="sibnotes">
+				<div>ONLY SERIES STILL WAITING ON RANOBE ARE LISTED. NOTHING IS PRESELECTED.</div>
+				<div>
+					EACH ONE MAPS ONTO ITS OWN VOLUMES OF THE EDITION. TWO COPIES OF ONE VOLUME COUNT ONCE.
+				</div>
+				<div>ONE LEFT OUT STAYS IN THE QUEUE, WITH THIS WORK AS ITS FIRST CANDIDATE.</div>
+			</div>
+		</div>
+		<div class="actions" style:grid-template-columns="1fr 1fr 1.4fr">
+			<button type="button" class="first" disabled={busy} onclick={notThese}>NOT THESE</button>
+			<button
+				type="button"
+				disabled={busy}
+				onclick={() => sibs && (sibs.picked = sibAll ? [] : sibs.rows.map((r) => r.seriesId))}
+				>{sibAll ? 'CLEAR' : `TAP ALL ${sibs.rows.length}`}</button
+			>
+			{#if sibs.picked.length}
+				<button type="button" class="strong" disabled={busy || off} onclick={linkMore}
+					>LINK {sibs.picked.length} MORE</button
+				>
+			{:else}
+				<button type="button" class="dim" disabled>TAP THE ONES THAT ARE</button>
+			{/if}
+		</div>
+	{:else if !item}
 		<section class="empty">
 			<div class="label">00 — NOTHING TO LINK</div>
-			<p>
-				Every series found on AniList has been settled. New ones are searched in the cover pass.
-			</p>
-			<div class="note">THE LIBRARY BAND IS GONE UNTIL THERE'S ANOTHER.</div>
+			<p>Every series found has been settled. New ones are searched in the next pass.</p>
 			<a class="home" href={resolve('/')}>BACK TO LIBRARY</a>
 		</section>
 	{:else}
-		{#key item.seriesId}
+		{#key qk(item)}
 			<div class="body">
 				<section class="series" aria-label="This series">
 					<div class="sl">THIS SERIES</div>
@@ -475,15 +698,9 @@
 						</div>
 					</div>
 					<div class="rows">
-						<div class="r">
-							<span class="rl">SOURCE</span>
-							<span>{[item.sourceKind, item.source].filter(Boolean).join(' · ')}</span>
-						</div>
-						<div class="r"><span class="rl">CHAPTERS</span><span>{item.chapters}</span></div>
-						<div class="r">
-							<span class="rl">COVER</span>
-							<span>{[item.cover.a, item.cover.b].filter(Boolean).join(' · ')}</span>
-						</div>
+						{#each seriesRows as row (row.label)}
+							<div class="r"><span class="rl">{row.label}</span><span>{row.value}</span></div>
+						{/each}
 						{#if single?.linked}
 							<div class="r">
 								<span class="rl">LINKED</span>
@@ -496,20 +713,18 @@
 
 				<div class="cands">
 					<div class="ch">
-						<div>{pasted ? '01 — FROM YOUR LINK' : '01 — CANDIDATES'}</div>
 						<div>
-							{pasted
-								? `ANILIST ${pasted.anilistId}`
-								: cands.length
-									? `${cands.length} FOUND · TAP ONE`
-									: '0 FOUND'}
+							{pasted ? '01 — FROM YOUR LINK' : ranobe ? '01 — ON RANOBE' : '01 — CANDIDATES'}
 						</div>
+						<div>{candCount}</div>
 					</div>
 
 					{#if cands.length}
 						<div class="grid">
-							{#each cands as c, i (c.anilistId)}
-								{@const on = chosen === c.anilistId}
+							{#each cands as c, i (keyOf(c))}
+								{@const key = keyOf(c)}
+								{@const on = chosen === key}
+								{@const note = 'coverNote' in c ? c.coverNote : null}
 								<div
 									class="cand"
 									class:on
@@ -518,11 +733,11 @@
 									role="button"
 									tabindex="0"
 									aria-pressed={on}
-									onclick={() => !off && (chosen = on ? null : c.anilistId)}
+									onclick={() => !off && (chosen = on ? null : key)}
 									onkeydown={(e) =>
 										(e.key === 'Enter' || e.key === ' ') &&
 										!off &&
-										(e.preventDefault(), (chosen = on ? null : c.anilistId))}
+										(e.preventDefault(), (chosen = on ? null : key))}
 								>
 									<div class="strip">
 										<div class="letter">{letter(i)}</div>
@@ -530,19 +745,24 @@
 										{#if on}<div class="chip">✓ LINK THIS</div>{/if}
 										<a
 											class="open"
-											href={anilistUrl(c.anilistId)}
+											href={hrefOf(c)}
 											target="_blank"
 											rel="noopener noreferrer external"
 											onclick={(e) => e.stopPropagation()}>OPEN ↗</a
 										>
 									</div>
 									<div class="cb">
-										<div class="ccover" style:background={coverPlaceholder(hueFor(c.title))}>
+										<div
+											class="ccover"
+											class:noted={note}
+											style:background={note ? undefined : coverPlaceholder(hueFor(c.title))}
+										>
 											{#if c.coverUrl}<img src={c.coverUrl} alt="" loading="lazy" />{/if}
+											{#if note}<span class="nc">{note}</span>{/if}
 										</div>
 										<div class="ct">
 											<div class="ctitle">{c.title}</div>
-											{#if c.alts.length}
+											{#if !ranobe && c.alts.length}
 												<div class="calts">
 													{#each c.alts.slice(0, 3) as al (al)}<div class="alt">{al}</div>{/each}
 												</div>
@@ -561,6 +781,21 @@
 								</div>
 							{/each}
 						</div>
+					{:else if ranobe}
+						<div class="nothing">
+							<p>Ranobe doesn’t have this novel.</p>
+							<div class="hint">
+								NOT ON RANOBE DOES NOTHING ELSE, FOR NOW: THE SERIES STAYS UNLINKED, ITS READS STAY
+								HERE, AND IT ISN’T ASKED ABOUT AGAIN. ITS AUTHOR AND TITLE ARE NEVER SENT.
+							</div>
+						</div>
+						<div class="suggest" aria-disabled="true">
+							<div class="st">
+								<div class="sn">SUGGEST TO RANOBE</div>
+								<div class="sd">LATER · FROM THE EPUB’S OWN TITLE, AUTHOR, PUBLISHER AND ISBN</div>
+							</div>
+							<div class="sy">NOT YET</div>
+						</div>
 					{:else}
 						<div class="nothing">
 							<p>AniList found nothing under this title.</p>
@@ -571,7 +806,7 @@
 					{#if searching && !noSearch}
 						<div class="ch">
 							<div>02 — SEARCH AGAIN</div>
-							<div>ANILIST · TITLE</div>
+							<div>{name} · TITLE</div>
 						</div>
 						<form
 							class="field"
@@ -584,7 +819,7 @@
 							<input
 								type="text"
 								bind:value={query}
-								aria-label="Title to search on AniList"
+								aria-label={ranobe ? 'Title to search on Ranobe' : 'Title to search on AniList'}
 								autocomplete="off"
 								autofocus
 							/>
@@ -593,15 +828,16 @@
 							>
 						</form>
 						<div class="fnote">
-							ANILIST IS ASKED NOW, WITH THIS TITLE ONLY. AN EQUAL TITLE LINKS; ANYTHING ELSE COMES
-							BACK HERE TO CHOOSE FROM.
+							{ranobe
+								? 'RANOBE IS ASKED NOW, WITH THIS TITLE ONLY, NOVELS ONLY. NOTHING IS LINKED: WHAT IT FINDS COMES BACK HERE TO CHOOSE FROM.'
+								: 'ANILIST IS ASKED NOW, WITH THIS TITLE ONLY. AN EQUAL TITLE LINKS; ANYTHING ELSE COMES BACK HERE TO CHOOSE FROM.'}
 						</div>
 					{/if}
 
 					{#if pasting}
 						<div class="ch">
 							<div>02 — PASTE A LINK</div>
-							<div>ANILIST OR MAL</div>
+							<div>{ranobe ? 'RANOBE' : 'ANILIST OR MAL'}</div>
 						</div>
 						<div class="field">
 							<!-- svelte-ignore a11y_autofocus -->
@@ -610,15 +846,20 @@
 								class="mono"
 								value={pasteText}
 								oninput={(e) => readPaste(e.currentTarget.value)}
-								placeholder="anilist.co/manga/… or myanimelist.net/manga/…"
-								aria-label="AniList or MAL link"
+								placeholder={ranobe
+									? 'ranobe.ink/w…'
+									: 'anilist.co/manga/… or myanimelist.net/manga/…'}
+								aria-label={ranobe ? 'Ranobe link' : 'AniList or MAL link'}
 								autocomplete="off"
 								autofocus
 								disabled={off}
 							/>
 						</div>
 						<div class="fnote last">
-							{pasteNote ?? 'ONLY THE ID IN THE LINK IS SENT, NEVER THE TITLE'}
+							{pasteNote ??
+								(ranobe
+									? 'ONLY THE ID IN THE LINK IS READ'
+									: 'ONLY THE ID IN THE LINK IS SENT, NEVER THE TITLE')}
 						</div>
 					{/if}
 				</div>
@@ -813,10 +1054,6 @@
 		max-width: 460px;
 		font: 500 22px/1.25 var(--font-sans);
 		text-wrap: pretty;
-	}
-	.empty .note {
-		font: 400 13px/1.3 var(--font-mono);
-		color: var(--text-2);
 	}
 	.home {
 		display: flex;
@@ -1206,5 +1443,149 @@
 	.actions button:not(.dim):active {
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
+	}
+	/* Ranobe Review: the cover a candidate can't show (1a), and nothing found (1d). */
+	.ccover.noted {
+		background: var(--surface-page);
+		border: 1px solid var(--line-2);
+	}
+	.suggest {
+		display: flex;
+		align-items: stretch;
+		min-height: 68px;
+		border-bottom: 1px solid var(--line-1);
+		opacity: 0.4;
+	}
+	.suggest .st {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 5px;
+		padding: 10px var(--pad);
+	}
+	.suggest .sn {
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.04em;
+	}
+	.suggest .sd {
+		font: 400 13px/1.35 var(--font-mono);
+		color: var(--text-2);
+		text-wrap: pretty;
+	}
+	.suggest .sy {
+		display: flex;
+		align-items: center;
+		padding: 0 20px;
+		border-left: 1px solid var(--line-1);
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.04em;
+	}
+
+	/* THE SAME WORK FOR THESE? (Ranobe Review 1b), transcribed as the rest. */
+	.sibs {
+		flex: 1;
+		min-height: 0;
+		overflow-y: auto;
+	}
+	.sibhead {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		padding: 24px var(--pad) 18px;
+		background: var(--surface-panel);
+		border-bottom: 1px solid var(--line-1);
+	}
+	.sibq {
+		font: 500 13px/1.2 var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+	}
+	.siblead {
+		font: 500 var(--title-size) / 1.25 var(--font-sans);
+		text-wrap: pretty;
+	}
+	.sibwhy {
+		font: 400 13px/1.45 var(--font-mono);
+		color: var(--text-2);
+		text-wrap: pretty;
+	}
+	.siblist {
+		display: flex;
+		flex-direction: column;
+		border-top: 1px solid var(--line-1);
+	}
+	.sib {
+		display: flex;
+		align-items: stretch;
+		min-height: 72px;
+		padding: 0;
+		border: 0;
+		border-bottom: 1px solid var(--line-1);
+		background: var(--surface-page);
+		color: var(--text-1);
+		text-align: left;
+		cursor: pointer;
+	}
+	.sib.on {
+		background: var(--accent-select);
+	}
+	.tickcell {
+		width: 64px;
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-right: 1px solid var(--line-1);
+	}
+	.tick {
+		width: 28px;
+		height: 28px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border: 1px solid var(--line-2);
+		color: var(--on-accent);
+		font: 500 15px var(--font-mono);
+	}
+	.sib.on .tick {
+		border-color: var(--accent);
+		background: var(--accent);
+	}
+	.sibcover {
+		width: 40px;
+		flex-shrink: 0;
+		margin: 10px 0 10px 16px;
+		aspect-ratio: 2 / 2.9;
+		align-self: center;
+	}
+	.sibtext {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 4px;
+		padding: 10px 16px;
+	}
+	.sibtitle {
+		font: 500 15px/1.3 var(--font-sans);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.sibmeta {
+		font: 400 13px/1.3 var(--font-mono);
+		color: var(--text-2);
+	}
+	.sibnotes {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 16px var(--pad) 24px;
+		font: 400 13px/1.45 var(--font-mono);
+		color: var(--text-2);
+		text-wrap: pretty;
 	}
 </style>

@@ -7,18 +7,30 @@ in it, how far each is read, its rating and its favourite. It's card c66
 against is Ranobe's `doc/API-V1.md`, "For Tsundoku", and the steps below use
 its numbers.
 
+- Brief: [`briefs/done/RANOBE.md`](briefs/done/RANOBE.md). Handoff:
+  `doc/design/handoff/Ranobe.dc.html`, with `Ranobe Review.dc.html` and
+  `Ranobe Series.dc.html` (the zip is `doc/handoffs/done/Ranobe.zip`).
 - Code:
-  - `src/lib/library/ranobe.ts`: the pure rules (volumes, units, editions).
-  - `src/lib/server/ranobe.ts`: the client, the pass, the sends.
+  - `src/lib/library/ranobe.ts`: the pure rules (volumes, units, editions,
+    the review's lines, the TRACKING line).
+  - `src/lib/server/ranobe.ts`: the client, the pass, the sends, searching.
+  - `src/lib/server/ranobe-review.ts`: the review's queue and decisions, and
+    what the series screen and SETTINGS read.
+  - `src/routes/api/links/ranobe/`: the review's decisions.
+  - `src/routes/links/`: the review, AniList's and Ranobe's.
+  - The series screen's `?/unlinkRanobe` and `?/retryRanobe`; SETTINGS'
+    `?/retryRanobe`.
   - `scripts/ranobe.ts`: `yarn run ranobe`, the pass by hand.
 - Rung 31: `ranobe_links`, `entries.ranobe_unit`, `ranobe_units`,
-  `ranobe_works`, `ranobe_suggestions`.
-- Specs: `tests/ranobe-domain.spec.ts`, `tests/ranobe-db.spec.ts`.
+  `ranobe_works`, `ranobe_suggestions`. Rung 32: `ranobe_searches`,
+  `ranobe_candidates`, `ranobe_decisions`, and Ranobe's own word on each
+  work in `ranobe_works`.
+- Specs: `tests/ranobe-domain.spec.ts`, `tests/ranobe-db.spec.ts`,
+  `tests/ranobe-review-db.spec.ts`, `tests/ranobe-flow.e2e.ts`.
 
-**Part 1 has no screen.** The brief for part 2 is [`briefs/done/RANOBE.md`](briefs/done/RANOBE.md): choosing a work on `/links` for a novel the ids
-don't find, a Ranobe line on the TRACKING row and a Ranobe cell on SETTINGS
-all wait for a design handoff. Until then the pass and the sends run on their
-own, and `yarn run ranobe` prints what they did.
+Built in two parts on 2026-09-27: the link, the pass and the sends with no
+screen (part 1), then the review, the series screen and SETTINGS from the
+handoff (part 2).
 
 ## What the owner decided
 
@@ -67,15 +79,30 @@ After every import (after the links and the AniList and MAL lists), and from
    about with `POST /lookup`, and a work that answers is linked `via
 'lookup'`. A cover-only link (a novel to its comic's entry, [`LINKS.md`](LINKS.md))
    is the comic's id, so it's never asked. Several series may share a work:
-   The Eminence in Shadow is a series per EPUB volume (step 3).
-2. **Editions.** `GET /works/{ref}` for each work still waiting. The edition
+   The Eminence in Shadow is a series per EPUB volume (step 3). A series the
+   owner UNLINKED or settled as NOT ON RANOBE is never linked again.
+2. **Searching** (step 2's other half). A novel the ids didn't find is
+   searched by title, `GET /search?kind=light_novel,web_novel`, with the
+   volume taken off (`cleanTitle`: "The Beginning After The End 08" asks
+   for "The Beginning After The End"). Only the title is sent. What it finds
+   waits for the owner on `/links`: **a search never links**, since the
+   contract leaves the choice to the owner.
+3. **Editions.** `GET /works/{ref}` for each work still waiting. The edition
    in the series' language is taken (`entries.language`, English when none
    is recorded): licensed before original before fan, an ebook before print.
    With none, a suggestion (below).
-3. **Units** (step 4). `GET /editions/{ref}?fields=units` once per edition,
+4. **Units** (step 4). `GET /editions/{ref}?fields=units` once per edition,
    and each entry keeps its unit ref in `entries.ranobe_unit`. Mapped again
    every pass, since an import may add chapters.
-4. **Sending** what's read (steps 7 and 8), marked `backfill` in the pass.
+5. **Sending** what's read (steps 7 and 8), marked `backfill` in the pass.
+6. **Reading the library**, `GET /me/library`, for what Ranobe says of each
+   linked work: status, progress in the edition's units, rating, FAV. Every
+   send's answer updates it too. It's what the TRACKING line shows.
+
+**Each step runs on its own.** A refusal in one (a search Ranobe turns down,
+say) is logged and the rest go on, reads included. Ranobe out of reach
+stops the pass, since every step after would fail the same way. SETTINGS'
+LAST PASS is when it last ran (`settings.ranobe_pass_at`).
 
 ### Which unit an entry is
 
@@ -147,6 +174,104 @@ flush.
 adds a work as READING, and the last unit of the edition makes it COMPLETED.
 A work rated before anything is read is added as PLANNING.
 
+## The review
+
+The link review at `/links` is AniList's and Ranobe's at once (Ranobe
+Review, 1a–1f). An item is one series and one catalogue, so **a novel unsure
+on both comes up twice, Ranobe first**: Ranobe is where its reads go. The
+queue is every searched, unlinked, unsettled novel, a skipped one at the
+back, then those with nothing found. With no token, none of it shows.
+
+- **Candidates** are works, never editions: MATCHED (the title or alias that
+  matched, often in another script), KIND, YEARS, STATUS, UNITS (`9 VOLUMES
+· 470 CHAPTERS`), and why it's there (`TITLE EQUAL WITHOUT “VOL. 2”`,
+  `MATCHED “本好きの下剋上”`). A cover Ranobe flags as sensitive is never
+  drawn: **SENSITIVE · NOT SHOWN** stands in, as NO COVER does for none.
+  OPEN ↗ goes to the work on `ranobe.ink`.
+- **LINK** links the series `via 'review'`, and the next pass takes the
+  edition (or suggests it), maps and sends.
+- **THE SAME WORK FOR THESE?** (1b, the owner's pick over 1c). Right after
+  LINK, the review lists the other series still waiting on Ranobe whose
+  title, before a volume number, is this one's (`cleanTitle`, normalised).
+  Nothing is preselected. TAP ALL N and LINK N MORE link the ones tapped;
+  NOT THESE goes on. The rows say the volume and flag **A SECOND COPY** of
+  one. A sibling left out leads with the work as candidate A, **CHOSEN FOR
+  VOL. 2 JUST NOW** (1c). UNDO of the LINK takes that back, and gives back
+  the sibling's own find of the work if it had one.
+- **NONE OF THESE**, or **NOT ON RANOBE** with nothing found (1d): settled,
+  never asked again, nothing sent. **SUGGEST TO RANOBE** is drawn dimmed, as
+  NOT YET (step 12).
+- **SKIP**, **SEARCH AGAIN** (Ranobe asked now; out of reach, it waits for
+  the pass), **PASTE A LINK** (`ranobe.ink/w2`: only the id is read, with
+  `GET /works/w2`), and **UNDO** for every one of them.
+- **FIND** and **CHANGE** on a series screen open the review on that series
+  alone (`/links?series=…&service=ranobe`). A hidden series may only PASTE,
+  and is never offered as a sibling.
+
+## The series screen
+
+With a token, a novel's LINK and TRACKING rows are Ranobe's (Ranobe Series
+2a–2k), in place of AniList's. The COVER row stays: a novel's cover can
+still come from its AniList link, and the LINK row keeps that id in its
+meta line.
+
+- **LINK**: the work's title; `RANOBE W901 · ENGLISH EDITION · BY CHAPTER ·
+2 SERIES SHARE IT · ANILIST 108428`, as far as each applies; RANOBE ↗,
+  CHANGE, UNLINK. UNLINK is a decision: no pass links it again, and what was
+  sent stays on Ranobe. Not linked: **Not on Ranobe**, why (candidates
+  waiting, nothing found, settled), and FIND and PASTE A LINK. Hidden: **Not
+  linked**, `HIDDEN SERIES ARE NEVER LOOKED UP ON RANOBE`, PASTE A LINK only.
+- **TRACKING**, one line (`ranobeLines`): what Ranobe says, `RANOBE ·
+READING · VOL. 5 OF 6 · 8`, and on the right what tsundoku did, SENT 12
+  MIN AGO. Its other states:
+  - A volume partly read here gets a quiet second line, `VOL. 6 · 6 OF 9
+CHAPTERS READ HERE` / `SENT ONCE ALL 9 ARE` (2b), so a chapter that
+    didn't go reads as expected.
+  - A failed send: `RANOBE · VOL. 5 NOT SENT` and why, with TRY AGAIN. The
+    second line says what to do: a new token, or that the edition has no
+    such unit (2d–2f).
+  - WAITING ON AN EDITION, with whether the suggestion was refused (2g).
+    NOT ON RANOBE (2h). AS OF 14:20 offline (2i). Hidden: nothing sent (2j).
+  - Linked but not read yet: `RANOBE · NOT IN YOUR LIBRARY YET` / `ADDED ON
+THE FIRST READ`.
+- **No EDIT.** Ranobe works status out from the reads, and the RATING row
+  is what it gets.
+
+## SETTINGS
+
+A third row in 02 — CATALOGUES (3a–3c), 84px for its three lines:
+
+- `Token in .env`, and the send line: `NOVELS · READ AND WRITTEN · LAST SENT
+14:20`, or `4 UNITS NOT SENT · RANOBE DID NOT ANSWER · 09:14` with TRY
+  AGAIN.
+- The pass's line (3c): `LAST PASS 14:20 · 8 LINKED · 1 TO CHOOSE · 14 NOT
+ON RANOBE`. **TO CHOOSE** counts series with candidates and opens
+  `/links`; **NOT ON RANOBE** counts those settled so or with nothing found.
+  The two never count a series twice. TO CHOOSE is left out at 0.
+- No token: `Not configured`, `NO TOKEN · RANOBE_TOKEN IN .ENV`, nothing to
+  tap.
+
+The section's TO REVIEW count, and the library's links band, count Ranobe's
+queue with AniList's: it's one review.
+
+## Where it departs from the handoff
+
+- **"Token for masshiro"** reads **Token in .env**. Ranobe has no endpoint
+  naming a token's account (`/me/tokens` is session-only), so the name
+  can't be known from here.
+- **The mock's counts** (2,326 LINKED, 14 NOT ON RANOBE, 05 OF 12) are the
+  database's.
+- **The mock's kinds**: its THIS SERIES meta says LIGHT NOVEL or WEB NOVEL.
+  tsundoku has one kind, novel, and says NOVEL. The candidate's KIND row has
+  no "· SAME": there is nothing finer to compare it with.
+- **The sibling rule** is the title before a volume number, as the mock
+  says, but not "their candidates were the same": a sibling not searched yet
+  is offered too. Nothing is preselected, so nothing is linked unasked.
+- **SEARCH AGAIN's field** isn't drawn in Ranobe Review. It's the link
+  review's own, with Ranobe's words.
+- **SKIP** is there when Ranobe found candidates (1a), as on AniList's
+  review. With nothing found the actions are the mock's three (1d).
+
 ## Where things stood on 2026-09-27
 
 Of the 23 novels, the ids found 5 works on Ranobe (Alya, The Eminence in
@@ -161,13 +286,20 @@ those 5 works. It suggested an English edition for each, which Ranobe applied
 at once (bundles 1–5, editions e1180–e1184), and mapped 109 entries onto their
 volumes. It sent no reads, since none of them is read yet.
 
+Part 2's first pass, on a copy of the live database, searched the 15
+novels still unlinked, and **Ranobe found nothing for any of them**: they
+are the Korean web novels it doesn't have yet, and a textbook. So today the
+review shows 15 NOT ON RANOBE decisions to make, and The Beginning After
+the End is 7 of them, one per volume.
+
 ## Not yet
 
-- **Choosing on `/links`** (step 2's other half): `GET /search?kind=light_novel,web_novel`
-  for a novel the ids don't find, with `matched`, `years` and `units` to tell
-  candidates apart. Needs the design brief.
-- **Screens**: a Ranobe line on the TRACKING row, a cell on SETTINGS with what
-  failed and TRY AGAIN, and the suggestions waiting on review.
+- **NOT ON RANOBE for the siblings.** The sibling list only follows a LINK.
+  Settling The Beginning After the End as not on Ranobe is seven decisions
+  today, one per volume. The same list after NOT ON RANOBE would make it one,
+  and would need its own drawing.
+- **The suggestions waiting on review**, on a screen. The owner's token has
+  them applied at once, so none waits today.
 - **Suggesting works and people** (step 12): the EPUB importer reading
   `dc:title`, `dc:creator`, `dc:publisher`, `dc:language` and the ISBN, and
   suggesting a novel Ranobe lacks. That is how the Korean web novels get

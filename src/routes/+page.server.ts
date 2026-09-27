@@ -2,6 +2,7 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { applyPending, offerFold, reviewQueue } from '$lib/server/dupes';
 import { linkQueueCount } from '$lib/server/catalogue';
+import { ranobeQueueCount } from '$lib/server/ranobe-review';
 import { getDb } from '$lib/server/db';
 import {
 	collectionExists,
@@ -75,7 +76,8 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	await applyPending();
 	const dupes = reviewQueue(reveal).length;
 	// Catalogue links AniList found, not for certain (doc/LINKS.md).
-	const toLink = linkQueueCount(reveal);
+	// One review for both catalogues (doc/RANOBE.md, "The review").
+	const toLink = linkQueueCount(reveal) + ranobeQueueCount();
 	// RANDOM's shuffle: one per choice of RANDOM, kept in the URL.
 	const seed = parseSeed(url.searchParams.get('seed'));
 	const pageSize = pageSizeOf(cookies.get('tsundoku_grid_page'));

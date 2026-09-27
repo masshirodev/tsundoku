@@ -372,6 +372,7 @@
 					editions={data.editions}
 					link={data.link}
 					tracking={data.tracking}
+					ranobe={data.ranobe}
 				/>
 			</div>
 		{/if}
