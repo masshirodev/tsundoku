@@ -229,9 +229,17 @@ they're fan rips. So:
   it from a subtitle, so the owner cuts it on Ranobe.
 - **The kind is a guess**: a series that is one volume is a light novel, one
   of chapters a web novel.
-- **The original language is a guess** from the authors' script (Hangul is
-  Korean, kana Japanese, Han Chinese), and `und`, undetermined, when it
-  doesn't say. It's never the file's language: that's the translation's.
+- **The original language is the file's, on purpose, and says so.** Ranobe
+  requires a title in a work's original language (its `snapshots.ts`: "A
+  title in the original language is required"), and the only title the file
+  has is the translation's. So `originalLang` is the file's language, and the
+  real guess, from the authors' script (Hangul is Korean, kana Japanese, Han
+  Chinese), goes in the `reason`: "probably ko · add the original title and
+  fix it before approving". The first live suggestion, 2026-09-27, sent the
+  guess as `originalLang` with only an English title, and Ranobe refused it
+  `422 invalid_revision`. The specs' fake Ranobe now enforces the rule.
+- **The other rules** Ranobe checks all hold: the kind is known, `author` is
+  a credit role of both novel kinds, and nothing repeats.
 
 Ranobe's bundle lists **duplicates** while it's pending: an existing person or
 work whose name or title normalises the same. The owner sees them in the

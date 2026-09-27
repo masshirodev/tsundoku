@@ -543,13 +543,22 @@ export function workBundle(o: {
 			externalIds: []
 		}
 	}));
-	const original = o.people.map((p) => p.lang).find((l) => l !== null) ?? 'und';
+	// Ranobe requires a title in the work's original language, and the only
+	// title the file has is its own, the translation's. So the work goes in
+	// under that language, and the guess at the real original -- the author's
+	// script -- goes in the reason, where the owner reads it before approving.
+	const lang = o.lang ?? 'en';
+	const guessed = o.people.map((p) => p.lang).find((l) => l !== null) ?? null;
 	const kind = o.volume !== null ? 'light_novel' : 'web_novel';
 	return {
 		reason: [
 			`From Tsundoku: an EPUB${o.volume ? ` of volume ${o.volume}` : ''} that Ranobe's search didn't find.`,
 			'The title and author are the file’s own.',
-			`The kind (${kind === 'light_novel' ? 'light novel, from a volume' : 'web novel, from chapters'}) and the original language (${original}) are guesses.`
+			`The kind (${kind === 'light_novel' ? 'light novel, from a volume' : 'web novel, from chapters'}) is a guess.`,
+			`The original language is set to ${lang}, the file’s, only because a title in it is required;`,
+			guessed
+				? `the author's name says it's probably ${guessed}. Add the original title and fix it before approving.`
+				: 'the file doesn’t say what it is. Fix it before approving.'
 		].join(' '),
 		source: `epub:${o.file}`,
 		items: [
@@ -560,8 +569,8 @@ export function workBundle(o: {
 				snapshot: {
 					kind,
 					hidden: false,
-					originalLang: original,
-					titles: [{ lang: o.lang ?? 'en', title: o.title, latin: null, official: false }],
+					originalLang: lang,
+					titles: [{ lang, title: o.title, latin: null, official: false }],
 					aliases: [...new Set(o.aliases ?? [])].filter((a) => a && a !== o.title),
 					status: 'unknown',
 					adult: false,

@@ -142,6 +142,13 @@
 		}
 	}
 	const NO_ANSWER = 'THE WORKSTATION DID NOT ANSWER · NOTHING CHANGED';
+	/** Why a decision didn't happen: the catalogue unreachable, refusing, or no answer at all. */
+	const failText = (r: Response | null, service: Service, what = 'NOTHING CHANGED') =>
+		r?.status === 503
+			? `${SERVICE_NAME[service]} DID NOT ANSWER · ${what}`
+			: r?.status === 422
+				? `${SERVICE_NAME[service]} REFUSED IT · ${what}`
+				: NO_ANSWER;
 
 	async function backToSeries(id: number) {
 		await goto(resolve('/series/[id]', { id: String(id) }), { invalidateAll: true });
@@ -163,10 +170,7 @@
 		busy = false;
 		if (!r || !r.ok) {
 			if (r?.status === 503) nonet = it.service;
-			failed =
-				r?.status === 503
-					? `${SERVICE_NAME[it.service]} DID NOT ANSWER · NOTHING CHANGED`
-					: NO_ANSWER;
+			failed = failText(r, it.service);
 			return null;
 		}
 		const answer = (await r.json().catch(() => ({}))) as Record<string, unknown>;
@@ -271,7 +275,7 @@
 		const r = await post('ranobe', { series: s.series, many: s.picked, work: s.work });
 		busy = false;
 		if (!r?.ok) {
-			failed = r?.status === 503 ? 'RANOBE DID NOT ANSWER · NOTHING CHANGED' : NO_ANSWER;
+			failed = failText(r, 'ranobe');
 			return;
 		}
 		const { linked } = (await r.json()) as { linked: number[] };
@@ -385,7 +389,7 @@
 		busy = false;
 		if (!r?.ok) {
 			if (r?.status === 503) nonet = 'ranobe';
-			failed = r?.status === 503 ? 'RANOBE DID NOT ANSWER · NOTHING SENT' : NO_ANSWER;
+			failed = failText(r, 'ranobe', 'NOTHING SENT');
 			return;
 		}
 		const a = (await r.json()) as {

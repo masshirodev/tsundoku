@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { isRevealed } from '$lib/server/prefs';
 import { Unreachable } from '$lib/server/catalogue';
 import { seriesAccess } from '$lib/server/catalogue';
-import { configured, readWork, unlinkSeries } from '$lib/server/ranobe';
+import { Refused, configured, readWork, unlinkSeries } from '$lib/server/ranobe';
 import {
 	NotACandidate,
 	asReviewCandidate,
@@ -120,6 +120,11 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 		if (e instanceof Unreachable) error(503, 'Ranobe unreachable');
 		if (e instanceof NotACandidate) error(409, 'not a candidate');
 		if (e instanceof CannotSuggest) error(409, e.message);
+		// Ranobe answered, and said no: not the workstation's silence (the page says which).
+		if (e instanceof Refused) {
+			console.error(`tsundoku: Ranobe refused (${e.status} ${e.code}):`, JSON.stringify(e.details));
+			error(422, `Ranobe refused it: ${e.code}`);
+		}
 		throw e;
 	}
 	error(400, 'what to do');

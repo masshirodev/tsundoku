@@ -84,6 +84,34 @@ rb.setRanobeFetch(async (input, init) => {
 		});
 	}
 	if (path === '/bundles' && method === 'POST') {
+		// Ranobe's own rule (snapshots.ts): a work needs a title in its original
+		// language. The first live suggestion was refused for exactly this.
+		for (const [i, item] of (
+			body.items as {
+				type: string;
+				snapshot: { originalLang: string; titles: { lang: string }[] };
+			}[]
+		).entries())
+			if (
+				item.type === 'work' &&
+				!item.snapshot.titles.some((t) => t.lang === item.snapshot.originalLang)
+			)
+				return json(
+					{
+						error: {
+							code: 'invalid_revision',
+							details: {
+								issues: [
+									{
+										path: `items.${i}.snapshot.titles`,
+										message: 'A title in the original language is required'
+									}
+								]
+							}
+						}
+					},
+					422
+				);
 		const id = nextBundle++;
 		bundles.set(id, { status: 'pending', work: `w${900 + id}` });
 		return json({ bundle: id, status: 'pending', items: [] }, 201);
@@ -171,9 +199,13 @@ describe('with it', () => {
 			(p) => (p.body as { items: { type: string; snapshot: Record<string, unknown> }[] }).items
 		);
 		expect(sss.map((i) => i.type)).toEqual(['work']);
-		expect(sss[0].snapshot).toMatchObject({ originalLang: 'und', kind: 'web_novel' });
+		expect(sss[0].snapshot).toMatchObject({ originalLang: 'en', kind: 'web_novel' });
 		expect(orv[0].snapshot).toMatchObject({ name: '싱숑', latin: 'Sing-shong', lang: 'ko' });
-		expect(orv[1].snapshot).toMatchObject({ originalLang: 'ko' });
+		// A title in the original language is required, and the file's is English:
+		// the Korean guess is in the reason, for the owner to fix before approving.
+		expect(orv[1].snapshot).toMatchObject({ originalLang: 'en' });
+		const reason = (posted()[1].body as { reason: string }).reason;
+		expect(reason).toContain('probably ko');
 	});
 
 	it('a sibling volume joins the bundle waiting, rather than suggest the novel twice', async () => {

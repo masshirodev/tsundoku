@@ -395,11 +395,12 @@ describe('suggesting a novel (c72)', () => {
 		]);
 		expect(b.items[1].snapshot).toMatchObject({
 			kind: 'light_novel',
-			originalLang: 'und',
+			// Ranobe needs a title in the original language: the file's is the only one.
+			originalLang: 'en',
 			titles: [{ lang: 'en', title: 'The Beginning After the End', latin: null, official: false }],
 			credits: [{ personId: '@author1', orgId: null, role: 'author', note: null }]
 		});
-		expect(b.reason).toContain('guesses');
+		expect(b.reason).toContain('the file doesn’t say what it is');
 		// The author's script says the original language; chapters say a web novel.
 		const ko = workBundle({
 			title: 'Omniscient Reader’s Viewpoint',
@@ -408,7 +409,9 @@ describe('suggesting a novel (c72)', () => {
 			lang: 'en',
 			file: 'orv.epub'
 		});
-		expect(ko.items[1].snapshot).toMatchObject({ kind: 'web_novel', originalLang: 'ko' });
+		expect(ko.items[1].snapshot).toMatchObject({ kind: 'web_novel', originalLang: 'en' });
+		// The Korean guess goes where the owner reads it before approving.
+		expect(ko.reason).toContain('probably ko');
 		// A second title in brackets goes along as an alias (Second Life Ranker's file).
 		const slr = workBundle({
 			title: 'Second Life Ranker',
