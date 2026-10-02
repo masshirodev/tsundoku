@@ -157,3 +157,15 @@ test('the bar with the name, search and SELECT stays on top as the grid scrolls,
 		expect(bg).not.toBe('rgba(0, 0, 0, 0)');
 	}
 });
+
+test('RESCAN in the sidebar starts a scan, and says so when there is nothing to import', async ({
+	page
+}, info) => {
+	test.skip(!FRAMES[info.project.name].sidebar, 'the sidebar is the desktop’s');
+	await page.goto('/');
+	const sidebar = page.locator('aside.sidebar');
+	// playwright.config.ts points LIBRARY_ROOT at an empty folder, so this
+	// refuses rather than importing into the shared seeded database.
+	await sidebar.getByRole('button', { name: 'RESCAN' }).click();
+	await expect(sidebar.getByRole('status')).toContainText('NOTHING TO IMPORT');
+});

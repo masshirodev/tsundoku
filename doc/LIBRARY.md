@@ -20,6 +20,7 @@ state is the result of real data or real input.
 | Multi-select     | SELECT in the header. Taps then toggle tiles, and the bulk bar applies FAV, + SHELF, TAG, GROUP or HIDE to exactly the selection. GROUP is enabled only when every selected tile is a single book ([`BOOKS.md`](BOOKS.md)).                                                 |
 | Person / tag     | `/?tag=namespace:value`, from a tag on the series screen or a chip. The person header replaces CONTINUE ([`BOOKS.md`](BOOKS.md)). A tag with nothing visible is a 404.                                                                                                      |
 | History          | **N OPEN · HISTORY →** on CONTINUE, and a HISTORY row in the desktop sidebar, open [`HISTORY.md`](HISTORY.md)'s screen.                                                                                                                                                     |
+| Rescan           | **RESCAN** in the desktop sidebar, or typing `/scan`. Starts the same import as START SCAN; a press while one runs joins it. With nothing to import, the sidebar says where it looked, under the row ([`IMPORT-MIHON.md`](IMPORT-MIHON.md)).                                |
 | Incognito        | Typing `/incognito`. A dashed INCOGNITO · NOTHING SAVED band with END, on every screen ([`PRIVACY.md`](PRIVACY.md)).                                                                                                                                                        |
 | Words            | Typing `/words`. The words looked up while reading Japanese, waiting for review ([`JAPANESE.md`](JAPANESE.md)).                                                                                                                                                             |
 | Duplicates band  | Pairs of books with alike covers to review, only those the viewer can see: **N POSSIBLE DUPLICATES · REVIEW →** ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md)).                                                                                                               |
@@ -227,7 +228,7 @@ the handoff draws a still screen and doesn't say.
 
 Specific and honest, so a deliberate gap isn't mistaken for an oversight:
 
-- **Mihon and Hentoid import; EPUB doesn't yet.** START SCAN (and `/scan`
+- **Mihon and Hentoid import; EPUB doesn't yet.** START SCAN (and RESCAN or `/scan`
   later) imports `$LIBRARY_ROOT/Mihon/` and `$LIBRARY_ROOT/H/.Hentoid/`
   ([`IMPORT-MIHON.md`](IMPORT-MIHON.md), [`IMPORT-HENTOID.md`](IMPORT-HENTOID.md)).
   With neither folder present, it says where it looked. Development still runs

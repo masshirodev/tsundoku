@@ -21,6 +21,10 @@
 
 	let { data, children } = $props();
 
+	// The scan action's refusal is drawn by the empty library only, so the
+	// sidebar's RESCAN says it in its own place rather than nowhere.
+	let rescanNote = $state('');
+
 	// ---- waiting (doc/WAITING.md) -------------------------------------------------
 	// The element a tap landed on, so it can hold its pressed look until the
 	// next screen draws. Captured before any handler runs, so a tile's own
@@ -192,6 +196,21 @@
 						href={resolve('/history')}
 						aria-current={page.url.pathname === '/history' ? 'page' : undefined}>HISTORY</a
 					>
+					<!-- START SCAN for a library that isn't empty. A press while
+					     one runs joins it (doc/IMPORT-MIHON.md, "Running it"). -->
+					<form
+						method="POST"
+						action="/?/scan"
+						use:enhance={() =>
+							async ({ result, update }) => {
+								rescanNote =
+									result.type === 'failure' ? String(result.data?.scanMessage ?? '') : '';
+								if (result.type !== 'failure') await update();
+							}}
+					>
+						<button type="submit">RESCAN</button>
+						{#if rescanNote}<div class="rescan-note" role="status">{rescanNote}</div>{/if}
+					</form>
 					<!-- Not built yet; see doc/LIBRARY.md, "What it does not do yet". -->
 					<span aria-disabled="true">IMPORT LOG</span>
 					<a
@@ -350,7 +369,8 @@
 		border-top: var(--hairline);
 	}
 	.side-foot a,
-	.side-foot span {
+	.side-foot span,
+	.side-foot button {
 		display: flex;
 		align-items: center;
 		height: 48px;
@@ -364,6 +384,20 @@
 	.side-foot a {
 		color: var(--text-1);
 		text-decoration: none;
+	}
+	.side-foot button {
+		width: 100%;
+		border: 0;
+		background: none;
+		color: var(--text-1);
+		text-align: left;
+		cursor: pointer;
+	}
+	.rescan-note {
+		padding: 0 24px 12px;
+		font: 500 11px var(--font-mono);
+		color: var(--text-2);
+		overflow-wrap: anywhere;
 	}
 	.side-foot a[aria-current='page'] {
 		background: var(--surface-inverse);

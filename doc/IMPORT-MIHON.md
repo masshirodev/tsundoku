@@ -21,8 +21,8 @@ $LIBRARY_ROOT/
 
 ## Running it
 
-- **START SCAN** on the empty library, or **`/scan`** typed in search later,
-  starts it on the server in the background. The library's IMPORTING band follows the
+- **START SCAN** on the empty library, then **RESCAN** in the desktop sidebar or
+  **`/scan`** typed in search (the way on a tablet or phone), starts it on the server in the background. The library's IMPORTING band follows the
   job (`scan_jobs`), re-reading it every two seconds. The FINISHED band and the
   NEW shelf follow.
 - One job runs every importer that finds its folder: Mihon, then Hentoid
@@ -168,18 +168,18 @@ tablet should be bound by the disk, not by the parsing.
 
 ## Code
 
-| Part                                | File                                                                                                                                 |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| protobuf, no dependency             | `src/lib/import/protobuf.ts`                                                                                                         |
-| the backup's schema                 | `src/lib/import/mihon-backup.ts`                                                                                                     |
-| ComicInfo.xml                       | `src/lib/import/comicinfo.ts`                                                                                                        |
-| every rule above, pure              | `src/lib/import/mihon-plan.ts`                                                                                                       |
-| CBZ reading                         | `src/lib/server/zip.ts`                                                                                                              |
-| walking the disk                    | `src/lib/server/import/mihon.ts`                                                                                                     |
-| the one writer, shared with Hentoid | `src/lib/server/import/write.ts`                                                                                                     |
-| the job, START SCAN / `/scan`       | `src/lib/server/import/index.ts`                                                                                                     |
-| CLI                                 | `scripts/import.ts`                                                                                                                  |
-| tests                               | `tests/mihon-plan.spec.ts`, `tests/zip.spec.ts`, `tests/import-db.spec.ts`; fixtures synthesised by `tests/helpers/mihon-fixture.ts` |
+| Part                                   | File                                                                                                                                 |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| protobuf, no dependency                | `src/lib/import/protobuf.ts`                                                                                                         |
+| the backup's schema                    | `src/lib/import/mihon-backup.ts`                                                                                                     |
+| ComicInfo.xml                          | `src/lib/import/comicinfo.ts`                                                                                                        |
+| every rule above, pure                 | `src/lib/import/mihon-plan.ts`                                                                                                       |
+| CBZ reading                            | `src/lib/server/zip.ts`                                                                                                              |
+| walking the disk                       | `src/lib/server/import/mihon.ts`                                                                                                     |
+| the one writer, shared with Hentoid    | `src/lib/server/import/write.ts`                                                                                                     |
+| the job, START SCAN / RESCAN / `/scan` | `src/lib/server/import/index.ts`                                                                                                     |
+| CLI                                    | `scripts/import.ts`                                                                                                                  |
+| tests                                  | `tests/mihon-plan.spec.ts`, `tests/zip.spec.ts`, `tests/import-db.spec.ts`; fixtures synthesised by `tests/helpers/mihon-fixture.ts` |
 
 The real samples in `/mnt/hdd2/tsundoku/samples` are copyrighted and partly
 explicit, and are never committed. The fixtures copy their shape, not their
