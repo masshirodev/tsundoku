@@ -12,8 +12,8 @@ download. What the tablet downloads reaches the workstation through
 4. delete it on the tablet to free the space. **The workstation keeps it.**
 
 The tablet has far less room than the workstation. The workstation is the
-archive; the tablet is a place to download. The phone downloads too
-(below, "Two devices").
+archive; the tablet is a place to download. The phone and a Waydroid
+container on the workstation download too (below, "Other devices").
 
 ## How it's set up
 
@@ -87,15 +87,17 @@ It only asks when:
 
 `yarn run sync-import -- --force` asks regardless of the sequences.
 
-## Two devices
+## Other devices
 
-The tablet (a Xiaomi Pad, `21051182G`) and the phone (a Galaxy Z Fold6,
-`SM-F956B`) both download, and both sync. Each device keeps its own copy:
+The tablet (a Xiaomi Pad, `21051182G`), the phone (a Galaxy Z Fold6,
+`SM-F956B`) and Waydroid on the workstation (below) all download, and all
+sync. Each device keeps its own copy:
 
-| Device | On the workstation                                   |
-| ------ | ---------------------------------------------------- |
-| Tablet | `LIBRARY_ROOT/{Mihon,Hentoid,Library}`               |
-| Phone  | `LIBRARY_ROOT/devices/phone/{Mihon,Hentoid,Library}` |
+| Device   | On the workstation                                   |
+| -------- | ---------------------------------------------------- |
+| Tablet   | `LIBRARY_ROOT/{Mihon,Hentoid,Library}`               |
+| Phone    | `LIBRARY_ROOT/devices/phone/{Mihon,Hentoid,Library}` |
+| Waydroid | `LIBRARY_ROOT/devices/waydroid/Mihon`                |
 
 Why not one shared folder: the same chapter downloaded on both devices would
 be two versions of one path, and Syncthing would keep a conflict copy. Mihon
@@ -192,6 +194,29 @@ A folder whose label isn't recognised is left for `--as <folder id>=Mihon`
 The first scan compares the tablet's files with the copy already here. Files
 that match are hashed, not sent. On `/mnt/hdd2` that takes a while for 165 GB,
 once.
+
+### Waydroid
+
+Mihon also runs in Waydroid on the workstation itself (set up 2026-10-02), and
+syncs like any other device: Syncthing-Fork from F-Droid inside the container,
+Mihon's folder only. A bind mount or symlink can't replace it. Waydroid's
+shared storage (`~/.local/share/waydroid/data/media`) is owned by Android's
+media user (uid 1023), so the host can't read it. A path that isn't a Syncthing
+folder would also never move the timer, and nothing would keep a half-written
+chapter out.
+
+- The workstation, as Waydroid sees it: `tcp://192.168.240.1:22000`, the
+  `waydroid0` bridge. Syncthing listens on every interface, so nothing else
+  is needed.
+- Syncthing-Fork's **run conditions** default to Wi-Fi only, and Waydroid's
+  network isn't Wi-Fi to Android. Turn them off, or it never dials.
+- Mihon's folder there is `/sdcard/mihon`, lowercase. The label `mihon` is
+  recognised all the same. Accepted with `--device-dir <id>=waydroid`.
+- Waydroid's data is on `/`, so its downloads fill the home disk until they're
+  deleted in Mihon. The copy here stays (deletes are ignored).
+- `adb connect 192.168.240.112:5555` reaches it (the IP is in
+  `waydroid status`). Accept the debugging prompt once. `adb push` is how a
+  backup gets in, for example to restore the tablet's library into it.
 
 ## Checking on it
 
