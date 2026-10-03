@@ -768,7 +768,8 @@
 			const slot = pg.closest<HTMLElement>('[data-entry]');
 			const entry = slot ? Number(slot.dataset.entry) : data.entry.id;
 			const page = Number(pg.dataset.page) - 1;
-			const r = pg.getBoundingClientRect();
+			// The drawn image, not the page's box: they differ wherever it's letterboxed.
+			const r = (pg.querySelector('[data-text-frame]') ?? pg).getBoundingClientRect();
 			const hit = hitBlock(blocksOn(entry, page), (x - r.left) / r.width, (y - r.top) / r.height);
 			const block = hit && text?.pages[page]?.[hit.index];
 			if (!hit || !block) return null;

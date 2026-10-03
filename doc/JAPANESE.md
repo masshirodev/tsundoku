@@ -130,6 +130,13 @@ block looks it up either way. The outline is 1px ink with a dark edge each
 side, so it reads on white paper and black art; the block being looked up is
 ringed in the accent (`src/lib/japanese/blocks.ts`, drawn by `PageImage`).
 
+Rings are drawn, and taps hit-tested, in the **drawn image**, not the page's
+box (`PageImage`'s text frame, `data-text-frame`). The two differ whenever
+`object-fit: contain` letterboxes the page. A phone in FIT SCREEN caps the
+width, so the box takes the screen's shape. Placed in the box's fractions, every
+ring sat off its text by up to half the letterbox: too high on the top half of
+the page.
+
 A page OCR hasn't read yet says **NO TEXT YET · OCR · 12 OF 58** in a dashed
 cell in the top bar, only with the controls up.
 

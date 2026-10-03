@@ -72,6 +72,8 @@
 						? `${h} / ${w}`
 						: `${w} / ${h}`
 	);
+	/** The drawn image's shape, for the text frame; none where the box already is it. */
+	const aspect = $derived(w > 0 && h > 0 && !half && !rotate ? size.w / size.h : 0);
 </script>
 
 <div
@@ -99,19 +101,32 @@
 		onload={() => (status = 'loaded')}
 		onerror={() => (status = 'failed')}
 	/>
-	{#if status === 'loaded'}
-		{#each rings as r, k (k)}
-			<div
-				class="ring"
-				class:selected={r.selected}
-				aria-hidden="true"
-				style:left="{r.box[0] * 100}%"
-				style:top="{r.box[1] * 100}%"
-				style:width="{r.box[2] * 100}%"
-				style:height="{r.box[3] * 100}%"
-			></div>
-		{/each}
-	{/if}
+	<!--
+		Where the image is actually drawn: `contain` letterboxes it whenever the
+		box isn't the page's shape (a phone in FIT SCREEN caps the width, so the
+		box is the screen's), and a ring placed in the box's fractions sits off
+		the text by half the letterbox. The reader hit-tests against this too.
+	-->
+	<div
+		class="frame {side}"
+		class:fill={!aspect}
+		style:--ar={aspect || undefined}
+		data-text-frame
+		aria-hidden="true"
+	>
+		{#if status === 'loaded'}
+			{#each rings as r, k (k)}
+				<div
+					class="ring"
+					class:selected={r.selected}
+					style:left="{r.box[0] * 100}%"
+					style:top="{r.box[1] * 100}%"
+					style:width="{r.box[2] * 100}%"
+					style:height="{r.box[3] * 100}%"
+				></div>
+			{/each}
+		{/if}
+	</div>
 	{#if status === 'loading'}
 		<div class="loading" aria-hidden="true">
 			<div class="n">{name}</div>
@@ -142,6 +157,7 @@
 		position: relative;
 		flex-shrink: 0;
 		background: transparent;
+		container-type: size;
 	}
 	/* Paged: the page is as large as the screen allows, in its own shape. */
 	.fit-screen {
@@ -193,6 +209,31 @@
 		max-width: none;
 		object-fit: fill;
 		transform: translate(-50%, -50%) rotate(90deg);
+	}
+	/* The contain rectangle, aligned the way object-position aligns the image. */
+	.frame {
+		position: absolute;
+		top: 50%;
+		left: 50%;
+		width: min(100cqw, 100cqh * var(--ar));
+		height: min(100cqh, 100cqw / var(--ar));
+		transform: translate(-50%, -50%);
+		pointer-events: none;
+	}
+	.frame.left {
+		left: auto;
+		right: 0;
+		transform: translateY(-50%);
+	}
+	.frame.right {
+		left: 0;
+		transform: translateY(-50%);
+	}
+	.frame.fill {
+		inset: 0;
+		width: auto;
+		height: auto;
+		transform: none;
 	}
 	/*
 	 * Index Japanese 1a: an ink outline with a dark edge either side, so it

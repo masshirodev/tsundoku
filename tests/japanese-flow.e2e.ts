@@ -31,9 +31,24 @@ async function series(page: Page) {
 	return { id, entry: Number(href!.match(/\/read\/(\d+)/)![1]) };
 }
 
+/** Where the page is drawn: the box letterboxes it whenever the shapes differ. */
+const drawn = (page: Page) =>
+	page.locator('.screen:not([aria-hidden]) img').evaluate((img: HTMLImageElement) => {
+		const r = img.getBoundingClientRect();
+		const s = Math.min(r.width / img.naturalWidth, r.height / img.naturalHeight);
+		const width = img.naturalWidth * s;
+		const height = img.naturalHeight * s;
+		return {
+			x: r.x + (r.width - width) / 2,
+			y: r.y + (r.height - height) / 2,
+			width,
+			height
+		};
+	});
+
 /** Tap the middle of a seeded block (fractions of the page) with a finger. */
 async function tapBlock(page: Page, box: [number, number, number, number]) {
-	const r = (await page.locator('.screen:not([aria-hidden]) [data-page]').boundingBox())!;
+	const r = await drawn(page);
 	await page.touchscreen.tap(
 		r.x + (box[0] + box[2] / 2) * r.width,
 		r.y + (box[1] + box[3] / 2) * r.height
@@ -58,6 +73,12 @@ test('blocks are outlined with the controls, and a tap on one looks it up', asyn
 	await page.touchscreen.tap(vp.width / 2, vp.height / 2);
 	await expect(page.getByRole('banner', { name: 'Reader' })).toBeVisible();
 	await expect(page.locator('.ring')).toHaveCount(3);
+	// Over the text, not over the box: the box is letterboxed here.
+	const d = await drawn(page);
+	const ring = (await page.locator('.ring').first().boundingBox())!;
+	expect(Math.abs(ring.x - (d.x + FIRST[0] * d.width))).toBeLessThan(2);
+	expect(Math.abs(ring.y - (d.y + FIRST[1] * d.height))).toBeLessThan(2);
+	expect(Math.abs(ring.height - FIRST[3] * d.height)).toBeLessThan(2);
 	await page.touchscreen.tap(vp.width / 2, vp.height / 2);
 	await expect(page.locator('.ring')).toHaveCount(0);
 
