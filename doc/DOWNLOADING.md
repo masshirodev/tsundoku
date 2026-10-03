@@ -86,9 +86,36 @@ Asura Scans, Toonily, Toonily.me, Mangahere, MangaDex, Weeb Central, Omega
 Scans, Kumaraw, Webtoons.com. Install more from the web UI (_Browse →
 Extensions_).
 
-**XBatCat and Hitomi aren't in Keiyoushi** (71 series of the library between
-them: two XBatCat source ids, one Hitomi). They keep downloading on Android
-until a repo that carries them is added.
+**Bato.to ("XBatCat" on the tablet) and Hitomi aren't in Keiyoushi** (71
+series of the library between them: two Bato.to source ids, one Hitomi).
+They keep downloading on Android until a repo that carries them is added.
+
+## The library, restored from the tablet
+
+On 2026-10-03 the tablet's newest backup (`app.mihon.debug_2026-10-03_07-58`)
+was restored into Suwayomi (_Settings → Backup → Restore_, or the
+`restoreBackup` mutation), so it starts with the same library: 365 series in
+the 12 rating categories, 54,339 chapters, 20,103 of them read. The other 406
+manga in the backup were only browsed in Mihon and stay out of the library,
+as there.
+
+Its backups now carry the whole library, keyed as the tablet's are, so an
+import merges into the series already here. A forced import right after
+the restore created no series and no chapters (6,856 and 65,674 before and
+after). Ratings, shelves and other edits in tsundoku are left alone, as on
+every rescan.
+
+Series from sources not installed came over as well, but can't be updated
+or downloaded. Run `validateBackup` on a backup to list them before a
+restore. For the tablet's, these are missing: **not in Keiyoushi:** Bato.to (the
+two ids the tablet calls XBatCat), Hitomi, NHentai, Toonily.net, Animated
+Glitched Scans; **in Keiyoushi, not installed:** Luscious, Everia.club,
+AHottie, Elite Babes, Playmate Hunter, nHentai.com (unoriginal).
+
+With the library in it, Suwayomi checks about 400 series for new chapters
+every 12 hours. Auto-download is off, so nothing downloads on its own.
+Turning it on (_Settings → Downloads_) downloads new chapters of the whole
+library onto `/mnt/hdd2`.
 
 ## Using it
 
