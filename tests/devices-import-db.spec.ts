@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { gzipSync } from 'node:zlib';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
@@ -8,7 +9,7 @@ process.env.DATABASE_PATH = ':memory:';
 
 const { getDb } = await import('$lib/server/db');
 const { runImport, sourcesIn } = await import('$lib/server/import');
-const { writeMihonFolder, cbz, comicInfo } = await import('./helpers/mihon-fixture');
+const { writeMihonFolder, cbz, comicInfo, backup } = await import('./helpers/mihon-fixture');
 const { writeHentoidFolder, book, content } = await import('./helpers/hentoid-fixture');
 const { groupIntoSeries } = await import('$lib/server/books');
 
@@ -45,6 +46,11 @@ writeFileSync(
 		}),
 		11
 	)
+);
+// The phone's backup is newer and knows a Ch. 4 nobody downloaded.
+writeFileSync(
+	join(phoneMihon, 'autobackup', 'app.mihon_2026-09-23_08-00.tachibk'),
+	gzipSync(backup([4]))
 );
 
 const db = () => getDb();
@@ -99,8 +105,11 @@ describe('two devices', () => {
 		expect(chapters(d.id).map((c) => [c.label, c.available])).toEqual([
 			['Ch. 1', 1],
 			['Ch. 2', 1],
-			['Ch. 3', 1]
+			['Ch. 3', 1],
+			['Ch. 4', 0]
 		]);
+		// Not downloaded: no file, not the folder of the device that knew of it.
+		expect(chapters(d.id)[3].file).toBe('');
 		const files = chapters(d.id).map((c) => c.file);
 		// Ch. 1 only the phone has; Ch. 2 both, and the copy already there stays.
 		expect(files[0]).toMatch(/^devices\/phone\/Mihon\//);
@@ -128,7 +137,8 @@ describe('two devices', () => {
 		expect(chapters(d.id).map((c) => [c.label, c.available])).toEqual([
 			['Ch. 1', 0],
 			['Ch. 2', 1],
-			['Ch. 3', 1]
+			['Ch. 3', 1],
+			['Ch. 4', 0]
 		]);
 	});
 

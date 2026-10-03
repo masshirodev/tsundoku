@@ -180,12 +180,15 @@ export function writeSeries(
 					shared = brings.length ? widenTo(db, seriesId, brings) : path;
 				}
 			}
+			// A chapter not downloaded has no file, whichever folder the series is named from.
 			const fileOf = (e: PlannedEntry) =>
-				volume
-					? posix.relative(volume.path, posix.join(s.path, e.file))
-					: shared !== null
-						? fileIn(shared, posix.join(s.path, e.file))
-						: e.file;
+				e.file === ''
+					? ''
+					: volume
+						? posix.relative(volume.path, posix.join(s.path, e.file))
+						: shared !== null
+							? fileIn(shared, posix.join(s.path, e.file))
+							: e.file;
 
 			if (seriesId !== null && volume === null) {
 				const path = shared === null ? s.path : '';

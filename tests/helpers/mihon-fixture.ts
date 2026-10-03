@@ -34,7 +34,8 @@ const chapter = (n: number, url: string, extra: Msg = []): Msg => [
 	...extra
 ];
 
-export function backup(): Uint8Array {
+/** `extra`: more Weeb Central chapters, not downloaded anywhere, for a device that knows more. */
+export function backup(extra: number[] = []): Uint8Array {
 	const manga: Msg[] = [
 		// Weeb Central, in "Good", downloads matched by the chapter URL.
 		[
@@ -50,6 +51,7 @@ export function backup(): Uint8Array {
 			[16, chapter(1, '/chapters/AAA1', [[4, true]])],
 			[16, chapter(2, '/chapters/AAA2', [[6, 4]])],
 			[16, chapter(3, '/chapters/AAA3', [[3, 'Night Owl Scans']])],
+			...extra.map((n): [number, Msg] => [16, chapter(n, `/chapters/AAA${n}`)]),
 			[17, 1],
 			// Tracked on MyAnimeList (tracker 1), scored 9; and on Kitsu (3), which
 			// tsundoku doesn't link to.
