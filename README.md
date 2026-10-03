@@ -20,6 +20,7 @@ yarn install
 yarn run seed     # the design's sample library, into data/tsundoku.sqlite
 yarn run dev      # localhost:42143; with a token in .env, it asks for it too
 yarn run import   # import $LIBRARY_ROOT/Mihon/ and H/.Hentoid/ (doc/IMPORT-*.md)
+yarn run suwayomi-import  # import what Suwayomi downloaded (doc/DOWNLOADING.md)
 yarn run backup   # snapshot the database to /mnt/backup/tsundoku (doc/BACKUPS.md)
 yarn run covers   # make cover thumbnails; --local to use files only (doc/COVERS.md)
 yarn run links    # link series to MAL / AniList, searching every one (doc/LINKS.md)

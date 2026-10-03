@@ -13,7 +13,7 @@ import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { syncDecision, type FolderStatus } from '../src/lib/import/sync.ts';
-import { sessionValueFor } from '../src/lib/server/session.ts';
+import { requestScan } from './scan-request.ts';
 import { st, type FolderConfig } from './syncthing.ts';
 
 try {
@@ -54,17 +54,7 @@ if (d.kind === 'none') console.log(`sync: ${d.why}; nothing to do.`);
 else if (d.kind === 'wait') console.log(`sync: still receiving (${d.why}); next time.`);
 else if (d.kind === 'unchanged') console.log('sync: nothing new since the last import.');
 else {
-	// Signed in as the tablet is, from the token in .env. Neither is printed.
-	const token = process.env.TSUNDOKU_TOKEN;
-	if (!token) throw new Error('TSUNDOKU_TOKEN is not set in .env');
-	const session = sessionValueFor(token);
-	const port = Number(process.env.PORT ?? 42143);
-	const res = await fetch(`http://127.0.0.1:${port}/api/scan`, {
-		method: 'POST',
-		headers: { cookie: `tsundoku_session=${session}` }
-	});
-	if (!res.ok) throw new Error(`the app answered ${res.status}; is it running (yarn run serve)?`);
-	const body = (await res.json()) as { started: boolean; looked?: string };
+	const body = await requestScan();
 	console.log(
 		body.started
 			? `sync: new files in ${folders.map((f) => f.label || f.id).join(', ')}; import started.`

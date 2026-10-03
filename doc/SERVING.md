@@ -73,7 +73,7 @@ put `.env` into `process.env`, so development keeps the sample library in
 ## Who migrates
 
 **The served app, and nothing else that touches the live database.** The
-timers (`tsundoku-ocr`, `tsundoku-sync`, `tsundoku-backup`) run `scripts/*.ts`
+timers (`tsundoku-ocr`, `tsundoku-sync`, `tsundoku-suwayomi-import`, `tsundoku-backup`) run `scripts/*.ts`
 straight from the working tree, where a new migration rung sits for as long as
 it is being written. On 2026-09-25 the OCR timer, firing mid-c67, climbed the
 live database to rung 29 while the served app was still the previous build.

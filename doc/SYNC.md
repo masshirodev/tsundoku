@@ -1,6 +1,7 @@
 # Syncing the tablet
 
-Downloading stays in Mihon and Hentoid, on the tablet. tsundoku doesn't
+Downloading is Mihon's and Hentoid's, on the tablet, and Suwayomi's on the
+workstation ([`DOWNLOADING.md`](DOWNLOADING.md)). tsundoku doesn't
 download. What the tablet downloads reaches the workstation through
 [Syncthing](https://syncthing.net), and a timer imports it:
 
@@ -98,6 +99,10 @@ sync. Each device keeps its own copy:
 | Tablet   | `LIBRARY_ROOT/{Mihon,Hentoid,Library}`               |
 | Phone    | `LIBRARY_ROOT/devices/phone/{Mihon,Hentoid,Library}` |
 | Waydroid | `LIBRARY_ROOT/devices/waydroid/Mihon`                |
+| Suwayomi | `LIBRARY_ROOT/devices/suwayomi/Mihon`                |
+
+Suwayomi isn't synced: it runs here and writes into its folder directly, with
+a timer of its own ([`DOWNLOADING.md`](DOWNLOADING.md)).
 
 Why not one shared folder: the same chapter downloaded on both devices would
 be two versions of one path, and Syncthing would keep a conflict copy. Mihon

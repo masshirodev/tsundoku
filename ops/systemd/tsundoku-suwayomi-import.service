@@ -1,0 +1,17 @@
+# Import what Suwayomi downloaded (doc/DOWNLOADING.md). A user unit: install with
+#   ln -s ~/projects/tsundoku/ops/systemd/tsundoku-suwayomi-import.{service,timer} ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now tsundoku-suwayomi-import.timer
+[Unit]
+Description=tsundoku: import what Suwayomi downloaded
+RequiresMountsFor=/mnt/hdd2
+After=tsundoku-suwayomi.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/projects/tsundoku
+# Runs scripts/ from the working tree: never let it migrate the live database
+# (doc/SERVING.md, "Who migrates").
+Environment=TSUNDOKU_MIGRATE=off
+# mise's shim, so the unit gets the project's Node without a login shell.
+ExecStart=%h/.local/share/mise/shims/node --experimental-strip-types scripts/suwayomi-import.ts
+Nice=10

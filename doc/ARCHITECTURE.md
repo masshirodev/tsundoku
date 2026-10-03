@@ -84,6 +84,11 @@ readable text, store it as a `text` entry. A site gets a dedicated adapter only
 when it is actually read and the general path fails on it. EPUBs (including the
 WebToEpub-style ones already on the phone) import directly.
 
+Manga follows the same rule. When Android's Mihon proved unreliable at
+downloading, the answer was Suwayomi-Server, which runs Mihon's extensions on
+the workstation and writes Mihon's layout, imported as one more device
+([`DOWNLOADING.md`](DOWNLOADING.md)). tsundoku still has no scraper.
+
 ## Phases
 
 1. **Library and image reader.** Scan, the Mihon and Hentoid importers, the
