@@ -204,7 +204,8 @@ then `systemctl --user restart tsundoku-suwayomi`.
   backup knows it").
 - **Driving Suwayomi from tsundoku** (download from the series screen,
   search the sources, the queue, follow a series) through its GraphQL API,
-  called server-side. Briefed in [`briefs/DOWNLOADS.md`](briefs/DOWNLOADS.md)
-  (c94), waiting on its design handoff. Done that way, it also settles reaching
+  called server-side. Briefed in [`briefs/done/DOWNLOADS.md`](briefs/done/DOWNLOADS.md)
+  (c94). The handoff came 2026-10-04 (`doc/design/handoff/Download
+States.dc.html` and its two screens); the plan is waiting on approval. Done that way, it also settles reaching
   downloads from the tablet: Suwayomi's web UI stays localhost-only, and
   tsundoku, already on the tailnet, does the asking.
