@@ -72,3 +72,23 @@ describe('rung 34: arrivals', () => {
 		).toEqual({ n: 0 });
 	});
 });
+
+describe('rung 36: an arrival already read is not new', () => {
+	it('dates a series by its newest unread arrival, or not at all', () => {
+		const conn = new Database(':memory:');
+		climb(conn, 35);
+		conn.exec(`
+			INSERT INTO roots (id, name, path) VALUES (1, 'Mihon', '/nowhere');
+			INSERT INTO series (id, root_id, title, kind, added_at, arrived_at) VALUES
+				(1, 1, 'Mixed', 'manga', 1, 900), (2, 1, 'All read', 'manga', 1, 900);
+			INSERT INTO entries (series_id, position, label, added_at, arrived_at, read_at) VALUES
+				(1, 1, 'Ch. 1', 1, 500, NULL), (1, 2, 'Ch. 2', 1, 900, 950),
+				(2, 1, 'Ch. 1', 1, 900, 950);
+		`);
+		climb(conn);
+		expect(conn.prepare(`SELECT id, arrived_at FROM series ORDER BY id`).all()).toEqual([
+			{ id: 1, arrived_at: 500 },
+			{ id: 2, arrived_at: null }
+		]);
+	});
+});

@@ -89,8 +89,8 @@ and `onrate`; without those it draws the plain badge and bars.
 ## New chapters
 
 A tile's `+N` counts entries that **arrived after the series was last opened**:
-listed by the source, or downloaded, since then (the later of `added_at` and
-`arrived_at`). It is not the unread count. Drawing has 18 unread and 3 new. A
+listed by the source since then (`added_at`), or downloaded since then and
+still unread (`arrived_at`). It is not the unread count. Drawing has 18 unread and 3 new. A
 series never opened has no "new", only unread.
 
 ## The NEW shelf
@@ -99,7 +99,7 @@ What arrived, until it's opened or two weeks pass (the owner, 2026-10-04):
 
 - **Arrived** is tsundoku's own clock, `series.arrived_at` and
   `entries.arrived_at` (rung 34): the import that created the series, or the
-  latest import that brought one of its chapters a file. The source's dates
+  latest import that brought a file for one of its chapters still unread. The source's dates
   can't say it. Mihon dates a chapter by when its source listed it
   (`added_at`), so the Suwayomi chapters downloaded on 2026-10-04 were dated
   as far back as 2023.
@@ -128,6 +128,13 @@ one-off pass gave the 17,403 chapters then on disk their file's mtime (when
 the device downloaded it, which Syncthing keeps) and each series its newest.
 That left 134 series on NEW (22 visible without reveal), led by that
 morning's Suwayomi downloads.
+
+**An arrival already read isn't new** (rung 36). Suwayomi downloads again
+chapters the tablet had and the owner read. Dated by their files, 1,025 read
+chapters had put their series back on NEW and on the `+N` badge. So a
+series arrives only with a chapter that is still unread, rung 36 redated the
+existing ones by their newest unread arrival, and `+N` counts a downloaded
+chapter only while it's unread.
 
 ## Speed
 

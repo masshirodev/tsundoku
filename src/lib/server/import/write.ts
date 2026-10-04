@@ -374,9 +374,14 @@ export function writeSeries(
 					});
 			}
 			if (volume) placeVolume(db, seriesId, own, s.entries);
-			// A file arrived: the series is on the NEW shelf again (doc/LIBRARY.md).
+			// A chapter not yet read arrived: the series is on the NEW shelf again
+			// (doc/LIBRARY.md). One already read, downloaded again on another
+			// device, isn't new to anyone.
 			if (filesAttached > 0)
-				db.prepare(`UPDATE series SET arrived_at = ? WHERE id = ?`).run(opts.now, seriesId);
+				db.prepare(
+					`UPDATE series SET arrived_at = @now WHERE id = @series AND EXISTS (
+						SELECT 1 FROM entries WHERE series_id = @series AND arrived_at = @now AND read_at IS NULL)`
+				).run({ now: opts.now, series: seriesId });
 			// Mihon's MAL tracker: a sure catalogue link (doc/LINKS.md).
 			if (s.malLink) linkFromTracker(db, seriesId, s.malLink, opts.now);
 			if (opts.markMissing && s.path !== '') {

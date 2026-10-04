@@ -747,6 +747,15 @@ const MIGRATIONS: string[] = [
 	// before, it's unknown, or what a file's mtime says (doc/LIBRARY.md).
 	`
 	UPDATE series SET arrived_at = NULL;
+	`,
+	// Rung 36: an arrival already read isn't new. Suwayomi downloads again
+	// chapters the tablet had and the owner read; dated by their files, 1,025
+	// read chapters made their series new (2026-10-04). A series' arrival is
+	// its newest unread one.
+	`
+	UPDATE series SET arrived_at = (SELECT MAX(e.arrived_at) FROM entries e
+		WHERE e.series_id = series.id AND e.read_at IS NULL)
+	WHERE arrived_at IS NOT NULL;
 	`
 ];
 

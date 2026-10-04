@@ -75,7 +75,8 @@ function cardQuery(where: string, order: string, limit = ''): string {
 		GROUP BY st.series_id
 	), fresh AS MATERIALIZED (
 		SELECT e.series_id, COUNT(*) AS n FROM entries e JOIN stats t ON t.series_id = e.series_id
-		WHERE e.shadowed = 0 AND MAX(e.added_at, COALESCE(e.arrived_at, 0)) > t.last_opened
+		WHERE e.shadowed = 0 AND (e.added_at > t.last_opened
+			OR (e.read_at IS NULL AND COALESCE(e.arrived_at, 0) > t.last_opened))
 		GROUP BY e.series_id
 	)
 	SELECT s.id, s.title, s.kind, s.rating, s.favourite,

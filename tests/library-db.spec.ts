@@ -424,4 +424,26 @@ describe('new chapters', () => {
 		// Never opened: unread, but nothing is "new" to someone who has not started.
 		expect(byTitle.get('Isekai Yakkyoku')!.newCount).toBe(0);
 	});
+
+	it('counts a chapter downloaded since, unless it was already read', () => {
+		const title = 'Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru';
+		const drawing = () => lib.listSeries({ reveal: false }).find((c) => c.title === title)!;
+		const db = getDb();
+		// An old chapter, listed long before the last open, downloaded just now.
+		const old = db
+			.prepare(
+				`SELECT id, read_at FROM entries WHERE series_id = ? AND added_at <
+					(SELECT MAX(last_opened_at) FROM entries WHERE series_id = ?) ORDER BY position LIMIT 1`
+			)
+			.get(drawing().id, drawing().id) as { id: number; read_at: number | null };
+		const now = Date.now();
+		db.prepare(`UPDATE entries SET arrived_at = ?, read_at = 1 WHERE id = ?`).run(now, old.id);
+		expect(drawing().newCount).toBe(3);
+		db.prepare(`UPDATE entries SET read_at = NULL WHERE id = ?`).run(old.id);
+		expect(drawing().newCount).toBe(4);
+		db.prepare(`UPDATE entries SET arrived_at = NULL, read_at = ? WHERE id = ?`).run(
+			old.read_at,
+			old.id
+		);
+	});
 });

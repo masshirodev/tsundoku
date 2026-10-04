@@ -61,4 +61,15 @@ describe('arrivals', () => {
 		// Nothing came in for this one.
 		expect(seriesArrived('Academy’s Undercover Professor')).toBe(FIRST);
 	});
+
+	it('a chapter already read arrives, but leaves the series where it was', async () => {
+		const title = 'Drawing: Saikyou Mangaka';
+		const [again] = entriesOf(title).filter((r) => r.available);
+		db.prepare(`UPDATE entries SET available = 0, arrived_at = NULL, read_at = 5 WHERE id = ?`).run(
+			again.id
+		);
+		await runImport(library, { now: LATER + 1 });
+		expect(entriesOf(title).find((r) => r.id === again.id)?.arrived_at).toBe(LATER + 1);
+		expect(seriesArrived(title)).toBe(LATER);
+	});
 });
