@@ -59,8 +59,11 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		next.delete('lang');
 		redirect(307, `/?${next}`);
 	}
+	// NEWEST while a scan brings things in, and on NEW, where it means newest
+	// arrival (doc/LIBRARY.md): RECENT would sort by an open that, on NEW, never
+	// happened since.
 	const sort =
-		scan && !scan.finishedAt && !url.searchParams.has('sort')
+		!url.searchParams.has('sort') && (shelf === 'new' || (scan && !scan.finishedAt))
 			? 'added'
 			: parseSort(url.searchParams.get('sort'));
 

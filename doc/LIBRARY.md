@@ -113,7 +113,9 @@ What arrived, until it's opened or two weeks pass (the owner, 2026-10-04):
   only got new chapters never showed at all. Now the band is just the band:
   TIDY NEW closes it and opens NEW, which keeps what it had.
 - **The shelf is listed** while an import runs or while anything is on it.
-  NEWEST sorts it by arrival.
+  It opens sorted NEWEST, which on NEW means newest arrival first; RECENT
+  would sort by an open that, on NEW, hasn't happened since. A sort picked
+  by hand still wins. Tested in `tests/library-sort-db.spec.ts`.
 
 The rule is `NEW_SQL` in `src/lib/server/library.ts`; the writer stamps
 arrivals in `src/lib/server/import/write.ts`. Tested in
