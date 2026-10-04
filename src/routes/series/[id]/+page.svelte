@@ -19,6 +19,7 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { offline } from '$lib/offline.svelte';
+	import { watchQueue } from '$lib/downloads-live.svelte';
 	import { cacheMany, dropMany } from '$lib/cache/device';
 	import { orderBooks } from '$lib/library/books';
 	import { withParam, readHref } from '$lib/library/links';
@@ -235,6 +236,12 @@
 		)
 	);
 	const downloaded = $derived(form && 'downloaded' in form ? form.downloaded : null);
+	// Live while Suwayomi answers: only the downloading chapter moves; anything else reads the page again.
+	const watching = $derived(canDownload);
+	$effect(() => {
+		if (!watching) return;
+		return watchQueue(() => void invalidateAll());
+	});
 	/** ALL's confirmation lives in the URL; closing it takes the parameter away. */
 	function closeAll(reload = false) {
 		const u = new URL(page.url);
@@ -332,6 +339,17 @@
 	</form>
 
 	<!-- An action refused (a move, a take-out, a delete): it says why, never silently. -->
+	{#if data.addedFrom && !refusal}
+		<!-- After adding (Download States 1e): every chapter NOT DOWNLOADED, FIRST 10 offered below. -->
+		<Band title="ADDED TO THE LIBRARY" detail="{series.entries.length} CHAPTERS · NONE DOWNLOADED">
+			{#snippet action()}
+				<form method="POST" action="?/undoSourceAdd" use:enhance>
+					<input type="hidden" name="from" value={data.addedFrom} />
+					<button type="submit">UNDO</button>
+				</form>
+			{/snippet}
+		</Band>
+	{/if}
 	{#if refusal}
 		<Band title={refusal} detail="NOTHING CHANGED" />
 	{:else if downloaded && downloaded.missing > 0}

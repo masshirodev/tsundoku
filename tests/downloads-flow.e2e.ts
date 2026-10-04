@@ -32,7 +32,9 @@ const ch: Record<number, number> = {};
 type Item = { id: number; manga: number; state: string; progress: number; tries: number };
 const MANGAS = [
 	{ id: 7, title: 'Lindenborough (Suwayomi)', sourceId: '111', url: '/manga/linden', n: 30 },
-	{ id: 8, title: 'Hidden One', sourceId: '111', url: '/manga/hidden', n: 3 }
+	{ id: 8, title: 'Hidden One', sourceId: '111', url: '/manga/hidden', n: 3 },
+	{ id: 20, title: 'Lindenborough: Side Stories', sourceId: '111', url: '/manga/side', n: 12 },
+	{ id: 21, title: 'Lindenborough After Dark', sourceId: '222', url: '/manga/dark', n: 4 }
 ];
 const chapterId = (manga: number, n: number) => manga * 1000 + n;
 let state: {
@@ -40,6 +42,8 @@ let state: {
 	down: boolean;
 	inLibrary: Set<number>;
 	downloaded: Set<number>;
+	/** Chapters Suwayomi fetched after the start, by id: what FOLLOW looks for. */
+	fetchedLate: Set<number>;
 	queue: Item[];
 	calls: { op: string; vars: Record<string, unknown> }[];
 };
@@ -50,6 +54,7 @@ function reset() {
 		down: false,
 		inLibrary: new Set(),
 		downloaded: new Set([chapterId(7, 11)]),
+		fetchedLate: new Set(),
 		queue: [
 			{ id: chapterId(7, 13), manga: 7, state: 'DOWNLOADING', progress: 0.5, tries: 0 },
 			{ id: chapterId(7, 12), manga: 7, state: 'QUEUED', progress: 0, tries: 0 },
@@ -92,8 +97,25 @@ function answer(query: string, vars: Record<string, unknown>): unknown {
 			state.running = false;
 			return { stopDownloader: { clientMutationId: null } };
 		case 'updateManga':
-			state.inLibrary.add(vars.id as number);
+			if (query.includes('inLibrary: false')) state.inLibrary.delete(vars.id as number);
+			else state.inLibrary.add(vars.id as number);
 			return { updateManga: { clientMutationId: null } };
+		case 'fetchSourceManga':
+			return {
+				fetchSourceManga: {
+					mangas: MANGAS.filter(
+						(m) =>
+							m.sourceId === vars.s && m.title.toLowerCase().includes(String(vars.q).toLowerCase())
+					).map((m) => ({
+						id: m.id,
+						title: m.title,
+						author: 'Han Seol',
+						status: 'ONGOING',
+						url: m.url,
+						sourceId: m.sourceId
+					}))
+				}
+			};
 		case 'fetchMangaAndChapters':
 			return { fetchMangaAndChapters: { clientMutationId: null } };
 	}
@@ -115,7 +137,55 @@ function answer(query: string, vars: Record<string, unknown>): unknown {
 			}
 		};
 	if (query.includes('sources'))
-		return { sources: { nodes: [{ id: '111', displayName: 'Asura Scans (EN)' }] } };
+		return {
+			sources: {
+				nodes: [
+					{ id: '111', displayName: 'Asura Scans (EN)' },
+					{ id: '222', displayName: 'Toonily (EN)' }
+				]
+			}
+		};
+	if (query.includes('lastUpdateTimestamp'))
+		return { lastUpdateTimestamp: { timestamp: String(Date.now() - 2 * 3_600_000) } };
+	const chaptersOf = (m: (typeof MANGAS)[number]) =>
+		Array.from({ length: m.n }, (_, i) => {
+			const id = chapterId(m.id, i + 1);
+			return {
+				id,
+				// Lindenborough's are the seeded entries' URLs; every other manga's are its own.
+				url: m.id === 7 ? `/c/${i + 1}` : `/c/${m.id}/${i + 1}`,
+				name: `Chapter ${i + 1}`,
+				chapterNumber: i + 1,
+				scanlator: null,
+				sourceOrder: i,
+				uploadDate: '0',
+				fetchedAt: state.fetchedLate.has(id) ? String(Math.floor(Date.now() / 1000) + 60) : '1',
+				isDownloaded: state.downloaded.has(id)
+			};
+		});
+	if (query.includes('manga(id')) {
+		const m = MANGAS.find((x) => x.id === vars.id);
+		if (query.includes('sourceId url }') && !query.includes('chapters'))
+			return { manga: m ? { sourceId: m.sourceId, url: m.url } : null };
+		return {
+			manga: m && {
+				id: m.id,
+				title: m.title,
+				description: 'A side story.',
+				author: 'Han Seol',
+				artist: null,
+				genre: ['Fantasy'],
+				status: 'ONGOING',
+				sourceId: m.sourceId,
+				url: m.url,
+				inLibrary: state.inLibrary.has(m.id),
+				thumbnailUrl: null,
+				realUrl: null,
+				source: { displayName: m.sourceId === '111' ? 'Asura Scans (EN)' : 'Toonily (EN)' },
+				chapters: { nodes: chaptersOf(m) }
+			}
+		};
+	}
 	if (query.includes('mangas')) {
 		const m = MANGAS.find((x) => x.sourceId === vars.s && x.url === vars.u);
 		return {
@@ -125,13 +195,7 @@ function answer(query: string, vars: Record<string, unknown>): unknown {
 							{
 								id: m.id,
 								inLibrary: state.inLibrary.has(m.id),
-								chapters: {
-									nodes: Array.from({ length: m.n }, (_, i) => ({
-										id: chapterId(m.id, i + 1),
-										url: `/c/${i + 1}`,
-										isDownloaded: state.downloaded.has(chapterId(m.id, i + 1))
-									}))
-								}
+								chapters: { nodes: chaptersOf(m) }
 							}
 						]
 					: []
@@ -208,6 +272,9 @@ function seed(): void {
 	ids.linden = series('Lindenborough Heir', 'mihon:111:/manga/linden', 30, 10);
 	ids.hidden = series('Hidden One', 'mihon:111:/manga/hidden', 3, 0, 1);
 	ids.bato = series('Hoshikuzu no Kishi-dan', 'mihon:999:/manga/b', 5, 2);
+	// Toonily: everything the library has from it is hidden, so it's searched only with reveal on.
+	series('Toonily One', 'mihon:222:/manga/t1', 2, 0, 1);
+	series('Toonily Two', 'mihon:222:/manga/t2', 2, 0, 1);
 	const tag = Number(
 		db.prepare(`INSERT INTO tags (namespace, value) VALUES ('source', 'bato.to')`).run()
 			.lastInsertRowid
@@ -266,7 +333,7 @@ test('the DOWNLOAD row and every chapter state (state 1)', async ({ page }) => {
 	await expect(dl.locator('.lk-b')).toHaveText(
 		'1 DOWNLOADING · 1 QUEUED · 1 FAILED · CH. 14 FAILED'
 	);
-	await expect(dl.locator('.lcs.inline .lc')).toHaveText(['NEXT 10', 'ALL 16']);
+	await expect(dl.locator('.lcs.inline .lc')).toHaveText(['NEXT 10', 'ALL 16', 'FOLLOW']);
 	// The mock's literals, the LINK row's: pinned so a tidy-up can't round them.
 	await expect(dl).toHaveCSS('min-height', '68px');
 	await expect(dl.locator('.lk-a')).toHaveCSS('font-size', '15px');
@@ -415,6 +482,108 @@ test('NEXT 10 works without script, as a form post', async ({ browser }) => {
 	await page.waitForLoadState();
 	expect(called('enqueueChapterDownloads')).toHaveLength(1);
 	await ctx.close();
+});
+
+test('library search carries the query to the sources, leaving out a mostly hidden one (1e)', async ({
+	page
+}) => {
+	await page.goto('/search?q=linden');
+	const row = page.locator('a.to-sources');
+	// Toonily is all hidden here: with reveal off it is neither asked nor counted.
+	await expect(row).toContainText('1 SOURCE · RESULTS ARRIVE ONE BY ONE');
+	await row.click();
+	await expect(page).toHaveURL(/\/downloads\/search\?q=linden$/);
+	await expect(page.locator('.g-head')).toHaveCount(1);
+	await expect(page.locator('.g-head').first()).toContainText('ASURA SCANS');
+	await expect(page.locator('.label')).toContainText('01 — 1 OF 1 SOURCE ANSWERED');
+	const hits = page.locator('a.hit');
+	await expect(hits).toHaveCount(2);
+	// The library's copy says so and opens it; the hidden series is dropped, not dimmed.
+	await expect(hits.nth(0).locator('.m')).toHaveText('IN LIBRARY · 10 OF 30 DOWNLOADED');
+	await expect(hits.nth(0).locator('.open')).toHaveText('OPEN →');
+	await expect(hits.nth(0).locator('mark')).toHaveText('Linden');
+	await expect(hits.nth(1).locator('.t')).toHaveText('Lindenborough: Side Stories');
+	await expect(page.getByText('Hidden One')).toHaveCount(0);
+	await expect(page.getByText('After Dark')).toHaveCount(0);
+});
+
+test('reveal on asks the mostly hidden source too', async ({ page }) => {
+	await page
+		.context()
+		.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }]);
+	await page.goto('/downloads/search?q=linden');
+	await expect(page.locator('.g-head')).toHaveCount(2);
+	await expect(page.getByText('Lindenborough After Dark')).toBeVisible();
+	await page.context().clearCookies({ name: 'tsundoku_reveal' });
+});
+
+test('a preview adds to both libraries, lands on the series, and UNDO takes it back (1e)', async ({
+	page
+}) => {
+	await page.goto('/downloads/source/20?q=linden');
+	const add = page.getByRole('button', { name: /ADD TO LIBRARY/ });
+	await expect(add).toContainText('12 CHAPTERS · NOTHING DOWNLOADS UNTIL ASKED');
+	await expect(page.locator('.ch')).toHaveCount(12);
+	await add.click();
+	await expect(page).toHaveURL(/\/series\/\d+\?added=20/);
+	await expect(page.locator('.band')).toContainText('ADDED TO THE LIBRARY');
+	await expect(page.locator('.band')).toContainText('12 CHAPTERS · NONE DOWNLOADED');
+	await expect(page.locator('.dl-row .lcs.inline .lc').first()).toHaveText('FIRST 10');
+	// START is dimmed until chapter 1 has a file.
+	await expect(page.locator('a.cta')).toHaveAttribute('aria-disabled', 'true');
+	expect(state.inLibrary.has(20)).toBe(true);
+	await page.getByRole('button', { name: 'UNDO' }).click();
+	await expect(page).toHaveURL(/\/downloads\/source\/20/);
+	expect(state.inLibrary.has(20)).toBe(false);
+	// Gone from tsundoku too: the preview is a preview again, not a redirect.
+	await expect(page.getByRole('button', { name: /ADD TO LIBRARY/ })).toBeVisible();
+});
+
+test('FOLLOW turns accent, offers FOLLOWED, and queues what Suwayomi fetches later (1d)', async ({
+	page
+}) => {
+	await page.goto(`/series/${ids.linden}`);
+	await page.locator('.dl-row .lcs.inline').getByRole('button', { name: 'FOLLOW' }).click();
+	const following = page
+		.locator('.dl-row .lcs.inline')
+		.getByRole('button', { name: 'FOLLOWING ✓' });
+	await expect(following).toBeVisible();
+	await expect(following).toHaveClass(/acc/);
+	expect(state.inLibrary.has(7)).toBe(true);
+
+	await page.goto('/?shelf=all&followed=1');
+	await expect(page.locator('.grid .tile')).toHaveCount(1);
+
+	// Suwayomi's update finds chapter 30 again, fetched after the follow; the timer's step queues it.
+	state.queue = [];
+	state.fetchedLate.add(chapterId(7, 30));
+	const r = await page.request.post('/api/downloads/follow');
+	expect(await r.json()).toEqual({ series: 1, queued: 1 });
+	expect(called('enqueueChapterDownloads')).toEqual([{ ids: [chapterId(7, 30)] }]);
+
+	await page.goto(`/series/${ids.linden}`);
+	await page.locator('.dl-row .lcs.inline').getByRole('button', { name: 'FOLLOWING ✓' }).click();
+	await expect(
+		page.locator('.dl-row .lcs.inline').getByRole('button', { name: 'FOLLOW', exact: true })
+	).toBeVisible();
+});
+
+test('the live stream says what is downloading, and nothing of a hidden series', async ({
+	page
+}) => {
+	await page.goto('/downloads');
+	const first = await page.evaluate(
+		() =>
+			new Promise<{ version: string; downloading: { chapterId: number } | null }>((res) => {
+				const es = new EventSource('/api/downloads/events');
+				es.onmessage = (e) => {
+					es.close();
+					res(JSON.parse(e.data));
+				};
+			})
+	);
+	expect(first.downloading?.chapterId).toBe(chapterId(7, 13));
+	expect(first.version).not.toContain(String(chapterId(8, 2)));
 });
 
 // Last: once Suwayomi stops answering, the chrome doesn't ask again for fifteen seconds.

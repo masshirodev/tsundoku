@@ -756,6 +756,14 @@ const MIGRATIONS: string[] = [
 	UPDATE series SET arrived_at = (SELECT MAX(e.arrived_at) FROM entries e
 		WHERE e.series_id = series.id AND e.read_at IS NULL)
 	WHERE arrived_at IS NOT NULL;
+	`,
+	// Rung 37: FOLLOW (doc/DOWNLOADING.md). When the owner followed a series:
+	// chapters Suwayomi fetches after it are queued on their own. NULL is not
+	// followed. Suwayomi can only auto-download a whole category or the whole
+	// library, so the list is tsundoku's.
+	`
+	ALTER TABLE series ADD COLUMN followed_at INTEGER;
+	CREATE INDEX series_followed ON series(followed_at) WHERE followed_at IS NOT NULL;
 	`
 ];
 

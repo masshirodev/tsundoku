@@ -607,6 +607,7 @@
 							filters={data.filters}
 							languages={languagesHere}
 							reveal={data.reveal}
+							following={data.following}
 							title={shelfName.toUpperCase()}
 							count={nFilters ? outOf : shelfSize.toLocaleString('en-US')}
 							href={filterHref}
@@ -800,6 +801,7 @@
 					filters={data.filters}
 					languages={languagesHere}
 					reveal={data.reveal}
+					following={data.following}
 					title={shelfName.toUpperCase()}
 					count={nFilters ? outOf : shelfSize.toLocaleString('en-US')}
 					href={filterHref}

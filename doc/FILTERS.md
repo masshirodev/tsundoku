@@ -39,14 +39,15 @@ Two shelves joined, splitting the library by what a thing is:
 `src/lib/components/controls/FilterPanel.svelte`. A **FILTER** cell, with how
 many are on as a green badge, opens a panel with one row per filter:
 
-| Row        | Choices                                       | In the URL               |
-| ---------- | --------------------------------------------- | ------------------------ |
-| RATING     | ANY · UNRATED · AT LEAST, then the blocks     | `?min=1..10`, `?rated=0` |
-| FAV        | ANY · FAV · NOT FAV                           | `?fav=1`, `?fav=0`       |
-| LANGUAGE   | ANY, then each language on the shelf (EN, JA) | `?lang=ja`               |
-| DATE ADDED | ANY · SINCE and a date                        | `?added=2026-08-01`      |
-| DOWNLOADED | ANY · YES · NO                                | `?dl=1`, `?dl=0`         |
-| ● HIDDEN   | ANY · ONLY                                    | `?hidden=1`              |
+| Row        | Choices                                                                              | In the URL               |
+| ---------- | ------------------------------------------------------------------------------------ | ------------------------ |
+| RATING     | ANY · UNRATED · AT LEAST, then the blocks                                            | `?min=1..10`, `?rated=0` |
+| FAV        | ANY · FAV · NOT FAV                                                                  | `?fav=1`, `?fav=0`       |
+| LANGUAGE   | ANY, then each language on the shelf (EN, JA)                                        | `?lang=ja`               |
+| DATE ADDED | ANY · SINCE and a date                                                               | `?added=2026-08-01`      |
+| DOWNLOADED | ANY · YES · NO                                                                       | `?dl=1`, `?dl=0`         |
+| FOLLOWED   | ANY · ONLY, while something visible is followed ([`DOWNLOADING.md`](DOWNLOADING.md)) | `?followed=1`            |
+| ● HIDDEN   | ANY · ONLY                                                                           | `?hidden=1`              |
 
 - **RATING is one line.** Dragging the blocks (the ratings slider in mode
   `min`) picks AT LEAST by itself; AT LEAST alone starts at 4+; UNRATED and a

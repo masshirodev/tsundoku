@@ -41,6 +41,7 @@ type CardRow = {
 	new_count: number;
 	cover_at: number | null;
 	available: number;
+	followed: number;
 	language?: string | null;
 };
 
@@ -86,6 +87,7 @@ function cardQuery(where: string, order: string, limit = ''): string {
 		COALESCE(t.read_count, 0) AS read_count,
 		COALESCE(f.n, 0) AS new_count,
 		COALESCE(t.available, 0) AS available,
+		s.followed_at IS NOT NULL AS followed,
 		l.language
 	FROM picked p JOIN series s ON s.id = p.id JOIN roots r ON r.id = s.root_id
 	LEFT JOIN stats t ON t.series_id = s.id LEFT JOIN fresh f ON f.series_id = s.id
@@ -163,6 +165,7 @@ function toCard(row: CardRow): SeriesCard {
 		addedAt: row.added_at,
 		cover: row.cover_at,
 		downloaded: row.available === 1,
+		followed: row.followed === 1,
 		language: row.language ?? null
 	};
 }
@@ -321,6 +324,7 @@ function filterClause(f: Filters | undefined, reveal: boolean): { sql: string; p
 		params.push(dayStart(f.added));
 	}
 	if (f.dl !== null) sql.push(f.dl ? DOWNLOADED_SQL : `NOT ${DOWNLOADED_SQL}`);
+	if (f.followed) sql.push('s.followed_at IS NOT NULL');
 	if (f.hidden && reveal) sql.push(HIDDEN_SQL);
 	return { sql: sql.length ? sql.join(' AND ') : '1', params };
 }
@@ -738,4 +742,14 @@ export function dismissScan(id: number, now = Date.now()): void {
 	getDb()
 		.prepare(`UPDATE scan_jobs SET dismissed_at = ? WHERE id = ? AND finished_at IS NOT NULL`)
 		.run(now, id);
+}
+
+/** Whether a series the viewer can see is followed: FOLLOWED is offered only then. */
+export function anyFollowed(reveal: boolean): boolean {
+	return !!getDb()
+		.prepare(
+			`SELECT 1 FROM series s JOIN roots r ON r.id = s.root_id
+			WHERE s.followed_at IS NOT NULL AND ${visibility(reveal)} LIMIT 1`
+		)
+		.get();
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	activeCount,
+	filterParams,
 	filterRows,
 	filterWords,
 	languagesAmong,
@@ -127,5 +128,26 @@ describe('the panel', () => {
 		expect(rating[2].to.min).toBe(8);
 		const fromUnrated = filterRows(f({ unrated: true }), [], false)[0].choices[2].to;
 		expect(fromUnrated).toMatchObject({ min: 8, unrated: false });
+	});
+});
+
+describe('FOLLOWED (doc/DOWNLOADING.md)', () => {
+	it('is a filter in the URL, in words, and on the device', () => {
+		const f = parseFilters(new URLSearchParams('followed=1'), false);
+		expect(f.followed).toBe(true);
+		expect(activeCount(f)).toBe(1);
+		expect(filterParams(f)).toEqual([['followed', '1']]);
+		expect(filterWords(f)).toEqual(['FOLLOWED']);
+		const card = { rating: 0, favourite: false, hidden: false, addedAt: 0 };
+		expect(matches({ ...card, followed: true }, f)).toBe(true);
+		expect(matches(card, f)).toBe(false);
+	});
+
+	it('is offered only while something is followed, or while it is on', () => {
+		expect(filterRows(NO_FILTERS, [], false).map((r) => r.key)).not.toContain('followed');
+		expect(filterRows(NO_FILTERS, [], false, true).map((r) => r.key)).toContain('followed');
+		expect(filterRows({ ...NO_FILTERS, followed: true }, [], false).map((r) => r.key)).toContain(
+			'followed'
+		);
 	});
 });

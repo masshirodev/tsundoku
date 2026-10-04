@@ -5,14 +5,24 @@ import { isRevealed, runCommand } from '$lib/server/prefs';
 import { startScan } from '$lib/server/import';
 import { isGated } from '$lib/server/unlock';
 import { parseSearch } from '$lib/library/search';
+import { configured } from '$lib/server/suwayomi';
+import { searchSources } from '$lib/server/suwayomi-library';
 
-export const load: PageServerLoad = ({ url, cookies }) => {
+export const load: PageServerLoad = async ({ url, cookies }) => {
 	const q = url.searchParams.get('q') ?? '';
 	const input = parseSearch(q);
 	// A command is not searched for: `/reveal` must not list what it is about
 	// to reveal before Enter is pressed.
-	if (input.type !== 'query') return { q, result: null };
-	return { q, result: search(input.text, isRevealed(cookies)) };
+	if (input.type !== 'query') return { q, result: null, sources: null };
+	const reveal = isRevealed(cookies);
+	// SEARCH THE SOURCES after the titles (Download States 1e): how many it would ask.
+	const sources = configured()
+		? await searchSources(reveal).then(
+				(s) => s.length,
+				() => null
+			)
+		: null;
+	return { q, result: search(input.text, reveal), sources };
 };
 
 export const actions: Actions = {

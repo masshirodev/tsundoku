@@ -3,6 +3,7 @@ import { currentScan, listShelves } from '$lib/server/library';
 import { isIncognito, isRevealed, themeOf } from '$lib/server/prefs';
 import { favouritePeople } from '$lib/server/people';
 import { queueSummary } from '$lib/server/suwayomi';
+import { ensureWatcher } from '$lib/server/suwayomi-watch';
 
 export const load: LayoutServerLoad = async ({ cookies, locals }) => {
 	const reveal = isRevealed(cookies);
@@ -26,5 +27,7 @@ export const load: LayoutServerLoad = async ({ cookies, locals }) => {
 		shelves.push({ key: 'people', name: 'People', kind: 'smart', count: people.length });
 	// The download queue's counts, for the QUEUE cell and DOWNLOADS (doc/DOWNLOADING.md).
 	const queue = await queueSummary(reveal);
+	// Imports chapters as Suwayomi finishes them, and feeds the screens' live updates.
+	ensureWatcher();
 	return { reveal, incognito: isIncognito(cookies), theme, scan, shelves, people, queue };
 };

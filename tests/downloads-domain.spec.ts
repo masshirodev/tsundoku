@@ -7,10 +7,15 @@ import {
 	downloadRow,
 	downloadStatus,
 	fileQueueMeta,
+	followQueue,
+	highlight,
+	mostlyHidden,
 	nextToDownload,
+	normTitle,
 	parseKey,
 	queueView,
 	rowAction,
+	sourcesToSearch,
 	type QueueItem,
 	type QueueSeries
 } from '$lib/library/downloads';
@@ -221,5 +226,112 @@ describe('keys', () => {
 		expect(parseKey('mihon-dir:Asura/X')).toBeNull();
 		expect(parseKey('hentoid:12')).toBeNull();
 		expect(parseKey(null)).toBeNull();
+	});
+});
+
+describe('FOLLOW on the DOWNLOAD row', () => {
+	const clock = () => '14:02';
+	const ago = () => '2 H AGO';
+
+	it('ends the row as FOLLOW, and as FOLLOWING ✓ in accent once on', () => {
+		const states = chapterStates(entries, urls, chapters, []);
+		const off = downloadRow(entries, { kind: 'ok', states }, true, clock, {
+			on: false,
+			checked: null
+		});
+		expect(off.cells.map((c) => [c.label, c.acc])).toEqual([
+			['NEXT 10', true],
+			['ALL 20', false],
+			['FOLLOW', false]
+		]);
+		const on = downloadRow(
+			entries,
+			{ kind: 'ok', states },
+			true,
+			clock,
+			{ on: true, checked: 1 },
+			ago
+		);
+		expect(on.cells.at(-1)).toEqual({
+			label: 'FOLLOWING ✓',
+			which: 'unfollow',
+			acc: true,
+			dim: false
+		});
+	});
+
+	it('caught up and followed, FOLLOWING is the only cell and says when it last looked', () => {
+		const all = entries.map((e) => ({ ...e, available: true }));
+		const states = chapterStates(all, urls, chapters, []);
+		expect(
+			downloadRow(all, { kind: 'ok', states }, true, clock, { on: true, checked: 1 }, ago)
+		).toEqual({
+			a: 'Every unread chapter downloaded or on its way',
+			b: 'FOLLOWING · NEW CHAPTERS DOWNLOAD AS THEY APPEAR · CHECKED 2 H AGO',
+			cells: [{ label: 'FOLLOWING ✓', which: 'unfollow', acc: true, dim: false }]
+		});
+	});
+
+	it('is dimmed with the rest when Suwayomi isn’t answering', () => {
+		const r = downloadRow(entries, { kind: 'down', since: 0 }, true, clock, {
+			on: false,
+			checked: null
+		});
+		expect(r.cells.at(-1)).toMatchObject({ label: 'FOLLOW', dim: true });
+	});
+});
+
+describe('which chapters FOLLOW queues', () => {
+	const at = 1_000;
+	const ch = (id: number, fetchedAt: number, downloaded = false) => ({
+		id,
+		url: `/c/${id}`,
+		fetchedAt,
+		downloaded
+	});
+
+	it('only what Suwayomi fetched after following, not downloaded, queued or read', () => {
+		const list = [ch(1, 500), ch(2, 1500), ch(3, 1500, true), ch(4, 1500), ch(5, 1500)];
+		expect(followQueue(list, at, new Set([4]), new Set(['/c/5']))).toEqual([2]);
+	});
+
+	it('never more than the cap in one run', () => {
+		const many = Array.from({ length: 80 }, (_, i) => ch(i + 1, 2000));
+		expect(followQueue(many, at, new Set(), new Set())).toHaveLength(50);
+	});
+});
+
+describe('searching the sources', () => {
+	const installed = [
+		{ id: '1', name: 'Asura Scans' },
+		{ id: '2', name: 'Toonily' },
+		{ id: '3', name: 'MangaDex (DE)' },
+		{ id: '4', name: 'Webtoons' }
+	];
+	const use = new Map([
+		['1', { series: 130, hidden: 0 }],
+		['2', { series: 124, hidden: 110 }],
+		['4', { series: 2, hidden: 1 }]
+	]);
+
+	it('asks the sources the library reads from, a mostly hidden one only with reveal on', () => {
+		expect(sourcesToSearch(installed, use, false).map((s) => s.id)).toEqual(['1', '4']);
+		expect(sourcesToSearch(installed, use, true).map((s) => s.id)).toEqual(['1', '2', '4']);
+	});
+
+	it('mostly hidden is more than half', () => {
+		expect(mostlyHidden({ series: 2, hidden: 1 })).toBe(false);
+		expect(mostlyHidden({ series: 17, hidden: 14 })).toBe(true);
+	});
+
+	it('highlights the query where it is, and compares titles loosely', () => {
+		expect(highlight('The Lindenborough Heir Returns', 'lindenborough')).toEqual({
+			pre: 'The ',
+			mid: 'Lindenborough',
+			post: ' Heir Returns'
+		});
+		expect(highlight('Kingdom', 'linden')).toEqual({ pre: 'Kingdom', mid: '', post: '' });
+		expect(normTitle('The Spark in Your Eyes!')).toBe(normTitle('the spark in your  eyes'));
+		expect(normTitle('Pokémon')).toBe('pokemon');
 	});
 });

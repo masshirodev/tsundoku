@@ -3,6 +3,7 @@
 	import { longpress } from '$lib/actions/longpress';
 	import { enhance } from '$app/forms';
 	import { downloadStatus, rowAction, type DownloadState } from '$lib/library/downloads';
+	import { withLive } from '$lib/downloads-live.svelte';
 	import {
 		currentEntry,
 		entryAtFraction,
@@ -242,7 +243,7 @@
 				{:else}
 					{@const e = row.entry}
 					{@const on = selected.has(e.id)}
-					{@const dl = downloads?.get(e.id)}
+					{@const dl = withLive(downloads?.get(e.id))}
 					{@const act = !selecting && canDownload && !e.available ? rowAction(dl) : null}
 					<li
 						id="entry-{e.id}"

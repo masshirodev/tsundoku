@@ -37,6 +37,8 @@ export type SeriesCard = {
 	addedAt: number;
 	/** A chapter on disk, so readable without the internet: what ?dl= asks. */
 	downloaded?: boolean;
+	/** FOLLOW is on (doc/DOWNLOADING.md): what FOLLOWED filters on the device. */
+	followed?: boolean;
 	/**
 	 * A book folded from several languages (doc/EDITIONS.md): their codes,
 	 * the one it opens in first ("EN · JA"). Absent for any other.

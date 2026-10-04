@@ -53,6 +53,7 @@ import {
 } from '$lib/server/books';
 import { bookEditions, setBookLanguage } from '$lib/server/editions';
 import { SuwayomiError, enqueue, retry, seriesDownloads } from '$lib/server/suwayomi';
+import { setFollowed, undoAdd as undoSourceAdd } from '$lib/server/suwayomi-library';
 import {
 	allToDownload,
 	nextToDownload,
@@ -126,7 +127,9 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		// Downloading through Suwayomi (doc/DOWNLOADING.md): the DOWNLOAD row and each chapter's state.
 		downloads: await seriesDownloads(series.id, series.entries),
 		// ALL N's confirmation is a URL, so it opens without script too.
-		confirmAll: url.searchParams.get('download') === 'all'
+		confirmAll: url.searchParams.get('download') === 'all',
+		// Just added from a source search (Download States 1e, after adding): the band, and UNDO.
+		addedFrom: Number(url.searchParams.get('added')) || null
 	};
 };
 
@@ -581,6 +584,37 @@ export const actions: Actions = {
 			throw e;
 		}
 		return { downloaded: { queued: result.queued + failed.length, missing: result.missing } };
+	},
+
+	/** FOLLOW and FOLLOWING ✓: new chapters download as Suwayomi finds them (doc/DOWNLOADING.md). */
+	follow: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const on = (await request.formData()).get('on') === '1';
+		try {
+			await setFollowed(s.id, on);
+		} catch (e) {
+			if (e instanceof SuwayomiError) return fail(503, { message: e.message });
+			throw e;
+		}
+		return { ok: true };
+	},
+
+	/**
+	 * UNDO on ADDED TO THE LIBRARY: out of both libraries again, while nothing
+	 * of it is downloaded or read, and back to the result it was added from.
+	 */
+	undoSourceAdd: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const from = Number((await request.formData()).get('from'));
+		let undone: boolean;
+		try {
+			undone = await undoSourceAdd(s.id);
+		} catch (e) {
+			if (e instanceof SuwayomiError) return fail(503, { message: e.message });
+			throw e;
+		}
+		if (!undone) return fail(409, { message: 'something of it is downloaded or read now' });
+		redirect(303, from > 0 ? `/downloads/source/${from}` : '/');
 	},
 
 	/** A long press on a chapter row: it and everything before it, read. */

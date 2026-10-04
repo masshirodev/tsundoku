@@ -121,14 +121,16 @@ library onto `/mnt/hdd2`.
 
 From tsundoku, on any device: open a series and press **NEXT 10** on its
 DOWNLOAD row, or tap a chapter that isn't downloaded (below, "From
-tsundoku"). Within ten minutes of a chapter landing, tsundoku imports it,
-while the rest of the queue is still downloading: the band, the NEW shelf
-and covers, as START SCAN.
+tsundoku"). Soon after a chapter lands, tsundoku imports it, while the rest
+of the queue is still downloading: the band, the NEW shelf and covers, as
+START SCAN.
 
 Suwayomi's own web UI (`http://127.0.0.1:4567`, the workstation only) is
-still there for what tsundoku doesn't do: extensions, and series tsundoku
-doesn't have yet. **Add a series to Suwayomi's library before downloading it
-there.** The backup only carries library series. A download of a series not
+still there for what tsundoku doesn't do: installing extensions and adding
+extension repos. Series tsundoku doesn't have yet are found and added from
+its own search (below, "Finding a series, and adding it").
+
+**Add a series to Suwayomi's library before downloading it there.** The backup only carries library series. A download of a series not
 in the library is keyed by its folder (`mihon-dir:…`,
 [`IMPORT-MIHON.md`](IMPORT-MIHON.md)) and won't merge with the tablet's copy
 until it's added and a backup lists it. Downloading from tsundoku does that
@@ -226,6 +228,81 @@ load asks for the QUEUE cell's counts with an 800 ms timeout. While Suwayomi
 isn't answering it isn't asked again for fifteen seconds, and the last counts
 come back dimmed.
 
+### Finding a series, and adding it
+
+The library's search keeps its own results, and after them **SEARCH THE
+SOURCES** carries the same query to `/downloads/search`. With no titles found,
+that row is all there is. There is no second search field.
+
+- **Which sources are asked:** the installed extensions the library already
+  reads from (MangaDex's English source, not its forty other languages). A
+  source with more than half of its series here hidden (Toonily, Toonily.me,
+  Omega Scans on 2026-10-04) is asked only while reveal is on, and with reveal
+  off it isn't counted either. `?source=<id>` asks just one, and lists all it
+  found.
+- **Results fill in source by source.** Each source is asked at once, as a
+  promise of its own that the page streams in. A source still asking shows two
+  dashed rows. One that doesn't answer in twenty seconds says so, with TRY
+  AGAIN. A source lists three results under ALL, then `+ N MORE FROM …`.
+- **What a result says:** **IN LIBRARY** (the same source and URL as a
+  series here, which it opens), **SAME TITLE IN LIBRARY · FROM …** (the same
+  title from another source, to head off a twin), or the source's author and
+  status. A hidden series is dropped from the results with reveal off, not
+  dimmed. Covers come through tsundoku (`/api/downloads/thumb/<id>`), since the
+  browser can't reach Suwayomi.
+- **The preview** (`/downloads/source/<manga>`) fetches the manga and its
+  chapters from the source, streamed in, and shows them in the series screen's
+  layout, with **+ ADD TO LIBRARY** in CONTINUE's place. Nothing downloads
+  from it. A result tsundoku already has opens its series instead.
+- **ADD TO LIBRARY** puts the manga in Suwayomi's library, then writes it into
+  tsundoku's at once, every chapter NOT DOWNLOADED. It goes through the Mihon
+  importer's own plan (`planMihon`) and writer (`writeSeries`), from the manga
+  as Suwayomi's backup would carry it (`asMihon`), so the next import of that
+  backup finds it under the same key and changes nothing. It lands on the new
+  series with an **ADDED TO THE LIBRARY** band and FIRST 10. START is dimmed
+  until chapter 1 has a file.
+- **UNDO** takes it out of both libraries again while nothing of it is
+  downloaded or read, and goes back to the preview. It isn't a delete: no
+  tombstone, so it can be added again.
+
+### FOLLOW
+
+The last cell of the DOWNLOAD row, as FAV ends the RATING row. It turns accent
+the same way: **FOLLOWING ✓**. It downloads chapters that appear from now on.
+What's already missing stays ALL N's job.
+
+- `series.followed_at` (rung 37) is when it was followed. Following also puts
+  the manga in Suwayomi's library, so Suwayomi's update (every 12 hours) checks
+  it.
+- **The timer queues what's new.** Every ten minutes the Suwayomi timer asks the
+  app (`POST /api/downloads/follow`) to queue, for each followed series,
+  chapters Suwayomi fetched after the follow that aren't downloaded, queued or
+  read here, at most fifty a series a run (`followQueue`). Suwayomi can only
+  auto-download a whole category or the whole library, so the list is
+  tsundoku's.
+- Caught up and followed, FOLLOWING is the row's only cell, and the row says
+  when Suwayomi last looked: `CHECKED 2 H AGO`.
+- **FOLLOWED** is a FILTER option (`?followed=1`, [`FILTERS.md`](FILTERS.md)),
+  offered while something visible is followed. It isn't a badge: the cover's
+  four corners are taken.
+
+### Live, and importing at once
+
+One watcher in the app (`src/lib/server/suwayomi-watch.ts`) polls the queue:
+every three seconds while a screen is listening, every thirty when none is.
+
+- **Live, but quiet.** The series screen and the queue listen over server-sent
+  events (`/api/downloads/events`). Only the chapter being downloaded moves:
+  its row's bar and the queue's band. Anything else that changes (a chapter
+  queued, finished or failed) makes the screen read its data again, and a row
+  turns QUEUED → IMPORTING → plain without animation. What a viewer is sent is
+  worked out from what reveal lets them see. Without script, a screen is as of
+  its last load.
+- **Importing at once.** When a chapter that was under way leaves the queue,
+  the watcher takes a backup (as the timer does) and starts a scan, twenty
+  seconds after the last one finished and never more than once a minute. The
+  ten-minute timer stays, for when the app wasn't running.
+
 ### Where it departs from the handoff
 
 - **No reason for a failure.** The mock reads `FAILED · NOT FOUND`,
@@ -244,8 +321,26 @@ come back dimmed.
   smaller than the line's.
 - **Ten or fewer to queue** shows one cell (`NEXT 7`) rather than NEXT and an
   ALL of the same chapters.
+- **A poll, not Suwayomi's subscription.** The plan was one GraphQL
+  subscription to `downloadStatusChanged`. A three-second poll on localhost
+  does the same with no websocket client and no reconnect logic, and while
+  nobody is watching it drops to every thirty seconds.
+- **Search without script waits.** Streamed results need script. Without it,
+  the page waits for every source, twenty seconds at most.
+- **Mostly hidden is more than half.** The canvas names Toonily and Omega
+  Scans. The same rule also leaves out Toonily.me (14 of 17 hidden), which the
+  search mock still draws as a tab.
+- **No alternative titles in the preview.** The mock draws one under the
+  title. Suwayomi's search and manga data carry none.
+- **The preview's SOURCE row** shows the source's site and OPEN ↗, but not
+  "UPDATED 3 DAYS AGO": Suwayomi doesn't say when the source last changed.
 
 ## The import timer
+
+Since c94 the app imports by itself soon after a chapter finishes (above,
+"Live, and importing at once"); the timer is the fallback for when the app
+wasn't running. Each run also asks the app to queue what's new in followed
+series (`POST /api/downloads/follow`) before anything else.
 
 `suwayomi-import` asks the running app to import, never imports itself,
 for the reason in [`SYNC.md`](SYNC.md), "Why the app imports, not the timer".
@@ -318,12 +413,13 @@ then `systemctl --user restart tsundoku-suwayomi`.
   series. Once one is added to the library and a backup lists it, the next
   import folds the two (c90, [`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Before the
   backup knows it").
-- **The second half of c94** isn't built yet: source search and ADD TO LIBRARY
-  (Download States 1e), FOLLOW (1d), live updates, and importing the moment a
-  chapter finishes. Until then, the timer imports within ten minutes, and a
-  series tsundoku doesn't have is added from Suwayomi's web UI.
 - **A series Suwayomi has never seen** (one only the phone had, from a source
   that's installed) draws no DOWNLOAD row: nothing can be queued for a manga
-  Suwayomi has no record of. Search and ADD will cover it.
+  Suwayomi has no record of. Searching for it and adding it from the source
+  folds it in (same key), and then it downloads.
+- **Browsing** a source's popular and latest lists isn't there: search only.
+- **The timer still keeps its own backup step** (`scripts/suwayomi-import.ts`)
+  beside the watcher's (`backupNow`). The timer runs under Node's type
+  stripping, which can't load the app's `$lib` modules.
 - **Reaching Suwayomi's web UI from the tablet** is no longer needed for
   downloading. It stays localhost-only.

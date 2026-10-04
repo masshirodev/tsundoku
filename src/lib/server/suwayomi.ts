@@ -31,7 +31,7 @@ export const notAnsweringSince = () => downSince;
 
 export class SuwayomiError extends Error {}
 
-async function gql<T>(
+export async function gql<T>(
 	query: string,
 	variables: Record<string, unknown> = {},
 	timeoutMs = 4000
@@ -107,7 +107,7 @@ export async function queue(timeoutMs = 4000): Promise<Queue> {
 	return q;
 }
 
-const forget = () => (cached = null);
+export const forget = () => (cached = null);
 
 /** The tsundoku series a queued manga is, by key; null when it hasn't been imported. */
 export function seriesForKey(key: string): QueueSeries | null {
@@ -131,7 +131,7 @@ type Manga = {
 	chapters: { nodes: { id: number; url: string; isDownloaded: boolean }[] };
 };
 
-async function mangaOf(key: { sourceId: string; url: string }, timeoutMs = 4000) {
+export async function mangaOf(key: { sourceId: string; url: string }, timeoutMs = 4000) {
 	const d = await gql<{ mangas: { nodes: Manga[] } }>(
 		`query ($s: LongString!, $u: String!) { mangas(condition: { sourceId: $s, url: $u }) {
 			nodes { id inLibrary chapters { nodes { id url isDownloaded } } } } }`,
@@ -144,7 +144,7 @@ async function mangaOf(key: { sourceId: string; url: string }, timeoutMs = 4000)
 let sources: { at: number; names: Map<string, string> } | null = null;
 
 /** The sources Suwayomi has an extension for, by id. Kept a minute: they change when an extension is installed. */
-async function installedSources(timeoutMs = 4000): Promise<Map<string, string>> {
+export async function installedSources(timeoutMs = 4000): Promise<Map<string, string>> {
 	if (sources && Date.now() - sources.at < 60_000) return sources.names;
 	const d = await gql<{ sources: { nodes: { id: string; displayName: string }[] } }>(
 		`{ sources { nodes { id displayName } } }`,
@@ -167,6 +167,8 @@ export type SeriesDownloads =
 			states: Record<number, DownloadState>;
 			/** Chapters queued for other series, for ALL's confirmation. */
 			queuedElsewhere: number;
+			/** FOLLOW: whether it's on, and when Suwayomi last checked for new chapters. */
+			follow: { on: boolean; checked: number | null };
 	  };
 
 /** The series' source, by the name the tablet gave it (the series' `source` tag), for "BATO.TO DOWNLOADS ON THE TABLET". */
@@ -187,6 +189,12 @@ function entryUrls(seriesId: number): Map<number, string> {
 	return new Map(rows.filter((r) => r.source_url).map((r) => [r.id, r.source_url]));
 }
 
+function followedAt(seriesId: number): number | null {
+	const row = getDb().prepare(`SELECT followed_at FROM series WHERE id = ?`).get(seriesId) as
+		{ followed_at: number | null } | undefined;
+	return row?.followed_at ?? null;
+}
+
 function originOf(seriesId: number): string | null {
 	const row = getDb().prepare(`SELECT origin_key FROM series WHERE id = ?`).get(seriesId) as
 		{ origin_key: string | null } | undefined;
@@ -205,10 +213,11 @@ export async function seriesDownloads(
 	const key = parseKey(originOf(seriesId));
 	if (!configured() || !key) return { kind: 'none' };
 	try {
-		const [names, manga, q] = await Promise.all([
+		const [names, manga, q, checked] = await Promise.all([
 			installedSources(1500),
 			mangaOf(key, 1500),
-			queue(1500)
+			queue(1500),
+			lastChecked().catch(() => null)
 		]);
 		if (!names.has(key.sourceId))
 			return { kind: 'elsewhere', source: sourceName(seriesId, key.sourceId) };
@@ -227,7 +236,8 @@ export async function seriesDownloads(
 			states: Object.fromEntries(states),
 			queuedElsewhere: q.items.filter(
 				(i) => i.mangaId !== manga.id && (i.state === 'QUEUED' || i.state === 'DOWNLOADING')
-			).length
+			).length,
+			follow: { on: followedAt(seriesId) !== null, checked }
 		};
 	} catch {
 		return { kind: 'down', since: downSince ?? Date.now() };
@@ -277,7 +287,7 @@ export async function enqueue(
 			`mutation ($ids: [Int!]!) { enqueueChapterDownloads(input: { ids: $ids }) { clientMutationId } }`,
 			{ ids }
 		);
-		if (!getSetting('downloads_paused_at')) await startDownloader();
+		if (!getSettingPaused()) await startDownloader();
 	}
 	forget();
 	return { queued: ids.length, missing: entryIds.length - ids.length };
@@ -294,7 +304,7 @@ export async function retry(chapterIds: number[]): Promise<void> {
 		`mutation ($ids: [Int!]!) { enqueueChapterDownloads(input: { ids: $ids }) { clientMutationId } }`,
 		{ ids: chapterIds }
 	);
-	if (!getSetting('downloads_paused_at')) await startDownloader();
+	if (!getSettingPaused()) await startDownloader();
 	forget();
 }
 
@@ -318,7 +328,7 @@ export async function toTheTop(chapterIds: number[]): Promise<void> {
 	forget();
 }
 
-async function startDownloader() {
+export async function startDownloader() {
 	await gql(`mutation { startDownloader(input: {}) { clientMutationId } }`);
 }
 
@@ -332,6 +342,20 @@ export async function setPaused(paused: boolean, now = Date.now()): Promise<void
 	else await startDownloader();
 	setSetting('downloads_paused_at', paused ? String(now) : '');
 	forget();
+}
+
+/** Paused from tsundoku: what's queued now waits for RESUME. */
+export const getSettingPaused = () => getSetting('downloads_paused_at') !== '';
+
+/** When Suwayomi last looked for new chapters, for FOLLOWING's "CHECKED 2 H AGO". */
+async function lastChecked(timeoutMs = 1500): Promise<number | null> {
+	const d = await gql<{ lastUpdateTimestamp: { timestamp: string } }>(
+		`{ lastUpdateTimestamp { timestamp } }`,
+		{},
+		timeoutMs
+	);
+	const t = Number(d.lastUpdateTimestamp.timestamp);
+	return t > 0 ? t : null;
 }
 
 export function pausedAt(): number | null {

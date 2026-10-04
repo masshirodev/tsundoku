@@ -12,6 +12,7 @@ import { DEFAULT_MIN, minLabel, RATING_MAX } from './rating';
  *   ?lang=ja      a language, as its two-letter code
  *   ?added=2026-08-01   added on or after that day
  *   ?dl=1|0       a chapter on disk, or none
+ *   ?followed=1   followed: new chapters download on their own (doc/DOWNLOADING.md)
  *   ?hidden=1     hidden only; exists only while reveal is on
  *
  * Pure: the workstation turns these into SQL (src/lib/server/library.ts), and
@@ -28,6 +29,7 @@ export type Filters = {
 	/** `YYYY-MM-DD`: added on or after the start of that day. */
 	added: string | null;
 	dl: 0 | 1 | null;
+	followed: boolean;
 	hidden: boolean;
 };
 
@@ -38,11 +40,21 @@ export const NO_FILTERS: Filters = {
 	lang: null,
 	added: null,
 	dl: null,
+	followed: false,
 	hidden: false
 };
 
 /** Every parameter a filter owns: CLEAR drops exactly these. */
-export const FILTER_PARAMS = ['min', 'rated', 'fav', 'lang', 'added', 'dl', 'hidden'] as const;
+export const FILTER_PARAMS = [
+	'min',
+	'rated',
+	'fav',
+	'lang',
+	'added',
+	'dl',
+	'followed',
+	'hidden'
+] as const;
 
 const bit = (raw: string | null): 0 | 1 | null => (raw === '1' ? 1 : raw === '0' ? 0 : null);
 
@@ -73,6 +85,7 @@ export function parseFilters(params: URLSearchParams, reveal: boolean): Filters 
 		lang: lang && /^[a-z]{2}$/.test(lang) ? lang : null,
 		added: parseDay(params.get('added')),
 		dl: bit(params.get('dl')),
+		followed: params.get('followed') === '1',
 		hidden: reveal && params.get('hidden') === '1'
 	};
 }
@@ -85,6 +98,7 @@ export function activeCount(f: Filters): number {
 		Number(f.lang !== null) +
 		Number(f.added !== null) +
 		Number(f.dl !== null) +
+		Number(f.followed) +
 		Number(f.hidden)
 	);
 }
@@ -98,6 +112,7 @@ export function filterParams(f: Filters): [string, string][] {
 	if (f.lang) out.push(['lang', f.lang]);
 	if (f.added) out.push(['added', f.added]);
 	if (f.dl !== null) out.push(['dl', String(f.dl)]);
+	if (f.followed) out.push(['followed', '1']);
 	if (f.hidden) out.push(['hidden', '1']);
 	return out;
 }
@@ -128,6 +143,7 @@ export function filterWords(f: Filters): string[] {
 	if (f.added)
 		words.push(`SINCE ${Number(f.added.slice(8))} ${MONTHS[Number(f.added.slice(5, 7)) - 1]}`);
 	if (f.dl !== null) words.push(f.dl ? 'DOWNLOADED' : 'NOT DOWNLOADED');
+	if (f.followed) words.push('FOLLOWED');
 	if (f.hidden) words.push('HIDDEN');
 	return words;
 }
@@ -164,6 +180,7 @@ export type Filterable = {
 	hidden: boolean;
 	addedAt: number;
 	downloaded?: boolean;
+	followed?: boolean;
 	/** Two-letter codes, upper or lower case. */
 	languages?: string[];
 };
@@ -175,6 +192,7 @@ export function matches(item: Filterable, f: Filters): boolean {
 	if (f.lang && !(item.languages ?? []).some((l) => l.toLowerCase() === f.lang)) return false;
 	if (f.added && item.addedAt < dayStart(f.added)) return false;
 	if (f.dl !== null && !!item.downloaded !== (f.dl === 1)) return false;
+	if (f.followed && !item.followed) return false;
 	if (f.hidden && !item.hidden) return false;
 	return true;
 }
@@ -193,7 +211,13 @@ export function languagesAmong(items: Filterable[]): string[] {
 export type Choice = { label: string; on: boolean; to: Filters };
 export type Row = { key: string; label: string; choices: Choice[] };
 
-export function filterRows(f: Filters, languages: string[], reveal: boolean): Row[] {
+export function filterRows(
+	f: Filters,
+	languages: string[],
+	reveal: boolean,
+	/** Something is followed: FOLLOWED is offered, as LANGUAGE is when there are languages. */
+	following = false
+): Row[] {
 	const set = (patch: Partial<Filters>): Filters => ({ ...f, ...patch });
 	const rows: Row[] = [
 		{
@@ -250,6 +274,16 @@ export function filterRows(f: Filters, languages: string[], reveal: boolean): Ro
 			{ label: 'NO', on: f.dl === 0, to: set({ dl: 0 }) }
 		]
 	});
+	// FOLLOW is a filter option, not a badge: the cover's four corners are taken (Download States 1d).
+	if (following || f.followed)
+		rows.push({
+			key: 'followed',
+			label: 'FOLLOWED',
+			choices: [
+				{ label: 'ANY', on: !f.followed, to: set({ followed: false }) },
+				{ label: 'ONLY', on: f.followed, to: set({ followed: true }) }
+			]
+		});
 	if (reveal)
 		rows.push({
 			key: 'hidden',

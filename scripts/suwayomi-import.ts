@@ -6,6 +6,8 @@
  *   yarn run suwayomi-import            # what the timer runs
  *   yarn run suwayomi-import -- --force # import even if nothing moved
  *
+ * Before that, it asks the app to queue what's new in followed series.
+ *
  * The backup comes first because it is what keys a series as
  * `mihon:<source>:<url>`, the key it shares with the tablet's and the phone's
  * copies. Suwayomi's own backup is daily; a chapter imported before it would
@@ -22,7 +24,7 @@ import {
 	type Fingerprint,
 	type SuwayomiStatus
 } from '../src/lib/import/suwayomi.ts';
-import { requestScan } from './scan-request.ts';
+import { requestFollow, requestScan } from './scan-request.ts';
 
 try {
 	process.loadEnvFile(fileURLToPath(new URL('../.env', import.meta.url)));
@@ -103,6 +105,16 @@ async function backup(): Promise<string> {
 	writeFileSync(path, Buffer.from(await res.arrayBuffer()));
 	for (const old of backupsToPrune(readdirSync(folder))) unlinkSync(join(folder, old));
 	return path;
+}
+
+// Followed series first, every run: a chapter Suwayomi's own update found is
+// queued within ten minutes of it, whether or not anything new is on disk.
+try {
+	const f = await requestFollow();
+	if (f.queued)
+		console.log(`suwayomi: queued ${f.queued} new chapters of ${f.series} followed series.`);
+} catch (e) {
+	console.log(`suwayomi: following: ${(e as Error).message}`);
 }
 
 const force = process.argv.includes('--force');

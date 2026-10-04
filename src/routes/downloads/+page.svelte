@@ -13,6 +13,8 @@
 	import { count } from '$lib/library/downloads';
 	import { clock } from '$lib/library/tracking';
 	import { offline } from '$lib/offline.svelte';
+	import { invalidateAll } from '$app/navigation';
+	import { live, watchQueue } from '$lib/downloads-live.svelte';
 
 	/**
 	 * The download queue (Index Downloads 8, 9, 12; doc/DOWNLOADING.md).
@@ -27,6 +29,20 @@
 	);
 	const paused = $derived(!!v && !v.running);
 	const newHref = resolve('/') + '?shelf=new';
+	// Live, but quiet: the band's bar moves; anything else reads the page again.
+	$effect(() => {
+		if (!v || !offline.online) return;
+		return watchQueue(() => void invalidateAll());
+	});
+	/** The downloading chapter's progress, live when the stream has it. */
+	const progress = $derived.by(() => {
+		const d = v?.downloading;
+		if (!d) return null;
+		const l = live.downloading;
+		return l && l.chapterId === d.chapterId
+			? { fraction: l.fraction, page: l.page, pages: l.pages || d.pages }
+			: { fraction: d.progress, page: Math.round(d.progress * d.pages), pages: d.pages };
+	});
 	const chapterLabel = (n: number, name: string) =>
 		n >= 0 ? `Chapter ${formatNumber(n)}` : name || 'Chapter';
 </script>
@@ -70,14 +86,15 @@
 		/>
 	{:else if v && v.downloading && !paused}
 		{@const d = v.downloading}
-		{@const pages = d.pages > 0 ? ` · ${Math.round(d.progress * d.pages)} / ${d.pages}` : ''}
+		{@const p = progress ?? { fraction: d.progress, page: 0, pages: 0 }}
+		{@const pages = p.pages > 0 ? ` · ${p.page} / ${p.pages}` : ''}
 		<!-- The phone's band keeps the chapter and the counts, and drops the rest (Index Downloads, phone). -->
 		<div class="long">
 			<Banner
 				kind="progress"
 				title="DOWNLOADING · {d.title.toUpperCase()}"
 				detail="CH. {formatNumber(d.number)}{pages}"
-				progress={d.progress}
+				progress={p.fraction}
 				meta="{count(v.queued)} QUEUED · {v.series} SERIES"
 				metaRight="{count(data.recent.hour)} DOWNLOADED IN THE LAST HOUR · NEW →"
 				metaHref={newHref}
@@ -88,7 +105,7 @@
 				kind="progress"
 				title="DOWNLOADING · {d.title.toUpperCase()}"
 				detail="CH. {formatNumber(d.number)}"
-				progress={d.progress}
+				progress={p.fraction}
 				meta="{count(v.queued)} QUEUED"
 				metaRight="{count(data.recent.hour)} IN 1 H"
 				metaHref={newHref}

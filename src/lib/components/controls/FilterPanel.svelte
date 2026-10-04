@@ -31,7 +31,8 @@
 		formAction = '',
 		keep = [],
 		wide = false,
-		downloaded = true
+		downloaded = true,
+		following = false
 	}: {
 		filters: Filters;
 		/** Codes present on the shelf: LANGUAGE offers these, and doesn't exist without any. */
@@ -49,6 +50,8 @@
 		wide?: boolean;
 		/** Off where cards don't know it (a person's page). */
 		downloaded?: boolean;
+		/** Something visible is followed: FOLLOWED is offered (doc/DOWNLOADING.md). */
+		following?: boolean;
 	} = $props();
 
 	let open = $state(false);
@@ -63,7 +66,7 @@
 
 	const n = $derived(activeCount(filters));
 	const rows = $derived(
-		filterRows(filters, languages, reveal).filter((r) => downloaded || r.key !== 'dl')
+		filterRows(filters, languages, reveal, following).filter((r) => downloaded || r.key !== 'dl')
 	);
 	const cleared = NO_FILTERS;
 

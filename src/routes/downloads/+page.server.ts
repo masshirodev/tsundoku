@@ -56,6 +56,7 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 			pausedAt: q.running ? null : pausedAt(),
 			queued: v.queued,
 			downloading: v.downloading && {
+				chapterId: v.downloading.chapterId,
 				title: v.downloading.series?.title ?? v.downloading.mangaTitle,
 				number: v.downloading.number,
 				progress: v.downloading.progress,

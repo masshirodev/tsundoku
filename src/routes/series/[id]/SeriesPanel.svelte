@@ -121,7 +121,14 @@
 	);
 	const dlRow = $derived(
 		dlStates
-			? downloadRow(series.entries, { kind: 'ok', states: dlStates }, offline.online, clock)
+			? downloadRow(
+					series.entries,
+					{ kind: 'ok', states: dlStates },
+					offline.online,
+					clock,
+					downloads?.kind === 'ok' ? downloads.follow : null,
+					(at) => ago(at, Date.now())
+				)
 			: downloads?.kind === 'down'
 				? downloadRow(series.entries, downloads, offline.online, clock)
 				: null
@@ -328,10 +335,13 @@
 	const resumeHref = $derived(
 		opening && !outline
 			? readHref(opening.entryId)
-			: action.entry && !outline
+			: action.entry && !outline && action.entry.available
 				? readHref(action.entry.id)
 				: undefined
 	);
+	// The chapter it would open has no file yet (Download States 1e, after adding):
+	// START is dimmed until it has one, as a row with no file doesn't open.
+	const noFile = $derived(!outline && !opening && !!action.entry && !action.entry.available);
 	const ctaLabel = $derived(
 		opening && editions && !editions.read && openingAt !== null
 			? `READ FROM P. ${openingAt + 1}`
@@ -399,7 +409,13 @@
 	/>
 
 	<!-- eslint-disable svelte/no-navigation-without-resolve -- readHref() resolves -->
-	<a class="cta" bind:this={cta} href={resumeHref} aria-disabled={!resumeHref}>
+	<a
+		class="cta"
+		class:nofile={noFile}
+		bind:this={cta}
+		href={resumeHref}
+		aria-disabled={!resumeHref}
+	>
 		<span>▶ {outline ? 'CONTINUE' : ctaLabel}</span>
 		{#if outline}
 			<i class="cta-out" aria-hidden="true"></i>
@@ -410,9 +426,11 @@
 					<span class="short">{opening.code}</span>
 				{:else}
 					<span class="long"
-						>{action.meta}{series.kind === 'doujin' && cached > 0 ? ' · ↓ CACHED' : ''}</span
+						>{action.meta}{noFile ? ' · NOT DOWNLOADED' : ''}{series.kind === 'doujin' && cached > 0
+							? ' · ↓ CACHED'
+							: ''}</span
 					>
-					<span class="short">{action.short || action.meta}</span>
+					<span class="short">{noFile ? 'NO FILE' : action.short || action.meta}</span>
 				{/if}
 			</span>
 		{/if}
@@ -425,6 +443,11 @@
 			{#each dlRow?.cells ?? [] as c (c.which)}
 				{#if c.dim}
 					<span class="lc dim" class:acc={c.acc} aria-disabled="true">{c.label}</span>
+				{:else if c.which === 'follow' || c.which === 'unfollow'}
+					<form method="POST" action="?/follow" use:enhance class="lc-form">
+						<input type="hidden" name="on" value={c.which === 'follow' ? '1' : '0'} />
+						<button type="submit" class="lc" class:acc={c.acc}>{c.label}</button>
+					</form>
 				{:else if c.which === 'all'}
 					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam() keeps the current, resolved path -->
 					<a class="lc" href={withParam(page.url, 'download', 'all')} data-sveltekit-noscroll
@@ -1070,6 +1093,9 @@
 	}
 	.cta[aria-disabled='true'] {
 		pointer-events: none;
+	}
+	.cta.nofile {
+		opacity: 0.4;
 	}
 	.cta-meta .short {
 		display: none;

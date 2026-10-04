@@ -350,7 +350,12 @@ export const count = (n: number) => n.toLocaleString('en-US');
 // ---- the series screen's DOWNLOAD row ---------------------------------------------------
 
 /** One cell of the row: what it does, and how it's drawn. */
-export type DownloadCell = { label: string; which: 'next' | 'all'; acc: boolean; dim: boolean };
+export type DownloadCell = {
+	label: string;
+	which: 'next' | 'all' | 'follow' | 'unfollow';
+	acc: boolean;
+	dim: boolean;
+};
 
 export type DownloadRow = { a: string; b: string; cells: DownloadCell[] };
 
@@ -358,37 +363,58 @@ export type DownloadRow = { a: string; b: string; cells: DownloadCell[] };
 export type RowFacts =
 	{ kind: 'ok'; states: Map<number, DownloadState> } | { kind: 'down'; since: number };
 
+/** FOLLOW's part: whether it's on, and when Suwayomi last looked for new chapters. */
+export type FollowFacts = { on: boolean; checked: number | null };
+
 const chapters = (n: number) => `${count(n)} unread chapter${n === 1 ? '' : 's'} not downloaded`;
 
 /**
  * The DOWNLOAD row under CONTINUE (Index Series Download, states top, down,
- * offline). NEXT 10 is the accent cell and never asks; ALL N opens its
- * confirmation. When nothing of the series is on disk yet, NEXT is FIRST.
- * Not answering and offline keep the row and its cells, dimmed, so the screen
- * doesn't jump, and say why in the LINK row's ○ wording.
+ * offline, follow, added). NEXT 10 is the accent cell and never asks; ALL N
+ * opens its confirmation; FOLLOW ends the row as FAV ends RATING's, and turns
+ * accent the same way (FOLLOWING ✓). When nothing of the series is on disk
+ * yet, NEXT is FIRST. Not answering and offline keep the row and its cells,
+ * dimmed, so the screen doesn't jump, and say why in the LINK row's ○ wording.
  */
 export function downloadRow(
 	entries: Entry[],
 	facts: RowFacts,
 	online: boolean,
-	clock: (at: number) => string
+	clock: (at: number) => string,
+	follow: FollowFacts | null = null,
+	ago: (at: number) => string = clock
 ): DownloadRow {
+	const followCell = (dim: boolean): DownloadCell[] =>
+		follow
+			? [
+					follow.on
+						? { label: 'FOLLOWING ✓', which: 'unfollow', acc: true, dim }
+						: { label: 'FOLLOW', which: 'follow', acc: false, dim }
+				]
+			: [];
 	if (facts.kind === 'down' || !online) {
 		const missing = entries.filter((e) => !e.available && e.readAt === null && !e.matter).length;
-		const all = Math.max(missing, 1);
 		return {
 			a: missing ? chapters(missing) : 'Every unread chapter downloaded',
 			b: !online
 				? '○ OFFLINE · DOWNLOADING NEEDS THE WORKSTATION'
 				: `○ NOT ANSWERING · SUWAYOMI ON THE WORKSTATION · SINCE ${clock((facts as { since: number }).since)}`,
-			cells: missing
-				? [
-						{ label: `NEXT ${Math.min(10, all)}`, which: 'next', acc: true, dim: true },
-						...(all > 10
-							? [{ label: `ALL ${count(all)}`, which: 'all' as const, acc: false, dim: true }]
-							: [])
-					]
-				: []
+			cells: [
+				...(missing
+					? [
+							{
+								label: `NEXT ${Math.min(10, missing)}`,
+								which: 'next' as const,
+								acc: true,
+								dim: true
+							},
+							...(missing > 10
+								? [{ label: `ALL ${count(missing)}`, which: 'all' as const, acc: false, dim: true }]
+								: [])
+						]
+					: []),
+				...followCell(true)
+			]
 		};
 	}
 	const c = downloadCounts(entries, facts.states);
@@ -400,12 +426,100 @@ export function downloadRow(
 		if (c.queueable > 10)
 			cells.push({ label: `ALL ${count(c.queueable)}`, which: 'all', acc: false, dim: false });
 	}
+	cells.push(...followCell(false));
+	const caughtUp = c.missingUnread === 0 || c.queueable === 0;
 	return {
 		a:
-			c.missingUnread > 0
+			c.missingUnread > 0 && !(follow?.on && caughtUp)
 				? chapters(c.missingUnread)
 				: 'Every unread chapter downloaded or on its way',
-		b: underWay(c),
+		b:
+			follow?.on && caughtUp && !c.failed
+				? `FOLLOWING · NEW CHAPTERS DOWNLOAD AS THEY APPEAR${follow.checked ? ` · CHECKED ${ago(follow.checked)}` : ''}`
+				: underWay(c),
 		cells
 	};
+}
+
+// ---- searching the sources (Download States 1e) -----------------------------------------
+
+/** How much of the library comes from a source, and how much of that is hidden. */
+export type SourceUse = { series: number; hidden: number };
+
+/**
+ * Which sources a search asks: those with an extension installed that the
+ * library already reads from (MangaDex's English source, not its 40 other
+ * languages). A source whose series are mostly hidden here (Toonily: 110 of
+ * 124) is asked only while reveal is on, and with reveal off it isn't counted
+ * either: its results would put adult covers on a screen that promised none.
+ */
+export function sourcesToSearch(
+	installed: { id: string; name: string }[],
+	use: Map<string, SourceUse>,
+	reveal: boolean
+): { id: string; name: string }[] {
+	return installed.filter((s) => {
+		const u = use.get(s.id);
+		if (!u || u.series === 0) return false;
+		return reveal || !mostlyHidden(u);
+	});
+}
+
+/** More than half of what the library has from it is hidden. */
+export const mostlyHidden = (u: SourceUse) => u.series > 0 && u.hidden * 2 > u.series;
+
+/** A title as compared for "SAME TITLE IN LIBRARY": case, punctuation and spacing aside. */
+export const normTitle = (t: string) =>
+	t
+		.toLowerCase()
+		.normalize('NFKD')
+		.replace(/[̀-ͯ]/g, '')
+		.replace(/[^\p{L}\p{N}]+/gu, ' ')
+		.trim();
+
+/** The query's first occurrence in a title, for the result's highlight. */
+export function highlight(
+	title: string,
+	query: string
+): { pre: string; mid: string; post: string } {
+	const q = query.trim().toLowerCase();
+	const i = q ? title.toLowerCase().indexOf(q) : -1;
+	return i < 0
+		? { pre: title, mid: '', post: '' }
+		: {
+				pre: title.slice(0, i),
+				mid: title.slice(i, i + q.length),
+				post: title.slice(i + q.length)
+			};
+}
+
+/** What the library says of a result. */
+export type ResultMatch =
+	/** This very series is in the library: it opens it. */
+	| { kind: 'in-library'; seriesId: number; meta: string }
+	/** The same title from another source: said, to head off a twin. */
+	| { kind: 'same-title'; source: string }
+	| { kind: 'new' };
+
+// ---- FOLLOW (Download States 1d) ----------------------------------------------------------
+
+/**
+ * The chapters FOLLOW queues: fetched by Suwayomi after the series was
+ * followed, not downloaded, not queued, and not read here. New chapters
+ * only: what was already missing stays ALL N's job. At most `cap` a run, so a
+ * source that re-lists its whole catalogue can't queue hundreds at once.
+ */
+export function followQueue(
+	chapters: { id: number; url: string; fetchedAt: number; downloaded: boolean }[],
+	followedAt: number,
+	queued: Set<number>,
+	readUrls: Set<string>,
+	cap = 50
+): number[] {
+	return chapters
+		.filter(
+			(c) => c.fetchedAt > followedAt && !c.downloaded && !queued.has(c.id) && !readUrls.has(c.url)
+		)
+		.slice(0, cap)
+		.map((c) => c.id);
 }

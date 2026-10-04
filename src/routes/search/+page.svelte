@@ -210,10 +210,12 @@
 		</div>
 	{/if}
 
-	<div class="label">
-		<div>TITLES</div>
-		<div>{count(r.titleTotal)}</div>
-	</div>
+	{#if r.titleTotal > 0 || !data.sources}
+		<div class="label">
+			<div>TITLES</div>
+			<div>{count(r.titleTotal)}</div>
+		</div>
+	{/if}
 	<div class="hits">
 		{#each r.titles as item (item.id)}
 			{@const m = splitMatch(item.title, query)}
@@ -226,6 +228,26 @@
 			</button>
 		{/each}
 	</div>
+	{#if data.sources}
+		<!-- No second field (Download States 1e): the same query, carried to the sources. -->
+		<div class="label">
+			<div>SOURCES</div>
+			<div>NOT IN THE LIBRARY YET</div>
+		</div>
+		<a
+			class="to-sources"
+			href="{resolve('/downloads/search')}?q={encodeURIComponent(query)}"
+			data-sveltekit-preload-data="off"
+		>
+			<span class="text">
+				<span class="ts-t">SEARCH THE SOURCES</span>
+				<span class="ts-m"
+					>{data.sources} SOURCE{data.sources === 1 ? '' : 'S'} · RESULTS ARRIVE ONE BY ONE</span
+				>
+			</span>
+			<span class="ts-go" aria-hidden="true">→</span>
+		</a>
+	{/if}
 {/if}
 
 <SeriesSheet
@@ -311,6 +333,39 @@
 		font: var(--type-label);
 		color: var(--text-2);
 		letter-spacing: var(--tracking-label);
+	}
+	.to-sources {
+		display: flex;
+		align-items: stretch;
+		min-height: 64px;
+		border-top: var(--hairline);
+		border-bottom: var(--hairline);
+		color: var(--text-1);
+		text-decoration: none;
+	}
+	.to-sources .text {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 5px;
+		padding: 10px var(--pad);
+	}
+	.ts-t {
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.04em;
+	}
+	.ts-m {
+		font: 400 13px/1.3 var(--font-mono);
+		color: var(--text-2);
+	}
+	.ts-go {
+		display: flex;
+		align-items: center;
+		padding: 0 var(--pad);
+		border-left: var(--hairline);
+		font: 500 16px var(--font-mono);
 	}
 	.label.first {
 		padding-top: 18px;

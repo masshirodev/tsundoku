@@ -7,6 +7,7 @@ import { getDb } from '$lib/server/db';
 import {
 	collectionExists,
 	continueReading,
+	anyFollowed,
 	countListed,
 	countSeries,
 	createCollection,
@@ -101,6 +102,8 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		empty: total === 0 && !scan,
 		dupes,
 		toLink,
+		// FOLLOWED is a filter while something the viewer can see is followed (doc/DOWNLOADING.md).
+		following: anyFollowed(reveal),
 		libraryRoot: libraryRoot(),
 		cont: continueReading(reveal),
 		// PEOPLE lists favourite people (from the layout), not series.
