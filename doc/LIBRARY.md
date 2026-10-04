@@ -32,7 +32,7 @@ state is the result of real data or real input.
 | Reveal on        | Typing exactly `/reveal` in search and pressing Enter. A **session** cookie, so closing the app also ends it. HIDE AGAIN, or `/hide`, ends it.                                                                                                                              |
 | Empty            | No visible series and no scan job.                                                                                                                                                                                                                                          |
 | Importing        | A `scan_jobs` row with no `finished_at`. Series the scanner found but hasn't indexed (`indexed_at IS NULL`) draw as dashed "indexing" tiles.                                                                                                                                |
-| Import finished  | The latest finished job nobody has dismissed. TIDY NEW dismisses it and opens the NEW shelf.                                                                                                                                                                                |
+| Import finished  | The latest finished job nobody has dismissed. TIDY NEW dismisses it and opens the NEW shelf, which keeps what it had.                                                                                                                                                       |
 | Offline          | `navigator.onLine` is false. What counts as cached is read from the `tsundoku-entries` Cache Storage bucket.                                                                                                                                                                |
 
 ## Hidden means hidden
@@ -88,9 +88,42 @@ and `onrate`; without those it draws the plain badge and bars.
 
 ## New chapters
 
-A tile's `+N` counts entries that **arrived after the series was last opened**.
-It is not the unread count. Drawing has 18 unread and 3 new. A series never
-opened has no "new", only unread.
+A tile's `+N` counts entries that **arrived after the series was last opened**:
+listed by the source, or downloaded, since then (the later of `added_at` and
+`arrived_at`). It is not the unread count. Drawing has 18 unread and 3 new. A
+series never opened has no "new", only unread.
+
+## The NEW shelf
+
+What arrived, until it's opened or two weeks pass (the owner, 2026-10-04):
+
+- **Arrived** is tsundoku's own clock, `series.arrived_at` and
+  `entries.arrived_at` (rung 34): the import that created the series, or the
+  latest import that brought one of its chapters a file. The source's dates
+  can't say it. Mihon dates a chapter by when its source listed it
+  (`added_at`), so the Suwayomi chapters downloaded on 2026-10-04 were dated
+  as far back as 2023.
+- **It leaves** once any of its chapters is opened after it arrived (here or,
+  through a backup, on a device), or `NEW_DAYS` (14) after it arrived. A new
+  chapter brings it back.
+- **It isn't tied to an import.** NEW used to be "the series the import the
+  band is about created", which lost things two ways. Each import that
+  created a series replaced the last one's, and TIDY NEW dismissed the band,
+  then opened a NEW shelf that had nothing left to follow. A series that
+  only got new chapters never showed at all. Now the band is just the band:
+  TIDY NEW closes it and opens NEW, which keeps what it had.
+- **The shelf is listed** while an import runs or while anything is on it.
+  NEWEST sorts it by arrival.
+
+The rule is `NEW_SQL` in `src/lib/server/library.ts`; the writer stamps
+arrivals in `src/lib/server/import/write.ts`. Tested in
+`tests/library-db.spec.ts` ("the NEW shelf"), `tests/arrivals-db.spec.ts` and
+`tests/migrations-db.spec.ts` (rung 34).
+
+Chapters already in the library on 2026-10-04 have no arrival: the rung
+can't know one. Those that were on disk got one from the file's mtime (when
+the device downloaded it; Syncthing keeps it), so the last fortnight's
+downloads started on NEW.
 
 ## Speed
 

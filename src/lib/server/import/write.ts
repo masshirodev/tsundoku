@@ -209,8 +209,8 @@ export function writeSeries(
 						.prepare(
 							`INSERT INTO series (root_id, title, kind, rating, favourite, hidden, hue, added_at,
 								indexed_at, scan_job_id, alt_titles, source, status, description, direction, path,
-								source_url, origin_key, cover_url)
-							VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, ?, ?, ?)`
+								source_url, origin_key, cover_url, arrived_at)
+							VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 						)
 						.run(
 							opts.rootId,
@@ -230,7 +230,8 @@ export function writeSeries(
 							s.path,
 							s.sourceUrl,
 							s.originKey,
-							s.coverUrl ?? ''
+							s.coverUrl ?? '',
+							opts.now
 						).lastInsertRowid
 				);
 				for (const t of s.tags)
@@ -255,8 +256,8 @@ export function writeSeries(
 			const insert = db.prepare(
 				`INSERT INTO entries (series_id, position, label, title, added_at, read_at, last_position,
 					last_opened_at, page_count, file, bytes, source_url, available, cover_file, cover_phash,
-					scanlator, locator, matter, volume)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+					scanlator, locator, matter, volume, arrived_at)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 			);
 			const log = db.prepare(
 				`INSERT INTO reading_events (at, series_id, entry_id, kind, page, duration_ms)
@@ -307,7 +308,9 @@ export function writeSeries(
 							e.scanlator ?? '',
 							e.locator ?? '',
 							e.matter ?? '',
-							volume?.name ?? ''
+							volume?.name ?? '',
+							// Arrived now, whatever date the source gives it (rung 34).
+							e.available ? opts.now : null
 						).lastInsertRowid
 					);
 					setPages(db, entryId, e);
@@ -329,7 +332,10 @@ export function writeSeries(
 							`UPDATE entries SET locator = ?, matter = ?, position = COALESCE(?, position), label = ?, bytes = ? WHERE id = ?`
 						).run(e.locator, e.matter ?? '', volume ? null : e.position, e.label, e.bytes, entryId);
 					if (e.available && !elsewhere) {
-						if (!had.available) filesAttached += 1;
+						if (!had.available) {
+							filesAttached += 1;
+							db.prepare(`UPDATE entries SET arrived_at = ? WHERE id = ?`).run(opts.now, entryId);
+						}
 						// Another file: its pages' borders are measured again (doc/READER.md, "Crop borders").
 						if (had.file !== file)
 							db.prepare(`DELETE FROM page_crops WHERE entry_id = ?`).run(entryId);
@@ -368,6 +374,9 @@ export function writeSeries(
 					});
 			}
 			if (volume) placeVolume(db, seriesId, own, s.entries);
+			// A file arrived: the series is on the NEW shelf again (doc/LIBRARY.md).
+			if (filesAttached > 0)
+				db.prepare(`UPDATE series SET arrived_at = ? WHERE id = ?`).run(opts.now, seriesId);
 			// Mihon's MAL tracker: a sure catalogue link (doc/LINKS.md).
 			if (s.malLink) linkFromTracker(db, seriesId, s.malLink, opts.now);
 			if (opts.markMissing && s.path !== '') {

@@ -351,25 +351,64 @@ describe('scan state', () => {
 		lib.dismissScan(done);
 		expect(lib.currentScan()).toBeNull();
 	});
+});
 
-	it('keeps NEW on the import the band is about, after a rescan that brought nothing', () => {
-		const db = getDb();
-		const brought = Number(
-			db
-				.prepare(`INSERT INTO scan_jobs (started_at, finished_at, series_found) VALUES (10, 11, 1)`)
+describe('the NEW shelf', () => {
+	// What arrived (rung 34) in the last NEW_DAYS and hasn't been opened since:
+	// not the import the band is about, so neither a later import nor TIDY NEW
+	// empties it.
+	const db = () => getDb();
+	const idOf = (title: string) =>
+		lib.listSeries({ reveal: false }).find((s) => s.title === title)!.id;
+	const onNew = () => titles(lib.listSeries({ reveal: false, shelf: 'new' }));
+	const arrive = (id: number, at: number) =>
+		db().prepare(`UPDATE series SET arrived_at = ? WHERE id = ?`).run(at, id);
+	const opened = (id: number) =>
+		(
+			db().prepare(`SELECT MAX(last_opened_at) AS at FROM entries WHERE series_id = ?`).get(id) as {
+				at: number | null;
+			}
+		).at;
+
+	it('holds an arrival, whatever the band does', () => {
+		const id = idOf('Dungeon Meshi');
+		arrive(id, Math.max(Date.now() - 60_000, (opened(id) ?? 0) + 1));
+		expect(onNew()).toContain('Dungeon Meshi');
+		const job = Number(
+			db()
+				.prepare(`INSERT INTO scan_jobs (started_at, finished_at, series_found) VALUES (20, 21, 1)`)
 				.run().lastInsertRowid
 		);
-		const target = lib.listSeries({ reveal: false }).find((s) => s.title === 'Dungeon Meshi')!;
-		db.prepare(`UPDATE series SET scan_job_id = ? WHERE id = ?`).run(brought, target.id);
-		// A later rescan found nothing new and closed its own band.
-		db.prepare(
-			`INSERT INTO scan_jobs (started_at, finished_at, series_found, dismissed_at) VALUES (12, 13, 0, 13)`
-		).run();
-		expect(lib.currentScan()?.id).toBe(brought);
-		expect(titles(lib.listSeries({ reveal: false, shelf: 'new' }))).toEqual(['Dungeon Meshi']);
-		const shelf = lib.listShelves({ reveal: false, withNew: true }).find((s) => s.key === 'new');
-		expect(shelf?.count).toBe(1);
-		lib.dismissScan(brought);
+		lib.dismissScan(job);
+		expect(onNew()).toContain('Dungeon Meshi');
+		// Listed with no import to show, as long as something is new.
+		const shelf = lib.listShelves({ reveal: false, withNew: false }).find((s) => s.key === 'new');
+		expect(shelf?.count).toBeGreaterThanOrEqual(1);
+	});
+
+	it('lets it go once it is opened', () => {
+		const id = idOf('Dungeon Meshi');
+		const at = Date.now() - 60_000;
+		arrive(id, at);
+		db()
+			.prepare(
+				`UPDATE entries SET last_opened_at = ? WHERE id = (SELECT id FROM entries WHERE series_id = ? LIMIT 1)`
+			)
+			.run(at + 1, id);
+		expect(onNew()).not.toContain('Dungeon Meshi');
+	});
+
+	it(`lets it go after ${lib.NEW_DAYS} days unopened`, () => {
+		const id = idOf('Isekai Yakkyoku');
+		expect(opened(id)).toBeNull();
+		arrive(id, Date.now() - (lib.NEW_DAYS - 1) * 86_400_000);
+		expect(onNew()).toContain('Isekai Yakkyoku');
+		arrive(id, Date.now() - (lib.NEW_DAYS + 1) * 86_400_000);
+		expect(onNew()).not.toContain('Isekai Yakkyoku');
+		arrive(id, 0);
+		expect(lib.listShelves({ reveal: false, withNew: false }).some((s) => s.key === 'new')).toBe(
+			false
+		);
 	});
 });
 

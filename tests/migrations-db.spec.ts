@@ -46,3 +46,23 @@ describe('rung 29: ratings out of 10 (c67)', () => {
 		expect(() => conn.prepare(`UPDATE entries SET rating = 11`).run()).toThrow(/CHECK/);
 	});
 });
+
+describe('rung 34: arrivals', () => {
+	it('dates a series an import made by that import, and leaves chapters unknown', () => {
+		const conn = new Database(':memory:');
+		climb(conn, 33);
+		conn.exec(`
+			INSERT INTO roots (id, name, path) VALUES (1, 'Mihon', '/nowhere');
+			INSERT INTO scan_jobs (id, started_at, finished_at) VALUES (7, 5000, 6000);
+			INSERT INTO series (id, root_id, title, kind, added_at, scan_job_id) VALUES
+				(1, 1, 'Imported', 'manga', 1, 7), (2, 1, 'Seeded', 'manga', 1, NULL);
+			INSERT INTO entries (series_id, position, label, added_at) VALUES (1, 1, 'Ch. 1', 1);
+		`);
+		climb(conn);
+		expect(conn.prepare(`SELECT id, arrived_at FROM series ORDER BY id`).all()).toEqual([
+			{ id: 1, arrived_at: 5000 },
+			{ id: 2, arrived_at: null }
+		]);
+		expect(conn.prepare(`SELECT arrived_at FROM entries`).get()).toEqual({ arrived_at: null });
+	});
+});

@@ -725,6 +725,21 @@ const MIGRATIONS: string[] = [
 		sent_at INTEGER NOT NULL,
 		checked_at INTEGER
 	);
+	`,
+	// Rung 34: arrivals (doc/LIBRARY.md, "The NEW shelf"). When tsundoku first
+	// had a file for a chapter, which Mihon's dates don't say: a chapter's
+	// added_at is when the source listed it, years before it was downloaded.
+	// A series' arrived_at is its latest arrival, a new series or a chapter's
+	// file. Existing chapters' arrivals are unknown; a series an import
+	// created arrived when that import started.
+	`
+	ALTER TABLE entries ADD COLUMN arrived_at INTEGER;
+	ALTER TABLE series ADD COLUMN arrived_at INTEGER;
+	UPDATE series SET arrived_at = (SELECT started_at FROM scan_jobs j WHERE j.id = series.scan_job_id)
+		WHERE scan_job_id IS NOT NULL;
+	CREATE INDEX series_arrived ON series(arrived_at) WHERE arrived_at IS NOT NULL;
+	DROP INDEX entries_card;
+	CREATE INDEX entries_card ON entries(series_id, shadowed, matter, read_at, added_at, last_opened_at, available, arrived_at);
 	`
 ];
 

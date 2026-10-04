@@ -75,7 +75,8 @@ function cardQuery(where: string, order: string, limit = ''): string {
 		GROUP BY st.series_id
 	), fresh AS MATERIALIZED (
 		SELECT e.series_id, COUNT(*) AS n FROM entries e JOIN stats t ON t.series_id = e.series_id
-		WHERE e.shadowed = 0 AND e.added_at > t.last_opened GROUP BY e.series_id
+		WHERE e.shadowed = 0 AND MAX(e.added_at, COALESCE(e.arrived_at, 0)) > t.last_opened
+		GROUP BY e.series_id
 	)
 	SELECT s.id, s.title, s.kind, s.rating, s.favourite,
 		${HIDDEN_SQL} AS hidden, s.hue, s.indexed_at, s.added_at,
@@ -182,6 +183,12 @@ const randomOrder = (seed: number) => {
 
 const orderOf = (sort: Sort, seed = 1) => (sort === 'random' ? randomOrder(seed) : ORDER[sort]);
 
+/** NEWEST on the NEW shelf is by arrival: added_at is the source's date (rung 34). */
+const orderFor = (opts: { shelf?: string; sort?: Sort; seed?: number }) =>
+	opts.shelf === 'new' && opts.sort === 'added'
+		? `s.arrived_at DESC, s.id DESC`
+		: orderOf(opts.sort ?? 'recent', opts.seed);
+
 const ORDER: Record<Exclude<Sort, 'random'>, string> = {
 	recent: `t.last_opened DESC NULLS LAST, s.added_at DESC, s.id DESC`,
 	title: `s.title COLLATE NOCASE ASC, s.id ASC`,
@@ -191,10 +198,22 @@ const ORDER: Record<Exclude<Sort, 'random'>, string> = {
 
 /**
  * The import the library is showing: the one running, else the newest one
- * nobody has dismissed. The band, and the NEW shelf, are both about it.
+ * nobody has dismissed. The band is about it; the NEW shelf is not (NEW_SQL).
  */
 const CURRENT_SCAN_ID = `SELECT id FROM scan_jobs WHERE finished_at IS NULL OR dismissed_at IS NULL
 	ORDER BY (finished_at IS NULL) DESC, id DESC LIMIT 1`;
+
+/** How long an arrival stays on the NEW shelf unopened (doc/LIBRARY.md). */
+export const NEW_DAYS = 14;
+
+/**
+ * The NEW shelf: a series that arrived (made by an import, or a chapter's
+ * file came in, rung 34) in the last NEW_DAYS and hasn't been opened since.
+ * Not tied to an import: a later one, or TIDY NEW, mustn't empty it.
+ */
+const NEW_SQL = `(s.arrived_at > ? AND NOT EXISTS (SELECT 1 FROM entries e
+	WHERE e.series_id = s.id AND e.last_opened_at >= s.arrived_at))`;
+const newSince = (now = Date.now()) => now - NEW_DAYS * 86_400_000;
 
 /** Where a shelf key narrows the listing. Unknown keys fall back to all. */
 /**
@@ -215,15 +234,7 @@ const NOT_LANGUAGES = `('translated', 'rewrite', 'speechless', 'text cleaned')`;
 function shelfClause(shelf: string): { sql: string; params: unknown[] } {
 	if (shelf === 'series') return { sql: `NOT ${ONE_OFF_SQL}`, params: [] };
 	if (shelf === 'oneoff') return { sql: ONE_OFF_SQL, params: [] };
-	if (shelf === 'new') {
-		return {
-			// The import the band is about, not the newest one: a later rescan
-			// that found nothing closes its own band, and must not empty NEW
-			// under a band still saying "23 SERIES".
-			sql: `s.scan_job_id = (${CURRENT_SCAN_ID})`,
-			params: []
-		};
-	}
+	if (shelf === 'new') return { sql: NEW_SQL, params: [newSince()] };
 	const kind = /^k:(manga|manhwa|novel)$/.exec(shelf);
 	if (kind) return { sql: 's.kind = ?', params: [kind[1]] };
 	const collection = /^c:(\d+)$/.exec(shelf);
@@ -354,7 +365,7 @@ export function listSeries(
 ): SeriesCard[] {
 	const where = listWhere(opts);
 	const rows = getDb()
-		.prepare(cardQuery(where.sql, orderOf(opts.sort ?? 'recent', opts.seed), 'LIMIT ? OFFSET ?'))
+		.prepare(cardQuery(where.sql, orderFor(opts), 'LIMIT ? OFFSET ?'))
 		// SQLite reads a negative LIMIT as none.
 		.all(...where.params, opts.limit ?? -1, opts.offset ?? 0) as CardRow[];
 	return withEditions(rows.map(toCard));
@@ -473,8 +484,10 @@ export function listShelves(opts: { reveal: boolean; withNew: boolean }): Shelf[
 		).n;
 
 	const shelves: Shelf[] = [];
-	if (opts.withNew)
-		shelves.push({ key: 'new', name: 'New', kind: 'smart', count: n(shelfClause('new').sql) });
+	// While an import runs, or while anything is new.
+	const fresh = n(NEW_SQL, newSince());
+	if (opts.withNew || fresh > 0)
+		shelves.push({ key: 'new', name: 'New', kind: 'smart', count: fresh });
 	shelves.push({ key: 'all', name: 'All', kind: 'smart', count: n('1') });
 	// DOWNLOADED, FAVOURITES and RATED became filters (Library Filters turn
 	// 3); SERIES and ONE-OFF split the library by what a thing is instead.
