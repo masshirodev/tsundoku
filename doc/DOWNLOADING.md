@@ -202,7 +202,9 @@ then `systemctl --user restart tsundoku-suwayomi`.
   series. Once one is added to the library and a backup lists it, the next
   import folds the two (c90, [`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Before the
   backup knows it").
-- **Driving Suwayomi from tsundoku** (follow a series, download new chapters
-  through its GraphQL API) needs a design brief first.
-- **Reaching the web UI from the tablet.** It's localhost-only, without a
-  login.
+- **Driving Suwayomi from tsundoku** (download from the series screen,
+  search the sources, the queue, follow a series) through its GraphQL API,
+  called server-side. Briefed in [`briefs/DOWNLOADS.md`](briefs/DOWNLOADS.md)
+  (c94), waiting on its design handoff. Done that way, it also settles reaching
+  downloads from the tablet: Suwayomi's web UI stays localhost-only, and
+  tsundoku, already on the tailnet, does the asking.
