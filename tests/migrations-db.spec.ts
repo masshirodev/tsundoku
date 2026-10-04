@@ -58,11 +58,17 @@ describe('rung 34: arrivals', () => {
 				(1, 1, 'Imported', 'manga', 1, 7), (2, 1, 'Seeded', 'manga', 1, NULL);
 			INSERT INTO entries (series_id, position, label, added_at) VALUES (1, 1, 'Ch. 1', 1);
 		`);
-		climb(conn);
+		climb(conn, 34);
 		expect(conn.prepare(`SELECT id, arrived_at FROM series ORDER BY id`).all()).toEqual([
 			{ id: 1, arrived_at: 5000 },
 			{ id: 2, arrived_at: null }
 		]);
 		expect(conn.prepare(`SELECT arrived_at FROM entries`).get()).toEqual({ arrived_at: null });
+
+		// Rung 35 takes that guess back: it put the first import's whole library on NEW.
+		climb(conn);
+		expect(
+			conn.prepare(`SELECT COUNT(*) AS n FROM series WHERE arrived_at IS NOT NULL`).get()
+		).toEqual({ n: 0 });
 	});
 });

@@ -120,10 +120,14 @@ arrivals in `src/lib/server/import/write.ts`. Tested in
 `tests/library-db.spec.ts` ("the NEW shelf"), `tests/arrivals-db.spec.ts` and
 `tests/migrations-db.spec.ts` (rung 34).
 
-Chapters already in the library on 2026-10-04 have no arrival: the rung
-can't know one. Those that were on disk got one from the file's mtime (when
-the device downloaded it; Syncthing keeps it), so the last fortnight's
-downloads started on NEW.
+Chapters already in the library on 2026-10-04 had no arrival, and rung 34
+can't know one. It first dated each series by the import that made it, which
+put about 6,800 series on NEW: the first import (2026-09-23) made nearly the
+whole library inside the fortnight. Rung 35 took that back. Instead, a
+one-off pass gave the 17,403 chapters then on disk their file's mtime (when
+the device downloaded it, which Syncthing keeps) and each series its newest.
+That left 134 series on NEW (22 visible without reveal), led by that
+morning's Suwayomi downloads.
 
 ## Speed
 

@@ -740,6 +740,13 @@ const MIGRATIONS: string[] = [
 	CREATE INDEX series_arrived ON series(arrived_at) WHERE arrived_at IS NOT NULL;
 	DROP INDEX entries_card;
 	CREATE INDEX entries_card ON entries(series_id, shadowed, matter, read_at, added_at, last_opened_at, available, arrived_at);
+	`,
+	// Rung 35: rung 34's guess undone. Dating a series by the import that made
+	// it put the whole library on NEW: the first import (2026-09-23) made
+	// nearly all of it, inside the fortnight. An arrival is known from now on;
+	// before, it's unknown, or what a file's mtime says (doc/LIBRARY.md).
+	`
+	UPDATE series SET arrived_at = NULL;
 	`
 ];
 
