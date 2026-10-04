@@ -10,7 +10,10 @@ export default defineConfig({
 				runes: ({ filename }) =>
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
-			adapter: adapter()
+			adapter: adapter(),
+			// A deploy reaches the installed app (doc/SERVING.md, "A deploy reaches the
+			// tablet"): it asks for the build's version every five minutes.
+			version: { pollInterval: 5 * 60_000 }
 		})
 	]
 });

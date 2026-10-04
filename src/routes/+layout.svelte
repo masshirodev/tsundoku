@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '$lib/styles/index.css';
 	import { enhance } from '$app/forms';
-	import { page } from '$app/state';
+	import { page, updated } from '$app/state';
 	import { resolve } from '$app/paths';
 	import Banner from '$lib/components/chrome/Banner.svelte';
 	import Band from '$lib/components/chrome/Band.svelte';
@@ -55,6 +55,27 @@
 			removeEventListener('contextmenu', menu);
 		};
 	});
+	// ---- a deploy reaches the installed app (doc/SERVING.md) ------------------------
+	// The tablet keeps the app open for days, and an open app runs the build it
+	// loaded: the server's new screens never draw, and its new data has nowhere
+	// to go. So the build's version is asked every five minutes (vite.config.ts)
+	// and whenever the app comes back to the front, and the first navigation
+	// after a deploy loads the next screen whole, from the new build.
+	onMount(() => {
+		const back = () => {
+			if (document.visibilityState === 'visible' && navigator.onLine) void updated.check();
+		};
+		document.addEventListener('visibilitychange', back);
+		return () => document.removeEventListener('visibilitychange', back);
+	});
+	beforeNavigate((nav) => {
+		// Taps and goto() only: back and forward stay as they are, or history would jump.
+		if (updated.current && nav.to && (nav.type === 'link' || nav.type === 'goto')) {
+			nav.cancel();
+			location.href = nav.to.url.href;
+		}
+	});
+
 	let navSeq = 0;
 	beforeNavigate((nav) => {
 		if (nav.willUnload || !nav.to) return;

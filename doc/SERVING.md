@@ -116,6 +116,24 @@ caching don't work this way.
 `tailscale serve --https=8443 off` removes the mapping. The app is then only
 reachable from the workstation itself.
 
+## A deploy reaches the tablet
+
+The installed app stays open on the tablet for days, and an open app runs the
+build it loaded. After a deploy, the server sends new data, but the old
+screens don't know what to draw with it: on 2026-10-04 the downloading screens
+(c94) showed on the desktop, opened fresh, and not on the tablet. It looked
+like a desktop-only feature.
+
+So the app asks for the build's version (`/_app/version.json`, which the
+service worker leaves alone) every five minutes (`version.pollInterval` in
+`vite.config.ts`) and whenever it comes back to the front. The first tap or
+`goto()` after a deploy then loads the next screen whole, from the new build
+(`src/routes/+layout.svelte`). Back and forward stay client-side, so history
+doesn't jump. `tests/deploy-reload.e2e.ts` fakes a deploy and checks both.
+
+A build without this (anything before it) still needs one manual reload on
+each device: close the app fully, or pull down to reload.
+
 ## The server runs from a copy of the build
 
 `yarn run serve` copies `build/` into `.serving/<timestamp>/` when it starts,
