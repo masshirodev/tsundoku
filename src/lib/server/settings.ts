@@ -2,10 +2,11 @@ import { getDb } from './db.ts';
 
 /**
  * The library's own preferences (the SETTINGS screen; rung 24's `settings`),
- * as opposed to a device's (the READING sheet, in each browser). One key so
- * far: the language a folded book opens in (doc/EDITIONS.md).
+ * as opposed to a device's (the READING sheet, in each browser). Two keys so
+ * far: the language a folded book opens in (doc/EDITIONS.md), and when the
+ * download queue was paused from tsundoku (doc/DOWNLOADING.md); '' while it isn't.
  */
-const DEFAULTS = { edition_language: 'english' } as const;
+const DEFAULTS = { edition_language: 'english', downloads_paused_at: '' } as const;
 export type SettingKey = keyof typeof DEFAULTS;
 
 export function getSetting(key: SettingKey): string {

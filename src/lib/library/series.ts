@@ -526,9 +526,9 @@ export function parseTag(raw: string): SeriesTag | null {
  * a novel whose 591 chapters share one EPUB reads "1 EPUB", and an entry with
  * no file name is a folder of loose images (Hentoid's layout).
  */
-export function fileMeta(entries: SeriesEntry[]): string {
+export function fileMeta(entries: SeriesEntry[], queue: string[] = []): string {
 	const onDisk = entries.filter((e) => e.available);
-	if (onDisk.length === 0 && entries.length > 0) return 'NOT DOWNLOADED';
+	if (onDisk.length === 0 && entries.length > 0) return ['NOT DOWNLOADED', ...queue].join(' · ');
 	const byExt = new Map<string, Set<string>>();
 	let bytes = 0;
 	for (const e of onDisk) {
@@ -543,7 +543,8 @@ export function fileMeta(entries: SeriesEntry[]): string {
 	);
 	const partial =
 		onDisk.length < entries.length ? `${onDisk.length} OF ${entries.length} DOWNLOADED` : '';
-	return [partial, ...kinds, formatBytes(bytes)].filter(Boolean).join(' · ');
+	// What's queued and failed follows the count it will change (Index Series Download, FILE).
+	return [partial, ...queue, ...kinds, formatBytes(bytes)].filter(Boolean).join(' · ');
 }
 
 export function formatBytes(bytes: number): string {

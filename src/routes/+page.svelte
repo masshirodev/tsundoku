@@ -586,6 +586,19 @@
 				>
 			{/snippet}
 			{#snippet right()}
+				{#if data.queue && data.queue.queued > 0}
+					<!-- QUEUE over its count, a cell before SELECT, only while something is queued
+					     (Index Downloads 10). Offline or unanswered: the last count, dimmed. -->
+					<a
+						class="queue-cell"
+						class:stale={data.queue.stale || isOffline}
+						href={resolve('/downloads')}
+						aria-label="Download queue, {data.queue.queued} chapters"
+					>
+						<span class="q-label">QUEUE</span>
+						<span class="q-n">{count(data.queue.queued)}</span>
+					</a>
+				{/if}
 				{#if canFilter}
 					<!-- The desktop's FILTER, beside SELECT (3j); the tablet's sits on the tabs. -->
 					<div class="filter-desk">
@@ -642,6 +655,23 @@
 
 	{#if isOffline}
 		<Banner kind="info" title="○ OFFLINE" detail="CACHED STILL OPENS" />
+	{/if}
+
+	{#if data.queue && data.queue.failed > 0 && !data.empty}
+		<!-- Failures are a band like POSSIBLE DUPLICATES, so the library says when something needs a hand. -->
+		<Banner
+			kind="action"
+			title="{String(data.queue.failed).padStart(2, '0')} DOWNLOAD{data.queue.failed === 1
+				? ''
+				: 'S'} FAILED"
+			detail="{data.queue.failedSeries.length} SERIES · {data.queue.failedSeries
+				.join(', ')
+				.toUpperCase()}"
+		>
+			{#snippet action()}
+				<a href={resolve('/downloads')}>REVIEW →</a>
+			{/snippet}
+		</Banner>
 	{/if}
 
 	{#if data.dupes > 0 && !data.empty}
@@ -1147,6 +1177,33 @@
 		font: var(--type-control);
 		cursor: pointer;
 		white-space: nowrap;
+	}
+	.queue-cell {
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 4px;
+		padding: 0 var(--pad);
+		border-left: var(--hairline);
+		color: var(--text-1);
+		text-decoration: none;
+		white-space: nowrap;
+	}
+	@media (max-width: 599px) {
+		.queue-cell {
+			padding: 0 12px;
+		}
+	}
+	.queue-cell.stale {
+		opacity: 0.35;
+	}
+	.q-label {
+		font: 500 11px/1 var(--font-mono);
+		letter-spacing: var(--tracking-label);
+		color: var(--text-2);
+	}
+	.q-n {
+		font: 500 14px/1 var(--font-mono);
 	}
 	.cell-btn:active:not(:disabled) {
 		background: var(--surface-inverse);

@@ -19,6 +19,7 @@
 		detail,
 		meta,
 		metaRight,
+		metaHref,
 		progress,
 		action,
 		children
@@ -29,6 +30,8 @@
 		/** Second row of a progress band. */
 		meta?: string;
 		metaRight?: string;
+		/** Where the second row's right side leads, when it is a link ("NEW →"). */
+		metaHref?: string;
 		progress?: number;
 		/** The action cell: a form button or a link, supplied by the caller. */
 		action?: Snippet;
@@ -50,7 +53,10 @@
 		<ProgressBar value={progress ?? 0} height={4} />
 		<div class="line meta">
 			<div>{meta}</div>
-			{#if metaRight}<div>{metaRight}</div>{/if}
+			{#if metaRight && metaHref}
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the caller resolves it -->
+				<a class="meta-link" href={metaHref}>{metaRight}</a>
+			{:else if metaRight}<div>{metaRight}</div>{/if}
 		</div>
 	</div>
 {:else if kind === 'action'}
@@ -103,10 +109,17 @@
 		border-bottom: var(--hairline);
 		background: var(--surface-panel);
 	}
+	/* One line each, as the mocks draw them: a long title is cut, never wrapped. */
 	.line {
 		display: flex;
 		justify-content: space-between;
 		gap: 12px;
+		white-space: nowrap;
+	}
+	.line > :first-child {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
 	}
 	.dim {
 		color: var(--text-2);
@@ -114,6 +127,10 @@
 	.meta {
 		font: var(--type-meta);
 		color: var(--text-2);
+	}
+	.meta-link {
+		color: var(--text-2);
+		text-decoration: none;
 	}
 	.act {
 		align-items: center;

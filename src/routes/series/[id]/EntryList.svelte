@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount, tick } from 'svelte';
 	import { longpress } from '$lib/actions/longpress';
+	import { enhance } from '$app/forms';
+	import { downloadStatus, rowAction, type DownloadState } from '$lib/library/downloads';
 	import {
 		currentEntry,
 		entryAtFraction,
@@ -30,7 +32,9 @@
 		onrow,
 		onselect,
 		onlong,
-		onclose
+		onclose,
+		downloads = null,
+		canDownload = false
 	}: {
 		series: SeriesPage;
 		selecting: boolean;
@@ -48,6 +52,13 @@
 		 * rail below 60 entries, where they'd only get in the way.
 		 */
 		onclose?: () => void;
+		/** Each chapter's place in downloading (doc/DOWNLOADING.md); null where Suwayomi has no say. */
+		downloads?: Map<number, DownloadState> | null;
+		/**
+		 * Whether a tap on a row with no file queues it (or retries it, if it
+		 * failed): Suwayomi answering, and the device online.
+		 */
+		canDownload?: boolean;
 	} = $props();
 
 	const sheet = $derived(onclose !== undefined);
@@ -164,6 +175,15 @@
 	const thumb = $derived(dragging ?? current);
 </script>
 
+<!-- The row that is the button (Download States, "The row is the button"): a form post, so it works without script. -->
+{#if canDownload}<form
+		id="dl-rows"
+		method="POST"
+		action="?/download"
+		use:enhance
+		hidden
+	></form>{/if}
+
 <section class="list" aria-label={novel ? 'Contents' : 'Chapters'}>
 	<div class="head">
 		{#if jumping}
@@ -222,18 +242,28 @@
 				{:else}
 					{@const e = row.entry}
 					{@const on = selected.has(e.id)}
+					{@const dl = downloads?.get(e.id)}
+					{@const act = !selecting && canDownload && !e.available ? rowAction(dl) : null}
 					<li
 						id="entry-{e.id}"
-						class="entry {row.state}"
+						class="entry {row.state} {dl ? `dl-${dl.kind}` : ''}"
 						class:missing={!e.available}
 						class:matter={!!e.matter}
 						class:selected={selecting && on}
 						class:flash={flash === e.id}
 					>
 						<button
-							type="button"
+							type={act ? 'submit' : 'button'}
+							form={act ? 'dl-rows' : undefined}
+							name={act ? 'entry' : undefined}
+							value={act ? String(e.id) : undefined}
+							aria-label={act === 'queue'
+								? `Download ${entryTitle(e, series.kind)}`
+								: act === 'retry'
+									? `Retry ${entryTitle(e, series.kind)}`
+									: undefined}
 							class="entry-btn"
-							aria-disabled={!selecting && !e.available}
+							aria-disabled={!selecting && !e.available && !act}
 							aria-pressed={selecting ? on : undefined}
 							use:longpress={() => !selecting && onlong?.(e)}
 							onclick={() => (selecting || e.available) && onrow(e)}
@@ -252,11 +282,18 @@
 											? ((e.lastPosition + 1) / e.pageCount) * 100
 											: 0}
 									<span class="bar"><span style:width="{p}%"></span></span>
+								{:else if dl?.kind === 'downloading'}
+									<!-- In ink: accent stays reading's. -->
+									<span class="bar ink"><span style:width="{dl.fraction * 100}%"></span></span>
 								{/if}
 							</span>
 							<span class="status">
-								<span class="long">{entryStatus(e, row.state, series.kind)}</span>
-								<span class="short">{entryStatus(e, row.state, series.kind, true)}</span>
+								<span class="long"
+									>{downloadStatus(dl) ?? entryStatus(e, row.state, series.kind)}</span
+								>
+								<span class="short"
+									>{downloadStatus(dl, true) ?? entryStatus(e, row.state, series.kind, true)}</span
+								>
 							</span>
 							{#if !novel}<span class="cache">{cached.has(e.id) ? '↓' : ''}</span>{/if}
 						</button>
@@ -576,6 +613,19 @@
 	}
 	.entry.progress .status {
 		color: var(--accent);
+	}
+	/* Downloading (Index Series Download, rows): under way in ink, and FAILED the only
+	   row in full ink at 500 with a 3px ink rule -- the # jump's flash, in ink. */
+	.entry.dl-queued .status,
+	.entry.dl-downloading .status,
+	.entry.dl-failed .status {
+		color: var(--text-1);
+	}
+	.entry.dl-failed .entry-btn {
+		box-shadow: inset 3px 0 0 var(--text-1);
+	}
+	.bar.ink > span {
+		background: var(--text-1);
 	}
 	.cache {
 		width: 40px;

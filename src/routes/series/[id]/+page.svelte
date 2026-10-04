@@ -23,6 +23,12 @@
 	import { orderBooks } from '$lib/library/books';
 	import { withParam, readHref } from '$lib/library/links';
 	import {
+		allToDownload,
+		confirmLines,
+		rowAction,
+		type DownloadState
+	} from '$lib/library/downloads';
+	import {
 		bulkCounts,
 		continueAction,
 		fileMeta,
@@ -207,6 +213,36 @@
 		}
 	}
 
+	// ---- downloading (doc/DOWNLOADING.md) ----------------------------------------------------
+	const dlStates = $derived(
+		data.downloads.kind === 'ok'
+			? new Map(
+					Object.entries(data.downloads.states).map(([k, v]) => [Number(k), v as DownloadState])
+				)
+			: null
+	);
+	const canDownload = $derived(!!dlStates && offline.online);
+	/** The bulk bar's DOWNLOAD: selected chapters it would queue or retry. */
+	const toDownload = $derived(
+		canDownload ? [...selected].filter((id) => rowAction(dlStates!.get(id)) !== null) : []
+	);
+	const allIds = $derived(dlStates ? allToDownload(series.entries, dlStates) : []);
+	const allConfirm = $derived(
+		confirmLines(
+			series.entries,
+			allIds,
+			data.downloads.kind === 'ok' ? data.downloads.queuedElsewhere : 0
+		)
+	);
+	const downloaded = $derived(form && 'downloaded' in form ? form.downloaded : null);
+	/** ALL's confirmation lives in the URL; closing it takes the parameter away. */
+	function closeAll(reload = false) {
+		const u = new URL(page.url);
+		u.searchParams.delete('download');
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- the current, resolved path
+		return goto(u, { replaceState: true, noScroll: true, keepFocus: true, invalidateAll: reload });
+	}
+
 	// `?edit=tags` (the library sheet's TAGS button) opens straight into editing.
 	// svelte-ignore state_referenced_locally
 	let editing = $state(data.editing);
@@ -298,6 +334,12 @@
 	<!-- An action refused (a move, a take-out, a delete): it says why, never silently. -->
 	{#if refusal}
 		<Band title={refusal} detail="NOTHING CHANGED" />
+	{:else if downloaded && downloaded.missing > 0}
+		<!-- Chapters the source no longer lists, after one refresh: queued what it could. -->
+		<Band
+			title="{downloaded.missing} NOT AT THE SOURCE"
+			detail="{downloaded.queued} QUEUED · THE REST STAY NOT DOWNLOADED"
+		/>
 	{/if}
 
 	{#if markedThrough}
@@ -373,6 +415,7 @@
 					link={data.link}
 					tracking={data.tracking}
 					ranobe={data.ranobe}
+					downloads={data.downloads}
 				/>
 			</div>
 		{/if}
@@ -400,6 +443,8 @@
 					{onrow}
 					onselect={() => (selecting = true)}
 					onlong={markThrough}
+					downloads={dlStates}
+					{canDownload}
 				/>
 			{/if}
 		</div>
@@ -413,8 +458,15 @@
 				async ({ update }) =>
 					update({ reset: false })}
 			class="bulk"
+			class:wrap={!!dlStates}
 		>
 			{#each [...selected] as id (id)}<input type="hidden" name="entry" value={id} />{/each}
+			{#if dlStates}
+				<!-- DOWNLOAD first, counted like the others (Index Series Download, select). -->
+				<button type="submit" formaction="?/download" disabled={toDownload.length === 0}>
+					<span>DOWNLOAD</span><span class="n">{toDownload.length}</span>
+				</button>
+			{/if}
 			<button type="submit" name="read" value="1" disabled={counts.markRead === 0}>
 				<span>MARK READ</span><span class="n">{counts.markRead}</span>
 			</button>
@@ -446,6 +498,18 @@
 		sheetBookId = null;
 		tagsBookId = b.id;
 	}}
+/>
+
+<!-- ALL N asks first, with the count, the size and the queue it joins; NEXT 10 never does. -->
+<ConfirmSheet
+	open={data.confirmAll && allIds.length > 0}
+	title={allConfirm.title}
+	lines={allConfirm.lines}
+	confirm="DOWNLOAD {allIds.length}"
+	action="?/download"
+	fields={{ which: 'all' }}
+	onclose={() => void closeAll()}
+	ondone={() => closeAll(true)}
 />
 
 <!-- Deleting asks first (doc/DELETING.md). -->
@@ -715,6 +779,16 @@
 	@media (max-width: 599px) {
 		.bulk button {
 			font-size: 12px;
+		}
+		/* Five actions don't fit 360: two rows of cells, as the library's (Index Series Download, select). */
+		.bulk.wrap {
+			display: grid;
+			grid-template-columns: repeat(3, 1fr);
+			height: auto;
+		}
+		.bulk.wrap button {
+			height: 60px;
+			border-bottom: var(--hairline);
 		}
 	}
 </style>

@@ -196,6 +196,17 @@
 						href={resolve('/history')}
 						aria-current={page.url.pathname === '/history' ? 'page' : undefined}>HISTORY</a
 					>
+					{#if data.queue}
+						<!-- DOWNLOADS under HISTORY with its count, always there (Index Downloads, sidebar). -->
+						<a
+							class="with-n"
+							href={resolve('/downloads')}
+							aria-current={page.url.pathname === '/downloads' ? 'page' : undefined}
+							>DOWNLOADS<span class="n" class:stale={data.queue.stale}
+								>{data.queue.queued ? data.queue.queued.toLocaleString('en-US') : ''}</span
+							></a
+						>
+					{/if}
 					<!-- START SCAN for a library that isn't empty. A press while
 					     one runs joins it (doc/IMPORT-MIHON.md, "Running it"). -->
 					<form
@@ -384,6 +395,17 @@
 	.side-foot a {
 		color: var(--text-1);
 		text-decoration: none;
+	}
+	.side-foot a.with-n {
+		justify-content: space-between;
+	}
+	.side-foot a .n {
+		height: auto;
+		padding: 0;
+		color: var(--text-2);
+	}
+	.side-foot a .n.stale {
+		opacity: 0.35;
 	}
 	.side-foot button {
 		width: 100%;

@@ -18,7 +18,7 @@
 	import type { Shelf } from '$lib/library/types';
 	import { isBookSeries, isVolumeSeries } from '$lib/library/series';
 	import { isPersonNamespace, suggestionLabel, type Suggestion } from '$lib/library/books';
-	import { coverSrc, tagHref, readHref } from '$lib/library/links';
+	import { coverSrc, tagHref, readHref, withParam } from '$lib/library/links';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -35,6 +35,14 @@
 	import { ago, clock, trackLine } from '$lib/library/tracking';
 	import { ranobeLines } from '$lib/library/ranobe';
 	import type { RanobeSeries } from '$lib/server/ranobe-review';
+	import type { SeriesDownloads } from '$lib/server/suwayomi';
+	import {
+		downloadCounts,
+		downloadRow,
+		fileQueueMeta,
+		type DownloadState
+	} from '$lib/library/downloads';
+	import { page } from '$app/state';
 
 	/**
 	 * The series' metadata: a header that scrolls away in portrait, a 440px
@@ -60,7 +68,8 @@
 		editions = null,
 		link = null,
 		tracking = null,
-		ranobe = null
+		ranobe = null,
+		downloads = null
 	}: {
 		series: SeriesPage;
 		shelves: Shelf[];
@@ -100,7 +109,30 @@
 		 * novel's reads go. Null for a comic.
 		 */
 		ranobe?: RanobeSeries | null;
+		/** Downloading through Suwayomi (doc/DOWNLOADING.md): the DOWNLOAD row and the FILE line's queue. */
+		downloads?: SeriesDownloads | null;
 	} = $props();
+
+	// ---- DOWNLOAD (Index Series Download) ------------------------------------------------
+	const dlStates = $derived(
+		downloads?.kind === 'ok'
+			? new Map(Object.entries(downloads.states).map(([k, v]) => [Number(k), v as DownloadState]))
+			: null
+	);
+	const dlRow = $derived(
+		dlStates
+			? downloadRow(series.entries, { kind: 'ok', states: dlStates }, offline.online, clock)
+			: downloads?.kind === 'down'
+				? downloadRow(series.entries, downloads, offline.online, clock)
+				: null
+	);
+	const dlFile = $derived(dlStates ? fileQueueMeta(downloadCounts(series.entries, dlStates)) : []);
+	// No extension for its source (Bato.to, Hitomi): said once, on the FILE line (state 4).
+	const elsewhere = $derived(
+		downloads?.kind === 'elsewhere'
+			? ` · ${downloads.source.toUpperCase()} DOWNLOADS ON THE TABLET`
+			: ''
+	);
 
 	// ---- Ranobe's LINK and TRACKING rows (Ranobe Series 2a–2k) --------------------------------
 	const onRanobe = $derived(!!ranobe?.configured);
@@ -386,6 +418,36 @@
 		{/if}
 	</a>
 	<!-- eslint-enable svelte/no-navigation-without-resolve -->
+
+	{#if !outline && dlRow}
+		<!-- DOWNLOAD (Index Series Download): under CONTINUE, as LINK's shape. NEXT never asks; ALL opens its confirmation by URL. -->
+		{#snippet dlCells()}
+			{#each dlRow?.cells ?? [] as c (c.which)}
+				{#if c.dim}
+					<span class="lc dim" class:acc={c.acc} aria-disabled="true">{c.label}</span>
+				{:else if c.which === 'all'}
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam() keeps the current, resolved path -->
+					<a class="lc" href={withParam(page.url, 'download', 'all')} data-sveltekit-noscroll
+						>{c.label}</a
+					>
+				{:else}
+					<form method="POST" action="?/download" use:enhance class="lc-form">
+						<input type="hidden" name="which" value="next" />
+						<button type="submit" class="lc" class:acc={c.acc}>{c.label}</button>
+					</form>
+				{/if}
+			{/each}
+		{/snippet}
+		<div class="row link-row dl-row" class:solo={dlRow.cells.length === 0}>
+			<div class="label">DOWNLOAD</div>
+			<div class="lk">
+				<div class="lk-a">{dlRow.a}</div>
+				<div class="lk-b">{dlRow.b}</div>
+			</div>
+			{#if dlRow.cells.length}<div class="lcs inline">{@render dlCells()}</div>{/if}
+		</div>
+		{#if dlRow.cells.length}<div class="lcs stack">{@render dlCells()}</div>{/if}
+	{/if}
 
 	{#if outline}
 		{#each [directionRowLabel(series.kind), 'SHELVES', 'TAGS', 'FILE'] as label, i (label)}
@@ -819,9 +881,9 @@
 				<div class="file">
 					{#if series.path}<div class="path">{series.path}</div>{/if}
 					<div class="file-meta">
-						{fileMeta(series.entries)}{series.kind !== 'doujin' && cached > 0
+						{fileMeta(series.entries, dlFile)}{series.kind !== 'doujin' && cached > 0
 							? ` · ↓ ${cached} CACHED`
-							: ''}
+							: ''}{elsewhere}
 					</div>
 				</div>
 				{#if isBookSeries(series) || isVolumeSeries(series)}
@@ -1420,6 +1482,10 @@
 	@media (max-width: 599px), (min-width: 1024px) {
 		.link-row {
 			border-bottom: 0;
+		}
+		/* A row with no cells to drop keeps its own rule. */
+		.link-row.solo {
+			border-bottom: var(--hairline);
 		}
 		.lcs.inline {
 			display: none;

@@ -119,15 +119,131 @@ library onto `/mnt/hdd2`.
 
 ## Using it
 
-1. Open `http://127.0.0.1:4567`, find the series, and **add it to the
-   library before downloading**. The backup only carries library series. A
-   download of a series not in the library is keyed by its folder
-   (`mihon-dir:…`, [`IMPORT-MIHON.md`](IMPORT-MIHON.md)) and won't merge with
-   the tablet's copy until it's added and a backup lists it.
-2. Download chapters (or turn on auto-download in Suwayomi's settings).
-3. Within ten minutes of a chapter landing, tsundoku imports it, while the
-   rest of the queue is still downloading: the band, the NEW shelf and
-   covers, as START SCAN.
+From tsundoku, on any device: open a series and press **NEXT 10** on its
+DOWNLOAD row, or tap a chapter that isn't downloaded (below, "From
+tsundoku"). Within ten minutes of a chapter landing, tsundoku imports it,
+while the rest of the queue is still downloading: the band, the NEW shelf
+and covers, as START SCAN.
+
+Suwayomi's own web UI (`http://127.0.0.1:4567`, the workstation only) is
+still there for what tsundoku doesn't do: extensions, and series tsundoku
+doesn't have yet. **Add a series to Suwayomi's library before downloading it
+there.** The backup only carries library series. A download of a series not
+in the library is keyed by its folder (`mihon-dir:…`,
+[`IMPORT-MIHON.md`](IMPORT-MIHON.md)) and won't merge with the tablet's copy
+until it's added and a backup lists it. Downloading from tsundoku does that
+step itself.
+
+## From tsundoku
+
+Since 2026-10-04 (c94, "Drive Suwayomi's downloads from tsundoku"),
+downloading is driven from tsundoku's own screens, on every device. The
+server talks to Suwayomi's GraphQL API on localhost
+(`src/lib/server/suwayomi.ts`). Suwayomi stays bound to localhost, with no
+login, and still does all the downloading. The rules are pure and tested
+(`src/lib/library/downloads.ts`, `tests/downloads-domain.spec.ts`). The
+screens come from the handoff in `doc/design/handoff/`: `Index Series
+Download.dc.html`, `Index Downloads.dc.html` and the canvas `Download
+States.dc.html` (brief: [`briefs/done/DOWNLOADS.md`](briefs/done/DOWNLOADS.md)).
+
+**It's off unless `SUWAYOMI_URL` is set** (`http://127.0.0.1:4567` on the
+workstation; [`SECRETS.md`](SECRETS.md)). Without it, no screen draws a
+DOWNLOAD row, a QUEUE cell or DOWNLOADS. The e2e build depends on this: only
+`tests/downloads-flow.e2e.ts` turns it on, against a fake Suwayomi.
+
+**How a series and a chapter are matched.** A series is a Suwayomi manga by
+its key, `mihon:<source id>:<url>` (the source id and URL Suwayomi itself
+has), and a chapter is a Suwayomi chapter by its URL. Series keyed any other
+way (Hentoid, EPUB, a `mihon-dir:` folder) have nothing to download.
+
+### The series screen
+
+- **DOWNLOAD** sits under CONTINUE, shaped like the LINK row: what's missing,
+  what's under way, then **NEXT 10** (accent) and **ALL N**. NEXT 10 queues
+  at once: the next unread chapters with no file, in reading order. When
+  nothing of the series is on disk yet, it reads **FIRST 10**. ALL N asks
+  first: the span, the size at this series' own average chapter, the queue it
+  joins, and that read chapters are left out. The confirmation is a URL
+  (`?download=all`), so it opens without script too. Read chapters with no
+  file are never in either.
+- **The row is the button.** A tap on a chapter with no file queues it, and a
+  tap on a failed one retries it. A long press still marks through. Each row
+  says where it is in its status column: QUEUED, DOWNLOADING · 31 / 54 with an
+  ink bar (accent stays reading's), FAILED · 3 TRIES with a 3px ink rule on
+  its left edge, IMPORTING (Suwayomi has it, the import hasn't run yet), then
+  the plain row.
+- **SELECT** puts DOWNLOAD first in the bulk bar, counted: the selected
+  chapters it would queue or retry. On a phone the five actions wrap into two
+  rows.
+- **FILE** counts the queue: `393 OF 612 DOWNLOADED · 4 QUEUED · 1 FAILED`.
+- **No extension for its source** (Bato.to, Hitomi): no DOWNLOAD row and no
+  disabled button. The FILE line says it once: `BATO.TO DOWNLOADS ON THE
+TABLET`, named by the series' `source` tag.
+- **Suwayomi not answering, or the device offline:** the row stays where it
+  was, with its cells at 0.35, and the second line says why: `○ NOT ANSWERING
+· SUWAYOMI ON THE WORKSTATION · SINCE 14:02` or `○ OFFLINE · DOWNLOADING
+NEEDS THE WORKSTATION`. That row is one of only two places outside SETTINGS
+  that name Suwayomi; the other is the queue's own not-answering band.
+
+**What a download does in Suwayomi.** First it puts the manga in Suwayomi's
+library (`updateManga`, `inLibrary: true`), the step "Using it" asks for,
+so the next backup keys the download as the tablet's copy. Then it queues
+the chapters (`enqueueChapterDownloads`) and starts the downloader, unless
+the queue was paused from tsundoku. A chapter Suwayomi doesn't list yet gets
+one refresh from the source (`fetchMangaAndChapters`). If the source still
+doesn't have it, the page says how many weren't there (`N NOT AT THE
+SOURCE`).
+
+### The queue
+
+`/downloads`, reached from a **QUEUE** cell in the library's top bar (QUEUE
+over its count, before SELECT, only while something is queued) and from
+**DOWNLOADS** in the desktop sidebar's foot (always there, under HISTORY).
+
+- A progress band names what's downloading now and links the last hour's
+  arrivals to the NEW shelf: what's finished is the NEW shelf's business, not the queue's.
+- **01 — FAILED** comes first, with RETRY ALL, and RETRY and ✕ on each. ✕
+  takes it out of the queue, and the chapter stays NOT DOWNLOADED.
+- **02 — QUEUE** lists series in Suwayomi's order, each with its count and
+  span. MORE ↓ opens one (`?open=<manga>`, so without script too):
+  ↑ TO THE TOP, CANCEL N, and its next four chapters. After twenty series,
+  `+ N MORE SERIES`.
+- **PAUSE / RESUME** in the top bar stops and starts Suwayomi's downloader.
+  RESUME is the accent cell while paused, and the band says since when.
+- The library shows failures as a band, like POSSIBLE DUPLICATES:
+  `05 DOWNLOADS FAILED`, the series, REVIEW →.
+
+**Hidden means hidden.** With reveal off, a hidden series' chapters aren't
+listed, named or counted: not in the queue, not in the QUEUE cell, not in the
+failures band. A queue of hidden series alone reads as empty. A manga
+tsundoku hasn't imported yet can't be judged, so it counts as hidden until
+it has been (with reveal on it shows under Suwayomi's title). Every action
+re-reads the queue and acts only on what the viewer can see.
+
+**Cost.** The whole queue is one request (about 100 KB for 2,316 chapters)
+and is kept for two seconds, so a page and its chrome ask once. Every page
+load asks for the QUEUE cell's counts with an 800 ms timeout. While Suwayomi
+isn't answering it isn't asked again for fifteen seconds, and the last counts
+come back dimmed.
+
+### Where it departs from the handoff
+
+- **No reason for a failure.** The mock reads `FAILED · NOT FOUND`,
+  `TIMED OUT`, `PAGES MISSING` with a time. Suwayomi's queue item
+  (`DownloadType`) has `position, progress, state, tries, chapter, manga`,
+  and nothing else: it says that a chapter failed and how often it tried,
+  never why or when. So rows read `FAILED · 3 TRIES`, and the failures band's
+  detail names the series instead of reasons.
+- **PAUSED SINCE** is only known when tsundoku paused it
+  (`settings.downloads_paused_at`). Paused from Suwayomi's web UI, the band
+  says PAUSED with no time. Resumed there, tsundoku's pause clears itself.
+- **The card is c94**, not the c93 the handoff names.
+- **ALL N counts what it can queue.** The mock draws `ALL 213` beside
+  `213 unread chapters not downloaded`, including the four queued. Here the
+  cell counts only what it would actually queue, so its number can be
+  smaller than the line's.
+- **Ten or fewer to queue** shows one cell (`NEXT 7`) rather than NEXT and an
+  ALL of the same chapters.
 
 ## The import timer
 
@@ -202,10 +318,12 @@ then `systemctl --user restart tsundoku-suwayomi`.
   series. Once one is added to the library and a backup lists it, the next
   import folds the two (c90, [`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Before the
   backup knows it").
-- **Driving Suwayomi from tsundoku** (download from the series screen,
-  search the sources, the queue, follow a series) through its GraphQL API,
-  called server-side. Briefed in [`briefs/done/DOWNLOADS.md`](briefs/done/DOWNLOADS.md)
-  (c94). The handoff came 2026-10-04 (`doc/design/handoff/Download
-States.dc.html` and its two screens); the plan is waiting on approval. Done that way, it also settles reaching
-  downloads from the tablet: Suwayomi's web UI stays localhost-only, and
-  tsundoku, already on the tailnet, does the asking.
+- **The second half of c94** isn't built yet: source search and ADD TO LIBRARY
+  (Download States 1e), FOLLOW (1d), live updates, and importing the moment a
+  chapter finishes. Until then, the timer imports within ten minutes, and a
+  series tsundoku doesn't have is added from Suwayomi's web UI.
+- **A series Suwayomi has never seen** (one only the phone had, from a source
+  that's installed) draws no DOWNLOAD row: nothing can be queued for a manga
+  Suwayomi has no record of. Search and ADD will cover it.
+- **Reaching Suwayomi's web UI from the tablet** is no longer needed for
+  downloading. It stays localhost-only.

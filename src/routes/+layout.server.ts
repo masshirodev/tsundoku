@@ -2,12 +2,21 @@ import type { LayoutServerLoad } from './$types';
 import { currentScan, listShelves } from '$lib/server/library';
 import { isIncognito, isRevealed, themeOf } from '$lib/server/prefs';
 import { favouritePeople } from '$lib/server/people';
+import { queueSummary } from '$lib/server/suwayomi';
 
-export const load: LayoutServerLoad = ({ cookies, locals }) => {
+export const load: LayoutServerLoad = async ({ cookies, locals }) => {
 	const reveal = isRevealed(cookies);
 	const theme = themeOf(cookies);
 	if (!locals.authed)
-		return { reveal: false, incognito: false, theme, shelves: [], scan: null, people: [] };
+		return {
+			reveal: false,
+			incognito: false,
+			theme,
+			shelves: [],
+			scan: null,
+			people: [],
+			queue: null
+		};
 	const scan = currentScan();
 	const shelves = listShelves({ reveal, withNew: scan !== null });
 	// Favourite people become a shelf of their own (Index Books). It only
@@ -15,5 +24,7 @@ export const load: LayoutServerLoad = ({ cookies, locals }) => {
 	const people = favouritePeople(reveal);
 	if (people.length > 0)
 		shelves.push({ key: 'people', name: 'People', kind: 'smart', count: people.length });
-	return { reveal, incognito: isIncognito(cookies), theme, scan, shelves, people };
+	// The download queue's counts, for the QUEUE cell and DOWNLOADS (doc/DOWNLOADING.md).
+	const queue = await queueSummary(reveal);
+	return { reveal, incognito: isIncognito(cookies), theme, scan, shelves, people, queue };
 };

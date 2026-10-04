@@ -52,6 +52,13 @@ import {
 	unfoldEditions
 } from '$lib/server/books';
 import { bookEditions, setBookLanguage } from '$lib/server/editions';
+import { SuwayomiError, enqueue, retry, seriesDownloads } from '$lib/server/suwayomi';
+import {
+	allToDownload,
+	nextToDownload,
+	rowAction,
+	type DownloadState
+} from '$lib/library/downloads';
 import { baseToEdition } from '$lib/library/editions';
 
 function seriesId(raw: string): number {
@@ -115,7 +122,11 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		// What each catalogue's list says, and what tsundoku sent (doc/TRACKING.md).
 		tracking: trackingOf(series.id),
 		// A novel's Ranobe link and line (doc/RANOBE.md). Null for a comic.
-		ranobe: ranobeSeries(series.id)
+		ranobe: ranobeSeries(series.id),
+		// Downloading through Suwayomi (doc/DOWNLOADING.md): the DOWNLOAD row and each chapter's state.
+		downloads: await seriesDownloads(series.id, series.entries),
+		// ALL N's confirmation is a URL, so it opens without script too.
+		confirmAll: url.searchParams.get('download') === 'all'
 	};
 };
 
@@ -533,6 +544,43 @@ export const actions: Actions = {
 		// Its last book: the series went too.
 		if (gone) redirect(303, '/');
 		return { deletedBook: entry };
+	},
+
+	/**
+	 * DOWNLOAD (doc/DOWNLOADING.md): NEXT 10, ALL N, the bulk bar's selection,
+	 * or a tap on one row. Each chapter is decided again here, from what
+	 * Suwayomi says now: one with no file is queued, a failed one retried, and
+	 * anything else is left alone.
+	 */
+	download: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const form = await request.formData();
+		const d = await seriesDownloads(s.id, s.entries);
+		if (d.kind === 'down') return fail(503, { message: 'Suwayomi is not answering' });
+		if (d.kind !== 'ok') return fail(400, { message: 'this series has nothing to download from' });
+		const states = new Map(
+			Object.entries(d.states).map(([k, v]) => [Number(k), v as DownloadState])
+		);
+		const which = form.get('which');
+		const ids =
+			which === 'next'
+				? nextToDownload(s.entries, states)
+				: which === 'all'
+					? allToDownload(s.entries, states)
+					: entryIds(form);
+		const fresh = ids.filter((id) => rowAction(states.get(id)) === 'queue');
+		const failed = ids
+			.map((id) => states.get(id))
+			.flatMap((st) => (st?.kind === 'failed' ? [st.chapterId] : []));
+		let result = { queued: 0, missing: 0 };
+		try {
+			if (fresh.length) result = await enqueue(s.id, fresh);
+			await retry(failed);
+		} catch (e) {
+			if (e instanceof SuwayomiError) return fail(503, { message: e.message });
+			throw e;
+		}
+		return { downloaded: { queued: result.queued + failed.length, missing: result.missing } };
 	},
 
 	/** A long press on a chapter row: it and everything before it, read. */
