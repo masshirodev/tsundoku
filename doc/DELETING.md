@@ -32,11 +32,21 @@ A hidden series is only deleted with reveal on, as it's only seen then.
    rename on the same disk, so it's instant, and nothing is erased. The space
    comes back when the trash is emptied. Only files inside `LIBRARY_ROOT` are
    ever moved; the seed's sample series have none.
+
+   **A file another series still reads stays.** Two series can share a folder:
+   a Mihon download imports keyed by its folder (`mihon-dir:`) until a backup
+   knows the manga, and then again by its URL, both pointing at the same CBZs
+   ([`IMPORT-MIHON.md`](IMPORT-MIHON.md)). Deleting either twin leaves the
+   files, and the other keeps its chapters. Before 2026-10-04 it didn't: deleting
+   the folder twin of 死体担ぎのネム trashed the 30 CBZs its URL twin read too.
+
 3. **A tombstone keeps it gone** (`tombstones`, rung 18): the series' origin
    key and each chapter's or book's source URL. Mihon's backup still lists the
    series, and the phone may still have the book (doc/SYNC.md), so without it
    the next scan or sync would bring it back. The importer passes by anything
    buried (`writeSeries`), a deleted book inside a series too.
+   A chapter whose file another series still reads isn't buried: it isn't
+   gone.
 
 On the workstation's Syncthing, a file moved out of a receive-only folder
 shows up as a local change. Leave it: **Revert Local Changes** would fetch it
@@ -63,5 +73,6 @@ Nothing empties it automatically. `rm -rf /mnt/hdd2/tsundoku/trash/<time>`
 when sure.
 
 Tested in `tests/delete-db.spec.ts` (files to the trash, rescans don't bring
-it back, a hidden series is left alone, a book out of a series) and
+it back, a twin's shared files stay, a hidden series is left alone, a book out
+of a series) and
 `tests/delete-flow.e2e.ts` (the confirmation, CANCEL, the bulk bar).

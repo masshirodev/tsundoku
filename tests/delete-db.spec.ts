@@ -51,6 +51,41 @@ describe('deleting a series', () => {
 		expect(idOf('Drawing: Saikyou Mangaka')).toBeUndefined();
 	});
 
+	it('leaves the files of a twin sharing its folder, and the twin’s chapters', async () => {
+		// A download imported by its folder before a backup knew it, then by its URL.
+		const id = idOf('Academy’s Undercover Professor')!;
+		const { path } = db.prepare(`SELECT path FROM series WHERE id = ?`).get(id) as { path: string };
+		const twin = Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, added_at, path, origin_key, source)
+					SELECT root_id, 'Folder Twin', kind, added_at, path, ?, source FROM series WHERE id = ?`
+				)
+				.run('mihon-dir:Asura Scans (EN)/Academy’s Undercover Professor', id).lastInsertRowid
+		);
+		db.prepare(
+			`INSERT INTO entries (series_id, position, label, added_at, file, source_url, available)
+			SELECT ?, position, label, added_at, file, 'https://twin.example' || source_url, 1
+			FROM entries WHERE series_id = ? AND file <> ''`
+		).run(twin, id);
+		const file = join(path, 'Chapter 98 - Lindenborough.cbz');
+
+		const r = await deleteSeries([twin], false, 1_800_000_150_000);
+		expect(r).toMatchObject({ series: 1, files: 0 });
+		expect(existsSync(file)).toBe(true);
+		expect(
+			count(`SELECT COUNT(*) AS n FROM tombstones WHERE key LIKE 'https://twin.example%'`)
+		).toBe(0);
+
+		await runImport(library, { now: 1_800_000_160_000 });
+		expect(idOf('Folder Twin')).toBeUndefined();
+		expect(
+			count(
+				`SELECT COUNT(*) AS n FROM entries WHERE series_id = ${id} AND available = 1 AND file <> ''`
+			)
+		).toBeGreaterThan(0);
+	});
+
 	it('leaves a hidden series alone while reveal is off', async () => {
 		const id = idOf('Summer Days')!;
 		expect(await deleteSeries([id], false)).toMatchObject({ series: 0, files: 0 });

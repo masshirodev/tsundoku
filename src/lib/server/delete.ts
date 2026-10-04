@@ -52,6 +52,34 @@ function filesOf(path: string, entries: EntryFile[]): string[] {
 	return [...out];
 }
 
+/**
+ * Which entries hold each file. Two series can share a folder: a Mihon download
+ * imports keyed by its folder until a backup knows the manga, then once more by
+ * its URL (doc/IMPORT-MIHON.md), and both point at the same CBZs. Deleting one
+ * must leave the other's files where they are.
+ */
+function holdersOf(db: Database.Database): Map<string, number[]> {
+	const rows = db
+		.prepare(
+			`SELECT e.id, s.path, e.file FROM entries e JOIN series s ON s.id = e.series_id
+			WHERE e.file <> '' AND s.path <> ''`
+		)
+		.all() as { id: number; path: string; file: string }[];
+	const out = new Map<string, number[]>();
+	for (const r of rows) {
+		const abs = join(r.path, r.file);
+		const list = out.get(abs);
+		if (list) list.push(r.id);
+		else out.set(abs, [r.id]);
+	}
+	return out;
+}
+
+/** True when an entry outside `gone` still reads this file. */
+function heldElsewhere(holders: Map<string, number[]>, abs: string, gone: Set<number>): boolean {
+	return (holders.get(abs) ?? []).some((id) => !gone.has(id));
+}
+
 async function moveToTrash(files: string[], stamp: string): Promise<number> {
 	const library = libraryRoot();
 	let moved = 0;
@@ -95,6 +123,8 @@ export async function deleteSeries(
 	const db = getDb();
 	const result: DeleteResult = { series: 0, entries: 0, files: 0 };
 	const stamp = stampOf(now);
+	const holders = holdersOf(db);
+	const gone = new Set<number>();
 	for (const id of ids) {
 		const card = seriesDetail(id, reveal);
 		if (!card) continue;
@@ -104,9 +134,18 @@ export async function deleteSeries(
 			title: string;
 		};
 		const entries = entriesOf(db, id);
-		result.files += await moveToTrash(filesOf(row.path, entries), stamp);
+		for (const e of entries) gone.add(e.id);
+		const shared = (e: EntryFile) =>
+			e.file !== '' && row.path !== '' && heldElsewhere(holders, join(row.path, e.file), gone);
+		result.files += await moveToTrash(
+			filesOf(row.path, entries).filter((abs) => !heldElsewhere(holders, abs, gone)),
+			stamp
+		);
+		// A chapter another series still holds isn't gone: burying its URL would
+		// keep the next import from refreshing it there.
+		const buried = entries.filter((e) => !shared(e)).map((e) => e.source_url);
 		db.transaction(() => {
-			bury(db, [row.origin_key ?? '', ...entries.map((e) => e.source_url)], row.title, now);
+			bury(db, [row.origin_key ?? '', ...buried], row.title, now);
 			db.prepare(`DELETE FROM series WHERE id = ?`).run(id);
 		}).immediate();
 		await unlink(join(coverDir(), `${id}.webp`)).catch(() => undefined);
@@ -134,7 +173,12 @@ export async function deleteBook(
 	};
 	const entries = entriesOf(db, seriesId, entryId);
 	if (entries.length === 0) throw new DeleteError('that book is not in this series');
-	const files = await moveToTrash(filesOf(row.path, entries), stampOf(now));
+	const holders = holdersOf(db);
+	const gone = new Set([entryId]);
+	const files = await moveToTrash(
+		filesOf(row.path, entries).filter((abs) => !heldElsewhere(holders, abs, gone)),
+		stampOf(now)
+	);
 	const seriesGone = db
 		.transaction((): boolean => {
 			const title = (
