@@ -2,39 +2,43 @@ import { describe, expect, it } from 'vitest';
 import { backupsToPrune, suwayomiDecision } from '$lib/import/suwayomi';
 
 const disk = (files: number, bytes = files * 100, newest = files) => ({ files, bytes, newest });
+const idle = { queue: [], cbz: true };
+const busy = (state: string, cbz = true) => ({ queue: [{ state }], cbz });
 
 describe('when the Suwayomi timer imports', () => {
-	it('never while something is queued or downloading', () => {
-		expect(suwayomiDecision([{ state: 'DOWNLOADING' }], disk(3), null)).toMatchObject({
-			kind: 'wait'
-		});
-		expect(suwayomiDecision([{ state: 'QUEUED' }], disk(3), null)).toMatchObject({ kind: 'wait' });
+	it('while chapters are queued or downloading, as CBZs', () => {
+		expect(suwayomiDecision(busy('DOWNLOADING'), disk(3), null)).toMatchObject({ kind: 'import' });
+		expect(suwayomiDecision(busy('QUEUED'), disk(3), null)).toMatchObject({ kind: 'import' });
+		expect(suwayomiDecision(busy('DOWNLOADING'), disk(3), disk(3))).toEqual({ kind: 'unchanged' });
 	});
 
-	it('does not wait on finished items left in the queue', () => {
-		expect(suwayomiDecision([{ state: 'FINISHED' }], disk(3), null)).toMatchObject({
+	it('waits for the queue when chapters are folders of images', () => {
+		expect(suwayomiDecision(busy('DOWNLOADING', false), disk(3), null)).toMatchObject({
+			kind: 'wait'
+		});
+		expect(suwayomiDecision(busy('FINISHED', false), disk(3), null)).toMatchObject({
 			kind: 'import'
 		});
 	});
 
 	it('once something arrived, and not again until more does', () => {
-		expect(suwayomiDecision([], disk(3), null)).toEqual({ kind: 'import', fingerprint: disk(3) });
-		expect(suwayomiDecision([], disk(3), disk(3))).toEqual({ kind: 'unchanged' });
-		expect(suwayomiDecision([], disk(4), disk(3))).toMatchObject({ kind: 'import' });
+		expect(suwayomiDecision(idle, disk(3), null)).toEqual({ kind: 'import', fingerprint: disk(3) });
+		expect(suwayomiDecision(idle, disk(3), disk(3))).toEqual({ kind: 'unchanged' });
+		expect(suwayomiDecision(idle, disk(4), disk(3))).toMatchObject({ kind: 'import' });
 	});
 
 	it('notices one chapter swapped for another', () => {
-		expect(suwayomiDecision([], disk(3, 300, 9), disk(3, 300, 3))).toMatchObject({
+		expect(suwayomiDecision(idle, disk(3, 300, 9), disk(3, 300, 3))).toMatchObject({
 			kind: 'import'
 		});
-		expect(suwayomiDecision([], disk(3, 310, 3), disk(3, 300, 3))).toMatchObject({
+		expect(suwayomiDecision(idle, disk(3, 310, 3), disk(3, 300, 3))).toMatchObject({
 			kind: 'import'
 		});
 	});
 
 	it('says why it does nothing when Suwayomi is down or empty', () => {
 		expect(suwayomiDecision(null, disk(3), null)).toMatchObject({ kind: 'none' });
-		expect(suwayomiDecision([], disk(0), null)).toMatchObject({ kind: 'none' });
+		expect(suwayomiDecision(idle, disk(0), null)).toMatchObject({ kind: 'none' });
 	});
 });
 

@@ -125,22 +125,38 @@ library onto `/mnt/hdd2`.
    (`mihon-dir:…`, [`IMPORT-MIHON.md`](IMPORT-MIHON.md)) and won't merge with
    the tablet's copy until it's added and a backup lists it.
 2. Download chapters (or turn on auto-download in Suwayomi's settings).
-3. Within ten minutes of the queue emptying, tsundoku imports them: the band,
-   the NEW shelf and covers, as START SCAN.
+3. Within ten minutes of a chapter landing, tsundoku imports it, while the
+   rest of the queue is still downloading: the band, the NEW shelf and
+   covers, as START SCAN.
 
 ## The import timer
 
 `suwayomi-import` asks the running app to import, never imports itself,
 for the reason in [`SYNC.md`](SYNC.md), "Why the app imports, not the timer".
-It asks only when:
+It asks only when **the downloads changed since the last import**: the
+count, the bytes and the newest mtime of every file, kept in
+`~/.local/state/tsundoku/suwayomi.json` and written only once the app accepted
+the scan. A count alone would miss one chapter deleted and another
+downloaded.
 
-- **the download queue is empty** (finished items aside), read from
-  Suwayomi's GraphQL API. A chapter being written would import with half its
-  pages;
-- **the downloads changed since the last import**: the count, the bytes and
-  the newest mtime of every file, kept in `~/.local/state/tsundoku/suwayomi.json`
-  and written only once the app accepted the scan. A count alone would miss
-  one chapter deleted and another downloaded.
+**A running queue doesn't hold it back.** Until 2026-10-04 it waited for an
+empty queue, so that a chapter being written wouldn't import with half its
+pages. With 3,945 chapters queued that meant nothing imported for days. It
+also wasn't needed, as measured that day with `inotifywait` on the downloads
+folder:
+
+- Suwayomi gathers a chapter's pages outside the downloads folder, then
+  creates its CBZ in place and writes it in one go, taking milliseconds;
+- a zip's index (the end of central directory) is written last, so a CBZ cut
+  off at 10, 50, 90 or 99% has none, and `src/lib/server/zip.ts` refuses it
+  ("not a zip").
+
+So a chapter caught mid-write is skipped as unreadable and imported by the
+next run. It never imports with half its pages. That holds only for CBZs: with
+CBZ off (`DOWNLOAD_AS_CBZ` in the compose file pins it on), a chapter is a
+folder that fills page by page, so the timer reads `settings.downloadAsCbz`
+and then still waits for the queue (`suwayomiDecision`,
+`src/lib/import/suwayomi.ts`).
 
 **Before asking, it takes a backup** (`createBackup`) into `autobackup/`,
 keeping its three newest. Suwayomi's own backup is daily. Without a fresh
@@ -172,7 +188,7 @@ import, like any device's.
 
 ```sh
 systemctl --user status tsundoku-suwayomi.service
-journalctl --user -u tsundoku-suwayomi-import.service -n 20  # "still downloading", "nothing new", "import started"
+journalctl --user -u tsundoku-suwayomi-import.service -n 20  # "nothing new", "import started"; "still downloading" only with CBZ off
 docker logs --tail 50 tsundoku-suwayomi
 ```
 

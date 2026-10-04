@@ -1,7 +1,7 @@
 /**
- * The Suwayomi timer's step (doc/DOWNLOADING.md): once Suwayomi's download
- * queue is empty and something new is on disk, take a fresh backup from it
- * and ask the running app to import.
+ * The Suwayomi timer's step (doc/DOWNLOADING.md): once something new is on
+ * disk, take a fresh backup from Suwayomi and ask the running app to import,
+ * whether or not downloads are still running.
  *
  *   yarn run suwayomi-import            # what the timer runs
  *   yarn run suwayomi-import -- --force # import even if nothing moved
@@ -20,7 +20,7 @@ import {
 	backupsToPrune,
 	suwayomiDecision,
 	type Fingerprint,
-	type QueueItem
+	type SuwayomiStatus
 } from '../src/lib/import/suwayomi.ts';
 import { requestScan } from './scan-request.ts';
 
@@ -50,12 +50,13 @@ async function graphql<T>(query: string): Promise<T> {
 	return body.data;
 }
 
-async function queue(): Promise<QueueItem[] | null> {
+async function status(): Promise<SuwayomiStatus | null> {
 	try {
-		const d = await graphql<{ downloadStatus: { queue: QueueItem[] } }>(
-			'{ downloadStatus { queue { state } } }'
-		);
-		return d.downloadStatus.queue;
+		const d = await graphql<{
+			settings: { downloadAsCbz: boolean };
+			downloadStatus: { queue: SuwayomiStatus['queue'] };
+		}>('{ settings { downloadAsCbz } downloadStatus { queue { state } } }');
+		return { queue: d.downloadStatus.queue, cbz: d.settings.downloadAsCbz };
 	} catch {
 		return null;
 	}
@@ -106,7 +107,7 @@ async function backup(): Promise<string> {
 
 const force = process.argv.includes('--force');
 const now = fingerprint(join(device, 'downloads'));
-const d = suwayomiDecision(await queue(), now, force ? null : last());
+const d = suwayomiDecision(await status(), now, force ? null : last());
 if (d.kind === 'none') console.log(`suwayomi: ${d.why}; nothing to do.`);
 else if (d.kind === 'wait') console.log(`suwayomi: still downloading (${d.why}); next time.`);
 else if (d.kind === 'unchanged') console.log('suwayomi: nothing new since the last import.');
