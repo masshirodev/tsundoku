@@ -123,7 +123,7 @@ library onto `/mnt/hdd2`.
    library before downloading**. The backup only carries library series. A
    download of a series not in the library is keyed by its folder
    (`mihon-dir:…`, [`IMPORT-MIHON.md`](IMPORT-MIHON.md)) and won't merge with
-   the tablet's copy.
+   the tablet's copy until it's added and a backup lists it.
 2. Download chapters (or turn on auto-download in Suwayomi's settings).
 3. Within ten minutes of the queue emptying, tsundoku imports them: the band,
    the NEW shelf and covers, as START SCAN.
@@ -144,8 +144,9 @@ It asks only when:
 
 **Before asking, it takes a backup** (`createBackup`) into `autobackup/`,
 keeping its three newest. Suwayomi's own backup is daily. Without a fresh
-one, a series added and downloaded since would import keyed by its folder,
-then by its URL once the daily backup came, and be two series. Suwayomi's own
+one, a series added and downloaded since would import keyed by its folder
+until the daily backup came, and only then be folded under its URL
+([`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Before the backup knows it"). Suwayomi's own
 `.auto_` backups land in the same folder and are pruned by its `BACKUP_TTL`
 (14 days).
 
@@ -182,9 +183,9 @@ then `systemctl --user restart tsundoku-suwayomi`.
 
 - **Series Mihon downloaded but never added to its library** (34 on
   2026-10-03) are keyed by folder, so a Suwayomi copy of one is a second
-  series. Adopting a `mihon-dir:` series under its `mihon:` key needs entry
-  matching across URL forms (ComicInfo's full `Web` URL against the backup's
-  path), so it's a card of its own.
+  series. Once one is added to the library and a backup lists it, the next
+  import folds the two (c90, [`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Before the
+  backup knows it").
 - **Driving Suwayomi from tsundoku** (follow a series, download new chapters
   through its GraphQL API) needs a design brief first.
 - **Reaching the web UI from the tablet.** It's localhost-only, without a

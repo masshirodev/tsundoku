@@ -329,6 +329,7 @@ function fromBackup(
 	const pos = positions(rows);
 	return {
 		originKey: `mihon:${m.source}:${m.url}`,
+		formerKey: downloaded ? folderKey(downloaded) : undefined,
 		source: 'mihon',
 		favourite: false,
 		title: m.title,
@@ -381,6 +382,9 @@ function entryFromFile(
 	};
 }
 
+/** A download's key while no backup knows it (doc/IMPORT-MIHON.md). */
+const folderKey = (d: DownloadedSeries) => `mihon-dir:${d.sourceDir}/${d.dir}`;
+
 /** A download the backup has no series for: everything comes from ComicInfo. */
 function fromDownloadOnly(d: DownloadedSeries, now: number): PlannedSeries {
 	const info = d.chapters.find((c) => c.info)?.info ?? null;
@@ -396,7 +400,7 @@ function fromDownloadOnly(d: DownloadedSeries, now: number): PlannedSeries {
 	const pos = positions(rows);
 	const sourceName = info?.source || d.sourceDir.replace(/\s*\([^)]*\)\s*$/, '');
 	return {
-		originKey: `mihon-dir:${d.sourceDir}/${d.dir}`,
+		originKey: folderKey(d),
 		source: 'mihon',
 		favourite: false,
 		title: info?.series || d.dir,

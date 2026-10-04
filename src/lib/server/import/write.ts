@@ -5,6 +5,7 @@ import { getDb } from '../db.ts';
 import { hueFor } from '../../library/cover.ts';
 import { linkFromTracker } from '../catalogue.ts';
 import type { PlannedEntry, PlannedSeries } from '../../import/plan.ts';
+import { adoptFormer } from './fold.ts';
 
 /**
  * The one writer every importer uses (doc/IMPORT-MIHON.md, doc/IMPORT-HENTOID.md):
@@ -114,6 +115,7 @@ export function writeSeries(
 	}
 	return db
 		.transaction((): WriteResult => {
+			adoptFormer(db, s);
 			let seriesId: number | null =
 				(
 					db.prepare(`SELECT id FROM series WHERE origin_key = ?`).get(s.originKey) as

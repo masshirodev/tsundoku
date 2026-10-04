@@ -39,6 +39,9 @@ A hidden series is only deleted with reveal on, as it's only seen then.
    ([`IMPORT-MIHON.md`](IMPORT-MIHON.md)). Deleting either twin leaves the
    files, and the other keeps its chapters. Before 2026-10-04 it didn't: deleting
    the folder twin of 死体担ぎのネム trashed the 30 CBZs its URL twin read too.
+   Since then the importer folds such twins into one
+   ([`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Before the backup knows it"), so a
+   pair is rare, but a device that hasn't backed up yet can still make one.
 
 3. **A tombstone keeps it gone** (`tombstones`, rung 18): the series' origin
    key and each chapter's or book's source URL. Mihon's backup still lists the

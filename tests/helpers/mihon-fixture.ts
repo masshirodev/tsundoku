@@ -34,8 +34,11 @@ const chapter = (n: number, url: string, extra: Msg = []): Msg => [
 	...extra
 ];
 
-/** `extra`: more Weeb Central chapters, not downloaded anywhere, for a device that knows more. */
-export function backup(extra: number[] = []): Uint8Array {
+/**
+ * `extra`: more Weeb Central chapters, not downloaded anywhere, for a device that knows more.
+ * `more`: more manga, for a backup taken after something was added to the library.
+ */
+export function backup(extra: number[] = [], more: Msg[] = []): Uint8Array {
 	const manga: Msg[] = [
 		// Weeb Central, in "Good", downloads matched by the chapter URL.
 		[
@@ -177,7 +180,8 @@ export function backup(extra: number[] = []): Uint8Array {
 			[3, 'Only Browsed'],
 			[16, chapter(1, '/series/browsed/1')],
 			[100, false]
-		]
+		],
+		...more
 	];
 	const msg: Msg = [
 		...manga.map((m): [number, Msg] => [1, m]),

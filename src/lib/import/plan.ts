@@ -51,6 +51,11 @@ export type PlannedTag = { namespace: string; value: string };
 export type PlannedSeries = {
 	/** The series' identity across rescans ("mihon:<source>:<url>", "hentoid:<site>:<url>"). */
 	originKey: string;
+	/**
+	 * The key it was imported under before, when that differs: a Mihon download
+	 * is keyed by its folder until a backup knows it (server/import/fold.ts).
+	 */
+	formerKey?: string;
 	/** `series.source`: 'mihon', 'hentoid'. */
 	source: string;
 	title: string;

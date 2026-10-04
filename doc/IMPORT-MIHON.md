@@ -135,6 +135,39 @@ seconds:
 Folder names with `#` (52 of them) are harmless: pages are addressed by entry
 id and number, never by path.
 
+## Before the backup knows it
+
+A download the backup doesn't list is keyed by its folder
+(`mihon-dir:<source dir>/<series dir>`). That happens whenever a chapter is
+downloaded before the next backup: Mihon backs up daily, Suwayomi when the
+timer asks ([`DOWNLOADING.md`](DOWNLOADING.md)). Once a newer backup lists the
+manga, the same folder matches it, and the plan carries the folder key it had
+(`formerKey`). The writer settles the two before anything else
+(`adoptFormer`, `src/lib/server/import/fold.ts`):
+
+- **Only the folder's series exists:** it takes the URL key, and each chapter
+  found by its file takes the backup's URL (ComicInfo's full `Web` URL against
+  the backup's path). It's the same row, so nothing the owner did is touched.
+- **Both exist** (the URL's series came from another device's backup, or from
+  an import before this rule): the folder's series is **folded** into the
+  URL's (`foldSeries`) and its row goes. A chapter both have (the same file,
+  else the same URL, else the same label) is one: read state moves forward as
+  on a rescan, the newer place wins, a rating or FAV fills in where the URL's
+  has none, and it takes the file if it had none. A chapter only the folder's
+  series has moves across. The reading log, shelves, tags, links and lookups
+  follow, the URL series' own winning where both have one; caches of a file's
+  pages follow only with that file. A hidden series stays hidden. No file
+  moves.
+
+Before 2026-10-04 neither happened: nothing plans the folder key again once a
+backup claims the folder, so the folder's series lingered beside the URL's,
+both reading the same files (22 pairs in the live library, folded by the
+first scan with this rule). Deleting one of a pair trashed the other's files
+too; that is fixed in the delete as well ([`DELETING.md`](DELETING.md)).
+
+A device whose own backup still doesn't know the manga plans the folder key
+again, and makes the folder's series again, until that device backs up.
+
 ## Rescanning
 
 Idempotent: a second run over the same folder changes nothing
@@ -177,6 +210,7 @@ tablet should be bound by the disk, not by the parsing.
 | CBZ reading                            | `src/lib/server/zip.ts`                                                                                                              |
 | walking the disk                       | `src/lib/server/import/mihon.ts`                                                                                                     |
 | the one writer, shared with Hentoid    | `src/lib/server/import/write.ts`                                                                                                     |
+| a folder's series once a backup knows  | `src/lib/server/import/fold.ts`, tested in `tests/fold-db.spec.ts`                                                                   |
 | the job, START SCAN / RESCAN / `/scan` | `src/lib/server/import/index.ts`                                                                                                     |
 | CLI                                    | `scripts/import.ts`                                                                                                                  |
 | tests                                  | `tests/mihon-plan.spec.ts`, `tests/zip.spec.ts`, `tests/import-db.spec.ts`; fixtures synthesised by `tests/helpers/mihon-fixture.ts` |
