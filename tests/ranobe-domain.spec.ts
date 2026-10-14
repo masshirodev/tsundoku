@@ -24,7 +24,13 @@ import {
 	unitsRead,
 	volumeOf,
 	type EditionSummary,
-	type MappedEntry
+	type MappedEntry,
+	byWork,
+	comicChapterOf,
+	mapWorkUnits,
+	searchKinds,
+	workLists,
+	RANOBE_KINDS
 } from '$lib/library/ranobe';
 
 const NOW = Date.UTC(2026, 8, 27, 14, 20);
@@ -251,6 +257,8 @@ describe('the TRACKING line', () => {
 		hidden: false,
 		linked: true,
 		edition: true,
+		comic: false,
+		counted: false,
 		suggested: false,
 		suggestionRefused: false,
 		lang: 'en',
@@ -327,6 +335,34 @@ describe('the TRACKING line', () => {
 			'NOTHING SENT · HIDDEN SERIES STAY OFF RANOBE'
 		);
 		expect(lines({ configured: false })).toBeNull();
+	});
+
+	it('says a comic waits on its chapter count, and what a refusal was (c98)', () => {
+		expect(lines({ comic: true, edition: false, counted: false })?.lines.map((l) => l.l)).toEqual([
+			'RANOBE · WAITING ON ITS CHAPTER COUNT',
+			'RANOBE DOESN’T COUNT THIS WORK’S CHAPTERS YET · READS GO ONCE IT DOES'
+		]);
+		// Counted, a comic has no edition and needs none.
+		expect(
+			lines({
+				comic: true,
+				edition: false,
+				counted: true,
+				remote: {
+					status: 'reading',
+					progress: { type: 'chapter', number: '154', of: 179 },
+					rating: null,
+					favourite: false
+				}
+			})?.lines[0].l
+		).toBe('RANOBE · READING · CH. 154 OF 179');
+		expect(
+			lines({
+				comic: true,
+				counted: true,
+				failed: { unit: 'w9:chapter:12', error: 'RANOBE REFUSED IT', at: NOW }
+			})?.lines[1].l
+		).toBe('THE WORK HAS NO CH. 12 · TRIED AGAIN WITH THE NEXT SEND');
 	});
 
 	it('finds the unit read partway, in order', () => {
@@ -432,6 +468,8 @@ describe('suggesting a novel (c72)', () => {
 				linked: false,
 				suggested: true,
 				edition: false,
+				comic: false,
+				counted: false,
 				suggestionRefused: false,
 				lang: 'en',
 				remote: null,
@@ -445,5 +483,58 @@ describe('suggesting a novel (c72)', () => {
 			l: 'RANOBE · SUGGESTED, WAITING FOR YOUR REVIEW',
 			r: 'NOTHING SENT YET'
 		});
+	});
+});
+
+describe('comics, against the work (c98)', () => {
+	const entry = (id: number, label: string, matter = ''): MappedEntry => ({
+		id,
+		label,
+		matter,
+		readAt: null
+	});
+
+	it('tracks manga and manhwa, never doujinshi, and searches comics as comics', () => {
+		expect(RANOBE_KINDS).toEqual(['novel', 'manga', 'manhwa']);
+		expect(byWork('manhwa')).toBe(true);
+		expect(byWork('novel')).toBe(false);
+		expect(searchKinds('manga')).toBe('manga,manhwa,manhua');
+		expect(searchKinds('novel')).toBe('light_novel,web_novel');
+	});
+
+	it('reads a chapter number from the labels comics have', () => {
+		expect(comicChapterOf('Ch. 154')).toBe('154');
+		expect(comicChapterOf('Chapter 12.5: The Rain')).toBe('12.5');
+		expect(comicChapterOf('Episode 3')).toBe('3');
+		expect(comicChapterOf('Vol.2 Ch.15 - One shot - Pilot')).toBe('15');
+		expect(comicChapterOf('Prologue - Promise')).toBeNull();
+	});
+
+	it('lists 1..count and the extras, never a fraction folded into its chapter', () => {
+		const u = { type: 'chapter', count: 179, extra: ['12.5'] };
+		expect(workLists(u, '1')).toBe(true);
+		expect(workLists(u, '179')).toBe(true);
+		expect(workLists(u, '180')).toBe(false);
+		expect(workLists(u, '0')).toBe(false);
+		expect(workLists(u, '12.50')).toBe(true);
+		expect(workLists(u, '13.5')).toBe(false);
+	});
+
+	it("maps each chapter the work lists onto the work's own unit", () => {
+		const units = { type: 'chapter', count: 3, extra: ['2.5'] };
+		const got = mapWorkUnits('w9', units, [
+			entry(1, 'Ch. 1'),
+			entry(2, 'Ch. 2.5'),
+			entry(3, 'Ch. 3.5'),
+			entry(4, 'Ch. 4'),
+			entry(5, 'Afterword'),
+			entry(6, 'Ch. 3', 'back')
+		]);
+		expect([...got]).toEqual([
+			[1, 'w9:chapter:1'],
+			[2, 'w9:chapter:2.5']
+		]);
+		// A work that counts nothing yet maps nothing: no read goes on a guess.
+		expect(mapWorkUnits('w9', null, [entry(1, 'Ch. 1')]).size).toBe(0);
 	});
 });

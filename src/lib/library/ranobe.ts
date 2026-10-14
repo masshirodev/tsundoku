@@ -7,14 +7,22 @@ import type { Kind } from './types.ts';
  */
 
 /**
- * The kinds Ranobe tracks. Novels only, for now: comics stay on AniList, the
- * main list for them (ranobe/doc/API-V1.md, "For Tsundoku"). Widening this is
- * the whole change when the owner extends it.
+ * The kinds Ranobe tracks. Novels since card c66; manga and manhwa since card
+ * c98 (2026-10-14), once Ranobe's works counted their own chapters (its card
+ * c226). Doujinshi never: they're Hentoid's, and Hentoid stays off Ranobe.
  */
-export const RANOBE_KINDS: readonly Kind[] = ['novel'];
+export const RANOBE_KINDS: readonly Kind[] = ['novel', 'manga', 'manhwa'];
 
-/** Ranobe's kinds a tsundoku novel may be, for `/search?kind=`. */
-export const RANOBE_SEARCH_KINDS = 'light_novel,web_novel';
+/**
+ * Whether a kind reads against the work's own units rather than an
+ * edition's (doc/RANOBE.md, "Comics"). A comic is read as the work's
+ * chapters: no edition to choose, nothing to suggest.
+ */
+export const byWork = (kind: Kind) => kind !== 'novel';
+
+/** Ranobe's kinds a tsundoku series of this kind may be, for `/search?kind=`. */
+export const searchKinds = (kind: Kind) =>
+	byWork(kind) ? 'manga,manhwa,manhua' : 'light_novel,web_novel';
 
 /** The language an EPUB with none recorded is taken to be in. */
 export const DEFAULT_LANG = 'en';
@@ -55,6 +63,59 @@ export function chapterOf(label: string): string | null {
 }
 
 export type Unit = { ref: string; type: string; number: string };
+
+/**
+ * A work's own units, as `GET /works/{ref}?fields=units` gives them: the
+ * kind's canonical type, `1..count`, and the numbers outside the run it
+ * lists (`12.5`). Null when Ranobe doesn't count them yet.
+ */
+export type WorkUnits = { type: string; count: number; extra: string[] };
+
+/**
+ * A comic chapter's number, from its label: "Ch. 154", "Chapter 12.5",
+ * "Episode 3" (a webtoon's), "Vol.2 Ch.15 - …". Null for "Prologue".
+ */
+export function comicChapterOf(label: string): string | null {
+	const t = label.trim();
+	const inVolume = t.match(
+		/^vol(?:ume)?\.?\s*\d+(?:\.\d+)?\s*ch(?:apter)?\.?\s*(\d+(?:\.\d+)?)\b/i
+	);
+	if (inVolume) return unitNumber(inVolume[1]);
+	const episode = t.match(/^ep(?:isode)?\.?\s*(\d+(?:\.\d+)?)\b/i);
+	if (episode) return unitNumber(episode[1]);
+	return chapterOf(t);
+}
+
+/**
+ * Whether the work lists a number among its units: `1..count`, or one of its
+ * extras. Ranobe refuses anything else, and never folds 12.5 into 12, so
+ * neither does this.
+ */
+export function workLists(units: WorkUnits, number: string): boolean {
+	const n = unitNumber(number);
+	if (units.extra.some((x) => unitNumber(x) === n)) return true;
+	return /^\d+$/.test(n) && Number(n) >= 1 && Number(n) <= units.count;
+}
+
+/**
+ * Each comic entry's unit, as the work's own chapter (`w123:chapter:154`):
+ * every body entry whose number the work lists. A chapter past the count
+ * waits for Ranobe to count it; matter and unnumbered entries map to nothing.
+ */
+export function mapWorkUnits(
+	work: string,
+	units: WorkUnits | null,
+	entries: MappedEntry[]
+): Map<number, string> {
+	const out = new Map<number, string>();
+	if (!units || units.type !== 'chapter') return out;
+	for (const e of entries) {
+		if (e.matter) continue;
+		const n = comicChapterOf(e.label);
+		if (n !== null && workLists(units, n)) out.set(e.id, `${work}:${units.type}:${n}`);
+	}
+	return out;
+}
 
 export type MappedEntry = {
 	id: number;
@@ -275,8 +336,12 @@ export type RanobeFacts = {
 	linked: boolean;
 	/** Suggested to Ranobe from its EPUB, waiting for the owner there (card c72). */
 	suggested: boolean;
-	/** The edition the series reads; null while it waits on one. */
+	/** The edition the series reads; null while it waits on one. A comic has none. */
 	edition: boolean;
+	/** A comic, read as the work's own chapters (card c98). */
+	comic: boolean;
+	/** The work counts its units on Ranobe, so a comic's reads can go. */
+	counted: boolean;
 	/** The suggestion for it was refused or withdrawn. */
 	suggestionRefused: boolean;
 	lang: string;
@@ -360,7 +425,15 @@ export function ranobeLines(
 			lines: [line('NOT ON RANOBE', 'NOTHING SENT · READS STAY HERE', false)],
 			retry: false
 		};
-	if (!f.edition)
+	if (f.comic && !f.counted)
+		return {
+			lines: [
+				line('RANOBE · WAITING ON ITS CHAPTER COUNT', 'NOTHING SENT'),
+				line('RANOBE DOESN’T COUNT THIS WORK’S CHAPTERS YET · READS GO ONCE IT DOES', '', false)
+			],
+			retry: false
+		};
+	if (!f.comic && !f.edition)
 		return {
 			lines: [
 				line('RANOBE · WAITING ON AN EDITION', 'NOTHING SENT'),
@@ -379,7 +452,7 @@ export function ranobeLines(
 				? line('A NEW RANOBE_TOKEN IN .ENV, THEN TRY AGAIN', '', false)
 				: f.failed.error === 'RANOBE REFUSED IT'
 					? line(
-							`THE EDITION HAS NO ${unitLabel(f.failed.unit)} · TRIED AGAIN WITH THE NEXT SEND`,
+							`THE ${f.comic ? 'WORK' : 'EDITION'} HAS NO ${unitLabel(f.failed.unit)} · TRIED AGAIN WITH THE NEXT SEND`,
 							'',
 							false
 						)

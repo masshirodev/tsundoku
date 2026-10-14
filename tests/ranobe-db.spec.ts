@@ -20,6 +20,8 @@ const MUSHOKU = idOf('Mushoku Tensei');
 const HONZUKI = idOf('Honzuki no Gekokujou');
 const VILLAINESS = idOf('Villainess Level 99');
 const KEN = idOf('Tensei Shitara Ken Deshita');
+// A manhwa the seed links to AniList 900001: a comic, read as the work's chapters (c98).
+const ESTATE = idOf('The Greatest Estate Developer');
 
 // The catalogue links a novel would have from AniList (doc/LINKS.md).
 const link = (seriesId: number, anilist: number, format = 'NOVEL') =>
@@ -44,6 +46,8 @@ let firstPass: Call[] = [];
 let down = false;
 let bundleStatus = 'pending';
 let refuseUnit: string | null = null;
+/** What w51, the comic, counts on Ranobe: nothing until a test says. */
+let estateUnits: { type: string; count: number; extra: string[] } | null = null;
 const library = new Map<string, { rev: number; rating: number | null; favourite: boolean }>();
 
 const volumes = (edition: string, n: number) =>
@@ -62,7 +66,8 @@ const WORKS: Record<string, { ref: string; title: string; editions: unknown[] }>
 		ref: 'w2',
 		title: 'Ascendance of a Bookworm',
 		editions: [{ ref: 'e3', lang: 'en', origin: 'licensed', format: 'ebook', units: {} }]
-	}
+	},
+	w51: { ref: 'w51', title: 'The Greatest Estate Developer', editions: [] }
 };
 const UNITS: Record<string, unknown[]> = { e3: volumes('e3', 33), e900: volumes('e900', 26) };
 
@@ -79,7 +84,11 @@ const fake: typeof fetch = async (input, init) => {
 	const body = init?.body ? JSON.parse(String(init.body)) : undefined;
 	calls.push({ method, path, body, auth: new Headers(init?.headers).get('authorization') });
 	if (path === '/lookup') {
-		const known: Record<string, string> = { 'anilist:85470': 'w632', 'anilist:106591': 'w2' };
+		const known: Record<string, string> = {
+			'anilist:85470': 'w632',
+			'anilist:106591': 'w2',
+			'anilist:900001': 'w51'
+		};
 		return json({
 			results: Object.fromEntries(
 				(body.keys as string[]).map((k) => [k, known[k] ? { ref: known[k] } : null])
@@ -87,7 +96,10 @@ const fake: typeof fetch = async (input, init) => {
 		});
 	}
 	const work = path.match(/^\/works\/(w\d+)$/);
-	if (work) return WORKS[work[1]] ? json(WORKS[work[1]]) : error(404, 'not_found');
+	if (work)
+		return WORKS[work[1]]
+			? json({ ...WORKS[work[1]], units: work[1] === 'w51' ? estateUnits : null })
+			: error(404, 'not_found');
 	const edition = path.match(/^\/editions\/(e\d+)$/);
 	if (edition) return json({ ref: edition[1], units: UNITS[edition[1]] ?? [] });
 	if (path === '/bundles' && method === 'POST')
@@ -161,7 +173,7 @@ const sentReads = (from = calls) =>
 describe('the pass', () => {
 	it('links by id only what Ranobe may hear of', async () => {
 		const r = await rb.syncRanobe(NOW);
-		expect(r?.linked).toBe(2);
+		expect(r?.linked).toBe(3);
 		expect(linkOf(MUSHOKU)).toMatchObject({ work: 'w632', lang: 'en', via: 'lookup' });
 		expect(linkOf(HONZUKI)).toMatchObject({
 			work: 'w2',
@@ -172,7 +184,14 @@ describe('the pass', () => {
 		expect(linkOf(VILLAINESS)).toBeUndefined();
 		expect(linkOf(KEN)).toBeUndefined();
 		const keys = calls.find((c) => c.path === '/lookup')?.body as { keys: string[] };
-		expect(keys.keys.sort()).toEqual(['anilist:106591', 'anilist:85470']);
+		expect(keys.keys.sort()).toEqual([
+			'anilist:106591',
+			'anilist:85470',
+			'anilist:900001',
+			'mal:800001'
+		]);
+		// A comic links to the work alone: no edition, no volume.
+		expect(linkOf(ESTATE)).toMatchObject({ work: 'w51', edition: null, volume: null });
 		expect(calls.every((c) => c.auth === 'Bearer rb_test')).toBe(true);
 		firstPass = calls;
 	});
@@ -215,6 +234,65 @@ describe('the pass', () => {
 		expect(sentReads().filter((u) => u.startsWith('e900'))).toHaveLength(12);
 		// Honzuki's were sent already: not again.
 		expect(sentReads().some((u) => u.startsWith('e3:'))).toBe(false);
+	});
+
+	it("sends a comic's chapters once its work counts them, and only those it lists (c98)", async () => {
+		// The first pass: w51 counts nothing yet, so nothing of it went, and a
+		// comic is never searched, given an edition, or suggested one.
+		expect(sentReads(firstPass).some((u) => u.startsWith('w51'))).toBe(false);
+		const asked = firstPass.filter((c) => JSON.stringify(c.body ?? '').includes('w51'));
+		expect(asked).toHaveLength(0);
+		expect(
+			db
+				.prepare(
+					`SELECT COUNT(*) AS n FROM ranobe_searches rs JOIN series s ON s.id = rs.series_id WHERE s.kind != 'novel'`
+				)
+				.get()
+		).toEqual({ n: 0 });
+		expect(db.prepare(`SELECT type FROM ranobe_work_units WHERE work = 'w51'`).get()).toMatchObject(
+			{ type: null }
+		);
+
+		// 144 of 156 read here; Ranobe counts 140, and lists 12.5 besides.
+		estateUnits = { type: 'chapter', count: 140, extra: ['12.5'] };
+		const r = await rb.syncRanobe(NOW);
+		expect(r?.works).toEqual({ counted: 1, not: 0 });
+		const sent = sentReads().filter((u) => u.startsWith('w51'));
+		expect(sent).toHaveLength(140);
+		expect(sent[0]).toBe('w51:chapter:1');
+		expect(sent).not.toContain('w51:chapter:141');
+		expect(calls.some((c) => c.path.startsWith('/editions/') && c.path.includes('w51'))).toBe(
+			false
+		);
+
+		// Counted further: the four read past 140 go in the next pass, nothing again.
+		estateUnits = { type: 'chapter', count: 156, extra: [] };
+		calls = [];
+		await rb.syncRanobe(NOW);
+		expect(sentReads().filter((u) => u.startsWith('w51'))).toEqual([
+			'w51:chapter:141',
+			'w51:chapter:142',
+			'w51:chapter:143',
+			'w51:chapter:144'
+		]);
+	});
+
+	it('sends no comic that is hidden, and asks nothing about it', async () => {
+		db.prepare(`UPDATE series SET hidden = 1 WHERE id = ?`).run(ESTATE);
+		const last = (
+			db
+				.prepare(
+					`SELECT id FROM entries WHERE series_id = ? AND read_at IS NULL ORDER BY position LIMIT 1`
+				)
+				.get(ESTATE) as { id: number }
+		).id;
+		markEntries(ESTATE, [last], true, NOW + 1);
+		rb.afterReading(ESTATE);
+		await rb.syncRanobe(NOW + 1);
+		expect(calls.some((c) => c.path.includes('w51'))).toBe(false);
+		expect(sentReads().some((u) => u.startsWith('w51'))).toBe(false);
+		db.prepare(`UPDATE series SET hidden = 0 WHERE id = ?`).run(ESTATE);
+		markEntries(ESTATE, [last], false, NOW + 1);
 	});
 });
 

@@ -135,6 +135,8 @@ the rating, sent when the rating is set. AniList gets it as `scoreRaw` (its 100)
   Novels go to **Ranobe** instead, the owner's own catalogue: card c66
   ("Track novels through Ranobe, once it's ready"), [`RANOBE.md`](RANOBE.md).
   There the edition's table of contents says what counts as a chapter.
+  Comics go to both since 2026-10-14: AniList as here, and Ranobe as the
+  work's own chapters (card c98, [`RANOBE.md`](RANOBE.md), "Comics").
 - **MAL search**, for novels AniList lacks ([`LINKS.md`](LINKS.md)), now
   that the client id is here.
 - **Reading MAL's list to link.** Only AniList's list links; MAL's only

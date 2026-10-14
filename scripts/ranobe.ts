@@ -1,7 +1,8 @@
 /**
- * Ranobe (doc/RANOBE.md), by hand: the pass an import runs, now. Novels
- * linked by the AniList and MAL ids they have, editions found or suggested,
- * entries mapped onto units, and what's read sent.
+ * Ranobe (doc/RANOBE.md), by hand: the pass an import runs, now. Novels and
+ * comics linked by the AniList and MAL ids they have, novels' editions found
+ * or suggested, comics' chapter counts read, entries mapped onto units, and
+ * what's read sent.
  *
  *   yarn run ranobe
  *
@@ -28,6 +29,9 @@ console.log(
 );
 console.log(
 	`  editions:  ${r.editions.found} found, ${r.editions.suggested} suggested, ${r.editions.waiting} waiting on review`
+);
+console.log(
+	`  comics:    ${r.works.counted} works counting their chapters, ${r.works.not} not yet`
 );
 console.log(`  mapped:    ${r.mapped} entries onto units`);
 console.log(

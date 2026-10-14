@@ -6,17 +6,20 @@ import { cleanTitle, coverOnly } from '../library/catalogue.ts';
 import {
 	DEFAULT_LANG,
 	RANOBE_KINDS,
-	RANOBE_SEARCH_KINDS,
+	byWork,
 	chooseEdition,
 	iso,
 	mapUnits,
+	mapWorkUnits,
+	searchKinds,
 	ratingOut,
 	suggestedUnits,
 	unitsRead,
 	volumeOf,
 	type EditionSummary,
 	type RanobeCandidate,
-	type Unit
+	type Unit,
+	type WorkUnits
 } from '../library/ranobe.ts';
 import type { Kind } from '../library/types.ts';
 
@@ -32,6 +35,8 @@ import type { Kind } from '../library/types.ts';
  *   until it is approved.
  * - **Units**: each entry keeps the unit it is, from the edition's table of
  *   contents, and a unit read here is sent as one read.
+ * - **Comics** (card c98) read against the work's own chapters: no edition,
+ *   no suggestion, and only a chapter the work counts is sent.
  * - **Never** for a hidden series or anything from Hentoid: not looked up,
  *   not suggested, not sent. Incognito reading records nothing, so nothing
  *   follows it here either.
@@ -131,6 +136,12 @@ export const why = (e: unknown) =>
 export const ELIGIBLE_SQL = `(s.kind IN (${RANOBE_KINDS.map((k) => `'${k}'`).join(', ')})
 	AND ${VISIBLE_SQL} AND s.source != 'hentoid')`;
 
+/**
+ * The novels among them: what is searched, reviewed and suggested, and what
+ * reads an edition. Comics only ever link by their ids (doc/RANOBE.md, "Comics").
+ */
+export const ELIGIBLE_NOVEL_SQL = `(${ELIGIBLE_SQL} AND s.kind = 'novel')`;
+
 export function eligible(seriesId: number): boolean {
 	return !!getDb()
 		.prepare(
@@ -210,21 +221,26 @@ export function linkWork(
 	const db = getDb();
 	const r = db
 		.prepare(
-			`SELECT s.title,
+			`SELECT s.title, s.kind,
 				(SELECT e.file FROM entries e WHERE e.series_id = s.id AND e.file != '' LIMIT 1) AS file,
 				(SELECT e.language FROM entries e WHERE e.series_id = s.id AND e.language IS NOT NULL LIMIT 1) AS lang
 			FROM series s WHERE s.id = ?`
 		)
-		.get(seriesId) as { title: string; file: string | null; lang: string | null } | undefined;
+		.get(seriesId) as
+		{ title: string; kind: Kind; file: string | null; lang: string | null } | undefined;
 	if (!r) return false;
 	const lang = r.lang ?? DEFAULT_LANG;
-	const volume = volumeOf(r.title, r.file ? basename(r.file) : '');
+	// A comic is the work's chapters: no volume of its own, no edition to share.
+	const comic = byWork(r.kind);
+	const volume = comic ? null : volumeOf(r.title, r.file ? basename(r.file) : '');
 	// A sibling of the same work in the same language already knows the edition.
-	const known = db
-		.prepare(
-			`SELECT edition, title FROM ranobe_links WHERE work = ? AND lang = ? AND edition IS NOT NULL LIMIT 1`
-		)
-		.get(work, lang) as { edition: string; title: string } | undefined;
+	const known = comic
+		? undefined
+		: (db
+				.prepare(
+					`SELECT edition, title FROM ranobe_links WHERE work = ? AND lang = ? AND edition IS NOT NULL LIMIT 1`
+				)
+				.get(work, lang) as { edition: string; title: string } | undefined);
 	return db.transaction(() => {
 		if (
 			o.replace === false &&
@@ -309,11 +325,14 @@ export async function readWork(ref: string): Promise<RanobeCandidate | null> {
 			cover: { url: string; sensitive: boolean } | null;
 			editions: EditionSummary[];
 			snapshot?: { status?: string };
-		}>(`/works/${ref}`);
+			units?: WorkUnits | null;
+		}>(`/works/${ref}?fields=units`);
 		if (!w) return null;
 		const units: Record<string, number> = {};
 		for (const e of w.editions ?? [])
 			for (const [t, n] of Object.entries(e.units ?? {})) units[t] = Math.max(units[t] ?? 0, n);
+		// A comic has no edition: its count is the work's own.
+		if (w.units) units[w.units.type] = Math.max(units[w.units.type] ?? 0, w.units.count);
 		return asCandidate({
 			ref: w.ref,
 			kind: w.kind,
@@ -342,8 +361,10 @@ export async function searchOne(
 ): Promise<number> {
 	const db = getDb();
 	const q = query.trim();
+	const { kind } = (db.prepare(`SELECT kind FROM series WHERE id = ?`).get(seriesId) as
+		{ kind: Kind } | undefined) ?? { kind: 'novel' as Kind };
 	const a = await api<{ items: SearchItem[] }>(
-		`/search?q=${encodeURIComponent(q)}&kind=${RANOBE_SEARCH_KINDS}&limit=10`
+		`/search?q=${encodeURIComponent(q)}&kind=${searchKinds(kind)}&limit=10`
 	);
 	const items = a?.items ?? [];
 	db.transaction(() => {
@@ -366,13 +387,16 @@ export async function searchOne(
  * Every eligible novel the ids didn't link, not settled and not searched
  * yet (or waiting on a SEARCH AGAIN), searched by its title with the volume
  * taken off. Nothing is linked from a search: the owner chooses on /links.
+ * Never a comic: AniList links nearly all of them, and the rest would fill the
+ * review with titles the ids already had their chance at. FIND on a comic's
+ * screen still searches it.
  */
 export async function searchNovels(now = Date.now(), limit = 200): Promise<number> {
 	const rows = getDb()
 		.prepare(
 			`SELECT s.id, s.title, rs.query FROM series s JOIN roots r ON r.id = s.root_id
 			LEFT JOIN ranobe_searches rs ON rs.series_id = s.id
-			WHERE ${ELIGIBLE_SQL} AND rs.searched_at IS NULL
+			WHERE ${ELIGIBLE_NOVEL_SQL} AND rs.searched_at IS NULL
 				AND s.id NOT IN (SELECT series_id FROM ranobe_links)
 				AND s.id NOT IN (SELECT series_id FROM ranobe_decisions)
 				AND s.id NOT IN (SELECT series_id FROM ranobe_work_suggestions WHERE status = 'pending')
@@ -485,7 +509,7 @@ export async function resolveEditions(now = Date.now()): Promise<{
 	const wanted = db
 		.prepare(
 			`SELECT DISTINCT l.work, l.lang FROM ranobe_links l JOIN series s ON s.id = l.series_id
-			JOIN roots r ON r.id = s.root_id WHERE l.edition IS NULL AND ${ELIGIBLE_SQL}`
+			JOIN roots r ON r.id = s.root_id WHERE l.edition IS NULL AND ${ELIGIBLE_NOVEL_SQL}`
 		)
 		.all() as { work: string; lang: string }[];
 	const out = { found: 0, suggested: 0, waiting: 0 };
@@ -553,7 +577,7 @@ async function suggestEdition(work: string, lang: string, now: number): Promise<
 		getDb()
 			.prepare(
 				`SELECT l.volume FROM ranobe_links l JOIN series s ON s.id = l.series_id JOIN roots r ON r.id = s.root_id
-				WHERE l.work = ? AND l.lang = ? AND l.volume IS NOT NULL AND ${ELIGIBLE_SQL}`
+				WHERE l.work = ? AND l.lang = ? AND l.volume IS NOT NULL AND ${ELIGIBLE_NOVEL_SQL}`
 			)
 			.all(work, lang) as { volume: string }[]
 	).map((r) => r.volume);
@@ -609,29 +633,79 @@ async function suggestEdition(work: string, lang: string, now: number): Promise<
 // ---- units ----------------------------------------------------------------------------------
 
 /**
- * Each entry's unit, for every linked series whose edition is known (or
- * `seriesId` alone). Every pass maps again, since an import may have added
- * chapters; the edition's table of contents is read once a pass.
+ * What each comic's work counts, from `GET /works/{ref}?fields=units`, kept
+ * for mapSeries. Asked every pass: Ranobe's counts grow as chapters come out,
+ * and a work that counts nothing yet may count them by the next one.
+ */
+export async function readWorkUnits(now = Date.now()): Promise<{ counted: number; not: number }> {
+	const db = getDb();
+	const works = (
+		db
+			.prepare(
+				`SELECT DISTINCT l.work FROM ranobe_links l JOIN series s ON s.id = l.series_id
+				JOIN roots r ON r.id = s.root_id WHERE ${ELIGIBLE_SQL} AND s.kind != 'novel'`
+			)
+			.all() as { work: string }[]
+	).map((r) => r.work);
+	const put = db.prepare(
+		`INSERT INTO ranobe_work_units (work, type, count, extra, checked_at) VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT (work) DO UPDATE SET type = excluded.type, count = excluded.count,
+			extra = excluded.extra, checked_at = excluded.checked_at`
+	);
+	const out = { counted: 0, not: 0 };
+	for (const work of works) {
+		let units: WorkUnits | null = null;
+		try {
+			units =
+				(await api<{ units?: WorkUnits | null }>(`/works/${work}?fields=units`))?.units ?? null;
+		} catch (e) {
+			// A work gone or hidden since counts nothing; anything else is the pass's.
+			if (!(e instanceof Refused && (e.status === 404 || e.status === 410))) throw e;
+		}
+		put.run(work, units?.type ?? null, units?.count ?? 0, JSON.stringify(units?.extra ?? []), now);
+		if (units) out.counted += 1;
+		else out.not += 1;
+	}
+	return out;
+}
+
+/** What a work counts, as the last pass read it. Null: nothing, or never asked. */
+export function workUnits(work: string): WorkUnits | null {
+	const r = getDb()
+		.prepare(`SELECT type, count, extra FROM ranobe_work_units WHERE work = ?`)
+		.get(work) as { type: string | null; count: number; extra: string } | undefined;
+	if (!r?.type) return null;
+	return { type: r.type, count: r.count, extra: JSON.parse(r.extra) as string[] };
+}
+
+/**
+ * Each entry's unit, for every linked series whose edition is known, and
+ * every linked comic (or `seriesId` alone). Every pass maps again, since an
+ * import may have added chapters; the edition's table of contents is read
+ * once a pass, and a comic's count is readWorkUnits'.
  */
 export async function mapSeries(o: { seriesId?: number; now?: number } = {}): Promise<number> {
 	const db = getDb();
 	const now = o.now ?? Date.now();
 	const links = db
 		.prepare(
-			`SELECT l.series_id, l.edition, l.volume FROM ranobe_links l JOIN series s ON s.id = l.series_id
+			`SELECT l.series_id, l.work, l.edition, l.volume, s.kind FROM ranobe_links l JOIN series s ON s.id = l.series_id
 			JOIN roots r ON r.id = s.root_id
-			WHERE l.edition IS NOT NULL AND ${ELIGIBLE_SQL}
+			WHERE (l.edition IS NOT NULL OR s.kind != 'novel') AND ${ELIGIBLE_SQL}
 				${o.seriesId !== undefined ? 'AND l.series_id = ?' : ''}`
 		)
 		.all(...(o.seriesId !== undefined ? [o.seriesId] : [])) as {
 		series_id: number;
-		edition: string;
+		work: string;
+		edition: string | null;
 		volume: string | null;
+		kind: Kind;
 	}[];
 	const tocs = new Map<string, Unit[]>();
 	let mapped = 0;
 	for (const l of links) {
-		if (!tocs.has(l.edition)) {
+		const comic = byWork(l.kind);
+		if (!comic && l.edition && !tocs.has(l.edition)) {
 			const e = await api<{ units?: Unit[] }>(`/editions/${l.edition}?fields=units`);
 			tocs.set(l.edition, e?.units ?? []);
 		}
@@ -640,7 +714,9 @@ export async function mapSeries(o: { seriesId?: number; now?: number } = {}): Pr
 				`SELECT id, label, matter, read_at AS readAt FROM entries WHERE series_id = ? AND shadowed = 0`
 			)
 			.all(l.series_id) as { id: number; label: string; matter: string; readAt: number | null }[];
-		const units = mapUnits(tocs.get(l.edition) ?? [], { volume: l.volume, entries });
+		const units = comic
+			? mapWorkUnits(l.work, workUnits(l.work), entries)
+			: mapUnits(tocs.get(l.edition!) ?? [], { volume: l.volume, entries });
 		db.transaction(() => {
 			const set = db.prepare(`UPDATE entries SET ranobe_unit = ? WHERE id = ?`);
 			for (const e of entries) set.run(units.get(e.id) ?? null, e.id);
@@ -915,6 +991,8 @@ export type SyncSummary = {
 	/** Suggested novels: approved since the last pass (and linked), still waiting. */
 	suggestions: { approved: number; waiting: number };
 	editions: { found: number; suggested: number; waiting: number };
+	/** Comics' works: counting their chapters on Ranobe, or not yet. */
+	works: { counted: number; not: number };
 	mapped: number;
 	sent: { read: number; unread: number; works: number; failed: number };
 	unreachable: boolean;
@@ -934,6 +1012,7 @@ export async function syncRanobe(now = Date.now()): Promise<SyncSummary | null> 
 		searched: 0,
 		suggestions: { approved: 0, waiting: 0 },
 		editions: { found: 0, suggested: 0, waiting: 0 },
+		works: { counted: 0, not: 0 },
 		mapped: 0,
 		sent: { read: 0, unread: 0, works: 0, failed: 0 },
 		unreachable: false
@@ -958,6 +1037,7 @@ export async function syncRanobe(now = Date.now()): Promise<SyncSummary | null> 
 	});
 	await step('search', async () => void (out.searched = await searchNovels(now)));
 	await step('editions', async () => void (out.editions = await resolveEditions(now)));
+	await step('work units', async () => void (out.works = await readWorkUnits(now)));
 	await step('units', async () => void (out.mapped = await mapSeries({ now })));
 	await step('reads', async () => {
 		refreshUnits();

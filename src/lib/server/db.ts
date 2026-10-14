@@ -764,6 +764,20 @@ const MIGRATIONS: string[] = [
 	`
 	ALTER TABLE series ADD COLUMN followed_at INTEGER;
 	CREATE INDEX series_followed ON series(followed_at) WHERE followed_at IS NOT NULL;
+	`,
+	// Rung 38: comics on Ranobe (card c98; doc/RANOBE.md, "Comics"). A comic
+	// reads against the work's own chapters, not an edition's, and a chapter
+	// the work doesn't list is refused, so each pass keeps what the work
+	// counts: its type, 1..count, and the extras outside the run. type NULL is
+	// a work that counts nothing yet, asked again in the next pass.
+	`
+	CREATE TABLE ranobe_work_units (
+		work TEXT PRIMARY KEY,
+		type TEXT,
+		count INTEGER NOT NULL DEFAULT 0,
+		extra TEXT NOT NULL DEFAULT '[]',
+		checked_at INTEGER NOT NULL
+	) WITHOUT ROWID;
 	`
 ];
 

@@ -1,7 +1,14 @@
 import { basename, join } from 'node:path';
 import { getDb } from './db.ts';
 import { readEpub } from './import/epub.ts';
-import { ELIGIBLE_SQL, Refused, api, linkWork, searchOne, suggestConfigured } from './ranobe.ts';
+import {
+	ELIGIBLE_NOVEL_SQL,
+	Refused,
+	api,
+	linkWork,
+	searchOne,
+	suggestConfigured
+} from './ranobe.ts';
 import { bracketed, cleanTitle, normaliseTitle } from '../library/catalogue.ts';
 import { epubLang, suggestedPeople, volumeOf, workBundle } from '../library/ranobe.ts';
 
@@ -26,7 +33,7 @@ async function fromFile(seriesId: number) {
 	const db = getDb();
 	const s = db
 		.prepare(
-			`SELECT s.title, s.path FROM series s JOIN roots r ON r.id = s.root_id WHERE s.id = ? AND ${ELIGIBLE_SQL}`
+			`SELECT s.title, s.path FROM series s JOIN roots r ON r.id = s.root_id WHERE s.id = ? AND ${ELIGIBLE_NOVEL_SQL}`
 		)
 		.get(seriesId) as { title: string; path: string } | undefined;
 	if (!s) throw new CannotSuggest('not a novel Ranobe may hear of');
@@ -191,7 +198,7 @@ function requeueSiblings(seriesId: number): void {
 		.prepare(
 			`SELECT s.id, s.title FROM series s JOIN roots r ON r.id = s.root_id
 			JOIN ranobe_searches rs ON rs.series_id = s.id
-			WHERE s.id != ? AND ${ELIGIBLE_SQL}
+			WHERE s.id != ? AND ${ELIGIBLE_NOVEL_SQL}
 				AND s.id NOT IN (SELECT series_id FROM ranobe_links)
 				AND s.id NOT IN (SELECT series_id FROM ranobe_decisions)`
 		)

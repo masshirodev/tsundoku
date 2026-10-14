@@ -2,17 +2,20 @@ import { basename } from 'node:path';
 import { getDb } from './db.ts';
 import { HIDDEN_SQL } from './visibility.ts';
 import {
+	ELIGIBLE_NOVEL_SQL,
 	ELIGIBLE_SQL,
 	configured,
 	linkWork,
 	readWork,
 	searchOne,
 	suggestConfigured,
-	unlinkSeries
+	unlinkSeries,
+	workUnits
 } from './ranobe.ts';
 import { cleanTitle, coverOnly, isCutShort, normaliseTitle } from '../library/catalogue.ts';
 import {
 	RANOBE_KINDS,
+	byWork,
 	coverNote,
 	halfRead,
 	langName,
@@ -102,8 +105,11 @@ const ROW_SQL = `SELECT s.id, s.title, s.alt_titles, s.kind, s.hue, s.source, s.
 	LEFT JOIN ranobe_searches rs ON rs.series_id = s.id
 	LEFT JOIN series_links l ON l.series_id = s.id`;
 
-/** Waiting on Ranobe: eligible, not linked there, not settled, not suggested and waiting. */
-const WAITING_SQL = `${ELIGIBLE_SQL}
+/**
+ * Waiting on Ranobe: an eligible novel, not linked there, not settled, not
+ * suggested and waiting. Comics link by their ids alone, so none waits here.
+ */
+const WAITING_SQL = `${ELIGIBLE_NOVEL_SQL}
 	AND s.id NOT IN (SELECT series_id FROM ranobe_links)
 	AND s.id NOT IN (SELECT series_id FROM ranobe_decisions)
 	AND s.id NOT IN (SELECT series_id FROM ranobe_work_suggestions WHERE status = 'pending')`;
@@ -598,6 +604,8 @@ export function ranobeSeries(seriesId: number): RanobeSeries | null {
 			).n
 		: 0;
 	const byChapter = units.some((u) => u.split(':')[1] === 'chapter');
+	const comic = byWork(s.kind);
+	const counted = comic && s.work ? workUnits(s.work) : null;
 	const refused = s.work
 		? !!db
 				.prepare(
@@ -647,8 +655,14 @@ export function ranobeSeries(seriesId: number): RanobeSeries | null {
 					href: ranobeUrl(s.work),
 					meta: [
 						`RANOBE ${s.work.toUpperCase()}`,
-						s.edition ? `${langName(lang)} EDITION` : `NO ${langName(lang)} EDITION YET`,
-						byChapter ? 'BY CHAPTER' : '',
+						comic
+							? counted
+								? `${counted.count.toLocaleString('en')} CHAPTERS ON RANOBE`
+								: 'NO CHAPTER COUNT ON RANOBE YET'
+							: s.edition
+								? `${langName(lang)} EDITION`
+								: `NO ${langName(lang)} EDITION YET`,
+						byChapter && !comic ? 'BY CHAPTER' : '',
 						shares > 1 ? `${shares} SERIES SHARE IT` : '',
 						anilist
 					]
@@ -662,6 +676,8 @@ export function ranobeSeries(seriesId: number): RanobeSeries | null {
 			linked: !!s.work,
 			suggested: !!suggested,
 			edition: !!s.edition,
+			comic,
+			counted: !!counted,
 			suggestionRefused: refused,
 			lang,
 			remote:

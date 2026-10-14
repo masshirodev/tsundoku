@@ -1,9 +1,11 @@
 # Ranobe
 
 tsundoku keeps the owner's **Ranobe** library (`ranobe.ink`, the owner's own
-catalogue, `~/projects/ranobe`) moving from what's read here: which novels are
-in it, how far each is read, its rating and its favourite. It's card c66
-("Track novels through Ranobe, once it's ready"). The contract it's built
+catalogue, `~/projects/ranobe`) moving from what's read here: which novels and
+comics are in it, how far each is read, its rating and its favourite. It's
+card c66 ("Track novels through Ranobe, once it's ready"), and for comics card
+c98 ("Send comic reads to Ranobe, once Ranobe has work-level chapters"); see
+"Comics" below. The contract it's built
 against is Ranobe's `doc/API-V1.md`, "For Tsundoku", and the steps below use
 its numbers.
 
@@ -24,7 +26,8 @@ its numbers.
 - Rung 31: `ranobe_links`, `entries.ranobe_unit`, `ranobe_units`,
   `ranobe_works`, `ranobe_suggestions`. Rung 32: `ranobe_searches`,
   `ranobe_candidates`, `ranobe_decisions`, and Ranobe's own word on each
-  work in `ranobe_works`.
+  work in `ranobe_works`. Rung 38: `ranobe_work_units`, what each comic's
+  work counts.
 - Specs: `tests/ranobe-domain.spec.ts`, `tests/ranobe-db.spec.ts`,
   `tests/ranobe-review-db.spec.ts`, `tests/ranobe-flow.e2e.ts`.
 
@@ -34,9 +37,10 @@ handoff (part 2).
 
 ## What the owner decided
 
-- **Novels only, for now** (2026-09-25). Comics stay on AniList, the main list
-  for them. `RANOBE_KINDS` is the one line to change when that widens: nothing
-  else assumes novels.
+- **Novels only, for now** (2026-09-25), **and comics too** since 2026-10-14
+  (card c98). Comics stayed on AniList until Ranobe's works could count their
+  own chapters (Ranobe's card c226); now manga and manhwa go to both, AniList
+  as before and Ranobe beside it. Doujinshi never: they're Hentoid's.
 - **A missing edition is suggested** (2026-09-27). Ranobe mostly has a work's
   Japanese original, and the EPUBs here are English. A series waits for an
   edition in its own language, and when there's none, the pass suggests one
@@ -99,7 +103,8 @@ What tsundoku never sends anywhere else, it never sends Ranobe, and that
 covers **asking** as well as telling (step 0 of the contract). A hidden
 series and anything from Hentoid is never looked up, never suggested and never
 sent. `ELIGIBLE_SQL` in `src/lib/server/ranobe.ts` is the one place the rule is
-spelled, and every query uses it. Reading in incognito records no `read_at`,
+spelled, and every query uses it; `ELIGIBLE_NOVEL_SQL` narrows it to novels
+for the steps comics skip. Reading in incognito records no `read_at`,
 so there is nothing for a send to follow.
 
 **Hiding a series takes nothing back.** Its reads already on Ranobe stay
@@ -111,27 +116,31 @@ maps onto is ever sent or unsent.
 After every import (after the links and the AniList and MAL lists), and from
 `yarn run ranobe`. It logs counts, never titles.
 
-1. **Matching** (step 2). Every novel with an AniList or MAL id is asked
+1. **Matching** (step 2). Every novel and comic with an AniList or MAL id is asked
    about with `POST /lookup`, and a work that answers is linked `via
 'lookup'`. A cover-only link (a novel to its comic's entry, [`LINKS.md`](LINKS.md))
    is the comic's id, so it's never asked. Several series may share a work:
    The Eminence in Shadow is a series per EPUB volume (step 3). A series the
    owner UNLINKED or settled as NOT ON RANOBE is never linked again.
-2. **Searching** (step 2's other half). A novel the ids didn't find is
+2. **Searching** (step 2's other half), novels only. A novel the ids didn't find is
    searched by title, `GET /search?kind=light_novel,web_novel`, with the
    volume taken off (`cleanTitle`: "The Beginning After The End 08" asks
    for "The Beginning After The End"). Only the title is sent. What it finds
    waits for the owner on `/links`: **a search never links**, since the
    contract leaves the choice to the owner.
-3. **Editions.** `GET /works/{ref}` for each work still waiting. The edition
+3. **Editions**, novels only. `GET /works/{ref}` for each work still waiting. The edition
    in the series' language is taken (`entries.language`, English when none
    is recorded): licensed before original before fan, an ebook before print.
    With none, a suggestion (below).
-4. **Units** (step 4). `GET /editions/{ref}?fields=units` once per edition,
-   and each entry keeps its unit ref in `entries.ranobe_unit`. Mapped again
-   every pass, since an import may add chapters.
-5. **Sending** what's read (steps 7 and 8), marked `backfill` in the pass.
-6. **Reading the library**, `GET /me/library`, for what Ranobe says of each
+4. **Comics' counts.** `GET /works/{ref}?fields=units` for every linked
+   comic's work, kept in `ranobe_work_units`. Asked every pass, since counts
+   grow.
+5. **Units** (step 4). `GET /editions/{ref}?fields=units` once per edition,
+   and each entry keeps its unit ref in `entries.ranobe_unit`; a comic's
+   entries map onto its work's chapters instead. Mapped again every pass,
+   since an import may add chapters.
+6. **Sending** what's read (steps 7 and 8), marked `backfill` in the pass.
+7. **Reading the library**, `GET /me/library`, for what Ranobe says of each
    linked work: status, progress in the edition's units, rating, FAV. Every
    send's answer updates it too. It's what the TRACKING line shows.
 
@@ -245,6 +254,38 @@ Ranobe's bundle lists **duplicates** while it's pending: an existing person or
 work whose name or title normalises the same. The owner sees them in the
 review there. Tsundoku can't ask about people itself, since Ranobe's search
 is works only.
+
+## Comics
+
+Card c98, since 2026-10-14. Ranobe's card c226 gave every work its own units
+(`GET /works/{ref}?fields=units` answers `{ type, count, extra }`, or null),
+and `POST /me/reads` takes them as `w123:chapter:154` beside an edition's
+refs. A comic has no edition to choose, so it reads against those:
+
+- **Linked by its ids only.** The pass asks `/lookup` with a comic's AniList
+  and MAL ids, as it does a novel's. It never searches a comic by title:
+  AniList links nearly every one, and the rest would fill the review. FIND
+  and PASTE A LINK on a comic's screen still work, searching
+  `kind=manga,manhwa,manhua`.
+- **No edition, no suggestion.** `ranobe_links.edition` stays NULL and
+  `volume` NULL; the edition steps and suggestions are novels only
+  (`ELIGIBLE_NOVEL_SQL`).
+- **Chapters from the label.** "Ch. 154", "Chapter 12.5", "Episode 3",
+  "Vol.2 Ch.15 - …" (`comicChapterOf`). On 2026-10-13, 14,936 of the 15,370
+  comic chapters read here were a plain whole number, 426 a fraction, 8
+  something else (a prologue, an afterword).
+- **Only what the work lists.** A chapter maps onto `w…:chapter:N` when N is
+  in `1..count` or one of `extra`, since Ranobe refuses anything else, all or
+  nothing, and never folds 12.5 into 12. A chapter past the count waits: the
+  next pass that reads a higher count maps and sends it. A fraction the work
+  doesn't list as an extra is never sent.
+- **A work that counts nothing yet** maps nothing, and its TRACKING line says
+  `RANOBE · WAITING ON ITS CHAPTER COUNT`. Ranobe was still filling its
+  counts in when this shipped (AniList's chapters and MangaUpdates' latest,
+  about 15 hours from 2026-10-14 02:40 UTC), so a comic may wait a pass or
+  two.
+- **Progress** comes back as the work's refs (`CH. 154 OF 179`), and the
+  rest (rating, FAV, unreads, the backfill) is the same as a novel's.
 
 ## Sending
 
@@ -399,6 +440,9 @@ review shows 15 NOT ON RANOBE decisions to make, and The Beginning After
 the End is 7 of them, one per volume.
 
 ## Not yet
+
+- **A comic's chapter Ranobe doesn't count.** Sent once Ranobe's count
+  reaches it; a fraction only if an editor adds it as an extra there.
 
 - **NOT ON RANOBE for the siblings.** The sibling list only follows a LINK.
   Settling The Beginning After the End as not on Ranobe is seven decisions

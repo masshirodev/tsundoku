@@ -656,7 +656,8 @@ export async function afterRating(seriesIds: number[], rating: number): Promise<
 
 /**
  * After a chapter is finished or marked read: queue, then send, off the
- * request. A novel's reading goes to Ranobe instead (doc/RANOBE.md).
+ * request. Ranobe hears of it too, for the novels and comics it tracks
+ * (doc/RANOBE.md); a comic's progress still goes to AniList as well.
  */
 export function afterReading(seriesId: number): void {
 	ranobe.afterReading(seriesId);
