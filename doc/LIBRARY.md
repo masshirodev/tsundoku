@@ -225,9 +225,17 @@ Asked for on 2026-10-14: the sort was a label that cycled, so reaching one
 meant tapping through the others, and nothing ran the other way round.
 
 - **SORT is a native `<select>`** in the label's own type, without the
-  browser's box, and ▾ after it. Its choices run last read, then newest,
-  then the rest: RECENTLY READ, RECENTLY ADDED, TITLE, RATING, RANDOM
-  (`SORTS`, `src/lib/library/labels.ts`). Choosing one goes to its URL.
+  browser's box, and ▾ after it: RECENTLY READ, RECENTLY ADDED, PROGRESS,
+  TITLE, RATING, RANDOM (`SORTS`, `src/lib/library/labels.ts`). Choosing
+  one goes to its URL.
+- **PROGRESS** (`sort=progress`) is three tiers, as `progressOf` decides
+  them: begun and not finished (one page opened is begun), by last read;
+  then never opened, newest added first; then the rest, the finished, by
+  last read. It's "last read > newest > all", asked for on 2026-10-14 so the
+  series opened a page or two don't sink among the finished. ↓ has the begun
+  on top; ↑ sends them to the bottom (never opened, then finished, then
+  begun). Unlike the other sorts, ↑ doesn't reverse inside a tier: the most
+  recent stays first. `progressTier`, `src/lib/server/library.ts`.
 - **The toggle beside it turns the order round** (`?dir=asc|desc`). It reads
   A–Z / Z–A beside TITLE and ↓ / ↑ beside the rest, ↓ being high to low:
   most recent, newest, best first. Each sort has its own direction (TITLE

@@ -378,6 +378,7 @@ test('SORT is a menu, and the toggle beside it turns the order round', async ({ 
 	await expect(menu.locator('option')).toHaveText([
 		'RECENTLY READ',
 		'RECENTLY ADDED',
+		'PROGRESS',
 		'TITLE',
 		'RATING',
 		'RANDOM'

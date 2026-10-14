@@ -48,15 +48,16 @@ export function sheetMeta(item: SeriesCard): string {
 	return parts.join(' · ');
 }
 
-export type Sort = 'recent' | 'title' | 'rating' | 'added' | 'random';
+export type Sort = 'recent' | 'progress' | 'title' | 'rating' | 'added' | 'random';
 
-/** The SORT menu's order: last read, then newest, then the rest. */
-export const SORTS: readonly Sort[] = ['recent', 'added', 'title', 'rating', 'random'];
+/** The SORT menu's order. */
+export const SORTS: readonly Sort[] = ['recent', 'added', 'progress', 'title', 'rating', 'random'];
 
 /** What each sort is called in the menu, without a direction. */
 export const SORT_NAME: Record<Sort, string> = {
 	recent: 'RECENTLY READ',
 	added: 'RECENTLY ADDED',
+	progress: 'PROGRESS',
 	title: 'TITLE',
 	rating: 'RATING',
 	random: 'RANDOM'
@@ -82,7 +83,8 @@ export function parseDir(raw: string | null, sort: Sort): Dir {
 
 /**
  * The direction toggle's face: A–Z / Z–A beside TITLE, an arrow beside the
- * rest (↓ is high to low: newest, best, most recent first).
+ * rest (↓ is high to low: newest, best, most recent first; beside PROGRESS,
+ * ↓ is the begun on top and ↑ the begun at the bottom).
  */
 export function dirLabel(sort: Sort, dir: Dir): string {
 	if (sort === 'title') return dir === 'asc' ? 'A–Z' : 'Z–A';

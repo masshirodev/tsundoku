@@ -201,11 +201,28 @@ const orderFor = (opts: { shelf?: string; sort?: Sort; dir?: Dir; seed?: number 
 };
 
 /**
+ * PROGRESS's tiers (doc/LIBRARY.md, "Sort and direction"), as progressOf
+ * decides them: begun and unfinished (one page opened is begun), then never
+ * opened, then the rest, which is the finished. ↓ puts the begun first, ↑
+ * last; inside a tier it's always most recent first, by last read or, never
+ * opened, by date added.
+ */
+function progressTier(d: 'ASC' | 'DESC'): string {
+	const read = 'COALESCE(t.read_count, 0)';
+	const begun = `(t.last_opened IS NOT NULL OR ${read} > 0)`;
+	const reading = `(${begun} AND ${read} < COALESCE(t.entry_count, 0))`;
+	return d === 'DESC'
+		? `CASE WHEN ${reading} THEN 0 WHEN NOT ${begun} THEN 1 ELSE 2 END`
+		: `CASE WHEN NOT ${begun} THEN 0 WHEN ${reading} THEN 2 ELSE 1 END`;
+}
+
+/**
  * Each sort in either direction (`?dir=`). Never-read series stay last under
  * RECENTLY READ both ways: turned round it's the longest-untouched first, not
  * the never-opened. RATING's ties stay A–Z whichever way it runs.
  */
 const ORDER: Record<Exclude<Sort, 'random'>, (d: 'ASC' | 'DESC') => string> = {
+	progress: (d) => `${progressTier(d)}, COALESCE(t.last_opened, s.added_at) DESC, s.id DESC`,
 	recent: (d) => `t.last_opened ${d} NULLS LAST, s.added_at ${d}, s.id ${d}`,
 	title: (d) => `s.title COLLATE NOCASE ${d}, s.id ${d}`,
 	rating: (d) => `s.rating ${d}, s.title COLLATE NOCASE ASC, s.id ASC`,
@@ -245,18 +262,17 @@ const DOWNLOADED_SQL =
 	'EXISTS (SELECT 1 FROM entries e WHERE e.series_id = s.id AND e.available = 1)';
 
 /**
- * READING (`?progress=`), as progressOf in src/lib/library/filters.ts:
- * begun is an entry opened or read; not all read is a counted entry (not
- * shadowed, not front matter) still unread.
+ * READING (`?progress=`), as progressOf in src/lib/library/filters.ts.
+ * UNREAD: no entry opened, not a page, and none read (a counted one: not
+ * shadowed, not front matter). READ: begun, and no counted entry left unread.
  */
 const BEGUN_SQL = `EXISTS (SELECT 1 FROM entries e WHERE e.series_id = s.id
 	AND (e.last_opened_at IS NOT NULL
 		OR (e.shadowed = 0 AND e.matter = '' AND e.read_at IS NOT NULL)))`;
-const UNFINISHED_SQL = `EXISTS (SELECT 1 FROM entries e WHERE e.series_id = s.id
-	AND e.shadowed = 0 AND e.matter = '' AND e.read_at IS NULL)`;
 const PROGRESS_SQL = {
 	unread: `NOT ${BEGUN_SQL}`,
-	reading: `(${BEGUN_SQL} AND ${UNFINISHED_SQL})`
+	read: `(${BEGUN_SQL} AND NOT EXISTS (SELECT 1 FROM entries e WHERE e.series_id = s.id
+		AND e.shadowed = 0 AND e.matter = '' AND e.read_at IS NULL))`
 };
 
 /** `language:` values that describe a book rather than name a language. */

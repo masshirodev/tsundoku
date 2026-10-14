@@ -27,23 +27,25 @@ describe('the filters in a URL (c68)', () => {
 		);
 	});
 
-	it('reads READING as unread or in progress, nothing else', () => {
+	it('reads READING as unread or read, nothing else', () => {
 		expect(parseFilters(q('progress=unread'), false).progress).toBe('unread');
-		expect(parseFilters(q('progress=reading'), false).progress).toBe('reading');
-		expect(parseFilters(q('progress=done'), false).progress).toBeNull();
-		expect(activeCount(f({ progress: 'reading' }))).toBe(1);
-		expect(filterWords(f({ progress: 'reading' }))).toEqual(['IN PROGRESS']);
+		expect(parseFilters(q('progress=read'), false).progress).toBe('read');
+		// IN PROGRESS was a filter for a day; it's the PROGRESS sort now.
+		expect(parseFilters(q('progress=reading'), false).progress).toBeNull();
+		expect(activeCount(f({ progress: 'read' }))).toBe(1);
+		expect(filterWords(f({ progress: 'read' }))).toEqual(['READ']);
 	});
 
-	it('tells unread, in progress and finished apart on the device', () => {
+	it('tells unread, begun and read apart on the device: one page opened is begun', () => {
 		const card = { rating: 0, favourite: false, hidden: true, addedAt: 0 };
 		const fresh = { ...card, entryCount: 3, readCount: 0, opened: false };
 		const begun = { ...card, entryCount: 3, readCount: 0, opened: true };
 		const done = { ...card, entryCount: 3, readCount: 3, opened: true };
 		expect(matches(fresh, f({ progress: 'unread' }))).toBe(true);
 		expect(matches(begun, f({ progress: 'unread' }))).toBe(false);
-		expect(matches(begun, f({ progress: 'reading' }))).toBe(true);
-		expect(matches(done, f({ progress: 'reading' }))).toBe(false);
+		expect(matches(begun, f({ progress: 'read' }))).toBe(false);
+		expect(matches(done, f({ progress: 'read' }))).toBe(true);
+		expect(matches(done, f({ progress: 'unread' }))).toBe(false);
 		// A card that doesn't know its progress isn't asked.
 		expect(matches(card, f({ progress: 'unread' }))).toBe(true);
 	});

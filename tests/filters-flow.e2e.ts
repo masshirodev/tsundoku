@@ -153,7 +153,7 @@ test('a person’s page filters on the device, LANGUAGE included', async ({ page
 	await expect(page.getByText(/— BOOKS · NOT FAV/)).toHaveCount(0);
 });
 
-test('READING narrows hidden series too: unread, then in progress', async ({ page }) => {
+test('READING narrows hidden series too: unread, then read', async ({ page }) => {
 	await reveal(page);
 	await page.goto('/?shelf=all&sort=title&hidden=1');
 	const all = await page.locator('.grid .tile').count();
@@ -164,8 +164,8 @@ test('READING narrows hidden series too: unread, then in progress', async ({ pag
 	await expect(page).toHaveURL(/progress=unread/);
 	await expect(page.getByText('02 — ALL · UNREAD · HIDDEN')).toBeVisible();
 	const unread = await page.locator('.grid .tile').count();
-	await reading.getByRole('link', { name: 'IN PROGRESS' }).click();
-	await expect(page).toHaveURL(/progress=reading/);
+	await reading.getByRole('link', { name: 'READ', exact: true }).click();
+	await expect(page).toHaveURL(/progress=read(&|$)/);
 	const begun = await page.locator('.grid .tile').count();
 	expect(unread + begun).toBeLessThanOrEqual(all);
 	await reading.getByRole('link', { name: 'ANY' }).click();

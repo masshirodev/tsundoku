@@ -13,7 +13,7 @@ import { DEFAULT_MIN, minLabel, RATING_MAX } from './rating';
  *   ?added=2026-08-01   added on or after that day
  *   ?dl=1|0       a chapter on disk, or none
  *   ?followed=1   followed: new chapters download on their own (doc/DOWNLOADING.md)
- *   ?progress=unread|reading   never opened, or opened and not finished
+ *   ?progress=unread|read   never opened (not a page), or every chapter read
  *   ?hidden=1     hidden only; exists only while reveal is on
  *
  * Pure: the workstation turns these into SQL (src/lib/server/library.ts), and
@@ -31,13 +31,13 @@ export type Filters = {
 	added: string | null;
 	dl: 0 | 1 | null;
 	followed: boolean;
-	/** Where the reading stands: never opened, or opened and not all read. */
+	/** Never opened, or all read. Begun-but-unfinished is an order, not a filter (sort=progress). */
 	progress: Progress | null;
 	hidden: boolean;
 };
 
-export type Progress = 'unread' | 'reading';
-const PROGRESSES: readonly Progress[] = ['unread', 'reading'];
+export type Progress = 'unread' | 'read';
+const PROGRESSES: readonly Progress[] = ['unread', 'read'];
 
 export const NO_FILTERS: Filters = {
 	min: null,
@@ -139,7 +139,7 @@ export function withFilters(params: URLSearchParams, f: Filters): URLSearchParam
 	return next;
 }
 
-const PROGRESS_LABEL: Record<Progress, string> = { unread: 'UNREAD', reading: 'IN PROGRESS' };
+const PROGRESS_LABEL: Record<Progress, string> = { unread: 'UNREAD', read: 'READ' };
 
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
@@ -205,16 +205,19 @@ export type Filterable = {
 };
 
 /**
- * Where a card's reading stands, as `?progress=` means it: UNREAD is never
- * opened and nothing read; IN PROGRESS is begun and not all read, so a
- * finished series that gained a chapter is in progress again. The same rule
- * as PROGRESS_SQL in src/lib/server/library.ts.
+ * Where a card's reading stands. UNREAD (`?progress=unread`) is never opened
+ * and nothing read; one page opened is begun. Begun and not all read is
+ * `reading`, so a finished series that gained a chapter is reading again;
+ * begun and all read is READ (`?progress=read`). The same rule as
+ * PROGRESS_SQL and the PROGRESS sort's tiers in src/lib/server/library.ts.
  */
+export type ReadingState = 'unread' | 'reading' | 'finished';
+
 export function progressOf(item: {
 	entryCount: number;
 	readCount: number;
 	opened?: boolean;
-}): Progress | 'finished' {
+}): ReadingState {
 	if (!item.opened && item.readCount === 0) return 'unread';
 	return item.readCount < item.entryCount ? 'reading' : 'finished';
 }
@@ -232,7 +235,7 @@ export function matches(item: Filterable, f: Filters): boolean {
 		item.readCount !== undefined &&
 		item.entryCount !== undefined &&
 		progressOf({ entryCount: item.entryCount, readCount: item.readCount, opened: item.opened }) !==
-			f.progress
+			(f.progress === 'read' ? 'finished' : f.progress)
 	)
 		return false;
 	if (f.hidden && !item.hidden) return false;
@@ -335,7 +338,7 @@ export function filterRows(
 			choices: [
 				{ label: 'ANY', on: f.progress === null, to: set({ progress: null }) },
 				{ label: 'UNREAD', on: f.progress === 'unread', to: set({ progress: 'unread' }) },
-				{ label: 'IN PROGRESS', on: f.progress === 'reading', to: set({ progress: 'reading' }) }
+				{ label: 'READ', on: f.progress === 'read', to: set({ progress: 'read' }) }
 			]
 		});
 	if (reveal)

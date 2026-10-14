@@ -246,14 +246,15 @@ describe('the FILTER panel (c68, doc/FILTERS.md)', () => {
 		expect(list(only({ lang: 'ja' }), false)).toEqual([]);
 	});
 
-	it('READING: UNREAD and IN PROGRESS, in SQL as the device decides them, hidden included', () => {
+	it('READING: UNREAD and READ, in SQL as the device decides them, hidden included', () => {
 		const { progressOf } = filtersMod;
+		const state = { unread: 'unread', read: 'finished' } as const;
 		for (const reveal of [false, true]) {
 			const all = everything(reveal);
-			for (const progress of ['unread', 'reading'] as const) {
+			for (const progress of ['unread', 'read'] as const) {
 				const got = list(only({ progress }), reveal);
 				expect(titles(got).sort()).toEqual(
-					titles(all.filter((c) => progressOf(c) === progress)).sort()
+					titles(all.filter((c) => progressOf(c) === state[progress])).sort()
 				);
 				expect(lib.countListed({ reveal, filters: only({ progress }) })).toBe(got.length);
 			}
@@ -261,7 +262,7 @@ describe('the FILTER panel (c68, doc/FILTERS.md)', () => {
 		// Hidden ones are what it's for: with reveal on, it reaches them.
 		const both = only({ hidden: true, progress: 'unread' });
 		expect(list(both, true).every((c) => c.hidden && !c.opened && c.readCount === 0)).toBe(true);
-		expect(list(only({ progress: 'reading' }), true).length).toBeGreaterThan(0);
+		expect(list(only({ progress: 'read' }), true).length).toBeGreaterThan(0);
 	});
 
 	it('HIDDEN: only hidden, and only ever with reveal on', () => {
@@ -288,7 +289,7 @@ describe('SERIES and ONE-OFF (c68)', () => {
 
 describe('pages of a shelf', () => {
 	it('page through the same list the whole shelf is, without gaps or repeats', () => {
-		for (const sort of ['recent', 'title', 'rating', 'added', 'random'] as const)
+		for (const sort of ['recent', 'progress', 'title', 'rating', 'added', 'random'] as const)
 			for (const dir of ['asc', 'desc'] as const) {
 				const whole = lib.listSeries({ reveal: true, sort, dir }).map((c) => c.id);
 				const paged: number[] = [];
@@ -298,6 +299,22 @@ describe('pages of a shelf', () => {
 					);
 				expect(paged).toEqual(whole);
 			}
+	});
+
+	it('PROGRESS: begun and unfinished, then never opened, then the read; ↑ sends the begun last', () => {
+		const { progressOf } = filtersMod;
+		const tiers = (dir: 'asc' | 'desc') =>
+			lib.listSeries({ reveal: true, sort: 'progress', dir }).map((c) => progressOf(c));
+		const runs = (xs: string[]) => xs.filter((x, i) => i === 0 || xs[i - 1] !== x);
+		expect(runs(tiers('desc'))).toEqual(['reading', 'unread', 'finished']);
+		expect(runs(tiers('asc'))).toEqual(['unread', 'finished', 'reading']);
+		// Inside a tier, the most recent first either way: the same begun series, in the same order.
+		const begun = (dir: 'asc' | 'desc') =>
+			lib
+				.listSeries({ reveal: true, sort: 'progress', dir })
+				.filter((c) => progressOf(c) === 'reading')
+				.map((c) => c.id);
+		expect(begun('asc')).toEqual(begun('desc'));
 	});
 
 	it('turn each sort round with ?dir=, never-read still last under RECENTLY READ', () => {
