@@ -257,6 +257,7 @@ describe('the pass', () => {
 		estateUnits = { type: 'chapter', count: 140, extra: ['12.5'] };
 		const r = await rb.syncRanobe(NOW);
 		expect(r?.works).toEqual({ counted: 1, not: 0 });
+		expect(linkOf(ESTATE)?.title).toBe('The Greatest Estate Developer');
 		const sent = sentReads().filter((u) => u.startsWith('w51'));
 		expect(sent).toHaveLength(140);
 		expect(sent[0]).toBe('w51:chapter:1');

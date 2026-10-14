@@ -652,12 +652,17 @@ export async function readWorkUnits(now = Date.now()): Promise<{ counted: number
 		ON CONFLICT (work) DO UPDATE SET type = excluded.type, count = excluded.count,
 			extra = excluded.extra, checked_at = excluded.checked_at`
 	);
+	const title = db.prepare(`UPDATE ranobe_links SET title = ? WHERE work = ?`);
 	const out = { counted: 0, not: 0 };
 	for (const work of works) {
 		let units: WorkUnits | null = null;
 		try {
-			units =
-				(await api<{ units?: WorkUnits | null }>(`/works/${work}?fields=units`))?.units ?? null;
+			const w = await api<{ title?: string; units?: WorkUnits | null }>(
+				`/works/${work}?fields=units`
+			);
+			units = w?.units ?? null;
+			// A comic has no edition step to name its link, so the title comes from here.
+			if (w?.title) title.run(w.title, work);
 		} catch (e) {
 			// A work gone or hidden since counts nothing; anything else is the pass's.
 			if (!(e instanceof Refused && (e.status === 404 || e.status === 410))) throw e;
