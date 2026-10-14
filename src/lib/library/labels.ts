@@ -50,22 +50,43 @@ export function sheetMeta(item: SeriesCard): string {
 
 export type Sort = 'recent' | 'title' | 'rating' | 'added' | 'random';
 
-export const SORTS: readonly Sort[] = ['recent', 'title', 'rating', 'added', 'random'];
+/** The SORT menu's order: last read, then newest, then the rest. */
+export const SORTS: readonly Sort[] = ['recent', 'added', 'title', 'rating', 'random'];
 
-export const SORT_LABEL: Record<Sort, string> = {
-	recent: 'RECENTLY READ ↓',
-	title: 'A–Z ↓',
-	rating: 'RATING ↓',
-	added: 'RECENTLY ADDED ↓',
+/** What each sort is called in the menu, without a direction. */
+export const SORT_NAME: Record<Sort, string> = {
+	recent: 'RECENTLY READ',
+	added: 'RECENTLY ADDED',
+	title: 'TITLE',
+	rating: 'RATING',
 	random: 'RANDOM'
 };
 
-export function nextSort(sort: Sort): Sort {
-	return SORTS[(SORTS.indexOf(sort) + 1) % SORTS.length];
-}
-
 export function parseSort(raw: string | null): Sort {
 	return SORTS.includes(raw as Sort) ? (raw as Sort) : 'recent';
+}
+
+/**
+ * ↓ or ↑ beside the sort (`?dir=`). Each sort has its natural direction --
+ * newest, best and most recently read first, titles A to Z -- and `dir` only
+ * appears in the URL when it's turned the other way. RANDOM has none.
+ */
+export type Dir = 'asc' | 'desc';
+
+export const naturalDir = (sort: Sort): Dir => (sort === 'title' ? 'asc' : 'desc');
+
+/** The direction in a URL, or the sort's own. */
+export function parseDir(raw: string | null, sort: Sort): Dir {
+	return raw === 'asc' || raw === 'desc' ? raw : naturalDir(sort);
+}
+
+/**
+ * The direction toggle's face: A–Z / Z–A beside TITLE, an arrow beside the
+ * rest (↓ is high to low: newest, best, most recent first).
+ */
+export function dirLabel(sort: Sort, dir: Dir): string {
+	if (sort === 'title') return dir === 'asc' ? 'A–Z' : 'Z–A';
+	return dir === 'desc' ? '↓' : '↑';
 }
 
 /**

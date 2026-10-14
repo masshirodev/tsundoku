@@ -39,15 +39,16 @@ Two shelves joined, splitting the library by what a thing is:
 `src/lib/components/controls/FilterPanel.svelte`. A **FILTER** cell, with how
 many are on as a green badge, opens a panel with one row per filter:
 
-| Row        | Choices                                                                              | In the URL               |
-| ---------- | ------------------------------------------------------------------------------------ | ------------------------ |
-| RATING     | ANY · UNRATED · AT LEAST, then the blocks                                            | `?min=1..10`, `?rated=0` |
-| FAV        | ANY · FAV · NOT FAV                                                                  | `?fav=1`, `?fav=0`       |
-| LANGUAGE   | ANY, then each language on the shelf (EN, JA)                                        | `?lang=ja`               |
-| DATE ADDED | ANY · SINCE and a date                                                               | `?added=2026-08-01`      |
-| DOWNLOADED | ANY · YES · NO                                                                       | `?dl=1`, `?dl=0`         |
-| FOLLOWED   | ANY · ONLY, while something visible is followed ([`DOWNLOADING.md`](DOWNLOADING.md)) | `?followed=1`            |
-| ● HIDDEN   | ANY · ONLY                                                                           | `?hidden=1`              |
+| Row        | Choices                                                                              | In the URL                              |
+| ---------- | ------------------------------------------------------------------------------------ | --------------------------------------- |
+| RATING     | ANY · UNRATED · AT LEAST, then the blocks                                            | `?min=1..10`, `?rated=0`                |
+| FAV        | ANY · FAV · NOT FAV                                                                  | `?fav=1`, `?fav=0`                      |
+| LANGUAGE   | ANY, then each language on the shelf (EN, JA)                                        | `?lang=ja`                              |
+| DATE ADDED | ANY · SINCE and a date                                                               | `?added=2026-08-01`                     |
+| DOWNLOADED | ANY · YES · NO                                                                       | `?dl=1`, `?dl=0`                        |
+| FOLLOWED   | ANY · ONLY, while something visible is followed ([`DOWNLOADING.md`](DOWNLOADING.md)) | `?followed=1`                           |
+| READING    | ANY · UNREAD · IN PROGRESS                                                           | `?progress=unread`, `?progress=reading` |
+| ● HIDDEN   | ANY · ONLY                                                                           | `?hidden=1`                             |
 
 - **RATING is one line.** Dragging the blocks (the ratings slider in mode
   `min`) picks AT LEAST by itself; AT LEAST alone starts at 4+; UNRATED and a
@@ -90,13 +91,24 @@ many are on as a green badge, opens a panel with one row per filter:
   ([`EDITIONS.md`](EDITIONS.md)). Switching to a shelf without the chosen
   language drops it (a 307) rather than showing an empty grid.
 - **DATE ADDED** compares with the start of that day on the workstation.
+- **READING** is where the reading stands, asked for on 2026-10-14 mainly to
+  sort through hidden series, which never show in CONTINUE's short list.
+  UNREAD is never opened and nothing read. IN PROGRESS is begun (an entry
+  opened, or one read) and not all read, so a finished series that gains a
+  chapter is in progress again; a finished one is in neither. It combines
+  with HIDDEN like any other filter: `?hidden=1&progress=unread` is the
+  hidden series you've never opened. The rule is written twice and tested to
+  agree: `PROGRESS_SQL` in `src/lib/server/library.ts` and `progressOf` in
+  `src/lib/library/filters.ts`, which CACHED uses on the device. Not drawn
+  by a handoff: it's one more row of the panel's existing shape.
 - **UNRATED wins** over a threshold if a hand-made URL has both.
 - **CACHED, offline,** filters on the device, with the same rules
   (`matches`): every filter is answerable there.
 - **A person's page** has the same panel, filtering on the device (it holds
   every item already). Its tabs lost FAV and RATED 4+ as the library's shelves
   did, leaving ALL, UNREAD and BY SERIES. Its items carry their languages and
-  whether they're on disk for it.
+  whether they're on disk for it. It has no READING row (`reading={false}`):
+  its UNREAD tab already does that.
 
 ## A new shelf
 

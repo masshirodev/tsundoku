@@ -24,6 +24,8 @@ export function pageQuery(o: {
 	shelf: string;
 	tag: string | null;
 	sort: string;
+	/** Only sent when it isn't the sort's own (`?dir=`). */
+	dir?: string;
 	/** RANDOM's shuffle. */
 	seed?: number;
 	/** The FILTER panel's narrowing, sent as the URL carries it. */
@@ -38,6 +40,7 @@ export function pageQuery(o: {
 		limit: String(o.limit)
 	});
 	if (o.tag) q.set('tag', o.tag);
+	if (o.dir) q.set('dir', o.dir);
 	for (const [k, v] of o.filters ? filterParams(o.filters) : []) q.set(k, v);
 	if (o.sort === 'random' && o.seed) q.set('seed', String(o.seed));
 	return q.toString();

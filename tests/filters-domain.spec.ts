@@ -27,6 +27,27 @@ describe('the filters in a URL (c68)', () => {
 		);
 	});
 
+	it('reads READING as unread or in progress, nothing else', () => {
+		expect(parseFilters(q('progress=unread'), false).progress).toBe('unread');
+		expect(parseFilters(q('progress=reading'), false).progress).toBe('reading');
+		expect(parseFilters(q('progress=done'), false).progress).toBeNull();
+		expect(activeCount(f({ progress: 'reading' }))).toBe(1);
+		expect(filterWords(f({ progress: 'reading' }))).toEqual(['IN PROGRESS']);
+	});
+
+	it('tells unread, in progress and finished apart on the device', () => {
+		const card = { rating: 0, favourite: false, hidden: true, addedAt: 0 };
+		const fresh = { ...card, entryCount: 3, readCount: 0, opened: false };
+		const begun = { ...card, entryCount: 3, readCount: 0, opened: true };
+		const done = { ...card, entryCount: 3, readCount: 3, opened: true };
+		expect(matches(fresh, f({ progress: 'unread' }))).toBe(true);
+		expect(matches(begun, f({ progress: 'unread' }))).toBe(false);
+		expect(matches(begun, f({ progress: 'reading' }))).toBe(true);
+		expect(matches(done, f({ progress: 'reading' }))).toBe(false);
+		// A card that doesn't know its progress isn't asked.
+		expect(matches(card, f({ progress: 'unread' }))).toBe(true);
+	});
+
 	it('drops HIDDEN without reveal, so no query asks for what the viewer can’t see', () => {
 		expect(parseFilters(q('hidden=1'), false).hidden).toBe(false);
 		expect(parseFilters(q('hidden=1'), true).hidden).toBe(true);
@@ -114,8 +135,20 @@ describe('the panel', () => {
 	it('draws LANGUAGE only with languages, and HIDDEN only while reveal is on', () => {
 		const keys = (langs: string[], reveal: boolean) =>
 			filterRows(NO_FILTERS, langs, reveal).map((r) => r.key);
-		expect(keys([], false)).toEqual(['rating', 'fav', 'added', 'dl']);
-		expect(keys(['ja'], true)).toEqual(['rating', 'fav', 'lang', 'added', 'dl', 'hidden']);
+		expect(keys([], false)).toEqual(['rating', 'fav', 'added', 'dl', 'progress']);
+		expect(keys(['ja'], true)).toEqual([
+			'rating',
+			'fav',
+			'lang',
+			'added',
+			'dl',
+			'progress',
+			'hidden'
+		]);
+		// A person's page has its own UNREAD tab, so no READING row.
+		expect(filterRows(NO_FILTERS, [], false, false, false).map((r) => r.key)).not.toContain(
+			'progress'
+		);
 	});
 
 	it('AT LEAST starts at 4+, and UNRATED and a threshold replace each other', () => {

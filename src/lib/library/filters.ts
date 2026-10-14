@@ -13,6 +13,7 @@ import { DEFAULT_MIN, minLabel, RATING_MAX } from './rating';
  *   ?added=2026-08-01   added on or after that day
  *   ?dl=1|0       a chapter on disk, or none
  *   ?followed=1   followed: new chapters download on their own (doc/DOWNLOADING.md)
+ *   ?progress=unread|reading   never opened, or opened and not finished
  *   ?hidden=1     hidden only; exists only while reveal is on
  *
  * Pure: the workstation turns these into SQL (src/lib/server/library.ts), and
@@ -30,8 +31,13 @@ export type Filters = {
 	added: string | null;
 	dl: 0 | 1 | null;
 	followed: boolean;
+	/** Where the reading stands: never opened, or opened and not all read. */
+	progress: Progress | null;
 	hidden: boolean;
 };
+
+export type Progress = 'unread' | 'reading';
+const PROGRESSES: readonly Progress[] = ['unread', 'reading'];
 
 export const NO_FILTERS: Filters = {
 	min: null,
@@ -41,6 +47,7 @@ export const NO_FILTERS: Filters = {
 	added: null,
 	dl: null,
 	followed: false,
+	progress: null,
 	hidden: false
 };
 
@@ -53,6 +60,7 @@ export const FILTER_PARAMS = [
 	'added',
 	'dl',
 	'followed',
+	'progress',
 	'hidden'
 ] as const;
 
@@ -86,6 +94,7 @@ export function parseFilters(params: URLSearchParams, reveal: boolean): Filters 
 		added: parseDay(params.get('added')),
 		dl: bit(params.get('dl')),
 		followed: params.get('followed') === '1',
+		progress: PROGRESSES.find((p) => p === params.get('progress')) ?? null,
 		hidden: reveal && params.get('hidden') === '1'
 	};
 }
@@ -99,6 +108,7 @@ export function activeCount(f: Filters): number {
 		Number(f.added !== null) +
 		Number(f.dl !== null) +
 		Number(f.followed) +
+		Number(f.progress !== null) +
 		Number(f.hidden)
 	);
 }
@@ -113,6 +123,7 @@ export function filterParams(f: Filters): [string, string][] {
 	if (f.added) out.push(['added', f.added]);
 	if (f.dl !== null) out.push(['dl', String(f.dl)]);
 	if (f.followed) out.push(['followed', '1']);
+	if (f.progress) out.push(['progress', f.progress]);
 	if (f.hidden) out.push(['hidden', '1']);
 	return out;
 }
@@ -127,6 +138,8 @@ export function withFilters(params: URLSearchParams, f: Filters): URLSearchParam
 	for (const [k, v] of filterParams(f)) next.set(k, v);
 	return next;
 }
+
+const PROGRESS_LABEL: Record<Progress, string> = { unread: 'UNREAD', reading: 'IN PROGRESS' };
 
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
@@ -144,6 +157,7 @@ export function filterWords(f: Filters): string[] {
 		words.push(`SINCE ${Number(f.added.slice(8))} ${MONTHS[Number(f.added.slice(5, 7)) - 1]}`);
 	if (f.dl !== null) words.push(f.dl ? 'DOWNLOADED' : 'NOT DOWNLOADED');
 	if (f.followed) words.push('FOLLOWED');
+	if (f.progress) words.push(PROGRESS_LABEL[f.progress]);
 	if (f.hidden) words.push('HIDDEN');
 	return words;
 }
@@ -183,7 +197,27 @@ export type Filterable = {
 	followed?: boolean;
 	/** Two-letter codes, upper or lower case. */
 	languages?: string[];
+	/** READING needs these; a card without them (a person's page) isn't asked. */
+	entryCount?: number;
+	readCount?: number;
+	/** An entry has been opened, read to the end or not. */
+	opened?: boolean;
 };
+
+/**
+ * Where a card's reading stands, as `?progress=` means it: UNREAD is never
+ * opened and nothing read; IN PROGRESS is begun and not all read, so a
+ * finished series that gained a chapter is in progress again. The same rule
+ * as PROGRESS_SQL in src/lib/server/library.ts.
+ */
+export function progressOf(item: {
+	entryCount: number;
+	readCount: number;
+	opened?: boolean;
+}): Progress | 'finished' {
+	if (!item.opened && item.readCount === 0) return 'unread';
+	return item.readCount < item.entryCount ? 'reading' : 'finished';
+}
 
 export function matches(item: Filterable, f: Filters): boolean {
 	if (f.min !== null && item.rating < f.min) return false;
@@ -193,6 +227,14 @@ export function matches(item: Filterable, f: Filters): boolean {
 	if (f.added && item.addedAt < dayStart(f.added)) return false;
 	if (f.dl !== null && !!item.downloaded !== (f.dl === 1)) return false;
 	if (f.followed && !item.followed) return false;
+	if (
+		f.progress &&
+		item.readCount !== undefined &&
+		item.entryCount !== undefined &&
+		progressOf({ entryCount: item.entryCount, readCount: item.readCount, opened: item.opened }) !==
+			f.progress
+	)
+		return false;
 	if (f.hidden && !item.hidden) return false;
 	return true;
 }
@@ -216,7 +258,9 @@ export function filterRows(
 	languages: string[],
 	reveal: boolean,
 	/** Something is followed: FOLLOWED is offered, as LANGUAGE is when there are languages. */
-	following = false
+	following = false,
+	/** READING is offered: off where cards don't know their progress (a person's page). */
+	reading = true
 ): Row[] {
 	const set = (patch: Partial<Filters>): Filters => ({ ...f, ...patch });
 	const rows: Row[] = [
@@ -282,6 +326,16 @@ export function filterRows(
 			choices: [
 				{ label: 'ANY', on: !f.followed, to: set({ followed: false }) },
 				{ label: 'ONLY', on: f.followed, to: set({ followed: true }) }
+			]
+		});
+	if (reading || f.progress)
+		rows.push({
+			key: 'progress',
+			label: 'READING',
+			choices: [
+				{ label: 'ANY', on: f.progress === null, to: set({ progress: null }) },
+				{ label: 'UNREAD', on: f.progress === 'unread', to: set({ progress: 'unread' }) },
+				{ label: 'IN PROGRESS', on: f.progress === 'reading', to: set({ progress: 'reading' }) }
 			]
 		});
 	if (reveal)

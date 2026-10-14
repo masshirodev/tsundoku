@@ -22,7 +22,7 @@ import {
 import { isRevealed, runCommand } from '$lib/server/prefs';
 import { parseRating } from '$lib/library/rating';
 import { activeCount, legacyShelf, parseFilters } from '$lib/library/filters';
-import { parseSeed, parseSort } from '$lib/library/labels';
+import { parseDir, parseSeed, parseSort } from '$lib/library/labels';
 import {
 	GroupingError,
 	dismissSuggestion,
@@ -67,6 +67,7 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		!url.searchParams.has('sort') && (shelf === 'new' || (scan && !scan.finishedAt))
 			? 'added'
 			: parseSort(url.searchParams.get('sort'));
+	const dir = parseDir(url.searchParams.get('dir'), sort);
 
 	// A tag is a person or tag page: the library with a richer header. One
 	// whose books are all hidden has no page while reveal is off -- the same
@@ -98,6 +99,7 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		existing: seriesOfBooks(reveal),
 		existingVolumes: seriesOfVolumes(reveal),
 		sort,
+		dir,
 		seed,
 		empty: total === 0 && !scan,
 		dupes,
@@ -120,10 +122,11 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 						// CACHED narrows on the device, filters and all.
 						filters: shelf === 'cached' ? undefined : filters,
 						sort,
+						dir,
 						seed,
 						limit: shelf === 'cached' ? undefined : pageSize
 					}),
-		total: shelf === 'people' ? 0 : countListed({ reveal, shelf, tag, filters, sort }),
+		total: shelf === 'people' ? 0 : countListed({ reveal, shelf, tag, filters }),
 		pageSize
 	};
 };

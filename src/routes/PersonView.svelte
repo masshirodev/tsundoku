@@ -237,6 +237,7 @@
 			{reveal}
 			title={page.person ? 'BOOKS' : 'SERIES'}
 			count={nFilters ? `${count(shown.length)} OF ${count(onTab.length)}` : count(onTab.length)}
+			reading={false}
 			onchange={(f) => (filters = f)}
 		/>
 	</div>

@@ -39,6 +39,8 @@ export type SeriesCard = {
 	downloaded?: boolean;
 	/** FOLLOW is on (doc/DOWNLOADING.md): what FOLLOWED filters on the device. */
 	followed?: boolean;
+	/** An entry has been opened: what READING's UNREAD tells apart on the device. */
+	opened?: boolean;
 	/**
 	 * A book folded from several languages (doc/EDITIONS.md): their codes,
 	 * the one it opens in first ("EN · JA"). Absent for any other.

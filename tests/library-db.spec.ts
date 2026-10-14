@@ -7,7 +7,8 @@ const { getDb } = await import('$lib/server/db');
 const { seedSample, SAMPLE_ROWS, HIDDEN_TITLES, BOOK_SERIES_TITLE } =
 	await import('$lib/server/fixtures');
 const lib = await import('$lib/server/library');
-const { NO_FILTERS } = await import('$lib/library/filters');
+const filtersMod = await import('$lib/library/filters');
+const { NO_FILTERS } = filtersMod;
 type Filters = import('$lib/library/filters').Filters;
 const only = (patch: Partial<Filters>): Filters => ({ ...NO_FILTERS, ...patch });
 
@@ -245,6 +246,24 @@ describe('the FILTER panel (c68, doc/FILTERS.md)', () => {
 		expect(list(only({ lang: 'ja' }), false)).toEqual([]);
 	});
 
+	it('READING: UNREAD and IN PROGRESS, in SQL as the device decides them, hidden included', () => {
+		const { progressOf } = filtersMod;
+		for (const reveal of [false, true]) {
+			const all = everything(reveal);
+			for (const progress of ['unread', 'reading'] as const) {
+				const got = list(only({ progress }), reveal);
+				expect(titles(got).sort()).toEqual(
+					titles(all.filter((c) => progressOf(c) === progress)).sort()
+				);
+				expect(lib.countListed({ reveal, filters: only({ progress }) })).toBe(got.length);
+			}
+		}
+		// Hidden ones are what it's for: with reveal on, it reaches them.
+		const both = only({ hidden: true, progress: 'unread' });
+		expect(list(both, true).every((c) => c.hidden && !c.opened && c.readCount === 0)).toBe(true);
+		expect(list(only({ progress: 'reading' }), true).length).toBeGreaterThan(0);
+	});
+
 	it('HIDDEN: only hidden, and only ever with reveal on', () => {
 		const hidden = list(only({ hidden: true }), true);
 		expect(titles(hidden).sort()).toEqual([...hiddenTitles].sort());
@@ -269,13 +288,35 @@ describe('SERIES and ONE-OFF (c68)', () => {
 
 describe('pages of a shelf', () => {
 	it('page through the same list the whole shelf is, without gaps or repeats', () => {
-		for (const sort of ['recent', 'title', 'rating', 'added', 'random'] as const) {
-			const whole = lib.listSeries({ reveal: true, sort }).map((c) => c.id);
-			const paged: number[] = [];
-			for (let offset = 0; offset < whole.length; offset += 7)
-				paged.push(...lib.listSeries({ reveal: true, sort, limit: 7, offset }).map((c) => c.id));
-			expect(paged).toEqual(whole);
+		for (const sort of ['recent', 'title', 'rating', 'added', 'random'] as const)
+			for (const dir of ['asc', 'desc'] as const) {
+				const whole = lib.listSeries({ reveal: true, sort, dir }).map((c) => c.id);
+				const paged: number[] = [];
+				for (let offset = 0; offset < whole.length; offset += 7)
+					paged.push(
+						...lib.listSeries({ reveal: true, sort, dir, limit: 7, offset }).map((c) => c.id)
+					);
+				expect(paged).toEqual(whole);
+			}
+	});
+
+	it('turn each sort round with ?dir=, never-read still last under RECENTLY READ', () => {
+		for (const sort of ['title', 'added'] as const) {
+			const down = lib.listSeries({ reveal: true, sort, dir: 'desc' }).map((c) => c.id);
+			const up = lib.listSeries({ reveal: true, sort, dir: 'asc' }).map((c) => c.id);
+			expect(up).toEqual([...down].reverse());
 		}
+		expect(lib.listSeries({ reveal: true, sort: 'title' })).toEqual(
+			lib.listSeries({ reveal: true, sort: 'title', dir: 'asc' })
+		);
+		const up = lib.listSeries({ reveal: true, sort: 'recent', dir: 'asc' });
+		const firstNever = up.findIndex((c) => !c.opened);
+		expect(firstNever).toBeGreaterThan(0);
+		expect(up.slice(firstNever).every((c) => !c.opened)).toBe(true);
+		const ratings = lib
+			.listSeries({ reveal: true, sort: 'rating', dir: 'asc' })
+			.map((c) => c.rating);
+		expect(ratings).toEqual([...ratings].sort((a, b) => a - b));
 	});
 
 	it('RANDOM is one shuffle per seed: the same every time, another with another seed', () => {

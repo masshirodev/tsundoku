@@ -4,7 +4,7 @@ import { getSetting } from './settings.ts';
 import { langCode, openingEdition } from '$lib/library/editions';
 import { likePattern } from '$lib/library/search';
 import { dayStart, type Filters } from '$lib/library/filters';
-import type { Sort } from '$lib/library/labels';
+import { naturalDir, type Dir, type Sort } from '$lib/library/labels';
 import type {
 	ContinueItem,
 	Kind,
@@ -42,6 +42,7 @@ type CardRow = {
 	cover_at: number | null;
 	available: number;
 	followed: number;
+	opened: number;
 	language?: string | null;
 };
 
@@ -88,6 +89,7 @@ function cardQuery(where: string, order: string, limit = ''): string {
 		COALESCE(f.n, 0) AS new_count,
 		COALESCE(t.available, 0) AS available,
 		s.followed_at IS NOT NULL AS followed,
+		t.last_opened IS NOT NULL AS opened,
 		l.language
 	FROM picked p JOIN series s ON s.id = p.id JOIN roots r ON r.id = s.root_id
 	LEFT JOIN stats t ON t.series_id = s.id LEFT JOIN fresh f ON f.series_id = s.id
@@ -166,6 +168,7 @@ function toCard(row: CardRow): SeriesCard {
 		cover: row.cover_at,
 		downloaded: row.available === 1,
 		followed: row.followed === 1,
+		opened: row.opened === 1,
 		language: row.language ?? null
 	};
 }
@@ -185,19 +188,28 @@ const randomOrder = (seed: number) => {
 	return `((${h} * ${h}) % 2147483647), s.id`;
 };
 
-const orderOf = (sort: Sort, seed = 1) => (sort === 'random' ? randomOrder(seed) : ORDER[sort]);
+const orderOf = (sort: Sort, dir: Dir, seed = 1) =>
+	sort === 'random' ? randomOrder(seed) : ORDER[sort](dir.toUpperCase() as 'ASC' | 'DESC');
 
 /** NEWEST on the NEW shelf is by arrival: added_at is the source's date (rung 34). */
-const orderFor = (opts: { shelf?: string; sort?: Sort; seed?: number }) =>
-	opts.shelf === 'new' && opts.sort === 'added'
-		? `s.arrived_at DESC, s.id DESC`
-		: orderOf(opts.sort ?? 'recent', opts.seed);
+const orderFor = (opts: { shelf?: string; sort?: Sort; dir?: Dir; seed?: number }) => {
+	const sort = opts.sort ?? 'recent';
+	const dir = opts.dir ?? naturalDir(sort);
+	return opts.shelf === 'new' && sort === 'added'
+		? `s.arrived_at ${dir.toUpperCase()}, s.id ${dir.toUpperCase()}`
+		: orderOf(sort, dir, opts.seed);
+};
 
-const ORDER: Record<Exclude<Sort, 'random'>, string> = {
-	recent: `t.last_opened DESC NULLS LAST, s.added_at DESC, s.id DESC`,
-	title: `s.title COLLATE NOCASE ASC, s.id ASC`,
-	rating: `s.rating DESC, s.title COLLATE NOCASE ASC, s.id ASC`,
-	added: `s.added_at DESC, s.id DESC`
+/**
+ * Each sort in either direction (`?dir=`). Never-read series stay last under
+ * RECENTLY READ both ways: turned round it's the longest-untouched first, not
+ * the never-opened. RATING's ties stay A–Z whichever way it runs.
+ */
+const ORDER: Record<Exclude<Sort, 'random'>, (d: 'ASC' | 'DESC') => string> = {
+	recent: (d) => `t.last_opened ${d} NULLS LAST, s.added_at ${d}, s.id ${d}`,
+	title: (d) => `s.title COLLATE NOCASE ${d}, s.id ${d}`,
+	rating: (d) => `s.rating ${d}, s.title COLLATE NOCASE ASC, s.id ASC`,
+	added: (d) => `s.added_at ${d}, s.id ${d}`
 };
 
 /**
@@ -231,6 +243,21 @@ const ONE_OFF_SQL = `(s.kind = 'doujin' AND (SELECT COUNT(*) FROM entries e
 /** Something to read without the internet: a chapter on disk. */
 const DOWNLOADED_SQL =
 	'EXISTS (SELECT 1 FROM entries e WHERE e.series_id = s.id AND e.available = 1)';
+
+/**
+ * READING (`?progress=`), as progressOf in src/lib/library/filters.ts:
+ * begun is an entry opened or read; not all read is a counted entry (not
+ * shadowed, not front matter) still unread.
+ */
+const BEGUN_SQL = `EXISTS (SELECT 1 FROM entries e WHERE e.series_id = s.id
+	AND (e.last_opened_at IS NOT NULL
+		OR (e.shadowed = 0 AND e.matter = '' AND e.read_at IS NOT NULL)))`;
+const UNFINISHED_SQL = `EXISTS (SELECT 1 FROM entries e WHERE e.series_id = s.id
+	AND e.shadowed = 0 AND e.matter = '' AND e.read_at IS NULL)`;
+const PROGRESS_SQL = {
+	unread: `NOT ${BEGUN_SQL}`,
+	reading: `(${BEGUN_SQL} AND ${UNFINISHED_SQL})`
+};
 
 /** `language:` values that describe a book rather than name a language. */
 const NOT_LANGUAGES = `('translated', 'rewrite', 'speechless', 'text cleaned')`;
@@ -270,6 +297,8 @@ type ListOpts = {
 	shelf?: string;
 	tag?: string | null;
 	sort?: Sort;
+	/** The sort's direction; its natural one when absent. */
+	dir?: Dir;
 	/** The FILTER panel's narrowing (doc/FILTERS.md), on top of the shelf. */
 	filters?: Filters;
 };
@@ -325,6 +354,7 @@ function filterClause(f: Filters | undefined, reveal: boolean): { sql: string; p
 	}
 	if (f.dl !== null) sql.push(f.dl ? DOWNLOADED_SQL : `NOT ${DOWNLOADED_SQL}`);
 	if (f.followed) sql.push('s.followed_at IS NOT NULL');
+	if (f.progress) sql.push(PROGRESS_SQL[f.progress]);
 	if (f.hidden && reveal) sql.push(HIDDEN_SQL);
 	return { sql: sql.length ? sql.join(' AND ') : '1', params };
 }

@@ -350,9 +350,11 @@ test('RANDOM shuffles anew each time it’s chosen, and keeps its shuffle across
 	page
 }) => {
 	await page.goto('/?shelf=all&sort=added');
-	await page.getByRole('button', { name: 'Change sort' }).click();
+	await page.waitForLoadState('networkidle');
+	const menu = page.getByRole('combobox', { name: 'Sort' });
+	await menu.selectOption('random');
 	await expect(page).toHaveURL(/sort=random&seed=\d+|seed=\d+&sort=random|sort=random.*seed=\d+/);
-	await expect(page.getByRole('button', { name: 'Change sort' })).toHaveText('RANDOM');
+	await expect(menu).toHaveValue('random');
 	const seed = new URL(page.url()).searchParams.get('seed');
 	const order = await page.locator('.grid .tile .title').allTextContents();
 	await page.reload();
@@ -363,6 +365,42 @@ test('RANDOM shuffles anew each time it’s chosen, and keeps its shuffle across
 		.first()
 		.click();
 	await expect(page).toHaveURL(new RegExp(`seed=${seed}`));
-	await page.getByRole('button', { name: 'Change sort' }).click();
+	await menu.selectOption('recent');
 	await expect(page).not.toHaveURL(/seed=/);
+});
+
+test('SORT is a menu, and the toggle beside it turns the order round', async ({ page }) => {
+	await page.goto('/');
+	await page.waitForLoadState('networkidle');
+	const menu = page.getByRole('combobox', { name: 'Sort' });
+	await expect(menu).toHaveValue('recent');
+	// Last read, then newest, then the rest.
+	await expect(menu.locator('option')).toHaveText([
+		'RECENTLY READ',
+		'RECENTLY ADDED',
+		'TITLE',
+		'RATING',
+		'RANDOM'
+	]);
+
+	await menu.selectOption('title');
+	await page.waitForURL(/sort=title/);
+	const tiles = page.locator('.grid .tile');
+	const firstAz = await tiles.first().textContent();
+	const toggle = page.getByRole('button', { name: /reverse/i });
+	await expect(toggle).toHaveText('A–Z');
+
+	await toggle.click();
+	await page.waitForURL(/dir=desc/);
+	await expect(toggle).toHaveText('Z–A');
+	await expect(tiles.first()).not.toHaveText(firstAz ?? '');
+
+	// Back to its own direction leaves no ?dir= behind.
+	await toggle.click();
+	await expect(page).not.toHaveURL(/dir=/);
+
+	// A new sort starts in its own direction; RANDOM has none to turn.
+	await menu.selectOption('random');
+	await page.waitForURL(/sort=random/);
+	await expect(page.getByRole('button', { name: /reverse/i })).toHaveCount(0);
 });

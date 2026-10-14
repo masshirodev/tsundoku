@@ -32,7 +32,8 @@
 		keep = [],
 		wide = false,
 		downloaded = true,
-		following = false
+		following = false,
+		reading = true
 	}: {
 		filters: Filters;
 		/** Codes present on the shelf: LANGUAGE offers these, and doesn't exist without any. */
@@ -52,6 +53,8 @@
 		downloaded?: boolean;
 		/** Something visible is followed: FOLLOWED is offered (doc/DOWNLOADING.md). */
 		following?: boolean;
+		/** Off where cards don't know their progress (a person's page, which has its own UNREAD tab). */
+		reading?: boolean;
 	} = $props();
 
 	let open = $state(false);
@@ -66,7 +69,9 @@
 
 	const n = $derived(activeCount(filters));
 	const rows = $derived(
-		filterRows(filters, languages, reveal, following).filter((r) => downloaded || r.key !== 'dl')
+		filterRows(filters, languages, reveal, following, reading).filter(
+			(r) => downloaded || r.key !== 'dl'
+		)
 	);
 	const cleared = NO_FILTERS;
 

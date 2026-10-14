@@ -14,12 +14,14 @@ import { likePattern, parseSearch, splitMatch } from '$lib/library/search';
 import {
 	continueSub,
 	count,
-	nextSort,
+	dirLabel,
+	parseDir,
 	parseSeed,
 	parseSort,
 	percent,
 	progress,
-	sheetMeta
+	sheetMeta,
+	SORTS
 } from '$lib/library/labels';
 import { coverPlaceholder, hueFor } from '$lib/library/cover';
 import type { ContinueItem, SeriesCard } from '$lib/library/types';
@@ -194,13 +196,20 @@ describe('labels', () => {
 		expect(parseSeed(String(2 ** 31))).toBe(1);
 	});
 
-	it('cycles sorts and falls back to recent', () => {
-		expect(nextSort('recent')).toBe('title');
-		expect(nextSort('added')).toBe('random');
-		expect(nextSort('random')).toBe('recent');
+	it('lists last read, then newest, then the rest, and falls back to recent', () => {
+		expect(SORTS.slice(0, 2)).toEqual(['recent', 'added']);
 		expect(parseSort('random')).toBe('random');
 		expect(parseSort('nonsense')).toBe('recent');
 		expect(parseSort(null)).toBe('recent');
+	});
+
+	it('reads a direction, else the sort’s own: titles A to Z, everything else high to low', () => {
+		expect(parseDir(null, 'title')).toBe('asc');
+		expect(parseDir(null, 'recent')).toBe('desc');
+		expect(parseDir('asc', 'rating')).toBe('asc');
+		expect(parseDir('sideways', 'added')).toBe('desc');
+		expect(dirLabel('title', 'desc')).toBe('Z–A');
+		expect(dirLabel('added', 'asc')).toBe('↑');
 	});
 });
 

@@ -4,7 +4,7 @@ The screen tsundoku opens on, built from the "Index" design system (see
 [`design/README.md`](design/README.md)) against `Index Library.dc.html`, all nine
 states on all four devices.
 
-Routes: `/` (the library, with `?shelf=`, `?tag=`, `?sort=`), `/search?q=`, and
+Routes: `/` (the library, with `?shelf=`, `?tag=`, `?sort=`, `?dir=`), `/search?q=`, and
 `/api/series/[id]` (what the long-press sheet reads).
 
 ## States, and what actually drives each
@@ -219,16 +219,37 @@ The end-to-end tests shrink the page with a `tsundoku_grid_page` cookie
 (`pageSizeOf`), so the seed's twenty-odd series make several pages. Nothing
 else sets it.
 
+## Sort and direction
+
+Asked for on 2026-10-14: the sort was a label that cycled, so reaching one
+meant tapping through the others, and nothing ran the other way round.
+
+- **SORT is a native `<select>`** in the label's own type, without the
+  browser's box, and ▾ after it. Its choices run last read, then newest,
+  then the rest: RECENTLY READ, RECENTLY ADDED, TITLE, RATING, RANDOM
+  (`SORTS`, `src/lib/library/labels.ts`). Choosing one goes to its URL.
+- **The toggle beside it turns the order round** (`?dir=asc|desc`). It reads
+  A–Z / Z–A beside TITLE and ↓ / ↑ beside the rest, ↓ being high to low:
+  most recent, newest, best first. Each sort has its own direction (TITLE
+  ascending, the rest descending), and `?dir=` is in the URL only while it's
+  turned from that, so old links mean what they did. Choosing another sort
+  drops it. RANDOM has no direction and no toggle.
+- **Turned round, RECENTLY READ still keeps the never-read last**: ascending
+  is the longest-untouched first, not a wall of things never opened.
+  RATING's ties stay A–Z either way. Every order still ends in the id, so
+  pages stay clean in both directions (`ORDER`, `src/lib/server/library.ts`).
+- **On NEW**, RECENTLY ADDED is newest arrival, and turned round, oldest.
+
 ## Random
 
-The sort label cycles RECENTLY READ → A–Z → RATING → RECENTLY ADDED →
-**RANDOM**. RANDOM is a shuffle kept in the URL (`sort=random&seed=…`):
+The sort is a menu (see "Sort and direction"), and its last choice is
+**RANDOM**, a shuffle kept in the URL (`sort=random&seed=…`):
 
 - the database orders by a hash of the series id and the seed
   (`randomOrder`, `src/lib/server/library.ts`), so one seed is one fixed order.
   Pages never repeat a card, a reload shows the same order, and going back
   finds it again;
-- choosing RANDOM again (going round the cycle) picks a new seed, a new
+- choosing RANDOM again (from another sort) picks a new seed, a new
   shuffle;
 - another tab keeps the shuffle; leaving RANDOM drops the seed.
 
@@ -295,6 +316,6 @@ Specific and honest, so a deliberate gap isn't mistaken for an oversight:
   languages in a corner badge, `EN · JA` ([`EDITIONS.md`](EDITIONS.md)).
 - **Covers** come from the files or the source site ([`COVERS.md`](COVERS.md)). A
   series with none keeps the striped placeholder.
-- **Sorting** cycles recently read → A–Z → rating → recently added through the
-  label on the right of `02 — SHELVES`. The mock shows the label but not what
-  tapping it does.
+- **Sorting** is a menu on the right of `02 — SHELVES`, with a direction
+  toggle beside it (see "Sort and direction"). The mock shows a label but not
+  what tapping it does; it cycled through the sorts until 2026-10-14.

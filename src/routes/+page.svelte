@@ -40,7 +40,17 @@
 	import { hueFor } from '$lib/library/cover';
 	import { desktop, phone, wide } from '$lib/device.svelte';
 	import { offline } from '$lib/offline.svelte';
-	import { continueSub, count, newSeed, nextSort, progress, SORT_LABEL } from '$lib/library/labels';
+	import {
+		continueSub,
+		count,
+		dirLabel,
+		naturalDir,
+		newSeed,
+		parseSort,
+		progress,
+		SORT_NAME,
+		SORTS
+	} from '$lib/library/labels';
 	import { coverSrc, readHref, seriesHref, shelfHref, withParam } from '$lib/library/links';
 	import type { Rating, SeriesCard, Shelf } from '$lib/library/types';
 	import { pageQuery } from '$lib/library/paging';
@@ -76,15 +86,17 @@
 	 */
 	let ended = $state(false);
 	const hasMore = $derived(!ended && data.shelf !== 'cached' && series.length < data.total);
+	/** `?dir=`, only when the sort is turned from its own direction. */
+	const dirParam = $derived(data.dir === naturalDir(data.sort) ? undefined : data.dir);
 	const listKey = $derived(
-		`${data.shelf}|${data.tag ?? ''}|${filterParams(data.filters)}|${data.sort}|${data.seed}|${data.reveal}`
+		`${data.shelf}|${data.tag ?? ''}|${filterParams(data.filters)}|${data.sort}|${data.dir}|${data.seed}|${data.reveal}`
 	);
 	let shownKey = '';
 
 	async function fetchPage(offset: number, limit: number): Promise<SeriesCard[] | null> {
 		try {
 			const res = await fetch(
-				`/api/library?${pageQuery({ shelf: data.shelf, tag: data.tag, filters: data.filters, sort: data.sort, seed: data.seed, offset, limit })}`
+				`/api/library?${pageQuery({ shelf: data.shelf, tag: data.tag, filters: data.filters, sort: data.sort, dir: dirParam, seed: data.seed, offset, limit })}`
 			);
 			if (!res.ok) return null;
 			return ((await res.json()) as { series: SeriesCard[] }).series;
@@ -515,6 +527,7 @@
 				tag: data.tag,
 				filters: data.filters,
 				sort: data.sort,
+				dir: dirParam,
 				offset: 0,
 				limit: 0
 			});
@@ -527,15 +540,26 @@
 
 	const gb = (bytes: number) => (bytes / 1e9).toFixed(1).replace(/\.0$/, '');
 
-	function sortNext() {
-		const next = nextSort(data.sort);
+	/** A sort from the SORT menu, in its own direction. */
+	function sortTo(raw: string) {
+		const next = parseSort(raw);
 		const url = new URL(page.url);
 		url.searchParams.set('sort', next);
+		url.searchParams.delete('dir');
 		// RANDOM shuffles anew each time it's chosen; the other orders need no seed.
 		if (next === 'random') url.searchParams.set('seed', String(newSeed()));
 		else url.searchParams.delete('seed');
 		// eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam() keeps the current, resolved path
-		void goto(withParam(url, 'sort', next), {
+		void goto(withParam(url, 'sort', next), { noScroll: true, keepFocus: true });
+	}
+
+	/** ↓ / ↑: the same sort the other way round. Its own direction leaves no `?dir=`. */
+	function flipDir() {
+		const to = data.dir === 'asc' ? 'desc' : 'asc';
+		const url = new URL(page.url);
+		url.searchParams.set('sort', data.sort);
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam() keeps the current, resolved path
+		void goto(withParam(url, 'dir', to === naturalDir(data.sort) ? null : to), {
 			noScroll: true,
 			keepFocus: true
 		});
@@ -781,9 +805,21 @@
 				{:else if scanning}
 					NEWEST FIRST
 				{:else}
-					<button type="button" onclick={sortNext} aria-label="Change sort"
-						>{SORT_LABEL[data.sort]}</button
-					>
+					<span class="sort">
+						<select
+							aria-label="Sort"
+							value={data.sort}
+							onchange={(e) => sortTo(e.currentTarget.value)}
+						>
+							{#each SORTS as s (s)}<option value={s}>{SORT_NAME[s]}</option>{/each}
+						</select>
+						<span class="caret" aria-hidden="true">▾</span>
+						{#if data.sort !== 'random'}
+							<button type="button" class="dir" onclick={flipDir} aria-label="Reverse order"
+								>{dirLabel(data.sort, data.dir)}</button
+							>
+						{/if}
+					</span>
 				{/if}
 			{/snippet}
 		</SectionLabel>
@@ -1086,6 +1122,34 @@
 		position: relative;
 		z-index: 5;
 		background: var(--surface-page);
+	}
+	/* SORT: a menu in the label's own type, without the native box; ▾ says it opens. */
+	.sort {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 10px;
+	}
+	.sort select {
+		appearance: none;
+		border: 0;
+		margin: 0;
+		padding: 0;
+		background: none;
+		font: inherit;
+		letter-spacing: inherit;
+		color: inherit;
+		cursor: pointer;
+	}
+	.sort select option {
+		background: var(--surface-panel);
+		color: var(--text-1);
+	}
+	.caret {
+		margin-left: -6px;
+		pointer-events: none;
+	}
+	.sort .dir {
+		color: var(--text-1);
 	}
 	.filter-desk,
 	.desk-count {

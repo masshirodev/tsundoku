@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { isRevealed } from '$lib/server/prefs';
 import { listSeries, listedIds } from '$lib/server/library';
-import { parseSeed, parseSort } from '$lib/library/labels';
+import { parseDir, parseSeed, parseSort } from '$lib/library/labels';
 import { parseFilters } from '$lib/library/filters';
 import { GRID_MAX, GRID_PAGE } from '$lib/library/paging';
 
@@ -12,12 +12,14 @@ import { GRID_MAX, GRID_PAGE } from '$lib/library/paging';
  * instead, for SELECT ALL. Hidden means hidden here as on the screen.
  */
 export const GET: RequestHandler = ({ url, cookies }) => {
+	const sort = parseSort(url.searchParams.get('sort'));
 	const opts = {
 		reveal: isRevealed(cookies),
 		shelf: url.searchParams.get('shelf') ?? 'all',
 		tag: url.searchParams.get('tag'),
 		filters: parseFilters(url.searchParams, isRevealed(cookies)),
-		sort: parseSort(url.searchParams.get('sort'))
+		sort,
+		dir: parseDir(url.searchParams.get('dir'), sort)
 	};
 	const headers = { 'cache-control': 'private, no-store' };
 	if (url.searchParams.has('ids')) return json({ ids: listedIds(opts) }, { headers });
