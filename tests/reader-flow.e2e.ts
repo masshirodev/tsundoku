@@ -109,6 +109,47 @@ test('the last page leads to the chapter boundary, and a tap on into the next ch
 	await expect(page).toHaveURL(/\/read\/\d+/);
 });
 
+test('going on into the next chapter starts it at page 1, not where it was left', async ({
+	page
+}) => {
+	await seriesId(page, 'Hikaru ga Shinda Natsu');
+	const cont = await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.getAttribute('href');
+	// The tests before leave CONTINUE on the last chapter: back from its first
+	// page is the chapter before it, which has one after.
+	await page.goto(`${cont}?p=1`);
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	await tap(page, 0.95);
+	await expect(page).toHaveURL(/p=last/);
+	const first = new URL(page.url()).pathname;
+	const toNext = async () => {
+		await page.goto(`${first}?p=last`);
+		await readerReady(page);
+		await page.waitForLoadState('networkidle');
+		await tap(page, 0.05);
+		await expect(page.getByText('← TAP OR SWIPE TO CONTINUE')).toBeVisible();
+		const before = page.url();
+		await tap(page, 0.05);
+		await expect(page).not.toHaveURL(before);
+	};
+	await toNext();
+	const next = new URL(page.url()).pathname;
+	// Leave the next chapter part-read, on page 4.
+	await page.goto(`${next}?p=4`);
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	await expect(page).toHaveURL(/p=4/, { timeout: 5000 });
+
+	await toNext();
+	await expect(page).toHaveURL(new RegExp(`${next}\\?p=1$`));
+	await readerReady(page);
+	await tap(page, 0.5);
+	await expect(meta(page)).toContainText('P. 1 OF');
+});
+
 test('progress is saved: a reload resumes on the same page', async ({ page }) => {
 	await seriesId(page, 'Hikaru ga Shinda Natsu');
 	const href = await page

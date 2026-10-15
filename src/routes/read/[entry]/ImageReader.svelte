@@ -474,16 +474,22 @@
 	function continueOn() {
 		if (endVariant !== 'chapter' || !data.next) return;
 		markFinished();
-		void goto(resolve('/read/[entry]', { entry: String(data.next.id) }), {
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve()
+		void goto(`${resolve('/read/[entry]', { entry: String(data.next.id) })}?p=1`, {
 			replaceState: true,
 			noScroll: true
 		});
 	}
 
+	// Moving to another chapter or book starts it at page 1, never where it was
+	// left: resuming is for opening one from outside the reader (doc/READER.md).
 	function chapter(to: 'prev' | 'next') {
 		const target = to === 'next' ? data.next : data.prev;
 		if (!target) return;
-		void goto(resolve('/read/[entry]', { entry: String(target.id) }), { replaceState: true });
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve()
+		void goto(`${resolve('/read/[entry]', { entry: String(target.id) })}?p=1`, {
+			replaceState: true
+		});
 	}
 
 	// ---- progress ------------------------------------------------------------------------

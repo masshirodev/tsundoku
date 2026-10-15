@@ -189,9 +189,12 @@ The rules are `wideTreatment` and `firstHalf` in `src/lib/reader/reader.ts`.
 
 - **Paged:** after the last page comes a page of its own. It names the chapter
   that ended and the one that starts, with "← TAP OR SWIPE TO CONTINUE" (the
-  arrow follows the direction), and going forward opens the next chapter.
-  Going back from a chapter's first page opens the previous chapter at its
-  last page.
+  arrow follows the direction), and going forward opens the next chapter at
+  page 1. Going back from a chapter's first page opens the previous chapter at
+  its last page. The top bar's chapter (or book) buttons open it at page 1 too.
+  Moving from one entry to another inside the reader never resumes where that
+  one was left: resuming is for opening an entry from outside it (the owner
+  asked on 2026-10-15, after a book in a series of books opened mid-way).
 - **Vertical:** the strip carries on, both ways, as in Mihon's webtoon
   reader. See "Vertical", below.
 - **The end of what's available:** "END · LAST AVAILABLE", the series' title,
