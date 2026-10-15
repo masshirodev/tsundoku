@@ -169,3 +169,14 @@ fails goes to the app's own RETRY / PUT BACK band.
 ### Not yet
 
 - **No page menu in the text reader**: a novel's cover is its EPUB's.
+
+## On older browsers
+
+`Cover` sets its width outright (`width: 100%`) instead of leaving it to the
+flex column it sits in, and falls back to a padding of the ratio's height where
+`aspect-ratio` isn't supported. On 2026-10-15 the Xiaomi Pad 5's browser gave
+a cover stretched by its parent no height from the ratio: every tile in the
+library lost its cover and its badges sat on the title, while desktop
+Chromium, and the Pixel and tablet emulations, drew them all. A cover that
+shows on the desktop and is missing on one device is a layout question before
+it's an image one: look at the tile's height first.

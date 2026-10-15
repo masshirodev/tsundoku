@@ -51,8 +51,12 @@
 </div>
 
 <style>
+	/* The width is said outright, not left to a stretching parent: the Xiaomi
+	   Pad 5's browser gave a stretched cover no height from its ratio, and every
+	   tile in the library lost its cover (2026-10-15). */
 	.cover {
 		position: relative;
+		width: 100%;
 		aspect-ratio: var(--cover-ratio);
 		flex-shrink: 0;
 		display: flex;
@@ -61,6 +65,13 @@
 	}
 	.sized {
 		aspect-ratio: auto;
+	}
+	/* An engine without aspect-ratio at all: a padding the ratio's height. */
+	@supports not (aspect-ratio: 1) {
+		.cover:not(.sized)::before {
+			content: '';
+			padding-top: calc(100% * 2.9 / 2);
+		}
 	}
 	.dashed {
 		border: 1px dashed var(--line-2);
