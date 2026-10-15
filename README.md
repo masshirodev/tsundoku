@@ -44,6 +44,26 @@ offline chapters all need a secure context. It refuses to start without the
 token. `TSUNDOKU_SERVE=http` is the old plain-http tailnet bind. `.env.example`
 lists every variable.
 
+### Restarting it on the tailnet
+
+On the workstation it runs as the `tsundoku` systemd user service, so restart
+the service rather than starting `yarn run serve` by hand (a second server
+would find the port taken). Build first: the server runs from a snapshot of
+`build/` taken when it starts, so a restart without a build serves the old
+code again.
+
+```sh
+yarn run build && systemctl --user restart tsundoku
+systemctl --user status tsundoku         # "Active: active (running)"
+journalctl --user -u tsundoku -n 5       # prints the https://…:8443 address
+curl -s -o /dev/null -w '%{http_code}\n' https://workstation.example.ts.net:8443/   # 303 to login
+```
+
+The served app migrates the database on its first request after a restart.
+Open tablets pick up the new build on their next navigation, within five
+minutes. [`doc/SERVING.md`](doc/SERVING.md) covers installing the unit, boot,
+and the HTTPS mapping.
+
 Search doubles as the command line. Type these exactly and press Enter:
 `/reveal` and `/hide` (show or hide hidden series), `/light` and `/dark`
 (theme), `/incognito` (read without saving), `/scan` (rescan the device copies),
