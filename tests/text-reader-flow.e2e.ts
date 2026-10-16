@@ -96,9 +96,18 @@ test('a wide block opens whole, and an illustration full screen', async ({ page 
 	// Turn until OPEN is on this page: a block on the next one is laid out,
 	// and "visible" to Playwright, but translated off-screen.
 	const open = page.locator('.wide.code .open');
+	// Read once the turn has settled: mid-slide the block is still off-screen,
+	// and turning again then overshot it into the next chapter under the full
+	// run (2026-10-15). Settled is the same position twice, 150ms apart.
 	const onScreen = async () => {
 		if ((await open.count()) === 0) return false;
-		const b = await open.boundingBox();
+		let b = await open.boundingBox();
+		for (let i = 0; i < 20; i++) {
+			await page.waitForTimeout(150);
+			const again = await open.boundingBox();
+			if (again?.x === b?.x) break;
+			b = again;
+		}
 		const v = page.viewportSize()!;
 		return !!b && b.x >= 0 && b.x + b.width <= v.width;
 	};

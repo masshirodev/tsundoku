@@ -4,8 +4,10 @@ import { expect, readerReady, test } from './fixtures';
 /**
  * The page menu end to end (Page Menu, card c26; doc/COVERS.md, "Chosen").
  * Serial, tablet-portrait only. This file owns Omniscient Reader's Viewpoint
- * (a manhwa, read in the vertical strip) and the covers of Rakugaki
- * Collection Vol. 3 (a hidden single), and puts both back to automatic.
+ * (a manhwa, read in the vertical strip) and the covers of Kōhai no Himitsu
+ * Nikki (a hidden single), and puts both back to automatic. Not Rakugaki
+ * Collection Vol. 3: duplicates-flow owns it and sends it to the trash
+ * mid-test, which failed this file whenever the two ran together.
  */
 test.describe.configure({ mode: 'serial' });
 
@@ -83,7 +85,7 @@ test('the PAGES grid: long-press a cell, COVER, and the corner that marks it', a
 	await page.keyboard.press('Enter');
 	await page.waitForURL(/\/$/);
 	await page.goto('/?sort=title');
-	await page.locator('.grid .tile', { hasText: 'Rakugaki Collection Vol. 3' }).first().click();
+	await page.locator('.grid .tile', { hasText: 'Kōhai no Himitsu Nikki' }).first().click();
 	await page.waitForURL(/\/series\/\d+/);
 	const cell = page.locator('[data-cell="2"]');
 	await cell.scrollIntoViewIfNeeded();

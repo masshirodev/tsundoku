@@ -84,7 +84,8 @@ export default defineConfig({
 		{
 			name: 'tablet-portrait',
 			// The gate changes /reveal for everyone; it runs last, in its own project.
-			testIgnore: ['**/build/**', '**/unlock-gate.e2e.ts'],
+			// The duplicates flow runs alone before it (see its project, below).
+			testIgnore: ['**/build/**', '**/unlock-gate.e2e.ts', '**/duplicates-flow.e2e.ts'],
 			use: { ...devices['Galaxy Tab S4'], viewport: { width: 800, height: 1280 } }
 		},
 		// Flow specs write to the shared seeded database, so they run once, above.
@@ -102,9 +103,20 @@ export default defineConfig({
 			use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } }
 		},
 		{
+			// Any load of the library carries out a duplicate decision left
+			// waiting (src/routes/+page.server.ts), so beside the other workers
+			// KEEP B was carried out in milliseconds and UNDO had nothing to take
+			// back: Rakugaki was deleted and the next test lost its pair. Alone,
+			// after every device, nothing else loads the library meanwhile.
+			name: 'duplicates',
+			testMatch: '**/duplicates-flow.e2e.ts',
+			dependencies: ['tablet-portrait', 'tablet-landscape', 'phone', 'desktop'],
+			use: { ...devices['Galaxy Tab S4'], viewport: { width: 800, height: 1280 } }
+		},
+		{
 			name: 'gate',
 			testMatch: '**/unlock-gate.e2e.ts',
-			dependencies: ['tablet-portrait', 'tablet-landscape', 'phone', 'desktop'],
+			dependencies: ['tablet-portrait', 'tablet-landscape', 'phone', 'desktop', 'duplicates'],
 			use: { ...devices['Galaxy Tab S4'], viewport: { width: 800, height: 1280 } }
 		}
 	]

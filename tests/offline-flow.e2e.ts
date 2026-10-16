@@ -64,15 +64,20 @@ test('opening a chapter keeps it and the next two on the tablet, and they read o
 		.toBeGreaterThan(0);
 
 	// Reading offline: the open, and the page turned to once it settles,
-	// are both kept on the tablet.
+	// are both kept on the tablet. Waited for by P. 3's own record, not a
+	// count: under the full run, the open and P. 2's settle made two before
+	// the turn had settled, and the replay left the chapter on P. 2.
 	await page.mouse.click(40, 640);
 	await expect
 		.poll(() =>
-			page.evaluate(
-				() => (JSON.parse(localStorage.getItem('tsundoku.pending') ?? '[]') as unknown[]).length
+			page.evaluate(() =>
+				(JSON.parse(localStorage.getItem('tsundoku.pending') ?? '[]') as string[]).map((b) => {
+					const r = JSON.parse(b) as { kind: string; page: number };
+					return `${r.kind}:${r.page}`;
+				})
 			)
 		)
-		.toBeGreaterThanOrEqual(2);
+		.toEqual(expect.arrayContaining(['open:1', 'page:2']));
 
 	// Back online: it reaches the workstation, at its own time.
 	await context.setOffline(false);
