@@ -15,14 +15,22 @@ export const GET: RequestHandler = ({ cookies, request }) => {
 	let stop = () => {};
 	const stream = new ReadableStream<string>({
 		start(controller) {
-			stop = listen(reveal, (m) => controller.enqueue(`data: ${JSON.stringify(m)}\n\n`));
-			request.signal.addEventListener('abort', () => {
-				stop();
+			const end = () => {
 				try {
 					controller.close();
 				} catch {
 					// Closed already.
 				}
+			};
+			stop = listen(
+				reveal,
+				(m) => controller.enqueue(`data: ${JSON.stringify(m)}\n\n`),
+				// The server stopping: the screen's EventSource reconnects to the next one.
+				end
+			);
+			request.signal.addEventListener('abort', () => {
+				stop();
+				end();
 			});
 		},
 		cancel() {

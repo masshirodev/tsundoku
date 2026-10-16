@@ -28,7 +28,7 @@ export type LiveMessage = {
 	downloading: { chapterId: number; fraction: number; page: number; pages: number } | null;
 };
 
-type Listener = { reveal: boolean; send: (m: LiveMessage) => void };
+type Listener = { reveal: boolean; send: (m: LiveMessage) => void; close: () => void };
 
 const listeners = new Set<Listener>();
 let timer: ReturnType<typeof setTimeout> | null = null;
@@ -89,6 +89,8 @@ async function tick() {
 function schedule() {
 	if (timer) return;
 	timer = setTimeout(() => void tick(), listeners.size ? 3000 : 30_000);
+	// Background work: it never keeps a stopping server alive (see below).
+	timer.unref();
 }
 
 /** Started by the first page load that shows the queue; harmless to call again. */
@@ -97,8 +99,12 @@ export function ensureWatcher() {
 }
 
 /** A screen listening for the queue's changes. Returns the way to stop. */
-export function listen(reveal: boolean, send: (m: LiveMessage) => void): () => void {
-	const l = { reveal, send };
+export function listen(
+	reveal: boolean,
+	send: (m: LiveMessage) => void,
+	close: () => void = () => {}
+): () => void {
+	const l = { reveal, send, close };
 	listeners.add(l);
 	// The first message at once, so the screen has its baseline.
 	if (timer) clearTimeout(timer);
@@ -124,7 +130,25 @@ function importSoon() {
 	if (importTimer) clearTimeout(importTimer);
 	const wait = Math.max(20_000, lastImport + 60_000 - Date.now());
 	importTimer = setTimeout(() => void importNow(), wait);
+	// A stop drops a pending import; the ten-minute timer picks the chapter up.
+	importTimer.unref();
 }
+
+/**
+ * On SIGTERM adapter-node closes the server and waits for its connections,
+ * but a live screen's stream never ends by itself, so `systemctl restart`
+ * sat out the 90 s stop timeout and was killed (2026-10-15). Ending the
+ * streams, with the timers above unref'd, lets the process exit at once.
+ */
+function stopAll() {
+	if (timer) clearTimeout(timer);
+	if (importTimer) clearTimeout(importTimer);
+	timer = importTimer = null;
+	for (const l of [...listeners]) l.close();
+	listeners.clear();
+}
+process.once('SIGTERM', stopAll);
+process.once('SIGINT', stopAll);
 
 async function importNow() {
 	importTimer = null;

@@ -30,6 +30,13 @@ systemctl --user status tsundoku
 journalctl --user -u tsundoku -f
 ```
 
+A restart stops the server within a second or two. Until 2026-10-15 every
+stop sat out systemd's 90 s timeout and was killed: the Suwayomi watcher
+(`src/lib/server/suwayomi-watch.ts`) kept rescheduling its poll, so the event
+loop never emptied, and a screen's live downloads stream held the HTTP server
+open. On SIGTERM the watcher now ends every stream (the screens' EventSource
+reconnects to the next server) and its timers don't keep the process alive.
+
 With the service on, don't also run `yarn run serve` by hand: the second
 one would find the port taken. A restart snapshots the build into
 `.serving/` as `serve` always has, so building while it runs is safe.
