@@ -1,6 +1,7 @@
 import { mkdirSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { configured, forget, gql, queue, seriesForKey } from './suwayomi.ts';
+import { suwayomiAuth } from './suwayomi-auth.ts';
 import { libraryRoot, startScan } from './import/index.ts';
 import { SUWAYOMI_DEVICE, backupsToPrune } from '../import/suwayomi.ts';
 import { queueView, type QueueItem } from '../library/downloads.ts';
@@ -173,7 +174,7 @@ export async function backupNow(): Promise<string> {
 		60_000
 	);
 	const url = new URL(d.createBackup.url, process.env.SUWAYOMI_URL);
-	const res = await fetch(url);
+	const res = await fetch(url, { headers: suwayomiAuth(url) });
 	if (!res.ok) throw new Error(`the backup download answered ${res.status}`);
 	const folder = join(libraryRoot(), 'devices', SUWAYOMI_DEVICE, 'Mihon', 'autobackup');
 	mkdirSync(folder, { recursive: true });

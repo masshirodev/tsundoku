@@ -1,6 +1,7 @@
 import { getDb } from './db.ts';
 import { getSetting, setSetting } from './settings.ts';
 import { VISIBLE_SQL } from './visibility.ts';
+import { suwayomiAuth } from './suwayomi-auth.ts';
 import {
 	chapterStates,
 	queueView,
@@ -14,9 +15,9 @@ import {
 
 /**
  * tsundoku asking Suwayomi-Server (doc/DOWNLOADING.md, "From tsundoku"): what
- * a series has, what's queued, and to download. Suwayomi stays bound to
- * localhost; the screens are tsundoku's, and this is the only thing that talks
- * to it on their behalf.
+ * a series has, what's queued, and to download. The screens are tsundoku's,
+ * and this is the only thing that talks to Suwayomi on their behalf; it does so
+ * on localhost, with the login Suwayomi asks for since it went on the tailnet.
  *
  * Off unless `SUWAYOMI_URL` is set, so a checkout without Suwayomi (and the
  * e2e build) draws no DOWNLOAD row at all rather than one that never answers.
@@ -40,7 +41,7 @@ export async function gql<T>(
 	try {
 		res = await fetch(`${server()}/api/graphql`, {
 			method: 'POST',
-			headers: { 'content-type': 'application/json' },
+			headers: { 'content-type': 'application/json', ...suwayomiAuth(server()) },
 			body: JSON.stringify({ query, variables }),
 			signal: AbortSignal.timeout(timeoutMs)
 		});

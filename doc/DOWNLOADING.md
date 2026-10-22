@@ -52,7 +52,7 @@ Spark in Your Eyes: the tablet's 212–218, Suwayomi's 219, one series.
 | Its unit              | `ops/systemd/tsundoku-suwayomi.service`, a user unit                     |
 | Its data              | `/mnt/hdd2/tsundoku/suwayomi` (database, settings, extensions)           |
 | Downloads and backups | `$LIBRARY_ROOT/devices/suwayomi/Mihon/{downloads,autobackup}`            |
-| Web UI                | `http://127.0.0.1:4567`, on the workstation only                         |
+| Web UI                | `https://workstation.example.ts.net:10000` (tailnet, login), or `:4567` |
 | The import timer      | `ops/systemd/tsundoku-suwayomi-import.{service,timer}`: every 10 minutes |
 | The timer's step      | `scripts/suwayomi-import.ts` (`yarn run suwayomi-import`)                |
 | The rules             | `src/lib/import/suwayomi.ts`, tested in `tests/suwayomi-domain.spec.ts`  |
@@ -65,9 +65,35 @@ mounted would write the downloads onto `/`, under the empty mount point.
 mounted inside Suwayomi's data folder, and Docker would create those mount
 points as root, leaving Suwayomi (uid 1000) unable to write next to them.
 
-**localhost only, no login.** Nothing else on the network needs it; it's
-used from the workstation's browser. Reaching it from the tablet is a later
-decision (below).
+**On the tailnet, behind a login** since 2026-10-22, when the owner asked to
+reach it from the tablets as tsundoku is reached. The container still binds
+`127.0.0.1:4567` only; `tailscale serve` terminates TLS on **https port
+10000** and proxies to it, tailnet only, never `funnel`:
+
+```sh
+tailscale serve --bg --https=10000 http://127.0.0.1:4567   # persists across reboots
+tailscale serve --https=10000 off                           # takes it off the tailnet
+```
+
+10000 because 443 is another app's and 8443 is tsundoku's
+([`SERVING.md`](SERVING.md)), and `tailscale serve` takes no other HTTPS port.
+
+Everything on the tailnet could drive it, the VPS included, so Suwayomi asks
+for a **basic-auth login** (`AUTH_MODE: BASIC_AUTH` in the compose file). The
+username and password are `SUWAYOMI_USERNAME` and `SUWAYOMI_PASSWORD` in
+tsundoku's `.env`, which the unit hands to the compose file. The browser asks
+for them once and remembers them. tsundoku sends them on every request it
+makes to Suwayomi (the app, the watcher, the import timer and Suwayomi
+covers), through `suwayomiAuth` in `src/lib/server/suwayomi-auth.ts`, which
+sends them to Suwayomi's own origin only, never with a cover from another
+site (`tests/suwayomi-auth-domain.spec.ts`).
+
+Changing the password: edit `.env`, then restart both, Suwayomi first, as
+tsundoku reads `.env` when it starts:
+
+```sh
+systemctl --user restart tsundoku-suwayomi && systemctl --user restart tsundoku
+```
 
 Installed 2026-10-03:
 
@@ -125,8 +151,8 @@ tsundoku"). Soon after a chapter lands, tsundoku imports it, while the rest
 of the queue is still downloading: the band, the NEW shelf and covers, as
 START SCAN.
 
-Suwayomi's own web UI (`http://127.0.0.1:4567`, the workstation only) is
-still there for what tsundoku doesn't do: installing extensions and adding
+Suwayomi's own web UI (on the tailnet at `:10000` with its login, "How it's
+set up") is still there for what tsundoku doesn't do: installing extensions and adding
 extension repos. Series tsundoku doesn't have yet are found and added from
 its own search (below, "Finding a series, and adding it").
 
@@ -141,8 +167,8 @@ step itself.
 Since 2026-10-04 (c94, "Drive Suwayomi's downloads from tsundoku"),
 downloading is driven from tsundoku's own screens, on every device. The
 server talks to Suwayomi's GraphQL API on localhost
-(`src/lib/server/suwayomi.ts`). Suwayomi stays bound to localhost, with no
-login, and still does all the downloading. The rules are pure and tested
+(`src/lib/server/suwayomi.ts`), with Suwayomi's login. Suwayomi still does
+all the downloading. The rules are pure and tested
 (`src/lib/library/downloads.ts`, `tests/downloads-domain.spec.ts`). The
 screens come from the handoff in `doc/design/handoff/`: `Index Series
 Download.dc.html`, `Index Downloads.dc.html` and the canvas `Download
@@ -421,5 +447,6 @@ then `systemctl --user restart tsundoku-suwayomi`.
 - **The timer still keeps its own backup step** (`scripts/suwayomi-import.ts`)
   beside the watcher's (`backupNow`). The timer runs under Node's type
   stripping, which can't load the app's `$lib` modules.
-- **Reaching Suwayomi's web UI from the tablet** is no longer needed for
-  downloading. It stays localhost-only.
+- **Reaching Suwayomi's web UI from the tablet** isn't needed for
+  downloading, but it's there since 2026-10-22: `:10000` on the tailnet,
+  behind a login ("How it's set up").

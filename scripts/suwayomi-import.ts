@@ -25,6 +25,7 @@ import {
 	type SuwayomiStatus
 } from '../src/lib/import/suwayomi.ts';
 import { requestFollow, requestScan } from './scan-request.ts';
+import { suwayomiAuth } from '../src/lib/server/suwayomi-auth.ts';
 
 try {
 	process.loadEnvFile(fileURLToPath(new URL('../.env', import.meta.url)));
@@ -44,7 +45,7 @@ const statePath = join(
 async function graphql<T>(query: string): Promise<T> {
 	const res = await fetch(`${server}/api/graphql`, {
 		method: 'POST',
-		headers: { 'content-type': 'application/json' },
+		headers: { 'content-type': 'application/json', ...suwayomiAuth(server) },
 		body: JSON.stringify({ query })
 	});
 	const body = (await res.json()) as { data?: T; errors?: { message: string }[] };
@@ -97,11 +98,12 @@ async function backup(): Promise<string> {
 	const d = await graphql<{ createBackup: { url: string } }>(
 		'mutation { createBackup(input: {}) { url } }'
 	);
-	const res = await fetch(new URL(d.createBackup.url, server));
+	const url = new URL(d.createBackup.url, server);
+	const res = await fetch(url, { headers: suwayomiAuth(url) });
 	if (!res.ok) throw new Error(`the backup download answered ${res.status}`);
 	const folder = join(device, 'autobackup');
 	mkdirSync(folder, { recursive: true });
-	const path = join(folder, basename(new URL(d.createBackup.url, server).pathname));
+	const path = join(folder, basename(url.pathname));
 	writeFileSync(path, Buffer.from(await res.arrayBuffer()));
 	for (const old of backupsToPrune(readdirSync(folder))) unlinkSync(join(folder, old));
 	return path;

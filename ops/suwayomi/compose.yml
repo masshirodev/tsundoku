@@ -8,11 +8,16 @@ services:
     image: ghcr.io/suwayomi/suwayomi-server:stable
     container_name: tsundoku-suwayomi
     restart: 'no'
-    # localhost only: no login, and nothing but this box needs the web UI.
+    # localhost only: the tailnet reaches it through `tailscale serve` on
+    # https port 10000, never a wider bind (doc/DOWNLOADING.md, "On the tailnet").
     ports:
       - 127.0.0.1:4567:4567
     environment:
       TZ: America/Cuiaba
+      # The login the tailnet needs, from tsundoku's .env, which sends it too.
+      AUTH_MODE: BASIC_AUTH
+      AUTH_USERNAME: ${SUWAYOMI_USERNAME:?}
+      AUTH_PASSWORD: ${SUWAYOMI_PASSWORD:?}
       DOWNLOAD_AS_CBZ: 'true'
       EXTENSION_STORES: '["https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.min.json"]'
       # Suwayomi's own daily backup; the timer takes one before every import too.

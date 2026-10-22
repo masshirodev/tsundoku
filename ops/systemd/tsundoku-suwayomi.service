@@ -10,7 +10,7 @@ StartLimitIntervalSec=0
 [Service]
 Type=simple
 WorkingDirectory=%h/projects/tsundoku
-# LIBRARY_ROOT for the compose file's mounts. Nothing else in it reaches the container.
+# LIBRARY_ROOT for the compose file's mounts, and SUWAYOMI_USERNAME/PASSWORD for its login.
 EnvironmentFile=%h/projects/tsundoku/.env
 # Bind-mount targets inside the data folder, made by us before Docker makes
 # them as root, which would leave Suwayomi (uid 1000) unable to write beside them.

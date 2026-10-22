@@ -1,10 +1,11 @@
 import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { configured } from '$lib/server/suwayomi';
+import { suwayomiAuth } from '$lib/server/suwayomi-auth';
 
 /**
  * A search result's cover, from Suwayomi on localhost (Download States 1e):
- * the browser can't reach Suwayomi, so tsundoku passes it on. Only results
+ * the browser would need Suwayomi's login, so tsundoku passes it on. Only results
  * the viewer was shown link here.
  */
 export const GET: RequestHandler = async ({ params }) => {
@@ -12,7 +13,9 @@ export const GET: RequestHandler = async ({ params }) => {
 	if (!configured() || !Number.isInteger(id) || id <= 0) error(404, 'not found');
 	let res: Response;
 	try {
-		res = await fetch(`${process.env.SUWAYOMI_URL}/api/v1/manga/${id}/thumbnail`, {
+		const url = `${process.env.SUWAYOMI_URL}/api/v1/manga/${id}/thumbnail`;
+		res = await fetch(url, {
+			headers: suwayomiAuth(url),
 			signal: AbortSignal.timeout(15_000)
 		});
 	} catch {

@@ -63,7 +63,8 @@ http://127.0.0.1:42143`). The mapping persists across reboots. It's
 Tailscale owns the certificate and renews it itself, so there are no `tailscale
 cert` files to rotate. `tailscale serve` accepts HTTPS on 443, 8443 and 10000
 only. **443 is taken on this machine** by another app's mapping (to port
-42138), so tsundoku uses 8443. `serve` never overwrites a port that something
+42138), so tsundoku uses 8443, and 10000 is Suwayomi's
+([`DOWNLOADING.md`](DOWNLOADING.md), "How it's set up"). `serve` never overwrites a port that something
 else serves: it stops and says to pick another with `TSUNDOKU_HTTPS_PORT`.
 
 The pure parts (reading the tailnet name, the origin, whether a port is free,
