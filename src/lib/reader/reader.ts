@@ -26,12 +26,18 @@ export function modeOf(direction: Direction): Mode {
  * an OCR'd bubble opens the lookup -- and these zones stay as they are.
  */
 export const EDGE = 0.16;
+/**
+ * A novel's strips are wider (doc/TEXT-READER.md, "Touch"): text has no panel
+ * to tap into, so the middle only has to be big enough to reach the controls.
+ * The owner asked for this on 2026-10-22.
+ */
+export const TEXT_EDGE = 0.3;
 
-export function tapAction(x: number, width: number, mode: Mode): Action {
+export function tapAction(x: number, width: number, mode: Mode, edge = EDGE): Action {
 	if (mode === 'vertical' || width <= 0) return 'chrome';
 	const f = x / width;
-	if (f < EDGE) return mode === 'rtl' ? 'next' : 'prev';
-	if (f > 1 - EDGE) return mode === 'rtl' ? 'prev' : 'next';
+	if (f < edge) return mode === 'rtl' ? 'next' : 'prev';
+	if (f > 1 - edge) return mode === 'rtl' ? 'prev' : 'next';
 	return 'chrome';
 }
 
@@ -303,4 +309,53 @@ export function hoverAction(
 	const atEdge = y <= HOVER_EDGE || y >= height - HOVER_EDGE;
 	if (!o.shown) return atEdge ? 'show' : null;
 	return o.byHover && !atEdge && !o.overBars ? 'hide' : null;
+}
+
+// ---- the wheel -------------------------------------------------------------------
+
+/** How far one gesture has to scroll before it turns, in pixels. */
+export const WHEEL_PX = 40;
+/** A pause this long between wheel events ends the gesture. */
+export const WHEEL_QUIET_MS = 200;
+
+/**
+ * How far a wheel event moves forward, in pixels: down reads on, up goes
+ * back, and a sideways scroll is spatial like the arrows, so in R->L a scroll
+ * to the left reads on. Scroll mode scrolls, so nothing turns there (0).
+ */
+export function wheelForward(
+	e: { deltaX: number; deltaY: number; deltaMode: number },
+	mode: Mode
+): number {
+	if (mode === 'vertical') return 0;
+	// DOM_DELTA_LINE and DOM_DELTA_PAGE, as Firefox reports some wheels.
+	const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 800 : 1;
+	if (Math.abs(e.deltaY) >= Math.abs(e.deltaX)) return e.deltaY * unit;
+	return (mode === 'rtl' ? -e.deltaX : e.deltaX) * unit;
+}
+
+/**
+ * The wheel turns a novel's pages on a PC (doc/TEXT-READER.md, "Mouse"). A
+ * touchpad sends a stream of small deltas and its inertia keeps sending them
+ * long after the fingers lift, so one gesture turns one page: the deltas add
+ * up until they pass WHEEL_PX, and after a turn the rest of the gesture is
+ * spent until the wheel has been quiet for WHEEL_QUIET_MS.
+ */
+export class WheelTurn {
+	private sum = 0;
+	private last = -Infinity;
+	private spent = false;
+
+	feed(forward: number, now: number): 'next' | 'prev' | null {
+		if (now - this.last > WHEEL_QUIET_MS) {
+			this.sum = 0;
+			this.spent = false;
+		}
+		this.last = now;
+		if (this.spent || forward === 0) return null;
+		this.sum += forward;
+		if (Math.abs(this.sum) < WHEEL_PX) return null;
+		this.spent = true;
+		return this.sum > 0 ? 'next' : 'prev';
+	}
 }

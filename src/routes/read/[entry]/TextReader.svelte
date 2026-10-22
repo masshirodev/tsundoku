@@ -14,7 +14,15 @@
 	import { PHONE_W, type Placement } from '$lib/japanese/panel';
 	import { flushLookups } from '$lib/japanese/lookups';
 	import LookupPanel from '$lib/components/japanese/LookupPanel.svelte';
-	import { ProgressClock, hoverAction, swipeAction, tapAction } from '$lib/reader/reader';
+	import {
+		ProgressClock,
+		TEXT_EDGE,
+		WheelTurn,
+		hoverAction,
+		swipeAction,
+		tapAction,
+		wheelForward
+	} from '$lib/reader/reader';
 	import { BookFailure, bookUrl, openBook, type OpenBook } from '$lib/reader/book';
 	import {
 		chapterBlocks,
@@ -743,7 +751,7 @@
 		}
 		if (Math.hypot(dx, dy) > 10) return;
 		if (atEnd) {
-			if (tapAction(e.clientX, window.innerWidth, mode) === 'prev') prev();
+			if (tapAction(e.clientX, window.innerWidth, mode, TEXT_EDGE) === 'prev') prev();
 			return;
 		}
 		const target = e.target as HTMLElement;
@@ -770,7 +778,7 @@
 			chrome = false;
 			return;
 		}
-		const action = tapAction(e.clientX, window.innerWidth, mode);
+		const action = tapAction(e.clientX, window.innerWidth, mode, TEXT_EDGE);
 		if (action === 'chrome') chrome = true;
 		else if (action === 'next') next();
 		else prev();
@@ -819,6 +827,23 @@
 			prev();
 		}
 	}
+
+	// The wheel turns the page in paged layout (doc/TEXT-READER.md, "Mouse").
+	const wheelTurn = new WheelTurn();
+	function wheel(e: WheelEvent) {
+		// Ctrl is the browser's zoom, and a touchpad's pinch.
+		if (e.ctrlKey || layout === 'scroll') return;
+		if (lookup || fullImage || wide || sheet || contents) return;
+		// Not passive, so a sideways scroll can't also go back in history.
+		e.preventDefault();
+		const action = wheelTurn.feed(wheelForward(e, mode), e.timeStamp);
+		if (action === 'next') next();
+		else if (action === 'prev') prev();
+	}
+	onMount(() => {
+		addEventListener('wheel', wheel, { passive: false });
+		return () => removeEventListener('wheel', wheel);
+	});
 
 	// ---- the screen stays awake ---------------------------------------------------------------------
 	onMount(() => {

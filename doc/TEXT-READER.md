@@ -110,9 +110,12 @@ sentence.
 
 ## Touch
 
-The image reader's rules, and its code (`tapAction`, `swipeAction`):
+The image reader's rules, and its code (`tapAction`, `swipeAction`), with
+wider strips:
 
-- the 16% edge strips turn;
+- the 30% edge strips turn (`TEXT_EDGE`; the image reader's are 16%), so
+  only the middle 40% shows the controls. The owner found 16% too small to hit
+  on 2026-10-22;
 - a swipe turns anywhere;
 - in vertical Japanese the left strip turns forward;
 - in scroll a tap never turns.
@@ -124,6 +127,22 @@ are unchanged ([`JAPANESE.md`](JAPANESE.md), "In a book").
 A tap on an illustration opens it full screen: black ground, pinch to zoom, one
 finger pans, the zoom level shows for a moment, and a tap closes it. A tap on
 OPEN opens a wide block on its own, to pan across.
+
+## Mouse
+
+On a PC, in paged layout, **the wheel turns the page**: down reads on, up goes
+back, and a sideways scroll is spatial like the arrows (in vertical Japanese a
+scroll to the left reads on). One gesture turns one page: the deltas add up to
+40px before it turns, and the rest of the gesture, a touchpad's inertia
+included, is spent until the wheel has been quiet for 200ms (`WheelTurn`,
+`wheelForward` in `src/lib/reader/reader.ts`, covered by
+`tests/reader-domain.spec.ts`). Ctrl+wheel stays the browser's zoom, the wheel
+does nothing while a sheet, CONTENTS, the lookup or a full-screen image is open,
+and scroll layout scrolls as before. The owner asked for this on 2026-10-22.
+
+Arrows, Space, PageUp and PageDown turn too; Esc shows the controls, and the
+mouse at the top or bottom of the window brings them up as in the image reader
+([`READER.md`](READER.md), "Mouse").
 
 ## Controls
 

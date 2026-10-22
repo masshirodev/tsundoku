@@ -76,6 +76,33 @@ test('the controls say where you are, and READING keeps your place as type chang
 	await page.getByRole('button', { name: 'Close', exact: true }).click();
 });
 
+test('the wheel turns one page a gesture, and back', async ({ page }) => {
+	await openBook(page);
+	const v = page.viewportSize()!;
+	await page.mouse.move(v.width / 2, v.height / 2);
+	// The page on screen: the chapter, and how far its flow is translated. A
+	// turn off a chapter's last page opens the next one at 0.
+	const at = () =>
+		page.evaluate(() => {
+			const flow = document.querySelector<HTMLElement>('.flow');
+			const x = /translateX\((-?[\d.]+)px\)/.exec(flow?.style.transform ?? '')?.[1] ?? '0';
+			return `${document.querySelector('.blocks h1')?.textContent} @ ${Number(x)}`;
+		});
+	const start = await at();
+	// A notch, then a touchpad's inertia: still one page. Dispatched in one go,
+	// so a loaded machine can't space them into gestures of their own.
+	await page.evaluate(() => {
+		for (const deltaY of [120, 20, 20, 20, 20, 20])
+			window.dispatchEvent(new WheelEvent('wheel', { deltaY, cancelable: true }));
+	});
+	await expect.poll(at).not.toBe(start);
+	const turned = await at();
+	await page.waitForTimeout(300);
+	expect(await at()).toBe(turned);
+	await page.mouse.wheel(0, -120);
+	await expect.poll(at).toBe(start);
+});
+
 test('CONTENTS lists the book and opens a chapter', async ({ page }) => {
 	await openBook(page);
 	await middle(page);

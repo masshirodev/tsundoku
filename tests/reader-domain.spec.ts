@@ -16,7 +16,12 @@ import {
 	nearEnd,
 	stripWindow,
 	mouseAction,
-	tapAction
+	WheelTurn,
+	WHEEL_PX,
+	WHEEL_QUIET_MS,
+	wheelForward,
+	tapAction,
+	TEXT_EDGE
 } from '$lib/reader/reader';
 
 describe('mouse buttons', () => {
@@ -47,6 +52,13 @@ describe('tap zones', () => {
 		expect(tapAction(129, 800, 'rtl')).toBe('chrome');
 		expect(tapAction(400, 800, 'rtl')).toBe('chrome');
 		expect(tapAction(672, 800, 'ltr')).toBe('chrome');
+	});
+
+	it("gives a novel's text wider strips, at 30%", () => {
+		expect(tapAction(239, 800, 'ltr', TEXT_EDGE)).toBe('prev');
+		expect(tapAction(241, 800, 'ltr', TEXT_EDGE)).toBe('chrome');
+		expect(tapAction(561, 800, 'ltr', TEXT_EDGE)).toBe('next');
+		expect(tapAction(561, 800, 'rtl', TEXT_EDGE)).toBe('prev');
 	});
 
 	it('never turns on a tap in vertical scroll', () => {
@@ -197,5 +209,42 @@ describe('the mouse at the edge of the window', () => {
 	});
 	it("never hides controls it didn't bring up", () => {
 		expect(hoverAction(h / 2, h, { shown: true, byHover: false, overBars: false })).toBeNull();
+	});
+});
+
+describe('the wheel', () => {
+	const ev = (deltaY: number, deltaX = 0, deltaMode = 0) => ({ deltaX, deltaY, deltaMode });
+
+	it('down reads on and up goes back, in both directions', () => {
+		for (const mode of ['ltr', 'rtl'] as const) {
+			expect(wheelForward(ev(100), mode)).toBe(100);
+			expect(wheelForward(ev(-100), mode)).toBe(-100);
+		}
+	});
+
+	it('sideways is spatial: in R->L a scroll to the left reads on', () => {
+		expect(wheelForward(ev(0, 100), 'ltr')).toBe(100);
+		expect(wheelForward(ev(0, -100), 'rtl')).toBe(100);
+	});
+
+	it('counts lines and pages in pixels, and never turns in scroll', () => {
+		expect(wheelForward(ev(3, 0, 1), 'ltr')).toBe(48);
+		expect(wheelForward(ev(1, 0, 2), 'ltr')).toBe(800);
+		expect(wheelForward(ev(100), 'vertical')).toBe(0);
+	});
+
+	it('one gesture turns one page, however long its inertia lasts', () => {
+		const w = new WheelTurn();
+		expect(w.feed(10, 0)).toBeNull();
+		expect(w.feed(35, 16)).toBe('next');
+		for (let t = 32; t < 1000; t += 16) expect(w.feed(30, t)).toBeNull();
+		// Quiet long enough: the next notch is a new gesture.
+		expect(w.feed(-100, 1000 + WHEEL_QUIET_MS)).toBe('prev');
+	});
+
+	it('a wheel notch turns at once', () => {
+		const w = new WheelTurn();
+		expect(w.feed(WHEEL_PX, 0)).toBe('next');
+		expect(w.feed(WHEEL_PX, 1000)).toBe('next');
 	});
 });
