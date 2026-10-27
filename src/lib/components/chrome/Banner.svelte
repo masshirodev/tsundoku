@@ -147,6 +147,12 @@
 		gap: 3px;
 		min-width: 0;
 	}
+	/* The band is a fixed 60px: a long detail (every failed series) is cut, never wrapped over its neighbours. */
+	.stack > div {
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
 	/* A caller's form wrapper must not break the stretch to the band's height. */
 	.act > :global(form) {
 		align-self: stretch;
