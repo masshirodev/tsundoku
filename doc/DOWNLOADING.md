@@ -1,12 +1,17 @@
 # Downloading on the workstation
 
+**Being replaced.** Since 2026-10-28 the plan is for tsundoku to run Mihon,
+Aniyomi and LNReader extensions on a headless engine and download by itself,
+retiring Suwayomi ([`ARCHITECTURE.md`](ARCHITECTURE.md), "Downloading"). Until
+that has parity, everything below is how downloading works.
+
 Mihon on Android (tablet, phone, Waydroid) keeps pausing and halting its
 downloads, however much leeway it's given. The workstation doesn't. So
 manga can also be downloaded here, by
 [Suwayomi-Server](https://github.com/Suwayomi/Suwayomi-Server), which runs
 Mihon's own extensions (the [Keiyoushi](https://keiyoushi.github.io) repo) on
-the JVM. tsundoku still doesn't download anything itself
-([`ARCHITECTURE.md`](ARCHITECTURE.md), "Web novels"): Suwayomi writes files,
+the JVM. tsundoku doesn't download anything itself yet
+([`ARCHITECTURE.md`](ARCHITECTURE.md), "Downloading"): Suwayomi writes files,
 and tsundoku imports them.
 
 Set up 2026-10-03 (c75).

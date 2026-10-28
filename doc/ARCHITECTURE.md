@@ -76,18 +76,80 @@ furigana generation and CJK line breaking. The browser sets vertical text
 natively (`writing-mode: vertical-rl`, `<ruby>`), which is the part shiori had
 to fight for.
 
+## Downloading
+
+**tsundoku runs other people's extensions and never writes its own.** Per-site
+scrapers are the treadmill that makes Mihon what it is, and that treadmill
+stays theirs: Mihon's (Keiyoushi), Aniyomi's and LNReader's extension
+communities keep up with the sites, and tsundoku keeps up with three plugin
+APIs. A site with no extension in any repo the user has added is not
+downloaded here; it isn't an invitation to write a scraper.
+
+Decided with the owner on 2026-10-28, replacing the rule that tsundoku has no
+downloader at all ("Web novels", below). The reason was the app count: manga
+were downloaded here through Suwayomi, but finding a series still meant
+opening Suwayomi, novels meant LNReader, doujinshi Hentoid or Mihon, and anime
+Aniyomi. The goal is one app to find, download and read everything in, which
+can be handed to other people without asking them to run Suwayomi too.
+
+| Kind                     | Extensions        | Where they run                                  |
+| ------------------------ | ----------------- | ----------------------------------------------- |
+| Manga, manhwa, doujinshi | Mihon (Keiyoushi) | a headless JVM engine beside tsundoku           |
+| Anime                    | Aniyomi           | the same engine                                 |
+| Light and web novels     | LNReader plugins  | inside tsundoku (they're TypeScript), sandboxed |
+
+**Extensions aren't self-contained, and they don't download.** A Mihon or
+Aniyomi extension is an Android APK built against `extensions-lib`, which is
+only stubs: at runtime it calls into its host for the HTTP client (OkHttp,
+carrying the extension's own interceptors: rate limits, headers, image
+descrambling), Cloudflare challenges (a WebView), preferences, and the bits of
+Android it touches. It answers "what's popular, what are this series'
+chapters, what are this chapter's pages (or this episode's streams)". The
+queue, retries, fetching each image and writing the CBZ are the host's job.
+So:
+
+- **The engine** is the host side: a JVM process with an Android shim and a
+  headless Chromium. Node can't load an APK, so there is always a JVM; what
+  there needn't be is a second app with its own library, login and backups,
+  which is what Suwayomi is. The candidate is M-Extension-Server (Mangayomi's
+  engine), with our own loader from Suwayomi's `AndroidCompat` and Aniyomi's
+  `extensions-lib` as the fallback. Card c113 ("Spike: run Mihon and Aniyomi
+  extensions headless (M-Extension-Server)") decides which.
+- **Images and streams are fetched through the source's client**, never by
+  tsundoku fetching the URL itself, or the interceptors are skipped and a
+  page comes back blocked or scrambled.
+- **tsundoku is the downloader**: the queue, retries, CBZ and ComicInfo,
+  ffmpeg for HLS, the update check FOLLOW needs, installing and updating
+  extensions.
+- **Keys don't move.** A series stays `mihon:<source id>:<url>`: the source id
+  belongs to the extension, not to the app that ran it, so what the tablets
+  and Suwayomi downloaded is the same series as what tsundoku downloads.
+- **tsundoku ships no repo URLs**, as Mihon and Aniyomi ship none. The user
+  adds repos.
+- **The cost we own** is the hosts' API: Keiyoushi is moving to a new base
+  class (`KeiSource`), and every host has to follow such changes. One
+  interface now and then, not hundreds of sites, but not nothing.
+
+Until the engine has parity, Suwayomi keeps downloading
+([`DOWNLOADING.md`](DOWNLOADING.md)). The plan is on the board under the
+**Extensions** label: c124 (gallery sources as one-off books), c113 (the
+spike), c125 (tsundoku's own downloader, manga first), c126 (browse,
+extensions and repos screens, from a design brief), c127 (novels from
+LNReader plugins), c128 (anime: player and storage, an owner decision) and
+c129 (retiring Suwayomi).
+
 ## Web novels
 
-Per-site scrapers are the extension treadmill that makes Mihon what it is, and
-this project will not grow one. The general path is: paste a URL, extract the
-readable text, store it as a `text` entry. A site gets a dedicated adapter only
-when it is actually read and the general path fails on it. EPUBs (including the
-WebToEpub-style ones already on the phone) import directly.
+Superseded on 2026-10-28 by "Downloading", above: novels come from LNReader's
+plugins. What still holds: EPUBs (including the WebToEpub-style ones already
+on the phone) import directly, and a pasted URL whose readable text becomes a
+`text` entry remains the path for a page no plugin covers.
 
-Manga follows the same rule. When Android's Mihon proved unreliable at
-downloading, the answer was Suwayomi-Server, which runs Mihon's extensions on
-the workstation and writes Mihon's layout, imported as one more device
-([`DOWNLOADING.md`](DOWNLOADING.md)). tsundoku still has no scraper.
+The rule this section used to state, kept for the record: "Per-site scrapers
+are the extension treadmill that makes Mihon what it is, and this project
+will not grow one." Manga followed it through Suwayomi-Server, which runs
+Mihon's extensions on the workstation and writes Mihon's layout, imported as
+one more device ([`DOWNLOADING.md`](DOWNLOADING.md)).
 
 ## Phases
 
@@ -103,3 +165,6 @@ the workstation and writes Mihon's layout, imported as one more device
    furigana generation and pasted web novels are still to come.
 4. **Extras.** Offline caching beyond the next chapters, stats, and possibly a
    Komga-compatible API so stock Mihon can read the library as a fallback.
+5. **One downloader.** Finding and downloading manga, novels and anime from
+   inside tsundoku on Mihon, Aniyomi and LNReader extensions, then retiring
+   Suwayomi ("Downloading", above). Started 2026-10-28 with the engine spike.
