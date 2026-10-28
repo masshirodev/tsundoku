@@ -135,7 +135,7 @@ Until the engine has parity, Suwayomi keeps downloading
 **Extensions** label: c124 (gallery sources as one-off books), c113 (the
 spike), c125 (tsundoku's own downloader, manga first), c126 (browse,
 extensions and repos screens, from a design brief), c127 (novels from
-LNReader plugins), c128 (anime: player and storage, an owner decision) and
+LNReader plugins), c128 (anime, in a video player of tsundoku's own, the owner's call on 2026-10-28, not handed to Jellyfin) and
 c129 (retiring Suwayomi).
 
 ## Web novels
