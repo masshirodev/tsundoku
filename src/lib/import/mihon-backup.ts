@@ -1,4 +1,4 @@
-import { Message } from './protobuf.ts';
+import { Message, encode, type Msg } from './protobuf.ts';
 
 /**
  * Mihon's `.tachibk` (gunzipped), decoded into the parts tsundoku imports.
@@ -136,4 +136,91 @@ export function decodeBackup(raw: Uint8Array): MihonBackup {
 		categories: root.messages(2).map((c) => ({ name: c.str(1), order: c.num(2) })),
 		sources: new Map(root.messages(101).map((s) => [s.big(2).toString(), s.str(1)]))
 	};
+}
+
+// ---- writing ---------------------------------------------------------------------------
+
+function encodeChapter(c: MihonChapter): Msg {
+	const m: Msg = [
+		[1, c.url],
+		[2, c.name],
+		[3, c.scanlator],
+		[4, c.read],
+		[5, c.bookmark],
+		[6, c.lastPageRead],
+		[7, c.dateFetch],
+		[8, c.dateUpload]
+	];
+	// Absent reads back as -1, which is how Mihon says "no number".
+	if (c.number !== -1) m.push([9, { f32: c.number }]);
+	m.push([10, c.sourceOrder]);
+	return m;
+}
+
+function encodeManga(m: MihonManga): Msg {
+	const msg: Msg = [
+		[1, BigInt(m.source)],
+		[2, m.url],
+		[3, m.title],
+		[4, m.artist],
+		[5, m.author],
+		[6, m.description],
+		...m.genres.map((g): [number, string] => [7, g]),
+		[8, m.status],
+		[9, m.thumbnailUrl]
+	];
+	if (m.dateAdded !== null) msg.push([13, m.dateAdded]);
+	msg.push(
+		...m.chapters.map((c): [number, Msg] => [16, encodeChapter(c)]),
+		...m.categories.map((c): [number, number] => [17, c]),
+		...m.trackers.map((t): [number, Msg] => [
+			18,
+			[
+				[1, t.service],
+				[100, BigInt(t.mediaId)],
+				[5, t.title],
+				[6, { f32: t.lastChapterRead }],
+				[7, t.totalChapters],
+				[8, { f32: t.score }],
+				[9, t.status]
+			]
+		]),
+		[100, m.favorite],
+		// viewer_flags, the field Mihon reads since it replaced viewer (14).
+		[103, m.viewer],
+		...m.history.map((h): [number, Msg] => [
+			104,
+			[
+				[1, h.url],
+				[2, h.lastRead],
+				[3, h.readDuration]
+			]
+		])
+	);
+	return msg;
+}
+
+/**
+ * A `.tachibk` (before gzip) holding [backup]: the decoder's mirror, so what
+ * tsundoku writes for its own downloads (doc/DOWNLOADER.md) is read back by
+ * the same importer as a phone's or Suwayomi's.
+ */
+export function encodeBackup(backup: MihonBackup): Uint8Array {
+	return encode([
+		...backup.manga.map((m): [number, Msg] => [1, encodeManga(m)]),
+		...backup.categories.map((c): [number, Msg] => [
+			2,
+			[
+				[1, c.name],
+				[2, c.order]
+			]
+		]),
+		...[...backup.sources].map(([id, name]): [number, Msg] => [
+			101,
+			[
+				[1, name],
+				[2, BigInt(id)]
+			]
+		])
+	]);
 }

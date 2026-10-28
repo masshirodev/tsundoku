@@ -71,3 +71,48 @@ export function parseComicInfo(xml: string): ComicInfo {
 		source: element(xml, 'SourceMihon')
 	};
 }
+
+// ---- writing ---------------------------------------------------------------------------
+
+const xmlEscape = (s: string) =>
+	s
+		.replaceAll('&', '&amp;')
+		.replaceAll('<', '&lt;')
+		.replaceAll('>', '&gt;')
+		.replaceAll('"', '&quot;')
+		// Control characters other than tab and newline aren't allowed in XML 1.0.
+		// eslint-disable-next-line no-control-regex -- they are exactly what is removed
+		.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, '');
+
+/**
+ * ComicInfo.xml for a chapter tsundoku downloads (doc/DOWNLOADER.md), in
+ * Mihon's elements, so `parseComicInfo` (and any other reader) reads it as one
+ * of Mihon's. Empty fields are left out, and `Web` carries the chapter's URL,
+ * which is what matches the file to its chapter in the backup.
+ */
+export function comicInfoXml(info: Partial<ComicInfo>): string {
+	const rows: [string, string][] = [
+		['Title', info.title ?? ''],
+		['Series', info.series ?? ''],
+		['Number', info.number === undefined || Number.isNaN(info.number) ? '' : String(info.number)],
+		['Web', (info.web ?? []).join(' ')],
+		['Summary', info.summary ?? ''],
+		['Writer', info.writer ?? ''],
+		['Penciller', info.penciller ?? ''],
+		['Translator', info.translator ?? ''],
+		['Genre', (info.genres ?? []).join(', ')],
+		['ty:PublishingStatusTachiyomi', info.status ?? ''],
+		['ty:Categories', (info.categories ?? []).join(', ')],
+		['mh:SourceMihon', info.source ?? '']
+	];
+	const body = rows
+		.filter(([, v]) => v !== '')
+		.map(([k, v]) => `  <${k}>${xmlEscape(v)}</${k}>`)
+		.join('\n');
+	return (
+		'<?xml version="1.0" encoding="UTF-8"?>\n' +
+		'<ComicInfo xmlns:ty="http://www.w3.org/2001/XMLSchema" xmlns:mh="http://www.w3.org/2001/XMLSchema">\n' +
+		body +
+		'\n</ComicInfo>\n'
+	);
+}

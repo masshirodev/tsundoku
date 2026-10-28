@@ -132,3 +132,59 @@ export class Message {
 		return this.fields.filter(bytesOf(no)).map((f) => new Message(f.value));
 	}
 }
+
+// ---- writing ---------------------------------------------------------------------------
+
+/**
+ * A message to encode, the reader's mirror: (field number, value) pairs, in
+ * order. Integers and booleans are varints, `{ f32 }` a 32-bit float, strings
+ * and bytes length-delimited, and a nested list a nested message.
+ */
+export type EncodeValue = bigint | number | string | boolean | Uint8Array | { f32: number } | Msg;
+export type Msg = [number, EncodeValue][];
+
+const encoder = new TextEncoder();
+
+function varintBytes(n: bigint): Uint8Array {
+	const out: number[] = [];
+	let v = BigInt.asUintN(64, n);
+	while (v >= 0x80n) {
+		out.push(Number((v & 0x7fn) | 0x80n));
+		v >>= 7n;
+	}
+	out.push(Number(v));
+	return Uint8Array.from(out);
+}
+
+/**
+ * Encodes [msg]. Built from chunks joined once, never by spreading a
+ * payload into an array: a backup's message for thousands of chapters runs
+ * past the number of arguments a call can take.
+ */
+export function encode(msg: Msg): Uint8Array {
+	const chunks: Uint8Array[] = [];
+	for (const [no, value] of msg) {
+		if (typeof value === 'bigint' || typeof value === 'number' || typeof value === 'boolean') {
+			chunks.push(varintBytes(BigInt(no << 3)), varintBytes(BigInt(value)));
+		} else if (typeof value === 'object' && !(value instanceof Uint8Array) && 'f32' in value) {
+			const b = new Uint8Array(4);
+			new DataView(b.buffer).setFloat32(0, value.f32, true);
+			chunks.push(varintBytes(BigInt((no << 3) | 5)), b);
+		} else {
+			const payload =
+				typeof value === 'string'
+					? encoder.encode(value)
+					: value instanceof Uint8Array
+						? value
+						: encode(value);
+			chunks.push(varintBytes(BigInt((no << 3) | 2)), varintBytes(BigInt(payload.length)), payload);
+		}
+	}
+	const out = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+	let at = 0;
+	for (const c of chunks) {
+		out.set(c, at);
+		at += c.length;
+	}
+	return out;
+}
