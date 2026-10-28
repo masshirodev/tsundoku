@@ -111,7 +111,34 @@ FOLLOW and its update check, and the live events, all from the engine.
   extensions over on 2026-10-28: all loaded, 80 sources, every source the
   library reads from but XBatCat and Hitomi (not in Keiyoushi).
 
+- **The queue and the worker** (c137, 2026-10-28; rung 40):
+  `src/lib/server/engine/queue.ts`, `worker.ts`, the pure `device.ts`, started
+  from the root layout by `run.ts` only with `DOWNLOADS_BACKEND=engine`. The
+  queue is keyed by entries. The worker resolves a series at its source (a
+  details call first, so Toonily answers an old URL with its new one, kept in
+  `engine_series`), matches the source's chapters onto the entries
+  (`matchSourceChapters`: URL, then recognized number with scanlator, then
+  number), fetches pages through the engine six at a time, judges each by its
+  bytes, and writes the CBZ beside its place and renames it. One chapter per
+  source at a time, three sources at once; a failure backs off (15 s doubling,
+  60 s for a rate limit, capped at 30 min), three tries, then FAILED. **The
+  device's backup carries the library's own keys and URLs**, never the
+  source's new ones, and a series' folder title is fixed at its first
+  download (`engine_series.title`), since the importer pairs a folder with its
+  series by it. Tested end to end on a Toonily-shaped series
+  (`tests/engine-worker-db.spec.ts`), and live on 2026-10-28: Weeb Central's
+  chapter 165 of a series the tablet had, 16 pages in 5 s, imported onto its
+  own entry by the app's scan, no twin.
+
 ## What it does not do yet
 
-The queue and worker, and the screens' backend (c137, c138): each moves to
-"Done so far" as it lands.
+- **The screens still ask Suwayomi** (c138): nothing queues into the engine's
+  queue but a script, and FOLLOW's update check, search, browse and the
+  preview are Suwayomi's until then.
+- **New chapters a source lists that no entry is** come back from
+  `resolveSeries` but aren't made into entries yet: that's FOLLOW's job, in c138.
+- **A full scan follows a download**, 230 s on the whole library: the
+  importer has no way yet to read one device alone. Fine while chapters
+  arrive in batches; worth a narrower scan later.
+- **File names** use the entry's scanlator as Mihon does, so a chapter with
+  scanlator "Unknown" is `Unknown_Ch. 165 - ….cbz`.
