@@ -97,7 +97,21 @@ FOLLOW and its update check, and the live events, all from the engine.
   popular list, a memo split off its URL, 346 chapters all numbered by
   `chapterNumbers` (the source gave -1 for each), and a page as WebP.
 
+- **Extensions and repositories** (c136, 2026-10-28; rung 39):
+  `src/lib/server/engine/extensions.ts` over the pure `repo-index.ts`, and
+  `apk-signature.ts`. A repository needs a `repo.json` with a signing key;
+  its index is the v2 `index.json` (Keiyoushi, Yuzono), or `index.min.json`
+  for older ones. **An APK is installed only when its v2 signature verifies
+  and its signer is the repository's key**: Keiyoushi's index publishes no
+  per-APK hash, and either check alone passes a forgery (a genuine signing
+  block on other code, or code signed by anyone). APKs are kept under their
+  handle in `/mnt/hdd2/tsundoku/engine/store` (`ENGINE_STORE`). An update
+  keeps the previous version a week for BACK TO; removing keeps the sources'
+  preferences. `yarn run engine-seed` carried Suwayomi's repository and its 14
+  extensions over on 2026-10-28: all loaded, 80 sources, every source the
+  library reads from but XBatCat and Hitomi (not in Keiyoushi).
+
 ## What it does not do yet
 
-Extensions, the queue and worker, and the screens' backend (c136 to c138):
-each moves to "Done so far" as it lands.
+The queue and worker, and the screens' backend (c137, c138): each moves to
+"Done so far" as it lands.
