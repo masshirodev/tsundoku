@@ -18,7 +18,7 @@ extensions and repos screens") on the Tsundoku board, split into six parts:
 | BROWSE itself: choosing a source, RECENT, where it's reached from | c142 | Done    |
 | A site's browser check named at once; not answering               | c143 | Not yet |
 | Extensions and repositories                                       | c144 | Not yet |
-| A source's settings                                               | c145 | Not yet |
+| A source's settings                                               | c145 | Done    |
 
 ## BROWSE
 
@@ -169,6 +169,35 @@ source isn't named: "FROM TOONILY" said what reveal hides. That was true of
 SEARCH THE SOURCES too, before this, and is fixed for both
 (`libraryIndex().nameable`).
 
+## A source's settings
+
+`/browse/<source>/settings`, from the SETTINGS cell on a source's page (and,
+with c144, an installed extension's row). Many sources have settings: a
+mirror, a language, image quality, a login. The engine describes them
+(`preferencesManga`); **tsundoku keeps the values** (`engine_preferences`,
+c134) and sends them with every call, since the engine keeps none across a
+restart (doc/EXTENSION-ENGINE.md, "Preferences"). Each visit asks for the
+description again, so a setting a source grows shows up, merged with the
+values already kept (`keepPreferences`), and drawn in the source's own order.
+
+| Type                | Drawn as                                                 |
+| ------------------- | -------------------------------------------------------- |
+| switch              | the system's square Switch, on the row's right           |
+| check box           | a ✓ box on the row's right                               |
+| list, four or fewer | cells, the chosen one inverted                           |
+| list, longer        | its value and CHANGE ▾ (`?change=<key>` opens its cells) |
+| multi-select        | ✓ cells                                                  |
+| text                | a field with SAVE                                        |
+
+Each row is its own form posting `?/set`, so every change works without
+script; with script a multi-select saves as it's ticked, without it shows
+SAVE. `src/lib/library/source-settings.ts` reads a stored preference into one
+of those shapes (a list's `%s` summary says its current entry) and a form's
+answer back into the value `setPreference` stores, refusing anything that
+isn't one of the setting's values. A source's kept answers are keyed by its
+settings, so its page asks again on return. With the engine down, the kept
+values show and still save, under the NOT ANSWERING band.
+
 ## Where it lives in the code
 
 | What                                                      | Where                                                                                                       |
@@ -179,6 +208,7 @@ SEARCH THE SOURCES too, before this, and is fixed for both
 | BROWSE                                                    | `src/routes/browse/` (`+page.server.ts`, `+page.svelte`, `SourceRow.svelte`, shared with the empty search)  |
 | An extension's icon                                       | `src/routes/api/browse/icon/[pkg]/+server.ts`                                                               |
 | A source's page                                           | `src/routes/browse/[source]/` (`+page.server.ts`, `+page.svelte`, `FilterForm.svelte`, `ResultTile.svelte`) |
+| A source's settings                                       | `src/routes/browse/[source]/settings/`, `src/lib/library/source-settings.ts`                                |
 | The engine's schema                                       | the fork, `server/src/main/kotlin/mextensionserver/impl/FilterSchema.kt`                                    |
 
 ## Tests
@@ -193,6 +223,9 @@ SEARCH THE SOURCES too, before this, and is fixed for both
   source not named; BROWSE's list (the owner's languages, a language named
   only where an extension lists several, RECENT's four and its hidden rule,
   updates counted only for what may be seen).
+- `tests/source-settings.spec.ts`: each of the five types read from the
+  engine's shapes, a value no longer offered not shown as chosen, a form's
+  answer stored or refused.
 - `tests/browse-flow.e2e.ts` and the generated `tests/browse-frame.e2e.ts`
   (a source's page) and `tests/browse-list-frame.e2e.ts` (BROWSE),
   in the `browse` project against a fake engine (`tests/browse-setup.ts`,
@@ -223,6 +256,8 @@ SEARCH THE SOURCES too, before this, and is fixed for both
 - **RECENT's times are the app's** ("BROWSED 2 H AGO", `ago()` as TRACKING
   uses it); the calls say the mock's ("YESTERDAY", "LAST WEEK") are examples.
 - **EXTENSIONS says MANAGE when nothing waits**, rather than "0 UPDATES".
+- **A multi-select without script has a SAVE.** The mock draws ✓ cells only;
+  without script nothing would send a tick.
 - **The end of a list says "48 IN ALL"** and drops the MORE row, which the mock
   doesn't draw.
 
@@ -235,7 +270,6 @@ SEARCH THE SOURCES too, before this, and is fixed for both
   database until then.
 - "FIRST VISIT WAITS FOR THE SITE'S CHECK" on a source behind Cloudflare
   (c143): nothing records which sources need the check yet.
-- A source's SETTINGS screen, which the bar links to (c145).
 - The browser-check waiting band and its 60 s DID NOT ANSWER (c143): today a
   slow first visit waits over the grid outline, and a failure is a band with
   TRY AGAIN.

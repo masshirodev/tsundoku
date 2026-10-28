@@ -58,6 +58,41 @@ function answer(b: EngineCall): unknown {
 					}))
 				}
 			];
+		case 'preferencesManga':
+			return [
+				{
+					key: 'quality',
+					listPreference: {
+						title: 'Cover quality',
+						summary: '%s',
+						valueIndex: 0,
+						entries: ['Original', 'Medium', 'Low'],
+						entryValues: ['o', 'm', 'l']
+					}
+				},
+				{
+					key: 'saver',
+					switchPreferenceCompat: { title: 'Data saver', summary: 'Smaller pages', value: false }
+				},
+				{
+					key: 'alt',
+					checkBoxPreference: { title: 'Alternative titles', summary: '', value: false }
+				},
+				{
+					key: 'rating',
+					multiSelectListPreference: {
+						title: 'Content rating',
+						summary: '',
+						entries: ['Safe', 'Suggestive'],
+						entryValues: ['safe', 'suggestive'],
+						values: ['safe']
+					}
+				},
+				{
+					key: 'blocked',
+					editTextPreference: { title: 'Blocked groups', summary: '', value: '', text: '' }
+				}
+			];
 		case 'getPopularManga':
 			return {
 				mangas: [

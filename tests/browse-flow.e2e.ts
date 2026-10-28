@@ -240,3 +240,48 @@ test.describe('on a desktop', () => {
 		await expect(foot.nth(1)).toContainText('BROWSE');
 	});
 });
+
+test('a source’s settings: each type saves, and the source’s page asks again with them', async ({
+	page
+}) => {
+	await page.goto(OPEN);
+	await page.getByRole('link', { name: 'SETTINGS' }).click();
+	await expect(page).toHaveURL(`${OPEN}/settings`);
+	const row = (t: string) => page.locator('form.set', { hasText: t });
+	// In the source's own order, not the keys'.
+	await expect(page.locator('form.set .t')).toHaveText([
+		'Cover quality',
+		'Data saver',
+		'Alternative titles',
+		'Content rating',
+		'Blocked groups'
+	]);
+	await row('Data saver').getByRole('switch').click();
+	await expect(row('Data saver').getByRole('switch')).toHaveAttribute('aria-checked', 'true');
+	await row('Alternative titles').getByRole('checkbox').click();
+	await expect(row('Alternative titles').getByRole('checkbox')).toHaveAttribute(
+		'aria-checked',
+		'true'
+	);
+	await row('Cover quality').getByRole('radio', { name: 'LOW' }).click();
+	await expect(row('Cover quality').getByRole('radio', { name: 'LOW' })).toHaveAttribute(
+		'aria-checked',
+		'true'
+	);
+	await row('Content rating').locator('label', { hasText: 'SUGGESTIVE' }).click();
+	await expect(row('Content rating').locator('input[value="suggestive"]')).toBeChecked();
+	await row('Blocked groups').getByRole('textbox').fill('abc-123');
+	await row('Blocked groups').getByRole('button', { name: 'SAVE' }).click();
+	await expect(row('Blocked groups').getByRole('textbox')).toHaveValue('abc-123');
+
+	await resetEngine();
+	await page.getByRole('link', { name: /^Back to/ }).click();
+	await expect(page.locator('.grid .tile').first()).toBeVisible();
+	const popular = (await engineCalls()).find((c) => c.method === 'getPopularManga')!;
+	const sent = Object.fromEntries((popular.preferences ?? []).map((p) => [p.key, p]));
+	expect(sent.saver.switchPreferenceCompat.value).toBe(true);
+	expect(sent.alt.checkBoxPreference.value).toBe(true);
+	expect(sent.quality.listPreference.valueIndex).toBe(2);
+	expect(sent.rating.multiSelectListPreference.values).toEqual(['safe', 'suggestive']);
+	expect(sent.blocked.editTextPreference.value).toBe('abc-123');
+});

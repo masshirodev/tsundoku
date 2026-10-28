@@ -29,6 +29,7 @@ export type EngineCall = {
 	page?: number;
 	search?: string;
 	filterList?: { name: string; type: string; stateInt?: number; stateList?: unknown[] }[];
+	preferences?: ({ key: string } & Record<string, Record<string, unknown>>)[];
 };
 
 const ENGINE = `http://127.0.0.1:${ENGINE_PORT}`;
