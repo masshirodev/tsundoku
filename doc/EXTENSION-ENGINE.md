@@ -15,7 +15,7 @@ Spike run 2026-10-28 on the workstation, against kodjodevf/M-Extension-Server at
 
 Checked against the live system after the spike, 2026-10-28:
 
-- **Suwayomi does see Keiyoushi updates.** Its `extensionRepos` setting is `https://github.com/keiyoushi/extensions/raw/repo/index.pb`, and it flags Asura Scans and Omega Scans with `hasUpdate: true`; the trailing versions below are updates not installed yet. Only `ops/suwayomi/compose.yml` still names the stub URL, which Suwayomi isn't using.
+- **Suwayomi does see Keiyoushi updates.** Its `extensionRepos` setting is `https://github.com/keiyoushi/extensions/raw/repo/index.pb`, and it flags Asura Scans and Omega Scans with `hasUpdate: true`; the trailing versions below are updates not installed yet. `ops/suwayomi/compose.yml` named the stub URL, which Suwayomi wasn't using; it names `index.pb` now.
 - **The Toonily URL change reaches tsundoku's own keys.** All 126 Toonily series in the library are keyed by the old scheme (`mihon:5190569675461947007:/webtoon/some-series/`). Downloaded by the new extension, they'd come back under new URLs: the downloader has to map a source's new URL onto the series' existing key, or every one of them is split in two.
 
 ## Verdict: go-with-fork
@@ -193,7 +193,7 @@ Repository: https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.mi
 - It lists 1,435 extensions, all extensionLib "1.6".
 - APKs are GitHub release assets, with a prebuilt .jar beside each, plus sha256 and the signing-key fingerprint.
 - The engine reads no index, so its format doesn't matter to it.
-- Affects tsundoku today: Suwayomi's EXTENSION_STORES (ops/suwayomi/compose.yml line 22) still points at the stub, and its installed versions trail the index (Asura 1.6.69 vs 1.6.70, Omega Scans 1.6.51 vs 1.6.52, Toonily.me 1.6.4 vs 1.6.5).
+- Suwayomi reads index.pb (its extensionRepos setting). Its installed versions trail the index (Asura 1.6.69 vs 1.6.70, Omega Scans 1.6.51 vs 1.6.52, Toonily.me 1.6.4 vs 1.6.5): updates it has flagged but not yet installed. ops/suwayomi/compose.yml named the stub until 2026-10-28 and now names index.pb too.
 
 Results (browser UA; cf-proxy-url for Kumaraw; patched image for Mangahere and MANGA Plus):
 
