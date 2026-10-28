@@ -19,7 +19,7 @@ services:
       AUTH_USERNAME: ${SUWAYOMI_USERNAME:?}
       AUTH_PASSWORD: ${SUWAYOMI_PASSWORD:?}
       DOWNLOAD_AS_CBZ: 'true'
-      EXTENSION_STORES: '["https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.min.json"]'
+      EXTENSION_STORES: '["https://github.com/keiyoushi/extensions/raw/repo/index.pb"]'
       # Suwayomi's own daily backup; the timer takes one before every import too.
       BACKUP_INTERVAL: '1'
       BACKUP_TTL: '14'

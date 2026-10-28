@@ -111,10 +111,18 @@ So:
 - **The engine** is the host side: a JVM process with an Android shim and a
   headless Chromium. Node can't load an APK, so there is always a JVM; what
   there needn't be is a second app with its own library, login and backups,
-  which is what Suwayomi is. The candidate is M-Extension-Server (Mangayomi's
-  engine), with our own loader from Suwayomi's `AndroidCompat` and Aniyomi's
-  `extensions-lib` as the fallback. Card c113 ("Spike: run Mihon and Aniyomi
-  extensions headless (M-Extension-Server)") decides which.
+  which is what Suwayomi is. **It's a pinned fork of M-Extension-Server**
+  (Mangayomi's engine: Suwayomi's `AndroidCompat` plus current Mihon and
+  Aniyomi source APIs behind a small RPC), chosen by the spike on 2026-10-28
+  (c113, "Spike: run Mihon and Aniyomi extensions headless
+  (M-Extension-Server)"). It ran all nine of the library's sources and two
+  anime sources; the fork carries two fixes it needed and drops its GPLv3
+  YouTube part (c131, "Fork M-Extension-Server as tsundoku's engine, with a
+  solver beside it"). Its bundled Chromium never starts, so **Cloudflare is a
+  FlareSolverr container beside it**, and an extension that needs a real
+  WebView doesn't run. The engine keeps nothing: repos, APKs, preferences and
+  state are tsundoku's. The contract, and everything the spike measured, is
+  [`EXTENSION-ENGINE.md`](EXTENSION-ENGINE.md).
 - **Images and streams are fetched through the source's client**, never by
   tsundoku fetching the URL itself, or the interceptors are skipped and a
   page comes back blocked or scrambled.
@@ -123,7 +131,11 @@ So:
   extensions.
 - **Keys don't move.** A series stays `mihon:<source id>:<url>`: the source id
   belongs to the extension, not to the app that ran it, so what the tablets
-  and Suwayomi downloaded is the same series as what tsundoku downloads.
+  and Suwayomi downloaded is the same series as what tsundoku downloads
+  (checked for all nine sources). The URL can still move under an extension
+  update: Toonily's did, and its 126 series here are keyed by the old scheme,
+  so a source's new URL for a known series becomes an alias of its key,
+  never a second series.
 - **tsundoku ships no repo URLs**, as Mihon and Aniyomi ship none. The user
   adds repos.
 - **The cost we own** is the hosts' API: Keiyoushi is moving to a new base
@@ -133,7 +145,8 @@ So:
 Until the engine has parity, Suwayomi keeps downloading
 ([`DOWNLOADING.md`](DOWNLOADING.md)). The plan is on the board under the
 **Extensions** label: c124 (gallery sources as one-off books), c113 (the
-spike), c125 (tsundoku's own downloader, manga first), c126 (browse,
+spike, done), c131 (the engine fork), c125 (tsundoku's own downloader, manga
+first), c130 (cover hashes, so Mihon's books are checked for duplicates), c126 (browse,
 extensions and repos screens, from a design brief), c127 (novels from
 LNReader plugins), c128 (anime, in a video player of tsundoku's own, the owner's call on 2026-10-28, not handed to Jellyfin) and
 c129 (retiring Suwayomi).

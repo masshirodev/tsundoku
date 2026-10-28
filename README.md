@@ -135,7 +135,11 @@ is the mount development pressures.
 - [`doc/BOOKS.md`](doc/BOOKS.md) — series of books, grouping by hand, title
   suggestions, and person and tag pages.
 - [`doc/IMPORT-MIHON.md`](doc/IMPORT-MIHON.md) — the Mihon importer: where it
-  reads, what becomes what, the categories-as-ratings rule, and rescanning.
+  reads, what becomes what, the categories-as-ratings rule, gallery sources
+  as books, and rescanning.
+- [`doc/EXTENSION-ENGINE.md`](doc/EXTENSION-ENGINE.md) — the engine that will
+  run Mihon and Aniyomi extensions (a fork of M-Extension-Server): the spike's
+  report, its API, what each source did, and what tsundoku's downloader owes it.
 - [`doc/IMPORT-HENTOID.md`](doc/IMPORT-HENTOID.md) — the Hentoid importer: the
   hidden root, multi-chapter books, and finding grouped books again.
 - [`doc/HISTORY.md`](doc/HISTORY.md) — the history screen: one row per series
