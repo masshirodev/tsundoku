@@ -269,6 +269,8 @@
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
+		/* TopBar centres what it holds; the mock's cells stretch, their text at the left. */
+		align-items: stretch;
 		gap: 4px;
 		height: 100%;
 		padding: 0 var(--pad);
@@ -311,6 +313,7 @@
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
+		align-items: stretch;
 		gap: 4px;
 		flex: 1 1 auto;
 		min-width: 0;

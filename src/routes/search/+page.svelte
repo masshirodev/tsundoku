@@ -1,4 +1,6 @@
 <script lang="ts">
+	import SourceRow from '../browse/SourceRow.svelte';
+	import { ago } from '$lib/library/tracking';
 	import { goto, invalidateAll } from '$app/navigation';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import Cover from '$lib/components/content/Cover.svelte';
@@ -248,6 +250,35 @@
 			<span class="ts-go" aria-hidden="true">→</span>
 		</a>
 	{/if}
+{:else if !query && data.browse && data.browse.total > 0}
+	<!-- BROWSE first in the empty search (Index-Browse, phoneEntry). -->
+	<div class="label first">
+		<div>BROWSE A SOURCE</div>
+		<div>RECENT</div>
+	</div>
+	{#if data.browse.recent.length}
+		<div class="b-rows">
+			{#each data.browse.recent as r (r.id)}
+				<SourceRow
+					{r}
+					meta={[
+						r.kind.toUpperCase(),
+						r.lang.toUpperCase(),
+						r.browsedAt && `BROWSED ${ago(r.browsedAt, data.now)}`
+					]
+						.filter(Boolean)
+						.join(' · ')}
+				/>
+			{/each}
+		</div>
+	{/if}
+	<a class="to-sources all" href={resolve('/browse')}>
+		<span class="text"><span class="ts-t">ALL SOURCES · BROWSE</span></span>
+		<span class="ts-go">{data.browse.total} →</span>
+	</a>
+	<p class="b-note">
+		Type to search the library. SEARCH THE SOURCES follows the titles, as before.
+	</p>
 {/if}
 
 <SeriesSheet
@@ -369,6 +400,25 @@
 	}
 	.label.first {
 		padding-top: 18px;
+	}
+	.b-rows {
+		display: flex;
+		flex-direction: column;
+		border-top: var(--hairline);
+	}
+	.to-sources.all {
+		min-height: 56px;
+		border-top: 0;
+	}
+	.all .ts-go {
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.04em;
+	}
+	.b-note {
+		margin: 0;
+		padding: 20px var(--pad);
+		font: 400 15px/1.5 var(--font-sans);
+		color: var(--text-prose);
 	}
 	.chips {
 		display: flex;

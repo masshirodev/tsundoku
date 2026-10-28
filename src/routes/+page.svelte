@@ -610,6 +610,11 @@
 				>
 			{/snippet}
 			{#snippet right()}
+				{#if page.data.browse}
+					<!-- BROWSE, a cell before QUEUE on the tablet (Index-Browse, barTablet); the
+					     phone reaches it from the empty search, the desktop from the sidebar. -->
+					<a class="browse-cell" href={resolve('/browse')}>BROWSE</a>
+				{/if}
 				{#if data.queue && data.queue.queued > 0}
 					<!-- QUEUE over its count, a cell before SELECT, only while something is queued
 					     (Index Downloads 10). Offline or unanswered: the last count, dimmed. -->
@@ -1259,6 +1264,24 @@
 		.queue-cell {
 			padding: 0 12px;
 		}
+	}
+	/* The right-hand cell's own rule is on BROWSE's left; BROWSE draws the next one. */
+	.browse-cell {
+		display: flex;
+		align-items: center;
+		padding: 0 var(--pad);
+		border-right: var(--hairline);
+		font: 500 14px/1.2 var(--font-mono);
+		color: var(--text-1);
+		text-decoration: none;
+	}
+	@media (max-width: 599px), (min-width: 1024px) and (pointer: fine) {
+		.browse-cell {
+			display: none;
+		}
+	}
+	.browse-cell + .queue-cell {
+		border-left: 0;
 	}
 	.queue-cell.stale {
 		opacity: 0.35;

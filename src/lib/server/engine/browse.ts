@@ -4,7 +4,8 @@ import { mostlyHidden } from '../../library/downloads.ts';
 import { cleanSchema, type EngineFilter, type FilterField } from '../../library/browse-filters.ts';
 import type { SearchHit } from '../suwayomi-library.ts';
 import { asHits, callSource, type EngineManga } from './backend.ts';
-import { preferences } from './extensions.ts';
+import { installed, preferences } from './extensions.ts';
+import { getSetting } from '../settings.ts';
 import { preferenceSnapshot } from './protocol.ts';
 
 /**
@@ -19,6 +20,7 @@ export type Mode = 'popular' | 'latest' | 'filtered';
 
 export type BrowseSource = {
 	id: string;
+	pkg: string;
 	name: string;
 	lang: string;
 	kind: 'manga' | 'anime';
@@ -38,11 +40,18 @@ export type BrowseSource = {
 export function browseSources(reveal: boolean): BrowseSource[] {
 	const rows = getDb()
 		.prepare(
-			`SELECT s.id, s.name, s.lang, e.kind, e.failed
+			`SELECT s.id, s.pkg, s.name, s.lang, e.kind, e.failed
 			FROM engine_sources s JOIN engine_extensions e ON e.pkg = s.pkg
 			ORDER BY s.name COLLATE NOCASE, s.lang`
 		)
-		.all() as { id: string; name: string; lang: string; kind: 'manga' | 'anime'; failed: string }[];
+		.all() as {
+		id: string;
+		pkg: string;
+		name: string;
+		lang: string;
+		kind: 'manga' | 'anime';
+		failed: string;
+	}[];
 	const use = sourceUse();
 	const out: BrowseSource[] = [];
 	for (const r of rows) {
@@ -58,6 +67,87 @@ export function browseSources(reveal: boolean): BrowseSource[] {
 		});
 	}
 	return out;
+}
+
+// ---- BROWSE's list ------------------------------------------------------------------------
+
+export type BrowseRow = BrowseSource & {
+	/** "MangaDex · EN" where the extension lists more than one of its languages here. */
+	label: string;
+	/** When it was last browsed, for RECENT. */
+	browsedAt: number | null;
+};
+
+export type BrowseList = {
+	/** The last four browsed, any kind: nothing to pin or manage. */
+	recent: BrowseRow[];
+	manga: BrowseRow[];
+	anime: BrowseRow[];
+	/** LNReader plugins (c127): none yet. */
+	novels: BrowseRow[];
+	/** Extensions behind the listed sources. */
+	extensions: number;
+	/** Extensions with a newer version waiting, among those the viewer may see. */
+	updates: number;
+};
+
+const RECENT = 4;
+
+/** The owner's languages (SETTINGS): the sources BROWSE lists. */
+export const browseLanguages = (): string[] =>
+	getSetting('browse_languages')
+		.split(',')
+		.map((l) => l.trim().toLowerCase())
+		.filter(Boolean);
+
+/**
+ * BROWSE (Index-Browse, sources; Browse Calls, "One list, the kinds as
+ * sections"): the sources in the owner's languages, and any other the
+ * library reads from (a series from MangaDex's French source keeps that one
+ * listed). An extension's every language would be forty-odd rows of MangaDex.
+ */
+export function browseList(reveal: boolean): BrowseList {
+	const langs = new Set(browseLanguages());
+	const shown = browseSources(reveal).filter(
+		(s) => langs.has(s.lang.toLowerCase()) || ['all', 'multi'].includes(s.lang) || s.series > 0
+	);
+	const perPkg = new Map<string, number>();
+	for (const s of shown) perPkg.set(s.pkg, (perPkg.get(s.pkg) ?? 0) + 1);
+	const at = new Map(
+		(
+			getDb().prepare(`SELECT source_id, browsed_at FROM browse_recent`).all() as {
+				source_id: string;
+				browsed_at: number;
+			}[]
+		).map((r) => [r.source_id, r.browsed_at])
+	);
+	const rows: BrowseRow[] = shown.map((s) => ({
+		...s,
+		label: (perPkg.get(s.pkg) ?? 0) > 1 ? `${s.name} · ${s.lang.toUpperCase()}` : s.name,
+		browsedAt: at.get(s.id) ?? null
+	}));
+	const visiblePkgs = new Set(shown.map((s) => s.pkg));
+	return {
+		recent: rows
+			.filter((r) => r.browsedAt !== null)
+			.sort((a, b) => b.browsedAt! - a.browsedAt!)
+			.slice(0, RECENT),
+		manga: rows.filter((r) => r.kind === 'manga'),
+		anime: rows.filter((r) => r.kind === 'anime'),
+		novels: [],
+		extensions: visiblePkgs.size,
+		updates: installed().filter((e) => e.update && visiblePkgs.has(e.pkg)).length
+	};
+}
+
+/** A source's page was opened: it moves to the top of RECENT. */
+export function noteBrowsed(sourceId: string, at = Date.now()): void {
+	getDb()
+		.prepare(
+			`INSERT INTO browse_recent (source_id, browsed_at) VALUES (?, ?)
+			ON CONFLICT (source_id) DO UPDATE SET browsed_at = excluded.browsed_at`
+		)
+		.run(sourceId, at);
 }
 
 /** One source, if BROWSE may name it to this viewer. */

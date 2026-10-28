@@ -32,6 +32,8 @@ import {
 export const KEEP_PREVIOUS_MS = 7 * 24 * 60 * 60 * 1000;
 
 const storeDir = () => process.env.ENGINE_STORE ?? '/mnt/hdd2/tsundoku/engine/store';
+/** Extension icons, fetched from their repository once and kept (doc/BROWSE.md). */
+export const iconsDir = () => join(storeDir(), 'icons');
 const apkPath = (handle: string) => join(storeDir(), `${handle}.apk`);
 
 export class UntrustedError extends Error {}
@@ -236,7 +238,7 @@ export function listings(db: Database.Database = getDb()): (Listing & { repoId: 
 	).map((r) => ({ ...(JSON.parse(r.listing) as Listing), repoId: r.repo_id }));
 }
 
-function findListing(
+export function findListing(
 	pkg: string,
 	db: Database.Database
 ): (Listing & { repoId: number; fingerprint: string }) | null {

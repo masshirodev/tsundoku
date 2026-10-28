@@ -132,19 +132,71 @@ for (const [pkg, name, id] of [
 	).run(id, pkg, name);
 }
 
+// The open source's extension also has a French and a Japanese source: BROWSE
+// lists the owner's languages (EN, JA by default) and leaves French out.
+db.prepare(
+	`INSERT INTO engine_sources (id, pkg, name, lang, base_url) VALUES ('101', 'en.open', 'Open Source', 'fr', ''), ('102', 'en.open', 'Open Source', 'ja', '')`
+).run();
+
+describe('BROWSE’s list', () => {
+	it('lists the owner’s languages, names a language only where an extension has several', () => {
+		const list = browse.browseList(false);
+		expect(list.manga.map((r) => r.label)).toEqual(['Open Source · EN', 'Open Source · JA']);
+		expect(list.extensions).toBe(1);
+	});
+
+	it('keeps RECENT to the last four browsed, newest first, and never a hidden source outside reveal', () => {
+		browse.noteBrowsed(HIDDEN, 3_000);
+		browse.noteBrowsed(OPEN, 1_000);
+		browse.noteBrowsed('102', 2_000);
+		browse.noteBrowsed(OPEN, 4_000);
+		expect(browse.browseList(false).recent.map((r) => [r.id, r.browsedAt])).toEqual([
+			[OPEN, 4_000],
+			['102', 2_000]
+		]);
+		expect(browse.browseList(true).recent.map((r) => r.id)).toEqual([OPEN, HIDDEN, '102']);
+	});
+
+	it('counts an update only for an extension the viewer may see', () => {
+		db.prepare(
+			`INSERT INTO engine_repos (id, base, name, fingerprint, added_at) VALUES (9, 'https://r.example/', 'R', 'f', 0)`
+		).run();
+		for (const pkg of ['en.open', 'en.hidden'])
+			db.prepare(`INSERT INTO engine_listings (repo_id, pkg, listing) VALUES (9, ?, ?)`).run(
+				pkg,
+				JSON.stringify({
+					pkg,
+					name: pkg,
+					kind: 'manga',
+					versionCode: 2,
+					versionName: '2.0',
+					sources: []
+				})
+			);
+		expect(browse.browseList(false).updates).toBe(1);
+		expect(browse.browseList(true).updates).toBe(2);
+		db.prepare(`DELETE FROM engine_listings WHERE repo_id = 9`).run();
+		db.prepare(`DELETE FROM engine_repos WHERE id = 9`).run();
+	});
+});
+
 describe('which sources BROWSE names', () => {
 	it('leaves a mostly-hidden source out with reveal off, counts only what may be seen', () => {
-		expect(browse.browseSources(false).map((s) => [s.name, s.series, s.hidden])).toEqual([
-			['Open Source', 2, 0]
+		expect(browse.browseSources(false).map((s) => [s.name, s.lang, s.series, s.hidden])).toEqual([
+			['Open Source', 'en', 2, 0],
+			['Open Source', 'fr', 0, 0],
+			['Open Source', 'ja', 0, 0]
 		]);
 		expect(browse.browseSource(HIDDEN, false)).toBeNull();
 	});
 
 	it('names it with reveal on, marked, with every count', () => {
 		const all = browse.browseSources(true);
-		expect(all.map((s) => [s.name, s.series, s.hidden, s.mostlyHidden])).toEqual([
-			['Hidden Source', 3, 2, true],
-			['Open Source', 3, 1, false]
+		expect(all.map((s) => [s.name, s.lang, s.series, s.hidden, s.mostlyHidden])).toEqual([
+			['Hidden Source', 'en', 3, 2, true],
+			['Open Source', 'en', 3, 1, false],
+			['Open Source', 'fr', 0, 0, false],
+			['Open Source', 'ja', 0, 0, false]
 		]);
 	});
 });

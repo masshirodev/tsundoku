@@ -4,7 +4,8 @@ import { isIncognito, isRevealed, themeOf } from '$lib/server/prefs';
 import { favouritePeople } from '$lib/server/people';
 import { queueSummary } from '$lib/server/downloads';
 import { ensureWatcher } from '$lib/server/suwayomi-watch';
-import { ensureEngineWorker } from '$lib/server/engine/run';
+import { downloadsBackend, ensureEngineWorker } from '$lib/server/engine/run';
+import { browseList } from '$lib/server/engine/browse';
 
 export const load: LayoutServerLoad = async ({ cookies, locals }) => {
 	const reveal = isRevealed(cookies);
@@ -17,7 +18,8 @@ export const load: LayoutServerLoad = async ({ cookies, locals }) => {
 			shelves: [],
 			scan: null,
 			people: [],
-			queue: null
+			queue: null,
+			browse: null
 		};
 	const scan = currentScan();
 	const shelves = listShelves({ reveal, withNew: scan !== null });
@@ -32,5 +34,7 @@ export const load: LayoutServerLoad = async ({ cookies, locals }) => {
 	ensureWatcher();
 	// tsundoku's own downloader, with DOWNLOADS_BACKEND=engine (doc/DOWNLOADER.md).
 	ensureEngineWorker();
-	return { reveal, incognito: isIncognito(cookies), theme, scan, shelves, people, queue };
+	// BROWSE's way in, and its EXTENSIONS count (doc/BROWSE.md): on the engine only.
+	const browse = downloadsBackend() === 'engine' ? { updates: browseList(reveal).updates } : null;
+	return { reveal, incognito: isIncognito(cookies), theme, scan, shelves, people, queue, browse };
 };

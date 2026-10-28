@@ -224,6 +224,19 @@
 						href={resolve('/history')}
 						aria-current={page.url.pathname === '/history' ? 'page' : undefined}>HISTORY</a
 					>
+					{#if data.browse}
+						<!-- BROWSE under HISTORY, counting extension updates (Index-Browse, sidebar). -->
+						<a
+							class="with-n"
+							href={resolve('/browse')}
+							aria-current={page.url.pathname.startsWith('/browse') ? 'page' : undefined}
+							>BROWSE<span class="n"
+								>{data.browse.updates
+									? `${data.browse.updates.toLocaleString('en-US')} ↑`
+									: ''}</span
+							></a
+						>
+					{/if}
 					{#if data.queue}
 						<!-- DOWNLOADS under HISTORY with its count, always there (Index Downloads, sidebar). -->
 						<a

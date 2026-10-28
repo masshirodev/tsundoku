@@ -15,10 +15,54 @@ extensions and repos screens") on the Tsundoku board, split into six parts:
 | ----------------------------------------------------------------- | ---- | ------- |
 | The engine says what each filter is                               | c140 | Done    |
 | A source's page: popular, latest, filters, search in it           | c141 | Done    |
-| BROWSE itself: choosing a source, RECENT, where it's reached from | c142 | Not yet |
+| BROWSE itself: choosing a source, RECENT, where it's reached from | c142 | Done    |
 | A site's browser check named at once; not answering               | c143 | Not yet |
 | Extensions and repositories                                       | c144 | Not yet |
 | A source's settings                                               | c145 | Not yet |
+
+## BROWSE
+
+`/browse`. The bar is ← (the library), BROWSE, a hint that opens SEARCH THE
+SOURCES ("/ search every source"), and EXTENSIONS over its count of updates
+waiting (MANAGE when there are none), as QUEUE counts chapters. Then the
+sources, one list with the kinds as sections: **01 — RECENT** (the last four
+browsed, any kind, "MANGA · EN · BROWSED 2 H AGO"; nothing to pin or
+manage), then **MANGA**, **ANIME** and **NOVELS**, a section only where it has
+a source. Read from tsundoku's own tables, so it draws while the engine is
+down.
+
+**Which sources.** Those in the owner's languages (the `browse_languages`
+setting, `en,ja` by default; its SETTINGS row comes with c144), an
+extension's `all`/`multi` sources, and any other the library reads from (a
+series from MangaDex's French source keeps that one listed). Listing every
+language would be forty-odd rows of MangaDex. Where an extension has more
+than one source listed, each says its language: "MangaDex · EN".
+
+**A row** is the extension's icon, the source's name and a line: its language
+and how many series the library has from it, as reveal lets you see them
+("41 SERIES HERE"; inside reveal, "126 SERIES HERE, 112 HIDDEN"). A source the
+engine refused is c94's failed row (a 3px ink rule on the left, the reason in
+a word, "FAILED TO LOAD · PROTOBUF · TRY AGAIN IN EXTENSIONS") and leads to
+EXTENSIONS rather than to a page that can't answer. A mostly-hidden source is
+only listed inside reveal, with HIDDEN on its icon.
+
+**Icons** come through `/api/browse/icon/<package>`: the server fetches the
+repository's icon once, keeps it beside the APKs as an 80px WebP
+(`<ENGINE_STORE>/icons`), and serves it from then on, so the viewer's browser
+never asks the repository's host, and a repository that dies keeps its
+icons. An extension whose every source is mostly hidden answers 404 outside
+reveal.
+
+**RECENT** is rung 42's `browse_recent`, a row a source, moved to now on each
+visit to its page; a visit in incognito leaves nothing. Who may see a row is
+decided when it's read, so a hidden source browsed inside reveal is only in
+RECENT inside reveal.
+
+**The ways in** (Browse Calls, "Browse is a place"): a BROWSE cell on the
+library's tablet bar, before QUEUE; BROWSE in the desktop sidebar's foot,
+under HISTORY, with the update count ("5 ↑"); and on the phone, whose bar has
+no room, the empty search offers it first: BROWSE A SOURCE with the last
+three, then ALL SOURCES · BROWSE with the number of sources.
 
 ## A source's page
 
@@ -132,7 +176,9 @@ SEARCH THE SOURCES too, before this, and is fixed for both
 | The filter logic                                          | `src/lib/library/browse-filters.ts`                                                                         |
 | Which sources, their shelves, what's kept                 | `src/lib/server/engine/browse.ts`                                                                           |
 | A result matched against the library (shared with search) | `asHits` in `src/lib/server/engine/backend.ts`                                                              |
-| The page                                                  | `src/routes/browse/[source]/` (`+page.server.ts`, `+page.svelte`, `FilterForm.svelte`, `ResultTile.svelte`) |
+| BROWSE                                                    | `src/routes/browse/` (`+page.server.ts`, `+page.svelte`, `SourceRow.svelte`, shared with the empty search)  |
+| An extension's icon                                       | `src/routes/api/browse/icon/[pkg]/+server.ts`                                                               |
+| A source's page                                           | `src/routes/browse/[source]/` (`+page.server.ts`, `+page.svelte`, `FilterForm.svelte`, `ResultTile.svelte`) |
 | The engine's schema                                       | the fork, `server/src/main/kotlin/mextensionserver/impl/FilterSchema.kt`                                    |
 
 ## Tests
@@ -144,8 +190,11 @@ SEARCH THE SOURCES too, before this, and is fixed for both
 - `tests/engine-browse-db.spec.ts`: which sources are named, pages one to N,
   a repeated series shown once, MORE asking only for the new page, a setting
   change asking again, filters sent as a search, a twin from a mostly-hidden
-  source not named.
-- `tests/browse-flow.e2e.ts` and the generated `tests/browse-frame.e2e.ts`,
+  source not named; BROWSE's list (the owner's languages, a language named
+  only where an extension lists several, RECENT's four and its hidden rule,
+  updates counted only for what may be seen).
+- `tests/browse-flow.e2e.ts` and the generated `tests/browse-frame.e2e.ts`
+  (a source's page) and `tests/browse-list-frame.e2e.ts` (BROWSE),
   in the `browse` project against a fake engine (`tests/browse-setup.ts`,
   [`TESTING.md`](TESTING.md)).
 
@@ -168,13 +217,24 @@ SEARCH THE SOURCES too, before this, and is fixed for both
   without it.
 - **The FILTERED tab carries no number.** The calls mention "FILTERED 4"; the
   count is on FILTER, as the filters state draws it.
+- **The empty search offers BROWSE on every device**, not only the phone the
+  mock draws it for: the tablet's bar has BROWSE too, but the offer costs
+  nothing there and keeps the empty search from being empty.
+- **RECENT's times are the app's** ("BROWSED 2 H AGO", `ago()` as TRACKING
+  uses it); the calls say the mock's ("YESTERDAY", "LAST WEEK") are examples.
+- **EXTENSIONS says MANAGE when nothing waits**, rather than "0 UPDATES".
 - **The end of a list says "48 IN ALL"** and drops the MORE row, which the mock
   doesn't draw.
 
 ## What it does not do yet
 
-- BROWSE's own screen, `/browse`, which the ← returns to (c142), and its
-  entries from the top bar, the sidebar and the phone's search.
+- The first run's repository field (00 — NO SOURCES YET with an address to
+  paste): BROWSE with no sources says so and links to EXTENSIONS, where c144
+  adds repositories.
+- The languages' SETTINGS row (c144); `browse_languages` is set in the
+  database until then.
+- "FIRST VISIT WAITS FOR THE SITE'S CHECK" on a source behind Cloudflare
+  (c143): nothing records which sources need the check yet.
 - A source's SETTINGS screen, which the bar links to (c145).
 - The browser-check waiting band and its 60 s DID NOT ANSWER (c143): today a
   slow first visit waits over the grid outline, and a failure is a band with

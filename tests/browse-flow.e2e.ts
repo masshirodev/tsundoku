@@ -1,3 +1,4 @@
+import { devices } from '@playwright/test';
 import { test, expect } from './fixtures';
 import { engineCalls, engineDown, resetEngine, SOURCES } from './browse-world';
 
@@ -183,4 +184,59 @@ test('on the phone, / opens the search in the title’s place, and the grid is t
 	await page.locator('header.bar .slash').click();
 	await expect(page.locator('header.bar .find')).toBeVisible();
 	await expect(page.locator('header.bar .title')).toBeHidden();
+});
+
+test('BROWSE lists the sources by kind, RECENT once one is visited, and no hidden source', async ({
+	page
+}) => {
+	await page.goto(OPEN);
+	await page.getByRole('link', { name: 'Back to BROWSE' }).click();
+	await expect(page).toHaveURL(/\/browse$/);
+	const labels = page.locator('.screen > .label');
+	await expect(labels.nth(0)).toContainText('01 — RECENT');
+	await expect(labels.nth(1)).toContainText('02 — MANGA');
+	// The newest visit first (an earlier test visited the broken one too).
+	await expect(page.locator('.rows').first().locator('.row').first()).toContainText('Open Source');
+	// The failed extension is c94's failed row, and leads to EXTENSIONS, not its page.
+	// (In RECENT too, from an earlier test: the MANGA section's is the one checked.)
+	const broken = page.locator('.rows').nth(1).locator('.row', { hasText: 'Broken Source' });
+	await expect(broken).toContainText('FAILED TO LOAD · PROTOBUF');
+	await expect(broken).toHaveAttribute('href', '/browse/extensions');
+	// Toonily is mostly hidden: not listed, named or counted.
+	await expect(page.locator('body')).not.toContainText('Toonily');
+	await expect(labels.nth(1)).toContainText('2');
+});
+
+test('the ways in: a cell on the tablet’s bar, and the empty search on a phone', async ({
+	page
+}) => {
+	await page.goto('/');
+	await expect(page.locator('a.browse-cell')).toBeVisible();
+
+	await page.setViewportSize({ width: 360, height: 780 });
+	await page.goto(OPEN);
+	await page.goto('/search');
+	await expect(page.locator('.label.first')).toContainText('BROWSE A SOURCE');
+	await expect(page.locator('.b-rows .row').first()).toContainText('Open Source');
+	await page.getByRole('link', { name: /ALL SOURCES · BROWSE/ }).click();
+	await expect(page).toHaveURL(/\/browse$/);
+});
+
+test.describe('on a desktop', () => {
+	// A desktop is a fine pointer, not a width: the tablet project's touch is switched off.
+	test.use({
+		viewport: { width: 1440, height: 900 },
+		userAgent: devices['Desktop Chrome'].userAgent,
+		hasTouch: false,
+		isMobile: false,
+		deviceScaleFactor: 1
+	});
+
+	test('BROWSE is in the sidebar, under HISTORY, and not on the bar', async ({ page }) => {
+		await page.goto('/');
+		await expect(page.locator('a.browse-cell')).toBeHidden();
+		const foot = page.locator('.side-foot a');
+		await expect(foot.nth(0)).toHaveText('HISTORY');
+		await expect(foot.nth(1)).toContainText('BROWSE');
+	});
 });

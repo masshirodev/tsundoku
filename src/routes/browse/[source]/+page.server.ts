@@ -1,11 +1,12 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { hasScript, isRevealed } from '$lib/server/prefs';
+import { hasScript, isIncognito, isRevealed } from '$lib/server/prefs';
 import { downloadsBackend } from '$lib/server/engine/run';
 import { EngineError } from '$lib/server/engine/client';
 import {
 	browseSource,
 	filterSchema,
+	noteBrowsed,
 	shelf,
 	supportsLatest,
 	type Mode,
@@ -46,6 +47,9 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 	// Hidden means hidden: a mostly-hidden source isn't found with reveal off.
 	const source = browseSource(params.source, reveal);
 	if (!source) error(404, 'not found');
+
+	// Incognito leaves nothing behind, RECENT included (doc/PRIVACY.md).
+	if (!isIncognito(cookies)) noteBrowsed(source.id);
 
 	const q = (url.searchParams.get('q') ?? '').trim().slice(0, 200);
 	const asked = url.searchParams.get('tab');

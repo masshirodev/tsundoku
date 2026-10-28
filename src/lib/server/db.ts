@@ -880,6 +880,15 @@ const MIGRATIONS: string[] = [
 	// it does for a chapter Suwayomi has and tsundoku hasn't read in yet.
 	`
 	ALTER TABLE engine_chapters ADD COLUMN downloaded_at INTEGER;
+	`,
+	// Rung 42: BROWSE's RECENT, the last sources browsed (doc/BROWSE.md; card
+	// c142). One row a source, moved to now on each visit. Who may see a row
+	// is decided when it's read (a mostly-hidden source only in reveal).
+	`
+	CREATE TABLE browse_recent (
+		source_id TEXT PRIMARY KEY,
+		browsed_at INTEGER NOT NULL
+	) WITHOUT ROWID;
 	`
 ];
 

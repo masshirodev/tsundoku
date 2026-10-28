@@ -6,13 +6,27 @@ import { startScan } from '$lib/server/import';
 import { isGated } from '$lib/server/unlock';
 import { parseSearch } from '$lib/library/search';
 import { configured, searchSources } from '$lib/server/downloads';
+import { downloadsBackend } from '$lib/server/engine/run';
+import { browseList } from '$lib/server/engine/browse';
 
 export const load: PageServerLoad = async ({ url, cookies }) => {
 	const q = url.searchParams.get('q') ?? '';
 	const input = parseSearch(q);
 	// A command is not searched for: `/reveal` must not list what it is about
 	// to reveal before Enter is pressed.
-	if (input.type !== 'query') return { q, result: null, sources: null };
+	if (input.type !== 'query') {
+		// The empty search offers BROWSE first (Index-Browse, phoneEntry): on the
+		// phone the bar has no room for it.
+		const list =
+			input.type === 'empty' && downloadsBackend() === 'engine'
+				? browseList(isRevealed(cookies))
+				: null;
+		const browse = list && {
+			recent: list.recent.slice(0, 3),
+			total: list.manga.length + list.anime.length + list.novels.length
+		};
+		return { q, result: null, sources: null, browse, now: Date.now() };
+	}
 	const reveal = isRevealed(cookies);
 	// SEARCH THE SOURCES after the titles (Download States 1e): how many it would ask.
 	const sources = configured()
@@ -21,7 +35,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 				() => null
 			)
 		: null;
-	return { q, result: search(input.text, reveal), sources };
+	return { q, result: search(input.text, reveal), sources, browse: null, now: Date.now() };
 };
 
 export const actions: Actions = {
