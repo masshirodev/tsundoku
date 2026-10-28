@@ -64,13 +64,39 @@ under it:
   an old URL returns the new one: the new URL becomes an alias of the series'
   key, never a second series.
 
-## Until parity
+## The switch
 
-Suwayomi keeps downloading. The engine's backend is off unless
-`DOWNLOADS_BACKEND=engine`, so both can run, and the switch is one line in
-`.env`. Parity means: the DOWNLOAD row, NEXT/ALL, retry, the queue with
-pause/resume and to-the-top, SEARCH THE SOURCES, the preview, ADD TO LIBRARY,
-FOLLOW and its update check, and the live events, all from the engine.
+`DOWNLOADS_BACKEND` in `.env` picks which backend the screens ask: `engine`,
+or `suwayomi` (the default when unset). Both can run side by side, and
+switching is that one line and a restart (`systemctl --user restart
+tsundoku`). `server/downloads.ts` is the one place that knows there are two.
+
+**The screens have asked the engine since 2026-10-28**, after the parity
+check below on the live library. Suwayomi still runs (its timer imports its
+own folder, and FOLLOW's step it posts now goes to the engine), but nothing
+asks it to download: on the switch its downloader was stopped, with 322
+failed chapters in its own queue, which the screens no longer show (c129,
+"Retire Suwayomi").
+
+Parity, checked live on 2026-10-28 with the backend on:
+
+- the series screen draws its DOWNLOAD row from the engine (NEXT 10, ALL 38);
+  NEXT 10 queued ten chapters, the app's worker downloaded them and the scans
+  imported all ten onto their entries;
+- FOLLOW, on its own: the ten-minute timer's step found 16 chapters Asura
+  lists past the 96 the library had, made them entries of the followed
+  series, queued, downloaded and imported them, one series;
+- the queue screen, SEARCH THE SOURCES (six sources: IN LIBRARY, SAME TITLE
+  IN LIBRARY and new results), a new result's preview and its cover through
+  `/api/downloads/engine-image`, ADD TO LIBRARY (48 chapters, each already
+  known at the source) and UNDO (the library as it was), and the live events
+  stream.
+
+Two things it turned up, fixed the same day: a cover still being fetched
+when UNDO removed its series was written under an id the next series gets
+(the cover writer now checks the series still exists), and chapters written
+during a scan joined that scan and weren't imported (the worker's import now
+waits a running scan out, and imports at startup what a restart left).
 
 ## Done so far
 
@@ -130,13 +156,22 @@ FOLLOW and its update check, and the live events, all from the engine.
   chapter 165 of a series the tablet had, 16 pages in 5 s, imported onto its
   own entry by the app's scan, no twin.
 
+- **The screens' backend** (c138, 2026-10-28; rung 41): `server/downloads.ts`
+  picks; `engine/backend.ts` answers every call the screens make of Suwayomi
+  in Suwayomi's own types, from tsundoku's queue, so no component changed but
+  the preview's cover. On the engine a chapter is its entry, a source's manga
+  an opaque id of source and URL, and IMPORTING is a chapter written
+  (`engine_chapters.downloaded_at`) and not yet imported. FOLLOW asks each
+  followed series' source every six hours (`followNew`), makes what it lists
+  that no entry is into entries by the Mihon importer's own plan and writer,
+  and queues it unless read. `tests/engine-backend-db.spec.ts`, and the live
+  check above.
+
 ## What it does not do yet
 
-- **The screens still ask Suwayomi** (c138): nothing queues into the engine's
-  queue but a script, and FOLLOW's update check, search, browse and the
-  preview are Suwayomi's until then.
-- **New chapters a source lists that no entry is** come back from
-  `resolveSeries` but aren't made into entries yet: that's FOLLOW's job, in c138.
+- **Browsing** (a source's popular and latest lists, filters), extension and
+  repository screens, and a source's settings: c126, from its handoff.
+- **Migrating a series to another source**: c139.
 - **A full scan follows a download**, 230 s on the whole library: the
   importer has no way yet to read one device alone. Fine while chapters
   arrive in batches; worth a narrower scan later.

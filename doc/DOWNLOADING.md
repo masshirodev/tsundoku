@@ -1,9 +1,11 @@
 # Downloading on the workstation
 
-**Being replaced.** Since 2026-10-28 the plan is for tsundoku to run Mihon,
-Aniyomi and LNReader extensions on a headless engine and download by itself,
-retiring Suwayomi ([`ARCHITECTURE.md`](ARCHITECTURE.md), "Downloading"). Until
-that has parity, everything below is how downloading works.
+**Being replaced.** Since 2026-10-28 tsundoku downloads by itself, on its own
+extension engine ([`DOWNLOADER.md`](DOWNLOADER.md)), and the screens below ask
+the engine (`DOWNLOADS_BACKEND=engine`). What they look like and do is as this
+file describes; what's behind them is DOWNLOADER.md's. Everything below about
+Suwayomi still holds while it runs, and is what the screens fall back to with
+`DOWNLOADS_BACKEND=suwayomi`, until Suwayomi is retired (c129).
 
 Mihon on Android (tablet, phone, Waydroid) keeps pausing and halting its
 downloads, however much leeway it's given. The workstation doesn't. So
