@@ -1,6 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { isRevealed } from '$lib/server/prefs';
+import { hasScript, isRevealed } from '$lib/server/prefs';
+import type { Settled } from '$lib/library/settled';
 import { configured, searchSource, searchSources, type SearchHit } from '$lib/server/downloads';
 
 /**
@@ -9,6 +10,30 @@ import { configured, searchSource, searchSources, type SearchHit } from '$lib/se
  * a promise of their own, streamed into the page as it settles, so results
  * fill in source by source. `?source=` narrows to one, and lists all it found.
  */
+/**
+ * Each source's answer as a Settled (never rejecting), streamed with script.
+ * Without it a streamed promise never resolves (SvelteKit's streaming needs
+ * script), so the page waits for every source instead (c146; BROWSE does
+ * the same, doc/BROWSE.md, "Waiting, and without script").
+ */
+async function groups(
+	asked: { id: string; name: string }[],
+	q: string,
+	reveal: boolean,
+	script: boolean
+) {
+	const all = asked.map((s) => ({
+		id: s.id,
+		name: s.name,
+		hits: searchSource(s.id, q, reveal).then(
+			(value): Settled<SearchHit[]> => ({ ok: true, value }),
+			(e): Settled<SearchHit[]> => ({ ok: false, error: (e as Error).message })
+		)
+	}));
+	if (script) return all;
+	return Promise.all(all.map(async (g) => ({ ...g, hits: await g.hits })));
+}
+
 export const load: PageServerLoad = async ({ url, cookies }) => {
 	if (!configured()) error(404, 'not found');
 	const reveal = isRevealed(cookies);
@@ -29,13 +54,6 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 		only,
 		down: false,
 		all: sources.map((s) => ({ id: s.id, name: s.name })),
-		groups: q
-			? asked.map((s) => {
-					const hits: Promise<SearchHit[]> = searchSource(s.id, q, reveal);
-					// Settled by the page; a rejection here must not crash the server first.
-					hits.catch(() => {});
-					return { id: s.id, name: s.name, hits };
-				})
-			: []
+		groups: q ? await groups(asked, q, reveal, hasScript(cookies)) : []
 	};
 };

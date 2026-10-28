@@ -484,6 +484,22 @@ test('NEXT 10 works without script, as a form post', async ({ browser }) => {
 	await ctx.close();
 });
 
+test('searching the sources works without script: the server waits for every source (c146)', async ({
+	browser
+}) => {
+	const ctx = await browser.newContext({
+		javaScriptEnabled: false,
+		baseURL: BASE,
+		storageState: test.info().project.use.storageState
+	});
+	const page = await ctx.newPage();
+	await page.goto('/downloads/search?q=linden');
+	await expect(page.locator('.label')).toContainText('01 — 1 OF 1 SOURCE ANSWERED');
+	await expect(page.locator('a.hit')).toHaveCount(2);
+	await expect(page.locator('.hit.ghost')).toHaveCount(0);
+	await ctx.close();
+});
+
 test('library search carries the query to the sources, leaving out a mostly hidden one (1e)', async ({
 	page
 }) => {

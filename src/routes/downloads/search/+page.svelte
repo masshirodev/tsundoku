@@ -2,10 +2,13 @@
 	import { resolve } from '$app/paths';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import Cover from '$lib/components/content/Cover.svelte';
+	import type { SearchHit } from '$lib/server/suwayomi-library';
 	import SearchField from '$lib/components/controls/SearchField.svelte';
 	import { seriesHref } from '$lib/library/links';
 	import { count } from '$lib/library/downloads';
 	import { SvelteMap } from 'svelte/reactivity';
+	import { untrack } from 'svelte';
+	import { isSettled, type Settled } from '$lib/library/settled';
 
 	/**
 	 * Searching the sources (Download States 1e, state 6). Results fill in
@@ -13,8 +16,9 @@
 	 * dashed rows, Index's "not here yet"; one that didn't answer says so with
 	 * TRY AGAIN. A result already in the library says IN LIBRARY and opens
 	 * it; the same title from another source says so, to head off a twin.
-	 * Tabs narrow to one source. Without script the page waits for every
-	 * source (at most twenty seconds), since streamed results need it.
+	 * Tabs narrow to one source. Without script the server waits for every
+	 * source and sends their answers as values (c146): streamed data needs
+	 * script, and without it the page drew its waiting rows for good.
 	 */
 	let { data } = $props();
 
@@ -26,13 +30,17 @@
 
 	/** What each source answered, as it does: a count, or 'x' for no answer. */
 	const settled = new SvelteMap<string, number | 'x'>();
+	const countOf = (s: Settled<unknown[]>) => (s.ok ? s.value.length : 'x');
+	// Without script the answers arrive as values (c146): counted at once, on the server too.
+	for (const g of untrack(() => data.groups))
+		if (isSettled(g.hits)) settled.set(g.id, countOf(g.hits));
 	$effect(() => {
 		settled.clear();
-		for (const g of data.groups)
-			g.hits.then(
-				(h) => settled.set(g.id, h.length),
-				() => settled.set(g.id, 'x')
-			);
+		for (const g of data.groups) {
+			const h = g.hits;
+			if (isSettled(h)) settled.set(g.id, countOf(h));
+			else void h.then((s) => settled.set(g.id, countOf(s)));
+		}
 	});
 	const answered = $derived([...settled.values()].filter((v) => v !== 'x').length);
 	const found = $derived(
@@ -93,52 +101,63 @@
 		<div class="g-head">
 			<span>{g.name.toUpperCase()}</span>
 			<span class="dim">
-				{#await g.hits}ASKING{:then hits}{hits.length}{:catch}DID NOT ANSWER{/await}
+				{#if settled.get(g.id) === undefined}ASKING{:else if settled.get(g.id) === 'x'}DID NOT
+					ANSWER{:else}{settled.get(g.id)}{/if}
 			</span>
 		</div>
-		{#await g.hits}
-			{#each [62, 48] as w (w)}
-				<div class="hit ghost" aria-hidden="true">
-					<span class="cov-ghost"></span>
-					<span class="text"><i style:width="{w}%"></i><i style:width="34%"></i></span>
-				</div>
-			{/each}
-		{:then hits}
-			{#each data.only ? hits : hits.slice(0, SHOWN) as h (h.mangaId)}
-				<a
-					class="hit"
-					href={h.match.kind === 'in-library'
-						? seriesHref(h.match.seriesId)
-						: `${resolve('/downloads/source/[id]', { id: String(h.mangaId) })}?q=${encodeURIComponent(data.q)}`}
-				>
-					<Cover src={h.cover} width={44} height={62} />
-					<span class="text">
-						<span class="t">{h.parts.pre}<mark>{h.parts.mid}</mark>{h.parts.post}</span>
-						<span class="m">
-							{#if h.match.kind === 'in-library'}<span class="lead">IN LIBRARY</span> · {h.match
-									.meta}
-							{:else if h.match.kind === 'same-title'}<span class="lead">SAME TITLE IN LIBRARY</span
-								>{#if h.match.source}
-									· FROM {h.match.source}{/if}
-							{:else}{h.meta}{/if}
+		{#snippet answer(hits: SearchHit[] | null)}
+			{#if hits}
+				{#each data.only ? hits : hits.slice(0, SHOWN) as h (h.mangaId)}
+					<a
+						class="hit"
+						href={h.match.kind === 'in-library'
+							? seriesHref(h.match.seriesId)
+							: `${resolve('/downloads/source/[id]', { id: String(h.mangaId) })}?q=${encodeURIComponent(data.q)}`}
+					>
+						<Cover src={h.cover} width={44} height={62} />
+						<span class="text">
+							<span class="t">{h.parts.pre}<mark>{h.parts.mid}</mark>{h.parts.post}</span>
+							<span class="m">
+								{#if h.match.kind === 'in-library'}<span class="lead">IN LIBRARY</span> · {h.match
+										.meta}
+								{:else if h.match.kind === 'same-title'}<span class="lead"
+										>SAME TITLE IN LIBRARY</span
+									>{#if h.match.source}
+										· FROM {h.match.source}{/if}
+								{:else}{h.meta}{/if}
+							</span>
 						</span>
-					</span>
-					{#if h.match.kind === 'in-library'}<span class="open">OPEN →</span>{/if}
-				</a>
-			{/each}
-			{#if hits.length === 0}
-				<div class="none">NOTHING FOUND</div>
-			{:else if !data.only && hits.length > SHOWN}
-				<a class="more" href={href(g.id)}
-					>+ {hits.length - SHOWN} MORE FROM {g.name.toUpperCase()}</a
-				>
+						{#if h.match.kind === 'in-library'}<span class="open">OPEN →</span>{/if}
+					</a>
+				{/each}
+				{#if hits.length === 0}
+					<div class="none">NOTHING FOUND</div>
+				{:else if !data.only && hits.length > SHOWN}
+					<a class="more" href={href(g.id)}
+						>+ {hits.length - SHOWN} MORE FROM {g.name.toUpperCase()}</a
+					>
+				{/if}
+			{:else}
+				<div class="failed">
+					<span>DID NOT ANSWER IN 20 S · NOTHING FROM IT</span>
+					<a href={href(g.id)}>TRY AGAIN</a>
+				</div>
 			{/if}
-		{:catch}
-			<div class="failed">
-				<span>DID NOT ANSWER IN 20 S · NOTHING FROM IT</span>
-				<a href={href(g.id)}>TRY AGAIN</a>
-			</div>
-		{/await}
+		{/snippet}
+		{#if isSettled(g.hits)}
+			{@render answer(g.hits.ok ? g.hits.value : null)}
+		{:else}
+			{#await g.hits}
+				{#each [62, 48] as w (w)}
+					<div class="hit ghost" aria-hidden="true">
+						<span class="cov-ghost"></span>
+						<span class="text"><i style:width="{w}%"></i><i style:width="34%"></i></span>
+					</div>
+				{/each}
+			{:then s}
+				{@render answer(s.ok ? s.value : null)}
+			{/await}
+		{/if}
 	{/each}
 {:else if !data.q}
 	<div class="note">TYPE A TITLE · {data.all?.length ?? 0} SOURCES ARE ASKED</div>
