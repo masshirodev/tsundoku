@@ -85,7 +85,19 @@ FOLLOW and its update check, and the live events, all from the engine.
   the first member). Each round-trips through the importer's own reader
   (`tests/device-writers.spec.ts`).
 
+- **The engine client** (c135, 2026-10-28): `src/lib/server/engine/client.ts`
+  over the pure `protocol.ts`. Every call carries the token, a browser
+  User-Agent, the solver and tsundoku's preferences in replace-present mode;
+  calls into one extension run one at a time, extensions side by side; a 409
+  sends the APK once (checked against its handle); failures are read from the
+  body's `code`, so a 429 is `rate-limited` though the engine answers 500;
+  `fetchProxied` takes pages and streams through `/image/` and `/video/`, and
+  `imageType` tells a picture from an error page by its bytes. Tested against
+  a fake engine (`tests/engine-client.spec.ts`), and live: Asura Scans'
+  popular list, a memo split off its URL, 346 chapters all numbered by
+  `chapterNumbers` (the source gave -1 for each), and a page as WebP.
+
 ## What it does not do yet
 
-The engine client, extensions, the queue and worker, and the screens' backend
-(c135 to c138): each moves to "Done so far" as it lands.
+Extensions, the queue and worker, and the screens' backend (c136 to c138):
+each moves to "Done so far" as it lands.
