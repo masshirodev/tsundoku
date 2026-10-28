@@ -778,6 +778,65 @@ const MIGRATIONS: string[] = [
 		extra TEXT NOT NULL DEFAULT '[]',
 		checked_at INTEGER NOT NULL
 	) WITHOUT ROWID;
+	`,
+	// Rung 39: extensions on tsundoku's own engine (doc/DOWNLOADER.md,
+	// "Extensions"; card c136). Repositories the owner adds (none ships), the
+	// index each had when last read, installed extensions with the previous
+	// version kept a week for BACK TO, their sources, and each source's
+	// preferences, which the engine doesn't keep: they're sent with every call.
+	// A preference outlives its extension, so a reinstall finds its settings.
+	`
+	CREATE TABLE engine_repos (
+		id INTEGER PRIMARY KEY,
+		base TEXT NOT NULL UNIQUE,
+		name TEXT NOT NULL,
+		fingerprint TEXT NOT NULL,
+		website TEXT NOT NULL DEFAULT '',
+		added_at INTEGER NOT NULL,
+		checked_at INTEGER,
+		-- Since when it stops answering; the index read before stays.
+		failed_at INTEGER,
+		error TEXT NOT NULL DEFAULT ''
+	);
+	CREATE TABLE engine_listings (
+		repo_id INTEGER NOT NULL REFERENCES engine_repos(id) ON DELETE CASCADE,
+		pkg TEXT NOT NULL,
+		listing TEXT NOT NULL,
+		PRIMARY KEY (repo_id, pkg)
+	) WITHOUT ROWID;
+	CREATE TABLE engine_extensions (
+		pkg TEXT PRIMARY KEY,
+		repo_id INTEGER REFERENCES engine_repos(id) ON DELETE SET NULL,
+		name TEXT NOT NULL,
+		kind TEXT NOT NULL CHECK (kind IN ('manga', 'anime')),
+		version_code INTEGER NOT NULL,
+		version_name TEXT NOT NULL,
+		lib TEXT NOT NULL,
+		adult INTEGER NOT NULL DEFAULT 0,
+		-- The APK's SHA-256: the engine's handle, and its file in the store.
+		handle TEXT NOT NULL,
+		previous_handle TEXT,
+		previous_version TEXT,
+		previous_until INTEGER,
+		installed_at INTEGER NOT NULL,
+		updated_at INTEGER NOT NULL,
+		-- Why it doesn't run ('' when it does): failed to load, needs a browser.
+		failed TEXT NOT NULL DEFAULT ''
+	) WITHOUT ROWID;
+	CREATE TABLE engine_sources (
+		id TEXT PRIMARY KEY,
+		pkg TEXT NOT NULL REFERENCES engine_extensions(pkg) ON DELETE CASCADE,
+		name TEXT NOT NULL,
+		lang TEXT NOT NULL,
+		base_url TEXT NOT NULL DEFAULT ''
+	) WITHOUT ROWID;
+	CREATE INDEX engine_sources_pkg ON engine_sources(pkg);
+	CREATE TABLE engine_preferences (
+		source_id TEXT NOT NULL,
+		key TEXT NOT NULL,
+		entry TEXT NOT NULL,
+		PRIMARY KEY (source_id, key)
+	) WITHOUT ROWID;
 	`
 ];
 

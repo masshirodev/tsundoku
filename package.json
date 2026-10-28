@@ -28,6 +28,7 @@
 		"covers": "node --experimental-strip-types scripts/covers.ts",
 		"sync-import": "node --experimental-strip-types scripts/sync-import.ts",
 		"suwayomi-import": "node --experimental-strip-types scripts/suwayomi-import.ts",
+		"engine-seed": "node --experimental-strip-types scripts/engine-seed.ts",
 		"sync-setup": "node --experimental-strip-types scripts/sync-setup.ts",
 		"ocr": "node --experimental-strip-types scripts/ocr.ts",
 		"dupes": "node --experimental-strip-types scripts/dupes.ts",
