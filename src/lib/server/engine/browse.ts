@@ -4,6 +4,7 @@ import { mostlyHidden } from '../../library/downloads.ts';
 import { cleanSchema, type EngineFilter, type FilterField } from '../../library/browse-filters.ts';
 import type { SearchHit } from '../suwayomi-library.ts';
 import { asHits, callSource, type EngineManga } from './backend.ts';
+import { challenges } from './client.ts';
 import { installed, preferences } from './extensions.ts';
 import { getSetting } from '../settings.ts';
 import { preferenceSnapshot } from './protocol.ts';
@@ -69,6 +70,74 @@ export function browseSources(reveal: boolean): BrowseSource[] {
 	return out;
 }
 
+// ---- a site's browser check (c143) ----------------------------------------------------------
+
+/** A source's site, for matching the hosts the engine solves checks for: "mangadex.org". */
+export function siteOf(baseUrl: string): string {
+	try {
+		return new URL(baseUrl).hostname.replace(/^www\./, '').toLowerCase();
+	} catch {
+		return '';
+	}
+}
+
+/** The same site: one host is the other or under it (a source's API or image subdomain). */
+export const sameSite = (host: string, site: string) =>
+	!!site && (host === site || host.endsWith(`.${site}`) || site.endsWith(`.${host}`));
+
+const baseUrlOf = (sourceId: string) =>
+	(
+		getDb().prepare(`SELECT base_url FROM engine_sources WHERE id = ?`).get(sourceId) as
+			{ base_url: string } | undefined
+	)?.base_url ?? '';
+
+/** Remembers the hosts the engine has solved a check for, so BROWSE can say so after. */
+function noteChecked(solved: Record<string, number>): void {
+	const put = getDb().prepare(
+		`INSERT INTO site_checks (host, seen_at) VALUES (?, ?)
+		ON CONFLICT (host) DO UPDATE SET seen_at = MAX(seen_at, excluded.seen_at)`
+	);
+	for (const [host, at] of Object.entries(solved)) put.run(host.toLowerCase(), at);
+}
+
+/**
+ * Whether the engine is passing [sourceId]'s site's browser check right now,
+ * and since when: what the waiting page names at once (Browse Calls, "A
+ * site's check is named at once"). Null when it isn't, or the engine can't say.
+ */
+export async function checkingSince(sourceId: string): Promise<number | null> {
+	const site = siteOf(baseUrlOf(sourceId));
+	try {
+		const c = await challenges();
+		noteChecked(c.solved);
+		const since = Object.entries(c.solving)
+			.filter(([host]) => sameSite(host.toLowerCase(), site))
+			.map(([, t]) => t);
+		return since.length ? Math.min(...since) : null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Reads the checks the engine has solved into site_checks, for BROWSE's
+ * line. Quick, and quiet on failure: BROWSE draws while the engine is down.
+ */
+export async function noteSolvedChecks(timeoutMs = 800): Promise<void> {
+	try {
+		noteChecked((await challenges(timeoutMs)).solved);
+	} catch {
+		// The engine not answering is drawn elsewhere; the list doesn't need it.
+	}
+}
+
+/** Sites seen behind a check: "FIRST VISIT WAITS FOR THE SITE'S CHECK". */
+function checkedSites(): string[] {
+	return (getDb().prepare(`SELECT host FROM site_checks`).all() as { host: string }[]).map(
+		(r) => r.host
+	);
+}
+
 // ---- BROWSE's list ------------------------------------------------------------------------
 
 export type BrowseRow = BrowseSource & {
@@ -76,6 +145,8 @@ export type BrowseRow = BrowseSource & {
 	label: string;
 	/** When it was last browsed, for RECENT. */
 	browsedAt: number | null;
+	/** Its site has made the engine pass a browser check: a first visit waits for it. */
+	check: boolean;
 };
 
 export type BrowseList = {
@@ -121,10 +192,20 @@ export function browseList(reveal: boolean): BrowseList {
 			}[]
 		).map((r) => [r.source_id, r.browsed_at])
 	);
+	const checked = checkedSites();
+	const bases = new Map(
+		(
+			getDb().prepare(`SELECT id, base_url FROM engine_sources`).all() as {
+				id: string;
+				base_url: string;
+			}[]
+		).map((r) => [r.id, siteOf(r.base_url)])
+	);
 	const rows: BrowseRow[] = shown.map((s) => ({
 		...s,
 		label: (perPkg.get(s.pkg) ?? 0) > 1 ? `${s.name} · ${s.lang.toUpperCase()}` : s.name,
-		browsedAt: at.get(s.id) ?? null
+		browsedAt: at.get(s.id) ?? null,
+		check: checked.some((h) => sameSite(h, bases.get(s.id) ?? ''))
 	}));
 	const visiblePkgs = new Set(shown.map((s) => s.pkg));
 	return {

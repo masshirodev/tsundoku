@@ -889,6 +889,15 @@ const MIGRATIONS: string[] = [
 		source_id TEXT PRIMARY KEY,
 		browsed_at INTEGER NOT NULL
 	) WITHOUT ROWID;
+	`,
+	// Rung 43: sites seen behind a browser check (doc/BROWSE.md, "A site's
+	// check"; card c143), by host, so BROWSE can say a first visit waits for
+	// it. Its own table: a source's rows are rewritten on every install.
+	`
+	CREATE TABLE site_checks (
+		host TEXT PRIMARY KEY,
+		seen_at INTEGER NOT NULL
+	) WITHOUT ROWID;
 	`
 ];
 

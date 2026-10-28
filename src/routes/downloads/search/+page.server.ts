@@ -2,6 +2,7 @@ import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { hasScript, isRevealed } from '$lib/server/prefs';
 import type { Settled } from '$lib/library/settled';
+import { downloadsBackend } from '$lib/server/engine/run';
 import { configured, searchSource, searchSources, type SearchHit } from '$lib/server/downloads';
 
 /**
@@ -43,7 +44,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 	try {
 		sources = await searchSources(reveal);
 	} catch {
-		return { q, only, down: true, groups: [] };
+		return { q, only, down: true, groups: [], engine: false };
 	}
 	// A source named in the URL is asked even when it isn't one of the usual
 	// ones -- unless reveal is off and it's one of the mostly hidden ones,
@@ -54,6 +55,8 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 		only,
 		down: false,
 		all: sources.map((s) => ({ id: s.id, name: s.name })),
-		groups: q ? await groups(asked, q, reveal, hasScript(cookies)) : []
+		groups: q ? await groups(asked, q, reveal, hasScript(cookies)) : [],
+		// Only the engine can say a site's browser check is being passed (c143).
+		engine: downloadsBackend() === 'engine'
 	};
 };

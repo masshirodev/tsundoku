@@ -11,14 +11,14 @@ Designed in the handoff `Index-Browse.dc.html`, `Index-Extensions.dc.html`,
 from the brief [`briefs/BROWSE.md`](briefs/BROWSE.md). Card c126 ("Browse,
 extensions and repos screens") on the Tsundoku board, split into six parts:
 
-| Part                                                              | Card | State   |
-| ----------------------------------------------------------------- | ---- | ------- |
-| The engine says what each filter is                               | c140 | Done    |
-| A source's page: popular, latest, filters, search in it           | c141 | Done    |
-| BROWSE itself: choosing a source, RECENT, where it's reached from | c142 | Done    |
-| A site's browser check named at once; not answering               | c143 | Not yet |
-| Extensions and repositories                                       | c144 | Done    |
-| A source's settings                                               | c145 | Done    |
+| Part                                                              | Card | State |
+| ----------------------------------------------------------------- | ---- | ----- |
+| The engine says what each filter is                               | c140 | Done  |
+| A source's page: popular, latest, filters, search in it           | c141 | Done  |
+| BROWSE itself: choosing a source, RECENT, where it's reached from | c142 | Done  |
+| A site's browser check named at once; not answering               | c143 | Done  |
+| Extensions and repositories                                       | c144 | Done  |
+| A source's settings                                               | c145 | Done  |
 
 ## BROWSE
 
@@ -169,6 +169,31 @@ source isn't named: "FROM TOONILY" said what reveal hides. That was true of
 SEARCH THE SOURCES too, before this, and is fixed for both
 (`libraryIndex().nameable`).
 
+## A site's check
+
+Some sites sit behind a Cloudflare check, and the engine passes it through
+FlareSolverr: the first call takes 20–45 s, and is quick after. Nothing used to
+say why it was slow. The fork now records which hosts' checks are being
+solved and when each last was (`GET /challenges`,
+[`EXTENSION-ENGINE.md`](EXTENSION-ENGINE.md)), and tsundoku asks
+(`checkingSince`, through `/api/browse/check/<source>`), matching a host to a
+source's site by domain, subdomains included.
+
+- **On a source's page**, while its first answer is coming, the page asks every
+  second (`SiteCheck`, `src/lib/site-check.svelte.ts`). If the engine is
+  passing the site's check, the band says so at once (Browse Calls, "A site's
+  check is named at once", rather than Loading States' ten seconds): "ASURA
+  SCANS · PASSING THE SITE'S BROWSER CHECK", how long it has asked, and that a
+  first visit takes 20–45 s; the label says WAITING FOR THE SITE over the grid
+  outline. Otherwise the house band comes at 10 s ("STILL ASKING …"). At 60 s
+  the call gives up: DID NOT ANSWER, with TRY AGAIN.
+- **In SEARCH THE SOURCES**, a source still asking says "BROWSER CHECK · ASKED
+  18 S AGO" in its header instead of ASKING.
+- **In BROWSE**, a source whose site has needed a check says "FIRST VISIT WAITS
+  FOR THE SITE'S CHECK" on its line. The hosts are kept in rung 43's
+  `site_checks` (its own table: a source's rows are rewritten on every
+  install), read from the engine whenever a page asks and when BROWSE opens.
+
 ## Extensions and repositories
 
 `/browse/extensions`, BROWSE's back room, from the EXTENSIONS cell on its bar
@@ -266,18 +291,19 @@ values show and still save, under the NOT ANSWERING band.
 
 ## Where it lives in the code
 
-| What                                                      | Where                                                                                                       |
-| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| The filter logic                                          | `src/lib/library/browse-filters.ts`                                                                         |
-| Which sources, their shelves, what's kept                 | `src/lib/server/engine/browse.ts`                                                                           |
-| A result matched against the library (shared with search) | `asHits` in `src/lib/server/engine/backend.ts`                                                              |
-| BROWSE                                                    | `src/routes/browse/` (`+page.server.ts`, `+page.svelte`, `SourceRow.svelte`, shared with the empty search)  |
-| An extension's icon                                       | `src/routes/api/browse/icon/[pkg]/+server.ts`                                                               |
-| A source's page                                           | `src/routes/browse/[source]/` (`+page.server.ts`, `+page.svelte`, `FilterForm.svelte`, `ResultTile.svelte`) |
-| A source's settings                                       | `src/routes/browse/[source]/settings/`, `src/lib/library/source-settings.ts`                                |
-| Extensions and repositories                               | `src/routes/browse/extensions/` (`ExtRow.svelte`), `src/lib/server/engine/manage.ts`                        |
-| BROWSE's languages                                        | `src/routes/settings/` (03 — BROWSE)                                                                        |
-| The engine's schema                                       | the fork, `server/src/main/kotlin/mextensionserver/impl/FilterSchema.kt`                                    |
+| What                                                      | Where                                                                                                                                                          |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The filter logic                                          | `src/lib/library/browse-filters.ts`                                                                                                                            |
+| Which sources, their shelves, what's kept                 | `src/lib/server/engine/browse.ts`                                                                                                                              |
+| A result matched against the library (shared with search) | `asHits` in `src/lib/server/engine/backend.ts`                                                                                                                 |
+| BROWSE                                                    | `src/routes/browse/` (`+page.server.ts`, `+page.svelte`, `SourceRow.svelte`, shared with the empty search)                                                     |
+| An extension's icon                                       | `src/routes/api/browse/icon/[pkg]/+server.ts`                                                                                                                  |
+| A source's page                                           | `src/routes/browse/[source]/` (`+page.server.ts`, `+page.svelte`, `FilterForm.svelte`, `ResultTile.svelte`)                                                    |
+| A source's settings                                       | `src/routes/browse/[source]/settings/`, `src/lib/library/source-settings.ts`                                                                                   |
+| Extensions and repositories                               | `src/routes/browse/extensions/` (`ExtRow.svelte`), `src/lib/server/engine/manage.ts`                                                                           |
+| BROWSE's languages                                        | `src/routes/settings/` (03 — BROWSE)                                                                                                                           |
+| A site's check                                            | `checkingSince` / `noteSolvedChecks` in `engine/browse.ts`, `src/routes/api/browse/check/[source]/`, `src/lib/site-check.svelte.ts`; the fork's `ChallengeLog` |
+| The engine's schema                                       | the fork, `server/src/main/kotlin/mextensionserver/impl/FilterSchema.kt`                                                                                       |
 
 ## Tests
 
@@ -357,11 +383,9 @@ values show and still save, under the NOT ANSWERING band.
 - **INSTALLING has no progress bar.** An APK is a few hundred KB from the
   repository; the button says INSTALLING… while it's fetched, checked and
   loaded.
-- "FIRST VISIT WAITS FOR THE SITE'S CHECK" on a source behind Cloudflare
-  (c143): nothing records which sources need the check yet.
-- The browser-check waiting band and its 60 s DID NOT ANSWER (c143): today a
-  slow first visit waits over the grid outline, and a failure is a band with
-  TRY AGAIN.
+- **A check is known once it's been passed** (since the engine started, then
+  kept): a site's very first check still shows the 10 s band, not the check
+  band, if it hasn't begun by the time the page asks.
 - Anime and novel sources: only manga sources are installed, and
   `filterSchemaAnime` is in the fork but not called.
 - **A text filter inside a group can't be set.** The engine reads a group's

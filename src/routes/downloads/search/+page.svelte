@@ -9,6 +9,7 @@
 	import { SvelteMap } from 'svelte/reactivity';
 	import { untrack } from 'svelte';
 	import { isSettled, type Settled } from '$lib/library/settled';
+	import { SiteCheck } from '$lib/site-check.svelte';
 
 	/**
 	 * Searching the sources (Download States 1e, state 6). Results fill in
@@ -42,6 +43,26 @@
 			else void h.then((s) => settled.set(g.id, countOf(s)));
 		}
 	});
+	// A source still asking: is the engine passing its site's check? (c143) Asked only on the
+	// engine, which is the one that can say.
+	const checks = new SvelteMap<string, SiteCheck>();
+	$effect(() => {
+		if (!data.engine) return;
+		for (const g of data.groups) {
+			if (settled.get(g.id) !== undefined) {
+				checks.get(g.id)?.stop();
+				checks.delete(g.id);
+			} else if (!checks.has(g.id)) {
+				const c = new SiteCheck();
+				c.start(g.id);
+				checks.set(g.id, c);
+			}
+		}
+	});
+	$effect(() => () => {
+		for (const c of checks.values()) c.stop();
+	});
+
 	const answered = $derived([...settled.values()].filter((v) => v !== 'x').length);
 	const found = $derived(
 		[...settled.values()].reduce<number>((a, v) => a + (v === 'x' ? 0 : v), 0)
@@ -101,8 +122,9 @@
 		<div class="g-head">
 			<span>{g.name.toUpperCase()}</span>
 			<span class="dim">
-				{#if settled.get(g.id) === undefined}ASKING{:else if settled.get(g.id) === 'x'}DID NOT
-					ANSWER{:else}{settled.get(g.id)}{/if}
+				{#if settled.get(g.id) === undefined && checks.get(g.id)?.since != null}BROWSER CHECK ·
+					ASKED {Math.floor((checks.get(g.id)?.elapsed ?? 0) / 1000)} S AGO{:else if settled.get(g.id) === undefined}ASKING{:else if settled.get(g.id) === 'x'}DID
+					NOT ANSWER{:else}{settled.get(g.id)}{/if}
 			</span>
 		</div>
 		{#snippet answer(hits: SearchHit[] | null)}

@@ -164,6 +164,24 @@ export async function load<T>(
 	});
 }
 
+export type Challenges = {
+	/** Hosts whose browser check is being solved now, since when (ms). */
+	solving: Record<string, number>;
+	/** Hosts whose check was last solved, when. */
+	solved: Record<string, number>;
+};
+
+/** The fork's `/challenges` (doc/EXTENSION-ENGINE.md): quick, so a waiting page can ask every second. */
+export async function challenges(timeoutMs = 2_000): Promise<Challenges> {
+	const res = await fetch(`${engineUrl()}/challenges`, {
+		headers: authorization(),
+		signal: AbortSignal.timeout(timeoutMs)
+	});
+	if (!res.ok) throw new EngineError(`The engine answered ${res.status}`, 'source', res.status);
+	const j = (await res.json()) as Partial<Challenges>;
+	return { solving: j.solving ?? {}, solved: j.solved ?? {} };
+}
+
 /**
  * The bytes behind one of the engine's /image/ or /video/ URLs, fetched
  * through the source's own client, interceptors and cookies included (the

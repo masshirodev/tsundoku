@@ -25,7 +25,10 @@
 		if (r.hidden === 0) return n;
 		return r.hidden === r.series ? `${n}, ALL HIDDEN` : `${n}, ${count(r.hidden)} HIDDEN`;
 	};
-	const meta = (r: Row) => [r.lang.toUpperCase(), here(r)].filter(Boolean).join(' · ');
+	const meta = (r: Row) =>
+		[r.lang.toUpperCase(), here(r), r.check && "FIRST VISIT WAITS FOR THE SITE'S CHECK"]
+			.filter(Boolean)
+			.join(' · ');
 	const recentMeta = (r: Row) =>
 		[
 			r.kind.toUpperCase(),

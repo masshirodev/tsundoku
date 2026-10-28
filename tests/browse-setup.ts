@@ -24,6 +24,12 @@ import { BROWSE_PORT, ENGINE_PORT, REPO_PORT, SOURCES, type EngineCall } from '.
 
 let calls: EngineCall[] = [];
 let down = false;
+/** /__check: the next search takes this long, while example.org's "check" is solved (c143). */
+let checkMs = 0;
+const challenges: { solving: Record<string, number>; solved: Record<string, number> } = {
+	solving: {},
+	solved: {}
+};
 
 // ---- a fake web: extension repositories (c144) ------------------------------------------------
 
@@ -211,6 +217,7 @@ function startEngine(): Promise<Server> {
 		if (req.url === '/__reset') {
 			calls = [];
 			down = false;
+			checkMs = 0;
 			return json(200, {});
 		}
 		if (req.url === '/__down') {
@@ -218,6 +225,11 @@ function startEngine(): Promise<Server> {
 			return json(200, {});
 		}
 		if (req.url === '/__calls') return json(200, calls);
+		if (req.url?.startsWith('/__check')) {
+			checkMs = Number(new URL(req.url, 'http://x').searchParams.get('ms')) || 3000;
+			return json(200, {});
+		}
+		if (req.url === '/challenges' && !down) return json(200, challenges);
 		if (req.url === '/__bump') {
 			webtoonsVersion = 3;
 			return json(200, {});
@@ -254,6 +266,18 @@ function startEngine(): Promise<Server> {
 					);
 			}
 			const a = answer(b);
+			// A search behind a browser check: slow, and "solving" its site meanwhile.
+			if (b.method === 'getSearchManga' && checkMs > 0) {
+				const ms = checkMs;
+				checkMs = 0;
+				challenges.solving['example.org'] = Date.now();
+				setTimeout(() => {
+					delete challenges.solving['example.org'];
+					challenges.solved['example.org'] = Date.now();
+					json(200, a);
+				}, ms);
+				return;
+			}
 			return a === null ? json(404, { error: 'unknown' }) : json(200, a);
 		});
 	});

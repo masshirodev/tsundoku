@@ -1,6 +1,6 @@
 import { devices } from '@playwright/test';
 import { test, expect } from './fixtures';
-import { engineCalls, engineDown, resetEngine, SOURCES } from './browse-world';
+import { behindACheck, engineCalls, engineDown, resetEngine, SOURCES } from './browse-world';
 
 /**
  * Browsing a source (Index-Browse; doc/BROWSE.md; card c141), end to end,
@@ -277,6 +277,18 @@ test('a source’s settings: each type saves, and the source’s page asks again
 	await resetEngine();
 	await page.getByRole('link', { name: /^Back to/ }).click();
 	await expect(page.locator('.grid .tile').first()).toBeVisible();
+	// The answer may have been on its way before the tile was drawn: wait for the call itself.
+	let seen: string[] = [];
+	await expect
+		.poll(
+			async () => {
+				const all = await engineCalls();
+				seen = all.map((c) => c.method);
+				return all.some((c) => c.method === 'getPopularManga');
+			},
+			{ message: `calls after the settings changed: ${seen.join(', ')}` }
+		)
+		.toBe(true);
 	const popular = (await engineCalls()).find((c) => c.method === 'getPopularManga')!;
 	const sent = Object.fromEntries((popular.preferences ?? []).map((p) => [p.key, p]));
 	expect(sent.saver.switchPreferenceCompat.value).toBe(true);
@@ -284,4 +296,29 @@ test('a source’s settings: each type saves, and the source’s page asks again
 	expect(sent.quality.listPreference.valueIndex).toBe(2);
 	expect(sent.rating.multiSelectListPreference.values).toEqual(['safe', 'suggestive']);
 	expect(sent.blocked.editTextPreference.value).toBe('abc-123');
+});
+
+test('a site’s browser check is named at once, and BROWSE says a first visit waits for it', async ({
+	page
+}) => {
+	await page.goto(OPEN);
+	await behindACheck(4000);
+	// A search from the page is a client-side navigation: the page is there at once,
+	// and the answer streams in after the check.
+	const field = page.getByRole('searchbox', { name: /Search Open Source/ });
+	await field.fill('behind-a-check');
+	await field.press('Enter');
+	const band = page.locator('.band', { hasText: "PASSING THE SITE'S BROWSER CHECK" });
+	await expect(band).toBeVisible({ timeout: 2500 });
+	await expect(band).toContainText('A FIRST VISIT TAKES 20–45 S');
+	await expect(page.locator('.screen > .label')).toContainText('WAITING FOR THE SITE');
+	await expect(page.locator('.grid .tile', { hasText: 'Filtered One' })).toBeVisible({
+		timeout: 10_000
+	});
+	await expect(band).toHaveCount(0);
+
+	await page.goto('/browse');
+	await expect(
+		page.locator('.rows').nth(1).locator('.row', { hasText: 'Open Source' })
+	).toContainText("FIRST VISIT WAITS FOR THE SITE'S CHECK");
 });

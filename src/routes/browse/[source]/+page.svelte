@@ -10,6 +10,8 @@
 	import { writeFilters } from '$lib/library/browse-filters';
 	import { isSettled } from '$lib/library/settled';
 	import ResultTile from './ResultTile.svelte';
+	import { SiteCheck, checkLine } from '$lib/site-check.svelte';
+	import { askedLine } from '$lib/waiting';
 	import FilterForm from './FilterForm.svelte';
 
 	/**
@@ -72,6 +74,14 @@
 			asking = false;
 		});
 		return () => (current = false);
+	});
+
+	// Waiting for the first answer: is the engine passing the site's browser check? (c143)
+	const check = new SiteCheck();
+	$effect(() => {
+		if (shown) return;
+		check.start(data.source.id);
+		return () => check.stop();
 	});
 
 	const value = $derived(shown?.ok ? shown.value : null);
@@ -220,10 +230,18 @@
 			</Band>
 		{/if}
 	{:else}
+		{#if !results && check.since !== null}
+			<Band
+				title="{name.toUpperCase()} · PASSING THE SITE'S BROWSER CHECK"
+				detail={checkLine(check.elapsed)}
+			/>
+		{:else if !results && check.elapsed >= 10_000}
+			<Band title="STILL ASKING {name.toUpperCase()}" detail={askedLine(check.elapsed)} />
+		{/if}
 		<div class="label">
 			<div>01 — {tabTitle}</div>
 			<div class="r">
-				{#if !results}ASKING {name.toUpperCase()}{:else if results.more}<span
+				{#if !results && check.since !== null}WAITING FOR THE SITE{:else if !results}ASKING {name.toUpperCase()}{:else if results.more}<span
 						>{count(results.hits.length)} SO FAR</span
 					>{#if js}<span class="long">&nbsp;· MORE AS YOU SCROLL</span>{/if}{:else}{count(
 						results.hits.length

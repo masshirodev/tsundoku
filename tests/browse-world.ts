@@ -37,6 +37,8 @@ export type EngineCall = {
 const ENGINE = `http://127.0.0.1:${ENGINE_PORT}`;
 export const resetEngine = () => fetch(`${ENGINE}/__reset`, { method: 'POST' });
 export const engineDown = () => fetch(`${ENGINE}/__down`, { method: 'POST' });
+/** The next search waits [ms] while the engine "passes" example.org's browser check. */
+export const behindACheck = (ms = 3000) => fetch(`${ENGINE}/__check?ms=${ms}`, { method: 'POST' });
 export const bumpWebtoons = () => fetch(`${ENGINE}/__bump`, { method: 'POST' });
 export const REPO = (name: 'good' | 'bad' | 'notrepo') =>
 	`https://127.0.0.1:${REPO_PORT}/${name}/index.min.json`;

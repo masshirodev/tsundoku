@@ -27,6 +27,11 @@ type Call = {
 	filterList?: unknown;
 };
 let calls: Call[] = [];
+/** What the fake engine's /challenges says. */
+let challenges: { solving: Record<string, number>; solved: Record<string, number> } = {
+	solving: {},
+	solved: {}
+};
 let server: Server;
 
 const manga = (sourceId: string, page: number, i: number) => ({
@@ -39,6 +44,10 @@ const manga = (sourceId: string, page: number, i: number) => ({
 
 beforeAll(async () => {
 	server = createServer((req, res) => {
+		if (req.url === '/challenges')
+			return res
+				.writeHead(200, { 'content-type': 'application/json' })
+				.end(JSON.stringify(challenges));
 		let raw = '';
 		req.on('data', (c) => (raw += c));
 		req.on('end', () => {
@@ -268,6 +277,29 @@ describe('a twin from a mostly-hidden source', () => {
 			)!.match;
 		expect(await twin(false)).toEqual({ kind: 'same-title', source: '' });
 		expect(await twin(true)).toEqual({ kind: 'same-title', source: 'HIDDEN SOURCE' });
+	});
+});
+
+describe('a site’s browser check', () => {
+	it('matches a host to a source’s site, subdomains included', () => {
+		expect(browse.siteOf('https://www.mangadex.org/')).toBe('mangadex.org');
+		expect(browse.siteOf('not a url')).toBe('');
+		expect(browse.sameSite('api.mangadex.org', 'mangadex.org')).toBe(true);
+		expect(browse.sameSite('mangadex.org', 'mangadex.org')).toBe(true);
+		expect(browse.sameSite('notmangadex.org', 'mangadex.org')).toBe(false);
+		expect(browse.sameSite('example.org', '')).toBe(false);
+	});
+
+	it('says since when the engine has been passing it, and BROWSE remembers it after', async () => {
+		challenges = { solving: { 'api.example.org': 1_000 }, solved: {} };
+		expect(await browse.checkingSince(OPEN)).toBe(1_000);
+		challenges = { solving: { 'elsewhere.net': 5 }, solved: {} };
+		expect(await browse.checkingSince(OPEN)).toBeNull();
+		expect(browse.browseList(false).manga.find((r) => r.id === OPEN)!.check).toBe(false);
+		challenges = { solving: {}, solved: { 'example.org': 2_000 } };
+		await browse.checkingSince(OPEN);
+		expect(browse.browseList(false).manga.find((r) => r.id === OPEN)!.check).toBe(true);
+		challenges = { solving: {}, solved: {} };
 	});
 });
 
