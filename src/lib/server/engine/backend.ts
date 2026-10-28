@@ -256,7 +256,7 @@ export function searchSources(reveal: boolean): { id: string; name: string }[] {
 	return sourcesToSearch(rows, sourceUse(), reveal);
 }
 
-type EngineManga = {
+export type EngineManga = {
 	url: string;
 	title: string;
 	artist?: string | null;
@@ -279,7 +279,7 @@ const STATUS_NAME = [
 	'ON_HIATUS'
 ];
 
-function callSource<T>(
+export function callSource<T>(
 	sourceId: string,
 	method: string,
 	args: Record<string, unknown>,
@@ -290,28 +290,30 @@ function callSource<T>(
 	return call<T>(ext, method, args, { sourceId, preferences: preferences(sourceId), timeoutMs });
 }
 
-const sourceName = (sourceId: string) =>
+export const sourceName = (sourceId: string) =>
 	(
 		db().prepare(`SELECT name FROM engine_sources WHERE id = ?`).get(sourceId) as
 			{ name: string } | undefined
 	)?.name ?? '';
 
-/** One source's answer to a query, as Suwayomi's search answers (suwayomi-library.ts). */
-export async function searchSource(
+/**
+ * A source's results as the screens show them: matched against the library
+ * (IN LIBRARY, SAME TITLE), a hidden series left out while reveal is off, and
+ * a result the source repeats shown once. Search and BROWSE both answer this.
+ */
+export function asHits(
 	sourceId: string,
-	query: string,
-	reveal: boolean
-): Promise<SearchHit[]> {
-	const page = await callSource<{ mangas: EngineManga[] }>(
-		sourceId,
-		'getSearchManga',
-		{ page: 1, search: query },
-		45_000
-	);
+	mangas: EngineManga[],
+	reveal: boolean,
+	query = ''
+): SearchHit[] {
 	const { byKey, byTitle } = libraryIndex(reveal);
+	const seen = new Set<string>();
 	const out: SearchHit[] = [];
-	for (const m of page.mangas) {
+	for (const m of mangas) {
 		const url = splitMemo(m.url).url;
+		if (seen.has(url)) continue;
+		seen.add(url);
 		const mine = byKey.get(keyOf(sourceId, url));
 		if (mine?.hidden && !reveal) continue;
 		const other = byTitle.get(normTitle(m.title));
@@ -334,6 +336,21 @@ export async function searchSource(
 		});
 	}
 	return out;
+}
+
+/** One source's answer to a query, as Suwayomi's search answers (suwayomi-library.ts). */
+export async function searchSource(
+	sourceId: string,
+	query: string,
+	reveal: boolean
+): Promise<SearchHit[]> {
+	const page = await callSource<{ mangas: EngineManga[] }>(
+		sourceId,
+		'getSearchManga',
+		{ page: 1, search: query },
+		45_000
+	);
+	return asHits(sourceId, page.mangas, reveal, query);
 }
 
 type EngineChapter = {

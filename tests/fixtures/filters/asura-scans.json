@@ -1,0 +1,47 @@
+[
+	{
+		"type": "sort",
+		"name": "Sort By",
+		"state": {
+			"index": 0,
+			"ascending": false
+		},
+		"values": ["Latest Update", "Popular", "Rating", "A-Z", "Newest"],
+		"children": null
+	},
+	{
+		"type": "select",
+		"name": "Status",
+		"state": 0,
+		"values": ["All", "Ongoing", "Completed", "Hiatus", "Dropped", "Axed"],
+		"children": null
+	},
+	{
+		"type": "select",
+		"name": "Type",
+		"state": 0,
+		"values": ["All", "Manhwa", "Manhua", "Mangatoon"],
+		"children": null
+	},
+	{
+		"type": "text",
+		"name": "Min Chapters",
+		"state": "",
+		"values": null,
+		"children": null
+	},
+	{
+		"type": "separator",
+		"name": "",
+		"state": null,
+		"values": null,
+		"children": null
+	},
+	{
+		"type": "header",
+		"name": "Tap 'Reset' to load filters",
+		"state": null,
+		"values": null,
+		"children": null
+	}
+]

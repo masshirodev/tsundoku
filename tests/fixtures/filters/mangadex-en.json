@@ -1,0 +1,765 @@
+[
+	{
+		"type": "checkbox",
+		"name": "Has available chapters",
+		"state": false,
+		"values": null,
+		"children": null
+	},
+	{
+		"type": "group",
+		"name": "Original language",
+		"state": null,
+		"values": null,
+		"children": [
+			{
+				"type": "checkbox",
+				"name": "Japanese (Manga)",
+				"state": false,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "checkbox",
+				"name": "Chinese (Manhua)",
+				"state": false,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "checkbox",
+				"name": "Korean (Manhwa)",
+				"state": false,
+				"values": null,
+				"children": null
+			}
+		]
+	},
+	{
+		"type": "group",
+		"name": "Content rating",
+		"state": null,
+		"values": null,
+		"children": [
+			{
+				"type": "checkbox",
+				"name": "Safe",
+				"state": true,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "checkbox",
+				"name": "Suggestive",
+				"state": true,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "checkbox",
+				"name": "Erotica",
+				"state": false,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "checkbox",
+				"name": "Pornographic",
+				"state": false,
+				"values": null,
+				"children": null
+			}
+		]
+	},
+	{
+		"type": "group",
+		"name": "Publication demographic",
+		"state": null,
+		"values": null,
+		"children": [
+			{
+				"type": "checkbox",
+				"name": "None",
+				"state": false,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "checkbox",
+				"name": "Shounen",
+				"state": false,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "checkbox",
+				"name": "Shoujo",
+				"state": false,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "checkbox",
+				"name": "Seinen",
+				"state": false,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "checkbox",
+				"name": "Josei",
+				"state": false,
+				"values": null,
+				"children": null
+			}
+		]
+	},
+	{
+		"type": "group",
+		"name": "Status",
+		"state": null,
+		"values": null,
+		"children": [
+			{
+				"type": "checkbox",
+				"name": "Ongoing",
+				"state": false,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "checkbox",
+				"name": "Completed",
+				"state": false,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "checkbox",
+				"name": "Hiatus",
+				"state": false,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "checkbox",
+				"name": "Cancelled",
+				"state": false,
+				"values": null,
+				"children": null
+			}
+		]
+	},
+	{
+		"type": "sort",
+		"name": "Sort",
+		"state": {
+			"index": 5,
+			"ascending": false
+		},
+		"values": [
+			"Alphabetic",
+			"Chapter uploaded at",
+			"Number of follows",
+			"Content created at",
+			"Content info updated at",
+			"Relevance",
+			"Year",
+			"Rating"
+		],
+		"children": null
+	},
+	{
+		"type": "select",
+		"name": "Created within last",
+		"state": 0,
+		"values": ["Any", "Day", "Week", "Month", "Year"],
+		"children": null
+	},
+	{
+		"type": "group",
+		"name": "Tags mode",
+		"state": null,
+		"values": null,
+		"children": [
+			{
+				"type": "select",
+				"name": "Included tags mode",
+				"state": 0,
+				"values": ["And", "Or"],
+				"children": null
+			},
+			{
+				"type": "select",
+				"name": "Excluded tags mode",
+				"state": 1,
+				"values": ["And", "Or"],
+				"children": null
+			}
+		]
+	},
+	{
+		"type": "group",
+		"name": "Content",
+		"state": null,
+		"values": null,
+		"children": [
+			{
+				"type": "tristate",
+				"name": "Gore",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Sexual violence",
+				"state": 0,
+				"values": null,
+				"children": null
+			}
+		]
+	},
+	{
+		"type": "group",
+		"name": "Format",
+		"state": null,
+		"values": null,
+		"children": [
+			{
+				"type": "tristate",
+				"name": "4-Koma",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Adaptation",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Anthology",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Award Winning",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Doujinshi",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Fan Colored",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Full Color",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Long Strip",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Official Colored",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Oneshot",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "User Created",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Web Comic",
+				"state": 0,
+				"values": null,
+				"children": null
+			}
+		]
+	},
+	{
+		"type": "group",
+		"name": "Genre",
+		"state": null,
+		"values": null,
+		"children": [
+			{
+				"type": "tristate",
+				"name": "Action",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Adventure",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Boy's Love",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Comedy",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Crime",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Drama",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Fantasy",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Girl's Love",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Historical",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Horror",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Isekai",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Magical Girls",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Mecha",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Medical",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Mystery",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Philosophical",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Romance",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Sci-Fi",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Slice of Life",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Sports",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Superhero",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Thriller",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Tragedy",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Wuxia",
+				"state": 0,
+				"values": null,
+				"children": null
+			}
+		]
+	},
+	{
+		"type": "group",
+		"name": "Theme",
+		"state": null,
+		"values": null,
+		"children": [
+			{
+				"type": "tristate",
+				"name": "Aliens",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Animals",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Cooking",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Crossdressing",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Delinquents",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Demons",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Genderswap",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Ghosts",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Gyaru",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Harem",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Incest",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Loli",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Mafia",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Magic",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Martial Arts",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Military",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Monster Girls",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Monsters",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Music",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Ninja",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Office Workers",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Police",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Post-Apocalyptic",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Psychological",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Reincarnation",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Reverse Harem",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Samurai",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "School Life",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Shota",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Supernatural",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Survival",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Time Travel",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Traditional Games",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Vampires",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Video Games",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Villainess",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Virtual Reality",
+				"state": 0,
+				"values": null,
+				"children": null
+			},
+			{
+				"type": "tristate",
+				"name": "Zombies",
+				"state": 0,
+				"values": null,
+				"children": null
+			}
+		]
+	}
+]

@@ -1,0 +1,9 @@
+[
+	{
+		"type": "select",
+		"name": "Search Type",
+		"state": 0,
+		"values": ["ALL", "Originals", "Canvas"],
+		"children": null
+	}
+]
