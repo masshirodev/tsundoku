@@ -10,6 +10,9 @@ import {
 	seriesForKey,
 	sourceManga
 } from '$lib/server/downloads';
+import { downloadsBackend } from '$lib/server/engine/run';
+import { parseSourceMangaId } from '$lib/server/engine/backend';
+import { browseSource } from '$lib/server/engine/browse';
 
 /**
  * A search result's preview (Download States 1e, state 7): the series
@@ -36,9 +39,21 @@ export const load: PageServerLoad = async ({ params, cookies, url }) => {
 		if (mine.hidden && !isRevealed(cookies)) error(404, 'not found');
 		redirect(303, `/series/${mine.id}`);
 	}
+	// Hidden means hidden: a mostly-hidden source's series isn't previewed with reveal off.
+	if (downloadsBackend() === 'engine') {
+		const ref = parseSourceMangaId(id);
+		if (!ref || !browseSource(ref.sourceId, isRevealed(cookies))) error(404, 'not found');
+	}
 	const manga = sourceManga(id);
 	manga.catch(() => {});
-	return { id, q: url.searchParams.get('q') ?? '', manga };
+	// Back to where it was found: a source's BROWSE page, or the search.
+	const from = url.searchParams.get('from') ?? '';
+	return {
+		id,
+		q: url.searchParams.get('q') ?? '',
+		from: from.startsWith('/browse/') && !from.startsWith('//') ? from : '',
+		manga
+	};
 };
 
 export const actions: Actions = {

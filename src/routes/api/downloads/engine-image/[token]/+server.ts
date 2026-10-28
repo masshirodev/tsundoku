@@ -2,6 +2,7 @@ import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { engineConfigured, fetchProxied, EngineError } from '$lib/server/engine/client';
 import { imageType } from '$lib/server/engine/protocol';
+import { thumbnail } from '$lib/server/covers';
 
 /**
  * A search result's or a preview's cover, through the engine's /image/ proxy
@@ -9,6 +10,10 @@ import { imageType } from '$lib/server/engine/protocol';
  * token, so tsundoku passes it on, as /api/downloads/thumb does for
  * Suwayomi's. Only covers the viewer was shown link here; while reveal is on
  * hooks.server.ts sends every response no-store, these included.
+ *
+ * Sent as the library's 400px WebP thumbnail: a source's cover can be the
+ * original scan (MangaDex's default sends up to 2.8 MB each, measured
+ * 2026-10-28), and BROWSE asks for twenty at a time on a tablet.
  */
 export const GET: RequestHandler = async ({ params }) => {
 	if (!engineConfigured() || !/^[A-Za-z0-9_-]{8,128}$/.test(params.token)) error(404, 'not found');
@@ -19,12 +24,14 @@ export const GET: RequestHandler = async ({ params }) => {
 		// A token the engine forgot (a restart) is no cover, not an error.
 		error(e instanceof EngineError && e.failure === 'down' ? 504 : 404, 'no cover');
 	}
-	const type = imageType(got.bytes);
-	if (!type) error(404, 'no cover');
-	return new Response(Buffer.from(got.bytes), {
-		headers: {
-			'content-type': type === 'jpg' ? 'image/jpeg' : `image/${type}`,
-			'cache-control': 'private, max-age=86400'
-		}
+	if (!imageType(got.bytes)) error(404, 'no cover');
+	let webp: Buffer;
+	try {
+		webp = await thumbnail(Buffer.from(got.bytes));
+	} catch {
+		error(404, 'no cover');
+	}
+	return new Response(new Uint8Array(webp), {
+		headers: { 'content-type': 'image/webp', 'cache-control': 'private, max-age=86400' }
 	});
 };

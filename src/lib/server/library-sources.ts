@@ -1,6 +1,6 @@
 import { getDb } from './db.ts';
 import { VISIBLE_SQL } from './visibility.ts';
-import { normTitle, parseKey, type SourceUse } from '../library/downloads.ts';
+import { mostlyHidden, normTitle, parseKey, type SourceUse } from '../library/downloads.ts';
 
 /**
  * What the library holds of each source, for finding and adding series
@@ -62,7 +62,12 @@ export function libraryIndex(reveal: boolean) {
 		const key = parseKey(r.k);
 		if (key) byTitle.set(normTitle(r.title), key.sourceId);
 	}
-	return { byKey, byTitle };
+	// A twin in a mostly-hidden source is still a twin, but with reveal off the
+	// source isn't named: hidden means not named, not just not listed.
+	const use = sourceUse();
+	const nameable = (sourceId: string) =>
+		reveal || !mostlyHidden(use.get(sourceId) ?? { series: 0, hidden: 0 });
+	return { byKey, byTitle, nameable };
 }
 
 /** The root Mihon series live in: the one most of them are in already. */

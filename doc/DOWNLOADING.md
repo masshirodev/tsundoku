@@ -358,8 +358,13 @@ every three seconds while a screen is listening, every thirty when none is.
   subscription to `downloadStatusChanged`. A three-second poll on localhost
   does the same with no websocket client and no reconnect logic, and while
   nobody is watching it drops to every thirty seconds.
-- **Search without script waits.** Streamed results need script. Without it,
-  the page waits for every source, twenty seconds at most.
+- **Search without script doesn't work (found 2026-10-28, card c146).** This
+  said "without it, the page waits for every source, twenty seconds at
+  most", which isn't so: streamed data never resolves without script, and the
+  page shows its waiting rows for good (measured with script off: twelve
+  ghost rows, no results). BROWSE solves the same thing with the
+  `tsundoku_js` cookie ([`BROWSE.md`](BROWSE.md), "Waiting, and without
+  script"); c146 does it here.
 - **Mostly hidden is more than half.** The canvas names Toonily and Omega
   Scans. The same rule also leaves out Toonily.me (14 of 17 hidden), which the
   search mock still draws as a tab.

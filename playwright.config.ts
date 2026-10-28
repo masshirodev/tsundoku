@@ -2,6 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { BROWSE_PORT } from './tests/browse-world';
 
 const previewPort = Number.parseInt(process.env.PLAYWRIGHT_PORT ?? '4183', 10);
 
@@ -27,6 +28,7 @@ const databasePath = (process.env.PLAYWRIGHT_DATABASE_PATH ??= join(
 //
 const DEVICE_IGNORE = [
 	'**/build/**',
+	'**/browse-*.e2e.ts',
 	'**/*-flow.e2e.ts',
 	'**/library-frame.e2e.ts',
 	'**/unlock-gate.e2e.ts'
@@ -40,6 +42,9 @@ export default defineConfig({
 	testMatch: '**/*.e2e.{ts,js}',
 	testIgnore: ['**/build/**'],
 	fullyParallel: true,
+	// BROWSE's own server and fake engine, started after the shared server has
+	// built (tests/browse-setup.ts): the browse project below runs against it.
+	globalSetup: './tests/browse-setup.ts',
 	reporter: process.env.CI ? 'github' : 'list',
 	use: {
 		baseURL: `http://localhost:${previewPort}`,
@@ -85,7 +90,12 @@ export default defineConfig({
 			name: 'tablet-portrait',
 			// The gate changes /reveal for everyone; it runs last, in its own project.
 			// The duplicates flow runs alone before it (see its project, below).
-			testIgnore: ['**/build/**', '**/unlock-gate.e2e.ts', '**/duplicates-flow.e2e.ts'],
+			testIgnore: [
+				'**/build/**',
+				'**/unlock-gate.e2e.ts',
+				'**/duplicates-flow.e2e.ts',
+				'**/browse-*.e2e.ts'
+			],
 			use: { ...devices['Galaxy Tab S4'], viewport: { width: 800, height: 1280 } }
 		},
 		// Flow specs write to the shared seeded database, so they run once, above.
@@ -101,6 +111,19 @@ export default defineConfig({
 			name: 'desktop',
 			testIgnore: DEVICE_IGNORE,
 			use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } }
+		},
+		{
+			// BROWSE (doc/BROWSE.md) against its own server and fake engine, which
+			// specs steer, so one worker at a time.
+			name: 'browse',
+			testMatch: '**/browse-*.e2e.ts',
+			fullyParallel: false,
+			workers: 1,
+			use: {
+				...devices['Galaxy Tab S4'],
+				viewport: { width: 800, height: 1280 },
+				baseURL: `http://localhost:${BROWSE_PORT}`
+			}
 		},
 		{
 			// Any load of the library carries out a duplicate decision left

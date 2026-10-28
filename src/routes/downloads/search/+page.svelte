@@ -118,8 +118,8 @@
 							{#if h.match.kind === 'in-library'}<span class="lead">IN LIBRARY</span> · {h.match
 									.meta}
 							{:else if h.match.kind === 'same-title'}<span class="lead">SAME TITLE IN LIBRARY</span
-								>
-								· FROM {h.match.source}
+								>{#if h.match.source}
+									· FROM {h.match.source}{/if}
 							{:else}{h.meta}{/if}
 						</span>
 					</span>

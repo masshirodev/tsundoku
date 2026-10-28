@@ -116,7 +116,8 @@ write(series(OPEN, '/elsewhere', false));
 // The other: two of its three series here hidden, so it's mostly hidden.
 write(series(HIDDEN, '/a', true));
 write(series(HIDDEN, '/b', true));
-write(series(HIDDEN, '/c', false));
+// Visible, from the mostly-hidden source, and the same title as a result of the open one.
+write({ ...series(HIDDEN, '/c', false), title: 'Series 3-0' });
 
 for (const [pkg, name, id] of [
 	['en.open', 'Open Source', OPEN],
@@ -204,6 +205,17 @@ describe('a source’s shelf', () => {
 			['getSearchManga', 'x', filters],
 			['getSearchManga', 'x', []]
 		]);
+	});
+});
+
+describe('a twin from a mostly-hidden source', () => {
+	it('is still SAME TITLE, but the source isn’t named with reveal off', async () => {
+		const twin = async (reveal: boolean) =>
+			(await browse.shelf(OPEN, 'popular', { pages: 3, reveal })).hits.find(
+				(h) => h.title === 'Series 3-0'
+			)!.match;
+		expect(await twin(false)).toEqual({ kind: 'same-title', source: '' });
+		expect(await twin(true)).toEqual({ kind: 'same-title', source: 'HIDDEN SOURCE' });
 	});
 });
 

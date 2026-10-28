@@ -17,6 +17,16 @@ export const THEME_COOKIE = 'tsundoku_theme';
  */
 export const INCOGNITO_COOKIE = 'tsundoku_incognito';
 
+/**
+ * Set by the app once its script runs (routes/+layout.svelte). Streamed data
+ * needs script to resolve, so a page that streams (a slow source in BROWSE)
+ * awaits it on the server for a browser without, rather than draw its
+ * waiting state forever. A first visit with script awaits too, once.
+ */
+export const SCRIPT_COOKIE = 'tsundoku_js';
+
+export const hasScript = (cookies: Cookies): boolean => cookies.get(SCRIPT_COOKIE) === '1';
+
 export type Theme = 'dark' | 'light';
 
 export function isRevealed(cookies: Cookies): boolean {

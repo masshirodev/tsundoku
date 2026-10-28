@@ -307,7 +307,7 @@ export function asHits(
 	reveal: boolean,
 	query = ''
 ): SearchHit[] {
-	const { byKey, byTitle } = libraryIndex(reveal);
+	const { byKey, byTitle, nameable } = libraryIndex(reveal);
 	const seen = new Set<string>();
 	const out: SearchHit[] = [];
 	for (const m of mangas) {
@@ -321,10 +321,11 @@ export function asHits(
 			? {
 					kind: 'in-library',
 					seriesId: mine.id,
-					meta: `${mine.have.toLocaleString('en-US')} OF ${mine.total.toLocaleString('en-US')} DOWNLOADED`
+					meta: `${mine.have.toLocaleString('en-US')} OF ${mine.total.toLocaleString('en-US')} DOWNLOADED`,
+					hidden: !!mine.hidden
 				}
 			: other && other !== sourceId
-				? { kind: 'same-title', source: sourceName(other).toUpperCase() }
+				? { kind: 'same-title', source: nameable(other) ? sourceName(other).toUpperCase() : '' }
 				: { kind: 'new' };
 		out.push({
 			mangaId: sourceMangaId(sourceId, m.url),

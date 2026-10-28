@@ -142,8 +142,9 @@ So:
   class (`KeiSource`), and every host has to follow such changes. One
   interface now and then, not hundreds of sites, but not nothing.
 
-Until the engine has parity, Suwayomi keeps downloading
-([`DOWNLOADING.md`](DOWNLOADING.md)). The plan is on the board under the
+Since 2026-10-28 tsundoku downloads on the engine itself
+([`DOWNLOADER.md`](DOWNLOADER.md)), and BROWSE finds series on it
+([`BROWSE.md`](BROWSE.md)); Suwayomi still runs until it's retired. The plan is on the board under the
 **Extensions** label: c124 (gallery sources as one-off books), c113 (the
 spike, done), c131 (the engine fork), c125 (tsundoku's own downloader, manga
 first), c130 (cover hashes, so Mihon's books are checked for duplicates), c126 (browse,

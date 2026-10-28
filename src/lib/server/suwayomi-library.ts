@@ -94,7 +94,7 @@ export async function searchSource(
 		20_000
 	);
 	const names = await installedSources();
-	const { byKey, byTitle } = libraryIndex(reveal);
+	const { byKey, byTitle, nameable } = libraryIndex(reveal);
 	const out: SearchHit[] = [];
 	for (const m of d.fetchSourceManga.mangas) {
 		const mine = byKey.get(keyOf(m.sourceId, m.url));
@@ -109,7 +109,9 @@ export async function searchSource(
 			: other && other !== m.sourceId
 				? {
 						kind: 'same-title',
-						source: (names.get(other) ?? '').replace(/\s*\([A-Z-]+\)$/, '').toUpperCase()
+						source: nameable(other)
+							? (names.get(other) ?? '').replace(/\s*\([A-Z-]+\)$/, '').toUpperCase()
+							: ''
 					}
 				: { kind: 'new' };
 		out.push({

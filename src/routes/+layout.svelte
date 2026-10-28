@@ -39,6 +39,13 @@
 		return () => removeEventListener('click', tap, true);
 	});
 
+	// Tells the server this browser runs script, so streamed pages may stream
+	// (server/prefs.ts, SCRIPT_COOKIE). Not httpOnly: script is what sets it.
+	onMount(() => {
+		if (!document.cookie.split('; ').includes('tsundoku_js=1'))
+			document.cookie = `tsundoku_js=1; path=/; max-age=31536000; samesite=lax${location.protocol === 'https:' ? '; secure' : ''}`;
+	});
+
 	// A finger held on an image opens the browser's menu (save, share, open
 	// in new tab) over the page being read. Only for touch: a mouse's right
 	// click keeps its menu where the screen doesn't claim it (doc/TOUCH.md).

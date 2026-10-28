@@ -17,9 +17,11 @@
 	let { data, form } = $props();
 	let adding = $state(false);
 	const back = $derived(
-		data.q
-			? `${resolve('/downloads/search')}?q=${encodeURIComponent(data.q)}`
-			: resolve('/downloads/search')
+		data.from
+			? data.from
+			: data.q
+				? `${resolve('/downloads/search')}?q=${encodeURIComponent(data.q)}`
+				: resolve('/downloads/search')
 	);
 	const refusal = $derived(
 		form && 'message' in form && typeof form.message === 'string' ? form.message.toUpperCase() : ''
@@ -46,7 +48,9 @@
 <div class="preview">
 	<header class="bar">
 		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
-		<a class="back" href={back}><span class="arrow">←</span><span>SOURCES</span></a>
+		<a class="back" href={back}
+			><span class="arrow">←</span><span>{data.from ? 'BROWSE' : 'SOURCES'}</span></a
+		>
 	</header>
 
 	{#if refusal}<Band title={refusal} detail="NOTHING CHANGED" />{/if}

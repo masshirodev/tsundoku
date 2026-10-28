@@ -496,8 +496,9 @@ export function highlight(
 /** What the library says of a result. */
 export type ResultMatch =
 	/** This very series is in the library: it opens it. */
-	| { kind: 'in-library'; seriesId: number; meta: string }
+	| { kind: 'in-library'; seriesId: number; meta: string; hidden?: boolean }
 	/** The same title from another source: said, to head off a twin. */
+	/** `source` is '' when reveal doesn't let the viewer see that source's name. */
 	| { kind: 'same-title'; source: string }
 	| { kind: 'new' };
 
