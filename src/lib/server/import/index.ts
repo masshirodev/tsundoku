@@ -242,6 +242,9 @@ export type ImportSummary = { jobId: number; failedFiles: number; sources: Sourc
 
 let running: Promise<ImportSummary> | null = null;
 
+/** The import under way, if one is: a caller whose files arrived after it began waits for it, then starts its own. */
+export const importRunning = (): Promise<ImportSummary> | null => running;
+
 /**
  * Import every device folder under `library`. One at a time: a second call
  * while one runs gets the running one.
