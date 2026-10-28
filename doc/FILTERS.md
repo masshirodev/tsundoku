@@ -32,7 +32,8 @@ Two shelves joined, splitting the library by what a thing is:
 - **ONE-OFF**: single books, a doujin series that holds one book (exactly
   `isSingleton` in `src/lib/server/books.ts`).
 - **SERIES**: everything else. A Mihon series with one chapter so far is
-  still a series.
+  still a series, except from a gallery source, whose galleries are books
+  ([`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Gallery sources").
 
 ## The FILTER panel
 
@@ -140,7 +141,8 @@ stats took 34 ms instead of 16; with it, 23.
 1. **ONE-OFF is a single book, not "anything with one entry".** The mock
    defines SERIES as every group of more than one book. Taken literally, eight
    visible Mihon series that happen to have one chapter so far would have been
-   one-offs. A Mihon series is a series.
+   one-offs. A Mihon series is a series (a gallery source's galleries
+   excepted: they're books, c124).
 2. **Turn 3 only.** Turns 1 (an ONLY row under the tabs) and 2 (a panel beside
    the AT LEAST band) are superseded; c67's AT LEAST band is gone.
 3. **LANGUAGE on the library is the shelf's languages without filters**, so

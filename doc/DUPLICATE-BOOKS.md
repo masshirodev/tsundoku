@@ -16,7 +16,9 @@ their own: [`DUPLICATES.md`](DUPLICATES.md).)
 `src/lib/library/dupes.ts`.
 
 1. **Covers.** Hentoid stores a 64-bit perceptual hash of every book's cover
-   (`entries.cover_phash`, from the import). Every book with a usable one is
+   (`entries.cover_phash`, from the import). No other importer has one, so
+   Mihon's books (its local folder, and galleries from its sources) aren't
+   compared yet: card c130. Every book with a usable one is
    compared with every other: **8 bits apart or fewer** is a candidate. A blank
    or single-colour cover (a hash of all, or all but one, zeros or ones, such as
    Hentoid's `8000000000000000`) is never compared: it "matches" every other

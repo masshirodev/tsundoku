@@ -6,6 +6,7 @@ import {
 	categoryEffect,
 	chapterTitle,
 	directionOf,
+	isGallerySource,
 	kindOf,
 	matchChapters,
 	mihonFolderName,
@@ -15,6 +16,7 @@ import {
 	type DownloadedChapter,
 	type DownloadedSeries
 } from '$lib/import/mihon-plan';
+import type { MihonBackup, MihonChapter, MihonManga } from '$lib/import/mihon-backup';
 import { encode } from './helpers/protobuf-writer';
 import { ASURA, WEEB, backup, comicInfo } from './helpers/mihon-fixture';
 
@@ -123,6 +125,17 @@ describe('the rules', () => {
 		expect(kindOf([], 4)).toBe('manhwa');
 		expect(kindOf([], 0, 'Toonily')).toBe('manhwa');
 		expect(kindOf([], 0, 'Mangahere')).toBe('manga');
+	});
+
+	it('makes a gallery source’s series doujins, whatever their genres say', () => {
+		expect(kindOf(['Manga', 'big breasts'], 0, 'NHentai')).toBe('doujin');
+		expect(kindOf([], 4, ' HentaiFox ')).toBe('doujin');
+		expect(kindOf([], 0, 'Elite Babes')).toBe('doujin');
+		expect(isGallerySource('nHentai.com (unoriginal)')).toBe(true);
+		// An album there is hundreds of chapters: not a gallery source.
+		expect(kindOf([], 0, 'Luscious')).toBe('manga');
+		expect(isGallerySource('HentaiRead')).toBe(false);
+		expect(isGallerySource()).toBe(false);
 	});
 
 	it('keeps a direction only when it differs from the kind’s default', () => {
@@ -277,5 +290,116 @@ describe('the plan', () => {
 			kind: 'manhwa',
 			entries: [{ label: 'Ch. 1', available: true }]
 		});
+	});
+});
+
+describe('gallery sources', () => {
+	const NH = '7309872737163460316';
+	const LUSCIOUS = '4625881812440927464';
+	const chapter = (c: Partial<MihonChapter>): MihonChapter => ({
+		url: '',
+		name: 'Chapter',
+		scanlator: '',
+		read: false,
+		bookmark: false,
+		lastPageRead: 0,
+		dateFetch: 1_750_000_000_000,
+		dateUpload: 0,
+		number: -1,
+		sourceOrder: 0,
+		...c
+	});
+	const manga = (m: Partial<MihonManga>): MihonManga => ({
+		source: NH,
+		url: '',
+		title: '',
+		artist: '',
+		author: '',
+		description: '',
+		genres: [],
+		status: 2,
+		thumbnailUrl: '',
+		dateAdded: 1_750_000_000_000,
+		viewer: 0,
+		chapters: [],
+		categories: [],
+		favorite: true,
+		history: [],
+		trackers: [],
+		...m
+	});
+	const b: MihonBackup = {
+		categories: [],
+		sources: new Map([
+			[NH, 'NHentai'],
+			[LUSCIOUS, 'Luscious']
+		]),
+		manga: [
+			manga({
+				url: '/g/100/',
+				title: 'Paper Lanterns',
+				author: 'mori',
+				artist: 'mori',
+				genres: ['big breasts ♀', 'Manga'],
+				chapters: [chapter({ url: '/g/100/', read: true })]
+			}),
+			manga({
+				source: LUSCIOUS,
+				url: '/albums/x/',
+				title: 'An Album',
+				chapters: [
+					chapter({ url: '/p/2', name: '2 - b', number: 2 }),
+					chapter({ url: '/p/1', name: '1 - a', number: 1, sourceOrder: 1 })
+				]
+			})
+		]
+	};
+	const plan = planMihon(
+		b,
+		[
+			{
+				sourceDir: 'HentaiFox (ALL)',
+				dir: 'Gallery Not In The Backup',
+				path: '/lib/hf',
+				chapters: [file('Chapter.cbz', { series: 'Gallery Not In The Backup' })]
+			}
+		],
+		1_800_000_000_000
+	);
+	const byTitle = (t: string) => plan.series.find((s) => s.title === t)!;
+
+	it('imports a gallery as one book, a ONE-OFF, as Hentoid’s are', () => {
+		const g = byTitle('Paper Lanterns');
+		expect(g).toMatchObject({ kind: 'doujin', originKey: `mihon:${NH}:/g/100/` });
+		expect(g.entries).toHaveLength(1);
+		expect(g.entries[0]).toMatchObject({
+			label: 'Book',
+			title: 'Paper Lanterns',
+			position: 1,
+			sourceUrl: '/g/100/',
+			readAt: 1_750_000_000_000
+		});
+	});
+
+	it('files a gallery’s genres as Hentoid’s tags, and keeps its people', () => {
+		const tags = byTitle('Paper Lanterns').tags;
+		expect(tags).toContainEqual({ namespace: 'tag', value: 'big breasts ♀' });
+		expect(tags.some((t) => t.namespace === 'genre')).toBe(false);
+		expect(tags).not.toContainEqual({ namespace: 'tag', value: 'manga' });
+		expect(tags).toContainEqual({ namespace: 'artist', value: 'mori' });
+	});
+
+	it('makes a book of a gallery download the backup doesn’t know', () => {
+		expect(byTitle('Gallery Not In The Backup')).toMatchObject({
+			kind: 'doujin',
+			entries: [{ label: 'Book', title: 'Gallery Not In The Backup', position: 1 }]
+		});
+	});
+
+	it('leaves a source that isn’t one a series of chapters', () => {
+		const album = byTitle('An Album');
+		expect(album.kind).toBe('manga');
+		expect(album.entries.map((e) => e.label).sort()).toEqual(['Ch. 1', 'Ch. 2']);
+		expect(album.tags.some((t) => t.namespace === 'tag')).toBe(false);
 	});
 });

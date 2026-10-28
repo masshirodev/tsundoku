@@ -76,6 +76,36 @@ const WEBTOON_SOURCES = new Set([
 ]);
 
 /**
+ * Sources where every "manga" is one gallery, a doujin or a photo set with a
+ * single chapter: their series are books, as Hentoid's are (c124). Only
+ * sources whose shape was checked, in the owner's backup or in Keiyoushi's
+ * code (the GalleryAdults base and its nine sites); "hentai" in a name isn't
+ * enough, and Luscious isn't one (an album there is hundreds of chapters).
+ * doc/IMPORT-MIHON.md, "Gallery sources", says how to add one.
+ */
+const GALLERY_SOURCES = new Set([
+	'nhentai',
+	'nhentai.com (unoriginal)',
+	'nhentai.to',
+	'nhentai.xxx',
+	'hitomi',
+	'imhentai',
+	'asmhentai',
+	'hentaifox',
+	'hentaiera',
+	'hentairox',
+	'hentaizap',
+	'hentaienvy',
+	'everia.club',
+	'everiaclub (unoriginal)',
+	'ahottie',
+	'elite babes',
+	'playmate hunter'
+]);
+
+export const isGallerySource = (source = '') => GALLERY_SOURCES.has(source.trim().toLowerCase());
+
+/**
  * What a series says about its own kind: a "Manhwa" or "Manga" genre, then a
  * webtoon reading mode (the owner switched it to scroll). Null when neither.
  */
@@ -88,12 +118,14 @@ export function signalledKind(genres: string[], viewer: number): Kind | null {
 }
 
 /**
- * The kind, when the series doesn't say: a webtoon-only source means
- * manhwa, and anything else is manga. A source's majority was tried and
- * misled -- mixed sources tag only their Korean titles, so the Japanese ones
- * were outvoted. The owner can change a kind.
+ * The kind: a gallery source's are doujins whatever their genres say. Then,
+ * when the series doesn't say, a webtoon-only source means manhwa, and
+ * anything else is manga. A source's majority was tried and misled -- mixed
+ * sources tag only their Korean titles, so the Japanese ones were outvoted.
+ * The owner can change a kind.
  */
 export function kindOf(genres: string[], viewer: number, source = ''): Kind {
+	if (isGallerySource(source)) return 'doujin';
 	return (
 		signalledKind(genres, viewer) ??
 		(WEBTOON_SOURCES.has(source.trim().toLowerCase()) ? 'manhwa' : 'manga')
@@ -224,6 +256,15 @@ function positions(chapters: { number: number; order: number }[]): number[] {
 	return out;
 }
 
+/**
+ * A gallery's one chapter ("Chapter", "Gallery", often unnumbered) as the
+ * book Hentoid and Mihon's local folder make of theirs: BOOK, at 1, named
+ * after the gallery. A gallery source with more chapters is a series of books.
+ */
+function asBook(rows: { number: number; label: string; title: string }[], title: string) {
+	if (rows.length === 1) Object.assign(rows[0], { number: 1, label: 'Book', title });
+}
+
 /** Rows as entries: the working number and order give way to the position. */
 function withPositions(
 	rows: (Omit<PlannedEntry, 'position'> & { number?: number; order?: number })[],
@@ -239,6 +280,10 @@ function withPositions(
 
 // ---- the plan ------------------------------------------------------------------
 
+/**
+ * A gallery's genres are its tags, filed where Hentoid files a book's
+ * ("big breasts ♀" is one tag, whichever app downloaded the book).
+ */
 function tagsFor(p: {
 	genres: string[];
 	author: string;
@@ -246,6 +291,7 @@ function tagsFor(p: {
 	source: string | undefined;
 	categories: string[];
 }): PlannedTag[] {
+	const genreNamespace = isGallerySource(p.source) ? 'tag' : 'genre';
 	const seen = new Set<string>();
 	const out: PlannedTag[] = [];
 	const add = (namespace: string, value: string) => {
@@ -255,7 +301,8 @@ function tagsFor(p: {
 		seen.add(key);
 		out.push({ namespace, value: v });
 	};
-	for (const g of p.genres) if (!KIND_WORDS[g.trim().toLowerCase()]) add('genre', g.toLowerCase());
+	for (const g of p.genres)
+		if (!KIND_WORDS[g.trim().toLowerCase()]) add(genreNamespace, g.toLowerCase());
 	for (const a of people(p.author)) add('author', a);
 	for (const a of people(p.artist)) add('artist', a);
 	if (p.source) add('source', p.source);
@@ -325,6 +372,7 @@ function fromBackup(
 	// Files on disk the backup doesn't know: a backup older than the downloads.
 	const maxOrder = rows.reduce((a, r) => Math.max(a, r.order), 0);
 	extra.forEach((f, i) => rows.push(entryFromFile(f, maxOrder + 1 + i, seriesAdded)));
+	if (isGallerySource(sourceName)) asBook(rows, m.title);
 
 	const pos = positions(rows);
 	return {
@@ -397,13 +445,15 @@ function fromDownloadOnly(d: DownloadedSeries, now: number): PlannedSeries {
 		.slice()
 		.sort((a, b) => a.file.localeCompare(b.file, 'en', { numeric: true }))
 		.map((f, i) => entryFromFile(f, i, now));
+	const title = info?.series || d.dir;
+	if (isGallerySource(sourceGuess)) asBook(rows, title);
 	const pos = positions(rows);
 	const sourceName = info?.source || d.sourceDir.replace(/\s*\([^)]*\)\s*$/, '');
 	return {
 		originKey: folderKey(d),
 		source: 'mihon',
 		favourite: false,
-		title: info?.series || d.dir,
+		title,
 		kind,
 		rating: effects.reduce<Rating>((a, e) => (e.rating > a ? e.rating : a), 0),
 		hidden: effects.some((e) => e.adult),

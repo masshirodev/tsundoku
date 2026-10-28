@@ -37,21 +37,21 @@ left unfinished by a process that died is closed at the next start.
 
 ## What becomes what
 
-| Mihon                                   | tsundoku                                                                                          |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| a manga in the library                  | a series in the `Mihon` root, `source = 'mihon'`, `origin_key = mihon:<source id>:<url>`          |
-| a manga only browsed (`favorite=false`) | **not imported**, unless something of it was downloaded                                           |
-| a download the backup doesn't know      | a series from its ComicInfo, `origin_key = mihon-dir:<source dir>/<series dir>`                   |
-| chapter                                 | entry: `Ch. <number>` (or the chapter's name when it has none), its own title after "Chapter N -" |
-| chapter with no file on disk            | entry with `available = 0`: listed as NOT DOWNLOADED, not readable                                |
-| `read`, `lastPageRead`                  | `read_at`, `last_position`                                                                        |
-| history (`lastRead`, `readDuration`)    | `last_opened_at`, and one `reading_events` row (`finish` or `page`) with that duration            |
-| genres                                  | `genre:` tags, lowercased. Manga/Manhwa/Manhua/Webtoon set the kind and aren't tags               |
-| author, artist                          | `author:` and `artist:` tags, one per person (split on `,` `/` `;` `&`)                           |
-| source                                  | a `source:` tag                                                                                   |
-| status                                  | `ongoing`, `completed` (also "publishing finished"), `cancelled`, `hiatus`, `licensed`            |
-| reading mode                            | direction: L→R, R→L, or ↓ SCROLL for vertical/webtoon, kept only when it isn't the kind's default |
-| categories                              | see below                                                                                         |
+| Mihon                                   | tsundoku                                                                                                           |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| a manga in the library                  | a series in the `Mihon` root, `source = 'mihon'`, `origin_key = mihon:<source id>:<url>`                           |
+| a manga only browsed (`favorite=false`) | **not imported**, unless something of it was downloaded                                                            |
+| a download the backup doesn't know      | a series from its ComicInfo, `origin_key = mihon-dir:<source dir>/<series dir>`                                    |
+| chapter                                 | entry: `Ch. <number>` (or the chapter's name when it has none), its own title after "Chapter N -"                  |
+| chapter with no file on disk            | entry with `available = 0`: listed as NOT DOWNLOADED, not readable                                                 |
+| `read`, `lastPageRead`                  | `read_at`, `last_position`                                                                                         |
+| history (`lastRead`, `readDuration`)    | `last_opened_at`, and one `reading_events` row (`finish` or `page`) with that duration                             |
+| genres                                  | `genre:` tags, lowercased (`tag:` from a gallery source). Manga/Manhwa/Manhua/Webtoon set the kind and aren't tags |
+| author, artist                          | `author:` and `artist:` tags, one per person (split on `,` `/` `;` `&`)                                            |
+| source                                  | a `source:` tag                                                                                                    |
+| status                                  | `ongoing`, `completed` (also "publishing finished"), `cancelled`, `hiatus`, `licensed`                             |
+| reading mode                            | direction: L→R, R→L, or ↓ SCROLL for vertical/webtoon, kept only when it isn't the kind's default                  |
+| categories                              | see below                                                                                                          |
 
 **Categories are the owner's rating scale** (settled 2026-09-23). Each has a
 "+" twin for adult series:
@@ -69,11 +69,55 @@ The category is also kept as a `mihon:` tag (`mihon:Good+`), so nothing Mihon
 said is lost. With several categories, the highest rating wins and every shelf
 applies.
 
-**Kind** comes from the series' own genres (Manhwa, Manhua, Webtoon → manhwa;
-Manga → manga), then from a webtoon reading mode, then from a short list of
-webtoon-only sources (Asura, Toonily, Webtoons.com, Omega, Bato), and otherwise
-manga. A source's majority was tried and dropped: mixed sources like Mangahere
-tag only their Korean titles, so it outvoted every Japanese one.
+**Kind** is doujin for a gallery source (below). Otherwise it comes from the
+series' own genres (Manhwa, Manhua, Webtoon → manhwa; Manga → manga), then
+from a webtoon reading mode, then from a short list of webtoon-only sources
+(Asura, Toonily, Webtoons.com, Omega, Bato), and otherwise manga. A source's
+majority was tried and dropped: mixed sources like Mangahere tag only their
+Korean titles, so it outvoted every Japanese one.
+
+### Gallery sources
+
+Some sources have no series: every "manga" there is one gallery, a doujin or
+a photo set, with a single chapter called `Chapter` or `Gallery`, often with
+no number. Mihon shows each as a series of one chapter. Here they are
+**books**, the same as Hentoid's and the local folder's (c124, "Doujin galleries
+from Mihon sources import as one-off books, not one-chapter series", the
+owner's call on 2026-10-28):
+
+- **kind `doujin`**, whatever the genres say, so a gallery is on the ONE-OFF
+  shelf ([`FILTERS.md`](FILTERS.md)) and can be grouped into a series of books
+  ([`BOOKS.md`](BOOKS.md));
+- its one chapter is the entry **`Book`**, at position 1, titled after the
+  gallery;
+- its genres are **`tag:` tags**, Hentoid's namespace, not `genre:`. Both apps
+  lowercase them and keep Hitomi's ♀/♂, so `tag:big breasts ♀` is one tag
+  whichever app downloaded the book. Author and artist stay people (on the
+  photo sites, the studio and the model).
+
+The key doesn't change (`mihon:<source id>:<url>`), and neither do read state
+or hiding, which still follow the categories.
+
+**The list is `GALLERY_SOURCES` in `src/lib/import/mihon-plan.ts`, and only
+sources whose shape was checked are in it:**
+
+| Checked in                                       | Sources                                                                                              |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| the tablet's backup (2026-10-03)                 | NHentai, nHentai.com (unoriginal), Hitomi, Everia.club, AHottie, Elite Babes, Playmate Hunter        |
+| Keiyoushi's `GalleryAdults` base (one "Chapter") | IMHentai, AsmHentai, HentaiFox, HentaiEra, HentaiRox, HentaiZap, HentaiEnvy, NHentai.to, NHentai.xxx |
+| Keiyoushi's code (one "Gallery")                 | EveriaClub (unoriginal)                                                                              |
+
+"Hentai" in an extension's name says nothing: HentaiRead, HentaiHere and
+the Madara-themed sites are ordinary chaptered series, and **Luscious isn't a
+gallery source** (an album in the backup had 1,445 chapters, one per post).
+To add one, check that its manga have exactly one chapter (a backup, or the
+extension's `getChapterList` in
+[keiyoushi/extensions-source](https://github.com/keiyoushi/extensions-source)),
+add its name in lowercase, and add it to the table above.
+
+**Only new galleries.** Kind is written once, when a series is created
+("Rescanning", below), so a gallery imported before c124 keeps its kind until
+the owner changes it. On 2026-10-28 that was one series, from Hitomi.
 
 ## Matching downloads to the backup
 
@@ -221,6 +265,12 @@ content.
 
 ## Known gaps
 
+- **Mihon's books are never checked for duplicates.** Duplicate-book
+  detection needs a cover hash, and only Hentoid's import has one
+  ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md)): the local folder's books and,
+  since c124, galleries from Mihon sources have none. Card c130 ("Hash the
+  covers of books that arrive without one, so Mihon's books are checked for
+  duplicates").
 - **Covers** are still placeholders. Mihon keeps its covers in its app cache,
   not in shared storage. The first page of the first downloaded chapter is the
   obvious source, once pages can be served (the reader card).
