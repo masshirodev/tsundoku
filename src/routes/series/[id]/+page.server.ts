@@ -52,8 +52,14 @@ import {
 	unfoldEditions
 } from '$lib/server/books';
 import { bookEditions, setBookLanguage } from '$lib/server/editions';
-import { SuwayomiError, enqueue, retry, seriesDownloads } from '$lib/server/suwayomi';
-import { setFollowed, undoAdd as undoSourceAdd } from '$lib/server/suwayomi-library';
+import {
+	enqueue,
+	isDownloadsError,
+	retry,
+	seriesDownloads,
+	setFollowed,
+	undoAdd as undoSourceAdd
+} from '$lib/server/downloads';
 import {
 	allToDownload,
 	nextToDownload,
@@ -559,7 +565,7 @@ export const actions: Actions = {
 		const s = target(params, cookies);
 		const form = await request.formData();
 		const d = await seriesDownloads(s.id, s.entries);
-		if (d.kind === 'down') return fail(503, { message: 'Suwayomi is not answering' });
+		if (d.kind === 'down') return fail(503, { message: 'Downloading is not answering' });
 		if (d.kind !== 'ok') return fail(400, { message: 'this series has nothing to download from' });
 		const states = new Map(
 			Object.entries(d.states).map(([k, v]) => [Number(k), v as DownloadState])
@@ -580,7 +586,7 @@ export const actions: Actions = {
 			if (fresh.length) result = await enqueue(s.id, fresh);
 			await retry(failed);
 		} catch (e) {
-			if (e instanceof SuwayomiError) return fail(503, { message: e.message });
+			if (isDownloadsError(e)) return fail(503, { message: (e as Error).message });
 			throw e;
 		}
 		return { downloaded: { queued: result.queued + failed.length, missing: result.missing } };
@@ -593,7 +599,7 @@ export const actions: Actions = {
 		try {
 			await setFollowed(s.id, on);
 		} catch (e) {
-			if (e instanceof SuwayomiError) return fail(503, { message: e.message });
+			if (isDownloadsError(e)) return fail(503, { message: (e as Error).message });
 			throw e;
 		}
 		return { ok: true };
@@ -605,16 +611,17 @@ export const actions: Actions = {
 	 */
 	undoSourceAdd: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
-		const from = Number((await request.formData()).get('from'));
+		// The preview it was added from, by the backend's own id for it.
+		const from = String((await request.formData()).get('from') ?? '');
 		let undone: boolean;
 		try {
 			undone = await undoSourceAdd(s.id);
 		} catch (e) {
-			if (e instanceof SuwayomiError) return fail(503, { message: e.message });
+			if (isDownloadsError(e)) return fail(503, { message: (e as Error).message });
 			throw e;
 		}
 		if (!undone) return fail(409, { message: 'something of it is downloaded or read now' });
-		redirect(303, from > 0 ? `/downloads/source/${from}` : '/');
+		redirect(303, /^[\w~-]+$/.test(from) ? `/downloads/source/${from}` : '/');
 	},
 
 	/** A long press on a chapter row: it and everything before it, read. */

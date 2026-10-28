@@ -64,7 +64,7 @@
 						<span
 							class="cover"
 							style:background={m.thumbnailUrl
-								? `center / cover no-repeat url(${resolve('/api/downloads/thumb/[id]', { id: String(m.id) })}), ${coverPlaceholder(160)}`
+								? `center / cover no-repeat url(${m.cover}), ${coverPlaceholder(160)}`
 								: coverPlaceholder(160)}
 						></span>
 						<div class="names">

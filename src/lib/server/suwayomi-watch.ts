@@ -1,6 +1,8 @@
 import { mkdirSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { configured, forget, gql, queue, seriesForKey } from './suwayomi.ts';
+import { gql, seriesForKey } from './suwayomi.ts';
+import { configured, forget, queue } from './downloads.ts';
+import { downloadsBackend } from './engine/run.ts';
 import { suwayomiAuth } from './suwayomi-auth.ts';
 import { libraryRoot, startScan } from './import/index.ts';
 import { SUWAYOMI_DEVICE, backupsToPrune } from '../import/suwayomi.ts';
@@ -8,15 +10,17 @@ import { queueView, type QueueItem } from '../library/downloads.ts';
 
 /**
  * Watching the queue (doc/DOWNLOADING.md, "Live, and importing at once"): one
- * poll of Suwayomi for the whole app, every three seconds while a screen is
- * listening, every thirty when none is. It does two things.
+ * poll of the download backend for the whole app (Suwayomi's queue, or the
+ * engine's in the database: server/downloads.ts), every three seconds while a
+ * screen is listening, every thirty when none is. It does two things.
  *
  * - Tells listening screens what moved, over server-sent events: the
  *   chapter downloading and how far it is, and a version that changes when
  *   anything else does, so a screen reads its data again only then.
  * - Imports a chapter soon after Suwayomi finishes it: a backup (so a series
  *   added since is keyed by its URL), then a scan, as the timer does. The
- *   timer stays, every ten minutes, for when the app wasn't running.
+ *   timer stays, every ten minutes, for when the app wasn't running. On the
+ *   engine the worker does this itself (engine/run.ts).
  *
  * A poll, not Suwayomi's own subscription: one more request every three
  * seconds on localhost, against a websocket client and its reconnects. The
@@ -66,7 +70,12 @@ async function tick() {
 		const q = await queue(2000);
 		// Finished: under way last time, and gone from the queue or FINISHED now.
 		const now = new Map(q.items.map((i) => [i.chapterId, i.state]));
-		if ([...active].some((id) => !now.has(id) || now.get(id) === 'FINISHED')) importSoon();
+		// The engine's worker imports by itself (engine/run.ts); Suwayomi needs telling.
+		if (
+			downloadsBackend() === 'suwayomi' &&
+			[...active].some((id) => !now.has(id) || now.get(id) === 'FINISHED')
+		)
+			importSoon();
 		active = new Set(
 			q.items
 				.filter((i) => i.state === 'QUEUED' || i.state === 'DOWNLOADING')

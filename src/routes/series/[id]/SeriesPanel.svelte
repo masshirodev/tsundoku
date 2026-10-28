@@ -35,7 +35,7 @@
 	import { ago, clock, trackLine } from '$lib/library/tracking';
 	import { ranobeLines } from '$lib/library/ranobe';
 	import type { RanobeSeries } from '$lib/server/ranobe-review';
-	import type { SeriesDownloads } from '$lib/server/suwayomi';
+	import type { SeriesDownloads } from '$lib/server/downloads';
 	import {
 		downloadCounts,
 		downloadRow,

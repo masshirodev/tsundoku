@@ -35,6 +35,7 @@ export default defineConfig({
 		maxWorkers: 6,
 		server: { deps: { external: [/better-sqlite3/] } },
 		setupFiles: ['./tests/vitest.setup.ts'],
+		globalSetup: ['./tests/vitest.global-setup.ts'],
 		coverage: {
 			provider: 'v8',
 			reporter: ['text-summary', 'html', 'lcov'],

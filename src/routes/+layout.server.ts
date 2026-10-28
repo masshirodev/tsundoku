@@ -2,7 +2,7 @@ import type { LayoutServerLoad } from './$types';
 import { currentScan, listShelves } from '$lib/server/library';
 import { isIncognito, isRevealed, themeOf } from '$lib/server/prefs';
 import { favouritePeople } from '$lib/server/people';
-import { queueSummary } from '$lib/server/suwayomi';
+import { queueSummary } from '$lib/server/downloads';
 import { ensureWatcher } from '$lib/server/suwayomi-watch';
 import { ensureEngineWorker } from '$lib/server/engine/run';
 

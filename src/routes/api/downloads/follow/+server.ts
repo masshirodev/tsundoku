@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { followNew } from '$lib/server/suwayomi-library';
+import { followNew } from '$lib/server/downloads';
 
 /**
  * FOLLOW's step, for the Suwayomi timer (scripts/suwayomi-import.ts): queue

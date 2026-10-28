@@ -1,5 +1,4 @@
 import { getDb } from './db.ts';
-import { VISIBLE_SQL } from './visibility.ts';
 import { writeSeries } from './import/write.ts';
 import { refreshCovers } from './covers.ts';
 import {
@@ -16,6 +15,7 @@ import {
 } from './suwayomi.ts';
 import { planMihon } from '../import/mihon-plan.ts';
 import type { MihonManga } from '../import/mihon-backup.ts';
+import { forgetSourceUse, libraryIndex, mihonRoot, sourceUse } from './library-sources.ts';
 import {
 	followQueue,
 	highlight,
@@ -23,8 +23,7 @@ import {
 	normTitle,
 	parseKey,
 	sourcesToSearch,
-	type ResultMatch,
-	type SourceUse
+	type ResultMatch
 } from '../library/downloads.ts';
 
 /**
@@ -37,30 +36,6 @@ import {
  */
 
 // ---- which sources ------------------------------------------------------------------
-
-let used: { at: number; use: Map<string, SourceUse> } | null = null;
-
-/** How many series, and how many hidden, the library has from each source. Kept a minute. */
-function sourceUse(): Map<string, SourceUse> {
-	if (used && Date.now() - used.at < 60_000) return used.use;
-	const rows = getDb()
-		.prepare(
-			`SELECT s.origin_key AS k, NOT ${VISIBLE_SQL} AS hidden
-			FROM series s JOIN roots r ON r.id = s.root_id WHERE s.origin_key LIKE 'mihon:%'`
-		)
-		.all() as { k: string; hidden: number }[];
-	const use = new Map<string, SourceUse>();
-	for (const r of rows) {
-		const key = parseKey(r.k);
-		if (!key) continue;
-		const u = use.get(key.sourceId) ?? { series: 0, hidden: 0 };
-		u.series++;
-		u.hidden += r.hidden;
-		use.set(key.sourceId, u);
-	}
-	used = { at: Date.now(), use };
-	return use;
-}
 
 /** The sources a search asks, by name (Download States 1e: "7 SOURCES"). */
 export async function searchSources(reveal: boolean): Promise<{ id: string; name: string }[]> {
@@ -75,7 +50,8 @@ export async function searchSources(reveal: boolean): Promise<{ id: string; name
 // ---- searching ----------------------------------------------------------------------
 
 export type SearchHit = {
-	mangaId: number;
+	/** Opaque: Suwayomi's manga id, or the engine's source and URL (engine/backend.ts). */
+	mangaId: string;
 	title: string;
 	parts: { pre: string; mid: string; post: string };
 	cover: string;
@@ -100,33 +76,6 @@ const STATUS: Record<string, string> = {
 	CANCELLED: 'CANCELLED',
 	ON_HIATUS: 'ON HIATUS'
 };
-
-/** What tsundoku has, for telling a result IN LIBRARY or SAME TITLE IN LIBRARY. */
-function libraryIndex(reveal: boolean) {
-	const rows = getDb()
-		.prepare(
-			`SELECT s.id, s.title, s.origin_key AS k, NOT ${VISIBLE_SQL} AS hidden,
-				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0) AS total,
-				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0 AND e.available = 1) AS have
-			FROM series s JOIN roots r ON r.id = s.root_id WHERE s.origin_key LIKE 'mihon:%'`
-		)
-		.all() as {
-		id: number;
-		title: string;
-		k: string;
-		hidden: number;
-		total: number;
-		have: number;
-	}[];
-	const byKey = new Map(rows.map((r) => [r.k, r]));
-	const byTitle = new Map<string, string>();
-	for (const r of rows) {
-		if (r.hidden && !reveal) continue;
-		const key = parseKey(r.k);
-		if (key) byTitle.set(normTitle(r.title), key.sourceId);
-	}
-	return { byKey, byTitle };
-}
 
 /**
  * One source's answer to a query: twenty seconds, then it's DID NOT ANSWER
@@ -164,7 +113,7 @@ export async function searchSource(
 					}
 				: { kind: 'new' };
 		out.push({
-			mangaId: m.id,
+			mangaId: String(m.id),
 			title: m.title,
 			parts: highlight(m.title, query),
 			cover: `/api/downloads/thumb/${m.id}`,
@@ -178,7 +127,7 @@ export async function searchSource(
 // ---- a result's preview, and adding it ------------------------------------------------
 
 export type SourceManga = {
-	id: number;
+	id: string;
 	title: string;
 	description: string;
 	author: string;
@@ -190,12 +139,14 @@ export type SourceManga = {
 	url: string;
 	inLibrary: boolean;
 	thumbnailUrl: string;
+	/** The preview's cover, as one of tsundoku's own URLs. */
+	cover: string;
 	/** The series' page at the source, for OPEN ↗; '' when the source doesn't say. */
 	realUrl: string;
 	/** The source's language, from its name: "EN". */
 	lang: string;
 	chapters: {
-		id: number;
+		id: string;
 		url: string;
 		name: string;
 		number: number;
@@ -261,7 +212,7 @@ export async function sourceManga(id: number): Promise<SourceManga | null> {
 	}
 	const m = d.manga;
 	return {
-		id: m.id,
+		id: String(m.id),
 		title: m.title,
 		description: m.description ?? '',
 		author: m.author ?? '',
@@ -273,11 +224,12 @@ export async function sourceManga(id: number): Promise<SourceManga | null> {
 		url: m.url,
 		inLibrary: m.inLibrary,
 		thumbnailUrl: m.thumbnailUrl ?? '',
+		cover: `/api/downloads/thumb/${m.id}`,
 		realUrl: m.realUrl ?? '',
 		lang: /\(([A-Z-]+)\)$/.exec(m.source?.displayName ?? '')?.[1] ?? '',
 		chapters: m.chapters.nodes
 			.map((c) => ({
-				id: c.id,
+				id: String(c.id),
 				url: c.url,
 				name: c.name,
 				number: c.chapterNumber,
@@ -333,23 +285,6 @@ export function asMihon(m: SourceManga): MihonManga {
 	};
 }
 
-/** The root Mihon series live in: the one most of them are in already. */
-function mihonRoot(): number | null {
-	const db = getDb();
-	const row = db
-		.prepare(
-			`SELECT root_id AS id FROM series WHERE origin_key LIKE 'mihon:%'
-			GROUP BY root_id ORDER BY COUNT(*) DESC LIMIT 1`
-		)
-		.get() as { id: number } | undefined;
-	return (
-		row?.id ??
-		(db.prepare(`SELECT id FROM roots WHERE name = 'Mihon'`).get() as { id: number } | undefined)
-			?.id ??
-		null
-	);
-}
-
 export class AddError extends Error {}
 
 /**
@@ -371,7 +306,7 @@ export async function addToLibrary(mangaId: number, now = Date.now()): Promise<n
 	if (!m.inLibrary)
 		await gql(
 			`mutation ($id: Int!) { updateManga(input: { id: $id, patch: { inLibrary: true } }) { clientMutationId } }`,
-			{ id: m.id }
+			{ id: Number(m.id) }
 		);
 	const plan = planMihon(
 		{ manga: [asMihon(m)], categories: [], sources: new Map([[m.sourceId, m.source]]) },
@@ -392,7 +327,7 @@ export async function addToLibrary(mangaId: number, now = Date.now()): Promise<n
 		);
 	}
 	getDb().prepare(`UPDATE series SET arrived_at = ? WHERE id = ?`).run(now, row.id);
-	used = null;
+	forgetSourceUse();
 	void refreshCovers({ ids: [row.id], remote: true });
 	return row.id;
 }
@@ -426,7 +361,7 @@ export async function undoAdd(seriesId: number): Promise<boolean> {
 		);
 	}
 	db.prepare(`DELETE FROM series WHERE id = ?`).run(seriesId);
-	used = null;
+	forgetSourceUse();
 	return true;
 }
 

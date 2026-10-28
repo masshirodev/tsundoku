@@ -40,6 +40,8 @@ let reply: (body: Record<string, unknown>) => {
 	json: {}
 });
 const inFlight = new Map<string, number>();
+/** When each call into an extension was in flight, by handle. */
+const spans = new Map<string, [number, number][]>();
 const maxInFlight = new Map<string, number>();
 
 let server: Server;
@@ -79,7 +81,9 @@ beforeAll(async () => {
 			inFlight.set(handle, n);
 			maxInFlight.set(handle, Math.max(maxInFlight.get(handle) ?? 0, n));
 			const r = reply(body ?? {});
+			const start = performance.now();
 			await new Promise((ok) => setTimeout(ok, r.delay ?? 0));
+			spans.set(handle, [...(spans.get(handle) ?? []), [start, performance.now()]]);
 			inFlight.set(handle, (inFlight.get(handle) ?? 1) - 1);
 			res.writeHead(r.status, {
 				'content-type': 'application/json',
@@ -105,6 +109,7 @@ beforeEach(() => {
 	loaded = new Set();
 	inFlight.clear();
 	maxInFlight.clear();
+	spans.clear();
 	reply = () => ({ status: 200, json: { mangas: [], hasNextPage: false } });
 });
 
@@ -155,7 +160,6 @@ describe('a call', () => {
 		loaded.add(handleOf(apkA));
 		loaded.add(handleOf(apkB));
 		reply = () => ({ status: 200, json: {}, delay: 40 });
-		const started = Date.now();
 		await Promise.all([
 			...[1, 2, 3].map((page) => call(ext(apkA), 'getPopularManga', { page }, { sourceId: '1' })),
 			...[1, 2, 3].map((page) => call(ext(apkB), 'getPopularManga', { page }, { sourceId: '2' }))
@@ -166,8 +170,11 @@ describe('a call', () => {
 		expect(
 			seen.filter((s) => s.body?.extensionId === handleOf(apkA)).map((s) => s.body!.page)
 		).toEqual([1, 2, 3]);
-		// Three in a row each, the two extensions overlapping: about 120 ms, not 240.
-		expect(Date.now() - started).toBeLessThan(220);
+		// Side by side: some call into B was in flight while one into A was. By
+		// overlap, not by the clock, which a busy machine stretches.
+		const a = spans.get(handleOf(apkA))!;
+		const b = spans.get(handleOf(apkB))!;
+		expect(a.some(([s1, e1]) => b.some(([s2, e2]) => s1 < e2 && s2 < e1))).toBe(true);
 	});
 
 	it('keeps the lane moving after a call fails', async () => {

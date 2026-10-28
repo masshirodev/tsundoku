@@ -1,7 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { isRevealed } from '$lib/server/prefs';
-import { configured } from '$lib/server/suwayomi';
+import { configured } from '$lib/server/downloads';
 import { listen } from '$lib/server/suwayomi-watch';
 
 /**

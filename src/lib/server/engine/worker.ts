@@ -255,6 +255,10 @@ export async function downloadChapter(entryId: number, d: Deps): Promise<string>
 	const path = join(folder, chapterFile(e));
 	writeFileSync(`${path}.partial`, cbz);
 	renameSync(`${path}.partial`, path);
+	// IMPORTING until the import attaches the file.
+	d.db
+		.prepare(`UPDATE engine_chapters SET downloaded_at = ? WHERE entry_id = ?`)
+		.run(d.now(), entryId);
 	return path;
 }
 

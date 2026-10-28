@@ -5,8 +5,7 @@ import { isRevealed, runCommand } from '$lib/server/prefs';
 import { startScan } from '$lib/server/import';
 import { isGated } from '$lib/server/unlock';
 import { parseSearch } from '$lib/library/search';
-import { configured } from '$lib/server/suwayomi';
-import { searchSources } from '$lib/server/suwayomi-library';
+import { configured, searchSources } from '$lib/server/downloads';
 
 export const load: PageServerLoad = async ({ url, cookies }) => {
 	const q = url.searchParams.get('q') ?? '';

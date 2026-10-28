@@ -874,6 +874,12 @@ const MIGRATIONS: string[] = [
 		queued_at INTEGER NOT NULL
 	);
 	CREATE INDEX download_queue_order ON download_queue(state, position);
+	`,
+	// Rung 41: when the downloader wrote a chapter's CBZ (card c138). Between
+	// that and the import that attaches the file, the row says IMPORTING, as
+	// it does for a chapter Suwayomi has and tsundoku hasn't read in yet.
+	`
+	ALTER TABLE engine_chapters ADD COLUMN downloaded_at INTEGER;
 	`
 ];
 

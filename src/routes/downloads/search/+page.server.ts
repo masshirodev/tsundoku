@@ -1,8 +1,7 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { isRevealed } from '$lib/server/prefs';
-import { configured } from '$lib/server/suwayomi';
-import { searchSource, searchSources, type SearchHit } from '$lib/server/suwayomi-library';
+import { configured, searchSource, searchSources, type SearchHit } from '$lib/server/downloads';
 
 /**
  * Searching the sources (Download States 1e, state 6; doc/DOWNLOADING.md).

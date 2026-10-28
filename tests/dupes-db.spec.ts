@@ -1,7 +1,14 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// Finding a pair makes every page's thumbnail with sharp, about five seconds
+// of real work for the sample books. Until 2026-10-29 this spec ran in half a
+// second only because it found them made already, in the live covers folder
+// (its default), where it had written them; a run now starts from an empty
+// one (tests/vitest.global-setup.ts) and does the work.
+vi.setConfig({ testTimeout: 30_000 });
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';

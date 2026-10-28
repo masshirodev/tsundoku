@@ -3,7 +3,6 @@ import type { Actions, PageServerLoad } from './$types';
 import { isRevealed } from '$lib/server/prefs';
 import { setSetting } from '$lib/server/settings';
 import {
-	SuwayomiError,
 	arrivedSince,
 	configured,
 	dequeue,
@@ -13,8 +12,9 @@ import {
 	retry,
 	seriesForKey,
 	setPaused,
-	toTheTop
-} from '$lib/server/suwayomi';
+	toTheTop,
+	isDownloadsError
+} from '$lib/server/downloads';
 import { queueView, type QueueView } from '$lib/library/downloads';
 
 /**
@@ -105,7 +105,7 @@ async function guarded<T>(fn: () => Promise<T>) {
 	try {
 		return await fn();
 	} catch (e) {
-		if (e instanceof SuwayomiError) return fail(503, { message: 'Suwayomi is not answering' });
+		if (isDownloadsError(e)) return fail(503, { message: 'Downloading is not answering' });
 		throw e;
 	}
 }
