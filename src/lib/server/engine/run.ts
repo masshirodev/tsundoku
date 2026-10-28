@@ -4,10 +4,10 @@ import { engineConfigured } from './client.ts';
 import { startWorker } from './worker.ts';
 
 /**
- * Which backend the download screens ask (doc/DOWNLOADER.md, "Until parity"):
- * Suwayomi until the engine's has parity, the engine with
- * `DOWNLOADS_BACKEND=engine`. Both can run side by side; the switch is one
- * line in `.env`.
+ * Which backend the download screens ask (doc/DOWNLOADER.md, "The switch"):
+ * the engine with `DOWNLOADS_BACKEND=engine` (live since 2026-10-28),
+ * Suwayomi otherwise. Both can run side by side; the switch is one line in
+ * `.env`.
  */
 export const downloadsBackend = (): 'engine' | 'suwayomi' =>
 	process.env.DOWNLOADS_BACKEND === 'engine' && engineConfigured() ? 'engine' : 'suwayomi';

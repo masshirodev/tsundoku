@@ -6,7 +6,7 @@ import { downloadsBackend } from './engine/run.ts';
 
 /**
  * What the download screens ask, whichever backend answers
- * (doc/DOWNLOADER.md, "Until parity"): Suwayomi's (suwayomi.ts,
+ * (doc/DOWNLOADER.md, "The switch"): Suwayomi's (suwayomi.ts,
  * suwayomi-library.ts) or tsundoku's own engine's (engine/backend.ts),
  * chosen by DOWNLOADS_BACKEND. Both answer in the same types, so the screens
  * don't know which. A chapter id is Suwayomi's chapter id or tsundoku's entry
