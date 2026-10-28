@@ -837,6 +837,43 @@ const MIGRATIONS: string[] = [
 		entry TEXT NOT NULL,
 		PRIMARY KEY (source_id, key)
 	) WITHOUT ROWID;
+	`,
+	// Rung 40: tsundoku's own download queue (doc/DOWNLOADER.md; card c137).
+	// Keyed by tsundoku's entries, never by a source's ids. engine_series and
+	// engine_chapters hold what the extension calls a series and a chapter
+	// now (Toonily's moved to a new URL scheme): the engine is called with
+	// those, while the series' key and the entries' URLs, which the device's
+	// backup carries, never move. engine_series.title is fixed at the first
+	// download: the importer pairs a download folder with its series by it,
+	// so a rename in tsundoku must not move the folder.
+	`
+	CREATE TABLE engine_series (
+		series_id INTEGER PRIMARY KEY REFERENCES series(id) ON DELETE CASCADE,
+		source_id TEXT NOT NULL,
+		engine_url TEXT NOT NULL,
+		title TEXT NOT NULL,
+		resolved_at INTEGER
+	);
+	CREATE TABLE engine_chapters (
+		entry_id INTEGER PRIMARY KEY REFERENCES entries(id) ON DELETE CASCADE,
+		engine_url TEXT NOT NULL,
+		name TEXT NOT NULL DEFAULT ''
+	);
+	CREATE TABLE download_queue (
+		entry_id INTEGER PRIMARY KEY REFERENCES entries(id) ON DELETE CASCADE,
+		series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+		position REAL NOT NULL,
+		state TEXT NOT NULL DEFAULT 'queued' CHECK (state IN ('queued', 'downloading', 'failed')),
+		tries INTEGER NOT NULL DEFAULT 0,
+		failure TEXT NOT NULL DEFAULT '',
+		error TEXT NOT NULL DEFAULT '',
+		-- Not before this (ms): backoff after a failed try.
+		next_at INTEGER NOT NULL DEFAULT 0,
+		done_pages INTEGER NOT NULL DEFAULT 0,
+		pages INTEGER NOT NULL DEFAULT 0,
+		queued_at INTEGER NOT NULL
+	);
+	CREATE INDEX download_queue_order ON download_queue(state, position);
 	`
 ];
 

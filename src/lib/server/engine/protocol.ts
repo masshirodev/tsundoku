@@ -67,6 +67,8 @@ export type EngineFailure =
 	/** The site refused (403) or doesn't have it (404). */
 	| 'refused'
 	| 'not-found'
+	/** The source no longer lists the chapter: retrying won't bring it back. */
+	| 'not-at-source'
 	/** Anything else the source threw. */
 	| 'source';
 
