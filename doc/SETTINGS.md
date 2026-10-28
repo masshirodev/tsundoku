@@ -27,3 +27,14 @@ who's signed in, whether the list was read, and what didn't send. The row
 offers SIGN IN →, SIGN OUT or TRY AGAIN. The header counts the links and
 the series waiting in the link review ([`LINKS.md`](LINKS.md)). Coming back
 from a sign-in, a band says how it went (`?signin=ok|failed|refused|unconfigured`).
+
+## 03 — BROWSE
+
+Only while tsundoku downloads on its own engine (`DOWNLOADS_BACKEND=engine`).
+**LANGUAGES**: a cell for each language the extension repositories list,
+most extensions first, twelve at most, and English and Japanese always (the
+default, `browse_languages` = `en,ja`, the owner's). A tap turns one on or
+off; the last one can't go. BROWSE lists sources in these, and any the
+library already reads from; AVAILABLE extensions open filtered to them, with
+ALL widening one visit ([`BROWSE.md`](BROWSE.md), "Extensions and
+repositories").

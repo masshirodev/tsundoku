@@ -10,10 +10,28 @@ import { linkCount, linkQueueCount } from '$lib/server/catalogue';
 import { accounts, retry, signOut } from '$lib/server/tracking';
 import { ranobeAccount, ranobeQueueCount, retryRanobe } from '$lib/server/ranobe-review';
 import { SERVICES, type Service } from '$lib/library/tracking';
+import { downloadsBackend } from '$lib/server/engine/run';
+import { browseLanguages } from '$lib/server/engine/browse';
+import { listings } from '$lib/server/engine/extensions';
+
+/** The languages the repositories list, most extensions first: the BROWSE row's cells. */
+function listedLanguages(): string[] {
+	const n = new Map<string, number>();
+	for (const l of listings())
+		for (const lang of new Set(l.sources.map((s) => s.lang.toLowerCase())))
+			if (lang && lang !== 'all' && lang !== 'multi') n.set(lang, (n.get(lang) ?? 0) + 1);
+	return [...n.entries()].sort((a, b) => b[1] - a[1]).map(([l]) => l);
+}
+
+const DEFAULT_LANGUAGES = ['en', 'ja'];
+
+/** The cells shown: what's chosen, then the commonest others, twelve at most. */
+const LANGUAGE_CELLS = 12;
 
 /**
  * SETTINGS (Editions 1e; doc/SETTINGS.md): the library's own preferences, as
- * opposed to a device's. One so far: the language a folded book opens in.
+ * opposed to a device's: the language a folded book opens in, the
+ * catalogues, and the languages BROWSE lists sources in.
  * Counts follow reveal, as every list does: hidden books aren't counted.
  */
 export const load: PageServerLoad = async ({ cookies, url }) => {
@@ -44,7 +62,23 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 					outcome: url.searchParams.get('signin') ?? '',
 					service: url.searchParams.get('service') ?? ''
 				}
-			: null
+			: null,
+		// BROWSE (doc/BROWSE.md): the languages it lists sources in, and opens AVAILABLE filtered to.
+		browse:
+			downloadsBackend() === 'engine'
+				? (() => {
+						const chosen = browseLanguages();
+						// The defaults always have a cell, so one turned off can come back
+						// even when no repository lists it.
+						const rest = [...DEFAULT_LANGUAGES, ...listedLanguages()].filter(
+							(l, i, all) => !chosen.includes(l) && all.indexOf(l) === i
+						);
+						return {
+							chosen,
+							cells: [...chosen, ...rest].slice(0, Math.max(LANGUAGE_CELLS, chosen.length))
+						};
+					})()
+				: null
 	};
 };
 
@@ -67,6 +101,16 @@ export const actions: Actions = {
 	},
 	retryRanobe: async () => {
 		await retryRanobe();
+		return { ok: true };
+	},
+	/** A language in or out of BROWSE's; at least one stays, or nothing would be listed. */
+	browseLanguage: async ({ request }) => {
+		const l = String((await request.formData()).get('lang') ?? '').toLowerCase();
+		if (!/^[a-z]{2,3}(-[a-z0-9]{2,8})*$/.test(l)) return fail(400, { message: 'no such language' });
+		const now = browseLanguages();
+		const next = now.includes(l) ? now.filter((x) => x !== l) : [...now, l];
+		if (next.length === 0) return fail(400, { message: 'BROWSE needs one language' });
+		setSetting('browse_languages', next.join(','));
 		return { ok: true };
 	},
 	language: async ({ request }) => {

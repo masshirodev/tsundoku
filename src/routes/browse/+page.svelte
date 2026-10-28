@@ -78,15 +78,42 @@
 	</TopBar>
 
 	{#if total === 0}
+		<!-- The first run (Index-Browse, first; Browse Calls, "No repository ships"). -->
 		<div class="empty">
 			<div class="lab">00 — NO SOURCES YET</div>
 			<div class="h">Nothing to browse yet.</div>
 			<p>
-				Sources come from extension repositories, and tsundoku ships none. Add one in EXTENSIONS: it
-				says what it holds before anything is installed.
+				Sources come from extension repositories, and tsundoku ships none. Paste the address of a
+				repository you trust: it says what it holds before anything is installed.
 			</p>
-			<a class="cta" href={extensionsHref}>EXTENSIONS →</a>
 		</div>
+		<form method="GET" action={extensionsHref} class="field">
+			<input type="hidden" name="tab" value="repos" />
+			<label for="repo-address">REPOSITORY ADDRESS</label>
+			<div class="box">
+				<input
+					id="repo-address"
+					name="add"
+					placeholder="https://…/index.min.json"
+					autocomplete="off"
+					inputmode="url"
+					required
+				/>
+				<button type="submit">ADD</button>
+			</div>
+		</form>
+		<div class="label first"><span>WHAT A REPOSITORY HOLDS</span><span></span></div>
+		<div class="holds">
+			<div class="hold"><span>MANGA, MANHWA, DOUJINSHI</span><span>A MIHON REPOSITORY</span></div>
+			<div class="hold"><span>ANIME</span><span>AN ANIYOMI REPOSITORY</span></div>
+			<div class="hold">
+				<span>NOVELS</span><span>AN LNREADER PLUGIN REPOSITORY · NOT YET</span>
+			</div>
+		</div>
+		<p class="prose">
+			The library, its search and every series still open without one. A series' DOWNLOAD row
+			appears once its source is installed.
+		</p>
 	{:else}
 		{#if list.recent.length}
 			<div class="label first"><span>01 — RECENT</span><span>LAST BROWSED</span></div>
@@ -198,13 +225,70 @@
 		color: var(--text-prose);
 		text-wrap: pretty;
 	}
-	.cta {
-		align-self: flex-start;
-		padding: 16px 24px;
+	.field {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 0 var(--pad) 28px;
+	}
+	.field label {
+		font: 500 12px var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+	}
+	.box {
+		display: flex;
+		align-items: stretch;
+		min-height: 56px;
 		border: 1px solid var(--line-2);
-		font: 500 14px var(--font-mono);
+	}
+	.box input {
+		flex: 1;
+		min-width: 0;
+		padding: 0 16px;
+		border: 0;
+		background: transparent;
 		color: var(--text-1);
-		text-decoration: none;
+		font: 500 15px var(--font-mono);
+		outline: none;
+	}
+	.box button {
+		padding: 0 24px;
+		border: 0;
+		border-left: 1px solid var(--line-2);
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-1);
+		font: 500 14px var(--font-mono);
+		cursor: pointer;
+	}
+	.box:has(input:placeholder-shown) button {
+		opacity: 0.4;
+	}
+	.holds {
+		border-top: var(--hairline);
+	}
+	.hold {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		min-height: 56px;
+		padding: 0 var(--pad);
+		border-bottom: var(--hairline);
+		font: 400 13px var(--font-mono);
+		letter-spacing: 0.04em;
+	}
+	.hold span:last-child {
+		color: var(--text-2);
+		text-align: right;
+	}
+	.prose {
+		margin: 0;
+		padding: 20px var(--pad);
+		font: 400 15px/1.5 var(--font-sans);
+		color: var(--text-prose);
+		text-wrap: pretty;
 	}
 
 	/* The phone: no room for the hint; BROWSE takes the space. */

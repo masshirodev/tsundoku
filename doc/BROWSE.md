@@ -17,7 +17,7 @@ extensions and repos screens") on the Tsundoku board, split into six parts:
 | A source's page: popular, latest, filters, search in it           | c141 | Done    |
 | BROWSE itself: choosing a source, RECENT, where it's reached from | c142 | Done    |
 | A site's browser check named at once; not answering               | c143 | Not yet |
-| Extensions and repositories                                       | c144 | Not yet |
+| Extensions and repositories                                       | c144 | Done    |
 | A source's settings                                               | c145 | Done    |
 
 ## BROWSE
@@ -169,6 +169,72 @@ source isn't named: "FROM TOONILY" said what reveal hides. That was true of
 SEARCH THE SOURCES too, before this, and is fixed for both
 (`libraryIndex().nameable`).
 
+## Extensions and repositories
+
+`/browse/extensions`, BROWSE's back room, from the EXTENSIONS cell on its bar
+and from any failed source's row. Three tabs in the URL (`tab`), every
+action a form post, so all of it works without script. The domain is
+`src/lib/server/engine/manage.ts` over c134's `extensions.ts`.
+
+**INSTALLED** sorts what needs attention first. **01 — NEEDS A HAND**: an
+extension the engine refused (FAILED TO LOAD and the reason in a word, TRY
+AGAIN offering the kept APK again) or one no repository lists any more
+(OBSOLETE: it still loads and won't update). **02 — UPDATES**, with UPDATE ALL
+over the count and NOTHING UPDATES BY ITSELF beside it. **03 — INSTALLED**.
+A state is c94's failed row, a 3px ink rule and the word; no colour is
+proposed. A row's line counts its sources as BROWSE shows them ("2 OF 61
+SOURCES SHOWN" for MangaDex: the owner's languages) and its series here as
+reveal allows; KIND · LANGUAGE names only those languages.
+
+**Updates ask, and can be taken back.** UPDATE (and UPDATE ALL, which reaches
+only what's shown, so reveal decides) installs the version the repository
+lists now, and the previous one is kept a week: the row offers BACK TO 1.6.2
+until then. A source's kept answers are forgotten on either, since what it
+lists may have changed.
+
+**Removing says what stays** (a ConfirmSheet, `?remove=<package>` so it opens
+without script): the series that come from it stay, files and all; its
+queued chapters leave the queue and its followed series stop being checked;
+its settings are kept for a reinstall. Counts are what reveal lets you see.
+
+**AVAILABLE** is every repository's listings, one tab per kind with its count,
+a search, and the LANGUAGE cells: the owner's (SETTINGS, below) are on, and ALL
+widens this visit (`?all=1`); "+ 25 IN OTHER LANGUAGES · SHOW" says what that
+would add. A multi-language extension counts only its sources in those
+languages. INSTALL is accent; an installed one says INSTALLED ✓. 150 rows at a
+time, MORE ↓ for the next. **With reveal off an adult extension isn't listed or
+counted** (the owner's call, 2026-10-28: Keiyoushi's 1,435 read 562), and nor
+is one whose every source here is mostly hidden. Inside reveal the ADULT row
+(ANY, ONLY, NONE) and the 18+ marks appear.
+
+**An untrusted extension is never installed.** An APK not signed by the key
+its repository lists is refused before anything is kept, and the page shows
+the key it was signed with beside the repository's. There's no install
+anyway: a tap that runs code signed by an unknown key is what the check is
+there to stop.
+
+**REPOSITORIES** adds one by its address. Pasted, it's asked before anything
+is added (`?add=<address>`): FOUND · Keiyoushi · 1,435 MANGA EXTENSIONS, and
+ADD; or NOT A REPOSITORY with the reason. The list shows each with its kind,
+what it holds, and REMOVE (which asks, through the sheet, when extensions
+installed from it would stay installed without updates). One that stopped
+answering keeps its row ruled, STOPPED ANSWERING since a date, with what's
+installed from it. CHECK NOW, in the bar, reads every repository again.
+
+**The languages** are a SETTINGS row, 03 — BROWSE · LANGUAGES: a cell per
+language the repositories list (most extensions first, twelve at most, the
+defaults EN and JA always there), toggled one at a time; one always stays.
+
+**The first run.** With no sources BROWSE is 00 — NO SOURCES YET with the
+address field, which asks REPOSITORIES what's there, and what each kind of
+repository holds: a Mihon one manga, an Aniyomi one anime, an LNReader one
+novels (not yet, c127). The names Mihon, Aniyomi and LNReader appear there and
+nowhere else.
+
+**Icons** of available extensions come through the same route as installed
+ones, under the same rules: with reveal off an adult one, or one whose every
+source is mostly hidden, answers 404.
+
 ## A source's settings
 
 `/browse/<source>/settings`, from the SETTINGS cell on a source's page (and,
@@ -209,6 +275,8 @@ values show and still save, under the NOT ANSWERING band.
 | An extension's icon                                       | `src/routes/api/browse/icon/[pkg]/+server.ts`                                                               |
 | A source's page                                           | `src/routes/browse/[source]/` (`+page.server.ts`, `+page.svelte`, `FilterForm.svelte`, `ResultTile.svelte`) |
 | A source's settings                                       | `src/routes/browse/[source]/settings/`, `src/lib/library/source-settings.ts`                                |
+| Extensions and repositories                               | `src/routes/browse/extensions/` (`ExtRow.svelte`), `src/lib/server/engine/manage.ts`                        |
+| BROWSE's languages                                        | `src/routes/settings/` (03 — BROWSE)                                                                        |
 | The engine's schema                                       | the fork, `server/src/main/kotlin/mextensionserver/impl/FilterSchema.kt`                                    |
 
 ## Tests
@@ -223,6 +291,14 @@ values show and still save, under the NOT ANSWERING band.
   source not named; BROWSE's list (the owner's languages, a language named
   only where an extension lists several, RECENT's four and its hidden rule,
   updates counted only for what may be seen).
+- `tests/engine-manage-db.spec.ts`: INSTALLED's three sections and BACK TO's
+  week, a mostly-hidden extension only in reveal, AVAILABLE's languages and
+  ALL, adult left out and uncounted, search, REMOVE's counts and what it
+  takes out of the queue, TRY AGAIN.
+- `tests/browse-extensions.e2e.ts`: a repository asked, refused and added; an
+  install, CHECK NOW, UPDATE, BACK TO and REMOVE through the sheet, against
+  real signed APKs over https; an untrusted install refused with both keys;
+  the languages row.
 - `tests/source-settings.spec.ts`: each of the five types read from the
   engine's shapes, a value no longer offered not shown as chosen, a form's
   answer stored or refused.
@@ -256,6 +332,13 @@ values show and still save, under the NOT ANSWERING band.
 - **RECENT's times are the app's** ("BROWSED 2 H AGO", `ago()` as TRACKING
   uses it); the calls say the mock's ("YESTERDAY", "LAST WEEK") are examples.
 - **EXTENSIONS says MANAGE when nothing waits**, rather than "0 UPDATES".
+- **REMOVE's sheet is the app's ConfirmSheet**, one fact a line ("41 SERIES
+  HERE COME FROM IT · They stay in the library…"), not the mock's two
+  columns: every irreversible action asks the same way.
+- **UNTRUSTED has no REVIEW… step and no install anyway.** The refusal shows
+  both keys at once; see "An untrusted extension is never installed".
+- **No NOVELS tab, no progress bar, no periodic check** (What it does not do
+  yet).
 - **A multi-select without script has a SAVE.** The mock draws ✓ cells only;
   without script nothing would send a tick.
 - **The end of a list says "48 IN ALL"** and drops the MORE row, which the mock
@@ -263,11 +346,17 @@ values show and still save, under the NOT ANSWERING band.
 
 ## What it does not do yet
 
-- The first run's repository field (00 — NO SOURCES YET with an address to
-  paste): BROWSE with no sources says so and links to EXTENSIONS, where c144
-  adds repositories.
-- The languages' SETTINGS row (c144); `browse_languages` is set in the
-  database until then.
+- **NEEDS A BROWSER** isn't drawn: nothing records that an extension failed
+  for want of a WebView, which the engine reports only as an error at first
+  use. Such a source fails as any other does, on its page.
+- **Repositories are checked when asked** (CHECK NOW), not every few hours.
+  Nothing updates by itself either way, so a periodic check would only move
+  the count on EXTENSIONS sooner.
+- **No NOVELS tab** in AVAILABLE, and no LNReader repository can be added:
+  novels are c127.
+- **INSTALLING has no progress bar.** An APK is a few hundred KB from the
+  repository; the button says INSTALLING… while it's fetched, checked and
+  loaded.
 - "FIRST VISIT WAITS FOR THE SITE'S CHECK" on a source behind Cloudflare
   (c143): nothing records which sources need the check yet.
 - The browser-check waiting band and its 60 s DID NOT ANSWER (c143): today a

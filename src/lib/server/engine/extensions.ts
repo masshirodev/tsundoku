@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { join } from 'node:path';
 import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
-import { signedBy } from './apk-signature.ts';
+import { signedBy, signerFingerprints } from './apk-signature.ts';
 import { handleOf, load as engineLoad, type Extension } from './client.ts';
 import type { Preference } from './protocol.ts';
 import {
@@ -34,9 +34,21 @@ export const KEEP_PREVIOUS_MS = 7 * 24 * 60 * 60 * 1000;
 const storeDir = () => process.env.ENGINE_STORE ?? '/mnt/hdd2/tsundoku/engine/store';
 /** Extension icons, fetched from their repository once and kept (doc/BROWSE.md). */
 export const iconsDir = () => join(storeDir(), 'icons');
-const apkPath = (handle: string) => join(storeDir(), `${handle}.apk`);
+export const apkPath = (handle: string) => join(storeDir(), `${handle}.apk`);
 
-export class UntrustedError extends Error {}
+/**
+ * Not signed by the key its repository lists. Carries both, so REVIEW can
+ * show them side by side (c144); nothing was installed.
+ */
+export class UntrustedError extends Error {
+	signers: string[];
+	expected: string;
+	constructor(message: string, signers: string[] = [], expected = '') {
+		super(message);
+		this.signers = signers;
+		this.expected = expected;
+	}
+}
 
 /** What fetching needs; injectable so the rules can be tested without a network. */
 export type Fetcher = (url: string) => Promise<{
@@ -283,8 +295,19 @@ export async function install(
 	const res = await fetcher(listing.apkUrl);
 	if (!res.ok) throw new RepoError(`${listing.apkUrl} answered ${res.status}`);
 	const apk = await res.bytes();
-	if (!signedBy(Buffer.from(apk), listing.fingerprint))
-		throw new UntrustedError(`${listing.name} is not signed by its repository’s key`);
+	if (!signedBy(Buffer.from(apk), listing.fingerprint)) {
+		let signers: string[] = [];
+		try {
+			signers = signerFingerprints(Buffer.from(apk));
+		} catch {
+			// Unsigned or malformed: no key to show beside the repository's.
+		}
+		throw new UntrustedError(
+			`${listing.name} is not signed by its repository’s key`,
+			signers,
+			listing.fingerprint
+		);
+	}
 	const handle = store(apk);
 	let info: ExtensionInfo | null = null;
 	let failed = '';

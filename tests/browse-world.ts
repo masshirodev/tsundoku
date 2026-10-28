@@ -6,6 +6,8 @@
 
 export const BROWSE_PORT = Number(process.env.PLAYWRIGHT_BROWSE_PORT ?? 4194);
 export const ENGINE_PORT = Number(process.env.PLAYWRIGHT_ENGINE_PORT ?? 4195);
+/** The fake repositories, over https with a throwaway certificate. */
+export const REPO_PORT = Number(process.env.PLAYWRIGHT_REPO_PORT ?? 4196);
 
 export const SOURCES = {
 	open: { id: '100', pkg: 'e2e.open', name: 'Open Source' } as {
@@ -35,5 +37,8 @@ export type EngineCall = {
 const ENGINE = `http://127.0.0.1:${ENGINE_PORT}`;
 export const resetEngine = () => fetch(`${ENGINE}/__reset`, { method: 'POST' });
 export const engineDown = () => fetch(`${ENGINE}/__down`, { method: 'POST' });
+export const bumpWebtoons = () => fetch(`${ENGINE}/__bump`, { method: 'POST' });
+export const REPO = (name: 'good' | 'bad' | 'notrepo') =>
+	`https://127.0.0.1:${REPO_PORT}/${name}/index.min.json`;
 export const engineCalls = async () =>
 	(await (await fetch(`${ENGINE}/__calls`)).json()) as EngineCall[];

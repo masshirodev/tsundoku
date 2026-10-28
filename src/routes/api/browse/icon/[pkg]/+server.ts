@@ -14,11 +14,23 @@ import { USER_AGENT } from '$lib/server/engine/protocol';
  * cover is"). Fetched from its repository by the server once and kept beside
  * the APKs as an 80px WebP, so the viewer's browser never asks the
  * repository's host, and a dead repository doesn't take its icons with it.
- * Hidden means hidden: an extension whose every source is mostly hidden
- * answers 404 with reveal off.
+ * Hidden means hidden: with reveal off, an extension whose every source is
+ * mostly hidden, or an adult one not installed, answers 404.
  */
 
 const SIZE = 80;
+
+/**
+ * An icon the viewer's lists could show: an installed extension with a
+ * source they may see, or one available to install, which with reveal off
+ * isn't adult or one whose every source is mostly hidden (manage.ts's rules).
+ */
+function mayShow(pkg: string, reveal: boolean): boolean {
+	const mine = browseSources(true).filter((s) => s.pkg === pkg);
+	if (mine.length > 0) return reveal || mine.some((s) => !s.mostlyHidden);
+	const listing = findListing(pkg, getDb());
+	return !!listing && (reveal || !listing.adult);
+}
 
 async function fetchIcon(pkg: string): Promise<Buffer | null> {
 	const listing = findListing(pkg, getDb());
@@ -43,7 +55,7 @@ async function fetchIcon(pkg: string): Promise<Buffer | null> {
 export const GET: RequestHandler = async ({ params, cookies }) => {
 	const pkg = params.pkg;
 	if (!/^[A-Za-z0-9._-]{1,200}$/.test(pkg)) error(404, 'no icon');
-	if (!browseSources(isRevealed(cookies)).some((s) => s.pkg === pkg)) error(404, 'no icon');
+	if (!mayShow(pkg, isRevealed(cookies))) error(404, 'no icon');
 	const path = join(iconsDir(), `${pkg}.webp`);
 	let bytes: Buffer | null = existsSync(path) ? readFileSync(path) : null;
 	if (!bytes) {

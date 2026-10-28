@@ -1,11 +1,13 @@
 import Database from 'better-sqlite3';
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
-import { rmSync } from 'node:fs';
+import { createServer as createHttpsServer } from 'node:https';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { E2E_TOKEN } from '../playwright.config';
-import { BROWSE_PORT, ENGINE_PORT, SOURCES, type EngineCall } from './browse-world';
+import { BROWSE_PORT, ENGINE_PORT, REPO_PORT, SOURCES, type EngineCall } from './browse-world';
 
 /**
  * BROWSE's world for the browser suite (doc/BROWSE.md, card c141): a fake
@@ -22,6 +24,85 @@ import { BROWSE_PORT, ENGINE_PORT, SOURCES, type EngineCall } from './browse-wor
 
 let calls: EngineCall[] = [];
 let down = false;
+
+// ---- a fake web: extension repositories (c144) ------------------------------------------------
+
+// Real Keiyoushi-signed APKs (tests/fixtures/apk/README.md), so installs are
+// checked against a real signature.
+const WEBTOONS = readFileSync('tests/fixtures/apk/tachiyomi-all.webtoons-v1.6.2.apk');
+const MANGADEX = readFileSync('tests/fixtures/apk/tachiyomi-all.mangadex-v1.6.0.apk');
+const KEIYOUSHI = '9add655a78e96c4ec7a53ef89dccb557cb5d767489fac5e785d671a5a75d4da2';
+const OTHER_KEY = 'f'.repeat(64);
+const handle = (b: Buffer) => createHash('sha256').update(b).digest('hex');
+/** The webtoons listing's version: /__bump moves it to 3, served from the other APK. */
+let webtoonsVersion = 2;
+
+const listing = (
+	base: string,
+	pkg: string,
+	name: string,
+	code: number,
+	apk: string,
+	o: { nsfw?: boolean } = {}
+) => ({
+	name,
+	packageName: pkg,
+	resources: { apkUrl: `${base}${apk}`, iconUrl: '', jarUrl: '' },
+	extensionLib: '1.6',
+	versionCode: String(code),
+	versionName: `1.6.${code}`,
+	contentWarning: o.nsfw ? 'CONTENT_WARNING_NSFW' : 'CONTENT_WARNING_SAFE',
+	sources: [{ id: `${pkg}-src`, name, language: 'en', homeUrl: 'https://example.org' }]
+});
+
+function repoFile(path: string, base: string): unknown {
+	if (path === '/good/repo.json')
+		return { meta: { name: 'Fake Repo', signingKeyFingerprint: KEIYOUSHI } };
+	if (path === '/good/index.json')
+		return {
+			name: 'Fake Repo',
+			signingKey: KEIYOUSHI,
+			extensionList: {
+				extensions: [
+					listing(
+						base,
+						'eu.kanade.tachiyomi.extension.all.webtoons',
+						'Webtoons.com',
+						webtoonsVersion,
+						webtoonsVersion > 2 ? 'mangadex.apk' : 'webtoons.apk'
+					),
+					listing(
+						base,
+						'eu.kanade.tachiyomi.extension.en.adultplace',
+						'Adult Place',
+						1,
+						'webtoons.apk',
+						{ nsfw: true }
+					)
+				]
+			}
+		};
+	// A repository whose listings aren't signed by the key it names.
+	if (path === '/bad/repo.json')
+		return { meta: { name: 'Bad Repo', signingKeyFingerprint: OTHER_KEY } };
+	if (path === '/bad/index.json')
+		return {
+			name: 'Bad Repo',
+			signingKey: OTHER_KEY,
+			extensionList: {
+				extensions: [
+					listing(
+						base,
+						'eu.kanade.tachiyomi.extension.en.nightscans',
+						'Night Scans',
+						1,
+						'webtoons.apk'
+					)
+				]
+			}
+		};
+	return null;
+}
 
 const manga = (sourceId: string, page: number, i: number, title?: string) => ({
 	url: `/s${sourceId}/p${page}-${i}`,
@@ -137,18 +218,94 @@ function startEngine(): Promise<Server> {
 			return json(200, {});
 		}
 		if (req.url === '/__calls') return json(200, calls);
+		if (req.url === '/__bump') {
+			webtoonsVersion = 3;
+			return json(200, {});
+		}
 		// Not answering, as a stopped engine doesn't: the connection is dropped.
 		if (down) return req.socket.destroy();
 		let raw = '';
 		req.on('data', (c) => (raw += c));
 		req.on('end', () => {
-			const b = JSON.parse(raw || '{}') as EngineCall;
-			calls.push(b);
+			const b = JSON.parse(raw || '{}') as EngineCall & { data?: string };
+			calls.push({ ...b, data: undefined } as EngineCall);
+			// Loading an APK: the engine answers what it holds, under its handle.
+			if (b.method === 'extensionInfo') {
+				const apk = Buffer.from(b.data ?? '', 'base64');
+				const mine = handle(apk) === handle(MANGADEX) ? '1.6.3' : '1.6.2';
+				return res
+					.writeHead(200, {
+						'content-type': 'application/json',
+						'x-mangayomi-extension-id': handle(apk)
+					})
+					.end(
+						JSON.stringify({
+							name: 'Webtoons.com',
+							versionName: mine,
+							versionCode: 0,
+							sources: [
+								{
+									id: 'eu.kanade.tachiyomi.extension.all.webtoons-src',
+									name: 'Webtoons.com',
+									lang: 'en'
+								}
+							]
+						})
+					);
+			}
 			const a = answer(b);
 			return a === null ? json(404, { error: 'unknown' }) : json(200, a);
 		});
 	});
 	return new Promise((ok) => server.listen(ENGINE_PORT, '127.0.0.1', () => ok(server)));
+}
+
+/**
+ * The repositories, over https: tsundoku refuses a repository served any
+ * other way (repo-index.ts), and a test-only exception in that check would be
+ * one more way past it. So the setup makes a throwaway certificate for
+ * 127.0.0.1 and the preview trusts it through NODE_EXTRA_CA_CERTS.
+ */
+function startRepos(dir: string): Promise<Server> {
+	execFileSync(
+		'openssl',
+		[
+			'req',
+			'-x509',
+			'-newkey',
+			'ec',
+			'-pkeyopt',
+			'ec_paramgen_curve:prime256v1',
+			'-nodes',
+			'-keyout',
+			join(dir, 'key.pem'),
+			'-out',
+			join(dir, 'cert.pem'),
+			'-days',
+			'1',
+			'-subj',
+			'/CN=127.0.0.1',
+			'-addext',
+			'subjectAltName=IP:127.0.0.1'
+		],
+		{ stdio: 'pipe' }
+	);
+	const server = createHttpsServer(
+		{ key: readFileSync(join(dir, 'key.pem')), cert: readFileSync(join(dir, 'cert.pem')) },
+		(req, res) => {
+			const url = req.url ?? '';
+			if (url.endsWith('.apk'))
+				return res
+					.writeHead(200, { 'content-type': 'application/vnd.android.package-archive' })
+					.end(url.endsWith('mangadex.apk') ? MANGADEX : WEBTOONS);
+			const f = repoFile(url, `https://127.0.0.1:${REPO_PORT}${url.replace(/[^/]*$/, '')}`);
+			if (f === null) return res.writeHead(404).end('not here');
+			res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(f));
+		}
+	);
+	return new Promise((ok) =>
+		server.listen(REPO_PORT, '127.0.0.1', () => ok(server as unknown as Server))
+	);
 }
 
 function seed(dbPath: string): void {
@@ -187,8 +344,11 @@ function seed(dbPath: string): void {
 
 export default async function setup() {
 	const dbPath = join(tmpdir(), `tsundoku-e2e-browse-${process.pid}.sqlite`);
+	// Installs and icons write here, never into the real store on /mnt/hdd2.
+	const store = mkdtempSync(join(tmpdir(), 'tsundoku-e2e-browse-store-'));
 	seed(dbPath);
 	const engine = await startEngine();
+	const repos = await startRepos(store);
 	const preview: ChildProcess = spawn(
 		'npx',
 		['vite', 'preview', '--port', String(BROWSE_PORT), '--strictPort'],
@@ -203,6 +363,8 @@ export default async function setup() {
 				TSUNDOKU_ANILIST: 'off',
 				LIBRARY_ROOT: join(tmpdir(), 'tsundoku-e2e-empty-library'),
 				COVER_DIR: join(tmpdir(), `tsundoku-e2e-browse-covers-${process.pid}`),
+				ENGINE_STORE: store,
+				NODE_EXTRA_CA_CERTS: join(store, 'cert.pem'),
 				BACKUP_DIR: join(tmpdir(), 'tsundoku-e2e-backups'),
 				SUWAYOMI_URL: ''
 			},
@@ -222,7 +384,9 @@ export default async function setup() {
 		preview.kill();
 		engine.closeAllConnections();
 		engine.close();
+		repos.close();
 		rmSync(dbPath, { force: true });
+		rmSync(store, { recursive: true, force: true });
 		rmSync(join(tmpdir(), `tsundoku-e2e-browse-covers-${process.pid}`), {
 			recursive: true,
 			force: true

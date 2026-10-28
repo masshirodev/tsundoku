@@ -237,6 +237,33 @@
 			{/if}
 		</div>
 	</section>
+
+	{#if data.browse}
+		<section aria-labelledby="browse">
+			<div class="section">
+				<h2 id="browse">03 — BROWSE</h2>
+				<span>{data.browse.chosen.map((l) => l.toUpperCase()).join(', ')}</span>
+			</div>
+			<form method="POST" action="?/browseLanguage" use:enhance class="row">
+				<div class="label">LANGUAGES</div>
+				<div class="seg wrap">
+					{#each data.browse.cells as l (l)}
+						<button
+							type="submit"
+							name="lang"
+							value={l}
+							class:on={data.browse.chosen.includes(l)}
+							aria-pressed={data.browse.chosen.includes(l)}>{l.toUpperCase()}</button
+						>
+					{/each}
+				</div>
+			</form>
+			<div class="notes">
+				<p>BROWSE LISTS SOURCES IN THESE, AND ANY THE LIBRARY READS FROM.</p>
+				<p>AVAILABLE EXTENSIONS OPEN FILTERED TO THEM; ALL WIDENS ONE VISIT.</p>
+			</div>
+		</section>
+	{/if}
 </div>
 
 <style>
@@ -314,6 +341,15 @@
 		color: var(--text-1);
 		font: 500 14px var(--font-mono);
 		cursor: pointer;
+	}
+	.seg.wrap {
+		flex-wrap: wrap;
+	}
+	.seg.wrap button {
+		flex: 0 0 auto;
+		min-height: 52px;
+		padding: 0 16px;
+		border-bottom: 1px solid var(--line-1);
 	}
 	.seg button:last-child {
 		border-right: 0;
