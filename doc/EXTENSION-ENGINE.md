@@ -9,6 +9,59 @@ notes on top. Its scratch folder, with the engine clone, the transcripts and
 the scripts, is `/mnt/hdd2/scratch/extension-spike/` (not in the repo: the
 transcripts name explicit series).
 
+## Running it
+
+Since 2026-10-28 (c131, "Fork M-Extension-Server as tsundoku's engine, with a
+solver beside it"), the engine runs on the workstation, beside Suwayomi, which
+keeps downloading until tsundoku's own downloader (c125) has parity. Nothing in
+tsundoku calls it yet.
+
+| Piece        | Where                                                                                                                             |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| The fork     | `~/projects/tsundoku-engine`, `masshirodev/tsundoku-engine` (private). Its `doc/FORK.md` lists every change from upstream and why |
+| The image    | `tsundoku-engine:local`, built from the fork: `docker build -t tsundoku-engine:local ~/projects/tsundoku-engine`                  |
+| The compose  | `ops/engine/compose.yml`: the engine on `127.0.0.1:4590`, FlareSolverr unpublished beside it                                      |
+| Its unit     | `ops/systemd/tsundoku-engine.service`, a user unit, `RequiresMountsFor=/mnt/hdd2`                                                 |
+| Its APKs     | `/mnt/hdd2/tsundoku/engine/apks`, under each APK's SHA-256 (its handle)                                                           |
+| The settings | `ENGINE_URL` and `ENGINE_TOKEN` in tsundoku's `.env` ([`SECRETS.md`](SECRETS.md))                                                 |
+
+What the fork adds to the contract below:
+
+- **Every call but `/` needs `Authorization: Bearer $ENGINE_TOKEN`**, the
+  `/image/` and `/video/` proxies included (ffmpeg takes it with `-headers`).
+- **Handles survive a restart.** An APK is stored under its handle when it
+  loads, and a handle the process forgot is reloaded from there, so the 409
+  in the report below now means "never sent", not "the engine restarted".
+- **Preferences don't.** Send the source's values with every call, with
+  `preferenceApplyMode: replace-present`; the engine's own copy is only this
+  process's ("Preferences", below).
+- **No `/youtube/resolve`**: NewPipe (GPLv3) was removed.
+- **QuickJS works**, including a reused instance, and **ProtoBuf sources load**.
+- Pass FlareSolverr as `cf-proxy-url: http://flaresolverr:8191/v1`: that's
+  its address from inside the engine's network, not from the host.
+
+Installed:
+
+```sh
+docker build -t tsundoku-engine:local ~/projects/tsundoku-engine
+ln -s ~/projects/tsundoku/ops/systemd/tsundoku-engine.service ~/.config/systemd/user/
+systemctl --user daemon-reload && systemctl --user enable --now tsundoku-engine.service
+```
+
+**Restart it with `systemctl --user restart tsundoku-engine`, never `docker
+restart`.** The unit runs `compose up --abort-on-container-exit`, so a
+container restarted by Docker counts as exited: compose takes both down, and
+systemd brings them back 30 s later.
+
+Checked on 2026-10-28, against the running service: 401 without the token;
+MangaDex, Mangahere and Kumaraw (through FlareSolverr, 17.5 s on the first
+call) answer POPULAR; after `systemctl --user restart`, all three answer with
+only their handle; Mangahere's page list (the QuickJS path) gives 19 pages and
+its first page comes back through `/image/` as a JPEG.
+
+Updating the fork: rebuild the image, then restart the unit. Updating
+FlareSolverr: change its tag in the compose file.
+
 Spike run 2026-10-28 on the workstation, against kodjodevf/M-Extension-Server at 775a6fd (2026-10-28, v1.0.9). Nothing in ~/projects/tsundoku was changed. Suwayomi was only read (GraphQL queries, no mutations). Everything here was measured unless it says otherwise. Transcripts are in transcripts/ (one JSON per call in transcripts/calls/). Scripts are in run/. The engine clone, with two patches on branch spike-fixes, is in engine/.
 
 ## Lead's notes

@@ -1,0 +1,45 @@
+# The extension engine (a fork of M-Extension-Server, masshirodev/tsundoku-engine)
+# and FlareSolverr beside it for sites behind a Cloudflare challenge
+# (doc/EXTENSION-ENGINE.md). Started by ops/systemd/tsundoku-engine.service,
+# never by Docker on its own: that unit waits for /mnt/hdd2, where the engine
+# keeps its APKs.
+#
+# The engine's image is built from its repository, not pulled:
+#   docker build -t tsundoku-engine:local ~/projects/tsundoku-engine
+name: tsundoku-engine
+services:
+  engine:
+    image: tsundoku-engine:local
+    container_name: tsundoku-engine
+    restart: 'no'
+    # The image's entrypoint is `java -jar runner.jar 8080`; this is its
+    # app directory (ts.server.rootDir), on the container's own disk.
+    command: ['/tmp/app']
+    user: '1000:1000'
+    # localhost only. No endpoint but / works without ENGINE_TOKEN, but the
+    # proxies fetch through every source's cookies, so it never binds wider.
+    ports:
+      - 127.0.0.1:4590:8080
+    environment:
+      TZ: America/Cuiaba
+      ENGINE_TOKEN: ${ENGINE_TOKEN:?}
+      # Loaded APKs, under their handle, so a restart isn't a 409 per source.
+      ENGINE_APK_DIR: /data/apks
+      # Source preferences are java.util.prefs; keep them in the container.
+      # tsundoku owns them and sends them with every call
+      # (doc/EXTENSION-ENGINE.md, "Preferences").
+      JAVA_TOOL_OPTIONS: -Djava.util.prefs.userRoot=/tmp/prefs
+    volumes:
+      - ${ENGINE_DATA:-/mnt/hdd2/tsundoku/engine}/apks:/data/apks
+    depends_on:
+      - flaresolverr
+
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:v3.4.6
+    container_name: tsundoku-flaresolverr
+    restart: 'no'
+    # Not published: only the engine reaches it, as http://flaresolverr:8191/v1,
+    # which tsundoku sends as each call's cf-proxy-url.
+    environment:
+      TZ: America/Cuiaba
+      LOG_LEVEL: info
