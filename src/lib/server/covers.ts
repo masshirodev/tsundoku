@@ -377,7 +377,11 @@ export async function refreshCover(
 		const bytes = await source.read().catch(() => null);
 		if (!bytes) return false;
 		try {
-			await write(s.id, await thumbnail(bytes, source.crop));
+			const thumb = await thumbnail(bytes, source.crop);
+			// Gone while its cover was fetched (UNDO right after ADD): a file
+			// under its id would be the next series' cover, since ids are reused.
+			if (!db.prepare(`SELECT 1 FROM series WHERE id = ?`).get(s.id)) return false;
+			await write(s.id, thumb);
 		} catch {
 			return false;
 		}

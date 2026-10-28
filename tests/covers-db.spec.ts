@@ -114,6 +114,25 @@ describe('covers', () => {
 		expect(again.made).toBe(0);
 	});
 
+	// Seen live on 2026-10-28: ADD, then UNDO before the cover arrived, left
+	// a cover under an id the next new series would be given.
+	it('write nothing for a series removed while its cover was fetched', async () => {
+		const gone = series({
+			title: 'Undone',
+			available: false,
+			coverUrl: 'https://site.example/covers/undone.jpg'
+		});
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () => {
+				db.prepare(`DELETE FROM series WHERE id = ?`).run(gone);
+				return new Response(new Uint8Array(png), { headers: { 'content-type': 'image/png' } });
+			})
+		);
+		await refreshCovers({ ids: [gone], remote: true, now: 4000 });
+		expect(existsSync(join(work, 'covers', `${gone}.webp`))).toBe(false);
+	});
+
 	it('remember a refusing site for a week, and keep a page meanwhile', async () => {
 		db.prepare(`UPDATE series SET cover_url = 'https://site.example/gone.jpg' WHERE id = ?`).run(
 			downloaded
