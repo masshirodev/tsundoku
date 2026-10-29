@@ -240,10 +240,16 @@ type Parsed = LnNovel & { totalPages?: number };
 const KEEP_NOVEL_MS = 10 * 60 * 1000;
 const novels = new Map<string, { at: number; novel: Parsed }>();
 
-async function parseNovel(p: InstalledPlugin, path: string): Promise<Parsed> {
+/**
+ * A novel and every chapter it lists, every page of a paged plugin's, a
+ * chapter listed twice kept once; kept ten minutes. The preview, ADD and
+ * FOLLOW (novels/follow.ts) all ask through here; FOLLOW with [fresh], since
+ * what's new is the question.
+ */
+export async function parseNovel(p: InstalledPlugin, path: string, fresh = false): Promise<Parsed> {
 	const key = `${p.id}\n${p.version}\n${path}`;
 	const kept = novels.get(key);
-	if (kept && Date.now() - kept.at < KEEP_NOVEL_MS) return kept.novel;
+	if (!fresh && kept && Date.now() - kept.at < KEEP_NOVEL_MS) return kept.novel;
 	const n = await call<Parsed>(p, 'parseNovel', [path], NOVEL_MS);
 	if (!n || typeof n !== 'object') throw new NovelSourceError('The plugin gave no novel');
 	const chapters = Array.isArray(n.chapters) ? [...n.chapters] : [];

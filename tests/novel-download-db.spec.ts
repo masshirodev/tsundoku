@@ -18,10 +18,14 @@ afterAll(() => rmSync(work, { recursive: true, force: true }));
 // onto the series ADD made.
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
 let chapterCalls: string[] = [];
+/** What the source lists past the five ADD saw: FOLLOW's tests add to it. */
+let extra: { name: string; path: string }[] = [];
+let novelFails = false;
 const fakeHost = {
 	info: async () => ({ id: 'good', name: 'Good Novels', site: 'https://good.example/' }),
 	call: async (_file: string, method: string, args: unknown[]) => {
-		if (method === 'parseNovel')
+		if (method === 'parseNovel') {
+			if (novelFails) throw new Error('www.good.example answered 503');
 			return {
 				name: 'The Long One',
 				path: args[0],
@@ -34,9 +38,11 @@ const fakeHost = {
 					{ name: 'Chapter 2', path: '/c/2' },
 					{ name: 'Chapter 3', path: '/c/3' },
 					{ name: 'Chapter 4', path: '/c/broken' },
-					{ name: 'Chapter 5', path: '/c/empty' }
+					{ name: 'Chapter 5', path: '/c/empty' },
+					...extra
 				]
 			};
+		}
 		if (method === 'parseChapter') {
 			const path = args[0] as string;
 			chapterCalls.push(path);
@@ -68,6 +74,7 @@ const queue = await import('$lib/server/engine/queue');
 const source = await import('$lib/server/novels/source');
 const downloads = await import('$lib/server/downloads');
 const { runNovelOnce } = await import('$lib/server/novels/downloader');
+const { checkNovel, followNovels } = await import('$lib/server/novels/follow');
 
 const db = getDb();
 let now = 1_000_000;
@@ -125,7 +132,7 @@ beforeAll(async () => {
 describe('downloading a novel', () => {
 	it('queues its chapters in the one queue, which the engine’s worker leaves alone', async () => {
 		const d = await states();
-		expect(d.follow).toBeNull();
+		expect(d.follow).toEqual({ on: false, checked: null });
 		expect(d.states[entry('/c/1').id]).toEqual({ kind: 'none', chapterId: entry('/c/1').id });
 		const r = await downloads.enqueue(seriesId, [entry('/c/1').id, entry('/c/2').id]);
 		expect(r).toEqual({ queued: 2, missing: 0 });
@@ -243,5 +250,73 @@ describe('downloading a novel', () => {
 		db.prepare(`UPDATE download_queue SET state = 'downloading'`).run();
 		expect(queue.recover(db, 'manga')).toBe(0);
 		expect(queue.recover(db, 'novel')).toBe(2);
+	});
+});
+
+describe('following a novel', () => {
+	const HOUR = 60 * 60 * 1000;
+	const checked = () =>
+		(
+			db.prepare(`SELECT checked_at FROM novel_checks WHERE series_id = ?`).get(seriesId) as
+				{ checked_at: number } | undefined
+		)?.checked_at ?? null;
+
+	it('asks the plugin at once, and every six hours after', async () => {
+		db.exec(`DELETE FROM download_queue`);
+		await downloads.setFollowed(seriesId, true);
+		await expect.poll(checked).not.toBeNull();
+		const first = checked()!;
+		expect((await states()).follow).toEqual({ on: true, checked: first });
+		// Not due yet: nothing asked.
+		expect(await followNovels(first + HOUR, db)).toEqual({ series: 0, queued: 0 });
+		expect((await followNovels(first + 7 * HOUR, db)).series).toBe(1);
+		expect(checked()).toBe(first + 7 * HOUR);
+	});
+
+	it('makes entries of what’s new and queues them, oldest first', async () => {
+		now = (checked() ?? now) + 7 * HOUR;
+		extra = [
+			{ name: 'Chapter 6', path: '/c/6' },
+			{ name: 'Chapter 7', path: '/c/7' }
+		];
+		const before = (db.prepare(`SELECT COUNT(*) AS n FROM series`).get() as { n: number }).n;
+		expect(await followNovels(now, db)).toEqual({ series: 1, queued: 2 });
+		expect((db.prepare(`SELECT COUNT(*) AS n FROM series`).get() as { n: number }).n).toBe(before);
+		expect(entry('/c/6')).toMatchObject({ available: 0, position: 6, label: 'Ch. 6' });
+		expect(queue.queueRows(db).map((q) => q.entryId)).toEqual([entry('/c/6').id, entry('/c/7').id]);
+		// Asked again: nothing new, nothing queued twice.
+		expect(await checkNovel(seriesId, now + 1, db)).toBe(0);
+		expect(queue.queueRows(db)).toHaveLength(2);
+		expect(await runNovelOnce(deps())).toBe(2);
+		await runImport(library, { now: (now += 1000) });
+		expect(entry('/c/7').available).toBe(1);
+	});
+
+	it('moves a chapter the source pushed along, in the book too, so a rescan keeps it', async () => {
+		extra.push({ name: 'Interlude', path: '/c/inter' });
+		await checkNovel(seriesId, (now += 1000), db);
+		// Unnumbered, after Ch. 7: Mihon's numbering, as ADD's (chapter-number.ts).
+		expect(entry('/c/inter').position).toBe(7.5);
+		// A side story before it: the two share the gap after Ch. 7, and the interlude moves.
+		extra.splice(2, 0, { name: 'Aside', path: '/c/aside' });
+		db.exec(`DELETE FROM download_queue`);
+		await checkNovel(seriesId, (now += 1000), db);
+		expect(entry('/c/aside').position).toBeCloseTo(7.001);
+		expect(entry('/c/inter').position).toBeCloseTo(7.002);
+		const book = await readEpub(BOOK);
+		expect(book.novel?.chapters.find((c) => c.path === '/c/inter')?.position).toBeCloseTo(7.002);
+		await runImport(library, { now: (now += 1000) });
+		expect(entry('/c/inter').position).toBeCloseTo(7.002);
+	});
+
+	it('asks again next time when the plugin fails, and leaves an unfollowed novel alone', async () => {
+		const was = checked();
+		novelFails = true;
+		expect(await followNovels(now + 7 * HOUR, db)).toEqual({ series: 1, queued: 0 });
+		expect(checked()).toBe(was);
+		novelFails = false;
+		await downloads.setFollowed(seriesId, false);
+		expect((await states()).follow.on).toBe(false);
+		expect(await followNovels(now + 14 * HOUR, db)).toEqual({ series: 0, queued: 0 });
 	});
 });

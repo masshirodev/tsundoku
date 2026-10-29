@@ -3,6 +3,7 @@ import { engineConfigured, engineDownSince, EngineError } from './engine/client.
 import { getSetting } from './settings.ts';
 import * as novels from './novels/source.ts';
 import * as novelDownloads from './novels/downloader.ts';
+import * as novelFollow from './novels/follow.ts';
 import { NovelHostError } from './novels/host.ts';
 
 /**
@@ -78,5 +79,20 @@ export const addToLibrary = async (id: string) =>
 	novels.parseNovelMangaId(id) ? novels.addNovel(id) : engine.addToLibrary(id);
 export const undoAdd = async (seriesId: number) => engine.undoAdd(seriesId);
 export const setFollowed = async (seriesId: number, on: boolean) =>
-	engine.setFollowed(seriesId, on);
-export const followNew = async () => engine.followNew();
+	novelDownloads.isNovelSeries(seriesId)
+		? novelFollow.setNovelFollowed(seriesId, on)
+		: engine.setFollowed(seriesId, on);
+/**
+ * FOLLOW's step: the engine's followed manga and the plugins' followed
+ * novels, each whatever the other did, so an engine that stopped answering
+ * doesn't keep novels from being asked.
+ */
+export async function followNew() {
+	const done = await Promise.allSettled([engine.followNew(), novelFollow.followNovels()]);
+	const failed = done.find((d) => d.status === 'rejected');
+	if (failed) throw failed.reason;
+	const [manga, novels] = done.map(
+		(d) => (d as PromiseFulfilledResult<{ series: number; queued: number }>).value
+	);
+	return { series: manga.series + novels.series, queued: manga.queued + novels.queued };
+}

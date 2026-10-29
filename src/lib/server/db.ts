@@ -952,6 +952,17 @@ const MIGRATIONS: string[] = [
 		entry_id INTEGER PRIMARY KEY REFERENCES entries(id) ON DELETE CASCADE,
 		downloaded_at INTEGER NOT NULL
 	);
+	`,
+	// Rung 46: when a followed novel's plugin was last asked for new chapters
+	// (doc/NOVELS.md, "FOLLOW"; card c151), as engine_series.resolved_at is a
+	// manga's: FOLLOW's step asks each every six hours, and the DOWNLOAD row
+	// says CHECKED … AGO. Its own table: novel_series has a row only once
+	// something downloaded.
+	`
+	CREATE TABLE novel_checks (
+		series_id INTEGER PRIMARY KEY REFERENCES series(id) ON DELETE CASCADE,
+		checked_at INTEGER NOT NULL
+	);
 	`
 ];
 

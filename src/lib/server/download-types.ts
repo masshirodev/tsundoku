@@ -21,11 +21,8 @@ export type SeriesDownloads =
 			states: Record<number, DownloadState>;
 			/** Chapters queued for other series, for ALL's confirmation. */
 			queuedElsewhere: number;
-			/**
-			 * FOLLOW: whether it's on, and when the source was last asked for new
-			 * chapters. Null where it isn't offered: a novel, until c151.
-			 */
-			follow: { on: boolean; checked: number | null } | null;
+			/** FOLLOW: whether it's on, and when the source was last asked for new chapters. */
+			follow: { on: boolean; checked: number | null };
 	  };
 
 export type QueueSummary = {

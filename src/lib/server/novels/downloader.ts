@@ -470,17 +470,24 @@ export function isNovelSeries(seriesId: number, db: Database.Database = getDb())
  * Where a novel's chapters stand, for its DOWNLOAD row and chapter rows, as
  * the engine's backend answers for a manga: from the queue, and from what
  * the worker wrote into the book that the import hasn't attached yet
- * (IMPORTING). No FOLLOW yet (c151). A plugin no longer installed has no row.
+ * (IMPORTING), and FOLLOW's state (novels/follow.ts). A plugin no longer
+ * installed has no row.
  */
 export function novelSeriesDownloads(
 	seriesId: number,
 	entries: { id: number; available: boolean }[],
 	db: Database.Database = getDb()
 ): SeriesDownloads {
-	const s = db.prepare(`SELECT origin_key FROM series WHERE id = ?`).get(seriesId) as
-		{ origin_key: string | null } | undefined;
+	const s = db
+		.prepare(
+			`SELECT s.origin_key, s.followed_at, c.checked_at FROM series s
+			LEFT JOIN novel_checks c ON c.series_id = s.id WHERE s.id = ?`
+		)
+		.get(seriesId) as
+		| { origin_key: string | null; followed_at: number | null; checked_at: number | null }
+		| undefined;
 	const key = parseNovelKey(s?.origin_key ?? null);
-	if (!key || !pluginOf(key.plugin)) return { kind: 'none' };
+	if (!s || !key || !pluginOf(key.plugin)) return { kind: 'none' };
 	const written = new Set(
 		(
 			db
@@ -519,7 +526,12 @@ export function novelSeriesDownloads(
 	const queuedElsewhere = [...rows.values()].filter(
 		(r) => r.seriesId !== seriesId && r.state !== 'failed'
 	).length;
-	return { kind: 'ok', states, queuedElsewhere, follow: null };
+	return {
+		kind: 'ok',
+		states,
+		queuedElsewhere,
+		follow: { on: s.followed_at !== null, checked: s.checked_at }
+	};
 }
 
 /** Chapters written into a book and not imported yet: a restart dropped their import. */

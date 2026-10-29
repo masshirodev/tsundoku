@@ -12,7 +12,7 @@ manga runs on Mihon's extensions ([`DOWNLOADER.md`](DOWNLOADER.md)). Card c127
 | Repositories and plugins in EXTENSIONS               | c148 | Done    |
 | Browsing, searching and adding a novel               | c149 | Done    |
 | Downloading chapters into an EPUB the importer reads | c150 | Done    |
-| FOLLOW, live checks, the rest of this file           | c151 | Not yet |
+| FOLLOW, live checks, the rest of this file           | c151 | Done    |
 | Past a site's bot check, through FlareSolverr        | c152 | Not yet |
 
 The owner's repository (2026-10-28):
@@ -201,8 +201,8 @@ reader path.
 - **The series screen** draws a novel's DOWNLOAD row and chapter states as a
   manga's ([`DOWNLOADING.md`](DOWNLOADING.md)): FIRST/NEXT 10, ALL, a tap on
   a row, QUEUED, DOWNLOADING, IMPORTING, FAILED · N TRIES, and the FILE line's
-  counts. No FOLLOW cell yet: c151. A novel whose plugin was removed draws no
-  row.
+  counts, and FOLLOW ("FOLLOW", below). A novel whose plugin was removed
+  draws no row.
 - **The queue is the one queue** (`download_queue`), so PAUSE, the queue
   screen, RETRY, ✕ and ↑ TO THE TOP are the same. Two workers take from it:
   the engine's takes a Mihon source's chapters and the novel worker
@@ -279,9 +279,51 @@ failures, PAUSE, recovery) and `tests/browse-novels.e2e.ts` (a plugin through
 the real host, `tests/fixtures/lnreader/shelf.js`: added from BROWSE, two of
 three chapters downloaded and imported, read up to the third).
 
+## FOLLOW
+
+As for a manga ([`DOWNLOADING.md`](DOWNLOADING.md)): FOLLOW on a novel's
+DOWNLOAD row, FOLLOWING ✓ to stop (`src/lib/server/novels/follow.ts`; card
+c151).
+
+- **Its plugin is asked** at once when it's turned on, then every six hours by
+  FOLLOW's ten-minute step, beside the engine's followed manga and whatever
+  the engine is doing (`followNew` in `server/downloads.ts`). The ask is
+  `parseNovel` with every page of a paged plugin's, never the preview's kept
+  answer: what's new is the question. When it was last asked is
+  `novel_checks` (rung 46), the row's CHECKED … AGO. A plugin that fails isn't
+  recorded as asked, so the next step asks again.
+- **A chapter it lists that no entry is becomes one**, with ADD's own plan
+  (`planNovel`) through the one writer, so it's numbered as ADD would have
+  numbered it; nothing the owner set on the series moves, a deleted chapter
+  stays deleted (its tombstone), and the series' cover is left alone.
+- **It's queued** unless read, fifty a series a run at most, oldest first, so
+  the next ones to read come first (`followQueue`, as for manga).
+- **Places.** A chapter's place is its number, or for an unnumbered one its
+  place after the last numbered (an interlude after Ch. 7 is 7.5; a second
+  one inserted before it makes them 7.001 and 7.002). So a chapter the
+  source inserts can move another, and FOLLOW moves it. The book names every
+  chapter's place, and a rescan applies the book's, so when one moved, the
+  book's manifest is written again with the new places
+  ([`IMPORT-EPUB.md`](IMPORT-EPUB.md), "tsundoku's own novels").
+
+**Measured live on 2026-10-29**, through the real host, in a scratch library:
+Wuxia World's _I Shall Seal the Heavens_ (1,619 chapters) and Novel Bin's
+_The Natives of This World Are Fierce_ (375), each with its newest two
+chapters taken out of the library so the plugin listed two new ones: FOLLOW
+found them again in 0.75 s and 0.25 s, queued both, and the worker downloaded
+them. Wuxia World marks some chapters 🔒, which the site keeps for paying
+readers: what a plugin answers for one may be the site's teaser, and nothing
+in tsundoku can tell.
+
+`tests/novel-download-db.spec.ts` ("following a novel": asked at once and every
+six hours, new chapters made entries and queued oldest first and never twice,
+a moved interlude written into the book and kept by a rescan, a failing plugin
+asked again, an unfollowed novel left alone) and the FOLLOW cell in
+`tests/browse-novels.e2e.ts`.
+
 ## Not done yet
 
-FOLLOW and bot checks: c151 and c152 above. The book carries no cover of its
+Bot checks: c152 above. The book carries no cover of its
 own (tsundoku's tiles have theirs). Without the engine set up there's no
 BROWSE, so no novels either, though nothing in the novel worker needs it. A plugin's own
 settings (`pluginSettings`, a few have them) aren't offered.

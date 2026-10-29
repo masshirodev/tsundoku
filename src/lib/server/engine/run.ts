@@ -2,7 +2,7 @@ import { importRunning, libraryRoot, startScan } from '../import/index.ts';
 import { getDb } from '../db.ts';
 import { engineConfigured } from './client.ts';
 import { startWorker } from './worker.ts';
-import { followNew } from './backend.ts';
+import { followNew } from '../downloads.ts';
 import { pendingNovelImports, startNovelWorker } from '../novels/downloader.ts';
 
 /**

@@ -5,8 +5,8 @@ import { resetEngine } from './browse-world';
  * A novel from an LNReader plugin, end to end (doc/NOVELS.md,
  * "Downloading"; card c150): added from BROWSE, two of its three chapters
  * downloaded through the real plugin host into its EPUB, imported onto the
- * series ADD made, and read in the text reader up to the chapter that isn't
- * downloaded. The plugin is tests/fixtures/lnreader/shelf.js, installed by
+ * series ADD made, read in the text reader up to the chapter that isn't
+ * downloaded, and followed (c151). The plugin is tests/fixtures/lnreader/shelf.js, installed by
  * tests/browse-setup.ts; it needs no network.
  */
 
@@ -27,10 +27,9 @@ test('a novel is added, downloaded into its EPUB chapter by chapter, and read up
 	await expect(page).toHaveURL(/\/series\/\d+\?added=/);
 	const series = page.url().replace(/\?.*$/, '');
 
-	// A novel's DOWNLOAD row: the same cells as a manga's, and no FOLLOW yet (c151).
+	// A novel's DOWNLOAD row: the same cells as a manga's, FOLLOW included (c151).
 	const dl = page.locator('.dl-row');
-	await expect(dl.locator('.lcs.inline .lc').first()).toHaveText('FIRST 3');
-	await expect(dl).not.toContainText('FOLLOW');
+	await expect(dl.locator('.lcs.inline .lc')).toHaveText(['FIRST 3', 'FOLLOW']);
 
 	// Two chapters, a tap each: queued in the one queue, downloaded by the novel worker.
 	const row = (title: string) => page.locator('[id^="entry-"]', { hasText: title });
@@ -77,4 +76,11 @@ test('a novel is added, downloaded into its EPUB chapter by chapter, and read up
 	await page.goto(`/read/${rain!.replace('entry-', '')}`);
 	await expect(page.locator('.screen')).toContainText('CH. 3 IS NOT DOWNLOADED');
 	await expect(page.locator('.screen')).toContainText('Only part of this novel is downloaded');
+
+	// FOLLOW: on, and the plugin asked at once.
+	await page.goto(series);
+	await page.locator('.dl-row .lcs.inline').getByRole('button', { name: 'FOLLOW' }).click();
+	await expect(page.locator('.dl-row .lcs.inline .lc').last()).toHaveText('FOLLOWING ✓');
+	await page.locator('.dl-row .lcs.inline').getByRole('button', { name: 'FOLLOWING ✓' }).click();
+	await expect(page.locator('.dl-row .lcs.inline .lc').last()).toHaveText('FOLLOW');
 });

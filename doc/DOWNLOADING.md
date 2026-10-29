@@ -20,7 +20,7 @@ tablet's copy are **one series**, its chapters from whichever device has
 them. A chapter is the source's chapter by its URL. A novel from an LNReader
 plugin is `lnreader:<plugin>:<path>`, each chapter by its path, and downloads
 through the same screens and queue into its EPUB ([`NOVELS.md`](NOVELS.md),
-"Downloading"); it has no FOLLOW yet. Series keyed any other way (Hentoid, an
+"Downloading"), and FOLLOW asks its plugin. Series keyed any other way (Hentoid, an
 EPUB of the tablet's, a `mihon-dir:` folder) have nothing to download.
 
 Downloads are written as one more Mihon device, `devices/tsundoku/Mihon/`, and
