@@ -50,6 +50,32 @@ Which file is the spec:
 The components are Svelte 5 ports, not wrappers. Styles are scoped CSS that reads
 tokens, and none of them hardcode a colour.
 
+## The published design system
+
+The system as the code now has it is also published as a Claude Design System
+artifact, **tsundoku**: `https://claude.ai/artifact/HFPS3mJVpRM9WjuzvYy92T`.
+It was synced from `main` at `c6c97f4` on 2026-10-29 (UTC): `tokens.json`, the
+self-hosted Plex faces (Latin subsets), a brand book, static cards for 19
+components (their CSS transcribed under `ts-` class names in
+`components/bundle.css`) and the app icons.
+
+It is a different thing from the Claude Design project above. The project is
+where the look was designed and `handoff/` mirrors it; the artifact is a
+read-out of what the code became, departures included, for a designer to build
+new screens on. So:
+
+- **A new brief points the designer at it** alongside the repository, so a new
+  screen starts from the tokens and components as shipped rather than from the
+  2026-09 exploration.
+- **It is downstream of the code, never a source.** Nothing in `src/` is
+  regenerated from it. When tokens or components change, resync it from the
+  repository; until then it describes `c6c97f4`.
+- **Its README's "Not synced" section is what it leaves out:** the `--type-*`
+  shorthands, motion, per-theme cover numbers and device variables (in
+  `bundle.css` instead), Plex Sans JP/KR, and the components with no card
+  (BookTile, PageMenu, FilterPanel, ConfirmSheet, PrivacyShield, LookupPanel,
+  the waiting set).
+
 ## Palette and scale, settled separately
 
 `reconcile-tokens.mjs` on the screen spec found **7 distinct colours, all 7

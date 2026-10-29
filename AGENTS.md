@@ -11,7 +11,9 @@ Tailscale. Read `README.md` and `doc/ARCHITECTURE.md` before changing anything.
   derived from the bound address.
 - Screens are built from a design handoff. Briefs live in `doc/briefs/`; the
   design system is `doc/design/` (read its README before touching a component),
-  and `doc/design/handoff/` is a verbatim mirror: never edit it.
+  and `doc/design/handoff/` is a verbatim mirror: never edit it. The system as
+  shipped is published at `https://claude.ai/artifact/HFPS3mJVpRM9WjuzvYy92T`;
+  a new brief points the designer there (`doc/design/README.md`).
 - Colours come from tokens in `src/lib/styles/`, never literals. `--reveal`
   (magenta) is reserved for reveal mode: the banner, the frame, HIDDEN badges.
 - Device layout is CSS media queries, not script, so the first paint is right.
