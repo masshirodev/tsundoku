@@ -229,17 +229,68 @@
 			</ExtRow>
 		{/snippet}
 
+		{@const pv = data.plugins ?? { needsHand: [], updates: [], current: [] }}
+		{#snippet pluginRow(p: (typeof pv.current)[number], section: 'hand' | 'updates' | 'current')}
+			{@const key = `ln:${p.id}`}
+			<ExtRow
+				name={p.name}
+				icon={icon(key)}
+				hue={hue(key)}
+				rule={section === 'hand'}
+				state={busy === key
+					? 'UPDATING'
+					: p.failed
+						? `FAILED TO LOAD · ${p.failed.toUpperCase().slice(0, 40)}`
+						: p.obsolete
+							? 'OBSOLETE'
+							: ''}
+				sub={p.obsolete && !p.failed
+					? " · GONE FROM ITS REPOSITORY · STILL LOADS, WON'T UPDATE"
+					: `${p.failed || busy === key ? ' · ' : ''}1 SOURCE${p.series ? ` · ${count(p.series)} SERIES HERE` : ''}`}
+				kind="NOVELS · {p.lang.toUpperCase() || '—'}"
+				version={p.update ? `${p.version} → ${p.update}` : p.version}
+				versionInk={!!p.update}
+			>
+				{#snippet actions()}
+					{#if p.failed}
+						<form method="POST" action="{base}?/retry" use:enhance={working(key)}>
+							<input type="hidden" name="pkg" value={key} />
+							<button class="act" disabled={busy === key}>TRY AGAIN</button>
+						</form>
+					{:else if p.backTo}
+						<form method="POST" action="{base}?/back" use:enhance={working(key)}>
+							<input type="hidden" name="pkg" value={key} />
+							<button class="act">BACK TO {p.backTo}</button>
+						</form>
+					{:else}
+						<span class="act muted"></span>
+					{/if}
+					{#if section === 'updates'}
+						<form method="POST" action="{base}?/update" use:enhance={working(key)}>
+							<input type="hidden" name="pkg" value={key} />
+							<button class="act ink" disabled={!!busy}
+								>{busy === key ? 'UPDATING…' : 'UPDATE'}</button
+							>
+						</form>
+					{:else}
+						<a class="act" href={link({ remove: key })} data-sveltekit-noscroll>REMOVE…</a>
+					{/if}
+				{/snippet}
+			</ExtRow>
+		{/snippet}
 		{@const sections = [
-			{ key: 'hand' as const, title: 'NEEDS A HAND', rows: v.needsHand },
-			{ key: 'updates' as const, title: 'UPDATES', rows: v.updates },
-			{ key: 'current' as const, title: 'INSTALLED', rows: v.current }
-		].filter((s) => s.rows.length > 0)}
+			{ key: 'hand' as const, title: 'NEEDS A HAND', rows: v.needsHand, plugins: pv.needsHand },
+			{ key: 'updates' as const, title: 'UPDATES', rows: v.updates, plugins: pv.updates },
+			{ key: 'current' as const, title: 'INSTALLED', rows: v.current, plugins: pv.current }
+		]
+			.map((s) => ({ ...s, n: s.rows.length + s.plugins.length }))
+			.filter((s) => s.n > 0)}
 		{#each sections as s, i (s.key)}
 			<div class="label" class:first={i === 0}>
 				<span class="l">{String(i + 1).padStart(2, '0')} — {s.title}</span>
 				<span class="r">
 					<span class="r-t"
-						>{s.rows.length}{s.key === 'updates'
+						>{s.n}{s.key === 'updates'
 							? ' · NOTHING UPDATES BY ITSELF'
 							: s.key === 'current'
 								? ' · UP TO DATE'
@@ -248,7 +299,7 @@
 					{#if s.key === 'updates'}
 						<form method="POST" action="{base}?/updateAll" use:enhance={working('*')}>
 							<button class="all" disabled={!!busy}
-								>{busy === '*' ? 'UPDATING…' : `UPDATE ALL ${s.rows.length}`}</button
+								>{busy === '*' ? 'UPDATING…' : `UPDATE ALL ${s.n}`}</button
 							>
 						</form>
 					{/if}
@@ -263,6 +314,7 @@
 			{/if}
 			<div class="rows" class:bt={i > 0}>
 				{#each s.rows as r (r.pkg)}{@render installedRow(r, s.key)}{/each}
+				{#each s.plugins as p (p.id)}{@render pluginRow(p, s.key)}{/each}
 			</div>
 		{/each}
 	{/if}
@@ -276,16 +328,25 @@
 			<a class="tab" class:on={a.kind === 'anime'} href={link({ kind: 'anime', n: null })}
 				>ANIME <span class="n">{count(a.counts.anime)}</span></a
 			>
+			<a class="tab" class:on={a.kind === 'novels'} href={link({ kind: 'novels', n: null })}
+				>NOVELS <span class="n">{count(data.availableCounts.novels)}</span></a
+			>
 		</nav>
 		<form method="GET" action={base} class="filter">
 			<input type="hidden" name="tab" value="available" />
-			{#if a.kind === 'anime'}<input type="hidden" name="kind" value="anime" />{/if}
+			{#if a.kind !== 'manga'}<input type="hidden" name="kind" value={a.kind} />{/if}
 			<input
 				class="find"
 				type="search"
 				name="q"
 				value={page.url.searchParams.get('q') ?? ''}
-				placeholder="/ search {count(a.kind === 'manga' ? a.counts.manga : a.counts.anime)}"
+				placeholder="/ search {count(
+					a.kind === 'novels'
+						? data.availableCounts.novels
+						: a.kind === 'manga'
+							? a.counts.manga
+							: a.counts.anime
+				)}"
 				aria-label="Search the available extensions"
 				autocomplete="off"
 			/>
@@ -296,7 +357,7 @@
 				class:on={page.url.searchParams.get('all') === '1'}
 				href={link({ all: page.url.searchParams.get('all') === '1' ? null : '1', n: null })}>ALL</a
 			>
-			{#if data.reveal}
+			{#if data.reveal && a.kind !== 'novels'}
 				{@const ad = page.url.searchParams.get('adult') ?? 'any'}
 				<span class="fcell lab adult">ADULT</span>
 				{#each ['any', 'only', 'none'] as o (o)}
@@ -309,15 +370,18 @@
 			{/if}
 		</form>
 		{@const shown = Number(page.url.searchParams.get('n')) || 150}
+		{@const nv = data.novelsAvailable}
+		{@const found = nv ? nv.rows.length : a.rows.length}
+		{@const others = nv ? nv.otherLanguages : a.otherLanguages}
 		<div class="label first">
 			<span class="l"
-				>01 — {count(a.rows.length)} FOUND{page.url.searchParams.get('all') === '1'
+				>01 — {count(found)} FOUND{page.url.searchParams.get('all') === '1'
 					? ' · ALL LANGUAGES'
 					: ` · ${a.languages.map((l) => l.toUpperCase()).join(', ')}`}</span
 			>
-			{#if a.otherLanguages > 0}
+			{#if others > 0}
 				<a class="r more" href={link({ all: '1', n: null })}
-					>+ {count(a.otherLanguages)} IN OTHER LANGUAGES · SHOW</a
+					>+ {count(others)} IN OTHER LANGUAGES · SHOW</a
 				>
 			{/if}
 		</div>
@@ -327,7 +391,34 @@
 			><span class="c3"></span>
 		</div>
 		<div class="rows">
-			{#each a.rows.slice(0, shown) as r (r.pkg)}
+			{#each nv ? nv.rows.slice(0, shown) : [] as l (l.id)}
+				{@const key = `ln:${l.id}`}
+				<ExtRow
+					name={l.name}
+					icon={icon(key)}
+					hue={hue(key)}
+					quiet={l.installed}
+					state={busy === key ? 'INSTALLING' : l.installed ? 'INSTALLED' : ''}
+					sub={l.installed || busy === key ? '' : '1 SOURCE'}
+					kind="NOVELS · {l.lang.toUpperCase() || '—'}"
+					version={l.version}
+				>
+					{#snippet actions()}
+						<span class="act muted"></span>
+						{#if l.installed}
+							<span class="act muted">INSTALLED ✓</span>
+						{:else}
+							<form method="POST" action="{base}?/install" use:enhance={working(key)}>
+								<input type="hidden" name="pkg" value={key} />
+								<button class="act accent" disabled={!!busy}
+									>{busy === key ? 'INSTALLING…' : 'INSTALL'}</button
+								>
+							</form>
+						{/if}
+					{/snippet}
+				</ExtRow>
+			{/each}
+			{#each nv ? [] : a.rows.slice(0, shown) as r (r.pkg)}
 				{@const res = about(r.pkg)}
 				{@const untrusted = !!(res && 'untrusted' in res && res.untrusted)}
 				<ExtRow
@@ -384,9 +475,9 @@
 				</ExtRow>
 			{/each}
 		</div>
-		{#if a.rows.length > shown}
+		{#if found > shown}
 			<div class="more-row">
-				<span>{count(shown)} OF {count(a.rows.length)}</span>
+				<span>{count(shown)} OF {count(found)}</span>
 				<a href={link({ n: String(shown + 150) })} data-sveltekit-noscroll>MORE ↓</a>
 			</div>
 		{/if}
@@ -428,8 +519,8 @@
 				<div class="f-text">
 					<div class="f-a">NOT A REPOSITORY</div>
 					<div class="f-b">
-						{data.preview.error.toUpperCase().slice(0, 160)} · A REPOSITORY'S ADDRESS ENDS IN index.min.json,
-						AND IS OFTEN LINKED FROM A WEB PAGE.
+						{data.preview.error.toUpperCase().slice(0, 160)} · A REPOSITORY'S ADDRESS ENDS IN index.min.json
+						(MIHON, ANIYOMI) OR plugins.min.json (LNREADER), AND IS OFTEN LINKED FROM A WEB PAGE.
 					</div>
 				</div>
 			</div>
@@ -441,13 +532,16 @@
 					<div class="f-a">
 						FOUND · {p.name} · {[
 							p.manga && plural(p.manga, 'MANGA EXTENSION'),
-							p.anime && plural(p.anime, 'ANIME EXTENSION')
+							p.anime && plural(p.anime, 'ANIME EXTENSION'),
+							p.novels && plural(p.novels, 'NOVEL PLUGIN')
 						]
 							.filter(Boolean)
 							.join(', ') || 'NOTHING LISTED'}
 					</div>
 					<div class="f-b">
-						NOTHING IS INSTALLED UNTIL YOU PICK ONE · ITS SIGNING KEY IS KEPT TO CHECK EVERY INSTALL
+						{p.novels
+							? 'NOTHING IS INSTALLED UNTIL YOU PICK ONE · LNREADER SIGNS NOTHING: EACH PLUGIN IS PINNED BY ITS HASH WHEN INSTALLED'
+							: 'NOTHING IS INSTALLED UNTIL YOU PICK ONE · ITS SIGNING KEY IS KEPT TO CHECK EVERY INSTALL'}
 					</div>
 				</div>
 				<button class="f-add">ADD {p.name}</button>
@@ -457,12 +551,12 @@
 		<div class="label">
 			<span class="l">02 — REPOSITORIES</span>
 			<span class="r"
-				>{data.repos.length}{data.checkedAt
+				>{data.repos.length + (data.novelRepos?.length ?? 0)}{data.checkedAt
 					? ` · CHECKED ${ago(data.checkedAt, data.now)}`
 					: ''}</span
 			>
 		</div>
-		{#if data.repos.length}
+		{#if data.repos.length + (data.novelRepos?.length ?? 0)}
 			<div class="cols" aria-hidden="true">
 				<span class="c0">NAME · ADDRESS</span><span class="c1">KIND</span><span class="c2"
 					>HOLDS</span
@@ -500,12 +594,40 @@
 					{/snippet}
 				</ExtRow>
 			{/each}
+			{#each data.novelRepos ?? [] as r (r.id)}
+				<ExtRow
+					name={r.name}
+					icon={null}
+					rule={!!r.failedAt}
+					state={r.failedAt ? 'STOPPED ANSWERING' : ''}
+					sub={r.failedAt
+						? ` · SINCE ${new Date(r.failedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }).toUpperCase()} · ${r.installed ? `${plural(r.installed, 'PLUGIN')} INSTALLED FROM IT KEEP RUNNING, WITHOUT UPDATES` : 'NOTHING INSTALLED FROM IT'}`
+						: r.url.replace(/^https?:\/\//, '')}
+					kind="NOVELS"
+					version={r.failedAt ? 'NOT REACHED' : plural(r.plugins, 'PLUGIN')}
+				>
+					{#snippet actions()}
+						<span class="act muted">{r.installed ? `${r.installed} INSTALLED` : ''}</span>
+						{#if r.installed}
+							<a class="act" href={link({ removeNovelRepo: String(r.id) })} data-sveltekit-noscroll
+								>REMOVE…</a
+							>
+						{:else}
+							<form method="POST" action="{base}?/removeRepo" use:enhance>
+								<input type="hidden" name="id" value={r.id} />
+								<input type="hidden" name="kind" value="novels" />
+								<button class="act">REMOVE</button>
+							</form>
+						{/if}
+					{/snippet}
+				</ExtRow>
+			{/each}
 		</div>
 		<p class="prose">
 			Repositories are checked when you ask; CHECK NOW asks at once. REMOVE asks first when
 			installed extensions came from it, and leaves them installed. A repository that stops
 			answering keeps its row until you remove it. Mihon repositories hold manga, Aniyomi
-			repositories anime.
+			repositories anime, LNReader's novels.
 		</p>
 	{/if}
 </div>
@@ -527,6 +649,22 @@
 		action="{base}?/remove"
 		fields={{ pkg: r.pkg }}
 		onclose={() => goto(link({ remove: null }), { noScroll: true, replaceState: true })}
+	/>
+{/if}
+
+{#if data.removingNovelRepo}
+	{@const r = data.removingNovelRepo}
+	<ConfirmSheet
+		open
+		title="REMOVE {r.name.toUpperCase()}?"
+		lines={[
+			`${plural(r.installed, 'PLUGIN')} INSTALLED FROM IT STAY INSTALLED · They keep running, and stop getting updates.`,
+			`ITS LISTINGS GO · Nothing from it shows in AVAILABLE until it's added again.`
+		]}
+		confirm="REMOVE {r.name.toUpperCase()}"
+		action="{base}?/removeRepo"
+		fields={{ id: String(r.id), kind: 'novels' }}
+		onclose={() => goto(link({ removeNovelRepo: null }), { noScroll: true, replaceState: true })}
 	/>
 {/if}
 

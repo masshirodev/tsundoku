@@ -7,6 +7,7 @@ import { isRevealed } from '$lib/server/prefs';
 import { findListing, iconsDir } from '$lib/server/engine/extensions';
 import { browseSources } from '$lib/server/engine/browse';
 import { USER_AGENT } from '$lib/server/engine/protocol';
+import { findNovelListing, installedPlugins } from '$lib/server/novels/plugins';
 
 /**
  * An extension's icon, as BROWSE's rows show it (Browse Calls, "Read these
@@ -26,6 +27,11 @@ const SIZE = 80;
  * isn't adult or one whose every source is mostly hidden (manage.ts's rules).
  */
 function mayShow(pkg: string, reveal: boolean): boolean {
+	// An LNReader plugin (`ln:<id>`, doc/NOVELS.md): its index marks nothing adult.
+	if (pkg.startsWith('ln:'))
+		return (
+			!!findNovelListing(pkg.slice(3)) || installedPlugins().some((p) => p.id === pkg.slice(3))
+		);
 	const mine = browseSources(true).filter((s) => s.pkg === pkg);
 	if (mine.length > 0) return reveal || mine.some((s) => !s.mostlyHidden);
 	const listing = findListing(pkg, getDb());
@@ -33,10 +39,12 @@ function mayShow(pkg: string, reveal: boolean): boolean {
 }
 
 async function fetchIcon(pkg: string): Promise<Buffer | null> {
-	const listing = findListing(pkg, getDb());
-	if (!listing?.iconUrl) return null;
+	const iconUrl = pkg.startsWith('ln:')
+		? findNovelListing(pkg.slice(3))?.iconUrl
+		: findListing(pkg, getDb())?.iconUrl;
+	if (!iconUrl) return null;
 	try {
-		const res = await fetch(listing.iconUrl, {
+		const res = await fetch(iconUrl, {
 			headers: { 'user-agent': USER_AGENT },
 			signal: AbortSignal.timeout(10_000)
 		});
@@ -54,9 +62,9 @@ async function fetchIcon(pkg: string): Promise<Buffer | null> {
 
 export const GET: RequestHandler = async ({ params, cookies }) => {
 	const pkg = params.pkg;
-	if (!/^[A-Za-z0-9._-]{1,200}$/.test(pkg)) error(404, 'no icon');
+	if (!/^(ln:)?[A-Za-z0-9._-]{1,200}$/.test(pkg)) error(404, 'no icon');
 	if (!mayShow(pkg, isRevealed(cookies))) error(404, 'no icon');
-	const path = join(iconsDir(), `${pkg}.webp`);
+	const path = join(iconsDir(), `${pkg.replace(':', '-')}.webp`);
 	let bytes: Buffer | null = existsSync(path) ? readFileSync(path) : null;
 	if (!bytes) {
 		bytes = await fetchIcon(pkg);

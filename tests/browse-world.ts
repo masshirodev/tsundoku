@@ -42,5 +42,6 @@ export const behindACheck = (ms = 3000) => fetch(`${ENGINE}/__check?ms=${ms}`, {
 export const bumpWebtoons = () => fetch(`${ENGINE}/__bump`, { method: 'POST' });
 export const REPO = (name: 'good' | 'bad' | 'notrepo') =>
 	`https://127.0.0.1:${REPO_PORT}/${name}/index.min.json`;
+export const NOVEL_REPO = `https://127.0.0.1:${REPO_PORT}/novels/plugins.min.json`;
 export const engineCalls = async () =>
 	(await (await fetch(`${ENGINE}/__calls`)).json()) as EngineCall[];

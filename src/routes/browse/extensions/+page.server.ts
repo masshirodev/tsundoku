@@ -22,6 +22,21 @@ import {
 } from '$lib/server/engine/manage';
 import { browseLanguages, browseSources, forgetSource } from '$lib/server/engine/browse';
 import type { Kind } from '$lib/server/engine/repo-index';
+import {
+	addNovelRepo,
+	backPlugin,
+	installPlugin,
+	listNovelRepos,
+	pluginRemoval,
+	pluginsAvailable,
+	pluginView,
+	previewNovelRepo,
+	refreshNovelRepo,
+	reloadPlugin,
+	removeNovelRepo,
+	removePlugin
+} from '$lib/server/novels/plugins';
+import { isNovelRepoAddress, NovelRepoError } from '$lib/library/lnreader-index';
 
 /**
  * EXTENSIONS, BROWSE's back room (Index-Extensions: installed, remove,
@@ -37,11 +52,13 @@ function guard() {
 	if (downloadsBackend() !== 'engine') error(404, 'not found');
 }
 
+/** An extension's package, or an LNReader plugin as `ln:<id>` (doc/NOVELS.md, c148). */
 const pkgOf = (form: FormData) => {
 	const pkg = String(form.get('pkg') ?? '');
-	if (!/^[A-Za-z0-9._-]{1,200}$/.test(pkg)) error(400, 'no such extension');
+	if (!/^(ln:)?[A-Za-z0-9._-]{1,200}$/.test(pkg)) error(400, 'no such extension');
 	return pkg;
 };
+const pluginOf = (pkg: string) => (pkg.startsWith('ln:') ? pkg.slice(3) : null);
 
 /** An update or BACK TO changes what a source answers: its kept answers go. */
 const forgetPackage = (pkg: string) =>
@@ -59,7 +76,8 @@ function refusal(e: unknown, pkg = '') {
 			signers: e.signers,
 			expected: e.expected
 		});
-	if (e instanceof RepoError) return fail(502, { pkg, message: e.message });
+	if (e instanceof RepoError || e instanceof NovelRepoError)
+		return fail(502, { pkg, message: e.message });
 	return fail(502, { pkg, message: (e as Error).message || 'failed' });
 }
 
@@ -69,21 +87,30 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 	const asked = url.searchParams.get('tab');
 	const tab: Tab = asked === 'available' || asked === 'repos' ? asked : 'installed';
 	const repos = listRepos();
+	const novelRepos = listNovelRepos();
 	const installedNow = installedView(reveal);
+	const pluginsNow = pluginView();
 	const counts = {
 		installed:
-			installedNow.needsHand.length + installedNow.updates.length + installedNow.current.length,
-		repos: repos.length
+			installedNow.needsHand.length +
+			installedNow.updates.length +
+			installedNow.current.length +
+			pluginsNow.needsHand.length +
+			pluginsNow.updates.length +
+			pluginsNow.current.length,
+		repos: repos.length + novelRepos.length
 	};
-	const checkedAt = repos.reduce<number | null>(
+	const checkedAt = [...repos, ...novelRepos].reduce<number | null>(
 		(a, r) => (r.checkedAt && (!a || r.checkedAt > a) ? r.checkedAt : a),
 		null
 	);
 
-	const kind: Kind = url.searchParams.get('kind') === 'anime' ? 'anime' : 'manga';
+	const kindAsked = url.searchParams.get('kind');
+	const kind: Kind | 'novels' =
+		kindAsked === 'anime' ? 'anime' : kindAsked === 'novels' ? 'novels' : 'manga';
 	const adultAsked = url.searchParams.get('adult');
 	const available = availableView({
-		kind,
+		kind: kind === 'novels' ? 'manga' : kind,
 		q: url.searchParams.get('q') ?? '',
 		all: url.searchParams.get('all') === '1',
 		adult: adultAsked === 'only' || adultAsked === 'none' ? adultAsked : 'any',
@@ -93,16 +120,25 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 	// A pasted address answers with what it holds before anything is added.
 	const address = (url.searchParams.get('add') ?? '').trim();
 	let preview:
-		{ name: string; base: string; manga: number; anime: number } | { error: string } | null = null;
+		| { name: string; base: string; manga: number; anime: number; novels: number }
+		| { error: string }
+		| null = null;
 	if (tab === 'repos' && address) {
 		try {
-			const p = await previewRepo(address);
-			preview = {
-				name: p.name,
-				base: p.base,
-				manga: p.listings.filter((l) => l.kind === 'manga').length,
-				anime: p.listings.filter((l) => l.kind === 'anime').length
-			};
+			if (isNovelRepoAddress(address)) {
+				// LNReader's: one plugins.min.json, no signing key (doc/NOVELS.md).
+				const p = await previewNovelRepo(address);
+				preview = { name: p.name, base: p.url, manga: 0, anime: 0, novels: p.listings.length };
+			} else {
+				const p = await previewRepo(address);
+				preview = {
+					name: p.name,
+					base: p.base,
+					manga: p.listings.filter((l) => l.kind === 'manga').length,
+					anime: p.listings.filter((l) => l.kind === 'anime').length,
+					novels: 0
+				};
+			}
 		} catch (e) {
 			preview = {
 				error:
@@ -114,8 +150,18 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 	}
 
 	const removeAsked = url.searchParams.get('remove') ?? '';
-	const removingNow = removeAsked ? removal(removeAsked, reveal) : null;
+	const removingNow = removeAsked
+		? pluginOf(removeAsked)
+			? pluginRemoval(pluginOf(removeAsked)!, reveal)
+			: removal(removeAsked, reveal)
+		: null;
 	const repoAsked = Number(url.searchParams.get('removeRepo'));
+	const novelRepoAsked = Number(url.searchParams.get('removeNovelRepo'));
+	const plugins = pluginsAvailable({
+		q: url.searchParams.get('q') ?? '',
+		all: url.searchParams.get('all') === '1',
+		languages: browseLanguages()
+	});
 	return {
 		tab,
 		reveal,
@@ -124,13 +170,19 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 		counts,
 		checkedAt,
 		installed: tab === 'installed' ? installedNow : null,
+		plugins: tab === 'installed' ? pluginsNow : null,
 		available: tab === 'available' ? { ...available, kind } : null,
-		availableCounts: available.counts,
+		novelsAvailable: tab === 'available' && kind === 'novels' ? plugins : null,
+		availableCounts: { ...available.counts, novels: plugins.total },
 		repos: tab === 'repos' ? repos : null,
+		novelRepos: tab === 'repos' ? novelRepos : null,
 		address,
 		preview,
 		removing: removingNow ? { pkg: removeAsked, ...removingNow } : null,
-		removingRepo: repoAsked ? (repos.find((r) => r.id === repoAsked) ?? null) : null
+		removingRepo: repoAsked ? (repos.find((r) => r.id === repoAsked) ?? null) : null,
+		removingNovelRepo: novelRepoAsked
+			? (novelRepos.find((r) => r.id === novelRepoAsked) ?? null)
+			: null
 	};
 };
 
@@ -139,7 +191,8 @@ export const actions: Actions = {
 		guard();
 		const pkg = pkgOf(await request.formData());
 		try {
-			await install(pkg);
+			if (pluginOf(pkg)) await installPlugin(pluginOf(pkg)!);
+			else await install(pkg);
 		} catch (e) {
 			return refusal(e, pkg);
 		}
@@ -150,7 +203,8 @@ export const actions: Actions = {
 		guard();
 		const pkg = pkgOf(await request.formData());
 		try {
-			await install(pkg);
+			if (pluginOf(pkg)) await installPlugin(pluginOf(pkg)!);
+			else await install(pkg);
 		} catch (e) {
 			return refusal(e, pkg);
 		}
@@ -169,33 +223,47 @@ export const actions: Actions = {
 				failed.push(e.name);
 			}
 		}
+		for (const p of pluginView().updates) {
+			try {
+				await installPlugin(p.id);
+			} catch {
+				failed.push(p.name);
+			}
+		}
 		if (failed.length) return fail(502, { message: `${failed.join(', ')} did not update` });
 		return { done: 'all' };
 	},
 	back: async ({ request }) => {
 		guard();
 		const pkg = pkgOf(await request.formData());
-		if (!back(pkg)) return fail(409, { pkg, message: 'The previous version is no longer kept' });
+		const plugin = pluginOf(pkg);
+		if (!(plugin ? backPlugin(plugin) : back(pkg)))
+			return fail(409, { pkg, message: 'The previous version is no longer kept' });
 		forgetPackage(pkg);
 		return { done: pkg };
 	},
 	retry: async ({ request }) => {
 		guard();
 		const pkg = pkgOf(await request.formData());
-		if (!(await loadAgain(pkg))) return fail(502, { pkg, message: 'It still does not load' });
+		const plugin = pluginOf(pkg);
+		if (!(await (plugin ? reloadPlugin(plugin) : loadAgain(pkg))))
+			return fail(502, { pkg, message: 'It still does not load' });
 		return { done: pkg };
 	},
 	remove: async ({ request }) => {
 		guard();
 		const pkg = pkgOf(await request.formData());
-		removeExtension(pkg);
+		const plugin = pluginOf(pkg);
+		if (plugin) removePlugin(plugin);
+		else removeExtension(pkg);
 		redirect(303, '/browse/extensions');
 	},
 	addRepo: async ({ request }) => {
 		guard();
 		const address = String((await request.formData()).get('address') ?? '').trim();
 		try {
-			await addRepo(address);
+			if (isNovelRepoAddress(address)) await addNovelRepo(address);
+			else await addRepo(address);
 		} catch (e) {
 			return refusal(e);
 		}
@@ -203,14 +271,19 @@ export const actions: Actions = {
 	},
 	removeRepo: async ({ request }) => {
 		guard();
-		const id = Number((await request.formData()).get('id'));
-		if (Number.isInteger(id)) removeRepo(id);
+		const form = await request.formData();
+		const id = Number(form.get('id'));
+		if (Number.isInteger(id)) {
+			if (form.get('kind') === 'novels') removeNovelRepo(id);
+			else removeRepo(id);
+		}
 		redirect(303, '/browse/extensions?tab=repos');
 	},
 	/** CHECK NOW: every repository read again; one that stopped answering keeps its row. */
 	check: async () => {
 		guard();
 		for (const r of listRepos()) await refreshRepo(r.id);
+		for (const r of listNovelRepos()) await refreshNovelRepo(r.id);
 		return { done: 'check' };
 	}
 };

@@ -62,6 +62,19 @@ const listing = (
 });
 
 function repoFile(path: string, base: string): unknown {
+	// An LNReader repository (doc/NOVELS.md): one index, a plugin file by URL.
+	if (path === '/novels/plugins.min.json')
+		return [
+			{
+				id: 'goodnovels',
+				name: 'Good Novels',
+				site: 'https://example.org/',
+				lang: 'English',
+				version: '1.0.0',
+				url: `${base}goodnovels.js`,
+				iconUrl: ''
+			}
+		];
 	if (path === '/good/repo.json')
 		return { meta: { name: 'Fake Repo', signingKeyFingerprint: KEIYOUSHI } };
 	if (path === '/good/index.json')
@@ -318,6 +331,10 @@ function startRepos(dir: string): Promise<Server> {
 		{ key: readFileSync(join(dir, 'key.pem')), cert: readFileSync(join(dir, 'cert.pem')) },
 		(req, res) => {
 			const url = req.url ?? '';
+			if (url === '/novels/goodnovels.js')
+				return res
+					.writeHead(200, { 'content-type': 'text/javascript' })
+					.end(readFileSync('tests/fixtures/lnreader/good.js'));
 			if (url.endsWith('.apk'))
 				return res
 					.writeHead(200, { 'content-type': 'application/vnd.android.package-archive' })

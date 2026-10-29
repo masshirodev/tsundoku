@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from 'node:f
 import { join } from 'node:path';
 import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
+import { VISIBLE_SQL } from '../visibility.ts';
 import {
 	newer,
 	NovelRepoError,
@@ -353,4 +354,103 @@ export function installedPlugins(db: Database.Database = getDb()): InstalledPlug
 			file: pluginPath(r.hash)
 		};
 	});
+}
+
+// ---- EXTENSIONS' view of them (c148) ------------------------------------------------------
+
+/** A novel series' key (c149): `lnreader:<plugin>:<path>`, as a Mihon series is `mihon:<source>:<url>`. */
+export const novelKey = (plugin: string, path: string) => `lnreader:${plugin}:${path}`;
+
+export type PluginRow = InstalledPlugin & {
+	/** BACK TO this version, within its week; null when there's none. */
+	backTo: string | null;
+	/** Series here from it. */
+	series: number;
+};
+
+/** INSTALLED's plugins, in its three sections: NEEDS A HAND, UPDATES, INSTALLED. */
+export function pluginView(now = Date.now(), db: Database.Database = getDb()) {
+	const counts = new Map<string, number>();
+	for (const r of db
+		.prepare(`SELECT origin_key AS k FROM series WHERE origin_key LIKE 'lnreader:%'`)
+		.all() as { k: string }[]) {
+		const id = r.k.split(':')[1];
+		counts.set(id, (counts.get(id) ?? 0) + 1);
+	}
+	const rows: PluginRow[] = installedPlugins(db).map((p) => ({
+		...p,
+		backTo:
+			p.previousVersion && p.previousUntil && p.previousUntil > now ? p.previousVersion : null,
+		series: counts.get(p.id) ?? 0
+	}));
+	return {
+		needsHand: rows.filter((r) => r.failed || r.obsolete),
+		updates: rows.filter((r) => !r.failed && !r.obsolete && r.update),
+		current: rows.filter((r) => !r.failed && !r.obsolete && !r.update)
+	};
+}
+
+/**
+ * AVAILABLE's NOVELS tab: every repository's plugins in the owner's
+ * languages (or all of them with ALL), matching a search. LNReader's index
+ * marks nothing adult, so nothing is held back for reveal here.
+ */
+export function pluginsAvailable(opts: { q?: string; all?: boolean; languages: string[] }) {
+	const have = new Set(installedPlugins().map((p) => p.id));
+	const q = (opts.q ?? '').trim().toLowerCase();
+	const matching = novelListings()
+		.filter((l) => !q || l.name.toLowerCase().includes(q))
+		.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }))
+		.map((l) => ({ ...l, installed: have.has(l.id) }));
+	const wanted = (l: { lang: string }) => l.lang === 'multi' || opts.languages.includes(l.lang);
+	const rows = opts.all ? matching : matching.filter(wanted);
+	return { rows, total: novelListings().length, otherLanguages: matching.length - rows.length };
+}
+
+/** TRY AGAIN on a plugin that failed to load: the same file, offered to the host again. */
+export async function reloadPlugin(
+	id: string,
+	loader: PluginLoader = hostLoader,
+	db: Database.Database = getDb()
+): Promise<boolean> {
+	const row = db.prepare(`SELECT hash FROM novel_plugins WHERE id = ?`).get(id) as
+		{ hash: string } | undefined;
+	if (!row || !existsSync(pluginPath(row.hash))) return false;
+	// A fresh host: the old one may hold the file as it failed.
+	host?.stop();
+	try {
+		const info = await loader(pluginPath(row.hash));
+		db.prepare(`UPDATE novel_plugins SET failed = '', name = ? WHERE id = ?`).run(info.name, id);
+		return true;
+	} catch (e) {
+		db.prepare(`UPDATE novel_plugins SET failed = ? WHERE id = ?`).run(
+			(e as Error).message || 'failed to load',
+			id
+		);
+		return false;
+	}
+}
+
+/** What REMOVE's sheet says of a plugin: its series stay, its settings are kept. */
+export function pluginRemoval(id: string, reveal: boolean, db: Database.Database = getDb()) {
+	const p = installedPlugins(db).find((x) => x.id === id);
+	if (!p) return null;
+	const rows = db
+		.prepare(
+			`SELECT NOT ${VISIBLE_SQL} AS hidden, s.followed_at FROM series s JOIN roots r ON r.id = s.root_id
+			WHERE s.origin_key LIKE ? ESCAPE '\\'`
+		)
+		.all(`lnreader:${id.replace(/[%_\\]/g, '\\$&')}:%`) as {
+		hidden: number;
+		followed_at: number | null;
+	}[];
+	const seen = rows.filter((r) => reveal || !r.hidden);
+	return {
+		name: p.name,
+		version: p.version,
+		sources: 1,
+		series: seen.length,
+		queued: 0,
+		followed: seen.filter((r) => r.followed_at !== null).length
+	};
 }

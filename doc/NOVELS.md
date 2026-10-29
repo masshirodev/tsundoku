@@ -9,7 +9,7 @@ manga runs on Mihon's extensions ([`DOWNLOADER.md`](DOWNLOADER.md)). Card c127
 | Part                                                 | Card | State   |
 | ---------------------------------------------------- | ---- | ------- |
 | A sandboxed host for the plugins                     | c147 | Done    |
-| Repositories and plugins in EXTENSIONS               | c148 | Not yet |
+| Repositories and plugins in EXTENSIONS               | c148 | Done    |
 | Browsing, searching and adding a novel               | c149 | Not yet |
 | Downloading chapters into an EPUB the importer reads | c150 | Not yet |
 | FOLLOW, live checks, the rest of this file           | c151 | Not yet |
@@ -84,6 +84,42 @@ same. Getting past those needs the engine's FlareSolverr in the host's path,
 which the host's own fetch can't reach (it refuses local addresses on
 purpose): a planned way through, c149.
 
+## Repositories and plugins
+
+On EXTENSIONS ([`BROWSE.md`](BROWSE.md), "Extensions and repositories"), beside
+Mihon's, in their own tables (rung 44: `novel_repos`, `novel_listings`,
+`novel_plugins`; `src/lib/server/novels/plugins.ts`,
+`src/lib/library/lnreader-index.ts`):
+
+- **REPOSITORIES** takes an LNReader address (one ending `plugins.min.json`)
+  as it takes a Mihon one: asked first ("FOUND · LNReader · 328 NOVEL
+  PLUGINS"), then added, listed with its count, checked by CHECK NOW, kept
+  ruled when it stops answering, removed through the sheet when plugins came
+  from it. Its name is the GitHub owner it's served from, or its host: an
+  LNReader index names nothing.
+- **AVAILABLE** has a NOVELS tab: every repository's plugins, in the owner's
+  languages unless ALL (LNReader names languages in their own words; the index
+  reader maps all seventeen in the owner's repository to codes), searched by
+  name.
+- **INSTALLED** lists plugins in the same three sections as extensions: NEEDS
+  A HAND (failed to load in the host, with TRY AGAIN; or OBSOLETE), UPDATES,
+  INSTALLED; UPDATE, UPDATE ALL and BACK TO for a week; REMOVE through the
+  sheet. A plugin is `ln:<id>` in the page's forms and its icon's route.
+- **Trust.** LNReader signs nothing. A repository is trusted by its address
+  over https, and a plugin's file is pinned by its SHA-256 when it's installed:
+  what runs is what was fetched then, never a file changed under it. A plugin
+  must load in the host to count as installed; one that won't is kept and
+  says so, as an extension that fails to load is.
+- **No adult flag.** LNReader's index marks nothing adult, so AVAILABLE can't
+  hold any back while reveal is off. Its plugins are novel sites; covers in
+  BROWSE follow the same hidden rules as manga's (c149).
+
+`tests/novel-plugins-db.spec.ts` (an index read, languages, versions, a
+repository added and kept when it stops answering, a plugin installed,
+updated, taken back, failing to load, removed) and the novels test in
+`tests/browse-extensions.e2e.ts` (an LNReader repository asked and added, a
+plugin installed and loaded in the real host, removed).
+
 ## Storing a novel: one EPUB, written as a device
 
 Decided 2026-10-28 for c150, over the card's first idea (each chapter a `text`
@@ -109,4 +145,4 @@ entry in a new schema rung):
 
 ## Not done yet
 
-Everything past the host: c148 to c151 above.
+Browsing, downloading and FOLLOW: c149 to c151 above.

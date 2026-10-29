@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { bumpWebtoons, REPO, resetEngine } from './browse-world';
+import { bumpWebtoons, NOVEL_REPO, REPO, resetEngine } from './browse-world';
 
 /**
  * EXTENSIONS (Index-Extensions; doc/BROWSE.md, "Extensions and
@@ -97,4 +97,30 @@ test('BROWSE’s languages are set once in SETTINGS, and one always stays', asyn
 	await expect(row.getByRole('button', { name: 'EN' })).toHaveAttribute('aria-pressed', 'true');
 	await row.getByRole('button', { name: 'JA' }).click();
 	await expect(row.getByRole('button', { name: 'JA' })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('an LNReader repository is asked, added, and a novel plugin installed in the host and removed (c148)', async ({
+	page
+}) => {
+	const row = (name: string) => page.locator('.rows .row', { hasText: name });
+	await page.goto(`/browse/extensions?tab=repos&add=${encodeURIComponent(NOVEL_REPO)}`);
+	await expect(page.locator('.found')).toContainText('1 NOVEL PLUGIN');
+	await expect(page.locator('.found')).toContainText('PINNED BY ITS HASH');
+	await page.locator('.found button').click();
+	await expect(row('127.0.0.1').filter({ hasText: 'NOVELS' })).toContainText('1 PLUGIN');
+
+	await page.goto('/browse/extensions?tab=available&kind=novels');
+	await row('Good Novels').getByRole('button', { name: 'INSTALL' }).click();
+	await expect(row('Good Novels')).toContainText('INSTALLED ✓');
+
+	// It loaded in the plugin host: its own name and version, not just the index's.
+	await page.goto('/browse/extensions');
+	await expect(row('Good Novels')).toContainText('NOVELS · EN');
+	await expect(row('Good Novels')).toContainText('1.0.0');
+	await expect(row('Good Novels')).not.toContainText('FAILED');
+	await row('Good Novels').getByRole('link', { name: 'REMOVE…' }).click();
+	const sheet = page.getByRole('dialog');
+	await expect(sheet).toContainText('REMOVE GOOD NOVELS?');
+	await sheet.getByRole('button', { name: 'REMOVE GOOD NOVELS' }).click();
+	await expect(row('Good Novels')).toHaveCount(0);
 });
