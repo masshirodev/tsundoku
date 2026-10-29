@@ -4,7 +4,7 @@ import { HIDDEN_SQL, VISIBLE_SQL } from './visibility.ts';
 import { getSetting } from './settings.ts';
 import { langCode, openingEdition } from '$lib/library/editions';
 import { likePattern } from '$lib/library/search';
-import { dayStart, type Filters } from '$lib/library/filters';
+import { dayStart, FILTER_KINDS, type FilterKind, type Filters } from '$lib/library/filters';
 import { naturalDir, type Dir, type Sort } from '$lib/library/labels';
 import type {
 	ContinueItem,
@@ -353,6 +353,10 @@ function filterClause(f: Filters | undefined, reveal: boolean): { sql: string; p
 		sql.push('s.favourite = ?');
 		params.push(f.fav);
 	}
+	if (f.kind) {
+		sql.push('s.kind = ?');
+		params.push(f.kind);
+	}
 	if (f.lang) {
 		const names = languageNames(f.lang);
 		if (names.length === 0) sql.push('0');
@@ -384,6 +388,21 @@ function listWhere(opts: ListOpts): { sql: string; params: unknown[] } {
 		sql: `${visibility(opts.reveal)} AND ${shelf.sql} AND ${tag.sql} AND ${filters.sql}`,
 		params: [...shelf.params, ...tag.params, ...filters.params]
 	};
+}
+
+/** The kinds on a shelf as it stands without filters, in KIND's order: what KIND offers. */
+export function kindsOn(opts: Omit<ListOpts, 'filters'>): FilterKind[] {
+	const where = listWhere({ ...opts, filters: undefined });
+	const have = new Set(
+		(
+			getDb()
+				.prepare(
+					`SELECT DISTINCT s.kind FROM series s JOIN roots r ON r.id = s.root_id WHERE ${where.sql}`
+				)
+				.all(...where.params) as { kind: string }[]
+		).map((r) => r.kind)
+	);
+	return FILTER_KINDS.filter((k) => have.has(k));
 }
 
 /**

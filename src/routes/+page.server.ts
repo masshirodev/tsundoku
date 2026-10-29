@@ -12,6 +12,7 @@ import {
 	countSeries,
 	createCollection,
 	dismissScan,
+	kindsOn,
 	languagesOn,
 	listSeries,
 	setFavourite,
@@ -53,6 +54,14 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	// "44 OF 188" is out of, counted only while a filter narrows it.
 	const languages =
 		shelf === 'people' || shelf === 'cached' ? [] : languagesOn({ reveal, shelf, tag });
+	// KIND offers the kinds the shelf holds (TO READ's manga); a kind it doesn't
+	// hold drops, as a language does.
+	const kinds = shelf === 'people' || shelf === 'cached' ? [] : kindsOn({ reveal, shelf, tag });
+	if (filters.kind && shelf !== 'cached' && shelf !== 'people' && !kinds.includes(filters.kind)) {
+		const next = new URLSearchParams(url.searchParams);
+		next.delete('kind');
+		redirect(307, `/?${next}`);
+	}
 	// A language this shelf doesn't hold drops, rather than emptying the grid
 	// (Library Filters 1c: MANHWA offers none, so switching to it drops JA).
 	if (filters.lang && shelf !== 'cached' && !languages.includes(filters.lang)) {
@@ -91,6 +100,7 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		tag,
 		filters,
 		languages,
+		kinds,
 		shelfTotal:
 			activeCount(filters) > 0 && shelf !== 'people' && shelf !== 'cached'
 				? countListed({ reveal, shelf, tag })

@@ -44,6 +44,7 @@ many are on as a green badge, opens a panel with one row per filter:
 | ---------- | ------------------------------------------------------------------------------------ | ------------------------------------ |
 | RATING     | ANY · UNRATED · AT LEAST, then the blocks                                            | `?min=1..10`, `?rated=0`             |
 | FAV        | ANY · FAV · NOT FAV                                                                  | `?fav=1`, `?fav=0`                   |
+| KIND       | ANY, then each kind on the shelf (MANGA, MANHWA, DOUJINS, NOVELS, ANIME)             | `?kind=manga`                        |
 | LANGUAGE   | ANY, then each language on the shelf (EN, JA)                                        | `?lang=ja`                           |
 | DATE ADDED | ANY · SINCE and a date                                                               | `?added=2026-08-01`                  |
 | DOWNLOADED | ANY · YES · NO                                                                       | `?dl=1`, `?dl=0`                     |
@@ -83,6 +84,12 @@ many are on as a green badge, opens a panel with one row per filter:
   only while reveal is on: `parseFilters` drops `?hidden=1` otherwise, and the
   SQL checks again. It's the panel's one magenta row, and ending reveal drops
   it with everything hidden.
+- **KIND is one kind inside any shelf** (asked for on 2026-10-29: the
+  manga in TO READ). The kind shelves stay where they were; KIND is for the
+  shelves that mix kinds, so it's offered only where the shelf holds two or
+  more (never on a kind shelf), and a kind the shelf doesn't hold drops from
+  the URL as a language does. On CACHED and a person's page it filters on
+  the device.
 - **LANGUAGE offers only what the shelf holds**, as it stands without filters,
   visible only (`languagesOn`). With nothing to offer there's no row at all.
   The real library's languages are almost all on Hentoid books, behind

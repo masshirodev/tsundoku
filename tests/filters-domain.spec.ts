@@ -4,6 +4,7 @@ import {
 	filterParams,
 	filterRows,
 	filterWords,
+	kindsAmong,
 	languagesAmong,
 	legacyShelf,
 	matches,
@@ -184,5 +185,38 @@ describe('FOLLOWED (doc/DOWNLOADING.md)', () => {
 		expect(filterRows({ ...NO_FILTERS, followed: true }, [], false).map((r) => r.key)).toContain(
 			'followed'
 		);
+	});
+});
+
+describe('KIND (one kind inside any shelf: TO READ’s manga)', () => {
+	it('is a filter in the URL, in words, and on the device, and nothing else is a kind', () => {
+		const k = parseFilters(q('kind=manhwa'), false);
+		expect(k.kind).toBe('manhwa');
+		expect(activeCount(k)).toBe(1);
+		expect(filterParams(k)).toEqual([['kind', 'manhwa']]);
+		expect(filterWords(k)).toEqual(['MANHWA']);
+		expect(parseFilters(q('kind=comic'), false).kind).toBeNull();
+		const card = { rating: 0, favourite: false, hidden: false, addedAt: 0 };
+		expect(matches({ ...card, kind: 'manhwa' }, k)).toBe(true);
+		expect(matches({ ...card, kind: 'manga' }, k)).toBe(false);
+		// A card that doesn't say its kind isn't asked.
+		expect(matches(card, k)).toBe(true);
+	});
+
+	it('offers the kinds present, in its own order, and only where two can be told apart', () => {
+		const card = { rating: 0, favourite: false, hidden: false, addedAt: 0 };
+		expect(kindsAmong([{ ...card, kind: 'novel' }, { ...card, kind: 'manga' }, card])).toEqual([
+			'manga',
+			'novel'
+		]);
+		const keys = (fs: Filters, kinds: Parameters<typeof filterRows>[5]) =>
+			filterRows(fs, [], false, false, true, kinds).map((r) => r.key);
+		expect(keys(NO_FILTERS, ['manga'])).not.toContain('kind');
+		expect(keys(NO_FILTERS, ['manga', 'novel'])).toContain('kind');
+		expect(keys(f({ kind: 'anime' }), [])).toContain('kind');
+		const row = filterRows(NO_FILTERS, [], false, false, true, ['manga', 'doujin']).find(
+			(r) => r.key === 'kind'
+		)!;
+		expect(row.choices.map((c) => c.label)).toEqual(['ANY', 'MANGA', 'DOUJINS']);
 	});
 });

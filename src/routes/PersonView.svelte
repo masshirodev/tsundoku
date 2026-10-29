@@ -13,6 +13,7 @@
 	import {
 		activeCount,
 		filterWords,
+		kindsAmong,
 		languagesAmong,
 		matches,
 		NO_FILTERS,
@@ -53,6 +54,7 @@
 	let filters = $state<Filters>(NO_FILTERS);
 	const nFilters = $derived(activeCount(filters));
 	const languages = $derived(languagesAmong(page.items));
+	const kinds = $derived(kindsAmong(page.items));
 
 	// Cosmetic: pad a short last row so the hairline background doesn't show
 	// as a grey slab. The column counts themselves are CSS.
@@ -234,6 +236,7 @@
 		<FilterPanel
 			{filters}
 			{languages}
+			{kinds}
 			{reveal}
 			title={page.person ? 'BOOKS' : 'SERIES'}
 			count={nFilters ? `${count(shown.length)} OF ${count(onTab.length)}` : count(onTab.length)}

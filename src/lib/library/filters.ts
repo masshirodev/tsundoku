@@ -9,6 +9,7 @@ import { DEFAULT_MIN, minLabel, RATING_MAX } from './rating';
  *   ?min=8        rated 4+ (out of 10, written in five steps)
  *   ?rated=0      unrated
  *   ?fav=1|0      favourited, not favourited
+ *   ?kind=manga   one kind: manga, manhwa, doujin, novel or anime
  *   ?lang=ja      a language, as its two-letter code
  *   ?added=2026-08-01   added on or after that day
  *   ?dl=1|0       a chapter on disk, or none
@@ -25,6 +26,8 @@ export type Filters = {
 	min: number | null;
 	unrated: boolean;
 	fav: 0 | 1 | null;
+	/** One kind, inside whatever shelf or collection shows (TO READ's manga). */
+	kind: FilterKind | null;
 	/** A two-letter code, lower case: `ja`. */
 	lang: string | null;
 	/** `YYYY-MM-DD`: added on or after the start of that day. */
@@ -37,12 +40,22 @@ export type Filters = {
 };
 
 export type Progress = 'unread' | 'read';
+export const FILTER_KINDS = ['manga', 'manhwa', 'doujin', 'novel', 'anime'] as const;
+export type FilterKind = (typeof FILTER_KINDS)[number];
+const KIND_LABEL: Record<FilterKind, string> = {
+	manga: 'MANGA',
+	manhwa: 'MANHWA',
+	doujin: 'DOUJINS',
+	novel: 'NOVELS',
+	anime: 'ANIME'
+};
 const PROGRESSES: readonly Progress[] = ['unread', 'read'];
 
 export const NO_FILTERS: Filters = {
 	min: null,
 	unrated: false,
 	fav: null,
+	kind: null,
 	lang: null,
 	added: null,
 	dl: null,
@@ -56,6 +69,7 @@ export const FILTER_PARAMS = [
 	'min',
 	'rated',
 	'fav',
+	'kind',
 	'lang',
 	'added',
 	'dl',
@@ -90,6 +104,7 @@ export function parseFilters(params: URLSearchParams, reveal: boolean): Filters 
 		min,
 		unrated,
 		fav: bit(params.get('fav')),
+		kind: FILTER_KINDS.find((k) => k === params.get('kind')) ?? null,
 		lang: lang && /^[a-z]{2}$/.test(lang) ? lang : null,
 		added: parseDay(params.get('added')),
 		dl: bit(params.get('dl')),
@@ -104,6 +119,7 @@ export function activeCount(f: Filters): number {
 	return (
 		Number(f.min !== null || f.unrated) +
 		Number(f.fav !== null) +
+		Number(f.kind !== null) +
 		Number(f.lang !== null) +
 		Number(f.added !== null) +
 		Number(f.dl !== null) +
@@ -119,6 +135,7 @@ export function filterParams(f: Filters): [string, string][] {
 	if (f.unrated) out.push(['rated', '0']);
 	else if (f.min !== null) out.push(['min', String(f.min)]);
 	if (f.fav !== null) out.push(['fav', String(f.fav)]);
+	if (f.kind) out.push(['kind', f.kind]);
 	if (f.lang) out.push(['lang', f.lang]);
 	if (f.added) out.push(['added', f.added]);
 	if (f.dl !== null) out.push(['dl', String(f.dl)]);
@@ -152,6 +169,7 @@ export function filterWords(f: Filters): string[] {
 	if (f.min !== null) words.push(`RATED ${minLabel(f.min)}`);
 	if (f.unrated) words.push('UNRATED');
 	if (f.fav !== null) words.push(f.fav ? 'FAV' : 'NOT FAV');
+	if (f.kind) words.push(KIND_LABEL[f.kind]);
 	if (f.lang) words.push(f.lang.toUpperCase());
 	if (f.added)
 		words.push(`SINCE ${Number(f.added.slice(8))} ${MONTHS[Number(f.added.slice(5, 7)) - 1]}`);
@@ -195,6 +213,8 @@ export type Filterable = {
 	addedAt: number;
 	downloaded?: boolean;
 	followed?: boolean;
+	/** KIND needs it; a card without one isn't asked. */
+	kind?: string;
 	/** Two-letter codes, upper or lower case. */
 	languages?: string[];
 	/** READING needs these; a card without them (a person's page) isn't asked. */
@@ -226,6 +246,7 @@ export function matches(item: Filterable, f: Filters): boolean {
 	if (f.min !== null && item.rating < f.min) return false;
 	if (f.unrated && item.rating !== 0) return false;
 	if (f.fav !== null && item.favourite !== (f.fav === 1)) return false;
+	if (f.kind && item.kind !== undefined && item.kind !== f.kind) return false;
 	if (f.lang && !(item.languages ?? []).some((l) => l.toLowerCase() === f.lang)) return false;
 	if (f.added && item.addedAt < dayStart(f.added)) return false;
 	if (f.dl !== null && !!item.downloaded !== (f.dl === 1)) return false;
@@ -240,6 +261,12 @@ export function matches(item: Filterable, f: Filters): boolean {
 		return false;
 	if (f.hidden && !item.hidden) return false;
 	return true;
+}
+
+/** The kinds among `items`, in KIND's order: what KIND offers on the device. */
+export function kindsAmong(items: Filterable[]): FilterKind[] {
+	const seen = new Set(items.map((i) => i.kind));
+	return FILTER_KINDS.filter((k) => seen.has(k));
 }
 
 /** The languages among `items`, as codes, in a stable order: what LANGUAGE offers. */
@@ -263,7 +290,9 @@ export function filterRows(
 	/** Something is followed: FOLLOWED is offered, as LANGUAGE is when there are languages. */
 	following = false,
 	/** READING is offered: off where cards don't know their progress (a person's page). */
-	reading = true
+	reading = true,
+	/** The kinds on the shelf: KIND is offered only where it can tell two apart. */
+	kinds: readonly FilterKind[] = []
 ): Row[] {
 	const set = (patch: Partial<Filters>): Filters => ({ ...f, ...patch });
 	const rows: Row[] = [
@@ -294,6 +323,15 @@ export function filterRows(
 			]
 		}
 	];
+	if (kinds.length > 1 || f.kind)
+		rows.push({
+			key: 'kind',
+			label: 'KIND',
+			choices: [
+				{ label: 'ANY', on: f.kind === null, to: set({ kind: null }) },
+				...kinds.map((k) => ({ label: KIND_LABEL[k], on: f.kind === k, to: set({ kind: k }) }))
+			]
+		});
 	if (languages.length)
 		rows.push({
 			key: 'lang',

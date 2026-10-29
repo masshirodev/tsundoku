@@ -1,7 +1,13 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import RatingSlider from './RatingSlider.svelte';
-	import { activeCount, filterRows, NO_FILTERS, type Filters } from '$lib/library/filters';
+	import {
+		activeCount,
+		filterRows,
+		NO_FILTERS,
+		type FilterKind,
+		type Filters
+	} from '$lib/library/filters';
 	import { onMount } from 'svelte';
 
 	/**
@@ -33,7 +39,8 @@
 		wide = false,
 		downloaded = true,
 		following = false,
-		reading = true
+		reading = true,
+		kinds = []
 	}: {
 		filters: Filters;
 		/** Codes present on the shelf: LANGUAGE offers these, and doesn't exist without any. */
@@ -55,6 +62,8 @@
 		following?: boolean;
 		/** Off where cards don't know their progress (a person's page, which has its own UNREAD tab). */
 		reading?: boolean;
+		/** The kinds on the shelf: KIND is offered where there are two to tell apart. */
+		kinds?: readonly FilterKind[];
 	} = $props();
 
 	let open = $state(false);
@@ -69,7 +78,7 @@
 
 	const n = $derived(activeCount(filters));
 	const rows = $derived(
-		filterRows(filters, languages, reveal, following, reading).filter(
+		filterRows(filters, languages, reveal, following, reading, kinds).filter(
 			(r) => downloaded || r.key !== 'dl'
 		)
 	);

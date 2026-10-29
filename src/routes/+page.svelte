@@ -25,6 +25,7 @@
 		activeCount,
 		filterParams,
 		filterWords,
+		kindsAmong,
 		matches,
 		NO_FILTERS,
 		withFilters,
@@ -471,6 +472,7 @@
 			? [...new Set(cachedSeries.flatMap((s) => codesOf(s)).map((l) => l.toLowerCase()))].sort()
 			: data.languages
 	);
+	const kindsHere = $derived(data.shelf === 'cached' ? kindsAmong(cachedSeries) : data.kinds);
 	const newOpen = $derived(page.url.searchParams.get('new') === 'shelf');
 
 	const shelves = $derived(
@@ -635,6 +637,7 @@
 							wide
 							filters={data.filters}
 							languages={languagesHere}
+							kinds={kindsHere}
 							reveal={data.reveal}
 							following={data.following}
 							title={shelfName.toUpperCase()}
@@ -841,6 +844,7 @@
 				<FilterPanel
 					filters={data.filters}
 					languages={languagesHere}
+					kinds={kindsHere}
 					reveal={data.reveal}
 					following={data.following}
 					title={shelfName.toUpperCase()}

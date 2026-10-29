@@ -246,6 +246,20 @@ describe('the FILTER panel (c68, doc/FILTERS.md)', () => {
 		expect(list(only({ lang: 'ja' }), false)).toEqual([]);
 	});
 
+	it('KIND: one kind inside any shelf, offering only the kinds the shelf holds', () => {
+		const all = list(only({}), true);
+		const kinds = lib.kindsOn({ reveal: true, shelf: 'all' });
+		expect(kinds).toEqual(filtersMod.FILTER_KINDS.filter((k) => all.some((c) => c.kind === k)));
+		expect(kinds.length).toBeGreaterThan(1);
+		for (const kind of kinds) {
+			const got = list(only({ kind }), true);
+			expect(got.length).toBe(all.filter((c) => c.kind === kind).length);
+			expect(got.every((c) => c.kind === kind)).toBe(true);
+		}
+		// A kind shelf holds one kind: nothing to tell apart.
+		expect(lib.kindsOn({ reveal: true, shelf: 'k:manhwa' }).length).toBeLessThanOrEqual(1);
+	});
+
 	it('READING: UNREAD and READ, in SQL as the device decides them, hidden included', () => {
 		const { progressOf } = filtersMod;
 		const state = { unread: 'unread', read: 'finished' } as const;

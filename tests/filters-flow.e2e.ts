@@ -128,6 +128,23 @@ test('with reveal on, LANGUAGE offers what the shelf holds and HIDDEN narrows to
 	await expect(page).not.toHaveURL(/lang=/);
 });
 
+test('KIND narrows a mixed shelf to one kind, and isn’t offered on a kind shelf', async ({
+	page
+}) => {
+	await page.goto('/?shelf=all');
+	await openFilters(page);
+	await rowOf(page, 'KIND').getByRole('link', { name: 'MANHWA' }).click();
+	await expect(page).toHaveURL(/kind=manhwa/);
+	await expect(page.getByText(/· MANHWA/)).toBeVisible();
+	await expect(page.locator('.grid .tile').first()).toBeVisible();
+	await page.goto('/?shelf=k:manga');
+	await openFilters(page);
+	await expect(rowOf(page, 'KIND')).toHaveCount(0);
+	// A kind the shelf doesn't hold drops rather than showing nothing.
+	await page.goto('/?shelf=k:manga&kind=novel');
+	await expect(page).not.toHaveURL(/kind=/);
+});
+
 test('+ NEW makes a shelf by name and lands on it, empty, with how to fill it', async ({
 	page
 }) => {
