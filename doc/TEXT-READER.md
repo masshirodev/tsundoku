@@ -156,7 +156,10 @@ mouse at the top or bottom of the window brings them up as in the image reader
   series', with REMEMBER), COLUMNS, THEME, FONT, SIZE, LINE, MARGINS, JUSTIFY,
   FURIGANA, DIM and the rating. It has no scrim, so changes show as they're
   made. Everything below LAYOUT belongs to the device (`localStorage`,
-  `tsundoku.text.settings`), and DIM is shared with the image reader.
+  `tsundoku.text.settings`, stamped through `settings/local.ts` and mirrored
+  on the workstation, [`SETTINGS.md`](SETTINGS.md), "Devices"), and DIM is
+  shared with the image reader. A novel's default LAYOUT is SETTINGS'. The
+  sheet ends with ALL SETTINGS →.
 - **CONTENTS** is the series screen's own list (`EntryList`, in its sheet
   mode). It's headed CONTENTS with a ✕, has `#` and the rail only from 60
   entries, and opens on the chapter being read. A book's front and back matter

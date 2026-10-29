@@ -53,6 +53,7 @@ export const actions: Actions = {
 			else runCommand(cookies, input.command, url, { gated: isGated() });
 			redirect(303, '/');
 		}
+		if (input.type === 'page') redirect(303, input.href);
 		if (input.type === 'empty') redirect(303, '/search');
 		redirect(303, `/search?q=${encodeURIComponent(input.text)}`);
 	}

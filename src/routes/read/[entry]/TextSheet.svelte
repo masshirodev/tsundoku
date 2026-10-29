@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import RatingSlider from '$lib/components/controls/RatingSlider.svelte';
 	import {
 		LINES,
@@ -282,10 +283,32 @@
 
 	<!-- Ratings out of 10: the blocky slider, as on the series screen. -->
 	<RatingSlider value={rating} borderTop={false} fontSize={15} onchange={onrate} />
+	<!-- ALL SETTINGS →: the page, at this sheet's section (Reach, readerSheet; card c171). -->
+	<a class="all-settings" href="{resolve('/settings')}?section=novels"
+		><span>ALL SETTINGS →</span><span class="n">DEFAULTS, AND WHAT EACH ROW KEEPS</span></a
+	>
 	<div class="foot"></div>
 </div>
 
 <style>
+	.all-settings {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		min-height: 64px;
+		padding: 0 var(--pad, 24px);
+		border-top: var(--hairline);
+		color: var(--text-1);
+		text-decoration: none;
+		font: 500 14px var(--font-mono);
+	}
+	.all-settings .n {
+		font-weight: 400;
+		font-size: 13px;
+		color: var(--text-2);
+		text-align: right;
+	}
 	button {
 		border: 0;
 		border-radius: 0;

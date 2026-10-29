@@ -31,6 +31,8 @@ const DEVICE_IGNORE = [
 	'**/browse-*.e2e.ts',
 	'**/*-flow.e2e.ts',
 	'**/library-frame.e2e.ts',
+	// SETTINGS' frame is its tablet-portrait screen; the other devices are in settings-flow.
+	'**/settings-frame.e2e.ts',
 	'**/unlock-gate.e2e.ts'
 ];
 

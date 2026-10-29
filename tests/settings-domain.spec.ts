@@ -24,6 +24,7 @@ import {
 	readValue,
 	writeValue
 } from '$lib/settings/stamped';
+import { audioLine, differ, inUse, overrideLine, subsLine, when } from '$lib/settings/lines';
 
 const section = (id: string) => SECTIONS.find((s) => s.id === id)!;
 
@@ -145,5 +146,59 @@ describe('a device’s stamped settings', () => {
 		expect(writeValue('reader.fit', {}, 'width')).toBe('width');
 		expect(writeValue('reader.fit', {}, undefined)).toBeNull();
 		expect(deviceValues(['text.size', 'reader.fit'], store)).toEqual({ 'text.size': 21 });
+	});
+});
+
+describe('the page’s lines', () => {
+	const NOW = new Date('2026-10-29T15:00:00').getTime();
+	const H = 3600_000;
+
+	it('says when a choice was made', () => {
+		expect(when(NOW - 30_000, NOW)).toBe('JUST NOW');
+		expect(when(NOW - 2 * H, NOW)).toBe('2 H AGO');
+		expect(when(NOW - 20 * H, NOW)).toBe('YESTERDAY');
+		expect(when(new Date('2026-10-12T10:00:00').getTime(), NOW)).toBe('12 OCT');
+	});
+
+	it('says what AUDIO starts in: the default, else what stands in, else the original', () => {
+		expect(audioLine('JA', null, NOW)).toBe(
+			'EVERY ANIME STARTS IN JAPANESE, UNLESS A SERIES DIFFERS'
+		);
+		expect(audioLine(undefined, { v: 'JA', title: "Hollin's Ferry", at: NOW - 20 * H }, NOW)).toBe(
+			"NONE SET · THE PLAYER'S LAST CHOICE STANDS IN: JA, ON HOLLIN'S FERRY YESTERDAY · BEFORE ANY CHOICE, THE SOURCE'S ORIGINAL"
+		);
+		// A hidden series isn't named.
+		expect(audioLine(undefined, { v: 'JA', title: null, at: NOW - 2 * H }, NOW)).toContain(
+			'STANDS IN: JA 2 H AGO'
+		);
+		expect(audioLine(undefined, null, NOW)).toBe("NONE SET · THE SOURCE'S ORIGINAL PLAYS FIRST");
+	});
+
+	it('says what SUBTITLES start in, with the size', () => {
+		const last = { subs: { v: 'EN', title: null, at: 0 }, size: { v: 'M', title: null, at: 0 } };
+		expect(subsLine({ subs: 'EN' }, last)).toBe('ENGLISH, AT M, UNLESS A SERIES DIFFERS');
+		expect(subsLine({ subs: null }, last)).toBe('NO SUBTITLES, UNLESS A SERIES DIFFERS');
+		expect(subsLine({}, last)).toBe("NONE SET · THE PLAYER'S LAST CHOICE STANDS IN: EN, M");
+		expect(subsLine({}, { subs: null, size: null })).toBe(
+			"NONE SET · THE DEVICE'S LANGUAGE, WHERE THE SOURCE HAS IT"
+		);
+	});
+
+	it('says what an override keeps, and counts them', () => {
+		const at = new Date('2026-10-12T10:00:00').getTime();
+		expect(overrideLine('audio', 'EN', at, NOW)).toBe('EN AUDIO · CHOSEN IN THE PLAYER, 12 OCT');
+		expect(overrideLine('subs', null, at, NOW)).toBe(
+			'SUBTITLES OFF · CHOSEN IN THE PLAYER, 12 OCT'
+		);
+		expect(differ(0)).toBe('');
+		expect(differ(1)).toBe('1 SERIES DIFFERS →');
+		expect(differ(14)).toBe('14 SERIES DIFFER →');
+		expect(differ(3, 'BOOK')).toBe('3 BOOKS DIFFER →');
+	});
+
+	it('marks the zoom cells this screen uses', () => {
+		expect(inUse('PAGED · WIDER', false)).toBe(true);
+		expect(inUse('PAGED · PHONE', false)).toBe(false);
+		expect(inUse('VERTICAL · PHONE', true)).toBe(true);
 	});
 });

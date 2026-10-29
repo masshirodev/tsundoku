@@ -72,6 +72,9 @@ const BASE: Record<Device, { side: number; top: number; fs: number; lh: number; 
 };
 const SIDE: Record<Margins, number> = { narrow: 2 / 3, normal: 1, wide: 14 / 9 };
 
+/** The size a device reads at until SIZE is changed: what the SETTINGS stepper starts from. */
+export const baseFontSize = (device: Device) => BASE[device].fs;
+
 export function frame(screenW: number, screenH: number, s: TextSettings, vertical = false): Frame {
 	const device = deviceOf(screenW, screenH);
 	const b = BASE[device];

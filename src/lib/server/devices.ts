@@ -58,18 +58,25 @@ function row(id: string): DeviceRow | null {
 
 export const device = row;
 
+/** A device not seen for this long is forgotten: a browser whose storage was cleared is a new one. */
+export const FORGET_MS = 180 * 24 * 3600_000;
+
 /**
  * A browser checking in: its record merged into the kept one, which comes
- * back as what the browser has to take. A device seen for the first time is
- * written as it is.
+ * back as what the browser has to take. A browser with nothing to keep isn't
+ * recorded until it opens SETTINGS ([register]): otherwise every fresh
+ * browser, a private window, a test's, would be a device forever.
  */
 export function syncDevice(
-	o: { id: string; kind: DeviceKind; label: string; settings: Stamped },
+	o: { id: string; kind: DeviceKind; label: string; settings: Stamped; register?: boolean },
 	now = Date.now()
 ): { newer: Stamped; created: boolean } {
 	if (!isDeviceId(o.id) || !KINDS.includes(o.kind)) throw new Error('not a device');
 	const db = getDb();
+	db.prepare(`DELETE FROM devices WHERE seen_at < ?`).run(now - FORGET_MS);
 	const kept = row(o.id);
+	if (!kept && !o.register && Object.keys(o.settings).length === 0)
+		return { newer: {}, created: false };
 	const merged = mergeStamped(kept?.settings ?? {}, o.settings);
 	db.prepare(
 		`INSERT INTO devices (id, kind, label, seen_at, settings) VALUES (?, ?, ?, ?, ?)

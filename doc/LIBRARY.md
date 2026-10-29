@@ -320,6 +320,11 @@ Specific and honest, so a deliberate gap isn't mistaken for an oversight:
   It isn't built.
 - **IMPORT LOG** in the desktop sidebar is shown, disabled, and goes nowhere.
   SETTINGS opens [`SETTINGS.md`](SETTINGS.md)'s screen.
+- **MORE** (card c171, Reach): on the tablet and phone, a cell after SELECT
+  opens the sidebar's foot as a sheet: HISTORY, DOWNLOADS with its queue,
+  SETTINGS with this device's changed count, IMPORT LOG (SOON). The desktop
+  has the sidebar itself, so no MORE there (`MoreSheet.svelte`). To make room,
+  a phone under 420px shows the search hint as / alone, as Reach draws it.
 - **A folded book** (one book in several languages) is one tile with its
   languages in a corner badge, `EN · JA` ([`EDITIONS.md`](EDITIONS.md)).
 - **Covers** come from the files or the source site ([`COVERS.md`](COVERS.md)). A

@@ -23,7 +23,7 @@ test('SETTINGS lists both catalogues, not signed in, and why they can’t be yet
 	page
 }) => {
 	await page.goto('/settings');
-	await expect(page.getByRole('heading', { name: '02 — CATALOGUES' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: '06 — CATALOGUES' })).toBeVisible();
 	const rows = page.locator('.acct');
 	// Ranobe's row is there without a token too, saying so (Ranobe 3b; doc/RANOBE.md).
 	await expect(rows.locator('.label')).toHaveText(['ANILIST', 'MAL', 'RANOBE']);

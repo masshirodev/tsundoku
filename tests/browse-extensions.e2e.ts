@@ -86,12 +86,12 @@ test('an extension not signed by its repository’s key is never installed, and 
 
 test('BROWSE’s languages are set once in SETTINGS, and one always stays', async ({ page }) => {
 	await page.goto('/settings');
-	const row = page.locator('section', { hasText: '03 — BROWSE' });
+	const row = page.locator('section', { hasText: '07 — BROWSE' });
 	await expect(row.getByRole('button', { name: 'EN' })).toHaveAttribute('aria-pressed', 'true');
 	await expect(row.getByRole('button', { name: 'JA' })).toHaveAttribute('aria-pressed', 'true');
 	await row.getByRole('button', { name: 'JA' }).click();
 	await expect(row.getByRole('button', { name: 'JA' })).toHaveAttribute('aria-pressed', 'false');
-	await expect(row.locator('.section span')).toHaveText('EN');
+	await expect(row.locator('.sec-right span')).toHaveText('EN');
 	// The last one can't go: BROWSE would list nothing.
 	await row.getByRole('button', { name: 'EN' }).click();
 	await expect(row.getByRole('button', { name: 'EN' })).toHaveAttribute('aria-pressed', 'true');

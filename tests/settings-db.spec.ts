@@ -53,7 +53,7 @@ describe('a device’s settings', () => {
 	});
 
 	it('keeps the newer of each key, and sends back what is newer here', () => {
-		devices.syncDevice({ id: A, kind: 'tablet', label: 't', settings: {} }, 100);
+		devices.syncDevice({ id: A, kind: 'tablet', label: 't', settings: {}, register: true }, 100);
 		// Another device's page set FIT on this one (2C).
 		expect(devices.setDeviceKey(A, 'tsundoku.reader.fit', 'height', 200)).toBe(true);
 		const r = devices.syncDevice(
@@ -100,7 +100,7 @@ describe('a device’s settings', () => {
 			},
 			10
 		);
-		devices.syncDevice({ id: B, kind: 'tablet', label: 't', settings: {} }, 20);
+		devices.syncDevice({ id: B, kind: 'tablet', label: 't', settings: {}, register: true }, 20);
 		expect(devices.startFrom(B, A, 30)).toBe(true);
 		const r = devices.syncDevice({ id: B, kind: 'tablet', label: 't', settings: {} }, 40);
 		expect(r.newer).toEqual({ 'tsundoku.reader.sides': { v: 20, at: 30 } });
@@ -215,5 +215,32 @@ describe('the library’s values', () => {
 		expect(page.modeOverrides(false).map((o) => o.seriesId)).toEqual([ids[0]]);
 		page.clearModes([ids[0]]);
 		expect(page.overrideCounts(false).mode.manga).toBe(0);
+	});
+});
+
+describe('which devices are kept', () => {
+	const C = '2b3c4d5e-6f70-8192-a3b4-c5d6e7f80912';
+	beforeEach(() => db.prepare(`DELETE FROM devices`).run());
+
+	it('records nothing for a browser with nothing to keep, until it opens SETTINGS', () => {
+		expect(devices.syncDevice({ id: C, kind: 'phone', label: 'p', settings: {} }, 100)).toEqual({
+			newer: {},
+			created: false
+		});
+		expect(devices.device(C)).toBeNull();
+		expect(
+			devices.syncDevice({ id: C, kind: 'phone', label: 'p', settings: {}, register: true }, 200)
+				.created
+		).toBe(true);
+	});
+
+	it('forgets a device not seen for 180 days', () => {
+		devices.syncDevice({ id: C, kind: 'phone', label: 'p', settings: {}, register: true }, 1000);
+		devices.syncDevice(
+			{ id: A, kind: 'tablet', label: 't', settings: {}, register: true },
+			1000 + devices.FORGET_MS + 1
+		);
+		expect(devices.device(C)).toBeNull();
+		expect(devices.device(A)).not.toBeNull();
 	});
 });

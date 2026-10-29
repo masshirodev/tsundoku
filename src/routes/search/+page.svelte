@@ -51,6 +51,11 @@
 	});
 
 	const query = $derived(parseSearch(data.q).type === 'query' ? data.q.trim() : '');
+	/** A page command as it's typed: offered as a result, opened by Enter or a tap (Reach, command). */
+	const pageCmd = $derived.by(() => {
+		const p = parseSearch(q);
+		return p.type === 'page' ? p : null;
+	});
 
 	// ---- the fingerprint gate (Index Addendum, states fpPrompt/fpFail/fpCancel) -----
 	// /reveal behind an enrolled device, /lock to enrol this one, /unlock to
@@ -169,7 +174,12 @@
 	</TopBar>
 </form>
 
-{#if gate}
+{#if pageCmd && !gate}
+	<div class="label first">COMMAND</div>
+	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- a page's own path, from parseSearch -->
+	<a class="page-cmd" href={pageCmd.href}><span>{pageCmd.label}</span><span>ENTER →</span></a>
+	<div class="page-hint">/SETTINGS OPENS THE PAGE · /SETTINGS WATCHING OPENS IT AT A SECTION</div>
+{:else if gate}
 	<div class="label first">COMMAND</div>
 	<div class="cmd" role="status">
 		<span class="c">{gate.command}</span>
@@ -289,6 +299,24 @@
 />
 
 <style>
+	.page-cmd {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		min-height: 64px;
+		padding: 0 var(--pad);
+		border-top: var(--hairline);
+		border-bottom: var(--hairline);
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+		text-decoration: none;
+		font: 500 15px var(--font-mono);
+	}
+	.page-hint {
+		padding: 14px var(--pad);
+		font: 400 13px/1.45 var(--font-mono);
+		color: var(--text-2);
+	}
 	.cmd {
 		display: flex;
 		align-items: stretch;

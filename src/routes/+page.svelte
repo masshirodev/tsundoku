@@ -21,6 +21,7 @@
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
 	import FilterPanel from '$lib/components/controls/FilterPanel.svelte';
 	import NewShelfSheet from './NewShelfSheet.svelte';
+	import MoreSheet from './MoreSheet.svelte';
 	import {
 		activeCount,
 		filterParams,
@@ -243,6 +244,7 @@
 
 	// ---- selection -------------------------------------------------------
 	let selecting = $state(false);
+	let moreOpen = $state(false);
 	const selected = new SvelteSet<number>();
 
 	function toggle(id: number) {
@@ -606,8 +608,9 @@
 				<a class="brand" href={resolve('/')} aria-label="Library"><Wordmark /></a>
 			{/snippet}
 			{#snippet middle()}
-				<a class="search-hint" href={resolve('/search')}
-					><span class="short">/ search</span><span class="long">/ search title, tag, artist</span
+				<a class="search-hint" href={resolve('/search')} aria-label="Search"
+					><span class="short">/<span class="word"> search</span></span><span class="long"
+						>/ search title, tag, artist</span
 					></a
 				>
 			{/snippet}
@@ -654,9 +657,22 @@
 					onclick={() => (selecting = true)}
 					disabled={data.empty}>SELECT</button
 				>
+				<!-- MORE: the sidebar's foot as a sheet, on the tablet and phone (Reach; card c171). -->
+				<button
+					type="button"
+					class="cell-btn more-cell"
+					class:on={moreOpen}
+					aria-expanded={moreOpen}
+					onclick={() => (moreOpen = true)}>MORE</button
+				>
 			{/snippet}
 		</TopBar>
 	{/if}
+	<MoreSheet
+		open={moreOpen}
+		onclose={() => (moreOpen = false)}
+		queued={data.queue?.queued ?? null}
+	/>
 
 	{#if data.scan && scanning}
 		<Banner
@@ -1297,6 +1313,31 @@
 	}
 	.q-n {
 		font: 500 14px/1 var(--font-mono);
+	}
+	.more-cell {
+		border-left: var(--hairline);
+	}
+	/* The phone's bar cells are 14px a side (Reach, phoneMore). */
+	@media (max-width: 599px) {
+		.more-cell {
+			padding: 0 14px;
+		}
+	}
+	/* A narrow phone's bar is the brand, /, SELECT and MORE (Reach, phoneMore): the word doesn't fit. */
+	@media (max-width: 419px) {
+		.search-hint .word {
+			display: none;
+		}
+	}
+	.more-cell.on {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+	}
+	/* The desktop has the sidebar's foot itself. */
+	@media (min-width: 1024px) and (pointer: fine) {
+		.more-cell {
+			display: none;
+		}
 	}
 	.cell-btn:active:not(:disabled) {
 		background: var(--surface-inverse);

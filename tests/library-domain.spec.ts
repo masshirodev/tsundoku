@@ -262,3 +262,21 @@ describe('paging (c68)', () => {
 		expect(q.get('lang')).toBe('ja');
 	});
 });
+
+describe('/settings in search (card c171)', () => {
+	it('is a page, offered rather than run, and a word lands on a section', () => {
+		expect(parseSearch('/settings')).toEqual({
+			type: 'page',
+			label: 'SETTINGS',
+			href: '/settings'
+		});
+		expect(parseSearch('  /Settings watching ')).toEqual({
+			type: 'page',
+			label: 'SETTINGS · WATCHING',
+			href: '/settings?section=watching'
+		});
+		// Without the slash it's a query, as every command.
+		expect(parseSearch('settings')).toEqual({ type: 'query', text: 'settings' });
+		expect(parseSearch('/settingsx').type).toBe('query');
+	});
+});

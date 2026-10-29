@@ -4,7 +4,11 @@
  * accidental keystroke away, so `reveal` without the slash is just a query.
  */
 export type SearchInput =
-	{ type: 'empty' } | { type: 'query'; text: string } | { type: 'command'; command: Command };
+	| { type: 'empty' }
+	| { type: 'query'; text: string }
+	| { type: 'command'; command: Command }
+	/** A page, offered as a result rather than run blind: `/settings`, `/settings watching`. */
+	| { type: 'page'; label: string; href: string };
 
 export type Command =
 	'reveal' | 'hide' | 'light' | 'dark' | 'incognito' | 'scan' | 'lock' | 'unlock' | 'words';
@@ -28,6 +32,16 @@ export function parseSearch(raw: string): SearchInput {
 	if (text === '') return { type: 'empty' };
 	const command = COMMANDS[text.toLowerCase()];
 	if (command) return { type: 'command', command };
+	// SETTINGS, and a section by its name (doc/SETTINGS.md, "Getting there"; card c171).
+	const settings = /^\/settings(?:\s+(\S.*))?$/i.exec(text);
+	if (settings) {
+		const word = (settings[1] ?? '').trim().toLowerCase();
+		return {
+			type: 'page',
+			label: word ? `SETTINGS · ${word.toUpperCase()}` : 'SETTINGS',
+			href: word ? `/settings?section=${encodeURIComponent(word)}` : '/settings'
+		};
+	}
 	return { type: 'query', text };
 }
 

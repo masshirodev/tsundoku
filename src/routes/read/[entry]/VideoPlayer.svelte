@@ -1171,6 +1171,10 @@
 				AUDIO AND SUBTITLES CARRY TO EVERY EPISODE OF THE SERIES · SPEED TO THIS ONE · QUALITY TO
 				THIS DEVICE
 			</div>
+			<!-- ALL SETTINGS →: the page, at WATCHING (Reach, readerSheet; card c171). -->
+			<a class="all-settings" href="{resolve('/settings')}?section=watching"
+				><span>ALL SETTINGS →</span><span class="n">DEFAULTS, AND WHAT EACH ROW KEEPS</span></a
+			>
 		</div>
 	{/if}
 
@@ -1329,6 +1333,24 @@
 </div>
 
 <style>
+	.all-settings {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		min-height: 64px;
+		padding: 0 var(--pad, 24px);
+		border-top: var(--hairline);
+		color: var(--text-1);
+		text-decoration: none;
+		font: 500 14px var(--font-mono);
+	}
+	.all-settings .n {
+		font-weight: 400;
+		font-size: 13px;
+		color: var(--text-2);
+		text-align: right;
+	}
 	/*
 	 * The literals are the handoff's (Index Player, Player States, Player
 	 * Waiting): a 64px top bar, a 56px scrubber over 64px cells, a 96px

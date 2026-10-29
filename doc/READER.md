@@ -135,7 +135,11 @@ READING sheet changes it **for the session**, and REMEMBER makes it the
 series' own, using the series screen's `direction` action. FIT (width, height
 or screen), SPREADS, CROP BORDERS, WIDE PAGES, SIDES and DIM belong to the
 **device**, kept in this browser's `localStorage` under `tsundoku.reader.*`:
-they're about the screen, not the book. A row that doesn't apply to the mode
+they're about the screen, not the book. Since c171 they're read and written
+through `settings/local.ts`, which stamps each change and keeps the
+workstation's copy of the device in step ([`SETTINGS.md`](SETTINGS.md),
+"Devices"), and a kind's default mode is SETTINGS' MODE row. The sheet ends
+with ALL SETTINGS →, the page at its section. A row that doesn't apply to the mode
 is dimmed with the reason (PAGED ONLY, VERTICAL ONLY), never removed, so the
 sheet doesn't jump when MODE changes.
 

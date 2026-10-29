@@ -179,6 +179,11 @@ test('the READING sheet switches mode for the session and offers REMEMBER', asyn
 	await page.getByRole('button', { name: /R→L · FIT SCREEN/ }).click();
 	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
 	await expect(sheet.getByText('SERIES DEFAULT R→L')).toBeVisible();
+	// The page, at this sheet's section (card c171).
+	await expect(sheet.getByRole('link', { name: /ALL SETTINGS →/ })).toHaveAttribute(
+		'href',
+		'/settings?section=images'
+	);
 	await sheet.getByRole('radio', { name: 'L→R' }).click();
 	await expect(sheet.getByRole('button', { name: 'REMEMBER L→R' })).toBeVisible();
 	await sheet.getByRole('button', { name: 'Close', exact: true }).click();

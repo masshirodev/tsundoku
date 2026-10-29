@@ -87,7 +87,7 @@ test('the reader switches language on the same page, and says so', async ({ page
 test('SETTINGS: the language folded books open in', async ({ page }) => {
 	await command(page, '/reveal');
 	await page.goto('/settings');
-	await expect(page.getByText('01 — BOOKS IN SEVERAL LANGUAGES')).toBeVisible();
+	await expect(page.getByRole('heading', { name: '05 — LIBRARY' })).toBeVisible();
 	await expect(page.getByText('1 FOLDED')).toBeVisible();
 	await expect(page.getByRole('button', { name: 'ENGLISH' })).toHaveAttribute(
 		'aria-pressed',

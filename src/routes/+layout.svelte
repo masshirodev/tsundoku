@@ -46,7 +46,10 @@
 	// server reads; the device record mirrors it, and a newer one from the
 	// workstation (SETTINGS changing this device from another) sets the cookie.
 	onMount(() => {
-		if (readLocal<string | null>(THEME_KEY, null) !== data.theme) writeLocal(THEME_KEY, data.theme);
+		// Mirrored once it's been set: the default on a fresh browser is nothing to keep.
+		const kept = readLocal<string | null>(THEME_KEY, null);
+		if (kept !== data.theme && (kept !== null || data.theme !== 'dark'))
+			writeLocal(THEME_KEY, data.theme);
 		const stop = onLocalChange((key) => {
 			if (key !== THEME_KEY) return;
 			const t = readLocal<string>(THEME_KEY, 'dark') === 'light' ? 'light' : 'dark';

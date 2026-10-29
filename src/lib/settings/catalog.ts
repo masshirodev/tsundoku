@@ -837,3 +837,8 @@ export function deviceLabel(ua: string, kind: DeviceKind): string {
 					: 'browser';
 	return `${os ? `${os} ${kind}` : kind[0].toUpperCase() + kind.slice(1)} · ${browser}`;
 }
+
+/** How many of a device's own rows are off their defaults: "4 CHANGED HERE", a DEVICES row's count. */
+export const deviceChanged = (values: Values) =>
+	SECTIONS.flatMap((s) => s.rows).filter((r) => r.where === 'device' && rowChanged(r, values))
+		.length;

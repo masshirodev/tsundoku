@@ -15,6 +15,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		kind?: unknown;
 		settings?: unknown;
 		legacy?: unknown;
+		register?: unknown;
 	} | null;
 	const kind = body?.kind as DeviceKind;
 	if (!body || !isDeviceId(body.id) || !['phone', 'tablet', 'desktop'].includes(kind))
@@ -25,7 +26,8 @@ export const POST: RequestHandler = async ({ request }) => {
 		id: body.id,
 		kind,
 		label: deviceLabel(request.headers.get('user-agent') ?? '', kind),
-		settings: cleanStamped(body.settings)
+		settings: cleanStamped(body.settings),
+		register: body.register === true
 	});
 	return json({ newer });
 };

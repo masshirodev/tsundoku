@@ -147,8 +147,8 @@ function syncSoon() {
  * next change, the next load, or the network coming back. Resolves whether
  * it reached the workstation.
  */
-export function syncDevice(): Promise<boolean> {
-	if (syncing) return syncing;
+export function syncDevice(o: { register?: boolean } = {}): Promise<boolean> {
+	if (syncing && !o.register) return syncing;
 	syncing = (async () => {
 		try {
 			const legacy = legacyKeys();
@@ -160,7 +160,9 @@ export function syncDevice(): Promise<boolean> {
 					id: deviceId(),
 					kind: thisKind(),
 					settings: localStamped(),
-					legacy
+					legacy,
+					// SETTINGS lists this device even with nothing changed yet.
+					register: !!o.register
 				})
 			});
 			if (!res.ok) return false;

@@ -257,11 +257,16 @@ screen but the video, and the subtitles, until a tap.
   named by height (`2160P`, `qualityName`), never a source's
   "2160p (3840x2160) - 7.42 Mbps", and a server says "UP TO 2160P". Audio,
   subtitles and their size carry to every episode of the series **and, since
-  2026-10-29, to every other anime**: an episode starts on this series'
-  choice, else the last made on any anime, else the device's language, else
-  the source's first (`preferredLang`), worked out again for each server
-  until a choice is made. Speed is this episode's, quality this device's
-  (`localStorage`, a per-viewer convenience).
+  2026-10-29, to every other anime**. Since c171 the workstation keeps them
+  (`series_player`, rung 53; `server/anime/choices.ts`), so SETTINGS can set
+  a default and list the series that differ ([`SETTINGS.md`](SETTINGS.md),
+  "03 — Watching"). An episode starts on this series' choice, else SETTINGS'
+  default, else the last choice on any anime, then the source's first audio
+  track (its original, the owner's answer to c171's question 3) and
+  subtitles in the device's language (`startTracks`), worked out again for
+  each server until a choice is made. Incognito keeps no choice. Speed is
+  this episode's; quality and DIM are this device's, mirrored on the
+  workstation like every device setting. The sheet ends with ALL SETTINGS →.
 - **Subtitles** are drawn by tsundoku from the WebVTT: IBM Plex on a scrim
   box, rising above the controls while they show.
 - **SKIP INTRO / SKIP ENDING** only where the source gave timestamps: alone
@@ -324,7 +329,10 @@ pure parts in `src/lib/library/anime-files.ts`).
 
 - **One MKV an episode**: ffmpeg copies the video, each separate audio track
   and each subtitle track (as SubRip, which every player reads) into one
-  Matroska file, each track tagged with its language, written beside its
+  Matroska file. **Which tracks** is SETTINGS' DOWNLOADING (card c160, since
+  c171): every track by default, or the original (the source's first audio)
+  and the languages chosen under AUDIO KEPT; subtitles all, or AS AUDIO for
+  those in a kept audio's language (`keptTracks`). New downloads only. The file is each track tagged with its language, written beside its
   place and renamed. The NFOs are Jellyfin's (`tvshow`, `episodedetails`) and
   carry tsundoku's keys as `<uniqueid type="tsundoku">`, with AniList and MAL
   ids where the series is linked; `poster.jpg` is the library's own cover.

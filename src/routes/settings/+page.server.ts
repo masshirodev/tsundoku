@@ -2,10 +2,9 @@ import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { getDb } from '$lib/server/db';
 import { isRevealed } from '$lib/server/prefs';
-import { getSetting, setSetting } from '$lib/server/settings';
+import { setSetting } from '$lib/server/settings';
 import { VISIBLE_SQL } from '$lib/server/visibility';
 import { refreshCovers } from '$lib/server/covers';
-import { PREFERRED } from '$lib/library/editions';
 import { linkCount, linkQueueCount } from '$lib/server/catalogue';
 import { accounts, retry, signOut } from '$lib/server/tracking';
 import { ranobeAccount, ranobeQueueCount, retryRanobe } from '$lib/server/ranobe-review';
@@ -13,6 +12,17 @@ import { SERVICES, type Service } from '$lib/library/tracking';
 import { downloadsBackend } from '$lib/server/engine/run';
 import { browseLanguages } from '$lib/server/engine/browse';
 import { listings } from '$lib/server/engine/extensions';
+import {
+	clearModes,
+	isLibraryValue,
+	libraryValues,
+	modeOverrides,
+	overrideCounts,
+	setLibraryValue
+} from '$lib/server/settings-page';
+import { clearOverride, lastChoice, overrides } from '$lib/server/anime/choices';
+import { isDeviceId, listDevices, setDeviceKey, startFrom } from '$lib/server/devices';
+import { DEVICE_KEYS, type Json, type ValueId } from '$lib/settings/catalog';
 
 /** The languages the repositories list, most extensions first: the BROWSE row's cells. */
 function listedLanguages(): string[] {
@@ -29,31 +39,52 @@ const DEFAULT_LANGUAGES = ['en', 'ja'];
 const LANGUAGE_CELLS = 12;
 
 /**
- * SETTINGS (Editions 1e; doc/SETTINGS.md): the library's own preferences, as
- * opposed to a device's: the language a folded book opens in, the
- * catalogues, and the languages BROWSE lists sources in.
- * Counts follow reveal, as every list does: hidden books aren't counted.
+ * SETTINGS, one page (doc/SETTINGS.md; card c171, Settings.dc.html): every
+ * setting once, in eight sections, each row saying where it's kept. The
+ * library's values come from here; this device's are its browser's, and
+ * another device's (2C) are the workstation's copy, listed under DEVICES.
+ * Counts follow reveal, as every list does: hidden series aren't counted.
  */
 export const load: PageServerLoad = async ({ cookies, url }) => {
 	const reveal = isRevealed(cookies);
-	const folded = getDb()
-		.prepare(
-			`SELECT s.id, s.edition_lang FROM series s JOIN roots r ON r.id = s.root_id
-			WHERE (? OR ${VISIBLE_SQL})
-			AND EXISTS (SELECT 1 FROM entries e WHERE e.series_id = s.id AND e.edition_of IS NOT NULL)`
-		)
-		.all(reveal ? 1 : 0) as { id: number; edition_lang: string | null }[];
+	const folded = (
+		getDb()
+			.prepare(
+				`SELECT COUNT(*) AS n FROM series s JOIN roots r ON r.id = s.root_id
+				WHERE (? OR ${VISIBLE_SQL})
+				AND EXISTS (SELECT 1 FROM entries e WHERE e.series_id = s.id AND e.edition_of IS NOT NULL)`
+			)
+			.get(reveal ? 1 : 0) as { n: number }
+	).n;
 	return {
-		preferred: getSetting('edition_language'),
-		choices: [...PREFERRED],
-		folded: folded.length,
-		overridden: folded.filter((f) => f.edition_lang !== null).length,
+		values: libraryValues(),
+		counts: overrideCounts(reveal),
+		folded,
+		// What N SERIES DIFFER → opens (2A).
+		lists: {
+			audio: overrides('audio', reveal),
+			subs: overrides('subs', reveal),
+			mode: modeOverrides(reveal)
+		},
+		// What FOLLOW THE PLAYER stands in with, said on WATCHING's meta line.
+		last: {
+			audio: lastChoice('audio', reveal),
+			subs: lastChoice('subs', reveal),
+			subsize: lastChoice('subsize', reveal)
+		},
+		devices: listDevices().map((d) => ({
+			id: d.id,
+			kind: d.kind,
+			label: d.label,
+			seenAt: d.seenAt,
+			settings: d.settings
+		})),
 		// CATALOGUES (Catalogue Links 1u, 1v; doc/TRACKING.md).
 		catalogues: {
 			linked: linkCount(),
 			toReview: linkQueueCount(reveal) + ranobeQueueCount(),
 			accounts: accounts(),
-			// The third row (Ranobe 3a–3c; doc/RANOBE.md): no sign-in, a token in .env.
+			// Ranobe's row (Ranobe 3a–3c; doc/RANOBE.md): no sign-in, a token in .env.
 			ranobe: ranobeAccount()
 		},
 		// How a sign-in went, coming back from the catalogue.
@@ -63,7 +94,7 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 					service: url.searchParams.get('service') ?? ''
 				}
 			: null,
-		// BROWSE (doc/BROWSE.md): the languages it lists sources in, and opens AVAILABLE filtered to.
+		// BROWSE and DOWNLOADING need the engine (doc/BROWSE.md).
 		browse:
 			downloadsBackend() === 'engine'
 				? (() => {
@@ -75,8 +106,7 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 						);
 						return {
 							chosen,
-							cells: [...chosen, ...rest].slice(0, Math.max(LANGUAGE_CELLS, chosen.length)),
-							animeQuality: getSetting('anime_download_quality')
+							cells: [...chosen, ...rest].slice(0, Math.max(LANGUAGE_CELLS, chosen.length))
 						};
 					})()
 				: null
@@ -88,7 +118,85 @@ const serviceOf = async (request: Request): Promise<Service | null> => {
 	return SERVICES.includes(s) ? s : null;
 };
 
+/** A value posted as JSON; absent is a reset. */
+function posted(form: FormData): { ok: true; v: Json | undefined } | { ok: false } {
+	const raw = form.get('v');
+	if (raw === null) return { ok: true, v: undefined };
+	try {
+		return { ok: true, v: JSON.parse(String(raw)) as Json };
+	} catch {
+		return { ok: false };
+	}
+}
+
 export const actions: Actions = {
+	/**
+	 * A library value set or reset (a row's control, RESET, RESET SECTION, UNDO).
+	 * Several at once, so a section resets in one request: `id` repeated, each
+	 * with its `v` in the same order, or none for a reset.
+	 */
+	set: async ({ request }) => {
+		const form = await request.formData();
+		const ids = form.getAll('id').map(String);
+		const vs = form.getAll('v').map(String);
+		if (!ids.length || ids.some((id) => !isLibraryValue(id)))
+			return fail(400, { message: 'no such setting' });
+		if (vs.length && vs.length !== ids.length) return fail(400, { message: 'a value each' });
+		for (const [i, id] of ids.entries()) {
+			let v: Json | undefined;
+			try {
+				v = vs.length ? (JSON.parse(vs[i]) as Json) : undefined;
+			} catch {
+				return fail(400, { message: 'not a value' });
+			}
+			if (setLibraryValue(id as ValueId, v) === false)
+				return fail(400, { message: `${id} can't be that` });
+			// Folded books wear their opening edition's cover: which one may have changed.
+			if (id === 'edition.language') {
+				const series = (
+					getDb()
+						.prepare(`SELECT DISTINCT series_id AS id FROM entries WHERE edition_of IS NOT NULL`)
+						.all() as { id: number }[]
+				).map((r) => r.id);
+				if (series.length) void refreshCovers({ ids: series, remote: false });
+			}
+		}
+		return { ok: true };
+	},
+
+	/** ✕ on one series that differs, or CLEAR ALL N (2A): back on the default. */
+	clear: async ({ request }) => {
+		const form = await request.formData();
+		const what = String(form.get('what'));
+		const ids = form.getAll('series').map(Number).filter(Number.isInteger);
+		if (!ids.length) return fail(400, { message: 'which series' });
+		if (what === 'audio' || what === 'subs') clearOverride(what, ids);
+		else if (what === 'mode') clearModes(ids);
+		else return fail(400, { message: 'no such default' });
+		return { ok: true };
+	},
+
+	/** Another device's value changed from here (2C): it takes it when it next opens. */
+	device: async ({ request }) => {
+		const form = await request.formData();
+		const id = String(form.get('device'));
+		const key = String(form.get('key'));
+		const p = posted(form);
+		if (!isDeviceId(id) || !DEVICE_KEYS.includes(key) || !p.ok)
+			return fail(400, { message: 'no such device setting' });
+		if (!setDeviceKey(id, key, p.v ?? null)) return fail(404, { message: 'no such device' });
+		return { ok: true };
+	},
+
+	/** START FROM another device (question 1). */
+	startFrom: async ({ request }) => {
+		const form = await request.formData();
+		const id = String(form.get('device'));
+		const from = String(form.get('from'));
+		if (!startFrom(id, from)) return fail(400, { message: 'no such device' });
+		return { ok: true };
+	},
+
 	signOut: async ({ request }) => {
 		const s = await serviceOf(request);
 		if (!s) return fail(400, { message: 'which catalogue' });
@@ -112,27 +220,6 @@ export const actions: Actions = {
 		const next = now.includes(l) ? now.filter((x) => x !== l) : [...now, l];
 		if (next.length === 0) return fail(400, { message: 'BROWSE needs one language' });
 		setSetting('browse_languages', next.join(','));
-		return { ok: true };
-	},
-	/** The height episodes download at (doc/ANIME.md, "Downloading"). */
-	animeQuality: async ({ request }) => {
-		const q = String((await request.formData()).get('quality') ?? '');
-		if (!['1080', '720', '360'].includes(q)) return fail(400, { message: 'no such quality' });
-		setSetting('anime_download_quality', q);
-		return { ok: true };
-	},
-	language: async ({ request }) => {
-		const l = String((await request.formData()).get('language') ?? '');
-		if (!(PREFERRED as readonly string[]).includes(l))
-			return fail(400, { message: 'no such language' });
-		setSetting('edition_language', l);
-		// Folded books wear their opening edition's cover: which one may have changed.
-		const ids = (
-			getDb()
-				.prepare(`SELECT DISTINCT series_id AS id FROM entries WHERE edition_of IS NOT NULL`)
-				.all() as { id: number }[]
-		).map((r) => r.id);
-		if (ids.length) void refreshCovers({ ids, remote: false });
 		return { ok: true };
 	}
 };
