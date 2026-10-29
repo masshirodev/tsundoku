@@ -11,7 +11,7 @@ whose design was still being drawn when the anime part shipped.
 | Anime records finished: CONTINUE, RECORD, FORGET, pruning | c165 | Done 2026-10-29 |
 | Manga read online                                         | c166 | Done 2026-10-29 |
 | Novels read online                                        | c167 | Done 2026-10-29 |
-| Phone, landscape and design conformance                   | c168 | Not yet         |
+| Phone, landscape and design conformance                   | c168 | Done 2026-10-29 |
 
 The handoff is in `doc/design/handoff/` (`Online Calls.dc.html` and the
 `Online Board *` and `Online-*` files; [`design/README.md`](design/README.md)).
@@ -193,6 +193,30 @@ from the plugin, the same way, with the same rule that nothing is kept:
 document, a member, nothing written, another series' or a failing chapter)
 and `tests/browse-novels.e2e.ts` (the preview's bar, ↓, reading on into
 chapter 3 online, opening it directly, `no-store`).
+
+## The other devices, and the design's measurements (c168)
+
+The phone and the landscape panel came with the screens themselves: the
+bar keeps both cells with + ADD short, ▶ CONTINUE's line shortens, RECORD's
+second line drops its date, the ↓ cell is 56px on the phone, and + ADD leads
+HISTORY's long press there. What c168 adds is the proof, by machine, as
+`~/.config/myconf/HANDOFF.md` asks:
+
+- **The palette is the tokens.** Every colour the handoff uses is one
+  (`reconcile-tokens`: seven of seven, `text-2`, `line-1`, `text-1`,
+  `accent`, `text-prose` and the page), and the screens use the tokens,
+  never the hexes.
+- **The spacing is literal.** The theme has no length ladder, so the mock's
+  hand-set values (24, 16, 14, 13, 12px and the rest) are the decision and are
+  asserted as they are.
+- **`tests/browse-preview-frame.e2e.ts` is generated** (`gen-conformance`)
+  from `Online-Preview.dc.html`'s fresh state: the bar, the identity, the
+  CTA, the SOURCE row and the list head, every measured property. It found
+  one difference, now fixed: the list head's two halves are spaced apart
+  (`space-between`), as drawn. Regenerating overwrites it.
+- **`tests/browse-online-devices.e2e.ts`** is the hand-written sibling: the
+  phone's 56px cells and 52px rows with + ADD short, the landscape panel's
+  440px, the RECORD row's 68px and FORGET, the series rows' 72px ↓.
 
 ## Where it departs from the handoff
 
