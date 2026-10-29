@@ -2,6 +2,7 @@ import * as engine from './engine/backend.ts';
 import { engineConfigured, engineDownSince, EngineError } from './engine/client.ts';
 import { getSetting } from './settings.ts';
 import * as novels from './novels/source.ts';
+import * as novelDownloads from './novels/downloader.ts';
 import { NovelHostError } from './novels/host.ts';
 
 /**
@@ -38,7 +39,10 @@ export const queueSummary = async (reveal: boolean) => engine.queueSummary(revea
 export const seriesDownloads = async (
 	seriesId: number,
 	entries: { id: number; available: boolean }[]
-) => engine.seriesDownloads(seriesId, entries);
+) =>
+	novelDownloads.isNovelSeries(seriesId)
+		? novelDownloads.novelSeriesDownloads(seriesId, entries)
+		: engine.seriesDownloads(seriesId, entries);
 
 export const enqueue = async (seriesId: number, entryIds: number[]) =>
 	engine.enqueue(seriesId, entryIds);

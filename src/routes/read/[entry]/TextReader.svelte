@@ -155,7 +155,10 @@
 	}
 	async function load() {
 		const e = entries[index];
-		if (e) await openFile(e.file);
+		// A chapter of a novel downloaded so far has no file yet (doc/NOVELS.md).
+		if (e && !e.available)
+			failure = new BookFailure('undownloaded', `${short(e)} IS NOT DOWNLOADED`);
+		else if (e) await openFile(e.file);
 	}
 	onMount(() => {
 		void load();
@@ -180,6 +183,14 @@
 	const chapterNo = $derived(entry && !entry.matter ? chapters.indexOf(entry) + 1 : null);
 	const nextEntry = $derived(entries[index + 1] ?? null);
 	const prevEntry = $derived(entries[index - 1] ?? null);
+	/**
+	 * A novel downloaded so far (doc/NOVELS.md, "Downloading"): reading stops
+	 * at a chapter not downloaded, as at the end of the book, and says which.
+	 */
+	const nextReadable = $derived(nextEntry?.available ? nextEntry : null);
+	const prevReadable = $derived(prevEntry?.available ? prevEntry : null);
+	/** Chapters up to the one on screen: where END · LAST AVAILABLE says reading got to. */
+	const reached = $derived(chapters.filter((c) => entries.indexOf(c) <= index).length);
 
 	let chapter = $state<Chapter | null>(null);
 	let nextChapter = $state<Chapter | null>(null);
@@ -401,7 +412,7 @@
 	/** Scroll: the next chapter is already below this one, so reading carries on. */
 	async function loadNext() {
 		// The next volume is another download: it opens when reading reaches it.
-		if (!book || !nextEntry || layout !== 'scroll' || nextEntry.file !== bookFile) return;
+		if (!book || !nextReadable || layout !== 'scroll' || nextReadable.file !== bookFile) return;
 		try {
 			nextChapter = await chapterBlocks(book.zip, docsOf(book, index + 1), book.images);
 		} catch {
@@ -485,7 +496,7 @@
 		if (layout === 'scroll' || !chapter) return;
 		if (atEnd) return;
 		if (page < pages - 1) return void go(page + 1);
-		if (nextEntry) {
+		if (nextReadable) {
 			markFinished();
 			void openChapter(index + 1, 'start');
 		} else {
@@ -501,7 +512,7 @@
 			return;
 		}
 		if (page > 0) return void go(page - 1);
-		if (prevEntry) void openChapter(index - 1, 'end');
+		if (prevReadable) void openChapter(index - 1, 'end');
 	}
 
 	function jump(i: number) {
@@ -911,7 +922,7 @@
 		})
 	);
 	const nextAbout = $derived(
-		nextEntry ? aboutMinutes(Math.round((nextEntry.bytes || 0) * 0.6), speed) : ''
+		nextReadable ? aboutMinutes(Math.round((nextReadable.bytes || 0) * 0.6), speed) : ''
 	);
 	const noSelection = new SvelteSet<number>();
 	const noCache = new SvelteSet<number>();
@@ -967,7 +978,7 @@
 				: undefined}
 		>
 			<div class="blocks" bind:this={blocksEl}></div>
-			{#if chapter && nextEntry && layout === 'paged'}
+			{#if chapter && nextReadable && layout === 'paged'}
 				<!-- The chapter ends where it ends; the rest of its last page names the next. -->
 				<div class="band">
 					<div class="ab">
@@ -976,7 +987,7 @@
 					</div>
 					<div class="nx">
 						<div class="k">NEXT</div>
-						<div class="t">{nextEntry.label}</div>
+						<div class="t">{nextReadable.label}</div>
 						{#if nextAbout}<div class="m">{nextAbout}</div>{/if}
 					</div>
 					<div class="go">
@@ -984,7 +995,7 @@
 					</div>
 				</div>
 			{/if}
-			{#if chapter && nextEntry && layout === 'scroll'}
+			{#if chapter && nextReadable && layout === 'scroll'}
 				<div class="sband">
 					<div class="ab">
 						<div>END · {short(entry)}</div>
@@ -993,7 +1004,7 @@
 					<div class="rule"></div>
 					<div class="nx">
 						<div class="k">NEXT</div>
-						<div class="t">{nextEntry.label}</div>
+						<div class="t">{nextReadable.label}</div>
 						{#if nextAbout}<div class="m">{nextAbout}</div>{/if}
 					</div>
 					<div class="go">↓ KEEP SCROLLING</div>
@@ -1030,8 +1041,8 @@
 			page={layout === 'scroll' ? Math.round(scrollFraction * 99) : page}
 			pages={layout === 'scroll' ? 100 : pages}
 			{vertical}
-			prevLabel={prevEntry ? short(prevEntry) : null}
-			nextLabel={nextEntry ? short(nextEntry) : null}
+			prevLabel={prevReadable ? short(prevReadable) : null}
+			nextLabel={nextReadable ? short(nextReadable) : null}
 			settings={readingLabel}
 			{seriesHref}
 			bottom={!sheet}
@@ -1041,8 +1052,8 @@
 					pageEl.scrollTop = (p / 99) * Math.max(0, blocksEl.offsetHeight - pageEl.clientHeight);
 				else void go(p);
 			}}
-			onprev={() => prevEntry && jump(index - 1)}
-			onnext={() => nextEntry && jump(index + 1)}
+			onprev={() => prevReadable && jump(index - 1)}
+			onnext={() => nextReadable && jump(index + 1)}
 			oncontents={() => (contents = true)}
 			onreading={() => (sheet = true)}
 		/>
@@ -1084,7 +1095,7 @@
 				selecting={false}
 				selected={noSelection}
 				cached={noCache}
-				onrow={(e) => jump(entries.indexOf(e))}
+				onrow={(e) => e.available && jump(entries.indexOf(e))}
 				onselect={() => undefined}
 				onclose={() => (contents = false)}
 			/>
@@ -1111,9 +1122,10 @@
 		<TextScreen
 			kind="end"
 			title={series.title}
-			where="{webNovel ? 'WEB NOVEL' : 'NOVEL'} · {chapters.length.toLocaleString(
+			where="{webNovel ? 'WEB NOVEL' : 'NOVEL'} · {reached.toLocaleString(
 				'en-US'
 			)} OF {chapters.length.toLocaleString('en-US')}"
+			missing={nextEntry && !nextEntry.available ? short(nextEntry) : null}
 			{askRating}
 			{rating}
 			{favourite}

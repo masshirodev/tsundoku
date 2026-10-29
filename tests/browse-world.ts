@@ -9,6 +9,9 @@ export const ENGINE_PORT = Number(process.env.PLAYWRIGHT_ENGINE_PORT ?? 4195);
 /** The fake repositories, over https with a throwaway certificate. */
 export const REPO_PORT = Number(process.env.PLAYWRIGHT_REPO_PORT ?? 4196);
 
+/** The novel plugin the setup installs (tests/fixtures/lnreader/shelf.js): BROWSE knows it as `ln:shelf`. */
+export const SHELF_PLUGIN = 'shelf';
+
 export const SOURCES = {
 	open: { id: '100', pkg: 'e2e.open', name: 'Open Source' } as {
 		id: string;

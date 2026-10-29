@@ -1,14 +1,21 @@
 import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
 import { getSetting, setSetting } from '../settings.ts';
-import { parseKey } from '../../library/downloads.ts';
+import { isNovelSourceId, sourceOfKey } from '../../library/downloads.ts';
 
 /**
  * tsundoku's download queue (doc/DOWNLOADER.md; card c137): chapters, as
  * entries, waiting for the worker. Keyed by tsundoku's own rows; what a
  * source calls them is the worker's business (engine_series,
- * engine_chapters).
+ * engine_chapters). A novel's chapters wait in the same queue (doc/NOVELS.md,
+ * "Downloading"; card c150), so PAUSE, the queue screen, RETRY and ↑ TO THE
+ * TOP are one; the novel worker takes those, the engine's the rest.
  */
+
+/** Which worker a queued chapter is for: a novel plugin's, or the engine's. */
+export type QueueKind = 'novel' | 'manga';
+const ofKind = (sourceId: string, kind: QueueKind | undefined) =>
+	kind === undefined || isNovelSourceId(sourceId) === (kind === 'novel');
 
 /** After this many tries a chapter is FAILED and waits for RETRY. */
 export const MAX_TRIES = 3;
@@ -29,8 +36,9 @@ export type QueueRow = {
 
 /**
  * Queues [entryIds] after everything already queued, in the order given.
- * Only what can be downloaded: a chapter of a Mihon series, with no file,
- * not queued already. Returns how many were queued.
+ * Only what can be downloaded: a chapter of a series from a source (a Mihon
+ * one or a novel plugin's), with no file, not queued already. Returns how
+ * many were queued.
  */
 export function enqueue(
 	entryIds: number[],
@@ -55,7 +63,7 @@ export function enqueue(
 		for (const id of entryIds) {
 			const r = row.get(id) as
 				{ id: number; series_id: number; origin_key: string | null } | undefined;
-			if (!r || !parseKey(r.origin_key)) continue;
+			if (!r || !sourceOfKey(r.origin_key)) continue;
 			put.run(r.id, r.series_id, ++at, now);
 			n++;
 		}
@@ -119,7 +127,7 @@ export function queueRows(db: Database.Database = getDb()): QueueRow[] {
 	).map((r) => ({
 		entryId: r.entry_id,
 		seriesId: r.series_id,
-		sourceId: parseKey(r.origin_key)?.sourceId ?? '',
+		sourceId: sourceOfKey(r.origin_key) ?? '',
 		state: r.state,
 		tries: r.tries,
 		failure: r.failure,
@@ -135,14 +143,16 @@ export function queueRows(db: Database.Database = getDb()): QueueRow[] {
  * The chapters to start now: the first ready one of each source not already
  * downloading, up to [lanes] sources at once. One chapter per source at a
  * time, since the engine serialises calls into an extension anyway, and the
- * sites are kinder to a reader than to a crawler.
+ * sites are kinder to a reader than to a crawler. [kind] keeps to one
+ * worker's chapters.
  */
 export function nextUp(
 	lanes: number,
 	now = Date.now(),
-	db: Database.Database = getDb()
+	db: Database.Database = getDb(),
+	kind?: QueueKind
 ): QueueRow[] {
-	const rows = queueRows(db);
+	const rows = queueRows(db).filter((r) => ofKind(r.sourceId, kind));
 	const busy = new Set(rows.filter((r) => r.state === 'downloading').map((r) => r.sourceId));
 	const picked: QueueRow[] = [];
 	for (const r of rows) {
@@ -199,11 +209,14 @@ export const isPaused = () => getSetting('downloads_paused_at') !== '';
 export const setPaused = (paused: boolean, now = Date.now()) =>
 	setSetting('downloads_paused_at', paused ? String(now) : '');
 
-/** Anything left `downloading` by a process that stopped mid-chapter goes back to the queue. */
-export function recover(db: Database.Database = getDb()): number {
-	return db
-		.prepare(
-			`UPDATE download_queue SET state = 'queued', done_pages = 0 WHERE state = 'downloading'`
-		)
-		.run().changes;
+/**
+ * Anything left `downloading` by a process that stopped mid-chapter goes back
+ * to the queue; with [kind], only that worker's.
+ */
+export function recover(db: Database.Database = getDb(), kind?: QueueKind): number {
+	const stuck = queueRows(db).filter((r) => r.state === 'downloading' && ofKind(r.sourceId, kind));
+	const put = db.prepare(
+		`UPDATE download_queue SET state = 'queued', done_pages = 0 WHERE entry_id = ? AND state = 'downloading'`
+	);
+	return db.transaction(() => stuck.reduce((n, r) => n + put.run(r.entryId).changes, 0))();
 }

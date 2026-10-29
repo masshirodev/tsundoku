@@ -935,6 +935,23 @@ const MIGRATIONS: string[] = [
 		updated_at INTEGER NOT NULL,
 		failed TEXT NOT NULL DEFAULT ''
 	) WITHOUT ROWID;
+	`,
+	// Rung 45: a novel's EPUB, as tsundoku's device writes it (doc/NOVELS.md,
+	// "Downloading"; card c150). novel_series.file is where the book is, under
+	// the library folder, fixed at its first download as engine_series.title
+	// fixes a manga's folder: the book is rewritten in place as chapters
+	// arrive, and a rename in tsundoku must not start a second one.
+	// novel_chapters is what the worker has written into it: until the import
+	// attaches the file, such a chapter is IMPORTING.
+	`
+	CREATE TABLE novel_series (
+		series_id INTEGER PRIMARY KEY REFERENCES series(id) ON DELETE CASCADE,
+		file TEXT NOT NULL UNIQUE
+	);
+	CREATE TABLE novel_chapters (
+		entry_id INTEGER PRIMARY KEY REFERENCES entries(id) ON DELETE CASCADE,
+		downloaded_at INTEGER NOT NULL
+	);
 	`
 ];
 

@@ -1,6 +1,7 @@
 import { chapterNumbers, toNumber } from './chapter-number.ts';
 import { chapterTitle, formatNumber, people, positions, statusOf } from './mihon-plan.ts';
 import type { PlannedEntry, PlannedSeries, PlannedTag } from './plan.ts';
+import type { NovelManifest } from './novel-book.ts';
 import { novelKeyOf } from '../library/downloads.ts';
 
 /**
@@ -115,5 +116,57 @@ export function planNovel(
 		coverUrl: n.cover || undefined,
 		path: '',
 		entries: rows.map((r, i) => ({ ...r, position: pos[i] }))
+	};
+}
+
+/**
+ * A book tsundoku's device wrote (doc/NOVELS.md, "Downloading"; card c150),
+ * as the series it belongs to: keyed `lnreader:<plugin>:<path>`, each entry
+ * by its path at the source, as ADD made them. A chapter in the book is its
+ * document; one the manifest names but the book doesn't hold stays NOT
+ * DOWNLOADED. Places and labels are the ones tsundoku had when it wrote the
+ * book, so a rescan moves nothing.
+ */
+export function planNovelBook(
+	f: { dir: string; file: string; addedAt: number; sizes: Map<string, number> },
+	m: NovelManifest
+): PlannedSeries {
+	return {
+		originKey: novelKeyOf(m.plugin, m.path),
+		source: 'lnreader',
+		title: m.title.trim() || m.path,
+		kind: 'novel',
+		rating: 0,
+		favourite: false,
+		hidden: false,
+		shelves: [],
+		tags: m.tags,
+		description: m.description,
+		status: m.status,
+		direction: null,
+		addedAt: f.addedAt,
+		sourceUrl: m.path,
+		coverUrl: m.coverUrl || undefined,
+		path: f.dir,
+		entries: m.chapters.map((c) => {
+			const inBook = c.href !== null && f.sizes.has(c.href);
+			return {
+				position: c.position,
+				label: c.label,
+				title: c.title,
+				sourceUrl: c.path,
+				available: inBook,
+				file: inBook ? f.file : '',
+				bytes: inBook ? (f.sizes.get(c.href!) ?? 0) : 0,
+				pageCount: 0,
+				locator: inBook ? c.href! : '',
+				matter: '',
+				addedAt: c.addedAt || f.addedAt,
+				readAt: null,
+				lastPosition: null,
+				lastOpenedAt: null,
+				history: null
+			};
+		})
 	};
 }

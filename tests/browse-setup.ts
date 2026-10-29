@@ -2,12 +2,19 @@ import Database from 'better-sqlite3';
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
 import { createServer as createHttpsServer } from 'node:https';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { E2E_TOKEN } from '../playwright.config';
-import { BROWSE_PORT, ENGINE_PORT, REPO_PORT, SOURCES, type EngineCall } from './browse-world';
+import {
+	BROWSE_PORT,
+	ENGINE_PORT,
+	REPO_PORT,
+	SHELF_PLUGIN,
+	SOURCES,
+	type EngineCall
+} from './browse-world';
 
 /**
  * BROWSE's world for the browser suite (doc/BROWSE.md, card c141): a fake
@@ -349,7 +356,7 @@ function startRepos(dir: string): Promise<Server> {
 	);
 }
 
-function seed(dbPath: string): void {
+function seed(dbPath: string, store: string): void {
 	rmSync(dbPath, { force: true });
 	execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
 		env: { ...process.env, DATABASE_PATH: dbPath, NODE_NO_WARNINGS: '1' },
@@ -380,6 +387,16 @@ function seed(dbPath: string): void {
 			`INSERT INTO engine_sources (id, pkg, name, lang, base_url) VALUES (?, ?, ?, 'en', 'https://example.org')`
 		).run(s.id, s.pkg, s.name);
 	}
+	// A novel plugin that needs no network (tests/browse-novels.e2e.ts), installed
+	// as the EXTENSIONS screen would: its file in the store under its hash.
+	const shelf = readFileSync('tests/fixtures/lnreader/shelf.js');
+	const hash = handle(shelf);
+	mkdirSync(join(store, 'novels'), { recursive: true });
+	writeFileSync(join(store, 'novels', `${hash}.js`), shelf);
+	db.prepare(
+		`INSERT INTO novel_plugins (id, name, site, lang, version, hash, installed_at, updated_at, failed)
+		VALUES (?, 'Shelf Novels', 'https://shelf.example/', 'en', '1.0.0', ?, 0, 0, '')`
+	).run(SHELF_PLUGIN, hash);
 	db.close();
 }
 
@@ -387,7 +404,7 @@ export default async function setup() {
 	const dbPath = join(tmpdir(), `tsundoku-e2e-browse-${process.pid}.sqlite`);
 	// Installs and icons write here, never into the real store on /mnt/hdd2.
 	const store = mkdtempSync(join(tmpdir(), 'tsundoku-e2e-browse-store-'));
-	seed(dbPath);
+	seed(dbPath, store);
 	const engine = await startEngine();
 	const repos = await startRepos(store);
 	const preview: ChildProcess = spawn(
@@ -401,7 +418,9 @@ export default async function setup() {
 				ENGINE_URL: `http://127.0.0.1:${ENGINE_PORT}`,
 				ENGINE_TOKEN: 'e2e-engine-token',
 				TSUNDOKU_ANILIST: 'off',
-				LIBRARY_ROOT: join(tmpdir(), 'tsundoku-e2e-empty-library'),
+				// Its own, gone with the run: a novel downloaded here writes its EPUB
+				// into it, which the shared server's empty library must never see.
+				LIBRARY_ROOT: join(store, 'library'),
 				COVER_DIR: join(tmpdir(), `tsundoku-e2e-browse-covers-${process.pid}`),
 				ENGINE_STORE: store,
 				NODE_EXTRA_CA_CERTS: join(store, 'cert.pem'),

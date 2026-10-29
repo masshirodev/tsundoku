@@ -34,7 +34,7 @@ export type OpenBook = {
 /** Why a book didn't open: the reader's DID NOT OPEN screen says which. */
 export class BookFailure extends Error {
 	constructor(
-		readonly kind: 'drm' | 'broken' | 'missing' | 'offline',
+		readonly kind: 'drm' | 'broken' | 'missing' | 'offline' | 'undownloaded',
 		readonly detail: string
 	) {
 		super(detail);

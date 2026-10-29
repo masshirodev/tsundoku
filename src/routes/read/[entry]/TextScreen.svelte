@@ -14,7 +14,7 @@
 				kind: 'failed';
 				title: string;
 				bytes: number;
-				reason: 'drm' | 'broken' | 'missing' | 'offline';
+				reason: 'drm' | 'broken' | 'missing' | 'offline' | 'undownloaded';
 				detail: string;
 				seriesHref: string;
 				libraryHref: string;
@@ -31,6 +31,8 @@
 				libraryHref: string;
 				onrate: (n: number) => void;
 				onfav: () => void;
+				/** A novel downloaded so far: the next chapter, which isn't (doc/NOVELS.md). */
+				missing?: string | null;
 		  };
 	let props: Props = $props();
 
@@ -40,7 +42,9 @@
 			'The file is damaged: part of what makes it an EPUB is missing, so its text can’t be found.',
 		missing:
 			'The workstation has no file at this place any more. A rescan will mark it not downloaded.',
-		offline: 'The workstation did not answer, and this book isn’t kept on the tablet yet.'
+		offline: 'The workstation did not answer, and this book isn’t kept on the tablet yet.',
+		undownloaded:
+			'Only part of this novel is downloaded. Download this chapter from the series page, and it opens here.'
 	} as const;
 </script>
 
@@ -73,6 +77,12 @@
 				</div>
 				<div class="rule"></div>
 				<h1>{props.title}</h1>
+				{#if props.missing}
+					<div class="why">
+						<div class="reason">{props.missing} IS NOT DOWNLOADED</div>
+						<div class="text">Download it from the series page, and reading carries on here.</div>
+					</div>
+				{/if}
 				{#if props.askRating}
 					<div class="ask">
 						<!-- Ratings out of 10 1d: the blocky slider, as the image reader's end page. -->

@@ -60,6 +60,9 @@ export function parseNovelKey(key: string | null): { plugin: string; path: strin
 	return m ? { plugin: m[1], path: m[2] } : null;
 }
 
+/** A novel plugin's source id, `ln:<plugin>`, as against a Mihon source's number. */
+export const isNovelSourceId = (id: string) => id.startsWith('ln:');
+
 /**
  * The source a series is from, by the id BROWSE knows it by: a Mihon
  * source's number, or `ln:<plugin>` for a novel's (doc/NOVELS.md). Null for

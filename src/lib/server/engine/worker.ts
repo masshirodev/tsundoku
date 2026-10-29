@@ -350,7 +350,8 @@ export function writeDeviceBackup(d: Deps): string {
  */
 export async function runOnce(d: Deps): Promise<number> {
 	if (isPaused()) return 0;
-	const jobs = nextUp(LANES, d.now(), d.db);
+	// A novel's chapters are the novel worker's (novels/downloader.ts).
+	const jobs = nextUp(LANES, d.now(), d.db, 'manga');
 	if (jobs.length === 0) return 0;
 	const mark = d.db.prepare(`UPDATE download_queue SET state = 'downloading' WHERE entry_id = ?`);
 	for (const j of jobs) mark.run(j.entryId);
@@ -387,7 +388,7 @@ export function startWorker(
 	db: Database.Database = getDb()
 ): void {
 	if (loop || running) return;
-	recover(db);
+	recover(db, 'manga');
 	const d: Deps = { db, library, now: Date.now };
 	const tick = async () => {
 		running = true;

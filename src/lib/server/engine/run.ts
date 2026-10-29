@@ -3,6 +3,7 @@ import { getDb } from '../db.ts';
 import { engineConfigured } from './client.ts';
 import { startWorker } from './worker.ts';
 import { followNew } from './backend.ts';
+import { pendingNovelImports, startNovelWorker } from '../novels/downloader.ts';
 
 /**
  * Whether downloading is on here: tsundoku's engine, when ENGINE_URL and
@@ -75,12 +76,18 @@ process.once('SIGTERM', () => {
 
 let started = false;
 
-/** Starts the downloader and FOLLOW's step once, when the engine is set up, and imports what a restart left. */
+/**
+ * Starts the downloaders and FOLLOW's step once, when the engine is set up,
+ * and imports what a restart left. The novel worker (novels/downloader.ts)
+ * needs no engine, but everything that queues a novel (BROWSE, ADD) is
+ * behind it, so it starts here too.
+ */
 export function ensureEngineWorker(): void {
 	if (downloadsBackend() !== 'engine' || started) return;
 	started = true;
 	startWorker(libraryRoot(), importSoon);
-	if (pendingImports() > 0) importSoon();
+	startNovelWorker(libraryRoot(), importSoon);
+	if (pendingImports() + pendingNovelImports() > 0) importSoon();
 	followTimer = setInterval(() => void followStep(), FOLLOW_STEP_MS);
 	followTimer.unref();
 }

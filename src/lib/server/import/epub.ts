@@ -10,6 +10,7 @@ import {
 	type TocPoint
 } from '../../epub/epub.ts';
 import { planEpub } from '../../import/epub-plan.ts';
+import { NOVEL_MANIFEST, parseNovelManifest, type NovelManifest } from '../../import/novel-book.ts';
 import type { PlannedSeries } from '../../import/plan.ts';
 import { listZip, readMember } from '../zip.ts';
 
@@ -41,9 +42,12 @@ export async function epubBytes(root: string): Promise<number> {
 }
 
 /** The parts of one EPUB the plan needs; a file that won't parse comes back with none. */
-export async function readEpub(
-	path: string
-): Promise<{ pkg: Package | null; toc: TocPoint[]; sizes: Map<string, number> }> {
+export async function readEpub(path: string): Promise<{
+	pkg: Package | null;
+	toc: TocPoint[];
+	sizes: Map<string, number>;
+	novel: NovelManifest | null;
+}> {
 	const fh = await open(path);
 	try {
 		const members = await listZip(fh, (await fh.stat()).size);
@@ -54,10 +58,10 @@ export async function readEpub(
 			return m ? (await readMember(fh, m)).toString('utf8') : null;
 		};
 		const container = await text('META-INF/container.xml');
-		if (!container) return { pkg: null, toc: [], sizes };
+		if (!container) return { pkg: null, toc: [], sizes, novel: null };
 		const opfPath = parseContainer(container);
 		const opf = await text(opfPath);
-		if (!opf) return { pkg: null, toc: [], sizes };
+		if (!opf) return { pkg: null, toc: [], sizes, novel: null };
 		const pkg = parsePackage(opf, opfPath);
 		const ncx = pkg.ncx ? await text(pkg.ncx) : null;
 		let toc = ncx ? parseNcx(ncx, pkg.ncx!) : [];
@@ -65,9 +69,9 @@ export async function readEpub(
 			const nav = await text(pkg.nav);
 			if (nav) toc = parseNav(nav, pkg.nav);
 		}
-		return { pkg, toc, sizes };
+		return { pkg, toc, sizes, novel: parseNovelManifest(await text(NOVEL_MANIFEST)) };
 	} catch {
-		return { pkg: null, toc: [], sizes: new Map() };
+		return { pkg: null, toc: [], sizes: new Map(), novel: null };
 	} finally {
 		await fh.close();
 	}

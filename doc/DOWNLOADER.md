@@ -4,7 +4,9 @@ How tsundoku downloads manga itself, on the extension engine
 ([`EXTENSION-ENGINE.md`](EXTENSION-ENGINE.md)); Suwayomi did it until c129
 ([`DOWNLOADING.md`](DOWNLOADING.md), "Suwayomi, retired"). Card c125 ("tsundoku's own downloader on
 the extension engine, manga first"); started 2026-10-28. Anime (c128) and
-novels (c127) come later and reuse the queue.
+novels reuse the queue: a plugin's chapters wait in `download_queue` beside
+a manga's, and the novel worker takes those while this one takes the rest
+([`NOVELS.md`](NOVELS.md), "Downloading"; c150).
 
 ## The one decision: tsundoku is a device
 

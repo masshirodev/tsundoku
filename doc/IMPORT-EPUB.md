@@ -47,6 +47,18 @@ A file that won't open as an EPUB is still listed, as one entry "Book", so the
 reader can say what's wrong with it. It counts as unreadable in the scan's
 summary.
 
+## tsundoku's own novels
+
+A book with `META-INF/tsundoku-novel.json` is one tsundoku's device wrote for
+a novel from an LNReader plugin ([`NOVELS.md`](NOVELS.md), "The book"). It
+isn't a series of its own: the manifest names the series
+(`lnreader:<plugin>:<path>`) and every chapter by its path at the source, so
+the plan is that series, each chapter in the book available at its document,
+and the rest NOT DOWNLOADED (`planNovelBook`, `src/lib/import/novel-plan.ts`).
+A manifest that doesn't parse leaves the file an ordinary EPUB. Wherever the
+file is (a copy on the tablet too), it folds onto the same series, as two
+devices' copies of a manga do.
+
 ## Positions and duplicates
 
 A novel's positions are its reading order, 1…n. Chapter numbers repeat in web

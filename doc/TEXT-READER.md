@@ -185,7 +185,13 @@ DID NOT OPEN names what happened:
   than fonts);
 - **BROKEN EPUB · …** (not a zip, `CONTAINER.XML NOT FOUND`, an empty spine);
 - the file gone from the workstation;
-- offline before the book was kept, with RETRY.
+- offline before the book was kept, with RETRY;
+- a chapter of a novel downloaded so far that isn't downloaded yet ("CH. 3 IS
+  NOT DOWNLOADED", [`NOVELS.md`](NOVELS.md), "Reading it").
+
+A novel downloaded so far stops at its first chapter with no file: no NEXT
+on the last page, and END · LAST AVAILABLE past it, "2 OF 3" and which
+chapter isn't downloaded. The contents list doesn't jump to one.
 
 There's always ← SERIES and LIBRARY.
 

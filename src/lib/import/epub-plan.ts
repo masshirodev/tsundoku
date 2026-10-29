@@ -1,5 +1,7 @@
 import { entryDocs, planEntries, type Package, type TocPoint } from '../epub/epub.ts';
 import type { PlannedSeries } from './plan.ts';
+import type { NovelManifest } from './novel-book.ts';
+import { planNovelBook } from './novel-plan.ts';
 
 /**
  * An EPUB as a series (doc/IMPORT-EPUB.md): one book, kind `novel`, whose
@@ -19,12 +21,16 @@ export type EpubFile = {
 	toc: TocPoint[];
 	/** Uncompressed size of each member, for each entry's share of the book. */
 	sizes: Map<string, number>;
+	/** A book tsundoku's device wrote (novel-book.ts): its manifest, read out of the file. */
+	novel?: NovelManifest | null;
 };
 
 const stem = (file: string) => file.replace(/\.epub$/i, '');
 
 export function planEpub(f: EpubFile): PlannedSeries {
 	const pkg = f.pkg;
+	// One of tsundoku's own downloads: the series it belongs to, not a book of its own.
+	if (pkg && f.novel) return planNovelBook(f, f.novel);
 	const base = {
 		originKey: `epub:${f.relPath}`,
 		source: 'epub',

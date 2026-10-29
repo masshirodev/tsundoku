@@ -11,7 +11,7 @@ manga runs on Mihon's extensions ([`DOWNLOADER.md`](DOWNLOADER.md)). Card c127
 | A sandboxed host for the plugins                     | c147 | Done    |
 | Repositories and plugins in EXTENSIONS               | c148 | Done    |
 | Browsing, searching and adding a novel               | c149 | Done    |
-| Downloading chapters into an EPUB the importer reads | c150 | Not yet |
+| Downloading chapters into an EPUB the importer reads | c150 | Done    |
 | FOLLOW, live checks, the rest of this file           | c151 | Not yet |
 | Past a site's bot check, through FlareSolverr        | c152 | Not yet |
 
@@ -162,7 +162,7 @@ base64url>`, as a Mihon source's manga is `<source>~<url>`
   NOT DOWNLOADED known by its path at the source. It goes into the `Library`
   root, the one the EPUB importer shares across devices, so the EPUB c150
   writes under `devices/tsundoku/Library/` lands in the same series. UNDO
-  works as for manga. Its DOWNLOAD row comes with c150.
+  works as for manga. Its DOWNLOAD row is the next section's.
 - **When a call comes back empty**, the host says why: LNReader's `fetchText`
   answers `''` on any failure, as LNReader's runtime does, so a plugin whose
   site refused it would list nothing. The host notes the first request it
@@ -186,30 +186,102 @@ SEARCH THE SOURCES), `tests/net-guard.spec.ts`, `tests/novel-host.spec.ts`
 `tests/browse-extensions.e2e.ts` (the plugin under NOVELS, its page without
 SETTINGS, and its loopback site refused on the page).
 
-## Storing a novel: one EPUB, written as a device
+## Downloading
 
-Decided 2026-10-28 for c150, over the card's first idea (each chapter a `text`
-entry in a new schema rung):
+A novel downloads as manga does, through the same screens and the same queue
+(card c150, 2026-10-29), into **one EPUB per novel in tsundoku's device
+folder**, which the EPUB importer reads as it reads any book
+([`IMPORT-EPUB.md`](IMPORT-EPUB.md)) and the text reader reads as any book
+([`TEXT-READER.md`](TEXT-READER.md)). **The importer stays the one place a
+file becomes an entry**, as it is for downloaded manga
+([`DOWNLOADER.md`](DOWNLOADER.md), "The one decision"); text entries in a new
+rung, the card's first idea, would have been a second writer and a second
+reader path.
 
-- **A novel is one EPUB** in tsundoku's device folder,
-  `$LIBRARY_ROOT/devices/tsundoku/Library/Novels/<Source>/<Title>.epub`. The
-  EPUB importer reads it like any book ([`IMPORT-EPUB.md`](IMPORT-EPUB.md)),
-  and the text reader reads it like any book
-  ([`TEXT-READER.md`](TEXT-READER.md)): **the importer stays the one place a
-  file becomes an entry**, as it is for downloaded manga
-  ([`DOWNLOADER.md`](DOWNLOADER.md), "The one decision"). Text entries would
-  have been a second writer and a second reader path.
-- **Its table of contents is every chapter the source lists.** A chapter not
-  downloaded yet is a stub document, marked as one, which the importer reads
-  as an entry NOT DOWNLOADED: so the DOWNLOAD row, NEXT 10, ALL and FOLLOW work
-  as they do for manga.
-- **A chapter's locator comes from its path at the source**, not its place, so
-  a chapter the source inserts later never moves anyone's progress: the
-  importer finds an entry again by its locator, and keeps its read state.
-- **The file is rewritten** as chapters arrive (a 591-chapter web novel is
-  2–5 MB), written beside and renamed, as the CBZs are.
+- **The series screen** draws a novel's DOWNLOAD row and chapter states as a
+  manga's ([`DOWNLOADING.md`](DOWNLOADING.md)): FIRST/NEXT 10, ALL, a tap on
+  a row, QUEUED, DOWNLOADING, IMPORTING, FAILED · N TRIES, and the FILE line's
+  counts. No FOLLOW cell yet: c151. A novel whose plugin was removed draws no
+  row.
+- **The queue is the one queue** (`download_queue`), so PAUSE, the queue
+  screen, RETRY, ✕ and ↑ TO THE TOP are the same. Two workers take from it:
+  the engine's takes a Mihon source's chapters and the novel worker
+  (`src/lib/server/novels/downloader.ts`) a plugin's, each leaving the other's
+  alone, so an engine that stopped answering doesn't hold novels up. The
+  worker starts beside the engine's (`engine/run.ts`): everything that queues a
+  novel is behind the engine being set up anyway.
+- **A chapter** is the plugin's `parseChapter(path)`, through the host. Its
+  HTML is rebuilt from an allowlist into XHTML
+  (`src/lib/server/novels/chapter-html.ts`): the reader's own list on the way
+  in, so nothing of the site's page (a script, a style, an ad's frame, a link)
+  is kept, and the file is well formed for any reader. Its pictures are
+  fetched by the server, internet only, every redirect too
+  (`net-guard.ts`), up to 40 of 10 MB each, and kept in the book; one that
+  doesn't come, or isn't JPEG, PNG, GIF or WebP, is left out, never left
+  pointing at the site. A chapter with no words in it (a site's empty shell)
+  is a failed try, as is a plugin's error.
+- **Batches.** A plugin's chapters come one at a time with a second between
+  them; up to ten of one series are fetched, then the book is written once,
+  and they leave the queue. Two plugins download at once. Each chapter counts
+  its own try (three, with the queue's backoff); if the book can't be written,
+  the whole batch does. PAUSE stops a batch between chapters, and what came is
+  still written.
+
+### The book
+
+`$LIBRARY_ROOT/devices/tsundoku/Library/Novels/<Source>/<Title>.epub`, its
+place fixed at the first download (`novel_series`, rung 45) as a manga's folder
+is (`engine_series.title`): the book is rewritten in place, and a rename in
+tsundoku moves nothing. A second novel of the same title gets `<Title> (2)`.
+
+- **It holds the chapters downloaded so far**, in reading order, an EPUB 3 with
+  a navigation document and an NCX (`src/lib/import/novel-book.ts`). A
+  chapter's document is named from its path at the source
+  (`OEBPS/Text/c-<hash>.xhtml`), so a chapter the source inserts later moves
+  no other, and its locator never changes.
+- **And a manifest of every chapter the series has**,
+  `META-INF/tsundoku-novel.json`: the plugin and the novel's path (so the
+  series' key), and each chapter's path, place, label and title as tsundoku
+  has them, with its document or null. That is what makes the file this
+  series' own: the importer folds it onto the `lnreader:<plugin>:<path>`
+  series ADD made, each entry found by its path, as Mihon's backup folds a
+  download folder. A chapter the manifest names and the book doesn't hold
+  stays NOT DOWNLOADED. Should the database ever lose the series, the book
+  alone brings it back, every chapter included.
+- **Not stub documents.** The plan was a stub per chapter not downloaded, in
+  the book's contents. It doesn't hold: an entry's text runs up to the next
+  entry of its file (`entryDocs`), so a stub between two downloaded chapters
+  would have read as the end of the first, and an EPUB's contents may only
+  point into its reading order. The manifest says the same without either.
+- **Rewritten whole**, from what it held plus the new chapters, written beside
+  its place and renamed, so the reader never meets half a book. Its version
+  (size and time) changes with each, so a tablet that kept the book fetches it
+  again ([`TEXT-READER.md`](TEXT-READER.md)). A 591-chapter web novel is 2–5
+  MB; the batches keep a long ALL to one write per ten chapters.
+- **Between the write and the import** the chapters are IMPORTING
+  (`novel_chapters`, rung 45). The import is the app's own, twenty seconds
+  after the last arrival, as for manga, and at startup for anything a restart
+  left.
+
+### Reading it
+
+The text reader reads the book as any other. A novel downloaded so far has
+chapters with no file, so **reading stops at the first one**: the next chapter
+isn't offered at the end of a page, and turning past the last page shows END ·
+LAST AVAILABLE with "CH. 3 IS NOT DOWNLOADED"; the contents list doesn't jump
+to one, and opening one directly says the same instead of looking for a file.
+
+`tests/novel-book.spec.ts` (the book, the manifest, the importer's plan, the
+chapter allowlist and its pictures), `tests/novel-download-db.spec.ts` (the
+queue shared and kept apart, a batch into the book, IMPORTING, the import onto
+the series without a second one, a rewrite keeping what it held, a rename,
+failures, PAUSE, recovery) and `tests/browse-novels.e2e.ts` (a plugin through
+the real host, `tests/fixtures/lnreader/shelf.js`: added from BROWSE, two of
+three chapters downloaded and imported, read up to the third).
 
 ## Not done yet
 
-Downloading, FOLLOW and bot checks: c150 to c152 above. A plugin's own
+FOLLOW and bot checks: c151 and c152 above. The book carries no cover of its
+own (tsundoku's tiles have theirs). Without the engine set up there's no
+BROWSE, so no novels either, though nothing in the novel worker needs it. A plugin's own
 settings (`pluginSettings`, a few have them) aren't offered.
