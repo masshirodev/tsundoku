@@ -1,0 +1,112 @@
+# Novels from LNReader plugins
+
+Light and web novels, found, downloaded and read inside tsundoku on
+[LNReader](https://github.com/LNReader/lnreader)'s plugins
+([lnreader-plugins](https://github.com/LNReader/lnreader-plugins), MIT), as
+manga runs on Mihon's extensions ([`DOWNLOADER.md`](DOWNLOADER.md)). Card c127
+("Novels from LNReader plugins, inside tsundoku"), split in five:
+
+| Part                                                 | Card | State   |
+| ---------------------------------------------------- | ---- | ------- |
+| A sandboxed host for the plugins                     | c147 | Done    |
+| Repositories and plugins in EXTENSIONS               | c148 | Not yet |
+| Browsing, searching and adding a novel               | c149 | Not yet |
+| Downloading chapters into an EPUB the importer reads | c150 | Not yet |
+| FOLLOW, live checks, the rest of this file           | c151 | Not yet |
+
+The owner's repository (2026-10-28):
+`https://raw.githubusercontent.com/LNReader/lnreader-plugins/plugins/v3.0.0/.dist/plugins.min.json`,
+328 plugins that day, 187 English. It's added on the repositories screen like
+any other; tsundoku ships none ([`BROWSE.md`](BROWSE.md)).
+
+## What a plugin is
+
+A CommonJS file whose `exports.default` is an object (or a class) with:
+
+| Method                                               | Gives                                                                                                            |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `popularNovels(page, { showLatestNovels, filters })` | `[{ name, path, cover }]`: POPULAR, or LATEST with `showLatestNovels`                                            |
+| `searchNovels(term, page)`                           | the same, for a search                                                                                           |
+| `parseNovel(path)`                                   | `{ name, path, cover, author, status, genres, summary, chapters: [{ name, path, releaseTime, chapterNumber }] }` |
+| `parsePage(path, page)`                              | more chapters, for a plugin that pages them (`totalPages` in parseNovel)                                         |
+| `parseChapter(path)`                                 | the chapter, as HTML                                                                                             |
+
+and `id`, `name`, `site`, `version`, `filters` (five types: `Text`, `Picker`,
+`Checkbox`, `Switch`, `XCheckbox`). What plugins require, counted over 167 of
+the 328 on 2026-10-28: `@libs/fetch` (all of them), `cheerio` (133),
+`@libs/novelStatus` (120), `@libs/defaultCover` (103), `@libs/filterInputs`
+(94), `dayjs` (20), `@libs/storage` (17), `htmlparser2` (7),
+`@libs/isAbsoluteUrl` (3), `@libs/aes` (2). The libraries are pinned to the
+ranges lnreader-plugins builds against (`cheerio` ^1, `dayjs` ^1.11,
+`htmlparser2` ^9, `@noble/ciphers` ^2, `protobufjs` ^7).
+
+## The plugin host
+
+Plugin code is downloaded from the internet and runs on the workstation, so it
+never runs in the app (`src/lib/server/novels/`):
+
+- **A child process of its own** (`plugin-host.cjs`, started by `host.ts` on
+  the first call and again after it dies), **under Node's permission model**:
+  it may read only itself, the project's `node_modules` and the plugin store,
+  and may not write, spawn processes, start workers or load addons. Its
+  **environment is empty**, so nothing in `.env` is there to read.
+- **A vm context per plugin**, whose `require` gives only LNReader's shims
+  (`@libs/*`, written from their documented behaviour) and the libraries
+  above. `require('fs')` is refused.
+- **A fetch that stays on the internet**: every request, and every hop of a
+  redirect (followed by hand, since an automatic one would skip the check),
+  is refused when its host resolves to a loopback, private, link-local or
+  unique-local address. Tests open a loopback port through the parent's own
+  message; nothing else can.
+- **Calls over IPC with a timeout** (a minute); a plugin stuck in a loop gets
+  the host restarted, and its failure is the caller's error, not a crash.
+
+**What it doesn't stop.** Node 24 has no `--allow-net`, and the plugins need
+the network. Code that escapes the vm context (a host object's constructor
+reaches the host's `Function`; `tests/novel-host.spec.ts` does exactly that)
+finds an empty environment and no file or process access, but could still open
+a raw socket to a port on the workstation. Everything there that matters asks
+for a token or a session, which the host doesn't have. Running the host in a
+container with its own network would close that; it isn't done.
+
+`tests/novel-host.spec.ts`: a plugin answers each method through the host
+(filters' starting values included), and a hostile one fails to require `fs`,
+finds no environment, can't read a file or start a process even out of the vm
+context, and can't fetch a loopback address directly or by redirect, after
+which the host still answers.
+
+**Measured live on 2026-10-28**, four of the owner's repository's plugins
+through the host: NovelBin (10 popular, a novel's 148 chapters, a chapter's
+8 KB of HTML) and Wuxiaworld (50, 357 chapters, 8 KB) all the way through.
+Royal Road stops at its site's bot check ("Open a novel from Royal Road in
+WebView"), and ScribbleHub's popular list comes back empty, most likely the
+same. Getting past those needs the engine's FlareSolverr in the host's path,
+which the host's own fetch can't reach (it refuses local addresses on
+purpose): a planned way through, c149.
+
+## Storing a novel: one EPUB, written as a device
+
+Decided 2026-10-28 for c150, over the card's first idea (each chapter a `text`
+entry in a new schema rung):
+
+- **A novel is one EPUB** in tsundoku's device folder,
+  `$LIBRARY_ROOT/devices/tsundoku/Library/Novels/<Source>/<Title>.epub`. The
+  EPUB importer reads it like any book ([`IMPORT-EPUB.md`](IMPORT-EPUB.md)),
+  and the text reader reads it like any book
+  ([`TEXT-READER.md`](TEXT-READER.md)): **the importer stays the one place a
+  file becomes an entry**, as it is for downloaded manga
+  ([`DOWNLOADER.md`](DOWNLOADER.md), "The one decision"). Text entries would
+  have been a second writer and a second reader path.
+- **Its table of contents is every chapter the source lists.** A chapter not
+  downloaded yet is a stub document, marked as one, which the importer reads
+  as an entry NOT DOWNLOADED: so the DOWNLOAD row, NEXT 10, ALL and FOLLOW work
+  as they do for manga.
+- **A chapter's locator comes from its path at the source**, not its place, so
+  a chapter the source inserts later never moves anyone's progress: the
+  importer finds an entry again by its locator, and keeps its read state.
+- **The file is rewritten** as chapters arrive (a 591-chapter web novel is
+  2–5 MB), written beside and renamed, as the CBZs are.
+
+## Not done yet
+
+Everything past the host: c148 to c151 above.

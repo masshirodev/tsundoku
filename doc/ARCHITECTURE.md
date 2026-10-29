@@ -92,11 +92,11 @@ opening Suwayomi, novels meant LNReader, doujinshi Hentoid or Mihon, and anime
 Aniyomi. The goal is one app to find, download and read everything in, which
 can be handed to other people without asking them to run Suwayomi too.
 
-| Kind                     | Extensions        | Where they run                                  |
-| ------------------------ | ----------------- | ----------------------------------------------- |
-| Manga, manhwa, doujinshi | Mihon (Keiyoushi) | a headless JVM engine beside tsundoku           |
-| Anime                    | Aniyomi           | the same engine                                 |
-| Light and web novels     | LNReader plugins  | inside tsundoku (they're TypeScript), sandboxed |
+| Kind                     | Extensions        | Where they run                                                  |
+| ------------------------ | ----------------- | --------------------------------------------------------------- |
+| Manga, manhwa, doujinshi | Mihon (Keiyoushi) | a headless JVM engine beside tsundoku                           |
+| Anime                    | Aniyomi           | the same engine                                                 |
+| Light and web novels     | LNReader plugins  | inside tsundoku, in a sandboxed host ([`NOVELS.md`](NOVELS.md)) |
 
 **Extensions aren't self-contained, and they don't download.** A Mihon or
 Aniyomi extension is an Android APK built against `extensions-lib`, which is
