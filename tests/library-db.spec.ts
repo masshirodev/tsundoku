@@ -362,10 +362,16 @@ describe('pages of a shelf', () => {
 });
 
 describe('the kind shelves', () => {
+	it('read ANIME as a kind, not as no shelf at all (which lists everything)', () => {
+		const anime = lib.listSeries({ reveal: true, shelf: 'k:anime' });
+		expect(anime.every((c) => c.kind === 'anime')).toBe(true);
+		expect(lib.countListed({ reveal: true, shelf: 'k:anime' })).toBe(anime.length);
+	});
+
 	it('list one kind each, counted the same way, and only kinds the library has', () => {
 		const shelves = lib.listShelves({ reveal: false, withNew: false });
 		const all = lib.listSeries({ reveal: false });
-		for (const kind of ['manga', 'manhwa', 'novel'] as const) {
+		for (const kind of ['manga', 'manhwa', 'novel', 'anime'] as const) {
 			const want = all.filter((c) => c.kind === kind);
 			const shelf = shelves.find((s) => s.key === `k:${kind}`);
 			if (want.length === 0) {

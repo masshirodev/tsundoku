@@ -283,7 +283,7 @@ function shelfClause(shelf: string): { sql: string; params: unknown[] } {
 	if (shelf === 'series') return { sql: `NOT ${ONE_OFF_SQL}`, params: [] };
 	if (shelf === 'oneoff') return { sql: ONE_OFF_SQL, params: [] };
 	if (shelf === 'new') return { sql: NEW_SQL, params: [newSince()] };
-	const kind = /^k:(manga|manhwa|novel)$/.exec(shelf);
+	const kind = /^k:(manga|manhwa|novel|anime)$/.exec(shelf);
 	if (kind) return { sql: 's.kind = ?', params: [kind[1]] };
 	const collection = /^c:(\d+)$/.exec(shelf);
 	if (collection) {
