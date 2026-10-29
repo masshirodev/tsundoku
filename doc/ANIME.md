@@ -150,7 +150,8 @@ its SETTINGS, search inside it.
   seasons in order; a number the source didn't give is read from the name,
   else placed by where the source listed it. The title is what's left after
   "Episode 3".
-- **IN LIBRARY and SAME TITLE** match anime by their own key; the queue tells
+- **IN LIBRARY and SAME TITLE** match anime by their own key, and SAME TITLE
+  only against other anime, never the manga it was adapted from; the queue tells
   an anime's rows apart by it too (`QueueRow.kind`), so the engine's chapter
   worker never takes an episode.
 

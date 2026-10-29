@@ -18,7 +18,6 @@ import {
 	followQueue,
 	highlight,
 	keyOf,
-	normTitle,
 	parseKey,
 	queueView,
 	sourcesToSearch,
@@ -367,7 +366,7 @@ export function asHits(
 	reveal: boolean,
 	query = ''
 ): SearchHit[] {
-	const { byKey, byTitle, nameable } = libraryIndex(reveal);
+	const { byKey, sameTitle, nameable } = libraryIndex(reveal);
 	// An anime result is in the library by its own key (doc/ANIME.md).
 	const anime = isAnimeSource(sourceId);
 	const seen = new Set<string>();
@@ -376,9 +375,10 @@ export function asHits(
 		const url = splitMemo(m.url).url;
 		if (seen.has(url)) continue;
 		seen.add(url);
-		const mine = byKey.get(anime ? animeKeyOf(sourceId, url) : keyOf(sourceId, url));
+		const key = anime ? animeKeyOf(sourceId, url) : keyOf(sourceId, url);
+		const mine = byKey.get(key);
 		if (mine?.hidden && !reveal) continue;
-		const other = byTitle.get(normTitle(m.title));
+		const other = sameTitle(key, m.title);
 		const match: ResultMatch = mine
 			? {
 					kind: 'in-library',

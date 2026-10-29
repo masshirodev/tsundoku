@@ -91,7 +91,11 @@ SCROLL" only once script runs. Twenty pages at most.
 **A tile** is the library's (cover, title, a meta line). IN LIBRARY is the
 accent badge in the cover's top-right corner, and a tap opens the series;
 HIDDEN, top-left, only ever inside reveal. A twin from another source is the
-meta line in ink, `SAME TITLE · FROM ASURA SCANS`. Anything else opens c94's
+meta line in ink, `SAME TITLE · FROM ASURA SCANS`, and only of the same kind of
+source (`libraryIndex`'s `sameTitle`): a manga matches manga, a novel novels,
+an anime anime, since an adaptation under the same name isn't a copy from
+elsewhere (reported 2026-10-29: "Oshi no Ko" on KickAssAnime read SAME TITLE ·
+FROM WEEB CENTRAL). Anything else opens c94's
 preview (`/downloads/source/<manga>?from=<this page>`), whose back cell then
 says BROWSE and returns here.
 

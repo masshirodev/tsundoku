@@ -10,7 +10,6 @@ import { TSUNDOKU_DEVICE } from '../engine/device.ts';
 import {
 	highlight,
 	mostlyHidden,
-	normTitle,
 	novelKeyOf,
 	sourcesToSearch,
 	type ResultMatch
@@ -178,7 +177,7 @@ export function novelHits(
 	query = ''
 ): SearchHit[] {
 	const p = loaded(sourceId);
-	const { byKey, byTitle, nameable } = libraryIndex(reveal);
+	const { byKey, sameTitle, nameable } = libraryIndex(reveal);
 	const seen = new Set<string>();
 	const out: SearchHit[] = [];
 	for (const n of items) {
@@ -186,7 +185,7 @@ export function novelHits(
 		seen.add(n.path);
 		const mine = p ? byKey.get(novelKeyOf(p.id, n.path)) : undefined;
 		if (mine?.hidden && !reveal) continue;
-		const other = byTitle.get(normTitle(n.name));
+		const other = sameTitle('lnreader:', n.name);
 		const match: ResultMatch = mine
 			? {
 					kind: 'in-library',

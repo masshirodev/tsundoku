@@ -130,6 +130,26 @@ describe('an anime source in BROWSE', () => {
 	});
 });
 
+describe('SAME TITLE (2026-10-29)', () => {
+	it('is never a manga of the same name: an adaptation isn’t a copy from elsewhere', async () => {
+		const { ensureNamedRoot } = await import('$lib/server/import/write');
+		const root = ensureNamedRoot(db, 'Mihon', join(work, 'mihon'), false);
+		const manga = db
+			.prepare(
+				`INSERT INTO series (root_id, title, kind, added_at, origin_key) VALUES (?, 'Show 0', 'manga', 0, ?)`
+			)
+			.run(root, `mihon:${MANGA}:/manga/show-0`).lastInsertRowid;
+		forgetSourceUse();
+		try {
+			const got = await browse.shelf(ANIME, 'popular', { pages: 1, reveal: true });
+			expect(got.hits.find((h) => h.title === 'Show 0')?.match).toEqual({ kind: 'new' });
+		} finally {
+			db.prepare(`DELETE FROM series WHERE id = ?`).run(manga);
+			forgetSourceUse();
+		}
+	});
+});
+
 describe('an anime, previewed and added', () => {
 	const id = `${ANIME}~${Buffer.from('/anime/1').toString('base64url')}`;
 

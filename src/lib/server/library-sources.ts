@@ -44,6 +44,9 @@ export const forgetSourceUse = () => {
 	used = null;
 };
 
+/** A key's family of source: `mihon` (manga), `lnreader` (novels) or `aniyomi` (anime). */
+const familyOf = (key: string) => key.slice(0, key.indexOf(':'));
+
 /** What tsundoku has, for telling a result IN LIBRARY or SAME TITLE IN LIBRARY. */
 export function libraryIndex(reveal: boolean) {
 	const rows = getDb()
@@ -62,18 +65,24 @@ export function libraryIndex(reveal: boolean) {
 		have: number;
 	}[];
 	const byKey = new Map(rows.map((r) => [r.k, r]));
+	// SAME TITLE only within a kind of source: an anime named as a manga is an
+	// adaptation, not a copy of it from elsewhere ("Oshi no Ko" on KickAssAnime
+	// isn't Weeb Central's), and a light novel isn't its manga either.
 	const byTitle = new Map<string, string>();
 	for (const r of rows) {
 		if (r.hidden && !reveal) continue;
 		const sourceId = sourceOfKey(r.k);
-		if (sourceId) byTitle.set(normTitle(r.title), sourceId);
+		if (sourceId) byTitle.set(`${familyOf(r.k)}\u0000${normTitle(r.title)}`, sourceId);
 	}
+	/** Another source's series by this title, of the same family as `key`'s, or undefined. */
+	const sameTitle = (key: string, title: string) =>
+		byTitle.get(`${familyOf(key)}\u0000${normTitle(title)}`);
 	// A twin in a mostly-hidden source is still a twin, but with reveal off the
 	// source isn't named: hidden means not named, not just not listed.
 	const use = sourceUse();
 	const nameable = (sourceId: string) =>
 		reveal || !mostlyHidden(use.get(sourceId) ?? { series: 0, hidden: 0 });
-	return { byKey, byTitle, nameable };
+	return { byKey, sameTitle, nameable };
 }
 
 /** The root Mihon series live in: the one most of them are in already. */
