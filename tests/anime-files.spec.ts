@@ -123,8 +123,15 @@ describe('what a download keeps (c160)', () => {
 	const audio = ['ja', 'en', 'es', 'pt'].map((lang) => ({ lang, src: `/a/${lang}` }));
 	const subs = ['en', 'ja', 'fr'].map((lang) => ({ lang, src: `/s/${lang}` }));
 
-	it('keeps every track when no language is chosen', () => {
-		expect(keptTracks(audio, subs, { kept: [], subs: 'all' })).toEqual({ audio, subtitles: subs });
+	it('keeps every track by default, and the original alone when every language is unticked', () => {
+		expect(keptTracks(audio, subs, { kept: null, subs: 'all' })).toEqual({
+			audio,
+			subtitles: subs
+		});
+		expect(keptTracks(audio, subs, { kept: [], subs: 'audio' })).toEqual({
+			audio: [audio[0]],
+			subtitles: [subs[1]]
+		});
 	});
 
 	it('keeps the original and the chosen, never the original dropped', () => {

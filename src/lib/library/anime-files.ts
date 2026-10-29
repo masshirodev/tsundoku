@@ -279,11 +279,13 @@ export function progressSeconds(block: string): number | null {
 export function keptTracks<A extends { lang: string }, S extends { lang: string }>(
 	audio: A[],
 	subtitles: S[],
-	o: { kept: string[]; subs: 'all' | 'audio' }
+	/** kept: null keeps every track; [] the original alone. */
+	o: { kept: string[] | null; subs: 'all' | 'audio' }
 ): { audio: A[]; subtitles: S[] } {
 	const lang = (l: string) => l.toUpperCase();
-	const want = new Set(o.kept.map(lang));
-	const keptAudio = want.size ? audio.filter((a, i) => i === 0 || want.has(lang(a.lang))) : audio;
+	const want = new Set((o.kept ?? []).map(lang));
+	const keptAudio =
+		o.kept === null ? audio : audio.filter((a, i) => i === 0 || want.has(lang(a.lang)));
 	const spoken = new Set(keptAudio.map((a) => lang(a.lang)));
 	return {
 		audio: keptAudio,

@@ -121,6 +121,19 @@ test('AUDIO KEPT (c160): the original always, a choice of the rest, and back to 
 	await expect(kept.locator('.meta')).toHaveText(
 		'A DOWNLOAD KEEPS THE ORIGINAL AND THESE · NEW DOWNLOADS ONLY'
 	);
+	// The last one off is the original alone, not every track again (reported 2026-10-29).
+	await kept.getByRole('button', { name: '✓ EN' }).click();
+	await expect(kept.getByRole('button', { name: 'EN', exact: true })).toHaveAttribute(
+		'aria-pressed',
+		'false'
+	);
+	await expect(kept.locator('.meta')).toHaveText(
+		'A DOWNLOAD KEEPS THE ORIGINAL ALONE · NEW DOWNLOADS ONLY'
+	);
+	await page.reload();
+	await expect(
+		row(page, 'AUDIO KEPT').getByRole('button', { name: 'ES', exact: true })
+	).toHaveAttribute('aria-pressed', 'false');
 	await kept.getByRole('button', { name: 'RESET · ALL KEPT' }).click();
 	await expect(kept.getByRole('button', { name: '✓ AR' })).toHaveAttribute('aria-pressed', 'true');
 	// SUBTITLES KEPT starts on ALL (question 4).

@@ -115,7 +115,12 @@ export const VALUES = {
 	// 04 — downloading
 	'dl.quality': { where: 'library', key: 'anime_download_quality', def: '1080' },
 	// The languages kept beside the original; '' keeps every one (c160).
-	'dl.audio': { where: 'library', key: 'anime_download_audio', def: '' },
+	'dl.audio': {
+		where: 'library',
+		key: 'anime_download_audio',
+		def: '',
+		label: (v) => (!v ? 'ALL' : v === 'ORIGINAL' ? 'THE ORIGINAL' : String(v))
+	},
 	'dl.subs': { where: 'library', key: 'anime_download_subs', def: 'all' },
 	// 05 — library
 	'edition.language': { where: 'library', key: 'edition_language', def: 'english' },
@@ -213,7 +218,20 @@ const OFF_ON: Opt[] = [
 /** The languages a track can be, as the player names them. */
 export const TRACK_LANGS = ['JA', 'EN', 'ES', 'PT', 'FR', 'DE', 'IT', 'AR', 'KO', 'ZH'] as const;
 
-/** AUDIO KEPT's value: the languages kept beside the original, comma-separated, '' for all. */
+/** AUDIO KEPT's value for the original alone: '' already means every track. */
+export const ORIGINAL_ONLY = 'ORIGINAL';
+
+/**
+ * AUDIO KEPT's value read: null keeps every track (''), [] the original
+ * alone (ORIGINAL), else the languages kept beside it.
+ */
+export function keptOf(v: string): string[] | null {
+	if (!v) return null;
+	if (v.toUpperCase() === ORIGINAL_ONLY) return [];
+	return parseKept(v);
+}
+
+/** AUDIO KEPT's languages, comma-separated: the known ones only. */
 export function parseKept(v: string): string[] {
 	return v
 		.split(',')

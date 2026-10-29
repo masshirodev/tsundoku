@@ -199,6 +199,10 @@ describe('the library’s values', () => {
 		expect(page.setLibraryValue('dl.audio', 'EN,ES')).toBeUndefined();
 		expect(getSetting('anime_download_audio')).toBe('EN,ES');
 		expect(page.setLibraryValue('dl.audio', 'EN,XX')).toBe(false);
+		// Every language unticked is the original alone, never '' (which keeps every track).
+		expect(page.setLibraryValue('dl.audio', 'ORIGINAL')).toBe('EN,ES');
+		expect(getSetting('anime_download_audio')).toBe('ORIGINAL');
+		expect(page.setLibraryValue('dl.audio', 'EN,ES')).toBe('ORIGINAL');
 		expect(page.setLibraryValue('dl.audio', undefined)).toBe('EN,ES');
 		expect(getSetting('anime_download_audio')).toBe('');
 		expect(page.parseKept('en, ja,zz')).toEqual(['EN', 'JA']);

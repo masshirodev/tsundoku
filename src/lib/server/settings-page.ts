@@ -8,6 +8,7 @@ import {
 	VALUES,
 	equal,
 	parseKept,
+	ORIGINAL_ONLY,
 	valueDef,
 	type Json,
 	type ValueId,
@@ -61,9 +62,12 @@ export function setLibraryValue(id: ValueId, v: Json | undefined): Json | undefi
 	if (v !== undefined) {
 		if (id === 'dl.audio') {
 			if (typeof v !== 'string') return false;
-			const langs = parseKept(v);
-			if (langs.join(',') !== v.toUpperCase()) return false;
-			v = langs.join(',');
+			if (v.toUpperCase() === ORIGINAL_ONLY) v = ORIGINAL_ONLY;
+			else {
+				const langs = parseKept(v);
+				if (langs.join(',') !== v.toUpperCase()) return false;
+				v = langs.join(',');
+			}
 		} else {
 			const want = v;
 			if (!(optionsOf(id) ?? []).some((o) => equal(o, want))) return false;

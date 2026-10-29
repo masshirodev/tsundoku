@@ -18,7 +18,8 @@
 		equal,
 		isChanged,
 		movesLine,
-		parseKept,
+		keptOf,
+		ORIGINAL_ONLY,
 		resetMoves,
 		rowChanged,
 		scopeLabel,
@@ -247,9 +248,11 @@
 			);
 		}
 		if (row.id === 'audio-kept')
-			return values['dl.audio']
-				? 'A DOWNLOAD KEEPS THE ORIGINAL AND THESE · NEW DOWNLOADS ONLY'
-				: 'A DOWNLOAD KEEPS EVERY TRACK THE SOURCE HAS · CHOOSE TO KEEP THE ORIGINAL AND A FEW';
+			return values['dl.audio'] === ORIGINAL_ONLY
+				? 'A DOWNLOAD KEEPS THE ORIGINAL ALONE · NEW DOWNLOADS ONLY'
+				: values['dl.audio']
+					? 'A DOWNLOAD KEEPS THE ORIGINAL AND THESE · NEW DOWNLOADS ONLY'
+					: 'A DOWNLOAD KEEPS EVERY TRACK THE SOURCE HAS · CHOOSE TO KEEP THE ORIGINAL AND A FEW';
 		if (phone.current && row.id === 'mode') return '';
 		return row.meta ?? '';
 	}
@@ -292,13 +295,16 @@
 	// ---- AUDIO KEPT (c160) ------------------------------------------------------------------------
 	const KEPT_CHIPS = ['EN', 'ES', 'PT', 'FR', 'DE', 'IT', 'AR'];
 	const kept = $derived(
-		values['dl.audio'] ? parseKept(values['dl.audio'] as string) : [...KEPT_CHIPS]
+		keptOf((values['dl.audio'] as string | undefined) ?? '') ?? [...KEPT_CHIPS]
 	);
 	function toggleKept(l: string) {
 		const next = kept.includes(l) ? kept.filter((x) => x !== l) : [...kept, l];
-		// Every chip kept is every track kept: the default.
+		// Every chip kept is every track kept, the default; none is the original alone.
 		const all = KEPT_CHIPS.every((c) => next.includes(c));
-		void set('dl.audio', all ? '' : KEPT_CHIPS.filter((c) => next.includes(c)).join(','));
+		void set(
+			'dl.audio',
+			all ? '' : next.length ? KEPT_CHIPS.filter((c) => next.includes(c)).join(',') : ORIGINAL_ONLY
+		);
 	}
 
 	// ---- the section index (landscape and desktop) ----------------------------------------------
@@ -1007,8 +1013,10 @@
 		flex-direction: column;
 		width: 100%;
 	}
+	/* The rows stop at 880px; the column closes there, or their rules run out into nothing. */
 	.desk .content {
 		max-width: 880px;
+		border-right: var(--hairline);
 	}
 	.legend {
 		display: grid;

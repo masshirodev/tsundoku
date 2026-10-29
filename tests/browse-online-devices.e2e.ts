@@ -39,6 +39,15 @@ test.describe('tablet landscape (board 5A)', () => {
 	test('the 440px panel beside the list, + ADD shortened', async ({ page }) => {
 		await page.goto(preview(8));
 		expect(await css(page, '.panel', 'width')).toBe('440px');
+		// Each row fills the list's column, not just its title (reported 2026-10-29).
+		const [list, row] = await Promise.all([
+			page.locator('.list').evaluate((el) => el.getBoundingClientRect().width),
+			page
+				.locator('.list .ch')
+				.first()
+				.evaluate((el) => el.getBoundingClientRect().width)
+		]);
+		expect(row).toBe(list);
 		await expect(page.locator('.add .short')).toBeVisible();
 		expect(await css(page, '.cta-go .cta', 'height')).toBe('64px');
 	});

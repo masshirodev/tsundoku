@@ -9,7 +9,7 @@ import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
 import { coverDir } from '../covers.ts';
 import { getSetting } from '../settings.ts';
-import { parseKept } from '../../settings/catalog.ts';
+import { keptOf } from '../../settings/catalog.ts';
 import { EngineError } from '../engine/client.ts';
 import { failed, isPaused, nextUp, queueRows, recover } from '../engine/queue.ts';
 import { parseAnimeKey, type DownloadState } from '../../library/downloads.ts';
@@ -314,7 +314,7 @@ export async function downloadEpisode(entryId: number, d: AnimeDeps): Promise<st
 	const partial = `${path}.partial`;
 	// What's kept of each server's tracks: SETTINGS' DOWNLOADING (c160).
 	const keep = {
-		kept: parseKept(getSetting('anime_download_audio')),
+		kept: keptOf(getSetting('anime_download_audio')),
 		subs: getSetting('anime_download_subs') === 'audio' ? ('audio' as const) : ('all' as const)
 	};
 	const kept = (q: (typeof tries)[number]['quality']) => keptTracks(q.audio, q.subtitles, keep);

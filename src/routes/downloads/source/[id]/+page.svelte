@@ -543,6 +543,11 @@
 		letter-spacing: var(--tracking-label);
 		color: var(--text-2);
 	}
+	/* The list's form (one per page, so rows open without script) is a block: the
+	   flex every other form here is shrank the rows to their longest title (2026-10-29). */
+	.list > form {
+		display: block;
+	}
 	ol {
 		list-style: none;
 		margin: 0;

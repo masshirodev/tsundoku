@@ -92,7 +92,9 @@ only what the row offers and stores the default as a reset).
 - **AUDIO KEPT** (card c160): **ORIGINAL · ALWAYS** is ticked and can't be
   unticked, then each language is a chip. By default every track is kept
   (`anime_download_audio` = `''`). Unticking one keeps the original and the
-  rest; ticking them all is the default again. The rule is `keptTracks`.
+  rest; unticking every one keeps the original alone (`ORIGINAL`, never `''`,
+  which would be every track again: reported 2026-10-29); ticking them all is
+  the default again (`keptOf`). The rule is `keptTracks`.
   It applies to new downloads only.
 - **SUBTITLES KEPT**: ALL by default (question 4: subtitles are kilobytes,
   and Japanese ones are study material), or AS AUDIO for a tidier file.
