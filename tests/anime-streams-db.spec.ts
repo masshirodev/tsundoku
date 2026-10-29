@@ -264,4 +264,43 @@ describe('an episode’s streams', () => {
 			bandwidth: 2300000
 		});
 	});
+
+	it('name a source’s separate audio as alternate audio, in a master playlist of tsundoku’s own', async () => {
+		videoAnswer = [
+			{
+				quality: 'KickAssAnime - 1080p',
+				videoUrl: `${ENGINE_SELF}/video/v1080.m3u8`,
+				audioTracks: [
+					{ url: `${ENGINE_SELF}/video/ja.m3u8`, lang: 'Japanese' },
+					{ url: `${ENGINE_SELF}/video/en.m3u8`, lang: 'English' }
+				]
+			}
+		];
+		const s = (await streams.episodeStreams(shown, false, true))!;
+		const q = s.servers[0].qualities[0];
+		expect(q.kind).toBe('hls');
+		expect(q.audio.map((a) => a.lang)).toEqual(['JA', 'EN']);
+		const master = (await text(q.src)).body.toString();
+		expect(master).toMatch(/^#EXTM3U/);
+		expect(master).toMatch(
+			/#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="JA",LANGUAGE="ja",DEFAULT=YES/
+		);
+		expect(master).toMatch(/NAME="EN",LANGUAGE="en",DEFAULT=NO/);
+		expect(master).toMatch(
+			/#EXT-X-STREAM-INF:BANDWIDTH=\d+,AUDIO="aud"\n\/api\/anime\/media\/[A-Za-z0-9_-]{32}$/
+		);
+		expect(master).not.toContain('127.0.0.1');
+		// A video that is a master playlist already isn't nested: it's served as it is.
+		videoAnswer = [{ ...(videoAnswer[0] as object), videoUrl: `${ENGINE_SELF}/video/master.m3u8` }];
+		const again = (await streams.episodeStreams(shown, false, true))!;
+		expect((await text(again.servers[0].qualities[0].src)).body.toString()).toMatch(
+			/#EXT-X-STREAM-INF:BANDWIDTH=2300000,RESOLUTION=1920x1080\n\/api\/anime\/media\//
+		);
+	});
+
+	it('tell a file a hoster links to from HLS', async () => {
+		videoAnswer = [{ quality: '720p', videoUrl: 'https://site.example/files/ep1.mp4?sig=1' }];
+		const s = (await streams.episodeStreams(shown, false, true))!;
+		expect(s.servers[0].qualities[0].kind).toBe('file');
+	});
 });

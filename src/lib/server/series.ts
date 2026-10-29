@@ -221,6 +221,8 @@ export type ReadingEvent = {
 	offset?: number;
 	total?: number;
 	durationMs?: number;
+	/** An episode (doc/ANIME.md): `page` is seconds into it, and this its length as the player measured it. */
+	lengthS?: number;
 	now?: number;
 };
 
@@ -279,6 +281,7 @@ export function recordReading(e: ReadingEvent): void {
 				last_position = CASE WHEN ${newer} THEN COALESCE(@page, last_position) ELSE last_position END,
 				last_offset = CASE WHEN ${newer} AND @page IS NOT NULL THEN @offset ELSE last_offset END,
 				page_count = COALESCE(@total, page_count),
+				duration_s = COALESCE(@length, duration_s),
 				last_opened_at = MAX(COALESCE(last_opened_at, 0), @now)
 			WHERE id = @id`
 		).run({
@@ -286,6 +289,7 @@ export function recordReading(e: ReadingEvent): void {
 			page,
 			offset: e.offset ?? null,
 			total,
+			length: e.lengthS !== undefined && e.lengthS > 0 ? e.lengthS : null,
 			finish: e.kind === 'finish' ? 1 : 0,
 			id: entryId
 		});

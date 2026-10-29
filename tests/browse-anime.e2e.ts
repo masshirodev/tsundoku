@@ -100,3 +100,92 @@ test('an anime source is browsed, previewed with its EPISODES, and added by seas
 	await expect(page.locator('a.cta')).toContainText('▶ START');
 	await expect(page.locator('a.cta')).toContainText('S1 · EP. 1 · STREAMS');
 });
+
+test.describe('the player, tablet landscape (c156)', () => {
+	test.use({ viewport: { width: 1280, height: 800 } });
+
+	test('a server that fails is passed over, subtitles, SKIP INTRO, the sheet, the NEXT page', async ({
+		page
+	}) => {
+		test.setTimeout(90_000);
+		await page.goto('/');
+		await page.getByRole('link', { name: /^ANIME/ }).click();
+		await page.locator('.grid .tile', { hasText: 'Tsukiakari no Ryokōsha' }).click();
+		await page
+			.getByRole('region', { name: 'Episodes' })
+			.locator('.entry', { hasText: 'A Letter from Hollin' })
+			.locator('.entry-btn')
+			.click();
+		await expect(page).toHaveURL(/\/read\/\d+/);
+		const player = page.locator('.player');
+		const shown = async () => page.mouse.move(640, 300 + Math.random() * 10);
+		// A browser that won't start a video by itself is started by a tap, as a person would.
+		const pp = player.locator('.cluster .pp');
+		await expect(pp).toBeVisible({ timeout: 20_000 });
+		if ((await pp.getAttribute('aria-label')) === 'Play') await pp.click();
+
+		// Server 1 sent nothing: server 2 plays, at the same second, by itself.
+		await expect(player.locator('.subs .line')).toHaveText('There is a town past this ridge.', {
+			timeout: 20_000
+		});
+		await expect(player.getByRole('button', { name: 'SKIP INTRO →' })).toBeVisible();
+		await shown();
+		await expect(player.locator('.top .t')).toContainText(
+			'Tsukiakari no Ryokōsha · A Letter from Hollin'
+		);
+		await expect(player.locator('.cells .grow')).toHaveText('EN SUBS · 360P · 1×');
+		// The handoff's frame: a 64px top bar, a 56px scrubber over 64px cells, a 96px cluster.
+		await expect(player.locator('.top')).toHaveCSS('height', '64px');
+		await expect(player.locator('.scrubrow')).toHaveCSS('height', '56px');
+		await expect(player.locator('.cells')).toHaveCSS('height', '64px');
+		await expect(player.locator('.cluster button').first()).toHaveCSS('width', '96px');
+
+		// The sheet names the servers, the one that stopped and the one playing.
+		await player.locator('.cells .grow').click();
+		const sheet = page.getByRole('dialog', { name: 'Playback settings' });
+		await expect(sheet).toContainText('PLAYBACK · EP. 9');
+		await expect(sheet.locator('.li.on')).toContainText('KWIK');
+		await expect(sheet.locator('.li.on')).toContainText('● PLAYING · 360P');
+		await expect(sheet.locator('.li.off')).toContainText('BROKEN');
+		await expect(sheet.locator('.li.off')).toContainText('STOPPED');
+		await expect(sheet).toHaveCSS('width', '520px');
+		await sheet.getByRole('button', { name: 'Close' }).click();
+
+		// The episode ends: the NEXT page counts, and STAY stops it where it is.
+		const inter = player.locator('.inter');
+		await expect(inter).toContainText('PLAYS IN', { timeout: 20_000 });
+		await expect(inter).toContainText('Episode 10');
+		const at = page.url();
+		await inter.getByRole('button', { name: 'STAY' }).click();
+		await page.waitForTimeout(6000);
+		expect(page.url()).toBe(at);
+
+		// Watching is reading: the episode is WATCHED on its series.
+		await inter.getByRole('link', { name: '← SERIES' }).click();
+		await expect(
+			page
+				.getByRole('region', { name: 'Episodes' })
+				.locator('.entry', { hasText: 'A Letter from Hollin' })
+				.locator('.status')
+		).toHaveText('WATCHED');
+	});
+});
+
+test('the player in portrait: the picture on top, the controls beneath, what’s next below (c156)', async ({
+	page
+}) => {
+	await page.goto('/');
+	await page.getByRole('link', { name: /^ANIME/ }).click();
+	await page.locator('.grid .tile', { hasText: 'Tsukiakari no Ryokōsha' }).click();
+	await page
+		.getByRole('region', { name: 'Episodes' })
+		.locator('.entry', { hasText: "The Ferryman's Count" })
+		.locator('.entry-btn')
+		.click();
+	const controls = page.getByRole('region', { name: 'Controls' });
+	await expect(controls).toBeVisible({ timeout: 20_000 });
+	await expect(controls).toContainText('S2 · EP. 11 OF 12');
+	await expect(controls).toContainText('02 — UP NEXT');
+	await expect(controls.getByRole('link', { name: /Episode 12/ })).toBeVisible();
+	await expect(page.locator('.player .cluster')).toBeHidden();
+});

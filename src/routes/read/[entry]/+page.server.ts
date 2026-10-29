@@ -11,6 +11,7 @@ import { effectiveDirection, isBookSeries } from '$lib/library/series';
 import { entryName, modeOf, spelledOut } from '$lib/reader/reader';
 import { bookEditions } from '$lib/server/editions';
 import { baseToEdition } from '$lib/library/editions';
+import { parseAnimeKey } from '$lib/library/downloads';
 
 /**
  * The reader (doc/READER.md). `/read/<entry>?p=<page>`, `p` 1-based. With no
@@ -71,9 +72,37 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		error(404, 'not found');
 	}
 
-	// An episode is watched in the player, card c156 (doc/ANIME.md); until it's
-	// built there is nothing here to open one with.
-	if (series.kind === 'anime') error(404, 'not found');
+	// An episode is watched in the player (doc/ANIME.md, "The player").
+	if (series.kind === 'anime') {
+		const key = parseAnimeKey(
+			(
+				getDb().prepare(`SELECT origin_key FROM series WHERE id = ?`).get(series.id) as {
+					origin_key: string | null;
+				}
+			).origin_key
+		);
+		const episodes = series.entries.map((e) => ({
+			id: e.id,
+			number: e.episode?.number ?? e.number,
+			season: e.episode?.season ?? null,
+			title: e.title,
+			note: e.episode?.note ?? '',
+			durationS: e.episode?.durationS ?? null,
+			endingAt: e.episode?.endingAt ?? null,
+			available: e.available,
+			readAt: e.readAt,
+			lastPosition: e.lastPosition
+		}));
+		return {
+			text: false as const,
+			video: true as const,
+			series: { id: series.id, title: series.title, hidden: series.hidden },
+			source: key ? { id: key.sourceId, name: series.source } : null,
+			episodes,
+			index,
+			incognito: isIncognito(cookies)
+		};
+	}
 
 	// A novel is read as text, from its EPUB (doc/TEXT-READER.md).
 	if (series.kind === 'novel') {

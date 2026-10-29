@@ -1,0 +1,96 @@
+import { describe, expect, it } from 'vitest';
+import {
+	challengeScale,
+	cueAt,
+	leftLabel,
+	nextServer,
+	offerNextAt,
+	openAt,
+	parseVtt,
+	placeLabel,
+	playingLabel,
+	seekFor,
+	subtitlePx
+} from '$lib/library/player';
+
+// The player's decisions (doc/ANIME.md, "The player"; card c156).
+describe('subtitles', () => {
+	const vtt = [
+		'WEBVTT',
+		'',
+		'1',
+		'00:00:01.000 --> 00:00:03.000',
+		"There's a town past <i>this</i> ridge",
+		'',
+		'00:02.500 --> 00:04.000 line:90%',
+		'that neither of us &amp; has seen.'
+	].join('\n');
+
+	it('are WebVTT’s cues without their markup, overlapping ones together', () => {
+		const cues = parseVtt(vtt);
+		expect(cues).toEqual([
+			{ start: 1, end: 3, text: "There's a town past this ridge" },
+			{ start: 2.5, end: 4, text: 'that neither of us & has seen.' }
+		]);
+		expect(cueAt(cues, 0.5)).toBeNull();
+		expect(cueAt(cues, 1.2)).toBe("There's a town past this ridge");
+		expect(cueAt(cues, 2.7)).toBe("There's a town past this ridge\nthat neither of us & has seen.");
+		expect(cueAt(cues, 4)).toBeNull();
+	});
+
+	it('are sized per device, S M L', () => {
+		expect([subtitlePx('S', 30), subtitlePx('M', 30), subtitlePx('L', 30)]).toEqual([24, 30, 38]);
+	});
+});
+
+describe('an episode', () => {
+	it('opens where it stopped, unless it counts as watched', () => {
+		const e = { lastPosition: 568, readAt: null, durationS: 1440, endingAt: 1290 };
+		expect(openAt(e)).toEqual({ at: 568, resumed: true });
+		expect(openAt({ ...e, lastPosition: 1300 })).toEqual({ at: 0, resumed: false });
+		expect(openAt({ ...e, readAt: 1 })).toEqual({ at: 0, resumed: false });
+		expect(openAt({ ...e, lastPosition: 2 })).toEqual({ at: 0, resumed: false });
+		// No timestamps: the last 3 %.
+		expect(openAt({ ...e, endingAt: null, lastPosition: 1400 })).toEqual({ at: 0, resumed: false });
+		expect(openAt({ ...e, durationS: null, lastPosition: 1400 })).toEqual({
+			at: 1400,
+			resumed: true
+		});
+	});
+
+	it('offers the next from its ending, or 30 s before the end', () => {
+		expect(offerNextAt(1440, 1290)).toBe(1290);
+		expect(offerNextAt(1440, null)).toBe(1410);
+		expect(offerNextAt(1440, 1500)).toBe(1410);
+	});
+
+	it('seeks 10 s a double-tap and 10 more each tap after', () => {
+		expect([seekFor(2), seekFor(3), seekFor(5)]).toEqual([10, 20, 40]);
+	});
+
+	it('names its place and what’s playing', () => {
+		expect(placeLabel({ number: 7, season: 2 }, 12, true)).toBe('S2 · EP. 7 OF 12');
+		expect(placeLabel({ number: 7, season: null }, 24, false)).toBe('EP. 7 OF 24');
+		expect(leftLabel(568, 1440)).toBe('−14:32');
+		expect(
+			playingLabel({ audio: 'JA', subtitles: 'EN', burnedIn: false, quality: '1080p', speed: 1 })
+		).toBe('JA · EN SUBS · 1080P · 1×');
+		expect(
+			playingLabel({ audio: null, subtitles: null, burnedIn: true, quality: '720p', speed: 1.5 })
+		).toBe('SUBS IN THE PICTURE · 720P · 1.5×');
+	});
+});
+
+describe('servers', () => {
+	it('fail over in the source’s order, wrapping, never to one that failed this time', () => {
+		expect(nextServer([1, 2, 3], 1, new Set([1]))).toBe(2);
+		expect(nextServer([1, 2, 3], 2, new Set([1, 2]))).toBe(3);
+		expect(nextServer([1, 2, 3], 3, new Set([3]))).toBe(1);
+		expect(nextServer([1, 2, 3], 3, new Set([1, 2, 3]))).toBeNull();
+	});
+
+	it('draw the challenge’s known range, never a fill toward an end', () => {
+		expect(challengeScale(23)).toEqual({ at: 23 / 60, from: 20 / 60, to: 45 / 60 });
+		expect(challengeScale(90).at).toBe(1);
+	});
+});

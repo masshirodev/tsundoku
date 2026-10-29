@@ -60,7 +60,7 @@
 	 * interface: nothing is on screen but the art until a tap in the middle
 	 * asks for the controls.
 	 */
-	let { data }: { data: Extract<PageData, { text: false }> } = $props();
+	let { data }: { data: Exclude<Extract<PageData, { text: false }>, { video: true }> } = $props();
 
 	// ---- settings -------------------------------------------------------------------
 	// Mode is the session's, starting from the series; fit, spreads and dim are

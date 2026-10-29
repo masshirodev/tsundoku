@@ -162,6 +162,18 @@ function answer(b: EngineCall): unknown {
 				genre: 'Fantasy',
 				status: 2
 			};
+		// An episode's videos: server 1 is broken, server 2 the fixture clip
+		// (tests/fixtures/video), through the engine's own /video/ proxy.
+		case 'getVideoList':
+			return [
+				{ quality: 'Broken - 360p', videoUrl: 'http://127.0.0.1:1/video/broken.webm' },
+				{
+					quality: 'Kwik - 360p',
+					videoUrl: 'http://127.0.0.1:1/video/clip.webm',
+					subtitleTracks: [{ url: 'http://127.0.0.1:1/video/en.vtt', lang: 'English' }],
+					timestamps: [{ start: 1, end: 3, name: 'Opening', type: 'Opening' }]
+				}
+			];
 		case 'getEpisodeList':
 			return [
 				{ url: '/ep/s2e2', name: 'Season 2 - Episode 2 - Thaw', episode_number: 2 },
@@ -258,6 +270,34 @@ function answer(b: EngineCall): unknown {
 	return null;
 }
 
+const CLIP = readFileSync('tests/fixtures/video/clip.webm');
+const SUBS = readFileSync('tests/fixtures/video/en.vtt');
+/** The engine's /video/ proxy, for the player (tests/browse-anime.e2e.ts): Range, as a real stream answers. */
+function video(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) {
+	if (req.url === '/video/en.vtt')
+		return res.writeHead(200, { 'content-type': 'text/vtt' }).end(SUBS);
+	if (req.url !== '/video/clip.webm') return res.writeHead(404).end('gone');
+	const m = /bytes=(\d+)-(\d*)/.exec(req.headers.range ?? '');
+	if (!m)
+		return res
+			.writeHead(200, {
+				'content-type': 'video/webm',
+				'content-length': CLIP.length,
+				'accept-ranges': 'bytes'
+			})
+			.end(CLIP);
+	const from = Number(m[1]);
+	const to = m[2] ? Math.min(Number(m[2]), CLIP.length - 1) : CLIP.length - 1;
+	res
+		.writeHead(206, {
+			'content-type': 'video/webm',
+			'content-length': to - from + 1,
+			'content-range': `bytes ${from}-${to}/${CLIP.length}`,
+			'accept-ranges': 'bytes'
+		})
+		.end(CLIP.subarray(from, to + 1));
+}
+
 function startEngine(): Promise<Server> {
 	const server = createServer((req, res) => {
 		const json = (status: number, v: unknown) =>
@@ -278,6 +318,7 @@ function startEngine(): Promise<Server> {
 			return json(200, {});
 		}
 		if (req.url === '/challenges' && !down) return json(200, challenges);
+		if (req.url?.startsWith('/video/') && !down) return video(req, res);
 		if (req.url === '/__bump') {
 			webtoonsVersion = 3;
 			return json(200, {});
@@ -429,16 +470,22 @@ function seed(dbPath: string, store: string): void {
 	const anime = Number(
 		db
 			.prepare(
-				`INSERT INTO series (root_id, title, kind, source, status, hue, added_at, indexed_at, alt_titles)
-				VALUES (?, 'Tsukiakari no Ryokōsha', 'anime', 'AnimePahe', 'ongoing', 255, ?, ?, ?)`
+				`INSERT INTO series (root_id, title, kind, source, status, hue, added_at, indexed_at, alt_titles, origin_key)
+				VALUES (?, 'Tsukiakari no Ryokōsha', 'anime', 'AnimePahe', 'ongoing', 255, ?, ?, ?, ?)`
 			)
-			.run(root, now, now, JSON.stringify(['月明かりの旅行者', 'Moonlit Travellers']))
-			.lastInsertRowid
+			.run(
+				root,
+				now,
+				now,
+				JSON.stringify(['月明かりの旅行者', 'Moonlit Travellers']),
+				`aniyomi:${ANIME_SOURCE.id}:/show/tsukiakari`
+			).lastInsertRowid
 	);
 	const put = db.prepare(
 		`INSERT INTO entries (series_id, position, label, title, added_at, read_at, last_position, last_opened_at,
-			available, file, bytes, duration_s, season, episode_number, episode_note)
-		VALUES (@series, @position, @label, @title, @now, @read, @at, @opened, @available, @file, @bytes, 1440, @season, @n, @note)`
+			available, file, bytes, duration_s, season, episode_number, episode_note, source_url)
+		VALUES (@series, @position, @label, @title, @now, @read, @at, @opened, @available, @file, @bytes, 1440, @season, @n, @note,
+			'/ep/s' || @season || 'e' || @n)`
 	);
 	// Opened just now, so it heads CONTINUE above the sample's minutes-ago rows.
 	const opened = Date.now();

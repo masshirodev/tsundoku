@@ -15,13 +15,14 @@ the second amended to Jellyfin's TV layout (card c128 has them in full).
 | Anime as a kind, its series screen and the ANIME shelf   | c153 | Done    |
 | Anime sources in BROWSE, the preview and ADD             | c154 | Done    |
 | Streams: resolving an episode's videos, through tsundoku | c155 | Done    |
-| The player                                               | c156 | Not yet |
+| The player                                               | c156 | Done    |
 | Downloading episodes into a Jellyfin-shaped folder       | c157 | Not yet |
 | FOLLOW, and the tablet keeping the next episode          | c158 | Not yet |
 | Live checks, departures and docs                         | c159 | Not yet |
 
-**Not to be deployed before c156.** Until the player exists, `/read/<entry>`
-answers 404 for an episode, and every ▶ on an anime series leads there.
+Episodes play in the player (c156) since 2026-10-29; until then
+`/read/<entry>` answered 404 for one, which is why nothing of anime was
+deployed before it.
 
 ## Anime as a kind
 
@@ -197,6 +198,76 @@ site in them, hidden, the engine's token and Range through it, the site's
 headers, an inside address refused, a site's loopback address never the
 engine's, WebVTT, the probe).
 
+## The player (c156)
+
+`/read/<entry>` for an episode, as for a chapter (`src/routes/read/[entry]/VideoPlayer.svelte`;
+its decisions pure in `src/lib/library/player.ts`): Index Player, Player
+States and Player Waiting. **The picture is the interface**: nothing on
+screen but the video, and the subtitles, until a tap.
+
+- **Playing.** HLS through [hls.js](https://github.com/video-dev/hls.js)
+  (1.7.3, pinned) wherever the browser has Media Source, the browser's own
+  HLS elsewhere; a file a hoster links to (an MP4, a WebM) plays as it is.
+  Each episode is a player of its own (the page keys it), so NEXT starts
+  afresh.
+- **The chrome**, on a tap, gone after 4 s of playing (2 s after the mouse
+  stops on a desktop): the reader's 64px top bar (← the series, the series
+  and episode, "ANIME · S2 · EP. 7 OF 12 · 1:42 OF 24:00"), a 56px scrubber
+  with buffered and watched over 64px cells (← EP. 6, what's playing, EP. 8
+  →), and the one addition, −10 / pause / +10 in the middle, pause two drawn
+  bars. The scrubber ticks the opening and ending. A desktop adds play, VOL,
+  ? KEYS and FULL SCREEN · F, and a time on hover.
+- **Taps**: one shows or hides the controls; a double-tap on the left or
+  right third seeks 10 s, and each further tap in the burst 10 more, said in
+  the middle of that side. No swipes: volume and brightness are the
+  device's.
+- **Keys**: space, ← →, ↑ ↓ (volume), F, M, C (subtitles), S (skip), N (next),
+  Esc (full screen, then the player), ? (the KEYS sheet).
+- **The settings sheet**, the middle cell ("JA · EN SUBS · 1080P · 1×"): a
+  520px side sheet with the picture playing beside it. QUALITY (this
+  server's), SERVER (the hosters by name, the one playing and the ones that
+  stopped), AUDIO where there's a choice, SUBTITLES (OFF, each language, S M
+  L; "IN THE PICTURE" where there are no tracks), SPEED, DIM. Audio and
+  subtitles carry to every episode of the series, speed to this one, quality
+  to this device (`localStorage`, a per-viewer convenience).
+- **Subtitles** are drawn by tsundoku from the WebVTT: IBM Plex on a scrim
+  box, rising above the controls while they show.
+- **SKIP INTRO / SKIP ENDING** only where the source gave timestamps: alone
+  for 8 s, then with the controls.
+- **Resume**: RESUMED AT 9:28, with FROM 0:00, for 5 s; an episode past its
+  ending's start (or its last 3 %) opens from 0:00.
+- **Servers fail all the time.** A stall of 15 s, or a server that stops, moves
+  to the next at the same second by itself; BUFFERING says what it waits on
+  and offers SERVER 2 NOW →, and a switch says which stopped where. After the
+  last, the list is asked for afresh once (a stream that stopped may have
+  gone stale), then NO SERVER ANSWERED with TRY AGAIN.
+- **Waiting**: FINDING THE VIDEO with the ink line and a count of seconds; a
+  site's check named at once (`/api/browse/check/<source>`) with its known
+  20–45 s range drawn as a scale, never a fill. The source service not
+  answering is SOURCES NOT ANSWERING, without naming the engine.
+- **The next episode** offers itself from the ending's start (or 30 s before
+  the end): a card, STAY or PLAY NOW →. At the end, the NEXT page counts 5 s
+  and plays it; STAY stops it. The last episode ends on END · LAST AVAILABLE.
+- **Portrait** (a phone or tablet held upright) puts the picture on top, the
+  controls always shown beneath it, and UP NEXT below; FULL goes full screen
+  and turns it where the browser allows.
+- **Watching is reading.** The player sends the reader's events
+  (`/api/reading`): `page` is seconds into the episode, and `length` its
+  length as the player measured it, which is how an episode learns its length
+  (`duration_s`). Finished at the ending's start or the last 3 %. Incognito
+  sends nothing. A hidden series plays inside the 4px reveal frame.
+- **Separate audio** (KickAssAnime's) is named as alternate audio in a master
+  playlist tsundoku writes (`serveMaster`), so the player switches it as any
+  HLS stream's.
+
+`tests/player.spec.ts`, `tests/anime-reading-db.spec.ts`, the separate-audio
+and file tests in `tests/anime-streams-db.spec.ts`, and the player tests in
+`tests/browse-anime.e2e.ts` (the fake engine's broken server passed over,
+subtitles, SKIP INTRO, the frame's literals, the sheet, the NEXT page and
+STAY, WATCHED on the series; portrait). The clip is
+`tests/fixtures/video/clip.webm`, VP9 and Opus: Playwright's Chromium has no
+H.264.
+
 ## Where it departs from the handoff
 
 - **A tap on an episode plays it**, whatever its file. The handoff draws no
@@ -206,6 +277,16 @@ engine's, WebVTT, the probe).
   only, and at 360px the title is what's left otherwise.
 - **The season head says only how many are watched**, not "12 OF 24 OUT":
   a source doesn't say how many episodes a season will have.
+- **The player's portrait layout is any portrait**, a tablet's too, as Anime
+  Calls says ("Portrait, on the phone or the tablet"); the handoff draws the
+  phone's.
+- **VOL is a cell, not a slider**: a tap mutes, ↑ ↓ set it. The handoff draws
+  only its label.
+- **The last episode's end is END · LAST AVAILABLE**, not the reader's
+  end-of-series page with RATING: the series screen has the rating, and the
+  player has no rating anywhere else.
+- **No offline states yet**: an episode cached on the tablet, and the
+  offline band, are c158's.
 - **History names no season** ("EP. 7 · 9:28", not "S2 EP. 7 · 9:28"): the
   reading log keeps an entry's label, and a season is the episode's own field.
 

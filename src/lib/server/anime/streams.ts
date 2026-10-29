@@ -16,6 +16,7 @@ import {
 	serversOf,
 	toVtt,
 	variantsOf,
+	videoKind,
 	type EngineVideo,
 	type Range
 } from '../../library/streams.ts';
@@ -37,7 +38,17 @@ import {
  * site's playlist naming a loopback address is fetched as any site address,
  * and refused (net-guard.ts).
  */
-type Target = { url: string; headers: Record<string, string>; engine: boolean };
+type Target = {
+	url: string;
+	headers: Record<string, string>;
+	engine: boolean;
+	/**
+	 * A master playlist tsundoku writes itself: a video whose audio the source
+	 * gives as separate tracks (KickAssAnime's), named as alternate audio so
+	 * the player switches them as any HLS stream's.
+	 */
+	master?: { video: string; audio: { lang: string; token: string }[] };
+};
 
 const KEPT = 50_000;
 const targets = new Map<string, Target>();
@@ -96,6 +107,7 @@ const MAX_PLAYLIST = 5 * 1024 * 1024;
 export async function serveMedia(token: string, range: string | null): Promise<Response> {
 	const t = targetOf(token);
 	if (!t) throw new StreamError('not found', 404);
+	if (t.master) return serveMaster(t.master);
 	let got: { res: Response; url: string };
 	try {
 		got = await fetchTarget(t, range);
@@ -139,6 +151,38 @@ export async function serveMedia(token: string, range: string | null): Promise<R
 	return new Response(res.body, { status: res.status, headers });
 }
 
+/**
+ * The master playlist for a video with separate audio. A video that is a
+ * master playlist already can't be nested in another: it's served as it is,
+ * its own audio with it.
+ */
+async function serveMaster(m: NonNullable<Target['master']>): Promise<Response> {
+	const video = targetOf(m.video);
+	if (!video) throw new StreamError('not found', 404);
+	let head = '';
+	try {
+		const { res } = await fetchTarget(video, null);
+		head = res.ok ? await res.text() : '';
+	} catch {
+		// The video's own request says what's wrong, when the player makes it.
+	}
+	if (/#EXT-X-STREAM-INF/i.test(head)) return serveMedia(m.video, null);
+	const quote = (s: string) => s.replace(/"/g, '');
+	const lines = ['#EXTM3U', '#EXT-X-VERSION:3'];
+	m.audio.forEach((a, i) =>
+		lines.push(
+			`#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="${quote(a.lang) || `AUDIO ${i + 1}`}",LANGUAGE="${quote(a.lang.toLowerCase())}",DEFAULT=${i === 0 ? 'YES' : 'NO'},AUTOSELECT=YES,URI="${mediaRoute(a.token)}"`
+		)
+	);
+	lines.push('#EXT-X-STREAM-INF:BANDWIDTH=2000000,AUDIO="aud"', mediaRoute(m.video));
+	return new Response(lines.join('\n'), {
+		headers: {
+			'content-type': 'application/vnd.apple.mpegurl',
+			'cache-control': 'private, no-store'
+		}
+	});
+}
+
 /** GET /api/anime/subtitle/<token>: a subtitle track as WebVTT, whatever it was. */
 export async function serveSubtitle(token: string): Promise<Response> {
 	const t = targetOf(token);
@@ -162,6 +206,8 @@ export type Track = { lang: string; src: string };
 export type StreamQuality = {
 	label: string;
 	height: number | null;
+	/** HLS, or a file the browser plays itself (videoKind). */
+	kind: 'hls' | 'file';
 	src: string;
 	audio: Track[];
 	subtitles: Track[];
@@ -246,17 +292,35 @@ export async function episodeStreams(
 		name: s.name,
 		qualities: s.qualities.map((q) => {
 			const headers = headersOf(q.video.headers);
+			const address = (q.video.videoUrl || q.video.url)!;
+			const video = register({
+				url: address,
+				headers,
+				engine: engineMediaPath(address) !== null
+			});
+			const audio = (q.video.audioTracks ?? [])
+				.filter((t) => t?.url)
+				.map((t) => ({
+					lang: langCode(t.lang || ''),
+					token: register({ url: t.url, headers, engine: engineMediaPath(t.url) !== null })
+				}));
+			// Separate audio: a master playlist of tsundoku's own names it.
+			const src = audio.length
+				? mediaRoute(
+						register({
+							url: `master:${video}`,
+							headers: {},
+							engine: false,
+							master: { video, audio }
+						})
+					)
+				: mediaRoute(video);
 			return {
 				label: q.label,
 				height: q.height,
-				src: mediaRoute(
-					register({
-						url: (q.video.videoUrl || q.video.url)!,
-						headers,
-						engine: engineMediaPath((q.video.videoUrl || q.video.url)!) !== null
-					})
-				),
-				audio: tracks(q.video.audioTracks, headers, false),
+				kind: audio.length ? ('hls' as const) : videoKind(address),
+				src,
+				audio: audio.map((a) => ({ lang: a.lang, src: mediaRoute(a.token) })),
 				subtitles: tracks(q.video.subtitleTracks, headers, true)
 			};
 		})

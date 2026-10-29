@@ -26,6 +26,8 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 	// character in it, `total` how many paragraphs the entry has.
 	const offset = body?.offset == null ? undefined : Number(body.offset);
 	const total = body?.total == null ? undefined : Number(body.total);
+	// An episode (doc/ANIME.md): `page` is seconds into it, `length` how long it is.
+	const lengthS = body?.length == null ? undefined : Number(body.length);
 	// Read offline and sent later: the event keeps the time it happened, so
 	// history puts it on the right day. Never in the future, never older than
 	// a month (doc/OFFLINE.md).
@@ -41,7 +43,8 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 		(page !== undefined && (!Number.isInteger(page) || page < 0)) ||
 		(durationMs !== undefined && !Number.isFinite(durationMs)) ||
 		(offset !== undefined && (!Number.isInteger(offset) || offset < 0)) ||
-		(total !== undefined && (!Number.isInteger(total) || total < 1))
+		(total !== undefined && (!Number.isInteger(total) || total < 1)) ||
+		(lengthS !== undefined && (!Number.isFinite(lengthS) || lengthS <= 0 || lengthS > 86_400))
 	) {
 		error(400, 'bad reading event');
 	}
@@ -58,6 +61,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 		offset,
 		total,
 		durationMs,
+		lengthS,
 		now: at
 	});
 	// A chapter finished moves the catalogues forward (doc/TRACKING.md). Incognito

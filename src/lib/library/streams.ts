@@ -119,6 +119,21 @@ export function chaptersOf(v: EngineVideo): { intro: Range | null; ending: Range
 export const isPlaylist = (text: string) => text.trimStart().startsWith('#EXTM3U');
 
 /**
+ * Whether a video is a file the browser plays itself (an MP4 or WebM a hoster
+ * links to) rather than an HLS stream: by its address, since the player only
+ * ever sees tsundoku's token for it. Anything not plainly a file is HLS.
+ */
+export function videoKind(url: string): 'hls' | 'file' {
+	let path = url;
+	try {
+		path = new URL(url).pathname;
+	} catch {
+		// Not an absolute address: read it as it is.
+	}
+	return /\.(mp4|m4v|webm|mkv|mov)$/i.test(path) ? 'file' : 'hls';
+}
+
+/**
  * A playlist with every address in it (segments, variants, keys, alternate
  * audio and subtitles, init maps) replaced by [local]'s, resolved against
  * the playlist's own address first. [local] decides what each becomes; it

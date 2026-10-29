@@ -1,0 +1,2317 @@
+<script lang="ts">
+	import { onDestroy, onMount, tick } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
+	import type Hls from 'hls.js';
+	import { clock, isWatchedAt } from '$lib/library/anime';
+	import {
+		challengeScale,
+		cueAt,
+		HIDE_MOUSE_MS,
+		HIDE_TOUCH_MS,
+		leftLabel,
+		NEXT_COUNT_S,
+		nextServer,
+		offerNextAt,
+		openAt,
+		parseVtt,
+		placeLabel,
+		playingLabel,
+		RESUME_MS,
+		seekFor,
+		SKIP_ALONE_MS,
+		SPEEDS,
+		STALL_S,
+		SUB_SIZES,
+		subtitlePx,
+		type Cue,
+		type SubSize
+	} from '$lib/library/player';
+	import { readHref } from '$lib/library/links';
+	import { SvelteSet } from 'svelte/reactivity';
+
+	/**
+	 * The player (doc/ANIME.md, "The player"; card c156): Index Player, Player
+	 * States, Player Waiting. The reader's rule carries over -- the picture is
+	 * the interface -- with the reader's chrome for a video: a 64px top bar, a
+	 * scrubber over cells, and the one addition, −10 / pause / +10 in the
+	 * middle. Streams come through tsundoku (/api/anime/episode/<id>/videos);
+	 * HLS plays through hls.js where the browser has Media Source, natively
+	 * where it plays HLS itself. Device layout is CSS (portrait puts the
+	 * picture on top with the controls always shown); only what the player
+	 * does is script.
+	 */
+	type Episode = {
+		id: number;
+		number: number;
+		season: number | null;
+		title: string;
+		note: string;
+		durationS: number | null;
+		endingAt: number | null;
+		available: boolean;
+		readAt: number | null;
+		lastPosition: number | null;
+	};
+	type Track = { lang: string; src: string };
+	type Quality = {
+		label: string;
+		height: number | null;
+		kind: 'hls' | 'file';
+		src: string;
+		audio: Track[];
+		subtitles: Track[];
+	};
+	type Server = { n: number; name: string; qualities: Quality[] };
+	type Streams = {
+		servers: Server[];
+		intro: { start: number; end: number } | null;
+		ending: { start: number; end: number } | null;
+	};
+
+	let {
+		data
+	}: {
+		data: {
+			series: { id: number; title: string; hidden: boolean };
+			source: { id: string; name: string } | null;
+			episodes: Episode[];
+			index: number;
+			incognito: boolean;
+		};
+	} = $props();
+
+	// One player per episode: the page keys it on the episode (+page.svelte), so
+	// reading `data` once is right, and NEXT starts a player of its own.
+	// svelte-ignore state_referenced_locally
+	const { episodes, index } = data;
+	const ep = episodes[index];
+	const seasons = episodes.some((e) => e.season !== null);
+	const ofSeason = episodes.filter((e) => e.season === ep.season).length;
+	const next = episodes[index + 1] ?? null;
+	const prev = episodes[index - 1] ?? null;
+	const upNext = episodes.slice(index + 1, index + 5);
+	const leftInSeason = episodes.filter(
+		(e, i) => i > index && e.season === ep.season && e.readAt === null
+	).length;
+	// svelte-ignore state_referenced_locally
+	const seriesHref = resolve('/series/[id]', { id: String(data.series.id) });
+	const libraryHref = resolve('/');
+	const place = placeLabel(ep, ofSeason, seasons);
+	const epShort = (e: Episode) => `EP. ${e.number}`;
+	const metaOf = (e: Episode) =>
+		[e.note.toUpperCase(), e.durationS ? `${Math.round(e.durationS / 60)} MIN` : '']
+			.filter(Boolean)
+			.join(' · ');
+
+	// ---- where it is ----------------------------------------------------------------------------
+	type Phase = 'resolving' | 'challenge' | 'playing' | 'noServer' | 'engine' | 'ended';
+	let phase = $state<Phase>('resolving');
+	let waited = $state(0);
+	let checkingSince = $state<number | null>(null);
+	let streams = $state<Streams | null>(null);
+	let serverN = $state(1);
+	let qualityIndex = $state(0);
+	const failed = new SvelteSet<number>();
+	let failedAt = $state<Record<number, number>>({});
+	let freshTried = false;
+
+	let video = $state<HTMLVideoElement | null>(null);
+	let hls: Hls | null = null;
+	let time = $state(0);
+	let duration = $state(ep.durationS ?? 0);
+	let buffered = $state(0);
+	let paused = $state(true);
+	let stalled = $state<number | null>(null);
+	let stallSeconds = $state(0);
+	let serverNotice = $state<{ from: number; at: number } | null>(null);
+
+	const server = $derived(streams?.servers.find((s) => s.n === serverN) ?? null);
+	const quality = $derived(server?.qualities[qualityIndex] ?? null);
+	const order = $derived(streams?.servers.map((s) => s.n) ?? []);
+
+	// ---- settings: audio and subtitles per series, quality per device, speed per episode ----------
+	// svelte-ignore state_referenced_locally
+	const seriesKey = `tsundoku:anime:${data.series.id}`;
+	const load = <T,>(k: string, fallback: T): T => {
+		try {
+			const v = localStorage.getItem(k);
+			return v === null ? fallback : (JSON.parse(v) as T);
+		} catch {
+			return fallback;
+		}
+	};
+	const save = (k: string, v: unknown) => {
+		try {
+			localStorage.setItem(k, JSON.stringify(v));
+		} catch {
+			// Private windows: settings last the visit.
+		}
+	};
+	let audioLang = $state<string | null>(null);
+	let subLang = $state<string | null>(null);
+	let subSize = $state<SubSize>('M');
+	let speed = $state(1);
+	let dim = $state(0);
+	let volume = $state(1);
+	let muted = $state(false);
+	let cues = $state<Cue[]>([]);
+	const line = $derived(cueAt(cues, time));
+
+	// ---- chrome --------------------------------------------------------------------------------
+	let chrome = $state(true);
+	let sheet = $state(false);
+	let keysOpen = $state(false);
+	let resumedAt = $state<number | null>(null);
+	let skipAlone = $state(true);
+	let seekFlash = $state<{ by: number; to: number } | null>(null);
+	let stay = $state(false);
+	let count = $state(NEXT_COUNT_S);
+	let mouse = false;
+	let hideTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function showChrome() {
+		chrome = true;
+		clearTimeout(hideTimer);
+		if (!paused && !sheet)
+			hideTimer = setTimeout(() => (chrome = false), mouse ? HIDE_MOUSE_MS : HIDE_TOUCH_MS);
+	}
+
+	const inIntro = $derived(
+		!!streams?.intro && time >= streams.intro.start && time < streams.intro.end
+	);
+	const inEnding = $derived(
+		!!streams?.ending && time >= streams.ending.start && time < streams.ending.end - 1 && !next
+	);
+	const skip = $derived(inIntro ? 'SKIP INTRO →' : inEnding ? 'SKIP ENDING →' : null);
+	// SKIP is the one thing shown without a tap: alone for 8 s, then with the controls only.
+	let skipTimer: ReturnType<typeof setTimeout> | undefined;
+	$effect(() => {
+		if (!skip) return;
+		skipAlone = true;
+		clearTimeout(skipTimer);
+		skipTimer = setTimeout(() => (skipAlone = false), SKIP_ALONE_MS);
+		return () => clearTimeout(skipTimer);
+	});
+	const offerAt = $derived(
+		duration ? offerNextAt(duration, streams?.ending?.start ?? null) : Infinity
+	);
+	const offering = $derived(phase === 'playing' && !!next && !stay && time >= offerAt);
+	const marks = $derived(
+		[streams?.intro, streams?.ending]
+			.filter((r): r is { start: number; end: number } => !!r && duration > 0)
+			.flatMap((r) => [r.start / duration, r.end / duration])
+	);
+	const playing = $derived(
+		playingLabel({
+			audio: quality?.audio.length ? (audioLang ?? quality.audio[0].lang) : null,
+			subtitles: subLang,
+			burnedIn: !!quality && quality.subtitles.length === 0,
+			quality: quality?.label ?? null,
+			speed
+		})
+	);
+
+	// ---- resolving --------------------------------------------------------------------------------
+	let waitTimer: ReturnType<typeof setInterval> | undefined;
+	let checkTimer: ReturnType<typeof setInterval> | undefined;
+
+	async function resolveVideos(fresh: boolean): Promise<Streams | 'down' | 'none'> {
+		phase = 'resolving';
+		waited = 0;
+		checkingSince = null;
+		const started = Date.now();
+		clearInterval(waitTimer);
+		waitTimer = setInterval(() => (waited = Math.round((Date.now() - started) / 1000)), 1000);
+		// A site's check is named at once (Browse Calls), not after ten seconds.
+		if (data.source)
+			checkTimer = setInterval(async () => {
+				try {
+					const r = await fetch(resolve('/api/browse/check/[source]', { source: data.source!.id }));
+					const since = r.ok ? ((await r.json()) as { since: number | null }).since : null;
+					checkingSince = since;
+					if (since !== null && phase === 'resolving') phase = 'challenge';
+				} catch {
+					// Quiet: the wait says what it can.
+				}
+			}, 1000);
+		try {
+			const r = await fetch(
+				`${resolve('/api/anime/episode/[entry]/videos', { entry: String(ep.id) })}${fresh ? '?fresh=1' : ''}`
+			);
+			if (r.status === 503) {
+				const j = (await r.json().catch(() => ({}))) as { failed?: string };
+				return j.failed === 'down' ? 'down' : 'none';
+			}
+			if (!r.ok) return 'none';
+			const s = (await r.json()) as Streams;
+			return s.servers.length ? s : 'none';
+		} catch {
+			return 'down';
+		} finally {
+			clearInterval(waitTimer);
+			clearInterval(checkTimer);
+		}
+	}
+
+	async function start(fresh = false, at?: number) {
+		const got = await resolveVideos(fresh);
+		if (got === 'down') return void (phase = 'engine');
+		if (got === 'none') return void (phase = 'noServer');
+		streams = got;
+		failed.clear();
+		failedAt = {};
+		serverN = got.servers[0].n;
+		qualityIndex = startIndex(got.servers[0]);
+		phase = 'playing';
+		await tick();
+		const open = at === undefined ? openAt({ ...ep, durationS: duration || ep.durationS }) : null;
+		attach(at ?? open!.at);
+		if (open?.resumed) {
+			resumedAt = open.at;
+			setTimeout(() => (resumedAt = null), RESUME_MS);
+		}
+	}
+
+	/** The quality this device starts on (Anime Calls 01): its own choice, else the best, 720 on a phone. */
+	function startIndex(s: Server): number {
+		const want = load<number | null>('tsundoku:anime:quality', null);
+		const phone = matchMedia('(max-width: 599px), (max-height: 499px)').matches;
+		const cap = want ?? (phone ? 720 : null);
+		if (cap === null) return 0;
+		const i = s.qualities.findIndex((q) => q.height !== null && q.height <= cap);
+		return i >= 0 ? i : s.qualities.length - 1;
+	}
+
+	// ---- playing -----------------------------------------------------------------------------------
+	async function attach(at: number) {
+		if (!video || !quality) return;
+		detach();
+		const src = quality.src;
+		const { default: HlsClass } = await import('hls.js');
+		// A file a hoster links to plays as it is; HLS through hls.js, or the browser's own.
+		if (quality.kind === 'hls' && HlsClass.isSupported()) {
+			const h = new HlsClass({ startPosition: at, maxBufferLength: 60 });
+			hls = h;
+			h.on(HlsClass.Events.ERROR, (_e, d) => {
+				if (d.fatal) fail();
+			});
+			h.on(HlsClass.Events.AUDIO_TRACKS_UPDATED, () => pickAudio());
+			h.loadSource(src);
+			h.attachMedia(video);
+		} else {
+			video.src = src;
+			video.currentTime = at;
+		}
+		video.playbackRate = speed;
+		void video.play().catch(() => (paused = true));
+		void loadSubtitles();
+	}
+
+	function detach() {
+		hls?.destroy();
+		hls = null;
+	}
+
+	function pickAudio() {
+		if (!hls || !quality?.audio.length) return;
+		const want = audioLang ?? quality.audio[0].lang;
+		const i = hls.audioTracks.findIndex(
+			(t) => (t.name ?? '').toUpperCase() === want || (t.lang ?? '').toUpperCase() === want
+		);
+		if (i >= 0) hls.audioTrack = i;
+	}
+
+	async function loadSubtitles() {
+		cues = [];
+		const track = quality?.subtitles.find((t) => t.lang === subLang) ?? null;
+		if (!track) return;
+		try {
+			const r = await fetch(track.src);
+			if (r.ok) cues = parseVtt(await r.text());
+		} catch {
+			// No subtitles this time; the picture still plays.
+		}
+	}
+
+	/** A server that stopped: the next at the same second, by itself; only the last failure stops playback. */
+	async function fail() {
+		const at = video?.currentTime ?? time;
+		failed.add(serverN);
+		failedAt = { ...failedAt, [serverN]: at };
+		const to = nextServer(order, serverN, failed);
+		if (to !== null) {
+			serverNotice = { from: serverN, at };
+			setTimeout(() => (serverNotice = null), 4000);
+			switchServer(to, at);
+			return;
+		}
+		// Its address may simply have gone stale: the list is asked for afresh once.
+		detach();
+		if (!freshTried) {
+			freshTried = true;
+			await start(true, at);
+			return;
+		}
+		phase = 'noServer';
+	}
+
+	function switchServer(n: number, at = video?.currentTime ?? time) {
+		const s = streams?.servers.find((x) => x.n === n);
+		if (!s) return;
+		const height = quality?.height ?? null;
+		serverN = n;
+		const same = s.qualities.findIndex((q) => q.height === height);
+		qualityIndex = same >= 0 ? same : 0;
+		stalled = null;
+		void tick().then(() => attach(at));
+	}
+
+	function setQuality(i: number) {
+		qualityIndex = i;
+		save('tsundoku:anime:quality', server?.qualities[i]?.height ?? null);
+		void tick().then(() => attach(video?.currentTime ?? time));
+	}
+
+	// The stall clock: a buffer that doesn't fill for 15 s moves to the next server.
+	let stallTimer: ReturnType<typeof setInterval> | undefined;
+	function onWaiting() {
+		if (stalled !== null) return;
+		stalled = Date.now();
+		stallSeconds = 0;
+		clearInterval(stallTimer);
+		stallTimer = setInterval(() => {
+			if (stalled === null) return clearInterval(stallTimer);
+			stallSeconds = Math.round((Date.now() - stalled) / 1000);
+			if (stallSeconds >= STALL_S) {
+				clearInterval(stallTimer);
+				stalled = null;
+				void fail();
+			}
+		}, 500);
+	}
+	function onProgressing() {
+		stalled = null;
+		clearInterval(stallTimer);
+	}
+
+	// ---- progress: watching is reading --------------------------------------------------------------
+	let opened = false;
+	let finished = ep.readAt !== null;
+	let lastSent = 0;
+	async function send(kind: 'open' | 'page' | 'finish' | 'close') {
+		if (data.incognito) return;
+		const body = JSON.stringify({
+			seriesId: data.series.id,
+			entryId: ep.id,
+			kind,
+			page: Math.max(0, Math.floor(time)),
+			...(duration > 0 ? { length: Math.round(duration) } : {}),
+			at: Date.now()
+		});
+		if (kind === 'close') {
+			navigator.sendBeacon?.(
+				resolve('/api/reading'),
+				new Blob([body], { type: 'application/json' })
+			);
+			return;
+		}
+		try {
+			await fetch(resolve('/api/reading'), {
+				method: 'POST',
+				body,
+				headers: { 'content-type': 'application/json' },
+				keepalive: true
+			});
+		} catch {
+			// Kept by the next one: positions only move forward.
+		}
+	}
+
+	function onTime() {
+		if (!video) return;
+		time = video.currentTime;
+		if (Number.isFinite(video.duration) && video.duration > 0) duration = video.duration;
+		const b = video.buffered;
+		buffered = b.length ? b.end(b.length - 1) : 0;
+		if (!opened && time > 0) {
+			opened = true;
+			void send('open');
+		}
+		if (opened && Date.now() - lastSent > 15_000) {
+			lastSent = Date.now();
+			void send('page');
+		}
+		if (!finished && duration > 0 && isWatchedAt(time, duration, streams?.ending?.start ?? null)) {
+			finished = true;
+			void send('finish');
+		}
+	}
+
+	function onEnded() {
+		if (!finished) {
+			finished = true;
+			void send('finish');
+		}
+		phase = 'ended';
+		if (next && !stay) runCount();
+	}
+
+	let countTimer: ReturnType<typeof setInterval> | undefined;
+	function runCount() {
+		count = NEXT_COUNT_S;
+		clearInterval(countTimer);
+		countTimer = setInterval(() => {
+			count -= 1;
+			if (count <= 0) {
+				clearInterval(countTimer);
+				playNext();
+			}
+		}, 1000);
+	}
+	function stayHere() {
+		stay = true;
+		clearInterval(countTimer);
+	}
+	function playNext() {
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves
+		if (next) void goto(readHref(next.id), { replaceState: true });
+	}
+	function playPrev() {
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves
+		if (prev) void goto(readHref(prev.id), { replaceState: true });
+	}
+
+	// ---- controls ------------------------------------------------------------------------------------
+	function toggle() {
+		if (!video) return;
+		if (video.paused) void video.play();
+		else video.pause();
+		showChrome();
+	}
+	function seek(by: number) {
+		if (!video) return;
+		video.currentTime = Math.max(0, Math.min(duration || Infinity, video.currentTime + by));
+		time = video.currentTime;
+	}
+	function skipNow() {
+		if (!video) return;
+		const r = inIntro ? streams?.intro : streams?.ending;
+		if (r) video.currentTime = r.end;
+	}
+	function fromStart() {
+		if (video) video.currentTime = 0;
+		resumedAt = null;
+	}
+
+	let scrub = $state<HTMLElement | null>(null);
+	let hoverAt = $state<number | null>(null);
+	function scrubTo(e: PointerEvent) {
+		if (!scrub || !video || !duration) return;
+		const box = scrub.getBoundingClientRect();
+		video.currentTime = Math.max(0, Math.min(1, (e.clientX - box.left) / box.width)) * duration;
+		time = video.currentTime;
+	}
+	function scrubDown(e: PointerEvent) {
+		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+		scrubTo(e);
+	}
+	function scrubMove(e: PointerEvent) {
+		if (!scrub || !duration) return;
+		const box = scrub.getBoundingClientRect();
+		hoverAt = Math.max(0, Math.min(1, (e.clientX - box.left) / box.width)) * duration;
+		if (e.buttons & 1) scrubTo(e);
+	}
+
+	// Taps on the picture: one shows or hides the controls; two on a side third seek 10 s,
+	// and each further tap within the burst 10 more (Anime Calls, "The picture is the interface").
+	let taps: {
+		side: -1 | 0 | 1;
+		n: number;
+		at: number;
+		timer?: ReturnType<typeof setTimeout>;
+	} | null = null;
+	let flashTimer: ReturnType<typeof setTimeout> | undefined;
+	function pictureTap(e: PointerEvent) {
+		if (e.pointerType === 'mouse') {
+			mouse = true;
+			if (e.button !== 0) return;
+		}
+		const box = (e.currentTarget as HTMLElement).getBoundingClientRect();
+		const x = (e.clientX - box.left) / box.width;
+		const side: -1 | 0 | 1 = x < 1 / 3 ? -1 : x > 2 / 3 ? 1 : 0;
+		const now = Date.now();
+		if (taps && now - taps.at < 320 && taps.side === side && side !== 0) {
+			clearTimeout(taps.timer);
+			taps.n += 1;
+			taps.at = now;
+			const before = taps.n === 2 ? 0 : seekFor(taps.n - 1);
+			seek(side * (seekFor(taps.n) - before));
+			seekFlash = { by: side * seekFor(taps.n), to: time };
+			clearTimeout(flashTimer);
+			flashTimer = setTimeout(() => (seekFlash = null), 900);
+			taps.timer = setTimeout(() => (taps = null), 320);
+			return;
+		}
+		taps = { side, n: 1, at: now };
+		taps.timer = setTimeout(() => {
+			taps = null;
+			if (chrome && !paused) {
+				chrome = false;
+				clearTimeout(hideTimer);
+			} else showChrome();
+		}, 320);
+	}
+
+	function keydown(e: KeyboardEvent) {
+		if (keysOpen || sheet) {
+			if (e.key === 'Escape') keysOpen = sheet = false;
+			return;
+		}
+		const k = e.key;
+		if (k === ' ') toggle();
+		else if (k === 'ArrowLeft') seek(-10);
+		else if (k === 'ArrowRight') seek(10);
+		else if (k === 'ArrowUp') setVolume(Math.min(1, volume + 0.1));
+		else if (k === 'ArrowDown') setVolume(Math.max(0, volume - 0.1));
+		else if (k === 'f' || k === 'F') void full();
+		else if (k === 'm' || k === 'M') setMuted(!muted);
+		else if (k === 'c' || k === 'C') setSub(subLang ? null : (quality?.subtitles[0]?.lang ?? null));
+		else if ((k === 's' || k === 'S') && skip) skipNow();
+		else if ((k === 'n' || k === 'N') && next) playNext();
+		else if (k === '?') keysOpen = true;
+		else if (k === 'Escape') {
+			if (document.fullscreenElement) void document.exitFullscreen();
+			else void goto(seriesHref);
+		} else return;
+		e.preventDefault();
+		showChrome();
+	}
+
+	function setVolume(v: number) {
+		volume = v;
+		if (video) video.volume = v;
+	}
+	function setMuted(m: boolean) {
+		muted = m;
+		if (video) video.muted = m;
+	}
+	function setSpeed(s: number) {
+		speed = s;
+		if (video) video.playbackRate = s;
+	}
+	function setAudio(lang: string) {
+		audioLang = lang;
+		save(`${seriesKey}:audio`, lang);
+		pickAudio();
+	}
+	function setSub(lang: string | null) {
+		subLang = lang;
+		save(`${seriesKey}:subs`, lang);
+		void loadSubtitles();
+	}
+	function setDim(v: number) {
+		dim = v;
+		save('tsundoku:anime:dim', v);
+	}
+
+	let root = $state<HTMLElement | null>(null);
+	async function full() {
+		try {
+			if (document.fullscreenElement) await document.exitFullscreen();
+			else {
+				await root?.requestFullscreen();
+				// FULL turns a portrait phone (Anime Calls, "Devices"): where the browser lets it.
+				await (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> })
+					.lock?.('landscape')
+					.catch(() => undefined);
+			}
+		} catch {
+			// Not every browser allows it.
+		}
+	}
+
+	onMount(() => {
+		audioLang = load<string | null>(`${seriesKey}:audio`, null);
+		subLang = load<string | null>(`${seriesKey}:subs`, null);
+		subSize = load<SubSize>(`${seriesKey}:subsize`, 'M');
+		dim = load<number>('tsundoku:anime:dim', 0);
+		mouse = matchMedia('(pointer: fine)').matches;
+		void start();
+		const close = () => opened && void send('close');
+		addEventListener('pagehide', close);
+		return () => removeEventListener('pagehide', close);
+	});
+	onDestroy(() => {
+		if (opened) void send('close');
+		detach();
+		for (const t of [waitTimer, checkTimer, stallTimer, countTimer]) clearInterval(t);
+		for (const t of [hideTimer, flashTimer]) clearTimeout(t);
+	});
+
+	// Subtitles in a language the series had, once the tracks are known.
+	$effect(() => {
+		if (quality && subLang === null) {
+			const saved = load<string | null | undefined>(`${seriesKey}:subs`, undefined);
+			if (saved === undefined && quality.subtitles.length) setSub(quality.subtitles[0].lang);
+		}
+	});
+	$effect(() => {
+		void paused;
+		void sheet;
+		if (!paused && !sheet) showChrome();
+		else {
+			chrome = true;
+			clearTimeout(hideTimer);
+		}
+	});
+
+	const pct = (v: number) => (duration > 0 ? `${Math.min(100, (v / duration) * 100)}%` : '0%');
+	const scale = $derived(challengeScale(waited));
+	const waitLabel = $derived(
+		checkingSince !== null ? 'THE SOURCE IS CHECKING THE WORKSTATION' : 'FINDING THE VIDEO'
+	);
+</script>
+
+<svelte:window onkeydown={keydown} />
+
+<div
+	class="player"
+	class:hidden-series={data.series.hidden}
+	class:chrome
+	bind:this={root}
+	role="presentation"
+	onpointermove={(e) => {
+		if (e.pointerType === 'mouse') {
+			mouse = true;
+			showChrome();
+		}
+	}}
+>
+	<div class="stage">
+		<!-- No <track>: subtitles are drawn by tsundoku from the WebVTT (Anime Calls, "Subtitles"). -->
+		<video
+			bind:this={video}
+			bind:paused
+			playsinline
+			ontimeupdate={onTime}
+			onwaiting={onWaiting}
+			onplaying={onProgressing}
+			onprogress={() =>
+				(buffered = video?.buffered.length ? video.buffered.end(video.buffered.length - 1) : 0)}
+			onended={onEnded}
+			onerror={() => phase === 'playing' && !hls && void fail()}
+		></video>
+		<button
+			type="button"
+			class="tapzone"
+			aria-label={chrome ? 'Hide the controls' : 'Show the controls'}
+			onpointerup={pictureTap}
+		></button>
+		{#if dim > 0}<div class="dim" style:opacity={dim} aria-hidden="true"></div>{/if}
+
+		{#if line}
+			<div class="subs" aria-live="off">
+				<div class="line" style:--sub-size="{subtitlePx(subSize, 30)}px">{line}</div>
+			</div>
+		{/if}
+	</div>
+
+	{#if phase === 'playing'}
+		{#if resumedAt !== null}
+			<div class="resume" role="status">
+				<div>RESUMED AT {clock(resumedAt)}</div>
+				<button type="button" onclick={fromStart}>FROM 0:00</button>
+			</div>
+		{/if}
+		{#if skip && (chrome || skipAlone)}
+			<button type="button" class="skip" onclick={skipNow}>{skip}</button>
+		{/if}
+		{#if seekFlash}
+			<div class="flash" class:back={seekFlash.by < 0} role="status">
+				<div class="by">{seekFlash.by > 0 ? '+' : '−'}{Math.abs(seekFlash.by)} S</div>
+				<div class="to">{clock(seekFlash.to)}</div>
+			</div>
+		{/if}
+		{#if stalled !== null && stallSeconds >= 2}
+			{@const to = nextServer(order, serverN, failed)}
+			<div class="panel buffer" role="status">
+				<div class="body">
+					<div class="head">
+						<div>BUFFERING</div>
+						<div>{stallSeconds} S</div>
+					</div>
+					<div class="ink"></div>
+					<div class="m">
+						WAITING ON THE SERVER · SERVER {serverN} OF {order.length} · {Math.max(
+							0,
+							Math.round(buffered - time)
+						)} S AHEAD OF {clock(time)}{to !== null
+							? ` · MOVES TO SERVER ${to} BY ITSELF AT ${STALL_S} S`
+							: ''}
+					</div>
+				</div>
+				{#if to !== null}
+					<button type="button" onclick={() => switchServer(to)}>SERVER {to} NOW →</button>
+				{/if}
+			</div>
+		{/if}
+		{#if serverNotice}
+			<div class="panel servers" role="status">
+				<div class="head">
+					<div>SERVER {serverNotice.from} STOPPED SENDING</div>
+					<div class="mut">AT {clock(serverNotice.at)}</div>
+				</div>
+				{#each streams?.servers ?? [] as s (s.n)}
+					<div class="srow" class:on={s.n === serverN} class:off={failed.has(s.n)}>
+						<div class="mk">{failed.has(s.n) ? '✕' : s.n === serverN ? '…' : ''}</div>
+						<div class="t">SERVER {s.n} · {(s.qualities[0]?.label ?? '').toUpperCase()}</div>
+						<div class="r">
+							{failed.has(s.n)
+								? `STOPPED AT ${clock(failedAt[s.n] ?? 0)}`
+								: s.n === serverN
+									? 'ASKING'
+									: ''}
+						</div>
+					</div>
+				{/each}
+				<div class="foot">
+					<div class="m">PICKS UP AT {clock(serverNotice.at)} ON THE NEXT ONE TO ANSWER</div>
+					<button type="button" onclick={() => ((sheet = true), (serverNotice = null))}
+						>CHOOSE</button
+					>
+				</div>
+			</div>
+		{/if}
+
+		<!-- The middle cluster: −10, pause, +10, under the thumb. -->
+		<div class="cluster">
+			<button type="button" aria-label="Back 10 seconds" onclick={() => (seek(-10), showChrome())}
+				>−10</button
+			>
+			<button type="button" class="pp" aria-label={paused ? 'Play' : 'Pause'} onclick={toggle}>
+				{#if paused}▶{:else}<i></i><i></i>{/if}
+			</button>
+			<button type="button" aria-label="On 10 seconds" onclick={() => (seek(10), showChrome())}
+				>+10</button
+			>
+		</div>
+
+		<header class="top">
+			<a class="back" href={seriesHref} aria-label="Back to the series">←</a>
+			<div class="names">
+				<div class="t">
+					{data.series.title}{#if ep.title}<span>{` · ${ep.title}`}</span>{/if}
+				</div>
+				<div class="m">
+					<span class="long">ANIME · {place} · {clock(time)} OF {clock(duration)}</span>
+					<span class="short">{place}</span>
+				</div>
+			</div>
+			<button type="button" class="cell desk" onclick={full}>FULL SCREEN · F</button>
+		</header>
+
+		<footer class="bottom">
+			<div class="scrubrow">
+				<div class="e">{clock(time)}</div>
+				<div
+					class="track"
+					bind:this={scrub}
+					role="slider"
+					tabindex="0"
+					aria-label="Position"
+					aria-valuemin={0}
+					aria-valuemax={Math.round(duration)}
+					aria-valuenow={Math.round(time)}
+					aria-valuetext={clock(time)}
+					onpointerdown={scrubDown}
+					onpointermove={scrubMove}
+					onpointerleave={() => (hoverAt = null)}
+				>
+					<div class="buf" style:width={pct(buffered)}></div>
+					<div class="seen" style:width={pct(time)}></div>
+					{#each marks as m, i (i)}<div class="tick" style:left="{m * 100}%"></div>{/each}
+					<div class="thumb" style:left={pct(time)}></div>
+					{#if hoverAt !== null}
+						<div class="hover" style:left={pct(hoverAt)}></div>
+						<div class="tip" style:left={pct(hoverAt)}>{clock(hoverAt)}</div>
+					{/if}
+				</div>
+				<div class="l">{leftLabel(time, duration)}</div>
+			</div>
+			<div class="cells">
+				<button
+					type="button"
+					class="cell desk pause"
+					aria-label={paused ? 'Play' : 'Pause'}
+					onclick={toggle}
+					>{#if paused}▶{:else}<i></i><i></i>{/if}</button
+				>
+				<button type="button" class="cell" disabled={!prev} onclick={playPrev}
+					>{prev ? `← ${epShort(prev)}` : '←'}</button
+				>
+				<button type="button" class="cell desk" onclick={() => setMuted(!muted)}
+					>{muted ? 'MUTED' : `VOL ${Math.round(volume * 100)}%`}</button
+				>
+				<button type="button" class="cell grow" onclick={() => (sheet = true)}>{playing}</button>
+				<button type="button" class="cell desk" onclick={() => (keysOpen = true)}>? KEYS</button>
+				<button type="button" class="cell" disabled={!next} onclick={playNext}
+					>{next ? `${epShort(next)} →` : '→'}</button
+				>
+			</div>
+		</footer>
+
+		{#if offering && next}
+			<div class="endcard" role="status">
+				<div class="row">
+					<div class="pic"></div>
+					<div class="txt">
+						<div class="k">NEXT · {placeLabel(next, ofSeason, false)}</div>
+						<div class="t">{next.title || `Episode ${next.number}`}</div>
+						<div class="m">
+							{[metaOf(next), next.available ? 'DOWNLOADED' : ''].filter(Boolean).join(' · ')}
+						</div>
+					</div>
+				</div>
+				<div class="when">PLAYS WHEN THIS ONE ENDS · IN {clock(Math.max(0, duration - time))}</div>
+				<div class="two">
+					<button type="button" onclick={stayHere}>STAY</button>
+					<button type="button" class="acc" onclick={playNext}>PLAY NOW →</button>
+				</div>
+			</div>
+		{/if}
+
+		<!-- Portrait (Anime Calls, "Devices"): the controls always shown beneath, what's next below. -->
+		<section class="portrait" aria-label="Controls">
+			<div class="pbar">
+				<a class="back" href={seriesHref} aria-label="Back to the series">←</a>
+				<div class="m">{place}</div>
+				<button type="button" onclick={full}>FULL</button>
+			</div>
+			<div class="pbody">
+				<div class="pscrub">
+					<div>{clock(time)}</div>
+					<div class="track">
+						<div class="buf" style:width={pct(buffered)}></div>
+						<div class="seen" style:width={pct(time)}></div>
+						<div class="thumb" style:left={pct(time)}></div>
+					</div>
+					<div class="mut">{leftLabel(time, duration)}</div>
+				</div>
+				<div class="pcells">
+					<button type="button" aria-label="Back 10 seconds" onclick={() => seek(-10)}>−10</button>
+					<button type="button" aria-label={paused ? 'Play' : 'Pause'} onclick={toggle}
+						>{#if paused}▶{:else}<i></i><i></i>{/if}</button
+					>
+					<button type="button" aria-label="On 10 seconds" onclick={() => seek(10)}>+10</button>
+					<button type="button" class="small" onclick={() => (sheet = true)}
+						>{[subLang, quality?.label.toUpperCase()].filter(Boolean).join(' · ')}</button
+					>
+				</div>
+				<div class="pnames">
+					<div class="k">ANIME · {place}</div>
+					<div class="t">{data.series.title}</div>
+					{#if ep.title}<div class="s">{ep.title}</div>{/if}
+				</div>
+				<div class="plabel">
+					<div>02 — UP NEXT</div>
+					<div>{leftInSeason} LEFT</div>
+				</div>
+				{#each upNext as u (u.id)}
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves -->
+					<a class="up" href={readHref(u.id)}>
+						<div class="n">{u.number}</div>
+						<div class="pic"></div>
+						<div class="txt">
+							<div class="t">{u.title || `Episode ${u.number}`}</div>
+							<div class="m">
+								{[metaOf(u), u.available ? 'DOWNLOADED' : ''].filter(Boolean).join(' · ')}
+							</div>
+						</div>
+					</a>
+				{/each}
+			</div>
+		</section>
+	{/if}
+
+	{#if sheet && streams}
+		<button
+			type="button"
+			class="scrim"
+			aria-label="Close the settings"
+			onclick={() => (sheet = false)}
+		></button>
+		<div class="sheet" role="dialog" aria-label="Playback settings">
+			<div class="shead">
+				<div>PLAYBACK · {epShort(ep)}</div>
+				<button type="button" aria-label="Close" onclick={() => (sheet = false)}>✕</button>
+			</div>
+			<div class="srows">
+				<div class="srow2">
+					<div class="lab">QUALITY</div>
+					<div class="val">
+						<div class="seg">
+							{#each server?.qualities ?? [] as q, i (q.src)}
+								<button type="button" class:on={i === qualityIndex} onclick={() => setQuality(i)}
+									>{q.label.toUpperCase()}</button
+								>
+							{/each}
+						</div>
+						<div class="note">
+							THIS SERVER'S {server?.qualities.length} · THIS DEVICE REMEMBERS ITS OWN
+						</div>
+					</div>
+				</div>
+				<div class="srow2">
+					<div class="lab">SERVER</div>
+					<div class="val">
+						{#each streams.servers as s (s.n)}
+							<button
+								type="button"
+								class="li"
+								class:on={s.n === serverN}
+								class:off={failed.has(s.n)}
+								onclick={() => switchServer(s.n)}
+							>
+								<span>{(s.name || `SERVER ${s.n}`).toUpperCase()}</span>
+								<span class="r"
+									>{s.n === serverN
+										? `● PLAYING · ${s.qualities.map((q) => q.label.toUpperCase()).join(' ')}`
+										: failed.has(s.n)
+											? `STOPPED ${clock(failedAt[s.n] ?? 0)}`
+											: s.qualities.map((q) => q.label.toUpperCase()).join(' ')}</span
+								>
+							</button>
+						{/each}
+						<div class="note">STALLS FOR {STALL_S} S → THE NEXT, BY ITSELF</div>
+					</div>
+				</div>
+				{#if quality && quality.audio.length > 1}
+					<div class="srow2">
+						<div class="lab">AUDIO</div>
+						<div class="val">
+							<div class="seg">
+								{#each quality.audio as a (a.src)}
+									<button
+										type="button"
+										class:on={(audioLang ?? quality.audio[0].lang) === a.lang}
+										onclick={() => setAudio(a.lang)}>{a.lang}</button
+									>
+								{/each}
+							</div>
+						</div>
+					</div>
+				{/if}
+				<div class="srow2">
+					<div class="lab">SUBTITLES</div>
+					<div class="val">
+						{#if quality && quality.subtitles.length}
+							<div class="seg">
+								<button type="button" class:on={subLang === null} onclick={() => setSub(null)}
+									>OFF</button
+								>
+								{#each quality.subtitles as t (t.src)}
+									<button type="button" class:on={subLang === t.lang} onclick={() => setSub(t.lang)}
+										>{t.lang}</button
+									>
+								{/each}
+							</div>
+							<div class="seg">
+								{#each SUB_SIZES as z (z)}
+									<button
+										type="button"
+										class:on={subSize === z}
+										onclick={() => ((subSize = z), save(`${seriesKey}:subsize`, z))}>{z}</button
+									>
+								{/each}
+							</div>
+						{:else}
+							<div class="note">IN THE PICTURE · NOTHING TO SWITCH</div>
+						{/if}
+					</div>
+				</div>
+				<div class="srow2">
+					<div class="lab">SPEED</div>
+					<div class="val">
+						<div class="seg">
+							{#each SPEEDS as s (s)}
+								<button type="button" class:on={speed === s} onclick={() => setSpeed(s)}
+									>{s === 1 ? '1×' : s}</button
+								>
+							{/each}
+						</div>
+					</div>
+				</div>
+				<div class="srow2">
+					<div class="lab">DIM</div>
+					<div class="val">
+						<div class="dimrow">
+							<input
+								type="range"
+								min="0"
+								max="0.8"
+								step="0.05"
+								value={dim}
+								aria-label="Dim"
+								oninput={(e) => setDim(Number((e.currentTarget as HTMLInputElement).value))}
+							/>
+							<div>{Math.round(dim * 100)}%</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="sfoot">
+				AUDIO AND SUBTITLES CARRY TO EVERY EPISODE OF THE SERIES · SPEED TO THIS ONE · QUALITY TO
+				THIS DEVICE
+			</div>
+		</div>
+	{/if}
+
+	{#if keysOpen}
+		<button
+			type="button"
+			class="scrim keys-scrim"
+			aria-label="Close the keys"
+			onclick={() => (keysOpen = false)}
+		></button>
+		<div class="sheet keys" role="dialog" aria-label="Keys">
+			<div class="shead">
+				<div>KEYS</div>
+				<button type="button" aria-label="Close" onclick={() => (keysOpen = false)}>✕</button>
+			</div>
+			{#each [['SPACE', 'Play or pause'], ['← →', 'Back or on 10 s'], ['↑ ↓', 'Volume'], ['F', 'Full screen'], ['M', 'Mute'], ['C', 'Subtitles on or off'], ['S', 'Skip the intro or ending, when offered'], ['N', 'Next episode'], ['ESC', 'Leave full screen, then the player'], ['?', 'These keys']] as [k, a] (k)}
+				<div class="krow">
+					<div class="k">{k}</div>
+					<div class="a">{a}</div>
+				</div>
+			{/each}
+		</div>
+	{/if}
+
+	{#if phase !== 'playing'}
+		<!-- Waits and ends are the reader's end-of-chapter page (Player Waiting, "Interstitials"). -->
+		<div class="inter" role="status">
+			<div class="imid">
+				<div class="kick">
+					<div>{phase === 'ended' ? `END · ${epShort(ep)}` : place}</div>
+					<div>
+						{phase === 'ended'
+							? `${ep.number} OF ${ofSeason}${ep.season !== null ? ` · SEASON ${ep.season}` : ''}`
+							: phase === 'challenge'
+								? `${(data.source?.name ?? '').toUpperCase()} · FIRST CALL`
+								: (data.source?.name ?? '').toUpperCase()}
+					</div>
+				</div>
+				<div class="rule" class:ink={phase === 'resolving' || phase === 'challenge'}></div>
+				<div class="what">
+					<div class="label">
+						{phase === 'resolving' || phase === 'challenge'
+							? waitLabel
+							: phase === 'noServer'
+								? 'NO SERVER ANSWERED'
+								: phase === 'engine'
+									? 'SOURCES NOT ANSWERING'
+									: next
+										? 'NEXT'
+										: 'END · LAST AVAILABLE'}
+					</div>
+					<div class="big" class:faint={phase === 'noServer' || phase === 'engine'}>
+						{phase === 'ended' && next
+							? next.title || `Episode ${next.number}`
+							: ep.title || `Episode ${ep.number}`}
+					</div>
+					<div class="tag">
+						{phase === 'resolving'
+							? `${waited} S · USUALLY A FEW SECONDS`
+							: phase === 'challenge'
+								? 'THE FIRST CALL OF THE DAY TAKES 20–45 S · THEN SECONDS'
+								: phase === 'noServer'
+									? `${order.length || 'NO'} TRIED`
+									: phase === 'engine'
+										? 'THE WORKSTATION ANSWERED · THE PART THAT TALKS TO SOURCES DID NOT'
+										: next
+											? [epShort(next), metaOf(next), next.available ? 'DOWNLOADED' : '']
+													.filter(Boolean)
+													.join(' · ')
+											: ''}
+					</div>
+				</div>
+				{#if phase === 'challenge'}
+					<div class="scale" aria-hidden="true">
+						<div class="base"></div>
+						<div
+							class="range"
+							style:left="{scale.from * 100}%"
+							style:width="{(scale.to - scale.from) * 100}%"
+						></div>
+						<div class="done" style:width="{scale.at * 100}%"></div>
+						<div class="mark" style:left="{scale.at * 100}%"></div>
+						<div class="now" style:left="{scale.at * 100}%">{waited} S</div>
+						<div class="n0">0</div>
+						<div class="n20" style:left="{scale.from * 100}%">20</div>
+						<div class="n45" style:left="{scale.to * 100}%">45</div>
+						<div class="n60">60 S</div>
+					</div>
+					<div class="prose">
+						{data.source?.name} checks a new visitor before it answers. Once it has, its episodes start
+						in seconds until the workstation restarts.
+					</div>
+				{/if}
+				{#if phase === 'ended' && next && !stay}
+					<div class="count">
+						<div class="c">PLAYS IN {count}</div>
+						<div class="bar">
+							<div style:width="{((NEXT_COUNT_S - count) / NEXT_COUNT_S) * 100}%"></div>
+						</div>
+					</div>
+				{/if}
+				{#if phase === 'noServer'}
+					<div class="prose">
+						The source listed {order.length || 'no'} server{order.length === 1 ? '' : 's'} for this episode
+						and none of them sent video. TRY AGAIN asks the source for its list afresh. Servers often
+						come back within the hour.
+					</div>
+				{:else if phase === 'engine'}
+					<div class="prose">
+						Downloaded episodes still play. Streaming and downloading wait until it answers. TRY
+						AGAIN asks again.
+					</div>
+				{/if}
+			</div>
+			<div class="icells">
+				<a class="icell br" href={seriesHref}>← SERIES</a>
+				<div class="icell flex"></div>
+				{#if phase === 'noServer' || phase === 'engine'}
+					<button
+						type="button"
+						class="icell acc"
+						onclick={() => ((freshTried = false), start(true))}>TRY AGAIN</button
+					>
+				{:else if phase === 'ended' && next}
+					{#if !stay}<button type="button" class="icell bl" onclick={stayHere}>STAY</button>{/if}
+					<button type="button" class="icell acc" onclick={playNext}>PLAY NOW →</button>
+				{:else if phase === 'ended'}
+					<a class="icell bl" href={libraryHref}>LIBRARY</a>
+				{/if}
+			</div>
+		</div>
+	{/if}
+
+	{#if data.series.hidden}<div class="reveal" aria-hidden="true"></div>{/if}
+	{#if data.incognito}<div class="dashed" aria-hidden="true"></div>{/if}
+</div>
+
+<style>
+	/*
+	 * The literals are the handoff's (Index Player, Player States, Player
+	 * Waiting): a 64px top bar, a 56px scrubber over 64px cells, a 96px
+	 * cluster, a 520px sheet. Tokens for colour; the picture's ground is true
+	 * black, as the reader's is.
+	 */
+	.player {
+		position: fixed;
+		inset: 0;
+		background: #000;
+		color: var(--text-1);
+		overflow: hidden;
+		--top-h: 64px;
+		--scrub-h: 56px;
+		--cell-h: 64px;
+		--pad-x: 24px;
+		--cl: 96px;
+		--cl-font: 18px;
+		--play-font: 24px;
+		--bar-w: 7px;
+		--bar-h: 26px;
+		--sub-base: 30px;
+	}
+	/* The phone, landscape: Player States 2d. */
+	@media (max-height: 499px) {
+		.player {
+			--top-h: 52px;
+			--scrub-h: 44px;
+			--cell-h: 52px;
+			--pad-x: 16px;
+			--cl: 64px;
+			--cl-font: 15px;
+			--play-font: 18px;
+			--bar-w: 5px;
+			--bar-h: 18px;
+			--sub-base: 20px;
+		}
+	}
+	/* The desktop in a window: 2d. */
+	@media (pointer: fine) and (min-height: 500px) {
+		.player {
+			--top-h: 56px;
+			--cell-h: 56px;
+			--sub-base: 26px;
+		}
+	}
+	.stage {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+	video {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+		background: #000;
+	}
+	.tapzone {
+		position: absolute;
+		inset: 0;
+		border: 0;
+		padding: 0;
+		background: transparent;
+		cursor: default;
+		touch-action: manipulation;
+	}
+	.dim {
+		position: absolute;
+		inset: 0;
+		background: #000;
+		pointer-events: none;
+	}
+	.subs {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 7%;
+		display: flex;
+		justify-content: center;
+		pointer-events: none;
+		transition: bottom 0.15s;
+	}
+	.player.chrome .subs {
+		bottom: calc(var(--scrub-h) + var(--cell-h) + 1px + 20px);
+	}
+	.line {
+		max-width: 80%;
+		padding: 4px 14px;
+		background: rgba(0, 0, 0, 0.6);
+		font: 500 var(--sub-size, var(--sub-base)) / 1.35 var(--font-sans);
+		color: #fff;
+		text-align: center;
+		text-wrap: balance;
+		white-space: pre-line;
+	}
+	.resume {
+		position: absolute;
+		left: 32px;
+		bottom: 32px;
+		display: flex;
+		align-items: stretch;
+		height: 56px;
+		background: var(--surface-page);
+		border: var(--hairline);
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.04em;
+	}
+	.player.chrome .resume {
+		bottom: calc(var(--scrub-h) + var(--cell-h) + 24px);
+	}
+	.resume > div {
+		display: flex;
+		align-items: center;
+		padding: 0 20px;
+	}
+	button,
+	a.back,
+	a.icell,
+	a.up {
+		font: inherit;
+		color: inherit;
+		background: transparent;
+		border: 0;
+		border-radius: 0;
+		padding: 0;
+		text-decoration: none;
+		cursor: pointer;
+	}
+	button:disabled {
+		opacity: 0.4;
+		cursor: default;
+	}
+	.resume button {
+		padding: 0 20px;
+		border-left: var(--hairline);
+	}
+	.skip {
+		position: absolute;
+		right: 32px;
+		bottom: 32px;
+		height: 56px;
+		padding: 0 24px;
+		background: var(--accent);
+		color: var(--on-accent);
+		font: 500 15px var(--font-mono);
+		letter-spacing: 0.04em;
+	}
+	.player.chrome .skip {
+		right: 24px;
+		bottom: calc(var(--scrub-h) + var(--cell-h) + 1px + 24px);
+	}
+	.flash {
+		position: absolute;
+		right: 16%;
+		top: 50%;
+		transform: translate(50%, -50%);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 6px;
+		padding: 16px 22px;
+		background: var(--surface-page);
+		border: var(--hairline);
+		pointer-events: none;
+	}
+	.flash.back {
+		right: auto;
+		left: 16%;
+		transform: translate(-50%, -50%);
+	}
+	.flash .by {
+		font: 500 28px var(--font-mono);
+	}
+	.flash .to {
+		font: 400 14px var(--font-mono);
+		color: var(--text-2);
+	}
+	.panel {
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		transform: translate(-50%, -50%);
+		background: var(--surface-page);
+		border: var(--hairline);
+		display: flex;
+		flex-direction: column;
+	}
+	.buffer {
+		width: min(440px, calc(100% - 32px));
+	}
+	.buffer .body {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 20px 24px;
+	}
+	.buffer .head {
+		display: flex;
+		justify-content: space-between;
+		font: 500 16px var(--font-mono);
+	}
+	.buffer .ink {
+		height: 2px;
+		background: var(--text-1);
+	}
+	.m {
+		font: 400 13px/1.45 var(--font-mono);
+		color: var(--text-2);
+	}
+	.buffer > button,
+	.servers .foot button {
+		height: 56px;
+		border-top: var(--hairline);
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.04em;
+	}
+	.servers {
+		width: min(600px, calc(100% - 32px));
+	}
+	.servers .head {
+		display: flex;
+		justify-content: space-between;
+		gap: 12px;
+		padding: 20px 24px;
+		border-bottom: var(--hairline);
+		font: 500 15px var(--font-mono);
+	}
+	.mut {
+		color: var(--text-2);
+	}
+	.srow {
+		display: flex;
+		align-items: stretch;
+		height: 56px;
+		border-bottom: var(--hairline);
+		color: var(--text-2);
+		font: 500 14px var(--font-mono);
+	}
+	.srow.on {
+		background: var(--surface-panel);
+		color: var(--text-1);
+	}
+	.srow .mk {
+		width: 56px;
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-right: var(--hairline);
+	}
+	.srow .t {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		padding: 0 18px;
+	}
+	.srow .r {
+		display: flex;
+		align-items: center;
+		padding: 0 24px;
+		font-weight: 400;
+		font-size: 13px;
+	}
+	.servers .foot {
+		display: flex;
+		align-items: stretch;
+		min-height: 56px;
+	}
+	.servers .foot .m {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		padding: 0 24px;
+	}
+	.servers .foot button {
+		border-top: 0;
+		border-left: var(--hairline);
+		padding: 0 24px;
+	}
+
+	/* ---- the chrome: shown on a tap, gone after a few seconds ---- */
+	.cluster,
+	.top,
+	.bottom {
+		transition: opacity 0.15s;
+	}
+	.player:not(.chrome) .cluster,
+	.player:not(.chrome) .top,
+	.player:not(.chrome) .bottom {
+		opacity: 0;
+		pointer-events: none;
+	}
+	.cluster {
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		transform: translate(-50%, -50%);
+		display: flex;
+		background: var(--surface-page);
+		border: var(--hairline);
+	}
+	.cluster button {
+		width: var(--cl);
+		height: var(--cl);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font: 500 var(--cl-font) var(--font-mono);
+	}
+	.cluster .pp {
+		gap: var(--bar-w);
+		border-left: var(--hairline);
+		border-right: var(--hairline);
+		font-size: var(--play-font);
+	}
+	/* Pause is two drawn bars (Player States, "One glyph drawn, not set"). */
+	.pp i,
+	.pause i,
+	.pcells i {
+		display: block;
+		width: var(--bar-w);
+		height: var(--bar-h);
+		background: var(--text-1);
+	}
+	.pause i,
+	.pcells i {
+		width: 4px;
+		height: 16px;
+	}
+	.top {
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: 0;
+		height: var(--top-h);
+		display: flex;
+		align-items: stretch;
+		background: var(--surface-page);
+		border-bottom: var(--hairline);
+	}
+	.top .back {
+		width: var(--top-h);
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-right: var(--hairline);
+		font: 500 18px var(--font-mono);
+	}
+	.top .names {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 3px;
+		padding: 0 18px;
+	}
+	.top .t {
+		font: 500 16px/1.2 var(--font-sans);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.top .t span {
+		color: var(--text-2);
+		font-weight: 400;
+	}
+	.top .m {
+		font: 400 12px var(--font-mono);
+		letter-spacing: 0.04em;
+		white-space: nowrap;
+	}
+	.top .short {
+		display: none;
+	}
+	@media (max-height: 499px) {
+		.top .t {
+			font-size: 15px;
+		}
+		.top .long {
+			display: none;
+		}
+		.top .short {
+			display: inline;
+		}
+	}
+	.cell {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 5px;
+		padding: 0 var(--pad-x);
+		border-right: var(--hairline);
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.02em;
+		white-space: nowrap;
+	}
+	.top .cell {
+		border-right: 0;
+		border-left: var(--hairline);
+		padding: 0 22px;
+		letter-spacing: 0.04em;
+	}
+	.cell:last-child {
+		border-right: 0;
+	}
+	.cell.grow {
+		flex: 1 1 auto;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.desk {
+		display: none;
+	}
+	@media (pointer: fine) and (min-height: 500px) {
+		.desk {
+			display: flex;
+		}
+		.cell.pause {
+			padding: 0 22px;
+		}
+	}
+	@media (max-height: 499px) {
+		.cell {
+			font-size: 13px;
+		}
+	}
+	.bottom {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background: var(--surface-page);
+		border-top: var(--hairline);
+		display: flex;
+		flex-direction: column;
+	}
+	.scrubrow {
+		display: flex;
+		align-items: center;
+		gap: 18px;
+		height: var(--scrub-h);
+		padding: 0 var(--pad-x);
+	}
+	.scrubrow .e {
+		font: 500 13px var(--font-mono);
+		min-width: 44px;
+	}
+	.scrubrow .l {
+		font: 500 13px var(--font-mono);
+		color: var(--text-2);
+		min-width: 52px;
+		text-align: right;
+	}
+	.track {
+		position: relative;
+		flex: 1;
+		height: 4px;
+		background: var(--line-1);
+		touch-action: none;
+		cursor: pointer;
+	}
+	.track::before {
+		/* A finger's worth of target around a 4px line. */
+		content: '';
+		position: absolute;
+		inset: -14px 0;
+	}
+	.track .buf,
+	.track .seen {
+		position: absolute;
+		left: 0;
+		top: 0;
+		height: 4px;
+		background: var(--line-2);
+	}
+	.track .seen {
+		background: var(--accent);
+	}
+	.track .tick {
+		position: absolute;
+		top: -9px;
+		width: 1px;
+		height: 22px;
+		background: var(--text-2);
+	}
+	.track .thumb {
+		position: absolute;
+		top: -10px;
+		width: 4px;
+		height: 24px;
+		margin-left: -2px;
+		background: var(--text-1);
+	}
+	.track .hover {
+		position: absolute;
+		top: -10px;
+		width: 1px;
+		height: 24px;
+		background: var(--text-2);
+	}
+	.track .tip {
+		position: absolute;
+		bottom: 22px;
+		transform: translateX(-50%);
+		padding: 6px 10px;
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+		font: 500 13px var(--font-mono);
+		pointer-events: none;
+	}
+	.cells {
+		display: flex;
+		align-items: stretch;
+		height: var(--cell-h);
+		border-top: var(--hairline);
+	}
+	.endcard {
+		position: absolute;
+		right: 32px;
+		bottom: calc(var(--scrub-h) + var(--cell-h) + 32px);
+		width: min(460px, calc(100% - 64px));
+		background: var(--surface-page);
+		border: var(--hairline);
+		display: flex;
+		flex-direction: column;
+	}
+	.player:not(.chrome) .endcard {
+		bottom: 32px;
+	}
+	.endcard .row {
+		display: flex;
+		gap: 16px;
+		padding: 20px 22px;
+	}
+	.pic {
+		width: 128px;
+		height: 72px;
+		flex-shrink: 0;
+		background: repeating-linear-gradient(
+			135deg,
+			var(--surface-panel) 0 8px,
+			var(--line-1) 8px 16px
+		);
+	}
+	.endcard .txt {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+	}
+	.endcard .k {
+		font: 500 12px var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+	}
+	.endcard .t {
+		font: 500 20px/1.2 var(--font-sans);
+	}
+	.endcard .m,
+	.endcard .when {
+		font: 400 12px var(--font-mono);
+		color: var(--text-2);
+	}
+	.endcard .when {
+		padding: 0 22px 16px;
+		font-size: 13px;
+	}
+	.two {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		border-top: var(--hairline);
+	}
+	.two button {
+		height: 56px;
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.04em;
+	}
+	.acc {
+		background: var(--accent) !important;
+		color: var(--on-accent) !important;
+	}
+
+	/* ---- the settings sheet: a 520px side sheet, the picture playing beside it ---- */
+	.scrim {
+		position: absolute;
+		left: 0;
+		top: 0;
+		bottom: 0;
+		right: 520px;
+		background: rgba(0, 0, 0, 0.6);
+	}
+	.keys-scrim {
+		right: 440px;
+	}
+	.sheet {
+		position: absolute;
+		right: 0;
+		top: 0;
+		bottom: 0;
+		width: 520px;
+		max-width: 100%;
+		box-sizing: border-box;
+		background: var(--surface-page);
+		border-left: 1px solid var(--text-1);
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+	}
+	.sheet.keys {
+		width: 440px;
+	}
+	.shead {
+		flex-shrink: 0;
+		display: flex;
+		align-items: stretch;
+		height: 56px;
+		border-bottom: var(--hairline);
+	}
+	.shead > div {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		padding: 0 24px;
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+	}
+	.shead button {
+		width: 56px;
+		border-left: var(--hairline);
+		font: 500 18px var(--font-mono);
+	}
+	.srows {
+		flex: 1;
+		overflow-y: auto;
+	}
+	.srow2 {
+		display: flex;
+		align-items: stretch;
+		border-bottom: var(--hairline);
+	}
+	.lab {
+		width: 116px;
+		flex-shrink: 0;
+		box-sizing: border-box;
+		padding: 26px 0 0 24px;
+		border-right: var(--hairline);
+		font: 500 12px var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+	}
+	.val {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 12px 16px;
+	}
+	.seg {
+		display: flex;
+		border: 1px solid var(--line-2);
+		height: 44px;
+		font: 500 14px var(--font-mono);
+	}
+	.seg button {
+		flex: 1;
+		min-width: 0;
+		border-left: 1px solid var(--line-2);
+	}
+	.seg button:first-child {
+		border-left: 0;
+	}
+	.seg button.on {
+		background: var(--text-1);
+		color: var(--surface-page);
+	}
+	.li {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		height: 44px;
+		padding: 0 12px !important;
+		border: 1px solid var(--line-2) !important;
+		font: 500 14px var(--font-mono);
+		text-align: left;
+	}
+	.li span:first-child {
+		flex: 1;
+	}
+	.li .r {
+		font-weight: 400;
+		font-size: 12px;
+		color: var(--text-2);
+	}
+	.li.on {
+		border-color: var(--accent) !important;
+	}
+	.li.on .r {
+		color: var(--accent);
+	}
+	.li.off {
+		color: var(--text-2);
+	}
+	.note {
+		font: 400 12px/1.4 var(--font-mono);
+		color: var(--text-2);
+	}
+	.dimrow {
+		display: flex;
+		align-items: center;
+		gap: 16px;
+		height: 44px;
+		font: 500 14px var(--font-mono);
+	}
+	.dimrow input {
+		flex: 1;
+		accent-color: var(--text-1);
+	}
+	.sfoot {
+		padding: 14px 24px;
+		font: 400 12px/1.5 var(--font-mono);
+		color: var(--text-2);
+	}
+	.krow {
+		display: flex;
+		align-items: stretch;
+		min-height: 56px;
+		border-bottom: var(--hairline);
+	}
+	.krow .k {
+		width: 112px;
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		padding-left: 24px;
+		box-sizing: border-box;
+		border-right: var(--hairline);
+		font: 500 14px var(--font-mono);
+	}
+	.krow .a {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		padding: 0 18px;
+		font: 400 15px var(--font-sans);
+	}
+	@media (max-width: 699px) {
+		.scrim,
+		.keys-scrim {
+			right: 0;
+		}
+	}
+
+	/* ---- waits and ends: the reader's end-of-chapter page ---- */
+	.inter {
+		position: absolute;
+		inset: 0;
+		background: var(--surface-page);
+		display: flex;
+		flex-direction: column;
+	}
+	.imid {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 36px;
+		padding: 0 96px;
+	}
+	@media (max-width: 799px) {
+		.imid {
+			padding: 0 24px;
+		}
+	}
+	.kick {
+		display: flex;
+		justify-content: space-between;
+		gap: 12px;
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+	}
+	.rule {
+		height: 1px;
+		background: var(--line-1);
+	}
+	/* The Loading States ink line: the workstation is working, never a faked fill. */
+	.rule.ink {
+		height: 2px;
+		background: var(--text-1);
+	}
+	.what {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		max-width: 820px;
+	}
+	.label {
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+	}
+	.big {
+		font: 500 44px/1.15 var(--font-sans);
+	}
+	.big.faint {
+		opacity: 0.4;
+	}
+	.tag {
+		font: 400 15px var(--font-mono);
+		color: var(--text-2);
+	}
+	.scale {
+		position: relative;
+		height: 64px;
+		max-width: 820px;
+		font: 400 12px var(--font-mono);
+		color: var(--text-2);
+	}
+	.scale > div {
+		position: absolute;
+	}
+	.scale .base {
+		left: 0;
+		right: 0;
+		top: 30px;
+		height: 2px;
+		background: var(--line-1);
+	}
+	.scale .range {
+		top: 28px;
+		height: 6px;
+		background: var(--line-2);
+	}
+	.scale .done {
+		left: 0;
+		top: 30px;
+		height: 2px;
+		background: var(--text-1);
+	}
+	.scale .mark {
+		top: 20px;
+		width: 2px;
+		height: 22px;
+		margin-left: -1px;
+		background: var(--text-1);
+	}
+	.scale .now {
+		top: 0;
+		transform: translateX(-50%);
+		font: 500 13px var(--font-mono);
+		color: var(--text-1);
+	}
+	.scale .n0 {
+		left: 0;
+		top: 46px;
+	}
+	.scale .n20,
+	.scale .n45 {
+		top: 46px;
+		transform: translateX(-50%);
+	}
+	.scale .n60 {
+		right: 0;
+		top: 46px;
+	}
+	.count {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		max-width: 820px;
+	}
+	.count .c {
+		font: 500 16px var(--font-mono);
+		color: var(--accent);
+	}
+	.count .bar {
+		height: 2px;
+		background: var(--line-1);
+	}
+	.count .bar div {
+		height: 2px;
+		background: var(--accent);
+		transition: width 1s linear;
+	}
+	.prose {
+		font: 400 18px/1.5 var(--font-sans);
+		color: var(--text-2);
+		max-width: 600px;
+		text-wrap: pretty;
+	}
+	.icells {
+		flex-shrink: 0;
+		display: flex;
+		border-top: var(--hairline);
+		height: 64px;
+	}
+	.icell {
+		display: flex;
+		align-items: center;
+		padding: 0 24px;
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.04em;
+	}
+	.icell.flex {
+		flex: 1;
+	}
+	.icell.br {
+		border-right: var(--hairline);
+	}
+	.icell.bl {
+		border-left: var(--hairline);
+	}
+
+	/* ---- portrait: the picture on top, the controls always shown beneath ---- */
+	.portrait {
+		display: none;
+	}
+	@media (orientation: portrait) {
+		.stage {
+			top: 56px;
+			bottom: auto;
+			height: calc(100vw * 9 / 16);
+		}
+		.cluster,
+		.top,
+		.bottom,
+		.endcard {
+			display: none;
+		}
+		.subs,
+		.player.chrome .subs {
+			bottom: 8px;
+		}
+		.line {
+			font-size: 14px;
+		}
+		/* A layer of its own over the picture, letting taps through to it. */
+		.portrait {
+			display: block;
+			position: absolute;
+			inset: 0;
+			pointer-events: none;
+		}
+		.portrait > * {
+			pointer-events: auto;
+		}
+		.skip,
+		.player.chrome .skip {
+			right: 12px;
+			bottom: auto;
+			top: calc(56px + 100vw * 9 / 16 - 56px - 12px);
+		}
+	}
+	.pbar {
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: 0;
+		height: 56px;
+		display: flex;
+		align-items: stretch;
+		background: var(--surface-page);
+		border-bottom: var(--hairline);
+	}
+	.pbar .back {
+		width: 56px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-right: var(--hairline);
+		font: 500 17px var(--font-mono);
+	}
+	.pbar .m {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		padding: 0 14px;
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.04em;
+	}
+	.pbar button {
+		padding: 0 16px;
+		border-left: var(--hairline);
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.04em;
+	}
+	.pbody {
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: calc(56px + 100vw * 9 / 16);
+		bottom: 0;
+		overflow-y: auto;
+		background: var(--surface-page);
+	}
+	.pscrub {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		height: 44px;
+		padding: 0 16px;
+		border-bottom: var(--hairline);
+		font: 500 12px var(--font-mono);
+	}
+	.pscrub .track .thumb {
+		top: -8px;
+		height: 20px;
+	}
+	.pcells {
+		display: grid;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+		height: 56px;
+		border-bottom: var(--hairline);
+		font: 500 14px var(--font-mono);
+	}
+	.pcells button {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 5px;
+		border-right: var(--hairline);
+	}
+	.pcells button:last-child {
+		border-right: 0;
+	}
+	.pcells .small {
+		font-size: 12px;
+	}
+	.pnames {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		padding: 16px;
+		border-bottom: var(--hairline);
+	}
+	.pnames .k {
+		font: 500 12px var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+	}
+	.pnames .t {
+		font: 500 20px/1.2 var(--font-sans);
+	}
+	.pnames .s {
+		font: 400 15px var(--font-sans);
+		color: var(--text-2);
+	}
+	.plabel {
+		display: flex;
+		justify-content: space-between;
+		padding: 16px 16px 10px;
+		font: 500 12px var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+	}
+	.up {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		height: 64px;
+		padding: 0 16px;
+		border-top: var(--hairline);
+	}
+	.up .n {
+		width: 24px;
+		font: 500 13px var(--font-mono);
+		color: var(--text-2);
+	}
+	.up .pic {
+		width: 72px;
+		height: 40px;
+	}
+	.up .txt {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+	.up .t {
+		font: 500 15px var(--font-sans);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.up .m {
+		font: 400 11px var(--font-mono);
+	}
+
+	/* A hidden series plays inside the reveal frame, as a hidden book reads. */
+	.reveal {
+		position: absolute;
+		inset: 0;
+		box-shadow: inset 0 0 0 4px var(--reveal);
+		pointer-events: none;
+		z-index: 10;
+	}
+	.dashed {
+		position: absolute;
+		inset: 0;
+		border: 2px dashed var(--line-2);
+		pointer-events: none;
+		z-index: 10;
+	}
+</style>
