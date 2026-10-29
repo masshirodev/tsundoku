@@ -195,6 +195,16 @@ export function engineMediaPath(url: string): string | null {
 	return m ? m[1] : null;
 }
 
+/**
+ * The token of one of the engine's /image/ addresses, or null. A site's own
+ * `/image/` path isn't one: KickAssAnime's posters live at
+ * `https://kaa.lt/image/poster/…`, which read as the engine's token "poster".
+ */
+export function engineImageToken(url: string | null | undefined): string | null {
+	const path = url ? engineMediaPath(url) : null;
+	return path ? (/^\/image\/([^/?#]+)/i.exec(path)?.[1] ?? null) : null;
+}
+
 /** A stream through the engine, unbuffered: an episode's segments are megabytes each. */
 export async function engineMedia(
 	path: string,

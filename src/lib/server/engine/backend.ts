@@ -26,7 +26,7 @@ import {
 	type QueueItem,
 	type ResultMatch
 } from '../../library/downloads.ts';
-import { call, engineDownSince, EngineError } from './client.ts';
+import { call, engineDownSince, engineImageToken, EngineError } from './client.ts';
 import { extensionFor, preferences } from './extensions.ts';
 import { splitMemo } from './protocol.ts';
 import { chapterName } from './device.ts';
@@ -256,7 +256,7 @@ export function parseSourceMangaId(id: string): { sourceId: string; url: string 
 
 /** The engine's /image/ token as one of tsundoku's own URLs: the browser can't reach the engine, nor hold its token. */
 export function imageRoute(engineUrl: string | undefined | null): string {
-	const token = engineUrl ? /\/image\/([^/?#]+)/.exec(engineUrl)?.[1] : null;
+	const token = engineImageToken(engineUrl);
 	return token ? `/api/downloads/engine-image/${token}` : '';
 }
 

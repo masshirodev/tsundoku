@@ -35,7 +35,9 @@ const show = (i: number) => ({
 	url: `/anime/${i}`,
 	title: `Show ${i}`,
 	status: 1,
-	thumbnail_url: i === 0 ? 'http://engine/image/tok0' : `https://cdn.example/${i}.jpg`
+	// A site's own /image/ path (KickAssAnime's posters) is the site's, not the engine's.
+	thumbnail_url:
+		i === 0 ? 'http://127.0.0.1:8080/image/tok0' : `https://kaa.example/image/poster/${i}.webp`
 });
 
 beforeAll(async () => {

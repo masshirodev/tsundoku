@@ -38,7 +38,7 @@ const manga = (sourceId: string, page: number, i: number) => ({
 	title: `Series ${page}-${i}`,
 	author: 'Someone',
 	status: 1,
-	thumbnail_url: `http://engine/image/tok${page}${i}`
+	thumbnail_url: `http://127.0.0.1:8080/image/tok${page}${i}`
 });
 
 beforeAll(async () => {

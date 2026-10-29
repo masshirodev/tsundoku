@@ -9,6 +9,7 @@ import { coverRoute } from '../novels/source.ts';
 import { planAnime, type AnimeEpisode } from '../../import/anime-plan.ts';
 import { animeKeyOf } from '../../library/downloads.ts';
 import type { SourceManga } from '../download-types.ts';
+import { engineImageToken } from './client.ts';
 import { splitMemo } from './protocol.ts';
 import {
 	AddError,
@@ -177,7 +178,7 @@ export async function addAnime(id: string, now = Date.now()): Promise<number> {
 async function coverAddress(url: string | null | undefined): Promise<string | undefined> {
 	if (!url) return undefined;
 	const engine = process.env.ENGINE_URL?.replace(/\/$/, '');
-	const token = /\/image\/([^/?#]+)/.exec(url)?.[1];
+	const token = engineImageToken(url);
 	if (token) return engine ? `${engine}/image/${token}` : undefined;
 	try {
 		return (await checkPublic(url)).toString();
