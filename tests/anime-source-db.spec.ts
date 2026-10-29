@@ -1,0 +1,218 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+
+// Before anything imports db.ts: getDb() reads this once and memoises.
+process.env.DATABASE_PATH = ':memory:';
+process.env.ENGINE_TOKEN = 't';
+const work = mkdtempSync(join(tmpdir(), 'tsundoku-anime-source-'));
+process.env.LIBRARY_ROOT = join(work, 'library');
+process.env.ENGINE_STORE = join(work, 'store');
+process.env.COVER_DIR = join(work, 'covers');
+afterAll(() => rmSync(work, { recursive: true, force: true }));
+
+const { getDb } = await import('$lib/server/db');
+const browse = await import('$lib/server/engine/browse');
+const downloads = await import('$lib/server/downloads');
+const { forgetSourceUse } = await import('$lib/server/library-sources');
+
+// An Aniyomi source on the engine (doc/ANIME.md; card c154): the same
+// questions a Mihon source answers, under their anime names, and an anime
+// added as a series of episodes by season.
+const ANIME = '7000';
+const MANGA = '100';
+type Call = { method: string; sourceId: string; animeData?: { url: string }; mangaData?: unknown };
+let calls: Call[] = [];
+let server: Server;
+const show = (i: number) => ({
+	url: `/anime/${i}`,
+	title: `Show ${i}`,
+	status: 1,
+	thumbnail_url: i === 0 ? 'http://engine/image/tok0' : `https://cdn.example/${i}.jpg`
+});
+
+beforeAll(async () => {
+	server = createServer((req, res) => {
+		let raw = '';
+		req.on('data', (c) => (raw += c));
+		req.on('end', () => {
+			const b = JSON.parse(raw || '{}') as Call;
+			calls.push(b);
+			const json = (v: unknown) =>
+				res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(v));
+			switch (b.method) {
+				case 'getPopularAnime':
+					return json({ animes: [show(0), show(1)], hasNextPage: false });
+				case 'getSearchAnime':
+					return json({ animes: [show(2)], hasNextPage: false });
+				case 'supportLatestAnime':
+					return json(true);
+				case 'filterSchemaAnime':
+					return json([{ type: 'select', name: 'Season', state: 0, values: ['All', 'Fall'] }]);
+				case 'getDetailsAnime':
+					return json({
+						url: b.animeData!.url,
+						title: 'Tsukiakari no Ryokōsha',
+						description: ' Travellers. ',
+						genre: 'Adventure, Slice of Life',
+						author: 'Studio Lantern',
+						status: 1,
+						thumbnail_url: 'https://cdn.example/cover.jpg'
+					});
+				case 'getEpisodeList':
+					// Newest first, seasons flattened and named, as the engine does.
+					return json([
+						{ url: '/e/s2-2', name: 'Season 2 - Episode 2 - Salt Road', episode_number: 2 },
+						{ url: '/e/s2-1', name: 'Season 2 - Episode 1', episode_number: 1 },
+						{ url: '/e/s1-2', name: 'Season 1 - Episode 2: The Ferry', episode_number: 2 },
+						{ url: '/e/s1-1', name: 'Season 1 - Episode 1', episode_number: -1 }
+					]);
+			}
+			res.writeHead(404).end('{"error":"no","code":404}');
+		});
+	});
+	await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
+	process.env.ENGINE_URL = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+});
+afterAll(async () => {
+	server.closeAllConnections();
+	await new Promise((ok) => server.close(ok));
+});
+
+const db = getDb();
+for (const [pkg, kind, name] of [
+	['e2e.anime', 'anime', 'AnimePahe'],
+	['e2e.manga', 'manga', 'Open Source']
+])
+	db.prepare(
+		`INSERT INTO engine_extensions (pkg, name, kind, version_code, version_name, lib, handle, installed_at, updated_at, failed)
+		VALUES (?, ?, ?, 1, '1.0', '16', ?, 0, 0, '')`
+	).run(pkg, name, kind, pkg.padEnd(64, '0'));
+for (const [pkg, id, name] of [
+	['e2e.anime', ANIME, 'AnimePahe'],
+	['e2e.manga', MANGA, 'Open Source']
+])
+	db.prepare(
+		`INSERT INTO engine_sources (id, pkg, name, lang, base_url) VALUES (?, ?, ?, 'en', 'https://example.org')`
+	).run(id, pkg, name);
+
+beforeEach(() => {
+	calls = [];
+	browse.forgetAll();
+	forgetSourceUse();
+});
+
+describe('an anime source in BROWSE', () => {
+	it('lists under ANIME, and is asked its anime names for the same questions', async () => {
+		expect(browse.browseList(false).anime.map((r) => r.id)).toEqual([ANIME]);
+		const got = await browse.shelf(ANIME, 'popular', { pages: 1, reveal: false });
+		expect(got.hits.map((h) => h.title)).toEqual(['Show 0', 'Show 1']);
+		// The engine's proxy as for a manga; a site's picture through the server.
+		expect(got.hits[0].cover).toBe('/api/downloads/engine-image/tok0');
+		expect(got.hits[1].cover).toMatch(/^\/api\/browse\/novel-cover\//);
+		expect(await browse.supportsLatest(ANIME)).toBe(true);
+		expect((await browse.filterSchema(ANIME)).map((f) => f.name)).toEqual(['Season']);
+		expect(calls.map((c) => c.method)).toEqual([
+			'getPopularAnime',
+			'supportLatestAnime',
+			'filterSchemaAnime'
+		]);
+	});
+});
+
+describe('an anime, previewed and added', () => {
+	const id = `${ANIME}~${Buffer.from('/anime/1').toString('base64url')}`;
+
+	it('previews its episodes, newest first, by season, saying EPISODES', async () => {
+		const m = (await downloads.sourceManga(id))!;
+		expect(m.kind).toBe('anime');
+		expect(m.title).toBe('Tsukiakari no Ryokōsha');
+		expect(m.chapters.map((c) => c.name)).toEqual([
+			'S2 · Ep. 2 · Salt Road',
+			'S2 · Ep. 1',
+			'S1 · Ep. 2 · The Ferry',
+			'S1 · Ep. 1'
+		]);
+		expect(calls.find((c) => c.method === 'getEpisodeList')?.animeData?.url).toBe('/anime/1');
+		expect(await downloads.mangaKey(id)).toBe(`aniyomi:${ANIME}:/anime/1`);
+	});
+
+	it('adds an anime series, every episode NOT DOWNLOADED, numbered within its season', async () => {
+		const seriesId = await downloads.addToLibrary(id);
+		const s = db
+			.prepare(`SELECT kind, source, origin_key, root_id FROM series WHERE id = ?`)
+			.get(seriesId);
+		expect(s).toMatchObject({
+			kind: 'anime',
+			source: 'AnimePahe',
+			origin_key: `aniyomi:${ANIME}:/anime/1`
+		});
+		const root = db
+			.prepare(`SELECT name, path FROM roots WHERE id = ?`)
+			.get((s as { root_id: number }).root_id);
+		expect(root).toEqual({ name: 'Anime', path: join(work, 'library', 'Anime') });
+		expect(
+			db
+				.prepare(
+					`SELECT position, label, title, source_url, season, episode_number, available FROM entries
+					WHERE series_id = ? ORDER BY position`
+				)
+				.all(seriesId)
+		).toEqual([
+			{
+				position: 1,
+				label: 'Ep. 1',
+				title: '',
+				source_url: '/e/s1-1',
+				season: 1,
+				episode_number: 1,
+				available: 0
+			},
+			{
+				position: 2,
+				label: 'Ep. 2',
+				title: 'The Ferry',
+				source_url: '/e/s1-2',
+				season: 1,
+				episode_number: 2,
+				available: 0
+			},
+			{
+				position: 3,
+				label: 'Ep. 1',
+				title: '',
+				source_url: '/e/s2-1',
+				season: 2,
+				episode_number: 1,
+				available: 0
+			},
+			{
+				position: 4,
+				label: 'Ep. 2',
+				title: 'Salt Road',
+				source_url: '/e/s2-2',
+				season: 2,
+				episode_number: 2,
+				available: 0
+			}
+		]);
+		// Added again: the same series, not a second.
+		expect(await downloads.addToLibrary(id)).toBe(seriesId);
+		// Now IN LIBRARY when its source lists it.
+		forgetSourceUse();
+		browse.forgetAll();
+		const again = await browse.shelf(ANIME, 'popular', { pages: 1, reveal: false });
+		expect(again.hits[1].match).toMatchObject({ kind: 'in-library', seriesId });
+	});
+
+	it('is searched with the library’s other sources', async () => {
+		const sources = await downloads.searchSources(false);
+		expect(sources.map((s) => s.id)).toContain(ANIME);
+		const hits = await downloads.searchSource(ANIME, 'show', false);
+		expect(hits.map((h) => h.title)).toEqual(['Show 2']);
+		expect(calls.at(-1)?.method).toBe('getSearchAnime');
+	});
+});

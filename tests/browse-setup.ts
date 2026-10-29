@@ -11,6 +11,7 @@ import {
 	BROWSE_PORT,
 	ENGINE_PORT,
 	REPO_PORT,
+	ANIME_SOURCE,
 	SHELF_PLUGIN,
 	SOURCES,
 	type EngineCall
@@ -140,7 +141,34 @@ const manga = (sourceId: string, page: number, i: number, title?: string) => ({
 
 function answer(b: EngineCall): unknown {
 	const page = b.page ?? 1;
+	const animeData = (b as { animeData?: { url: string } }).animeData;
 	switch (b.method) {
+		// The anime source (tests/browse-anime.e2e.ts): one show, two seasons of two.
+		case 'supportLatestAnime':
+			return false;
+		case 'filterSchemaAnime':
+			return [];
+		case 'getPopularAnime':
+		case 'getLatestAnime':
+			return {
+				animes: [{ url: '/show/kori', title: 'Kōri no Shiro no Majo', status: 2 }],
+				hasNextPage: false
+			};
+		case 'getDetailsAnime':
+			return {
+				url: animeData?.url ?? '/show/kori',
+				title: 'Kōri no Shiro no Majo',
+				description: 'A witch, and a castle of ice.',
+				genre: 'Fantasy',
+				status: 2
+			};
+		case 'getEpisodeList':
+			return [
+				{ url: '/ep/s2e2', name: 'Season 2 - Episode 2 - Thaw', episode_number: 2 },
+				{ url: '/ep/s2e1', name: 'Season 2 - Episode 1', episode_number: 1 },
+				{ url: '/ep/s1e2', name: 'Season 1 - Episode 2 - A Door Without a Key', episode_number: 2 },
+				{ url: '/ep/s1e1', name: 'Season 1 - Episode 1 - The First Snow', episode_number: 1 }
+			];
 		case 'supportLatestManga':
 			return b.sourceId === SOURCES.open.id;
 		case 'filterSchemaManga':
@@ -387,6 +415,14 @@ function seed(dbPath: string, store: string): void {
 			`INSERT INTO engine_sources (id, pkg, name, lang, base_url) VALUES (?, ?, ?, 'en', 'https://example.org')`
 		).run(s.id, s.pkg, s.name);
 	}
+	// An Aniyomi source on the fake engine (tests/browse-anime.e2e.ts).
+	db.prepare(
+		`INSERT INTO engine_extensions (pkg, name, kind, version_code, version_name, lib, handle, installed_at, updated_at, failed)
+		VALUES (?, ?, 'anime', 1, '1.0', '16', ?, 0, 0, '')`
+	).run(ANIME_SOURCE.pkg, ANIME_SOURCE.name, ANIME_SOURCE.pkg.padEnd(64, '0'));
+	db.prepare(
+		`INSERT INTO engine_sources (id, pkg, name, lang, base_url) VALUES (?, ?, ?, 'en', 'https://anime.example')`
+	).run(ANIME_SOURCE.id, ANIME_SOURCE.pkg, ANIME_SOURCE.name);
 	// An anime series (tests/browse-anime.e2e.ts; doc/ANIME.md), as Anime States
 	// draws one: season 1 watched through, season 2 part-way, EP. 7 at 14:32 left,
 	// EP. 8 downloaded, a recap and a filler.

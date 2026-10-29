@@ -46,6 +46,8 @@ export type SearchHit = {
 
 export type SourceManga = {
 	id: string;
+	/** An anime's preview lists EPISODES (doc/ANIME.md); a manga's and a novel's leave it out. */
+	kind?: 'anime';
 	title: string;
 	description: string;
 	author: string;

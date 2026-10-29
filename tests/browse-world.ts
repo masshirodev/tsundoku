@@ -12,6 +12,9 @@ export const REPO_PORT = Number(process.env.PLAYWRIGHT_REPO_PORT ?? 4196);
 /** The novel plugin the setup installs (tests/fixtures/lnreader/shelf.js): BROWSE knows it as `ln:shelf`. */
 export const SHELF_PLUGIN = 'shelf';
 
+/** An Aniyomi source (tests/browse-anime.e2e.ts; doc/ANIME.md), seeded installed. */
+export const ANIME_SOURCE = { id: '400', pkg: 'e2e.anime', name: 'Moonlight Streams' };
+
 export const SOURCES = {
 	open: { id: '100', pkg: 'e2e.open', name: 'Open Source' } as {
 		id: string;

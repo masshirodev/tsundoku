@@ -4,6 +4,7 @@ import { getSetting } from './settings.ts';
 import * as novels from './novels/source.ts';
 import * as novelDownloads from './novels/downloader.ts';
 import * as novelFollow from './novels/follow.ts';
+import * as anime from './engine/anime-source.ts';
 import { NovelHostError } from './novels/host.ts';
 
 /**
@@ -71,12 +72,29 @@ export function sourceOfMangaId(id: string): string | null {
 	return novels.parseNovelMangaId(id)?.sourceId ?? engine.parseSourceMangaId(id)?.sourceId ?? null;
 }
 export const isSourceMangaId = (id: string) => sourceOfMangaId(id) !== null;
+/** Whether a result is an Aniyomi source's anime (doc/ANIME.md). */
+const isAnimeId = (id: string) => {
+	const ref = engine.parseSourceMangaId(id);
+	return ref !== null && engine.isAnimeSource(ref.sourceId);
+};
 export const sourceManga = async (id: string) =>
-	novels.parseNovelMangaId(id) ? novels.novelManga(id) : engine.sourceManga(id);
+	novels.parseNovelMangaId(id)
+		? novels.novelManga(id)
+		: isAnimeId(id)
+			? anime.animeManga(id)
+			: engine.sourceManga(id);
 export const mangaKey = async (id: string) =>
-	novels.parseNovelMangaId(id) ? novels.novelMangaKey(id) : engine.mangaKey(id);
+	novels.parseNovelMangaId(id)
+		? novels.novelMangaKey(id)
+		: isAnimeId(id)
+			? anime.animeKey(id)
+			: engine.mangaKey(id);
 export const addToLibrary = async (id: string) =>
-	novels.parseNovelMangaId(id) ? novels.addNovel(id) : engine.addToLibrary(id);
+	novels.parseNovelMangaId(id)
+		? novels.addNovel(id)
+		: isAnimeId(id)
+			? anime.addAnime(id)
+			: engine.addToLibrary(id);
 export const undoAdd = async (seriesId: number) => engine.undoAdd(seriesId);
 export const setFollowed = async (seriesId: number, on: boolean) =>
 	novelDownloads.isNovelSeries(seriesId)

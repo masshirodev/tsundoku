@@ -39,6 +39,14 @@ export type PlannedEntry = {
 	coverFile?: string | null;
 	/** Perceptual hash of the cover, as the source computed it, in hex. */
 	coverPhash?: string | null;
+	/** An anime's episode (doc/ANIME.md): its season, its number in it, and what the source says of it. */
+	episode?: {
+		season: number | null;
+		number: number | null;
+		note: '' | 'filler' | 'recap';
+		durationS: number | null;
+		thumbUrl: string;
+	};
 	/**
 	 * A book's own tags, for an entry that is a book in a series of books:
 	 * person pages find those by their own tags (doc/BOOKS.md).

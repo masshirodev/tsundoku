@@ -92,9 +92,13 @@
 							<span>{adding ? 'ADDING…' : '+ ADD TO LIBRARY'}</span>
 							<span class="cta-meta">
 								<span class="long"
-									>{count(m.chapters.length)} CHAPTERS · NOTHING DOWNLOADS UNTIL ASKED</span
+									>{count(m.chapters.length)}
+									{m.kind === 'anime' ? 'EPISODES · EVERY ONE STREAMS' : 'CHAPTERS'} · NOTHING DOWNLOADS
+									UNTIL ASKED</span
 								>
-								<span class="short">{count(m.chapters.length)} CH.</span>
+								<span class="short"
+									>{count(m.chapters.length)} {m.kind === 'anime' ? 'EP.' : 'CH.'}</span
+								>
 							</span>
 						</button>
 					</form>
@@ -138,9 +142,11 @@
 					{/if}
 				</section>
 
-				<section class="list" aria-label="Chapters">
+				<section class="list" aria-label={m.kind === 'anime' ? 'Episodes' : 'Chapters'}>
 					<div class="head">
-						<span>01 — CHAPTERS</span><span class="n">{count(m.chapters.length)}</span>
+						<span>01 — {m.kind === 'anime' ? 'EPISODES' : 'CHAPTERS'}</span><span class="n"
+							>{count(m.chapters.length)}</span
+						>
 					</div>
 					<ol>
 						{#each m.chapters as c (c.id)}

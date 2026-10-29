@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures';
+import { ANIME_SOURCE } from './browse-world';
 
 /**
  * An anime series in the library and on the series screen (doc/ANIME.md;
@@ -68,4 +69,34 @@ test('an anime series: its count, CONTINUE, and episodes by season', async ({ pa
 	await page.getByLabel('GO TO EP.').fill('9');
 	await page.getByLabel('GO TO EP.').press('Enter');
 	await expect(row('A Letter from Hollin')).toHaveClass(/flash/);
+});
+
+test('an anime source is browsed, previewed with its EPISODES, and added by season (c154)', async ({
+	page
+}) => {
+	await page.goto('/browse');
+	await expect(page.locator('.screen > .label', { hasText: 'ANIME' })).toBeVisible();
+	await page
+		.getByRole('link', { name: new RegExp(ANIME_SOURCE.name) })
+		.first()
+		.click();
+	await expect(page).toHaveURL(new RegExp(`/browse/${ANIME_SOURCE.id}$`));
+	await page.locator('.grid .tile', { hasText: 'Kōri no Shiro no Majo' }).click();
+	await expect(page).toHaveURL(/\/downloads\/source\//);
+	const add = page.getByRole('button', { name: /ADD TO LIBRARY/ });
+	await expect(add).toContainText('4 EPISODES · EVERY ONE STREAMS');
+	await expect(page.getByRole('region', { name: 'Episodes' })).toContainText('S2 · Ep. 2 · Thaw');
+	await add.click();
+	await expect(page).toHaveURL(/\/series\/\d+\?added=/);
+	await expect(page.locator('.names .meta')).toHaveText('ANIME · MOONLIGHT STREAMS · COMPLETED');
+	const list = page.getByRole('region', { name: 'Episodes' });
+	await expect(list.locator('.season')).toHaveText([
+		'SEASON 1 · EP. 1 – 2 NONE WATCHED',
+		'SEASON 2 · EP. 1 – 2 NONE WATCHED'
+	]);
+	await expect(list.locator('.entry', { hasText: 'The First Snow' }).locator('.status')).toHaveText(
+		'NOT DOWNLOADED'
+	);
+	await expect(page.locator('a.cta')).toContainText('▶ START');
+	await expect(page.locator('a.cta')).toContainText('S1 · EP. 1 · STREAMS');
 });

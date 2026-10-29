@@ -60,6 +60,27 @@ export function parseNovelKey(key: string | null): { plugin: string; path: strin
 	return m ? { plugin: m[1], path: m[2] } : null;
 }
 
+/**
+ * An anime series' key (doc/ANIME.md): `aniyomi:<source>:<url>`, an Aniyomi
+ * source's anime by its URL, as a Mihon one is `mihon:<source>:<url>`. Its own
+ * prefix, so nothing that downloads chapters takes it for a manga.
+ */
+export const animeKeyOf = (sourceId: string, url: string) => `aniyomi:${sourceId}:${url}`;
+
+/** `aniyomi:<source>:<url>` apart; null for any other key. */
+export function parseAnimeKey(key: string | null): { sourceId: string; url: string } | null {
+	const m = key ? /^aniyomi:(\d+):(.+)$/.exec(key) : null;
+	return m ? { sourceId: m[1], url: m[2] } : null;
+}
+
+/** What a series from a source is, by its key: which worker downloads it. */
+export function keyKind(key: string | null): 'manga' | 'novel' | 'anime' | null {
+	if (parseKey(key)) return 'manga';
+	if (parseNovelKey(key)) return 'novel';
+	if (parseAnimeKey(key)) return 'anime';
+	return null;
+}
+
 /** A novel plugin's source id, `ln:<plugin>`, as against a Mihon source's number. */
 export const isNovelSourceId = (id: string) => id.startsWith('ln:');
 
@@ -69,7 +90,7 @@ export const isNovelSourceId = (id: string) => id.startsWith('ln:');
  * anything not from a source.
  */
 export function sourceOfKey(key: string | null): string | null {
-	const m = parseKey(key);
+	const m = parseKey(key) ?? parseAnimeKey(key);
 	if (m) return m.sourceId;
 	const n = parseNovelKey(key);
 	return n ? `ln:${n.plugin}` : null;

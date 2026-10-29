@@ -313,6 +313,7 @@ export function writeSeries(
 							e.available ? opts.now : null
 						).lastInsertRowid
 					);
+					if (e.episode) setEpisode(db, entryId, e.episode, true);
 					setPages(db, entryId, e);
 					for (const t of e.tags ?? [])
 						db.prepare(`INSERT OR IGNORE INTO entry_tags (entry_id, tag_id) VALUES (?, ?)`).run(
@@ -323,6 +324,8 @@ export function writeSeries(
 					if (e.available) filesAttached += 1;
 				} else {
 					entryId = had.id;
+					// What the source says of an episode can change (a title, a length); its watch state can't.
+					if (e.episode) setEpisode(db, entryId, e.episode, false);
 					// Rung 10 came after the first imports: a rescan fills it in.
 					if (e.scanlator)
 						db.prepare(`UPDATE entries SET scanlator = ? WHERE id = ?`).run(e.scanlator, entryId);
@@ -403,6 +406,34 @@ export function writeSeries(
 			return { created, entriesAdded, filesAttached };
 		})
 		.immediate();
+}
+
+/**
+ * An episode's own columns (rung 47). A length or picture already known isn't
+ * blanked by a source that stopped saying it.
+ */
+function setEpisode(
+	db: Database.Database,
+	entryId: number,
+	e: NonNullable<PlannedEntry['episode']>,
+	fresh: boolean
+): void {
+	db.prepare(
+		`UPDATE entries SET season = ?, episode_number = ?, episode_note = ?,
+			duration_s = CASE WHEN ? THEN ? ELSE COALESCE(?, duration_s) END,
+			thumb_url = CASE WHEN ? != '' THEN ? ELSE thumb_url END
+		WHERE id = ?`
+	).run(
+		e.season,
+		e.number,
+		e.note,
+		fresh ? 1 : 0,
+		e.durationS,
+		e.durationS,
+		e.thumbUrl,
+		e.thumbUrl,
+		entryId
+	);
 }
 
 /** Above any real position: a volume's new entries, until placeVolume puts them in their run. */

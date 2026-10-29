@@ -13,7 +13,7 @@ the second amended to Jellyfin's TV layout (card c128 has them in full).
 | Part                                                     | Card | State   |
 | -------------------------------------------------------- | ---- | ------- |
 | Anime as a kind, its series screen and the ANIME shelf   | c153 | Done    |
-| Anime sources in BROWSE, the preview and ADD             | c154 | Not yet |
+| Anime sources in BROWSE, the preview and ADD             | c154 | Done    |
 | Streams: resolving an episode's videos, through tsundoku | c155 | Not yet |
 | The player                                               | c156 | Not yet |
 | Downloading episodes into a Jellyfin-shaped folder       | c157 | Not yet |
@@ -106,6 +106,46 @@ Ryokōsha" (`tests/browse-setup.ts`, the handoff's own sample), pins the
 shelf, CONTINUE, the count, the season fold and heads, each status, and the
 handoff's measurements.
 
+## Finding and adding (c154)
+
+An Aniyomi source is a source like any other in BROWSE and SEARCH THE SOURCES
+([`BROWSE.md`](BROWSE.md)): under ANIME, with POPULAR, LATEST, its filters,
+its SETTINGS, search inside it.
+
+- **The same questions, under their anime names.** The engine's anime calls
+  are the manga ones with Anime and Episode in them
+  ([`EXTENSION-ENGINE.md`](EXTENSION-ENGINE.md)), so `callSource`
+  (`engine/backend.ts`) names them for an anime source (getPopularAnime,
+  getSearchAnime, filterSchemaAnime, preferencesAnime…), sends `animeData`
+  for `mangaData`, and reads a page's `animes` as `mangas`. Everything that
+  browses, searches and sets a source's settings works unchanged.
+- **Covers**: the engine's `/image/` proxy as for manga; a site's picture,
+  which an Aniyomi source often gives instead, comes through the server
+  (`/api/browse/novel-cover/<token>`, internet only), never to the browser.
+- **The preview** says EPISODES ("4 EPISODES · EVERY ONE STREAMS · NOTHING
+  DOWNLOADS UNTIL ASKED"), newest first, "S2 · Ep. 2 · Thaw".
+- **ADD TO LIBRARY** (`engine/anime-source.ts`, `src/lib/import/anime-plan.ts`)
+  writes an anime series through the one writer, which learned the episode
+  columns: keyed `aniyomi:<source>:<url>`, its own prefix, so nothing that
+  downloads chapters takes it for a manga; into the **Anime** root,
+  `$LIBRARY_ROOT/Anime`; `series.source` the source's name, so the meta line
+  reads "ANIME · ANIMEPAHE · ONGOING" as the handoff draws it; every episode
+  NOT DOWNLOADED, known by its URL.
+- **Seasons.** The engine flattens a source's seasons and names each episode
+  after its season ("Season 2 - Episode 3"); that prefix is the season, and a
+  list without one stays flat. Episodes are oldest first within a season,
+  seasons in order; a number the source didn't give is read from the name,
+  else placed by where the source listed it. The title is what's left after
+  "Episode 3".
+- **IN LIBRARY and SAME TITLE** match anime by their own key; the queue tells
+  an anime's rows apart by it too (`QueueRow.kind`), so the engine's chapter
+  worker never takes an episode.
+
+`tests/anime-plan.spec.ts`, `tests/anime-source-db.spec.ts` (BROWSE's ANIME
+rows and the anime calls, covers, the preview, ADD by season, IN LIBRARY,
+search) and the c154 test in `tests/browse-anime.e2e.ts` (a source on the fake
+engine, browsed, previewed, added).
+
 ## Where it departs from the handoff
 
 - **A tap on an episode plays it**, whatever its file. The handoff draws no
@@ -120,5 +160,8 @@ handoff's measurements.
 
 ## What it does not do yet
 
-Everything after the series screen: the cards above. Thumbnails need a
-source (c154), and come through tsundoku, never from the site to the browser.
+Streams, the player, downloading and FOLLOW: the cards above. **No episode
+pictures, lengths or FILLER/RECAP yet**: the engine's episode list carries
+none of them (`JEpisode` is url, name, date, number, scanlator). A length
+comes from the stream (c155) or the file (c157). **No LINK for anime**: the
+catalogue search (AniList, MAL) asks for manga and novels only.

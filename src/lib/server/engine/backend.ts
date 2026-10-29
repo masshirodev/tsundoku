@@ -1,3 +1,4 @@
+import { coverRoute } from '../novels/source.ts';
 import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
 import { writeSeries } from '../import/write.ts';
@@ -13,6 +14,7 @@ import { planMihon } from '../../import/mihon-plan.ts';
 import type { MihonManga } from '../../import/mihon-backup.ts';
 import { chapterNumbers, toNumber } from '../../import/chapter-number.ts';
 import {
+	animeKeyOf,
 	followQueue,
 	highlight,
 	keyOf,
@@ -261,7 +263,7 @@ export function searchSources(reveal: boolean): { id: string; name: string }[] {
 	const rows = db()
 		.prepare(
 			`SELECT s.id, s.name FROM engine_sources s JOIN engine_extensions e ON e.pkg = s.pkg
-			WHERE e.failed = '' AND e.kind = 'manga'`
+			WHERE e.failed = ''`
 		)
 		.all() as { id: string; name: string }[];
 	return sourcesToSearch(rows, sourceUse(), reveal);
@@ -290,7 +292,36 @@ const STATUS_NAME = [
 	'ON_HIATUS'
 ];
 
-export function callSource<T>(
+/** Whether a source is an Aniyomi one: an anime extension's (doc/ANIME.md). */
+export function isAnimeSource(sourceId: string): boolean {
+	const r = db()
+		.prepare(
+			`SELECT e.kind FROM engine_sources s JOIN engine_extensions e ON e.pkg = s.pkg WHERE s.id = ?`
+		)
+		.get(sourceId) as { kind: string } | undefined;
+	return r?.kind === 'anime';
+}
+
+/**
+ * An Aniyomi source's names for the calls a Mihon one answers (doc/EXTENSION-ENGINE.md,
+ * "the anime ones are the same with Anime/Episode"): BROWSE, search and the
+ * settings ask a source the same questions whichever kind it is.
+ */
+const ANIME_METHOD: Record<string, string> = {
+	getPopularManga: 'getPopularAnime',
+	getLatestManga: 'getLatestAnime',
+	getSearchManga: 'getSearchAnime',
+	getDetailsManga: 'getDetailsAnime',
+	getMangaUrl: 'getAnimeUrl',
+	getChapterList: 'getEpisodeList',
+	supportLatestManga: 'supportLatestAnime',
+	filterSchemaManga: 'filterSchemaAnime',
+	preferencesManga: 'preferencesAnime',
+	setPreferenceManga: 'setPreferenceAnime',
+	headersManga: 'headersAnime'
+};
+
+export async function callSource<T>(
 	sourceId: string,
 	method: string,
 	args: Record<string, unknown>,
@@ -298,7 +329,23 @@ export function callSource<T>(
 ): Promise<T> {
 	const ext = extensionFor(sourceId);
 	if (!ext) throw new EngineError('No installed extension has this source', 'not-found');
-	return call<T>(ext, method, args, { sourceId, preferences: preferences(sourceId), timeoutMs });
+	const opts = { sourceId, preferences: preferences(sourceId), timeoutMs };
+	if (!isAnimeSource(sourceId) || !(method in ANIME_METHOD))
+		return call<T>(ext, method, args, opts);
+	// An anime is a manga's shape (url, title, thumbnail_url…), carried as animeData.
+	const { mangaData, ...rest } = args;
+	const got = await call<unknown>(
+		ext,
+		ANIME_METHOD[method],
+		mangaData === undefined ? rest : { ...rest, animeData: mangaData },
+		opts
+	);
+	// A page of anime is `animes`, where a manga page is `mangas`.
+	if (got && typeof got === 'object' && 'animes' in got) {
+		const { animes, ...page } = got as { animes: unknown };
+		return { ...page, mangas: animes ?? [] } as T;
+	}
+	return got as T;
 }
 
 export const sourceName = (sourceId: string) =>
@@ -319,13 +366,15 @@ export function asHits(
 	query = ''
 ): SearchHit[] {
 	const { byKey, byTitle, nameable } = libraryIndex(reveal);
+	// An anime result is in the library by its own key (doc/ANIME.md).
+	const anime = isAnimeSource(sourceId);
 	const seen = new Set<string>();
 	const out: SearchHit[] = [];
 	for (const m of mangas) {
 		const url = splitMemo(m.url).url;
 		if (seen.has(url)) continue;
 		seen.add(url);
-		const mine = byKey.get(keyOf(sourceId, url));
+		const mine = byKey.get(anime ? animeKeyOf(sourceId, url) : keyOf(sourceId, url));
 		if (mine?.hidden && !reveal) continue;
 		const other = byTitle.get(normTitle(m.title));
 		const match: ResultMatch = mine
@@ -342,7 +391,9 @@ export function asHits(
 			mangaId: sourceMangaId(sourceId, m.url),
 			title: m.title,
 			parts: highlight(m.title, query),
-			cover: imageRoute(m.thumbnail_url),
+			// An anime source may give its site's picture rather than the engine's
+			// proxy: fetched by the server all the same, never by the browser.
+			cover: imageRoute(m.thumbnail_url) || (anime ? coverRoute(m.thumbnail_url) : ''),
 			meta: [m.author?.toUpperCase(), STATUS[m.status ?? 0]].filter(Boolean).join(' · '),
 			match
 		});

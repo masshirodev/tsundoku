@@ -23,7 +23,7 @@ export function sourceUse(): Map<string, SourceUse> {
 	const rows = getDb()
 		.prepare(
 			`SELECT s.origin_key AS k, NOT ${VISIBLE_SQL} AS hidden
-			FROM series s JOIN roots r ON r.id = s.root_id WHERE (s.origin_key LIKE 'mihon:%' OR s.origin_key LIKE 'lnreader:%')`
+			FROM series s JOIN roots r ON r.id = s.root_id WHERE (s.origin_key LIKE 'mihon:%' OR s.origin_key LIKE 'lnreader:%' OR s.origin_key LIKE 'aniyomi:%')`
 		)
 		.all() as { k: string; hidden: number }[];
 	const use = new Map<string, SourceUse>();
@@ -51,7 +51,7 @@ export function libraryIndex(reveal: boolean) {
 			`SELECT s.id, s.title, s.origin_key AS k, NOT ${VISIBLE_SQL} AS hidden,
 				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0) AS total,
 				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0 AND e.available = 1) AS have
-			FROM series s JOIN roots r ON r.id = s.root_id WHERE (s.origin_key LIKE 'mihon:%' OR s.origin_key LIKE 'lnreader:%')`
+			FROM series s JOIN roots r ON r.id = s.root_id WHERE (s.origin_key LIKE 'mihon:%' OR s.origin_key LIKE 'lnreader:%' OR s.origin_key LIKE 'aniyomi:%')`
 		)
 		.all() as {
 		id: number;

@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
 import { getSetting, setSetting } from '../settings.ts';
-import { isNovelSourceId, sourceOfKey } from '../../library/downloads.ts';
+import { keyKind, sourceOfKey } from '../../library/downloads.ts';
 
 /**
  * tsundoku's download queue (doc/DOWNLOADER.md; card c137): chapters, as
@@ -12,10 +12,13 @@ import { isNovelSourceId, sourceOfKey } from '../../library/downloads.ts';
  * TOP are one; the novel worker takes those, the engine's the rest.
  */
 
-/** Which worker a queued chapter is for: a novel plugin's, or the engine's. */
-export type QueueKind = 'novel' | 'manga';
-const ofKind = (sourceId: string, kind: QueueKind | undefined) =>
-	kind === undefined || isNovelSourceId(sourceId) === (kind === 'novel');
+/**
+ * Which worker a queued chapter is for: a novel plugin's, the engine's for a
+ * manga, or the engine's episode lane for an anime (doc/ANIME.md), by its
+ * series' key.
+ */
+export type QueueKind = 'novel' | 'manga' | 'anime';
+const ofKind = (r: QueueRow, kind: QueueKind | undefined) => kind === undefined || r.kind === kind;
 
 /** After this many tries a chapter is FAILED and waits for RETRY. */
 export const MAX_TRIES = 3;
@@ -24,6 +27,7 @@ export type QueueRow = {
 	entryId: number;
 	seriesId: number;
 	sourceId: string;
+	kind: QueueKind;
 	state: 'queued' | 'downloading' | 'failed';
 	tries: number;
 	failure: string;
@@ -128,6 +132,7 @@ export function queueRows(db: Database.Database = getDb()): QueueRow[] {
 		entryId: r.entry_id,
 		seriesId: r.series_id,
 		sourceId: sourceOfKey(r.origin_key) ?? '',
+		kind: keyKind(r.origin_key) ?? 'manga',
 		state: r.state,
 		tries: r.tries,
 		failure: r.failure,
@@ -152,7 +157,7 @@ export function nextUp(
 	db: Database.Database = getDb(),
 	kind?: QueueKind
 ): QueueRow[] {
-	const rows = queueRows(db).filter((r) => ofKind(r.sourceId, kind));
+	const rows = queueRows(db).filter((r) => ofKind(r, kind));
 	const busy = new Set(rows.filter((r) => r.state === 'downloading').map((r) => r.sourceId));
 	const picked: QueueRow[] = [];
 	for (const r of rows) {
@@ -214,7 +219,7 @@ export const setPaused = (paused: boolean, now = Date.now()) =>
  * to the queue; with [kind], only that worker's.
  */
 export function recover(db: Database.Database = getDb(), kind?: QueueKind): number {
-	const stuck = queueRows(db).filter((r) => r.state === 'downloading' && ofKind(r.sourceId, kind));
+	const stuck = queueRows(db).filter((r) => r.state === 'downloading' && ofKind(r, kind));
 	const put = db.prepare(
 		`UPDATE download_queue SET state = 'queued', done_pages = 0 WHERE entry_id = ? AND state = 'downloading'`
 	);
