@@ -333,7 +333,7 @@ export async function readWork(ref: string): Promise<RanobeCandidate | null> {
 		for (const e of w.editions ?? [])
 			for (const [t, n] of Object.entries(e.units ?? {})) units[t] = Math.max(units[t] ?? 0, n);
 		// A comic has no edition: its count is the work's own.
-		if (w.units) units[w.units.type] = Math.max(units[w.units.type] ?? 0, w.units.count);
+		if (w.units) units[w.units.type] = Math.max(units[w.units.type] ?? 0, w.units.count ?? 0);
 		return asCandidate({
 			ref: w.ref,
 			kind: w.kind,
@@ -655,9 +655,9 @@ export async function readWorkUnits(
 		.map((r) => r.work)
 		.filter((w) => !only || only.includes(w));
 	const put = db.prepare(
-		`INSERT INTO ranobe_work_units (work, type, count, extra, checked_at) VALUES (?, ?, ?, ?, ?)
+		`INSERT INTO ranobe_work_units (work, type, count, extra, open_run, checked_at) VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT (work) DO UPDATE SET type = excluded.type, count = excluded.count,
-			extra = excluded.extra, checked_at = excluded.checked_at`
+			extra = excluded.extra, open_run = excluded.open_run, checked_at = excluded.checked_at`
 	);
 	const title = db.prepare(`UPDATE ranobe_links SET title = ? WHERE work = ?`);
 	const out = { counted: 0, not: 0 };
@@ -674,7 +674,14 @@ export async function readWorkUnits(
 			// A work gone or hidden since counts nothing; anything else is the pass's.
 			if (!(e instanceof Refused && (e.status === 404 || e.status === 410))) throw e;
 		}
-		put.run(work, units?.type ?? null, units?.count ?? 0, JSON.stringify(units?.extra ?? []), now);
+		put.run(
+			work,
+			units?.type ?? null,
+			units?.count ?? 0,
+			JSON.stringify(units?.extra ?? []),
+			units?.open ? 1 : 0,
+			now
+		);
 		if (units) out.counted += 1;
 		else out.not += 1;
 	}
@@ -684,10 +691,16 @@ export async function readWorkUnits(
 /** What a work counts, as the last pass read it. Null: nothing, or never asked. */
 export function workUnits(work: string): WorkUnits | null {
 	const r = getDb()
-		.prepare(`SELECT type, count, extra FROM ranobe_work_units WHERE work = ?`)
-		.get(work) as { type: string | null; count: number; extra: string } | undefined;
+		.prepare(`SELECT type, count, extra, open_run FROM ranobe_work_units WHERE work = ?`)
+		.get(work) as
+		{ type: string | null; count: number; extra: string; open_run: number } | undefined;
 	if (!r?.type) return null;
-	return { type: r.type, count: r.count, extra: JSON.parse(r.extra) as string[] };
+	return {
+		type: r.type,
+		count: r.count,
+		extra: JSON.parse(r.extra) as string[],
+		open: r.open_run === 1
+	};
 }
 
 /**

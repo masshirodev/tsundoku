@@ -9,6 +9,7 @@ const { getDb } = await import('$lib/server/db');
 const { seedSample } = await import('$lib/server/fixtures');
 const { markEntries } = await import('$lib/server/series');
 const rb = await import('$lib/server/ranobe');
+const { ranobeSeries } = await import('$lib/server/ranobe-review');
 
 const db = getDb();
 const NOW = Date.UTC(2026, 8, 27);
@@ -47,7 +48,8 @@ let down = false;
 let bundleStatus = 'pending';
 let refuseUnit: string | null = null;
 /** What w51, the comic, counts on Ranobe: nothing until a test says. */
-let estateUnits: { type: string; count: number; extra: string[] } | null = null;
+let estateUnits: { type: string; count: number | null; extra: string[]; open?: boolean } | null =
+	null;
 const library = new Map<string, { rev: number; rating: number | null; favourite: boolean }>();
 
 const volumes = (edition: string, n: number) =>
@@ -276,6 +278,28 @@ describe('the pass', () => {
 			'w51:chapter:143',
 			'w51:chapter:144'
 		]);
+	});
+
+	// Ane no Tomodachi (2026-10-29): a running manga Ranobe counts no chapters
+	// of, read for days and never sent, because no count meant no units.
+	it('sends every chapter read of a running work, with no count or past it', async () => {
+		estateUnits = { type: 'chapter', count: null, extra: [], open: true };
+		db.prepare(`DELETE FROM ranobe_units WHERE work = 'w51'`).run();
+		calls = [];
+		await rb.syncRanobe(NOW);
+		const sent = sentReads().filter((u) => u.startsWith('w51'));
+		expect(sent).toHaveLength(144);
+		expect(ranobeSeries(ESTATE)?.link?.meta).toContain('STILL RUNNING ON RANOBE');
+		expect(sent).toContain('w51:chapter:144');
+		expect(rb.workUnits('w51')).toMatchObject({ count: 0, open: true });
+
+		// Counted short of what's read, still running: nothing past it is held back.
+		estateUnits = { type: 'chapter', count: 100, extra: [], open: true };
+		db.prepare(`DELETE FROM ranobe_units WHERE work = 'w51'`).run();
+		calls = [];
+		await rb.syncRanobe(NOW);
+		expect(sentReads().filter((u) => u.startsWith('w51'))).toHaveLength(144);
+		expect(ranobeSeries(ESTATE)?.link?.meta).toContain('100 CHAPTERS SO FAR ON RANOBE');
 	});
 
 	it('sends no comic that is hidden, and asks nothing about it', async () => {

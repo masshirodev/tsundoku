@@ -662,9 +662,13 @@ export function ranobeSeries(seriesId: number): RanobeSeries | null {
 					meta: [
 						`RANOBE ${s.work.toUpperCase()}`,
 						comic
-							? counted
-								? `${counted.count.toLocaleString('en')} CHAPTERS ON RANOBE`
-								: 'NO CHAPTER COUNT ON RANOBE YET'
+							? !counted
+								? 'NO CHAPTER COUNT ON RANOBE YET'
+								: counted.open
+									? counted.count
+										? `${counted.count.toLocaleString('en')} CHAPTERS SO FAR ON RANOBE`
+										: 'STILL RUNNING ON RANOBE'
+									: `${(counted.count ?? 0).toLocaleString('en')} CHAPTERS ON RANOBE`
 							: s.edition
 								? `${langName(lang)} EDITION`
 								: `NO ${langName(lang)} EDITION YET`,

@@ -1032,6 +1032,14 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	// HISTORY keeps it, dimmed; its place and marks go. Opening it again clears this.
 	`
 	ALTER TABLE series ADD COLUMN pruned_at INTEGER;
+	`,
+	// v52: a running work's chapters (doc/RANOBE.md, "Comics"). Ranobe takes any
+	// chapter 1–10,000 of a work still coming out, past its count or with none,
+	// so the count caps only a finished one. Every work is asked again: what was
+	// kept said nothing about which were running.
+	`
+	ALTER TABLE ranobe_work_units ADD COLUMN open_run INTEGER NOT NULL DEFAULT 0;
+	UPDATE ranobe_work_units SET type = NULL;
 	`
 ];
 

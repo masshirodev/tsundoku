@@ -258,7 +258,7 @@ is works only.
 ## Comics
 
 Card c98, since 2026-10-14. Ranobe's card c226 gave every work its own units
-(`GET /works/{ref}?fields=units` answers `{ type, count, extra }`, or null),
+(`GET /works/{ref}?fields=units` answers `{ type, count, extra, open }`, or null),
 and `POST /me/reads` takes them as `w123:chapter:154` beside an edition's
 refs. A comic has no edition to choose, so it reads against those:
 
@@ -279,6 +279,16 @@ refs. A comic has no edition to choose, so it reads against those:
   nothing, and never folds 12.5 into 12. A chapter past the count waits: the
   next pass that reads a higher count maps and sends it. A fraction the work
   doesn't list as an extra is never sent.
+- **A running work takes any chapter** (since 2026-10-29, rung 52). Ranobe
+  has, since its 2026-10-15, taken any number from 1 to 10,000, whole or
+  not, on a work still coming out (`units.open: true`), past its count or
+  with no count at all; the count caps only a finished one. tsundoku read
+  only the count, so a running manga with none (Ane no Tomodachi: `count:
+null`) mapped nothing and sent nothing, and a running one with a count
+  dropped every chapter read past it. `ranobe_work_units.open_run` keeps the
+  flag, `workLists` takes the open range, and the series line says `N
+CHAPTERS SO FAR ON RANOBE`, or `STILL RUNNING ON RANOBE` with no count.
+  Rung 52 clears every kept `type`, so the next pass asks each work again.
 - **A work that counts nothing yet** maps nothing, and its TRACKING line says
   `RANOBE · WAITING ON ITS CHAPTER COUNT`. Ranobe was still filling its
   counts in when this shipped (AniList's chapters and MangaUpdates' latest,

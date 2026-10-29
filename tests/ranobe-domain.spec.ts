@@ -520,6 +520,18 @@ describe('comics, against the work (c98)', () => {
 		expect(workLists(u, '13.5')).toBe(false);
 	});
 
+	it('takes any number 1 to 10,000 on a running work, counted or not', () => {
+		const open = { type: 'chapter', count: null, extra: [], open: true };
+		expect(workLists(open, '1')).toBe(true);
+		expect(workLists(open, '162')).toBe(true);
+		expect(workLists(open, '13.5')).toBe(true);
+		expect(workLists(open, '0')).toBe(false);
+		expect(workLists(open, '10001')).toBe(false);
+		expect(workLists({ ...open, count: 155 }, '162')).toBe(true);
+		// Finished with no count: Ranobe refuses every chapter, so none maps.
+		expect(workLists({ ...open, open: false }, '1')).toBe(false);
+	});
+
 	it("maps each chapter the work lists onto the work's own unit", () => {
 		const units = { type: 'chapter', count: 3, extra: ['2.5'] };
 		const got = mapWorkUnits('w9', units, [

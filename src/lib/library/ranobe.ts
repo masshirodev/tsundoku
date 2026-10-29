@@ -69,7 +69,17 @@ export type Unit = { ref: string; type: string; number: string };
  * kind's canonical type, `1..count`, and the numbers outside the run it
  * lists (`12.5`). Null when Ranobe doesn't count them yet.
  */
-export type WorkUnits = { type: string; count: number; extra: string[] };
+export type WorkUnits = {
+	type: string;
+	/** Null on a running work that doesn't know how many yet. */
+	count: number | null;
+	extra: string[];
+	/** Still coming out: any number is a unit, past the count or with none. */
+	open?: boolean;
+};
+
+/** How far Ranobe takes a running work's numbers (its OPEN_RUN_LIMIT). */
+export const OPEN_RUN_LIMIT = 10_000;
 
 /**
  * A comic chapter's number, from its label: "Ch. 154", "Chapter 12.5",
@@ -87,20 +97,23 @@ export function comicChapterOf(label: string): string | null {
 }
 
 /**
- * Whether the work lists a number among its units: `1..count`, or one of its
- * extras. Ranobe refuses anything else, and never folds 12.5 into 12, so
- * neither does this.
+ * Whether the work lists a number among its units. A finished work lists
+ * `1..count` and its extras, and Ranobe refuses anything else, never folding
+ * 12.5 into 12; a running one takes any number from 1 to 10,000, whole or
+ * not (Ranobe's API-V1.md, "On a running work").
  */
 export function workLists(units: WorkUnits, number: string): boolean {
 	const n = unitNumber(number);
 	if (units.extra.some((x) => unitNumber(x) === n)) return true;
-	return /^\d+$/.test(n) && Number(n) >= 1 && Number(n) <= units.count;
+	if (units.open) return Number(n) >= 1 && Number(n) <= OPEN_RUN_LIMIT;
+	return /^\d+$/.test(n) && Number(n) >= 1 && Number(n) <= (units.count ?? 0);
 }
 
 /**
  * Each comic entry's unit, as the work's own chapter (`w123:chapter:154`):
- * every body entry whose number the work lists. A chapter past the count
- * waits for Ranobe to count it; matter and unnumbered entries map to nothing.
+ * every body entry whose number the work lists. On a finished work a chapter
+ * past the count waits for Ranobe to count it; matter and unnumbered entries
+ * map to nothing.
  */
 export function mapWorkUnits(
 	work: string,
