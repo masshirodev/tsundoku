@@ -19,12 +19,25 @@ const vm = require('node:vm');
 const fs = require('node:fs');
 const dns = require('node:dns/promises');
 const net = require('node:net');
+const { AsyncLocalStorage } = require('node:async_hooks');
 
 // The browser User-Agent the engine sends (engine/protocol.ts): sites answer it.
 const USER_AGENT =
 	'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36';
 
 let allowed = new Set();
+
+/**
+ * What went wrong with a call's requests, kept per call: fetchText answers ''
+ * on any failure, as LNReader's runtime does, so a plugin whose site refused
+ * it answers an empty list. When a call comes back empty, this is why
+ * (`explained` below) — a refused address, a bot check's 403, a site down.
+ */
+const trouble = new AsyncLocalStorage();
+const note = (why) => {
+	const t = trouble.getStore();
+	if (t && !t.why) t.why = why;
+};
 
 // ---- a fetch that stays on the internet ---------------------------------------------------
 
@@ -82,8 +95,20 @@ async function guardedFetch(input, init = {}) {
 		signal: init.signal || AbortSignal.timeout(30_000)
 	};
 	for (let hop = 0; hop < 6; hop++) {
-		await checkUrl(url);
-		const res = await fetch(url, opts);
+		try {
+			await checkUrl(url);
+		} catch (e) {
+			note(e.message);
+			throw e;
+		}
+		let res;
+		try {
+			res = await fetch(url, opts);
+		} catch (e) {
+			note(`${new URL(url).hostname} did not answer (${(e.cause && e.cause.code) || e.message})`);
+			throw e;
+		}
+		if (res.status >= 400) note(`${new URL(url).hostname} answered ${res.status}`);
 		const to = res.status >= 300 && res.status < 400 ? res.headers.get('location') : null;
 		if (!to) return res;
 		url = new URL(to, url).href;
@@ -272,6 +297,26 @@ function defaults(filters) {
 	return out;
 }
 
+/** Nothing: an empty list, no chapters, no text. */
+const empty = (v) =>
+	v === null ||
+	v === undefined ||
+	v === '' ||
+	(Array.isArray(v) && v.length === 0) ||
+	(typeof v === 'object' &&
+		!Array.isArray(v) &&
+		Array.isArray(v.chapters) &&
+		v.chapters.length === 0 &&
+		!v.name);
+
+/** A call's answer, or, when it's empty and a request failed on the way, why. */
+async function explained(m) {
+	const t = { why: null };
+	const value = await trouble.run(t, () => handle(m));
+	if (t.why && empty(value)) throw new Error(t.why);
+	return value;
+}
+
 async function handle(m) {
 	if (m.op === 'config') {
 		allowed = new Set(m.allow || []);
@@ -314,7 +359,7 @@ async function handle(m) {
 
 process.on('message', (m) => {
 	Promise.resolve()
-		.then(() => handle(m))
+		.then(() => explained(m))
 		.then(
 			(value) =>
 				process.send({ id: m.id, ok: true, value: JSON.parse(JSON.stringify(value ?? null)) }),

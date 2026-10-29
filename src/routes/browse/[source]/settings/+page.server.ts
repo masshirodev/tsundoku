@@ -21,7 +21,8 @@ import { settingOf, valueFromForm } from '$lib/library/source-settings';
 function source(id: string, reveal: boolean) {
 	if (downloadsBackend() !== 'engine') error(404, 'not found');
 	const s = browseSource(id, reveal);
-	if (!s) error(404, 'not found');
+	// A novel plugin keeps no settings here (doc/NOVELS.md).
+	if (!s || s.kind === 'novel') error(404, 'not found');
 	return s;
 }
 

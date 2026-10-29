@@ -237,7 +237,7 @@ export function matchChapters(
  * slot in after the numbered chapter before them in the source's own order,
  * so they stay where the source listed them.
  */
-function positions(chapters: { number: number; order: number }[]): number[] {
+export function positions(chapters: { number: number; order: number }[]): number[] {
 	const idx = chapters.map((_, i) => i).sort((a, b) => chapters[a].order - chapters[b].order);
 	const out: number[] = new Array(chapters.length);
 	let last = 0;

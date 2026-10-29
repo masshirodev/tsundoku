@@ -87,6 +87,8 @@
 	const value = $derived(shown?.ok ? shown.value : null);
 	const results = $derived(value?.results ?? null);
 	const name = $derived(data.source.name);
+	// An LNReader plugin (doc/NOVELS.md): no settings here, and its search takes no filters.
+	const novel = $derived(data.source.kind === 'novel');
 	const tabTitle = $derived(
 		data.q
 			? `“${data.q.toUpperCase()}”`
@@ -163,13 +165,13 @@
 					type="search"
 					name="q"
 					value={data.q}
-					placeholder="/ search {name}, with its filters"
+					placeholder={novel ? `/ search ${name}` : `/ search ${name}, with its filters`}
 					aria-label="Search {name}"
 					autocomplete="off"
 				/>
 			</form>
 			<a class="cell slash" href={link({ find: '1' })} aria-label="Search {name}">/</a>
-			<a class="cell settings" href="{base}/settings">SETTINGS</a>
+			{#if !novel}<a class="cell settings" href="{base}/settings">SETTINGS</a>{/if}
 		{/snippet}
 	</TopBar>
 

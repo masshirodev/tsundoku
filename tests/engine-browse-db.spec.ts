@@ -257,9 +257,12 @@ describe('a source’s shelf', () => {
 	});
 
 	it('sends the filters as a search, and keeps a filtered answer apart from another', async () => {
+		const applied = [
+			{ name: 'Status', type: 'select' as const, values: ['Any', 'Ongoing'], state: 1 }
+		];
 		const filters = [{ name: 'Status', type: 'select', stateInt: 1 }];
-		await browse.shelf(OPEN, 'filtered', { pages: 1, query: 'x', filters, reveal: false });
-		await browse.shelf(OPEN, 'filtered', { pages: 1, query: 'x', filters: [], reveal: false });
+		await browse.shelf(OPEN, 'filtered', { pages: 1, query: 'x', applied, reveal: false });
+		await browse.shelf(OPEN, 'filtered', { pages: 1, query: 'x', applied: [], reveal: false });
 		expect(calls.map((c) => [c.method, c.search, c.filterList])).toEqual([
 			['getSearchManga', 'x', filters],
 			['getSearchManga', 'x', []]

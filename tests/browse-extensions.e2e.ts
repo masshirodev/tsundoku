@@ -99,7 +99,7 @@ test('BROWSE’s languages are set once in SETTINGS, and one always stays', asyn
 	await expect(row.getByRole('button', { name: 'JA' })).toHaveAttribute('aria-pressed', 'true');
 });
 
-test('an LNReader repository is asked, added, and a novel plugin installed in the host and removed (c148)', async ({
+test('an LNReader repository is asked, added, a novel plugin installed in the host, browsed and removed (c148, c149)', async ({
 	page
 }) => {
 	const row = (name: string) => page.locator('.rows .row', { hasText: name });
@@ -118,6 +118,30 @@ test('an LNReader repository is asked, added, and a novel plugin installed in th
 	await expect(row('Good Novels')).toContainText('NOVELS · EN');
 	await expect(row('Good Novels')).toContainText('1.0.0');
 	await expect(row('Good Novels')).not.toContainText('FAILED');
+
+	// BROWSE lists it under NOVELS, and its page is a novel source's: no SETTINGS.
+	await page.goto('/browse');
+	const novels = page.locator('.label', { hasText: 'NOVELS' });
+	await expect(novels).toBeVisible();
+	await page
+		.getByRole('link', { name: /Good Novels/ })
+		.first()
+		.click();
+	await expect(page).toHaveURL(/\/browse\/ln:goodnovels$/);
+	await expect(page.locator('.title .sub')).toHaveText('NOVEL · EN');
+	await expect(page.getByRole('link', { name: 'SETTINGS' })).toHaveCount(0);
+	await expect(page.getByRole('searchbox', { name: 'Search Good Novels' })).toHaveAttribute(
+		'placeholder',
+		'/ search Good Novels'
+	);
+	// Its site is this test's loopback server, which the host never fetches
+	// (doc/NOVELS.md, "The plugin host"): the source says so, and nothing else breaks.
+	await expect(page.locator('.band')).toContainText('GOOD NOVELS DID NOT ANSWER');
+	await expect(page.locator('.band')).toContainText('IS NOT ON THE INTERNET');
+	await expect(page.locator('.band')).toContainText('TRY AGAIN');
+	expect((await page.request.get('/browse/ln:goodnovels/settings')).status()).toBe(404);
+
+	await page.goto('/browse/extensions');
 	await row('Good Novels').getByRole('link', { name: 'REMOVE…' }).click();
 	const sheet = page.getByRole('dialog');
 	await expect(sheet).toContainText('REMOVE GOOD NOVELS?');

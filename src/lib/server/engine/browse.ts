@@ -1,13 +1,23 @@
 import { getDb } from '../db.ts';
 import { sourceUse } from '../library-sources.ts';
 import { mostlyHidden } from '../../library/downloads.ts';
-import { cleanSchema, type EngineFilter, type FilterField } from '../../library/browse-filters.ts';
+import { cleanSchema, toEngine, type FilterField } from '../../library/browse-filters.ts';
 import type { SearchHit } from '../download-types.ts';
 import { asHits, callSource, type EngineManga } from './backend.ts';
 import { challenges } from './client.ts';
 import { installed, preferences } from './extensions.ts';
 import { getSetting } from '../settings.ts';
 import { preferenceSnapshot } from './protocol.ts';
+import {
+	isNovelSource,
+	novelFilters,
+	novelHits,
+	novelPage,
+	novelSources,
+	type NovelFilters,
+	type NovelItem
+} from '../novels/source.ts';
+import { installedPlugins } from '../novels/plugins.ts';
 
 /**
  * Browsing a source (doc/BROWSE.md; card c141): its POPULAR and LATEST
@@ -24,7 +34,7 @@ export type BrowseSource = {
 	pkg: string;
 	name: string;
 	lang: string;
-	kind: 'manga' | 'anime';
+	kind: 'manga' | 'anime' | 'novel';
 	/** Series the library has from it that the viewer may see, and of those how many are hidden (0 with reveal off). */
 	series: number;
 	hidden: number;
@@ -35,10 +45,16 @@ export type BrowseSource = {
 };
 
 /**
- * Every installed source BROWSE may name. Hidden means hidden: with reveal
- * off, a mostly-hidden source isn't listed, named or counted (doc/PRIVACY.md).
+ * Every installed source BROWSE may name, Mihon's and Aniyomi's on the
+ * engine and LNReader's plugins (novels/source.ts). Hidden means hidden: with
+ * reveal off, a mostly-hidden source isn't listed, named or counted
+ * (doc/PRIVACY.md).
  */
 export function browseSources(reveal: boolean): BrowseSource[] {
+	return [...engineSources(reveal), ...novelSources(reveal)];
+}
+
+function engineSources(reveal: boolean): BrowseSource[] {
 	const rows = getDb()
 		.prepare(
 			`SELECT s.id, s.pkg, s.name, s.lang, e.kind, e.failed
@@ -154,7 +170,7 @@ export type BrowseList = {
 	recent: BrowseRow[];
 	manga: BrowseRow[];
 	anime: BrowseRow[];
-	/** LNReader plugins (c127): none yet. */
+	/** LNReader plugins (doc/NOVELS.md). */
 	novels: BrowseRow[];
 	/** Extensions behind the listed sources. */
 	extensions: number;
@@ -215,9 +231,11 @@ export function browseList(reveal: boolean): BrowseList {
 			.slice(0, RECENT),
 		manga: rows.filter((r) => r.kind === 'manga'),
 		anime: rows.filter((r) => r.kind === 'anime'),
-		novels: [],
+		novels: rows.filter((r) => r.kind === 'novel'),
 		extensions: visiblePkgs.size,
-		updates: installed().filter((e) => e.update && visiblePkgs.has(e.pkg)).length
+		updates:
+			installed().filter((e) => e.update && visiblePkgs.has(e.pkg)).length +
+			installedPlugins().filter((p) => p.update && visiblePkgs.has(`ln:${p.id}`)).length
 	};
 }
 
@@ -269,7 +287,11 @@ export function forgetSource(sourceId: string): void {
 	for (const k of [...kept.keys()]) if (k.startsWith(`${sourceId}\n`)) kept.delete(k);
 }
 
-const settingsKey = (sourceId: string) => JSON.stringify(preferenceSnapshot(preferences(sourceId)));
+// A plugin has no settings here; its version is what changes its answers.
+const settingsKey = (sourceId: string) =>
+	isNovelSource(sourceId)
+		? (installedPlugins().find((p) => `ln:${p.id}` === sourceId)?.version ?? '')
+		: JSON.stringify(preferenceSnapshot(preferences(sourceId)));
 
 const keyOf = (sourceId: string, ...parts: unknown[]) =>
 	[sourceId, settingsKey(sourceId), ...parts.map((p) => JSON.stringify(p))].join('\n');
@@ -277,25 +299,49 @@ const keyOf = (sourceId: string, ...parts: unknown[]) =>
 /** A first call through a site's browser check took 42 s in the spike. */
 const SLOW_MS = 60_000;
 
-export const supportsLatest = (sourceId: string) =>
+/** Every LNReader plugin is asked for LATEST (`showLatestNovels`); one that has none answers its popular list. */
+export const supportsLatest = async (sourceId: string) =>
+	isNovelSource(sourceId) ||
 	keep(keyOf(sourceId, 'latest?'), () =>
 		callSource<boolean>(sourceId, 'supportLatestManga', {}, SLOW_MS)
 	);
 
-export const filterSchema = (sourceId: string): Promise<FilterField[]> =>
-	keep(keyOf(sourceId, 'filters'), async () =>
-		cleanSchema(await callSource<unknown>(sourceId, 'filterSchemaManga', {}, SLOW_MS))
-	);
+const novelFiltersKept = (sourceId: string): Promise<NovelFilters> =>
+	keep(keyOf(sourceId, 'filters'), () => novelFilters(sourceId));
+
+export const filterSchema = async (sourceId: string): Promise<FilterField[]> =>
+	isNovelSource(sourceId)
+		? (await novelFiltersKept(sourceId)).schema
+		: keep(keyOf(sourceId, 'filters'), async () =>
+				cleanSchema(await callSource<unknown>(sourceId, 'filterSchemaManga', {}, SLOW_MS))
+			);
 
 type Page = { mangas: EngineManga[]; hasNextPage: boolean };
+
+function askNovelPage(
+	sourceId: string,
+	mode: Mode,
+	page: number,
+	query: string,
+	applied: FilterField[] | undefined
+): Promise<{ items: NovelItem[]; more: boolean }> {
+	return keep(keyOf(sourceId, mode, page, query, applied ?? null), async () =>
+		novelPage(sourceId, mode, page, {
+			query,
+			applied,
+			filters: applied ? await novelFiltersKept(sourceId) : undefined
+		})
+	);
+}
 
 function askPage(
 	sourceId: string,
 	mode: Mode,
 	page: number,
 	query: string,
-	filters: EngineFilter[]
+	applied: FilterField[] | undefined
 ): Promise<Page> {
+	const filters = applied ? toEngine(applied) : [];
 	const method =
 		mode === 'popular'
 			? 'getPopularManga'
@@ -318,14 +364,32 @@ export type Shelf = { hits: SearchHit[]; more: boolean; pages: number };
 export async function shelf(
 	sourceId: string,
 	mode: Mode,
-	opts: { pages: number; query?: string; filters?: EngineFilter[]; reveal: boolean }
+	/** `applied`: the panel's choices, on the filtered tab only. */
+	opts: { pages: number; query?: string; applied?: FilterField[]; reveal: boolean }
 ): Promise<Shelf> {
 	const want = Math.min(Math.max(1, Math.floor(opts.pages) || 1), MAX_PAGES);
+	if (isNovelSource(sourceId)) {
+		const items: NovelItem[] = [];
+		let more = false;
+		let pages = 0;
+		for (let p = 1; p <= want; p++) {
+			const got = await askNovelPage(sourceId, mode, p, opts.query ?? '', opts.applied);
+			items.push(...got.items);
+			pages = p;
+			more = got.more;
+			if (!more) break;
+		}
+		return {
+			hits: novelHits(sourceId, items, opts.reveal),
+			more: more && pages < MAX_PAGES,
+			pages
+		};
+	}
 	const mangas: EngineManga[] = [];
 	let more = false;
 	let pages = 0;
 	for (let p = 1; p <= want; p++) {
-		const got = await askPage(sourceId, mode, p, opts.query ?? '', opts.filters ?? []);
+		const got = await askPage(sourceId, mode, p, opts.query ?? '', opts.applied);
 		mangas.push(...got.mangas);
 		pages = p;
 		more = got.hasNextPage && got.mangas.length > 0;

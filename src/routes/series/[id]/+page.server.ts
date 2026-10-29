@@ -136,8 +136,9 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		confirmAll: url.searchParams.get('download') === 'all',
 		// Just added from a source search (Download States 1e, after adding): the band, and UNDO.
 		// The engine's id for it is `<source>~<url>` (engine/backend.ts), never a number:
-		// a Number() here dropped the band after every ADD on the engine.
-		addedFrom: /^[\w~-]{1,512}$/.test(url.searchParams.get('added') ?? '')
+		// a Number() here dropped the band after every ADD on the engine. A novel's is
+		// `ln:<plugin>~<path>` (novels/source.ts).
+		addedFrom: /^[\w~.:-]{1,512}$/.test(url.searchParams.get('added') ?? '')
 			? url.searchParams.get('added')
 			: null
 	};
@@ -625,7 +626,7 @@ export const actions: Actions = {
 			throw e;
 		}
 		if (!undone) return fail(409, { message: 'something of it is downloaded or read now' });
-		redirect(303, /^[\w~-]+$/.test(from) ? `/downloads/source/${from}` : '/');
+		redirect(303, /^[\w~.:-]{1,512}$/.test(from) ? `/downloads/source/${from}` : '/');
 	},
 
 	/** A long press on a chapter row: it and everything before it, read. */

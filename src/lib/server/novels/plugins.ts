@@ -358,9 +358,6 @@ export function installedPlugins(db: Database.Database = getDb()): InstalledPlug
 
 // ---- EXTENSIONS' view of them (c148) ------------------------------------------------------
 
-/** A novel series' key (c149): `lnreader:<plugin>:<path>`, as a Mihon series is `mihon:<source>:<url>`. */
-export const novelKey = (plugin: string, path: string) => `lnreader:${plugin}:${path}`;
-
 export type PluginRow = InstalledPlugin & {
 	/** BACK TO this version, within its week; null when there's none. */
 	backTo: string | null;

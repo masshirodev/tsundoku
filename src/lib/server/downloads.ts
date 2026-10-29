@@ -1,6 +1,8 @@
 import * as engine from './engine/backend.ts';
 import { engineConfigured, engineDownSince, EngineError } from './engine/client.ts';
 import { getSetting } from './settings.ts';
+import * as novels from './novels/source.ts';
+import { NovelHostError } from './novels/host.ts';
 
 /**
  * What the download screens ask (doc/DOWNLOADING.md, doc/DOWNLOADER.md):
@@ -8,7 +10,8 @@ import { getSetting } from './settings.ts';
  * routes import, so a screen never reaches into the engine directly. It chose
  * between Suwayomi and the engine until Suwayomi was retired (card c129,
  * 2026-10-28). A chapter id is tsundoku's entry id; a source manga's id is
- * the source and URL, opaque to the screens.
+ * the source and URL, opaque to the screens. A novel source (`ln:<plugin>`,
+ * doc/NOVELS.md) answers the same questions through novels/source.ts.
  */
 
 export type {
@@ -25,8 +28,10 @@ export const configured = () => engineConfigured();
 export const notAnsweringSince = () => engineDownSince();
 
 /** A refusal the screens band rather than an error page: the engine not answering, or not knowing. */
-export const isDownloadsError = (e: unknown) => e instanceof EngineError;
-export const isAddError = (e: unknown) => e instanceof engine.AddError || isDownloadsError(e);
+export const isDownloadsError = (e: unknown) =>
+	e instanceof EngineError || e instanceof NovelHostError || e instanceof novels.NovelSourceError;
+export const isAddError = (e: unknown) =>
+	e instanceof engine.AddError || e instanceof novels.NovelAddError || isDownloadsError(e);
 
 export const queue = async () => engine.engineQueue();
 export const queueSummary = async (reveal: boolean) => engine.queueSummary(reveal);
@@ -47,14 +52,26 @@ export function pausedAt(): number | null {
 	return v > 0 ? v : null;
 }
 
-export const searchSources = async (reveal: boolean) => engine.searchSources(reveal);
+export const searchSources = async (reveal: boolean) => [
+	...engine.searchSources(reveal),
+	...novels.novelSearchSources(reveal)
+];
 export const searchSource = async (sourceId: string, query: string, reveal: boolean) =>
-	engine.searchSource(sourceId, query, reveal);
+	novels.isNovelSource(sourceId)
+		? novels.novelSearch(sourceId, query, reveal)
+		: engine.searchSource(sourceId, query, reveal);
 
-export const isSourceMangaId = (id: string) => engine.parseSourceMangaId(id) !== null;
-export const sourceManga = async (id: string) => engine.sourceManga(id);
-export const mangaKey = async (id: string) => engine.mangaKey(id);
-export const addToLibrary = async (id: string) => engine.addToLibrary(id);
+/** The source a result is from, by BROWSE's id for it; null for an id that isn't a result's. */
+export function sourceOfMangaId(id: string): string | null {
+	return novels.parseNovelMangaId(id)?.sourceId ?? engine.parseSourceMangaId(id)?.sourceId ?? null;
+}
+export const isSourceMangaId = (id: string) => sourceOfMangaId(id) !== null;
+export const sourceManga = async (id: string) =>
+	novels.parseNovelMangaId(id) ? novels.novelManga(id) : engine.sourceManga(id);
+export const mangaKey = async (id: string) =>
+	novels.parseNovelMangaId(id) ? novels.novelMangaKey(id) : engine.mangaKey(id);
+export const addToLibrary = async (id: string) =>
+	novels.parseNovelMangaId(id) ? novels.addNovel(id) : engine.addToLibrary(id);
 export const undoAdd = async (seriesId: number) => engine.undoAdd(seriesId);
 export const setFollowed = async (seriesId: number, on: boolean) =>
 	engine.setFollowed(seriesId, on);

@@ -51,6 +51,27 @@ export function parseKey(key: string | null): { sourceId: string; url: string } 
 	return m ? { sourceId: m[1], url: m[2] } : null;
 }
 
+/** A novel series' key (doc/NOVELS.md): `lnreader:<plugin>:<path>`, as a Mihon one is `mihon:<source>:<url>`. */
+export const novelKeyOf = (plugin: string, path: string) => `lnreader:${plugin}:${path}`;
+
+/** `lnreader:<plugin>:<path>` apart; null for any other key. */
+export function parseNovelKey(key: string | null): { plugin: string; path: string } | null {
+	const m = key ? /^lnreader:([A-Za-z0-9._-]+):(.+)$/.exec(key) : null;
+	return m ? { plugin: m[1], path: m[2] } : null;
+}
+
+/**
+ * The source a series is from, by the id BROWSE knows it by: a Mihon
+ * source's number, or `ln:<plugin>` for a novel's (doc/NOVELS.md). Null for
+ * anything not from a source.
+ */
+export function sourceOfKey(key: string | null): string | null {
+	const m = parseKey(key);
+	if (m) return m.sourceId;
+	const n = parseNovelKey(key);
+	return n ? `ln:${n.plugin}` : null;
+}
+
 /** Where each entry of a series stands. Entries the source can't be asked about are left out. */
 export function chapterStates(
 	entries: Pick<SeriesEntry, 'id' | 'available'>[],

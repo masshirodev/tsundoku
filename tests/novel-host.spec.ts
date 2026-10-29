@@ -17,18 +17,20 @@ const store = mkdtempSync(join(tmpdir(), 'tsundoku-novel-host-'));
 let host: NovelHost;
 
 /** The fixtures, with their site's address written in (the vm context has no env to read). */
-function plugin(name: 'good' | 'evil', globals: Record<string, string>): string {
+function plugin(name: 'good' | 'evil', globals: Record<string, string>, as: string = name): string {
 	const src = readFileSync(new URL(`./fixtures/lnreader/${name}.js`, import.meta.url), 'utf8');
 	const prelude = Object.entries(globals)
 		.map(([k, v]) => `globalThis.${k} = ${JSON.stringify(v)};`)
 		.join('\n');
-	const file = join(store, `${name}.js`);
+	const file = join(store, `${as}.js`);
 	writeFileSync(file, `${prelude}\n${src}`);
 	return file;
 }
 
 let good = '';
 let evil = '';
+let shut = '';
+let missing = '';
 
 beforeAll(async () => {
 	site = createServer((req, res) => {
@@ -56,6 +58,9 @@ beforeAll(async () => {
 		LOOPBACK: `http://127.0.0.1:${otherPort}/`,
 		REDIRECT: `http://127.0.0.1:${port}/away`
 	});
+	// The same plugin, its site on a port the host wasn't opened to, and on a path that 404s.
+	shut = plugin('good', { SITE: `http://127.0.0.1:${otherPort}/` }, 'shut');
+	missing = plugin('good', { SITE: `http://127.0.0.1:${port}/gone/` }, 'missing');
 	host = new NovelHost({ store, allow: [`127.0.0.1:${port}`], timeoutMs: 15_000 });
 });
 
@@ -101,6 +106,23 @@ describe('a plugin, through the host', () => {
 			chapters: [{ name: 'Chapter 1', path: '/n/one/1', releaseTime: '2026-10-28' }]
 		});
 		expect(await host.call(good, 'parseChapter', ['/n/one/1'])).toBe('<p>/n/one/1</p>');
+	});
+});
+
+describe('a plugin whose site failed it', () => {
+	// fetchText answers '' on failure, as LNReader's does, so the plugin answers
+	// nothing: the host says why instead of an empty list.
+	it('answers why, not an empty list', async () => {
+		await expect(host.call(shut, 'popularNovels', [1, {}])).rejects.toThrow(
+			/127\.0\.0\.1 is not on the internet/
+		);
+		await expect(host.call(missing, 'popularNovels', [1, {}])).rejects.toThrow(
+			/127\.0\.0\.1 answered 404/
+		);
+	});
+
+	it('keeps an answer that has something in it', async () => {
+		expect(await host.call(missing, 'parseNovel', ['/n/one'])).toMatchObject({ name: 'A Novel' });
 	});
 });
 

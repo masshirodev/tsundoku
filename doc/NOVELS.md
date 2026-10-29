@@ -10,9 +10,10 @@ manga runs on Mihon's extensions ([`DOWNLOADER.md`](DOWNLOADER.md)). Card c127
 | ---------------------------------------------------- | ---- | ------- |
 | A sandboxed host for the plugins                     | c147 | Done    |
 | Repositories and plugins in EXTENSIONS               | c148 | Done    |
-| Browsing, searching and adding a novel               | c149 | Not yet |
+| Browsing, searching and adding a novel               | c149 | Done    |
 | Downloading chapters into an EPUB the importer reads | c150 | Not yet |
 | FOLLOW, live checks, the rest of this file           | c151 | Not yet |
+| Past a site's bot check, through FlareSolverr        | c152 | Not yet |
 
 The owner's repository (2026-10-28):
 `https://raw.githubusercontent.com/LNReader/lnreader-plugins/plugins/v3.0.0/.dist/plugins.min.json`,
@@ -82,7 +83,8 @@ Royal Road stops at its site's bot check ("Open a novel from Royal Road in
 WebView"), and ScribbleHub's popular list comes back empty, most likely the
 same. Getting past those needs the engine's FlareSolverr in the host's path,
 which the host's own fetch can't reach (it refuses local addresses on
-purpose): a planned way through, c149.
+purpose): a planned way through, c152 ("Novel plugins past a site's bot
+check, through the engine's FlareSolverr").
 
 ## Repositories and plugins
 
@@ -112,13 +114,77 @@ Mihon's, in their own tables (rung 44: `novel_repos`, `novel_listings`,
   says so, as an extension that fails to load is.
 - **No adult flag.** LNReader's index marks nothing adult, so AVAILABLE can't
   hold any back while reveal is off. Its plugins are novel sites; covers in
-  BROWSE follow the same hidden rules as manga's (c149).
+  BROWSE follow the same hidden rules as manga's ("Browsing and adding").
 
 `tests/novel-plugins-db.spec.ts` (an index read, languages, versions, a
 repository added and kept when it stops answering, a plugin installed,
 updated, taken back, failing to load, removed) and the novels test in
 `tests/browse-extensions.e2e.ts` (an LNReader repository asked and added, a
 plugin installed and loaded in the real host, removed).
+
+## Browsing and adding
+
+A plugin is a source like any other in BROWSE ([`BROWSE.md`](BROWSE.md)),
+under **NOVELS**, as `ln:<plugin>`; a novel in it is `ln:<plugin>~<its path,
+base64url>`, as a Mihon source's manga is `<source>~<url>`
+(`src/lib/server/novels/source.ts`; card c149).
+
+- **Its page** has POPULAR (`popularNovels`), LATEST (the same with
+  `showLatestNovels`: every plugin is asked, one without a latest list answers
+  its popular one), and the filter panel. LNReader has no last page: a page
+  with anything on it means there may be more, so the list ends at the first
+  empty one. No SETTINGS cell, since a plugin keeps none here.
+- **Its filters** are drawn by the same panel as an extension's
+  (`src/lib/library/lnreader-filters.ts`): Picker a select, Switch a checkbox,
+  Checkbox a group of checkboxes, XCheckbox a group of tri-states, Text a
+  text field. The way back goes by position, so option values survive the
+  URL. A search inside the source is `searchNovels`, which takes no filters:
+  the box says "/ search Royal Road", not "with its filters".
+- **SEARCH THE SOURCES** asks the plugins the library reads from, as it asks
+  extensions ([`DOWNLOADING.md`](DOWNLOADING.md)). IN LIBRARY and SAME TITLE
+  match by `lnreader:<plugin>:<path>` and by title, across manga and novels;
+  hidden series and mostly-hidden plugins follow the same rules as manga's.
+- **Covers** are fetched by the server and sent as the library's 400px WebP
+  (`/api/browse/novel-cover/<token>`): the browser never asks a novel site. A
+  token stands for an address a plugin gave, kept in memory (one from before a
+  restart is no cover), and the fetch stays on the internet, every redirect
+  included (`src/lib/server/net-guard.ts`). LNReader's own "no cover" picture
+  shows as tsundoku's blank. The library's cover pass applies the same rule to
+  every site cover ([`COVERS.md`](COVERS.md)).
+- **The preview** (`/downloads/source/<id>`) is `parseNovel`, plus every page
+  of chapters for a plugin that pages them (`parsePage`, up to 200), a chapter
+  listed twice kept once. Numbers are the plugin's, or read from the names as
+  Mihon's are (`chapter-number.ts`; an unnumbered side story after Ch. 3 is
+  3.5). Kept ten minutes, so ADD doesn't ask a hundred pages again.
+- **ADD TO LIBRARY** writes a novel series through the importers' one writer
+  (`src/lib/import/novel-plan.ts`): keyed `lnreader:<plugin>:<path>`, source
+  `lnreader`, its genres, author and source as tags, every chapter an entry
+  NOT DOWNLOADED known by its path at the source. It goes into the `Library`
+  root, the one the EPUB importer shares across devices, so the EPUB c150
+  writes under `devices/tsundoku/Library/` lands in the same series. UNDO
+  works as for manga. Its DOWNLOAD row comes with c150.
+- **When a call comes back empty**, the host says why: LNReader's `fetchText`
+  answers `''` on any failure, as LNReader's runtime does, so a plugin whose
+  site refused it would list nothing. The host notes the first request it
+  refused or that failed during each call, and an empty answer becomes that
+  error ("www.scribblehub.com answered 403"); an answer with anything in it is
+  kept. The source page bands it with TRY AGAIN.
+
+**Measured live on 2026-10-28**, the owner's repository through the real
+host and this module (in-memory database, scratch store): Novel Bin (two
+filters, 10 popular, 24 latest, 50 found, a filtered list, a 148-chapter
+preview, added with 148 entries in 0.4 s) and Wuxia World (no filters, 50
+popular, 357 chapters, added) all the way through. NovelFull, Royal Road and
+Scribble Hub stop at their bot checks: c152.
+
+`tests/lnreader-filters.spec.ts` (the five types both ways and through the
+URL), `tests/novel-source-db.spec.ts` (BROWSE's NOVELS rows, pages until an
+empty one, covers and the blank, LATEST, filters and search as LNReader takes
+them, a paged preview, ADD and its entries and tags, IN LIBRARY and hidden,
+SEARCH THE SOURCES), `tests/net-guard.spec.ts`, `tests/novel-host.spec.ts`
+(an empty answer explained), and the novels test in
+`tests/browse-extensions.e2e.ts` (the plugin under NOVELS, its page without
+SETTINGS, and its loopback site refused on the page).
 
 ## Storing a novel: one EPUB, written as a device
 
@@ -145,4 +211,5 @@ entry in a new schema rung):
 
 ## Not done yet
 
-Browsing, downloading and FOLLOW: c149 to c151 above.
+Downloading, FOLLOW and bot checks: c150 to c152 above. A plugin's own
+settings (`pluginSettings`, a few have them) aren't offered.

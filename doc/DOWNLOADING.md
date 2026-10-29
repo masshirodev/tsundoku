@@ -105,7 +105,9 @@ source rather than search it, BROWSE ([`BROWSE.md`](BROWSE.md)).
   reads from (MangaDex's English source, not its forty other languages). A
   source with more than half of its series here hidden (Toonily, Toonily.me,
   Omega Scans) is asked only while reveal is on, and with reveal off it isn't
-  counted either. `?source=<id>` asks just one, and lists all it found.
+  counted either. Novel plugins the library reads from are asked the same way
+  ([`NOVELS.md`](NOVELS.md), "Browsing and adding"). `?source=<id>` asks just
+  one, and lists all it found.
 - **Results fill in source by source.** Each source is asked at once, as a
   promise of its own that the page streams in. A source still asking shows two
   dashed rows, or BROWSER CHECK · ASKED 18 S AGO while the engine passes its

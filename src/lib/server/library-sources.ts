@@ -3,7 +3,7 @@ import { VISIBLE_SQL } from './visibility.ts';
 import {
 	mostlyHidden,
 	normTitle,
-	parseKey,
+	sourceOfKey,
 	type QueueSeries,
 	type SourceUse
 } from '../library/downloads.ts';
@@ -23,17 +23,17 @@ export function sourceUse(): Map<string, SourceUse> {
 	const rows = getDb()
 		.prepare(
 			`SELECT s.origin_key AS k, NOT ${VISIBLE_SQL} AS hidden
-			FROM series s JOIN roots r ON r.id = s.root_id WHERE s.origin_key LIKE 'mihon:%'`
+			FROM series s JOIN roots r ON r.id = s.root_id WHERE (s.origin_key LIKE 'mihon:%' OR s.origin_key LIKE 'lnreader:%')`
 		)
 		.all() as { k: string; hidden: number }[];
 	const use = new Map<string, SourceUse>();
 	for (const r of rows) {
-		const key = parseKey(r.k);
-		if (!key) continue;
-		const u = use.get(key.sourceId) ?? { series: 0, hidden: 0 };
+		const sourceId = sourceOfKey(r.k);
+		if (!sourceId) continue;
+		const u = use.get(sourceId) ?? { series: 0, hidden: 0 };
 		u.series++;
 		u.hidden += r.hidden;
-		use.set(key.sourceId, u);
+		use.set(sourceId, u);
 	}
 	used = { at: Date.now(), use };
 	return use;
@@ -51,7 +51,7 @@ export function libraryIndex(reveal: boolean) {
 			`SELECT s.id, s.title, s.origin_key AS k, NOT ${VISIBLE_SQL} AS hidden,
 				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0) AS total,
 				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0 AND e.available = 1) AS have
-			FROM series s JOIN roots r ON r.id = s.root_id WHERE s.origin_key LIKE 'mihon:%'`
+			FROM series s JOIN roots r ON r.id = s.root_id WHERE (s.origin_key LIKE 'mihon:%' OR s.origin_key LIKE 'lnreader:%')`
 		)
 		.all() as {
 		id: number;
@@ -65,8 +65,8 @@ export function libraryIndex(reveal: boolean) {
 	const byTitle = new Map<string, string>();
 	for (const r of rows) {
 		if (r.hidden && !reveal) continue;
-		const key = parseKey(r.k);
-		if (key) byTitle.set(normTitle(r.title), key.sourceId);
+		const sourceId = sourceOfKey(r.k);
+		if (sourceId) byTitle.set(normTitle(r.title), sourceId);
 	}
 	// A twin in a mostly-hidden source is still a twin, but with reveal off the
 	// source isn't named: hidden means not named, not just not listed.

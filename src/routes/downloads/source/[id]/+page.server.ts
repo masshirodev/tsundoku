@@ -8,10 +8,9 @@ import {
 	isSourceMangaId,
 	mangaKey,
 	seriesForKey,
-	sourceManga
+	sourceManga,
+	sourceOfMangaId
 } from '$lib/server/downloads';
-import { downloadsBackend } from '$lib/server/engine/run';
-import { parseSourceMangaId } from '$lib/server/engine/backend';
 import { browseSource } from '$lib/server/engine/browse';
 
 /**
@@ -40,10 +39,8 @@ export const load: PageServerLoad = async ({ params, cookies, url }) => {
 		redirect(303, `/series/${mine.id}`);
 	}
 	// Hidden means hidden: a mostly-hidden source's series isn't previewed with reveal off.
-	if (downloadsBackend() === 'engine') {
-		const ref = parseSourceMangaId(id);
-		if (!ref || !browseSource(ref.sourceId, isRevealed(cookies))) error(404, 'not found');
-	}
+	const sourceId = sourceOfMangaId(id);
+	if (!sourceId || !browseSource(sourceId, isRevealed(cookies))) error(404, 'not found');
 	const manga = sourceManga(id);
 	manga.catch(() => {});
 	// Back to where it was found: a source's BROWSE page, or the search.

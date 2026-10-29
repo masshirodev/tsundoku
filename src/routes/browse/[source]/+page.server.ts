@@ -12,7 +12,7 @@ import {
 	type Mode,
 	type Shelf
 } from '$lib/server/engine/browse';
-import { changedCount, readFilters, toEngine, type FilterField } from '$lib/library/browse-filters';
+import { changedCount, readFilters, type FilterField } from '$lib/library/browse-filters';
 import type { Settled } from '$lib/library/settled';
 
 /**
@@ -68,7 +68,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		const results = await shelf(source.id, mode, {
 			pages,
 			query: q,
-			filters: mode === 'filtered' ? toEngine(applied) : [],
+			applied: mode === 'filtered' ? applied : undefined,
 			reveal
 		});
 		return { schema, applied, changed: changedCount(schema, applied), latest, results };

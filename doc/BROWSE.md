@@ -363,8 +363,10 @@ values show and still save, under the NOT ANSWERING band.
   columns: every irreversible action asks the same way.
 - **UNTRUSTED has no REVIEW… step and no install anyway.** The refusal shows
   both keys at once; see "An untrusted extension is never installed".
-- **No NOVELS tab, no progress bar, no periodic check** (What it does not do
-  yet).
+- **No progress bar, no periodic check** (What it does not do yet).
+- **A novel source has no SETTINGS** cell, and its search box doesn't offer
+  "with its filters": LNReader's search takes none ([`NOVELS.md`](NOVELS.md)).
+  Its section is NOVELS, numbered after the others like any section.
 - **A multi-select without script has a SAVE.** The mock draws ✓ cells only;
   without script nothing would send a tick.
 - **The end of a list says "48 IN ALL"** and drops the MORE row, which the mock
@@ -378,16 +380,15 @@ values show and still save, under the NOT ANSWERING band.
 - **Repositories are checked when asked** (CHECK NOW), not every few hours.
   Nothing updates by itself either way, so a periodic check would only move
   the count on EXTENSIONS sooner.
-- **No NOVELS tab** in AVAILABLE, and no LNReader repository can be added:
-  novels are c127.
 - **INSTALLING has no progress bar.** An APK is a few hundred KB from the
   repository; the button says INSTALLING… while it's fetched, checked and
   loaded.
 - **A check is known once it's been passed** (since the engine started, then
   kept): a site's very first check still shows the 10 s band, not the check
   band, if it hasn't begun by the time the page asks.
-- Anime and novel sources: only manga sources are installed, and
-  `filterSchemaAnime` is in the fork but not called.
+- Anime sources: only manga extensions are installed, and
+  `filterSchemaAnime` is in the fork but not called. Novel sources are LNReader
+  plugins ([`NOVELS.md`](NOVELS.md)).
 - **A text filter inside a group can't be set.** The engine reads a group's
   text child from the child's name, which is also how it finds the child.
   None of the nine sources has one; it's dropped from the schema.
