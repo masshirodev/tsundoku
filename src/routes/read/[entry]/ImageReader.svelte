@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { readLocal, writeLocal } from '$lib/settings/local';
+	import type { Json } from '$lib/settings/catalog';
 	import { backLink } from '$lib/back';
 	import { onMount, tick, untrack } from 'svelte';
 	import type { PageData } from './$types';
@@ -70,22 +72,11 @@
 	// ---- settings -------------------------------------------------------------------
 	// Mode is the session's, starting from the series; fit, spreads and dim are
 	// the device's, kept in this browser only (they're about the screen).
+	// Through settings/local.ts, which stamps each change for the workstation's
+	// copy of this device's settings (doc/SETTINGS.md, "Devices").
 	const KEY = 'tsundoku.reader.';
-	function stored<T>(name: string, fallback: T): T {
-		try {
-			const v = localStorage.getItem(KEY + name);
-			return v === null ? fallback : (JSON.parse(v) as T);
-		} catch {
-			return fallback;
-		}
-	}
-	function store(name: string, value: unknown) {
-		try {
-			localStorage.setItem(KEY + name, JSON.stringify(value));
-		} catch {
-			// Private windows and blocked storage: the setting lasts this session.
-		}
-	}
+	const stored = <T,>(name: string, fallback: T): T => readLocal(KEY + name, fallback);
+	const store = (name: string, value: Json) => writeLocal(KEY + name, value);
 
 	// The series' mode is where a session starts, not a binding to it.
 	// svelte-ignore state_referenced_locally

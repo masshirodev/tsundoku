@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { onLocalChange, readLocal, syncDevice, writeLocal } from '$lib/settings/local';
+	const THEME_KEY = 'tsundoku.theme';
 	import '$lib/styles/index.css';
 	import { enhance } from '$app/forms';
 	import { page, updated } from '$app/state';
@@ -10,7 +12,7 @@
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
 	import { shelfHref, withParam } from '$lib/library/links';
 	import { onMount } from 'svelte';
-	import { afterNavigate, beforeNavigate, goto } from '$app/navigation';
+	import { afterNavigate, beforeNavigate, goto, invalidateAll } from '$app/navigation';
 	import { noteVisit } from '$lib/back';
 	import { waiting } from '$lib/waiting.svelte';
 	import { saves } from '$lib/saves.svelte';
@@ -37,6 +39,29 @@
 		};
 		addEventListener('click', tap, true);
 		return () => removeEventListener('click', tap, true);
+	});
+
+	// ---- this device's settings, kept on the workstation too (doc/SETTINGS.md, "Devices") ----
+	// Checked in on load and when the network is back. The theme is a cookie the
+	// server reads; the device record mirrors it, and a newer one from the
+	// workstation (SETTINGS changing this device from another) sets the cookie.
+	onMount(() => {
+		if (readLocal<string | null>(THEME_KEY, null) !== data.theme) writeLocal(THEME_KEY, data.theme);
+		const stop = onLocalChange((key) => {
+			if (key !== THEME_KEY) return;
+			const t = readLocal<string>(THEME_KEY, 'dark') === 'light' ? 'light' : 'dark';
+			if (t === data.theme) return;
+			document.cookie = `tsundoku_theme=${t}; path=/; max-age=31536000; samesite=lax${location.protocol === 'https:' ? '; secure' : ''}`;
+			document.documentElement.dataset.theme = t;
+			void invalidateAll();
+		});
+		void syncDevice();
+		const back = () => void syncDevice();
+		addEventListener('online', back);
+		return () => {
+			stop();
+			removeEventListener('online', back);
+		};
 	});
 
 	// Tells the server this browser runs script, so streamed pages may stream

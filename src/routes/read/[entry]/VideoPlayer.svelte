@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { readLocal, writeLocal } from '$lib/settings/local';
+	import type { Json } from '$lib/settings/catalog';
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -164,21 +166,9 @@
 			// Offline: the choice lasts this episode.
 		});
 	};
-	const load = <T,>(k: string, fallback: T): T => {
-		try {
-			const v = localStorage.getItem(k);
-			return v === null ? fallback : (JSON.parse(v) as T);
-		} catch {
-			return fallback;
-		}
-	};
-	const save = (k: string, v: unknown) => {
-		try {
-			localStorage.setItem(k, JSON.stringify(v));
-		} catch {
-			// Private windows: settings last the visit.
-		}
-	};
+	// Quality and dim are this device's, stamped for the workstation's copy (settings/local.ts).
+	const load = <T,>(k: string, fallback: T): T => readLocal(k, fallback);
+	const save = (k: string, v: Json) => writeLocal(k, v);
 	let audioLang = $state<string | null>(null);
 	let subLang = $state<string | null>(null);
 	let subSize = $state<SubSize>('M');

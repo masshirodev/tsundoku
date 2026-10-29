@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { readLocal, writeLocal } from '$lib/settings/local';
+	import type { Json } from '$lib/settings/catalog';
 	import { onMount, tick, untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { beforeNavigate, replaceState } from '$app/navigation';
@@ -71,22 +73,12 @@
 	const webNovel = $derived(chapters.length >= 100);
 
 	// ---- settings: the device's, kept in this browser -----------------------------------
+	// Through settings/local.ts, which stamps each change for the workstation's
+	// copy of this device's settings (doc/SETTINGS.md, "Devices").
 	const KEY = 'tsundoku.text.';
-	function stored<T>(name: string, fallback: T): T {
-		try {
-			const v = localStorage.getItem(name.includes('.') ? name : KEY + name);
-			return v === null ? fallback : (JSON.parse(v) as T);
-		} catch {
-			return fallback;
-		}
-	}
-	function store(name: string, value: unknown) {
-		try {
-			localStorage.setItem(name.includes('.') ? name : KEY + name, JSON.stringify(value));
-		} catch {
-			// Private windows and blocked storage: the setting lasts this session.
-		}
-	}
+	const keyOf = (name: string) => (name.includes('.') ? name : KEY + name);
+	const stored = <T,>(name: string, fallback: T): T => readLocal(keyOf(name), fallback);
+	const store = (name: string, value: Json) => writeLocal(keyOf(name), value);
 	let settings = $state<TextSettings>({ ...DEFAULT_SETTINGS });
 	let dim = $state(0);
 	let speed = $state<Speed>({ chars: 0, ms: 0 });
