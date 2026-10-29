@@ -265,6 +265,11 @@ tsundoku moves nothing. A second novel of the same title gets `<Title> (2)`.
 
 ### Reading it
 
+**Since 2026-10-29 a chapter with no file reads online** when the novel's
+plugin is installed ([`BROWSING.md`](BROWSING.md), "Novels online"): what
+follows is how reading behaves where it can't (no plugin, or a book read
+offline).
+
 The text reader reads the book as any other. A novel downloaded so far has
 chapters with no file, so **reading stops at the first one**: the next chapter
 isn't offered at the end of a page, and turning past the last page shows END ·

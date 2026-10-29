@@ -14,7 +14,7 @@ test.beforeEach(async () => {
 	await resetEngine();
 });
 
-test('a novel is added, downloaded into its EPUB chapter by chapter, and read up to what’s there', async ({
+test('a novel is added, downloaded into its EPUB chapter by chapter, and read on, online, past what’s there', async ({
 	page
 }) => {
 	test.setTimeout(120_000);
@@ -22,7 +22,9 @@ test('a novel is added, downloaded into its EPUB chapter by chapter, and read up
 	await page.locator('.grid .tile', { hasText: 'The Quiet Shelf' }).click();
 	await expect(page).toHaveURL(/\/downloads\/source\/ln:shelf~/);
 	const add = page.getByRole('button', { name: /ADD TO LIBRARY/ });
-	await expect(add).toContainText('3 CHAPTERS');
+	// Reading first, adding beside it (c167): every chapter reads online.
+	await expect(page.locator('.cta-go .cta')).toContainText('▶ READ CH. 1');
+	await expect(page.locator('.list .head')).toContainText('3 · ALL ONLINE');
 	await add.click();
 	await expect(page).toHaveURL(/\/series\/\d+\?added=/);
 	const series = page.url().replace(/\?.*$/, '');
@@ -31,10 +33,11 @@ test('a novel is added, downloaded into its EPUB chapter by chapter, and read up
 	const dl = page.locator('.dl-row');
 	await expect(dl.locator('.lcs.inline .lc')).toHaveText(['FIRST 3', 'FOLLOW']);
 
-	// Two chapters, a tap each: queued in the one queue, downloaded by the novel worker.
+	// Two chapters, ↓ each: queued in the one queue, downloaded by the novel worker.
+	// The row itself reads online (the owner's answer to question 1, doc/BROWSING.md).
 	const row = (title: string) => page.locator('[id^="entry-"]', { hasText: title });
 	for (const t of ['Dust', 'Light']) {
-		await row(t).locator('.entry-btn').click();
+		await row(t).locator('.dl-cell').click();
 		await expect(row(t).locator('.status .long')).toHaveText(/QUEUED|DOWNLOADING|IMPORTING/);
 	}
 	await expect(async () => {
@@ -48,7 +51,7 @@ test('a novel is added, downloaded into its EPUB chapter by chapter, and read up
 		await expect(row('Dust').locator('.status .long')).toHaveText('');
 		await expect(row('Light').locator('.status .long')).toHaveText('');
 	}).toPass({ timeout: 30_000 });
-	await expect(row('Rain').locator('.status .long')).toHaveText('NOT DOWNLOADED');
+	await expect(row('Rain').locator('.status .long')).toHaveText('ONLINE');
 	await expect(page.locator('.file-meta')).toContainText('2 OF 3 DOWNLOADED');
 
 	// Read: the chapter's own text, nothing of the site's page, and on into the next.
@@ -61,21 +64,22 @@ test('a novel is added, downloaded into its EPUB chapter by chapter, and read up
 		await expect(page.locator('.blocks')).toContainText('Line 1 of chapter 2', { timeout: 500 });
 	}).toPass({ timeout: 15_000 });
 	await expect(page.locator('.blocks')).not.toContainText('chapter 1,');
-	// Chapter 3 isn't downloaded: reading ends there, and says which.
-	const end = page.locator('.screen', { hasText: 'END · LAST AVAILABLE' });
+	// Chapter 3 isn't downloaded: it reads on, online, from the plugin (c167).
 	await expect(async () => {
 		await page.keyboard.press('ArrowRight');
-		await expect(end).toBeVisible({ timeout: 500 });
-	}).toPass({ timeout: 15_000 });
-	await expect(end).toContainText('2 OF 3');
-	await expect(end).toContainText('CH. 3 IS NOT DOWNLOADED');
+		await expect(page.locator('.blocks')).toContainText('Line 1 of chapter 3', { timeout: 500 });
+	}).toPass({ timeout: 20_000 });
 
-	// Opened directly, the missing chapter says so instead of failing to find a file.
+	// Opened directly, the chapter with no file reads online, and isn't kept.
 	await page.goto(series);
 	const rain = await row('Rain').getAttribute('id');
-	await page.goto(`/read/${rain!.replace('entry-', '')}`);
-	await expect(page.locator('.screen')).toContainText('CH. 3 IS NOT DOWNLOADED');
-	await expect(page.locator('.screen')).toContainText('Only part of this novel is downloaded');
+	const rainId = rain!.replace('entry-', '');
+	await page.goto(`/read/${rainId}`);
+	await expect(page.locator('.blocks')).toContainText('Line 1 of chapter 3');
+	const book = await page.request.get(
+		`/api/series/${series.split('/').pop()}/epub?v=online&f=online:${rainId}`
+	);
+	expect(book.headers()['cache-control']).toBe('private, no-store');
 
 	// FOLLOW: on, and the plugin asked at once.
 	await page.goto(series);

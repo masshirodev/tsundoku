@@ -88,7 +88,7 @@ type SeriesRow = {
 	origin_key: string;
 };
 
-function seriesRow(db: Database.Database, seriesId: number): SeriesRow | null {
+export function seriesRow(db: Database.Database, seriesId: number): SeriesRow | null {
 	return (
 		(db
 			.prepare(
@@ -98,7 +98,7 @@ function seriesRow(db: Database.Database, seriesId: number): SeriesRow | null {
 	);
 }
 
-function pluginOf(id: string): InstalledPlugin | null {
+export function pluginOf(id: string): InstalledPlugin | null {
 	const p = installedPlugins().find((x) => x.id === id);
 	return p && !p.failed ? p : null;
 }
@@ -239,7 +239,7 @@ export async function fetchChapter(
 	};
 }
 
-function seriesTags(db: Database.Database, seriesId: number): PlannedTag[] {
+export function seriesTags(db: Database.Database, seriesId: number): PlannedTag[] {
 	return db
 		.prepare(
 			`SELECT t.namespace, t.value FROM series_tags st JOIN tags t ON t.id = st.tag_id

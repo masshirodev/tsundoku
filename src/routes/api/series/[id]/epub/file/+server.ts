@@ -1,5 +1,6 @@
 import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
+import { ONLINE_FILE } from '$lib/server/novels/online';
 import { isRevealed } from '$lib/server/prefs';
 import { epubMember } from '$lib/server/epub';
 
@@ -42,7 +43,12 @@ export const GET: RequestHandler = async ({ params, cookies, url }) => {
 		headers: {
 			'content-type': TYPES[ext] ?? 'application/octet-stream',
 			'content-length': String(got.body.length),
-			'cache-control': v ? 'private, max-age=31536000, immutable' : 'private, no-cache'
+			// A chapter read online is never kept (doc/BROWSING.md, "Novels online").
+			'cache-control': ONLINE_FILE.test(url.searchParams.get('f') ?? '')
+				? 'private, no-store'
+				: v
+					? 'private, max-age=31536000, immutable'
+					: 'private, no-cache'
 		}
 	});
 };

@@ -1,5 +1,6 @@
 import type Database from 'better-sqlite3';
 import { getDb } from './db.ts';
+import { forgetSourceUse } from './library-sources.ts';
 import { KEEP_DAYS } from '../library/keep.ts';
 
 /**
@@ -127,4 +128,28 @@ export function recordView(originKey: string, db = getDb()): RecordView | null {
 				}
 			: null
 	};
+}
+
+/**
+ * ADD, or another open, of a series that's already here (doc/BROWSING.md):
+ * a record opened again is kept another KEEP_DAYS; ADD makes a record the
+ * library's, the same series with its place, its added and arrived times
+ * now. A library series is left as it is. Returns its id.
+ */
+export function keepOrPromote(
+	s: { id: number; in_library: number },
+	browsing: boolean,
+	now = Date.now(),
+	db = getDb()
+): number {
+	if (s.in_library === 0) {
+		if (browsing) touchRecord(s.id, now, db);
+		else {
+			db.prepare(
+				`UPDATE series SET in_library = 1, browsed_at = NULL, pruned_at = NULL, added_at = ?, arrived_at = ? WHERE id = ?`
+			).run(now, now, s.id);
+			forgetSourceUse();
+		}
+	}
+	return s.id;
 }

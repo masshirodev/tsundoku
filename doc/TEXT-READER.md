@@ -189,7 +189,9 @@ DID NOT OPEN names what happened:
 - a chapter of a novel downloaded so far that isn't downloaded yet ("CH. 3 IS
   NOT DOWNLOADED", [`NOVELS.md`](NOVELS.md), "Reading it").
 
-A novel downloaded so far stops at its first chapter with no file: no NEXT
+A chapter with no file reads online when the novel's plugin is installed
+([`BROWSING.md`](BROWSING.md), "Novels online"); without one, a novel
+downloaded so far stops at its first chapter with no file: no NEXT
 on the last page, and END · LAST AVAILABLE past it, "2 OF 3" and which
 chapter isn't downloaded. The contents list doesn't jump to one.
 

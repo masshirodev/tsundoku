@@ -451,7 +451,7 @@
 			<div class="panel-col">
 				<SeriesPanel
 					{series}
-					readOnline={!!dlStates && series.kind !== 'novel' && offline.online}
+					readOnline={!!dlStates && offline.online}
 					shelves={data.shelves}
 					cached={cachedCount}
 					bind:cta
@@ -508,7 +508,7 @@
 					onlong={markThrough}
 					downloads={dlStates}
 					{canDownload}
-					readOnline={!!dlStates && series.kind !== 'novel'}
+					readOnline={!!dlStates}
 				/>
 			{/if}
 		</div>

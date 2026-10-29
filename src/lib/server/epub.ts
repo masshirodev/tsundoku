@@ -23,6 +23,8 @@ export type EpubBody = {
 	version: string;
 };
 
+import { ONLINE_FILE, ONLINE_VERSION, onlineNovelBook } from './novels/online.ts';
+
 type Row = { path: string; hue: number; title: string; file: string };
 
 /**
@@ -61,6 +63,7 @@ export async function epubVersion(
 	reveal: boolean,
 	file?: string
 ): Promise<string | null> {
+	if (file && ONLINE_FILE.test(file)) return ONLINE_VERSION;
 	const row = bookRow(seriesId, reveal, file);
 	return row ? versionOf(row) : null;
 }
@@ -89,6 +92,13 @@ export async function readEpubFile(
 	reveal: boolean,
 	file?: string
 ): Promise<EpubBody | null> {
+	// A chapter read online (doc/BROWSING.md, "Novels online"): a book of one
+	// chapter, made in memory from its plugin.
+	const online = file ? ONLINE_FILE.exec(file) : null;
+	if (online) {
+		const body = await onlineNovelBook(seriesId, Number(online[1]), reveal);
+		return body ? { body, size: body.length, version: ONLINE_VERSION } : null;
+	}
 	const row = bookRow(seriesId, reveal, file);
 	if (!row) return null;
 	if (row.path.startsWith(SAMPLE_PREFIX)) {
@@ -133,6 +143,20 @@ async function listingOf(
 	reveal: boolean,
 	file?: string
 ): Promise<Listing | null> {
+	const online = file ? ONLINE_FILE.exec(file) : null;
+	if (online) {
+		// Never kept with the others: the book is the plugin's, a few minutes at a time.
+		const book = await onlineNovelBook(seriesId, Number(online[1]), reveal);
+		if (!book) return null;
+		const z = new Zip(new Uint8Array(book));
+		const files: BookFileInfo[] = [];
+		for (const name of z.names) files.push({ name, size: (await z.bytesOf(name)).length });
+		return {
+			version: ONLINE_VERSION,
+			files,
+			read: async (name) => (z.has(name) ? Buffer.from(await z.bytesOf(name)) : null)
+		};
+	}
 	const row = bookRow(seriesId, reveal, file);
 	if (!row) return null;
 	const version = await versionOf(row);

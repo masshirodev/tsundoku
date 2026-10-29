@@ -129,6 +129,36 @@ beforeAll(async () => {
 	);
 });
 
+describe('a chapter read online (c167)', () => {
+	it('is a book of one chapter from its plugin, where a download would put it, and nothing is written', async () => {
+		const online = await import('$lib/server/novels/online');
+		const { readEpubFile, epubMember } = await import('$lib/server/epub');
+		const { chapterHref } = await import('$lib/server/novels/downloader');
+		const { Zip } = await import('$lib/epub/unzip');
+		expect(online.novelReadsOnline(seriesId)).toBe(true);
+		const two = entry('/c/2');
+		expect(online.onlineChapters(seriesId).get(two.id)).toEqual({
+			file: `online:${two.id}`,
+			locator: chapterHref('/c/2')
+		});
+		const book = (await readEpubFile(seriesId, true, `online:${two.id}`))!;
+		expect(book.version).toBe('online');
+		const z = new Zip(new Uint8Array(book.body as Buffer));
+		const doc = new TextDecoder().decode(await z.bytesOf(chapterHref('/c/2')));
+		expect(doc).toContain('Text of /c/2.');
+		// Member by member, as the reader asks.
+		const m = (await epubMember(seriesId, true, chapterHref('/c/2'), `online:${two.id}`))!;
+		expect(m.body.toString()).toContain('Text of /c/2.');
+		expect(entry('/c/2')).toMatchObject({ available: 0, file: '' });
+		expect(existsSync(library)).toBe(false);
+		// Another series' entry, or a source that fails, opens nothing.
+		expect(await readEpubFile(seriesId + 99, true, `online:${two.id}`)).toBeNull();
+		online.forgetOnlineBooks();
+		await expect(readEpubFile(seriesId, true, `online:${entry('/c/broken').id}`)).rejects.toThrow();
+		chapterCalls = [];
+	});
+});
+
 describe('downloading a novel', () => {
 	it('queues its chapters in the one queue, which the engine’s worker leaves alone', async () => {
 		const d = await states();

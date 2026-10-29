@@ -14,7 +14,7 @@
 				kind: 'failed';
 				title: string;
 				bytes: number;
-				reason: 'drm' | 'broken' | 'missing' | 'offline' | 'undownloaded';
+				reason: 'drm' | 'broken' | 'missing' | 'offline' | 'undownloaded' | 'online';
 				detail: string;
 				seriesHref: string;
 				libraryHref: string;
@@ -44,7 +44,9 @@
 			'The workstation has no file at this place any more. A rescan will mark it not downloaded.',
 		offline: 'The workstation did not answer, and this book isn’t kept on the tablet yet.',
 		undownloaded:
-			'Only part of this novel is downloaded. Download this chapter from the series page, and it opens here.'
+			'Only part of this novel is downloaded. Download this chapter from the series page, and it opens here.',
+		online:
+			'This chapter is read from its source, and the source did not send it. Downloaded chapters still open; this one opens once the source answers.'
 	} as const;
 </script>
 
@@ -117,7 +119,7 @@
 			<!-- eslint-disable svelte/no-navigation-without-resolve -- both hrefs are resolved by the caller -->
 			<a href={props.seriesHref}>← SERIES</a>
 			<div class="gap">
-				{#if props.kind === 'failed' && props.reason === 'offline' && props.onretry}
+				{#if props.kind === 'failed' && (props.reason === 'offline' || props.reason === 'online') && props.onretry}
 					<button type="button" onclick={props.onretry}>RETRY</button>
 				{/if}
 			</div>

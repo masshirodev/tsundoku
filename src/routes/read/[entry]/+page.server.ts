@@ -13,6 +13,7 @@ import { bookEditions } from '$lib/server/editions';
 import { baseToEdition } from '$lib/library/editions';
 import { parseAnimeKey, parseKey } from '$lib/library/downloads';
 import { readsOnline } from '$lib/server/pages/online';
+import { novelReadsOnline, onlineChapters, ONLINE_VERSION } from '$lib/server/novels/online';
 import { EngineError } from '$lib/server/engine/client';
 import { previewIdOf } from '$lib/server/downloads';
 
@@ -110,16 +111,34 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 	if (series.kind === 'novel') {
 		// One EPUB per volume: a novel grouped from several books reads each
 		// from its own file (doc/BOOKS.md).
-		const versions = await epubVersions(series.id, reveal);
-		const version = versions[entry.file] ?? null;
+		const filed = await epubVersions(series.id, reveal);
+		// A chapter with no file reads online when its plugin is installed
+		// (doc/BROWSING.md, "Novels online"): a book of one chapter, `online:<id>`,
+		// its document where a download would put it.
+		const online = novelReadsOnline(series.id) ? onlineChapters(series.id) : new Map();
+		const versions: Record<string, string | null> = { ...filed };
+		for (const o of online.values()) versions[o.file] = ONLINE_VERSION;
+		const reading = online.size
+			? {
+					...series,
+					entries: series.entries.map((e) => {
+						const o = online.get(e.id);
+						return o
+							? { ...e, available: true, online: true, file: o.file, locator: o.locator }
+							: e;
+					})
+				}
+			: series;
+		const here = reading.entries[index] ?? entry;
+		const version = versions[here.file] ?? null;
 		return {
 			text: true as const,
-			series,
+			series: reading,
 			entry: {
 				id: entry.id,
 				index,
 				label: entry.label,
-				locator: entry.locator,
+				locator: here.locator,
 				matter: entry.matter,
 				readAt: entry.readAt,
 				lastPosition: entry.lastPosition,

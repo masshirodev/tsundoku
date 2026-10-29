@@ -10,7 +10,7 @@ whose design was still being drawn when the anime part shipped.
 | The browsing record, anime played from the preview        | c161 | Done 2026-10-29 |
 | Anime records finished: CONTINUE, RECORD, FORGET, pruning | c165 | Done 2026-10-29 |
 | Manga read online                                         | c166 | Done 2026-10-29 |
-| Novels read online                                        | c167 | Not yet         |
+| Novels read online                                        | c167 | Done 2026-10-29 |
 | Phone, landscape and design conformance                   | c168 | Not yet         |
 
 The handoff is in `doc/design/handoff/` (`Online Calls.dc.html` and the
@@ -167,6 +167,33 @@ a page through the engine, nothing written) and `tests/browse-online.e2e.ts`
 (preview → reader with a `no-store` page → record → ADD → series rows read
 online with ↓ apart → the source down and back).
 
+## Novels online (c167)
+
+A chapter with no file, of a novel whose LNReader plugin is installed, reads
+from the plugin, the same way, with the same rule that nothing is kept:
+
+- **A book of one chapter, made in memory** (`src/lib/server/novels/online.ts`).
+  The plugin's `parseChapter` goes through the downloader's own cleaner and
+  pictures (`fetchChapter`), and the chapter is made an EPUB with the
+  series' manifest, its document where a download would put it
+  (`chapterHref`). Kept ten minutes, twenty books at most, never written.
+- **The text reader opens it like any volume.** The read route gives each
+  chapter with no file the file `online:<entry>` and its document's locator,
+  and the EPUB routes (`readEpubFile`, `epubMember`, the listing in
+  `src/lib/server/epub.ts`) answer an `online:` file from that book, version
+  `online`, `private, no-store`. So reading carries on from a downloaded
+  chapter into an online one, and the contents sheet opens it.
+- **A chapter the plugin doesn't send** is the text reader's failure page:
+  DID NOT OPEN · THE SOURCE DID NOT SEND THE CHAPTER, with RETRY.
+- **The series screen and the preview** read a novel's chapters as a manga's:
+  rows open, ↓ downloads, START reads online; ▶ READ CH. 1 · ONLINE beside +
+  ADD, into a browsing record (`addNovel(…, browsing)`).
+
+`tests/novel-download-db.spec.ts` ("a chapter read online": the book, its
+document, a member, nothing written, another series' or a failing chapter)
+and `tests/browse-novels.e2e.ts` (the preview's bar, ↓, reading on into
+chapter 3 online, opening it directly, `no-store`).
+
 ## Where it departs from the handoff
 
 - **No `24 MIN` on an unwatched episode's row**: the engine's episode list
@@ -195,8 +222,6 @@ online with ↓ apart → the source down and back).
 
 ## Not done yet
 
-- **Novels** open nothing from a preview until their chapters read online
-  (card c167; `openFromSource` answers null for them).
 - **Phone and landscape** for the online screens, and the design's
   conformance tests (card c168).
 

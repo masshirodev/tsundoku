@@ -1,3 +1,4 @@
+import { keepOrPromote } from '../browsing.ts';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { getDb } from '../db.ts';
@@ -349,14 +350,15 @@ export class NovelAddError extends Error {}
 const novelRoot = () => join(libraryRoot(), 'devices', TSUNDOKU_DEVICE, 'Library');
 
 /** ADD TO LIBRARY: a novel series at once, every chapter NOT DOWNLOADED, through the importers' one writer. */
-export async function addNovel(id: string, now = Date.now()): Promise<number> {
+export async function addNovel(id: string, now = Date.now(), browsing = false): Promise<number> {
 	const ref = parseNovelMangaId(id);
 	if (!ref) throw new NovelAddError('That isn’t a novel');
 	const db = getDb();
 	const key = novelKeyOf(ref.plugin, ref.path);
-	const existing = db.prepare(`SELECT id FROM series WHERE origin_key = ?`).get(key) as
-		{ id: number } | undefined;
-	if (existing) return existing.id;
+	const existing = db.prepare(`SELECT id, in_library FROM series WHERE origin_key = ?`).get(key) as
+		{ id: number; in_library: number } | undefined;
+	// A browsing record (doc/BROWSING.md): kept longer when opened again, the library's on ADD.
+	if (existing) return keepOrPromote(existing, browsing, now, db);
 	const p = loaded(ref.sourceId);
 	if (!p) throw new NovelAddError('its plugin isn’t installed');
 	const n = await parseNovel(p, ref.path);
@@ -365,7 +367,7 @@ export async function addNovel(id: string, now = Date.now()): Promise<number> {
 	const plan = planNovel({ ...n, path: ref.path }, { plugin: p.id, name: p.name }, now);
 	plan.coverUrl = await publicCover(n.cover);
 	const rootId = ensureNamedRoot(db, 'Library', novelRoot(), false);
-	writeSeries(plan, { rootId, jobId: null, now });
+	writeSeries(plan, { rootId, jobId: null, now, browsing });
 	const row = db.prepare(`SELECT id FROM series WHERE origin_key = ?`).get(key) as
 		{ id: number } | undefined;
 	if (!row) {
@@ -374,8 +376,10 @@ export async function addNovel(id: string, now = Date.now()): Promise<number> {
 			buried ? 'that novel was deleted here once, and stays gone' : 'it couldn’t be added'
 		);
 	}
-	db.prepare(`UPDATE series SET arrived_at = ? WHERE id = ?`).run(now, row.id);
-	forgetSourceUse();
+	if (!browsing) {
+		db.prepare(`UPDATE series SET arrived_at = ? WHERE id = ?`).run(now, row.id);
+		forgetSourceUse();
+	}
 	void refreshCovers({ ids: [row.id], remote: true });
 	return row.id;
 }

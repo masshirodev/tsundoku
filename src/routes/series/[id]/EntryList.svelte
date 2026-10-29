@@ -324,7 +324,7 @@
 							{#if !novel && !readOnline}<span class="cache">{cached.has(e.id) ? '↓' : ''}</span
 								>{/if}
 						</button>
-						{#if readOnline && !novel}
+						{#if readOnline}
 							<!-- The ↓ cell: downloading's own target (Online Board 2A); empty on a row
 							     with a file, so the column stays straight. -->
 							{#if act}

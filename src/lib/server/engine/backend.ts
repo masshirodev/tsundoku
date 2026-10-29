@@ -32,7 +32,7 @@ import { splitMemo } from './protocol.ts';
 import { chapterName } from './device.ts';
 import * as queue from './queue.ts';
 import { resolveSeries } from './worker.ts';
-import { touchRecord } from '../browsing.ts';
+import { keepOrPromote } from '../browsing.ts';
 import type {
 	Queue,
 	QueueSummary,
@@ -574,14 +574,14 @@ export async function addToLibrary(
 		? (db().prepare(`SELECT id, in_library FROM series WHERE origin_key = ?`).get(quick) as
 				{ id: number; in_library: number } | undefined)
 		: undefined;
-	if (known) return keepOrPromote(known, browsing, now);
+	if (known) return keepOrPromote(known, browsing, now, db());
 	const m = await sourceManga(id);
 	if (!m) throw new AddError('That series isn’t at its source');
 	const key = keyOf(m.sourceId, splitMemo(m.url).url);
 	const existing = db()
 		.prepare(`SELECT id, in_library FROM series WHERE origin_key = ?`)
 		.get(key) as { id: number; in_library: number } | undefined;
-	if (existing) return keepOrPromote(existing, browsing, now);
+	if (existing) return keepOrPromote(existing, browsing, now, db());
 	const rootId = mihonRoot();
 	if (rootId === null) throw new AddError('there is no Mihon library to add it to');
 	const plan = planMihon(
@@ -610,22 +610,6 @@ export async function addToLibrary(
 	if (!browsing) forgetSourceUse();
 	void refreshCovers({ ids: [row.id], remote: true });
 	return row.id;
-}
-
-/** A series already here: a record opened again is kept longer; ADD makes a record the library's. */
-function keepOrPromote(s: { id: number; in_library: number }, browsing: boolean, now: number) {
-	if (s.in_library === 0) {
-		if (browsing) touchRecord(s.id, now, db());
-		else {
-			db()
-				.prepare(
-					`UPDATE series SET in_library = 1, browsed_at = NULL, pruned_at = NULL, added_at = ?, arrived_at = ? WHERE id = ?`
-				)
-				.run(now, now, s.id);
-			forgetSourceUse();
-		}
-	}
-	return s.id;
 }
 
 /** UNDO after adding, while nothing of it is downloaded or read. Not a delete: it can be added again. */
