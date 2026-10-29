@@ -3,6 +3,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+// A cover's site is asked only when it's on the internet (net-guard.ts): the
+// test's sites are, and one host stands for a site aimed at the workstation.
+vi.mock('node:dns/promises', () => ({
+	lookup: async (host: string) => [
+		{ address: host === 'inside.example' ? '192.168.1.20' : '93.184.215.14', family: 4 }
+	]
+}));
+
 const work = mkdtempSync(join(tmpdir(), 'tsundoku-covers-'));
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';
@@ -147,6 +155,19 @@ describe('covers', () => {
 		expect(fetch).not.toHaveBeenCalled();
 		await refreshCovers({ ids: [downloaded], remote: true, now: 10_000 + 8 * 24 * 3600_000 });
 		expect(fetch).toHaveBeenCalledTimes(1);
+	});
+
+	it('never ask an address on the workstation’s own network', async () => {
+		const inside = series({
+			title: 'Inside',
+			available: false,
+			coverUrl: 'http://inside.example/cover.jpg'
+		});
+		const fetch = vi.fn(async () => new Response(new Uint8Array(png), { status: 200 }));
+		vi.stubGlobal('fetch', fetch);
+		await refreshCovers({ ids: [inside], remote: true, now: 30_000 });
+		expect(fetch).not.toHaveBeenCalled();
+		expect(row(inside).cover_key).not.toMatch(/^url:/);
 	});
 
 	it('come from a catalogue link when the site refuses, before a first page (doc/LINKS.md)', async () => {

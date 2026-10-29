@@ -14,6 +14,7 @@ import { getSetting } from './settings.ts';
 import { openingEdition } from '../library/editions.ts';
 import { linkCover } from './catalogue.ts';
 import { engineAuth } from './engine/auth.ts';
+import { publicFetch } from './net-guard.ts';
 
 /**
  * Covers (doc/COVERS.md). One thumbnail per series, made once and kept on the
@@ -288,14 +289,18 @@ function remoteSource(s: SeriesRow): Source | null {
 			// Sites that guard their images against hotlinking accept their own
 			// origin as the referrer.
 			const origin = new URL(url).origin;
-			const res = await fetch(url, {
+			// An engine cover needs its token; any other site gets nothing.
+			const auth = engineAuth(url);
+			// The engine is on the workstation by design. Any other address came
+			// from a source (a backup, a plugin), and stays on the internet.
+			const get = auth.authorization ? fetch : publicFetch;
+			const res = await get(url, {
 				headers: {
 					'user-agent':
 						'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140 Safari/537.36',
 					referer: `${origin}/`,
 					accept: 'image/avif,image/webp,image/*,*/*;q=0.8',
-					// An engine cover needs its token; any other site gets nothing.
-					...engineAuth(url)
+					...auth
 				},
 				signal: AbortSignal.timeout(15_000)
 			});

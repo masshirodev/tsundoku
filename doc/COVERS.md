@@ -26,7 +26,11 @@ fails to load leaves the stripes.
    (`series.cover_url`, rung 14). It's fetched with a browser's user agent and
    the site's own origin as the referrer, three at a time, and only by the
    cover pass, never while a screen waits. The owner approved fetching them on
-   2026-09-23.
+   2026-09-23. An address is fetched only when it's on the internet, every
+   redirect included (`src/lib/server/net-guard.ts`): a novel's comes from its
+   LNReader plugin ([`NOVELS.md`](NOVELS.md)), and none may aim the server at
+   the workstation's own network. The engine's own covers, which are local by
+   design, are the one exception.
 4. **The linked AniList entry's cover** ([`LINKS.md`](LINKS.md)): a series
    linked to its catalogue entry (from Mihon's MAL tracker, an exact title,
    or the review) wears the entry's cover. It comes after the site's, and a
