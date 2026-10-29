@@ -120,9 +120,17 @@ its SETTINGS, search inside it.
   getSearchAnime, filterSchemaAnime, preferencesAnime…), sends `animeData`
   for `mangaData`, and reads a page's `animes` as `mangas`. Everything that
   browses, searches and sets a source's settings works unchanged.
-- **Covers**: the engine's `/image/` proxy as for manga; a site's picture,
-  which an Aniyomi source often gives instead, comes through the server
-  (`/api/browse/novel-cover/<token>`, internet only), never to the browser.
+- **Covers**: the engine's `/image/` proxy as for manga. Since engine
+  636a9d7 (2026-10-29) the engine wraps anime posters too, through the
+  extension's own client: AnimePahe's poster host answers anything else with
+  a Cloudflare 403, and its first posters after an engine restart wait out
+  the solve (the cover route allows a minute). An address is the engine's
+  only when it is the loopback one the engine handed out
+  (`engineImageToken`): KickAssAnime's posters live at
+  `https://kaa.lt/image/poster/…`, which once read as the engine's token
+  "poster". A site's picture an older engine still hands back comes through
+  the server (`/api/browse/novel-cover/<token>`, internet only), never to the
+  browser.
 - **The preview** says EPISODES ("4 EPISODES · EVERY ONE STREAMS · NOTHING
   DOWNLOADS UNTIL ASKED"), newest first, "S2 · Ep. 2 · Thaw".
 - **ADD TO LIBRARY** (`engine/anime-source.ts`, `src/lib/import/anime-plan.ts`)

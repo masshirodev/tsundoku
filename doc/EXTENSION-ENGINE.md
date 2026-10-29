@@ -212,7 +212,7 @@ Methods (manga; the anime ones are the same with Anime/Episode, plus getVideoLis
 
 - extensionInfo returns {packageName, name, versionName, versionCode, lang, isNsfw, itemType, sources:[{id, name, lang, baseUrl}]}.
 - sourcesManga / sourcesAnime return [{id, name, lang, baseUrl}], with factory sources rebuilt after preferences are applied.
-- getPopularManga (page), getLatestManga (page), getSearchManga (page, search, filterList) return {mangas:[{url, title, artist, author, description, genre, status, thumbnail_url, initialized}], hasNextPage}. thumbnail_url is an /image/ proxy URL.
+- getPopularManga (page), getLatestManga (page), getSearchManga (page, search, filterList) return {mangas:[{url, title, artist, author, description, genre, status, thumbnail_url, initialized}], hasNextPage}. thumbnail_url is an /image/ proxy URL. The anime calls' is too, since tsundoku-engine 636a9d7 (it used to be the site's bare URL).
 - getDetailsManga (mangaData.url) returns the manga via getMangaUpdate(fetchDetails=true). A 1.6 source may return a blank url or title (Mangahere does), so the host keeps its own.
 - getChapterList (mangaData.url) returns [{url, name, date_upload, chapter_number, scanlator}], newest first.
 - getPageList (chapterData.url) returns [{index, url, imageUrl, headers}]. imageUrl is an /image/ token, or a direct URL plus the headers to send.
