@@ -898,6 +898,43 @@ const MIGRATIONS: string[] = [
 		host TEXT PRIMARY KEY,
 		seen_at INTEGER NOT NULL
 	) WITHOUT ROWID;
+	`,
+	// Rung 44: LNReader's plugin repositories and the plugins installed from them
+	// (doc/NOVELS.md; card c148). Their own tables, not the engine's: a repository
+	// is one plugins.min.json with no signing key, and a plugin is a JavaScript file
+	// pinned by its hash, run by tsundoku's plugin host rather than the engine.
+	`
+	CREATE TABLE novel_repos (
+		id INTEGER PRIMARY KEY,
+		url TEXT NOT NULL UNIQUE,
+		name TEXT NOT NULL,
+		added_at INTEGER NOT NULL,
+		checked_at INTEGER,
+		failed_at INTEGER,
+		error TEXT NOT NULL DEFAULT ''
+	);
+	CREATE TABLE novel_listings (
+		repo_id INTEGER NOT NULL REFERENCES novel_repos(id) ON DELETE CASCADE,
+		plugin TEXT NOT NULL,
+		listing TEXT NOT NULL,
+		PRIMARY KEY (repo_id, plugin)
+	) WITHOUT ROWID;
+	CREATE TABLE novel_plugins (
+		id TEXT PRIMARY KEY,
+		repo_id INTEGER REFERENCES novel_repos(id) ON DELETE SET NULL,
+		name TEXT NOT NULL,
+		site TEXT NOT NULL DEFAULT '',
+		lang TEXT NOT NULL DEFAULT '',
+		version TEXT NOT NULL,
+		-- The file's SHA-256: its name in the store.
+		hash TEXT NOT NULL,
+		previous_hash TEXT,
+		previous_version TEXT,
+		previous_until INTEGER,
+		installed_at INTEGER NOT NULL,
+		updated_at INTEGER NOT NULL,
+		failed TEXT NOT NULL DEFAULT ''
+	) WITHOUT ROWID;
 	`
 ];
 
