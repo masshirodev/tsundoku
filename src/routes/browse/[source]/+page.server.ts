@@ -37,7 +37,8 @@ type Answer = {
 
 /** Why the source didn't answer, in the band's words. */
 function why(e: unknown): string {
-	if (e instanceof EngineError) return e.failure === 'down' ? 'down' : e.message;
+	if (e instanceof EngineError)
+		return e.failure === 'down' || e.failure === 'rate-limited' ? e.failure : e.message;
 	return (e as Error).message ?? 'failed';
 }
 

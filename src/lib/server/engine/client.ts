@@ -62,6 +62,23 @@ function inLane<T>(handle: string, run: () => Promise<T>): Promise<T> {
 
 const authorization = () => ({ authorization: `Bearer ${process.env.ENGINE_TOKEN ?? ''}` });
 
+/**
+ * A request to the engine that got no answer. A timeout is a slow source (a
+ * site's browser check, a rate limit the solver waited out), not a missing
+ * engine: only a refused or reset connection says the engine is down. Both
+ * used to say down, and BROWSE told the owner the engine had stopped while
+ * AnimePahe was rate-limiting (2026-10-29).
+ */
+function unreachable(e: unknown, timeoutMs: number): EngineError {
+	if ((e as Error).name === 'TimeoutError')
+		return new EngineError(
+			`The source took longer than ${Math.round(timeoutMs / 1000)} s to answer`,
+			'source'
+		);
+	downSince ??= Date.now();
+	return new EngineError(`The engine is not answering (${(e as Error).message})`, 'down');
+}
+
 async function post(body: Record<string, unknown>, timeoutMs: number): Promise<Response> {
 	try {
 		const res = await fetch(`${engineUrl()}/dalvik`, {
@@ -78,10 +95,7 @@ async function post(body: Record<string, unknown>, timeoutMs: number): Promise<R
 		downSince = null;
 		return res;
 	} catch (e) {
-		// A timeout is a slow source, not a missing engine: only a refused or
-		// reset connection says the engine is down.
-		if ((e as Error).name !== 'TimeoutError') downSince ??= Date.now();
-		throw new EngineError(`The engine is not answering (${(e as Error).message})`, 'down');
+		throw unreachable(e, timeoutMs);
 	}
 }
 
@@ -220,8 +234,7 @@ export async function engineMedia(
 			signal: AbortSignal.timeout(init.timeoutMs ?? 60_000)
 		});
 	} catch (e) {
-		if ((e as Error).name !== 'TimeoutError') downSince ??= Date.now();
-		throw new EngineError(`The engine is not answering (${(e as Error).message})`, 'down');
+		throw unreachable(e, init.timeoutMs ?? 60_000);
 	}
 }
 
@@ -243,8 +256,7 @@ export async function fetchProxied(
 			signal: AbortSignal.timeout(timeoutMs)
 		});
 	} catch (e) {
-		if ((e as Error).name !== 'TimeoutError') downSince ??= Date.now();
-		throw new EngineError(`The engine is not answering (${(e as Error).message})`, 'down');
+		throw unreachable(e, timeoutMs);
 	}
 	if (!res.ok) {
 		const text = await res.text().catch(() => '');

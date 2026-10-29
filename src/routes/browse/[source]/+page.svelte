@@ -218,6 +218,13 @@
 				title="○ NOT ANSWERING · THE EXTENSION ENGINE ON THE WORKSTATION"
 				detail="THE LIBRARY AND CACHED CHAPTERS STILL OPEN"
 			/>
+		{:else if shown.error === 'rate-limited'}
+			<!-- No TRY AGAIN to hammer it with: asking again is what the source objects to
+			     (Online Calls, "Waiting is Player Waiting's"). -->
+			<Band
+				title="{name.toUpperCase()} ASKED TO SLOW DOWN"
+				detail="IT LIMITS HOW OFTEN IT'S ASKED · OPEN IT AGAIN IN A MINUTE"
+			/>
 		{:else if data.source.failed}
 			<Band
 				title="FAILED TO LOAD · {data.source.failed.toUpperCase()}"

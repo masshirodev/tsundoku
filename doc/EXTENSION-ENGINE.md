@@ -207,6 +207,13 @@ Responses are JSON with the method's result. Errors are {"error":"<message>","co
 - 409 for an unknown handle.
 - The source's HttpException status is mirrored for 400/401/403/404.
 - 500 for everything else, 429 included, so a rate limit can't be told apart by status.
+- So tsundoku reads the body (`failureOf`, `protocol.ts`): its `code` when the site's status
+  came through, and its words when an extension threw the limit as text ("You have been rate
+  limited", AnimePahe). Either is `rate-limited`, and BROWSE says the source ASKED TO SLOW DOWN,
+  with no TRY AGAIN to hammer it with.
+- **No answer in time is a slow source, not a stopped engine** (`unreachable`, `client.ts`):
+  only a refused or reset connection is `down`. A Cloudflare solve outlasting the timeout once
+  read as "NOT ANSWERING · THE EXTENSION ENGINE" (2026-10-29).
 
 Methods (manga; the anime ones are the same with Anime/Episode, plus getVideoList):
 

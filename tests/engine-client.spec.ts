@@ -205,6 +205,33 @@ describe('what a failure means', () => {
 		expect(failureOf(401, null)).toBe('unauthorized');
 		expect(failureOf(500, { code: 500 })).toBe('source');
 		expect(failureOf(500, 'not json')).toBe('source');
+		// An extension's own rate limit, thrown as text and answered as a 500 (AnimePahe).
+		expect(
+			failureOf(500, {
+				error: 'java.io.IOException: You have been rate limited. Wait a few seconds and refresh',
+				code: 500
+			})
+		).toBe('rate-limited');
+	});
+
+	it('takes a source that is slow to answer for a slow source, never a stopped engine', async () => {
+		const { createServer } = await import('node:http');
+		const silent = createServer(() => {
+			// Never answers: a site's check the solver is still waiting out.
+		});
+		await new Promise<void>((ok) => silent.listen(0, '127.0.0.1', ok));
+		const real = process.env.ENGINE_URL;
+		process.env.ENGINE_URL = `http://127.0.0.1:${(silent.address() as { port: number }).port}`;
+		try {
+			await expect(
+				call(ext(apkA), 'getPopularManga', {}, { sourceId: '1', timeoutMs: 200 })
+			).rejects.toMatchObject({ failure: 'source', message: expect.stringMatching(/took longer/) });
+			expect(engineDownSince()).toBeNull();
+		} finally {
+			process.env.ENGINE_URL = real;
+			silent.closeAllConnections();
+			await new Promise((ok) => silent.close(ok));
+		}
 	});
 
 	it('says since when the engine stopped answering, and forgets once it answers', async () => {
