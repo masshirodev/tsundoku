@@ -19,7 +19,9 @@ export const GET: RequestHandler = async ({ params }) => {
 	if (!engineConfigured() || !/^[A-Za-z0-9_-]{8,128}$/.test(params.token)) error(404, 'not found');
 	let got: { bytes: Uint8Array; type: string };
 	try {
-		got = await fetchProxied(`${process.env.ENGINE_URL}/image/${params.token}`, 20_000);
+		// A minute: the first poster from a site behind a challenge (AnimePahe's
+		// image host) waits for the solver, 20-45 s measured (doc/EXTENSION-ENGINE.md).
+		got = await fetchProxied(`${process.env.ENGINE_URL}/image/${params.token}`, 60_000);
 	} catch (e) {
 		// A token the engine forgot (a restart) is no cover, not an error.
 		error(e instanceof EngineError && e.failure === 'down' ? 504 : 404, 'no cover');
