@@ -302,3 +302,26 @@ export function onePerLanguage<T extends { lang?: string | null }>(tracks: T[]):
 		return true;
 	});
 }
+
+/**
+ * A quality as the player names it: `1080P` when its height is known, else
+ * the source's words up to its details. A source's own label can run to
+ * "2160p (3840x2160) - 7.42 Mbps" (KickAssAnime), which overran the sheet
+ * (reported 2026-10-29).
+ */
+export function qualityName(q: { label: string; height: number | null }): string {
+	if (q.height) return `${q.height}P`;
+	return (
+		q.label
+			.split(/\s+[-(]/)[0]
+			.trim()
+			.toUpperCase() || 'DEFAULT'
+	);
+}
+
+/** A server's qualities in a few words: "UP TO 2160P", or how many when no height is known. */
+export function qualitiesLine(qs: { label: string; height: number | null }[]): string {
+	const top = Math.max(0, ...qs.map((q) => q.height ?? 0));
+	if (top) return `UP TO ${top}P`;
+	return qs.length === 1 ? qualityName(qs[0]) : `${qs.length} QUALITIES`;
+}

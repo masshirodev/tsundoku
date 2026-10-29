@@ -132,8 +132,10 @@
 		{#snippet answer(hits: SearchHit[] | null)}
 			{#if hits}
 				{#each data.only ? hits : hits.slice(0, SHOWN) as h (h.mangaId)}
+					<!-- A preview asks the source: loaded on tap, not hover (see ResultTile). -->
 					<a
 						class="hit"
+						data-sveltekit-preload-data="tap"
 						href={h.match.kind === 'in-library'
 							? seriesHref(h.match.seriesId)
 							: `${resolve('/downloads/source/[id]', { id: String(h.mangaId) })}?q=${encodeURIComponent(data.q)}`}

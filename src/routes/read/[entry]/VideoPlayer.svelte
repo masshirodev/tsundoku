@@ -6,7 +6,9 @@
 	import { clock, isWatchedAt } from '$lib/library/anime';
 	import {
 		challengeScale,
+		bufferedTo,
 		cueAt,
+		deviceLang,
 		HIDE_MOUSE_MS,
 		HIDE_TOUCH_MS,
 		leftLabel,
@@ -17,6 +19,7 @@
 		parseVtt,
 		placeLabel,
 		playingLabel,
+		preferredLang,
 		RESUME_MS,
 		seekFor,
 		SKIP_ALONE_MS,
@@ -28,6 +31,7 @@
 		type SubSize
 	} from '$lib/library/player';
 	import { readHref } from '$lib/library/links';
+	import { qualitiesLine, qualityName } from '$lib/library/streams';
 	import { page } from '$app/state';
 	import { offline } from '$lib/offline.svelte';
 	import { keepEpisodesAhead } from '$lib/cache/device';
@@ -141,9 +145,16 @@
 	const quality = $derived(server?.qualities[qualityIndex] ?? null);
 	const order = $derived(streams?.servers.map((s) => s.n) ?? []);
 
-	// ---- settings: audio and subtitles per series, quality per device, speed per episode ----------
+	// ---- settings: audio and subtitles per series, else as last chosen on any anime ------------
+	// (asked for on 2026-10-29); quality per device, speed per episode.
 	// svelte-ignore state_referenced_locally
 	const seriesKey = `tsundoku:anime:${data.series.id}`;
+	const anyKey = 'tsundoku:anime';
+	/** A choice made here counts for this series and, by default, for every other. */
+	const choose = (what: string, v: unknown) => {
+		save(`${seriesKey}:${what}`, v);
+		save(`${anyKey}:${what}`, v);
+	};
 	const load = <T,>(k: string, fallback: T): T => {
 		try {
 			const v = localStorage.getItem(k);
@@ -218,7 +229,7 @@
 			audio: quality?.audio.length ? (audioLang ?? quality.audio[0].lang) : null,
 			subtitles: subLang,
 			burnedIn: !!quality && quality.subtitles.length === 0,
-			quality: quality?.label ?? null,
+			quality: quality ? qualityName(quality) : null,
 			speed
 		})
 	);
@@ -446,12 +457,14 @@
 		}
 	}
 
+	const rangesOf = (b: TimeRanges): [number, number][] =>
+		Array.from({ length: b.length }, (_, i) => [b.start(i), b.end(i)]);
+
 	function onTime() {
 		if (!video) return;
 		time = video.currentTime;
 		if (Number.isFinite(video.duration) && video.duration > 0) duration = video.duration;
-		const b = video.buffered;
-		buffered = b.length ? b.end(b.length - 1) : 0;
+		buffered = bufferedTo(rangesOf(video.buffered), time);
 		if (!opened && time > 0) {
 			opened = true;
 			void send('open');
@@ -639,14 +652,20 @@
 		if (video) video.playbackRate = s;
 	}
 	function setAudio(lang: string) {
+		chosenHere = true;
 		audioLang = lang;
-		save(`${seriesKey}:audio`, lang);
+		choose('audio', lang);
 		pickAudio();
 	}
 	function setSub(lang: string | null) {
+		chosenHere = true;
 		subLang = lang;
-		save(`${seriesKey}:subs`, lang);
+		choose('subs', lang);
 		void loadSubtitles();
+	}
+	function setSubSize(z: SubSize) {
+		subSize = z;
+		choose('subsize', z);
 	}
 	function setDim(v: number) {
 		dim = v;
@@ -670,9 +689,7 @@
 	}
 
 	onMount(() => {
-		audioLang = load<string | null>(`${seriesKey}:audio`, null);
-		subLang = load<string | null>(`${seriesKey}:subs`, null);
-		subSize = load<SubSize>(`${seriesKey}:subsize`, 'M');
+		subSize = load<SubSize>(`${seriesKey}:subsize`, load<SubSize>(`${anyKey}:subsize`, 'M'));
 		dim = load<number>('tsundoku:anime:dim', 0);
 		mouse = matchMedia('(pointer: fine)').matches;
 		void start();
@@ -687,12 +704,28 @@
 		for (const t of [hideTimer, flashTimer]) clearTimeout(t);
 	});
 
-	// Subtitles in a language the series had, once the tracks are known.
+	// The tracks to start with, once the source says which it has: this series'
+	// choice, else the last made on any anime, else the device's language, else
+	// the source's first. Worked out, not chosen, so nothing is saved; worked out
+	// again for each server the player moves to (the first may have none), until
+	// a choice is made in the sheet.
+	let chosenHere = false;
 	$effect(() => {
-		if (quality && subLang === null) {
-			const saved = load<string | null | undefined>(`${seriesKey}:subs`, undefined);
-			if (saved === undefined && quality.subtitles.length) setSub(quality.subtitles[0].lang);
-		}
+		if (!quality || chosenHere) return;
+		const was = (what: string) => [
+			load<string | null | undefined>(`${seriesKey}:${what}`, undefined),
+			load<string | null | undefined>(`${anyKey}:${what}`, undefined)
+		];
+		const subs = quality.subtitles.map((t) => t.lang);
+		const sub = preferredLang(subs, [...was('subs'), deviceLang(navigator.language)]);
+		subLang = sub === undefined ? (subs[0] ?? null) : sub;
+		void loadSubtitles();
+		const audio = preferredLang(
+			quality.audio.map((a) => a.lang),
+			was('audio')
+		);
+		audioLang = audio ?? null;
+		pickAudio();
 	});
 	$effect(() => {
 		void paused;
@@ -736,7 +769,7 @@
 			onwaiting={onWaiting}
 			onplaying={onProgressing}
 			onprogress={() =>
-				(buffered = video?.buffered.length ? video.buffered.end(video.buffered.length - 1) : 0)}
+				(buffered = video ? bufferedTo(rangesOf(video.buffered), video.currentTime) : 0)}
 			onended={onEnded}
 			onerror={() => phase === 'playing' && !hls && void fail()}
 		></video>
@@ -803,7 +836,7 @@
 				{#each streams?.servers ?? [] as s (s.n)}
 					<div class="srow" class:on={s.n === serverN} class:off={failed.has(s.n)}>
 						<div class="mk">{failed.has(s.n) ? '✕' : s.n === serverN ? '…' : ''}</div>
-						<div class="t">SERVER {s.n} · {(s.qualities[0]?.label ?? '').toUpperCase()}</div>
+						<div class="t">SERVER {s.n} · {qualitiesLine(s.qualities)}</div>
 						<div class="r">
 							{failed.has(s.n)
 								? `STOPPED AT ${clock(failedAt[s.n] ?? 0)}`
@@ -829,8 +862,10 @@
 			</div>
 		{/if}
 
-		<!-- The middle cluster: −10, pause, +10, under the thumb. -->
-		<div class="cluster">
+		<!-- The middle cluster: −10, pause, +10, under the thumb. It steps aside while a
+		     waiting box holds the middle (Player Waiting 3a draws the box alone): the
+		     two overlapped (reported 2026-10-29). -->
+		<div class="cluster" class:aside={(stalled !== null && stallSeconds >= 2) || !!serverNotice}>
 			<button type="button" aria-label="Back 10 seconds" onclick={() => (seek(-10), showChrome())}
 				>−10</button
 			>
@@ -954,7 +989,7 @@
 					>
 					<button type="button" aria-label="On 10 seconds" onclick={() => seek(10)}>+10</button>
 					<button type="button" class="small" onclick={() => (sheet = true)}
-						>{[subLang, quality?.label.toUpperCase()].filter(Boolean).join(' · ')}</button
+						>{[subLang, quality ? qualityName(quality) : null].filter(Boolean).join(' · ')}</button
 					>
 				</div>
 				<div class="pnames">
@@ -1002,7 +1037,7 @@
 						<div class="seg">
 							{#each server?.qualities ?? [] as q, i (q.src)}
 								<button type="button" class:on={i === qualityIndex} onclick={() => setQuality(i)}
-									>{q.label.toUpperCase()}</button
+									>{qualityName(q)}</button
 								>
 							{/each}
 						</div>
@@ -1025,10 +1060,10 @@
 								<span>{(s.name || `SERVER ${s.n}`).toUpperCase()}</span>
 								<span class="r"
 									>{s.n === serverN
-										? `● PLAYING · ${s.qualities.map((q) => q.label.toUpperCase()).join(' ')}`
+										? `● PLAYING · ${qualitiesLine(s.qualities)}`
 										: failed.has(s.n)
 											? `STOPPED ${clock(failedAt[s.n] ?? 0)}`
-											: s.qualities.map((q) => q.label.toUpperCase()).join(' ')}</span
+											: qualitiesLine(s.qualities)}</span
 								>
 							</button>
 						{/each}
@@ -1067,10 +1102,8 @@
 							</div>
 							<div class="seg">
 								{#each SUB_SIZES as z (z)}
-									<button
-										type="button"
-										class:on={subSize === z}
-										onclick={() => ((subSize = z), save(`${seriesKey}:subsize`, z))}>{z}</button
+									<button type="button" class:on={subSize === z} onclick={() => setSubSize(z)}
+										>{z}</button
 									>
 								{/each}
 							</div>
@@ -1589,6 +1622,9 @@
 		opacity: 0;
 		pointer-events: none;
 	}
+	.cluster.aside {
+		display: none;
+	}
 	.cluster {
 		position: absolute;
 		left: 50%;
@@ -1773,7 +1809,8 @@
 		left: 0;
 		top: 0;
 		height: 4px;
-		background: var(--line-2);
+		/* Seen over video: line-2 on line-1 wasn't (reported 2026-10-29). */
+		background: var(--text-2);
 	}
 	.track .seen {
 		background: var(--accent);

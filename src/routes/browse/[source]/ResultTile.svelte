@@ -15,8 +15,11 @@
 	const m = $derived(hit.match);
 </script>
 
+<!-- A preview asks the source (details and episodes, one call at a time per
+     extension), so it loads on tap, not hover: twenty hovered tiles queued
+     forty calls ahead of the one opened (reported 2026-10-29). -->
 <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the page builds href from resolve() -->
-<a class="tile" {href}>
+<a class="tile" {href} data-sveltekit-preload-data="tap">
 	<Cover src={hit.cover || null} {hue}>
 		{#if m.kind === 'in-library' && m.hidden}<Badge tone="reveal" corner="top-left">HIDDEN</Badge
 			>{/if}

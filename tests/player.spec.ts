@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+	bufferedTo,
 	challengeScale,
 	cueAt,
+	deviceLang,
 	leftLabel,
 	nextServer,
 	offerNextAt,
@@ -9,6 +11,7 @@ import {
 	parseVtt,
 	placeLabel,
 	playingLabel,
+	preferredLang,
 	seekFor,
 	subtitlePx
 } from '$lib/library/player';
@@ -92,5 +95,35 @@ describe('servers', () => {
 	it('draw the challenge’s known range, never a fill toward an end', () => {
 		expect(challengeScale(23)).toEqual({ at: 23 / 60, from: 20 / 60, to: 45 / 60 });
 		expect(challengeScale(90).at).toBe(1);
+	});
+});
+
+describe('settings across anime (2026-10-29)', () => {
+	it('start from this series’ choice, then the last made anywhere, then the device’s language', () => {
+		const offered = ['ZH', 'EN', 'ID'];
+		expect(preferredLang(offered, ['ID', 'EN', 'EN'])).toBe('ID');
+		expect(preferredLang(offered, [undefined, 'EN', 'ZH'])).toBe('EN');
+		// A choice this source doesn't offer passes to the next.
+		expect(preferredLang(offered, ['JA', undefined, 'EN'])).toBe('EN');
+		// OFF is a choice.
+		expect(preferredLang(offered, [undefined, null, 'EN'])).toBeNull();
+		// None applies: the caller takes the source's first.
+		expect(preferredLang(offered, [undefined, undefined, 'PT'])).toBeUndefined();
+		expect(deviceLang('en-GB')).toBe('EN');
+		expect(deviceLang(undefined)).toBeUndefined();
+	});
+});
+
+describe('the buffer on the bar', () => {
+	it('reaches the end of the range the playhead is in, not the last one', () => {
+		const ranges: [number, number][] = [
+			[0, 40],
+			[600, 700]
+		];
+		expect(bufferedTo(ranges, 30)).toBe(40);
+		expect(bufferedTo(ranges, 650)).toBe(700);
+		// Between ranges, just after a seek: nothing ahead yet.
+		expect(bufferedTo(ranges, 300)).toBe(300);
+		expect(bufferedTo([], 12)).toBe(12);
 	});
 });

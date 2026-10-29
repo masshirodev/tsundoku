@@ -173,7 +173,7 @@ test.describe('the player, tablet landscape (c156)', () => {
 		const sheet = page.getByRole('dialog', { name: 'Playback settings' });
 		await expect(sheet).toContainText('PLAYBACK · EP. 9');
 		await expect(sheet.locator('.li.on')).toContainText('KWIK');
-		await expect(sheet.locator('.li.on')).toContainText('● PLAYING · 360P');
+		await expect(sheet.locator('.li.on')).toContainText('● PLAYING · UP TO 360P');
 		await expect(sheet.locator('.li.off')).toContainText('BROKEN');
 		await expect(sheet.locator('.li.off')).toContainText('STOPPED');
 		await expect(sheet).toHaveCSS('width', '520px');

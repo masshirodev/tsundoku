@@ -237,9 +237,11 @@ screen but the video, and the subtitles, until a tap.
 - **The chrome**, on a tap, gone after 4 s of playing (2 s after the mouse
   stops on a desktop): the reader's 64px top bar (← the series, the series
   and episode, "ANIME · S2 · EP. 7 OF 12 · 1:42 OF 24:00"), a 56px scrubber
-  with buffered and watched over 64px cells (← EP. 6, what's playing, EP. 8
+  with buffered (the range the playhead is in, drawn in text-2 so it shows
+  over a picture) and watched over 64px cells (← EP. 6, what's playing, EP. 8
   →), and the one addition, −10 / pause / +10 in the middle, pause two drawn
-  bars. The scrubber ticks the opening and ending. A desktop adds play, VOL,
+  bars, which steps aside while BUFFERING or a server's notice holds the
+  middle (they overlapped). The scrubber ticks the opening and ending. A desktop adds play, VOL,
   ? KEYS and FULL SCREEN · F, and a time on hover.
 - **Taps**: one shows or hides the controls; a double-tap on the left or
   right third seeks 10 s, and each further tap in the burst 10 more, said in
@@ -251,9 +253,15 @@ screen but the video, and the subtitles, until a tap.
   520px side sheet with the picture playing beside it. QUALITY (this
   server's), SERVER (the hosters by name, the one playing and the ones that
   stopped), AUDIO where there's a choice, SUBTITLES (OFF, each language, S M
-  L; "IN THE PICTURE" where there are no tracks), SPEED, DIM. Audio and
-  subtitles carry to every episode of the series, speed to this one, quality
-  to this device (`localStorage`, a per-viewer convenience).
+  L; "IN THE PICTURE" where there are no tracks), SPEED, DIM. Qualities are
+  named by height (`2160P`, `qualityName`), never a source's
+  "2160p (3840x2160) - 7.42 Mbps", and a server says "UP TO 2160P". Audio,
+  subtitles and their size carry to every episode of the series **and, since
+  2026-10-29, to every other anime**: an episode starts on this series'
+  choice, else the last made on any anime, else the device's language, else
+  the source's first (`preferredLang`), worked out again for each server
+  until a choice is made. Speed is this episode's, quality this device's
+  (`localStorage`, a per-viewer convenience).
 - **Subtitles** are drawn by tsundoku from the WebVTT: IBM Plex on a scrim
   box, rising above the controls while they show.
 - **SKIP INTRO / SKIP ENDING** only where the source gave timestamps: alone

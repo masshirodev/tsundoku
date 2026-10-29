@@ -86,7 +86,15 @@ entry, so back leaves the list rather than stepping through its pages).
 MORE ↓ is a link to `?pages=N+1`, which renders pages 1 to N+1: the way on
 without script, and what back returns to. The label counts what's loaded
 ("48 SO FAR"), never a total the source doesn't give, and says "MORE AS YOU
-SCROLL" only once script runs. Twenty pages at most.
+SCROLL" only once script runs. Twenty pages at most. **One page at a time**:
+while one is asked for, MORE ↓ is dimmed and a click on it does nothing, since
+every extra click only queued more calls at the source (reported 2026-10-29).
+
+**A preview loads on tap, not hover.** A preview asks the source for details
+and episodes, one call at a time per extension, and the app preloads links
+on hover: twenty tiles passed over queued forty calls ahead of the one
+opened, which then sat on ASKING THE SOURCE… for 43 s, and stalled MORE
+behind them. Tiles and search results set `data-sveltekit-preload-data="tap"`.
 
 **A tile** is the library's (cover, title, a meta line). IN LIBRARY is the
 accent badge in the cover's top-right corner, and a tap opens the series;

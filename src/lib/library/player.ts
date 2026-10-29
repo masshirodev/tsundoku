@@ -152,3 +152,38 @@ export function subtitlePx(size: SubSize, base: number): number {
 export function challengeScale(elapsedS: number): { at: number; from: number; to: number } {
 	return { at: Math.min(1, elapsedS / 60), from: 20 / 60, to: 45 / 60 };
 }
+
+/**
+ * The track to start an episode with, of those the source offers (asked for
+ * on 2026-10-29: settings remembered across anime). The first choice that
+ * applies wins: this series' own, then the last one made on any anime, then
+ * the device's language. `null` is a choice too (subtitles OFF); `undefined`
+ * is none made. Undefined back means none applied: the caller takes the
+ * source's first.
+ */
+export function preferredLang(
+	offered: string[],
+	choices: (string | null | undefined)[]
+): string | null | undefined {
+	for (const c of choices) {
+		if (c === undefined) continue;
+		if (c === null) return null;
+		if (offered.includes(c)) return c;
+	}
+	return undefined;
+}
+
+/** The device's language as the sheet names tracks: `en-GB` is EN. */
+export const deviceLang = (tag: string | undefined) =>
+	tag ? tag.slice(0, 2).toUpperCase() : undefined;
+
+/**
+ * How far the buffer reaches from [t]: the end of the buffered range [t] is
+ * in, else [t] itself. Not the last range's end: after a seek back that's
+ * somewhere else in the episode, and the bar drew a buffer the playhead
+ * didn't have (reported 2026-10-29).
+ */
+export function bufferedTo(ranges: [number, number][], t: number): number {
+	const r = ranges.find(([start, end]) => start <= t + 0.5 && t <= end);
+	return r ? r[1] : t;
+}

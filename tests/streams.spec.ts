@@ -5,6 +5,8 @@ import {
 	heightOf,
 	langCode,
 	onePerLanguage,
+	qualitiesLine,
+	qualityName,
 	playlistSeconds,
 	rewritePlaylist,
 	serversOf,
@@ -168,5 +170,22 @@ describe('subtitles', () => {
 				t('spanish ', 'e')
 			]).map((x) => x.url)
 		).toEqual(['a', 'c', 'd']);
+	});
+});
+
+describe('quality names (2026-10-29)', () => {
+	it('say the height, never a source’s long label, and a server in a few words', () => {
+		const long = { label: '2160p (3840x2160) - 7.42 Mbps', height: 2160 };
+		expect(qualityName(long)).toBe('2160P');
+		expect(qualityName({ label: 'HD - backup', height: null })).toBe('HD');
+		expect(qualityName({ label: 'Default', height: null })).toBe('DEFAULT');
+		expect(qualitiesLine([long, { label: '720p', height: 720 }])).toBe('UP TO 2160P');
+		expect(qualitiesLine([{ label: 'Auto', height: null }])).toBe('AUTO');
+		expect(
+			qualitiesLine([
+				{ label: 'A', height: null },
+				{ label: 'B', height: null }
+			])
+		).toBe('2 QUALITIES');
 	});
 });

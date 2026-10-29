@@ -266,8 +266,15 @@
 					<span class="pg"
 						>{asking ? `ASKING FOR PAGE ${data.pages + 1}` : `PAGE ${data.pages + 1}`}</span
 					>
-					<a class="go" href={link({ pages: String(data.pages + 1) })} data-sveltekit-noscroll
-						>MORE ↓</a
+					<!-- One page at a time: a click while one is asked for would only queue
+					     more calls at the source (reported 2026-10-29). -->
+					<a
+						class="go"
+						href={link({ pages: String(data.pages + 1) })}
+						data-sveltekit-noscroll
+						data-sveltekit-preload-data="tap"
+						aria-disabled={asking}
+						onclick={(e) => asking && e.preventDefault()}>MORE ↓</a
 					>
 				</div>
 			{/if}
@@ -460,6 +467,10 @@
 		white-space: nowrap;
 		color: var(--text-1);
 		text-decoration: none;
+	}
+	.go[aria-disabled='true'] {
+		color: var(--text-2);
+		cursor: default;
 	}
 	.none {
 		padding: 24px var(--pad);
