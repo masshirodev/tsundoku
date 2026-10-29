@@ -116,6 +116,9 @@ is the mount development pressures.
   and reading offline without losing stats.
 - [`doc/SERVING.md`](doc/SERVING.md) — HTTPS through `tailscale serve`, and
   the plain-http fallback.
+- [`doc/DISTRIBUTION.md`](doc/DISTRIBUTION.md) — the plan for installs on
+  friends' computers (Windows included): native bundles, Docker images, one
+  data directory, and what stays personal.
 - [`doc/COVERS.md`](doc/COVERS.md) — where covers come from, the thumbnail
   cache, fetching from source sites, and sharp against the system libvips.
 - [`doc/WAITING.md`](doc/WAITING.md) — the time between a tap and the next
@@ -169,3 +172,5 @@ Tracked on the **Tsundoku** board in Kumiko. Beyond the defaults (`Feature`,
   postpone", which plain Backlog doesn't. When a card needs groundwork laid now
   so nothing is lost while it waits, the groundwork is its own card (for
   example the reading log under stats).
+- **`Friends`**: part of making tsundoku installable on a friend's computer
+  ([`doc/DISTRIBUTION.md`](doc/DISTRIBUTION.md)).
