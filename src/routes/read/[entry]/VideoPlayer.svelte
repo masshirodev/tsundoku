@@ -20,7 +20,8 @@
 		parseVtt,
 		placeLabel,
 		playingLabel,
-		preferredLang,
+		startTracks,
+		type TrackChoice,
 		RESUME_MS,
 		seekFor,
 		SKIP_ALONE_MS,
@@ -88,6 +89,8 @@
 			incognito: boolean;
 			/** A browsing record (doc/BROWSING.md): its preview, where + ADD posts. */
 			record?: { preview: string | null } | null;
+			/** What it starts in (card c171): the series', SETTINGS', the last choice. */
+			player: { series: TrackChoice; defaults: TrackChoice; last: TrackChoice };
 		};
 	} = $props();
 
@@ -148,15 +151,18 @@
 	const quality = $derived(server?.qualities[qualityIndex] ?? null);
 	const order = $derived(streams?.servers.map((s) => s.n) ?? []);
 
-	// ---- settings: audio and subtitles per series, else as last chosen on any anime ------------
-	// (asked for on 2026-10-29); quality per device, speed per episode.
-	// svelte-ignore state_referenced_locally
-	const seriesKey = `tsundoku:anime:${data.series.id}`;
-	const anyKey = 'tsundoku:anime';
-	/** A choice made here counts for this series and, by default, for every other. */
-	const choose = (what: string, v: unknown) => {
-		save(`${seriesKey}:${what}`, v);
-		save(`${anyKey}:${what}`, v);
+	// ---- settings: audio and subtitles per series, kept on the workstation (card c171) ---------
+	// The series' choice, else SETTINGS' default, else the last on any anime;
+	// quality and dim per device, speed per episode.
+	/** A choice made here counts for this series and, as the last one, for every other. */
+	const choose = (what: 'audio' | 'subs' | 'subsize', v: string | null) => {
+		void fetch(`/api/anime/series/${data.series.id}/choice`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ what, v })
+		}).catch(() => {
+			// Offline: the choice lasts this episode.
+		});
 	};
 	const load = <T,>(k: string, fallback: T): T => {
 		try {
@@ -694,7 +700,7 @@
 	}
 
 	onMount(() => {
-		subSize = load<SubSize>(`${seriesKey}:subsize`, load<SubSize>(`${anyKey}:subsize`, 'M'));
+		subSize = startTracks({ audio: [], subs: [], ...data.player }).subsize;
 		dim = load<number>('tsundoku:anime:dim', 0);
 		mouse = matchMedia('(pointer: fine)').matches;
 		void start();
@@ -709,27 +715,23 @@
 		for (const t of [hideTimer, flashTimer]) clearTimeout(t);
 	});
 
-	// The tracks to start with, once the source says which it has: this series'
-	// choice, else the last made on any anime, else the device's language, else
-	// the source's first. Worked out, not chosen, so nothing is saved; worked out
-	// again for each server the player moves to (the first may have none), until
-	// a choice is made in the sheet.
+	// The tracks to start with, once the source says which it has (startTracks:
+	// the series', SETTINGS', the last on any anime, then the original audio and
+	// the device's language). Worked out, not chosen, so nothing is saved; worked
+	// out again for each server the player moves to (the first may have none),
+	// until a choice is made in the sheet.
 	let chosenHere = false;
 	$effect(() => {
 		if (!quality || chosenHere) return;
-		const was = (what: string) => [
-			load<string | null | undefined>(`${seriesKey}:${what}`, undefined),
-			load<string | null | undefined>(`${anyKey}:${what}`, undefined)
-		];
-		const subs = quality.subtitles.map((t) => t.lang);
-		const sub = preferredLang(subs, [...was('subs'), deviceLang(navigator.language)]);
-		subLang = sub === undefined ? (subs[0] ?? null) : sub;
+		const start = startTracks({
+			audio: quality.audio.map((a) => a.lang),
+			subs: quality.subtitles.map((t) => t.lang),
+			...data.player,
+			device: deviceLang(navigator.language)
+		});
+		subLang = start.subs;
 		void loadSubtitles();
-		const audio = preferredLang(
-			quality.audio.map((a) => a.lang),
-			was('audio')
-		);
-		audioLang = audio ?? null;
+		audioLang = start.audio;
 		pickAudio();
 	});
 	$effect(() => {

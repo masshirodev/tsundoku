@@ -173,6 +173,37 @@ export function preferredLang(
 	return undefined;
 }
 
+/** Where a choice comes from: a series', SETTINGS' default, or the last on any anime. */
+export type TrackChoice = { audio?: string; subs?: string | null; subsize?: SubSize };
+
+/**
+ * The tracks an anime starts on (doc/ANIME.md, "The player"; card c171):
+ * the series' own choice, else SETTINGS' default, else the last made on
+ * any anime (FOLLOW THE PLAYER). Then audio takes the source's first track,
+ * which is its original (the owner's answer to question 3), and subtitles
+ * the device's language, else the first offered. Null subtitles are off.
+ */
+export function startTracks(o: {
+	audio: string[];
+	subs: string[];
+	series: TrackChoice;
+	defaults: TrackChoice;
+	last: TrackChoice;
+	device?: string;
+}): { audio: string | null; subs: string | null; subsize: SubSize } {
+	const chain = [o.series, o.defaults, o.last];
+	const audio = preferredLang(
+		o.audio,
+		chain.map((c) => c.audio)
+	);
+	const subs = preferredLang(o.subs, [...chain.map((c) => c.subs), o.device]);
+	return {
+		audio: audio ?? null,
+		subs: subs === undefined ? (o.subs[0] ?? null) : subs,
+		subsize: o.series.subsize ?? o.defaults.subsize ?? o.last.subsize ?? 'M'
+	};
+}
+
 /** The device's language as the sheet names tracks: `en-GB` is EN. */
 export const deviceLang = (tag: string | undefined) =>
 	tag ? tag.slice(0, 2).toUpperCase() : undefined;

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	keptTracks,
 	episodeNfo,
 	episodePath,
 	fileSafe,
@@ -115,5 +116,28 @@ describe('the mux', () => {
 		expect(iso3('ko')).toBe('kor');
 		expect([iso3('HI'), iso3('ta')]).toEqual(['hin', 'tam']);
 		expect(progressSeconds('frame=1\nout_time_us=12500000\nprogress=continue')).toBe(12.5);
+	});
+});
+
+describe('what a download keeps (c160)', () => {
+	const audio = ['ja', 'en', 'es', 'pt'].map((lang) => ({ lang, src: `/a/${lang}` }));
+	const subs = ['en', 'ja', 'fr'].map((lang) => ({ lang, src: `/s/${lang}` }));
+
+	it('keeps every track when no language is chosen', () => {
+		expect(keptTracks(audio, subs, { kept: [], subs: 'all' })).toEqual({ audio, subtitles: subs });
+	});
+
+	it('keeps the original and the chosen, never the original dropped', () => {
+		const r = keptTracks(audio, subs, { kept: ['EN'], subs: 'all' });
+		expect(r.audio.map((a) => a.lang)).toEqual(['ja', 'en']);
+		expect(r.subtitles).toEqual(subs);
+		expect(keptTracks(audio, subs, { kept: ['KO'], subs: 'all' }).audio.map((a) => a.lang)).toEqual(
+			['ja']
+		);
+	});
+
+	it('keeps subtitles in the kept audio’s languages, AS AUDIO', () => {
+		const r = keptTracks(audio, subs, { kept: ['EN'], subs: 'audio' });
+		expect(r.subtitles.map((s) => s.lang)).toEqual(['en', 'ja']);
 	});
 });

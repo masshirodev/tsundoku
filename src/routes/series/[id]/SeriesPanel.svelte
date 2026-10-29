@@ -339,7 +339,7 @@
 
 	// An anime series' CONTINUE is its episode and the time left (doc/ANIME.md).
 	const action = $derived(anime ? animeContinue(series.entries) : continueAction(series));
-	const direction = $derived(effectiveDirection(series));
+	const direction = $derived(effectiveDirection(series, series.kindDirection));
 	const tags = $derived(tagGroups(series.tags));
 	const onShelves = $derived(
 		shelves.filter(

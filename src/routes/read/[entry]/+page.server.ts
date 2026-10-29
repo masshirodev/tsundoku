@@ -1,4 +1,5 @@
 import { error, redirect } from '@sveltejs/kit';
+import { playerStart } from '$lib/server/anime/choices';
 import type { PageServerLoad } from './$types';
 import { getDb } from '$lib/server/db';
 import { isIncognito, isRevealed } from '$lib/server/prefs';
@@ -103,7 +104,9 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			source: key ? { id: key.sourceId, name: series.source } : null,
 			episodes,
 			index,
-			incognito: isIncognito(cookies)
+			incognito: isIncognito(cookies),
+			// What it starts in (card c171): the series', SETTINGS', the last choice.
+			player: playerStart(series.id)
 		};
 	}
 
@@ -144,7 +147,10 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 				lastPosition: entry.lastPosition,
 				lastOffset: entry.lastOffset
 			},
-			layout: effectiveDirection(series) === 'scroll' ? ('scroll' as const) : ('paged' as const),
+			layout:
+				effectiveDirection(series, series.kindDirection) === 'scroll'
+					? ('scroll' as const)
+					: ('paged' as const),
 			version,
 			/** "1 EPUB · 3.1 MB" while it opens: the file's size, from its version. */
 			bytes: version && /^\d+-/.test(version) ? Number(version.split('-')[0]) : 0,
@@ -216,8 +222,10 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 				rating: series.rating,
 				favourite: series.favourite,
 				direction: series.direction,
-				defaultMode: modeOf(effectiveDirection({ kind: series.kind, direction: null })),
-				mode: modeOf(effectiveDirection(series)),
+				defaultMode: modeOf(
+					effectiveDirection({ kind: series.kind, direction: null }, series.kindDirection)
+				),
+				mode: modeOf(effectiveDirection(series, series.kindDirection)),
 				books,
 				count: series.entries.length,
 				single: series.entries.length === 1,

@@ -58,6 +58,8 @@ export type SeriesPage = SeriesCard & {
 	source: string;
 	status: string;
 	description: string;
+	/** Where the series' kind starts, as SETTINGS has it (card c171). */
+	kindDirection?: Direction;
 	/** Null until the owner picks one; see `effectiveDirection`. */
 	direction: Direction | null;
 	path: string;
@@ -84,11 +86,18 @@ export function defaultDirection(kind: Kind): Direction {
 	return 'rtl';
 }
 
-export function effectiveDirection(series: Pick<SeriesPage, 'kind' | 'direction'>): Direction {
+/**
+ * Where a series reads: its own direction, else its kind's default, which
+ * SETTINGS can change (doc/SETTINGS.md; card c171). [kindDefault] is that
+ * setting, passed in by whoever read it.
+ */
+export function effectiveDirection(
+	series: Pick<SeriesPage, 'kind' | 'direction'>,
+	kindDefault?: Direction
+): Direction {
 	const options = directionOptions(series.kind).map((o) => o.value);
-	return series.direction && options.includes(series.direction)
-		? series.direction
-		: defaultDirection(series.kind);
+	if (series.direction && options.includes(series.direction)) return series.direction;
+	return kindDefault && options.includes(kindDefault) ? kindDefault : defaultDirection(series.kind);
 }
 
 /** The DIRECTION row for pages, the LAYOUT row for a novel. */

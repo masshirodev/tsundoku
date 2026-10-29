@@ -9,6 +9,7 @@ import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
 import { coverDir } from '../covers.ts';
 import { getSetting } from '../settings.ts';
+import { parseKept } from '../../settings/catalog.ts';
 import { EngineError } from '../engine/client.ts';
 import { failed, isPaused, nextUp, queueRows, recover } from '../engine/queue.ts';
 import { parseAnimeKey, type DownloadState } from '../../library/downloads.ts';
@@ -17,6 +18,7 @@ import {
 	episodeNfo,
 	episodePath,
 	HIDDEN_ANIME_FOLDER,
+	keptTracks,
 	muxArgs,
 	progressSeconds,
 	seriesFolderName,
@@ -310,6 +312,12 @@ export async function downloadEpisode(entryId: number, d: AnimeDeps): Promise<st
 		`UPDATE download_queue SET pages = 1000, done_pages = ? WHERE entry_id = ?`
 	);
 	const partial = `${path}.partial`;
+	// What's kept of each server's tracks: SETTINGS' DOWNLOADING (c160).
+	const keep = {
+		kept: parseKept(getSetting('anime_download_audio')),
+		subs: getSetting('anime_download_subs') === 'audio' ? ('audio' as const) : ('all' as const)
+	};
+	const kept = (q: (typeof tries)[number]['quality']) => keptTracks(q.audio, q.subtitles, keep);
 	let got: (typeof tries)[number] | null = null;
 	let last: unknown = null;
 	for (const pick of tries) {
@@ -323,8 +331,8 @@ export async function downloadEpisode(entryId: number, d: AnimeDeps): Promise<st
 				muxArgs({
 					video: local(pick.quality.src),
 					videoKind: pick.quality.kind,
-					audio: pick.quality.audio.map((a) => ({ url: local(a.src), lang: a.lang })),
-					subtitles: pick.quality.subtitles.map((t) => ({ url: local(t.src), lang: t.lang })),
+					audio: kept(pick.quality).audio.map((a) => ({ url: local(a.src), lang: a.lang })),
+					subtitles: kept(pick.quality).subtitles.map((t) => ({ url: local(t.src), lang: t.lang })),
 					header: `x-tsundoku: ${secret}`,
 					out: partial,
 					title: e.title || `Episode ${number}`

@@ -267,3 +267,26 @@ export function progressSeconds(block: string): number | null {
 	const m = /out_time_us=(\d+)/.exec(block) ?? /out_time_ms=(\d+)/.exec(block);
 	return m ? Number(m[1]) / 1e6 : null;
 }
+
+/**
+ * The tracks a download keeps (doc/ANIME.md, "Downloading"; card c160, on
+ * SETTINGS since c171): the original, which is the source's first audio
+ * track, and the languages chosen beside it; every track when none are
+ * chosen. Subtitles are all kept unless SUBTITLES KEPT is AS AUDIO: then
+ * those in a kept audio's language. A KickAssAnime episode carries eight
+ * dubs, so a 360P one went from 310 MB to about 130 MB keeping two.
+ */
+export function keptTracks<A extends { lang: string }, S extends { lang: string }>(
+	audio: A[],
+	subtitles: S[],
+	o: { kept: string[]; subs: 'all' | 'audio' }
+): { audio: A[]; subtitles: S[] } {
+	const lang = (l: string) => l.toUpperCase();
+	const want = new Set(o.kept.map(lang));
+	const keptAudio = want.size ? audio.filter((a, i) => i === 0 || want.has(lang(a.lang))) : audio;
+	const spoken = new Set(keptAudio.map((a) => lang(a.lang)));
+	return {
+		audio: keptAudio,
+		subtitles: o.subs === 'audio' ? subtitles.filter((s) => spoken.has(lang(s.lang))) : subtitles
+	};
+}

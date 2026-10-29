@@ -1040,6 +1040,26 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	`
 	ALTER TABLE ranobe_work_units ADD COLUMN open_run INTEGER NOT NULL DEFAULT 0;
 	UPDATE ranobe_work_units SET type = NULL;
+	`,
+	// v53: one settings page (doc/SETTINGS.md; card c171). Each device's own
+	// settings, kept here as well as in its browser (the owner's answer to
+	// question 1): every storage key with its value and when it was set, so the
+	// newer side wins key by key. And what the player chose for a series
+	// (audio, subtitles, their size), moved here from each browser so the page
+	// can list them under N SERIES DIFFER (question 2).
+	`
+	CREATE TABLE devices (
+		id TEXT PRIMARY KEY,
+		kind TEXT NOT NULL CHECK (kind IN ('phone', 'tablet', 'desktop')),
+		label TEXT NOT NULL,
+		seen_at INTEGER NOT NULL,
+		settings TEXT NOT NULL DEFAULT '{}'
+	) WITHOUT ROWID;
+	CREATE TABLE series_player (
+		series_id INTEGER PRIMARY KEY REFERENCES series(id) ON DELETE CASCADE,
+		choice TEXT NOT NULL,
+		chosen_at INTEGER NOT NULL
+	);
 	`
 ];
 

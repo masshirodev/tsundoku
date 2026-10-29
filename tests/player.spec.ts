@@ -12,6 +12,7 @@ import {
 	placeLabel,
 	playingLabel,
 	preferredLang,
+	startTracks,
 	seekFor,
 	subtitlePx
 } from '$lib/library/player';
@@ -125,5 +126,50 @@ describe('the buffer on the bar', () => {
 		// Between ranges, just after a seek: nothing ahead yet.
 		expect(bufferedTo(ranges, 300)).toBe(300);
 		expect(bufferedTo([], 12)).toBe(12);
+	});
+});
+
+describe('the tracks an anime starts on (card c171)', () => {
+	const offered = { audio: ['JA', 'EN'], subs: ['EN', 'JA'] };
+	const none = { series: {}, defaults: {}, last: {} };
+
+	it('plays the source’s original before anything is chosen, subtitles in the device’s language', () => {
+		expect(startTracks({ ...offered, ...none, device: 'JA' })).toEqual({
+			audio: null,
+			subs: 'JA',
+			subsize: 'M'
+		});
+		expect(startTracks({ ...offered, ...none })).toEqual({ audio: null, subs: 'EN', subsize: 'M' });
+	});
+
+	it('follows the series, then SETTINGS’ default, then the last choice on any anime', () => {
+		const last = { audio: 'EN', subs: 'JA', subsize: 'L' as const };
+		expect(startTracks({ ...offered, series: {}, defaults: {}, last })).toEqual({
+			audio: 'EN',
+			subs: 'JA',
+			subsize: 'L'
+		});
+		expect(
+			startTracks({ ...offered, series: {}, defaults: { audio: 'JA', subs: null }, last })
+		).toEqual({
+			audio: 'JA',
+			subs: null,
+			subsize: 'L'
+		});
+		expect(
+			startTracks({
+				...offered,
+				series: { audio: 'EN', subsize: 'S' },
+				defaults: { audio: 'JA' },
+				last
+			})
+		).toMatchObject({ audio: 'EN', subsize: 'S' });
+	});
+
+	it('passes over a choice the source doesn’t offer', () => {
+		expect(
+			startTracks({ ...offered, series: { audio: 'ES' }, defaults: { audio: 'EN' }, last: {} })
+				.audio
+		).toBe('EN');
 	});
 });

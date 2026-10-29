@@ -4,6 +4,8 @@ import { editionToBase } from '$lib/library/editions';
 import { libraryWhere, VISIBLE_SQL } from './visibility';
 import { seriesDetail } from './library';
 import { scanlatorsOf } from './duplicates';
+import { getSetting, isSettingKey } from './settings';
+import type { Kind } from '$lib/library/types';
 import type { Direction, SeriesEntry, SeriesPage, SeriesTag } from '$lib/library/series';
 
 /**
@@ -132,6 +134,7 @@ export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
 		status: row.status,
 		description: row.description,
 		direction: row.direction,
+		kindDirection: kindDirection(card.kind),
 		path: row.path,
 		tags,
 		entries,
@@ -310,6 +313,12 @@ export function readableEntry(seriesId: number, entryId: number, reveal: boolean
 			)
 			.get(entryId, seriesId, reveal ? 1 : 0) !== undefined
 	);
+}
+
+/** Where a series of [kind] starts reading, as SETTINGS has it (doc/SETTINGS.md; card c171). */
+export function kindDirection(kind: Kind): Direction | undefined {
+	const key = `mode_${kind}`;
+	return isSettingKey(key) ? (getSetting(key) as Direction) : undefined;
 }
 
 export function setDirection(seriesId: number, direction: Direction | null): void {
