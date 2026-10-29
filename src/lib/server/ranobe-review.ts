@@ -5,6 +5,7 @@ import {
 	ELIGIBLE_NOVEL_SQL,
 	ELIGIBLE_SQL,
 	configured,
+	afterLinking,
 	linkWork,
 	readWork,
 	searchOne,
@@ -342,6 +343,8 @@ export async function linkFromReview(
 				: null;
 	if (!c) throw new NotACandidate();
 	linkWork(seriesId, work, via, now, { title: c.title });
+	// Its units, and its reads so far, at once rather than at the next pass.
+	void afterLinking(seriesId, now);
 	const siblings = siblingsOf(seriesId);
 	const vol = volumeOfSeries(seriesId);
 	const prior: RanobeCandidate = { ...c, prior: vol ? `VOL. ${vol}` : 'ITS TWIN' };
@@ -386,7 +389,10 @@ export function linkMany(seriesIds: number[], work: string, now = Date.now()): n
 	);
 	const done: number[] = [];
 	for (const id of seriesIds)
-		if (waiting.has(id) && linkWork(id, work, 'review', now, { title })) done.push(id);
+		if (waiting.has(id) && linkWork(id, work, 'review', now, { title })) {
+			done.push(id);
+			void afterLinking(id, now);
+		}
 	return done;
 }
 
@@ -702,7 +708,9 @@ export function ranobeSeries(seriesId: number): RanobeSeries | null {
 /** TRY AGAIN, on a series or on SETTINGS: what failed goes again, now. */
 export async function retryRanobe(seriesId?: number): Promise<void> {
 	const db = getDb();
-	const { flush } = await import('./ranobe.ts');
+	const { flush, unmapped } = await import('./ranobe.ts');
+	// A link never mapped has nothing to send until it is: map it, which sends too.
+	if (seriesId !== undefined && unmapped(seriesId)) return afterLinking(seriesId);
 	if (seriesId === undefined) {
 		db.prepare(`UPDATE ranobe_units SET failed_at = NULL WHERE failed_at IS NOT NULL`).run();
 		db.prepare(`UPDATE ranobe_works SET failed_at = NULL WHERE failed_at IS NOT NULL`).run();

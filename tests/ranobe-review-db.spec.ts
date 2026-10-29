@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { vi, beforeEach, describe, expect, it } from 'vitest';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';
@@ -205,7 +205,11 @@ describe('the other decisions', () => {
 	it('PASTE reads the work by its id, and LINK takes it', async () => {
 		const r = await rv.linkFromReview(LOTM, 'w2', 'pasted', NOW);
 		expect(r.title).toBe('Lord of the Mysteries');
-		expect(calls.map((c) => c.path)).toEqual(['/works/w2']);
+		// PASTE reads the work by its id first; then the link's own steps follow at
+		// once (afterLinking: the edition, the units, the reads so far), not at the
+		// next pass, which is what "Ane no Tomodachi" missed (2026-10-29).
+		expect(calls[0].path).toBe('/works/w2');
+		await vi.waitFor(() => expect(calls.length).toBeGreaterThan(1));
 		expect(db.prepare(`SELECT via FROM ranobe_links WHERE series_id = ?`).get(LOTM)).toEqual({
 			via: 'pasted'
 		});

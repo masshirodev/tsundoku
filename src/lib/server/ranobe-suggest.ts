@@ -5,6 +5,7 @@ import {
 	ELIGIBLE_NOVEL_SQL,
 	Refused,
 	api,
+	afterLinking,
 	linkWork,
 	searchOne,
 	suggestConfigured
@@ -175,6 +176,7 @@ export async function checkWorkSuggestions(
 		);
 		if (status === 'approved' && work) {
 			linkWork(p.series_id, work, 'review', now);
+			void afterLinking(p.series_id, now);
 			requeueSiblings(p.series_id);
 			out.approved += 1;
 		} else if (status === 'rejected' || status === 'withdrawn')

@@ -311,6 +311,16 @@ and one flush at a time. A send that fails keeps **RANOBE DID NOT ANSWER**,
 **RANOBE REFUSED THE TOKEN** or **RANOBE REFUSED IT**, and goes with the next
 flush.
 
+**A link made by hand sends at once** (2026-10-29). A link pasted or picked
+in the review, or a suggestion approved, used to wait for the next pass to
+map its chapters onto units, and until then nothing read on it could go: a
+comic's units are only mapped in the full pass. Ane no Tomodachi was read for
+days on an unmapped link while Level 1 Player, linked by the lookup just
+before a pass, synced. Now `afterLinking` (`ranobe.ts`) reads the new work's
+units, maps that one series and flushes, off the request. A link that is
+still unmapped heals itself too: the next read on it (`afterReading`) and the
+series screen's RETRY both map it first (`unmapped`).
+
 **Status isn't sent.** Ranobe works it out from the reads: the first read
 adds a work as READING, and the last unit of the edition makes it COMPLETED.
 A work rated before anything is read is added as PLANNING.

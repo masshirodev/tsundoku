@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';
@@ -363,6 +363,35 @@ describe('after reading', () => {
 			false
 		);
 		db.prepare(`UPDATE series SET hidden = 0 WHERE id = ?`).run(MUSHOKU);
+	});
+});
+
+describe('a link made by hand (2026-10-29)', () => {
+	it('maps the series and sends what was read before it at once, not at the next pass', async () => {
+		// As "Ane no Tomodachi" was: read, then linked in the review after the last pass.
+		rb.unlinkSeries(ESTATE, NOW, false);
+		db.prepare(`DELETE FROM ranobe_units WHERE work = 'w51'`).run();
+		db.prepare(`DELETE FROM ranobe_work_units WHERE work = 'w51'`).run();
+		const read = (
+			db
+				.prepare(`SELECT COUNT(*) AS n FROM entries WHERE series_id = ? AND read_at IS NOT NULL`)
+				.get(ESTATE) as { n: number }
+		).n;
+		expect(read).toBeGreaterThan(0);
+		calls = [];
+		expect(rb.linkWork(ESTATE, 'w51', 'pasted', NOW + 2)).toBe(true);
+		await rb.afterLinking(ESTATE, NOW + 2);
+		expect(calls.some((c) => c.path === '/works/w51')).toBe(true);
+		expect(linkOf(ESTATE)).toMatchObject({ work: 'w51' });
+		expect(sentReads().filter((u) => u.startsWith('w51')).length).toBeGreaterThan(0);
+	});
+
+	it('maps a link that never was on the next read, and sends with it', async () => {
+		db.prepare(`UPDATE ranobe_links SET mapped_at = NULL WHERE series_id = ?`).run(ESTATE);
+		db.prepare(`UPDATE entries SET ranobe_unit = NULL WHERE series_id = ?`).run(ESTATE);
+		expect(rb.unmapped(ESTATE)).toBe(true);
+		rb.afterReading(ESTATE);
+		await vi.waitFor(() => expect(rb.unmapped(ESTATE)).toBe(false));
 	});
 });
 

@@ -638,7 +638,11 @@ async function suggestEdition(work: string, lang: string, now: number): Promise<
  * for mapSeries. Asked every pass: Ranobe's counts grow as chapters come out,
  * and a work that counts nothing yet may count them by the next one.
  */
-export async function readWorkUnits(now = Date.now()): Promise<{ counted: number; not: number }> {
+export async function readWorkUnits(
+	now = Date.now(),
+	/** Only these works: a link just made (afterLinking), not the whole library. */
+	only?: string[]
+): Promise<{ counted: number; not: number }> {
 	const db = getDb();
 	const works = (
 		db
@@ -647,7 +651,9 @@ export async function readWorkUnits(now = Date.now()): Promise<{ counted: number
 				JOIN roots r ON r.id = s.root_id WHERE ${ELIGIBLE_SQL} AND s.kind != 'novel'`
 			)
 			.all() as { work: string }[]
-	).map((r) => r.work);
+	)
+		.map((r) => r.work)
+		.filter((w) => !only || only.includes(w));
 	const put = db.prepare(
 		`INSERT INTO ranobe_work_units (work, type, count, extra, checked_at) VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT (work) DO UPDATE SET type = excluded.type, count = excluded.count,
@@ -966,8 +972,41 @@ export function afterReading(seriesId: number): void {
 	if (!configured() || !eligible(seriesId)) return;
 	const [work] = worksOf([seriesId]);
 	if (!work) return;
+	// Linked but never mapped (a link made between passes): map it first, and
+	// what's read goes with it (afterLinking).
+	if (unmapped(seriesId)) return void afterLinking(seriesId);
 	refreshUnits(work);
 	void flush().catch(quietly('sending reads'));
+}
+
+/** Its link's chapters were never matched to units: nothing read can go until they are. */
+export const unmapped = (seriesId: number) =>
+	!!getDb()
+		.prepare(`SELECT 1 FROM ranobe_links WHERE series_id = ? AND mapped_at IS NULL`)
+		.get(seriesId);
+
+/**
+ * A link just made by hand (the review, a pasted link, an approved
+ * suggestion): the series' own steps of the pass, at once, so what was read
+ * before the link goes now, and what's read after it has units to go to. The
+ * lookup's links are made inside the pass, which does this for them. Found
+ * live on 2026-10-29: "Ane no Tomodachi", linked in the review after the last
+ * pass, had no units, so neither its earlier reads nor its later ones went.
+ */
+export function afterLinking(seriesId: number, now = Date.now()): Promise<void> {
+	if (!configured() || !eligible(seriesId)) return Promise.resolve();
+	const [work] = worksOf([seriesId]);
+	if (!work) return Promise.resolve();
+	const kind = (
+		getDb().prepare(`SELECT kind FROM series WHERE id = ?`).get(seriesId) as { kind: Kind }
+	).kind;
+	return (async () => {
+		if (byWork(kind)) await readWorkUnits(now, [work]);
+		else await resolveEditions(now);
+		await mapSeries({ seriesId, now });
+		refreshUnits(work);
+		await flush({ backfill: true, now });
+	})().catch(quietly('sending a new link'));
 }
 
 /** A rating set here is the work's rating there (1 to 10, and 0 clears it). */
