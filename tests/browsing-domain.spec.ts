@@ -48,5 +48,15 @@ describe('the RECORD row and the bar', () => {
 			label: '▶ EP. 4',
 			meta: ''
 		});
+		// A manga: the first chapter online, or where the record stopped (Online Calls 1A, 1B).
+		expect(continueCell(null, false)).toEqual({ label: '▶ READ CH. 1', meta: 'ONLINE' });
+		expect(continueCell({ label: 'Ch. 4', position: 11, durationS: null }, false)).toEqual({
+			label: '▶ CONTINUE',
+			meta: 'CH. 4 · P. 12'
+		});
+		expect(continueCell({ label: 'Ch. 5', position: null, durationS: null }, false)).toEqual({
+			label: '▶ CONTINUE',
+			meta: 'CH. 5'
+		});
 	});
 });

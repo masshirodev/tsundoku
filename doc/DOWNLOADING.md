@@ -47,6 +47,10 @@ States.dc.html` (brief: [`briefs/done/DOWNLOADS.md`](briefs/done/DOWNLOADS.md)).
   joins, and that read chapters are left out. The confirmation is a URL
   (`?download=all`), so it opens without script too. Read chapters with no
   file are never in either.
+- **Since 2026-10-29, a series a source serves reads online instead**
+  ([`BROWSING.md`](BROWSING.md), "Manga online"): its rows open, and
+  downloading is the ↓ cell at the end of each row (RETRY on a failed one).
+  What follows is how a row behaves where nothing reads online.
 - **The row is the button.** A tap on a chapter with no file queues it, and a
   tap on a failed one retries it. A long press still marks through. Each row
   says where it is in its status column: QUEUED, DOWNLOADING · 31 / 54 with an

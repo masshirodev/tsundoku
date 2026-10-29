@@ -331,3 +331,51 @@ describe('a chapter that fails', () => {
 		).toBe(false);
 	});
 });
+
+describe('a chapter read online (c166)', () => {
+	// Whichever chapter the tests above left without a file.
+	const missing = () =>
+		(
+			db
+				.prepare(`SELECT id FROM entries WHERE series_id = ? AND available = 0 ORDER BY position`)
+				.get(seriesId) as { id: number }
+		).id;
+
+	it('is its pages at the source, sizes unknown, a version that is never kept', async () => {
+		const { manifest } = await import('$lib/server/pages');
+		const { readsOnline, isOnlineVersion } = await import('$lib/server/pages/online');
+		expect(readsOnline(entryId(1))).toBe(false);
+		expect(readsOnline(missing())).toBe(true);
+		const m = (await manifest(missing(), true))!;
+		expect(m.online).toBe(true);
+		expect(m.pages).toEqual([
+			{ w: 0, h: 0 },
+			{ w: 0, h: 0 },
+			{ w: 0, h: 0 }
+		]);
+		expect(isOnlineVersion(m.version)).toBe(true);
+		expect(isOnlineVersion('1700000000-123')).toBe(false);
+	});
+
+	it('serves each page through the engine and writes nothing', async () => {
+		const { readPage } = await import('$lib/server/pages');
+		const seen: string[] = [];
+		const before = pageReply;
+		pageReply = (path) => (seen.push(path), { type: 'image/png', body: JPEG });
+		try {
+			const page = (await readPage(missing(), 1, true))!;
+			expect(Buffer.isBuffer(page.body) && page.body.equals(JPEG)).toBe(true);
+			// Sniffed, not the content type the site claims.
+			expect(page.type).toBe('image/jpeg');
+			expect(seen).toEqual(['/image/p2']);
+			expect(await readPage(missing(), 9, true)).toBeNull();
+		} finally {
+			pageReply = before;
+		}
+		expect(db.prepare(`SELECT available, file FROM entries WHERE id = ?`).get(missing())).toEqual({
+			available: 0,
+			file: ''
+		});
+		expect(readdirSync(tablet)).toEqual(['c1.cbz']);
+	});
+});

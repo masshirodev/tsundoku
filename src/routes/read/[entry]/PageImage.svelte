@@ -19,7 +19,8 @@
 		inset = null,
 		rings = [],
 		lazy = false,
-		chapter = ''
+		chapter = '',
+		online = false
 	}: {
 		src: string;
 		/** 1-based, as the reader names it. */
@@ -49,6 +50,8 @@
 		 * States 1n): arriving from the previous chapter, that's what's loading.
 		 */
 		chapter?: string;
+		/** Read from its source (doc/BROWSING.md, "Manga online"): waiting is dashed, as Index dashes what isn't stored. */
+		online?: boolean;
 	} = $props();
 	const name = $derived(chapter ? `${chapter} · P. ${number}` : `P. ${number}`);
 
@@ -128,15 +131,17 @@
 		{/if}
 	</div>
 	{#if status === 'loading'}
-		<div class="loading" aria-hidden="true">
-			<div class="n">{name}</div>
+		<div class="loading" class:online aria-hidden="true">
+			<div class="n">{online ? `${name} · ON ITS WAY` : name}</div>
 			<div class="bar"><div></div></div>
 		</div>
 	{:else if status === 'failed'}
 		<div class="failed" role="alert">
 			<div class="msg">
 				<div class="t">{name} DID NOT LOAD</div>
-				<div class="d">WORKSTATION DID NOT ANSWER</div>
+				<div class="d">
+					{online ? 'THE SOURCE DID NOT SEND IT · TRIED TWICE' : 'WORKSTATION DID NOT ANSWER'}
+				</div>
 			</div>
 			<button
 				type="button"
@@ -251,6 +256,11 @@
 	}
 	.ring.selected {
 		box-shadow: 0 0 0 3px var(--accent);
+	}
+	/* A page read online, not here yet: dashed at its expected size (Online Board 3a). */
+	.loading.online {
+		outline: 1px dashed var(--line-2);
+		outline-offset: -1px;
 	}
 	.loading {
 		position: absolute;

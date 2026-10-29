@@ -3,7 +3,7 @@ import { engineConfigured, engineDownSince, EngineError } from './engine/client.
 import { getSetting } from './settings.ts';
 import { getDb } from './db.ts';
 import { splitMemo } from './engine/protocol.ts';
-import { parseAnimeKey } from '../library/downloads.ts';
+import { parseAnimeKey, parseKey } from '../library/downloads.ts';
 import * as novels from './novels/source.ts';
 import * as novelDownloads from './novels/downloader.ts';
 import * as novelFollow from './novels/follow.ts';
@@ -114,12 +114,15 @@ export const addToLibrary = async (id: string) =>
 			: engine.addToLibrary(id);
 export const undoAdd = async (seriesId: number) => engine.undoAdd(seriesId);
 
+/** A preview of an LNReader novel, whose chapters can't open without ADD yet (card c167). */
+export const isNovelPreview = (id: string) => novels.parseNovelMangaId(id) !== null;
+
 /** A chapter's or episode's address as its entry keeps it: without the engine's memo. */
 export const entryKey = (url: string) => splitMemo(url).url;
 
 /** A series' preview at its source, by its key: where a browsing record lives (doc/BROWSING.md). */
 export function previewIdOf(originKey: string | null): string | null {
-	const at = parseAnimeKey(originKey);
+	const at = parseAnimeKey(originKey) ?? parseKey(originKey);
 	return at ? engine.sourceMangaId(at.sourceId, at.url) : null;
 }
 
@@ -131,14 +134,16 @@ function inLibrary(seriesId: number): boolean {
 }
 
 /**
- * Opens one of a preview's episodes without ADD (doc/BROWSING.md; card c161):
- * the entry to play, in a browsing record unless the series is the library's.
- * Anime only so far; manga and novel chapters need reading online first, so
- * they're null until then.
+ * Opens one of a preview's episodes or chapters without ADD (doc/BROWSING.md;
+ * cards c161, c166): the entry to play or read online, in a browsing record
+ * unless the series is the library's. Novels are null until they read online.
  */
 export async function openFromSource(id: string, url: string): Promise<number | null> {
-	if (!isAnimeId(id)) return null;
-	const seriesId = await anime.browseAnime(id);
+	// Novels wait for reading online (card c167).
+	if (novels.parseNovelMangaId(id)) return null;
+	const seriesId = isAnimeId(id)
+		? await anime.browseAnime(id)
+		: await engine.addToLibrary(id, Date.now(), true);
 	const row = getDb()
 		.prepare(`SELECT id FROM entries WHERE series_id = ? AND source_url IN (?, ?) LIMIT 1`)
 		.get(seriesId, url, splitMemo(url).url) as { id: number } | undefined;

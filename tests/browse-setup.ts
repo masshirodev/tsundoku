@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
+import sharp from 'sharp';
 import { createServer as createHttpsServer } from 'node:https';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -252,6 +253,27 @@ function answer(b: EngineCall): unknown {
 					editTextPreference: { title: 'Blocked groups', summary: '', value: '', text: '' }
 				}
 			];
+		// A manga read online from its preview (c166): its details, three chapters,
+		// three pages each through the engine's /image/ proxy.
+		case 'getDetailsManga': {
+			const url = (b as { mangaData?: { url: string } }).mangaData?.url ?? '';
+			return { url, title: 'Open Book Online', description: 'Read before adding.', status: 1 };
+		}
+		case 'getChapterList': {
+			const url = (b as { mangaData?: { url: string } }).mangaData?.url ?? '';
+			return [3, 2, 1].map((n) => ({
+				url: `${url}/c${n}`,
+				name: `Chapter ${n}`,
+				scanlator: null,
+				chapter_number: n
+			}));
+		}
+		case 'getPageList':
+			return [0, 1, 2].map((i) => ({
+				index: i,
+				url: '',
+				imageUrl: `http://127.0.0.1:8080/image/page${i}`
+			}));
 		case 'getPopularManga':
 			return {
 				mangas: [
@@ -281,6 +303,14 @@ function answer(b: EngineCall): unknown {
 	}
 	return null;
 }
+
+let png: Promise<Buffer> | null = null;
+const pageImage = () =>
+	(png ??= sharp({
+		create: { width: 600, height: 900, channels: 3, background: { r: 40, g: 50, b: 70 } }
+	})
+		.png()
+		.toBuffer());
 
 const CLIP = readFileSync('tests/fixtures/video/clip.webm');
 const SUBS = readFileSync('tests/fixtures/video/en.vtt');
@@ -331,6 +361,11 @@ function startEngine(): Promise<Server> {
 		}
 		if (req.url === '/challenges' && !down) return json(200, challenges);
 		if (req.url?.startsWith('/video/') && !down) return video(req, res);
+		// A page read online: a real image, 600 × 900, as a source's would be.
+		if (req.url?.startsWith('/image/page') && !down) {
+			void pageImage().then((png) => res.writeHead(200, { 'content-type': 'image/png' }).end(png));
+			return;
+		}
 		if (req.url === '/__bump') {
 			webtoonsVersion = 3;
 			return json(200, {});

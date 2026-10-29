@@ -162,6 +162,7 @@
 							h={p.h}
 							fit="strip"
 							lazy
+							online={c.version.startsWith('online-')}
 							rings={rings(c.id, i)}
 						/>
 					</div>

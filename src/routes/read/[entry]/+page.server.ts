@@ -11,7 +11,9 @@ import { effectiveDirection, isBookSeries } from '$lib/library/series';
 import { entryName, modeOf, spelledOut } from '$lib/reader/reader';
 import { bookEditions } from '$lib/server/editions';
 import { baseToEdition } from '$lib/library/editions';
-import { parseAnimeKey } from '$lib/library/downloads';
+import { parseAnimeKey, parseKey } from '$lib/library/downloads';
+import { readsOnline } from '$lib/server/pages/online';
+import { EngineError } from '$lib/server/engine/client';
 import { previewIdOf } from '$lib/server/downloads';
 
 /**
@@ -144,7 +146,9 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 					// What the boundary pages call it: its own title, or "Chapter 42".
 					title: e.title || spelledOut(books ? `Book ${i + 1}` : e.label),
 					pageCount: e.pageCount,
-					available: e.available,
+					// A chapter read online opens too (doc/BROWSING.md); the boundary says ONLINE.
+					online: !e.available && readsOnline(e.id),
+					available: e.available || readsOnline(e.id),
 					/** Its text read by OCR already: the end page says so (doc/JAPANESE.md). */
 					ocr: !!(
 						getDb().prepare(`SELECT ocr_at FROM entries WHERE id = ?`).get(e.id) as
@@ -154,97 +158,136 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			: null;
 	};
 
-	const m = await manifest(entryId, reveal);
-	const coverRow = getDb()
-		.prepare(`SELECT cover_entry, cover_page FROM series WHERE id = ?`)
-		.get(series.id) as { cover_entry: number | null; cover_page: number | null };
-	const withCoverFile = new Set(
-		(
-			getDb()
-				.prepare(
-					`SELECT id FROM entries WHERE series_id = ? AND cover_file IS NOT NULL AND cover_file != ''`
-				)
-				.all(series.id) as { id: number }[]
-		).map((r) => r.id)
-	);
-	const pages = m?.pages ?? [];
-	const p = p0;
-	const asked = Number(p);
-	// `p=last`: stepping back from the next chapter's first page lands here.
-	const start =
-		p === 'last'
-			? Math.max(0, pages.length - 1)
-			: Number.isInteger(asked) && asked >= 1
-				? Math.min(asked - 1, Math.max(0, pages.length - 1))
-				: entry.readAt === null && entry.lastPosition !== null
-					? Math.min(entry.lastPosition, Math.max(0, pages.length - 1))
-					: 0;
+	const libraryRow = getDb()
+		.prepare(`SELECT in_library, origin_key FROM series WHERE id = ?`)
+		.get(series.id) as { in_library: number; origin_key: string | null };
+	const recordPreview = libraryRow.in_library === 0 ? previewIdOf(libraryRow.origin_key) : null;
+	const build = (m: Awaited<ReturnType<typeof manifest>>) => {
+		const coverRow = getDb()
+			.prepare(`SELECT cover_entry, cover_page FROM series WHERE id = ?`)
+			.get(series.id) as { cover_entry: number | null; cover_page: number | null };
+		const withCoverFile = new Set(
+			(
+				getDb()
+					.prepare(
+						`SELECT id FROM entries WHERE series_id = ? AND cover_file IS NOT NULL AND cover_file != ''`
+					)
+					.all(series.id) as { id: number }[]
+			).map((r) => r.id)
+		);
+		const pages = m?.pages ?? [];
+		const p = p0;
+		const asked = Number(p);
+		// `p=last`: stepping back from the next chapter's first page lands here.
+		const start =
+			p === 'last'
+				? Math.max(0, pages.length - 1)
+				: Number.isInteger(asked) && asked >= 1
+					? Math.min(asked - 1, Math.max(0, pages.length - 1))
+					: entry.readAt === null && entry.lastPosition !== null
+						? Math.min(entry.lastPosition, Math.max(0, pages.length - 1))
+						: 0;
 
-	return {
-		text: false as const,
-		series: {
-			id: series.id,
-			title: edition?.title || series.title,
-			kind: series.kind,
-			rating: series.rating,
-			favourite: series.favourite,
-			direction: series.direction,
-			defaultMode: modeOf(effectiveDirection({ kind: series.kind, direction: null })),
-			mode: modeOf(effectiveDirection(series)),
-			books,
-			count: series.entries.length,
-			single: series.entries.length === 1,
-			hidden: series.hidden,
-			// For the device cache policy: what comes next, and what is on disk.
-			entries: series.entries.map((e) => ({
-				id: e.id,
-				position: e.number,
-				label: e.label,
-				readAt: e.readAt,
-				available: e.available,
-				// The page menu (c26): each entry's own cover, and whether its files carry one.
-				coverPage: e.coverPage,
-				hasCoverFile: withCoverFile.has(e.id)
-			})),
-			// Where the series' tile comes from: the page menu says it, and offers the way back.
-			cover: {
-				chosen:
-					coverRow.cover_entry !== null && coverRow.cover_page !== null
-						? { entry: coverRow.cover_entry, page: coverRow.cover_page }
-						: null,
-				automatic: automaticCover(series.id)
-			}
-		},
-		entry: {
-			id: entry.id,
-			index,
-			name: name(index)!,
-			title: entry.title,
-			readAt: entry.readAt,
-			rating: entry.rating,
-			favourite: entry.favourite
-		},
-		manifest: m,
-		pages,
-		start,
-		prev: neighbour(index - 1),
-		next: neighbour(index + 1),
-		/** Japanese: its pages get text blocks to look words up in (doc/JAPANESE.md). */
-		ocr: ocrStatus(series.id),
-		incognito: isIncognito(cookies),
-		/** Its languages, for the switch in the top bar; null for a book in one. */
-		editions: folded
-			? {
-					current: entryId,
-					list: folded.editions.map((e) => ({
-						entryId: e.entryId,
-						code: e.code,
-						base: e.base,
-						pages: e.pages,
-						rows: e.rows,
-						title: e.title
-					}))
+		return {
+			text: false as const,
+			series: {
+				id: series.id,
+				title: edition?.title || series.title,
+				kind: series.kind,
+				rating: series.rating,
+				favourite: series.favourite,
+				direction: series.direction,
+				defaultMode: modeOf(effectiveDirection({ kind: series.kind, direction: null })),
+				mode: modeOf(effectiveDirection(series)),
+				books,
+				count: series.entries.length,
+				single: series.entries.length === 1,
+				hidden: series.hidden,
+				// For the device cache policy: what comes next, and what is on disk.
+				entries: series.entries.map((e) => ({
+					id: e.id,
+					position: e.number,
+					label: e.label,
+					readAt: e.readAt,
+					available: e.available,
+					// The page menu (c26): each entry's own cover, and whether its files carry one.
+					coverPage: e.coverPage,
+					hasCoverFile: withCoverFile.has(e.id)
+				})),
+				// Where the series' tile comes from: the page menu says it, and offers the way back.
+				cover: {
+					chosen:
+						coverRow.cover_entry !== null && coverRow.cover_page !== null
+							? { entry: coverRow.cover_entry, page: coverRow.cover_page }
+							: null,
+					automatic: automaticCover(series.id)
 				}
-			: null
+			},
+			entry: {
+				id: entry.id,
+				index,
+				name: name(index)!,
+				title: entry.title,
+				readAt: entry.readAt,
+				rating: entry.rating,
+				favourite: entry.favourite
+			},
+			manifest: m,
+			// A browsing record (doc/BROWSING.md): its preview, where the top bar's + ADD posts.
+			record: recordPreview,
+			pages,
+			start,
+			prev: neighbour(index - 1),
+			next: neighbour(index + 1),
+			/** Japanese: its pages get text blocks to look words up in (doc/JAPANESE.md). */
+			ocr: ocrStatus(series.id),
+			incognito: isIncognito(cookies),
+			/** Its languages, for the switch in the top bar; null for a book in one. */
+			editions: folded
+				? {
+						current: entryId,
+						list: folded.editions.map((e) => ({
+							entryId: e.entryId,
+							code: e.code,
+							base: e.base,
+							pages: e.pages,
+							rows: e.rows,
+							title: e.title
+						}))
+					}
+				: null
+		};
 	};
+
+	// Read online (doc/BROWSING.md, "Manga online"; card c166): the source may take
+	// a while (a browser check is 20-45 s), so the page comes at once and the
+	// chapter streams in; a failure is the reader's waiting page, not an error.
+	if (readsOnline(entryId)) {
+		const key = parseKey(
+			(
+				getDb().prepare(`SELECT origin_key FROM series WHERE id = ?`).get(series.id) as {
+					origin_key: string | null;
+				}
+			).origin_key
+		);
+		return {
+			text: false as const,
+			online: true as const,
+			wait: {
+				title: series.title,
+				entryName: name(index)!,
+				seriesId: series.id,
+				source: key ? { id: key.sourceId, name: series.source } : null
+			},
+			waiting: manifest(entryId, reveal).then(
+				(m) => ({ ok: true as const, data: build(m) }),
+				(e) => ({
+					ok: false as const,
+					failure: e instanceof EngineError ? e.failure : ('source' as const),
+					message: (e as Error).message
+				})
+			)
+		};
+	}
+	return build(await manifest(entryId, reveal));
 };

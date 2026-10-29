@@ -21,6 +21,8 @@ import { SAMPLE_PREFIX, samplePage, sampleSize } from './sample.ts';
  * off, the same 404 as one that doesn't exist.
  */
 
+import { onlineManifest, readOnlinePage, readsOnline } from './online.ts';
+
 export type Page = { w: number; h: number };
 
 export type Manifest = {
@@ -28,6 +30,8 @@ export type Manifest = {
 	/** Changes when the files do, so a page URL can be cached as immutable. */
 	version: string;
 	pages: Page[];
+	/** Read from its source, not a file (doc/BROWSING.md, "Manga online"): nothing of it is kept. */
+	online?: true;
 };
 
 type Source =
@@ -103,7 +107,9 @@ export async function manifest(entryId: number, reveal: boolean): Promise<Manife
 	const e = entryRow(entryId, reveal);
 	if (!e) return null;
 	const src = await sourceOf(e);
-	if (!src) return null;
+	// No file, but a source serves it: read online (throws the engine's error,
+	// which the reader turns into its waiting and failure pages).
+	if (!src) return readsOnline(entryId) ? onlineManifest(entryId) : null;
 	const version = await versionOf(src);
 	const key = `${entryId}:${version}`;
 	const hit = manifests.get(key);
@@ -170,7 +176,8 @@ export async function readPage(
 	const e = entryRow(entryId, reveal);
 	if (!e) return null;
 	const src = await sourceOf(e);
-	if (!src || !Number.isInteger(index) || index < 0) return null;
+	if (!Number.isInteger(index) || index < 0) return null;
+	if (!src) return readsOnline(entryId) ? readOnlinePage(entryId, index) : null;
 	if (src.kind === 'sample') {
 		if (index >= src.count) return null;
 		const body = samplePage(src.hue, index);

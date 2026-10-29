@@ -141,11 +141,17 @@ export function metaLine(o: {
 	page: string;
 	incognito: boolean;
 	single: boolean;
+	/** Read from its source (doc/BROWSING.md): "CH. 396 OF 612 · ONLINE · P. 14 OF 54". */
+	online?: boolean;
+	/** A browsing record: the line ends NOT IN LIBRARY. */
+	record?: boolean;
 }): string {
 	const parts = [o.kind.toUpperCase()];
 	if (!o.single) parts.push(`${o.entry} OF ${o.count}`);
+	if (o.online) parts.push('ONLINE');
 	if (o.page) parts.push(o.page);
 	if (o.incognito) parts.push('NOT SAVED');
+	if (o.record) parts.push('NOT IN LIBRARY');
 	return parts.join(' · ');
 }
 

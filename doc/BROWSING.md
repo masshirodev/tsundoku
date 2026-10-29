@@ -9,7 +9,7 @@ whose design was still being drawn when the anime part shipped.
 | --------------------------------------------------------- | ---- | --------------- |
 | The browsing record, anime played from the preview        | c161 | Done 2026-10-29 |
 | Anime records finished: CONTINUE, RECORD, FORGET, pruning | c165 | Done 2026-10-29 |
-| Manga read online                                         | c166 | Not yet         |
+| Manga read online                                         | c166 | Done 2026-10-29 |
 | Novels read online                                        | c167 | Not yet         |
 | Phone, landscape and design conformance                   | c168 | Not yet         |
 
@@ -121,6 +121,52 @@ says `ADDED · PROGRESS KEPT` with OPEN →. A forgotten record's row dims to
 0.4 with the empty cover, says NOT KEPT and why, and FIND → searches the
 sources for its title.
 
+## Manga online (c166)
+
+A chapter with no file, of a series a source serves (an installed
+extension's `mihon:` key), **reads from its source**, in the library or in a
+browsing record:
+
+- **No new reader.** `manifest()` and `readPage()` (`src/lib/server/pages`)
+  answer for such a chapter by going to its source
+  (`src/lib/server/pages/online.ts`): `getPageList` through the engine, the
+  same call a download makes (`chapterAtSource`, `engine/worker.ts`), kept in
+  memory ten minutes, and each page fetched through the engine's `/image/`
+  proxy on its way to the reader. So the paged reader, the strip, the
+  preloading, neighbouring chapters and the page menu work unchanged.
+- **Nothing is kept** (question 4). Nothing is written to disk; the page
+  route answers an online page `private, no-store` (its version starts
+  `online-`), so neither the browser nor the service worker keeps it; the
+  device cache keys on a file, which an online chapter hasn't got.
+- **Waiting is the player's** (`OnlineWait.svelte`). The reader's page comes
+  at once and the chapter streams in (`waiting`, in the read route's loader):
+  ASKING THE SOURCE with its seconds; THE SOURCE IS CHECKING THE WORKSTATION
+  on the 20–45 s scale, STILL ASKING past 45 s with TRY AGAIN; THE SOURCE
+  ASKED TO SLOW DOWN, opening by itself after a 30 s countdown with no TRY
+  AGAIN; SOURCES NOT ANSWERING and THE SOURCE DID NOT ANSWER, with TRY AGAIN;
+  offline, ○ ONLINE ONLY.
+- **The reader says ONLINE** in its meta line (`CH. 4 OF 166 · ONLINE · P. 12
+OF 41`), a page not here yet is a dashed cell (`P. 15 · ON ITS WAY`), and
+  one that failed says THE SOURCE DID NOT SEND IT with RETRY. The boundary
+  into an online chapter says `ONLINE · FROM THE SOURCE` and opens, rather
+  than `○ NOT DOWNLOADED`; offline it's `○ ONLINE ONLY`.
+- **A record in the reader** has + ADD where the rating and FAV are, and its
+  meta line ends `· NOT IN LIBRARY`.
+- **The series screen** (Online Board 2; the owner's answer to question 1):
+  a tap on a chapter with no file reads it, its status ONLINE and its title in
+  full ink. **Downloading moves to a ↓ cell** at the end of the row (72px,
+  56px on the phone): ↓ queues, a failed row's cell reads RETRY, a row with
+  a file has an empty cell. START opens the first chapter online instead of
+  waiting for a file. Offline, online rows dim to 0.35 and read ○ ONLINE
+  ONLY. A series no source serves is as before.
+- **The preview of a manga** has the two-cell bar: ▶ READ CH. 1 · ONLINE, or
+  ▶ CONTINUE · CH. 4 · P. 12 for a record, and + ADD; every chapter row opens.
+
+`tests/engine-worker-db.spec.ts` ("a chapter read online": the manifest and
+a page through the engine, nothing written) and `tests/browse-online.e2e.ts`
+(preview → reader with a `no-store` page → record → ADD → series rows read
+online with ↓ apart → the source down and back).
+
 ## Where it departs from the handoff
 
 - **No `24 MIN` on an unwatched episode's row**: the engine's episode list
@@ -133,15 +179,26 @@ sources for its title.
   top bar); + ADD sits before FULL SCREEN instead.
 - **FIND → is SEARCH THE SOURCES** for the title (`/downloads/search`), the
   one place that asks every source at once.
+- **No byte line on a page still arriving**: the engine's image proxy says
+  nothing of progress, so the dashed cell waits without one.
+- **A rate limit is the whole chapter's, not a page's**: the design counts
+  down on the cells that wait; tsundoku learns of a limit when it asks for
+  the page list, so the countdown is the waiting page's. A page refused
+  later fails with RETRY.
+- **The scrubber doesn't fill with the pages that arrived** (line-2): the
+  reader doesn't hear back from each image yet.
+- **A page's size isn't known before it arrives**: the source gives none, so
+  the dashed cell takes the screen's shape, and the strip may settle as pages
+  land above the one being read (they rarely do: pages load in order).
+- **The end page of a record's last chapter still asks for a rating**, not
+  - ADD (the top bar has + ADD).
 
 ## Not done yet
 
-- **Manga and novels** open nothing from a preview until chapters read online
-  (`openFromSource` answers null for them).
-- **Pruning.** Records stay until the owner says how long (the brief's
-  question 2); nothing deletes them.
-- Whether a browsing record counts anywhere but HISTORY (question 3): today
-  it doesn't.
+- **Novels** open nothing from a preview until their chapters read online
+  (card c167; `openFromSource` answers null for them).
+- **Phone and landscape** for the online screens, and the design's
+  conformance tests (card c168).
 
 `tests/browsing-db.spec.ts`: written on the first open, the same series the
 second time; on no shelf, count or search, and not IN LIBRARY at its source;

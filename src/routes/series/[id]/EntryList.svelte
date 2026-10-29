@@ -4,6 +4,7 @@
 	import { enhance } from '$app/forms';
 	import { downloadStatus, rowAction, type DownloadState } from '$lib/library/downloads';
 	import { withLive } from '$lib/downloads-live.svelte';
+	import { offline } from '$lib/offline.svelte';
 	import {
 		currentEntry,
 		entryAtFraction,
@@ -35,7 +36,8 @@
 		onlong,
 		onclose,
 		downloads = null,
-		canDownload = false
+		canDownload = false,
+		readOnline = false
 	}: {
 		series: SeriesPage;
 		selecting: boolean;
@@ -60,6 +62,12 @@
 		 * failed): the engine answering, and the device online.
 		 */
 		canDownload?: boolean;
+		/**
+		 * A source serves the series (doc/BROWSING.md, "Manga online"; Online Board 2):
+		 * a tap on a chapter with no file reads it online, and downloading moves to
+		 * a ↓ cell of its own at the end of the row.
+		 */
+		readOnline?: boolean;
 	} = $props();
 
 	const sheet = $derived(onclose !== undefined);
@@ -245,29 +253,36 @@
 					{@const on = selected.has(e.id)}
 					{@const dl = withLive(downloads?.get(e.id))}
 					{@const act = !selecting && canDownload && !e.available ? rowAction(dl) : null}
+					{@const online = readOnline && !e.available}
+					<!-- Offline, a chapter read online can't open: ○ ONLINE ONLY (Online Board 2B). -->
+					{@const opens = selecting || e.available || (online && offline.online)}
+					<!-- Read online, the row reads and the ↓ cell downloads; otherwise a tap on a
+					     row with no file queues it, as it always has (Download States 1a). -->
+					{@const rowQueues = !readOnline && !!act}
 					<li
 						id="entry-{e.id}"
 						class="entry {row.state} {dl ? `dl-${dl.kind}` : ''}"
-						class:missing={!e.available}
+						class:missing={!e.available && !(online && offline.online)}
+						class:online-only={online && !offline.online}
 						class:matter={!!e.matter}
 						class:selected={selecting && on}
 						class:flash={flash === e.id}
 					>
 						<button
-							type={act ? 'submit' : 'button'}
-							form={act ? 'dl-rows' : undefined}
-							name={act ? 'entry' : undefined}
-							value={act ? String(e.id) : undefined}
-							aria-label={act === 'queue'
+							type={rowQueues ? 'submit' : 'button'}
+							form={rowQueues ? 'dl-rows' : undefined}
+							name={rowQueues ? 'entry' : undefined}
+							value={rowQueues ? String(e.id) : undefined}
+							aria-label={rowQueues && act === 'queue'
 								? `Download ${entryTitle(e, series.kind)}`
-								: act === 'retry'
+								: rowQueues && act === 'retry'
 									? `Retry ${entryTitle(e, series.kind)}`
 									: undefined}
 							class="entry-btn"
-							aria-disabled={!selecting && !e.available && !act}
+							aria-disabled={!opens && !rowQueues}
 							aria-pressed={selecting ? on : undefined}
 							use:longpress={() => !selecting && onlong?.(e)}
-							onclick={() => (selecting || e.available) && onrow(e)}
+							onclick={() => opens && onrow(e)}
 						>
 							{#if selecting}
 								<span class="check" aria-hidden="true"
@@ -290,14 +305,46 @@
 							</span>
 							<span class="status">
 								<span class="long"
-									>{downloadStatus(dl) ?? entryStatus(e, row.state, series.kind)}</span
+									>{downloadStatus(dl) ??
+										(online && row.state !== 'read'
+											? offline.online
+												? 'ONLINE'
+												: '○ ONLINE ONLY'
+											: entryStatus(e, row.state, series.kind))}</span
 								>
 								<span class="short"
-									>{downloadStatus(dl, true) ?? entryStatus(e, row.state, series.kind, true)}</span
+									>{downloadStatus(dl, true) ??
+										(online && row.state !== 'read'
+											? offline.online
+												? 'ONLINE'
+												: 'ONLINE ONLY'
+											: entryStatus(e, row.state, series.kind, true))}</span
 								>
 							</span>
-							{#if !novel}<span class="cache">{cached.has(e.id) ? '↓' : ''}</span>{/if}
+							{#if !novel && !readOnline}<span class="cache">{cached.has(e.id) ? '↓' : ''}</span
+								>{/if}
 						</button>
+						{#if readOnline && !novel}
+							<!-- The ↓ cell: downloading's own target (Online Board 2A); empty on a row
+							     with a file, so the column stays straight. -->
+							{#if act}
+								<button
+									type="submit"
+									form="dl-rows"
+									name="entry"
+									value={String(e.id)}
+									class="dl-cell"
+									aria-label={act === 'retry'
+										? `Retry ${entryTitle(e, series.kind)}`
+										: `Download ${entryTitle(e, series.kind)}`}
+									>{act === 'retry' ? 'RETRY' : '↓'}</button
+								>
+							{:else}
+								<span class="dl-cell empty" aria-hidden="true"
+									>{e.available && cached.has(e.id) && !offline.online ? '↓' : ''}</span
+								>
+							{/if}
+						{/if}
 					</li>
 				{/if}
 			{/each}
@@ -627,6 +674,42 @@
 	}
 	.bar.ink > span {
 		background: var(--text-1);
+	}
+	/* The ↓ cell (Online Board 2): 72px, 56px on the phone, over the 44px minimum. */
+	.entry:has(.dl-cell) {
+		display: flex;
+	}
+	.entry:has(.dl-cell) .entry-btn {
+		flex: 1;
+		min-width: 0;
+	}
+	.dl-cell {
+		width: 72px;
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border: 0;
+		border-left: var(--hairline);
+		background: none;
+		color: var(--text-1);
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.04em;
+		cursor: pointer;
+	}
+	.dl-cell.empty {
+		color: var(--text-2);
+		cursor: default;
+	}
+	@media (max-width: 599px) {
+		.dl-cell {
+			width: 56px;
+		}
+	}
+	/* Offline, a chapter read online dims and stays closed. */
+	.entry.online-only .entry-btn,
+	.entry.online-only .dl-cell {
+		opacity: 0.35;
 	}
 	.cache {
 		width: 40px;

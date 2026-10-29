@@ -78,7 +78,7 @@ type Manga = {
  */
 export async function resolveSeries(
 	seriesId: number,
-	d: Deps,
+	d: Pick<Deps, 'db' | 'now'>,
 	force = false
 ): Promise<SourceChapter[]> {
 	const s = d.db.prepare(`SELECT id, title, origin_key FROM series WHERE id = ?`).get(seriesId) as
@@ -154,7 +154,13 @@ async function pooled<T, R>(
  * EngineError (the queue counts the try) when anything doesn't hold;
  * writes nothing half-done: the CBZ is written beside its place and renamed.
  */
-export async function downloadChapter(entryId: number, d: Deps): Promise<string> {
+/**
+ * A chapter at its source, right now: the entry, its source and extension, and
+ * the page list the engine hands out for it (asked fresh: page tokens die with
+ * an engine restart). What a download zips and what reading online shows
+ * (doc/BROWSING.md, "Manga online"; card c166).
+ */
+export async function chapterAtSource(entryId: number, d: Pick<Deps, 'db' | 'now'>) {
 	const e = d.db
 		.prepare(
 			`SELECT e.id, e.series_id, e.label, e.title, e.scanlator, e.position, e.source_url, s.origin_key
@@ -193,7 +199,6 @@ export async function downloadChapter(entryId: number, d: Deps): Promise<string>
 		.get(e.series_id) as { title: string };
 
 	const opts = { sourceId: key.sourceId, preferences: preferences(key.sourceId, d.db) };
-	// Asked right before downloading: page tokens die with an engine restart.
 	const pages = await call<{ index: number; url: string; imageUrl: string | null }[]>(
 		ext,
 		'getPageList',
@@ -201,6 +206,11 @@ export async function downloadChapter(entryId: number, d: Deps): Promise<string>
 		opts
 	);
 	if (pages.length === 0) throw new EngineError('The chapter has no pages', 'source');
+	return { e, source, series, pages };
+}
+
+export async function downloadChapter(entryId: number, d: Deps): Promise<string> {
+	const { e, source, series, pages } = await chapterAtSource(entryId, d);
 	d.db
 		.prepare(`UPDATE download_queue SET pages = ?, done_pages = 0 WHERE entry_id = ?`)
 		.run(pages.length, entryId);

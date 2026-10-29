@@ -72,23 +72,27 @@ export function keptLine(
 }
 
 /**
- * The bar's first cell: what it opens, and the line beside it. A record
- * continues where it stopped ("▶ EP. 3", "14:32 LEFT"); without one, the
- * first episode.
+ * The bar's first cell: what it opens, and the line beside it (Online Calls
+ * 1A, 1B, 1D). A record continues where it stopped ("▶ EP. 3 · 14:32 LEFT",
+ * "▶ CONTINUE · CH. 4 · P. 12"); without one, the first episode or chapter.
  */
 export function continueCell(
 	next: { label: string; position: number | null; durationS: number | null } | null,
 	anime: boolean
 ): { label: string; meta: string } {
-	if (!next) return { label: anime ? '▶ EP. 1' : '▶ READ CH. 1', meta: '' };
-	const label = `▶ ${next.label.toUpperCase()}`;
-	if (next.position === null || next.position <= 0) return { label, meta: '' };
+	if (!next)
+		return anime ? { label: '▶ EP. 1', meta: '' } : { label: '▶ READ CH. 1', meta: 'ONLINE' };
+	const at = next.position !== null && next.position > 0 ? next.position : null;
 	if (anime)
 		return {
-			label,
-			meta: next.durationS
-				? `${playClock(Math.max(0, next.durationS - next.position))} LEFT`
-				: `AT ${playClock(next.position)}`
+			label: `▶ ${next.label.toUpperCase()}`,
+			meta:
+				at === null
+					? ''
+					: next.durationS
+						? `${playClock(Math.max(0, next.durationS - at))} LEFT`
+						: `AT ${playClock(at)}`
 		};
-	return { label, meta: `P. ${next.position + 1}` };
+	const ch = next.label.toUpperCase();
+	return { label: '▶ CONTINUE', meta: at === null ? ch : `${ch} · P. ${at + 1}` };
 }

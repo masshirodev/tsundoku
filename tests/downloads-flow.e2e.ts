@@ -278,7 +278,12 @@ test('the DOWNLOAD row and every chapter state (state 1)', async ({ page }) => {
 	await expect(row(page, 11).locator('.status .long')).toHaveText('IMPORTING');
 	await expect(row(page, 12).locator('.status .long')).toHaveText('QUEUED');
 	await expect(row(page, 14).locator('.status .long')).toHaveText('FAILED · 3 TRIES');
-	await expect(row(page, 16).locator('.status .long')).toHaveText('NOT DOWNLOADED');
+	// A source serves it, so a chapter with no file reads online, and ↓ downloads
+	// it apart (the owner's answer to question 1, doc/BROWSING.md; Online Board 2A).
+	await expect(row(page, 16).locator('.status .long')).toHaveText('ONLINE');
+	await expect(row(page, 16).locator('.dl-cell')).toHaveText('↓');
+	await expect(row(page, 14).locator('.dl-cell')).toHaveText('RETRY');
+	await expect(row(page, 10).locator('.dl-cell')).toHaveText('');
 	// FAILED: full ink and a 3px ink rule, no new colour.
 	await expect(row(page, 14).locator('.entry-btn')).toHaveCSS(
 		'box-shadow',
@@ -298,14 +303,12 @@ test('NEXT 10 queues the next ten unread chapters with no file', async ({ page }
 	expect(q.has(ch[25])).toBe(false);
 });
 
-test('a tap takes a queued row out, queues it again, and retries a failed one', async ({
-	page
-}) => {
+test('↓ queues a row and RETRY retries a failed one; the row itself reads', async ({ page }) => {
 	await page.goto(`/series/${ids.linden}`);
-	await row(page, 14).locator('.entry-btn').click();
+	await row(page, 14).locator('.dl-cell').click();
 	await expect(row(page, 14).locator('.status .long')).toHaveText('QUEUED');
 	expect(queued().get(ch[14])).toBe('queued');
-	await row(page, 25).locator('.entry-btn').click();
+	await row(page, 25).locator('.dl-cell').click();
 	await expect(row(page, 25).locator('.status .long')).toHaveText('QUEUED');
 	expect(queued().get(ch[25])).toBe('queued');
 });
@@ -464,15 +467,16 @@ test('a preview adds to the library, lands on the series, and UNDO takes it back
 }) => {
 	await page.goto(`/downloads/source/${SIDE}?q=linden`);
 	const add = page.getByRole('button', { name: /ADD TO LIBRARY/ });
-	await expect(add).toContainText('12 CHAPTERS · NOTHING DOWNLOADS UNTIL ASKED');
+	// Reading first, adding beside it (Online Calls 1A): the count is the list's.
+	await expect(page.locator('.list .head')).toContainText('12 · ALL ONLINE');
 	await expect(page.locator('.ch')).toHaveCount(12);
 	await add.click();
 	await expect(page).toHaveURL(/\/series\/\d+\?added=/);
 	await expect(page.locator('.band')).toContainText('ADDED TO THE LIBRARY');
 	await expect(page.locator('.band')).toContainText('12 CHAPTERS · NONE DOWNLOADED');
 	await expect(page.locator('.dl-row .lcs.inline .lc').first()).toHaveText('FIRST 10');
-	// START is dimmed until chapter 1 has a file.
-	await expect(page.locator('a.cta')).toHaveAttribute('aria-disabled', 'true');
+	// START reads chapter 1 online (doc/BROWSING.md): it needn't wait for a file.
+	await expect(page.locator('a.cta')).toHaveAttribute('aria-disabled', 'false');
 	await page.getByRole('button', { name: 'UNDO' }).click();
 	await expect(page).toHaveURL(/\/downloads\/source\//);
 	// Gone from tsundoku: the preview is a preview again, not a redirect.

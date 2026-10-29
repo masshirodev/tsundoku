@@ -62,6 +62,7 @@
 		{#if !m}
 			<div class="asking">THE SOURCE NO LONGER HAS IT</div>
 		{:else}
+			{@const anime = m.kind === 'anime'}
 			{@const meta = [m.source.toUpperCase(), STATUS[m.status], data.record ? 'NOT IN LIBRARY' : '']
 				.filter(Boolean)
 				.join(' · ')}
@@ -80,13 +81,11 @@
 						</div>
 					</div>
 
-					{#if m.kind === 'anime'}
-						<!-- Watching first, adding beside it (Online Calls, "Read first, add beside
-						     it"): ▶ continues a record, or starts the first episode. -->
-						{@const cell = continueCell(
-							data.record?.next ? { ...data.record.next, label: data.record.next.label } : null,
-							true
-						)}
+					{#if !data.novel}
+						<!-- Reading first, adding beside it (Online Calls, "Read first, add beside
+						     it"): ▶ continues a record, or starts the first episode or chapter. Novels
+						     read online come with card c167. -->
+						{@const cell = continueCell(data.record?.next ?? null, m.kind === 'anime')}
 						<div class="cta-bar">
 							<form method="POST" action="?/open" class="cta-go">
 								<button
@@ -203,30 +202,34 @@
 					{/if}
 				</section>
 
-				<section class="list" aria-label={m.kind === 'anime' ? 'Episodes' : 'Chapters'}>
+				<section class="list" aria-label={anime ? 'Episodes' : 'Chapters'}>
 					<div class="head">
-						<span>01 — {m.kind === 'anime' ? 'EPISODES' : 'CHAPTERS'}</span><span class="n"
-							>{count(m.chapters.length)}{m.kind === 'anime'
-								? data.record
-									? ` · ${data.record.read} WATCHED`
-									: ' · EVERY ONE STREAMS'
-								: ''}</span
+						<span>01 — {anime ? 'EPISODES' : 'CHAPTERS'}</span><span class="n"
+							>{count(m.chapters.length)}{data.novel
+								? ''
+								: anime
+									? data.record
+										? ` · ${data.record.read} WATCHED`
+										: ' · EVERY ONE STREAMS'
+									: data.record
+										? ` · ${data.record.read} READ · ALL ONLINE`
+										: ' · ALL ONLINE'}</span
 						>
 					</div>
-					{#if m.kind === 'anime'}
-						<!-- An episode plays without ADD (doc/BROWSING.md, c161): one form, a
+					{#if !data.novel}
+						<!-- Every row opens without ADD (doc/BROWSING.md; c161, c166): one form, a
 						     button per row, so it works without script. -->
 						<form method="POST" action="?/open">
 							<ol>
 								{#each m.chapters as c (c.id)}
-									{@const look = rowLook('states' in m ? m.states[c.id] : null, true)}
+									{@const look = rowLook('states' in m ? m.states[c.id] : null, anime)}
 									<li class="ch {look.kind}">
 										<button
 											class="open"
 											name="ep"
 											value={c.url}
 											disabled={!offline.online}
-											aria-label={`Play ${c.name}`}
+											aria-label={`${anime ? 'Play' : 'Read'} ${c.name}`}
 										>
 											<span class="num">{c.number >= 0 ? formatNumber(c.number) : ''}</span>
 											<span class="t">{c.name}</span>

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import { backLink } from '$lib/back';
 	import { chapterCells, scrubFill, scrubPage, type Mode } from '$lib/reader/reader';
 
@@ -25,6 +26,7 @@
 		shift,
 		onfav,
 		onsheet,
+		addHref = null,
 		onscrub,
 		onchapter,
 		onshift,
@@ -49,6 +51,11 @@
 		shift: boolean;
 		onfav: () => void;
 		onsheet: () => void;
+		/**
+		 * A browsing record (doc/BROWSING.md): no rating or FAV for a series not in the
+		 * library, so + ADD takes their cell (Online Calls, "The reader, for a record").
+		 */
+		addHref?: string | null;
 		onscrub: (page: number) => void;
 		onchapter: (to: 'prev' | 'next') => void;
 		onshift: () => void;
@@ -61,6 +68,8 @@
 		languages?: { code: string; on: boolean; entryId: number }[];
 		onlanguage?: (entryId: number) => void;
 	} = $props();
+	let adding = $state(false);
+	let added = $state(false);
 
 	const cells = $derived(chapterCells(mode, prev, next));
 	const fill = $derived(scrubFill(page, total, mode));
@@ -99,23 +108,44 @@
 			onclick={() => !l.on && onlanguage?.(l.entryId)}>{l.code}</button
 		>
 	{/each}
-	<button
-		type="button"
-		class="rating"
-		class:folded={languages.length > 1}
-		aria-label={rating ? `Rated ${rating} of 10 · reading settings` : 'Unrated · reading settings'}
-		onclick={onsheet}
-	>
-		{#each [1, 2, 3, 4, 5] as n (n)}<span class:on={n <= rating}></span>{/each}
-	</button>
-	<button
-		type="button"
-		class="fav"
-		class:folded={languages.length > 1}
-		class:on={favourite}
-		aria-pressed={favourite}
-		onclick={onfav}>FAV</button
-	>
+	{#if addHref}
+		<form
+			method="POST"
+			action={addHref}
+			class="add-form"
+			use:enhance={() => {
+				adding = true;
+				return async ({ result }) => {
+					adding = false;
+					if (result.type === 'redirect') added = true;
+				};
+			}}
+		>
+			<button type="submit" class="add" disabled={adding || added}
+				>{added ? 'IN LIBRARY ✓' : adding ? 'ADDING…' : '+ ADD'}</button
+			>
+		</form>
+	{:else}
+		<button
+			type="button"
+			class="rating"
+			class:folded={languages.length > 1}
+			aria-label={rating
+				? `Rated ${rating} of 10 · reading settings`
+				: 'Unrated · reading settings'}
+			onclick={onsheet}
+		>
+			{#each [1, 2, 3, 4, 5] as n (n)}<span class:on={n <= rating}></span>{/each}
+		</button>
+		<button
+			type="button"
+			class="fav"
+			class:folded={languages.length > 1}
+			class:on={favourite}
+			aria-pressed={favourite}
+			onclick={onfav}>FAV</button
+		>
+	{/if}
 </header>
 
 <footer class="bottom" aria-label="Reader controls">
@@ -250,6 +280,21 @@
 		border-radius: 0;
 		background: transparent;
 		color: var(--text-1);
+		cursor: pointer;
+	}
+	.add-form {
+		display: flex;
+	}
+	.add {
+		display: flex;
+		align-items: center;
+		padding: 0 22px;
+		border: 0;
+		border-left: var(--hairline);
+		background: none;
+		color: var(--text-1);
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.04em;
 		cursor: pointer;
 	}
 	.rating {

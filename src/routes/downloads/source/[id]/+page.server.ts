@@ -11,7 +11,8 @@ import {
 	seriesForKey,
 	sourceManga,
 	sourceOfMangaId,
-	entryKey
+	entryKey,
+	isNovelPreview
 } from '$lib/server/downloads';
 import { forgetRecord, recordView } from '$lib/server/browsing';
 import { browseSource } from '$lib/server/engine/browse';
@@ -65,6 +66,8 @@ export const load: PageServerLoad = async ({ params, cookies, url }) => {
 		q: url.searchParams.get('q') ?? '',
 		from: from.startsWith('/browse/') && !from.startsWith('//') ? from : '',
 		record: record && { ...record, entries: undefined },
+		// A novel's chapters wait for reading online (card c167): ADD only, for now.
+		novel: isNovelPreview(id),
 		manga
 	};
 };

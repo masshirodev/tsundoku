@@ -31,6 +31,7 @@ import { splitMemo } from './protocol.ts';
 import { chapterName } from './device.ts';
 import * as queue from './queue.ts';
 import { resolveSeries } from './worker.ts';
+import { touchRecord } from '../browsing.ts';
 import type {
 	Queue,
 	QueueSummary,
@@ -115,7 +116,7 @@ const resolving = new Set<number>();
 function resolveLater(seriesId: number, force = false) {
 	if (resolving.has(seriesId)) return;
 	resolving.add(seriesId);
-	void resolveSeries(seriesId, { db: db(), library: '', now: Date.now }, force)
+	void resolveSeries(seriesId, { db: db(), now: Date.now }, force)
 		.catch(() => {})
 		.finally(() => resolving.delete(seriesId));
 }
@@ -542,14 +543,31 @@ function rememberAtSource(seriesId: number, m: SourceManga, now: number) {
 	}
 }
 
-/** ADD TO LIBRARY: into tsundoku's library at once, every chapter NOT DOWNLOADED, by the Mihon importer's own plan and writer. */
-export async function addToLibrary(id: string, now = Date.now()): Promise<number> {
+/**
+ * ADD TO LIBRARY: into tsundoku's library at once, every chapter NOT
+ * DOWNLOADED, by the Mihon importer's own plan and writer. A browsing record
+ * of it becomes the library's, its place kept. With `browsing`, a chapter
+ * opened from the preview without ADD (doc/BROWSING.md): a record, or the
+ * library's series when it has one.
+ */
+export async function addToLibrary(
+	id: string,
+	now = Date.now(),
+	browsing = false
+): Promise<number> {
+	const quick = mangaKey(id);
+	const known = quick
+		? (db().prepare(`SELECT id, in_library FROM series WHERE origin_key = ?`).get(quick) as
+				{ id: number; in_library: number } | undefined)
+		: undefined;
+	if (known) return keepOrPromote(known, browsing, now);
 	const m = await sourceManga(id);
 	if (!m) throw new AddError('That series isn’t at its source');
 	const key = keyOf(m.sourceId, splitMemo(m.url).url);
-	const existing = db().prepare(`SELECT id FROM series WHERE origin_key = ?`).get(key) as
-		{ id: number } | undefined;
-	if (existing) return existing.id;
+	const existing = db()
+		.prepare(`SELECT id, in_library FROM series WHERE origin_key = ?`)
+		.get(key) as { id: number; in_library: number } | undefined;
+	if (existing) return keepOrPromote(existing, browsing, now);
 	const rootId = mihonRoot();
 	if (rootId === null) throw new AddError('there is no Mihon library to add it to');
 	const plan = planMihon(
@@ -562,7 +580,7 @@ export async function addToLibrary(id: string, now = Date.now()): Promise<number
 		m.cover && engineUrl
 			? `${engineUrl}${m.cover.replace('/api/downloads/engine-image/', '/image/')}`
 			: undefined;
-	writeSeries(plan, { rootId, jobId: null, now });
+	writeSeries(plan, { rootId, jobId: null, now, browsing });
 	const row = db().prepare(`SELECT id FROM series WHERE origin_key = ?`).get(key) as
 		{ id: number } | undefined;
 	if (!row) {
@@ -573,11 +591,27 @@ export async function addToLibrary(id: string, now = Date.now()): Promise<number
 				: 'its chapters are already in another series here'
 		);
 	}
-	db().prepare(`UPDATE series SET arrived_at = ? WHERE id = ?`).run(now, row.id);
+	if (!browsing) db().prepare(`UPDATE series SET arrived_at = ? WHERE id = ?`).run(now, row.id);
 	rememberAtSource(row.id, m, now);
-	forgetSourceUse();
+	if (!browsing) forgetSourceUse();
 	void refreshCovers({ ids: [row.id], remote: true });
 	return row.id;
+}
+
+/** A series already here: a record opened again is kept longer; ADD makes a record the library's. */
+function keepOrPromote(s: { id: number; in_library: number }, browsing: boolean, now: number) {
+	if (s.in_library === 0) {
+		if (browsing) touchRecord(s.id, now, db());
+		else {
+			db()
+				.prepare(
+					`UPDATE series SET in_library = 1, browsed_at = NULL, pruned_at = NULL, added_at = ?, arrived_at = ? WHERE id = ?`
+				)
+				.run(now, now, s.id);
+			forgetSourceUse();
+		}
+	}
+	return s.id;
 }
 
 /** UNDO after adding, while nothing of it is downloaded or read. Not a delete: it can be added again. */
@@ -647,7 +681,7 @@ export async function followNew(now = Date.now()): Promise<{ series: number; que
 		if (!key || !extensionFor(key.sourceId)) continue;
 		let fresh: EngineChapter[];
 		try {
-			fresh = await resolveSeries(s.id, { db: d, library: '', now: () => now }, true);
+			fresh = await resolveSeries(s.id, { db: d, now: () => now }, true);
 		} catch {
 			continue;
 		}

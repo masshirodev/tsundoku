@@ -61,7 +61,11 @@
 	 * interface: nothing is on screen but the art until a tap in the middle
 	 * asks for the controls.
 	 */
-	let { data }: { data: Exclude<Extract<PageData, { text: false }>, { video: true }> } = $props();
+	let {
+		data
+	}: {
+		data: Exclude<Extract<PageData, { text: false }>, { video: true } | { online: true }>;
+	} = $props();
 
 	// ---- settings -------------------------------------------------------------------
 	// Mode is the session's, starting from the series; fit, spreads and dim are
@@ -699,6 +703,7 @@
 					title: data.entry.title,
 					pageCount: pages.length,
 					available: true,
+					online: !!data.manifest?.online,
 					ocr: false
 				},
 				pages,
@@ -1309,7 +1314,9 @@
 			count: data.series.count,
 			page: atEnd ? 'END' : pageLabel(group, pages.length),
 			incognito: data.incognito || !saved,
-			single: data.series.single
+			single: data.series.single,
+			online: !!data.manifest?.online,
+			record: !!data.record
 		})
 	);
 	const position = $derived(`${data.entry.index + 1} OF ${data.series.count}`);
@@ -1469,6 +1476,7 @@
 								half={sc.split ? halfSide(sc.half) : null}
 								rotate={sc.pages.length === 1 && treatment(i) === 'rotate'}
 								inset={insetOf(i)}
+								online={!!data.manifest?.online}
 								rings={sc.pos === 0 ? ringsOn(data.entry.id, i) : []}
 							/>
 						{/each}
@@ -1585,6 +1593,9 @@
 			shift={useSpreads}
 			onfav={toggleFav}
 			onsheet={() => (sheet = true)}
+			addHref={data.record
+				? `${resolve('/downloads/source/[id]', { id: data.record })}?/add`
+				: null}
 			onscrub={(p) =>
 				mode === 'vertical'
 					? document

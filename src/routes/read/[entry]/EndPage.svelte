@@ -11,7 +11,14 @@
 	 * series is rated -- the rating block shows only while the series is
 	 * unrated, so it never interrupts anyone twice.
 	 */
-	type Next = { name: string; title: string; pageCount: number; available: boolean };
+	type Next = {
+		name: string;
+		title: string;
+		pageCount: number;
+		available: boolean;
+		/** Read from its source (doc/BROWSING.md): its pages aren't counted until asked for. */
+		online?: boolean;
+	};
 	let {
 		variant,
 		entryName,
@@ -117,10 +124,14 @@
 				<div class="kicker-2">NEXT</div>
 				<div class="big" class:faded={variant !== 'chapter'}>{nextTitle}</div>
 				<div class="sub">
-					{#if variant === 'chapter'}
+					{#if variant === 'chapter' && next.online}
+						ONLINE · FROM THE SOURCE
+					{:else if variant === 'chapter'}
 						{next.pageCount} PAGES{nextCached ? ' · ↓ CACHED' : ''}{nextOcr ? ' · OCR ✓' : ''}
 					{:else if variant === 'missing'}
 						○ NOT DOWNLOADED
+					{:else if next.online}
+						○ ONLINE ONLY
 					{:else}
 						○ NOT CACHED
 					{/if}

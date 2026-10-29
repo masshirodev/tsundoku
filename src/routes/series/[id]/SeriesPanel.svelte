@@ -71,7 +71,8 @@
 		link = null,
 		tracking = null,
 		ranobe = null,
-		downloads = null
+		downloads = null,
+		readOnline = false
 	}: {
 		series: SeriesPage;
 		shelves: Shelf[];
@@ -113,6 +114,8 @@
 		ranobe?: RanobeSeries | null;
 		/** Downloading (doc/DOWNLOADING.md): the DOWNLOAD row and the FILE line's queue. */
 		downloads?: SeriesDownloads | null;
+		/** A chapter with no file reads online (doc/BROWSING.md): START opens it, as an episode streams. */
+		readOnline?: boolean;
 	} = $props();
 
 	/** An anime series: episodes for chapters, here and in DOWNLOAD (doc/ANIME.md). */
@@ -350,7 +353,7 @@
 	const resumeHref = $derived(
 		opening && !outline
 			? readHref(opening.entryId)
-			: action.entry && !outline && (anime || action.entry.available)
+			: action.entry && !outline && (anime || readOnline || action.entry.available)
 				? readHref(action.entry.id)
 				: undefined
 	);
@@ -358,7 +361,7 @@
 	// START is dimmed until it has one, as a row with no file doesn't open. An
 	// episode streams, so it plays either way (Anime States, "Two kinds of have").
 	const noFile = $derived(
-		!anime && !outline && !opening && !!action.entry && !action.entry.available
+		!anime && !readOnline && !outline && !opening && !!action.entry && !action.entry.available
 	);
 	const ctaLabel = $derived(
 		opening && editions && !editions.read && openingAt !== null
