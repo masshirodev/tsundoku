@@ -14,6 +14,7 @@ import {
 	headersOf,
 	isPlaylist,
 	langCode,
+	onePerLanguage,
 	playlistSeconds,
 	rewritePlaylist,
 	serversOf,
@@ -308,7 +309,14 @@ const iso2 = (l: string) =>
 		ind: 'id',
 		chi: 'zh',
 		zho: 'zh',
-		kor: 'ko'
+		kor: 'ko',
+		hin: 'hi',
+		tam: 'ta',
+		tel: 'te',
+		tha: 'th',
+		vie: 'vi',
+		tur: 'tr',
+		pol: 'pl'
 	})[l.toLowerCase()] ?? l;
 
 /** The downloaded episode as a server of its own, first: DOWNLOADED, played from the file. */
@@ -411,12 +419,10 @@ export async function episodeStreams(
 				headers,
 				engine: engineMediaPath(address) !== null
 			});
-			const audio = (q.video.audioTracks ?? [])
-				.filter((t) => t?.url)
-				.map((t) => ({
-					lang: langCode(t.lang || ''),
-					token: register({ url: t.url, headers, engine: engineMediaPath(t.url) !== null })
-				}));
+			const audio = onePerLanguage((q.video.audioTracks ?? []).filter((t) => t?.url)).map((t) => ({
+				lang: langCode(t.lang || ''),
+				token: register({ url: t.url, headers, engine: engineMediaPath(t.url) !== null })
+			}));
 			// Separate audio: a master playlist of tsundoku's own names it.
 			const src = audio.length
 				? mediaRoute(
@@ -442,8 +448,12 @@ export async function episodeStreams(
 		intro: null,
 		ending: null
 	};
+	// A source asked again too soon answers with fewer videos or none (AnimePahe,
+	// live 2026-10-29: 6, then 2, then 0, then 6 after 20 s), which isn't the
+	// episode losing its videos: a recent full answer stays the one kept.
+	if (!servers.length && kept?.servers.length && now - kept.resolvedAt < KEEP_MS) return kept;
 	const out: EpisodeStreams = { entryId, servers, ...marks, resolvedAt: now };
-	resolved.set(entryId, out);
+	if (servers.length) resolved.set(entryId, out);
 	if (resolved.size > 500) resolved.delete(resolved.keys().next().value!);
 	if (marks.ending)
 		getDb()
@@ -463,6 +473,8 @@ export async function probe(
 	const token = /\/api\/anime\/media\/([A-Za-z0-9_-]{32})$/.exec(src)?.[1];
 	const t = token ? targetOf(token) : null;
 	if (!t) return { seconds: null, bandwidth: null };
+	// tsundoku's own master (separate audio) is as long as the video it names.
+	if (t.master) return probe(mediaRoute(t.master.video));
 	const text = async (target: Target) => {
 		const { res, url } = await fetchTarget(target, null);
 		return { text: res.ok ? await res.text() : '', url };

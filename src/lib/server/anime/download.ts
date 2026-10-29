@@ -47,7 +47,16 @@ import {
 const FFMPEG = () => process.env.FFMPEG ?? 'ffmpeg';
 const FFPROBE = () => process.env.FFPROBE ?? 'ffprobe';
 
-export type AnimeDeps = { db: Database.Database; library: string; now: () => number };
+export type AnimeDeps = {
+	db: Database.Database;
+	library: string;
+	now: () => number;
+	/** How a re-ask waits (tests pass one that doesn't). */
+	wait?: (ms: number) => Promise<void>;
+};
+
+/** A source that answered with no videos is asked again after these (doc/ANIME.md, "Downloading"). */
+export const REASK_MS = [10_000, 30_000];
 
 export class AnimeDownloadError extends Error {
 	readonly failure: 'source' | 'not-found' | 'down' | 'disk';
@@ -261,16 +270,24 @@ export async function downloadEpisode(entryId: number, d: AnimeDeps): Promise<st
 	if (!e || !s || !parseAnimeKey(s.origin_key))
 		throw new AnimeDownloadError('Not an episode from a source', 'not-found');
 
-	let streams;
-	try {
-		streams = await episodeStreams(entryId, true, true, d.now());
-	} catch (err) {
-		throw new AnimeDownloadError(
-			(err as Error).message,
-			err instanceof EngineError && err.failure === 'down' ? 'down' : 'source'
-		);
+	const wait = d.wait ?? ((ms: number) => new Promise<void>((ok) => setTimeout(ok, ms)));
+	let tries: ReturnType<typeof streamsToTry> = [];
+	// An empty answer is often a source asked too soon, not an episode without videos:
+	// asked again a little later before the queue counts a try.
+	for (const pause of [0, ...REASK_MS]) {
+		if (pause) await wait(pause);
+		let streams;
+		try {
+			streams = await episodeStreams(entryId, true, true, d.now());
+		} catch (err) {
+			throw new AnimeDownloadError(
+				(err as Error).message,
+				err instanceof EngineError && err.failure === 'down' ? 'down' : 'source'
+			);
+		}
+		tries = streams ? streamsToTry(streams.servers, wantedHeight(d.db, entryId)) : [];
+		if (tries.length) break;
 	}
-	const tries = streams ? streamsToTry(streams.servers, wantedHeight(d.db, entryId)) : [];
 	if (!tries.length) throw new AnimeDownloadError('No server answered', 'source');
 
 	const folder = seriesFolder(d.db, s);

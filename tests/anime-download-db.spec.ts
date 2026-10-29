@@ -23,6 +23,7 @@ const SUBS = readFileSync('tests/fixtures/video/en.vtt');
 const SELF = 'http://127.0.0.1:34567';
 let server: Server;
 const seen: string[] = [];
+let empty = 0;
 beforeAll(async () => {
 	server = createServer((req, res) => {
 		seen.push(req.url ?? '');
@@ -36,6 +37,11 @@ beforeAll(async () => {
 		req.on('end', () => {
 			const b = JSON.parse(raw || '{}') as { method: string };
 			if (b.method !== 'getVideoList') return res.writeHead(404).end('{}');
+			// A source asked too soon (AnimePahe's, live): no videos, for a while.
+			if (empty > 0) {
+				empty--;
+				return res.writeHead(200, { 'content-type': 'application/json' }).end('[]');
+			}
 			res.writeHead(200, { 'content-type': 'application/json' }).end(
 				JSON.stringify([
 					{ quality: 'Broken - 720p', videoUrl: `${SELF}/video/broken.webm` },
@@ -196,5 +202,23 @@ describe('downloading an episode', () => {
 		expect(entry(ep1).available).toBe(0);
 		const s = (await streams.episodeStreams(ep1, false))!;
 		expect(s.servers.map((x) => x.name)).toEqual(['Broken', 'Kwik']);
+	});
+
+	it('asks a source that answered with no videos again, before the queue counts a try', async () => {
+		db.prepare(`DELETE FROM download_queue`).run();
+		const ep3 = episode(shown, 3, 'Asked Again');
+		await downloads.enqueue(shown, [ep3], 720);
+		empty = 2;
+		const waits: number[] = [];
+		const waiting = { ...deps, wait: async (ms: number) => void waits.push(ms) };
+		expect(await anime.runAnimeOnce(waiting)).toBe(1);
+		expect(waits).toEqual(anime.REASK_MS);
+		const ep4 = episode(shown, 4, '');
+		await downloads.enqueue(shown, [ep4], 720);
+		empty = 1 + anime.REASK_MS.length;
+		expect(await anime.runAnimeOnce(waiting)).toBe(0);
+		expect(
+			db.prepare(`SELECT state, tries, error FROM download_queue WHERE entry_id = ?`).get(ep4)
+		).toEqual({ state: 'queued', tries: 1, error: 'No server answered' });
 	});
 });

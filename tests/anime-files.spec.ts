@@ -113,6 +113,7 @@ describe('the mux', () => {
 			muxArgs({ video: 'v', audio: [], subtitles: [], header: 'h', out: 'o', title: 't' }).join(' ')
 		).toContain('-map 0:v:0 -map 0:a? -c copy');
 		expect(iso3('ko')).toBe('kor');
+		expect([iso3('HI'), iso3('ta')]).toEqual(['hin', 'tam']);
 		expect(progressSeconds('frame=1\nout_time_us=12500000\nprogress=continue')).toBe(12.5);
 	});
 });

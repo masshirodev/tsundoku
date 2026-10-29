@@ -10,15 +10,15 @@ States, Player Waiting, and the parametric Index Player, Index Anime Series
 and Index Anime Library). The owner approved its five defaults on 2026-10-28,
 the second amended to Jellyfin's TV layout (card c128 has them in full).
 
-| Part                                                     | Card | State   |
-| -------------------------------------------------------- | ---- | ------- |
-| Anime as a kind, its series screen and the ANIME shelf   | c153 | Done    |
-| Anime sources in BROWSE, the preview and ADD             | c154 | Done    |
-| Streams: resolving an episode's videos, through tsundoku | c155 | Done    |
-| The player                                               | c156 | Done    |
-| Downloading episodes into a Jellyfin-shaped folder       | c157 | Done    |
-| FOLLOW, and the tablet keeping the next episode          | c158 | Done    |
-| Live checks, departures and docs                         | c159 | Not yet |
+| Part                                                     | Card | State |
+| -------------------------------------------------------- | ---- | ----- |
+| Anime as a kind, its series screen and the ANIME shelf   | c153 | Done  |
+| Anime sources in BROWSE, the preview and ADD             | c154 | Done  |
+| Streams: resolving an episode's videos, through tsundoku | c155 | Done  |
+| The player                                               | c156 | Done  |
+| Downloading episodes into a Jellyfin-shaped folder       | c157 | Done  |
+| FOLLOW, and the tablet keeping the next episode          | c158 | Done  |
+| Live checks, departures and docs                         | c159 | Done  |
 
 Episodes play in the player (c156) since 2026-10-29; until then
 `/read/<entry>` answered 404 for one, which is why nothing of anime was
@@ -163,7 +163,10 @@ engine, mustn't hold its token, and never asks a site ([`PRIVACY.md`](PRIVACY.md
   and only from them; the ending's start is kept on the entry (`ending_at`),
   where an episode counts as watched. An answer is kept ten minutes;
   `?fresh=1` asks again (TRY AGAIN, and a stream that stopped: its address
-  may simply have gone stale). A hidden series' episode is a 404 with reveal
+  may simply have gone stale). **An empty answer never replaces a full one
+  kept within those ten minutes**: a source asked again too soon answers with
+  fewer videos or none (AnimePahe, live: 6, then 2, then 0, then 6 after 20 s),
+  which isn't the episode losing its videos. An empty answer isn't kept. A hidden series' episode is a 404 with reveal
   off. The engine not answering is a 503 saying `down`, so the player can say
   so without naming it.
 - **Every address is a token**, `/api/anime/media/<token>`: an address and
@@ -188,9 +191,17 @@ engine, mustn't hold its token, and never asks a site ([`PRIVACY.md`](PRIVACY.md
   commas become dots, SubStation's Dialogue lines become plain cues (the
   player draws its own style). Languages are read as codes (English, eng →
   EN).
+- **One audio track per language the source names** (`onePerLanguage`):
+  KickAssAnime lists every language twice, two playlists apiece (16 tracks
+  for 8 languages), which doubled the player's menu and the download. The
+  first listed is kept; differently named ones ("Spanish", "Spanish (Latin
+  America)") are different tracks. Subtitles aren't folded: they're small,
+  and two ES ones are usually two dialects.
 - **A stream's weight** (`probe`): a master playlist's best BANDWIDTH and its
   media playlist's length, for ALL N's ABOUT sizes; getVideoList gives no
-  bitrate.
+  bitrate. tsundoku's own master (separate audio) is probed through the video
+  it names, so KickAssAnime's episodes have a length and their download a
+  share.
 
 `tests/streams.spec.ts` and `tests/anime-streams-db.spec.ts` (a fake engine
 proxy and a fake site: servers and tokens with nothing of the engine or the
@@ -304,6 +315,8 @@ pure parts in `src/lib/library/anime-files.ts`).
 - **Its own lane** of the one queue (`QueueRow.kind`, `'anime'`): one episode at
   a time beside the chapters' and novels' workers, so a 400 MB episode never
   holds up a 3 MB chapter. Streams are resolved right before (they go stale),
+  and a source that answers with no videos is asked again after 10 s and 30 s
+  (`REASK_MS`) before the queue counts a try;
   each server's stream at the chosen height tried in the source's order, and
   ffmpeg's progress is the queue's share (DOWNLOADING · 38%). The DOWNLOADS
   screen draws EPISODES and CHAPTERS apart, each lane its own band.
@@ -364,6 +377,44 @@ keep read NOT CACHED and dim.
 `tests/episode-cache.spec.ts` (what's kept, its own budget and markers, the
 Range slices) and the FOLLOW test in `tests/anime-source-db.spec.ts`.
 
+## Live checks (c159)
+
+On 2026-10-29, on a scratch library (`/mnt/hdd2/tmp`, an in-memory
+database, its own APK store) against the real engine and Yuzono's repository
+(`https://raw.githubusercontent.com/yuzono/anime-repo/repo/index.min.json`),
+"frieren" searched, its first hit added, episode 1 streamed and downloaded at
+360P, then the newest two episodes taken out and FOLLOW asked:
+
+| Step                 | AnimePahe 16.56 (lib 16)                                     | KickAssAnime 14.63 (lib 14)                                                           |
+| -------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| Install              | 0.3 s, `isAnimeSource`                                       | 0.9 s, `isAnimeSource`                                                                |
+| POPULAR / search     | 12 hits, 0.9 s / 3 hits, 0.4 s                               | 24 hits, 1.2 s / 3 hits, 0.6 s                                                        |
+| Preview, ADD         | 28 episodes, COMPLETED; ADD 0.3 s                            | 28 episodes, COMPLETED; ADD 2.4 s, titled episodes                                    |
+| Servers              | SEV (Sub), SEV (English); 1080/720/360 each, all 200, 1561 s | VidStreaming; 1080/720/360, 8 audio languages, 9 subtitles, all 200, 1560 s           |
+| Download, 360P       | one MKV, H.264 + AAC, 26:01, 45 MB                           | one MKV, H.264, 8 AAC tracks tagged jpn hin tam eng ger spa fre por, 9 SubRip, 310 MB |
+| Import, then playing | Ep. 1 available, plays from DOWNLOADED                       | the same                                                                              |
+| FOLLOW               | 2 queued, 28 of 28 back                                      | 2 queued, 28 of 28 back                                                               |
+
+What the first run found, all fixed and tested before this table was
+measured:
+
+- **AnimePahe answered no videos when asked again soon** (6, 2, 0, then 6
+  after a 20 s pause), so a download right after playing failed in 0.3 s with
+  "No server answered". The kept answer stands against an empty one, and the
+  download asks again before counting a try (Streams, Downloading).
+- **KickAssAnime named every language twice**: 16 audio tracks, 700 MB for a
+  360P episode, JA twice in the menu. One per language now: 310 MB.
+- **Hindi and Tamil were `und`** in the file; Korean, Hindi, Tamil, Telugu,
+  Thai, Vietnamese, Turkish and Polish are codes now, both ways.
+- **KickAssAnime's episodes had no length**, so their download showed no
+  share: the probe didn't follow tsundoku's own master playlist.
+
+Not checked live: **a server failing over** (both sources' servers all
+answered; the order is in `tests/anime-download-db.spec.ts` and the player's
+`nextServer`), the **poster** (a bare script doesn't run the cover refresh),
+and the player itself in a browser against a live source (the e2e runs it on
+the fixture clip). The scratch library was deleted afterwards.
+
 ## Where it departs from the handoff
 
 - **A tap on an episode plays it**, whatever its file. The handoff draws no
@@ -390,7 +441,12 @@ Range slices) and the FOLLOW test in `tests/anime-source-db.spec.ts`.
 
 ## What it does not do yet
 
-Streams, the player, downloading and FOLLOW: the cards above. **No episode
+**Every audio language is downloaded**: KickAssAnime's eight make a 360P
+episode 310 MB where the video alone is about 95 MB. Keeping only some
+(the original and the one the device asks for, say) is the owner's call, on
+the board. **AnimePahe's videos only download through the engine** (its
+clearance cookies), which forgets every token on restart: a download that
+spans a restart fails and is tried again. **No episode
 pictures, lengths or FILLER/RECAP yet**: the engine's episode list carries
 none of them (`JEpisode` is url, name, date, number, scanlator). A length
 comes from the stream (c155) or the file (c157). **No LINK for anime**: the

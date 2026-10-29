@@ -201,7 +201,14 @@ export function iso3(code: string): string {
 		RU: 'rus',
 		ID: 'ind',
 		ZH: 'chi',
-		KO: 'kor'
+		KO: 'kor',
+		HI: 'hin',
+		TA: 'tam',
+		TE: 'tel',
+		TH: 'tha',
+		VI: 'vie',
+		TR: 'tur',
+		PL: 'pol'
 	};
 	return MAP[code.toUpperCase()] ?? 'und';
 }

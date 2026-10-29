@@ -4,6 +4,7 @@ import {
 	headersOf,
 	heightOf,
 	langCode,
+	onePerLanguage,
 	playlistSeconds,
 	rewritePlaylist,
 	serversOf,
@@ -153,5 +154,19 @@ describe('subtitles', () => {
 			'PT',
 			'KLINGON'
 		]);
+		expect([langCode('Hindi'), langCode('Tamil')]).toEqual(['HI', 'TA']);
+	});
+
+	it('keep one audio track per language the source names', () => {
+		const t = (lang: string, url: string) => ({ lang, url });
+		expect(
+			onePerLanguage([
+				t('Japanese', 'a'),
+				t('Japanese', 'b'),
+				t('Spanish', 'c'),
+				t('Spanish (Latin America)', 'd'),
+				t('spanish ', 'e')
+			]).map((x) => x.url)
+		).toEqual(['a', 'c', 'd']);
 	});
 });

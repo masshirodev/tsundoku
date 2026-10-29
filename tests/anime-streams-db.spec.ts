@@ -190,6 +190,22 @@ describe('an episode’s streams', () => {
 		expect(await streams.episodeStreams(hidden, true)).not.toBeNull();
 	});
 
+	it('keep a recent full answer when the source, asked again too soon, answers with none', async () => {
+		const full = (await streams.episodeStreams(shown, false, true, 1_000))!;
+		const saved = videoAnswer;
+		videoAnswer = [];
+		try {
+			const again = (await streams.episodeStreams(shown, false, true, 2_000))!;
+			expect(again.servers.map((x) => x.name)).toEqual(['Kwik', 'Vidstream']);
+			expect(again.resolvedAt).toBe(full.resolvedAt);
+			// Long after, none is none.
+			const later = (await streams.episodeStreams(shown, false, true, 1_000 + 11 * 60_000))!;
+			expect(later.servers).toEqual([]);
+		} finally {
+			videoAnswer = saved;
+		}
+	});
+
 	it('come through the engine’s proxy with its token, playlists rewritten and segments streamed, Range and all', async () => {
 		const s = (await streams.episodeStreams(shown, false))!;
 		engineSeen = [];
@@ -272,7 +288,9 @@ describe('an episode’s streams', () => {
 				videoUrl: `${ENGINE_SELF}/video/v1080.m3u8`,
 				audioTracks: [
 					{ url: `${ENGINE_SELF}/video/ja.m3u8`, lang: 'Japanese' },
-					{ url: `${ENGINE_SELF}/video/en.m3u8`, lang: 'English' }
+					{ url: `${ENGINE_SELF}/video/en.m3u8`, lang: 'English' },
+					// KickAssAnime names each language twice.
+					{ url: `${ENGINE_SELF}/video/ja2.m3u8`, lang: 'Japanese' }
 				]
 			}
 		];
@@ -280,6 +298,7 @@ describe('an episode’s streams', () => {
 		const q = s.servers[0].qualities[0];
 		expect(q.kind).toBe('hls');
 		expect(q.audio.map((a) => a.lang)).toEqual(['JA', 'EN']);
+		expect((await streams.probe(q.src)).seconds).toBe(1440);
 		const master = (await text(q.src)).body.toString();
 		expect(master).toMatch(/^#EXTM3U/);
 		expect(master).toMatch(

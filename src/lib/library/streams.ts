@@ -272,8 +272,33 @@ export function langCode(lang: string): string {
 		arabic: 'ar',
 		russian: 'ru',
 		indonesian: 'id',
-		chinese: 'zh'
+		chinese: 'zh',
+		korean: 'ko',
+		hindi: 'hi',
+		tamil: 'ta',
+		telugu: 'te',
+		thai: 'th',
+		vietnamese: 'vi',
+		turkish: 'tr',
+		polish: 'pl'
 	};
 	const word = l.split(/[\s(_-]/)[0];
 	return (NAMES[word] ?? (/^[a-z]{2}$/.test(word) ? word : l)).toUpperCase();
+}
+
+/**
+ * One audio track per language the source names (doc/ANIME.md, "Streams"):
+ * KickAssAnime lists every language twice, two playlists apiece (live,
+ * 2026-10-29: 16 tracks for 8 languages), which doubled the menu and the
+ * download. The first the source lists is kept; names that differ
+ * ("Spanish", "Spanish (Latin America)") are different tracks.
+ */
+export function onePerLanguage<T extends { lang?: string | null }>(tracks: T[]): T[] {
+	const seen = new Set<string>();
+	return tracks.filter((t) => {
+		const name = (t.lang ?? '').trim().toLowerCase();
+		if (seen.has(name)) return false;
+		seen.add(name);
+		return true;
+	});
 }
