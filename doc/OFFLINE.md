@@ -58,6 +58,16 @@ budget weighs it once. The service worker answers
 the reader does, and it doesn't while a series is hidden, during reveal or in
 incognito.
 
+## Anime's episodes are a bucket of their own
+
+A downloaded episode is kept in `tsundoku-episodes`, with its own **3 GB**
+beside the chapters' 2 GB, so anime never pushes chapters out
+([`ANIME.md`](ANIME.md), "Offline"). While an episode plays, the next one
+downloaded on the workstation is kept, and this series' watched ones are let
+go; ↓ CACHE in SELECT keeps more. The file streams into the cache, never into
+memory, and the service worker slices it for the player's Range requests.
+Never for a hidden series, while reveal is on, or incognito.
+
 ## The service worker
 
 `src/service-worker.ts` answers from three caches:

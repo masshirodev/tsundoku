@@ -6,6 +6,7 @@ import * as novelDownloads from './novels/downloader.ts';
 import * as novelFollow from './novels/follow.ts';
 import * as anime from './engine/anime-source.ts';
 import * as animeDownloads from './anime/download.ts';
+import * as animeFollow from './anime/follow.ts';
 import { NovelHostError } from './novels/host.ts';
 
 /**
@@ -110,18 +111,24 @@ export const undoAdd = async (seriesId: number) => engine.undoAdd(seriesId);
 export const setFollowed = async (seriesId: number, on: boolean) =>
 	novelDownloads.isNovelSeries(seriesId)
 		? novelFollow.setNovelFollowed(seriesId, on)
-		: engine.setFollowed(seriesId, on);
+		: animeDownloads.isAnimeSeries(seriesId)
+			? animeFollow.setAnimeFollowed(seriesId, on)
+			: engine.setFollowed(seriesId, on);
 /**
- * FOLLOW's step: the engine's followed manga and the plugins' followed
- * novels, each whatever the other did, so an engine that stopped answering
- * doesn't keep novels from being asked.
+ * FOLLOW's step: the engine's followed manga and anime and the plugins'
+ * followed novels, each whatever the others did, so an engine that stopped
+ * answering doesn't keep novels from being asked.
  */
 export async function followNew() {
-	const done = await Promise.allSettled([engine.followNew(), novelFollow.followNovels()]);
+	const done = await Promise.allSettled([
+		engine.followNew(),
+		novelFollow.followNovels(),
+		animeFollow.followAnime()
+	]);
 	const failed = done.find((d) => d.status === 'rejected');
 	if (failed) throw failed.reason;
-	const [manga, novels] = done.map(
+	const all = done.map(
 		(d) => (d as PromiseFulfilledResult<{ series: number; queued: number }>).value
 	);
-	return { series: manga.series + novels.series, queued: manga.queued + novels.queued };
+	return all.reduce((a, b) => ({ series: a.series + b.series, queued: a.queued + b.queued }));
 }

@@ -1007,6 +1007,15 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		quality INTEGER,
 		downloaded_at INTEGER
 	);
+	`,
+	// Rung 49: when a followed anime's source was last asked for new episodes
+	// (doc/ANIME.md, "FOLLOW"; card c158), as novel_checks is a novel's: FOLLOW's
+	// step asks each every six hours, and the DOWNLOAD row says CHECKED … AGO.
+	`
+	CREATE TABLE anime_checks (
+		series_id INTEGER PRIMARY KEY REFERENCES series(id) ON DELETE CASCADE,
+		checked_at INTEGER NOT NULL
+	);
 	`
 ];
 

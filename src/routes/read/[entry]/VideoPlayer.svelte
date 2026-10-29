@@ -28,6 +28,9 @@
 		type SubSize
 	} from '$lib/library/player';
 	import { readHref } from '$lib/library/links';
+	import { page } from '$app/state';
+	import { offline } from '$lib/offline.svelte';
+	import { keepEpisodesAhead } from '$lib/cache/device';
 	import { SvelteSet } from 'svelte/reactivity';
 
 	/**
@@ -105,7 +108,15 @@
 			.join(' · ');
 
 	// ---- where it is ----------------------------------------------------------------------------
-	type Phase = 'resolving' | 'challenge' | 'playing' | 'noServer' | 'engine' | 'ended';
+	type Phase =
+		| 'resolving'
+		| 'challenge'
+		| 'playing'
+		| 'noServer'
+		| 'engine'
+		| 'ended'
+		/** Offline, and this episode isn't kept on the device (Player Waiting 3d). */
+		| 'offline';
 	let phase = $state<Phase>('resolving');
 	let waited = $state(0);
 	let checkingSince = $state<number | null>(null);
@@ -254,8 +265,14 @@
 		}
 	}
 
+	// What this device keeps (doc/ANIME.md, "Offline"): the episodes of this series cached on it.
+	const cached = $derived(new Set(offline.entries[data.series.id] ?? []));
+	const playable = (e: Episode | null) => !!e && (offline.online || cached.has(e.id));
+
 	async function start(fresh = false, at?: number) {
 		const got = await resolveVideos(fresh);
+		// Offline, whatever didn't come is an episode the device doesn't keep.
+		if (typeof got === 'string' && !offline.online) return void (phase = 'offline');
 		if (got === 'down') return void (phase = 'engine');
 		if (got === 'none') return void (phase = 'noServer');
 		streams = got;
@@ -264,6 +281,7 @@
 		serverN = got.servers[0].n;
 		qualityIndex = startIndex(got.servers[0]);
 		phase = 'playing';
+		keepNext();
 		await tick();
 		const open = at === undefined ? openAt({ ...ep, durationS: duration || ep.durationS }) : null;
 		attach(at ?? open!.at);
@@ -454,7 +472,27 @@
 			void send('finish');
 		}
 		phase = 'ended';
-		if (next && !stay) runCount();
+		// It never plays by itself into an episode that can't play (Anime Calls 01, default 4).
+		if (next && !stay && playable(next)) runCount();
+	}
+
+	/**
+	 * While an episode plays, the device keeps the next one if it's downloaded
+	 * (Anime Calls 01, default 5). Nothing of a hidden series, nothing while
+	 * reveal is on, nothing incognito: those leave nothing behind.
+	 */
+	function keepNext() {
+		if (data.series.hidden || data.incognito || page.data.reveal) return;
+		void keepEpisodesAhead(
+			data.series.id,
+			episodes.map((e, i) => ({
+				id: e.id,
+				position: i,
+				readAt: e.id === ep.id && finished ? Date.now() : e.readAt,
+				available: e.available
+			})),
+			ep.id
+		).catch(() => undefined);
 	}
 
 	let countTimer: ReturnType<typeof setInterval> | undefined;
@@ -784,6 +822,13 @@
 			</div>
 		{/if}
 
+		{#if !offline.online}
+			<div class="offband">
+				<div>○ OFFLINE</div>
+				<div class="mut">CACHED STILL PLAYS</div>
+			</div>
+		{/if}
+
 		<!-- The middle cluster: −10, pause, +10, under the thumb. -->
 		<div class="cluster">
 			<button type="button" aria-label="Back 10 seconds" onclick={() => (seek(-10), showChrome())}
@@ -855,8 +900,12 @@
 				>
 				<button type="button" class="cell grow" onclick={() => (sheet = true)}>{playing}</button>
 				<button type="button" class="cell desk" onclick={() => (keysOpen = true)}>? KEYS</button>
-				<button type="button" class="cell" disabled={!next} onclick={playNext}
-					>{next ? `${epShort(next)} →` : '→'}</button
+				<button type="button" class="cell" disabled={!next || !playable(next)} onclick={playNext}
+					>{next
+						? playable(next)
+							? `${epShort(next)} →`
+							: `${epShort(next)} · NOT CACHED`
+						: '→'}</button
 				>
 			</div>
 		</footer>
@@ -1105,35 +1154,48 @@
 				<div class="rule" class:ink={phase === 'resolving' || phase === 'challenge'}></div>
 				<div class="what">
 					<div class="label">
-						{phase === 'resolving' || phase === 'challenge'
-							? waitLabel
-							: phase === 'noServer'
-								? 'NO SERVER ANSWERED'
-								: phase === 'engine'
-									? 'SOURCES NOT ANSWERING'
-									: next
-										? 'NEXT'
-										: 'END · LAST AVAILABLE'}
+						{phase === 'offline'
+							? 'NOT ON THIS DEVICE'
+							: phase === 'resolving' || phase === 'challenge'
+								? waitLabel
+								: phase === 'noServer'
+									? 'NO SERVER ANSWERED'
+									: phase === 'engine'
+										? 'SOURCES NOT ANSWERING'
+										: next
+											? 'NEXT'
+											: 'END · LAST AVAILABLE'}
 					</div>
-					<div class="big" class:faint={phase === 'noServer' || phase === 'engine'}>
+					<div
+						class="big"
+						class:faint={phase === 'noServer' ||
+							phase === 'engine' ||
+							phase === 'offline' ||
+							(phase === 'ended' && !!next && !playable(next))}
+					>
 						{phase === 'ended' && next
 							? next.title || `Episode ${next.number}`
 							: ep.title || `Episode ${ep.number}`}
 					</div>
-					<div class="tag">
-						{phase === 'resolving'
-							? `${waited} S · USUALLY A FEW SECONDS`
-							: phase === 'challenge'
-								? 'THE FIRST CALL OF THE DAY TAKES 20–45 S · THEN SECONDS'
-								: phase === 'noServer'
-									? `${order.length || 'NO'} TRIED`
-									: phase === 'engine'
-										? 'THE WORKSTATION ANSWERED · THE PART THAT TALKS TO SOURCES DID NOT'
-										: next
-											? [epShort(next), metaOf(next), next.available ? 'DOWNLOADED' : '']
-													.filter(Boolean)
-													.join(' · ')
-											: ''}
+					<div
+						class="tag"
+						class:ink={phase === 'offline' || (phase === 'ended' && !!next && !playable(next))}
+					>
+						{phase === 'offline' || (phase === 'ended' && next && !playable(next))
+							? '○ NOT CACHED'
+							: phase === 'resolving'
+								? `${waited} S · USUALLY A FEW SECONDS`
+								: phase === 'challenge'
+									? 'THE FIRST CALL OF THE DAY TAKES 20–45 S · THEN SECONDS'
+									: phase === 'noServer'
+										? `${order.length || 'NO'} TRIED`
+										: phase === 'engine'
+											? 'THE WORKSTATION ANSWERED · THE PART THAT TALKS TO SOURCES DID NOT'
+											: next
+												? [epShort(next), metaOf(next), next.available ? 'DOWNLOADED' : '']
+														.filter(Boolean)
+														.join(' · ')
+												: ''}
 					</div>
 				</div>
 				{#if phase === 'challenge'}
@@ -1157,7 +1219,14 @@
 						in seconds until the workstation restarts.
 					</div>
 				{/if}
-				{#if phase === 'ended' && next && !stay}
+				{#if phase === 'offline' || (phase === 'ended' && next && !playable(next))}
+					<div class="prose">
+						{phase === 'offline'
+							? 'It plays once the workstation is reachable. Downloaded episodes the device keeps play offline.'
+							: `Episode ${next?.number} plays once the workstation is reachable.`}
+					</div>
+				{/if}
+				{#if phase === 'ended' && next && !stay && playable(next)}
 					<div class="count">
 						<div class="c">PLAYS IN {count}</div>
 						<div class="bar">
@@ -1187,10 +1256,10 @@
 						class="icell acc"
 						onclick={() => ((freshTried = false), start(true))}>TRY AGAIN</button
 					>
-				{:else if phase === 'ended' && next}
+				{:else if phase === 'ended' && next && playable(next)}
 					{#if !stay}<button type="button" class="icell bl" onclick={stayHere}>STAY</button>{/if}
 					<button type="button" class="icell acc" onclick={playNext}>PLAY NOW →</button>
-				{:else if phase === 'ended'}
+				{:else if phase === 'ended' || phase === 'offline'}
 					<a class="icell bl" href={libraryHref}>LIBRARY</a>
 				{/if}
 			</div>
@@ -1482,6 +1551,30 @@
 		border-top: 0;
 		border-left: var(--hairline);
 		padding: 0 24px;
+	}
+
+	/* Offline, a kept episode playing: Player Waiting 3d's band. */
+	.offband {
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: 0;
+		height: 48px;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0 24px;
+		background: var(--surface-panel);
+		border-bottom: var(--hairline);
+		font: 500 14px var(--font-mono);
+		z-index: 2;
+	}
+	.player.chrome .offband + .cluster ~ .top {
+		top: 48px;
+	}
+	.tag.ink {
+		font-weight: 500;
+		color: var(--text-1);
 	}
 
 	/* ---- the chrome: shown on a tap, gone after a few seconds ---- */

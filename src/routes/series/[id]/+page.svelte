@@ -214,7 +214,7 @@
 	async function cacheSelection() {
 		caching = true;
 		try {
-			await cacheMany(series.id, toCache);
+			await cacheMany(series.id, toCache, series.kind === 'anime');
 		} finally {
 			caching = false;
 		}

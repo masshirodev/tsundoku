@@ -36,7 +36,7 @@ function coverOf(url: string | null | undefined): string {
 	return imageRoute(url) || coverRoute(url);
 }
 
-async function fetchAnime(id: string): Promise<{
+export async function fetchAnime(id: string): Promise<{
 	sourceId: string;
 	details: EngineManga & { url: string; title: string };
 	episodes: AnimeEpisode[];
@@ -64,7 +64,7 @@ async function fetchAnime(id: string): Promise<{
 }
 
 /** The plan both the preview and ADD read, so the preview numbers episodes as the series will. */
-function planOf(a: NonNullable<Awaited<ReturnType<typeof fetchAnime>>>, now: number) {
+export function planOf(a: NonNullable<Awaited<ReturnType<typeof fetchAnime>>>, now: number) {
 	return planAnime(
 		{
 			sourceId: a.sourceId,

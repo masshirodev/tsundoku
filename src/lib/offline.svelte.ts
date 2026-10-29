@@ -1,5 +1,5 @@
 import { browser } from '$app/environment';
-import { parseMarker } from '$lib/cache/policy';
+import { parseEpisodeMarker, parseMarker } from '$lib/cache/policy';
 
 /**
  * Whether the tablet has the network, and which series have chapters cached
@@ -11,6 +11,8 @@ import { parseMarker } from '$lib/cache/policy';
  * be reached.
  */
 export const CACHE_NAME = 'tsundoku-entries';
+/** An anime's episodes, a bucket of their own (doc/ANIME.md, "Offline"). */
+const EPISODE_CACHE = 'tsundoku-episodes';
 
 class OfflineState {
 	online = $state(true);
@@ -43,6 +45,14 @@ class OfflineState {
 			// once all its pages are in: a half-cached entry isn't counted.
 			for (const request of await cache.keys()) {
 				const m = parseMarker(new URL(request.url).pathname);
+				if (!m) continue;
+				counts[m.seriesId] = (counts[m.seriesId] ?? 0) + 1;
+				(entries[m.seriesId] ??= []).push(m.entryId);
+			}
+			// Episodes kept on the device count as cached entries of their series too.
+			const episodes = await caches.open(EPISODE_CACHE);
+			for (const request of await episodes.keys()) {
+				const m = parseEpisodeMarker(new URL(request.url).pathname);
 				if (!m) continue;
 				counts[m.seriesId] = (counts[m.seriesId] ?? 0) + 1;
 				(entries[m.seriesId] ??= []).push(m.entryId);

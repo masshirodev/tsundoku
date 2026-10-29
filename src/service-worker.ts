@@ -3,6 +3,7 @@
 /// <reference lib="esnext" />
 /// <reference lib="webworker" />
 import { build, files, version } from '$service-worker';
+import { byteRange } from '$lib/cache/policy';
 
 /**
  * Offline (doc/OFFLINE.md). Three caches:
@@ -23,6 +24,8 @@ const sw = self as unknown as ServiceWorkerGlobalScope;
 const SHELL = `tsundoku-shell-${version}`;
 const ENTRIES = 'tsundoku-entries';
 const SCREENS = 'tsundoku-screens';
+/** An anime's episodes kept on the device (doc/ANIME.md, "Offline"): written by the player only. */
+const EPISODES = 'tsundoku-episodes';
 // kuromoji's dictionary (~18MB, static/dict) is fetched when a lookup first
 // needs it (doc/JAPANESE.md), never precached with the app shell.
 const ASSETS = new Set([...build, ...files.filter((f) => !f.startsWith('/dict/'))]);
@@ -81,6 +84,30 @@ async function networkFirst(
 	}
 }
 
+/** A kept episode's file, whole or the range asked for; the network when it isn't kept. */
+async function episodeFile(req: Request): Promise<Response> {
+	const hit = await (await caches.open(EPISODES)).match(req.url);
+	if (!hit) return fetch(req);
+	const range = req.headers.get('range');
+	if (!range) return hit;
+	const blob = await hit.blob();
+	const r = byteRange(range, blob.size);
+	if (!r)
+		return new Response(null, {
+			status: 416,
+			headers: { 'content-range': `bytes */${blob.size}` }
+		});
+	return new Response(blob.slice(r.start, r.end + 1), {
+		status: 206,
+		headers: {
+			'content-type': hit.headers.get('content-type') ?? 'video/x-matroska',
+			'content-length': String(r.end - r.start + 1),
+			'content-range': `bytes ${r.start}-${r.end}/${blob.size}`,
+			'accept-ranges': 'bytes'
+		}
+	});
+}
+
 sw.addEventListener('fetch', (event) => {
 	const req = event.request;
 	if (req.method !== 'GET') return;
@@ -115,12 +142,24 @@ sw.addEventListener('fetch', (event) => {
 		);
 		return;
 	}
+	// A downloaded episode kept on the device (doc/ANIME.md, "Offline"): the
+	// kept copy first, sliced for the player's Range requests, since a video
+	// seeks. Only the player writes it, never this worker.
+	if (/^\/api\/anime\/file\/\d+$/.test(path)) {
+		event.respondWith(episodeFile(req));
+		return;
+	}
+	// Its subtitles and the answer naming its file: fresh when online, kept when not.
+	if (/^\/api\/anime\/(file\/\d+\/subtitle\/\d+|episode\/\d+\/videos)$/.test(path)) {
+		event.respondWith(networkFirst(req, [EPISODES]));
+		return;
+	}
 	// A cached chapter's manifest, OCR'd text and reader page: fresh when online.
 	if (
 		/^\/api\/entries\/\d+\/(pages|text)$/.test(path) ||
 		/^\/read\/\d+(\/__data\.json)?$/.test(path)
 	) {
-		event.respondWith(networkFirst(req, [ENTRIES, SCREENS]));
+		event.respondWith(networkFirst(req, [ENTRIES, EPISODES, SCREENS]));
 		return;
 	}
 	if (path.startsWith('/api/') || path === '/leave') return;

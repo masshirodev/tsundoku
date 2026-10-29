@@ -17,6 +17,8 @@ afterAll(() => rmSync(work, { recursive: true, force: true }));
 const { getDb } = await import('$lib/server/db');
 const browse = await import('$lib/server/engine/browse');
 const downloads = await import('$lib/server/downloads');
+const animeFollow = await import('$lib/server/anime/follow');
+const queue = await import('$lib/server/engine/queue');
 const { forgetSourceUse } = await import('$lib/server/library-sources');
 
 // An Aniyomi source on the engine (doc/ANIME.md; card c154): the same
@@ -26,6 +28,8 @@ const ANIME = '7000';
 const MANGA = '100';
 type Call = { method: string; sourceId: string; animeData?: { url: string }; mangaData?: unknown };
 let calls: Call[] = [];
+/** Episodes the source lists past the four ADD saw: FOLLOW's test adds to it. */
+let later: { url: string; name: string; episode_number: number }[] = [];
 let server: Server;
 const show = (i: number) => ({
 	url: `/anime/${i}`,
@@ -65,6 +69,7 @@ beforeAll(async () => {
 				case 'getEpisodeList':
 					// Newest first, seasons flattened and named, as the engine does.
 					return json([
+						...later,
 						{ url: '/e/s2-2', name: 'Season 2 - Episode 2 - Salt Road', episode_number: 2 },
 						{ url: '/e/s2-1', name: 'Season 2 - Episode 1', episode_number: 1 },
 						{ url: '/e/s1-2', name: 'Season 1 - Episode 2: The Ferry', episode_number: 2 },
@@ -214,5 +219,34 @@ describe('an anime, previewed and added', () => {
 		const hits = await downloads.searchSource(ANIME, 'show', false);
 		expect(hits.map((h) => h.title)).toEqual(['Show 2']);
 		expect(calls.at(-1)?.method).toBe('getSearchAnime');
+	});
+
+	it('is followed: its source asked at once and every six hours, new episodes made and queued (c158)', async () => {
+		const seriesId = await downloads.addToLibrary(id);
+		await downloads.setFollowed(seriesId, true);
+		await expect.poll(() => animeFollow.animeCheckedAt(seriesId)).not.toBeNull();
+		const d = await downloads.seriesDownloads(seriesId, []);
+		expect(d.kind === 'ok' && d.follow.on).toBe(true);
+		later = [{ url: '/e/s2-3', name: 'Season 2 - Episode 3 - A Letter', episode_number: 3 }];
+		const at = animeFollow.animeCheckedAt(seriesId)!;
+		// Not due for six hours.
+		expect(await animeFollow.followAnime(at + 60_000)).toEqual({ series: 0, queued: 0 });
+		expect(await animeFollow.followAnime(at + 7 * 3600_000)).toEqual({ series: 1, queued: 1 });
+		const e = db
+			.prepare(
+				`SELECT id, position, label, title, season, episode_number FROM entries WHERE source_url = '/e/s2-3'`
+			)
+			.get() as { id: number; position: number };
+		expect(e).toMatchObject({
+			position: 5,
+			label: 'Ep. 3',
+			title: 'A Letter',
+			season: 2,
+			episode_number: 3
+		});
+		expect(queue.queueRows(db).map((r) => [r.entryId, r.kind])).toEqual([[e.id, 'anime']]);
+		db.exec('DELETE FROM download_queue');
+		await downloads.setFollowed(seriesId, false);
+		expect(await animeFollow.followAnime(at + 14 * 3600_000)).toEqual({ series: 0, queued: 0 });
 	});
 });

@@ -57,3 +57,48 @@ export function parseMarker(path: string): { seriesId: number; entryId: number }
 	const m = /^\/__cache\/series\/(\d+)\/entries\/(\d+)$/.exec(path);
 	return m ? { seriesId: Number(m[1]), entryId: Number(m[2]) } : null;
 }
+
+// ---- episodes (doc/ANIME.md, "Offline"; Anime Calls 01, default 5) --------------------------------
+
+/**
+ * Episodes have a budget of their own beside the chapters': an episode is a
+ * fifth to a third of the chapters' 2 GB, and anime must never push chapters
+ * out.
+ */
+export const EPISODE_BUDGET_BYTES = 3 * 1024 ** 3;
+
+/**
+ * What to keep of a series while one of its episodes plays: the next one
+ * downloaded on the workstation and not yet watched. Watched ones are let
+ * go; the one playing streams or plays from the workstation as it is.
+ */
+export function keepEpisodes(entries: EntryRef[], currentId: number): number[] {
+	const ordered = [...entries].sort((a, b) => a.position - b.position);
+	const at = ordered.findIndex((e) => e.id === currentId);
+	if (at < 0) return [];
+	const next = ordered.slice(at + 1).find((e) => e.available && e.readAt === null);
+	return next ? [next.id] : [];
+}
+
+export const episodeMarkerPath = (seriesId: number, entryId: number) =>
+	`/__cache/episodes/${seriesId}/${entryId}`;
+
+export function parseEpisodeMarker(path: string): { seriesId: number; entryId: number } | null {
+	const m = /^\/__cache\/episodes\/(\d+)\/(\d+)$/.exec(path);
+	return m ? { seriesId: Number(m[1]), entryId: Number(m[2]) } : null;
+}
+
+/**
+ * A cached file's bytes [start, end] for a Range request, as the service
+ * worker answers it offline; null for a range the file doesn't have.
+ */
+export function byteRange(
+	header: string | null,
+	size: number
+): { start: number; end: number } | null {
+	const m = /^bytes=(\d*)-(\d*)$/.exec(header ?? '');
+	if (!m || (m[1] === '' && m[2] === '')) return null;
+	const start = m[1] === '' ? Math.max(0, size - Number(m[2])) : Number(m[1]);
+	const end = m[1] !== '' && m[2] !== '' ? Math.min(Number(m[2]), size - 1) : size - 1;
+	return start < size && start <= end ? { start, end } : null;
+}

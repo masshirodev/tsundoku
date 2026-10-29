@@ -435,7 +435,7 @@ export function isAnimeSeries(seriesId: number, db: Database.Database = getDb())
 /**
  * Where an anime's episodes stand, for its DOWNLOAD row and rows: the
  * queue, and what the worker wrote that the import hasn't attached yet.
- * FOLLOW is c158's; until then the row has none.
+ * FOLLOW asks its source (anime/follow.ts).
  */
 export function animeSeriesDownloads(
 	seriesId: number,
@@ -477,11 +477,14 @@ export function animeSeriesDownloads(
 	const queuedElsewhere = [...rows.values()].filter(
 		(r) => r.seriesId !== seriesId && r.state !== 'failed'
 	).length;
+	const checked = db
+		.prepare(`SELECT checked_at FROM anime_checks WHERE series_id = ?`)
+		.get(seriesId) as { checked_at: number } | undefined;
 	return {
 		kind: 'ok',
 		states,
 		queuedElsewhere,
-		follow: { on: (s?.followed_at ?? null) !== null, checked: null }
+		follow: { on: (s?.followed_at ?? null) !== null, checked: checked?.checked_at ?? null }
 	};
 }
 

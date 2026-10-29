@@ -17,7 +17,7 @@ the second amended to Jellyfin's TV layout (card c128 has them in full).
 | Streams: resolving an episode's videos, through tsundoku | c155 | Done    |
 | The player                                               | c156 | Done    |
 | Downloading episodes into a Jellyfin-shaped folder       | c157 | Done    |
-| FOLLOW, and the tablet keeping the next episode          | c158 | Not yet |
+| FOLLOW, and the tablet keeping the next episode          | c158 | Done    |
 | Live checks, departures and docs                         | c159 | Not yet |
 
 Episodes play in the player (c156) since 2026-10-29; until then
@@ -330,6 +330,40 @@ folder, a deleted file streaming again) and the c157 test in
 `tests/browse-anime.e2e.ts` (FIRST 4 on the series screen, the episode lane,
 the import, played from the file).
 
+## FOLLOW (c158)
+
+As for a manga and a novel (`src/lib/server/anime/follow.ts`): FOLLOW on an
+anime's DOWNLOAD row asks its source at once, then every six hours with
+FOLLOW's ten-minute step (whatever the engine's other halves did); when it
+was last asked is `anime_checks` (rung 49), the row's CHECKED … AGO. An
+episode the source lists that no entry is becomes one with ADD's own plan
+through the one writer, and is queued in the episode lane unless watched,
+fifty a run at most, oldest first. Places follow the source's order, so an
+episode it inserted moves the ones after it. A source that fails isn't
+recorded as asked.
+
+## Offline (c158)
+
+Anime Calls 01, default 5: **while an episode plays, the device keeps the
+next one** if it's downloaded on the workstation, from a 3 GB bucket of its
+own beside the 2 GB of chapters (`tsundoku-episodes`; `keepEpisodes`,
+`cacheEpisode` in `src/lib/cache/`), and lets this series' watched ones go.
+↓ CACHE in SELECT keeps more by hand. What's kept is the file (streamed into
+the cache, never into memory), its subtitles, the answer naming it, and the
+player's page; the marker is written last, so a half-kept episode never
+counts. The service worker answers the player's Range requests by slicing the
+kept file ([`OFFLINE.md`](OFFLINE.md)). Nothing of a hidden series, nothing
+while reveal is on, nothing incognito.
+
+Offline (Player Waiting 3d): a kept episode plays under ○ OFFLINE · CACHED
+STILL PLAYS; one that isn't says NOT ON THIS DEVICE · ○ NOT CACHED; the next
+cell reads EP. 8 · NOT CACHED and is dimmed; the NEXT page never counts into
+an episode that can't play. On the series screen, the rows the device doesn't
+keep read NOT CACHED and dim.
+
+`tests/episode-cache.spec.ts` (what's kept, its own budget and markers, the
+Range slices) and the FOLLOW test in `tests/anime-source-db.spec.ts`.
+
 ## Where it departs from the handoff
 
 - **A tap on an episode plays it**, whatever its file. The handoff draws no
@@ -351,8 +385,6 @@ the import, played from the file).
   Aniyomi never gives.
 - **The episode lane's band says a percentage**, not "156 / 410 MB · 6.1 MB/S":
   ffmpeg reports time, not bytes, and the size is an estimate.
-- **No offline states yet**: an episode cached on the tablet, and the
-  offline band, are c158's.
 - **History names no season** ("EP. 7 · 9:28", not "S2 EP. 7 · 9:28"): the
   reading log keeps an entry's label, and a season is the episode's own field.
 

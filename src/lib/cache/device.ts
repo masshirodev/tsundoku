@@ -1,5 +1,16 @@
 import { CACHE_NAME, offline } from '$lib/offline.svelte';
-import { evict, keepFor, markerPath, parseMarker, type Cached, type EntryRef } from './policy';
+import {
+	EPISODE_BUDGET_BYTES,
+	episodeMarkerPath,
+	evict,
+	keepEpisodes,
+	keepFor,
+	markerPath,
+	parseEpisodeMarker,
+	parseMarker,
+	type Cached,
+	type EntryRef
+} from './policy';
 
 /**
  * The device cache (doc/OFFLINE.md): an entry is cached as its manifest,
@@ -188,12 +199,143 @@ export async function cacheBook(o: {
 }
 
 /** ↓ CACHE and REMOVE CACHE from the series screen's selection. */
-export async function cacheMany(seriesId: number, ids: number[]): Promise<void> {
-	for (const id of ids) await cacheEntry(seriesId, id);
+/** ↓ CACHE in SELECT: chapters, or an anime's downloaded episodes into their own bucket. */
+export async function cacheMany(seriesId: number, ids: number[], episodes = false): Promise<void> {
+	for (const id of ids) await (episodes ? cacheEpisode(seriesId, id) : cacheEntry(seriesId, id));
 	await offline.refresh();
 }
 
 export async function dropMany(ids: number[]): Promise<void> {
-	for (const id of ids) await dropEntry(id);
+	for (const id of ids) {
+		await dropEntry(id);
+		await dropEpisode(id);
+	}
+	await offline.refresh();
+}
+
+// ---- episodes (doc/ANIME.md, "Offline") ------------------------------------------------------------
+
+/** Episodes are a bucket of their own, with their own budget (policy.ts). */
+export const EPISODE_CACHE = 'tsundoku-episodes';
+
+type EpisodeMarker = Cached & { subtitles: number };
+
+async function openEpisodes(): Promise<Cache | null> {
+	if (!('caches' in globalThis)) return null;
+	try {
+		return await caches.open(EPISODE_CACHE);
+	} catch {
+		return null;
+	}
+}
+
+export async function listCachedEpisodes(): Promise<EpisodeMarker[]> {
+	const cache = await openEpisodes();
+	if (!cache) return [];
+	const out: EpisodeMarker[] = [];
+	for (const req of await cache.keys()) {
+		if (!parseEpisodeMarker(new URL(req.url).pathname)) continue;
+		const res = await cache.match(req);
+		if (res) out.push((await res.json()) as EpisodeMarker);
+	}
+	return out;
+}
+
+const episodeFiles = (entryId: number) => [
+	`/api/anime/episode/${entryId}/videos`,
+	`/read/${entryId}`,
+	`/read/${entryId}/__data.json`
+];
+
+/**
+ * Keep one downloaded episode on the device: its file (streamed into the
+ * cache, never into memory), its subtitles, the answer the player asks for
+ * (which names the file), and the player's page. The marker goes last, so a
+ * half-kept episode is never counted.
+ */
+export async function cacheEpisode(seriesId: number, entryId: number): Promise<boolean> {
+	const cache = await openEpisodes();
+	if (!cache || inFlight.has(entryId)) return false;
+	inFlight.add(entryId);
+	try {
+		if (await cache.match(episodeMarkerPath(seriesId, entryId))) return true;
+		const videos = await fetch(`/api/anime/episode/${entryId}/videos`, {
+			credentials: 'same-origin'
+		});
+		if (!videos.ok) return false;
+		const answer = (await videos.clone().json()) as {
+			servers: { name: string; qualities: { src: string; subtitles: { src: string }[] }[] }[];
+		};
+		const local = answer.servers.find((s) => s.name === 'DOWNLOADED')?.qualities[0];
+		// Only a downloaded episode is kept: a stream can't be.
+		if (!local) return false;
+		const file = await fetch(local.src, { credentials: 'same-origin' });
+		if (!file.ok) return false;
+		const bytes = Number(file.headers.get('content-length') ?? 0);
+		await cache.put(local.src, file);
+		for (const t of local.subtitles) {
+			const r = await fetch(t.src, { credentials: 'same-origin' });
+			if (r.ok) await cache.put(t.src, r);
+		}
+		await cache.put(`/api/anime/episode/${entryId}/videos`, videos);
+		for (const url of episodeFiles(entryId).slice(1)) {
+			const r = await fetch(url, { credentials: 'same-origin' });
+			if (r.ok) await cache.put(url, r);
+		}
+		const m: EpisodeMarker = {
+			seriesId,
+			entryId,
+			at: Date.now(),
+			bytes,
+			subtitles: local.subtitles.length
+		};
+		await cache.put(
+			episodeMarkerPath(seriesId, entryId),
+			new Response(JSON.stringify(m), { headers: { 'content-type': 'application/json' } })
+		);
+		return true;
+	} catch {
+		return false;
+	} finally {
+		inFlight.delete(entryId);
+	}
+}
+
+export async function dropEpisode(entryId: number): Promise<void> {
+	const cache = await openEpisodes();
+	if (!cache) return;
+	for (const req of await cache.keys()) {
+		const path = new URL(req.url).pathname;
+		const marker = parseEpisodeMarker(path);
+		if (
+			(marker && marker.entryId === entryId) ||
+			path === `/api/anime/file/${entryId}` ||
+			path.startsWith(`/api/anime/file/${entryId}/`) ||
+			episodeFiles(entryId).includes(path)
+		)
+			await cache.delete(req);
+	}
+}
+
+/**
+ * While an episode plays (Anime Calls 01, default 5): keep the next one if
+ * it's downloaded, let this series' watched ones go, and keep the episodes'
+ * bucket under its own budget. Never for a hidden series, while reveal is
+ * on, or incognito: the caller doesn't ask then.
+ */
+export async function keepEpisodesAhead(
+	seriesId: number,
+	entries: EntryRef[],
+	currentId: number
+): Promise<void> {
+	if (!offline.online) return;
+	const keep = keepEpisodes(entries, currentId);
+	const watched = new Set(entries.filter((e) => e.readAt !== null).map((e) => e.id));
+	for (const c of await listCachedEpisodes())
+		if (c.seriesId === seriesId && watched.has(c.entryId) && !keep.includes(c.entryId))
+			await dropEpisode(c.entryId);
+	for (const id of keep) await cacheEpisode(seriesId, id);
+	for (const id of evict(await listCachedEpisodes(), keep, EPISODE_BUDGET_BYTES))
+		await dropEpisode(id);
 	await offline.refresh();
 }

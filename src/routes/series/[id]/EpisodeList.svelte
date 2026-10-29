@@ -21,6 +21,7 @@
 		type SeriesPage
 	} from '$lib/library/series';
 	import { coverPlaceholder } from '$lib/library/cover';
+	import { offline } from '$lib/offline.svelte';
 
 	/**
 	 * An anime series' episodes (Index Anime Series, Anime States 1a; doc/ANIME.md):
@@ -92,6 +93,8 @@
 
 	/** DOWNLOADING · 38%: an episode takes minutes, so its share means something (Anime States 1b). */
 	function status(e: SeriesEntry, isCurrent: boolean, dl: DownloadState | undefined): string {
+		// Offline (Anime States, offline): only what the device keeps plays.
+		if (!offline.online && !cached.has(e.id)) return e.readAt !== null ? 'WATCHED' : 'NOT CACHED';
 		if (dl?.kind === 'downloading') return `DOWNLOADING · ${Math.round(dl.fraction * 100)}%`;
 		return (dl && dl.kind !== 'none' && downloadStatus(dl)) || episodeStatus(e, isCurrent);
 	}
@@ -149,6 +152,7 @@
 				<li
 					id="entry-{e.id}"
 					class="entry {state} {dl ? `dl-${dl.kind}` : ''}"
+					class:uncached={!offline.online && !cached.has(e.id)}
 					class:selected={selecting && on}
 					class:flash={flash === e.id}
 				>
@@ -317,6 +321,10 @@
 	}
 	.entry.progress .entry-btn {
 		background: var(--surface-panel);
+	}
+	/* Offline: an episode the device doesn't keep dims, as a chapter it can't open does. */
+	.entry.uncached .entry-btn {
+		opacity: 0.4;
 	}
 	.entry.selected .entry-btn {
 		background: var(--accent-select);
