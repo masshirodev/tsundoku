@@ -14,7 +14,7 @@ the second amended to Jellyfin's TV layout (card c128 has them in full).
 | -------------------------------------------------------- | ---- | ------- |
 | Anime as a kind, its series screen and the ANIME shelf   | c153 | Done    |
 | Anime sources in BROWSE, the preview and ADD             | c154 | Done    |
-| Streams: resolving an episode's videos, through tsundoku | c155 | Not yet |
+| Streams: resolving an episode's videos, through tsundoku | c155 | Done    |
 | The player                                               | c156 | Not yet |
 | Downloading episodes into a Jellyfin-shaped folder       | c157 | Not yet |
 | FOLLOW, and the tablet keeping the next episode          | c158 | Not yet |
@@ -145,6 +145,57 @@ its SETTINGS, search inside it.
 rows and the anime calls, covers, the preview, ADD by season, IN LIBRARY,
 search) and the c154 test in `tests/browse-anime.e2e.ts` (a source on the fake
 engine, browsed, previewed, added).
+
+## Streams (c155)
+
+An episode streams **through tsundoku** (`src/lib/server/anime/streams.ts`,
+pure parts in `src/lib/library/streams.ts`): the browser has no route to the
+engine, mustn't hold its token, and never asks a site ([`PRIVACY.md`](PRIVACY.md)).
+
+- **`GET /api/anime/episode/<entry>/videos`** asks the engine's `getVideoList`
+  (two minutes: hosters have 30 s each, and a first call through a challenge
+  takes 20–45 s) and answers the player's **servers**: a video's quality reads
+  "Hoster - 1080p" where the source has hosters, so each hoster is a server,
+  numbered in the source's own order of preference (SERVER 1 OF 3), its
+  videos its qualities, best first. Each quality carries its audio and
+  subtitle tracks. The opening and ending come from the source's timestamps,
+  and only from them; the ending's start is kept on the entry (`ending_at`),
+  where an episode counts as watched. An answer is kept ten minutes;
+  `?fresh=1` asks again (TRY AGAIN, and a stream that stopped: its address
+  may simply have gone stale). A hidden series' episode is a 404 with reveal
+  off. The engine not answering is a 503 saying `down`, so the player can say
+  so without naming it.
+- **Every address is a token**, `/api/anime/media/<token>`: an address and
+  the headers the source asked for (OkHttp's `namesAndValues$okhttp`, read
+  as a map), kept in memory, so a restart forgets them and the player
+  resolves again. Only addresses the episode's videos handed over, and those
+  inside playlists fetched from them, ever get one.
+- **Playlists are rewritten** as they pass: every segment, variant, key,
+  alternate audio and init map becomes a token, resolved against the
+  playlist's own address (after redirects). An address that can't be
+  written goes with the tag that introduced it.
+- **Two ways to fetch.** The engine's own `/video/` proxy (AnimePahe's streams
+  only work through it: the clearance cookies are the engine's) through
+  ENGINE_URL with its token, unbuffered; anything else from the site with the
+  source's headers, **internet only, every redirect too** (`net-guard.ts`), so
+  a playlist can't aim the server at the workstation. An address is the
+  engine's only when the engine named it: a site's playlist naming
+  `http://127.0.0.1/video/…` is fetched as a site address, and refused.
+  Segments stream through with their Range and content type (KickAssAnime's
+  are MPEG-TS dressed as `.jpg`).
+- **Subtitles**, `/api/anime/subtitle/<token>`, are always WebVTT: SubRip's
+  commas become dots, SubStation's Dialogue lines become plain cues (the
+  player draws its own style). Languages are read as codes (English, eng →
+  EN).
+- **A stream's weight** (`probe`): a master playlist's best BANDWIDTH and its
+  media playlist's length, for ALL N's ABOUT sizes; getVideoList gives no
+  bitrate.
+
+`tests/streams.spec.ts` and `tests/anime-streams-db.spec.ts` (a fake engine
+proxy and a fake site: servers and tokens with nothing of the engine or the
+site in them, hidden, the engine's token and Range through it, the site's
+headers, an inside address refused, a site's loopback address never the
+engine's, WebVTT, the probe).
 
 ## Where it departs from the handoff
 

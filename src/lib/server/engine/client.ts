@@ -182,6 +182,40 @@ export async function challenges(timeoutMs = 2_000): Promise<Challenges> {
 }
 
 /**
+ * One of the engine's own /video/ or /image/ addresses as it hands them out
+ * (`http://127.0.0.1:<its port>/video/<token>`, inside its container): the
+ * same path on ENGINE_URL. Only a loopback address is the engine's; a site's
+ * own /video/ path is the site's.
+ */
+export function engineMediaPath(url: string): string | null {
+	const m =
+		/^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?(\/(?:video|image)\/[^\s]*)$/i.exec(
+			url
+		);
+	return m ? m[1] : null;
+}
+
+/** A stream through the engine, unbuffered: an episode's segments are megabytes each. */
+export async function engineMedia(
+	path: string,
+	init: { range?: string | null; timeoutMs?: number } = {}
+): Promise<Response> {
+	try {
+		return await fetch(`${engineUrl()}${path}`, {
+			headers: {
+				'user-agent': USER_AGENT,
+				...authorization(),
+				...(init.range ? { range: init.range } : {})
+			},
+			signal: AbortSignal.timeout(init.timeoutMs ?? 60_000)
+		});
+	} catch (e) {
+		if ((e as Error).name !== 'TimeoutError') downSince ??= Date.now();
+		throw new EngineError(`The engine is not answering (${(e as Error).message})`, 'down');
+	}
+}
+
+/**
  * The bytes behind one of the engine's /image/ or /video/ URLs, fetched
  * through the source's own client, interceptors and cookies included (the
  * spike: MANGA Plus's pages are XOR-encrypted without them). Not in a lane:

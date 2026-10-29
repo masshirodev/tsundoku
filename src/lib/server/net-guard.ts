@@ -49,12 +49,20 @@ export async function checkPublic(url: string): Promise<URL> {
 
 /** fetch, refusing local addresses on every hop. */
 export async function publicFetch(url: string, init: RequestInit = {}): Promise<Response> {
+	return (await publicFetchAt(url, init)).res;
+}
+
+/** publicFetch, and the address it ended at: a playlist's relative addresses resolve against it. */
+export async function publicFetchAt(
+	url: string,
+	init: RequestInit = {}
+): Promise<{ res: Response; url: string }> {
 	let at = url;
 	for (let hop = 0; hop < 6; hop++) {
 		await checkPublic(at);
 		const res = await fetch(at, { ...init, redirect: 'manual' });
 		const to = res.status >= 300 && res.status < 400 ? res.headers.get('location') : null;
-		if (!to) return res;
+		if (!to) return { res, url: at };
 		at = new URL(to, at).href;
 	}
 	throw new NotPublicError('too many redirects');
