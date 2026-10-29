@@ -100,6 +100,12 @@ export function writeSeries(
 		 * A series whose files are outside it has them on another device too.
 		 */
 		deviceRoot?: string;
+		/**
+		 * Write a series that doesn't exist yet as a browsing record (doc/BROWSING.md):
+		 * opened from a source without ADD, on no shelf. One that exists keeps
+		 * whatever it is, so opening never takes a series out of the library.
+		 */
+		browsing?: boolean;
 	},
 	db: Database.Database = getDb()
 ): WriteResult {
@@ -209,8 +215,8 @@ export function writeSeries(
 						.prepare(
 							`INSERT INTO series (root_id, title, kind, rating, favourite, hidden, hue, added_at,
 								indexed_at, scan_job_id, alt_titles, source, status, description, direction, path,
-								source_url, origin_key, cover_url, arrived_at)
-							VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+								source_url, origin_key, cover_url, arrived_at, in_library, browsed_at)
+							VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 						)
 						.run(
 							opts.rootId,
@@ -231,7 +237,9 @@ export function writeSeries(
 							s.sourceUrl,
 							s.originKey,
 							s.coverUrl ?? '',
-							opts.now
+							opts.now,
+							opts.browsing ? 0 : 1,
+							opts.browsing ? opts.now : null
 						).lastInsertRowid
 				);
 				for (const t of s.tags)

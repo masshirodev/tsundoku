@@ -59,6 +59,9 @@ series. That's rare, harmless, and cheaper than re-homing removals.
 
 ## What it shows and doesn't
 
+- **A browsing record** (something opened from a source without ADD,
+  [`BROWSING.md`](BROWSING.md)) has rows like any series, said `NOT IN
+LIBRARY` after its kind. Its row opens its source's preview, where ADD is.
 - **Hidden means hidden.** While reveal is off, a hidden series has no rows.
 - **Incognito reading isn't there** because it was never written
   ([`PRIVACY.md`](PRIVACY.md)). Nothing is filtered out.

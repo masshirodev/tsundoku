@@ -1,6 +1,6 @@
 import { basename } from 'node:path';
 import { getDb } from './db.ts';
-import { VISIBLE_SQL } from './visibility.ts';
+import { IN_LIBRARY_SQL, VISIBLE_SQL } from './visibility.ts';
 import { SignedOut, Unreachable } from './catalogue.ts';
 import { cleanTitle, coverOnly } from '../library/catalogue.ts';
 import {
@@ -130,11 +130,12 @@ export const why = (e: unknown) =>
 			: 'RANOBE REFUSED IT';
 
 /**
- * The series Ranobe may hear of: of a kind it tracks, not hidden, not from
- * Hentoid. The one place the rule is spelled, over `series s JOIN roots r`.
+ * The series Ranobe may hear of: of a kind it tracks, not hidden, in the
+ * library (never a browsing record), not from Hentoid. The one place the
+ * rule is spelled, over `series s JOIN roots r`.
  */
 export const ELIGIBLE_SQL = `(s.kind IN (${RANOBE_KINDS.map((k) => `'${k}'`).join(', ')})
-	AND ${VISIBLE_SQL} AND s.source != 'hentoid')`;
+	AND ${VISIBLE_SQL} AND ${IN_LIBRARY_SQL} AND s.source != 'hentoid')`;
 
 /**
  * The novels among them: what is searched, reviewed and suggested, and what

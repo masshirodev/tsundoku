@@ -7,6 +7,7 @@ import {
 	isAddError,
 	isSourceMangaId,
 	mangaKey,
+	openFromSource,
 	seriesForKey,
 	sourceManga,
 	sourceOfMangaId
@@ -54,6 +55,25 @@ export const load: PageServerLoad = async ({ params, cookies, url }) => {
 };
 
 export const actions: Actions = {
+	/**
+	 * An episode, played without ADD (doc/BROWSING.md; card c161): the series
+	 * becomes a browsing record on the first open, on no shelf, its progress and
+	 * HISTORY kept for ADD later.
+	 */
+	open: async ({ params, request }) => {
+		const id = mangaId(params.id);
+		const ep = String((await request.formData()).get('ep') ?? '');
+		if (!ep) return fail(400, { message: 'no episode' });
+		let entryId: number | null;
+		try {
+			entryId = await openFromSource(id, ep);
+		} catch (e) {
+			if (isAddError(e)) return fail(409, { message: (e as Error).message });
+			throw e;
+		}
+		if (entryId === null) return fail(409, { message: 'that can’t open without adding yet' });
+		redirect(303, `/read/${entryId}`);
+	},
 	/** + ADD TO LIBRARY: into both libraries, then the new series, with a band to UNDO. */
 	add: async ({ params }) => {
 		const id = mangaId(params.id);

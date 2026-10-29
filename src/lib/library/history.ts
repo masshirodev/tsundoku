@@ -26,6 +26,8 @@ export type HistoryDay = {
 	entryCount: number;
 	/** The series' status as imported: 'completed', 'ongoing' or ''. */
 	status: string;
+	/** False for a browsing record (doc/BROWSING.md): opened from a source, never added. */
+	inLibrary?: boolean;
 	/** The lowest and highest entry opened that day, by reading order. */
 	first: { label: string; rank: number };
 	last: {
@@ -56,12 +58,14 @@ export function entryRange(first: string, last: string): string {
  * "MANHWA · CH. 380 → 388 · P. 12", "MANGA · CH. 22 · P. 9 OF 31",
  * "NOVEL · VOL. 13 · 41%", "MANGA · CH. 131 → 140 · UP TO DATE",
  * "MANGA · CH. 97 · FINISHED", "DOUJIN · P. 18 OF 30", "ANIME · EP. 3 → 5 · 9:28".
+ * A browsing record says so after its kind: "ANIME · NOT IN LIBRARY · EP. 1 · 4:10".
  *
  * `short` is the phone's: the page and UP TO DATE drop off a range, which is
  * where the phone runs out of width first.
  */
 export function historyMeta(d: HistoryDay, short = false): string {
 	const parts = [kindLabel(d.kind)];
+	if (d.inLibrary === false) parts.push('NOT IN LIBRARY');
 	const single = d.entryCount <= 1;
 	const range = d.first.rank !== d.last.rank;
 	if (!single) {

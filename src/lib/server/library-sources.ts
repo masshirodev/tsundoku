@@ -1,5 +1,5 @@
 import { getDb } from './db.ts';
-import { VISIBLE_SQL } from './visibility.ts';
+import { IN_LIBRARY_SQL, libraryWhere, VISIBLE_SQL } from './visibility.ts';
 import {
 	mostlyHidden,
 	normTitle,
@@ -23,7 +23,7 @@ export function sourceUse(): Map<string, SourceUse> {
 	const rows = getDb()
 		.prepare(
 			`SELECT s.origin_key AS k, NOT ${VISIBLE_SQL} AS hidden
-			FROM series s JOIN roots r ON r.id = s.root_id WHERE (s.origin_key LIKE 'mihon:%' OR s.origin_key LIKE 'lnreader:%' OR s.origin_key LIKE 'aniyomi:%')`
+			FROM series s JOIN roots r ON r.id = s.root_id WHERE ${IN_LIBRARY_SQL} AND (s.origin_key LIKE 'mihon:%' OR s.origin_key LIKE 'lnreader:%' OR s.origin_key LIKE 'aniyomi:%')`
 		)
 		.all() as { k: string; hidden: number }[];
 	const use = new Map<string, SourceUse>();
@@ -51,7 +51,7 @@ export function libraryIndex(reveal: boolean) {
 			`SELECT s.id, s.title, s.origin_key AS k, NOT ${VISIBLE_SQL} AS hidden,
 				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0) AS total,
 				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0 AND e.available = 1) AS have
-			FROM series s JOIN roots r ON r.id = s.root_id WHERE (s.origin_key LIKE 'mihon:%' OR s.origin_key LIKE 'lnreader:%' OR s.origin_key LIKE 'aniyomi:%')`
+			FROM series s JOIN roots r ON r.id = s.root_id WHERE ${IN_LIBRARY_SQL} AND (s.origin_key LIKE 'mihon:%' OR s.origin_key LIKE 'lnreader:%' OR s.origin_key LIKE 'aniyomi:%')`
 		)
 		.all() as {
 		id: number;
@@ -93,12 +93,15 @@ export function mihonRoot(): number | null {
 	);
 }
 
-/** The tsundoku series a queued manga is, by key; null when it hasn't been imported. */
+/**
+ * The tsundoku series a queued manga is, by key; null when it hasn't been
+ * imported. Only the library's: a browsing record (doc/BROWSING.md) isn't one.
+ */
 export function seriesForKey(key: string): QueueSeries | null {
 	const row = getDb()
 		.prepare(
 			`SELECT s.id, s.title, NOT ${VISIBLE_SQL} AS hidden, s.cover_at, s.hue
-			FROM series s JOIN roots r ON r.id = s.root_id WHERE s.origin_key = ?`
+			FROM series s JOIN roots r ON r.id = s.root_id WHERE s.origin_key = ? AND ${IN_LIBRARY_SQL}`
 		)
 		.get(key) as
 		{ id: number; title: string; hidden: number; cover_at: number | null; hue: number } | undefined;
@@ -118,7 +121,7 @@ export function arrivedSince(since: number, reveal: boolean): number {
 			.prepare(
 				`SELECT COUNT(*) AS n FROM entries e JOIN series s ON s.id = e.series_id
 				JOIN roots r ON r.id = s.root_id
-				WHERE e.arrived_at >= ? AND e.shadowed = 0 AND ${reveal ? '1' : VISIBLE_SQL}`
+				WHERE e.arrived_at >= ? AND e.shadowed = 0 AND ${libraryWhere(reveal)}`
 			)
 			.get(since) as { n: number }
 	).n;

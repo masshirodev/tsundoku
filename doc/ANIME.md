@@ -109,6 +109,10 @@ handoff's measurements.
 
 ## Finding and adding (c154)
 
+**An episode plays straight from the preview**, without ADD, since
+2026-10-29: the series becomes a browsing record, on no shelf until ADD
+([`BROWSING.md`](BROWSING.md); card c161).
+
 An Aniyomi source is a source like any other in BROWSE and SEARCH THE SOURCES
 ([`BROWSE.md`](BROWSE.md)): under ANIME, with POPULAR, LATEST, its filters,
 its SETTINGS, search inside it.

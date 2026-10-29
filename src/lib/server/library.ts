@@ -1,6 +1,6 @@
 import { watchingAt } from '$lib/library/anime';
 import { getDb } from './db';
-import { HIDDEN_SQL, VISIBLE_SQL } from './visibility.ts';
+import { HIDDEN_SQL, IN_LIBRARY_SQL, VISIBLE_SQL } from './visibility.ts';
 import { getSetting } from './settings.ts';
 import { langCode, openingEdition } from '$lib/library/editions';
 import { likePattern } from '$lib/library/search';
@@ -25,7 +25,9 @@ import type {
  * browser at all while reveal is off.
  */
 const VISIBLE = VISIBLE_SQL;
-const visibility = (reveal: boolean) => (reveal ? '1' : VISIBLE);
+// Every listing here is the library's, so a browsing record is never in one.
+const visibility = (reveal: boolean) =>
+	reveal ? IN_LIBRARY_SQL : `${VISIBLE} AND ${IN_LIBRARY_SQL}`;
 
 type CardRow = {
 	id: number;
@@ -714,7 +716,9 @@ export function search(query: string, reveal: boolean, limit = 30): SearchResult
 
 export function seriesDetail(id: number, reveal: boolean): SeriesDetail | null {
 	const db = getDb();
-	const row = db.prepare(cardQuery(`s.id = ? AND ${visibility(reveal)}`, 's.id')).get(id) as
+	// Asked by id, a browsing record (doc/BROWSING.md) is found: its player and
+	// reader run on it. Only hiddenness applies.
+	const row = db.prepare(cardQuery(`s.id = ? AND ${reveal ? '1' : VISIBLE}`, 's.id')).get(id) as
 		CardRow | undefined;
 	if (!row) return null;
 	const collections = (

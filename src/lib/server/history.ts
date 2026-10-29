@@ -10,6 +10,8 @@ import type { Kind } from '$lib/library/types';
  * times are shown in.
  *
  * Hidden means hidden: while reveal is off a hidden series has no rows.
+ * A browsing record (doc/BROWSING.md) has rows like any series, said NOT IN
+ * LIBRARY; its link opens its source's preview, where ADD is.
  * Incognito reading was never written (see /api/reading), so there is nothing
  * of it to hide.
  */
@@ -54,7 +56,7 @@ export function historyDays(
 		.prepare(
 			`SELECT re.series_id AS seriesId, ${DAY} AS day, MAX(re.at) AS lastAt,
 				MIN(e.position) AS firstPos, MAX(e.position) AS lastPos,
-				s.title, s.kind, s.hue, s.status,
+				s.title, s.kind, s.hue, s.status, s.in_library AS inLibrary,
 				s.cover_at AS cover,
 				(SELECT COUNT(*) FROM entries x WHERE x.edition_of IS NULL AND x.series_id = s.id) AS entryCount
 			${scope('JOIN entries e ON e.id = re.entry_id')} AND ${DAY} >= @oldest
@@ -72,6 +74,7 @@ export function historyDays(
 		hue: number;
 		cover: number | null;
 		status: string;
+		inLibrary: number;
 		entryCount: number;
 	}[];
 
@@ -110,6 +113,7 @@ export function historyDays(
 			lastAt: g.lastAt,
 			entryCount: g.entryCount,
 			status: g.status,
+			inLibrary: g.inLibrary === 1,
 			first: { label: first.label, rank: first.rank },
 			last: {
 				label: last.label,

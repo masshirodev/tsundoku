@@ -1,5 +1,5 @@
 import { getDb } from './db';
-import { HIDDEN_SQL, VISIBLE_SQL } from './visibility';
+import { HIDDEN_SQL, libraryWhere } from './visibility';
 import { isPersonNamespace, type TagItem, type TagPage } from '$lib/library/books';
 import type { Kind, Rating } from '$lib/library/types';
 import { langCode } from '$lib/library/editions';
@@ -16,8 +16,6 @@ import { langCode } from '$lib/library/editions';
  * while reveal is off.
  */
 
-const VISIBLE = VISIBLE_SQL;
-
 export function parseTagKey(key: string): { namespace: string; value: string } {
 	const at = key.indexOf(':');
 	return at < 0
@@ -32,7 +30,7 @@ export function tagPage(key: string, reveal: boolean): TagPage | null {
 		.prepare(`SELECT id FROM tags WHERE namespace = ? AND value = ?`)
 		.get(namespace, value) as { id: number } | undefined;
 	if (!tag) return null;
-	const where = reveal ? '1' : VISIBLE;
+	const where = libraryWhere(reveal);
 
 	// Books inside series of books, matched by their own tags.
 	const books = db

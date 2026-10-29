@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from 'node:f
 import { join } from 'node:path';
 import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
-import { VISIBLE_SQL } from '../visibility.ts';
+import { IN_LIBRARY_SQL, VISIBLE_SQL } from '../visibility.ts';
 import {
 	newer,
 	NovelRepoError,
@@ -369,7 +369,9 @@ export type PluginRow = InstalledPlugin & {
 export function pluginView(now = Date.now(), db: Database.Database = getDb()) {
 	const counts = new Map<string, number>();
 	for (const r of db
-		.prepare(`SELECT origin_key AS k FROM series WHERE origin_key LIKE 'lnreader:%'`)
+		.prepare(
+			`SELECT origin_key AS k FROM series WHERE in_library = 1 AND origin_key LIKE 'lnreader:%'`
+		)
 		.all() as { k: string }[]) {
 		const id = r.k.split(':')[1];
 		counts.set(id, (counts.get(id) ?? 0) + 1);
@@ -435,7 +437,7 @@ export function pluginRemoval(id: string, reveal: boolean, db: Database.Database
 	const rows = db
 		.prepare(
 			`SELECT NOT ${VISIBLE_SQL} AS hidden, s.followed_at FROM series s JOIN roots r ON r.id = s.root_id
-			WHERE s.origin_key LIKE ? ESCAPE '\\'`
+			WHERE ${IN_LIBRARY_SQL} AND s.origin_key LIKE ? ESCAPE '\\'`
 		)
 		.all(`lnreader:${id.replace(/[%_\\]/g, '\\$&')}:%`) as {
 		hidden: number;

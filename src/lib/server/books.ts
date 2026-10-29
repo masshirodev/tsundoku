@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3';
 import { posix } from 'node:path';
 import { commonDir, fileIn, widenTo } from './paths.ts';
-import { VISIBLE_SQL } from './visibility.ts';
+import { libraryWhere } from './visibility.ts';
 import { getDb } from './db.ts';
 import { hueFor } from '../library/cover.ts';
 import { setKey, suggestionSets, type Candidate, type Suggestion } from '../library/books.ts';
@@ -635,8 +635,6 @@ export function setBookFavourite(seriesId: number, entryId: number, on: boolean)
 
 // ---- suggestions -------------------------------------------------------------
 
-const VISIBLE = VISIBLE_SQL;
-
 /** Visible doujin singletons: the only things a suggestion may name. */
 function singletonCandidates(
 	reveal: boolean
@@ -645,7 +643,7 @@ function singletonCandidates(
 		.prepare(
 			`SELECT s.id AS seriesId, s.title, s.hue, s.added_at AS addedAt, s.cover_at AS cover
 			FROM series s JOIN roots r ON r.id = s.root_id
-			WHERE s.kind = 'doujin' AND ${reveal ? '1' : VISIBLE}
+			WHERE s.kind = 'doujin' AND ${libraryWhere(reveal)}
 			AND (SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) = 1`
 		)
 		.all() as (Candidate & { hue: number; addedAt: number; cover: number | null })[];
@@ -699,7 +697,7 @@ export function seriesOfBooks(reveal: boolean): BookSeriesOption[] {
 			`SELECT s.id, s.title, s.root_id AS rootId,
 				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) AS books
 			FROM series s JOIN roots r ON r.id = s.root_id
-			WHERE s.kind = 'doujin' AND ${reveal ? '1' : VISIBLE}
+			WHERE s.kind = 'doujin' AND ${libraryWhere(reveal)}
 			AND (SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) > 1
 			ORDER BY s.title COLLATE NOCASE`
 		)
@@ -716,7 +714,7 @@ export function seriesOfVolumes(reveal: boolean): BookSeriesOption[] {
 			`SELECT s.id, s.title, s.root_id AS rootId,
 				(SELECT COUNT(DISTINCT e.file) FROM entries e WHERE e.series_id = s.id) AS books
 			FROM series s JOIN roots r ON r.id = s.root_id
-			WHERE s.kind = 'novel' AND ${reveal ? '1' : VISIBLE}
+			WHERE s.kind = 'novel' AND ${libraryWhere(reveal)}
 			ORDER BY s.title COLLATE NOCASE`
 		)
 		.all() as BookSeriesOption[];

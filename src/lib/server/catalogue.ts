@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3';
 import { getDb } from './db.ts';
-import { HIDDEN_SQL, VISIBLE_SQL, visibleWhere } from './visibility.ts';
+import { HIDDEN_SQL, IN_LIBRARY_SQL, VISIBLE_SQL, visibleWhere } from './visibility.ts';
 import {
 	candidateRows,
 	coverLines,
@@ -491,7 +491,8 @@ export async function resolveLinks(now = Date.now()): Promise<number> {
 }
 
 /** What a catalogue of manga and novels holds: never a doujin, never Hentoid's. */
-const LINKABLE = `s.kind IN ('manga', 'manhwa', 'novel') AND s.source != 'hentoid'`;
+// A browsing record (doc/BROWSING.md) is never in the LINK queue: it isn't the library's.
+const LINKABLE = `s.kind IN ('manga', 'manhwa', 'novel') AND s.source != 'hentoid' AND ${IN_LIBRARY_SQL}`;
 
 type SearchRow = {
 	id: number;
@@ -629,7 +630,7 @@ export function requeueSearched(): number {
 			db
 				.prepare(
 					`SELECT ls.series_id AS id, ls.query, s.title FROM link_searches ls JOIN series s ON s.id = ls.series_id
-					WHERE ls.searched_at IS NOT NULL
+					WHERE ls.searched_at IS NOT NULL AND ${IN_LIBRARY_SQL}
 						AND NOT EXISTS (SELECT 1 FROM series_links l WHERE l.series_id = ls.series_id)
 						AND NOT EXISTS (SELECT 1 FROM link_decisions d WHERE d.series_id = ls.series_id)`
 				)

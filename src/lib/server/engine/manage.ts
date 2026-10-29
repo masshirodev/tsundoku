@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
-import { VISIBLE_SQL } from '../visibility.ts';
+import { IN_LIBRARY_SQL, VISIBLE_SQL } from '../visibility.ts';
 import { parseKey } from '../../library/downloads.ts';
 import type { Kind, Listing } from './repo-index.ts';
 import { load as engineLoad } from './client.ts';
@@ -198,7 +198,7 @@ function seriesFrom(
 	const rows = db
 		.prepare(
 			`SELECT s.id, s.origin_key AS k, s.followed_at IS NOT NULL AS followed, NOT ${VISIBLE_SQL} AS hidden
-			FROM series s JOIN roots r ON r.id = s.root_id WHERE s.origin_key LIKE 'mihon:%'`
+			FROM series s JOIN roots r ON r.id = s.root_id WHERE ${IN_LIBRARY_SQL} AND s.origin_key LIKE 'mihon:%'`
 		)
 		.all() as { id: number; k: string; followed: number; hidden: number }[];
 	return rows

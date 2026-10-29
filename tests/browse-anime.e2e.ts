@@ -101,6 +101,34 @@ test('an anime source is browsed, previewed with its EPISODES, and added by seas
 	await expect(page.locator('a.cta')).toContainText('S1 · EP. 1 · STREAMS');
 });
 
+test('an episode plays from the preview without ADD, and the series stays off the shelves (c161)', async ({
+	page
+}) => {
+	test.setTimeout(60_000);
+	await page.goto(`/browse/${ANIME_SOURCE.id}`);
+	await page.locator('.grid .tile', { hasText: 'Yuki no Tabibito' }).click();
+	await expect(page).toHaveURL(/\/downloads\/source\//);
+	const preview = page.url();
+	await page.getByRole('button', { name: 'Play S1 · Ep. 1 · The First Snow' }).click();
+	await expect(page).toHaveURL(/\/read\/\d+/);
+	await expect(page.locator('.player')).toBeVisible();
+	// Watched a little, as the player reports it, so HISTORY has a row.
+	const entryId = Number(/\/read\/(\d+)/.exec(page.url())![1]);
+	const back = await page.locator('a[href*="/series/"]').first().getAttribute('href');
+	const seriesId = Number(/\/series\/(\d+)/.exec(back!)![1]);
+	const watched = await page.request.post('/api/reading', {
+		data: { seriesId, entryId, kind: 'page', page: 2, length: 8 }
+	});
+	expect(await watched.json()).toEqual({ saved: true });
+	// ← SERIES is its preview, with + ADD still offered: it was never added.
+	await page.goto(preview);
+	await expect(page.getByRole('button', { name: /ADD TO LIBRARY/ })).toBeVisible();
+	await page.goto('/?shelf=all');
+	await expect(page.locator('.grid .tile', { hasText: 'Yuki no Tabibito' })).toHaveCount(0);
+	await page.goto('/history');
+	await expect(page.locator('.history')).toContainText('NOT IN LIBRARY');
+});
+
 test.describe('the player, tablet landscape (c156)', () => {
 	test.use({ viewport: { width: 1280, height: 800 } });
 

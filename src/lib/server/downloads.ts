@@ -1,6 +1,9 @@
 import * as engine from './engine/backend.ts';
 import { engineConfigured, engineDownSince, EngineError } from './engine/client.ts';
 import { getSetting } from './settings.ts';
+import { getDb } from './db.ts';
+import { splitMemo } from './engine/protocol.ts';
+import { parseAnimeKey } from '../library/downloads.ts';
 import * as novels from './novels/source.ts';
 import * as novelDownloads from './novels/downloader.ts';
 import * as novelFollow from './novels/follow.ts';
@@ -56,6 +59,8 @@ export const enqueue = async (
 	entryIds: number[],
 	height: number | null = null
 ) => {
+	// A browsing record (doc/BROWSING.md) downloads nothing: ADD comes first.
+	if (!inLibrary(seriesId)) return { queued: 0, missing: entryIds.length };
 	if (height !== null && animeDownloads.isAnimeSeries(seriesId))
 		animeDownloads.rememberQuality(entryIds, height);
 	return engine.enqueue(seriesId, entryIds);
@@ -108,12 +113,42 @@ export const addToLibrary = async (id: string) =>
 			? anime.addAnime(id)
 			: engine.addToLibrary(id);
 export const undoAdd = async (seriesId: number) => engine.undoAdd(seriesId);
+
+/** A series' preview at its source, by its key: where a browsing record lives (doc/BROWSING.md). */
+export function previewIdOf(originKey: string | null): string | null {
+	const at = parseAnimeKey(originKey);
+	return at ? engine.sourceMangaId(at.sourceId, at.url) : null;
+}
+
+/** Whether a series is the library's, not a browsing record (doc/BROWSING.md). */
+function inLibrary(seriesId: number): boolean {
+	const r = getDb().prepare(`SELECT in_library FROM series WHERE id = ?`).get(seriesId) as
+		{ in_library: number } | undefined;
+	return r?.in_library === 1;
+}
+
+/**
+ * Opens one of a preview's episodes without ADD (doc/BROWSING.md; card c161):
+ * the entry to play, in a browsing record unless the series is the library's.
+ * Anime only so far; manga and novel chapters need reading online first, so
+ * they're null until then.
+ */
+export async function openFromSource(id: string, url: string): Promise<number | null> {
+	if (!isAnimeId(id)) return null;
+	const seriesId = await anime.browseAnime(id);
+	const row = getDb()
+		.prepare(`SELECT id FROM entries WHERE series_id = ? AND source_url IN (?, ?) LIMIT 1`)
+		.get(seriesId, url, splitMemo(url).url) as { id: number } | undefined;
+	return row?.id ?? null;
+}
 export const setFollowed = async (seriesId: number, on: boolean) =>
-	novelDownloads.isNovelSeries(seriesId)
-		? novelFollow.setNovelFollowed(seriesId, on)
-		: animeDownloads.isAnimeSeries(seriesId)
-			? animeFollow.setAnimeFollowed(seriesId, on)
-			: engine.setFollowed(seriesId, on);
+	on && !inLibrary(seriesId)
+		? Promise.reject(new EngineError('only a series in the library can be followed', 'not-found'))
+		: novelDownloads.isNovelSeries(seriesId)
+			? novelFollow.setNovelFollowed(seriesId, on)
+			: animeDownloads.isAnimeSeries(seriesId)
+				? animeFollow.setAnimeFollowed(seriesId, on)
+				: engine.setFollowed(seriesId, on);
 /**
  * FOLLOW's step: the engine's followed manga and anime and the plugins'
  * followed novels, each whatever the others did, so an engine that stopped

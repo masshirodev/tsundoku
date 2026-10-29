@@ -1,7 +1,7 @@
 import type { Episode } from '$lib/library/anime';
 import { getDb } from './db';
 import { editionToBase } from '$lib/library/editions';
-import { VISIBLE_SQL, visibleWhere } from './visibility';
+import { libraryWhere, VISIBLE_SQL } from './visibility';
 import { seriesDetail } from './library';
 import { scanlatorsOf } from './duplicates';
 import type { Direction, SeriesEntry, SeriesPage, SeriesTag } from '$lib/library/series';
@@ -356,7 +356,8 @@ export function suggestTags(
 	/** A book of the series: ✓ ON THIS is the book's own tags, not the series'. */
 	entryId?: number
 ): TagSuggestion[] {
-	const visible = visibleWhere(reveal);
+	// Counted over the library: a browsing record's tags suggest nothing.
+	const visible = libraryWhere(reveal);
 	const prefix = `${input.value.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 	const rows = getDb()
 		.prepare(

@@ -55,6 +55,7 @@ import { bookEditions, setBookLanguage } from '$lib/server/editions';
 import {
 	enqueue,
 	isDownloadsError,
+	previewIdOf,
 	retry,
 	seriesDownloads,
 	setFollowed,
@@ -114,6 +115,16 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 	// series that does not exist, so the URL cannot be used to probe.
 	const series = seriesPage(seriesId(params.id), reveal);
 	if (!series) error(404, 'not found');
+	// A browsing record (doc/BROWSING.md) has no series screen of its own: it is
+	// its source's preview, with + ADD, until it is added.
+	const browsing = getDb()
+		.prepare(`SELECT origin_key FROM series WHERE id = ? AND in_library = 0`)
+		.get(series.id) as { origin_key: string } | undefined;
+	if (browsing) {
+		const preview = previewIdOf(browsing.origin_key);
+		if (preview) redirect(303, `/downloads/source/${preview}`);
+		error(404, 'not found');
+	}
 	const { shelves } = await parent();
 	const books = isBookSeries(series);
 	const single = series.kind === 'doujin' && series.entries.length === 1;

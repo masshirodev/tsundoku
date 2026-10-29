@@ -148,14 +148,38 @@
 							>{count(m.chapters.length)}</span
 						>
 					</div>
-					<ol>
-						{#each m.chapters as c (c.id)}
-							<li class="ch">
-								<span class="num">{c.number >= 0 ? formatNumber(c.number) : ''}</span>
-								<span class="t">{c.name}</span>
-							</li>
-						{/each}
-					</ol>
+					{#if m.kind === 'anime'}
+						<!-- An episode plays without ADD (doc/BROWSING.md, c161): one form, a
+						     button per row, so it works without script. -->
+						<form method="POST" action="?/open">
+							<ol>
+								{#each m.chapters as c (c.id)}
+									<li class="ch">
+										<button
+											class="open"
+											name="ep"
+											value={c.url}
+											disabled={!offline.online}
+											aria-label={`Play ${c.name}`}
+										>
+											<span class="num">{c.number >= 0 ? formatNumber(c.number) : ''}</span>
+											<span class="t">{c.name}</span>
+											<span class="go">PLAY</span>
+										</button>
+									</li>
+								{/each}
+							</ol>
+						</form>
+					{:else}
+						<ol>
+							{#each m.chapters as c (c.id)}
+								<li class="ch">
+									<span class="num">{c.number >= 0 ? formatNumber(c.number) : ''}</span>
+									<span class="t">{c.name}</span>
+								</li>
+							{/each}
+						</ol>
+					{/if}
 				</section>
 			</div>
 		{/if}
@@ -430,6 +454,34 @@
 		.ch {
 			height: 52px;
 		}
+	}
+	.open {
+		all: unset;
+		box-sizing: border-box;
+		display: flex;
+		align-items: center;
+		width: 100%;
+		height: 100%;
+		cursor: pointer;
+	}
+	.open:hover .go,
+	.open:focus-visible .go {
+		color: var(--text);
+	}
+	.open:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: -2px;
+	}
+	.open:disabled {
+		cursor: default;
+		opacity: 0.4;
+	}
+	.go {
+		flex-shrink: 0;
+		padding-right: var(--pad);
+		font: 500 12px var(--font-mono);
+		letter-spacing: var(--tracking-label);
+		color: var(--text-2);
 	}
 	.num {
 		width: 80px;

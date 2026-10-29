@@ -1016,6 +1016,16 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		series_id INTEGER PRIMARY KEY REFERENCES series(id) ON DELETE CASCADE,
 		checked_at INTEGER NOT NULL
 	);
+	`,
+	// v50: the browsing record (doc/BROWSING.md; card c161). A series opened from
+	// a source's preview without ADD is a series all the same, so the readers and
+	// the player work on it unchanged, but `in_library = 0` keeps it off every
+	// shelf, count and scan; HISTORY shows it, and ADD sets it to 1, its progress
+	// kept. `browsed_at` is when it was last opened that way.
+	`
+	ALTER TABLE series ADD COLUMN in_library INTEGER NOT NULL DEFAULT 1 CHECK (in_library IN (0, 1));
+	ALTER TABLE series ADD COLUMN browsed_at INTEGER;
+	CREATE INDEX series_browsing ON series(browsed_at) WHERE in_library = 0;
 	`
 ];
 

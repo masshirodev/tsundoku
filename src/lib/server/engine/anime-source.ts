@@ -139,14 +139,59 @@ export function animeKey(id: string): string | null {
 	return ref ? animeKeyOf(ref.sourceId, splitMemo(ref.url).url) : null;
 }
 
-/** ADD TO LIBRARY for an anime: a series at once, every episode NOT DOWNLOADED, through the one writer. */
+/**
+ * ADD TO LIBRARY for an anime: a series at once, every episode NOT DOWNLOADED,
+ * through the one writer. A browsing record of it (doc/BROWSING.md) becomes
+ * the library's series, its progress and history kept: it was the same series
+ * all along.
+ */
 export async function addAnime(id: string, now = Date.now()): Promise<number> {
 	const key = animeKey(id);
 	if (!key) throw new AddError('That isn’t an anime');
 	const db = getDb();
-	const existing = db.prepare(`SELECT id FROM series WHERE origin_key = ?`).get(key) as
-		{ id: number } | undefined;
-	if (existing) return existing.id;
+	const existing = db.prepare(`SELECT id, in_library FROM series WHERE origin_key = ?`).get(key) as
+		{ id: number; in_library: number } | undefined;
+	if (existing) {
+		if (existing.in_library === 0) {
+			db.prepare(
+				`UPDATE series SET in_library = 1, browsed_at = NULL, added_at = ?, arrived_at = ? WHERE id = ?`
+			).run(now, now, existing.id);
+			forgetSourceUse();
+		}
+		return existing.id;
+	}
+	const seriesId = await writeAnime(id, key, now, false);
+	db.prepare(`UPDATE series SET arrived_at = ? WHERE id = ?`).run(now, seriesId);
+	return seriesId;
+}
+
+/**
+ * Opening an anime from its preview without ADD (doc/BROWSING.md; card c161):
+ * the series it is, the library's when it's in it, else a browsing record,
+ * written on the first open, so the player, its progress and HISTORY work on
+ * it as on any series. On no shelf until ADD.
+ */
+export async function browseAnime(id: string, now = Date.now()): Promise<number> {
+	const key = animeKey(id);
+	if (!key) throw new AddError('That isn’t an anime');
+	const db = getDb();
+	const existing = db.prepare(`SELECT id, in_library FROM series WHERE origin_key = ?`).get(key) as
+		{ id: number; in_library: number } | undefined;
+	if (existing) {
+		if (existing.in_library === 0)
+			db.prepare(`UPDATE series SET browsed_at = ? WHERE id = ?`).run(now, existing.id);
+		return existing.id;
+	}
+	return writeAnime(id, key, now, true);
+}
+
+async function writeAnime(
+	id: string,
+	key: string,
+	now: number,
+	browsing: boolean
+): Promise<number> {
+	const db = getDb();
 	const a = await fetchAnime(id);
 	if (!a) throw new AddError('That anime isn’t at its source');
 	const plan = planOf(a, now);
@@ -155,7 +200,7 @@ export async function addAnime(id: string, now = Date.now()): Promise<number> {
 	plan.originKey = key;
 	plan.coverUrl = await coverAddress(a.details.thumbnail_url);
 	const rootId = ensureNamedRoot(db, 'Anime', animeRoot(), false);
-	writeSeries(plan, { rootId, jobId: null, now });
+	writeSeries(plan, { rootId, jobId: null, now, browsing });
 	const row = db.prepare(`SELECT id FROM series WHERE origin_key = ?`).get(key) as
 		{ id: number } | undefined;
 	if (!row) {
@@ -164,8 +209,7 @@ export async function addAnime(id: string, now = Date.now()): Promise<number> {
 			buried ? 'that anime was deleted here once, and stays gone' : 'it couldn’t be added'
 		);
 	}
-	db.prepare(`UPDATE series SET arrived_at = ? WHERE id = ?`).run(now, row.id);
-	forgetSourceUse();
+	if (!browsing) forgetSourceUse();
 	void refreshCovers({ ids: [row.id], remote: true });
 	return row.id;
 }

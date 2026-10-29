@@ -143,7 +143,8 @@ function answer(b: EngineCall): unknown {
 	const page = b.page ?? 1;
 	const animeData = (b as { animeData?: { url: string } }).animeData;
 	switch (b.method) {
-		// The anime source (tests/browse-anime.e2e.ts): one show, two seasons of two.
+		// The anime source (tests/browse-anime.e2e.ts): two shows, two seasons of two
+		// each. Kōri is added; Yuki is only ever played from its preview (c161).
 		case 'supportLatestAnime':
 			return false;
 		case 'filterSchemaAnime':
@@ -151,13 +152,16 @@ function answer(b: EngineCall): unknown {
 		case 'getPopularAnime':
 		case 'getLatestAnime':
 			return {
-				animes: [{ url: '/show/kori', title: 'Kōri no Shiro no Majo', status: 2 }],
+				animes: [
+					{ url: '/show/kori', title: 'Kōri no Shiro no Majo', status: 2 },
+					{ url: '/show/yuki', title: 'Yuki no Tabibito', status: 1 }
+				],
 				hasNextPage: false
 			};
 		case 'getDetailsAnime':
 			return {
 				url: animeData?.url ?? '/show/kori',
-				title: 'Kōri no Shiro no Majo',
+				title: animeData?.url === '/show/yuki' ? 'Yuki no Tabibito' : 'Kōri no Shiro no Majo',
 				description: 'A witch, and a castle of ice.',
 				genre: 'Fantasy',
 				status: 2
@@ -174,13 +178,21 @@ function answer(b: EngineCall): unknown {
 					timestamps: [{ start: 1, end: 3, name: 'Opening', type: 'Opening' }]
 				}
 			];
-		case 'getEpisodeList':
+		case 'getEpisodeList': {
+			// Each show's episodes are its own: the writer folds a series onto whichever
+			// already holds its episodes' addresses, as a real source's never collide.
+			const at = animeData?.url === '/show/yuki' ? '/ep/yuki-' : '/ep/';
 			return [
-				{ url: '/ep/s2e2', name: 'Season 2 - Episode 2 - Thaw', episode_number: 2 },
-				{ url: '/ep/s2e1', name: 'Season 2 - Episode 1', episode_number: 1 },
-				{ url: '/ep/s1e2', name: 'Season 1 - Episode 2 - A Door Without a Key', episode_number: 2 },
-				{ url: '/ep/s1e1', name: 'Season 1 - Episode 1 - The First Snow', episode_number: 1 }
+				{ url: `${at}s2e2`, name: 'Season 2 - Episode 2 - Thaw', episode_number: 2 },
+				{ url: `${at}s2e1`, name: 'Season 2 - Episode 1', episode_number: 1 },
+				{
+					url: `${at}s1e2`,
+					name: 'Season 1 - Episode 2 - A Door Without a Key',
+					episode_number: 2
+				},
+				{ url: `${at}s1e1`, name: 'Season 1 - Episode 1 - The First Snow', episode_number: 1 }
 			];
+		}
 		case 'supportLatestManga':
 			return b.sourceId === SOURCES.open.id;
 		case 'filterSchemaManga':
