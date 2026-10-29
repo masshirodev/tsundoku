@@ -1,3 +1,4 @@
+import type { Episode } from '$lib/library/anime';
 import { getDb } from './db';
 import { editionToBase } from '$lib/library/editions';
 import { VISIBLE_SQL, visibleWhere } from './visibility';
@@ -42,6 +43,11 @@ type EntryRow = {
 	matter: string;
 	last_offset: number | null;
 	volume: string;
+	duration_s: number | null;
+	season: number | null;
+	episode_number: number | null;
+	episode_note: string;
+	ending_at: number | null;
 };
 
 function parseAlts(raw: string): string[] {
@@ -66,7 +72,8 @@ export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
 		db
 			.prepare(
 				`SELECT id, position, label, title, read_at, last_position, last_opened_at, page_count, file, bytes,
-					rating, favourite, added_at, cover_page, available, locator, matter, last_offset, volume
+					rating, favourite, added_at, cover_page, available, locator, matter, last_offset, volume,
+					duration_s, season, episode_number, episode_note, ending_at
 				FROM entries WHERE series_id = ? AND shadowed = 0 ORDER BY position, id`
 			)
 			.all(id) as EntryRow[]
@@ -90,7 +97,19 @@ export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
 		matter: e.matter as SeriesEntry['matter'],
 		lastOffset: e.last_offset,
 		volume: e.volume,
-		tags: []
+		tags: [],
+		// An episode's own (doc/ANIME.md). Its picture comes with its source (c154).
+		episode:
+			card.kind === 'anime'
+				? {
+						durationS: e.duration_s,
+						season: e.season,
+						number: e.episode_number,
+						note: e.episode_note as Episode['note'],
+						thumb: '',
+						endingAt: e.ending_at
+					}
+				: null
 	}));
 	if (entries.length > 1) {
 		// A series of books: each book carries its own tags.

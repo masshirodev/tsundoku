@@ -786,7 +786,7 @@
 						<ContinueRow
 							title={item.title}
 							meta={continueSub(item, isOffline ? { cached } : undefined)}
-							progress={progress(item)}
+							progress={item.entryFraction ?? progress(item)}
 							src={coverSrc(item.id, item.cover)}
 							hue={item.hue}
 							unavailable={isOffline && !cached}

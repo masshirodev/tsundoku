@@ -71,6 +71,10 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		error(404, 'not found');
 	}
 
+	// An episode is watched in the player, card c156 (doc/ANIME.md); until it's
+	// built there is nothing here to open one with.
+	if (series.kind === 'anime') error(404, 'not found');
+
 	// A novel is read as text, from its EPUB (doc/TEXT-READER.md).
 	if (series.kind === 'novel') {
 		// One EPUB per volume: a novel grouped from several books reads each

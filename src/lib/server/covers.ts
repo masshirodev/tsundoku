@@ -116,9 +116,10 @@ function firstEntry(s: SeriesRow): { id: number; file: string } | undefined {
 		.get(s.id) as { id: number; file: string } | undefined;
 }
 
-/** The first page of the first downloaded entry: the last resort. */
+/** The first page of the first downloaded entry: the last resort. An episode has no pages. */
 function pageSource(s: SeriesRow): Source | null {
-	if (!s.path || s.path.startsWith(SAMPLE_PREFIX) || s.kind === 'novel') return null;
+	if (!s.path || s.path.startsWith(SAMPLE_PREFIX) || s.kind === 'novel' || s.kind === 'anime')
+		return null;
 	const first = firstEntry(s);
 	if (!first) return null;
 	return {

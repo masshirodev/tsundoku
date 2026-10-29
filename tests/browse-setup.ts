@@ -387,6 +387,63 @@ function seed(dbPath: string, store: string): void {
 			`INSERT INTO engine_sources (id, pkg, name, lang, base_url) VALUES (?, ?, ?, 'en', 'https://example.org')`
 		).run(s.id, s.pkg, s.name);
 	}
+	// An anime series (tests/browse-anime.e2e.ts; doc/ANIME.md), as Anime States
+	// draws one: season 1 watched through, season 2 part-way, EP. 7 at 14:32 left,
+	// EP. 8 downloaded, a recap and a filler.
+	const anime = Number(
+		db
+			.prepare(
+				`INSERT INTO series (root_id, title, kind, source, status, hue, added_at, indexed_at, alt_titles)
+				VALUES (?, 'Tsukiakari no Ryokōsha', 'anime', 'AnimePahe', 'ongoing', 255, ?, ?, ?)`
+			)
+			.run(root, now, now, JSON.stringify(['月明かりの旅行者', 'Moonlit Travellers']))
+			.lastInsertRowid
+	);
+	const put = db.prepare(
+		`INSERT INTO entries (series_id, position, label, title, added_at, read_at, last_position, last_opened_at,
+			available, file, bytes, duration_s, season, episode_number, episode_note)
+		VALUES (@series, @position, @label, @title, @now, @read, @at, @opened, @available, @file, @bytes, 1440, @season, @n, @note)`
+	);
+	// Opened just now, so it heads CONTINUE above the sample's minutes-ago rows.
+	const opened = Date.now();
+	const TITLES = [
+		'Departure, Again',
+		'The Ferry at Imre',
+		'',
+		'Weights and Measures',
+		'Two Roads North',
+		'',
+		'The Lantern Market',
+		'Salt Road',
+		'A Letter from Hollin',
+		'',
+		"The Ferryman's Count",
+		''
+	];
+	for (const season of [1, 2])
+		for (let n = 1; n <= 12; n++) {
+			const watched = season === 1 || n <= 6;
+			put.run({
+				series: anime,
+				position: (season - 1) * 12 + n,
+				n,
+				label: `Ep. ${n}`,
+				title: season === 2 ? TITLES[n - 1] : `Episode ${n}`,
+				now,
+				read: watched ? opened - (25 - n - (season - 1) * 12) * 60_000 : null,
+				at: season === 2 && n === 7 ? 568 : null,
+				opened: watched
+					? opened - (25 - n - (season - 1) * 12) * 60_000
+					: season === 2 && n === 7
+						? opened
+						: null,
+				available: season === 2 && n === 8 ? 1 : 0,
+				file: season === 2 && n === 8 ? 'Season 02/S02E08.mkv' : '',
+				bytes: season === 2 && n === 8 ? 410_000_000 : 0,
+				season,
+				note: season === 2 && n === 6 ? 'recap' : season === 2 && n === 10 ? 'filler' : ''
+			});
+		}
 	// A novel plugin that needs no network (tests/browse-novels.e2e.ts), installed
 	// as the EXTENSIONS screen would: its file in the store under its hash.
 	const shelf = readFileSync('tests/fixtures/lnreader/shelf.js');

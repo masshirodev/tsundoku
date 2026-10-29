@@ -123,4 +123,21 @@ describe('day labels', () => {
 		expect(dayLabel('2025-12-31', 118, today, '2026-01-02').right).toBe('2025');
 		expect(dayLabel('2025-12-30', 119, today, '2025-12-31').right).toBe('');
 	});
+
+	it('counts episodes as chapters, an episode part-watched by its time (doc/ANIME.md)', () => {
+		const ep = (o: Partial<Omit<HistoryDay, 'last'>> & { last?: Partial<HistoryDay['last']> }) =>
+			day({
+				kind: 'anime',
+				entryCount: 24,
+				first: { label: 'Ep. 3', rank: 3 },
+				...o,
+				last: { label: 'Ep. 5', rank: 5, page: 568, pageCount: 0, ...o.last }
+			});
+		expect(historyMeta(ep({}))).toBe('ANIME · EP. 3 → 5 · 9:28');
+		expect(historyMeta(ep({}), true)).toBe('ANIME · EP. 3 → 5');
+		expect(historyMeta(ep({ first: { label: 'Ep. 5', rank: 5 } }), true)).toBe(
+			'ANIME · EP. 5 · 9:28'
+		);
+		expect(historyMeta(ep({ last: { finished: true, page: null } }))).toBe('ANIME · EP. 3 → 5');
+	});
 });

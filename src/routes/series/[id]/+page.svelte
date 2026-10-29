@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { animeContinue } from '$lib/library/anime';
+	import EpisodeList from './EpisodeList.svelte';
 	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
 	import { replacing, stepsBackTo } from '$lib/back';
 	import type { ActionResult } from '@sveltejs/kit';
@@ -105,7 +107,9 @@
 		throughForm?.requestSubmit();
 	}
 	const dismissedKey = $derived(form && 'dismissed' in form ? form.dismissed : null);
-	const action = $derived(continueAction(series));
+	const action = $derived(
+		series.kind === 'anime' ? animeContinue(series.entries) : continueAction(series)
+	);
 
 	// ---- deleting ------------------------------------------------------------------
 	let deletingSeries = $state(false);
@@ -451,6 +455,17 @@
 				/>
 			{:else if doujin}
 				<PageGrid {series} cover={data.cover} editions={data.editions} />
+			{:else if series.kind === 'anime'}
+				<EpisodeList
+					{series}
+					{selecting}
+					{selected}
+					cached={cachedEntries}
+					{onrow}
+					onselect={() => (selecting = true)}
+					onlong={markThrough}
+					downloads={dlStates}
+				/>
 			{:else}
 				<EntryList
 					{series}

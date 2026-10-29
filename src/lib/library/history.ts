@@ -1,3 +1,4 @@
+import { clock as timeAt } from './anime.ts';
 import { kindLabel } from './labels';
 import type { Kind } from './types';
 
@@ -54,7 +55,7 @@ export function entryRange(first: string, last: string): string {
 /**
  * "MANHWA · CH. 380 → 388 · P. 12", "MANGA · CH. 22 · P. 9 OF 31",
  * "NOVEL · VOL. 13 · 41%", "MANGA · CH. 131 → 140 · UP TO DATE",
- * "MANGA · CH. 97 · FINISHED", "DOUJIN · P. 18 OF 30".
+ * "MANGA · CH. 97 · FINISHED", "DOUJIN · P. 18 OF 30", "ANIME · EP. 3 → 5 · 9:28".
  *
  * `short` is the phone's: the page and UP TO DATE drop off a range, which is
  * where the phone runs out of width first.
@@ -76,6 +77,9 @@ export function historyMeta(d: HistoryDay, short = false): string {
 	if (atEnd) {
 		if (single || d.status === 'completed') parts.push('FINISHED');
 		else if (!(short && range)) parts.push('UP TO DATE');
+	} else if (d.kind === 'anime' && !d.last.finished && d.last.page !== null) {
+		// An episode's place is seconds into it (doc/ANIME.md): "EP. 7 · 9:28".
+		if (!(short && range)) parts.push(timeAt(d.last.page));
 	} else if (!d.last.finished && d.last.page !== null && d.last.pageCount > 0) {
 		const page = Math.min(d.last.pageCount, d.last.page + 1);
 		if (d.kind === 'novel') parts.push(`${Math.round((page / d.last.pageCount) * 100)}%`);

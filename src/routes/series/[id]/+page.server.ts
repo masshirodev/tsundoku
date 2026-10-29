@@ -115,15 +115,16 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		// Where a book can move to, or singles can be added: same root only.
 		otherSeries: seriesOfBooks(reveal).filter((o) => o.rootId === root && o.id !== series.id),
 		created: url.searchParams.get('created') === '1',
-		// Japanese (doc/JAPANESE.md): OCR's progress, and the words looked up. Never for novels.
-		ocr: series.kind === 'novel' ? null : ocrPlace(series.id),
+		// Japanese (doc/JAPANESE.md): OCR's progress, and the words looked up. Never for
+		// novels, which are text, nor anime, which has no pages (doc/ANIME.md).
+		ocr: series.kind === 'novel' || series.kind === 'anime' ? null : ocrPlace(series.id),
 		// The PAGES grid's page menu (c26): where the covers come from now.
 		cover: coverState(series.id),
 		// A book here with a likely twin (doc/DUPLICATE-BOOKS.md): the band.
 		twin: twinBand(series.id, reveal),
 		// One book in several languages (doc/EDITIONS.md): its LANGUAGE and EDITIONS rows.
 		editions: series.kind === 'doujin' ? bookEditions(series.id) : null,
-		words: series.kind === 'novel' ? null : wordsOf(series.id, reveal),
+		words: series.kind === 'novel' || series.kind === 'anime' ? null : wordsOf(series.id, reveal),
 		// Its MyAnimeList / AniList entry (doc/LINKS.md): the LINK and COVER rows.
 		link: linkState(series.id),
 		// What each catalogue's list says, and what tsundoku sent (doc/TRACKING.md).
@@ -257,6 +258,7 @@ export const actions: Actions = {
 	ocr: async ({ params, cookies }) => {
 		const s = target(params, cookies);
 		if (s.kind === 'novel') return fail(400, { message: 'novels are text already' });
+		if (s.kind === 'anime') return fail(400, { message: 'an episode has no pages' });
 		setSeriesOcr(s.id, true);
 		return { ok: true };
 	},

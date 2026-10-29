@@ -1,3 +1,4 @@
+import type { Episode } from './anime.ts';
 import type { Kind, Rating, SeriesCard } from './types';
 
 /**
@@ -46,6 +47,8 @@ export type SeriesEntry = {
 	 */
 	volume: string;
 	tags: SeriesTag[];
+	/** An anime series' episode (doc/ANIME.md): its length, season and the like; absent elsewhere. */
+	episode?: Episode | null;
 };
 
 export type SeriesTag = { namespace: string; value: string };

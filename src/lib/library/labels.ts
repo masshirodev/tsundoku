@@ -27,23 +27,27 @@ export function continueSub(item: ContinueItem, offline?: { cached: boolean }): 
 	const kind = kindLabel(item.kind);
 	if (offline && !offline.cached) return `${kind} · NOT CACHED`;
 	// A single book has nothing to count: "DOUJIN", not "DOUJIN · Book of 1".
+	// An episode says the time left instead (doc/ANIME.md): "S2 EP. 7 · 14:32 LEFT".
 	const where =
-		item.kind === 'doujin' && item.entryCount <= 1
-			? null
-			: item.entryCount > 0
-				? `${item.entryLabel} of ${item.entryCount}`
-				: item.entryLabel;
+		item.kind === 'anime'
+			? item.entryLabel
+			: item.kind === 'doujin' && item.entryCount <= 1
+				? null
+				: item.entryCount > 0
+					? `${item.entryLabel} of ${item.entryCount}`
+					: item.entryLabel;
 	const parts = [kind, where, offline ? 'CACHED' : null].filter((p) => p !== null);
 	return parts.join(' · ');
 }
 
-/** Novels are counted in volumes, everything with pages in chapters. */
-export const unitLabel = (kind: Kind) => (kind === 'novel' ? 'VOL' : 'CH');
+/** Novels are counted in volumes, anime in episodes, everything with pages in chapters. */
+export const unitLabel = (kind: Kind) =>
+	kind === 'novel' ? 'VOL' : kind === 'anime' ? 'EP' : 'CH';
 
-/** "MANGA · 58 CH · 41 READ · +3 NEW" */
+/** "MANGA · 58 CH · 41 READ · +3 NEW"; an anime's are WATCHED. */
 export function sheetMeta(item: SeriesCard): string {
 	const parts = [kindLabel(item.kind), `${item.entryCount} ${unitLabel(item.kind)}`];
-	parts.push(`${item.readCount} READ`);
+	parts.push(`${item.readCount} ${item.kind === 'anime' ? 'WATCHED' : 'READ'}`);
 	if (item.newCount > 0) parts.push(`+${item.newCount} NEW`);
 	return parts.join(' · ');
 }

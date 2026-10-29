@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { animeContinue, seriesCountLine } from '$lib/library/anime';
 	import { ocrLines, type OcrPlace } from '$lib/japanese/ocr';
 	import { enhance } from '$app/forms';
 	import { replacing } from '$lib/back';
@@ -320,7 +321,9 @@
 	const ratingUnsaved = $derived(saves.unsaved(`rating:${series.id}`));
 	const favUnsaved = $derived(saves.unsaved(`fav:${series.id}`));
 
-	const action = $derived(continueAction(series));
+	// An anime series' CONTINUE is its episode and the time left (doc/ANIME.md).
+	const anime = $derived(series.kind === 'anime');
+	const action = $derived(anime ? animeContinue(series.entries) : continueAction(series));
 	const direction = $derived(effectiveDirection(series));
 	const tags = $derived(tagGroups(series.tags));
 	const onShelves = $derived(
@@ -335,13 +338,16 @@
 	const resumeHref = $derived(
 		opening && !outline
 			? readHref(opening.entryId)
-			: action.entry && !outline && action.entry.available
+			: action.entry && !outline && (anime || action.entry.available)
 				? readHref(action.entry.id)
 				: undefined
 	);
 	// The chapter it would open has no file yet (Download States 1e, after adding):
-	// START is dimmed until it has one, as a row with no file doesn't open.
-	const noFile = $derived(!outline && !opening && !!action.entry && !action.entry.available);
+	// START is dimmed until it has one, as a row with no file doesn't open. An
+	// episode streams, so it plays either way (Anime States, "Two kinds of have").
+	const noFile = $derived(
+		!anime && !outline && !opening && !!action.entry && !action.entry.available
+	);
 	const ctaLabel = $derived(
 		opening && editions && !editions.read && openingAt !== null
 			? `READ FROM P. ${openingAt + 1}`
@@ -395,6 +401,7 @@
 			{:else}
 				{#each series.altTitles as alt (alt)}<div class="alt">{alt}</div>{/each}
 			{/if}
+			{#if anime && !outline}<div class="count">{seriesCountLine(series.entries)}</div>{/if}
 		</div>
 	</div>
 
@@ -572,7 +579,8 @@
 		{/if}
 	{/if}
 
-	{#if !outline}
+	<!-- A video has no reading direction: an anime series has no such row (Index Anime Series). -->
+	{#if !outline && !anime}
 		<form method="POST" action="?/direction" use:enhance class="row">
 			<div class="label">{directionRowLabel(series.kind)}</div>
 			<div class="seg">
@@ -587,7 +595,8 @@
 				{/each}
 			</div>
 		</form>
-
+	{/if}
+	{#if !outline}
 		{#if ocrRow}
 			<!-- Japanese (doc/JAPANESE.md): how far OCR has read it, on the panel ground. -->
 			<form method="POST" action="?/ocr" use:enhance class="row panel-row ocr-row">
@@ -1054,6 +1063,11 @@
 	}
 	.names .alt + .alt {
 		margin-top: -6px;
+	}
+	/* "24 EPISODES · 2 SEASONS · 18 WATCHED" (Index Anime Series). */
+	.count {
+		font: 400 13px var(--font-mono);
+		color: var(--text-2);
 	}
 
 	.label {

@@ -45,12 +45,14 @@ const SAMPLE_ABOUT =
 	'are often long and scraped with odd formatting, which is why this row clamps to two ' +
 	'lines and opens on MORE.';
 
-const PAGES: Record<Kind, number> = { manga: 24, manhwa: 54, doujin: 30, novel: 100 };
+// An episode has no pages; its size is a 24-minute 1080p episode's (doc/ANIME.md).
+const PAGES: Record<Kind, number> = { manga: 24, manhwa: 54, doujin: 30, novel: 100, anime: 0 };
 const BYTES: Record<Kind, number> = {
 	manga: 14_000_000,
 	manhwa: 16_000_000,
 	doujin: 84_000_000,
-	novel: 0
+	novel: 0,
+	anime: 410_000_000
 };
 
 export const SAMPLE_ROWS: Row[] = [

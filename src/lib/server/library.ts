@@ -1,3 +1,4 @@
+import { watchingAt } from '$lib/library/anime';
 import { getDb } from './db';
 import { HIDDEN_SQL, VISIBLE_SQL } from './visibility.ts';
 import { getSetting } from './settings.ts';
@@ -494,22 +495,60 @@ export function continueReading(
 	// A book in a series of books is named by its place in the owner's order
 	// ("Book 3"), since its own label is just "Book" (doc/BOOKS.md).
 	const last = db.prepare(
-		`SELECT e.label, e.last_opened_at,
-			(SELECT COUNT(*) FROM entries x WHERE x.series_id = e.series_id AND x.shadowed = 0 AND x.position <= e.position) AS rank
+		`SELECT e.id, e.position, e.label, e.last_opened_at, e.read_at, e.last_position, e.duration_s, e.season, e.episode_number,
+			(SELECT COUNT(*) FROM entries x WHERE x.series_id = e.series_id AND x.shadowed = 0 AND x.position <= e.position) AS rank,
+			EXISTS (SELECT 1 FROM entries x WHERE x.series_id = e.series_id AND x.season IS NOT NULL) AS seasons
 		FROM entries e WHERE e.series_id = ? AND e.shadowed = 0 AND e.last_opened_at IS NOT NULL
 		ORDER BY e.last_opened_at DESC LIMIT 1`
 	);
 	const cards = withEditions(rows.map(toCard));
 	const items = rows.map((row, i) => {
-		const entry = last.get(row.id) as { label: string; last_opened_at: number; rank: number };
+		const entry = last.get(row.id) as {
+			id: number;
+			position: number;
+			label: string;
+			last_opened_at: number;
+			read_at: number | null;
+			last_position: number | null;
+			duration_s: number | null;
+			season: number | null;
+			episode_number: number | null;
+			rank: number;
+			seasons: number;
+		};
 		const card = cards[i];
+		// An episode says where watching got to: "S2 EP. 7 · 14:32 LEFT" (doc/ANIME.md).
 		const entryLabel =
-			card.kind === 'doujin' && card.entryCount > 1 ? `Book ${entry.rank}` : entry.label;
+			card.kind === 'anime'
+				? watchingAt(
+						{
+							id: entry.id,
+							number: entry.position,
+							readAt: entry.read_at,
+							lastPosition: entry.last_position,
+							lastOpenedAt: entry.last_opened_at,
+							episode: {
+								durationS: entry.duration_s,
+								season: entry.season,
+								number: entry.episode_number,
+								note: '',
+								thumb: '',
+								endingAt: null
+							}
+						},
+						entry.seasons === 1
+					)
+				: card.kind === 'doujin' && card.entryCount > 1
+					? `Book ${entry.rank}`
+					: entry.label;
 		return {
 			...card,
 			entryLabel,
 			lastReadAt: entry.last_opened_at,
-			resumeId: resumeEntry(row.id)?.id ?? null
+			resumeId: resumeEntry(row.id)?.id ?? null,
+			...(card.kind === 'anime' && entry.duration_s && entry.last_position !== null
+				? { entryFraction: Math.min(1, entry.last_position / entry.duration_s) }
+				: {})
 		};
 	});
 	return { items, total };
@@ -519,7 +558,8 @@ export function continueReading(
 const KIND_SHELVES = [
 	['manga', 'Manga'],
 	['manhwa', 'Manhwa'],
-	['novel', 'Novels']
+	['novel', 'Novels'],
+	['anime', 'Anime']
 ] as const;
 
 export function listShelves(opts: { reveal: boolean; withNew: boolean }): Shelf[] {

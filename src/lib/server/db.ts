@@ -63,9 +63,11 @@ export function closeDb(): void {
 
 /**
  * Ordered, append-only. A rung is never edited once it has shipped; a change
- * is a new rung. `user_version` records how far a database has climbed.
+ * is a new rung. `user_version` records how far a database has climbed. A
+ * rung is SQL, or, where SQL alone can't say it, a function given the
+ * connection, run in the same transaction (rung 47).
  */
-const MIGRATIONS: string[] = [
+const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	`
 	-- A folder the scanner walks. Hidden roots hide everything inside them:
 	-- the Hentoid import lands in one by default.
@@ -963,8 +965,71 @@ const MIGRATIONS: string[] = [
 		series_id INTEGER PRIMARY KEY REFERENCES series(id) ON DELETE CASCADE,
 		checked_at INTEGER NOT NULL
 	);
-	`
+	`,
+	// Rung 47: anime (doc/ANIME.md; card c153). A series of kind `anime` is
+	// episodes; an episode's last_position is seconds into it, not a page.
+	(conn) => {
+		widenKinds(conn);
+		conn.exec(`
+		-- Seconds; NULL until a source or a file says.
+		ALTER TABLE entries ADD COLUMN duration_s REAL;
+		-- The source's season; NULL for a flat list.
+		ALTER TABLE entries ADD COLUMN season INTEGER;
+		-- Its number as the source gives it, which starts again each season.
+		-- position stays the order across the whole series, unique as for a
+		-- chapter, so nothing that reads positions (duplicates, the reader's
+		-- next) meets two "EP. 1"s. NULL: the position is the number.
+		ALTER TABLE entries ADD COLUMN episode_number REAL;
+		-- FILLER or RECAP, where the source says so.
+		ALTER TABLE entries ADD COLUMN episode_note TEXT NOT NULL DEFAULT ''
+			CHECK (episode_note IN ('', 'filler', 'recap'));
+		-- The episode's 16:9 picture at the source, when it has one.
+		ALTER TABLE entries ADD COLUMN thumb_url TEXT NOT NULL DEFAULT '';
+		-- Where the ending starts, in seconds, from the source's timestamps:
+		-- an episode is watched there (doc/ANIME.md, "Watching is reading").
+		ALTER TABLE entries ADD COLUMN ending_at REAL;
+		`);
+	}
 ];
+
+/**
+ * Rung 47's first half: `anime` among series.kind's allowed values. SQLite
+ * can't change a CHECK in place, and the usual way round (a new table, the
+ * rows copied, the old one dropped) would, with foreign keys on, cascade the
+ * drop through every table that references a series: the whole library. A
+ * CHECK that allows more changes nothing stored, which is the case SQLite's
+ * documentation gives for editing the schema's text instead (lang_altertable,
+ * "Making Other Kinds Of Table Schema Changes"): writable_schema, the schema
+ * version moved on, and the result checked before the rung commits.
+ * better-sqlite3 opens connections defensive, which forbids that, so unsafe
+ * mode is on for these few statements only.
+ */
+const OLD_KINDS = `CHECK (kind IN ('manga', 'manhwa', 'doujin', 'novel'))`;
+const NEW_KINDS = `CHECK (kind IN ('manga', 'manhwa', 'doujin', 'novel', 'anime'))`;
+function widenKinds(conn: Database.Database): void {
+	const sql = (
+		conn
+			.prepare(`SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'series'`)
+			.get() as {
+			sql: string;
+		}
+	).sql;
+	if (!sql.includes(OLD_KINDS)) throw new Error('rung 47: series.kind is not the CHECK it expects');
+	const version = conn.pragma('schema_version', { simple: true }) as number;
+	conn.unsafeMode(true);
+	try {
+		conn.pragma('writable_schema = ON');
+		conn
+			.prepare(`UPDATE sqlite_schema SET sql = ? WHERE type = 'table' AND name = 'series'`)
+			.run(sql.replace(OLD_KINDS, NEW_KINDS));
+		conn.pragma(`schema_version = ${version + 1}`);
+		conn.pragma('writable_schema = OFF');
+	} finally {
+		conn.unsafeMode(false);
+	}
+	const ok = conn.pragma('integrity_check', { simple: true });
+	if (ok !== 'ok') throw new Error(`rung 47: integrity check after widening series.kind: ${ok}`);
+}
 
 function migrate(conn: Database.Database, path: string): void {
 	const current = conn.pragma('user_version', { simple: true }) as number;
@@ -993,7 +1058,9 @@ export function climb(conn: Database.Database, upTo = MIGRATIONS.length): void {
 	for (let i = current; i < Math.min(upTo, MIGRATIONS.length); i++) {
 		conn
 			.transaction(() => {
-				conn.exec(MIGRATIONS[i]);
+				const rung = MIGRATIONS[i];
+				if (typeof rung === 'string') conn.exec(rung);
+				else rung(conn);
 				conn.pragma(`user_version = ${i + 1}`);
 			})
 			.immediate();

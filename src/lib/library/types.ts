@@ -4,9 +4,10 @@
  * every rule here is testable as a pure function.
  */
 
-export type Kind = 'manga' | 'manhwa' | 'doujin' | 'novel';
+/** `anime` is a series of episodes (doc/ANIME.md; rung 47). */
+export type Kind = 'manga' | 'manhwa' | 'doujin' | 'novel' | 'anime';
 
-export const KINDS: readonly Kind[] = ['manga', 'manhwa', 'doujin', 'novel'];
+export const KINDS: readonly Kind[] = ['manga', 'manhwa', 'doujin', 'novel', 'anime'];
 
 /**
  * 0-10, where 0 is unrated and 1-10 is the owner's judgement: five steps with
@@ -56,6 +57,11 @@ export type ContinueItem = SeriesCard & {
 	lastReadAt: number;
 	/** The entry ▶ opens (`resumeEntry`). */
 	resumeId: number | null;
+	/**
+	 * How far into the episode being watched, 0-1, for an anime series: its bar
+	 * is the episode's, not the series' (Index Anime Library). Absent elsewhere.
+	 */
+	entryFraction?: number;
 };
 
 /** What the long-press sheet shows. */

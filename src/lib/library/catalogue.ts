@@ -4,7 +4,8 @@
  * the review shows beside each candidate. No database, no network.
  */
 
-export type Kind = 'manga' | 'manhwa' | 'doujin' | 'novel';
+import type { Kind } from './types.ts';
+export type { Kind };
 
 /** One AniList entry, as the review and the series screen need it. */
 export type Candidate = {
