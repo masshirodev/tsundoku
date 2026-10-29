@@ -1,3 +1,4 @@
+// @ts-nocheck -- written as LNReader plugins are, against their runtime (@libs/*), not tsundoku's types.
 // A plugin that tries everything the host is meant to stop (tests/novel-host.spec.ts).
 var fetch = require('@libs/fetch');
 function Evil() {

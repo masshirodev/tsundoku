@@ -1,3 +1,4 @@
+// @ts-nocheck -- written as LNReader plugins are, against their runtime (@libs/*), not tsundoku's types.
 // A plugin as LNReader's are built (CommonJS, exports.default an instance),
 // written for the host's tests (tests/novel-host.spec.ts). Its site is the
 // spec's local server, which the spec opens to the host.
