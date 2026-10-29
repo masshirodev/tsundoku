@@ -61,7 +61,12 @@ beforeAll(async () => {
 			if (b.method === 'getDetailsManga')
 				return json({
 					url,
-					title: url.includes('new') ? 'A New One' : 'In Library Series',
+					// A 1.6 source that forgets its title (Mangahere).
+					title: url.includes('blank')
+						? ''
+						: url.includes('new')
+							? 'A New One'
+							: 'In Library Series',
 					author: 'A',
 					genre: 'Action, Drama',
 					status: 1,
@@ -287,6 +292,12 @@ describe('finding and adding a series', () => {
 		});
 		expect(m.chapters.map((c) => c.number)).toEqual([2, 1]);
 		expect(downloads.isSourceMangaId('12')).toBe(false);
+		// Details with no title: the address's words, never a series with no name.
+		const { sourceMangaId } = await import('$lib/server/engine/backend');
+		const blank = (await downloads.sourceManga(
+			sourceMangaId(SOURCE, '/manga/love_junkies-blank/')
+		))!;
+		expect(blank.title).toBe('Love Junkies Blank');
 	});
 
 	it('adds one, keyed without its memo, every chapter NOT DOWNLOADED, and undoes it', async () => {

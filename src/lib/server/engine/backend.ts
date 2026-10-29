@@ -26,6 +26,7 @@ import {
 	type ResultMatch
 } from '../../library/downloads.ts';
 import { call, engineDownSince, engineImageToken, EngineError } from './client.ts';
+import { titleFromPath } from '../../library/titles.ts';
 import { extensionFor, preferences } from './extensions.ts';
 import { splitMemo } from './protocol.ts';
 import { chapterName } from './device.ts';
@@ -390,6 +391,7 @@ export function asHits(
 			: other && other !== sourceId
 				? { kind: 'same-title', source: nameable(other) ? sourceName(other).toUpperCase() : '' }
 				: { kind: 'new' };
+		rememberTitle(sourceMangaId(sourceId, m.url), m.title);
 		out.push({
 			mangaId: sourceMangaId(sourceId, m.url),
 			title: m.title,
@@ -427,6 +429,15 @@ type EngineChapter = {
 	date_upload?: number | null;
 };
 
+/** The titles hits were listed under, for a source whose details forget theirs. */
+const hitTitles = new Map<string, string>();
+function rememberTitle(id: string, title: string | null | undefined) {
+	if (!title?.trim()) return;
+	hitTitles.delete(id);
+	hitTitles.set(id, title.trim());
+	if (hitTitles.size > 5000) hitTitles.delete(hitTitles.keys().next().value!);
+}
+
 /** A result in full, its chapters numbered as Mihon numbers them (the source gives -1). */
 export async function sourceManga(id: string): Promise<SourceManga | null> {
 	const ref = parseSourceMangaId(id);
@@ -445,7 +456,7 @@ export async function sourceManga(id: string): Promise<SourceManga | null> {
 		45_000
 	);
 	const numbers = chapterNumbers(
-		details.title,
+		details.title || hitTitles.get(id) || '',
 		chapters.map((c) => ({ name: c.name, number: c.chapter_number }))
 	);
 	const source = db()
@@ -454,7 +465,10 @@ export async function sourceManga(id: string): Promise<SourceManga | null> {
 	const now = Date.now();
 	return {
 		id,
-		title: details.title,
+		// Some 1.6 sources answer their details with a blank title (Mangahere: "Love
+		// Junkies" was added with none, 2026-10-29): the title its hit showed, else
+		// the address's own words.
+		title: details.title?.trim() || hitTitles.get(id) || titleFromPath(splitMemo(url).url),
 		description: details.description ?? '',
 		author: details.author ?? '',
 		artist: details.artist ?? '',
