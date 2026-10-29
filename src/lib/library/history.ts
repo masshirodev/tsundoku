@@ -1,3 +1,4 @@
+import { KEEP_DAYS } from './keep';
 import { clock as timeAt } from './anime.ts';
 import { kindLabel } from './labels';
 import type { Kind } from './types';
@@ -28,6 +29,10 @@ export type HistoryDay = {
 	status: string;
 	/** False for a browsing record (doc/BROWSING.md): opened from a source, never added. */
 	inLibrary?: boolean;
+	/** A record forgotten (FORGET) or pruned (not opened for 30 days); its place is gone. */
+	pruned?: 'forgotten' | 'unopened' | null;
+	/** Its key at the source: where its preview, + ADD and FIND are. */
+	originKey?: string | null;
 	/** The lowest and highest entry opened that day, by reading order. */
 	first: { label: string; rank: number };
 	last: {
@@ -58,14 +63,22 @@ export function entryRange(first: string, last: string): string {
  * "MANHWA · CH. 380 → 388 · P. 12", "MANGA · CH. 22 · P. 9 OF 31",
  * "NOVEL · VOL. 13 · 41%", "MANGA · CH. 131 → 140 · UP TO DATE",
  * "MANGA · CH. 97 · FINISHED", "DOUJIN · P. 18 OF 30", "ANIME · EP. 3 → 5 · 9:28".
- * A browsing record says so after its kind: "ANIME · NOT IN LIBRARY · EP. 1 · 4:10".
+ * A browsing record says so after its kind: "ANIME · NOT IN LIBRARY · EP. 1 · 4:10";
+ * the phone's tag is NOT IN LIB. A forgotten one says NOT KEPT and why, and no
+ * place: "ANIME · NOT KEPT · NOT OPENED IN 30 DAYS".
  *
  * `short` is the phone's: the page and UP TO DATE drop off a range, which is
  * where the phone runs out of width first.
  */
 export function historyMeta(d: HistoryDay, short = false): string {
 	const parts = [kindLabel(d.kind)];
-	if (d.inLibrary === false) parts.push('NOT IN LIBRARY');
+	if (d.pruned)
+		return [
+			...parts,
+			'NOT KEPT',
+			d.pruned === 'unopened' ? `NOT OPENED IN ${KEEP_DAYS} DAYS` : 'FORGOTTEN'
+		].join(' · ');
+	if (d.inLibrary === false) parts.push(short ? 'NOT IN LIB' : 'NOT IN LIBRARY');
 	const single = d.entryCount <= 1;
 	const range = d.first.rank !== d.last.rank;
 	if (!single) {

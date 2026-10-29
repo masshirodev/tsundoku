@@ -3,6 +3,7 @@ import { getDb } from '../db.ts';
 import { ensureNamedRoot, writeSeries } from '../import/write.ts';
 import { libraryRoot } from '../import/index.ts';
 import { refreshCovers } from '../covers.ts';
+import { touchRecord } from '../browsing.ts';
 import { forgetSourceUse } from '../library-sources.ts';
 import { checkPublic } from '../net-guard.ts';
 import { coverRoute } from '../novels/source.ts';
@@ -154,7 +155,7 @@ export async function addAnime(id: string, now = Date.now()): Promise<number> {
 	if (existing) {
 		if (existing.in_library === 0) {
 			db.prepare(
-				`UPDATE series SET in_library = 1, browsed_at = NULL, added_at = ?, arrived_at = ? WHERE id = ?`
+				`UPDATE series SET in_library = 1, browsed_at = NULL, pruned_at = NULL, added_at = ?, arrived_at = ? WHERE id = ?`
 			).run(now, now, existing.id);
 			forgetSourceUse();
 		}
@@ -178,8 +179,7 @@ export async function browseAnime(id: string, now = Date.now()): Promise<number>
 	const existing = db.prepare(`SELECT id, in_library FROM series WHERE origin_key = ?`).get(key) as
 		{ id: number; in_library: number } | undefined;
 	if (existing) {
-		if (existing.in_library === 0)
-			db.prepare(`UPDATE series SET browsed_at = ? WHERE id = ?`).run(now, existing.id);
+		if (existing.in_library === 0) touchRecord(existing.id, now, db);
 		return existing.id;
 	}
 	return writeAnime(id, key, now, true);

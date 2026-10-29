@@ -40,11 +40,15 @@ beforeAll(async () => {
 				res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(v));
 			if (b.method === 'getDetailsAnime')
 				return json({ url: b.animeData!.url, title: 'Hoshi no Wataridori', status: 1 });
-			if (b.method === 'getEpisodeList')
+			if (b.method === 'getEpisodeList') {
+				// Each show's episodes are its own: the writer folds a series onto
+				// whichever already holds its episodes' addresses.
+				const at = b.animeData?.url === '/anime/kept' ? '/kept' : '';
 				return json([
-					{ url: '/e/2', name: 'Episode 2', episode_number: 2 },
-					{ url: '/e/1', name: 'Episode 1', episode_number: 1 }
+					{ url: `${at}/e/2`, name: 'Episode 2', episode_number: 2 },
+					{ url: `${at}/e/1`, name: 'Episode 1', episode_number: 1 }
 				]);
+			}
 			res.writeHead(404).end('{"error":"no","code":404}');
 		});
 	});
@@ -143,5 +147,57 @@ describe('an episode played without ADD', () => {
 		// Opening it from its source again plays the library's series, never a second record.
 		expect(await downloads.openFromSource(id, '/e/1')).toBe(ep1);
 		expect(row(seriesId).in_library).toBe(1);
+	});
+});
+
+describe('a record forgotten or pruned (c165)', () => {
+	it('shows what it holds: what was watched, where it stopped, and when it goes', async () => {
+		const { recordView } = await import('$lib/server/browsing');
+		const other = sourceMangaId(ANIME, '/anime/kept');
+		const ep = (await downloads.openFromSource(other, '/kept/e/1'))!;
+		const sid = (
+			db.prepare(`SELECT series_id FROM entries WHERE id = ?`).get(ep) as {
+				series_id: number;
+			}
+		).series_id;
+		recordReading({ seriesId: sid, entryId: ep, kind: 'page', page: 300, lengthS: 1440 });
+		const view = recordView(`aniyomi:${ANIME}:/anime/kept`)!;
+		expect(view).toMatchObject({ seriesId: sid, read: 0, total: 2 });
+		expect(view.next).toMatchObject({ id: ep, sourceUrl: '/kept/e/1', position: 300 });
+		expect(view.entries['/kept/e/1']).toMatchObject({ read: false, position: 300 });
+		expect(view.keptUntil - view.lastOpenedAt).toBe(30 * 24 * 3600_000);
+	});
+
+	it('forgets its place and marks, keeps its reading in HISTORY, and comes back on opening', async () => {
+		const { forgetRecord, pruneRecords, recordView, KEEP_MS } =
+			await import('$lib/server/browsing');
+		const key = `aniyomi:${ANIME}:/anime/kept`;
+		const sid = recordView(key)!.seriesId;
+		// Never a library series.
+		expect(forgetRecord(seriesId)).toBe(false);
+		expect(forgetRecord(sid, 5_000)).toBe(true);
+		expect(recordView(key)).toBeNull();
+		expect(
+			db
+				.prepare(
+					`SELECT COUNT(*) AS n FROM entries WHERE series_id = ? AND last_position IS NOT NULL`
+				)
+				.get(sid)
+		).toEqual({ n: 0 });
+		const row = historyDays(false).rows.find((r) => r.seriesId === sid)!;
+		expect(row.pruned).toBe('forgotten');
+		expect(historyMeta(row)).toBe('ANIME · NOT KEPT · FORGOTTEN');
+		// Opened again: a record once more, kept another 30 days.
+		await downloads.openFromSource(sourceMangaId(ANIME, '/anime/kept'), '/kept/e/2');
+		expect(recordView(key)).not.toBeNull();
+		// Not opened for 30 days: pruned on FOLLOW's step, and HISTORY says why.
+		const opened = (
+			db.prepare(`SELECT browsed_at FROM series WHERE id = ?`).get(sid) as {
+				browsed_at: number;
+			}
+		).browsed_at;
+		expect(pruneRecords(opened + KEEP_MS - 1)).toBe(0);
+		expect(pruneRecords(opened + KEEP_MS + 1)).toBe(1);
+		expect(historyDays(false).rows.find((r) => r.seriesId === sid)!.pruned).toBe('unopened');
 	});
 });

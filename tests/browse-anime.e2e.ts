@@ -84,7 +84,11 @@ test('an anime source is browsed, previewed with its EPISODES, and added by seas
 	await page.locator('.grid .tile', { hasText: 'Kōri no Shiro no Majo' }).click();
 	await expect(page).toHaveURL(/\/downloads\/source\//);
 	const add = page.getByRole('button', { name: /ADD TO LIBRARY/ });
-	await expect(add).toContainText('4 EPISODES · EVERY ONE STREAMS');
+	// Watching first, adding beside it (Online Calls 1D): ▶ starts the first episode.
+	await expect(page.locator('.cta-go .cta')).toContainText('▶ EP. 1');
+	await expect(page.getByRole('region', { name: 'Episodes' }).locator('.head')).toContainText(
+		'4 · EVERY ONE STREAMS'
+	);
 	await expect(page.getByRole('region', { name: 'Episodes' })).toContainText('S2 · Ep. 2 · Thaw');
 	await add.click();
 	await expect(page).toHaveURL(/\/series\/\d+\?added=/);
@@ -112,6 +116,10 @@ test('an episode plays from the preview without ADD, and the series stays off th
 	await page.getByRole('button', { name: 'Play S1 · Ep. 1 · The First Snow' }).click();
 	await expect(page).toHaveURL(/\/read\/\d+/);
 	await expect(page.locator('.player')).toBeVisible();
+	// The player's top bar offers + ADD where a library series has nothing (c165).
+	await expect(
+		page.getByRole('region', { name: 'Controls' }).getByRole('button', { name: '+ ADD' })
+	).toBeVisible();
 	// Watched a little, as the player reports it, so HISTORY has a row.
 	const entryId = Number(/\/read\/(\d+)/.exec(page.url())![1]);
 	const back = await page.locator('a[href*="/series/"]').first().getAttribute('href');
@@ -123,10 +131,25 @@ test('an episode plays from the preview without ADD, and the series stays off th
 	// ← SERIES is its preview, with + ADD still offered: it was never added.
 	await page.goto(preview);
 	await expect(page.getByRole('button', { name: /ADD TO LIBRARY/ })).toBeVisible();
+	// The record says what it is, and ▶ continues where it stopped (c165, Online Calls 1D).
+	const record = page.locator('.row.record');
+	await expect(record).toContainText('Not in library · 0 of 4 watched');
+	await expect(record).toContainText('KEPT UNTIL');
+	await expect(page.locator('.names .meta')).toContainText('NOT IN LIBRARY');
+	await expect(page.locator('.cta-go .cta')).toContainText('▶ EP. 1');
+	await expect(page.locator('.ch.progress')).toHaveCount(1);
 	await page.goto('/?shelf=all');
 	await expect(page.locator('.grid .tile', { hasText: 'Yuki no Tabibito' })).toHaveCount(0);
 	await page.goto('/history');
 	await expect(page.locator('.history')).toContainText('NOT IN LIBRARY');
+	await expect(page.locator('.row.record').getByRole('button', { name: '+ ADD' })).toBeVisible();
+	// FORGET: the place goes; HISTORY keeps the reading, dimmed, with FIND →.
+	await page.goto(preview);
+	await record.getByRole('button', { name: 'FORGET' }).click();
+	await expect(page.locator('.row.record')).toHaveCount(0);
+	await page.goto('/history');
+	await expect(page.locator('.row.pruned')).toContainText('NOT KEPT · FORGOTTEN');
+	await expect(page.locator('.row.pruned').getByRole('link', { name: 'FIND →' })).toBeVisible();
 });
 
 test.describe('the player, tablet landscape (c156)', () => {

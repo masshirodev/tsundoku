@@ -1026,6 +1026,12 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	ALTER TABLE series ADD COLUMN in_library INTEGER NOT NULL DEFAULT 1 CHECK (in_library IN (0, 1));
 	ALTER TABLE series ADD COLUMN browsed_at INTEGER;
 	CREATE INDEX series_browsing ON series(browsed_at) WHERE in_library = 0;
+	`,
+	// v51: a browsing record forgotten (FORGET, or 30 days after its last open;
+	// doc/BROWSING.md, "Pruning"). The row stays, because its reading happened and
+	// HISTORY keeps it, dimmed; its place and marks go. Opening it again clears this.
+	`
+	ALTER TABLE series ADD COLUMN pruned_at INTEGER;
 	`
 ];
 

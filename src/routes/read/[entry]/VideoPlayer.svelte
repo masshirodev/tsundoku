@@ -2,6 +2,7 @@
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { enhance } from '$app/forms';
 	import type Hls from 'hls.js';
 	import { clock, isWatchedAt } from '$lib/library/anime';
 	import {
@@ -85,6 +86,8 @@
 			episodes: Episode[];
 			index: number;
 			incognito: boolean;
+			/** A browsing record (doc/BROWSING.md): its preview, where + ADD posts. */
+			record?: { preview: string | null } | null;
 		};
 	} = $props();
 
@@ -182,6 +185,8 @@
 
 	// ---- chrome --------------------------------------------------------------------------------
 	let chrome = $state(true);
+	let adding = $state(false);
+	let added = $state(false);
 	let sheet = $state(false);
 	let keysOpen = $state(false);
 	let resumedAt = $state<number | null>(null);
@@ -884,10 +889,15 @@
 					{data.series.title}{#if ep.title}<span>{` · ${ep.title}`}</span>{/if}
 				</div>
 				<div class="m">
-					<span class="long">ANIME · {place} · {clock(time)} OF {clock(duration)}</span>
+					<span class="long"
+						>ANIME · {place} · {clock(time)} OF {clock(duration)}{data.record && !added
+							? ' · NOT IN LIBRARY'
+							: ''}</span
+					>
 					<span class="short">{place}</span>
 				</div>
 			</div>
+			{@render addCell('cell add')}
 			<button type="button" class="cell desk" onclick={full}>FULL SCREEN · F</button>
 		</header>
 
@@ -965,11 +975,34 @@
 			</div>
 		{/if}
 
+		{#snippet addCell(cls: string)}
+			{#if data.record?.preview}
+				<!-- A browsing record has no rating or FAV to trade; + ADD takes the cell
+				     (Online Calls, "The reader, for a record"), and adds without leaving. -->
+				<form
+					method="POST"
+					action="{resolve('/downloads/source/[id]', { id: data.record.preview })}?/add"
+					use:enhance={() => {
+						adding = true;
+						return async ({ result }) => {
+							adding = false;
+							if (result.type === 'redirect') added = true;
+						};
+					}}
+				>
+					<button type="submit" class={cls} disabled={adding || added}
+						>{added ? 'IN LIBRARY ✓' : adding ? 'ADDING…' : '+ ADD'}</button
+					>
+				</form>
+			{/if}
+		{/snippet}
+
 		<!-- Portrait (Anime Calls, "Devices"): the controls always shown beneath, what's next below. -->
 		<section class="portrait" aria-label="Controls">
 			<div class="pbar">
 				<a class="back" href={seriesHref} aria-label="Back to the series">←</a>
 				<div class="m">{place}</div>
+				{@render addCell('padd')}
 				<button type="button" onclick={full}>FULL</button>
 			</div>
 			<div class="pbody">
@@ -1731,6 +1764,12 @@
 		letter-spacing: 0.02em;
 		white-space: nowrap;
 	}
+	.top form {
+		display: flex;
+	}
+	.top form .cell {
+		height: 100%;
+	}
 	.top .cell {
 		border-right: 0;
 		border-left: var(--hairline);
@@ -2319,6 +2358,9 @@
 		padding: 0 14px;
 		font: 500 13px var(--font-mono);
 		letter-spacing: 0.04em;
+	}
+	.pbar form {
+		display: flex;
 	}
 	.pbar button {
 		padding: 0 16px;

@@ -12,6 +12,7 @@ import { entryName, modeOf, spelledOut } from '$lib/reader/reader';
 import { bookEditions } from '$lib/server/editions';
 import { baseToEdition } from '$lib/library/editions';
 import { parseAnimeKey } from '$lib/library/downloads';
+import { previewIdOf } from '$lib/server/downloads';
 
 /**
  * The reader (doc/READER.md). `/read/<entry>?p=<page>`, `p` 1-based. With no
@@ -74,13 +75,10 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 
 	// An episode is watched in the player (doc/ANIME.md, "The player").
 	if (series.kind === 'anime') {
-		const key = parseAnimeKey(
-			(
-				getDb().prepare(`SELECT origin_key FROM series WHERE id = ?`).get(series.id) as {
-					origin_key: string | null;
-				}
-			).origin_key
-		);
+		const row = getDb()
+			.prepare(`SELECT origin_key, in_library FROM series WHERE id = ?`)
+			.get(series.id) as { origin_key: string | null; in_library: number };
+		const key = parseAnimeKey(row.origin_key);
 		const episodes = series.entries.map((e) => ({
 			id: e.id,
 			number: e.episode?.number ?? e.number,
@@ -97,6 +95,8 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			text: false as const,
 			video: true as const,
 			series: { id: series.id, title: series.title, hidden: series.hidden },
+			// A browsing record (doc/BROWSING.md): its preview, where + ADD posts.
+			record: row.in_library === 0 ? { preview: previewIdOf(row.origin_key) } : null,
 			source: key ? { id: key.sourceId, name: series.source } : null,
 			episodes,
 			index,

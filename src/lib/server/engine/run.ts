@@ -3,6 +3,7 @@ import { getDb } from '../db.ts';
 import { engineConfigured } from './client.ts';
 import { startWorker } from './worker.ts';
 import { followNew } from '../downloads.ts';
+import { pruneRecords } from '../browsing.ts';
 import { pendingNovelImports, startNovelWorker } from '../novels/downloader.ts';
 import { pendingAnimeImports, startAnimeWorker } from '../anime/download.ts';
 
@@ -62,6 +63,8 @@ async function followStep() {
 	if (following) return;
 	following = true;
 	try {
+		// Browsing records not opened for 30 days are forgotten on the same clock.
+		pruneRecords();
 		await followNew();
 	} catch (e) {
 		console.warn(`tsundoku: FOLLOW's step: ${(e as Error).message}`);

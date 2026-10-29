@@ -6,6 +6,7 @@
 	import { count } from '$lib/library/downloads';
 	import { coverPlaceholder } from '$lib/library/cover';
 	import { offline } from '$lib/offline.svelte';
+	import { continueCell, KEEP_DAYS, keptLine, recordLine, rowLook } from '$lib/library/browsing';
 
 	/**
 	 * A search result's preview (Download States 1e, state 7): the series
@@ -61,7 +62,9 @@
 		{#if !m}
 			<div class="asking">THE SOURCE NO LONGER HAS IT</div>
 		{:else}
-			{@const meta = [m.source.toUpperCase(), STATUS[m.status]].filter(Boolean).join(' · ')}
+			{@const meta = [m.source.toUpperCase(), STATUS[m.status], data.record ? 'NOT IN LIBRARY' : '']
+				.filter(Boolean)
+				.join(' · ')}
 			<div class="body">
 				<section class="panel" aria-label="About this series">
 					<div class="identity">
@@ -77,31 +80,89 @@
 						</div>
 					</div>
 
-					<form
-						method="POST"
-						action="?/add"
-						use:enhance={() => {
-							adding = true;
-							return async ({ update }) => {
-								await update();
-								adding = false;
-							};
-						}}
-					>
-						<button type="submit" class="cta" disabled={adding || !offline.online}>
-							<span>{adding ? 'ADDING…' : '+ ADD TO LIBRARY'}</span>
-							<span class="cta-meta">
-								<span class="long"
-									>{count(m.chapters.length)}
-									{m.kind === 'anime' ? 'EPISODES · EVERY ONE STREAMS' : 'CHAPTERS'} · NOTHING DOWNLOADS
-									UNTIL ASKED</span
+					{#if m.kind === 'anime'}
+						<!-- Watching first, adding beside it (Online Calls, "Read first, add beside
+						     it"): ▶ continues a record, or starts the first episode. -->
+						{@const cell = continueCell(
+							data.record?.next ? { ...data.record.next, label: data.record.next.label } : null,
+							true
+						)}
+						<div class="cta-bar">
+							<form method="POST" action="?/open" class="cta-go">
+								<button
+									type="submit"
+									class="cta"
+									name="ep"
+									value={data.record?.next?.sourceUrl ?? m.chapters.at(-1)?.url ?? ''}
+									disabled={!offline.online || !m.chapters.length}
 								>
-								<span class="short"
-									>{count(m.chapters.length)} {m.kind === 'anime' ? 'EP.' : 'CH.'}</span
-								>
-							</span>
-						</button>
-					</form>
+									<span>{cell.label}</span>
+									{#if cell.meta}<span class="cta-meta">{cell.meta}</span>{/if}
+								</button>
+							</form>
+							<form
+								method="POST"
+								action="?/add"
+								use:enhance={() => {
+									adding = true;
+									return async ({ update }) => {
+										await update();
+										adding = false;
+									};
+								}}
+							>
+								<button type="submit" class="add" disabled={adding || !offline.online}>
+									<span class="long">{adding ? 'ADDING…' : '+ ADD TO LIBRARY'}</span>
+									<span class="short">{adding ? '…' : '+ ADD'}</span>
+								</button>
+							</form>
+						</div>
+					{:else}
+						<form
+							method="POST"
+							action="?/add"
+							use:enhance={() => {
+								adding = true;
+								return async ({ update }) => {
+									await update();
+									adding = false;
+								};
+							}}
+						>
+							<button type="submit" class="cta" disabled={adding || !offline.online}>
+								<span>{adding ? 'ADDING…' : '+ ADD TO LIBRARY'}</span>
+								<span class="cta-meta">
+									<span class="long"
+										>{count(m.chapters.length)}
+										{m.kind === 'anime' ? 'EPISODES · EVERY ONE STREAMS' : 'CHAPTERS'} · NOTHING DOWNLOADS
+										UNTIL ASKED</span
+									>
+									<span class="short"
+										>{count(m.chapters.length)} {m.kind === 'anime' ? 'EP.' : 'CH.'}</span
+									>
+								</span>
+							</button>
+						</form>
+					{/if}
+
+					{#if data.record}
+						<div class="row record">
+							<div class="label">RECORD</div>
+							<div class="lk">
+								<div class="lk-a">
+									<span class="long">{recordLine(data.record, m.kind === 'anime')}</span>
+									<span class="short">{recordLine(data.record, m.kind === 'anime', true)}</span>
+								</div>
+								<div class="lk-b">
+									<span class="long">{keptLine(data.record, Date.now(), KEEP_DAYS)}</span>
+									<span class="short">{keptLine(data.record, Date.now(), KEEP_DAYS, true)}</span>
+								</div>
+							</div>
+							<form method="POST" action="?/forget" class="lc-form">
+								<button type="submit" class="lc">FORGET</button>
+							</form>
+						</div>
+					{/if}
 
 					<div class="row link-row">
 						<div class="label">SOURCE</div>
@@ -145,7 +206,11 @@
 				<section class="list" aria-label={m.kind === 'anime' ? 'Episodes' : 'Chapters'}>
 					<div class="head">
 						<span>01 — {m.kind === 'anime' ? 'EPISODES' : 'CHAPTERS'}</span><span class="n"
-							>{count(m.chapters.length)}</span
+							>{count(m.chapters.length)}{m.kind === 'anime'
+								? data.record
+									? ` · ${data.record.read} WATCHED`
+									: ' · EVERY ONE STREAMS'
+								: ''}</span
 						>
 					</div>
 					{#if m.kind === 'anime'}
@@ -154,7 +219,8 @@
 						<form method="POST" action="?/open">
 							<ol>
 								{#each m.chapters as c (c.id)}
-									<li class="ch">
+									{@const look = rowLook('states' in m ? m.states[c.id] : null, true)}
+									<li class="ch {look.kind}">
 										<button
 											class="open"
 											name="ep"
@@ -164,8 +230,12 @@
 										>
 											<span class="num">{c.number >= 0 ? formatNumber(c.number) : ''}</span>
 											<span class="t">{c.name}</span>
-											<span class="go">PLAY</span>
+											{#if look.status}<span class="go">{look.status}</span>{/if}
 										</button>
+										{#if look.kind === 'progress'}<span
+												class="prog"
+												style:width="{look.share * 100}%"
+											></span>{/if}
 									</li>
 								{/each}
 							</ol>
@@ -378,6 +448,79 @@
 	.lk-b {
 		font: 400 13px/1.35 var(--font-mono);
 		color: var(--text-2);
+	}
+	/* Online Calls 1B: the RECORD row, 68px like SOURCE's, FORGET its cell. */
+	.record {
+		min-height: 68px;
+	}
+	.lc-form {
+		display: flex;
+	}
+	button.lc {
+		background: none;
+		border: 0;
+		border-left: var(--hairline);
+		cursor: pointer;
+	}
+	/* The bar, for anime: ▶ in accent takes the width, + ADD beside it outlined. */
+	.cta-bar {
+		display: flex;
+	}
+	.cta-go {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+	}
+	.cta-go .cta {
+		min-width: 0;
+	}
+	.add {
+		height: 64px;
+		padding: 0 var(--pad);
+		border: 0;
+		border-radius: 0;
+		background: none;
+		box-shadow: inset 0 0 0 1px var(--line-2);
+		color: var(--text-1);
+		font: 500 15px var(--font-mono);
+		letter-spacing: 0.04em;
+		white-space: nowrap;
+		cursor: pointer;
+	}
+	@media (max-width: 599px) {
+		.add {
+			height: 56px;
+		}
+	}
+	.add:disabled {
+		opacity: 0.6;
+		cursor: default;
+	}
+	/* A record's rows: watched ones mute, the one in progress is a panel with its
+	   share in accent along the bottom, as on a library series. */
+	.ch {
+		position: relative;
+	}
+	.ch.read .t,
+	.ch.read .num {
+		color: var(--text-2);
+	}
+	.ch.progress {
+		background: var(--surface-panel);
+	}
+	.ch.progress .t {
+		font-weight: 500;
+	}
+	.ch.progress .go {
+		color: var(--accent);
+	}
+	.prog {
+		position: absolute;
+		left: 0;
+		bottom: -1px;
+		height: 3px;
+		background: var(--accent);
+		pointer-events: none;
 	}
 	.lc {
 		display: flex;

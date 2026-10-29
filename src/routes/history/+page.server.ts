@@ -3,6 +3,7 @@ import type { Actions, PageServerLoad } from './$types';
 import { isRevealed } from '$lib/server/prefs';
 import { historyDays, isDay, removeHistoryRow, restoreHistoryRow } from '$lib/server/history';
 import { clock, dayKey, dayLabel, historyMeta, type HistoryRow } from '$lib/library/history';
+import { previewIdOf } from '$lib/server/downloads';
 
 /** Days per page; `?before=` continues from the last one shown. */
 const PAGE_DAYS = 60;
@@ -20,7 +21,12 @@ export const load: PageServerLoad = ({ cookies, url }) => {
 	// Days and times are the workstation's, the same clock SQLite grouped by,
 	// so both are rendered here rather than in the tablet's time zone.
 	const today = dayKey(new Date());
-	const days: { day: string; left: string; right: string; rows: HistoryRow[] }[] = [];
+	const days: {
+		day: string;
+		left: string;
+		right: string;
+		rows: (HistoryRow & { preview: string | null })[];
+	}[] = [];
 	for (const r of rows) {
 		let d = days[days.length - 1];
 		if (!d || d.day !== r.day) {
@@ -35,6 +41,9 @@ export const load: PageServerLoad = ({ cookies, url }) => {
 		}
 		d.rows.push({
 			...r,
+			// A browsing record's preview, where + ADD posts (doc/BROWSING.md).
+			preview: r.inLibrary === false ? previewIdOf(r.originKey ?? null) : null,
+			originKey: undefined,
 			meta: historyMeta(r),
 			metaShort: historyMeta(r, true),
 			time: clock(r.lastAt)

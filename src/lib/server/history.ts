@@ -1,5 +1,6 @@
 import { getDb } from './db';
 import { visibleWhere } from './visibility';
+import { KEEP_MS } from './browsing.ts';
 import type { HistoryDay } from '$lib/library/history';
 import type { Kind } from '$lib/library/types';
 
@@ -57,6 +58,7 @@ export function historyDays(
 			`SELECT re.series_id AS seriesId, ${DAY} AS day, MAX(re.at) AS lastAt,
 				MIN(e.position) AS firstPos, MAX(e.position) AS lastPos,
 				s.title, s.kind, s.hue, s.status, s.in_library AS inLibrary,
+				s.pruned_at AS prunedAt, s.browsed_at AS browsedAt, s.origin_key AS originKey,
 				s.cover_at AS cover,
 				(SELECT COUNT(*) FROM entries x WHERE x.edition_of IS NULL AND x.series_id = s.id) AS entryCount
 			${scope('JOIN entries e ON e.id = re.entry_id')} AND ${DAY} >= @oldest
@@ -75,6 +77,9 @@ export function historyDays(
 		cover: number | null;
 		status: string;
 		inLibrary: number;
+		prunedAt: number | null;
+		browsedAt: number | null;
+		originKey: string | null;
 		entryCount: number;
 	}[];
 
@@ -114,6 +119,14 @@ export function historyDays(
 			entryCount: g.entryCount,
 			status: g.status,
 			inLibrary: g.inLibrary === 1,
+			originKey: g.originKey,
+			// FORGET, or not opened again for KEEP_DAYS: the meta line says which.
+			pruned:
+				g.inLibrary === 1 || g.prunedAt === null
+					? null
+					: g.browsedAt !== null && g.prunedAt - g.browsedAt >= KEEP_MS
+						? 'unopened'
+						: 'forgotten',
 			first: { label: first.label, rank: first.rank },
 			last: {
 				label: last.label,

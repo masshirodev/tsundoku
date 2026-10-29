@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import Band from '$lib/components/chrome/Band.svelte';
@@ -18,6 +19,20 @@
 
 	/** The row whose long press is showing REMOVE, as `seriesId@day`. */
 	let pressed = $state<string | null>(null);
+	/** A record just added from here: the band says so, with OPEN → (Online Board 4B). */
+	let added = $state<{ seriesId: number; title: string } | null>(null);
+	const addHref = (preview: string) => `${resolve('/downloads/source/[id]', { id: preview })}?/add`;
+	const findHref = (title: string) =>
+		`${resolve('/downloads/search')}?q=${encodeURIComponent(title)}`;
+	const addForm = (r: HistoryRow) => () => {
+		return async ({ result }: { result: { type: string } }) => {
+			pressed = null;
+			if (result.type === 'redirect') {
+				added = { seriesId: r.seriesId, title: r.title };
+				await invalidateAll();
+			}
+		};
+	};
 	const keyOf = (r: HistoryRow) => `${r.seriesId}@${r.day}`;
 
 	const removed = $derived(form && 'removed' in form ? form.removed : null);
@@ -60,6 +75,15 @@
 		</Band>
 	{/if}
 
+	{#if added}
+		<Band title="ADDED · PROGRESS KEPT" detail="ITS READING COUNTS FROM ITS FIRST DAY">
+			{#snippet action()}
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- seriesHref() resolves -->
+				<a href={seriesHref(added!.seriesId)}>OPEN →</a>
+			{/snippet}
+		</Band>
+	{/if}
+
 	{#if data.days.length === 0}
 		<section class="empty">
 			<div class="empty-label">00 — NO HISTORY</div>
@@ -76,11 +100,12 @@
 				<ol class="rows">
 					{#each d.rows as r (keyOf(r))}
 						{@const isPressed = pressed === keyOf(r)}
-						<li class="row" class:pressed={isPressed}>
+						{@const record = r.inLibrary === false && !r.pruned}
+						<li class="row" class:pressed={isPressed} class:record class:pruned={!!r.pruned}>
 							<!-- eslint-disable svelte/no-navigation-without-resolve -- seriesHref() resolves -->
 							<a
 								class="main"
-								href={seriesHref(r.seriesId, 'history')}
+								href={r.pruned ? findHref(r.title) : seriesHref(r.seriesId, 'history')}
 								use:longpress={() => (pressed = keyOf(r))}
 								onclick={(e) => {
 									if (pressed) {
@@ -91,7 +116,7 @@
 							>
 								<span class="cov"
 									><Cover
-										src={coverSrc(r.seriesId, r.cover)}
+										src={r.pruned ? null : coverSrc(r.seriesId, r.cover)}
 										hue={r.hue}
 										width={44}
 										height={62}
@@ -108,7 +133,32 @@
 								</span>
 								{#if !isPressed}<span class="time">{r.time}</span>{/if}
 							</a>
+							{#if !isPressed && record && r.preview}
+								<!-- + ADD on the row, so adding needn't go through the preview (4A). -->
+								<form
+									method="POST"
+									action={addHref(r.preview)}
+									use:enhance={addForm(r)}
+									class="act-form wide"
+								>
+									<button type="submit" class="act cell">+ ADD</button>
+								</form>
+							{:else if !isPressed && r.pruned}
+								<!-- Its place went with it: FIND searches the sources for a fresh one (4C). -->
+								<a class="act cell wide" href={findHref(r.title)}>FIND →</a>
+							{/if}
 							<!-- eslint-enable svelte/no-navigation-without-resolve -->
+							{#if isPressed && record && r.preview}
+								<!-- The phone has no room for the cell: + ADD leads the long press (4E). -->
+								<form
+									method="POST"
+									action={addHref(r.preview)}
+									use:enhance={addForm(r)}
+									class="act-form"
+								>
+									<button type="submit" class="act add">+ ADD</button>
+								</form>
+							{/if}
 							{#if isPressed}
 								<form
 									method="POST"
@@ -281,6 +331,32 @@
 	}
 	.act-form {
 		display: flex;
+	}
+	/* A record (Online Board 4): the cover dashed, as Index dashes what isn't
+	   stored; a forgotten one dims to 0.4 and keeps only FIND. */
+	.record .cov {
+		outline: 1px dashed var(--line-2);
+		outline-offset: 2px;
+	}
+	.pruned .main {
+		opacity: 0.4;
+	}
+	.act.cell {
+		border-left: var(--hairline);
+		color: var(--text-1);
+		text-decoration: none;
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.04em;
+	}
+	.act.add {
+		background: var(--accent);
+		color: var(--on-accent);
+	}
+	/* On the phone the cells go: + ADD moves into the long press. */
+	@media (max-width: 599px) {
+		.wide {
+			display: none;
+		}
 	}
 	.act {
 		display: flex;

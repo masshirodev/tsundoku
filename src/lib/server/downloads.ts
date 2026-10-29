@@ -114,6 +114,9 @@ export const addToLibrary = async (id: string) =>
 			: engine.addToLibrary(id);
 export const undoAdd = async (seriesId: number) => engine.undoAdd(seriesId);
 
+/** A chapter's or episode's address as its entry keeps it: without the engine's memo. */
+export const entryKey = (url: string) => splitMemo(url).url;
+
 /** A series' preview at its source, by its key: where a browsing record lives (doc/BROWSING.md). */
 export function previewIdOf(originKey: string | null): string | null {
 	const at = parseAnimeKey(originKey);

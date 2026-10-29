@@ -10,8 +10,10 @@ import {
 	openFromSource,
 	seriesForKey,
 	sourceManga,
-	sourceOfMangaId
+	sourceOfMangaId,
+	entryKey
 } from '$lib/server/downloads';
+import { forgetRecord, recordView } from '$lib/server/browsing';
 import { browseSource } from '$lib/server/engine/browse';
 
 /**
@@ -42,7 +44,19 @@ export const load: PageServerLoad = async ({ params, cookies, url }) => {
 	// Hidden means hidden: a mostly-hidden source's series isn't previewed with reveal off.
 	const sourceId = sourceOfMangaId(id);
 	if (!sourceId || !browseSource(sourceId, isRevealed(cookies))) error(404, 'not found');
-	const manga = sourceManga(id);
+	// A browsing record of it (doc/BROWSING.md): what was watched, where it
+	// stopped, and when it goes. Rows are matched by their address at the source.
+	const record = recordView(key);
+	const manga = sourceManga(id).then((m) =>
+		m && record
+			? {
+					...m,
+					states: Object.fromEntries(
+						m.chapters.map((c) => [c.id, record.entries[entryKey(c.url)] ?? null])
+					)
+				}
+			: m
+	);
 	manga.catch(() => {});
 	// Back to where it was found: a source's BROWSE page, or the search.
 	const from = url.searchParams.get('from') ?? '';
@@ -50,6 +64,7 @@ export const load: PageServerLoad = async ({ params, cookies, url }) => {
 		id,
 		q: url.searchParams.get('q') ?? '',
 		from: from.startsWith('/browse/') && !from.startsWith('//') ? from : '',
+		record: record && { ...record, entries: undefined },
 		manga
 	};
 };
@@ -60,6 +75,13 @@ export const actions: Actions = {
 	 * becomes a browsing record on the first open, on no shelf, its progress and
 	 * HISTORY kept for ADD later.
 	 */
+	/** FORGET: the record's place and marks go now; HISTORY keeps its reading, dimmed. */
+	forget: async ({ params }) => {
+		const key = await mangaKey(mangaId(params.id)).catch(() => null);
+		const record = key ? recordView(key) : null;
+		if (record) forgetRecord(record.seriesId);
+		return { forgotten: true };
+	},
 	open: async ({ params, request }) => {
 		const id = mangaId(params.id);
 		const ep = String((await request.formData()).get('ep') ?? '');
