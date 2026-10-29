@@ -411,6 +411,68 @@ test('vertical: SIDES brings the strip in from both edges, and is kept on the de
 	await page.evaluate(() => localStorage.removeItem('tsundoku.reader.sides'));
 });
 
+test('zoom: a paged page grows and scrolls, KEEP makes it every paged series’ start, RESET goes back (c169)', async ({
+	page
+}) => {
+	await seriesId(page, 'Hikaru ga Shinda Natsu');
+	await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.click();
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	const box = page.locator('.stage .screen:not([aria-hidden]) .page').first();
+	const screen = page.locator('.stage .screen:not([aria-hidden])').first();
+	const height = () => box.evaluate((e) => e.getBoundingClientRect().height);
+	const fitted = await height();
+	await page.keyboard.press('+');
+	await page.keyboard.press('+');
+	await expect.poll(height).toBeCloseTo(fitted * 1.5, 0);
+	// Bigger than the screen: it scrolls, and starts at the top.
+	expect(await screen.evaluate((e) => e.scrollHeight > e.clientHeight && e.scrollTop === 0)).toBe(
+		true
+	);
+	await tap(page, 0.5);
+	await page.getByRole('button', { name: /R→L/ }).click();
+	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+	await expect(sheet.locator('.zval')).toHaveText('150%');
+	await sheet.getByRole('button', { name: 'KEEP FOR ALL PAGED' }).click();
+	await expect(sheet).toContainText('EVERY PAGED SERIES STARTS HERE ON THIS SCREEN');
+	// Kept on this device: the next visit starts at 150%.
+	await page.reload();
+	await readerReady(page);
+	await expect.poll(height).toBeCloseTo(fitted * 1.5, 0);
+	// 0 is RESET: to the kept zoom, then to 100%.
+	await page.keyboard.press('+');
+	await page.keyboard.press('0');
+	await expect.poll(height).toBeCloseTo(fitted * 1.5, 0);
+	await page.keyboard.press('0');
+	await expect.poll(height).toBeCloseTo(fitted, 0);
+	await page.evaluate(() => localStorage.removeItem('tsundoku.reader.zoom.paged.wide'));
+});
+
+test('zoom: the vertical strip widens past the screen and scrolls sideways, kept apart from paged (c169)', async ({
+	page
+}) => {
+	await seriesId(page, 'The Greatest Estate Developer');
+	await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.click();
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	const vw = page.viewportSize()!.width;
+	const width = () => page.locator('.strip').evaluate((e) => e.getBoundingClientRect().width);
+	await page.keyboard.press('+');
+	await expect.poll(width).toBeCloseTo(vw * 1.25, 0);
+	expect(await page.locator('.lane').evaluate((e) => e.scrollWidth > e.clientWidth)).toBe(true);
+	await page.keyboard.press('-');
+	await page.keyboard.press('-');
+	await expect.poll(width).toBeCloseTo(vw * 0.75, 0);
+	await page.keyboard.press('0');
+	await expect.poll(width).toBeCloseTo(vw, 0);
+});
+
 test('wide pages: SPLIT reads the halves in order, ROTATE turns the page, WHOLE as before', async ({
 	page
 }) => {

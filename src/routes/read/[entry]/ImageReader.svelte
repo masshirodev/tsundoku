@@ -3,6 +3,7 @@
 	import { onMount, tick, untrack } from 'svelte';
 	import type { PageData } from './$types';
 	import { MediaQuery } from 'svelte/reactivity';
+	import { clampZoom, keptZoom, pinchZoom, resetZoom, stepZoom, zoomKey } from '$lib/reader/zoom';
 	import { afterNavigate, beforeNavigate, goto, replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page as appPage } from '$app/state';
@@ -110,6 +111,63 @@
 	});
 
 	const landscape = new MediaQuery('(orientation: landscape)', false);
+
+	// ---- zoom (doc/READER.md, "Zoom"; card c169) -----------------------------------
+	// The session's zoom starts from the kept one: per mode (manga paged, manhwa the
+	// strip) and per screen class on this device, so a phone never overwrites the PC.
+	const narrow = new MediaQuery('(max-width: 599px)', false);
+	const zoomAt = $derived(
+		zoomKey(mode === 'vertical' ? 'vertical' : 'paged', narrow.current ? 'phone' : 'wide')
+	);
+	let zoom = $state(1);
+	let kept = $state(1);
+	$effect(() => {
+		kept = keptZoom(stored<unknown>(zoomAt, null)) ?? 1;
+		zoom = kept;
+	});
+	const setZoom = (z: number) => (zoom = clampZoom(z));
+	/** KEEP: this zoom is where every series of this mode starts, on this screen. */
+	function keepZoom() {
+		kept = zoom;
+		store(zoomAt, zoom);
+	}
+	// Ctrl + wheel and a two-finger pinch zoom the pages, never the browser's page.
+	onMount(() => {
+		const wheel = (e: WheelEvent) => {
+			if (!e.ctrlKey || sheet || lookup || menu) return;
+			e.preventDefault();
+			setZoom(zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1));
+		};
+		let pinch: { zoom: number; dist: number } | null = null;
+		const spread = (t: TouchList) =>
+			Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+		const touchstart = (e: TouchEvent) => {
+			pinch = e.touches.length === 2 ? { zoom, dist: spread(e.touches) } : null;
+		};
+		const touchmove = (e: TouchEvent) => {
+			if (!pinch || e.touches.length !== 2) return;
+			e.preventDefault();
+			setZoom(pinchZoom(pinch.zoom, pinch.dist, spread(e.touches)));
+		};
+		const touchend = (e: TouchEvent) => {
+			if (e.touches.length < 2) pinch = null;
+		};
+		addEventListener('wheel', wheel, { passive: false });
+		addEventListener('touchstart', touchstart, { passive: true });
+		addEventListener('touchmove', touchmove, { passive: false });
+		addEventListener('touchend', touchend, { passive: true });
+		return () => {
+			removeEventListener('wheel', wheel);
+			removeEventListener('touchstart', touchstart);
+			removeEventListener('touchmove', touchmove);
+			removeEventListener('touchend', touchend);
+		};
+	});
+	/** A zoomed screen starts each page at the top, and in R→L at its right. */
+	function startAtTop(node: HTMLElement) {
+		node.scrollTop = 0;
+		node.scrollLeft = mode === 'rtl' ? node.scrollWidth : 0;
+	}
 	const useSpreads = $derived(mode !== 'vertical' && spreadsOn && landscape.current);
 
 	// ---- the series' own fields, optimistic ------------------------------------------
@@ -1091,7 +1149,8 @@
 	 */
 	function pointermove(e: PointerEvent) {
 		if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 10) cancelPress();
-		if (!down || animating || fit === 'height' || reduceMotion.current) return;
+		// A zoomed page pans under a drag rather than turning (edges and keys still turn).
+		if (!down || animating || fit === 'height' || zoom > 1 || reduceMotion.current) return;
 		const dx = e.clientX - down.x;
 		const dy = e.clientY - down.y;
 		if (!dragging && (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy))) return;
@@ -1129,7 +1188,7 @@
 		const dx = e.clientX - down.x;
 		const dy = e.clientY - down.y;
 		down = null;
-		const swipe = swipeAction(dx, dy, mode);
+		const swipe = zoom > 1 ? null : swipeAction(dx, dy, mode);
 		const dragged = dragging;
 		dragging = false;
 		if (swipe && swipe !== 'chrome') {
@@ -1179,6 +1238,9 @@
 			return;
 		}
 		if (e.key === 'Escape') chrome = !chrome;
+		if (e.key === '+' || e.key === '=') return setZoom(stepZoom(zoom, 1));
+		if (e.key === '-') return setZoom(stepZoom(zoom, -1));
+		if (e.key === '0') return setZoom(resetZoom(zoom, kept));
 		if (mode === 'vertical') return;
 		const left = e.key === 'ArrowLeft';
 		const right = e.key === 'ArrowRight';
@@ -1295,6 +1357,7 @@
 				<Strip
 					chapters={strip}
 					{sides}
+					{zoom}
 					src={(c, i) => pageSrc(c.id, c.version, i)}
 					onpage={stripPage}
 					onend={(id) => id === data.entry.id && markFinished()}
@@ -1370,6 +1433,8 @@
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
 		<div
 			class="stage fit-{fit}"
+			class:zoomed={zoom > 1}
+			style:--zoom={zoom}
 			style:transform={lift ? `translateY(${-lift}px)` : undefined}
 			onpointerdown={pointerdown}
 			onpointermove={pointermove}
@@ -1386,6 +1451,8 @@
 				{#each screens as sc (sc.key)}
 					<div
 						class="screen fit-{fit}"
+						class:zoomed={zoom > 1}
+						use:startAtTop
 						style:transform={sc.pos === 0 ? undefined : `translateX(${sc.pos * 100}%)`}
 						aria-hidden={sc.pos === 0 ? undefined : 'true'}
 					>
@@ -1573,6 +1640,10 @@
 				dim = d;
 				store('dim', d);
 			}}
+			{zoom}
+			keptZoom={kept}
+			onzoom={setZoom}
+			onkeepzoom={keepZoom}
 			onrate={rate}
 			onclose={() => (sheet = false)}
 		/>
@@ -1635,6 +1706,16 @@
 		align-items: center;
 		justify-content: center;
 		overflow: hidden;
+	}
+	/* Zoomed, the page box grows past the screen and scrolls both ways; the
+	   browser pans it, so the stage hands panning back (doc/READER.md, "Zoom"). */
+	.stage.zoomed {
+		touch-action: pan-x pan-y;
+	}
+	.screen.zoomed {
+		overflow: auto;
+		align-items: safe center;
+		justify-content: safe center;
 	}
 	/* Fit width and fit height let the page overflow and scroll the other way. */
 	.screen.fit-width {

@@ -20,6 +20,7 @@
 	let {
 		chapters,
 		sides = 0,
+		zoom = 1,
 		src,
 		onpage,
 		onend,
@@ -29,6 +30,8 @@
 		chapters: StripChapter[];
 		/** Each side's margin, percent of the width: the strip is the rest, centred. */
 		sides?: number;
+		/** The reader's zoom (doc/READER.md, "Zoom"): the strip's width, times it; past 100% it scrolls sideways. */
+		zoom?: number;
 		src: (c: StripChapter, i: number) => string;
 		/** A page crossed the middle of the screen: which chapter, which page. */
 		onpage: (chapter: number, i: number) => void;
@@ -133,8 +136,8 @@
 
 <!-- A tap anywhere shows the controls, the side margins included, unless it's on a text block; scrolling is the only way to move. -->
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="lane" onclick={ontap}>
-	<div class="strip" bind:this={root} style:width="{100 - 2 * sides}%">
+<div class="lane" class:wider={zoom > 1} onclick={ontap}>
+	<div class="strip" bind:this={root} style:width="{(100 - 2 * sides) * zoom}%">
 		{#each chapters as c, k (c.id)}
 			{#if k > 0}
 				{@const ended = chapters[k - 1]}
@@ -172,6 +175,14 @@
 <style>
 	.lane {
 		width: 100%;
+	}
+	/* Zoomed past the screen: the strip scrolls sideways inside its lane, and
+	   still down the page as before. */
+	.lane.wider {
+		overflow-x: auto;
+	}
+	.lane.wider .strip {
+		max-width: none;
 	}
 	.strip {
 		display: flex;

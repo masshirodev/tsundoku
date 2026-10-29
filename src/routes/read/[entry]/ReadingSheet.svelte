@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { modeName, type Fit, type Mode, type Wide } from '$lib/reader/reader';
 	import type { BlocksShown } from '$lib/japanese/blocks';
+	import { resetZoom, stepZoom, zoomLabel } from '$lib/reader/zoom';
 	import RatingSlider from '$lib/components/controls/RatingSlider.svelte';
 
 	/**
@@ -21,6 +22,8 @@
 		crop,
 		landscape,
 		dim,
+		zoom = 1,
+		keptZoom = 1,
 		rating,
 		blocks = null,
 		onblocks = () => undefined,
@@ -32,6 +35,8 @@
 		onwide,
 		oncrop,
 		ondim,
+		onzoom = () => undefined,
+		onkeepzoom = () => undefined,
 		onrate,
 		onclose
 	}: {
@@ -49,6 +54,9 @@
 		landscape: boolean;
 		/** 0 to 0.8. */
 		dim: number;
+		/** The session's zoom and the kept one for this mode on this screen (doc/READER.md, "Zoom"). */
+		zoom?: number;
+		keptZoom?: number;
 		rating: number;
 		/** A Japanese series: when its text blocks are outlined (doc/JAPANESE.md). Null hides the row. */
 		blocks?: BlocksShown | null;
@@ -61,6 +69,8 @@
 		onwide: (w: Wide) => void;
 		oncrop: (on: boolean) => void;
 		ondim: (d: number) => void;
+		onzoom?: (z: number) => void;
+		onkeepzoom?: () => void;
 		onrate: (r: number) => void;
 		onclose: () => void;
 	} = $props();
@@ -228,6 +238,40 @@
 		</div>
 	</div>
 
+	<!-- Zoom (card c169): − and + step, RESET goes to the kept zoom and then 100%,
+	     KEEP makes this one where every series of this mode starts on this screen. -->
+	<div class="row">
+		<div class="label">ZOOM</div>
+		<div class="body col">
+			<div class="seg" role="group" aria-label="Zoom">
+				<button type="button" aria-label="Zoom out" onclick={() => onzoom(stepZoom(zoom, -1))}
+					>−</button
+				>
+				<span class="zval" aria-live="polite">{zoomLabel(zoom)}</span>
+				<button type="button" aria-label="Zoom in" onclick={() => onzoom(stepZoom(zoom, 1))}
+					>+</button
+				>
+				<button
+					type="button"
+					disabled={zoom === 1 && keptZoom === 1}
+					onclick={() => onzoom(resetZoom(zoom, keptZoom))}>RESET</button
+				>
+			</div>
+			<div class="under">
+				<span class="note"
+					>{zoom === keptZoom
+						? `EVERY ${paged ? 'PAGED' : 'VERTICAL'} SERIES STARTS HERE ON THIS SCREEN`
+						: `KEPT: ${zoomLabel(keptZoom)}`}</span
+				>
+				{#if zoom !== keptZoom}
+					<button type="button" class="remember" onclick={onkeepzoom}
+						>KEEP FOR ALL {paged ? 'PAGED' : 'VERTICAL'}</button
+					>
+				{/if}
+			</div>
+		</div>
+	</div>
+
 	{#if blocks}
 		<!-- Japanese: where the OCR'd text blocks are, outlined. A tap on one looks it up either way. -->
 		<div class="row">
@@ -389,6 +433,14 @@
 	}
 	.seg button:last-child {
 		border-right: 0;
+	}
+	.zval {
+		flex: 1.4;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-right: 1px solid var(--line-2);
+		font: 500 14px var(--font-mono);
 	}
 	.seg button.on {
 		background: var(--surface-inverse);

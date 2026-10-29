@@ -160,16 +160,17 @@
 		container-type: size;
 	}
 	/* Paged: the page is as large as the screen allows, in its own shape. */
+	/* --zoom is the reader's (doc/READER.md, "Zoom"): the page as fitted, times it. */
 	.fit-screen {
-		max-width: calc(100vw / var(--share));
-		max-height: 100dvh;
-		height: 100dvh;
+		max-width: calc(100vw * var(--zoom, 1) / var(--share));
+		max-height: calc(100dvh * var(--zoom, 1));
+		height: calc(100dvh * var(--zoom, 1));
 	}
 	.fit-height {
-		height: 100dvh;
+		height: calc(100dvh * var(--zoom, 1));
 	}
 	.fit-width {
-		width: calc(100vw / var(--share));
+		width: calc(100vw * var(--zoom, 1) / var(--share));
 	}
 	/* Vertical: full width, stitched with no gap. */
 	.fit-strip {

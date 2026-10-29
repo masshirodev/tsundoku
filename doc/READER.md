@@ -48,8 +48,8 @@ still blanks the reader when the app goes to the background.
 - **Never the browser's image menu.** A finger held on a page doesn't
   offer to save or share it, in any mode ([`TOUCH.md`](TOUCH.md)).
 - **No hardware keys, by the owner's choice.** On desktop the arrows are
-  spatial (in R→L, ← is forward), Space and PageDown go forward, and Esc
-  toggles the controls.
+  spatial (in R→L, ← is forward), Space and PageDown go forward, Esc
+  toggles the controls, and + − 0 zoom ("Zoom").
 
 ## Turning pages
 
@@ -184,6 +184,35 @@ anyway, so the row is dimmed there).
   tablet to read it.
 
 The rules are `wideTreatment` and `firstHalf` in `src/lib/reader/reader.ts`.
+
+## Zoom
+
+Asked for on 2026-10-29 (card c169): pages bigger than the fit, and a size
+that stays.
+
+- **Zooming.** + and − (or =) step through 50, 75, 100, 125, 150, 175, 200,
+  250 and 300%; Ctrl + the wheel and a two-finger pinch zoom freely in the
+  same range; **0 is RESET**. The READING sheet's ZOOM row has the same:
+  − · 125% · + · RESET.
+- **Paged:** the page box is the fit times the zoom (`--zoom`, which
+  `PageImage` multiplies its `vw` and `dvh` by), so a zoomed page scrolls both
+  ways inside its screen and each page starts at the top (at its right in
+  R→L). While zoomed a drag pans the page instead of turning it; the edges
+  and the keys still turn.
+- **Vertical:** the strip's width is SIDES' width times the zoom. Past 100%
+  it scrolls sideways inside its lane; under it, it narrows as SIDES does.
+  The page under the middle stays there (Strip's own width-change anchor).
+- **KEEP FOR ALL PAGED / ALL VERTICAL** makes the zoom where every series in
+  that mode starts. It's kept **per mode and per screen class on this
+  device** (`tsundoku.reader.zoom.<paged|vertical>.<phone|wide>`, phone below
+  600px), so manga and manhwa keep different values, and a phone, a tablet
+  and a desktop never overwrite each other's; a desktop window narrowed to
+  phone width uses the phone's. RESET goes to the kept zoom first, then to
+  100%.
+
+The rules are in `src/lib/reader/zoom.ts` (`tests/reader-zoom.spec.ts`); the
+two zoom tests in `tests/reader-flow.e2e.ts` check the page grows and
+scrolls, KEEP across a reload, RESET's two steps, and the strip.
 
 ## Boundaries
 
