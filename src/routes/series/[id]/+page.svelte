@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { animeContinue } from '$lib/library/anime';
+	import { animeConfirm, animeContinue } from '$lib/library/anime';
+	import { resolve } from '$app/paths';
 	import EpisodeList from './EpisodeList.svelte';
 	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
 	import { replacing, stepsBackTo } from '$lib/back';
@@ -37,6 +38,7 @@
 		fileMeta,
 		isBookSeries,
 		rangeBetween,
+		formatBytes,
 		type SeriesEntry
 	} from '$lib/library/series';
 
@@ -232,12 +234,39 @@
 		canDownload ? [...selected].filter((id) => rowAction(dlStates!.get(id)) !== null) : []
 	);
 	const allIds = $derived(dlStates ? allToDownload(series.entries, dlStates) : []);
+	// An anime's ALL chooses its QUALITY, with each height's ABOUT size (Index Anime Series, confirm).
+	let allQuality = $state(0);
+	let sizes = $state<{
+		sizes: { height: number; bytes: number | null }[];
+		free: number | null;
+	} | null>(null);
+	$effect(() => {
+		if (!data.anime || !data.confirmAll) return;
+		allQuality ||= data.anime.quality;
+		if (sizes) return;
+		void fetch(resolve('/api/anime/series/[id]/sizes', { id: String(series.id) }))
+			.then((r) => (r.ok ? r.json() : null))
+			.then((j) => (sizes = j ?? { sizes: [], free: null }))
+			.catch(() => (sizes = { sizes: [], free: null }));
+	});
 	const allConfirm = $derived(
-		confirmLines(
-			series.entries,
-			allIds,
-			data.downloads.kind === 'ok' ? data.downloads.queuedElsewhere : 0
-		)
+		data.anime
+			? animeConfirm({
+					entries: series.entries,
+					ids: allIds,
+					elsewhere: data.downloads.kind === 'ok' ? data.downloads.queuedElsewhere : 0,
+					each:
+						sizes?.sizes.find((x) => x.height === allQuality)?.bytes ??
+						sizes?.sizes.find((x) => x.height <= allQuality)?.bytes ??
+						null,
+					free: sizes?.free ?? null,
+					folder: data.anime.folder
+				})
+			: confirmLines(
+					series.entries,
+					allIds,
+					data.downloads.kind === 'ok' ? data.downloads.queuedElsewhere : 0
+				)
 	);
 	const downloaded = $derived(form && 'downloaded' in form ? form.downloaded : null);
 	// Live while the engine answers: only the downloading chapter moves; anything else reads the page again.
@@ -540,10 +569,30 @@
 	lines={allConfirm.lines}
 	confirm="DOWNLOAD {allIds.length}"
 	action="?/download"
-	fields={{ which: 'all' }}
+	fields={data.anime ? { which: 'all', quality: String(allQuality) } : { which: 'all' }}
 	onclose={() => void closeAll()}
 	ondone={() => closeAll(true)}
+	extra={data.anime ? qualityChoice : undefined}
 />
+
+{#snippet qualityChoice()}
+	<div class="q-row">
+		<div class="q-label">QUALITY</div>
+		<div class="q-body">
+			<div class="q-seg">
+				{#each [1080, 720, 360] as h (h)}
+					{@const b = sizes?.sizes.find((x) => x.height === h)?.bytes ?? null}
+					<button type="button" class:on={allQuality === h} onclick={() => (allQuality = h)}>
+						<span>{h}P</span><span class="q-s">{b ? formatBytes(b * allIds.length) : '…'}</span>
+					</button>
+				{/each}
+			</div>
+			<div class="q-note">
+				{data.anime?.quality}P IS THE DEFAULT IN SETTINGS · THIS CHOICE IS FOR THESE {allIds.length}
+			</div>
+		</div>
+	</div>
+{/snippet}
 
 <!-- Deleting asks first (doc/DELETING.md). -->
 <ConfirmSheet
@@ -610,6 +659,68 @@
 />
 
 <style>
+	/* An anime's ALL: QUALITY, as Index Anime Series' confirm draws it. */
+	.q-row {
+		display: flex;
+		align-items: stretch;
+		border-bottom: var(--hairline);
+	}
+	.q-label {
+		display: flex;
+		align-items: center;
+		width: 120px;
+		padding-left: 24px;
+		box-sizing: border-box;
+		flex-shrink: 0;
+		font: 500 12px var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+		border-right: var(--hairline);
+	}
+	.q-body {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		padding: 14px 18px;
+	}
+	.q-seg {
+		display: flex;
+		border: 1px solid var(--line-2);
+		height: 56px;
+		font: 500 14px var(--font-mono);
+	}
+	.q-seg button {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 4px;
+		border: 0;
+		border-left: 1px solid var(--line-2);
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-1);
+		font: inherit;
+		cursor: pointer;
+	}
+	.q-seg button:first-child {
+		border-left: 0;
+	}
+	.q-seg button.on {
+		background: var(--text-1);
+		color: var(--surface-page);
+	}
+	.q-s {
+		font-weight: 400;
+		font-size: 12px;
+	}
+	.q-note {
+		font: 400 12px var(--font-mono);
+		color: var(--text-2);
+	}
+
 	.series {
 		display: flex;
 		flex-direction: column;

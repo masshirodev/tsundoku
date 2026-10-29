@@ -231,3 +231,37 @@ export function aboutBytes(durationS: number | null, bitsPerSecond: number): num
 	if (!durationS || bitsPerSecond <= 0) return null;
 	return Math.round((durationS * bitsPerSecond) / 8);
 }
+
+/**
+ * ALL N's confirmation for an anime (Index Anime Series, confirm): the
+ * episodes, their ABOUT size at the chosen height, where they go, and what
+ * they wait behind. Sizes are always ABOUT, from the source's bitrate.
+ */
+export function animeConfirm(o: {
+	entries: (E & Pick<SeriesEntry, 'id'>)[];
+	ids: number[];
+	elsewhere: number;
+	/** One episode's size at the chosen height, when the source's bitrate says. */
+	each: number | null;
+	free: number | null;
+	folder: string;
+}): { title: string; lines: string[] } {
+	const picked = o.entries.filter((e) => o.ids.includes(e.id));
+	const n = picked.length;
+	const seasons = [...new Set(picked.map((e) => e.episode?.season ?? null))];
+	const span = picked.length
+		? `EP. ${formatNumber(episodeNumber(picked[0]))}${n > 1 ? ` – ${formatNumber(episodeNumber(picked[n - 1]))}` : ''}`
+		: '';
+	const where = seasons.length === 1 && seasons[0] !== null ? ` · SEASON ${seasons[0]}` : '';
+	return {
+		title: `DOWNLOAD ${n} EPISODE${n === 1 ? '' : 'S'}?`,
+		lines: [
+			`${span}${where} · EVERY EPISODE WITH NO FILE`,
+			o.each
+				? `ABOUT ${formatBytes(o.each)} AN EPISODE · ${formatBytes(o.each * n)} IN ALL · FROM THE SOURCE'S BITRATE, SO ABOUT`
+				: 'THE SIZE IS ASKED OF THE SOURCE…',
+			`TO ${o.folder.toUpperCase()}${o.free !== null ? ` · ${formatBytes(o.free)} FREE` : ''}`,
+			`AN EPISODE TAKES MINUTES${o.elsewhere ? ` · BEHIND ${o.elsewhere} OTHER${o.elsewhere === 1 ? '' : 'S'} IN THE QUEUE` : ''}`
+		]
+	};
+}

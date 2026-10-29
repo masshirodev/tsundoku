@@ -67,6 +67,21 @@ import {
 	type DownloadState
 } from '$lib/library/downloads';
 import { baseToEdition } from '$lib/library/editions';
+import { getSetting } from '$lib/server/settings';
+import { libraryRoot } from '$lib/server/import';
+import { ANIME_FOLDER, HIDDEN_ANIME_FOLDER, seriesFolderName } from '$lib/library/anime-files';
+import { join } from 'node:path';
+
+/** Where an anime's episodes go: its folder once it has one, else where its first will. */
+function animeFolderOf(seriesId: number, title: string, hidden: boolean): string {
+	const known = getDb()
+		.prepare(`SELECT folder FROM anime_series WHERE series_id = ?`)
+		.get(seriesId) as { folder: string } | undefined;
+	return join(
+		libraryRoot(),
+		known?.folder ?? join(hidden ? HIDDEN_ANIME_FOLDER : ANIME_FOLDER, seriesFolderName(title))
+	);
+}
 
 function seriesId(raw: string): number {
 	const id = Number(raw);
@@ -133,6 +148,14 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		ranobe: ranobeSeries(series.id),
 		// Downloading (doc/DOWNLOADING.md): the DOWNLOAD row and each chapter's state.
 		downloads: await seriesDownloads(series.id, series.entries),
+		// An anime's ALL asks its QUALITY (doc/ANIME.md, "Downloading"): SETTINGS' height, and where it goes.
+		anime:
+			series.kind === 'anime'
+				? {
+						quality: Number(getSetting('anime_download_quality')) || 1080,
+						folder: animeFolderOf(series.id, series.title, series.hidden)
+					}
+				: null,
 		// ALL N's confirmation is a URL, so it opens without script too.
 		confirmAll: url.searchParams.get('download') === 'all',
 		// Just added from a source search (Download States 1e, after adding): the band, and UNDO.
@@ -588,9 +611,12 @@ export const actions: Actions = {
 		const failed = ids
 			.map((id) => states.get(id))
 			.flatMap((st) => (st?.kind === 'failed' ? [st.chapterId] : []));
+		// ALL's QUALITY for an anime (doc/ANIME.md, "Downloading"): these episodes at that height.
+		const height = Number(form.get('quality'));
+		const quality = [360, 480, 720, 1080].includes(height) ? height : null;
 		let result = { queued: 0, missing: 0 };
 		try {
-			if (fresh.length) result = await enqueue(s.id, fresh);
+			if (fresh.length) result = await enqueue(s.id, fresh, quality);
 			await retry(failed);
 		} catch (e) {
 			if (isDownloadsError(e)) return fail(503, { message: (e as Error).message });

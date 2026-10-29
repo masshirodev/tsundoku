@@ -12,7 +12,9 @@ const DEFAULTS = {
 	downloads_paused_at: '',
 	// The languages BROWSE lists sources in, and the available extensions open
 	// filtered to (doc/BROWSE.md): the owner reads English and Japanese.
-	browse_languages: 'en,ja'
+	browse_languages: 'en,ja',
+	// The height episodes download at (doc/ANIME.md, "Downloading"; default 3).
+	anime_download_quality: '1080'
 } as const;
 export type SettingKey = keyof typeof DEFAULTS;
 

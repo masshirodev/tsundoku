@@ -118,6 +118,19 @@
 			detail={v.pausedAt ? `SINCE ${clock(v.pausedAt)}` : undefined}
 		/>
 	{/if}
+	{#if v && v.downloadingEpisode && !paused && !data.down}
+		{@const d = v.downloadingEpisode}
+		<!-- The episode lane (Index Anime Library, queue): minutes an episode, so its share. -->
+		<Banner
+			kind="progress"
+			title="DOWNLOADING · {d.title.toUpperCase()} · EP. {formatNumber(d.number)}"
+			detail="{Math.round(d.progress * 100)}%"
+			progress={d.progress}
+			meta="{count(v.queued)} QUEUED · {v.series} SERIES"
+			metaRight="{count(data.recent.hour)} IN THE LAST HOUR · NEW →"
+			metaHref={newHref}
+		/>
+	{/if}
 
 	{#if v && v.failures.length > 0}
 		<SectionLabel index={1} text="Failed" top={18}>
@@ -159,15 +172,42 @@
 	{/if}
 
 	{#if v && v.groups.length > 0}
-		<SectionLabel
-			index={v.failures.length > 0 ? 2 : 1}
-			text="Queue"
-			top={v.failures.length > 0 ? 24 : 18}
-		>
-			{#snippet right()}<span>IN ORDER · {count(v.queued)}</span>{/snippet}
-		</SectionLabel>
+		{@const episodes = v.groups.filter((g) => g.episodes)}
+		{@const chapters = v.groups.filter((g) => !g.episodes)}
+		{@const first = v.failures.length > 0 ? 2 : 1}
+		<!-- Episodes and chapters share the screen, each its own lane (doc/ANIME.md, "Downloading"). -->
+		{#if episodes.length}
+			<SectionLabel index={first} text="Episodes" top={v.failures.length > 0 ? 24 : 18}>
+				{#snippet right()}<span>IN ORDER · {count(episodes.reduce((n, g) => n + g.count, 0))}</span
+					>{/snippet}
+			</SectionLabel>
+			{@render groupList(episodes)}
+		{/if}
+		{#if chapters.length}
+			<SectionLabel
+				index={episodes.length ? first + 1 : first}
+				text={episodes.length ? 'Chapters' : 'Queue'}
+				top={episodes.length || v.failures.length > 0 ? 24 : 18}
+			>
+				{#snippet right()}<span
+						>IN ORDER · {count(
+							episodes.length ? chapters.reduce((n, g) => n + g.count, 0) : v.queued
+						)}</span
+					>{/snippet}
+			</SectionLabel>
+			{@render groupList(chapters)}
+		{/if}
+		{#if v.more > 0}
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam() keeps the current, resolved path -->
+			<a class="more-series" href={withParam(page.url, 'more', '1')} data-sveltekit-noscroll
+				>+ {v.more} MORE SERIES</a
+			>
+		{/if}
+	{/if}
+
+	{#snippet groupList(list: NonNullable<typeof v>['groups'])}
 		<ol class="groups">
-			{#each v.groups as g (g.mangaId)}
+			{#each list as g (g.mangaId)}
 				<li class="group" class:open={g.open}>
 					<div class="g-row">
 						{#if g.series}
@@ -218,7 +258,12 @@
 						{#each g.chapters as c, i (i)}
 							<div class="g-ch">
 								<span class="c-n">{c.number >= 0 ? formatNumber(c.number) : ''}</span>
-								<span class="c-t">{c.name || chapterLabel(c.number, c.name)}</span>
+								<span class="c-t"
+									>{c.name ||
+										(g.episodes
+											? `Episode ${formatNumber(c.number)}`
+											: chapterLabel(c.number, c.name))}</span
+								>
 								<span class="c-s">QUEUED</span>
 							</div>
 						{/each}
@@ -229,13 +274,7 @@
 				</li>
 			{/each}
 		</ol>
-		{#if v.more > 0}
-			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam() keeps the current, resolved path -->
-			<a class="more-series" href={withParam(page.url, 'more', '1')} data-sveltekit-noscroll
-				>+ {v.more} MORE SERIES</a
-			>
-		{/if}
-	{/if}
+	{/snippet}
 
 	{#if v && v.queued === 0 && v.failures.length === 0}
 		<!-- Index Downloads, empty. A queue of hidden series alone draws this too, with reveal off (12). -->

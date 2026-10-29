@@ -15,6 +15,8 @@ import { existsSync, readdirSync } from 'node:fs';
 import { isUnder } from '../paths.ts';
 import { hentoidBytes, hentoidRoot, planHentoidFolder } from './hentoid.ts';
 import { epubBytes, epubRoot, planEpubFolder } from './epub.ts';
+import { animeBytes, animeSeriesDirs, planAnimeFolders } from './anime.ts';
+import { ANIME_FOLDER } from '../../library/anime-files.ts';
 import { ensureRoot, ensureNamedRoot, finishJob, writeSeries } from './write.ts';
 import { reconcileDuplicates } from '../duplicates.ts';
 import { refreshCovers } from '../covers.ts';
@@ -37,7 +39,7 @@ export function libraryRoot(): string {
 }
 
 type Source = {
-	name: 'Mihon' | 'Mihon local' | 'Hentoid' | 'Library';
+	name: 'Mihon' | 'Mihon local' | 'Hentoid' | 'Library' | 'Anime';
 	/**
 	 * Another device's copy (doc/SYNC.md, "Two devices"): `devices/<name>/`
 	 * under the library folder. Null for the library folder's own.
@@ -222,6 +224,22 @@ function sourcesAt(library: string, device: string | null): Source[] {
 				// Named from the device's own folder, so the same book on two devices
 				// has one key (`epub:Library/…`).
 				series: await planEpubFolder(books, library, progress, now),
+				skipped: 0
+			})
+		});
+	// Episodes tsundoku downloaded, in Jellyfin's layout (doc/ANIME.md, "Downloading"):
+	// the library folder's own, since only the workstation downloads them.
+	if (device === null && animeSeriesDirs(library).length > 0)
+		out.push({
+			name: 'Anime',
+			device,
+			root: join(library, ANIME_FOLDER),
+			hidden: false,
+			// An episode file deleted from the folder is NOT DOWNLOADED again; it still streams.
+			markMissing: true,
+			bytes: async () => animeBytes(library),
+			plan: async (progress, now) => ({
+				series: planAnimeFolders(library, progress, now),
 				skipped: 0
 			})
 		});

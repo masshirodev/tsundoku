@@ -59,6 +59,13 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 				progress: v.downloading.progress,
 				pages: v.downloading.pageCount
 			},
+			// An episode downloads in its own lane (doc/ANIME.md, "Downloading"): its own line, in %.
+			downloadingEpisode: v.downloadingEpisode && {
+				chapterId: v.downloadingEpisode.chapterId,
+				title: v.downloadingEpisode.series?.title ?? v.downloadingEpisode.mangaTitle,
+				number: v.downloadingEpisode.number,
+				progress: v.downloadingEpisode.progress
+			},
 			failures: v.failures.map((f) => ({
 				chapterId: f.chapterId,
 				title: f.series?.title ?? f.mangaTitle,
@@ -73,6 +80,7 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 				count: g.count,
 				span: g.span,
 				active: g.active,
+				episodes: g.episodes,
 				open: g.mangaId === open,
 				chapters:
 					g.mangaId === open

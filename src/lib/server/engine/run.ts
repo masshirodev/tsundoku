@@ -4,6 +4,7 @@ import { engineConfigured } from './client.ts';
 import { startWorker } from './worker.ts';
 import { followNew } from '../downloads.ts';
 import { pendingNovelImports, startNovelWorker } from '../novels/downloader.ts';
+import { pendingAnimeImports, startAnimeWorker } from '../anime/download.ts';
 
 /**
  * Whether downloading is on here: tsundoku's engine, when ENGINE_URL and
@@ -87,7 +88,8 @@ export function ensureEngineWorker(): void {
 	started = true;
 	startWorker(libraryRoot(), importSoon);
 	startNovelWorker(libraryRoot(), importSoon);
-	if (pendingImports() + pendingNovelImports() > 0) importSoon();
+	startAnimeWorker(libraryRoot(), importSoon);
+	if (pendingImports() + pendingNovelImports() + pendingAnimeImports() > 0) importSoon();
 	followTimer = setInterval(() => void followStep(), FOLLOW_STEP_MS);
 	followTimer.unref();
 }

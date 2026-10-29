@@ -5,6 +5,7 @@ import * as novels from './novels/source.ts';
 import * as novelDownloads from './novels/downloader.ts';
 import * as novelFollow from './novels/follow.ts';
 import * as anime from './engine/anime-source.ts';
+import * as animeDownloads from './anime/download.ts';
 import { NovelHostError } from './novels/host.ts';
 
 /**
@@ -44,10 +45,20 @@ export const seriesDownloads = async (
 ) =>
 	novelDownloads.isNovelSeries(seriesId)
 		? novelDownloads.novelSeriesDownloads(seriesId, entries)
-		: engine.seriesDownloads(seriesId, entries);
+		: animeDownloads.isAnimeSeries(seriesId)
+			? animeDownloads.animeSeriesDownloads(seriesId, entries)
+			: engine.seriesDownloads(seriesId, entries);
 
-export const enqueue = async (seriesId: number, entryIds: number[]) =>
-	engine.enqueue(seriesId, entryIds);
+/** [height]: an anime's episodes at a quality of their own (ALL's QUALITY); SETTINGS' otherwise. */
+export const enqueue = async (
+	seriesId: number,
+	entryIds: number[],
+	height: number | null = null
+) => {
+	if (height !== null && animeDownloads.isAnimeSeries(seriesId))
+		animeDownloads.rememberQuality(entryIds, height);
+	return engine.enqueue(seriesId, entryIds);
+};
 export const retry = async (ids: number[]) => engine.retry(ids);
 export const dequeue = async (ids: number[]) => engine.dequeue(ids);
 export const toTheTop = async (ids: number[]) => engine.toTheTop(ids);

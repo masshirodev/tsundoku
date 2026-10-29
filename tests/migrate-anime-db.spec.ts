@@ -44,7 +44,7 @@ describe('rung 47', () => {
 				.prepare(`INSERT INTO series (root_id, title, kind, added_at) VALUES (?, 'x', 'anime', 1)`)
 				.run(root)
 		).toThrow(/CHECK constraint failed/);
-		climb(conn);
+		climb(conn, 47);
 		expect(conn.pragma('user_version', { simple: true })).toBe(47);
 		conn
 			.prepare(
@@ -75,7 +75,7 @@ describe('rung 47', () => {
 
 	it('leaves the cascades as they were: deleting a series still takes its entries', () => {
 		const { conn, series } = at46();
-		climb(conn);
+		climb(conn, 47);
 		conn.pragma('foreign_keys = ON');
 		conn.prepare(`DELETE FROM series WHERE id = ?`).run(series);
 		expect(conn.prepare(`SELECT COUNT(*) AS n FROM entries`).get()).toEqual({ n: 0 });
@@ -84,7 +84,7 @@ describe('rung 47', () => {
 
 	it('gives an episode its fields, FILLER and RECAP only', () => {
 		const { conn, series } = at46();
-		climb(conn);
+		climb(conn, 47);
 		const e = conn.prepare(`SELECT id FROM entries WHERE series_id = ? LIMIT 1`).get(series) as {
 			id: number;
 		};

@@ -40,6 +40,7 @@
 	import {
 		downloadCounts,
 		downloadRow,
+		EPISODES,
 		fileQueueMeta,
 		type DownloadState
 	} from '$lib/library/downloads';
@@ -114,6 +115,9 @@
 		downloads?: SeriesDownloads | null;
 	} = $props();
 
+	/** An anime series: episodes for chapters, here and in DOWNLOAD (doc/ANIME.md). */
+	const anime = $derived(series.kind === 'anime');
+
 	// ---- DOWNLOAD (Index Series Download) ------------------------------------------------
 	const dlStates = $derived(
 		downloads?.kind === 'ok'
@@ -128,10 +132,19 @@
 					offline.online,
 					clock,
 					downloads?.kind === 'ok' ? downloads.follow : null,
-					(at) => ago(at, Date.now())
+					(at) => ago(at, Date.now()),
+					anime ? EPISODES : undefined
 				)
 			: downloads?.kind === 'down'
-				? downloadRow(series.entries, downloads, offline.online, clock)
+				? downloadRow(
+						series.entries,
+						downloads,
+						offline.online,
+						clock,
+						null,
+						clock,
+						anime ? EPISODES : undefined
+					)
 				: null
 	);
 	const dlFile = $derived(dlStates ? fileQueueMeta(downloadCounts(series.entries, dlStates)) : []);
@@ -322,7 +335,6 @@
 	const favUnsaved = $derived(saves.unsaved(`fav:${series.id}`));
 
 	// An anime series' CONTINUE is its episode and the time left (doc/ANIME.md).
-	const anime = $derived(series.kind === 'anime');
 	const action = $derived(anime ? animeContinue(series.entries) : continueAction(series));
 	const direction = $derived(effectiveDirection(series));
 	const tags = $derived(tagGroups(series.tags));

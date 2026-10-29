@@ -1,4 +1,7 @@
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { statSync } from 'node:fs';
+import { join } from 'node:path';
 import { getDb } from '../db.ts';
 import { VISIBLE_SQL } from '../visibility.ts';
 import { publicFetchAt } from '../net-guard.ts';
@@ -242,6 +245,96 @@ export function episodeRow(entryId: number, reveal: boolean): EpisodeRow | null 
 	);
 }
 
+/** A downloaded episode's file, under the library folder, or null: a downloaded copy always wins. */
+export function episodeFile(entryId: number): string | null {
+	const r = getDb()
+		.prepare(
+			`SELECT s.path, e.file FROM entries e JOIN series s ON s.id = e.series_id
+			WHERE e.id = ? AND e.available = 1 AND e.file != '' AND s.kind = 'anime'`
+		)
+		.get(entryId) as { path: string; file: string } | undefined;
+	if (!r || !r.path) return null;
+	const p = join(r.path, r.file);
+	try {
+		return statSync(p).isFile() ? p : null;
+	} catch {
+		return null;
+	}
+}
+
+/** A file's subtitle tracks, by their place among its subtitle streams, and its picture's height. */
+async function fileTracks(path: string): Promise<{ subtitles: string[]; height: number | null }> {
+	const out = await new Promise<string>((ok) => {
+		const p = spawn(process.env.FFPROBE ?? 'ffprobe', [
+			'-v',
+			'error',
+			'-show_entries',
+			'stream=codec_type,height:stream_tags=language',
+			'-of',
+			'json',
+			path
+		]);
+		let text = '';
+		p.stdout.on('data', (b: Buffer) => (text += b.toString()));
+		p.on('error', () => ok('{}'));
+		p.on('close', () => ok(text || '{}'));
+	});
+	const j = JSON.parse(out) as {
+		streams?: { codec_type: string; height?: number; tags?: { language?: string } }[];
+	};
+	const streams = j.streams ?? [];
+	return {
+		subtitles: streams
+			.filter((s) => s.codec_type === 'subtitle')
+			.map((s) => langCode(iso2(s.tags?.language ?? ''))),
+		height: streams.find((s) => s.codec_type === 'video')?.height ?? null
+	};
+}
+
+/** Matroska's three-letter languages, back to the two the sheet shows. */
+const iso2 = (l: string) =>
+	({
+		eng: 'en',
+		jpn: 'ja',
+		spa: 'es',
+		por: 'pt',
+		fre: 'fr',
+		fra: 'fr',
+		ger: 'de',
+		deu: 'de',
+		ita: 'it',
+		ara: 'ar',
+		rus: 'ru',
+		ind: 'id',
+		chi: 'zh',
+		zho: 'zh',
+		kor: 'ko'
+	})[l.toLowerCase()] ?? l;
+
+/** The downloaded episode as a server of its own, first: DOWNLOADED, played from the file. */
+async function localServer(entryId: number): Promise<StreamServer | null> {
+	const path = episodeFile(entryId);
+	if (!path) return null;
+	const t = await fileTracks(path);
+	return {
+		n: 0,
+		name: 'DOWNLOADED',
+		qualities: [
+			{
+				label: t.height ? `${t.height}p` : 'Downloaded',
+				height: t.height,
+				kind: 'file',
+				src: `/api/anime/file/${entryId}`,
+				audio: [],
+				subtitles: t.subtitles.map((lang, i) => ({
+					lang,
+					src: `/api/anime/file/${entryId}/subtitle/${i}`
+				}))
+			}
+		]
+	};
+}
+
 // Resolving takes seconds (minutes through a challenge), and a player asks
 // again on every reload: an answer is kept briefly, and TRY AGAIN asks fresh.
 const KEEP_MS = 10 * 60 * 1000;
@@ -264,6 +357,26 @@ export async function episodeStreams(
 	const e = episodeRow(entryId, reveal);
 	const key = parseAnimeKey(e?.origin_key ?? null);
 	if (!e || !key || !e.source_url) return null;
+	// A downloaded copy always wins (Anime Calls 01, default 1): the file plays, and the
+	// source isn't asked at all. TRY AGAIN after the file failed (fresh) streams instead.
+	if (!fresh) {
+		const local = await localServer(entryId);
+		if (local) {
+			const ending = getDb().prepare(`SELECT ending_at FROM entries WHERE id = ?`).get(entryId) as {
+				ending_at: number | null;
+			};
+			return {
+				entryId,
+				servers: [local],
+				intro: null,
+				ending:
+					ending.ending_at !== null
+						? { start: ending.ending_at, end: ending.ending_at + 90 }
+						: null,
+				resolvedAt: now
+			};
+		}
+	}
 	const kept = resolved.get(entryId);
 	if (!fresh && kept && now - kept.resolvedAt < KEEP_MS) return kept;
 	const videos = await callSource<EngineVideo[]>(

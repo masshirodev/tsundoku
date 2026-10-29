@@ -75,7 +75,8 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 						);
 						return {
 							chosen,
-							cells: [...chosen, ...rest].slice(0, Math.max(LANGUAGE_CELLS, chosen.length))
+							cells: [...chosen, ...rest].slice(0, Math.max(LANGUAGE_CELLS, chosen.length)),
+							animeQuality: getSetting('anime_download_quality')
 						};
 					})()
 				: null
@@ -111,6 +112,13 @@ export const actions: Actions = {
 		const next = now.includes(l) ? now.filter((x) => x !== l) : [...now, l];
 		if (next.length === 0) return fail(400, { message: 'BROWSE needs one language' });
 		setSetting('browse_languages', next.join(','));
+		return { ok: true };
+	},
+	/** The height episodes download at (doc/ANIME.md, "Downloading"). */
+	animeQuality: async ({ request }) => {
+		const q = String((await request.formData()).get('quality') ?? '');
+		if (!['1080', '720', '360'].includes(q)) return fail(400, { message: 'no such quality' });
+		setSetting('anime_download_quality', q);
 		return { ok: true };
 	},
 	language: async ({ request }) => {

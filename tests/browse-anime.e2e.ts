@@ -189,3 +189,47 @@ test('the player in portrait: the picture on top, the controls beneath, what’s
 	await expect(controls.getByRole('link', { name: /Episode 12/ })).toBeVisible();
 	await expect(page.locator('.player .cluster')).toBeHidden();
 });
+
+test('episodes download into their folder through the episode lane, and play from the file (c157)', async ({
+	page
+}) => {
+	test.setTimeout(120_000);
+	await page.goto('/');
+	await page.getByRole('link', { name: /^ANIME/ }).click();
+	await page.locator('.grid .tile', { hasText: 'Kōri no Shiro no Majo' }).click();
+	await expect(page).toHaveURL(/\/series\/\d+/);
+	const seriesUrl = page.url();
+	const dl = page.locator('.dl-row');
+	await expect(dl).toContainText('4 unwatched episodes not downloaded');
+	await dl.locator('.lcs.inline').getByRole('button', { name: 'FIRST 4' }).click();
+	const list = page.getByRole('region', { name: 'Episodes' });
+	const first = list.locator('.entry', { hasText: 'The First Snow' });
+	await expect(first.locator('.status')).toHaveText(/QUEUED|DOWNLOADING|IMPORTING/);
+
+	// The queue screen gives episodes their own lane.
+	await page.goto('/downloads');
+	await expect(page.locator('body')).toContainText(/EPISODES|NOTHING QUEUED/);
+
+	// ffmpeg muxes each through the episode lane; the app's import attaches them.
+	await expect(async () => {
+		await page.goto(seriesUrl);
+		await expect(first.locator('.status')).toHaveText(/IMPORTING|MB|KB/, { timeout: 1000 });
+	}).toPass({ timeout: 60_000 });
+	expect((await page.request.post('/api/scan')).status()).toBeLessThan(300);
+	await expect(async () => {
+		await page.goto(seriesUrl);
+		await expect(first.locator('.status')).toHaveText(/KB|MB/, { timeout: 1000 });
+	}).toPass({ timeout: 40_000 });
+	await expect(page.locator('.file-meta')).toContainText('DOWNLOADED');
+
+	// A downloaded copy always wins: it plays from the file, subtitles and all.
+	await first.locator('.entry-btn').click();
+	const player = page.locator('.player');
+	await expect(player.locator('.subs .line')).toHaveText('There is a town past this ridge.', {
+		timeout: 20_000
+	});
+	await player.getByRole('button', { name: /EN · / }).click();
+	await expect(
+		page.getByRole('dialog', { name: 'Playback settings' }).locator('.li.on')
+	).toContainText('DOWNLOADED');
+});

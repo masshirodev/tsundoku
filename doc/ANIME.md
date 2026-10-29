@@ -16,7 +16,7 @@ the second amended to Jellyfin's TV layout (card c128 has them in full).
 | Anime sources in BROWSE, the preview and ADD             | c154 | Done    |
 | Streams: resolving an episode's videos, through tsundoku | c155 | Done    |
 | The player                                               | c156 | Done    |
-| Downloading episodes into a Jellyfin-shaped folder       | c157 | Not yet |
+| Downloading episodes into a Jellyfin-shaped folder       | c157 | Done    |
 | FOLLOW, and the tablet keeping the next episode          | c158 | Not yet |
 | Live checks, departures and docs                         | c159 | Not yet |
 
@@ -268,6 +268,68 @@ STAY, WATCHED on the series; portrait). The clip is
 `tests/fixtures/video/clip.webm`, VP9 and Opus: Playwright's Chromium has no
 H.264.
 
+## Downloading (c157)
+
+Streaming is the default; DOWNLOAD and SELECT keep episodes, for keeping a
+series and for watching away from home (`src/lib/server/anime/download.ts`,
+pure parts in `src/lib/library/anime-files.ts`).
+
+- **Jellyfin's TV layout**, as the owner amended default 2, so a Jellyfin
+  library can be pointed at the folder for watching on the TV:
+
+  ```
+  $LIBRARY_ROOT/Anime/<Series>/tvshow.nfo, poster.jpg
+  $LIBRARY_ROOT/Anime/<Series>/Season 01/<Series> S01E07 <Title>.mkv, and its .nfo
+  ```
+
+  `Season NN` zero-padded; a source without seasons is season 1 with its own
+  (absolute) numbers. The year Jellyfin likes after the name is left out:
+  Aniyomi gives none, and a guess would be worse. A **hidden series goes under
+  `Anime (hidden)/`**, never under the folder a Jellyfin library reads
+  (Jellyfin has no reveal). The folder is fixed at the first download
+  (`anime_series`, rung 48): files aren't renamed when a title is edited
+  here, and a series hidden later keeps its folder.
+
+- **One MKV an episode**: ffmpeg copies the video, each separate audio track
+  and each subtitle track (as SubRip, which every player reads) into one
+  Matroska file, each track tagged with its language, written beside its
+  place and renamed. The NFOs are Jellyfin's (`tvshow`, `episodedetails`) and
+  carry tsundoku's keys as `<uniqueid type="tsundoku">`, with AniList and MAL
+  ids where the series is linked; `poster.jpg` is the library's own cover.
+- **ffmpeg fetches nothing itself.** Its inputs are a loopback proxy inside
+  the app that serves only the tokens `streams.ts` handed out, and only with a
+  per-process secret header, so every request a download makes passes the
+  same guard the player's do: internet only, the engine only where the engine
+  named it. A playlist can't aim ffmpeg at the workstation.
+- **Its own lane** of the one queue (`QueueRow.kind`, `'anime'`): one episode at
+  a time beside the chapters' and novels' workers, so a 400 MB episode never
+  holds up a 3 MB chapter. Streams are resolved right before (they go stale),
+  each server's stream at the chosen height tried in the source's order, and
+  ffmpeg's progress is the queue's share (DOWNLOADING · 38%). The DOWNLOADS
+  screen draws EPISODES and CHAPTERS apart, each lane its own band.
+- **Quality**: SETTINGS · EPISODES (1080P by default, 720P, 360P); ALL's
+  confirmation asks again for its episodes, with each height's ABOUT size
+  from the source's bitrate (`/api/anime/series/<id>/sizes`: one episode's
+  playlists, BANDWIDTH times the length) and the room left on the disk. A
+  height is kept per episode (`anime_episodes.quality`).
+- **The importer** (`src/lib/server/import/anime.ts`, the scan's last step)
+  reads every series folder with a tvshow.nfo tsundoku wrote and every episode
+  with its .nfo, onto the `aniyomi:` series and episodes they name, through the
+  one writer. A folder someone else put there is left alone. An episode file
+  deleted from the folder is NOT DOWNLOADED again, and streams. Between the
+  write and the import an episode is IMPORTING.
+- **A downloaded copy always wins** (default 1): the player plays the file
+  (`/api/anime/file/<entry>`, Range and all) and its subtitles out of it
+  (`…/subtitle/<n>`, through ffmpeg), without asking the source at all, so it
+  plays while the engine is down. If the file fails, TRY AGAIN streams.
+
+`tests/anime-files.spec.ts`, `tests/anime-download-db.spec.ts` (the real
+ffmpeg: a broken server passed over, VP9 and Opus and SubRip in one MKV with
+its languages, the NFOs, the import, the file played first, the hidden
+folder, a deleted file streaming again) and the c157 test in
+`tests/browse-anime.e2e.ts` (FIRST 4 on the series screen, the episode lane,
+the import, played from the file).
+
 ## Where it departs from the handoff
 
 - **A tap on an episode plays it**, whatever its file. The handoff draws no
@@ -285,6 +347,10 @@ H.264.
 - **The last episode's end is END · LAST AVAILABLE**, not the reader's
   end-of-series page with RATING: the series screen has the rating, and the
   player has no rating anywhere else.
+- **No year in the folder name**: Jellyfin's `<Series> (<year>)` wants a year
+  Aniyomi never gives.
+- **The episode lane's band says a percentage**, not "156 / 410 MB · 6.1 MB/S":
+  ffmpeg reports time, not bytes, and the size is an estimate.
 - **No offline states yet**: an episode cached on the tablet, and the
   offline band, are c158's.
 - **History names no season** ("EP. 7 · 9:28", not "S2 EP. 7 · 9:28"): the

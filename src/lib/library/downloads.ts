@@ -309,10 +309,14 @@ export type QueueGroup = {
 	span: string;
 	/** Something of it is downloading now. */
 	active: boolean;
+	/** Episodes, which download in their own lane (doc/ANIME.md, "Downloading"). */
+	episodes: boolean;
 };
 
 export type QueueView = {
+	/** The chapter downloading now; an episode downloads beside it, in its own lane. */
 	downloading: (QueueItem & { series: QueueSeries | null }) | null;
+	downloadingEpisode: (QueueItem & { series: QueueSeries | null }) | null;
 	failures: (QueueItem & { series: QueueSeries | null })[];
 	groups: QueueGroup[];
 	/** Chapters waiting or downloading, failures not counted. */
@@ -344,6 +348,7 @@ export function queueView(
 	const groups = new Map<string, QueueGroup>();
 	const failures: QueueView['failures'] = [];
 	let downloading: QueueView['downloading'] = null;
+	let downloadingEpisode: QueueView['downloadingEpisode'] = null;
 	let queued = 0;
 	for (const q of shown) {
 		const series = lookup(q.key);
@@ -353,7 +358,10 @@ export function queueView(
 		}
 		if (q.state === 'FINISHED') continue;
 		queued++;
-		if (q.state === 'DOWNLOADING' && !downloading) downloading = { ...q, series };
+		const episode = !!parseAnimeKey(q.key);
+		if (q.state === 'DOWNLOADING' && episode && !downloadingEpisode)
+			downloadingEpisode = { ...q, series };
+		else if (q.state === 'DOWNLOADING' && !episode && !downloading) downloading = { ...q, series };
 		let g = groups.get(q.key);
 		if (!g) {
 			g = {
@@ -364,7 +372,8 @@ export function queueView(
 				chapters: [],
 				count: 0,
 				span: '',
-				active: false
+				active: false,
+				episodes: episode
 			};
 			groups.set(q.key, g);
 		}
@@ -376,13 +385,14 @@ export function queueView(
 		const nums = g.chapters.map((c) => c.number).filter((n) => n >= 0);
 		const lo = Math.min(...nums);
 		const hi = Math.max(...nums);
+		const unit = g.episodes ? 'EP.' : 'CH.';
 		g.span = !nums.length
 			? ''
 			: lo === hi
-				? `CH. ${formatNumber(lo)}`
-				: `CH. ${formatNumber(lo)} – ${formatNumber(hi)}`;
+				? `${unit} ${formatNumber(lo)}`
+				: `${unit} ${formatNumber(lo)} – ${formatNumber(hi)}`;
 	}
-	return { downloading, failures, groups: [...groups.values()], queued };
+	return { downloading, downloadingEpisode, failures, groups: [...groups.values()], queued };
 }
 
 /** The QUEUE cell's count and the DOWNLOADS row's: what's waiting, then what failed. */
@@ -412,7 +422,20 @@ export type RowFacts =
 /** FOLLOW's part: whether it's on, and when its source was last asked for new chapters. */
 export type FollowFacts = { on: boolean; checked: number | null };
 
-const chapters = (n: number) => `${count(n)} unread chapter${n === 1 ? '' : 's'} not downloaded`;
+/** What the row counts: chapters unread, or an anime's episodes unwatched (doc/ANIME.md). */
+export type RowNoun = { one: string; many: string; every: string; arriving: string };
+const CHAPTERS: RowNoun = {
+	one: 'unread chapter',
+	many: 'unread chapters',
+	every: 'Every unread chapter',
+	arriving: 'NEW CHAPTERS'
+};
+export const EPISODES: RowNoun = {
+	one: 'unwatched episode',
+	many: 'unwatched episodes',
+	every: 'Every unwatched episode',
+	arriving: 'NEW EPISODES'
+};
 
 /**
  * The DOWNLOAD row under CONTINUE (Index Series Download, states top, down,
@@ -428,8 +451,10 @@ export function downloadRow(
 	online: boolean,
 	clock: (at: number) => string,
 	follow: FollowFacts | null = null,
-	ago: (at: number) => string = clock
+	ago: (at: number) => string = clock,
+	noun: RowNoun = CHAPTERS
 ): DownloadRow {
+	const chapters = (n: number) => `${count(n)} ${n === 1 ? noun.one : noun.many} not downloaded`;
 	const followCell = (dim: boolean): DownloadCell[] =>
 		follow
 			? [
@@ -441,7 +466,7 @@ export function downloadRow(
 	if (facts.kind === 'down' || !online) {
 		const missing = entries.filter((e) => !e.available && e.readAt === null && !e.matter).length;
 		return {
-			a: missing ? chapters(missing) : 'Every unread chapter downloaded',
+			a: missing ? chapters(missing) : `${noun.every} downloaded`,
 			b: !online
 				? '○ OFFLINE · DOWNLOADING NEEDS THE WORKSTATION'
 				: `○ NOT ANSWERING · THE EXTENSION ENGINE ON THE WORKSTATION · SINCE ${clock((facts as { since: number }).since)}`,
@@ -478,10 +503,10 @@ export function downloadRow(
 		a:
 			c.missingUnread > 0 && !(follow?.on && caughtUp)
 				? chapters(c.missingUnread)
-				: 'Every unread chapter downloaded or on its way',
+				: `${noun.every} downloaded or on its way`,
 		b:
 			follow?.on && caughtUp && !c.failed
-				? `FOLLOWING · NEW CHAPTERS DOWNLOAD AS THEY APPEAR${follow.checked ? ` · CHECKED ${ago(follow.checked)}` : ''}`
+				? `FOLLOWING · ${noun.arriving} DOWNLOAD AS THEY APPEAR${follow.checked ? ` · CHECKED ${ago(follow.checked)}` : ''}`
 				: underWay(c),
 		cells
 	};

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import type { ActionResult } from '@sveltejs/kit';
+	import type { Snippet } from 'svelte';
 	import Sheet from './Sheet.svelte';
 
 	/**
@@ -18,7 +19,8 @@
 		action,
 		fields,
 		onclose,
-		ondone
+		ondone,
+		extra
 	}: {
 		open: boolean;
 		/** "DELETE KAORI MAMA?" */
@@ -37,6 +39,8 @@
 		 * page to read again).
 		 */
 		ondone?: (result: ActionResult) => void | Promise<void>;
+		/** A choice to make before it (an anime's QUALITY, doc/ANIME.md), under the title. */
+		extra?: Snippet;
 	} = $props();
 
 	let busy = $state(false);
@@ -50,6 +54,7 @@
 		<span class="h">{title}</span>
 		<button type="button" class="x" aria-label="Close" onclick={onclose}>✕</button>
 	</div>
+	{#if extra}{@render extra()}{/if}
 	<div class="body">
 		{#each lines as line (line)}<p>{line}</p>{/each}
 	</div>

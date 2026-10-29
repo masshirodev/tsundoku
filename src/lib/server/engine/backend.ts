@@ -61,7 +61,9 @@ const STATE: Record<queue.QueueRow['state'], QueueItem['state']> = {
 export function engineQueue(): Queue {
 	const rows = db()
 		.prepare(
-			`SELECT q.entry_id, q.series_id, q.state, q.tries, q.done_pages, q.pages, e.position, e.label, e.title,
+			`SELECT q.entry_id, q.series_id, q.state, q.tries, q.done_pages, q.pages,
+				-- An episode by its own number, which starts again each season (doc/ANIME.md).
+				COALESCE(e.episode_number, e.position) AS position, e.label, e.title,
 				s.origin_key, s.title AS series_title
 			FROM download_queue q JOIN entries e ON e.id = q.entry_id JOIN series s ON s.id = q.series_id
 			ORDER BY q.position`

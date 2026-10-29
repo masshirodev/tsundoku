@@ -213,7 +213,13 @@ describe('the queue', () => {
 
 	it('a queue of hidden series alone reads as empty', () => {
 		const v = queueView([item(9, 'QUEUED', { key: 'mihon:1:/h', mangaId: 8 })], of, false);
-		expect(v).toEqual({ downloading: null, failures: [], groups: [], queued: 0 });
+		expect(v).toEqual({
+			downloading: null,
+			downloadingEpisode: null,
+			failures: [],
+			groups: [],
+			queued: 0
+		});
 	});
 });
 

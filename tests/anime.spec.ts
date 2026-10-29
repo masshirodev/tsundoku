@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	aboutBytes,
+	animeConfirm,
 	animeContinue,
 	clock,
 	episodeCount,
@@ -185,5 +186,40 @@ describe('a download’s size', () => {
 		expect(aboutBytes(1440, 2_277_778)).toBe(410_000_040);
 		expect(aboutBytes(null, 2_000_000)).toBeNull();
 		expect(aboutBytes(1440, 0)).toBeNull();
+	});
+});
+
+describe('ALL’s confirmation', () => {
+	it('names the episodes, their ABOUT size at the height chosen, where they go and what they wait behind', () => {
+		const eps = Array.from({ length: 24 }, (_, i) => ep(i + 1, { episode: { season: 1 } }));
+		expect(
+			animeConfirm({
+				entries: eps,
+				ids: eps.map((e) => e.id),
+				elsewhere: 2,
+				each: 410_000_000,
+				free: 1_400_000_000_000,
+				folder: '/mnt/hdd2/tsundoku/library/Anime/Kōri'
+			})
+		).toEqual({
+			title: 'DOWNLOAD 24 EPISODES?',
+			lines: [
+				'EP. 1 – 24 · SEASON 1 · EVERY EPISODE WITH NO FILE',
+				"ABOUT 410 MB AN EPISODE · 9.8 GB IN ALL · FROM THE SOURCE'S BITRATE, SO ABOUT",
+				'TO /MNT/HDD2/TSUNDOKU/LIBRARY/ANIME/KŌRI · 1.4 TB FREE',
+				'AN EPISODE TAKES MINUTES · BEHIND 2 OTHERS IN THE QUEUE'
+			]
+		});
+		// Before the source has said its bitrate.
+		expect(
+			animeConfirm({
+				entries: eps,
+				ids: [eps[0].id],
+				elsewhere: 0,
+				each: null,
+				free: null,
+				folder: '/a'
+			}).lines[1]
+		).toBe('THE SIZE IS ASKED OF THE SOURCE…');
 	});
 });

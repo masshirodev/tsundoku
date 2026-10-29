@@ -989,7 +989,25 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		-- an episode is watched there (doc/ANIME.md, "Watching is reading").
 		ALTER TABLE entries ADD COLUMN ending_at REAL;
 		`);
-	}
+	},
+	// Rung 48: anime downloads (doc/ANIME.md, "Downloading"; card c157).
+	// anime_series.folder is the series' folder under the library folder, in
+	// Jellyfin's TV layout, fixed at its first download as a novel's book is:
+	// files aren't renamed when a title is edited here. anime_episodes is what
+	// the worker wrote and at which height, until the import attaches the file
+	// (IMPORTING), and the quality a queued episode is to be downloaded at.
+	`
+	CREATE TABLE anime_series (
+		series_id INTEGER PRIMARY KEY REFERENCES series(id) ON DELETE CASCADE,
+		folder TEXT NOT NULL UNIQUE
+	);
+	CREATE TABLE anime_episodes (
+		entry_id INTEGER PRIMARY KEY REFERENCES entries(id) ON DELETE CASCADE,
+		-- Lines: 1080, 720, 360. NULL: SETTINGS' default.
+		quality INTEGER,
+		downloaded_at INTEGER
+	);
+	`
 ];
 
 /**

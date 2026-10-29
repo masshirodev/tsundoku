@@ -262,6 +262,24 @@
 				<p>BROWSE LISTS SOURCES IN THESE, AND ANY THE LIBRARY READS FROM.</p>
 				<p>AVAILABLE EXTENSIONS OPEN FILTERED TO THEM; ALL WIDENS ONE VISIT.</p>
 			</div>
+			<!-- The height episodes download at (doc/ANIME.md, "Downloading"; Anime Calls 01, default 3). -->
+			<form method="POST" action="?/animeQuality" use:enhance class="row">
+				<div class="label">EPISODES</div>
+				<div class="seg">
+					{#each ['1080', '720', '360'] as q (q)}
+						<button
+							type="submit"
+							name="quality"
+							value={q}
+							class:on={data.browse.animeQuality === q}
+							aria-pressed={data.browse.animeQuality === q}>{q}P</button
+						>
+					{/each}
+				</div>
+			</form>
+			<div class="notes">
+				<p>EPISODES DOWNLOAD AT THIS HEIGHT; EVERY ALL ASKS AGAIN, WITH THE SIZE.</p>
+			</div>
 		</section>
 	{/if}
 </div>
