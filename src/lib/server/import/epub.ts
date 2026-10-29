@@ -84,19 +84,26 @@ export async function planEpubFolder(
 	now: number
 ): Promise<PlannedSeries[]> {
 	const out: PlannedSeries[] = [];
-	for (const path of await epubFiles(root)) {
-		const st = await stat(path);
-		const parts = await readEpub(path);
-		progress({ bytes: st.size, failed: parts.pkg === null });
-		out.push(
-			planEpub({
-				relPath: relative(library, path),
-				dir: dirname(path),
-				file: basename(path),
-				addedAt: Math.round(st.mtimeMs) || now,
-				...parts
-			})
-		);
-	}
+	for (const path of await epubFiles(root))
+		out.push(await planEpubFile(path, library, progress, now));
 	return out;
+}
+
+/** One book, as planEpubFolder plans each: what a novel download attaches at once (attachWritten, import/index.ts). */
+export async function planEpubFile(
+	path: string,
+	library: string,
+	progress: (p: { bytes: number; failed: boolean }) => void,
+	now: number
+): Promise<PlannedSeries> {
+	const st = await stat(path);
+	const parts = await readEpub(path);
+	progress({ bytes: st.size, failed: parts.pkg === null });
+	return planEpub({
+		relPath: relative(library, path),
+		dir: dirname(path),
+		file: basename(path),
+		addedAt: Math.round(st.mtimeMs) || now,
+		...parts
+	});
 }

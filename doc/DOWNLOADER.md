@@ -40,6 +40,38 @@ Why, over writing entries straight into the database:
 So tsundoku writes four things it has only ever read: a CBZ, its ComicInfo, a
 `.tachibk`, and chapter numbers.
 
+## Attaching
+
+Card c170, 2026-10-29. The owner: "now that we download everything through
+tsundoku, why does it download -> import?" Until then each worker wrote its
+file and asked for a scan, twenty seconds after the last arrival and at most
+once a minute; a scan took 2–6½ minutes, so a finished chapter sat on
+IMPORTING for that long before it opened.
+
+Now **each worker attaches what it just wrote** (`attachWritten`,
+`server/import/index.ts`). The importer is still the one place a file becomes
+an entry: the file goes to the source whose folder holds it, and that
+source's `planOne` plans its series exactly as the scan's `plan` does
+(`planMihonSeries`, the same backup, only the series that folder is;
+`planAnimeSeries`, the series folder whole; `planEpubFile`, the book). The
+plan is written by `writeSeries` with the scan's own root, `markMissing` and
+`deviceRoot`, and duplicates are reconciled for those series. A chapter
+attaches after the batch's backup is written, so the backup it plans from
+already names it.
+
+**The scan stays the cross-check**, and the way in for everything that
+arrives otherwise (the tablet, dropped-in files, Syncthing). The workers'
+specs attach, then scan, and require every row of the series to be as the
+attach left it (`engine-worker-db`, `anime-download-db`,
+`novel-download-db`). A scan still follows a download when:
+
+- **a file attached nothing** (no source holds it, or the plan was empty):
+  `attachWritten` gives it back;
+- **a scan is already running**: it planned before the file existed, and
+  writing that plan marks the new file gone, so a scan of its own follows
+  (seen live on 2026-10-28, before c170);
+- **attaching threw**: logged, and the scan takes over.
+
 ## The parts
 
 | Part                 | What                                                                                                                                 | Where                                   |

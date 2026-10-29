@@ -64,7 +64,7 @@ afterAll(async () => {
 
 const { getDb } = await import('$lib/server/db');
 const { ensureNamedRoot } = await import('$lib/server/import/write');
-const { runImport } = await import('$lib/server/import/index');
+const { attachWritten, runImport } = await import('$lib/server/import/index');
 const queue = await import('$lib/server/engine/queue');
 const downloads = await import('$lib/server/downloads');
 const anime = await import('$lib/server/anime/download');
@@ -154,9 +154,9 @@ describe('downloading an episode', () => {
 		expect(d.kind === 'ok' && d.states[ep1]).toEqual({ kind: 'importing' });
 	});
 
-	it('is imported onto its episode, and plays from the file from then on', async () => {
+	it('attaches onto its episode as it is written, and plays from the file from then on', async () => {
 		const before = (db.prepare(`SELECT COUNT(*) AS n FROM series`).get() as { n: number }).n;
-		await runImport(library, { now: deps.now() });
+		expect(await attachWritten(library, [file1], deps.now())).toEqual([]);
 		expect((db.prepare(`SELECT COUNT(*) AS n FROM series`).get() as { n: number }).n).toBe(before);
 		expect(entry(ep1)).toMatchObject({
 			available: 1,
@@ -174,6 +174,13 @@ describe('downloading an episode', () => {
 		expect(s.servers[0].qualities[0].subtitles).toEqual([
 			{ lang: 'EN', src: `/api/anime/file/${ep1}/subtitle/0` }
 		]);
+	});
+
+	// The scan stays the cross-check (c170): it reads the same files and agrees.
+	it('is left exactly as it was by the scan that follows', async () => {
+		const before = snapshot(shown);
+		await runImport(library, { now: deps.now() });
+		expect(snapshot(shown)).toEqual(before);
 	});
 
 	it('goes under Anime (hidden) for a hidden series, never where Jellyfin reads', async () => {
@@ -222,3 +229,11 @@ describe('downloading an episode', () => {
 		).toEqual({ state: 'queued', tries: 1, error: 'No server answered' });
 	});
 });
+
+/** A series and its entries as rows, for a scan to leave alone. */
+function snapshot(id: number) {
+	return {
+		series: db.prepare(`SELECT * FROM series WHERE id = ?`).get(id),
+		entries: db.prepare(`SELECT * FROM entries WHERE series_id = ? ORDER BY id`).all(id)
+	};
+}

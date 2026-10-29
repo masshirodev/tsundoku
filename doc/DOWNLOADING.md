@@ -55,8 +55,8 @@ States.dc.html` (brief: [`briefs/done/DOWNLOADS.md`](briefs/done/DOWNLOADS.md)).
   tap on a failed one retries it. A long press still marks through. Each row
   says where it is in its status column: QUEUED, DOWNLOADING · 31 / 54 with an
   ink bar (accent stays reading's), FAILED · 3 TRIES with a 3px ink rule on
-  its left edge, IMPORTING (written, the import hasn't run yet), then the
-  plain row.
+  its left edge, IMPORTING (written, waiting on a scan: rare since c170,
+  [`DOWNLOADER.md`](DOWNLOADER.md), "Attaching"), then the plain row.
 - **SELECT** puts DOWNLOAD first in the bulk bar, counted: the selected
   chapters it would queue or retry. On a phone the five actions wrap into two
   rows.

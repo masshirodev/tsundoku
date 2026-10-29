@@ -25,7 +25,7 @@ process.env.ENGINE_TOKEN = 't';
 
 const { getDb } = await import('$lib/server/db');
 const { ensureRoot, writeSeries } = await import('$lib/server/import/write');
-const { runImport } = await import('$lib/server/import/index');
+const { attachWritten, runImport } = await import('$lib/server/import/index');
 const { enqueue, queueRows, MAX_TRIES } = await import('$lib/server/engine/queue');
 const { runOnce, deviceBackup } = await import('$lib/server/engine/worker');
 const { decodeBackup } = await import('$lib/import/mihon-backup');
@@ -239,11 +239,21 @@ describe('downloading a chapter', () => {
 		expect(written.sources.get(SOURCE)).toBe('Toonily');
 	});
 
-	// The whole point: the importer reads the device like any other, and the
-	// file lands on the entry it is, in the series it is. No twin.
-	it('is imported onto its own entry, in its own series', async () => {
+	// The whole point: the file lands on the entry it is, in the series it is,
+	// attached as it's written (c170). No twin, and no IMPORTING between.
+	it('attaches onto its own entry, in its own series, the moment it is written', async () => {
 		const before = (db.prepare(`SELECT COUNT(*) AS n FROM series`).get() as { n: number }).n;
-		await runImport(library, { now: 1_800_000_100_000 });
+		const file = join(
+			library,
+			'devices',
+			'tsundoku',
+			'Mihon',
+			'downloads',
+			'Toonily (EN)',
+			'A Series',
+			'Ch. 2.cbz'
+		);
+		expect(await attachWritten(library, [file], 1_800_000_100_000)).toEqual([]);
 		const after = (db.prepare(`SELECT COUNT(*) AS n FROM series`).get() as { n: number }).n;
 		expect(after).toBe(before);
 		const rows = db
@@ -280,6 +290,18 @@ describe('downloading a chapter', () => {
 		// The tablet's chapter and its read state are as they were.
 		expect(join(path, rows[0].file)).toBe(join(tablet, 'c1.cbz'));
 		expect(rows[0].read_at).toBe(1_750_000_000_000);
+	});
+
+	// The scan stays the cross-check: it reads the same files and agrees.
+	it('is left exactly as it was by the scan that follows', async () => {
+		const before = snapshot(db, seriesId);
+		await runImport(library, { now: 1_800_000_200_000 });
+		expect(snapshot(db, seriesId)).toEqual(before);
+	});
+
+	it('gives back a file no source holds, for a scan to find', async () => {
+		const stray = join(library, 'elsewhere', 'Ch. 9.cbz');
+		expect(await attachWritten(library, [stray])).toEqual([stray]);
 	});
 });
 
@@ -379,3 +401,11 @@ describe('a chapter read online (c166)', () => {
 		expect(readdirSync(tablet)).toEqual(['c1.cbz']);
 	});
 });
+
+/** A series and its entries as rows, for a scan to leave alone. */
+function snapshot(db: ReturnType<typeof getDb>, id: number) {
+	return {
+		series: db.prepare(`SELECT * FROM series WHERE id = ?`).get(id),
+		entries: db.prepare(`SELECT * FROM entries WHERE series_id = ? ORDER BY id`).all(id)
+	};
+}

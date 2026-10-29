@@ -350,8 +350,9 @@ pure parts in `src/lib/library/anime-files.ts`).
   reads every series folder with a tvshow.nfo tsundoku wrote and every episode
   with its .nfo, onto the `aniyomi:` series and episodes they name, through the
   one writer. A folder someone else put there is left alone. An episode file
-  deleted from the folder is NOT DOWNLOADED again, and streams. Between the
-  write and the import an episode is IMPORTING.
+  deleted from the folder is NOT DOWNLOADED again, and streams. A finished
+  episode attaches the moment it's written ([`DOWNLOADER.md`](DOWNLOADER.md),
+  "Attaching"); IMPORTING is only what's waiting on a scan.
 - **A downloaded copy always wins** (default 1): the player plays the file
   (`/api/anime/file/<entry>`, Range and all) and its subtitles out of it
   (`…/subtitle/<n>`, through ffmpeg), without asking the source at all, so it

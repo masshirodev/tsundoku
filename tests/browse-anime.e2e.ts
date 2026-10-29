@@ -261,16 +261,12 @@ test('episodes download into their folder through the episode lane, and play fro
 	await page.goto('/downloads');
 	await expect(page.locator('body')).toContainText(/EPISODES|NOTHING QUEUED/);
 
-	// ffmpeg muxes each through the episode lane; the app's import attaches them.
-	await expect(async () => {
-		await page.goto(seriesUrl);
-		await expect(first.locator('.status')).toHaveText(/IMPORTING|MB|KB/, { timeout: 1000 });
-	}).toPass({ timeout: 60_000 });
-	expect((await page.request.post('/api/scan')).status()).toBeLessThan(300);
+	// ffmpeg muxes each through the episode lane, and each attaches as it's
+	// written (c170): no scan is asked for.
 	await expect(async () => {
 		await page.goto(seriesUrl);
 		await expect(first.locator('.status')).toHaveText(/KB|MB/, { timeout: 1000 });
-	}).toPass({ timeout: 40_000 });
+	}).toPass({ timeout: 90_000 });
 	await expect(page.locator('.file-meta')).toContainText('DOWNLOADED');
 
 	// A downloaded copy always wins: it plays from the file, subtitles and all.

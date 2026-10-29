@@ -61,6 +61,8 @@ export type NovelDeps = {
 	fetchImage?: ImageFetch;
 	/** Waits between two chapters; the specs don't. */
 	pause?: () => Promise<void>;
+	/** Each file written, as it lands: attached at once (engine/run.ts). */
+	arrived?: (file: string) => void;
 };
 
 /** Why a chapter didn't download, in the queue's words (failure, as the engine's are). */
@@ -397,8 +399,9 @@ async function runBatch(first: number, d: NovelDeps): Promise<number> {
 		}
 	}
 	if (arrived.length === 0) return 0;
+	let file: string;
 	try {
-		await writeBook(seriesId, p, arrived, d);
+		file = await writeBook(seriesId, p, arrived, d);
 	} catch (err) {
 		const f = err instanceof NovelDownloadError ? err.failure : 'disk';
 		for (const a of arrived) failed(a.entryId, f, (err as Error).message, d.now(), d.db);
@@ -406,6 +409,7 @@ async function runBatch(first: number, d: NovelDeps): Promise<number> {
 	}
 	const done = d.db.prepare(`DELETE FROM download_queue WHERE entry_id = ?`);
 	d.db.transaction(() => arrived.forEach((a) => done.run(a.entryId)))();
+	d.arrived?.(file);
 	return arrived.length;
 }
 
@@ -424,12 +428,12 @@ let running = false;
 
 /**
  * Starts the novel downloader in the app, once, beside the engine's
- * (engine/run.ts). [onArrived] runs after chapters land: the app's scan,
- * debounced.
+ * (engine/run.ts). [onArrived] gets the files that landed: attached at once
+ * (engine/run.ts).
  */
 export function startNovelWorker(
 	library: string,
-	onArrived: () => void,
+	onArrived: (files: string[]) => void,
 	db: Database.Database = getDb()
 ): void {
 	if (loop || running) return;
@@ -438,7 +442,9 @@ export function startNovelWorker(
 	const tick = async () => {
 		running = true;
 		try {
-			if ((await runNovelOnce(d)) > 0) onArrived();
+			const written: string[] = [];
+			d.arrived = (file) => written.push(file);
+			if ((await runNovelOnce(d)) > 0) onArrived(written);
 		} catch (err) {
 			console.warn(`tsundoku: novel downloader: ${(err as Error).message}`);
 		} finally {

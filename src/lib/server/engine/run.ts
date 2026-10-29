@@ -1,4 +1,4 @@
-import { importRunning, libraryRoot, startScan } from '../import/index.ts';
+import { attachWritten, importRunning, libraryRoot, startScan } from '../import/index.ts';
 import { getDb } from '../db.ts';
 import { engineConfigured } from './client.ts';
 import { startWorker } from './worker.ts';
@@ -13,6 +13,23 @@ import { pendingAnimeImports, startAnimeWorker } from '../anime/download.ts';
  * chose between Suwayomi and the engine by DOWNLOADS_BACKEND.
  */
 export const downloadsBackend = (): 'engine' | 'none' => (engineConfigured() ? 'engine' : 'none');
+
+/**
+ * What a downloader just wrote, attached at once (card c170; doc/DOWNLOADER.md,
+ * "Attaching"): the entry opens when the file lands, with no IMPORTING between.
+ * A scan follows only for what didn't attach, or when one is already under
+ * way: it was planned before these files existed, and writing its plan would
+ * mark them gone again, so a scan of its own follows it (importSoon).
+ */
+async function arrived(files: string[]) {
+	let left = files;
+	try {
+		left = await attachWritten(libraryRoot(), files);
+	} catch (e) {
+		console.warn(`tsundoku: attaching a download: ${(e as Error).message}`);
+	}
+	if (left.length > 0 || importRunning()) importSoon();
+}
 
 let importTimer: ReturnType<typeof setTimeout> | null = null;
 let lastImport = 0;
@@ -89,9 +106,10 @@ let started = false;
 export function ensureEngineWorker(): void {
 	if (downloadsBackend() !== 'engine' || started) return;
 	started = true;
-	startWorker(libraryRoot(), importSoon);
-	startNovelWorker(libraryRoot(), importSoon);
-	startAnimeWorker(libraryRoot(), importSoon);
+	const onArrived = (files: string[]) => void arrived(files);
+	startWorker(libraryRoot(), onArrived);
+	startNovelWorker(libraryRoot(), onArrived);
+	startAnimeWorker(libraryRoot(), onArrived);
 	if (pendingImports() + pendingNovelImports() + pendingAnimeImports() > 0) importSoon();
 	followTimer = setInterval(() => void followStep(), FOLLOW_STEP_MS);
 	followTimer.unref();

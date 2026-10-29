@@ -43,6 +43,8 @@ type Deps = {
 	/** `$LIBRARY_ROOT`, where `devices/tsundoku/` goes. */
 	library: string;
 	now: () => number;
+	/** Each file written, as it lands: attached at once (engine/run.ts). */
+	arrived?: (file: string) => void;
 };
 
 const mihonDir = (d: Deps) => join(d.library, 'devices', TSUNDOKU_DEVICE, 'Mihon');
@@ -369,8 +371,9 @@ export async function runOnce(d: Deps): Promise<number> {
 	await Promise.all(
 		jobs.map(async (j) => {
 			try {
-				await downloadChapter(j.entryId, d);
+				const file = await downloadChapter(j.entryId, d);
 				d.db.prepare(`DELETE FROM download_queue WHERE entry_id = ?`).run(j.entryId);
+				d.arrived?.(file);
 				done++;
 			} catch (err) {
 				const f = err instanceof EngineError ? err.failure : 'source';
@@ -389,12 +392,12 @@ let running = false;
 
 /**
  * Starts the downloader in the app, once, when the engine backend is on
- * (`DOWNLOADS_BACKEND=engine`). [onArrived] runs after chapters land: the
- * app's scan, debounced.
+ * (`DOWNLOADS_BACKEND=engine`). [onArrived] gets the files that landed:
+ * attached at once (engine/run.ts).
  */
 export function startWorker(
 	library: string,
-	onArrived: () => void,
+	onArrived: (files: string[]) => void,
 	db: Database.Database = getDb()
 ): void {
 	if (loop || running) return;
@@ -403,7 +406,9 @@ export function startWorker(
 	const tick = async () => {
 		running = true;
 		try {
-			if ((await runOnce(d)) > 0) onArrived();
+			const written: string[] = [];
+			d.arrived = (file) => written.push(file);
+			if ((await runOnce(d)) > 0) onArrived(written);
 		} catch (err) {
 			console.warn(`tsundoku: downloader: ${(err as Error).message}`);
 		} finally {

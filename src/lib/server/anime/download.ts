@@ -53,6 +53,8 @@ export type AnimeDeps = {
 	now: () => number;
 	/** How a re-ask waits (tests pass one that doesn't). */
 	wait?: (ms: number) => Promise<void>;
+	/** Each file written, as it lands: attached at once (engine/run.ts). */
+	arrived?: (file: string) => void;
 };
 
 /** A source that answered with no videos is asked again after these (doc/ANIME.md, "Downloading"). */
@@ -385,8 +387,9 @@ export async function runAnimeOnce(d: AnimeDeps): Promise<number> {
 		.prepare(`UPDATE download_queue SET state = 'downloading' WHERE entry_id = ?`)
 		.run(job.entryId);
 	try {
-		await downloadEpisode(job.entryId, d);
+		const file = await downloadEpisode(job.entryId, d);
 		d.db.prepare(`DELETE FROM download_queue WHERE entry_id = ?`).run(job.entryId);
+		d.arrived?.(file);
 		return 1;
 	} catch (err) {
 		const f = err instanceof AnimeDownloadError ? err.failure : 'source';
@@ -401,7 +404,7 @@ let running = false;
 /** The episode lane, started beside the chapter and novel workers (engine/run.ts). */
 export function startAnimeWorker(
 	library: string,
-	onArrived: () => void,
+	onArrived: (files: string[]) => void,
 	db: Database.Database = getDb()
 ): void {
 	if (loop || running) return;
@@ -410,7 +413,9 @@ export function startAnimeWorker(
 	const tick = async () => {
 		running = true;
 		try {
-			if ((await runAnimeOnce(d)) > 0) onArrived();
+			const written: string[] = [];
+			d.arrived = (file) => written.push(file);
+			if ((await runAnimeOnce(d)) > 0) onArrived(written);
 		} catch (err) {
 			console.warn(`tsundoku: episode downloader: ${(err as Error).message}`);
 		} finally {

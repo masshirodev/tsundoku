@@ -40,12 +40,7 @@ test('a novel is added, downloaded into its EPUB chapter by chapter, and read on
 		await row(t).locator('.dl-cell').click();
 		await expect(row(t).locator('.status .long')).toHaveText(/QUEUED|DOWNLOADING|IMPORTING/);
 	}
-	await expect(async () => {
-		await page.reload();
-		await expect(row('Light').locator('.status .long')).toHaveText('IMPORTING');
-	}).toPass({ timeout: 30_000 });
-	// The app's own import follows twenty seconds on; START SCAN doesn't wait.
-	expect((await page.request.post('/api/scan')).status()).toBeLessThan(300);
+	// Each batch attaches as the book is written (c170): no scan is asked for.
 	await expect(async () => {
 		await page.goto(series);
 		await expect(row('Dust').locator('.status .long')).toHaveText('');

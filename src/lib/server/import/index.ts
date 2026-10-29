@@ -6,6 +6,7 @@ import {
 	mihonRoot,
 	newestBackup,
 	planMihonFolder,
+	planMihonSeries,
 	readBackup,
 	scanLocal
 } from './mihon.ts';
@@ -14,8 +15,8 @@ import { join, relative } from 'node:path';
 import { existsSync, readdirSync } from 'node:fs';
 import { isUnder } from '../paths.ts';
 import { hentoidBytes, hentoidRoot, planHentoidFolder } from './hentoid.ts';
-import { epubBytes, epubRoot, planEpubFolder } from './epub.ts';
-import { animeBytes, animeSeriesDirs, planAnimeFolders } from './anime.ts';
+import { epubBytes, epubRoot, planEpubFile, planEpubFolder } from './epub.ts';
+import { animeBytes, animeSeriesDirs, planAnimeFolders, planAnimeSeries } from './anime.ts';
 import { ANIME_FOLDER } from '../../library/anime-files.ts';
 import { ensureRoot, ensureNamedRoot, finishJob, writeSeries } from './write.ts';
 import { reconcileDuplicates } from '../duplicates.ts';
@@ -60,6 +61,12 @@ type Source = {
 		after?: (db: Database.Database, rootId: number) => void;
 	}>;
 	markMissing: boolean;
+	/**
+	 * The series one file of it belongs to, planned as `plan` plans it: what a
+	 * download attaches at once (attachWritten). Only the sources tsundoku's
+	 * own downloaders write to.
+	 */
+	planOne?(file: string, now: number): Promise<PlannedSeries[]>;
 };
 
 /**
@@ -154,7 +161,8 @@ function sourcesAt(library: string, device: string | null): Source[] {
 			hidden: false,
 			markMissing: true,
 			bytes: () => downloadBytes(mihon),
-			plan: (progress, now) => planMihonFolder(mihon, progress, now)
+			plan: (progress, now) => planMihonFolder(mihon, progress, now),
+			planOne: (file, now) => planMihonSeries(mihon, file, now)
 		});
 	// Mihon's local source: books put on the tablet by hand, hidden like
 	// Hentoid's (doc/IMPORT-MIHON.md, "Local source").
@@ -225,7 +233,8 @@ function sourcesAt(library: string, device: string | null): Source[] {
 				// has one key (`epub:Library/…`).
 				series: await planEpubFolder(books, library, progress, now),
 				skipped: 0
-			})
+			}),
+			planOne: async (file, now) => [await planEpubFile(file, library, () => {}, now)]
 		});
 	// Episodes tsundoku downloaded, in Jellyfin's layout (doc/ANIME.md, "Downloading"):
 	// the library folder's own, since only the workstation downloads them.
@@ -241,7 +250,8 @@ function sourcesAt(library: string, device: string | null): Source[] {
 			plan: async (progress, now) => ({
 				series: planAnimeFolders(library, progress, now),
 				skipped: 0
-			})
+			}),
+			planOne: async (file, now) => planAnimeSeries(library, file, now)
 		});
 	return out;
 }
@@ -302,6 +312,66 @@ export function runImport(
 	return running;
 }
 
+/**
+ * Another device's copy joins the library folder's root of the same name:
+ * one hidden Hentoid shelf, and a grouped book found on either.
+ */
+function rootOf(db: Database.Database, source: Source): number {
+	return source.device
+		? ensureNamedRoot(db, source.name, source.root, source.hidden)
+		: ensureRoot(db, source.name, source.root, source.hidden);
+}
+
+/**
+ * What tsundoku's own downloaders just wrote, attached at once (card c170;
+ * doc/DOWNLOADER.md, "Attaching"): each file's series planned by the source
+ * that holds it, exactly as a scan plans it, and written by the same writer
+ * with the same root and the same marking of what's gone. A later scan reads
+ * the same files and changes nothing; it stays the cross-check, and the way
+ * in for anything that arrives otherwise.
+ *
+ * Returns the files no source could take, which the caller leaves to a scan.
+ */
+export async function attachWritten(
+	library: string,
+	files: string[],
+	now = Date.now()
+): Promise<string[]> {
+	const db = getDb();
+	const sources = sourcesIn(library);
+	const left: string[] = [];
+	const touched = new Set<number>();
+	// One plan per series: a batch of chapters is one folder.
+	const planned = new Set<string>();
+	for (const file of files) {
+		// The innermost root holding it: Mihon's local folder sits inside Mihon's.
+		const source = sources
+			.filter((s) => s.planOne && isUnder(file, s.root))
+			.sort((a, b) => b.root.length - a.root.length)[0];
+		if (!source) {
+			left.push(file);
+			continue;
+		}
+		const series = await source.planOne!(file, now);
+		if (series.length === 0) left.push(file);
+		const rootId = rootOf(db, source);
+		for (const s of series) {
+			if (planned.has(s.path)) continue;
+			planned.add(s.path);
+			writeSeries(
+				s,
+				{ rootId, jobId: null, now, markMissing: source.markMissing, deviceRoot: source.root },
+				db
+			);
+			const id = db.prepare(`SELECT id FROM series WHERE origin_key = ?`).get(s.originKey) as
+				{ id: number } | undefined;
+			if (id) touched.add(id.id);
+		}
+	}
+	if (touched.size > 0) reconcileDuplicates([...touched], db);
+	return left;
+}
+
 async function run(sources: Source[], now: number): Promise<ImportSummary> {
 	const db = getDb();
 	// A job left unfinished by a process that died is over.
@@ -336,11 +406,7 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 					flush();
 				}
 			}, now);
-			// Another device's copy joins the library folder's root of the same
-			// name: one hidden Hentoid shelf, and a grouped book found on either.
-			const rootId = source.device
-				? ensureNamedRoot(db, source.name, source.root, source.hidden)
-				: ensureRoot(db, source.name, source.root, source.hidden);
+			const rootId = rootOf(db, source);
 			const out: SourceSummary = {
 				name: source.device ? `${source.name} · ${source.device}` : source.name,
 				seriesCreated: 0,

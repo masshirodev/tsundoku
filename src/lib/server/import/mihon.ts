@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { pageMembers, readMember, withZip } from '../zip.ts';
 import { parseComicInfo, type ComicInfo } from '../../import/comicinfo.ts';
@@ -12,6 +12,7 @@ import {
 	type MihonPlan
 } from '../../import/mihon-plan.ts';
 import type { LocalFolder } from '../../import/mihon-local-plan.ts';
+import type { PlannedSeries } from '../../import/plan.ts';
 
 /**
  * The Mihon importer (doc/IMPORT-MIHON.md). It reads a copy of the device's
@@ -92,26 +93,40 @@ export async function scanDownloads(
 	for (const downloads of await downloadFolders(root))
 		for (const sourceDir of await dirs(downloads)) {
 			for (const dir of await dirs(join(downloads, sourceDir))) {
-				const path = join(downloads, sourceDir, dir);
-				const chapters: DownloadedChapter[] = [];
-				for (const entry of await readdir(path, { withFileTypes: true })) {
-					const isChapter =
-						(entry.isFile() && /\.cbz$/i.test(entry.name)) ||
-						(entry.isDirectory() && !entry.name.startsWith('.') && !entry.name.endsWith('_tmp'));
-					if (!isChapter) continue;
-					try {
-						const c = await readChapter(path, entry.name);
-						chapters.push(c);
-						progress({ bytes: c.bytes, failed: false });
-					} catch {
-						progress({ bytes: 0, failed: true });
-					}
-				}
-				// The local source's own folder is planned apart (scanLocal).
-				if (chapters.length && sourceDir !== 'local') out.push({ sourceDir, dir, path, chapters });
+				const s = await scanSeriesDir(join(downloads, sourceDir, dir), progress);
+				if (s) out.push(s);
 			}
 		}
 	return out;
+}
+
+/**
+ * One series' folder, `<root>/downloads/<source>/<series>/`, as scanDownloads
+ * reads it: what a download attaches at once (attachWritten, import/index.ts). Null for a folder
+ * with no chapter, or the local source's.
+ */
+export async function scanSeriesDir(
+	path: string,
+	progress: (p: { bytes: number; failed: boolean }) => void = () => {}
+): Promise<DownloadedSeries | null> {
+	const sourceDir = basename(dirname(path));
+	const dir = basename(path);
+	const chapters: DownloadedChapter[] = [];
+	for (const entry of await readdir(path, { withFileTypes: true })) {
+		const isChapter =
+			(entry.isFile() && /\.cbz$/i.test(entry.name)) ||
+			(entry.isDirectory() && !entry.name.startsWith('.') && !entry.name.endsWith('_tmp'));
+		if (!isChapter) continue;
+		try {
+			const c = await readChapter(path, entry.name);
+			chapters.push(c);
+			progress({ bytes: c.bytes, failed: false });
+		} catch {
+			progress({ bytes: 0, failed: true });
+		}
+	}
+	// The local source's own folder is planned apart (scanLocal).
+	return chapters.length && sourceDir !== 'local' ? { sourceDir, dir, path, chapters } : null;
 }
 
 /**
@@ -206,4 +221,21 @@ export async function planMihonFolder(
 	const backupPath = await newestBackup(root);
 	const backup = backupPath ? await readBackup(backupPath) : null;
 	return { ...planMihon(backup, downloads, now), backup: backupPath };
+}
+
+/**
+ * The one series a chapter file belongs to, planned as planMihonFolder plans
+ * it: the same backup, so the series and entries are the ones a scan makes.
+ * Only that series: the backup's others aren't this download's to mark.
+ */
+export async function planMihonSeries(
+	root: string,
+	file: string,
+	now: number
+): Promise<PlannedSeries[]> {
+	const d = await scanSeriesDir(dirname(file));
+	if (!d) return [];
+	const backupPath = await newestBackup(root);
+	const backup = backupPath ? await readBackup(backupPath) : null;
+	return planMihon(backup, [d], now).series.filter((s) => s.path === d.path);
 }

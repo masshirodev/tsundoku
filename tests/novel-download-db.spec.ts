@@ -67,7 +67,7 @@ vi.stubGlobal(
 );
 
 const { getDb } = await import('$lib/server/db');
-const { runImport } = await import('$lib/server/import/index');
+const { attachWritten, runImport } = await import('$lib/server/import/index');
 const { readEpub } = await import('$lib/server/import/epub');
 const { entryDocs, planEntries } = await import('$lib/epub/epub');
 const queue = await import('$lib/server/engine/queue');
@@ -199,9 +199,9 @@ describe('downloading a novel', () => {
 		expect(raw.subarray(30, 38).toString()).toBe('mimetype');
 	});
 
-	it('is imported onto the series ADD made, entry by entry, no second series', async () => {
+	it('attaches onto the series ADD made as it is written, entry by entry, no second series', async () => {
 		const before = (db.prepare(`SELECT COUNT(*) AS n FROM series`).get() as { n: number }).n;
-		await runImport(library, { now: (now += 1000) });
+		expect(await attachWritten(library, [BOOK], (now += 1000))).toEqual([]);
 		expect((db.prepare(`SELECT COUNT(*) AS n FROM series`).get() as { n: number }).n).toBe(before);
 		const s = db.prepare(`SELECT path, origin_key FROM series WHERE id = ?`).get(seriesId) as {
 			path: string;
@@ -221,6 +221,13 @@ describe('downloading a novel', () => {
 		const locators = [entry('/c/1').locator, entry('/c/2').locator];
 		expect(entryDocs(book.pkg!.spine, locators, 0).map((d) => d.href)).toEqual([locators[0]]);
 		expect(planEntries(book.toc, book.pkg!.spine).map((e) => e.locator)).toEqual(locators);
+	});
+
+	// The scan stays the cross-check (c170): it reads the same book and agrees.
+	it('is left exactly as it was by the scan that follows', async () => {
+		const before = snapshot(seriesId);
+		await runImport(library, { now: (now += 1000) });
+		expect(snapshot(seriesId)).toEqual(before);
 	});
 
 	it('rewrites the book with each new chapter, keeping what it held, and a failure counts a try', async () => {
@@ -350,3 +357,11 @@ describe('following a novel', () => {
 		expect(await followNovels(now + 14 * HOUR, db)).toEqual({ series: 0, queued: 0 });
 	});
 });
+
+/** A series and its entries as rows, for a scan to leave alone. */
+function snapshot(id: number) {
+	return {
+		series: db.prepare(`SELECT * FROM series WHERE id = ?`).get(id),
+		entries: db.prepare(`SELECT * FROM entries WHERE series_id = ? ORDER BY id`).all(id)
+	};
+}

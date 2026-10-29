@@ -258,10 +258,11 @@ tsundoku moves nothing. A second novel of the same title gets `<Title> (2)`.
   (size and time) changes with each, so a tablet that kept the book fetches it
   again ([`TEXT-READER.md`](TEXT-READER.md)). A 591-chapter web novel is 2–5
   MB; the batches keep a long ALL to one write per ten chapters.
-- **Between the write and the import** the chapters are IMPORTING
-  (`novel_chapters`, rung 45). The import is the app's own, twenty seconds
-  after the last arrival, as for manga, and at startup for anything a restart
-  left.
+- **A batch attaches as the book is written** (c170,
+  [`DOWNLOADER.md`](DOWNLOADER.md), "Attaching"). Until then, or when a scan
+  has to step in, the chapters are IMPORTING (`novel_chapters`, rung 45), and
+  the import is the app's own: twenty seconds after the last arrival, and at
+  startup for anything a restart left.
 
 ### Reading it
 
