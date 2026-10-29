@@ -31,8 +31,8 @@ journalctl --user -u tsundoku -f
 ```
 
 A restart stops the server within a second or two. Until 2026-10-15 every
-stop sat out systemd's 90 s timeout and was killed: the Suwayomi watcher
-(`src/lib/server/suwayomi-watch.ts`) kept rescheduling its poll, so the event
+stop sat out systemd's 90 s timeout and was killed: the queue watcher
+(then `suwayomi-watch.ts`, now `src/lib/server/downloads-watch.ts`) kept rescheduling its poll, so the event
 loop never emptied, and a screen's live downloads stream held the HTTP server
 open. On SIGTERM the watcher now ends every stream (the screens' EventSource
 reconnects to the next server) and its timers don't keep the process alive.
@@ -63,8 +63,8 @@ http://127.0.0.1:42143`). The mapping persists across reboots. It's
 Tailscale owns the certificate and renews it itself, so there are no `tailscale
 cert` files to rotate. `tailscale serve` accepts HTTPS on 443, 8443 and 10000
 only. **443 is taken on this machine** by another app's mapping (to port
-42138), so tsundoku uses 8443, and 10000 is Suwayomi's
-([`DOWNLOADING.md`](DOWNLOADING.md), "How it's set up"). `serve` never overwrites a port that something
+42138), so tsundoku uses 8443; 10000 was Suwayomi's until c129 and is free
+([`DOWNLOADING.md`](DOWNLOADING.md), "Suwayomi, retired"). `serve` never overwrites a port that something
 else serves: it stops and says to pick another with `TSUNDOKU_HTTPS_PORT`.
 
 The pure parts (reading the tailnet name, the origin, whether a port is free,
@@ -81,7 +81,7 @@ put `.env` into `process.env`, so development keeps the sample library in
 ## Who migrates
 
 **The served app, and nothing else that touches the live database.** The
-timers (`tsundoku-ocr`, `tsundoku-sync`, `tsundoku-suwayomi-import`, `tsundoku-backup`) run `scripts/*.ts`
+timers (`tsundoku-ocr`, `tsundoku-sync`, `tsundoku-backup`; `tsundoku-suwayomi-import` until c129) run `scripts/*.ts`
 straight from the working tree, where a new migration rung sits for as long as
 it is being written. On 2026-09-25 the OCR timer, firing mid-c67, climbed the
 live database to rung 29 while the served app was still the previous build.

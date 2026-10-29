@@ -183,8 +183,8 @@ id and number, never by path.
 
 A download the backup doesn't list is keyed by its folder
 (`mihon-dir:<source dir>/<series dir>`). That happens whenever a chapter is
-downloaded before the next backup: Mihon backs up daily, Suwayomi when the
-timer asks ([`DOWNLOADING.md`](DOWNLOADING.md)). Once a newer backup lists the
+downloaded before the next backup: Mihon backs up daily; tsundoku's own
+device writes one with its downloads ([`DOWNLOADER.md`](DOWNLOADER.md)). Once a newer backup lists the
 manga, the same folder matches it, and the plan carries the folder key it had
 (`formerKey`). The writer settles the two before anything else
 (`adoptFormer`, `src/lib/server/import/fold.ts`):

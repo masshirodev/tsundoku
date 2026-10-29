@@ -8,7 +8,6 @@ import type { PlannedEntry, PlannedSeries } from '$lib/import/plan';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';
-process.env.DOWNLOADS_BACKEND = 'engine';
 process.env.ENGINE_TOKEN = 't';
 // ADD fetches the new series' cover: never into the library's own covers folder.
 const covers = mkdtempSync(join(tmpdir(), 'tsundoku-backend-covers-'));
@@ -87,7 +86,6 @@ afterAll(async () => {
 	server.closeAllConnections();
 	await new Promise((ok) => server.close(ok));
 	rmSync(covers, { recursive: true, force: true });
-	delete process.env.DOWNLOADS_BACKEND;
 });
 
 const db = getDb();

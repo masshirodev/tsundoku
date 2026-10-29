@@ -1,6 +1,6 @@
 /**
  * The engine's bearer token for a request to `url`, or none: the twin of
- * suwayomiAuth (suwayomi-auth.ts). Only the engine's own origin gets it, since
+ * Suwayomi's login did until c129. Only the engine's own origin gets it, since
  * a cover URL can point anywhere and the token must never go with it. Plain
  * relative imports only, so the scripts can load it.
  */

@@ -2,7 +2,7 @@ import { getDb } from '../db.ts';
 import { sourceUse } from '../library-sources.ts';
 import { mostlyHidden } from '../../library/downloads.ts';
 import { cleanSchema, type EngineFilter, type FilterField } from '../../library/browse-filters.ts';
-import type { SearchHit } from '../suwayomi-library.ts';
+import type { SearchHit } from '../download-types.ts';
 import { asHits, callSource, type EngineManga } from './backend.ts';
 import { challenges } from './client.ts';
 import { installed, preferences } from './extensions.ts';

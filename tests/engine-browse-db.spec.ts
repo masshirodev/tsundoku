@@ -5,7 +5,6 @@ import type { PlannedSeries } from '$lib/import/plan';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';
-process.env.DOWNLOADS_BACKEND = 'engine';
 process.env.ENGINE_TOKEN = 't';
 delete process.env.SUWAYOMI_URL;
 
@@ -87,7 +86,6 @@ beforeAll(async () => {
 afterAll(async () => {
 	server.closeAllConnections();
 	await new Promise((ok) => server.close(ok));
-	delete process.env.DOWNLOADS_BACKEND;
 });
 beforeEach(() => {
 	calls = [];

@@ -13,7 +13,6 @@ import { listZip, readMember } from './zip.ts';
 import { getSetting } from './settings.ts';
 import { openingEdition } from '../library/editions.ts';
 import { linkCover } from './catalogue.ts';
-import { suwayomiAuth } from './suwayomi-auth.ts';
 import { engineAuth } from './engine/auth.ts';
 
 /**
@@ -295,8 +294,7 @@ function remoteSource(s: SeriesRow): Source | null {
 						'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140 Safari/537.36',
 					referer: `${origin}/`,
 					accept: 'image/avif,image/webp,image/*,*/*;q=0.8',
-					// A Suwayomi cover needs its login, an engine one its token; any other site gets nothing.
-					...suwayomiAuth(url),
+					// An engine cover needs its token; any other site gets nothing.
 					...engineAuth(url)
 				},
 				signal: AbortSignal.timeout(15_000)

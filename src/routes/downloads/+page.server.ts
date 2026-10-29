@@ -1,7 +1,6 @@
 import { error, fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { isRevealed } from '$lib/server/prefs';
-import { setSetting } from '$lib/server/settings';
 import {
 	arrivedSince,
 	configured,
@@ -19,7 +18,7 @@ import { queueView, type QueueView } from '$lib/library/downloads';
 
 /**
  * The download queue (Index Downloads 8–9, 12; doc/DOWNLOADING.md): what's
- * downloading, failures first, then series in Suwayomi's order. Hidden means
+ * downloading, failures first, then series in the queue's order. Hidden means
  * hidden, here as everywhere: queueView() leaves out what reveal would hide,
  * and every action below acts only on what the viewer can see.
  */
@@ -43,8 +42,6 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 	} catch {
 		return { down: { since: notAnsweringSince() ?? now }, recent, view: null };
 	}
-	// Resumed from Suwayomi's own UI: its pause is over here too.
-	if (q.running && pausedAt() !== null) setSetting('downloads_paused_at', '');
 	const v = queueView(q.items, seriesForKey, reveal);
 	const open = Number(url.searchParams.get('open')) || null;
 	const all = url.searchParams.get('more') === '1';
@@ -100,7 +97,7 @@ const ids = (form: FormData, name: string) =>
 		.map(Number)
 		.filter((n) => Number.isInteger(n) && n > 0);
 
-/** Every action: Suwayomi not answering is a refusal the page bands, not an error page. */
+/** Every action: the engine not answering is a refusal the page bands, not an error page. */
 async function guarded<T>(fn: () => Promise<T>) {
 	try {
 		return await fn();

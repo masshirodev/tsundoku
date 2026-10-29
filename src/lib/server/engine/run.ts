@@ -2,23 +2,22 @@ import { importRunning, libraryRoot, startScan } from '../import/index.ts';
 import { getDb } from '../db.ts';
 import { engineConfigured } from './client.ts';
 import { startWorker } from './worker.ts';
+import { followNew } from './backend.ts';
 
 /**
- * Which backend the download screens ask (doc/DOWNLOADER.md, "The switch"):
- * the engine with `DOWNLOADS_BACKEND=engine` (live since 2026-10-28),
- * Suwayomi otherwise. Both can run side by side; the switch is one line in
- * `.env`.
+ * Whether downloading is on here: tsundoku's engine, when ENGINE_URL and
+ * ENGINE_TOKEN are set (doc/DOWNLOADER.md). Until c129 (2026-10-28) this
+ * chose between Suwayomi and the engine by DOWNLOADS_BACKEND.
  */
-export const downloadsBackend = (): 'engine' | 'suwayomi' =>
-	process.env.DOWNLOADS_BACKEND === 'engine' && engineConfigured() ? 'engine' : 'suwayomi';
+export const downloadsBackend = (): 'engine' | 'none' => (engineConfigured() ? 'engine' : 'none');
 
 let importTimer: ReturnType<typeof setTimeout> | null = null;
 let lastImport = 0;
 
 /**
  * Twenty seconds after the last chapter landed, and never more than once a
- * minute, as the Suwayomi watcher imports (suwayomi-watch.ts): a series
- * downloading chapter after chapter imports in batches, not a scan each.
+ * minute: a series downloading chapter after chapter imports in batches, not
+ * a scan each.
  */
 function importSoon() {
 	if (importTimer) clearTimeout(importTimer);
@@ -49,14 +48,39 @@ const pendingImports = () =>
 			)
 			.get() as { n: number }
 	).n;
-process.once('SIGTERM', () => importTimer && clearTimeout(importTimer));
+/**
+ * FOLLOW's step every ten minutes (followNew asks each followed series'
+ * source every six hours, a few a run). The Suwayomi import timer posted it
+ * until c129; the app runs it itself now, beside the worker.
+ */
+const FOLLOW_STEP_MS = 10 * 60 * 1000;
+let followTimer: ReturnType<typeof setInterval> | null = null;
+let following = false;
+async function followStep() {
+	if (following) return;
+	following = true;
+	try {
+		await followNew();
+	} catch (e) {
+		console.warn(`tsundoku: FOLLOW's step: ${(e as Error).message}`);
+	} finally {
+		following = false;
+	}
+}
+
+process.once('SIGTERM', () => {
+	if (importTimer) clearTimeout(importTimer);
+	if (followTimer) clearInterval(followTimer);
+});
 
 let started = false;
 
-/** Starts the downloader once, when the engine backend is on, and imports what a restart left. */
+/** Starts the downloader and FOLLOW's step once, when the engine is set up, and imports what a restart left. */
 export function ensureEngineWorker(): void {
 	if (downloadsBackend() !== 'engine' || started) return;
 	started = true;
 	startWorker(libraryRoot(), importSoon);
 	if (pendingImports() > 0) importSoon();
+	followTimer = setInterval(() => void followStep(), FOLLOW_STEP_MS);
+	followTimer.unref();
 }

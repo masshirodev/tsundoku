@@ -1,12 +1,18 @@
 import { getDb } from './db.ts';
 import { VISIBLE_SQL } from './visibility.ts';
-import { mostlyHidden, normTitle, parseKey, type SourceUse } from '../library/downloads.ts';
+import {
+	mostlyHidden,
+	normTitle,
+	parseKey,
+	type QueueSeries,
+	type SourceUse
+} from '../library/downloads.ts';
 
 /**
- * What the library holds of each source, for finding and adding series
- * (doc/DOWNLOADING.md, "Finding a series"): shared by both download
- * backends, Suwayomi's (suwayomi-library.ts) and the engine's
- * (engine/backend.ts), since none of it is either's.
+ * What the library holds of each source, for finding, adding and queueing
+ * series (doc/DOWNLOADING.md, "Finding a series"): library queries the
+ * engine's backend (engine/backend.ts) asks, kept apart from it since none
+ * of it is the engine's.
  */
 
 let used: { at: number; use: Map<string, SourceUse> } | null = null;
@@ -85,4 +91,35 @@ export function mihonRoot(): number | null {
 			?.id ??
 		null
 	);
+}
+
+/** The tsundoku series a queued manga is, by key; null when it hasn't been imported. */
+export function seriesForKey(key: string): QueueSeries | null {
+	const row = getDb()
+		.prepare(
+			`SELECT s.id, s.title, NOT ${VISIBLE_SQL} AS hidden, s.cover_at, s.hue
+			FROM series s JOIN roots r ON r.id = s.root_id WHERE s.origin_key = ?`
+		)
+		.get(key) as
+		{ id: number; title: string; hidden: number; cover_at: number | null; hue: number } | undefined;
+	return row
+		? { id: row.id, title: row.title, hidden: row.hidden === 1, cover: row.cover_at, hue: row.hue }
+		: null;
+}
+
+/**
+ * Chapters that arrived since `since` (the NEW shelf's own clock,
+ * `entries.arrived_at`), for "12 DOWNLOADED IN THE LAST HOUR": what finished
+ * is the NEW shelf's, and the queue only points there.
+ */
+export function arrivedSince(since: number, reveal: boolean): number {
+	return (
+		getDb()
+			.prepare(
+				`SELECT COUNT(*) AS n FROM entries e JOIN series s ON s.id = e.series_id
+				JOIN roots r ON r.id = s.root_id
+				WHERE e.arrived_at >= ? AND e.shadowed = 0 AND ${reveal ? '1' : VISIBLE_SQL}`
+			)
+			.get(since) as { n: number }
+	).n;
 }

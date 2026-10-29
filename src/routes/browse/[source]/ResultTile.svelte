@@ -1,7 +1,7 @@
 <script lang="ts">
 	import Cover from '$lib/components/content/Cover.svelte';
 	import Badge from '$lib/components/content/Badge.svelte';
-	import type { SearchHit } from '$lib/server/suwayomi-library';
+	import type { SearchHit } from '$lib/server/download-types';
 
 	/**
 	 * One of a source's results on its BROWSE page (Index-Browse, popular;

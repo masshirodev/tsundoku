@@ -379,7 +379,7 @@ let running = false;
 /**
  * Starts the downloader in the app, once, when the engine backend is on
  * (`DOWNLOADS_BACKEND=engine`). [onArrived] runs after chapters land: the
- * app's scan, debounced as the Suwayomi watcher's is.
+ * app's scan, debounced.
  */
 export function startWorker(
 	library: string,

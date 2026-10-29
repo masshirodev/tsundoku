@@ -1,6 +1,6 @@
 import { browser } from '$app/environment';
 import { resolve } from '$app/paths';
-import type { LiveMessage } from '$lib/server/suwayomi-watch';
+import type { LiveMessage } from '$lib/server/downloads-watch';
 import type { DownloadState } from '$lib/library/downloads';
 
 /**

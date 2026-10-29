@@ -130,12 +130,16 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		tracking: trackingOf(series.id),
 		// A novel's Ranobe link and line (doc/RANOBE.md). Null for a comic.
 		ranobe: ranobeSeries(series.id),
-		// Downloading through Suwayomi (doc/DOWNLOADING.md): the DOWNLOAD row and each chapter's state.
+		// Downloading (doc/DOWNLOADING.md): the DOWNLOAD row and each chapter's state.
 		downloads: await seriesDownloads(series.id, series.entries),
 		// ALL N's confirmation is a URL, so it opens without script too.
 		confirmAll: url.searchParams.get('download') === 'all',
 		// Just added from a source search (Download States 1e, after adding): the band, and UNDO.
-		addedFrom: Number(url.searchParams.get('added')) || null
+		// The engine's id for it is `<source>~<url>` (engine/backend.ts), never a number:
+		// a Number() here dropped the band after every ADD on the engine.
+		addedFrom: /^[\w~-]{1,512}$/.test(url.searchParams.get('added') ?? '')
+			? url.searchParams.get('added')
+			: null
 	};
 };
 
@@ -558,7 +562,7 @@ export const actions: Actions = {
 	/**
 	 * DOWNLOAD (doc/DOWNLOADING.md): NEXT 10, ALL N, the bulk bar's selection,
 	 * or a tap on one row. Each chapter is decided again here, from what
-	 * Suwayomi says now: one with no file is queued, a failed one retried, and
+	 * the queue says now: one with no file is queued, a failed one retried, and
 	 * anything else is left alone.
 	 */
 	download: async ({ request, params, cookies }) => {
@@ -592,7 +596,7 @@ export const actions: Actions = {
 		return { downloaded: { queued: result.queued + failed.length, missing: result.missing } };
 	},
 
-	/** FOLLOW and FOLLOWING ✓: new chapters download as Suwayomi finds them (doc/DOWNLOADING.md). */
+	/** FOLLOW and FOLLOWING ✓: new chapters download as the source lists them (doc/DOWNLOADING.md). */
 	follow: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
 		const on = (await request.formData()).get('on') === '1';

@@ -18,7 +18,7 @@
 
 	/**
 	 * The download queue (Index Downloads 8, 9, 12; doc/DOWNLOADING.md).
-	 * Failures first, with RETRY and ✕; then series in Suwayomi's order, each
+	 * Failures first, with RETRY and ✕; then series in the queue's order, each
 	 * opening (by URL, so without script too) on ↑ TO THE TOP, CANCEL N and its
 	 * next chapters. What finished is the NEW shelf's, linked from the band.
 	 */
@@ -78,10 +78,10 @@
 	{/if}
 
 	{#if data.down}
-		<!-- Not answering: the only place besides SETTINGS and the DOWNLOAD row that names Suwayomi. -->
+		<!-- Not answering: one of the few places that names the engine. -->
 		<Banner
 			kind="info"
-			title="○ NOT ANSWERING · SUWAYOMI ON THE WORKSTATION"
+			title="○ NOT ANSWERING · THE EXTENSION ENGINE ON THE WORKSTATION"
 			detail="SINCE {clock(data.down.since)}"
 		/>
 	{:else if v && v.downloading && !paused}
@@ -134,7 +134,7 @@
 				<li class="fail">
 					<div class="f-text">
 						<div class="f-t">{f.title} · {chapterLabel(f.number, f.name)}</div>
-						<!-- Suwayomi says it failed and how often it tried, never why. -->
+						<!-- How it failed, in a word, and how often it tried. -->
 						<div class="f-m">
 							<span class="f-why">FAILED</span> · {f.tries}
 							{f.tries === 1 ? 'TRY' : 'TRIES'}

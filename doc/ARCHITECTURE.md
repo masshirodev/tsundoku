@@ -144,7 +144,8 @@ So:
 
 Since 2026-10-28 tsundoku downloads on the engine itself
 ([`DOWNLOADER.md`](DOWNLOADER.md)), and BROWSE finds series on it
-([`BROWSE.md`](BROWSE.md)); Suwayomi still runs until it's retired. The plan is on the board under the
+([`BROWSE.md`](BROWSE.md)); Suwayomi was retired the same day (c129,
+[`DOWNLOADING.md`](DOWNLOADING.md), "Suwayomi, retired"). The plan is on the board under the
 **Extensions** label: c124 (gallery sources as one-off books), c113 (the
 spike, done), c131 (the engine fork), c125 (tsundoku's own downloader, manga
 first), c130 (cover hashes, so Mihon's books are checked for duplicates), c126 (browse,
@@ -181,4 +182,6 @@ one more device ([`DOWNLOADING.md`](DOWNLOADING.md)).
    Komga-compatible API so stock Mihon can read the library as a fallback.
 5. **One downloader.** Finding and downloading manga, novels and anime from
    inside tsundoku on Mihon, Aniyomi and LNReader extensions, then retiring
-   Suwayomi ("Downloading", above). Started 2026-10-28 with the engine spike.
+   Suwayomi ("Downloading", above). Started 2026-10-28 with the engine spike;
+   manga downloading and BROWSE on the engine, and Suwayomi retired, the same
+   day. Novels (c127) and anime (c128) are next.

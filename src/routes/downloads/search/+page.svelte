@@ -2,7 +2,7 @@
 	import { resolve } from '$app/paths';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import Cover from '$lib/components/content/Cover.svelte';
-	import type { SearchHit } from '$lib/server/suwayomi-library';
+	import type { SearchHit } from '$lib/server/download-types';
 	import SearchField from '$lib/components/controls/SearchField.svelte';
 	import { seriesHref } from '$lib/library/links';
 	import { count } from '$lib/library/downloads';
@@ -98,7 +98,9 @@
 </form>
 
 {#if data.down}
-	<div class="note">○ NOT ANSWERING · SUWAYOMI ON THE WORKSTATION · NOTHING CAN BE SEARCHED</div>
+	<div class="note">
+		○ NOT ANSWERING · THE EXTENSION ENGINE ON THE WORKSTATION · NOTHING CAN BE SEARCHED
+	</div>
 {:else if data.q && data.all}
 	<nav class="tabs" aria-label="Sources">
 		<a class="tab" class:on={!data.only} href={href()}

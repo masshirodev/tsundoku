@@ -1,9 +1,0 @@
-[Unit]
-Description=tsundoku: look for Suwayomi downloads every ten minutes
-
-[Timer]
-OnBootSec=7min
-OnUnitActiveSec=10min
-
-[Install]
-WantedBy=timers.target

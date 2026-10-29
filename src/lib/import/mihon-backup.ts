@@ -203,7 +203,7 @@ function encodeManga(m: MihonManga): Msg {
 /**
  * A `.tachibk` (before gzip) holding [backup]: the decoder's mirror, so what
  * tsundoku writes for its own downloads (doc/DOWNLOADER.md) is read back by
- * the same importer as a phone's or Suwayomi's.
+ * the same importer as a phone's, or tsundoku's own downloads.
  */
 export function encodeBackup(backup: MihonBackup): Uint8Array {
 	return encode([

@@ -12,7 +12,7 @@ import { BROWSE_PORT, ENGINE_PORT, REPO_PORT, SOURCES, type EngineCall } from '.
 /**
  * BROWSE's world for the browser suite (doc/BROWSE.md, card c141): a fake
  * extension engine in the runner's process, and a preview of the same build
- * on its own seeded database with DOWNLOADS_BACKEND=engine pointing at it.
+ * on its own seeded database with ENGINE_URL pointing at it.
  * It's its own server because turning downloads on for the shared one would
  * draw a DOWNLOAD row under the specs that pin the series screen; it lives
  * for the whole run (a global setup, after the shared server has built) so
@@ -381,7 +381,6 @@ export default async function setup() {
 				...process.env,
 				DATABASE_PATH: dbPath,
 				TSUNDOKU_TOKEN: E2E_TOKEN,
-				DOWNLOADS_BACKEND: 'engine',
 				ENGINE_URL: `http://127.0.0.1:${ENGINE_PORT}`,
 				ENGINE_TOKEN: 'e2e-engine-token',
 				TSUNDOKU_ANILIST: 'off',

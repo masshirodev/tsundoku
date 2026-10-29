@@ -53,11 +53,11 @@
 		 * rail below 60 entries, where they'd only get in the way.
 		 */
 		onclose?: () => void;
-		/** Each chapter's place in downloading (doc/DOWNLOADING.md); null where Suwayomi has no say. */
+		/** Each chapter's place in downloading (doc/DOWNLOADING.md); null where downloading has no say. */
 		downloads?: Map<number, DownloadState> | null;
 		/**
 		 * Whether a tap on a row with no file queues it (or retries it, if it
-		 * failed): Suwayomi answering, and the device online.
+		 * failed): the engine answering, and the device online.
 		 */
 		canDownload?: boolean;
 	} = $props();

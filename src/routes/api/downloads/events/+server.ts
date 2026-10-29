@@ -2,7 +2,7 @@ import { error } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { isRevealed } from '$lib/server/prefs';
 import { configured } from '$lib/server/downloads';
-import { listen } from '$lib/server/suwayomi-watch';
+import { listen } from '$lib/server/downloads-watch';
 
 /**
  * The queue's changes as server-sent events (doc/DOWNLOADING.md, "Live"):

@@ -2,7 +2,13 @@ import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
 import { writeSeries } from '../import/write.ts';
 import { refreshCovers } from '../covers.ts';
-import { forgetSourceUse, libraryIndex, mihonRoot, sourceUse } from '../library-sources.ts';
+import {
+	forgetSourceUse,
+	libraryIndex,
+	mihonRoot,
+	seriesForKey,
+	sourceUse
+} from '../library-sources.ts';
 import { planMihon } from '../../import/mihon-plan.ts';
 import type { MihonManga } from '../../import/mihon-backup.ts';
 import { chapterNumbers, toNumber } from '../../import/chapter-number.ts';
@@ -24,20 +30,25 @@ import { splitMemo } from './protocol.ts';
 import { chapterName } from './device.ts';
 import * as queue from './queue.ts';
 import { resolveSeries } from './worker.ts';
-import { seriesForKey, type Queue, type QueueSummary, type SeriesDownloads } from '../suwayomi.ts';
-import type { SearchHit, SourceManga } from '../suwayomi-library.ts';
+import type {
+	Queue,
+	QueueSummary,
+	SearchHit,
+	SeriesDownloads,
+	SourceManga
+} from '../download-types.ts';
 
 /**
  * The download screens' backend on tsundoku's own engine (doc/DOWNLOADER.md,
- * card c138): every function the screens call of Suwayomi's (suwayomi.ts,
- * suwayomi-library.ts), answering in the same types, so the screens are the
+ * card c138): every function the screens call, answering in the types they
+ * were drawn for (download-types.ts, Suwayomi's until c129), so the screens are the
  * same whichever backend runs (server/downloads.ts picks). A chapter's id is
  * its entry's here, and a source's manga is named by source and URL.
  */
 
 const db = (): Database.Database => getDb();
 
-// ---- the queue, as Suwayomi's QueueItems ---------------------------------------------------
+// ---- the queue, as the screens' QueueItems -------------------------------------------------
 
 const STATE: Record<queue.QueueRow['state'], QueueItem['state']> = {
 	queued: 'QUEUED',
@@ -245,7 +256,7 @@ export function imageRoute(engineUrl: string | undefined | null): string {
 	return token ? `/api/downloads/engine-image/${token}` : '';
 }
 
-/** The sources a search asks: the installed ones the library reads from, as Suwayomi's search chose them. */
+/** The sources a search asks: the installed ones the library reads from. */
 export function searchSources(reveal: boolean): { id: string; name: string }[] {
 	const rows = db()
 		.prepare(
@@ -339,7 +350,7 @@ export function asHits(
 	return out;
 }
 
-/** One source's answer to a query, as Suwayomi's search answers (suwayomi-library.ts). */
+/** One source's answer to a query. */
 export async function searchSource(
 	sourceId: string,
 	query: string,

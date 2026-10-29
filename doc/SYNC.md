@@ -1,8 +1,7 @@
 # Syncing the tablet
 
-Downloading is Mihon's and Hentoid's, on the tablet, and Suwayomi's on the
-workstation ([`DOWNLOADING.md`](DOWNLOADING.md)). tsundoku doesn't
-download. What the tablet downloads reaches the workstation through
+Downloading is Mihon's and Hentoid's on the tablet, and tsundoku's own on the
+workstation ([`DOWNLOADING.md`](DOWNLOADING.md)). What the tablet downloads reaches the workstation through
 [Syncthing](https://syncthing.net), and a timer imports it:
 
 1. download on the tablet;
@@ -94,15 +93,17 @@ The tablet (a Xiaomi Pad, `21051182G`), the phone (a Galaxy Z Fold6,
 `SM-F956B`) and Waydroid on the workstation (below) all download, and all
 sync. Each device keeps its own copy:
 
-| Device   | On the workstation                                   |
-| -------- | ---------------------------------------------------- |
-| Tablet   | `LIBRARY_ROOT/{Mihon,Hentoid,Library}`               |
-| Phone    | `LIBRARY_ROOT/devices/phone/{Mihon,Hentoid,Library}` |
-| Waydroid | `LIBRARY_ROOT/devices/waydroid/Mihon`                |
-| Suwayomi | `LIBRARY_ROOT/devices/suwayomi/Mihon`                |
+| Device   | On the workstation                                    |
+| -------- | ----------------------------------------------------- |
+| Tablet   | `LIBRARY_ROOT/{Mihon,Hentoid,Library}`                |
+| Phone    | `LIBRARY_ROOT/devices/phone/{Mihon,Hentoid,Library}`  |
+| Waydroid | `LIBRARY_ROOT/devices/waydroid/Mihon`                 |
+| tsundoku | `LIBRARY_ROOT/devices/tsundoku/Mihon`                 |
+| Suwayomi | `LIBRARY_ROOT/devices/suwayomi/Mihon` (retired, kept) |
 
-Suwayomi isn't synced: it runs here and writes into its folder directly, with
-a timer of its own ([`DOWNLOADING.md`](DOWNLOADING.md)).
+Neither is synced: tsundoku's downloads are written here into their folder
+directly ([`DOWNLOADER.md`](DOWNLOADER.md)), and Suwayomi's folder is what it
+wrote until it was retired (c129), still read as a device.
 
 Why not one shared folder: the same chapter downloaded on both devices would
 be two versions of one path, and Syncthing would keep a conflict copy. Mihon

@@ -3,7 +3,7 @@ import { currentScan, listShelves } from '$lib/server/library';
 import { isIncognito, isRevealed, themeOf } from '$lib/server/prefs';
 import { favouritePeople } from '$lib/server/people';
 import { queueSummary } from '$lib/server/downloads';
-import { ensureWatcher } from '$lib/server/suwayomi-watch';
+import { ensureWatcher } from '$lib/server/downloads-watch';
 import { downloadsBackend, ensureEngineWorker } from '$lib/server/engine/run';
 import { browseList } from '$lib/server/engine/browse';
 
@@ -30,9 +30,9 @@ export const load: LayoutServerLoad = async ({ cookies, locals }) => {
 		shelves.push({ key: 'people', name: 'People', kind: 'smart', count: people.length });
 	// The download queue's counts, for the QUEUE cell and DOWNLOADS (doc/DOWNLOADING.md).
 	const queue = await queueSummary(reveal);
-	// Imports chapters as Suwayomi finishes them, and feeds the screens' live updates.
+	// Feeds the screens' live updates of the queue.
 	ensureWatcher();
-	// tsundoku's own downloader, with DOWNLOADS_BACKEND=engine (doc/DOWNLOADER.md).
+	// tsundoku's own downloader and FOLLOW's step (doc/DOWNLOADER.md).
 	ensureEngineWorker();
 	// BROWSE's way in, and its EXTENSIONS count (doc/BROWSE.md): on the engine only.
 	const browse = downloadsBackend() === 'engine' ? { updates: browseList(reveal).updates } : null;

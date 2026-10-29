@@ -1,16 +1,16 @@
 # tsundoku's own downloader
 
 How tsundoku downloads manga itself, on the extension engine
-([`EXTENSION-ENGINE.md`](EXTENSION-ENGINE.md)), instead of asking Suwayomi
-([`DOWNLOADING.md`](DOWNLOADING.md)). Card c125 ("tsundoku's own downloader on
+([`EXTENSION-ENGINE.md`](EXTENSION-ENGINE.md)); Suwayomi did it until c129
+([`DOWNLOADING.md`](DOWNLOADING.md), "Suwayomi, retired"). Card c125 ("tsundoku's own downloader on
 the extension engine, manga first"); started 2026-10-28. Anime (c128) and
 novels (c127) come later and reuse the queue.
 
 ## The one decision: tsundoku is a device
 
-Suwayomi is integrated as **one more device**: it writes Mihon's download
+Suwayomi was integrated as **one more device**: it wrote Mihon's download
 layout and a Mihon backup into `$LIBRARY_ROOT/devices/suwayomi/Mihon/`, and the
-importer reads that like the tablet's copy ([`SYNC.md`](SYNC.md), "Other
+importer read that like the tablet's copy (it still does: the folder stays) ([`SYNC.md`](SYNC.md), "Other
 devices"). The downloader does exactly the same, as
 **`$LIBRARY_ROOT/devices/tsundoku/Mihon/`**:
 
@@ -32,8 +32,8 @@ Why, over writing entries straight into the database:
   twins at the next scan; files written outside it would be a second kind of
   library folder. Writing the backup is what makes the files fold into the
   series they belong to.
-- **Retiring Suwayomi (c129) is then swapping one device for another.** What
-  Suwayomi downloaded stays a device's copy, read as before.
+- **Retiring Suwayomi (c129) was then swapping one device for another.** What
+  Suwayomi downloaded stays a device's copy, read as before (done 2026-10-28).
 
 So tsundoku writes four things it has only ever read: a CBZ, its ComicInfo, a
 `.tachibk`, and chapter numbers.
@@ -66,17 +66,14 @@ under it:
 
 ## The switch
 
-`DOWNLOADS_BACKEND` in `.env` picks which backend the screens ask: `engine`,
-or `suwayomi` (the default when unset). Both can run side by side, and
-switching is that one line and a restart (`systemctl --user restart
-tsundoku`). `server/downloads.ts` is the one place that knows there are two.
-
 **The screens have asked the engine since 2026-10-28**, after the parity
-check below on the live library. Suwayomi still runs (its timer imports its
-own folder, and FOLLOW's step it posts now goes to the engine), but nothing
-asks it to download: on the switch its downloader was stopped, with 322
-failed chapters in its own queue, which the screens no longer show (c129,
-"Retire Suwayomi").
+check below on the live library. Until then `DOWNLOADS_BACKEND` in `.env`
+chose between Suwayomi and the engine, and both ran side by side. On the
+switch Suwayomi's downloader was stopped, with 322 failed chapters in its own
+queue, and the same day Suwayomi was retired (c129): the choice, the variable
+and its code are gone, and `server/downloads.ts` is a plain face over the
+engine. FOLLOW's step, which Suwayomi's timer used to post, runs in the app
+every ten minutes (`engine/run.ts`).
 
 Parity, checked live on 2026-10-28 with the backend on:
 
@@ -133,13 +130,13 @@ waits a running scan out, and imports at startup what a restart left).
   block on other code, or code signed by anyone). APKs are kept under their
   handle in `/mnt/hdd2/tsundoku/engine/store` (`ENGINE_STORE`). An update
   keeps the previous version a week for BACK TO; removing keeps the sources'
-  preferences. `yarn run engine-seed` carried Suwayomi's repository and its 14
-  extensions over on 2026-10-28: all loaded, 80 sources, every source the
+  preferences. A one-off script (`engine-seed`, removed with Suwayomi in c129)
+  carried Suwayomi's repository and its 14 extensions over on 2026-10-28: all loaded, 80 sources, every source the
   library reads from but XBatCat and Hitomi (not in Keiyoushi).
 
 - **The queue and the worker** (c137, 2026-10-28; rung 40):
   `src/lib/server/engine/queue.ts`, `worker.ts`, the pure `device.ts`, started
-  from the root layout by `run.ts` only with `DOWNLOADS_BACKEND=engine`. The
+  from the root layout by `run.ts` whenever the engine is set up. The
   queue is keyed by entries. The worker resolves a series at its source (a
   details call first, so Toonily answers an old URL with its new one, kept in
   `engine_series`), matches the source's chapters onto the entries
@@ -157,7 +154,7 @@ waits a running scan out, and imports at startup what a restart left).
   own entry by the app's scan, no twin.
 
 - **The screens' backend** (c138, 2026-10-28; rung 41): `server/downloads.ts`
-  picks; `engine/backend.ts` answers every call the screens make of Suwayomi
+  picked (until c129 left only the engine); `engine/backend.ts` answers every call the screens make of Suwayomi
   in Suwayomi's own types, from tsundoku's queue, so no component changed but
   the preview's cover. On the engine a chapter is its entry, a source's manga
   an opaque id of source and URL, and IMPORTING is a chapter written
@@ -166,6 +163,14 @@ waits a running scan out, and imports at startup what a restart left).
   that no entry is into entries by the Mihon importer's own plan and writer,
   and queues it unless read. `tests/engine-backend-db.spec.ts`, and the live
   check above.
+
+- **Suwayomi retired** (c129, 2026-10-28): its units stopped and disabled, its
+  code, container, timer and GraphQL fake removed, its folder kept as a
+  device. FOLLOW's step moved into the app (`followStep` in `engine/run.ts`,
+  every ten minutes). The screens' shared types live in
+  `server/download-types.ts`, the library queries in `library-sources.ts`, the
+  live watcher in `downloads-watch.ts`. `tests/downloads-flow.e2e.ts` drives a
+  fake engine now. [`DOWNLOADING.md`](DOWNLOADING.md), "Suwayomi, retired".
 
 ## What it does not do yet
 

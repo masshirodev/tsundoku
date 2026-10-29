@@ -191,7 +191,7 @@ export function failed(
 }
 
 /**
- * PAUSE and RESUME, the same setting the Suwayomi backend uses
+ * PAUSE and RESUME, the setting Suwayomi's backend used before c129
  * (`downloads_paused_at`), so the screens read one place whichever backend
  * runs.
  */

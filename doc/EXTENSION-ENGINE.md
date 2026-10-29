@@ -12,9 +12,9 @@ transcripts name explicit series).
 ## Running it
 
 Since 2026-10-28 (c131, "Fork M-Extension-Server as tsundoku's engine, with a
-solver beside it"), the engine runs on the workstation, beside Suwayomi, which
-keeps downloading until tsundoku's own downloader (c125) has parity. Nothing in
-tsundoku calls it yet.
+solver beside it"), the engine runs on the workstation. Since c138 tsundoku
+downloads on it ([`DOWNLOADER.md`](DOWNLOADER.md)), and since c129 it is the
+only downloader: Suwayomi, which ran beside it, was retired.
 
 | Piece        | Where                                                                                                                             |
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------- |

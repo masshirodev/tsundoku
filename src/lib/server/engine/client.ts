@@ -11,8 +11,7 @@ import {
 /**
  * tsundoku calling the extension engine (doc/EXTENSION-ENGINE.md, "Running
  * it"; doc/DOWNLOADER.md): the only thing that does. Off unless ENGINE_URL
- * and ENGINE_TOKEN are both set, as Suwayomi's client is off without
- * SUWAYOMI_URL.
+ * and ENGINE_TOKEN are both set.
  */
 
 export const engineConfigured = () => !!process.env.ENGINE_URL && !!process.env.ENGINE_TOKEN;

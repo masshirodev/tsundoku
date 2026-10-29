@@ -109,7 +109,7 @@
 		 * novel's reads go. Null for a comic.
 		 */
 		ranobe?: RanobeSeries | null;
-		/** Downloading through Suwayomi (doc/DOWNLOADING.md): the DOWNLOAD row and the FILE line's queue. */
+		/** Downloading (doc/DOWNLOADING.md): the DOWNLOAD row and the FILE line's queue. */
 		downloads?: SeriesDownloads | null;
 	} = $props();
 

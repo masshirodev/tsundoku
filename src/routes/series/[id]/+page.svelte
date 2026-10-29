@@ -236,7 +236,7 @@
 		)
 	);
 	const downloaded = $derived(form && 'downloaded' in form ? form.downloaded : null);
-	// Live while Suwayomi answers: only the downloading chapter moves; anything else reads the page again.
+	// Live while the engine answers: only the downloading chapter moves; anything else reads the page again.
 	const watching = $derived(canDownload);
 	$effect(() => {
 		if (!watching) return;

@@ -1,26 +1,27 @@
 import { formatBytes, formatNumber, type SeriesEntry } from './series.ts';
 
 /**
- * Downloading through Suwayomi, the rules (doc/DOWNLOADING.md, "From
- * tsundoku"). Pure: `src/lib/server/suwayomi.ts` asks Suwayomi and hands the
+ * Downloading, the rules (doc/DOWNLOADING.md, "From tsundoku"). Pure:
+ * `src/lib/server/engine/backend.ts` asks the engine's queue and hands the
  * answers here; the screens read what comes back.
  *
- * A tsundoku series is a Suwayomi manga by its key, `mihon:<source>:<url>`,
- * and a chapter is a Suwayomi chapter by its URL: the same ids the tablet's
- * backup uses, which is why Suwayomi could be imported as one more device.
+ * A tsundoku series is a source's manga by its key, `mihon:<source>:<url>`,
+ * and a chapter is a source's chapter by its URL: the same ids the tablet's
+ * backup uses, which is why downloads import as one more device. (The shapes
+ * began as Suwayomi's, retired in c129.)
  */
 
-/** A chapter as Suwayomi knows it. */
+/** A chapter as its source lists it. */
 export type SourceChapter = { id: number; url: string; downloaded: boolean };
 
-/** One row of Suwayomi's download queue. */
+/** One row of the download queue. */
 export type QueueItem = {
 	chapterId: number;
 	state: 'QUEUED' | 'DOWNLOADING' | 'FINISHED' | 'ERROR';
 	/** 0–1 */
 	progress: number;
 	tries: number;
-	/** -1 until Suwayomi has fetched the page list. */
+	/** -1 until the page list has been fetched. */
 	pageCount: number;
 	number: number;
 	name: string;
@@ -34,12 +35,12 @@ export type QueueItem = {
 export type DownloadState =
 	/** On disk: the plain row. */
 	| { kind: 'have' }
-	/** Suwayomi has it; tsundoku hasn't imported it yet. */
+	/** Downloaded; tsundoku hasn't imported it yet. */
 	| { kind: 'importing' }
 	| { kind: 'queued'; chapterId: number }
 	| { kind: 'downloading'; chapterId: number; page: number; pages: number; fraction: number }
 	| { kind: 'failed'; chapterId: number; tries: number }
-	/** Not on disk, and nothing under way. `chapterId` null: Suwayomi doesn't list it. */
+	/** Not on disk, and nothing under way. `chapterId` null: the source doesn't list it. */
 	| { kind: 'none'; chapterId: number | null };
 
 export const keyOf = (sourceId: string, url: string) => `mihon:${sourceId}:${url}`;
@@ -50,7 +51,7 @@ export function parseKey(key: string | null): { sourceId: string; url: string } 
 	return m ? { sourceId: m[1], url: m[2] } : null;
 }
 
-/** Where each entry of a series stands. Entries Suwayomi can't be asked about are left out. */
+/** Where each entry of a series stands. Entries the source can't be asked about are left out. */
 export function chapterStates(
 	entries: Pick<SeriesEntry, 'id' | 'available'>[],
 	urls: Map<number, string>,
@@ -90,7 +91,7 @@ export function chapterStates(
  * The row's status column for a chapter with no file. Null leaves the row's
  * own word (READ, the page) alone.
  *
- * The mock's FAILED · NOT FOUND isn't there: Suwayomi's queue says a chapter
+ * The mock's FAILED · NOT FOUND isn't there: the queue says a chapter
  * failed and how often it tried, never why (doc/DOWNLOADING.md, "Where it
  * departs from the handoff").
  */
@@ -120,7 +121,7 @@ export function rowAction(s: DownloadState | undefined): 'queue' | 'retry' | nul
 
 type Entry = Pick<SeriesEntry, 'id' | 'number' | 'readAt' | 'available' | 'bytes' | 'matter'>;
 
-/** Unread, no file, nothing under way, and Suwayomi lists it: what NEXT 10 and ALL draw from. */
+/** Unread, no file, nothing under way, and the source lists it: what NEXT 10 and ALL draw from. */
 function wanted(entries: Entry[], states: Map<number, DownloadState>): Entry[] {
 	return entries.filter((e) => {
 		const s = states.get(e.id);
@@ -256,7 +257,7 @@ export type QueueGroup = {
 	mangaId: number;
 	series: QueueSeries | null;
 	title: string;
-	/** Its chapters still to download, in Suwayomi's order. */
+	/** Its chapters still to download, in the queue's order. */
 	chapters: QueueItem[];
 	count: number;
 	/** "CH. 712 – 1,441" */
@@ -363,7 +364,7 @@ export type DownloadRow = { a: string; b: string; cells: DownloadCell[] };
 export type RowFacts =
 	{ kind: 'ok'; states: Map<number, DownloadState> } | { kind: 'down'; since: number };
 
-/** FOLLOW's part: whether it's on, and when Suwayomi last looked for new chapters. */
+/** FOLLOW's part: whether it's on, and when its source was last asked for new chapters. */
 export type FollowFacts = { on: boolean; checked: number | null };
 
 const chapters = (n: number) => `${count(n)} unread chapter${n === 1 ? '' : 's'} not downloaded`;
@@ -398,7 +399,7 @@ export function downloadRow(
 			a: missing ? chapters(missing) : 'Every unread chapter downloaded',
 			b: !online
 				? '○ OFFLINE · DOWNLOADING NEEDS THE WORKSTATION'
-				: `○ NOT ANSWERING · SUWAYOMI ON THE WORKSTATION · SINCE ${clock((facts as { since: number }).since)}`,
+				: `○ NOT ANSWERING · THE EXTENSION ENGINE ON THE WORKSTATION · SINCE ${clock((facts as { since: number }).since)}`,
 			cells: [
 				...(missing
 					? [
@@ -505,7 +506,7 @@ export type ResultMatch =
 // ---- FOLLOW (Download States 1d) ----------------------------------------------------------
 
 /**
- * The chapters FOLLOW queues: fetched by Suwayomi after the series was
+ * The chapters FOLLOW queues: listed by the source after the series was
  * followed, not downloaded, not queued, and not read here. New chapters
  * only: what was already missing stays ALL N's job. At most `cap` a run, so a
  * source that re-lists its whole catalogue can't queue hundreds at once.

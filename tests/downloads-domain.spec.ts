@@ -45,7 +45,7 @@ const item = (n: number, state: QueueItem['state'], extra: Partial<QueueItem> = 
 	name: `Chapter ${n}`,
 	key: 'mihon:1:/m',
 	mangaId: 7,
-	mangaTitle: 'Suwayomi’s title',
+	mangaTitle: 'The source’s title',
 	...extra
 });
 
@@ -58,7 +58,7 @@ describe('a chapter’s place in downloading', () => {
 		item(15, 'FINISHED')
 	]);
 
-	it('follows the file, then Suwayomi, then its queue', () => {
+	it('follows the file, then the source, then the queue', () => {
 		expect(states.get(1)).toEqual({ kind: 'have' });
 		expect(states.get(11)).toEqual({ kind: 'importing' });
 		expect(states.get(12)).toEqual({ kind: 'queued', chapterId: 1012 });
@@ -68,13 +68,13 @@ describe('a chapter’s place in downloading', () => {
 		expect(states.get(16)).toEqual({ kind: 'none', chapterId: 1016 });
 	});
 
-	it('is nothing Suwayomi can be asked for when it doesn’t list the chapter', () => {
+	it('is nothing to ask for when the source doesn’t list the chapter', () => {
 		const s = chapterStates(entries, urls, chapters.slice(0, 20), []);
 		expect(s.get(25)).toEqual({ kind: 'none', chapterId: null });
 		expect(rowAction(s.get(25))).toBeNull();
 	});
 
-	it('says FAILED with its tries, never a reason Suwayomi doesn’t give', () => {
+	it('says FAILED with its tries, never a reason the queue doesn’t give', () => {
 		expect(downloadStatus(states.get(14))).toBe('FAILED · 3 TRIES');
 		expect(downloadStatus(states.get(14), true)).toBe('FAILED');
 		expect(downloadStatus(states.get(13))).toBe('DOWNLOADING · 10 / 20');
@@ -86,7 +86,7 @@ describe('a chapter’s place in downloading', () => {
 		expect(downloadStatus(states.get(1))).toBeNull();
 	});
 
-	it('a page count Suwayomi hasn’t fetched yet reads as a percentage', () => {
+	it('a page count not fetched yet reads as a percentage', () => {
 		const s = chapterStates(entries, urls, chapters, [
 			item(13, 'DOWNLOADING', { progress: 0.25, pageCount: -1 })
 		]);
@@ -156,9 +156,9 @@ describe('the DOWNLOAD row', () => {
 		]);
 	});
 
-	it('keeps its cells, dimmed, when Suwayomi isn’t answering or the device is offline', () => {
+	it('keeps its cells, dimmed, when the engine isn’t answering or the device is offline', () => {
 		const down = downloadRow(entries, { kind: 'down', since: 0 }, true, clock);
-		expect(down.b).toBe('○ NOT ANSWERING · SUWAYOMI ON THE WORKSTATION · SINCE 14:02');
+		expect(down.b).toBe('○ NOT ANSWERING · THE EXTENSION ENGINE ON THE WORKSTATION · SINCE 14:02');
 		expect(down.cells.every((c) => c.dim)).toBe(true);
 		const states = chapterStates(entries, urls, chapters, []);
 		const off = downloadRow(entries, { kind: 'ok', states }, false, clock);
@@ -192,7 +192,7 @@ describe('the queue', () => {
 		item(5, 'FINISHED')
 	];
 
-	it('groups by series in Suwayomi’s order, failures apart', () => {
+	it('groups by series in the queue’s order, failures apart', () => {
 		const v = queueView(items, of, true);
 		expect(v.groups.map((g) => [g.title, g.count, g.span, g.active])).toEqual([
 			['Kingdom', 2, 'CH. 1 – 2', true],
@@ -218,7 +218,7 @@ describe('the queue', () => {
 });
 
 describe('keys', () => {
-	it('only a Mihon series keyed by its URL is one Suwayomi can be asked about', () => {
+	it('only a Mihon series keyed by its URL is one its source can be asked about', () => {
 		expect(parseKey('mihon:6247824327199706550:/series/x')).toEqual({
 			sourceId: '6247824327199706550',
 			url: '/series/x'
@@ -272,7 +272,7 @@ describe('FOLLOW on the DOWNLOAD row', () => {
 		});
 	});
 
-	it('is dimmed with the rest when Suwayomi isn’t answering', () => {
+	it('is dimmed with the rest when the engine isn’t answering', () => {
 		const r = downloadRow(entries, { kind: 'down', since: 0 }, true, clock, {
 			on: false,
 			checked: null
