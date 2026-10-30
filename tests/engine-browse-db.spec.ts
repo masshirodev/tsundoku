@@ -315,3 +315,22 @@ describe('what a source can do', () => {
 		expect(calls.filter((c) => c.method === 'filterSchemaManga').length).toBe(1);
 	});
 });
+
+describe('an extension with nothing in the owner’s languages', () => {
+	it('shows all its sources, since it was installed on purpose (a pt-BR site, 2026-10-30)', () => {
+		db.prepare(
+			`INSERT INTO engine_extensions (pkg, name, kind, version_code, version_name, lib, handle, installed_at, updated_at)
+			VALUES ('pt.livre', 'Manga Livre Blog', 'manga', 1, '1.0', '1.4', ?, 0, 0)`
+		).run('pt.livre'.padEnd(64, 'x'));
+		db.prepare(
+			`INSERT INTO engine_sources (id, pkg, name, lang, base_url) VALUES ('201', 'pt.livre', 'Manga Livre Blog', 'pt-BR', '')`
+		).run();
+		const labels = browse.browseList(false).manga.map((r) => r.label);
+		expect(labels).toContain('Manga Livre Blog');
+		// Open Source has EN and JA, so its French one stays out.
+		expect(labels.filter((l) => l.startsWith('Open Source'))).toEqual([
+			'Open Source · EN',
+			'Open Source · JA'
+		]);
+	});
+});

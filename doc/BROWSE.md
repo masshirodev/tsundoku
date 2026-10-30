@@ -35,7 +35,10 @@ down.
 setting, `en,ja` by default; its SETTINGS row comes with c144), an
 extension's `all`/`multi` sources, and any other the library reads from (a
 series from MangaDex's French source keeps that one listed). Listing every
-language would be forty-odd rows of MangaDex. Where an extension has more
+language would be forty-odd rows of MangaDex. **An extension with no source
+in those languages shows all of them**: it was installed on purpose, and a
+pt-BR site installed and then missing from BROWSE read as broken (the owner,
+2026-10-30: "if the user installed a source it should show regardless"). Where an extension has more
 than one source listed, each says its language: "MangaDex · EN".
 
 **A row** is the extension's icon, the source's name and a line: its language

@@ -195,9 +195,14 @@ export const browseLanguages = (): string[] =>
  */
 export function browseList(reveal: boolean): BrowseList {
 	const langs = new Set(browseLanguages());
-	const shown = browseSources(reveal).filter(
-		(s) => langs.has(s.lang.toLowerCase()) || ['all', 'multi'].includes(s.lang) || s.series > 0
-	);
+	const sources = browseSources(reveal);
+	const mine = (s: BrowseSource) =>
+		langs.has(s.lang.toLowerCase()) || ['all', 'multi'].includes(s.lang) || s.series > 0;
+	// An extension installed with nothing in the owner's languages was installed
+	// on purpose, so all its sources show (a pt-BR site, 2026-10-30); one that
+	// has some, as MangaDex has forty, shows only those.
+	const speaks = new Set(sources.filter(mine).map((s) => s.pkg));
+	const shown = sources.filter((s) => mine(s) || !speaks.has(s.pkg));
 	const perPkg = new Map<string, number>();
 	for (const s of shown) perPkg.set(s.pkg, (perPkg.get(s.pkg) ?? 0) + 1);
 	const at = new Map(
