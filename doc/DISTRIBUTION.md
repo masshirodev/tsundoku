@@ -79,11 +79,31 @@ keeps `data/tsundoku.sqlite`, the sample library, and now keeps its covers and
 trash under `~/.local/share/tsundoku`, apart from the live ones. The test
 runners give the app a temporary `TSUNDOKU_HOME` of their own.
 
-**Windows paths are written with forward slashes** (`C:/Users/...`). The
-library's own path logic (`src/lib/server/paths.ts`) joins and compares with
-`/`, and Node accepts either. Whether the importers, which build paths from
-what they read on disk, hold to that on Windows is the next thing the VM has
-to answer (c183 ("Windows path audit: the library's paths are POSIX")).
+#### Windows paths
+
+**Every path server code makes is written with `/`, Windows included**
+(`C:/Users/...`; c183, 2026-10-29). The library's own path logic
+(`src/lib/server/paths.ts`) joins and compares with `/`: series paths and
+entry files are stored that way, and "is this file inside the library?" is a
+string comparison. `node:path` writes `\` on Windows, so the first Windows
+bundle stored `C:\Users\...` beside a data folder of `C:/Users/...`, and the
+comparison failed quietly: a DELETE dropped the series and left its files in
+the library, outside the trash, to come back on the next scan.
+
+So server code (`src/lib/server`, `src/routes`, `src/hooks.server.ts`,
+`scripts`) imports its path functions from `src/lib/server/fspath.ts`, never
+`node:path`, and ESLint refuses the latter there. `fspath` is `node:path`
+writing `/` on Windows, where Node takes either spelling, and unchanged
+elsewhere, where a backslash is an ordinary character in a file name. Its
+`slash()` is for a path that arrives from outside (Syncthing's API, the OS).
+`tests/fspath.spec.ts` runs it under Windows' rules, including
+`paths.ts`'s own comparisons; the release smoke test checks a delete and a
+grouping on Windows itself.
+
+Not handled: Windows compares paths without regard to case, and the library
+compares strings. Every path tsundoku stores comes from its own data folder,
+so the case always agrees; a `LIBRARY_ROOT` typed in another case than an
+existing library's would not.
 
 ### 2. A `local` serve mode and a first-run token
 

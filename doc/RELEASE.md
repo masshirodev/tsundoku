@@ -138,6 +138,11 @@ sent to localhost, the first-run token signs in, five screens answer, the
 engine answers with its token and refuses without it, a scan imports the
 fixture's seven series and refuses its one broken file, every visible
 chapter's first page is an image, and the hidden local books stay hidden.
+Then the paths (c183, [`DISTRIBUTION.md`](DISTRIBUTION.md), "Windows
+paths"): no series path stored with a backslash, a DELETE moves the series'
+file into the trash and out of the library, and a GROUP of the two local
+books takes the folder they share as its path. Run on the bundle before c183,
+the first two failed on Windows; since, all pass on both.
 On Windows it also checks that nothing listens beyond 127.0.0.1 and that no
 `java` or `node` outlives the launcher. 2026-10-29: all passed on both.
 
@@ -151,10 +156,4 @@ On Windows it also checks that nothing listens beyond 127.0.0.1 and that no
 - **JMdict lookups.** The dictionary isn't shipped (74 MB, built from
   EDRDG's data); without it, lookups are simply off (`KOTOBA_JMDICT`,
   [`JAPANESE.md`](JAPANESE.md)).
-- **Windows paths in the library.** On Windows the importer stores series
-  paths with backslashes, while `src/lib/server/paths.ts` compares with `/`.
-  Reading and importing work (the smoke test). What compares paths (the
-  delete's "only files inside the library" check, grouping books from two
-  folders) is expected to misbehave there and hasn't been tried: c183
-  ("Windows path audit: the library's paths are POSIX").
 - **Updates** say nothing yet (c182).

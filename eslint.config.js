@@ -27,6 +27,32 @@ export default defineConfig(
 		rules: { '@typescript-eslint/no-require-imports': 'off' }
 	},
 	{
+		// Server paths are written with / on every platform (c183): node:path writes
+		// backslashes on Windows, and the library's comparisons then fail quietly.
+		files: [
+			'src/lib/server/**/*.ts',
+			'src/routes/**/*.ts',
+			'src/hooks.server.ts',
+			'scripts/**/*.ts'
+		],
+		ignores: ['src/lib/server/fspath.ts'],
+		rules: {
+			'no-restricted-imports': [
+				'error',
+				{
+					paths: [
+						{
+							name: 'node:path',
+							message:
+								'Import path functions from src/lib/server/fspath.ts: it writes / on Windows too (doc/DISTRIBUTION.md, "Windows paths").'
+						},
+						{ name: 'path', message: 'Use src/lib/server/fspath.ts (c183).' }
+					]
+				}
+			]
+		}
+	},
+	{
 		files: ['**/*.svelte', '**/*.svelte.ts', '**/*.svelte.js'],
 		languageOptions: {
 			parserOptions: {
