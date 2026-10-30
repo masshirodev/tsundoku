@@ -160,18 +160,23 @@ On Windows the archive is wrapped in an **Inno Setup installer**: Start-menu
 entry, optional start-at-login, an uninstaller that leaves the library alone.
 Unsigned at first, so SmartScreen will warn; signing is its own decision.
 
-Downloads live on a **public releases repository** (`masshirodev/tsundoku-releases`):
-a private repo's release assets can't be fetched by friends. It holds the
-friend README, the compose file and the bundles, never source. Note what that
-means: a bundle carries the built server JavaScript, readable if not pretty.
-That was accepted with "public images only", since the image has it too.
+Downloads live on **dl.tsundoku.masshiro.pro** (changed 2026-10-30: the owner,
+"we can serve the files on masshiro.pro, like hansei does"), not a public
+releases repository as first planned: a folder on the VPS served by Caddy,
+with the friend README beside the bundles, never source
+([`UPDATES.md`](UPDATES.md)). Note what that means: a bundle carries the built
+server JavaScript, readable if not pretty. That was accepted with "public
+images only", since the image has it too.
 
 ### 5. Updating
 
 The app already polls `/_app/version.json` for its own deploys. A release
-build also compares its version with the latest release once a day and says so
-on the settings page; it never updates itself. Docker friends `docker compose
-pull`; native friends run the new installer, which keeps `TSUNDOKU_HOME`.
+build also looks for a newer release once a day and says so: a band on the
+library, and SETTINGS > DEVICES > UPDATES. Never automatically, but since
+2026-10-30 (the owner: "an updater for tsundoku?, not auto tho") UPDATE
+installs it on a click on Windows: the signed manifest checked, the installer
+run, tsundoku back by itself ([`UPDATES.md`](UPDATES.md)). Linux and the zip
+download it. Docker friends `docker compose pull`.
 
 ### 6. Testing on Windows
 
