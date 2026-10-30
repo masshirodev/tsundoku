@@ -1,13 +1,16 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { isRevealed } from '$lib/server/prefs';
+import { seriesPage } from '$lib/server/series';
 import {
 	addToLibrary,
 	configured,
 	isAddError,
+	isDownloadsError,
 	isSourceMangaId,
 	mangaKey,
 	openFromSource,
+	queueSeries,
 	seriesForKey,
 	sourceManga,
 	sourceOfMangaId,
@@ -19,7 +22,8 @@ import { browseSource } from '$lib/server/engine/browse';
 /**
  * A search result's preview (Download States 1e, state 7): the series
  * screen's layout with what the source gave, and + ADD TO LIBRARY in
- * CONTINUE's place. Nothing downloads from here. A result tsundoku already
+ * CONTINUE's place. Downloading from here adds it first, after asking (ADD
+ * AND DOWNLOAD, card c205). A result tsundoku already
  * has opens its series instead; a hidden one, with reveal off, is not found.
  */
 function mangaId(raw: string): string {
@@ -107,5 +111,32 @@ export const actions: Actions = {
 			throw e;
 		}
 		redirect(303, `/series/${seriesId}?added=${id}`);
+	},
+	/**
+	 * DOWNLOAD's FIRST 10 or ALL N, confirmed (card c205): a download lives in
+	 * the library, so it's ADD, then the queue, then the new series. The add
+	 * stands if the queue doesn't answer: the series' own DOWNLOAD row says
+	 * so, and the band says how many were queued.
+	 */
+	addDownload: async ({ params, request, cookies }) => {
+		const id = mangaId(params.id);
+		const which = (await request.formData()).get('which') === 'all' ? 'all' : 'next';
+		let seriesId: number;
+		try {
+			seriesId = await addToLibrary(id);
+		} catch (e) {
+			if (isAddError(e)) return fail(409, { message: (e as Error).message });
+			throw e;
+		}
+		const s = seriesPage(seriesId, isRevealed(cookies));
+		let queued = 'none';
+		try {
+			const r = s ? await queueSeries(seriesId, s.entries, which) : null;
+			if (r) queued = String(r.queued);
+		} catch (e) {
+			if (!isDownloadsError(e)) throw e;
+			queued = 'down';
+		}
+		redirect(303, `/series/${seriesId}?added=${id}&queued=${queued}`);
 	}
 };

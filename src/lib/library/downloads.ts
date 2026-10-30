@@ -430,12 +430,70 @@ const CHAPTERS: RowNoun = {
 	every: 'Every unread chapter',
 	arriving: 'NEW CHAPTERS'
 };
+/**
+ * The ADDED TO THE LIBRARY band's line (Download States 1e): how many there
+ * are, and what's on its way. `queued` is what ADD AND DOWNLOAD queued (card
+ * c205), `down` when the queue didn't answer, null after a plain ADD.
+ */
+export function addedDetail(n: number, queued: string | null, anime = false): string {
+	const all = `${count(n)} ${anime ? (n === 1 ? 'EPISODE' : 'EPISODES') : n === 1 ? 'CHAPTER' : 'CHAPTERS'}`;
+	if (queued === 'down') return `${all} · NOT QUEUED · DOWNLOADING ISN’T ANSWERING`;
+	if (queued !== null && Number(queued) > 0) return `${all} · ${count(Number(queued))} DOWNLOADING`;
+	return `${all} · NONE DOWNLOADED`;
+}
+
 export const EPISODES: RowNoun = {
 	one: 'unwatched episode',
 	many: 'unwatched episodes',
 	every: 'Every unwatched episode',
 	arriving: 'NEW EPISODES'
 };
+
+/**
+ * DOWNLOAD on a preview, a series not in the library (card c205): the same
+ * row a library series has, counted from what the source lists less what a
+ * browsing record has read. Every cell asks first, since a download lives in
+ * the library: a friend hadn't known ADD was the way to download, and its button
+ * was small (the owner, 2026-10-30).
+ */
+export function previewDownload(unread: number, anime = false, online = true) {
+	const noun = anime ? EPISODES : CHAPTERS;
+	const cells: { label: string; which: 'next' | 'all'; acc: boolean }[] = [];
+	if (unread > 0) cells.push({ label: `FIRST ${Math.min(10, unread)}`, which: 'next', acc: true });
+	if (unread > 10) cells.push({ label: `ALL ${count(unread)}`, which: 'all', acc: false });
+	return {
+		a: unread
+			? `${count(unread)} ${unread === 1 ? noun.one : noun.many} not downloaded`
+			: `Nothing ${anime ? 'unwatched' : 'unread'} to download`,
+		b: online
+			? 'ADDS IT TO YOUR LIBRARY FIRST · IT ASKS'
+			: '○ OFFLINE · DOWNLOADING NEEDS THE WORKSTATION',
+		cells
+	};
+}
+
+/** ADD AND DOWNLOAD's question (card c205): ours, never the browser's confirm(). */
+export function previewConfirm(
+	title: string,
+	unread: number,
+	which: 'next' | 'all',
+	anime = false
+) {
+	const n = which === 'next' ? Math.min(10, unread) : unread;
+	const noun = anime ? (n === 1 ? 'EPISODE' : 'EPISODES') : n === 1 ? 'CHAPTER' : 'CHAPTERS';
+	const what = anime ? 'UNWATCHED' : 'UNREAD';
+	return {
+		title: 'DOWNLOADING ADDS IT TO YOUR LIBRARY',
+		lines: [
+			`${title.toUpperCase()} GOES INTO YOUR LIBRARY, WHERE DOWNLOADS ARE KEPT.`,
+			which === 'next'
+				? `THEN ITS FIRST ${count(n)} ${what} ${noun} DOWNLOAD.`
+				: `THEN ALL ${count(n)} ${what} ${noun} DOWNLOAD.`,
+			'UNDO ON ITS PAGE TAKES IT OUT AGAIN, UNTIL ONE HAS DOWNLOADED.'
+		],
+		confirm: 'ADD AND DOWNLOAD'
+	};
+}
 
 /**
  * The DOWNLOAD row under CONTINUE (Index Series Download, states top, down,

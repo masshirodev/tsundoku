@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	addedDetail,
 	allToDownload,
 	chapterStates,
 	confirmLines,
@@ -13,6 +14,8 @@ import {
 	nextToDownload,
 	normTitle,
 	parseKey,
+	previewConfirm,
+	previewDownload,
 	queueView,
 	rowAction,
 	sourcesToSearch,
@@ -173,6 +176,44 @@ describe('the DOWNLOAD row', () => {
 			item(14, 'ERROR')
 		]);
 		expect(fileQueueMeta(downloadCounts(entries, states))).toEqual(['2 QUEUED', '1 FAILED']);
+	});
+});
+
+describe('DOWNLOAD on a preview (c205)', () => {
+	it('offers FIRST and ALL as the library row does, and says it adds first', () => {
+		const r = previewDownload(143);
+		expect(r.a).toBe('143 unread chapters not downloaded');
+		expect(r.b).toBe('ADDS IT TO YOUR LIBRARY FIRST · IT ASKS');
+		expect(r.cells.map((c) => c.label)).toEqual(['FIRST 10', 'ALL 143']);
+		expect(previewDownload(4).cells.map((c) => c.label)).toEqual(['FIRST 4']);
+		expect(previewDownload(1, true).a).toBe('1 unwatched episode not downloaded');
+	});
+	it('has nothing to offer once a record has read it all, and says offline', () => {
+		expect(previewDownload(0)).toMatchObject({ a: 'Nothing unread to download', cells: [] });
+		expect(previewDownload(5, false, false).b).toBe(
+			'○ OFFLINE · DOWNLOADING NEEDS THE WORKSTATION'
+		);
+	});
+	it('asks in its own words, with what it will download', () => {
+		const c = previewConfirm('Solo Leveling', 143, 'next');
+		expect(c.title).toBe('DOWNLOADING ADDS IT TO YOUR LIBRARY');
+		expect(c.lines).toEqual([
+			'SOLO LEVELING GOES INTO YOUR LIBRARY, WHERE DOWNLOADS ARE KEPT.',
+			'THEN ITS FIRST 10 UNREAD CHAPTERS DOWNLOAD.',
+			'UNDO ON ITS PAGE TAKES IT OUT AGAIN, UNTIL ONE HAS DOWNLOADED.'
+		]);
+		expect(c.confirm).toBe('ADD AND DOWNLOAD');
+		expect(previewConfirm('x', 1200, 'all', true).lines[1]).toBe(
+			'THEN ALL 1,200 UNWATCHED EPISODES DOWNLOAD.'
+		);
+	});
+	it('the ADDED band says what was queued, or that the queue did not answer', () => {
+		expect(addedDetail(12, null)).toBe('12 CHAPTERS · NONE DOWNLOADED');
+		expect(addedDetail(12, '10')).toBe('12 CHAPTERS · 10 DOWNLOADING');
+		expect(addedDetail(12, '0')).toBe('12 CHAPTERS · NONE DOWNLOADED');
+		expect(addedDetail(1, 'down', true)).toBe(
+			'1 EPISODE · NOT QUEUED · DOWNLOADING ISN’T ANSWERING'
+		);
 	});
 });
 

@@ -3,7 +3,8 @@
 	import { enhance } from '$app/forms';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import { formatNumber } from '$lib/library/series';
-	import { count } from '$lib/library/downloads';
+	import { count, previewConfirm, previewDownload } from '$lib/library/downloads';
+	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
 	import { coverPlaceholder } from '$lib/library/cover';
 	import { offline } from '$lib/offline.svelte';
 	import { continueCell, KEEP_DAYS, keptLine, recordLine, rowLook } from '$lib/library/browsing';
@@ -11,12 +12,14 @@
 	/**
 	 * A search result's preview (Download States 1e, state 7): the series
 	 * screen's layout with what the source gave -- no rating, shelves or FILE
-	 * -- and + ADD TO LIBRARY in CONTINUE's place. The chapters are listed,
-	 * not openable. Nothing downloads from here: adding lands on the new
-	 * series, with FIRST 10.
+	 * -- and + ADD TO LIBRARY beside reading. Its DOWNLOAD row is the library
+	 * series' own, but each cell asks first, in our sheet, since downloading
+	 * adds the series (card c205); adding lands on the new series.
 	 */
 	let { data, form } = $props();
 	let adding = $state(false);
+	/** Which DOWNLOAD cell is asking: its sheet is open while this is set. */
+	let asking = $state<'next' | 'all' | null>(null);
 	const back = $derived(
 		data.from
 			? data.from
@@ -67,6 +70,10 @@
 			{@const meta = [m.source.toUpperCase(), STATUS[m.status], data.record ? 'NOT IN LIBRARY' : '']
 				.filter(Boolean)
 				.join(' · ')}
+			<!-- What DOWNLOAD counts: the source's list less what a record has read. -->
+			{@const unread = m.chapters.filter((c) => !('states' in m) || !m.states[c.id]?.read).length}
+			{@const dl = previewDownload(unread, anime, offline.online)}
+			{@const ask = previewConfirm(m.title, unread, asking ?? 'next', anime)}
 			<div class="body">
 				<section class="panel" aria-label="About this series">
 					<div class="identity">
@@ -115,6 +122,37 @@
 							</button>
 						</form>
 					</div>
+
+					<!-- DOWNLOAD (card c205): the library series' row, every cell asking first. -->
+					{#snippet dlCells()}
+						{#each dl.cells as c (c.which)}
+							<button
+								type="button"
+								class="lc"
+								class:acc={c.acc}
+								disabled={!offline.online}
+								onclick={() => (asking = c.which)}>{c.label}</button
+							>
+						{/each}
+					{/snippet}
+					<div class="row dl-row" class:solo={dl.cells.length === 0}>
+						<div class="label">DOWNLOAD</div>
+						<div class="lk">
+							<div class="lk-a">{dl.a}</div>
+							<div class="lk-b">{dl.b}</div>
+						</div>
+						{#if dl.cells.length}<div class="lcs inline">{@render dlCells()}</div>{/if}
+					</div>
+					{#if dl.cells.length}<div class="lcs stack">{@render dlCells()}</div>{/if}
+					<ConfirmSheet
+						open={asking !== null}
+						title={ask.title}
+						lines={ask.lines}
+						confirm={ask.confirm}
+						action="?/addDownload"
+						fields={{ which: asking ?? 'next' }}
+						onclose={() => (asking = null)}
+					/>
 
 					{#if data.record}
 						<div class="row record">
@@ -410,6 +448,56 @@
 	.lk-b {
 		font: 400 13px/1.35 var(--font-mono);
 		color: var(--text-2);
+	}
+	/* DOWNLOAD (card c205), as the series panel's: cells inline, dropping below
+	   in equal columns on the phone and in the 440px landscape panel. */
+	.dl-row {
+		min-height: 68px;
+	}
+	.lcs {
+		display: flex;
+		--cell-pad: 20px;
+	}
+	.lcs.stack {
+		display: none;
+	}
+	.lcs .lc {
+		padding: 0 var(--cell-pad);
+		border-radius: 0;
+		font: 500 13px var(--font-mono);
+	}
+	.lc.acc {
+		background: var(--accent);
+		color: var(--on-accent);
+	}
+	.lc:disabled {
+		opacity: 0.35;
+		cursor: default;
+	}
+	@media (max-width: 599px), (min-width: 1024px) {
+		.dl-row {
+			border-bottom: 0;
+		}
+		.dl-row.solo {
+			border-bottom: var(--hairline);
+		}
+		.lcs.inline {
+			display: none;
+		}
+		.lcs.stack {
+			display: grid;
+			grid-auto-flow: column;
+			grid-auto-columns: minmax(0, 1fr);
+			min-height: 52px;
+			border-top: var(--hairline);
+			border-bottom: var(--hairline);
+			--cell-pad: 14px;
+		}
+		.lcs.stack .lc {
+			justify-content: center;
+			border-left: 0;
+			border-right: var(--hairline);
+		}
 	}
 	/* Online Calls 1B: the RECORD row, 68px like SOURCE's, FORGET its cell. */
 	.record {

@@ -134,16 +134,32 @@ source rather than search it, BROWSE ([`BROWSE.md`](BROWSE.md)).
   library's 400px WebP, since the browser can't reach the engine.
 - **The preview** (`/downloads/source/<manga>`) fetches the manga and its
   chapters from the source, streamed in, and shows them in the series screen's
-  layout, with **+ ADD TO LIBRARY** in CONTINUE's place. Nothing downloads
-  from it. A result tsundoku already has opens its series instead. Opened
-  from BROWSE, its back cell says BROWSE and returns there.
+  layout, with **+ ADD TO LIBRARY** beside reading. A result tsundoku already
+  has opens its series instead. Opened from BROWSE, its back cell says BROWSE
+  and returns there.
+- **DOWNLOAD on the preview** (card c205): the library series' row, under the
+  bar, counted from the source's list less what a browsing record has read
+  (`143 unread chapters not downloaded`, `ADDS IT TO YOUR
+LIBRARY FIRST · IT ASKS`), with FIRST 10 and ALL N. A download lives in the
+  library, so each cell asks first, in the app's own ConfirmSheet, never the
+  browser's `confirm()`: **DOWNLOADING ADDS IT TO YOUR LIBRARY**, what it
+  will download, that UNDO takes it back, and **ADD AND DOWNLOAD** / CANCEL.
+  Confirmed, the `addDownload` action adds it, queues FIRST 10 or ALL through
+  `queueSeries` (the series screen's own DOWNLOAD logic, shared so the two
+  can't count differently), and lands on the series with the ADDED band
+  saying `12 CHAPTERS · 10 DOWNLOADING` (`?queued=`). The add stands if the
+  queue doesn't answer; the band then says `NOT QUEUED · DOWNLOADING ISN’T
+ANSWERING` and the DOWNLOAD row says why. The owner asked for it after a friend
+  (a friend) didn't know ADD was the way to download, its button being small
+  (2026-10-30). No ALL's QUALITY here for an anime: SETTINGS' default.
 - **ADD TO LIBRARY** writes the series into tsundoku's library at once, every
   chapter NOT DOWNLOADED, through the Mihon importer's own plan (`planMihon`)
   and writer (`writeSeries`), keyed as the tablet's backup would key it. It
   lands on the new series with an **ADDED TO THE LIBRARY** band and FIRST 10.
   START is dimmed until chapter 1 has a file.
 - **UNDO** takes it out again while nothing of it is downloaded or read, and
-  goes back to the preview. It isn't a delete: no tombstone, so it can be
+  goes back to the preview. After ADD AND DOWNLOAD, its queued chapters go
+  with it (the queue's rows cascade). It isn't a delete: no tombstone, so it can be
   added again. (Until c129 the band never showed on the engine: the series
   page read the preview's id as a number, which the engine's `<source>~<url>`
   ids aren't.)

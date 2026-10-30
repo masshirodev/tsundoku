@@ -53,20 +53,13 @@ import {
 } from '$lib/server/books';
 import { bookEditions, setBookLanguage } from '$lib/server/editions';
 import {
-	enqueue,
 	isDownloadsError,
 	previewIdOf,
-	retry,
+	queueSeries,
 	seriesDownloads,
 	setFollowed,
 	undoAdd as undoSourceAdd
 } from '$lib/server/downloads';
-import {
-	allToDownload,
-	nextToDownload,
-	rowAction,
-	type DownloadState
-} from '$lib/library/downloads';
 import { baseToEdition } from '$lib/library/editions';
 import { getSetting } from '$lib/server/settings';
 import { libraryRoot } from '$lib/server/import';
@@ -175,6 +168,10 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		// `ln:<plugin>~<path>` (novels/source.ts).
 		addedFrom: /^[\w~.:-]{1,512}$/.test(url.searchParams.get('added') ?? '')
 			? url.searchParams.get('added')
+			: null,
+		// ADD AND DOWNLOAD (card c205): how many it queued, or `down` when the queue didn't answer.
+		addedQueued: /^(\d+|down)$/.test(url.searchParams.get('queued') ?? '')
+			? url.searchParams.get('queued')
 			: null
 	};
 };
@@ -605,35 +602,24 @@ export const actions: Actions = {
 	download: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
 		const form = await request.formData();
-		const d = await seriesDownloads(s.id, s.entries);
-		if (d.kind === 'down') return fail(503, { message: 'Downloading is not answering' });
-		if (d.kind !== 'ok') return fail(400, { message: 'this series has nothing to download from' });
-		const states = new Map(
-			Object.entries(d.states).map(([k, v]) => [Number(k), v as DownloadState])
-		);
 		const which = form.get('which');
-		const ids =
-			which === 'next'
-				? nextToDownload(s.entries, states)
-				: which === 'all'
-					? allToDownload(s.entries, states)
-					: entryIds(form);
-		const fresh = ids.filter((id) => rowAction(states.get(id)) === 'queue');
-		const failed = ids
-			.map((id) => states.get(id))
-			.flatMap((st) => (st?.kind === 'failed' ? [st.chapterId] : []));
 		// ALL's QUALITY for an anime (doc/ANIME.md, "Downloading"): these episodes at that height.
 		const height = Number(form.get('quality'));
 		const quality = [360, 480, 720, 1080].includes(height) ? height : null;
-		let result = { queued: 0, missing: 0 };
+		let result: Awaited<ReturnType<typeof queueSeries>>;
 		try {
-			if (fresh.length) result = await enqueue(s.id, fresh, quality);
-			await retry(failed);
+			result = await queueSeries(
+				s.id,
+				s.entries,
+				which === 'next' || which === 'all' ? which : entryIds(form),
+				quality
+			);
 		} catch (e) {
 			if (isDownloadsError(e)) return fail(503, { message: (e as Error).message });
 			throw e;
 		}
-		return { downloaded: { queued: result.queued + failed.length, missing: result.missing } };
+		if (!result) return fail(400, { message: 'this series has nothing to download from' });
+		return { downloaded: result };
 	},
 
 	/** FOLLOW and FOLLOWING ✓: new chapters download as the source lists them (doc/DOWNLOADING.md). */

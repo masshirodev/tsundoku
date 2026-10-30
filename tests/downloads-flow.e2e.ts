@@ -483,6 +483,44 @@ test('a preview adds to the library, lands on the series, and UNDO takes it back
 	await expect(page.getByRole('button', { name: /ADD TO LIBRARY/ })).toBeVisible();
 });
 
+test('a preview downloads too: our sheet says it adds it first, then ADD AND DOWNLOAD (c205)', async ({
+	page
+}) => {
+	await page.goto(`/downloads/source/${SIDE}?q=linden`);
+	const dl = page.locator('.dl-row');
+	await expect(dl.locator('.lk-a')).toHaveText('12 unread chapters not downloaded');
+	await expect(dl.locator('.lk-b')).toHaveText('ADDS IT TO YOUR LIBRARY FIRST · IT ASKS');
+	await expect(dl.locator('.lcs.inline .lc')).toHaveText(['FIRST 10', 'ALL 12']);
+	// Asking is ours, not the browser's: a confirm() would fail this.
+	const dialogs: string[] = [];
+	page.on('dialog', (d) => {
+		dialogs.push(d.message());
+		void d.dismiss();
+	});
+	await dl.locator('.lcs.inline').getByRole('button', { name: 'ALL 12' }).click();
+	const sheet = page.getByRole('dialog', { name: 'DOWNLOADING ADDS IT TO YOUR LIBRARY' });
+	await expect(sheet).toContainText('LINDENBOROUGH: SIDE STORIES GOES INTO YOUR LIBRARY');
+	await expect(sheet).toContainText('THEN ALL 12 UNREAD CHAPTERS DOWNLOAD.');
+	// CANCEL changes nothing: still a preview, nothing queued.
+	const before = queued().size;
+	await sheet.getByRole('button', { name: 'CANCEL' }).click();
+	await expect(sheet).toBeHidden();
+	await expect(page.getByRole('button', { name: /ADD TO LIBRARY/ })).toBeVisible();
+	expect(queued().size).toBe(before);
+
+	await dl.locator('.lcs.inline').getByRole('button', { name: 'FIRST 10' }).click();
+	await expect(sheet).toContainText('THEN ITS FIRST 10 UNREAD CHAPTERS DOWNLOAD.');
+	await sheet.getByRole('button', { name: 'ADD AND DOWNLOAD' }).click();
+	await expect(page).toHaveURL(/\/series\/\d+\?added=.*&queued=10/);
+	await expect(page.locator('.band')).toContainText('12 CHAPTERS · 10 DOWNLOADING');
+	expect(queued().size).toBe(before + 10);
+	// UNDO still takes it back, its queue with it.
+	await page.getByRole('button', { name: 'UNDO' }).click();
+	await expect(page).toHaveURL(/\/downloads\/source\//);
+	expect(queued().size).toBe(before);
+	expect(dialogs).toEqual([]);
+});
+
 test('FOLLOW turns accent, offers FOLLOWED, and comes off again (1d)', async ({ page }) => {
 	await page.goto(`/series/${ids.linden}`);
 	await page.locator('.dl-row .lcs.inline').getByRole('button', { name: 'FOLLOW' }).click();

@@ -27,6 +27,7 @@
 	import { orderBooks } from '$lib/library/books';
 	import { withParam, readHref } from '$lib/library/links';
 	import {
+		addedDetail,
 		allToDownload,
 		confirmLines,
 		rowAction,
@@ -380,7 +381,11 @@
 	<!-- An action refused (a move, a take-out, a delete): it says why, never silently. -->
 	{#if data.addedFrom && !refusal}
 		<!-- After adding (Download States 1e): every chapter NOT DOWNLOADED, FIRST 10 offered below. -->
-		<Band title="ADDED TO THE LIBRARY" detail="{series.entries.length} CHAPTERS · NONE DOWNLOADED">
+		<!-- ADD AND DOWNLOAD on the preview (card c205): what it queued, or that the queue didn't answer. -->
+		<Band
+			title="ADDED TO THE LIBRARY"
+			detail={addedDetail(series.entries.length, data.addedQueued, !!data.anime)}
+		>
 			{#snippet action()}
 				<form method="POST" action="?/undoSourceAdd" use:enhance>
 					<input type="hidden" name="from" value={data.addedFrom} />

@@ -45,7 +45,7 @@ width, row height (60 / 52px) and rail width (56 / 44px) per device.
 | Not downloaded       | An imported chapter whose file isn't on disk (`entries.available = 0`): NOT DOWNLOADED (phone: NO FILE), a dimmed title, and FILE reads "25 OF 166 DOWNLOADED". See [`IMPORT-MIHON.md`](IMPORT-MIHON.md).                                                                  |
 | Downloading          | A Mihon series from an installed source (`ENGINE_URL` set): the DOWNLOAD row under CONTINUE with NEXT 10 and ALL N, a tap on a row with no file queues it, and rows say QUEUED, DOWNLOADING, FAILED or IMPORTING. See [`DOWNLOADING.md`](DOWNLOADING.md), "From tsundoku". |
 | Followed             | FOLLOWING ✓ in accent at the DOWNLOAD row's end; caught up, it is the row's only cell and says when its source was last asked.                                                                                                                                             |
-| Just added           | `?added=<manga>` after ADD TO LIBRARY: the ADDED TO THE LIBRARY band with UNDO, FIRST 10, and START dimmed until chapter 1 has a file.                                                                                                                                     |
+| Just added           | `?added=<manga>` after ADD TO LIBRARY: the ADDED TO THE LIBRARY band with UNDO, FIRST 10, and START dimmed until chapter 1 has a file. `&queued=<n>`/`down` after ADD AND DOWNLOAD (c205): the band says what it queued.                                                   |
 
 ## Rules worth knowing
 

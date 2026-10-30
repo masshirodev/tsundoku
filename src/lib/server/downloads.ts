@@ -3,7 +3,15 @@ import { engineConfigured, engineDownSince, EngineError } from './engine/client.
 import { getSetting } from './settings.ts';
 import { getDb } from './db.ts';
 import { splitMemo } from './engine/protocol.ts';
-import { parseAnimeKey, parseKey, parseNovelKey } from '../library/downloads.ts';
+import {
+	allToDownload,
+	nextToDownload,
+	parseAnimeKey,
+	parseKey,
+	parseNovelKey,
+	rowAction,
+	type DownloadState
+} from '../library/downloads.ts';
 import * as novels from './novels/source.ts';
 import * as novelDownloads from './novels/downloader.ts';
 import * as novelFollow from './novels/follow.ts';
@@ -65,6 +73,38 @@ export const enqueue = async (
 		animeDownloads.rememberQuality(entryIds, height);
 	return engine.enqueue(seriesId, entryIds);
 };
+/**
+ * DOWNLOAD's NEXT 10, ALL N, or chosen chapters, on a library series: each
+ * chapter decided again from what the queue says now, a file-less one queued
+ * and a failed one retried, anything else left alone. The series screen's
+ * DOWNLOAD and a preview's ADD AND DOWNLOAD (card c205) both come here, so
+ * the two can't count differently. Null when the series has nothing to
+ * download from; a DownloadsError when the engine doesn't answer.
+ */
+export async function queueSeries(
+	seriesId: number,
+	entries: Parameters<typeof nextToDownload>[0],
+	which: 'next' | 'all' | number[],
+	quality: number | null = null
+): Promise<{ queued: number; missing: number } | null> {
+	const d = await seriesDownloads(seriesId, entries);
+	if (d.kind === 'down') throw new EngineError('Downloading is not answering', 'down');
+	if (d.kind !== 'ok') return null;
+	const states = new Map(Object.entries(d.states).map(([k, v]) => [Number(k), v as DownloadState]));
+	const ids =
+		which === 'next'
+			? nextToDownload(entries, states)
+			: which === 'all'
+				? allToDownload(entries, states)
+				: which;
+	const fresh = ids.filter((id) => rowAction(states.get(id)) === 'queue');
+	const failed = ids
+		.map((id) => states.get(id))
+		.flatMap((st) => (st?.kind === 'failed' ? [st.chapterId] : []));
+	const result = fresh.length ? await enqueue(seriesId, fresh, quality) : { queued: 0, missing: 0 };
+	await retry(failed);
+	return { queued: result.queued + failed.length, missing: result.missing };
+}
 export const retry = async (ids: number[]) => engine.retry(ids);
 export const dequeue = async (ids: number[]) => engine.dequeue(ids);
 export const toTheTop = async (ids: number[]) => engine.toTheTop(ids);
