@@ -1228,7 +1228,7 @@
 		display: flex;
 		justify-content: space-between;
 		gap: 8px;
-		padding: 10px 14px 0;
+		padding: 10px 14px;
 		font: 500 12px var(--font-mono);
 		letter-spacing: 0.04em;
 		color: var(--text-2);
@@ -1236,10 +1236,12 @@
 	.zh .flag {
 		color: var(--text-1);
 	}
+	/* Ruled from its label, as a row's controls are from what's said under them (asked 2026-10-29). */
 	.zb {
 		display: flex;
 		align-items: center;
 		height: 52px;
+		border-top: var(--hairline);
 	}
 	.zb button {
 		width: 52px;

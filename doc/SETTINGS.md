@@ -226,6 +226,9 @@ flows are `tests/settings-flow.e2e.ts`. The domain is covered by
 - **Rows are buttons, not one button each.** The mock says "rows are buttons,
   so Tab and Enter work". Each segment, chip and cell is its own button
   here, which Tab and Enter reach the same way.
+- **Controls are ruled off what's around them** (asked 2026-10-29). A row's
+  meta line has a hairline above it, and each ZOOM cell one between its label
+  (PAGED · PHONE, IN USE) and its − 100% + controls. The mock draws neither.
 
 ## What it does not do yet
 
