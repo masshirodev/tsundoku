@@ -14,17 +14,24 @@ import { dirname } from 'node:path';
 export const newToken = () => randomBytes(18).toString('base64url');
 
 /**
- * The token in `file`, adding a new one if the file has none. Returns it and
- * whether it was made just now, so the caller can say so once. The file is
- * the user's own: only ever appended to, created with mode 600.
+ * The value of `key` in `file`, adding a new one if the file has none.
+ * Returns it and whether it was made just now, so the caller can say so
+ * once. The file is the user's own: only ever appended to, created with
+ * mode 600. The launcher keeps ENGINE_TOKEN this way too (doc/RELEASE.md).
  */
-export function ensureToken(file: string, make: () => string = newToken) {
+export function ensureSetting(file: string, key: string, make: () => string) {
 	const text = existsSync(file) ? readFileSync(file, 'utf8') : '';
-	const found = /^TSUNDOKU_TOKEN=["']?([^"'\r\n]+)["']?\s*$/m.exec(text)?.[1];
-	if (found) return { token: found, created: false };
-	const token = make();
+	const found = new RegExp(`^${key}=["']?([^"'\\r\\n]+)["']?\\s*$`, 'm').exec(text)?.[1];
+	if (found) return { value: found, created: false };
+	const value = make();
 	mkdirSync(dirname(file), { recursive: true });
 	const sep = text === '' || text.endsWith('\n') ? '' : '\n';
-	appendFileSync(file, `${sep}TSUNDOKU_TOKEN=${token}\n`, { mode: 0o600 });
-	return { token, created: true };
+	appendFileSync(file, `${sep}${key}=${value}\n`, { mode: 0o600 });
+	return { value, created: true };
+}
+
+/** The sign-in token in `file`, made on a first start (serve.ts). */
+export function ensureToken(file: string, make: () => string = newToken) {
+	const { value, created } = ensureSetting(file, 'TSUNDOKU_TOKEN', make);
+	return { token: value, created };
 }

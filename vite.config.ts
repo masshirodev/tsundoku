@@ -13,7 +13,12 @@ export default defineConfig({
 			adapter: adapter(),
 			// A deploy reaches the installed app (doc/SERVING.md, "A deploy reaches the
 			// tablet"): it asks for the build's version every five minutes.
-			version: { pollInterval: 5 * 60_000 }
+			// A release names the build after itself (doc/RELEASE.md); otherwise
+			// kit's own default, the build's time.
+			version: {
+				pollInterval: 5 * 60_000,
+				...(process.env.TSUNDOKU_VERSION ? { name: process.env.TSUNDOKU_VERSION } : {})
+			}
 		})
 	]
 });

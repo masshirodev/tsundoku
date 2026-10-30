@@ -49,8 +49,12 @@ const built = new URL('build/', root);
 // serving it lost its scripts under it and crashed on the first request for
 // one that was gone (doc/SERVING.md). The copy sits inside the project, so it
 // still finds node_modules.
+//
+// Not a release's (TSUNDOKU_SNAPSHOT=off, set by its launcher): a release is
+// never rebuilt in place, and its folder may not be writable (Program Files).
+const snapshotting = process.env.TSUNDOKU_SNAPSHOT !== 'off';
 const servingDir = new URL('.serving/', root);
-const snapshot = new URL(`${Date.now()}/`, servingDir);
+const snapshot = snapshotting ? new URL(`${Date.now()}/`, servingDir) : built;
 const entry = new URL('index.js', snapshot);
 
 // A plain node process gets none of Vite's .env loading, and the token lives
@@ -179,10 +183,12 @@ process.env.PORT = String(port);
 process.env.ORIGIN = origin!;
 process.env.NODE_ENV = 'production';
 
-// Older copies belong to servers that have stopped; this one replaces them.
-for (const old of existsSync(servingDir) ? readdirSync(servingDir) : [])
-	rmSync(new URL(old, servingDir), { recursive: true, force: true });
-cpSync(built, snapshot, { recursive: true });
+if (snapshotting) {
+	// Older copies belong to servers that have stopped; this one replaces them.
+	for (const old of existsSync(servingDir) ? readdirSync(servingDir) : [])
+		rmSync(new URL(old, servingDir), { recursive: true, force: true });
+	cpSync(built, snapshot, { recursive: true });
+}
 
 console.log(`tsundoku  ${origin!}  (${note!})`);
 if (madeToken)
