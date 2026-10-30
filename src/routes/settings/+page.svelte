@@ -971,7 +971,7 @@
 			</div>
 		</div>
 		{#if !phone.current}<div class="scope">
-				<span class="sa">FROM DL.TSUNDOKU.MASSHIRO.PRO</span>
+				<span class="sa">FROM TSUNDOKU'S RELEASES</span>
 			</div>{/if}
 	</div>
 	{#if u.available}
@@ -2169,7 +2169,11 @@
 		gap: 10px;
 		padding: 16px var(--pad) 20px calc(var(--pad) + var(--label-w));
 		border-bottom: var(--hairline);
-		max-width: calc(var(--label-w) + 460px);
+	}
+	/* The rule runs the row's full width, as every row's does; the fields and text keep a measure. */
+	.pw-form > * {
+		max-width: 460px;
+		box-sizing: border-box;
 	}
 	.settings.phone .pw-form {
 		padding-left: var(--pad);

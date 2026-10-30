@@ -79,6 +79,10 @@ test('SETTINGS changes it, and the old one stops working', async ({ page, browse
 
 	await page.goto('/settings#s-devices');
 	await page.getByRole('button', { name: 'CHANGE', exact: true }).click();
+	// Its rule runs the section's full width, as every row's does (a bug the owner saw: it stopped short).
+	const form = (await page.locator('.pw-form').boundingBox())!;
+	const row = (await page.locator('#s-devices .row').first().boundingBox())!;
+	expect(Math.round(form.width)).toBe(Math.round(row.width));
 	await page.getByLabel('CURRENT PASSWORD').fill(PASSWORD);
 	await page.getByLabel('NEW PASSWORD').fill(NEXT);
 	await page.getByLabel('AGAIN').fill(NEXT);
