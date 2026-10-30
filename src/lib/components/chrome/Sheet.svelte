@@ -21,8 +21,8 @@
 <svelte:window onkeydown={keydown} />
 
 {#if open}
-	<button type="button" class="scrim" aria-label="Close" onclick={onclose}></button>
-	<div class="sheet" role="dialog" aria-modal="true" aria-label={label}>
+	<button type="button" class="scrim appear" aria-label="Close" onclick={onclose}></button>
+	<div class="sheet appear" role="dialog" aria-modal="true" aria-label={label}>
 		{@render children()}
 	</div>
 {/if}

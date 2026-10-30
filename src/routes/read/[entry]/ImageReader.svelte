@@ -2,10 +2,22 @@
 	import { readLocal, writeLocal } from '$lib/settings/local';
 	import type { Json } from '$lib/settings/catalog';
 	import { backLink } from '$lib/back';
-	import { onMount, tick, untrack } from 'svelte';
+	import { flushSync, onMount, tick, untrack } from 'svelte';
 	import type { PageData } from './$types';
 	import { MediaQuery } from 'svelte/reactivity';
-	import { clampZoom, keptZoom, pinchZoom, resetZoom, stepZoom, zoomKey } from '$lib/reader/zoom';
+	import {
+		clampZoom,
+		DOUBLE_TAP_MS,
+		DoubleTap,
+		doubleTapZoom,
+		fractionOn,
+		keepUnder,
+		keptZoom,
+		pinchZoom,
+		resetZoom,
+		stepZoom,
+		zoomKey
+	} from '$lib/reader/zoom';
 	import { afterNavigate, beforeNavigate, goto, replaceState } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page as appPage } from '$app/state';
@@ -127,23 +139,104 @@
 		kept = zoom;
 		store(zoomAt, zoom);
 	}
+	/** The strip, for keeping a zoom's point in place on it. */
+	let stripView = $state<{ anchorAt: (x: number, y: number) => void } | null>(null);
+	/**
+	 * Zoom keeping the point at (x, y) where it is (card c185): a double tap's
+	 * point, a pinch's middle, the pointer under Ctrl + wheel. Before, every
+	 * zoom grew the page from its top left, so what was under the fingers slid
+	 * away. Paged: the page's box is measured either side of the zoom and the
+	 * screen scrolled to put the point back. The strip does it itself, in the
+	 * place-keeping it already does when its width changes (Strip's anchorAt).
+	 */
+	function pagedAt(x: number, y: number) {
+		const screen = document.querySelector<HTMLElement>('.stage .screen:not([aria-hidden])');
+		const hit = document.elementFromPoint(x, y)?.closest<HTMLElement>('.page');
+		const page = hit && screen?.contains(hit) ? hit : screen?.querySelector<HTMLElement>('.page');
+		return screen && page
+			? { screen, page, ...fractionOn(page.getBoundingClientRect(), x, y) }
+			: null;
+	}
+	/**
+	 * `held` is a pinch's point on the page, taken where it began: measuring
+	 * afresh at every step drifts, since a page still narrower than the screen
+	 * is centred and can't scroll to keep anything.
+	 */
+	function zoomAround(next: number, x: number, y: number, held?: { fx: number; fy: number }) {
+		const z = clampZoom(next);
+		if (z === zoom) return;
+		if (mode === 'vertical') {
+			stripView?.anchorAt(x, y);
+			return setZoom(z);
+		}
+		const at = pagedAt(x, y);
+		if (!at) return setZoom(z);
+		const { screen, page } = at;
+		const { fx, fy } = held ?? at;
+		setZoom(z);
+		flushSync();
+		const { dx, dy } = keepUnder(fx, fy, page.getBoundingClientRect(), x, y);
+		screen.scrollBy(dx, dy);
+	}
+
+	// ---- a tap in the middle: the controls, or with a second, zoom (card c185) -------
+	// A single tap in the middle waits DOUBLE_TAP_MS for a second before it shows
+	// or hides the controls, which then fade in (base.css, .appear). A double tap
+	// zooms around its point: under 100% to 100%, at 100% to 200%, over to 100%.
+	const doubleTap = new DoubleTap();
+	let pendingTap: ReturnType<typeof setTimeout> | null = null;
+	function middleTap(x: number, y: number) {
+		if (pendingTap) clearTimeout(pendingTap);
+		pendingTap = null;
+		if (doubleTap.tap(x, y, performance.now()) === 'double')
+			return zoomAround(doubleTapZoom(zoom), x, y);
+		pendingTap = setTimeout(() => {
+			pendingTap = null;
+			chrome = !chrome;
+		}, DOUBLE_TAP_MS);
+	}
+	/**
+	 * Another tap came (an edge, a key) while a middle tap waited: that one
+	 * happens first, then this. Otherwise a tap in the middle then one at the
+	 * edge would turn the page under controls about to appear.
+	 */
+	function settleTap() {
+		doubleTap.reset();
+		if (!pendingTap) return;
+		clearTimeout(pendingTap);
+		pendingTap = null;
+		chrome = !chrome;
+	}
+	onMount(() => () => {
+		if (pendingTap) clearTimeout(pendingTap);
+	});
+
 	// Ctrl + wheel and a two-finger pinch zoom the pages, never the browser's page.
 	onMount(() => {
 		const wheel = (e: WheelEvent) => {
 			if (!e.ctrlKey || sheet || lookup || menu) return;
 			e.preventDefault();
-			setZoom(zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1));
+			zoomAround(zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1), e.clientX, e.clientY);
 		};
-		let pinch: { zoom: number; dist: number } | null = null;
+		let pinch: { zoom: number; dist: number; held?: { fx: number; fy: number } } | null = null;
 		const spread = (t: TouchList) =>
 			Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+		const middle = (t: TouchList) => [
+			(t[0].clientX + t[1].clientX) / 2,
+			(t[0].clientY + t[1].clientY) / 2
+		];
 		const touchstart = (e: TouchEvent) => {
-			pinch = e.touches.length === 2 ? { zoom, dist: spread(e.touches) } : null;
+			if (e.touches.length !== 2) return void (pinch = null);
+			const [mx, my] = middle(e.touches);
+			const at = mode === 'vertical' ? null : pagedAt(mx, my);
+			pinch = { zoom, dist: spread(e.touches), held: at ? { fx: at.fx, fy: at.fy } : undefined };
 		};
 		const touchmove = (e: TouchEvent) => {
 			if (!pinch || e.touches.length !== 2) return;
 			e.preventDefault();
-			setZoom(pinchZoom(pinch.zoom, pinch.dist, spread(e.touches)));
+			// Around the fingers, not the page's top left: where they began on the page stays between them.
+			const [mx, my] = middle(e.touches);
+			zoomAround(pinchZoom(pinch.zoom, pinch.dist, spread(e.touches)), mx, my, pinch.held);
 		};
 		const touchend = (e: TouchEvent) => {
 			if (e.touches.length < 2) pinch = null;
@@ -1213,14 +1306,17 @@
 		if (Math.hypot(dx, dy) > 10) return;
 		// A text block, touched or clicked (not the right or middle button).
 		if ((e.pointerType !== 'mouse' || e.button === 0) && tapBlocks(e.clientX, e.clientY)) return;
+		const action =
+			(e.pointerType === 'mouse' ? mouseAction(e.button, mode) : null) ??
+			tapAction(e.clientX, window.innerWidth, mode);
+		// The middle, by finger: the controls after a moment, or a double tap's zoom.
+		if (action === 'chrome' && e.pointerType !== 'mouse') return middleTap(e.clientX, e.clientY);
+		settleTap();
 		// With the controls up, a tap on the page only puts them away.
 		if (chrome) {
 			chrome = false;
 			return;
 		}
-		const action =
-			(e.pointerType === 'mouse' ? mouseAction(e.button, mode) : null) ??
-			tapAction(e.clientX, window.innerWidth, mode);
 		if (action === 'chrome') chrome = true;
 		else void turn(action);
 	}
@@ -1371,6 +1467,7 @@
 				oncontextmenu={(e) => (menu || pressed) && e.preventDefault()}
 			>
 				<Strip
+					bind:this={stripView}
 					chapters={strip}
 					{sides}
 					{zoom}
@@ -1385,7 +1482,7 @@
 							pressed = false;
 							return;
 						}
-						if (!tapBlocks(e.clientX, e.clientY)) chrome = !chrome;
+						if (!tapBlocks(e.clientX, e.clientY)) middleTap(e.clientX, e.clientY);
 					}}
 					rings={ringsOn}
 				/>

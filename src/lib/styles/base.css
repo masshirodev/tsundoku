@@ -21,3 +21,19 @@ a:hover {
 img {
 	-webkit-touch-callout: none;
 }
+
+/*
+ * Anything that appears over the page fades in, the same way everywhere: the
+ * readers' controls, sheets, menus and their scrims (doc/design/README.md,
+ * "Departures"; card c185). Asked for on 2026-10-29 with the double tap,
+ * whose single tap now waits ~250 ms: controls that then snapped in felt
+ * clunky. Opacity only, on the design's own ease-out. In only: they still go
+ * at once, as the design's minimal motion wants. Kept under reduced motion,
+ * which asks for less movement, and a fade doesn't move.
+ */
+.appear {
+	transition: opacity var(--motion-appear) var(--ease);
+	@starting-style {
+		opacity: 0;
+	}
+}

@@ -1046,11 +1046,11 @@
 	{#if sheet && streams}
 		<button
 			type="button"
-			class="scrim"
+			class="scrim appear"
 			aria-label="Close the settings"
 			onclick={() => (sheet = false)}
 		></button>
-		<div class="sheet" role="dialog" aria-label="Playback settings">
+		<div class="sheet appear" role="dialog" aria-label="Playback settings">
 			<div class="shead">
 				<div>PLAYBACK · {epShort(ep)}</div>
 				<button type="button" aria-label="Close" onclick={() => (sheet = false)}>✕</button>
@@ -1181,11 +1181,11 @@
 	{#if keysOpen}
 		<button
 			type="button"
-			class="scrim keys-scrim"
+			class="scrim keys-scrim appear"
 			aria-label="Close the keys"
 			onclick={() => (keysOpen = false)}
 		></button>
-		<div class="sheet keys" role="dialog" aria-label="Keys">
+		<div class="sheet keys appear" role="dialog" aria-label="Keys">
 			<div class="shead">
 				<div>KEYS</div>
 				<button type="button" aria-label="Close" onclick={() => (keysOpen = false)}>✕</button>
@@ -1658,10 +1658,12 @@
 	}
 
 	/* ---- the chrome: shown on a tap, gone after a few seconds ---- */
+	/* The bars fade both ways here, on the app's own timing (base.css, .appear):
+	   they're kept in the page and hidden by class, so they can fade out too. */
 	.cluster,
 	.top,
 	.bottom {
-		transition: opacity 0.15s;
+		transition: opacity var(--motion-appear) var(--ease);
 	}
 	.player:not(.chrome) .cluster,
 	.player:not(.chrome) .top,

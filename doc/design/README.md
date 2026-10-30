@@ -170,3 +170,12 @@ departure isn't written down here, it's a bug.
 
 Behavioural departures (what the library does that the mock never had to decide)
 are in [`../LIBRARY.md`](../LIBRARY.md).
+
+18. **What appears over the page fades in** (asked 2026-10-29, card c185). The
+    handoff's motion is "minimal and instant": its one transition is the switch
+    knob. With the double tap, a single tap in the reader waits ~250 ms to rule
+    out a second, and controls that then snapped in felt clunky. So the readers'
+    controls, every sheet, menu and scrim fade in over `--motion-appear` (160 ms)
+    on the design's own `--ease`, opacity only, through one class, `.appear`
+    (`src/lib/styles/base.css`). In only: they still go at once. The video
+    player's bars, which already faded both ways at 0.15s, use the same token.

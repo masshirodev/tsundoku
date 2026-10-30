@@ -1082,11 +1082,11 @@
 	{#if contents}
 		<button
 			type="button"
-			class="scrim"
+			class="scrim appear"
 			aria-label="Close contents"
 			onclick={() => (contents = false)}
 		></button>
-		<div class="contents" class:short={entries.length < 60}>
+		<div class="contents appear" class:short={entries.length < 60}>
 			<EntryList
 				{series}
 				selecting={false}

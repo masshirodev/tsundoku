@@ -107,8 +107,9 @@
 	}
 </script>
 
-<button type="button" class="scrim" aria-label="Close reading settings" onclick={onclose}></button>
-<div class="sheet" role="dialog" aria-label="Reading settings">
+<button type="button" class="scrim appear" aria-label="Close reading settings" onclick={onclose}
+></button>
+<div class="sheet appear" role="dialog" aria-label="Reading settings">
 	<div class="head">
 		<div class="h">READING</div>
 		<button type="button" class="x" aria-label="Close" onclick={onclose}>✕</button>

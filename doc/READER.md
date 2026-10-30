@@ -205,7 +205,26 @@ that stays.
   and the keys still turn.
 - **Vertical:** the strip's width is SIDES' width times the zoom. Past 100%
   it scrolls sideways inside its lane; under it, it narrows as SIDES does.
-  The page under the middle stays there (Strip's own width-change anchor).
+  The page under the middle stays there (Strip's own width-change anchor),
+  unless the zoom has a point of its own (below).
+- **Double tap** (card c185, the owner's rule): a double tap in the middle of
+  the page zooms **to 100% from under it, to 200% from 100%, and back to 100%
+  from over it**. Two taps make one within 250 ms and 32 px (`DoubleTap`).
+  So a single tap in the middle now waits 250 ms before it shows or hides the
+  controls, which then fade in ([`design/README.md`](design/README.md),
+  departure 18). A tap elsewhere in that time lets the waiting one happen
+  first, so a tap at an edge right after one in the middle doesn't turn the
+  page under controls about to appear. By finger only in paged mode: there a
+  mouse click turns the page, as it always has.
+- **Zooms keep their point.** A double tap's point, a pinch's middle and the
+  pointer under Ctrl + wheel stay where they are on the page; until c185 every
+  zoom grew the page from its top left, so what was under the fingers slid
+  away. Paged: the page's box is measured either side of the zoom and the
+  screen scrolled back (`fractionOn`, `keepUnder`). A pinch holds the spot
+  where the fingers began, not where they are each step: a page still
+  narrower than the screen is centred and can't scroll, so measuring afresh
+  drifted. The strip does it in its own place-keeping (`Strip`'s `anchorAt`),
+  which otherwise keeps the middle of the screen when its width changes.
 - **KEEP FOR ALL PAGED / ALL VERTICAL** makes the zoom where every series in
   that mode starts. It's kept **per mode and per screen class on this
   device** (`tsundoku.reader.zoom.<paged|vertical>.<phone|wide>`, phone below
@@ -215,8 +234,13 @@ that stays.
   100%.
 
 The rules are in `src/lib/reader/zoom.ts` (`tests/reader-zoom.spec.ts`); the
-two zoom tests in `tests/reader-flow.e2e.ts` check the page grows and
-scrolls, KEEP across a reload, RESET's two steps, and the strip.
+zoom tests in `tests/reader-flow.e2e.ts` check the page grows and scrolls,
+KEEP across a reload, RESET's two steps, the strip, and (c185) the double
+tap's three cases with its point held and no controls on the way, the single
+tap's controls arriving late and faded, the strip's double tap, and a pinch
+holding its point. That last one dispatches its touches to the page itself:
+devtools' synthetic touches went through Chrome's own gesture handling on a
+scrollable screen, which took some of them at random.
 
 ## Boundaries
 

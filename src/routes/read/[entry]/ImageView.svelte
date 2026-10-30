@@ -62,7 +62,7 @@
 </script>
 
 <div
-	class="view"
+	class="view appear"
 	role="dialog"
 	aria-label="Illustration"
 	tabindex="-1"

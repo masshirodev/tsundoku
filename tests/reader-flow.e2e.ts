@@ -478,6 +478,172 @@ test('zoom: the vertical strip widens past the screen and scrolls sideways, kept
 	await expect.poll(width).toBeCloseTo(vw, 0);
 });
 
+/** Where the screen point (x, y) falls on the page box under it, as fractions. */
+const pointOn = (page: Page, sel: string, x: number, y: number) =>
+	page
+		.locator(sel)
+		.first()
+		.evaluate(
+			(e, [x, y]) => {
+				const r = e.getBoundingClientRect();
+				return { fx: (x - r.left) / r.width, fy: (y - r.top) / r.height, h: r.height, w: r.width };
+			},
+			[x, y]
+		);
+
+test('double tap: 200% around the tapped point and back, with no controls on the way (c185)', async ({
+	page
+}) => {
+	await seriesId(page, 'Hikaru ga Shinda Natsu');
+	await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.click();
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	const vp = page.viewportSize()!;
+	// Off-centre on purpose: the middle zone across, a third down.
+	const [x, y] = [vp.width * 0.45, vp.height / 3];
+	const sel = '.stage .screen:not([aria-hidden]) .page';
+	const before = await pointOn(page, sel, x, y);
+	await page.touchscreen.tap(x, y);
+	await page.touchscreen.tap(x, y);
+	await expect.poll(async () => (await pointOn(page, sel, x, y)).h).toBeCloseTo(before.h * 2, 0);
+	// What was under the finger still is.
+	const after = await pointOn(page, sel, x, y);
+	expect(after.fx).toBeCloseTo(before.fx, 2);
+	expect(after.fy).toBeCloseTo(before.fy, 2);
+	// A double tap is never also a single one.
+	await page.waitForTimeout(400);
+	await expect(page.locator('header[aria-label="Reader"]')).toHaveCount(0);
+	// Over 100%: back to it.
+	await page.touchscreen.tap(x, y);
+	await page.touchscreen.tap(x, y);
+	await expect.poll(async () => (await pointOn(page, sel, x, y)).h).toBeCloseTo(before.h, 0);
+	// Under 100%: up to it.
+	await page.keyboard.press('-');
+	await page.touchscreen.tap(x, y);
+	await page.touchscreen.tap(x, y);
+	await expect.poll(async () => (await pointOn(page, sel, x, y)).h).toBeCloseTo(before.h, 0);
+});
+
+test('a single tap in the middle still shows the controls, a moment later, fading in (c185)', async ({
+	page
+}) => {
+	await seriesId(page, 'Hikaru ga Shinda Natsu');
+	await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.click();
+	await readerReady(page);
+	const header = page.locator('header[aria-label="Reader"]');
+	await tap(page, 0.5);
+	// Held back while a second tap could still come.
+	await expect(header).toHaveCount(0);
+	await expect(header).toBeVisible();
+	await expect(header).toHaveClass(/appear/);
+	await expect.poll(() => header.evaluate((e) => getComputedStyle(e).opacity)).toBe('1');
+	// A tap at the edge right after a middle one lets that one happen first:
+	// with the controls up (the middle tap's), the edge only puts them away, and
+	// the page doesn't turn under them.
+	await tap(page, 0.5);
+	await expect(header).toHaveCount(0);
+	// The reader writes its page into the address once it's on one.
+	await expect(page).toHaveURL(/\?p=\d+/);
+	const at = page.url();
+	await tap(page, 0.5);
+	await tap(page, 0.95);
+	await page.waitForTimeout(400);
+	await expect(header).toHaveCount(0);
+	expect(page.url()).toBe(at);
+});
+
+test('double tap on the strip: 200% around the point, the strip scrolling sideways to keep it (c185)', async ({
+	page
+}) => {
+	await seriesId(page, 'The Greatest Estate Developer');
+	await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.click();
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	const vp = page.viewportSize()!;
+	const [x, y] = [vp.width * 0.7, vp.height / 2];
+	const under = () =>
+		page.evaluate(
+			([x, y]) => {
+				const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-role="page"]');
+				const r = el!.getBoundingClientRect();
+				return {
+					key: `${el!.dataset.entry}-${el!.dataset.index}`,
+					fx: (x - r.left) / r.width,
+					fy: (y - r.top) / r.height
+				};
+			},
+			[x, y]
+		);
+	const before = await under();
+	const width = () => page.locator('.strip').evaluate((e) => e.getBoundingClientRect().width);
+	const fitted = await width();
+	await page.touchscreen.tap(x, y);
+	await page.touchscreen.tap(x, y);
+	await expect.poll(width).toBeCloseTo(fitted * 2, 0);
+	await page.waitForTimeout(300);
+	const after = await under();
+	expect(after.key).toBe(before.key);
+	expect(after.fx).toBeCloseTo(before.fx, 1);
+	expect(after.fy).toBeCloseTo(before.fy, 1);
+	await page.touchscreen.tap(x, y);
+	await page.touchscreen.tap(x, y);
+	await expect.poll(width).toBeCloseTo(fitted, 0);
+});
+
+test('a pinch zooms around the fingers, not the page’s top left (c185)', async ({ page }) => {
+	await seriesId(page, 'Hikaru ga Shinda Natsu');
+	await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.click();
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	const vp = page.viewportSize()!;
+	const [cx, cy] = [vp.width * 0.6, vp.height * 0.6];
+	const sel = '.stage .screen:not([aria-hidden]) .page';
+	const before = await pointOn(page, sel, cx, cy);
+	// Two fingers spreading from 60px to 150px apart around (cx, cy), dispatched
+	// to the page itself: devtools' synthetic touches go through Chrome's own
+	// gesture handling on a scrollable screen, which took some of them at random.
+	await page.evaluate(
+		async ([cx, cy]) => {
+			const target = document.querySelector('.stage .screen:not([aria-hidden])')!;
+			const touches = (d: number) =>
+				[cx - d / 2, cx + d / 2].map(
+					(x, i) => new Touch({ identifier: i + 1, target, clientX: x, clientY: cy })
+				);
+			const send = (type: string, t: Touch[]) =>
+				target.dispatchEvent(
+					new TouchEvent(type, { touches: t, changedTouches: t, bubbles: true, cancelable: true })
+				);
+			send('touchstart', touches(60));
+			for (let d = 70; d <= 150; d += 10) {
+				send('touchmove', touches(d));
+				await new Promise((r) => requestAnimationFrame(r));
+			}
+			send('touchend', []);
+		},
+		[cx, cy]
+	);
+	await expect
+		.poll(async () => (await pointOn(page, sel, cx, cy)).h)
+		.toBeCloseTo(before.h * 2.5, 0);
+	// Where the fingers began on the page is still between them.
+	const after = await pointOn(page, sel, cx, cy);
+	expect(after.fx).toBeCloseTo(before.fx, 2);
+	expect(after.fy).toBeCloseTo(before.fy, 2);
+	await page.keyboard.press('0');
+});
+
 test('wide pages: SPLIT reads the halves in order, ROTATE turns the page, WHOLE as before', async ({
 	page
 }) => {

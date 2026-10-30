@@ -27,7 +27,7 @@
 	});
 </script>
 
-<div class="view" role="dialog" aria-label={title}>
+<div class="view appear" role="dialog" aria-label={title}>
 	<div class="head">
 		<button type="button" class="x" aria-label="Close" onclick={onclose}>✕</button>
 		<div class="names">

@@ -84,7 +84,7 @@
 	}
 </script>
 
-<header class="top" aria-label="Reader">
+<header class="top appear" aria-label="Reader">
 	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- backHref is resolved by the page -->
 	<a class="back" href={backHref} aria-label="Back to the series" use:backLink>←</a>
 	<div class="where">
@@ -148,7 +148,7 @@
 	{/if}
 </header>
 
-<footer class="bottom" aria-label="Reader controls">
+<footer class="bottom appear" aria-label="Reader controls">
 	<div class="scrub">
 		<span class="end">{mode === 'rtl' ? total : 1}</span>
 		<div

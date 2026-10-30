@@ -25,5 +25,8 @@
 	--progress-h: 3px;
 	--rating-h: 4px;
 	--motion-fast: 120ms;
+	/* What appears over the page (the reader's controls, sheets, menus) fades in
+	   this long: not slow, not abrupt (owner, 2026-10-29; base.css, .appear). */
+	--motion-appear: 160ms;
 	--ease: cubic-bezier(0.2, 0, 0, 1);
 }

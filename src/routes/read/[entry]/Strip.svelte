@@ -50,6 +50,7 @@
 	} = $props();
 
 	let root = $state<HTMLElement | null>(null);
+	let lane = $state<HTMLElement | null>(null);
 
 	/**
 	 * Where the reader is: the page (or band) under the middle of the screen,
@@ -57,7 +58,13 @@
 	 * scroll, at the width it was noted at, since by the time a rotation is
 	 * seen the layout has already changed under it.
 	 */
-	let place: { el: HTMLElement; at: number; width: number } | null = null;
+	let place: {
+		el: HTMLElement;
+		at: number;
+		width: number;
+		/** A zoom's point (anchorAt): where on the screen it goes back, and how far across the page. */
+		to?: { x: number; y: number; fx: number };
+	} | null = null;
 	/** Set while the place is being put back: pages crossing the middle meanwhile aren't read. */
 	let settling = false;
 
@@ -83,11 +90,13 @@
 		if (!root) return;
 		const width = root.clientWidth;
 		if (!place || place.width === width) return;
-		const { el, at } = place;
+		const { el, at, to } = place;
 		if (el.isConnected) {
 			settling = true;
 			const r = el.getBoundingClientRect();
-			window.scrollBy(0, r.top + at * r.height - innerHeight / 2);
+			window.scrollBy(0, r.top + at * r.height - (to?.y ?? innerHeight / 2));
+			// A zoom keeps its point across the page too, inside the lane.
+			if (to && lane) lane.scrollLeft += r.left + to.fx * r.width - to.x;
 			requestAnimationFrame(() =>
 				requestAnimationFrame(() => {
 					settling = false;
@@ -95,6 +104,25 @@
 			);
 		}
 		place = { el, at, width };
+	}
+
+	/**
+	 * A zoom is about to change the strip's width (a double tap, a pinch: card
+	 * c185): keep the point at (x, y) where it is, rather than the middle of the
+	 * screen, which is what the width change would otherwise keep. Called just
+	 * before the zoom; `restore` does the rest when the width changes.
+	 */
+	export function anchorAt(x: number, y: number) {
+		if (!root) return;
+		const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-role="page"], .band');
+		if (!el || !root.contains(el)) return;
+		const r = el.getBoundingClientRect();
+		place = {
+			el,
+			at: r.height ? (y - r.top) / r.height : 0,
+			width: root.clientWidth,
+			to: { x, y, fx: r.width ? (x - r.left) / r.width : 0.5 }
+		};
 	}
 
 	/**
@@ -168,7 +196,7 @@
 
 <!-- A tap anywhere shows the controls, the side margins included, unless it's on a text block; scrolling is the only way to move. -->
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="lane" class:wider={zoom > 1} onclick={ontap}>
+<div class="lane" class:wider={zoom > 1} bind:this={lane} onclick={ontap}>
 	<div class="strip" bind:this={root} style:width="{(100 - 2 * sides) * zoom}%">
 		{#each chapters as c, k (c.id)}
 			{#if k > 0}

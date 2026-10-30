@@ -100,7 +100,7 @@
 	});
 </script>
 
-<header class="top">
+<header class="top appear">
 	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- seriesHref is resolved by the caller -->
 	<a class="back" href={seriesHref} aria-label="Back to the series" use:backLink>←</a>
 	<div class="names">
@@ -117,7 +117,7 @@
 </header>
 
 {#if bottom}
-	<footer class="bottom">
+	<footer class="bottom appear">
 		<div class="chapter">
 			<div class="ch">{chapter}</div>
 			<div class="left">{pageText}</div>

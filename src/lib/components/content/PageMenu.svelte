@@ -67,7 +67,7 @@
 </div>
 
 <div
-	class="sheet"
+	class="sheet appear"
 	class:grid={!preview}
 	aria-label="Page {page + 1}"
 	role="dialog"
