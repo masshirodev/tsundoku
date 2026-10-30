@@ -22,6 +22,7 @@ Out come, under `/mnt/hdd2/tsundoku/release/out/<version>/`:
 
 | File                                        | What                                             |
 | ------------------------------------------- | ------------------------------------------------ |
+| `tsundoku-<version>-win-x64.exe`            | the Windows installer (238 MB)                   |
 | `tsundoku-<version>-win-x64.zip`            | the Windows bundle (293 MB on 2026-10-29)        |
 | `tsundoku-<version>-linux-x64.tar.xz`       | the Linux bundle (237 MB)                        |
 | `flaresolverr-3.4.6-<platform>.zip/.tar.gz` | FlareSolverr's own release, unmodified, optional |
@@ -90,6 +91,40 @@ tsundoku/
   flaresolverr/               only once its optional archive is unzipped here
 ```
 
+## The installer
+
+`ops/release/installer/tsundoku.nsi`, built by `release` for Windows with
+NSIS's own `makensis`, which runs natively on Linux (the `nsis` package): no
+Wine, no Windows. Inno Setup, which the plan named, would have needed Wine for
+every build. Named `tsundoku-<version>-win-x64.exe`, never `*setup*.exe`:
+Windows treats that name as an installer to elevate and shims.
+
+- **Per user**, into `%LOCALAPPDATA%\Programs\tsundoku` (as VS Code's user
+  installer does), with no administrator prompt.
+- A **Start-menu entry**; **start at sign-in** is a checkbox, off by default,
+  and starts it minimised without opening the browser.
+- An entry in **Settings > Apps**, whose uninstaller removes what the
+  installer put there **by name** (the program's folders and files, its
+  shortcuts, its registry keys), then the folder only if it's empty. Never
+  the folder whole: the directory page lets a friend pick any folder.
+- **The data folder is never touched**, by uninstalling or updating. An
+  update is the new installer run over the old one: it stops a running
+  tsundoku, replaces the program's folders whole so nothing of the old
+  version lingers, and keeps a FlareSolverr unzipped beside it.
+- It stops a running tsundoku **through WMI** (`Win32_Process.ExecutablePath`),
+  only processes run from its folder, twice a second apart in case the
+  launcher restarted a helper. Not `Get-Process`: the installer is 32-bit, so
+  its `powershell` is too, and a 32-bit `Get-Process` can't read a 64-bit
+  process's path. On Zen it matched none of tsundoku's three processes, and
+  the update and the uninstall then failed on locked files.
+- The icon is the app's typeset 積 (`installer/icon.sh` makes `tsundoku.ico`
+  from `static/icons/icon-512.png`, cropping the small sizes to the glyph).
+- **Unsigned**: SmartScreen warns, and the README says what to click. Signing
+  is a decision of its own (a certificate costs money every year).
+
+The launcher, not the installer, finds FlareSolverr: in the data folder
+first, where it outlives reinstalls, then beside the program.
+
 ## The launcher
 
 `tsundoku.cmd` (or `tsundoku`) runs `launcher/launch.ts` with the bundle's
@@ -144,15 +179,18 @@ file into the trash and out of the library, and a GROUP of the two local
 books takes the folder they share as its path. Run on the bundle before c183,
 the first two failed on Windows; since, all pass on both.
 On Windows it also checks that nothing listens beyond 127.0.0.1 and that no
-`java` or `node` outlives the launcher. 2026-10-29: all passed on both.
+`java` or `node` outlives the launcher. Then the installer
+(`smoke/windows-installer.ps1`): a silent install puts the program, the
+Start-menu entry and the Apps entry in place (and no start at sign-in), the
+probe passes on the installed copy, a second install while it runs stops it
+and leaves the program whole, it starts again on the same data with no new
+token, and the uninstaller removes the program, its shortcut and its Apps
+entry, keeps the data folder, and leaves nothing running. 2026-10-29: all passed on both.
 
 ## Not in a release yet
 
 - **macOS.** No machine to test it on, and FlareSolverr publishes no macOS
   build. The resolver and the launcher already know its paths.
-- **An installer** for Windows (c179): a friend unzips the folder and runs
-  `tsundoku.cmd`. Nothing is signed, so SmartScreen warns; the README says
-  what to click.
 - **JMdict lookups.** The dictionary isn't shipped (74 MB, built from
   EDRDG's data); without it, lookups are simply off (`KOTOBA_JMDICT`,
   [`JAPANESE.md`](JAPANESE.md)).

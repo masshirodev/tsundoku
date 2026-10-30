@@ -4,8 +4,9 @@ Status (2026-10-29): **phases 1, 2, 4 and 6 are built**: one data
 directory, the local serve mode and first-run token, native bundles for
 Windows and Linux with their launcher, and the Windows test VM with a smoke
 test both bundles pass. How a release is made is [`RELEASE.md`](RELEASE.md).
-Docker (3), the installer, publishing and update notices are still the plan
-as decided that day. Cards on the Tsundoku board carry the `Friends` label.
+The Windows installer is built too (an NSIS one, not Inno Setup: see
+[`RELEASE.md`](RELEASE.md), "The installer"). Docker (3), publishing and
+update notices are still the plan as decided that day. Cards on the Tsundoku board carry the `Friends` label.
 
 Until now tsundoku had exactly one install: this workstation, served over the
 tailnet to the owner's tablet. Friends want to try it, some on Windows. This

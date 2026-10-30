@@ -32,7 +32,9 @@ progress records out of the output.
 `up` to `down` ([`RELEASE.md`](RELEASE.md), "Smoke test"):
 `ops/release/smoke/windows.ps1` unzips it, puts a synthesised library in
 `%LOCALAPPDATA%\tsundoku`, starts it and runs the probe. It starts from the
-data folder deleted, so every run is a first start.
+data folder deleted, so every run is a first start. Then
+`ops/release/smoke/windows-installer.ps1` installs, runs, updates and
+uninstalls the installer the same way.
 
 ## What it is
 
