@@ -52,6 +52,22 @@ uninstalls the installer the same way.
 Only `winget` is there to install anything, and a test shouldn't use it: a
 friend's install has to work without it.
 
+## On a tailnet
+
+The Tailscale smoke test ([`RELEASE.md`](RELEASE.md), "Smoke test") puts Zen
+on a tailnet. By hand, it's `tailscale up --unattended`, with the login link
+it prints approved while the command still waits (approve it after the
+command has timed out and nothing joins). `--unattended` because nobody is
+signed in at Zen's desktop: without it Tailscale on Windows belongs to the
+desktop user, and over SSH it says "Success" and then sits in `NoState`. A
+friend's PC, with somebody at the desktop, doesn't need it. `tailscale
+logout` takes Zen off the tailnet, but a node joined by hand stays in the
+admin console's machine list until it's removed there.
+
+Windows' OpenSSH ends whatever a session started when the session closes,
+so a tsundoku started over `ssh win-test` is gone by the next command: test
+it in the same session that starts it.
+
 ## Snapshots
 
 - **`before-tsundoku`**: Zen exactly as the owner left it, before any of this.

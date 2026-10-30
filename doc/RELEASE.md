@@ -169,7 +169,8 @@ installer doesn't put it on PATH.
 What it runs, with which environment, is `ops/release/launcher/plan.ts`,
 pure and tested for both platforms in `tests/release-plan.spec.ts`. The data
 folder's `.env` can set `PORT`, `ENGINE_PORT`, `SOLVER_PORT`,
-`TSUNDOKU_SERVE` (`https` puts it on the tailnet, as on the workstation) and
+`TSUNDOKU_SERVE` (`https` puts it on the tailnet, as on the workstation; the
+friend's README, "Reading on your phone or tablet", says how) and
 `DATABASE_PATH`.
 
 ## Smoke test
@@ -203,6 +204,22 @@ probe passes on the installed copy, a second install while it runs stops it
 and leaves the program whole, it starts again on the same data with no new
 token, and the uninstaller removes the program, its shortcut and its Apps
 entry, keeps the data folder, and leaves nothing running. 2026-10-29: all passed on both.
+
+**On Tailscale** (c186), only when `TSUNDOKU_SMOKE_TAILSCALE_KEY` holds an
+ephemeral auth key from the tailnet's admin console (Settings > Keys), since
+nothing else can put Zen on a tailnet unattended:
+`smoke/windows-tailscale.ps1 -Key` installs Tailscale, joins as
+`zen-tsundoku-smoke`, writes the README's `TSUNDOKU_SERVE=https` into the
+data folder's `.env`, starts the launcher and runs `smoke/probe-tailnet.mjs`:
+`serving.json` says https on the tailnet name, the launcher opened that and
+not localhost, a second start finds it, the token signs in through
+`tailscale serve` with its certificate, three screens answer there, and a
+save from localhost is refused (why it opens the tailnet address). Then it
+removes the serve mapping and logs out, and the snapshot takes Tailscale
+away. 2026-10-30, on 2026.10.30.1's bundle: all passed, with Zen signed in
+by hand instead of a key. The first request there took 4 s, Tailscale
+fetching the certificate; the probe waits up to a minute for it, since once
+it outlasted fetch's 10 s connect timeout.
 
 ## Not in a release yet
 

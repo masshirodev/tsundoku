@@ -48,6 +48,18 @@ if [ -z "$only" ] || [ "$only" = win-x64 ]; then
 	ssh -o BatchMode=yes win-test 'powershell -ExecutionPolicy Bypass -File $HOME\windows.ps1' || status=1
 	echo "-- the installer: install, run, update while running, uninstall"
 	ssh -o BatchMode=yes win-test 'powershell -ExecutionPolicy Bypass -File $HOME\windows-installer.ps1' || status=1
+	# On a tailnet, only given a key to join one with: an ephemeral auth key
+	# (Tailscale admin console > Settings > Keys), so Zen leaves the tailnet by
+	# itself once logged out, and the snapshot takes Tailscale away again.
+	if [ -n "${TSUNDOKU_SMOKE_TAILSCALE_KEY:-}" ]; then
+		echo "-- on Tailscale (TSUNDOKU_SERVE=https)"
+		msi="$base/cache/tailscale-setup-latest-amd64.msi"
+		[ -f "$msi" ] || curl -fsSL -o "$msi" https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi
+		scp -q "$msi" win-test:tailscale.msi
+		scp -q "$here/smoke/probe-tailnet.mjs" "$here/smoke/windows-tailscale.ps1" win-test:
+		ssh -o BatchMode=yes win-test \
+			"powershell -ExecutionPolicy Bypass -File \$HOME\\windows-tailscale.ps1 -Key $TSUNDOKU_SMOKE_TAILSCALE_KEY" || status=1
+	fi
 	"$repo/ops/winvm/zen.sh" down
 fi
 

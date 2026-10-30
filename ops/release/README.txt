@@ -72,7 +72,8 @@ private network between your own devices (https://tailscale.com):
 4. Start tsundoku again. It opens at an address like
    https://your-pc.your-tailnet.ts.net:8443, and the window prints it: open
    that same address on the phone or tablet. On this computer too, use it
-   rather than localhost from now on.
+   rather than localhost from now on. The very first time, it can take a
+   few seconds to load while Tailscale gets its certificate.
 
 It's still private: only devices signed in to your Tailscale can reach it,
 and the sign-in token still applies. Take the line out of .env to go back.
