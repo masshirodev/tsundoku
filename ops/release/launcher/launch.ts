@@ -16,7 +16,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dataPaths } from '../app/src/lib/server/data-dirs.ts';
 import { ensureSetting, newToken } from '../app/src/lib/server/first-run.ts';
-import { opener, plan, type Proc } from './plan.ts';
+import { opener, plan, solverAt, type Proc } from './plan.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 // The default data folder's .env first: it may say TSUNDOKU_HOME is elsewhere
@@ -47,16 +47,14 @@ try {
 mkdirSync(join(home, 'logs'), { recursive: true });
 const engineToken =
 	process.env.ENGINE_TOKEN || ensureSetting(homeEnv, 'ENGINE_TOKEN', newToken).value;
-const solverPresent = existsSync(
-	join(root, 'flaresolverr', `flaresolverr${windows ? '.exe' : ''}`)
-);
+const solverDir = solverAt(root, home, process.platform, existsSync);
 const p = plan({
 	root,
 	home,
 	env: process.env,
 	platform: process.platform,
 	engineToken,
-	solverPresent
+	solverDir
 });
 
 console.log(`tsundoku ${version}`);
@@ -142,7 +140,11 @@ if (await running()) {
 mkdirSync(join(home, 'engine'), { recursive: true });
 helper(p.engine);
 if (p.solver) helper(p.solver);
-else console.log("  FlareSolverr isn't installed: sources behind a browser check won't load.");
+else
+	console.log(
+		`  FlareSolverr isn't installed: sources behind a browser check won't load.\n` +
+			`  (Unzip its archive into ${home}.)`
+	);
 
 // The app in this window: its first start prints the sign-in token here.
 const server = spawn(p.server.cmd, p.server.args, {

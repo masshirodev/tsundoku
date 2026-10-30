@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { opener, plan } from '../ops/release/launcher/plan.ts';
+import { opener, plan, solverAt } from '../ops/release/launcher/plan.ts';
 
-const base = { engineToken: 'eng', solverPresent: false };
+const base = { engineToken: 'eng', solverDir: null };
 
 describe('the launcher’s plan (doc/RELEASE.md)', () => {
 	it('on Windows: the bundle’s own programs, localhost, and the data folder', () => {
@@ -51,19 +51,19 @@ describe('the launcher’s plan (doc/RELEASE.md)', () => {
 		expect(p.server.env.FFPROBE).toBe('/opt/tsundoku/ffmpeg/bin/ffprobe');
 	});
 
-	it('runs FlareSolverr, and tells the app where, only once it’s unzipped beside it', () => {
+	it('runs FlareSolverr, and tells the app where, only once it’s unzipped', () => {
 		const without = plan({ ...base, root: '/t', home: '/h', env: {}, platform: 'linux' });
 		expect(without.solver).toBeNull();
 		expect(without.server.env.ENGINE_SOLVER_URL).toBeUndefined();
 		const withIt = plan({
 			...base,
-			solverPresent: true,
+			solverDir: '/h/flaresolverr',
 			root: '/t',
 			home: '/h',
 			env: {},
 			platform: 'linux'
 		});
-		expect(withIt.solver?.cmd).toBe('/t/flaresolverr/flaresolverr');
+		expect(withIt.solver?.cmd).toBe('/h/flaresolverr/flaresolverr');
 		expect(withIt.solver?.env).toMatchObject({ HOST: '127.0.0.1', PORT: '8191' });
 		expect(withIt.server.env.ENGINE_SOLVER_URL).toBe('http://127.0.0.1:8191/v1');
 	});
@@ -94,6 +94,20 @@ describe('the launcher’s plan (doc/RELEASE.md)', () => {
 		expect(
 			plan({ ...base, root: '/t', home: '/h', env: { PORT: 'abc' }, platform: 'linux' }).ports.app
 		).toBe(42143);
+	});
+});
+
+describe('solverAt', () => {
+	it('prefers the data folder, which outlives reinstalling, then the program’s', () => {
+		const both = (f: string) => f.endsWith('flaresolverr.exe');
+		expect(solverAt('C:\\P\\tsundoku', 'C:/D/tsundoku', 'win32', both)).toBe(
+			'C:\\D\\tsundoku\\flaresolverr'
+		);
+		const besideOnly = (f: string) => f.startsWith('/opt/');
+		expect(solverAt('/opt/tsundoku', '/home/a/.local/share/tsundoku', 'linux', besideOnly)).toBe(
+			'/opt/tsundoku/flaresolverr'
+		);
+		expect(solverAt('/opt/t', '/h', 'linux', () => false)).toBeNull();
 	});
 });
 

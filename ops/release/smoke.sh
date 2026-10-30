@@ -41,8 +41,13 @@ if [ -z "$only" ] || [ "$only" = win-x64 ]; then
 	echo "== win-x64"
 	"$repo/ops/winvm/zen.sh" up
 	scp -q "$out/tsundoku-$version-win-x64.zip" win-test:bundle.zip
-	scp -q "$work/library.zip" "$here/smoke/probe.mjs" "$here/smoke/windows.ps1" win-test:
+	scp -q "$out/tsundoku-$version-win-x64.exe" win-test:installer.exe
+	scp -q "$work/library.zip" "$here/smoke/probe.mjs" "$here/smoke/windows.ps1" \
+		"$here/smoke/windows-installer.ps1" win-test:
+	echo "-- the zip"
 	ssh -o BatchMode=yes win-test 'powershell -ExecutionPolicy Bypass -File $HOME\windows.ps1' || status=1
+	echo "-- the installer: install, run, update while running, uninstall"
+	ssh -o BatchMode=yes win-test 'powershell -ExecutionPolicy Bypass -File $HOME\windows-installer.ps1' || status=1
 	"$repo/ops/winvm/zen.sh" down
 fi
 

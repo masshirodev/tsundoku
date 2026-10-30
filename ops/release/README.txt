@@ -8,12 +8,18 @@ you watch. It runs on this computer and you read it in your browser.
 Starting it
 -----------
 
-Windows:  double-click tsundoku.cmd
-Linux:    run ./tsundoku
+Windows, installed:  Start menu > tsundoku
+Windows, unzipped:   double-click tsundoku.cmd
+Linux:               run ./tsundoku
 
 A window opens and stays open while tsundoku runs; closing it stops
 tsundoku. Your browser opens at http://localhost:42143 once it's ready.
 Use that address, localhost, not 127.0.0.1.
+
+The installer puts tsundoku in %LOCALAPPDATA%\Programs\tsundoku without
+asking for an administrator, and can start it when you sign in. Running a
+newer installer updates it; Settings > Apps uninstalls it. Neither touches
+your data (below).
 
 The first time, the window prints your sign-in token. Copy it into the
 sign-in page. It's kept in your data folder (below), in the file .env,
@@ -54,8 +60,8 @@ Sources behind a browser check
 Some sites show a "checking your browser" page first. Reading those needs
 FlareSolverr, a separate download from the same place as this one
 (flaresolverr-...zip, about 330 MB, since it carries its own Chrome). Unzip
-it into this folder, so there's a flaresolverr folder beside tsundoku.cmd,
-and start tsundoku again.
+it into your data folder (above), so there's a flaresolverr folder in it,
+and start tsundoku again. It stays there through updates and reinstalls.
 
 
 Licences

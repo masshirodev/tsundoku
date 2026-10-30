@@ -334,11 +334,35 @@ for (const platform of platforms) {
 			cwd: dirname(dir),
 			env: { ...process.env, XZ_OPT: '-T0 -9' }
 		});
+	const made = [name];
+
+	// Windows: the installer too (ops/release/installer, NSIS's own makensis).
+	// Not *setup*.exe: Windows treats that name as an installer to elevate.
+	if (platform === 'win-x64') {
+		const exe = `tsundoku-${version}-${platform}.exe`;
+		const licence = join(work, platform, 'LICENSE.txt');
+		writeFileSync(licence, readFileSync(join(dir, 'LICENSE'), 'utf8').replace(/\r?\n/g, '\r\n'));
+		run(
+			'makensis',
+			[
+				'-V2',
+				`-DVERSION=${version}`,
+				`-DVIVERSION=${version.split('.').length === 3 ? `${version}.0` : version}`,
+				`-DBUNDLE=${dir}`,
+				`-DLICENSE=${licence}`,
+				`-DOUTFILE=${join(out, exe)}`,
+				join(src, 'ops/release/installer/tsundoku.nsi')
+			],
+			{ cwd: join(src, 'ops/release/installer') }
+		);
+		made.push(exe);
+	}
+
 	const solver = await fetchPinned(pins.flaresolverr[platform]);
 	const solverName = `flaresolverr-${pins.flaresolverr.version}-${platform}${solver.endsWith('.zip') ? '.zip' : '.tar.gz'}`;
 	copyFileSync(solver, join(out, solverName));
-	for (const f of [name, solverName]) sums.push(`${await sha256(join(out, f))}  ${f}`);
-	console.log(`  ${name}: ${(statSync(join(out, name)).size / 1e6).toFixed(0)} MB`);
+	for (const f of [...made, solverName]) sums.push(`${await sha256(join(out, f))}  ${f}`);
+	for (const f of made) console.log(`  ${f}: ${(statSync(join(out, f)).size / 1e6).toFixed(0)} MB`);
 }
 
 writeFileSync(join(out, 'SHA256SUMS'), `${sums.join('\n')}\n`);
