@@ -152,18 +152,18 @@ process.on('exit', cleanup);
 step('building the app');
 run('yarn', ['install', '--frozen-lockfile', '--non-interactive'], { cwd: src });
 run('yarn', ['run', 'build'], { cwd: src, env: { ...process.env, TSUNDOKU_VERSION: version } });
-const serverCode = readdirSync(join(src, 'build', 'server'), { recursive: true, encoding: 'utf8' })
-	.filter((f) => f.endsWith('.js'))
-	.map((f) => readFileSync(join(src, 'build', 'server', f), 'utf8'))
-	.join('\n');
-if (/\bfrom\s*["']kotoba/.test(serverCode) || /import\(\s*["']kotoba/.test(serverCode))
-	throw new Error(
-		'the server build imports kotoba at runtime: it has to be bundled (doc/RELEASE.md).'
-	);
-
 const pkg = JSON.parse(readFileSync(join(src, 'package.json'), 'utf8')) as {
 	dependencies: Record<string, string>;
 };
+const imported = serverImports(join(src, 'build'));
+console.log(`  the server loads: ${[...imported].sort().join(', ')}`);
+if (imported.has('kotoba'))
+	throw new Error(
+		'the server build imports kotoba at runtime: it has to be bundled (doc/RELEASE.md).'
+	);
+const missing = [...imported].filter((n) => !(n in pkg.dependencies));
+if (missing.length)
+	throw new Error(`the server imports ${missing.join(', ')}, which aren't dependencies: add them.`);
 const app = join(work, 'app');
 mkdirSync(join(app, 'scripts'), { recursive: true });
 mkdirSync(join(app, 'src/lib/server'), { recursive: true });
@@ -172,9 +172,10 @@ copyFileSync(join(src, 'scripts/serve.ts'), join(app, 'scripts/serve.ts'));
 for (const f of ['bind.ts', 'data-dirs.ts', 'first-run.ts'])
 	copyFileSync(join(src, 'src/lib/server', f), join(app, 'src/lib/server', f));
 copyFileSync(join(src, 'yarn.lock'), join(app, 'yarn.lock'));
-// kotoba is in the build already; everything else the server imports is a dependency.
+// Only what the server loads: the rest of `dependencies` (fonts, hls.js, the
+// adapter and its rollup, kotoba) is compiled into build/ or used to make it.
 const dependencies = Object.fromEntries(
-	Object.entries(pkg.dependencies).filter(([name]) => name !== 'kotoba')
+	Object.entries(pkg.dependencies).filter(([name]) => imported.has(name))
 );
 writeFileSync(
 	join(app, 'package.json'),
@@ -250,10 +251,13 @@ for (const platform of platforms) {
 	if (!existsSync(join(dir, 'app/node_modules/better-sqlite3/build/Release/better_sqlite3.node')))
 		throw new Error(`better-sqlite3 has no ${platform} binary`);
 
-	// Node, the JRE, ffmpeg.
-	cpSync(unpack(await fetchPinned(pins.node[platform]), join(tmp, 'node')), join(dir, 'node'), {
-		recursive: true
-	});
+	// Node (the program and its licence: npm, corepack and the headers never run here), the JRE, ffmpeg.
+	const nodeDist = unpack(await fetchPinned(pins.node[platform]), join(tmp, 'node'));
+	const nodeExe = platform === 'win-x64' ? 'node.exe' : 'bin/node';
+	mkdirSync(dirname(join(dir, 'node', nodeExe)), { recursive: true });
+	copyFileSync(join(nodeDist, nodeExe), join(dir, 'node', nodeExe));
+	chmodSync(join(dir, 'node', nodeExe), 0o755);
+	copyFileSync(join(nodeDist, 'LICENSE'), join(dir, 'node', 'LICENSE'));
 	cpSync(unpack(await fetchPinned(pins.jre[platform]), join(tmp, 'jre')), join(dir, 'jre'), {
 		recursive: true
 	});
@@ -341,6 +345,28 @@ writeFileSync(join(out, 'SHA256SUMS'), `${sums.join('\n')}\n`);
 rmSync(work, { recursive: true, force: true });
 console.log(`\nDone: ${out}`);
 
+// ---- what the server loads -----------------------------------------------------------------
+
+/**
+ * The packages the built server imports, read from its chunks: rollup writes
+ * every import at the start of a line, `import x from 'name'` or a bare
+ * `import 'name'`. `import('...')` elsewhere is JSDoc type text, or kit's
+ * optional @opentelemetry/api, and doesn't count.
+ */
+function serverImports(build: string): Set<string> {
+	const names = new Set<string>();
+	const re = /^(?:import|export)[^;]*?from ?'([^'.][^']*)'|^import ?'([^'.][^']*)'/gm;
+	for (const f of readdirSync(build, { recursive: true, encoding: 'utf8' })) {
+		if (!f.endsWith('.js') || f.startsWith('client')) continue;
+		for (const m of readFileSync(join(build, f), 'utf8').matchAll(re)) {
+			const spec = m[1] ?? m[2];
+			if (spec.startsWith('node:')) continue;
+			names.add(spec.startsWith('@') ? spec.split('/').slice(0, 2).join('/') : spec.split('/')[0]);
+		}
+	}
+	return names;
+}
+
 // ---- THIRD-PARTY-NOTICES ---------------------------------------------------------------------
 
 /**
@@ -421,8 +447,18 @@ function notices(dir: string, platform: Platform, src: string): string {
 		`Unmodified, from ${pins.ffmpeg[platform].url}. Source: ${pins.ffmpeg.source}`
 	);
 	const seen = new Set<string>();
-	// Compiled into build/ rather than loaded: the UI framework and kotoba's tokenizer and dictionary.
-	for (const n of ['svelte', '@sveltejs/kit', 'devalue', 'esm-env', 'hls.js', 'dayjs'])
+	// Compiled into build/ rather than loaded: every dependency the server doesn't
+	// load (the fonts, hls.js, ...), the UI framework, and kotoba with its
+	// tokenizer and dictionary. A build tool that ships nothing (the adapter)
+	// is listed too: erring on the side of naming it.
+	const compiled = [
+		...Object.keys(pkg.dependencies).filter((n) => n !== 'kotoba' && !imported.has(n)),
+		'svelte',
+		'@sveltejs/kit',
+		'devalue',
+		'esm-env'
+	];
+	for (const n of compiled)
 		if (existsSync(join(src, 'node_modules', n))) pkgNotice(join(src, 'node_modules', n), seen);
 	pkgNotice(kotobaRepo, seen);
 	const kuromoji = join(kotobaRepo, 'node_modules/@patdx/kuromoji');
