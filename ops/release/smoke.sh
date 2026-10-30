@@ -109,8 +109,13 @@ if [ -z "$only" ] || [ "$only" = win-x64 ]; then
 		[ -f "$msi" ] || curl -fsSL -o "$msi" https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi
 		scp -q "$msi" win-test:tailscale.msi
 		scp -q "$here/smoke/probe-tailnet.mjs" "$here/smoke/set-password.mjs" "$here/smoke/windows-tailscale.ps1" win-test:
+		# A name of its own each run: Zen comes back from its snapshot as a new
+		# node, which asks Let's Encrypt for a new certificate, and one name gets
+		# five a week. The fixed `zen-tsundoku-smoke` ran out on 2026-10-30, the
+		# ninth release that day, and the probe timed out waiting for it.
+		node_name="zen-tsundoku-smoke-$(date -u +%m%d%H%M%S)"
 		ssh -o BatchMode=yes win-test \
-			"powershell -ExecutionPolicy Bypass -File \$HOME\\windows-tailscale.ps1 -Key $TSUNDOKU_SMOKE_TAILSCALE_KEY" || status=1
+			"powershell -ExecutionPolicy Bypass -File \$HOME\\windows-tailscale.ps1 -Key $TSUNDOKU_SMOKE_TAILSCALE_KEY -Name $node_name" || status=1
 	fi
 	"$repo/ops/winvm/zen.sh" down
 fi

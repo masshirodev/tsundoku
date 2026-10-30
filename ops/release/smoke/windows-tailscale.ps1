@@ -4,7 +4,8 @@
 # ephemeral auth key), it installs tailscale.msi from the home folder and
 # joins the tailnet first, and logs out after; without, Zen must already be
 # signed in. Either way the tailnet needs MagicDNS and HTTPS certificates on.
-param([string]$Key = '')
+# -Name is the node's name, a new one each run (smoke.sh says why).
+param([string]$Key = '', [string]$Name = 'zen-tsundoku-smoke')
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $ts = "$env:ProgramFiles\Tailscale\tailscale.exe"
@@ -13,7 +14,7 @@ if ($Key) {
 	# --unattended: nobody is signed in at Zen's desktop, and without it Tailscale
 	# on Windows belongs to the desktop user, says Success, then sits in NoState
 	# (doc/WINDOWS-VM.md, "On a tailnet").
-	& $ts up "--authkey=$Key" --unattended --hostname=zen-tsundoku-smoke --timeout=120s
+	& $ts up "--authkey=$Key" --unattended --hostname=$Name --timeout=120s
 }
 # Up, with its HTTPS certificate's name, before tsundoku asks for it.
 for ($i = 0; $i -lt 60; $i++) {

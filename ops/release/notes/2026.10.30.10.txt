@@ -1,0 +1,3 @@
+A series you haven't added can download now: DOWNLOAD on its page asks first, then adds it to your library and downloads.
+In the vertical reader, SETTINGS > READING can stop at a chapter's end, with a button to go on, instead of running into the next.
+TO THE TOP, also in SETTINGS > READING (off at first): a button back to the chapter's first page.

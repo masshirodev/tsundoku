@@ -243,7 +243,7 @@ one fails the stage, never skips it) and keeps it in `~/.config/myconf/.env`,
 which interactive shells load. A shell started before a change there doesn't
 have it: `set -a; . ~/.config/myconf/.env; set +a` first.
 `smoke/windows-tailscale.ps1 -Key` installs Tailscale, joins as
-`zen-tsundoku-smoke`, writes the README's `TSUNDOKU_SERVE=https` into the
+`zen-tsundoku-smoke-<MMDDhhmmss>`, a name of its own each run, writes the README's `TSUNDOKU_SERVE=https` into the
 data folder's `.env`, starts the launcher and runs `smoke/probe-tailnet.mjs`:
 `serving.json` says https on the tailnet name, the launcher opened that and
 not localhost, a second start finds it, the token signs in through
@@ -254,6 +254,18 @@ away. 2026-10-30, on 2026.10.30.1's bundle: all passed, with Zen signed in
 by hand instead of a key. The first request there took 4 s, Tailscale
 fetching the certificate; the probe waits up to a minute for it, since once
 it outlasted fetch's 10 s connect timeout.
+
+**Why a new name each run.** Zen comes back from its snapshot as a new
+node, so every run asks Let's Encrypt for a certificate, and Let's Encrypt
+issues at most five a week for one exact name. With the one fixed name,
+2026.10.30.9's smoke failed twice on the probe's connect timeout: Tailscale's
+log on Zen said `429 rateLimited: too many certificates (5) already issued for
+this exact set of identifiers`. A name per run spends the tailnet's other
+budget instead: 50 certificates a week for `example.ts.net` as a whole
+(`ts.net` is a public suffix, so each tailnet counts as its own domain),
+shared with the owner's own machines. A day of many releases fits; a loop of
+smoke runs would not. Each run's node is ephemeral and leaves the admin
+console by itself after it logs out.
 
 **The updater** (`smoke/windows-update.ps1`, [`UPDATES.md`](UPDATES.md),
 "Tests"): offered a signed pretend 9999.01.01 by Zen itself, UPDATE downloads,
