@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, join } from '../fspath.ts';
 import { gunzipSync } from 'node:zlib';
 import { pageMembers, readMember, withZip } from '../zip.ts';
 import { parseComicInfo, type ComicInfo } from '../../import/comicinfo.ts';

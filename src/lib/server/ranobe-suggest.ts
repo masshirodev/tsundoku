@@ -1,4 +1,4 @@
-import { basename, join } from 'node:path';
+import { basename, join } from './fspath.ts';
 import { getDb } from './db.ts';
 import { readEpub } from './import/epub.ts';
 import {

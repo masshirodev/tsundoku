@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import { posix } from 'node:path';
+import { posix } from '../fspath.ts';
 import { fileIn, isUnder, widenTo } from '../paths.ts';
 import { getDb } from '../db.ts';
 import { hueFor } from '../../library/cover.ts';

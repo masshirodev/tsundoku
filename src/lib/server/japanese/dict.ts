@@ -1,5 +1,5 @@
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join } from '../fspath.ts';
 import { dictionaryAvailable, lookup, setJmdictPath, type Entry } from 'kotoba/server';
 
 /**

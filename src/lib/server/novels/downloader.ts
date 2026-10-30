@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { open } from 'node:fs/promises';
-import { dirname, join, posix } from 'node:path';
+import { dirname, join, posix } from '../fspath.ts';
 import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
 import { zip } from '../zip-write.ts';

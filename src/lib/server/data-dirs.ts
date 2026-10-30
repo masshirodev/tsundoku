@@ -1,5 +1,5 @@
 import { homedir } from 'node:os';
-import path from 'node:path';
+import { pathsFor } from './fspath.ts';
 
 /**
  * Where tsundoku keeps what isn't the code: the library, covers, trash, the
@@ -19,24 +19,13 @@ import path from 'node:path';
 type Env = Record<string, string | undefined>;
 type Platform = NodeJS.Platform;
 
-/**
- * The path rules of that platform, so a spec can ask for Windows' on Linux.
- * On Windows the result is written with forward slashes: the library's own
- * path logic is POSIX (paths.ts joins and compares with `/`), and Node takes
- * `C:/Users/...` everywhere it takes `C:\\Users\\...`.
- */
-const pathFor = (platform: Platform) =>
-	platform === 'win32'
-		? { join: (...parts: string[]) => path.win32.join(...parts).replaceAll('\\', '/') }
-		: path.posix;
-
 /** The platform's app-data folder for tsundoku, when TSUNDOKU_HOME is unset. */
 export function defaultHome(
 	platform: Platform = process.platform,
 	env: Env = process.env,
 	home: string = homedir()
 ): string {
-	const p = pathFor(platform);
+	const p = pathsFor(platform);
 	if (platform === 'win32')
 		return p.join(env.LOCALAPPDATA || p.join(home, 'AppData', 'Local'), 'tsundoku');
 	if (platform === 'darwin') return p.join(home, 'Library', 'Application Support', 'tsundoku');
@@ -49,7 +38,7 @@ export function dataPaths(
 	platform: Platform = process.platform,
 	home: string = homedir()
 ) {
-	const p = pathFor(platform);
+	const p = pathsFor(platform);
 	// A folder given by its own variable is written the same way as a derived one.
 	const given = (value: string | undefined) => (value ? p.join(value) : undefined);
 	const root = given(env.TSUNDOKU_HOME) ?? defaultHome(platform, env, home);

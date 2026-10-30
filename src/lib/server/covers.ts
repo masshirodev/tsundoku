@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { join } from 'node:path';
+import { join } from './fspath.ts';
 import type { ReadStream } from 'node:fs';
 import { getDb } from './db.ts';
 import { VISIBLE_SQL } from './visibility.ts';

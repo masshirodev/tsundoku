@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import { posix } from 'node:path';
+import { posix } from '../fspath.ts';
 import { fileIn, widenTo } from '../paths.ts';
 import type { PlannedSeries } from '../../import/plan.ts';
 

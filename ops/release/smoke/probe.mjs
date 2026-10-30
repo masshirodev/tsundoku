@@ -5,9 +5,9 @@
 // a page. Exits non-zero on the first thing that's wrong.
 //
 //   node probe.mjs <bundle folder>
-import { readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 const bundle = process.argv[2];
 const home =
@@ -109,6 +109,65 @@ for (const e of entries) {
 		`${type}, ${bytes} B`
 	);
 }
+// Paths, the way the library compares them (card c183): written with '/' on
+// every platform, so "is this file in the library?" and "the folder two books
+// share" hold on Windows too. A delete moves files only from inside the
+// library, and grouping takes the folder the books share as the series' path.
+const backslashed = db
+	.prepare(`SELECT count(*) AS n FROM series WHERE instr(path, char(92)) > 0`)
+	.get().n;
+check('no series path is written with a backslash', backslashed === 0, String(backslashed));
+const action = (path, form) =>
+	fetch(base + path, {
+		method: 'POST',
+		headers: {
+			cookie,
+			origin: base,
+			'x-sveltekit-action': 'true',
+			'content-type': 'application/x-www-form-urlencoded'
+		},
+		body: new URLSearchParams(form)
+	});
+const fileOf = (s, e) => join(s.path, e.file);
+const gone = db.prepare(`SELECT id, path FROM series WHERE title = 'Not In The Backup'`).get();
+const goneFiles = db
+	.prepare(`SELECT file FROM entries WHERE series_id = ? AND file != ''`)
+	.all(gone.id)
+	.map((e) => fileOf(gone, e));
+r = await action(`/series/${gone.id}?/delete`, {});
+const stillThere = goneFiles.filter((f) => existsSync(f));
+const trashed = existsSync(join(home, 'trash'))
+	? readdirSync(join(home, 'trash'), { recursive: true }).map(String)
+	: [];
+check(
+	'DELETE moves the series’ files into the trash',
+	r.ok &&
+		stillThere.length === 0 &&
+		goneFiles.every((f) => trashed.some((t) => t.endsWith(basename(f)))),
+	`${r.status}; left in the library: ${stillThere.length}; in the trash: ${trashed.filter((t) => /\.cbz$/.test(t)).length}`
+);
+check('and the series is gone', !db.prepare(`SELECT 1 FROM series WHERE id = ?`).get(gone.id));
+const books = db
+	.prepare(
+		`SELECT id, path FROM series WHERE title IN ('Local Book', 'No Artist Here') ORDER BY id`
+	)
+	.all();
+r = await action('/?/group', [
+	...books.map((b) => ['series', String(b.id)]),
+	['name', 'Smoke Group']
+]);
+const group = db.prepare(`SELECT id, path FROM series WHERE title = 'Smoke Group'`).get();
+const grouped = group
+	? db.prepare(`SELECT file FROM entries WHERE series_id = ? AND file != ''`).all(group.id)
+	: [];
+check(
+	'GROUP makes one series of two books, its path the folder they share',
+	!!group && grouped.length === 2 && grouped.every((e) => existsSync(fileOf(group, e))),
+	group
+		? `${group.path}; ${grouped.map((e) => e.file).join(', ')}`
+		: `${r.status} ${await r.text()}`
+);
+
 r = await fetch(`${base}/`, { headers: { cookie } });
 check('the library names its series', (await r.text()).includes(series[0]?.title ?? '\0'));
 

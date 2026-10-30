@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join } from '../fspath.ts';
 import { getDb } from '../db.ts';
 import { VISIBLE_SQL } from '../visibility.ts';
 import { publicFetchAt } from '../net-guard.ts';

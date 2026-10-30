@@ -1,5 +1,5 @@
 import { fork, type ChildProcess } from 'node:child_process';
-import { join, resolve } from 'node:path';
+import { join, resolve } from '../fspath.ts';
 
 /**
  * The app's side of the LNReader plugin host (doc/NOVELS.md, "The plugin

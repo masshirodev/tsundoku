@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join } from '../fspath.ts';
 import { parseContent, planHentoidBook, type HentoidFolder } from '../../import/hentoid-plan.ts';
 import type { PlannedSeries } from '../../import/plan.ts';
 

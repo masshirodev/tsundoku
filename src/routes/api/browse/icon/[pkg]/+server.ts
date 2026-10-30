@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join } from '$lib/server/fspath';
 import type { RequestHandler } from './$types';
 import { getDb } from '$lib/server/db';
 import { isRevealed } from '$lib/server/prefs';

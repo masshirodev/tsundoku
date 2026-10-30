@@ -1,7 +1,7 @@
 import type Database from 'better-sqlite3';
 import { existsSync } from 'node:fs';
 import { cp, mkdir, rename, rm, unlink } from 'node:fs/promises';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join, relative } from './fspath.ts';
 import { getDb } from './db.ts';
 import { seriesDetail } from './library.ts';
 import { libraryRoot } from './import/index.ts';

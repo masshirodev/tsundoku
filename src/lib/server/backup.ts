@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import { mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
-import { basename, extname, join } from 'node:path';
+import { basename, extname, join } from './fspath.ts';
 import { snapshotName, stamp, toPrune, DEFAULT_TIERS, type Tiers } from '../backup/retention.ts';
 import { dataPaths } from './data-dirs.ts';
 

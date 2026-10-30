@@ -11,7 +11,7 @@ import {
 	scanLocal
 } from './mihon.ts';
 import { planMihonLocal } from '../../import/mihon-local-plan.ts';
-import { join, relative } from 'node:path';
+import { join, relative } from '../fspath.ts';
 import { existsSync, readdirSync } from 'node:fs';
 import { isUnder } from '../paths.ts';
 import { hentoidBytes, hentoidRoot, planHentoidFolder } from './hentoid.ts';

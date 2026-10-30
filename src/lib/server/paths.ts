@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import { posix } from 'node:path';
+import { posix } from './fspath.ts';
 
 /**
  * Where a series' files are (doc/SYNC.md, "Two devices"). Every entry names

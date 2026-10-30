@@ -71,7 +71,7 @@ import { baseToEdition } from '$lib/library/editions';
 import { getSetting } from '$lib/server/settings';
 import { libraryRoot } from '$lib/server/import';
 import { ANIME_FOLDER, HIDDEN_ANIME_FOLDER, seriesFolderName } from '$lib/library/anime-files';
-import { join } from 'node:path';
+import { join } from '$lib/server/fspath';
 
 /** Where an anime's episodes go: its folder once it has one, else where its first will. */
 function animeFolderOf(seriesId: number, title: string, hidden: boolean): string {

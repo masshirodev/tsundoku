@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { dirname, join, posix } from 'node:path';
+import { dirname, join, posix } from '../fspath.ts';
 import { Readable } from 'node:stream';
 import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';

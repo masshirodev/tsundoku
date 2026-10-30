@@ -169,7 +169,7 @@ mkdirSync(join(app, 'scripts'), { recursive: true });
 mkdirSync(join(app, 'src/lib/server'), { recursive: true });
 cpSync(join(src, 'build'), join(app, 'build'), { recursive: true });
 copyFileSync(join(src, 'scripts/serve.ts'), join(app, 'scripts/serve.ts'));
-for (const f of ['bind.ts', 'data-dirs.ts', 'first-run.ts'])
+for (const f of ['bind.ts', 'data-dirs.ts', 'first-run.ts', 'fspath.ts'])
 	copyFileSync(join(src, 'src/lib/server', f), join(app, 'src/lib/server', f));
 copyFileSync(join(src, 'yarn.lock'), join(app, 'yarn.lock'));
 // Only what the server loads: the rest of `dependencies` (fonts, hls.js, the

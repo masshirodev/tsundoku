@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import type { ReadStream } from 'node:fs';
-import { join } from 'node:path';
+import { join } from '../fspath.ts';
 import { promisify } from 'node:util';
 import { getDb } from '../db.ts';
 import { VISIBLE_SQL } from '../visibility.ts';

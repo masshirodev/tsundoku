@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join } from '../fspath.ts';
 import { isUnder } from '../paths.ts';
 import type { PlannedEntry, PlannedSeries } from '../../import/plan.ts';
 import {

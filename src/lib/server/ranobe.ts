@@ -1,4 +1,4 @@
-import { basename } from 'node:path';
+import { basename } from './fspath.ts';
 import { getDb } from './db.ts';
 import { IN_LIBRARY_SQL, VISIBLE_SQL } from './visibility.ts';
 import { SignedOut, Unreachable } from './catalogue.ts';

@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join } from '../fspath.ts';
 import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
 import { signedBy, signerFingerprints } from './apk-signature.ts';

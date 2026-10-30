@@ -1,4 +1,4 @@
-import { basename } from 'node:path';
+import { basename } from './fspath.ts';
 import { getDb } from './db.ts';
 import { HIDDEN_SQL } from './visibility.ts';
 import {

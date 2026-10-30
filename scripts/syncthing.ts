@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join } from '../src/lib/server/fspath.ts';
 
 /**
  * The local Syncthing's REST API (doc/SYNC.md), for the sync scripts. The

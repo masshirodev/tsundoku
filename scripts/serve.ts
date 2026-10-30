@@ -25,7 +25,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { cpSync, existsSync, readdirSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { join } from '../src/lib/server/fspath.ts';
 import { fileURLToPath } from 'node:url';
 import {
 	BindRefused,

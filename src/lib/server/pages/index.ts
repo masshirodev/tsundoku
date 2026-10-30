@@ -1,7 +1,7 @@
 import { createReadStream, type ReadStream } from 'node:fs';
 import { VISIBLE_SQL } from '../visibility.ts';
 import { open, readdir, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join } from '../fspath.ts';
 import { getDb } from '../db.ts';
 import { listZip, pageMembers, readMember, type ZipMember } from '../zip.ts';
 import { imageSize, imageType } from './image-size.ts';

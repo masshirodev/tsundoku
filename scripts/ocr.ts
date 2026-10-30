@@ -9,7 +9,7 @@
  * batch outliving the timer) off the GPU. Nothing it logs is page text.
  */
 import { closeSync, mkdirSync, openSync, readFileSync, rmSync, writeSync } from 'node:fs';
-import { join } from 'node:path';
+import { join } from '../src/lib/server/fspath.ts';
 import { fileURLToPath } from 'node:url';
 
 try {

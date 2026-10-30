@@ -1,6 +1,6 @@
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname } from './fspath.ts';
 import { snapshotBeforeMigration } from './backup.ts';
 
 /**

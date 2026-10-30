@@ -18,7 +18,7 @@
  * deletes, with the ignore patterns that keep temp files out.
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { resolve, join } from 'node:path';
+import { resolve, join } from '../src/lib/server/fspath.ts';
 import { fileURLToPath } from 'node:url';
 import {
 	FOLDER_SETTINGS,

@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { join } from '../fspath.ts';
 import { getDb } from '../db.ts';
 import { ensureNamedRoot, writeSeries } from '../import/write.ts';
 import { libraryRoot } from '../import/index.ts';

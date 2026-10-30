@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname } from './fspath.ts';
 
 /**
  * A friend's first start (doc/DISTRIBUTION.md, "A local serve mode"). The

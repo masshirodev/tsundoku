@@ -10,7 +10,7 @@
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve } from '../src/lib/server/fspath.ts';
 import { fileURLToPath } from 'node:url';
 import { syncDecision, type FolderStatus } from '../src/lib/import/sync.ts';
 import { requestScan } from './scan-request.ts';

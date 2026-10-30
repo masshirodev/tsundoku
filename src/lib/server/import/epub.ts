@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { open, readdir, stat } from 'node:fs/promises';
-import { basename, dirname, join, relative } from 'node:path';
+import { basename, dirname, join, relative } from '../fspath.ts';
 import {
 	parseContainer,
 	parseNav,
