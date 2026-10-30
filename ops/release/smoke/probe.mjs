@@ -80,13 +80,23 @@ check(
 	job?.failed_files === 1,
 	String(job?.failed_files)
 );
+// Visible as the app decides it (src/lib/server/visibility.ts): the local books
+// land in their own hidden root, and hidden means hidden, pages included.
 const entries = db
-	.prepare(`SELECT id, label FROM entries WHERE available = 1 AND file != '' ORDER BY id`)
+	.prepare(
+		`SELECT e.id, e.label, s.title, (s.hidden = 0 AND (r.hidden = 0 OR s.public = 1)) AS visible
+		FROM entries e JOIN series s ON s.id = e.series_id LEFT JOIN roots r ON r.id = s.root_id
+		WHERE e.available = 1 AND e.file != '' ORDER BY e.id`
+	)
 	.all();
-check('six chapters readable', entries.length === 6, String(entries.length));
+check('six chapters on disk', entries.length === 6, String(entries.length));
 for (const e of entries) {
 	r = await fetch(`${base}/api/entries/${e.id}/pages`, { headers: { cookie } });
 	const m = r.ok ? await r.json() : null;
+	if (!e.visible) {
+		check(`${e.title}, hidden: its pages stay hidden`, r.status === 404, String(r.status));
+		continue;
+	}
 	const p = await fetch(
 		`${base}/api/entries/${e.id}/pages/0?v=${encodeURIComponent(m?.version ?? '')}`,
 		{ headers: { cookie } }
@@ -94,7 +104,7 @@ for (const e of entries) {
 	const type = p.headers.get('content-type') ?? '';
 	const bytes = (await p.arrayBuffer()).byteLength;
 	check(
-		`${e.label}: page 1 reads`,
+		`${e.title} ${e.label}: page 1 reads`,
 		p.ok && type.startsWith('image/') && bytes > 0,
 		`${type}, ${bytes} B`
 	);
