@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { BROWSE_PORT } from './tests/browse-world';
+import { FRIEND_PORT } from './tests/friend-world';
 
 const previewPort = Number.parseInt(process.env.PLAYWRIGHT_PORT ?? '4183', 10);
 
@@ -29,6 +30,7 @@ const databasePath = (process.env.PLAYWRIGHT_DATABASE_PATH ??= join(
 const DEVICE_IGNORE = [
 	'**/build/**',
 	'**/browse-*.e2e.ts',
+	'**/friend-*.e2e.ts',
 	'**/*-flow.e2e.ts',
 	'**/library-frame.e2e.ts',
 	// SETTINGS' frame is its tablet-portrait screen; the other devices are in settings-flow.
@@ -46,7 +48,8 @@ export default defineConfig({
 	fullyParallel: true,
 	// BROWSE's own server and fake engine, started after the shared server has
 	// built (tests/browse-setup.ts): the browse project below runs against it.
-	globalSetup: './tests/browse-setup.ts',
+	// And a friend's install (tests/friend-setup.ts), for the friend project.
+	globalSetup: ['./tests/browse-setup.ts', './tests/friend-setup.ts'],
 	reporter: process.env.CI ? 'github' : 'list',
 	use: {
 		baseURL: `http://localhost:${previewPort}`,
@@ -98,7 +101,8 @@ export default defineConfig({
 				'**/build/**',
 				'**/unlock-gate.e2e.ts',
 				'**/duplicates-flow.e2e.ts',
-				'**/browse-*.e2e.ts'
+				'**/browse-*.e2e.ts',
+				'**/friend-*.e2e.ts'
 			],
 			use: { ...devices['Galaxy Tab S4'], viewport: { width: 800, height: 1280 } }
 		},
@@ -115,6 +119,20 @@ export default defineConfig({
 			name: 'desktop',
 			testIgnore: DEVICE_IGNORE,
 			use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } }
+		},
+		{
+			// A friend's install (doc/SIGN-IN.md): SET UP, a password, none. One
+			// login.json for the whole server, so one worker, in order, signed out.
+			name: 'friend',
+			testMatch: '**/friend-*.e2e.ts',
+			fullyParallel: false,
+			workers: 1,
+			use: {
+				...devices['Desktop Chrome'],
+				viewport: { width: 1440, height: 900 },
+				baseURL: `http://localhost:${FRIEND_PORT}`,
+				storageState: { cookies: [], origins: [] }
+			}
 		},
 		{
 			// BROWSE (doc/BROWSE.md) against its own server and fake engine, which

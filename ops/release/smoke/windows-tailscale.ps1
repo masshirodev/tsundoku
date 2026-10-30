@@ -19,6 +19,8 @@ Expand-Archive -Path "$HOME\bundle.zip" -DestinationPath $t
 New-Item -ItemType Directory -Force $data | Out-Null
 # What the README tells a friend to add.
 Set-Content -Path "$data\.env" -Value 'TSUNDOKU_SERVE=https' -Encoding ASCII
+# And the password it needs before it'll go on Tailscale (doc/SIGN-IN.md).
+& "$t\tsundoku\node\node.exe" --disable-warning=ExperimentalWarning "$HOME\set-password.mjs" "$t\tsundoku" $data 'smoke-password'
 $p = Start-Process -FilePath "$t\tsundoku\tsundoku.cmd" -ArgumentList '--no-browser' -PassThru -WindowStyle Hidden `
 	-RedirectStandardOutput "$t\launch.log" -RedirectStandardError "$t\launch.err"
 for ($i = 0; $i -lt 90; $i++) {

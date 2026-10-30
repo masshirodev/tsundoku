@@ -31,6 +31,7 @@ Expand-Archive -Path "$HOME\library.zip" -DestinationPath "$data\library"
 Start-Process "$HOME\installer.exe" -ArgumentList '/S' -Wait
 Check 'installed into %LOCALAPPDATA%\Programs' (Test-Path "$prog\tsundoku.cmd")
 Check 'a Start-menu entry' (Test-Path $menu)
+Check 'and one to reset the password' (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Reset tsundoku password.lnk")
 Check 'no start at sign-in unless chosen' (-not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup\tsundoku.lnk"))
 $entry = Get-ItemProperty $key -ErrorAction SilentlyContinue
 Check 'listed in Settings > Apps' ($entry -and $entry.DisplayName -eq 'tsundoku') "$($entry.DisplayVersion), $($entry.EstimatedSize) KB"
@@ -46,17 +47,22 @@ Start-Process "$HOME\installer.exe" -ArgumentList '/S' -Wait
 Check 'the update stopped it' ((Running) -eq 0)
 Check 'and left the program whole' (Test-Path "$prog\app\scripts\serve.ts")
 $p = Start-Tsundoku "$HOME\run2.log"
-$token = (Get-Content "$data\.env" | Select-String '^TSUNDOKU_TOKEN=').Line
-Check 'it starts again on the same data' ((Get-Content "$HOME\run2.log") -match 'Open http' -and -not ((Get-Content "$HOME\run2.log") -match 'First start')) $token.Length
+# The password the probe set is kept: no SET UP again after an update.
+Check 'it starts again on the same data, password kept' ((Get-Content "$HOME\run2.log") -match 'Open http' -and (Test-Path "$data\login.json") -and -not ((Get-Content "$HOME\run2.log") -match 'First start'))
 taskkill /pid $p.Id /T /F | Out-Null
 Start-Sleep 2
+
+'--- reset the password'
+# What the Start-menu shortcut runs; it waits for Enter on Windows, so give it one.
+$reset = ('' | & "$prog\tsundoku.cmd" --reset-password 2>&1 | Out-String)
+Check 'the reset forgets it' ((-not (Test-Path "$data\login.json")) -and ($reset -match 'forgotten')) $reset.Trim()
 
 '--- uninstall'
 Start-Process "$prog\uninstall.exe" -ArgumentList '/S' -Wait
 # The uninstaller runs from a copy in %TEMP% and returns at once.
 for ($i = 0; $i -lt 60 -and (Test-Path "$prog\uninstall.exe"); $i++) { Start-Sleep 1 }
 Check 'the program is gone' (-not (Test-Path $prog))
-Check 'and its Start-menu entry' (-not (Test-Path $menu))
+Check 'and its Start-menu entries' (-not (Test-Path $menu) -and -not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Reset tsundoku password.lnk"))
 Check 'and its Apps entry' (-not (Test-Path $key))
 Check 'the library stays' ((Test-Path "$data\tsundoku.sqlite") -and (Test-Path "$data\library\Mihon"))
 Check 'nothing left running' (@(Get-Process java, node -ErrorAction SilentlyContinue).Count -eq 0)

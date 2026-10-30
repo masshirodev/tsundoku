@@ -110,6 +110,8 @@ Section "tsundoku" SecMain
 	WriteUninstaller "$INSTDIR\uninstall.exe"
 
 	CreateShortcut "$SMPROGRAMS\tsundoku.lnk" "$INSTDIR\tsundoku.cmd" "" "$INSTDIR\tsundoku.ico" 0
+	; A forgotten password's way back (doc/SIGN-IN.md): being at this PC is the proof.
+	CreateShortcut "$SMPROGRAMS\Reset tsundoku password.lnk" "$INSTDIR\tsundoku.cmd" "--reset-password" "$INSTDIR\tsundoku.ico" 0
 
 	WriteRegStr HKCU "Software\tsundoku" "InstallDir" "$INSTDIR"
 	WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayName" "tsundoku"
@@ -144,6 +146,7 @@ FunctionEnd
 Section "Uninstall"
 	!insertmacro StopRunning
 	Delete "$SMPROGRAMS\tsundoku.lnk"
+	Delete "$SMPROGRAMS\Reset tsundoku password.lnk"
 	Delete "$SMSTARTUP\tsundoku.lnk"
 	!insertmacro RemoveProgram
 	; FlareSolverr unzipped beside the program goes with it; in the data folder, it stays.

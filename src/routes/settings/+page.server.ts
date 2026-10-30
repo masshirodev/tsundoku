@@ -23,6 +23,9 @@ import {
 import { clearOverride, lastChoice, overrides } from '$lib/server/anime/choices';
 import { isDeviceId, listDevices, setDeviceKey, startFrom } from '$lib/server/devices';
 import { DEVICE_KEYS, type Json, type ValueId } from '$lib/settings/catalog';
+import { currentLogin, friendLogin, localOnly, setSession, slowDown } from '$lib/server/auth';
+import { dataPaths } from '$lib/server/data-dirs';
+import { MIN_PASSWORD, makeLogin, sessionFor, verifyPassword, writeLogin } from '$lib/server/login';
 
 /** The languages the repositories list, most extensions first: the BROWSE row's cells. */
 function listedLanguages(): string[] {
@@ -72,6 +75,14 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 			subs: lastChoice('subs', reveal),
 			subsize: lastChoice('subsize', reveal)
 		},
+		// A friend's password, or none (doc/SIGN-IN.md); the workstation has its token.
+		signIn: friendLogin()
+			? {
+					kind: currentLogin()?.kind ?? 'none',
+					local: localOnly(),
+					min: MIN_PASSWORD
+				}
+			: null,
 		devices: listDevices().map((d) => ({
 			id: d.id,
 			kind: d.kind,
@@ -130,6 +141,49 @@ function posted(form: FormData): { ok: true; v: Json | undefined } | { ok: false
 }
 
 export const actions: Actions = {
+	/**
+	 * Set or change a friend's password. Changing it asks for the current one
+	 * and signs every other browser out (a new secret); this one stays in.
+	 */
+	password: async ({ request, cookies, url }) => {
+		const login = currentLogin();
+		if (!friendLogin() || !login) return fail(404, { password: 'no password here' });
+		const form = await request.formData();
+		if (
+			login.kind === 'password' &&
+			!verifyPassword(String(form.get('current') ?? ''), login.hash)
+		) {
+			await slowDown();
+			return fail(401, { password: 'the current password is not right' });
+		}
+		const next = String(form.get('password') ?? '');
+		if (next.length < MIN_PASSWORD)
+			return fail(400, { password: `at least ${MIN_PASSWORD} characters` });
+		if (next !== String(form.get('again') ?? ''))
+			return fail(400, { password: 'the two passwords are different' });
+		const made = makeLogin(next);
+		writeLogin(dataPaths().home, made);
+		setSession(cookies, sessionFor(made), url);
+		return { passwordDone: login.kind === 'password' ? 'PASSWORD CHANGED' : 'PASSWORD SET' };
+	},
+	/** Remove it: only while tsundoku answers this computer alone, and only once they're sure. */
+	noPassword: async ({ request }) => {
+		const login = currentLogin();
+		if (!friendLogin() || login?.kind !== 'password')
+			return fail(404, { password: 'no password here' });
+		if (!localOnly())
+			return fail(400, {
+				password: 'not while tsundoku is on Tailscale: anyone there could open it'
+			});
+		const form = await request.formData();
+		if (!verifyPassword(String(form.get('current') ?? ''), login.hash)) {
+			await slowDown();
+			return fail(401, { password: 'the current password is not right' });
+		}
+		if (form.get('sure') !== 'yes') return fail(400, { password: 'confirm it first' });
+		writeLogin(dataPaths().home, makeLogin(null));
+		return { passwordDone: 'PASSWORD REMOVED' };
+	},
 	/**
 	 * A library value set or reset (a row's control, RESET, RESET SECTION, UNDO).
 	 * Several at once, so a section resets in one request: `id` repeated, each

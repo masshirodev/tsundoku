@@ -22,9 +22,16 @@ asking for an administrator, and can start it when you sign in. Running a
 newer installer updates it; Settings > Apps uninstalls it. Neither touches
 your data (below).
 
-The first time, the window prints your sign-in token. Copy it into the
-sign-in page. It's kept in your data folder (below), in the file .env,
-if you need it again.
+The first time, tsundoku asks you to choose a password, or none. With
+none, anyone using this computer opens your library; nothing else can
+reach it. You can set, change or remove it later in SETTINGS > DEVICES.
+
+Forgot it? Start menu > "Reset tsundoku password" (on Linux, run
+./tsundoku --reset-password), then open tsundoku and choose a new one.
+Your library isn't touched.
+
+If tsundoku stops by itself, the window says why; everything it wrote
+is in logs\tsundoku.log in your data folder (below).
 
 Windows may warn that the app is from an unknown publisher (it isn't
 signed). Choose "More info", then "Run anyway". It may also ask whether
@@ -43,7 +50,8 @@ Everything tsundoku keeps is in one folder, never in this one:
 library\   your files, as tsundoku arranges them
 covers\    cover thumbnails
 logs\      what the engine and FlareSolverr said, for when something breaks
-.env       your settings and tokens
+.env       your settings
+login.json your password, scrambled so it can't be read back
 
 To keep your library somewhere else (another drive), add a line to the
 .env in the folder above (create it if there isn't one):
@@ -66,6 +74,9 @@ private network between your own devices (https://tailscale.com):
    tsundoku may set up Tailscale's HTTPS for you:
 
      sudo tailscale set --operator=$USER
+
+   tsundoku also needs a password for this (SETTINGS > DEVICES), or anyone
+   on your Tailscale could open it.
 2. In Tailscale's admin console (login.tailscale.com), on the DNS page,
    turn on MagicDNS and HTTPS Certificates.
 3. Add this line to the .env in your data folder (above):
@@ -79,7 +90,7 @@ private network between your own devices (https://tailscale.com):
    few seconds to load while Tailscale gets its certificate.
 
 It's still private: only devices signed in to your Tailscale can reach it,
-and the sign-in token still applies. Take the line out of .env to go back.
+and only with your password. Take the line out of .env to go back.
 If tsundoku says it couldn't set up "tailscale serve", run the command it
 prints once yourself, in a terminal.
 

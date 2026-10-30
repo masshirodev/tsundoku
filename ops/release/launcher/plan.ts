@@ -63,6 +63,8 @@ export function plan(o: {
 			// The data folder's own .env can choose otherwise (https through Tailscale).
 			TSUNDOKU_SERVE: o.env.TSUNDOKU_SERVE || 'local',
 			TSUNDOKU_SNAPSHOT: 'off',
+			// A password chosen on first open, never a token (doc/SIGN-IN.md).
+			TSUNDOKU_LOGIN: 'password',
 			TSUNDOKU_HOME: o.home,
 			DATABASE_PATH: o.env.DATABASE_PATH || p.join(o.home, 'tsundoku.sqlite'),
 			PORT: String(ports.app),

@@ -1,5 +1,8 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import type { Cookies } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
+import { dataPaths } from './data-dirs.ts';
+import { readLogin, sessionFor, type Login } from './login.ts';
 
 export const SESSION_COOKIE = 'tsundoku_session';
 
@@ -62,3 +65,50 @@ export function isValidSession(cookieValue: string | undefined): boolean {
 export function suggestToken(): string {
 	return randomBytes(24).toString('base64url');
 }
+
+// ---- A friend's install: a password of their own, or none (doc/SIGN-IN.md) ----
+
+/**
+ * A friend's install signs in with a password chosen on first open (login.ts),
+ * never with the token: the launcher sets TSUNDOKU_LOGIN=password. The
+ * workstation doesn't, and signs in with its token as above.
+ */
+export const friendLogin = () => env.TSUNDOKU_LOGIN === 'password';
+
+/** Only this computer reaches it: the one mode where no password is allowed. */
+export const localOnly = () => env.TSUNDOKU_SERVE === 'local';
+
+/** The friend's login, or null before SET UP (or on the workstation). */
+export function currentLogin(): Login | null {
+	return friendLogin() ? readLogin(dataPaths().home) : null;
+}
+
+/**
+ * Whether a request is signed in on a friend's install. No password means
+ * signed in, but only while nothing else can reach it; serve.ts refuses to put
+ * such an install on Tailscale at all, so this is the second lock.
+ */
+export function friendAuthed(login: Login | null, cookieValue: string | undefined): boolean {
+	if (!login) return false;
+	if (login.kind === 'none') return localOnly();
+	return !!cookieValue && constantTimeEquals(cookieValue, sessionFor(login));
+}
+
+/** Set the session cookie, for the token's or a login's value. */
+export function setSession(cookies: Cookies, value: string, url: URL) {
+	cookies.set(SESSION_COOKIE, value, {
+		path: '/',
+		httpOnly: true,
+		sameSite: 'lax',
+		// The tailnet serves this over plain http; forcing Secure here would make
+		// the cookie silently undeliverable and the login loop forever.
+		secure: url.protocol === 'https:',
+		maxAge: 60 * 60 * 24 * 365
+	});
+}
+
+/**
+ * A wrong password costs the guesser time: a phone on the same Wi-Fi (c188)
+ * could otherwise try thousands a minute. scrypt's own ~50 ms is most of it.
+ */
+export const slowDown = () => new Promise((ok) => setTimeout(ok, 400));

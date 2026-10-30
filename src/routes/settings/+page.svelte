@@ -54,7 +54,9 @@
 	 * value off its default carries accent's rule and RESET; RESET SECTION
 	 * applies at once and says what moved, with UNDO. No modal anywhere.
 	 */
-	let { data } = $props();
+	let { data, form } = $props();
+	/** The PASSWORD row's open form, if any (doc/SIGN-IN.md). */
+	let pw = $state<null | 'set' | 'remove'>(null);
 
 	// ---- where the page is drawn -------------------------------------------------------------
 	const phone = new MediaQuery('(max-width: 599px)', false);
@@ -523,6 +525,9 @@
 						{/each}
 						{#if s.id === 'devices'}
 							{@render devices()}
+							{#if data.signIn}
+								{@render signIn(data.signIn)}
+							{/if}
 						{/if}
 					</div>
 				</section>
@@ -793,6 +798,94 @@
 			</div>
 			{#if !phone.current}<div class="scope"><span class="sa quiet">ALL DEVICES</span></div>{/if}
 		</div>
+	{/if}
+{/snippet}
+
+{#snippet signIn(si: { kind: 'password' | 'none'; local: boolean; min: number })}
+	<!-- A friend's sign-in (doc/SIGN-IN.md): the workstation signs in with its token and has no row. -->
+	<div class="row device">
+		<div class="label">PASSWORD</div>
+		<div class="ctl">
+			<div class="acct-body">
+				<div class="who">
+					<div class="name">{si.kind === 'password' ? 'SET' : 'NONE'}</div>
+					<div class="meta" class:alert={!!form?.password}>
+						{form?.password?.toUpperCase() ??
+							form?.passwordDone ??
+							(si.kind === 'password'
+								? 'NEEDED TO SIGN IN, ON THIS COMPUTER AND ANY OTHER'
+								: 'ANYONE AT THIS COMPUTER OPENS TSUNDOKU · NEEDED BEFORE ANOTHER DEVICE CAN')}
+					</div>
+				</div>
+				<button
+					type="button"
+					class="cell"
+					class:acc={pw === 'set'}
+					aria-expanded={pw === 'set'}
+					onclick={() => (pw = pw === 'set' ? null : 'set')}
+					>{si.kind === 'password' ? 'CHANGE' : 'SET'}</button
+				>
+				{#if si.kind === 'password' && si.local}
+					<button
+						type="button"
+						class="cell"
+						class:acc={pw === 'remove'}
+						aria-expanded={pw === 'remove'}
+						onclick={() => (pw = pw === 'remove' ? null : 'remove')}>REMOVE</button
+					>
+				{/if}
+			</div>
+		</div>
+		{#if !phone.current}<div class="scope">
+				<span class="sa">KEPT ON THIS COMPUTER</span>
+			</div>{/if}
+	</div>
+	{#if pw}
+		<form
+			method="POST"
+			action={pw === 'set' ? '?/password' : '?/noPassword'}
+			class="pw-form"
+			use:enhance={() =>
+				async ({ result, update }) => {
+					await update();
+					if (result.type === 'success') pw = null;
+				}}
+		>
+			{#if si.kind === 'password'}
+				<label class="pw-l" for="pw-current">CURRENT PASSWORD</label>
+				<input
+					id="pw-current"
+					name="current"
+					type="password"
+					autocomplete="current-password"
+					required
+				/>
+			{/if}
+			{#if pw === 'set'}
+				<label class="pw-l" for="pw-new">NEW PASSWORD</label>
+				<input
+					id="pw-new"
+					name="password"
+					type="password"
+					autocomplete="new-password"
+					minlength={si.min}
+					required
+				/>
+				<label class="pw-l" for="pw-again">AGAIN</label>
+				<input id="pw-again" name="again" type="password" autocomplete="new-password" required />
+				<p class="pw-p">Every other browser signed in to tsundoku will have to sign in again.</p>
+				<button type="submit" class="pw-go"
+					>{si.kind === 'password' ? 'CHANGE PASSWORD' : 'SET PASSWORD'}</button
+				>
+			{:else}
+				<p class="pw-p">
+					Anyone who uses this computer will open tsundoku, and everything in it, without signing
+					in. Nothing else can reach it while there's no password.
+				</p>
+				<input type="hidden" name="sure" value="yes" />
+				<button type="submit" class="pw-go">YES, REMOVE THE PASSWORD</button>
+			{/if}
+		</form>
 	{/if}
 {/snippet}
 
@@ -1438,5 +1531,49 @@
 	.cell:disabled,
 	.cell.dim {
 		opacity: 0.4;
+	}
+	/* The PASSWORD row's form, under it: the sign-in page's fields at the row's inset. */
+	.pw-form {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 10px;
+		padding: 16px var(--pad) 20px calc(var(--pad) + var(--label-w));
+		border-bottom: var(--hairline);
+		max-width: calc(var(--label-w) + 460px);
+	}
+	.settings.phone .pw-form {
+		padding-left: var(--pad);
+	}
+	.pw-l {
+		font: 500 12px var(--font-mono);
+		color: var(--text-2);
+		letter-spacing: var(--tracking-label);
+	}
+	.pw-form input {
+		width: 100%;
+		font: 500 15px var(--font-mono);
+		padding: 12px 14px;
+		border: 1px solid var(--line-2);
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-1);
+		caret-color: var(--accent);
+		outline: none;
+	}
+	.pw-form input:focus {
+		border-color: var(--text-1);
+	}
+	.pw-p {
+		margin: 4px 0;
+		font: var(--type-body);
+		color: var(--text-2);
+	}
+	.pw-go {
+		padding: 12px 18px;
+		background: var(--accent);
+		color: var(--on-accent);
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.04em;
 	}
 </style>

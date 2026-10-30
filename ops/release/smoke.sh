@@ -64,7 +64,7 @@ if [ -z "$only" ] || [ "$only" = win-x64 ]; then
 		msi="$base/cache/tailscale-setup-latest-amd64.msi"
 		[ -f "$msi" ] || curl -fsSL -o "$msi" https://pkgs.tailscale.com/stable/tailscale-setup-latest-amd64.msi
 		scp -q "$msi" win-test:tailscale.msi
-		scp -q "$here/smoke/probe-tailnet.mjs" "$here/smoke/windows-tailscale.ps1" win-test:
+		scp -q "$here/smoke/probe-tailnet.mjs" "$here/smoke/set-password.mjs" "$here/smoke/windows-tailscale.ps1" win-test:
 		ssh -o BatchMode=yes win-test \
 			"powershell -ExecutionPolicy Bypass -File \$HOME\\windows-tailscale.ps1 -Key $TSUNDOKU_SMOKE_TAILSCALE_KEY" || status=1
 	fi

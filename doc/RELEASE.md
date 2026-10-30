@@ -103,6 +103,8 @@ Windows treats that name as an installer to elevate and shims.
   installer does), with no administrator prompt.
 - A **Start-menu entry**; **start at sign-in** is a checkbox, off by default,
   and starts it minimised without opening the browser.
+- A second Start-menu entry, **Reset tsundoku password**
+  (`tsundoku.cmd --reset-password`, [`SIGN-IN.md`](SIGN-IN.md)).
 - An entry in **Settings > Apps**, whose uninstaller removes what the
   installer put there **by name** (the program's folders and files, its
   shortcuts, its registry keys), then the folder only if it's empty. Never
@@ -134,14 +136,16 @@ Node. It:
    [`DISTRIBUTION.md`](DISTRIBUTION.md), "One data directory"), reading the
    default folder's `.env` first, since it may point `TSUNDOKU_HOME`
    elsewhere, then that folder's own;
-2. makes `ENGINE_TOKEN` there on a first start, as `serve` makes the
-   sign-in token ([`SERVING.md`](SERVING.md), "Local");
+2. makes `ENGINE_TOKEN` there on a first start. The app's sign-in is a
+   password the friend chooses in the browser on first open
+   (`TSUNDOKU_LOGIN=password`, [`SIGN-IN.md`](SIGN-IN.md)); `--reset-password`
+   forgets it and exits;
 3. if a tsundoku already answers on the port, opens it and exits;
 4. starts the engine (`java -jar`, `ENGINE_HOST=127.0.0.1`, its APKs,
    preferences and app folder under `engine/` in the data folder) and
    FlareSolverr if present (`HOST=127.0.0.1`), each logging to `logs/`, and
    starts either again if it stops;
-5. starts the app in its own window (`TSUNDOKU_SERVE=local`,
+5. starts the app (`TSUNDOKU_SERVE=local`,
    `TSUNDOKU_SNAPSHOT=off`, the database in the data folder, the engine's
    and ffmpeg's addresses), and opens the browser once it answers
    (`--no-browser` or `TSUNDOKU_NO_BROWSER=1` not to), **where the app says
@@ -152,6 +156,14 @@ Node. It:
    and the engine run in process groups of their own; until 2026.10.30.2 it
    was handled only on Windows, and on Linux both outlived the launcher
    (c187).
+
+**The app's output goes to `logs/tsundoku.log`**, like the helpers', not to
+the window. Selecting text in a Windows console (QuickEdit) stops whatever
+writes to it until Enter or Esc, so an app writing there froze mid-request
+while a friend copied the token from it: suspected behind a "500 NetworkError"
+right after signing in on 2026.10.30 (not reproduced; c189). The window shows
+only the launcher's own lines, and if the app stops by itself, the last
+twelve lines of its log, waiting for Enter on Windows so they can be read.
 
 **Where it opens.** `serve.ts` writes `serving.json` to the data folder on
 every start: its pid, its mode, its origin and the address it listens on

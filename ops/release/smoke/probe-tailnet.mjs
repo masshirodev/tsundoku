@@ -13,12 +13,6 @@ const home =
 	(process.platform === 'win32'
 		? join(process.env.LOCALAPPDATA, 'tsundoku')
 		: join(process.env.HOME, '.local', 'share', 'tsundoku'));
-const env = Object.fromEntries(
-	readFileSync(join(home, '.env'), 'utf8')
-		.trim()
-		.split(/\r?\n/)
-		.map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)])
-);
 let failed = 0;
 const check = (what, ok, detail = '') => {
 	console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}${detail ? `: ${detail}` : ''}`);
@@ -61,11 +55,11 @@ r = await fetch(`${origin}/login`, {
 	method: 'POST',
 	redirect: 'manual',
 	headers: { origin, 'content-type': 'application/x-www-form-urlencoded' },
-	body: `token=${env.TSUNDOKU_TOKEN}`
+	body: 'token=smoke-password'
 });
 const cookie = (r.headers.get('set-cookie') ?? '').split(';')[0];
 check(
-	'the token signs in there (a POST, so the origin check passes)',
+	'the password signs in there (a POST, so the origin check passes)',
 	cookie.startsWith('tsundoku_session='),
 	String(r.status)
 );
@@ -81,7 +75,7 @@ r = await fetch('http://127.0.0.1:42143/login', {
 		origin: 'http://localhost:42143',
 		'content-type': 'application/x-www-form-urlencoded'
 	},
-	body: `token=${env.TSUNDOKU_TOKEN}`
+	body: 'token=smoke-password'
 });
 check(
 	'localhost would have been refused (why it opens the tailnet address)',

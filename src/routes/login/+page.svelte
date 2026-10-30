@@ -22,11 +22,19 @@
 		</p>
 	{:else}
 		<form method="POST" use:enhance>
-			<label class="label" for="token">TOKEN</label>
+			<label class="label" for="token">{data.password ? 'PASSWORD' : 'TOKEN'}</label>
 			<input id="token" name="token" type="password" autocomplete="current-password" />
 			{#if form?.message}<div class="error">{form.message.toUpperCase()}</div>{/if}
 			<Button variant="primary" size="lg" type="submit">UNLOCK</Button>
 		</form>
+		{#if data.password}
+			<!-- The way back in is at the PC (doc/SIGN-IN.md, "Forgot it"). -->
+			<p class="hint">
+				Forgot it? On the computer tsundoku runs on, open the Start menu and choose RESET TSUNDOKU
+				PASSWORD (on Linux, run <code>./tsundoku --reset-password</code>). Then choose a new one
+				here.
+			</p>
+		{/if}
 	{/if}
 </main>
 
@@ -71,6 +79,12 @@
 		margin: 0;
 		font: var(--type-body);
 		color: var(--text-2);
+	}
+	.hint {
+		font: var(--type-meta);
+	}
+	code {
+		font-family: var(--font-mono);
 	}
 	.error {
 		font: var(--type-meta);

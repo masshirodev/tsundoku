@@ -120,6 +120,8 @@ is the mount development pressures.
   and reading offline without losing stats.
 - [`doc/SERVING.md`](doc/SERVING.md) — HTTPS through `tailscale serve`, and
   the plain-http fallback.
+- [`doc/SIGN-IN.md`](doc/SIGN-IN.md) — the workstation's token, and a
+  friend's password (or none) chosen on first open.
 - [`doc/DISTRIBUTION.md`](doc/DISTRIBUTION.md) — the plan for installs on
   friends' computers (Windows included): native bundles, Docker images, one
   data directory, and what stays personal.

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	foreignHost,
 	readServing,
 	tailscaleCommand,
 	localOrigin,
@@ -222,5 +223,22 @@ describe('readServing', () => {
 		expect(readServing(JSON.stringify({ ...s, pid: '42' }))).toBeNull();
 		expect(readServing(JSON.stringify({ ...s, origin: 'javascript:alert(1)' }))).toBeNull();
 		expect(readServing(JSON.stringify({ ...s, listen: undefined }))).toBeNull();
+	});
+});
+
+describe('foreignHost', () => {
+	const origin = 'http://localhost:42143';
+
+	it('lets the app’s own names through', () => {
+		expect(foreignHost('localhost:42143', origin)).toBe(false);
+		// Sent on to localhost by loopbackRedirect, so not foreign.
+		expect(foreignHost('127.0.0.1:42143', origin)).toBe(false);
+		expect(foreignHost('[::1]:42143', origin)).toBe(false);
+	});
+
+	it('refuses another site’s name pointed at this computer, and no name at all', () => {
+		expect(foreignHost('evil.example:42143', origin)).toBe(true);
+		expect(foreignHost('localhost.evil.example:42143', origin)).toBe(true);
+		expect(foreignHost(null, origin)).toBe(true);
 	});
 });

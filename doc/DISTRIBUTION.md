@@ -112,7 +112,9 @@ existing library's would not.
 `http://localhost:42143`, no Tailscale, and 127.0.0.1 redirected to localhost.
 A release's launcher and image set it; a checkout keeps `https`, so the
 workstation doesn't change. Without a token, `serve` makes one into
-`TSUNDOKU_HOME/.env` on first start and prints it, instead of exiting. That
+`TSUNDOKU_HOME/.env` on first start and prints it, instead of exiting
+(a release's launcher has passwords instead since c189:
+[`SIGN-IN.md`](SIGN-IN.md)). That
 file is read after the project's `.env`, and is where a release keeps every
 setting. Optional Tailscale: the friend sets `TSUNDOKU_SERVE=https`, and
 the launcher opens the tailnet address the app prints (c186; the README's

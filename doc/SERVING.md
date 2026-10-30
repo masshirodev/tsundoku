@@ -128,7 +128,9 @@ the wake lock and the fingerprint gate all work without a certificate.
 - **127.0.0.1 in the address bar is sent to localhost** (308, path kept,
   `src/hooks.server.ts`). ORIGIN has one value, and a page opened under the
   other name would load and then fail every save on the origin check.
-- **No token yet, one is made.** On a first start `serve` writes
+- **No token yet, one is made**, except on a friend's install
+  (`TSUNDOKU_LOGIN=password`), which signs in with a password chosen on first
+  open instead ([`SIGN-IN.md`](SIGN-IN.md)). On a first start `serve` writes
   `TSUNDOKU_TOKEN` into `TSUNDOKU_HOME/.env` (mode 600), prints it once, and
   reads it from there after. That `.env` is read after the project's, so the
   workstation's own always wins; it's where a friend's install keeps every
@@ -157,16 +159,17 @@ when that exists (`tailscaleCommand`).
 
 ## Variables
 
-| Variable                    | Default   | Meaning                                                               |
-| --------------------------- | --------- | --------------------------------------------------------------------- |
-| `TSUNDOKU_TOKEN`            | made once | The shared login token, in `.env` (or `TSUNDOKU_HOME/.env`).          |
-| `TSUNDOKU_SERVE`            | `https`   | `https` through tailscale serve, `http`, or `local`.                  |
-| `TSUNDOKU_HOME`             | per OS    | The data folder every other folder derives from.                      |
-| `TSUNDOKU_SNAPSHOT`         | on        | `off` runs `build/` itself, without the `.serving/` copy (a release). |
-| `TSUNDOKU_HTTPS_PORT`       | `8443`    | 443, 8443 or 10000.                                                   |
-| `PORT`                      | `42143`   | The app's own port, on 127.0.0.1 (or the tailnet in http mode).       |
-| `ORIGIN`                    | derived   | Only to override the derived one.                                     |
-| `HOST`, `TSUNDOKU_BIND_ANY` | —         | http mode only.                                                       |
+| Variable                    | Default   | Meaning                                                                |
+| --------------------------- | --------- | ---------------------------------------------------------------------- |
+| `TSUNDOKU_TOKEN`            | made once | The shared login token, in `.env` (or `TSUNDOKU_HOME/.env`).           |
+| `TSUNDOKU_SERVE`            | `https`   | `https` through tailscale serve, `http`, or `local`.                   |
+| `TSUNDOKU_LOGIN`            | unset     | `password`: a friend's sign-in, no token ([`SIGN-IN.md`](SIGN-IN.md)). |
+| `TSUNDOKU_HOME`             | per OS    | The data folder every other folder derives from.                       |
+| `TSUNDOKU_SNAPSHOT`         | on        | `off` runs `build/` itself, without the `.serving/` copy (a release).  |
+| `TSUNDOKU_HTTPS_PORT`       | `8443`    | 443, 8443 or 10000.                                                    |
+| `PORT`                      | `42143`   | The app's own port, on 127.0.0.1 (or the tailnet in http mode).        |
+| `ORIGIN`                    | derived   | Only to override the derived one.                                      |
+| `HOST`, `TSUNDOKU_BIND_ANY` | —         | http mode only.                                                        |
 
 ## Undoing it
 

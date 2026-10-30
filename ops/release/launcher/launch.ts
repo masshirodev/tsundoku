@@ -2,8 +2,9 @@
  * tsundoku's launcher, in a release bundle (doc/RELEASE.md, "The launcher").
  * Run by the bundle's own Node, from `tsundoku.cmd` or `tsundoku`:
  *
- *   tsundoku              # start everything, open the browser
- *   tsundoku --no-browser # start everything, open nothing
+ *   tsundoku                  # start everything, open the browser
+ *   tsundoku --no-browser     # start everything, open nothing
+ *   tsundoku --reset-password # forget the password: the next open is SET UP
  *
  * It starts the extension engine, FlareSolverr when its optional archive was
  * unzipped beside it, and the app, then opens the app where it serves:
@@ -19,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { readServing, SERVING_FILE, type Serving } from '../app/src/lib/server/bind.ts';
 import { dataPaths } from '../app/src/lib/server/data-dirs.ts';
 import { ensureSetting, newToken } from '../app/src/lib/server/first-run.ts';
+import { clearLogin, readLogin } from '../app/src/lib/server/login.ts';
 import { opener, plan, solverAt, type Proc } from './plan.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -47,6 +49,23 @@ try {
 	// A bundle always has one; without it the banner just says less.
 }
 
+// Forgot the password (doc/SIGN-IN.md): being at this computer is the proof.
+// Works while tsundoku runs too: the next page it serves is SET UP.
+if (process.argv.includes('--reset-password')) {
+	console.log(
+		clearLogin(home)
+			? 'tsundoku has forgotten its password. Open it, and choose a new one (or none).'
+			: 'tsundoku had no password to forget.'
+	);
+	// From the Start menu the window would close before it could be read.
+	if (windows) {
+		console.log('\nPress Enter to close this window.');
+		process.stdin.once('data', () => process.exit(0));
+		await new Promise(() => {});
+	}
+	process.exit(0);
+}
+
 mkdirSync(join(home, 'logs'), { recursive: true });
 const engineToken =
 	process.env.ENGINE_TOKEN || ensureSetting(homeEnv, 'ENGINE_TOKEN', newToken).value;
@@ -63,6 +82,8 @@ const p = plan({
 console.log(`tsundoku ${version}`);
 console.log(`  data:   ${home}`);
 console.log(`  logs:   ${join(home, 'logs')}`);
+// Before anything else, the window's one rule.
+console.log(`  Leave this window open while you read; closing it stops tsundoku.`);
 
 // Where the app serves, as serve.ts writes it on every start (src/lib/server/bind.ts,
 // `Serving`). Only local mode's address is localhost: on Tailscale the origin is
@@ -95,6 +116,7 @@ function open(url: string) {
 
 function opening(s: Serving) {
 	console.log(`\nOpen ${s.origin} (closing this window stops tsundoku).`);
+	if (!readLogin(home)) console.log(`First start: choose a password in the browser.`);
 	if (s.mode !== 'local')
 		console.log(`On your phone or tablet, signed in to the same tailnet, open the same address.`);
 	open(s.origin);
@@ -173,15 +195,44 @@ else
 			`  (Unzip its archive into ${home}.)`
 	);
 
-// The app in this window: its first start prints the sign-in token here.
+// The app, its output to logs/tsundoku.log as the helpers' is. Not this
+// window: selecting text in a Windows console (QuickEdit) stops whatever
+// writes to it until Enter or Esc, so an app writing here froze mid-request
+// while a friend copied something (suspected on 2026.10.30, c189). What a
+// friend needs from this window, the launcher says itself.
+const appLog = join(home, 'logs', 'tsundoku.log');
+const serverLog = createWriteStream(appLog, { flags: 'a' });
+serverLog.write(`\n--- ${new Date().toISOString()} starting tsundoku ${version}\n`);
 const server = spawn(p.server.cmd, p.server.args, {
 	cwd: p.server.cwd,
 	env: { ...process.env, ...p.server.env },
-	stdio: 'inherit',
+	stdio: ['ignore', 'pipe', 'pipe'],
+	windowsHide: true,
 	detached: !windows
 });
 children.add(server);
-server.on('exit', (code) => stopAll(code ?? 1));
+// The last lines, to show if it stops: a start that fails says why here.
+const tail: string[] = [];
+for (const out of [server.stdout, server.stderr]) {
+	out?.pipe(serverLog, { end: false });
+	out?.on('data', (chunk: Buffer) => {
+		tail.push(...chunk.toString().split(/\r?\n/).filter(Boolean));
+		tail.splice(0, Math.max(0, tail.length - 12));
+	});
+}
+server.on('exit', (code) => {
+	if (!stopping && code) {
+		console.error(`\ntsundoku stopped (${code}). The end of its log (${appLog}):\n`);
+		console.error(tail.map((l) => `  ${l}`).join('\n'));
+		// A window that closes at once says nothing: wait to be read, as above.
+		if (windows) {
+			console.error('\nPress Enter to close this window.');
+			process.stdin.once('data', () => stopAll(code));
+			return;
+		}
+	}
+	stopAll(code ?? 1);
+});
 process.on('SIGINT', () => stopAll(0));
 process.on('SIGTERM', () => stopAll(0));
 // A closed window or terminal. On Linux the app and the engine are in process

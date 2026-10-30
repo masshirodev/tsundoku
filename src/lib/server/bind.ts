@@ -249,3 +249,18 @@ export function readServing(text: string | null | undefined): Serving | null {
 	}
 	return null;
 }
+
+/**
+ * In local mode, whether a request names a host that isn't this app at all:
+ * anything but the origin's host and the loopback names `loopbackRedirect`
+ * sends there. A web page can point a name of its own at 127.0.0.1 (DNS
+ * rebinding) and then talk to the app as if it were its own site, the
+ * origin check none the wiser, since to the browser it is the same origin.
+ * The Host header still says the page's name, so it's refused on that
+ * (card c189): with no password set, this check is all there is.
+ */
+export function foreignHost(hostHeader: string | null, origin: string): boolean {
+	if (!hostHeader) return true;
+	if (hostHeader === new URL(origin).host) return false;
+	return loopbackRedirect(hostHeader, origin) === null;
+}

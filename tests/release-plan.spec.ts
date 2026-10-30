@@ -21,6 +21,8 @@ describe('the launcher’s plan (doc/RELEASE.md)', () => {
 		expect(p.server.env).toMatchObject({
 			TSUNDOKU_SERVE: 'local',
 			TSUNDOKU_SNAPSHOT: 'off',
+			// A password chosen on first open, never a token (doc/SIGN-IN.md).
+			TSUNDOKU_LOGIN: 'password',
 			PORT: '42143',
 			ENGINE_URL: 'http://127.0.0.1:4590',
 			ENGINE_TOKEN: 'eng',

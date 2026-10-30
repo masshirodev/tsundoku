@@ -44,6 +44,7 @@ import {
 } from '../src/lib/server/bind.ts';
 import { dataPaths } from '../src/lib/server/data-dirs.ts';
 import { ensureToken } from '../src/lib/server/first-run.ts';
+import { readLogin } from '../src/lib/server/login.ts';
 
 const root = new URL('../', import.meta.url);
 const built = new URL('build/', root);
@@ -92,9 +93,23 @@ try {
 	fail((e as Error).message);
 }
 
+// A friend's install signs in with a password chosen on first open, never a
+// token (doc/SIGN-IN.md; TSUNDOKU_LOGIN=password, set by its launcher).
+const friend = process.env.TSUNDOKU_LOGIN === 'password';
+const login = friend ? readLogin(dataPaths().home) : null;
+// No password, or none chosen yet, is for this computer alone: whoever reached
+// SET UP first would claim the library, and with none, anyone on the tailnet
+// would walk in. The page refuses too; this says why before anything listens.
+if (friend && mode !== 'local' && login?.kind !== 'password')
+	fail(
+		`tsundoku needs a password before it's on Tailscale, or anyone there could open it.\n` +
+			`Take TSUNDOKU_SERVE out of ${homeEnv}, start tsundoku, set a password in\n` +
+			`SETTINGS > DEVICES, then put the line back.`
+	);
+
 // No token anywhere: make one and keep it, rather than exit on a first start.
 let madeToken = false;
-if (!process.env.TSUNDOKU_TOKEN) {
+if (!friend && !process.env.TSUNDOKU_TOKEN) {
 	const { token, created } = ensureToken(homeEnv);
 	process.env.TSUNDOKU_TOKEN = token;
 	madeToken = created;
@@ -216,6 +231,7 @@ try {
 }
 
 console.log(`tsundoku  ${origin!}  (${note!})`);
+if (friend && !login) console.log('First start: choose a password in the browser.');
 if (madeToken)
 	console.log(
 		`First start: your sign-in token is ${process.env.TSUNDOKU_TOKEN}\n` +

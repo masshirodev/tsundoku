@@ -35,20 +35,44 @@ check(
 	r.status === 308,
 	`${r.status} ${r.headers.get('location')}`
 );
+// A first open is SET UP: a password, chosen here (doc/SIGN-IN.md).
 r = await fetch(`${base}/`, { redirect: 'manual' });
 check(
-	'signed out, / asks to sign in',
-	r.status === 303,
+	'a first open asks for a password',
+	r.status === 303 && r.headers.get('location') === '/setup',
 	`${r.status} ${r.headers.get('location')}`
 );
+const PASSWORD = 'smoke-password';
+const form = { origin: base, 'content-type': 'application/x-www-form-urlencoded' };
+r = await fetch(`${base}/setup?/password`, {
+	method: 'POST',
+	redirect: 'manual',
+	headers: form,
+	body: `password=${PASSWORD}&again=${PASSWORD}`
+});
+check(
+	'SET UP takes one, and keeps it hashed',
+	r.status === 303 &&
+		existsSync(join(home, 'login.json')) &&
+		!readFileSync(join(home, 'login.json'), 'utf8').includes(PASSWORD),
+	String(r.status)
+);
+check('no token is made', !('TSUNDOKU_TOKEN' in env));
 r = await fetch(`${base}/login`, {
 	method: 'POST',
 	redirect: 'manual',
-	headers: { origin: base, 'content-type': 'application/x-www-form-urlencoded' },
-	body: `token=${env.TSUNDOKU_TOKEN}`
+	headers: form,
+	body: 'token=not-the-password'
+});
+check('a wrong password is refused', r.status === 401, String(r.status));
+r = await fetch(`${base}/login`, {
+	method: 'POST',
+	redirect: 'manual',
+	headers: form,
+	body: `token=${PASSWORD}`
 });
 const cookie = (r.headers.get('set-cookie') ?? '').split(';')[0];
-check('the first-run token signs in', cookie.startsWith('tsundoku_session='));
+check('the password signs in', cookie.startsWith('tsundoku_session='), String(r.status));
 for (const path of ['/', '/settings', '/browse', '/history', '/search']) {
 	r = await fetch(base + path, { headers: { cookie }, redirect: 'manual' });
 	check(`GET ${path}`, r.status === 200, String(r.status));
