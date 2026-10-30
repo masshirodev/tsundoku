@@ -58,6 +58,10 @@ only what the row offers and stores the default as a reset).
 - **DIM** is listed with its value and no control: a dim set without the page
   behind it is a guess.
 
+Two rows of a friend's (2026-10-30) close 01's strip settings: **CHAPTERS** (RUN ON
+| STOP AT THE END) and **TO THE TOP** (OFF | ON), both this device's, both
+vertical only ([`READER.md`](READER.md), "Two choices for the strip").
+
 ## 02 — Reading · novels
 
 - **LAYOUT**: a novel's default, PAGED or SCROLL (`mode_novel`). It is counted

@@ -28,7 +28,10 @@
 		onpage,
 		onend,
 		ontap,
-		rings = () => []
+		rings = () => [],
+		stopNext = null,
+		stopPrev = null,
+		ongo
 	}: {
 		chapters: StripChapter[];
 		/** Each side's margin, percent of the width: the strip is the rest, centred. */
@@ -48,6 +51,14 @@
 		ontap: (e: MouseEvent) => void;
 		/** A page's OCR'd text blocks to outline (doc/JAPANESE.md). */
 		rings?: (chapter: number, i: number) => Ring[];
+		/**
+		 * The strip stops at the chapter's end (CHAPTERS: STOP AT THE END; c206):
+		 * the chapter after and before, offered as buttons instead of run on into.
+		 */
+		stopNext?: { id: number; name: string; title: string; pageCount: number } | null;
+		stopPrev?: { id: number; name: string; title: string } | null;
+		/** A stop band's button: open that chapter. */
+		ongo?: (id: number) => void;
 	} = $props();
 
 	let root = $state<HTMLElement | null>(null);
@@ -199,6 +210,19 @@
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 <div class="lane" class:wider={zoom > 1} bind:this={lane} onclick={ontap}>
 	<div class="strip" bind:this={root} style:width="{(100 - 2 * sides) * zoom}%">
+		{#if stopPrev}
+			<!-- Stopped at the chapter's ends (c206): the one before, by choice. -->
+			<section class="band stop top" aria-label="Previous chapter">
+				<button
+					type="button"
+					class="go-btn"
+					onclick={(e) => {
+						e.stopPropagation();
+						ongo?.(stopPrev.id);
+					}}>← PREVIOUS CHAPTER · {stopPrev.title || stopPrev.name}</button
+				>
+			</section>
+		{/if}
 		{#each chapters as c, k (c.id)}
 			{#if k > 0}
 				{@const ended = chapters[k - 1]}
@@ -233,6 +257,27 @@
 				<div data-role="end" data-entry={c.id} class="marker"></div>
 			{/if}
 		{/each}
+		{#if stopNext && chapters.length}
+			{@const ended = chapters[chapters.length - 1]}
+			<!-- Stopped at the end (c206; a friend, 2026-10-30): the next chapter waits for a tap. -->
+			<section class="band stop" aria-label="Chapter end" data-stop={ended.id}>
+				<div class="kicker"><span>END · {ended.name}</span><span>{ended.position}</span></div>
+				<div class="rule"></div>
+				<div class="next">
+					<div class="kicker">NEXT</div>
+					<div class="name">{stopNext.title || stopNext.name}</div>
+					<div class="sub">{stopNext.pageCount} PAGES</div>
+				</div>
+				<button
+					type="button"
+					class="go-btn"
+					onclick={(e) => {
+						e.stopPropagation();
+						ongo?.(stopNext.id);
+					}}>NEXT CHAPTER →</button
+				>
+			</section>
+		{/if}
 	</div>
 </div>
 
@@ -311,5 +356,26 @@
 	.go {
 		font: 500 14px var(--font-mono);
 		color: var(--accent);
+	}
+	/* A stop band's button (c206): the band's GO line, made a thing to press. */
+	.go-btn {
+		align-self: flex-start;
+		display: flex;
+		align-items: center;
+		min-height: 56px;
+		padding: 0 24px;
+		border: 1px solid var(--line-2);
+		background: transparent;
+		color: var(--accent);
+		font: 500 16px var(--font-mono);
+		cursor: pointer;
+	}
+	.go-btn:active {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+	}
+	.band.stop.top {
+		padding-top: 24px;
+		padding-bottom: 24px;
 	}
 </style>

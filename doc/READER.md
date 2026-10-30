@@ -338,6 +338,22 @@ Tested in `tests/reader-flow.e2e.ts`: across the band and back, that the page
 being read stays put through a rotation both ways, and that
 nothing moves when chapters arrive above or when the reader crosses a band.
 
+## Two choices for the strip (a friend's, 2026-10-30)
+
+Device settings in SETTINGS › 01 — READING · IMAGES, vertical only:
+
+- **CHAPTERS: RUN ON | STOP AT THE END** (c206). Run on is the strip as it has
+  always been, the next and previous chapters loaded beyond a band. Stopped,
+  the strip holds the chapter being read alone: after its last page a band
+  ends it with NEXT CHAPTER →, and at its top ← PREVIOUS CHAPTER, each a
+  button that opens that chapter. For a reader who wants to decide when a
+  chapter ends.
+- **TO THE TOP: OFF | ON** (c207, off unless asked for). On, once past the
+  chapter's first page a square ↑ sits bottom right and glides back to the
+  chapter's first page. Above the 56 px edge where a pointer brings the
+  controls up, so reaching it with the mouse doesn't summon them over it (it
+  did, and vanished from under the pointer); away while the controls are up.
+
 ## Scrolling on a PC
 
 The vertical strip on a computer (card c192; the owner, 2026-10-30, in

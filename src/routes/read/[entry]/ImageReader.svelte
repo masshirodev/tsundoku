@@ -2,6 +2,7 @@
 	import { readLocal, writeLocal } from '$lib/settings/local';
 	import type { Json } from '$lib/settings/catalog';
 	import { backLink } from '$lib/back';
+	import { browser } from '$app/environment';
 	import { flushSync, onMount, tick, untrack } from 'svelte';
 	import {
 		KEPT_PLACE,
@@ -112,6 +113,14 @@
 	let dim = $state(0);
 	/** Vertical: each side's margin, percent of the width (doc/READER.md, "Vertical"). */
 	let sides = $state(0);
+	/**
+	 * Vertical: stop at the chapter's end, the next one a button away, rather
+	 * than run on into it (c206; a friend, 2026-10-30). Read at once, before the
+	 * strip is first filled, which the effect below does on mount.
+	 */
+	const stopAtEnd = browser && readLocal<string>(`${KEY}chapters`, 'run') === 'stop';
+	/** Vertical: a ↑ back to the chapter's first page, off unless asked for (c207; a friend). */
+	const toTopOn = browser && readLocal<boolean>(`${KEY}top`, false) === true;
 	/** A wide page outside spreads: whole, in halves, or turned (doc/READER.md, "Wide pages"). */
 	let wide = $state<Wide>('fit');
 	/** Paged: crop each page's plain border (doc/READER.md, "Crop borders"). */
@@ -886,8 +895,9 @@
 			const onStrip = strip.some((c) => c.id === id);
 			const scrolledHere = crossing === id;
 			crossing = null;
-			const prev = readable(data.prev);
-			const next = readable(data.next);
+			// Stopped at the ends: the strip is this chapter alone.
+			const prev = stopAtEnd ? null : readable(data.prev);
+			const next = stopAtEnd ? null : readable(data.next);
 			const held = stripWindow(
 				onStrip ? strip : [],
 				current,
@@ -1573,6 +1583,9 @@
 						if (!tapBlocks(e.clientX, e.clientY)) middleTap(e.clientX, e.clientY);
 					}}
 					rings={ringsOn}
+					stopNext={stopAtEnd && data.next ? data.next : null}
+					stopPrev={stopAtEnd && data.prev ? data.prev : null}
+					ongo={(id) => goto(resolve('/read/[entry]', { entry: String(id) }))}
 				/>
 			</div>
 		{/key}
@@ -1766,6 +1779,19 @@
 				>
 			</div>
 		</div>
+	{/if}
+
+	{#if toTopOn && mode === 'vertical' && at > 0 && !chrome && !sheet && !menu && !lookup}
+		<!-- TO THE TOP (c207): the Index idiom's square cell, not a floating circle. -->
+		<button
+			type="button"
+			class="to-top appear"
+			aria-label="To the chapter's first page"
+			onclick={() => {
+				const first = document.querySelector(`[data-entry="${data.entry.id}"][data-index="0"]`);
+				if (first) move(first.getBoundingClientRect().top, GLIDE_SCREEN);
+			}}>↑</button
+		>
 	{/if}
 
 	{#if turnHint && mode !== 'vertical' && !chrome}
@@ -2152,5 +2178,29 @@
 		color: var(--accent);
 		white-space: nowrap;
 		pointer-events: none;
+	}
+	/* TO THE TOP (c207): bottom right, over the pages and the dimming, just above
+	   the 56 px edge where a pointer brings the controls up (HOVER_EDGE), so
+	   reaching it with the mouse doesn't summon them over it. Away while they're
+	   up: they cover the corner, and have their own way between chapters. */
+	.to-top {
+		position: fixed;
+		right: 16px;
+		bottom: calc(72px + env(safe-area-inset-bottom));
+		z-index: 18;
+		width: 52px;
+		height: 52px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border: var(--hairline);
+		background: var(--surface-page);
+		color: var(--text-1);
+		font: 500 20px var(--font-mono);
+		cursor: pointer;
+	}
+	.to-top:active {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
 	}
 </style>

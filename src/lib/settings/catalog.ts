@@ -65,6 +65,10 @@ export const VALUES = {
 	'reader.crop': { where: 'device', key: 'tsundoku.reader.crop', def: false, label: onOff },
 	'reader.wide': { where: 'device', key: 'tsundoku.reader.wide', def: 'fit' },
 	'reader.sides': { where: 'device', key: 'tsundoku.reader.sides', def: 0 },
+	// The strip runs on into the next chapter, or stops at the end (c206; a friend, 2026-10-30).
+	'reader.chapters': { where: 'device', key: 'tsundoku.reader.chapters', def: 'run' },
+	// A button back to the chapter's top, off unless asked for (c207; a friend, 2026-10-30).
+	'reader.top': { where: 'device', key: 'tsundoku.reader.top', def: false, label: onOff },
 	'reader.blocks': { where: 'device', key: 'tsundoku.reader.blocks', def: 'controls' },
 	// Shared by both readers: it's about the room, not the book.
 	'reader.dim': { where: 'device', key: 'tsundoku.reader.dim', def: 0, label: pct },
@@ -348,6 +352,42 @@ export const SECTIONS: SectionDef[] = [
 					]
 				},
 				meta: 'VERTICAL ONLY'
+			},
+			{
+				id: 'chapters',
+				label: 'CHAPTERS',
+				where: 'device',
+				control: {
+					type: 'seg',
+					groups: [
+						{
+							value: 'reader.chapters',
+							opts: [
+								{ value: 'run', label: 'RUN ON' },
+								{ value: 'stop', label: 'STOP AT THE END', short: 'STOP' }
+							]
+						}
+					]
+				},
+				meta: 'VERTICAL ONLY · STOPPED, A BUTTON AT THE END GOES ON'
+			},
+			{
+				id: 'top',
+				label: 'TO THE TOP',
+				where: 'device',
+				control: {
+					type: 'seg',
+					groups: [
+						{
+							value: 'reader.top',
+							opts: [
+								{ value: false, label: 'OFF' },
+								{ value: true, label: 'ON' }
+							]
+						}
+					]
+				},
+				meta: "VERTICAL ONLY · A ↑ BACK TO THE CHAPTER'S FIRST PAGE"
 			},
 			{
 				id: 'blocks',
