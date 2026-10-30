@@ -1,8 +1,8 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
-import { encode, type Msg } from './protobuf-writer';
-import { zip } from './zip-writer';
+import { encode, type Msg } from './protobuf-writer.ts';
+import { zip } from './zip-writer.ts';
 
 /**
  * A synthetic Mihon folder shaped like the real one (doc/IMPORT-FORMATS.md):

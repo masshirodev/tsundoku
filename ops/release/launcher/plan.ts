@@ -56,7 +56,8 @@ export function plan(o: {
 	const server: Proc = {
 		name: 'tsundoku',
 		cmd: node,
-		args: [p.join(o.root, 'app', 'scripts', 'serve.ts')],
+		// Web Crypto's ML-DSA, which WebAuthn's library probes for, warns on every start.
+		args: ['--disable-warning=ExperimentalWarning', p.join(o.root, 'app', 'scripts', 'serve.ts')],
 		cwd: p.join(o.root, 'app'),
 		env: {
 			// The data folder's own .env can choose otherwise (https through Tailscale).

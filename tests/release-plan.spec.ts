@@ -14,7 +14,10 @@ describe('the launcher’s plan (doc/RELEASE.md)', () => {
 		});
 		expect(p.url).toBe('http://localhost:42143');
 		expect(p.server.cmd).toBe('C:\\Program Files\\tsundoku\\node\\node.exe');
-		expect(p.server.args).toEqual(['C:\\Program Files\\tsundoku\\app\\scripts\\serve.ts']);
+		expect(p.server.args).toEqual([
+			'--disable-warning=ExperimentalWarning',
+			'C:\\Program Files\\tsundoku\\app\\scripts\\serve.ts'
+		]);
 		expect(p.server.env).toMatchObject({
 			TSUNDOKU_SERVE: 'local',
 			TSUNDOKU_SNAPSHOT: 'off',
