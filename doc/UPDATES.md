@@ -49,8 +49,12 @@ friend reads, and each file's name, size and SHA-256
   could withhold an update, never push one.
 - **Losing the key** means no install can verify a new release: every friend
   would install the next one by hand, from a build carrying a new key.
-  **Back it up to Infisical** (project tsundoku, prod, `RELEASE_SIGNING_KEY`):
-  the machine identity here is Viewer-only, so that's the owner's step.
+  **Back it up to Infisical** (project tsundoku, prod, in a folder
+  `release`, secret `RELEASE_SIGNING_KEY`, the file as one line:
+  `base64 -w0 ~/.config/tsundoku/release-signing.pem`). A folder, because
+  `yarn run secrets:pull` copies the project's top level into the app's
+  `.env`, where a signing key has no business. The machine identity here is
+  Viewer-only, so that was the owner's step: done 2026-10-30.
 - Not code signing: SmartScreen still warns on a first install. An update
   from inside tsundoku doesn't see that warning, since the installer was
   downloaded by tsundoku, not a browser (no mark of the web).

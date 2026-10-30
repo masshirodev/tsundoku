@@ -225,7 +225,11 @@ entry, keeps the data folder, and leaves nothing running. 2026-10-29: all passed
 
 **On Tailscale** (c186), only when `TSUNDOKU_SMOKE_TAILSCALE_KEY` holds an
 ephemeral auth key from the tailnet's admin console (Settings > Keys), since
-nothing else can put Zen on a tailnet unattended:
+nothing else can put Zen on a tailnet unattended. The owner made one on
+2026-10-30 (reusable, ephemeral, 90 days: renew it each quarter; an expired
+one fails the stage, never skips it) and keeps it in `~/.config/myconf/.env`,
+which interactive shells load. A shell started before a change there doesn't
+have it: `set -a; . ~/.config/myconf/.env; set +a` first.
 `smoke/windows-tailscale.ps1 -Key` installs Tailscale, joins as
 `zen-tsundoku-smoke`, writes the README's `TSUNDOKU_SERVE=https` into the
 data folder's `.env`, starts the launcher and runs `smoke/probe-tailnet.mjs`:
