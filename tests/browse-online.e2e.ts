@@ -77,3 +77,68 @@ test('a chapter opens online from the preview, a record keeps the place, the ser
 		timeout: 20_000
 	});
 });
+
+/**
+ * Tall pages (2026-10-29): a source never says how big its pages are, and the
+ * reader drew each one online in a manga page's box, so a manhwa's tall slice
+ * came out a narrow column with black either side, whatever the zoom. The
+ * box now takes the image's own shape once it arrives. The fake's second page
+ * is 600 × 3000.
+ */
+test('a page read online takes its own shape once it arrives, paged and vertical', async ({
+	page
+}) => {
+	test.setTimeout(90_000);
+	await page.goto(`/browse/${SOURCES.open.id}`);
+	await page.locator('.grid .tile', { hasText: 'Open Source 1-5' }).click();
+	await page.locator('.cta-go .cta').click();
+	await expect(page).toHaveURL(/\/read\/\d+/);
+
+	const shapeOf = (box: import('@playwright/test').Locator) =>
+		box.evaluate((el) => {
+			const r = el.getBoundingClientRect();
+			return { w: r.width, h: r.height };
+		});
+
+	// Paged: the second page's box is as tall as its image, five times its width.
+	await expect(page.locator('.stage .screen:not([aria-hidden]) img').first()).toBeVisible({
+		timeout: 20_000
+	});
+	await page.keyboard.press('ArrowLeft');
+	const paged = page.locator('.stage .screen:not([aria-hidden]) .page[data-page="2"]');
+	await expect(paged.locator('img')).toBeVisible({ timeout: 20_000 });
+	await expect
+		.poll(async () => {
+			const s = await shapeOf(paged);
+			return Math.round((s.h / s.w) * 10) / 10;
+		})
+		.toBe(5);
+
+	// Vertical: every page as wide as the strip, the tall one included.
+	await page.keyboard.press('Escape');
+	await page.getByRole('button', { name: /R→L ·/ }).click();
+	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+	await sheet.getByRole('radio', { name: 'VERTICAL' }).click();
+	await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+	const strip = page.locator('.strip');
+	await expect(strip).toBeVisible();
+	// The chapter being read: the strip holds the next one too.
+	const entry = new URL(page.url()).pathname.split('/').pop();
+	const tall = strip.locator(`[data-role="page"][data-entry="${entry}"][data-index="1"] .page`);
+	await tall.scrollIntoViewIfNeeded();
+	await expect(tall.locator('img')).toBeVisible({ timeout: 20_000 });
+	const width = (await shapeOf(strip)).w;
+	await expect
+		.poll(async () => {
+			const s = await shapeOf(tall);
+			return { full: Math.abs(s.w - width) < 1, ratio: Math.round((s.h / s.w) * 10) / 10 };
+		})
+		.toEqual({ full: true, ratio: 5 });
+	// What's drawn fills the box: no column with black either side.
+	const drawn = await tall.locator('img').evaluate((img) => {
+		const i = img as HTMLImageElement;
+		const r = i.getBoundingClientRect();
+		return (i.naturalHeight / i.naturalWidth) * r.width <= r.height + 1;
+	});
+	expect(drawn).toBe(true);
+});

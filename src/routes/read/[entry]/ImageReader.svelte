@@ -36,6 +36,7 @@
 		pagesAhead,
 		nearEnd,
 		stripWindow,
+		shapeOf,
 		type StripChapter
 	} from '$lib/reader/reader';
 	import PageImage from './PageImage.svelte';
@@ -320,6 +321,23 @@
 			: null;
 
 	const treatment = (i: number) => wideTreatment(pages[i], { mode, spreads: useSpreads, wide });
+
+	// ---- the shape of a page read online -----------------------------------------------
+	// A source never says how big its pages are (src/lib/server/pages/online.ts),
+	// so each page's box takes the size its image arrived at, and a page still on
+	// its way the last size any page arrived at (shapeOf). Only the box: spreads
+	// and wide-page treatment keep going by the manifest, so a paged screen never
+	// regroups under the reader as images arrive.
+	const learned = new SvelteMap<string, Page>();
+	let lastShape = $state<Page | null>(null);
+	const shaped = (entry: number, i: number, p: Page) =>
+		shapeOf(p, learned.get(`${entry}:${i}`), lastShape);
+	function learnShape(entry: number, i: number, w: number, h: number) {
+		const key = `${entry}:${i}`;
+		const had = learned.get(key);
+		if (had?.w !== w || had?.h !== h) learned.set(key, { w, h });
+		if (lastShape?.w !== w || lastShape?.h !== h) lastShape = { w, h };
+	}
 	/** This screen is half of a split wide page. */
 	const splitHere = $derived(group.length === 1 && treatment(group[0]) === 'split');
 
@@ -1357,6 +1375,8 @@
 					{sides}
 					{zoom}
 					src={(c, i) => pageSrc(c.id, c.version, i)}
+					shape={(c, i, p) => shaped(c.id, i, p)}
+					onshape={(c, i, w, h) => learnShape(c.id, i, w, h)}
 					onpage={stripPage}
 					onend={(id) => id === data.entry.id && markFinished()}
 					ontap={(e) => {
@@ -1459,8 +1479,8 @@
 								src={src(i)}
 								number={i + 1}
 								chapter={i === 0 ? data.entry.name : ''}
-								w={pages[i].w}
-								h={pages[i].h}
+								w={shaped(data.entry.id, i, pages[i]).w}
+								h={shaped(data.entry.id, i, pages[i]).h}
 								{fit}
 								share={sc.pages.length}
 								side={sc.pages.length === 1 ? 'center' : k === 0 ? 'left' : 'right'}
@@ -1468,6 +1488,7 @@
 								rotate={sc.pages.length === 1 && treatment(i) === 'rotate'}
 								inset={insetOf(i)}
 								online={!!data.manifest?.online}
+								onshape={(w, h) => learnShape(data.entry.id, i, w, h)}
 								rings={sc.pos === 0 ? ringsOn(data.entry.id, i) : []}
 							/>
 						{/each}

@@ -304,13 +304,22 @@ function answer(b: EngineCall): unknown {
 	return null;
 }
 
-let png: Promise<Buffer> | null = null;
-const pageImage = () =>
-	(png ??= sharp({
-		create: { width: 600, height: 900, channels: 3, background: { r: 40, g: 50, b: 70 } }
-	})
-		.png()
-		.toBuffer());
+const pngs = new Map<string, Promise<Buffer>>();
+const png = (width: number, height: number) => {
+	const key = `${width}x${height}`;
+	if (!pngs.has(key))
+		pngs.set(
+			key,
+			sharp({ create: { width, height, channels: 3, background: { r: 40, g: 50, b: 70 } } })
+				.png()
+				.toBuffer()
+		);
+	return pngs.get(key)!;
+};
+// The second page is a manhwa's tall slice, which a box guessed in a manga's
+// shape once drew as a narrow column (browse-online.e2e.ts, "tall pages").
+const pageImage = (url: string) =>
+	url.startsWith('/image/page1') ? png(600, 3000) : png(600, 900);
 
 const CLIP = readFileSync('tests/fixtures/video/clip.webm');
 const SUBS = readFileSync('tests/fixtures/video/en.vtt');
@@ -361,9 +370,11 @@ function startEngine(): Promise<Server> {
 		}
 		if (req.url === '/challenges' && !down) return json(200, challenges);
 		if (req.url?.startsWith('/video/') && !down) return video(req, res);
-		// A page read online: a real image, 600 × 900, as a source's would be.
+		// A page read online: a real image, 600 × 900 (the second 600 × 3000), as a source's would be.
 		if (req.url?.startsWith('/image/page') && !down) {
-			void pageImage().then((png) => res.writeHead(200, { 'content-type': 'image/png' }).end(png));
+			void pageImage(req.url).then((image) =>
+				res.writeHead(200, { 'content-type': 'image/png' }).end(image)
+			);
 			return;
 		}
 		if (req.url === '/__bump') {

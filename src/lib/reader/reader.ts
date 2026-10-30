@@ -70,6 +70,20 @@ export function swipeAction(dx: number, dy: number, mode: Mode): Action | null {
 
 export type Page = { w: number; h: number };
 
+/**
+ * A page's shape for its box. A page read online has none until it arrives:
+ * sources don't say how big their images are (src/lib/server/pages/online.ts).
+ * So the shape its image had once it loaded (`learned`), or else the last
+ * shape any page of this reader loaded with (`last`), on the bet that a
+ * chapter's pages are mostly alike: a manhwa's tall slices above all, which a
+ * manga-shaped guess drew as a narrow column (2026-10-29). Neither, and it
+ * stays unknown, which PageImage draws as a manga page.
+ */
+export function shapeOf(p: Page, learned?: Page | null, last?: Page | null): Page {
+	if (p.w > 0 && p.h > 0) return p;
+	return learned ?? last ?? p;
+}
+
 /** A page wider than it is tall is a spread already: it is shown alone. */
 export const isWide = (p: Page) => p.w > 0 && p.h > 0 && p.w > p.h * 1.1;
 

@@ -238,9 +238,15 @@ HISTORY's long press there. What c168 adds is the proof, by machine, as
   later fails with RETRY.
 - **The scrubber doesn't fill with the pages that arrived** (line-2): the
   reader doesn't hear back from each image yet.
-- **A page's size isn't known before it arrives**: the source gives none, so
-  the dashed cell takes the screen's shape, and the strip may settle as pages
-  land above the one being read (they rarely do: pages load in order).
+- **A page's size isn't known before it arrives**: the source gives none.
+  Each page's box takes the size its image arrived at, and a page still on
+  its way the last size any page arrived at; before the first, a manga
+  page's shape. Until 2026-10-29 the box stayed a manga page's shape for
+  good, so a manhwa's tall slice was drawn as a narrow column with black
+  either side, at any zoom. A page that arrives a different size above the
+  one being read doesn't move it: the strip holds its place
+  ([`READER.md`](READER.md), "Vertical"). Spreads and wide pages still go by
+  the manifest, so a paged screen never regroups as images arrive.
 - **The end page of a record's last chapter still asks for a rating**, not
   - ADD (the top bar has + ADD).
 

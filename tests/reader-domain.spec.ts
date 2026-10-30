@@ -21,7 +21,8 @@ import {
 	WHEEL_QUIET_MS,
 	wheelForward,
 	tapAction,
-	TEXT_EDGE
+	TEXT_EDGE,
+	shapeOf
 } from '$lib/reader/reader';
 
 describe('mouse buttons', () => {
@@ -246,5 +247,27 @@ describe('the wheel', () => {
 		const w = new WheelTurn();
 		expect(w.feed(WHEEL_PX, 0)).toBe('next');
 		expect(w.feed(WHEEL_PX, 1000)).toBe('next');
+	});
+});
+
+describe('shapeOf', () => {
+	const known = { w: 800, h: 1200 };
+	const unknown = { w: 0, h: 0 };
+	const tall = { w: 720, h: 3600 };
+
+	it('keeps a page whose shape the manifest gave', () => {
+		expect(shapeOf(known, tall, tall)).toBe(known);
+	});
+
+	it('takes the shape the page loaded with, over the last one seen', () => {
+		expect(shapeOf(unknown, tall, known)).toBe(tall);
+	});
+
+	it('guesses the last shape seen while the page is on its way', () => {
+		expect(shapeOf(unknown, null, tall)).toBe(tall);
+	});
+
+	it('stays unknown with nothing to go on', () => {
+		expect(shapeOf(unknown)).toBe(unknown);
 	});
 });

@@ -20,7 +20,8 @@
 		rings = [],
 		lazy = false,
 		chapter = '',
-		online = false
+		online = false,
+		onshape
 	}: {
 		src: string;
 		/** 1-based, as the reader names it. */
@@ -52,6 +53,12 @@
 		chapter?: string;
 		/** Read from its source (doc/BROWSING.md, "Manga online"): waiting is dashed, as Index dashes what isn't stored. */
 		online?: boolean;
+		/**
+		 * The image arrived at this size. Asked of a page read online, whose
+		 * box was a guess: a source never says how big its pages are
+		 * (shapeOf in $lib/reader/reader).
+		 */
+		onshape?: (w: number, h: number) => void;
 	} = $props();
 	const name = $derived(chapter ? `${chapter} · P. ${number}` : `P. ${number}`);
 
@@ -101,7 +108,12 @@
 		loading={lazy ? 'lazy' : undefined}
 		draggable="false"
 		class:hidden={status !== 'loaded'}
-		onload={() => (status = 'loaded')}
+		onload={(e) => {
+			status = 'loaded';
+			const img = e.currentTarget as HTMLImageElement;
+			if (online && img.naturalWidth > 0 && img.naturalHeight > 0)
+				onshape?.(img.naturalWidth, img.naturalHeight);
+		}}
 		onerror={() => (status = 'failed')}
 	/>
 	<!--

@@ -48,8 +48,9 @@ async function listOf(entryId: number, fresh = false): Promise<{ at: number; tar
 
 /**
  * The chapter's pages, sizes unknown until each arrives (the source gives
- * none; the reader takes the last page's shape meanwhile). The version names
- * it as online, so the page route never lets it be kept.
+ * none). The reader sizes each page's box from its image once it arrives,
+ * and from the last one that arrived meanwhile (shapeOf in $lib/reader/reader).
+ * The version names it as online, so the page route never lets it be kept.
  */
 export async function onlineManifest(entryId: number) {
 	const l = await listOf(entryId);

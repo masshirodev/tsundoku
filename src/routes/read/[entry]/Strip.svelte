@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import PageImage from './PageImage.svelte';
-	import type { StripChapter } from '$lib/reader/reader';
+	import type { Page, StripChapter } from '$lib/reader/reader';
 	import type { Ring } from '$lib/japanese/blocks';
 
 	/**
@@ -22,6 +22,8 @@
 		sides = 0,
 		zoom = 1,
 		src,
+		shape = (_c, _i, p) => p,
+		onshape,
 		onpage,
 		onend,
 		ontap,
@@ -33,6 +35,10 @@
 		/** The reader's zoom (doc/READER.md, "Zoom"): the strip's width, times it; past 100% it scrolls sideways. */
 		zoom?: number;
 		src: (c: StripChapter, i: number) => string;
+		/** A page's shape for its box, where the manifest had none (a chapter read online). */
+		shape?: (c: StripChapter, i: number, p: Page) => Page;
+		/** A page read online arrived at this size. */
+		onshape?: (c: StripChapter, i: number, w: number, h: number) => void;
 		/** A page crossed the middle of the screen: which chapter, which page. */
 		onpage: (chapter: number, i: number) => void;
 		/** A chapter's end came into view: it's read. */
@@ -89,6 +95,32 @@
 			);
 		}
 		place = { el, at, width };
+	}
+
+	/**
+	 * A page read online arrived another size than its box guessed (shapeOf
+	 * in $lib/reader/reader), and its box, with any still guessing, is about
+	 * to take it. Above the page being read that would shove it: note the
+	 * page under the middle first, and put it back after, as the reader's
+	 * keepPlace does for a chapter arriving above.
+	 */
+	async function reshaped(c: StripChapter, i: number, w: number, h: number) {
+		const anchor = document
+			.elementFromPoint(innerWidth / 2, innerHeight / 2)
+			?.closest<HTMLElement>('[data-role="page"], .band');
+		const before = anchor?.getBoundingClientRect().top;
+		onshape?.(c, i, w, h);
+		await tick();
+		if (!anchor?.isConnected || before === undefined) return;
+		const moved = anchor.getBoundingClientRect().top - before;
+		if (Math.abs(moved) < 1) return;
+		settling = true;
+		window.scrollBy(0, moved);
+		requestAnimationFrame(() =>
+			requestAnimationFrame(() => {
+				settling = false;
+			})
+		);
 	}
 
 	onMount(() => {
@@ -154,15 +186,17 @@
 			{/if}
 			{#if c.pages}
 				{#each c.pages as p, i (src(c, i))}
+					{@const s = shape(c, i, p)}
 					<div data-role="page" data-entry={c.id} data-index={i} class="slot">
 						<PageImage
 							src={src(c, i)}
 							number={i + 1}
-							w={p.w}
-							h={p.h}
+							w={s.w}
+							h={s.h}
 							fit="strip"
 							lazy
 							online={c.version.startsWith('online-')}
+							onshape={(w, h) => reshaped(c, i, w, h)}
 							rings={rings(c.id, i)}
 						/>
 					</div>

@@ -282,6 +282,17 @@ of scrolling to it.
   seen the layout has already moved; and pages crossing the middle while it
   settles aren't read, or the reader would follow the jump into another page
   or chapter.
+- **Nor when a page arrives another size.** A page read online has no size
+  until its image arrives ([`BROWSING.md`](BROWSING.md), "Manga online"), so
+  its box is a guess that can grow or shrink above the page being read. When
+  one arrives, the strip notes the page under the middle, lets the box (and
+  any still guessing) take the new shape, and puts that page back, as
+  `keepPlace` does for a chapter. Not the `ResizeObserver` above: it can't
+  tell a page's new shape from a chapter arriving, which `keepPlace` has
+  already put right, and the two corrections fought (2026-10-29). The rule
+  for the guess is `shapeOf` in `src/lib/reader/reader.ts`;
+  `tests/browse-online.e2e.ts` ("tall pages") reads a 600 × 3000 page, paged
+  and on the strip.
 - **Opening** puts the page the reader resumes at at the top of the screen.
   That happens after SvelteKit's own scroll on arrival (`afterNavigate`),
   which used to put it back at the top of the document. So the strip used to
