@@ -1,0 +1,2 @@
+Read on your phone over home Wi-Fi: SETTINGS > DEVICES > WI-FI > ON, then scan the code with the phone's camera. No Tailscale needed.
+A phone let in this way is listed under DEVICES, with SIGN OUT for a lost one.
