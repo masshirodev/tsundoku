@@ -66,6 +66,18 @@ export function wheelPixels(
  */
 export const NUDGE = 40;
 
+/**
+ * How long a key's move takes. The wheel's approach starts at full speed so a
+ * notch feels instant, which over a whole screen was a lurch (the owner,
+ * 2026-10-30: "its attacking my anxiety"): keys glide instead, starting
+ * gently and settling, the longer the move the longer the glide.
+ */
+export const GLIDE_SCREEN = 320;
+export const GLIDE_NUDGE = 160;
+
+/** Ease in and out: no jolt at the start, none at the end. */
+export const easeInOut = (p: number) => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
+
 /** ↑ / ↓, PageUp / PageDown, Space: a screen, less a little, so the last line read stays in sight. */
 export const screenStep = (height: number) => Math.round(height * 0.85);
 
@@ -84,16 +96,35 @@ export class SmoothScroll {
 	private shown = 0;
 	private last = 0;
 	private id = 0;
+	/** A key's glide in flight: from where, when, for how long. Null for the wheel's approach. */
+	private glider: { from: number; t0: number; ms: number } | null = null;
 	constructor(private host: Host) {}
 
 	get moving(): boolean {
 		return this.id !== 0;
 	}
 
-	/** Aim `by` pixels further than where it's going (or where it is, if still). */
+	/** The wheel: aim `by` pixels further than where it's going (or where it is, if still). */
 	by(by: number) {
 		const from = this.moving ? this.target : this.host.y;
 		this.target = Math.min(Math.max(0, from + by), this.host.max());
+		// A glide in flight becomes the approach from where it is.
+		this.glider = null;
+		this.start();
+	}
+
+	/**
+	 * A key: glide `by` pixels further than where it's going, over `ms`. Pressed
+	 * again mid-glide, it carries on from where the strip is to the new aim.
+	 */
+	glide(by: number, ms: number) {
+		const from = this.moving ? this.target : this.host.y;
+		this.target = Math.min(Math.max(0, from + by), this.host.max());
+		this.glider = { from: this.host.y, t0: this.host.now(), ms };
+		this.start();
+	}
+
+	private start() {
 		if (this.moving) return;
 		this.shown = this.host.y;
 		this.last = this.host.now();
@@ -109,6 +140,7 @@ export class SmoothScroll {
 	shift(by: number) {
 		if (!this.moving) return;
 		this.shown += by;
+		if (this.glider) this.glider.from += by;
 		this.target = Math.min(Math.max(0, this.target + by), this.host.max());
 	}
 
@@ -120,11 +152,18 @@ export class SmoothScroll {
 	private step = (t: number) => {
 		// Something else scrolled since the last frame: it wins.
 		if (Math.abs(this.host.y - this.shown) > 1) return void (this.id = 0);
-		const y = approach(this.shown, this.target, t - this.last);
+		const g = this.glider;
+		const y = g
+			? (() => {
+					const p = Math.min(1, (t - g.t0) / g.ms);
+					return p >= 1 ? this.target : g.from + (this.target - g.from) * easeInOut(p);
+				})()
+			: approach(this.shown, this.target, t - this.last);
 		this.last = t;
 		this.host.y = y;
 		this.shown = this.host.y;
 		this.id = y === this.target ? 0 : this.host.frame(this.step);
+		if (!this.id) this.glider = null;
 	};
 }
 

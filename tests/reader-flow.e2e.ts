@@ -343,6 +343,72 @@ test('a finger’s first paged chapter says how pages turn, once per device', as
 	await expect(hint).toHaveCount(0);
 });
 
+test('FULL SCREEN in the controls takes the browser’s bars away, and gives them back', async ({
+	page
+}) => {
+	await seriesId(page, 'Hikaru ga Shinda Natsu');
+	const first = await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.getAttribute('href');
+	await page.goto(first!);
+	await readerReady(page);
+	await tap(page, 0.5);
+	const full = page.getByRole('button', { name: 'FULL SCREEN' });
+	await expect(full).toBeVisible();
+	await full.click();
+	await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(true);
+	await expect(page.getByRole('button', { name: 'EXIT FULL' })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
+	await page.getByRole('button', { name: 'EXIT FULL' }).click();
+	await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);
+});
+
+test('vertical: a page that did not load says so at its top, not halfway down a tall box', async ({
+	page
+}) => {
+	// The fourth page of whatever chapter opens never arrives.
+	await page.route(/\/api\/entries\/\d+\/pages\/3(\?|$)/, (r) => r.abort());
+	await seriesId(page, 'The Greatest Estate Developer');
+	await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.click();
+	await readerReady(page);
+	// Pages load as they come near: bring the fourth near, then wait for it to give up.
+	const entry = page.url().match(/\/read\/(\d+)/)![1];
+	// By its chapter too: the chapter before can arrive above with a fourth page of its own.
+	const slot = page.locator(`[data-role="page"][data-entry="${entry}"][data-index="3"]`);
+	await slot.evaluate((el) => el.scrollIntoView({ block: 'start' }));
+	const failed = slot.locator('.failed');
+	await expect(failed.getByText(/DID NOT LOAD/)).toBeVisible({ timeout: 15_000 });
+	// As tall as a manhwa slice: three screens. The seeded pages are a manga's
+	// shape, and in one that fits the screen a centred message was fine.
+	const screenH = page.viewportSize()!.height;
+	await slot.evaluate((el, h) => {
+		(el as HTMLElement).style.height = `${h}px`;
+		el.querySelector<HTMLElement>('.page')?.style.setProperty('height', `${h}px`);
+	}, screenH * 3);
+	// Bring the failed page's top to the screen's top: the message is right there.
+	await failed.evaluate((el) => el.scrollIntoView({ block: 'start' }));
+	await page.waitForTimeout(200);
+	const box = (await failed.boundingBox())!;
+	const msg = (await failed.locator('.msg').boundingBox())!;
+	const screen = page.viewportSize()!.height;
+	// A manhwa slice taller than the screen: where a centred message was out of sight.
+	expect(box.height).toBeGreaterThan(screen * 1.5);
+	expect(msg.y).toBeLessThan(screen);
+	expect(msg.y - box.y).toBeLessThan(screen * 0.6);
+	// Scrolled further into it, it stays in sight.
+	await page.mouse.wheel(0, Math.round(box.height / 2));
+	await page.waitForTimeout(600);
+	const later = (await failed.locator('.msg').boundingBox())!;
+	expect(later.y).toBeGreaterThanOrEqual(0);
+	expect(later.y + later.height).toBeLessThanOrEqual(screen);
+});
+
 test('vertical, on a PC: a wheel notch eases, ↓ and ↑ move a screen (c192)', async ({ page }) => {
 	await seriesId(page, 'The Greatest Estate Developer');
 	await page

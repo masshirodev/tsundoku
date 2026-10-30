@@ -149,22 +149,27 @@
 		</div>
 	{:else if status === 'failed'}
 		<div class="failed" role="alert">
-			<div class="msg">
-				<div class="t">{name} DID NOT LOAD</div>
-				<div class="d">
-					{online ? 'THE SOURCE DID NOT SEND IT · TRIED TWICE' : 'WORKSTATION DID NOT ANSWER'}
+			<!-- From the page's top, and kept in sight while it scrolls past: a manhwa
+			     slice is thousands of pixels tall, and centred in it the message was a
+			     scroll through black away (the owner, 2026-10-30). -->
+			<div class="inner">
+				<div class="msg">
+					<div class="t">{name} DID NOT LOAD</div>
+					<div class="d">
+						{online ? 'THE SOURCE DID NOT SEND IT · TRIED TWICE' : 'WORKSTATION DID NOT ANSWER'}
+					</div>
 				</div>
+				<button
+					type="button"
+					onpointerdown={(e) => e.stopPropagation()}
+					onpointerup={(e) => e.stopPropagation()}
+					onclick={(e) => {
+						e.stopPropagation();
+						status = 'loading';
+						attempt += 1;
+					}}>RETRY</button
+				>
 			</div>
-			<button
-				type="button"
-				onpointerdown={(e) => e.stopPropagation()}
-				onpointerup={(e) => e.stopPropagation()}
-				onclick={(e) => {
-					e.stopPropagation();
-					status = 'loading';
-					attempt += 1;
-				}}>RETRY</button
-			>
 		</div>
 	{/if}
 </div>
@@ -319,10 +324,19 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		justify-content: center;
-		gap: 24px;
 		border: 1px solid var(--line-2);
 		background: var(--surface-page);
+	}
+	/* Sticky at about the screen's middle: a page that fits the screen shows it
+	   centred as before, a tall one from its first pixel on. */
+	.inner {
+		position: sticky;
+		top: calc(50dvh - 72px);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 24px;
+		padding: 24px 16px;
 	}
 	.msg {
 		display: flex;

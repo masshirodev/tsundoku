@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { fullscreen } from '$lib/reader/fullscreen.svelte';
 	import { backLink } from '$lib/back';
 	import { ratingBars } from '$lib/library/rating';
 	import type { Rating } from '$lib/library/types';
@@ -162,9 +163,20 @@
 					class="cell"
 					class:grow={c.grow}
 					disabled={!c.on}
-					onclick={() => c.on?.()}>{c.text}</button
+					onclick={() => c.on?.()}
+					>{#if c.grow}<span class="sum">{c.text}</span><span class="opens-k">SETTINGS ↑</span
+						>{:else}{c.text}{/if}</button
 				>
 			{/each}
+			{#if fullscreen.available}
+				<!-- The browser's bars gone (doc/READER.md, "Full screen"); not on an iPhone, nor in the app. -->
+				<button
+					type="button"
+					class="cell"
+					aria-pressed={fullscreen.on}
+					onclick={() => fullscreen.toggle()}>{fullscreen.on ? 'EXIT FULL' : 'FULL SCREEN'}</button
+				>
+			{/if}
 		</div>
 	</footer>
 {/if}
@@ -378,5 +390,20 @@
 			padding: 0 12px;
 			font-size: 13px;
 		}
+	}
+	/* The reading sheet's cell: the summary gives way, SETTINGS ↑ stays (the owner, 2026-10-30). */
+	.cell.grow {
+		justify-content: space-between;
+		gap: 12px;
+	}
+	.sum {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.opens-k {
+		flex-shrink: 0;
+		color: var(--text-2);
 	}
 </style>

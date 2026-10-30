@@ -362,6 +362,11 @@ and "when I click down or up it pans to the next sections").
 - **↑ / ↓, PageUp / PageDown, Space / Shift + Space move a screen**, less 15%
   so the last lines read stay in sight, eased the same way. At any zoom: the
   strip scrolls the window, so a screen is the window's height.
+- **Keys glide, the wheel doesn't.** The wheel's approach starts at full speed
+  so a notch feels instant; over a whole screen that was a lurch (the owner:
+  "its attacking my anxiety"). A key's move eases in and out instead, 320 ms
+  for a screen and 160 ms for a nudge. Pressed again mid-glide (a double ↓),
+  it adds the step to where it was going and glides on from where it is.
 - **Ctrl + ↑ / ↓ nudge** 40 px, about what an arrow did before: to bring a
   panel the screen cut in two into view without the mouse (the owner,
   2026-10-30).
@@ -375,7 +380,27 @@ Tested in `tests/smooth-scroll.spec.ts` (the approach, notches at any scale,
 place-keeping) and `tests/reader-flow.e2e.ts` (a notch eased through the
 real strip to where it aimed, ↓ and ↑ by a screen).
 
+## Full screen
+
+FULL SCREEN, a cell in the controls' bottom row of both readers
+(`src/lib/reader/fullscreen.svelte.ts`), takes the browser's bars away and
+EXIT FULL gives them back. A phone over home Wi-Fi gets plain http, where a
+browser won't install tsundoku as an app ([`WIFI.md`](WIFI.md)): this is how it
+loses the frame (the owner, 2026-10-30). Offered only where the browser can
+(`document.fullscreenEnabled`: Android's browsers, desktops; not an iPhone's
+Safari, which allows it for video only) and not in an installed app, which is
+full screen already. Decided after hydration: the server can't know.
+
+**The reading settings' cell says what it does.** It showed the summary
+(R→L · FIT SCREEN) and read as a status line; it now ends in SETTINGS ↑, which
+stays when a phone's width cuts the summary short.
+
 ## Loading, failure, missing
+
+**A page that didn't load says so from its top**, and keeps the message in
+sight while it scrolls past (sticky at about the screen's middle). Centred in
+the page's box, a manhwa slice's message was a scroll through black away (the
+owner, 2026-10-30); a page that fits the screen looks as before.
 
 A page shows "P. 15" and a sliding bar in its own box, sized from the
 manifest, until it loads. If it fails: "P. 15 DID NOT LOAD / WORKSTATION DID

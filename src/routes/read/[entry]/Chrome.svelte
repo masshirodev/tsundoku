@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { fullscreen } from '$lib/reader/fullscreen.svelte';
 	import { enhance } from '$app/forms';
 	import { backLink } from '$lib/back';
 	import { chapterCells, scrubFill, scrubPage, type Mode } from '$lib/reader/reader';
@@ -188,8 +189,20 @@
 		{:else}
 			<span class="cell empty"></span>
 		{/if}
-		<button type="button" class="cell grow" onclick={onsheet}>{settings}</button>
+		<!-- The summary, and what tapping it does: it read as a status line (the owner, 2026-10-30). -->
+		<button type="button" class="cell grow opens" onclick={onsheet}
+			><span class="sum">{settings}</span><span class="opens-k">SETTINGS ↑</span></button
+		>
 		{#if shift}<button type="button" class="cell" onclick={onshift}>SHIFT PAIRING</button>{/if}
+		{#if fullscreen.available}
+			<!-- The browser's bars gone (doc/READER.md, "Full screen"); not on an iPhone, nor in the app. -->
+			<button
+				type="button"
+				class="cell"
+				aria-pressed={fullscreen.on}
+				onclick={() => fullscreen.toggle()}>{fullscreen.on ? 'EXIT FULL' : 'FULL SCREEN'}</button
+			>
+		{/if}
 		{#if cells.right}
 			<button type="button" class="cell last" onclick={() => onchapter(cells.right!.to)}
 				>{cells.right.label}</button
@@ -396,6 +409,21 @@
 		flex: 1 1 auto;
 		min-width: 0;
 		overflow: hidden;
+	}
+	/* The reading sheet's cell: the summary gives way, SETTINGS ↑ stays. */
+	.cell.opens {
+		justify-content: space-between;
+		gap: 12px;
+	}
+	.sum {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.opens-k {
+		flex-shrink: 0;
+		color: var(--text-2);
 	}
 	.cell.last {
 		border-right: 0;

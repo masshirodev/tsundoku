@@ -9,6 +9,8 @@
 		isNotch,
 		keepPlaceBy,
 		NUDGE,
+		GLIDE_NUDGE,
+		GLIDE_SCREEN,
 		screenStep,
 		wheelPixels
 	} from '$lib/reader/smooth-scroll';
@@ -239,10 +241,10 @@
 		max: () => document.documentElement.scrollHeight - innerHeight
 	});
 	const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-	/** Move the strip `d` pixels, eased unless motion is reduced. */
-	function move(d: number) {
+	/** A key's move: the strip glides `d` pixels over `ms`, at once if motion is reduced. */
+	function move(d: number, ms: number) {
 		if (reducedMotion()) scrollBy(0, d);
-		else smooth.by(d);
+		else smooth.glide(d, ms);
 	}
 
 	// Ctrl + wheel and a two-finger pinch zoom the pages, never the browser's page.
@@ -1428,13 +1430,13 @@
 			// Ctrl + ↑ / ↓ nudges, to read a panel the screen cut without the mouse.
 			if (arrow && e.ctrlKey) {
 				e.preventDefault();
-				return move(NUDGE * arrow);
+				return move(NUDGE * arrow, GLIDE_NUDGE);
 			}
 			const down = arrow === 1 || e.key === 'PageDown' || (e.key === ' ' && !e.shiftKey);
 			const up = arrow === -1 || e.key === 'PageUp' || (e.key === ' ' && e.shiftKey);
 			if (down || up) {
 				e.preventDefault();
-				move(screenStep(innerHeight) * (down ? 1 : -1));
+				move(screenStep(innerHeight) * (down ? 1 : -1), GLIDE_SCREEN);
 			}
 			return;
 		}

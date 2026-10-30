@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	SmoothScroll,
+	easeInOut,
 	approach,
 	isNotch,
 	screenStep,
@@ -79,6 +80,26 @@ describe('smooth scrolling on a PC (c192)', () => {
 		s.shift(5000);
 		f.run();
 		expect(f.at()).toBe(5100);
+	});
+
+	it('glides a key’s move gently: slow at first, slow at the end, there on time', () => {
+		expect(easeInOut(0)).toBe(0);
+		expect(easeInOut(0.5)).toBe(0.5);
+		expect(easeInOut(1)).toBe(1);
+		const f = fake();
+		const s = new SmoothScroll(f.host);
+		s.glide(765, 320);
+		f.run(1);
+		// The first frame of a screen's glide is a few pixels, not a third of it.
+		expect(f.at()).toBeLessThan(10);
+		f.run();
+		expect(f.at()).toBe(765);
+		// Pressed again mid-glide: on from where it is, to the further aim.
+		s.glide(765, 320);
+		f.run(5);
+		s.glide(765, 320);
+		f.run();
+		expect(f.at()).toBe(765 * 3);
 	});
 
 	it('smooths a mouse wheel’s notches, never a trackpad’s stream or a sideways wheel', () => {
