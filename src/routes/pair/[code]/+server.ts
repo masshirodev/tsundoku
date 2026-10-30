@@ -1,0 +1,31 @@
+import { redirect } from '@sveltejs/kit';
+import type { RequestHandler } from './$types';
+import { PAIRED_COOKIE, addPaired, pairedLabel, pairing } from '$lib/server/pairing';
+
+/**
+ * What a pairing code opens (doc/WIFI.md; card c188): the phone's camera reads
+ * the code on the computer's SETTINGS and opens this. Once, within its 10
+ * minutes, it signs the phone in as a device of its own and shows the
+ * welcome screen (3A); a used or expired code goes to the sign-in page, which
+ * says which (3B, 3C). A phone that's already in goes straight to the library.
+ * Only over Wi-Fi: on the computer itself there's nothing to pair.
+ */
+export const GET: RequestHandler = ({ params, request, cookies, locals, url }) => {
+	if (locals.via !== 'lan' || locals.paired) redirect(303, '/');
+	const ua = request.headers.get('user-agent') ?? '';
+	const result = pairing.redeem(params.code, Date.now(), pairedLabel(ua));
+	if (result !== 'ok')
+		// A code replaced by a newer one reads as expired: it's the same remedy.
+		redirect(303, `/login?pair=${result === 'used' ? 'used' : 'expired'}`);
+	const token = addPaired({ label: pairedLabel(ua), address: url.host });
+	cookies.set(PAIRED_COOKIE, token, {
+		path: '/',
+		httpOnly: true,
+		sameSite: 'lax',
+		// Plain http over the home network: a Secure cookie would never come back.
+		secure: false,
+		// A year, renewed by nothing: SIGN OUT on the computer is how it ends.
+		maxAge: 60 * 60 * 24 * 365
+	});
+	redirect(303, '/welcome');
+};

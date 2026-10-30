@@ -1060,6 +1060,21 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		choice TEXT NOT NULL,
 		chosen_at INTEGER NOT NULL
 	);
+	`,
+	// v54: phones paired over Wi-Fi (doc/WIFI.md; card c188). A token's hash,
+	// never the token; the Wi-Fi address it was paired at, which its cookie
+	// belongs to; and its DEVICES row, once its browser checks in, so SIGN OUT
+	// can end it.
+	`
+	CREATE TABLE paired_devices (
+		token_hash TEXT PRIMARY KEY,
+		device_id TEXT,
+		label TEXT NOT NULL,
+		address TEXT NOT NULL,
+		paired_at INTEGER NOT NULL,
+		seen_at INTEGER NOT NULL
+	) WITHOUT ROWID;
+	CREATE INDEX paired_devices_device ON paired_devices (device_id);
 	`
 ];
 

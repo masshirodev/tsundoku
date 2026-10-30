@@ -708,7 +708,7 @@ export const SECTIONS: SectionDef[] = [
 		id: 'devices',
 		n: '08',
 		title: 'DEVICES',
-		words: ['devices', 'device', 'theme'],
+		words: ['devices', 'device', 'theme', 'wifi', 'wi-fi', 'phone', 'pair'],
 		rows: [
 			{
 				id: 'theme',

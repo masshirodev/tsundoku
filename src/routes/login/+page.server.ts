@@ -19,9 +19,21 @@ const nextOf = (url: URL) => {
 
 export const load: PageServerLoad = ({ locals, url }) => {
 	if (locals.authed) redirect(303, nextOf(url));
-	// A friend's install signs in with their password (doc/SIGN-IN.md).
-	if (friendLogin()) return { configured: true, password: true };
-	return { configured: authMode().configured, password: false };
+	// A pairing code that no longer works, sent here by /pair (doc/WIFI.md, 3B and 3C).
+	const pair =
+		(['expired', 'used'] as const).find((p) => p === url.searchParams.get('pair')) ?? null;
+	const lan = locals.via === 'lan';
+	// A friend's install signs in with their password (doc/SIGN-IN.md); over
+	// Wi-Fi with none set, only a code signs in.
+	if (friendLogin())
+		return {
+			configured: true,
+			password: true,
+			lan,
+			pair,
+			field: !(lan && currentLogin()?.kind === 'none')
+		};
+	return { configured: authMode().configured, password: false, lan, pair, field: true };
 };
 
 export const actions: Actions = {

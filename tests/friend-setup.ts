@@ -5,8 +5,10 @@ import { join } from 'node:path';
 import { FRIEND_HOME, FRIEND_PORT } from './friend-world';
 
 /**
- * A friend's install, for tests/friend-*.e2e.ts: a preview of the shared build
- * with a friend's sign-in (doc/SIGN-IN.md). A global setup, so it starts after
+ * A friend's install, for tests/friend-*.e2e.ts: the shared build served the
+ * way a release serves it, through scripts/serve.ts in local mode with a
+ * friend's sign-in (doc/SIGN-IN.md), so its Wi-Fi listeners are the real ones
+ * (doc/WIFI.md) -- `vite preview` has none. A global setup, so it starts after
  * the shared server has built, as BROWSE's does (tests/browse-setup.ts).
  */
 export default async function setup() {
@@ -19,17 +21,31 @@ export default async function setup() {
 		stdio: 'pipe'
 	});
 	const origin = `http://localhost:${FRIEND_PORT}`;
+	// A server already there is an earlier run's, and testing it would test
+	// stale code and state: say so instead (it happened once, 2026-10-30).
+	const busy = await fetch(`${origin}/manifest.webmanifest`).then(
+		() => true,
+		() => false
+	);
+	if (busy)
+		throw new Error(
+			`port ${FRIEND_PORT} is taken, probably by an earlier run's friend server: stop it first`
+		);
 	const preview: ChildProcess = spawn(
-		'npx',
-		['vite', 'preview', '--port', String(FRIEND_PORT), '--strictPort'],
+		process.execPath,
+		['--experimental-strip-types', '--disable-warning=ExperimentalWarning', 'scripts/serve.ts'],
 		{
 			env: {
 				...process.env,
 				// What the launcher sets (ops/release/launcher/plan.ts): no token at all.
 				TSUNDOKU_LOGIN: 'password',
 				TSUNDOKU_SERVE: 'local',
-				ORIGIN: origin,
+				TSUNDOKU_SNAPSHOT: 'off',
+				// Never the owner's tokens from the project's .env (scripts/serve.ts).
+				TSUNDOKU_PROJECT_ENV: 'off',
+				PORT: String(FRIEND_PORT),
 				TSUNDOKU_TOKEN: '',
+				TSUNDOKU_UPDATES: 'off',
 				DATABASE_PATH: dbPath,
 				TSUNDOKU_HOME: FRIEND_HOME,
 				LIBRARY_ROOT: join(FRIEND_HOME, 'library'),
@@ -58,6 +74,7 @@ export default async function setup() {
 	if (!up) throw new Error('the friend preview never answered');
 	return async () => {
 		preview.kill();
+		// Its Wi-Fi listeners went with it; the switch is the data folder's, gone below.
 		rmSync(dbPath, { force: true });
 		rmSync(FRIEND_HOME, { recursive: true, force: true });
 	};

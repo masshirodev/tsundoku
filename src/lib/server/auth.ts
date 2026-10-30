@@ -88,9 +88,14 @@ export function currentLogin(): Login | null {
  * signed in, but only while nothing else can reach it; serve.ts refuses to put
  * such an install on Tailscale at all, so this is the second lock.
  */
-export function friendAuthed(login: Login | null, cookieValue: string | undefined): boolean {
+export function friendAuthed(
+	login: Login | null,
+	cookieValue: string | undefined,
+	overWifi = false
+): boolean {
 	if (!login) return false;
-	if (login.kind === 'none') return localOnly();
+	// No password is this computer's alone: over Wi-Fi, a pairing or a password (doc/WIFI.md).
+	if (login.kind === 'none') return localOnly() && !overWifi;
 	return !!cookieValue && constantTimeEquals(cookieValue, sessionFor(login));
 }
 

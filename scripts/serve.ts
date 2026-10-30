@@ -45,6 +45,7 @@ import {
 import { dataPaths } from '../src/lib/server/data-dirs.ts';
 import { ensureToken } from '../src/lib/server/first-run.ts';
 import { readLogin } from '../src/lib/server/login.ts';
+import { startListeners } from '../src/lib/server/lan-listen.ts';
 
 const root = new URL('../', import.meta.url);
 const built = new URL('build/', root);
@@ -63,8 +64,12 @@ const entry = new URL('index.js', snapshot);
 
 // A plain node process gets none of Vite's .env loading, and the token lives
 // there. Shell variables still win: loadEnvFile does not overwrite them.
+// TSUNDOKU_PROJECT_ENV=off skips it: the browser suite's friend install
+// (tests/friend-setup.ts) runs from this checkout and must never pick up the
+// owner's own tokens. A release has no project .env at all.
 try {
-	process.loadEnvFile(fileURLToPath(new URL('.env', root)));
+	if (process.env.TSUNDOKU_PROJECT_ENV !== 'off')
+		process.loadEnvFile(fileURLToPath(new URL('.env', root)));
 } catch {
 	// Absent .env is not fatal: a friend's install keeps its settings in the data folder.
 }
@@ -205,8 +210,17 @@ if (mode === 'local') {
 
 process.env.HOST = host!;
 process.env.PORT = String(port);
-process.env.ORIGIN = origin!;
 process.env.NODE_ENV = 'production';
+// Local mode answers at more than one address once WI-FI is on (doc/WIFI.md):
+// localhost here, the phone's view of this computer there. So no single
+// ORIGIN; each request's origin is the Host it asked for, over plain http
+// (lan-listen.ts sets the protocol header), and the hook refuses a Host that
+// isn't one of ours. TSUNDOKU_ORIGIN keeps the one localhost is sent to.
+if (mode === 'local' && !process.env.ORIGIN) {
+	delete process.env.ORIGIN;
+	process.env.PROTOCOL_HEADER = 'x-tsundoku-proto';
+	process.env.TSUNDOKU_ORIGIN = origin!;
+} else process.env.ORIGIN = origin!;
 
 if (snapshotting) {
 	// Older copies belong to servers that have stopped; this one replaces them.
@@ -238,4 +252,26 @@ if (madeToken)
 			`It's kept in ${homeEnv}; sign in once per browser.`
 	);
 
-await import(entry.href);
+if (mode === 'local' && process.env.PROTOCOL_HEADER) {
+	// The app's handler on our own listeners: 127.0.0.1, and the home network's
+	// while WI-FI is on, switched from SETTINGS (src/lib/server/lan-listen.ts).
+	const { handler } = (await import(new URL('handler.js', snapshot).href)) as {
+		handler: Parameters<typeof startListeners>[0]['handler'];
+	};
+	const lan = await startListeners({ handler, port, home: dataPaths().home });
+	(globalThis as { __tsundokuLan?: unknown }).__tsundokuLan = lan;
+	// What adapter-node's own entry does on a signal, which these listeners
+	// replace: tell the app (its workers stop on SIGTERM but don't exit), close
+	// the listeners, and go. Without it a SIGTERM -- a Linux launcher's, a
+	// closed terminal's -- left the server running.
+	const shutdown = (reason: 'SIGTERM' | 'SIGINT') => {
+		(process.emit as (e: string, r: string) => boolean)('sveltekit:shutdown', reason);
+		setTimeout(() => process.exit(0), 3000).unref();
+		void lan.close().finally(() => process.exit(0));
+	};
+	process.once('SIGTERM', () => shutdown('SIGTERM'));
+	process.once('SIGINT', () => shutdown('SIGINT'));
+	console.log(`Listening on http://127.0.0.1:${port}`);
+	const s = lan.status();
+	if (s.on) console.log(`WI-FI is on: ${s.listening.join(', ') || 'no home-network address yet'}`);
+} else await import(entry.href);

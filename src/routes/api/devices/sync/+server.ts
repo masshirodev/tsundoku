@@ -3,13 +3,14 @@ import type { RequestHandler } from './$types';
 import { cleanStamped, isDeviceId, syncDevice } from '$lib/server/devices';
 import { adoptLegacy } from '$lib/server/anime/choices';
 import { deviceLabel, type DeviceKind } from '$lib/settings/catalog';
+import { PAIRED_COOKIE, linkPaired } from '$lib/server/pairing';
 
 /**
  * A browser checking in (doc/SETTINGS.md, "Devices"; card c171): its stamped
  * settings in, what's newer here back. What it kept of the player's choices
  * before c171 comes along once, and the workstation takes it.
  */
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, cookies, locals }) => {
 	const body = (await request.json().catch(() => null)) as {
 		id?: unknown;
 		kind?: unknown;
@@ -27,7 +28,11 @@ export const POST: RequestHandler = async ({ request }) => {
 		kind,
 		label: deviceLabel(request.headers.get('user-agent') ?? '', kind),
 		settings: cleanStamped(body.settings),
-		register: body.register === true
+		// A phone paired over Wi-Fi is a device from its first visit, so the
+		// computer's DEVICES lists it with SIGN OUT (doc/WIFI.md).
+		register: body.register === true || locals.paired !== null
 	});
+	const token = cookies.get(PAIRED_COOKIE);
+	if (locals.paired && token) linkPaired(token, body.id);
 	return json({ newer });
 };

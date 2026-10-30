@@ -211,6 +211,12 @@
 	);
 	const toDrop = $derived([...selected].filter((id) => cachedEntries.has(id)));
 	let caching = $state(false);
+	/**
+	 * A phone over Wi-Fi (doc/WIFI.md, 3D): plain http on a home address, where
+	 * the browser keeps no offline storage, so ↓ CACHE can't work. Dimmed, with
+	 * the one line after sign-in that says why. Known after hydration only.
+	 */
+	const noCache = $derived(browser && !window.isSecureContext);
 	async function cacheSelection() {
 		caching = true;
 		try {
@@ -523,6 +529,7 @@
 					update({ reset: false })}
 			class="bulk"
 			class:wrap={!!dlStates}
+			class:noted={noCache}
 		>
 			{#each [...selected] as id (id)}<input type="hidden" name="entry" value={id} />{/each}
 			{#if dlStates}
@@ -538,12 +545,27 @@
 				<span>MARK UNREAD</span><span class="n">{counts.markUnread}</span>
 			</button>
 			<!-- The device cache (doc/OFFLINE.md): counts are what each would change. -->
-			<button type="button" disabled={toCache.length === 0 || caching} onclick={cacheSelection}>
+			<button
+				type="button"
+				class="cache"
+				disabled={noCache || toCache.length === 0 || caching}
+				onclick={cacheSelection}
+			>
 				<span>{caching ? '↓ CACHING…' : '↓ CACHE'}</span><span class="n">{toCache.length}</span>
 			</button>
-			<button type="button" disabled={toDrop.length === 0} onclick={() => dropMany(toDrop)}>
+			<button
+				type="button"
+				class="cache"
+				disabled={noCache || toDrop.length === 0}
+				onclick={() => dropMany(toDrop)}
+			>
 				<span>REMOVE CACHE</span><span class="n">{toDrop.length}</span>
 			</button>
+			{#if noCache}
+				<div class="no-cache">
+					OVER WI-FI THE PHONE CAN'T KEEP CHAPTERS · TAILSCALE CAN, OR READ THEM ON THE COMPUTER
+				</div>
+			{/if}
 		</form>
 	{/if}
 </div>
@@ -917,6 +939,25 @@
 	.bulk button:active:not(:disabled) {
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
+	}
+	/* Over Wi-Fi (doc/WIFI.md, 3D): the reason under the row, the cache cells at 0.35. */
+	.bulk.noted {
+		flex-wrap: wrap;
+		height: auto;
+	}
+	.bulk.noted:not(.wrap) button {
+		height: 76px;
+	}
+	.bulk.noted button.cache:disabled {
+		opacity: 0.35;
+	}
+	.no-cache {
+		flex-basis: 100%;
+		grid-column: 1 / -1;
+		padding: 10px 16px 14px;
+		border-top: var(--hairline);
+		font: 400 12px/1.45 var(--font-mono);
+		color: var(--text-2);
 	}
 	.bulk .n {
 		font: 400 12px var(--font-mono);

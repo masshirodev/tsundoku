@@ -66,8 +66,16 @@ or beside the old one.
 Reading on your phone or tablet
 -------------------------------
 
-tsundoku answers only this computer until you put it on Tailscale, a free
-private network between your own devices (https://tailscale.com):
+At home, the easy way: SETTINGS > DEVICES > WI-FI > ON, and scan the code
+it shows with the phone's camera. The phone has to be on the same Wi-Fi.
+The first time, Windows asks whether tsundoku may use the network: leave
+"Private networks" ticked and choose Allow access. Over Wi-Fi the phone
+reads, browses, searches and downloads, but can't keep chapters offline,
+install tsundoku as an app or keep the screen awake. Switch it off on a
+cafe's or a dorm's Wi-Fi: anyone on the same Wi-Fi reaches the sign-in page.
+
+Everything, anywhere: Tailscale, a free private network between your own
+devices (https://tailscale.com):
 
 1. Install Tailscale on this computer and on the phone or tablet, and sign
    in to the same account on both. On Linux, also run this once, so

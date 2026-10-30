@@ -132,8 +132,11 @@ says what the device is (`Android tablet · Chrome`, from its browser's user
 agent), when it was last opened, and how many of its rows changed. Its
 scope cell is KEPT ON THE WORKSTATION.
 
-On a friend's install, two more rows close the section (not drawn in the
-handoff; the PASSWORD form reuses the sign-in page's fields):
+On a friend's local install, **WI-FI** comes between THEME and the devices
+(the Wi-Fi handoff, [`WIFI.md`](WIFI.md)): OFF | ON and, on, the pairing panel;
+a paired phone's row says OVER WI-FI and has SIGN OUT. Two more rows close the
+section (not drawn in a handoff; the PASSWORD form reuses the sign-in page's
+fields):
 
 - **UPDATES** ([`UPDATES.md`](UPDATES.md)): the version running, when it last
   looked and what it found; CHECK, and UPDATE (Windows, installed) or

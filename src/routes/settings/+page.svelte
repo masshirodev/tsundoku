@@ -6,6 +6,7 @@
 	import { page } from '$app/state';
 	import { MediaQuery } from 'svelte/reactivity';
 	import Band from '$lib/components/chrome/Band.svelte';
+	import QrCode from '$lib/components/content/QrCode.svelte';
 	import { offline } from '$lib/offline.svelte';
 	import { SERVICE_NAME, clock, type Service } from '$lib/library/tracking';
 	import type { AccountView } from '$lib/server/tracking';
@@ -55,6 +56,74 @@
 	 * applies at once and says what moved, with UNDO. No modal anywhere.
 	 */
 	let { data, form } = $props();
+	/**
+	 * WI-FI (doc/WIFI.md; Wifi.dc.html): the server's view, overridden by ON,
+	 * OFF and NEW CODE, and polled while the panel is open, so the code counts
+	 * down by the minute and turns USED when a phone scans it.
+	 */
+	type Wifi = NonNullable<typeof data.wifi>;
+	let wf = $derived<Wifi | null>(data.wifi);
+	let wifiBusy = $state(false);
+	async function wifiPost(action: 'on' | 'off' | 'code') {
+		wifiBusy = true;
+		// The first time on Windows, STARTING… stays long enough to read: that's
+		// when the firewall dialog appears, maybe behind the browser (2A).
+		const hold =
+			action === 'on' && wf?.firstTime && /Windows/.test(navigator.userAgent)
+				? new Promise((ok) => setTimeout(ok, 4000))
+				: null;
+		try {
+			// Asked at once: the dialog comes with the listening, the hold only keeps the words up.
+			const [r] = await Promise.all([
+				fetch('/api/wifi', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ action })
+				}),
+				hold
+			]);
+			if (r.ok) wf = (await r.json()) as Wifi;
+		} finally {
+			wifiBusy = false;
+		}
+	}
+	$effect(() => {
+		if (!wf?.on || data.viaLan) return;
+		const usedBefore = wf.code?.state === 'used';
+		const t = setInterval(async () => {
+			try {
+				const r = await fetch('/api/wifi', { cache: 'no-store' });
+				if (!r.ok) return;
+				const next = (await r.json()) as Wifi;
+				wf = next;
+				// A phone just paired: its row appears in the list below.
+				if (!usedBefore && next.code?.state === 'used') void invalidateAll();
+			} catch {
+				// Not answering for a moment: the next tick tries again.
+			}
+		}, 5000);
+		return () => clearInterval(t);
+	});
+	const wifiMeta = (w: Wifi) => {
+		if (w.reach === 'public')
+			return `CAN'T BE SWITCHED ON HERE · THIS COMPUTER'S ONLY ADDRESS IS PUBLIC (${w.address}): IT SEEMS PLUGGED STRAIGHT INTO THE MODEM, SO THE SIGN-IN PAGE WOULD FACE THE INTERNET · CONNECT IT THROUGH THE ROUTER, BY WI-FI OR CABLE, AND THIS COMES BACK`;
+		if (!w.on)
+			return "LETS A PHONE OR TABLET ON THIS WI-FI OPEN TSUNDOKU, BY SCANNING A CODE · ANYONE ON THE SAME WI-FI REACHES THE SIGN-IN PAGE: FINE AT HOME, NOT ON A CAFÉ'S OR A DORM'S";
+		if (wifiBusy && !w.listening)
+			return 'TURNING ON · TSUNDOKU STARTS LISTENING ON THE WI-FI, WHICH TAKES A FEW SECONDS';
+		return "ON · ANYONE ON THIS WI-FI REACHES THE SIGN-IN PAGE · SWITCH IT OFF ON A CAFÉ'S OR A DORM'S · THIS COMPUTER KEEPS USING LOCALHOST";
+	};
+	/** A paired phone's line in DEVICES (Wifi.dc.html's device rows). */
+	const pairedMeta = (p: { address: string; pairedAt: number }, mine: boolean, n: number) => {
+		const w = wf;
+		if (w?.changed && p.address.startsWith(`${w.changed.from}:`))
+			return `PAIRED AT ${w.changed.from} · SCAN AGAIN`;
+		if (w && !w.on) return "OVER WI-FI · CAN'T REACH IT WHILE WI-FI IS OFF · STAYS SIGNED IN";
+		if (w && !w.listening) return "OVER WI-FI · CAN'T REACH IT UNTIL THERE'S AN ADDRESS";
+		if (Date.now() - p.pairedAt < 60_000) return `OVER WI-FI · JUST PAIRED · ${changedWord(n)}`;
+		return `OVER WI-FI · PAIRED ${when(p.pairedAt)}${mine ? ' · OPEN NOW' : ''}`;
+	};
+
 	/** The PASSWORD row's open form, if any (doc/SIGN-IN.md). */
 	let pw = $state<null | 'set' | 'remove'>(null);
 
@@ -593,6 +662,9 @@
 							{/if}
 						{/each}
 						{#if s.id === 'devices'}
+							{#if wf}
+								{@render wifiRow(wf)}
+							{/if}
 							{@render devices()}
 							{#if upd}
 								{@render updates(upd)}
@@ -934,7 +1006,7 @@
 							form?.passwordDone ??
 							(si.kind === 'password'
 								? 'NEEDED TO SIGN IN, ON THIS COMPUTER AND ANY OTHER'
-								: 'ANYONE AT THIS COMPUTER OPENS TSUNDOKU · NEEDED BEFORE ANOTHER DEVICE CAN')}
+								: 'ANYONE AT THIS COMPUTER OPENS TSUNDOKU · OVER WI-FI, ONLY A CODE SIGNS IN')}
 					</div>
 				</div>
 				<button
@@ -1009,6 +1081,196 @@
 	{/if}
 {/snippet}
 
+{#snippet wifiRow(w: Wifi)}
+	<!-- Reading on a phone over Wi-Fi (doc/WIFI.md; Wifi.dc.html, Wifi-Phone.dc.html 3E). -->
+	{#if data.viaLan}
+		<div class="row wifi">
+			<div class="label top">WI-FI</div>
+			<div class="ctl col">
+				<div class="wifi-value">{w.on ? 'ON' : 'OFF'}</div>
+				<div class="wifi-meta">
+					SWITCHED ON THE COMPUTER, WHERE ITS CODE IS SHOWN · OVER WI-FI THIS PHONE CAN'T INSTALL
+					THE APP, KEEP CHAPTERS, KEEP THE SCREEN AWAKE OR CHECK A FINGERPRINT
+				</div>
+			</div>
+			{#if !phone.current}<div class="scope wifi-scope">
+					<span class="sa">SET ON THE COMPUTER ONLY</span>
+				</div>{/if}
+		</div>
+	{:else}
+		{@const on = w.on && w.reach !== 'public'}
+		{@const starting = on && !w.listening && w.reach === 'home'}
+		<div class="row wifi">
+			<div class="label top">WI-FI</div>
+			<div class="ctl col">
+				<div class="wifi-seg" role="group" aria-label="Other devices on this Wi-Fi">
+					<button
+						type="button"
+						aria-pressed={!on}
+						disabled={wifiBusy}
+						onclick={() => w.on && wifiPost('off')}>OFF</button
+					>
+					<button
+						type="button"
+						aria-pressed={on}
+						disabled={wifiBusy || w.reach === 'public'}
+						onclick={() => !w.on && wifiPost('on')}
+						>{starting || (wifiBusy && !w.on) ? 'ON · STARTING…' : 'ON'}</button
+					>
+				</div>
+				<div class="wifi-meta" class:loud={w.reach === 'public'}>{wifiMeta(w)}</div>
+				{#if w.reach !== 'public'}
+					<div class="wifi-strip">
+						<div>
+							<div class="sk">ON THE PHONE</div>
+							<div class="sv">READING · BROWSING · SEARCH · DOWNLOADS · EVERY SETTING</div>
+						</div>
+						<div>
+							<div class="sk">NOT OVER WI-FI</div>
+							<div class="sv">
+								INSTALLING AS AN APP · OFFLINE CHAPTERS · SCREEN KEPT AWAKE · FINGERPRINT CHECKS ·
+								TAILSCALE GIVES ALL OF IT: SEE THE README
+							</div>
+						</div>
+					</div>
+				{/if}
+			</div>
+			{#if !phone.current}<div class="scope wifi-scope">
+					<span class="sa">THIS COMPUTER</span>
+					<span class="sb2">SET HERE ONLY, NEVER FROM A PHONE</span>
+				</div>{/if}
+		</div>
+		{#if on}
+			{@render pairingPanel(w, starting || (wifiBusy && !w.listening))}
+		{/if}
+	{/if}
+{/snippet}
+
+{#snippet pairingPanel(w: Wifi, starting: boolean)}
+	{@const c = w.code}
+	{@const noAddr = !starting && w.reach === 'none'}
+	<div class="pair" aria-label="Pairing">
+		{#if w.changed}
+			<div class="pair-band" role="status">
+				<div class="pa">THE ADDRESS CHANGED · {w.changed.from} → {w.changed.to}</div>
+				<div class="pb">
+					THE ROUTER GAVE THIS COMPUTER A NEW ONE · PHONES PAIRED AT THE OLD ONE FIND NOTHING THERE:
+					SCAN THIS CODE AGAIN
+				</div>
+			</div>
+		{/if}
+		<div class="pair-main">
+			<div class="pair-code">
+				{#if c && c.state === 'live' && !starting && !noAddr}
+					<div class="qr">
+						<QrCode text={c.url} size={225} label="Pairing code" />
+					</div>
+				{:else}
+					<div class="qr-empty">
+						<div class="ql">
+							{starting
+								? 'STARTING…'
+								: noAddr
+									? 'NO ADDRESS'
+									: c?.state === 'used'
+										? '✓ USED'
+										: 'EXPIRED'}
+						</div>
+						<div class="qs">
+							{starting
+								? 'THE CODE APPEARS HERE'
+								: noAddr
+									? 'STILL LOOKING'
+									: c?.state === 'used'
+										? 'ONE PHONE, ONCE'
+										: 'NOT SCANNED IN 10 MIN'}
+						</div>
+					</div>
+				{/if}
+			</div>
+			<div class="pair-side">
+				<div class="pair-text">
+					{#if starting && w.firstTime}
+						<div class="pk">WINDOWS WILL ASK, ONCE</div>
+						<div class="ph">A Windows window opens outside the browser</div>
+						<div class="pbody">
+							It may open behind this one: “Windows Defender Firewall has blocked some features of
+							this app”. Leave Private networks ticked and choose Allow access. It won't ask again.
+						</div>
+					{:else if starting}
+						<div class="pk">STARTING</div>
+						<div class="ph">tsundoku starts listening on the Wi-Fi</div>
+						<div class="pbody">The code appears here in a few seconds.</div>
+					{:else if noAddr}
+						<div class="pk">NO HOME-NETWORK ADDRESS</div>
+						<div class="ph">This computer isn't on a Wi-Fi right now</div>
+						<div class="pbody">
+							Connect it to the Wi-Fi the phone uses, or by cable to the router. It keeps looking,
+							and the code appears here by itself.
+						</div>
+					{:else if c?.state === 'used'}
+						<div class="pk ink">✓ SIGNED IN · {when(c.usedAt ?? Date.now())}</div>
+						<div class="ph">{c.usedBy}</div>
+						<div class="pbody">
+							It's in the list below. For another phone or a tablet, make a new code.
+						</div>
+					{:else if c?.state === 'expired'}
+						<div class="pk">EXPIRED</div>
+						<div class="ph">This code went unscanned for 10 minutes</div>
+						<div class="pbody">Make a new one, then scan it with the phone within 10 minutes.</div>
+					{:else}
+						<div class="pk">SCAN WITH THE PHONE'S CAMERA</div>
+						<div class="ph">It opens tsundoku on the phone, signed in</div>
+						<div class="pbody">
+							Point the camera at the code and tap the link it shows. The phone has to be on the
+							same Wi-Fi as this computer.
+						</div>
+					{/if}
+				</div>
+				{#if w.phone && !starting && !noAddr}
+					<div class="pair-addr">
+						<div class="pk">OR TYPE THIS ON THE PHONE</div>
+						<div class="paddr">{w.phone}</div>
+						<div class="pnote">
+							{data.signIn?.kind === 'password'
+								? 'OPENS THE SIGN-IN PAGE · YOUR PASSWORD SIGNS IN, AS HERE'
+								: 'OPENS THE SIGN-IN PAGE · WITH NO PASSWORD SET, ONLY A CODE SIGNS IN'}
+						</div>
+					</div>
+				{/if}
+				<div class="pair-foot">
+					<div class="pf" class:ink={c?.state === 'live' && !starting && !noAddr}>
+						{starting
+							? 'A FEW SECONDS'
+							: noAddr
+								? 'LOOKING · CHECKED JUST NOW'
+								: c?.state === 'used'
+									? 'THIS CODE IS USED'
+									: c?.state === 'expired'
+										? 'CODES LAST 10 MIN'
+										: c
+											? `${c.minutes > 0 ? `GOOD FOR ${c.minutes} MIN` : 'UNDER A MINUTE LEFT'} · SIGNS IN ONE PHONE, ONCE`
+											: ''}
+					</div>
+					{#if !starting && !noAddr}
+						<button
+							type="button"
+							class="new"
+							class:acc={c?.state !== 'live'}
+							disabled={wifiBusy}
+							onclick={() => wifiPost('code')}>NEW CODE</button
+						>
+					{/if}
+				</div>
+			</div>
+		</div>
+		<div class="pair-help">
+			NOTHING OPENS ON THE PHONE? IT HAS TO BE ON THIS SAME WI-FI, AND WINDOWS HAS TO HAVE BEEN TOLD
+			ALLOW ACCESS
+		</div>
+	</div>
+{/snippet}
+
 {#snippet devices()}
 	{@const me = data.devices.find((d) => d.id === myId)}
 	{#each [...(me ? [me] : []), ...others] as d (d.id)}
@@ -1024,7 +1286,11 @@
 					<div class="who">
 						<div class="name">{d.label}</div>
 						<div class="meta">
-							{mine ? 'OPEN NOW' : `LAST OPENED ${when(d.seenAt)}`} · {changedWord(n)}
+							{#if data.paired[d.id]}
+								{pairedMeta(data.paired[d.id], mine, n)}
+							{:else}
+								{mine ? 'OPEN NOW' : `LAST OPENED ${when(d.seenAt)}`} · {changedWord(n)}
+							{/if}
 						</div>
 					</div>
 					{#if !mine && myChanged === 0 && changedOn(plain(d.settings)) > 0}
@@ -1041,6 +1307,13 @@
 						disabled={off && !mine}
 						onclick={() => (showing = mine ? null : d.id)}>{shownHere ? 'SHOWING' : 'SHOW'}</button
 					>
+					{#if data.paired[d.id] && !mine && !data.viaLan}
+						<!-- A lost phone (doc/WIFI.md): at once, no confirm; a new code brings it back. -->
+						<form method="POST" action="?/signOutDevice" use:enhance class="cell-form">
+							<input type="hidden" name="id" value={d.id} />
+							<button type="submit" class="cell" disabled={off}>SIGN OUT</button>
+						</form>
+					{/if}
 				</div>
 			</div>
 			{#if !phone.current}<div class="scope">
@@ -1652,6 +1925,242 @@
 	.cell.dim {
 		opacity: 0.4;
 	}
+	/* ---- WI-FI (Wifi.dc.html): the handoff's measurements, transcribed ---- */
+	.label.top {
+		align-items: flex-start;
+		padding-top: 20px;
+	}
+	.ctl.col {
+		flex-direction: column;
+		align-items: stretch;
+	}
+	.wifi-seg {
+		display: flex;
+		min-height: 52px;
+	}
+	.wifi-seg button {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font: 500 14px var(--font-mono);
+		text-align: center;
+		color: var(--text-1);
+	}
+	.wifi-seg button:first-child {
+		border-right: 1px solid var(--line-1);
+	}
+	.wifi-seg button[aria-pressed='true'] {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+	}
+	.wifi-seg button:disabled:not([aria-pressed='true']) {
+		opacity: 0.35;
+	}
+	.wifi-value {
+		display: flex;
+		align-items: center;
+		min-height: 52px;
+		padding: 0 14px;
+		font: 500 15px var(--font-mono);
+	}
+	.wifi-meta {
+		padding: 10px 14px 12px;
+		border-top: 1px solid var(--line-1);
+		font: 400 13px/1.45 var(--font-mono);
+		color: var(--text-2);
+	}
+	.wifi-meta.loud {
+		color: var(--text-1);
+	}
+	.wifi-strip {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		border-top: 1px solid var(--line-1);
+	}
+	.wifi-strip > div {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		padding: 12px 14px;
+	}
+	.wifi-strip > div:first-child {
+		border-right: 1px solid var(--line-1);
+	}
+	.sk {
+		font: 500 12px var(--font-mono);
+		letter-spacing: 0.04em;
+	}
+	.sv {
+		font: 400 12px/1.45 var(--font-mono);
+		color: var(--text-2);
+	}
+	.wifi-scope {
+		flex-direction: column;
+		justify-content: center;
+		align-items: flex-start;
+		gap: 8px;
+	}
+	.sb2 {
+		font: 500 12px/1.3 var(--font-mono);
+		letter-spacing: 0.04em;
+		color: var(--text-2);
+	}
+	.pair {
+		display: flex;
+		flex-direction: column;
+		border-top: 1px solid var(--text-1);
+		border-bottom: 1px solid var(--line-1);
+		background: var(--surface-panel);
+	}
+	.pair-band {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		padding: 12px 24px;
+		border-bottom: 1px solid var(--line-1);
+		background: var(--surface-page);
+	}
+	.pa {
+		font: 500 14px var(--font-mono);
+	}
+	.pb {
+		font: 400 13px/1.4 var(--font-mono);
+		color: var(--text-2);
+	}
+	.pair-main {
+		display: flex;
+		align-items: stretch;
+	}
+	.pair-code {
+		width: 321px;
+		flex-shrink: 0;
+		box-sizing: border-box;
+		padding: 24px;
+		border-right: 1px solid var(--line-1);
+	}
+	/* Dark on light, so a camera reads it off a monitor. */
+	.qr {
+		width: 273px;
+		height: 273px;
+		box-sizing: border-box;
+		padding: 24px;
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+	}
+	.qr :global(svg) {
+		display: block;
+	}
+	.qr-empty {
+		width: 273px;
+		height: 273px;
+		box-sizing: border-box;
+		border: 1px dashed var(--line-2);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+	}
+	.ql {
+		font: 500 15px var(--font-mono);
+		letter-spacing: 0.04em;
+	}
+	.qs {
+		font: 400 12px var(--font-mono);
+		color: var(--text-2);
+	}
+	.pair-side {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+	}
+	.pair-text {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		padding: 22px 24px;
+	}
+	.pk {
+		font: 500 12px var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+	}
+	.pk.ink {
+		color: var(--text-1);
+	}
+	.ph {
+		font: 500 20px/1.3 var(--font-sans);
+	}
+	.pbody {
+		font: 400 15px/1.5 var(--font-sans);
+		color: var(--text-2);
+		text-wrap: pretty;
+	}
+	.pair-addr {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		padding: 14px 24px;
+		border-top: 1px solid var(--line-1);
+	}
+	.paddr {
+		font: 500 20px var(--font-mono);
+		letter-spacing: 0.01em;
+	}
+	.pnote {
+		font: 400 12px var(--font-mono);
+		color: var(--text-2);
+	}
+	.pair-foot {
+		display: flex;
+		align-items: stretch;
+		min-height: 52px;
+		border-top: 1px solid var(--line-1);
+	}
+	.pf {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		padding: 0 24px;
+		font: 500 12px var(--font-mono);
+		letter-spacing: 0.04em;
+		color: var(--text-2);
+	}
+	.pf.ink {
+		color: var(--text-1);
+	}
+	.new {
+		display: flex;
+		align-items: center;
+		padding: 0 24px;
+		border-left: 1px solid var(--line-1);
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.04em;
+		white-space: nowrap;
+		color: var(--text-1);
+	}
+	.new.acc {
+		background: var(--accent);
+		color: var(--on-accent);
+	}
+	.pair-help {
+		padding: 10px 24px 12px;
+		border-top: 1px solid var(--line-1);
+		font: 400 12px/1.45 var(--font-mono);
+		color: var(--text-2);
+	}
+	.settings.phone .pair-main {
+		flex-direction: column;
+	}
+	.settings.phone .pair-code {
+		width: auto;
+		border-right: 0;
+		border-bottom: 1px solid var(--line-1);
+	}
+
 	/* The PASSWORD row's form, under it: the sign-in page's fields at the row's inset. */
 	.pw-form {
 		display: flex;

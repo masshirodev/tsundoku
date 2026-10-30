@@ -27,6 +27,8 @@ import { currentLogin, friendLogin, localOnly, setSession, slowDown } from '$lib
 import { dataPaths } from '$lib/server/data-dirs';
 import { MIN_PASSWORD, makeLogin, sessionFor, verifyPassword, writeLogin } from '$lib/server/login';
 import { checkIfStale, updateView } from '$lib/server/updates';
+import { wifiView } from '$lib/server/wifi';
+import { pairedDevices, signOutDevice } from '$lib/server/pairing';
 
 /** The languages the repositories list, most extensions first: the BROWSE row's cells. */
 function listedLanguages(): string[] {
@@ -49,7 +51,7 @@ const LANGUAGE_CELLS = 12;
  * another device's (2C) are the workstation's copy, listed under DEVICES.
  * Counts follow reveal, as every list does: hidden series aren't counted.
  */
-export const load: PageServerLoad = async ({ cookies, url }) => {
+export const load: PageServerLoad = async ({ cookies, url, locals }) => {
 	const reveal = isRevealed(cookies);
 	const folded = (
 		getDb()
@@ -76,6 +78,17 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 			subs: lastChoice('subs', reveal),
 			subsize: lastChoice('subsize', reveal)
 		},
+		// Reading on a phone over Wi-Fi (doc/WIFI.md): a local friend's install only.
+		// Opening the page on the computer shows a code that works (wifi.ts); a
+		// phone sees the row and never a code (3E).
+		wifi: (() => {
+			const w = wifiView();
+			return w && locals.via === 'lan' ? { ...w, code: null } : w;
+		})(),
+		viaLan: locals.via === 'lan',
+		paired: Object.fromEntries(
+			[...pairedDevices()].map(([id, p]) => [id, { address: p.address, pairedAt: p.pairedAt }])
+		),
 		// A friend's install looks for new versions (doc/UPDATES.md); null elsewhere.
 		updates: (checkIfStale(60 * 60 * 1000), updateView()),
 		// A friend's password, or none (doc/SIGN-IN.md); the workstation has its token.
@@ -144,6 +157,13 @@ function posted(form: FormData): { ok: true; v: Json | undefined } | { ok: false
 }
 
 export const actions: Actions = {
+	/** SIGN OUT a phone paired over Wi-Fi: at once, no confirm; a new code brings it back (doc/WIFI.md). */
+	signOutDevice: async ({ request, locals }) => {
+		if (locals.via === 'lan') return fail(403, { message: 'set on the computer only' });
+		const id = String((await request.formData()).get('id') ?? '');
+		if (!signOutDevice(id)) return fail(404, { message: 'no such device' });
+		return { ok: true };
+	},
 	/**
 	 * Set or change a friend's password. Changing it asks for the current one
 	 * and signs every other browser out (a new secret); this one stays in.

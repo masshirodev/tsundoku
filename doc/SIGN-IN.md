@@ -49,8 +49,11 @@ request, kept while its mtime is the same, so a reset takes effect at once.
   login counts as signed in only in local mode.
 - SETTINGS offers REMOVE only in local mode.
 
-c188 (Wi-Fi) will need the same rule: a password before anything but this
-computer can reach it.
+Over Wi-Fi (c188, [`WIFI.md`](WIFI.md)) the rule holds without asking for a
+password: a request that comes in by the Wi-Fi door is never signed in by
+"none", only by a pairing code's cookie or the password. So WI-FI can be on
+with no password, and a stranger on the same Wi-Fi meets a sign-in page with
+nothing to type.
 
 **Another site's name.** In local mode a request whose Host isn't
 `localhost:<port>` (or 127.0.0.1 / [::1], which are sent to localhost) is
