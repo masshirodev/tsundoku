@@ -120,6 +120,8 @@ is the mount development pressures.
   and reading offline without losing stats.
 - [`doc/SERVING.md`](doc/SERVING.md) — HTTPS through `tailscale serve`, and
   the plain-http fallback.
+- [`doc/LOGS.md`](doc/LOGS.md) — a friend's logs (stamped, rotated) and SAVE A
+  REPORT, scrubbed of anything hidden or secret.
 - [`doc/WIFI.md`](doc/WIFI.md) — a friend's phone over home Wi-Fi: the
   listeners, pairing codes, paired devices, and departures from the handoff.
 - [`doc/SIGN-IN.md`](doc/SIGN-IN.md) — the workstation's token, and a

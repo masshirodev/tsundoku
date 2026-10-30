@@ -159,7 +159,7 @@ Node. It:
    (c187).
 
 **The app's output goes to `logs/tsundoku.log`**, like the helpers', not to
-the window. Selecting text in a Windows console (QuickEdit) stops whatever
+the window, each line stamped and the file rotated ([`LOGS.md`](LOGS.md)). Selecting text in a Windows console (QuickEdit) stops whatever
 writes to it until Enter or Esc, so an app writing there froze mid-request
 while a friend copied the token from it: suspected behind a "500 NetworkError"
 right after signing in on 2026.10.30 (not reproduced; c189). The window shows

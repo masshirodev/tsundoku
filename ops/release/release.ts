@@ -287,7 +287,8 @@ for (const platform of platforms) {
 	mkdirSync(join(dir, 'engine'));
 	copyFileSync(jar, join(dir, 'engine/engine.jar'));
 	mkdirSync(join(dir, 'launcher'));
-	for (const f of ['launch.ts', 'plan.ts'])
+	// Every module of the tag's own launcher, not a list kept here (see serverModules).
+	for (const f of readdirSync(join(src, 'ops/release/launcher')).filter((n) => n.endsWith('.ts')))
 		copyFileSync(join(src, 'ops/release/launcher', f), join(dir, 'launcher', f));
 	if (platform === 'win-x64')
 		copyFileSync(join(src, 'ops/release/launcher/tsundoku.cmd'), join(dir, 'tsundoku.cmd'));

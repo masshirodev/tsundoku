@@ -14,7 +14,7 @@
  * while it runs, it just opens the app.
  */
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { createWriteStream, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -26,6 +26,7 @@ import {
 import { dataPaths } from '../app/src/lib/server/data-dirs.ts';
 import { ensureSetting, newToken } from '../app/src/lib/server/first-run.ts';
 import { clearLogin, readLogin } from '../app/src/lib/server/login.ts';
+import { Log } from './log.ts';
 import { opener, plan, solverAt, type Proc } from './plan.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -162,8 +163,9 @@ function stopAll(code: number) {
  * meanwhile, as they do on the workstation.
  */
 function helper(proc: Proc, delay = 2000) {
-	const log = createWriteStream(join(home, 'logs', `${proc.name}.log`), { flags: 'a' });
-	log.write(`\n--- ${new Date().toISOString()} starting ${proc.name}\n`);
+	// Stamped and rotated (log.ts, c193).
+	const log = new Log(join(home, 'logs', `${proc.name}.log`));
+	log.line('INFO', `--- starting ${proc.name}`);
 	const child = spawn(proc.cmd, proc.args, {
 		cwd: proc.cwd,
 		env: { ...process.env, ...proc.env },
@@ -172,14 +174,14 @@ function helper(proc: Proc, delay = 2000) {
 		detached: !windows
 	});
 	children.add(child);
-	child.stdout?.pipe(log, { end: false });
-	child.stderr?.pipe(log, { end: false });
-	child.on('error', (e) => log.write(`${proc.name} didn't start: ${e.message}\n`));
+	child.stdout?.on('data', (c: Buffer) => log.write('INFO', c));
+	child.stderr?.on('data', (c: Buffer) => log.write('ERROR', c));
+	child.on('error', (e) => log.line('ERROR', `${proc.name} didn't start: ${e.message}`));
 	child.on('exit', (code) => {
 		children.delete(child);
-		log.write(`--- ${proc.name} stopped (${code})\n`);
+		log.line(code ? 'ERROR' : 'INFO', `--- ${proc.name} stopped (${code})`);
 		if (stopping) return;
-		console.warn(`${proc.name} stopped; starting it again (its log: ${log.path}).`);
+		console.warn(`${proc.name} stopped; starting it again (its log: ${log.file}).`);
 		setTimeout(() => helper(proc, Math.min(delay * 2, 60_000)), delay);
 	});
 }
@@ -211,8 +213,8 @@ else
 // while a friend copied something (suspected on 2026.10.30, c189). What a
 // friend needs from this window, the launcher says itself.
 const appLog = join(home, 'logs', 'tsundoku.log');
-const serverLog = createWriteStream(appLog, { flags: 'a' });
-serverLog.write(`\n--- ${new Date().toISOString()} starting tsundoku ${version}\n`);
+const serverLog = new Log(appLog);
+serverLog.line('INFO', `--- starting tsundoku ${version}`);
 const server = spawn(p.server.cmd, p.server.args, {
 	cwd: p.server.cwd,
 	env: { ...process.env, ...p.server.env },
@@ -223,9 +225,12 @@ const server = spawn(p.server.cmd, p.server.args, {
 children.add(server);
 // The last lines, to show if it stops: a start that fails says why here.
 const tail: string[] = [];
-for (const out of [server.stdout, server.stderr]) {
-	out?.pipe(serverLog, { end: false });
+for (const [out, level] of [
+	[server.stdout, 'INFO'],
+	[server.stderr, 'ERROR']
+] as const) {
 	out?.on('data', (chunk: Buffer) => {
+		serverLog.write(level, chunk);
 		tail.push(...chunk.toString().split(/\r?\n/).filter(Boolean));
 		tail.splice(0, Math.max(0, tail.length - 12));
 	});

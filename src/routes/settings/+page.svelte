@@ -661,6 +661,9 @@
 								{@render resetBand()}
 							{/if}
 						{/each}
+						{#if s.id === 'library'}
+							{@render report()}
+						{/if}
 						{#if s.id === 'devices'}
 							{#if wf}
 								{@render wifiRow(wf)}
@@ -1079,6 +1082,29 @@
 			{/if}
 		</form>
 	{/if}
+{/snippet}
+
+{#snippet report()}
+	<!-- SAVE A REPORT (doc/LOGS.md; c193): a file to send when something breaks, never sent by itself. -->
+	<div class="row device">
+		<div class="label">REPORT</div>
+		<div class="ctl">
+			<div class="acct-body">
+				<div class="who">
+					<div class="name">For when something breaks</div>
+					<div class="meta">
+						LOGS AND VERSIONS IN ONE FILE TO SEND · NOTHING YOU'VE HIDDEN, NO PASSWORDS OR TOKENS ·
+						NEVER SENT BY ITSELF
+					</div>
+				</div>
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- a download, not a route -->
+				<a class="cell" href="/api/report" download>SAVE</a>
+			</div>
+		</div>
+		{#if !phone.current}<div class="scope">
+				<span class="sa">THIS COMPUTER'S LOGS</span>
+			</div>{/if}
+	</div>
 {/snippet}
 
 {#snippet wifiRow(w: Wifi)}

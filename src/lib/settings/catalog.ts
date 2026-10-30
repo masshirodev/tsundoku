@@ -648,7 +648,7 @@ export const SECTIONS: SectionDef[] = [
 		id: 'library',
 		n: '05',
 		title: 'LIBRARY',
-		words: ['library', 'editions', 'languages'],
+		words: ['library', 'editions', 'languages', 'report', 'logs', 'log', 'bug'],
 		rows: [
 			{
 				id: 'books-open-in',

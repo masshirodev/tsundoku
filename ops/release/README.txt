@@ -33,6 +33,10 @@ Your library isn't touched.
 If tsundoku stops by itself, the window says why; everything it wrote
 is in logs\tsundoku.log in your data folder (below).
 
+If something breaks: SETTINGS > LIBRARY > REPORT > SAVE, and send that
+file to whoever gave you tsundoku. It has the logs and versions, never
+anything you've hidden, your password or your tokens.
+
 Windows may warn that the app is from an unknown publisher (it isn't
 signed). Choose "More info", then "Run anyway". It may also ask whether
 Java may use the network: it only listens on this computer, so you can
