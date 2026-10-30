@@ -140,7 +140,7 @@ base64url>`, as a Mihon source's manga is `<source>~<url>`
   text field. The way back goes by position, so option values survive the
   URL. A search inside the source is `searchNovels`, which takes no filters:
   the box says "/ search Royal Road", not "with its filters".
-- **SEARCH THE SOURCES** asks the plugins the library reads from, as it asks
+- **SEARCH THE SOURCES** asks the plugins the library reads from or BROWSE lists, as it asks
   extensions ([`DOWNLOADING.md`](DOWNLOADING.md)). IN LIBRARY and SAME TITLE
   match by `lnreader:<plugin>:<path>` and by title, across manga and novels;
   hidden series and mostly-hidden plugins follow the same rules as manga's.

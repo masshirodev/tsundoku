@@ -1,7 +1,10 @@
 import { coverRoute } from '../novels/source.ts';
 import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
-import { writeSeries } from '../import/write.ts';
+import { browsedIds } from './browse.ts';
+import { ensureNamedRoot, writeSeries } from '../import/write.ts';
+import { dataPaths } from '../data-dirs.ts';
+import { join } from '../fspath.ts';
 import { refreshCovers } from '../covers.ts';
 import {
 	forgetSourceUse,
@@ -269,7 +272,7 @@ export function searchSources(reveal: boolean): { id: string; name: string }[] {
 			WHERE e.failed = ''`
 		)
 		.all() as { id: string; name: string }[];
-	return sourcesToSearch(rows, sourceUse(), reveal);
+	return sourcesToSearch(rows, sourceUse(), reveal, browsedIds(reveal));
 }
 
 export type EngineManga = {
@@ -582,8 +585,11 @@ export async function addToLibrary(
 		.prepare(`SELECT id, in_library FROM series WHERE origin_key = ?`)
 		.get(key) as { id: number; in_library: number } | undefined;
 	if (existing) return keepOrPromote(existing, browsing, now, db());
-	const rootId = mihonRoot();
-	if (rootId === null) throw new AddError('there is no Mihon library to add it to');
+	// A library with no Mihon folder yet (a friend's new install, doc/BROWSING.md):
+	// the root a scan of `Mihon/` would make, made now, so the first ADD or
+	// online read works. It used to refuse, and READ ONLINE did nothing.
+	const rootId =
+		mihonRoot() ?? ensureNamedRoot(db(), 'Mihon', join(dataPaths().library, 'Mihon'), false);
 	const plan = planMihon(
 		{ manga: [asMihon(m)], categories: [], sources: new Map([[m.sourceId, m.source]]) },
 		[],

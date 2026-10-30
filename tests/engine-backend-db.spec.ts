@@ -326,6 +326,27 @@ describe('finding and adding a series', () => {
 	});
 });
 
+describe('ADD on a library with no Mihon folder yet', () => {
+	it('makes the Mihon root, where a scan of Mihon/ would, instead of refusing (a friend, 2026-10-30)', async () => {
+		// Undone at the end: the rest of the file keeps its library.
+		db.exec('SAVEPOINT fresh');
+		try {
+			db.exec(`DELETE FROM series; DELETE FROM roots`);
+			const hits = await downloads.searchSource(SOURCE, 'series', false);
+			const id = await downloads.addToLibrary(hits[1].mangaId);
+			const root = db
+				.prepare(
+					`SELECT r.name, r.path FROM series s JOIN roots r ON r.id = s.root_id WHERE s.id = ?`
+				)
+				.get(id) as { name: string; path: string };
+			expect(root.name).toBe('Mihon');
+			expect(root.path.endsWith('/Mihon')).toBe(true);
+		} finally {
+			db.exec('ROLLBACK TO fresh; RELEASE fresh');
+		}
+	});
+});
+
 describe('FOLLOW', () => {
 	it('makes a chapter that appeared after the follow an entry, and queues it', async () => {
 		await downloads.setFollowed(seriesId, true);

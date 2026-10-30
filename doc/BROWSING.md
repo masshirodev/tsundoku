@@ -259,3 +259,13 @@ HISTORY's long press there. What c168 adds is the proof, by machine, as
 second time; on no shelf, count or search, and not IN LIBRARY at its source;
 nothing queued or followed; in HISTORY as NOT IN LIBRARY; ADD keeps the
 series and its place, and opening again plays the library's.
+
+## A library with no Mihon folder
+
+ADD, and opening a chapter online (which records the series as browsing), put
+the series in the library's Mihon root. A library that never had a `Mihon/`
+folder, as a friend's new install never does, had no such root, and both
+refused: ADD said "there is no Mihon library to add it to", and READ ONLINE did
+nothing at all (2026-10-30). Now the first one makes the root a scan of
+`Mihon/` would (`<library>/Mihon`, `ensureNamedRoot`). The Mihon name itself is
+legacy, and goes with stripping Mihon from the app (its own card).

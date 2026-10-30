@@ -278,8 +278,9 @@ describe('a novel', () => {
 		expect(browse.browseSource(SOURCE, true)?.hidden).toBe(1);
 	});
 
-	it('is searched for in the plugins the library reads from', async () => {
-		expect((await downloads.searchSources(false)).map((s) => s.id)).toEqual([]);
+	it('is searched for in the plugins BROWSE lists, before the library reads from any', async () => {
+		// A new library reads from nothing; the plugin is listed, so it's asked (2026-10-30).
+		expect((await downloads.searchSources(false)).map((s) => s.id)).toEqual([SOURCE]);
 		await source.addNovel(source.novelMangaId(SOURCE, '/novel/p1-1'), 1);
 		forgetSourceUse();
 		expect((await downloads.searchSources(false)).map((s) => s.id)).toEqual([SOURCE]);

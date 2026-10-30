@@ -520,19 +520,24 @@ export type SourceUse = { series: number; hidden: number };
 /**
  * Which sources a search asks: those with an extension installed that the
  * library already reads from (MangaDex's English source, not its 40 other
- * languages). A source whose series are mostly hidden here (Toonily: 110 of
- * 124) is asked only while reveal is on, and with reveal off it isn't counted
- * either: its results would put adult covers on a screen that promised none.
+ * languages), and those BROWSE lists (`listed`: the owner's languages, and an
+ * extension installed with none in them). Without the second, a new library
+ * reads from nothing and a search asked no one: "0 OF 0 SOURCES ANSWERED" on
+ * a friend's install with a source just added (2026-10-30). A source whose
+ * series are mostly hidden here (Toonily: 110 of 124) is asked only while
+ * reveal is on, and with reveal off it isn't counted either: its results would
+ * put adult covers on a screen that promised none.
  */
 export function sourcesToSearch(
 	installed: { id: string; name: string }[],
 	use: Map<string, SourceUse>,
-	reveal: boolean
+	reveal: boolean,
+	listed: Set<string> = new Set()
 ): { id: string; name: string }[] {
 	return installed.filter((s) => {
 		const u = use.get(s.id);
-		if (!u || u.series === 0) return false;
-		return reveal || !mostlyHidden(u);
+		if (u && u.series > 0) return reveal || !mostlyHidden(u);
+		return listed.has(s.id);
 	});
 }
 

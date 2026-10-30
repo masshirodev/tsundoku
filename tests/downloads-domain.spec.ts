@@ -325,6 +325,18 @@ describe('searching the sources', () => {
 		expect(sourcesToSearch(installed, use, true).map((s) => s.id)).toEqual(['1', '2', '4']);
 	});
 
+	it('asks what BROWSE lists too, so a new library’s search asks someone', () => {
+		// Nothing read yet: MangaDex (DE) is listed (an extension in no chosen language).
+		expect(sourcesToSearch(installed, new Map(), false, new Set(['3'])).map((s) => s.id)).toEqual([
+			'3'
+		]);
+		// Listed, but mostly hidden here: still only with reveal on.
+		expect(sourcesToSearch(installed, use, false, new Set(['2'])).map((s) => s.id)).toEqual([
+			'1',
+			'4'
+		]);
+	});
+
 	it('mostly hidden is more than half', () => {
 		expect(mostlyHidden({ series: 2, hidden: 1 })).toBe(false);
 		expect(mostlyHidden({ series: 17, hidden: 14 })).toBe(true);

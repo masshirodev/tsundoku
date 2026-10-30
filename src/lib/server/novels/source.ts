@@ -19,6 +19,7 @@ import { lnSchema, lnValues, type LnFilters } from '../../library/lnreader-filte
 import type { FilterField } from '../../library/browse-filters.ts';
 import { novelNumbers, planNovel, releasedAt, type LnNovel } from '../../import/novel-plan.ts';
 import type { SearchHit, SourceManga } from '../download-types.ts';
+import { browsedIds } from '../engine/browse.ts';
 import type { BrowseSource } from '../engine/browse.ts';
 import { installedPlugins, novelHost, type InstalledPlugin } from './plugins.ts';
 
@@ -86,7 +87,7 @@ export function novelSearchSources(reveal: boolean): { id: string; name: string 
 	const rows = installedPlugins()
 		.filter((p) => !p.failed)
 		.map((p) => ({ id: `ln:${p.id}`, name: p.name }));
-	return sourcesToSearch(rows, sourceUse(), reveal);
+	return sourcesToSearch(rows, sourceUse(), reveal, browsedIds(reveal));
 }
 
 // ---- its filters ----------------------------------------------------------------------------

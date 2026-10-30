@@ -109,10 +109,13 @@ that row is all there is. There is no second search field. To browse a
 source rather than search it, BROWSE ([`BROWSE.md`](BROWSE.md)).
 
 - **Which sources are asked:** the installed extensions the library already
-  reads from (MangaDex's English source, not its forty other languages). A
-  source with more than half of its series here hidden (Toonily, Toonily.me,
-  Omega Scans) is asked only while reveal is on, and with reveal off it isn't
-  counted either. Novel plugins the library reads from are asked the same way
+  reads from (MangaDex's English source, not its forty other languages), and
+  every source BROWSE lists (its languages rule, [`BROWSE.md`](BROWSE.md)).
+  Until 2026-10-30 only the first: a new library reads from nothing, so a
+  friend's search with a source just installed asked no one, "0 OF 0 SOURCES
+  ANSWERED". A source with more than half of its series here hidden (Toonily,
+  Toonily.me, Omega Scans) is asked only while reveal is on, and with reveal
+  off it isn't counted either. Novel plugins are asked the same way
   ([`NOVELS.md`](NOVELS.md), "Browsing and adding"). `?source=<id>` asks just
   one, and lists all it found.
 - **Results fill in source by source.** Each source is asked at once, as a

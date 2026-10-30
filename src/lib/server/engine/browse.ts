@@ -405,3 +405,9 @@ export async function shelf(
 
 /** For tests: forget everything kept. */
 export const forgetAll = () => kept.clear();
+
+/** Every source BROWSE lists, by id: what a search asks besides what the library reads from. */
+export function browsedIds(reveal: boolean): Set<string> {
+	const l = browseList(reveal);
+	return new Set([...l.manga, ...l.anime, ...l.novels].map((r) => r.id));
+}
