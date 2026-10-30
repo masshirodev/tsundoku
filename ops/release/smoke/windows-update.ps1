@@ -34,6 +34,8 @@ $hostp = Start-Process "$HOME\node-host.exe" -ArgumentList "`"$HOME\serve-dir.mj
 
 New-Item -ItemType Directory -Force $data | Out-Null
 Set-Content -Path "$data\.env" -Value 'TSUNDOKU_UPDATES=http://127.0.0.1:8765' -Encoding ASCII
+# Something of the friend's, to find again after the update.
+Set-Content -Path "$data\keep-me.txt" -Value 'still here' -Encoding ASCII
 # No password: the API answers without signing in (doc/SIGN-IN.md).
 & "$prog\node\node.exe" --disable-warning=ExperimentalWarning "$HOME\set-password.mjs" $prog $data none
 
@@ -62,9 +64,10 @@ for ($i = 0; $i -lt 120; $i++) {
 Check 'tsundoku stopped, updated and came back by itself' $back "pid $before -> $((Serving).pid)"
 Check 'the installer it ran was the signed one, kept by version' (Test-Path "$data\updates\9999.01.01\tsundoku-win-x64.exe")
 Check 'no half-download left' (-not (Test-Path "$data\updates\9999.01.01\tsundoku-win-x64.exe.part"))
-Check 'the library came through' ((Test-Path "$data\login.json") -and (Test-Path "$data\tsundoku.sqlite"))
-$after = Invoke-RestMethod "$app/api/updates"
-Check 'and it still offers 9999.01.01 (the same installer, so the same version)' ($after.available.version -eq '9999.01.01')
+Check 'the data folder came through' ((Test-Path "$data\login.json") -and ((Get-Content "$data\keep-me.txt") -eq 'still here'))
+# The new copy hasn't looked yet: CHECK, as SETTINGS would.
+$after = Invoke-RestMethod -Method Post "$app/api/updates" -ContentType $json -Body '{"action":"check"}'
+Check 'and the new copy finds 9999.01.01 too (the same installer, so the same version)' ($after.available.version -eq '9999.01.01') "$($after.current) $($after.error)"
 
 '--- stop'
 Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like "$prog\*" } |
