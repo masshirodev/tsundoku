@@ -1,0 +1,3 @@
+Scrolling a manhwa with the mouse wheel is smooth now, and the arrow keys (and Page Up/Down, Space) move a whole screen.
+After updating, WI-FI shows in Settings: an update could start tsundoku without it until it was closed and opened again.
+Small fixes in Settings: the update notes' line runs full width, and the release host's name fits.
