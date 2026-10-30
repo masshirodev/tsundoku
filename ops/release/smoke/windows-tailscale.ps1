@@ -10,8 +10,18 @@ $ProgressPreference = 'SilentlyContinue'
 $ts = "$env:ProgramFiles\Tailscale\tailscale.exe"
 if ($Key) {
 	Start-Process msiexec -ArgumentList '/i', "$HOME\tailscale.msi", '/quiet', '/norestart' -Wait
-	& $ts up "--authkey=$Key" --hostname=zen-tsundoku-smoke
+	# --unattended: nobody is signed in at Zen's desktop, and without it Tailscale
+	# on Windows belongs to the desktop user, says Success, then sits in NoState
+	# (doc/WINDOWS-VM.md, "On a tailnet").
+	& $ts up "--authkey=$Key" --unattended --hostname=zen-tsundoku-smoke --timeout=120s
 }
+# Up, with its HTTPS certificate's name, before tsundoku asks for it.
+for ($i = 0; $i -lt 60; $i++) {
+	$st = & $ts status --json 2>$null | Out-String
+	if ($st -match '"BackendState":\s*"Running"' -and $st -match '"CertDomains":\s*\[') { break }
+	Start-Sleep 2
+}
+"tailnet: $(if ($st -match '"BackendState":\s*"(\w+)"') { $Matches[1] })"
 $t = "$HOME\tsundoku-tailnet"
 $data = "$env:LOCALAPPDATA\tsundoku"
 Remove-Item -Recurse -Force $t, $data -ErrorAction SilentlyContinue
