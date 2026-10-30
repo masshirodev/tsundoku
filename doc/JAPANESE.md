@@ -39,8 +39,8 @@ its own: kuromoji's base form already turns 見開かれて into 見開く.
 [mokuro](https://github.com/kha-white/mokuro) reads manga pages into **text
 blocks**, one per speech bubble or caption: its box, whether it's vertical,
 and its lines. It runs on the workstation's RTX 3050, from a virtualenv on the
-library disk (`/mnt/hdd2/tsundoku/mokuro/venv`, torch with CUDA, 5.9GB;
-`MOKURO_BIN` points elsewhere).
+library disk (`TSUNDOKU_HOME/mokuro/venv`, here `/mnt/hdd2/tsundoku/mokuro/venv`;
+torch with CUDA, 5.9GB; `MOKURO_BIN` points elsewhere).
 
 Measured on Sakamoto Days' first chapter (2026-09-24): 54 pages in 88
 seconds, 455 blocks, text on 51 pages (the others are covers and splashes).
@@ -60,7 +60,7 @@ and each series' chapters in order:
 
 1. each chapter's pages are written as `0000.jpg`, `0001.jpg`… into a
    scratch folder on the library disk (`OCR_SCRATCH`, default
-   `/mnt/hdd2/tsundoku/ocr-scratch/batch-<time>/<entry>/`). Never inside the
+   `TSUNDOKU_HOME/ocr-scratch/batch-<time>/<entry>/`). Never inside the
    synced folders, which are receive-only (doc/SYNC.md);
 2. mokuro reads the whole batch in one run (`--parent_dir`), so its models
    load once (~20s), with the Hugging Face hub offline: the models are cached

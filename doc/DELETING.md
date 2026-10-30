@@ -26,7 +26,7 @@ A hidden series is only deleted with reveal on, as it's only seen then.
 
 1. **The rows go:** the series or book, its chapters, and its reading log.
 2. **Its files move to the trash** (`TRASH_DIR`, default
-   `/mnt/hdd2/tsundoku/trash`). Each delete gets a folder named by its time,
+   `TSUNDOKU_HOME/trash`, `/mnt/hdd2/tsundoku/trash` on the workstation). Each delete gets a folder named by its time,
    and each file keeps the path it had in the library folder:
    `trash/2026-09-23T22-40-00-000Z/Hentoid/nhentai/Book - [123]/`. It's a
    rename on the same disk, so it's instant, and nothing is erased. The space

@@ -15,16 +15,17 @@ on 2026-09-24.
 
 **Every key `.env` has, the non-secret ones too:**
 
-| Key                                | What for                                                                                                   |
-| ---------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `TSUNDOKU_TOKEN`                   | Signing in to the app ([`INSTALL.md`](INSTALL.md))                                                         |
-| `DATABASE_PATH`, `LIBRARY_ROOT`    | Which library `serve` opens ([`SERVING.md`](SERVING.md))                                                   |
-| `KUMIKO_TOKEN`, `KUMIKO_DECK`      | Mined words to Kumiko ([`JAPANESE.md`](JAPANESE.md))                                                       |
-| `ANILIST_CLIENT_*`, `MAL_CLIENT_*` | Tracking sign-ins ([`TRACKING.md`](TRACKING.md))                                                           |
-| `RANOBE_TOKEN`                     | Novels to Ranobe ([`RANOBE.md`](RANOBE.md))                                                                |
-| `RANOBE_SUGGEST_TOKEN`             | Suggestions to Ranobe, as its app account (RANOBE.md)                                                      |
-| `ENGINE_URL`                       | The extension engine ([`EXTENSION-ENGINE.md`](EXTENSION-ENGINE.md)); not a secret, `http://127.0.0.1:4590` |
-| `ENGINE_TOKEN`                     | The engine's bearer token: the compose file requires it, tsundoku sends it                                 |
+| Key                                | What for                                                                                                              |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `TSUNDOKU_TOKEN`                   | Signing in to the app ([`INSTALL.md`](INSTALL.md))                                                                    |
+| `DATABASE_PATH`, `LIBRARY_ROOT`    | Which library `serve` opens ([`SERVING.md`](SERVING.md))                                                              |
+| `TSUNDOKU_HOME`, `BACKUP_DIR`      | The data folders, `/mnt/hdd2/tsundoku` and `/mnt/backup/tsundoku`; not secrets ([`DISTRIBUTION.md`](DISTRIBUTION.md)) |
+| `KUMIKO_TOKEN`, `KUMIKO_DECK`      | Mined words to Kumiko ([`JAPANESE.md`](JAPANESE.md))                                                                  |
+| `ANILIST_CLIENT_*`, `MAL_CLIENT_*` | Tracking sign-ins ([`TRACKING.md`](TRACKING.md))                                                                      |
+| `RANOBE_TOKEN`                     | Novels to Ranobe ([`RANOBE.md`](RANOBE.md))                                                                           |
+| `RANOBE_SUGGEST_TOKEN`             | Suggestions to Ranobe, as its app account (RANOBE.md)                                                                 |
+| `ENGINE_URL`                       | The extension engine ([`EXTENSION-ENGINE.md`](EXTENSION-ENGINE.md)); not a secret, `http://127.0.0.1:4590`            |
+| `ENGINE_TOKEN`                     | The engine's bearer token: the compose file requires it, tsundoku sends it                                            |
 
 `SUWAYOMI_URL`, `SUWAYOMI_USERNAME`, `SUWAYOMI_PASSWORD` and `DOWNLOADS_BACKEND` are no longer read: Suwayomi was retired and the engine is the only backend (c129, [`DOWNLOADING.md`](DOWNLOADING.md), "Suwayomi, retired"). They can be deleted from Infisical; a pull that still carries them does no harm.
 

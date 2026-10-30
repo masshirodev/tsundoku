@@ -1,8 +1,8 @@
 # Distribution: tsundoku on a friend's computer
 
-Status: **plan, not built.** Everything below is what was decided on
-2026-10-29 and how it will be done; nothing here ships yet. Cards on the
-Tsundoku board carry the `Friends` label.
+Status: **phases 1 and 2 are built** (2026-10-29: one data directory, the
+local serve mode, a first-run token). The rest is the plan as decided that
+day. Cards on the Tsundoku board carry the `Friends` label.
 
 Until now tsundoku had exactly one install: this workstation, served over the
 tailnet to the owner's tablet. Friends want to try it, some on Windows. This
@@ -11,12 +11,14 @@ source, the workstation's mounts, or Tailscale.
 
 ## What was decided
 
-| Question         | Decision                                                                                               |
-| ---------------- | ------------------------------------------------------------------------------------------------------ |
-| How it's shipped | **Both**: a native install (most friends have no Docker), and Docker compose for those who do.         |
-| Access           | **Repos stay private.** Friends get built artifacts only: public GHCR images and public release files. |
-| Scope            | **Core + downloads**: library, importers, readers, anime, and downloading through the engine.          |
-| Network          | **`http://localhost` by default** (a secure context), with today's Tailscale HTTPS mode as opt-in.     |
+| Question         | Decision                                                                                           |
+| ---------------- | -------------------------------------------------------------------------------------------------- |
+| How it's shipped | **Both**: a native install (most friends have no Docker), and Docker compose for those who do.     |
+| Access           | **Repos stay private** until the real public release. Friends get built artifacts only.            |
+| Licence          | **MIT** for tsundoku. The engine keeps upstream's MPL-2.0 ("Licences", below).                     |
+| Windows testing  | **A local VM** on this box (phase 6).                                                              |
+| Scope            | **Core + downloads**: library, importers, readers, anime, and downloading through the engine.      |
+| Network          | **`http://localhost` by default** (a secure context), with today's Tailscale HTTPS mode as opt-in. |
 
 What a friend's install leaves out unless they set it up themselves: Ranobe,
 Kumiko flashcards, mokuro OCR, Syncthing tablet sync, MAL/AniList links (they
@@ -57,25 +59,44 @@ the platform's place for app data:
 | macOS   | `~/Library/Application Support/tsundoku`         |
 | Linux   | `$XDG_DATA_HOME/tsundoku` (`~/.local/share/...`) |
 
-Each specific variable (`LIBRARY_ROOT`, `COVER_DIR`, ...) still wins. The
-workstation sets `TSUNDOKU_HOME=/mnt/hdd2/tsundoku` (in Infisical, so
-`secrets:pull` keeps it, and in every unit), which reproduces today's paths
-exactly. **That must land before the defaults change**, or the timers and the
-served app would quietly start a second, empty library under `~/.local/share`.
-`yarn run dev` keeps `data/tsundoku.sqlite`, the sample library.
+Each specific variable (`LIBRARY_ROOT`, `COVER_DIR`, ...) still wins, and
+`BACKUP_DIR` defaults to `TSUNDOKU_HOME/backups` (the workstation's is
+`/mnt/backup/tsundoku`). The resolver is `src/lib/server/data-dirs.ts`; every
+module that used to name `/mnt/hdd2` asks it, and `tests/data-dirs.spec.ts`
+runs it under each platform's rules.
 
-Path handling goes through `node:path` everywhere (some code joins with `/`),
-and a spec runs the resolver under each platform's rules.
+**How the workstation keeps its paths.** `TSUNDOKU_HOME=/mnt/hdd2/tsundoku`
+and `BACKUP_DIR=/mnt/backup/tsundoku` are set in every unit
+(`ops/systemd/*.service`) and in `.env` for scripts run by hand, which
+reproduces the old paths exactly. Without them the served app and the timers
+would quietly start a second, empty library under `~/.local/share`. `.env` is
+a copy of Infisical ([`SECRETS.md`](SECRETS.md)), so both keys belong there
+too, or a pull drops them; the units stay right regardless. `yarn run dev`
+keeps `data/tsundoku.sqlite`, the sample library, and now keeps its covers and
+trash under `~/.local/share/tsundoku`, apart from the live ones. The test
+runners give the app a temporary `TSUNDOKU_HOME` of their own.
+
+**Windows paths are written with forward slashes** (`C:/Users/...`). The
+library's own path logic (`src/lib/server/paths.ts`) joins and compares with
+`/`, and Node accepts either. Whether the importers, which build paths from
+what they read on disk, hold to that on Windows is the next thing the VM has
+to answer (c183 ("Windows path audit: the library's paths are POSIX")).
 
 ### 2. A `local` serve mode and a first-run token
 
 `TSUNDOKU_SERVE=local`: the app on `127.0.0.1:42143`, `ORIGIN`
-`http://localhost:42143`, no Tailscale. It is the default when the app runs
-from a release (the launcher sets it); a checkout keeps `https` so the
-workstation doesn't change. Without a token, a release generates one into
-`TSUNDOKU_HOME/.env` on first start and prints it, instead of exiting.
-Optional Tailscale: the friend sets `TSUNDOKU_SERVE=https`, as documented in
-`SERVING.md`.
+`http://localhost:42143`, no Tailscale, and 127.0.0.1 redirected to localhost.
+A release's launcher and image set it; a checkout keeps `https`, so the
+workstation doesn't change. Without a token, `serve` makes one into
+`TSUNDOKU_HOME/.env` on first start and prints it, instead of exiting. That
+file is read after the project's `.env`, and is where a release keeps every
+setting. Optional Tailscale: the friend sets `TSUNDOKU_SERVE=https`.
+[`SERVING.md`](SERVING.md), "Local, on the same computer", has the details.
+
+Still open for a release: `serve` snapshots `build/` into `.serving/` beside
+itself, which an install under Program Files can't write. The bundle's
+launcher (phase 4) either runs the build directly, since a release is never
+rebuilt in place, or points the snapshot at `TSUNDOKU_HOME`.
 
 ### 3. Docker images
 
@@ -122,12 +143,13 @@ pull`; native friends run the new installer, which keeps `TSUNDOKU_HOME`.
 
 ### 6. Testing on Windows
 
-This box has no Windows. Two ways, an owner decision on the board: a local
-Windows VM (QEMU/libvirt, plenty of RAM here) driven over SSH, or GitHub
-Actions' Windows runners from the public releases repo (free there, but the
-workflow then needs a token to read the private source). Either way a smoke
-test installs the bundle, starts it, logs in, imports a synthesised Mihon
-folder and opens a chapter.
+This box has no Windows, so **a local Windows 11 VM** (QEMU/libvirt, decided
+2026-10-29) does it: its disk on `/mnt/hdd2`, OpenSSH server on, driven from
+here over SSH. It stays private and free, and the RAM is there. GitHub's
+Windows runners were the other option; they'd need a token into the private
+source. A smoke test installs the bundle, starts it, logs in, imports a
+synthesised Mihon folder and opens a chapter. Setting the VM up is c181 ("How
+to test on Windows: local VM or Actions runners").
 
 ## Why not just one of them
 
@@ -136,3 +158,22 @@ have Docker Desktop and won't install it (WSL2, a reboot, a licence prompt) to
 try a reader. Native alone would mean every friend also runs a JRE and
 FlareSolverr by hand. So the native bundle is the main path, and Docker is the
 one for people who already have it, and for Linux servers.
+
+## Licences
+
+tsundoku is **MIT** (`LICENSE`), like kotoba. What ships beside it isn't all
+MIT, and that decides what handing a build to a friend obliges:
+
+- **tsundoku-engine is MPL-2.0**, inherited from M-Extension-Server. MPL lets
+  the engine's binary go out with its source kept private, but anyone who
+  receives the binary is entitled to the source of the MPL files. Until the
+  public release, the rule is: **a friend who asks for the engine's source
+  gets it** (a collaborator invite is enough), and the release notes say so.
+- **ffmpeg** is LGPL or GPL depending on the build chosen for a bundle. The
+  bundle ships its licence and says where its source is, as ffmpeg's own
+  builds do. Pick an LGPL build where one fits.
+- **FlareSolverr** is MIT; its licence goes in the bundle.
+- Every third-party licence in a bundle or image is collected into a
+  `THIRD-PARTY-NOTICES` file by the release build (c176).
+
+At the public release, both repositories open and the first point goes away.

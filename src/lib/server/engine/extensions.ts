@@ -15,13 +15,14 @@ import {
 	type Listing,
 	type RepoMeta
 } from './repo-index.ts';
+import { dataPaths } from '../data-dirs.ts';
 
 /**
  * Repositories, installed extensions and their sources' preferences
  * (doc/DOWNLOADER.md, "Extensions"; card c136). The engine keeps none of it:
  * it runs whatever APK it's handed, so what's installed, which version, which
  * source is in which extension, and every preference live here, and the APKs
- * themselves in the store on /mnt/hdd2.
+ * themselves in the store under TSUNDOKU_HOME.
  *
  * An APK is installed only when it is signed, validly, by the key its
  * repository publishes (apk-signature.ts). tsundoku ships no repository: the
@@ -31,7 +32,7 @@ import {
 /** The previous version is kept this long after an update, for BACK TO (c126). */
 export const KEEP_PREVIOUS_MS = 7 * 24 * 60 * 60 * 1000;
 
-const storeDir = () => process.env.ENGINE_STORE ?? '/mnt/hdd2/tsundoku/engine/store';
+const storeDir = () => dataPaths().engineStore;
 /** Extension icons, fetched from their repository once and kept (doc/BROWSE.md). */
 export const iconsDir = () => join(storeDir(), 'icons');
 export const apkPath = (handle: string) => join(storeDir(), `${handle}.apk`);

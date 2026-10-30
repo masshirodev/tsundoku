@@ -15,6 +15,7 @@ import { openingEdition } from '../library/editions.ts';
 import { linkCover } from './catalogue.ts';
 import { engineAuth } from './engine/auth.ts';
 import { publicFetch } from './net-guard.ts';
+import { dataPaths } from './data-dirs.ts';
 
 /**
  * Covers (doc/COVERS.md). One thumbnail per series, made once and kept on the
@@ -40,7 +41,7 @@ export const THUMB_WIDTH = 400;
 const RETRY_FAILED_MS = 7 * 24 * 3600_000;
 
 export function coverDir(): string {
-	return process.env.COVER_DIR ?? '/mnt/hdd2/tsundoku/covers';
+	return dataPaths().covers;
 }
 
 const thumbPath = (seriesId: number) => join(coverDir(), `${seriesId}.webp`);

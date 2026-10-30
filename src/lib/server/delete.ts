@@ -8,6 +8,7 @@ import { libraryRoot } from './import/index.ts';
 import { coverDir } from './covers.ts';
 import { isUnder } from './paths.ts';
 import { SAMPLE_PREFIX } from './pages/sample.ts';
+import { dataPaths } from './data-dirs.ts';
 
 /**
  * Deleting books and series (doc/DELETING.md). A delete does three things:
@@ -24,7 +25,7 @@ import { SAMPLE_PREFIX } from './pages/sample.ts';
  */
 
 export function trashDir(): string {
-	return process.env.TRASH_DIR ?? '/mnt/hdd2/tsundoku/trash';
+	return dataPaths().trash;
 }
 
 export class DeleteError extends Error {}

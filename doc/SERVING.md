@@ -78,6 +78,15 @@ copy of the tablet's `Mihon/`, `Hentoid/` and `Library/`. `yarn run dev` doesn't
 put `.env` into `process.env`, so development keeps the sample library in
 `data/tsundoku.sqlite`. `/scan` in the served app rescans the tablet copy.
 
+Every other folder (covers, trash, the engine's store, OCR scratch) comes from
+`TSUNDOKU_HOME` ([`DISTRIBUTION.md`](DISTRIBUTION.md), "One data directory"),
+which is `/mnt/hdd2/tsundoku` here, and snapshots from `BACKUP_DIR`
+(`/mnt/backup/tsundoku`). Both are in `.env` for scripts run by hand and in
+every unit, so a unit stays right even if a pull drops them. Unset, they'd be
+the per-OS defaults, `~/.local/share/tsundoku` on Linux: a second, empty
+library on `/`. That's also where `yarn run dev` keeps its covers and trash
+since 2026-10-29, apart from the live ones.
+
 ## Who migrates
 
 **The served app, and nothing else that touches the live database.** The
@@ -108,16 +117,41 @@ plain http, as kirisute does. A wildcard bind is still refused unless
 would be the whole LAN. The fingerprint gate, the wake lock and offline
 caching don't work this way.
 
+## Local, on the same computer
+
+`TSUNDOKU_SERVE=local` is for a friend's install, which has no Tailscale
+([`DISTRIBUTION.md`](DISTRIBUTION.md)). The app listens on **127.0.0.1** only,
+whatever `HOST` says, and its origin is **http://localhost:42143**. Browsers
+count localhost as a secure context, so installing the app, offline chapters,
+the wake lock and the fingerprint gate all work without a certificate.
+
+- **127.0.0.1 in the address bar is sent to localhost** (308, path kept,
+  `src/hooks.server.ts`). ORIGIN has one value, and a page opened under the
+  other name would load and then fail every save on the origin check.
+- **No token yet, one is made.** On a first start `serve` writes
+  `TSUNDOKU_TOKEN` into `TSUNDOKU_HOME/.env` (mode 600), prints it once, and
+  reads it from there after. That `.env` is read after the project's, so the
+  workstation's own always wins; it's where a friend's install keeps every
+  setting, since the program's folder may not be theirs to write. This holds
+  in every mode, but the workstation always has its token.
+- A value of `TSUNDOKU_SERVE` that isn't `https`, `http` or `local` is
+  refused. Before `local` existed, anything but `https` meant the tailnet bind.
+
+The pure parts (`serveMode`, `localOrigin`, `loopbackRedirect`) are in
+`bind.ts`, and the token in `src/lib/server/first-run.ts`, tested in
+`tests/bind.spec.ts` and `tests/first-run.spec.ts`.
+
 ## Variables
 
-| Variable                    | Default    | Meaning                                                         |
-| --------------------------- | ---------- | --------------------------------------------------------------- |
-| `TSUNDOKU_TOKEN`            | (required) | The shared login token, in `.env`.                              |
-| `TSUNDOKU_SERVE`            | `https`    | `https` through tailscale serve, or `http`.                     |
-| `TSUNDOKU_HTTPS_PORT`       | `8443`     | 443, 8443 or 10000.                                             |
-| `PORT`                      | `42143`    | The app's own port, on 127.0.0.1 (or the tailnet in http mode). |
-| `ORIGIN`                    | derived    | Only to override the derived one.                               |
-| `HOST`, `TSUNDOKU_BIND_ANY` | —          | http mode only.                                                 |
+| Variable                    | Default   | Meaning                                                         |
+| --------------------------- | --------- | --------------------------------------------------------------- |
+| `TSUNDOKU_TOKEN`            | made once | The shared login token, in `.env` (or `TSUNDOKU_HOME/.env`).    |
+| `TSUNDOKU_SERVE`            | `https`   | `https` through tailscale serve, `http`, or `local`.            |
+| `TSUNDOKU_HOME`             | per OS    | The data folder every other folder derives from.                |
+| `TSUNDOKU_HTTPS_PORT`       | `8443`    | 443, 8443 or 10000.                                             |
+| `PORT`                      | `42143`   | The app's own port, on 127.0.0.1 (or the tailnet in http mode). |
+| `ORIGIN`                    | derived   | Only to override the derived one.                               |
+| `HOST`, `TSUNDOKU_BIND_ANY` | —         | http mode only.                                                 |
 
 ## Undoing it
 

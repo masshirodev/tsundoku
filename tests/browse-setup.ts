@@ -589,7 +589,7 @@ function seed(dbPath: string, store: string): void {
 
 export default async function setup() {
 	const dbPath = join(tmpdir(), `tsundoku-e2e-browse-${process.pid}.sqlite`);
-	// Installs and icons write here, never into the real store on /mnt/hdd2.
+	// Installs and icons write here, never into the real store (TSUNDOKU_HOME's).
 	const store = mkdtempSync(join(tmpdir(), 'tsundoku-e2e-browse-store-'));
 	seed(dbPath, store);
 	const engine = await startEngine();
@@ -605,6 +605,8 @@ export default async function setup() {
 				ENGINE_URL: `http://127.0.0.1:${ENGINE_PORT}`,
 				ENGINE_TOKEN: 'e2e-engine-token',
 				TSUNDOKU_ANILIST: 'off',
+				// Covers and trash too, whatever folder isn't named below.
+				TSUNDOKU_HOME: join(store, 'home'),
 				// Its own, gone with the run: a novel downloaded here writes its EPUB
 				// into it, which the shared server's empty library must never see.
 				LIBRARY_ROOT: join(store, 'library'),

@@ -7,7 +7,8 @@ The formats themselves are in [`IMPORT-FORMATS.md`](IMPORT-FORMATS.md).
 
 ## Where it reads from
 
-`LIBRARY_ROOT` (default `/mnt/hdd2/tsundoku/library`) mirrors the tablet's
+`LIBRARY_ROOT` (default `TSUNDOKU_HOME/library`; on the workstation
+`/mnt/hdd2/tsundoku/tablet`, from `.env`) mirrors the tablet's
 shared storage, so the device folders sit in it under the names they have on
 the device, and a plain rsync refreshes them:
 

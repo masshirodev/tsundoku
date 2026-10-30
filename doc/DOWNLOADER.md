@@ -162,7 +162,7 @@ waits a running scan out, and imports at startup what a restart left).
   and its signer is the repository's key**: Keiyoushi's index publishes no
   per-APK hash, and either check alone passes a forgery (a genuine signing
   block on other code, or code signed by anyone). APKs are kept under their
-  handle in `/mnt/hdd2/tsundoku/engine/store` (`ENGINE_STORE`). An update
+  handle in `ENGINE_STORE` (default `TSUNDOKU_HOME/engine/store`). An update
   keeps the previous version a week for BACK TO; removing keeps the sources'
   preferences. A one-off script (`engine-seed`, removed with Suwayomi in c129)
   carried Suwayomi's repository and its 14 extensions over on 2026-10-28: all loaded, 80 sources, every source the

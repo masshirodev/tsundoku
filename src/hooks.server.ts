@@ -1,5 +1,6 @@
 import { error, redirect, type Handle } from '@sveltejs/kit';
 import { SESSION_COOKIE, authMode, isValidSession } from '$lib/server/auth';
+import { loopbackRedirect } from '$lib/server/bind';
 import { isRevealed, themeOf } from '$lib/server/prefs';
 
 const PUBLIC_PATHS = new Set(['/login']);
@@ -11,6 +12,12 @@ const PUBLIC_PATHS = new Set(['/login']);
  * second lock. Ported from kirisute, whose README explains both.
  */
 export const handle: Handle = async ({ event, resolve }) => {
+	// A friend's install answers on localhost only (scripts/serve.ts, local mode).
+	if (process.env.TSUNDOKU_SERVE === 'local' && process.env.ORIGIN) {
+		const to = loopbackRedirect(event.request.headers.get('host'), process.env.ORIGIN);
+		if (to) redirect(308, `http://${to}${event.url.pathname}${event.url.search}`);
+	}
+
 	const mode = authMode();
 
 	if (!mode.configured && !mode.devBypass) {

@@ -8,6 +8,11 @@ RequiresMountsFor=/mnt/hdd2
 [Service]
 Type=oneshot
 WorkingDirectory=%h/projects/tsundoku
+# The workstation's data folders (doc/DISTRIBUTION.md, "One data directory").
+# The code's defaults are per-OS app-data folders now; .env says the same
+# for scripts run by hand, and these keep the units right even without it.
+Environment=TSUNDOKU_HOME=/mnt/hdd2/tsundoku
+Environment=BACKUP_DIR=/mnt/backup/tsundoku
 # Runs scripts/ from the working tree: never let it migrate the live database
 # (doc/SERVING.md, "Who migrates").
 Environment=TSUNDOKU_MIGRATE=off

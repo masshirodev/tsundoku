@@ -145,3 +145,55 @@ export function serveState(
 		? 'ours'
 		: 'taken';
 }
+
+// ---- How serve.ts serves ----------------------------------------------------------
+
+/**
+ * - `https`: the app on 127.0.0.1 behind `tailscale serve` (the workstation).
+ * - `http`: plain http on the tailnet address, the old way.
+ * - `local`: plain http on 127.0.0.1, opened as http://localhost on the same
+ *   computer, no Tailscale at all. A friend's install (doc/DISTRIBUTION.md).
+ *   Browsers treat localhost as a secure context, so installing the app,
+ *   offline chapters and the fingerprint gate all work without a certificate.
+ */
+export const SERVE_MODES = ['https', 'http', 'local'] as const;
+export type ServeMode = (typeof SERVE_MODES)[number];
+
+/**
+ * TSUNDOKU_SERVE, unset meaning https. Anything else is refused by name: until
+ * `local` existed, every value but `https` meant the tailnet bind, so a typo
+ * would have served the LAN-facing mode without a word.
+ */
+export function serveMode(value: string | undefined): ServeMode {
+	const v = (value ?? '').trim() || 'https';
+	if ((SERVE_MODES as readonly string[]).includes(v)) return v as ServeMode;
+	throw new BindRefused(`TSUNDOKU_SERVE=${value} is not one of ${SERVE_MODES.join(', ')}.`);
+}
+
+/**
+ * Local mode's origin. Browsers treat both localhost and 127.0.0.1 as secure,
+ * but ORIGIN has one value, and the name is the one people type and the
+ * launcher opens. 127.0.0.1 in the address bar loads and then can't save
+ * (adapter-node's origin check): SERVING.md says to use localhost.
+ */
+export const localOrigin = (port: number) => `http://localhost:${port}`;
+
+/**
+ * In local mode, where a request that came in under another loopback name
+ * (127.0.0.1, [::1]) should go instead: the same path on the origin's host.
+ * Null when it already is the origin's host, or isn't loopback at all. Pages
+ * opened under the other name would load and then fail every save on the
+ * origin check, so they're sent to localhost before anything is drawn.
+ */
+export function loopbackRedirect(hostHeader: string | null, origin: string): string | null {
+	if (!hostHeader) return null;
+	const want = new URL(origin);
+	let got: URL;
+	try {
+		got = new URL(`http://${hostHeader}`);
+	} catch {
+		return null;
+	}
+	if (got.host === want.host) return null;
+	return ['127.0.0.1', '[::1]'].includes(got.hostname) ? want.host : null;
+}

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+	localOrigin,
+	loopbackRedirect,
+	serveMode,
 	BindRefused,
 	isTailnetAddress,
 	isWildcard,
@@ -139,5 +142,45 @@ describe('https through tailscale serve', () => {
 		expect(serveState(status, name, 8443, 'http://127.0.0.1:42143')).toBe('ours');
 		expect(serveState(status, name, 10000, 'http://127.0.0.1:42143')).toBe('free');
 		expect(serveState({}, name, 8443, 'http://127.0.0.1:42143')).toBe('free');
+	});
+});
+
+describe('serveMode', () => {
+	it('is https when unset or blank', () => {
+		expect(serveMode(undefined)).toBe('https');
+		expect(serveMode('  ')).toBe('https');
+	});
+
+	it('takes the three modes by name', () => {
+		expect(serveMode('https')).toBe('https');
+		expect(serveMode('http')).toBe('http');
+		expect(serveMode('local')).toBe('local');
+	});
+
+	it('refuses anything else instead of falling through to the tailnet bind', () => {
+		expect(() => serveMode('loacl')).toThrow(BindRefused);
+	});
+});
+
+describe('localOrigin', () => {
+	it('is localhost on the port', () => {
+		expect(localOrigin(42143)).toBe('http://localhost:42143');
+	});
+});
+
+describe('loopbackRedirect', () => {
+	const origin = 'http://localhost:42143';
+
+	it('sends the other loopback names to localhost', () => {
+		expect(loopbackRedirect('127.0.0.1:42143', origin)).toBe('localhost:42143');
+		expect(loopbackRedirect('[::1]:42143', origin)).toBe('localhost:42143');
+	});
+
+	it('leaves the origin itself, other hosts and nonsense alone', () => {
+		expect(loopbackRedirect('localhost:42143', origin)).toBeNull();
+		expect(loopbackRedirect('example.com', origin)).toBeNull();
+		expect(loopbackRedirect('', origin)).toBeNull();
+		expect(loopbackRedirect(null, origin)).toBeNull();
+		expect(loopbackRedirect('bad host', origin)).toBeNull();
 	});
 });

@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { syncDecision, type FolderStatus } from '../src/lib/import/sync.ts';
 import { requestScan } from './scan-request.ts';
 import { st, type FolderConfig } from './syncthing.ts';
+import { dataPaths } from '../src/lib/server/data-dirs.ts';
 
 try {
 	process.loadEnvFile(fileURLToPath(new URL('../.env', import.meta.url)));
@@ -22,7 +23,7 @@ try {
 	// No .env: the defaults.
 }
 
-const library = resolve(process.env.LIBRARY_ROOT ?? '/mnt/hdd2/tsundoku/library');
+const library = resolve(dataPaths().library);
 const statePath = join(
 	process.env.XDG_STATE_HOME ?? join(homedir(), '.local', 'state'),
 	'tsundoku',

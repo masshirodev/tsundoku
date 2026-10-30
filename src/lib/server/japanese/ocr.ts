@@ -14,6 +14,7 @@ import {
 	type OcrPlace,
 	type TextBlock
 } from '../../japanese/ocr.ts';
+import { dataPaths } from '../data-dirs.ts';
 
 /**
  * OCR on the workstation (doc/JAPANESE.md): mokuro, on the GPU, reads a
@@ -33,10 +34,10 @@ import {
 const run = promisify(execFile);
 
 export function mokuroBin(): string {
-	return process.env.MOKURO_BIN ?? '/mnt/hdd2/tsundoku/mokuro/venv/bin/mokuro';
+	return dataPaths().mokuro;
 }
 export function scratchDir(): string {
-	return process.env.OCR_SCRATCH ?? '/mnt/hdd2/tsundoku/ocr-scratch';
+	return dataPaths().ocrScratch;
 }
 
 const RETRY_MS = 7 * 24 * 3600_000;

@@ -28,6 +28,7 @@ import {
 	type SyncTarget
 } from '../src/lib/import/sync.ts';
 import { st, type FolderConfig } from './syncthing.ts';
+import { dataPaths } from '../src/lib/server/data-dirs.ts';
 
 try {
 	process.loadEnvFile(fileURLToPath(new URL('../.env', import.meta.url)));
@@ -35,7 +36,7 @@ try {
 	// No .env: the defaults.
 }
 
-const library = resolve(process.env.LIBRARY_ROOT ?? '/mnt/hdd2/tsundoku/library');
+const library = resolve(dataPaths().library);
 const args = process.argv.slice(2);
 const apply = args.includes('--apply');
 const valuesOf = (flag: string) =>

@@ -1,7 +1,8 @@
 # Covers
 
 Every series gets one cover thumbnail: 400px wide WebP, made once and kept on
-the library disk (`COVER_DIR`, default `/mnt/hdd2/tsundoku/covers`,
+the library disk (`COVER_DIR`, default `TSUNDOKU_HOME/covers`, on the workstation
+`/mnt/hdd2/tsundoku/covers`,
 `<series id>.webp`). The tiles, CONTINUE, the long-press sheet, the series
 panel, search, history and person pages all show it. A series with none keeps
 the striped placeholder, which also stays under every image, so a cover that

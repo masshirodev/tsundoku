@@ -20,7 +20,9 @@ database named by `DATABASE_PATH`. `.env` gives it `data/library.sqlite`.
 - **It's compact.** A vacuumed copy is smaller than the live file: 24 MB for
   the real library of 6,849 series and 50,890 entries (2026-09-23).
 
-Snapshots go to `BACKUP_DIR`, which defaults to `/mnt/backup/tsundoku`. That's
+Snapshots go to `BACKUP_DIR`: `/mnt/backup/tsundoku` on the workstation, set in
+`.env` and the units (the code's own default is `TSUNDOKU_HOME/backups`,
+[`DISTRIBUTION.md`](DISTRIBUTION.md)). That's
 a different disk from both the database (on `/`) and the library files (on
 `/mnt/hdd2`). Each is named `<db>-YYYYMMDD-HHMMSS.sqlite` in local time, so
 `library-…` and the dev database's `tsundoku-…` sit side by side and never

@@ -23,6 +23,7 @@ import { reconcileDuplicates } from '../duplicates.ts';
 import { refreshCovers } from '../covers.ts';
 import { refreshLinks } from '../catalogue.ts';
 import type { PlannedSeries } from '../../import/plan.ts';
+import { dataPaths } from '../data-dirs.ts';
 
 /**
  * Running an import (doc/IMPORT-MIHON.md, doc/IMPORT-HENTOID.md). One scan
@@ -36,7 +37,7 @@ import type { PlannedSeries } from '../../import/plan.ts';
  * and a plain rsync refreshes them.
  */
 export function libraryRoot(): string {
-	return process.env.LIBRARY_ROOT ?? '/mnt/hdd2/tsundoku/library';
+	return dataPaths().library;
 }
 
 type Source = {

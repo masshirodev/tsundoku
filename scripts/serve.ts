@@ -3,7 +3,7 @@
  *
  *   yarn run build && yarn run serve
  *
- * Two ways, and HTTPS is the default (doc/SERVING.md):
+ * Three ways, and HTTPS is the default (doc/SERVING.md):
  *
  * - **https** -- the app listens on 127.0.0.1 only, and `tailscale serve`
  *   terminates TLS with the machine's tailnet certificate on port 8443
@@ -12,6 +12,9 @@
  *   workers need. The mapping is added if missing, never over someone else's.
  * - **http** (TSUNDOKU_SERVE=http) -- the old way: plain http on the tailnet
  *   address, as kirisute does.
+ * - **local** (TSUNDOKU_SERVE=local) -- plain http on 127.0.0.1, opened as
+ *   http://localhost on the same computer. A friend's install, with no
+ *   Tailscale (doc/DISTRIBUTION.md); localhost is a secure context too.
  *
  * Either way this wrapper exists because `node build` is one forgotten
  * variable away from being wrong without saying so: adapter-node defaults to
@@ -22,16 +25,22 @@
  */
 import { execFileSync } from 'node:child_process';
 import { cpSync, existsSync, readdirSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
 	BindRefused,
 	TAILSCALE_HTTPS_PORTS,
 	httpsOrigin,
+	localOrigin,
 	originFor,
 	resolveBindHost,
+	serveMode,
 	serveState,
-	tailnetName
+	tailnetName,
+	type ServeMode
 } from '../src/lib/server/bind.ts';
+import { dataPaths } from '../src/lib/server/data-dirs.ts';
+import { ensureToken } from '../src/lib/server/first-run.ts';
 
 const root = new URL('../', import.meta.url);
 const built = new URL('build/', root);
@@ -49,7 +58,17 @@ const entry = new URL('index.js', snapshot);
 try {
 	process.loadEnvFile(fileURLToPath(new URL('.env', root)));
 } catch {
-	// Absent .env is not fatal on its own -- the token check below says so better.
+	// Absent .env is not fatal: a friend's install keeps its settings in the data folder.
+}
+
+// Then the data folder's own .env, which is where a friend's install keeps its
+// settings (the program's folder may not be theirs to write). The project's
+// .env, read first, wins over it; the shell wins over both.
+const homeEnv = join(dataPaths().home, '.env');
+try {
+	process.loadEnvFile(homeEnv);
+} catch {
+	// None yet: a first start, or the workstation, whose .env is the project's.
 }
 
 const fail = (message: string): never => {
@@ -58,11 +77,21 @@ const fail = (message: string): never => {
 };
 
 if (!existsSync(new URL('index.js', built))) fail('no build/ found. Run `yarn run build` first.');
-if (!process.env.TSUNDOKU_TOKEN)
-	fail(
-		'TSUNDOKU_TOKEN is not set. Generate one into .env:\n' +
-			'  echo "TSUNDOKU_TOKEN=$(node -e \'console.log(require("crypto").randomBytes(18).toString("base64url"))\')" >> .env'
-	);
+
+let mode: ServeMode = 'https';
+try {
+	mode = serveMode(process.env.TSUNDOKU_SERVE);
+} catch (e) {
+	fail((e as Error).message);
+}
+
+// No token anywhere: make one and keep it, rather than exit on a first start.
+let madeToken = false;
+if (!process.env.TSUNDOKU_TOKEN) {
+	const { token, created } = ensureToken(homeEnv);
+	process.env.TSUNDOKU_TOKEN = token;
+	madeToken = created;
+}
 
 const port = Number(process.env.PORT ?? 42143);
 if (!Number.isInteger(port) || port < 1 || port > 65535)
@@ -74,7 +103,12 @@ let host: string;
 let origin: string;
 let note: string;
 
-if ((process.env.TSUNDOKU_SERVE ?? 'https') === 'https') {
+if (mode === 'local') {
+	// Loopback only, whatever HOST says: this mode is the one with no other guard.
+	host = '127.0.0.1';
+	origin = process.env.ORIGIN ?? localOrigin(port);
+	note = 'local: this computer only, no Tailscale';
+} else if (mode === 'https') {
 	const httpsPort = Number(process.env.TSUNDOKU_HTTPS_PORT ?? 8443);
 	if (!(TAILSCALE_HTTPS_PORTS as readonly number[]).includes(httpsPort))
 		fail(
@@ -151,5 +185,10 @@ for (const old of existsSync(servingDir) ? readdirSync(servingDir) : [])
 cpSync(built, snapshot, { recursive: true });
 
 console.log(`tsundoku  ${origin!}  (${note!})`);
+if (madeToken)
+	console.log(
+		`First start: your sign-in token is ${process.env.TSUNDOKU_TOKEN}\n` +
+			`It's kept in ${homeEnv}; sign in once per browser.`
+	);
 
 await import(entry.href);

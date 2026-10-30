@@ -12,6 +12,7 @@ import {
 	type NovelListing
 } from '../../library/lnreader-index.ts';
 import { NovelHost } from './host.ts';
+import { dataPaths } from '../data-dirs.ts';
 
 /**
  * LNReader repositories and the plugins installed from them (doc/NOVELS.md;
@@ -25,9 +26,7 @@ import { NovelHost } from './host.ts';
 /** A week, as for an extension (extensions.ts): BACK TO after an update. */
 export const KEEP_PREVIOUS_MS = 7 * 24 * 60 * 60 * 1000;
 
-const storeDir = () =>
-	process.env.NOVEL_STORE ??
-	join(process.env.ENGINE_STORE ?? '/mnt/hdd2/tsundoku/engine/store', 'novels');
+const storeDir = () => dataPaths().novelStore;
 export const pluginPath = (hash: string) => join(storeDir(), `${hash}.js`);
 
 let host: NovelHost | null = null;

@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
 import { basename, extname, join } from 'node:path';
 import { snapshotName, stamp, toPrune, DEFAULT_TIERS, type Tiers } from '../backup/retention.ts';
+import { dataPaths } from './data-dirs.ts';
 
 /**
  * Database snapshots (doc/BACKUPS.md). The files on disk can be scanned again;
@@ -16,7 +17,7 @@ import { snapshotName, stamp, toPrune, DEFAULT_TIERS, type Tiers } from '../back
  */
 
 export function backupDir(): string {
-	return process.env.BACKUP_DIR ?? '/mnt/backup/tsundoku';
+	return dataPaths().backups;
 }
 
 /** `library` for data/library.sqlite: what the snapshots are named after. */

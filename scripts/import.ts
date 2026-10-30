@@ -2,7 +2,7 @@
  * Import from the device copies under the library folder, without the app
  * running -- the way to do the first, large import:
  *
- *   yarn run import                       # LIBRARY_ROOT, or /mnt/hdd2/tsundoku/library
+ *   yarn run import                       # LIBRARY_ROOT, or TSUNDOKU_HOME/library
  *   yarn run import -- --root <folder>    # a folder holding Mihon/ and/or H/.Hentoid/
  *
  * The same code START SCAN runs. See doc/IMPORT-MIHON.md, doc/IMPORT-HENTOID.md.

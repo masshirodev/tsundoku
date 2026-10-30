@@ -14,6 +14,11 @@ StartLimitIntervalSec=0
 [Service]
 Type=simple
 WorkingDirectory=%h/projects/tsundoku
+# The workstation's data folders (doc/DISTRIBUTION.md, "One data directory").
+# The code's defaults are per-OS app-data folders now; .env says the same
+# for scripts run by hand, and these keep the units right even without it.
+Environment=TSUNDOKU_HOME=/mnt/hdd2/tsundoku
+Environment=BACKUP_DIR=/mnt/backup/tsundoku
 # mise's shim, so the unit gets the project's Node without a login shell.
 # serve.ts reads .env itself (the token, the real library's database).
 ExecStart=%h/.local/share/mise/shims/node --experimental-strip-types scripts/serve.ts

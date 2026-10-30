@@ -39,9 +39,12 @@ yarn run serve    # https://workstation.example.ts.net:8443
 
 `serve` runs the app on 127.0.0.1 and has `tailscale serve` terminate TLS
 with the tailnet's certificate: the reader's fingerprint gate, wake lock and
-offline chapters all need a secure context. It refuses to start without the
-token. `TSUNDOKU_SERVE=http` is the old plain-http tailnet bind. `.env.example`
-lists every variable.
+offline chapters all need a secure context. Without a token it makes one into
+`TSUNDOKU_HOME/.env` and prints it. `TSUNDOKU_SERVE=http` is the old plain-http
+tailnet bind, and `TSUNDOKU_SERVE=local` serves http://localhost on this
+computer only, with no Tailscale: a friend's install
+([`doc/DISTRIBUTION.md`](doc/DISTRIBUTION.md)). `.env.example` lists every
+variable.
 
 ### Restarting it on the tailnet
 
@@ -174,3 +177,10 @@ Tracked on the **Tsundoku** board in Kumiko. Beyond the defaults (`Feature`,
   example the reading log under stats).
 - **`Friends`**: part of making tsundoku installable on a friend's computer
   ([`doc/DISTRIBUTION.md`](doc/DISTRIBUTION.md)).
+
+## Licence
+
+MIT ([`LICENSE`](LICENSE)). The extension engine it talks to,
+`tsundoku-engine`, is a fork of M-Extension-Server and stays MPL-2.0; what that
+means for handing builds to friends is in
+[`doc/DISTRIBUTION.md`](doc/DISTRIBUTION.md), "Licences".
