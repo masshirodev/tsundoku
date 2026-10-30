@@ -1,3 +1,5 @@
 If something breaks: SETTINGS > LIBRARY > REPORT > SAVE, and send the file. It never carries anything you've hidden, your password or tokens.
+FULL SCREEN in the reader's controls hides the browser's bars (Android and computers).
 On a phone, the first manga you open says how to turn pages: swipe, or tap the edges.
-On a PC, Ctrl + up/down nudge the vertical strip a little, to see a panel the screen cut in two.
+On a PC, the arrow keys glide a screen at a time, and Ctrl + up/down nudge a little.
+A page that didn't load says so at its top, not halfway down a long manhwa page.

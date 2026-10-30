@@ -189,6 +189,13 @@ folder's `.env` can set `PORT`, `ENGINE_PORT`, `SOLVER_PORT`,
 friend's README, "Reading on your phone or tablet", says how) and
 `DATABASE_PATH`.
 
+**What a release runs without a build** (the launcher, serve.ts and the server
+modules it carries) is TypeScript run by Node's own type stripping, which
+refuses some TypeScript: parameter properties, enums, namespaces.
+`tests/strip-types.spec.ts` parses each of them that way; Vitest and the
+typecheck can't tell (2026.10.30.8's first build died on a launcher class's
+`constructor(readonly file: string)`, caught by the smoke test).
+
 ## Smoke test
 
 `ops/release/smoke.sh <version>` runs every bundle on a machine that has

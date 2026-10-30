@@ -17,15 +17,20 @@ export const KEEP = 4;
 export const stamp = (at: Date, level: Level, text: string) =>
 	`${at.toISOString()} ${level.padEnd(5)} ${text}\n`;
 
+// Plain fields, never constructor parameter properties (`readonly file` in the
+// signature): the bundle runs this with Node's own type stripping, which
+// refuses them, and 2026.10.30.8's launcher died on it before starting
+// anything (tests/strip-types.spec.ts guards every module the bundle runs).
 export class Log {
+	readonly file: string;
+	private o: { max?: number; keep?: number; now?: () => Date };
 	private size: number;
 	/** What came without its line's end yet, per level. */
 	private partial: Record<Level, string> = { INFO: '', ERROR: '' };
 
-	constructor(
-		readonly file: string,
-		private o: { max?: number; keep?: number; now?: () => Date } = {}
-	) {
+	constructor(file: string, o: { max?: number; keep?: number; now?: () => Date } = {}) {
+		this.file = file;
+		this.o = o;
 		this.size = existsSync(file) ? statSync(file).size : 0;
 	}
 
