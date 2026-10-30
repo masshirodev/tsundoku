@@ -15,7 +15,7 @@ source, the workstation's mounts, or Tailscale.
 | ---------------- | -------------------------------------------------------------------------------------------------- |
 | How it's shipped | **Both**: a native install (most friends have no Docker), and Docker compose for those who do.     |
 | Access           | **Repos stay private** until the real public release. Friends get built artifacts only.            |
-| Licence          | **MIT** for tsundoku. The engine keeps upstream's MPL-2.0 ("Licences", below).                     |
+| Licence          | **PolyForm Noncommercial** for tsundoku. The engine keeps upstream's MPL-2.0 ("Licences", below).  |
 | Windows testing  | **A local VM**: Zen, the owner's Windows 10 VirtualBox VM (phase 6).                               |
 | Scope            | **Core + downloads**: library, importers, readers, anime, and downloading through the engine.      |
 | Network          | **`http://localhost` by default** (a secure context), with today's Tailscale HTTPS mode as opt-in. |
@@ -165,9 +165,27 @@ one for people who already have it, and for Linux servers.
 
 ## Licences
 
-tsundoku is **MIT** (`LICENSE`), like kotoba. What ships beside it isn't all
-MIT, and that decides what handing a build to a friend obliges:
+tsundoku is **PolyForm Noncommercial 1.0.0** (`LICENSE`): anyone may use,
+change and share it for a noncommercial purpose, and nobody may sell it or
+charge for hosting it. It was MIT until 2026-10-29 and moved because the owner
+doesn't want it sold; MIT allows that. It is source-available, not open source
+by the OSI's definition, and that is the trade. A copy someone already received
+under MIT stays MIT for them; every copy since is PolyForm.
 
+The licence's one condition on sharing is that the terms (or their URL) and the
+`Required Notice:` line at the top of `LICENSE` travel with every copy. A
+bundle carries `LICENSE` whole, so it does.
+
+The rest of what ships isn't under that licence, and that decides what handing
+a build to a friend obliges:
+
+- **The LNReader shims** in `src/lib/server/novels/plugin-host.cjs` (the
+  `@libs/*` fetch and storage that plugins are written against) are adapted
+  from [lnreader-plugins](https://github.com/LNReader/lnreader-plugins), MIT.
+  MIT allows that inside a noncommercial project, on the condition that its
+  notice stays with that code: it's in the file's header, and the release's
+  `THIRD-PARTY-NOTICES` lists it. kotoba is the owner's own and MIT, and is
+  listed there too.
 - **tsundoku-engine is MPL-2.0**, inherited from M-Extension-Server. MPL lets
   the engine's binary go out with its source kept private, but anyone who
   receives the binary is entitled to the source of the MPL files. Until the

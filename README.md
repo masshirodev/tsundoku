@@ -182,7 +182,10 @@ Tracked on the **Tsundoku** board in Kumiko. Beyond the defaults (`Feature`,
 
 ## Licence
 
-MIT ([`LICENSE`](LICENSE)). The extension engine it talks to,
-`tsundoku-engine`, is a fork of M-Extension-Server and stays MPL-2.0; what that
-means for handing builds to friends is in
+[PolyForm Noncommercial 1.0.0](LICENSE): free to use, change and share for
+any noncommercial purpose, never to sell. It was MIT until 2026-10-29. The
+extension engine it talks to, `tsundoku-engine`, is a fork of
+M-Extension-Server and stays MPL-2.0, and the LNReader shims in
+`src/lib/server/novels/plugin-host.cjs` keep lnreader-plugins' MIT notice; why,
+and what that means for handing builds to friends, is in
 [`doc/DISTRIBUTION.md`](doc/DISTRIBUTION.md), "Licences".

@@ -424,8 +424,14 @@ function notices(dir: string, platform: Platform, src: string): string {
 
 	parts.push(
 		`tsundoku ${version}: third-party notices\n\n` +
-			'tsundoku itself is MIT (LICENSE). This folder also carries the programs and\n' +
-			'packages below, each under its own licence.'
+			'tsundoku itself is under the PolyForm Noncommercial License 1.0.0 (LICENSE).\n' +
+			'This folder also carries the programs and packages below, each under its\n' +
+			'own licence.'
+	);
+	add(
+		'The LNReader plugin shims in tsundoku (src/lib/server/novels/plugin-host.cjs),\nadapted from lnreader-plugins',
+		'MIT',
+		readFileSync(join(src, 'src/lib/server/novels/LICENSE-lnreader-plugins.txt'), 'utf8')
 	);
 	add(
 		`tsundoku-engine ${engineCommit.slice(0, 7)} (engine/engine.jar), a fork of M-Extension-Server`,

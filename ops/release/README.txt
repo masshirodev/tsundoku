@@ -61,6 +61,8 @@ and start tsundoku again.
 Licences
 --------
 
-tsundoku is MIT (LICENSE). Everything else in this folder, and its
+tsundoku is under the PolyForm Noncommercial License 1.0.0 (LICENSE):
+use it, change it and share it freely, but don't sell it. Share LICENSE
+with it. Everything else in this folder, and its
 licence, is listed in THIRD-PARTY-NOTICES.txt. The extension engine is
 MPL-2.0: ask whoever gave you this copy for its source and you'll get it.

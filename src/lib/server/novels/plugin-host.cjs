@@ -122,6 +122,9 @@ async function guardedFetch(input, init = {}) {
 }
 
 // ---- the shims: @libs/*, as LNReader's runtime gives them (lnreader-plugins, MIT) ------------
+// Adapted from lnreader-plugins' src/lib (fetch, storage), Copyright (c) 2021
+// Rajarshee Chatterjee, under the MIT licence in LICENSE-lnreader-plugins.txt
+// beside this file. Unlike the rest of tsundoku, this section stays MIT.
 
 const DEFAULT_HEADERS = {
 	Connection: 'keep-alive',
