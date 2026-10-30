@@ -1,0 +1,2 @@
+On a new library, + ADD and READ ONLINE work: they said there was no Mihon library, or did nothing.
+Search asks the sources you've installed, not only ones your library already reads from: a new library's searches found nothing.

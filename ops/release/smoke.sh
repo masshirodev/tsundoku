@@ -16,6 +16,23 @@ repo=$(cd "$here/../.." && pwd)
 base=${RELEASE_DIR:-/mnt/hdd2/tsundoku/release}
 out="$base/out/$version"
 work="$base/smoke/$version"
+
+# A release is tested with the scripts it was tagged with, never this
+# checkout's: 2026.10.30.5's run used a smoke.sh that already tested a later
+# commit's Wi-Fi, and was edited under it besides. So, unless this already is
+# the tag's copy, check the tag out and run its own (a trial, with no tag,
+# runs this one).
+if [ -z "${TSUNDOKU_SMOKE_TAGGED:-}" ] && git -C "$repo" rev-parse -q --verify "refs/tags/release/$version" >/dev/null; then
+	src="$base/smoke-src/$version"
+	rm -rf "$src"
+	git -C "$repo" worktree prune
+	git -C "$repo" worktree add -q --detach "$src" "release/$version"
+	ln -s "$repo/node_modules" "$src/node_modules"
+	status=0
+	TSUNDOKU_SMOKE_TAGGED=1 sh "$src/ops/release/smoke.sh" "$@" || status=$?
+	git -C "$repo" worktree remove --force "$src"
+	exit $status
+fi
 rm -rf "$work"
 mkdir -p "$work/library"
 
@@ -62,6 +79,27 @@ if [ -z "$only" ] || [ "$only" = win-x64 ]; then
 	scp -q "$work/latest.json" "$here/smoke/serve-dir.mjs" "$here/smoke/set-password.mjs" \
 		"$here/smoke/windows-update.ps1" win-test:
 	ssh -o BatchMode=yes win-test 'powershell -ExecutionPolicy Bypass -File $HOME\windows-update.ps1' || status=1
+	echo "-- over home Wi-Fi: the workstation as the phone, across the network"
+	scp -q "$here/smoke/windows-wifi.ps1" "$here/smoke/set-password.mjs" win-test:
+	ssh -o BatchMode=yes win-test 'powershell -ExecutionPolicy Bypass -File $HOME\windows-wifi.ps1' > "$work/wifi.log" 2>&1 &
+	zen=$!
+	url=''
+	for i in $(seq 1 90); do
+		url=$(ssh -o BatchMode=yes win-test 'Get-Content $HOME\wifi-code.txt -ErrorAction SilentlyContinue' 2>/dev/null | tr -d '\r')
+		case "$url" in http*) break ;; esac
+		sleep 2
+	done
+	jar="$work/wifi.jar"
+	{
+		# The code, then the welcome screen with the cookie it set; and a phone with no code.
+		echo "pair $(curl -s -o /dev/null -c "$jar" -w '%{http_code} %{redirect_url}' "$url" | sed 's#http://[^/]*##')"
+		w=$(curl -s -b "$jar" -w '\n%{http_code}' "${url%/pair/*}/welcome")
+		echo "welcome $(echo "$w" | tail -1) $(echo "$w" | grep -q 'This phone is signed in' && echo signed-in)"
+		echo "stranger $(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' "${url%/pair/*}/" | sed 's#http://[^/]*##; s#?.*##')"
+	} > "$work/wifi-phone.txt"
+	scp -q "$work/wifi-phone.txt" win-test:wifi-phone.txt
+	wait $zen || status=1
+	cat "$work/wifi.log"
 	# On a tailnet, only given a key to join one with: an ephemeral auth key
 	# (Tailscale admin console > Settings > Keys), so Zen leaves the tailnet by
 	# itself once logged out, and the snapshot takes Tailscale away again.

@@ -192,7 +192,12 @@ friend's README, "Reading on your phone or tablet", says how) and
 ## Smoke test
 
 `ops/release/smoke.sh <version>` runs every bundle on a machine that has
-never seen tsundoku:
+never seen tsundoku, **with the tests the release was tagged with**: it checks
+`release/<version>` out (under `smoke-src/`) and runs that copy's smoke.sh, so
+a later commit's tests never judge an older release (2026.10.30.5's first run
+did, and failed on a stage it couldn't have). The release script likewise
+takes the server modules a bundle carries from the tag's own imports
+(`ops/release/modules.ts`), not from a list in whichever copy runs it.
 
 - **Linux** in a bare `debian:stable-slim` container: no Node, no Java, no
   ffmpeg, only what the bundle carries.

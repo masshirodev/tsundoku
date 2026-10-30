@@ -30,8 +30,10 @@ import {
 } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { serverModules } from './modules.ts';
 
 type Platform = 'win-x64' | 'linux-x64';
+
 type Pin = { url: string; sha256: string };
 type Component = { version: string; licence: string; source?: string } & Record<Platform, Pin>;
 const PLATFORMS: Platform[] = ['win-x64', 'linux-x64'];
@@ -169,7 +171,11 @@ mkdirSync(join(app, 'scripts'), { recursive: true });
 mkdirSync(join(app, 'src/lib/server'), { recursive: true });
 cpSync(join(src, 'build'), join(app, 'build'), { recursive: true });
 copyFileSync(join(src, 'scripts/serve.ts'), join(app, 'scripts/serve.ts'));
-for (const f of ['bind.ts', 'data-dirs.ts', 'first-run.ts', 'fspath.ts', 'login.ts'])
+// The modules serve.ts and the launcher import, found by following their
+// imports in the tag's own source. A list written here belonged to whichever
+// commit this script came from: 2026.10.30.5's build, run with a script that
+// already named a later commit's lan.ts, failed on a file its tag never had.
+for (const f of serverModules(src))
 	copyFileSync(join(src, 'src/lib/server', f), join(app, 'src/lib/server', f));
 copyFileSync(join(src, 'yarn.lock'), join(app, 'yarn.lock'));
 // Only what the server loads: the rest of `dependencies` (fonts, hls.js, the
