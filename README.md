@@ -25,6 +25,7 @@ yarn run covers   # make cover thumbnails; --local to use files only (doc/COVERS
 yarn run links    # link series to MAL / AniList, searching every one (doc/LINKS.md)
 yarn run ranobe   # novels to Ranobe: link, suggest editions, send reads (doc/RANOBE.md)
 yarn run secrets:pull  # write .env from Infisical on the VPS (doc/SECRETS.md)
+yarn run release 2026.10.29  # friends' bundles from tag release/2026.10.29 (doc/RELEASE.md)
 ```
 
 On the tablet it's served over HTTPS on the tailnet, behind a token.
@@ -122,6 +123,8 @@ is the mount development pressures.
 - [`doc/DISTRIBUTION.md`](doc/DISTRIBUTION.md) — the plan for installs on
   friends' computers (Windows included): native bundles, Docker images, one
   data directory, and what stays personal.
+- [`doc/RELEASE.md`](doc/RELEASE.md) — building the bundles friends install
+  (`yarn run release`), what's in them, the launcher, and the smoke test.
 - [`doc/WINDOWS-VM.md`](doc/WINDOWS-VM.md) — Zen, the Windows VM the install is
   tested on: `ops/winvm/zen.sh`, `ssh win-test`, and its snapshots.
 - [`doc/COVERS.md`](doc/COVERS.md) — where covers come from, the thumbnail

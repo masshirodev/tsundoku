@@ -26,6 +26,14 @@ Copy files in with `scp file win-test:` (they land in
 PowerShell 7: no `&&`, and `$ProgressPreference = 'SilentlyContinue'` keeps
 progress records out of the output.
 
+## The release smoke test
+
+`ops/release/smoke.sh <version>` runs a release's Windows bundle here, from
+`up` to `down` ([`RELEASE.md`](RELEASE.md), "Smoke test"):
+`ops/release/smoke/windows.ps1` unzips it, puts a synthesised library in
+`%LOCALAPPDATA%\tsundoku`, starts it and runs the probe. It starts from the
+data folder deleted, so every run is a first start.
+
 ## What it is
 
 | What      | Value                                                                                |

@@ -1,8 +1,11 @@
 # Distribution: tsundoku on a friend's computer
 
-Status: **phases 1 and 2 are built** (2026-10-29: one data directory, the
-local serve mode, a first-run token). The rest is the plan as decided that
-day. Cards on the Tsundoku board carry the `Friends` label.
+Status (2026-10-29): **phases 1, 2, 4 and 6 are built**: one data
+directory, the local serve mode and first-run token, native bundles for
+Windows and Linux with their launcher, and the Windows test VM with a smoke
+test both bundles pass. How a release is made is [`RELEASE.md`](RELEASE.md).
+Docker (3), the installer, publishing and update notices are still the plan
+as decided that day. Cards on the Tsundoku board carry the `Friends` label.
 
 Until now tsundoku had exactly one install: this workstation, served over the
 tailnet to the owner's tablet. Friends want to try it, some on Windows. This
@@ -111,7 +114,11 @@ rebuilt in place, or points the snapshot at `TSUNDOKU_HOME`.
 
 ### 4. Native bundles
 
-One archive per platform (`windows-x64`, `linux-x64`, `macos-arm64` at first),
+**Built 2026-10-29** for `win-x64` and `linux-x64`; [`RELEASE.md`](RELEASE.md)
+is how, and where it departs from this plan: a downloaded Temurin JRE rather
+than a jlinked one, FlareSolverr as its own optional archive (it unpacks to
+1.5 GB on Windows, a whole Chrome), and no macOS yet (nothing to test it on,
+and FlareSolverr has no macOS build). The plan was one archive per platform,
 each self-contained:
 
 - a portable Node 24, the build, and production `node_modules` installed _for
@@ -152,8 +159,9 @@ the owner's Windows 10 VirtualBox VM, now with OpenSSH and reached as
 Windows 10 rather than 11 makes no difference to anything tsundoku touches
 (paths, `%LOCALAPPDATA%`, Node 24, an installer, start at login). A Windows 11
 VM under QEMU (OVMF, `swtpm` for the TPM it requires) stays the way to add 11
-if it ever matters. The smoke test, still to write with the bundle: install
-it, start it, sign in, import a synthesised Mihon folder, open a chapter.
+if it ever matters. The smoke test is `ops/release/smoke.sh`
+([`RELEASE.md`](RELEASE.md), "Smoke test"): unzip, start, sign in, import a
+synthesised Mihon folder, read every chapter's first page.
 
 ## Why not just one of them
 
@@ -194,8 +202,12 @@ a build to a friend obliges:
 - **ffmpeg** is LGPL or GPL depending on the build chosen for a bundle. The
   bundle ships its licence and says where its source is, as ffmpeg's own
   builds do. Pick an LGPL build where one fits.
-- **FlareSolverr** is MIT; its licence goes in the bundle.
-- Every third-party licence in a bundle or image is collected into a
-  `THIRD-PARTY-NOTICES` file by the release build (c176).
+- **FlareSolverr** is MIT, and ships as its own release, unmodified, with
+  the Chrome it carries under Chrome's terms. Its archive holds no licence
+  file; THIRD-PARTY-NOTICES names it.
+- Every third-party licence in a bundle is collected into
+  `THIRD-PARTY-NOTICES.txt` by the release build: the packages the server
+  loads, the ones compiled into `build/` (the fonts are OFL), Node, the JRE,
+  the engine and ffmpeg.
 
 At the public release, both repositories open and the first point goes away.

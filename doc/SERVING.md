@@ -143,15 +143,16 @@ The pure parts (`serveMode`, `localOrigin`, `loopbackRedirect`) are in
 
 ## Variables
 
-| Variable                    | Default   | Meaning                                                         |
-| --------------------------- | --------- | --------------------------------------------------------------- |
-| `TSUNDOKU_TOKEN`            | made once | The shared login token, in `.env` (or `TSUNDOKU_HOME/.env`).    |
-| `TSUNDOKU_SERVE`            | `https`   | `https` through tailscale serve, `http`, or `local`.            |
-| `TSUNDOKU_HOME`             | per OS    | The data folder every other folder derives from.                |
-| `TSUNDOKU_HTTPS_PORT`       | `8443`    | 443, 8443 or 10000.                                             |
-| `PORT`                      | `42143`   | The app's own port, on 127.0.0.1 (or the tailnet in http mode). |
-| `ORIGIN`                    | derived   | Only to override the derived one.                               |
-| `HOST`, `TSUNDOKU_BIND_ANY` | —         | http mode only.                                                 |
+| Variable                    | Default   | Meaning                                                               |
+| --------------------------- | --------- | --------------------------------------------------------------------- |
+| `TSUNDOKU_TOKEN`            | made once | The shared login token, in `.env` (or `TSUNDOKU_HOME/.env`).          |
+| `TSUNDOKU_SERVE`            | `https`   | `https` through tailscale serve, `http`, or `local`.                  |
+| `TSUNDOKU_HOME`             | per OS    | The data folder every other folder derives from.                      |
+| `TSUNDOKU_SNAPSHOT`         | on        | `off` runs `build/` itself, without the `.serving/` copy (a release). |
+| `TSUNDOKU_HTTPS_PORT`       | `8443`    | 443, 8443 or 10000.                                                   |
+| `PORT`                      | `42143`   | The app's own port, on 127.0.0.1 (or the tailnet in http mode).       |
+| `ORIGIN`                    | derived   | Only to override the derived one.                                     |
+| `HOST`, `TSUNDOKU_BIND_ANY` | —         | http mode only.                                                       |
 
 ## Undoing it
 
@@ -190,3 +191,7 @@ With the copy, the live server keeps serving what it started with until it's
 restarted.
 
 To ship a change: `yarn run build`, then restart `yarn run serve`.
+
+A release runs with `TSUNDOKU_SNAPSHOT=off` (its launcher sets it): it's
+never rebuilt in place, and its folder may not be writable, so it serves
+`build/` as it is ([`RELEASE.md`](RELEASE.md)).
