@@ -105,6 +105,21 @@ it into your data folder (above), so there's a flaresolverr folder in it,
 and start tsundoku again. It stays there through updates and reinstalls.
 
 
+Updates
+-------
+
+tsundoku looks for a new version once a day (it asks
+dl.tsundoku.masshiro.pro, which sees nothing but that request). When one is
+out, the library says so; SETTINGS > DEVICES > UPDATES shows what's new.
+On Windows, UPDATE downloads it, checks it was signed by tsundoku's
+release key, and installs it: tsundoku closes for a minute and opens
+again, your library untouched. On Linux, DOWNLOAD it and start the new
+folder instead. To stop looking, add TSUNDOKU_UPDATES=off to .env.
+
+The newest version is always at
+https://dl.tsundoku.masshiro.pro/latest/tsundoku-win-x64.exe
+
+
 Licences
 --------
 

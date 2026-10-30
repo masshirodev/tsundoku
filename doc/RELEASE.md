@@ -28,8 +28,9 @@ Out come, under `/mnt/hdd2/tsundoku/release/out/<version>/`:
 | `flaresolverr-3.4.6-<platform>.zip/.tar.gz` | FlareSolverr's own release, unmodified, optional |
 | `SHA256SUMS`                                | all of the above                                 |
 
-Nothing is published by the script. Where friends download from is c180
-("Public releases repo: friend README, compose, bundles").
+Nothing is published by this script: `yarn run release:publish <version>`
+puts a smoke-tested version on dl.tsundoku.masshiro.pro, where friends
+download it and installs find it ([`UPDATES.md`](UPDATES.md)).
 
 ## What `release` does
 
@@ -238,6 +239,12 @@ by hand instead of a key. The first request there took 4 s, Tailscale
 fetching the certificate; the probe waits up to a minute for it, since once
 it outlasted fetch's 10 s connect timeout.
 
+**The updater** (`smoke/windows-update.ps1`, [`UPDATES.md`](UPDATES.md),
+"Tests"): offered a signed pretend 9999.01.01 by Zen itself, UPDATE downloads,
+checks and runs the installer, and tsundoku comes back by itself on the same
+data. A run of smoke.sh that passes on every platform writes `out/<v>/.smoked`,
+which publishing requires.
+
 ## Not in a release yet
 
 - **macOS.** No machine to test it on, and FlareSolverr publishes no macOS
@@ -245,4 +252,4 @@ it outlasted fetch's 10 s connect timeout.
 - **JMdict lookups.** The dictionary isn't shipped (74 MB, built from
   EDRDG's data); without it, lookups are simply off (`KOTOBA_JMDICT`,
   [`JAPANESE.md`](JAPANESE.md)).
-- **Updates** say nothing yet (c182).
+- **Updating in place on Linux**: there, UPDATE is a download and steps.

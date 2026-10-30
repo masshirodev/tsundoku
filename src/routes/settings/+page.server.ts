@@ -26,6 +26,7 @@ import { DEVICE_KEYS, type Json, type ValueId } from '$lib/settings/catalog';
 import { currentLogin, friendLogin, localOnly, setSession, slowDown } from '$lib/server/auth';
 import { dataPaths } from '$lib/server/data-dirs';
 import { MIN_PASSWORD, makeLogin, sessionFor, verifyPassword, writeLogin } from '$lib/server/login';
+import { checkIfStale, updateView } from '$lib/server/updates';
 
 /** The languages the repositories list, most extensions first: the BROWSE row's cells. */
 function listedLanguages(): string[] {
@@ -75,6 +76,8 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 			subs: lastChoice('subs', reveal),
 			subsize: lastChoice('subsize', reveal)
 		},
+		// A friend's install looks for new versions (doc/UPDATES.md); null elsewhere.
+		updates: (checkIfStale(60 * 60 * 1000), updateView()),
 		// A friend's password, or none (doc/SIGN-IN.md); the workstation has its token.
 		signIn: friendLogin()
 			? {

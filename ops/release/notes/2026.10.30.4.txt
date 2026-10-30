@@ -1,0 +1,4 @@
+Choose a password the first time you open tsundoku, or none, instead of copying a token from the black window. Forgot it? Start menu > Reset tsundoku password.
+tsundoku now tells you when a new version is out, and UPDATE installs it for you from here on.
+Closing the window on Linux stops tsundoku properly.
+Sources you install in another language now show up in BROWSE.

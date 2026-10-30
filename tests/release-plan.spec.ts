@@ -23,6 +23,7 @@ describe('the launcher’s plan (doc/RELEASE.md)', () => {
 			TSUNDOKU_SNAPSHOT: 'off',
 			// A password chosen on first open, never a token (doc/SIGN-IN.md).
 			TSUNDOKU_LOGIN: 'password',
+			TSUNDOKU_UPDATES: 'https://dl.tsundoku.masshiro.pro',
 			PORT: '42143',
 			ENGINE_URL: 'http://127.0.0.1:4590',
 			ENGINE_TOKEN: 'eng',
@@ -121,5 +122,20 @@ describe('opener', () => {
 		});
 		expect(opener('darwin', 'u').cmd).toBe('open');
 		expect(opener('linux', 'u').cmd).toBe('xdg-open');
+	});
+});
+
+describe('updates (doc/UPDATES.md)', () => {
+	const at = (env: Record<string, string>, installed?: boolean) =>
+		plan({ ...base, root: 'C:\\t', home: 'C:/h', env, platform: 'win32', installed }).server.env;
+
+	it('looks at the release host unless .env says otherwise', () => {
+		expect(at({}).TSUNDOKU_UPDATES).toBe('https://dl.tsundoku.masshiro.pro');
+		expect(at({ TSUNDOKU_UPDATES: 'off' }).TSUNDOKU_UPDATES).toBe('off');
+	});
+
+	it('says when the installer put it there, so UPDATE can run the next one', () => {
+		expect(at({}, true).TSUNDOKU_INSTALLED).toBe('1');
+		expect(at({}).TSUNDOKU_INSTALLED).toBeUndefined();
 	});
 });

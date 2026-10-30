@@ -58,6 +58,75 @@
 	/** The PASSWORD row's open form, if any (doc/SIGN-IN.md). */
 	let pw = $state<null | 'set' | 'remove'>(null);
 
+	/**
+	 * UPDATES (doc/UPDATES.md): the server's view, refreshed by CHECK and polled
+	 * while an install runs. The installer stops this server and starts the new
+	 * one, so the poll goes unanswered for a while, then reloads onto it.
+	 */
+	type Updates = NonNullable<typeof data.updates>;
+	// The server's view, overridden by CHECK and the poll until the page loads again.
+	let upd = $derived<Updates | null>(data.updates);
+	let checkingUpdates = $state(false);
+	let target: string | null = null;
+	async function checkUpdates() {
+		checkingUpdates = true;
+		try {
+			const r = await fetch('/api/updates', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ action: 'check' })
+			});
+			if (r.ok) upd = (await r.json()) as Updates;
+		} finally {
+			checkingUpdates = false;
+		}
+	}
+	async function installUpdate() {
+		target = upd?.available?.version ?? null;
+		const r = await fetch('/api/updates', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ action: 'install' })
+		});
+		if (r.ok) upd = (await r.json()) as Updates;
+		const poll = async () => {
+			try {
+				const g = await fetch('/api/updates', { cache: 'no-store' });
+				if (g.ok) {
+					const now = (await g.json()) as Updates;
+					if (target && now.current === target) return location.reload();
+					// The old server's view until it stops; then nothing, until the new one.
+					if (now.current !== target) upd = now;
+					if (now.install?.phase === 'failed') return;
+				}
+			} catch {
+				// Stopped by the installer: the new version isn't up yet.
+			}
+			setTimeout(poll, 1000);
+		};
+		void poll();
+	}
+	// The band on the library has done its job once SETTINGS is open.
+	$effect(() => {
+		const v = data.updates?.available?.version;
+		if (!v) return;
+		try {
+			localStorage.setItem('tsundoku.update.seen', v);
+		} catch {
+			// Storage refused: the band shows again, no harm.
+		}
+	});
+	const updateLine = (u: Updates) => {
+		const i = u.install;
+		if (i?.phase === 'downloading')
+			return `DOWNLOADING ${i.total ? Math.floor((i.bytes / i.total) * 100) : 0}%`;
+		if (i?.phase === 'installing') return 'INSTALLING · TSUNDOKU WILL REOPEN BY ITSELF';
+		if (i?.phase === 'failed') return `UPDATE FAILED · ${i.error.toUpperCase()}`;
+		if (u.available) return `${u.available.version} IS OUT · ${u.available.date}`;
+		if (u.error) return `COULDN'T CHECK · ${u.error.toUpperCase()}`;
+		return u.checkedAt ? `UP TO DATE · CHECKED ${when(u.checkedAt)}` : 'NOT CHECKED YET';
+	};
+
 	// ---- where the page is drawn -------------------------------------------------------------
 	const phone = new MediaQuery('(max-width: 599px)', false);
 	const wide = new MediaQuery('(min-width: 1024px)', false);
@@ -525,6 +594,9 @@
 						{/each}
 						{#if s.id === 'devices'}
 							{@render devices()}
+							{#if upd}
+								{@render updates(upd)}
+							{/if}
 							{#if data.signIn}
 								{@render signIn(data.signIn)}
 							{/if}
@@ -797,6 +869,54 @@
 					</div>{/if}
 			</div>
 			{#if !phone.current}<div class="scope"><span class="sa quiet">ALL DEVICES</span></div>{/if}
+		</div>
+	{/if}
+{/snippet}
+
+{#snippet updates(u: Updates)}
+	{@const busy = u.install !== null && u.install.phase !== 'failed'}
+	<div class="row device">
+		<div class="label">UPDATES</div>
+		<div class="ctl">
+			<div class="acct-body">
+				<div class="who">
+					<div class="name">{u.current}</div>
+					<div class="meta" class:alert={!!u.available || u.install?.phase === 'failed'}>
+						{updateLine(u)}
+					</div>
+				</div>
+				<button type="button" class="cell" disabled={checkingUpdates || busy} onclick={checkUpdates}
+					>{checkingUpdates ? 'CHECKING' : 'CHECK'}</button
+				>
+				{#if u.available && u.how === 'install'}
+					<button type="button" class="cell acc" disabled={busy} onclick={installUpdate}
+						>UPDATE</button
+					>
+				{:else if u.available && u.download}
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the release host, not a route -->
+					<a class="cell acc" href={u.download}>DOWNLOAD</a>
+				{/if}
+			</div>
+		</div>
+		{#if !phone.current}<div class="scope">
+				<span class="sa">FROM DL.TSUNDOKU.MASSHIRO.PRO</span>
+			</div>{/if}
+	</div>
+	{#if u.available}
+		<div class="pw-form">
+			<div class="pw-l">WHAT'S NEW IN {u.available.version}</div>
+			<p class="pw-p notes">{u.available.notes}</p>
+			{#if u.how === 'install'}
+				<p class="pw-p">
+					UPDATE downloads it, checks it was signed by tsundoku's release key, and installs it:
+					tsundoku closes for a minute and opens again. Your library stays as it is.
+				</p>
+			{:else}
+				<p class="pw-p">
+					DOWNLOAD it, unpack it beside this one, and start tsundoku from the new folder. Your
+					library stays where it is; delete the old folder once the new one runs.
+				</p>
+			{/if}
 		</div>
 	{/if}
 {/snippet}
@@ -1568,6 +1688,10 @@
 		margin: 4px 0;
 		font: var(--type-body);
 		color: var(--text-2);
+	}
+	.notes {
+		white-space: pre-line;
+		color: var(--text-1);
 	}
 	.pw-go {
 		padding: 12px 18px;

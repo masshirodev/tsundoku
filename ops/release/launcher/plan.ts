@@ -21,6 +21,9 @@ export type Plan = {
 
 export const DEFAULT_PORTS = { app: 42143, engine: 4590, solver: 8191 };
 
+/** The release host (doc/UPDATES.md): its latest.json, and every version's files. */
+export const UPDATES = 'https://dl.tsundoku.masshiro.pro';
+
 const port = (value: string | undefined, fallback: number) => {
 	const n = Number(value);
 	return Number.isInteger(n) && n > 0 && n < 65536 ? n : fallback;
@@ -39,6 +42,8 @@ export function plan(o: {
 	platform: NodeJS.Platform;
 	engineToken: string;
 	solverDir: string | null;
+	/** Put there by the installer (its uninstaller beside it), so UPDATE can run the next one. */
+	installed?: boolean;
 }): Plan {
 	const p = o.platform === 'win32' ? path.win32 : path.posix;
 	const exe = o.platform === 'win32' ? '.exe' : '';
@@ -65,6 +70,9 @@ export function plan(o: {
 			TSUNDOKU_SNAPSHOT: 'off',
 			// A password chosen on first open, never a token (doc/SIGN-IN.md).
 			TSUNDOKU_LOGIN: 'password',
+			// Where new versions are announced (doc/UPDATES.md); "off" in .env stops looking.
+			TSUNDOKU_UPDATES: o.env.TSUNDOKU_UPDATES || UPDATES,
+			...(o.installed ? { TSUNDOKU_INSTALLED: '1' } : {}),
 			TSUNDOKU_HOME: o.home,
 			DATABASE_PATH: o.env.DATABASE_PATH || p.join(o.home, 'tsundoku.sqlite'),
 			PORT: String(ports.app),

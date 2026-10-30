@@ -43,7 +43,13 @@ check(
 	`${r.status} ${r.headers.get('location')}`
 );
 const PASSWORD = 'smoke-password';
-const form = { origin: base, 'content-type': 'application/x-www-form-urlencoded' };
+// As a browser without script posts a form: SvelteKit answers anything that
+// accepts JSON (fetch's */* does) with a JSON result and a 200 instead.
+const form = {
+	origin: base,
+	accept: 'text/html',
+	'content-type': 'application/x-www-form-urlencoded'
+};
 r = await fetch(`${base}/setup?/password`, {
 	method: 'POST',
 	redirect: 'manual',

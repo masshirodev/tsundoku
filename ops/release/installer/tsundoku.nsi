@@ -16,6 +16,7 @@ RequestExecutionLevel user
 ManifestDPIAware true
 
 !include "MUI2.nsh"
+!include "FileFunc.nsh"
 
 !ifndef VERSION | VIVERSION | BUNDLE | OUTFILE | LICENSE
 	!error "VERSION, VIVERSION, BUNDLE, OUTFILE and LICENSE are passed by release.ts"
@@ -135,6 +136,20 @@ Section "-size"
 	; Settings > Apps shows this; it's the program's size, never the library's.
 	SectionGetSize ${SecMain} $0
 	WriteRegDWORD HKCU "${UNINSTALL_KEY}" "EstimatedSize" $0
+SectionEnd
+
+; An update from inside tsundoku (doc/UPDATES.md): the app runs this installer
+; with /S /RELAUNCH, the install stops the running tsundoku (StopRunning), and
+; this starts the new one. No browser: the tab that pressed UPDATE reloads
+; onto the new version by itself. Through the shell, so the console window is
+; tsundoku's own, not the installer's child.
+Section "-relaunch"
+	${GetParameters} $R0
+	ClearErrors
+	${GetOptions} $R0 "/RELAUNCH" $R1
+	IfErrors no_relaunch
+	ExecShell "" "$INSTDIR\tsundoku.cmd" "--no-browser"
+	no_relaunch:
 SectionEnd
 
 Function StartNow

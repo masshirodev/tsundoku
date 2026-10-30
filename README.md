@@ -127,6 +127,8 @@ is the mount development pressures.
   data directory, and what stays personal.
 - [`doc/RELEASE.md`](doc/RELEASE.md) — building the bundles friends install
   (`yarn run release`), what's in them, the launcher, and the smoke test.
+- [`doc/UPDATES.md`](doc/UPDATES.md) — dl.tsundoku.masshiro.pro, the release
+  key, `yarn run release:publish`, and UPDATE on a friend's install.
 - [`doc/WINDOWS-VM.md`](doc/WINDOWS-VM.md) — Zen, the Windows VM the install is
   tested on: `ops/winvm/zen.sh`, `ssh win-test`, and its snapshots.
 - [`doc/COVERS.md`](doc/COVERS.md) — where covers come from, the thumbnail

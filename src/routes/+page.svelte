@@ -60,6 +60,23 @@
 
 	let { data, form } = $props();
 
+	/**
+	 * A new version's band (doc/UPDATES.md), once per version: gone once the
+	 * friend follows it to SETTINGS, which marks it seen there too.
+	 */
+	const SEEN = 'tsundoku.update.seen';
+	let seenUpdate = $state<string | null>(null);
+	$effect(() => {
+		try {
+			seenUpdate = localStorage.getItem(SEEN);
+		} catch {
+			// Storage refused (a private window): the band shows until updated.
+		}
+	});
+	const newVersion = $derived(
+		data.update && data.update.version !== seenUpdate ? data.update.version : null
+	);
+
 	const scanning = $derived(data.scan !== null && data.scan.finishedAt === null);
 
 	// While an import runs on the workstation, follow it: the band's bytes and
@@ -704,6 +721,14 @@
 
 	{#if isOffline}
 		<Banner kind="info" title="○ OFFLINE" detail="CACHED STILL OPENS" />
+	{/if}
+
+	{#if newVersion}
+		<Banner kind="action" title="TSUNDOKU {newVersion} IS OUT" detail="SEE WHAT'S NEW, AND UPDATE">
+			{#snippet action()}
+				<a href="{resolve('/settings')}#s-devices">SETTINGS →</a>
+			{/snippet}
+		</Banner>
 	{/if}
 
 	{#if data.queue && data.queue.failed > 0 && !data.empty}

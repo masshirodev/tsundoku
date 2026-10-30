@@ -56,6 +56,12 @@ if [ -z "$only" ] || [ "$only" = win-x64 ]; then
 	ssh -o BatchMode=yes win-test 'powershell -ExecutionPolicy Bypass -File $HOME\windows.ps1' || status=1
 	echo "-- the installer: install, run, update while running, uninstall"
 	ssh -o BatchMode=yes win-test 'powershell -ExecutionPolicy Bypass -File $HOME\windows-installer.ps1' || status=1
+	echo "-- the updater: offered a signed newer version, UPDATE, back by itself"
+	node --disable-warning=ExperimentalWarning --experimental-strip-types "$here/smoke/fake-update.ts" \
+		"$out/tsundoku-$version-win-x64.exe" "$work/latest.json"
+	scp -q "$work/latest.json" "$here/smoke/serve-dir.mjs" "$here/smoke/set-password.mjs" \
+		"$here/smoke/windows-update.ps1" win-test:
+	ssh -o BatchMode=yes win-test 'powershell -ExecutionPolicy Bypass -File $HOME\windows-update.ps1' || status=1
 	# On a tailnet, only given a key to join one with: an ephemeral auth key
 	# (Tailscale admin console > Settings > Keys), so Zen leaves the tailnet by
 	# itself once logged out, and the snapshot takes Tailscale away again.
@@ -72,5 +78,11 @@ if [ -z "$only" ] || [ "$only" = win-x64 ]; then
 fi
 
 rm -rf "$work"
+# Only a version that passed everything here may be published
+# (ops/release/publish.ts reads this mark). One platform's run doesn't count.
+rm -f "$out/.smoked"
+if [ $status -eq 0 ] && [ -z "$only" ]; then
+	echo "$version $(date -u +%FT%TZ)" > "$out/.smoked"
+fi
 [ $status -eq 0 ] && echo "smoke: all passed" || echo "smoke: FAILED"
 exit $status

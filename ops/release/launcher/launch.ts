@@ -76,7 +76,8 @@ const p = plan({
 	env: process.env,
 	platform: process.platform,
 	engineToken,
-	solverDir
+	solverDir,
+	installed: windows && existsSync(join(root, 'uninstall.exe'))
 });
 
 console.log(`tsundoku ${version}`);

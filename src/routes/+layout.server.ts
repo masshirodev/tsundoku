@@ -6,6 +6,7 @@ import { queueSummary } from '$lib/server/downloads';
 import { ensureWatcher } from '$lib/server/downloads-watch';
 import { downloadsBackend, ensureEngineWorker } from '$lib/server/engine/run';
 import { browseList } from '$lib/server/engine/browse';
+import { checkIfStale, updateView } from '$lib/server/updates';
 
 export const load: LayoutServerLoad = async ({ cookies, locals }) => {
 	const reveal = isRevealed(cookies);
@@ -19,7 +20,8 @@ export const load: LayoutServerLoad = async ({ cookies, locals }) => {
 			scan: null,
 			people: [],
 			queue: null,
-			browse: null
+			browse: null,
+			update: null
 		};
 	const scan = currentScan();
 	const shelves = listShelves({ reveal, withNew: scan !== null });
@@ -36,5 +38,20 @@ export const load: LayoutServerLoad = async ({ cookies, locals }) => {
 	ensureEngineWorker();
 	// BROWSE's way in, and its EXTENSIONS count (doc/BROWSE.md): on the engine only.
 	const browse = downloadsBackend() === 'engine' ? { updates: browseList(reveal).updates } : null;
-	return { reveal, incognito: isIncognito(cookies), theme, scan, shelves, people, queue, browse };
+	// A new version, on a friend's install (doc/UPDATES.md): looked for once a
+	// day, never waited on here; the library says so once (its band).
+	checkIfStale();
+	const available = updateView()?.available;
+	const update = available ? { version: available.version } : null;
+	return {
+		reveal,
+		incognito: isIncognito(cookies),
+		theme,
+		scan,
+		shelves,
+		people,
+		queue,
+		browse,
+		update
+	};
 };

@@ -132,6 +132,19 @@ says what the device is (`Android tablet · Chrome`, from its browser's user
 agent), when it was last opened, and how many of its rows changed. Its
 scope cell is KEPT ON THE WORKSTATION.
 
+On a friend's install, two more rows close the section (not drawn in the
+handoff; the PASSWORD form reuses the sign-in page's fields):
+
+- **UPDATES** ([`UPDATES.md`](UPDATES.md)): the version running, when it last
+  looked and what it found; CHECK, and UPDATE (Windows, installed) or
+  DOWNLOAD when a newer one is out, with its notes under the row. Opening
+  SETTINGS marks the library's new-version band seen.
+- **PASSWORD** ([`SIGN-IN.md`](SIGN-IN.md)): SET or NONE; CHANGE or SET, and
+  REMOVE, each opening a form under the row.
+
+The workstation has neither: its sign-in is the token and it never updates
+itself.
+
 ### How a device is kept (the owner's answer to question 1)
 
 - Every browser makes a random id the first time (`tsundoku.device`). There
