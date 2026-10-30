@@ -323,6 +323,59 @@ test('incognito shows a dashed rule, INCOGNITO, and NOT SAVED', async ({ page })
 	await expect(meta(page)).toContainText('NOT SAVED');
 });
 
+test('vertical, on a PC: a wheel notch eases, ↓ and ↑ move a screen (c192)', async ({ page }) => {
+	await seriesId(page, 'The Greatest Estate Developer');
+	await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.click();
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	await expect(page.locator('.strip')).toBeVisible();
+	// Settled: no chapter still arriving above to keep the place for.
+	await page.waitForTimeout(500);
+	await page.mouse.move(400, 640);
+	const y = () => page.evaluate(() => scrollY);
+	const track = () =>
+		page.evaluate(() => {
+			const w = window as unknown as { ys: number[] };
+			w.ys = [];
+			const t = () => {
+				w.ys.push(scrollY);
+				if (w.ys.length < 60) requestAnimationFrame(t);
+			};
+			requestAnimationFrame(t);
+		});
+	const seen = () => page.evaluate(() => (window as unknown as { ys: number[] }).ys);
+
+	// A notch: on its way through more than one place, not a jump, landing where
+	// the event aimed. Its delta in CSS pixels is the device's scaled down
+	// (44.44 for 100 at this project's 2.25): what a browser would scroll.
+	const y0 = await y();
+	await page.evaluate(() =>
+		addEventListener('wheel', (e) => ((window as unknown as { delta: number }).delta = e.deltaY), {
+			once: true,
+			capture: true
+		})
+	);
+	await track();
+	await page.mouse.wheel(0, 100);
+	await page.waitForTimeout(700);
+	const ys = await seen();
+	const delta = await page.evaluate(() => (window as unknown as { delta: number }).delta);
+	expect(new Set(ys.filter((v) => v > y0 && v < y0 + delta)).size).toBeGreaterThan(2);
+	// Within a pixel: the browser snaps a fractional scroll (44.44 here) to its own grid.
+	expect(Math.abs((await y()) - y0 - delta)).toBeLessThanOrEqual(1);
+
+	// ↓ a screen, less a little so the last line stays in sight; ↑ back.
+	const screen = await page.evaluate(() => Math.round(innerHeight * 0.85));
+	const y1 = await y();
+	await page.keyboard.press('ArrowDown');
+	await expect.poll(async () => Math.abs((await y()) - y1 - screen)).toBeLessThanOrEqual(1);
+	await page.keyboard.press('ArrowUp');
+	await expect.poll(async () => Math.abs((await y()) - y1)).toBeLessThanOrEqual(1);
+});
+
 test('vertical: turning the device keeps the page being read under the middle', async ({
 	page
 }) => {

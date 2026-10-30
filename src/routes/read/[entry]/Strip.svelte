@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { keepPlaceBy } from '$lib/reader/smooth-scroll';
 	import { onMount, tick } from 'svelte';
 	import PageImage from './PageImage.svelte';
 	import type { Page, StripChapter } from '$lib/reader/reader';
@@ -94,7 +95,7 @@
 		if (el.isConnected) {
 			settling = true;
 			const r = el.getBoundingClientRect();
-			window.scrollBy(0, r.top + at * r.height - (to?.y ?? innerHeight / 2));
+			keepPlaceBy(r.top + at * r.height - (to?.y ?? innerHeight / 2));
 			// A zoom keeps its point across the page too, inside the lane.
 			if (to && lane) lane.scrollLeft += r.left + to.fx * r.width - to.x;
 			requestAnimationFrame(() =>
@@ -143,7 +144,7 @@
 		const moved = anchor.getBoundingClientRect().top - before;
 		if (Math.abs(moved) < 1) return;
 		settling = true;
-		window.scrollBy(0, moved);
+		keepPlaceBy(moved);
 		requestAnimationFrame(() =>
 			requestAnimationFrame(() => {
 				settling = false;

@@ -332,6 +332,40 @@ Tested in `tests/reader-flow.e2e.ts`: across the band and back, that the page
 being read stays put through a rotation both ways, and that
 nothing moves when chapters arrive above or when the reader crosses a band.
 
+## Scrolling on a PC
+
+The vertical strip on a computer (card c192; the owner, 2026-10-30, in
+Firefox: "can we make it smooth, like Mihon, without losing responsiveness",
+and "when I click down or up it pans to the next sections").
+
+- **A mouse wheel's notch eases** the strip instead of jumping it
+  (`src/lib/reader/smooth-scroll.ts`). An exponential approach, not a timed
+  tween: each frame covers the same share of what's left, so the first frame
+  already moves most of the way (the response is immediate) and the rest
+  settles in ~120 ms; a second notch extends the target instead of queueing,
+  so it never trails the hand. Measured headless in Chromium before: 20
+  notches were 20 one-frame jumps of 100 px; after, 136 frames of shrinking
+  steps.
+- **Only a mouse wheel's notches.** Firefox reports them in lines; Chromium
+  in CSS pixels, a notch being 100 or 120 device pixels divided by the
+  screen's scale (66.67 at 150%). A trackpad's or touchscreen's stream, which
+  the browser already scrolls smoothly with momentum, stays native, as do
+  Shift + wheel (sideways, when zoomed past the screen) and Ctrl + wheel
+  (zoom). A notch goes as far as its event says, as the browser's own scroll
+  would.
+- **↑ / ↓, PageUp / PageDown, Space / Shift + Space move a screen**, less 15%
+  so the last lines read stay in sight, eased the same way. At any zoom: the
+  strip scrolls the window, so a screen is the window's height.
+- **Anything else scrolling stops it** (the scrollbar, a drag), except the
+  strip keeping its place: when a chapter or a reshaped page arrives above,
+  the strip scrolls with it (`keepPlaceBy`) and says so, and an ease in flight
+  moves with the content rather than losing the notch.
+- **Reduced motion**: the wheel stays native and a key moves at once.
+
+Tested in `tests/smooth-scroll.spec.ts` (the approach, notches at any scale,
+place-keeping) and `tests/reader-flow.e2e.ts` (a notch eased through the
+real strip to where it aimed, ↓ and ↑ by a screen).
+
 ## Loading, failure, missing
 
 A page shows "P. 15" and a sliding bar in its own box, sized from the

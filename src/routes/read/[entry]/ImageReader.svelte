@@ -3,6 +3,14 @@
 	import type { Json } from '$lib/settings/catalog';
 	import { backLink } from '$lib/back';
 	import { flushSync, onMount, tick, untrack } from 'svelte';
+	import {
+		KEPT_PLACE,
+		SmoothScroll,
+		isNotch,
+		keepPlaceBy,
+		screenStep,
+		wheelPixels
+	} from '$lib/reader/smooth-scroll';
 	import type { PageData } from './$types';
 	import { MediaQuery } from 'svelte/reactivity';
 	import {
@@ -211,12 +219,47 @@
 		if (pendingTap) clearTimeout(pendingTap);
 	});
 
+	/**
+	 * The strip's own smooth scrolling on a PC (doc/READER.md, "Scrolling on a
+	 * PC"; c192): a mouse wheel's notch and ↑ / ↓ ease the window instead of
+	 * jumping it. Not with reduced motion asked for: the wheel stays native and
+	 * a key moves at once.
+	 */
+	const smooth = new SmoothScroll({
+		now: () => performance.now(),
+		frame: (cb) => requestAnimationFrame(cb),
+		cancel: (id) => cancelAnimationFrame(id),
+		get y() {
+			return scrollY;
+		},
+		set y(v: number) {
+			scrollTo(scrollX, v);
+		},
+		max: () => document.documentElement.scrollHeight - innerHeight
+	});
+	const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+	/** A screen down (1) or up (-1) in the strip, eased unless motion is reduced. */
+	function screenful(dir: 1 | -1) {
+		const d = screenStep(innerHeight) * dir;
+		if (reducedMotion()) scrollBy(0, d);
+		else smooth.by(d);
+	}
+
 	// Ctrl + wheel and a two-finger pinch zoom the pages, never the browser's page.
 	onMount(() => {
 		const wheel = (e: WheelEvent) => {
-			if (!e.ctrlKey || sheet || lookup || menu) return;
+			if (sheet || lookup || menu) return;
+			if (e.ctrlKey) {
+				e.preventDefault();
+				zoomAround(zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1), e.clientX, e.clientY);
+				return;
+			}
+			// A mouse wheel's notch, in the strip, eased; a trackpad's stream and
+			// Shift + wheel (sideways, when zoomed past the screen) stay native.
+			if (mode !== 'vertical' || e.shiftKey || reducedMotion() || !isNotch(e, devicePixelRatio))
+				return;
 			e.preventDefault();
-			zoomAround(zoom * (e.deltaY < 0 ? 1.1 : 1 / 1.1), e.clientX, e.clientY);
+			smooth.by(wheelPixels(e, innerHeight));
 		};
 		let pinch: { zoom: number; dist: number; held?: { fx: number; fy: number } } | null = null;
 		const spread = (t: TouchList) =>
@@ -241,11 +284,15 @@
 		const touchend = (e: TouchEvent) => {
 			if (e.touches.length < 2) pinch = null;
 		};
+		const kept = (e: Event) => smooth.shift((e as CustomEvent<number>).detail);
+		addEventListener(KEPT_PLACE, kept);
 		addEventListener('wheel', wheel, { passive: false });
 		addEventListener('touchstart', touchstart, { passive: true });
 		addEventListener('touchmove', touchmove, { passive: false });
 		addEventListener('touchend', touchend, { passive: true });
 		return () => {
+			smooth.stop();
+			removeEventListener(KEPT_PLACE, kept);
 			removeEventListener('wheel', wheel);
 			removeEventListener('touchstart', touchstart);
 			removeEventListener('touchmove', touchmove);
@@ -778,7 +825,7 @@
 		change();
 		await tick();
 		if (anchor?.isConnected && before !== undefined)
-			window.scrollBy(0, anchor.getBoundingClientRect().top - before);
+			keepPlaceBy(anchor.getBoundingClientRect().top - before);
 	}
 
 	async function loadStripPages(id: number) {
@@ -1351,7 +1398,17 @@
 		if (e.key === '+' || e.key === '=') return setZoom(stepZoom(zoom, 1));
 		if (e.key === '-') return setZoom(stepZoom(zoom, -1));
 		if (e.key === '0') return setZoom(resetZoom(zoom, kept));
-		if (mode === 'vertical') return;
+		if (mode === 'vertical') {
+			// A screen at a time, not the browser's few lines (the owner, 2026-10-30), at any zoom:
+			// the strip scrolls the window, so a screen is the window's height.
+			const down = e.key === 'ArrowDown' || e.key === 'PageDown' || (e.key === ' ' && !e.shiftKey);
+			const up = e.key === 'ArrowUp' || e.key === 'PageUp' || (e.key === ' ' && e.shiftKey);
+			if (down || up) {
+				e.preventDefault();
+				screenful(down ? 1 : -1);
+			}
+			return;
+		}
 		const left = e.key === 'ArrowLeft';
 		const right = e.key === 'ArrowRight';
 		if (left || right) {
