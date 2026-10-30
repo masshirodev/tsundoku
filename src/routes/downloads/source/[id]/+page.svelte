@@ -264,11 +264,13 @@
 		display: flex;
 		flex-direction: column;
 	}
-	/* Landscape: the 440px panel beside the list, as the series screen. */
+	/* Landscape: the 440px panel beside the list, as the series screen. Both
+	   columns run the row's height, so the rule between them reaches the list's
+	   last episode, not the panel's last row (2026-10-29). */
 	@media (min-width: 1024px) {
 		.body {
 			flex-direction: row;
-			align-items: flex-start;
+			align-items: stretch;
 		}
 		.panel {
 			width: 440px;

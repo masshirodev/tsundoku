@@ -48,6 +48,12 @@ test.describe('tablet landscape (board 5A)', () => {
 				.evaluate((el) => el.getBoundingClientRect().width)
 		]);
 		expect(row).toBe(list);
+		// And the rule between the panel and the list runs as far as the longer of them.
+		const [panelH, listH] = await Promise.all([
+			page.locator('.panel').evaluate((el) => el.getBoundingClientRect().height),
+			page.locator('.list').evaluate((el) => el.getBoundingClientRect().height)
+		]);
+		expect(panelH).toBe(listH);
 		await expect(page.locator('.add .short')).toBeVisible();
 		expect(await css(page, '.cta-go .cta', 'height')).toBe('64px');
 	});

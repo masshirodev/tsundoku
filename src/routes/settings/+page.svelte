@@ -967,11 +967,12 @@
 		min-height: 0;
 		display: flex;
 	}
+	/* The index is sticky and only as tall as its entries, so the rule between it
+	   and the rows is the content's: it runs the page's length (2026-10-29). */
 	.index {
 		width: 260px;
 		flex-shrink: 0;
 		box-sizing: border-box;
-		border-right: var(--hairline);
 		display: flex;
 		flex-direction: column;
 		position: sticky;
@@ -1009,11 +1010,15 @@
 	.content {
 		flex: 1;
 		min-width: 0;
+		box-sizing: border-box;
 		display: flex;
 		flex-direction: column;
 		width: 100%;
 	}
 	/* The rows stop at 880px; the column closes there, or their rules run out into nothing. */
+	.wide .content {
+		border-left: var(--hairline);
+	}
 	.desk .content {
 		max-width: 880px;
 		border-right: var(--hairline);
@@ -1261,6 +1266,18 @@
 		padding: 10px 14px 12px;
 		font: 400 13px/1.45 var(--font-mono);
 		color: var(--text-2);
+	}
+	/* A rule between the controls and what's said under them (asked 2026-10-29),
+	   laid over the one a zoom cell or a chip already draws, so it's never doubled. */
+	.ctl > .meta {
+		border-top: var(--hairline);
+		margin-top: -1px;
+	}
+	/* With nothing under them, the controls fill the row: its 64px, not their 52px
+	   and a gap (WIDE PAGES, reported 2026-10-29). */
+	.ctl > .seg:last-child,
+	.ctl > .info:last-child {
+		flex: 1;
 	}
 	.list {
 		display: flex;
