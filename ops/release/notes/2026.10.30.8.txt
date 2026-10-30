@@ -1,0 +1,3 @@
+If something breaks: SETTINGS > LIBRARY > REPORT > SAVE, and send the file. It never carries anything you've hidden, your password or tokens.
+On a phone, the first manga you open says how to turn pages: swipe, or tap the edges.
+On a PC, Ctrl + up/down nudge the vertical strip a little, to see a panel the screen cut in two.
