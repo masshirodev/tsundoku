@@ -59,6 +59,13 @@ export function wheelPixels(
 	return e.deltaY;
 }
 
+/**
+ * Ctrl + ↑ / ↓: a nudge, about what an arrow did before it moved a screen, to
+ * bring a panel the screen cut in two into view without the mouse (the owner,
+ * 2026-10-30).
+ */
+export const NUDGE = 40;
+
 /** ↑ / ↓, PageUp / PageDown, Space: a screen, less a little, so the last line read stays in sight. */
 export const screenStep = (height: number) => Math.round(height * 0.85);
 

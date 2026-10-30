@@ -8,6 +8,7 @@
 		SmoothScroll,
 		isNotch,
 		keepPlaceBy,
+		NUDGE,
 		screenStep,
 		wheelPixels
 	} from '$lib/reader/smooth-scroll';
@@ -238,9 +239,8 @@
 		max: () => document.documentElement.scrollHeight - innerHeight
 	});
 	const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-	/** A screen down (1) or up (-1) in the strip, eased unless motion is reduced. */
-	function screenful(dir: 1 | -1) {
-		const d = screenStep(innerHeight) * dir;
+	/** Move the strip `d` pixels, eased unless motion is reduced. */
+	function move(d: number) {
 		if (reducedMotion()) scrollBy(0, d);
 		else smooth.by(d);
 	}
@@ -1401,11 +1401,17 @@
 		if (mode === 'vertical') {
 			// A screen at a time, not the browser's few lines (the owner, 2026-10-30), at any zoom:
 			// the strip scrolls the window, so a screen is the window's height.
-			const down = e.key === 'ArrowDown' || e.key === 'PageDown' || (e.key === ' ' && !e.shiftKey);
-			const up = e.key === 'ArrowUp' || e.key === 'PageUp' || (e.key === ' ' && e.shiftKey);
+			const arrow = e.key === 'ArrowDown' ? 1 : e.key === 'ArrowUp' ? -1 : 0;
+			// Ctrl + ↑ / ↓ nudges, to read a panel the screen cut without the mouse.
+			if (arrow && e.ctrlKey) {
+				e.preventDefault();
+				return move(NUDGE * arrow);
+			}
+			const down = arrow === 1 || e.key === 'PageDown' || (e.key === ' ' && !e.shiftKey);
+			const up = arrow === -1 || e.key === 'PageUp' || (e.key === ' ' && e.shiftKey);
 			if (down || up) {
 				e.preventDefault();
-				screenful(down ? 1 : -1);
+				move(screenStep(innerHeight) * (down ? 1 : -1));
 			}
 			return;
 		}

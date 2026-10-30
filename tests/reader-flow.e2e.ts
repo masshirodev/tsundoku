@@ -374,6 +374,12 @@ test('vertical, on a PC: a wheel notch eases, ↓ and ↑ move a screen (c192)',
 	await expect.poll(async () => Math.abs((await y()) - y1 - screen)).toBeLessThanOrEqual(1);
 	await page.keyboard.press('ArrowUp');
 	await expect.poll(async () => Math.abs((await y()) - y1)).toBeLessThanOrEqual(1);
+
+	// Ctrl + ↓ / ↑ nudge, for a panel the screen cut in two.
+	await page.keyboard.press('Control+ArrowDown');
+	await expect.poll(async () => Math.abs((await y()) - y1 - 40)).toBeLessThanOrEqual(1);
+	await page.keyboard.press('Control+ArrowUp');
+	await expect.poll(async () => Math.abs((await y()) - y1)).toBeLessThanOrEqual(1);
 });
 
 test('vertical: turning the device keeps the page being read under the middle', async ({

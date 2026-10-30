@@ -356,6 +356,9 @@ and "when I click down or up it pans to the next sections").
 - **↑ / ↓, PageUp / PageDown, Space / Shift + Space move a screen**, less 15%
   so the last lines read stay in sight, eased the same way. At any zoom: the
   strip scrolls the window, so a screen is the window's height.
+- **Ctrl + ↑ / ↓ nudge** 40 px, about what an arrow did before: to bring a
+  panel the screen cut in two into view without the mouse (the owner,
+  2026-10-30).
 - **Anything else scrolling stops it** (the scrollbar, a drag), except the
   strip keeping its place: when a chapter or a reshaped page arrives above,
   the strip scrolls with it (`keepPlaceBy`) and says so, and an ease in flight
