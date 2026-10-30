@@ -624,7 +624,30 @@
 	/** Turn a page, sliding: the neighbour comes in, then becomes the page being read. */
 	/** A turn asked for mid-slide: taken as soon as this one lands, so quick taps all count. */
 	let queued: 'next' | 'prev' | null = null;
+	/**
+	 * Once per device, the first time a finger opens a paged chapter: how pages
+	 * turn (doc/READER.md, "Touch"). A friend tapped the edges and took the
+	 * reader for a PC's (2026-10-30); swiping was there all along. Gone at the
+	 * first turn, or after a while; never back on that device.
+	 */
+	const TURN_HINT = 'tsundoku.hint.turn';
+	let turnHint = $state(false);
+	onMount(() => {
+		if (!matchMedia('(pointer: coarse)').matches) return;
+		try {
+			if (localStorage.getItem(TURN_HINT)) return;
+			localStorage.setItem(TURN_HINT, '1');
+		} catch {
+			// No storage (a private window): no hint, rather than one on every chapter.
+			return;
+		}
+		turnHint = true;
+		const t = setTimeout(() => (turnHint = false), 8000);
+		return () => clearTimeout(t);
+	});
+
 	async function turn(dir: 'next' | 'prev') {
+		turnHint = false;
 		lookup = null;
 		if (animating) {
 			queued = dir;
@@ -1743,6 +1766,12 @@
 		</div>
 	{/if}
 
+	{#if turnHint && mode !== 'vertical' && !chrome}
+		<div class="turn-hint appear" role="status">
+			{mode === 'rtl' ? '← SWIPE OR TAP THE EDGES TO TURN' : 'SWIPE OR TAP THE EDGES TO TURN →'}
+		</div>
+	{/if}
+
 	{#if chrome && data.manifest}
 		<Chrome
 			{noText}
@@ -2106,5 +2135,20 @@
 		.switched .short {
 			display: inline;
 		}
+	}
+	/* The end page's hint, once, at the bottom (doc/READER.md, "Touch"). Never in the way of a tap. */
+	.turn-hint {
+		position: fixed;
+		left: 50%;
+		bottom: calc(24px + env(safe-area-inset-bottom));
+		transform: translateX(-50%);
+		z-index: 5;
+		padding: 12px 16px;
+		background: var(--surface-page);
+		border: var(--hairline);
+		font: 500 14px var(--font-mono);
+		color: var(--accent);
+		white-space: nowrap;
+		pointer-events: none;
 	}
 </style>

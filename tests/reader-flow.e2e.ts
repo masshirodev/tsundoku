@@ -323,6 +323,26 @@ test('incognito shows a dashed rule, INCOGNITO, and NOT SAVED', async ({ page })
 	await expect(meta(page)).toContainText('NOT SAVED');
 });
 
+test('a finger’s first paged chapter says how pages turn, once per device', async ({ page }) => {
+	await seriesId(page, 'Hikaru ga Shinda Natsu');
+	const first = await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.getAttribute('href');
+	await page.goto(first!);
+	await readerReady(page);
+	// R→L: forward is to the left.
+	const hint = page.getByText('← SWIPE OR TAP THE EDGES TO TURN');
+	await expect(hint).toBeVisible();
+	// It never takes a tap: the edge under it still turns.
+	await tap(page, 0.05);
+	await expect(hint).toHaveCount(0);
+	await page.reload();
+	await readerReady(page);
+	await page.waitForTimeout(500);
+	await expect(hint).toHaveCount(0);
+});
+
 test('vertical, on a PC: a wheel notch eases, ↓ and ↑ move a screen (c192)', async ({ page }) => {
 	await seriesId(page, 'The Greatest Estate Developer');
 	await page

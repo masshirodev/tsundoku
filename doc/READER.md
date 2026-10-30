@@ -40,6 +40,12 @@ still blanks the reader when the app goes to the background.
 - **R→L reads forward to the left:** the left strip turns forward, and a swipe
   to the right pulls the next page in. L→R mirrors both.
 - **A swipe turns anywhere:** at least 40px, and mostly sideways.
+- **Said once.** The first time a finger opens a paged chapter on a device, a
+  line at the bottom says ← SWIPE OR TAP THE EDGES TO TURN (the arrow follows
+  the direction), in the end page's accent. Gone at the first turn or after 8
+  s, and never again there (`tsundoku.hint.turn`). It takes no taps. A friend
+  tapped the edges and took the reader for a PC's (2026-10-30): swiping was
+  there, unannounced.
 - **Vertical scroll never turns on a tap.** Every tap is the controls, and
   scrolling is how you move.
 - **With the controls up, a tap on the page only puts them away.**
