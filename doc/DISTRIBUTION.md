@@ -114,7 +114,9 @@ A release's launcher and image set it; a checkout keeps `https`, so the
 workstation doesn't change. Without a token, `serve` makes one into
 `TSUNDOKU_HOME/.env` on first start and prints it, instead of exiting. That
 file is read after the project's `.env`, and is where a release keeps every
-setting. Optional Tailscale: the friend sets `TSUNDOKU_SERVE=https`.
+setting. Optional Tailscale: the friend sets `TSUNDOKU_SERVE=https`, and
+the launcher opens the tailnet address the app prints (c186; the README's
+"Reading on your phone or tablet" has the friend's steps).
 [`SERVING.md`](SERVING.md), "Local, on the same computer", has the details.
 
 Still open for a release: `serve` snapshots `build/` into `.serving/` beside

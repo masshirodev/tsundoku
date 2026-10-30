@@ -6,14 +6,17 @@
  *   tsundoku --no-browser # start everything, open nothing
  *
  * It starts the extension engine, FlareSolverr when its optional archive was
- * unzipped beside it, and the app on http://localhost, then opens the app.
+ * unzipped beside it, and the app, then opens the app where it serves:
+ * http://localhost, or its tailnet address when the data folder's .env puts
+ * it on Tailscale.
  * Closing it (Ctrl+C, or closing its window) stops all three. Started again
  * while it runs, it just opens the app.
  */
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { createWriteStream, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readServing, SERVING_FILE, type Serving } from '../app/src/lib/server/bind.ts';
 import { dataPaths } from '../app/src/lib/server/data-dirs.ts';
 import { ensureSetting, newToken } from '../app/src/lib/server/first-run.ts';
 import { opener, plan, solverAt, type Proc } from './plan.ts';
@@ -61,22 +64,40 @@ console.log(`tsundoku ${version}`);
 console.log(`  data:   ${home}`);
 console.log(`  logs:   ${join(home, 'logs')}`);
 
-/** Whether a tsundoku already answers on the app's port: then this one only opens it. */
-async function running(): Promise<boolean> {
+// Where the app serves, as serve.ts writes it on every start (src/lib/server/bind.ts,
+// `Serving`). Only local mode's address is localhost: on Tailscale the origin is
+// the tailnet name or address, and a page opened anywhere else can't save.
+const servingFile = join(home, SERVING_FILE);
+const serving = (): Serving | null => {
 	try {
-		const r = await fetch(`http://127.0.0.1:${p.ports.app}/manifest.webmanifest`, {
-			signal: AbortSignal.timeout(1500)
-		});
+		return readServing(readFileSync(servingFile, 'utf8'));
+	} catch {
+		return null;
+	}
+};
+const localOnly = { origin: p.url, listen: `http://127.0.0.1:${p.ports.app}` };
+
+/** Whether a tsundoku answers at `listen`. */
+async function answers(listen: string): Promise<boolean> {
+	try {
+		const r = await fetch(`${listen}/manifest.webmanifest`, { signal: AbortSignal.timeout(1500) });
 		return r.ok && ((await r.json()) as { short_name?: string }).short_name === 'tsundoku';
 	} catch {
 		return false;
 	}
 }
 
-function open() {
+function open(url: string) {
 	if (!browse) return;
-	const o = opener(process.platform, p.url);
+	const o = opener(process.platform, url);
 	spawn(o.cmd, o.args, { stdio: 'ignore', detached: true, windowsHide: true }).unref();
+}
+
+function opening(s: Serving) {
+	console.log(`\nOpen ${s.origin} (closing this window stops tsundoku).`);
+	if (s.mode !== 'local')
+		console.log(`On your phone or tablet, signed in to the same tailnet, open the same address.`);
+	open(s.origin);
 }
 
 const children = new Set<ChildProcess>();
@@ -131,11 +152,17 @@ function helper(proc: Proc, delay = 2000) {
 	});
 }
 
-if (await running()) {
-	console.log(`Already running: opening ${p.url}`);
-	open();
-	process.exit(0);
+// Already running: this start only opens it. Where the last start said it
+// serves first, then the default, in case that file is from another mode.
+for (const at of [serving(), localOnly]) {
+	if (at && (await answers(at.listen))) {
+		console.log(`Already running: opening ${at.origin}`);
+		open(at.origin);
+		process.exit(0);
+	}
 }
+// From here, a serving.json is this start's.
+rmSync(servingFile, { force: true });
 
 mkdirSync(join(home, 'engine'), { recursive: true });
 helper(p.engine);
@@ -159,12 +186,14 @@ process.on('SIGINT', () => stopAll(0));
 process.on('SIGTERM', () => stopAll(0));
 if (windows) process.on('SIGHUP', () => stopAll(0));
 
-// Open the app once it answers.
-for (let i = 0; i < 120 && !stopping; i++) {
-	if (await running()) {
-		console.log(`\nOpen ${p.url} (closing this window stops tsundoku).`);
-		open();
-		break;
-	}
-	await new Promise((r) => setTimeout(r, 500));
+// Open the app once it answers, where it says it serves.
+let opened = false;
+for (let i = 0; i < 180 && !stopping && !opened; i++) {
+	const s = serving();
+	if (s && s.pid === server.pid && (await answers(s.listen))) {
+		opening(s);
+		opened = true;
+	} else await new Promise((r) => setTimeout(r, 500));
 }
+if (!opened && !stopping)
+	console.warn(`\ntsundoku hasn't answered yet; its address is printed above once it does.`);

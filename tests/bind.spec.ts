@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+	readServing,
+	tailscaleCommand,
 	localOrigin,
 	loopbackRedirect,
 	serveMode,
@@ -182,5 +184,43 @@ describe('loopbackRedirect', () => {
 		expect(loopbackRedirect('', origin)).toBeNull();
 		expect(loopbackRedirect(null, origin)).toBeNull();
 		expect(loopbackRedirect('bad host', origin)).toBeNull();
+	});
+});
+
+describe('tailscaleCommand', () => {
+	it('is tailscale, from PATH, off Windows', () => {
+		expect(tailscaleCommand('linux', {}, () => true)).toBe('tailscale');
+	});
+
+	it('on Windows, Program Files first: the installer leaves PATH alone', () => {
+		const at = 'D:\\Apps\\Tailscale\\tailscale.exe';
+		expect(tailscaleCommand('win32', { ProgramFiles: 'D:\\Apps' }, (f) => f === at)).toBe(at);
+		expect(tailscaleCommand('win32', {}, (f) => f.startsWith('C:\\Program Files\\'))).toBe(
+			'C:\\Program Files\\Tailscale\\tailscale.exe'
+		);
+		expect(tailscaleCommand('win32', {}, () => false)).toBe('tailscale');
+	});
+});
+
+describe('readServing', () => {
+	const s = {
+		pid: 42,
+		mode: 'https',
+		origin: 'https://ami.tail1234.ts.net:8443',
+		listen: 'http://127.0.0.1:42143'
+	};
+
+	it('reads what serve.ts writes', () => {
+		expect(readServing(JSON.stringify(s) + '\n')).toEqual(s);
+	});
+
+	it('is null for anything else, a torn write included', () => {
+		expect(readServing(null)).toBeNull();
+		expect(readServing('')).toBeNull();
+		expect(readServing(JSON.stringify(s).slice(0, 20))).toBeNull();
+		expect(readServing(JSON.stringify({ ...s, mode: 'ftp' }))).toBeNull();
+		expect(readServing(JSON.stringify({ ...s, pid: '42' }))).toBeNull();
+		expect(readServing(JSON.stringify({ ...s, origin: 'javascript:alert(1)' }))).toBeNull();
+		expect(readServing(JSON.stringify({ ...s, listen: undefined }))).toBeNull();
 	});
 });

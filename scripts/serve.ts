@@ -24,11 +24,12 @@
  * module load.
  */
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, readdirSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from '../src/lib/server/fspath.ts';
 import { fileURLToPath } from 'node:url';
 import {
 	BindRefused,
+	SERVING_FILE,
 	TAILSCALE_HTTPS_PORTS,
 	httpsOrigin,
 	localOrigin,
@@ -37,7 +38,9 @@ import {
 	serveMode,
 	serveState,
 	tailnetName,
-	type ServeMode
+	tailscaleCommand,
+	type ServeMode,
+	type Serving
 } from '../src/lib/server/bind.ts';
 import { dataPaths } from '../src/lib/server/data-dirs.ts';
 import { ensureToken } from '../src/lib/server/first-run.ts';
@@ -101,7 +104,9 @@ const port = Number(process.env.PORT ?? 42143);
 if (!Number.isInteger(port) || port < 1 || port > 65535)
 	fail(`PORT=${process.env.PORT} is not a usable port.`);
 
-const tailscale = (...args: string[]) => execFileSync('tailscale', args, { encoding: 'utf8' });
+const tailscaleCli = tailscaleCommand(process.platform, process.env, existsSync);
+const tailscale = (...args: string[]) => execFileSync(tailscaleCli, args, { encoding: 'utf8' });
+const windows = process.platform === 'win32';
 
 let host: string;
 let origin: string;
@@ -123,7 +128,10 @@ if (mode === 'local') {
 		name = tailnetName(JSON.parse(tailscale('status', '--json')));
 	} catch {
 		fail(
-			'`tailscale status` failed: is tailscaled up? TSUNDOKU_SERVE=http serves plain http instead.'
+			windows
+				? '`tailscale status` failed: is Tailscale installed, running and signed in? ' +
+						"Remove TSUNDOKU_SERVE from the data folder's .env to use tsundoku on this computer only."
+				: '`tailscale status` failed: is tailscaled up? TSUNDOKU_SERVE=http serves plain http instead.'
 		);
 	}
 	if (!name)
@@ -151,8 +159,10 @@ if (mode === 'local') {
 		} catch {
 			fail(
 				`could not add the tailscale serve mapping. Run it once yourself:\n` +
-					`  tailscale serve --bg --https=${httpsPort} ${target}\n` +
-					`(it may need \`sudo tailscale set --operator=$USER\` first).`
+					`  ${tailscaleCli.includes(' ') ? `"${tailscaleCli}"` : tailscaleCli} serve --bg --https=${httpsPort} ${target}\n` +
+					(windows
+						? `(in a terminal; if it's refused there too, in one opened with "Run as administrator").`
+						: `(it may need \`sudo tailscale set --operator=$USER\` first).`)
 			);
 		}
 	}
@@ -188,6 +198,21 @@ if (snapshotting) {
 	for (const old of existsSync(servingDir) ? readdirSync(servingDir) : [])
 		rmSync(new URL(old, servingDir), { recursive: true, force: true });
 	cpSync(built, snapshot, { recursive: true });
+}
+
+// Where it serves, for a release's launcher to open (doc/RELEASE.md, "The
+// launcher"): only local mode's address is localhost. Best effort: a folder
+// that can't be written to doesn't stop the server.
+const serving: Serving = {
+	pid: process.pid,
+	mode,
+	origin: origin!,
+	listen: originFor(host!, port)
+};
+try {
+	writeFileSync(join(dataPaths().home, SERVING_FILE), JSON.stringify(serving) + '\n');
+} catch {
+	// The workstation's data folder is always there; a friend's is made by the launcher.
 }
 
 console.log(`tsundoku  ${origin!}  (${note!})`);

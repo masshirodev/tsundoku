@@ -197,3 +197,55 @@ export function loopbackRedirect(hostHeader: string | null, origin: string): str
 	if (got.host === want.host) return null;
 	return ['127.0.0.1', '[::1]'].includes(got.hostname) ? want.host : null;
 }
+
+// ---- Finding the tailscale CLI ----------------------------------------------------
+
+/**
+ * The `tailscale` command. On Linux and macOS it's on PATH. Windows' installer
+ * puts it in Program Files and leaves PATH alone (seen on Zen, 2026-10-30), so
+ * a friend's https mode looked for a `tailscale` that wasn't there; Program
+ * Files is checked first, then PATH, for an install somewhere else.
+ */
+export function tailscaleCommand(
+	platform: NodeJS.Platform,
+	env: Record<string, string | undefined>,
+	exists: (file: string) => boolean
+): string {
+	if (platform !== 'win32') return 'tailscale';
+	const installed = `${env.ProgramFiles || 'C:\\Program Files'}\\Tailscale\\tailscale.exe`;
+	return exists(installed) ? installed : 'tailscale';
+}
+
+// ---- Where it serves, for the launcher ----------------------------------------------
+
+/**
+ * Where a running server can be reached, written by serve.ts to `serving.json`
+ * in the data folder before the app starts. A release's launcher reads it
+ * (doc/RELEASE.md, "The launcher"): the address to open is the origin, which in
+ * https mode is the tailnet name and in http mode the tailnet address, and
+ * only `local` mode's is localhost. `listen` is where the app itself answers,
+ * for a probe that needn't go through Tailscale. `pid` says which start wrote it.
+ */
+export type Serving = { pid: number; mode: ServeMode; origin: string; listen: string };
+
+export const SERVING_FILE = 'serving.json';
+
+/** A serving.json's contents, or null for anything that isn't one (absent, torn, older). */
+export function readServing(text: string | null | undefined): Serving | null {
+	if (!text) return null;
+	try {
+		const s = JSON.parse(text) as Partial<Serving>;
+		if (
+			Number.isInteger(s.pid) &&
+			(SERVE_MODES as readonly unknown[]).includes(s.mode) &&
+			typeof s.origin === 'string' &&
+			/^https?:\/\//.test(s.origin) &&
+			typeof s.listen === 'string' &&
+			/^http:\/\//.test(s.listen)
+		)
+			return s as Serving;
+	} catch {
+		// Torn mid-write, or not ours: as good as absent.
+	}
+	return null;
+}

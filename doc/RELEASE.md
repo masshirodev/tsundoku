@@ -144,10 +144,27 @@ Node. It:
 5. starts the app in its own window (`TSUNDOKU_SERVE=local`,
    `TSUNDOKU_SNAPSHOT=off`, the database in the data folder, the engine's
    and ffmpeg's addresses), and opens the browser once it answers
-   (`--no-browser` or `TSUNDOKU_NO_BROWSER=1` not to);
+   (`--no-browser` or `TSUNDOKU_NO_BROWSER=1` not to), **where the app says
+   it serves** (below);
 6. stops everything when the app stops or the window closes (`taskkill /T`
    on Windows, the process group elsewhere), so FlareSolverr's Chrome goes
    too.
+
+**Where it opens.** `serve.ts` writes `serving.json` to the data folder on
+every start: its pid, its mode, its origin and the address it listens on
+(`Serving` in `src/lib/server/bind.ts`). The launcher deletes the file
+before it starts the app, waits for one with the app's pid, probes its
+`listen` address and opens its `origin`. Only local mode's origin is
+`http://localhost`: with `TSUNDOKU_SERVE=https` it's the tailnet name
+(`https://<pc>.<tailnet>.ts.net:8443`) and with `http` the tailnet address,
+and a page opened on localhost there can't save (the origin check) or, in
+`http` mode, doesn't load at all. Release 2026.10.30 always opened
+localhost, so Tailscale didn't work in it (c186). A second start finds the
+running one the same way: the last `serving.json`'s address first, then
+localhost.
+
+On Windows, `serve.ts` runs `tailscale.exe` from Program Files: Tailscale's
+installer doesn't put it on PATH.
 
 What it runs, with which environment, is `ops/release/launcher/plan.ts`,
 pure and tested for both platforms in `tests/release-plan.spec.ts`. The data

@@ -141,6 +141,20 @@ The pure parts (`serveMode`, `localOrigin`, `loopbackRedirect`) are in
 `bind.ts`, and the token in `src/lib/server/first-run.ts`, tested in
 `tests/bind.spec.ts` and `tests/first-run.spec.ts`.
 
+## Where it serves: `serving.json`
+
+On every start, in every mode, `serve` writes `TSUNDOKU_HOME/serving.json`:
+`{ pid, mode, origin, listen }` (`Serving` in `bind.ts`, read back by
+`readServing`). A release's launcher opens `origin` and probes `listen`
+from it ([`RELEASE.md`](RELEASE.md), "The launcher"), since only local
+mode's origin is localhost. On the workstation it's
+`/mnt/hdd2/tsundoku/serving.json`, and nothing reads it. A data folder that
+can't be written to doesn't stop the server.
+
+`serve` finds `tailscale` on PATH, except on Windows, where Tailscale's
+installer leaves PATH alone: there it's `%ProgramFiles%\Tailscale\tailscale.exe`
+when that exists (`tailscaleCommand`).
+
 ## Variables
 
 | Variable                    | Default   | Meaning                                                               |
