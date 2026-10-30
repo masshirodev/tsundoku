@@ -16,7 +16,7 @@ source, the workstation's mounts, or Tailscale.
 | How it's shipped | **Both**: a native install (most friends have no Docker), and Docker compose for those who do.     |
 | Access           | **Repos stay private** until the real public release. Friends get built artifacts only.            |
 | Licence          | **MIT** for tsundoku. The engine keeps upstream's MPL-2.0 ("Licences", below).                     |
-| Windows testing  | **A local VM** on this box (phase 6).                                                              |
+| Windows testing  | **A local VM**: Zen, the owner's Windows 10 VirtualBox VM (phase 6).                               |
 | Scope            | **Core + downloads**: library, importers, readers, anime, and downloading through the engine.      |
 | Network          | **`http://localhost` by default** (a secure context), with today's Tailscale HTTPS mode as opt-in. |
 
@@ -143,13 +143,17 @@ pull`; native friends run the new installer, which keeps `TSUNDOKU_HOME`.
 
 ### 6. Testing on Windows
 
-This box has no Windows, so **a local Windows 11 VM** (QEMU/libvirt, decided
-2026-10-29) does it: its disk on `/mnt/hdd2`, OpenSSH server on, driven from
-here over SSH. It stays private and free, and the RAM is there. GitHub's
-Windows runners were the other option; they'd need a token into the private
-source. A smoke test installs the bundle, starts it, logs in, imports a
-synthesised Mihon folder and opens a chapter. Setting the VM up is c181 ("How
-to test on Windows: local VM or Actions runners").
+**Built 2026-10-29**, on what was already here rather than a new VM: **Zen**,
+the owner's Windows 10 VirtualBox VM, now with OpenSSH and reached as
+`ssh win-test`. `ops/winvm/zen.sh up` snapshots it as it is and boots it;
+`down` puts it back, so tests never touch what the owner keeps in it.
+[`WINDOWS-VM.md`](WINDOWS-VM.md) has the details.
+
+Windows 10 rather than 11 makes no difference to anything tsundoku touches
+(paths, `%LOCALAPPDATA%`, Node 24, an installer, start at login). A Windows 11
+VM under QEMU (OVMF, `swtpm` for the TPM it requires) stays the way to add 11
+if it ever matters. The smoke test, still to write with the bundle: install
+it, start it, sign in, import a synthesised Mihon folder, open a chapter.
 
 ## Why not just one of them
 

@@ -122,6 +122,8 @@ is the mount development pressures.
 - [`doc/DISTRIBUTION.md`](doc/DISTRIBUTION.md) — the plan for installs on
   friends' computers (Windows included): native bundles, Docker images, one
   data directory, and what stays personal.
+- [`doc/WINDOWS-VM.md`](doc/WINDOWS-VM.md) — Zen, the Windows VM the install is
+  tested on: `ops/winvm/zen.sh`, `ssh win-test`, and its snapshots.
 - [`doc/COVERS.md`](doc/COVERS.md) — where covers come from, the thumbnail
   cache, fetching from source sites, and sharp against the system libvips.
 - [`doc/WAITING.md`](doc/WAITING.md) — the time between a tap and the next
