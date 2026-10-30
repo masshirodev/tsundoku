@@ -758,8 +758,7 @@
 			<div class="empty-label">00 — LIBRARY EMPTY</div>
 			<h1>Nothing imported yet.</h1>
 			<p>
-				Imports run on the workstation. Put files in the library folder, then start a scan. Series
-				appear here as they are found.
+				Put files in the library folder, then start a scan. Series appear here as they are found.
 			</p>
 			<div class="sources">
 				<div><span>Mihon backup (.tachibk)</span><span class="dim">manga, manhwa</span></div>

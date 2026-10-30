@@ -32,9 +32,17 @@ if [ -z "$only" ] || [ "$only" = linux-x64 ]; then
 		export HOME=/root; mkdir -p /root/.local/share/tsundoku
 		cp -r /w/library /root/.local/share/tsundoku/library
 		/w/tsundoku/tsundoku --no-browser > /tmp/launch.log 2>&1 &
+		launcher=$!
 		for i in $(seq 1 90); do grep -q "Open http" /tmp/launch.log && break; sleep 2; done
 		cat /tmp/launch.log; echo "--- probe"
-		/w/tsundoku/node/bin/node /s/probe.mjs /w/tsundoku' || status=1
+		/w/tsundoku/node/bin/node /s/probe.mjs /w/tsundoku || exit 1
+		# A closed terminal hangs up the launcher alone; it stops the rest (c187).
+		# By executable, since this script'"'"'s own command line names the bundle too.
+		echo "--- hang up"
+		kill -HUP $launcher; sleep 5
+		left=$(readlink /proc/[0-9]*/exe 2>/dev/null | grep -c "^/w/tsundoku/")
+		echo "left running after a hangup: $left"
+		[ "$left" -eq 0 ]' || status=1
 fi
 
 if [ -z "$only" ] || [ "$only" = win-x64 ]; then

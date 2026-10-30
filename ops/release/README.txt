@@ -62,7 +62,10 @@ tsundoku answers only this computer until you put it on Tailscale, a free
 private network between your own devices (https://tailscale.com):
 
 1. Install Tailscale on this computer and on the phone or tablet, and sign
-   in to the same account on both.
+   in to the same account on both. On Linux, also run this once, so
+   tsundoku may set up Tailscale's HTTPS for you:
+
+     sudo tailscale set --operator=$USER
 2. In Tailscale's admin console (login.tailscale.com), on the DNS page,
    turn on MagicDNS and HTTPS Certificates.
 3. Add this line to the .env in your data folder (above):

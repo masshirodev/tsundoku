@@ -148,7 +148,10 @@ Node. It:
    it serves** (below);
 6. stops everything when the app stops or the window closes (`taskkill /T`
    on Windows, the process group elsewhere), so FlareSolverr's Chrome goes
-   too.
+   too. A closed terminal is a SIGHUP to the launcher alone, since the app
+   and the engine run in process groups of their own; until 2026.10.30.2 it
+   was handled only on Windows, and on Linux both outlived the launcher
+   (c187).
 
 **Where it opens.** `serve.ts` writes `serving.json` to the data folder on
 every start: its pid, its mode, its origin and the address it listens on
@@ -191,6 +194,8 @@ sent to localhost, the first-run token signs in, five screens answer, the
 engine answers with its token and refuses without it, a scan imports the
 fixture's seven series and refuses its one broken file, every visible
 chapter's first page is an image, and the hidden local books stay hidden.
+On Linux, the launcher is then hung up as a closed terminal does, and
+nothing of the bundle may be left running (c187: on 2026.10.30.1, two were).
 Then the paths (c183, [`DISTRIBUTION.md`](DISTRIBUTION.md), "Windows
 paths"): no series path stored with a backslash, a DELETE moves the series'
 file into the trash and out of the library, and a GROUP of the two local

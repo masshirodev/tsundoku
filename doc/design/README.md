@@ -179,3 +179,8 @@ are in [`../LIBRARY.md`](../LIBRARY.md).
     on the design's own `--ease`, opacity only, through one class, `.appear`
     (`src/lib/styles/base.css`). In only: they still go at once. The video
     player's bars, which already faded both ways at 0.15s, use the same token.
+19. **The empty library doesn't mention the workstation** (2026-10-30, card
+    c187). The handoff's line opens "Imports run on the workstation.", true of
+    the owner's install and nonsense on a friend's, which has none
+    ([`../DISTRIBUTION.md`](../DISTRIBUTION.md)). It now starts at "Put files in
+    the library folder…". The handoff's copies are left as drawn.

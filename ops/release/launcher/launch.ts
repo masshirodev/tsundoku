@@ -184,7 +184,10 @@ children.add(server);
 server.on('exit', (code) => stopAll(code ?? 1));
 process.on('SIGINT', () => stopAll(0));
 process.on('SIGTERM', () => stopAll(0));
-if (windows) process.on('SIGHUP', () => stopAll(0));
+// A closed window or terminal. On Linux the app and the engine are in process
+// groups of their own, so the hangup reaches only this launcher, and without
+// this they outlived it (c187).
+process.on('SIGHUP', () => stopAll(0));
 
 // Open the app once it answers, where it says it serves.
 let opened = false;
