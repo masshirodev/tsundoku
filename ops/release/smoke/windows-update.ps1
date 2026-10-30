@@ -64,6 +64,10 @@ for ($i = 0; $i -lt 120; $i++) {
 Check 'tsundoku stopped, updated and came back by itself' $back "pid $before -> $((Serving).pid)"
 Check 'the installer it ran was the signed one, kept by version' (Test-Path "$data\updates\9999.01.01\tsundoku-win-x64.exe")
 Check 'no half-download left' (-not (Test-Path "$data\updates\9999.01.01\tsundoku-win-x64.exe.part"))
+# Started by the installer, the new copy serves as a fresh start does: it
+# once inherited the old server's ORIGIN and served without Wi-Fi (bind.ts, SERVER_ENV).
+$wifi = try { (Invoke-WebRequest -UseBasicParsing "$app/api/wifi").StatusCode } catch { $_.Exception.Response.StatusCode.value__ }
+Check 'and serves as a fresh start does (WI-FI there)' ($wifi -eq 200) "$wifi"
 Check 'the data folder came through' ((Test-Path "$data\login.json") -and ((Get-Content "$data\keep-me.txt") -eq 'still here'))
 # The new copy hasn't looked yet: CHECK, as SETTINGS would.
 $after = Invoke-RestMethod -Method Post "$app/api/updates" -ContentType $json -Body '{"action":"check"}'

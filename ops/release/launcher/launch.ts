@@ -17,13 +17,22 @@ import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { createWriteStream, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readServing, SERVING_FILE, type Serving } from '../app/src/lib/server/bind.ts';
+import {
+	readServing,
+	SERVE_SHAPING,
+	SERVING_FILE,
+	type Serving
+} from '../app/src/lib/server/bind.ts';
 import { dataPaths } from '../app/src/lib/server/data-dirs.ts';
 import { ensureSetting, newToken } from '../app/src/lib/server/first-run.ts';
 import { clearLogin, readLogin } from '../app/src/lib/server/login.ts';
 import { opener, plan, solverAt, type Proc } from './plan.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
+// Started by an update's installer, this inherits the old server's own
+// variables: its ORIGIN made the new serve.ts serve as before Wi-Fi
+// (bind.ts, SERVER_ENV). Gone before anything reads them.
+for (const k of SERVE_SHAPING) delete process.env[k];
 // The default data folder's .env first: it may say TSUNDOKU_HOME is elsewhere
 // (another drive), and then that folder's .env is read too. Neither overrides
 // what the shell already says.

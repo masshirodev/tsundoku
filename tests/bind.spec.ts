@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+	SERVER_ENV,
+	SERVE_SHAPING,
+	withoutServerEnv,
 	foreignHost,
 	readServing,
 	tailscaleCommand,
@@ -240,5 +243,20 @@ describe('foreignHost', () => {
 		expect(foreignHost('evil.example:42143', origin)).toBe(true);
 		expect(foreignHost('localhost.evil.example:42143', origin)).toBe(true);
 		expect(foreignHost(null, origin)).toBe(true);
+	});
+});
+
+describe('withoutServerEnv (an update’s installer)', () => {
+	it('leaves the next start none of this one’s own variables, and everything else', () => {
+		const env = withoutServerEnv({
+			ORIGIN: 'http://localhost:42143',
+			PROTOCOL_HEADER: 'x-tsundoku-proto',
+			TSUNDOKU_SERVE: 'local',
+			ENGINE_TOKEN: 'secret',
+			PATH: 'C:\\Windows',
+			USERPROFILE: 'C:\\Users\\ami'
+		});
+		expect(env).toEqual({ PATH: 'C:\\Windows', USERPROFILE: 'C:\\Users\\ami' });
+		for (const k of SERVE_SHAPING) expect(SERVER_ENV).toContain(k);
 	});
 });

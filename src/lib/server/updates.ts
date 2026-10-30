@@ -5,6 +5,7 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { version } from '$app/environment';
 import { env } from '$env/dynamic/private';
+import { withoutServerEnv } from './bind.ts';
 import { dataPaths } from './data-dirs.ts';
 import { join } from './fspath.ts';
 import {
@@ -163,8 +164,14 @@ export function startInstall(): { ok: true } | { ok: false; error: string } {
 			renameSync(part, exe);
 			install = { phase: 'installing' };
 			// Its own process, not this server's child: the installer stops this
-			// server, then starts the new version itself (/RELAUNCH).
-			spawn(exe, ['/S', '/RELAUNCH'], { detached: true, stdio: 'ignore' }).unref();
+			// server, then starts the new version itself (/RELAUNCH). Without this
+			// server's own variables, which the new one would otherwise inherit
+			// (bind.ts, SERVER_ENV).
+			spawn(exe, ['/S', '/RELAUNCH'], {
+				detached: true,
+				stdio: 'ignore',
+				env: withoutServerEnv(process.env)
+			}).unref();
 		} catch (e) {
 			rmSync(part, { force: true });
 			install = { phase: 'failed', error: e instanceof Error ? e.message : String(e) };

@@ -264,3 +264,52 @@ export function foreignHost(hostHeader: string | null, origin: string): boolean 
 	if (hostHeader === new URL(origin).host) return false;
 	return loopbackRedirect(hostHeader, origin) === null;
 }
+
+// ---- What one start must not leave to the next ---------------------------------------
+
+/**
+ * What the launcher and serve.ts set in the server's environment for that
+ * one run (ops/release/launcher/plan.ts, scripts/serve.ts). An update starts
+ * the installer from the server, and the installer starts the new version:
+ * each inherits the one before's environment, so the new serve.ts found the
+ * old one's ORIGIN, took the path from before Wi-Fi, and had no WI-FI
+ * (2026.10.30.5 -> .6, a friend's; card c188). None of these is a friend's to
+ * set: their settings live in the data folder's .env.
+ */
+export const SERVER_ENV = [
+	'ORIGIN',
+	'HOST',
+	'PORT',
+	'PROTOCOL_HEADER',
+	'TSUNDOKU_ORIGIN',
+	'NODE_ENV',
+	'TSUNDOKU_SERVE',
+	'TSUNDOKU_SNAPSHOT',
+	'TSUNDOKU_LOGIN',
+	'TSUNDOKU_HOME',
+	'TSUNDOKU_UPDATES',
+	'TSUNDOKU_INSTALLED',
+	'TSUNDOKU_TOKEN',
+	'DATABASE_PATH',
+	'ENGINE_URL',
+	'ENGINE_TOKEN',
+	'ENGINE_SOLVER_URL',
+	'FFMPEG',
+	'FFPROBE'
+] as const;
+
+/** The variables that change how serve.ts serves: what a launcher drops if it finds them inherited. */
+export const SERVE_SHAPING = [
+	'ORIGIN',
+	'HOST',
+	'PROTOCOL_HEADER',
+	'TSUNDOKU_ORIGIN',
+	'NODE_ENV'
+] as const;
+
+/** An environment without the server's own variables: for a process that starts the next tsundoku. */
+export function withoutServerEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+	const out = { ...env };
+	for (const k of SERVER_ENV) delete out[k];
+	return out;
+}
