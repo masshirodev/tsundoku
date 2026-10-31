@@ -649,18 +649,25 @@
 	const SEEN_ZONES = 'tsundoku.hint.turn';
 	const ZONES_MS = 2000;
 	let zones = $state(false);
-	onMount(() => {
+	/** The first time on a device: up until the first tap, not for ZONES_MS. */
+	let zonesUntilTap = $state(false);
+	// On opening the reader, not on moving to another chapter of it: a chapter
+	// change is a navigation from /read to /read, which rebuilds this reader
+	// (the owner, 2026-10-31: "it shows me the tap controls when i change chapter").
+	afterNavigate(({ from }) => {
+		if (from?.route.id?.startsWith('/read')) return;
 		if (!matchMedia('(pointer: coarse)').matches) return;
 		if (readLocal<boolean>(`${KEY}zones`, true) !== true) return;
-		let first = false;
 		try {
-			first = !localStorage.getItem(SEEN_ZONES);
-			if (first) localStorage.setItem(SEEN_ZONES, '1');
+			zonesUntilTap = !localStorage.getItem(SEEN_ZONES);
+			if (zonesUntilTap) localStorage.setItem(SEEN_ZONES, '1');
 		} catch {
 			// No storage (a private window): the short showing, every time.
 		}
 		zones = true;
-		if (first) return;
+	});
+	$effect(() => {
+		if (!zones || zonesUntilTap) return;
 		const t = setTimeout(() => (zones = false), ZONES_MS);
 		return () => clearTimeout(t);
 	});

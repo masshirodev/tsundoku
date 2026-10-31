@@ -356,6 +356,14 @@ test('a paged chapter opens with its tap zones: until the first tap the first ti
 	await readerReady(page);
 	await expect(zones).toBeVisible();
 	await expect(zones).toHaveCount(0, { timeout: 4000 });
+	// Another chapter isn't another opening: no zones (the owner, 2026-10-31).
+	const before = page.url();
+	await tap(page, 0.5);
+	await page.getByRole('button', { name: /CH\./ }).first().click();
+	await expect.poll(() => page.url()).not.toBe(before);
+	await readerReady(page);
+	await page.waitForTimeout(500);
+	await expect(zones).toHaveCount(0);
 	// TAP ZONES: OFF.
 	await page.evaluate(() => localStorage.setItem('tsundoku.reader.zones', 'false'));
 	await page.reload();
@@ -532,22 +540,30 @@ test('vertical, on a PC: a wheel notch eases, ↓ and ↑ move a screen (c192)',
 	// the event aimed. Its delta in CSS pixels is the device's scaled down
 	// (44.44 for 100 at this project's 2.25): what a browser would scroll.
 	const y0 = await y();
-	await page.evaluate(() =>
-		addEventListener('wheel', (e) => ((window as unknown as { delta: number }).delta = e.deltaY), {
-			once: true,
-			capture: true
-		})
-	);
+	await page.evaluate(() => {
+		const w = window as unknown as { delta: number; kept: number };
+		w.kept = 0;
+		addEventListener('wheel', (e) => (w.delta = e.deltaY), { once: true, capture: true });
+		// A page above arriving mid-ease: the strip keeps its place, and the ease
+		// moves with it (smooth-scroll.ts, shift), so the end is that much further.
+		addEventListener('tsundoku:kept-place', (e) => (w.kept += (e as CustomEvent<number>).detail));
+	});
 	await track();
 	await page.mouse.wheel(0, 100);
-	await page.waitForTimeout(700);
-	const ys = await seen();
 	const delta = await page.evaluate(() => (window as unknown as { delta: number }).delta);
+	// Within two pixels: the browser snaps a fractional scroll (44.44 here) to its
+	// own grid, and under load the ease can stop a grid step short (69660 for
+	// 69661.44, 2026-10-31: a frame where scrollY lagged reads as "something else
+	// scrolled", which stops it by design). Invisible; not a jump, which is what
+	// this guards. Waited for rather than timed: frames come slowly when loaded.
+	const kept = () => page.evaluate(() => (window as unknown as { kept: number }).kept);
+	await expect
+		.poll(async () => Math.abs((await y()) - y0 - delta - (await kept())), { timeout: 5000 })
+		.toBeLessThanOrEqual(2);
+	const ys = await seen();
 	// At least one frame between start and end: not a jump. More is usual, but a
 	// loaded machine drops frames and a 120 ms ease may show only one.
 	expect(new Set(ys.filter((v) => v > y0 && v < y0 + delta)).size).toBeGreaterThan(0);
-	// Within a pixel: the browser snaps a fractional scroll (44.44 here) to its own grid.
-	expect(Math.abs((await y()) - y0 - delta)).toBeLessThanOrEqual(1);
 
 	// ↓ a screen, less a little so the last line stays in sight; ↑ back.
 	const screen = await page.evaluate(() => Math.round(innerHeight * 0.85));
