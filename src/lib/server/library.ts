@@ -1,5 +1,6 @@
 import { watchingAt } from '$lib/library/anime';
 import { getDb } from './db';
+import { m } from '../paraglide/messages.js';
 import { HIDDEN_SQL, IN_LIBRARY_SQL, VISIBLE_SQL } from './visibility.ts';
 import { getSetting } from './settings.ts';
 import { langCode, openingEdition } from '$lib/library/editions';
@@ -576,11 +577,12 @@ export function continueReading(
 }
 
 /** The kinds with a shelf of their own. Doujins are books, grouped by other means. */
+// Functions, not words: a shelf's name is the reader's language, asked per request (doc/I18N.md).
 const KIND_SHELVES = [
-	['manga', 'Manga'],
-	['manhwa', 'Manhwa'],
-	['novel', 'Novels'],
-	['anime', 'Anime']
+	['manga', m.nav_shelf_manga],
+	['manhwa', m.nav_shelf_manhwa],
+	['novel', m.nav_shelf_novel],
+	['anime', m.nav_shelf_anime]
 ] as const;
 
 export function listShelves(opts: { reveal: boolean; withNew: boolean }): Shelf[] {
@@ -599,17 +601,22 @@ export function listShelves(opts: { reveal: boolean; withNew: boolean }): Shelf[
 	// While an import runs, or while anything is new.
 	const fresh = n(NEW_SQL, newSince());
 	if (opts.withNew || fresh > 0)
-		shelves.push({ key: 'new', name: 'New', kind: 'smart', count: fresh });
-	shelves.push({ key: 'all', name: 'All', kind: 'smart', count: n('1') });
+		shelves.push({ key: 'new', name: m.nav_shelf_new(), kind: 'smart', count: fresh });
+	shelves.push({ key: 'all', name: m.nav_shelf_all(), kind: 'smart', count: n('1') });
 	// DOWNLOADED, FAVOURITES and RATED became filters (Library Filters turn
 	// 3); SERIES and ONE-OFF split the library by what a thing is instead.
-	shelves.push({ key: 'series', name: 'Series', kind: 'smart', count: n(`NOT ${ONE_OFF_SQL}`) });
-	shelves.push({ key: 'oneoff', name: 'One-off', kind: 'smart', count: n(ONE_OFF_SQL) });
+	shelves.push({
+		key: 'series',
+		name: m.nav_shelf_series(),
+		kind: 'smart',
+		count: n(`NOT ${ONE_OFF_SQL}`)
+	});
+	shelves.push({ key: 'oneoff', name: m.nav_shelf_oneoff(), kind: 'smart', count: n(ONE_OFF_SQL) });
 	// One shelf per kind of reading, only while the library has some: a
 	// library of manga alone doesn't need a MANHWA shelf reading 0.
 	for (const [kind, name] of KIND_SHELVES) {
 		const count = n('s.kind = ?', kind);
-		if (count > 0) shelves.push({ key: `k:${kind}`, name, kind: 'smart', count });
+		if (count > 0) shelves.push({ key: `k:${kind}`, name: name(), kind: 'smart', count });
 	}
 
 	const collections = db

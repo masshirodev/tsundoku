@@ -2,7 +2,9 @@
 	import { resolve } from '$app/paths';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import InShort from '$lib/components/help/InShort.svelte';
-	import { TOPICS, neighbours, notHere, topicBySlug, type HelpTopic } from '$lib/help/topics';
+	import { neighbours, notHere, topicBySlug, topics, type HelpTopic } from '$lib/help/topics';
+	import { num, upper } from '$lib/i18n/format';
+	import { m } from '$lib/paraglide/messages';
 
 	/**
 	 * A HELP topic (doc/HELP.md; the HELP handoff, boards 1A, 1C, 1E): its
@@ -11,50 +13,59 @@
 	 * topics and STILL STUCK. On a wide screen the topics' index sits beside it.
 	 */
 	let { data } = $props();
+	const all = $derived(topics());
 	const topic = $derived(topicBySlug(data.slug)!);
 	const near = $derived(neighbours(data.slug));
 	const band = $derived(notHere(data.slug, data.place));
 	const partsLine = $derived(
-		`${topic.parts.length} ${topic.parts.length === 1 ? 'PART' : 'PARTS'} · ${topic.parts.map((p) => p.title).join(' · ')}`
+		m.help_parts_line({
+			count: topic.parts.length,
+			n: num(topic.parts.length),
+			titles: topic.parts.map((p) => p.title).join(' · ')
+		})
 	);
 	const hrefOf = (t: HelpTopic) =>
 		t.slug === 'start' ? resolve('/start') : resolve('/help/[topic]', { topic: t.slug });
 	const idxMeta = (t: HelpTopic) =>
 		t.slug === 'start' && data.start
-			? `${data.start.done + data.start.skipped} OF ${data.start.steps.length}`
+			? m.help_index_count({
+					done: num(data.start.done + data.start.skipped),
+					total: num(data.start.steps.length)
+				})
 			: notHere(t.slug, data.place)
-				? 'NOT HERE'
+				? m.help_not_here()
 				: '';
-	const word = (t: HelpTopic) => t.title.split(' ')[0].toUpperCase();
 </script>
 
-<svelte:head><title>{topic.title} · Help · tsundoku</title></svelte:head>
+<svelte:head><title>{m.help_topic_doc_title({ title: topic.title })}</title></svelte:head>
 
 <div class="help">
-	<TopBar label="Help">
+	<TopBar label={m.help_label()}>
 		{#snippet left()}
-			<a class="back" href={resolve('/help')}><span class="arrow">←</span><span>HELP</span></a>
+			<a class="back" href={resolve('/help')}
+				><span class="arrow">←</span><span>{m.name_help()}</span></a
+			>
 		{/snippet}
 		{#snippet middle()}
-			<h1 class="title">HELP · {topic.n}</h1>
+			<h1 class="title">{m.name_help()} · {topic.n}</h1>
 		{/snippet}
 		{#snippet right()}
-			<span class="count">{TOPICS.length} TOPICS</span>
+			<span class="count">{m.help_topic_count({ count: all.length, n: num(all.length) })}</span>
 		{/snippet}
 	</TopBar>
 
 	<div class="frame">
-		<nav aria-label="Topics" class="index">
-			{#each TOPICS as t (t.slug)}
+		<nav aria-label={m.help_topics_label()} class="index">
+			{#each all as t (t.slug)}
 				<a href={hrefOf(t)} aria-current={t.slug === topic.slug ? 'page' : undefined}
-					><span>{t.n} {t.title.toUpperCase()}</span><span class="im">{idxMeta(t)}</span></a
+					><span>{t.n} {upper(t.title)}</span><span class="im">{idxMeta(t)}</span></a
 				>
 			{/each}
 		</nav>
 
 		<article>
 			<header>
-				<div class="k">{topic.n} — {topic.title.toUpperCase()}</div>
+				<div class="k">{topic.n} — {upper(topic.title)}</div>
 				<h2>{topic.title}</h2>
 				<div class="parts-line">{partsLine}</div>
 			</header>
@@ -87,29 +98,34 @@
 				{/if}
 			{/each}
 
-			<nav aria-label="Topics, before and after" class="near">
+			<nav aria-label={m.help_near_label()} class="near">
 				{#if near.prev}
-					<a href={hrefOf(near.prev)}>← {near.prev.n} {word(near.prev)}</a>
+					<a href={hrefOf(near.prev)}>← {near.prev.n} {near.prev.word}</a>
 				{:else}<span></span>{/if}
 				{#if near.next}
-					<a class="next" href={hrefOf(near.next)}>{near.next.n} {word(near.next)} →</a>
+					<a class="next" href={hrefOf(near.next)}>{near.next.n} {near.next.word} →</a>
 				{:else}<span></span>{/if}
 			</nav>
 			{#if topic.slug !== 'report'}
 				<div class="stuck">
 					<div class="st">
-						<div class="sk">STILL STUCK</div>
-						<div class="ss">Save a report and send it to whoever gave you tsundoku.</div>
+						<div class="sk">{m.help_still_stuck()}</div>
+						<div class="ss">{m.help_still_stuck_body()}</div>
 					</div>
-					<a href={resolve('/help/[topic]', { topic: 'report' })}>07 — WHEN IT BREAKS →</a>
+					<a href={resolve('/help/[topic]', { topic: 'report' })}>{m.help_when_it_breaks()}</a>
 				</div>
 			{:else}
 				<div class="stuck">
 					<div class="st">
-						<div class="sk">THE REPORT</div>
-						<div class="ss">In SETTINGS › 05 — LIBRARY, the REPORT row's SAVE.</div>
+						<div class="sk">{m.help_the_report()}</div>
+						<div class="ss">
+							{m.help_the_report_body({
+								settings: m.name_settings(),
+								library: m.name_library_section()
+							})}
+						</div>
 					</div>
-					<a href="{resolve('/settings')}?section=library">SAVE →</a>
+					<a href="{resolve('/settings')}?section=library">{m.help_save()}</a>
 				</div>
 			{/if}
 		</article>

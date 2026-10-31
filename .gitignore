@@ -20,3 +20,6 @@ doc/design/*.zip
 
 # kuromoji's dictionary, ~18MB, copied from kotoba by `yarn prepare` (kotoba-sync-dict).
 /static/dict/
+
+# Paraglide's compiled messages (doc/I18N.md): written by the vite plugin and `yarn run i18n`.
+/src/lib/paraglide/

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { m } from '$lib/paraglide/messages';
 
 	/**
 	 * A bottom sheet over a scrim. No shadow and no blur: elevation is the scrim
@@ -21,7 +22,8 @@
 <svelte:window onkeydown={keydown} />
 
 {#if open}
-	<button type="button" class="scrim appear" aria-label="Close" onclick={onclose}></button>
+	<button type="button" class="scrim appear" aria-label={m.chrome_close()} onclick={onclose}
+	></button>
 	<div class="sheet appear" role="dialog" aria-modal="true" aria-label={label}>
 		{@render children()}
 	</div>

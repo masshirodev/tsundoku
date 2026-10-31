@@ -1,4 +1,8 @@
 import { error, redirect, type Handle } from '@sveltejs/kit';
+import { sequence } from '@sveltejs/kit/hooks';
+import { defineCustomServerStrategy } from '$lib/paraglide/runtime';
+import { paraglideMiddleware } from '$lib/paraglide/server';
+import { localeFromCookieHeader } from '$lib/i18n/locale';
 import {
 	SESSION_COOKIE,
 	authMode,
@@ -24,7 +28,7 @@ const isPublic = (path: string) => PUBLIC_PATHS.has(path) || path.startsWith('/p
  * Binding to the tailnet address is done by scripts/serve.ts; this is the
  * second lock. Ported from kirisute, whose README explains both.
  */
-export const handle: Handle = async ({ event, resolve }) => {
+const guard: Handle = async ({ event, resolve }) => {
 	// A friend's install answers on localhost only (scripts/serve.ts, local mode).
 	// Over Wi-Fi only through serve.ts's listeners (doc/WIFI.md), which say so.
 	const lan = viaLan(event.request.headers);
@@ -79,8 +83,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 	// The theme is on <html> in the first byte, so light mode never flashes dark.
 	const theme = themeOf(event.cookies);
 	const response = await resolve(event, {
-		transformPageChunk: ({ html }) =>
-			html.replace('<html lang="en">', `<html lang="en" data-theme="${theme}">`)
+		transformPageChunk: ({ html }) => html.replace('<html ', `<html data-theme="${theme}" `)
 	});
 	// Anything rendered while reveal is on may show hidden titles: no copy of
 	// it is kept anywhere, the service worker's offline screens included
@@ -94,3 +97,22 @@ export const handle: Handle = async ({ event, resolve }) => {
 	}
 	return response;
 };
+
+// The device's own choice of language, then the browser's (doc/I18N.md).
+defineCustomServerStrategy('custom-choice', {
+	getLocale: (request) => localeFromCookieHeader(request?.headers.get('cookie') ?? null)
+});
+
+/**
+ * The language first, so a refusal or a redirect above is in it too. The
+ * client reads <html lang> rather than deciding again (hooks.client.ts).
+ */
+const language: Handle = ({ event, resolve }) =>
+	paraglideMiddleware(event.request, ({ request, locale }) => {
+		event.request = request;
+		return resolve(event, {
+			transformPageChunk: ({ html }) => html.replace('%lang%', locale)
+		});
+	});
+
+export const handle = sequence(language, guard);

@@ -1,12 +1,19 @@
-import { describe, expect, it } from 'vitest';
-import { TOPICS, ask, neighbours, notHere, topicBySlug } from '../src/lib/help/topics';
+import { afterEach, describe, expect, it } from 'vitest';
+import { overwriteGetLocale } from '$lib/paraglide/runtime';
+import { topics, ask, neighbours, notHere, topicBySlug } from '../src/lib/help/topics';
 import { parseSearch } from '../src/lib/library/search';
 import { sectionFor } from '../src/lib/settings/catalog';
 
 /** HELP's topics (doc/HELP.md; card c208): their shape, where a "?" lands, and /help. */
 
+afterEach(() => overwriteGetLocale(() => 'en'));
+
+/** Words that would point at hidden series or the way to show them, in either language. */
+const HIDDEN = /\bhidden\b|\breveal\b|\/reveal|\bhide\b|ocult|escondid|esconder|revel/;
+
 describe('the topics', () => {
 	it('seven, numbered in order, each with an In short of three lines at most', () => {
+		const TOPICS = topics();
 		expect(TOPICS.map((t) => t.n)).toEqual(['01', '02', '03', '04', '05', '06', '07']);
 		for (const t of TOPICS) {
 			expect(t.short.length).toBeGreaterThan(0);
@@ -15,16 +22,52 @@ describe('the topics', () => {
 		}
 	});
 	it('name no repository, and never hidden series or reveal', () => {
-		const all = JSON.stringify(TOPICS).toLowerCase();
+		const all = JSON.stringify(topics()).toLowerCase();
 		expect(all).not.toMatch(/https?:\/\//);
-		expect(all).not.toMatch(/\bhidden\b|\breveal\b|\/reveal|\bhide\b/);
+		expect(all).not.toMatch(HIDDEN);
 	});
 	it('link to sections SETTINGS can open by name', () => {
-		for (const t of TOPICS)
+		for (const t of topics())
 			for (const p of t.parts) {
 				const m = /\/settings\?section=(\w+)/.exec(p.link?.href ?? '');
 				if (m) expect(sectionFor(m[1]), m[1]).not.toBeNull();
 			}
+	});
+});
+
+describe('in Portuguese', () => {
+	it('the same topics, slugs and anchors, in other words', () => {
+		const en = topics();
+		overwriteGetLocale(() => 'pt-BR');
+		const pt = topics();
+		const shape = (ts: typeof en) =>
+			ts.map((t) => ({
+				slug: t.slug,
+				n: t.n,
+				short: t.short.length,
+				parts: t.parts.map((p) => ({
+					id: p.id,
+					href: p.link?.href,
+					right: !!p.right,
+					paras: p.paras?.length,
+					table: p.table?.length
+				}))
+			}));
+		expect(shape(pt)).toEqual(shape(en));
+		expect(topicBySlug('phone')).toMatchObject({ title: 'Seu celular' });
+		expect(ask('phone', 'wifi')).toMatchObject({
+			href: '/help/phone#wifi',
+			at: 'ABRE EM 01 — WI-FI COM CÓDIGO'
+		});
+		expect(pt[1].short[0]).not.toBe(en[1].short[0]);
+		expect(JSON.stringify(pt)).toContain('CONFIGURAÇÕES › 08 — DISPOSITIVOS');
+		expect(notHere('phone', { updater: true, overWifi: true })?.a).toBe('JÁ CONECTADO PELO WI-FI');
+	});
+	it('never mention hidden series or how to show them either', () => {
+		overwriteGetLocale(() => 'pt-BR');
+		const all = JSON.stringify(topics()).toLowerCase();
+		expect(all).not.toMatch(/https?:\/\//);
+		expect(all).not.toMatch(HIDDEN);
 	});
 });
 

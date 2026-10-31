@@ -3,6 +3,8 @@ import type { Actions, PageServerLoad } from './$types';
 import { currentLogin, friendLogin, localOnly, setSession } from '$lib/server/auth';
 import { dataPaths } from '$lib/server/data-dirs';
 import { MIN_PASSWORD, makeLogin, sessionFor, writeLogin } from '$lib/server/login';
+import { num } from '$lib/i18n/format';
+import { m } from '$lib/paraglide/messages';
 
 /**
  * SET UP (doc/SIGN-IN.md; card c189): a friend's first open, choosing a
@@ -14,7 +16,7 @@ import { MIN_PASSWORD, makeLogin, sessionFor, writeLogin } from '$lib/server/log
 function settable() {
 	if (!friendLogin()) error(404, 'not found');
 	if (currentLogin()) redirect(303, '/');
-	if (!localOnly()) error(403, 'set tsundoku up on the computer it runs on');
+	if (!localOnly()) error(403, m.setup_error_here());
 }
 
 export const load: PageServerLoad = () => {
@@ -28,9 +30,9 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const password = String(form.get('password') ?? '');
 		if (password.length < MIN_PASSWORD)
-			return fail(400, { message: `at least ${MIN_PASSWORD} characters` });
+			return fail(400, { message: m.setup_error_short({ min: num(MIN_PASSWORD) }) });
 		if (password !== String(form.get('again') ?? ''))
-			return fail(400, { message: 'the two passwords are different' });
+			return fail(400, { message: m.setup_error_different() });
 		const login = makeLogin(password);
 		writeLogin(dataPaths().home, login);
 		setSession(cookies, sessionFor(login), url);
@@ -40,7 +42,7 @@ export const actions: Actions = {
 	none: async ({ request }) => {
 		settable();
 		if ((await request.formData()).get('sure') !== 'yes')
-			return fail(400, { message: 'confirm it first' });
+			return fail(400, { message: m.setup_error_confirm() });
 		writeLogin(dataPaths().home, makeLogin(null));
 		redirect(303, '/');
 	}

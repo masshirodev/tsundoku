@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { m } from '$lib/paraglide/messages';
 	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
 	import { backLink } from '$lib/back';
 	import { enhance } from '$app/forms';
@@ -791,23 +792,27 @@
 	{#if hiddenRun}
 		<Banner kind="action" title={hiddenRun.title} detail={hiddenRun.detail}>
 			{#snippet action()}
-				<button type="button" onclick={() => (updateRun.hidden = false)}>SHOW</button>
+				<button type="button" onclick={() => (updateRun.hidden = false)}>{m.update_show()}</button>
 			{/snippet}
 		</Banner>
 	{:else if updatedTo}
 		<Banner
 			kind="action"
-			title="UPDATED TO {updatedTo}"
-			detail="WHAT'S NEW STAYS IN SETTINGS › 08 — DEVICES"
+			title={m.update_updated_to({ version: updatedTo })}
+			detail="{m.update_whats_new_stays()} {m.name_settings()} › {m.name_devices_section()}"
 		>
 			{#snippet action()}
-				<button type="button" aria-label="Close" onclick={dropUpdated}>✕</button>
+				<button type="button" aria-label={m.chrome_close()} onclick={dropUpdated}>✕</button>
 			{/snippet}
 		</Banner>
 	{:else if newVersion}
-		<Banner kind="action" title="TSUNDOKU {newVersion} IS OUT" detail="SEE WHAT'S NEW, AND UPDATE">
+		<Banner
+			kind="action"
+			title={m.update_out({ version: newVersion })}
+			detail={m.update_out_detail()}
+		>
 			{#snippet action()}
-				<a href="{resolve('/settings')}#s-devices">SETTINGS →</a>
+				<a href="{resolve('/settings')}#s-devices">{m.name_settings()} →</a>
 			{/snippet}
 		</Banner>
 	{/if}
@@ -863,16 +868,13 @@
 		<!-- GET STARTED (doc/ONBOARDING.md; card c208): until every step is done or
 		     skipped the empty library is the list; then the first day's sources. -->
 		{#if data.start && !data.start.finished}
-			<section class="ob" aria-label="Get started">
+			<section class="ob" aria-label={m.start_page_label()}>
 				<div class="ob-head">
-					<div class="ob-k">00 — GET STARTED</div>
+					<div class="ob-k">{m.start_head()}</div>
 					<div class="ob-k">{countLine(data.start)}</div>
 				</div>
-				<h1>Nothing here yet.</h1>
-				<p class="lede">
-					Four things to set up, in any order. Each one ticks itself when it's done, and this list
-					stays here until they are.
-				</p>
+				<h1>{m.start_empty_title()}</h1>
+				<p class="lede">{m.start_empty_lede()}</p>
 				<div class="ob-list"><StartList view={data.start} libraryRoot={data.libraryRoot} /></div>
 				{#if form && 'scanMessage' in form}<div class="scan-message">{form.scanMessage}</div>{/if}
 			</section>

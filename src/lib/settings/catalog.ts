@@ -14,6 +14,8 @@
  * - **episode**: SPEED, which every episode starts at 1×; listed, not set.
  */
 
+import { ENDONYMS, LOCALES } from '../i18n/locale.ts';
+
 export type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
 
 export type ValueDef = {
@@ -131,7 +133,9 @@ export const VALUES = {
 	// 05 — library
 	'edition.language': { where: 'library', key: 'edition_language', def: 'english' },
 	// 08 — devices: the theme cookie, mirrored like any device value.
-	theme: { where: 'device', key: 'tsundoku.theme', def: 'dark' }
+	theme: { where: 'device', key: 'tsundoku.theme', def: 'dark' },
+	// The language, a cookie the server reads (doc/I18N.md); AUTO follows the browser.
+	lang: { where: 'device', key: 'tsundoku.lang', def: 'auto' }
 } as const satisfies Record<string, ValueDef>;
 
 export type ValueId = keyof typeof VALUES;
@@ -768,7 +772,7 @@ export const SECTIONS: SectionDef[] = [
 		id: 'devices',
 		n: '08',
 		title: 'DEVICES',
-		words: ['devices', 'device', 'theme', 'wifi', 'wi-fi', 'phone', 'pair'],
+		words: ['devices', 'device', 'theme', 'language', 'idioma', 'wifi', 'wi-fi', 'phone', 'pair'],
 		rows: [
 			{
 				id: 'theme',
@@ -787,6 +791,26 @@ export const SECTIONS: SectionDef[] = [
 					]
 				},
 				meta: 'ALSO /DARK AND /LIGHT IN SEARCH'
+			},
+			{
+				id: 'lang',
+				// Not LANGUAGE: 05 — LIBRARY has that row, the language folded books open in.
+				label: 'APP LANGUAGE',
+				where: 'device',
+				control: {
+					type: 'seg',
+					groups: [
+						{
+							value: 'lang',
+							// Each language in its own words, so it's found by someone who can't read this page's.
+							opts: [
+								{ value: 'auto', label: 'AUTO' },
+								...LOCALES.map((l) => ({ value: l, label: ENDONYMS[l] }))
+							]
+						}
+					]
+				},
+				meta: "AUTO FOLLOWS THE BROWSER'S LANGUAGE"
 			}
 		]
 	}

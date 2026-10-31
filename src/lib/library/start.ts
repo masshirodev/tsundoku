@@ -3,8 +3,12 @@
  * `doc/design/handoff/Start-*.dc.html`): four steps a new library is set up
  * by, in any order, each ticked by what is really there rather than by a
  * press. Pure: the server gathers the facts (server/start.ts), and this says
- * what each step shows.
+ * what each step shows. The words are the reader's language (doc/I18N.md),
+ * asked for when a view is made, never at import.
  */
+
+import { m } from '../paraglide/messages.js';
+import { num, upper } from '../i18n/format.ts';
 
 export type StepId = 'repo' | 'ext' | 'library' | 'phone';
 export const STEPS: StepId[] = ['repo', 'ext', 'library', 'phone'];
@@ -48,15 +52,12 @@ export type StartView = {
 	finished: boolean;
 };
 
-const TITLES: Record<StepId, string> = {
-	repo: 'Add a repository',
-	ext: 'Install an extension',
-	library: 'Bring a library you already have',
-	phone: 'Read on your phone'
+const TITLES: Record<StepId, () => string> = {
+	repo: m.start_title_repo,
+	ext: m.start_title_ext,
+	library: m.start_title_library,
+	phone: m.start_title_phone
 };
-
-const plural = (n: number, one: string, many: string) =>
-	`${n.toLocaleString('en-US')} ${n === 1 ? one : many}`;
 
 /** The skips as kept (a JSON list of step ids), whatever was there. */
 export function parseSkipped(raw: string): StepId[] {
@@ -90,7 +91,7 @@ export function startView(f: StartFacts, skipped: StepId[]): StartView {
 		return {
 			id,
 			n: String(i + 1).padStart(2, '0'),
-			title: TITLES[id],
+			title: TITLES[id](),
 			optional: id === 'library',
 			state,
 			meta: metaOf(id, state, f, withRepo),
@@ -103,21 +104,22 @@ export function startView(f: StartFacts, skipped: StepId[]): StartView {
 }
 
 function metaOf(id: StepId, state: StepState, f: StartFacts, withRepo: boolean): string {
-	if (state === 'skipped') return withRepo ? 'Skipped with 01' : 'Skipped';
-	if (state === 'blocked') return 'After 01 · no repository, so nothing to install';
+	if (state === 'skipped')
+		return withRepo ? m.start_meta_skipped_with_repo() : m.start_meta_skipped();
+	if (state === 'blocked') return m.start_meta_blocked();
 	if (state === 'done')
 		return {
-			repo: `Done · ${plural(f.repositories, 'repository', 'repositories')}`,
-			ext: `Done · ${f.installed.toLocaleString('en-US')} installed`,
-			library: `Done · ${plural(f.series, 'series', 'series')}`,
-			phone: 'Done · a phone or tablet reads here'
-		}[id];
+			repo: () => m.start_meta_done_repo({ count: f.repositories, n: num(f.repositories) }),
+			ext: () => m.start_meta_done_ext({ count: f.installed, n: num(f.installed) }),
+			library: () => m.start_meta_done_library({ count: f.series, n: num(f.series) }),
+			phone: m.start_meta_done_phone
+		}[id]();
 	return {
-		repo: 'Where extensions come from · tsundoku ships none',
-		ext: 'A source to browse and read from',
-		library: 'A Mihon backup, or files in the library folder',
-		phone: 'Wi-Fi at home, or Tailscale anywhere'
-	}[id];
+		repo: m.start_meta_todo_repo,
+		ext: m.start_meta_todo_ext,
+		library: m.start_meta_todo_library,
+		phone: m.start_meta_todo_phone
+	}[id]();
 }
 
 /** The step that opens by itself: the first one still to do. */
@@ -134,30 +136,30 @@ export function withSkip(skipped: StepId[], id: StepId, on: boolean): StepId[] {
 
 /** The head's count: "2 OF 4 DONE · ANY ORDER", with skips said when there are some. */
 export function countLine(v: StartView, phone = false): string {
-	const of = `${v.done} OF ${v.steps.length}`;
-	if (phone) return v.skipped ? `${of} · ${v.skipped} SKIPPED` : of;
-	return v.skipped ? `${of} DONE · ${v.skipped} SKIPPED` : `${of} DONE · ANY ORDER`;
+	const c = { done: v.done, total: v.steps.length, skipped: v.skipped };
+	if (phone) return v.skipped ? m.start_count_phone_skipped(c) : m.start_count_phone(c);
+	return v.skipped ? m.start_count_skipped(c) : m.start_count(c);
 }
 
 /**
  * The way back (board 2): where each step sends the friend, and what the
  * band on that screen says. Only the steps whose work is on another screen.
  */
-export const TRAIL: Partial<Record<StepId, { path: string; href: string; doing: string }>> = {
+export const TRAIL: Partial<Record<StepId, { path: string; href: string; doing: () => string }>> = {
 	repo: {
 		path: '/browse/extensions',
 		href: '/browse/extensions?tab=repos',
-		doing: 'TICKS ITSELF WHEN ONE IS ADDED'
+		doing: m.start_ticks_repo
 	},
 	ext: {
 		path: '/browse/extensions',
 		href: '/browse/extensions?tab=available',
-		doing: 'TICKS ITSELF WHEN ONE IS INSTALLED'
+		doing: m.start_ticks_ext
 	},
 	phone: {
 		path: '/settings',
 		href: '/settings#s-devices',
-		doing: 'TICKS ITSELF WHEN A PHONE PAIRS'
+		doing: m.start_ticks_phone
 	}
 };
 
@@ -165,14 +167,16 @@ export const TRAIL: Partial<Record<StepId, { path: string; href: string; doing: 
 export function trailDone(v: StartView, id: StepId): { a: string; b: string } {
 	const s = v.steps.find((x) => x.id === id)!;
 	const word = {
-		repo: 'A REPOSITORY ADDED',
-		ext: 'AN EXTENSION INSTALLED',
-		library: 'A SERIES FOUND',
-		phone: 'A PHONE PAIRED'
-	}[id];
+		repo: m.start_done_word_repo,
+		ext: m.start_done_word_ext,
+		library: m.start_done_word_library,
+		phone: m.start_done_word_phone
+	}[id]();
 	const next = v.steps.find((x) => x.state === 'todo');
 	return {
-		a: `✓ ${s.n} DONE · ${word}`,
-		b: next ? `STILL OPEN · ${next.n} ${next.title.toUpperCase()}` : 'EVERY STEP DONE OR SKIPPED'
+		a: m.start_trail_done({ n: s.n, word }),
+		b: next
+			? m.start_trail_still_open({ n: next.n, title: upper(next.title) })
+			: m.start_trail_all_done()
 	};
 }

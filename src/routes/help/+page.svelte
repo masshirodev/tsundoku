@@ -1,7 +1,9 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
-	import { TOPICS, notHere } from '$lib/help/topics';
+	import { topics, notHere } from '$lib/help/topics';
+	import { num } from '$lib/i18n/format';
+	import { m } from '$lib/paraglide/messages';
 
 	/**
 	 * HELP (doc/HELP.md; card c208; the HELP handoff, board 1B): seven topics,
@@ -9,30 +11,37 @@
 	 * checklist; a topic that can't apply here says NOT HERE, and still opens.
 	 */
 	let { data } = $props();
+	const all = $derived(topics());
 	const metaOf = (slug: string, meta: string) =>
 		slug === 'start' && data.start
-			? `${meta} · ${data.start.done + data.start.skipped} OF ${data.start.steps.length}`
+			? m.help_meta_count({
+					meta,
+					done: num(data.start.done + data.start.skipped),
+					total: num(data.start.steps.length)
+				})
 			: notHere(slug, data.place)
-				? `${meta} · NOT HERE`
+				? `${meta} · ${m.help_not_here()}`
 				: meta;
 </script>
 
-<svelte:head><title>Help · tsundoku</title></svelte:head>
+<svelte:head><title>{m.help_doc_title()}</title></svelte:head>
 
 <div class="help">
-	<TopBar label="Help">
+	<TopBar label={m.help_label()}>
 		{#snippet left()}
-			<a class="back" href={resolve('/')}><span class="arrow">←</span><span>LIBRARY</span></a>
+			<a class="back" href={resolve('/')}
+				><span class="arrow">←</span><span>{m.name_library()}</span></a
+			>
 		{/snippet}
 		{#snippet middle()}
-			<h1 class="title">HELP</h1>
+			<h1 class="title">{m.name_help()}</h1>
 		{/snippet}
 	</TopBar>
 
 	<div class="body">
-		<div class="lab"><span>01 — TOPICS</span><span>{TOPICS.length}</span></div>
-		<nav aria-label="Topics" class="topics">
-			{#each TOPICS as t (t.slug)}
+		<div class="lab"><span>{m.help_topics_head()}</span><span>{num(all.length)}</span></div>
+		<nav aria-label={m.help_topics_label()} class="topics">
+			{#each all as t (t.slug)}
 				<a
 					class="topic"
 					href={t.slug === 'start'
@@ -47,9 +56,9 @@
 				</a>
 			{/each}
 		</nav>
-		<div class="lab stuck-lab">02 — STILL STUCK</div>
+		<div class="lab stuck-lab">{m.help_still_stuck_head()}</div>
 		<div class="stuck">
-			<div class="s">Save a report and send it to whoever gave you tsundoku.</div>
+			<div class="s">{m.help_still_stuck_body()}</div>
 			<a href={resolve('/help/[topic]', { topic: 'report' })}>07 →</a>
 		</div>
 	</div>

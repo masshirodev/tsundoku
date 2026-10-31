@@ -1,4 +1,4 @@
-import { TOPICS } from '../help/topics.ts';
+import { topics } from '../help/topics.ts';
 
 /**
  * What the search field can say. Most input is a query; a few exact strings
@@ -60,9 +60,10 @@ export function parseSearch(raw: string): SearchInput {
 
 /** A topic by a word of its title or its parts: "phone", "download", "update". */
 function helpTopicFor(word: string) {
+	const all = topics();
 	return (
-		TOPICS.find((t) => t.slug.startsWith(word)) ??
-		TOPICS.find((t) => `${t.title} ${t.meta}`.toLowerCase().includes(word)) ??
+		all.find((t) => t.slug.startsWith(word)) ??
+		all.find((t) => `${t.title} ${t.meta}`.toLowerCase().includes(word)) ??
 		null
 	);
 }

@@ -1,6 +1,8 @@
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
+import { paraglideVitePlugin } from '@inlang/paraglide-js';
+import { paraglide } from './paraglide.config.js';
 
 // Separate from vite.config.ts, and without `sveltekit()`, for the reasons
 // Kumiko gives in its own vitest.config.ts: specs import plain TypeScript and
@@ -11,7 +13,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	// `svelte()` for the `.svelte.ts` transform only. configFile: false because
 	// there is no svelte.config.js; the compiler options live in vite.config.ts.
-	plugins: [svelte({ configFile: false })],
+	// Paraglide so the specs find src/lib/paraglide compiled (doc/I18N.md).
+	plugins: [paraglideVitePlugin(paraglide), svelte({ configFile: false })],
 	resolve: {
 		alias: {
 			$lib: fileURLToPath(new URL('./src/lib', import.meta.url)),

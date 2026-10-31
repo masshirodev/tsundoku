@@ -1,18 +1,19 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { m } from '$lib/paraglide/messages';
 
 	let { data } = $props();
 
 	/** The handoff's list (Wifi-Phone.dc.html, 3A): what plain http over Wi-Fi can't do. */
 	const MISSING = [
-		'Installing as an app',
-		'Offline chapters',
-		'Keeping the screen awake',
-		'Fingerprint checks'
+		m.welcome_missing_app,
+		m.welcome_missing_offline,
+		m.welcome_missing_awake,
+		m.welcome_missing_fingerprint
 	];
 </script>
 
-<svelte:head><title>signed in · tsundoku</title></svelte:head>
+<svelte:head><title>{m.welcome_title()} · tsundoku</title></svelte:head>
 
 <!--
 	A phone, just paired over Wi-Fi (doc/WIFI.md, 3A; Wifi-Phone.dc.html,
@@ -23,37 +24,36 @@
 <main class="welcome">
 	<header class="bar">
 		<div class="name">TSUNDOKU</div>
-		<div class="via">OVER WI-FI</div>
+		<div class="via">{m.welcome_via()}</div>
 	</header>
 	<div class="body">
 		<div class="head">
-			<div class="k">01 — SIGNED IN</div>
-			<h1>This phone is signed in</h1>
-			<div class="addr">{data.address} · THE COMPUTER'S WI-FI ADDRESS</div>
+			<div class="k">{m.welcome_kicker()}</div>
+			<h1>{m.welcome_heading()}</h1>
+			<div class="addr">{data.address} · {m.welcome_address()}</div>
 		</div>
-		<section class="block" aria-label="Works here">
-			<div class="k pad">WORKS HERE</div>
-			<p>Reading, browsing, search, downloads, and every setting.</p>
+		<section class="block" aria-label={m.welcome_works_aria()}>
+			<div class="k pad">{m.welcome_works()}</div>
+			<p>{m.welcome_works_body()}</p>
 		</section>
-		<section class="block" aria-label="Not over Wi-Fi">
-			<div class="k pad tight">NOT OVER WI-FI</div>
-			{#each MISSING as m (m)}
-				<div class="missing"><span>{m}</span></div>
+		<section class="block" aria-label={m.welcome_missing_aria()}>
+			<div class="k pad tight">{m.welcome_missing()}</div>
+			{#each MISSING as missing (missing)}
+				<div class="missing"><span>{missing()}</span></div>
 			{/each}
 			<div class="note">
-				TAILSCALE GIVES THE PHONE ALL OF IT · THE README ON THE COMPUTER SAYS HOW
+				{m.welcome_note()}
 			</div>
 		</section>
-		<section class="block last" aria-label="To come back">
-			<div class="k pad">TO COME BACK</div>
+		<section class="block last" aria-label={m.welcome_back_aria()}>
+			<div class="k pad">{m.welcome_back()}</div>
 			<p class="prose">
-				In the browser's menu, Add to Home screen. It's a shortcut to this address: if the address
-				changes, scan a new code.
+				{m.welcome_back_body()}
 			</p>
 		</section>
 		<div class="fill"></div>
 		<div class="go-wrap">
-			<a class="go" href={resolve('/')}>OPEN THE LIBRARY →</a>
+			<a class="go" href={resolve('/')}>{m.welcome_open()}</a>
 		</div>
 	</div>
 </main>

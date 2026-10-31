@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { resolve } from '$app/paths';
+	import { m } from '$lib/paraglide/messages';
+	import { num } from '$lib/i18n/format';
 
 	/**
 	 * The first day (doc/ONBOARDING.md; the Getting Started handoff, board 3):
@@ -17,67 +19,69 @@
 		libraryRoot: string;
 		scanMessage: string;
 	} = $props();
-	const KIND = { manga: 'MANGA', anime: 'ANIME', novel: 'NOVELS' } as const;
+	const KIND = {
+		manga: m.first_kind_manga,
+		anime: m.first_kind_anime,
+		novel: m.first_kind_novel
+	} as const;
 	const n = $derived(sources.length);
 </script>
 
-<section class="ob" aria-label="Nothing added yet">
+<section class="ob" aria-label={m.first_section_label()}>
 	<div class="ob-head">
-		<div class="k">00 — NOTHING ADDED YET</div>
-		<div class="k">{n ? `${n} ${n === 1 ? 'SOURCE' : 'SOURCES'}` : 'NO SOURCES'}</div>
+		<div class="k">{m.first_head()}</div>
+		<div class="k">{n ? m.first_sources({ count: n, n: num(n) }) : m.first_no_sources()}</div>
 	</div>
 	{#if n}
-		<h1>Everything is one search away.</h1>
-		<p class="lede">
-			Search your sources for something to read, or browse one. Read it straight away, or ADD a
-			series to keep it here.
-		</p>
+		<h1>{m.first_title()}</h1>
+		<p class="lede">{m.first_lede()}</p>
 		<form method="GET" action={resolve('/downloads/search')} class="box">
 			<input
 				class="in"
 				name="q"
 				type="search"
 				required
-				placeholder="/ search {n} {n === 1 ? 'source' : 'sources'}"
-				aria-label="Search your sources"
+				placeholder={m.first_search_placeholder({ count: n, n: num(n) })}
+				aria-label={m.first_search_label()}
 			/>
-			<button type="submit" class="b">SEARCH</button>
+			<button type="submit" class="b">{m.first_search()}</button>
 		</form>
 
 		<div class="lab">
-			<span>01 — YOUR SOURCES</span>
-			<a class="r" href="{resolve('/browse/extensions')}?tab=installed">EXTENSIONS →</a>
+			<span>{m.first_your_sources()}</span>
+			<a class="r" href="{resolve('/browse/extensions')}?tab=installed"
+				>{m.start_done_link_repo()}</a
+			>
 		</div>
 		<div class="rows">
 			{#each sources as s (s.id)}
 				<a class="row" href={resolve('/browse/[source]', { source: s.id })}>
 					<span class="tx">
 						<span class="a">{s.label}</span>
-						<span class="b">{KIND[s.kind]} · {s.lang.toUpperCase()}</span>
+						<span class="b">{KIND[s.kind]()} · {s.lang.toUpperCase()}</span>
 					</span>
-					<span class="ac">BROWSE →</span>
+					<span class="ac">{m.first_browse()}</span>
 				</a>
 			{/each}
 		</div>
 	{:else}
-		<h1>Nothing here yet.</h1>
-		<p class="lede">
-			No sources and nothing imported. Files in the library folder appear after a scan; GET STARTED
-			still opens from HELP.
-		</p>
+		<h1>{m.first_empty_title()}</h1>
+		<p class="lede">{m.first_empty_lede()}</p>
 	{/if}
 
 	<div class="lab">
-		<span>{n ? '02' : '01'} — OR FROM FILES</span><span class="r">MIHON BACKUP · EPUB</span>
+		<span>{m.first_from_files({ n: n ? '02' : '01' })}</span><span class="r"
+			>{m.first_files_kinds()}</span
+		>
 	</div>
 	<div class="rows">
 		<div class="row">
 			<span class="tx">
-				<span class="b">LIBRARY FOLDER</span>
+				<span class="b">{m.start_library_folder()}</span>
 				<span class="a path" title={libraryRoot}>{libraryRoot}</span>
 			</span>
 			<form method="POST" action="?/scan" use:enhance class="scan">
-				<button type="submit" class="ac">START SCAN</button>
+				<button type="submit" class="ac">{m.start_scan()}</button>
 			</form>
 		</div>
 	</div>

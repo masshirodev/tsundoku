@@ -8,6 +8,7 @@
 		type UpdateView
 	} from '$lib/updates';
 	import { updateRun } from '$lib/update-run.svelte';
+	import { m } from '$lib/paraglide/messages';
 
 	/**
 	 * A new version, told on entry (doc/UPDATES.md, "Told on entry"; the Getting
@@ -58,113 +59,105 @@
 
 <svelte:window onkeydown={keydown} />
 
-<button type="button" class="scrim appear" aria-label="Later" onclick={dismiss}></button>
+<button type="button" class="scrim appear" aria-label={m.update_later_label()} onclick={dismiss}
+></button>
 <div
 	class="modal appear"
 	role="dialog"
 	aria-modal="true"
 	aria-label={phase === 'offer'
-		? 'A new version'
+		? m.update_dialog_offer()
 		: phase === 'failed'
-			? 'Update failed'
-			: 'Updating'}
+			? m.update_dialog_failed()
+			: m.update_dialog_updating()}
 >
 	{#if phase === 'offer'}
 		<div class="m-head">
-			<span class="k">00 — NEW VERSION</span><span class="k">RUNNING {offer.current}</span>
+			<span class="k">{m.update_head_new()}</span><span class="k"
+				>{m.update_head_running({ version: offer.current })}</span
+			>
 		</div>
 		<div class="m-body">
 			<h2 class="m-ver">tsundoku <span class="m">{v.version}</span></h2>
 			<div class="m-meta">{offerMeta(offer)}</div>
 			{#if noteLines(v.notes).length}
-				{#if offer.how === 'install'}<div class="k notes-k">WHAT'S NEW</div>{/if}
+				{#if offer.how === 'install'}<div class="k notes-k">{m.update_whats_new()}</div>{/if}
 				<div class="notes">
 					{#each noteLines(v.notes) as line, i (i)}<div>{line}</div>{/each}
 				</div>
 			{/if}
 			{#if offer.how === 'install'}
-				<p class="m-say">
-					UPDATE downloads it and installs it. tsundoku closes for about a minute and opens again by
-					itself, and this page comes back on its own. Your library stays as it is.
-				</p>
+				<p class="m-say">{m.update_say_install()}</p>
 			{:else}
 				<div class="steps-n">
-					<div><span>1</span><span>DOWNLOAD the new version.</span></div>
-					<div><span>2</span><span>Unpack it beside this one.</span></div>
-					<div>
-						<span>3</span><span
-							>Start tsundoku from the new folder, then delete the old one. Your library stays where
-							it is.</span
-						>
-					</div>
+					<div><span>1</span><span>{m.update_step_1()}</span></div>
+					<div><span>2</span><span>{m.update_step_2()}</span></div>
+					<div><span>3</span><span>{m.update_step_3()}</span></div>
 				</div>
 			{/if}
 		</div>
 		<div class="m-foot">
-			<button type="button" onclick={onlater}>LATER</button>
+			<button type="button" onclick={onlater}>{m.update_later()}</button>
 			{#if offer.how === 'install'}
 				<button type="button" class="up" onclick={() => void updateRun.start(v.version)}
-					>UPDATE →</button
+					>{m.update_update()}</button
 				>
 			{:else if offer.download}
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the release host, not a route -->
-				<a class="up" href={offer.download}>DOWNLOAD ↓</a>
+				<a class="up" href={offer.download}>{m.update_download()}</a>
 			{/if}
 		</div>
 		<div class="m-note">
-			LATER · ASKED AGAIN TOMORROW · IT WAITS IN SETTINGS › 08 — DEVICES › UPDATES
+			{m.update_note_lead()}
+			{m.name_settings()} › {m.name_devices_section()} › {m.name_updates_section()}
 		</div>
 	{:else if phase === 'failed'}
 		<div class="m-head">
-			<span class="k">00 — UPDATE FAILED</span><span class="k">{v.version}</span>
+			<span class="k">{m.update_head_failed()}</span><span class="k">{v.version}</span>
 		</div>
 		<div class="m-body">
-			<h2 class="m-ver">Nothing was changed</h2>
+			<h2 class="m-ver">{m.update_failed_title()}</h2>
 			<div class="m-meta why">{(updateRun.failed ?? '').toUpperCase()}</div>
-			<p class="m-say">
-				tsundoku {offer.current} is still running, as it was. TRY AGAIN downloads it afresh.
-			</p>
+			<p class="m-say">{m.update_failed_say({ version: offer.current })}</p>
 		</div>
 		<div class="m-foot">
-			<button type="button" onclick={dismiss}>LATER</button>
+			<button type="button" onclick={dismiss}>{m.update_later()}</button>
 			<button type="button" class="up" onclick={() => void updateRun.start(v.version)}
-				>TRY AGAIN</button
+				>{m.update_try_again()}</button
 			>
 		</div>
 	{:else}
 		<div class="m-head">
-			<span class="k">00 — UPDATING</span><span class="k">{offer.current} → {v.version}</span>
+			<span class="k">{m.update_head_updating()}</span><span class="k"
+				>{offer.current} → {v.version}</span
+			>
 		</div>
 		<div class="m-body">
 			{#if phase === 'downloading'}
-				<h2 class="m-ver">Downloading</h2>
+				<h2 class="m-ver">{m.update_downloading()}</h2>
 				<div class="prog"><i style:width="{percent(downloading) * 100}%"></i></div>
 				<div class="m-meta">{downloadLine(downloading)}</div>
-				<p class="m-say">
-					Keep reading if you like: HIDE closes this, and the library's band keeps count.
-				</p>
+				<p class="m-say">{m.update_downloading_say()}</p>
 			{:else if phase === 'installing'}
-				<h2 class="m-ver">Installing</h2>
+				<h2 class="m-ver">{m.update_installing()}</h2>
 				<div class="prog"><i style:width="100%"></i></div>
-				<div class="m-meta">MATCHES THE RELEASE KEY · TSUNDOKU CLOSES NOW</div>
-				<p class="m-say">
-					It opens again by itself in about a minute, and this page reloads onto it.
-				</p>
+				<div class="m-meta">{m.update_installing_meta()}</div>
+				<p class="m-say">{m.update_installing_say()}</p>
 			{:else}
-				<h2 class="m-ver">Opening again</h2>
+				<h2 class="m-ver">{m.update_opening()}</h2>
 				<div class="prog wait"></div>
 				<div class="m-meta">
-					WAITING FOR {v.version} · {clock(now - (updateRun.awaySince ?? now))}
+					{m.update_waiting({
+						version: v.version,
+						time: clock(now - (updateRun.awaySince ?? now))
+					})}
 				</div>
-				<p class="m-say">
-					Nothing to do here. If it takes more than a few minutes, start tsundoku from the Start
-					menu: your library is untouched.
-				</p>
+				<p class="m-say">{m.update_opening_say()}</p>
 			{/if}
 		</div>
 		{#if phase === 'downloading'}
 			<div class="m-foot one">
-				<button type="button" onclick={() => (updateRun.hidden = true)}>HIDE</button>
+				<button type="button" onclick={() => (updateRun.hidden = true)}>{m.update_hide()}</button>
 			</div>
 		{/if}
 	{/if}

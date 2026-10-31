@@ -3,11 +3,13 @@
 	 * A topic's IN SHORT (doc/HELP.md; the HELP handoff): three numbered,
 	 * ruled lines on the panel. The page and a "?"'s sheet show the same block.
 	 */
+	import { m } from '$lib/paraglide/messages';
+
 	let { lines, compact = false }: { lines: string[]; compact?: boolean } = $props();
 </script>
 
-<section class="short" class:compact aria-label="In short">
-	<div class="k">IN SHORT</div>
+<section class="short" class:compact aria-label={m.help_in_short_label()}>
+	<div class="k">{m.help_in_short()}</div>
 	{#each lines as line, i (i)}
 		<div class="line">
 			<div class="n">{i + 1}</div>

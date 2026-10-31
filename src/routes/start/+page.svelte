@@ -4,6 +4,7 @@
 	import StartList from '$lib/components/start/StartList.svelte';
 	import { countLine } from '$lib/library/start';
 	import { trail } from '$lib/start-trail.svelte';
+	import { m } from '$lib/paraglide/messages';
 
 	/**
 	 * GET STARTED, a page of its own (doc/ONBOARDING.md; the handoff's
@@ -15,36 +16,35 @@
 	$effect(() => trail.end());
 </script>
 
-<svelte:head><title>Get started · tsundoku</title></svelte:head>
+<svelte:head><title>{m.start_page_doc_title()}</title></svelte:head>
 
 <div class="start-page">
-	<TopBar label="Get started">
+	<TopBar label={m.start_page_label()}>
 		{#snippet left()}
-			<a class="back" href={resolve('/')}><span class="arrow">←</span><span>LIBRARY</span></a>
+			<a class="back" href={resolve('/')}
+				><span class="arrow">←</span><span>{m.start_back_library()}</span></a
+			>
 		{/snippet}
 		{#snippet middle()}
 			<div class="title">
-				<h1>GET STARTED</h1>
-				<span>HELP · 01</span>
+				<h1>{m.name_get_started()}</h1>
+				<span>{m.start_page_help_ref()}</span>
 			</div>
 		{/snippet}
 	</TopBar>
 
 	{#if data.start}
-		<section class="ob" aria-label="Get started">
+		<section class="ob" aria-label={m.start_page_label()}>
 			<div class="ob-head">
-				<div class="k">00 — GET STARTED</div>
+				<div class="k">{m.start_head()}</div>
 				<div class="k">{countLine(data.start)}</div>
 			</div>
 			<h2>
-				{data.start.finished ? 'Everything is set up, or skipped.' : 'Four things to set up.'}
+				{data.start.finished ? m.start_page_title_finished() : m.start_page_title_open()}
 			</h2>
-			<p class="lede">
-				In any order. Each one ticks itself when it's done, and the sidebar keeps a way back here
-				until they are.
-			</p>
+			<p class="lede">{m.start_page_lede()}</p>
 			<div class="list"><StartList view={data.start} libraryRoot={data.libraryRoot} /></div>
-			<p class="kept">THE SAME LIST ON EVERY DEVICE · TICKS AND SKIPS ARE KEPT ON THE COMPUTER</p>
+			<p class="kept">{m.start_page_kept()}</p>
 		</section>
 	{/if}
 </div>

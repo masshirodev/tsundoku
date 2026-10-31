@@ -8,15 +8,20 @@ import { downloadsBackend, ensureEngineWorker } from '$lib/server/engine/run';
 import { browseList } from '$lib/server/engine/browse';
 import { checkIfStale, updateView } from '$lib/server/updates';
 import { startNow } from '$lib/server/start';
+import { chosenLocale, LANG_COOKIE, type LangChoice } from '$lib/i18n/locale';
+import { m } from '$lib/paraglide/messages';
 
 export const load: LayoutServerLoad = async ({ cookies, locals, depends }) => {
 	const reveal = isRevealed(cookies);
 	const theme = themeOf(cookies);
+	// The device's choice of language, mirrored like the theme (doc/I18N.md).
+	const lang: LangChoice = chosenLocale(cookies.get(LANG_COOKIE)) ?? 'auto';
 	if (!locals.authed)
 		return {
 			reveal: false,
 			incognito: false,
 			theme,
+			lang,
 			shelves: [],
 			scan: null,
 			people: [],
@@ -32,7 +37,12 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends }) => {
 	// exists while one of them has a visible book.
 	const people = favouritePeople(reveal);
 	if (people.length > 0)
-		shelves.push({ key: 'people', name: 'People', kind: 'smart', count: people.length });
+		shelves.push({
+			key: 'people',
+			name: m.nav_shelf_people(),
+			kind: 'smart',
+			count: people.length
+		});
 	// The download queue's counts, for the QUEUE cell and DOWNLOADS (doc/DOWNLOADING.md).
 	const queue = await queueSummary(reveal);
 	// Feeds the screens' live updates of the queue.
@@ -57,6 +67,7 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends }) => {
 		reveal,
 		incognito: isIncognito(cookies),
 		theme,
+		lang,
 		scan,
 		shelves,
 		people,

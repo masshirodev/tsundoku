@@ -10,6 +10,7 @@ import {
 	slowDown
 } from '$lib/server/auth';
 import { sessionFor, verifyPassword } from '$lib/server/login';
+import { m } from '$lib/paraglide/messages';
 
 /** Where to go once signed in: a path in this app, never another site (`?next=//evil.example`). */
 const nextOf = (url: URL) => {
@@ -47,14 +48,14 @@ export const actions: Actions = {
 			const password = String(form.get('token') ?? '');
 			if (login.kind !== 'password' || !verifyPassword(password, login.hash)) {
 				await slowDown();
-				return fail(401, { message: 'that password is not right' });
+				return fail(401, { message: m.login_error_password() });
 			}
 			setSession(cookies, sessionFor(login), url);
 			redirect(303, next);
 		}
 
 		const token = String(form.get('token') ?? '');
-		if (!checkToken(token)) return fail(401, { message: 'that token is not right' });
+		if (!checkToken(token)) return fail(401, { message: m.login_error_token() });
 		setSession(cookies, sessionValueFor(token), url);
 		redirect(303, next);
 	}

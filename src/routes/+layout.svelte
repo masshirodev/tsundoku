@@ -1,7 +1,11 @@
 <script lang="ts">
 	import { onLocalChange, readLocal, syncDevice, writeLocal } from '$lib/settings/local';
 	const THEME_KEY = 'tsundoku.theme';
+	const LANG_KEY = 'tsundoku.lang';
+	import { chosenLocale, LANG_COOKIE } from '$lib/i18n/locale';
 	import '$lib/styles/index.css';
+	import { m } from '$lib/paraglide/messages';
+	import { num } from '$lib/i18n/format';
 	import { enhance } from '$app/forms';
 	import { page, updated } from '$app/state';
 	import { resolve } from '$app/paths';
@@ -43,15 +47,29 @@
 	});
 
 	// ---- this device's settings, kept on the workstation too (doc/SETTINGS.md, "Devices") ----
-	// Checked in on load and when the network is back. The theme is a cookie the
-	// server reads; the device record mirrors it, and a newer one from the
+	// Checked in on load and when the network is back. The theme and the
+	// language are cookies the server reads; the device record mirrors it, and a newer one from the
 	// workstation (SETTINGS changing this device from another) sets the cookie.
 	onMount(() => {
 		// Mirrored once it's been set: the default on a fresh browser is nothing to keep.
 		const kept = readLocal<string | null>(THEME_KEY, null);
 		if (kept !== data.theme && (kept !== null || data.theme !== 'dark'))
 			writeLocal(THEME_KEY, data.theme);
+		const keptLang = readLocal<string | null>(LANG_KEY, null);
+		if (keptLang !== data.lang && (keptLang !== null || data.lang !== 'auto'))
+			writeLocal(LANG_KEY, data.lang);
 		const stop = onLocalChange((key) => {
+			if (key === LANG_KEY) {
+				// Every word on the page is the server's, so a new language is a reload (doc/I18N.md).
+				const l = chosenLocale(readLocal<string>(LANG_KEY, 'auto'));
+				if ((l ?? 'auto') === data.lang) return;
+				const secure = location.protocol === 'https:' ? '; secure' : '';
+				document.cookie = l
+					? `${LANG_COOKIE}=${l}; path=/; max-age=31536000; samesite=lax${secure}`
+					: `${LANG_COOKIE}=; path=/; max-age=0; samesite=lax${secure}`;
+				location.reload();
+				return;
+			}
 			if (key !== THEME_KEY) return;
 			const t = readLocal<string>(THEME_KEY, 'dark') === 'light' ? 'light' : 'dark';
 			if (t === data.theme) return;
@@ -208,10 +226,12 @@
 			The desktop sidebar. Rendered on every device and shown only on a
 			desktop, so the server can send it without knowing the screen.
 		-->
-			<aside class="sidebar" aria-label="Shelves">
+			<aside class="sidebar" aria-label={m.nav_shelves_label()}>
 				<!-- The app's name is the way home, from any screen. -->
-				<a class="brand" href={resolve('/')} aria-label="Library"><Wordmark size={17} /></a>
-				<div class="side-label">SHELVES</div>
+				<a class="brand" href={resolve('/')} aria-label={m.nav_library_label()}
+					><Wordmark size={17} /></a
+				>
+				<div class="side-label">{m.name_shelves()}</div>
 				<!-- The shelves scroll in their own space, so the foot stays put and
 				     nothing between them is squeezed (owner, 2026-10-31: eleven shelves
 				     pressed + NEW SHELF to its text's height). -->
@@ -228,7 +248,7 @@
 							<!-- svelte-ignore a11y_autofocus -->
 							<input
 								name="name"
-								aria-label="New shelf name"
+								aria-label={m.nav_new_shelf_label()}
 								autocomplete="off"
 								required
 								autofocus
@@ -238,12 +258,12 @@
 									void goto(stopNaming, { noScroll: true, replaceState: true });
 								}}
 							/>
-							<div class="new-hint">↵ CREATE · ESC CANCEL</div>
+							<div class="new-hint">{m.nav_new_shelf_hint()}</div>
 						</form>
 					{:else}
 						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam keeps the current, resolved path -->
 						<a class="new-link" href={withParam(page.url, 'new', 'shelf')} data-sveltekit-noscroll
-							>+ NEW SHELF</a
+							>{m.nav_new_shelf()}</a
 						>
 					{/if}
 					{#if shelvesBelow.length}
@@ -262,14 +282,15 @@
 							class="with-n start"
 							href={resolve('/start')}
 							aria-current={page.url.pathname === '/start' ? 'page' : undefined}
-							>GET STARTED<span class="n"
+							>{m.name_get_started()}<span class="n"
 								>{data.start.done + data.start.skipped} / {data.start.steps.length}</span
 							></a
 						>
 					{/if}
 					<a
 						href={resolve('/history')}
-						aria-current={page.url.pathname === '/history' ? 'page' : undefined}>HISTORY</a
+						aria-current={page.url.pathname === '/history' ? 'page' : undefined}
+						>{m.name_history()}</a
 					>
 					{#if data.browse}
 						<!-- BROWSE under HISTORY, counting extension updates (Index-Browse, sidebar). -->
@@ -277,10 +298,8 @@
 							class="with-n"
 							href={resolve('/browse')}
 							aria-current={page.url.pathname.startsWith('/browse') ? 'page' : undefined}
-							>BROWSE<span class="n"
-								>{data.browse.updates
-									? `${data.browse.updates.toLocaleString('en-US')} ↑`
-									: ''}</span
+							>{m.name_browse()}<span class="n"
+								>{data.browse.updates ? `${num(data.browse.updates)} ↑` : ''}</span
 							></a
 						>
 					{/if}
@@ -290,8 +309,8 @@
 							class="with-n"
 							href={resolve('/downloads')}
 							aria-current={page.url.pathname === '/downloads' ? 'page' : undefined}
-							>DOWNLOADS<span class="n" class:stale={data.queue.stale}
-								>{data.queue.queued ? data.queue.queued.toLocaleString('en-US') : ''}</span
+							>{m.name_downloads()}<span class="n" class:stale={data.queue.stale}
+								>{data.queue.queued ? num(data.queue.queued) : ''}</span
 							></a
 						>
 					{/if}
@@ -307,19 +326,21 @@
 								if (result.type !== 'failure') await update();
 							}}
 					>
-						<button type="submit">RESCAN</button>
+						<button type="submit">{m.nav_rescan()}</button>
 						{#if rescanNote}<div class="rescan-note" role="status">{rescanNote}</div>{/if}
 					</form>
 					<!-- Not built yet; see doc/LIBRARY.md, "What it does not do yet". -->
-					<span aria-disabled="true">IMPORT LOG</span>
+					<span aria-disabled="true">{m.name_import_log()}</span>
 					<a
 						href={resolve('/settings')}
-						aria-current={page.url.pathname === '/settings' ? 'page' : undefined}>SETTINGS</a
+						aria-current={page.url.pathname === '/settings' ? 'page' : undefined}
+						>{m.name_settings()}</a
 					>
 					<!-- HELP, last, under SETTINGS (doc/HELP.md; the HELP handoff, 1A). -->
 					<a
 						href={resolve('/help')}
-						aria-current={page.url.pathname.startsWith('/help') ? 'page' : undefined}>HELP</a
+						aria-current={page.url.pathname.startsWith('/help') ? 'page' : undefined}
+						>{m.name_help()}</a
 					>
 				</div>
 			</aside>
@@ -327,22 +348,22 @@
 
 		<div class="main">
 			{#if data.reveal}
-				<Banner kind="reveal" title="HIDDEN SHOWN">
+				<Banner kind="reveal" title={m.nav_reveal_title()}>
 					{#snippet action()}
 						<form method="POST" action="/?/command" use:enhance>
 							<input type="hidden" name="command" value="hide" />
-							<button type="submit">HIDE AGAIN</button>
+							<button type="submit">{m.nav_reveal_hide()}</button>
 						</form>
 					{/snippet}
 				</Banner>
 			{/if}
 			{#if data.incognito}
 				<!-- Dashed is Index's "not stored yet"; magenta stays reveal's. -->
-				<Band title="INCOGNITO · NOTHING SAVED" dashed>
+				<Band title={m.nav_incognito_title()} dashed>
 					{#snippet action()}
 						<form method="POST" action="/?/command" use:enhance>
 							<input type="hidden" name="command" value="incognito-end" />
-							<button type="submit">END</button>
+							<button type="submit">{m.nav_incognito_end()}</button>
 						</form>
 					{/snippet}
 				</Band>

@@ -3,6 +3,8 @@
 	import Sheet from '$lib/components/chrome/Sheet.svelte';
 	import InShort from './InShort.svelte';
 	import { ask } from '$lib/help/topics';
+	import { upper } from '$lib/i18n/format';
+	import { m } from '$lib/paraglide/messages';
 
 	/**
 	 * What a "?" opens (doc/HELP.md; the HELP handoff, Ask board): the topic's
@@ -32,19 +34,21 @@
 		at?: string;
 	} = $props();
 	const a = $derived(ask(topic, part));
-	const title = $derived(`HELP · ${a.topic.n} — ${a.topic.title.toUpperCase()}`);
+	const title = $derived(
+		m.help_sheet_title({ help: m.name_help(), n: a.topic.n, title: upper(a.topic.title) })
+	);
 </script>
 
 {#snippet inside()}
 	<div class="head">
 		{#if back}{@render back()}{/if}
 		<div class="title">{title}</div>
-		<button type="button" class="x" aria-label="Close" onclick={onclose}>✕</button>
+		<button type="button" class="x" aria-label={m.help_close()} onclick={onclose}>✕</button>
 	</div>
 	<InShort lines={a.topic.short} compact />
 	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- topics' paths are fixed app paths -->
 	<a class="whole" href={a.href} onclick={onclose}
-		><span class="w">WHOLE TOPIC →</span><span class="at">{at ?? a.at}</span></a
+		><span class="w">{m.help_whole_topic()}</span><span class="at">{at ?? a.at}</span></a
 	>
 	<div class="end"></div>
 {/snippet}
@@ -52,7 +56,7 @@
 {#if content}
 	{@render inside()}
 {:else}
-	<Sheet {open} {onclose} label="Help">{@render inside()}</Sheet>
+	<Sheet {open} {onclose} label={m.help_label()}>{@render inside()}</Sheet>
 {/if}
 
 <style>

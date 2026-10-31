@@ -56,6 +56,9 @@ export default defineConfig({
 	reporter: process.env.CI ? 'github' : 'list',
 	use: {
 		baseURL: `http://localhost:${previewPort}`,
+		// The specs read English (doc/I18N.md): AUTO follows the browser, so the
+		// browser is told what to say rather than inheriting the machine's.
+		locale: 'en-US',
 		storageState: {
 			cookies: [
 				{

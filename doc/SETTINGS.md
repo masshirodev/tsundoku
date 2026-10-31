@@ -132,13 +132,14 @@ and English and Japanese always (`browse_languages`). The last one can't go
 
 ## 08 — Devices
 
-**THEME** (also `/dark` and `/light`), then a row per device that has checked
-in: this one first (THIS), then the rest, most recently seen first. Each row
+**THEME** (also `/dark` and `/light`), **APP LANGUAGE** (AUTO, ENGLISH,
+PORTUGUÊS (BRASIL): [`I18N.md`](I18N.md); not drawn in a handoff, it is
+THEME's row again), then a row per device that has checked in: this one first (THIS), then the rest, most recently seen first. Each row
 says what the device is (`Android tablet · Chrome`, from its browser's user
 agent), when it was last opened, and how many of its rows changed. Its
 scope cell is KEPT ON THE WORKSTATION.
 
-On a friend's local install, **WI-FI** comes between THEME and the devices
+On a friend's local install, **WI-FI** comes between APP LANGUAGE and the devices
 (the Wi-Fi handoff, [`WIFI.md`](WIFI.md)): OFF | ON and, on, the pairing panel;
 a paired phone's row says OVER WI-FI and has SIGN OUT. Two more rows close the
 section (not drawn in a handoff; the PASSWORD form reuses the sign-in page's
@@ -169,6 +170,8 @@ itself.
   wins over it.
 - The theme is a cookie the server reads. The record mirrors it as
   `tsundoku.theme`, and a newer one from the workstation sets the cookie.
+  The language is the same, as `tsundoku.lang` and the cookie
+  `tsundoku_lang`; AUTO clears the cookie, and a change reloads the page.
 - **SHOW** switches the page to that device's settings (2C). The top bar
   says SHOWING: DESKTOP, and a band offers BACK TO THIS TABLET. The scope
   cells read THE DESKTOP. A change made here is stamped now, and the device

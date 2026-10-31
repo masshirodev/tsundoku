@@ -87,22 +87,24 @@ test('the reader switches language on the same page, and says so', async ({ page
 test('SETTINGS: the language folded books open in', async ({ page }) => {
 	await command(page, '/reveal');
 	await page.goto('/settings');
+	// Scoped to 05 — LIBRARY: 08 — DEVICES has an ENGLISH too, the app's language (doc/I18N.md).
+	const library = page.getByRole('region', { name: '05 — LIBRARY' });
 	await expect(page.getByRole('heading', { name: '05 — LIBRARY' })).toBeVisible();
 	await expect(page.getByText('1 FOLDED')).toBeVisible();
-	await expect(page.getByRole('button', { name: 'ENGLISH' })).toHaveAttribute(
+	await expect(library.getByRole('button', { name: 'ENGLISH' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
 	);
-	await page.getByRole('button', { name: 'JAPANESE' }).click();
-	await expect(page.getByRole('button', { name: 'JAPANESE' })).toHaveAttribute(
+	await library.getByRole('button', { name: 'JAPANESE' }).click();
+	await expect(library.getByRole('button', { name: 'JAPANESE' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
 	);
 	await page.goto('/?sort=title');
 	await expect(page.locator('.grid .tile', { hasText: JA })).toContainText('JA · EN');
 	await page.goto('/settings');
-	await page.getByRole('button', { name: 'ENGLISH' }).click();
-	await expect(page.getByRole('button', { name: 'ENGLISH' })).toHaveAttribute(
+	await library.getByRole('button', { name: 'ENGLISH' }).click();
+	await expect(library.getByRole('button', { name: 'ENGLISH' })).toHaveAttribute(
 		'aria-pressed',
 		'true'
 	);

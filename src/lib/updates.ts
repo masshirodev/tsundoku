@@ -1,10 +1,14 @@
 import { formatBytes } from './library/series.ts';
+import { m } from './paraglide/messages.js';
+import { getLocale } from './paraglide/runtime.js';
+import { upper } from './i18n/format.ts';
 
 /**
  * A new version, told in the browser (doc/UPDATES.md): the modal on entry
  * (Getting Started handoff, board 4; card c208), the library's bands, and
  * SETTINGS › UPDATES. The words and the rules for when it asks are here,
  * pure; `installAndWait` is the one loop both SETTINGS and the modal run.
+ * The words are the reader's language (doc/I18N.md), made when asked for.
  */
 
 /** The server's view, as GET /api/updates and the layout give it (server/updates.ts). */
@@ -63,23 +67,24 @@ export const noteLines = (notes: string) =>
 		.map((l) => l.trim())
 		.filter(Boolean);
 
-const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-
 /** "2026-11-02" as the modal says it: "2 NOV". Anything else as it came. */
 export function releasedOn(date: string): string {
-	const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
-	if (!m || Number(m[2]) < 1 || Number(m[2]) > 12) return date.toUpperCase();
-	return `${Number(m[3])} ${MONTHS[Number(m[2]) - 1]}`;
+	const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+	if (!d || Number(d[2]) < 1 || Number(d[2]) > 12) return date.toUpperCase();
+	const month = new Intl.DateTimeFormat(getLocale(), { month: 'short', timeZone: 'UTC' })
+		.format(Date.UTC(Number(d[1]), Number(d[2]) - 1, 1))
+		.replace('.', '');
+	return `${Number(d[3])} ${upper(month)}`;
 }
 
 /** The modal's meta line: "RELEASED 2 NOV · 182 MB · SIGNED BY TSUNDOKU'S RELEASE KEY". */
 export function offerMeta(v: Pick<UpdateView, 'available' | 'how' | 'platform'>): string {
 	if (!v.available) return '';
 	const size = v.available.size ? formatBytes(v.available.size) : '';
-	const parts = [`RELEASED ${releasedOn(v.available.date)}`];
+	const parts: string[] = [m.update_released({ date: releasedOn(v.available.date) })];
 	if (v.how === 'download' && v.platform !== 'other') parts.push(v.platform.toUpperCase());
 	if (size) parts.push(size);
-	parts.push(v.how === 'install' ? "SIGNED BY TSUNDOKU'S RELEASE KEY" : 'SIGNED');
+	parts.push(v.how === 'install' ? m.update_signed_key() : m.update_signed());
 	return parts.join(' · ');
 }
 
@@ -89,12 +94,17 @@ export function offerMeta(v: Pick<UpdateView, 'available' | 'how' | 'platform'>)
  */
 export function downloadLine(i: { bytes: number; total: number }): string {
 	const pct = i.total > 0 ? Math.floor((i.bytes / i.total) * 100) : 0;
+	return `${amount(i)} · ${pct}%`;
+}
+
+/** "76 OF 182 MB", the part of downloadLine the library's band says too. */
+function amount(i: { bytes: number; total: number }): string {
 	const of = formatBytes(i.total);
 	const k = Math.max(0, ['B', 'KB', 'MB', 'GB', 'TB'].indexOf(of.split(' ')[1] ?? 'B'));
 	const inUnit = i.bytes / 1000 ** k;
 	const whole = /^\d+ /.test(of);
 	const got = whole ? String(Math.floor(inUnit)) : inUnit.toFixed(1);
-	return `${got} OF ${of} · ${pct}%`;
+	return m.update_amount({ got, of });
 }
 
 export const percent = (i: { bytes: number; total: number }) =>
@@ -113,10 +123,10 @@ export function clock(ms: number): string {
 export function runningBand(i: Install | null): { title: string; detail: string } | null {
 	if (!i || i.phase === 'failed') return null;
 	if (i.phase === 'installing')
-		return { title: 'UPDATING · INSTALLING', detail: 'TSUNDOKU WILL REOPEN BY ITSELF' };
+		return { title: m.update_band_installing(), detail: m.update_band_reopen() };
 	return {
-		title: `UPDATING · ${Math.floor(percent(i) * 100)}%`,
-		detail: `${downloadLine(i).replace(/ · \d+%$/, '')} · TSUNDOKU WILL REOPEN BY ITSELF`
+		title: m.update_band_downloading({ pct: Math.floor(percent(i) * 100) }),
+		detail: `${amount(i)} · ${m.update_band_reopen()}`
 	};
 }
 
@@ -148,7 +158,7 @@ export async function installAndWait(o: {
 			.json()
 			.then((j: { message?: unknown }) => (typeof j.message === 'string' ? j.message : ''))
 			.catch(() => '');
-		const why = said || `the update was refused (${r.status})`;
+		const why = said || m.update_refused({ status: r.status });
 		return o.onRefused?.(why);
 	}
 	o.onView((await r.json()) as UpdateView);

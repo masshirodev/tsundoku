@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
 	import Sheet from '$lib/components/chrome/Sheet.svelte';
-	import { TOPICS } from '$lib/help/topics';
+	import { topics } from '$lib/help/topics';
 	import {
 		DEVICE_KEYS,
 		VALUES,
@@ -13,6 +13,8 @@
 	} from '$lib/settings/catalog';
 	import { deviceValues } from '$lib/settings/stamped';
 	import { readLocal } from '$lib/settings/local';
+	import { m } from '$lib/paraglide/messages';
+	import { num } from '$lib/i18n/format';
 
 	/**
 	 * MORE (Reach, tabletMore and phoneMore; doc/SETTINGS.md, "Getting there";
@@ -45,32 +47,38 @@
 	});
 </script>
 
-<Sheet {open} {onclose} label="More">
+<Sheet {open} {onclose} label={m.more_label()}>
 	<div class="head">
-		<div class="title">MORE</div>
-		<button type="button" class="x" aria-label="Close" onclick={onclose}>✕</button>
+		<div class="title">{m.more_title()}</div>
+		<button type="button" class="x" aria-label={m.chrome_close()} onclick={onclose}>✕</button>
 	</div>
 	{#if start}
 		<a class="row start" href={resolve('/start')}
-			><span>GET STARTED</span><span class="n">{start.done} / {start.total} →</span></a
+			><span>{m.name_get_started()}</span><span class="n">{start.done} / {start.total} →</span></a
 		>
 	{/if}
-	<a class="row" href={resolve('/history')}><span>HISTORY →</span><span class="n"></span></a>
+	<a class="row" href={resolve('/history')}
+		><span>{m.name_history()} →</span><span class="n"></span></a
+	>
 	<a class="row" href={resolve('/downloads')}
-		><span>DOWNLOADS →</span><span class="n"
-			>{queued ? `${queued.toLocaleString('en-US')} QUEUED` : ''}</span
+		><span>{m.name_downloads()} →</span><span class="n"
+			>{queued ? m.more_queued({ n: num(queued) }) : ''}</span
 		></a
 	>
 	<a class="row" href={resolve('/settings')}
-		><span>SETTINGS →</span><span class="n">{changed ? `${changed} CHANGED HERE` : ''}</span></a
+		><span>{m.name_settings()} →</span><span class="n"
+			>{changed ? m.more_changed({ count: changed, n: num(changed) }) : ''}</span
+		></a
 	>
 	<!-- HELP after SETTINGS, counting its topics (doc/HELP.md; the HELP handoff, 1D). -->
 	<a class="row" href={resolve('/help')}
-		><span>HELP →</span><span class="n">{TOPICS.length} TOPICS</span></a
+		><span>{m.name_help()} →</span><span class="n"
+			>{m.more_topics({ count: topics().length, n: num(topics().length) })}</span
+		></a
 	>
 	<!-- Not built yet; see doc/LIBRARY.md, "What it does not do yet". -->
 	<span class="row dim" aria-disabled="true"
-		><span>IMPORT LOG</span><span class="n">SOON</span></span
+		><span>{m.name_import_log()}</span><span class="n">{m.more_soon()}</span></span
 	>
 	<div class="foot"></div>
 </Sheet>

@@ -2,11 +2,13 @@
 	import { enhance } from '$app/forms';
 	import Wordmark from '$lib/components/chrome/Wordmark.svelte';
 	import Button from '$lib/components/controls/Button.svelte';
+	import { upper } from '$lib/i18n/format';
+	import { m } from '$lib/paraglide/messages';
 
 	let { data, form } = $props();
 </script>
 
-<svelte:head><title>sign in · tsundoku</title></svelte:head>
+<svelte:head><title>{m.login_title()} · tsundoku</title></svelte:head>
 
 <!--
 	Not drawn in the handoff. Built from the empty state's parts -- numbered
@@ -16,48 +18,46 @@
 	<!-- A code that no longer works (doc/WIFI.md, 3B, 3C; Wifi-Phone.dc.html): what happened, and what to do on the computer. -->
 	<div class="band" role="status">
 		<div class="ba">
-			{data.pair === 'used' ? 'THIS CODE WAS ALREADY USED' : 'THIS CODE EXPIRED'}
+			{data.pair === 'used' ? m.login_pair_used() : m.login_pair_expired()}
 		</div>
 		<div class="bb">
-			{data.pair === 'used' ? 'A CODE SIGNS IN ONE PHONE, ONCE' : 'CODES LAST 10 MINUTES'} · ON THE COMPUTER:
-			SETTINGS › 08 — DEVICES › NEW CODE, THEN SCAN IT
+			{data.pair === 'used' ? m.login_pair_once() : m.login_pair_minutes()} · {m.login_pair_remedy({
+				settings: m.name_settings(),
+				devices: m.name_devices_section()
+			})}
 		</div>
 	</div>
 {/if}
 <main class="login">
 	<Wordmark />
 	{#if !data.configured}
-		<div class="label">00 — NOT CONFIGURED</div>
-		<p>
-			TSUNDOKU_TOKEN is not set. The server refuses to authenticate without one: the workstation has
-			no firewall running, so an unauthenticated library would be reachable from the whole LAN.
-		</p>
+		<div class="label">{m.login_unconfigured_label()}</div>
+		<p>{m.login_unconfigured_body()}</p>
 	{:else if !data.field}
 		<!-- Over Wi-Fi with no password set: nothing to type, only a code (doc/WIFI.md). -->
-		<div class="label">ONLY A CODE SIGNS IN HERE</div>
+		<div class="label">{m.login_code_only_label()}</div>
 		<p>
-			tsundoku on the computer has no password, so a phone signs in by scanning its code: on the
-			computer, SETTINGS › 08 — DEVICES › WI-FI.
+			{m.login_code_only_body({ settings: m.name_settings(), devices: m.name_devices_section() })}
 		</p>
 	{:else}
 		<form method="POST" use:enhance>
 			<label class="label" for="token"
 				>{data.lan
-					? `OR SIGN IN WITH THE ${data.password ? 'PASSWORD' : 'TOKEN'}`
+					? data.password
+						? m.login_label_or_password()
+						: m.login_label_or_token()
 					: data.password
-						? 'PASSWORD'
-						: 'TOKEN'}</label
+						? m.login_label_password()
+						: m.login_label_token()}</label
 			>
 			<input id="token" name="token" type="password" autocomplete="current-password" />
-			{#if form?.message}<div class="error">{form.message.toUpperCase()}</div>{/if}
-			<Button variant="primary" size="lg" type="submit">UNLOCK</Button>
+			{#if form?.message}<div class="error">{upper(form.message)}</div>{/if}
+			<Button variant="primary" size="lg" type="submit">{m.login_unlock()}</Button>
 		</form>
 		{#if data.password}
 			<!-- The way back in is at the PC (doc/SIGN-IN.md, "Forgot it"). -->
 			<p class="hint">
-				Forgot it? On the computer tsundoku runs on, open the Start menu and choose RESET TSUNDOKU
-				PASSWORD (on Linux, run <code>./tsundoku --reset-password</code>). Then choose a new one
-				here.
+				{m.login_forgot_a()} <code>./tsundoku --reset-password</code>{m.login_forgot_b()}
 			</p>
 		{/if}
 	{/if}

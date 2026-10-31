@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import RatingSlider from '../controls/RatingSlider.svelte';
+	import { m } from '$lib/paraglide/messages';
 
 	/**
 	 * Pinned to the bottom while selecting: a RATE row over a row of actions.
@@ -11,10 +12,10 @@
 	let { actions, columns }: { actions: Snippet; columns: number } = $props();
 </script>
 
-<div class="bulk" role="toolbar" aria-label="Selection actions">
+<div class="bulk" role="toolbar" aria-label={m.chrome_selection_actions()}>
 	<!-- Several series at once: nothing filled, no number (1c). -->
 	<RatingSlider
-		label="RATE"
+		label={m.chrome_rate()}
 		labelWidth={null}
 		height={60}
 		phoneHeight={60}

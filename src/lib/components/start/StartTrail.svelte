@@ -5,6 +5,8 @@
 	import { resolve } from '$app/paths';
 	import { TRAIL, trailDone, type StartView } from '$lib/library/start';
 	import { trail } from '$lib/start-trail.svelte';
+	import { m } from '$lib/paraglide/messages';
+	import { upper } from '$lib/i18n/format';
 
 	/**
 	 * The way back to GET STARTED (doc/ONBOARDING.md, "The way back"; the
@@ -31,22 +33,29 @@
 </script>
 
 {#if here && step && start}
-	<nav class="trail" aria-label="Get started">
-		<a class="back" href={resolve('/start')} onclick={() => trail.end()}>← GET STARTED</a>
+	<nav class="trail" aria-label={m.start_page_label()}>
+		<a class="back" href={resolve('/start')} onclick={() => trail.end()}>← {m.name_get_started()}</a
+		>
 		{#if done}
 			{@const d = trailDone(start, step.id)}
 			<div class="mid">
 				<div class="a"><span class="acc">✓</span>{d.a.slice(1)}</div>
 				<div class="b">{d.b}</div>
 			</div>
-			<a class="ret" href={resolve('/start')} onclick={() => trail.end()}>BACK TO GET STARTED →</a>
+			<a class="ret" href={resolve('/start')} onclick={() => trail.end()}>{m.start_trail_back()}</a>
 		{:else}
 			<div class="mid">
-				<div class="a">{step.n} OF 04 · {step.title.toUpperCase()}</div>
-				<div class="b">{TRAIL[step.id]!.doing}</div>
+				<div class="a">
+					{m.start_trail_step({
+						n: step.n,
+						total: String(start.steps.length).padStart(2, '0'),
+						title: upper(step.title)
+					})}
+				</div>
+				<div class="b">{TRAIL[step.id]!.doing()}</div>
 			</div>
 		{/if}
-		<button type="button" class="x" aria-label="Close the trail" onclick={() => trail.end()}
+		<button type="button" class="x" aria-label={m.start_trail_close()} onclick={() => trail.end()}
 			>✕</button
 		>
 	</nav>

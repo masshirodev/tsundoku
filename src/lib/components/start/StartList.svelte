@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { firstOpen, TRAIL, type StartView, type Step, type StepId } from '$lib/library/start';
 	import { trail } from '$lib/start-trail.svelte';
+	import { m } from '$lib/paraglide/messages';
 
 	/**
 	 * GET STARTED's four steps (doc/ONBOARDING.md; the Getting Started handoff,
@@ -37,11 +38,11 @@
 	];
 
 	/** Where a done step's quiet link goes: the place it was done. */
-	const doneLink: Record<StepId, { label: string; href: string }> = {
-		repo: { label: 'EXTENSIONS →', href: '/browse/extensions?tab=repos' },
-		ext: { label: 'BROWSE →', href: '/browse' },
-		library: { label: 'LIBRARY →', href: '/' },
-		phone: { label: 'SETTINGS →', href: '/settings#s-devices' }
+	const doneLink: Record<StepId, { label: () => string; href: string }> = {
+		repo: { label: m.start_done_link_repo, href: '/browse/extensions?tab=repos' },
+		ext: { label: m.start_done_link_ext, href: '/browse' },
+		library: { label: m.start_done_link_library, href: '/' },
+		phone: { label: m.start_done_link_phone, href: '/settings#s-devices' }
 	};
 	/** A step's link starts the way back on the screen it opens (TRAIL). */
 	const go = (id: StepId) => () => trail.begin(id);
@@ -57,7 +58,7 @@
 				</div>
 				<div class="st-text">
 					<div class="st-title">
-						{s.title}{#if s.optional}<span class="opt">OPTIONAL</span>{/if}
+						{s.title}{#if s.optional}<span class="opt">{m.start_optional()}</span>{/if}
 					</div>
 					<div class="st-meta">{s.meta}</div>
 				</div>
@@ -74,18 +75,18 @@
 	{#if s.state === 'done'}
 		<div class="st-acts">
 			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- fixed app paths -->
-			<a class="quiet" href={doneLink[s.id].href}>{doneLink[s.id].label}</a>
+			<a class="quiet" href={doneLink[s.id].href}>{doneLink[s.id].label()}</a>
 		</div>
 	{:else if s.state === 'skipped' && !s.withRepo}
 		<form method="POST" action="/start?/unskip" use:enhance class="st-acts">
 			<input type="hidden" name="step" value={s.id} />
-			<button type="submit">UNDO</button>
+			<button type="submit">{m.start_undo()}</button>
 		</form>
 	{:else if s.state === 'todo'}
 		<form method="POST" action="/start?/skip" use:enhance class="st-acts">
 			<input type="hidden" name="step" value={s.id} />
-			<button type="submit" class="quiet">SKIP</button>
-			{#if !isOpen}<button type="button" onclick={() => toggle(s.id)}>OPEN ↓</button>{/if}
+			<button type="submit" class="quiet">{m.start_skip()}</button>
+			{#if !isOpen}<button type="button" onclick={() => toggle(s.id)}>{m.start_open()}</button>{/if}
 		</form>
 	{/if}
 {/snippet}
@@ -93,13 +94,11 @@
 {#snippet body(id: StepId)}
 	{#if id === 'repo'}
 		<p>
-			A repository is a list of extensions that someone else keeps. tsundoku doesn't name one. <b
-				>Ask the friend who gave you tsundoku</b
-			> for theirs, or search the web for one. Paste its address here: it says what it holds before anything
-			is installed.
+			{m.start_repo_body_a()} <b>{m.start_repo_body_b()}</b>
+			{m.start_repo_body_c()}
 		</p>
 		<form method="GET" action={resolve('/browse/extensions')} class="field" onsubmit={go('repo')}>
-			<label class="k" for="start-repo">REPOSITORY ADDRESS</label>
+			<label class="k" for="start-repo">{m.start_repo_address()}</label>
 			<input type="hidden" name="tab" value="repos" />
 			<div class="box">
 				<input
@@ -112,90 +111,90 @@
 					autocomplete="off"
 					bind:value={address}
 				/>
-				<button type="submit" class="b" disabled={!address.trim()}>ASK</button>
+				<button type="submit" class="b" disabled={!address.trim()}>{m.start_repo_ask()}</button>
 			</div>
 		</form>
 		<div class="holds">
 			<div>
-				<span>MANGA, MANHWA, DOUJINSHI</span><span>A MIHON REPOSITORY · ENDS IN index.min.json</span
+				<span>{m.start_holds_manga()}</span><span
+					>{m.start_holds_manga_repo({ file: 'index.min.json' })}</span
 				>
 			</div>
-			<div><span>ANIME</span><span>AN ANIYOMI REPOSITORY · ENDS IN index.min.json</span></div>
 			<div>
-				<span>NOVELS</span><span>AN LNREADER PLUGIN REPOSITORY · ENDS IN plugins.min.json</span>
+				<span>{m.start_holds_anime()}</span><span
+					>{m.start_holds_anime_repo({ file: 'index.min.json' })}</span
+				>
+			</div>
+			<div>
+				<span>{m.start_holds_novels()}</span><span
+					>{m.start_holds_novels_repo({ file: 'plugins.min.json' })}</span
+				>
 			</div>
 		</div>
 		<div class="field">
-			<div class="k">TO SEARCH FOR ONE</div>
+			<div class="k">{m.start_seek()}</div>
 			<div class="seek">
 				{#each SEEK as q (q)}
 					<button type="button" class="chip" onclick={() => copy(q)}
-						>{q}<span class="cp">{copied === q ? 'COPIED' : 'COPY'}</span></button
+						>{q}<span class="cp">{copied === q ? m.start_copied() : m.start_copy()}</span></button
 					>
 				{/each}
 			</div>
 		</div>
 	{:else if id === 'ext'}
-		<p>
-			An extension is one source to browse and read from: a site, in a language. Your repository
-			lists them. Pick one in AVAILABLE, and it's one search away.
-		</p>
+		<p>{m.start_ext_body()}</p>
 		<div class="go-row">
 			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- a fixed app path -->
-			<a class="btn primary" href={TRAIL.ext!.href} onclick={go('ext')}>AVAILABLE EXTENSIONS →</a>
-			<span class="tick-note">TICKS ITSELF WHEN ONE IS INSTALLED</span>
+			<a class="btn primary" href={TRAIL.ext!.href} onclick={go('ext')}>{m.start_ext_go()}</a>
+			<span class="tick-note">{m.start_ticks_ext()}</span>
 		</div>
 	{:else if id === 'library'}
 		<p>
-			Coming from Mihon? Put its backup in the library folder, under <b>Mihon/autobackup</b>, with
-			its downloads beside it if you have them. Your own EPUBs go in the library folder too. Then
-			start a scan: series appear in the library as they're found.
+			{m.start_library_body_a()} <b>Mihon/autobackup</b>{m.start_library_body_b()}
 		</p>
 		<div class="holds">
-			<div><span>Mihon backup (.tachibk)</span><span>MANGA, MANHWA · Mihon/autobackup/</span></div>
-			<div><span>EPUB</span><span>NOVELS · ANYWHERE IN THE FOLDER</span></div>
-			<div class="later"><span>Aniyomi backup</span><span>ANIME · NOT YET</span></div>
-			<div class="later"><span>LNReader backup</span><span>NOVELS · NOT YET</span></div>
+			<div>
+				<span>{m.start_library_mihon_backup()}</span><span
+					>{m.start_library_mihon({ path: 'Mihon/autobackup/' })}</span
+				>
+			</div>
+			<div><span>EPUB</span><span>{m.start_library_epub()}</span></div>
+			<div class="later">
+				<span>{m.start_library_aniyomi_backup()}</span><span>{m.start_not_yet_anime()}</span>
+			</div>
+			<div class="later">
+				<span>{m.start_library_lnreader_backup()}</span><span>{m.start_not_yet_novels()}</span>
+			</div>
 		</div>
 		<div class="folder">
-			<div class="k">LIBRARY FOLDER</div>
+			<div class="k">{m.start_library_folder()}</div>
 			<div class="p" title={libraryRoot}>{libraryRoot}</div>
 		</div>
 		<form method="POST" action="/?/scan" use:enhance class="go-row">
-			<button type="submit" class="btn primary lg">START SCAN</button>
-			<span class="tick-note">TICKS ITSELF WHEN A SCAN FINDS A SERIES</span>
+			<button type="submit" class="btn primary lg">{m.start_scan()}</button>
+			<span class="tick-note">{m.start_ticks_scan()}</span>
 		</form>
 	{:else}
 		<div class="ways">
 			<div class="way">
-				<div class="wt">WI-FI · AT HOME</div>
-				<p>
-					Switch it on and scan the code with the phone's camera. The phone has to be on this same
-					Wi-Fi.
-				</p>
-				<div class="wm2">
-					READS, BROWSES, SEARCHES, DOWNLOADS<br />NO OFFLINE CHAPTERS, NO APP INSTALL
-				</div>
+				<div class="wt">{m.start_wifi_title()}</div>
+				<p>{m.start_wifi_body()}</p>
+				<div class="wm2">{m.start_wifi_can()}<br />{m.start_wifi_cannot()}</div>
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- a fixed app path -->
 				<a class="btn primary" href={TRAIL.phone!.href} onclick={go('phone')}
-					>SETTINGS › 08 — DEVICES →</a
+					>{m.name_settings()} › {m.name_devices_section()} →</a
 				>
 			</div>
 			<div class="way">
-				<div class="wt">TAILSCALE · ANYWHERE</div>
-				<p>
-					A free private network between your own devices. Everything works, offline chapters too.
-					It needs a password and four steps.
-				</p>
-				<div class="wm2">THE STEPS ARE IN README.TXT, BESIDE TSUNDOKU<br />AND IN HELP</div>
+				<div class="wt">{m.start_tailscale_title()}</div>
+				<p>{m.start_tailscale_body()}</p>
+				<div class="wm2">{m.start_tailscale_where_a()}<br />{m.start_tailscale_where_b()}</div>
 				<a class="btn" href="{resolve('/help/[topic]', { topic: 'phone' })}#tailscale"
-					>THE STEPS IN HELP →</a
+					>{m.start_tailscale_go()}</a
 				>
 			</div>
 		</div>
-		<div class="tick-note">
-			TICKS ITSELF WHEN A PHONE PAIRS, OR A SECOND DEVICE SIGNS IN OVER TAILSCALE
-		</div>
+		<div class="tick-note">{m.start_ticks_phone_long()}</div>
 	{/if}
 {/snippet}
 

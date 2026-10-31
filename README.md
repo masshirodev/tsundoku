@@ -169,6 +169,9 @@ is the mount development pressures.
 - [`doc/design/README.md`](doc/design/README.md) — the imported design system,
   where each part lives in the code, and its departures. `doc/design/handoff/` is
   the untouched mirror of the design project.
+- [`doc/I18N.md`](doc/I18N.md) — English and Brazilian Portuguese: who
+  decides a device's language, how a screen's words become messages, the
+  glossary, and which screens are still in English.
 - [`doc/TESTING.md`](doc/TESTING.md) — the two test runners, the device
   projects, and regenerating the frame spec.
 - [`doc/briefs/`](doc/briefs/) — design briefs for Claude Design. A brief moves

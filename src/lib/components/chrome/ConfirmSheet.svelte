@@ -3,6 +3,7 @@
 	import type { ActionResult } from '@sveltejs/kit';
 	import type { Snippet } from 'svelte';
 	import Sheet from './Sheet.svelte';
+	import { m } from '$lib/paraglide/messages';
 
 	/**
 	 * Asking before something that can't be taken back in the app, such as
@@ -52,7 +53,7 @@
 <Sheet {open} {onclose} label={title}>
 	<div class="head">
 		<span class="h">{title}</span>
-		<button type="button" class="x" aria-label="Close" onclick={onclose}>✕</button>
+		<button type="button" class="x" aria-label={m.chrome_close()} onclick={onclose}>✕</button>
 	</div>
 	{#if extra}{@render extra()}{/if}
 	<div class="body">
@@ -72,8 +73,8 @@
 		}}
 	>
 		{#each pairs as [name, value], i (i)}<input type="hidden" {name} {value} />{/each}
-		<button type="button" onclick={onclose} disabled={busy}>CANCEL</button>
-		<button type="submit" class="go" disabled={busy}>{busy ? 'WORKING' : confirm}</button>
+		<button type="button" onclick={onclose} disabled={busy}>{m.chrome_cancel()}</button>
+		<button type="submit" class="go" disabled={busy}>{busy ? m.chrome_working() : confirm}</button>
 	</form>
 </Sheet>
 

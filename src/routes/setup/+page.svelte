@@ -2,13 +2,15 @@
 	import { enhance } from '$app/forms';
 	import Wordmark from '$lib/components/chrome/Wordmark.svelte';
 	import Button from '$lib/components/controls/Button.svelte';
+	import { upper } from '$lib/i18n/format';
+	import { m } from '$lib/paraglide/messages';
 
 	let { data, form } = $props();
 	/** NO PASSWORD asks first (the owner, 2026-10-30). */
 	let asking = $state(false);
 </script>
 
-<svelte:head><title>set up · tsundoku</title></svelte:head>
+<svelte:head><title>{m.setup_title()} · tsundoku</title></svelte:head>
 
 <!--
 	A friend's first open (doc/SIGN-IN.md). The sign-in page's parts -- numbered
@@ -19,12 +21,9 @@
 	<Wordmark />
 	{#if !asking}
 		<form method="POST" action="?/password" use:enhance>
-			<div class="label">00 — SET UP</div>
-			<p>
-				Choose a password for tsundoku. You'll use it to sign in on this computer and, later, on
-				your phone.
-			</p>
-			<label class="label" for="password">PASSWORD</label>
+			<div class="label">{m.setup_label()}</div>
+			<p>{m.setup_intro()}</p>
+			<label class="label" for="password">{m.setup_password_label()}</label>
 			<!-- svelte-ignore a11y_autofocus -->
 			<input
 				id="password"
@@ -35,27 +34,26 @@
 				required
 				autofocus
 			/>
-			<label class="label" for="again">AGAIN</label>
+			<label class="label" for="again">{m.setup_again_label()}</label>
 			<input id="again" name="again" type="password" autocomplete="new-password" required />
-			{#if form?.message}<div class="error">{form.message.toUpperCase()}</div>{/if}
+			{#if form?.message}<div class="error">{upper(form.message)}</div>{/if}
 			<div class="actions">
-				<Button variant="primary" size="lg" type="submit">SET PASSWORD</Button>
-				<Button variant="ghost" size="lg" onclick={() => (asking = true)}>NO PASSWORD</Button>
+				<Button variant="primary" size="lg" type="submit">{m.setup_set_password()}</Button>
+				<Button variant="ghost" size="lg" onclick={() => (asking = true)}
+					>{m.setup_no_password()}</Button
+				>
 			</div>
 		</form>
 	{:else}
 		<form method="POST" action="?/none" use:enhance>
-			<div class="label">00 — NO PASSWORD?</div>
-			<p>
-				Anyone who uses this computer can open tsundoku, and everything in it. Nothing else can
-				reach it: to read on your phone, you'll set a password first.
-			</p>
-			<p>You can set one any time in SETTINGS, under DEVICES.</p>
+			<div class="label">{m.setup_none_label()}</div>
+			<p>{m.setup_none_body()}</p>
+			<p>{m.setup_none_later({ settings: m.name_settings() })}</p>
 			<input type="hidden" name="sure" value="yes" />
-			{#if form?.message}<div class="error">{form.message.toUpperCase()}</div>{/if}
+			{#if form?.message}<div class="error">{upper(form.message)}</div>{/if}
 			<div class="actions">
-				<Button variant="primary" size="lg" type="submit">YES, NO PASSWORD</Button>
-				<Button variant="ghost" size="lg" onclick={() => (asking = false)}>BACK</Button>
+				<Button variant="primary" size="lg" type="submit">{m.setup_none_yes()}</Button>
+				<Button variant="ghost" size="lg" onclick={() => (asking = false)}>{m.setup_back()}</Button>
 			</div>
 		</form>
 	{/if}
