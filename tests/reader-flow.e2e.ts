@@ -323,7 +323,9 @@ test('incognito shows a dashed rule, INCOGNITO, and NOT SAVED', async ({ page })
 	await expect(meta(page)).toContainText('NOT SAVED');
 });
 
-test('a finger’s first paged chapter says how pages turn, once per device', async ({ page }) => {
+test('a paged chapter opens with its tap zones: until the first tap the first time, then briefly', async ({
+	page
+}) => {
 	await seriesId(page, 'Hikaru ga Shinda Natsu');
 	const first = await page
 		.getByRole('link', { name: /▶ CONTINUE/ })
@@ -331,16 +333,36 @@ test('a finger’s first paged chapter says how pages turn, once per device', as
 		.getAttribute('href');
 	await page.goto(first!);
 	await readerReady(page);
-	// R→L: forward is to the left.
-	const hint = page.getByText('← SWIPE OR TAP THE EDGES TO TURN');
-	await expect(hint).toBeVisible();
-	// It never takes a tap: the edge under it still turns.
+	const zones = page.getByRole('status', { name: 'Tap zones' });
+	// R→L: forward is to the left, and the zones say so.
+	await expect(zones.locator('.zone')).toHaveText([
+		/←\s*NEXT/,
+		/CONTROLS\s*OR SWIPE TO TURN/,
+		/→\s*BACK/
+	]);
+	// The edges are tapAction's own (16% each).
+	const edge = await zones
+		.locator('.zone')
+		.first()
+		.evaluate((el) => el.getBoundingClientRect().width);
+	expect(edge / page.viewportSize()!.width).toBeCloseTo(0.16, 2);
+	// The first time it waits for a tap, which still turns the page under it.
+	await page.waitForTimeout(2500);
+	await expect(zones).toBeVisible();
 	await tap(page, 0.05);
-	await expect(hint).toHaveCount(0);
+	await expect(zones).toHaveCount(0);
+	// After that: a couple of seconds, then gone by itself.
+	await page.reload();
+	await readerReady(page);
+	await expect(zones).toBeVisible();
+	await expect(zones).toHaveCount(0, { timeout: 4000 });
+	// TAP ZONES: OFF.
+	await page.evaluate(() => localStorage.setItem('tsundoku.reader.zones', 'false'));
 	await page.reload();
 	await readerReady(page);
 	await page.waitForTimeout(500);
-	await expect(hint).toHaveCount(0);
+	await expect(zones).toHaveCount(0);
+	await page.evaluate(() => localStorage.removeItem('tsundoku.reader.zones'));
 });
 
 test('FULL SCREEN in the controls takes the browser’s bars away, and gives them back', async ({

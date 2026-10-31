@@ -40,12 +40,20 @@ still blanks the reader when the app goes to the background.
 - **R→L reads forward to the left:** the left strip turns forward, and a swipe
   to the right pulls the next page in. L→R mirrors both.
 - **A swipe turns anywhere:** at least 40px, and mostly sideways.
-- **Said once.** The first time a finger opens a paged chapter on a device, a
-  line at the bottom says ← SWIPE OR TAP THE EDGES TO TURN (the arrow follows
-  the direction), in the end page's accent. Gone at the first turn or after 8
-  s, and never again there (`tsundoku.hint.turn`). It takes no taps. A friend
-  tapped the edges and took the reader for a PC's (2026-10-30): swiping was
-  there, unannounced.
+- **Tap zones, shown as a chapter opens** (the owner, 2026-10-30, after
+  Mihon). By finger, in a paged mode, the reader opens with its zones drawn
+  over the page: the two edge strips at `EDGE`'s width (16%, tapAction's
+  own) and the middle, each labelled on a solid chip: `← NEXT` and `→ BACK`
+  in R→L, `← BACK` and `→ NEXT` in L→R, `CONTROLS · OR SWIPE TO TURN`. Short
+  words with the arrow above, because a phone's strip is 62 px. About 2 s, or
+  until the first tap, swipe or key, which still does what it does (the
+  overlay takes no taps); the very first time on a device it waits for that
+  tap (`tsundoku.hint.turn`). Only when the reader opens, not as it moves on
+  to the next chapter. Never under a mouse, whose clicks don't go by zones,
+  and never in the vertical strip, where every tap is the controls.
+  **TAP ZONES: OFF | ON** in SETTINGS › 01 (`tsundoku.reader.zones`, on)
+  turns it off. It replaced a one-time line, ← SWIPE OR TAP THE EDGES TO
+  TURN: a friend had tapped the edges and taken the reader for a PC's.
 - **Vertical scroll never turns on a tap.** Every tap is the controls, and
   scrolling is how you move.
 - **With the controls up, a tap on the page only puts them away.**

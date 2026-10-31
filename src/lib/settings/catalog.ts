@@ -69,6 +69,8 @@ export const VALUES = {
 	'reader.chapters': { where: 'device', key: 'tsundoku.reader.chapters', def: 'run' },
 	// A button back to the chapter's top, off unless asked for (c207; a friend, 2026-10-30).
 	'reader.top': { where: 'device', key: 'tsundoku.reader.top', def: false, label: onOff },
+	// The tap zones over the page as a paged chapter opens (doc/READER.md, "Touch").
+	'reader.zones': { where: 'device', key: 'tsundoku.reader.zones', def: true, label: onOff },
 	'reader.blocks': { where: 'device', key: 'tsundoku.reader.blocks', def: 'controls' },
 	// Shared by both readers: it's about the room, not the book.
 	'reader.dim': { where: 'device', key: 'tsundoku.reader.dim', def: 0, label: pct },
@@ -388,6 +390,24 @@ export const SECTIONS: SectionDef[] = [
 					]
 				},
 				meta: "VERTICAL ONLY · A ↑ BACK TO THE CHAPTER'S FIRST PAGE"
+			},
+			{
+				id: 'zones',
+				label: 'TAP ZONES',
+				where: 'device',
+				control: {
+					type: 'seg',
+					groups: [
+						{
+							value: 'reader.zones',
+							opts: [
+								{ value: false, label: 'OFF' },
+								{ value: true, label: 'ON' }
+							]
+						}
+					]
+				},
+				meta: 'PAGED, BY FINGER · WHERE A TAP TURNS, SHOWN AS A CHAPTER OPENS'
 			},
 			{
 				id: 'blocks',

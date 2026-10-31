@@ -50,6 +50,7 @@
 		swipeAction,
 		mouseAction,
 		hoverAction,
+		EDGE,
 		tapAction,
 		type Fit,
 		type Mode,
@@ -636,29 +637,36 @@
 	/** A turn asked for mid-slide: taken as soon as this one lands, so quick taps all count. */
 	let queued: 'next' | 'prev' | null = null;
 	/**
-	 * Once per device, the first time a finger opens a paged chapter: how pages
-	 * turn (doc/READER.md, "Touch"). A friend tapped the edges and took the
-	 * reader for a PC's (2026-10-30); swiping was there all along. Gone at the
-	 * first turn, or after a while; never back on that device.
+	 * The tap zones (doc/READER.md, "Tap zones"; the owner, 2026-10-30, after
+	 * Mihon): as a paged chapter opens by finger, the edges that turn and the
+	 * middle that brings the controls are drawn over the page, labelled the way
+	 * this direction reads. About two seconds, or until the first tap, swipe or
+	 * key; the very first time on a device, until then. Never under a mouse,
+	 * whose clicks don't go by zones (mouseAction). TAP ZONES: OFF in SETTINGS
+	 * turns it off. It replaced a one-time "swipe or tap the edges" line: a
+	 * friend tapped the edges and took the reader for a PC's (2026-10-30).
 	 */
-	const TURN_HINT = 'tsundoku.hint.turn';
-	let turnHint = $state(false);
+	const SEEN_ZONES = 'tsundoku.hint.turn';
+	const ZONES_MS = 2000;
+	let zones = $state(false);
 	onMount(() => {
 		if (!matchMedia('(pointer: coarse)').matches) return;
+		if (readLocal<boolean>(`${KEY}zones`, true) !== true) return;
+		let first = false;
 		try {
-			if (localStorage.getItem(TURN_HINT)) return;
-			localStorage.setItem(TURN_HINT, '1');
+			first = !localStorage.getItem(SEEN_ZONES);
+			if (first) localStorage.setItem(SEEN_ZONES, '1');
 		} catch {
-			// No storage (a private window): no hint, rather than one on every chapter.
-			return;
+			// No storage (a private window): the short showing, every time.
 		}
-		turnHint = true;
-		const t = setTimeout(() => (turnHint = false), 8000);
+		zones = true;
+		if (first) return;
+		const t = setTimeout(() => (zones = false), ZONES_MS);
 		return () => clearTimeout(t);
 	});
 
 	async function turn(dir: 'next' | 'prev') {
-		turnHint = false;
+		zones = false;
 		lookup = null;
 		if (animating) {
 			queued = dir;
@@ -1328,6 +1336,8 @@
 	let down: { x: number; y: number } | null = null;
 	let dragging = false;
 	function pointerdown(e: PointerEvent) {
+		// The first touch has learned the zones; it still does what it does.
+		zones = false;
 		down = { x: e.clientX, y: e.clientY };
 		dragging = false;
 		startPress(e);
@@ -1423,6 +1433,7 @@
 	});
 
 	function keydown(e: KeyboardEvent) {
+		zones = false;
 		// The lookup, or the page menu, has the keyboard: Escape closes it (their own).
 		if (lookup || menu) return;
 		if (sheet) {
@@ -1794,9 +1805,19 @@
 		>
 	{/if}
 
-	{#if turnHint && mode !== 'vertical' && !chrome}
-		<div class="turn-hint appear" role="status">
-			{mode === 'rtl' ? '← SWIPE OR TAP THE EDGES TO TURN' : 'SWIPE OR TAP THE EDGES TO TURN →'}
+	{#if zones && mode !== 'vertical' && !chrome && !sheet && !menu}
+		<!-- The tap zones (doc/READER.md, "Tap zones"): drawn, never in the way of the tap they explain. -->
+		<div class="zones appear" role="status" aria-label="Tap zones" style:--edge="{EDGE * 100}%">
+			<!-- Short words, the arrow above: a phone's edge is 16% of 390 px. -->
+			<div class="zone edge">
+				<span class="chip"><span class="ar">←</span>{mode === 'rtl' ? 'NEXT' : 'BACK'}</span>
+			</div>
+			<div class="zone mid">
+				<span class="chip"><span>CONTROLS</span><span class="or">OR SWIPE TO TURN</span></span>
+			</div>
+			<div class="zone edge">
+				<span class="chip"><span class="ar">→</span>{mode === 'rtl' ? 'BACK' : 'NEXT'}</span>
+			</div>
 		</div>
 	{/if}
 
@@ -2164,21 +2185,59 @@
 			display: inline;
 		}
 	}
-	/* The end page's hint, once, at the bottom (doc/READER.md, "Touch"). Never in the way of a tap. */
-	.turn-hint {
+	/* The tap zones: the page's own thirds, hairlines and labels over a light
+	   scrim; the edges the width tapAction gives them (EDGE). Never takes a tap. */
+	.zones {
 		position: fixed;
-		left: 50%;
-		bottom: calc(24px + env(safe-area-inset-bottom));
-		transform: translateX(-50%);
+		inset: 0;
 		z-index: 5;
-		padding: 12px 16px;
-		background: var(--surface-page);
-		border: var(--hairline);
-		font: 500 14px var(--font-mono);
-		color: var(--accent);
-		white-space: nowrap;
+		display: grid;
+		grid-template-columns: var(--edge) minmax(0, 1fr) var(--edge);
+		background: rgb(0 0 0 / 0.35);
 		pointer-events: none;
 	}
+	.zone {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 0;
+		padding: 0 4px;
+	}
+	.zone.edge {
+		background: rgb(0 0 0 / 0.45);
+	}
+	.zone.edge:first-child {
+		border-right: 1px solid rgb(232 232 230 / 0.35);
+	}
+	.zone.edge:last-child {
+		border-left: 1px solid rgb(232 232 230 / 0.35);
+	}
+	/* Labels on solid chips, so the page's art never decides whether they read. */
+	.chip {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 6px;
+		padding: 10px 8px;
+		background: var(--surface-page);
+		border: var(--hairline);
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--text-1);
+		text-align: center;
+	}
+	.edge .chip {
+		color: var(--accent);
+	}
+	.chip .ar {
+		font-size: 16px;
+	}
+	.chip .or {
+		font-weight: 400;
+		font-size: 12px;
+		color: var(--text-2);
+	}
+
 	/* TO THE TOP (c207): bottom right, over the pages and the dimming, just above
 	   the 56 px edge where a pointer brings the controls up (HOVER_EDGE), so
 	   reaching it with the mouse doesn't summon them over it. Away while they're
