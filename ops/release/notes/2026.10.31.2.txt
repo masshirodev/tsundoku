@@ -1,0 +1,3 @@
+EXTENSIONS: FILTER picks several languages at once, and filters by installed, repository, 18+ and what's in your library.
+Extensions marked 18+ by their repository (Weeb Central, for one) are listed for everyone now, marked 18+.
+Searching extensions ignores capitals and spaces, and finds an extension by its sources' names too.
