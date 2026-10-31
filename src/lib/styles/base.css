@@ -17,6 +17,16 @@ a:hover {
 *::after {
 	box-sizing: border-box;
 }
+/*
+ * Scrollbars: thin, in the system's own lines, on a clear track (owner,
+ * 2026-10-31: the browser's grey bar beside the sidebar's shelves). The
+ * standard properties: Firefox, and Chromium since 121. Touch screens draw
+ * their own overlay bars and ignore them.
+ */
+* {
+	scrollbar-width: thin;
+	scrollbar-color: var(--line-2) transparent;
+}
 /* iOS shows its image callout without a contextmenu event to cancel; the layout covers the rest. */
 img {
 	-webkit-touch-callout: none;

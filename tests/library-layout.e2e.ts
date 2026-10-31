@@ -169,3 +169,26 @@ test('RESCAN in the sidebar starts a scan, and says so when there is nothing to 
 	await sidebar.getByRole('button', { name: 'RESCAN' }).click();
 	await expect(sidebar.getByRole('status')).toContainText('NOTHING TO IMPORT');
 });
+
+test('on a short desktop the shelves scroll in their own space: nothing squeezed, the foot in place', async ({
+	page
+}, info) => {
+	test.skip(info.project.name !== 'desktop', 'the sidebar is the desktop’s');
+	// Too short for every shelf and the foot (owner, 2026-10-31: + NEW SHELF was squeezed).
+	await page.setViewportSize({ width: 1440, height: 640 });
+	await page.goto('/');
+	const scroll = page.locator('.sidebar .shelf-scroll');
+	const [content, shown] = await scroll.evaluate((el) => [el.scrollHeight, el.clientHeight]);
+	expect(content).toBeGreaterThan(shown);
+	expect(await page.locator('.new-link').evaluate((el) => el.getBoundingClientRect().height)).toBe(
+		44
+	);
+	for (const row of await page.locator('.side-foot > *').all())
+		expect(await row.evaluate((el) => el.getBoundingClientRect().height)).toBeGreaterThanOrEqual(
+			48
+		);
+	// The foot's last line is on screen without scrolling the sidebar.
+	const last = await page.locator('.side-foot > *').last().boundingBox();
+	expect(last!.y + last!.height).toBeLessThanOrEqual(640);
+	await expect(scroll).toHaveCSS('scrollbar-width', 'thin');
+});

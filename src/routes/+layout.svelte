@@ -212,45 +212,49 @@
 				<!-- The app's name is the way home, from any screen. -->
 				<a class="brand" href={resolve('/')} aria-label="Library"><Wordmark size={17} /></a>
 				<div class="side-label">SHELVES</div>
-				<ShelfTabs
-					vertical
-					shelves={shelvesAbove}
-					active={activeShelf}
-					href={(k) => shelfHref(page.url, k)}
-				/>
-				{#if naming}
-					<form class="new-shelf" method="POST" action="/?/newShelf">
-						<!-- The field exists to take this one name. -->
-						<!-- svelte-ignore a11y_autofocus -->
-						<input
-							name="name"
-							aria-label="New shelf name"
-							autocomplete="off"
-							required
-							autofocus
-							onkeydown={(e) => {
-								if (e.key !== 'Escape') return;
-								// eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam keeps the current, resolved path
-								void goto(stopNaming, { noScroll: true, replaceState: true });
-							}}
-						/>
-						<div class="new-hint">↵ CREATE · ESC CANCEL</div>
-					</form>
-				{:else}
-					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam keeps the current, resolved path -->
-					<a class="new-link" href={withParam(page.url, 'new', 'shelf')} data-sveltekit-noscroll
-						>+ NEW SHELF</a
-					>
-				{/if}
-				{#if shelvesBelow.length}
+				<!-- The shelves scroll in their own space, so the foot stays put and
+				     nothing between them is squeezed (owner, 2026-10-31: eleven shelves
+				     pressed + NEW SHELF to its text's height). -->
+				<div class="shelf-scroll">
 					<ShelfTabs
 						vertical
-						shelves={shelvesBelow}
+						shelves={shelvesAbove}
 						active={activeShelf}
 						href={(k) => shelfHref(page.url, k)}
 					/>
-				{/if}
-				<div class="spacer"></div>
+					{#if naming}
+						<form class="new-shelf" method="POST" action="/?/newShelf">
+							<!-- The field exists to take this one name. -->
+							<!-- svelte-ignore a11y_autofocus -->
+							<input
+								name="name"
+								aria-label="New shelf name"
+								autocomplete="off"
+								required
+								autofocus
+								onkeydown={(e) => {
+									if (e.key !== 'Escape') return;
+									// eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam keeps the current, resolved path
+									void goto(stopNaming, { noScroll: true, replaceState: true });
+								}}
+							/>
+							<div class="new-hint">↵ CREATE · ESC CANCEL</div>
+						</form>
+					{:else}
+						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam keeps the current, resolved path -->
+						<a class="new-link" href={withParam(page.url, 'new', 'shelf')} data-sveltekit-noscroll
+							>+ NEW SHELF</a
+						>
+					{/if}
+					{#if shelvesBelow.length}
+						<ShelfTabs
+							vertical
+							shelves={shelvesBelow}
+							active={activeShelf}
+							href={(k) => shelfHref(page.url, k)}
+						/>
+					{/if}
+				</div>
 				<div class="side-foot">
 					{#if data.start && !data.start.finished}
 						<!-- The quiet way back to GET STARTED, until every step is done or skipped (doc/ONBOARDING.md). -->
@@ -427,8 +431,17 @@
 		color: var(--text-2);
 		letter-spacing: var(--tracking-label);
 	}
-	.spacer {
-		flex: 1;
+	/* Everything in the sidebar keeps its own height; only the shelves give,
+	   by scrolling. On a screen too short even for the foot, the sidebar itself
+	   scrolls (its overflow-y), the shelves keeping three rows. */
+	.sidebar > * {
+		flex-shrink: 0;
+	}
+	.sidebar > .shelf-scroll {
+		flex: 1 1 auto;
+		min-height: 140px;
+		overflow-y: auto;
+		overscroll-behavior: contain;
 	}
 	/* + NEW SHELF, and the field it turns into (Library Filters 3j). */
 	.new-link {
