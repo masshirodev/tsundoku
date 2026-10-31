@@ -81,6 +81,24 @@ new screens on. So:
   (BookTile, PageMenu, FilterPanel, ConfirmSheet, PrivacyShield, LookupPanel,
   the waiting set).
 
+### Rules written there first
+
+The rules below got into the artifact's README before the code
+followed them, so for these the artifact is ahead of `src/`. They are house
+rules all the same: new work follows them, and code that breaks one is a bug to
+fix, not a departure. When the code has caught up, the artifact goes back to
+being downstream.
+
+- **Close every block** (added 2026-10-31, under "Corners, borders,
+  elevation"). A block set inside the page's padding (a list of steps, a table,
+  a group of rows, a panel, a replica of a control) has all four sides: a 1px
+  `--line-1` frame, with hairlines between its rows inside it. A block drawn
+  only with rules above and below its rows is left open at both ends and reads
+  as loose lines, not a box. The one exception is a block that runs edge to edge
+  of its container (a bar under the header, a list flush against the sidebar's
+  rule, a band across the main column), where the container's edges close it.
+  The code has not been audited against this rule yet.
+
 ## Palette and scale, settled separately
 
 `reconcile-tokens.mjs` on the screen spec found **7 distinct colours, all 7
