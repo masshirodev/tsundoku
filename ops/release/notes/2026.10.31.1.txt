@@ -1,0 +1,5 @@
+A new library starts with GET STARTED: four steps that tick themselves, and a way back to the list from each one.
+HELP: seven short topics in the sidebar and MORE, and a ? on the screens people ask about.
+From this version on, a new version says so when tsundoku opens, and installs from there (LATER asks again tomorrow).
+Paged reading shows where a tap turns the page as a chapter opens. SETTINGS > READING can turn it off.
+Many shelves scroll in the sidebar instead of squeezing it.
