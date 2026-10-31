@@ -15,6 +15,7 @@ import {
 	type Installed
 } from './extensions.ts';
 import { browseLanguages, browseSources, type BrowseSource } from './browse.ts';
+import { NO_EXT_FILTERS, searchMatches, type ExtFilters } from '../../library/ext-filters.ts';
 
 /**
  * EXTENSIONS, BROWSE's back room (Index-Extensions; doc/BROWSE.md,
@@ -86,7 +87,7 @@ export function installedView(reveal: boolean, now = Date.now()): InstalledView 
 
 export type AvailableRow = Listing & {
 	repoId: number;
-	/** Its sources in the languages asked for; all of them with ALL. */
+	/** Its sources in the languages asked for. */
 	sourcesShown: number;
 	installed: boolean;
 	/** Series here from it, as reveal lets the viewer see them. */
@@ -101,28 +102,35 @@ export type AvailableView = {
 	counts: Record<Kind, number>;
 	/** Matches whose sources are all in other languages: "+ 12 IN OTHER LANGUAGES · SHOW". */
 	otherLanguages: number;
+	/** Every language this kind's listings hold: LANGUAGE's choices. */
 	languages: string[];
+	/** The languages the list is in now (SETTINGS' unless the visit changed them; none is all). */
+	asked: string[];
 };
 
 const LANGLESS = new Set(['all', 'multi', '']);
 
 /**
- * The available list (Index-Extensions, available): every repository's
- * listings of one kind, in the owner's languages unless ALL widens this
- * visit, matching a search. With reveal off an adult extension isn't listed
- * or counted (decided 2026-10-28), and neither is one whose every source here
- * is mostly hidden.
+ * The available list (Index-Extensions, available; doc/BROWSE.md, "Filters"):
+ * every repository's listings of one kind, matching a search (case and
+ * spacing ignored, against the extension's name and its sources'), narrowed
+ * by AVAILABLE's filters (lib/library/ext-filters.ts). LANGUAGE starts from
+ * SETTINGS' languages; none asked is every language. An 18+ extension is
+ * listed for everyone, marked (the owner, 2026-10-31: Keiyoushi flags Weeb
+ * Central, which a friend couldn't find); one whose every source here is
+ * mostly hidden still isn't, with reveal off: hidden means hidden.
  */
 export function availableView(opts: {
 	kind: Kind;
 	q?: string;
-	all?: boolean;
-	adult?: 'any' | 'only' | 'none';
+	filters?: ExtFilters;
 	reveal: boolean;
 }): AvailableView {
-	const langs = browseLanguages();
+	const f = opts.filters ?? NO_EXT_FILTERS;
+	const mine = browseLanguages();
+	const asked = f.langs ?? mine;
 	const wanted = (lang: string) =>
-		LANGLESS.has(lang.toLowerCase()) || langs.includes(lang.toLowerCase());
+		asked.length === 0 || LANGLESS.has(lang.toLowerCase()) || asked.includes(lang.toLowerCase());
 	const have = new Set(installed().map((e) => e.pkg));
 	const sources = new Map<string, BrowseSource[]>();
 	for (const s of browseSources(true)) sources.set(s.pkg, [...(sources.get(s.pkg) ?? []), s]);
@@ -132,39 +140,50 @@ export function availableView(opts: {
 	for (const l of listings()) {
 		if (seen.has(l.pkg)) continue;
 		seen.add(l.pkg);
-		const mine = sources.get(l.pkg) ?? [];
-		const mostlyHidden = mine.length > 0 && mine.every((s) => s.mostlyHidden);
-		if (!opts.reveal && (l.adult || mostlyHidden)) continue;
-		if (opts.reveal && opts.adult === 'only' && !l.adult) continue;
-		if (opts.reveal && opts.adult === 'none' && l.adult) continue;
+		const theirs = sources.get(l.pkg) ?? [];
+		const mostlyHidden = theirs.length > 0 && theirs.every((s) => s.mostlyHidden);
+		if (!opts.reveal && mostlyHidden) continue;
 		pool.push({
 			...l,
 			sourcesShown: l.sources.length,
 			installed: have.has(l.pkg),
-			series: mine.reduce((n, s) => n + (opts.reveal ? s.series : s.series - s.hidden), 0),
-			hidden: opts.reveal ? mine.reduce((n, s) => n + s.hidden, 0) : 0,
+			series: theirs.reduce((n, s) => n + (opts.reveal ? s.series : s.series - s.hidden), 0),
+			hidden: opts.reveal ? theirs.reduce((n, s) => n + s.hidden, 0) : 0,
 			mostlyHidden
 		});
 	}
 	const counts: Record<Kind, number> = { manga: 0, anime: 0 };
 	for (const r of pool) counts[r.kind]++;
-	const q = (opts.q ?? '').trim().toLowerCase();
-	const matching = pool
-		.filter((r) => r.kind === opts.kind && (!q || r.name.toLowerCase().includes(q)))
+	const ofKind = pool.filter((r) => r.kind === opts.kind);
+	const languages = [
+		...new Set(
+			ofKind.flatMap((r) =>
+				r.sources.map((s) => s.lang.toLowerCase()).filter((l) => !LANGLESS.has(l))
+			)
+		)
+	].sort();
+	const matching = ofKind
+		.filter(
+			(r) =>
+				searchMatches(opts.q ?? '', [r.name, ...r.sources.map((s) => s.name)]) &&
+				(f.installed === 'any' || r.installed === (f.installed === 'yes')) &&
+				(!f.repo || f.repo === `e${r.repoId}`) &&
+				(f.adult === 'any' || r.adult === (f.adult === 'only')) &&
+				(!f.library || r.series > 0)
+		)
 		.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
 	const inLangs = (r: AvailableRow) =>
 		r.sources.length === 0 || r.sources.some((s) => wanted(s.lang));
-	const rows = opts.all
-		? matching
-		: matching.filter(inLangs).map((r) => ({
-				...r,
-				sourcesShown: r.sources.filter((s) => wanted(s.lang)).length || r.sources.length
-			}));
+	const rows = matching.filter(inLangs).map((r) => ({
+		...r,
+		sourcesShown: r.sources.filter((s) => wanted(s.lang)).length || r.sources.length
+	}));
 	return {
 		rows,
 		counts,
-		otherLanguages: opts.all ? 0 : matching.length - rows.length,
-		languages: langs
+		otherLanguages: matching.length - rows.length,
+		languages,
+		asked
 	};
 }
 

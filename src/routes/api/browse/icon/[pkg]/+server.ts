@@ -23,8 +23,9 @@ const SIZE = 80;
 
 /**
  * An icon the viewer's lists could show: an installed extension with a
- * source they may see, or one available to install, which with reveal off
- * isn't adult or one whose every source is mostly hidden (manage.ts's rules).
+ * source they may see, or one available to install, 18+ ones included
+ * (manage.ts's rules: only an extension whose every source is mostly hidden is
+ * kept from a viewer without reveal).
  */
 function mayShow(pkg: string, reveal: boolean): boolean {
 	// An LNReader plugin (`ln:<id>`, doc/NOVELS.md): its index marks nothing adult.
@@ -35,7 +36,8 @@ function mayShow(pkg: string, reveal: boolean): boolean {
 	const mine = browseSources(true).filter((s) => s.pkg === pkg);
 	if (mine.length > 0) return reveal || mine.some((s) => !s.mostlyHidden);
 	const listing = findListing(pkg, getDb());
-	return !!listing && (reveal || !listing.adult);
+	// An 18+ extension is listed for everyone now, marked (doc/BROWSE.md, "Filters").
+	return !!listing;
 }
 
 async function fetchIcon(pkg: string): Promise<Buffer | null> {

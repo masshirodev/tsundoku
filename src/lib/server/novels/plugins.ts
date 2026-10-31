@@ -13,6 +13,7 @@ import {
 } from '../../library/lnreader-index.ts';
 import { NovelHost } from './host.ts';
 import { dataPaths } from '../data-dirs.ts';
+import { NO_EXT_FILTERS, searchMatches, type ExtFilters } from '../../library/ext-filters.ts';
 
 /**
  * LNReader repositories and the plugins installed from them (doc/NOVELS.md;
@@ -393,16 +394,60 @@ export function pluginView(now = Date.now(), db: Database.Database = getDb()) {
  * languages (or all of them with ALL), matching a search. LNReader's index
  * marks nothing adult, so nothing is held back for reveal here.
  */
-export function pluginsAvailable(opts: { q?: string; all?: boolean; languages: string[] }) {
-	const have = new Set(installedPlugins().map((p) => p.id));
-	const q = (opts.q ?? '').trim().toLowerCase();
-	const matching = novelListings()
-		.filter((l) => !q || l.name.toLowerCase().includes(q))
+/**
+ * The novels' available list, with AVAILABLE's filters (doc/BROWSE.md,
+ * "Filters"; lib/library/ext-filters.ts): a search that ignores case and
+ * spacing, the languages asked (SETTINGS' unless the visit changed them; none
+ * is all), INSTALLED, REPOSITORY (`n<id>`) and IN LIBRARY. LNReader marks
+ * nothing 18+, so ONLY lists none.
+ */
+export function pluginsAvailable(opts: {
+	q?: string;
+	filters?: ExtFilters;
+	languages: string[];
+	reveal?: boolean;
+	db?: Database.Database;
+}) {
+	const db = opts.db ?? getDb();
+	const f = opts.filters ?? NO_EXT_FILTERS;
+	const asked = f.langs ?? opts.languages;
+	const have = new Set(installedPlugins(db).map((p) => p.id));
+	const all = novelListings(db);
+	// Series here a plugin's sources hold, as the viewer may see them: IN LIBRARY.
+	const inLibrary = new Set(
+		(
+			db
+				.prepare(
+					`SELECT DISTINCT s.origin_key FROM series s JOIN roots r ON r.id = s.root_id
+					WHERE ${IN_LIBRARY_SQL} AND s.origin_key LIKE 'lnreader:%'${opts.reveal ? '' : ` AND ${VISIBLE_SQL}`}`
+				)
+				.all() as { origin_key: string }[]
+		).map((r) => r.origin_key.split(':')[1])
+	);
+	const matching = all
+		.filter(
+			(l) =>
+				searchMatches(opts.q ?? '', [l.name]) &&
+				(f.installed === 'any' || have.has(l.id) === (f.installed === 'yes')) &&
+				(!f.repo || f.repo === `n${l.repoId}`) &&
+				f.adult !== 'only' &&
+				(!f.library || inLibrary.has(l.id))
+		)
 		.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }))
 		.map((l) => ({ ...l, installed: have.has(l.id) }));
-	const wanted = (l: { lang: string }) => l.lang === 'multi' || opts.languages.includes(l.lang);
-	const rows = opts.all ? matching : matching.filter(wanted);
-	return { rows, total: novelListings().length, otherLanguages: matching.length - rows.length };
+	const wanted = (l: { lang: string }) =>
+		asked.length === 0 || l.lang === 'multi' || asked.includes(l.lang.toLowerCase());
+	const rows = matching.filter(wanted);
+	const languages = [
+		...new Set(all.map((l) => l.lang.toLowerCase()).filter((l) => l && l !== 'multi'))
+	].sort();
+	return {
+		rows,
+		total: all.length,
+		otherLanguages: matching.length - rows.length,
+		languages,
+		asked
+	};
 }
 
 /** TRY AGAIN on a plugin that failed to load: the same file, offered to the host again. */

@@ -10,6 +10,8 @@
 	import Band from '$lib/components/chrome/Band.svelte';
 	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
 	import { count } from '$lib/library/downloads';
+	import { extFilterParams } from '$lib/library/ext-filters';
+	import ExtFilter from './ExtFilter.svelte';
 	import { ago } from '$lib/library/tracking';
 	import ExtRow from './ExtRow.svelte';
 
@@ -180,7 +182,7 @@
 				name={r.name}
 				icon={icon(r.pkg)}
 				hue={hue(r.pkg)}
-				adult={data.reveal && r.adult}
+				adult={r.adult}
 				hidden={r.mostlyHidden}
 				rule={section === 'hand'}
 				state={busy === r.pkg
@@ -340,6 +342,7 @@
 				>NOVELS <span class="n">{count(data.availableCounts.novels)}</span></a
 			>
 		</nav>
+		{@const nv = data.novelsAvailable}
 		<form method="GET" action={base} class="filter">
 			<input type="hidden" name="tab" value="available" />
 			{#if a.kind !== 'manga'}<input type="hidden" name="kind" value={a.kind} />{/if}
@@ -358,37 +361,28 @@
 				aria-label="Search the available extensions"
 				autocomplete="off"
 			/>
-			<span class="fcell lab">LANGUAGE</span>
-			{#each a.languages as l (l)}<span class="fcell on">{l.toUpperCase()}</span>{/each}
-			<a
-				class="fcell"
-				class:on={page.url.searchParams.get('all') === '1'}
-				href={link({ all: page.url.searchParams.get('all') === '1' ? null : '1', n: null })}>ALL</a
-			>
-			{#if data.reveal && a.kind !== 'novels'}
-				{@const ad = page.url.searchParams.get('adult') ?? 'any'}
-				<span class="fcell lab adult">ADULT</span>
-				{#each ['any', 'only', 'none'] as o (o)}
-					<a
-						class="fcell"
-						class:on={ad === o}
-						href={link({ adult: o === 'any' ? null : o, n: null })}>{o.toUpperCase()}</a
-					>
-				{/each}
-			{/if}
+			<ExtFilter
+				filters={data.filters}
+				mine={data.languages}
+				languages={nv ? nv.languages : a.languages}
+				repos={a.kind === 'novels' ? data.filterRepos.novels : data.filterRepos.engine}
+				novels={a.kind === 'novels'}
+				title="{a.kind === 'novels' ? 'NOVEL' : a.kind.toUpperCase()} EXTENSIONS"
+				count="{count(nv ? nv.rows.length : a.rows.length)} FOUND"
+				href={(f) => link({ ...extFilterParams(f), all: null, n: null })}
+			/>
 		</form>
 		{@const shown = Number(page.url.searchParams.get('n')) || 150}
-		{@const nv = data.novelsAvailable}
 		{@const found = nv ? nv.rows.length : a.rows.length}
 		{@const others = nv ? nv.otherLanguages : a.otherLanguages}
 		<div class="label first">
 			<span class="l"
-				>01 — {count(found)} FOUND{page.url.searchParams.get('all') === '1'
-					? ' · ALL LANGUAGES'
-					: ` · ${a.languages.map((l) => l.toUpperCase()).join(', ')}`}</span
+				>01 — {count(found)} FOUND{(nv ? nv.asked : a.asked).length
+					? ` · ${(nv ? nv.asked : a.asked).map((l) => l.toUpperCase()).join(', ')}`
+					: ' · EVERY LANGUAGE'}</span
 			>
 			{#if others > 0}
-				<a class="r more" href={link({ all: '1', n: null })}
+				<a class="r more" href={link({ lang: '', all: null, n: null })}
 					>+ {count(others)} IN OTHER LANGUAGES · SHOW</a
 				>
 			{/if}
@@ -433,7 +427,7 @@
 					name={r.name}
 					icon={icon(r.pkg)}
 					hue={hue(r.pkg)}
-					adult={data.reveal && r.adult}
+					adult={r.adult}
 					hidden={r.mostlyHidden}
 					rule={untrusted}
 					quiet={r.installed}
@@ -456,8 +450,8 @@
 							.map((s) => s.lang)
 							.filter(
 								(l) =>
-									page.url.searchParams.get('all') === '1' ||
-									data.languages.includes(l.toLowerCase()) ||
+									a.asked.length === 0 ||
+									a.asked.includes(l.toLowerCase()) ||
 									['all', 'multi'].includes(l)
 							)
 					) ||
@@ -491,13 +485,13 @@
 		{/if}
 		<p class="prose">
 			{#if data.reveal}
-				Inside reveal the ADULT row and the 18+ marks exist, and so do the mostly-hidden sources'
-				extensions, with HIDDEN on their icons. Ending reveal takes all of it out of the list and
-				its counts.
+				Inside reveal the mostly-hidden sources' extensions are listed too, with HIDDEN on their
+				icons. Ending reveal takes them out of the list and its counts.
 			{:else}
-				Languages come from SETTINGS ({a.languages.map((l) => l.toUpperCase()).join(', ')}); ALL
-				widens this visit only. An untrusted extension is never installed: the key it was signed
-				with is shown beside the one its repository lists.
+				LANGUAGE starts from SETTINGS ({data.languages.map((l) => l.toUpperCase()).join(', ')});
+				FILTER changes it for this visit only. 18+ marks an extension its repository flags as adult.
+				An untrusted extension is never installed: the key it was signed with is shown beside the
+				one its repository lists.
 			{/if}
 		</p>
 	{/if}
@@ -889,13 +883,14 @@
 	.rows.bt {
 		border-top: var(--hairline);
 	}
+	/* The search, and FILTER beside it; the panel opens under the whole bar. */
 	.filter {
+		position: relative;
 		flex-shrink: 0;
 		display: flex;
 		align-items: stretch;
 		min-height: 56px;
 		border-bottom: var(--hairline);
-		overflow-x: auto;
 	}
 	.find {
 		flex: 1 1 auto;
@@ -908,28 +903,6 @@
 		color: var(--text-1);
 		font: 500 16px var(--font-mono);
 		outline: none;
-	}
-	.fcell {
-		display: flex;
-		align-items: center;
-		padding: 0 16px;
-		border-left: var(--hairline);
-		font: 500 14px var(--font-mono);
-		white-space: nowrap;
-		color: var(--text-1);
-		text-decoration: none;
-	}
-	.fcell.lab {
-		font: 500 12px var(--font-mono);
-		letter-spacing: 0.06em;
-		color: var(--text-2);
-	}
-	.fcell.lab.adult {
-		color: var(--reveal);
-	}
-	.fcell.on {
-		background: var(--surface-inverse);
-		color: var(--text-inverse);
 	}
 	.more-row {
 		display: flex;

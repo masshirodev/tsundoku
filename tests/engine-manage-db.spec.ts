@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, it } from 'vitest';
+import { NO_EXT_FILTERS, type ExtFilters } from '../src/lib/library/ext-filters';
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -179,11 +180,15 @@ describe('the installed list', () => {
 	});
 });
 
-describe('the available list', () => {
-	it('opens in the owner’s languages, says how many are in others, and ALL widens it', () => {
+describe('the available list (doc/BROWSE.md, "Filters")', () => {
+	const f = (o: Partial<ExtFilters>): ExtFilters => ({ ...NO_EXT_FILTERS, ...o });
+	const names = (v: { rows: { name: string }[] }) => v.rows.map((r) => r.name);
+
+	it('opens in the owner’s languages, says how many are in others, and LANGUAGE changes the visit', () => {
 		setSetting('browse_languages', 'en,ja');
 		const v = manage.availableView({ kind: 'manga', reveal: false });
-		expect(v.rows.map((r) => r.name)).toEqual([
+		expect(names(v)).toEqual([
+			'Adult One',
 			'Broken',
 			'Current',
 			'English One',
@@ -193,27 +198,81 @@ describe('the available list', () => {
 			'Updatable'
 		]);
 		expect(v.otherLanguages).toBe(1);
+		expect(v.asked).toEqual(['en', 'ja']);
+		expect(v.languages).toEqual(['de', 'en', 'fr', 'ja']);
 		// A multi-language extension counts only the sources in those languages.
 		expect(v.rows.find((r) => r.name === 'Many Languages')!.sourcesShown).toBe(1);
-		const all = manage.availableView({ kind: 'manga', all: true, reveal: false });
-		expect(all.rows.map((r) => r.name)).toContain('French One');
-		expect(all.otherLanguages).toBe(0);
+		const fr = manage.availableView({
+			kind: 'manga',
+			filters: f({ langs: ['fr'] }),
+			reveal: false
+		});
+		expect(names(fr)).toEqual(['French One', 'Many Languages']);
+		// None asked is every language.
+		const every = manage.availableView({ kind: 'manga', filters: f({ langs: [] }), reveal: false });
+		expect(names(every)).toContain('French One');
+		expect(every.otherLanguages).toBe(0);
 	});
 
-	it('leaves adult extensions out of the list and the counts with reveal off', () => {
-		const off = manage.availableView({ kind: 'manga', all: true, reveal: false });
-		expect(off.rows.map((r) => r.name)).not.toContain('Adult One');
+	it('lists 18+ extensions for everyone, marked, and 18+ filters them; mostly hidden stays inside reveal', () => {
+		const off = manage.availableView({ kind: 'manga', filters: f({ langs: [] }), reveal: false });
+		expect(off.rows.find((r) => r.name === 'Adult One')!.adult).toBe(true);
+		// Hidden's every source is mostly hidden: still out without reveal.
+		expect(names(off)).not.toContain('Hidden');
 		expect(off.counts.manga).toBe(off.rows.length);
-		const on = manage.availableView({ kind: 'manga', all: true, reveal: true, adult: 'only' });
-		expect(on.rows.map((r) => r.name)).toEqual(['Adult One', 'Hidden']);
+		const only = manage.availableView({
+			kind: 'manga',
+			filters: f({ langs: [], adult: 'only' }),
+			reveal: true
+		});
+		expect(names(only)).toEqual(['Adult One', 'Hidden']);
+		const none = manage.availableView({
+			kind: 'manga',
+			filters: f({ adult: 'none' }),
+			reveal: false
+		});
+		expect(names(none)).not.toContain('Adult One');
 	});
 
-	it('searches by name and marks what’s installed', () => {
-		const v = manage.availableView({ kind: 'manga', q: 'one', reveal: false });
+	it('searches ignoring case and spacing, by its sources’ names too, and marks what’s installed', () => {
+		const v = manage.availableView({ kind: 'manga', q: 'ONE', reveal: false });
 		expect(v.rows.map((r) => [r.name, r.installed])).toEqual([
+			['Adult One', false],
 			['English One', false],
 			['Japanese One', false]
 		]);
+		expect(names(manage.availableView({ kind: 'manga', q: 'englishone', reveal: false }))).toEqual([
+			'English One'
+		]);
+		expect(names(manage.availableView({ kind: 'manga', q: 'many  lang', reveal: false }))).toEqual([
+			'Many Languages'
+		]);
+	});
+
+	it('INSTALLED, REPOSITORY and IN LIBRARY', () => {
+		const inst = manage.availableView({
+			kind: 'manga',
+			filters: f({ installed: 'yes' }),
+			reveal: false
+		});
+		expect(inst.rows.every((r) => r.installed)).toBe(true);
+		expect(names(inst)).toContain('Updatable');
+		const not = manage.availableView({
+			kind: 'manga',
+			filters: f({ installed: 'no' }),
+			reveal: false
+		});
+		expect(not.rows.every((r) => !r.installed)).toBe(true);
+		expect(
+			names(manage.availableView({ kind: 'manga', filters: f({ repo: 'e2' }), reveal: false }))
+		).toEqual([]);
+		expect(
+			manage.availableView({ kind: 'manga', filters: f({ repo: 'e1' }), reveal: false }).rows.length
+		).toBeGreaterThan(0);
+		// Updatable's source has a series the viewer can see.
+		expect(
+			names(manage.availableView({ kind: 'manga', filters: f({ library: true }), reveal: false }))
+		).toEqual(['Updatable']);
 	});
 });
 

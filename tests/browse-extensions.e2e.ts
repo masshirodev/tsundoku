@@ -31,10 +31,33 @@ test('a repository is added, an extension installed, updated, taken back and rem
 	await page.getByRole('button', { name: 'ADD Fake Repo' }).click();
 	await expect(row('Fake Repo')).toContainText('2 EXTENSIONS');
 
-	// Available: the adult one isn't there with reveal off, nor counted.
+	// Available: the 18+ one is listed for everyone, marked (doc/BROWSE.md, "Filters";
+	// the owner, 2026-10-31: Keiyoushi flags Weeb Central, which a friend couldn't find).
 	await page.goto('/browse/extensions?tab=available');
 	await expect(row('Webtoons.com')).toBeVisible();
-	await expect(page.locator('body')).not.toContainText('Adult Place');
+	await expect(row('Adult Place')).toContainText('18+');
+	// The search ignores case and spacing.
+	await page
+		.getByRole('searchbox', { name: 'Search the available extensions' })
+		.fill('WEBTOONSCOM');
+	await page.keyboard.press('Enter');
+	await expect(page.locator('.label.first')).toContainText('01 — 1 FOUND');
+	await expect(row('Webtoons.com')).toBeVisible();
+	// FILTER: 18+ ONLY, then CLEAR ALL; ALL is gone.
+	await page.goto('/browse/extensions?tab=available');
+	await expect(page.getByRole('link', { name: 'ALL', exact: true })).toHaveCount(0);
+	await page.locator('summary', { hasText: 'FILTER' }).click();
+	const panel = page.getByRole('group', { name: 'Filters' });
+	await expect(panel).toContainText('FILTER MANGA EXTENSIONS');
+	await panel.locator('.row', { hasText: '18+' }).getByRole('link', { name: 'ONLY' }).click();
+	await expect(page).toHaveURL(/adult=only/);
+	await expect(page.locator('.label.first')).toContainText('01 — 1 FOUND');
+	await expect(row('Adult Place')).toBeVisible();
+	await page.getByRole('link', { name: '✕ CLEAR ALL' }).click();
+	await expect(page).not.toHaveURL(/adult=/);
+	// Choosing keeps the panel open to choose more, as the library's does; DONE closes it.
+	await panel.getByRole('button', { name: 'DONE' }).click();
+	await expect(panel).toBeHidden();
 	await row('Webtoons.com').getByRole('button', { name: 'INSTALL' }).click();
 	await expect(row('Webtoons.com')).toContainText('INSTALLED ✓');
 

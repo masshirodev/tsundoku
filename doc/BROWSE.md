@@ -238,14 +238,35 @@ queued chapters leave the queue and its followed series stop being checked;
 its settings are kept for a reinstall. Counts are what reveal lets you see.
 
 **AVAILABLE** is every repository's listings, one tab per kind with its count,
-a search, and the LANGUAGE cells: the owner's (SETTINGS, below) are on, and ALL
-widens this visit (`?all=1`); "+ 25 IN OTHER LANGUAGES · SHOW" says what that
-would add. A multi-language extension counts only its sources in those
-languages. INSTALL is accent; an installed one says INSTALLED ✓. 150 rows at a
-time, MORE ↓ for the next. **With reveal off an adult extension isn't listed or
-counted** (the owner's call, 2026-10-28: Keiyoushi's 1,435 read 562), and nor
-is one whose every source here is mostly hidden. Inside reveal the ADULT row
-(ANY, ONLY, NONE) and the 18+ marks appear.
+a search, and FILTER. The search ignores case and spacing and matches the
+extension's name or any of its sources' (`weebcentral` finds Weeb Central). A
+multi-language extension counts only its sources in the languages asked. INSTALL
+is accent; an installed one says INSTALLED ✓. 150 rows at a time, MORE ↓ for the
+next.
+
+**Filters** (`src/lib/library/ext-filters.ts`; the owner, 2026-10-31): FILTER
+opens the library's filter panel (Library Filters 3, `ExtFilter.svelte`), every
+choice a link in the URL, so it works without script; choosing keeps it open,
+DONE closes it, ✕ CLEAR ALL clears it.
+
+- **LANGUAGE** (`?lang=en,fr`): several at once, starting from SETTINGS'
+  languages (MINE goes back to them) and only for the visit; SETTINGS stays
+  the place to change the default. None ticked is every language. ALL, the
+  one-button widening, is gone; "+ 25 IN OTHER LANGUAGES · SHOW" under the list
+  still says what a search finds elsewhere, and shows it.
+- **INSTALLED** (ANY, INSTALLED, NOT INSTALLED), **REPOSITORY** (when there are
+  two or more), **18+** (ANY, ONLY, NONE; not for novels, which LNReader never
+  marks), **IN LIBRARY** (sources with series here, as the viewer may see them).
+
+**18+ is listed for everyone, marked.** Until 2026-10-31 an extension its
+repository flags as adult was left out with reveal off (the owner's call,
+2026-10-28: Keiyoushi's 1,435 read 562). But Keiyoushi flags mainstream sites
+that carry some adult titles: Weeb Central was unfindable for a friend, and for
+the owner outside reveal. Now it's listed with its 18+ mark, its icon is
+served, and the 18+ row filters it, for anyone. What stays inside reveal is an
+extension whose every source here is mostly hidden: hidden means hidden.
+BROWSE's own lists and search never filtered on the flag, so an installed 18+
+extension's sources were always there, on GET STARTED's first day too.
 
 **An untrusted extension is never installed.** An APK not signed by the key
 its repository lists is refused before anything is kept, and the page shows
@@ -272,7 +293,7 @@ novels (c148). The names Mihon, Aniyomi and LNReader appear there and
 nowhere else.
 
 **Icons** of available extensions come through the same route as installed
-ones, under the same rules: with reveal off an adult one, or one whose every
+ones, under the same rules: with reveal off one whose every
 source is mostly hidden, answers 404.
 
 ## A source's settings
@@ -334,12 +355,15 @@ values show and still save, under the NOT ANSWERING band.
   updates counted only for what may be seen).
 - `tests/engine-manage-db.spec.ts`: INSTALLED's three sections and BACK TO's
   week, a mostly-hidden extension only in reveal, AVAILABLE's languages and
-  ALL, adult left out and uncounted, search, REMOVE's counts and what it
-  takes out of the queue, TRY AGAIN.
+  LANGUAGE, 18+ listed and filtered, INSTALLED, REPOSITORY and IN LIBRARY, a
+  search ignoring case and spacing, REMOVE's counts and what it takes out of
+  the queue, TRY AGAIN. `tests/ext-filters.spec.ts`: the filters' URL,
+  LANGUAGE's toggles, the search's folding.
 - `tests/browse-extensions.e2e.ts`: a repository asked, refused and added; an
   install, CHECK NOW, UPDATE, BACK TO and REMOVE through the sheet, against
   real signed APKs over https; an untrusted install refused with both keys;
-  the languages row.
+  the languages row; an 18+ extension listed and marked, a search ignoring
+  case and spacing, FILTER's 18+ ONLY, CLEAR ALL and DONE.
 - `tests/source-settings.spec.ts`: each of the five types read from the
   engine's shapes, a value no longer offered not shown as chosen, a form's
   answer stored or refused.
@@ -350,6 +374,11 @@ values show and still save, under the NOT ANSWERING band.
 
 ## Where it departs from the handoff
 
+- **AVAILABLE's LANGUAGE cells and ADULT row became FILTER** (2026-10-31):
+  the handoff drew the languages as cells in the search bar with ALL, and
+  ADULT inside reveal only. The owner asked for a choice of several languages
+  and more filters; they went into the library's own filter panel rather than
+  a new dropdown, so no new design was needed.
 - **IN LIBRARY and HIDDEN are the library's Badge, at 12px.** The mock draws
   them at 11px. They're the same badge as FAV's, in FAV's corner, and one
   badge size across the app is the system's.

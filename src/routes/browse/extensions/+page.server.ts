@@ -1,5 +1,6 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
+import { parseExtFilters } from '$lib/library/ext-filters';
 import { isRevealed } from '$lib/server/prefs';
 import { downloadsBackend } from '$lib/server/engine/run';
 import { RepoError } from '$lib/server/engine/repo-index';
@@ -108,12 +109,12 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 	const kindAsked = url.searchParams.get('kind');
 	const kind: Kind | 'novels' =
 		kindAsked === 'anime' ? 'anime' : kindAsked === 'novels' ? 'novels' : 'manga';
-	const adultAsked = url.searchParams.get('adult');
+	// AVAILABLE's filters (doc/BROWSE.md, "Filters"): in the URL, for this visit.
+	const filters = parseExtFilters(url.searchParams);
 	const available = availableView({
 		kind: kind === 'novels' ? 'manga' : kind,
 		q: url.searchParams.get('q') ?? '',
-		all: url.searchParams.get('all') === '1',
-		adult: adultAsked === 'only' || adultAsked === 'none' ? adultAsked : 'any',
+		filters,
 		reveal
 	});
 
@@ -159,8 +160,9 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 	const novelRepoAsked = Number(url.searchParams.get('removeNovelRepo'));
 	const plugins = pluginsAvailable({
 		q: url.searchParams.get('q') ?? '',
-		all: url.searchParams.get('all') === '1',
-		languages: browseLanguages()
+		filters,
+		languages: browseLanguages(),
+		reveal
 	});
 	return {
 		tab,
@@ -174,6 +176,12 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 		available: tab === 'available' ? { ...available, kind } : null,
 		novelsAvailable: tab === 'available' && kind === 'novels' ? plugins : null,
 		availableCounts: { ...available.counts, novels: plugins.total },
+		filters,
+		// REPOSITORY's choices: the extension repositories for manga and anime, LNReader's for novels.
+		filterRepos: {
+			engine: repos.map((r) => ({ key: `e${r.id}`, name: r.name })),
+			novels: novelRepos.map((r) => ({ key: `n${r.id}`, name: r.name }))
+		},
 		repos: tab === 'repos' ? repos : null,
 		novelRepos: tab === 'repos' ? novelRepos : null,
 		address,
