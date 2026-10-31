@@ -268,7 +268,7 @@ defaults EN and JA always there), toggled one at a time; one always stays.
 **The first run.** With no sources BROWSE is 00 — NO SOURCES YET with the
 address field, which asks REPOSITORIES what's there, and what each kind of
 repository holds: a Mihon one manga, an Aniyomi one anime, an LNReader one
-novels (not yet, c127). The names Mihon, Aniyomi and LNReader appear there and
+novels (c148). The names Mihon, Aniyomi and LNReader appear there and
 nowhere else.
 
 **Icons** of available extensions come through the same route as installed
