@@ -366,6 +366,32 @@ test('FULL SCREEN in the controls takes the browser’s bars away, and gives the
 	await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);
 });
 
+test('READING’s ? turns the sheet into 02 — READING’s In short, and ← READING brings the rows back', async ({
+	page
+}) => {
+	await seriesId(page, 'Hikaru ga Shinda Natsu');
+	const first = await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.getAttribute('href');
+	await page.goto(first!);
+	await readerReady(page);
+	await tap(page, 0.5);
+	await page.getByRole('button', { name: /SETTINGS ↑/ }).click();
+	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+	await sheet.getByRole('button', { name: 'Help: reading' }).click();
+	// The same sheet changes; no second one stacks on it (Help Calls, 2F).
+	await expect(page.getByRole('dialog')).toHaveCount(1);
+	await expect(sheet).toContainText('HELP · 02 — READING');
+	await expect(sheet.getByRole('region', { name: 'In short' }).locator('p')).toHaveCount(3);
+	await expect(sheet).toContainText('LEAVES THE CHAPTER · BACK RETURNS TO THIS PAGE');
+	await sheet
+		.getByRole('button', { name: /READING/ })
+		.first()
+		.click();
+	await expect(sheet.getByRole('radiogroup', { name: 'Mode' })).toBeVisible();
+});
+
 test('vertical: a page that did not load says so at its top, not halfway down a tall box', async ({
 	page
 }) => {

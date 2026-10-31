@@ -10,6 +10,9 @@
 	import Banner from '$lib/components/chrome/Banner.svelte';
 	import { browser, version } from '$app/environment';
 	import UpdateModal from './UpdateModal.svelte';
+	import StartList from '$lib/components/start/StartList.svelte';
+	import StartFirstDay from '$lib/components/start/StartFirstDay.svelte';
+	import { countLine } from '$lib/library/start';
 	import { updateRun } from '$lib/update-run.svelte';
 	import {
 		DONE_KEY,
@@ -29,7 +32,6 @@
 	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
 	import { waiting } from '$lib/waiting.svelte';
 	import { postAction, saves } from '$lib/saves.svelte';
-	import Button from '$lib/components/controls/Button.svelte';
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
 	import FilterPanel from '$lib/components/controls/FilterPanel.svelte';
 	import NewShelfSheet from './NewShelfSheet.svelte';
@@ -749,6 +751,9 @@
 		open={moreOpen}
 		onclose={() => (moreOpen = false)}
 		queued={data.queue?.queued ?? null}
+		start={data.start && !data.start.finished
+			? { done: data.start.done + data.start.skipped, total: data.start.steps.length }
+			: null}
 	/>
 
 	{#if data.scan && scanning}
@@ -855,26 +860,29 @@
 	{/if}
 
 	{#if data.empty}
-		<section class="empty">
-			<div class="empty-label">00 — LIBRARY EMPTY</div>
-			<h1>Nothing imported yet.</h1>
-			<p>
-				Put files in the library folder, then start a scan. Series appear here as they are found.
-			</p>
-			<div class="sources">
-				<div><span>Mihon backup (.tachibk)</span><span class="dim">manga, manhwa</span></div>
-				<div><span>Hentoid folder</span><span class="dim">doujin → hidden</span></div>
-				<div><span>EPUB</span><span class="dim">novels</span></div>
-			</div>
-			<div class="folder">
-				<div class="folder-label">LIBRARY FOLDER</div>
-				<div class="folder-path">{data.libraryRoot}</div>
-			</div>
-			<form method="POST" action="?/scan" use:enhance class="scan-form">
-				<Button variant="primary" size="lg" type="submit">START SCAN</Button>
+		<!-- GET STARTED (doc/ONBOARDING.md; card c208): until every step is done or
+		     skipped the empty library is the list; then the first day's sources. -->
+		{#if data.start && !data.start.finished}
+			<section class="ob" aria-label="Get started">
+				<div class="ob-head">
+					<div class="ob-k">00 — GET STARTED</div>
+					<div class="ob-k">{countLine(data.start)}</div>
+				</div>
+				<h1>Nothing here yet.</h1>
+				<p class="lede">
+					Four things to set up, in any order. Each one ticks itself when it's done, and this list
+					stays here until they are.
+				</p>
+				<div class="ob-list"><StartList view={data.start} libraryRoot={data.libraryRoot} /></div>
 				{#if form && 'scanMessage' in form}<div class="scan-message">{form.scanMessage}</div>{/if}
-			</form>
-		</section>
+			</section>
+		{:else}
+			<StartFirstDay
+				sources={data.firstDay}
+				libraryRoot={data.libraryRoot}
+				scanMessage={form && 'scanMessage' in form ? String(form.scanMessage) : ''}
+			/>
+		{/if}
 	{:else if data.person}
 		<PersonView
 			page={data.person}
@@ -1510,80 +1518,59 @@
 		color: var(--text-2);
 	}
 
-	/* ---- empty ---- */
-	.empty {
-		flex: 1;
+	/* ---- empty: GET STARTED (ob.css .ob); the list itself is StartList ---- */
+	.ob {
 		display: flex;
 		flex-direction: column;
-		justify-content: center;
-		gap: 28px;
-		padding: 0 64px;
-		max-width: 720px;
+		max-width: 980px;
+		padding: 48px 64px 56px;
 	}
-	@media (max-width: 599px) {
-		.empty {
-			padding: 0 24px;
-		}
-	}
-	.empty-label {
-		font: var(--type-label);
-		color: var(--text-2);
-		letter-spacing: var(--tracking-label);
-	}
-	.empty h1 {
-		margin: 0;
-		font: var(--type-title-lg);
-		text-wrap: pretty;
-	}
-	.empty p {
-		margin: 0;
-		font: var(--type-body);
-		color: var(--text-2);
-		text-wrap: pretty;
-	}
-	.sources {
-		display: flex;
-		flex-direction: column;
-		border-top: var(--hairline);
-	}
-	.sources > div {
+	.ob-head {
 		display: flex;
 		justify-content: space-between;
+		align-items: baseline;
 		gap: 12px;
-		padding: 14px 0;
-		border-bottom: var(--hairline);
-		font: 400 15px var(--font-mono);
+		margin-bottom: 18px;
 	}
-	.dim {
+	.ob-k {
+		font: 500 12px/1.2 var(--font-mono);
+		letter-spacing: 0.06em;
 		color: var(--text-2);
 	}
-	.folder {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
+	.ob h1 {
+		margin: 0;
+		font: 500 34px/1.2 var(--font-sans);
 	}
-	.folder-label {
-		font: 500 12px var(--font-mono);
+	.lede {
+		margin: 14px 0 0;
+		max-width: 680px;
+		font: 400 18px/1.5 var(--font-sans);
 		color: var(--text-2);
-		letter-spacing: var(--tracking-label);
+		text-wrap: pretty;
 	}
-	.folder-path {
-		font: 500 15px var(--font-mono);
-		padding: 14px 16px;
-		border: 1px solid var(--line-2);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-	.scan-form {
-		display: flex;
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 12px;
+	.ob-list {
+		margin-top: 32px;
 	}
 	.scan-message {
+		padding-top: 12px;
 		font: var(--type-meta);
 		color: var(--text-2);
+	}
+	@media (max-width: 599px) {
+		.ob {
+			padding: 24px 0 32px;
+		}
+		.ob-head,
+		.ob h1,
+		.lede {
+			padding: 0 16px;
+		}
+		.ob h1 {
+			font-size: 26px;
+		}
+		.lede {
+			font-size: 16px;
+		}
 	}
 	/* FOLD AS LANGUAGES: the accent cell, its languages under it (Editions 1f). */
 	.fold {

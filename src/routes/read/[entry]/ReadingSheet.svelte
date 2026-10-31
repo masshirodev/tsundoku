@@ -1,4 +1,5 @@
 <script lang="ts">
+	import HelpSheet from '$lib/components/help/HelpSheet.svelte';
 	import { resolve } from '$app/paths';
 	import { modeName, type Fit, type Mode, type Wide } from '$lib/reader/reader';
 	import type { BlocksShown } from '$lib/japanese/blocks';
@@ -98,6 +99,9 @@
 	/** Wide pages are treated only where spreads aren't showing them whole. */
 	const wideApplies = $derived(paged && !(spreadsApply && spreads));
 
+	/** READING's "?": its rows give way to 02 — READING's In short (doc/HELP.md). */
+	let asking = $state(false);
+
 	let dimTrack = $state<HTMLElement | null>(null);
 	let sliding = false;
 	function dimAt(e: PointerEvent) {
@@ -110,229 +114,249 @@
 <button type="button" class="scrim appear" aria-label="Close reading settings" onclick={onclose}
 ></button>
 <div class="sheet appear" role="dialog" aria-label="Reading settings">
-	<div class="head">
-		<div class="h">READING</div>
-		<button type="button" class="x" aria-label="Close" onclick={onclose}>✕</button>
-	</div>
-
-	<div class="row">
-		<div class="label">MODE</div>
-		<div class="body col">
-			<div class="seg" role="radiogroup" aria-label="Mode">
-				{#each MODES as m (m)}
-					<button
-						type="button"
-						role="radio"
-						aria-checked={mode === m}
-						class:on={mode === m}
-						onclick={() => onmode(m)}>{modeName(m)}</button
-					>
-				{/each}
-			</div>
-			<div class="under">
-				<span class="note">SERIES DEFAULT {modeName(seriesMode)}</span>
-				{#if mode !== seriesMode}
-					<button type="button" class="remember" onclick={onremember}
-						>REMEMBER {modeName(mode)}</button
-					>
-				{/if}
-			</div>
-		</div>
-	</div>
-
-	<div class="row">
-		<div class="label">FIT</div>
-		<div class="body col" class:off={!paged}>
-			<div class="seg" role="radiogroup" aria-label="Fit">
-				{#each FITS as [f, name] (f)}
-					<button
-						type="button"
-						role="radio"
-						aria-checked={paged ? fit === f : f === 'width'}
-						class:on={paged ? fit === f : f === 'width'}
-						disabled={!paged}
-						onclick={() => onfit(f)}>{name}</button
-					>
-				{/each}
-			</div>
-			{#if !paged}<div class="under"><span class="note">VERTICAL FITS WIDTH</span></div>{/if}
-		</div>
-	</div>
-
-	<div class="row">
-		<div class="label">SPREADS</div>
-		<div class="body split" class:off={!spreadsApply}>
-			<button
-				type="button"
-				class="switch"
-				role="switch"
-				aria-checked={spreads}
-				disabled={!spreadsApply}
-				onclick={() => onspreads(!spreads)}
+	{#if asking}
+		<!-- READING's "?" (doc/HELP.md; the HELP handoff, 2F): the same sheet changes,
+		     rather than a second one stacking on it; ← READING brings the rows back. -->
+		<HelpSheet
+			content
+			topic="reading"
+			at="LEAVES THE CHAPTER · BACK RETURNS TO THIS PAGE"
+			{onclose}
+		>
+			{#snippet back()}
+				<button type="button" class="back-r" onclick={() => (asking = false)}
+					><span class="arrow">←</span>READING</button
+				>
+			{/snippet}
+		</HelpSheet>
+	{:else}
+		<div class="head">
+			<div class="h">READING</div>
+			<button type="button" class="x ask" aria-label="Help: reading" onclick={() => (asking = true)}
+				>?</button
 			>
-				<span class="track" class:on={spreads}><span class="knob"></span></span>
-				<span>{spreads ? 'ON' : 'OFF'}</span>
-			</button>
-			<span class="note">{paged ? 'LANDSCAPE ONLY' : 'PAGED ONLY'}</span>
+			<button type="button" class="x" aria-label="Close" onclick={onclose}>✕</button>
 		</div>
-	</div>
 
-	<!-- White or black margins around the art, measured on the workstation. -->
-	<div class="row">
-		<div class="label">CROP BORDERS</div>
-		<div class="body split" class:off={!paged}>
-			<button
-				type="button"
-				class="switch"
-				role="switch"
-				aria-checked={paged && crop}
-				disabled={!paged}
-				onclick={() => oncrop(!crop)}
-			>
-				<span class="track" class:on={paged && crop}><span class="knob"></span></span>
-				<span>{paged && crop ? 'ON' : 'OFF'}</span>
-			</button>
-			<span class="note">{paged ? 'WHITE OR BLACK MARGINS' : 'PAGED ONLY'}</span>
-		</div>
-	</div>
-
-	<!-- A page wider than it is tall, on a screen showing one page: split it or turn it. -->
-	<div class="row">
-		<div class="label">WIDE PAGES</div>
-		<div class="body col" class:off={!wideApplies}>
-			<div class="seg" role="radiogroup" aria-label="Wide pages">
-				{#each WIDES as [w, name] (w)}
-					<button
-						type="button"
-						role="radio"
-						aria-checked={wideApplies && wide === w}
-						class:on={wideApplies && wide === w}
-						disabled={!wideApplies}
-						onclick={() => onwide(w)}>{name}</button
-					>
-				{/each}
-			</div>
-			{#if !wideApplies}
-				<div class="under">
-					<span class="note">{paged ? 'SPREADS SHOW THEM WHOLE' : 'PAGED ONLY'}</span>
-				</div>
-			{/if}
-		</div>
-	</div>
-
-	<!-- A strip fit to the width of a landscape tablet is enormous: margins bring it in. -->
-	<div class="row">
-		<div class="label">SIDES</div>
-		<div class="body col" class:off={paged}>
-			<div class="seg" role="radiogroup" aria-label="Side margins">
-				{#each SIDES as n (n)}
-					<button
-						type="button"
-						role="radio"
-						aria-checked={!paged && sides === n}
-						class:on={!paged && sides === n}
-						disabled={paged}
-						onclick={() => onsides(n)}>{n === 0 ? 'NONE' : `${n}%`}</button
-					>
-				{/each}
-			</div>
-			{#if paged}<div class="under"><span class="note">VERTICAL ONLY</span></div>{/if}
-		</div>
-	</div>
-
-	<!-- Zoom (card c169): − and + step, RESET goes to the kept zoom and then 100%,
-	     KEEP makes this one where every series of this mode starts on this screen. -->
-	<div class="row">
-		<div class="label">ZOOM</div>
-		<div class="body col">
-			<div class="seg" role="group" aria-label="Zoom">
-				<button type="button" aria-label="Zoom out" onclick={() => onzoom(stepZoom(zoom, -1))}
-					>−</button
-				>
-				<span class="zval" aria-live="polite">{zoomLabel(zoom)}</span>
-				<button type="button" aria-label="Zoom in" onclick={() => onzoom(stepZoom(zoom, 1))}
-					>+</button
-				>
-				<button
-					type="button"
-					disabled={zoom === 1 && keptZoom === 1}
-					onclick={() => onzoom(resetZoom(zoom, keptZoom))}>RESET</button
-				>
-			</div>
-			<div class="under">
-				<span class="note"
-					>{zoom === keptZoom
-						? `EVERY ${paged ? 'PAGED' : 'VERTICAL'} SERIES STARTS HERE ON THIS SCREEN`
-						: `KEPT: ${zoomLabel(keptZoom)}`}</span
-				>
-				{#if zoom !== keptZoom}
-					<button type="button" class="remember" onclick={onkeepzoom}
-						>KEEP FOR ALL {paged ? 'PAGED' : 'VERTICAL'}</button
-					>
-				{/if}
-			</div>
-		</div>
-	</div>
-
-	{#if blocks}
-		<!-- Japanese: where the OCR'd text blocks are, outlined. A tap on one looks it up either way. -->
 		<div class="row">
-			<div class="label">BLOCKS</div>
+			<div class="label">MODE</div>
 			<div class="body col">
-				<div class="seg" role="radiogroup" aria-label="Text blocks">
-					{#each BLOCKS as [b, name] (b)}
+				<div class="seg" role="radiogroup" aria-label="Mode">
+					{#each MODES as m (m)}
 						<button
 							type="button"
 							role="radio"
-							aria-checked={blocks === b}
-							class:on={blocks === b}
-							onclick={() => onblocks(b)}>{name}</button
+							aria-checked={mode === m}
+							class:on={mode === m}
+							onclick={() => onmode(m)}>{modeName(m)}</button
 						>
 					{/each}
 				</div>
-				<div class="under"><span class="note">OUTLINES OCR'D TEXT BLOCKS</span></div>
+				<div class="under">
+					<span class="note">SERIES DEFAULT {modeName(seriesMode)}</span>
+					{#if mode !== seriesMode}
+						<button type="button" class="remember" onclick={onremember}
+							>REMEMBER {modeName(mode)}</button
+						>
+					{/if}
+				</div>
 			</div>
 		</div>
+
+		<div class="row">
+			<div class="label">FIT</div>
+			<div class="body col" class:off={!paged}>
+				<div class="seg" role="radiogroup" aria-label="Fit">
+					{#each FITS as [f, name] (f)}
+						<button
+							type="button"
+							role="radio"
+							aria-checked={paged ? fit === f : f === 'width'}
+							class:on={paged ? fit === f : f === 'width'}
+							disabled={!paged}
+							onclick={() => onfit(f)}>{name}</button
+						>
+					{/each}
+				</div>
+				{#if !paged}<div class="under"><span class="note">VERTICAL FITS WIDTH</span></div>{/if}
+			</div>
+		</div>
+
+		<div class="row">
+			<div class="label">SPREADS</div>
+			<div class="body split" class:off={!spreadsApply}>
+				<button
+					type="button"
+					class="switch"
+					role="switch"
+					aria-checked={spreads}
+					disabled={!spreadsApply}
+					onclick={() => onspreads(!spreads)}
+				>
+					<span class="track" class:on={spreads}><span class="knob"></span></span>
+					<span>{spreads ? 'ON' : 'OFF'}</span>
+				</button>
+				<span class="note">{paged ? 'LANDSCAPE ONLY' : 'PAGED ONLY'}</span>
+			</div>
+		</div>
+
+		<!-- White or black margins around the art, measured on the workstation. -->
+		<div class="row">
+			<div class="label">CROP BORDERS</div>
+			<div class="body split" class:off={!paged}>
+				<button
+					type="button"
+					class="switch"
+					role="switch"
+					aria-checked={paged && crop}
+					disabled={!paged}
+					onclick={() => oncrop(!crop)}
+				>
+					<span class="track" class:on={paged && crop}><span class="knob"></span></span>
+					<span>{paged && crop ? 'ON' : 'OFF'}</span>
+				</button>
+				<span class="note">{paged ? 'WHITE OR BLACK MARGINS' : 'PAGED ONLY'}</span>
+			</div>
+		</div>
+
+		<!-- A page wider than it is tall, on a screen showing one page: split it or turn it. -->
+		<div class="row">
+			<div class="label">WIDE PAGES</div>
+			<div class="body col" class:off={!wideApplies}>
+				<div class="seg" role="radiogroup" aria-label="Wide pages">
+					{#each WIDES as [w, name] (w)}
+						<button
+							type="button"
+							role="radio"
+							aria-checked={wideApplies && wide === w}
+							class:on={wideApplies && wide === w}
+							disabled={!wideApplies}
+							onclick={() => onwide(w)}>{name}</button
+						>
+					{/each}
+				</div>
+				{#if !wideApplies}
+					<div class="under">
+						<span class="note">{paged ? 'SPREADS SHOW THEM WHOLE' : 'PAGED ONLY'}</span>
+					</div>
+				{/if}
+			</div>
+		</div>
+
+		<!-- A strip fit to the width of a landscape tablet is enormous: margins bring it in. -->
+		<div class="row">
+			<div class="label">SIDES</div>
+			<div class="body col" class:off={paged}>
+				<div class="seg" role="radiogroup" aria-label="Side margins">
+					{#each SIDES as n (n)}
+						<button
+							type="button"
+							role="radio"
+							aria-checked={!paged && sides === n}
+							class:on={!paged && sides === n}
+							disabled={paged}
+							onclick={() => onsides(n)}>{n === 0 ? 'NONE' : `${n}%`}</button
+						>
+					{/each}
+				</div>
+				{#if paged}<div class="under"><span class="note">VERTICAL ONLY</span></div>{/if}
+			</div>
+		</div>
+
+		<!-- Zoom (card c169): − and + step, RESET goes to the kept zoom and then 100%,
+	     KEEP makes this one where every series of this mode starts on this screen. -->
+		<div class="row">
+			<div class="label">ZOOM</div>
+			<div class="body col">
+				<div class="seg" role="group" aria-label="Zoom">
+					<button type="button" aria-label="Zoom out" onclick={() => onzoom(stepZoom(zoom, -1))}
+						>−</button
+					>
+					<span class="zval" aria-live="polite">{zoomLabel(zoom)}</span>
+					<button type="button" aria-label="Zoom in" onclick={() => onzoom(stepZoom(zoom, 1))}
+						>+</button
+					>
+					<button
+						type="button"
+						disabled={zoom === 1 && keptZoom === 1}
+						onclick={() => onzoom(resetZoom(zoom, keptZoom))}>RESET</button
+					>
+				</div>
+				<div class="under">
+					<span class="note"
+						>{zoom === keptZoom
+							? `EVERY ${paged ? 'PAGED' : 'VERTICAL'} SERIES STARTS HERE ON THIS SCREEN`
+							: `KEPT: ${zoomLabel(keptZoom)}`}</span
+					>
+					{#if zoom !== keptZoom}
+						<button type="button" class="remember" onclick={onkeepzoom}
+							>KEEP FOR ALL {paged ? 'PAGED' : 'VERTICAL'}</button
+						>
+					{/if}
+				</div>
+			</div>
+		</div>
+
+		{#if blocks}
+			<!-- Japanese: where the OCR'd text blocks are, outlined. A tap on one looks it up either way. -->
+			<div class="row">
+				<div class="label">BLOCKS</div>
+				<div class="body col">
+					<div class="seg" role="radiogroup" aria-label="Text blocks">
+						{#each BLOCKS as [b, name] (b)}
+							<button
+								type="button"
+								role="radio"
+								aria-checked={blocks === b}
+								class:on={blocks === b}
+								onclick={() => onblocks(b)}>{name}</button
+							>
+						{/each}
+					</div>
+					<div class="under"><span class="note">OUTLINES OCR'D TEXT BLOCKS</span></div>
+				</div>
+			</div>
+		{/if}
+
+		<div class="row dim">
+			<div class="label">DIM</div>
+			<div class="body split">
+				<div
+					class="dimtrack"
+					bind:this={dimTrack}
+					role="slider"
+					tabindex="0"
+					aria-label="Dim"
+					aria-valuemin={0}
+					aria-valuemax={80}
+					aria-valuenow={Math.round(dim * 100)}
+					onpointerdown={(e) => {
+						sliding = true;
+						(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+						dimAt(e);
+					}}
+					onpointermove={(e) => sliding && dimAt(e)}
+					onpointerup={() => (sliding = false)}
+					onkeydown={(e) => {
+						if (e.key === 'ArrowRight') ondim(Math.min(0.8, Math.round((dim + 0.05) * 100) / 100));
+						if (e.key === 'ArrowLeft') ondim(Math.max(0, Math.round((dim - 0.05) * 100) / 100));
+					}}
+				>
+					<div class="dimfill" style:width="{(dim / 0.8) * 100}%"></div>
+					<div class="dimthumb" style:left="{(dim / 0.8) * 100}%"></div>
+				</div>
+				<span class="pct">{Math.round(dim * 100)}%</span>
+			</div>
+		</div>
+
+		<!-- Ratings out of 10: the blocky slider, as on the series screen. -->
+		<RatingSlider value={rating} borderTop={false} fontSize={15} onchange={onrate} />
+		<!-- ALL SETTINGS →: the page, at this sheet's section (Reach, readerSheet; card c171). -->
+		<a class="all-settings" href="{resolve('/settings')}?section=images"
+			><span>ALL SETTINGS →</span><span class="n">DEFAULTS, AND WHAT EACH ROW KEEPS</span></a
+		>
+		<div class="foot"></div>
 	{/if}
-
-	<div class="row dim">
-		<div class="label">DIM</div>
-		<div class="body split">
-			<div
-				class="dimtrack"
-				bind:this={dimTrack}
-				role="slider"
-				tabindex="0"
-				aria-label="Dim"
-				aria-valuemin={0}
-				aria-valuemax={80}
-				aria-valuenow={Math.round(dim * 100)}
-				onpointerdown={(e) => {
-					sliding = true;
-					(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-					dimAt(e);
-				}}
-				onpointermove={(e) => sliding && dimAt(e)}
-				onpointerup={() => (sliding = false)}
-				onkeydown={(e) => {
-					if (e.key === 'ArrowRight') ondim(Math.min(0.8, Math.round((dim + 0.05) * 100) / 100));
-					if (e.key === 'ArrowLeft') ondim(Math.max(0, Math.round((dim - 0.05) * 100) / 100));
-				}}
-			>
-				<div class="dimfill" style:width="{(dim / 0.8) * 100}%"></div>
-				<div class="dimthumb" style:left="{(dim / 0.8) * 100}%"></div>
-			</div>
-			<span class="pct">{Math.round(dim * 100)}%</span>
-		</div>
-	</div>
-
-	<!-- Ratings out of 10: the blocky slider, as on the series screen. -->
-	<RatingSlider value={rating} borderTop={false} fontSize={15} onchange={onrate} />
-	<!-- ALL SETTINGS →: the page, at this sheet's section (Reach, readerSheet; card c171). -->
-	<a class="all-settings" href="{resolve('/settings')}?section=images"
-		><span>ALL SETTINGS →</span><span class="n">DEFAULTS, AND WHAT EACH ROW KEEPS</span></a
-	>
-	<div class="foot"></div>
 </div>
 
 <style>
@@ -403,6 +427,24 @@
 		padding: 0 24px;
 		border-left: var(--hairline);
 		font: 500 18px var(--font-mono);
+	}
+	/* The "?" before ✕: a cell like it (Help Calls, D). */
+	.x.ask {
+		width: 56px;
+		padding: 0;
+	}
+	.back-r {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 0 16px;
+		border-right: var(--hairline);
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.04em;
+		white-space: nowrap;
+	}
+	.back-r .arrow {
+		font-size: 17px;
 	}
 	.row {
 		display: flex;

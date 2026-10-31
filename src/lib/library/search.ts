@@ -1,3 +1,5 @@
+import { TOPICS } from '../help/topics.ts';
+
 /**
  * What the search field can say. Most input is a query; a few exact strings
  * are commands, and they are exact on purpose -- reveal must never be one
@@ -42,7 +44,27 @@ export function parseSearch(raw: string): SearchInput {
 			href: word ? `/settings?section=${encodeURIComponent(word)}` : '/settings'
 		};
 	}
+	// HELP, and a topic by a word of it (doc/HELP.md): `/help`, `/help phone`.
+	const help = /^\/help(?:\s+(\S.*))?$/i.exec(text);
+	if (help) {
+		const word = (help[1] ?? '').trim().toLowerCase();
+		const topic = word ? helpTopicFor(word) : null;
+		return {
+			type: 'page',
+			label: topic ? `HELP · ${topic.title.toUpperCase()}` : 'HELP',
+			href: topic ? (topic.slug === 'start' ? '/start' : `/help/${topic.slug}`) : '/help'
+		};
+	}
 	return { type: 'query', text };
+}
+
+/** A topic by a word of its title or its parts: "phone", "download", "update". */
+function helpTopicFor(word: string) {
+	return (
+		TOPICS.find((t) => t.slug.startsWith(word)) ??
+		TOPICS.find((t) => `${t.title} ${t.meta}`.toLowerCase().includes(word)) ??
+		null
+	);
 }
 
 /**

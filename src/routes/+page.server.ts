@@ -33,6 +33,8 @@ import {
 } from '$lib/server/books';
 import { setPersonFavourite, tagPage } from '$lib/server/people';
 import { libraryRoot, startScan } from '$lib/server/import';
+import { browseList } from '$lib/server/engine/browse';
+import { downloadsBackend } from '$lib/server/engine/run';
 import { refreshCovers } from '$lib/server/covers';
 import { deleteSeries } from '$lib/server/delete';
 import { isGated } from '$lib/server/unlock';
@@ -112,6 +114,20 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		dir,
 		seed,
 		empty: total === 0 && !scan,
+		// The first day (doc/ONBOARDING.md; handoff board 3): an empty library whose
+		// checklist is through lists the sources it can read from instead.
+		firstDay:
+			total === 0 && !scan && downloadsBackend() === 'engine'
+				? (() => {
+						const b = browseList(reveal);
+						return [...b.manga, ...b.anime, ...b.novels].map((r) => ({
+							id: r.id,
+							label: r.label,
+							kind: r.kind,
+							lang: r.lang
+						}));
+					})()
+				: [],
 		dupes,
 		toLink,
 		// FOLLOWED is a filter while something the viewer can see is followed (doc/DOWNLOADING.md).

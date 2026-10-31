@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
 	import Sheet from '$lib/components/chrome/Sheet.svelte';
+	import { TOPICS } from '$lib/help/topics';
 	import {
 		DEVICE_KEYS,
 		VALUES,
@@ -18,8 +19,18 @@
 	 * card c171): the desktop sidebar's foot as a sheet, so the tablet's and
 	 * phone's bar grows by one cell, not four.
 	 */
-	let { open, onclose, queued }: { open: boolean; onclose: () => void; queued: number | null } =
-		$props();
+	let {
+		open,
+		onclose,
+		queued,
+		start = null
+	}: {
+		open: boolean;
+		onclose: () => void;
+		queued: number | null;
+		/** GET STARTED's count, while it isn't finished: its row comes first (doc/ONBOARDING.md). */
+		start?: { done: number; total: number } | null;
+	} = $props();
 
 	let changed = $state(0);
 	onMount(() => {
@@ -39,6 +50,11 @@
 		<div class="title">MORE</div>
 		<button type="button" class="x" aria-label="Close" onclick={onclose}>✕</button>
 	</div>
+	{#if start}
+		<a class="row start" href={resolve('/start')}
+			><span>GET STARTED</span><span class="n">{start.done} / {start.total} →</span></a
+		>
+	{/if}
 	<a class="row" href={resolve('/history')}><span>HISTORY →</span><span class="n"></span></a>
 	<a class="row" href={resolve('/downloads')}
 		><span>DOWNLOADS →</span><span class="n"
@@ -47,6 +63,10 @@
 	>
 	<a class="row" href={resolve('/settings')}
 		><span>SETTINGS →</span><span class="n">{changed ? `${changed} CHANGED HERE` : ''}</span></a
+	>
+	<!-- HELP after SETTINGS, counting its topics (doc/HELP.md; the HELP handoff, 1D). -->
+	<a class="row" href={resolve('/help')}
+		><span>HELP →</span><span class="n">{TOPICS.length} TOPICS</span></a
 	>
 	<!-- Not built yet; see doc/LIBRARY.md, "What it does not do yet". -->
 	<span class="row dim" aria-disabled="true"
@@ -94,6 +114,10 @@
 		color: var(--text-1);
 		text-decoration: none;
 		font: 500 15px var(--font-mono);
+	}
+	.row.start .n {
+		color: var(--accent);
+		font-weight: 500;
 	}
 	.row.dim {
 		opacity: 0.4;

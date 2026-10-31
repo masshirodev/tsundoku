@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { updateRun } from '$lib/update-run.svelte';
+	import StartTrail from '$lib/components/start/StartTrail.svelte';
+	import HelpMark from '$lib/components/help/HelpMark.svelte';
+	import HelpSheet from '$lib/components/help/HelpSheet.svelte';
 	import { onMount } from 'svelte';
 	import { enhance, deserialize } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
@@ -124,6 +127,9 @@
 		if (Date.now() - p.pairedAt < 60_000) return `OVER WI-FI · JUST PAIRED · ${changedWord(n)}`;
 		return `OVER WI-FI · PAIRED ${when(p.pairedAt)}${mine ? ' · OPEN NOW' : ''}`;
 	};
+
+	/** A "?"'s sheet, open on a topic's part (doc/HELP.md). */
+	let helpAt = $state<{ topic: string; part: string } | null>(null);
 
 	/** The PASSWORD row's open form, if any (doc/SIGN-IN.md). */
 	let pw = $state<null | 'set' | 'remove'>(null);
@@ -544,6 +550,9 @@
 		</div>
 	</div>
 
+	<!-- The way back to GET STARTED, while step 04's trip lasts (doc/ONBOARDING.md). -->
+	<StartTrail start={data.start} />
+
 	{#if signinBand}<Band title={signinBand.title} detail={signinBand.detail} />{/if}
 
 	{#if other}
@@ -934,7 +943,13 @@
 {#snippet updates(u: Updates)}
 	{@const busy = u.install !== null && u.install.phase !== 'failed'}
 	<div class="row device">
-		<div class="label">UPDATES</div>
+		<button
+			type="button"
+			class="label ask"
+			aria-label="Help: updates"
+			aria-expanded={helpAt?.part === 'shows'}
+			onclick={() => (helpAt = { topic: 'updates', part: 'shows' })}>UPDATES<HelpMark /></button
+		>
 		<div class="ctl">
 			<div class="acct-body">
 				<div class="who">
@@ -1070,7 +1085,13 @@
 {#snippet report()}
 	<!-- SAVE A REPORT (doc/LOGS.md; c193): a file to send when something breaks, never sent by itself. -->
 	<div class="row device">
-		<div class="label">REPORT</div>
+		<button
+			type="button"
+			class="label ask"
+			aria-label="Help: a report"
+			aria-expanded={helpAt?.part === 'save'}
+			onclick={() => (helpAt = { topic: 'report', part: 'save' })}>REPORT<HelpMark /></button
+		>
 		<div class="ctl">
 			<div class="acct-body">
 				<div class="who">
@@ -1094,7 +1115,13 @@
 	<!-- Reading on a phone over Wi-Fi (doc/WIFI.md; Wifi.dc.html, Wifi-Phone.dc.html 3E). -->
 	{#if data.viaLan}
 		<div class="row wifi">
-			<div class="label top">WI-FI</div>
+			<button
+				type="button"
+				class="label top ask"
+				aria-label="Help: Wi-Fi"
+				aria-expanded={helpAt?.part === 'wifi'}
+				onclick={() => (helpAt = { topic: 'phone', part: 'wifi' })}>WI-FI<HelpMark /></button
+			>
 			<div class="ctl col">
 				<div class="wifi-value">{w.on ? 'ON' : 'OFF'}</div>
 				<div class="wifi-meta">
@@ -1110,7 +1137,13 @@
 		{@const on = w.on && w.reach !== 'public'}
 		{@const starting = on && !w.listening && w.reach === 'home'}
 		<div class="row wifi">
-			<div class="label top">WI-FI</div>
+			<button
+				type="button"
+				class="label top ask"
+				aria-label="Help: Wi-Fi"
+				aria-expanded={helpAt?.part === 'wifi'}
+				onclick={() => (helpAt = { topic: 'phone', part: 'wifi' })}>WI-FI<HelpMark /></button
+			>
 			<div class="ctl col">
 				<div class="wifi-seg" role="group" aria-label="Other devices on this Wi-Fi">
 					<button
@@ -1331,6 +1364,10 @@
 		</div>
 	{/each}
 {/snippet}
+
+{#if helpAt}
+	<HelpSheet open onclose={() => (helpAt = null)} topic={helpAt.topic} part={helpAt.part} />
+{/if}
 
 <style>
 	/*
@@ -1631,6 +1668,25 @@
 		font: 500 12px/1.3 var(--font-mono);
 		letter-spacing: 0.06em;
 		color: var(--text-2);
+	}
+	/* A label with a "?" (doc/HELP.md): the whole cell is the button, its mark after the word. */
+	button.label.ask {
+		/* Where the word fills a narrow cell, the mark wraps under it (Help Calls, B). */
+		flex-wrap: wrap;
+		align-content: center;
+		gap: 6px 8px;
+		border-top: 0;
+		border-bottom: 0;
+		border-left: 0;
+		border-radius: 0;
+		background: none;
+		text-align: left;
+		cursor: pointer;
+	}
+	button.label.ask:active,
+	button.label.ask[aria-expanded='true'] {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
 	}
 	.label.tall {
 		align-items: flex-start;

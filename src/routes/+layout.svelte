@@ -14,6 +14,7 @@
 	import { onMount } from 'svelte';
 	import { afterNavigate, beforeNavigate, goto, invalidateAll } from '$app/navigation';
 	import { noteVisit } from '$lib/back';
+	import { trail } from '$lib/start-trail.svelte';
 	import { waiting } from '$lib/waiting.svelte';
 	import { saves } from '$lib/saves.svelte';
 	import WaitingScreen from '$lib/components/waiting/WaitingScreen.svelte';
@@ -127,6 +128,9 @@
 	afterNavigate(() => {
 		// Where this history entry is, so a back link can go back to it (src/lib/back.ts).
 		noteVisit();
+		// A GET STARTED trip ends once its screen is left (src/lib/start-trail.svelte.ts).
+		trail.load();
+		trail.follow(page.url.pathname);
 		waiting.end();
 		// Something reached the workstation: a failed save tries again.
 		saves.nudge();
@@ -248,6 +252,17 @@
 				{/if}
 				<div class="spacer"></div>
 				<div class="side-foot">
+					{#if data.start && !data.start.finished}
+						<!-- The quiet way back to GET STARTED, until every step is done or skipped (doc/ONBOARDING.md). -->
+						<a
+							class="with-n start"
+							href={resolve('/start')}
+							aria-current={page.url.pathname === '/start' ? 'page' : undefined}
+							>GET STARTED<span class="n"
+								>{data.start.done + data.start.skipped} / {data.start.steps.length}</span
+							></a
+						>
+					{/if}
 					<a
 						href={resolve('/history')}
 						aria-current={page.url.pathname === '/history' ? 'page' : undefined}>HISTORY</a
@@ -296,6 +311,11 @@
 					<a
 						href={resolve('/settings')}
 						aria-current={page.url.pathname === '/settings' ? 'page' : undefined}>SETTINGS</a
+					>
+					<!-- HELP, last, under SETTINGS (doc/HELP.md; the HELP handoff, 1A). -->
+					<a
+						href={resolve('/help')}
+						aria-current={page.url.pathname.startsWith('/help') ? 'page' : undefined}>HELP</a
 					>
 				</div>
 			</aside>
@@ -472,6 +492,13 @@
 		height: auto;
 		padding: 0;
 		color: var(--text-2);
+	}
+	.side-foot a.start .n {
+		color: var(--accent);
+		font-weight: 500;
+	}
+	.side-foot a.start[aria-current='page'] .n {
+		color: var(--text-inverse);
 	}
 	.side-foot a .n.stale {
 		opacity: 0.35;

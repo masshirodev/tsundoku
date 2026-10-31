@@ -35,6 +35,9 @@ const DEVICE_IGNORE = [
 	'**/library-frame.e2e.ts',
 	// SETTINGS' frame is its tablet-portrait screen; the other devices are in settings-flow.
 	'**/settings-frame.e2e.ts',
+	// GET STARTED's and HELP's frames are pinned at tablet-portrait too (doc/ONBOARDING.md, doc/HELP.md).
+	'**/start-frame.e2e.ts',
+	'**/help-frame.e2e.ts',
 	'**/unlock-gate.e2e.ts'
 ];
 

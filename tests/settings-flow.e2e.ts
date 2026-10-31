@@ -268,10 +268,13 @@ test('MORE in the library’s bar: the sidebar’s foot as a sheet', async ({ pa
 	await page.goto('/');
 	await page.getByRole('button', { name: 'MORE' }).click();
 	const sheet = page.getByRole('dialog', { name: 'More' });
+	// The seeded library has no repository, so GET STARTED isn't finished and leads (doc/ONBOARDING.md).
 	await expect(sheet.locator('.row')).toHaveText([
+		/GET STARTED\s*\d \/ 4 →/,
 		/HISTORY →/,
 		/DOWNLOADS →/,
 		/SETTINGS →/,
+		/HELP →\s*7 TOPICS/,
 		/IMPORT LOG\s*SOON/
 	]);
 	await sheet.getByRole('link', { name: /SETTINGS →/ }).click();

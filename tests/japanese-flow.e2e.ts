@@ -117,7 +117,9 @@ test('NOT TEXT takes a block out, UNDO puts it back, and so does RESTORE later',
 
 	await tapBlock(page, THIRD);
 	await panel(page).getByRole('button', { name: 'NOT TEXT' }).click();
-	await expect(page.getByRole('status')).toContainText('BLOCK 3 · NOT TEXT · NO LONGER TAPPABLE');
+	await expect(page.getByRole('status').filter({ hasText: 'NOT TEXT' })).toContainText(
+		'BLOCK 3 · NOT TEXT · NO LONGER TAPPABLE'
+	);
 	// Gone on the workstation too (the band shows before it answers).
 	const blocksOnPage2 = async () => {
 		const r = await page.request.get(`/api/entries/${entry}/text`);
@@ -126,7 +128,7 @@ test('NOT TEXT takes a block out, UNDO puts it back, and so does RESTORE later',
 	await expect.poll(blocksOnPage2).toBe(2);
 
 	await page.getByRole('button', { name: 'UNDO' }).click();
-	await expect(page.getByRole('status')).toHaveCount(0);
+	await expect(page.getByRole('status').filter({ hasText: 'NOT TEXT' })).toHaveCount(0);
 	await expect.poll(blocksOnPage2).toBe(3);
 	await tapBlock(page, THIRD);
 	await expect(panel(page)).toContainText('BLOCK 3');
@@ -136,7 +138,7 @@ test('NOT TEXT takes a block out, UNDO puts it back, and so does RESTORE later',
 	await expect.poll(blocksOnPage2).toBe(2);
 	const vp = page.viewportSize()!;
 	await page.touchscreen.tap(vp.width / 2, vp.height / 2);
-	await expect(page.getByRole('status')).toHaveCount(0);
+	await expect(page.getByRole('status').filter({ hasText: 'NOT TEXT' })).toHaveCount(0);
 	await page.goto(`/series/${seriesOf}`);
 	await expect(page.getByText('1 MARKED NOT TEXT')).toBeVisible();
 	await page.getByRole('button', { name: 'RESTORE' }).click();

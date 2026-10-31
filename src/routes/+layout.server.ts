@@ -7,8 +7,9 @@ import { ensureWatcher } from '$lib/server/downloads-watch';
 import { downloadsBackend, ensureEngineWorker } from '$lib/server/engine/run';
 import { browseList } from '$lib/server/engine/browse';
 import { checkIfStale, updateView } from '$lib/server/updates';
+import { startNow } from '$lib/server/start';
 
-export const load: LayoutServerLoad = async ({ cookies, locals }) => {
+export const load: LayoutServerLoad = async ({ cookies, locals, depends }) => {
 	const reveal = isRevealed(cookies);
 	const theme = themeOf(cookies);
 	if (!locals.authed)
@@ -22,7 +23,8 @@ export const load: LayoutServerLoad = async ({ cookies, locals }) => {
 			queue: null,
 			browse: null,
 			update: null,
-			updateOffer: null
+			updateOffer: null,
+			start: null
 		};
 	const scan = currentScan();
 	const shelves = listShelves({ reveal, withNew: scan !== null });
@@ -48,6 +50,9 @@ export const load: LayoutServerLoad = async ({ cookies, locals }) => {
 	// whole view, but only on the computer itself. A phone over Wi-Fi gets the
 	// band, never the modal: the computer updates, not the phone.
 	const updateOffer = view?.available && locals.via !== 'lan' ? view : null;
+	// GET STARTED (doc/ONBOARDING.md): the sidebar's row and the way back read it.
+	depends('tsundoku:start');
+	const start = startNow(reveal);
 	return {
 		reveal,
 		incognito: isIncognito(cookies),
@@ -58,6 +63,7 @@ export const load: LayoutServerLoad = async ({ cookies, locals }) => {
 		queue,
 		browse,
 		update,
-		updateOffer
+		updateOffer,
+		start
 	};
 };

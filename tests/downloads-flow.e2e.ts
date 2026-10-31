@@ -265,7 +265,9 @@ const row = (page: import('@playwright/test').Page, n: number) => page.locator(`
 test('the DOWNLOAD row and every chapter state (state 1)', async ({ page }) => {
 	await page.goto(`/series/${ids.linden}`);
 	const dl = page.locator('.dl-row');
-	await expect(dl.locator('.label')).toHaveText('DOWNLOAD');
+	// The label is also its "?" (doc/HELP.md): the word, then the mark.
+	await expect(dl.locator('.label')).toHaveText('DOWNLOAD?');
+	await expect(dl.locator('.label')).toHaveAccessibleName('Help: downloading');
 	await expect(dl.locator('.lk-a')).toHaveText('20 unread chapters not downloaded');
 	await expect(dl.locator('.lk-b')).toHaveText('2 QUEUED · 1 FAILED · CH. 14 FAILED');
 	await expect(dl.locator('.lcs.inline .lc')).toHaveText(['NEXT 10', 'ALL 16', 'FOLLOW']);
@@ -519,6 +521,18 @@ test('a preview downloads too: our sheet says it adds it first, then ADD AND DOW
 	await expect(page).toHaveURL(/\/downloads\/source\//);
 	expect(queued().size).toBe(before);
 	expect(dialogs).toEqual([]);
+});
+
+test('DOWNLOAD’s ? opens 03’s In short, landing at ADD, DOWNLOAD, FOLLOW (doc/HELP.md)', async ({
+	page
+}) => {
+	await page.goto(`/series/${ids.linden}`);
+	await page.getByRole('button', { name: 'Help: downloading' }).click();
+	const sheet = page.getByRole('dialog', { name: 'Help' });
+	await expect(sheet).toContainText('HELP · 03 — FINDING AND DOWNLOADING');
+	await expect(sheet).toContainText('OPENS AT 03 — ADD, DOWNLOAD, FOLLOW');
+	await sheet.getByRole('button', { name: 'Close' }).click();
+	await expect(sheet).toBeHidden();
 });
 
 test('FOLLOW turns accent, offers FOLLOWED, and comes off again (1d)', async ({ page }) => {

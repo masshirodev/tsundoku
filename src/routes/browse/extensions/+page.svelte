@@ -1,4 +1,7 @@
 <script lang="ts">
+	import HelpMark from '$lib/components/help/HelpMark.svelte';
+	import HelpSheet from '$lib/components/help/HelpSheet.svelte';
+	import StartTrail from '$lib/components/start/StartTrail.svelte';
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
@@ -18,6 +21,8 @@
 	 * repository's listings, in the owner's languages unless ALL; REPOSITORIES
 	 * adds one by its address, after saying what it holds.
 	 */
+	/** REPOSITORIES' "?" sheet (doc/HELP.md). */
+	let helpOpen = $state(false);
 	let { data, form } = $props();
 
 	const base = resolve('/browse/extensions');
@@ -120,6 +125,9 @@
 			</form>
 		{/snippet}
 	</TopBar>
+
+	<!-- The way back to GET STARTED, while step 01's or 02's trip lasts (doc/ONBOARDING.md). -->
+	<StartTrail start={data.start} />
 
 	<nav class="tabs" aria-label="Extensions">
 		<a class="tab" class:on={data.tab === 'installed'} href={base}
@@ -496,7 +504,14 @@
 
 	{#if data.repos}
 		<div class="label first">
-			<span class="l">01 — ADD A REPOSITORY</span><span class="r">PASTE ITS ADDRESS</span>
+			<!-- The "?" after the section's name (doc/HELP.md): 03, at EXTENSIONS AND REPOSITORIES. -->
+			<button
+				type="button"
+				class="l ask"
+				aria-label="Help: repositories"
+				aria-expanded={helpOpen}
+				onclick={() => (helpOpen = true)}>01 — ADD A REPOSITORY<HelpMark /></button
+			><span class="r">PASTE ITS ADDRESS</span>
 		</div>
 		<form method="GET" action={base} class="field">
 			<input type="hidden" name="tab" value="repos" />
@@ -686,6 +701,10 @@
 
 <!-- eslint-enable svelte/no-navigation-without-resolve -->
 
+{#if helpOpen}
+	<HelpSheet open onclose={() => (helpOpen = false)} topic="downloading" part="extensions" />
+{/if}
+
 <style>
 	/* Index-Extensions, transcribed: the mock's literals; colours are tokens. */
 	.screen {
@@ -782,6 +801,21 @@
 	}
 	.label .l {
 		padding-bottom: 12px;
+	}
+	/* The section's "?": its name and mark, the label's height its target. */
+	.label button.l.ask {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		min-height: 44px;
+		padding-top: 0;
+		border: 0;
+		border-radius: 0;
+		background: none;
+		color: inherit;
+		font: inherit;
+		letter-spacing: inherit;
+		cursor: pointer;
 	}
 	.label .r {
 		display: flex;

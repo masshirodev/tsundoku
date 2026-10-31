@@ -1,4 +1,6 @@
 <script lang="ts">
+	import HelpMark from '$lib/components/help/HelpMark.svelte';
+	import HelpSheet from '$lib/components/help/HelpSheet.svelte';
 	import { animeContinue, seriesCountLine } from '$lib/library/anime';
 	import { ocrLines, type OcrPlace } from '$lib/japanese/ocr';
 	import { enhance } from '$app/forms';
@@ -122,6 +124,8 @@
 	const anime = $derived(series.kind === 'anime');
 
 	// ---- DOWNLOAD (Index Series Download) ------------------------------------------------
+	/** DOWNLOAD's "?" sheet (doc/HELP.md). */
+	let helpOpen = $state(false);
 	const dlStates = $derived(
 		downloads?.kind === 'ok'
 			? new Map(Object.entries(downloads.states).map(([k, v]) => [Number(k), v as DownloadState]))
@@ -484,7 +488,14 @@
 			{/each}
 		{/snippet}
 		<div class="row link-row dl-row" class:solo={dlRow.cells.length === 0}>
-			<div class="label">DOWNLOAD</div>
+			<!-- The "?" in the label (doc/HELP.md): 03 — FINDING AND DOWNLOADING, at ADD, DOWNLOAD, FOLLOW. -->
+			<button
+				type="button"
+				class="label ask"
+				aria-label="Help: downloading"
+				aria-expanded={helpOpen}
+				onclick={() => (helpOpen = true)}>DOWNLOAD<HelpMark /></button
+			>
 			<div class="lk">
 				<div class="lk-a">{dlRow.a}</div>
 				<div class="lk-b">{dlRow.b}</div>
@@ -969,6 +980,10 @@
 	/>
 {/if}
 
+{#if helpOpen}
+	<HelpSheet open onclose={() => (helpOpen = false)} topic="downloading" part="download" />
+{/if}
+
 <style>
 	/* Waiting: what isn't known yet, as flat grey bars (Loading States 1g). */
 	.out-lines {
@@ -1095,6 +1110,24 @@
 		letter-spacing: var(--tracking-label);
 		color: var(--text-2);
 		border-right: var(--hairline);
+	}
+	/* A label with a "?" (doc/HELP.md): the cell is the button; on a narrow cell the mark wraps under the word. */
+	button.label.ask {
+		flex-wrap: wrap;
+		align-content: center;
+		gap: 6px 8px;
+		border-top: 0;
+		border-bottom: 0;
+		border-left: 0;
+		border-radius: 0;
+		background: none;
+		text-align: left;
+		cursor: pointer;
+	}
+	button.label.ask:active,
+	button.label.ask[aria-expanded='true'] {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
 	}
 	.top .label {
 		align-items: flex-start;
