@@ -38,8 +38,10 @@ export type Install =
 export type UpdateView = {
 	current: string;
 	checkedAt: number | null;
-	/** The newest release, when it's newer than this one. */
-	available: Pick<Manifest, 'version' | 'date' | 'notes'> | null;
+	/** The newest release, when it's newer than this one; `size` is this platform's file. */
+	available: (Pick<Manifest, 'version' | 'date' | 'notes'> & { size: number | null }) | null;
+	/** What the file is for, said in the update modal's meta line (WINDOWS, LINUX). */
+	platform: 'windows' | 'linux' | 'other';
 	/** UPDATE runs the installer (Windows, installed); otherwise a DOWNLOAD link. */
 	how: 'install' | 'download';
 	download: string | null;
@@ -121,7 +123,11 @@ export function updateView(): UpdateView | null {
 	return {
 		current: version,
 		checkedAt,
-		available: avail ? { version: avail.version, date: avail.date, notes: avail.notes } : null,
+		available: avail
+			? { version: avail.version, date: avail.date, notes: avail.notes, size: file?.size ?? null }
+			: null,
+		platform:
+			process.platform === 'win32' ? 'windows' : process.platform === 'linux' ? 'linux' : 'other',
 		how: installs() ? 'install' : 'download',
 		download: avail && file ? fileUrl(base(), avail, file) : null,
 		error,

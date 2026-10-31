@@ -88,8 +88,8 @@ neither. `TSUNDOKU_UPDATES=off` in the data folder's `.env` stops it looking.
   load, without waiting for the answer; SETTINGS looks if the last check is
   over an hour old, and CHECK looks now. One GET of `latest.json`: Caddy's log
   sees the address, nothing else is sent.
-- **Saying so**: the library shows one band, TSUNDOKU <v> IS OUT, until the
-  friend opens SETTINGS (`tsundoku.update.seen` in the browser). SETTINGS >
+- **Saying so**: a modal on the library (below, "Told on entry"), and one
+  band, TSUNDOKU <v> IS OUT, until the friend opens SETTINGS (`tsundoku.update.seen` in the browser). SETTINGS >
   08 — DEVICES > UPDATES shows the version running, when it last looked, and
   what's new.
 - **UPDATE** (Windows, installed by the installer: the launcher passes
@@ -104,10 +104,58 @@ neither. `TSUNDOKU_UPDATES=off` in the data folder's `.env` stops it looking.
   archive, and the steps (unpack beside, start the new one, delete the old).
   In place on Linux can come later.
 
+## Told on entry
+
+A new version is also a **modal on the library** (card c208; the Getting
+Started handoff, board 4: `doc/design/handoff/Start-Update*.dc.html`),
+`src/routes/UpdateModal.svelte`. Its words and rules are
+`src/lib/updates.ts`; the run it starts is `src/lib/update-run.svelte.ts`,
+the same loop SETTINGS' UPDATE runs now, so the two can't differ.
+
+- **Where**: the library, on the computer itself (`locals.via` is `local`),
+  where updating works (the layout's `updateOffer`). Never the workstation,
+  never a phone over Wi-Fi: the computer updates, not the phone. A phone over
+  Tailscale does see it; UPDATE there still updates the computer.
+- **When**: once the daily check has found the version, which doesn't wait,
+  so usually the next open. **LATER** (and Escape, and the scrim) snoozes it
+  for a day, for that version, in that browser
+  (`tsundoku.update.later`); a newer version asks at once.
+- **What it says**: the version, `RELEASED 2 NOV · 182 MB · SIGNED BY
+TSUNDOKU'S RELEASE KEY`, the notes a line each, UPDATE → / LATER. On Linux
+  and the zip, DOWNLOAD ↓ and the three steps.
+- **UPDATE, in the modal**: Downloading (a 4 px bar and the count; HIDE puts
+  it away and the library's band counts, `UPDATING · 41%`, with SHOW),
+  Installing, Opening again (the tab waits, with a clock), then the reload. A
+  failure says nothing was changed, with TRY AGAIN. After the reload the
+  library says `UPDATED TO <v>` once (`tsundoku.update.done`), with ✕.
+- **The band** `TSUNDOKU <v> IS OUT` stays as it was, until SETTINGS is
+  opened.
+
+**Where it departs from the handoff**
+
+- **LATER is a day, not the whole version.** The handoff drew "quiet until
+  the next version"; the owner, 2026-10-30: "later can mean a day... they
+  can still update through the settings tho, just snooze the modal a day".
+  The note under it says ASKED AGAIN TOMORROW.
+- **The DOWNLOAD variant keeps the note** under its buttons, as the install
+  one does; board 4E had none.
+- **Only on the library.** "On entry" is the library, where the band was;
+  a friend opening a bookmarked chapter isn't stopped mid-read.
+
+**Not tested end to end**: the modal needs a release-dated build and a
+manifest signed with the release key, which no test holds and none should.
+`tests/updates-client.spec.ts` covers when it asks, every line it says and
+the UPDATE loop (old server, nobody, the new one; a failure; a refusal);
+the Windows smoke covers the server's side. It was checked by eye on
+2026-10-30 against a dated build and a scratch-signed manifest, on the
+desktop and the phone.
+
 ## Tests
 
 `tests/update-manifest.spec.ts` (signatures, tampering, malformed manifests,
-version order), `tests/release-plan.spec.ts` (what the launcher passes). On
+version order), `tests/release-plan.spec.ts` (what the launcher passes),
+`tests/updates-client.spec.ts` (the modal's rules and words, and the UPDATE
+loop). On
 Windows, `ops/release/smoke/windows-update.ps1` runs in every release's smoke
 test: Zen plays the release host on loopback (`serve-dir.mjs`), offering a
 pretend 9999.01.01 whose installer is the one under test, signed with the real

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { updateRun } from '$lib/update-run.svelte';
 	import { onMount } from 'svelte';
 	import { enhance, deserialize } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
@@ -136,7 +137,6 @@
 	// The server's view, overridden by CHECK and the poll until the page loads again.
 	let upd = $derived<Updates | null>(data.updates);
 	let checkingUpdates = $state(false);
-	let target: string | null = null;
 	async function checkUpdates() {
 		checkingUpdates = true;
 		try {
@@ -150,31 +150,14 @@
 			checkingUpdates = false;
 		}
 	}
-	async function installUpdate() {
-		target = upd?.available?.version ?? null;
-		const r = await fetch('/api/updates', {
-			method: 'POST',
-			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ action: 'install' })
-		});
-		if (r.ok) upd = (await r.json()) as Updates;
-		const poll = async () => {
-			try {
-				const g = await fetch('/api/updates', { cache: 'no-store' });
-				if (g.ok) {
-					const now = (await g.json()) as Updates;
-					if (target && now.current === target) return location.reload();
-					// The old server's view until it stops; then nothing, until the new one.
-					if (now.current !== target) upd = now;
-					if (now.install?.phase === 'failed') return;
-				}
-			} catch {
-				// Stopped by the installer: the new version isn't up yet.
-			}
-			setTimeout(poll, 1000);
-		};
-		void poll();
+	// UPDATE runs the one loop the update modal runs too (lib/update-run.svelte.ts).
+	function installUpdate() {
+		const target = upd?.available?.version;
+		if (target) void updateRun.start(target);
 	}
+	$effect(() => {
+		if (updateRun.view) upd = updateRun.view;
+	});
 	// The band on the library has done its job once SETTINGS is open.
 	$effect(() => {
 		const v = data.updates?.available?.version;

@@ -8,6 +8,18 @@
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import { page } from '$app/state';
 	import Banner from '$lib/components/chrome/Banner.svelte';
+	import { browser, version } from '$app/environment';
+	import UpdateModal from './UpdateModal.svelte';
+	import { updateRun } from '$lib/update-run.svelte';
+	import {
+		DONE_KEY,
+		LATER_KEY,
+		asks,
+		laterFor,
+		parseLater,
+		runningBand,
+		type Later
+	} from '$lib/updates';
 	import BulkBar from '$lib/components/chrome/BulkBar.svelte';
 	import SectionLabel from '$lib/components/chrome/SectionLabel.svelte';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
@@ -76,6 +88,52 @@
 	const newVersion = $derived(
 		data.update && data.update.version !== seenUpdate ? data.update.version : null
 	);
+
+	/**
+	 * The update modal on entry (doc/UPDATES.md, "Told on entry"; card c208):
+	 * on the computer, unless LATER snoozed this version within the day. The
+	 * band above stays as it was; a hidden UPDATE takes its place and counts.
+	 */
+	let later = $state<Later | null>(null);
+	let doneVersion = $state<string | null>(null);
+	$effect(() => {
+		try {
+			later = parseLater(localStorage.getItem(LATER_KEY));
+			doneVersion = localStorage.getItem(DONE_KEY);
+		} catch {
+			// Storage refused: the modal asks on every open, and no UPDATED TO band.
+		}
+	});
+	const offer = $derived(data.updateOffer);
+	const modalOpen = $derived(
+		!!offer?.available &&
+			browser &&
+			(updateRun.running
+				? !updateRun.hidden
+				: !!updateRun.failed || asks(offer.available.version, later, Date.now()))
+	);
+	function snooze() {
+		if (!offer?.available) return;
+		later = laterFor(offer.available.version, Date.now());
+		try {
+			localStorage.setItem(LATER_KEY, JSON.stringify(later));
+		} catch {
+			// Storage refused: closed for this visit only.
+		}
+	}
+	const hiddenRun = $derived(
+		updateRun.running && updateRun.hidden ? runningBand(updateRun.view?.install ?? null) : null
+	);
+	/** UPDATED TO: once, on the reload onto the version UPDATE was pressed for. */
+	const updatedTo = $derived(doneVersion === version ? version : null);
+	function dropUpdated() {
+		doneVersion = null;
+		try {
+			localStorage.removeItem(DONE_KEY);
+		} catch {
+			// Storage refused: the band comes back next open, harmless.
+		}
+	}
 
 	const scanning = $derived(data.scan !== null && data.scan.finishedAt === null);
 
@@ -590,6 +648,8 @@
 <svelte:head><title>tsundoku</title></svelte:head>
 
 <div class="library" class:selecting>
+	{#if modalOpen && offer}<UpdateModal {offer} onlater={snooze} />{/if}
+
 	{#if selecting}
 		<TopBar inverse sticky label="Selection">
 			{#snippet left()}
@@ -723,7 +783,23 @@
 		<Banner kind="info" title="○ OFFLINE" detail="CACHED STILL OPENS" />
 	{/if}
 
-	{#if newVersion}
+	{#if hiddenRun}
+		<Banner kind="action" title={hiddenRun.title} detail={hiddenRun.detail}>
+			{#snippet action()}
+				<button type="button" onclick={() => (updateRun.hidden = false)}>SHOW</button>
+			{/snippet}
+		</Banner>
+	{:else if updatedTo}
+		<Banner
+			kind="action"
+			title="UPDATED TO {updatedTo}"
+			detail="WHAT'S NEW STAYS IN SETTINGS › 08 — DEVICES"
+		>
+			{#snippet action()}
+				<button type="button" aria-label="Close" onclick={dropUpdated}>✕</button>
+			{/snippet}
+		</Banner>
+	{:else if newVersion}
 		<Banner kind="action" title="TSUNDOKU {newVersion} IS OUT" detail="SEE WHAT'S NEW, AND UPDATE">
 			{#snippet action()}
 				<a href="{resolve('/settings')}#s-devices">SETTINGS →</a>

@@ -21,7 +21,8 @@ export const load: LayoutServerLoad = async ({ cookies, locals }) => {
 			people: [],
 			queue: null,
 			browse: null,
-			update: null
+			update: null,
+			updateOffer: null
 		};
 	const scan = currentScan();
 	const shelves = listShelves({ reveal, withNew: scan !== null });
@@ -41,8 +42,12 @@ export const load: LayoutServerLoad = async ({ cookies, locals }) => {
 	// A new version, on a friend's install (doc/UPDATES.md): looked for once a
 	// day, never waited on here; the library says so once (its band).
 	checkIfStale();
-	const available = updateView()?.available;
-	const update = available ? { version: available.version } : null;
+	const view = updateView();
+	const update = view?.available ? { version: view.available.version } : null;
+	// The update modal on entry (doc/UPDATES.md, "Told on entry"; card c208): the
+	// whole view, but only on the computer itself. A phone over Wi-Fi gets the
+	// band, never the modal: the computer updates, not the phone.
+	const updateOffer = view?.available && locals.via !== 'lan' ? view : null;
 	return {
 		reveal,
 		incognito: isIncognito(cookies),
@@ -52,6 +57,7 @@ export const load: LayoutServerLoad = async ({ cookies, locals }) => {
 		people,
 		queue,
 		browse,
-		update
+		update,
+		updateOffer
 	};
 };
