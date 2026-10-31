@@ -82,6 +82,9 @@ without a reload.
 ## What it doesn't do yet
 
 - The Aniyomi and LNReader backup rows are drawn dimmed, NOT YET: card c190.
+- **It teaches setting up, not reading.** A second part, FIRST READ (05 find
+  something, 06 add it to the library, 07 download chapters), is decided and
+  waiting on its design: [`briefs/FIRST-READ.md`](briefs/FIRST-READ.md).
 
 ## Tests
 
