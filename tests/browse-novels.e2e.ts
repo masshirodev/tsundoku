@@ -29,9 +29,9 @@ test('a novel is added, downloaded into its EPUB chapter by chapter, and read on
 	await expect(page).toHaveURL(/\/series\/\d+\?added=/);
 	const series = page.url().replace(/\?.*$/, '');
 
-	// A novel's DOWNLOAD row: the same cells as a manga's, FOLLOW included (c151).
+	// A novel's DOWNLOAD row: the same cells as a manga's, REFRESH and FOLLOW included (c151, c220).
 	const dl = page.locator('.dl-row');
-	await expect(dl.locator('.lcs.inline .lc')).toHaveText(['FIRST 3', 'FOLLOW']);
+	await expect(dl.locator('.lcs.inline .lc')).toHaveText(['FIRST 3', 'REFRESH', 'FOLLOW']);
 
 	// Two chapters, ↓ each: queued in the one queue, downloaded by the novel worker.
 	// The row itself reads online (the owner's answer to question 1, doc/BROWSING.md).

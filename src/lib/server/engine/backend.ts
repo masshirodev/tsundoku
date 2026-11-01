@@ -656,6 +656,98 @@ export function setFollowed(seriesId: number, on: boolean, now = Date.now()): vo
 /** How often a followed series' source is asked for new chapters. */
 const FOLLOW_EVERY = 6 * 60 * 60 * 1000;
 
+/** A chapter the source lists that no entry was: what FOLLOW queues, and REFRESH counts. */
+export type Arrived = { id: number; url: string; fetchedAt: number; downloaded: boolean };
+
+/**
+ * The entries a source's new chapters became, through the importers' one
+ * writer and the Mihon plan ADD uses, so everything the owner set on the
+ * series stays. What FOLLOW queues, and what REFRESH (card c220) only counts:
+ * it downloads nothing. Null when the series isn't from a source with an
+ * installed extension, or its source lists nothing new.
+ */
+export async function addNewChapters(
+	seriesId: number,
+	now = Date.now(),
+	d: Database.Database = db()
+): Promise<{ arrived: Arrived[]; read: Set<string> } | null> {
+	const s = d
+		.prepare(`SELECT id, root_id, title, origin_key FROM series WHERE id = ?`)
+		.get(seriesId) as
+		{ id: number; root_id: number; title: string; origin_key: string | null } | undefined;
+	const key = parseKey(s?.origin_key ?? null);
+	if (!s || !key || !extensionFor(key.sourceId)) return null;
+	const fresh: EngineChapter[] = await resolveSeries(seriesId, { db: d, now: () => now }, true);
+	if (fresh.length === 0) return null;
+	const numbers = chapterNumbers(
+		s.title,
+		fresh.map((c) => ({ name: c.name, number: c.chapter_number }))
+	);
+	const manga: MihonManga = {
+		...asMihon({
+			id: '',
+			title: s.title,
+			description: '',
+			author: '',
+			artist: '',
+			genres: [],
+			status: '',
+			source: sourceName(key.sourceId),
+			sourceId: key.sourceId,
+			url: key.url,
+			inLibrary: true,
+			thumbnailUrl: '',
+			cover: '',
+			realUrl: '',
+			lang: '',
+			chapters: fresh.map((c, i) => ({
+				id: String(i),
+				url: c.url,
+				name: c.name,
+				number: numbers[i].chapter === null ? -1 : toNumber(numbers[i].chapter!),
+				scanlator: c.scanlator ?? '',
+				sourceOrder: i,
+				uploadDate: c.date_upload ?? 0,
+				fetchedAt: now
+			}))
+		})
+	};
+	const plan = planMihon(
+		{
+			manga: [manga],
+			categories: [],
+			sources: new Map([[key.sourceId, sourceName(key.sourceId)]])
+		},
+		[],
+		now
+	).series[0];
+	// Only the new chapters: everything the owner set on the series stays, as the writer keeps it.
+	writeSeries(plan, { rootId: s.root_id, jobId: null, now, markMissing: false }, d);
+	const ids = new Map(
+		(
+			d.prepare(`SELECT id, source_url, read_at FROM entries WHERE series_id = ?`).all(s.id) as {
+				id: number;
+				source_url: string;
+				read_at: number | null;
+			}[]
+		).map((e) => [e.source_url, e])
+	);
+	const put = d.prepare(
+		`INSERT OR REPLACE INTO engine_chapters (entry_id, engine_url, name) VALUES (?, ?, ?)`
+	);
+	const arrived: Arrived[] = [];
+	const read = new Set<string>();
+	for (const c of fresh) {
+		const url = splitMemo(c.url).url;
+		const e = ids.get(url);
+		if (!e) continue;
+		put.run(e.id, c.url, c.name);
+		arrived.push({ id: e.id, url, fetchedAt: now, downloaded: false });
+		if (e.read_at !== null) read.add(url);
+	}
+	return { arrived, read };
+}
+
 /**
  * Queue what's new in every followed series, run every ten minutes by the
  * import timer (POST /api/downloads/follow). Each series is asked every six
@@ -681,86 +773,18 @@ export async function followNew(now = Date.now()): Promise<{ series: number; que
 	}[];
 	let queued = 0;
 	for (const s of due) {
-		const key = parseKey(s.origin_key);
-		if (!key || !extensionFor(key.sourceId)) continue;
-		let fresh: EngineChapter[];
+		let got: Awaited<ReturnType<typeof addNewChapters>>;
 		try {
-			fresh = await resolveSeries(s.id, { db: d, now: () => now }, true);
+			got = await addNewChapters(s.id, now, d);
 		} catch {
 			continue;
 		}
-		if (fresh.length === 0) continue;
-		const numbers = chapterNumbers(
-			s.title,
-			fresh.map((c) => ({ name: c.name, number: c.chapter_number }))
-		);
-		const manga: MihonManga = {
-			...asMihon({
-				id: '',
-				title: s.title,
-				description: '',
-				author: '',
-				artist: '',
-				genres: [],
-				status: '',
-				source: sourceName(key.sourceId),
-				sourceId: key.sourceId,
-				url: key.url,
-				inLibrary: true,
-				thumbnailUrl: '',
-				cover: '',
-				realUrl: '',
-				lang: '',
-				chapters: fresh.map((c, i) => ({
-					id: String(i),
-					url: c.url,
-					name: c.name,
-					number: numbers[i].chapter === null ? -1 : toNumber(numbers[i].chapter!),
-					scanlator: c.scanlator ?? '',
-					sourceOrder: i,
-					uploadDate: c.date_upload ?? 0,
-					fetchedAt: now
-				}))
-			})
-		};
-		const plan = planMihon(
-			{
-				manga: [manga],
-				categories: [],
-				sources: new Map([[key.sourceId, sourceName(key.sourceId)]])
-			},
-			[],
-			now
-		).series[0];
-		// Only the new chapters: everything the owner set on the series stays, as the writer keeps it.
-		writeSeries(plan, { rootId: s.root_id, jobId: null, now, markMissing: false }, d);
-		const ids = new Map(
-			(
-				d.prepare(`SELECT id, source_url, read_at FROM entries WHERE series_id = ?`).all(s.id) as {
-					id: number;
-					source_url: string;
-					read_at: number | null;
-				}[]
-			).map((e) => [e.source_url, e])
-		);
-		const put = d.prepare(
-			`INSERT OR REPLACE INTO engine_chapters (entry_id, engine_url, name) VALUES (?, ?, ?)`
-		);
-		const arrived: { id: number; url: string; fetchedAt: number; downloaded: boolean }[] = [];
-		const read = new Set<string>();
-		for (const c of fresh) {
-			const url = splitMemo(c.url).url;
-			const e = ids.get(url);
-			if (!e) continue;
-			put.run(e.id, c.url, c.name);
-			arrived.push({ id: e.id, url, fetchedAt: now, downloaded: false });
-			if (e.read_at !== null) read.add(url);
-		}
+		if (!got) continue;
 		const pick = followQueue(
-			arrived,
+			got.arrived,
 			s.followed_at,
 			new Set(queue.queueRows().map((r) => r.entryId)),
-			read
+			got.read
 		);
 		queued += queue.enqueue(pick, now, d);
 	}

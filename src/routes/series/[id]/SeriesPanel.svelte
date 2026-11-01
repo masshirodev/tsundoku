@@ -4,6 +4,7 @@
 	import { animeContinue, seriesCountLine } from '$lib/library/anime';
 	import { ocrLines, type OcrPlace } from '$lib/japanese/ocr';
 	import { enhance } from '$app/forms';
+	import type { SubmitFunction } from '@sveltejs/kit';
 	import { replacing } from '$lib/back';
 	import Badge from '$lib/components/content/Badge.svelte';
 	import { coverPlaceholder } from '$lib/library/cover';
@@ -143,7 +144,8 @@
 					clock,
 					downloads?.kind === 'ok' ? downloads.follow : null,
 					(at) => ago(at, Date.now()),
-					anime ? EPISODES : undefined
+					anime ? EPISODES : undefined,
+					downloads?.kind === 'ok' && downloads.refreshable
 				)
 			: downloads?.kind === 'down'
 				? downloadRow(
@@ -158,6 +160,17 @@
 				: null
 	);
 	const dlFile = $derived(dlStates ? fileQueueMeta(downloadCounts(series.entries, dlStates)) : []);
+	/**
+	 * REFRESH asks the source while the request runs, so after its answer the
+	 * screen reads again: the chapters it just added are in the list it drew.
+	 * The band comes from the action's own data (the page's `form`).
+	 */
+	const refreshAfter: SubmitFunction =
+		() =>
+		async ({ result, update }) => {
+			await update();
+			if (result.type === 'success') await invalidateAll();
+		};
 	// No extension for its source (Bato.to, Hitomi): said once, on the FILE line (state 4).
 	const elsewhere = $derived(
 		downloads?.kind === 'elsewhere'
@@ -476,6 +489,11 @@
 					<form method="POST" action="?/follow" use:enhance class="lc-form">
 						<input type="hidden" name="on" value={c.which === 'follow' ? '1' : '0'} />
 						<button type="submit" class="lc" class:acc={c.acc}>{c.label}</button>
+					</form>
+				{:else if c.which === 'refresh'}
+					<!-- REFRESH asks the source once and downloads nothing (c220): the band says what arrived. -->
+					<form method="POST" action="?/refresh" use:enhance={refreshAfter} class="lc-form">
+						<button type="submit" class="lc" class:acc={c.acc} disabled={c.dim}>{c.label}</button>
 					</form>
 				{:else if c.which === 'all'}
 					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam() keeps the current, resolved path -->

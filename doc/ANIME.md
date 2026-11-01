@@ -391,6 +391,12 @@ fifty a run at most, oldest first. Places follow the source's order, so an
 episode it inserted moves the ones after it. A source that fails isn't
 recorded as asked.
 
+**REFRESH** (card c220) is the look beside FOLLOW, on any anime in the library
+with an installed source: `refreshSeries` (`src/lib/server/refresh.ts`) asks
+the source once through `checkAnime` with `queue: false`, so new episodes
+become entries and nothing downloads. The band says what arrived
+([`DOWNLOADING.md`](DOWNLOADING.md), "REFRESH").
+
 ## Offline (c158)
 
 Anime Calls 01, default 5: **while an episode plays, the device keeps the

@@ -20,6 +20,7 @@
 	import Band from '$lib/components/chrome/Band.svelte';
 	import NavLine from '$lib/components/waiting/NavLine.svelte';
 	import { m } from '$lib/paraglide/messages';
+	import { num } from '$lib/i18n/format';
 	import StartTrail from '$lib/components/start/StartTrail.svelte';
 	import { trail } from '$lib/start-trail.svelte';
 	import { partOf, trailHere } from '$lib/library/start';
@@ -113,6 +114,17 @@
 	const createdOrder = $derived(page.url.searchParams.get('order') ?? 'BY DATE ADDED');
 	const takenOut = $derived(form && 'takenOut' in form ? form.takenOut : null);
 	const markedThrough = $derived(form && 'markedThrough' in form ? form.markedThrough : null);
+	/**
+	 * REFRESH's answer (card c220): what the source lists that no entry was.
+	 * REFRESH never downloads, so the band says so and leaves NEXT or ALL to
+	 * keep them — FOLLOW's own turn won't pick them up either, since they are
+	 * no longer new to the source.
+	 */
+	const refreshed = $derived(
+		form && 'refreshed' in form
+			? (form.refreshed as { kind: 'manga' | 'anime' | 'novel'; added: number })
+			: null
+	);
 
 	// A long press on a chapter row: it and everything before it, read. The
 	// band that follows offers UNDO for exactly the chapters that changed.
@@ -434,7 +446,17 @@
 		/>
 	{/if}
 
-	{#if markedThrough}
+	{#if refreshed}
+		<!-- REFRESH's answer (c220): it downloads nothing, so the band names the way to keep them. -->
+		<Band
+			title={refreshed.added === 0
+				? m.series_refresh_none()
+				: refreshed.kind === 'anime'
+					? m.series_refresh_new_episode({ count: refreshed.added, n: num(refreshed.added) })
+					: m.series_refresh_new({ count: refreshed.added, n: num(refreshed.added) })}
+			detail={refreshed.added === 0 ? m.series_refresh_none_detail() : m.series_refresh_detail()}
+		/>
+	{:else if markedThrough}
 		<Band
 			title={markedThrough.ids.length === 0
 				? `NOTHING TO MARK · ALL READ THROUGH ${markedThrough.label.toUpperCase()}`

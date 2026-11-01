@@ -59,22 +59,25 @@ export function novelCheckedAt(seriesId: number, db: Database.Database = getDb()
 }
 
 /**
- * Asks a followed novel's plugin for its chapters, makes entries of the new
- * ones and queues what FOLLOW should. Returns how many were queued. Throws
- * when the plugin can't answer: the check isn't recorded, so the next step
- * asks again.
+ * Asks a novel's plugin for its chapters, makes entries of the new ones and
+ * queues what FOLLOW should. Returns how many arrived, and how many were
+ * queued. Throws when the plugin can't answer: the check isn't recorded, so
+ * the next step asks again. As for an anime, FOLLOW is not a condition:
+ * REFRESH (card c220) asks a novel the owner doesn't follow, and queues
+ * nothing (`queue: false`).
  */
 export async function checkNovel(
 	seriesId: number,
 	now = Date.now(),
-	db: Database.Database = getDb()
-): Promise<number> {
+	db: Database.Database = getDb(),
+	opts: { queue?: boolean } = {}
+): Promise<{ added: number; queued: number }> {
 	const s = db
 		.prepare(`SELECT id, root_id, origin_key, followed_at FROM series WHERE id = ?`)
 		.get(seriesId) as
 		{ id: number; root_id: number; origin_key: string; followed_at: number | null } | undefined;
 	const key = parseNovelKey(s?.origin_key ?? null);
-	if (!s || !key || s.followed_at === null) return 0;
+	if (!s || !key) return { added: 0, queued: 0 };
 	const p = pluginOf(key.plugin);
 	if (!p) throw new NovelSourceError('No installed plugin has this source');
 	const n = await parseNovel(p, key.path, true);
@@ -118,7 +121,7 @@ export async function checkNovel(
 	const hasBook = db.prepare(`SELECT 1 FROM novel_series WHERE series_id = ?`).get(seriesId);
 	if (moved > 0 && hasBook)
 		await writeBook(seriesId, p, [], { db, library: libraryRoot(), now: () => now });
-	if (fresh.length === 0) return 0;
+	if (fresh.length === 0) return { added: 0, queued: 0 };
 
 	const rows = db
 		.prepare(`SELECT id, source_url, read_at FROM entries WHERE series_id = ?`)
@@ -128,6 +131,7 @@ export async function checkNovel(
 		.map((e) => byUrl.get(e.sourceUrl))
 		.filter((r) => r !== undefined)
 		.map((r) => ({ id: r.id, url: r.source_url, fetchedAt: now, downloaded: false }));
+	if (opts.queue === false || s.followed_at === null) return { added: arrived.length, queued: 0 };
 	const read = new Set(rows.filter((r) => r.read_at !== null).map((r) => r.source_url));
 	const pick = followQueue(
 		arrived,
@@ -135,7 +139,7 @@ export async function checkNovel(
 		new Set(queueRows(db).map((r) => r.entryId)),
 		read
 	);
-	return enqueue(pick, now, db);
+	return { added: arrived.length, queued: enqueue(pick, now, db) };
 }
 
 /**
@@ -157,7 +161,7 @@ export async function followNovels(
 	let queued = 0;
 	for (const s of due) {
 		try {
-			queued += await checkNovel(s.id, now, db);
+			queued += (await checkNovel(s.id, now, db)).queued;
 		} catch {
 			// Asked again next time.
 		}

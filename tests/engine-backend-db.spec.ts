@@ -368,4 +368,23 @@ describe('FOLLOW', () => {
 		// Asked again within six hours: not asked at all.
 		expect(await downloads.followNew()).toEqual({ series: 0, queued: 0 });
 	});
+
+	it('is refreshed without following: a new chapter becomes an entry, and nothing is queued (c220)', async () => {
+		db.exec(`DELETE FROM download_queue`);
+		db.prepare(`UPDATE series SET followed_at = NULL WHERE id = ?`).run(seriesId);
+		chapters = [5, 4, 3, 2, 1];
+		const { refreshSeries } = await import('$lib/server/refresh');
+		expect(await refreshSeries(seriesId)).toEqual({ kind: 'manga', added: 1 });
+		const ch5 = db
+			.prepare(`SELECT id, label, available FROM entries WHERE series_id = ? AND position = 5`)
+			.get(seriesId) as { id: number; label: string };
+		expect(ch5).toMatchObject({ label: 'Ch. 5' });
+		// A look, not a fetch: FOLLOW stays the only thing that queues.
+		expect((await downloads.queue()).items).toEqual([]);
+		const d = await downloads.seriesDownloads(seriesId, entriesFor());
+		expect(d.kind === 'ok' && d.refreshable).toBe(true);
+		expect(d.kind === 'ok' && d.follow.on).toBe(false);
+		// Asked again: nothing new.
+		expect(await refreshSeries(seriesId)).toEqual({ kind: 'manga', added: 0 });
+	});
 });

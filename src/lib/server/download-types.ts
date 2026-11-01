@@ -23,6 +23,11 @@ export type SeriesDownloads =
 			queuedElsewhere: number;
 			/** FOLLOW: whether it's on, and when the source was last asked for new chapters. */
 			follow: { on: boolean; checked: number | null };
+			/**
+			 * REFRESH (card c220): the series has a source to ask now, and is in
+			 * the library. False for a folder-scanned series, which has none.
+			 */
+			refreshable?: boolean;
 	  };
 
 export type QueueSummary = {

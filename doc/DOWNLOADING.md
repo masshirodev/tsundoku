@@ -183,6 +183,30 @@ What's already missing stays ALL N's job.
   offered while something visible is followed. It isn't a badge: the cover's
   four corners are taken.
 
+## REFRESH
+
+The cell before FOLLOW, on any series in the library whose source can be asked
+— engine manga, anime, novel plugin (`src/lib/server/refresh.ts`; card c220).
+A folder-scanned series has nothing to ask and doesn't offer it.
+
+- **It looks, it doesn't fetch.** REFRESH asks the source once, makes entries of
+  the chapters or episodes it lists that no entry is, and **queues nothing** —
+  not even on a series that is followed. FOLLOW is the only thing that
+  downloads, on its own turn. The band it answers with says what arrived
+  ("3 NEW CHAPTERS", "NOTHING NEW") and leaves NEXT or ALL to keep them.
+- **The chapters it found are no longer new**, so FOLLOW's next turn won't
+  queue them either: on a followed series the band and NEXT/ALL are the way in.
+- **It counts as the check.** The three checks record when they asked
+  (`engine_series.resolved_at`, `anime_checks.checked_at`,
+  `novel_checks.checked_at`), so FOLLOW doesn't ask that source again six hours
+  from a look that just happened.
+- The series' own rules hold: hidden means hidden (a hidden series' REFRESH is
+  a 404 with reveal off), and a browsing record has no REFRESH, since it is not
+  in the library.
+- A refusal bands rather than errors: the source not answering is
+  "… NOTHING CHANGED", as every refused action is.
+- Bulk checking (SELECT → REFRESH across many series) is not built yet.
+
 ## Live
 
 One watcher in the app (`src/lib/server/downloads-watch.ts`) reads the queue:

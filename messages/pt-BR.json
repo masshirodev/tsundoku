@@ -693,5 +693,30 @@
 	"start_mini_next": "PRÓXIMOS 10",
 	"start_mini_add": "+ ADICIONAR À BIBLIOTECA",
 	"help_downloading_pointer": "Os {start} mostram isso uma vez: passos 05 a 07.",
-	"help_downloading_pointer_go": "05 — 07 →"
+	"help_downloading_pointer_go": "05 — 07 →",
+	"series_refresh": "ATUALIZAR",
+	"series_refresh_none": "NADA NOVO",
+	"series_refresh_none_detail": "A FONTE NÃO LISTA NADA NOVO",
+	"series_refresh_new": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} CAPÍTULO NOVO",
+				"countPlural=*": "{n} CAPÍTULOS NOVOS"
+			}
+		}
+	],
+	"series_refresh_new_episode": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} EPISÓDIO NOVO",
+				"countPlural=*": "{n} EPISÓDIOS NOVOS"
+			}
+		}
+	],
+	"series_refresh_detail": "NADA BAIXADO · PRÓXIMO OU TODOS MANTÉM",
+	"series_refresh_no_source": "ESTA SÉRIE NÃO VEM DE UMA FONTE"
 }

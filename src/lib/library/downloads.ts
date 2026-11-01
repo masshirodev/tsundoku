@@ -1,4 +1,5 @@
 import { formatBytes, formatNumber, type SeriesEntry } from './series.ts';
+import { m } from '../paraglide/messages.js';
 
 /**
  * Downloading, the rules (doc/DOWNLOADING.md, "From tsundoku"). Pure:
@@ -408,7 +409,7 @@ export const count = (n: number) => n.toLocaleString('en-US');
 /** One cell of the row: what it does, and how it's drawn. */
 export type DownloadCell = {
 	label: string;
-	which: 'next' | 'all' | 'follow' | 'unfollow';
+	which: 'next' | 'all' | 'follow' | 'unfollow' | 'refresh';
 	acc: boolean;
 	dim: boolean;
 };
@@ -419,7 +420,10 @@ export type DownloadRow = { a: string; b: string; cells: DownloadCell[] };
 export type RowFacts =
 	{ kind: 'ok'; states: Map<number, DownloadState> } | { kind: 'down'; since: number };
 
-/** FOLLOW's part: whether it's on, and when its source was last asked for new chapters. */
+/**
+ * FOLLOW's part: whether it's on, and when its source was last asked for new
+ * chapters.
+ */
 export type FollowFacts = { on: boolean; checked: number | null };
 
 /** What the row counts: chapters unread, or an anime's episodes unwatched (doc/ANIME.md). */
@@ -498,10 +502,12 @@ export function previewConfirm(
 /**
  * The DOWNLOAD row under CONTINUE (Index Series Download, states top, down,
  * offline, follow, added). NEXT 10 is the accent cell and never asks; ALL N
- * opens its confirmation; FOLLOW ends the row as FAV ends RATING's, and turns
- * accent the same way (FOLLOWING ✓). When nothing of the series is on disk
- * yet, NEXT is FIRST. Not answering and offline keep the row and its cells,
- * dimmed, so the screen doesn't jump, and say why in the LINK row's ○ wording.
+ * opens its confirmation; REFRESH asks the series' source once for new
+ * chapters and downloads nothing (card c220), and FOLLOW ends the row as FAV
+ * ends RATING's, turning accent the same way (FOLLOWING ✓). When nothing of
+ * the series is on disk yet, NEXT is FIRST. Not answering and offline keep
+ * the row and its cells, dimmed, so the screen doesn't jump, and say why in
+ * the LINK row's ○ wording.
  */
 export function downloadRow(
 	entries: Entry[],
@@ -510,7 +516,9 @@ export function downloadRow(
 	clock: (at: number) => string,
 	follow: FollowFacts | null = null,
 	ago: (at: number) => string = clock,
-	noun: RowNoun = CHAPTERS
+	noun: RowNoun = CHAPTERS,
+	/** The series has a source to ask now (REFRESH, card c220), and is in the library. */
+	refreshable = false
 ): DownloadRow {
 	const chapters = (n: number) => `${count(n)} ${n === 1 ? noun.one : noun.many} not downloaded`;
 	const followCell = (dim: boolean): DownloadCell[] =>
@@ -521,6 +529,10 @@ export function downloadRow(
 						: { label: 'FOLLOW', which: 'follow', acc: false, dim }
 				]
 			: [];
+	// A series with a source can be asked now, whatever FOLLOW is doing; a
+	// folder-scanned one has nothing to ask (card c220).
+	const refreshCell = (dim: boolean): DownloadCell[] =>
+		refreshable ? [{ label: m.series_refresh(), which: 'refresh', acc: false, dim }] : [];
 	if (facts.kind === 'down' || !online) {
 		const missing = entries.filter((e) => !e.available && e.readAt === null && !e.matter).length;
 		return {
@@ -542,6 +554,7 @@ export function downloadRow(
 								: [])
 						]
 					: []),
+				...refreshCell(true),
 				...followCell(true)
 			]
 		};
@@ -555,7 +568,7 @@ export function downloadRow(
 		if (c.queueable > 10)
 			cells.push({ label: `ALL ${count(c.queueable)}`, which: 'all', acc: false, dim: false });
 	}
-	cells.push(...followCell(false));
+	cells.push(...refreshCell(false), ...followCell(false));
 	const caughtUp = c.missingUnread === 0 || c.queueable === 0;
 	return {
 		a:

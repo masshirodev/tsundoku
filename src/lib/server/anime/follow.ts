@@ -54,18 +54,23 @@ export const animeCheckedAt = (seriesId: number, db: Database.Database = getDb()
 	)?.checked_at ?? null;
 
 /**
- * Asks a followed anime's source for its episodes, makes entries of the new
- * ones, moves what the source renumbered, and queues what FOLLOW should.
- * Returns how many were queued; throws when the source can't answer (the
- * check isn't recorded, so the next step asks again).
+ * Asks an anime's source for its episodes, makes entries of the new ones,
+ * moves what the source renumbered, and queues what FOLLOW should. Returns
+ * how many arrived, and how many were queued. Throws when the source can't
+ * answer (the check isn't recorded, so the next step asks again).
+ *
+ * FOLLOW is not a condition: REFRESH (card c220) asks a series the owner
+ * doesn't follow, and it downloads nothing (`queue: false`), so the two
+ * can't disagree about what arriving means.
  */
 export async function checkAnime(
 	seriesId: number,
 	now = Date.now(),
-	db: Database.Database = getDb()
-): Promise<number> {
+	db: Database.Database = getDb(),
+	opts: { queue?: boolean } = {}
+): Promise<{ added: number; queued: number }> {
 	const s = animeOf(db, seriesId);
-	if (!s || s.followed_at === null) return 0;
+	if (!s) return { added: 0, queued: 0 };
 	const got = await fetchAnime(sourceMangaId(s.key.sourceId, s.key.url));
 	if (!got) throw new EngineError('The source no longer lists this anime', 'not-found');
 	const plan = planOf(got, now);
@@ -99,7 +104,7 @@ export async function checkAnime(
 			ON CONFLICT (series_id) DO UPDATE SET checked_at = excluded.checked_at`
 		).run(seriesId, now);
 	})();
-	if (fresh.length === 0) return 0;
+	if (fresh.length === 0) return { added: 0, queued: 0 };
 	const rows = db
 		.prepare(`SELECT id, source_url, read_at FROM entries WHERE series_id = ?`)
 		.all(seriesId) as { id: number; source_url: string; read_at: number | null }[];
@@ -108,6 +113,7 @@ export async function checkAnime(
 		.map((e) => byUrl.get(e.sourceUrl))
 		.filter((r) => r !== undefined)
 		.map((r) => ({ id: r.id, url: r.source_url, fetchedAt: now, downloaded: false }));
+	if (opts.queue === false || s.followed_at === null) return { added: arrived.length, queued: 0 };
 	const watched = new Set(rows.filter((r) => r.read_at !== null).map((r) => r.source_url));
 	const pick = followQueue(
 		arrived,
@@ -115,7 +121,7 @@ export async function checkAnime(
 		new Set(queueRows(db).map((r) => r.entryId)),
 		watched
 	);
-	return enqueue(pick, now, db);
+	return { added: arrived.length, queued: enqueue(pick, now, db) };
 }
 
 /** FOLLOW's step for anime, beside the engine's manga and the plugins' novels. */
@@ -133,7 +139,7 @@ export async function followAnime(
 	let queued = 0;
 	for (const s of due) {
 		try {
-			queued += await checkAnime(s.id, now, db);
+			queued += (await checkAnime(s.id, now, db)).queued;
 		} catch {
 			// Asked again next time.
 		}

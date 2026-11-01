@@ -29,6 +29,8 @@ const library = mkdtempSync(join(tmpdir(), 'tsundoku-e2e-downloads-library-'));
 let server: ChildProcess | null = null;
 let fake: Server | null = null;
 let down = false;
+/** The source lists a 31st chapter after this: REFRESH's test (c220). */
+let grow = false;
 const ids = { linden: 0, hidden: 0, bato: 0 };
 /** Lindenborough's entry ids by chapter number. */
 const ch: Record<number, number> = {};
@@ -87,7 +89,7 @@ function startFake(): Promise<void> {
 						thumbnail_url: null
 					});
 				case 'getChapterList':
-					return json(chapters(url, url === '/manga/side' ? 12 : 30));
+					return json(chapters(url, url === '/manga/side' ? 12 : grow ? 31 : 30));
 				case 'getPageList':
 					// Nothing is ever downloaded here: the queue is the subject.
 					return res.writeHead(500).end(JSON.stringify({ error: 'fake: no pages' }));
@@ -270,7 +272,12 @@ test('the DOWNLOAD row and every chapter state (state 1)', async ({ page }) => {
 	await expect(dl.locator('.label')).toHaveAccessibleName('Help: downloading');
 	await expect(dl.locator('.lk-a')).toHaveText('20 unread chapters not downloaded');
 	await expect(dl.locator('.lk-b')).toHaveText('2 QUEUED · 1 FAILED · CH. 14 FAILED');
-	await expect(dl.locator('.lcs.inline .lc')).toHaveText(['NEXT 10', 'ALL 16', 'FOLLOW']);
+	await expect(dl.locator('.lcs.inline .lc')).toHaveText([
+		'NEXT 10',
+		'ALL 16',
+		'REFRESH',
+		'FOLLOW'
+	]);
 	// The mock's literals, the LINK row's: pinned so a tidy-up can't round them.
 	await expect(dl).toHaveCSS('min-height', '68px');
 	await expect(dl.locator('.lk-a')).toHaveCSS('font-size', '15px');
@@ -551,6 +558,43 @@ test('FOLLOW turns accent, offers FOLLOWED, and comes off again (1d)', async ({ 
 	await expect(
 		page.locator('.dl-row .lcs.inline').getByRole('button', { name: 'FOLLOW', exact: true })
 	).toBeVisible();
+});
+
+test('REFRESH asks the source once, adds what is new, and downloads nothing (c220)', async ({
+	page
+}) => {
+	await page.goto(`/series/${ids.linden}`);
+	const refresh = page.locator('.dl-row .lcs.inline').getByRole('button', { name: 'REFRESH' });
+	await expect(refresh).toBeVisible();
+	// The source lists exactly what the library has: a look that found nothing still says so.
+	await refresh.click();
+	await expect(page.locator('.band')).toContainText('NOTHING NEW');
+	await expect(page.locator('.band')).toContainText('THE SOURCE LISTS NOTHING NEW');
+
+	// A 31st chapter at the source: the refresh makes it an entry and queues nothing.
+	grow = true;
+	await page.locator('.dl-row .lcs.inline').getByRole('button', { name: 'REFRESH' }).click();
+	await expect(page.locator('.band')).toContainText('1 NEW CHAPTER');
+	await expect(page.locator('.band')).toContainText('NOTHING DOWNLOADED');
+	const db = new Database(dbPath, { readonly: true });
+	const added = db
+		.prepare(
+			`SELECT id, label, available FROM entries WHERE series_id = ? AND source_url = '/c/31'`
+		)
+		.get(ids.linden) as { id: number; label: string; available: number } | undefined;
+	const queuedNew = added
+		? (
+				db.prepare(`SELECT COUNT(*) AS n FROM download_queue WHERE entry_id = ?`).get(added.id) as {
+					n: number;
+				}
+			).n
+		: -1;
+	db.close();
+	expect(added).toMatchObject({ label: 'Ch. 31', available: 0 });
+	expect(queuedNew).toBe(0);
+	// In the list it is, read from the screen as well as the database.
+	await expect(page.locator(`#entry-${added!.id}`)).toBeVisible();
+	grow = false;
 });
 
 test('the live stream gives a version, and nothing of a hidden series', async ({ page }) => {

@@ -61,6 +61,8 @@ import {
 	undoAdd as undoSourceAdd
 } from '$lib/server/downloads';
 import { baseToEdition } from '$lib/library/editions';
+import { refreshSeries } from '$lib/server/refresh';
+import { m } from '$lib/paraglide/messages';
 import { getSetting } from '$lib/server/settings';
 import { libraryRoot } from '$lib/server/import';
 import { ANIME_FOLDER, HIDDEN_ANIME_FOLDER, seriesFolderName } from '$lib/library/anime-files';
@@ -633,6 +635,24 @@ export const actions: Actions = {
 			throw e;
 		}
 		return { ok: true };
+	},
+
+	/**
+	 * REFRESH (card c220): ask the source once what it lists now, and make
+	 * entries of anything new. It queues nothing — FOLLOW decides downloads, and
+	 * this is a look — so the band it answers with says what arrived and leaves
+	 * NEXT or ALL to keep them.
+	 */
+	refresh: async ({ params, cookies }) => {
+		const s = target(params, cookies);
+		try {
+			const r = await refreshSeries(s.id);
+			if (!r) return fail(400, { message: m.series_refresh_no_source() });
+			return { refreshed: r };
+		} catch (e) {
+			if (isDownloadsError(e)) return fail(503, { message: (e as Error).message });
+			throw e;
+		}
 	},
 
 	/**

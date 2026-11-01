@@ -169,6 +169,32 @@ describe('the DOWNLOAD row', () => {
 		expect(off.cells.map((c) => c.label)).toEqual(['NEXT 10', 'ALL 20']);
 	});
 
+	it('offers REFRESH where the series has a source, dimmed when it cannot be asked (c220)', () => {
+		const states = chapterStates(entries, urls, chapters, []);
+		expect(
+			downloadRow(entries, { kind: 'ok', states }, true, clock, null, clock, undefined, true).cells
+		).toEqual([
+			{ label: 'NEXT 10', which: 'next', acc: true, dim: false },
+			{ label: 'ALL 20', which: 'all', acc: false, dim: false },
+			{ label: 'REFRESH', which: 'refresh', acc: false, dim: false }
+		]);
+		// A folder-scanned series has nothing to ask.
+		expect(
+			downloadRow(entries, { kind: 'ok', states }, true, clock).cells.map((c) => c.label)
+		).toEqual(['NEXT 10', 'ALL 20']);
+		const off = downloadRow(
+			entries,
+			{ kind: 'ok', states },
+			false,
+			clock,
+			null,
+			clock,
+			undefined,
+			true
+		);
+		expect(off.cells.map((c) => [c.label, c.dim])).toContainEqual(['REFRESH', true]);
+	});
+
 	it('puts the queue on the FILE line', () => {
 		const states = chapterStates(entries, urls, chapters, [
 			item(12, 'QUEUED'),

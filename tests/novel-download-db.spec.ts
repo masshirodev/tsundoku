@@ -322,7 +322,7 @@ describe('following a novel', () => {
 		expect(entry('/c/6')).toMatchObject({ available: 0, position: 6, label: 'Ch. 6' });
 		expect(queue.queueRows(db).map((q) => q.entryId)).toEqual([entry('/c/6').id, entry('/c/7').id]);
 		// Asked again: nothing new, nothing queued twice.
-		expect(await checkNovel(seriesId, now + 1, db)).toBe(0);
+		expect(await checkNovel(seriesId, now + 1, db)).toEqual({ added: 0, queued: 0 });
 		expect(queue.queueRows(db)).toHaveLength(2);
 		expect(await runNovelOnce(deps())).toBe(2);
 		await runImport(library, { now: (now += 1000) });
@@ -355,6 +355,20 @@ describe('following a novel', () => {
 		await downloads.setFollowed(seriesId, false);
 		expect((await states()).follow.on).toBe(false);
 		expect(await followNovels(now + 14 * HOUR, db)).toEqual({ series: 0, queued: 0 });
+	});
+
+	it('is refreshed without following: a new chapter becomes an entry, and nothing is queued (c220)', async () => {
+		db.exec(`DELETE FROM download_queue`);
+		extra.push({ name: 'Chapter 8', path: '/c/8' });
+		const { refreshSeries } = await import('$lib/server/refresh');
+		expect(await refreshSeries(seriesId, (now += 1000))).toEqual({ kind: 'novel', added: 1 });
+		expect(entry('/c/8')).toMatchObject({ position: 8, label: 'Ch. 8', available: 0 });
+		// A look, not a fetch: FOLLOW stays the only thing that queues.
+		expect(queue.queueRows(db)).toEqual([]);
+		const d = await states();
+		expect(d.refreshable).toBe(true);
+		expect(d.follow.on).toBe(false);
+		expect(await refreshSeries(seriesId, (now += 1000))).toEqual({ kind: 'novel', added: 0 });
 	});
 });
 

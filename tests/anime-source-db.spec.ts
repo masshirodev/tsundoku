@@ -271,4 +271,28 @@ describe('an anime, previewed and added', () => {
 		await downloads.setFollowed(seriesId, false);
 		expect(await animeFollow.followAnime(at + 14 * 3600_000)).toEqual({ series: 0, queued: 0 });
 	});
+
+	it('is refreshed without following: new episodes become entries, and nothing is queued (c220)', async () => {
+		const seriesId = await downloads.addToLibrary(id);
+		db.exec('DELETE FROM download_queue');
+		later = [
+			{ url: '/e/s2-4', name: 'Season 2 - Episode 4 - A Letter', episode_number: 4 },
+			{ url: '/e/s2-3', name: 'Season 2 - Episode 3 - A Letter', episode_number: 3 }
+		];
+		const { refreshSeries } = await import('$lib/server/refresh');
+		expect(await refreshSeries(seriesId)).toEqual({ kind: 'anime', added: 1 });
+		const e = db
+			.prepare(
+				`SELECT id, position, label, title, season FROM entries WHERE source_url = '/e/s2-4'`
+			)
+			.get() as { id: number; position: number };
+		expect(e).toMatchObject({ position: 6, label: 'Ep. 4', title: 'A Letter', season: 2 });
+		// A look, not a fetch: FOLLOW stays the only thing that queues.
+		expect(queue.queueRows(db)).toEqual([]);
+		const d = await downloads.seriesDownloads(seriesId, []);
+		expect(d.kind === 'ok' && d.refreshable).toBe(true);
+		expect(d.kind === 'ok' && d.follow.on).toBe(false);
+		expect(await refreshSeries(seriesId)).toEqual({ kind: 'anime', added: 0 });
+		later = [];
+	});
 });

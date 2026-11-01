@@ -19,6 +19,7 @@ import * as anime from './engine/anime-source.ts';
 import * as animeDownloads from './anime/download.ts';
 import * as animeFollow from './anime/follow.ts';
 import { NovelHostError } from './novels/host.ts';
+import type { SeriesDownloads } from './download-types.ts';
 
 /**
  * What the download screens ask (doc/DOWNLOADING.md, doc/DOWNLOADER.md):
@@ -54,12 +55,25 @@ export const queueSummary = async (reveal: boolean) => engine.queueSummary(revea
 export const seriesDownloads = async (
 	seriesId: number,
 	entries: { id: number; available: boolean }[]
-) =>
-	novelDownloads.isNovelSeries(seriesId)
+): Promise<SeriesDownloads> => {
+	const d = novelDownloads.isNovelSeries(seriesId)
 		? novelDownloads.novelSeriesDownloads(seriesId, entries)
 		: animeDownloads.isAnimeSeries(seriesId)
 			? animeDownloads.animeSeriesDownloads(seriesId, entries)
 			: engine.seriesDownloads(seriesId, entries);
+	// REFRESH (card c220): the row offers it wherever the series has a source to
+	// ask and is in the library. A folder-scanned series has nothing to ask, and
+	// a browsing record is not kept.
+	if (d.kind !== 'ok') return d;
+	const row = getDb()
+		.prepare(`SELECT origin_key, in_library FROM series WHERE id = ?`)
+		.get(seriesId) as { origin_key: string | null; in_library: number } | undefined;
+	const key = row?.origin_key ?? null;
+	return {
+		...d,
+		refreshable: !!row?.in_library && !!(parseKey(key) || parseAnimeKey(key) || parseNovelKey(key))
+	};
+};
 
 /** [height]: an anime's episodes at a quality of their own (ALL's QUALITY); SETTINGS' otherwise. */
 export const enqueue = async (

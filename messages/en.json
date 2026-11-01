@@ -693,5 +693,30 @@
 	"start_mini_next": "NEXT 10",
 	"start_mini_add": "+ ADD TO LIBRARY",
 	"help_downloading_pointer": "{start} walks through it once: steps 05 to 07.",
-	"help_downloading_pointer_go": "05 — 07 →"
+	"help_downloading_pointer_go": "05 — 07 →",
+	"series_refresh": "REFRESH",
+	"series_refresh_none": "NOTHING NEW",
+	"series_refresh_none_detail": "THE SOURCE LISTS NOTHING NEW",
+	"series_refresh_new": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} NEW CHAPTER",
+				"countPlural=*": "{n} NEW CHAPTERS"
+			}
+		}
+	],
+	"series_refresh_new_episode": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} NEW EPISODE",
+				"countPlural=*": "{n} NEW EPISODES"
+			}
+		}
+	],
+	"series_refresh_detail": "NOTHING DOWNLOADED · NEXT OR ALL KEEPS THEM",
+	"series_refresh_no_source": "THIS SERIES ISN’T FROM A SOURCE"
 }

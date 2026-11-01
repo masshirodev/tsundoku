@@ -298,6 +298,12 @@ c151).
   answer: what's new is the question. When it was last asked is
   `novel_checks` (rung 46), the row's CHECKED … AGO. A plugin that fails isn't
   recorded as asked, so the next step asks again.
+
+**REFRESH** (card c220) is the look beside FOLLOW: `checkNovel` with
+`queue: false` through `refreshSeries` (`src/lib/server/refresh.ts`), so a new
+chapter becomes an entry and nothing downloads. A novel doesn't need to be
+followed to be asked ([`DOWNLOADING.md`](DOWNLOADING.md), "REFRESH").
+
 - **A chapter it lists that no entry is becomes one**, with ADD's own plan
   (`planNovel`) through the one writer, so it's numbered as ADD would have
   numbered it; nothing the owner set on the series moves, a deleted chapter
