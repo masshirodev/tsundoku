@@ -63,6 +63,13 @@ import {
 } from '$lib/server/downloads';
 import { baseToEdition } from '$lib/library/editions';
 import { refreshSeries } from '$lib/server/refresh';
+import {
+	applyMoveBack,
+	dismissMoveBand,
+	formerCandidate,
+	moveState,
+	MoveError
+} from '$lib/server/move';
 import { m } from '$lib/paraglide/messages';
 import { getSetting } from '$lib/server/settings';
 import { libraryRoot } from '$lib/server/import';
@@ -179,7 +186,17 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		// ADD AND DOWNLOAD (card c205): how many it queued, or `down` when the queue didn't answer.
 		addedQueued: /^(\d+|down)$/.test(url.searchParams.get('queued') ?? '')
 			? url.searchParams.get('queued')
-			: null
+			: null,
+		// MOVE (doc/MOVE.md; card c139): the SOURCE row, the NO VIDEO band, and
+		// what the series screen says just after a move.
+		move: moveState(series.id),
+		moved:
+			url.searchParams.get('moved') === '1'
+				? {
+						added: Number(url.searchParams.get('added')) || 0,
+						kept: Number(url.searchParams.get('kept')) || 0
+					}
+				: null
 	};
 };
 
@@ -688,5 +705,51 @@ export const actions: Actions = {
 		const ids = markReadThrough(s.id, entry.id);
 		afterReading(s.id);
 		return { markedThrough: { ids, label: entry.label, number: entry.number } };
+	},
+
+	/**
+	 * MOVE BACK on the SOURCE row (doc/MOVE.md): straight back to the source
+	 * the series left, no search and no comparison, for 30 days. It is a move —
+	 * reading carries back by number and nothing downloads — so the answer is
+	 * the same band a move gives.
+	 */
+	moveBack: async ({ params, cookies }) => {
+		const s = target(params, cookies);
+		if (!moveState(s.id).former)
+			return fail(400, { message: 'the way back has closed · move again' });
+		const candidate = await formerCandidate(s.id);
+		if (!candidate) return fail(400, { message: 'there is no source to move back to' });
+		let result: Awaited<ReturnType<typeof applyMoveBack>>;
+		try {
+			result = applyMoveBack(s.id, candidate.chapters);
+		} catch (e) {
+			if (e instanceof MoveError || isDownloadsError(e)) return fail(503, { message: e.message });
+			throw e;
+		}
+		redirect(303, `/series/${s.id}?moved=1&added=${result.added}&kept=${result.kept}`);
+	},
+
+	/** UNDO on the MOVED band: the same move back, before the band goes. */
+	undoMove: async ({ params, cookies }) => {
+		const s = target(params, cookies);
+		if (!moveState(s.id).former)
+			return fail(400, { message: 'the way back has closed · move again' });
+		const candidate = await formerCandidate(s.id);
+		if (!candidate) return fail(400, { message: 'there is no source to move back to' });
+		let result: Awaited<ReturnType<typeof applyMoveBack>>;
+		try {
+			result = applyMoveBack(s.id, candidate.chapters);
+		} catch (e) {
+			if (e instanceof MoveError || isDownloadsError(e)) return fail(503, { message: e.message });
+			throw e;
+		}
+		redirect(303, `/series/${s.id}?moved=1&added=${result.added}&kept=${result.kept}`);
+	},
+
+	/** NOT NOW on the NO VIDEO band: nothing shows until a new failure. */
+	dismissMove: async ({ params, cookies }) => {
+		const s = target(params, cookies);
+		dismissMoveBand(s.id);
+		return { ok: true };
 	}
 };

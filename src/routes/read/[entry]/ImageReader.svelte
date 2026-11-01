@@ -1530,6 +1530,7 @@
 
 	// ---- what the chrome says -----------------------------------------------------------
 	const seriesHref = $derived(resolve('/series/[id]', { id: String(data.series.id) }));
+	const moveHref = $derived(resolve('/series/[id]/move', { id: String(data.series.id) }));
 	const libraryHref = resolve('/');
 	const wordsHref = $derived(`${resolve('/words')}?series=${data.series.id}`);
 	const meta = $derived(
@@ -1626,6 +1627,8 @@
 				mode="ltr"
 				lastPage={pageLabel([pages.length - 1], pages.length)}
 				{seriesHref}
+				{moveHref}
+				stale={data.series.stale}
 				{libraryHref}
 				onrate={rate}
 				onfav={toggleFav}
@@ -1657,6 +1660,8 @@
 				{mode}
 				lastPage={pageLabel([pages.length - 1], pages.length)}
 				{seriesHref}
+				{moveHref}
+				stale={data.series.stale}
 				{libraryHref}
 				onrate={rate}
 				onfav={toggleFav}

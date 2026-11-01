@@ -17,6 +17,7 @@ import { readsOnline } from '$lib/server/pages/online';
 import { novelReadsOnline, onlineChapters, ONLINE_VERSION } from '$lib/server/novels/online';
 import { EngineError } from '$lib/server/engine/client';
 import { previewIdOf } from '$lib/server/downloads';
+import { noVideoLine, staleSource } from '$lib/server/move';
 
 /**
  * The reader (doc/READER.md). `/read/<entry>?p=<page>`, `p` 1-based. With no
@@ -107,7 +108,9 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			index,
 			incognito: isIncognito(cookies),
 			// What it starts in (card c171): the series', SETTINGS', the last choice.
-			player: playerStart(series.id)
+			player: playerStart(series.id),
+			// Not just this episode (doc/MOVE.md): the same NO SERVER on others.
+			failures: isIncognito(cookies) ? null : await noVideoLine(series.id)
 		};
 	}
 
@@ -231,6 +234,9 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 				count: series.entries.length,
 				single: series.entries.length === 1,
 				hidden: series.hidden,
+				// An ongoing series whose source has added nothing for eight weeks
+				// (doc/MOVE.md): the END page's line and ANOTHER SOURCE cell.
+				stale: staleSource(series.id),
 				// For the device cache policy: what comes next, and what is on disk.
 				entries: series.entries.map((e) => ({
 					id: e.id,

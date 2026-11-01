@@ -125,6 +125,24 @@
 			? (form.refreshed as { kind: 'manga' | 'anime' | 'novel'; added: number })
 			: null
 	);
+	/**
+	 * The MOVED band (doc/MOVE.md): just after a move, the series screen says
+	 * where it went, what changed, and UNDO. It goes when the screen is left.
+	 */
+	const movedDetail = $derived(
+		data.moved
+			? [
+					data.moved.added
+						? `${data.moved.added} ${series.kind === 'anime' ? 'EPISODE' : 'CHAPTER'}${data.moved.added === 1 ? '' : 'S'} ADDED, NOT DOWNLOADED`
+						: '',
+					data.moved.kept
+						? `${data.moved.kept} KEPT FROM ${(data.move.former?.name ?? 'THE OLD SOURCE').toUpperCase()}`
+						: ''
+				]
+					.filter(Boolean)
+					.join(' · ') || 'NOTHING ADDED OR KEPT'
+			: ''
+	);
 
 	// A long press on a chapter row: it and everything before it, read. The
 	// band that follows offers UNDO for exactly the chapters that changed.
@@ -436,7 +454,19 @@
 			{/snippet}
 		</Band>
 	{/if}
-	{#if refusal}
+	{#if data.moved && !refusal}
+		<!-- MOVE (doc/MOVE.md; Migrate-Moved): the same series, its new source, UNDO. -->
+		<Band
+			title="MOVED TO {(data.move.source || 'ANOTHER SOURCE').toUpperCase()}"
+			detail={movedDetail}
+		>
+			{#snippet action()}
+				<form method="POST" action="?/undoMove" use:enhance>
+					<button type="submit">UNDO</button>
+				</form>
+			{/snippet}
+		</Band>
+	{:else if refusal}
 		<Band title={refusal} detail="NOTHING CHANGED" />
 	{:else if downloaded && downloaded.missing > 0}
 		<!-- Chapters the source no longer lists, after one refresh: queued what it could. -->
@@ -532,6 +562,8 @@
 					tracking={data.tracking}
 					ranobe={data.ranobe}
 					downloads={data.downloads}
+					move={data.move}
+					noVideo={data.move.band}
 				/>
 			</div>
 		{/if}

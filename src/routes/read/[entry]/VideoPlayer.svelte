@@ -117,7 +117,11 @@
 	).length;
 	// svelte-ignore state_referenced_locally
 	const seriesHref = resolve('/series/[id]', { id: String(data.series.id) });
+	// svelte-ignore state_referenced_locally
+	const moveHref = resolve('/series/[id]/move', { id: String(data.series.id) });
 	const libraryHref = resolve('/');
+	// svelte-ignore state_referenced_locally
+	const failureLine = 'failures' in data ? (data.failures ?? null) : null;
 	const place = placeLabel(ep, ofSeason, seasons);
 	const epShort = (e: Episode) => `EP. ${e.number}`;
 	const metaOf = (e: Episode) =>
@@ -1434,6 +1438,13 @@
 						and none of them sent video. TRY AGAIN asks the source for its list afresh. Servers often
 						come back within the hour.
 					</div>
+					{#if failureLine}
+						<!-- Not just this episode (doc/MOVE.md; Migrate Calls, PLAYER). -->
+						<div class="also">
+							<div class="a">NOT JUST THIS EPISODE</div>
+							<div class="b">{failureLine} · ANOTHER SOURCE MAY HAVE IT</div>
+						</div>
+					{/if}
 				{:else if phase === 'engine'}
 					<div class="prose">
 						Downloaded episodes still play. Streaming and downloading wait until it answers. TRY
@@ -1444,7 +1455,15 @@
 			<div class="icells">
 				<a class="icell br" href={seriesHref}>← SERIES</a>
 				<div class="icell flex"></div>
-				{#if phase === 'noServer' || phase === 'engine'}
+				{#if phase === 'noServer'}
+					<!-- The way out when a source sends no video (doc/MOVE.md). -->
+					<a class="icell bl" href={moveHref}>ANOTHER SOURCE →</a>
+					<button
+						type="button"
+						class="icell acc"
+						onclick={() => ((freshTried = false), start(true))}>TRY AGAIN</button
+					>
+				{:else if phase === 'engine'}
 					<button
 						type="button"
 						class="icell acc"
@@ -2423,6 +2442,23 @@
 		color: var(--text-2);
 		max-width: 600px;
 		text-wrap: pretty;
+	}
+	/* "Not just this episode" (doc/MOVE.md; Migrate Calls, PLAYER). */
+	.also {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		max-width: 720px;
+		padding-top: 4px;
+	}
+	.also .a {
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.04em;
+		color: var(--text-1);
+	}
+	.also .b {
+		font: 400 13px/1.45 var(--font-mono);
+		color: var(--text-2);
 	}
 	.icells {
 		flex-shrink: 0;

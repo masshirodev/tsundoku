@@ -304,22 +304,27 @@
 								{/if}
 							</span>
 							<span class="status">
-								<span class="long"
-									>{downloadStatus(dl) ??
-										(online && row.state !== 'read'
-											? offline.online
-												? 'ONLINE'
-												: '○ ONLINE ONLY'
-											: entryStatus(e, row.state, series.kind))}</span
-								>
-								<span class="short"
-									>{downloadStatus(dl, true) ??
-										(online && row.state !== 'read'
-											? offline.online
-												? 'ONLINE'
-												: 'ONLINE ONLY'
-											: entryStatus(e, row.state, series.kind, true))}</span
-								>
+								{#if e.originSource}
+									<!-- A chapter kept from the source the series left (doc/MOVE.md). -->
+									<span class="src">{e.originSource.toUpperCase()}</span>
+								{:else}
+									<span class="long"
+										>{downloadStatus(dl) ??
+											(online && row.state !== 'read'
+												? offline.online
+													? 'ONLINE'
+													: '○ ONLINE ONLY'
+												: entryStatus(e, row.state, series.kind))}</span
+									>
+									<span class="short"
+										>{downloadStatus(dl, true) ??
+											(online && row.state !== 'read'
+												? offline.online
+													? 'ONLINE'
+													: 'ONLINE ONLY'
+												: entryStatus(e, row.state, series.kind, true))}</span
+									>
+								{/if}
 							</span>
 							{#if !novel && !readOnline}<span class="cache">{cached.has(e.id) ? '↓' : ''}</span
 								>{/if}
@@ -661,6 +666,21 @@
 	}
 	.entry.progress .status {
 		color: var(--accent);
+	}
+	/* A chapter kept from the source the series left (doc/MOVE.md; the handoff's
+	   22px `.src` cell), its own box in the status column. */
+	.src {
+		display: inline-flex;
+		align-items: center;
+		height: 22px;
+		max-width: 160px;
+		padding: 0 7px;
+		overflow: hidden;
+		border: 1px solid var(--line-2);
+		color: var(--text-2);
+		font: 500 11px var(--font-mono);
+		letter-spacing: 0.06em;
+		text-overflow: ellipsis;
 	}
 	/* Downloading (Index Series Download, rows): under way in ink, and FAILED the only
 	   row in full ink at 500 with a 3px ink rule -- the # jump's flash, in ink. */

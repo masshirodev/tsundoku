@@ -261,6 +261,14 @@ function answer(b: EngineCall): unknown {
 		}
 		case 'getChapterList': {
 			const url = (b as { mangaData?: { url: string } }).mangaData?.url ?? '';
+			// MOVE's own entry (tests/browse-move.e2e.ts) has 1, 2 and an extra at
+			// 2.5; a second entry on the same site has 1, 2 and 3.
+			if (url === '/manga/move-me')
+				return [
+					{ url: `${url}/c2.5`, name: 'Chapter 2.5', scanlator: null, chapter_number: 2.5 },
+					{ url: `${url}/c2`, name: 'Chapter 2', scanlator: null, chapter_number: 2 },
+					{ url: `${url}/c1`, name: 'Chapter 1', scanlator: null, chapter_number: 1 }
+				];
 			return [3, 2, 1].map((n) => ({
 				url: `${url}/c${n}`,
 				name: `Chapter ${n}`,
@@ -298,6 +306,16 @@ function answer(b: EngineCall): unknown {
 						manga(b.sourceId, page, i, `Paged ${page}-${i}`)
 					),
 					hasNextPage: page < 2
+				};
+			// MOVE's series (tests/browse-move.e2e.ts): its own entry, which is
+			// named and not offered, and a second entry on the same site.
+			if (b.search && /movenberg/i.test(b.search))
+				return {
+					mangas: [
+						{ ...manga(b.sourceId, 7, 0, 'Movenberg Heir'), url: '/manga/move-me' },
+						{ ...manga(b.sourceId, 7, 1, 'Movenberg Heir (new)'), url: '/s100/p7-0' }
+					],
+					hasNextPage: false
 				};
 			return { mangas: [manga(b.sourceId, 7, 0, 'Filtered One')], hasNextPage: false };
 	}
@@ -494,13 +512,62 @@ function seed(dbPath: string, store: string): void {
 		.id;
 	const now = Date.UTC(2026, 9, 28, 12);
 	const series = (title: string, key: string, hidden = 0) =>
-		db
-			.prepare(
-				`INSERT INTO series (root_id, title, kind, source, hue, added_at, indexed_at, origin_key, hidden)
-				VALUES (?, ?, 'manhwa', 'mihon', 210, ?, ?, ?, ?)`
-			)
-			.run(root, title, now, now, key, hidden);
+		Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, source, hue, added_at, indexed_at, origin_key, hidden)
+					VALUES (?, ?, 'manhwa', 'mihon', 210, ?, ?, ?, ?)`
+				)
+				.run(root, title, now, now, key, hidden).lastInsertRowid
+		);
 	series('Lindenborough Heir', `mihon:${SOURCES.open.id}:/manga/linden`);
+	// A series MOVE can move (tests/browse-move.e2e.ts; doc/MOVE.md): chapters 1
+	// and 2 and an extra at 2.5, one queued each for the queue rules' two sides.
+	const moveSeries = series('Movenberg Heir', `mihon:${SOURCES.open.id}:/manga/move-me`);
+	const moveEntry = db.prepare(
+		`INSERT INTO entries (series_id, position, label, title, added_at, read_at, last_position,
+			last_opened_at, available, file, bytes, page_count, source_url)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 10, 10, ?)`
+	);
+	const m1 = Number(
+		moveEntry.run(moveSeries, 1, 'Ch. 1', '', now, now, 3, now, 1, 'Ch. 1.cbz', '/manga/move-me/c1')
+			.lastInsertRowid
+	);
+	const m2 = Number(
+		moveEntry.run(moveSeries, 2, 'Ch. 2', '', now, null, null, null, 0, '', '/manga/move-me/c2')
+			.lastInsertRowid
+	);
+	const m25 = Number(
+		moveEntry.run(
+			moveSeries,
+			2.5,
+			'Afterword',
+			'Afterword',
+			now,
+			null,
+			null,
+			null,
+			1,
+			'Afterword.cbz',
+			'/manga/move-me/c2.5'
+		).lastInsertRowid
+	);
+	for (const [id, url, name] of [
+		[m1, '/manga/move-me/c1', 'Chapter 1'],
+		[m2, '/manga/move-me/c2', 'Chapter 2'],
+		[m25, '/manga/move-me/c2.5', 'Afterword']
+	] as [number, string, string][])
+		db.prepare(`INSERT INTO engine_chapters (entry_id, engine_url, name) VALUES (?, ?, ?)`).run(
+			id,
+			url,
+			name
+		);
+	db.prepare(
+		`INSERT INTO download_queue (entry_id, series_id, position, state, queued_at) VALUES (?, ?, 1, 'queued', ?)`
+	).run(m2, moveSeries, now);
+	db.prepare(
+		`INSERT INTO download_queue (entry_id, series_id, position, state, queued_at) VALUES (?, ?, 2, 'queued', ?)`
+	).run(m25, moveSeries, now);
 	// The hidden source: two of three series here are hidden, so it's mostly hidden.
 	series('Toonily One', `mihon:${SOURCES.hidden.id}:/manga/t1`);
 	series('Toonily Two', `mihon:${SOURCES.hidden.id}:/manga/t2`, 1);

@@ -39,7 +39,9 @@
 		onback,
 		words = 0,
 		wordsHref = '',
-		nextOcr = false
+		nextOcr = false,
+		stale = null,
+		moveHref = ''
 	}: {
 		/** chapter: next is readable; missing: next has no file; offline: no network; series: nothing next. */
 		variant: 'chapter' | 'missing' | 'offline' | 'series';
@@ -70,10 +72,25 @@
 		wordsHref?: string;
 		/** The next chapter has its text read already. */
 		nextOcr?: boolean;
+		/**
+		 * An ongoing series whose source has added nothing for eight weeks
+		 * (doc/MOVE.md; Migrate Calls, READER): the quiet source's name and when
+		 * it last added something. Null: no line.
+		 */
+		stale?: { source: string; since: number } | null;
+		/** Its MOVE page, for the ANOTHER SOURCE cell. */
+		moveHref?: string;
 	} = $props();
 
 	const back = $derived(mode === 'rtl' ? '→' : '←');
 	const nextTitle = $derived(next?.title ?? '');
+	const staleDay = $derived(
+		stale
+			? new Date(stale.since)
+					.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+					.toUpperCase()
+			: ''
+	);
 </script>
 
 <div class="end" class:incognito data-end-page>
@@ -90,6 +107,14 @@
 
 		{#if variant === 'series'}
 			<div class="big">{seriesTitle}</div>
+			{#if stale && moveHref}
+				<!-- A quiet source isn't a broken one: one line and a way out, no band. -->
+				<div class="stale">
+					<span>{stale.source.toUpperCase()} HAS ADDED NOTHING SINCE {staleDay}</span>
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved by the page -->
+					<a class="scell" href={moveHref}>ANOTHER SOURCE →</a>
+				</div>
+			{/if}
 			{#if rating === 0}
 				<div class="rate-block">
 					<!-- Ratings out of 10 1d: the blocky slider; it saves when the finger lifts. -->
@@ -295,6 +320,39 @@
 		font: 500 14px var(--font-mono);
 	}
 	.words:active {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+	}
+	/* A quiet source (doc/MOVE.md): the line and its cell, on the page's own rule. */
+	.stale {
+		display: flex;
+		align-items: stretch;
+		min-height: 56px;
+		border-top: var(--hairline);
+		border-bottom: var(--hairline);
+	}
+	.stale span {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		align-items: center;
+		padding: 0 18px;
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.04em;
+		color: var(--text-2);
+	}
+	.scell {
+		display: flex;
+		align-items: center;
+		padding: 0 24px;
+		border-left: var(--hairline);
+		color: var(--text-1);
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.04em;
+		text-decoration: none;
+		white-space: nowrap;
+	}
+	.scell:active {
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
 	}

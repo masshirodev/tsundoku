@@ -40,6 +40,7 @@
 	import { ranobeLines } from '$lib/library/ranobe';
 	import type { RanobeSeries } from '$lib/server/ranobe-review';
 	import type { SeriesDownloads } from '$lib/server/downloads';
+	import type { MoveState } from '$lib/server/move';
 	import {
 		downloadCounts,
 		downloadRow,
@@ -76,6 +77,8 @@
 		tracking = null,
 		ranobe = null,
 		downloads = null,
+		move = null,
+		noVideo = null,
 		readOnline = false
 	}: {
 		/** FIRST READ's next step is this row: a 2px accent ring while its trip lasts (doc/ONBOARDING.md). */
@@ -120,6 +123,10 @@
 		ranobe?: RanobeSeries | null;
 		/** Downloading (doc/DOWNLOADING.md): the DOWNLOAD row and the FILE line's queue. */
 		downloads?: SeriesDownloads | null;
+		/** MOVE's SOURCE row (doc/MOVE.md): where the series comes from and the way out. */
+		move?: MoveState | null;
+		/** A source that lists episodes but sends no video: the NO VIDEO band under CONTINUE. */
+		noVideo?: { title: string; detail: string } | null;
 		/** A chapter with no file reads online (doc/BROWSING.md): START opens it, as an episode streams. */
 		readOnline?: boolean;
 	} = $props();
@@ -306,6 +313,15 @@
 	// that fails keeps the value, drawn dashed, with RETRY and PUT BACK in the
 	// layout's band (Loading States 1o).
 	const actionBase = $derived(resolve('/series/[id]', { id: String(series.id) }));
+	const moveHref = $derived(resolve('/series/[id]/move', { id: String(series.id) }));
+	/** "1 DEC": the last day MOVE BACK is offered. */
+	const formerUntil = $derived(
+		move?.former
+			? new Date(move.former.until)
+					.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+					.toUpperCase()
+			: ''
+	);
 	let ratingNow = $state<Rating | null>(null);
 	let favNow = $state<boolean | null>(null);
 	const rating = $derived(ratingNow ?? series.rating);
@@ -528,6 +544,24 @@
 			{#if dlRow.cells.length}<div class="lcs inline">{@render dlCells()}</div>{/if}
 		</div>
 		{#if dlRow.cells.length}<div class="lcs stack">{@render dlCells()}</div>{/if}
+	{/if}
+
+	{#if !outline && noVideo}
+		<!-- NO VIDEO (doc/MOVE.md; Migrate-Start): the MIGHT BE ONE SERIES idiom,
+		     under CONTINUE. NOT NOW hides it until a new failure. -->
+		<section class="sugg" aria-label="No video from this source">
+			<div class="sugg-head">
+				<span>{noVideo.title}</span>
+				<span class="dim">{noVideo.detail}</span>
+			</div>
+			<div class="sugg-actions">
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
+				<a href={moveHref}>ANOTHER SOURCE →</a>
+				<form method="POST" action="?/dismissMove" use:enhance>
+					<button type="submit" class="dim">NOT NOW</button>
+				</form>
+			</div>
+		</section>
 	{/if}
 
 	{#if outline}
@@ -877,6 +911,33 @@
 					{#if link.cover.b}<div>{link.cover.b}</div>{/if}
 				</div>
 			</div>
+		{/if}
+
+		{#if !outline && move?.eligible}
+			<!-- SOURCE (doc/MOVE.md; Migrate-Start): where the series comes from, its
+			     trouble in ink, and the way to another source. Rare enough to sit
+			     away from CONTINUE, next to FILE. -->
+			{#snippet sourceCells()}
+				{#if move.former}
+					<form method="POST" action="?/moveBack" use:enhance class="lc-form">
+						<button type="submit" class="lc">MOVE BACK</button>
+					</form>
+				{/if}
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
+				<a class="lc" href={moveHref}>MOVE →</a>
+			{/snippet}
+			<div class="row link-row source-row">
+				<div class="label">SOURCE</div>
+				<div class="lk">
+					<div class="lk-a">{move.source}</div>
+					<div class="lk-b" class:ink={!!move.trouble}>{move.trouble ?? move.meta}</div>
+					{#if move.former}
+						<div class="lk-b">WAS {move.former.name.toUpperCase()} · UNTIL {formerUntil}</div>
+					{/if}
+				</div>
+				<div class="lcs inline">{@render sourceCells()}</div>
+			</div>
+			<div class="lcs stack">{@render sourceCells()}</div>
 		{/if}
 
 		<div class="row top">
@@ -1501,9 +1562,23 @@
 		border-top: var(--hairline);
 	}
 	.sugg-actions > button,
-	.sugg-actions > form {
+	.sugg-actions > form,
+	.sugg-actions > a {
 		flex: 1;
 		display: flex;
+	}
+	.sugg-actions > a {
+		align-items: center;
+		justify-content: center;
+		border-right: var(--hairline);
+		color: var(--text-1);
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.04em;
+		text-decoration: none;
+	}
+	.sugg-actions > a:active {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
 	}
 	.sugg-actions button {
 		flex: 1;
@@ -1557,6 +1632,9 @@
 		font: 400 13px/1.35 var(--font-mono);
 		color: var(--text-2);
 		text-wrap: pretty;
+	}
+	.lk-b.ink {
+		color: var(--text-1);
 	}
 	.lcs {
 		display: flex;

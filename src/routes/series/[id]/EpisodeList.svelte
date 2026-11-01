@@ -188,7 +188,14 @@
 								<span class="bar ink"><span style:width="{dl.fraction * 100}%"></span></span>
 							{/if}
 						</span>
-						<span class="status">{status(e, row.current, dl)}</span>
+						<span class="status">
+							{#if e.originSource}
+								<!-- An episode kept from the source the series left (doc/MOVE.md). -->
+								<span class="src">{e.originSource.toUpperCase()}</span>
+							{:else}
+								{status(e, row.current, dl)}
+							{/if}
+						</span>
 						<span class="cache">{cached.has(e.id) ? '↓' : ''}</span>
 					</button>
 				</li>
@@ -429,6 +436,20 @@
 	}
 	.entry.progress .status {
 		color: var(--accent);
+	}
+	/* An episode kept from the source the series left (doc/MOVE.md). */
+	.src {
+		display: inline-flex;
+		align-items: center;
+		height: 22px;
+		max-width: 160px;
+		padding: 0 7px;
+		overflow: hidden;
+		border: 1px solid var(--line-2);
+		color: var(--text-2);
+		font: 500 11px var(--font-mono);
+		letter-spacing: 0.06em;
+		text-overflow: ellipsis;
 	}
 	.entry.dl-queued .status,
 	.entry.dl-downloading .status,
