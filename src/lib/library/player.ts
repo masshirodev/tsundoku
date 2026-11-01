@@ -95,6 +95,33 @@ export function nextServer(order: number[], current: number, failed: Set<number>
 }
 
 /**
+ * Where a stall goes: the next server that hasn't failed, as before; with
+ * none left, a lower quality on this one at the same second; else null, and
+ * the list is asked for afresh. A source with one server had nowhere to go:
+ * KickAssAnime's 1080p runs at 20–34 Mbps through a heavy scene, a link that
+ * can't carry that stalled there every time, and 720p (a third of it) was
+ * one tap away in the sheet. [heights] are the server's qualities, best
+ * first; a quality without a height steps to the next one listed.
+ */
+export type StallStep = { server: number } | { quality: number } | null;
+
+export function stallStep(
+	order: number[],
+	current: number,
+	failed: Set<number>,
+	heights: (number | null)[],
+	qualityIndex: number
+): StallStep {
+	const server = nextServer(order, current, failed);
+	if (server !== null) return { server };
+	const now = heights[qualityIndex] ?? null;
+	const i = heights.findIndex(
+		(h, j) => j > qualityIndex && (now === null || (h !== null && h < now))
+	);
+	return i >= 0 ? { quality: i } : null;
+}
+
+/**
  * A double-tap on a side third seeks 10 s, and each further tap within the
  * burst adds 10 (Anime Calls, "The picture is the interface"): [taps] is the
  * count in the burst, from 2.

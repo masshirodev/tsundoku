@@ -214,6 +214,8 @@ test.describe('the player, tablet landscape (c156)', () => {
 		await inter.getByRole('button', { name: 'STAY' }).click();
 		await page.waitForTimeout(6000);
 		expect(page.url()).toBe(at);
+		// A link cell keeps its padding as the button cells do (the reset outranked it).
+		await expect(inter.getByRole('link', { name: '← SERIES' })).toHaveCSS('padding-right', '24px');
 
 		// Watching is reading: the episode is WATCHED on its series.
 		await inter.getByRole('link', { name: '← SERIES' }).click();

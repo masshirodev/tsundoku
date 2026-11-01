@@ -18,6 +18,7 @@ import {
 	preferredLang,
 	startTracks,
 	seekFor,
+	stallStep,
 	subtitlePx,
 	TAP_SLOP_PX
 } from '$lib/library/player';
@@ -112,6 +113,23 @@ describe('servers', () => {
 		expect(nextServer([1, 2, 3], 2, new Set([1, 2]))).toBe(3);
 		expect(nextServer([1, 2, 3], 3, new Set([3]))).toBe(1);
 		expect(nextServer([1, 2, 3], 3, new Set([1, 2, 3]))).toBeNull();
+	});
+
+	it('move a stall to the next server first, then one quality down on this one', () => {
+		const heights = [1080, 720, 360];
+		// Another server left: the stall moves there, whatever the quality.
+		expect(stallStep([1, 2], 1, new Set(), heights, 0)).toEqual({ server: 2 });
+		// None left (KickAssAnime's one server): 1080p steps to 720p, then 360p.
+		expect(stallStep([1], 1, new Set(), heights, 0)).toEqual({ quality: 1 });
+		expect(stallStep([1], 1, new Set(), heights, 1)).toEqual({ quality: 2 });
+		expect(stallStep([1, 2], 2, new Set([1]), heights, 0)).toEqual({ quality: 1 });
+		// The lowest stalled too: nothing, and the list is asked for afresh.
+		expect(stallStep([1], 1, new Set(), heights, 2)).toBeNull();
+		expect(stallStep([1], 1, new Set(), [1080], 0)).toBeNull();
+		// Never sideways: an equal height isn't lighter; an unnamed one steps to the next listed.
+		expect(stallStep([1], 1, new Set(), [720, 720, 480], 0)).toEqual({ quality: 2 });
+		expect(stallStep([1], 1, new Set(), [null, 480], 0)).toEqual({ quality: 1 });
+		expect(stallStep([1], 1, new Set(), [720, null], 0)).toBeNull();
 	});
 
 	it('draw the challenge’s known range, never a fill toward an end', () => {

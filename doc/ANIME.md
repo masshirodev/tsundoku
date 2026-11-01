@@ -293,7 +293,23 @@ screen but the video, and the subtitles, until a tap.
   to the next at the same second by itself; BUFFERING says what it waits on
   and offers SERVER 2 NOW →, and a switch says which stopped where. After the
   last, the list is asked for afresh once (a stream that stopped may have
-  gone stale), then NO SERVER ANSWERED with TRY AGAIN.
+  gone stale), then NO SERVER ANSWERED with TRY AGAIN. **With no server left
+  to move to, a stall first drops one quality on the same server** (`stallStep`),
+  at the same second, for this episode only, saying "1080P COULDN'T KEEP UP";
+  BUFFERING names the drop and offers 720P NOW →. KickAssAnime has one server,
+  and its 1080p runs at 20–34 Mbps through a heavy scene (Trigun Stargaze's
+  first episode, 2:30–3:30, segments of 13–25 MB for 6 s against a label of
+  4.58 Mbps): a link that couldn't carry it stalled there on every try. A
+  fatal error still moves servers, never quality: that's a server broken,
+  not a link too thin.
+- **A reload never reports 0.** Switching server or quality, or asking the list
+  afresh, destroys hls.js, and the emptied video reads 0 until the new stream
+  is in. Until the video is back within 10 s of where it was heading
+  (`reloadingTo`), that second is what the scrubber shows, what `page` and
+  `close` send, and where a second failure picks up. Before, a stream that
+  stopped and never came back sent 0, which wiped the episode's place: it
+  opened from 0:00 again and stalled at the same scene, which read as
+  "can't get past 3 minutes". A seek by hand ends the wait.
 - **Waiting**: FINDING THE VIDEO with the ink line and a count of seconds; a
   site's check named at once (`/api/browse/check/<source>`) with its known
   20–45 s range drawn as a scale, never a fill. The source service not

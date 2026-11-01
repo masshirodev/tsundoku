@@ -32,6 +32,7 @@
 		SKIP_ALONE_MS,
 		SPEEDS,
 		STALL_S,
+		stallStep,
 		SUB_SIZES,
 		subtitlePx,
 		type Cue,
@@ -145,12 +146,17 @@
 	let video = $state<HTMLVideoElement | null>(null);
 	let hls: Hls | null = null;
 	let time = $state(0);
+	/** The second a reload (a server, a quality, a fresh list) is heading for, until the video is there. */
+	let reloadingTo: number | null = null;
+	/** How far from that second hls.js may land (a segment's start) and still count as there. */
+	const RELOAD_SLACK_S = 10;
 	let duration = $state(ep.durationS ?? 0);
 	let buffered = $state(0);
 	let paused = $state(true);
 	let stalled = $state<number | null>(null);
 	let stallSeconds = $state(0);
 	let serverNotice = $state<{ from: number; at: number } | null>(null);
+	let qualityNotice = $state<{ from: string; to: string; at: number } | null>(null);
 
 	const server = $derived(streams?.servers.find((s) => s.n === serverN) ?? null);
 	const quality = $derived(server?.qualities[qualityIndex] ?? null);
@@ -346,6 +352,7 @@
 	// ---- playing -----------------------------------------------------------------------------------
 	async function attach(at: number) {
 		if (!video || !quality) return;
+		reloadingTo = at;
 		detach();
 		const src = quality.src;
 		const { default: HlsClass } = await import('hls.js');
@@ -394,9 +401,17 @@
 		}
 	}
 
+	/**
+	 * Where the episode is: the second a reload is heading for while there is
+	 * one. Destroying hls.js empties the video, whose currentTime reads 0 until
+	 * the new stream is in, and a server that stopped twice in a row would
+	 * otherwise start the episode over.
+	 */
+	const position = () => reloadingTo ?? video?.currentTime ?? time;
+
 	/** A server that stopped: the next at the same second, by itself; only the last failure stops playback. */
 	async function fail() {
-		const at = video?.currentTime ?? time;
+		const at = position();
 		failed.add(serverN);
 		failedAt = { ...failedAt, [serverN]: at };
 		const to = nextServer(order, serverN, failed);
@@ -416,7 +431,7 @@
 		phase = 'noServer';
 	}
 
-	function switchServer(n: number, at = video?.currentTime ?? time) {
+	function switchServer(n: number, at = position()) {
 		const s = streams?.servers.find((x) => x.n === n);
 		if (!s) return;
 		const height = quality?.height ?? null;
@@ -427,10 +442,40 @@
 		void tick().then(() => attach(at));
 	}
 
+	/**
+	 * A stall with no server left to move to: one quality down on this server,
+	 * at the same second. This episode's only: the next starts on the
+	 * device's choice again, since the link may be fine by then.
+	 */
+	function stepDown(i: number) {
+		const s = server;
+		if (!s?.qualities[i]) return;
+		const at = position();
+		qualityNotice = {
+			from: quality ? qualityName(quality) : '',
+			to: qualityName(s.qualities[i]),
+			at
+		};
+		setTimeout(() => (qualityNotice = null), 4000);
+		qualityIndex = i;
+		stalled = null;
+		void tick().then(() => attach(at));
+	}
+
+	/** What a stall on what's playing now would move to (the BUFFERING panel names it). */
+	const stallNext = () =>
+		stallStep(
+			order,
+			serverN,
+			failed,
+			(server?.qualities ?? []).map((q) => q.height),
+			qualityIndex
+		);
+
 	function setQuality(i: number) {
 		qualityIndex = i;
 		save('tsundoku:anime:quality', server?.qualities[i]?.height ?? null);
-		void tick().then(() => attach(video?.currentTime ?? time));
+		void tick().then(() => attach(position()));
 	}
 
 	// The stall clock: a buffer that doesn't fill for 15 s moves to the next server.
@@ -446,7 +491,9 @@
 			if (stallSeconds >= STALL_S) {
 				clearInterval(stallTimer);
 				stalled = null;
-				void fail();
+				const step = stallNext();
+				if (step && 'quality' in step) stepDown(step.quality);
+				else void fail();
 			}
 		}, 500);
 	}
@@ -493,6 +540,13 @@
 
 	function onTime() {
 		if (!video) return;
+		// Mid-reload the emptied video says 0: neither shown nor sent, or a
+		// stream that stopped and never came back wiped the episode's place.
+		if (reloadingTo !== null) {
+			if (video.readyState < 2 || Math.abs(video.currentTime - reloadingTo) > RELOAD_SLACK_S)
+				return;
+			reloadingTo = null;
+		}
 		time = video.currentTime;
 		if (Number.isFinite(video.duration) && video.duration > 0) duration = video.duration;
 		buffered = bufferedTo(rangesOf(video.buffered), time);
@@ -573,6 +627,7 @@
 	}
 	function seek(by: number) {
 		if (!video) return;
+		reloadingTo = null;
 		video.currentTime = Math.max(0, Math.min(duration || Infinity, video.currentTime + by));
 		time = video.currentTime;
 	}
@@ -582,6 +637,7 @@
 		if (r) video.currentTime = r.end;
 	}
 	function fromStart() {
+		reloadingTo = null;
 		if (video) video.currentTime = 0;
 		resumedAt = null;
 	}
@@ -591,6 +647,7 @@
 	function scrubTo(e: PointerEvent) {
 		if (!scrub || !video || !duration) return;
 		const box = scrub.getBoundingClientRect();
+		reloadingTo = null;
 		video.currentTime = Math.max(0, Math.min(1, (e.clientX - box.left) / box.width)) * duration;
 		time = video.currentTime;
 	}
@@ -850,7 +907,9 @@
 			</div>
 		{/if}
 		{#if stalled !== null && stallSeconds >= 2}
-			{@const to = nextServer(order, serverN, failed)}
+			{@const step = stallNext()}
+			{@const to = step && 'server' in step ? step.server : null}
+			{@const down = step && 'quality' in step ? server?.qualities[step.quality] : undefined}
 			<div class="panel buffer" role="status">
 				<div class="body">
 					<div class="head">
@@ -864,15 +923,32 @@
 							Math.round(buffered - time)
 						)} S AHEAD OF {clock(time)}{to !== null
 							? ` · MOVES TO SERVER ${to} BY ITSELF AT ${STALL_S} S`
-							: ''}
+							: down
+								? ` · DROPS TO ${qualityName(down)} BY ITSELF AT ${STALL_S} S`
+								: ''}
 					</div>
 				</div>
 				{#if to !== null}
 					<button type="button" onclick={() => switchServer(to)}>SERVER {to} NOW →</button>
+				{:else if down && step && 'quality' in step}
+					{@const i = step.quality}
+					<button type="button" onclick={() => stepDown(i)}>{qualityName(down)} NOW →</button>
 				{/if}
 			</div>
 		{/if}
-		{#if serverNotice}
+		{#if qualityNotice}
+			<div class="panel servers" role="status">
+				<div class="head">
+					<div>{qualityNotice.from} COULDN'T KEEP UP</div>
+					<div class="mut">AT {clock(qualityNotice.at)}</div>
+				</div>
+				<div class="foot">
+					<div class="m">
+						PICKS UP AT {clock(qualityNotice.at)} ON {qualityNotice.to} · THIS EPISODE ONLY
+					</div>
+				</div>
+			</div>
+		{:else if serverNotice}
 			<div class="panel servers" role="status">
 				<div class="head">
 					<div>SERVER {serverNotice.from} STOPPED SENDING</div>
@@ -910,7 +986,10 @@
 		<!-- The middle cluster: −10, pause, +10, under the thumb. It steps aside while a
 		     waiting box holds the middle (Player Waiting 3a draws the box alone): the
 		     two overlapped (reported 2026-10-29). -->
-		<div class="cluster" class:aside={(stalled !== null && stallSeconds >= 2) || !!serverNotice}>
+		<div
+			class="cluster"
+			class:aside={(stalled !== null && stallSeconds >= 2) || !!serverNotice || !!qualityNotice}
+		>
 			<button type="button" aria-label="Back 10 seconds" onclick={() => (seek(-10), showChrome())}
 				>−10</button
 			>
@@ -1516,10 +1595,12 @@
 		align-items: center;
 		padding: 0 20px;
 	}
+	/* The class names sit in :where() so the reset weighs as `a`, enough to
+	   beat base.css's link colour and no more: as `a.icell` it outranked
+	   `.icell`, and the link cells (← SERIES, LIBRARY) and the UP NEXT rows
+	   lost their padding while the button cells beside them kept theirs. */
 	button,
-	a.back,
-	a.icell,
-	a.up {
+	a:where(.back, .icell, .up) {
 		font: inherit;
 		color: inherit;
 		background: transparent;
