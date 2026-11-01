@@ -30,7 +30,7 @@ import {
 } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { serverModules } from './modules.ts';
+import { serverModules, spawnedPackages } from './modules.ts';
 
 type Platform = 'win-x64' | 'linux-x64';
 
@@ -161,6 +161,9 @@ const pkg = JSON.parse(readFileSync(join(src, 'package.json'), 'utf8')) as {
 	dependencies: Record<string, string>;
 };
 const imported = serverImports(join(src, 'build'));
+// And what a file the server forks requires (the novels plugin host): no
+// import in the build names those packages.
+for (const name of spawnedPackages(src)) imported.add(name);
 console.log(`  the server loads: ${[...imported].sort().join(', ')}`);
 if (imported.has('kotoba'))
 	throw new Error(

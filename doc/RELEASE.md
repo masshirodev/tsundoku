@@ -225,6 +225,15 @@ did, and failed on a stage it couldn't have). The release script likewise
 takes the server modules a bundle carries from the tag's own imports
 (`ops/release/modules.ts`), not from a list in whichever copy runs it.
 
+Imports don't reach everything: the novels plugin host is a file the server
+**forks by path**, and the packages it lends to plugins (cheerio, dayjs,
+htmlparser2, `@noble/ciphers`, protobufjs) appear in no import of the build.
+2026.10.31.3 shipped without either, so every novel source on every desktop
+install said THE PLUGIN HOST STOPPED. `modules.ts` now also carries any file
+named as a quoted `'src/lib/server/...'` in `src/` (`spawnedFiles`), and the
+packages those files `require` (`spawnedPackages`). A new file the server
+starts by path is found the same way, as long as its path is written whole.
+
 - **Linux** in a bare `debian:stable-slim` container: no Node, no Java, no
   ffmpeg, only what the bundle carries.
 - **Windows** on Zen ([`WINDOWS-VM.md`](WINDOWS-VM.md)): `zen.sh up`, copy
