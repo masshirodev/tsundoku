@@ -67,7 +67,8 @@
 				document.cookie = l
 					? `${LANG_COOKIE}=${l}; path=/; max-age=31536000; samesite=lax${secure}`
 					: `${LANG_COOKIE}=; path=/; max-age=0; samesite=lax${secure}`;
-				location.reload();
+				// The workstation hears of it first: the reload's check-in must not hand the old choice back.
+				void syncDevice().finally(() => location.reload());
 				return;
 			}
 			if (key !== THEME_KEY) return;
