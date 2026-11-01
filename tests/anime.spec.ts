@@ -43,6 +43,7 @@ const ep = (
 	matter: '',
 	lastOffset: null,
 	volume: '',
+	originSource: '',
 	tags: [],
 	...o,
 	episode:

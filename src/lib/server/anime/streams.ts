@@ -241,6 +241,7 @@ type EpisodeRow = {
 	source_url: string;
 	label: string;
 	title: string;
+	origin_source: string;
 	origin_key: string | null;
 };
 
@@ -249,7 +250,7 @@ export function episodeRow(entryId: number, reveal: boolean): EpisodeRow | null 
 	return (
 		(getDb()
 			.prepare(
-				`SELECT e.id, e.source_url, e.label, e.title, s.origin_key FROM entries e
+				`SELECT e.id, e.source_url, e.label, e.title, e.origin_source, s.origin_key FROM entries e
 				JOIN series s ON s.id = e.series_id JOIN roots r ON r.id = s.root_id
 				WHERE e.id = ? AND s.kind = 'anime' AND (? OR ${VISIBLE_SQL})`
 			)
@@ -398,8 +399,9 @@ export async function episodeStreams(
 	}
 	const kept = resolved.get(entryId);
 	if (!fresh && kept && now - kept.resolvedAt < KEEP_MS) return kept;
+	// An episode kept from the source the series left plays from there (doc/MOVE.md).
 	const videos = await callSource<EngineVideo[]>(
-		key.sourceId,
+		e.origin_source || key.sourceId,
 		'getVideoList',
 		{ episodeData: { url: e.source_url, name: e.title || e.label } },
 		RESOLVE_MS

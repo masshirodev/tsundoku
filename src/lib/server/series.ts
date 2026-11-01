@@ -6,6 +6,7 @@ import { libraryWhere, VISIBLE_SQL } from './visibility';
 import { seriesDetail } from './library';
 import { scanlatorsOf } from './duplicates';
 import { getSetting, isSettingKey } from './settings';
+import { sourceOfKey } from '$lib/library/downloads';
 import type { Kind } from '$lib/library/types';
 import type { Direction, SeriesEntry, SeriesPage, SeriesTag } from '$lib/library/series';
 
@@ -24,6 +25,9 @@ type SeriesRow = {
 	direction: Direction | null;
 	path: string;
 	scanlator: string | null;
+	origin_key: string | null;
+	former_key: string | null;
+	former_source: string;
 };
 
 type EntryRow = {
@@ -52,6 +56,7 @@ type EntryRow = {
 	episode_note: string;
 	ending_at: number | null;
 	thumb_at: number | null;
+	origin_source: string;
 };
 
 function parseAlts(raw: string): string[] {
@@ -63,25 +68,65 @@ function parseAlts(raw: string): string[] {
 	}
 }
 
+/**
+ * Source ids as the names a row shows (doc/MOVE.md): an engine source's or a
+ * novel plugin's, with the series' remembered former source standing in when
+ * the extension that named it is gone. An id nothing knows stays unnamed, so
+ * the row falls back to its number rather than inventing a name.
+ */
+function sourceNames(
+	db: ReturnType<typeof getDb>,
+	ids: string[],
+	former: [string | null, string]
+): Map<string, string> {
+	const out = new Map<string, string>();
+	if (!ids.length) return out;
+	const marks = ids.map(() => '?').join(',');
+	for (const r of db
+		.prepare(`SELECT id, name FROM engine_sources WHERE id IN (${marks})`)
+		.all(...ids) as { id: string; name: string }[])
+		out.set(r.id, r.name);
+	const novels = ids.filter((i) => i.startsWith('ln:')).map((i) => i.slice(3));
+	if (novels.length)
+		for (const r of db
+			.prepare(
+				`SELECT id, name FROM novel_plugins WHERE id IN (${novels.map(() => '?').join(',')})`
+			)
+			.all(...novels) as { id: string; name: string }[])
+			out.set(`ln:${r.id}`, r.name);
+	// The source the series left, when its extension has since gone.
+	const [formerId, formerName] = former;
+	if (formerId && formerName && !out.has(formerId)) out.set(formerId, formerName);
+	return out;
+}
+
 export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
 	const card = seriesDetail(id, reveal);
 	if (!card) return null;
 	const db = getDb();
 	const row = db
 		.prepare(
-			`SELECT alt_titles, source, status, description, direction, path, scanlator FROM series WHERE id = ?`
+			`SELECT alt_titles, source, status, description, direction, path, scanlator, origin_key,
+				former_key, former_source FROM series WHERE id = ?`
 		)
 		.get(id) as SeriesRow;
-	const entries = (
-		db
-			.prepare(
-				`SELECT id, position, label, title, read_at, last_position, last_opened_at, page_count, file, bytes,
-					rating, favourite, added_at, cover_page, available, locator, matter, last_offset, volume,
-					duration_s, season, episode_number, episode_note, ending_at, thumb_at
-				FROM entries WHERE series_id = ? AND shadowed = 0 ORDER BY position, id`
-			)
-			.all(id) as EntryRow[]
-	).map((e): SeriesEntry => ({
+	const raw = db
+		.prepare(
+			`SELECT id, position, label, title, read_at, last_position, last_opened_at, page_count, file, bytes,
+				rating, favourite, added_at, cover_page, available, locator, matter, last_offset, volume,
+				duration_s, season, episode_number, episode_note, ending_at, thumb_at, origin_source
+			FROM entries WHERE series_id = ? AND shadowed = 0 ORDER BY position, id`
+		)
+		.all(id) as EntryRow[];
+	// A chapter kept from the source the series left says that source's name,
+	// not its id (doc/MOVE.md). A move within one site keeps it too: the site is
+	// the same, the entry it came from isn't.
+	const names = sourceNames(
+		db,
+		[...new Set(raw.map((e) => e.origin_source).filter(Boolean))],
+		[sourceOfKey(row.former_key), row.former_source]
+	);
+	const entries = raw.map((e): SeriesEntry => ({
 		id: e.id,
 		number: e.position,
 		label: e.label,
@@ -101,6 +146,7 @@ export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
 		matter: e.matter as SeriesEntry['matter'],
 		lastOffset: e.last_offset,
 		volume: e.volume,
+		originSource: names.get(e.origin_source) ?? '',
 		tags: [],
 		// An episode's own (doc/ANIME.md). Its picture is made on the workstation (c225).
 		episode:

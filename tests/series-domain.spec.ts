@@ -52,6 +52,7 @@ function chapters(n: number, read: number, page: number | null = null, pages = 5
 			matter: '' as const,
 			lastOffset: null,
 			volume: '',
+			originSource: '',
 			tags: []
 		};
 	});

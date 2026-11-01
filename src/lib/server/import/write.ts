@@ -127,6 +127,15 @@ export function writeSeries(
 					db.prepare(`SELECT id FROM series WHERE origin_key = ?`).get(s.originKey) as
 						{ id: number } | undefined
 				)?.id ?? null;
+			// Moved to another source (doc/MOVE.md): the backup still names the
+			// source it was downloaded from, and that key was kept as `former_key`.
+			// The series is this one, not a twin; its key stays where it moved to.
+			if (seriesId === null) {
+				const former = db
+					.prepare(`SELECT id FROM series WHERE former_key = ? LIMIT 1`)
+					.get(s.originKey) as { id: number } | undefined;
+				if (former) seriesId = former.id;
+			}
 			let created = false;
 			// Grouped since the last scan: the entries are in another series, in
 			// this source or another -- a Mihon local book grouped with Hentoid's
@@ -258,7 +267,8 @@ export function writeSeries(
 			).path;
 			const find = db.prepare(
 				`SELECT id, read_at, unread_at, last_opened_at, available, file FROM entries
-				WHERE series_id = @series AND ((@url != '' AND source_url = @url) OR (@url = '' AND file = @file))
+				WHERE series_id = @series AND ((@url != '' AND (source_url = @url OR former_url = @url))
+					OR (@url = '' AND file = @file))
 				LIMIT 1`
 			);
 			const insert = db.prepare(

@@ -46,6 +46,12 @@ export type SeriesEntry = {
 	 * in (doc/BOOKS.md). '' for a series of one book.
 	 */
 	volume: string;
+	/**
+	 * The source a chapter came from, where that isn't the series' own now:
+	 * set by a move, which keeps a chapter the new source lacks (doc/MOVE.md).
+	 * Empty for a chapter from the source the series is on.
+	 */
+	originSource: string;
 	tags: SeriesTag[];
 	/** An anime series' episode (doc/ANIME.md): its length, season and the like; absent elsewhere. */
 	episode?: Episode | null;
@@ -555,8 +561,13 @@ export function fileMeta(entries: SeriesEntry[], queue: string[] = []): string {
 	);
 	const partial =
 		onDisk.length < entries.length ? `${onDisk.length} OF ${entries.length} DOWNLOADED` : '';
+	// A moved series' kept chapters say whose they are (doc/MOVE.md): a file
+	// from the source it left is still a file the series has.
+	const kept = entries.filter((e) => e.originSource);
+	const keptFrom = [...new Set(kept.map((e) => e.originSource))];
+	const from = kept.length ? `${kept.length} FROM ${keptFrom.join(' AND ').toUpperCase()}` : '';
 	// What's queued and failed follows the count it will change (Index Series Download, FILE).
-	return [partial, ...queue, ...kinds, formatBytes(bytes)].filter(Boolean).join(' · ');
+	return [partial, from, ...queue, ...kinds, formatBytes(bytes)].filter(Boolean).join(' · ');
 }
 
 export function formatBytes(bytes: number): string {

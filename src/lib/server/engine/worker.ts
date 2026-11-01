@@ -165,7 +165,8 @@ async function pooled<T, R>(
 export async function chapterAtSource(entryId: number, d: Pick<Deps, 'db' | 'now'>) {
 	const e = d.db
 		.prepare(
-			`SELECT e.id, e.series_id, e.label, e.title, e.scanlator, e.position, e.source_url, s.origin_key
+			`SELECT e.id, e.series_id, e.label, e.title, e.scanlator, e.position, e.source_url, e.origin_source,
+				s.origin_key
 			FROM entries e JOIN series s ON s.id = e.series_id WHERE e.id = ?`
 		)
 		.get(entryId) as
@@ -177,13 +178,17 @@ export async function chapterAtSource(entryId: number, d: Pick<Deps, 'db' | 'now
 				scanlator: string;
 				position: number;
 				source_url: string;
+				origin_source: string;
 				origin_key: string;
 		  }
 		| undefined;
 	const key = parseKey(e?.origin_key ?? null);
 	if (!e || !key) throw new EngineError('Not a chapter from a source', 'not-found');
-	const ext = extensionFor(key.sourceId, d.db);
-	const source = sourceInfo(d.db, key.sourceId);
+	// A chapter kept from the source the series left asks that source, not the
+	// series' new one (doc/MOVE.md): its address and its extension are there.
+	const sourceId = e.origin_source || key.sourceId;
+	const ext = extensionFor(sourceId, d.db);
+	const source = sourceInfo(d.db, sourceId);
 	if (!ext || !source) throw new EngineError('No installed extension has this source', 'not-found');
 
 	let chapter = d.db
@@ -200,7 +205,7 @@ export async function chapterAtSource(entryId: number, d: Pick<Deps, 'db' | 'now
 		.prepare(`SELECT title FROM engine_series WHERE series_id = ?`)
 		.get(e.series_id) as { title: string };
 
-	const opts = { sourceId: key.sourceId, preferences: preferences(key.sourceId, d.db) };
+	const opts = { sourceId, preferences: preferences(sourceId, d.db) };
 	const pages = await call<{ index: number; url: string; imageUrl: string | null }[]>(
 		ext,
 		'getPageList',

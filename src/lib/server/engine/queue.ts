@@ -111,14 +111,16 @@ export function queueRows(db: Database.Database = getDb()): QueueRow[] {
 	return (
 		db
 			.prepare(
-				`SELECT q.entry_id, q.series_id, s.origin_key, q.state, q.tries, q.failure, q.error, q.next_at,
-					q.done_pages, q.pages, q.position
-				FROM download_queue q JOIN series s ON s.id = q.series_id ORDER BY q.position`
+				`SELECT q.entry_id, q.series_id, s.origin_key, e.origin_source, q.state, q.tries, q.failure, q.error,
+					q.next_at, q.done_pages, q.pages, q.position
+				FROM download_queue q JOIN series s ON s.id = q.series_id
+				JOIN entries e ON e.id = q.entry_id ORDER BY q.position`
 			)
 			.all() as {
 			entry_id: number;
 			series_id: number;
 			origin_key: string;
+			origin_source: string;
 			state: QueueRow['state'];
 			tries: number;
 			failure: string;
@@ -131,7 +133,9 @@ export function queueRows(db: Database.Database = getDb()): QueueRow[] {
 	).map((r) => ({
 		entryId: r.entry_id,
 		seriesId: r.series_id,
-		sourceId: sourceOfKey(r.origin_key) ?? '',
+		// A chapter kept from the source the series left downloads from there
+		// (doc/MOVE.md), so its lane is that source's too.
+		sourceId: r.origin_source || sourceOfKey(r.origin_key) || '',
 		kind: keyKind(r.origin_key) ?? 'manga',
 		state: r.state,
 		tries: r.tries,
