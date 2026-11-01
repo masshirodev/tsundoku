@@ -7,9 +7,11 @@ import { animeKeyOf } from '../library/downloads.ts';
  * c154): what the engine's getDetailsAnime and getEpisodeList answered,
  * every episode NOT DOWNLOADED, through the importers' one writer. Pure.
  *
- * The engine flattens a source's seasons into one list and names each
- * episode after its season ("Season 2 - Episode 3"), so that's where a
- * season is read from; a list with no such names stays flat, as most are.
+ * The season comes from the episode's name where the engine flattens a
+ * source's seasons into one list ("Season 2 - Episode 3"), and otherwise from
+ * the entry itself, since KickAssAnime and AnimePahe make each season its own
+ * entry ("… 3rd Season", `-season-3`). A list with neither stays flat, as
+ * most do.
  */
 
 export type AnimeEpisode = {
@@ -46,6 +48,26 @@ export function seasonOf(name: string): { season: number | null; rest: string } 
 	return { season: null, rest: name.trim() };
 }
 
+/**
+ * The season a source entry is, read from the entry itself: KickAssAnime and
+ * AnimePahe make each season its own entry with a flat episode list, so
+ * "… 3rd Season" (or a `-season-3` slug) is the only place the season is
+ * said. A source that flattens its seasons into one entry says it per
+ * episode instead ([seasonOf]), and that always wins.
+ */
+export function seasonOfTitle(title: string, url = ''): number | null {
+	const t = title.trim();
+	const after = /\bseason\s*(\d{1,3})\b/i.exec(t);
+	if (after) return Number(after[1]);
+	// "3rd Season": the ordinal comes before the word, as Honzuki's does.
+	const before = /\b(\d{1,2})(?:st|nd|rd|th)\s+season\b/i.exec(t);
+	if (before) return Number(before[1]);
+	const slug = /-season-(\d{1,3})(?:-|$)/i.exec(url);
+	if (slug) return Number(slug[1]);
+	const ordinalSlug = /-(\d{1,2})(?:st|nd|rd|th)-season(?:-|$)/i.exec(url);
+	return ordinalSlug ? Number(ordinalSlug[1]) : null;
+}
+
 /** "Episode 12", "Ep. 12.5", "EP12": the number a name gives, or null. */
 export function numberOf(name: string): number | null {
 	const m = /\b(?:episode|ep)\.?\s*(\d+(?:\.\d+)?)/i.exec(name) ?? /^(\d+(?:\.\d+)?)\b/.exec(name);
@@ -62,6 +84,10 @@ export function titleOf(rest: string): string {
 }
 
 export function planAnime(d: AnimeDetails, episodes: AnimeEpisode[], now: number): PlannedSeries {
+	// The season the entry itself is, for a source that makes each season its
+	// own series (seasonOfTitle): the name of an episode wins over it, since a
+	// source that flattens seasons names the season on every one.
+	const ownSeason = seasonOfTitle(d.title, d.url);
 	// The source lists newest first, as Mihon lists chapters, season by season.
 	const seen = new Set<string>();
 	const rows = episodes
@@ -72,7 +98,7 @@ export function planAnime(d: AnimeDetails, episodes: AnimeEpisode[], now: number
 			return {
 				e,
 				order: i,
-				season,
+				season: season ?? ownSeason,
 				number: given ? e.episode_number! : numberOf(rest),
 				title: titleOf(rest)
 			};

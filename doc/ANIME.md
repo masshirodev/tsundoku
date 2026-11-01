@@ -144,12 +144,18 @@ its SETTINGS, search inside it.
   `$LIBRARY_ROOT/Anime`; `series.source` the source's name, so the meta line
   reads "ANIME · ANIMEPAHE · ONGOING" as the handoff draws it; every episode
   NOT DOWNLOADED, known by its URL.
-- **Seasons.** The engine flattens a source's seasons and names each episode
-  after its season ("Season 2 - Episode 3"); that prefix is the season, and a
-  list without one stays flat. Episodes are oldest first within a season,
+- **Seasons.** A season comes from the episode's own name where the engine
+  flattens a source's seasons into one entry ("Season 2 - Episode 3"); where
+  the source makes each season its own entry, as KickAssAnime and AnimePahe
+  do, the entry's title or its slug says it ("… 3rd Season",
+  `-season-3`), and that season is stamped on every episode that names none
+  (`seasonOfTitle`, `anime-plan.ts`; rung 55, card c219). A source that says
+  it neither way stays flat. Episodes are oldest first within a season,
   seasons in order; a number the source didn't give is read from the name,
   else placed by where the source listed it. The title is what's left after
-  "Episode 3".
+  "Episode 3". The stamp is what the season heads, the fold, CONTINUE
+  ("S3 · EP. 7"), the Jellyfin folder (`Season 03`) and the NFOs all read, so
+  a season-3 entry is no longer indistinguishable from a season 1.
 - **IN LIBRARY and SAME TITLE** match anime by their own key, and SAME TITLE
   only against other anime, never the manga it was adapted from; the queue tells
   an anime's rows apart by it too (`QueueRow.kind`), so the engine's chapter
@@ -454,6 +460,10 @@ the fixture clip). The scratch library was deleted afterwards.
   only, and at 360px the title is what's left otherwise.
 - **The season head says only how many are watched**, not "12 OF 24 OUT":
   a source doesn't say how many episodes a season will have.
+- **A one-season series may draw a season head**, where the source named the
+  season in the entry ("SEASON 3 · EP. 1 – 10"). The handoff draws heads only
+  where a list holds several seasons, but on a season-3 entry the alternative
+  is a screen with nothing on it saying season 3 (c219).
 - **The player's portrait layout is any portrait**, a tablet's too, as Anime
   Calls says ("Portrait, on the phone or the tablet"); the handoff draws the
   phone's.

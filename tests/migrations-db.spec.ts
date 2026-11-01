@@ -92,3 +92,35 @@ describe('rung 36: an arrival already read is not new', () => {
 		]);
 	});
 });
+
+describe('rung 55: a season the series named, not its episodes (c219)', () => {
+	it('stamps the episodes of an anime kept as its own season, and leaves the rest alone', () => {
+		const conn = new Database(':memory:');
+		climb(conn, 54);
+		conn.exec(`
+			INSERT INTO roots (id, name, path) VALUES (1, 'Anime', '/nowhere');
+			INSERT INTO series (id, root_id, title, kind, added_at, origin_key) VALUES
+				(1, 1, 'Honzuki no Gekokujou 3rd Season', 'anime', 1,
+					'aniyomi:7:/ascendance-of-a-bookworm-season-3-d2a9'),
+				(2, 1, 'Kaminaki Sekai no Kamisama Katsudou', 'anime', 1, 'aniyomi:7:/kamikatsu-f8e7'),
+				(3, 1, 'Named per episode', 'anime', 1, 'aniyomi:7:/a-show-season-2');
+			INSERT INTO entries (series_id, position, label, added_at, season) VALUES
+				(1, 1, 'Ep. 1', 1, NULL), (1, 2, 'Ep. 2', 1, NULL),
+				(2, 1, 'Ep. 1', 1, NULL),
+				(3, 1, 'Ep. 1', 1, 1);
+		`);
+		climb(conn, 55);
+		expect(
+			conn
+				.prepare(
+					`SELECT series_id, COUNT(*) AS n, MAX(season) AS season FROM entries
+					GROUP BY series_id ORDER BY series_id`
+				)
+				.all()
+		).toEqual([
+			{ series_id: 1, n: 2, season: 3 },
+			{ series_id: 2, n: 1, season: null },
+			{ series_id: 3, n: 1, season: 1 }
+		]);
+	});
+});

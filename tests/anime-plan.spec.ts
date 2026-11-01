@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { numberOf, planAnime, seasonOf, titleOf } from '$lib/import/anime-plan';
+import { numberOf, planAnime, seasonOf, seasonOfTitle, titleOf } from '$lib/import/anime-plan';
 
 // An Aniyomi anime as a series (doc/ANIME.md; card c154).
 describe('an episode’s name', () => {
@@ -26,6 +26,65 @@ describe('an episode’s name', () => {
 		expect(titleOf('Episode 2')).toBe('');
 		expect(titleOf('7 - The Market')).toBe('The Market');
 		expect(titleOf('Special')).toBe('Special');
+	});
+});
+
+// A source that makes each season its own entry (KickAssAnime, AnimePahe) says
+// the season in the entry, never in its flat episode names (c219).
+describe('a series’ own season', () => {
+	it('is read from the title, in the forms sources use', () => {
+		expect(seasonOfTitle('Kaminaki Sekai no Kamisama Katsudou')).toBeNull();
+		expect(
+			seasonOfTitle(
+				'Honzuki no Gekokujou: Shisho ni Naru Tame ni wa Shudan wo Erandeiraremasen 3rd Season'
+			)
+		).toBe(3);
+		expect(seasonOfTitle('Kono Subarashii Sekai ni Shukufuku wo! Season 2')).toBe(2);
+		expect(seasonOfTitle('"Oshi no Ko" (Season 2)')).toBe(2);
+		expect(seasonOfTitle('A Show Season 12')).toBe(12);
+		expect(seasonOfTitle('A Show 1st Season')).toBe(1);
+	});
+
+	it('is read from the slug when the title does not say it', () => {
+		expect(seasonOfTitle('A Show', '/ascendance-of-a-bookworm-season-3-d2a9')).toBe(3);
+		expect(seasonOfTitle('A Show', '/a-show-season-2')).toBe(2);
+		expect(seasonOfTitle('A Show', '/a-show-3rd-season-9c1f')).toBe(3);
+		expect(seasonOfTitle('A Show', '/a-show-f8e7')).toBeNull();
+		expect(seasonOfTitle('A Show Season 2', '/a-show-season-3')).toBe(2);
+	});
+
+	it('reaches its episodes that name no season, and loses to one that does', () => {
+		const p = planAnime(
+			{
+				sourceId: '7000',
+				sourceName: 'KickAssAnime',
+				url: '/ascendance-of-a-bookworm-season-3-d2a9',
+				title: 'Honzuki no Gekokujou 3rd Season',
+				status: 2
+			},
+			[
+				{ url: '/ep-2', name: 'Episode 2', episode_number: 2 },
+				{ url: '/ep-1', name: 'Episode 1', episode_number: 1 }
+			],
+			5
+		);
+		expect(p.entries.map((e) => [e.label, e.episode?.season, e.episode?.number])).toEqual([
+			['Ep. 1', 3, 1],
+			['Ep. 2', 3, 2]
+		]);
+		// A list that names seasons per episode keeps its own, even under a
+		// series title that says another.
+		const flat = planAnime(
+			{
+				sourceId: '7000',
+				sourceName: 'KickAssAnime',
+				url: '/a-show-season-3',
+				title: 'A Show Season 3'
+			},
+			[{ url: '/e1', name: 'Season 1 - Episode 1', episode_number: 1 }],
+			5
+		);
+		expect(flat.entries[0].episode?.season).toBe(1);
 	});
 });
 

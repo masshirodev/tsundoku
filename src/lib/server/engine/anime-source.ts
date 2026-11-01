@@ -95,7 +95,10 @@ export async function animeManga(id: string): Promise<SourceManga | null> {
 	if (!a) return null;
 	const now = Date.now();
 	const plan = planOf(a, now);
-	const seasons = new Set(plan.entries.map((e) => e.episode?.season ?? null)).size > 1;
+	// "S3" in the preview wherever the plan knows a season at all, which since
+	// c219 includes the entry's own title: it's the only place the season is
+	// said before ADD.
+	const seasons = plan.entries.some((e) => e.episode?.season != null);
 	const lang = (
 		getDb().prepare(`SELECT lang FROM engine_sources WHERE id = ?`).get(a.sourceId) as
 			{ lang: string } | undefined

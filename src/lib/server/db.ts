@@ -1075,7 +1075,38 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		seen_at INTEGER NOT NULL
 	) WITHOUT ROWID;
 	CREATE INDEX paired_devices_device ON paired_devices (device_id);
-	`
+	`,
+	// v55: an anime a source kept as its own season ("… 3rd Season", a
+	// `-season-3` slug) has that season stamped on its episodes, so the season
+	// heads, the season fold, CONTINUE, the Jellyfin folder and the NFOs all
+	// know it (c219; doc/ANIME.md, "Seasons"). Only episodes that name no
+	// season are stamped. The rule is inlined rather than imported from
+	// `seasonOfTitle`: a rung must say the same thing in ten years, whatever
+	// that function has learned by then.
+	(conn) => {
+		const inTitle = (text: string): number | null => {
+			const after = /\bseason\s*(\d{1,3})\b/i.exec(text);
+			if (after) return Number(after[1]);
+			const before = /\b(\d{1,2})(?:st|nd|rd|th)\s+season\b/i.exec(text);
+			return before ? Number(before[1]) : null;
+		};
+		const inSlug = (url: string): number | null => {
+			const plain = /-season-(\d{1,3})(?:-|$)/i.exec(url);
+			if (plain) return Number(plain[1]);
+			const ordinal = /-(\d{1,2})(?:st|nd|rd|th)-season(?:-|$)/i.exec(url);
+			return ordinal ? Number(ordinal[1]) : null;
+		};
+		const rows = conn
+			.prepare(`SELECT id, title, origin_key FROM series WHERE kind = 'anime'`)
+			.all() as { id: number; title: string; origin_key: string | null }[];
+		const stamp = conn.prepare(
+			`UPDATE entries SET season = ? WHERE series_id = ? AND season IS NULL`
+		);
+		for (const r of rows) {
+			const season = inTitle(r.title) ?? inSlug(r.origin_key ?? '');
+			if (season !== null) stamp.run(season, r.id);
+		}
+	}
 ];
 
 /**
