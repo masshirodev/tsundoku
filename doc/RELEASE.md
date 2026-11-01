@@ -246,7 +246,9 @@ and runs `ops/release/smoke/probe.mjs` with the bundle's Node: 127.0.0.1 is
 sent to localhost, the first-run token signs in, five screens answer, the
 engine answers with its token and refuses without it, a scan imports the
 fixture's seven series and refuses its one broken file, every visible
-chapter's first page is an image, and the hidden local books stay hidden.
+chapter's first page is an image, the hidden local books stay hidden, and
+the novels plugin host, started as the server starts it, loads a plugin that
+requires each library it lends (no network: c227 would have failed here).
 On Linux, the launcher (`./tsundoku --foreground`) is then hung up as a
 closed terminal does, and nothing of the bundle may be left running (c187: on
 2026.10.30.1, two were). Then the tray (`smoke/linux-tray.sh`): `./tsundoku`

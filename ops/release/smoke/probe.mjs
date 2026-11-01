@@ -5,7 +5,9 @@
 // a page. Exits non-zero on the first thing that's wrong.
 //
 //   node probe.mjs <bundle folder>
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { fork } from 'node:child_process';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import { basename, join } from 'node:path';
 
@@ -200,6 +202,85 @@ check(
 
 r = await fetch(`${base}/`, { headers: { cookie } });
 check('the library names its series', (await r.text()).includes(series[0]?.title ?? '\0'));
+
+// The novels plugin host (card c227): a file the server forks by path, and
+// the libraries it lends to plugins. 2026.10.31.3 shipped without them all,
+// and every novel source said THE PLUGIN HOST STOPPED. Started as host.ts
+// starts it, under the permission model with an empty environment, it loads a
+// plugin that requires each library; fetchProto loads protobufjs before its
+// address (loopback, which the host refuses) is ever tried. No network.
+{
+	const hostFile = join(bundle, 'app', 'src', 'lib', 'server', 'novels', 'plugin-host.cjs');
+	const store = mkdtempSync(join(tmpdir(), 'tsundoku-smoke-plugins-'));
+	const plugin = join(store, 'smoke.js');
+	writeFileSync(
+		plugin,
+		`var cheerio = require('cheerio');
+var dayjs = require('dayjs');
+var htmlparser2 = require('htmlparser2');
+var aes = require('@libs/aes');
+var fetch = require('@libs/fetch');
+exports.default = {
+	id: 'smoke', name: 'Smoke', site: 'https://example.invalid/', version: '1.0.0',
+	parseChapter: async function () {
+		var parts = [
+			cheerio.load('<p>x</p>')('p').text(),
+			dayjs('2026-11-01').format('YYYY'),
+			typeof htmlparser2.parseDocument,
+			typeof aes.gcm
+		];
+		try { await fetch.fetchProto({ proto: 'syntax = "proto3"; message A { string a = 1; }', requestType: 'A', responseType: 'A', requestData: {} }, 'http://127.0.0.1:9/'); }
+		catch (e) { parts.push(String(e && e.message)); }
+		return parts.join('|');
+	}
+};
+`
+	);
+	const answers = await new Promise((done) => {
+		const got = {};
+		const child = fork(hostFile, [], {
+			execArgv: [
+				'--permission',
+				`--allow-fs-read=${hostFile}`,
+				`--allow-fs-read=${join(bundle, 'app', 'node_modules')}`,
+				`--allow-fs-read=${store}`
+			],
+			env: {},
+			stdio: ['ignore', 'ignore', 'pipe', 'ipc'],
+			serialization: 'json'
+		});
+		let stderr = '';
+		child.stderr.on('data', (d) => (stderr += d));
+		const timer = setTimeout(() => child.kill(), 20_000);
+		child.on('message', (m) => {
+			got[m.id] = m;
+			if (got[1] && got[2]) child.kill();
+		});
+		child.on('exit', () => {
+			clearTimeout(timer);
+			done({ ...got, stderr });
+		});
+		child.send({ id: 1, op: 'info', file: plugin });
+		child.send({ id: 2, op: 'call', file: plugin, method: 'parseChapter', args: ['/1'] });
+	});
+	rmSync(store, { recursive: true, force: true });
+	check(
+		'the novels plugin host starts and loads a plugin',
+		answers[1]?.ok === true && answers[1].value?.id === 'smoke',
+		JSON.stringify(answers[1] ?? answers.stderr.slice(0, 300))
+	);
+	const parts = answers[2]?.ok ? String(answers[2].value).split('|') : [];
+	check(
+		'and lends it cheerio, dayjs, htmlparser2, @libs/aes and protobufjs',
+		parts[0] === 'x' &&
+			parts[1] === '2026' &&
+			parts[2] === 'function' &&
+			parts[3] === 'function' &&
+			parts.length === 5 &&
+			!/Cannot find module/.test(parts[4]),
+		JSON.stringify(answers[2] ?? answers.stderr.slice(0, 300))
+	);
+}
 
 console.log(failed ? `\n${failed} failed` : '\nall passed');
 process.exit(failed ? 1 : 0);
