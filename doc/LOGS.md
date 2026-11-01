@@ -23,7 +23,11 @@ The launcher writes them (`ops/release/launcher/log.ts`):
 The app writes to its log, not to the launcher's window: a Windows console in
 QuickEdit selection freezes whatever writes to it ([`RELEASE.md`](RELEASE.md),
 "The launcher"). If the app stops by itself, the window shows the end of its
-log.
+log, or, started from the tray, the tray's menu offers to open it.
+
+Started from the tray ([`TRAY.md`](TRAY.md), "Logs"), two more:
+`launcher.log`, the launcher's own lines, which a hidden window can't show,
+and `tray.log`, the tray's, in the default data folder.
 
 The workstation doesn't run the launcher: its logs are the journal
 (`journalctl --user -u tsundoku`, [`SERVING.md`](SERVING.md)).

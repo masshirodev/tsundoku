@@ -131,6 +131,8 @@ is the mount development pressures.
   data directory, and what stays personal.
 - [`doc/RELEASE.md`](doc/RELEASE.md) — building the bundles friends install
   (`yarn run release`), what's in them, the launcher, and the smoke test.
+- [`doc/TRAY.md`](doc/TRAY.md) — the tray a friend starts: no window, an icon
+  with OPEN and QUIT, one copy per account, and how it talks to the launcher.
 - [`doc/UPDATES.md`](doc/UPDATES.md) — dl.tsundoku.masshiro.pro, the release
   key, `yarn run release:publish`, and UPDATE on a friend's install.
 - [`doc/WINDOWS-VM.md`](doc/WINDOWS-VM.md) — Zen, the Windows VM the install is

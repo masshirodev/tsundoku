@@ -39,8 +39,8 @@ Set-Content -Path "$data\keep-me.txt" -Value 'still here' -Encoding ASCII
 # No password: the API answers without signing in (doc/SIGN-IN.md).
 & "$prog\node\node.exe" --disable-warning=ExperimentalWarning "$HOME\set-password.mjs" $prog $data none
 
-Start-Process -FilePath "$prog\tsundoku.cmd" -ArgumentList '--no-browser' -WindowStyle Hidden `
-	-RedirectStandardOutput "$HOME\update1.log" -RedirectStandardError "$HOME\update1.err" | Out-Null
+# As the Start menu starts it: the tray (doc/TRAY.md).
+Start-Process -FilePath "$prog\tsundoku.exe" -ArgumentList '--no-browser'
 for ($i = 0; $i -lt 90 -and -not (Answers); $i++) { Start-Sleep 2 }
 $before = (Serving).pid
 Check 'tsundoku runs, installed' ((Answers) -and $before) "pid $before"
@@ -62,6 +62,8 @@ for ($i = 0; $i -lt 120; $i++) {
 	if ($s -and $s.pid -ne $before -and (Answers)) { $back = $true; break }
 }
 Check 'tsundoku stopped, updated and came back by itself' $back "pid $before -> $((Serving).pid)"
+$trays = @(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq "$prog\tsundoku.exe" })
+Check 'and its tray with it, one of them' ($trays.Count -eq 1) "$($trays.Count)"
 Check 'the installer it ran was the signed one, kept by version' (Test-Path "$data\updates\9999.01.01\tsundoku-win-x64.exe")
 Check 'no half-download left' (-not (Test-Path "$data\updates\9999.01.01\tsundoku-win-x64.exe.part"))
 # Started by the installer, the new copy serves as a fresh start does: it

@@ -5,6 +5,7 @@
  *   tsundoku                  # start everything, open the browser
  *   tsundoku --no-browser     # start everything, open nothing
  *   tsundoku --reset-password # forget the password: the next open is SET UP
+ *   tsundoku --tray           # run by the tray (doc/TRAY.md): no window, events on stdout
  *
  * It starts the extension engine, FlareSolverr when its optional archive was
  * unzipped beside it, and the app, then opens the app where it serves:
@@ -12,6 +13,11 @@
  * it on Tailscale.
  * Closing it (Ctrl+C, or closing its window) stops all three. Started again
  * while it runs, it just opens the app.
+ *
+ * Friends don't run this directly any more: `tsundoku.exe` (Windows) and
+ * `./tsundoku` (Linux) are the tray (ops/release/tray/), which runs this with
+ * `--tray` and no window, and quits it from its menu. `tsundoku.cmd` and
+ * `./tsundoku --foreground` still run it in a window, as before.
  */
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
@@ -28,6 +34,7 @@ import { ensureSetting, newToken } from '../app/src/lib/server/first-run.ts';
 import { clearLogin, readLogin } from '../app/src/lib/server/login.ts';
 import { Log } from './log.ts';
 import { opener, plan, solverAt, type Proc } from './plan.ts';
+import { CommandReader, eventLine, type TrayEvent } from './tray.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 // Started by an update's installer, this inherits the old server's own
@@ -50,6 +57,10 @@ const homeEnv = join(home, '.env');
 readEnv(homeEnv);
 const windows = process.platform === 'win32';
 const browse = !process.argv.includes('--no-browser') && process.env.TSUNDOKU_NO_BROWSER !== '1';
+// Run by the tray: nobody reads this window, so the launcher's lines go to
+// logs/launcher.log, stdout carries only events (tray.ts), and nothing waits
+// for Enter.
+const tray = process.argv.includes('--tray');
 
 let version = '';
 try {
@@ -77,6 +88,21 @@ if (process.argv.includes('--reset-password')) {
 }
 
 mkdirSync(join(home, 'logs'), { recursive: true });
+const emit = (e: TrayEvent) => {
+	if (tray) process.stdout.write(eventLine(e));
+};
+if (tray) {
+	const own = new Log(join(home, 'logs', 'launcher.log'));
+	const to =
+		(level: 'INFO' | 'ERROR') =>
+		(...a: unknown[]) =>
+			own.write(level, `${a.map(String).join(' ')}\n`);
+	console.log = to('INFO');
+	console.warn = to('ERROR');
+	console.error = to('ERROR');
+	own.line('INFO', `--- starting the launcher for the tray`);
+}
+emit({ event: 'home', home, logs: join(home, 'logs') });
 const engineToken =
 	process.env.ENGINE_TOKEN || ensureSetting(homeEnv, 'ENGINE_TOKEN', newToken).value;
 const solverDir = solverAt(root, home, process.platform, existsSync);
@@ -94,7 +120,7 @@ console.log(`tsundoku ${version}`);
 console.log(`  data:   ${home}`);
 console.log(`  logs:   ${join(home, 'logs')}`);
 // Before anything else, the window's one rule.
-console.log(`  Leave this window open while you read; closing it stops tsundoku.`);
+if (!tray) console.log(`  Leave this window open while you read; closing it stops tsundoku.`);
 
 // Where the app serves, as serve.ts writes it on every start (src/lib/server/bind.ts,
 // `Serving`). Only local mode's address is localhost: on Tailscale the origin is
@@ -119,18 +145,27 @@ async function answers(listen: string): Promise<boolean> {
 	}
 }
 
-function open(url: string) {
-	if (!browse) return;
+/** `asked`: the tray's OPEN, which opens even when started with --no-browser. */
+function open(url: string, asked = false) {
+	if (!browse && !asked) return;
 	const o = opener(process.platform, url);
-	spawn(o.cmd, o.args, { stdio: 'ignore', detached: true, windowsHide: true }).unref();
+	const c = spawn(o.cmd, o.args, { stdio: 'ignore', detached: true, windowsHide: true });
+	// A Linux with no xdg-open (a server, a container) fails to spawn it, and
+	// an unhandled 'error' would stop tsundoku over a browser it couldn't open.
+	c.on('error', (e) => console.warn(`Couldn't open a browser (${e.message}): open ${url}`));
+	c.unref();
 }
 
 function opening(s: Serving) {
-	console.log(`\nOpen ${s.origin} (closing this window stops tsundoku).`);
+	console.log(
+		tray ? `\nOpen ${s.origin}` : `\nOpen ${s.origin} (closing this window stops tsundoku).`
+	);
+	ready = s.origin;
+	emit({ event: 'ready', origin: s.origin });
 	if (!readLogin(home)) console.log(`First start: choose a password in the browser.`);
 	if (s.mode !== 'local')
 		console.log(`On your phone or tablet, signed in to the same tailnet, open the same address.`);
-	open(s.origin);
+	open(s.origin, wanted);
 }
 
 const children = new Set<ChildProcess>();
@@ -139,7 +174,13 @@ let stopping = false;
 /** Stop a child and everything it started (FlareSolverr starts Chrome). */
 function stop(child: ChildProcess) {
 	if (child.exitCode !== null || child.pid === undefined) return;
-	if (windows) spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
+	// Hidden: run by the tray, this launcher has no window of its own, and
+	// taskkill would open one for a moment.
+	if (windows)
+		spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+			stdio: 'ignore',
+			windowsHide: true
+		});
 	else {
 		try {
 			// Its own process group, made by `detached` below.
@@ -154,7 +195,13 @@ function stopAll(code: number) {
 	if (stopping) return;
 	stopping = true;
 	for (const c of children) stop(c);
-	process.exit(code);
+	exit(code);
+}
+
+/** Exit once stdout has passed on every event: a pipe can be asynchronous, and the tray reads them. */
+function exit(code: number) {
+	if (tray) process.stdout.write('', () => process.exit(code));
+	else process.exit(code);
 }
 
 /**
@@ -186,13 +233,32 @@ function helper(proc: Proc, delay = 2000) {
 	});
 }
 
+// The tray's commands. OPEN before the app answers is kept until it does;
+// stdin closing means the tray is gone (killed, or an update's installer
+// stopped it), and nothing may outlive it.
+let ready: string | null = null;
+let wanted = false;
+if (tray) {
+	const reader = new CommandReader((c) => {
+		if (c === 'quit') stopAll(0);
+		else if (ready) open(ready, true);
+		else wanted = true;
+	});
+	process.stdin.on('data', (chunk: Buffer) => reader.write(chunk));
+	process.stdin.on('end', () => stopAll(0));
+	process.stdin.on('error', () => stopAll(0));
+}
+
 // Already running: this start only opens it. Where the last start said it
 // serves first, then the default, in case that file is from another mode.
 for (const at of [serving(), localOnly]) {
 	if (at && (await answers(at.listen))) {
 		console.log(`Already running: opening ${at.origin}`);
-		open(at.origin);
-		process.exit(0);
+		emit({ event: 'already', origin: at.origin });
+		open(at.origin, wanted);
+		exit(0);
+		// Nothing more of this start may run before the write's callback exits.
+		await new Promise(() => {});
 	}
 }
 // From here, a serving.json is this start's.
@@ -239,8 +305,10 @@ server.on('exit', (code) => {
 	if (!stopping && code) {
 		console.error(`\ntsundoku stopped (${code}). The end of its log (${appLog}):\n`);
 		console.error(tail.map((l) => `  ${l}`).join('\n'));
+		emit({ event: 'stopped', code, log: appLog });
 		// A window that closes at once says nothing: wait to be read, as above.
-		if (windows) {
+		// The tray has no window; it says so in its menu instead.
+		if (windows && !tray) {
 			console.error('\nPress Enter to close this window.');
 			process.stdin.once('data', () => stopAll(code));
 			return;

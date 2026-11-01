@@ -82,6 +82,9 @@ const run = (cmd: string, argv: string[], opts: ExecFileSyncOptions = {}) =>
 const capture = (cmd: string, argv: string[], cwd = repo) =>
 	execFileSync(cmd, argv, { cwd, encoding: 'utf8' }).trim();
 const step = (s: string) => console.log(`\n== ${s}`);
+// The tray is Go (buildTray, below): asked now, so a missing Go fails here
+// rather than after the app's build.
+const goVersion = capture('go', ['env', 'GOVERSION']);
 
 async function sha256(file: string) {
 	const h = createHash('sha256');
@@ -296,6 +299,9 @@ for (const platform of platforms) {
 		copyFileSync(join(src, 'ops/release/launcher/tsundoku'), join(dir, 'tsundoku'));
 		chmodSync(join(dir, 'tsundoku'), 0o755);
 	}
+	// The tray, what a friend starts (doc/TRAY.md): tsundoku.exe, or the
+	// program ./tsundoku hands over to.
+	const trayModules = buildTray(src, platform, dir);
 	copyFileSync(join(src, 'LICENSE'), join(dir, 'LICENSE'));
 	const readme = readFileSync(join(src, 'ops/release/README.txt'), 'utf8').replace(
 		'{{VERSION}}',
@@ -319,13 +325,14 @@ for (const platform of platforms) {
 				node: pins.node.version,
 				jre: pins.jre.version,
 				ffmpeg: pins.ffmpeg.version,
-				flaresolverr: pins.flaresolverr.version
+				flaresolverr: pins.flaresolverr.version,
+				go: goVersion
 			},
 			null,
 			2
 		)
 	);
-	writeFileSync(join(dir, 'THIRD-PARTY-NOTICES.txt'), notices(dir, platform, src));
+	writeFileSync(join(dir, 'THIRD-PARTY-NOTICES.txt'), notices(dir, platform, src, trayModules));
 	rmSync(tmp, { recursive: true, force: true });
 
 	// The archives.
@@ -398,6 +405,84 @@ function serverImports(build: string): Set<string> {
 	return names;
 }
 
+// ---- the tray -----------------------------------------------------------------------------
+
+/**
+ * Build the tray (ops/release/tray, doc/TRAY.md) for `platform` into the
+ * bundle, from the tag's own copy, and return the Go modules linked into it.
+ * Pure Go on both (no cgo), so the workstation cross-compiles Windows'.
+ * Windows' is a GUI program (`-H windowsgui`), which is the point: started,
+ * it opens no console window. go-winres gives it the icon and a manifest;
+ * it's a `tool` in the tray's go.mod, so its version is pinned there.
+ */
+function buildTray(src: string, platform: Platform, dir: string) {
+	const tray = join(src, 'ops/release/tray');
+	const win = platform === 'win-x64';
+	const env = {
+		...process.env,
+		CGO_ENABLED: '0',
+		GOOS: win ? 'windows' : 'linux',
+		GOARCH: 'amd64',
+		GOFLAGS: '-mod=readonly'
+	};
+	const out = win ? join(dir, 'tsundoku.exe') : join(dir, 'launcher', 'tsundoku-tray');
+	rmSync(join(tray, 'rsrc_windows_amd64.syso'), { force: true });
+	if (win) {
+		const vi = version!.split('.').length === 3 ? `${version}.0` : version!;
+		run(
+			'go',
+			[
+				'tool',
+				'go-winres',
+				'simply',
+				'--arch',
+				'amd64',
+				'--manifest',
+				'gui',
+				'--icon',
+				join(tray, 'icon/tsundoku.ico'),
+				'--product-name',
+				'tsundoku',
+				'--product-version',
+				vi,
+				'--file-version',
+				vi,
+				'--file-description',
+				'tsundoku',
+				'--original-filename',
+				'tsundoku.exe',
+				'--copyright',
+				'masshirodev, PolyForm Noncommercial 1.0.0'
+			],
+			{ cwd: tray, env }
+		);
+	}
+	const ldflags = `-s -w -X main.version=${version}${win ? ' -H=windowsgui' : ''}`;
+	run('go', ['build', '-trimpath', '-ldflags', ldflags, '-o', out, '.'], { cwd: tray, env });
+	rmSync(join(tray, 'rsrc_windows_amd64.syso'), { force: true });
+	if (win && peSubsystem(out) !== 2)
+		throw new Error(`${out} isn't a GUI program: it would open a console window`);
+	// `dep <path> <version> <sum>`, one per linked module.
+	return capture('go', ['version', '-m', out], tray)
+		.split('\n')
+		.map((l) => l.trim().split(/\s+/))
+		.filter((f) => f[0] === 'dep')
+		.map(([, path, v]) => ({
+			path,
+			version: v,
+			dir: capture('go', ['list', '-m', '-f', '{{.Dir}}', `${path}@${v}`], tray)
+		}));
+}
+
+/** The PE header's Subsystem: 2 is a GUI program, 3 a console one. */
+function peSubsystem(file: string): number {
+	const b = readFileSync(file);
+	const pe = b.readUInt32LE(0x3c);
+	if (b.toString('latin1', pe, pe + 4) !== 'PE\0\0') throw new Error(`${file} isn't a PE file`);
+	// The optional header follows the 20-byte COFF header; Subsystem is at 68 in it.
+	return b.readUInt16LE(pe + 4 + 20 + 68);
+}
+
 // ---- THIRD-PARTY-NOTICES ---------------------------------------------------------------------
 
 /**
@@ -406,7 +491,12 @@ function serverImports(build: string): Set<string> {
  * compiled into the build (named below, from the build checkout), and the
  * programs beside them.
  */
-function notices(dir: string, platform: Platform, src: string): string {
+function notices(
+	dir: string,
+	platform: Platform,
+	src: string,
+	trayModules: { path: string; version: string; dir: string }[]
+): string {
 	const parts: string[] = [];
 	const add = (title: string, licence: string, text: string | null, note = '') =>
 		parts.push(
@@ -483,6 +573,11 @@ function notices(dir: string, platform: Platform, src: string): string {
 		readFileSync(join(dir, 'ffmpeg/LICENSE.txt'), 'utf8'),
 		`Unmodified, from ${pins.ffmpeg[platform].url}. Source: ${pins.ffmpeg.source}`
 	);
+	// Linked into the tray: the Go modules its binary says it carries
+	// (`go version -m`), so a dependency only one platform links is listed
+	// only there.
+	for (const m of trayModules)
+		add(`${m.path} ${m.version} (in the tray)`, 'see text', licenceText(m.dir));
 	const seen = new Set<string>();
 	// Compiled into build/ rather than loaded: every dependency the server doesn't
 	// load (the fonts, hls.js, ...), the UI framework, and kotoba with its

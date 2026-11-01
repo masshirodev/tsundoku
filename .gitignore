@@ -23,3 +23,6 @@ doc/design/*.zip
 
 # Paraglide's compiled messages (doc/I18N.md): written by the vite plugin and `yarn run i18n`.
 /src/lib/paraglide/
+
+# go-winres writes the tray's Windows resources here during a release (doc/TRAY.md).
+/ops/release/tray/*.syso

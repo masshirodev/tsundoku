@@ -9,13 +9,26 @@ Starting it
 -----------
 
 Windows, installed:  Start menu > tsundoku
-Windows, unzipped:   double-click tsundoku.cmd
+Windows, unzipped:   double-click tsundoku.exe
 Linux:               run ./tsundoku
 
-A window opens and stays open while tsundoku runs; closing it stops
-tsundoku. Your browser opens at http://localhost:42143 once it's ready.
-Use that address, localhost, not 127.0.0.1. (To read on a phone or
-tablet instead, see below.)
+tsundoku runs in the background, with its icon by the clock, in the
+tray. Your browser opens at http://localhost:42143 once it's ready. Use
+that address, localhost, not 127.0.0.1. (To read on a phone or tablet
+instead, see below.) On Linux, ./tsundoku gives the terminal back at once:
+closing the terminal doesn't stop tsundoku.
+
+Starting it again while it runs only opens your browser. Click the icon
+to open tsundoku; its menu (right click) also opens the logs folder, and
+"Quit tsundoku" stops it. On Windows the icon may hide behind the ^ arrow
+by the clock: drag it out to keep it in sight.
+
+No icon? Some Linux desktops have no tray (GNOME, without the
+AppIndicator extension). tsundoku runs all the same: start it again to
+open it, and run ./tsundoku --quit to stop it.
+
+The old way, in a window that stops tsundoku when you close it, is still
+there: tsundoku.cmd on Windows, ./tsundoku --foreground on Linux.
 
 The installer puts tsundoku in %LOCALAPPDATA%\Programs\tsundoku without
 asking for an administrator, and can start it when you sign in. Running a
@@ -30,8 +43,9 @@ Forgot it? Start menu > "Reset tsundoku password" (on Linux, run
 ./tsundoku --reset-password), then open tsundoku and choose a new one.
 Your library isn't touched.
 
-If tsundoku stops by itself, the window says why; everything it wrote
-is in logs\tsundoku.log in your data folder (below).
+If tsundoku stops by itself, the icon stays, and its menu says so and
+shows why; everything it wrote is in logs\tsundoku.log in your data
+folder (below).
 
 If something breaks: SETTINGS > LIBRARY > REPORT > SAVE, and send that
 file to whoever gave you tsundoku. It has the logs and versions, never
@@ -53,7 +67,8 @@ Everything tsundoku keeps is in one folder, never in this one:
 
 library\   your files, as tsundoku arranges them
 covers\    cover thumbnails
-logs\      what the engine and FlareSolverr said, for when something breaks
+logs\      what tsundoku, the engine and FlareSolverr said, for when
+           something breaks
 .env       your settings
 login.json your password, scrambled so it can't be read back
 
@@ -95,16 +110,17 @@ devices (https://tailscale.com):
 
      TSUNDOKU_SERVE=https
 
-4. Start tsundoku again. It opens at an address like
-   https://your-pc.your-tailnet.ts.net:8443, and the window prints it: open
-   that same address on the phone or tablet. On this computer too, use it
+4. Quit tsundoku (its icon's menu) and start it again. It opens at an
+   address like https://your-pc.your-tailnet.ts.net:8443, which the
+   icon's menu shows: open that same address on the phone or tablet. On this computer too, use it
    rather than localhost from now on. The very first time, it can take a
    few seconds to load while Tailscale gets its certificate.
 
 It's still private: only devices signed in to your Tailscale can reach it,
 and only with your password. Take the line out of .env to go back.
-If tsundoku says it couldn't set up "tailscale serve", run the command it
-prints once yourself, in a terminal.
+If it doesn't open, look in logs\tsundoku.log (the icon's menu opens
+the folder): if tsundoku couldn't set up "tailscale serve", the command
+to run once yourself, in a terminal, is there.
 
 
 Sources behind a browser check
@@ -114,7 +130,8 @@ Some sites show a "checking your browser" page first. Reading those needs
 FlareSolverr, a separate download from the same place as this one
 (flaresolverr-...zip, about 330 MB, since it carries its own Chrome). Unzip
 it into your data folder (above), so there's a flaresolverr folder in it,
-and start tsundoku again. It stays there through updates and reinstalls.
+and quit and start tsundoku again. It stays there through updates and
+reinstalls.
 
 
 Updates

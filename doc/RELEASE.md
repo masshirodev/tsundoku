@@ -58,7 +58,13 @@ download it and installs find it ([`UPDATES.md`](UPDATES.md)).
 5. **The rest is pinned** in `ops/release/versions.json`: each file's URL
    and SHA-256, downloaded once into `/mnt/hdd2/tsundoku/release/cache` and
    checked every time (a mismatch deletes the file and fails).
-6. **The bundle** gets the launcher, `LICENSE`, `README.txt` (the friend's
+6. **The tray** ([`TRAY.md`](TRAY.md)) is built from the tag's
+   `ops/release/tray/` with the workstation's Go: `tsundoku.exe` for
+   Windows (a GUI program, checked in its PE header, with the icon and
+   version info from go-winres), `launcher/tsundoku-tray` for Linux. The Go
+   version goes into `release.json`, and the modules linked in go into
+   `THIRD-PARTY-NOTICES.txt`.
+7. **The bundle** gets the launcher, `LICENSE`, `README.txt` (the friend's
    instructions, `ops/release/README.txt`), `release.json` (every commit and
    version in it) and `THIRD-PARTY-NOTICES.txt`, then is zipped (Windows) or
    tarred with xz (Linux).
@@ -81,8 +87,10 @@ download of your own, and say so in the commit.
 
 ```
 tsundoku/
-  tsundoku.cmd | tsundoku     what a friend runs
-  launcher/launch.ts, plan.ts
+  tsundoku.exe | tsundoku     what a friend runs: the tray (doc/TRAY.md)
+  tsundoku.cmd                Windows: the launcher in a window, as before the tray
+  launcher/launch.ts, plan.ts, tray.ts, log.ts
+  launcher/tsundoku-tray      Linux: the tray, which ./tsundoku hands over to
   app/                        build/, scripts/serve.ts and the four modules it imports, node_modules/
   node/                       node.exe | bin/node
   jre/                        Temurin
@@ -102,10 +110,12 @@ Windows treats that name as an installer to elevate and shims.
 
 - **Per user**, into `%LOCALAPPDATA%\Programs\tsundoku` (as VS Code's user
   installer does), with no administrator prompt.
-- A **Start-menu entry**; **start at sign-in** is a checkbox, off by default,
-  and starts it minimised without opening the browser.
+- A **Start-menu entry**, for `tsundoku.exe`, the tray; **start at sign-in**
+  is a checkbox, off by default, and starts it in the tray without opening
+  the browser.
 - A second Start-menu entry, **Reset tsundoku password**
-  (`tsundoku.cmd --reset-password`, [`SIGN-IN.md`](SIGN-IN.md)).
+  (`tsundoku.cmd --reset-password`, [`SIGN-IN.md`](SIGN-IN.md)), in a window,
+  since it has something to say.
 - An entry in **Settings > Apps**, whose uninstaller removes what the
   installer put there **by name** (the program's folders and files, its
   shortcuts, its registry keys), then the folder only if it's empty. Never
@@ -130,8 +140,13 @@ first, where it outlives reinstalls, then beside the program.
 
 ## The launcher
 
-`tsundoku.cmd` (or `tsundoku`) runs `launcher/launch.ts` with the bundle's
-Node. It:
+Since c222 a friend starts the **tray** ([`TRAY.md`](TRAY.md)):
+`tsundoku.exe`, or `./tsundoku`, which hands over to it. The tray runs the
+launcher with `--tray` and no window. It shows an icon with OPEN, the logs
+and QUIT, and started again it opens the running copy. `tsundoku.cmd` and
+`./tsundoku --foreground` still run the launcher in a window, as below.
+
+The launcher is `launcher/launch.ts`, run with the bundle's Node. It:
 
 1. finds the data folder (`TSUNDOKU_HOME`, else the platform's: see
    [`DISTRIBUTION.md`](DISTRIBUTION.md), "One data directory"), reading the
@@ -151,12 +166,16 @@ Node. It:
    and ffmpeg's addresses), and opens the browser once it answers
    (`--no-browser` or `TSUNDOKU_NO_BROWSER=1` not to), **where the app says
    it serves** (below);
-6. stops everything when the app stops or the window closes (`taskkill /T`
+6. stops everything when the app stops, the window closes, or the tray says
+   `quit` or goes away (`taskkill /T`
    on Windows, the process group elsewhere), so FlareSolverr's Chrome goes
    too. A closed terminal is a SIGHUP to the launcher alone, since the app
    and the engine run in process groups of their own; until 2026.10.30.2 it
    was handled only on Windows, and on Linux both outlived the launcher
    (c187).
+
+Run by the tray, its own lines go to `logs/launcher.log` too, and it waits
+for no Enter ([`TRAY.md`](TRAY.md), "Talking to the launcher").
 
 **The app's output goes to `logs/tsundoku.log`**, like the helpers', not to
 the window, each line stamped and the file rotated ([`LOGS.md`](LOGS.md)). Selecting text in a Windows console (QuickEdit) stops whatever
@@ -219,8 +238,13 @@ sent to localhost, the first-run token signs in, five screens answer, the
 engine answers with its token and refuses without it, a scan imports the
 fixture's seven series and refuses its one broken file, every visible
 chapter's first page is an image, and the hidden local books stay hidden.
-On Linux, the launcher is then hung up as a closed terminal does, and
-nothing of the bundle may be left running (c187: on 2026.10.30.1, two were).
+On Linux, the launcher (`./tsundoku --foreground`) is then hung up as a
+closed terminal does, and nothing of the bundle may be left running (c187: on
+2026.10.30.1, two were). Then the tray (`smoke/linux-tray.sh`): `./tsundoku`
+returns, leaving tsundoku running in a session of its own; a second start
+opens it and starts nothing; `--quit` stops everything ([`TRAY.md`](TRAY.md),
+"Tests"). On Windows, `windows.ps1` does the same with `tsundoku.exe`, then
+checks `tsundoku.cmd` still starts it in a window.
 Then the paths (c183, [`DISTRIBUTION.md`](DISTRIBUTION.md), "Windows
 paths"): no series path stored with a backslash, a DELETE moves the series'
 file into the trash and out of the library, and a GROUP of the two local

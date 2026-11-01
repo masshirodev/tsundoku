@@ -91,6 +91,7 @@ VIAddVersionKey "LegalCopyright" "masshirodev, PolyForm Noncommercial 1.0.0"
 	RMDir /r "$INSTDIR\ffmpeg"
 	RMDir /r "$INSTDIR\launcher"
 	Delete "$INSTDIR\tsundoku.cmd"
+	Delete "$INSTDIR\tsundoku.exe"
 	Delete "$INSTDIR\tsundoku.ico"
 	Delete "$INSTDIR\LICENSE"
 	Delete "$INSTDIR\README.txt"
@@ -110,8 +111,11 @@ Section "tsundoku" SecMain
 	File "tsundoku.ico"
 	WriteUninstaller "$INSTDIR\uninstall.exe"
 
-	CreateShortcut "$SMPROGRAMS\tsundoku.lnk" "$INSTDIR\tsundoku.cmd" "" "$INSTDIR\tsundoku.ico" 0
+	; The tray (doc/TRAY.md): no console window, an icon by the clock, and
+	; started again it opens the running tsundoku.
+	CreateShortcut "$SMPROGRAMS\tsundoku.lnk" "$INSTDIR\tsundoku.exe" "" "$INSTDIR\tsundoku.ico" 0
 	; A forgotten password's way back (doc/SIGN-IN.md): being at this PC is the proof.
+	; tsundoku.cmd, which has a window, since it has something to say.
 	CreateShortcut "$SMPROGRAMS\Reset tsundoku password.lnk" "$INSTDIR\tsundoku.cmd" "--reset-password" "$INSTDIR\tsundoku.ico" 0
 
 	WriteRegStr HKCU "Software\tsundoku" "InstallDir" "$INSTDIR"
@@ -127,9 +131,9 @@ Section "tsundoku" SecMain
 SectionEnd
 
 ; Off unless chosen: a reader that starts at every sign-in is the friend's
-; decision. It starts minimised and opens no browser.
+; decision. It starts in the tray and opens no browser.
 Section /o "Start tsundoku when I sign in" SecStartup
-	CreateShortcut "$SMSTARTUP\tsundoku.lnk" "$INSTDIR\tsundoku.cmd" "--no-browser" "$INSTDIR\tsundoku.ico" 0 SW_SHOWMINIMIZED
+	CreateShortcut "$SMSTARTUP\tsundoku.lnk" "$INSTDIR\tsundoku.exe" "--no-browser" "$INSTDIR\tsundoku.ico" 0
 SectionEnd
 
 Section "-size"
@@ -141,14 +145,14 @@ SectionEnd
 ; An update from inside tsundoku (doc/UPDATES.md): the app runs this installer
 ; with /S /RELAUNCH, the install stops the running tsundoku (StopRunning), and
 ; this starts the new one. No browser: the tab that pressed UPDATE reloads
-; onto the new version by itself. Through the shell, so the console window is
+; onto the new version by itself. Through the shell, so the tray is
 ; tsundoku's own, not the installer's child.
 Section "-relaunch"
 	${GetParameters} $R0
 	ClearErrors
 	${GetOptions} $R0 "/RELAUNCH" $R1
 	IfErrors no_relaunch
-	ExecShell "" "$INSTDIR\tsundoku.cmd" "--no-browser"
+	ExecShell "" "$INSTDIR\tsundoku.exe" "--no-browser"
 	no_relaunch:
 SectionEnd
 

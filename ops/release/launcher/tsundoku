@@ -1,4 +1,15 @@
 #!/bin/sh
-# Starts tsundoku: the engine, the app, and the browser (doc/RELEASE.md).
+# Starts tsundoku (doc/RELEASE.md, doc/TRAY.md): the tray, in the background,
+# which starts the engine, the app and the browser, so this terminal can
+# close. Started again, it opens the running one; --quit stops it.
+# --foreground (and --reset-password) run the launcher here instead, in this
+# terminal, as before the tray: closing the terminal stops it.
 here=$(dirname "$(readlink -f "$0")")
-exec "$here/node/bin/node" --disable-warning=ExperimentalWarning "$here/launcher/launch.ts" "$@"
+for a in "$@"; do
+	case "$a" in
+	--foreground | --reset-password)
+		exec "$here/node/bin/node" --disable-warning=ExperimentalWarning "$here/launcher/launch.ts" "$@"
+		;;
+	esac
+done
+exec "$here/launcher/tsundoku-tray" "$@"

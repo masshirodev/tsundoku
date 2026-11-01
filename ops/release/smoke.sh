@@ -48,7 +48,7 @@ if [ -z "$only" ] || [ "$only" = linux-x64 ]; then
 	docker run --rm -v "$work:/w" -v "$here/smoke:/s:ro" debian:stable-slim sh -c '
 		export HOME=/root; mkdir -p /root/.local/share/tsundoku
 		cp -r /w/library /root/.local/share/tsundoku/library
-		/w/tsundoku/tsundoku --no-browser > /tmp/launch.log 2>&1 &
+		/w/tsundoku/tsundoku --foreground --no-browser > /tmp/launch.log 2>&1 &
 		launcher=$!
 		for i in $(seq 1 90); do grep -q "Open http" /tmp/launch.log && break; sleep 2; done
 		cat /tmp/launch.log; echo "--- probe"
@@ -59,7 +59,8 @@ if [ -z "$only" ] || [ "$only" = linux-x64 ]; then
 		kill -HUP $launcher; sleep 5
 		left=$(readlink /proc/[0-9]*/exe 2>/dev/null | grep -c "^/w/tsundoku/")
 		echo "left running after a hangup: $left"
-		[ "$left" -eq 0 ]' || status=1
+		[ "$left" -eq 0 ] || exit 1
+		sh /s/linux-tray.sh /w/tsundoku' || status=1
 fi
 
 if [ -z "$only" ] || [ "$only" = win-x64 ]; then

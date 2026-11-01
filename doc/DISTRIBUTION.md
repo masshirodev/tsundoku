@@ -154,7 +154,9 @@ each self-contained:
   upstream, which are the starting point);
 - FlareSolverr's own release binary, and `ffmpeg`;
 - a launcher (`tsundoku.cmd` / `tsundoku`) that starts engine, FlareSolverr and
-  the app, and opens the browser.
+  the app, and opens the browser. Since c222 a friend starts it through the
+  tray (`tsundoku.exe` / `./tsundoku`), with no window and an icon by the
+  clock ([`TRAY.md`](TRAY.md)).
 
 On Windows the archive is wrapped in an **Inno Setup installer**: Start-menu
 entry, optional start-at-login, an uninstaller that leaves the library alone.
