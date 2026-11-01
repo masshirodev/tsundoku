@@ -1431,7 +1431,8 @@
 		const overBars = !!(e.target as Element | null)?.closest?.(
 			'header[aria-label="Reader"], footer[aria-label="Reader controls"]'
 		);
-		const act = hoverAction(e.clientY, innerHeight, { shown: chrome, byHover, overBars });
+		const overEnd = !!(e.target as Element | null)?.closest?.('[data-end-page]');
+		const act = hoverAction(e.clientY, innerHeight, { shown: chrome, byHover, overBars, overEnd });
 		if (act === 'show') {
 			chrome = true;
 			byHover = true;

@@ -76,7 +76,7 @@
 	const nextTitle = $derived(next?.title ?? '');
 </script>
 
-<div class="end" class:incognito>
+<div class="end" class:incognito data-end-page>
 	{#if variant === 'offline'}
 		<div class="offline"><span>○ OFFLINE</span><span class="dim">CACHED STILL OPENS</span></div>
 	{/if}

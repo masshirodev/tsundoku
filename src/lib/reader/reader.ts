@@ -320,12 +320,18 @@ export const HOVER_EDGE = 56;
  * clicking can't be how they're reached. Controls the pointer brought up go
  * away when it leaves the bars and the edge; ones opened otherwise (the
  * middle button, Esc) stay until put away.
+ *
+ * Not over the end of a chapter (`overEnd`): that page has its own cells
+ * along the bottom (← SERIES, LIBRARY, NEXT), and the bars came up over them
+ * as the pointer went to click one (the owner, 2026-11-01). Over it, the
+ * pointer brings nothing up and puts away what it brought.
  */
 export function hoverAction(
 	y: number,
 	height: number,
-	o: { shown: boolean; byHover: boolean; overBars: boolean }
+	o: { shown: boolean; byHover: boolean; overBars: boolean; overEnd?: boolean }
 ): 'show' | 'hide' | null {
+	if (o.overEnd) return o.shown && o.byHover && !o.overBars ? 'hide' : null;
 	const atEdge = y <= HOVER_EDGE || y >= height - HOVER_EDGE;
 	if (!o.shown) return atEdge ? 'show' : null;
 	return o.byHover && !atEdge && !o.overBars ? 'hide' : null;

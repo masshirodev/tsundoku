@@ -208,6 +208,13 @@ describe('the mouse at the edge of the window', () => {
 		expect(hoverAction(120, h, up)).toBeNull();
 		expect(hoverAction(h / 2, h, { ...up, overBars: false })).toBe('hide');
 	});
+	it('brings nothing up over the end page, and puts away what it brought (its own cells sit there)', () => {
+		const end = { shown: false, byHover: false, overBars: false, overEnd: true };
+		expect(hoverAction(h - 10, h, end)).toBeNull();
+		expect(hoverAction(h - 10, h, { ...end, shown: true, byHover: true })).toBe('hide');
+		// Opened on purpose (Esc, the middle button), they stay.
+		expect(hoverAction(h - 10, h, { ...end, shown: true })).toBeNull();
+	});
 	it("never hides controls it didn't bring up", () => {
 		expect(hoverAction(h / 2, h, { shown: true, byHover: false, overBars: false })).toBeNull();
 	});
