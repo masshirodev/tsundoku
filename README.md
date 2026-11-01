@@ -124,6 +124,8 @@ is the mount development pressures.
   REPORT, scrubbed of anything hidden or secret.
 - [`doc/WIFI.md`](doc/WIFI.md) — a friend's phone over home Wi-Fi: the
   listeners, pairing codes, paired devices, and departures from the handoff.
+- [`doc/TV.md`](doc/TV.md) — the plan for an Android TV with a remote: D-pad
+  focus, the ten-foot layout, the TV app, and reaching the server.
 - [`doc/SIGN-IN.md`](doc/SIGN-IN.md) — the workstation's token, and a
   friend's password (or none) chosen on first open.
 - [`doc/DISTRIBUTION.md`](doc/DISTRIBUTION.md) — the plan for installs on
