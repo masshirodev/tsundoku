@@ -1,0 +1,5 @@
+tsundoku can be read in Portuguese (Brazil): SETTINGS > 08 — DEVICES > APP LANGUAGE, each device choosing its own.
+GET STARTED's second part: after the four setup steps, FIRST READ walks you through finding a series, adding it to the library and downloading a chapter.
+REFRESH on a series asks its source once for new chapters and downloads nothing; NEXT or ALL keeps them.
+The player's controls no longer flash in on every small movement of the mouse, and a click on the picture plays or pauses it.
+An anime whose source lists each season separately now knows which season it is: it says so on its screen, and a downloaded episode goes into that season's folder.
