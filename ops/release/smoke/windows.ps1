@@ -60,8 +60,12 @@ Check 'and the tray took its address with it' (-not (Test-Path "$data\tray.json"
 '--- tsundoku.cmd, in a window as before'
 $p = Start-Process -FilePath "$b\tsundoku.cmd" -ArgumentList '--no-browser' -PassThru -WindowStyle Hidden `
 	-RedirectStandardOutput "$t\launch.log" -RedirectStandardError "$t\launch.err"
-for ($i = 0; $i -lt 90 -and -not (Answers); $i++) { Start-Sleep 2 }
-Check 'still starts it' ((Get-Content "$t\launch.log") -match 'Open http')
+# The launcher prints its address just after the server first answers, so
+# wait for the line itself: checking it the moment tsundoku answered raced
+# that print (2026.11.01.1's first smoke run failed here, the bundle fine).
+$opened = { (Test-Path "$t\launch.log") -and ((Get-Content "$t\launch.log") -match 'Open http') }
+for ($i = 0; $i -lt 90 -and -not ((Answers) -and (& $opened)); $i++) { Start-Sleep 2 }
+Check 'still starts it' (& $opened)
 taskkill /pid $p.Id /T /F | Out-Null
 Start-Sleep 3
 Check 'and closing its window stops it' (@(Get-Process java, node -ErrorAction SilentlyContinue).Count -eq 0)
