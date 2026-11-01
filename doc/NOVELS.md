@@ -53,7 +53,11 @@ never runs in the app (`src/lib/server/novels/`):
   **environment is empty**, so nothing in `.env` is there to read.
 - **A vm context per plugin**, whose `require` gives only LNReader's shims
   (`@libs/*`, written from their documented behaviour) and the libraries
-  above. `require('fs')` is refused.
+  above. `require('fs')` is refused. A plugin's own code has **5 s** to load
+  (`vm.runInContext`'s timeout); the libraries it names are read from disk
+  before that starts, since a cold install's first read of cheerio outlasted
+  it on Windows (2026.11.01's smoke test, the installed copy under
+  Program Files).
 - **A fetch that stays on the internet**: every request, and every hop of a
   redirect (followed by hand, since an automatic one would skip the check),
   is refused when its host resolves to a loopback, private, link-local or

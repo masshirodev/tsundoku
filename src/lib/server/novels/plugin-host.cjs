@@ -233,6 +233,14 @@ const defaultCover =
 	'https://github.com/LNReader/lnreader-plugins/blob/main/icons/src/coverNotAvailable.jpg?raw=true';
 const isUrlAbsolute = (url) => /^(?:[a-z][a-z\d+\-.]*:)?\/\//i.test(url);
 
+/** The npm libraries a plugin may require, loaded on first use. */
+const lent = {
+	'@libs/aes': () => require('@noble/ciphers/aes.js'),
+	cheerio: () => require('cheerio'),
+	dayjs: () => require('dayjs'),
+	htmlparser2: () => require('htmlparser2')
+};
+
 /** What a plugin may require, and nothing else: no fs, net or child_process. */
 function makeRequire() {
 	const storage = new Storage();
@@ -243,10 +251,7 @@ function makeRequire() {
 		'@libs/defaultCover': { defaultCover },
 		'@libs/filterInputs': { FilterTypes },
 		'@libs/isAbsoluteUrl': { isUrlAbsolute },
-		'@libs/aes': () => require('@noble/ciphers/aes.js'),
-		cheerio: () => require('cheerio'),
-		dayjs: () => require('dayjs'),
-		htmlparser2: () => require('htmlparser2')
+		...lent
 	};
 	return (name) => {
 		if (!(name in libs)) throw new Error(`A plugin can't require ${name}`);
@@ -286,6 +291,13 @@ function load(file) {
 		btoa,
 		Buffer
 	});
+	// The libraries it names, read from disk before its code runs: a first
+	// require counts against the 5 s its own code is given, and on a cold
+	// Windows install (Defender scanning Program Files) cheerio alone outlasted
+	// it (2026.11.01's smoke test). Node keeps them, so the plugin's own
+	// require is then instant, and the limit is the plugin's code alone.
+	for (const m of code.matchAll(/\brequire\(\s*['"]([^'"]+)['"]\s*\)/g))
+		if (Object.hasOwn(lent, m[1])) lent[m[1]]();
 	vm.runInContext(code, context, { filename: file, timeout: 5_000 });
 	const exported = module.exports.default || module.exports;
 	const plugin = typeof exported === 'function' ? new exported() : exported;
