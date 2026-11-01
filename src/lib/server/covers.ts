@@ -328,7 +328,8 @@ function linkSource(s: SeriesRow): Source | null {
 	};
 }
 
-async function sharp() {
+/** sharp, loaded on first use (episode pictures share it: anime/pictures.ts). */
+export async function loadSharp() {
 	// libvips warns about optional modules Arch ships unbuilt (openslide);
 	// nothing tsundoku uses. Set before libvips starts.
 	process.env.VIPS_WARNING ??= '0';
@@ -341,7 +342,7 @@ async function sharp() {
  * webtoon strip shows its first panel rather than a sliver.
  */
 export async function thumbnail(input: Buffer, crop = false): Promise<Buffer> {
-	const s = await sharp();
+	const s = await loadSharp();
 	const img = s(input, { failOn: 'none', animated: false }).rotate();
 	return (
 		crop
@@ -594,7 +595,7 @@ export async function readPageThumb(
 	if (!body) return null;
 	let thumb: Buffer;
 	try {
-		const s = await sharp();
+		const s = await loadSharp();
 		thumb = await s(await bytesOf(body.body), { failOn: 'none', animated: false })
 			.rotate()
 			.resize({ width: PAGE_THUMB_WIDTH, withoutEnlargement: true })

@@ -128,3 +128,23 @@ describe('an anime’s plan', () => {
 		]);
 	});
 });
+
+// Episode pictures (doc/ANIME.md, "Episode pictures"; card c225).
+describe('an episode’s picture at the source', () => {
+	it('is kept where the extension gives one, through the engine, and is nothing otherwise', () => {
+		const p = planAnime(
+			{ sourceId: '7000', sourceName: 'AnimePahe', url: '/show', title: 'A Show', status: 2 },
+			[
+				{ url: '/ep-1', name: 'Episode 1', preview_url: 'http://127.0.0.1:4590/image/abc' },
+				{ url: '/ep-2', name: 'Episode 2', preview_url: null },
+				{ url: '/ep-3', name: 'Episode 3' }
+			],
+			5
+		);
+		expect(p.entries.map((e) => e.episode?.thumbUrl)).toEqual([
+			'http://127.0.0.1:4590/image/abc',
+			'',
+			''
+		]);
+	});
+});

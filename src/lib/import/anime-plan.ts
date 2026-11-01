@@ -21,6 +21,8 @@ export type AnimeEpisode = {
 	episode_number?: number | null;
 	date_upload?: number | null;
 	scanlator?: string | null;
+	/** The episode's own picture, through the engine's /image/ proxy, where the extension sets one. */
+	preview_url?: string | null;
 };
 
 export type AnimeDetails = {
@@ -136,7 +138,7 @@ export function planAnime(d: AnimeDetails, episodes: AnimeEpisode[], now: number
 				number: n,
 				note: '',
 				durationS: null,
-				thumbUrl: ''
+				thumbUrl: r.e.preview_url ?? ''
 			}
 		};
 	});

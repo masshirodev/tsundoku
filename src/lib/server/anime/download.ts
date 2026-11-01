@@ -1,14 +1,12 @@
 import { spawn } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { createServer, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import { dirname, join, posix } from '../fspath.ts';
-import { Readable } from 'node:stream';
 import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
 import { coverDir } from '../covers.ts';
 import { getSetting } from '../settings.ts';
+import { loopback } from './loopback.ts';
+import { wantPictures } from './pictures.ts';
 import { keptOf } from '../../settings/catalog.ts';
 import { EngineError } from '../engine/client.ts';
 import { failed, isPaused, nextUp, queueRows, recover } from '../engine/queue.ts';
@@ -25,14 +23,7 @@ import {
 	tvshowNfo
 } from '../../library/anime-files.ts';
 import type { SeriesDownloads } from '../download-types.ts';
-import {
-	episodeStreams,
-	probe,
-	serveMedia,
-	serveSubtitle,
-	StreamError,
-	type StreamServer
-} from './streams.ts';
+import { episodeStreams, probe, type StreamServer } from './streams.ts';
 
 /**
  * Downloading episodes (doc/ANIME.md, "Downloading"; card c157): one at a
@@ -68,36 +59,6 @@ export class AnimeDownloadError extends Error {
 		super(message);
 		this.failure = failure;
 	}
-}
-
-// ---- the loopback proxy ffmpeg reads through ---------------------------------------------------
-
-let proxy: { server: Server; port: number; secret: string } | null = null;
-
-/** The proxy, started once: only tsundoku's own two media routes, and only with the secret. */
-async function loopback(): Promise<{ port: number; secret: string }> {
-	if (proxy) return proxy;
-	const secret = randomBytes(24).toString('base64url');
-	const server = createServer(async (req, res) => {
-		if (req.headers['x-tsundoku'] !== secret) return res.writeHead(403).end();
-		const m = /^\/api\/anime\/(media|subtitle)\/([A-Za-z0-9_-]{32})$/.exec(req.url ?? '');
-		if (!m) return res.writeHead(404).end();
-		try {
-			const r =
-				m[1] === 'media'
-					? await serveMedia(m[2], (req.headers.range as string) ?? null)
-					: await serveSubtitle(m[2]);
-			res.writeHead(r.status, Object.fromEntries(r.headers));
-			if (r.body) Readable.fromWeb(r.body as never).pipe(res);
-			else res.end();
-		} catch (e) {
-			res.writeHead(e instanceof StreamError ? e.status : 502).end();
-		}
-	});
-	await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
-	server.unref();
-	proxy = { server, port: (server.address() as AddressInfo).port, secret };
-	return proxy;
 }
 
 // ---- where an episode goes ------------------------------------------------------------------------
@@ -398,6 +359,8 @@ export async function runAnimeOnce(d: AnimeDeps): Promise<number> {
 		const file = await downloadEpisode(job.entryId, d);
 		d.db.prepare(`DELETE FROM download_queue WHERE entry_id = ?`).run(job.entryId);
 		d.arrived?.(file);
+		// Its picture from the file, if it has none yet (doc/ANIME.md, "Episode pictures").
+		wantPictures([job.entryId], d.db);
 		return 1;
 	} catch (err) {
 		const f = err instanceof AnimeDownloadError ? err.failure : 'source';

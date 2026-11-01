@@ -1106,7 +1106,15 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 			const season = inTitle(r.title) ?? inSlug(r.origin_key ?? '');
 			if (season !== null) stamp.run(season, r.id);
 		}
-	}
+	},
+	// v56: an episode's picture, made on the workstation (doc/ANIME.md, "Episode
+	// pictures"; card c225): the source's own when it gives one (`thumb_url`),
+	// else a frame of the episode, kept as covers/episodes/<id>.webp. When it was
+	// made; NULL is none yet, so a file left by a deleted entry whose id came
+	// round again is never shown for the new one.
+	`
+	ALTER TABLE entries ADD COLUMN thumb_at INTEGER;
+	`
 ];
 
 /**

@@ -242,7 +242,15 @@ test.describe('the player, tablet landscape (c156)', () => {
 		await expect(page).toHaveURL(/\/read\/\d+/);
 		const player = page.locator('.player');
 		const pp = player.locator('.cluster .pp');
-		await expect(pp).toBeVisible({ timeout: 20_000 });
+		// Server 1 always fails first: its notice holds the middle for 4 s, and a
+		// click sent while it lands goes to the notice, after which the controls
+		// fade with nothing to bring them back. Wait it out, then move as a person would.
+		const notice = player.locator('.panel.servers');
+		await expect(notice).toBeVisible({ timeout: 20_000 });
+		await expect(notice).toBeHidden({ timeout: 10_000 });
+		await page.mouse.move(120, 120);
+		await page.mouse.move(640, 300);
+		await expect(pp).toBeVisible();
 		if ((await pp.getAttribute('aria-label')) === 'Play') await pp.click();
 		await expect(pp).toHaveAttribute('aria-label', 'Pause');
 

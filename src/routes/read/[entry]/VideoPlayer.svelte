@@ -64,6 +64,8 @@
 		note: string;
 		durationS: number | null;
 		endingAt: number | null;
+		/** Its picture's address, '' while it has none (c225). */
+		thumb: string;
 		available: boolean;
 		readAt: number | null;
 		lastPosition: number | null;
@@ -1077,7 +1079,10 @@
 		{#if offering && next}
 			<div class="endcard" role="status">
 				<div class="row">
-					<div class="pic"></div>
+					<div
+						class="pic"
+						style:background-image={next.thumb ? `url(${next.thumb})` : undefined}
+					></div>
 					<div class="txt">
 						<div class="k">NEXT · {placeLabel(next, ofSeason, false)}</div>
 						<div class="t">{next.title || `Episode ${next.number}`}</div>
@@ -1157,7 +1162,7 @@
 					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves -->
 					<a class="up" href={readHref(u.id)}>
 						<div class="n">{u.number}</div>
-						<div class="pic"></div>
+						<div class="pic" style:background-image={u.thumb ? `url(${u.thumb})` : undefined}></div>
 						<div class="txt">
 							<div class="t">{u.title || `Episode ${u.number}`}</div>
 							<div class="m">
@@ -2066,6 +2071,9 @@
 			var(--surface-panel) 0 8px,
 			var(--line-1) 8px 16px
 		);
+		/* The episode's picture, where it has one (c225), replaces the stripes. */
+		background-size: cover;
+		background-position: center;
 	}
 	.endcard .txt {
 		flex: 1;

@@ -1,4 +1,5 @@
 import { error, fail, redirect } from '@sveltejs/kit';
+import { wantPictures } from '$lib/server/anime/pictures';
 import { automaticCover, refreshCovers } from '$lib/server/covers';
 import { DeleteError, deleteBook, deleteSeries } from '$lib/server/delete';
 import type { Actions, PageServerLoad } from './$types';
@@ -120,6 +121,10 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		if (preview) redirect(303, `/downloads/source/${preview}`);
 		error(404, 'not found');
 	}
+	// Episodes without a picture get one in the background (doc/ANIME.md,
+	// "Episode pictures"): they show on the next visit.
+	if (series.kind === 'anime')
+		wantPictures(series.entries.filter((e) => !e.episode?.thumb).map((e) => e.id));
 	const { shelves } = await parent();
 	const books = isBookSeries(series);
 	const single = series.kind === 'doujin' && series.entries.length === 1;

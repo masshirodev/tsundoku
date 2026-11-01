@@ -115,6 +115,13 @@ books) shows each page as a thumbnail (`readPageThumb`,
 A page is about 1MB, so the full pages would have been 30MB for a 30-page
 grid; the thumbnails are a few KB each.
 
+## Episode pictures
+
+An anime episode's 16:9 picture is kept beside the covers, as
+`$COVER_DIR/episodes/<entry>.webp`, 320×180: the source's own where it gives
+one, else a frame of the episode. [`ANIME.md`](ANIME.md), "Episode pictures",
+has where it comes from and when.
+
 ## What it doesn't do yet
 
 - **Uploading an image, or cropping.** A cover the files lack comes from a

@@ -1,6 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { isRevealed } from '$lib/server/prefs';
+import { isIncognito, isRevealed } from '$lib/server/prefs';
+import { wantPictures } from '$lib/server/anime/pictures';
 import { episodeStreams } from '$lib/server/anime/streams';
 import { EngineError } from '$lib/server/engine/client';
 
@@ -16,6 +17,9 @@ export const GET: RequestHandler = async ({ params, cookies, url }) => {
 	try {
 		const s = await episodeStreams(id, isRevealed(cookies), url.searchParams.get('fresh') === '1');
 		if (!s) error(404, 'not found');
+		// While its streams are fresh, an episode without a picture gets one
+		// (doc/ANIME.md, "Episode pictures"). Incognito leaves nothing behind.
+		if (!isIncognito(cookies)) wantPictures([id]);
 		return json(s, { headers: { 'cache-control': 'private, no-store' } });
 	} catch (e) {
 		// The source service not answering is said without naming the engine (Player Waiting 3b).

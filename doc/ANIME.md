@@ -36,7 +36,8 @@ screens), with what a chapter doesn't have:
 | `season`         | the source's season; NULL for a flat list (most of Aniyomi's)                      |
 | `episode_number` | its number as the source gives it, which starts again each season                  |
 | `episode_note`   | `filler` or `recap`, where the source says so                                      |
-| `thumb_url`      | its 16:9 picture at the source                                                     |
+| `thumb_url`      | its 16:9 picture at the source, where the extension gives one (c225)               |
+| `thumb_at`       | when its picture was made on the workstation; NULL while it has none (rung 56)     |
 | `ending_at`      | where its ending starts, seconds, from the source's timestamps                     |
 | `last_position`  | for an episode, **seconds** into it, not a page (and the reading log's `page` too) |
 
@@ -405,6 +406,47 @@ folder, a deleted file streaming again) and the c157 test in
 `tests/browse-anime.e2e.ts` (FIRST 4 on the series screen, the episode lane,
 the import, played from the file).
 
+## Episode pictures (c225)
+
+Neither installed source gives an episode a picture: KickAssAnime's and
+AnimePahe's extensions never set Aniyomi's `SEpisode.preview_url` (checked in
+their dex, 2026-11-01). So an episode's picture is made on the workstation
+(`src/lib/server/anime/pictures.ts`; pure parts in
+`src/lib/library/episode-pictures.ts`), from the best place it can, in order:
+
+1. **The source's own**, where an extension sets one. The engine passes
+   `preview_url` through its `/image/` proxy as it does posters (tsundoku-engine
+   6478d0b, `bridgeEpisode`), and the plan keeps it as `thumb_url`. A token goes
+   stale when the engine restarts, so it's fetched soon after the list arrives
+   and kept as a file; one that no longer answers falls through to a frame.
+2. **A frame of the downloaded file.**
+3. **A frame of the stream**: the first server, its lowest quality (360P is a
+   segment of a megabyte or two), the video alone for a separate-audio source
+   (`videoOnly`). ffmpeg reads it through the loopback proxy that downloads use
+   (`loopback.ts`), so it fetches nothing itself.
+
+A frame is taken a quarter in, past the opening; one that comes out dark or
+flat (a fade, a title card: `isBlankFrame`) is taken again at 40 %, then 60 %.
+Without a length, at 150, 300 and 480 s. The picture is cut to 16:9, 320×180
+WebP (the list draws it at 96×54, the player's NEXT card at 128×72), kept as
+`$COVER_DIR/episodes/<entry>.webp` and stamped `thumb_at`. It's served at
+`/api/anime/thumb/<entry>?v=<thumb_at>`, kept as immutable; a hidden series'
+episode is a 404 with reveal off. The stamp, not the file, says there is one,
+so a file left by a deleted entry is never shown for a new one with its id.
+
+**When**: one at a time, in the background, 1.5 s apart, for episodes without
+one: on opening an anime's series screen (they show on the next visit), when
+the player resolves an episode (not incognito), and when a download lands.
+One that couldn't be made isn't tried again for six hours. The episode list
+draws it over the striped placeholder, and so do the player's NEXT card and
+UP NEXT rows.
+
+`tests/anime-pictures-db.spec.ts` (a fake engine's picture, the fixture clip
+as a file and as a stream through the loopback proxy, a stale picture falling
+through, a site on the workstation's network refused, the queue, the route
+and reveal), `tests/episode-pictures.spec.ts`, and the plan's in
+`tests/anime-plan.spec.ts`.
+
 ## FOLLOW (c158)
 
 As for a manga and a novel (`src/lib/server/anime/follow.ts`): FOLLOW on an
@@ -523,8 +565,9 @@ episode 310 MB where the video alone is about 95 MB. Keeping only some
 (the original and the one the device asks for, say) is the owner's call, on
 the board. **AnimePahe's videos only download through the engine** (its
 clearance cookies), which forgets every token on restart: a download that
-spans a restart fails and is tried again. **No episode
-pictures, lengths or FILLER/RECAP yet**: the engine's episode list carries
-none of them (`JEpisode` is url, name, date, number, scanlator). A length
-comes from the stream (c155) or the file (c157). **No LINK for anime**: the
+spans a restart fails and is tried again. **No lengths or FILLER/RECAP from
+the source yet**: the engine's episode list carries neither (`JEpisode` is
+url, name, date, number, scanlator, and its picture since c225). A length
+comes from the stream (c155) or the file (c157); a picture, where the source
+gives none, from a frame ("Episode pictures"). **No LINK for anime**: the
 catalogue search (AniList, MAL) asks for manga and novels only.

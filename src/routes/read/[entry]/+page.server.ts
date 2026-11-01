@@ -91,6 +91,7 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			note: e.episode?.note ?? '',
 			durationS: e.episode?.durationS ?? null,
 			endingAt: e.episode?.endingAt ?? null,
+			thumb: e.episode?.thumb ?? '',
 			available: e.available,
 			readAt: e.readAt,
 			lastPosition: e.lastPosition

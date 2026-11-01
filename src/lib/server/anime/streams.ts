@@ -70,6 +70,17 @@ export function register(t: Target): string {
 }
 
 export const targetOf = (token: string) => targets.get(token) ?? null;
+
+/**
+ * The picture alone of a stream: tsundoku's own master (a video with
+ * separate audio) names its video; anything else is itself. An episode's
+ * picture takes a frame from it without fetching the audio.
+ */
+export function videoOnly(src: string): string {
+	const token = /\/api\/anime\/media\/([A-Za-z0-9_-]{32})$/.exec(src)?.[1];
+	const master = token ? targetOf(token)?.master : undefined;
+	return master ? mediaRoute(master.video) : src;
+}
 export const mediaRoute = (token: string) => `/api/anime/media/${token}`;
 export const subtitleRoute = (token: string) => `/api/anime/subtitle/${token}`;
 

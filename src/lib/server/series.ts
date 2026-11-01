@@ -1,4 +1,5 @@
 import type { Episode } from '$lib/library/anime';
+import { pictureRoute } from './anime/pictures';
 import { getDb } from './db';
 import { editionToBase } from '$lib/library/editions';
 import { libraryWhere, VISIBLE_SQL } from './visibility';
@@ -50,6 +51,7 @@ type EntryRow = {
 	episode_number: number | null;
 	episode_note: string;
 	ending_at: number | null;
+	thumb_at: number | null;
 };
 
 function parseAlts(raw: string): string[] {
@@ -75,7 +77,7 @@ export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
 			.prepare(
 				`SELECT id, position, label, title, read_at, last_position, last_opened_at, page_count, file, bytes,
 					rating, favourite, added_at, cover_page, available, locator, matter, last_offset, volume,
-					duration_s, season, episode_number, episode_note, ending_at
+					duration_s, season, episode_number, episode_note, ending_at, thumb_at
 				FROM entries WHERE series_id = ? AND shadowed = 0 ORDER BY position, id`
 			)
 			.all(id) as EntryRow[]
@@ -100,7 +102,7 @@ export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
 		lastOffset: e.last_offset,
 		volume: e.volume,
 		tags: [],
-		// An episode's own (doc/ANIME.md). Its picture comes with its source (c154).
+		// An episode's own (doc/ANIME.md). Its picture is made on the workstation (c225).
 		episode:
 			card.kind === 'anime'
 				? {
@@ -108,7 +110,7 @@ export function seriesPage(id: number, reveal: boolean): SeriesPage | null {
 						season: e.season,
 						number: e.episode_number,
 						note: e.episode_note as Episode['note'],
-						thumb: '',
+						thumb: pictureRoute(e.id, e.thumb_at),
 						endingAt: e.ending_at
 					}
 				: null
