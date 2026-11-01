@@ -69,6 +69,7 @@
 	import ReadingSheet from './ReadingSheet.svelte';
 	import EndPage from './EndPage.svelte';
 	import Strip from './Strip.svelte';
+	import FlingMeter from './FlingMeter.svelte';
 	import type { Inset } from '$lib/reader/crop';
 	import type { TextBlock } from '$lib/japanese/ocr';
 	import {
@@ -122,6 +123,8 @@
 	const stopAtEnd = browser && readLocal<string>(`${KEY}chapters`, 'run') === 'stop';
 	/** Vertical: a ↑ back to the chapter's first page, off unless asked for (c207; a friend). */
 	const toTopOn = browser && readLocal<boolean>(`${KEY}top`, false) === true;
+	/** Temporary: the flick-measuring overlay, with ?fling on the address (FlingMeter.svelte). */
+	const flingMeter = browser && appPage.url.searchParams.has('fling');
 	/** A wide page outside spreads: whole, in halves, or turned (doc/READER.md, "Wide pages"). */
 	let wide = $state<Wide>('fit');
 	/** Paged: crop each page's plain border (doc/READER.md, "Crop borders"). */
@@ -1799,6 +1802,8 @@
 		</div>
 	{/if}
 
+	<!-- Temporary: measuring a phone's flicks, with ?fling on the address (FlingMeter). -->
+	{#if flingMeter && mode === 'vertical'}<FlingMeter />{/if}
 	{#if toTopOn && mode === 'vertical' && at > 0 && !chrome && !sheet && !menu && !lookup}
 		<!-- TO THE TOP (c207): the Index idiom's square cell, not a floating circle. -->
 		<button
