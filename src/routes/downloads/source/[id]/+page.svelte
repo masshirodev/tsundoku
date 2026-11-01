@@ -1,4 +1,7 @@
 <script lang="ts">
+	import StartTrail from '$lib/components/start/StartTrail.svelte';
+	import { page } from '$app/state';
+	import { trail } from '$lib/start-trail.svelte';
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import Band from '$lib/components/chrome/Band.svelte';
@@ -17,6 +20,8 @@
 	 * adds the series (card c205); adding lands on the new series.
 	 */
 	let { data, form } = $props();
+	/** FIRST READ's next control, ringed while its trip lasts (doc/ONBOARDING.md, "The way back"). */
+	const ring = $derived(trail.ring(data.start, page.url.pathname));
 	let adding = $state(false);
 	/** Which DOWNLOAD cell is asking: its sheet is open while this is set. */
 	let asking = $state<'next' | 'all' | null>(null);
@@ -56,6 +61,8 @@
 			><span class="arrow">←</span><span>{data.from ? 'BROWSE' : 'SOURCES'}</span></a
 		>
 	</header>
+	<!-- The way back to GET STARTED, while FIRST READ's trip lasts (doc/ONBOARDING.md). -->
+	<StartTrail start={data.start} />
 
 	{#if refusal}<Band title={refusal} detail="NOTHING CHANGED" />{/if}
 
@@ -116,7 +123,12 @@
 								};
 							}}
 						>
-							<button type="submit" class="add" disabled={adding || !offline.online}>
+							<button
+								type="submit"
+								class="add"
+								class:ring={ring === 'add'}
+								disabled={adding || !offline.online}
+							>
 								<span class="long">{adding ? 'ADDING…' : '+ ADD TO LIBRARY'}</span>
 								<span class="short">{adding ? '…' : '+ ADD'}</span>
 							</button>
@@ -135,7 +147,11 @@
 							>
 						{/each}
 					{/snippet}
-					<div class="row dl-row" class:solo={dl.cells.length === 0}>
+					<div
+						class="row dl-row"
+						class:solo={dl.cells.length === 0}
+						class:ring={ring === 'download'}
+					>
 						<div class="label">DOWNLOAD</div>
 						<div class="lk">
 							<div class="lk-a">{dl.a}</div>
@@ -541,6 +557,10 @@
 		.add {
 			height: 56px;
 		}
+	}
+	/* FIRST READ's next step (FirstRead boards 2): a 2px accent ring, inside. */
+	.ring {
+		box-shadow: inset 0 0 0 2px var(--accent);
 	}
 	.add:disabled {
 		opacity: 0.6;

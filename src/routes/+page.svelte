@@ -13,7 +13,7 @@
 	import UpdateModal from './UpdateModal.svelte';
 	import StartList from '$lib/components/start/StartList.svelte';
 	import StartFirstDay from '$lib/components/start/StartFirstDay.svelte';
-	import { countLine } from '$lib/library/start';
+	import { countLine, readLeads } from '$lib/library/start';
 	import { updateRun } from '$lib/update-run.svelte';
 	import {
 		DONE_KEY,
@@ -870,12 +870,14 @@
 		{#if data.start && !data.start.finished}
 			<section class="ob" aria-label={m.start_page_label()}>
 				<div class="ob-head">
-					<div class="ob-k">{m.start_head()}</div>
+					<div class="ob-k">{readLeads(data.start) ? m.start_head_read() : m.start_head()}</div>
 					<div class="ob-k">{countLine(data.start)}</div>
 				</div>
-				<h1>{m.start_empty_title()}</h1>
-				<p class="lede">{m.start_empty_lede()}</p>
-				<div class="ob-list"><StartList view={data.start} libraryRoot={data.libraryRoot} /></div>
+				<h1>{readLeads(data.start) ? m.start_read_title() : m.start_empty_title()}</h1>
+				<p class="lede">{readLeads(data.start) ? m.start_read_lede() : m.start_empty_lede()}</p>
+				<div class="ob-list">
+					<StartList view={data.start} libraryRoot={data.libraryRoot} extras={data.firstRead} />
+				</div>
 				{#if form && 'scanMessage' in form}<div class="scan-message">{form.scanMessage}</div>{/if}
 			</section>
 		{:else}

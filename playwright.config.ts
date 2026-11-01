@@ -37,6 +37,7 @@ const DEVICE_IGNORE = [
 	'**/settings-frame.e2e.ts',
 	// GET STARTED's and HELP's frames are pinned at tablet-portrait too (doc/ONBOARDING.md, doc/HELP.md).
 	'**/start-frame.e2e.ts',
+	'**/first-read-frame.e2e.ts',
 	'**/help-frame.e2e.ts',
 	'**/unlock-gate.e2e.ts'
 ];

@@ -1,23 +1,42 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { resolve } from '$app/paths';
-	import { firstOpen, TRAIL, type StartView, type Step, type StepId } from '$lib/library/start';
+	import {
+		firstOpen,
+		partOf,
+		TRAIL,
+		type FirstReadExtras,
+		type PartId,
+		type StartView,
+		type Step,
+		type StepId
+	} from '$lib/library/start';
+	import { KEEP_DAYS } from '$lib/library/keep';
 	import { trail } from '$lib/start-trail.svelte';
 	import { m } from '$lib/paraglide/messages';
+	import { num, upper } from '$lib/i18n/format';
 
 	/**
-	 * GET STARTED's four steps (doc/ONBOARDING.md; the Getting Started handoff,
-	 * boards 1 and 1-Steps): on the empty library and on /start, the same list.
-	 * A step that's still to do opens below its row; the first one to do opens
-	 * by itself. Each ticks itself from what's really there (server/start.ts);
-	 * SKIP and UNDO are kept on the computer.
+	 * GET STARTED's seven steps in two parts (doc/ONBOARDING.md; the Getting
+	 * Started handoff, boards 1 and 1-Steps, and FIRST READ's, boards 1): on
+	 * the empty library and on /start, the same list. SET UP's four, in any
+	 * order, then FIRST READ's three, in order. A step that's still to do
+	 * opens below its row; the first one to do opens by itself, FIRST READ's
+	 * ahead of SET UP's. A finished part folds to one row. Each step ticks
+	 * itself from what's really there (server/start.ts); SKIP and UNDO are
+	 * kept on the computer.
 	 */
-	let { view, libraryRoot }: { view: StartView; libraryRoot: string } = $props();
+	let {
+		view,
+		libraryRoot,
+		extras = null
+	}: { view: StartView; libraryRoot: string; extras?: FirstReadExtras | null } = $props();
 
 	let opened = $state<StepId | null | undefined>(undefined);
 	// The first step to do opens until the friend opens or closes one themselves.
 	const open = $derived(opened === undefined ? firstOpen(view) : opened);
 	const toggle = (id: StepId) => (opened = open === id ? null : id);
+	let unfolded = $state<Record<PartId, boolean>>({ setup: false, read: false });
 
 	let address = $state('');
 	let copied = $state<string | null>(null);
@@ -42,30 +61,73 @@
 		repo: { label: m.start_done_link_repo, href: '/browse/extensions?tab=repos' },
 		ext: { label: m.start_done_link_ext, href: '/browse' },
 		library: { label: m.start_done_link_library, href: '/' },
-		phone: { label: m.start_done_link_phone, href: '/settings#s-devices' }
+		phone: { label: m.start_done_link_phone, href: '/settings#s-devices' },
+		find: { label: m.start_done_link_find, href: '/history' },
+		add: { label: m.start_done_link_library, href: '/' },
+		download: { label: m.start_done_link_download, href: '/downloads' }
 	};
-	/** A step's link starts the way back on the screen it opens (TRAIL). */
-	const go = (id: StepId) => () => trail.begin(id);
+	/**
+	 * A step's link starts the way back on the screen it opens (TRAIL). A
+	 * FIRST READ trip remembers which of its steps were already done, so the
+	 * band says only what ticks on the way.
+	 */
+	const go = (id: StepId) => () =>
+		trail.begin(
+			id,
+			partOf(id) === 'read'
+				? view.steps.filter((s) => s.part === 'read' && s.state === 'done').map((s) => s.id)
+				: []
+		);
+	const KIND = {
+		manga: m.first_kind_manga,
+		anime: m.first_kind_anime,
+		novel: m.first_kind_novel
+	} as const;
+	const n = $derived(extras?.sources.length ?? 0);
 </script>
 
 <div class="ob-list">
-	{#each view.steps as s (s.id)}
-		{@const isOpen = s.state === 'todo' && open === s.id}
-		<div class="step {s.state}" class:open={isOpen}>
-			<div class="step-row">
-				<div class="st-box">
-					<div class="num">{s.state === 'done' ? '✓' : s.n}</div>
-				</div>
-				<div class="st-text">
-					<div class="st-title">
-						{s.title}{#if s.optional}<span class="opt">{m.start_optional()}</span>{/if}
+	{#each view.parts as p, i (p.id)}
+		<div class="part" class:next={i > 0} id={p.id === 'read' ? 'first-read' : undefined}>
+			<span class="t">{p.name}</span><span>{p.line}</span>
+		</div>
+		<div class="rows">
+			{#if p.folds && !unfolded[p.id]}
+				<div class="sum done" data-part={p.id}>
+					<div class="st-box"><div class="num">✓</div></div>
+					<div class="st-text">
+						<div class="st-title">{p.title}</div>
+						<div class="st-meta">
+							<span class="long">{p.fold}</span><span class="short">{p.foldShort}</span>
+						</div>
 					</div>
-					<div class="st-meta">{s.meta}</div>
+					<div class="st-acts">
+						<button type="button" onclick={() => (unfolded[p.id] = true)}>{m.start_show()}</button>
+					</div>
 				</div>
-				{@render acts(s, isOpen)}
-			</div>
-			{#if isOpen}
-				<div class="st-body">{@render body(s.id)}</div>
+			{:else}
+				{#each p.steps as s (s.id)}
+					{@const isOpen = s.state === 'todo' && open === s.id}
+					<div class="step {s.state}" class:open={isOpen} data-step={s.id}>
+						<div class="step-row">
+							<div class="st-box">
+								<div class="num">{s.state === 'done' ? '✓' : s.n}</div>
+							</div>
+							<div class="st-text">
+								<div class="st-title">
+									{s.title}{#if s.optional}<span class="opt">{m.start_optional()}</span>{/if}
+								</div>
+								<div class="st-meta">
+									<span class="long">{s.meta}</span><span class="short">{s.short}</span>
+								</div>
+							</div>
+							{@render acts(s, isOpen)}
+						</div>
+						{#if isOpen}
+							<div class="st-body">{@render body(s.id)}</div>
+						{/if}
+					</div>
+				{/each}
 			{/if}
 		</div>
 	{/each}
@@ -77,7 +139,7 @@
 			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- fixed app paths -->
 			<a class="quiet" href={doneLink[s.id].href}>{doneLink[s.id].label()}</a>
 		</div>
-	{:else if s.state === 'skipped' && !s.withRepo}
+	{:else if s.state === 'skipped' && !s.with}
 		<form method="POST" action="/start?/unskip" use:enhance class="st-acts">
 			<input type="hidden" name="step" value={s.id} />
 			<button type="submit">{m.start_undo()}</button>
@@ -89,6 +151,20 @@
 			{#if !isOpen}<button type="button" onclick={() => toggle(s.id)}>{m.start_open()}</button>{/if}
 		</form>
 	{/if}
+{/snippet}
+
+{#snippet sourceRows()}
+	<div class="list">
+		{#each extras?.sources ?? [] as src (src.id)}
+			<a class="row" href={resolve('/browse/[source]', { source: src.id })} onclick={go('find')}>
+				<span class="tx">
+					<span class="a">{src.label}</span>
+					<span class="b">{KIND[src.kind]()} · {src.lang.toUpperCase()}</span>
+				</span>
+				<span class="ac">{m.first_browse()}</span>
+			</a>
+		{/each}
+	</div>
 {/snippet}
 
 {#snippet body(id: StepId)}
@@ -174,6 +250,146 @@
 			<button type="submit" class="btn primary lg">{m.start_scan()}</button>
 			<span class="tick-note">{m.start_ticks_scan()}</span>
 		</form>
+	{:else if id === 'find'}
+		<p class="long">
+			{m.start_find_body_a()} <b>{m.start_find_body_b()}</b>{m.start_find_body_c()}
+		</p>
+		<p class="short">{m.start_find_body_short()}</p>
+		{#if n}
+			<form method="GET" action={resolve('/downloads/search')} class="box" onsubmit={go('find')}>
+				<input
+					class="in"
+					name="q"
+					type="search"
+					required
+					placeholder={m.first_search_placeholder({ count: n, n: num(n) })}
+					aria-label={m.first_search_label()}
+				/>
+				<button type="submit" class="b">{m.first_search()}</button>
+			</form>
+			<div class="field">
+				<div class="k">{m.start_find_browse_one()}</div>
+				{@render sourceRows()}
+			</div>
+		{/if}
+		<div class="tick-note">
+			<span class="long">{m.start_ticks_find()}</span><span class="short"
+				>{m.start_ticks_find_short()}</span
+			>
+		</div>
+	{:else if id === 'add'}
+		{@const rec = extras?.record}
+		<p>
+			{m.start_add_body_a({ days: String(KEEP_DAYS) })}
+			<b>{m.start_add_body_b()}</b>{m.start_add_body_c()}
+		</p>
+		{#if rec}
+			<div class="mini" aria-hidden="true">
+				<div class="mini-cta">
+					<span class="go"
+						>{m.start_mini_continue()}<span class="m"
+							>{rec.page !== null
+								? m.start_mini_at_page({ label: upper(rec.label), p: num(rec.page) })
+								: upper(rec.label)}</span
+						></span
+					>
+					<span class="add ring">{m.start_mini_add()}</span>
+				</div>
+			</div>
+			<div class="field">
+				<div class="k">{m.start_add_what()}</div>
+				<div class="list">
+					<a
+						class="row"
+						href={resolve('/downloads/source/[id]', { id: rec.previewId })}
+						onclick={go('add')}
+					>
+						<span class="tx">
+							<span class="a">{rec.title}</span>
+							<span class="b"
+								>{m.start_add_record({
+									source: upper(rec.source),
+									where: (rec.anime ? m.start_where_episode : m.start_where_chapter)({
+										i: num(rec.at),
+										total: num(rec.total)
+									})
+								})}</span
+							>
+						</span>
+						<span class="ac go">{m.start_open_go()}</span>
+					</a>
+				</div>
+			</div>
+		{:else}
+			<div class="go-row">
+				<a class="btn" href={resolve('/downloads/search')} onclick={go('add')}
+					>{m.start_search_go()}</a
+				>
+			</div>
+		{/if}
+		<div class="tick-note">{m.start_ticks_add()}</div>
+	{:else if id === 'download'}
+		{@const pick = extras?.pick}
+		<p>
+			{m.start_download_body_a()} <b>{m.start_download_body_b()}</b>{m.start_download_body_c()}
+		</p>
+		{#if pick && pick.missing > 0}
+			<div class="mini" aria-hidden="true">
+				<div class="dlrow">
+					<div class="lb">{m.start_mini_download()}</div>
+					<div class="lk">
+						<div class="a">
+							{m.start_mini_unread({ count: pick.missing, n: num(pick.missing) })}
+						</div>
+						<div class="b">
+							{pick.downloaded
+								? m.start_pick_some({ n: num(pick.downloaded) })
+								: m.start_mini_nothing()}
+						</div>
+					</div>
+					<div class="lc acc ring">
+						{pick.downloaded ? m.start_mini_next() : m.start_mini_first()}
+					</div>
+					{#if pick.missing > 10}<div class="lc">
+							{m.start_mini_all({ n: num(pick.missing) })}
+						</div>{/if}
+				</div>
+			</div>
+		{/if}
+		<div class="holds">
+			<div><span>{m.start_holds_manga()}</span><span>{m.start_dl_manga()}</span></div>
+			<div><span>{m.start_holds_anime()}</span><span>{m.start_dl_anime()}</span></div>
+			<div><span>{m.start_holds_novels()}</span><span>{m.start_dl_novels()}</span></div>
+		</div>
+		{#if pick}
+			<div class="field">
+				<div class="k">{m.start_dl_in_library()}</div>
+				<div class="list">
+					<a
+						class="row"
+						href={resolve('/series/[id]', { id: String(pick.id) })}
+						onclick={go('download')}
+					>
+						<span class="tx">
+							<span class="a">{pick.title}</span>
+							<span class="b"
+								>{(pick.anime ? m.start_pick_episodes : m.start_pick_chapters)({
+									count: pick.total,
+									n: num(pick.total)
+								})} · {pick.downloaded
+									? m.start_pick_some({ n: num(pick.downloaded) })
+									: m.start_pick_none()}</span
+							>
+						</span>
+						<span class="ac go">{m.start_open_go()}</span>
+					</a>
+				</div>
+			</div>
+		{/if}
+		<div class="tick-note">
+			{m.start_ticks_download()}
+			<a href={resolve('/downloads')}>{m.start_done_link_download()}</a>
+		</div>
 	{:else}
 		<div class="ways">
 			<div class="way">
@@ -199,13 +415,46 @@
 {/snippet}
 
 <style>
-	/* The handoff's ob.css (.ob-list, .step*, .st-*, .field, .box, .holds,
-	   .seek, .ways, .folder), transcribed; colours are tokens. */
-	.ob-list {
+	/* The handoffs' ob.css and fr.css (.part, .step*, .sum, .st-*, .field,
+	   .box, .holds, .rows, .mini, .dlrow, .seek, .ways, .folder), transcribed;
+	   colours are tokens. Every block inside the page's padding is closed on
+	   all four sides (doc/design/README.md, "Close every block"), where the
+	   handoffs drew rules above and below only. */
+	.part {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 16px;
+		padding: 0 0 12px;
+		border-bottom: var(--hairline);
+		font: 500 13px/1.2 var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+	}
+	.part .t {
+		color: var(--text-1);
+	}
+	.part.next {
+		padding-top: 40px;
+	}
+	/* The part's head rules its top; the rows close the other three sides. */
+	.rows {
+		border: var(--hairline);
+		border-top: 0;
+	}
+	.step + .step {
 		border-top: var(--hairline);
 	}
-	.step {
-		border-bottom: var(--hairline);
+	.sum {
+		display: flex;
+		align-items: stretch;
+		min-height: 64px;
+	}
+	.sum .st-title {
+		font-size: 16px;
+	}
+	.short {
+		display: none;
 	}
 	.step-row {
 		display: flex;
@@ -230,7 +479,8 @@
 		font: 500 14px var(--font-mono);
 		color: var(--text-1);
 	}
-	.done .num {
+	.done .num,
+	.sum .num {
 		background: var(--accent);
 		border-color: var(--accent);
 		color: var(--on-accent);
@@ -362,15 +612,17 @@
 	.holds {
 		display: flex;
 		flex-direction: column;
-		border-top: var(--hairline);
+		border: var(--hairline);
 	}
 	.holds > div {
 		display: flex;
 		justify-content: space-between;
 		gap: 16px;
-		padding: 13px 0;
-		border-bottom: var(--hairline);
+		padding: 13px 16px;
 		font: 400 14px var(--font-mono);
+	}
+	.holds > div + div {
+		border-top: var(--hairline);
 	}
 	.holds > div > span:last-child {
 		color: var(--text-2);
@@ -469,6 +721,142 @@
 		white-space: normal;
 		text-align: center;
 	}
+	/* Rows a step leads on from: a source to browse, the record, the series. */
+	.list {
+		border: var(--hairline);
+	}
+	.row {
+		display: flex;
+		align-items: stretch;
+		min-height: 64px;
+		color: var(--text-1);
+		text-decoration: none;
+	}
+	.row + .row {
+		border-top: var(--hairline);
+	}
+	.row .tx {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 5px;
+		padding: 10px 20px;
+	}
+	.row .tx .a {
+		font: 500 16px var(--font-sans);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.row .tx .b {
+		font: 400 13px var(--font-mono);
+		color: var(--text-2);
+	}
+	.row .ac {
+		display: flex;
+		align-items: center;
+		padding: 0 24px;
+		border-left: var(--hairline);
+		font: 500 14px var(--font-mono);
+		white-space: nowrap;
+	}
+	.row .ac.go {
+		color: var(--accent);
+	}
+	/* Replicas of the controls a step points at: drawn, not pressed. */
+	.mini {
+		display: flex;
+		flex-direction: column;
+		max-width: 600px;
+		border: var(--hairline);
+	}
+	.mini-cta {
+		display: flex;
+		height: 56px;
+	}
+	.mini-cta .go {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		padding: 0 20px;
+		background: var(--accent);
+		color: var(--on-accent);
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.04em;
+		white-space: nowrap;
+	}
+	.mini-cta .go .m {
+		font-weight: 400;
+		font-size: 13px;
+	}
+	.mini-cta .add {
+		display: flex;
+		align-items: center;
+		padding: 0 20px;
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.04em;
+		white-space: nowrap;
+		box-shadow: inset 0 0 0 1px var(--line-2);
+	}
+	.ring {
+		box-shadow: inset 0 0 0 2px var(--accent) !important;
+	}
+	.dlrow {
+		display: flex;
+		align-items: stretch;
+		min-height: 64px;
+	}
+	.dlrow .lb {
+		width: 120px;
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		padding-left: 20px;
+		border-right: var(--hairline);
+		font: 500 12px var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+	}
+	.dlrow .lk {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 5px;
+		padding: 10px 14px;
+	}
+	.dlrow .lk .a {
+		font: 500 15px/1.3 var(--font-sans);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.dlrow .lk .b {
+		font: 400 13px/1.35 var(--font-mono);
+		color: var(--text-2);
+	}
+	.dlrow .lc {
+		display: flex;
+		align-items: center;
+		padding: 0 18px;
+		border-left: var(--hairline);
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.04em;
+		white-space: nowrap;
+	}
+	.dlrow .lc.acc {
+		background: var(--accent);
+		color: var(--on-accent);
+	}
+	.tick-note a {
+		color: var(--text-1);
+	}
 	.folder {
 		display: flex;
 		flex-direction: column;
@@ -482,10 +870,48 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
-	/* The phone (Start-Phone board): narrower boxes, the body under the title. */
+	/* The phone (Start-Phone and FirstRead-Phone boards): narrower boxes, the body under the title. */
 	@media (max-width: 599px) {
-		.step-row {
-			min-height: 68px;
+		.long {
+			display: none;
+		}
+		.short {
+			display: inline;
+		}
+		p.short {
+			display: block;
+		}
+		.part {
+			padding: 0 16px 10px;
+			font-size: 12px;
+		}
+		.part.next {
+			padding-top: 22px;
+		}
+		/* Edge to edge on the phone: the screen's sides close the list. */
+		.rows {
+			border-left: 0;
+			border-right: 0;
+		}
+		.step-row,
+		.sum {
+			min-height: 64px;
+		}
+		.box {
+			height: 48px;
+		}
+		.row .tx {
+			padding: 8px 12px;
+		}
+		.row .tx .a {
+			font-size: 15px;
+		}
+		.row .tx .b {
+			font-size: 12px;
+		}
+		.row .ac {
+			padding: 0 14px;
+			font-size: 13px;
 		}
 		.st-box {
 			width: 60px;
@@ -518,6 +944,7 @@
 		.holds > div {
 			flex-direction: column;
 			gap: 4px;
+			padding: 12px;
 		}
 		.holds > div > span:last-child {
 			text-align: left;

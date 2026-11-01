@@ -26,6 +26,9 @@ export type HelpPart = {
 	table?: [string, string][];
 };
 
+/** Where GET STARTED walks through a topic (FirstRead board 4C): a bold line under IN SHORT. */
+export type HelpPointer = { text: string; label: string; href: string };
+
 export type HelpTopic = {
 	slug: string;
 	n: string;
@@ -36,6 +39,7 @@ export type HelpTopic = {
 	meta: string;
 	/** IN SHORT: three lines at most, a sentence each. */
 	short: string[];
+	pointer?: HelpPointer;
 	parts: HelpPart[];
 };
 
@@ -102,6 +106,11 @@ export function topics(): HelpTopic[] {
 				m.help_downloading_short_2({ browse }),
 				m.help_downloading_short_3()
 			],
+			pointer: {
+				text: m.help_downloading_pointer({ start: m.name_get_started() }),
+				label: m.help_downloading_pointer_go(),
+				href: '/start#first-read'
+			},
 			parts: [
 				{
 					id: 'extensions',

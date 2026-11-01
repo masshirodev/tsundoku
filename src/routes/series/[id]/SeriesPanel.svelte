@@ -57,6 +57,7 @@
 	 */
 	let {
 		series,
+		ringDownload = false,
 		shelves,
 		cached,
 		onedit,
@@ -76,6 +77,8 @@
 		downloads = null,
 		readOnline = false
 	}: {
+		/** FIRST READ's next step is this row: a 2px accent ring while its trip lasts (doc/ONBOARDING.md). */
+		ringDownload?: boolean;
 		series: SeriesPage;
 		shelves: Shelf[];
 		/** Entries of this series cached on the device. */
@@ -487,7 +490,11 @@
 				{/if}
 			{/each}
 		{/snippet}
-		<div class="row link-row dl-row" class:solo={dlRow.cells.length === 0}>
+		<div
+			class="row link-row dl-row"
+			class:solo={dlRow.cells.length === 0}
+			class:ring={ringDownload}
+		>
 			<!-- The "?" in the label (doc/HELP.md): 03 — FINDING AND DOWNLOADING, at ADD, DOWNLOAD, FOLLOW. -->
 			<button
 				type="button"
@@ -1742,5 +1749,8 @@
 	}
 	.file-meta {
 		color: var(--text-1);
+	}
+	.ring {
+		box-shadow: inset 0 0 0 2px var(--accent);
 	}
 </style>

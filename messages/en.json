@@ -15,7 +15,6 @@
 	"start_title_phone": "Read on your phone",
 	"start_optional": "OPTIONAL",
 	"start_meta_skipped": "Skipped",
-	"start_meta_skipped_with_repo": "Skipped with 01",
 	"start_meta_blocked": "After 01 · no repository, so nothing to install",
 	"start_meta_done_repo": [
 		{
@@ -52,7 +51,7 @@
 	"start_meta_todo_ext": "A source to browse and read from",
 	"start_meta_todo_library": "A Mihon backup, or files in the library folder",
 	"start_meta_todo_phone": "Wi-Fi at home, or Tailscale anywhere",
-	"start_count": "{done} OF {total} DONE · ANY ORDER",
+	"start_count": "{done} OF {total} DONE",
 	"start_count_skipped": [
 		{
 			"declarations": [
@@ -144,10 +143,10 @@
 	"start_done_link_phone": "SETTINGS →",
 	"start_head": "00 — GET STARTED",
 	"start_empty_title": "Nothing here yet.",
-	"start_empty_lede": "Four things to set up, in any order. Each one ticks itself when it's done, and this list stays here until they are.",
-	"start_page_title_open": "Four things to set up.",
+	"start_empty_lede": "Four things to set up, in any order, then three to read your first series. Each step ticks itself when it's done, and this list stays here until they are.",
+	"start_page_title_open": "Set up, then a first read.",
 	"start_page_title_finished": "Everything is set up, or skipped.",
-	"start_page_lede": "In any order. Each one ticks itself when it's done, and the sidebar keeps a way back here until they are.",
+	"start_page_lede": "Four things to set up, in any order, then three to read your first series. Each one ticks itself when it's done, and the sidebar keeps a way back here until they are.",
 	"start_page_kept": "THE SAME LIST ON EVERY DEVICE · TICKS AND SKIPS ARE KEPT ON THE COMPUTER",
 	"start_page_doc_title": "Get started · tsundoku",
 	"start_page_label": "Get started",
@@ -343,7 +342,7 @@
 	"name_more": "MORE",
 	"help_start_title": "Getting started",
 	"help_start_meta": "THE CHECKLIST",
-	"help_start_short_1": "Four things to set up, in any order: a repository, an extension, your own files, your phone.",
+	"help_start_short_1": "Seven steps in two parts: four to set up, in any order, then three to read your first series.",
 	"help_start_short_2": "Each one ticks itself when it is done; SKIP any of them.",
 	"help_start_short_3": "The list stays on the empty library, and here, until every step is done or skipped.",
 	"help_reading_title": "Reading",
@@ -493,5 +492,206 @@
 	"help_phone_word": "YOUR",
 	"help_updates_word": "UPDATES",
 	"help_backups_word": "BACKUPS",
-	"help_report_word": "WHEN"
+	"help_report_word": "WHEN",
+	"start_title_find": "Find something to read",
+	"start_title_add": "Add it to your library",
+	"start_title_download": "Download chapters",
+	"start_meta_skipped_with": "Skipped with {n}",
+	"start_meta_blocked_read": "After 02 · no source to search yet",
+	"start_meta_done_find": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Done · {n} series read online",
+				"countPlural=*": "Done · {n} series read online"
+			}
+		}
+	],
+	"start_meta_done_with": "Done · with {n}",
+	"start_meta_done_add": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Done · {n} series added",
+				"countPlural=*": "Done · {n} series added"
+			}
+		}
+	],
+	"start_meta_done_queued": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Done · {n} queued",
+				"countPlural=*": "Done · {n} queued"
+			}
+		}
+	],
+	"start_meta_done_downloaded": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Done · {n} downloaded",
+				"countPlural=*": "Done · {n} downloaded"
+			}
+		}
+	],
+	"start_meta_todo_find": "Search your sources · it reads online",
+	"start_meta_todo_add": "+ ADD TO LIBRARY keeps it · reading online doesn't",
+	"start_meta_todo_download": "The series' DOWNLOAD row · it reads offline",
+	"start_meta_short_find": "Search your sources",
+	"start_meta_short_add": "+ Add to library keeps it",
+	"start_meta_short_download": "They read offline",
+	"start_part_setup": "SET UP",
+	"start_part_read": "FIRST READ",
+	"start_part_setup_title": "Set up",
+	"start_part_read_title": "First read",
+	"start_part_any": "{done} OF {total} DONE · ANY ORDER",
+	"start_part_in_order": "{done} OF {total} · IN ORDER",
+	"start_part_after": "AFTER {n}",
+	"start_part_skipped_with": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} SKIPPED WITH {n}",
+				"countPlural=*": "{count} SKIPPED WITH {n}"
+			}
+		}
+	],
+	"start_fold_done": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} done",
+				"countPlural=*": "{n} done"
+			}
+		}
+	],
+	"start_fold_skipped": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} skipped",
+				"countPlural=*": "{n} skipped"
+			}
+		}
+	],
+	"start_fold_repo": "repository",
+	"start_fold_ext": "extension",
+	"start_fold_library": "library",
+	"start_fold_phone": "phone",
+	"start_fold_find": "read online",
+	"start_fold_add": "added",
+	"start_fold_download": "downloaded",
+	"start_show": "SHOW ↓",
+	"start_head_read": "00 — GET STARTED · FIRST READ",
+	"start_read_title": "Set up. Now something to read.",
+	"start_read_lede": "Three steps, in order: find a series, add it to your library, download its chapters. Each one ticks itself, and this list stays here until they're done.",
+	"start_find_body_a": "Search your sources for a title, or browse one. Open what you find and read it, or watch it, straight away:",
+	"start_find_body_b": "it comes from the source as you go",
+	"start_find_body_c": ", and nothing is kept yet.",
+	"start_find_body_short": "Search your sources, or browse one. Open what you find and read it straight away: nothing is kept yet.",
+	"start_find_browse_one": "OR BROWSE ONE",
+	"start_ticks_find": "TICKS ITSELF WHEN A CHAPTER OR AN EPISODE IS OPENED",
+	"start_ticks_find_short": "TICKS ITSELF WHEN A CHAPTER IS OPENED",
+	"start_add_body_a": "A series read online is forgotten {days} days after it was last opened.",
+	"start_add_body_b": "+ ADD TO LIBRARY",
+	"start_add_body_c": ", on its page, keeps it: a place on your shelves, CONTINUE on the library, and its new chapters counted.",
+	"start_add_what": "WHAT YOU READ",
+	"start_add_record": "{source} · {where} · NOT IN LIBRARY",
+	"start_where_chapter": "CH. {i} OF {total}",
+	"start_where_episode": "EP. {i} OF {total}",
+	"start_open_go": "OPEN →",
+	"start_search_go": "SEARCH →",
+	"start_mini_continue": "▶ CONTINUE",
+	"start_mini_at_page": "{label} · P. {p}",
+	"start_ticks_add": "TICKS ITSELF WHEN A SERIES IS ADDED · DOWNLOADING ADDS IT TOO",
+	"start_download_body_a": "Downloaded chapters read with no site in the way: offline, and on the tablet. On the series' page,",
+	"start_download_body_b": "the DOWNLOAD row",
+	"start_download_body_c": ": FIRST 10 to start, then NEXT 10, or ALL. A chapter's ↓ takes that one alone.",
+	"start_mini_download": "DOWNLOAD",
+	"start_mini_unread": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} unread chapter not downloaded",
+				"countPlural=*": "{n} unread chapters not downloaded"
+			}
+		}
+	],
+	"start_mini_nothing": "NOTHING ON DISK YET",
+	"start_mini_first": "FIRST 10",
+	"start_mini_all": "ALL {n}",
+	"start_dl_manga": "CHAPTERS, PAGE BY PAGE",
+	"start_dl_anime": "EPISODES · A SHOW STILL STREAMS WITHOUT",
+	"start_dl_novels": "CHAPTERS, KEPT AS AN EPUB",
+	"start_dl_in_library": "IN YOUR LIBRARY",
+	"start_pick_chapters": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} CHAPTER",
+				"countPlural=*": "{n} CHAPTERS"
+			}
+		}
+	],
+	"start_pick_episodes": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} EPISODE",
+				"countPlural=*": "{n} EPISODES"
+			}
+		}
+	],
+	"start_pick_none": "NONE DOWNLOADED",
+	"start_pick_some": "{n} DOWNLOADED",
+	"start_ticks_download": "TICKS ITSELF WHEN A CHAPTER IS QUEUED · THE QUEUE IS IN",
+	"start_done_link_find": "HISTORY →",
+	"start_done_link_download": "DOWNLOADS →",
+	"start_trail_read_step": "FIRST READ · {n} OF {total} · {title}",
+	"start_doing_find": "OPEN A RESULT, THEN ▶ READ · TICKS ITSELF WHEN A CHAPTER IS OPENED",
+	"start_doing_add": "+ ADD TO LIBRARY, BELOW · TICKS ITSELF WHEN IT'S ADDED",
+	"start_doing_download": "THE DOWNLOAD ROW · TICKS ITSELF WHEN A CHAPTER IS QUEUED",
+	"start_now_download": "THE DOWNLOAD ROW",
+	"start_trail_now": "NOW {n} OF {total} · {doing}",
+	"start_done_word_find": "READ ONLINE",
+	"start_done_word_add": "ADDED TO THE LIBRARY",
+	"start_done_word_download": "A CHAPTER QUEUED",
+	"start_done_word_queued": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} CHAPTER QUEUED",
+				"countPlural=*": "{n} CHAPTERS QUEUED"
+			}
+		}
+	],
+	"start_done_word_downloaded": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} CHAPTER DOWNLOADED",
+				"countPlural=*": "{n} CHAPTERS DOWNLOADED"
+			}
+		}
+	],
+	"start_trail_part_done": "{a} · FIRST READ DONE",
+	"start_trail_short": "{n} OF {total}",
+	"start_trail_back_short": "BACK →",
+	"start_mini_next": "NEXT 10",
+	"start_mini_add": "+ ADD TO LIBRARY",
+	"help_downloading_pointer": "{start} walks through it once: steps 05 to 07.",
+	"help_downloading_pointer_go": "05 — 07 →"
 }

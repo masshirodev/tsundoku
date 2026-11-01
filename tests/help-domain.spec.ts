@@ -26,6 +26,14 @@ describe('the topics', () => {
 		expect(all).not.toMatch(/https?:\/\//);
 		expect(all).not.toMatch(HIDDEN);
 	});
+	it("03 points at FIRST READ's steps, apart from its In short (c209)", () => {
+		expect(topicBySlug('downloading')!.pointer).toEqual({
+			text: 'GET STARTED walks through it once: steps 05 to 07.',
+			label: '05 — 07 →',
+			href: '/start#first-read'
+		});
+		expect(topicBySlug('start')!.short[0]).toMatch(/^Seven steps in two parts/);
+	});
 	it('link to sections SETTINGS can open by name', () => {
 		for (const t of topics())
 			for (const p of t.parts) {

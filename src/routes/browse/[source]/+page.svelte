@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StartTrail from '$lib/components/start/StartTrail.svelte';
 	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -174,6 +175,8 @@
 			{#if !novel}<a class="cell settings" href="{base}/settings">SETTINGS</a>{/if}
 		{/snippet}
 	</TopBar>
+	<!-- The way back to GET STARTED, while FIRST READ's trip lasts (doc/ONBOARDING.md). -->
+	<StartTrail start={data.start} />
 
 	<nav class="tabs" aria-label="Lists">
 		<div class="tab-list">

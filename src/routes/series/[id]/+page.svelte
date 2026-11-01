@@ -19,6 +19,10 @@
 	import GroupSheet from '../../GroupSheet.svelte';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import NavLine from '$lib/components/waiting/NavLine.svelte';
+	import { m } from '$lib/paraglide/messages';
+	import StartTrail from '$lib/components/start/StartTrail.svelte';
+	import { trail } from '$lib/start-trail.svelte';
+	import { partOf, trailHere } from '$lib/library/start';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { offline } from '$lib/offline.svelte';
@@ -44,6 +48,16 @@
 	} from '$lib/library/series';
 
 	let { data, form } = $props();
+	// FIRST READ's band (doc/ONBOARDING.md, "The way back"): just after ADD it
+	// takes the place of ADDED TO THE LIBRARY, with its UNDO, and the DOWNLOAD
+	// row wears the ring while 07 is next.
+	const readBand = $derived(
+		!!data.start &&
+			!!trail.step &&
+			partOf(trail.step) === 'read' &&
+			trailHere(trail.step, page.url.pathname)
+	);
+	const ring = $derived(trail.ring(data.start, page.url.pathname));
 	const refusal = $derived(
 		form && 'message' in form && typeof form.message === 'string' ? form.message.toUpperCase() : ''
 	);
@@ -378,8 +392,24 @@
 		<input type="hidden" name="through" value={throughId} />
 	</form>
 
+	{#if readBand && data.addedFrom && !refusal}
+		<StartTrail
+			start={data.start}
+			prefix={addedDetail(series.entries.length, data.addedQueued, !!data.anime)}
+		>
+			{#snippet extra()}
+				<form method="POST" action="?/undoSourceAdd" use:enhance>
+					<input type="hidden" name="from" value={data.addedFrom} />
+					<button type="submit">{m.start_undo()}</button>
+				</form>
+			{/snippet}
+		</StartTrail>
+	{:else}
+		<StartTrail start={data.start} />
+	{/if}
+
 	<!-- An action refused (a move, a take-out, a delete): it says why, never silently. -->
-	{#if data.addedFrom && !refusal}
+	{#if data.addedFrom && !refusal && !readBand}
 		<!-- After adding (Download States 1e): every chapter NOT DOWNLOADED, FIRST 10 offered below. -->
 		<!-- ADD AND DOWNLOAD on the preview (card c205): what it queued, or that the queue didn't answer. -->
 		<Band
@@ -462,6 +492,7 @@
 			<div class="panel-col">
 				<SeriesPanel
 					{series}
+					ringDownload={ring === 'download'}
 					readOnline={!!dlStates && offline.online}
 					shelves={data.shelves}
 					cached={cachedCount}

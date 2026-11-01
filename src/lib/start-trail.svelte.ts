@@ -1,36 +1,60 @@
-import { TRAIL, STEPS, type StepId } from './library/start.ts';
+import {
+	partOf,
+	readTrail,
+	STEPS,
+	TRAIL,
+	trailHere,
+	trailLasts,
+	type StartView,
+	type StepId
+} from './library/start.ts';
 
 /**
  * The way back to GET STARTED (doc/ONBOARDING.md, "The way back"; the
- * handoff's board 2): a step's link starts a trip, and the screen it opens
- * wears a band back to the list for as long as the trip lasts. Kept in the
+ * handoffs' boards 2): a step's link starts a trip, and the screens it opens
+ * wear a band back to the list for as long as the trip lasts. Kept in the
  * tab's sessionStorage, not the URL: EXTENSIONS' own redirects (adding a
  * repository lands on `?tab=repos`) would drop a parameter, and with it the
  * band, at the very moment the step ticks.
  *
- * It ends with ✕, with the trip back, or by leaving the step's screen any
- * other way (the sidebar, the top bar); opening EXTENSIONS on one's own
- * never starts one.
+ * A SET UP step's trip lasts on its one screen; a FIRST READ step's across
+ * the part's screens (the search, BROWSE, the preview, the series,
+ * DOWNLOADS) and through the reader. It ends with ✕, with the trip back, or
+ * by leaving those screens any other way; opening them on one's own never
+ * starts one. `before` is which FIRST READ steps were done when it began, so
+ * the band can tell a tick on this trip from one done long ago.
  */
 const KEY = 'tsundoku.start.trail';
 
 class Trail {
 	step = $state<StepId | null>(null);
+	before = $state<StepId[]>([]);
 
 	/** What this tab kept, once it's in the browser. */
 	load() {
 		try {
-			const v = sessionStorage.getItem(KEY);
-			this.step = v && (STEPS as string[]).includes(v) && TRAIL[v as StepId] ? (v as StepId) : null;
+			const raw = sessionStorage.getItem(KEY);
+			// Before c209 the value was the step alone.
+			const v = (raw?.startsWith('{') ? JSON.parse(raw) : { step: raw }) as {
+				step?: unknown;
+				before?: unknown;
+			};
+			const ok = typeof v.step === 'string' && (STEPS as string[]).includes(v.step);
+			this.step = ok && TRAIL[v.step as StepId] ? (v.step as StepId) : null;
+			this.before = Array.isArray(v.before)
+				? STEPS.filter((s) => (v.before as unknown[]).includes(s))
+				: [];
 		} catch {
 			this.step = null;
+			this.before = [];
 		}
 	}
 
-	begin(id: StepId) {
+	begin(id: StepId, before: StepId[] = []) {
 		this.step = id;
+		this.before = before;
 		try {
-			sessionStorage.setItem(KEY, id);
+			sessionStorage.setItem(KEY, JSON.stringify({ step: id, before }));
 		} catch {
 			// Storage refused: the band shows on this screen until it's left.
 		}
@@ -38,6 +62,7 @@ class Trail {
 
 	end() {
 		this.step = null;
+		this.before = [];
 		try {
 			sessionStorage.removeItem(KEY);
 		} catch {
@@ -45,10 +70,16 @@ class Trail {
 		}
 	}
 
-	/** After a navigation: the trip ends once its screen is left. */
+	/** The control FIRST READ's next step means, ringed on this screen (FirstRead boards 2). */
+	ring(start: StartView | null, path: string): 'add' | 'download' | null {
+		if (!start || !this.step || partOf(this.step) !== 'read' || !trailHere(this.step, path))
+			return null;
+		return readTrail(start, this.before).ring;
+	}
+
+	/** After a navigation: the trip ends once its screens are left. */
 	follow(pathname: string) {
-		const t = this.step ? TRAIL[this.step] : null;
-		if (t && !pathname.startsWith(t.path)) this.end();
+		if (this.step && !trailLasts(this.step, pathname)) this.end();
 	}
 }
 

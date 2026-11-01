@@ -75,7 +75,7 @@
 					<div class="b">{band.b}</div>
 				</div>
 			{/if}
-			<InShort lines={topic.short} />
+			<InShort lines={topic.short} pointer={topic.pointer} />
 
 			{#each topic.parts as p, i (p.id)}
 				<div class="part-lab" id={p.id}>

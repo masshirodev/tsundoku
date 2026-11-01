@@ -100,23 +100,40 @@ describe('in Portuguese', () => {
 	});
 	it('GET STARTED speaks it, plurals and all', () => {
 		overwriteGetLocale(() => 'pt-BR');
-		const v = startView({ repositories: 1, installed: 1234, series: 2, phones: 0 }, ['phone']);
+		const f = {
+			repositories: 1,
+			installed: 1234,
+			series: 2,
+			phones: 0,
+			records: 1,
+			added: 0,
+			queued: 0,
+			downloaded: 0
+		};
+		const v = startView(f, ['phone']);
 		expect(v.steps.map((s) => s.title)).toEqual([
 			'Adicionar um repositório',
 			'Instalar uma extensão',
 			'Trazer uma biblioteca que você já tem',
-			'Ler no celular'
+			'Ler no celular',
+			'Encontrar algo para ler',
+			'Adicionar à sua biblioteca',
+			'Baixar capítulos'
 		]);
 		expect(v.steps.map((s) => s.meta)).toEqual([
 			'Feito · 1 repositório',
 			'Feito · 1.234 instaladas',
 			'Feito · 2 séries',
-			'Pulado'
+			'Pulado',
+			'Feito · 1 série lida online',
+			'+ ADICIONAR À BIBLIOTECA guarda · ler online não',
+			'A linha DOWNLOAD da série · lê offline'
 		]);
-		expect(countLine(v)).toBe('3 DE 4 FEITOS · 1 PULADO');
+		expect(countLine(v)).toBe('4 DE 7 FEITOS · 1 PULADO');
+		expect(v.parts.map((p) => p.line)).toEqual(['3 DE 4 FEITOS · 1 PULADO', '1 DE 3 · EM ORDEM']);
 		expect(trailDone(v, 'repo')).toEqual({
 			a: '✓ 01 FEITO · UM REPOSITÓRIO ADICIONADO',
-			b: 'TODOS OS PASSOS FEITOS OU PULADOS'
+			b: 'AINDA FALTA · 06 ADICIONAR À SUA BIBLIOTECA'
 		});
 	});
 });

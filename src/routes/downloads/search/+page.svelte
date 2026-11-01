@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StartTrail from '$lib/components/start/StartTrail.svelte';
 	import { resolve } from '$app/paths';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import Cover from '$lib/components/content/Cover.svelte';
@@ -95,6 +96,8 @@
 			<a class="cell clear" href={base}>CLEAR</a>
 		{/snippet}
 	</TopBar>
+	<!-- The way back to GET STARTED, while FIRST READ's trip lasts (doc/ONBOARDING.md). -->
+	<StartTrail start={data.start} />
 </form>
 
 {#if data.down}

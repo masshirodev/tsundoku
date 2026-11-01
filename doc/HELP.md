@@ -15,15 +15,15 @@ table where a part explains a screen's words). Not Markdown files: tsundoku
 has no Markdown renderer, the topics have a shape, and a "?"'s sheet shows the
 same IN SHORT as the page, so the two can't drift.
 
-| #   | Topic                   | Slug          | Parts                                                                |
-| --- | ----------------------- | ------------- | -------------------------------------------------------------------- |
-| 01  | Getting started         | `start`       | opens `/start`, the checklist itself                                 |
-| 02  | Reading                 | `reading`     | turning pages, the strip, full screen and zoom                       |
-| 03  | Finding and downloading | `downloading` | extensions and repositories, online, add/download/follow, the queue  |
-| 04  | Your phone              | `phone`       | Wi-Fi with a code, Tailscale (`#tailscale`, the README's four steps) |
-| 05  | Updates                 | `updates`     | where it shows, unzipped                                             |
-| 06  | Backups and importing   | `backups`     | the library folder                                                   |
-| 07  | When something breaks   | `report`      | SAVE A REPORT                                                        |
+| #   | Topic                   | Slug          | Parts                                                                                              |
+| --- | ----------------------- | ------------- | -------------------------------------------------------------------------------------------------- |
+| 01  | Getting started         | `start`       | opens `/start`, the checklist itself                                                               |
+| 02  | Reading                 | `reading`     | turning pages, the strip, full screen and zoom                                                     |
+| 03  | Finding and downloading | `downloading` | extensions and repositories, online, add/download/follow, the queue; points at GET STARTED's 05–07 |
+| 04  | Your phone              | `phone`       | Wi-Fi with a code, Tailscale (`#tailscale`, the README's four steps)                               |
+| 05  | Updates                 | `updates`     | where it shows, unzipped                                                                           |
+| 06  | Backups and importing   | `backups`     | the library folder                                                                                 |
+| 07  | When something breaks   | `report`      | SAVE A REPORT                                                                                      |
 
 **Words to keep true.** They describe the app: when a screen's word changes,
 its topic's line changes with it. `tests/help-domain.spec.ts` checks the
@@ -69,11 +69,16 @@ A CODE`). In the reader the READING sheet's rows give way to it instead of a
 second sheet stacking, and ← READING brings them back; WHOLE TOPIC says it
 leaves the chapter.
 
+**A pointer under IN SHORT** (FIRST READ handoff, board 4C; card c209): 03
+ends on `GET STARTED walks through it once: steps 05 to 07.`, in bold, with
+`05 — 07 →` to `/start#first-read`. It's the topic's `pointer`, drawn on a
+line of its own by `InShort.svelte`, so IN SHORT stays three lines.
+
 ## Where it departs from the handoff
 
-- **The index row for 01 counts done and skipped** (`3 OF 4`), as the
-  sidebar's GET STARTED row does; the handoff drew `4 OF 6`, a count of a
-  list that has four steps.
+- **The index row for 01 counts done and skipped** (`3 OF 7`), as the
+  sidebar's GET STARTED row does; the first handoff drew `4 OF 6` when the
+  list had four steps, and FIRST READ's board 4C draws `3 OF 7`.
 - **`/help` on a wide screen is the list, in a column**, not the index beside
   an empty article; a topic has the index beside it.
 - **07's end** is SAVE → into SETTINGS rather than a SAVE beside it on the

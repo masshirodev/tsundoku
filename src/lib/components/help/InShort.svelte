@@ -2,10 +2,17 @@
 	/**
 	 * A topic's IN SHORT (doc/HELP.md; the HELP handoff): three numbered,
 	 * ruled lines on the panel. The page and a "?"'s sheet show the same block.
+	 * A topic GET STARTED walks through ends on a pointer to its steps, in bold
+	 * (FirstRead board 4C): a line of its own, never a fourth line of IN SHORT.
 	 */
 	import { m } from '$lib/paraglide/messages';
+	import type { HelpPointer } from '$lib/help/topics';
 
-	let { lines, compact = false }: { lines: string[]; compact?: boolean } = $props();
+	let {
+		lines,
+		pointer,
+		compact = false
+	}: { lines: string[]; pointer?: HelpPointer; compact?: boolean } = $props();
 </script>
 
 <section class="short" class:compact aria-label={m.help_in_short_label()}>
@@ -16,6 +23,14 @@
 			<p>{line}</p>
 		</div>
 	{/each}
+	{#if pointer}
+		<div class="line pointer">
+			<div class="n">→</div>
+			<div class="pt"><b>{pointer.text}</b></div>
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- a fixed app path -->
+			<a href={pointer.href}>{pointer.label}</a>
+		</div>
+	{/if}
 </section>
 
 <style>
@@ -53,6 +68,30 @@
 		color: var(--text-1);
 		text-wrap: pretty;
 	}
+	.pointer .pt {
+		flex: 1;
+		max-width: 72ch;
+		padding: 14px var(--pad) 14px 18px;
+		font: 400 17px/1.5 var(--font-sans);
+		text-wrap: pretty;
+	}
+	.compact .pointer .pt {
+		padding: 13px var(--pad) 13px 14px;
+		line-height: 1.45;
+	}
+	.pointer b {
+		font-weight: 500;
+	}
+	.pointer a {
+		display: flex;
+		align-items: center;
+		padding: 0 var(--pad);
+		border-left: var(--hairline);
+		color: var(--accent);
+		font: 500 14px var(--font-mono);
+		text-decoration: none;
+		white-space: nowrap;
+	}
 	/* In a sheet (Ask board): 13 px rows, the lines a size down. */
 	.compact {
 		border-top: 0;
@@ -71,7 +110,8 @@
 			--num: 40px;
 		}
 		p,
-		.compact p {
+		.compact p,
+		.pointer .pt {
 			font-size: 16px;
 		}
 	}

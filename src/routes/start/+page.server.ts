@@ -1,7 +1,8 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { libraryRoot } from '$lib/server/import';
-import { setSkipped } from '$lib/server/start';
+import { firstReadExtras, setSkipped } from '$lib/server/start';
+import { isRevealed } from '$lib/server/prefs';
 import { STEPS, type StepId } from '$lib/library/start';
 
 /**
@@ -10,7 +11,10 @@ import { STEPS, type StepId } from '$lib/library/start';
  * sidebar on any install, finished or not. Its SKIP and UNDO are the empty
  * library's too. The view itself comes with the layout.
  */
-export const load: PageServerLoad = () => ({ libraryRoot: libraryRoot() });
+export const load: PageServerLoad = ({ cookies }) => ({
+	libraryRoot: libraryRoot(),
+	firstRead: firstReadExtras(isRevealed(cookies))
+});
 
 const step = async (request: Request): Promise<StepId | null> => {
 	const id = String((await request.formData()).get('step') ?? '');

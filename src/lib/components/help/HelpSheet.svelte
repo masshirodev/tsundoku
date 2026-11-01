@@ -45,7 +45,7 @@
 		<div class="title">{title}</div>
 		<button type="button" class="x" aria-label={m.help_close()} onclick={onclose}>✕</button>
 	</div>
-	<InShort lines={a.topic.short} compact />
+	<InShort lines={a.topic.short} pointer={a.topic.pointer} compact />
 	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- topics' paths are fixed app paths -->
 	<a class="whole" href={a.href} onclick={onclose}
 		><span class="w">{m.help_whole_topic()}</span><span class="at">{at ?? a.at}</span></a

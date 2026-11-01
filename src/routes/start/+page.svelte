@@ -2,7 +2,7 @@
 	import { resolve } from '$app/paths';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import StartList from '$lib/components/start/StartList.svelte';
-	import { countLine } from '$lib/library/start';
+	import { countLine, readLeads } from '$lib/library/start';
 	import { trail } from '$lib/start-trail.svelte';
 	import { m } from '$lib/paraglide/messages';
 
@@ -14,6 +14,7 @@
 	 */
 	let { data } = $props();
 	$effect(() => trail.end());
+	const leads = $derived(!!data.start && !data.start.finished && readLeads(data.start));
 </script>
 
 <svelte:head><title>{m.start_page_doc_title()}</title></svelte:head>
@@ -36,14 +37,24 @@
 	{#if data.start}
 		<section class="ob" aria-label={m.start_page_label()}>
 			<div class="ob-head">
-				<div class="k">{m.start_head()}</div>
-				<div class="k">{countLine(data.start)}</div>
+				<div class="k">{leads ? m.start_head_read() : m.start_head()}</div>
+				<div class="k">
+					<span class="long">{countLine(data.start)}</span><span class="short"
+						>{countLine(data.start, true)}</span
+					>
+				</div>
 			</div>
 			<h2>
-				{data.start.finished ? m.start_page_title_finished() : m.start_page_title_open()}
+				{data.start.finished
+					? m.start_page_title_finished()
+					: leads
+						? m.start_read_title()
+						: m.start_page_title_open()}
 			</h2>
-			<p class="lede">{m.start_page_lede()}</p>
-			<div class="list"><StartList view={data.start} libraryRoot={data.libraryRoot} /></div>
+			<p class="lede">{leads ? m.start_read_lede() : m.start_page_lede()}</p>
+			<div class="list">
+				<StartList view={data.start} libraryRoot={data.libraryRoot} extras={data.firstRead} />
+			</div>
 			<p class="kept">{m.start_page_kept()}</p>
 		</section>
 	{/if}
@@ -112,6 +123,9 @@
 	.list {
 		margin-top: 32px;
 	}
+	.short {
+		display: none;
+	}
 	.kept {
 		margin: 20px 0 0;
 		font: 400 12px/1.5 var(--font-mono);
@@ -137,6 +151,12 @@
 		}
 		.kept {
 			padding: 0 16px;
+		}
+		.long {
+			display: none;
+		}
+		.short {
+			display: inline;
 		}
 	}
 </style>

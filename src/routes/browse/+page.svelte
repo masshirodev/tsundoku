@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StartTrail from '$lib/components/start/StartTrail.svelte';
 	import { resolve } from '$app/paths';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import SourceRow from './SourceRow.svelte';
@@ -79,6 +80,8 @@
 			</a>
 		{/snippet}
 	</TopBar>
+	<!-- The way back to GET STARTED, while FIRST READ's trip lasts (doc/ONBOARDING.md). -->
+	<StartTrail start={data.start} />
 
 	{#if total === 0}
 		<!-- The first run (Index-Browse, first; Browse Calls, "No repository ships"). -->

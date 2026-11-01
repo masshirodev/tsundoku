@@ -15,7 +15,6 @@
 	"start_title_phone": "Ler no celular",
 	"start_optional": "OPCIONAL",
 	"start_meta_skipped": "Pulado",
-	"start_meta_skipped_with_repo": "Pulado junto com o 01",
 	"start_meta_blocked": "Depois do 01 · sem repositório, não há o que instalar",
 	"start_meta_done_repo": [
 		{
@@ -52,7 +51,7 @@
 	"start_meta_todo_ext": "Uma fonte para explorar e ler",
 	"start_meta_todo_library": "Um backup do Mihon, ou arquivos na pasta da biblioteca",
 	"start_meta_todo_phone": "Wi-Fi em casa, ou Tailscale de qualquer lugar",
-	"start_count": "{done} DE {total} FEITOS · EM QUALQUER ORDEM",
+	"start_count": "{done} DE {total} FEITOS",
 	"start_count_skipped": [
 		{
 			"declarations": [
@@ -144,10 +143,10 @@
 	"start_done_link_phone": "CONFIGURAÇÕES →",
 	"start_head": "00 — PRIMEIROS PASSOS",
 	"start_empty_title": "Nada aqui ainda.",
-	"start_empty_lede": "Quatro coisas para configurar, em qualquer ordem. Cada uma se marca sozinha quando estiver feita, e esta lista fica aqui até lá.",
-	"start_page_title_open": "Quatro coisas para configurar.",
+	"start_empty_lede": "Quatro coisas para configurar, em qualquer ordem, e depois três para ler a sua primeira série. Cada passo se marca sozinho quando estiver feito, e esta lista fica aqui até lá.",
+	"start_page_title_open": "Configurar, e depois uma primeira leitura.",
 	"start_page_title_finished": "Tudo configurado, ou pulado.",
-	"start_page_lede": "Em qualquer ordem. Cada uma se marca sozinha quando estiver feita, e a barra lateral guarda um caminho de volta até lá.",
+	"start_page_lede": "Quatro coisas para configurar, em qualquer ordem, e depois três para ler a sua primeira série. Cada uma se marca sozinha quando estiver feita, e a barra lateral guarda um caminho de volta até lá.",
 	"start_page_kept": "A MESMA LISTA EM TODOS OS DISPOSITIVOS · O QUE FOI FEITO OU PULADO FICA SALVO NO COMPUTADOR",
 	"start_page_doc_title": "Primeiros passos · tsundoku",
 	"start_page_label": "Primeiros passos",
@@ -343,7 +342,7 @@
 	"name_more": "MAIS",
 	"help_start_title": "Primeiros passos",
 	"help_start_meta": "A LISTA",
-	"help_start_short_1": "Quatro coisas para configurar, em qualquer ordem: um repositório, uma extensão, os seus próprios arquivos, o seu celular.",
+	"help_start_short_1": "Sete passos em duas partes: quatro para configurar, em qualquer ordem, e depois três para ler a sua primeira série.",
 	"help_start_short_2": "Cada uma se marca sozinha quando estiver feita; dá para PULAR qualquer uma.",
 	"help_start_short_3": "A lista fica na biblioteca vazia, e aqui, até cada passo estar feito ou pulado.",
 	"help_reading_title": "Leitura",
@@ -493,5 +492,206 @@
 	"help_phone_word": "CELULAR",
 	"help_updates_word": "ATUALIZAÇÕES",
 	"help_backups_word": "BACKUPS",
-	"help_report_word": "PROBLEMAS"
+	"help_report_word": "PROBLEMAS",
+	"start_title_find": "Encontrar algo para ler",
+	"start_title_add": "Adicionar à sua biblioteca",
+	"start_title_download": "Baixar capítulos",
+	"start_meta_skipped_with": "Pulado junto com o {n}",
+	"start_meta_blocked_read": "Depois do 02 · ainda não há fonte para buscar",
+	"start_meta_done_find": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Feito · {n} série lida online",
+				"countPlural=*": "Feito · {n} séries lidas online"
+			}
+		}
+	],
+	"start_meta_done_with": "Feito · junto com o {n}",
+	"start_meta_done_add": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Feito · {n} série adicionada",
+				"countPlural=*": "Feito · {n} séries adicionadas"
+			}
+		}
+	],
+	"start_meta_done_queued": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Feito · {n} na fila",
+				"countPlural=*": "Feito · {n} na fila"
+			}
+		}
+	],
+	"start_meta_done_downloaded": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "Feito · {n} baixado",
+				"countPlural=*": "Feito · {n} baixados"
+			}
+		}
+	],
+	"start_meta_todo_find": "Busque nas suas fontes · lê online",
+	"start_meta_todo_add": "+ ADICIONAR À BIBLIOTECA guarda · ler online não",
+	"start_meta_todo_download": "A linha DOWNLOAD da série · lê offline",
+	"start_meta_short_find": "Busque nas suas fontes",
+	"start_meta_short_add": "+ Adicionar à biblioteca guarda",
+	"start_meta_short_download": "Leem offline",
+	"start_part_setup": "CONFIGURAR",
+	"start_part_read": "PRIMEIRA LEITURA",
+	"start_part_setup_title": "Configuração",
+	"start_part_read_title": "Primeira leitura",
+	"start_part_any": "{done} DE {total} FEITOS · EM QUALQUER ORDEM",
+	"start_part_in_order": "{done} DE {total} · EM ORDEM",
+	"start_part_after": "DEPOIS DO {n}",
+	"start_part_skipped_with": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{count} PULADO JUNTO COM O {n}",
+				"countPlural=*": "{count} PULADOS JUNTO COM O {n}"
+			}
+		}
+	],
+	"start_fold_done": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} feito",
+				"countPlural=*": "{n} feitos"
+			}
+		}
+	],
+	"start_fold_skipped": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} pulado",
+				"countPlural=*": "{n} pulados"
+			}
+		}
+	],
+	"start_fold_repo": "repositório",
+	"start_fold_ext": "extensão",
+	"start_fold_library": "biblioteca",
+	"start_fold_phone": "celular",
+	"start_fold_find": "leitura online",
+	"start_fold_add": "adicionada",
+	"start_fold_download": "baixada",
+	"start_show": "MOSTRAR ↓",
+	"start_head_read": "00 — PRIMEIROS PASSOS · PRIMEIRA LEITURA",
+	"start_read_title": "Configurado. Agora, algo para ler.",
+	"start_read_lede": "Três passos, em ordem: encontrar uma série, adicioná-la à sua biblioteca, baixar os capítulos. Cada um se marca sozinho, e esta lista fica aqui até lá.",
+	"start_find_body_a": "Busque um título nas suas fontes, ou explore uma delas. Abra o que encontrar e leia, ou assista, na hora:",
+	"start_find_body_b": "tudo vem da fonte conforme você avança",
+	"start_find_body_c": ", e nada fica guardado ainda.",
+	"start_find_body_short": "Busque nas suas fontes, ou explore uma delas. Abra o que encontrar e leia na hora: nada fica guardado ainda.",
+	"start_find_browse_one": "OU EXPLORE UMA",
+	"start_ticks_find": "SE MARCA SOZINHO QUANDO UM CAPÍTULO OU EPISÓDIO FOR ABERTO",
+	"start_ticks_find_short": "SE MARCA SOZINHO QUANDO UM CAPÍTULO FOR ABERTO",
+	"start_add_body_a": "Uma série lida online é esquecida {days} dias depois da última vez que foi aberta.",
+	"start_add_body_b": "+ ADICIONAR À BIBLIOTECA",
+	"start_add_body_c": ", na página dela, guarda a série: um lugar nas suas estantes, CONTINUAR na biblioteca, e os capítulos novos contados.",
+	"start_add_what": "O QUE VOCÊ LEU",
+	"start_add_record": "{source} · {where} · FORA DA BIBLIOTECA",
+	"start_where_chapter": "CAP. {i} DE {total}",
+	"start_where_episode": "EP. {i} DE {total}",
+	"start_open_go": "ABRIR →",
+	"start_search_go": "BUSCAR →",
+	"start_mini_continue": "▶ CONTINUAR",
+	"start_mini_at_page": "{label} · P. {p}",
+	"start_ticks_add": "SE MARCA SOZINHO QUANDO UMA SÉRIE FOR ADICIONADA · BAIXAR TAMBÉM ADICIONA",
+	"start_download_body_a": "Capítulos baixados leem sem site no caminho: offline, e no tablet. Na página da série,",
+	"start_download_body_b": "a linha DOWNLOAD",
+	"start_download_body_c": ": PRIMEIROS 10 para começar, depois PRÓXIMOS 10, ou TODOS. O ↓ de um capítulo baixa só aquele.",
+	"start_mini_download": "DOWNLOAD",
+	"start_mini_unread": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} capítulo não lido e não baixado",
+				"countPlural=*": "{n} capítulos não lidos e não baixados"
+			}
+		}
+	],
+	"start_mini_nothing": "NADA NO DISCO AINDA",
+	"start_mini_first": "PRIMEIROS 10",
+	"start_mini_all": "TODOS OS {n}",
+	"start_dl_manga": "CAPÍTULOS, PÁGINA POR PÁGINA",
+	"start_dl_anime": "EPISÓDIOS · UM ANIME TAMBÉM PASSA SEM BAIXAR",
+	"start_dl_novels": "CAPÍTULOS, GUARDADOS COMO EPUB",
+	"start_dl_in_library": "NA SUA BIBLIOTECA",
+	"start_pick_chapters": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} CAPÍTULO",
+				"countPlural=*": "{n} CAPÍTULOS"
+			}
+		}
+	],
+	"start_pick_episodes": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} EPISÓDIO",
+				"countPlural=*": "{n} EPISÓDIOS"
+			}
+		}
+	],
+	"start_pick_none": "NENHUM BAIXADO",
+	"start_pick_some": "{n} BAIXADOS",
+	"start_ticks_download": "SE MARCA SOZINHO QUANDO UM CAPÍTULO ENTRAR NA FILA · A FILA FICA EM",
+	"start_done_link_find": "HISTÓRICO →",
+	"start_done_link_download": "DOWNLOADS →",
+	"start_trail_read_step": "PRIMEIRA LEITURA · {n} DE {total} · {title}",
+	"start_doing_find": "ABRA UM RESULTADO, DEPOIS ▶ LER · SE MARCA SOZINHO QUANDO UM CAPÍTULO FOR ABERTO",
+	"start_doing_add": "+ ADICIONAR À BIBLIOTECA, ABAIXO · SE MARCA SOZINHO QUANDO FOR ADICIONADA",
+	"start_doing_download": "A LINHA DOWNLOAD · SE MARCA SOZINHO QUANDO UM CAPÍTULO ENTRAR NA FILA",
+	"start_now_download": "A LINHA DOWNLOAD",
+	"start_trail_now": "AGORA {n} DE {total} · {doing}",
+	"start_done_word_find": "LIDO ONLINE",
+	"start_done_word_add": "ADICIONADA À BIBLIOTECA",
+	"start_done_word_download": "UM CAPÍTULO NA FILA",
+	"start_done_word_queued": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} CAPÍTULO NA FILA",
+				"countPlural=*": "{n} CAPÍTULOS NA FILA"
+			}
+		}
+	],
+	"start_done_word_downloaded": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} CAPÍTULO BAIXADO",
+				"countPlural=*": "{n} CAPÍTULOS BAIXADOS"
+			}
+		}
+	],
+	"start_trail_part_done": "{a} · PRIMEIRA LEITURA FEITA",
+	"start_trail_short": "{n} DE {total}",
+	"start_trail_back_short": "VOLTAR →",
+	"start_mini_next": "PRÓXIMOS 10",
+	"start_mini_add": "+ ADICIONAR À BIBLIOTECA",
+	"help_downloading_pointer": "Os {start} mostram isso uma vez: passos 05 a 07.",
+	"help_downloading_pointer_go": "05 — 07 →"
 }
