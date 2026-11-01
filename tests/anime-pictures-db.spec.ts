@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createReadStream, existsSync, mkdtempSync, rmSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { createReadStream, existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -23,6 +24,10 @@ const SOURCE = '7100';
 const ENGINE_SELF = 'http://127.0.0.1:34567';
 let picture: Buffer;
 let videoAsks = 0;
+// What getVideoList answers: a WebM file by default, an HLS stream when a test says so.
+let videos: { quality: string; videoUrl: string }[] = [];
+// The clip cut into an HLS stream, as a site serves one (beforeAll).
+const hls = mkdtempSync(join(tmpdir(), 'tsundoku-pictures-hls-'));
 let server: Server;
 
 beforeAll(async () => {
@@ -42,8 +47,39 @@ beforeAll(async () => {
 		])
 		.png()
 		.toBuffer();
+	execFileSync('ffmpeg', [
+		'-loglevel',
+		'error',
+		'-i',
+		CLIP,
+		'-an',
+		'-c:v',
+		'mpeg2video',
+		'-f',
+		'hls',
+		'-hls_time',
+		'2',
+		'-hls_list_size',
+		'0',
+		join(hls, 'index.m3u8')
+	]);
+	videos = [
+		// Server 1 sends nothing; the frame comes from server 2.
+		{ quality: 'Broken - 360p', videoUrl: `${ENGINE_SELF}/video/broken.webm` },
+		{ quality: 'Kwik - 360p', videoUrl: `${ENGINE_SELF}/video/clip.webm` }
+	];
 	server = createServer((req, res) => {
 		if (req.headers.authorization !== 'Bearer engine-secret') return res.writeHead(401).end();
+		// The HLS stream, its playlist naming its segments by the engine's own address.
+		const h = /^\/video\/hls\/([\w.]+)$/.exec(req.url ?? '');
+		if (h && existsSync(join(hls, h[1]))) {
+			const body = readFileSync(join(hls, h[1]));
+			if (h[1].endsWith('.m3u8'))
+				return res
+					.writeHead(200, { 'content-type': 'application/vnd.apple.mpegurl' })
+					.end(body.toString().replace(/^(index\d+\.ts)$/gm, `${ENGINE_SELF}/video/hls/$1`));
+			return res.writeHead(200, { 'content-type': 'video/mp2t' }).end(body);
+		}
 		if (req.url === '/image/pic1')
 			return res.writeHead(200, { 'content-type': 'image/png' }).end(picture);
 		if (req.url === '/image/gone') return res.writeHead(404).end();
@@ -75,13 +111,9 @@ beforeAll(async () => {
 			const b = JSON.parse(raw || '{}') as { method: string };
 			if (b.method === 'getVideoList') {
 				videoAsks++;
-				return res.writeHead(200, { 'content-type': 'application/json' }).end(
-					JSON.stringify([
-						// Server 1 sends nothing; the frame comes from server 2.
-						{ quality: 'Broken - 360p', videoUrl: `${ENGINE_SELF}/video/broken.webm` },
-						{ quality: 'Kwik - 360p', videoUrl: `${ENGINE_SELF}/video/clip.webm` }
-					])
-				);
+				return res
+					.writeHead(200, { 'content-type': 'application/json' })
+					.end(JSON.stringify(videos));
 			}
 			res.writeHead(404).end('{}');
 		});
@@ -93,6 +125,7 @@ afterAll(async () => {
 	server.closeAllConnections();
 	await new Promise((ok) => server.close(ok));
 	rmSync(covers, { recursive: true, force: true });
+	rmSync(hls, { recursive: true, force: true });
 });
 
 const { getDb } = await import('$lib/server/db');
@@ -172,6 +205,18 @@ describe('an episode’s picture', () => {
 		expect(await pictures.makePicture(id, db)).toBe('stream');
 		expect(await size(id)).toEqual(['webp', 320, 180]);
 		expect(videoAsks).toBe(asked + 1);
+	});
+
+	it('is a frame of an HLS stream, whose segments the proxy names without an extension', async () => {
+		const before = videos;
+		videos = [{ quality: 'Kwik - 360p', videoUrl: `${ENGINE_SELF}/video/hls/index.m3u8` }];
+		try {
+			const id = episode(series());
+			expect(await pictures.makePicture(id, db)).toBe('stream');
+			expect(await size(id)).toEqual(['webp', 320, 180]);
+		} finally {
+			videos = before;
+		}
 	});
 
 	it('falls through a source picture that no longer answers to a frame', async () => {

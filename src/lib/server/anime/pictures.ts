@@ -78,13 +78,23 @@ async function sourcePicture(url: string): Promise<Buffer | null> {
 	return body.length && body.length <= MAX_PICTURE ? body : null;
 }
 
-/** One frame as PNG: [input] a file or a loopback address, [at] seconds in. */
-function grab(input: string, at: number, header?: string): Promise<Buffer> {
+/**
+ * One frame as PNG: [input] a file or a loopback address, [at] seconds in.
+ * [stream] is how to read a loopback address; a file needs neither.
+ */
+function grab(
+	input: string,
+	at: number,
+	stream?: { header: string; hls: boolean }
+): Promise<Buffer> {
 	const args = [
 		'-hide_banner',
 		'-loglevel',
 		'error',
-		...(header ? ['-headers', `${header}\r\n`] : []),
+		...(stream ? ['-headers', `${stream.header}\r\n`] : []),
+		// The proxy's segments have no extension, and ffmpeg's HLS reader refuses
+		// those unless told otherwise (as muxArgs does for a download).
+		...(stream?.hls ? ['-extension_picky', '0'] : []),
 		// Before -i: ffmpeg seeks the input, so a stream fetches only the segment it lands in.
 		'-ss',
 		String(at),
@@ -119,14 +129,14 @@ function grab(input: string, at: number, header?: string): Promise<Buffer> {
 async function frame(
 	input: string,
 	durationS: number | null,
-	header?: string
+	stream?: { header: string; hls: boolean }
 ): Promise<Buffer | null> {
 	const s = await loadSharp();
 	for (let attempt = 0; ; attempt++) {
 		const at = frameAt(durationS, attempt);
 		if (at === null) return null;
 		if (durationS && at >= durationS) continue;
-		const png = await grab(input, at, header).catch(() => null);
+		const png = await grab(input, at, stream).catch(() => null);
 		if (!png) continue;
 		const { channels } = await s(png).stats();
 		if (!isBlankFrame(channels)) return png;
@@ -147,7 +157,10 @@ async function streamFrame(entryId: number, durationS: number | null): Promise<B
 		if (!quality) continue;
 		const src = videoOnly(quality.src);
 		const length = durationS ?? (await probe(src).catch(() => null))?.seconds ?? null;
-		const png = await frame(`http://127.0.0.1:${port}${src}`, length, `x-tsundoku: ${secret}`);
+		const png = await frame(`http://127.0.0.1:${port}${src}`, length, {
+			header: `x-tsundoku: ${secret}`,
+			hls: quality.kind === 'hls'
+		});
 		if (png) return png;
 	}
 	return null;

@@ -423,7 +423,10 @@ their dex, 2026-11-01). So an episode's picture is made on the workstation
 3. **A frame of the stream**: the first server, its lowest quality (360P is a
    segment of a megabyte or two), the video alone for a separate-audio source
    (`videoOnly`). ffmpeg reads it through the loopback proxy that downloads use
-   (`loopback.ts`), so it fetches nothing itself.
+   (`loopback.ts`), so it fetches nothing itself, with `-extension_picky 0`
+   as a download's: the proxy's segments have no extension, and ffmpeg's HLS
+   reader refuses those otherwise (found live on KickAssAnime, 2026-11-01:
+   Trigun Stargaze's episode 2 came out a picture in 9.8 s once it was set).
 
 A frame is taken a quarter in, past the opening; one that comes out dark or
 flat (a fade, a title card: `isBlankFrame`) is taken again at 40 %, then 60 %.
@@ -442,7 +445,7 @@ draws it over the striped placeholder, and so do the player's NEXT card and
 UP NEXT rows.
 
 `tests/anime-pictures-db.spec.ts` (a fake engine's picture, the fixture clip
-as a file and as a stream through the loopback proxy, a stale picture falling
+as a file, as a stream through the loopback proxy and cut into HLS, a stale picture falling
 through, a site on the workstation's network refused, the queue, the route
 and reveal), `tests/episode-pictures.spec.ts`, and the plan's in
 `tests/anime-plan.spec.ts`.
