@@ -1,0 +1,2 @@
+tsundoku no longer stops by itself while episode pictures are being made: a slow video stream could end the whole app, and the page said it couldn't be reached until it came back.
+On Linux, FlareSolverr starts again: on a recent system it stopped as soon as it started, so sources behind a browser check didn't load.
