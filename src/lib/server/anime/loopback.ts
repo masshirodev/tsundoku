@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { Readable } from 'node:stream';
+import { pipeline, Readable } from 'node:stream';
 import { serveMedia, serveSubtitle, StreamError } from './streams.ts';
 
 /**
@@ -27,7 +27,11 @@ export async function loopback(): Promise<{ port: number; secret: string }> {
 					? await serveMedia(m[2], (req.headers.range as string) ?? null)
 					: await serveSubtitle(m[2]);
 			res.writeHead(r.status, Object.fromEntries(r.headers));
-			if (r.body) Readable.fromWeb(r.body as never).pipe(res);
+			// pipeline, not pipe: a body that fails midway (the engine fetch's timeout
+			// firing on a long stream) emitted 'error' with no listener, and that
+			// ended the whole server, twice in its first 20 minutes on 2026.11.01.1.
+			// Now the reader just sees its connection cut.
+			if (r.body) pipeline(Readable.fromWeb(r.body as never), res, () => {});
 			else res.end();
 		} catch (e) {
 			res.writeHead(e instanceof StreamError ? e.status : 502).end();
