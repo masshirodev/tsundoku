@@ -1,0 +1,5 @@
+Novel sources load again: every one said THE PLUGIN HOST STOPPED, because the plugin host was left out of the last release.
+Aethon Webcomics, Weeb Central and other manga sources that failed with "VerifyError: Bad type on operand stack" open again.
+tsundoku now runs without a window: an icon by the clock opens it, shows the logs folder, and quits it. Starting it again opens the one already running.
+Episodes have pictures: the source's own, or a frame of the episode.
+A stream that stalls tries the next server, then a lower quality, and a reload no longer loses where you were.
