@@ -16,14 +16,14 @@ solver beside it"), the engine runs on the workstation. Since c138 tsundoku
 downloads on it ([`DOWNLOADER.md`](DOWNLOADER.md)), and since c129 it is the
 only downloader: Suwayomi, which ran beside it, was retired.
 
-| Piece        | Where                                                                                                                             |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| The fork     | `~/projects/tsundoku-engine`, `masshirodev/tsundoku-engine` (private). Its `doc/FORK.md` lists every change from upstream and why |
-| The image    | `tsundoku-engine:local`, built from the fork: `docker build -t tsundoku-engine:local ~/projects/tsundoku-engine`                  |
-| The compose  | `ops/engine/compose.yml`: the engine on `127.0.0.1:4590`, FlareSolverr unpublished beside it                                      |
-| Its unit     | `ops/systemd/tsundoku-engine.service`, a user unit, `RequiresMountsFor=/mnt/hdd2`                                                 |
-| Its APKs     | `/mnt/hdd2/tsundoku/engine/apks`, under each APK's SHA-256 (its handle)                                                           |
-| The settings | `ENGINE_URL` and `ENGINE_TOKEN` in tsundoku's `.env` ([`SECRETS.md`](SECRETS.md))                                                 |
+| Piece        | Where                                                                                                                                                                                    |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The fork     | `~/projects/tsundoku-engine`, `masshirodev/tsundoku-engine` (private). Its `doc/FORK.md` lists every change from upstream and why                                                        |
+| The image    | `tsundoku-engine:local`, built from the fork: `docker build -t tsundoku-engine:local ~/projects/tsundoku-engine`                                                                         |
+| Live         | The released bundle's own `engine/engine.jar`, started by its launcher on `127.0.0.1:4590` (c228, 2026-11-01: the workstation runs the bundle friends run)                               |
+| Its APKs     | `/mnt/hdd2/tsundoku/engine/apks`, under each APK's SHA-256 (its handle)                                                                                                                  |
+| Development  | `ops/engine/compose.yml`: the image above on `127.0.0.1:4591`, its APKs in `/mnt/hdd2/tsundoku/engine-dev`, started by hand. `ops/systemd/tsundoku-engine.service` was retired with c228 |
+| The settings | `ENGINE_URL` and `ENGINE_TOKEN` in tsundoku's `.env` ([`SECRETS.md`](SECRETS.md))                                                                                                        |
 
 What the fork adds to the contract below:
 
@@ -40,18 +40,21 @@ What the fork adds to the contract below:
 - Pass FlareSolverr as `cf-proxy-url: http://flaresolverr:8191/v1`: that's
   its address from inside the engine's network, not from the host.
 
-Installed:
+**Live, it's the bundle's.** Since c228 the launcher of the installed release
+starts `engine/engine.jar` with the bundle's own JRE, on `127.0.0.1:4590`, and
+stops it with the app; `systemctl --user restart tsundoku` restarts both. A
+fix to the engine reaches the workstation as it reaches friends: in a release
+(its `release.json` names the engine's commit).
+
+**For development**, the Docker image on 4591:
 
 ```sh
 docker build -t tsundoku-engine:local ~/projects/tsundoku-engine
-ln -s ~/projects/tsundoku/ops/systemd/tsundoku-engine.service ~/.config/systemd/user/
-systemctl --user daemon-reload && systemctl --user enable --now tsundoku-engine.service
+ENGINE_TOKEN=<the dev .env's> docker compose -f ops/engine/compose.yml up -d
 ```
 
-**Restart it with `systemctl --user restart tsundoku-engine`, never `docker
-restart`.** The unit runs `compose up --abort-on-container-exit`, so a
-container restarted by Docker counts as exited: compose takes both down, and
-systemd brings them back 30 s later.
+Until 2026-11-01 that compose ran the live engine, under
+`tsundoku-engine.service` (retired), and what follows was measured on it.
 
 Checked on 2026-10-28, against the running service: 401 without the token;
 MangaDex, Mangahere and Kumaraw (through FlareSolverr, 17.5 s on the first

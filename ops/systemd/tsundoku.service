@@ -1,9 +1,16 @@
 # Serve the library (doc/SERVING.md), from boot, and again whenever it stops.
 # A user unit; lingering (loginctl enable-linger) starts it without a login.
+#
+# The workstation runs the released Linux bundle, the same one friends run
+# (card c228, 2026-11-01), never its checkout: ~/.local/opt/tsundoku/current,
+# put there by ops/workstation/install-release.sh, which also restarts this.
+# Its launcher starts the engine (the bundle's engine.jar), FlareSolverr
+# (unpacked into the data folder) and the app, and reads the data folder's
+# .env, written from Infisical (doc/SECRETS.md).
+#
 # Install with
-#   ln -s ~/projects/tsundoku/ops/systemd/tsundoku.service ~/.config/systemd/user/
+#   ln -s ~/projects/tsundoku-jobs/ops/systemd/tsundoku.service ~/.config/systemd/user/
 #   systemctl --user daemon-reload && systemctl --user enable --now tsundoku.service
-# A deploy is `yarn run build`, then `systemctl --user restart tsundoku`.
 [Unit]
 Description=tsundoku: serve the library over the tailnet
 RequiresMountsFor=/mnt/hdd2
@@ -13,15 +20,15 @@ StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-WorkingDirectory=%h/projects/tsundoku
-# The workstation's data folders (doc/DISTRIBUTION.md, "One data directory").
-# The code's defaults are per-OS app-data folders now; .env says the same
-# for scripts run by hand, and these keep the units right even without it.
+WorkingDirectory=%h/.local/opt/tsundoku/current
+# The data folder; the launcher reads its .env (and TSUNDOKU_HOME there agrees).
 Environment=TSUNDOKU_HOME=/mnt/hdd2/tsundoku
-Environment=BACKUP_DIR=/mnt/backup/tsundoku
-# mise's shim, so the unit gets the project's Node without a login shell.
-# serve.ts reads .env itself (the token, the real library's database).
-ExecStart=%h/.local/share/mise/shims/node --experimental-strip-types scripts/serve.ts
+Environment=TSUNDOKU_NO_BROWSER=1
+# In this process, not the tray: systemd is what keeps it running. SIGTERM
+# (a stop or restart) stops the engine, FlareSolverr and the app with it.
+ExecStart=%h/.local/opt/tsundoku/current/tsundoku --foreground --no-browser
+KillMode=mixed
+TimeoutStopSec=30
 Restart=always
 RestartSec=10
 

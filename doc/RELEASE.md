@@ -2,8 +2,9 @@
 
 How a tsundoku release is built, what's in it, and how it's tested
 (c176, c178). Why there are releases at all, and what was decided about
-them, is [`DISTRIBUTION.md`](DISTRIBUTION.md). The workstation itself never
-runs a release: it serves from its checkout ([`SERVING.md`](SERVING.md)).
+them, is [`DISTRIBUTION.md`](DISTRIBUTION.md). Since 2026-11-01 (c228) the
+workstation runs a release too, the same Linux bundle, installed with
+`ops/workstation/install-release.sh` ([`SERVING.md`](SERVING.md)).
 
 ## Making one
 

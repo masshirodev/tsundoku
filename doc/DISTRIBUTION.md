@@ -69,7 +69,10 @@ Each specific variable (`LIBRARY_ROOT`, `COVER_DIR`, ...) still wins, and
 module that used to name `/mnt/hdd2` asks it, and `tests/data-dirs.spec.ts`
 runs it under each platform's rules.
 
-**How the workstation keeps its paths.** `TSUNDOKU_HOME=/mnt/hdd2/tsundoku`
+**How the workstation keeps its paths.** Since c228 the workstation runs
+the released bundle with `/mnt/hdd2/tsundoku` as its data folder, settings in
+its `.env` and the database at `/mnt/hdd2/tsundoku/library.sqlite`
+([`SERVING.md`](SERVING.md)). Before that: `TSUNDOKU_HOME=/mnt/hdd2/tsundoku`
 and `BACKUP_DIR=/mnt/backup/tsundoku` are set in every unit
 (`ops/systemd/*.service`) and in `.env` for scripts run by hand, which
 reproduces the old paths exactly. Without them the served app and the timers

@@ -11,36 +11,52 @@ yarn run serve     # https://workstation.example.ts.net:8443
 
 ## From boot, and again when it stops
 
-`ops/systemd/tsundoku.service` runs `yarn run serve`'s script as a user
-service. It starts at boot without anyone logged in (the user lingers:
+**Since 2026-11-01 the workstation runs the released Linux bundle, the one
+friends run** (c228), not its checkout. Two bugs that friends hit while the
+workstation looked fine (a bundle without the novels plugin host, c227; an
+engine that couldn't load current extensions, c226) were invisible here by
+construction. Now the workstation is a friend's install with the owner's
+data.
+
+`ops/systemd/tsundoku.service` runs `~/.local/opt/tsundoku/current/tsundoku
+--foreground --no-browser`: the bundle's launcher, which starts the engine
+(`engine.jar`, on 4590), FlareSolverr (unpacked into
+`/mnt/hdd2/tsundoku/flaresolverr`) and the app, and stops all three on a
+stop. It starts at boot without anyone logged in (the user lingers:
 `loginctl enable-linger`), and `Restart=always` brings it back ten seconds
-after it stops, however it stopped. At boot, tailscaled may not be up yet;
-`serve` exits until it is, and the unit keeps trying (`StartLimitIntervalSec=0`).
+after it stops. At boot tailscaled may not be up yet; `serve` exits until it
+is, and the unit keeps trying (`StartLimitIntervalSec=0`).
 
 ```sh
-# once
-ln -s ~/projects/tsundoku/ops/systemd/tsundoku.service ~/.config/systemd/user/
-systemctl --user daemon-reload && systemctl --user enable --now tsundoku.service
+# a release onto the workstation (after ops/release/smoke.sh passed it)
+ops/workstation/install-release.sh 2026.11.01.1
 
-# a deploy
-yarn run build && systemctl --user restart tsundoku
+# back to an older one: point current at it, then restart
+ln -sfn 2026.11.01/tsundoku ~/.local/opt/tsundoku/current
+systemctl --user restart tsundoku
 
 # what it's doing
 systemctl --user status tsundoku
-journalctl --user -u tsundoku -f
+journalctl --user -u tsundoku -f          # and /mnt/hdd2/tsundoku/logs/
 ```
 
-A restart stops the server within a second or two. Until 2026-10-15 every
-stop sat out systemd's 90 s timeout and was killed: the queue watcher
-(then `suwayomi-watch.ts`, now `src/lib/server/downloads-watch.ts`) kept rescheduling its poll, so the event
-loop never emptied, and a screen's live downloads stream held the HTTP server
-open. On SIGTERM the watcher now ends every stream (the screens' EventSource
-reconnects to the next server) and its timers don't keep the process alive.
+`install-release.sh` unpacks the version's bundle into
+`~/.local/opt/tsundoku/<version>` (its SHA-256 checked, and only a version
+smoke-tested whole), moves `~/projects/tsundoku-jobs` (the timers' checkout)
+to the same tag, points `current` at it and restarts. Older bundles stay
+beside it. **A change reaches the workstation only in a release**, as it
+reaches friends: there's no `yarn run build && restart` deploy any more.
 
-With the service on, don't also run `yarn run serve` by hand: the second
-one would find the port taken. A restart snapshots the build into
-`.serving/` as `serve` always has, so building while it runs is safe.
-Installed on 2026-09-24; a kill -9 was back within ten seconds.
+The settings are the data folder's `.env`, `/mnt/hdd2/tsundoku/.env`, written
+from Infisical by `yarn run secrets:pull` ([`SECRETS.md`](SECRETS.md)); the
+launcher reads it, and the timers get it through `EnvironmentFile=`. Because
+it names a `TSUNDOKU_TOKEN`, the launcher keeps the token's sign-in instead
+of a friend's password ([`SIGN-IN.md`](SIGN-IN.md)).
+
+Until then the unit ran `scripts/serve.ts` from `~/projects/tsundoku`, and a
+restart served whatever that working tree held, other agents' uncommitted
+edits included. The sections below about snapshots and `yarn run serve`
+describe that arrangement, which development still uses.
 
 ## HTTPS, through `tailscale serve`
 
@@ -72,8 +88,13 @@ ours or taken) are in `src/lib/server/bind.ts`, tested in `tests/bind.spec.ts`.
 
 ## Which library it serves
 
-`yarn run serve` reads `.env`, where `DATABASE_PATH=data/library.sqlite` and
-`LIBRARY_ROOT=/mnt/hdd2/tsundoku/tablet` point it at the real library: the
+The live database is `/mnt/hdd2/tsundoku/library.sqlite` (the data folder's
+`.env`). Until c228 it was `data/library.sqlite` in the checkout, and the
+checkout's `.env` named it; that file was moved on 2026-11-01 and the
+checkout's `.env` is development's now.
+
+Before that, `yarn run serve` read `.env`, where `DATABASE_PATH=data/library.sqlite` and
+`LIBRARY_ROOT=/mnt/hdd2/tsundoku/tablet` pointed it at the real library: the
 copy of the tablet's `Mihon/`, `Hentoid/` and `Library/`. `yarn run dev` doesn't
 put `.env` into `process.env`, so development keeps the sample library in
 `data/tsundoku.sqlite`. `/scan` in the served app rescans the tablet copy.
@@ -101,13 +122,20 @@ So their units set `TSUNDOKU_MIGRATE=off`, and `getDb()` then refuses any
 database whose `user_version` differs from the code's ladder, in either
 direction, without touching it. A timer run between an edit and its deploy
 fails with "Deploy first" in its journal, and the first run after the deploy
-works. The served app migrates on its first request after
-`yarn run build && systemctl --user restart tsundoku`, snapshot first as
-always ([`BACKUPS.md`](BACKUPS.md)).
+works. The served app migrates on its first request after a restart, snapshot first
+as always ([`BACKUPS.md`](BACKUPS.md)).
 
-A one-off script run by hand (`yarn run links`, `yarn run import`, …) has no
-such guard: running one from a tree with an unshipped rung migrates the live
-database. Deploy first, or set `TSUNDOKU_MIGRATE=off` yourself.
+Since c228 the timers run from `~/projects/tsundoku-jobs`, a checkout at the
+installed release's tag that `install-release.sh` moves with each release, so
+their code and the server's are the same version. `TSUNDOKU_MIGRATE=off` stays:
+it's the guard if the two ever drift.
+
+A one-off script run by hand against the live library (`yarn run links`,
+`yarn run import`, …) runs from `~/projects/tsundoku-jobs` with the data
+folder's settings, so it's the released code:
+`cd ~/projects/tsundoku-jobs && set -a && . /mnt/hdd2/tsundoku/.env && set +a && yarn run links`.
+From `~/projects/tsundoku`, whose `.env` is development's, it touches the
+sample library only.
 
 ## Plain http, the old way
 
