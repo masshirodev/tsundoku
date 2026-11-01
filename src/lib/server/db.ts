@@ -1114,6 +1114,34 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	// round again is never shown for the new one.
 	`
 	ALTER TABLE entries ADD COLUMN thumb_at INTEGER;
+	`,
+	// v57: MOVE (doc/MOVE.md; card c139). A series moved to another source
+	// keeps the old origin key and when it left, for MOVE BACK's 30 days and so
+	// the tablet's backup, which still names it, resolves to this series rather
+	// than making a twin. Each entry keeps the source it came from, so a chapter
+	// the new source lacks says its old source and still downloads from there;
+	// former_url is the address it had there, which a backup's plan finds it by.
+	// move_dismissed_at is NOT NOW on the NO VIDEO band. episode_failures is a
+	// NO SERVER answer per episode, which is what the band and the player's
+	// "not just this episode" line are counted from.
+	`
+	ALTER TABLE series ADD COLUMN former_key TEXT;
+	ALTER TABLE series ADD COLUMN former_at INTEGER;
+	ALTER TABLE series ADD COLUMN former_source TEXT NOT NULL DEFAULT '';
+	ALTER TABLE series ADD COLUMN former_offset INTEGER NOT NULL DEFAULT 1;
+	ALTER TABLE series ADD COLUMN move_dismissed_at INTEGER;
+	ALTER TABLE entries ADD COLUMN origin_source TEXT NOT NULL DEFAULT '';
+	ALTER TABLE entries ADD COLUMN former_url TEXT NOT NULL DEFAULT '';
+	CREATE INDEX series_former ON series(former_key) WHERE former_key IS NOT NULL;
+	CREATE INDEX entries_former_url ON entries(series_id, former_url);
+	CREATE TABLE episode_failures (
+		entry_id INTEGER PRIMARY KEY REFERENCES entries(id) ON DELETE CASCADE,
+		series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+		first_at INTEGER NOT NULL,
+		last_at INTEGER NOT NULL,
+		tries INTEGER NOT NULL DEFAULT 1
+	);
+	CREATE INDEX episode_failures_series ON episode_failures(series_id, last_at);
 	`
 ];
 
