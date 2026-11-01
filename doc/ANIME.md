@@ -249,10 +249,20 @@ screen but the video, and the subtitles, until a tap.
   bars, which steps aside while BUFFERING or a server's notice holds the
   middle (they overlapped). The scrubber ticks the opening and ending. A desktop adds play, VOL,
   ? KEYS and FULL SCREEN · F, and a time on hover.
-- **Taps**: one shows or hides the controls; a double-tap on the left or
-  right third seeks 10 s, and each further tap in the burst 10 more, said in
-  the middle of that side. No swipes: volume and brightness are the
+- **Taps**: on a touch screen one shows or hides the controls; a double-tap
+  on the left or right third seeks 10 s, and each further tap in the burst 10
+  more, said in the middle of that side. On a mouse a click on the picture
+  plays or pauses it (c218), the click in the middle acting at once and one on
+  a side third waiting out the double that seeks; a press that wanders more
+  than 10px is a drag, and neither. No swipes: volume and brightness are the
   device's.
+- **The controls come back on a move, not a jitter** (c217). A resting mouse
+  sends a pixel or two of movement all the time, and the chrome flashed in on
+  every one of them; it now takes 12px of travel — quickly from where the
+  pointer was, or slowly from where the controls last left it. The middle
+  cluster (`−10`, pause, `+10`) does not fade with the bars: it is solid from
+  its first frame, where a half-faded black box over the picture read as a
+  translucent patch.
 - **Keys**: space, ← →, ↑ ↓ (volume), F, M, C (subtitles), S (skip), N (next),
   Esc (full screen, then the player), ? (the KEYS sheet).
 - **The settings sheet**, the middle cell ("JA · EN SUBS · 1080P · 1×"): a
@@ -459,6 +469,11 @@ the fixture clip). The scratch library was deleted afterwards.
 
 ## Where it departs from the handoff
 
+- **A click on the picture plays or pauses on a mouse** (c218), where Anime
+  Calls draws one tap as show-or-hide the controls. On a desktop that tap is
+  the biggest thing on screen, and every video player's is a play/pause; the
+  controls are reached by moving the pointer instead. A touch screen keeps the
+  handoff's tap, since there is no pointer to move.
 - **A tap on an episode plays it**, whatever its file. The handoff draws no
   row action; the reader's "the row is the button" (a tap queues a chapter
   with no file) would make streaming, the default, two taps away.

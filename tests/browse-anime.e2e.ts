@@ -169,7 +169,11 @@ test.describe('the player, tablet landscape (c156)', () => {
 			.click();
 		await expect(page).toHaveURL(/\/read\/\d+/);
 		const player = page.locator('.player');
-		const shown = async () => page.mouse.move(640, 300 + Math.random() * 10);
+		const shown = async () => {
+			// A move, not a jitter: the controls come back after a real one (c217).
+			await page.mouse.move(120, 120);
+			await page.mouse.move(640, 300 + Math.random() * 10);
+		};
 		// A browser that won't start a video by itself is started by a tap, as a person would.
 		const pp = player.locator('.cluster .pp');
 		await expect(pp).toBeVisible({ timeout: 20_000 });
@@ -219,6 +223,60 @@ test.describe('the player, tablet landscape (c156)', () => {
 				.locator('.entry', { hasText: 'A Letter from Hollin' })
 				.locator('.status')
 		).toHaveText('WATCHED');
+	});
+
+	test('a click plays or pauses, a double-click seeks, and the controls come back on a move (c217, c218)', async ({
+		page
+	}) => {
+		test.setTimeout(90_000);
+		await page.goto('/');
+		await page.getByRole('link', { name: /^ANIME/ }).click();
+		await page.locator('.grid .tile', { hasText: 'Tsukiakari no Ryokōsha' }).click();
+		await page
+			.getByRole('region', { name: 'Episodes' })
+			.locator('.entry', { hasText: 'A Letter from Hollin' })
+			.locator('.entry-btn')
+			.click();
+		await expect(page).toHaveURL(/\/read\/\d+/);
+		const player = page.locator('.player');
+		const pp = player.locator('.cluster .pp');
+		await expect(pp).toBeVisible({ timeout: 20_000 });
+		if ((await pp.getAttribute('aria-label')) === 'Play') await pp.click();
+		await expect(pp).toHaveAttribute('aria-label', 'Pause');
+
+		// A quarter of the way down the picture: the middle third across, but clear
+		// of the centre cluster and of a server's notice, which sit at 50%.
+		const box = (await player.locator('.tapzone').boundingBox())!;
+		const mid = { x: box.x + box.width / 2, y: box.y + box.height * 0.25 };
+
+		// The controls go after the mouse stops, and a resting mouse's jitter
+		// doesn't bring them back; a move does (c217). First, while the episode
+		// still has its eight seconds left.
+		await page.mouse.move(mid.x, mid.y);
+		await expect(player).toHaveClass(/chrome/);
+		await expect(player).not.toHaveClass(/chrome/, { timeout: 6000 });
+		await page.mouse.move(mid.x + 2, mid.y + 1);
+		await expect(player).not.toHaveClass(/chrome/);
+		await page.mouse.move(mid.x + 60, mid.y + 40);
+		await expect(player).toHaveClass(/chrome/);
+
+		// The picture is a play/pause button on a desktop: a click in the middle
+		// pauses at once (the side thirds wait out the double that seeks).
+		await page.mouse.click(mid.x, mid.y);
+		await expect(pp).toHaveAttribute('aria-label', 'Play');
+		await page.mouse.click(mid.x, mid.y);
+		await expect(pp).toHaveAttribute('aria-label', 'Pause');
+
+		// Two clicks on the right third seek 10 s, and don't pause it.
+		const right = { x: box.x + box.width * 0.85, y: mid.y };
+		await page.mouse.dblclick(right.x, right.y);
+		await expect(player.locator('.flash .by')).toHaveText('+10 S');
+		await expect(pp).toHaveAttribute('aria-label', 'Pause');
+
+		// The cluster is solid, never drawn half-faded over the picture: the bars
+		// fade, it does not.
+		await expect(player.locator('.cluster')).toHaveCSS('transition-duration', '0s');
+		await expect(player.locator('.top')).not.toHaveCSS('transition-duration', '0s');
 	});
 });
 

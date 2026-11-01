@@ -101,6 +101,45 @@ export function nextServer(order: number[], current: number, failed: Set<number>
  */
 export const seekFor = (taps: number) => Math.max(1, taps - 1) * 10;
 
+/**
+ * How far the pointer must move before the controls come back (card c217):
+ * a mouse resting on a desk jitters a pixel or two, and the chrome used to
+ * flash in on every one of them. A move of this much from where the pointer
+ * was, or from where the controls last left it, is a person moving the mouse.
+ */
+export const CHROME_MOVE_PX = 12;
+
+/** Whether a pointer's travel from [from] to [to] is a move, not a jitter. */
+export function movedEnough(
+	from: { x: number; y: number },
+	to: { x: number; y: number },
+	px = CHROME_MOVE_PX
+): boolean {
+	return Math.hypot(to.x - from.x, to.y - from.y) >= px;
+}
+
+/**
+ * How far a press may wander and still be a click (card c218): a drag across
+ * the picture, or a finger that slid as it lifted, is neither a tap on the
+ * controls nor a play/pause.
+ */
+export const TAP_SLOP_PX = 10;
+
+export const isTap = (
+	from: { x: number; y: number } | null,
+	to: { x: number; y: number },
+	px = TAP_SLOP_PX
+): boolean => !from || Math.hypot(to.x - from.x, to.y - from.y) <= px;
+
+/**
+ * What a click on the picture does (card c218): on a mouse it plays or pauses,
+ * as every video player's does, and the controls are reached by moving the
+ * pointer (c217); on a touch screen a tap shows or hides the controls, as
+ * Anime Calls draws it.
+ */
+export const pictureClick = (pointer: 'mouse' | 'touch'): 'toggle' | 'chrome' =>
+	pointer === 'mouse' ? 'toggle' : 'chrome';
+
 /** "−14:32": the time left, as the bar's right end reads. */
 export const leftLabel = (position: number, duration: number) =>
 	`−${clock(Math.max(0, duration - position))}`;

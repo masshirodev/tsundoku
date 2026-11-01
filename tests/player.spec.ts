@@ -2,19 +2,24 @@ import { describe, expect, it } from 'vitest';
 import {
 	bufferedTo,
 	challengeScale,
+	CHROME_MOVE_PX,
 	cueAt,
 	deviceLang,
+	isTap,
 	leftLabel,
+	movedEnough,
 	nextServer,
 	offerNextAt,
 	openAt,
 	parseVtt,
+	pictureClick,
 	placeLabel,
 	playingLabel,
 	preferredLang,
 	startTracks,
 	seekFor,
-	subtitlePx
+	subtitlePx,
+	TAP_SLOP_PX
 } from '$lib/library/player';
 
 // The player's decisions (doc/ANIME.md, "The player"; card c156).
@@ -70,6 +75,22 @@ describe('an episode', () => {
 
 	it('seeks 10 s a double-tap and 10 more each tap after', () => {
 		expect([seekFor(2), seekFor(3), seekFor(5)]).toEqual([10, 20, 40]);
+	});
+
+	it('brings the controls back on a move, not on a jitter, and a click is not a drag (c217, c218)', () => {
+		const at = { x: 100, y: 100 };
+		// The mouse resting on a desk: a pixel or two is not a move.
+		expect(movedEnough(at, { x: 101, y: 102 })).toBe(false);
+		expect(movedEnough(at, { x: 100 + CHROME_MOVE_PX, y: 100 })).toBe(true);
+		expect(movedEnough(at, { x: 106, y: 108 })).toBe(false);
+		expect(movedEnough(at, { x: 109, y: 109 })).toBe(true);
+		expect(movedEnough(at, { x: 100, y: 100 })).toBe(false);
+		// A press that wandered is a drag, and neither a tap nor a play/pause.
+		expect(isTap(null, at)).toBe(true);
+		expect(isTap(at, { x: 102, y: 101 })).toBe(true);
+		expect(isTap(at, { x: 100, y: 100 + TAP_SLOP_PX + 1 })).toBe(false);
+		// A mouse plays or pauses; a finger shows or hides the controls.
+		expect([pictureClick('mouse'), pictureClick('touch')]).toEqual(['toggle', 'chrome']);
 	});
 
 	it('names its place and what’s playing', () => {

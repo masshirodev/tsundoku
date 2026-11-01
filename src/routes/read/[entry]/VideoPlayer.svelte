@@ -14,7 +14,9 @@
 		deviceLang,
 		HIDE_MOUSE_MS,
 		HIDE_TOUCH_MS,
+		isTap,
 		leftLabel,
+		movedEnough,
 		NEXT_COUNT_S,
 		nextServer,
 		offerNextAt,
@@ -22,6 +24,7 @@
 		parseVtt,
 		placeLabel,
 		playingLabel,
+		pictureClick,
 		startTracks,
 		type TrackChoice,
 		RESUME_MS,
@@ -179,6 +182,33 @@
 	let cues = $state<Cue[]>([]);
 	const line = $derived(cueAt(cues, time));
 
+	/** Where the pointer was, and where the controls last left it (c217). */
+	let lastPointer: { x: number; y: number } | null = null;
+	let moveAnchor: { x: number; y: number } | null = null;
+	/**
+	 * The controls come back on a move, not on a jitter: a mouse resting on a
+	 * desk sends a pixel or two of movement all the time, and the chrome used
+	 * to flash in on every one of them. A quick move from where the pointer
+	 * was, or a slow one from where the controls left it, brings them back.
+	 */
+	function pointerMoved(e: PointerEvent) {
+		if (e.pointerType !== 'mouse') return;
+		mouse = true;
+		const at = { x: e.clientX, y: e.clientY };
+		const quick = !!lastPointer && movedEnough(lastPointer, at);
+		const drift = !!moveAnchor && movedEnough(moveAnchor, at);
+		lastPointer = at;
+		if (chrome) {
+			moveAnchor = at;
+			showChrome();
+			return;
+		}
+		if (quick || drift) {
+			moveAnchor = null;
+			showChrome();
+		} else if (!moveAnchor) moveAnchor = at;
+	}
+
 	// ---- chrome --------------------------------------------------------------------------------
 	let chrome = $state(true);
 	let adding = $state(false);
@@ -190,7 +220,7 @@
 	let seekFlash = $state<{ by: number; to: number } | null>(null);
 	let stay = $state(false);
 	let count = $state(NEXT_COUNT_S);
-	let mouse = false;
+	let mouse = $state(false);
 	let hideTimer: ReturnType<typeof setTimeout> | undefined;
 
 	function showChrome() {
@@ -575,8 +605,11 @@
 		if (e.buttons & 1) scrubTo(e);
 	}
 
-	// Taps on the picture: one shows or hides the controls; two on a side third seek 10 s,
-	// and each further tap within the burst 10 more (Anime Calls, "The picture is the interface").
+	// Taps on the picture: on a touch screen one shows or hides the controls,
+	// and two on a side third seek 10 s, each further tap 10 more (Anime Calls,
+	// "The picture is the interface"). On a mouse a click plays or pauses, and
+	// the controls come back by moving the pointer past a threshold (c217,
+	// c218): neither a jitter nor a drag is a click.
 	let taps: {
 		side: -1 | 0 | 1;
 		n: number;
@@ -584,13 +617,20 @@
 		timer?: ReturnType<typeof setTimeout>;
 	} | null = null;
 	let flashTimer: ReturnType<typeof setTimeout> | undefined;
+	/** Where the press began: a pointer that wandered is a drag, not a click. */
+	let pressed: { x: number; y: number } | null = null;
 	function pictureTap(e: PointerEvent) {
-		if (e.pointerType === 'mouse') {
+		const kind = e.pointerType === 'mouse' ? 'mouse' : 'touch';
+		if (kind === 'mouse') {
 			mouse = true;
 			if (e.button !== 0) return;
 		}
+		const at = { x: e.clientX, y: e.clientY };
+		const tap = isTap(pressed, at);
+		pressed = null;
+		if (!tap) return;
 		const box = (e.currentTarget as HTMLElement).getBoundingClientRect();
-		const x = (e.clientX - box.left) / box.width;
+		const x = (at.x - box.left) / box.width;
 		const side: -1 | 0 | 1 = x < 1 / 3 ? -1 : x > 2 / 3 ? 1 : 0;
 		const now = Date.now();
 		if (taps && now - taps.at < 320 && taps.side === side && side !== 0) {
@@ -606,13 +646,19 @@
 			return;
 		}
 		taps = { side, n: 1, at: now };
-		taps.timer = setTimeout(() => {
+		const does = pictureClick(kind);
+		// A click in the middle is never the first of a seek, so it acts at once;
+		// on a side third it waits out the double, which seeks instead.
+		const act = () => {
 			taps = null;
-			if (chrome && !paused) {
+			if (does === 'toggle') toggle();
+			else if (chrome && !paused) {
 				chrome = false;
 				clearTimeout(hideTimer);
 			} else showChrome();
-		}, 320);
+		};
+		if (does === 'toggle' && side === 0) act();
+		else taps.timer = setTimeout(act, 320);
 	}
 
 	function keydown(e: KeyboardEvent) {
@@ -749,12 +795,7 @@
 	class:chrome
 	bind:this={root}
 	role="presentation"
-	onpointermove={(e) => {
-		if (e.pointerType === 'mouse') {
-			mouse = true;
-			showChrome();
-		}
-	}}
+	onpointermove={pointerMoved}
 >
 	<div class="stage">
 		<!-- No <track>: subtitles are drawn by tsundoku from the WebVTT (Anime Calls, "Subtitles"). -->
@@ -773,7 +814,14 @@
 		<button
 			type="button"
 			class="tapzone"
-			aria-label={chrome ? 'Hide the controls' : 'Show the controls'}
+			aria-label={mouse
+				? paused
+					? 'Play'
+					: 'Pause'
+				: chrome
+					? 'Hide the controls'
+					: 'Show the controls'}
+			onpointerdown={(e) => (pressed = { x: e.clientX, y: e.clientY })}
 			onpointerup={pictureTap}
 		></button>
 		{#if dim > 0}<div class="dim" style:opacity={dim} aria-hidden="true"></div>{/if}
@@ -1659,8 +1707,10 @@
 
 	/* ---- the chrome: shown on a tap, gone after a few seconds ---- */
 	/* The bars fade both ways here, on the app's own timing (base.css, .appear):
-	   they're kept in the page and hidden by class, so they can fade out too. */
-	.cluster,
+	   they're kept in the page and hidden by class, so they can fade out too.
+	   The cluster does not fade (c217): it sits in the middle of the picture, and
+	   a half-faded black box over the video read as a translucent patch. It is
+	   solid from its first frame and gone on the next. */
 	.top,
 	.bottom {
 		transition: opacity var(--motion-appear) var(--ease);
