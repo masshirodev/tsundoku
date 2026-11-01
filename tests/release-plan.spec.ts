@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { opener, plan, solverAt } from '../ops/release/launcher/plan.ts';
+import { opener, plan, solverAt, solverSetAside } from '../ops/release/launcher/plan.ts';
 
 const base = { engineToken: 'eng', solverDir: null };
 
@@ -150,5 +150,15 @@ describe('updates (doc/UPDATES.md)', () => {
 	it('says when the installer put it there, so UPDATE can run the next one', () => {
 		expect(at({}, true).TSUNDOKU_INSTALLED).toBe('1');
 		expect(at({}).TSUNDOKU_INSTALLED).toBeUndefined();
+	});
+
+	it('sets FlareSolverr’s own readline aside on Linux only, so /bin/sh keeps the system’s', () => {
+		const lib = '/h/flaresolverr/_internal/libreadline.so.8';
+		expect(solverSetAside('/h/flaresolverr', 'linux', (f) => f === lib)).toEqual([
+			{ from: lib, to: `${lib}.bundled-off` }
+		]);
+		// Already set aside, or never there: nothing to do.
+		expect(solverSetAside('/h/flaresolverr', 'linux', () => false)).toEqual([]);
+		expect(solverSetAside('C:/h/flaresolverr', 'win32', () => true)).toEqual([]);
 	});
 });

@@ -162,7 +162,13 @@ The launcher is `launcher/launch.ts`, run with the bundle's Node. It:
 4. starts the engine (`java -jar`, `ENGINE_HOST=127.0.0.1`, its APKs,
    preferences and app folder under `engine/` in the data folder) and
    FlareSolverr if present (`HOST=127.0.0.1`), each logging to `logs/`, and
-   starts either again if it stops;
+   starts either again if it stops. On Linux it first renames FlareSolverr's
+   own `_internal/libreadline.so.8` to `.bundled-off` (`solverSetAside`):
+   its PyInstaller build lends that folder to the `/bin/sh` it asks for
+   Chrome's version, and a bash built on readline 8.3 (Arch's) then dies on
+   `rl_print_keybinding`, so FlareSolverr exits on every start. Found on the
+   workstation, 2026-11-01; Debian stable's older bash, where the smoke test
+   runs, never showed it;
 5. starts the app (`TSUNDOKU_SERVE=local`,
    `TSUNDOKU_SNAPSHOT=off`, the database in the data folder, the engine's
    and ffmpeg's addresses), and opens the browser once it answers

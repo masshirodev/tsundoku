@@ -138,6 +138,27 @@ export function solverAt(
 	return null;
 }
 
+/**
+ * Files in FlareSolverr's folder to set aside before it starts. Its Linux
+ * build (PyInstaller) puts its own folder first on LD_LIBRARY_PATH for every
+ * program it starts, and asks `/bin/sh` for Chrome's version: with the
+ * readline it carries (8.2), a newer bash (Arch's 5.3, built on readline 8.3)
+ * dies on "undefined symbol: rl_print_keybinding", Chrome's version isn't
+ * found, and FlareSolverr exits, again and again (3.4.6 and 3.5.2 alike,
+ * found on the workstation 2026-11-01, c228). That readline only serves
+ * Python's interactive prompt, which a server never shows, so without it the
+ * shell uses the system's own. Renamed, never deleted.
+ */
+export function solverSetAside(
+	solverDir: string,
+	platform: NodeJS.Platform,
+	exists: (file: string) => boolean
+): { from: string; to: string }[] {
+	if (platform !== 'linux') return [];
+	const from = path.posix.join(solverDir, '_internal', 'libreadline.so.8');
+	return exists(from) ? [{ from, to: `${from}.bundled-off` }] : [];
+}
+
 /** How to open a page in the friend's browser. */
 export function opener(platform: NodeJS.Platform, url: string): { cmd: string; args: string[] } {
 	// Not `cmd /c start`: its first quoted argument is a window title, and Node's

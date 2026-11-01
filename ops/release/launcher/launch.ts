@@ -20,8 +20,8 @@
  * `./tsundoku --foreground` still run it in a window, as before.
  */
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
 	readServing,
@@ -33,7 +33,7 @@ import { dataPaths } from '../app/src/lib/server/data-dirs.ts';
 import { ensureSetting, newToken } from '../app/src/lib/server/first-run.ts';
 import { clearLogin, readLogin } from '../app/src/lib/server/login.ts';
 import { Log } from './log.ts';
-import { opener, plan, solverAt, type Proc } from './plan.ts';
+import { opener, plan, solverAt, solverSetAside, type Proc } from './plan.ts';
 import { CommandReader, eventLine, type TrayEvent } from './tray.ts';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -267,8 +267,17 @@ rmSync(servingFile, { force: true });
 
 mkdirSync(join(home, 'engine'), { recursive: true });
 helper(p.engine);
-if (p.solver) helper(p.solver);
-else
+if (p.solver && solverDir) {
+	for (const { from, to } of solverSetAside(solverDir, process.platform, existsSync)) {
+		try {
+			renameSync(from, to);
+			console.log(`  FlareSolverr: set its own ${basename(from)} aside (the system's is newer).`);
+		} catch (e) {
+			console.log(`  FlareSolverr: couldn't set ${from} aside: ${(e as Error).message}`);
+		}
+	}
+	helper(p.solver);
+} else
 	console.log(
 		`  FlareSolverr isn't installed: sources behind a browser check won't load.\n` +
 			`  (Unzip its archive into ${home}.)`
