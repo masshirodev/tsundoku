@@ -181,8 +181,11 @@ copyFileSync(join(src, 'scripts/serve.ts'), join(app, 'scripts/serve.ts'));
 // imports in the tag's own source. A list written here belonged to whichever
 // commit this script came from: 2026.10.30.5's build, run with a script that
 // already named a later commit's lan.ts, failed on a file its tag never had.
-for (const f of serverModules(src))
+// Some sit in a folder of their own (novels/plugin-host.cjs), which has to exist first.
+for (const f of serverModules(src)) {
+	mkdirSync(dirname(join(app, 'src/lib/server', f)), { recursive: true });
 	copyFileSync(join(src, 'src/lib/server', f), join(app, 'src/lib/server', f));
+}
 copyFileSync(join(src, 'yarn.lock'), join(app, 'yarn.lock'));
 // Only what the server loads: the rest of `dependencies` (fonts, hls.js, the
 // adapter and its rollup, kotoba) is compiled into build/ or used to make it.

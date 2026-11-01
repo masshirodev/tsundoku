@@ -41,6 +41,19 @@ describe('the launcher’s plan (doc/RELEASE.md)', () => {
 		expect(p.engine.env).toMatchObject({ ENGINE_HOST: '127.0.0.1', ENGINE_TOKEN: 'eng' });
 	});
 
+	it('signs in with a password, unless the data folder names a token (the workstation, c228)', () => {
+		const friend = plan({ ...base, root: '/t', home: '/h', env: {}, platform: 'linux' });
+		expect(friend.server.env.TSUNDOKU_LOGIN).toBe('password');
+		const workstation = plan({
+			...base,
+			root: '/t',
+			home: '/h',
+			env: { TSUNDOKU_TOKEN: 'tok' },
+			platform: 'linux'
+		});
+		expect(workstation.server.env).not.toHaveProperty('TSUNDOKU_LOGIN');
+	});
+
 	it('on Linux: bin/ for Node, no .exe', () => {
 		const p = plan({
 			...base,

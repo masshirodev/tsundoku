@@ -68,8 +68,10 @@ export function plan(o: {
 			// The data folder's own .env can choose otherwise (https through Tailscale).
 			TSUNDOKU_SERVE: o.env.TSUNDOKU_SERVE || 'local',
 			TSUNDOKU_SNAPSHOT: 'off',
-			// A password chosen on first open, never a token (doc/SIGN-IN.md).
-			TSUNDOKU_LOGIN: 'password',
+			// A password chosen on first open (doc/SIGN-IN.md), unless the data
+			// folder's .env names a TSUNDOKU_TOKEN: the workstation runs the same
+			// bundle and keeps its token (c228). A friend's install never has one.
+			...(o.env.TSUNDOKU_TOKEN ? {} : { TSUNDOKU_LOGIN: 'password' }),
 			// Where new versions are announced (doc/UPDATES.md); "off" in .env stops looking.
 			TSUNDOKU_UPDATES: o.env.TSUNDOKU_UPDATES || UPDATES,
 			...(o.installed ? { TSUNDOKU_INSTALLED: '1' } : {}),

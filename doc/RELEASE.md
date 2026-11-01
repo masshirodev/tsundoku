@@ -154,8 +154,9 @@ The launcher is `launcher/launch.ts`, run with the bundle's Node. It:
    elsewhere, then that folder's own;
 2. makes `ENGINE_TOKEN` there on a first start. The app's sign-in is a
    password the friend chooses in the browser on first open
-   (`TSUNDOKU_LOGIN=password`, [`SIGN-IN.md`](SIGN-IN.md)); `--reset-password`
-   forgets it and exits;
+   (`TSUNDOKU_LOGIN=password`, [`SIGN-IN.md`](SIGN-IN.md)), unless the data
+   folder's `.env` names a `TSUNDOKU_TOKEN` (the workstation's own install,
+   c228); `--reset-password` forgets it and exits;
 3. if a tsundoku already answers on the port, opens it and exits;
 4. starts the engine (`java -jar`, `ENGINE_HOST=127.0.0.1`, its APKs,
    preferences and app folder under `engine/` in the data folder) and

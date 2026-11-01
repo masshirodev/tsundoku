@@ -162,7 +162,8 @@ function opening(s: Serving) {
 	);
 	ready = s.origin;
 	emit({ event: 'ready', origin: s.origin });
-	if (!readLogin(home)) console.log(`First start: choose a password in the browser.`);
+	if (!process.env.TSUNDOKU_TOKEN && !readLogin(home))
+		console.log(`First start: choose a password in the browser.`);
 	if (s.mode !== 'local')
 		console.log(`On your phone or tablet, signed in to the same tailnet, open the same address.`);
 	open(s.origin, wanted);

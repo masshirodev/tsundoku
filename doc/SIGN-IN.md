@@ -9,7 +9,11 @@ every browser. There are two kinds of install, and they sign in differently.
 | A friend's (a release, started by its launcher) | a password they chose, or none | `TSUNDOKU_HOME/login.json`    |
 
 Which one is `TSUNDOKU_LOGIN`: the launcher sets it to `password`
-(`ops/release/launcher/plan.ts`); the workstation never sets it.
+(`ops/release/launcher/plan.ts`) **unless the data folder's `.env` names a
+`TSUNDOKU_TOKEN`**, and then the token signs in as on the workstation. That's
+for the workstation running the same bundle as its friends (c228, decided with
+the owner on 2026-11-01: "password when no token is set"); a friend's install
+never has a token, so nothing changes for them.
 
 ## The workstation: a token
 
