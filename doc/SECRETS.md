@@ -1,8 +1,16 @@
 # Secrets
 
-tsundoku's `.env` is a **copy**. The master copy lives in **Infisical** on the
+tsundoku's live `.env` is a **copy**. The master copy lives in **Infisical** on the
 VPS (`https://infisical.example.com`, project `tsundoku`, environment
-`prod`). `yarn run secrets:pull` writes it here.
+`prod`). `yarn run secrets:pull` writes it into the **data folder**,
+`$TSUNDOKU_HOME/.env` (`/mnt/hdd2/tsundoku/.env`): since c228 the workstation
+runs the released bundle, whose launcher reads that file, and the checkout's
+own `.env` is development's, which the pull never touches.
+
+`DATABASE_PATH` must be **absolute** in Infisical
+(`/mnt/hdd2/tsundoku/library.sqlite`). The bundle runs from its own folder, so
+the checkout-relative `data/library.sqlite` it held until 2026-11-01 would open
+a new, empty library there; the pull refuses a relative one.
 
 **The app never reads Infisical itself.** It reads `.env`, as it always has.
 It starts at boot and restarts on its own (`ops/systemd/tsundoku.service`,

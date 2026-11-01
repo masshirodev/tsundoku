@@ -1,8 +1,11 @@
 #!/bin/sh
-# Write .env from Infisical (doc/SECRETS.md). Infisical, on the VPS, is where
-# tsundoku's secrets are kept; .env on this machine is a copy of them, made by
-# hand with this script whenever one changes. The app only ever reads .env, so
-# it starts and restarts without the VPS (the ISP can blackhole it).
+# Write the live .env from Infisical (doc/SECRETS.md). Infisical, on the VPS,
+# is where tsundoku's secrets are kept; the .env in the data folder
+# ($TSUNDOKU_HOME/.env, /mnt/hdd2/tsundoku/.env) is a copy of them, made by
+# hand with this script whenever one changes. The workstation runs the
+# released bundle (c228), whose launcher reads that file; the checkout's own
+# .env is development's and this never touches it. The app only ever reads
+# .env, so it starts and restarts without the VPS (the ISP can blackhole it).
 #
 #   yarn run secrets:pull
 #   yarn run secrets:pull --dry-run   # what would change, by name; writes nothing
@@ -19,6 +22,8 @@ dry=
 
 cd "${SECRETS_DIR:-$(dirname "$0")/..}"
 identity=.infisical-identity
+: "${TSUNDOKU_HOME:?is not set: the live .env is \$TSUNDOKU_HOME/.env (/mnt/hdd2/tsundoku on the workstation)}"
+target="$TSUNDOKU_HOME/.env"
 
 if [ ! -r "$identity" ]; then
 	printf '%s is missing: see doc/SECRETS.md, "Once".\n' "$identity" >&2
@@ -54,8 +59,8 @@ curl -fsS --retry 3 --connect-timeout 10 --max-time 60 -G \
 # An empty list is the easy mistake (a new project, or the wrong environment),
 # and writing it would leave the app with no token. Refuse, and say where.
 if ! jq -e '.secrets | length > 0' "$work/secrets.json" >/dev/null; then
-	printf 'no secrets in project %s, environment %s: .env left as it is\n' \
-		"$INFISICAL_PROJECT_ID" "$INFISICAL_ENVIRONMENT" >&2
+	printf 'no secrets in project %s, environment %s: %s left as it is\n' \
+		"$INFISICAL_PROJECT_ID" "$INFISICAL_ENVIRONMENT" "$target" >&2
 	exit 1
 fi
 
@@ -66,26 +71,37 @@ fi
 } > "$work/env"
 chmod 600 "$work/env"
 
+# The bundle runs from its own folder, so a relative DATABASE_PATH (the
+# checkout's old "data/library.sqlite") would open a new, empty library there.
+db=$(sed -n 's/^DATABASE_PATH=//p' "$work/env" | sed 's/^"\(.*\)"$/\1/')
+case "$db" in
+'' | /*) ;;
+*)
+	printf 'DATABASE_PATH in Infisical is relative (%s): make it absolute there first.\n' "$db" >&2
+	exit 1
+	;;
+esac
+
 # What changed, by name: added, removed, changed. Values are never printed.
 keys() { sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' "$1" | sort; }
-if [ -f .env ]; then
-	keys .env > "$work/old"
+if [ -f "$target" ]; then
+	keys "$target" > "$work/old"
 	keys "$work/env" > "$work/new"
 	for k in $(comm -13 "$work/old" "$work/new"); do printf '  + %s\n' "$k"; done
 	for k in $(comm -23 "$work/old" "$work/new"); do printf '  - %s (not in Infisical: dropped)\n' "$k"; done
 	for k in $(comm -12 "$work/old" "$work/new"); do
-		a=$(grep -m1 "^$k=" .env | cut -d= -f2- | sed 's/^"\(.*\)"$/\1/')
+		a=$(grep -m1 "^$k=" "$target" | cut -d= -f2- | sed 's/^"\(.*\)"$/\1/')
 		b=$(grep -m1 "^$k=" "$work/env" | cut -d= -f2- | sed 's/^"\(.*\)"$/\1/')
 		[ "$a" = "$b" ] || printf '  ~ %s\n' "$k"
 	done
 fi
 if [ -n "$dry" ]; then
-	printf 'dry run: %s keys in Infisical (%s). .env left as it is.\n' \
-		"$(keys "$work/env" | wc -l | tr -d ' ')" "$INFISICAL_ENVIRONMENT"
+	printf 'dry run: %s keys in Infisical (%s). %s left as it is.\n' \
+		"$(keys "$work/env" | wc -l | tr -d ' ')" "$INFISICAL_ENVIRONMENT" "$target"
 	exit 0
 fi
-[ -f .env ] && cp -p .env .env.bak && chmod 600 .env.bak
-mv "$work/env" .env
-printf '.env written: %s keys from %s (%s). The last one is .env.bak.\n' \
-	"$(keys .env | wc -l | tr -d ' ')" "$INFISICAL_API_URL" "$INFISICAL_ENVIRONMENT"
+[ -f "$target" ] && cp -p "$target" "$target.bak" && chmod 600 "$target.bak"
+mv "$work/env" "$target"
+printf '%s written: %s keys from %s (%s). The last one is %s.bak.\n' \
+	"$target" "$(keys "$target" | wc -l | tr -d ' ')" "$INFISICAL_API_URL" "$INFISICAL_ENVIRONMENT" "$target"
 printf 'Restart to use it: systemctl --user restart tsundoku\n'
