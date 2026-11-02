@@ -1,0 +1,13 @@
+# Gradle and the Android build tools write here; none of it is source.
+.gradle/
+build/
+app/build/
+local.properties
+*.iml
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+# A signed APK is a release artifact, never a commit (doc/RELEASE.md).
+*.apk
+*.aab

@@ -1,0 +1,48 @@
+package dev.masshiro.tsundoku.tv
+
+/**
+ * The address the TV fills in for itself (c236; TV-Pair.dc.html, 9B): its own
+ * network's first three numbers, so only the last one is typed. Pure, so the
+ * parsing is tested without a socket.
+ */
+object Address {
+	/** The three private IPv4 ranges, as `lan.ts` has them. Tailscale's CGNAT is not one. */
+	fun isPrivateV4(ip: String): Boolean {
+		val p = ip.split('.').mapNotNull { it.toIntOrNull() }
+		if (p.size != 4 || p.any { it !in 0..255 }) return false
+		return p[0] == 10 ||
+			(p[0] == 172 && p[1] in 16..31) ||
+			(p[0] == 192 && p[1] == 168)
+	}
+
+	/** "192.168.1.40" -> "192.168.1."; anything that is not a dotted IPv4 -> null. */
+	fun prefixOf(ip: String?): String? {
+		val parts = ip?.trim()?.split('.') ?: return null
+		if (parts.size != 4) return null
+		if (parts.any { it.isEmpty() || it.length > 3 || it.toIntOrNull() !in 0..255 }) return null
+		return parts.take(3).joinToString(".") + "."
+	}
+
+	/**
+	 * A typed address as the origin the pages load: `192.168.1.23:42143` gets
+	 * `http://`, and a trailing slash or path is dropped. The whole-address
+	 * field is for Tailscale and another port, so https and a name are kept.
+	 */
+	fun originOf(input: String?): String? {
+		val raw = input?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+		val withScheme = if (raw.startsWith("http://") || raw.startsWith("https://")) raw else "http://$raw"
+		val url = runCatching { java.net.URI(withScheme) }.getOrNull() ?: return null
+		if (url.host.isNullOrEmpty()) return null
+		val port = if (url.port > 0) ":${url.port}" else ""
+		val scheme = url.scheme ?: "http"
+		return "$scheme://${url.host}$port"
+	}
+
+	/** The last number a remote typed, as an address: 0-255, nothing else. */
+	fun withLast(prefix: String?, last: String?, port: Int): String? {
+		val n = last?.trim()?.toIntOrNull() ?: return null
+		if (n !in 0..255) return null
+		val head = prefixOf((prefix?.trim() ?: "") + "0") ?: return null
+		return "http://$head$n:$port"
+	}
+}

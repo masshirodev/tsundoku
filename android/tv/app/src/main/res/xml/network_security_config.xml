@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+	The page is plain http on the home network (doc/WIFI.md): a home address has
+	no certificate, so cleartext stays allowed, and https to a friend's tailnet
+	name still checks the system's anchors.
+-->
+<network-security-config>
+	<base-config cleartextTrafficPermitted="true">
+		<trust-anchors>
+			<certificates src="system" />
+		</trust-anchors>
+	</base-config>
+</network-security-config>
