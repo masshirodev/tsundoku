@@ -27,4 +27,11 @@ Tailscale. Read `README.md` and `doc/ARCHITECTURE.md` before changing anything.
 - Before committing: `yarn run check && yarn run lint && yarn run test`, plus
   `yarn run test:e2e` when the UI changed. See `doc/TESTING.md`.
 - Rating is an integer 0–5 and **0 means unrated**. Never write `NULL`.
+- **Waves are Kantoku's** (`~/work/tsundoku/kantoku.toml`, `kantoku status`).
+  It owns `~/work/tsundoku/wave<N>/`, the `agent/k<N>-*` and `integrate/k<N>`
+  branches and its wave's In Progress cards: never edit, push or move them.
+  Taking a To Do card yourself, move it to In Progress first, or the next
+  planned wave briefs a worker onto it too. A push to `main` while a wave runs
+  is fine, but tell whoever drives the loop: the wave must then merge onto it
+  before its own push.
 - Push to `main`.
