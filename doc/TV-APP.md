@@ -69,12 +69,87 @@ The launcher shows **tsundoku** with the wordmark banner (320×180, drawn from
 
 ## On launch
 
+- **An address given at launch** ([below](#handing-the-tv-an-address)) is
+  checked first, whichever door it came through: a cold start, or a second
+  `am start` on an app already open. It is not stored until it answers.
 - **A remembered address that answers** opens the library directly. The answer
   is the web app manifest: `/manifest.webmanifest`'s name is tsundoku's, so a
   router, a NAS or another web server does not pass.
 - **A remembered address that does not answer** shows 9D, what it tried and
   the three likely reasons, and keeps probing every 5 s.
-- **No address at all** shows 9A, the app's first screen.
+- **No address at all, remembered or given,** shows 9A, the app's first screen.
+
+### Handing the TV an address
+
+Typing a tailnet name on a remote is worse than the six digits that follow it,
+so the app also takes the computer's address from outside (c260): the launch
+extra below, or a link carrying the same address. Both reach the app whether it
+is closed or already open (`singleTask` sends the second launch to
+`onNewIntent`).
+
+```sh
+adb connect <tv-address>:5555          # once, if it is not connected
+adb shell am start -n dev.masshiro.tsundoku.tv/.MainActivity \
+  --es url https://zen.tailnet.ts.net:8443
+```
+
+A launcher, or another app that only has a URL, can use the link instead:
+
+```sh
+adb shell am start -a android.intent.action.VIEW \
+  -d 'tsundoku://connect?url=https%3A%2F%2Fzen.tailnet.ts.net%3A8443'
+```
+
+`url` is the whole address, percent-encoded in the link. If both the extra and
+the link are there, the extra wins: it is what the command above sends.
+
+On a friend's install the same command takes that computer's own address, which
+is also what a failing LAN probe leaves to type: run the same command with the
+address as its value — `--es url http://192.168.1.23:42143` (their `PORT` if
+they changed it). The whole address is the one thing 9B's panel would otherwise
+ask for on a remote.
+
+Only `http` and `https` with a host are accepted — a tailnet name, a domain, or
+an address, on a port from 1 to 65535 (a port of 0, or one above 65535, is
+refused rather than rewritten to the default one). Only the origin is kept: a
+path, a query and a fragment are dropped, and an address carrying a username or
+password is refused. A bare `host:port` is not enough here, although it is on
+9B: nothing was typed, and the command can always give the scheme.
+
+- **Refused** lands on 9B with the existing band: the field empty, the mark on
+  NEXT, and the band saying the address was refused and nothing was saved.
+- **Answered** is remembered (`KEY_ADDRESS` in the `pairing` prefs) and opens
+  the pairing at that address: the six digits on a tailnet instance (c245), or
+  a friend's 9C.
+- **Not answered** shows 9D for that address and keeps trying. A previously
+  remembered address is left alone, so the next plain launch still opens the
+  library.
+
+Only the attempt that is current has its answer acted on. A given address
+supersedes a probe already in flight, and that probe's answer is dropped —
+success included — so a launch cannot be overtaken by the address it replaced.
+A refusal stops 9D's retry before showing the band, so the band is not replaced
+five seconds later by the old address's failure, and a probe still in flight
+when the refusal arrives cannot replace it either: only a _failure_ is dropped,
+so a late success still remembers and opens the pairing (Decision 9 in the
+handoff notes). A new attempt clears the band first, because it is a new
+question — whether it is typed on 9B or handed in at launch. The band's flag is
+cleared at all three doors into that screen (`probe`, `show`, `connect`), so a
+visible band always means the refusal is still the attempt in hand; hiding the
+screen alone does not hide the flag.
+
+An address is compared by its **origin**, not its text. The field keeps what was
+typed — a path, a query, userinfo, a differently cased host — while
+`PairingBridge` answers with `Address.originOf`'s origin. Both sides of the
+comparison go through `new URL(…).origin` (the page's `atOrigin`), so a typed
+`https://zen.tailnet.ts.net:8443/library` and the bridge's
+`https://zen.tailnet.ts.net:8443` are the same attempt and its success or
+failure lands; comparing the raw strings dropped the answer and left 9B on
+CHECKING with NEXT disabled.
+
+The check is 9B's own: the web app manifest, through `PairingBridge`. A given
+address goes through the same `#connect=` path in the asset page, remembers
+only in its success branch, and never adds a second probe.
 
 ## Pairing, 9A to 9E
 
@@ -102,7 +177,10 @@ On the TV:
    wherever the mark is, so a remote that has them never needs the pad; a
    remote without them reaches TYPE THE WHOLE ADDRESS in one press down, and
    the field is one press up. TYPE THE WHOLE ADDRESS takes `host:port` or a
-   full `http://…` for Tailscale or another port. NEXT probes it.
+   full `http://…` for Tailscale or another port. NEXT probes it; an address
+   handed in at launch is probed the same way and skips this screen (c260). A
+   pasted address with a path or a query pairs at its origin: the origin is what
+   is probed, remembered and opened, never the whole string (c260).
 3. **9C** — the computer's own `/pair/tv`: six cells in two threes, the
    number keys type and ← erases, and PAIR → presses itself when the sixth
    arrives. A wrong code says how many tries are left.
@@ -240,6 +318,10 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   and the page no longer focuses the field on arrival; that BACK closes the pad
   is the owner's observation on that TV, not something testable here, and no
   second TV has been tried. The app never calls `showSoftInput`.
+- **A launch intent and a `tsundoku://` link on a device.** The parser and the
+  page's `#connect=`/`#bad=` states are unit- and browser-tested, but nothing
+  here has delivered an intent to a TV: no emulator image exists on this
+  machine, and no TV was at hand.
 - **`onShowCustomView` over a real `<video>`**, the screen-awake flag, the
   immersive system UI, and the leanback banner's cropping on the home row.
 - **The keystore and a signed build**: no keystore exists yet.
@@ -247,17 +329,38 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
 
 ## Tests
 
-- `android/tv/app/src/test/` — `AddressTest`, `BackTest`, `KeysTest`, `ProbeTest`,
-  `ScaleTest` (18 tests), run by `./gradlew test`.
+- `android/tv/app/src/test/` — `AddressTest`, `BackTest`, `IntentAddressTest`,
+  `KeysTest`, `ProbeTest`, `ScaleTest` (31 tests), run by `./gradlew test`.
+  `IntentAddressTest` is the given address's parser: a tailnet name, a LAN
+  address and a domain; its port kept and its path dropped; `null` for a wrong
+  scheme, a missing host, userinfo, and a port of 0 or above 65535 (`null` is
+  the refusal, not a rewrite to the default port) (c260).
 - `tests/pairing-tv.spec.ts` — the six digits: once, 10 minutes, five wrong
   tries burn it, the state machine's every answer; the tailnet door, the rule
   that draws the DEVICES block only where that cookie opens, and the friend
   branch's refusal of a paired cookie off Wi-Fi (c245).
-- `tests/tv-app-pair.e2e.ts` — 9A and 9B from the shipped asset file: the mark
-  on NEXT rather than the field (and on TYPE THE WHOLE ADDRESS one press down),
-  the number keys typing into the field from there, and the whole-address field
-  that stays visible; and 9A's step 01 and 9D's second reason keeping a friend's
-  WI-FI remedy beside a Tailscale install's truth (c245).
+- `tests/tv-app-pair.e2e.ts` — 14 cases, 9A and 9B from the shipped asset file:
+  the mark on NEXT rather than the field (and on TYPE THE WHOLE ADDRESS one press
+  down), the number keys typing into the field from there, and the whole-address
+  field that stays visible; and 9A's step 01 and 9D's second reason keeping a
+  friend's WI-FI remedy beside a Tailscale install's truth (c245). A `#connect=`
+  given address shows neither 9A nor 9B and names what it is checking; a `#bad=`
+  shows the band on 9B, above the label and inside the frame, with the screen
+  still usable (c260). Cases stand up a stub bridge for the states only the app
+  reaches: a refusal handed to a TV already on 9D stops its retry, so the band
+  is still there past a 5 s tick and no probe for the old address is made; a
+  typed probe still in flight when a given address arrives neither stores its
+  answer nor leaves for its `/pair/tv`, while the refused door into 9B resets
+  the NEXT button and checking line the held probe left behind; a probe still
+  in flight when a refusal arrives fails without replacing the band; and a new
+  attempt after a refusal clears the band and can still reach 9D. A given
+  address that arrives after a refusal and does not answer reaches 9D, the band
+  having been cleared with the attempt it described; one that does answer still
+  remembers its origin and leaves for `/pair/tv`, so an address handed in twice
+  is judged on its own answer. Two more pin the origin comparison: a typed whole
+  address with a path pairs at its origin (remembered and opened without the
+  path), and one with a query fails to 9D for the origin, not the raw string
+  (c260).
 - `tests/tv-pair.e2e.ts` — the computer's `/pair/tv` at 960×540 with no pointer:
   every band clearing the label and the six cells, a wrong code spending a
   try, the right one landing on 9E, and five wrong ones burning it.

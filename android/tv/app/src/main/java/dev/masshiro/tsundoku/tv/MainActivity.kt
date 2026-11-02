@@ -2,6 +2,7 @@ package dev.masshiro.tsundoku.tv
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
@@ -84,7 +85,13 @@ class MainActivity : ComponentActivity() {
 		onBackPressedDispatcher.addCallback(this, back)
 
 		val remembered = prefs().getString(KEY_ADDRESS, "").orEmpty()
-		if (remembered.isEmpty()) {
+		// A given address belongs to this launch. Android recreating the
+		// activity would otherwise hand it to a TV that already paired and
+		// send it back to pairing (c260).
+		val given = if (savedInstanceState == null) givenAddress(intent) else null
+		if (given != null) {
+			takeGiven(given)
+		} else if (remembered.isEmpty()) {
 			// 9A: nothing has been paired yet.
 			loadAsset()
 		} else {
@@ -95,6 +102,18 @@ class MainActivity : ComponentActivity() {
 				ui.post { if (ok) open(remembered) else showLost(remembered) }
 			}
 		}
+	}
+
+	/**
+	 * A singleTask app started again gets the new intent here, not in
+	 * `onCreate`: a second `am start` on a running TV must reach the same
+	 * door, or the address only works while the app is closed (c260).
+	 */
+	override fun onNewIntent(intent: Intent) {
+		super.onNewIntent(intent)
+		setIntent(intent)
+		val given = givenAddress(intent) ?: return
+		takeGiven(given)
 	}
 
 	override fun onResume() {
@@ -238,12 +257,40 @@ class MainActivity : ComponentActivity() {
 		webView.loadUrl(origin)
 	}
 
-	private fun loadAsset() {
-		webView.loadUrl("file:///android_asset/pair/index.html")
+	private fun loadAsset(hash: String = "") {
+		webView.loadUrl("file:///android_asset/pair/index.html$hash")
 	}
 
 	private fun showLost(origin: String) {
-		webView.loadUrl("file:///android_asset/pair/index.html#lost=${Uri.encode(origin)}")
+		loadAsset("#lost=${Uri.encode(origin)}")
+	}
+
+	/**
+	 * The address this launch was handed, from the extra the documented
+	 * command sends or from a `tsundoku://connect?url=` link. The extra wins
+	 * when both are there: it is what doc/TV-APP.md tells the owner to type,
+	 * and a launcher's link is the second way in.
+	 */
+	private fun givenAddress(intent: Intent?): String? {
+		if (intent == null) return null
+		intent.getStringExtra(EXTRA_URL)?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+		val data = intent.data ?: return null
+		if (!data.scheme.equals("tsundoku", true) || !data.host.equals("connect", true)) return null
+		return data.getQueryParameter(EXTRA_URL)?.trim()?.takeIf { it.isNotEmpty() }
+	}
+
+	/**
+	 * The one place a given address is judged, whichever door it came through
+	 * (c260). A valid one goes to 9B's own probe path in the page, which is
+	 * where an answer is remembered; a refused one shows 9B's band and is
+	 * never stored.
+	 */
+	private fun takeGiven(raw: String) {
+		val origin = Address.intentOrigin(raw)
+		loadAsset(
+			if (origin == null) "#bad=${Uri.encode(raw)}"
+			else "#connect=${Uri.encode(origin)}"
+		)
 	}
 
 	private fun prefs() = getSharedPreferences("pairing", Context.MODE_PRIVATE)
@@ -262,6 +309,9 @@ class MainActivity : ComponentActivity() {
 
 	companion object {
 		private const val KEY_ADDRESS = "address"
+
+		/** The launch extra, and the deep link's query parameter (c260). */
+		private const val EXTRA_URL = "url"
 
 		/** c236's contract: true means the page took BACK. */
 		private const val BACK_JS =

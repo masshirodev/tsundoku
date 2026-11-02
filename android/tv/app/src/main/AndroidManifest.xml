@@ -41,6 +41,17 @@
 				<action android:name="android.intent.action.MAIN" />
 				<category android:name="android.intent.category.LAUNCHER" />
 			</intent-filter>
+			<!-- c260: hand the TV an address as a link. The extra the documented
+			     command sends works without this; the link is for a launcher or
+			     another app that only has a URL. -->
+			<intent-filter>
+				<action android:name="android.intent.action.VIEW" />
+				<category android:name="android.intent.category.DEFAULT" />
+				<category android:name="android.intent.category.BROWSABLE" />
+				<data
+					android:host="connect"
+					android:scheme="tsundoku" />
+			</intent-filter>
 		</activity>
 	</application>
 

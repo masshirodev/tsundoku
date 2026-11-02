@@ -38,6 +38,35 @@ object Address {
 		return "$scheme://${url.host}$port"
 	}
 
+	/**
+	 * An address handed to the app from outside (c260): a launch extra or a
+	 * `tsundoku://connect?url=` link. Nothing was typed on the TV, so unlike
+	 * [originOf] a bare `host:port` is not enough: the scheme must be one a
+	 * WebView opens, and a host must be there.
+	 *
+	 * Only the origin comes back — a path, a query and a fragment are dropped
+	 * because the app opens the origin. Userinfo is not dropped but refused:
+	 * an address with a password in it is not one this app was built to hold.
+	 */
+	fun intentOrigin(input: String?): String? {
+		val raw = input?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+		val url = runCatching { java.net.URI(raw) }.getOrNull() ?: return null
+		val scheme = url.scheme?.lowercase() ?: return null
+		if (scheme != "http" && scheme != "https") return null
+		if (url.rawUserInfo != null) return null
+		val host = url.host?.lowercase()?.takeIf { it.isNotEmpty() } ?: return null
+		// java.net.URI answers -1 for "no port at all", which is the only port
+		// this parser leaves out. Every other one has to be a real port: 0 and
+		// anything past 65535 are refused rather than rewritten to the default,
+		// so a nonsense address is never quietly probed and remembered.
+		val port = when (url.port) {
+			-1 -> ""
+			in 1..65535 -> ":${url.port}"
+			else -> return null
+		}
+		return "$scheme://$host$port"
+	}
+
 	/** The last number a remote typed, as an address: 0-255, nothing else. */
 	fun withLast(prefix: String?, last: String?, port: Int): String? {
 		val n = last?.trim()?.toIntOrNull() ?: return null

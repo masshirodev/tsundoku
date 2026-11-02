@@ -123,7 +123,10 @@ on it, so the six digits are in SETTINGS › 08 — DEVICES itself, and the pair
 cookie `/pair/tv` sets is accepted by the guard for a request that came in on
 the instance's public host — the tailnet name — and ignored on a loopback one
 ([`SIGN-IN.md`](SIGN-IN.md), "The workstation: a token"). The TV app reaches
-that host by TYPE THE WHOLE ADDRESS on 9B, `https://name.ts.net:8443`.
+that host by TYPE THE WHOLE ADDRESS on 9B, `https://name.ts.net:8443`, or by
+being handed it at launch (`adb shell am start … --es url …`, or a
+`tsundoku://connect?url=` link), which skips 9A and 9B ([`TV-APP.md`](TV-APP.md),
+"Handing the TV an address").
 
 ## The design
 
@@ -328,10 +331,12 @@ the TV.
   and opening SETTINGS replace them. `/pair/tv` answers ok, wrong (with tries
   left), expired, used and burned, and a TV that opens the page before anyone
   opened SETTINGS gets a code made for it.
-- **Reaching the server**: on launch, a remembered address that answers opens
-  the library; one that stops answering shows 9D and keeps probing; a first
-  run shows 9A. The address is remembered in `SharedPreferences` once it
-  answers.
+- **Reaching the server**: on launch, an address handed to the app from
+  outside (an `am start` extra or a `tsundoku://connect?url=` link, c260) is
+  probed first and opens the pairing at that address; a remembered address
+  that answers opens the library; one that stops answering shows 9D and keeps
+  probing; a first run with neither shows 9A. The address is remembered in
+  `SharedPreferences` once it answers, never before.
 - **Release**: `ops/release/tv-apk.sh <version>` builds the APK beside the
   bundles (release-signed from `TSUNDOKU_TV_*` when the keystore is there, a
   `-debug` APK otherwise) and adds it to the release folder's `SHA256SUMS`
