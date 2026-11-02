@@ -66,10 +66,9 @@ States.dc.html` (brief: [`briefs/done/DOWNLOADS.md`](briefs/done/DOWNLOADS.md)).
   rows.
 - **FILE** counts the queue: `393 OF 612 DOWNLOADED · 4 QUEUED · 1 FAILED`.
 - **No extension for its source** (Bato.to, Hitomi): no DOWNLOAD row and no
-  disabled button. The FILE line says it once: `BATO.TO DOWNLOADS ON THE
-TABLET`, named by the series' `source` tag — a line that no longer leads
-  anywhere, since the tablet's downloads aren't imported (c191, "Not done
-  yet").
+  disabled button. The FILE line says it once: `BATO.TO · NO EXTENSION HERE`,
+  named by the series' `source` tag — no extension installed here carries the
+  source, so tsundoku cannot download it (c191, "Not done yet").
 - **The engine not answering, or the device offline:** the row stays where it
   was, with its cells at 0.35, and the second line says why: `○ NOT ANSWERING
 · THE EXTENSION ENGINE ON THE WORKSTATION · SINCE 14:02` or `○ OFFLINE ·

@@ -421,7 +421,7 @@
 	"help_backups_short_2": "RESCAN reads the folder again; new series appear as they are found.",
 	"help_backups_short_3": "Your library and its reading are kept in the data folder, beside tsundoku.",
 	"help_backups_folder_title": "THE LIBRARY FOLDER",
-	"help_backups_folder_mihon_what": "A backup (.tachibk) under Mihon/autobackup, with its downloads beside it.",
+	"help_backups_folder_mihon_what": "A backup (.tachibk) under Mihon/autobackup: the series, its chapters and its reading. Downloads beside it are not imported.",
 	"help_backups_folder_epub_what": "Novels, anywhere in the folder.",
 	"help_backups_folder_not_yet": "NOT YET",
 	"help_backups_folder_not_yet_what": "Aniyomi and LNReader backups.",

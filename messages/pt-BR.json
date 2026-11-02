@@ -421,7 +421,7 @@
 	"help_backups_short_2": "LER A PASTA DE NOVO lê a pasta outra vez; as séries novas aparecem conforme são encontradas.",
 	"help_backups_short_3": "A sua biblioteca e o que você leu ficam guardados na pasta de dados, ao lado do tsundoku.",
 	"help_backups_folder_title": "A PASTA DA BIBLIOTECA",
-	"help_backups_folder_mihon_what": "Um backup (.tachibk) em Mihon/autobackup, com os downloads ao lado.",
+	"help_backups_folder_mihon_what": "Um backup (.tachibk) em Mihon/autobackup: as séries, os capítulos e o que você leu. Os downloads ao lado não são importados.",
 	"help_backups_folder_epub_what": "Novels, em qualquer lugar da pasta.",
 	"help_backups_folder_not_yet": "AINDA NÃO",
 	"help_backups_folder_not_yet_what": "Backups do Aniyomi e do LNReader.",
