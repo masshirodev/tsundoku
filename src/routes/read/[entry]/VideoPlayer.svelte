@@ -265,6 +265,27 @@
 		})
 	);
 
+	/**
+	 * The panel's rows are redrawn when the playing server changes under it (a
+	 * stream that fails over), and the row focus was on goes with them. A TV has
+	 * nowhere else to be, so the panel takes focus back rather than dropping the
+	 * mark to nothing (TV-Board-Player 6E).
+	 */
+	$effect(() => {
+		if (!sheet) return;
+		const panel = root?.querySelector<HTMLElement>('.sheet');
+		if (!panel) return;
+		const restore = (e: FocusEvent) => {
+			if (e.relatedTarget) return;
+			requestAnimationFrame(() => {
+				if (document.activeElement !== document.body) return;
+				panel.querySelector<HTMLElement>('[data-focus-start]')?.focus();
+			});
+		};
+		panel.addEventListener('focusout', restore);
+		return () => panel.removeEventListener('focusout', restore);
+	});
+
 	const inIntro = $derived(
 		!!streams?.intro && time >= streams.intro.start && time < streams.intro.end
 	);

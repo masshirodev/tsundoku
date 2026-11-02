@@ -143,13 +143,19 @@ test('the media keys a remote sends: ▶❚❚, ⏩ and ⏪', async ({ page }) =
 	await expect(pp).toHaveAttribute('aria-label', 'Pause');
 
 	const at = () => page.locator('video').evaluate((v: HTMLVideoElement) => v.currentTime);
-	await page.locator('video').evaluate((v: HTMLVideoElement) => v.pause());
-	await page.locator('video').evaluate((v: HTMLVideoElement) => (v.currentTime = 2));
-	await mediaKey(page, 'MediaFastForward');
-	await expect.poll(at).toBeGreaterThan(3);
-	const forward = await at();
+	const video = page.locator('video');
+	// The fixture clip is 8s, so a ±10s key reaches its end: rewinding first
+	// keeps both moves inside the clip and off the END card.
+	await video.evaluate((v: HTMLVideoElement) => {
+		v.pause();
+		v.currentTime = 3;
+	});
 	await mediaKey(page, 'MediaRewind');
-	await expect.poll(at).toBeLessThan(forward - 3);
+	await expect.poll(at).toBeLessThan(1);
+	await expect(page.locator('.flash .by')).toHaveText('−10 S');
+	await video.evaluate((v: HTMLVideoElement) => (v.currentTime = 0));
+	await mediaKey(page, 'MediaFastForward');
+	await expect.poll(at).toBeGreaterThan(5);
 });
 
 test('the picture until a key, SKIP INTRO taking OK, and BACK hiding then leaving', async ({

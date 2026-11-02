@@ -107,10 +107,10 @@ test('window.tsundokuBack() closes an open sheet and says it did', async ({ page
 test('OK held on a chapter row marks through, and its UNDO puts every chapter back', async ({
 	page
 }) => {
-	// A series no flow spec writes: only its chapter list is read here, and the
-	// hold marks its last chapter and everything before it.
+	// A series no other spec reads its CONTINUE from: the hold marks its last
+	// chapter and everything before it, and the band's UNDO puts it back.
 	await page.goto('/?sort=title');
-	await page.locator('.grid .tile', { hasText: 'Boku no Kokoro no Yabai Yatsu' }).click();
+	await page.locator('.grid .tile', { hasText: 'Isekai Yakkyoku' }).click();
 	await page.waitForURL(/\/series\/\d+/);
 	const rows = page.locator('.entry-btn');
 	await rows.last().focus();
