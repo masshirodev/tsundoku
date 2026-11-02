@@ -157,7 +157,8 @@
 	 * inside `[data-focus-adjust]` (doc/FOCUS.md), so ↑ ↓ still leave the row.
 	 */
 	function adjust(e: KeyboardEvent) {
-		if (!tvScreen.current || disabled) return;
+		// The focus layer already moved focus for this key: the row did not keep it.
+		if (!tvScreen.current || disabled || e.defaultPrevented) return;
 		if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
 		e.preventDefault();
 		const floor = mode === 'min' ? 1 : 0;
@@ -209,6 +210,7 @@
 				value="0"
 				aria-label="Unrated"
 				{disabled}
+				data-focus-adjust={tvScreen.current ? '' : undefined}
 				onkeydown={adjust}
 				onclick={() => flashBulk(0)}>0</button
 			>
@@ -218,6 +220,7 @@
 				class="zero"
 				aria-label="Unrated"
 				{disabled}
+				data-focus-adjust={tvScreen.current ? '' : undefined}
 				onkeydown={adjust}
 				onclick={() => commit(0)}>0</button
 			>
