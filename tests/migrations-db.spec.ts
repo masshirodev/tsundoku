@@ -155,3 +155,87 @@ describe('rung 55: a season the series named, not its episodes (c219)', () => {
 		]);
 	});
 });
+
+describe('rung 61: Works (c275)', () => {
+	it('adds the three tables and moves no row of the library', () => {
+		const conn = new Database(':memory:');
+		climb(conn, 60);
+		conn.exec(`
+			INSERT INTO roots (id, name, path) VALUES (1, 'Library', '/nowhere');
+			INSERT INTO series (id, root_id, title, kind, rating, favourite, added_at) VALUES
+				(1, 1, 'The Breaker', 'manhwa', 9, 1, 100),
+				(2, 1, 'The Breaker: New Waves', 'manhwa', 0, 0, 200);
+			INSERT INTO entries (series_id, position, label, added_at, read_at) VALUES
+				(1, 1, 'Ch. 1', 100, 150), (2, 1, 'Ch. 1', 200, NULL);
+			INSERT INTO series_links (series_id, anilist_id, via, linked_at, filled_rating)
+				VALUES (1, 900001, 'mihon', 100, 9);
+			INSERT INTO reading_events (at, series_id, entry_id, kind) VALUES (150, 1, 1, 'finish');
+		`);
+		const snapshot = () => ({
+			series: conn.prepare(`SELECT * FROM series ORDER BY id`).all(),
+			entries: conn.prepare(`SELECT * FROM entries ORDER BY id`).all(),
+			links: conn.prepare(`SELECT * FROM series_links ORDER BY series_id`).all(),
+			events: conn.prepare(`SELECT * FROM reading_events ORDER BY id`).all()
+		});
+		const before = snapshot();
+
+		climb(conn, 61);
+		expect(conn.pragma('user_version', { simple: true })).toBe(61);
+
+		const sqlOf = (name: string) =>
+			(
+				conn
+					.prepare(`SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = ?`)
+					.get(name) as { sql: string } | undefined
+			)?.sql;
+		const columns = (name: string) =>
+			(conn.prepare(`PRAGMA table_info(${name})`).all() as { name: string }[]).map((c) => c.name);
+
+		expect(columns('works')).toEqual(['id', 'name', 'created_at', 'order_mode']);
+		expect(columns('work_series')).toEqual(['work_id', 'series_id', 'position']);
+		expect(columns('work_dismissals')).toEqual(['series_ids', 'dismissed_at']);
+		expect(sqlOf('works')).toContain("order_mode IN ('hand', 'added', 'title')");
+		// `series_id UNIQUE` is what makes a series belong to at most one Work,
+		// and the cascade from series is the card's rule.
+		expect(sqlOf('work_series')).toContain('series_id INTEGER NOT NULL UNIQUE');
+		expect(sqlOf('work_series')).toContain('REFERENCES series(id) ON DELETE CASCADE');
+		expect(
+			conn
+				.prepare(`SELECT sql FROM sqlite_schema WHERE type = 'index' AND name = 'work_series_work'`)
+				.get()
+		).toBeTruthy();
+
+		// Nothing the rung did not name moved.
+		expect(snapshot()).toEqual(before);
+	});
+
+	it('makes a series belong to one Work, refuses an order it doesn’t know, and cascades', () => {
+		const conn = new Database(':memory:');
+		climb(conn);
+		conn.exec(`
+			INSERT INTO roots (id, name, path) VALUES (1, 'Library', '/nowhere');
+			INSERT INTO series (id, root_id, title, kind, added_at) VALUES
+				(1, 1, 'The Breaker', 'manhwa', 100), (2, 1, 'New Waves', 'manhwa', 200);
+			INSERT INTO works (id, name, created_at, order_mode) VALUES
+				(1, 'The Breaker', 100, 'hand'), (2, 'Other', 100, 'title');
+			INSERT INTO work_series (work_id, series_id, position) VALUES (1, 1, 1);
+			INSERT INTO work_series (work_id, series_id, position) VALUES (1, 2, 2);
+		`);
+		// A second Work cannot hold a series the first already has.
+		expect(() =>
+			conn.prepare(`INSERT INTO work_series (work_id, series_id, position) VALUES (2, 1, 1)`).run()
+		).toThrow(/UNIQUE/);
+		expect(() =>
+			conn.prepare(`INSERT INTO works (name, created_at, order_mode) VALUES ('X', 1, 'date')`).run()
+		).toThrow(/CHECK/);
+		// A dismissed offer is its own table, so the books' reader never sees one.
+		conn
+			.prepare(`INSERT INTO work_dismissals (series_ids, dismissed_at) VALUES ('work:1:2', 100)`)
+			.run();
+		// Deleting a series takes its membership with it.
+		conn.prepare(`DELETE FROM series WHERE id = 1`).run();
+		expect(conn.prepare(`SELECT series_id FROM work_series ORDER BY series_id`).all()).toEqual([
+			{ series_id: 2 }
+		]);
+	});
+});

@@ -1,0 +1,194 @@
+import { describe, expect, it } from 'vitest';
+import {
+	continuePart,
+	defaultWorkName,
+	facePart,
+	isFinished,
+	partState,
+	workFavourite,
+	workFoot,
+	workKinds,
+	workRating,
+	workVerb,
+	type WorkPart
+} from '$lib/library/works';
+
+/** A part with sane defaults; each test overrides only what it argues about. */
+function part(patch: Partial<WorkPart> & { seriesId: number; position: number }): WorkPart {
+	return {
+		title: `Part ${patch.position}`,
+		kind: 'manhwa',
+		rating: 0,
+		favourite: false,
+		cover: null,
+		entries: 100,
+		read: 0,
+		lastOpenedAt: null,
+		status: 'completed',
+		...patch
+	};
+}
+
+/** Read through: every entry read on a series the source calls finished. */
+const read = (p: WorkPart): WorkPart => ({ ...p, read: p.entries, status: 'completed' });
+
+describe('CONTINUE’s part', () => {
+	it('opens the first part when nothing has been started', () => {
+		const parts = [part({ seriesId: 1, position: 1 }), part({ seriesId: 2, position: 2 })];
+		expect(continuePart(parts)!.seriesId).toBe(1);
+		expect(workFoot(parts)).toMatchObject({ label: 'UP NEXT · PART 1', upNext: true });
+	});
+
+	it('keeps the part opened most recently while it is unfinished, not the next in order', () => {
+		// A finished middle part does not pull CONTINUE back to it: part 1 was
+		// opened later and is still in progress.
+		const parts = [
+			part({ seriesId: 1, position: 1, read: 40, lastOpenedAt: 900 }),
+			read(part({ seriesId: 2, position: 2, lastOpenedAt: 500 })),
+			part({ seriesId: 3, position: 3 })
+		];
+		expect(continuePart(parts)!.seriesId).toBe(1);
+		expect(workFoot(parts)).toMatchObject({ label: 'PART 1 OF 3', upNext: false });
+	});
+
+	it('crosses to the next unfinished part when the most recently opened one is finished', () => {
+		const parts = [
+			read(part({ seriesId: 1, position: 1, lastOpenedAt: 100 })),
+			read(part({ seriesId: 2, position: 2, lastOpenedAt: 900 })),
+			part({ seriesId: 3, position: 3 })
+		];
+		expect(continuePart(parts)!.seriesId).toBe(3);
+		expect(workFoot(parts)).toEqual({
+			segments: ['done', 'done', 'now'],
+			label: 'UP NEXT · PART 3',
+			upNext: true
+		});
+	});
+
+	it('does not call the run read while an earlier part is unfinished', () => {
+		// Part 2 was finished most recently; part 1 still has pages in it. The
+		// run is not read, so CONTINUE goes back to the part that is not.
+		const parts = [
+			part({ seriesId: 1, position: 1, read: 20 }),
+			read(part({ seriesId: 2, position: 2, lastOpenedAt: 900 }))
+		];
+		expect(continuePart(parts)!.seriesId).toBe(1);
+	});
+
+	it('is null once the run is read, and the face is where it ended', () => {
+		const parts = [
+			read(part({ seriesId: 1, position: 1, lastOpenedAt: 100, cover: 3 })),
+			read(part({ seriesId: 2, position: 2, lastOpenedAt: 400, cover: 9 }))
+		];
+		expect(continuePart(parts)).toBeNull();
+		expect(facePart(parts)!.cover).toBe(9);
+		expect(workFoot(parts)).toEqual({
+			segments: ['done', 'done'],
+			label: 'PART 2 OF 2',
+			upNext: false
+		});
+	});
+
+	it('is null for no parts, and a Work of one states no place', () => {
+		expect(continuePart([])).toBeNull();
+		expect(facePart([])).toBeNull();
+		const one = [part({ seriesId: 1, position: 1 })];
+		expect(workFoot(one)).toEqual({ segments: [], label: null, upNext: false });
+	});
+});
+
+describe('a part’s state', () => {
+	it('tells caught up from read through, and not started from in progress', () => {
+		expect(partState(part({ seriesId: 1, position: 1 }))).toBe('not-started');
+		expect(partState(part({ seriesId: 1, position: 1, read: 3, lastOpenedAt: 5 }))).toBe(
+			'in-progress'
+		);
+		// An ongoing series with everything available read is caught up, not done.
+		expect(
+			partState(part({ seriesId: 1, position: 1, read: 100, lastOpenedAt: 5, status: 'ongoing' }))
+		).toBe('caught-up');
+		expect(partState(read(part({ seriesId: 1, position: 1 })))).toBe('read-through');
+		// A part with no entered chapters is not finished merely because 0 >= 0.
+		expect(isFinished(part({ seriesId: 1, position: 1, entries: 0, read: 0 }))).toBe(false);
+	});
+});
+
+describe('the rating and FAV rule', () => {
+	it('shows the average of the rated parts, and refuses a mixed Work', () => {
+		const mixed = [
+			part({ seriesId: 1, position: 1, rating: 8 }),
+			part({ seriesId: 2, position: 2, rating: 0 })
+		];
+		expect(workRating(mixed)).toEqual({ shown: 8, settable: false, value: null });
+		const two = [
+			part({ seriesId: 1, position: 1, rating: 7 }),
+			part({ seriesId: 2, position: 2, rating: 8 })
+		];
+		// 7.5 rounds up, as the screen's whole number does.
+		expect(workRating(two)).toMatchObject({ shown: 8, settable: false });
+	});
+
+	it('lets all-unrated parts be rated at once, from nothing', () => {
+		const unrated = [part({ seriesId: 1, position: 1 }), part({ seriesId: 2, position: 2 })];
+		expect(workRating(unrated)).toEqual({ shown: 0, settable: true, value: 0 });
+	});
+
+	it('lets parts that share one rating be set, and writes it to all of them', () => {
+		const same = [
+			part({ seriesId: 1, position: 1, rating: 6 }),
+			part({ seriesId: 2, position: 2, rating: 6 })
+		];
+		expect(workRating(same)).toEqual({ shown: 6, settable: true, value: 6 });
+	});
+
+	it('sets FAV only while every part agrees, and counts the ones that are', () => {
+		const all = [
+			part({ seriesId: 1, position: 1, favourite: true }),
+			part({ seriesId: 2, position: 2, favourite: true })
+		];
+		expect(workFavourite(all)).toEqual({ value: true, settable: true, count: 2 });
+		const none = [part({ seriesId: 1, position: 1 }), part({ seriesId: 2, position: 2 })];
+		expect(workFavourite(none)).toEqual({ value: false, settable: true, count: 0 });
+		const mixed = [
+			part({ seriesId: 1, position: 1, favourite: true }),
+			part({ seriesId: 2, position: 2 })
+		];
+		expect(workFavourite(mixed)).toEqual({ value: null, settable: false, count: 1 });
+	});
+});
+
+describe('the default name', () => {
+	it('keeps the words every title starts with', () => {
+		expect(
+			defaultWorkName(['The Breaker', 'The Breaker: New Waves', 'The Breaker: Eternal Force'])
+		).toBe('The Breaker');
+		expect(defaultWorkName(['Onsen Ryokan no Yoru 3', 'Onsen Ryokan no Yoru 4'])).toBe(
+			'Onsen Ryokan no Yoru'
+		);
+	});
+
+	it('is empty when the titles share nothing, rather than the first title', () => {
+		expect(defaultWorkName(['Naruto', 'Boruto'])).toBe('');
+		expect(defaultWorkName(['Kaguya-sama: Love Is War', 'Oshi no Ko'])).toBe('');
+		expect(defaultWorkName([])).toBe('');
+	});
+});
+
+describe('kinds and the verb', () => {
+	it('names a Work’s kinds once each, in the parts’ own order', () => {
+		const parts = [
+			part({ seriesId: 1, position: 1, kind: 'manga' }),
+			part({ seriesId: 2, position: 2, kind: 'anime' }),
+			part({ seriesId: 3, position: 3, kind: 'manga' })
+		];
+		expect(workKinds(parts)).toBe('WORK · MANGA + ANIME');
+		expect(workKinds([part({ seriesId: 1, position: 1, kind: 'manhwa' })])).toBe('WORK · MANHWA');
+	});
+
+	it('says WATCH for an anime and READ for anything else', () => {
+		expect(workVerb('anime')).toBe('WATCH');
+		expect(workVerb('manga')).toBe('READ');
+		expect(workVerb('novel')).toBe('READ');
+		expect(workVerb('doujin')).toBe('READ');
+	});
+});
