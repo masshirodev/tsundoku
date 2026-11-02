@@ -1,7 +1,7 @@
 import { env } from '$env/dynamic/private';
 import type { LanControl, LanStatus } from './lan-listen.ts';
 import { lanOrigin } from './lan.ts';
-import { minutesLeft, pairedDevices, pairing } from './pairing.ts';
+import { minutesLeft, pairedDevices, pairing, tvPairing } from './pairing.ts';
 
 /**
  * WI-FI in SETTINGS (doc/WIFI.md; card c188): the app's view of the
@@ -64,10 +64,28 @@ export type WifiView = {
 		usedBy: string | null;
 		usedAt: number | null;
 	} | null;
+	/** The TV's six digits, beside the phone's code (c236): typed with a remote. */
+	tv: {
+		code: string;
+		state: 'live' | 'used' | 'expired' | 'burned';
+		minutes: number;
+		left: number;
+	} | null;
 };
+
+/**
+ * Whether a code is past showing: expired, burned, or used longer ago than the
+ * 2 minutes the ✓ USED stays up. In either case a fresh one is made when the
+ * panel (or the TV's page) is opened.
+ */
+const CODES: ('none' | 'live' | 'used' | 'expired' | 'burned')[] = ['none', 'expired', 'burned'];
 
 /** How long a used code's ✓ USED stays on the panel before opening SETTINGS makes a new one. */
 const USED_SHOWN_MS = 2 * 60_000;
+
+const spent = (state: string, used: { at: number } | null | undefined, now: number) =>
+	CODES.includes(state as (typeof CODES)[number]) ||
+	(state === 'used' && !!used && now - used.at > USED_SHOWN_MS);
 
 export function wifiView(o: { fresh?: boolean; now?: number } = {}): WifiView | null {
 	const s = wifiStatus();
@@ -78,13 +96,16 @@ export function wifiView(o: { fresh?: boolean; now?: number } = {}): WifiView | 
 	// still live (kept, counting down) or was used just now (USED stays up,
 	// with NEW CODE, until pressed). A reload of the page's data when a phone
 	// pairs mustn't replace the code it just used.
-	const st = pairing.state(now);
-	const used = pairing.current()?.used;
-	const unusable =
-		st === 'none' || st === 'expired' || (st === 'used' && !!used && now - used.at > USED_SHOWN_MS);
-	if (phone && (unusable || o.fresh)) pairing.fresh(now);
+	if (phone && (spent(pairing.state(now), pairing.current()?.used, now) || o.fresh))
+		pairing.fresh(now);
+	// The TV's code follows the same rule (c236): one beside the phone's, and NEW
+	// CODE replaces both, so the two countdowns can diverge only by a reopen.
+	if (phone && (spent(tvPairing.state(now), tvPairing.current()?.used, now) || o.fresh))
+		tvPairing.fresh(now);
 	const c = pairing.current();
 	const state = pairing.state(now);
+	const tvc = tvPairing.current();
+	const tvState = tvPairing.state(now);
 	// The band stays while a phone is still paired at the old address.
 	const stale = s.changed
 		? [...pairedDevices().values()].some((p) => p.address === s.changed!.from + portOf(phone))
@@ -106,6 +127,15 @@ export function wifiView(o: { fresh?: boolean; now?: number } = {}): WifiView | 
 						minutes: minutesLeft(c, now),
 						usedBy: c.used?.who ?? null,
 						usedAt: c.used?.at ?? null
+					}
+				: null,
+		tv:
+			phone && tvc && tvState !== 'none'
+				? {
+						code: tvc.code,
+						state: tvState,
+						minutes: minutesLeft(tvc, now),
+						left: tvPairing.triesLeft()
 					}
 				: null
 	};

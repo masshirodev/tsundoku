@@ -915,8 +915,12 @@ export function deviceKind(o: { width: number; coarse: boolean }): DeviceKind {
 	return o.coarse ? 'tablet' : 'desktop';
 }
 
-/** "Android tablet · Chrome", from the browser's own words. */
-export function deviceLabel(ua: string, kind: DeviceKind): string {
+/**
+ * "Android tablet · Chrome", from the browser's own words. `tv` is not a
+ * DeviceKind: no browser reports its screen as one. It is what the TV app's
+ * own user agent says (doc/TV-APP.md), so a paired TV reads as a TV in DEVICES.
+ */
+export function deviceLabel(ua: string, kind: DeviceKind | 'tv'): string {
 	const os = /Android/i.test(ua)
 		? 'Android'
 		: /iPhone|iPad|iOS/i.test(ua)
@@ -937,7 +941,9 @@ export function deviceLabel(ua: string, kind: DeviceKind): string {
 				: /Safari\//.test(ua)
 					? 'Safari'
 					: 'browser';
-	return `${os ? `${os} ${kind}` : kind[0].toUpperCase() + kind.slice(1)} · ${browser}`;
+	// A TV is an initialism, not a word: "Android TV", never "Android tv".
+	const word = kind === 'tv' ? 'TV' : kind;
+	return `${os ? `${os} ${word}` : word[0].toUpperCase() + word.slice(1)} · ${browser}`;
 }
 
 /** How many of a device's own rows are off their defaults: "4 CHANGED HERE", a DEVICES row's count. */

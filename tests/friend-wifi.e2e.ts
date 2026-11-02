@@ -46,6 +46,13 @@ test('ON shows a code, the address in text, and what typing it does', async ({ p
 	expect((await box('.wifi-seg')).height).toBe(52);
 	expect((await box('.pair-foot')).height).toBeGreaterThanOrEqual(52);
 	await expect(page.getByText(/GOOD FOR \d MIN · SIGNS IN ONE PHONE, ONCE/)).toBeVisible();
+	// A TV's six digits beside the phone's QR (c236; doc/TV.md): two threes,
+	// under a FOR A TV label, with a countdown of its own.
+	await expect(page.getByText('FOR A TV · SIX DIGITS')).toBeVisible();
+	const threes = page.locator('.pair-tv .tvcode span');
+	await expect(threes).toHaveCount(2);
+	for (const three of await threes.all()) expect(await three.textContent()).toMatch(/^\d{3}$/);
+	await expect(page.getByText(/GOOD FOR \d MIN · ONE TV, ONCE/)).toBeVisible();
 	const w = await wifi(request);
 	expect(w.on).toBe(true);
 	expect(w.phone).toMatch(new RegExp(`^http://(10|172|192)\\.[\\d.]+:${FRIEND_PORT}$`));

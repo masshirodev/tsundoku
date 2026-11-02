@@ -83,7 +83,7 @@ export const load: PageServerLoad = async ({ cookies, url, locals }) => {
 		// phone sees the row and never a code (3E).
 		wifi: (() => {
 			const w = wifiView();
-			return w && locals.via === 'lan' ? { ...w, code: null } : w;
+			return w && locals.via === 'lan' ? { ...w, code: null, tv: null } : w;
 		})(),
 		viaLan: locals.via === 'lan',
 		paired: Object.fromEntries(

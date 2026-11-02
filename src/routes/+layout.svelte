@@ -233,7 +233,7 @@
 	<PrivacyShield armed={data.reveal || data.incognito} />
 {:else}
 	<div class="app" class:revealed={data.reveal}>
-		{#if !['/login', '/setup', '/welcome'].includes(page.url.pathname)}
+		{#if !['/login', '/setup', '/welcome', '/pair/tv'].includes(page.url.pathname)}
 			<!--
 			The desktop sidebar. Rendered on every device and shown only on a
 			desktop, so the server can send it without knowing the screen.
