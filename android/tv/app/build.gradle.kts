@@ -13,10 +13,12 @@ fun env(name: String): String? = System.getenv(name)?.takeIf { it.isNotBlank() }
 
 val keystore = env("TSUNDOKU_TV_KEYSTORE")?.let(::file)
 val keystorePassword = env("TSUNDOKU_TV_KEYSTORE_PASSWORD")
-val keyAlias = env("TSUNDOKU_TV_KEY_ALIAS")
-val keyPassword = env("TSUNDOKU_TV_KEY_PASSWORD")
+// Not named keyAlias / keyPassword: inside create("release") {} those names
+// are the SigningConfig's own (empty) properties, and would shadow these.
+val tvKeyAlias = env("TSUNDOKU_TV_KEY_ALIAS")
+val tvKeyPassword = env("TSUNDOKU_TV_KEY_PASSWORD")
 val canSign =
-	keystore != null && keystore.isFile && keystorePassword != null && keyAlias != null && keyPassword != null
+	keystore != null && keystore.isFile && keystorePassword != null && tvKeyAlias != null && tvKeyPassword != null
 
 /** The release's date version, when the release script passes one. */
 val tvVersion: String =
@@ -41,8 +43,8 @@ android {
 			create("release") {
 				storeFile = keystore
 				storePassword = keystorePassword
-				this.keyAlias = keyAlias
-				this.keyPassword = keyPassword
+				keyAlias = tvKeyAlias
+				keyPassword = tvKeyPassword
 			}
 		}
 	}
