@@ -80,3 +80,47 @@ test('a series moves to another entry, keeps what it lacks and adds what it has,
 	await expect(page.locator('.entry', { has: page.locator('.num:text-is("2.5")') })).toBeVisible();
 	await expect(panel.getByText('SOURCE', { exact: true })).toBeVisible();
 });
+
+/**
+ * The move page's frame (doc/MOVE.md; HANDOFF.md, "Verify what eyes cannot"):
+ * the candidates' 440px column beside the comparison at 1280, one column below
+ * 1024 where the comparison is its own screen, and the hand-set heights the
+ * mock draws. Asserted so a later tidy-up can't round them onto a ladder that
+ * was never there.
+ */
+test('its frame is two panes at 1280 and one below 1024, at the handoff’s measurements', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await openSeries(page);
+	await page
+		.getByRole('region', { name: 'About this series' })
+		.getByRole('link', { name: 'MOVE →' })
+		.click();
+	await expect(page).toHaveURL(/\/series\/\d+\/move/);
+	await page.locator('a.cand', { hasText: 'Movenberg Heir (new)' }).click();
+	await expect(page.locator('.confirm')).toBeVisible();
+
+	const style = (selector: string, prop: string) =>
+		page
+			.locator(selector)
+			.first()
+			.evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), prop);
+	expect(await style('.cands', 'width')).toBe('440px');
+	expect(await style('.mv', 'flex-direction')).toBe('row');
+	expect(await style('.box', 'height')).toBe('52px');
+	expect(await style('.confirm', 'height')).toBe('72px');
+	expect(await style('.what .lb', 'width')).toBe('112px');
+	// The number map's rows are 48px at least, the mock's own height.
+	const mapRow = await page
+		.locator('.blk.map .mr')
+		.first()
+		.evaluate((el) => el.getBoundingClientRect().height);
+	expect(mapRow).toBeGreaterThanOrEqual(48);
+
+	// The tablet portrait and the phone: one pane, the comparison its own screen.
+	await page.setViewportSize({ width: 800, height: 1280 });
+	expect(await style('.mv', 'flex-direction')).toBe('column');
+	await expect(page.locator('.cmp')).toBeVisible();
+	await expect(page.locator('.cands')).toBeHidden();
+});
