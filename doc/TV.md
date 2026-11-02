@@ -65,9 +65,10 @@ start but was drawn for fingers.
   volume, F, M, C, S, N, ?
   (`src/routes/read/[entry]/VideoPlayer.svelte`).
 - The image reader turns pages on the arrows and PageUp/PageDown; OK shows its
-  chrome, whose cells the pad then walks (c241), OK held or MENU opens the page
-  menu, BACK closes the menu, then the chrome, then leaves
-  (`ImageReader.svelte`).
+  chrome, whose cells the pad then walks (c241), BACK hides the chrome, then
+  leaves. With the chrome hidden, OK held or MENU opens the page menu — with
+  it up the pad takes OK and MENU for the focused cell, so the menu is the
+  chrome-hidden dialog ([`READER.md`](READER.md)) (`ImageReader.svelte`).
 - Back walks history and the library restores its place
   ([`NAVIGATION.md`](NAVIGATION.md)).
 - Serving to the home network and pairing ([`WIFI.md`](WIFI.md)), over plain
@@ -412,10 +413,12 @@ decisions (`isBackKey`, `isOptionsKey`, `OkPress`) and `layer.ts` wires them;
 - **A remote's media keys**, on every device: ▶❚❚ plays or pauses, ⏩ ⏪ seek
   10 s with the flash, ⏭ ⏮ the next and the previous episode. On the library,
   ▶❚❚ on a focused CONTINUE card resumes it rather than opening its series.
-- **The reader**: OK shows its chrome (Enter did nothing there before), OK held
-  or MENU opens the page menu for the page in the middle of the screen (in a
-  spread, the one a turn leaves behind), BACK closes the menu, then the chrome,
-  then leaves. A keyboard's Escape is still the chrome's own toggle, as it was
+- **The reader**: OK shows its chrome (Enter did nothing there before). With the
+  chrome hidden, OK held or MENU opens the page menu for the page in the middle
+  of the screen (in a spread, the one a turn leaves behind); with the chrome up
+  the pad takes OK and MENU for the focused cell, so the menu is reachable
+  again once BACK hides the chrome. BACK closes the menu, then the chrome, then
+  leaves. A keyboard's Escape is still the chrome's own toggle, as it was
   ([`READER.md`](READER.md)); a remote's BACK is the app's, and leaves. The page
   menu is a 420px panel from the right on a TV, and the page it means is framed
   in ink rather than the accent. The end page is the reader's other focusable
