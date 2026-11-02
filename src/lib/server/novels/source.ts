@@ -51,8 +51,13 @@ function plugin(sourceId: string): InstalledPlugin {
 
 export class NovelSourceError extends Error {}
 
-/** A minute for a list, as the host's own timeout; a novel's chapters can take several pages. */
-const call = <T>(p: InstalledPlugin, method: string, args: unknown[], timeoutMs?: number) =>
+/**
+ * A minute is enough for a list; two when the first request meets a site's
+ * check, which the app solves (20-45 s, doc/EXTENSION-ENGINE.md) before the
+ * host retries with the clearance (c152). A novel's chapters can take several
+ * pages on top.
+ */
+const call = <T>(p: InstalledPlugin, method: string, args: unknown[], timeoutMs = 120_000) =>
 	novelHost().call<T>(p.file, method, args, timeoutMs);
 
 /**

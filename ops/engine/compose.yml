@@ -40,8 +40,14 @@ services:
     image: ghcr.io/flaresolverr/flaresolverr:v3.4.6
     container_name: tsundoku-flaresolverr
     restart: 'no'
-    # Not published: only the engine reaches it, as http://flaresolverr:8191/v1,
-    # which tsundoku sends as each call's cf-proxy-url.
+    # The engine reaches it on the compose network, as http://flaresolverr:8191/v1,
+    # which tsundoku sends as each call's cf-proxy-url. The app itself now solves
+    # a novel plugin's check too (doc/NOVELS.md, card c152), and it runs on the
+    # host, not in this network: publish the solver to 127.0.0.1 only, on 8193,
+    # never 8191, which the live release's own solver holds. A dev .env sets
+    # NOVEL_SOLVER_URL=http://127.0.0.1:8193/v1 for it.
+    ports:
+      - 127.0.0.1:8193:8191
     environment:
       TZ: America/Cuiaba
       LOG_LEVEL: info

@@ -12,6 +12,7 @@ import {
 	type NovelListing
 } from '../../library/lnreader-index.ts';
 import { NovelHost } from './host.ts';
+import { solveChallenge } from './solver.ts';
 import { dataPaths } from '../data-dirs.ts';
 import { NO_EXT_FILTERS, searchMatches, type ExtFilters } from '../../library/ext-filters.ts';
 
@@ -31,9 +32,13 @@ const storeDir = () => dataPaths().novelStore;
 export const pluginPath = (hash: string) => join(storeDir(), `${hash}.js`);
 
 let host: NovelHost | null = null;
-/** The one plugin host, reading this store. */
+/**
+ * The one plugin host, reading this store. A site's browser check is solved
+ * by the app, never by the host: it refuses local addresses, and a solver is
+ * one (novels/solver.ts; card c152).
+ */
 export function novelHost(): NovelHost {
-	host ??= new NovelHost({ store: storeDir() });
+	host ??= new NovelHost({ store: storeDir(), solve: solveChallenge });
 	return host;
 }
 
