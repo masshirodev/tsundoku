@@ -44,6 +44,8 @@
 	import { offline } from '$lib/offline.svelte';
 	import { keepEpisodesAhead } from '$lib/cache/device';
 	import { SvelteSet } from 'svelte/reactivity';
+	import { tv } from '$lib/device.svelte';
+	import { focusScope, registerBack } from '$lib/focus';
 
 	/**
 	 * The player (doc/ANIME.md, "The player"; card c156): Index Player, Player
@@ -241,6 +243,27 @@
 		if (!paused && !sheet)
 			hideTimer = setTimeout(() => (chrome = false), mouse ? HIDE_MOUSE_MS : HIDE_TOUCH_MS);
 	}
+
+	// BACK (c235): the panel, then the bar, then the series -- which is the
+	// screen's own Escape below, so the last step is not this function's.
+	$effect(() =>
+		registerBack(() => {
+			if (keysOpen) {
+				keysOpen = false;
+				return true;
+			}
+			if (sheet) {
+				sheet = false;
+				return true;
+			}
+			if (chrome && phase === 'playing') {
+				chrome = false;
+				clearTimeout(hideTimer);
+				return true;
+			}
+			return false;
+		})
+	);
 
 	const inIntro = $derived(
 		!!streams?.intro && time >= streams.intro.start && time < streams.intro.end
@@ -725,11 +748,58 @@
 	}
 
 	function keydown(e: KeyboardEvent) {
+		// A TV's remote sends these (doc/TV.md), and they are harmless where
+		// nothing does: the same verb as the control it names, on every device.
+		const media =
+			e.key === 'MediaPlayPause'
+				? 'toggle'
+				: e.key === 'MediaFastForward'
+					? 'forward'
+					: e.key === 'MediaRewind'
+						? 'back'
+						: e.key === 'MediaTrackNext'
+							? 'next'
+							: e.key === 'MediaTrackPrevious'
+								? 'prev'
+								: null;
+		if (media) {
+			e.preventDefault();
+			if (media === 'toggle') toggle();
+			else if (media === 'forward') {
+				seek(10);
+				seekFlash = { by: 10, to: time };
+				clearTimeout(flashTimer);
+				flashTimer = setTimeout(() => (seekFlash = null), 900);
+				showChrome();
+			} else if (media === 'back') {
+				seek(-10);
+				seekFlash = { by: -10, to: time };
+				clearTimeout(flashTimer);
+				flashTimer = setTimeout(() => (seekFlash = null), 900);
+				showChrome();
+			} else if (media === 'next' && next && playable(next)) playNext();
+			else if (media === 'prev' && prev) playPrev();
+			return;
+		}
+
 		if (keysOpen || sheet) {
 			if (e.key === 'Escape') keysOpen = sheet = false;
 			return;
 		}
 		const k = e.key;
+		// On a TV the picture is the interface (TV-Board-Player 6A): OK, ↑ or ↓
+		// shows the bar, and OK skips the intro while it is offered alone.
+		if (tv.current && !chrome && (k === 'Enter' || k === 'ArrowUp' || k === 'ArrowDown')) {
+			e.preventDefault();
+			if (k === 'Enter' && skip && skipAlone) skipNow();
+			else {
+				// 6A/6B: the key brings the bar and puts focus on ▶❚❚, so the next
+				// press is the one that acts.
+				showChrome();
+				barStart()?.focus();
+			}
+			return;
+		}
 		if (k === ' ') toggle();
 		else if (k === 'ArrowLeft') seek(-10);
 		else if (k === 'ArrowRight') seek(10);
@@ -783,6 +853,8 @@
 	}
 
 	let root = $state<HTMLElement | null>(null);
+	/** The bar's own start: ▶❚❚ (TV-Focus, "PLAYER"). */
+	const barStart = () => root?.querySelector<HTMLElement>('.cells [data-focus-start]') ?? null;
 	async function full() {
 		try {
 			if (document.fullscreenElement) await document.exitFullscreen();
@@ -858,7 +930,7 @@
 	class:chrome
 	bind:this={root}
 	role="presentation"
-	data-focus-off
+	data-focus-off={!tv.current || (phase === 'playing' && !chrome) ? '' : undefined}
 	onpointermove={pointerMoved}
 >
 	<div class="stage">
@@ -1060,8 +1132,23 @@
 					type="button"
 					class="cell desk pause"
 					aria-label={paused ? 'Play' : 'Pause'}
+					data-focus-start
 					onclick={toggle}
 					>{#if paused}▶{:else}<i></i><i></i>{/if}</button
+				>
+				<!-- A TV's bar, its six cells on one row (TV-Board-Player 6B). They are
+				     hidden elsewhere: there, the cluster in the middle is the thumb's. -->
+				<button
+					type="button"
+					class="cell tv"
+					aria-label="Back 10 seconds"
+					onclick={() => (seek(-10), showChrome())}>−10</button
+				>
+				<button
+					type="button"
+					class="cell tv"
+					aria-label="On 10 seconds"
+					onclick={() => (seek(10), showChrome())}>+10</button
 				>
 				<button type="button" class="cell" disabled={!prev} onclick={playPrev}
 					>{prev ? `← ${epShort(prev)}` : '←'}</button
@@ -1187,7 +1274,7 @@
 			aria-label="Close the settings"
 			onclick={() => (sheet = false)}
 		></button>
-		<div class="sheet appear" role="dialog" aria-label="Playback settings">
+		<div class="sheet appear" role="dialog" aria-label="Playback settings" use:focusScope>
 			<div class="shead">
 				<div>PLAYBACK · {epShort(ep)}</div>
 				<button type="button" aria-label="Close" onclick={() => (sheet = false)}>✕</button>
@@ -1198,8 +1285,11 @@
 					<div class="val">
 						<div class="seg">
 							{#each server?.qualities ?? [] as q, i (q.src)}
-								<button type="button" class:on={i === qualityIndex} onclick={() => setQuality(i)}
-									>{qualityName(q)}</button
+								<button
+									type="button"
+									class:on={i === qualityIndex}
+									data-focus-start={i === 0 ? '' : undefined}
+									onclick={() => setQuality(i)}>{qualityName(q)}</button
 								>
 							{/each}
 						</div>
@@ -1960,6 +2050,10 @@
 	.desk {
 		display: none;
 	}
+	/* The TV's own two cells: `−10` and `+10`, beside ▶❚❚ (TV-Board-Player 6B). */
+	.cell.tv {
+		display: none;
+	}
 	@media (pointer: fine) and (min-height: 500px) {
 		.desk {
 			display: flex;
@@ -1972,91 +2066,6 @@
 		.cell {
 			font-size: 13px;
 		}
-	}
-	.bottom {
-		position: absolute;
-		left: 0;
-		right: 0;
-		bottom: 0;
-		background: var(--surface-page);
-		border-top: var(--hairline);
-		display: flex;
-		flex-direction: column;
-	}
-	.scrubrow {
-		display: flex;
-		align-items: center;
-		gap: 18px;
-		height: var(--scrub-h);
-		padding: 0 var(--pad-x);
-	}
-	.scrubrow .e {
-		font: 500 13px var(--font-mono);
-		min-width: 44px;
-	}
-	.scrubrow .l {
-		font: 500 13px var(--font-mono);
-		color: var(--text-2);
-		min-width: 52px;
-		text-align: right;
-	}
-	.track {
-		position: relative;
-		flex: 1;
-		height: 4px;
-		background: var(--line-1);
-		touch-action: none;
-		cursor: pointer;
-	}
-	.track::before {
-		/* A finger's worth of target around a 4px line. */
-		content: '';
-		position: absolute;
-		inset: -14px 0;
-	}
-	.track .buf,
-	.track .seen {
-		position: absolute;
-		left: 0;
-		top: 0;
-		height: 4px;
-		/* Seen over video: line-2 on line-1 wasn't (reported 2026-10-29). */
-		background: var(--text-2);
-	}
-	.track .seen {
-		background: var(--accent);
-	}
-	.track .tick {
-		position: absolute;
-		top: -9px;
-		width: 1px;
-		height: 22px;
-		background: var(--text-2);
-	}
-	.track .thumb {
-		position: absolute;
-		top: -10px;
-		width: 4px;
-		height: 24px;
-		margin-left: -2px;
-		background: var(--text-1);
-	}
-	.track .hover {
-		position: absolute;
-		top: -10px;
-		width: 1px;
-		height: 24px;
-		background: var(--text-2);
-	}
-	.track .tip {
-		position: absolute;
-		bottom: 22px;
-		transform: translateX(-50%);
-		padding: 6px 10px;
-		background: var(--surface-inverse);
-		color: var(--text-inverse);
-		font: 500 13px var(--font-mono);
-		pointer-events: none;
 	}
 	.cells {
 		display: flex;
@@ -2677,5 +2686,149 @@
 		border: 2px dashed var(--line-2);
 		pointer-events: none;
 		z-index: 10;
+	}
+
+	.bottom {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
+		background: var(--surface-page);
+		border-top: var(--hairline);
+		display: flex;
+		flex-direction: column;
+	}
+	.scrubrow {
+		display: flex;
+		align-items: center;
+		gap: 18px;
+		height: var(--scrub-h);
+		padding: 0 var(--pad-x);
+	}
+	.scrubrow .e {
+		font: 500 13px var(--font-mono);
+		min-width: 44px;
+	}
+	.scrubrow .l {
+		font: 500 13px var(--font-mono);
+		color: var(--text-2);
+		min-width: 52px;
+		text-align: right;
+	}
+	.track {
+		position: relative;
+		flex: 1;
+		height: 4px;
+		background: var(--line-1);
+		touch-action: none;
+		cursor: pointer;
+	}
+	.track::before {
+		/* A finger's worth of target around a 4px line. */
+		content: '';
+		position: absolute;
+		inset: -14px 0;
+	}
+	.track .buf,
+	.track .seen {
+		position: absolute;
+		left: 0;
+		top: 0;
+		height: 4px;
+		/* Seen over video: line-2 on line-1 wasn't (reported 2026-10-29). */
+		background: var(--text-2);
+	}
+	.track .seen {
+		background: var(--accent);
+	}
+	.track .tick {
+		position: absolute;
+		top: -9px;
+		width: 1px;
+		height: 22px;
+		background: var(--text-2);
+	}
+	.track .thumb {
+		position: absolute;
+		top: -10px;
+		width: 4px;
+		height: 24px;
+		margin-left: -2px;
+		background: var(--text-1);
+	}
+	.track .hover {
+		position: absolute;
+		top: -10px;
+		width: 1px;
+		height: 24px;
+		background: var(--text-2);
+	}
+	.track .tip {
+		position: absolute;
+		bottom: 22px;
+		transform: translateX(-50%);
+		padding: 6px 10px;
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+		font: 500 13px var(--font-mono);
+		pointer-events: none;
+	}
+	/*
+	 * The settings panel on a TV (c235): the 420px panel every sheet is there
+	 * (c238), with the picture playing at the left, its scrim stopping where
+	 * the panel starts (TV-Player 6E).
+	 */
+	@media (pointer: none) and (min-width: 900px) {
+		.scrim {
+			right: var(--tv-panel-w);
+		}
+		.sheet {
+			width: var(--tv-panel-w);
+			max-width: var(--tv-panel-w);
+		}
+	}
+	/*
+	 * The player on a TV (c235; TV-Player): the safe margin applies to both
+	 * bars, the scrubber is 60px over 56px cells, and the six cells are one
+	 * closed row. The middle cluster is the thumb's -- on a TV, the picture is
+	 * the interface until a key (6A), and then the bar is everything (6B).
+	 */
+	@media (pointer: none) and (min-width: 900px) {
+		.player {
+			--top-h: 56px;
+			--scrub-h: 60px;
+			--cell-h: 56px;
+			--pad-x: 48px;
+		}
+		.top {
+			top: var(--safe-y);
+		}
+		.bottom {
+			bottom: var(--safe-y);
+		}
+		.cluster {
+			display: none;
+		}
+		.cells .pause,
+		.cells .cell.tv {
+			display: flex;
+			flex: 0 0 76px;
+			padding: 0;
+		}
+		.cells .grow {
+			flex: 1 1 auto;
+		}
+		.skip {
+			right: var(--pad);
+			bottom: calc(var(--safe-y) + 24px);
+		}
+		.player.chrome .skip {
+			right: var(--pad);
+			bottom: calc(var(--safe-y) + var(--scrub-h) + var(--cell-h) + 1px + 24px);
+		}
+		.endcard {
+			right: var(--pad);
+			bottom: calc(var(--safe-y) + var(--scrub-h) + var(--cell-h) + 24px);
+		}
 	}
 </style>

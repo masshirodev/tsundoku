@@ -1666,7 +1666,7 @@
 	class="reader"
 	class:vertical={mode === 'vertical'}
 	class:incognito={data.incognito}
-	data-focus-off
+	data-focus-off={atEnd ? undefined : ''}
 >
 	{#if !data.manifest}
 		<div class="missing">
