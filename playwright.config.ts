@@ -33,6 +33,8 @@ const DEVICE_IGNORE = [
 	'**/friend-*.e2e.ts',
 	'**/*-flow.e2e.ts',
 	'**/library-frame.e2e.ts',
+	// The TV's own specs run in the `tv` project, whose Chromium has no pointer.
+	'**/tv-*.e2e.ts',
 	// SETTINGS' frame is its tablet-portrait screen; the other devices are in settings-flow.
 	'**/settings-frame.e2e.ts',
 	// GET STARTED's and HELP's frames are pinned at tablet-portrait too (doc/ONBOARDING.md, doc/HELP.md).
@@ -109,7 +111,9 @@ export default defineConfig({
 				'**/unlock-gate.e2e.ts',
 				'**/duplicates-flow.e2e.ts',
 				'**/browse-*.e2e.ts',
-				'**/friend-*.e2e.ts'
+				'**/friend-*.e2e.ts',
+				// The TV's own specs run in the `tv` project, whose Chromium has no pointer.
+				'**/tv-*.e2e.ts'
 			],
 			use: { ...devices['Galaxy Tab S4'], viewport: { width: 800, height: 1280 } }
 		},

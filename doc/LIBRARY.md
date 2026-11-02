@@ -2,7 +2,7 @@
 
 The screen tsundoku opens on, built from the "Index" design system (see
 [`design/README.md`](design/README.md)) against `Index Library.dc.html`, all nine
-states on all four devices.
+states on all four devices, and the ten-foot layout on a TV ([`TV.md`](TV.md)).
 
 Routes: `/` (the library, with `?shelf=`, `?tag=`, `?sort=`, `?dir=`), `/search?q=`, and
 `/api/series/[id]` (what the long-press sheet reads).

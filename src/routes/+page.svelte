@@ -1648,7 +1648,12 @@
 			display: none;
 		}
 		.search-hint {
-			font-size: 17px;
+			gap: 10px;
+			justify-content: flex-start;
+			padding: 0 22px;
+			font: 400 17px/1.2 var(--font-mono);
+			/* The handoff's computed 0.32px, transcribed as the extraction reads it. */
+			letter-spacing: 0.32px;
 		}
 		/* CONTINUE: three cards across, 288x120, inside the safe margin. */
 		.cont {

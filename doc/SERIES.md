@@ -26,7 +26,9 @@ library's sheet.
 
 Like the library, the frame is CSS media queries, so the server's first paint
 is already right for the device. `tests/series-layout.e2e.ts` pins the panel
-width, row height (60 / 52px) and rail width (56 / 44px) per device.
+width, row height (60 / 52px) and rail width (56 / 44px) per device. On a TV
+the panel is 352px beside the list, rows are 56px and the rail stays 56px
+([`TV.md`](TV.md)).
 
 ## What drives each state
 

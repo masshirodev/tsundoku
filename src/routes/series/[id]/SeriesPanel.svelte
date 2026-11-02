@@ -1788,6 +1788,9 @@
 			gap: 16px;
 			padding: 16px 0;
 		}
+		.names {
+			gap: 8px;
+		}
 		h1 {
 			font-size: 22px;
 		}
@@ -1797,7 +1800,10 @@
 		/* CONTINUE, the one accent block: 64px, focused on arrival. */
 		.cta {
 			margin-top: 16px;
+			padding: 0 20px;
+			gap: 14px;
 			font: var(--type-control);
+			letter-spacing: 0.02em;
 		}
 		/* The rows under it are one ruled block, 56px a row. */
 		.row {

@@ -1,12 +1,12 @@
 # tsundoku on a TV
 
-Status (2026-11-01): **designed; the focus layer is built (c234), the rest is
-not.** The handoff is mirrored in `doc/design/handoff/TV*` (see "The design",
-below). Parent card c231 ("Android TV: tsundoku from the couch, with a
-remote") on the Tsundoku board; every card for it carries the `TV` label.
-[`FOCUS.md`](FOCUS.md) is the layer that ships: arrows moving focus by
-direction, a sheet as a scope, and the one focus mark. The TV media query, the
-TV sizes and the remote's own screens are still to come (c235, c238).
+Status (2026-11-01): **the focus layer (c234) and the ten-foot layout (c238)
+are built; the remote's long-press options, BACK climbing and the player's bar
+(c235) and the Android app (c236) are not.** The handoff is mirrored in
+`doc/design/handoff/TV*` (see "The design", below). Parent card c231 ("Android
+TV: tsundoku from the couch, with a remote") on the Tsundoku board; every card
+for it carries the `TV` label. [`FOCUS.md`](FOCUS.md) is the D-pad layer;
+"What is built" below is the layout it runs in.
 
 ## Why
 
@@ -47,13 +47,14 @@ start but was drawn for fingers.
 
 ## The work
 
-| Card | What                                                          | Waits on   |
-| ---- | ------------------------------------------------------------- | ---------- |
-| c232 | How the TV reaches the server, and signs in without a camera  | the owner  |
-| c233 | The ten-foot design, from [`briefs/TV.md`](briefs/TV.md)      | the design |
-| c234 | D-pad focus: moving by direction, and focus you can see       | nothing    |
-| c235 | The remote's way into long-press sheets; the player on screen | c233       |
-| c236 | The Android TV app, a Kotlin WebView wrapper                  | c232       |
+| Card | What                                                            | Waits on   |
+| ---- | --------------------------------------------------------------- | ---------- |
+| c232 | How the TV reaches the server, and signs in without a camera    | the owner  |
+| c233 | The ten-foot design, from [`briefs/TV.md`](briefs/TV.md)        | the design |
+| c234 | D-pad focus: moving by direction, and focus you can see         | nothing    |
+| c235 | The remote's way into long-press sheets; the player on screen   | c233       |
+| c236 | The Android TV app, a Kotlin WebView wrapper                    | c232       |
+| c238 | The ten-foot layout: the query, library, series, reader, search | c234       |
 
 ### Why a wrapper app, not the browser
 
@@ -129,11 +130,111 @@ The handoff states these about the code or the app; they're not verified yet:
   code in a link and no limit on attempts. Six digits is a million guesses,
   so a typed code needs attempt limiting and expiry before it ships.
 
+## What is built (c238)
+
+- **The query.** `(pointer: none) and (min-width: 900px)`, last in
+  `src/lib/styles/layout.css`; `TV` in `src/lib/device.svelte.ts`, and `WIDE`
+  now excludes it so a 1280-wide TV is not also the wide layout. The TV block
+  sets the safe margin (48 px sides, 28 px top and bottom), a 56 px header and
+  tab row, six columns, CONTINUE three across, a 56 px target, 420 px panels,
+  a 520 px strip, a 64 px focus line and the handoff's type scale (15 px
+  floor, controls 17, rows 20, titles 28/36) through the `--type-*` tokens.
+  `src/lib/styles/tv.css` holds what more than one screen reads, and the
+  reveal frame's inset.
+- **Focus.** The layer is c234's; this card gives it the focus line and the
+  rating row. A tile carries `data-focus-line`, its name, its meta and its
+  rating; `src/lib/components/content/FocusLine.svelte` follows focus and
+  draws the 64 px bar under the pinned tabs (name, kind and counts, rating
+  bars, `OK OPEN`, `HOLD OK OPTIONS`). It exists only on a TV.
+- **The library.** Top bar under the safe top, no sidebar, no SELECT. CONTINUE
+  is three 288×120 cards, each one button (the ▶ cell becomes the overlay, the
+  mark is drawn inside the card). The shelf tabs pin; a focus line under them
+  pins with them. The grid is six 144 px cells inside the safe margin; a tile
+  is its cover, its badges and nothing else -- a coverless book sets its title
+  on the stripes. The sort menu stays in the section label.
+- **The series screen.** The metadata is a 352 px column at the left, with
+  ▶ CONTINUE 64 px tall and focused on arrival; the chapter or episode list
+  sits 32 px beside it with 56 px rows and its scrub rail. RATING keeps ← →:
+  `data-focus-adjust` tells the focus layer (`src/lib/focus/dom.ts`) that a
+  left or right moves its value by half a bar and ↑ ↓ leave. FAV and the rest
+  of the actions are still the panel's ruled rows (see Departures).
+- **Panels.** Every `Sheet` is a 420 px panel from the right, full height,
+  with the strong rule on its left edge; the screen it opened over stays in
+  view at the left. The scrim is still the whole screen.
+- **The reader.** Spreads are the default on a TV only (a stored choice still
+  wins), the cover stands alone as everywhere, and the vertical strip is 520 px
+  at any zoom, centred. The reader's chrome and its panels are unchanged in
+  size; the READING panel is a 420 px panel now because it is a `Sheet`.
+- **Search.** The field is the top bar under the safe top; results are three
+  cards across inside the safe margin, a 114 px row, in the top half so
+  Android's keyboard can take the bottom. `/reveal` on a TV says "NOT ON A TV ·
+  TURN REVEAL ON FROM THE COMPUTER" instead of asking for a ceremony.
+- **Reveal.** The frame is drawn 6 px wide, 20 px in from the sides and 14 from
+  the top and bottom, so overscan cannot crop it; the banner is inside the safe
+  top. Turning reveal on is the computer's job.
+- **Tests.** A `tv` Playwright project at 960×540 with no pointer and no hover
+  (Chromium's `--blink-settings=availablePointerTypes=none,availableHoverTypes=none`;
+  `tests/tv-layout.e2e.ts` proves the query and the variables, so the launch
+  configuration cannot rot silently). `library-layout`, `series-layout` and
+  `reader-layout`'s device tables gained a `tv` row; `tests/tv-screens`,
+  `tv-reader` and `tv-series` cover the focus line, the panel, search, reveal,
+  spreads and the rating keys. `tests/tv-library-frame.e2e.ts` and
+  `tests/tv-series-frame.e2e.ts` are generated by
+  `design-tools/gen-conformance.mjs` from `TV-Library.dc.html` and
+  `TV-Series.dc.html`.
+
+### Departures from the handoff (c238)
+
+- **The series' actions are not the mock's 3×2 grid.** `SeriesPanel`'s order is
+  identity, the blocky rating slider with FAV, CONTINUE, then the DOWNLOAD,
+  direction, SHELVES, TAGS, LINK, ABOUT and FILE rows. The handoff draws
+  RATING / FAV / SHELVES / DOWNLOAD / FOLLOW as one closed 3-column block
+  under CONTINUE. Rebuilding that block is a restructuring of a file card c139
+  is editing; the rows are already a ruled block and every action is there, so
+  the screen keeps them. (The rating row is `data-focus-adjust`, so ← → work.)
+- **The list keeps its scrub rail.** The handoff's list has no rail; the real
+  one has had a rail since the series handoff, and it is 56 px of a 480 px
+  column here. It stays.
+- **The CONTINUE card is a grid, not the mock's flex row.** The cover is one
+  column and the progress bar spans under the title, which the mock's flat
+  button could only draw because its bar was inside the text column. The
+  measurements (288×120, 72 px cover, 8/14 padding) are the handoff's.
+- **The tab row and the grid are inset from the screen edge.** The handoff's
+  safe margin is real (48 px each side), but backgrounds and hairlines there run
+  to the screen edge only on the top bar; the tab row and the grid stop at the
+  safe margin. The bar's rule is full width because the margin is on the bar,
+  not on the page.
+- **The status bars are 56 px but the type is the TV's.** `--header-h` is 56
+  and the cells are `--type-control` (17); the wordmark keeps its 18 px because
+  it is typeset to the system's own size.
+- **A visible sheet dims the whole screen.** The design's boards keep the
+  screen visible at the left; the scrim covers it, as the sheet always has.
+  The reader's own panel keeps its lighter scrim where it already did.
+- **The right-hand `FILTER` cell still opens the existing filter panel,** not a
+  420 px panel; the panel is only a `Sheet` where it already was one. Its
+  width at TV size is the tablet's, unchanged.
+
+## What it does not do yet
+
+- **The D-pad's advertised verbs.** `HOLD OK · OPTIONS` is drawn on the focus
+  line, but a held OK and MENU do nothing yet: that is c235, with BACK
+  climbing to the shelf's tab and then CONTINUE. On a TV today the tile's
+  options are the long-press sheet once c235 lands; the rating and FAV are on
+  the tile's panel, not the tile.
+- **The player.** Its six-cell bar, the settings panel, SKIP INTRO and the
+  picture-until-a-key behaviour are c235. The reader's chrome is the tablet's,
+  at 64/56/64; only its panels follow the 420 px rule.
+- **Pairing.** Nothing is drawn for 9A–9E or the six-digit code: c236, with the
+  TV app.
+- **HISTORY, SETTINGS, BROWSE, DOWNLOADS, the person page, HELP and the rest**
+  get the query's type scale and 420 px panels, but no layout of their own.
+  HISTORY is the one the handoff names as likely to want one.
+
 ### Still open
 
-- **Turning reveal on from a TV**: no fingerprint, no screen lock. The
-  owner's call (not at all, a code confirmed on the phone, or only from the
-  computer).
+- **Turning reveal on from a TV**: settled on 2026-11-01 -- it cannot be done
+  from a TV (no fingerprint, no screen lock); `/reveal` says so and the
+  computer turns it on.
 - **How the TV reaches the server** (c232): the pairing drawn is option A,
   but the card still waits on the owner.
 - **HISTORY** may want a TV layout of its own later; drawn as is.
