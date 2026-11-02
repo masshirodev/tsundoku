@@ -718,5 +718,55 @@
 		}
 	],
 	"series_refresh_detail": "NOTHING DOWNLOADED · NEXT OR ALL KEEPS THEM",
-	"series_refresh_no_source": "THIS SERIES ISN’T FROM A SOURCE"
+	"series_refresh_no_source": "THIS SERIES ISN’T FROM A SOURCE",
+	"library_refresh": "REFRESH",
+	"library_refresh_asked": "{n} ASKED · {found} FOUND SOMETHING",
+	"library_refresh_nothing": "NOTHING TO ASK",
+	"library_refresh_all_answered": "ALL ANSWERED",
+	"library_refresh_skipped": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} SKIPPED",
+				"countPlural=*": "{n} SKIPPED"
+			}
+		}
+	],
+	"library_refresh_skipped_all": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} SKIPPED · NO SOURCE",
+				"countPlural=*": "{n} SKIPPED · NO SOURCE"
+			}
+		}
+	],
+	"library_refresh_failed": [
+		{
+			"declarations": [
+				"input count",
+				"input n",
+				"input titles",
+				"local countPlural = count: plural"
+			],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} FAILED · {titles}",
+				"countPlural=*": "{n} FAILED · {titles}"
+			}
+		}
+	],
+	"library_refresh_not_asked": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} NOT ASKED",
+				"countPlural=*": "{n} NOT ASKED"
+			}
+		}
+	],
+	"library_refresh_more": "ASK {n} MORE"
 }

@@ -31,6 +31,8 @@ let fake: Server | null = null;
 let down = false;
 /** The source lists a 31st chapter after this: REFRESH's test (c220). */
 let grow = false;
+/** And a 32nd, for REFRESH over a selection (c221), which runs after it. */
+let grow32 = false;
 const ids = { linden: 0, hidden: 0, bato: 0 };
 /** Lindenborough's entry ids by chapter number. */
 const ch: Record<number, number> = {};
@@ -89,7 +91,7 @@ function startFake(): Promise<void> {
 						thumbnail_url: null
 					});
 				case 'getChapterList':
-					return json(chapters(url, url === '/manga/side' ? 12 : grow ? 31 : 30));
+					return json(chapters(url, url === '/manga/side' ? 12 : grow32 ? 32 : grow ? 31 : 30));
 				case 'getPageList':
 					// Nothing is ever downloaded here: the queue is the subject.
 					return res.writeHead(500).end(JSON.stringify({ error: 'fake: no pages' }));
@@ -595,6 +597,47 @@ test('REFRESH asks the source once, adds what is new, and downloads nothing (c22
 	// In the list it is, read from the screen as well as the database.
 	await expect(page.locator(`#entry-${added!.id}`)).toBeVisible();
 	grow = false;
+});
+
+test('REFRESH in the bulk bar asks the selection’s sources once, and downloads nothing (c221)', async ({
+	page
+}) => {
+	await page.goto('/?sort=title');
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	const tile = (title: string) => page.locator('.grid .tile', { hasText: title });
+	await tile('Lindenborough Heir').click();
+	// A book with no source: skipped and counted, not refused (c221).
+	await tile('Hoshi no Umi no Tabibito').click();
+	await expect(page.getByText('2 SELECTED')).toBeVisible();
+
+	const refresh = page.getByRole('toolbar').getByRole('button', { name: 'REFRESH' });
+	const band = page.locator('.refresh-band');
+	await refresh.click();
+	// One source asked (it lists exactly what the library has), one item skipped.
+	await expect(band).toContainText('1 ASKED · 0 FOUND SOMETHING');
+	await expect(band).toContainText('ALL ANSWERED');
+	await expect(band).toContainText('1 SKIPPED');
+
+	// A 32nd chapter at the source: the next run makes it an entry, and queues nothing.
+	grow32 = true;
+	const queuedBefore = queued().size;
+	await refresh.click();
+	await expect(band).toContainText('1 ASKED · 1 FOUND SOMETHING');
+	const db = new Database(dbPath, { readonly: true });
+	const ch32 = db
+		.prepare(`SELECT label FROM entries WHERE series_id = ? AND label = 'Ch. 32'`)
+		.get(ids.linden) as { label: string } | undefined;
+	db.close();
+	expect(ch32).toMatchObject({ label: 'Ch. 32' });
+	// A look, not a fetch: FOLLOW stays the only thing that queues.
+	expect(queued().size).toBe(queuedBefore);
+	grow32 = false;
+
+	// A source that doesn't answer is one failure among the run, and the band says which.
+	down = true;
+	await refresh.click();
+	await expect(band).toContainText('1 FAILED · LINDENBOROUGH HEIR');
+	down = false;
 });
 
 test('the live stream gives a version, and nothing of a hidden series', async ({ page }) => {

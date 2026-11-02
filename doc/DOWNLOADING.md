@@ -220,7 +220,16 @@ A folder-scanned series has nothing to ask and doesn't offer it.
   in the library.
 - A refusal bands rather than errors: the source not answering is
   "… NOTHING CHANGED", as every refused action is.
-- Bulk checking (SELECT → REFRESH across many series) is not built yet.
+- **A selection refreshes too** (card c221). SELECT on the library, a tag or a
+  person page, then REFRESH in the bulk bar: every selected series that has a
+  source is asked once, through the same `refreshSeries`, and nothing is
+  downloaded. One run asks 24 (`REFRESH_BATCH`), and the band above the bar
+  says how many were asked, how many found something, which failed by name,
+  which were skipped for having no source, and how many are left — ASK N MORE
+  sends the rest. A source that throws or misses 30 s (`REFRESH_TIMEOUT_MS`) is
+  one failure among the rest. Hidden series are left out in SQL, and a
+  folder-scanned one is skipped, never refused ([`LIBRARY.md`](LIBRARY.md),
+  "REFRESH a selection").
 
 ## Live
 

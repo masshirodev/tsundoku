@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { m } from '$lib/paraglide/messages';
 	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
+	import Band from '$lib/components/chrome/Band.svelte';
 	import { backLink } from '$lib/back';
 	import { enhance } from '$app/forms';
+	import type { SubmitFunction } from '@sveltejs/kit';
 	import { beforeNavigate, goto, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { tick, untrack } from 'svelte';
@@ -71,7 +73,8 @@
 		sheetMeta
 	} from '$lib/library/labels';
 	import { coverSrc, readHref, seriesHref, shelfHref, withParam } from '$lib/library/links';
-	import type { Rating, SeriesCard, Shelf } from '$lib/library/types';
+	import { num, upper } from '$lib/i18n/format';
+	import type { Rating, RefreshBatch, SeriesCard, Shelf } from '$lib/library/types';
 	import { pageQuery } from '$lib/library/paging';
 	import type { Snapshot } from './$types';
 
@@ -407,6 +410,52 @@
 		return new Set(langs).size === langs.length ? langs.map(langCode) : null;
 	});
 	const foldMessage = $derived(form && 'foldMessage' in form ? String(form.foldMessage) : '');
+	/**
+	 * REFRESH's answer over the selection (card c221). It is the library's own
+	 * band, above the bar that asked, and it is replaced by the next run's: a
+	 * bulk answer belongs where the selection is, not on a series screen.
+	 */
+	const batch = $derived(form && 'refreshed' in form ? (form.refreshed as RefreshBatch) : null);
+	const batchTitle = $derived(
+		!batch
+			? ''
+			: batch.asked === 0
+				? m.library_refresh_nothing()
+				: m.library_refresh_asked({ n: num(batch.asked), found: num(batch.found) })
+	);
+	const batchDetail = $derived.by(() => {
+		if (!batch) return '';
+		const parts: string[] = [];
+		if (batch.failed.length > 0)
+			parts.push(
+				m.library_refresh_failed({
+					count: batch.failed.length,
+					n: num(batch.failed.length),
+					titles: batch.failed.map(upper).join(', ')
+				})
+			);
+		else if (batch.asked > 0) parts.push(m.library_refresh_all_answered());
+		if (batch.skipped > 0)
+			parts.push(
+				batch.asked === 0
+					? m.library_refresh_skipped_all({ count: batch.skipped, n: num(batch.skipped) })
+					: m.library_refresh_skipped({ count: batch.skipped, n: num(batch.skipped) })
+			);
+		if (batch.remaining.length > 0)
+			parts.push(
+				m.library_refresh_not_asked({
+					count: batch.remaining.length,
+					n: num(batch.remaining.length)
+				})
+			);
+		return parts.join(' · ');
+	});
+	/** The band's own submit: the rest of a selection the run was too full to ask. */
+	const batchAfter: SubmitFunction =
+		() =>
+		async ({ update }) => {
+			await update({ reset: false });
+		};
 	const allHidden = $derived(
 		selected.size > 0 && series.filter((s) => selected.has(s.id)).every((s) => s.hidden)
 	);
@@ -659,7 +708,7 @@
 
 <svelte:head><title>tsundoku</title></svelte:head>
 
-<div class="library" class:selecting>
+<div class="library" class:selecting class:has-band={!!batch}>
 	{#if modalOpen && offer}<UpdateModal {offer} onlater={snooze} />{/if}
 
 	{#if selecting}
@@ -1122,7 +1171,7 @@
 		{#if foldMessage}
 			<div class="fold-refused" role="status">{foldMessage}</div>
 		{/if}
-		<BulkBar columns={6}>
+		<BulkBar columns={7}>
 			{#snippet actions()}
 				<button type="submit" name="do" value="fav" disabled={selected.size === 0}>FAV</button>
 				<button type="button" disabled={selected.size === 0} onclick={() => (pickerOpen = true)}
@@ -1143,6 +1192,10 @@
 						>GROUP</button
 					>
 				{/if}
+				<!-- REFRESH (c221): asks each selected series' source once, and downloads nothing. -->
+				<button type="submit" formaction="?/refresh" disabled={selected.size === 0}
+					>{m.library_refresh()}</button
+				>
 				<!-- With reveal on and only hidden tiles selected, the same cell unhides them. -->
 				<button
 					type="submit"
@@ -1157,6 +1210,23 @@
 			{/snippet}
 		</BulkBar>
 	</form>
+	{#if batch}
+		<!-- REFRESH's answer (c221): pinned over the bar that asked, so it is read where it was pressed. -->
+		<div class="refresh-band">
+			<Band title={batchTitle} detail={batchDetail}>
+				{#snippet action()}
+					{#if batch.remaining.length > 0}
+						<form method="POST" action="?/refresh" use:enhance={batchAfter}>
+							{#each batch.remaining as id (id)}<input type="hidden" name="id" value={id} />{/each}
+							<button type="submit"
+								>{m.library_refresh_more({ n: num(batch.remaining.length) })}</button
+							>
+						</form>
+					{/if}
+				{/snippet}
+			</Band>
+		</div>
+	{/if}
 {/if}
 
 {#if newOpen}
@@ -1234,6 +1304,10 @@
 	/* Room for the pinned bulk bar: two 60px rows and the rule above them. */
 	.library.selecting {
 		padding-bottom: 122px;
+	}
+	/* And the extra row REFRESH's band takes above it (c221). */
+	.library.selecting.has-band {
+		padding-bottom: 182px;
 	}
 	.brand {
 		padding: 0 var(--pad);
@@ -1669,6 +1743,15 @@
 		border-top: var(--hairline);
 		font: 500 13px var(--font-mono);
 		color: var(--accent);
+	}
+
+	/* REFRESH's answer (c221), pinned over the bulk bar it came from. */
+	.refresh-band {
+		position: fixed;
+		left: var(--sheet-left, 0);
+		right: 0;
+		bottom: calc(121px + env(safe-area-inset-bottom));
+		z-index: 10;
 	}
 
 	/* ---- the TV (c238; TV-Library) ---------------------------------------- */

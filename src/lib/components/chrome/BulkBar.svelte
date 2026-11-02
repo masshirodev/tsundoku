@@ -66,4 +66,11 @@
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
 	}
+	/* REFRESH made it seven cells (c221); at the control size the widest no
+	   longer fits a phone's share of the width. */
+	@media (max-width: 480px) {
+		.actions > :global(*) {
+			font-size: 12px;
+		}
+	}
 </style>

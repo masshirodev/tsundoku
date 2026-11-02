@@ -186,7 +186,8 @@ guards keep it from matching everything:
   the library's FILTER panel, filtering on the device: rating, FAV, language,
   date added, downloaded, and hidden while reveal is on
   ([`FILTERS.md`](FILTERS.md)).
-- SELECT and the library's bulk bar work here. **GROUP** in the bulk bar is
+- SELECT and the library's bulk bar work here, REFRESH included (a book with no
+  source is skipped). **GROUP** in the bulk bar is
   offered only when every selected item is a singleton. Books already in a
   series can't be selected.
 
