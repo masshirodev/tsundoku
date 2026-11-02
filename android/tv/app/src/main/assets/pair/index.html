@@ -510,6 +510,13 @@
 				connectBox.hidden = true;
 				refusedBand.hidden = true;
 				screens.address.classList.remove('with-band');
+				// Every door into 9B starts clean: a probe a given address
+				// superseded (c260) must not leave NEXT disabled or its
+				// CHECKING line behind.
+				if (name === 'address') {
+					next.disabled = false;
+					checking.textContent = '';
+				}
 				step.textContent = STEPS[name];
 				const start =
 					screens[name].querySelector('[data-start]') ||
@@ -624,6 +631,10 @@
 				lastAt = Date.now();
 				stopRetry();
 				connectLine.textContent = 'CHECKING ' + shown + '…';
+				// A typed probe for the same origin within the bridge's 2 s
+				// dedupe window must not swallow this one: its answer is just as
+				// true for a given address, so let it through (c260).
+				seen.delete(at);
 				if (bridge) bridge.probe(at);
 				else
 					connectLine.textContent =
