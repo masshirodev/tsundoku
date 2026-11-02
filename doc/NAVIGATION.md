@@ -31,8 +31,8 @@ showing the screen it opens (the same path), and goes back that many steps:
 When there's no such entry (a link opened in a new tab, a bookmark, the app
 opened on a series), the link opens its screen as it always did.
 
-Back links: the series screen's ← (to the library, a shelf, a person or
-history), the readers' ← and ← SERIES, the player's ← and ← SERIES, the end
+Back links: the series screen's ← (to the library, a shelf, a person,
+history, or the source it was added from), the readers' ← and ← SERIES, the player's ← and ← SERIES, the end
 page's ← SERIES and LIBRARY, and a person page's ←. Code that leaves a screen
 by itself (the player's Escape) uses `goBackTo`, the same decision. The
 player's were plain links until 2026-11-02: on a TV, ← then BACK opened the
@@ -40,6 +40,27 @@ player again (`tests/tv-player.e2e.ts`).
 
 Tested in `tests/library-flow.e2e.ts` ("the app's own ← buttons come back…"),
 which fails without it.
+
+## From a source
+
+A source's preview (`/downloads/source/<id>`) knows where it was opened from:
+a source's BROWSE page (its `from`), else the search (`/downloads/search`, with
+its `q`). Its ← says BROWSE or SOURCES and goes there.
+
+That origin outlives the preview (card c262). + ADD TO LIBRARY, ADD AND
+DOWNLOAD, and opening the preview of a series that is already in the library
+all land on the series with `?from=<origin>`, and the series' ← then says
+BROWSE or SOURCES and goes back to it instead of to the library. Being a back
+link, it goes back in history when the source's page is a few entries back, so
+its results come back as they were left.
+
+The origin rides in the URL, so it is accepted only as an in-app path to a
+source's BROWSE page or to the search (`sourceOrigin`,
+`src/lib/library/origin.ts`, after the URL is normalised): an absolute URL,
+`//host`, a backslash or a path that climbs out with `..` is ignored, and ←
+says LIBRARY. Tested in `tests/origin.spec.ts`, `tests/browse-online.e2e.ts`
+(BROWSE, the already-added preview, the refused origins) and
+`tests/downloads-flow.e2e.ts` (SOURCES, with the query).
 
 ## Screens that are gone
 

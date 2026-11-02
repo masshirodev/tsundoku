@@ -18,6 +18,7 @@ import {
 } from '$lib/server/downloads';
 import { forgetRecord, recordView } from '$lib/server/browsing';
 import { browseSource } from '$lib/server/engine/browse';
+import { searchOrigin, seriesWithOrigin, sourceOrigin } from '$lib/library/origin';
 
 /**
  * A search result's preview (Download States 1e, state 7): the series
@@ -40,10 +41,16 @@ export const load: PageServerLoad = async ({ params, cookies, url }) => {
 		error(503, 'Downloading is not answering');
 	}
 	if (!key) error(404, 'not found');
+	// Back to where it was found: a source's BROWSE page, or the search. The
+	// series keeps it when it's added, or when it already was (card c262).
+	const q = url.searchParams.get('q') ?? '';
+	const from = sourceOrigin(url.searchParams.get('from'));
+	const browsed = from.startsWith('/browse/') ? from : '';
+	const origin = browsed || searchOrigin(q);
 	const mine = seriesForKey(key);
 	if (mine) {
 		if (mine.hidden && !isRevealed(cookies)) error(404, 'not found');
-		redirect(303, `/series/${mine.id}`);
+		redirect(303, seriesWithOrigin(mine.id, origin));
 	}
 	// Hidden means hidden: a mostly-hidden source's series isn't previewed with reveal off.
 	const sourceId = sourceOfMangaId(id);
@@ -62,12 +69,11 @@ export const load: PageServerLoad = async ({ params, cookies, url }) => {
 			: m
 	);
 	manga.catch(() => {});
-	// Back to where it was found: a source's BROWSE page, or the search.
-	const from = url.searchParams.get('from') ?? '';
 	return {
 		id,
-		q: url.searchParams.get('q') ?? '',
-		from: from.startsWith('/browse/') && !from.startsWith('//') ? from : '',
+		q,
+		from: browsed,
+		origin,
 		record: record && { ...record, entries: undefined },
 		manga
 	};
@@ -101,8 +107,9 @@ export const actions: Actions = {
 		redirect(303, `/read/${entryId}`);
 	},
 	/** + ADD TO LIBRARY: into both libraries, then the new series, with a band to UNDO. */
-	add: async ({ params }) => {
+	add: async ({ params, request }) => {
 		const id = mangaId(params.id);
+		const origin = String((await request.formData()).get('from') ?? '');
 		let seriesId: number;
 		try {
 			seriesId = await addToLibrary(id);
@@ -110,7 +117,7 @@ export const actions: Actions = {
 			if (isAddError(e)) return fail(409, { message: (e as Error).message });
 			throw e;
 		}
-		redirect(303, `/series/${seriesId}?added=${id}`);
+		redirect(303, seriesWithOrigin(seriesId, origin, { added: id }));
 	},
 	/**
 	 * DOWNLOAD's FIRST 10 or ALL N, confirmed (card c205): a download lives in
@@ -120,7 +127,9 @@ export const actions: Actions = {
 	 */
 	addDownload: async ({ params, request, cookies }) => {
 		const id = mangaId(params.id);
-		const which = (await request.formData()).get('which') === 'all' ? 'all' : 'next';
+		const form = await request.formData();
+		const which = form.get('which') === 'all' ? 'all' : 'next';
+		const origin = String(form.get('from') ?? '');
 		let seriesId: number;
 		try {
 			seriesId = await addToLibrary(id);
@@ -137,6 +146,6 @@ export const actions: Actions = {
 			if (!isDownloadsError(e)) throw e;
 			queued = 'down';
 		}
-		redirect(303, `/series/${seriesId}?added=${id}&queued=${queued}`);
+		redirect(303, seriesWithOrigin(seriesId, origin, { added: id, queued }));
 	}
 };

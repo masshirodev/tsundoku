@@ -49,6 +49,11 @@ test('a chapter opens online from the preview, a record keeps the place, the ser
 	// Added: the series screen reads each chapter online, and ↓ downloads apart.
 	await page.getByRole('button', { name: /ADD TO LIBRARY/ }).click();
 	await expect(page).toHaveURL(/\/series\/\d+/);
+	// ← goes back to the source it was added from, not the library (c262).
+	const back = page.getByRole('banner', { name: 'Series' }).locator('a.back');
+	await expect(back.locator('.back-label')).toHaveText('BROWSE');
+	await expect(back).toHaveAttribute('href', `/browse/${SOURCES.open.id}`);
+	const series = new URL(page.url()).pathname;
 	const list = page.getByRole('region', { name: /Chapters/ });
 	const row = list.locator('.entry', { hasText: 'Chapter 2' });
 	await expect(row.locator('.status')).toContainText('ONLINE');
@@ -76,6 +81,21 @@ test('a chapter opens online from the preview, a record keeps the place, the ser
 	await expect(page.locator('.stage .screen:not([aria-hidden]) img').first()).toBeVisible({
 		timeout: 20_000
 	});
+
+	// Opened again from BROWSE, the preview of a series already added is that
+	// series, and its ← still goes back to BROWSE (c262).
+	await page.goto(`/browse/${SOURCES.open.id}`);
+	await page.locator('.grid .tile', { hasText: 'Open Source 1-4' }).click();
+	await expect(page).toHaveURL(new RegExp(`${series}\\?from=`));
+	await expect(back.locator('.back-label')).toHaveText('BROWSE');
+	await back.click();
+	await expect(page).toHaveURL(new RegExp(`/browse/${SOURCES.open.id}$`));
+	// A from that isn't an in-app BROWSE or search is ignored: ← LIBRARY.
+	for (const from of ['https://evil.example/browse/1', '//evil.example/browse/1', '/settings']) {
+		await page.goto(`${series}?from=${encodeURIComponent(from)}`);
+		await expect(back.locator('.back-label')).toHaveText('LIBRARY');
+		await expect(back).toHaveAttribute('href', '/');
+	}
 });
 
 /**

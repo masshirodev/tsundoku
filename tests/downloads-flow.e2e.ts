@@ -483,6 +483,10 @@ test('a preview adds to the library, lands on the series, and UNDO takes it back
 	await expect(page.locator('.ch')).toHaveCount(12);
 	await add.click();
 	await expect(page).toHaveURL(/\/series\/\d+\?added=/);
+	// ← goes back to the search it was added from, query kept (c262).
+	const back = page.getByRole('banner', { name: 'Series' }).locator('a.back');
+	await expect(back.locator('.back-label')).toHaveText('SOURCES');
+	await expect(back).toHaveAttribute('href', '/downloads/search?q=linden');
 	await expect(page.locator('.band')).toContainText('ADDED TO THE LIBRARY');
 	await expect(page.locator('.band')).toContainText('12 CHAPTERS · NONE DOWNLOADED');
 	await expect(page.locator('.dl-row .lcs.inline .lc').first()).toHaveText('FIRST 10');
@@ -523,6 +527,9 @@ test('a preview downloads too: our sheet says it adds it first, then ADD AND DOW
 	await expect(sheet).toContainText('THEN ITS FIRST 10 UNREAD CHAPTERS DOWNLOAD.');
 	await sheet.getByRole('button', { name: 'ADD AND DOWNLOAD' }).click();
 	await expect(page).toHaveURL(/\/series\/\d+\?added=.*&queued=10/);
+	await expect(
+		page.getByRole('banner', { name: 'Series' }).locator('a.back .back-label')
+	).toHaveText('SOURCES');
 	await expect(page.locator('.band')).toContainText('12 CHAPTERS · 10 DOWNLOADING');
 	expect(queued().size).toBe(before + 10);
 	// UNDO still takes it back, its queue with it.

@@ -2,7 +2,6 @@
 	import StartTrail from '$lib/components/start/StartTrail.svelte';
 	import { page } from '$app/state';
 	import { trail } from '$lib/start-trail.svelte';
-	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import { formatNumber } from '$lib/library/series';
@@ -25,13 +24,8 @@
 	let adding = $state(false);
 	/** Which DOWNLOAD cell is asking: its sheet is open while this is set. */
 	let asking = $state<'next' | 'all' | null>(null);
-	const back = $derived(
-		data.from
-			? data.from
-			: data.q
-				? `${resolve('/downloads/search')}?q=${encodeURIComponent(data.q)}`
-				: resolve('/downloads/search')
-	);
+	/** Where it was found (src/lib/library/origin.ts); + ADD hands it to the series (c262). */
+	const back = $derived(data.origin);
 	const refusal = $derived(
 		form && 'message' in form && typeof form.message === 'string' ? form.message.toUpperCase() : ''
 	);
@@ -56,7 +50,7 @@
 
 <div class="preview">
 	<header class="bar">
-		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
+		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- an in-app path, checked by sourceOrigin -->
 		<a class="back" href={back}
 			><span class="arrow">←</span><span>{data.from ? 'BROWSE' : 'SOURCES'}</span></a
 		>
@@ -123,6 +117,7 @@
 								};
 							}}
 						>
+							<input type="hidden" name="from" value={data.origin} />
 							<button
 								type="submit"
 								class="add"
@@ -166,7 +161,7 @@
 						lines={ask.lines}
 						confirm={ask.confirm}
 						action="?/addDownload"
-						fields={{ which: asking ?? 'next' }}
+						fields={{ which: asking ?? 'next', from: data.origin }}
 						onclose={() => (asking = null)}
 					/>
 

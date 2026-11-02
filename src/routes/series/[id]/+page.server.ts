@@ -75,6 +75,7 @@ import { getSetting } from '$lib/server/settings';
 import { libraryRoot } from '$lib/server/import';
 import { ANIME_FOLDER, HIDDEN_ANIME_FOLDER, seriesFolderName } from '$lib/library/anime-files';
 import { join } from '$lib/server/fspath';
+import { originLabel, sourceOrigin } from '$lib/library/origin';
 
 /** Where an anime's episodes go: its folder once it has one, else where its first will. */
 function animeFolderOf(seriesId: number, title: string, hidden: boolean): string {
@@ -95,9 +96,15 @@ function seriesId(raw: string): number {
 
 /**
  * Where the back cell leads, and what it says. `from` is set by the link that
- * opened the series: a shelf key, `continue`, or nothing.
+ * opened the series: a shelf key, `continue`, a source's BROWSE page or the
+ * search it was added from (an in-app path, card c262), or nothing.
  */
 function backTo(from: string | null, shelves: { key: string; name: string }[]) {
+	if (from?.startsWith('/')) {
+		const origin = sourceOrigin(from);
+		if (origin) return { label: originLabel(origin), href: origin };
+		return { label: 'Library', href: '/' };
+	}
 	if (from === 'continue') return { label: 'Continue · Library', href: '/' };
 	if (from === 'history') return { label: 'History', href: '/history' };
 	// From a person or tag page: back to it, named by the person.
