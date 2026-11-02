@@ -190,34 +190,55 @@ id and number, never by path.
 
 A download the backup doesn't list is keyed by its folder
 (`mihon-dir:<source dir>/<series dir>`). That happens whenever a chapter is
-downloaded before the next backup: Mihon backs up daily; tsundoku's own
-device writes one with its downloads ([`DOWNLOADER.md`](DOWNLOADER.md)). Once a newer backup lists the
-manga, the same folder matches it, and the plan carries the folder key it had
-(`formerKey`). The writer settles the two before anything else
+downloaded before the next backup: Mihon backs up daily; tsundoku's own device writes one with its downloads ([`DOWNLOADER.md`](DOWNLOADER.md)).
+
+**Another device's backup counts too** (c89). A series downloaded on the
+tablet, without being added to Mihon's library there, and in the phone's
+library has two keys by then: the tablet's folder (`mihon-dir:…`) and the
+phone's backup (`mihon:<source>:<url>`), because each device's copy is read on
+its own ([`SYNC.md`](SYNC.md), "Other devices"). The writer settles the two
+before anything else, whichever of them the plan it is writing is
 (`adoptFormer`, `src/lib/server/import/fold.ts`):
 
-- **Only the folder's series exists:** it takes the URL key, and each chapter
-  found by its file takes the backup's URL (ComicInfo's full `Web` URL against
-  the backup's path). It's the same row, so nothing the owner did is touched.
-- **Both exist** (the URL's series came from another device's backup, or from
-  an import before this rule): the folder's series is **folded** into the
-  URL's (`foldSeries`) and its row goes. A chapter both have (the same file,
-  else the same URL, else the same label) is one: read state moves forward as
-  on a rescan, the newer place wins, a rating or FAV fills in where the URL's
-  has none, and it takes the file if it had none. A chapter only the folder's
+- **The folder's series is found by its source and title,** the same rule
+  "Matching downloads" uses, in the same root (every device's Mihon is one
+  root). **Only the folder's series exists:** it takes the URL key, so both
+  devices' plans write into one row, and nothing the owner did is touched.
+- **Both exist** (a backup that claims the folder, this one's or another
+  device's): the folder's series is **folded** into the URL's
+  (`foldSeries`), and its row goes. A chapter both have (the same file, else
+  the same URL, else the same label) is one: read state moves forward as on a
+  rescan, the newer place wins, a rating or FAV fills in where the URL's has
+  none, and it takes the file if it had none. A chapter only the folder's
   series has moves across. The reading log, shelves, tags, links and lookups
   follow, the URL series' own winning where both have one; caches of a file's
   pages follow only with that file. A hidden series stays hidden. No file
   moves.
 
-Before 2026-10-04 neither happened: nothing plans the folder key again once a
-backup claims the folder, so the folder's series lingered beside the URL's,
-both reading the same files (22 pairs in the live library, folded by the
-first scan with this rule). Deleting one of a pair trashed the other's files
+**Chapters are re-keyed by the same rule the matching above uses:** a URL in
+ComicInfo's `Web` ending with the backup's chapter URL (Weeb Central), then
+the chapter's number, which both sides build into the label (`Ch. 98`; Asura
+adds a slug hash to its URLs, so only the number matches). A file that matches
+neither is **kept** as an entry of its own, with its ComicInfo URL and its
+file: adopting never drops one. The address a chapter leaves joins every one
+it has left (`entry_former_urls`, rung 58), and the folder key joins the
+series' former keys (`series_former_keys`; doc/MOVE.md, "The move"), so the
+device whose backup still doesn't name the manga — or whose download still
+stands on its own — finds the same series on every scan instead of making the
+folder's series again. A folder's plan also matches its chapters by their file
+or their number, which is how a download that arrives after the two are one
+attaches to the entry the backup already lists.
+
+Before 2026-10-04 none of this happened: the folder's series lingered beside
+the URL's, both reading the same files. 22 pairs in the live library were
+folded by the first scan with that rule, on the device whose own backup knew
+the manga. The folder-keyed series whose backup another device had (34 on
+2026-10-03, The Flowers of Evil among them) were left to c89: the same scan
+settles them the same way. Deleting one of a pair trashed the other's files
 too; that is fixed in the delete as well ([`DELETING.md`](DELETING.md)).
 
 A device whose own backup still doesn't know the manga plans the folder key
-again, and makes the folder's series again, until that device backs up.
+again, and finds the URL series by the key it left, until that device backs up.
 
 ## Rescanning
 
@@ -261,7 +282,7 @@ tablet should be bound by the disk, not by the parsing.
 | CBZ reading                            | `src/lib/server/zip.ts`                                                                                                              |
 | walking the disk                       | `src/lib/server/import/mihon.ts`                                                                                                     |
 | the one writer, shared with Hentoid    | `src/lib/server/import/write.ts`                                                                                                     |
-| a folder's series once a backup knows  | `src/lib/server/import/fold.ts`, tested in `tests/fold-db.spec.ts`                                                                   |
+| a folder's series once a backup knows  | `src/lib/server/import/fold.ts`, tested in `tests/fold-db.spec.ts` and `tests/devices-import-db.spec.ts`                             |
 | the job, START SCAN / RESCAN / `/scan` | `src/lib/server/import/index.ts`                                                                                                     |
 | CLI                                    | `scripts/import.ts`                                                                                                                  |
 | tests                                  | `tests/mihon-plan.spec.ts`, `tests/zip.spec.ts`, `tests/import-db.spec.ts`; fixtures synthesised by `tests/helpers/mihon-fixture.ts` |

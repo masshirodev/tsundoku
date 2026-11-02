@@ -1,7 +1,8 @@
 import type Database from 'better-sqlite3';
 import { posix } from '../fspath.ts';
 import { fileIn, widenTo } from '../paths.ts';
-import type { PlannedSeries } from '../../import/plan.ts';
+import { folderTitleMatches, sourceDirMatches } from '../../import/mihon-plan.ts';
+import type { PlannedEntry, PlannedSeries } from '../../import/plan.ts';
 
 /**
  * A Mihon download imports keyed by its folder (`mihon-dir:`) until a backup
@@ -10,20 +11,23 @@ import type { PlannedSeries } from '../../import/plan.ts';
  * both reading the same files: nothing plans the folder key again once a
  * backup claims the folder, so nothing ever marked it gone.
  *
- * Run inside the writer's transaction, before it looks the series up:
- *
- * - no series under the URL key yet: the folder's series takes the key, and
- *   its chapters the backup's URLs, so the writer finds it and goes on;
- * - both exist: the folder's series is folded into the URL's, keeping
- *   whatever the owner did in either, and its row goes. No file is moved.
+ * Run inside the writer's transaction, before it looks the series up. A plan
+ * carries the folder key it used to have (`formerKey`) when this device has
+ * both the download and the backup; when the backup is another device's, the
+ * folder is found by the source and title a download of the series is filed
+ * under (`adoptFolder`), or a folder's plan finds the series a backup names
+ * (`adoptNamed`). A folder key that is settled stays in `series_former_keys`,
+ * as a move's old key does (doc/MOVE.md), so the device whose backup still
+ * doesn't name the manga never makes it again.
  */
-export function adoptFormer(db: Database.Database, s: PlannedSeries): void {
+export function adoptFormer(db: Database.Database, s: PlannedSeries, now: number): void {
 	if (!s.formerKey) return;
 	const former = seriesBy(db, s.formerKey);
 	if (!former) return;
 	const current = seriesBy(db, s.originKey);
 	if (current) {
 		foldSeries(db, former.id, current.id);
+		rememberKey(db, current.id, s.formerKey, 'mihon', s.originKey, now);
 		return;
 	}
 	db.prepare(
@@ -32,6 +36,7 @@ export function adoptFormer(db: Database.Database, s: PlannedSeries): void {
 			direction = COALESCE(direction, ?)
 		WHERE id = ?`
 	).run(s.originKey, s.sourceUrl, s.direction, former.id);
+	rememberKey(db, former.id, s.formerKey, 'mihon', s.originKey, now);
 	// ComicInfo's full `Web` URL against the backup's path: the same chapter,
 	// found by its file, takes the URL the writer will look it up by.
 	const byFile = new Map(
@@ -49,6 +54,219 @@ export function adoptFormer(db: Database.Database, s: PlannedSeries): void {
 		set.run(url, r.id);
 		taken.add(url);
 	}
+}
+
+const FOLDER_KEY = 'mihon-dir:';
+
+/** A folder key's own two names, or null for any other key. */
+function folderParts(key: string): { sourceDir: string; dir: string } | null {
+	if (!key.startsWith(FOLDER_KEY)) return null;
+	const rest = key.slice(FOLDER_KEY.length);
+	const slash = rest.indexOf('/');
+	if (slash <= 0 || slash === rest.length - 1) return null;
+	return { sourceDir: rest.slice(0, slash), dir: rest.slice(slash + 1) };
+}
+
+type KeyedRow = { id: number; origin_key: string; title: string; path: string };
+
+/**
+ * A backup's plan, and a download imported by its folder, are the same series
+ * even when the backup is another device's: the folder's series takes the URL
+ * key, as it does when one device has both. Its entries take the backup's
+ * chapter URLs by the same rule the disk match uses (the `Web` URL ends with
+ * the backup's path, then the number); one that matches neither is left as it
+ * is, so nothing is lost by adopting.
+ */
+export function adoptFolder(
+	db: Database.Database,
+	s: PlannedSeries,
+	rootId: number,
+	now: number
+): number | null {
+	const folder = s.folder;
+	if (!folder || !s.originKey.startsWith('mihon:')) return null;
+	// A folder's series is the same series by the importer's own rule: the same
+	// source and the same title (doc/IMPORT-MIHON.md, "Matching downloads").
+	const candidates = rowsIn(db, rootId, 'mihon-dir:%').filter((row) => {
+		const parts = folderParts(row.origin_key);
+		return (
+			!!parts &&
+			sourceDirMatches(parts.sourceDir, folder.source) &&
+			(folderTitleMatches(parts.dir, folder.title) || row.title === folder.title)
+		);
+	});
+	const best = bestOf(db, s, candidates);
+	if (!best) return null;
+	db.prepare(
+		`UPDATE series SET origin_key = ?,
+			source_url = CASE WHEN source_url = '' THEN ? ELSE source_url END,
+			direction = COALESCE(direction, ?)
+		WHERE id = ?`
+	).run(s.originKey, s.sourceUrl, s.direction, best.row.id);
+	rememberKey(db, best.row.id, best.row.origin_key, 'mihon', s.originKey, now);
+	for (const [entryId, planned] of best.matches) rekeyEntry(db, entryId, planned.sourceUrl, now);
+	return best.row.id;
+}
+
+/**
+ * The other order: a folder's plan meets the series a backup names, whether
+ * this device's own (the folder was left behind by an import before the rule)
+ * or another's. The folder's series is folded into the named one -- keeping
+ * what the owner did in either -- and the folder key joins the named series'
+ * former keys, so the device that still plans it finds the same series.
+ */
+export function adoptNamed(
+	db: Database.Database,
+	s: PlannedSeries,
+	rootId: number,
+	now: number
+): number | null {
+	const folder = s.folder;
+	const parts = folderParts(s.originKey);
+	if (!folder || !parts) return null;
+	const sourceTag = db.prepare(
+		`SELECT 1 FROM series_tags st JOIN tags t ON t.id = st.tag_id
+		WHERE st.series_id = ? AND t.namespace = 'source' AND t.value = ? COLLATE NOCASE`
+	);
+	const candidates = rowsIn(db, rootId, 'mihon:%').filter(
+		(row) =>
+			// The folder is this source's, and the title's under either name.
+			!!sourceTag.get(row.id, folder.source) &&
+			(row.title === folder.title || folderTitleMatches(parts.dir, row.title))
+	);
+	const best = bestOf(db, s, candidates);
+	// No entry in common: not the same manga, whatever the names say.
+	if (!best || best.matches.size === 0) return null;
+	const own = seriesBy(db, s.originKey);
+	if (own && own.id !== best.row.id) {
+		// The named series has no folder of its own yet: take this one before the
+		// entries move, so both sides name their files from it.
+		if (best.row.path === '' && own.path !== '')
+			db.prepare(`UPDATE series SET path = ? WHERE id = ?`).run(own.path, best.row.id);
+		foldSeries(db, own.id, best.row.id);
+	}
+	rememberKey(db, best.row.id, s.originKey, 'mihon', best.row.origin_key, now);
+	return best.row.id;
+}
+
+function rowsIn(db: Database.Database, rootId: number, family: string): KeyedRow[] {
+	return db
+		.prepare(
+			`SELECT id, origin_key, title, path FROM series WHERE root_id = ? AND origin_key LIKE ?`
+		)
+		.all(rootId, family) as KeyedRow[];
+}
+
+/** The candidate the plan shares most entries with: a folder can have been imported twice. */
+function bestOf(
+	db: Database.Database,
+	s: PlannedSeries,
+	candidates: KeyedRow[]
+): { row: KeyedRow; matches: Map<number, PlannedEntry> } | null {
+	let best: { row: KeyedRow; matches: Map<number, PlannedEntry> } | null = null;
+	for (const row of candidates) {
+		if (row.origin_key === s.originKey) continue;
+		const matches = matchFolderEntries(db, row.id, s.entries);
+		if (
+			!best ||
+			matches.size > best.matches.size ||
+			(matches.size === best.matches.size && row.id < best.row.id)
+		)
+			best = { row, matches };
+	}
+	return best;
+}
+
+/**
+ * A series' entries and the plan's, by the same rule the disk match uses: the
+ * URL in ComicInfo's `Web` against the backup's path (Weeb Central), then the
+ * number, which both sides build into the label (`Ch. 98`). One matched
+ * nothing is left out: it stays as it is, in the series.
+ */
+function matchFolderEntries(
+	db: Database.Database,
+	seriesId: number,
+	planned: PlannedEntry[]
+): Map<number, PlannedEntry> {
+	const rows = db
+		.prepare(`SELECT id, source_url, label FROM entries WHERE series_id = ?`)
+		.all(seriesId) as { id: number; source_url: string; label: string }[];
+	const holder = new Map(rows.filter((r) => r.source_url !== '').map((r) => [r.source_url, r.id]));
+	const byLabel = new Map<string, PlannedEntry>();
+	for (const e of planned) if (!byLabel.has(e.label)) byLabel.set(e.label, e);
+	const taken = new Set<PlannedEntry>();
+	const out = new Map<number, PlannedEntry>();
+	for (const r of rows) {
+		const url = r.source_url;
+		let hit =
+			url === ''
+				? undefined
+				: planned.find(
+						(e) =>
+							e.sourceUrl !== '' &&
+							!taken.has(e) &&
+							// another entry already answers to this address
+							(holder.get(e.sourceUrl) ?? r.id) === r.id &&
+							(url === e.sourceUrl || url.endsWith(e.sourceUrl) || e.sourceUrl.endsWith(url))
+					);
+		if (!hit) {
+			const e = byLabel.get(r.label);
+			if (e && !taken.has(e)) hit = e;
+		}
+		if (!hit) continue;
+		taken.add(hit);
+		out.set(r.id, hit);
+	}
+	return out;
+}
+
+/**
+ * The key a series has just left joins every other one it has left (rung 58,
+ * doc/MOVE.md): the device whose backup still names the manga, or whose
+ * download is still keyed by its folder, finds this series rather than making
+ * a twin. The key it now has is not also a former one.
+ */
+function rememberKey(
+	db: Database.Database,
+	seriesId: number,
+	leftKey: string,
+	source: string,
+	currentKey: string,
+	now: number
+): void {
+	db.prepare(
+		`INSERT INTO series_former_keys (series_id, origin_key, source, left_at) VALUES (?, ?, ?, ?)
+		ON CONFLICT (series_id, origin_key) DO UPDATE SET source = excluded.source,
+			left_at = excluded.left_at`
+	).run(seriesId, leftKey, source, now);
+	db.prepare(`DELETE FROM series_former_keys WHERE series_id = ? AND origin_key = ?`).run(
+		seriesId,
+		currentKey
+	);
+}
+
+/** An entry that takes another address keeps the one it had (rung 58, doc/MOVE.md). */
+function rekeyEntry(db: Database.Database, entryId: number, url: string, now: number): void {
+	const was = (
+		db.prepare(`SELECT source_url FROM entries WHERE id = ?`).get(entryId) as {
+			source_url: string;
+		}
+	).source_url;
+	if (was === url) return;
+	if (was !== '')
+		db.prepare(
+			`INSERT INTO entry_former_urls (entry_id, former_url, left_at) VALUES (?, ?, ?)
+			ON CONFLICT (entry_id, former_url) DO UPDATE SET left_at = excluded.left_at`
+		).run(entryId, was, now);
+	db.prepare(
+		`UPDATE entries SET former_url = CASE WHEN source_url != '' THEN source_url ELSE former_url END,
+			source_url = ?, origin_source = '' WHERE id = ?`
+	).run(url, entryId);
+	if (url !== '')
+		db.prepare(`DELETE FROM entry_former_urls WHERE entry_id = ? AND former_url = ?`).run(
+			entryId,
+			url
+		);
 }
 
 function seriesBy(db: Database.Database, key: string) {
@@ -107,6 +325,10 @@ export function foldSeries(db: Database.Database, from: number, into: number): v
 		r.file === '' || path === '' ? '' : posix.join(path, r.file);
 
 	const theirs = entriesOf(into);
+	// A series with no folder of its own takes the one being folded in, so both
+	// sides name their files from it (a series a backup names may have none yet).
+	if (pathOf(into) === '' && fromPath !== '')
+		db.prepare(`UPDATE series SET path = ? WHERE id = ?`).run(fromPath, into);
 	const intoPath = pathOf(into);
 	const byFile = new Map(theirs.filter((t) => abs(intoPath, t)).map((t) => [abs(intoPath, t), t]));
 	const byUrl = new Map(theirs.filter((t) => t.source_url).map((t) => [t.source_url, t]));

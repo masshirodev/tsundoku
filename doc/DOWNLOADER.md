@@ -30,10 +30,10 @@ Why, over writing entries straight into the database:
   second writer would have to repeat all of it, and drift.
 - **A device folder with no backup is read as new series** keyed by folder
   (`mihon-dir:`, [`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Before the backup knows
-  it"). Files written anywhere under `devices/` without a backup would become
-  twins at the next scan; files written outside it would be a second kind of
-  library folder. Writing the backup is what makes the files fold into the
-  series they belong to.
+  it"), which only a later backup adopts. Files written anywhere under
+  `devices/` without a backup would wait for one; files written outside it
+  would be a second kind of library folder. Writing the backup is what makes
+  the files the right series' from the first scan.
 - **Retiring Suwayomi (c129) was then swapping one device for another.** What
   Suwayomi downloaded stays a device's copy, read as before (done 2026-10-28).
 

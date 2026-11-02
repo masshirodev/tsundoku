@@ -138,6 +138,10 @@ What that means for each series:
   tablet's roots of the same name (`ensureNamedRoot`). There's one hidden
   Hentoid shelf, and a book grouped on the tablet is still found when the
   phone has it.
+- **A folder one device's download is keyed by** (`mihon-dir:…`, while no
+  backup lists the manga yet) is the same series as the one any device's
+  backup names, and the two are settled before anything is written
+  ([`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Before the backup knows it"; c89).
 - **Read progress** comes from both devices' Mihon backups, and only moves
   forward, so reading on either counts.
 
