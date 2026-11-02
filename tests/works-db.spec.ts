@@ -11,6 +11,7 @@ const { seedSample } = await import('$lib/server/fixtures');
 const lib = await import('$lib/server/library');
 const works = await import('$lib/server/works');
 const { continuePart, workFoot, workRating } = await import('$lib/library/works');
+type Rating = import('$lib/library/types').Rating;
 
 /** A fresh library per test: grouping reshapes the data under test. */
 beforeEach(() => {
@@ -448,6 +449,63 @@ describe('hiding a Work', () => {
 		// and it joins a Work of visible series without mixing anything.
 		lib.setHidden([h1], false);
 		expect(works.workParts(work.id, false).map((p) => p.seriesId)).toEqual([h1]);
+	});
+});
+
+describe('refusals the card asked for', () => {
+	const MISSING = 999_999;
+
+	it('refuses every action on a Work that is not there', () => {
+		const [a, b] = UNRATED.map(idOf) as number[];
+		expect(() => works.addSeries(MISSING, a)).toThrow(/no such Work/);
+		expect(() => works.takeOut(MISSING, a)).toThrow(/no such Work/);
+		expect(() => works.reorder(MISSING, [a, b])).toThrow(/no such Work/);
+		expect(() => works.rename(MISSING, 'Ghost')).toThrow(/no such Work/);
+		expect(() => works.ungroup(MISSING)).toThrow(/no such Work/);
+		expect(() => works.setWorkRating(MISSING, 5)).toThrow(/no such Work/);
+		expect(() => works.setWorkFavourite(MISSING, true)).toThrow(/no such Work/);
+		expect(() => works.hideWork(MISSING, true)).toThrow(/no such Work/);
+	});
+
+	it('refuses a take-out of a series that is not a member', () => {
+		const [a, b] = UNRATED.map(idOf) as number[];
+		const { work } = works.createWork({ seriesIds: [a, b], name: 'Two', now: NOW });
+		expect(() => works.takeOut(work.id, idOf('Mushoku Tensei')!)).toThrow(/not in this Work/);
+		// A member of another Work is not a member of this one either.
+		const other = works.createWork({
+			seriesIds: [idOf('Villainess Level 99')!, idOf('Lookism')!],
+			name: 'Other',
+			now: NOW
+		});
+		expect(() => works.takeOut(work.id, partsOf(other.work.id)[0])).toThrow(/not in this Work/);
+		expect(partsOf(work.id)).toEqual([a, b]);
+	});
+
+	it('refuses a rating that is not a whole number from 0 to 10', () => {
+		const [a, b] = UNRATED.map(idOf) as number[];
+		const { work } = works.createWork({ seriesIds: [a, b], name: 'Isekai', now: NOW });
+		for (const bad of [-1, 11, 5.5, Number.NaN])
+			expect(() => works.setWorkRating(work.id, bad as Rating)).toThrow(/a rating is 0-10/);
+		expect([ratingOf(a), ratingOf(b)]).toEqual([0, 0]);
+	});
+});
+
+describe('the Work a series belongs to', () => {
+	it('finds a member’s Work, and nothing for a series in none', () => {
+		const [a, b] = UNRATED.map(idOf) as number[];
+		const { work } = works.createWork({ seriesIds: [a, b], name: 'Isekai', now: NOW });
+		expect(works.workOfSeries(a)).toEqual(work);
+		expect(works.workOfSeries(b)).toEqual(work);
+		expect(works.workOfSeries(idOf('Mushoku Tensei')!)).toBeNull();
+	});
+
+	it('says nothing once the Work has ended', () => {
+		const [a, b] = UNRATED.map(idOf) as number[];
+		const { work } = works.createWork({ seriesIds: [a, b], name: 'Two', now: NOW });
+		// Taking one out leaves one, so the Work ends and the survivor is free.
+		works.takeOut(work.id, b);
+		expect(works.workOfSeries(a)).toBeNull();
+		expect(works.workOfSeries(b)).toBeNull();
 	});
 });
 
