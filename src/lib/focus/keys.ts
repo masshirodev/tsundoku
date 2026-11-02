@@ -47,9 +47,21 @@ export class OkPress {
 		private readonly ms = HOLD_MS
 	) {}
 
-	/** Whether the key event is the layer's. False: leave it to the page. */
+	/** Whether OK is down now: pressed, and not yet released or cancelled. */
+	get armed(): boolean {
+		return this.#armed;
+	}
+
+	/**
+	 * Whether the key event is the layer's. False: leave it to the page.
+	 *
+	 * A keydown while OK is already down is a repeat, whatever its `repeat`
+	 * says: Android TV's WebView sends a held D-pad centre as a stream of
+	 * keydowns, and restarting the hold on each one meant it never fired
+	 * (2026-11-02, the first real TV; MENU, one key, worked).
+	 */
 	down(repeat: boolean): boolean {
-		if (repeat) return this.#armed;
+		if (repeat || this.#armed) return this.#armed;
 		this.#armed = true;
 		this.#fired = false;
 		clearTimeout(this.#timer);

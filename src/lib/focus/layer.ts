@@ -71,13 +71,75 @@ function take(el: HTMLElement): void {
  * Keep the focused thing on screen. `nearest` moves the least it can, which in
  * a uniform grid is a whole row; the TV's own header and focus line are the
  * layout's business (c238).
+ *
+ * `nearest` counts a thing under a pinned bar as shown: the TV's shelf tabs
+ * stay at the top of the screen, and going ↑ through the grid put each row
+ * under them, focused and out of sight (2026-11-02, the first real TV). So
+ * after it, the page moves on by whatever a pinned bar still covers.
  */
 function reveal(el: HTMLElement): void {
-	const r = el.getBoundingClientRect();
 	const height = window.visualViewport?.height ?? window.innerHeight;
 	const width = window.visualViewport?.width ?? window.innerWidth;
-	if (r.top >= 0 && r.left >= 0 && r.bottom <= height && r.right <= width) return;
-	el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
+	const r = el.getBoundingClientRect();
+	if (r.top < 0 || r.left < 0 || r.bottom > height || r.right > width) {
+		el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
+	}
+	const now = el.getBoundingClientRect();
+	const { top, bottom } = uncovered(el, now, height);
+	if (now.top < top) window.scrollBy({ top: now.top - top, behavior: 'instant' });
+	else if (now.bottom > bottom && now.height <= bottom - top)
+		window.scrollBy({ top: now.bottom - bottom, behavior: 'instant' });
+}
+
+/**
+ * The band of the screen a pinned bar (sticky or fixed: the TV's shelf tabs,
+ * a bottom bar) leaves `el` to be seen in. A bar is found at the element's
+ * own top and bottom edges, so one that doesn't cover it doesn't count.
+ */
+function uncovered(el: HTMLElement, r: DOMRect, height: number): { top: number; bottom: number } {
+	const x = Math.min(Math.max(r.left + r.width / 2, 0), window.innerWidth - 1);
+	// Bars stack: the library's focus line is pinned under its shelf tabs, so
+	// each one found is looked under (or over) again.
+	let top = 0;
+	for (let i = 0; i < 4; i++) {
+		const bar = pinnedAt(el, x, Math.min(Math.max(r.top, top) + 1, height - 1));
+		const end = bar?.getBoundingClientRect().bottom ?? top;
+		if (end <= top) break;
+		top = end;
+	}
+	let bottom = height;
+	for (let i = 0; i < 4; i++) {
+		const bar = pinnedAt(el, x, Math.max(Math.min(r.bottom, bottom) - 1, 0));
+		const end = bar?.getBoundingClientRect().top ?? bottom;
+		if (end >= bottom) break;
+		bottom = end;
+	}
+	return { top, bottom };
+}
+
+/** The pinned bar drawn over `el` at a point, if one is. */
+function pinnedAt(el: HTMLElement, x: number, y: number): HTMLElement | null {
+	const hit = document.elementFromPoint(x, y);
+	if (!hit || el.contains(hit) || hit.contains(el)) return null;
+	for (let n: Element | null = hit; n && n !== document.body; n = n.parentElement) {
+		const position = getComputedStyle(n).position;
+		if (position !== 'sticky' && position !== 'fixed') continue;
+		if (n.contains(el)) return null;
+		const bar = n.getBoundingClientRect();
+		// A scrim or a sheet covers the screen, not an edge of it: not a bar.
+		return bar.height < window.innerHeight / 2 ? (n as HTMLElement) : null;
+	}
+	return null;
+}
+
+/** Whether all of it is on screen, with no pinned bar over it. */
+function inFullView(el: HTMLElement): boolean {
+	const height = window.innerHeight;
+	const r = el.getBoundingClientRect();
+	if (r.width === 0 || r.top < 0 || r.left < 0 || r.bottom > height || r.right > window.innerWidth)
+		return false;
+	const { top, bottom } = uncovered(el, r, height);
+	return r.top >= top && r.bottom <= bottom;
 }
 
 /** Whether any part of it is on screen now. */
@@ -191,6 +253,11 @@ function sendEscape(node: HTMLElement): void {
  * BACK climbs before it leaves (TV Calls, "BACK climbs before it leaves"): to
  * the shelf's tab from a grid (its container names the target), else to the
  * screen's own start, else nowhere and the screen is left.
+ *
+ * Only to a place out of sight (the owner's call, 2026-11-02): the climb is
+ * the way back up a long screen. Where it would land is already in full view
+ * (the series' ▶ CONTINUE above a short panel, the pinned shelf tab), BACK
+ * leaves at once instead of costing a press to move focus.
  */
 function climb(): boolean {
 	// Climbing is a remote's idea. On a keyboard, Escape belongs to whatever
@@ -206,7 +273,7 @@ function climb(): boolean {
 	const selector = group?.dataset.backClimb;
 	if (selector) {
 		const to = [...document.querySelectorAll<HTMLElement>(selector)].find(isFocusable);
-		if (to && to !== active) {
+		if (to && to !== active && !inFullView(to)) {
 			take(to);
 			return true;
 		}
@@ -216,7 +283,9 @@ function climb(): boolean {
 		isFocusable
 	);
 	const start = declared.find(inViewport) ?? declared[0] ?? startOf(document.body);
-	if (start && start !== active) {
+	if (start && start !== active && !inFullView(start)) {
+		// The top of the screen, header and all, not just enough of it to show the start.
+		window.scrollTo({ top: 0, behavior: 'instant' });
 		take(start);
 		return true;
 	}
@@ -323,7 +392,8 @@ function handleKeydown(e: KeyboardEvent): void {
 		if (inTextEntry(el)) return;
 		e.preventDefault();
 		e.stopPropagation();
-		if (e.repeat) return;
+		// Held: a repeat, flagged or not (OkPress.down says why).
+		if (e.repeat || okPress.armed) return;
 		okTarget = el;
 		okPress.down(false);
 		return;

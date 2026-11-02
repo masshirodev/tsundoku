@@ -48,7 +48,9 @@ start but was drawn for fingers.
 - **BACK closes what is open, then climbs, then leaves**: a sheet or panel
   first; then the shelf's tab and the first CONTINUE card on the library, the
   panel's ▶ CONTINUE on a series, the bar on a player; then
-  `window.tsundokuBack()` says nothing took it and the app leaves.
+  `window.tsundokuBack()` says nothing took it and the app leaves. The climb
+  only goes somewhere out of sight (the owner's call, 2026-11-02): with the
+  top of the screen in full view, BACK leaves at once.
 - **The player is the picture until a key**, then six cells on one row with
   focus on ▶❚❚: ▶❚❚, −10, +10, ← EP. n, the cell naming the stream (the
   settings panel), EP. n+1 →. SKIP INTRO takes OK while it is offered alone.
@@ -239,6 +241,14 @@ The handoff stated these about the code or the app; both are built (c236).
   under CONTINUE. Rebuilding that block is a restructuring of a file card c139
   is editing; the rows are already a ruled block and every action is there, so
   the screen keeps them. (The rating row is `data-focus-adjust`, so ← → work.)
+  The rows take the narrow column's layout on a TV, cells dropped under their
+  row in equal columns, as on the phone and in the 440 px desktop column, and
+  pad 16 px, not the screen's 48. The TV is 960 wide, so until 2026-11-02 it
+  met neither narrow width and got the tablet's full-width rows: cells ran out
+  of the column and over ▶ CONTINUE, and labels were cut
+  (`tests/tv-series.e2e.ts`, "fits its 352px column"). c139 has since merged,
+  so the mock's block is no longer blocked on it: card c248 ("TV: the series'
+  actions as the design's 3×2 block, the other rows under MORE").
 - **The list keeps its scrub rail.** The handoff's list has no rail; the real
   one has had a rail since the series handoff, and it is 56 px of a 480 px
   column here. It stays.
@@ -352,7 +362,22 @@ decisions (`isBackKey`, `isOptionsKey`, `OkPress`) and `layer.ts` wires them;
   tiles to the active shelf tab, anything else to `[data-focus-start]` (the
   first CONTINUE card, the series' ▶ CONTINUE; the climb is the TV's only, a
   keyboard's Escape is not taken for it) — and at the top of the screen
-  says nothing took it. `BrowserBack`/`GoBack` then take the history step
+  says nothing took it. **A climb only lands out of sight** (`inFullView` in
+  `src/lib/focus/layer.ts`; the owner's call after the first real TV,
+  2026-11-02, where BACK on a series cost a press to reach ▶ CONTINUE that was
+  already on screen). The pinned shelf tab is always in sight, so on a
+  scrolled library BACK goes straight to the first CONTINUE card and the page's
+  top; with the top in full view it leaves.
+- **Focus stays in sight under pinned bars.** `reveal` scrolls the focused
+  thing on screen, then out from under whatever sticky or fixed bars cover it
+  (found with `elementFromPoint` at its edges, stacked bars included: the
+  library's focus line is pinned under its shelf tabs). Before 2026-11-02, ↑
+  through the grid left each row under the tabs. `tests/tv-keys.e2e.ts` pins
+  it.
+- **OK held** is any keydown while OK is already down, whatever its `repeat`
+  says: Android TV's WebView sends a held centre as a stream of keydowns, and
+  restarting the hold on each meant it never fired (`OkPress.down`,
+  `tests/focus-keys.spec.ts`). `BrowserBack`/`GoBack` then take the history step
   themselves; Escape is left to the browser, since it is also the way out of a
   filter panel, a lightbox and a typed field.
 - **`window.tsundokuBack(): boolean`** is the same logic, installed by the
@@ -366,7 +391,11 @@ decisions (`isBackKey`, `isOptionsKey`, `OkPress`) and `layer.ts` wires them;
   brings the bar with focus on ▶❚❚, the six cells in the design's order
   (▶❚❚ · −10 · +10 · ← EP. n · the stream's own cell, which opens the settings
   · EP. n+1 →), 76px for the three on the left, on one row under a 60px
-  scrubber, both bars inside the 28px safe margin. The middle cluster is not
+  scrubber, both bars' contents inside the safe margin. The bars themselves
+  reach the screen's edges, the margin being their padding (28px top or
+  bottom, 48px sides; the cells one framed row 48px in). Built first with the
+  bars set 28px in, the picture showed above the top bar and under the cells
+  on the first real TV (2026-11-02). The middle cluster is not
   drawn (it is the thumb's), and nothing changes off a TV. SKIP INTRO shows
   alone while offered and OK takes it. BACK hides the bar at once, then leaves
   for the series. The settings cell opens the 420px panel every sheet is, the

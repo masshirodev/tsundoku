@@ -69,6 +69,19 @@ describe('OkPress', () => {
 		expect(click).not.toHaveBeenCalled();
 	});
 
+	it('a held key sent as fresh keydowns still opens the options once (Android TV)', () => {
+		const { ok, hold, click } = press();
+		ok.down(false);
+		for (let t = 0; t < HOLD_MS + 200; t += 50) {
+			vi.advanceTimersByTime(50);
+			ok.down(false);
+		}
+		expect(hold).toHaveBeenCalledTimes(1);
+		ok.up();
+		expect(click).not.toHaveBeenCalled();
+		expect(ok.armed).toBe(false);
+	});
+
 	it('a repeat released quickly does nothing at all', () => {
 		const { ok, hold, click } = press();
 		ok.down(false);

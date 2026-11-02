@@ -73,26 +73,86 @@ test('MENU opens the same sheet at once', async ({ page }) => {
 	await expect(dialog).toHaveCount(0);
 });
 
-test('BACK climbs: a cover, the shelf’s tab, the first CONTINUE card, then it leaves', async ({
+/** Whether the focused element is wholly on screen, with nothing pinned over it. */
+const focusedInSight = (page: import('@playwright/test').Page) =>
+	page.evaluate(() => {
+		const el = document.activeElement as HTMLElement;
+		const r = el.getBoundingClientRect();
+		// A fraction of a pixel over is a rounding, not a row out of sight.
+		if (r.top < -1 || r.bottom > innerHeight + 1) return false;
+		const x = r.left + r.width / 2;
+		return [r.top + 2, Math.min(r.bottom, innerHeight) - 2].every((y) => {
+			const hit = document.elementFromPoint(x, y);
+			return !!hit && (el.contains(hit) || hit.contains(el));
+		});
+	});
+
+/**
+ * The seeded shelf is about five rows deep: three ↓ from the first stays off
+ * the last, where a ↓ with nothing under it is the browser's own smooth
+ * scroll (still running when the next key lands). Then the page is let settle.
+ */
+async function downThroughGrid(page: import('@playwright/test').Page): Promise<void> {
+	for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowDown');
+	await expect
+		.poll(async () => {
+			const a = await page.evaluate(() => scrollY);
+			await page.waitForTimeout(100);
+			return a === (await page.evaluate(() => scrollY)) ? a : -1;
+		})
+		.toBeGreaterThan(0);
+}
+
+test('↑ through the grid keeps each row in sight, out from under the pinned tabs', async ({
 	page
 }) => {
 	await intoGrid(page);
-	await page.keyboard.press('ArrowDown'); // a second row of covers
-	const title = await page.evaluate(
-		() =>
-			document.activeElement?.closest<HTMLElement>('[data-focus-line]')?.dataset.focusTitle ?? ''
-	);
-	expect(title.length).toBeGreaterThan(0);
+	await downThroughGrid(page);
+	expect(await focusedInSight(page)).toBe(true);
+	for (let i = 0; i < 3; i++) {
+		await page.keyboard.press('ArrowUp');
+		// Before 2026-11-02 the row went under the tabs and stayed there.
+		expect(await focusedInSight(page)).toBe(true);
+	}
+});
 
-	// To the shelf's tab at the top of the shelf (TV Calls, "BACK climbs before it leaves").
-	await page.keyboard.press('Escape');
-	expect(await focusId(page)).toMatch(/^shelf-/);
-	// Then the page's own top: the first CONTINUE card.
+test('BACK climbs only to what is out of sight: scrolled, to the top; at the top, it leaves', async ({
+	page
+}) => {
+	await intoGrid(page);
+	// The first row, CONTINUE still in full view: nothing to climb to.
+	expect(await page.evaluate(() => window.tsundokuBack!())).toBe(false);
+
+	await downThroughGrid(page);
+	// Scrolled: BACK goes back up to the page's own top, the first CONTINUE
+	// card (the pinned shelf tab is in sight, so it isn't a stop).
 	await page.keyboard.press('Escape');
 	expect(await focusId(page)).toMatch(/^continue-/);
+	expect(await page.evaluate(() => window.scrollY)).toBe(0);
 	// And at the top there is nothing left in the page to take it.
 	expect(await page.evaluate(() => window.tsundokuBack!())).toBe(false);
 	expect(page.url()).toContain('/?sort=title');
+});
+
+test('OK held as a stream of fresh keydowns, as Android TV sends it, opens the sheet', async ({
+	page
+}) => {
+	const title = await intoGrid(page);
+	await page.evaluate(async () => {
+		const send = (type: string) =>
+			document.activeElement!.dispatchEvent(
+				new KeyboardEvent(type, { key: 'Enter', bubbles: true, cancelable: true })
+			);
+		send('keydown');
+		for (let i = 0; i < 12; i++) {
+			await new Promise((r) => setTimeout(r, 50));
+			send('keydown');
+		}
+		send('keyup');
+	});
+	await expect(page.getByRole('dialog', { name: title })).toBeVisible();
+	expect(page.url()).toContain('/?sort=title');
+	await page.keyboard.press('Escape');
 });
 
 test('window.tsundokuBack() closes an open sheet and says it did', async ({ page }) => {
