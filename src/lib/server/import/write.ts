@@ -198,8 +198,8 @@ export function writeSeries(
 			// A series another device has files in too (doc/SYNC.md, "Two devices"):
 			// its path is left where it is, widened only when this device brings a
 			// file the series has no copy of, and this device's files are named from
-			// there. The same manga downloaded on the tablet and the phone is one
-			// series, its chapters from whichever device has them.
+			// there. A series with files on two devices is one, its chapters from
+			// whichever device has them.
 			let shared: string | null = null;
 			if (seriesId !== null && volume === null && opts.deviceRoot && s.path !== '') {
 				const { path } = db.prepare(`SELECT path FROM series WHERE id = ?`).get(seriesId) as {
