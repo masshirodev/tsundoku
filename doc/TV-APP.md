@@ -138,11 +138,15 @@ open (see Gaps).
 - **Cookies persist**: `CookieManager.flush()` on pause, so the paired cookie
   survives the app being killed.
 - **The scale**: the handoff is a 960 CSS-px frame, so `useWideViewPort=false`
-  and `WebView.setInitialScale` pin the page to 960 whatever the panel reports
-  (89% on 1280×720 at density 1.5, 100% on 1080p at density 2). `Scale.kt` is
-  the pure part; `ScaleTest.kt` pins it.
+  and `WebView.setInitialScale` pin the page to 960 whatever the panel reports.
+  The percent is in **physical pixels**, not dp (Chromium hands Blink
+  `percent / dipScale / 100`, `android_webview/browser/aw_settings.cc`), so it
+  is the panel's pixel width over 960: 133% on 1280×720, 200% on 1920×1080,
+  400% on 4K, at any density. `Scale.kt` is the pure part; `ScaleTest.kt` pins
+  it.
 - **Video**: `onShowCustomView`/`onHideCustomView` put the fullscreen picture
-  over the app, hiding the WebView; `mediaPlaybackRequiresUserGesture = false`
+  over the app, hiding the WebView, and BACK takes the picture down before it
+  asks the page; `mediaPlaybackRequiresUserGesture = false`
   starts playback without an OK press.
 - **Cleartext**: `network_security_config.xml` allows plain http (a home
   address has no certificate) and still checks the system's anchors for a
@@ -203,9 +207,10 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
 
 - **HLS in a TV's WebView on a low-end device.** The player is hls.js; whether
   a cheap TV's WebView decodes what a browser does is untested.
-- **The 960-px pin on real panels.** The arithmetic is unit-tested; whether a
-  particular TV reports density 1.5 or 2, and whether its WebView honours
-  `setInitialScale` with the viewport meta present, is not.
+- **The 960-px pin on real panels.** The arithmetic is unit-tested, and the
+  unit is read from Chromium's source; whether a particular TV's WebView
+  honours `setInitialScale` with the page's `width=device-width` viewport meta
+  present is not. Check `document.documentElement.clientWidth` reads 960.
 - **The on-screen number keyboard** on a remote with no number keys: focusing
   the field does not open it, and the app does not call `showSoftInput`.
 - **`onShowCustomView` over a real `<video>`**, the screen-awake flag, the
@@ -216,7 +221,7 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
 ## Tests
 
 - `android/tv/app/src/test/` — `AddressTest`, `KeysTest`, `ProbeTest`,
-  `ScaleTest` (17 tests), run by `./gradlew test`.
+  `ScaleTest` (18 tests), run by `./gradlew test`.
 - `tests/pairing-tv.spec.ts` — the six digits: once, 10 minutes, five wrong
   tries burn it, the state machine's every answer.
 - `tests/tv-pair.e2e.ts` — the computer's `/pair/tv` at 960×540 with no pointer:

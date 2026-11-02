@@ -50,6 +50,12 @@ class MainActivity : ComponentActivity() {
 	private val back =
 		object : OnBackPressedCallback(true) {
 			override fun handleOnBackPressed() {
+				// A video gone fullscreen is a view over the page, not the
+				// page's: BACK takes the picture down first, as on a phone.
+				if (customView != null) {
+					hideCustomView()
+					return
+				}
 				webView.evaluateJavascript(BACK_JS) { value ->
 					if (value != "true") {
 						if (webView.canGoBack()) webView.goBack() else finish()
@@ -155,8 +161,8 @@ class MainActivity : ComponentActivity() {
 		// reports (Scale.kt, doc/TV.md "Claims to check").
 		s.useWideViewPort = false
 		s.loadWithOverviewMode = false
-		val metrics = resources.displayMetrics
-		w.setInitialScale(Scale.percentFor(metrics.widthPixels / metrics.density))
+		// In physical pixels: setInitialScale is (Scale.kt says why).
+		w.setInitialScale(Scale.percentFor(resources.displayMetrics.widthPixels))
 		s.textZoom = 100
 		s.setSupportZoom(false)
 		s.builtInZoomControls = false
@@ -199,16 +205,24 @@ class MainActivity : ComponentActivity() {
 				hideSystemUi()
 			}
 
-			override fun onHideCustomView() {
-				val view = customView ?: return
-				root.removeView(view)
-				customView = null
-				customCallback?.onCustomViewHidden()
-				customCallback = null
-				webView.visibility = View.VISIBLE
-				hideSystemUi()
-			}
+			override fun onHideCustomView() = hideCustomView()
 		}
+
+	/**
+	 * The fullscreen picture taken down, by the page (onHideCustomView) or by
+	 * BACK. `onCustomViewHidden` tells the page it left fullscreen; it may call
+	 * onHideCustomView again, which then finds nothing to do.
+	 */
+	private fun hideCustomView() {
+		val view = customView ?: return
+		val callback = customCallback
+		root.removeView(view)
+		customView = null
+		customCallback = null
+		webView.visibility = View.VISIBLE
+		callback?.onCustomViewHidden()
+		hideSystemUi()
+	}
 
 	private fun frame() = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
 

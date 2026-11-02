@@ -152,9 +152,10 @@ The handoff stated these about the code or the app; both are built (c236).
 
 - **"A TV that reports 1280×720 is pinned to 960 wide by the app's WebView
   scale":** the app does that. `useWideViewPort=false` and
-  `WebView.setInitialScale` take the display width in dp and scale it to 960
-  (`android/tv/.../Scale.kt`, unit-tested): 89% on 1280×720 at density 1.5,
-  100% on 1920×1080 at density 2. Whether a particular panel honours it is
+  `WebView.setInitialScale` take the display width in physical pixels (the
+  unit `setInitialScale` counts in) and scale it to 960
+  (`android/tv/.../Scale.kt`, unit-tested): 133% on 1280×720, 200% on
+  1920×1080, at any density. Whether a particular panel honours it is
   unverified ([`TV-APP.md`](TV-APP.md), "What is not verified").
 - **A six-digit code typed on the TV:** `src/lib/server/pairing.ts` now has a
   second code beside the phone's link: six digits from `crypto.randomInt`,
