@@ -81,13 +81,15 @@ Series that never had seasons, on both sides, match by number alone.
 
 One transaction (`applyMove` in `src/lib/server/move.ts`):
 
-1. **Re-key the series** to `mihon:<source>:<url>` (or `aniyomi:`), and keep
-   the old key with when it was left (`former_key`, `former_at`,
-   `former_source`, `former_offset`). The series' `source` and `source_url` are
-   the new source's.
+1. **Re-key the series** to `mihon:<source>:<url>` (or `aniyomi:`), keep the
+   old key with when it was left (`former_key`, `former_at`,
+   `former_source`, `former_offset`), and add it to every key the series has
+   left (`series_former_keys`, rung 58). The series' `source` and `source_url`
+   are the new source's.
 2. **Matched entries** keep their row — so their reading, file, rating and log
    stay attached — and take the new source's chapter URL. The address they had
-   is kept as `former_url`, for the backup's plan to find them by.
+   is kept as `former_url` and joins every address the entry has left
+   (`entry_former_urls`), for the backup's plan to find them by.
 3. **Kept entries** keep their old URL and `engine_chapters` row, and record
    `origin_source` (the source's id) so the list can say its name and a
    re-download asks there. A matched entry's `origin_source` is cleared: it is
@@ -118,14 +120,22 @@ chapter with no installed extension does; its file still reads.
 
 ### The tablet's backup
 
-A backup still names the source it was downloaded from. After a move that key
-is `series.former_key`, and `writeSeries` (`import/write.ts`) looks a series up
-by it as well as by `origin_key`, so the backup resolves to **this** series and
-never makes a twin. The chapters it plans still name the old source's URLs,
-which matched entries keep as `former_url`, so the writer finds them instead of
-adding a second copy. The series keeps the key it moved to. This is the
-writer's existing former-key mechanism (`adoptFormer`) extended, not a second
-one.
+A backup still names the source it was downloaded from. After a move that key is
+in **every key the series has left**, `series_former_keys` (rung 58), and
+`writeSeries` (`import/write.ts`) looks a series up by it as well as by
+`origin_key`, so the backup resolves to **this** series and never makes a twin —
+whichever move it names, not only the last. `series.former_key` keeps the most
+recent one, which is what MOVE BACK offers; the table is the record. If two
+series somehow both list a key, the most recent `left_at` wins: a key has one
+series that left it last.
+
+The chapters it plans still name the old source's URLs. Each matched entry keeps
+the address it had in `entry_former_urls` as well as `former_url`, so after
+A → B → C an entry still answers to A's address and the writer updates it rather
+than adding a second copy. A key or URL the series or entry now has is never
+also a former one: a move to it takes it out of the record. The series keeps the
+key it moved to. This is the writer's existing former-key mechanism
+(`adoptFormer`) extended, not a second one.
 
 ## The way back
 
@@ -140,7 +150,10 @@ read in between (entries keep their rows). A chapter the new source added
 **stays if it has a file** (nothing deletes a file) and **goes if it has none**.
 A chapter of the old source that was deleted while away comes back from the old
 source's list, unread and not downloaded. The key just left becomes the
-remembered one, so the way back can itself be undone the same way.
+remembered one, so the way back can itself be undone the same way, and the key
+it returned to leaves `series_former_keys`: a key the series is at is not a
+former one. Every other key it has left stays in the record, so a backup naming
+any of them still resolves.
 
 After 30 days the SOURCE row stops offering MOVE BACK. The old key stays on the
 series (invisible otherwise), so the tablet's backup still resolves. Moving
@@ -182,14 +195,25 @@ asks once. The move leaves no trace outside the series: no notice, no band
 anywhere but its own screen, no line in DOWNLOADS beyond the queue rows a
 hidden series already gets.
 
-## Schema (rung 57)
+## Schema (rungs 57 and 58)
 
-`series.former_key`, `former_at`, `former_source`, `former_offset`,
+Rung 57: `series.former_key`, `former_at`, `former_source`, `former_offset`,
 `move_dismissed_at`; `entries.origin_source`, `former_url`; and
 `episode_failures(entry_id, series_id, first_at, last_at, tries)` with an index
-on `(series_id, last_at)`. The rung is append-only, like every one before it
-(`src/lib/server/db.ts`). `tests/move-rung57-db.spec.ts` climbs a file to 56,
-fills it, and checks 57.
+on `(series_id, last_at)`.
+
+Rung 58: `series_former_keys(series_id, origin_key, source, left_at)`, keyed by
+`(series_id, origin_key)` with an index on `origin_key`, and
+`entry_former_urls(entry_id, former_url, left_at)` the same way — every key a
+series has left and every address an entry has left, which is what the tablet's
+backup resolves through. Both cascade with their series or entry, so a series
+that goes takes its record with it. The rung copies rung 57's values in: each
+non-null `former_key` (with `former_at`, `former_source`) and each non-empty
+`former_url`. A key or URL that is also the current one is left out. The rungs
+are append-only, like every one before them (`src/lib/server/db.ts`):
+`tests/move-rung57-db.spec.ts` climbs a file to 56, fills it, and checks 57;
+`tests/move-rung58-db.spec.ts` climbs to 57 with a former key and URL, and
+checks the copy, the current-one rule, and the cascade.
 
 ## Where it departs from the handoff
 
@@ -237,7 +261,9 @@ LATEST CH. 121 · 2 D AGO`, which costs a details call per candidate. The
 - **A per-candidate chapter count on the list** (departure 1), and **the order
   sources answered in** (departure 4).
 - **An undo stack beyond one step.** MOVE BACK remembers the source just left,
-  so a move can be undone; a third step is another MOVE.
+  so a move can be undone; a third step is another MOVE. Every key is kept for
+  the backup's lookup (`series_former_keys`), but MOVE BACK offers only the last
+  one.
 - **PLAYS without script**, and **PLAYS for anything but the CONTINUE episode**.
 
 ## Tests
@@ -249,6 +275,11 @@ LATEST CH. 121 · 2 D AGO`, which costs a details call per candidate. The
   reading and the log, the queue's two sides, FOLLOW, the old key, 30 days,
   MOVE BACK, the tablet backup, a hidden series, NO SERVER failures.
 - `tests/move-rung57-db.spec.ts` — the rung on a file.
+- `tests/move-rung58-db.spec.ts` — rung 58 on a file: the copy, the
+  current-one rule, the cascade.
+- `tests/move-former-keys-db.spec.ts` — A → B → C answers a backup naming A
+  (no twin, no second chapter), MOVE BACK takes the key returned to out of the
+  record, and a deleted series takes its rows with it.
 - `tests/browse-move.e2e.ts` — the flow end to end, against the fake engine:
   the SOURCE row, the candidates, the comparison, MOVE, the moved band, the
   kept chapter's badge, and MOVE BACK.
