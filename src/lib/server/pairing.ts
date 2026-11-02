@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
-import { deviceLabel } from '$lib/settings/catalog';
+import { deviceLabel, isTvApp } from '$lib/settings/catalog';
 import { getDb } from './db';
 
 /**
@@ -164,7 +164,7 @@ export const minutesLeft = (c: Code, now: number) =>
  * names it a TV in DEVICES rather than an Android tablet.
  */
 export function pairedLabel(ua: string): string {
-	if (/TsundokuTV\//i.test(ua)) return deviceLabel(ua, 'tv');
+	if (isTvApp(ua)) return deviceLabel(ua, 'tv');
 	const kind =
 		/iPad|Tablet/i.test(ua) || (/Android/i.test(ua) && !/Mobile/i.test(ua)) ? 'tablet' : 'phone';
 	return deviceLabel(ua, kind);

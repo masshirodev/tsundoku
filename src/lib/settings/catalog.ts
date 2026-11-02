@@ -916,6 +916,13 @@ export function deviceKind(o: { width: number; coarse: boolean }): DeviceKind {
 }
 
 /**
+ * The TV app (doc/TV-APP.md) appends `TsundokuTV/<version>` to its WebView's
+ * user agent: the one sure sign a browser is a TV, since a page alone can't
+ * tell a TV from a pointerless desktop.
+ */
+export const isTvApp = (ua: string) => /TsundokuTV\//i.test(ua);
+
+/**
  * "Android tablet · Chrome", from the browser's own words. `tv` is not a
  * DeviceKind: no browser reports its screen as one. It is what the TV app's
  * own user agent says (doc/TV-APP.md), so a paired TV reads as a TV in DEVICES.

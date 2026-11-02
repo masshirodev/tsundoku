@@ -2,7 +2,7 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { cleanStamped, isDeviceId, syncDevice } from '$lib/server/devices';
 import { adoptLegacy } from '$lib/server/anime/choices';
-import { deviceLabel, type DeviceKind } from '$lib/settings/catalog';
+import { deviceLabel, isTvApp, type DeviceKind } from '$lib/settings/catalog';
 import { PAIRED_COOKIE, linkPaired } from '$lib/server/pairing';
 
 /**
@@ -19,6 +19,7 @@ export const POST: RequestHandler = async ({ request, cookies, locals }) => {
 		register?: unknown;
 	} | null;
 	const kind = body?.kind as DeviceKind;
+	const ua = request.headers.get('user-agent') ?? '';
 	if (!body || !isDeviceId(body.id) || !['phone', 'tablet', 'desktop'].includes(kind))
 		error(400, 'not a device');
 	if (body.legacy && typeof body.legacy === 'object')
@@ -26,7 +27,9 @@ export const POST: RequestHandler = async ({ request, cookies, locals }) => {
 	const { newer } = syncDevice({
 		id: body.id,
 		kind,
-		label: deviceLabel(request.headers.get('user-agent') ?? '', kind),
+		// The TV app syncs as a desktop (DeviceKind has no TV yet), but its row
+		// should still say TV: the label is what DEVICES shows (doc/TV-APP.md).
+		label: deviceLabel(ua, isTvApp(ua) ? 'tv' : kind),
 		settings: cleanStamped(body.settings),
 		// A phone paired over Wi-Fi is a device from its first visit, so the
 		// computer's DEVICES lists it with SIGN OUT (doc/WIFI.md).

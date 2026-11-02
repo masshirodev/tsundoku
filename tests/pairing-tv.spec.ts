@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { deviceLabel, isTvApp } from '../src/lib/settings/catalog.ts';
 import { CODE_MS, TV_TRIES, TvPairing, pairedLabel, sixDigits } from '../src/lib/server/pairing.ts';
 
 /**
@@ -69,5 +70,22 @@ describe('a TV code (doc/TV.md)', () => {
 		expect(pairedLabel('Mozilla/5.0 (Linux; Android 14; Pixel 7) Mobile Safari Chrome/131')).toBe(
 			'Android phone · Chrome'
 		);
+	});
+});
+
+describe("the TV app's user agent (doc/TV-APP.md)", () => {
+	const tv =
+		'Mozilla/5.0 (Linux; Android 9; BRAVIA 4K GB) AppleWebKit/537.36 Chrome/94.0 Safari/537.36 TsundokuTV/1.0.0';
+	const tablet =
+		'Mozilla/5.0 (Linux; Android 14; SM-X710) AppleWebKit/537.36 Chrome/130.0 Safari/537.36';
+
+	it('is the one sign a browser is a TV', () => {
+		expect(isTvApp(tv)).toBe(true);
+		expect(isTvApp(tablet)).toBe(false);
+	});
+
+	it('names the row a TV whatever kind the page synced as', () => {
+		// What /api/devices/sync labels it: the page itself says desktop.
+		expect(deviceLabel(tv, isTvApp(tv) ? 'tv' : 'desktop')).toBe('Android TV · Chrome');
 	});
 });
