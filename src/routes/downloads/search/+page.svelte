@@ -44,8 +44,9 @@
 			else void h.then((s) => settled.set(g.id, countOf(s)));
 		}
 	});
-	// A source still asking: is the engine passing its site's check? (c143) Asked only on the
-	// engine, which is the one that can say.
+	// A source still asking: is its site's check being passed? (c143) The engine
+	// says for an extension, the app itself for a novel (c152); asked only with
+	// the engine set up, which BROWSE needs anyway.
 	const checks = new SvelteMap<string, SiteCheck>();
 	$effect(() => {
 		if (!data.engine) return;

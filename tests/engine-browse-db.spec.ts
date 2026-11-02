@@ -302,6 +302,21 @@ describe('a site’s browser check', () => {
 		expect(browse.browseList(false).manga.find((r) => r.id === OPEN)!.check).toBe(true);
 		challenges = { solving: {}, solved: {} };
 	});
+
+	it('is a novel’s own, matched by its plugin’s site (c152)', async () => {
+		db.prepare(
+			`INSERT INTO novel_plugins (id, name, site, lang, version, hash, installed_at, updated_at, failed)
+			VALUES ('shelfish', 'Shelf Novels', 'https://www.novel.example/', 'en', '1.0.0', 'h', 0, 0, '')`
+		).run();
+		challenges = { solving: { 'api.novel.example': 7_000 }, solved: {} };
+		expect(await browse.checkingSince('ln:shelfish')).toBe(7_000);
+		// A plugin that isn't installed has no site, and no engine call is needed to say so.
+		expect(await browse.checkingSince('ln:absent')).toBeNull();
+		challenges = { solving: {}, solved: { 'www.novel.example': 8_000 } };
+		await browse.checkingSince('ln:shelfish');
+		expect(browse.browseList(false).novels.find((r) => r.id === 'ln:shelfish')!.check).toBe(true);
+		challenges = { solving: {}, solved: {} };
+	});
 });
 
 describe('what a source can do', () => {

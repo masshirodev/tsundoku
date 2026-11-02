@@ -56,7 +56,8 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 		down: false,
 		all: sources.map((s) => ({ id: s.id, name: s.name })),
 		groups: q ? await groups(asked, q, reveal, hasScript(cookies)) : [],
-		// Only the engine can say a site's browser check is being passed (c143).
+		// The engine says an extension's site's check, or the app a novel's; without
+		// it there is no BROWSE at all (c143, c152).
 		engine: downloadsBackend() === 'engine'
 	};
 };

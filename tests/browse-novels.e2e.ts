@@ -14,6 +14,15 @@ test.beforeEach(async () => {
 	await resetEngine();
 });
 
+test('a novel’s site check is asked for like an extension’s (c152)', async ({ page }) => {
+	await page.goto('/browse/ln:shelf');
+	// The band on a waiting page asks this once a second; a novel's source
+	// answers it now, by its plugin's site, instead of 404ing.
+	const res = await page.request.get('/api/browse/check/ln:shelf');
+	expect(res.status()).toBe(200);
+	expect(await res.json()).toEqual({ since: null });
+});
+
 test('a novel is added, downloaded into its EPUB chapter by chapter, and read on, online, past what’s there', async ({
 	page
 }) => {

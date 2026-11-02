@@ -6,14 +6,14 @@ Light and web novels, found, downloaded and read inside tsundoku on
 manga runs on Mihon's extensions ([`DOWNLOADER.md`](DOWNLOADER.md)). Card c127
 ("Novels from LNReader plugins, inside tsundoku"), split in five:
 
-| Part                                                 | Card | State   |
-| ---------------------------------------------------- | ---- | ------- |
-| A sandboxed host for the plugins                     | c147 | Done    |
-| Repositories and plugins in EXTENSIONS               | c148 | Done    |
-| Browsing, searching and adding a novel               | c149 | Done    |
-| Downloading chapters into an EPUB the importer reads | c150 | Done    |
-| FOLLOW, live checks, the rest of this file           | c151 | Done    |
-| Past a site's bot check, through FlareSolverr        | c152 | Not yet |
+| Part                                                 | Card | State |
+| ---------------------------------------------------- | ---- | ----- |
+| A sandboxed host for the plugins                     | c147 | Done  |
+| Repositories and plugins in EXTENSIONS               | c148 | Done  |
+| Browsing, searching and adding a novel               | c149 | Done  |
+| Downloading chapters into an EPUB the importer reads | c150 | Done  |
+| FOLLOW, live checks, the rest of this file           | c151 | Done  |
+| Past a site's bot check, through FlareSolverr        | c152 | Done  |
 
 The owner's repository (2026-10-28):
 `https://raw.githubusercontent.com/LNReader/lnreader-plugins/plugins/v3.0.0/.dist/plugins.min.json`,
@@ -63,8 +63,18 @@ never runs in the app (`src/lib/server/novels/`):
   is refused when its host resolves to a loopback, private, link-local or
   unique-local address. Tests open a loopback port through the parent's own
   message; nothing else can.
-- **Calls over IPC with a timeout** (a minute); a plugin stuck in a loop gets
-  the host restarted, and its failure is the caller's error, not a crash.
+- **A site's browser check is the app's to solve** (c152). The host can't
+  reach a solver, since a solver is one of the local addresses it refuses, so
+  a 403 or 503 carrying Cloudflare's markers makes it ask the **parent** over
+  IPC, naming only the URL. The app checks the address is on the internet and
+  asks FlareSolverr (`novels/solver.ts`); what comes back is that host's
+  clearance cookies and user agent, never the solver's address and never
+  another host's cookie. The host keeps a **jar per host**, applies it to that
+  host only, and retries **once**; a plain 403 with no marker stays the site's
+  own answer ("answered 403"), as does one whose check it couldn't pass.
+- **Calls over IPC with a timeout** (a minute; two for a list that may wait on
+  a first solve); a plugin stuck in a loop gets the host restarted, and its
+  failure is the caller's error, not a crash.
 
 **What it doesn't stop.** Node 24 has no `--allow-net`, and the plugins need
 the network. Code that escapes the vm context (a host object's constructor
@@ -74,21 +84,90 @@ a raw socket to a port on the workstation. Everything there that matters asks
 for a token or a session, which the host doesn't have. Running the host in a
 container with its own network would close that; it isn't done.
 
+**And a solve is the app's, not the plugin's.** A plugin can ask for any host
+on the internet, so it can make the app solve a check for any public site it
+names; that is the feature. What it can't do is name a private or loopback
+address (refused before the solver hears of it), read the solver's address
+(the host's environment is empty and the answer carries only cookies), or
+receive a cookie for a host other than the one it asked about.
+
 `tests/novel-host.spec.ts`: a plugin answers each method through the host
 (filters' starting values included), and a hostile one fails to require `fs`,
 finds no environment, can't read a file or start a process even out of the vm
 context, and can't fetch a loopback address directly or by redirect, after
-which the host still answers.
+which the host still answers. And a site that answers with a check: the app is
+asked by URL only, the retry carries that host's cookies and user agent, the
+jar is kept per host and to no other, a retry that is still a check is
+reported, and a plain 403 stays the site's own answer.
 
 **Measured live on 2026-10-28**, four of the owner's repository's plugins
 through the host: NovelBin (10 popular, a novel's 148 chapters, a chapter's
 8 KB of HTML) and Wuxiaworld (50, 357 chapters, 8 KB) all the way through.
 Royal Road stops at its site's bot check ("Open a novel from Royal Road in
 WebView"), and ScribbleHub's popular list comes back empty, most likely the
-same. Getting past those needs the engine's FlareSolverr in the host's path,
-which the host's own fetch can't reach (it refuses local addresses on
-purpose): a planned way through, c152 ("Novel plugins past a site's bot
-check, through the engine's FlareSolverr").
+same. Getting past those needs a solver in the host's path, which the host's
+own fetch can't reach (it refuses local addresses on purpose); c152 gives the
+host a way to one, below.
+
+## Past a site's bot check
+
+Some novel sites answer a non-browser request with a Cloudflare check, and
+three of the five best-known English plugins stop there. The engine already
+passes one for a Mihon extension through FlareSolverr; since c152 a novel
+plugin's does too, through the app, without giving the host a way to a local
+address.
+
+- **Detection first.** A response is a check only when it is a 403 or a 503
+  _and_ carries Cloudflare's markers: `cf-mitigated: challenge`, a `cf-ray`
+  with `server: cloudflare`, or `__cf_chl` in its body. Anything else is the
+  site's own answer, so "Could not reach site (403: Forbidden)" still happens
+  for a site that means it — and the three failures were not one shape, so a
+  plain 403 is never sent to a solver.
+- **The host asks the parent**, since a solver is a local address it refuses:
+  `{ op: 'challenge', id, url }` over IPC, the URL and nothing else. The
+  parent checks the address is on the internet (`checkPublic` in
+  `net-guard.ts`) before the solver hears of it, asks FlareSolverr, and
+  answers `{ op: 'challenge-result', id, ok, value }` with that host's
+  clearance cookies and its user agent. Never the solver's address, never
+  `.env`, never a cookie for another host, and none from a redirect's host. A
+  refusal is an answer with nothing, not a crash.
+- **The jar is per host.** The host keeps each host's clearance and sends it
+  only to that host (`withJar`); a redirect to another host carries nothing of
+  the first. It retries **once** per request: a response that is still a check
+  is noted as `"<host> answered 403 (its check could not be passed)"`, which
+  the source page bands. A plugin asking in a loop waits on the solve already
+  underway instead of queueing another — the host dedupes by host, and so does
+  the app (`novels/solver.ts`) — since a first solve takes 20–45 s.
+- **BROWSE names it.** The app writes the host into `site_checks` when a solve
+  succeeds, and `checkingSince` answers for a novel by its plugin's site
+  (`novel_plugins.site`), so the live band on the source page and in SEARCH
+  THE SOURCES, and "FIRST VISIT WAITS FOR THE SITE'S CHECK" in BROWSE, are
+  there for a novel as for an extension ([`BROWSE.md`](BROWSE.md), "A site's
+  check"). The app's solver address is `NOVEL_SOLVER_URL`, deliberately not
+  `ENGINE_SOLVER_URL` ([`EXTENSION-ENGINE.md`](EXTENSION-ENGINE.md), "The
+  solver, and a novel's check").
+
+**Measured live on 2026-11-02**, the real dialogue against FlareSolverr 3.4.6
+on `127.0.0.1:8193` and the real host:
+
+- **Royal Road works.** The solver's cookies and user agent, applied to
+  `www.royalroad.com`, gave the host 165 KB of the site's homepage where the
+  host's own request had been challenged.
+- **NovelFull and Scribble Hub still refuse Node.** The solver fetches both —
+  Scribble Hub issues a `cf_clearance`, NovelFull only its own `nt_csrf` —
+  but a plain Node request sending the same cookie and the same user agent
+  still gets the challenge from both: their check is bound to the browser that
+  solved it, not to the cookie. The host now says so distinctly ("answered 403
+  (its check could not be passed)") rather than reporting a bare 403. Fetching
+  the page itself through the solver is the only way past those, and the card
+  rules it out; it would be a later card's question.
+
+`tests/novel-solver.spec.ts` is the app's half: a loopback or private address
+refused before the solver hears of it, only the asked host's cookies and its
+user agent in the answer, one solve per host at a time, the live line while it
+runs, `site_checks` on success, and which address the app uses.
+`tests/novel-host.spec.ts`'s check block is the host's half, and
+`tests/engine-browse-db.spec.ts` pins a novel's `checkingSince`.
 
 ## Repositories and plugins
 
@@ -171,15 +250,18 @@ base64url>`, as a Mihon source's manga is `<source>~<url>`
   answers `''` on any failure, as LNReader's runtime does, so a plugin whose
   site refused it would list nothing. The host notes the first request it
   refused or that failed during each call, and an empty answer becomes that
-  error ("www.scribblehub.com answered 403"); an answer with anything in it is
-  kept. The source page bands it with TRY AGAIN.
+  error ("www.scribblehub.com answered 403", or "… answered 403 (its check
+  could not be passed)" when it was a bot check); an answer with anything in
+  it is kept. The source page bands it with TRY AGAIN.
 
 **Measured live on 2026-10-28**, the owner's repository through the real
 host and this module (in-memory database, scratch store): Novel Bin (two
 filters, 10 popular, 24 latest, 50 found, a filtered list, a 148-chapter
 preview, added with 148 entries in 0.4 s) and Wuxia World (no filters, 50
 popular, 357 chapters, added) all the way through. NovelFull, Royal Road and
-Scribble Hub stop at their bot checks: c152.
+Scribble Hub stopped at their bot checks then; Royal Road's is now passed by
+the app's solve, and the other two still refuse a Node request even with a
+real solver's clearance ("Past a site's bot check", 2026-11-02).
 
 `tests/lnreader-filters.spec.ts` (the five types both ways and through the
 URL), `tests/novel-source-db.spec.ts` (BROWSE's NOVELS rows, pages until an
@@ -339,7 +421,10 @@ asked again, an unfollowed novel left alone) and the FOLLOW cell in
 
 ## Not done yet
 
-Bot checks: c152 above. The book carries no cover of its
-own (tsundoku's tiles have theirs). Without the engine set up there's no
-BROWSE, so no novels either, though nothing in the novel worker needs it. A plugin's own
+Two of the three checked sites still refuse a Node request even with a real
+solver's clearance, because their check is bound to the browser that solved it
+("Past a site's bot check"); fetching the page through the solver is the way
+past those, and it isn't done. The book carries no cover of its own
+(tsundoku's tiles have theirs). Without the engine set up there's no BROWSE, so
+no novels either, though nothing in the novel worker needs it. A plugin's own
 settings (`pluginSettings`, a few have them) aren't offered.

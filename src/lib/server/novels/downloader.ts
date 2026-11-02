@@ -201,7 +201,9 @@ export async function fetchChapter(
 ): Promise<FetchedChapter> {
 	let html: unknown;
 	try {
-		html = await novelHost().call<unknown>(p.file, 'parseChapter', [e.path]);
+		// Two minutes: the first request to a host behind a check waits on the
+		// app's solve before the host can retry (card c152).
+		html = await novelHost().call<unknown>(p.file, 'parseChapter', [e.path], 120_000);
 	} catch (err) {
 		throw new NovelDownloadError((err as Error).message, 'source');
 	}

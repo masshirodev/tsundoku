@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
@@ -11,13 +11,26 @@ import { NovelHost, NovelHostError } from '$lib/server/novels/host';
 
 let site: Server;
 let other: Server;
+/** A site that answers with a browser check until its clearance is sent (card c152). */
+let challenged: Server;
 let port = 0;
 let otherPort = 0;
+let checkPort = 0;
 const store = mkdtempSync(join(tmpdir(), 'tsundoku-novel-host-'));
 let host: NovelHost;
 
+/** The URLs the app was asked to solve, and what the checked site was sent. */
+let solved: string[] = [];
+let seen: { cookie: string; agent: string }[] = [];
+let solveAs: (url: string) => Promise<{ cookies: string; userAgent: string } | null> = async () =>
+	null;
+
 /** The fixtures, with their site's address written in (the vm context has no env to read). */
-function plugin(name: 'good' | 'evil', globals: Record<string, string>, as: string = name): string {
+function plugin(
+	name: 'good' | 'evil' | 'checked',
+	globals: Record<string, string>,
+	as: string = name
+): string {
 	const src = readFileSync(new URL(`./fixtures/lnreader/${name}.js`, import.meta.url), 'utf8');
 	const prelude = Object.entries(globals)
 		.map(([k, v]) => `globalThis.${k} = ${JSON.stringify(v)};`)
@@ -31,6 +44,8 @@ let good = '';
 let evil = '';
 let shut = '';
 let missing = '';
+let checked = '';
+let cleared = '';
 
 beforeAll(async () => {
 	site = createServer((req, res) => {
@@ -48,11 +63,37 @@ beforeAll(async () => {
 			return res.writeHead(302, { location: `http://127.0.0.1:${otherPort}/` }).end();
 		res.writeHead(404).end();
 	});
-	other = createServer((_, res) => res.end('secret'));
+	other = createServer((req, res) => res.end(`cookie=${req.headers.cookie ?? 'none'}`));
+	challenged = createServer((req, res) => {
+		const u = new URL(req.url ?? '/', 'http://x');
+		seen.push({ cookie: req.headers.cookie ?? '', agent: req.headers['user-agent'] ?? '' });
+		if (u.pathname === '/list') {
+			// A Cloudflare challenge, and the same request once its clearance is sent.
+			if (!/cf_clearance=ok/.test(req.headers.cookie ?? ''))
+				return res
+					.writeHead(403, { 'cf-mitigated': 'challenge', server: 'cloudflare' })
+					.end('<html>Just a moment…</html>');
+			return res
+				.writeHead(200, { 'content-type': 'text/html' })
+				.end('<a class="novel" href="/n/one">Cleared</a>');
+		}
+		// The pair Cloudflare sends, and a check that says so only in its body.
+		if (u.pathname === '/always')
+			return res.writeHead(403, { 'cf-ray': '8d0', server: 'cloudflare' }).end();
+		if (u.pathname === '/bodyonly') return res.writeHead(403).end('<b>__cf_chl</b>');
+		// A site's own 403: no marker, so it is not the app's to solve.
+		if (u.pathname === '/plain') return res.writeHead(403).end('go away');
+		// A hop to another host, which must not be sent the first host's clearance.
+		if (u.pathname === '/away')
+			return res.writeHead(302, { location: `http://localhost:${otherPort}/leak` }).end();
+		res.writeHead(404).end();
+	});
 	await new Promise<void>((ok) => site.listen(0, '127.0.0.1', ok));
 	await new Promise<void>((ok) => other.listen(0, '127.0.0.1', ok));
+	await new Promise<void>((ok) => challenged.listen(0, '127.0.0.1', ok));
 	port = (site.address() as AddressInfo).port;
 	otherPort = (other.address() as AddressInfo).port;
+	checkPort = (challenged.address() as AddressInfo).port;
 	good = plugin('good', { SITE: `http://127.0.0.1:${port}/` });
 	evil = plugin('evil', {
 		LOOPBACK: `http://127.0.0.1:${otherPort}/`,
@@ -61,15 +102,27 @@ beforeAll(async () => {
 	// The same plugin, its site on a port the host wasn't opened to, and on a path that 404s.
 	shut = plugin('good', { SITE: `http://127.0.0.1:${otherPort}/` }, 'shut');
 	missing = plugin('good', { SITE: `http://127.0.0.1:${port}/gone/` }, 'missing');
-	host = new NovelHost({ store, allow: [`127.0.0.1:${port}`], timeoutMs: 15_000 });
+	checked = plugin('checked', { SITE: `http://127.0.0.1:${checkPort}/` });
+	cleared = plugin('good', { SITE: `http://127.0.0.1:${checkPort}/` }, 'cleared');
+	host = new NovelHost({
+		store,
+		allow: [`127.0.0.1:${port}`, `127.0.0.1:${checkPort}`, `localhost:${otherPort}`],
+		timeoutMs: 15_000,
+		solve: (url) => {
+			solved.push(url);
+			return solveAs(url);
+		}
+	});
 });
 
 afterAll(async () => {
 	host.stop();
 	site.closeAllConnections();
 	other.closeAllConnections();
+	challenged.closeAllConnections();
 	await new Promise((ok) => site.close(ok));
 	await new Promise((ok) => other.close(ok));
+	await new Promise((ok) => challenged.close(ok));
 	rmSync(store, { recursive: true, force: true });
 });
 
@@ -123,6 +176,66 @@ describe('a plugin whose site failed it', () => {
 
 	it('keeps an answer that has something in it', async () => {
 		expect(await host.call(missing, 'parseNovel', ['/n/one'])).toMatchObject({ name: 'A Novel' });
+	});
+});
+
+describe('a site’s browser check', () => {
+	// The host can't reach a solver (it refuses local addresses on purpose), so
+	// it asks the app, which is the only thing that may (doc/NOVELS.md, c152).
+	// The order matters: the jar outlives one test, as it outlives one call.
+	beforeEach(() => {
+		solved = [];
+		seen = [];
+		solveAs = async () => ({ cookies: 'cf_clearance=ok', userAgent: 'StubBrowser/1.0' });
+	});
+
+	it('reports a check the app wouldn’t solve, and stays alive', async () => {
+		solveAs = async () => null;
+		await expect(host.call(checked, 'parseChapter', ['/list'])).rejects.toThrow(
+			/answered 403 \(its check could not be passed\)/
+		);
+		expect(solved).toEqual([`http://127.0.0.1:${checkPort}/list`]);
+		expect(await host.call(good, 'parseChapter', ['/still'])).toBe('<p>/still</p>');
+	});
+
+	it('is solved by the app, named only by its URL, and the host retries with the clearance', async () => {
+		expect(await host.call(cleared, 'popularNovels', [1, {}])).toEqual([
+			{ name: 'Cleared', path: '/n/one', cover: '' }
+		]);
+		expect(solved).toEqual([`http://127.0.0.1:${checkPort}/list?page=1&sort=new`]);
+		const last = seen[seen.length - 1];
+		expect(last.cookie).toBe('cf_clearance=ok');
+		expect(last.agent).toBe('StubBrowser/1.0');
+	});
+
+	it('keeps the jar per host: the next call asks for nothing', async () => {
+		await host.call(cleared, 'popularNovels', [1, {}]);
+		await host.call(cleared, 'popularNovels', [1, {}]);
+		expect(solved).toHaveLength(0);
+	});
+
+	it('sends the cookies to that host and to no other', async () => {
+		// The checked site redirects to localhost, another host: the hop must
+		// arrive without the clearance, which belongs to the first.
+		const n = await host.call<{ name: string }>(checked, 'parseNovel', ['/away']);
+		expect(n.name).toBe('cookie=none');
+	});
+
+	it('retries once, and reports a check it still can’t pass', async () => {
+		await expect(host.call(checked, 'parseChapter', ['/always'])).rejects.toThrow(
+			/answered 403 \(its check could not be passed\)/
+		);
+		expect(solved).toHaveLength(1);
+		expect(seen.filter((s) => s.cookie === 'cf_clearance=ok')).toHaveLength(2);
+	});
+
+	it('names a check that is only in the body, and a plain 403 stays the site’s own answer', async () => {
+		await expect(host.call(checked, 'parseChapter', ['/bodyonly'])).rejects.toThrow(
+			/answered 403 \(its check could not be passed\)/
+		);
+		expect(solved).toHaveLength(1);
+		await expect(host.call(checked, 'parseChapter', ['/plain'])).rejects.toThrow(/answered 403$/);
+		expect(solved).toHaveLength(1);
 	});
 });
 

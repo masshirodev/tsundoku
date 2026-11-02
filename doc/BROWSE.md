@@ -194,6 +194,13 @@ solved and when each last was (`GET /challenges`,
 (`checkingSince`, through `/api/browse/check/<source>`), matching a host to a
 source's site by domain, subdomains included.
 
+**A novel is named too** (c152). An LNReader plugin's check is solved by the
+app itself, since the plugin host refuses local addresses and a solver is one
+([`NOVELS.md`](NOVELS.md), "Past a site's bot check"): the novel's site is its
+plugin's (`novel_plugins.site`), the app knows while its own solve runs, and
+`solvingSince` joins what `/challenges` says, so every line below is there for
+a novel exactly as for an extension.
+
 - **On a source's page**, while its first answer is coming, the page asks every
   second (`SiteCheck`, `src/lib/site-check.svelte.ts`). If the engine is
   passing the site's check, the band says so at once (Browse Calls, "A site's
@@ -201,13 +208,15 @@ source's site by domain, subdomains included.
   SCANS · PASSING THE SITE'S BROWSER CHECK", how long it has asked, and that a
   first visit takes 20–45 s; the label says WAITING FOR THE SITE over the grid
   outline. Otherwise the house band comes at 10 s ("STILL ASKING …"). At 60 s
-  the call gives up: DID NOT ANSWER, with TRY AGAIN.
+  an extension's call gives up: DID NOT ANSWER, with TRY AGAIN (a novel's waits
+  two minutes, since its first call may pass a check the app solves).
 - **In SEARCH THE SOURCES**, a source still asking says "BROWSER CHECK · ASKED
   18 S AGO" in its header instead of ASKING.
 - **In BROWSE**, a source whose site has needed a check says "FIRST VISIT WAITS
   FOR THE SITE'S CHECK" on its line. The hosts are kept in rung 43's
   `site_checks` (its own table: a source's rows are rewritten on every
-  install), read from the engine whenever a page asks and when BROWSE opens.
+  install), read from the engine whenever a page asks and when BROWSE opens,
+  and written directly when the app solves a novel's check.
 
 ## Extensions and repositories
 
@@ -327,19 +336,19 @@ values show and still save, under the NOT ANSWERING band.
 
 ## Where it lives in the code
 
-| What                                                      | Where                                                                                                                                                          |
-| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The filter logic                                          | `src/lib/library/browse-filters.ts`                                                                                                                            |
-| Which sources, their shelves, what's kept                 | `src/lib/server/engine/browse.ts`                                                                                                                              |
-| A result matched against the library (shared with search) | `asHits` in `src/lib/server/engine/backend.ts`                                                                                                                 |
-| BROWSE                                                    | `src/routes/browse/` (`+page.server.ts`, `+page.svelte`, `SourceRow.svelte`, shared with the empty search)                                                     |
-| An extension's icon                                       | `src/routes/api/browse/icon/[pkg]/+server.ts`                                                                                                                  |
-| A source's page                                           | `src/routes/browse/[source]/` (`+page.server.ts`, `+page.svelte`, `FilterForm.svelte`, `ResultTile.svelte`)                                                    |
-| A source's settings                                       | `src/routes/browse/[source]/settings/`, `src/lib/library/source-settings.ts`                                                                                   |
-| Extensions and repositories                               | `src/routes/browse/extensions/` (`ExtRow.svelte`), `src/lib/server/engine/manage.ts`                                                                           |
-| BROWSE's languages                                        | `src/routes/settings/` (03 — BROWSE)                                                                                                                           |
-| A site's check                                            | `checkingSince` / `noteSolvedChecks` in `engine/browse.ts`, `src/routes/api/browse/check/[source]/`, `src/lib/site-check.svelte.ts`; the fork's `ChallengeLog` |
-| The engine's schema                                       | the fork, `server/src/main/kotlin/mextensionserver/impl/FilterSchema.kt`                                                                                       |
+| What                                                      | Where                                                                                                                                                                                                          |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The filter logic                                          | `src/lib/library/browse-filters.ts`                                                                                                                                                                            |
+| Which sources, their shelves, what's kept                 | `src/lib/server/engine/browse.ts`                                                                                                                                                                              |
+| A result matched against the library (shared with search) | `asHits` in `src/lib/server/engine/backend.ts`                                                                                                                                                                 |
+| BROWSE                                                    | `src/routes/browse/` (`+page.server.ts`, `+page.svelte`, `SourceRow.svelte`, shared with the empty search)                                                                                                     |
+| An extension's icon                                       | `src/routes/api/browse/icon/[pkg]/+server.ts`                                                                                                                                                                  |
+| A source's page                                           | `src/routes/browse/[source]/` (`+page.server.ts`, `+page.svelte`, `FilterForm.svelte`, `ResultTile.svelte`)                                                                                                    |
+| A source's settings                                       | `src/routes/browse/[source]/settings/`, `src/lib/library/source-settings.ts`                                                                                                                                   |
+| Extensions and repositories                               | `src/routes/browse/extensions/` (`ExtRow.svelte`), `src/lib/server/engine/manage.ts`                                                                                                                           |
+| BROWSE's languages                                        | `src/routes/settings/` (03 — BROWSE)                                                                                                                                                                           |
+| A site's check                                            | `checkingSince` / `noteSolvedChecks` in `engine/browse.ts`, `novels/solver.ts` (the app's own solve, c152), `src/routes/api/browse/check/[source]/`, `src/lib/site-check.svelte.ts`; the fork's `ChallengeLog` |
+| The engine's schema                                       | the fork, `server/src/main/kotlin/mextensionserver/impl/FilterSchema.kt`                                                                                                                                       |
 
 ## Tests
 

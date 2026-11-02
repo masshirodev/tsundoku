@@ -17,9 +17,18 @@ import { join, resolve } from '../fspath.ts';
  * escaped the vm context could still open a raw socket to the workstation.
  * Everything there that matters asks for a token or a session, and the host
  * has neither.
+ *
+ * A site's browser check (card c152) is the one thing the host can't do
+ * itself, since a solver is a local address it refuses. It asks the parent
+ * over IPC, naming only the URL; the app checks the address and answers with
+ * that host's clearance cookies and user agent, or nothing. The host keeps a
+ * jar per host and retries once.
  */
 
 export class NovelHostError extends Error {}
+
+/** What the app hands back for a host's check: its clearance cookies and user agent, nothing else. */
+export type Clearance = { cookies: string; userAgent: string };
 
 export type HostOptions = {
 	/** Where installed plugins are kept: the host may read here. */
@@ -27,6 +36,8 @@ export type HostOptions = {
 	/** Loopback ports the host may fetch from, for tests; never set by the app. */
 	allow?: string[];
 	timeoutMs?: number;
+	/** The app's solve for a site's check: the host's only way to one, and never set by tests that aren't testing it. */
+	solve?: (url: string) => Promise<Clearance | null>;
 };
 
 type Pending = {
@@ -63,14 +74,28 @@ export class NovelHost {
 			serialization: 'json'
 		});
 		child.stderr?.on('data', () => {});
-		child.on('message', (m: { id: number; ok: boolean; value?: unknown; error?: string }) => {
-			const p = this.#pending.get(m.id);
-			if (!p) return;
-			this.#pending.delete(m.id);
-			clearTimeout(p.timer);
-			if (m.ok) p.resolve(m.value);
-			else p.reject(new NovelHostError(m.error ?? 'failed'));
-		});
+		child.on(
+			'message',
+			(m: {
+				id: number;
+				op?: string;
+				url?: string;
+				ok?: boolean;
+				value?: unknown;
+				error?: string;
+			}) => {
+				if (m.op === 'challenge') {
+					void this.#answerChallenge(child, m.id, String(m.url ?? ''));
+					return;
+				}
+				const p = this.#pending.get(m.id);
+				if (!p) return;
+				this.#pending.delete(m.id);
+				clearTimeout(p.timer);
+				if (m.ok) p.resolve(m.value);
+				else p.reject(new NovelHostError(m.error ?? 'failed'));
+			}
+		);
 		child.on('exit', () => {
 			if (this.#child === child) this.#child = null;
 			for (const [id, p] of this.#pending) {
@@ -97,6 +122,26 @@ export class NovelHost {
 			this.#pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer });
 			child.send({ id, ...msg });
 		});
+	}
+
+	/**
+	 * A plugin met a site's check: the app solves it, since only the parent may
+	 * reach a solver. A failure is answered as nothing, not as a crash; the
+	 * host reports its own timeout, so this can't hold the plugin forever.
+	 */
+	async #answerChallenge(child: ChildProcess, id: number, url: string): Promise<void> {
+		let clearance: Clearance | null = null;
+		const asked = this.#opts.solve?.(url);
+		if (asked) {
+			clearance = await Promise.race([
+				asked.catch(() => null),
+				new Promise<null>((ok) => setTimeout(() => ok(null), 65_000))
+			]);
+		}
+		// The host that asked may have been restarted while the solve ran: its
+		// successor starts its own ids at 1, and a stale answer must not land.
+		if (child !== this.#child || !child.connected) return;
+		child.send({ op: 'challenge-result', id, ok: true, value: clearance });
 	}
 
 	/** The plugin's own description: name, site, version, filters, whether it pages. */
