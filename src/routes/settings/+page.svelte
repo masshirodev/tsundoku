@@ -1280,6 +1280,33 @@
 						</div>
 					</div>
 				{/if}
+				{#if w.tv && !starting && !noAddr}
+					<!-- A code a TV types with its remote, beside the phone's (c236; doc/TV.md). -->
+					<div class="pair-tv">
+						<div class="pk">FOR A TV · SIX DIGITS</div>
+						{#if w.tv.state === 'live'}
+							<div class="tvcode" aria-label="Pairing code for a TV">
+								<span>{w.tv.code.slice(0, 3)}</span><span>{w.tv.code.slice(3)}</span>
+							</div>
+						{:else}
+							<div class="tvcode dim">
+								{w.tv.state === 'used' ? '✓ USED' : w.tv.state === 'burned' ? 'BURNED' : 'EXPIRED'}
+							</div>
+						{/if}
+						<div class="pnote">TYPE THE ADDRESS'S LAST NUMBER ON THE TV, THEN THESE SIX</div>
+						{#if w.tv.state === 'live'}
+							<div class="tvline">
+								GOOD FOR {w.tv.minutes} MIN · ONE TV, ONCE
+							</div>
+						{:else if w.tv.state === 'used'}
+							<div class="tvline">✓ USED · ONE TV, ONCE</div>
+						{:else if w.tv.state === 'burned'}
+							<div class="tvline">NO TRIES LEFT · MAKE A NEW CODE</div>
+						{:else}
+							<div class="tvline">EXPIRED · MAKE A NEW CODE</div>
+						{/if}
+					</div>
+				{/if}
 				<div class="pair-foot">
 					<div class="pf" class:ink={c?.state === 'live' && !starting && !noAddr}>
 						{starting
@@ -2177,6 +2204,29 @@
 	}
 	.pnote {
 		font: 400 12px var(--font-mono);
+		color: var(--text-2);
+	}
+	/* A code for a TV (c236): the same panel idiom as the phone's address above. */
+	.pair-tv {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		padding: 14px 24px;
+		border-top: 1px solid var(--line-1);
+	}
+	.tvcode {
+		display: flex;
+		gap: 14px;
+		font: 500 24px/1 var(--font-mono);
+		letter-spacing: 0.14em;
+	}
+	.tvcode.dim {
+		color: var(--text-2);
+		letter-spacing: 0.04em;
+	}
+	.tvline {
+		font: 500 12px var(--font-mono);
+		letter-spacing: 0.04em;
 		color: var(--text-2);
 	}
 	.pair-foot {

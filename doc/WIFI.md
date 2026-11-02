@@ -77,16 +77,55 @@ address.
   phone is still paired at the old one, and those rows say PAIRED AT … · SCAN
   AGAIN.
 
+## A TV's code, typed with a remote
+
+A television has no camera, so beside the phone's link there is a second code
+(c236; [`TV-APP.md`](TV-APP.md)): `TvPairing` in `src/lib/server/pairing.ts`,
+one at a time.
+
+- **Six digits**, made with `crypto.randomInt`, shown on the computer in two
+  threes under FOR A TV · SIX DIGITS, with their own countdown. Opening
+  SETTINGS makes one when there is none; NEW CODE replaces it and the phone's
+  together.
+- **The same limits**: 10 minutes, one TV, once. Six digits is a million
+  guesses, so **five wrong tries burn it** and a new code is made on the
+  computer; `/pair/tv` answers `ok`, `wrong` (with the tries left), `expired`,
+  `used` or `burned`. Codes are compared by SHA-256 digest in constant time,
+  so a wrong guess costs the same whatever it shares with the right one.
+- **`/pair/tv`** is the TV's side of the pairing (TV-Pair.dc.html, 9C and 9E)
+  and is public like `/pair/<code>`: the TV posts the digits same-origin and
+  the paired cookie is set exactly as the phone's is
+  (`PAIRED_COOKIE_OPTIONS`). It never shows a code: the digits live on the
+  computer's screen.
+- **The computer's own view** is `GET`/`POST /api/pair/tv`, which answers only
+  at localhost: the panel reads the code through `wifiView`, and a test reads
+  it here.
+- **The app's own screens** before that — 9A, 9B and 9D — are in the APK,
+  which finds the computer by probing its web app manifest and remembers the
+  address that answered. A TV that opens `/pair/tv` before anyone opened
+  SETTINGS gets a code made for it, so it is never a dead end.
+- **The TV in DEVICES** is named a TV two ways: the app appends
+  `TsundokuTV/<version>` (`pairedLabel` reads it as "Android TV · Chrome"),
+  and at 960 wide the page reports `pointer: none`, which `deviceKind` reads as
+  `tv` — so the synced row says THE TV, not an Android desktop.
+
 ## The screens
 
 - **SETTINGS › 08 — DEVICES** (`src/routes/settings/+page.svelte`): WI-FI
   between THEME and the devices; OFF | ON, the meta line, the strip; on, the
   pairing panel: the code on an inverse cell (`QrCode.svelte`, encoded in the
   browser with `uqr`), what to do, GOOD FOR N MIN (whole minutes), the address
-  in text and what typing it does, NEW CODE. It polls `/api/wifi` every 5 s, so
-  the code turns ✓ USED by itself and the new phone's row appears. On a phone
-  the row is shown with no control (3E). Paired devices' rows carry OVER WI-FI
-  and SIGN OUT. Search words: wifi, wi-fi, phone, pair.
+  in text and what typing it does, NEW CODE. Under the phone's address, the
+  TV's six digits in two threes (FOR A TV · SIX DIGITS) with their own
+  countdown. It polls `/api/wifi` every 5 s, so the code turns ✓ USED by
+  itself and the new phone's row appears. On a phone the row is shown with no
+  control (3E). Paired devices' rows carry OVER WI-FI and SIGN OUT. Search
+  words: wifi, wi-fi, phone, pair.
+- **`/pair/tv`** (9C, 9E; `src/routes/pair/tv/`): the TV's six digits in two
+  threes on the TV layout, PAIR → pressing itself on the sixth, a band for a
+  wrong code (with the tries left), a burned, used or expired one; then 9E,
+  "The library is on this TV", and OPEN THE LIBRARY →. Public, because the TV
+  is not signed in yet.
 - **`/welcome`** (3A): the phone, just paired: what works, what doesn't, how
   to come back (Add to Home screen), OPEN THE LIBRARY →.
 - **`/login`** over Wi-Fi: the used or expired code's band (3B, 3C), and the
@@ -130,4 +169,8 @@ welcome screen and the library, the panel turning ✓ USED by itself and the
 phone's row with SIGN OUT, the same code refused as used, the typed address
 with no password, the phone's own SETTINGS, a foreign Host refused over
 Wi-Fi, SIGN OUT, and OFF closing the door while localhost goes on. The
-handoff's measurements are pinned there.
+handoff's measurements are pinned there. The TV's code has its own:
+`tests/pairing-tv.spec.ts` (once, 10 minutes, five tries, every answer) and
+`tests/tv-pair.e2e.ts` (the computer's `/pair/tv` on the `tv` project: a wrong
+code, the tries left, the right one landing on 9E, five wrong ones burning
+it); `friend-wifi.e2e.ts` also pins the panel's FOR A TV digits.

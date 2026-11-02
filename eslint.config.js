@@ -11,7 +11,7 @@ const gitignorePath = path.resolve(import.meta.dirname, '.gitignore');
 export default defineConfig(
 	includeIgnoreFile(gitignorePath),
 	// The handoff is a mirror; the LNReader fixtures are written as plugins are, not as tsundoku is.
-	{ ignores: ['doc/design/handoff/**', 'tests/fixtures/lnreader/**'] },
+	{ ignores: ['doc/design/handoff/**', 'tests/fixtures/lnreader/**', 'android/tv/**/build/**'] },
 	js.configs.recommended,
 	...ts.configs.recommended,
 	...svelte.configs.recommended,

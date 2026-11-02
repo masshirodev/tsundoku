@@ -1,6 +1,12 @@
 import { redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { PAIRED_COOKIE, addPaired, pairedLabel, pairing } from '$lib/server/pairing';
+import {
+	PAIRED_COOKIE,
+	PAIRED_COOKIE_OPTIONS,
+	addPaired,
+	pairedLabel,
+	pairing
+} from '$lib/server/pairing';
 
 /**
  * What a pairing code opens (doc/WIFI.md; card c188): the phone's camera reads
@@ -18,14 +24,6 @@ export const GET: RequestHandler = ({ params, request, cookies, locals, url }) =
 		// A code replaced by a newer one reads as expired: it's the same remedy.
 		redirect(303, `/login?pair=${result === 'used' ? 'used' : 'expired'}`);
 	const token = addPaired({ label: pairedLabel(ua), address: url.host });
-	cookies.set(PAIRED_COOKIE, token, {
-		path: '/',
-		httpOnly: true,
-		sameSite: 'lax',
-		// Plain http over the home network: a Secure cookie would never come back.
-		secure: false,
-		// A year, renewed by nothing: SIGN OUT on the computer is how it ends.
-		maxAge: 60 * 60 * 24 * 365
-	});
+	cookies.set(PAIRED_COOKIE, token, PAIRED_COOKIE_OPTIONS);
 	redirect(303, '/welcome');
 };

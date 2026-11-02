@@ -1,0 +1,651 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Pair this TV · tsundoku</title>
+		<!--
+			The TV app's own screens (c236; TV-Pair.dc.html 9A, 9B, 9D). 9C and
+			9E are the computer's `/pair/tv`, because the code is posted there and
+			the paired cookie is set there; these three are before the TV can
+			reach anything.
+
+			Colours are the tokens of src/lib/styles/colors.css (dark), and the
+			sizes are tv.css's: a 960x540 frame, a 48px safe margin at the sides
+			and 28 top and bottom, a 56px header, type 15/17/20/28/36, targets 56,
+			the 4px+3px ink focus mark. No font is shipped: the TV's WebView uses
+			its own (Roboto), so the wordmark is the one exception to Plex.
+
+			The bridge (`window.TsundokuTV`) gives the page the TV's own address,
+			a probe of a candidate, and the memory of the one that answered
+			(PairingBridge.kt). Everything else is this page.
+		-->
+		<style>
+			:root {
+				/* src/lib/styles/colors.css, dark (Graphite / lime). */
+				--surface-page: #0e0f10;
+				--surface-panel: #16181a;
+				--surface-inverse: #e8e8e6;
+				--line-1: #2a2c2e;
+				--line-2: #3a3d40;
+				--text-1: #e8e8e6;
+				--text-2: #8b8d90;
+				--text-prose: #b4b6b8;
+				--text-inverse: #0e0f10;
+				--accent: oklch(0.86 0.17 125);
+				--on-accent: #0e0f10;
+				--hairline: 1px solid var(--line-1);
+				--rule-strong: 1px solid var(--text-1);
+				/* tv.css: the mark is 4px of ink, held off by 3px of page. */
+				--focus-ring: 0 0 0 3px var(--surface-page), 0 0 0 7px var(--text-1);
+				--safe-x: 48px;
+				--safe-y: 28px;
+				--font-mono: ui-monospace, 'Roboto Mono', monospace;
+				--font-sans: system-ui, 'Roboto', sans-serif;
+			}
+			* {
+				box-sizing: border-box;
+			}
+			html,
+			body {
+				margin: 0;
+				height: 100%;
+				background: var(--surface-page);
+				color: var(--text-1);
+				font-family: var(--font-sans);
+				overflow: hidden;
+			}
+			main {
+				position: relative;
+				width: 960px;
+				height: 540px;
+				margin: 0 auto;
+				overflow: hidden;
+			}
+			.bar {
+				position: absolute;
+				left: 0;
+				right: 0;
+				top: var(--safe-y);
+				height: 56px;
+				display: flex;
+				align-items: center;
+				gap: 12px;
+				padding: 0 var(--safe-x);
+				border-bottom: var(--hairline);
+			}
+			.wm {
+				display: flex;
+				align-items: baseline;
+				gap: 10px;
+				white-space: nowrap;
+			}
+			.wm b {
+				font: 500 20px/1 var(--font-mono);
+				letter-spacing: 0.02em;
+			}
+			.wm span {
+				font: 400 14px var(--font-mono);
+				color: var(--text-2);
+			}
+			.grow {
+				flex: 1;
+			}
+			.step {
+				font: 400 15px/1.3 var(--font-mono);
+				color: var(--text-2);
+				white-space: nowrap;
+			}
+			.safe {
+				position: absolute;
+				left: var(--safe-x);
+				right: var(--safe-x);
+			}
+			.lab {
+				font: 500 15px/1.2 var(--font-mono);
+				letter-spacing: 0.06em;
+				color: var(--text-2);
+				text-transform: uppercase;
+			}
+			.meta {
+				font: 400 15px/1.5 var(--font-mono);
+				color: var(--text-2);
+			}
+			h1 {
+				margin: 0;
+				font: 500 36px/1.15 var(--font-sans);
+			}
+			p {
+				margin: 0;
+				font: 400 19px/1.5 var(--font-sans);
+				color: var(--text-prose);
+			}
+			.btn {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				height: 56px;
+				padding: 0 24px;
+				border: 1px solid var(--line-2);
+				background: none;
+				color: var(--text-1);
+				font: 500 17px/1.2 var(--font-mono);
+				letter-spacing: 0.02em;
+				white-space: nowrap;
+				cursor: pointer;
+			}
+			.btn.pri {
+				background: var(--accent);
+				color: var(--on-accent);
+				border-color: var(--accent);
+			}
+			/* The mark: on the thing, or inside a ruled cell, exactly as tv.css. */
+			[data-focus]:focus {
+				outline: none;
+				box-shadow: var(--focus-ring);
+				position: relative;
+				z-index: 3;
+			}
+			[data-focus].cell:focus {
+				box-shadow:
+					inset 0 0 0 4px var(--text-1),
+					inset 0 0 0 7px var(--surface-page);
+			}
+			.band {
+				position: absolute;
+				left: 0;
+				right: 0;
+				top: 84px;
+				min-height: 64px;
+				display: flex;
+				align-items: center;
+				justify-content: space-between;
+				gap: 16px;
+				padding: 10px var(--safe-x);
+				background: var(--surface-panel);
+				border-bottom: var(--hairline);
+				font: 500 17px/1.3 var(--font-mono);
+			}
+			.band > div {
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				min-width: 0;
+			}
+			.band .meta {
+				flex-shrink: 0;
+				font: 400 14px/1.3 var(--font-mono);
+			}
+			/* 9A */
+			.welcome-head {
+				top: 112px;
+				display: flex;
+				flex-direction: column;
+				gap: 12px;
+				max-width: 620px;
+			}
+			.steps {
+				top: 262px;
+				display: grid;
+				grid-template-columns: repeat(3, minmax(0, 1fr));
+				gap: 1px;
+				background: var(--line-1);
+				border: var(--hairline);
+			}
+			.steps > div {
+				background: var(--surface-page);
+				padding: 16px 18px;
+				display: flex;
+				flex-direction: column;
+				gap: 8px;
+				min-height: 88px;
+			}
+			.steps b {
+				font: 500 17px/1.35 var(--font-sans);
+			}
+			.welcome-actions {
+				top: 400px;
+				display: flex;
+				align-items: center;
+				gap: 16px;
+			}
+			/* 9B */
+			.address-label {
+				top: 108px;
+				height: 36px;
+				display: flex;
+				align-items: flex-end;
+				padding-bottom: 9px;
+			}
+			.address {
+				top: 148px;
+				display: flex;
+				align-items: stretch;
+				height: 72px;
+				border: var(--rule-strong);
+				font: 500 30px/1 var(--font-mono);
+			}
+			.address .fixed {
+				display: flex;
+				align-items: center;
+				padding: 0 22px;
+				color: var(--text-2);
+				white-space: nowrap;
+			}
+			.address input {
+				font: inherit;
+				color: var(--text-1);
+				background: none;
+				border: 0;
+				outline: none;
+				width: 110px;
+				min-width: 110px;
+				margin: 10px 0;
+				padding: 0 14px;
+				border: 1px solid var(--line-2);
+				text-align: left;
+			}
+			.address input:focus {
+				border-color: var(--text-1);
+				box-shadow: var(--focus-ring);
+			}
+			.address .whole {
+				flex: 1;
+				width: auto;
+				min-width: 0;
+			}
+			.address-meta {
+				top: 236px;
+				line-height: 1.5;
+			}
+			.address-actions {
+				top: 300px;
+				display: flex;
+				gap: 16px;
+			}
+			.checking {
+				top: 368px;
+			}
+			/* 9D */
+			.lost-label {
+				top: 164px;
+				height: 36px;
+				display: flex;
+				align-items: flex-end;
+				padding-bottom: 9px;
+			}
+			.reasons {
+				top: 200px;
+				display: flex;
+				flex-direction: column;
+				border: var(--hairline);
+			}
+			.reason {
+				display: flex;
+				align-items: stretch;
+				min-height: 52px;
+				border-bottom: var(--hairline);
+			}
+			.reason:last-child {
+				border-bottom: 0;
+			}
+			.reason .n {
+				width: 56px;
+				flex-shrink: 0;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				border-right: var(--hairline);
+				font: 500 15px var(--font-mono);
+				color: var(--text-2);
+			}
+			.reason .v {
+				display: flex;
+				align-items: center;
+				padding: 8px 18px;
+				font: 500 17px/1.35 var(--font-sans);
+			}
+			.lost-actions {
+				top: 392px;
+				display: flex;
+				gap: 16px;
+			}
+			[hidden] {
+				display: none !important;
+			}
+		</style>
+	</head>
+	<body>
+		<main>
+			<div class="bar">
+				<div class="wm"><b>TSUNDOKU</b><span lang="ja">積ん読</span></div>
+				<div class="grow"></div>
+				<div class="step" id="step">PAIR THIS TV</div>
+			</div>
+
+			<!-- 9A · the app's first screen -->
+			<section class="screen" id="welcome">
+				<div class="safe welcome-head">
+					<h1>Read from the couch</h1>
+					<p>
+						This TV opens the library on your computer, over the same Wi-Fi. The computer gives you
+						an address and six digits; you type them here.
+					</p>
+				</div>
+				<div class="safe steps">
+					<div>
+						<div class="lab">01 — ON THE COMPUTER</div>
+						<b>SETTINGS › 08 — DEVICES, then WI-FI ON</b>
+					</div>
+					<div>
+						<div class="lab">02 — PAIR A TV</div>
+						<b>It shows the address and six digits</b>
+					</div>
+					<div>
+						<div class="lab">03 — HERE</div>
+						<b>Type the last number of the address, then the digits</b>
+					</div>
+				</div>
+				<div class="safe welcome-actions">
+					<button class="btn pri" type="button" data-focus data-start id="start">START →</button>
+					<div class="meta">OVER TAILSCALE INSTEAD: TYPE THE WHOLE ADDRESS ON THE NEXT SCREEN</div>
+				</div>
+			</section>
+
+			<!-- 9B · the address -->
+			<section class="screen" id="address" hidden>
+				<div class="safe address-label lab">
+					<div>01 — THE COMPUTER'S ADDRESS · ON ITS SCREEN, UNDER THE CODE</div>
+					<div></div>
+				</div>
+				<form class="safe address" id="address-form">
+					<div class="fixed" id="prefix">http://192.168.1.</div>
+					<input
+						id="last"
+						name="last"
+						type="text"
+						inputmode="numeric"
+						maxlength="3"
+						autocomplete="off"
+						aria-label="The address's last number"
+						data-focus
+					/>
+					<div class="fixed" id="port">:42143</div>
+				</form>
+				<div class="safe meta address-meta" id="tv-meta">
+					THIS TV IS AT 192.168.1.40, SO THE COMPUTER IS 192.168.1.SOMETHING · THE REMOTE'S NUMBER
+					KEYS TYPE HERE; WITHOUT THEM, THE TV'S NUMBER PAD OPENS
+				</div>
+				<div class="safe address-actions">
+					<button class="btn pri" type="button" data-focus id="next">NEXT →</button>
+					<button class="btn" type="button" data-focus id="whole-toggle">
+						TYPE THE WHOLE ADDRESS
+					</button>
+				</div>
+				<div class="safe meta checking" id="checking" role="status"></div>
+			</section>
+
+			<!-- 9D · nothing answers -->
+			<section class="screen" id="lost" hidden>
+				<div class="band">
+					<div id="lost-title">○ NOTHING ANSWERS</div>
+					<div class="meta" id="lost-meta">TRIED 0 TIMES · STILL TRYING EVERY 5 S</div>
+				</div>
+				<div class="safe lost-label lab">
+					<div>MOST LIKELY</div>
+					<div></div>
+				</div>
+				<div class="safe reasons">
+					<div class="reason">
+						<div class="n">1</div>
+						<div class="v">The computer is asleep or off, or tsundoku isn't running on it</div>
+					</div>
+					<div class="reason">
+						<div class="n">2</div>
+						<div class="v">WI-FI is off in its SETTINGS › 08 — DEVICES, or its address changed</div>
+					</div>
+					<div class="reason">
+						<div class="n">3</div>
+						<div class="v" id="reason-3">This TV is on another Wi-Fi</div>
+					</div>
+				</div>
+				<div class="safe lost-actions">
+					<button class="btn pri" type="button" data-focus data-start id="retry">TRY AGAIN</button>
+					<button class="btn" type="button" data-focus id="change">CHANGE THE ADDRESS</button>
+				</div>
+			</section>
+		</main>
+
+		<script>
+			/*
+			 * The bridge does what a file:// page cannot: its own address, a probe
+			 * of a candidate, and remembering the one that answered.
+			 */
+			const bridge = window.TsundokuTV || null;
+			const DEFAULT_PORT = bridge ? bridge.defaultPort() : 42143;
+			const screens = {
+				welcome: document.getElementById('welcome'),
+				address: document.getElementById('address'),
+				lost: document.getElementById('lost')
+			};
+			const step = document.getElementById('step');
+			const STEPS = {
+				welcome: 'PAIR THIS TV',
+				address: 'PAIR THIS TV · 1 OF 2',
+				lost: 'PAIR THIS TV · 1 OF 2'
+			};
+			const own = bridge ? bridge.tvAddress() : '';
+			const prefixOf = (ip) => {
+				const parts = (ip || '').split('.');
+				return parts.length === 4 ? parts.slice(0, 3).join('.') + '.' : '';
+			};
+
+			let lastOrigin = '';
+			let attempts = 0;
+			let lastAt = 0;
+			let retryTimer = 0;
+			let clockTimer = 0;
+
+			function show(name) {
+				for (const [key, el] of Object.entries(screens)) el.hidden = key !== name;
+				step.textContent = STEPS[name];
+				const start =
+					screens[name].querySelector('[data-start]') ||
+					screens[name].querySelector('[data-focus]');
+				if (start) start.focus();
+			}
+
+			/* ---- 9B: the address ------------------------------------------------ */
+			const form = document.getElementById('address-form');
+			const last = document.getElementById('last');
+			const wholeToggle = document.getElementById('whole-toggle');
+			const next = document.getElementById('next');
+			const checking = document.getElementById('checking');
+			const tvMeta = document.getElementById('tv-meta');
+			let whole = false;
+
+			function fill() {
+				const prefix = (bridge ? bridge.prefix() : '') || '192.168.1.';
+				document.getElementById('prefix').textContent = 'http://' + prefix;
+				document.getElementById('prefix').hidden = whole;
+				last.hidden = whole;
+				document.getElementById('port').hidden = whole;
+				document.getElementById('port').textContent = ':' + DEFAULT_PORT;
+				wholeToggle.textContent = whole ? 'USE THE LAST NUMBER' : 'TYPE THE WHOLE ADDRESS';
+				if (whole) {
+					last.classList.add('whole');
+					last.maxLength = 80;
+					last.setAttribute('inputmode', 'url');
+				} else {
+					last.classList.remove('whole');
+					last.maxLength = 3;
+					last.setAttribute('inputmode', 'numeric');
+				}
+				tvMeta.textContent = own
+					? `THIS TV IS AT ${own}, SO THE COMPUTER IS ${prefix}SOMETHING · THE REMOTE'S NUMBER KEYS TYPE HERE; WITHOUT THEM, THE TV'S NUMBER PAD OPENS`
+					: `THE TV HAS NO WI-FI ADDRESS OF ITS OWN · TYPE THE COMPUTER'S ADDRESS: THE LAST NUMBER, OR THE WHOLE ONE`;
+			}
+
+			function origin() {
+				const raw = last.value.trim();
+				if (!raw) return '';
+				if (whole) return raw.startsWith('http') ? raw.replace(/\/$/, '') : 'http://' + raw;
+				const n = Number(raw);
+				if (!Number.isInteger(n) || n < 0 || n > 255) return '';
+				const prefix = (bridge ? bridge.prefix() : '') || '192.168.1.';
+				return `http://${prefix}${n}:${DEFAULT_PORT}`;
+			}
+
+			last.addEventListener('keydown', (e) => {
+				// ← erases, as the design says (TV-Pair.dc.html, 9C's note).
+				if (e.key === 'ArrowLeft' && !whole) {
+					e.preventDefault();
+					last.value = last.value.slice(0, -1);
+				}
+			});
+			last.addEventListener('input', () => {
+				if (!whole) last.value = last.value.replace(/\D/g, '').slice(0, 3);
+			});
+			form.addEventListener('submit', (e) => {
+				e.preventDefault();
+				probe();
+			});
+			next.addEventListener('click', probe);
+
+			function probe() {
+				const at = origin();
+				if (!at) {
+					checking.textContent = whole
+						? 'TYPE THE WHOLE ADDRESS, LIKE http://192.168.1.23:42143'
+						: 'THE LAST NUMBER IS 0 TO 255';
+					return;
+				}
+				lastOrigin = at;
+				attempts = 1;
+				lastAt = Date.now();
+				stopRetry();
+				checking.textContent = 'CHECKING ' + at.replace('http://', '') + '…';
+				next.disabled = true;
+				if (bridge) bridge.probe(at);
+				else checking.textContent = 'THE APP BRIDGE IS MISSING · THIS PAGE OPENS FROM THE APK';
+			}
+
+			wholeToggle.addEventListener('click', () => {
+				whole = !whole;
+				last.value = '';
+				fill();
+				last.focus();
+			});
+
+			/* ---- the probe's answer -------------------------------------------- */
+			const seen = new Set();
+			window.tsundokuProbe = function (at, ok) {
+				if (typeof at !== 'string' || seen.has(at)) return;
+				seen.add(at);
+				setTimeout(() => seen.delete(at), 2000);
+				if (screens.address.hidden && screens.lost.hidden) return;
+				if (ok) {
+					stopRetry();
+					lastOrigin = at;
+					if (bridge) bridge.remember(at);
+					checking.textContent = '';
+					location.href = at + '/pair/tv';
+					return;
+				}
+				if (at !== lastOrigin) return;
+				next.disabled = false;
+				checking.textContent = '';
+				lost(at);
+			};
+
+			/* ---- 9D: nothing answers ------------------------------------------- */
+			const lostTitle = document.getElementById('lost-title');
+			const lostMeta = document.getElementById('lost-meta');
+			const reason3 = document.getElementById('reason-3');
+
+			function lost(at) {
+				lastOrigin = at;
+				lostTitle.textContent =
+					'○ NOTHING ANSWERS AT ' + at.replace('http://', '').replace('https://', '');
+				const prefix = prefixOf(own);
+				const wanted = prefixOf(at.replace(/^https?:\/\//, '').replace(/:\d+.*$/, ''));
+				reason3.textContent = own
+					? `This TV is on another Wi-Fi: it's at ${own}, not ${wanted.replace(/\.$/, '')}.`
+					: 'This TV has no Wi-Fi address: connect it to the Wi-Fi the computer is on.';
+				show('lost');
+				startRetry();
+			}
+
+			function paint() {
+				const ago = Math.max(0, Math.round((Date.now() - lastAt) / 1000));
+				lostMeta.textContent = `TRIED ${attempts} ${attempts === 1 ? 'TIME' : 'TIMES'} · LAST ${ago} S AGO · STILL TRYING EVERY 5 S`;
+			}
+
+			function startRetry() {
+				stopRetry();
+				paint();
+				clockTimer = setInterval(paint, 1000);
+				retryTimer = setInterval(() => {
+					attempts += 1;
+					lastAt = Date.now();
+					paint();
+					if (bridge) bridge.probe(lastOrigin);
+				}, 5000);
+			}
+
+			function stopRetry() {
+				clearInterval(retryTimer);
+				clearInterval(clockTimer);
+			}
+
+			document.getElementById('retry').addEventListener('click', () => {
+				attempts += 1;
+				lastAt = Date.now();
+				paint();
+				if (bridge) bridge.probe(lastOrigin);
+			});
+			document.getElementById('change').addEventListener('click', () => {
+				stopRetry();
+				show('address');
+				last.focus();
+			});
+			document.getElementById('start').addEventListener('click', () => {
+				show('address');
+				fill();
+				last.focus();
+			});
+
+			/* ---- focus: the D-pad moves the mark, the router has no spatial nav ---- */
+			document.addEventListener('keydown', (e) => {
+				const target = e.target;
+				const entry = target instanceof HTMLInputElement;
+				const dir =
+					e.key === 'ArrowDown' || e.key === 'ArrowRight'
+						? 1
+						: e.key === 'ArrowUp' || e.key === 'ArrowLeft'
+							? -1
+							: 0;
+				if (!dir) return;
+				// The address field keeps ← (erase) and the caret; ↑ ↓ leave it.
+				if (entry && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return;
+				const screen = [...Object.values(screens)].find((s) => !s.hidden);
+				if (!screen) return;
+				const stops = [...screen.querySelectorAll('[data-focus]')].filter(
+					(el) => !el.disabled && !el.hidden
+				);
+				const now = stops.indexOf(document.activeElement);
+				const at = now < 0 ? 0 : Math.min(stops.length - 1, Math.max(0, now + dir));
+				if (stops[at]) {
+					e.preventDefault();
+					stops[at].focus();
+				}
+			});
+
+			/* ---- where we start -------------------------------------------------- */
+			fill();
+			const hash = location.hash.replace(/^#/, '');
+			if (hash.startsWith('lost=')) lost(decodeURIComponent(hash.slice(5)));
+			else show('welcome');
+		</script>
+	</body>
+</html>

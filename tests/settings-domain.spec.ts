@@ -109,6 +109,11 @@ describe('the catalogue (card c171)', () => {
 		expect(deviceKind({ width: 360, coarse: true })).toBe('phone');
 		expect(deviceKind({ width: 800, coarse: true })).toBe('tablet');
 		expect(deviceKind({ width: 1440, coarse: false })).toBe('desktop');
+		// A TV has no pointer at all, and is wide (doc/TV.md).
+		expect(deviceKind({ width: 960, coarse: false, pointerNone: true })).toBe('tv');
+		expect(deviceKind({ width: 1280, coarse: false, pointerNone: true })).toBe('tv');
+		// A small pointerless browser is still not a TV.
+		expect(deviceKind({ width: 400, coarse: false, pointerNone: true })).toBe('phone');
 		expect(
 			deviceLabel(
 				'Mozilla/5.0 (Linux; Android 14; SM-X710) AppleWebKit/537.36 Chrome/130.0 Safari/537.36',
