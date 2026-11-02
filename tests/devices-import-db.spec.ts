@@ -196,8 +196,8 @@ const manga = (
  * key, its chapters the backup's paths, and the owner's reading, rating,
  * shelves, tags, links and history stay on the same series.
  *
- * The tablet's two folders are named by the phone's backup; the phone's one is
- * named by the tablet's, so both orders are covered.
+ * One folder root: a download tsundoku wrote into `devices/tsundoku`, and the
+ * library's backup that names it, arriving in the same scan.
  */
 describe('a folder the library’s backup names', () => {
 	const at = 1_800_000_300_000;

@@ -62,7 +62,8 @@ attaches after the batch's backup is written, so the backup it plans from
 already names it.
 
 **The scan stays the cross-check**, and the way in for everything that
-arrives otherwise (the tablet, dropped-in files, Syncthing). The workers'
+arrives otherwise (files dropped into a folder the importer reads, and the
+tablet's `Hentoid/` and `Library/` copies over Syncthing). The workers'
 specs attach, then scan, and require every row of the series to be as the
 attach left it (`engine-worker-db`, `anime-download-db`,
 `novel-download-db`). A scan still follows a download when:
