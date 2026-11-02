@@ -2,9 +2,16 @@ import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
 import { HIDDEN_SQL } from '../visibility.ts';
 import { chosenMarks, needsLookup, saveAttempt, saveMark } from './marks.ts';
-import { episodeFile } from './streams.ts';
-import { fingerprintFile, stopFingerprint, type Prints } from './fingerprint.ts';
+import { episodeFile, episodeStreams, probe } from './streams.ts';
+import { loopback } from './loopback.ts';
+import {
+	fingerprintFile,
+	fingerprintRegions,
+	stopFingerprint,
+	type Prints
+} from './fingerprint.ts';
 import { sharedEnding, sharedIntro } from '../../library/fingerprint.ts';
+import { parseAnimeKey } from '../../library/downloads.ts';
 import type { Range } from '../../library/streams.ts';
 
 /**
@@ -46,7 +53,8 @@ function seasonOf(
 ): { hidden: boolean; episodes: SeasonRow[]; playing: SeasonRow } | null {
 	const series = db
 		.prepare(
-			`SELECT ${HIDDEN_SQL} AS hidden FROM series s JOIN roots r ON r.id = s.root_id WHERE s.id = ?`
+			`SELECT ${HIDDEN_SQL} AS hidden FROM series s JOIN roots r ON r.id = s.root_id
+			WHERE s.id = ? AND s.kind = 'anime'`
 		)
 		.get(seriesId) as { hidden: number } | undefined;
 	if (!series) return null;
@@ -73,6 +81,85 @@ const keepLongest = (best: Map<number, Best>, entryId: number, span: Range, seco
 };
 
 /**
+ * Which episodes of a season a playing one makes worth fingerprinting from
+ * their streams: itself, the next two after it (the ones CONTINUE will reach
+ * next), and the one after those, so both next episodes have a pair.
+ */
+export function streamTargets(episodeIds: number[], playingEntryId: number): number[] {
+	const i = episodeIds.indexOf(playingEntryId);
+	return i < 0 ? [] : episodeIds.slice(i, i + 4);
+}
+
+/** A stream's own quality to fingerprint: the lowest at most 480p, on the first server that has one. */
+function lowestQuality(server: {
+	qualities: {
+		src: string;
+		kind: 'hls' | 'file';
+		height: number | null;
+		audio: { src: string }[];
+	}[];
+}) {
+	return (
+		server.qualities
+			.filter((q) => q.height !== null && q.height <= 480)
+			.sort((a, b) => a.height! - b.height!)[0] ?? null
+	);
+}
+
+/** A download of the same source is running: don't read its streams at the same time. */
+function sameSourceDownloading(seriesId: number, db: Database.Database): boolean {
+	const row = db.prepare(`SELECT origin_key FROM series WHERE id = ?`).get(seriesId) as
+		{ origin_key: string | null } | undefined;
+	const key = parseAnimeKey(row?.origin_key ?? null);
+	if (!key) return false;
+	return !!db
+		.prepare(
+			`SELECT 1 FROM download_queue q JOIN series s ON s.id = q.series_id
+			WHERE q.state = 'downloading' AND s.origin_key LIKE ?`
+		)
+		.get(`aniyomi:${key.sourceId}:%`);
+}
+
+/**
+ * Fingerprints an episode through the streams the player would use: the
+ * lowest quality at most 480p, a separate audio rendition where the source
+ * offers one, through the loopback proxy, seeking to the minutes it needs.
+ * Servers are tried in the source's order; one that fails is left quietly.
+ */
+async function streamPrints(
+	entryId: number,
+	durationS: number | null,
+	db: Database.Database
+): Promise<Prints | null> {
+	const streams = await episodeStreams(entryId, true).catch(() => null);
+	if (!streams) return null;
+	const { port, secret } = await loopback();
+	for (const server of streams.servers) {
+		const q = lowestQuality(server);
+		if (!q) continue;
+		let duration = durationS;
+		if (!duration) {
+			const measured = await probe(q.src).catch(() => null);
+			if (!measured?.seconds) continue;
+			duration = measured.seconds;
+			db.prepare(`UPDATE entries SET duration_s = COALESCE(duration_s, ?) WHERE id = ?`).run(
+				Math.round(duration),
+				entryId
+			);
+		}
+		// A separate audio rendition is the smallest thing that carries the
+		// opening and ending; without one, the video stream's own audio.
+		const src = q.audio[0]?.src ?? q.src;
+		const prints = await fingerprintRegions(`http://127.0.0.1:${port}${src}`, duration, {
+			header: `x-tsundoku: ${secret}`,
+			hls: q.audio.length > 0 || q.kind === 'hls'
+		}).catch(() => null);
+		if (prints && (prints.intro || prints.ending)) return prints;
+	}
+	return null;
+}
+
+/**
  * Fingerprints one season's downloaded episodes and keeps what the pairs
  * agree on. Returns how many episodes were read and how many got a mark.
  * Nothing happens for a hidden series, for an episode whose series has fewer
@@ -81,28 +168,49 @@ const keepLongest = (best: Map<number, Best>, entryId: number, span: Range, seco
 export async function fingerprintSeason(
 	seriesId: number,
 	playingEntryId: number,
-	opts: { now?: number; db?: Database.Database; pauseMs?: number } = {}
+	opts: {
+		now?: number;
+		db?: Database.Database;
+		pauseMs?: number;
+		/** Only a player's resolve allows streams: the next episodes after it. */
+		allowStreams?: boolean;
+	} = {}
 ): Promise<{ episodes: number; found: number }> {
 	const db = opts.db ?? getDb();
 	const now = opts.now ?? Date.now();
 	const pauseMs = opts.pauseMs ?? PAUSE_MS;
 	const season = seasonOf(seriesId, playingEntryId, db);
 	if (!season || season.hidden) return { episodes: 0, found: 0 };
+	// A download of the same source is busy: its streams are left alone.
+	if (sameSourceDownloading(seriesId, db)) return { episodes: 0, found: 0 };
+	const streamIds = opts.allowStreams
+		? new Set(
+				streamTargets(
+					season.episodes.map((e) => e.id),
+					playingEntryId
+				)
+			)
+		: new Set<number>();
 
 	const prints = new Map<number, Prints>();
 	const missing = new Map<number, { intro: boolean; ending: boolean }>();
 	for (const episode of season.episodes) {
+		if (stopped) break;
 		if (!needsLookup(episode.id, 'fingerprint', FINGERPRINT_RETRY_MS, now, db)) continue;
 		const chosen = chosenMarks(episode.id, db);
 		if (chosen.intro && chosen.ending) continue;
 		const file = episodeFile(episode.id);
-		if (!file) continue;
-		const p = await fingerprintFile(file, episode.duration_s).catch(() => null);
+		let p: Prints | null = null;
+		if (file) p = await fingerprintFile(file, episode.duration_s).catch(() => null);
+		else if (streamIds.has(episode.id)) {
+			// A download may have started since the season was read.
+			if (sameSourceDownloading(seriesId, db)) break;
+			p = await streamPrints(episode.id, episode.duration_s, db);
+		}
 		if (!p || (!p.intro && !p.ending)) continue;
 		prints.set(episode.id, p);
 		missing.set(episode.id, { intro: !chosen.intro, ending: !chosen.ending });
-		if (pauseMs && prints.size < season.episodes.length)
-			await new Promise((ok) => setTimeout(ok, pauseMs));
+		if (pauseMs) await new Promise((ok) => setTimeout(ok, pauseMs));
 	}
 
 	// One episode is no pair: a season with nothing to compare leaves no mark
@@ -187,7 +295,9 @@ async function drain(db: Database.Database): Promise<void> {
 	while (!stopped && queue.size) {
 		const job = queue.values().next().value!;
 		queue.delete(keyOf(job));
-		await fingerprintSeason(job.seriesId, job.playingEntryId, { db }).catch(() => undefined);
+		await fingerprintSeason(job.seriesId, job.playingEntryId, { db, allowStreams: true }).catch(
+			() => undefined
+		);
 	}
 }
 

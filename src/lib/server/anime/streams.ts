@@ -374,6 +374,9 @@ const RESOLVE_MS = 120_000;
  */
 async function fillAniSkip(entryId: number, servers: StreamServer[], now: number): Promise<void> {
 	const db = getDb();
+	// Both already found, by the source or by an earlier AniSkip: nothing to fill.
+	const chosen = chosenMarks(entryId, db);
+	if (chosen.intro && chosen.ending) return;
 	const row = db.prepare(`SELECT duration_s FROM entries WHERE id = ?`).get(entryId) as
 		{ duration_s: number | null } | undefined;
 	let duration = row?.duration_s ?? null;

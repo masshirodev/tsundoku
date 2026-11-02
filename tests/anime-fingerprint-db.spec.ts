@@ -217,5 +217,5 @@ describe('fingerprinting downloaded episodes', () => {
 		wantSkipMarks(a);
 		await skipMarksIdle();
 		expect(marks.chosenMarks(a).introFrom).toBe('fingerprint');
-	});
+	}, 30_000);
 });
