@@ -67,7 +67,14 @@ function folderParts(key: string): { sourceDir: string; dir: string } | null {
 	return { sourceDir: rest.slice(0, slash), dir: rest.slice(slash + 1) };
 }
 
-type KeyedRow = { id: number; origin_key: string; title: string; path: string };
+type KeyedRow = {
+	id: number;
+	origin_key: string;
+	title: string;
+	path: string;
+	in_library: number;
+	pruned_at: number | null;
+};
 
 /**
  * A backup's plan, and a download imported by its folder, are the same series
@@ -96,7 +103,13 @@ export function adoptFolder(
 		);
 	});
 	const best = bestOf(db, s, candidates);
-	if (!best) return null;
+	// A name is not an entry in common: adopting on name alone would take the
+	// folder's series to the URL key with its chapters still addressed by the
+	// folder, and the writer would add the backup's chapters beside them -- every
+	// chapter twice (doc/IMPORT-MIHON.md, "Before the backup knows it"). A plan
+	// with no chapters proves nothing, so a chapterless backup entry is still
+	// adopted by name.
+	if (!best || (s.entries.length > 0 && best.matches.size === 0)) return null;
 	db.prepare(
 		`UPDATE series SET origin_key = ?,
 			source_url = CASE WHEN source_url = '' THEN ? ELSE source_url END,
@@ -152,7 +165,8 @@ export function adoptNamed(
 function rowsIn(db: Database.Database, rootId: number, family: string): KeyedRow[] {
 	return db
 		.prepare(
-			`SELECT id, origin_key, title, path FROM series WHERE root_id = ? AND origin_key LIKE ?`
+			`SELECT id, origin_key, title, path, in_library, pruned_at FROM series
+			WHERE root_id = ? AND origin_key LIKE ?`
 		)
 		.all(rootId, family) as KeyedRow[];
 }
@@ -166,6 +180,13 @@ function bestOf(
 	let best: { row: KeyedRow; matches: Map<number, PlannedEntry> } | null = null;
 	for (const row of candidates) {
 		if (row.origin_key === s.originKey) continue;
+		// A browsing record is never a series to adopt (doc/BROWSING.md): it is a
+		// series opened from a source's preview without ADD, which every shelf,
+		// count, search and link leaves out and which pruneRecords forgets 30 days
+		// after it was last opened. A library series folded into one would leave
+		// the library and then lose its reading. `pruned_at` says a record was
+		// forgotten already, which changes nothing: `in_library` alone decides.
+		if (row.in_library !== 1) continue;
 		const matches = matchFolderEntries(db, row.id, s.entries);
 		if (
 			!best ||

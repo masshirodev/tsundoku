@@ -13,6 +13,7 @@ const { runImport, sourcesIn } = await import('$lib/server/import');
 const { writeMihonFolder, cbz, comicInfo, backup, ASURA, WEEB } =
 	await import('./helpers/mihon-fixture');
 const { writeHentoidFolder, book, content } = await import('./helpers/hentoid-fixture');
+const { zip } = await import('./helpers/zip-writer');
 const { groupIntoSeries } = await import('$lib/server/books');
 
 /**
@@ -458,5 +459,270 @@ describe('a folder the other device’s backup names', () => {
 				flowers
 			).map((e) => e.label)
 		).toEqual(['Ch. 1', 'Ch. 2', 'Ch. 9']);
+	});
+});
+
+/**
+ * The two pairs an adoption cannot settle: a library series beside a browsing
+ * record, and a folder whose chapters share nothing with the backup's. Both
+ * stay two series. Folding into the record would take a downloaded, rated,
+ * read series out of the library and let it be forgotten; adopting the
+ * folder's series on its name alone would list every chapter twice
+ * (doc/IMPORT-MIHON.md, "Before the backup knows it").
+ */
+describe('two pairs an adoption cannot match up', () => {
+	const at = 1_800_000_600_000;
+	const tablet = join(library, 'Mihon');
+	const browsingDir = join(tablet, 'downloads', 'Asura Scans (EN)', 'Browsing Title');
+	const numberedDir = join(tablet, 'downloads', 'Weeb Central (EN)', 'Numbered Ahead');
+	const bareDir = join(tablet, 'downloads', 'Weeb Central (EN)', 'No Metadata');
+	const BROWSING_DIR = 'mihon-dir:Asura Scans (EN)/Browsing Title';
+	const BROWSING = `mihon:${ASURA}:/series/browsing-title`;
+	const NUMBERED_DIR = 'mihon-dir:Weeb Central (EN)/Numbered Ahead';
+	const NUMBERED = `mihon:${WEEB}:/series/numbered-ahead`;
+	const BARE_DIR = 'mihon-dir:Weeb Central (EN)/No Metadata';
+	const BARE = `mihon:${WEEB}:/series/no-metadata`;
+
+	const one = <T>(sql: string, ...args: unknown[]) =>
+		db()
+			.prepare(sql)
+			.get(...args) as T;
+	const all = <T>(sql: string, ...args: unknown[]) =>
+		db()
+			.prepare(sql)
+			.all(...args) as T[];
+	const byKey = (key: string) =>
+		one<{ id: number } | undefined>(`SELECT id FROM series WHERE origin_key = ?`, key)?.id;
+
+	let browsing: number;
+	let numbered: number;
+	let bare: number;
+	let record: number;
+
+	beforeAll(async () => {
+		const chapter = (
+			dir: string,
+			file: string,
+			series: string,
+			source: string,
+			n: number,
+			web: string
+		) => {
+			mkdirSync(dir, { recursive: true });
+			writeFileSync(
+				join(dir, file),
+				cbz(comicInfo({ title: `Chapter ${n}`, series, number: n, web, source }))
+			);
+		};
+		chapter(
+			browsingDir,
+			'Chapter 1.cbz',
+			'Browsing Title',
+			'Asura Scans',
+			1,
+			'https://asuracomic.net/series/browsing-title-abc123/chapter/1'
+		);
+		// Numbered from 1, where the backup counts from 5.
+		for (const n of [1, 2])
+			chapter(
+				numberedDir,
+				`Chapter ${n}.cbz`,
+				'Numbered Ahead',
+				'Weeb Central',
+				n,
+				`https://weebcentral.com/chapters/NUM${n}`
+			);
+		// Mihon's chapter metadata off: no ComicInfo at all, so the label is the file's.
+		mkdirSync(bareDir, { recursive: true });
+		for (const n of [1, 2])
+			writeFileSync(
+				join(bareDir, `Chapter ${n}.cbz`),
+				zip([
+					{ name: '001.png', data: Buffer.alloc(16, n) },
+					{ name: '002.png', data: Buffer.alloc(16, n + 1) }
+				])
+			);
+
+		await runImport(library, { now: at });
+		browsing = byKey(BROWSING_DIR)!;
+		numbered = byKey(NUMBERED_DIR)!;
+		bare = byKey(BARE_DIR)!;
+		expect(browsing && numbered && bare).toBeTruthy();
+
+		// What the owner did with the library's series while it was on its own.
+		const first = one<{ id: number }>(
+			`SELECT id FROM entries WHERE series_id = ? AND label = 'Ch. 1'`,
+			browsing
+		).id;
+		db()
+			.prepare(`UPDATE entries SET read_at = ?, last_opened_at = ?, last_position = 3 WHERE id = ?`)
+			.run(at + 1_000, at + 2_000, first);
+		db().prepare(`UPDATE series SET rating = 4 WHERE id = ?`).run(browsing);
+
+		// A record on the same root: the series opened from the source's preview
+		// without ADD, which every shelf, count and search leaves out
+		// (doc/BROWSING.md).
+		record = Number(
+			db()
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, added_at, indexed_at, source,
+						origin_key, in_library, browsed_at)
+					SELECT root_id, 'Browsing Title', 'manga', ?, ?, 'mihon', ?, 0, ?
+					FROM series WHERE id = ?`
+				)
+				.run(at, at, BROWSING, at, browsing).lastInsertRowid
+		);
+		db()
+			.prepare(
+				`INSERT INTO entries (series_id, position, label, added_at, source_url, available)
+				VALUES (?, 0, 'Ch. 1', ?, '/series/browsing-title/chapter/1', 0)`
+			)
+			.run(record, at);
+		db()
+			.prepare(`INSERT OR IGNORE INTO tags (namespace, value) VALUES ('source', 'Asura Scans')`)
+			.run();
+		const tag = one<{ id: number }>(
+			`SELECT id FROM tags WHERE namespace = 'source' AND value = 'Asura Scans'`
+		).id;
+		db().prepare(`INSERT INTO series_tags (series_id, tag_id) VALUES (?, ?)`).run(record, tag);
+
+		// The phone's backup names all three; the tablet's folder has them.
+		writeFileSync(
+			join(phoneMihon, 'autobackup', 'app.mihon_2026-09-29_08-00.tachibk'),
+			gzipSync(
+				backup(
+					[],
+					[
+						manga(ASURA, '/series/browsing-title', 'Browsing Title', [
+							{ n: 1, url: '/series/browsing-title/chapter/1' }
+						]),
+						manga(WEEB, '/series/numbered-ahead', 'Numbered Ahead', [
+							{ n: 5, url: '/chapters/NUM5' },
+							{ n: 6, url: '/chapters/NUM6' }
+						]),
+						manga(WEEB, '/series/no-metadata', 'No Metadata', [
+							{ n: 1, url: '/chapters/NoMeta1' },
+							{ n: 2, url: '/chapters/NoMeta2' }
+						])
+					]
+				)
+			)
+		);
+		await runImport(library, { now: at + 10_000 });
+	});
+
+	it('never folds a library series into a browsing record', () => {
+		// The folder's series is still the library's, under its own key and id.
+		expect(byKey(BROWSING_DIR)).toBe(browsing);
+		expect(
+			one<{ in_library: number }>(`SELECT in_library FROM series WHERE id = ?`, browsing)
+		).toEqual({ in_library: 1 });
+		expect(one<{ rating: number }>(`SELECT rating FROM series WHERE id = ?`, browsing)).toEqual({
+			rating: 4
+		});
+		expect(
+			all<{ label: string; read_at: number | null; last_opened_at: number | null; file: string }>(
+				`SELECT label, read_at, last_opened_at, file FROM entries WHERE series_id = ?`,
+				browsing
+			)
+		).toEqual([
+			{
+				label: 'Ch. 1',
+				read_at: at + 1_000,
+				last_opened_at: at + 2_000,
+				file: 'Chapter 1.cbz'
+			}
+		]);
+		// The record keeps its own key, and is still a record.
+		expect(byKey(BROWSING)).toBe(record);
+		expect(
+			one<{ in_library: number }>(`SELECT in_library FROM series WHERE id = ?`, record)
+		).toEqual({ in_library: 0 });
+		expect(all<{ label: string }>(`SELECT label FROM entries WHERE series_id = ?`, record)).toEqual(
+			[{ label: 'Ch. 1' }]
+		);
+	});
+
+	it('refuses to adopt a folder whose chapters the backup does not share', () => {
+		// Two series, both under the keys they had: nothing was renamed.
+		expect(byKey(NUMBERED_DIR)).toBe(numbered);
+		expect(byKey(NUMBERED)).toBeDefined();
+		expect(byKey(NUMBERED)).not.toBe(numbered);
+		// The folder's chapters keep their files and their ComicInfo URLs, once.
+		expect(
+			all<{ label: string; available: number; file: string; source_url: string }>(
+				`SELECT label, available, file, source_url FROM entries WHERE series_id = ? ORDER BY position`,
+				numbered
+			)
+		).toEqual([
+			{
+				label: 'Ch. 1',
+				available: 1,
+				file: 'Chapter 1.cbz',
+				source_url: 'https://weebcentral.com/chapters/NUM1'
+			},
+			{
+				label: 'Ch. 2',
+				available: 1,
+				file: 'Chapter 2.cbz',
+				source_url: 'https://weebcentral.com/chapters/NUM2'
+			}
+		]);
+		// The backup's chapters sit beside them, not doubled into them: not downloaded.
+		expect(
+			all<{ label: string; available: number; file: string }>(
+				`SELECT label, available, file FROM entries WHERE series_id = ? ORDER BY position`,
+				byKey(NUMBERED)!
+			)
+		).toEqual([
+			{ label: 'Ch. 5', available: 0, file: '' },
+			{ label: 'Ch. 6', available: 0, file: '' }
+		]);
+	});
+
+	it('refuses the same when there is no ComicInfo, whose labels differ', () => {
+		expect(byKey(BARE_DIR)).toBe(bare);
+		expect(byKey(BARE)).not.toBe(bare);
+		expect(
+			all<{ label: string; available: number; file: string }>(
+				`SELECT label, available, file FROM entries WHERE series_id = ? ORDER BY position`,
+				bare
+			).map((e) => [e.label, e.available, e.file])
+		).toEqual([
+			['Chapter 1', 1, 'Chapter 1.cbz'],
+			['Chapter 2', 1, 'Chapter 2.cbz']
+		]);
+		expect(
+			all<{ label: string; available: number }>(
+				`SELECT label, available FROM entries WHERE series_id = ? ORDER BY position`,
+				byKey(BARE)!
+			)
+		).toEqual([
+			{ label: 'Ch. 1', available: 0 },
+			{ label: 'Ch. 2', available: 0 }
+		]);
+	});
+
+	it('settles: a rescan creates neither series again, and doubles no chapter', async () => {
+		const r = await runImport(library, { now: at + 20_000 });
+		expect(r.sources.every((s) => s.seriesCreated === 0)).toBe(true);
+		expect(byKey(BROWSING_DIR)).toBe(browsing);
+		expect(byKey(BROWSING)).toBe(record);
+		expect(byKey(NUMBERED_DIR)).toBe(numbered);
+		expect(byKey(BARE_DIR)).toBe(bare);
+		expect(
+			all<{ n: number }>(
+				`SELECT COUNT(*) AS n FROM entries WHERE series_id IN (?, ?)`,
+				numbered,
+				byKey(NUMBERED)!
+			)
+		).toEqual([{ n: 4 }]);
+		expect(
+			all<{ n: number }>(
+				`SELECT COUNT(*) AS n FROM entries WHERE series_id IN (?, ?)`,
+				bare,
+				byKey(BARE)!
+			)
+		).toEqual([{ n: 4 }]);
 	});
 });

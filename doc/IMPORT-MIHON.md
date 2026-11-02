@@ -198,7 +198,10 @@ library has two keys by then: the tablet's folder (`mihon-dir:…`) and the
 phone's backup (`mihon:<source>:<url>`), because each device's copy is read on
 its own ([`SYNC.md`](SYNC.md), "Other devices"). The writer settles the two
 before anything else, whichever of them the plan it is writing is
-(`adoptFormer`, `src/lib/server/import/fold.ts`):
+(`src/lib/server/import/fold.ts`): **`adoptFormer`** when this device has both
+(the plan carries the folder key it used to have), **`adoptFolder`** when a
+backup's plan meets a folder's series, and **`adoptNamed`** when a folder's
+plan meets the series a backup names, including a pair that already exists.
 
 - **The folder's series is found by its source and title,** the same rule
   "Matching downloads" uses, in the same root (every device's Mihon is one
@@ -214,6 +217,21 @@ before anything else, whichever of them the plan it is writing is
   follow, the URL series' own winning where both have one; caches of a file's
   pages follow only with that file. A hidden series stays hidden. No file
   moves.
+
+**A folder whose chapters the backup does not share waits beside it.** The
+source and title are not enough on their own: adopting would take the folder's
+series to the URL key with its chapters still addressed by the folder, and the
+writer would add the backup's chapters beside them, every chapter twice. So a
+plan that has chapters and matches none of the folder's (a series renumbered on
+one side, or one whose Mihon has chapter metadata off, `Chapter 1` against
+`Ch. 1`) is left as two series, the folder's and the backup's, and the folder's
+waits until a backup names chapters it shares. A backup entry with no chapters
+has nothing to prove and is still adopted by name. The pair is stable: a rescan
+creates neither series again. The same caution applies to a browsing record
+([`BROWSING.md`](BROWSING.md)): a library series is never folded into one,
+because a record is off every shelf, count and search and is forgotten 30 days
+after it was last opened. A folder whose only match is a record therefore also
+waits, until ADD promotes the record; the next scan then folds them.
 
 **Chapters are re-keyed by the same rule the matching above uses:** a URL in
 ComicInfo's `Web` ending with the backup's chapter URL (Weeb Central), then
@@ -234,7 +252,8 @@ the URL's, both reading the same files. 22 pairs in the live library were
 folded by the first scan with that rule, on the device whose own backup knew
 the manga. The folder-keyed series whose backup another device had (34 on
 2026-10-03, The Flowers of Evil among them) were left to c89: the same scan
-settles them the same way. Deleting one of a pair trashed the other's files
+settles the ones whose chapters it can match, and leaves the rest beside each
+other, in the two cases above. Deleting one of a pair trashed the other's files
 too; that is fixed in the delete as well ([`DELETING.md`](DELETING.md)).
 
 A device whose own backup still doesn't know the manga plans the folder key
