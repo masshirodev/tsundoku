@@ -41,6 +41,9 @@ start but was drawn for fingers.
 
 - D-pad focus: the arrows move to the nearest focusable thing, a sheet is a
   scope, and one ink frame shows where you are ([`FOCUS.md`](FOCUS.md)).
+- **Its own kind in DEVICES**: the app's user agent makes the TV a `tv` in the
+  workstation's `devices` table (rung 59, c244), so SETTINGS names it
+  "Android TV · Chrome" and `/start` counts it as another device.
 - **OK held and MENU open the focused thing's options**, through the same
   `contextmenu` a finger's long press has always sent: a cover tile's sheet in
   the library and the books grid, the page menu, a chapter or episode row, a

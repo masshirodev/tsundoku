@@ -1173,7 +1173,14 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	INSERT INTO entry_former_urls (entry_id, former_url, left_at)
 		SELECT id, former_url, 0 FROM entries
 		WHERE former_url != '' AND former_url != source_url;
-	`
+	`,
+	// v59: a TV is its own kind in DEVICES (doc/TV.md, doc/TV-APP.md; card
+	// c244). The app's user agent has named it a TV since c236, but its row's
+	// kind still said desktop because devices.kind's CHECK had no fourth value.
+	// SQLite cannot alter a CHECK in place; widening one that allows more
+	// changes nothing stored, so the schema's text is edited and the result
+	// checked before the rung commits (rung 47, and its reason).
+	(conn) => widenDeviceKinds(conn)
 ];
 
 /**
@@ -1213,6 +1220,41 @@ function widenKinds(conn: Database.Database): void {
 	}
 	const ok = conn.pragma('integrity_check', { simple: true });
 	if (ok !== 'ok') throw new Error(`rung 47: integrity check after widening series.kind: ${ok}`);
+}
+
+/**
+ * Rung 59: `tv` among devices.kind's allowed values. Same reason and same way
+ * as rung 47: the CHECK is the only thing that changes, so the schema's text is
+ * widened rather than the table rebuilt and every device's settings copied for
+ * nothing. A table rebuild is safe here (nothing references `devices`), but one
+ * way of changing a CHECK in this repo is better than two.
+ */
+const OLD_DEVICE_KINDS = `CHECK (kind IN ('phone', 'tablet', 'desktop'))`;
+const NEW_DEVICE_KINDS = `CHECK (kind IN ('phone', 'tablet', 'desktop', 'tv'))`;
+function widenDeviceKinds(conn: Database.Database): void {
+	const sql = (
+		conn
+			.prepare(`SELECT sql FROM sqlite_schema WHERE type = 'table' AND name = 'devices'`)
+			.get() as {
+			sql: string;
+		}
+	).sql;
+	if (!sql.includes(OLD_DEVICE_KINDS))
+		throw new Error('rung 59: devices.kind is not the CHECK it expects');
+	const version = conn.pragma('schema_version', { simple: true }) as number;
+	conn.unsafeMode(true);
+	try {
+		conn.pragma('writable_schema = ON');
+		conn
+			.prepare(`UPDATE sqlite_schema SET sql = ? WHERE type = 'table' AND name = 'devices'`)
+			.run(sql.replace(OLD_DEVICE_KINDS, NEW_DEVICE_KINDS));
+		conn.pragma(`schema_version = ${version + 1}`);
+		conn.pragma('writable_schema = OFF');
+	} finally {
+		conn.unsafeMode(false);
+	}
+	const ok = conn.pragma('integrity_check', { simple: true });
+	if (ok !== 'ok') throw new Error(`rung 59: integrity check after widening devices.kind: ${ok}`);
 }
 
 function migrate(conn: Database.Database, path: string): void {

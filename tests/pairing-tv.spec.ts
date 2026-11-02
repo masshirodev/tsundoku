@@ -84,8 +84,9 @@ describe("the TV app's user agent (doc/TV-APP.md)", () => {
 		expect(isTvApp(tablet)).toBe(false);
 	});
 
-	it('names the row a TV whatever kind the page synced as', () => {
-		// What /api/devices/sync labels it: the page itself says desktop.
+	it('names the row a TV, whatever kind the page said of itself', () => {
+		// /api/devices/sync reads the same user agent and stores the row as a TV
+		// (c244): the page's own kind is only what its screen can say.
 		expect(deviceLabel(tv, isTvApp(tv) ? 'tv' : 'desktop')).toBe('Android TV · Chrome');
 	});
 });

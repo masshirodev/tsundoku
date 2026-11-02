@@ -168,6 +168,12 @@ itself.
   (`mergeStamped`), and the response is whatever the workstation has that's
   newer. A value set before c171 goes at stamp 0, so anything set elsewhere
   wins over it.
+- **A device is one of four kinds**: phone, tablet, desktop or TV
+  (`DeviceKind`, `settings/catalog.ts`; `devices.kind`, rung 59). The screen
+  says the first three; only the TV app's own user agent says TV
+  ([`TV-APP.md`](TV-APP.md)), and `/api/devices/sync` reads it from the
+  request header rather than trusting the page's guess. So a TV's row is kept
+  as `tv`, says TV in the section, and counts as another device on `/start`.
 - The theme is a cookie the server reads. The record mirrors it as
   `tsundoku.theme`, and a newer one from the workstation sets the cookie.
   The language is the same, as `tsundoku.lang` and the cookie

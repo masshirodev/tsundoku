@@ -1,5 +1,5 @@
 import { getDb } from './db.ts';
-import { DEVICE_KEYS, type DeviceKind, type Json } from '../settings/catalog.ts';
+import { DEVICE_KEYS, DEVICE_KINDS, type DeviceKind, type Json } from '../settings/catalog.ts';
 import { mergeStamped, newerIn, type Stamped } from '../settings/stamped.ts';
 
 /**
@@ -19,7 +19,7 @@ export type DeviceRow = {
 	settings: Stamped;
 };
 
-const KINDS: DeviceKind[] = ['phone', 'tablet', 'desktop'];
+const KINDS: readonly DeviceKind[] = DEVICE_KINDS;
 /** A browser makes its id with crypto.randomUUID; anything else isn't one. */
 const ID = /^[0-9a-f-]{16,64}$/;
 

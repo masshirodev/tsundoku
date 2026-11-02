@@ -6,6 +6,7 @@ import {
 	VALUES,
 	deviceKind,
 	deviceLabel,
+	deviceName,
 	isChanged,
 	movesLine,
 	resetMoves,
@@ -105,10 +106,22 @@ describe('the catalogue (card c171)', () => {
 		expect(scopeLabel(rows['speed'], 'THIS TABLET')).toBe('EACH EPISODE');
 	});
 
-	it('names a device from its screen and its browser', () => {
+	it('names a device from its browser, and a TV from its user agent only', () => {
 		expect(deviceKind({ width: 360, coarse: true })).toBe('phone');
 		expect(deviceKind({ width: 800, coarse: true })).toBe('tablet');
 		expect(deviceKind({ width: 1440, coarse: false })).toBe('desktop');
+		// A wide page with no pointer is still a desktop: an unplugged mouse reads
+		// the same. What makes a TV is the app's own user agent (doc/TV-APP.md).
+		expect(deviceKind({ width: 960, coarse: false })).toBe('desktop');
+		expect(
+			deviceKind({
+				width: 960,
+				coarse: false,
+				ua: 'Mozilla/5.0 (Linux; Android 9; BRAVIA 4K GB) Chrome/94.0 Safari/537.36 TsundokuTV/1.0.0'
+			})
+		).toBe('tv');
+		expect(deviceName('tv', true)).toBe('THIS TV');
+		expect(deviceName('tv', false)).toBe('THE TV');
 		expect(
 			deviceLabel(
 				'Mozilla/5.0 (Linux; Android 14; SM-X710) AppleWebKit/537.36 Chrome/130.0 Safari/537.36',
