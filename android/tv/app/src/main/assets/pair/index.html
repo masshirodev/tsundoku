@@ -459,15 +459,16 @@
 					<button class="btn" type="button" data-focus id="change">CHANGE THE ADDRESS</button>
 				</div>
 			</section>
-		</main>
 
-		<!-- c260 · a given address, checked before 9B: the app was handed one,
-		     so nobody types it. Not a drawn screen: 9B's own label and meta at
-		     the rhythm a band leaves them. -->
-		<div class="safe connect" id="connect" hidden>
-			<div class="lab">01 — THE COMPUTER'S ADDRESS · GIVEN AT LAUNCH</div>
-			<div class="meta" id="connect-line" role="status"></div>
-		</div>
+			<!-- c260 · a given address, checked before 9B: the app was handed one,
+			     so nobody types it. Not a drawn screen: 9B's own label and meta at
+			     the rhythm a band leaves them. Inside <main> so its absolute
+			     position resolves against the frame every other block uses. -->
+			<div class="safe connect" id="connect" hidden>
+				<div class="lab">01 — THE COMPUTER'S ADDRESS · GIVEN AT LAUNCH</div>
+				<div class="meta" id="connect-line" role="status"></div>
+			</div>
+		</main>
 
 		<script>
 			/*
@@ -643,6 +644,11 @@
 
 			/* A given address the activity refused: 9B, empty, with the band. */
 			function refused() {
+				// The second door into 9B, and the 9D retry outlives the screen
+				// unless it is stopped first: its next tick would probe the old
+				// origin, fail, and replace the refusal with 9D for an address
+				// nobody handed in. #change stops it the same way (c260).
+				stopRetry();
 				show('address');
 				fill();
 				last.value = '';
@@ -657,6 +663,11 @@
 				if (typeof at !== 'string' || seen.has(at)) return;
 				seen.add(at);
 				setTimeout(() => seen.delete(at), 2000);
+				// Only the current attempt's answer counts. A given address
+				// supersedes a typed probe by moving lastOrigin (connect()), and
+				// the answer for the attempt it replaced must neither store that
+				// address nor leave for its /pair/tv — success included (c260).
+				if (at !== lastOrigin) return;
 				// A given address is being checked with no screen in front of it
 				// (c260), which the two-screen test below would otherwise drop.
 				if (!connecting && screens.address.hidden && screens.lost.hidden) return;
@@ -669,7 +680,6 @@
 					location.href = at + '/pair/tv';
 					return;
 				}
-				if (at !== lastOrigin) return;
 				if (connecting) {
 					connecting = false;
 					connectBox.hidden = true;
