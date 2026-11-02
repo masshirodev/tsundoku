@@ -5,6 +5,9 @@
 	import type { BlocksShown } from '$lib/japanese/blocks';
 	import { resetZoom, stepZoom, zoomLabel } from '$lib/reader/zoom';
 	import RatingSlider from '$lib/components/controls/RatingSlider.svelte';
+	import { focusScope } from '$lib/focus';
+	import { MediaQuery } from 'svelte/reactivity';
+	import { TV } from '$lib/device.svelte';
 
 	/**
 	 * READING (Index Reader, state 1b with the sheet): mode, fit, spreads, crop
@@ -13,6 +16,10 @@
 	 * reason, not removed, so the sheet doesn't jump when MODE changes (the
 	 * addendum's rule). Mode is this session's until REMEMBER makes it the
 	 * series'; fit, spreads, crop, wide pages, sides and dim belong to the device.
+	 *
+	 * On a TV it is a focus scope and a 420px panel from the right (c241;
+	 * TV-Reader 7E): the pad lands on the mode in use, ← → step between a row's
+	 * values and ↑ ↓ move between rows, and the pages stay in view at the left.
 	 */
 	let {
 		mode,
@@ -101,6 +108,7 @@
 
 	/** READING's "?": its rows give way to 02 — READING's In short (doc/HELP.md). */
 	let asking = $state(false);
+	const tvScreen = new MediaQuery(TV, false);
 
 	let dimTrack = $state<HTMLElement | null>(null);
 	let sliding = false;
@@ -113,7 +121,7 @@
 
 <button type="button" class="scrim appear" aria-label="Close reading settings" onclick={onclose}
 ></button>
-<div class="sheet appear" role="dialog" aria-label="Reading settings">
+<div class="sheet appear" role="dialog" aria-label="Reading settings" use:focusScope>
 	{#if asking}
 		<!-- READING's "?" (doc/HELP.md; the HELP handoff, 2F): the same sheet changes,
 		     rather than a second one stacking on it; ← READING brings the rows back. -->
@@ -132,10 +140,16 @@
 	{:else}
 		<div class="head">
 			<div class="h">READING</div>
-			<button type="button" class="x ask" aria-label="Help: reading" onclick={() => (asking = true)}
-				>?</button
+			<button
+				type="button"
+				class="x ask"
+				aria-label="Help: reading"
+				data-focus-mark="in"
+				onclick={() => (asking = true)}>?</button
 			>
-			<button type="button" class="x" aria-label="Close" onclick={onclose}>✕</button>
+			<button type="button" class="x" aria-label="Close" data-focus-mark="in" onclick={onclose}
+				>✕</button
+			>
 		</div>
 
 		<div class="row">
@@ -148,6 +162,8 @@
 							role="radio"
 							aria-checked={mode === m}
 							class:on={mode === m}
+							data-focus-mark="in"
+							data-focus-start={mode === m ? '' : undefined}
 							onclick={() => onmode(m)}>{modeName(m)}</button
 						>
 					{/each}
@@ -174,6 +190,7 @@
 							aria-checked={paged ? fit === f : f === 'width'}
 							class:on={paged ? fit === f : f === 'width'}
 							disabled={!paged}
+							data-focus-mark="in"
 							onclick={() => onfit(f)}>{name}</button
 						>
 					{/each}
@@ -231,6 +248,7 @@
 							aria-checked={wideApplies && wide === w}
 							class:on={wideApplies && wide === w}
 							disabled={!wideApplies}
+							data-focus-mark="in"
 							onclick={() => onwide(w)}>{name}</button
 						>
 					{/each}
@@ -255,6 +273,7 @@
 							aria-checked={!paged && sides === n}
 							class:on={!paged && sides === n}
 							disabled={paged}
+							data-focus-mark="in"
 							onclick={() => onsides(n)}>{n === 0 ? 'NONE' : `${n}%`}</button
 						>
 					{/each}
@@ -269,16 +288,23 @@
 			<div class="label">ZOOM</div>
 			<div class="body col">
 				<div class="seg" role="group" aria-label="Zoom">
-					<button type="button" aria-label="Zoom out" onclick={() => onzoom(stepZoom(zoom, -1))}
-						>−</button
+					<button
+						type="button"
+						aria-label="Zoom out"
+						data-focus-mark="in"
+						onclick={() => onzoom(stepZoom(zoom, -1))}>−</button
 					>
 					<span class="zval" aria-live="polite">{zoomLabel(zoom)}</span>
-					<button type="button" aria-label="Zoom in" onclick={() => onzoom(stepZoom(zoom, 1))}
-						>+</button
+					<button
+						type="button"
+						aria-label="Zoom in"
+						data-focus-mark="in"
+						onclick={() => onzoom(stepZoom(zoom, 1))}>+</button
 					>
 					<button
 						type="button"
 						disabled={zoom === 1 && keptZoom === 1}
+						data-focus-mark="in"
 						onclick={() => onzoom(resetZoom(zoom, keptZoom))}>RESET</button
 					>
 				</div>
@@ -309,6 +335,7 @@
 								role="radio"
 								aria-checked={blocks === b}
 								class:on={blocks === b}
+								data-focus-mark="in"
 								onclick={() => onblocks(b)}>{name}</button
 							>
 						{/each}
@@ -330,6 +357,7 @@
 					aria-valuemin={0}
 					aria-valuemax={80}
 					aria-valuenow={Math.round(dim * 100)}
+					data-focus-adjust={tvScreen.current ? '' : undefined}
 					onpointerdown={(e) => {
 						sliding = true;
 						(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -593,6 +621,23 @@
 	.foot {
 		height: 24px;
 		flex-shrink: 0;
+	}
+	/* On a TV, READING is a panel from the right (c241; TV-Reader 7E): the pages
+	   stay in view at the left and change as a row does, and the panel is the
+	   same 420px the other sheets are (Sheet.svelte). */
+	@media (pointer: none) and (min-width: 900px) {
+		.sheet {
+			left: auto;
+			right: 0;
+			top: 0;
+			bottom: 0;
+			width: var(--tv-panel-w);
+			max-height: none;
+			height: 100dvh;
+			border-top: 0;
+			border-left: var(--rule-strong);
+			padding: var(--safe-y) 0;
+		}
 	}
 	@media (max-width: 599px) {
 		.label {

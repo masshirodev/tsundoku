@@ -373,6 +373,8 @@
 	let half = $state<0 | 1>(0);
 	let chrome = $state(false);
 	let sheet = $state(false);
+	/** The reader's root, for the scrubber the chrome focuses when a remote brings it up. */
+	let root = $state<HTMLElement | null>(null);
 
 	// ---- editions (doc/EDITIONS.md): one book, read in any of its languages -------------
 	const editions = $derived(data.editions);
@@ -1394,6 +1396,17 @@
 	/** The hold opened the menu: the release belongs to it, not to the chrome. */
 	let held = false;
 
+	/** The keys that turn or scroll a page: the reader's own while its chrome is hidden. */
+	const TURNS = new Set([
+		'ArrowLeft',
+		'ArrowRight',
+		'ArrowUp',
+		'ArrowDown',
+		' ',
+		'PageUp',
+		'PageDown'
+	]);
+
 	/**
 	 * The menu for the page in the middle of the screen, so a remote never has
 	 * to point at one: in a spread it is the right-hand page, the one a turn
@@ -1452,7 +1465,19 @@
 			return;
 		}
 		if (lookup || sheet || menu) return;
+		showChrome();
+	}
+
+	/**
+	 * OK brings the chrome up (c235), and on a TV puts the pad on its scrubber
+	 * (c241; TV-Reader 7D: "OK shows it, focus on the page scrubber"), so the
+	 * next ↓ reaches the chapters and READING rather than doing nothing.
+	 */
+	async function showChrome() {
 		chrome = true;
+		if (!tvScreen.current) return;
+		await tick();
+		root?.querySelector<HTMLElement>('footer [data-focus-start]')?.focus();
 	}
 
 	// BACK (c235): what is open first, then the chrome, then the series. The
@@ -1553,10 +1578,17 @@
 		if (holdKeys(e)) return;
 		// The layer's BACK step hides the chrome first; Escape itself is the
 		// keyboard's toggle, and brings it up when nothing was open (doc/READER.md).
-		if (e.key === 'Escape') chrome = !chrome;
+		if (e.key === 'Escape') {
+			if (chrome) chrome = false;
+			else void showChrome();
+		}
 		if (e.key === '+' || e.key === '=') return setZoom(stepZoom(zoom, 1));
 		if (e.key === '-') return setZoom(stepZoom(zoom, -1));
 		if (e.key === '0') return setZoom(resetZoom(zoom, kept));
+		// On a TV with the chrome up the pad owns the arrows and the page-turn
+		// keys (c241): an arrow moves among the chrome's cells, and BACK hides
+		// it before any of them is the reader's again.
+		if (tvScreen.current && chrome && TURNS.has(e.key)) return;
 		if (mode === 'vertical') {
 			// A screen at a time, not the browser's few lines (the owner, 2026-10-30), at any zoom:
 			// the strip scrolls the window, so a screen is the window's height.
@@ -1665,7 +1697,8 @@
 	class="reader"
 	class:vertical={mode === 'vertical'}
 	class:incognito={data.incognito}
-	data-focus-off={atEnd ? undefined : ''}
+	bind:this={root}
+	data-focus-off={!atEnd && !(tvScreen.current && chrome) ? '' : undefined}
 >
 	{#if !data.manifest}
 		<div class="missing">

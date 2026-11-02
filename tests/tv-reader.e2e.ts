@@ -79,3 +79,64 @@ test('the end page takes the pad: its cells are reachable, and its ANOTHER SOURC
 	expect(text.length).toBeGreaterThan(0);
 	expect(text).toMatch(/SERIES|LIBRARY|BACK|RATE|FAV/i);
 });
+
+test('OK brings the chrome as a focus row, and READING opens, changes the mode, and goes back', async ({
+	page
+}) => {
+	await open(page);
+	const reader = page.locator('.reader');
+	const chromeUp = () => reader.evaluate((n) => !n.hasAttribute('data-focus-off'));
+
+	// The chrome is hidden, so the arrows are the reader's and the layer is out.
+	expect(await chromeUp()).toBe(false);
+
+	// OK shows it and puts the pad on the scrubber (TV-Reader 7D).
+	await page.keyboard.press('Enter');
+	const scrub = page.locator('footer[aria-label="Reader controls"] .track');
+	await expect(scrub).toBeVisible();
+	await expect(scrub).toBeFocused();
+	expect(await chromeUp()).toBe(true);
+
+	// ↓ reaches the cells: READING is the widest, and says the mode in use.
+	await page.keyboard.press('ArrowDown');
+	const reading = page.locator('footer[aria-label="Reader controls"] .cell.grow');
+	await expect(reading).toBeFocused();
+	await expect(reading).toContainText('R→L');
+
+	// OK opens READING, where the pad lands on the mode in use.
+	await page.keyboard.press('Enter');
+	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+	await expect(sheet).toBeVisible();
+	await expect(sheet.getByRole('radio', { name: 'R→L' })).toBeFocused();
+
+	// ← → walk the row, and OK takes the new mode.
+	await page.keyboard.press('ArrowRight');
+	const ltr = sheet.getByRole('radio', { name: 'L→R' });
+	await expect(ltr).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(ltr).toHaveAttribute('aria-checked', 'true');
+
+	// BACK closes READING and gives the pad back to its cell...
+	await page.keyboard.press('Escape');
+	await expect(sheet).toHaveCount(0);
+	await expect(reading).toBeFocused();
+	await expect(reading).toContainText('L→R');
+
+	// ...and BACK again hides the chrome, and the arrows are the reader's again.
+	await page.keyboard.press('Escape');
+	await expect(page.getByRole('banner', { name: 'Reader' })).toHaveCount(0);
+	expect(await chromeUp()).toBe(false);
+
+	// Put the mode back, by keys alone: R→L as the series has it.
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('ArrowDown');
+	await expect(reading).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(sheet).toBeVisible();
+	await expect(sheet.getByRole('radio', { name: 'L→R' })).toBeFocused();
+	await page.keyboard.press('ArrowLeft');
+	await expect(sheet.getByRole('radio', { name: 'R→L' })).toBeFocused();
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('Escape');
+	await expect(reading).toContainText('R→L');
+});
