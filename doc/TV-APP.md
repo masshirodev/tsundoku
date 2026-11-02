@@ -103,6 +103,12 @@ adb shell am start -a android.intent.action.VIEW \
 `url` is the whole address, percent-encoded in the link. If both the extra and
 the link are there, the extra wins: it is what the command above sends.
 
+On a friend's install the same command takes that computer's own address, which
+is also what a failing LAN probe leaves to type: run the same command with the
+address as its value — `--es url http://192.168.1.23:42143` (their `PORT` if
+they changed it). The whole address is the one thing 9B's panel would otherwise
+ask for on a remote.
+
 Only `http` and `https` with a host are accepted — a tailnet name, a domain, or
 an address, on any port. Only the origin is kept: a path, a query and a
 fragment are dropped, and an address carrying a username or password is
