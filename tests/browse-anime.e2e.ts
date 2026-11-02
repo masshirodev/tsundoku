@@ -227,6 +227,67 @@ test.describe('the player, tablet landscape (c156)', () => {
 		).toHaveText('WATCHED');
 	});
 
+	test('an episode is watched the moment playback reaches its ending’s start (c239)', async ({
+		page
+	}) => {
+		test.setTimeout(90_000);
+		await page.goto('/');
+		await page.getByRole('link', { name: /^ANIME/ }).click();
+		await page.locator('.grid .tile', { hasText: 'Tsukiakari no Ryokōsha' }).click();
+		const list = page.getByRole('region', { name: 'Episodes' });
+		await list.locator('.entry', { hasText: "The Ferryman's Count" }).locator('.entry-btn').click();
+		const player = page.locator('.player');
+		const pp = player.locator('.cluster .pp');
+		await expect(pp).toBeVisible({ timeout: 20_000 });
+		if ((await pp.getAttribute('aria-label')) === 'Play') await pp.click();
+		await page.waitForFunction(() => {
+			const v = document.querySelector('video');
+			return !!v && v.currentTime > 0;
+		});
+		// The clip's ending starts at 6 s: reaching it is enough, no skip.
+		await page.evaluate(() => {
+			const v = document.querySelector('video');
+			if (v) v.currentTime = 6.3;
+		});
+		await page.waitForTimeout(1500);
+		const href = await player.getByRole('link', { name: '← SERIES' }).first().getAttribute('href');
+		await page.goto(href!);
+		await expect(
+			list.locator('.entry', { hasText: "The Ferryman's Count" }).locator('.status')
+		).toHaveText('WATCHED');
+	});
+
+	test('SKIP ENDING marks the episode watched as it is pressed (c239)', async ({ page }) => {
+		test.setTimeout(90_000);
+		await page.goto('/');
+		await page.getByRole('link', { name: /^ANIME/ }).click();
+		await page.locator('.grid .tile', { hasText: 'Tsukiakari no Ryokōsha' }).click();
+		const list = page.getByRole('region', { name: 'Episodes' });
+		// The last episode has no next, which is where SKIP ENDING is offered.
+		await list.locator('.entry').last().locator('.entry-btn').click();
+		const player = page.locator('.player');
+		const pp = player.locator('.cluster .pp');
+		await expect(pp).toBeVisible({ timeout: 20_000 });
+		// The tap zone can hold the middle before the controls are shown; the
+		// player's own key starts it without a tap.
+		if ((await pp.getAttribute('aria-label')) === 'Play') await page.keyboard.press('Space');
+		await page.waitForFunction(() => {
+			const v = document.querySelector('video');
+			return !!v && v.currentTime > 0;
+		});
+		await page.evaluate(() => {
+			const v = document.querySelector('video');
+			if (v) v.currentTime = 6.2;
+		});
+		const skip = player.getByRole('button', { name: 'SKIP ENDING →' });
+		await expect(skip).toBeVisible({ timeout: 10_000 });
+		await skip.click();
+		await page.waitForTimeout(1000);
+		const href = await player.getByRole('link', { name: '← SERIES' }).first().getAttribute('href');
+		await page.goto(href!);
+		await expect(list.locator('.entry').last().locator('.status')).toHaveText('WATCHED');
+	});
+
 	test('a click plays or pauses, a double-click seeks, and the controls come back on a move (c217, c218)', async ({
 		page
 	}) => {

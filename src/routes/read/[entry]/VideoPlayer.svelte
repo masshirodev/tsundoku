@@ -385,7 +385,16 @@
 		phase = 'playing';
 		keepNext();
 		await tick();
-		const open = at === undefined ? openAt({ ...ep, durationS: duration || ep.durationS }) : null;
+		// The ending the resolve just found is the one watching counts from, even
+		// before the page's own data has it (c239).
+		const open =
+			at === undefined
+				? openAt({
+						...ep,
+						durationS: duration || ep.durationS,
+						endingAt: got.ending?.start ?? ep.endingAt
+					})
+				: null;
 		attach(at ?? open!.at);
 		if (open?.resumed) {
 			resumedAt = open.at;

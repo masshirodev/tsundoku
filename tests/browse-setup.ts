@@ -176,7 +176,11 @@ function answer(b: EngineCall): unknown {
 					quality: 'Kwik - 360p',
 					videoUrl: 'http://127.0.0.1:1/video/clip.webm',
 					subtitleTracks: [{ url: 'http://127.0.0.1:1/video/en.vtt', lang: 'English' }],
-					timestamps: [{ start: 1, end: 3, name: 'Opening', type: 'Opening' }]
+					timestamps: [
+						{ start: 1, end: 3, name: 'Opening', type: 'Opening' },
+						// The 8 s clip's last two seconds: the ending, where watching counts (c239).
+						{ start: 6, end: 8, name: 'Ending', type: 'Ending' }
+					]
 				}
 			];
 		case 'getEpisodeList': {

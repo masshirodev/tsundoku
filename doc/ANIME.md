@@ -19,6 +19,7 @@ the second amended to Jellyfin's TV layout (card c128 has them in full).
 | Downloading episodes into a Jellyfin-shaped folder       | c157 | Done  |
 | FOLLOW, and the tablet keeping the next episode          | c158 | Done  |
 | Live checks, departures and docs                         | c159 | Done  |
+| An episode's opening and ending: AniSkip, fingerprints   | c239 | Done  |
 
 Episodes play in the player (c156) since 2026-10-29; until then
 `/read/<entry>` answered 404 for one, which is why nothing of anime was
@@ -67,9 +68,9 @@ Pure, and what every screen reads (`tests/anime.spec.ts`):
 - **Status** (Anime States 1a): WATCHED; "14:32 LEFT" for the one
   part-watched; its size when it's on the workstation; NOT DOWNLOADED
   otherwise, which is a fact, not a warning: those episodes stream.
-- **Watched** (Anime Calls, "Resume"): at the ending's start where the source
-  gave timestamps, otherwise in the last 3 % (`isWatchedAt`; the player, c156,
-  marks it).
+- **Watched** (Anime Calls, "Resume"): at the ending's start where any finder
+  gave one (the source, AniSkip or a fingerprint; "Openings and endings"),
+  otherwise in the last 3 % (`isWatchedAt`; the player, c156, marks it).
 - **Seasons** are groups, headed "SEASON 2 · EP. 1 – 12", "6 WATCHED"; a
   season watched through folds into one row, "↑ SEASON 1 · EP. 1 – 12",
   "12 WATCHED · SHOW", unless the episode being watched is in it. A list
@@ -192,9 +193,10 @@ once a candidate is picked, and MOVE never waits on it.
   "Hoster - 1080p" where the source has hosters, so each hoster is a server,
   numbered in the source's own order of preference (SERVER 1 OF 3), its
   videos its qualities, best first. Each quality carries its audio and
-  subtitle tracks. The opening and ending come from the source's timestamps,
-  and only from them; the ending's start is kept on the entry (`ending_at`),
-  where an episode counts as watched. An answer is kept ten minutes;
+  subtitle tracks. The opening and ending come from the source's timestamps
+  when it gives them; AniSkip or a fingerprint fills what it leaves empty
+  ("Openings and endings"). The best ending's start is kept on the entry
+  (`ending_at`), where an episode counts as watched. An answer is kept ten minutes;
   `?fresh=1` asks again (TRY AGAIN, and a stream that stopped: its address
   may simply have gone stale). **An empty answer never replaces a full one
   kept within those ten minutes**: a source asked again too soon answers with
@@ -241,6 +243,127 @@ proxy and a fake site: servers and tokens with nothing of the engine or the
 site in them, hidden, the engine's token and Range through it, the site's
 headers, an inside address refused, a site's loopback address never the
 engine's, WebVTT, the probe).
+
+## Openings and endings (c239)
+
+The player's SKIP INTRO, SKIP ENDING, the NEXT card and the watched mark need
+times the source almost never sends. Three finders supply them, **best
+first**:
+
+1. **The source's own timestamps**, as `getVideoList` gives them (c155). They
+   are kept as a `source` row as soon as the streams resolve.
+2. **AniSkip**, the community database of openings and endings.
+3. **A fingerprint of the episodes themselves**, the Jellyfin Intro Skipper
+   method: two episodes of a season share their opening and their ending, so
+   the audio both have at the same time is one of them.
+
+**Precedence is per part**, not per episode: a source that gave an opening
+and no ending still takes AniSkip's or the fingerprint's ending. The best
+ending is written to `entries.ending_at`, which stays the one place the
+player, the series screen and the server's watched mark read, so all three
+finders feed "watched at the ending's start" the same way. **SKIP ENDING**
+also marks the episode watched the moment it is pressed, rather than waiting
+for the seek's next timeupdate (the owner's call, 2026-11-01). Without an
+ending, the last 3 % still counts (`isWatchedAt`).
+
+**Storage.** Rung 59, `episode_marks`: one row per episode and finder
+(`source`, `aniskip`, `fingerprint`), with the opening and ending it found and
+when it was tried. **A negative answer is a row too**, so an episode is not
+asked again. Rung 47's source endings are copied in as `source` rows, so a
+library that had them keeps them.
+
+### AniSkip
+
+`GET https://api.aniskip.com/v2/skip-times/<malId>/<episode>?types[]=op&types[]=ed&episodeLength=<seconds>`
+answers `{found, results:[{interval:{startTime,endTime}, skipType:'op'|'ed'}]}`;
+a 404 is "this episode has none". Only the MyAnimeList id, the episode number
+and the length leave the app: no title, no account, no reading. `malId` is
+the series' link (`series_links.mal_id`; doc/TRACKING.md); **no link, no
+lookup**. `episodeLength` is required by the API, so an episode whose length
+no source, file or playlist has yet is probed once (c155's `probe`) and the
+length is kept.
+
+- **A hidden series is never looked up**, even while reveal is on: the one
+  rule is in the SQL (`HIDDEN_SQL`). Incognito doesn't ask either.
+- **Seasons.** AniSkip numbers episodes per MAL entry, and a MAL entry is one
+  season. Until c240 links a season rather than a series, only a flat list or
+  season 1 can be the entry the series' link names; a later season isn't
+  looked up. The episode number is the source's own within the season
+  (`episode_number`).
+- **Remembered.** A found answer is never asked again; a 404 is remembered
+  for `ANISKIP_RETRY_MS` (7 days), since a running show's new episode may
+  arrive late. A server that didn't answer is not remembered: the next
+  resolve tries again.
+- **Cost:** one small HTTP request per episode, once, on the resolve that
+  plays it. It is awaited so the buttons are there on the first play; every
+  later resolve is a database read.
+
+`tests/anime-aniskip-db.spec.ts` (the request, the marks, hidden, no link,
+seasons, no length, the 7-day retry, a failing server not remembered) and
+`tests/anime-streams-db.spec.ts` (the player's resolve asks it once, and the
+episode's `ending_at` follows).
+
+### Fingerprints of downloaded episodes
+
+`src/lib/library/fingerprint.ts` is the pure matcher; the server side is
+`src/lib/server/anime/fingerprint.ts` and the season job in
+`skip-marks.ts`.
+
+- **What is read.** ffmpeg reads the first **25 % of the episode, capped at
+  10 minutes**, and its **last 4 minutes**, and chromaprint turns each into
+  32-bit points (about eight a second). Only a normal download's own file is
+  read here: the source isn't asked.
+- **How they are compared.** Both windows are resampled to 8 points a second
+  and shifted against each other (an opening by at most 30 s, an ending by
+  180 s, since episodes differ in length). A run is a stretch where every
+  point matches within **6 bits**; the longest run within **15–120 s** (an
+  opening) or **15–180 s** (an ending) is the mark. A season needs **at least
+  two episodes** with prints; one alone decides nothing and isn't remembered.
+- **What is kept.** The run's own times in each episode, as a `fingerprint`
+  row. An episode whose pair found nothing gets a negative row, tried again
+  after 14 days.
+- **Cost:** seconds of ffmpeg a region, one episode at a time, in the
+  background. A season's downloaded episodes are read when one of them is
+  played; a hidden series is left alone, and incognito starts nothing.
+
+**ffmpeg's chromaprint muxer is the brief's way** (`-f chromaprint -fp_format
+raw`). This workstation's ffmpeg (Arch's n9.0.1) is built without it, so the
+extractor falls back to **`fpcalc`**, chromaprint's own program, fed the same
+audio through the same ffmpeg; the points are the same. A build with the
+muxer uses it. Either way `ffmpeg`/`ffprobe` and (on a build without the
+muxer) `fpcalc` are needed; doc/DISTRIBUTION.md lists them.
+
+`tests/fingerprint.spec.ts` (runs, bit errors, bounds, the two windows) and
+`tests/anime-fingerprint-db.spec.ts` (two synthesised episodes sharing an
+opening and ending, the real ffmpeg and chromaprint, source precedence, a
+hidden series, one episode, a negative remembered, the background queue).
+
+### Fingerprints of streams
+
+The same method, for an episode with no file, **only while it is being
+watched**: when the player resolves an episode, the background job takes the
+playing episode, **the next two after it** and one more after those, so both
+next episodes have a pair. It never runs for a season outside the one being
+watched.
+
+- **What is read.** The stream's **lowest quality at most 480p**, through the
+  same loopback proxy downloads and pictures use (`loopback.ts`), so ffmpeg
+  fetches nothing itself and the net guard still applies. A **separate audio
+  rendition** is preferred where the source offers one (KickAssAnime's); it
+  is the smallest thing carrying the opening and ending. A stream whose
+  lowest quality is above 480p is left alone.
+- **Only the minutes it needs.** `-ss` before the input seeks, then `-t`
+  bounds the read; ffmpeg fetches the segments it lands in, not the episode.
+- **One at a time, and never beside a download.** The job reads one episode
+  at a time. If a download of the **same source** is running, it stops and
+  leaves no negative row, so a later play can try again. A server that fails
+  is left quietly and the next server in the source's order is tried.
+- **A server that fails isn't remembered.** Only a successful read that found
+  no shared run is a negative, for the same 14 days.
+
+`tests/anime-stream-fingerprint-db.spec.ts` (the lowest 360p audio rather than
+1080p, a separate audio track, a failing server passed over, no read during a
+same-source download, the next-two window).
 
 ## The player (c156)
 
@@ -302,8 +425,10 @@ screen but the video, and the subtitles, until a tap.
   workstation like every device setting. The sheet ends with ALL SETTINGS →.
 - **Subtitles** are drawn by tsundoku from the WebVTT: IBM Plex on a scrim
   box, rising above the controls while they show.
-- **SKIP INTRO / SKIP ENDING** only where the source gave timestamps: alone
-  for 8 s, then with the controls.
+- **SKIP INTRO / SKIP ENDING** wherever an opening or an ending is known --
+  the source's, AniSkip's or a fingerprint's ("Openings and endings") --
+  alone for 8 s, then with the controls. SKIP ENDING marks the episode
+  watched as it is pressed.
 - **On a TV** (c235; [`TV.md`](TV.md)) the controls are a D-pad row: the
   picture until a key, then focus on ▶❚❚ and all six cells on one line —
   ▶❚❚, −10, +10, ← EP. n, the cell naming the stream (which opens the

@@ -46,7 +46,10 @@ Measured 2026-10-29, the things a fresh machine trips over:
 - **The engine** is an image built locally from the private `tsundoku-engine`
   repo, and its compose file mounts `/mnt/hdd2` and pins `TZ=America/Cuiaba`.
 - **External binaries**: `ffmpeg`/`ffprobe` for anime, FlareSolverr beside the
-  engine, a Java runtime under the engine.
+  engine, a Java runtime under the engine. An episode's opening and ending
+  are found with chromaprint (`doc/ANIME.md`, "Openings and endings"): an
+  ffmpeg built with its muxer needs nothing else, and one built without it
+  (this workstation's) needs `fpcalc` from the `chromaprint` package.
 - **Native modules**: `better-sqlite3` and `sharp` are per-OS, per-architecture.
 
 ## The phases
