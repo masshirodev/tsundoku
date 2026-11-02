@@ -462,10 +462,14 @@ export function rename(workId: number, name: string): RenameFacts {
 	const db = getDb();
 	const trimmed = name.trim();
 	if (trimmed === '') throw new WorkError('a Work needs a name');
-	const work = workRow(db, workId);
-	if (!work) throw new WorkError('no such Work');
-	db.prepare(`UPDATE works SET name = ? WHERE id = ?`).run(trimmed, workId);
-	return { workId, name: work.name };
+	return db
+		.transaction((): RenameFacts => {
+			const work = workRow(db, workId);
+			if (!work) throw new WorkError('no such Work');
+			db.prepare(`UPDATE works SET name = ? WHERE id = ?`).run(trimmed, workId);
+			return { workId, name: work.name };
+		})
+		.immediate();
 }
 
 /** UNDO of a rename: the old name, by the same function the screen would call. */

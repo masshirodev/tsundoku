@@ -200,5 +200,11 @@ export function workKinds(parts: WorkPart[]): string {
 	return `WORK · ${kinds.join(' + ')}`;
 }
 
-/** What CONTINUE does with the part it opens: watching an anime, reading anything else. */
-export const workVerb = (kind: Kind) => (kind === 'anime' ? 'WATCH' : 'READ');
+/** WATCH for an episode, READ for a page. */
+export const kindVerb = (kind: Kind) => (kind === 'anime' ? 'WATCH' : 'READ');
+
+/** What CONTINUE does with the part it opens: WATCH, READ, or null once the run is read. */
+export function workVerb(parts: WorkPart[]): 'READ' | 'WATCH' | null {
+	const current = continuePart(parts);
+	return current ? kindVerb(current.kind) : null;
+}

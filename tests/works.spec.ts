@@ -7,6 +7,7 @@ import {
 	partState,
 	workFavourite,
 	workFoot,
+	kindVerb,
 	workKinds,
 	workRating,
 	workVerb,
@@ -185,10 +186,20 @@ describe('kinds and the verb', () => {
 		expect(workKinds([part({ seriesId: 1, position: 1, kind: 'manhwa' })])).toBe('WORK · MANHWA');
 	});
 
-	it('says WATCH for an anime and READ for anything else', () => {
-		expect(workVerb('anime')).toBe('WATCH');
-		expect(workVerb('manga')).toBe('READ');
-		expect(workVerb('novel')).toBe('READ');
-		expect(workVerb('doujin')).toBe('READ');
+	it('says WATCH when CONTINUE opens an anime, READ for anything else, and nothing once read', () => {
+		// A manga beside its anime: the part the owner was in sets the verb.
+		const manga = part({ seriesId: 1, position: 1, kind: 'manga', read: 10, lastOpenedAt: 900 });
+		const anime = part({ seriesId: 2, position: 2, kind: 'anime' });
+		expect(workVerb([manga, anime])).toBe('READ');
+		// The manga finished most recently: CONTINUE crosses to the anime.
+		expect(workVerb([{ ...manga, read: manga.entries }, anime])).toBe('WATCH');
+		expect(
+			workVerb([
+				{ ...manga, read: manga.entries },
+				{ ...anime, read: anime.entries }
+			])
+		).toBeNull();
+		expect(kindVerb('novel')).toBe('READ');
+		expect(kindVerb('doujin')).toBe('READ');
 	});
 });
