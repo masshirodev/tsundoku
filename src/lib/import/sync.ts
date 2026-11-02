@@ -9,7 +9,11 @@
  * talk to Syncthing and the app; these are the rules they follow.
  */
 
-/** Where each synced folder lands under LIBRARY_ROOT: where the importer looks. */
+/**
+ * Where each synced folder lands under LIBRARY_ROOT. The importer reads the
+ * Hentoid and Library folders whole and the Mihon folder's `autobackup/`; its
+ * `downloads/` and `local/` are kept and not read (c191, doc/SYNC.md).
+ */
 export const SYNC_TARGETS = ['Mihon', 'Hentoid', 'Library'] as const;
 export type SyncTarget = (typeof SYNC_TARGETS)[number];
 

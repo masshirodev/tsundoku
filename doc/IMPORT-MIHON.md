@@ -1,24 +1,58 @@
 # The Mihon importer
 
-Reads a copy of the device's `Mihon/` folder in place and writes the library
-from it: every series in Mihon's library with its chapters, read state and
-history, plus whatever was downloaded. Nothing on disk is moved or renamed.
+Reads a Mihon backup in place and writes the library from it: every series in
+Mihon's library with its chapters, read state and history, plus whatever was
+downloaded into tsundoku's own folder. Nothing on disk is moved or renamed.
 The formats themselves are in [`IMPORT-FORMATS.md`](IMPORT-FORMATS.md).
 
 ## Where it reads from
 
 `LIBRARY_ROOT` (default `TSUNDOKU_HOME/library`; on the workstation
-`/mnt/hdd2/tsundoku/tablet`, from `.env`) mirrors the tablet's
-shared storage, so the device folders sit in it under the names they have on
-the device, and a plain rsync refreshes them:
+`/mnt/hdd2/tsundoku/tablet`, from `.env`) holds the library's folders:
 
 ```
 $LIBRARY_ROOT/
   Mihon/
     autobackup/app.mihon_<date>_<time>.tachibk   ← the newest one by name is read
-    downloads/<Source> (<LANG>)/<Series>/<Chapter>.cbz
   H/.Hentoid/…                                   ← the Hentoid importer, next
+  devices/tsundoku/Mihon/                        ← tsundoku's own downloads
+    downloads/<Source> (<LANG>)/<Series>/<Chapter>.cbz
+    autobackup/tsundoku_<date>_<time>.tachibk
 ```
+
+**The library's `Mihon/` is a place to drop a backup** — a friend moving here
+from Mihon, or the owner's own — and a backup is the one thing read from it. It
+is also the root tsundoku's ADD and online reading put a series in, which is
+why the name stays (`<library>/Mihon`, [`BROWSING.md`](BROWSING.md), "A library
+with no Mihon folder"). Nothing else in it is scanned.
+
+**`devices/tsundoku/Mihon/` is the one Mihon folder read as a device**: what
+tsundoku's own downloader wrote, read back by the same rules a device's copy
+was ([`DOWNLOADER.md`](DOWNLOADER.md), "The one decision: tsundoku is a
+device").
+
+Until c191 (2026-10-30) a `Mihon/` folder anywhere was also read as a device:
+the tablet's downloads at `LIBRARY_ROOT/Mihon` — it is given no `--device-dir`,
+so its folder is the library's own — and the phone's or any other device's
+under `devices/<name>/Mihon/`.
+The owner had those stripped — "we can strip Mihon off this app" — so **no
+other device's `Mihon/` folder is read any more**. Their `Hentoid/` and
+`Library/` copies still are ([`SYNC.md`](SYNC.md), "Other devices").
+
+The keys stay as they were: `mihon:<source>:<url>`, `mihon-dir:<source
+dir>/<series dir>` and `aniyomi:`. Renaming them would be a migration over
+every series and link for no visible change.
+
+## What a mirror left behind
+
+A series imported from a device's `Mihon/` keeps everything it had: its row,
+its files, its `available` flags, its reading, its shelves and its links. The
+removed source simply stops reading: nothing marks a file that left the mirror
+not downloaded any more, and no new chapter appears from it. A download into
+that folder is still legible (the files are where the entries say), and
+`mihon-dir:` series from it are adopted the same way if a backup later names
+them. Deleting one of those series still trashes its files, as any delete does
+([`DELETING.md`](DELETING.md)).
 
 ## Running it
 
@@ -26,8 +60,11 @@ $LIBRARY_ROOT/
   **`/scan`** typed in search (the way on a tablet or phone), starts it on the server in the background. The library's IMPORTING band follows the
   job (`scan_jobs`), re-reading it every two seconds. The FINISHED band and the
   NEW shelf follow.
-- One job runs every importer that finds its folder: Mihon, then Hentoid
-  ([`IMPORT-HENTOID.md`](IMPORT-HENTOID.md)).
+- One job runs every importer that finds its folder, the library's first: the
+  Mihon backup, then Hentoid, then EPUBs, then anime, and last each device's
+  folders under `devices/` — of which only tsundoku's `Mihon/` holds
+  downloads (Hentoid and EPUBs on the others are read,
+  [`IMPORT-HENTOID.md`](IMPORT-HENTOID.md)).
 - **`yarn run import`** runs the same code without the app. Use it for the first
   large import, and `-- --root <folder>` to point it at another folder that
   holds a `Mihon/`, for example `/mnt/hdd2/tsundoku/samples`. It prints what it
@@ -147,26 +184,17 @@ the owner changes it. On 2026-10-28 that was one series, from Hitomi.
 
 ## Local source
 
-Mihon's `local/` folder holds books put on the device by hand. On this tablet
-that's 2136 Hentoid exports (47 GB), each a `chapter_1` folder and a
-`cover.jpg`, named `artist - Title - [id]`. The `[id]` is the gallery's real id,
-the same one in Hentoid's own `contentV2.json`, not something Mihon invents: a
-local manga's URL is just its folder name.
-
-- They import into their own **hidden root, "Mihon local"**
-  (`src/lib/import/mihon-local-plan.ts`), as single doujin books. The title
-  and an `artist:` tag come from the folder name, `cover.jpg` is the cover,
-  and the book is tagged `source:mihon local`.
-- The backup's local manga (source `0`, 328 on this tablet, none in the library)
-  add their read state where the folder name matches. They are **never** also
-  made into not-downloaded series in the visible Mihon root.
-- 240 of them are also in Hentoid under the same id. Both copies are kept for
-  "Duplicate book detection" to settle.
+Mihon's `local/` folder held books put on the tablet by hand. **It is not
+imported any more** (c191): the folder is not read, no hidden "Mihon local"
+root is made, and a backup's local manga (source `0`) are skipped rather than
+made into not-downloaded series either. A library that imported them before
+keeps those rows where they are, under the "Mihon local" root; nothing updates
+them.
 
 ## The tablet's layout
 
-The copy in `/mnt/hdd2/tsundoku/tablet` differs from the phone samples, and the
-importer handles both:
+Mihon's own layout, which tsundoku's downloader copies and the importer still
+handles for its own folder:
 
 - **every `downloads*` folder:** Android left `downloads (1)` to `(7)` beside
   the real one;
@@ -175,13 +203,14 @@ importer handles both:
 - **the Hentoid root at `H/.Hentoid`, `.Hentoid` or `Hentoid`.**
 
 The first import of the real library (2026-09-23) read 166 GB in about 35
-seconds:
+seconds. It was before c191, so it read a mirrored `Mihon/` and its local
+folder too; neither is scanned now:
 
-| Source      | Series | Entries | Files attached | Skipped                           |
-| ----------- | ------ | ------- | -------------- | --------------------------------- |
-| Mihon       | 373    | 43,887  | 1,076          | 76 browsed only                   |
-| Mihon local | 2,135  | 2,135   | 2,135          | 1 folder of no images             |
-| Hentoid     | 4,341  | 4,868   | 4,868          | 3 galleries on disk twice, merged |
+| Source      | Series | Entries | Files attached | Skipped                              |
+| ----------- | ------ | ------- | -------------- | ------------------------------------ |
+| Mihon       | 373    | 43,887  | 1,076          | 76 browsed only                      |
+| Mihon local | 2,135  | 2,135   | 2,135          | 1 folder of no images (not read now) |
+| Hentoid     | 4,341  | 4,868   | 4,868          | 3 galleries on disk twice, merged    |
 
 Folder names with `#` (52 of them) are harmless: pages are addressed by entry
 id and number, never by path.
@@ -190,34 +219,87 @@ id and number, never by path.
 
 A download the backup doesn't list is keyed by its folder
 (`mihon-dir:<source dir>/<series dir>`). That happens whenever a chapter is
-downloaded before the next backup: Mihon backs up daily; tsundoku's own
-device writes one with its downloads ([`DOWNLOADER.md`](DOWNLOADER.md)). Once a newer backup lists the
-manga, the same folder matches it, and the plan carries the folder key it had
-(`formerKey`). The writer settles the two before anything else
-(`adoptFormer`, `src/lib/server/import/fold.ts`):
+downloaded before the next backup: Mihon backs up daily; tsundoku's own device writes one with its downloads ([`DOWNLOADER.md`](DOWNLOADER.md)).
 
-- **Only the folder's series exists:** it takes the URL key, and each chapter
-  found by its file takes the backup's URL (ComicInfo's full `Web` URL against
-  the backup's path). It's the same row, so nothing the owner did is touched.
-- **Both exist** (the URL's series came from another device's backup, or from
-  an import before this rule): the folder's series is **folded** into the
-  URL's (`foldSeries`) and its row goes. A chapter both have (the same file,
-  else the same URL, else the same label) is one: read state moves forward as
-  on a rescan, the newer place wins, a rating or FAV fills in where the URL's
-  has none, and it takes the file if it had none. A chapter only the folder's
+**A backup that names the manga settles the two** (c89). A series downloaded
+before the next backup has two keys by then: the folder's (`mihon-dir:…`) and
+the backup's (`mihon:<source>:<url>`). The backup can be the library's own —
+the owner's, or a friend's dropped into `Mihon/autobackup` — or tsundoku's,
+which writes one with its downloads; since c191 those are the only two read
+([`SYNC.md`](SYNC.md), "Other devices"). The writer settles the two
+before anything else, whichever of them the plan it is writing is
+(`src/lib/server/import/fold.ts`): **`adoptFormer`** when this device has both
+(the plan carries the folder key it used to have), **`adoptFolder`** when a
+backup's plan meets a folder's series, and **`adoptNamed`** when a folder's
+plan meets the series a backup names, including a pair that already exists.
+
+- **The folder's series is found by its source and title,** the same rule
+  "Matching downloads" uses, in the same root (every device's Mihon is one
+  root). **Only the folder's series exists:** if the plan has chapters, one of
+  them must be the folder's (below); it then takes the URL key, so the
+  backup's plan and the folder's write into one row, and nothing the owner
+  did is touched.
+- **Both exist** (a backup that claims the folder, this one's or another
+  device's): the folder's series is **folded** into the URL's
+  (`foldSeries`), and its row goes — unless the URL series is a browsing
+  record, which is not the library's (below). A chapter both have (the same
+  file, else
+  the same URL, else the same label) is one: read state moves forward as on a
+  rescan, the newer place wins, a rating or FAV fills in where the URL's has
+  none, and it takes the file if it had none. A chapter only the folder's
   series has moves across. The reading log, shelves, tags, links and lookups
   follow, the URL series' own winning where both have one; caches of a file's
   pages follow only with that file. A hidden series stays hidden. No file
-  moves.
+  moves. Its **title, kind and direction** are the one setting a fold cannot
+  keep from both rows: a folder's series the owner renamed — its title no
+  longer the name its folder builds — passes that name to the survivor, with
+  the kind and direction set beside it, since the backup's row would otherwise
+  be the import's name over the owner's. A folder's series still named as its
+  folder carries no edit, and the survivor keeps its own.
 
-Before 2026-10-04 neither happened: nothing plans the folder key again once a
-backup claims the folder, so the folder's series lingered beside the URL's,
-both reading the same files (22 pairs in the live library, folded by the
-first scan with this rule). Deleting one of a pair trashed the other's files
+**A folder whose chapters the backup does not share waits beside it.** The
+source and title are not enough on their own: adopting would take the folder's
+series to the URL key with its chapters still addressed by the folder, and the
+writer would add the backup's chapters beside them, every chapter twice. So a
+plan that has chapters and matches none of the folder's (a series renumbered on
+one side, or one whose Mihon has chapter metadata off, `Chapter 1` against
+`Ch. 1`) is left as two series, the folder's and the backup's, and the folder's
+waits until a backup names chapters it shares. A backup entry with no chapters
+has nothing to prove and is still adopted by name. The pair is stable: a rescan
+creates neither series again. The same caution applies to a browsing record
+([`BROWSING.md`](BROWSING.md)): a record is never the survivor, at any of the
+three doors, because a record is off every shelf, count and search and is
+forgotten 30 days after it was last opened. A folder whose only match is a
+record therefore also waits, until ADD promotes the record; the next scan then
+folds them. When this device's own backup names the manga and a record already
+holds the URL key (`adoptFormer`), the record's data moves into the folder's
+series instead, which keeps the library's row and id; the record's row goes.
+
+**Chapters are re-keyed by the same rule the matching above uses:** a URL in
+ComicInfo's `Web` ending with the backup's chapter URL (Weeb Central), then
+the chapter's number, which both sides build into the label (`Ch. 98`; Asura
+adds a slug hash to its URLs, so only the number matches). A file that matches
+neither is **kept** as an entry of its own, with its ComicInfo URL and its
+file: adopting never drops one. The address a chapter leaves joins every one
+it has left (`entry_former_urls`, rung 58), and the folder key joins the
+series' former keys (`series_former_keys`; doc/MOVE.md, "The move"), so the
+device whose backup still doesn't name the manga — or whose download still
+stands on its own — finds the same series on every scan instead of making the
+folder's series again. A folder's plan also matches its chapters by their file
+or their number, which is how a download that arrives after the two are one
+attaches to the entry the backup already lists.
+
+Before 2026-10-04 none of this happened: the folder's series lingered beside
+the URL's, both reading the same files. 22 pairs in the live library were
+folded by the first scan with that rule, on the device whose own backup knew
+the manga. The folder-keyed series whose backup another device had (34 on
+2026-10-03, The Flowers of Evil among them) were left to c89: the same scan
+settles the ones whose chapters it can match, and leaves the rest beside each
+other, in the two cases above. Deleting one of a pair trashed the other's files
 too; that is fixed in the delete as well ([`DELETING.md`](DELETING.md)).
 
 A device whose own backup still doesn't know the manga plans the folder key
-again, and makes the folder's series again, until that device backs up.
+again, and finds the URL series by the key it left, until that device backs up.
 
 ## Rescanning
 
@@ -261,7 +343,7 @@ tablet should be bound by the disk, not by the parsing.
 | CBZ reading                            | `src/lib/server/zip.ts`                                                                                                              |
 | walking the disk                       | `src/lib/server/import/mihon.ts`                                                                                                     |
 | the one writer, shared with Hentoid    | `src/lib/server/import/write.ts`                                                                                                     |
-| a folder's series once a backup knows  | `src/lib/server/import/fold.ts`, tested in `tests/fold-db.spec.ts`                                                                   |
+| a folder's series once a backup knows  | `src/lib/server/import/fold.ts`, tested in `tests/fold-db.spec.ts` and `tests/devices-import-db.spec.ts`                             |
 | the job, START SCAN / RESCAN / `/scan` | `src/lib/server/import/index.ts`                                                                                                     |
 | CLI                                    | `scripts/import.ts`                                                                                                                  |
 | tests                                  | `tests/mihon-plan.spec.ts`, `tests/zip.spec.ts`, `tests/import-db.spec.ts`; fixtures synthesised by `tests/helpers/mihon-fixture.ts` |

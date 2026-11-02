@@ -1,18 +1,15 @@
 import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
 import {
+	backupBytes,
 	downloadBytes,
-	localBytes,
 	mihonRoot,
-	newestBackup,
+	planMihonBackup,
 	planMihonFolder,
-	planMihonSeries,
-	readBackup,
-	scanLocal
+	planMihonSeries
 } from './mihon.ts';
-import { planMihonLocal } from '../../import/mihon-local-plan.ts';
 import { join, relative } from '../fspath.ts';
-import { existsSync, readdirSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { isUnder } from '../paths.ts';
 import { hentoidBytes, hentoidRoot, planHentoidFolder } from './hentoid.ts';
 import { epubBytes, epubRoot, planEpubFile, planEpubFolder } from './epub.ts';
@@ -32,18 +29,17 @@ import { dataPaths } from '../data-dirs.ts';
  */
 
 /**
- * Where the device copies live: a folder that mirrors the tablet's shared
- * storage, so `Mihon/` and `H/.Hentoid/` sit in it as they do on the device
- * and a plain rsync refreshes them.
+ * Where the library lives: a folder holding `<library>/Mihon` (a backup, and
+ * tsundoku's downloads under `devices/tsundoku/`), `H/.Hentoid/` and the rest.
  */
 export function libraryRoot(): string {
 	return dataPaths().library;
 }
 
 type Source = {
-	name: 'Mihon' | 'Mihon local' | 'Hentoid' | 'Library' | 'Anime';
+	name: 'Mihon' | 'Hentoid' | 'Library' | 'Anime';
 	/**
-	 * Another device's copy (doc/SYNC.md, "Two devices"): `devices/<name>/`
+	 * Another device's copy (doc/SYNC.md, "Other devices"): `devices/<name>/`
 	 * under the library folder. Null for the library folder's own.
 	 */
 	device: string | null;
@@ -71,9 +67,10 @@ type Source = {
 };
 
 /**
- * Every device's sources: the library folder's own, then each folder under
- * `devices/` (the phone), which holds the same `Mihon/`, `Hentoid/` and
- * `Library/` for its device.
+ * Every source the library reads. The library folder's own: a Mihon backup, a
+ * Hentoid copy, EPUBs, the episodes tsundoku downloaded. Then each folder
+ * under `devices/`: tsundoku's own `Mihon/` (its downloads) and any device's
+ * `Hentoid/` and `Library/` (doc/SYNC.md, "Other devices").
  */
 export function sourcesIn(library: string): Source[] {
 	const devices = join(library, 'devices');
@@ -154,7 +151,24 @@ function entriesIn(
 function sourcesAt(library: string, device: string | null): Source[] {
 	const out: Source[] = [];
 	const mihon = mihonRoot(library);
-	if (mihon)
+	// c191: the mirror scan is gone (the tablet's, the phone's and Waydroid's
+	// `Mihon/` folders); what a library reads from a `Mihon/` folder now is a
+	// backup, and tsundoku's own downloads in the one device it writes
+	// (doc/IMPORT-MIHON.md, "Where it reads from").
+	if (mihon && device === null)
+		out.push({
+			name: 'Mihon',
+			device,
+			root: mihon,
+			hidden: false,
+			// Nothing on disk is this source's to mark gone: a folder is not a device's copy.
+			markMissing: false,
+			bytes: () => backupBytes(mihon),
+			plan: (progress, now) => planMihonBackup(mihon, now)
+		});
+	// tsundoku's own downloads, in Mihon's layout, read back the way they were
+	// written (doc/DOWNLOADER.md): the one folder source left.
+	if (mihon && device === 'tsundoku')
 		out.push({
 			name: 'Mihon',
 			device,
@@ -164,34 +178,6 @@ function sourcesAt(library: string, device: string | null): Source[] {
 			bytes: () => downloadBytes(mihon),
 			plan: (progress, now) => planMihonFolder(mihon, progress, now),
 			planOne: (file, now) => planMihonSeries(mihon, file, now)
-		});
-	// Mihon's local source: books put on the tablet by hand, hidden like
-	// Hentoid's (doc/IMPORT-MIHON.md, "Local source").
-	const local = mihon ? join(mihon, 'local') : null;
-	if (mihon && local && existsSync(local))
-		out.push({
-			name: 'Mihon local',
-			device,
-			root: local,
-			hidden: true,
-			markMissing: false,
-			bytes: () => localBytes(mihon),
-			plan: async (progress, now) => {
-				const folders = await scanLocal(mihon, progress);
-				const backupPath = await newestBackup(mihon);
-				const backup = backupPath ? await readBackup(backupPath) : null;
-				const present = new Set(folders.map((f) => f.dir));
-				return {
-					series: planMihonLocal(backup, folders, local, now),
-					skipped: 0,
-					// A local folder deleted from the device: its entries stay, not downloaded.
-					after: (db, rootId) => {
-						for (const r of entriesIn(db, rootId, local))
-							if (!present.has(r.rel.split('/')[0]))
-								db.prepare(`UPDATE entries SET available = 0 WHERE id = ?`).run(r.id);
-					}
-				};
-			}
 		});
 	const hentoid = hentoidRoot(library);
 	if (hentoid)
@@ -345,7 +331,8 @@ export async function attachWritten(
 	// One plan per series: a batch of chapters is one folder.
 	const planned = new Set<string>();
 	for (const file of files) {
-		// The innermost root holding it: Mihon's local folder sits inside Mihon's.
+		// The innermost root holding it: a device's own folder sits inside the
+		// library's, so the deepest match is the one that owns the file.
 		const source = sources
 			.filter((s) => s.planOne && isUnder(file, s.root))
 			.sort((a, b) => b.root.length - a.root.length)[0];

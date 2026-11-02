@@ -6,12 +6,14 @@ import {
 	categoryEffect,
 	chapterTitle,
 	directionOf,
+	folderTitleMatches,
 	isGallerySource,
 	kindOf,
 	matchChapters,
 	mihonFolderName,
 	people,
 	planMihon,
+	sourceDirMatches,
 	statusOf,
 	type DownloadedChapter,
 	type DownloadedSeries
@@ -168,6 +170,20 @@ describe('the rules', () => {
 		expect(mihonFolderName(' What?! ')).toBe('What_!');
 		expect(mihonFolderName('...')).toBe('(invalid)');
 	});
+
+	it('reads a folder’s own two names against a source and a title', () => {
+		expect(sourceDirMatches('Asura Scans (EN)', 'Asura Scans')).toBe(true);
+		expect(sourceDirMatches('Asura Scans', 'Asura Scans')).toBe(true);
+		expect(sourceDirMatches('Asura Scans (ES)', 'Asura Scans')).toBe(true);
+		expect(sourceDirMatches('Asura Scans 2', 'Asura Scans')).toBe(false);
+		expect(sourceDirMatches('Weeb Central (EN)', 'Asura Scans')).toBe(false);
+		expect(folderTitleMatches('Drawing_ Saikyou Mangaka', 'Drawing: Saikyou Mangaka')).toBe(true);
+		expect(folderTitleMatches('Drawing_ Saikyou Mangak', 'Drawing: Saikyou Mangaka')).toBe(false);
+		// A title longer than FAT allows: the folder name is its first 240 characters.
+		const long = 'x'.repeat(240) + 'the rest';
+		expect(mihonFolderName(long)).toBe('x'.repeat(240));
+		expect(folderTitleMatches('x'.repeat(240), long)).toBe(true);
+	});
 });
 
 const file = (
@@ -289,6 +305,17 @@ describe('the plan', () => {
 			originKey: 'mihon-dir:Asura Scans (EN)/Not In The Backup',
 			kind: 'manhwa',
 			entries: [{ label: 'Ch. 1', available: true }]
+		});
+	});
+
+	it('names the folder a download of the series sits in, whichever key it takes', () => {
+		expect(byTitle('Drawing: Saikyou Mangaka').folder).toEqual({
+			source: 'Weeb Central',
+			title: 'Drawing: Saikyou Mangaka'
+		});
+		expect(byTitle('Not In The Backup').folder).toEqual({
+			source: 'Asura Scans',
+			title: 'Not In The Backup'
 		});
 	});
 });

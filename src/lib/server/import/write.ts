@@ -5,7 +5,7 @@ import { getDb } from '../db.ts';
 import { hueFor } from '../../library/cover.ts';
 import { linkFromTracker } from '../catalogue.ts';
 import type { PlannedEntry, PlannedSeries } from '../../import/plan.ts';
-import { adoptFormer } from './fold.ts';
+import { adoptFolder, adoptFormer, adoptNamed } from './fold.ts';
 
 /**
  * The one writer every importer uses (doc/IMPORT-MIHON.md, doc/IMPORT-HENTOID.md):
@@ -40,7 +40,7 @@ export function ensureRoot(
 
 /**
  * The root of this name, whatever its path: another device's copy of a
- * source (doc/SYNC.md, "Two devices") shares the library folder's root, and
+ * source (doc/SYNC.md, "Other devices") shares the library folder's root, and
  * makes it only if there's none yet.
  */
 export function ensureNamedRoot(
@@ -96,7 +96,7 @@ export function writeSeries(
 		/** Entries of this series whose file is no longer planned become not downloaded. */
 		markMissing?: boolean;
 		/**
-		 * The device folder this plan was read from (doc/SYNC.md, "Two devices").
+		 * The device folder this plan was read from (doc/SYNC.md, "Other devices").
 		 * A series whose files are outside it has them on another device too.
 		 */
 		deviceRoot?: string;
@@ -121,18 +121,17 @@ export function writeSeries(
 	}
 	return db
 		.transaction((): WriteResult => {
-			adoptFormer(db, s);
+			adoptFormer(db, s, opts.now);
+			const byKey = db.prepare(`SELECT id FROM series WHERE origin_key = ?`);
 			let seriesId: number | null =
-				(
-					db.prepare(`SELECT id FROM series WHERE origin_key = ?`).get(s.originKey) as
-						{ id: number } | undefined
-				)?.id ?? null;
+				(byKey.get(s.originKey) as { id: number } | undefined)?.id ?? null;
 			// Moved to another source (doc/MOVE.md): the backup still names the
 			// source it was downloaded from, and every key the series has left is
 			// in series_former_keys (rung 58), however many moves ago. The series
 			// is this one, not a twin; its key stays where it moved to. If two
 			// series somehow list one key, the most recent move away wins: a key
 			// has one series that left it last.
+			let leftKey = false;
 			if (seriesId === null) {
 				const former = db
 					.prepare(
@@ -140,12 +139,25 @@ export function writeSeries(
 						ORDER BY left_at DESC LIMIT 1`
 					)
 					.get(s.originKey) as { id: number } | undefined;
-				if (former) seriesId = former.id;
+				if (former) {
+					seriesId = former.id;
+					leftKey = true;
+				}
+			}
+			// A Mihon folder's series and the series a backup names are one, even
+			// when the backup is another device's (doc/IMPORT-MIHON.md, "Before the
+			// backup knows it"): whichever of the two this plan is, the other is
+			// found and the two are settled before anything is written.
+			const folderPlan = s.originKey.startsWith('mihon-dir:');
+			if (folderPlan) {
+				if (!leftKey) seriesId = adoptNamed(db, s, opts.rootId, opts.now) ?? seriesId;
+			} else if (seriesId === null) {
+				seriesId = adoptFolder(db, s, opts.rootId, opts.now);
 			}
 			let created = false;
 			// Grouped since the last scan: the entries are in another series, in
-			// this source or another -- a Mihon local book grouped with Hentoid's
-			// is in a series of Hentoid's root (doc/BOOKS.md).
+			// this source or another -- a Hentoid book grouped with another
+			// root's is in a series of that root (doc/BOOKS.md).
 			if (seriesId === null) {
 				const moved = s.entries
 					.filter((e) => e.sourceUrl !== '')
@@ -183,11 +195,11 @@ export function writeSeries(
 				};
 				if (row.others > 0) volume = { path: row.path, name: row.name ?? s.title };
 			}
-			// A series another device has files in too (doc/SYNC.md, "Two devices"):
+			// A series another device has files in too (doc/SYNC.md, "Other devices"):
 			// its path is left where it is, widened only when this device brings a
 			// file the series has no copy of, and this device's files are named from
-			// there. The same manga downloaded on the tablet and the phone is one
-			// series, its chapters from whichever device has them.
+			// there. A series with files on two devices is one, its chapters from
+			// whichever device has them.
 			let shared: string | null = null;
 			if (seriesId !== null && volume === null && opts.deviceRoot && s.path !== '') {
 				const { path } = db.prepare(`SELECT path FROM series WHERE id = ?`).get(seriesId) as {
@@ -276,9 +288,25 @@ export function writeSeries(
 				WHERE series_id = @series AND ((@url != '' AND (source_url = @url OR former_url = @url
 						OR EXISTS (SELECT 1 FROM entry_former_urls f
 							WHERE f.entry_id = entries.id AND f.former_url = @url)))
-					OR (@url = '' AND file = @file))
-				LIMIT 1`
+					OR (@url = '' AND file = @file))`
 			);
+			// A folder's plan names a chapter by the ComicInfo URL it carries, while
+			// the series may know it by the backup's path once the two are one
+			// (adoptNamed): the same file, or else the same number, is that chapter.
+			const findFile = db.prepare(
+				`SELECT id, read_at, unread_at, last_opened_at, available, file FROM entries
+				WHERE series_id = @series AND file = @file`
+			);
+			const findLabel = db.prepare(
+				`SELECT id, read_at, unread_at, last_opened_at, available, file FROM entries
+				WHERE series_id = @series AND label = @label
+				ORDER BY available, position, id`
+			);
+			// Two chapters of one number are two files (two scanlators, or a file the
+			// backup doesn't know): an entry an earlier planned chapter took is not
+			// free to take again, or the later one overwrites its file and the first
+			// is left on disk with nothing pointing at it.
+			const taken = new Set<number>();
 			const insert = db.prepare(
 				`INSERT INTO entries (series_id, position, label, title, added_at, read_at, last_position,
 					last_opened_at, page_count, file, bytes, source_url, available, cover_file, cover_phash,
@@ -296,16 +324,21 @@ export function writeSeries(
 			for (const e of s.entries) {
 				const file = fileOf(e);
 				if (e.available) planned.add(file);
-				const had = find.get({ series: seriesId, url: e.sourceUrl, file }) as
-					| {
-							id: number;
-							read_at: number | null;
-							unread_at: number | null;
-							last_opened_at: number | null;
-							available: number;
-							file: string;
-					  }
-					| undefined;
+				type Had = {
+					id: number;
+					read_at: number | null;
+					unread_at: number | null;
+					last_opened_at: number | null;
+					available: number;
+					file: string;
+				};
+				const free = (rows: unknown[]) => (rows as Had[]).find((r) => !taken.has(r.id));
+				let had = free(find.all({ series: seriesId, url: e.sourceUrl, file }));
+				if (!had && folderPlan) {
+					if (file !== '') had = free(findFile.all({ series: seriesId, file }));
+					if (!had) had = free(findLabel.all({ series: seriesId, label: e.label }));
+				}
+				if (had) taken.add(had.id);
 				// Another device's copy, already here: kept, rather than swapped for this one.
 				const elsewhere =
 					!!had?.available &&

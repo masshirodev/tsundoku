@@ -1,6 +1,6 @@
 import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
@@ -9,16 +9,26 @@ process.env.DATABASE_PATH = ':memory:';
 const { getDb } = await import('$lib/server/db');
 const { runImport } = await import('$lib/server/import');
 const { groupIntoSeries, GroupingError } = await import('$lib/server/books');
-const { writeMihonFolder } = await import('./helpers/mihon-fixture');
-const { writeHentoidFolder } = await import('./helpers/hentoid-fixture');
+const { writeHentoidFolder, book, content } = await import('./helpers/hentoid-fixture');
 
 /**
- * The same work in two sources: a book in Mihon's local source and one in
- * Hentoid, both hidden (the owner's Akiko-san to Issho). They group; a
- * visible book and a hidden one don't.
+ * The same work in two folders: the library's Hentoid copy and the phone's,
+ * both hidden (doc/SYNC.md, "Other devices"), and a visible book beside them.
+ * The first two group; a visible book and a hidden one don't.
+ *
+ * Until c191 this paired a Mihon local book with a Hentoid one; the local
+ * source is no longer imported, so the pair is two devices' Hentoid copies --
+ * the cross-folder case the grouping actually has to survive.
  */
-const library = dirname(writeMihonFolder(mkdtempSync(join(tmpdir(), 'tsundoku-roots-'))));
+const library = mkdtempSync(join(tmpdir(), 'tsundoku-roots-'));
 writeHentoidFolder(library);
+const phone = writeHentoidFolder(join(library, 'devices', 'phone'));
+book(
+	phone,
+	'nhentai/Aoi Rin - Phone Only - [999]',
+	content({ title: 'Phone Only', site: 'NHENTAI', url: '/g/999/', pages: [{ name: '0001' }] }),
+	['0001.jpg']
+);
 const db = getDb();
 const row = (title: string) =>
 	db
@@ -32,11 +42,11 @@ beforeAll(async () => {
 });
 
 describe('grouping across sources', () => {
-	it('groups a Mihon local book with a Hentoid one, both still readable', () => {
-		const local = row('Local Book')!;
+	it('groups two devices’ books, both still readable', () => {
+		const phoneBook = row('Phone Only')!;
 		const hentoid = row('Summer Days')!;
-		expect([local.root, hentoid.root]).toEqual(['Mihon local', 'Hentoid']);
-		const g = groupIntoSeries({ seriesIds: [hentoid.id, local.id], name: 'Across Sources' });
+		expect([phoneBook.root, hentoid.root]).toEqual(['Hentoid', 'Hentoid']);
+		const g = groupIntoSeries({ seriesIds: [hentoid.id, phoneBook.id], name: 'Across Sources' });
 		const s = db.prepare(`SELECT path FROM series WHERE id = ?`).get(g.seriesId) as {
 			path: string;
 		};
@@ -49,7 +59,7 @@ describe('grouping across sources', () => {
 
 	it('keeps them grouped through a rescan: neither single comes back', async () => {
 		await runImport(library, { now: 1_800_000_100_000 });
-		expect(row('Local Book')).toBeUndefined();
+		expect(row('Phone Only')).toBeUndefined();
 		expect(row('Summer Days')).toBeUndefined();
 		expect(
 			(
@@ -63,6 +73,11 @@ describe('grouping across sources', () => {
 	});
 
 	it('refuses a hidden book and a visible one, saying why', () => {
+		// Nothing visible is imported from this fixture any more (c191), so a
+		// visible root stands in for the library's own.
+		db.prepare(`INSERT OR IGNORE INTO roots (name, path, hidden) VALUES ('Library', ?, 0)`).run(
+			join(library, 'Library')
+		);
 		const visible = db
 			.prepare(
 				`SELECT s.id FROM series s JOIN roots r ON r.id = s.root_id
