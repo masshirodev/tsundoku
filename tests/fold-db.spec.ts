@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Msg } from './helpers/protobuf-writer';
@@ -16,8 +16,8 @@ const { ASURA, backup, cbz, comicInfo, writeMihonFolder } = await import('./help
  * A download imported by its folder before a backup knew the manga, then
  * seen again once one does (src/lib/server/import/fold.ts).
  */
-const root = writeMihonFolder(mkdtempSync(join(tmpdir(), 'tsundoku-fold-')));
-const library = dirname(root);
+const library = mkdtempSync(join(tmpdir(), 'tsundoku-fold-'));
+const root = writeMihonFolder(join(library, 'devices', 'tsundoku'));
 process.env.LIBRARY_ROOT = library;
 
 // A second download the first backup doesn't know.

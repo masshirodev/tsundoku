@@ -1,6 +1,6 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
@@ -15,7 +15,8 @@ const { writeMihonFolder } = await import('./helpers/mihon-fixture');
  * 34; doc/LIBRARY.md, "The NEW shelf"): Mihon dates a chapter by when its
  * source listed it, often years before it was downloaded.
  */
-const library = dirname(writeMihonFolder(mkdtempSync(join(tmpdir(), 'tsundoku-arrivals-'))));
+const library = mkdtempSync(join(tmpdir(), 'tsundoku-arrivals-'));
+writeMihonFolder(join(library, 'devices', 'tsundoku'));
 process.env.LIBRARY_ROOT = library;
 
 const db = getDb();

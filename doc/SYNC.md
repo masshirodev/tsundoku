@@ -93,29 +93,36 @@ The tablet (a Xiaomi Pad, `21051182G`), the phone (a Galaxy Z Fold6,
 `SM-F956B`) and Waydroid on the workstation (below) all download, and all
 sync. Each device keeps its own copy:
 
-| Device   | On the workstation                                    |
-| -------- | ----------------------------------------------------- |
-| Tablet   | `LIBRARY_ROOT/{Mihon,Hentoid,Library}`                |
-| Phone    | `LIBRARY_ROOT/devices/phone/{Mihon,Hentoid,Library}`  |
-| Waydroid | `LIBRARY_ROOT/devices/waydroid/Mihon`                 |
-| tsundoku | `LIBRARY_ROOT/devices/tsundoku/Mihon`                 |
-| Suwayomi | `LIBRARY_ROOT/devices/suwayomi/Mihon` (retired, kept) |
+| Device   | On the workstation                                    | Read now                                     |
+| -------- | ----------------------------------------------------- | -------------------------------------------- |
+| Tablet   | `LIBRARY_ROOT/{Mihon,Hentoid,Library}`                | `Hentoid` and `Library`; `Mihon` is a backup |
+| Phone    | `LIBRARY_ROOT/devices/phone/{Mihon,Hentoid,Library}`  | `Hentoid` and `Library`                      |
+| Waydroid | `LIBRARY_ROOT/devices/waydroid/Mihon`                 | nothing (c191)                               |
+| tsundoku | `LIBRARY_ROOT/devices/tsundoku/Mihon`                 | all of it: its own downloads                 |
+| Suwayomi | `LIBRARY_ROOT/devices/suwayomi/Mihon` (retired, kept) | nothing (c191)                               |
 
-Neither is synced: tsundoku's downloads are written here into their folder
-directly ([`DOWNLOADER.md`](DOWNLOADER.md)), and Suwayomi's folder is what it
-wrote until it was retired (c129), still read as a device.
+**A `Mihon/` folder is read as a device only for tsundoku's own downloads**
+(c191, [`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Where it reads from"). The
+tablet's, the phone's and Waydroid's are mirrors the importer no longer scans;
+their rows and files stay in the library, untouched. A backup is read from the
+library's own `Mihon/autobackup`, wherever it came from.
+
+tsundoku's downloads are written here into their folder directly
+([`DOWNLOADER.md`](DOWNLOADER.md)); Suwayomi's folder is what it wrote until it
+was retired (c129), and is not read any more.
 
 Why not one shared folder: the same chapter downloaded on both devices would
 be two versions of one path, and Syncthing would keep a conflict copy. Mihon
 also keeps one backup per device, and one device's would replace the other's
 every scan. So the devices stay apart on disk, and the importer merges them.
 
-**The importer reads every device** (`sourcesIn`, src/lib/server/import/index.ts):
-the library folder's own sources, then each folder under `devices/`. A
-series is keyed the same on every device, so the phone's copy of a series is
-found as the same series:
+**The importer reads what it is given** (`sourcesIn`, src/lib/server/import/index.ts):
+the library folder's own sources, then each folder under `devices/` — but only
+a Hentoid copy, a Library of books, and tsundoku's own `Mihon/`. A series is
+keyed the same on every device, so the phone's copy of a Hentoid book is found
+as the same series:
 
-- Mihon: `mihon:<source>:<url>`, from the backup;
+- Mihon: `mihon:<source>:<url>`, from a backup;
 - Hentoid: `hentoid:<site>:<url>`;
 - EPUB: `epub:Library/<path>`, named from the device's own folder.
 
@@ -124,9 +131,9 @@ What that means for each series:
 - **One series, chapters from whichever device has them.** A series with files
   on both devices takes the folder they share as its path, and each entry
   names its file from there (`widenTo`, src/lib/server/paths.ts):
-  `Mihon/downloads/…` from the tablet, `devices/phone/Mihon/downloads/…` from
-  the phone. Everything that reads a file joins the series path and the
-  entry's file, so nothing else needed to know.
+  `H/.Hentoid/…` from the tablet, `devices/phone/H/.Hentoid/…` from the phone.
+  Everything that reads a file joins the series path and the entry's file, so
+  nothing else needed to know.
 - **A chapter both devices have** keeps the copy already there. The second
   device's copy is on disk, unused.
 - **A series only one device has** stays in that device's folder, as before.
@@ -138,6 +145,10 @@ What that means for each series:
   tablet's roots of the same name (`ensureNamedRoot`). There's one hidden
   Hentoid shelf, and a book grouped on the tablet is still found when the
   phone has it.
+- **A folder one device's download is keyed by** (`mihon-dir:…`, while no
+  backup lists the manga yet) is the same series as the one any device's
+  backup names, and the two are settled before anything is written
+  ([`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Before the backup knows it"; c89).
 - **Read progress** comes from both devices' Mihon backups, and only moves
   forward, so reading on either counts.
 

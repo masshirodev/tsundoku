@@ -39,13 +39,15 @@ Ranobe's candidates, ahead of its AniList item if it has one. That half is
 
 | Via      | How                                                                             | Sure?           |
 | -------- | ------------------------------------------------------------------------------- | --------------- |
-| `mihon`  | A MAL tracker (Mihon tracker 1) in any device's backup, at import               | Yes, at once    |
+| `mihon`  | A MAL tracker (Mihon tracker 1) in a backup, at import                          | Yes, at once    |
 | `exact`  | The pass's AniList search found one entry whose title equals one of the series' | Yes, at once    |
 | `review` | The owner chose a candidate in the review                                       | The owner's say |
 | `pasted` | The owner pasted an AniList or MAL link                                         | The owner's say |
 | `list`   | The owner's AniList list, once signed in ([`TRACKING.md`](TRACKING.md))         | Yes, at once    |
 
-Measured on 2026-09-24:
+Measured on 2026-09-24, when a device's mirrored `Mihon/` was still read
+(c191 stopped that; a backup placed in the library's `Mihon/autobackup` is
+what a run reads now):
 
 - The **phone's** backup (`LIBRARY_ROOT/devices/phone/Mihon/autobackup`)
   carries 110 MAL links, and every one matches a library series by its Mihon

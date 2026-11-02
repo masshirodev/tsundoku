@@ -11,7 +11,6 @@ import {
 	type DownloadedSeries,
 	type MihonPlan
 } from '../../import/mihon-plan.ts';
-import type { LocalFolder } from '../../import/mihon-local-plan.ts';
 import type { PlannedSeries } from '../../import/plan.ts';
 
 /**
@@ -125,8 +124,8 @@ export async function scanSeriesDir(
 			progress({ bytes: 0, failed: true });
 		}
 	}
-	// The local source's own folder is planned apart (scanLocal).
-	return chapters.length && sourceDir !== 'local' ? { sourceDir, dir, path, chapters } : null;
+	// Every chapter is a folder of images or an archive: no local source to skip.
+	return chapters.length ? { sourceDir, dir, path, chapters } : null;
 }
 
 /**
@@ -140,53 +139,10 @@ export async function downloadFolders(root: string): Promise<string[]> {
 		.map((d) => join(root, d));
 }
 
-/** Mihon's local source: `<root>/local/<series>/<chapter folder or archive>` and a cover beside them. */
-export async function scanLocal(
-	root: string,
-	progress: (p: { bytes: number; failed: boolean }) => void = () => {}
-): Promise<LocalFolder[]> {
-	const local = join(root, 'local');
-	const out: LocalFolder[] = [];
-	for (const dir of await dirs(local)) {
-		const path = join(local, dir);
-		const chapters: DownloadedChapter[] = [];
-		let cover: string | null = null;
-		for (const entry of await readdir(path, { withFileTypes: true })) {
-			if (entry.isFile() && /^cover\.(jpe?g|png|webp)$/i.test(entry.name)) {
-				cover = entry.name;
-				continue;
-			}
-			const isChapter =
-				(entry.isFile() && /\.(cbz|zip)$/i.test(entry.name)) ||
-				(entry.isDirectory() && !entry.name.startsWith('.'));
-			if (!isChapter) continue;
-			try {
-				const c = await readChapter(path, entry.name);
-				if (c.pages === 0) continue;
-				chapters.push(c);
-				progress({ bytes: c.bytes, failed: false });
-			} catch {
-				progress({ bytes: 0, failed: true });
-			}
-		}
-		if (chapters.length) out.push({ sourceDir: 'local', dir, path, chapters, cover });
-	}
-	return out;
-}
-
-/** Bytes of the local folder's chapters, for the progress band's total. */
-export async function localBytes(root: string): Promise<number> {
-	let total = 0;
-	const local = join(root, 'local');
-	for (const d of await dirs(local))
-		for (const e of await readdir(join(local, d), { withFileTypes: true })) {
-			const p = join(local, d, e.name);
-			if (e.isFile() && /\.(cbz|zip)$/i.test(e.name)) total += (await stat(p)).size;
-			else if (e.isDirectory())
-				for (const f of await readdir(p, { withFileTypes: true }))
-					if (f.isFile()) total += (await stat(join(p, f.name))).size;
-		}
-	return total;
+/** Bytes of the newest backup, for the progress band's total. */
+export async function backupBytes(root: string): Promise<number> {
+	const path = await newestBackup(root);
+	return path ? (await stat(path)).size : 0;
 }
 
 /** Bytes of every chapter archive, for the progress band's total. */
@@ -221,6 +177,21 @@ export async function planMihonFolder(
 	const backupPath = await newestBackup(root);
 	const backup = backupPath ? await readBackup(backupPath) : null;
 	return { ...planMihon(backup, downloads, now), backup: backupPath };
+}
+
+/**
+ * The backup on its own: the one import that survives c191, for a friend
+ * moving here from Mihon. Nothing downloaded is read, and nothing on disk is
+ * marked gone -- the folder is a place to drop a backup, not a device copy
+ * (doc/IMPORT-MIHON.md, "Where it reads from").
+ */
+export async function planMihonBackup(
+	root: string,
+	now: number
+): Promise<MihonPlan & { backup: string | null }> {
+	const backupPath = await newestBackup(root);
+	const backup = backupPath ? await readBackup(backupPath) : null;
+	return { ...planMihon(backup, [], now), backup: backupPath };
 }
 
 /**
