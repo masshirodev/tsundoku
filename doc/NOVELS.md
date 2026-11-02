@@ -177,7 +177,9 @@ runs, `site_checks` on success, a page the solver's own browser was refused
 treated as no clearance, a host whose check failed remembered and not asked
 again, and which address the app uses.
 `tests/novel-host.spec.ts`'s check block is the host's half, and
-`tests/engine-browse-db.spec.ts` pins a novel's `checkingSince`.
+`tests/engine-browse-db.spec.ts` pins the join BROWSE's live line needs: a
+novel's `checkingSince` answers while the app's own solve runs, with the
+engine not answering at all, and is null once it settles.
 
 ## Repositories and plugins
 
