@@ -13,3 +13,5 @@ yarn.lock
 /src/lib/paraglide/
 /project.inlang/*
 !/project.inlang/settings.json
+# The Android TV app's Gradle output (android/tv/.gitignore), never source.
+/android/tv/**/build/

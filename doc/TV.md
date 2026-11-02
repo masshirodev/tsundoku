@@ -1,10 +1,13 @@
 # tsundoku on a TV
 
-Status (2026-11-01): **the focus layer (c234), the ten-foot layout (c238) and
-the remote's keys (c235) are built; the Android app (c236) is not.** Every
-thing a finger or a keyboard letter reaches is reachable from a D-pad, OK
-pressed or held, MENU, BACK and the media keys, and a WebView that keeps BACK
-to itself has `window.tsundokuBack()` to call. The handoff is mirrored in
+Status (2026-11-02): **the focus layer (c234), the ten-foot layout (c238),
+the remote's keys (c235) and the Android app (c236) are built.** Every thing a
+finger or a keyboard letter reaches is reachable from a D-pad, OK pressed or
+held, MENU, BACK and the media keys; a WebView that keeps BACK to itself has
+`window.tsundokuBack()` to call; and on a TV that is the app's own back key.
+The app is a Kotlin WebView under `android/tv/`, with a launcher banner, the
+remote's keys passed through, the screen kept awake, and a six-digit code a
+remote can type ([`TV-APP.md`](TV-APP.md)). The handoff is mirrored in
 `doc/design/handoff/TV*` (see "The design", below). Parent card c231 ("Android
 TV: tsundoku from the couch, with a remote") on the Tsundoku board; every card
 for it carries the `TV` label. [`FOCUS.md`](FOCUS.md) is the D-pad layer;
@@ -62,7 +65,7 @@ start but was drawn for fingers.
 - Back walks history and the library restores its place
   ([`NAVIGATION.md`](NAVIGATION.md)).
 - Serving to the home network and pairing ([`WIFI.md`](WIFI.md)), over plain
-  http.
+  http, and a six-digit code a remote can type, beside the phone's QR (c236).
 
 ## The work
 
@@ -74,6 +77,9 @@ start but was drawn for fingers.
 | c235 | The remote's way into long-press sheets; the player on screen   | c233       |
 | c236 | The Android TV app, a Kotlin WebView wrapper                    | c232       |
 | c238 | The ten-foot layout: the query, library, series, reader, search | c234       |
+
+The owner settled c232 on 2026-11-01: **option A, Wi-Fi plus a typed code**, and
+c236 built it (below).
 
 ### Why a wrapper app, not the browser
 
@@ -95,9 +101,10 @@ whole app, so keyboard users on a desktop get it too.
 A friend's install answers `localhost` only ([`DISTRIBUTION.md`](DISTRIBUTION.md)).
 WI-FI lets a TV in over plain http, which isn't a secure context: no offline,
 no install, no wake lock, no fingerprint for `/reveal`. And pairing opens
-through a phone's camera, which a TV hasn't got. c232 lays out the options;
-the recommendation is WI-FI as it is plus a code you can type with a remote,
-with the app keeping the screen awake.
+through a phone's camera, which a TV hasn't got. c232 settled it on **WI-FI as
+it is plus a code typed with a remote**: the app keeps the screen awake, the
+computer shows six digits beside the phone's QR, and the TV types them
+([`TV-APP.md`](TV-APP.md), [`WIFI.md`](WIFI.md)).
 
 ## The design
 
@@ -139,15 +146,21 @@ What it decided, in short:
   so only the last number is typed, then a six-digit code from the computer.
 - **Reveal** draws its frame 20 px in from the edge so overscan can't crop it.
 
-### Claims to check before building
+### Claims, now checked
 
-The handoff states these about the code or the app; they're not verified yet:
+The handoff stated these about the code or the app; both are built (c236).
 
-- "A TV that reports 1280×720 is pinned to 960 wide by the app's WebView
-  scale": nothing does that yet. It's the TV app's job (c236).
-- A six-digit code typed on the TV: `src/lib/server/pairing.ts` has a 96-bit
-  code in a link and no limit on attempts. Six digits is a million guesses,
-  so a typed code needs attempt limiting and expiry before it ships.
+- **"A TV that reports 1280×720 is pinned to 960 wide by the app's WebView
+  scale":** the app does that. `useWideViewPort=false` and
+  `WebView.setInitialScale` take the display width in dp and scale it to 960
+  (`android/tv/.../Scale.kt`, unit-tested): 89% on 1280×720 at density 1.5,
+  100% on 1920×1080 at density 2. Whether a particular panel honours it is
+  unverified ([`TV-APP.md`](TV-APP.md), "What is not verified").
+- **A six-digit code typed on the TV:** `src/lib/server/pairing.ts` now has a
+  second code beside the phone's link: six digits from `crypto.randomInt`,
+  10 minutes, one TV, once, compared by digest, and **five wrong tries burn
+  it** (`TvPairing`). The computer's side is the panel's FOR A TV digits; the
+  TV's is `/pair/tv` (9C and 9E).
 
 ## What is built (c238)
 
@@ -246,6 +259,71 @@ The handoff states these about the code or the app; they're not verified yet:
 - **The right-hand `FILTER` cell still opens the existing filter panel,** not a
   420 px panel; the panel is only a `Sheet` where it already was one. Its
   width at TV size is the tablet's, unchanged.
+
+## What is built (c236)
+
+The Android app that holds the page, and the pairing a remote can type.
+[`TV-APP.md`](TV-APP.md) is the app's own document; this is what it adds to
+the TV.
+
+- **The app** (`android/tv/`, Kotlin): a leanback launcher entry and a 320×180
+  wordmark banner drawn from `banner/tv-banner.svg`, a WebView that is the
+  whole screen, `FLAG_KEEP_SCREEN_ON` while it is in front, cookies flushed on
+  pause so a paired TV stays paired, fullscreen video through
+  `onShowCustomView`, autoplay without a gesture, cleartext http through a
+  network security config, and a user agent that ends `TsundokuTV/<version>`.
+  `minSdk` 23, `targetSdk`/`compileSdk` 36.
+- **BACK is the app's**, through `OnBackPressedDispatcher`:
+  `window.tsundokuBack()` (c235's contract) first, then `canGoBack()`/
+  `goBack()` for the app's own pages and history, then leaving.
+- **MENU and the media keys** are taken before the WebView and delivered as
+  the DOM keys the focus layer and the player read (`ContextMenu`,
+  `MediaPlayPause`, `MediaFastForward`, `MediaRewind`, `MediaTrackNext`,
+  `MediaTrackPrevious`, `MediaPlay`, `MediaPause`), dispatched at the focused
+  thing, bubbling. The D-pad and OK are the WebView's own and are not touched.
+- **The scale**: the page is pinned to the handoff's 960 CSS px
+  (`Scale.kt`), so the TV query runs on a 720p panel as on a 1080p one.
+- **Pairing, 9A–9E.** 9A (welcome), 9B (the address), 9D (nothing answers) are
+  the app's own pages in its assets, styled to the handoff with the token
+  values copied in; the bridge gives them the TV's own IPv4, a probe of a
+  candidate (the web app manifest, which only tsundoku answers) and the
+  address that answered. 9B writes the TV's network prefix and tsundoku's
+  port, so only the last number is typed; TYPE THE WHOLE ADDRESS is for
+  Tailscale or another port. 9C (six digits) and 9E (paired) are the
+  computer's `/pair/tv`, so the code is posted same-origin and the paired
+  cookie is set as `/pair/<code>` sets it.
+- **The six digits** (`src/lib/server/pairing.ts`, `TvPairing`): one code
+  beside the phone's, made with `crypto.randomInt`, 10 minutes, one TV, once,
+  five wrong tries burn it, compared by digest. The Wi-Fi panel shows them in
+  two threes under FOR A TV · SIX DIGITS, with their own countdown; NEW CODE
+  and opening SETTINGS replace them. `/pair/tv` answers ok, wrong (with tries
+  left), expired, used and burned, and a TV that opens the page before anyone
+  opened SETTINGS gets a code made for it.
+- **Reaching the server**: on launch, a remembered address that answers opens
+  the library; one that stops answering shows 9D and keeps probing; a first
+  run shows 9A. The address is remembered in `SharedPreferences` once it
+  answers.
+- **Release**: `ops/release/tv-apk.sh <version>` builds the APK beside the
+  bundles (release-signed from `TSUNDOKU_TV_*` when the keystore is there, a
+  `-debug` APK otherwise) and adds it to the release folder's `SHA256SUMS`
+  ([`RELEASE.md`](RELEASE.md)). `yarn run release` is unchanged.
+
+### Departures from the handoff (c236)
+
+- **The app's own pages use the TV's system font, not Plex.** A WebView on a
+  TV has Roboto, the APK ships no typeface, and 9A–9D are three short screens;
+  the wordmark is the one place it shows. `/pair/tv` is part of the web app and
+  does use Plex.
+- **9D's band is one line at 14px for its meta.** The design's band holds the
+  address and "TRIED N · LAST N S AGO · STILL TRYING EVERY 5 S" at 15px, which
+  is 20px wider than 960 gives; the meta drops to the badge's 14 rather than
+  truncating the address.
+- **The address field is one visible cell, not a box per digit.** The design
+  draws the last number inside a 110px field; the six digits on 9C are the
+  design's six cells, because six numbers are six circles and one is one.
+- **9C shows a band for a wrong try, a burned code and an expired one.** The
+  mock has no such state (a TV in the mock always types right); the card asks
+  for the tries left, so the band keeps the panel's idiom.
 
 ## What is built (c235)
 
@@ -353,15 +431,19 @@ decisions (`isBackKey`, `isOptionsKey`, `OkPress`) and `layer.ts` wires them;
   960-wide TV gets. The design set has no board for it: c139 predates the TV.
 - **The library's rating and FAV are still not arrow stops** (c234's decision,
   unchanged): a cover is its cover, and its options are a held OK.
-- **Pairing.** Nothing is drawn for 9A–9E or the six-digit code: c236, with the
-  TV app.
+- **The app has never run on a television.** No emulator system image is
+  installed on this machine and no device was at hand, so the APK is built and
+  its pure parts are unit-tested, and that is all. HLS in a TV's WebView on a
+  low-end box, the 960px pin on a real panel, a remote with no number keys, and
+  a signed build are the unverified ones ([`TV-APP.md`](TV-APP.md)).
 
 ### Still open
 
 - **Turning reveal on from a TV**: settled on 2026-11-01 -- it cannot be done
   from a TV (no fingerprint, no screen lock); `/reveal` says so and the
   computer turns it on.
-- **How the TV reaches the server** (c232): the pairing drawn is option A,
-  but the card still waits on the owner.
+- **How the TV reaches the server** (c232): settled on 2026-11-01 — WI-FI and a
+  code typed with a remote — and built in c236. A `.local` name that survives
+  a new router address is still not there ([`WIFI.md`](WIFI.md)).
 - **HISTORY** may want a TV layout of its own later; drawn as is.
 - **Japanese lookup on a subtitle line** with a remote: not designed.

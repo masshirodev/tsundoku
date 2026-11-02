@@ -147,7 +147,9 @@
 				z-index: 3;
 			}
 			[data-focus].cell:focus {
-				box-shadow: inset 0 0 0 4px var(--text-1), inset 0 0 0 7px var(--surface-page);
+				box-shadow:
+					inset 0 0 0 4px var(--text-1),
+					inset 0 0 0 7px var(--surface-page);
 			}
 			.band {
 				position: absolute;
@@ -331,9 +333,18 @@
 					</p>
 				</div>
 				<div class="safe steps">
-					<div><div class="lab">01 — ON THE COMPUTER</div><b>SETTINGS › 08 — DEVICES, then WI-FI ON</b></div>
-					<div><div class="lab">02 — PAIR A TV</div><b>It shows the address and six digits</b></div>
-					<div><div class="lab">03 — HERE</div><b>Type the last number of the address, then the digits</b></div>
+					<div>
+						<div class="lab">01 — ON THE COMPUTER</div>
+						<b>SETTINGS › 08 — DEVICES, then WI-FI ON</b>
+					</div>
+					<div>
+						<div class="lab">02 — PAIR A TV</div>
+						<b>It shows the address and six digits</b>
+					</div>
+					<div>
+						<div class="lab">03 — HERE</div>
+						<b>Type the last number of the address, then the digits</b>
+					</div>
 				</div>
 				<div class="safe welcome-actions">
 					<button class="btn pri" type="button" data-focus data-start id="start">START →</button>
@@ -367,7 +378,9 @@
 				</div>
 				<div class="safe address-actions">
 					<button class="btn pri" type="button" data-focus id="next">NEXT →</button>
-					<button class="btn" type="button" data-focus id="whole-toggle">TYPE THE WHOLE ADDRESS</button>
+					<button class="btn" type="button" data-focus id="whole-toggle">
+						TYPE THE WHOLE ADDRESS
+					</button>
 				</div>
 				<div class="safe meta checking" id="checking" role="status"></div>
 			</section>
@@ -378,7 +391,10 @@
 					<div id="lost-title">○ NOTHING ANSWERS</div>
 					<div class="meta" id="lost-meta">TRIED 0 TIMES · STILL TRYING EVERY 5 S</div>
 				</div>
-				<div class="safe lost-label lab"><div>MOST LIKELY</div><div></div></div>
+				<div class="safe lost-label lab">
+					<div>MOST LIKELY</div>
+					<div></div>
+				</div>
 				<div class="safe reasons">
 					<div class="reason">
 						<div class="n">1</div>
@@ -433,7 +449,9 @@
 			function show(name) {
 				for (const [key, el] of Object.entries(screens)) el.hidden = key !== name;
 				step.textContent = STEPS[name];
-				const start = screens[name].querySelector('[data-start]') || screens[name].querySelector('[data-focus]');
+				const start =
+					screens[name].querySelector('[data-start]') ||
+					screens[name].querySelector('[data-focus]');
 				if (start) start.focus();
 			}
 
@@ -547,7 +565,8 @@
 
 			function lost(at) {
 				lastOrigin = at;
-				lostTitle.textContent = '○ NOTHING ANSWERS AT ' + at.replace('http://', '').replace('https://', '');
+				lostTitle.textContent =
+					'○ NOTHING ANSWERS AT ' + at.replace('http://', '').replace('https://', '');
 				const prefix = prefixOf(own);
 				const wanted = prefixOf(at.replace(/^https?:\/\//, '').replace(/:\d+.*$/, ''));
 				reason3.textContent = own
