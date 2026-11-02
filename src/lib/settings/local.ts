@@ -82,7 +82,9 @@ export function deviceId(): string {
 export function thisKind(): DeviceKind {
 	return deviceKind({
 		width: Math.min(screen.width, innerWidth || screen.width),
-		coarse: matchMedia('(pointer: coarse)').matches
+		coarse: matchMedia('(pointer: coarse)').matches,
+		// A TV reports no pointer at all: the layout's own query (layout.css).
+		pointerNone: matchMedia('(pointer: none)').matches
 	});
 }
 

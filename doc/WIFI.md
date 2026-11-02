@@ -104,9 +104,10 @@ one at a time.
   which finds the computer by probing its web app manifest and remembers the
   address that answered. A TV that opens `/pair/tv` before anyone opened
   SETTINGS gets a code made for it, so it is never a dead end.
-- **The TV in DEVICES** is named by its user agent: the app appends
-  `TsundokuTV/<version>`, and `pairedLabel` reads that as "Android TV ·
-  Chrome".
+- **The TV in DEVICES** is named a TV two ways: the app appends
+  `TsundokuTV/<version>` (`pairedLabel` reads it as "Android TV · Chrome"),
+  and at 960 wide the page reports `pointer: none`, which `deviceKind` reads as
+  `tv` — so the synced row says THE TV, not an Android desktop.
 
 ## The screens
 
