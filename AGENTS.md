@@ -26,7 +26,7 @@ Tailscale. Read `README.md` and `doc/ARCHITECTURE.md` before changing anything.
   checkout's `.env` is development's; the live one is `/mnt/hdd2/tsundoku/.env`.
 - Before committing: `yarn run check && yarn run lint && yarn run test`, plus
   `yarn run test:e2e` when the UI changed. See `doc/TESTING.md`.
-- Rating is an integer 0–5 and **0 means unrated**. Never write `NULL`.
+- Rating is an integer 0–10 and **0 means unrated** (`doc/RATINGS.md`). Never write `NULL`.
 - **Waves are Kantoku's** (`~/work/tsundoku/kantoku.toml`, `kantoku status`).
   It owns `~/work/tsundoku/wave<N>/`, the `agent/k<N>-*` and `integrate/k<N>`
   branches and its wave's In Progress cards: never edit, push or move them.
