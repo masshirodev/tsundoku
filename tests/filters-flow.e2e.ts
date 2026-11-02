@@ -19,6 +19,13 @@ const rowOf = (page: Page, label: string) =>
  * for 30 s (2026-10-15). A second click, as a person would make, opens it.
  */
 async function openFilters(page: Page) {
+	// The layout writes this cookie once its script has run, so it is the
+	// app's own "hydrated" mark. A click before that opens the panel natively,
+	// and hydration's `bind:open` then shuts it — under the full run that left
+	// the panel closed for the next click (2026-10-15; seen again 2026-11-01).
+	await page
+		.waitForFunction(() => document.cookie.includes('tsundoku_js=1'), null, { timeout: 2000 })
+		.catch(() => undefined);
 	await expect(async () => {
 		if (!(await panel(page).isVisible())) await filterCell(page).click();
 		await expect(panel(page)).toBeVisible({ timeout: 1000 });
