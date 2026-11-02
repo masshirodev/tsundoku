@@ -2,6 +2,7 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { isIncognito, isRevealed } from '$lib/server/prefs';
 import { wantPictures } from '$lib/server/anime/pictures';
+import { wantSkipMarks } from '$lib/server/anime/skip-marks';
 import { episodeStreams } from '$lib/server/anime/streams';
 import { EngineError } from '$lib/server/engine/client';
 import { recordNoVideo } from '$lib/server/move';
@@ -36,7 +37,12 @@ export const GET: RequestHandler = async ({ params, cookies, url }) => {
 		if (s.servers.length === 0 && !incognito) recordNoVideo(id);
 		// While its streams are fresh, an episode without a picture gets one
 		// (doc/ANIME.md, "Episode pictures"). Incognito leaves nothing behind.
-		if (!incognito) wantPictures([id]);
+		if (!incognito) {
+			wantPictures([id]);
+			// A season's downloaded episodes are fingerprinted for their opening
+			// and ending, in the background (c239). Incognito leaves nothing behind.
+			wantSkipMarks(id);
+		}
 		return json(s, { headers: { 'cache-control': 'private, no-store' } });
 	} catch (e) {
 		// The source service not answering is said without naming the engine (Player Waiting 3b).
