@@ -205,11 +205,14 @@ plan meets the series a backup names, including a pair that already exists.
 
 - **The folder's series is found by its source and title,** the same rule
   "Matching downloads" uses, in the same root (every device's Mihon is one
-  root). **Only the folder's series exists:** it takes the URL key, so both
+  root). **Only the folder's series exists:** if the plan has chapters, one of
+  them must be the folder's (below); it then takes the URL key, so both
   devices' plans write into one row, and nothing the owner did is touched.
 - **Both exist** (a backup that claims the folder, this one's or another
   device's): the folder's series is **folded** into the URL's
-  (`foldSeries`), and its row goes. A chapter both have (the same file, else
+  (`foldSeries`), and its row goes — unless the URL series is a browsing
+  record, which is not the library's (below). A chapter both have (the same
+  file, else
   the same URL, else the same label) is one: read state moves forward as on a
   rescan, the newer place wins, a rating or FAV fills in where the URL's has
   none, and it takes the file if it had none. A chapter only the folder's
