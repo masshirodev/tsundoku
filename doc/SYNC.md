@@ -158,8 +158,10 @@ What that means for each series:
   backup lists the manga yet) is the same series as the one any device's
   backup names, and the two are settled before anything is written
   ([`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Before the backup knows it"; c89).
-- **Read progress** comes from both devices' Mihon backups, and only moves
-  forward, so reading on either counts.
+- **Read progress** comes from the library's own Mihon backup — the tablet's
+  `Mihon/autobackup`, which lands at `LIBRARY_ROOT/Mihon` — and only moves
+  forward. A phone's or Waydroid's backup under `devices/<name>/Mihon/` is
+  not read (c191), so reading on those no longer arrives.
 
 Grouping books and MOVE TO… name each book's file the same way
 (`rehome`, src/lib/server/books.ts). Grouping a tablet book with a

@@ -283,8 +283,9 @@ TRIES`, and the failures band names the series. (Suwayomi's queue gave no
 ## Read progress: tsundoku's
 
 Downloading is downloading here, not reading: nothing about read state is
-written anywhere but tsundoku. What other devices read comes in through their
-backups and, as with every device, **only moves forward**.
+written anywhere but tsundoku. What the tablet reads comes in through the
+library's own backup (its `Mihon/autobackup`) and, as with every device,
+**only moves forward**; a phone's or Waydroid's backup is not read.
 
 ## Disk
 
