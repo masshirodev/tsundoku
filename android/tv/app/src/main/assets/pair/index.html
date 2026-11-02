@@ -641,6 +641,12 @@
 					refused();
 					return;
 				}
+				// The third door into 9B's refusal state, and the one that used
+				// to leave the flag behind: hiding the screen does not hide the
+				// band, so a failure for this address would read as a failure
+				// for the refusal and be dropped (c260).
+				refusedBand.hidden = true;
+				screens.address.classList.remove('with-band');
 				const shown = at.replace(/^https?:\/\//i, '');
 				for (const el of Object.values(screens)) el.hidden = true;
 				connecting = true;
@@ -692,6 +698,8 @@
 				// A refusal band is up: a failure for an earlier attempt must not
 				// erase "NOTHING WAS SAVED" (c260). A success still pairs: the
 				// given address only replaced the remembered one after it answered.
+				// Every door into this state clears the flag (probe, show, connect),
+				// so a visible band means a refusal nothing has superseded yet.
 				if (!ok && !refusedBand.hidden) return;
 				// A given address is being checked with no screen in front of it
 				// (c260), which the two-screen test below would otherwise drop.

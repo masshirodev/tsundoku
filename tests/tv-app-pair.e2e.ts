@@ -398,3 +398,48 @@ test('a new attempt after a refusal clears the band and can fail to 9D (c260)', 
 	await expect(page.locator('#lost-title')).toContainText('zen.tailnet.ts.net:8443');
 	await expect(page.locator('#lost-title')).not.toContainText('library');
 });
+
+test('a given address after a refusal that does not answer reaches 9D (c260)', async ({ page }) => {
+	const bridge = await stubBridge(page);
+	await page.goto(`${page9}#bad=${encodeURIComponent('ftp://zen.local')}`);
+	await expect(page.locator('#refused')).toBeVisible();
+
+	// The third door into the refusal state. `connect()` hides 9B, and hiding
+	// the screen never hid the band's flag: the guard read the leftover flag as
+	// "a refusal is the current state" and dropped this failure, leaving a bare
+	// CHECKING line over a hidden screen with nothing a remote could press
+	// (c260). A given address owns the band the same way a typed one does.
+	await page.evaluate(() => {
+		location.hash = '#connect=' + encodeURIComponent('https://zen.tailnet.ts.net:8443');
+	});
+	await expect(page.locator('#retry')).toBeVisible();
+	await expect(page.locator('#connect')).toBeHidden();
+	await expect(page.locator('#lost-title')).toContainText('zen.tailnet.ts.net:8443');
+	expect(bridge.remembered).toEqual([]);
+});
+
+test('a given address after a refusal that answers still pairs at its origin (c260)', async ({
+	page
+}) => {
+	const bridge = await stubBridge(page, { answer: true });
+	// The address answers, so the page leaves for its /pair/tv. Abort that
+	// request and keep its URL: this test must see where it went, not dial.
+	const navigations: string[] = [];
+	await page.route('https://zen.tailnet.ts.net:8443/**', (route) => {
+		navigations.push(route.request().url());
+		return route.abort();
+	});
+	await page.goto(`${page9}#bad=${encodeURIComponent('ftp://zen.local')}`);
+	await expect(page.locator('#refused')).toBeVisible();
+
+	// Only a *failure* for a superseded attempt is dropped: an address that
+	// answers is the current one and still replaces the remembered address
+	// (Decision 9). Pinned here so a later tightening of the guard cannot
+	// quietly stop a given address from pairing (c260).
+	await page.evaluate(() => {
+		location.hash = '#connect=' + encodeURIComponent('https://zen.tailnet.ts.net:8443');
+	});
+	await expect.poll(() => navigations.length).toBeGreaterThan(0);
+	expect(navigations[0]).toBe('https://zen.tailnet.ts.net:8443/pair/tv');
+	expect(bridge.remembered).toContain('https://zen.tailnet.ts.net:8443');
+});
