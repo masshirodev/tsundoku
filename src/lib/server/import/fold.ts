@@ -131,8 +131,8 @@ export function adoptNamed(
 	const candidates = rowsIn(db, rootId, 'mihon:%').filter(
 		(row) =>
 			// The folder is this source's, and the title's under either name.
-			!!sourceTag.get(row.id, folder.source) &&
-			(row.title === folder.title || folderTitleMatches(parts.dir, row.title))
+			(row.title === folder.title || folderTitleMatches(parts.dir, row.title)) &&
+			!!sourceTag.get(row.id, folder.source)
 	);
 	const best = bestOf(db, s, candidates);
 	// No entry in common: not the same manga, whatever the names say.
