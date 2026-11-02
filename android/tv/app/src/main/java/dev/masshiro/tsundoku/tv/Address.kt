@@ -54,9 +54,16 @@ object Address {
 		val scheme = url.scheme?.lowercase() ?: return null
 		if (scheme != "http" && scheme != "https") return null
 		if (url.rawUserInfo != null) return null
-		if (url.port > 65535) return null
 		val host = url.host?.lowercase()?.takeIf { it.isNotEmpty() } ?: return null
-		val port = if (url.port in 1..65535) ":${url.port}" else ""
+		// java.net.URI answers -1 for "no port at all", which is the only port
+		// this parser leaves out. Every other one has to be a real port: 0 and
+		// anything past 65535 are refused rather than rewritten to the default,
+		// so a nonsense address is never quietly probed and remembered.
+		val port = when (url.port) {
+			-1 -> ""
+			in 1..65535 -> ":${url.port}"
+			else -> return null
+		}
 		return "$scheme://$host$port"
 	}
 

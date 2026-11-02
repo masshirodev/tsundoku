@@ -35,6 +35,16 @@ class IntentAddressTest {
 	}
 
 	@Test
+	fun `a port outside 1 to 65535 is refused, not dropped`() {
+		// java.net.URI reports both of these as a port rather than failing to
+		// parse, so a branch that only tested the upper bound would drop the
+		// port and probe the default one instead (c260).
+		assertNull(Address.intentOrigin("http://zen.local:999999"))
+		assertNull(Address.intentOrigin("http://zen.local:0"))
+		assertNull(Address.intentOrigin("https://zen.tailnet.ts.net:65536"))
+	}
+
+	@Test
 	fun `nothing at all is refused`() {
 		assertNull(Address.intentOrigin(null))
 		assertNull(Address.intentOrigin(""))
