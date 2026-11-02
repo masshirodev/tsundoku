@@ -205,6 +205,29 @@ describe('changing a Work', () => {
 		);
 	});
 
+	it('refuses every add to a Work whose parts have diverged, whichever one was hidden', () => {
+		// A Work is made from two visible series, then one is hidden on its own
+		// (HIDE on the series screen does exactly this today). Whichever part
+		// that is -- first or last, lowest id or highest -- the Work is mixed,
+		// and no add can keep it from staying so.
+		const [a, b] = UNRATED.map(idOf) as number[];
+		const { work } = works.createWork({ seriesIds: [a, b], name: 'Mixed', now: NOW });
+		const visibleOther = idOf('Mushoku Tensei')!;
+		const hiddenOther = idOf('Kōhai no Himitsu Nikki')!;
+
+		lib.setHidden([a], true);
+		expect(() => works.addSeries(work.id, visibleOther)).toThrow(/hidden differently/);
+		expect(() => works.addSeries(work.id, hiddenOther)).toThrow(/hidden differently/);
+		expect(partsOf(work.id)).toEqual([a, b]);
+
+		// The other part, the other way round: same answer.
+		lib.setHidden([a], false);
+		lib.setHidden([b], true);
+		expect(() => works.addSeries(work.id, visibleOther)).toThrow(/hidden differently/);
+		expect(() => works.addSeries(work.id, hiddenOther)).toThrow(/hidden differently/);
+		expect(partsOf(work.id)).toEqual([a, b]);
+	});
+
 	it('takes a series out at its place, and a Work of two ends; UNDO brings it back whole', () => {
 		const [a, b] = UNRATED.map(idOf) as number[];
 		const { work } = works.createWork({ seriesIds: [a, b], name: 'Two', order: 'hand', now: NOW });

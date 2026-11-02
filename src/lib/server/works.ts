@@ -136,16 +136,26 @@ function factsOf(db: Database.Database, id: number): FactsRow | undefined {
 		.get(id) as FactsRow | undefined;
 }
 
-/** The one visibility a Work has: its parts are hidden together or visible together. */
-function workHidden(db: Database.Database, workId: number): number | null {
-	const row = db
+/**
+ * How a Work's parts agree on visibility: all hidden, all visible, or mixed
+ * when one part has been hidden on its own. A Work is hidden or shown whole,
+ * so every part is read rather than whichever row the planner returns first;
+ * a mixed Work refuses every add until W4's HIDE settles it.
+ */
+type WorkVisibility = 'hidden' | 'visible' | 'mixed';
+
+function workVisibility(db: Database.Database, workId: number): WorkVisibility | null {
+	const rows = db
 		.prepare(
 			`SELECT ${HIDDEN_SQL} AS hidden
 			FROM work_series ws JOIN series s ON s.id = ws.series_id JOIN roots r ON r.id = s.root_id
-			WHERE ws.work_id = ? LIMIT 1`
+			WHERE ws.work_id = ?`
 		)
-		.get(workId) as { hidden: number } | undefined;
-	return row ? row.hidden : null;
+		.all(workId) as { hidden: number }[];
+	if (rows.length === 0) return null;
+	const hidden = rows.filter((r) => r.hidden !== 0).length;
+	if (hidden === 0) return 'visible';
+	return hidden === rows.length ? 'hidden' : 'mixed';
 }
 
 const insertMember = (db: Database.Database) =>
@@ -373,8 +383,10 @@ export function addSeries(workId: number, seriesId: number): AddFacts {
 			const facts = factsOf(db, seriesId);
 			if (!facts) throw new WorkError('a series no longer exists');
 			if (!facts.inLibrary) throw new WorkError('a browsing record cannot join a Work');
-			const hidden = workHidden(db, workId);
-			if (hidden !== null && hidden !== facts.hidden)
+			const hidden = workVisibility(db, workId);
+			if (hidden === 'mixed')
+				throw new WorkError('a Work whose parts are hidden differently cannot take another');
+			if (hidden !== null && (hidden === 'hidden') !== (facts.hidden !== 0))
 				throw new WorkError("hidden and visible series can't share a Work");
 			const formerRow = db
 				.prepare(`SELECT work_id AS workId, position FROM work_series WHERE series_id = ?`)

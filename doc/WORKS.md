@@ -32,7 +32,9 @@ idea"). The grid, shelves, CONTINUE, NEW and collections show a Work as one
 tile and one CONTINUE row; search, tag filters and a person's page show the
 matching series as their own tiles, each with `PART 2 · <WORK>` in its foot.
 Hidden stays SQL's job (`src/lib/server/library.ts`): a Work is hidden or
-shown whole, and grouping refuses to mix hidden and visible series.
+shown whole, and grouping refuses to mix hidden and visible series. A Work
+whose parts diverged after grouping -- one hidden on its own -- refuses every
+add, from every member, until W4's HIDE settles it.
 
 ## Decided on top of the handoff
 
