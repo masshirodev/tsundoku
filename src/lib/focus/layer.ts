@@ -175,7 +175,7 @@ function inTextEntry(el: Element | null): boolean {
  * and some of them are not focus scopes (the reader's, the player's). Dispatching
  * it at the scope keeps one path, and the guard keeps it from coming back here.
  */
-function closeScope(node: HTMLElement): void {
+function sendEscape(node: HTMLElement): void {
 	replaying = true;
 	try {
 		node.dispatchEvent(
@@ -226,7 +226,17 @@ export function back(): boolean {
 	}
 	const scope = activeScope();
 	if (isManagedScope(scope)) {
-		closeScope(scope);
+		sendEscape(scope);
+		return true;
+	}
+	// A dialog that is not a scope closes on Escape itself (the update notice,
+	// the new-shelf sheet, a lightbox): BACK is not the climb's to take from it,
+	// so it gets the Escape the sheet would have had.
+	const dialog = [...document.querySelectorAll<HTMLElement>('dialog[open], [role="dialog"]')].find(
+		isVisible
+	);
+	if (dialog) {
+		sendEscape(dialog);
 		return true;
 	}
 	return climb();

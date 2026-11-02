@@ -1,4 +1,7 @@
-import { expect, test } from '@playwright/test';
+// c235: the shared `page.goto` waits for hydration (tests/fixtures.ts); the
+// generator's own import clicked server-rendered markup and, under the tv
+// project's parallelism, landed before SvelteKit had answered.
+import { expect, test } from './fixtures';
 
 /**
  * Library on a TV, in a real browser.
