@@ -84,10 +84,14 @@ A scope is a stack, so a sheet opened from a sheet restores to the lower one.
 **Opting out.** A screen that already reads the arrows puts `data-focus-off` on
 its root and keeps every one of them:
 
-- `ImageReader.svelte` and `TextReader.svelte` (pages, scrolling a strip), and
-  their panels. The reader's **end page** lifts it (c235): the pad walks the
-  END page's cells — ← SERIES, the rating, ANOTHER SOURCE → — because there is
-  no page left to turn;
+- `ImageReader.svelte` (pages, scrolling a strip) and its panels, **while its
+  chrome is hidden** — and everywhere off a TV, whatever the chrome. On a TV
+  with the chrome up the pad walks the chrome's cells instead (c241): the
+  page scrubber is the screen's start, ↓ reaches the chapter cells and
+  READING, and the reader's own turn keys stand down. Its **end page** lifts
+  the opt-out everywhere (c235), because there is no page left to turn;
+- `TextReader.svelte` the same way (c241): opted out while its chrome is
+  hidden, and off a TV always. Its end screen is still behind the opt-out;
 - `VideoPlayer.svelte` (seek and volume) **while its bar is hidden**, on a TV
   only. With the bar shown the pad moves among its six cells, and the player's
   own arrows are the reader's again once BACK hides it (c235);
@@ -95,7 +99,9 @@ its root and keeps every one of them:
   use the arrows themselves.
 
 A sheet inside an opted-out screen is left alone too — unless it forces the
-scope in (`use:focusScope={{ force: true }}`, the reader's page menu).
+scope in (`use:focusScope={{ force: true }}`, the reader's page menu). A sheet
+inside a reader whose chrome is up is a plain scope, the way it is on a tablet
+(c241: the reader's READING, the text reader's).
 
 **Within it.** Two attributes keep a screen's own controls out of the pad's way
 without hiding them from Tab:
@@ -111,7 +117,9 @@ its value in place (a remote has no other key for it) and lets ↑/↓ leave, or
 sort control would trap the pad. A range input is a slider and keeps all four.
 **A ruled row that adjusts a value** says so with `data-focus-adjust` and keeps
 ←/→ only, so ↑/↓ still leave it: the series screen's rating row (c238) moves by
-half a bar, saved as it changes.
+half a bar, saved as it changes; the reader's page scrubber and its dim slider
+keep ←/→ the same way (c241), and the page scrubber is where the chrome's pad
+starts.
 
 ## The remote's other three keys (c235)
 
@@ -243,12 +251,11 @@ BACK climbs the screen before it leaves.
 - **Whole-row scrolling** is c238's next step: the layer scrolls the nearest it
   can; the TV's focus line and pinned tabs are built, but the grid still scrolls
   by `scrollIntoView` rather than snapping to whole rows.
-- **The reader keeps every arrow, and its chrome is not a focus row.** The
+- **The reader keeps every arrow while its chrome is hidden (c241).** The
   design says ↓ reaches the chapters either side and READING from the page
-  scrubber; the reader's chrome is still the tap-only `Chrome.svelte`, so its
-  cells are not stops. c235 gives it OK (chrome), OK held and MENU (the page
-  menu), and BACK (menu, then chrome, then the series), and leaves READING
-  unreachable from a remote (TV.md, "What it does not do yet").
+  scrubber; with the chrome up it now does, on a TV. While the chrome is
+  hidden — and off a TV, always — the arrows are the reader's own, because
+  that is what turns pages and scrolls a strip.
 - **←/→ on a `<select>` change its value**, rather than moving focus: a remote
   has no other key for it. ↑/↓ leave, so the control is not a trap.
 - **A tile's rating and FAV are not arrow stops.** The design's focus board
@@ -271,3 +278,8 @@ BACK climbs the screen before it leaves.
 - `tests/tv-keys.e2e.ts` — OK held and MENU on a cover, a chapter row and a
   history row; BACK closing a sheet, climbing shelf tab → CONTINUE, and
   `window.tsundokuBack()` answering false at the top (c235).
+- `tests/tv-reader.e2e.ts` — the reader's chrome as a focus row: OK brings it
+  with focus on the scrubber, ↓ reaches READING, and the mode changes by keys
+  alone (c241).
+- `tests/tv-text-reader.e2e.ts` — the same for the text reader's LAYOUT
+  (c241).

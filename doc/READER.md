@@ -67,9 +67,10 @@ still blanks the reader when the app goes to the background.
 
 ## On a TV and on a remote (c235)
 
-A TV has a D-pad, OK, BACK and often MENU ([`TV.md`](TV.md)). The reader keeps
-every arrow — ← → turn pages, ↑ ↓ scroll a strip — so the focus layer is
-opted out here, and the remote's keys are the reader's own:
+A TV has a D-pad, OK, BACK and often MENU ([`TV.md`](TV.md)). With the
+controls hidden the reader keeps every arrow — ← → turn pages, ↑ ↓ scroll a
+strip — so the focus layer is opted out and the remote's keys are the reader's
+own:
 
 - **OK** shows the controls (the remote has no tap for the middle);
 - **OK held** (450 ms, the pointer's own hold) or **MENU** opens the page menu
@@ -81,11 +82,19 @@ opted out here, and the remote's keys are the reader's own:
   nothing open it brings the controls up rather than leaving.
 
 The page menu is a 420px panel from the right on a TV, and it is the one
-dialog the pad drives inside the reader (its rows are `use:focusScope` with
-`force`). The reader's _**end page**_ is the other: it lifts the opt-out, so
-its cells — ← SERIES, the rating, LIBRARY, ANOTHER SOURCE → on a stale series
-— are stops. Its chrome is not a focus row: READING (mode, spreads, fit, dim)
-cannot be opened from a remote yet.
+dialog the pad drives while the controls are hidden (its rows are
+`use:focusScope` with `force`). The reader's _**end page**_ lifts the opt-out,
+so its cells — ← SERIES, the rating, LIBRARY, ANOTHER SOURCE → on a stale
+series — are stops.
+
+**With the controls up, the controls are a focus row** (c241; TV-Reader 7D).
+OK brings them up with the pad on the page scrubber; ↓ reaches the chapter
+cells either side and READING; ← → on the scrubber still scrub, and the
+arrows do not turn pages while the controls are up. READING opens as a 420px
+panel, on the mode in use: ← → step along a row, ↑ ↓ between rows, OK takes a
+value. BACK closes READING and puts the pad back on the cell that opened it,
+then hides the controls, then leaves. Off a TV nothing changes: the arrows are
+the reader's whatever the controls, as the desktop keys above say.
 
 ## Turning pages
 
