@@ -1469,10 +1469,8 @@
 			}
 			// The lookup panel closes itself on Escape, and stays open on BACK.
 			if (lookup) return false;
-			if (zones) {
-				zones = false;
-				return true;
-			}
+			// The first-visit tap-zone hint is not something a remote opened; the
+			// reader's own first key clears it.
 			if (chrome) {
 				chrome = false;
 				return true;
@@ -1553,8 +1551,9 @@
 			return;
 		}
 		if (holdKeys(e)) return;
-		// BACK hides the chrome (the layer's step does it); Escape never brings it up.
-		if (e.key === 'Escape') chrome = false;
+		// The layer's BACK step hides the chrome first; Escape itself is the
+		// keyboard's toggle, and brings it up when nothing was open (doc/READER.md).
+		if (e.key === 'Escape') chrome = !chrome;
 		if (e.key === '+' || e.key === '=') return setZoom(stepZoom(zoom, 1));
 		if (e.key === '-') return setZoom(stepZoom(zoom, -1));
 		if (e.key === '0') return setZoom(resetZoom(zoom, kept));

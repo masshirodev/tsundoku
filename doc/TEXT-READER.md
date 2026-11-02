@@ -140,11 +140,9 @@ included, is spent until the wheel has been quiet for 200ms (`WheelTurn`,
 does nothing while a sheet, CONTENTS, the lookup or a full-screen image is open,
 and scroll layout scrolls as before. The owner asked for this on 2026-10-22.
 
-Arrows, Space, PageUp and PageDown turn too; OK (Enter) or a mouse at the top
-or bottom of the window brings the controls up, and Esc hides them — it never
-brings them up (c235: BACK is always a step out, and on a remote it closes
-what is open, then leaves). On a TV, OK shows the controls, and BACK closes
-CONTENTS or an image, then the controls, then leaves
+Arrows, Space, PageUp and PageDown turn too; OK (Enter), Esc or the mouse at
+the top or bottom of the window shows the controls. On a TV, OK shows the
+controls and BACK closes CONTENTS or an image, then the controls, then leaves
 ([`TV.md`](TV.md), [`READER.md`](READER.md)).
 
 ## Controls

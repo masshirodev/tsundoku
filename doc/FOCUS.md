@@ -139,13 +139,15 @@ of them in `keys.ts`, and `tests/tv-keys.e2e.ts` walks them.
      its page menu, a history row's REMOVE — says so with `registerBack(step)`,
      the innermost first. The step returns true when it took the key.
   2. **An open sheet.** A scope closes itself on Escape, so the layer sends it
-     one (`closeScope` keeps it from coming back round).
-  3. **Climb.** From inside a `[data-back-climb="<selector>"]` container, to the
+     one (`sendEscape`, and a guard keeps it from coming back round).
+  3. **A dialog that is not a scope** — the update notice, a lightbox — gets
+     the same Escape, because it is the page's own to close and not the
+     climb's to take from it.
+  4. **Climb.** From inside a `[data-back-climb="<selector>"]` container, to the
      first stop that selector names — the library's grid climbs to the active
      shelf tab. Otherwise to the screen's `[data-focus-start]`, or its top-left
-     stop. BACK never moves the mark downward. A visible `[role="dialog"]` that
-     is not a scope blocks the climb: it closes on Escape itself.
-  4. **Nothing.** `window.tsundokuBack()` returns false and the app leaves or
+     stop. BACK never moves the mark downward.
+  5. **Nothing.** `window.tsundokuBack()` returns false and the app leaves or
      goes back natively (c236's contract, [`TV.md`](TV.md)). Escape is then
      left to the browser, because it is also the way out of a filter panel, a
      lightbox or a typed field; `BrowserBack`/`GoBack` take the history step

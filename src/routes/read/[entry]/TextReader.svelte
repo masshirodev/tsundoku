@@ -826,8 +826,9 @@
 			chrome = true;
 			return;
 		}
-		// BACK hides the chrome (the layer's step does it); Escape never brings it up.
-		if (e.key === 'Escape') chrome = false;
+		// The layer's BACK step hides the chrome first; Escape itself is the
+		// keyboard's toggle, and brings it up when nothing was open (doc/TEXT-READER.md).
+		if (e.key === 'Escape') chrome = !chrome;
 		if (layout === 'scroll') return;
 		const left = e.key === 'ArrowLeft';
 		const right = e.key === 'ArrowRight';

@@ -257,6 +257,9 @@
 				return true;
 			}
 			if (chrome && phase === 'playing') {
+				// On a TV only: elsewhere BACK was never the bar's (c235 keeps the
+				// phone, tablet and desktop player as it was, Esc leaving it).
+				if (!tv.current) return false;
 				chrome = false;
 				clearTimeout(hideTimer);
 				return true;

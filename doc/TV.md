@@ -297,13 +297,15 @@ decisions (`isBackKey`, `isOptionsKey`, `OkPress`) and `layer.ts` wires them;
 - **A remote's media keys**, on every device: ▶❚❚ plays or pauses, ⏩ ⏪ seek
   10 s with the flash, ⏭ ⏮ the next and the previous episode. On the library,
   ▶❚❚ on a focused CONTINUE card resumes it rather than opening its series.
-- **The reader**: OK shows its chrome (it never brought it up before), OK held
+- **The reader**: OK shows its chrome (Enter did nothing there before), OK held
   or MENU opens the page menu for the page in the middle of the screen (in a
   spread, the one a turn leaves behind), BACK closes the menu, then the chrome,
-  then leaves. The page menu is a 420px panel from the right on a TV, and the
-  page it means is framed in ink rather than the accent. The end page is the
-  reader's one focusable screen: its cells are stops, so ANOTHER SOURCE → on a
-  stale series is reachable.
+  then leaves. A keyboard's Escape is still the chrome's own toggle, as it was
+  ([`READER.md`](READER.md)); a remote's BACK is the app's, and leaves. The page
+  menu is a 420px panel from the right on a TV, and the page it means is framed
+  in ink rather than the accent. The end page is the reader's one focusable
+  screen: its cells are stops, so ANOTHER SOURCE → on a stale series is
+  reachable.
 - **MOVE** ([`MOVE.md`](MOVE.md)): the SOURCE row's MOVE → and MOVE BACK, the
   NO VIDEO band, the candidates and the comparison and the MOVE bar are all
   stops, and BACK climbs the comparison to its top bar before it leaves. The
