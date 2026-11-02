@@ -107,6 +107,11 @@ test('OK brings the chrome as a focus row, and READING opens, changes the mode, 
 	await page.keyboard.press('Enter');
 	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
 	await expect(sheet).toBeVisible();
+	// The panel keeps the TV's 48px right side (Sheet.svelte): its ✕ ends there,
+	// not at the screen edge inside the overscan.
+	const panel = (await sheet.boundingBox())!;
+	const close = (await sheet.getByRole('button', { name: 'Close' }).boundingBox())!;
+	expect(panel.x + panel.width - (close.x + close.width)).toBeGreaterThanOrEqual(47);
 	await expect(sheet.getByRole('radio', { name: 'R→L' })).toBeFocused();
 
 	// ← → walk the row, and OK takes the new mode.

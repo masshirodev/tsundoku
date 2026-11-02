@@ -624,7 +624,8 @@
 	}
 	/* On a TV, READING is a panel from the right (c241; TV-Reader 7E): the pages
 	   stay in view at the left and change as a row does, and the panel is the
-	   same 420px the other sheets are (Sheet.svelte). */
+	   same 420px the other sheets are (Sheet.svelte), with the same 48px right
+	   side -- that padding is what makes its content 372px wide. */
 	@media (pointer: none) and (min-width: 900px) {
 		.sheet {
 			left: auto;
@@ -636,7 +637,7 @@
 			height: 100dvh;
 			border-top: 0;
 			border-left: var(--rule-strong);
-			padding: var(--safe-y) 0;
+			padding: var(--safe-y) var(--pad) var(--safe-y) 0;
 		}
 	}
 	@media (max-width: 599px) {

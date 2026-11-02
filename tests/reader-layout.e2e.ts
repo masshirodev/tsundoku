@@ -49,6 +49,20 @@ test('the controls: a 64px bar on top, a 56px scrubber and 64px cells below', as
 	expect(cells!.y + cells!.height).toBeCloseTo(vp.height, 0);
 });
 
+test('off a TV the chrome declares no focus start of its own', async ({ page }) => {
+	await open(page);
+	// At the end page the reader lifts its opt-out everywhere (c235), so the
+	// layer is live: if the scrubber declared a start, the first arrow there
+	// would land on the footer instead of the end page. The start belongs to
+	// the TV's chrome (c241), where OK focuses it anyway, so it is off a TV
+	// that the attribute is absent.
+	const vp = page.viewportSize()!;
+	await page.mouse.click(vp.width / 2, vp.height / 2, { button: 'middle' });
+	const scrub = page.locator('footer[aria-label="Reader controls"] .track');
+	await expect(scrub).toBeVisible();
+	await expect(scrub).not.toHaveAttribute('data-focus-start');
+});
+
 test('nothing hidden opens while reveal is off', async ({ request }) => {
 	const res = await request.get('/api/entries/999999/pages');
 	expect(res.status()).toBe(404);

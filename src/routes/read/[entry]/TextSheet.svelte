@@ -514,8 +514,10 @@
 		height: 24px;
 		flex-shrink: 0;
 	}
-	/* On a TV, READING is a panel from the right (c241), the same 420px the other
-	   sheets are (Sheet.svelte): the page stays in view at the left as type changes. */
+	/* On a TV, READING is a panel from the right (c241), the same 420px with the
+	   same 48px right side the other sheets are (Sheet.svelte) -- the padding
+	   is what makes its content 372px wide: the page stays in view at the left
+	   as type changes. */
 	@media (pointer: none) and (min-width: 900px) {
 		.sheet {
 			left: auto;
@@ -526,7 +528,7 @@
 			max-height: none;
 			border-top: 0;
 			border-left: var(--rule-strong);
-			padding: var(--safe-y) 0;
+			padding: var(--safe-y) var(--pad) var(--safe-y) 0;
 		}
 	}
 	@media (max-width: 599px) {

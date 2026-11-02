@@ -173,7 +173,7 @@
 			aria-valuemin={1}
 			aria-valuemax={total}
 			aria-valuenow={page + 1}
-			data-focus-start
+			data-focus-start={tvScreen.current ? '' : undefined}
 			data-focus-adjust={tvScreen.current ? '' : undefined}
 			onpointerdown={(e) => {
 				dragging = true;
