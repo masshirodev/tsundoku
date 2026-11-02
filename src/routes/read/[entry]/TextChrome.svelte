@@ -3,6 +3,8 @@
 	import { backLink } from '$lib/back';
 	import { ratingBars } from '$lib/library/rating';
 	import type { Rating } from '$lib/library/types';
+	import { MediaQuery } from 'svelte/reactivity';
+	import { TV } from '$lib/device.svelte';
 
 	/**
 	 * The text reader's controls (Index Text Reader 1c): a 64px top bar -- back,
@@ -11,6 +13,10 @@
 	 * four cells: previous chapter, CONTENTS, READING, next. Vertical Japanese
 	 * mirrors the bottom: the scrubber fills from the right and the next
 	 * chapter is on the left.
+	 *
+	 * On a TV it is a focus row once it is up, as the image reader's chrome is
+	 * (c241): OK brings it with focus on the scrubber, ↓ reaches CONTENTS and
+	 * READING, and the scrubber keeps ← → so it still scrubs.
 	 */
 	let {
 		title,
@@ -61,6 +67,7 @@
 	} = $props();
 
 	const fraction = $derived(pages <= 1 ? 1 : page / (pages - 1));
+	const tvScreen = new MediaQuery(TV, false);
 
 	let track = $state<HTMLElement | null>(null);
 	let dragging = false;
@@ -102,8 +109,15 @@
 </script>
 
 <header class="top appear">
-	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- seriesHref is resolved by the caller -->
-	<a class="back" href={seriesHref} aria-label="Back to the series" use:backLink>←</a>
+	<!-- eslint-disable svelte/no-navigation-without-resolve -- seriesHref is resolved by the caller -->
+	<a
+		class="back"
+		href={seriesHref}
+		aria-label="Back to the series"
+		use:backLink
+		data-focus-mark="in">←</a
+	>
+	<!-- eslint-enable svelte/no-navigation-without-resolve -->
 	<div class="names">
 		<div class="title">{title}</div>
 		<div class="meta">{meta}</div>
@@ -112,8 +126,13 @@
 	<div class="bars" role="img" aria-label={rating === 0 ? 'Unrated' : `Rated ${rating} of 10`}>
 		{#each ratingBars(rating as Rating) as b, i (i)}<span class="bar {b}"></span>{/each}
 	</div>
-	<button type="button" class="fav" class:on={favourite} aria-pressed={favourite} onclick={onfav}
-		>FAV</button
+	<button
+		type="button"
+		class="fav"
+		class:on={favourite}
+		aria-pressed={favourite}
+		data-focus-mark="in"
+		onclick={onfav}>FAV</button
 	>
 </header>
 
@@ -134,6 +153,8 @@
 				aria-valuemin={1}
 				aria-valuemax={Math.max(1, pages)}
 				aria-valuenow={page + 1}
+				data-focus-start={tvScreen.current ? '' : undefined}
+				data-focus-adjust={tvScreen.current ? '' : undefined}
 				onpointerdown={(e) => {
 					dragging = true;
 					(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -163,6 +184,7 @@
 					class="cell"
 					class:grow={c.grow}
 					disabled={!c.on}
+					data-focus-mark="in"
 					onclick={() => c.on?.()}
 					>{#if c.grow}<span class="sum">{c.text}</span><span class="opens-k">SETTINGS ↑</span
 						>{:else}{c.text}{/if}</button
@@ -174,6 +196,7 @@
 					type="button"
 					class="cell"
 					aria-pressed={fullscreen.on}
+					data-focus-mark="in"
 					onclick={() => fullscreen.toggle()}>{fullscreen.on ? 'EXIT FULL' : 'FULL SCREEN'}</button
 				>
 			{/if}

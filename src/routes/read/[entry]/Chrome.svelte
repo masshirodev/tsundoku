@@ -3,6 +3,8 @@
 	import { enhance } from '$app/forms';
 	import { backLink } from '$lib/back';
 	import { chapterCells, scrubFill, scrubPage, type Mode } from '$lib/reader/reader';
+	import { MediaQuery } from 'svelte/reactivity';
+	import { TV } from '$lib/device.svelte';
 
 	/**
 	 * The controls (Index Reader, state 1b): a 64px bar on top -- back, where
@@ -10,6 +12,10 @@
 	 * Shown by a tap in the middle, gone by the next. Both follow the reading
 	 * direction: in R->L the scrubber fills from the right and the next
 	 * chapter is on the left.
+	 *
+	 * On a TV the chrome is a focus row once it is up (c241; TV-Reader 7D):
+	 * OK brings it with focus on the scrubber, ↓ reaches the cells, and the
+	 * scrubber keeps ← → so it still scrubs rather than walking the pad.
 	 */
 	let {
 		title,
@@ -71,6 +77,7 @@
 	} = $props();
 	let adding = $state(false);
 	let added = $state(false);
+	const tvScreen = new MediaQuery(TV, false);
 
 	const cells = $derived(chapterCells(mode, prev, next));
 	const fill = $derived(scrubFill(page, total, mode));
@@ -87,7 +94,9 @@
 
 <header class="top appear" aria-label="Reader">
 	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- backHref is resolved by the page -->
-	<a class="back" href={backHref} aria-label="Back to the series" use:backLink>←</a>
+	<a class="back" href={backHref} aria-label="Back to the series" use:backLink data-focus-mark="in"
+		>←</a
+	>
 	<div class="where">
 		<div class="title">{title}</div>
 		<div class="meta">{meta}</div>
@@ -106,6 +115,7 @@
 			class:on={l.on}
 			aria-pressed={l.on}
 			aria-label="Read in {l.code}"
+			data-focus-mark="in"
 			onclick={() => !l.on && onlanguage?.(l.entryId)}>{l.code}</button
 		>
 	{/each}
@@ -122,7 +132,7 @@
 				};
 			}}
 		>
-			<button type="submit" class="add" disabled={adding || added}
+			<button type="submit" class="add" disabled={adding || added} data-focus-mark="in"
 				>{added ? 'IN LIBRARY ✓' : adding ? 'ADDING…' : '+ ADD'}</button
 			>
 		</form>
@@ -134,6 +144,7 @@
 			aria-label={rating
 				? `Rated ${rating} of 10 · reading settings`
 				: 'Unrated · reading settings'}
+			data-focus-mark="in"
 			onclick={onsheet}
 		>
 			{#each [1, 2, 3, 4, 5] as n (n)}<span class:on={n <= rating}></span>{/each}
@@ -144,6 +155,7 @@
 			class:folded={languages.length > 1}
 			class:on={favourite}
 			aria-pressed={favourite}
+			data-focus-mark="in"
 			onclick={onfav}>FAV</button
 		>
 	{/if}
@@ -161,6 +173,8 @@
 			aria-valuemin={1}
 			aria-valuemax={total}
 			aria-valuenow={page + 1}
+			data-focus-start={tvScreen.current ? '' : undefined}
+			data-focus-adjust={tvScreen.current ? '' : undefined}
 			onpointerdown={(e) => {
 				dragging = true;
 				(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -183,29 +197,38 @@
 	</div>
 	<div class="cells">
 		{#if cells.left}
-			<button type="button" class="cell" onclick={() => onchapter(cells.left!.to)}
-				>{cells.left.label}</button
+			<button
+				type="button"
+				class="cell"
+				data-focus-mark="in"
+				onclick={() => onchapter(cells.left!.to)}>{cells.left.label}</button
 			>
 		{:else}
 			<span class="cell empty"></span>
 		{/if}
 		<!-- The summary, and what tapping it does: it read as a status line (the owner, 2026-10-30). -->
-		<button type="button" class="cell grow opens" onclick={onsheet}
+		<button type="button" class="cell grow opens" data-focus-mark="in" onclick={onsheet}
 			><span class="sum">{settings}</span><span class="opens-k">SETTINGS ↑</span></button
 		>
-		{#if shift}<button type="button" class="cell" onclick={onshift}>SHIFT PAIRING</button>{/if}
+		{#if shift}<button type="button" class="cell" data-focus-mark="in" onclick={onshift}
+				>SHIFT PAIRING</button
+			>{/if}
 		{#if fullscreen.available}
 			<!-- The browser's bars gone (doc/READER.md, "Full screen"); not on an iPhone, nor in the app. -->
 			<button
 				type="button"
 				class="cell"
 				aria-pressed={fullscreen.on}
+				data-focus-mark="in"
 				onclick={() => fullscreen.toggle()}>{fullscreen.on ? 'EXIT FULL' : 'FULL SCREEN'}</button
 			>
 		{/if}
 		{#if cells.right}
-			<button type="button" class="cell last" onclick={() => onchapter(cells.right!.to)}
-				>{cells.right.label}</button
+			<button
+				type="button"
+				class="cell last"
+				data-focus-mark="in"
+				onclick={() => onchapter(cells.right!.to)}>{cells.right.label}</button
 			>
 		{:else}
 			<span class="cell empty last"></span>

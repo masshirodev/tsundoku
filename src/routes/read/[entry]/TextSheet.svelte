@@ -12,6 +12,9 @@
 		type TextSettings,
 		type Theme
 	} from '$lib/reader/text';
+	import { focusScope } from '$lib/focus';
+	import { MediaQuery } from 'svelte/reactivity';
+	import { TV } from '$lib/device.svelte';
 
 	/**
 	 * READING for text (Index Text Reader 1c, "sheet"): the image reader's sheet
@@ -19,6 +22,10 @@
 	 * they're set. LAYOUT is the series' (REMEMBER keeps it); everything below
 	 * it belongs to the device. A row that doesn't apply is dimmed with the
 	 * reason, not removed, so the sheet never jumps.
+	 *
+	 * On a TV it is a focus scope and a panel from the right, as the image
+	 * reader's READING is (c241): the pad lands on the layout in use, and ↑ ↓
+	 * walk the rows.
 	 */
 	let {
 		layout,
@@ -78,6 +85,7 @@
 		['none', 'NONE']
 	];
 	const columnsApply = $derived(landscape && layout === 'paged' && !vertical);
+	const tvScreen = new MediaQuery(TV, false);
 
 	let dimTrack = $state<HTMLElement | null>(null);
 	let sliding = false;
@@ -88,10 +96,12 @@
 	}
 </script>
 
-<div class="sheet appear" role="dialog" aria-label="Reading settings">
+<div class="sheet appear" role="dialog" aria-label="Reading settings" use:focusScope>
 	<div class="head">
 		<div class="h">READING</div>
-		<button type="button" class="x" aria-label="Close" onclick={onclose}>✕</button>
+		<button type="button" class="x" aria-label="Close" data-focus-mark="in" onclick={onclose}
+			>✕</button
+		>
 	</div>
 
 	<div class="row">
@@ -104,6 +114,8 @@
 						role="radio"
 						aria-checked={layout === l}
 						class:on={layout === l}
+						data-focus-mark="in"
+						data-focus-start={layout === l ? '' : undefined}
 						onclick={() => onlayout(l)}>{name}</button
 					>
 				{/each}
@@ -154,6 +166,7 @@
 							role="radio"
 							aria-checked={on === v}
 							class:on={on === v}
+							data-focus-mark="in"
 							style:font-family={fonts
 								? v === 'serif'
 									? 'var(--font-serif)'
@@ -184,18 +197,21 @@
 					type="button"
 					aria-label="Smaller"
 					disabled={size <= SIZE_MIN}
+					data-focus-mark="in"
 					onclick={() => onsettings({ size: Math.max(SIZE_MIN, size - 1) })}>A −</button
 				>
 				<button
 					type="button"
 					class="on"
 					aria-label="Device default"
+					data-focus-mark="in"
 					onclick={() => onsettings({ size: null, line: null })}>{size} PX</button
 				>
 				<button
 					type="button"
 					aria-label="Larger"
 					disabled={size >= SIZE_MAX}
+					data-focus-mark="in"
 					onclick={() => onsettings({ size: Math.min(SIZE_MAX, size + 1) })}>A +</button
 				>
 			</div>
@@ -242,6 +258,7 @@
 						aria-checked={settings.furigana === f}
 						class:on={settings.furigana === f}
 						disabled={!vertical || f === 'unknown'}
+						data-focus-mark="in"
 						onclick={() => onsettings({ furigana: f })}>{name}</button
 					>
 				{/each}
@@ -262,6 +279,7 @@
 				aria-valuemin={0}
 				aria-valuemax={80}
 				aria-valuenow={Math.round(dim * 100)}
+				data-focus-adjust={tvScreen.current ? '' : undefined}
 				onpointerdown={(e) => {
 					sliding = true;
 					(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -495,6 +513,23 @@
 	.foot {
 		height: 24px;
 		flex-shrink: 0;
+	}
+	/* On a TV, READING is a panel from the right (c241), the same 420px with the
+	   same 48px right side the other sheets are (Sheet.svelte) -- the padding
+	   is what makes its content 372px wide: the page stays in view at the left
+	   as type changes. */
+	@media (pointer: none) and (min-width: 900px) {
+		.sheet {
+			left: auto;
+			right: 0;
+			top: 0;
+			bottom: 0;
+			width: var(--tv-panel-w);
+			max-height: none;
+			border-top: 0;
+			border-left: var(--rule-strong);
+			padding: var(--safe-y) var(--pad) var(--safe-y) 0;
+		}
 	}
 	@media (max-width: 599px) {
 		.label {

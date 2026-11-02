@@ -65,8 +65,10 @@ start but was drawn for fingers.
   volume, F, M, C, S, N, ?
   (`src/routes/read/[entry]/VideoPlayer.svelte`).
 - The image reader turns pages on the arrows and PageUp/PageDown; OK shows its
-  chrome, OK held or MENU opens the page menu, BACK closes the menu, then the
-  chrome, then leaves (`ImageReader.svelte`).
+  chrome, whose cells the pad then walks (c241), BACK hides the chrome, then
+  leaves. With the chrome hidden, OK held or MENU opens the page menu — with
+  it up the pad takes OK and MENU for the focused cell, so the menu is the
+  chrome-hidden dialog ([`READER.md`](READER.md)) (`ImageReader.svelte`).
 - Back walks history and the library restores its place
   ([`NAVIGATION.md`](NAVIGATION.md)).
 - Serving to the home network and pairing ([`WIFI.md`](WIFI.md)), over plain
@@ -74,14 +76,15 @@ start but was drawn for fingers.
 
 ## The work
 
-| Card | What                                                            | Waits on   |
-| ---- | --------------------------------------------------------------- | ---------- |
-| c232 | How the TV reaches the server, and signs in without a camera    | the owner  |
-| c233 | The ten-foot design, from [`briefs/TV.md`](briefs/TV.md)        | the design |
-| c234 | D-pad focus: moving by direction, and focus you can see         | nothing    |
-| c235 | The remote's way into long-press sheets; the player on screen   | c233       |
-| c236 | The Android TV app, a Kotlin WebView wrapper                    | c232       |
-| c238 | The ten-foot layout: the query, library, series, reader, search | c234       |
+| Card | What                                                               | Waits on   |
+| ---- | ------------------------------------------------------------------ | ---------- |
+| c232 | How the TV reaches the server, and signs in without a camera       | the owner  |
+| c233 | The ten-foot design, from [`briefs/TV.md`](briefs/TV.md)           | the design |
+| c234 | D-pad focus: moving by direction, and focus you can see            | nothing    |
+| c235 | The remote's way into long-press sheets; the player on screen      | c233       |
+| c236 | The Android TV app, a Kotlin WebView wrapper                       | c232       |
+| c238 | The ten-foot layout: the query, library, series, reader, search    | c234       |
+| c241 | The reader's chrome as a focus row, so READING opens from a remote | c235       |
 
 The owner settled c232 on 2026-11-01: **option A, Wi-Fi plus a typed code**, and
 c236 built it (below).
@@ -199,10 +202,11 @@ The handoff stated these about the code or the app; both are built (c236).
 - **Panels.** Every `Sheet` is a 420 px panel from the right, full height,
   with the strong rule on its left edge; the screen it opened over stays in
   view at the left. The scrim is still the whole screen.
-- **The reader.** Spreads are the default on a TV only (a stored choice still
-  wins), the cover stands alone as everywhere, and the vertical strip is 520 px
-  at any zoom, centred. The reader's chrome and its panels are unchanged in
-  size; the READING panel is a 420 px panel now because it is a `Sheet`.
+- **The reader's chrome and its panels.** Spreads are the default on a TV
+  only (a stored choice still wins), the cover stands alone as everywhere,
+  and the vertical strip is 520 px at any zoom, centred. Chrome and sheets
+  are the sizes they are elsewhere; READING is a 420 px panel from the right
+  (c241), like every sheet on a TV.
 - **Search.** The field is the top bar under the safe top; results are three
   cards across inside the safe margin, a 114 px row, in the top half so
   Android's keyboard can take the bottom. `/reveal` on a TV says "NOT ON A TV ·
@@ -409,15 +413,17 @@ decisions (`isBackKey`, `isOptionsKey`, `OkPress`) and `layer.ts` wires them;
 - **A remote's media keys**, on every device: ▶❚❚ plays or pauses, ⏩ ⏪ seek
   10 s with the flash, ⏭ ⏮ the next and the previous episode. On the library,
   ▶❚❚ on a focused CONTINUE card resumes it rather than opening its series.
-- **The reader**: OK shows its chrome (Enter did nothing there before), OK held
-  or MENU opens the page menu for the page in the middle of the screen (in a
-  spread, the one a turn leaves behind), BACK closes the menu, then the chrome,
-  then leaves. A keyboard's Escape is still the chrome's own toggle, as it was
+- **The reader**: OK shows its chrome (Enter did nothing there before). With the
+  chrome hidden, OK held or MENU opens the page menu for the page in the middle
+  of the screen (in a spread, the one a turn leaves behind); with the chrome up
+  the pad takes OK and MENU for the focused cell, so the menu is reachable
+  again once BACK hides the chrome. BACK closes the menu, then the chrome, then
+  leaves. A keyboard's Escape is still the chrome's own toggle, as it was
   ([`READER.md`](READER.md)); a remote's BACK is the app's, and leaves. The page
   menu is a 420px panel from the right on a TV, and the page it means is framed
-  in ink rather than the accent. The end page is the reader's one focusable
+  in ink rather than the accent. The end page is the reader's other focusable
   screen: its cells are stops, so ANOTHER SOURCE → on a stale series is
-  reachable.
+  reachable. The chrome itself became a focus row in c241 (below).
 - **MOVE** ([`MOVE.md`](MOVE.md)): the SOURCE row's MOVE → and MOVE BACK, the
   NO VIDEO band, the candidates and the comparison and the MOVE bar are all
   stops, and BACK climbs the comparison to its top bar before it leaves. The
@@ -448,17 +454,72 @@ decisions (`isBackKey`, `isOptionsKey`, `OkPress`) and `layer.ts` wires them;
   means.** The mock's own (7F) draws exactly that; the shipped menu was still
   a bottom sheet with an accent ring.
 
+## What is built (c241)
+
+The reader's chrome as a focus row (TV-Reader 7D), so READING opens from a
+remote.
+
+- **The chrome is a focus row when it is up, on a TV.** The reader keeps every
+  arrow while its chrome is hidden — that is the design's own exception and
+  every page-turning spec still depends on it — and the opt-out is now
+  `!atEnd && !(TV && chrome)`: with the chrome up the pad walks its cells.
+  Off a TV nothing changes (the reader still owns every arrow, chrome or not).
+- **OK brings it up with focus on the page scrubber**, as 7D draws: the
+  reader focuses the scrubber once the chrome is laid out. ↓ then reaches the
+  cells; the widest of them, READING, is the one that lands under the
+  scrubber's middle.
+- **The scrubber keeps ← →.** It is `data-focus-adjust`, so a left or right
+  scrubs the chapter (one page, the step the track's own keys have always
+  taken) and ↑ ↓ still leave for another cell.
+- **The chrome's cells say the mark goes inside** (`data-focus-mark="in"`), so
+  the frame never crosses the hairlines: the back cell, the languages and
+  FAV/+ ADD, the chapter cells either side, READING, SHIFT PAIRING and FULL
+  SCREEN.
+- **READING is a focus scope and a 420 px panel from the right** (7E). It
+  opens on the mode in use; ← → step along a row, ↑ ↓ move between rows, OK
+  takes a value. The dim slider is `data-focus-adjust` too, so it keeps ← →
+  and ↑ ↓ leave it. On a tablet the sheet is inside the opted-out reader, so
+  the scope does nothing: the sheet is the same tap-only sheet it was.
+- **BACK closes READING and puts the pad back on the cell that opened it**,
+  then hides the chrome, then leaves. That is the existing reader step; the
+  focus return is the scope's.
+- **The text reader is the same story** (`TextChrome`, `TextSheet`): OK brings
+  its chrome up with focus on the scrubber, ↓ reaches CONTENTS and READING,
+  and LAYOUT changes by keys alone. Its footer gives way to the sheet
+  (`bottom={!sheet}`), so the cell that opened READING is gone when it closes:
+  the reader puts the pad back on the scrubber instead (`TextReader.svelte`).
+- **Tests.** `tests/tv-reader.e2e.ts` opens READING, walks to L→R with the
+  arrows and OK, closes it with BACK, hides the chrome, and puts the mode back;
+  `tests/tv-text-reader.e2e.ts` does the same with a novel's LAYOUT. Both read
+  in incognito and change nothing stored: the mode and the layout are this
+  session's until REMEMBER.
+
+### Departures from the handoff (c241)
+
+- **The grid's cells are not one adjustment per row.** 7E draws MODE,
+  SPREADS, FIT and DIM each ← → as a ruled row. The shipped READING sheet is
+  the tablet's, with segmented controls: ← → step between a row's values and
+  OK takes one, which is the same number of presses for the values 7E draws
+  and loses nothing. Rebuilding the sheet as four adjusting rows would drop
+  CROP BORDERS, WIDE PAGES, SIDES, ZOOM, BLOCKS and the rating, none of which
+  7E draws.
+- **Off a TV, the chrome stays the reader's.** The design's exception is the
+  reader's own: a desktop keyboard still turns pages with the chrome up, as
+  [`READER.md`](READER.md) has always said.
+- **The text reader's end screen is not a focus row.** Its chrome is (c241),
+  but the end-of-book screen is still beneath the reader's opt-out; the image
+  reader's end page has lifted it since c235. Recorded below.
+
 ## What it does not do yet
 
-- **The reader's chrome is not a focus row.** OK brings the chrome up, and the
-  arrows still turn pages — the design's own exception — but its cells
-  (the page scrubber, the chapter cells either side, READING) are not stops,
-  so READING — mode, spreads, fit, dim — cannot be opened from a remote. Only
-  the page menu and the end page are pad-driven inside the reader.
 - **HISTORY, SETTINGS, BROWSE, DOWNLOADS, the person page, HELP and the rest**
   get the query's type scale and 420 px panels, but no layout of their own.
   HISTORY is the one the handoff names as likely to want one; it takes the pad
   (its rows are links and its REMOVE is a held OK) but has no TV frame.
+- **The text reader's end screen is not a focus row.** Unlike the image
+  reader's end page, its cells are behind the reader's opt-out, so a remote
+  cannot leave a finished book from its end screen; BACK still leaves the
+  screen.
 - **MOVE has no TV layout.** Its screens take the pad and the mark, and the
   comparison and the MOVE bar are the one-pane shape below 1024 px, which a
   960-wide TV gets. The design set has no board for it: c139 predates the TV.

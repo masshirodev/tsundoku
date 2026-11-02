@@ -143,7 +143,13 @@ and scroll layout scrolls as before. The owner asked for this on 2026-10-22.
 Arrows, Space, PageUp and PageDown turn too; OK (Enter), Esc or the mouse at
 the top or bottom of the window shows the controls. On a TV, OK shows the
 controls and BACK closes CONTENTS or an image, then the controls, then leaves
-([`TV.md`](TV.md), [`READER.md`](READER.md)).
+([`TV.md`](TV.md), [`READER.md`](READER.md)). With the controls up, a TV's pad
+walks them (c241): focus starts on the page scrubber, ↓ reaches CONTENTS and
+READING, and READING is a 420px panel where LAYOUT and the rest change by keys
+alone — ← → along a row, ↑ ↓ between rows, OK takes the value. BACK closes it
+and the pad goes back to the scrubber in the chrome's place (the footer gives
+way to the sheet, so the cell that opened it is gone). Off a TV the arrows
+stay the reader's whatever the controls.
 
 ## Controls
 

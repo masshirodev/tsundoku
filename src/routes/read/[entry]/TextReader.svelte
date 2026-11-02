@@ -27,6 +27,8 @@
 	} from '$lib/reader/reader';
 	import { BookFailure, bookUrl, openBook, type OpenBook } from '$lib/reader/book';
 	import { registerBack } from '$lib/focus';
+	import { MediaQuery } from 'svelte/reactivity';
+	import { TV } from '$lib/device.svelte';
 	import {
 		chapterBlocks,
 		charsAfter,
@@ -681,6 +683,9 @@
 	let contents = $state(false);
 	let fullImage = $state<{ src: string; alt: string } | null>(null);
 	let wide = $state<{ title: string; meta: string; html: string; code: boolean } | null>(null);
+	const tvScreen = new MediaQuery(TV, false);
+	/** The reader's root, for the scrubber the chrome focuses when a remote brings it up. */
+	let readerEl = $state<HTMLElement | null>(null);
 
 	// ---- Japanese: a long press looks a word up (doc/JAPANESE.md, "In a book") -------------
 	// A book's page is all text, so a tap can't be the lookup's as it is on a
@@ -809,6 +814,44 @@
 		if (!chrome) byHover = false;
 	});
 
+	/** The keys that turn a page or scroll: the reader's own while its chrome is hidden. */
+	const TURNS = new Set([
+		'ArrowLeft',
+		'ArrowRight',
+		'ArrowUp',
+		'ArrowDown',
+		' ',
+		'PageUp',
+		'PageDown'
+	]);
+
+	/**
+	 * OK brings the chrome up (c235), and on a TV puts the pad on its scrubber
+	 * (c241): the next ↓ reaches CONTENTS and READING.
+	 */
+	async function showChrome() {
+		chrome = true;
+		if (!tvScreen.current) return;
+		await tick();
+		padToScrub();
+	}
+
+	function padToScrub() {
+		readerEl?.querySelector<HTMLElement>('footer [data-focus-start]')?.focus();
+	}
+
+	/**
+	 * A sheet takes the footer's place (`bottom={!sheet}`), so the cell that
+	 * opened READING is gone by the time it closes: on a TV the pad goes back to
+	 * the scrubber rather than nowhere.
+	 */
+	let hadSheet = false;
+	$effect(() => {
+		const open = sheet;
+		if (hadSheet && !open && tvScreen.current) void tick().then(padToScrub);
+		hadSheet = open;
+	});
+
 	function keydown(e: KeyboardEvent) {
 		// The lookup has the keyboard: Escape closes it (the panel's own).
 		if (lookup) return;
@@ -823,12 +866,18 @@
 		if (e.key === 'Enter' && !e.repeat) {
 			// OK on a TV: the chrome, as it is in the image reader (doc/TV.md).
 			e.preventDefault();
-			chrome = true;
+			showChrome();
 			return;
 		}
 		// The layer's BACK step hides the chrome first; Escape itself is the
 		// keyboard's toggle, and brings it up when nothing was open (doc/TEXT-READER.md).
-		if (e.key === 'Escape') chrome = !chrome;
+		if (e.key === 'Escape') {
+			if (chrome) chrome = false;
+			else showChrome();
+		}
+		// On a TV with the chrome up the pad owns the arrows and the turn keys
+		// (c241): an arrow moves among the chrome's cells, BACK hides it.
+		if (tvScreen.current && chrome && TURNS.has(e.key)) return;
 		if (layout === 'scroll') return;
 		const left = e.key === 'ArrowLeft';
 		const right = e.key === 'ArrowRight';
@@ -974,7 +1023,8 @@
 	style:--page-h="{f.h}px"
 	style:--side="{f.x}px"
 	role="presentation"
-	data-focus-off
+	bind:this={readerEl}
+	data-focus-off={!(tvScreen.current && chrome) ? '' : undefined}
 	onpointerdown={pointerdown}
 	onpointermove={pointermove}
 	onpointerup={pointerup}
