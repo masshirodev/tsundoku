@@ -328,14 +328,14 @@
 				<div class="safe welcome-head">
 					<h1>Read from the couch</h1>
 					<p>
-						This TV opens the library on your computer, over the same Wi-Fi. The computer gives you
-						an address and six digits; you type them here.
+						This TV opens the library on your computer, over your home Wi-Fi or Tailscale. The
+						computer gives you an address and six digits; you type them here.
 					</p>
 				</div>
 				<div class="safe steps">
 					<div>
 						<div class="lab">01 — ON THE COMPUTER</div>
-						<b>SETTINGS › 08 — DEVICES, then WI-FI ON</b>
+						<b>SETTINGS › 08 — DEVICES, where the six digits are</b>
 					</div>
 					<div>
 						<div class="lab">02 — PAIR A TV</div>
@@ -406,7 +406,9 @@
 					</div>
 					<div class="reason">
 						<div class="n">2</div>
-						<div class="v">WI-FI is off in its SETTINGS › 08 — DEVICES, or its address changed</div>
+						<div class="v">
+							Its SETTINGS › 08 — DEVICES has no six digits, or its address changed
+						</div>
 					</div>
 					<div class="reason">
 						<div class="n">3</div>
@@ -487,7 +489,7 @@
 					last.setAttribute('inputmode', 'numeric');
 				}
 				tvMeta.textContent = whole
-					? 'THE WHOLE ADDRESS, LIKE http://192.168.1.23:42143, OR https://name.ts.net:8443 OVER TAILSCALE'
+					? "THE WHOLE ADDRESS: https://name.ts.net:8443 OVER TAILSCALE, OR http://192.168.1.23:42143 · THE SIX DIGITS ARE IN THE COMPUTER'S SETTINGS"
 					: own
 						? `THIS TV IS AT ${own}, SO THE COMPUTER IS ${prefix}SOMETHING · THE REMOTE'S NUMBER KEYS TYPE HERE; WITHOUT THEM, MOVE THE MARK TO THE FIELD FOR THE PAD · BACK CLOSES IT`
 						: `THE TV HAS NO WI-FI ADDRESS OF ITS OWN · TYPE THE COMPUTER'S ADDRESS: THE LAST NUMBER, OR THE WHOLE ONE`;

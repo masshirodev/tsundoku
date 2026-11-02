@@ -108,6 +108,32 @@
 		}, 5000);
 		return () => clearInterval(t);
 	});
+	/**
+	 * The TV's six digits where there is no WI-FI panel to carry them (c245):
+	 * the owner's tailnet install. Their countdown is the page's own, ticked
+	 * from the moment the server says they stop working -- the install has no
+	 * `/api/wifi` to poll, and `/api/pair/tv` answers at the computer only.
+	 */
+	type Tv = NonNullable<typeof data.tv>;
+	const tv = $derived<Tv | null>(data.tv);
+	let tvBusy = $state(false);
+	let tvNow = $state(Date.now());
+	$effect(() => {
+		if (!tv || tv.state !== 'live') return;
+		const t = setInterval(() => (tvNow = Date.now()), 15_000);
+		return () => clearInterval(t);
+	});
+	const tvLive = (t: Tv) => t.state === 'live' && tvNow < t.expiresAt;
+	const tvMinutes = (t: Tv) => Math.max(0, Math.ceil((t.expiresAt - tvNow) / 60_000) - 1);
+	async function newTvCode() {
+		tvBusy = true;
+		try {
+			await act('tvCode', []);
+		} finally {
+			tvBusy = false;
+		}
+	}
+
 	const wifiMeta = (w: Wifi) => {
 		if (w.reach === 'public')
 			return `CAN'T BE SWITCHED ON HERE · THIS COMPUTER'S ONLY ADDRESS IS PUBLIC (${w.address}): IT SEEMS PLUGGED STRAIGHT INTO THE MODEM, SO THE SIGN-IN PAGE WOULD FACE THE INTERNET · CONNECT IT THROUGH THE ROUTER, BY WI-FI OR CABLE, AND THIS COMES BACK`;
@@ -124,8 +150,10 @@
 			return `PAIRED AT ${w.changed.from} · SCAN AGAIN`;
 		if (w && !w.on) return "OVER WI-FI · CAN'T REACH IT WHILE WI-FI IS OFF · STAYS SIGNED IN";
 		if (w && !w.listening) return "OVER WI-FI · CAN'T REACH IT UNTIL THERE'S AN ADDRESS";
-		if (Date.now() - p.pairedAt < 60_000) return `OVER WI-FI · JUST PAIRED · ${changedWord(n)}`;
-		return `OVER WI-FI · PAIRED ${when(p.pairedAt)}${mine ? ' · OPEN NOW' : ''}`;
+		// No WI-FI panel means it paired on the tailnet (c245): the row says so.
+		const door = w ? 'OVER WI-FI' : 'OVER TAILSCALE';
+		if (Date.now() - p.pairedAt < 60_000) return `${door} · JUST PAIRED · ${changedWord(n)}`;
+		return `${door} · PAIRED ${when(p.pairedAt)}${mine ? ' · OPEN NOW' : ''}`;
 	};
 
 	/** A "?"'s sheet, open on a topic's part (doc/HELP.md). */
@@ -659,6 +687,8 @@
 						{#if s.id === 'devices'}
 							{#if wf}
 								{@render wifiRow(wf)}
+							{:else if tv}
+								{@render tvRow(tv)}
 							{/if}
 							{@render devices()}
 							{#if upd}
@@ -1186,6 +1216,55 @@
 			{@render pairingPanel(w, starting || (wifiBusy && !w.listening))}
 		{/if}
 	{/if}
+{/snippet}
+
+{#snippet tvRow(t: Tv)}
+	<!-- A TV's six digits where there is no WI-FI panel to carry them (c245;
+	     doc/WIFI.md): the owner's tailnet install. The block is the pairing
+	     panel's own, without the phone's QR. -->
+	{@const live = tvLive(t)}
+	{@const mins = tvMinutes(t)}
+	<div class="row wifi">
+		<div class="label top">TV</div>
+		<div class="ctl col">
+			<div class="pair-tv">
+				<div class="pk">FOR A TV · SIX DIGITS</div>
+				{#if live}
+					<div class="tvcode" aria-label="Pairing code for a TV">
+						<span>{t.code.slice(0, 3)}</span><span>{t.code.slice(3)}</span>
+					</div>
+				{:else}
+					<div class="tvcode dim">
+						{t.state === 'used' ? '✓ USED' : t.state === 'burned' ? 'BURNED' : 'EXPIRED'}
+					</div>
+				{/if}
+				<div class="pnote">TYPE THE ADDRESS'S LAST NUMBER ON THE TV, THEN THESE SIX</div>
+				{#if live}
+					<div class="tvline">
+						{mins > 0
+							? `GOOD FOR ${mins} MIN · ONE TV, ONCE`
+							: 'UNDER A MINUTE LEFT · ONE TV, ONCE'}
+					</div>
+				{:else if t.state === 'used'}
+					<div class="tvline">✓ USED · ONE TV, ONCE</div>
+				{:else if t.state === 'burned'}
+					<div class="tvline">NO TRIES LEFT · MAKE A NEW CODE</div>
+				{:else}
+					<div class="tvline">EXPIRED · MAKE A NEW CODE</div>
+				{/if}
+			</div>
+			<div class="pair-foot">
+				<div class="pf" class:ink={live}>FIVE WRONG TRIES BURN IT</div>
+				<button type="button" class="new" class:acc={!live} disabled={tvBusy} onclick={newTvCode}
+					>NEW CODE</button
+				>
+			</div>
+		</div>
+		{#if !phone.current}<div class="scope wifi-scope">
+				<span class="sa">THIS COMPUTER</span>
+				<span class="sb2">SET HERE ONLY, NEVER FROM A PHONE</span>
+			</div>{/if}
+	</div>
 {/snippet}
 
 {#snippet pairingPanel(w: Wifi, starting: boolean)}

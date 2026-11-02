@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { deviceLabel, isTvApp } from '../src/lib/settings/catalog.ts';
-import { CODE_MS, TV_TRIES, TvPairing, pairedLabel, sixDigits } from '../src/lib/server/pairing.ts';
+import {
+	CODE_MS,
+	TV_TRIES,
+	TvPairing,
+	pairedLabel,
+	sixDigits,
+	tailnetDoor,
+	tailnetHost
+} from '../src/lib/server/pairing.ts';
 
 /**
  * The TV's typed code (c236; doc/TV.md, "Claims to check"): six digits, one
@@ -88,5 +96,38 @@ describe("the TV app's user agent (doc/TV-APP.md)", () => {
 		// /api/devices/sync reads the same user agent and stores the row as a TV
 		// (c244): the page's own kind is only what its screen can say.
 		expect(deviceLabel(tv, isTvApp(tv) ? 'tv' : 'desktop')).toBe('Android TV · Chrome');
+	});
+});
+
+describe("a TV's cookie on the owner's tailnet (c245; doc/SIGN-IN.md)", () => {
+	it('opens only on the instance’s own public host', () => {
+		// https mode: tailscale serve's certificate name, and the port serve.ts
+		// puts in ORIGIN (443 has none).
+		expect(tailnetHost('https://name.ts.net:8443')).toBe('name.ts.net:8443');
+		expect(tailnetHost('https://name.ts.net')).toBe('name.ts.net');
+		// http mode: the tailnet address itself.
+		expect(tailnetHost('http://100.101.102.103:42143')).toBe('100.101.102.103:42143');
+		expect(tailnetDoor('https://name.ts.net:8443', 'name.ts.net:8443')).toBe(true);
+		expect(tailnetDoor('https://name.ts.net:8443', 'NAME.TS.NET:8443')).toBe(true);
+	});
+
+	it('never on a loopback name: the computer itself gains nothing from it', () => {
+		for (const origin of ['http://localhost:42143', 'http://127.0.0.1:42143', 'http://[::1]:42143'])
+			expect(tailnetHost(origin)).toBeNull();
+		expect(tailnetDoor('https://name.ts.net:8443', 'localhost:8443')).toBe(false);
+		expect(tailnetDoor('https://name.ts.net:8443', '127.0.0.1:8443')).toBe(false);
+		expect(tailnetDoor('https://name.ts.net:8443', '[::1]:8443')).toBe(false);
+	});
+
+	it('fails closed: no origin, or another host, is no door at all', () => {
+		expect(tailnetHost(undefined)).toBeNull();
+		expect(tailnetHost('')).toBeNull();
+		expect(tailnetHost('not a url')).toBeNull();
+		expect(tailnetDoor(undefined, 'name.ts.net:8443')).toBe(false);
+		expect(tailnetDoor('not a url', 'name.ts.net:8443')).toBe(false);
+		// The port is part of the door, and another name is another door.
+		expect(tailnetDoor('https://name.ts.net:8443', 'name.ts.net')).toBe(false);
+		expect(tailnetDoor('https://name.ts.net:8443', 'other.ts.net:8443')).toBe(false);
+		expect(tailnetDoor('https://name.ts.net:8443', null)).toBe(false);
 	});
 });

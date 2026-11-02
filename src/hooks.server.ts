@@ -14,7 +14,7 @@ import {
 	isValidSession
 } from '$lib/server/auth';
 import { foreignHost, loopbackRedirect } from '$lib/server/bind';
-import { PAIRED_COOKIE, pairedBy } from '$lib/server/pairing';
+import { PAIRED_COOKIE, pairedBy, tailnetDoor } from '$lib/server/pairing';
 import { lanHosts, viaLan } from '$lib/server/wifi';
 import { isRevealed, themeOf } from '$lib/server/prefs';
 
@@ -72,7 +72,19 @@ const guard: Handle = async ({ event, resolve }) => {
 		if (!mode.configured && !mode.devBypass) {
 			error(503, 'TSUNDOKU_TOKEN is not configured');
 		}
-		authed = mode.configured ? isValidSession(event.cookies.get(SESSION_COOKIE)) : mode.devBypass;
+		// A TV that paired on the tailnet signs in with its own cookie (c245;
+		// doc/SIGN-IN.md). Only a request that names the instance's own public
+		// host gets that door: in https mode the app is on 127.0.0.1 behind
+		// tailscale serve, so every request -- tailnet ones included -- comes
+		// from loopback and the address cannot tell them apart. No origin
+		// known, no door: the cookie signs nothing in (tailnetDoor).
+		const paired = tailnetDoor(process.env.ORIGIN, event.request.headers.get('host'))
+			? pairedBy(event.cookies.get(PAIRED_COOKIE))
+			: null;
+		event.locals.paired = paired;
+		authed =
+			!!paired ||
+			(mode.configured ? isValidSession(event.cookies.get(SESSION_COOKIE)) : mode.devBypass);
 	}
 
 	event.locals.authed = authed;
