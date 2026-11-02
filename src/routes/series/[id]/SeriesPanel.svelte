@@ -1851,4 +1851,50 @@
 	.ring {
 		box-shadow: inset 0 0 0 2px var(--accent);
 	}
+	/* ---- the TV (c238; TV-Series) ----------------------------------------- */
+	@media (pointer: none) and (min-width: 900px) {
+		.panel {
+			--cov-w: 96px;
+			--title-size: 22px;
+			--label-w: 116px;
+			--cta-h: 64px;
+			--ns-w: 72px;
+		}
+		/* Identity at the top of the 352px column: a 96px cover, the title,
+		   the meta and the rating (TV-Series, 100..258). */
+		.identity {
+			gap: 16px;
+			padding: 16px 0;
+		}
+		.names {
+			gap: 8px;
+		}
+		h1 {
+			font-size: 22px;
+		}
+		.meta {
+			font: var(--type-meta);
+		}
+		/* CONTINUE, the one accent block: 64px, focused on arrival. */
+		.cta {
+			margin-top: 16px;
+			padding: 0 20px;
+			gap: 14px;
+			font: var(--type-control);
+			letter-spacing: 0.02em;
+		}
+		/* The rows under it are one ruled block, 56px a row. */
+		.row {
+			min-height: 56px;
+		}
+		.label {
+			font: var(--type-label);
+		}
+		.edit,
+		.lc,
+		.seg button,
+		.picks button {
+			font-size: 15px;
+		}
+	}
 </style>

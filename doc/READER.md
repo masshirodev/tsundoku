@@ -159,11 +159,14 @@ sheet doesn't jump when MODE changes.
 
 ### Spreads
 
-Spreads are landscape only and off by default. The first page, a cover,
-stands alone, then pages pair up. A wide page (wider than it is tall) is
-already a spread, so it stands alone and restarts the pairing. SHIFT PAIRING
-moves the pairing by one for a chapter whose spreads split wrong. In R→L the
-first page of a pair sits on the right, and the two meet at the gutter.
+Spreads are landscape only and off by default -- **on except a TV**, where a
+16:9 surface seen from the couch opens two pages (c238; a stored choice still
+wins). The first page, a cover, stands alone, then pages pair up. A wide page
+(wider than it is tall) is already a spread, so it stands alone and restarts
+the pairing. SHIFT PAIRING moves the pairing by one for a chapter whose spreads
+split wrong. In R→L the first page of a pair sits on the right, and the two
+meet at the gutter. On a TV, and only there, the vertical strip is 520px wide
+([`TV.md`](TV.md)).
 
 ### Crop borders
 

@@ -33,6 +33,8 @@ const DEVICE_IGNORE = [
 	'**/friend-*.e2e.ts',
 	'**/*-flow.e2e.ts',
 	'**/library-frame.e2e.ts',
+	// The TV's own specs run in the `tv` project, whose Chromium has no pointer.
+	'**/tv-*.e2e.ts',
 	// SETTINGS' frame is its tablet-portrait screen; the other devices are in settings-flow.
 	'**/settings-frame.e2e.ts',
 	// GET STARTED's and HELP's frames are pinned at tablet-portrait too (doc/ONBOARDING.md, doc/HELP.md).
@@ -109,7 +111,9 @@ export default defineConfig({
 				'**/unlock-gate.e2e.ts',
 				'**/duplicates-flow.e2e.ts',
 				'**/browse-*.e2e.ts',
-				'**/friend-*.e2e.ts'
+				'**/friend-*.e2e.ts',
+				// The TV's own specs run in the `tv` project, whose Chromium has no pointer.
+				'**/tv-*.e2e.ts'
 			],
 			use: { ...devices['Galaxy Tab S4'], viewport: { width: 800, height: 1280 } }
 		},
@@ -126,6 +130,25 @@ export default defineConfig({
 			name: 'desktop',
 			testIgnore: DEVICE_IGNORE,
 			use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } }
+		},
+		{
+			// A TV (c238, doc/TV.md): 960x540 CSS px, no pointer and no hover. A
+			// context cannot set the pointer type, so Chromium is told through
+			// Blink's media-feature settings at launch. `availablePointerTypes`
+			// and `availableHoverTypes` are the pair that makes
+			// matchMedia('(pointer: none)') true; setting the primary ones as
+			// well turns it false again (tests/tv-layout.e2e.ts proves both the
+			// query and the TV variables, so this cannot rot silently).
+			name: 'tv',
+			testMatch: ['**/tv-*.e2e.ts', '**/library-layout.e2e.ts', '**/series-layout.e2e.ts'],
+			use: {
+				...devices['Desktop Chrome'],
+				viewport: { width: 960, height: 540 },
+				deviceScaleFactor: 1,
+				launchOptions: {
+					args: ['--blink-settings=availablePointerTypes=none,availableHoverTypes=none']
+				}
+			}
 		},
 		{
 			// A friend's install (doc/SIGN-IN.md): SET UP, a password, none. One
@@ -162,13 +185,13 @@ export default defineConfig({
 			// after every device, nothing else loads the library meanwhile.
 			name: 'duplicates',
 			testMatch: '**/duplicates-flow.e2e.ts',
-			dependencies: ['tablet-portrait', 'tablet-landscape', 'phone', 'desktop'],
+			dependencies: ['tablet-portrait', 'tablet-landscape', 'phone', 'desktop', 'tv'],
 			use: { ...devices['Galaxy Tab S4'], viewport: { width: 800, height: 1280 } }
 		},
 		{
 			name: 'gate',
 			testMatch: '**/unlock-gate.e2e.ts',
-			dependencies: ['tablet-portrait', 'tablet-landscape', 'phone', 'desktop', 'duplicates'],
+			dependencies: ['tablet-portrait', 'tablet-landscape', 'phone', 'desktop', 'tv', 'duplicates'],
 			use: { ...devices['Galaxy Tab S4'], viewport: { width: 800, height: 1280 } }
 		}
 	]

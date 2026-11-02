@@ -209,7 +209,12 @@
 <!-- A tap anywhere shows the controls, the side margins included, unless it's on a text block; scrolling is the only way to move. -->
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 <div class="lane" class:wider={zoom > 1} bind:this={lane} onclick={ontap}>
-	<div class="strip" bind:this={root} style:width="{(100 - 2 * sides) * zoom}%">
+	<div
+		class="strip"
+		bind:this={root}
+		style:--strip-width="{(100 - 2 * sides) * zoom}%"
+		style:--strip-zoom={zoom}
+	>
 		{#if stopPrev}
 			<!-- Stopped at the chapter's ends (c206): the one before, by choice. -->
 			<section class="band stop top" aria-label="Previous chapter">
@@ -296,7 +301,7 @@
 	.strip {
 		display: flex;
 		flex-direction: column;
-		width: 100%;
+		width: var(--strip-width);
 		max-width: 100vw;
 		margin: 0 auto;
 		/* The reader keeps the place itself as chapters come and go above it
@@ -377,5 +382,11 @@
 	.band.stop.top {
 		padding-top: 24px;
 		padding-bottom: 24px;
+	}
+	/* The TV's strip is 520 wide, centred, at any zoom (TV-Reader, state 7C). */
+	@media (pointer: none) and (min-width: 900px) {
+		.strip {
+			width: calc(var(--tv-strip-w) * var(--strip-zoom, 1));
+		}
 	}
 </style>

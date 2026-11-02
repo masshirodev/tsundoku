@@ -17,6 +17,7 @@
 	} from '$lib/reader/smooth-scroll';
 	import type { PageData } from './$types';
 	import { MediaQuery } from 'svelte/reactivity';
+	import { TV } from '$lib/device.svelte';
 	import {
 		clampZoom,
 		DOUBLE_TAP_MS,
@@ -132,9 +133,12 @@
 	/** Japanese: when the text blocks are outlined (doc/JAPANESE.md, "The tap rule"). */
 	let blocksShown = $state<BlocksShown>('controls');
 	let shift = $state(false);
+	const tvScreen = new MediaQuery(TV, false);
 	onMount(() => {
 		fit = stored<Fit>('fit', 'screen');
-		spreadsOn = stored('spreads', false);
+		// A TV is a 16:9 surface seen from the couch: a spread by default, as
+		// TV-Reader draws it (the device's stored choice still wins).
+		spreadsOn = stored('spreads', tvScreen.current);
 		dim = stored('dim', 0);
 		sides = stored('sides', 0);
 		wide = stored('wide', 'fit');

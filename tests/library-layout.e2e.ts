@@ -19,13 +19,17 @@ type Frame = {
 	cont: number;
 	contCols: number;
 	sidebar: boolean;
+	/** A continue row's own left padding, where it differs from the page's. */
+	rowPad?: number;
 };
 
 const FRAMES: Record<string, Frame> = {
 	'tablet-portrait': { cols: 6, header: 72, pad: 24, cont: 4, contCols: 1, sidebar: false },
 	'tablet-landscape': { cols: 9, header: 72, pad: 24, cont: 4, contCols: 2, sidebar: false },
 	phone: { cols: 3, header: 60, pad: 16, cont: 2, contCols: 1, sidebar: false },
-	desktop: { cols: 8, header: 64, pad: 24, cont: 4, contCols: 2, sidebar: true }
+	desktop: { cols: 8, header: 64, pad: 24, cont: 4, contCols: 2, sidebar: true },
+	// TV Calls.dc.html: 6 x 144px columns, a 56px header, CONTINUE 3 across.
+	tv: { cols: 6, header: 56, pad: 48, cont: 3, contCols: 3, sidebar: false, rowPad: 8 }
 };
 
 test('the library frame matches the design for this device', async ({ page }, info) => {
@@ -45,7 +49,9 @@ test('the library frame matches the design for this device', async ({ page }, in
 	expect((await header.boundingBox())!.height).toBe(frame.header);
 
 	const row = page.locator('.cont > .row').first();
-	expect(await row.evaluate((n) => getComputedStyle(n).paddingLeft)).toBe(`${frame.pad}px`);
+	expect(await row.evaluate((n) => getComputedStyle(n).paddingLeft)).toBe(
+		`${frame.rowPad ?? frame.pad}px`
+	);
 	// Rendered once and shown per device by CSS, so the server's first paint is
 	// already right; count what is visible, not what is in the DOM.
 	const shown = await page

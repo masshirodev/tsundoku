@@ -59,7 +59,8 @@ first stop in the scope, or the top-left one on the page.
 
 **Scrolling** is `scrollIntoView({ block: 'nearest', inline: 'nearest',
 behavior: 'instant' })` — instant, never smooth. In a uniform grid that moves a
-whole row. The TV's own header, focus line and whole-row scroll are c238's.
+whole row. The TV's focus line and pinned tabs are built (`doc/TV.md`,
+c238); whole-row scrolling is still the layer's nearest.
 
 **A held arrow** repeats at the remote's rate and we do nothing special: every
 keydown is one move.
@@ -103,6 +104,9 @@ without hiding them from Tab:
 textarea or a contenteditable keeps all four. A `<select>` keeps ←/→ to change
 its value in place (a remote has no other key for it) and lets ↑/↓ leave, or the
 sort control would trap the pad. A range input is a slider and keeps all four.
+**A ruled row that adjusts a value** says so with `data-focus-adjust` and keeps
+←/→ only, so ↑/↓ still leave it: the series screen's rating row (c238) moves by
+half a bar, saved as it changes.
 
 ## The mark
 
@@ -171,17 +175,18 @@ had no styles. Screen by screen:
   rating slider; the scope makes them reachable and trapped.
 - **Readers and player.** Opted out (above), so their arrows are untouched.
 
-Known gaps, left on purpose: the focus line and the OK-held options belong to
-c235/c238; a tile's rating and FAV are Tab stops, not arrow stops, on the
-desktop; `PersonView`, `/history`, `/settings`, `/browse`, `/downloads`,
-`/links` and `/duplicates` were not given the inside mark everywhere (their
-actions are already buttons and links, and their layouts are not the couch's).
+Known gaps, left on purpose: the held-OK options belong to c235; a tile's
+rating and FAV are Tab stops, not arrow stops, on the desktop; `PersonView`,
+`/history`, `/settings`, `/browse`, `/downloads`, `/links` and `/duplicates`
+were not given the inside mark everywhere (their actions are already buttons and
+links, and their layouts are not the couch's). BACK climbing the screen is
+still c235's.
 
 ## Departures from the design, and why
 
-- **Whole-row scrolling and the focus line** are c238's: the layer scrolls the
-  nearest it can, and the TV layout will pin the header and name the focused
-  cover.
+- **Whole-row scrolling** is c238's next step: the layer scrolls the nearest it
+  can; the TV's focus line and pinned tabs are built, but the grid still scrolls
+  by `scrollIntoView` rather than snapping to whole rows.
 - **The reader and the player keep every arrow.** The design says the player
   with its controls shown moves between them; that row is c235's, so for now the
   whole player opts out rather than half of it.

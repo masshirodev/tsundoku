@@ -30,6 +30,7 @@
 	import Wordmark from '$lib/components/chrome/Wordmark.svelte';
 	import ContinueRow from '$lib/components/content/ContinueRow.svelte';
 	import CoverTile from '$lib/components/content/CoverTile.svelte';
+	import FocusLine from '$lib/components/content/FocusLine.svelte';
 	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
 	import { waiting } from '$lib/waiting.svelte';
 	import { postAction, saves } from '$lib/saves.svelte';
@@ -66,7 +67,8 @@
 		parseSort,
 		progress,
 		SORT_NAME,
-		SORTS
+		SORTS,
+		sheetMeta
 	} from '$lib/library/labels';
 	import { coverSrc, readHref, seriesHref, shelfHref, withParam } from '$lib/library/links';
 	import type { Rating, SeriesCard, Shelf } from '$lib/library/types';
@@ -505,6 +507,13 @@
 
 	const cachedCount = (id: number) => offline.cached[id] ?? 0;
 
+	/**
+	 * The TV focus line's second line (c238): the kind, the counts and where
+	 * you are, +N NEW, and FAV -- the same facts the cover's sheet opens with
+	 * (sheetMeta), so the line and the panel agree.
+	 */
+	const focusMeta = (s: SeriesCard) => `${sheetMeta(s)}${s.favourite ? ' · FAV' : ''}`;
+
 	/** A card's languages as codes: a folded book's, else its `language:` tag. */
 	const codesOf = (s: SeriesCard) => s.languages ?? (s.language ? [langCode(s.language)] : []);
 
@@ -684,7 +693,9 @@
 				</div>
 			{/snippet}
 			{#snippet right()}
-				<button type="button" class="cell-btn" onclick={() => (selecting = true)}>SELECT</button>
+				<button type="button" class="cell-btn select-cell" onclick={() => (selecting = true)}
+					>SELECT</button
+				>
 			{/snippet}
 		</TopBar>
 	{:else}
@@ -739,7 +750,7 @@
 				{/if}
 				<button
 					type="button"
-					class="cell-btn"
+					class="cell-btn select-cell"
 					data-focus-mark="in"
 					onclick={() => (selecting = true)}
 					disabled={data.empty}>SELECT</button
@@ -995,6 +1006,9 @@
 			{/if}
 		</div>
 
+		<!-- The TV's focus line, under the pinned tabs (c238; only a TV draws it). -->
+		<FocusLine />
+
 		{#if outlined}
 			<GridOutline />
 		{:else if data.shelf !== 'people'}
@@ -1017,6 +1031,7 @@
 						selected={selected.has(s.id)}
 						focusId={`series-${s.id}`}
 						startFocus={!showContinue && i === 0}
+						meta={focusMeta(s)}
 						onpress={() => press(s.id)}
 						onlongpress={() => (selecting ? toggle(s.id) : (sheetId = s.id))}
 						onfavourite={isOffline ? undefined : (on) => favourite(s.id, on)}
@@ -1621,5 +1636,57 @@
 		border-top: var(--hairline);
 		font: 500 13px var(--font-mono);
 		color: var(--accent);
+	}
+
+	/* ---- the TV (c238; TV-Library) ---------------------------------------- */
+	@media (pointer: none) and (min-width: 900px) {
+		.library {
+			padding-bottom: var(--safe-y);
+		}
+		/* Bulk tidying is not a couch job (TV Calls, "03 — SIDEBAR"). */
+		.select-cell {
+			display: none;
+		}
+		.search-hint {
+			gap: 10px;
+			justify-content: flex-start;
+			padding: 0 22px;
+			font: 400 17px/1.2 var(--font-mono);
+			/* The handoff's computed 0.32px, transcribed as the extraction reads it. */
+			letter-spacing: 0.32px;
+		}
+		/* CONTINUE: three cards across, 288x120, inside the safe margin. */
+		.cont {
+			margin: 0 var(--pad);
+			gap: 1px;
+			background: var(--line-1);
+			border: var(--hairline);
+		}
+		.cont > :global(.row) {
+			background: var(--surface-page);
+		}
+		.cont > :global(:nth-child(n + 4)) {
+			display: none;
+		}
+		/* The shelf tabs pin under the safe top as the header and CONTINUE
+		   scroll away (state 3B). */
+		.tabs {
+			position: sticky;
+			top: 0;
+			z-index: 9;
+			height: var(--tv-tab-h);
+			margin: 0 var(--pad);
+			border: var(--hairline);
+			background: var(--surface-page);
+		}
+		.tabs > :global(nav) {
+			height: 100%;
+		}
+		/* Six 144px cells inside the safe margin; the grid's own hairline. */
+		.grid {
+			margin: 0 var(--pad);
+			border-left: var(--hairline);
+			border-right: var(--hairline);
+		}
 	}
 </style>

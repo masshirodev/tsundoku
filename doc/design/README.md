@@ -149,7 +149,9 @@ departure isn't written down here, it's a bug.
 4. **"Desktop" means a fine pointer.** The design draws desktop at 1440px and
    landscape tablet at 1280px, both wider than 1024px. They're told apart by
    `(pointer: fine)`, so a tablet in landscape keeps the touch layout with no
-   sidebar.
+   sidebar. **"TV" is the other pointer extreme:** `(pointer: none)` on a screen
+   at least 900px wide, and `WIDE` excludes it, so a 1280px TV is not also the
+   wide layout. It is the ten-foot layout in [`../TV.md`](../TV.md).
 5. **The grid pads its last row** with empty cells in the page colour. The mock
    always has full rows. A real library doesn't, and the `--line-1` ground
    would otherwise show as grey blocks.

@@ -1090,4 +1090,47 @@
 			border-bottom: var(--hairline);
 		}
 	}
+
+	/* ---- the TV (c238; TV-Series) ----------------------------------------- */
+	@media (pointer: none) and (min-width: 900px) {
+		.bar {
+			margin-top: var(--safe-y);
+		}
+		.cell {
+			font: var(--type-control);
+			letter-spacing: 0.02em;
+		}
+		.mid {
+			padding: 0 22px;
+		}
+		.title {
+			font: var(--type-row);
+		}
+		/*
+		 * The metadata is a 352px column at the left and the list sits beside
+		 * it, 32px away, both inside the 48px safe margin (TV-Series: the
+		 * panel at 48..400, the list at 432..912).
+		 */
+		.body {
+			flex-direction: row;
+			height: calc(100dvh - var(--header-h) - var(--safe-y) - var(--banner-h, 0px));
+			flex: none;
+			gap: 32px;
+			padding: 0 var(--pad);
+		}
+		.panel-col {
+			flex-shrink: 0;
+			width: 352px;
+			overflow-y: auto;
+			border-right: 0;
+		}
+		.list-col {
+			flex: 1;
+			overflow-y: auto;
+			--rail-h: calc(100dvh - var(--header-h) - var(--safe-y) - var(--banner-h, 0px) - 36px);
+		}
+		.series {
+			--list-top: 0px;
+		}
+	}
 </style>

@@ -22,7 +22,7 @@
 	} = $props();
 </script>
 
-<div class="label" style:padding-top="{top}px">
+<div class="label" style:--label-top="{top}px">
 	<div>
 		{index != null
 			? `${String(index).padStart(2, '0')} — `
@@ -37,7 +37,7 @@
 		display: flex;
 		justify-content: space-between;
 		gap: 12px;
-		padding: 24px var(--pad) 12px;
+		padding: var(--tv-label-top, var(--label-top, 24px)) var(--pad) 12px;
 		font: var(--type-label);
 		letter-spacing: var(--tracking-label);
 		color: var(--text-2);
@@ -52,5 +52,15 @@
 	.right :global(button) {
 		all: unset;
 		cursor: pointer;
+	}
+	/* The TV's section label is a 36px band (tv.css .sl): 9px under it, none
+	   above the rule the content before it already drew. */
+	@media (pointer: none) and (min-width: 900px) {
+		.label {
+			--tv-label-top: 9px;
+			align-items: flex-end;
+			min-height: 36px;
+			padding-bottom: 9px;
+		}
 	}
 </style>
