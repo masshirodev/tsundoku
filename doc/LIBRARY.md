@@ -12,30 +12,30 @@ Routes: `/` (the library, with `?shelf=`, `?tag=`, `?sort=`, `?dir=`), `/search?
 The mock draws each state from a `state` prop. The code has no such prop: every
 state is the result of real data or real input.
 
-| State            | What drives it                                                                                                                                                                                                                                                              |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Home             | Default.                                                                                                                                                                                                                                                                    |
-| Long-press sheet | Pressing and holding a tile for 450ms, or a right-click. A plain tap opens the series screen ([`SERIES.md`](SERIES.md)). Esc or the scrim closes it.                                                                                                                        |
-| Search           | `/search`. Results follow the typing, 180ms behind it, by replacing the URL.                                                                                                                                                                                                |
-| Multi-select     | SELECT in the header. Taps then toggle tiles, and the bulk bar applies FAV, + SHELF, TAG, GROUP or HIDE to exactly the selection. GROUP is enabled only when every selected tile is a single book ([`BOOKS.md`](BOOKS.md)).                                                 |
-| Person / tag     | `/?tag=namespace:value`, from a tag on the series screen or a chip. The person header replaces CONTINUE ([`BOOKS.md`](BOOKS.md)). A tag with nothing visible is a 404.                                                                                                      |
-| History          | **N OPEN · HISTORY →** on CONTINUE, and a HISTORY row in the desktop sidebar, open [`HISTORY.md`](HISTORY.md)'s screen.                                                                                                                                                     |
-| Rescan           | **RESCAN** in the desktop sidebar, or typing `/scan`. Starts the same import as START SCAN; a press while one runs joins it. With nothing to import, the sidebar says where it looked, under the row ([`IMPORT-MIHON.md`](IMPORT-MIHON.md)).                                |
-| Incognito        | Typing `/incognito`. A dashed INCOGNITO · NOTHING SAVED band with END, on every screen ([`PRIVACY.md`](PRIVACY.md)).                                                                                                                                                        |
-| Words            | Typing `/words`. The words looked up while reading Japanese, waiting for review ([`JAPANESE.md`](JAPANESE.md)).                                                                                                                                                             |
-| Duplicates band  | Pairs of books with alike covers to review, only those the viewer can see: **N POSSIBLE DUPLICATES · REVIEW →** ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md)).                                                                                                               |
-| Queue cell       | QUEUE over its count, a cell before SELECT, while chapters are queued; DOWNLOADS in the desktop sidebar's foot. Dimmed at its last count offline or when the engine isn't answering ([`DOWNLOADING.md`](DOWNLOADING.md)).                                                   |
-| Failures band    | Downloads that failed, as the duplicates band is drawn: **N DOWNLOADS FAILED**, the series, **REVIEW →** to the queue. Hidden series are never counted with reveal off.                                                                                                     |
-| Links band       | Series AniList found, not for certain, to review, only those the viewer can see: **N SERIES TO LINK · REVIEW →**, below duplicates. Offline, its REVIEW cell dims ([`LINKS.md`](LINKS.md)).                                                                                 |
-| PEOPLE shelf     | `?shelf=people`. Exists while a favourite person has a visible book, and lists them as chips instead of a grid.                                                                                                                                                             |
-| SERIES, ONE-OFF  | `?shelf=series`, `?shelf=oneoff`: the library split by what a thing is. A one-off is a single doujin book; everything else is a series ([`FILTERS.md`](FILTERS.md)).                                                                                                        |
-| FILTER           | The FILTER cell at the end of the tabs (the top bar on the desktop) narrows whichever shelf is showing: rating, FAV, language, date added, downloaded, and hidden while reveal is on. Favourites, rated and downloaded were shelves until c68 ([`FILTERS.md`](FILTERS.md)). |
-| Kind shelves     | `?shelf=k:manga`, `k:manhwa`, `k:novel`, `k:anime`: MANGA, MANHWA, NOVELS and ANIME ([`ANIME.md`](ANIME.md)), after ONE-OFF. Each lists one kind and shows only while the library has some. Doujins have no kind shelf; they're books, grouped and found by person and tag. |
-| Reveal on        | Typing exactly `/reveal` in search and pressing Enter. A **session** cookie, so closing the app also ends it. HIDE AGAIN, or `/hide`, ends it.                                                                                                                              |
-| Empty            | No visible series and no scan job.                                                                                                                                                                                                                                          |
-| Importing        | A `scan_jobs` row with no `finished_at`. Series the scanner found but hasn't indexed (`indexed_at IS NULL`) draw as dashed "indexing" tiles.                                                                                                                                |
-| Import finished  | The latest job, finished and not yet dismissed; never an older one behind it, so a rescan that brought nothing leaves no band, not the one before's. TIDY NEW dismisses it and opens the NEW shelf, which keeps what it had.                                                |
-| Offline          | `navigator.onLine` is false. What counts as cached is read from the `tsundoku-entries` Cache Storage bucket.                                                                                                                                                                |
+| State            | What drives it                                                                                                                                                                                                                                                                                                                |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Home             | Default.                                                                                                                                                                                                                                                                                                                      |
+| Long-press sheet | Pressing and holding a tile for 450ms, or a right-click. A plain tap opens the series screen ([`SERIES.md`](SERIES.md)). Esc or the scrim closes it.                                                                                                                                                                          |
+| Search           | `/search`. Results follow the typing, 180ms behind it, by replacing the URL.                                                                                                                                                                                                                                                  |
+| Multi-select     | SELECT in the header. Taps then toggle tiles, and the bulk bar applies FAV, + SHELF, TAG, GROUP, REFRESH, HIDE or DELETE to exactly the selection. GROUP is enabled only when every selected tile is a single book ([`BOOKS.md`](BOOKS.md)); REFRESH asks every selected series' source once ([below](#refresh-a-selection)). |
+| Person / tag     | `/?tag=namespace:value`, from a tag on the series screen or a chip. The person header replaces CONTINUE ([`BOOKS.md`](BOOKS.md)). A tag with nothing visible is a 404.                                                                                                                                                        |
+| History          | **N OPEN · HISTORY →** on CONTINUE, and a HISTORY row in the desktop sidebar, open [`HISTORY.md`](HISTORY.md)'s screen.                                                                                                                                                                                                       |
+| Rescan           | **RESCAN** in the desktop sidebar, or typing `/scan`. Starts the same import as START SCAN; a press while one runs joins it. With nothing to import, the sidebar says where it looked, under the row ([`IMPORT-MIHON.md`](IMPORT-MIHON.md)).                                                                                  |
+| Incognito        | Typing `/incognito`. A dashed INCOGNITO · NOTHING SAVED band with END, on every screen ([`PRIVACY.md`](PRIVACY.md)).                                                                                                                                                                                                          |
+| Words            | Typing `/words`. The words looked up while reading Japanese, waiting for review ([`JAPANESE.md`](JAPANESE.md)).                                                                                                                                                                                                               |
+| Duplicates band  | Pairs of books with alike covers to review, only those the viewer can see: **N POSSIBLE DUPLICATES · REVIEW →** ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md)).                                                                                                                                                                 |
+| Queue cell       | QUEUE over its count, a cell before SELECT, while chapters are queued; DOWNLOADS in the desktop sidebar's foot. Dimmed at its last count offline or when the engine isn't answering ([`DOWNLOADING.md`](DOWNLOADING.md)).                                                                                                     |
+| Failures band    | Downloads that failed, as the duplicates band is drawn: **N DOWNLOADS FAILED**, the series, **REVIEW →** to the queue. Hidden series are never counted with reveal off.                                                                                                                                                       |
+| Links band       | Series AniList found, not for certain, to review, only those the viewer can see: **N SERIES TO LINK · REVIEW →**, below duplicates. Offline, its REVIEW cell dims ([`LINKS.md`](LINKS.md)).                                                                                                                                   |
+| PEOPLE shelf     | `?shelf=people`. Exists while a favourite person has a visible book, and lists them as chips instead of a grid.                                                                                                                                                                                                               |
+| SERIES, ONE-OFF  | `?shelf=series`, `?shelf=oneoff`: the library split by what a thing is. A one-off is a single doujin book; everything else is a series ([`FILTERS.md`](FILTERS.md)).                                                                                                                                                          |
+| FILTER           | The FILTER cell at the end of the tabs (the top bar on the desktop) narrows whichever shelf is showing: rating, FAV, language, date added, downloaded, and hidden while reveal is on. Favourites, rated and downloaded were shelves until c68 ([`FILTERS.md`](FILTERS.md)).                                                   |
+| Kind shelves     | `?shelf=k:manga`, `k:manhwa`, `k:novel`, `k:anime`: MANGA, MANHWA, NOVELS and ANIME ([`ANIME.md`](ANIME.md)), after ONE-OFF. Each lists one kind and shows only while the library has some. Doujins have no kind shelf; they're books, grouped and found by person and tag.                                                   |
+| Reveal on        | Typing exactly `/reveal` in search and pressing Enter. A **session** cookie, so closing the app also ends it. HIDE AGAIN, or `/hide`, ends it.                                                                                                                                                                                |
+| Empty            | No visible series and no scan job.                                                                                                                                                                                                                                                                                            |
+| Importing        | A `scan_jobs` row with no `finished_at`. Series the scanner found but hasn't indexed (`indexed_at IS NULL`) draw as dashed "indexing" tiles.                                                                                                                                                                                  |
+| Import finished  | The latest job, finished and not yet dismissed; never an older one behind it, so a rescan that brought nothing leaves no band, not the one before's. TIDY NEW dismisses it and opens the NEW shelf, which keeps what it had.                                                                                                  |
+| Offline          | `navigator.onLine` is false. What counts as cached is read from the `tsundoku-entries` Cache Storage bucket.                                                                                                                                                                                                                  |
 
 ## Hidden means hidden
 
@@ -139,6 +139,43 @@ chapters had put their series back on NEW and on the `+N` badge. So a
 series arrives only with a chapter that is still unread, rung 36 redated the
 existing ones by their newest unread arrival, and `+N` counts a downloaded
 chapter only while it's unread.
+
+## REFRESH a selection
+
+The bulk bar's REFRESH cell (card c221) is the series screen's REFRESH over
+many series at once: it asks each selected series' source what it lists now,
+through the same `refreshSeries` (`src/lib/server/refresh.ts`), and **downloads
+nothing** — FOLLOW stays the only thing that queues ([`DOWNLOADING.md`](DOWNLOADING.md),
+"REFRESH"). It works on the library and on a tag or person page, which share
+the bar.
+
+- **A few dozen a run.** One run asks `REFRESH_BATCH` (24) series, in the order
+  the selection was made. A larger selection is not refused: the band above the
+  bar says how many were **not asked** and offers **ASK N MORE**, which sends
+  the rest as another run. That keeps one request minutes-short even when a
+  source is slow.
+- **The band is the library's**, pinned over the bar that asked. Its title says
+  how many were asked and how many found something ("12 ASKED · 3 FOUND
+  SOMETHING"); its detail names the sources that **failed** (the first three,
+  then "…" — a source that is down fails the whole run), then how many were
+  skipped, then how many are left. Failures are named, not explained: open the
+  series and REFRESH it alone for the message.
+- **A source that doesn't answer doesn't stop the run.** Each series is asked on
+  its own, and one that throws or misses `REFRESH_TIMEOUT_MS` (30 s) is that
+  run's failure; the rest still run. A call abandoned at its deadline may still
+  write what it found afterwards, which is the same entries a second REFRESH
+  would make.
+- **No source, no ask.** A Henga book, a Mihon import found on disk, an EPUB: it
+  is skipped and counted as skipped, not refused.
+- **Hidden means hidden here too.** The selection is filtered in SQL
+  (`libraryWhere`), so with reveal off a hidden series is never asked, even if
+  a form sent its id.
+- The words are messages (`library_refresh*`, [`I18N.md`](I18N.md)); the band
+  appears only while the selection is still open, and the next run replaces it.
+
+`tests/refresh-batch-db.spec.ts` covers the batch itself (skip, failure,
+deadline, bound, hidden), and `tests/downloads-flow.e2e.ts` drives the cell
+against a fake engine.
 
 ## Speed
 

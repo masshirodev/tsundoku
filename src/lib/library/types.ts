@@ -64,6 +64,22 @@ export type ContinueItem = SeriesCard & {
 	entryFraction?: number;
 };
 
+/**
+ * What one REFRESH of a selection did (card c221): the library's band reads
+ * this. `asked` counts the series whose source was asked, failures included;
+ * a series with no source is `skipped`, never asked and never refused.
+ */
+export type RefreshBatch = {
+	asked: number;
+	/** Series that gained at least one chapter or episode. */
+	found: number;
+	skipped: number;
+	/** Titles, sorted, of the sources that threw or did not answer. */
+	failed: string[];
+	/** Selected but past the run's bound, in the selection's order. */
+	remaining: number[];
+};
+
 /** What the long-press sheet shows. */
 export type SeriesDetail = SeriesCard & {
 	/** Collection ids this series is on. */

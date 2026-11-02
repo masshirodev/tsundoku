@@ -718,5 +718,55 @@
 		}
 	],
 	"series_refresh_detail": "NADA BAIXADO · PRÓXIMO OU TODOS MANTÉM",
-	"series_refresh_no_source": "ESTA SÉRIE NÃO VEM DE UMA FONTE"
+	"series_refresh_no_source": "ESTA SÉRIE NÃO VEM DE UMA FONTE",
+	"library_refresh": "ATUALIZAR",
+	"library_refresh_asked": "{n} PERGUNTADAS · {found} COM NOVIDADE",
+	"library_refresh_nothing": "NADA A PERGUNTAR",
+	"library_refresh_all_answered": "TODAS RESPONDERAM",
+	"library_refresh_skipped": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} PULADA",
+				"countPlural=*": "{n} PULADAS"
+			}
+		}
+	],
+	"library_refresh_skipped_all": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} PULADA · SEM FONTE",
+				"countPlural=*": "{n} PULADAS · SEM FONTE"
+			}
+		}
+	],
+	"library_refresh_failed": [
+		{
+			"declarations": [
+				"input count",
+				"input n",
+				"input titles",
+				"local countPlural = count: plural"
+			],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} FALHOU · {titles}",
+				"countPlural=*": "{n} FALHARAM · {titles}"
+			}
+		}
+	],
+	"library_refresh_not_asked": [
+		{
+			"declarations": ["input count", "input n", "local countPlural = count: plural"],
+			"selectors": ["countPlural"],
+			"match": {
+				"countPlural=one": "{n} NÃO PERGUNTADA",
+				"countPlural=*": "{n} NÃO PERGUNTADAS"
+			}
+		}
+	],
+	"library_refresh_more": "PERGUNTAR MAIS {n}"
 }

@@ -35,6 +35,7 @@ import { setPersonFavourite, tagPage } from '$lib/server/people';
 import { libraryRoot, startScan } from '$lib/server/import';
 import { firstReadExtras, readSources } from '$lib/server/start';
 import { refreshCovers } from '$lib/server/covers';
+import { refreshMany } from '$lib/server/refresh';
 import { deleteSeries } from '$lib/server/delete';
 import { isGated } from '$lib/server/unlock';
 import { pageSizeOf } from '$lib/library/paging';
@@ -220,11 +221,24 @@ export const actions: Actions = {
 	},
 
 	/**
+	 * REFRESH over the selection (card c221; doc/DOWNLOADING.md, "REFRESH"):
+	 * each series whose source can be asked is asked once, through the same
+	 * `refreshSeries` the series screen uses, and nothing is downloaded. The
+	 * batch bounds itself and leaves out what reveal hides, so the band can
+	 * say what was asked, what found something, and what failed.
+	 */
+	refresh: async ({ request, cookies }) => {
+		const result = await refreshMany(ids(await request.formData()), {
+			reveal: isRevealed(cookies)
+		});
+		return { refreshed: result };
+	},
+
+	/**
 	 * FOLD AS LANGUAGES (doc/EDITIONS.md): two or three single books, one per
 	 * language, go to the duplicates review as a pair to fold -- the review is
 	 * where editions are folded, whoever found them.
-	 */
-	fold: async ({ request }) => {
+	 */ fold: async ({ request }) => {
 		const target = ids(await request.formData());
 		if (target.length < 2 || target.length > 3)
 			return fail(400, { foldMessage: 'FOLD TWO OR THREE BOOKS' });
