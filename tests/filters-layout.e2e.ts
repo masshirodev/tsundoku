@@ -16,6 +16,10 @@ test('the panel, as the mock measures it on this device', async ({ page }, info)
 	await page.goto('/?shelf=all&min=8');
 	const cell = page.locator('summary', { hasText: 'FILTER' }).filter({ visible: true });
 	await expect(cell).toHaveCount(1);
+	// Hydration's bind:open shuts a panel a native click opened (filters-flow).
+	await page
+		.waitForFunction(() => document.cookie.includes('tsundoku_js=1'), null, { timeout: 2000 })
+		.catch(() => undefined);
 	expect(await px(cell, 'font-size')).toBe('14px');
 	expect(await px(cell, 'border-left-width')).toBe('1px');
 	await cell.click();
