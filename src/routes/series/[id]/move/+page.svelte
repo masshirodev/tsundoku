@@ -112,7 +112,11 @@
 
 <TopBar strong label="Move to another source">
 	{#snippet left()}
-		<a class="cell back" href={resolve('/series/[id]', { id: String(data.series.id) })}>
+		<a
+			class="cell back"
+			href={resolve('/series/[id]', { id: String(data.series.id) })}
+			data-focus-mark="in"
+		>
 			← <span class="long">SERIES</span>
 		</a>
 	{/snippet}
@@ -194,7 +198,12 @@
 										</span>
 									</div>
 								{:else}
-									<a class="cand" class:on={data.to === h.mangaId} href={toHref(h.mangaId)}>
+									<a
+										class="cand"
+										class:on={data.to === h.mangaId}
+										href={toHref(h.mangaId)}
+										data-focus-mark="in"
+									>
 										<Cover src={h.cover} width={44} height={62} />
 										<span class="text">
 											<span class="t">{h.title}</span>
@@ -433,7 +442,7 @@
 
 			{#if c.conflict}
 				<div class="confirm blocked">
-					<a class="cancel" href={clearTo()}>← CANCEL</a>
+					<a class="cancel" href={clearTo()} data-focus-mark="in">← CANCEL</a>
 					<div class="note">
 						<span class="ink">THAT IS ALREADY {c.conflict.title.toUpperCase()} IN THE LIBRARY</span>
 						<span>TWO SERIES FROM ONE ENTRY · JOIN THEM IN MIGHT BE ONE SERIES</span>
@@ -441,14 +450,16 @@
 				</div>
 			{:else}
 				<form class="confirm" method="POST" action="?/move">
-					<a class="cancel" href={clearTo()}>← CANCEL</a>
+					<a class="cancel" href={clearTo()} data-focus-mark="in">← CANCEL</a>
 					<div class="note">
 						<span class="ink">NOTHING DOWNLOADS ON MOVE</span>
 						<span>MOVE BACK STAYS ON THE SERIES FOR 30 DAYS</span>
 					</div>
 					<input type="hidden" name="to" value={data.to ?? ''} />
 					<input type="hidden" name="offset" value={String(c.offset?.value ?? 1)} />
-					<button class="go" type="submit">MOVE TO {c.candidate.source.toUpperCase()} →</button>
+					<button class="go" type="submit" data-focus-mark="in"
+						>MOVE TO {c.candidate.source.toUpperCase()} →</button
+					>
 				</form>
 			{/if}
 		{:else if data.comparisonError}

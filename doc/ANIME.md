@@ -278,7 +278,10 @@ screen but the video, and the subtitles, until a tap.
   its first frame, where a half-faded black box over the picture read as a
   translucent patch.
 - **Keys**: space, ← →, ↑ ↓ (volume), F, M, C (subtitles), S (skip), N (next),
-  Esc (full screen, then the player), ? (the KEYS sheet).
+  Esc (full screen, then the player), ? (the KEYS sheet). A remote's media
+  keys work on every device (c235): ▶❚❚ plays or pauses, ⏩ ⏪ seek 10 s,
+  ⏭ the next episode and ⏮ the previous one — harmless where nothing sends
+  them, and the only player keys a remote has ([`TV.md`](TV.md)).
 - **The settings sheet**, the middle cell ("JA · EN SUBS · 1080P · 1×"): a
   520px side sheet with the picture playing beside it. QUALITY (this
   server's), SERVER (the hosters by name, the one playing and the ones that
@@ -301,6 +304,17 @@ screen but the video, and the subtitles, until a tap.
   box, rising above the controls while they show.
 - **SKIP INTRO / SKIP ENDING** only where the source gave timestamps: alone
   for 8 s, then with the controls.
+- **On a TV** (c235; [`TV.md`](TV.md)) the controls are a D-pad row: the
+  picture until a key, then focus on ▶❚❚ and all six cells on one line —
+  ▶❚❚, −10, +10, ← EP. n, the cell naming the stream (which opens the
+  settings), EP. n+1 → — under a 60px scrubber, inside the 28px safe margin.
+  OK on the picture brings the bar and that focus; BACK hides it, then leaves
+  for the series. SKIP INTRO, where offered, shows alone and OK takes it. The
+  settings sheet is the 420px panel from the right that every sheet is there,
+  with the picture playing at the left, and it keeps its focus when a server
+  fails over and the rows redraw under it. Nothing changes off a TV: the
+  cluster in the middle is the thumb's, and the player's own arrows stay the
+  reader's when the bar is hidden.
 - **Resume**: RESUMED AT 9:28, with FROM 0:00, for 5 s; an episode past its
   ending's start (or its last 3 %) opens from 0:00.
 - **Servers fail all the time.** A stall of 15 s, or a server that stops, moves

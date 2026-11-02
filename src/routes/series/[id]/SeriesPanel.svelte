@@ -558,9 +558,9 @@
 			</div>
 			<div class="sugg-actions">
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
-				<a href={moveHref}>ANOTHER SOURCE →</a>
+				<a href={moveHref} data-focus-mark="in">ANOTHER SOURCE →</a>
 				<form method="POST" action="?/dismissMove" use:enhance>
-					<button type="submit" class="dim">NOT NOW</button>
+					<button type="submit" class="dim" data-focus-mark="in">NOT NOW</button>
 				</form>
 			</div>
 		</section>
@@ -922,11 +922,11 @@
 			{#snippet sourceCells()}
 				{#if move.former}
 					<form method="POST" action="?/moveBack" use:enhance class="lc-form">
-						<button type="submit" class="lc">MOVE BACK</button>
+						<button type="submit" class="lc" data-focus-mark="in">MOVE BACK</button>
 					</form>
 				{/if}
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
-				<a class="lc" href={moveHref}>MOVE →</a>
+				<a class="lc" href={moveHref} data-focus-mark="in">MOVE →</a>
 			{/snippet}
 			<div class="row link-row source-row">
 				<div class="label">SOURCE</div>

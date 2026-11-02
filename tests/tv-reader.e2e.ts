@@ -47,3 +47,35 @@ test('the reader keeps every arrow on a TV, and the strip is 520 wide', async ({
 		)
 	).toBe('520px');
 });
+
+test('the end page takes the pad: its cells are reachable, and its ANOTHER SOURCE is one', async ({
+	page
+}) => {
+	await open(page);
+	// The end page is the reader's one screen the pad drives (c235): the page
+	// before it keeps every arrow, so the opt-out is bounded to "not the end".
+	const read = page.url();
+	await page.goto(`${read}?p=last`);
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	// A manga turns one way and a manhwa the other: whatever the mode, one of
+	// the two arrows is the turn past the last page.
+	const end = page.locator('[data-end-page]');
+	for (const key of ['ArrowRight', 'ArrowLeft', 'ArrowLeft', 'ArrowRight'] as const) {
+		await page.keyboard.press(key);
+		await page.waitForTimeout(300);
+		if ((await end.count()) > 0) break;
+	}
+	await expect(end).toBeVisible();
+	expect(await page.locator('.reader').evaluate((n) => n.hasAttribute('data-focus-off'))).toBe(
+		false
+	);
+
+	// The first arrow lands on a cell of its foot, and OK presses it.
+	await page.keyboard.press('ArrowDown');
+	const text = await page.evaluate(
+		() => document.activeElement?.textContent?.replace(/\s+/g, ' ').trim() ?? ''
+	);
+	expect(text.length).toBeGreaterThan(0);
+	expect(text).toMatch(/SERIES|LIBRARY|BACK|RATE|FAV/i);
+});

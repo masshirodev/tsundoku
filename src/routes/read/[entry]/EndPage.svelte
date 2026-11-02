@@ -112,7 +112,7 @@
 				<div class="stale">
 					<span>{stale.source.toUpperCase()} HAS ADDED NOTHING SINCE {staleDay}</span>
 					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved by the page -->
-					<a class="scell" href={moveHref}>ANOTHER SOURCE →</a>
+					<a class="scell" href={moveHref} data-focus-mark="in">ANOTHER SOURCE →</a>
 				</div>
 			{/if}
 			{#if rating === 0}
@@ -197,14 +197,14 @@
 
 	<div class="foot">
 		<!-- eslint-disable svelte/no-navigation-without-resolve -- both hrefs are resolved by the page -->
-		<a class="fcell" href={seriesHref} use:backLink>← SERIES</a>
+		<a class="fcell" href={seriesHref} use:backLink data-focus-mark="in">← SERIES</a>
 		<span class="spacer"></span>
 		{#if variant === 'chapter'}
-			<button type="button" class="fcell right dim" onclick={onback}
+			<button type="button" class="fcell right dim" data-focus-mark="in" onclick={onback}
 				>{mode === 'rtl' ? `${lastPage} · BACK ${back}` : `${back} BACK · ${lastPage}`}</button
 			>
 		{:else}
-			<a class="fcell right" href={libraryHref} use:backLink>LIBRARY</a>
+			<a class="fcell right" href={libraryHref} use:backLink data-focus-mark="in">LIBRARY</a>
 		{/if}
 		<!-- eslint-enable svelte/no-navigation-without-resolve -->
 	</div>

@@ -26,6 +26,7 @@
 		wheelForward
 	} from '$lib/reader/reader';
 	import { BookFailure, bookUrl, openBook, type OpenBook } from '$lib/reader/book';
+	import { registerBack } from '$lib/focus';
 	import {
 		chapterBlocks,
 		charsAfter,
@@ -819,6 +820,14 @@
 			if (e.key === 'Escape') sheet = contents = false;
 			return;
 		}
+		if (e.key === 'Enter' && !e.repeat) {
+			// OK on a TV: the chrome, as it is in the image reader (doc/TV.md).
+			e.preventDefault();
+			chrome = true;
+			return;
+		}
+		// The layer's BACK step hides the chrome first; Escape itself is the
+		// keyboard's toggle, and brings it up when nothing was open (doc/TEXT-READER.md).
 		if (e.key === 'Escape') chrome = !chrome;
 		if (layout === 'scroll') return;
 		const left = e.key === 'ArrowLeft';
@@ -835,6 +844,28 @@
 			prev();
 		}
 	}
+
+	// BACK (c235): what is open first, then the chrome, then the series. The
+	// layer hands it here because this screen reads its own keys.
+	$effect(() =>
+		registerBack(() => {
+			if (fullImage || wide) {
+				fullImage = wide = null;
+				return true;
+			}
+			if (sheet || contents) {
+				sheet = contents = false;
+				return true;
+			}
+			// The lookup panel closes itself on Escape, and stays open on BACK.
+			if (lookup) return false;
+			if (chrome) {
+				chrome = false;
+				return true;
+			}
+			return false;
+		})
+	);
 
 	// The wheel turns the page in paged layout (doc/TEXT-READER.md, "Mouse").
 	const wheelTurn = new WheelTurn();

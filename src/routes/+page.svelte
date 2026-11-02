@@ -1012,7 +1012,7 @@
 		{#if outlined}
 			<GridOutline />
 		{:else if data.shelf !== 'people'}
-			<div class="grid">
+			<div class="grid" data-back-climb="nav[aria-label=Shelves] .tab.on">
 				{#each shown as s, i (s.id)}
 					{@const cached = cachedCount(s.id)}
 					<CoverTile

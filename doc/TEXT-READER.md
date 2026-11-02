@@ -140,9 +140,10 @@ included, is spent until the wheel has been quiet for 200ms (`WheelTurn`,
 does nothing while a sheet, CONTENTS, the lookup or a full-screen image is open,
 and scroll layout scrolls as before. The owner asked for this on 2026-10-22.
 
-Arrows, Space, PageUp and PageDown turn too; Esc shows the controls, and the
-mouse at the top or bottom of the window brings them up as in the image reader
-([`READER.md`](READER.md), "Mouse").
+Arrows, Space, PageUp and PageDown turn too; OK (Enter), Esc or the mouse at
+the top or bottom of the window shows the controls. On a TV, OK shows the
+controls and BACK closes CONTENTS or an image, then the controls, then leaves
+([`TV.md`](TV.md), [`READER.md`](READER.md)).
 
 ## Controls
 

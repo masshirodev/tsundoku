@@ -12,6 +12,12 @@ export const longpress: Action<HTMLElement, () => void> = (node, onlong) => {
 	let timer: ReturnType<typeof setTimeout> | null = null;
 	let start: { x: number; y: number } | null = null;
 	let fired = false;
+	/**
+	 * The menu came from a pointer. Only then is a click on its heels the
+	 * release's own, to swallow: MENU and a held OK send no click at all, and
+	 * swallowing the next one would eat the press that follows.
+	 */
+	let fromPointer = false;
 
 	const cancel = () => {
 		if (timer) clearTimeout(timer);
@@ -20,6 +26,7 @@ export const longpress: Action<HTMLElement, () => void> = (node, onlong) => {
 	};
 	const down = (e: PointerEvent) => {
 		fired = false;
+		fromPointer = true;
 		if (e.button !== 0) return;
 		start = { x: e.clientX, y: e.clientY };
 		timer = setTimeout(() => {
@@ -43,7 +50,8 @@ export const longpress: Action<HTMLElement, () => void> = (node, onlong) => {
 		e.preventDefault();
 		cancel();
 		if (!fired) callback?.();
-		fired = true;
+		fired = fired || fromPointer;
+		fromPointer = false;
 	};
 
 	node.addEventListener('pointerdown', down);

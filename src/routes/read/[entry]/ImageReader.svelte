@@ -85,6 +85,7 @@
 	import { flushLookups } from '$lib/japanese/lookups';
 	import LookupPanel from '$lib/components/japanese/LookupPanel.svelte';
 	import { between } from '$lib/library/editions';
+	import { registerBack } from '$lib/focus';
 
 	/**
 	 * The image reader (Index Reader; doc/READER.md). The page is the
@@ -1383,6 +1384,100 @@
 	function contextmenu(e: MouseEvent) {
 		if (mode !== 'vertical' || menu || pressed) e.preventDefault();
 	}
+
+	// ---- the remote's way in (c235; TV-Reader 7F): OK held, or MENU -----------------
+	// The reader keeps every arrow -- ← → turn pages, ↑ ↓ scroll -- so the focus
+	// layer is opted out here. The page menu is the one dialog it forces back in
+	// (PageMenu's own scope), and OK is the page's own key: a short press shows
+	// the chrome, a hold asks what this page can become.
+	let holdTimer: ReturnType<typeof setTimeout> | undefined;
+	/** The hold opened the menu: the release belongs to it, not to the chrome. */
+	let held = false;
+
+	/**
+	 * The menu for the page in the middle of the screen, so a remote never has
+	 * to point at one: in a spread it is the right-hand page, the one a turn
+	 * leaves behind (in R->L, the next turn's).
+	 */
+	function menuHere() {
+		if (lookup || sheet || menu || !data.manifest) return;
+		let best: HTMLElement | null = null;
+		let distance = Infinity;
+		for (const el of document.querySelectorAll<HTMLElement>('[data-page]')) {
+			if (el.closest('[aria-hidden="true"]')) continue;
+			const r = el.getBoundingClientRect();
+			if (r.width === 0 || r.bottom <= 0 || r.top >= innerHeight) continue;
+			const d =
+				Math.abs(r.left + r.width / 2 - innerWidth / 2) +
+				Math.abs(r.top + r.height / 2 - innerHeight / 2);
+			if (d < distance) {
+				best = el;
+				distance = d;
+			}
+		}
+		if (!best) return;
+		const r = best.getBoundingClientRect();
+		const x = Math.max(0, Math.min(innerWidth - 1, r.left + r.width / 2));
+		const y = Math.max(0, Math.min(innerHeight - 1, r.top + r.height / 2));
+		openMenu(x, y);
+		// No pointer preceded it, so nothing follows to swallow.
+		pressed = false;
+	}
+
+	function holdKeys(e: KeyboardEvent) {
+		if (e.key === 'ContextMenu') {
+			e.preventDefault();
+			menuHere();
+			return true;
+		}
+		if (e.key !== 'Enter' || e.defaultPrevented) return false;
+		e.preventDefault();
+		if (e.repeat) return true;
+		held = false;
+		clearTimeout(holdTimer);
+		holdTimer = setTimeout(() => {
+			holdTimer = undefined;
+			held = true;
+			menuHere();
+		}, HOLD_MS);
+		return true;
+	}
+
+	function releaseKeys(e: KeyboardEvent) {
+		if (e.key !== 'Enter') return;
+		clearTimeout(holdTimer);
+		holdTimer = undefined;
+		if (held) {
+			held = false;
+			return;
+		}
+		if (lookup || sheet || menu) return;
+		chrome = true;
+	}
+
+	// BACK (c235): what is open first, then the chrome, then the series. The
+	// layer hands it here because this screen reads its own keys.
+	$effect(() =>
+		registerBack(() => {
+			if (menu) {
+				menu = null;
+				return true;
+			}
+			if (sheet) {
+				sheet = false;
+				return true;
+			}
+			// The lookup panel closes itself on Escape, and stays open on BACK.
+			if (lookup) return false;
+			// The first-visit tap-zone hint is not something a remote opened; the
+			// reader's own first key clears it.
+			if (chrome) {
+				chrome = false;
+				return true;
+			}
+			return false;
+		})
+	);
 	function pointerup(e: PointerEvent) {
 		cancelPress();
 		if (pressed) {
@@ -1455,6 +1550,9 @@
 			if (e.key === 'Escape') sheet = false;
 			return;
 		}
+		if (holdKeys(e)) return;
+		// The layer's BACK step hides the chrome first; Escape itself is the
+		// keyboard's toggle, and brings it up when nothing was open (doc/READER.md).
 		if (e.key === 'Escape') chrome = !chrome;
 		if (e.key === '+' || e.key === '=') return setZoom(stepZoom(zoom, 1));
 		if (e.key === '-') return setZoom(stepZoom(zoom, -1));
@@ -1561,13 +1659,13 @@
 </script>
 
 <svelte:head><title>{data.series.title} · {data.entry.name}</title></svelte:head>
-<svelte:window onkeydown={keydown} onpointermove={hover} />
+<svelte:window onkeydown={keydown} onkeyup={releaseKeys} onpointermove={hover} />
 
 <div
 	class="reader"
 	class:vertical={mode === 'vertical'}
 	class:incognito={data.incognito}
-	data-focus-off
+	data-focus-off={atEnd ? undefined : ''}
 >
 	{#if !data.manifest}
 		<div class="missing">
