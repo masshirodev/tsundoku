@@ -85,9 +85,10 @@ network, so publishing changes nothing for it.
 A first solve takes 20–45 s. The app checks the URL is on the internet
 (`net-guard.ts`) before the solver hears of it, asks once per host at a time,
 and keeps only that host's clearance cookies and its user agent; a cookie for
-another host, or one from a redirect's host, is dropped. `site_checks` gets the
-host on success, so BROWSE knows a first visit waits ([`BROWSE.md`](BROWSE.md),
-"A site's check").
+another host, or one from a redirect's host, is dropped. Its cookies carry
+`secure`, so a clearance with any secure cookie is https-only and the host never
+sends it over `http:`. `site_checks` gets the host on success, so BROWSE knows a
+first visit waits ([`BROWSE.md`](BROWSE.md), "A site's check").
 
 Checked on 2026-10-28, against the running service: 401 without the token;
 MangaDex, Mangahere and Kumaraw (through FlareSolverr, 17.5 s on the first

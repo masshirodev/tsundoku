@@ -441,7 +441,9 @@ values show and still save, under the NOT ANSWERING band.
   loaded.
 - **A check is known once it's been passed** (since the engine started, then
   kept): a site's very first check still shows the 10 s band, not the check
-  band, if it hasn't begun by the time the page asks.
+  band, if it hasn't begun by the time the page asks. A novel is the exception
+  (c152): the app knows its own solve the moment it starts, so the check band
+  is there during the first one, not only after it.
 - Anime sources: only manga extensions are installed, and
   `filterSchemaAnime` is in the fork but not called. Novel sources are LNReader
   plugins ([`NOVELS.md`](NOVELS.md)).

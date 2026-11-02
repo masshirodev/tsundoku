@@ -70,13 +70,18 @@ never runs in the app (`src/lib/server/novels/`):
   asks FlareSolverr (`novels/solver.ts`); what comes back is that host's
   clearance cookies and user agent, never the solver's address and never
   another host's cookie. The host keeps a **jar per host**, applies it to that
-  host only, and retries **once**; a plain 403 with no marker stays the site's
-  own answer ("answered 403"), as does one whose check it couldn't pass.
+  host only, and retries **once**; a jar with any secure cookie in it goes over
+  https only. A host whose retry is still a check is remembered for ten
+  minutes, so its next chapter is one request, not a solve and a retry. A plain
+  403 with no marker stays the site's own answer ("answered 403"), as does one
+  whose check it couldn't pass.
 - **Calls over IPC with a timeout** (a minute; two for a list that may wait on
   a first solve); a plugin stuck in a loop gets the host restarted, and its
   failure is the caller's error, not a crash. A host replaced while the one it
   replaces is still exiting answers its own calls: the dying process's exit
-  can't fail its successor's.
+  can't fail its successor's. Each request the host makes has 30 s, redirects
+  included, and the retry after a clearance a fresh 30 s: a redirect chain
+  can't outlive the two minutes a novel call is allowed.
 
 **What it doesn't stop.** Node 24 has no `--allow-net`, and the plugins need
 the network. Code that escapes the vm context (a host object's constructor
@@ -100,7 +105,8 @@ context, and can't fetch a loopback address directly or by redirect, after
 which the host still answers. And a site that answers with a check: the app is
 asked by URL only, the retry carries that host's cookies and user agent, the
 jar is kept per host and to no other, a retry that is still a check is
-reported, and a plain 403 stays the site's own answer.
+reported and remembered so the next call is one request, a secure clearance is
+not sent over http, and a plain 403 stays the site's own answer.
 
 **Measured live on 2026-10-28**, four of the owner's repository's plugins
 through the host: NovelBin (10 popular, a novel's 148 chapters, a chapter's
@@ -135,20 +141,26 @@ address.
   refusal is an answer with nothing, not a crash.
 - **The jar is per host.** The host keeps each host's clearance and sends it
   only to that host (`withJar`); a redirect to another host carries nothing of
-  the first. It retries **once** per request: a response that is still a check
-  is noted as `"<host> answered 403 (its check could not be passed)"`, which
-  the source page bands. A plugin asking in a loop waits on the solve already
-  underway instead of queueing another — the host dedupes by host, and so does
-  the app (`novels/solver.ts`) — since a first solve takes 20–45 s.
-- **A failed solve is remembered for ten minutes.** A host the solver answered
-  for and could not clear (NovelFull and Scribble Hub, measured below) is not
-  asked again inside that window, so a browsing session or a 148-chapter
-  download doesn't pay a solve plus a retry per chapter for a site that won't
-  pass. A solver the app couldn't reach, or that answered with an HTTP error
-  of its own, is **not** remembered: that says nothing about the host, and a
-  solver started after the app would otherwise be ignored for ten minutes. A
-  page the solver's own browser was refused (`solution.status` 4xx or 5xx)
-  counts as a failure, not as a clearance.
+  the first. A jar holding any secure cookie is sent over https only: a
+  clearance in clear text is the one thing it must never be, so `http:` stays
+  reachable but gets no clearance. It retries **once** per request: a response
+  that is still a check is noted as
+  `"<host> answered 403 (its check could not be passed)"`, which the source
+  page bands. A plugin asking in a loop waits on the solve already underway
+  instead of queueing another — the host dedupes by host, and so does the app
+  (`novels/solver.ts`) — since a first solve takes 20–45 s.
+- **A refusal is remembered for ten minutes, where it is seen.** The host
+  remembers the one that matters for a site whose check it cannot pass even
+  with a clearance (NovelFull and Scribble Hub, measured below): when the retry
+  is still a check, that host is refused for ten minutes, so each later page or
+  chapter makes **one** request — the one that is already a challenge — with no
+  solve and no retry. That is what keeps a 148-chapter download from performing
+  148 solves. The app keeps its own memo for the other failure: a solve the
+  solver itself could not produce (a status of `error`, a page its browser was
+  refused) is not asked again for ten minutes either. A solver the app couldn't
+  reach, or one that answered with an HTTP error of its own, is **not**
+  remembered: that says nothing about the host, and a solver started after the
+  app would otherwise be ignored for ten minutes.
 - **BROWSE names it.** The app writes the host into `site_checks` when a solve
   succeeds, and `checkingSince` answers for a novel by its plugin's site
   (`novel_plugins.site`), so the live band on the source page and in SEARCH
@@ -169,20 +181,25 @@ on `127.0.0.1:8193` and the real host:
   but a plain Node request sending the same cookie and the same user agent
   still gets the challenge from both: their check is bound to the browser that
   solved it, not to the cookie. The host now says so distinctly ("answered 403
-  (its check could not be passed)") rather than reporting a bare 403. Fetching
-  the page itself through the solver is the only way past those, and the card
-  rules it out; it would be a later card's question.
+  (its check could not be passed)") rather than reporting a bare 403, and
+  remembers that refusal for ten minutes (above), so a download pays the solve
+  once and then makes one request per chapter. Fetching the page itself through
+  the solver is the only way past those, and the card rules it out; it would be
+  a later card's question.
 
 `tests/novel-solver.spec.ts` is the app's half: a loopback or private address
 refused before the solver hears of it, only the asked host's cookies and its
-user agent in the answer, one solve per host at a time, the live line while it
-runs, `site_checks` on success, a page the solver's own browser was refused
-treated as no clearance, a host whose check failed remembered and not asked
-again, and which address the app uses.
-`tests/novel-host.spec.ts`'s check block is the host's half, and
-`tests/engine-browse-db.spec.ts` pins the join BROWSE's live line needs: a
-novel's `checkingSince` answers while the app's own solve runs, with the
-engine not answering at all, and is null once it settles.
+user agent in the answer, a secure cookie making the clearance https-only, one
+solve per host at a time, the live line while it runs, `site_checks` on
+success, a page the solver's own browser was refused treated as no clearance,
+a solve the solver failed remembered and not asked again, and which address
+the app uses. `tests/novel-host.spec.ts`'s check block is the host's half — a
+clearance the site refused remembered so the next call is one request, a secure
+clearance kept off http — and `tests/engine-browse-db.spec.ts` pins the join
+BROWSE's live line needs: a novel's `checkingSince` answers while the app's own
+solve runs, with the engine not answering at all, and is null once it settles.
+`tests/novel-plugins-db.spec.ts` pins the wiring: the host the app builds solves
+with `solveChallenge`.
 
 ## Repositories and plugins
 
