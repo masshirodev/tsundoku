@@ -265,6 +265,20 @@ function handleKeydown(e: KeyboardEvent): void {
 		return;
 	}
 
+	// ▶❚❚ on a remote resumes the focused CONTINUE card there and then, without
+	// the series screen (TV Calls, "the remote"). Everywhere else the key is
+	// the player's own.
+	if (e.key === 'MediaPlayPause') {
+		const el = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+		const card = el?.closest<HTMLElement>('[data-focus-id^="continue-"]');
+		if (card) {
+			e.preventDefault();
+			e.stopPropagation();
+			card.click();
+		}
+		return;
+	}
+
 	// A screen that reads its own keys (the readers, the player while its
 	// controls are hidden) keeps them, sheets included -- unless the sheet is a
 	// dialog that forced the pad in (a reader's page menu).

@@ -131,3 +131,17 @@ test('OK held on a history row puts its REMOVE up, and BACK takes it down', asyn
 	await expect(page.locator('.rows .row.pressed')).toHaveCount(0);
 	expect(page.url()).toContain('/history');
 });
+
+test('▶❚❚ on a focused CONTINUE card resumes it, without the series screen', async ({ page }) => {
+	// Incognito, so resuming writes nothing to the shared database.
+	await page
+		.context()
+		.addCookies([{ name: 'tsundoku_incognito', value: '1', url: 'http://localhost' }]);
+	await page.goto('/?sort=title');
+	await page.keyboard.press('ArrowDown');
+	await expect.poll(() => focusId(page)).toMatch(/^continue-/);
+	await page.evaluate(() =>
+		window.dispatchEvent(new KeyboardEvent('keydown', { key: 'MediaPlayPause', cancelable: true }))
+	);
+	await page.waitForURL(/\/read\/\d+/);
+});

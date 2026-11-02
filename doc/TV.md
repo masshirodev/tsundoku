@@ -50,7 +50,9 @@ start but was drawn for fingers.
   focus on ▶❚❚: ▶❚❚, −10, +10, ← EP. n, the cell naming the stream (the
   settings panel), EP. n+1 →. SKIP INTRO takes OK while it is offered alone.
   ▶❚❚ ⏩ ⏪ ⏭ ⏮ (`MediaPlayPause`, `MediaFastForward`, `MediaRewind`,
-  `MediaTrackNext`, `MediaTrackPrevious`) work on every device (c235).
+  `MediaTrackNext`, `MediaTrackPrevious`) work on every device, and on the
+  library ▶❚❚ resumes the focused CONTINUE card there and then, without the
+  series screen (c235).
 - The player's letter keys stay for keyboards: Space, ←/→ seek 10 s, ↑/↓
   volume, F, M, C, S, N, ?
   (`src/routes/read/[entry]/VideoPlayer.svelte`).
@@ -201,14 +203,14 @@ The handoff states these about the code or the app; they're not verified yet:
   `TV-Series.dc.html`.
 - **Tests (c235).** `tests/focus-keys.spec.ts` is the pure half (which key is
   BACK, and OK's press-versus-hold); `tests/tv-keys.e2e.ts` holds OK on a
-  cover, a chapter row and a history row, MENU, BACK's climb and
-  `window.tsundokuBack()`; `tests/tv-player.e2e.ts` walks the player's bar, its
-  420px panel, SKIP INTRO, the media keys and the next episode;
-  `tests/tv-move.e2e.ts` walks MOVE's candidates and its comparison, and
-  `tv-reader` gained the end page. `tv-player` and `tv-move` run against the
-  browse world's server (the fake engine is where a video and a candidate are)
-  and read in incognito, so the flow files beside them keep the database they
-  assert on.
+  cover, a chapter row and a history row, MENU, BACK's climb,
+  `window.tsundokuBack()`, and ▶❚❚ on a CONTINUE card; `tests/tv-player.e2e.ts`
+  walks the player's bar, its 420px panel, SKIP INTRO, the media keys and the
+  next episode; `tests/tv-move.e2e.ts` walks MOVE's candidates and its
+  comparison, and `tv-reader` gained the end page. `tv-player` and `tv-move`
+  run against the browse world's server (the fake engine is where a video and
+  a candidate are) and read in incognito, so the flow files beside them keep
+  the database they assert on.
 
 ### Departures from the handoff (c238)
 
@@ -289,7 +291,8 @@ decisions (`isBackKey`, `isOptionsKey`, `OkPress`) and `layer.ts` wires them;
   that fails over redraws the panel's rows under the focus, so the panel takes
   it back rather than dropping the mark.
 - **A remote's media keys**, on every device: ▶❚❚ plays or pauses, ⏩ ⏪ seek
-  10 s with the flash, ⏭ ⏮ the next and the previous episode.
+  10 s with the flash, ⏭ ⏮ the next and the previous episode. On the library,
+  ▶❚❚ on a focused CONTINUE card resumes it rather than opening its series.
 - **The reader**: OK shows its chrome (it never brought it up before), OK held
   or MENU opens the page menu for the page in the middle of the screen (in a
   spread, the one a turn leaves behind), BACK closes the menu, then the chrome,
