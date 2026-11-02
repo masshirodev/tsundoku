@@ -52,7 +52,8 @@ test('a chapter opens online from the preview, a record keeps the place, the ser
 	// ← goes back to the source it was added from, not the library (c262).
 	const back = page.getByRole('banner', { name: 'Series' }).locator('a.back');
 	await expect(back.locator('.back-label')).toHaveText('BROWSE');
-	await expect(back).toHaveAttribute('href', `/browse/${SOURCES.open.id}`);
+	// Its pages too (?pages=), so the source's results come back as they were left.
+	await expect(back).toHaveAttribute('href', new RegExp(`^/browse/${SOURCES.open.id}(\\?|$)`));
 	const series = new URL(page.url()).pathname;
 	const list = page.getByRole('region', { name: /Chapters/ });
 	const row = list.locator('.entry', { hasText: 'Chapter 2' });
@@ -89,7 +90,7 @@ test('a chapter opens online from the preview, a record keeps the place, the ser
 	await expect(page).toHaveURL(new RegExp(`${series}\\?from=`));
 	await expect(back.locator('.back-label')).toHaveText('BROWSE');
 	await back.click();
-	await expect(page).toHaveURL(new RegExp(`/browse/${SOURCES.open.id}$`));
+	await expect(page).toHaveURL(new RegExp(`/browse/${SOURCES.open.id}(\\?|$)`));
 	// A from that isn't an in-app BROWSE or search is ignored: ← LIBRARY.
 	for (const from of ['https://evil.example/browse/1', '//evil.example/browse/1', '/settings']) {
 		await page.goto(`${series}?from=${encodeURIComponent(from)}`);

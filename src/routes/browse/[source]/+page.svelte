@@ -128,10 +128,12 @@
 		return () => watcher.unobserve(el);
 	});
 
+	/** Where this page is, so the preview and the series it opens can come back to it (c262). */
+	const here = $derived(encodeURIComponent(page.url.pathname + page.url.search));
 	const tileHref = (h: { mangaId: string; match: { kind: string; seriesId?: number } }) =>
 		h.match.kind === 'in-library' && h.match.seriesId
-			? resolve('/series/[id]', { id: String(h.match.seriesId) })
-			: `${resolve('/downloads/source/[id]', { id: h.mangaId })}?from=${encodeURIComponent(page.url.pathname + page.url.search)}`;
+			? `${resolve('/series/[id]', { id: String(h.match.seriesId) })}?from=${here}`
+			: `${resolve('/downloads/source/[id]', { id: h.mangaId })}?from=${here}`;
 	const hue = (id: string) => [...id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 0);
 
 	/** RESET is the source's own choices, on the filtered tab, with the panel open. */

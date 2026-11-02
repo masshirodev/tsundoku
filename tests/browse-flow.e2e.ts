@@ -23,7 +23,8 @@ test('a source’s POPULAR shelf says what’s already yours, and names no hidde
 	await expect(page.locator('nav[aria-label="Lists"]')).toContainText('LATEST');
 	const linden = page.locator('.tile', { hasText: 'Lindenborough Heir' });
 	await expect(linden.locator('.badge')).toHaveText('IN LIBRARY');
-	await expect(linden).toHaveAttribute('href', /^\/series\/\d+$/);
+	// Its series, which keeps this page as where ← goes (c262).
+	await expect(linden).toHaveAttribute('href', /^\/series\/\d+\?from=%2Fbrowse%2F100/);
 	// A twin of a series from Toonily, which is mostly hidden: SAME TITLE, but not "FROM TOONILY".
 	const twin = page.locator('.tile', { hasText: 'Toonily One' });
 	await expect(twin.locator('.m')).toHaveText('SAME TITLE IN LIBRARY');

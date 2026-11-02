@@ -49,7 +49,8 @@ its `q`). Its ← says BROWSE or SOURCES and goes there.
 
 That origin outlives the preview (card c262). + ADD TO LIBRARY, ADD AND
 DOWNLOAD, and opening the preview of a series that is already in the library
-all land on the series with `?from=<origin>`, and the series' ← then says
+all land on the series with `?from=<origin>`, as does a BROWSE tile of a series
+already in the library, which opens the series directly. The series' ← then says
 BROWSE or SOURCES and goes back to it instead of to the library. Being a back
 link, it goes back in history when the source's page is a few entries back, so
 its results come back as they were left.
