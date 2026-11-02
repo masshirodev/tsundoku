@@ -20,6 +20,14 @@
 	--hairline: 1px solid var(--line-1);
 	--rule-strong: 1px solid var(--text-1);
 	--select-ring: 0 0 0 3px var(--accent);
+	/*
+	 * The one focus mark (doc/FOCUS.md; TV-Focus, "The mark"): a 4px frame of
+	 * text ink held off the thing by 3px of page. Outside a thing that stands
+	 * alone; inside a cell of a ruled block, so it never crosses a hairline.
+	 * Both read `--surface-page` and `--text-1`, so both palettes have it.
+	 */
+	--focus-ring: 0 0 0 3px var(--surface-page), 0 0 0 7px var(--text-1);
+	--focus-ring-in: inset 0 0 0 4px var(--text-1), inset 0 0 0 7px var(--surface-page);
 	--reveal-frame: inset 0 0 0 4px var(--reveal);
 	--cover-ratio: 2 / 2.9;
 	--progress-h: 3px;

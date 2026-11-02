@@ -1,9 +1,12 @@
 # tsundoku on a TV
 
-Status (2026-11-01): **designed, nothing built.** The handoff is mirrored in
-`doc/design/handoff/TV*` (see "The design", below). Parent card c231 ("Android
-TV: tsundoku from the couch, with a remote") on the Tsundoku board; every
-card for it carries the `TV` label.
+Status (2026-11-01): **designed; the focus layer is built (c234), the rest is
+not.** The handoff is mirrored in `doc/design/handoff/TV*` (see "The design",
+below). Parent card c231 ("Android TV: tsundoku from the couch, with a
+remote") on the Tsundoku board; every card for it carries the `TV` label.
+[`FOCUS.md`](FOCUS.md) is the layer that ships: arrows moving focus by
+direction, a sheet as a scope, and the one focus mark. The TV media query, the
+TV sizes and the remote's own screens are still to come (c235, c238).
 
 ## Why
 
@@ -31,6 +34,8 @@ start but was drawn for fingers.
 
 ## What already works
 
+- D-pad focus: the arrows move to the nearest focusable thing, a sheet is a
+  scope, and one ink frame shows where you are ([`FOCUS.md`](FOCUS.md)).
 - The player's keys: Space, ←/→ seek 10 s, ↑/↓ volume
   (`src/routes/read/[entry]/VideoPlayer.svelte`).
 - The image reader turns pages on the arrows and PageUp/PageDown

@@ -943,6 +943,7 @@
 	style:--page-h="{f.h}px"
 	style:--side="{f.x}px"
 	role="presentation"
+	data-focus-off
 	onpointerdown={pointerdown}
 	onpointermove={pointermove}
 	onpointerup={pointerup}

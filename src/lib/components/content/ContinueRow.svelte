@@ -22,7 +22,9 @@
 		src,
 		hue,
 		unavailable = false,
-		onresume
+		onresume,
+		focusId,
+		startFocus = false
 	}: {
 		title: string;
 		meta: string;
@@ -31,6 +33,10 @@
 		hue: number;
 		unavailable?: boolean;
 		onresume?: () => void;
+		/** Where focus comes back to after a trip away (doc/FOCUS.md). */
+		focusId?: string;
+		/** The screen's first arrow lands here (doc/FOCUS.md). */
+		startFocus?: boolean;
 	} = $props();
 </script>
 
@@ -50,6 +56,8 @@
 		class="go"
 		disabled={unavailable || !onresume}
 		aria-label="Resume {title}"
+		data-focus-id={focusId}
+		data-focus-start={startFocus ? '' : undefined}
 		onclick={() => onresume?.()}>{unavailable ? '—' : '▶'}</button
 	>
 </div>

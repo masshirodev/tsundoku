@@ -109,6 +109,7 @@
 	<ol
 		class="grid"
 		class:reordering
+		data-focus-off={reordering ? '' : undefined}
 		bind:this={grid}
 		onpointermove={drag}
 		onpointerup={drop}
@@ -138,6 +139,7 @@
 					progress={!reordering ? m.progress : undefined}
 					read={!reordering && m.state === 'read'}
 					current={!reordering && m.state === 'progress'}
+					focusId={`book-${e.id}`}
 					moving={dragId === e.id && i !== dragFrom
 						? `${bookNumber(dragFrom)} → ${bookNumber(i)}`
 						: undefined}
