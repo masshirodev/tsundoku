@@ -156,7 +156,8 @@ the bar.
   source is slow.
 - **The band is the library's**, pinned over the bar that asked. Its title says
   how many were asked and how many found something ("12 ASKED · 3 FOUND
-  SOMETHING"); its detail names the sources that **failed**, then how many were
+  SOMETHING"); its detail names the sources that **failed** (the first three,
+  then "…" — a source that is down fails the whole run), then how many were
   skipped, then how many are left. Failures are named, not explained: open the
   series and REFRESH it alone for the message.
 - **A source that doesn't answer doesn't stop the run.** Each series is asked on

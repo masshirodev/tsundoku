@@ -416,6 +416,8 @@
 	 * bulk answer belongs where the selection is, not on a series screen.
 	 */
 	const batch = $derived(form && 'refreshed' in form ? (form.refreshed as RefreshBatch) : null);
+	/** How many failed titles the band names; the count is always the whole truth. */
+	const FAILED_SHOWN = 3;
 	const batchTitle = $derived(
 		!batch
 			? ''
@@ -426,15 +428,19 @@
 	const batchDetail = $derived.by(() => {
 		if (!batch) return '';
 		const parts: string[] = [];
-		if (batch.failed.length > 0)
+		if (batch.failed.length > 0) {
+			// A source that is down fails the whole selection: name the first few,
+			// since the band cannot hold twenty-four titles.
+			const named = batch.failed.slice(0, FAILED_SHOWN).map(upper);
+			if (batch.failed.length > named.length) named.push('…');
 			parts.push(
 				m.library_refresh_failed({
 					count: batch.failed.length,
 					n: num(batch.failed.length),
-					titles: batch.failed.map(upper).join(', ')
+					titles: named.join(', ')
 				})
 			);
-		else if (batch.asked > 0) parts.push(m.library_refresh_all_answered());
+		} else if (batch.asked > 0) parts.push(m.library_refresh_all_answered());
 		if (batch.skipped > 0)
 			parts.push(
 				batch.asked === 0
