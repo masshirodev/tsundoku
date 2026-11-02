@@ -126,7 +126,7 @@ the instance's public host — the tailnet name — and ignored on a loopback on
 that host by TYPE THE WHOLE ADDRESS on 9B, `https://name.ts.net:8443`, or by
 being handed it at launch (`adb shell am start … --es url …`, or a
 `tsundoku://connect?url=` link), which skips 9A and 9B ([`TV-APP.md`](TV-APP.md),
-"The address from outside").
+"Handing the TV an address").
 
 ## The design
 

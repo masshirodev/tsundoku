@@ -110,10 +110,11 @@ they changed it). The whole address is the one thing 9B's panel would otherwise
 ask for on a remote.
 
 Only `http` and `https` with a host are accepted — a tailnet name, a domain, or
-an address, on any port. Only the origin is kept: a path, a query and a
-fragment are dropped, and an address carrying a username or password is
-refused. A bare `host:port` is not enough here, although it is on 9B: nothing
-was typed, and the command can always give the scheme.
+an address, on a port from 1 to 65535 (a port of 0, or one above 65535, is
+refused rather than rewritten to the default one). Only the origin is kept: a
+path, a query and a fragment are dropped, and an address carrying a username or
+password is refused. A bare `host:port` is not enough here, although it is on
+9B: nothing was typed, and the command can always give the scheme.
 
 - **Refused** lands on 9B with the existing band: the field empty, the mark on
   NEXT, and the band saying the address was refused and nothing was saved.
@@ -131,8 +132,11 @@ A refusal stops 9D's retry before showing the band, so the band is not replaced
 five seconds later by the old address's failure, and a probe still in flight
 when the refusal arrives cannot replace it either: only a _failure_ is dropped,
 so a late success still remembers and opens the pairing (Decision 9 in the
-handoff notes). A new typed attempt clears the band first, because it is a new
-question.
+handoff notes). A new attempt clears the band first, because it is a new
+question — whether it is typed on 9B or handed in at launch. The band's flag is
+cleared at all three doors into that screen (`probe`, `show`, `connect`), so a
+visible band always means the refusal is still the attempt in hand; hiding the
+screen alone does not hide the flag.
 
 An address is compared by its **origin**, not its text. The field keeps what was
 typed — a path, a query, userinfo, a differently cased host — while
@@ -326,15 +330,16 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
 ## Tests
 
 - `android/tv/app/src/test/` — `AddressTest`, `BackTest`, `IntentAddressTest`,
-  `KeysTest`, `ProbeTest`, `ScaleTest` (30 tests), run by `./gradlew test`.
+  `KeysTest`, `ProbeTest`, `ScaleTest` (31 tests), run by `./gradlew test`.
   `IntentAddressTest` is the given address's parser: a tailnet name, a LAN
-  address and a domain; its port kept and its path dropped; and `null` for a
-  wrong scheme, a missing host and userinfo (c260).
+  address and a domain; its port kept and its path dropped; `null` for a wrong
+  scheme, a missing host, userinfo, and a port of 0 or above 65535 (`null` is
+  the refusal, not a rewrite to the default port) (c260).
 - `tests/pairing-tv.spec.ts` — the six digits: once, 10 minutes, five wrong
   tries burn it, the state machine's every answer; the tailnet door, the rule
   that draws the DEVICES block only where that cookie opens, and the friend
   branch's refusal of a paired cookie off Wi-Fi (c245).
-- `tests/tv-app-pair.e2e.ts` — 12 cases, 9A and 9B from the shipped asset file:
+- `tests/tv-app-pair.e2e.ts` — 14 cases, 9A and 9B from the shipped asset file:
   the mark on NEXT rather than the field (and on TYPE THE WHOLE ADDRESS one press
   down), the number keys typing into the field from there, and the whole-address
   field that stays visible; and 9A's step 01 and 9D's second reason keeping a
@@ -348,10 +353,14 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   answer nor leaves for its `/pair/tv`, while the refused door into 9B resets
   the NEXT button and checking line the held probe left behind; a probe still
   in flight when a refusal arrives fails without replacing the band; and a new
-  attempt after a refusal clears the band and can still reach 9D. Two more pin
-  the origin comparison: a typed whole address with a path pairs at its origin
-  (remembered and opened without the path), and one with a query fails to 9D
-  for the origin, not the raw string (c260).
+  attempt after a refusal clears the band and can still reach 9D. A given
+  address that arrives after a refusal and does not answer reaches 9D, the band
+  having been cleared with the attempt it described; one that does answer still
+  remembers its origin and leaves for `/pair/tv`, so an address handed in twice
+  is judged on its own answer. Two more pin the origin comparison: a typed whole
+  address with a path pairs at its origin (remembered and opened without the
+  path), and one with a query fails to 9D for the origin, not the raw string
+  (c260).
 - `tests/tv-pair.e2e.ts` — the computer's `/pair/tv` at 960×540 with no pointer:
   every band clearing the label and the six cells, a wrong code spending a
   try, the right one landing on 9E, and five wrong ones burning it.
