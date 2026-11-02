@@ -64,6 +64,11 @@ whole row. The TV's own header, focus line and whole-row scroll are c238's.
 **A held arrow** repeats at the remote's rate and we do nothing special: every
 keydown is one move.
 
+**Nothing that way.** On the page, an arrow with no stop in its direction is
+left to the browser, so a desktop keyboard still scrolls prose (HELP, a
+series' ABOUT) past the last stop. Inside a sheet it is swallowed: the scope
+keeps its keys.
+
 ## Scopes
 
 A **scope** owns the keys while it is open. `Sheet.svelte` is a scope
@@ -127,7 +132,15 @@ Before a screen is left, `saveFocus` stores the focused thing's
 from, which on a popstate is not `location` any more. Coming back (`popstate`,
 the system's back or a `use:backLink` ←) puts focus back on it. It waits for the
 element (the library's grid arrives a page at a time) and holds it briefly while
-that page can redraw the tiles; the reader's first key or tap ends it.
+that page can redraw the tiles; the reader's first key, tap, wheel or finger
+scroll ends it (each held frame scrolls the tile into view, so a wheel left
+running would be pulled back).
+
+**Only after a keyboard.** Focus is saved only when the last input before
+leaving was a key (a remote, a desktop keyboard). A tablet's tap also focuses
+the tile it pressed, and putting that back on a swipe back would scroll the page
+against [`NAVIGATION.md`](NAVIGATION.md)'s own restore; leaving by touch forgets
+any older id for that URL instead.
 
 The ids the app sets:
 

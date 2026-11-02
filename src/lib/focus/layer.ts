@@ -159,10 +159,34 @@ function handleKeydown(e: KeyboardEvent): void {
 		candidates.map((el) => ({ rect: rectOf(el), value: el }))
 	);
 
-	// The arrows belong to the pad everywhere else: they never scroll the page.
+	// Nothing that way: leave the key to the browser, so a desktop keyboard
+	// still scrolls prose (HELP, a series' ABOUT) past the last stop. In a
+	// sheet the key stays inside, as the scope promises.
+	if (!next) {
+		if (isManagedScope(scope)) {
+			e.preventDefault();
+			e.stopPropagation();
+		}
+		return;
+	}
+
 	e.preventDefault();
 	e.stopPropagation();
-	if (next) move(next);
+	move(next);
+}
+
+/**
+ * How the reader last moved: a key or a pointer. Focus is carried across a
+ * back only for the keyboard (a remote, a desktop keyboard). On a tablet a tap
+ * also focuses the tile it pressed, and putting that back would scroll the
+ * page against NAVIGATION.md's own restore.
+ */
+let lastInput: 'key' | 'pointer' = 'pointer';
+function noteKey(): void {
+	lastInput = 'key';
+}
+function notePointer(): void {
+	lastInput = 'pointer';
 }
 
 /**
@@ -172,9 +196,16 @@ function handleKeydown(e: KeyboardEvent): void {
 export function installFocusLayer(): () => void {
 	if (typeof window === 'undefined') return () => undefined;
 
-	const keydown = (e: KeyboardEvent) => handleKeydown(e);
+	const keydown = (e: KeyboardEvent) => {
+		noteKey();
+		handleKeydown(e);
+	};
 	window.addEventListener('keydown', keydown, true);
-	return () => window.removeEventListener('keydown', keydown, true);
+	window.addEventListener('pointerdown', notePointer, true);
+	return () => {
+		window.removeEventListener('keydown', keydown, true);
+		window.removeEventListener('pointerdown', notePointer, true);
+	};
 }
 
 /**
@@ -248,13 +279,23 @@ function keyOf(pathname: string, search: string): string {
  * changed `location`, while the DOM is still the screen being left.
  */
 export function saveFocus(url: URL | null): void {
+	const target = url ?? new URL(location.href);
+	const map = load();
+	const key = keyOf(target.pathname, target.search);
+	if (lastInput !== 'key') {
+		// Left by touch or mouse: forget an older keyboard visit's tile, so a
+		// back doesn't put focus somewhere the reader never was.
+		if (key in map) {
+			delete map[key];
+			store(map);
+		}
+		return;
+	}
 	const active = document.activeElement;
 	const host = active instanceof Element ? active.closest<HTMLElement>('[data-focus-id]') : null;
 	const id = host?.dataset.focusId;
 	if (!id || !isVisible(host)) return;
-	const target = url ?? new URL(location.href);
-	const map = load();
-	map[keyOf(target.pathname, target.search)] = id;
+	map[key] = id;
 	store(map);
 }
 
@@ -264,6 +305,8 @@ export function saveFocus(url: URL | null): void {
  * that arrives can redraw the tiles under it, so the element is put back for a
  * short while rather than once; the reader's first key or tap ends it.
  */
+const STOPS = ['keydown', 'pointerdown', 'wheel', 'touchstart'] as const;
+
 export function restoreFocus(pathname: string, search: string): void {
 	const id = load()[keyOf(pathname, search)];
 	if (!id) return;
@@ -275,8 +318,7 @@ export function restoreFocus(pathname: string, search: string): void {
 	const stop = () => {
 		done = true;
 		cancelAnimationFrame(frame);
-		window.removeEventListener('keydown', stop, true);
-		window.removeEventListener('pointerdown', stop, true);
+		for (const type of STOPS) window.removeEventListener(type, stop, true);
 	};
 	const tick = () => {
 		if (done) return;
@@ -288,7 +330,8 @@ export function restoreFocus(pathname: string, search: string): void {
 		frame = requestAnimationFrame(tick);
 	};
 
-	window.addEventListener('keydown', stop, true);
-	window.addEventListener('pointerdown', stop, true);
+	// Anything the reader does ends it, a wheel or a finger's scroll included:
+	// otherwise each frame's reveal() pulls the page back to the tile.
+	for (const type of STOPS) window.addEventListener(type, stop, { capture: true, passive: true });
 	frame = requestAnimationFrame(tick);
 }
