@@ -1,6 +1,6 @@
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { imageSize } from '$lib/server/pages/image-size';
 import { samplePage, sampleSize } from '$lib/server/pages/sample';
@@ -57,7 +57,8 @@ describe('where pages come from', () => {
 		).id;
 
 	beforeAll(async () => {
-		library = dirname(writeMihonFolder(mkdtempSync(join(tmpdir(), 'tsundoku-pages-'))));
+		library = mkdtempSync(join(tmpdir(), 'tsundoku-pages-'));
+		writeMihonFolder(join(library, 'devices', 'tsundoku'));
 		writeHentoidFolder(library);
 		await runImport(library);
 	});

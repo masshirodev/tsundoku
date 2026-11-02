@@ -352,7 +352,7 @@ test('ALL asks first and queues every unread chapter with no file (state 3)', as
 test('a source no extension has draws no DOWNLOAD row (state 4)', async ({ page }) => {
 	await page.goto(`/series/${ids.bato}`);
 	await expect(page.locator('.dl-row')).toHaveCount(0);
-	await expect(page.locator('.file-meta')).toContainText('BATO.TO DOWNLOADS ON THE TABLET');
+	await expect(page.locator('.file-meta')).toContainText('BATO.TO · NO EXTENSION HERE');
 	await expect(page.locator('.entry.missing .status .long').first()).toHaveText('NOT DOWNLOADED');
 });
 

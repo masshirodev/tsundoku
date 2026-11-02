@@ -1,6 +1,6 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
@@ -15,13 +15,20 @@ const { markEntries } = await import('$lib/server/series');
 const { closeDeadJobs } = await import('$lib/server/import/write');
 const { currentScan, dismissScan } = await import('$lib/server/library');
 
-const root = writeMihonFolder(mkdtempSync(join(tmpdir(), 'tsundoku-mihon-')));
-const library = dirname(root);
+/**
+ * The importer after c191 (doc/IMPORT-MIHON.md, "Where it reads from"): the
+ * library's own `Mihon/` is a place for a backup, and tsundoku's downloads sit
+ * in `devices/tsundoku/Mihon/`, read back by the same importer. The fixture's
+ * `local/` folder is no longer read at all.
+ */
+const library = mkdtempSync(join(tmpdir(), 'tsundoku-mihon-'));
+const root = writeMihonFolder(join(library, 'devices', 'tsundoku'));
 const hentoid = writeHentoidFolder(library);
 /** The Mihon part of a run's summary, flattened with the job's own fields. */
 const importMihon = async (now?: number) => {
 	const r = await runImport(library, { now });
-	return { jobId: r.jobId, failedFiles: r.failedFiles, ...r.sources[0] };
+	const source = r.sources.find((s) => s.name.startsWith('Mihon'));
+	return { jobId: r.jobId, failedFiles: r.failedFiles, ...source };
 };
 const db = () => getDb();
 const series = (title: string) =>
@@ -260,30 +267,11 @@ describe('the Hentoid import', () => {
 	});
 });
 
-describe('Mihon’s local source', () => {
-	it('imports each local folder as a single book in its own hidden root', () => {
-		const root = db().prepare(`SELECT name, hidden FROM roots WHERE path LIKE '%/local'`).get();
-		expect(root).toEqual({ name: 'Mihon local', hidden: 1 });
-		const book = series('Local Book');
-		expect(book).toMatchObject({ kind: 'doujin', rating: 0 });
-		const e = db().prepare(`SELECT * FROM entries WHERE series_id = ?`).get(book.id) as Record<
-			string,
-			unknown
-		>;
-		expect(e).toMatchObject({
-			label: 'Book',
-			file: 'aoi rin - Local Book - [555]/chapter_1',
-			page_count: 3,
-			cover_file: '../cover.jpg',
-			read_at: 1_760_000_000_000
-		});
-		const tags = db()
-			.prepare(
-				`SELECT t.namespace, t.value FROM series_tags st JOIN tags t ON t.id = st.tag_id WHERE st.series_id = ?`
-			)
-			.all(book.id);
-		expect(tags).toContainEqual({ namespace: 'artist', value: 'aoi rin' });
-		expect(series('No Artist Here')).toBeDefined();
+describe('Mihon’s local manga', () => {
+	it('is not imported any more: no local folder, no hidden root (c191)', () => {
+		expect(db().prepare(`SELECT name FROM roots WHERE path LIKE '%/local'`).get()).toBeUndefined();
+		expect(series('Local Book')).toBeUndefined();
+		expect(series('No Artist Here')).toBeUndefined();
 	});
 
 	it('never turns the backup’s local manga into series in the visible Mihon root', () => {

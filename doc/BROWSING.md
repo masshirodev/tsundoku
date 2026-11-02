@@ -268,4 +268,5 @@ folder, as a friend's new install never does, had no such root, and both
 refused: ADD said "there is no Mihon library to add it to", and READ ONLINE did
 nothing at all (2026-10-30). Now the first one makes the root a scan of
 `Mihon/` would (`<library>/Mihon`, `ensureNamedRoot`). The Mihon name itself is
-legacy, and goes with stripping Mihon from the app (its own card).
+legacy, and c191 kept it: the folder is also where a backup goes
+([`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Where it reads from").

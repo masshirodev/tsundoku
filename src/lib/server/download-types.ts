@@ -13,7 +13,7 @@ export type Queue = { running: boolean; items: QueueItem[] };
 export type SeriesDownloads =
 	/** Nothing to say: not a Mihon series, or downloading isn't set up here. */
 	| { kind: 'none' }
-	/** A Mihon source no installed extension has (Bato.to, Hitomi): the tablet downloads it. */
+	/** A Mihon source no installed extension has (Bato.to, Hitomi): tsundoku cannot download it. */
 	| { kind: 'elsewhere'; source: string }
 	| { kind: 'down'; since: number }
 	| {

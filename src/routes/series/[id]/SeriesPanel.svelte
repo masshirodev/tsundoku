@@ -178,10 +178,12 @@
 			await update();
 			if (result.type === 'success') await invalidateAll();
 		};
-	// No extension for its source (Bato.to, Hitomi): said once, on the FILE line (state 4).
+	// No extension for its source (Bato.to, Hitomi): said once, on the FILE line
+	// (state 4). It cannot say the tablet downloads it: after c191 a device's
+	// Mihon downloads are not imported (doc/DOWNLOADING.md, "Not done yet").
 	const elsewhere = $derived(
 		downloads?.kind === 'elsewhere'
-			? ` · ${downloads.source.toUpperCase()} DOWNLOADS ON THE TABLET`
+			? ` · ${downloads.source.toUpperCase()} · NO EXTENSION HERE`
 			: ''
 	);
 

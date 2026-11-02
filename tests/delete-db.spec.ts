@@ -1,6 +1,6 @@
 import { existsSync, mkdtempSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
@@ -13,7 +13,8 @@ const { groupIntoSeries } = await import('$lib/server/books');
 const { writeMihonFolder } = await import('./helpers/mihon-fixture');
 const { writeHentoidFolder } = await import('./helpers/hentoid-fixture');
 
-const library = dirname(writeMihonFolder(mkdtempSync(join(tmpdir(), 'tsundoku-delete-'))));
+const library = mkdtempSync(join(tmpdir(), 'tsundoku-delete-'));
+writeMihonFolder(join(library, 'devices', 'tsundoku'));
 const hentoid = writeHentoidFolder(library);
 const trash = mkdtempSync(join(tmpdir(), 'tsundoku-trash-'));
 process.env.LIBRARY_ROOT = library;
@@ -36,7 +37,14 @@ beforeAll(async () => {
 describe('deleting a series', () => {
 	it('removes it, moves its files to the trash under their library path, and keeps it gone', async () => {
 		const id = idOf('Drawing: Saikyou Mangaka')!;
-		const weeb = join('Mihon', 'downloads', 'Weeb Central (EN)', 'Drawing_ Saikyou Mangaka');
+		const weeb = join(
+			'devices',
+			'tsundoku',
+			'Mihon',
+			'downloads',
+			'Weeb Central (EN)',
+			'Drawing_ Saikyou Mangaka'
+		);
 		expect(existsSync(join(library, weeb, 'Unknown_Chapter 2_abc2.cbz'))).toBe(true);
 
 		const r = await deleteSeries([id], false, 1_800_000_100_000);

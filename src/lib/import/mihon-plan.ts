@@ -184,17 +184,26 @@ export function mihonFolderName(title: string): string {
 
 // ---- matching ------------------------------------------------------------------
 
+/** A `<source dir>` that belongs to a backup's source name: "Asura Scans (EN)" does. */
+export function sourceDirMatches(sourceDir: string, sourceName: string): boolean {
+	return sourceDir === sourceName || sourceDir.startsWith(`${sourceName} (`);
+}
+
+/** A `<series dir>` that is the folder Mihon builds from `title`. */
+export function folderTitleMatches(dir: string, title: string): boolean {
+	const folder = mihonFolderName(title);
+	return dir === folder || (folder.length >= 200 && folder.startsWith(dir));
+}
+
 function sourceMatches(downloaded: DownloadedSeries, sourceName: string | undefined): boolean {
 	if (!sourceName) return false;
-	if (downloaded.sourceDir === sourceName || downloaded.sourceDir.startsWith(`${sourceName} (`))
-		return true;
+	if (sourceDirMatches(downloaded.sourceDir, sourceName)) return true;
 	return downloaded.chapters.some((c) => c.info?.source === sourceName);
 }
 
 function titleMatches(downloaded: DownloadedSeries, title: string): boolean {
 	if (downloaded.chapters.some((c) => c.info?.series === title)) return true;
-	const folder = mihonFolderName(title);
-	return downloaded.dir === folder || (folder.length >= 200 && folder.startsWith(downloaded.dir));
+	return folderTitleMatches(downloaded.dir, title);
 }
 
 /**
@@ -378,6 +387,10 @@ function fromBackup(
 	return {
 		originKey: `mihon:${m.source}:${m.url}`,
 		formerKey: downloaded ? folderKey(downloaded) : undefined,
+		// Where a download of it would sit on the device, whether this root has
+		// one or not: a folder imported before the backup knew the manga is the
+		// same series (server/import/fold.ts).
+		folder: sourceName ? { source: sourceName, title: m.title } : undefined,
 		source: 'mihon',
 		favourite: false,
 		title: m.title,
@@ -451,6 +464,7 @@ function fromDownloadOnly(d: DownloadedSeries, now: number): PlannedSeries {
 	const sourceName = info?.source || d.sourceDir.replace(/\s*\([^)]*\)\s*$/, '');
 	return {
 		originKey: folderKey(d),
+		folder: { source: sourceName, title },
 		source: 'mihon',
 		favourite: false,
 		title,
@@ -496,8 +510,8 @@ export function planMihon(
 	const claimed = new Set<DownloadedSeries>();
 	let skipped = 0;
 	for (const m of backup?.manga ?? []) {
-		// Local manga (source 0) are the local folder's, planned by
-		// mihon-local-plan.ts: never a not-downloaded series in this root.
+		// Local manga (source 0) are Mihon's local folder, which tsundoku no
+		// longer imports (c191): never a series from the backup.
 		if (m.source === '0') continue;
 		const sourceName = backup!.sources.get(m.source);
 		const downloaded =

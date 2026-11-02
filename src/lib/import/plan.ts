@@ -64,6 +64,14 @@ export type PlannedSeries = {
 	 * is keyed by its folder until a backup knows it (server/import/fold.ts).
 	 */
 	formerKey?: string;
+	/**
+	 * The source and title a download of this series is filed under on disk
+	 * (`<source dir>/<series dir>`). A series a backup names and one imported by
+	 * its folder are the same series, on the same device or another: the writer
+	 * finds the other by these (server/import/fold.ts, "a folder a backup now
+	 * knows").
+	 */
+	folder?: { source: string; title: string };
 	/** `series.source`: 'mihon', 'hentoid'. */
 	source: string;
 	title: string;
