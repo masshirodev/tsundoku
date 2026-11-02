@@ -34,6 +34,8 @@ type Call = {
 	filterList?: unknown;
 };
 let calls: Call[] = [];
+/** How many times the fake engine's /challenges was asked. */
+let challengeCalls = 0;
 /** What the fake engine's /challenges says. */
 let challenges: { solving: Record<string, number>; solved: Record<string, number> } = {
 	solving: {},
@@ -53,10 +55,12 @@ const manga = (sourceId: string, page: number, i: number) => ({
 
 beforeAll(async () => {
 	server = createServer((req, res) => {
-		if (req.url === '/challenges')
+		if (req.url === '/challenges') {
+			challengeCalls++;
 			return res
 				.writeHead(200, { 'content-type': 'application/json' })
 				.end(JSON.stringify(challenges));
+		}
 		// A stubbed FlareSolverr (c152): a clearance for the novel site, slow
 		// enough that a test can see the solve underway.
 		if (req.url === '/v1') {
@@ -125,6 +129,7 @@ afterAll(async () => {
 });
 beforeEach(() => {
 	calls = [];
+	challengeCalls = 0;
 	browse.forgetAll();
 	forgetSourceUse();
 });
@@ -346,8 +351,10 @@ describe('a site’s browser check', () => {
 		).run();
 		challenges = { solving: { 'api.novel.example': 7_000 }, solved: {} };
 		expect(await browse.checkingSince('ln:shelfish')).toBe(7_000);
-		// A plugin that isn't installed has no site, and no engine call is needed to say so.
+		// A plugin that isn't installed has no site, and the engine isn't asked at all.
+		challengeCalls = 0;
 		expect(await browse.checkingSince('ln:absent')).toBeNull();
+		expect(challengeCalls).toBe(0);
 		challenges = { solving: {}, solved: { 'www.novel.example': 8_000 } };
 		await browse.checkingSince('ln:shelfish');
 		expect(browse.browseList(false).novels.find((r) => r.id === 'ln:shelfish')!.check).toBe(true);
