@@ -139,6 +139,19 @@ export function saveAttempt(
 	).run(entryId, method, now);
 }
 
+/**
+ * Forgets every AniSkip answer a series' episodes have, found or not. A link
+ * set, changed or removed asks a different MAL entry, and a negative kept
+ * from the old one would keep AniSkip from being asked for a week (card
+ * c299). Called inside every door that writes a link (catalogue.ts).
+ */
+export function clearAniSkip(seriesId: number, db: Database.Database = getDb()): void {
+	db.prepare(
+		`DELETE FROM episode_marks WHERE method = 'aniskip'
+		AND entry_id IN (SELECT id FROM entries WHERE series_id = ?)`
+	).run(seriesId);
+}
+
 /** `entries.ending_at` is where an episode counts as watched: the best ending, or none. */
 export function syncEndingAt(entryId: number, db: Database.Database = getDb()): void {
 	const rows = storedMarks(entryId, db);

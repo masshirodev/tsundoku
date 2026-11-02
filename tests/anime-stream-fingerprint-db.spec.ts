@@ -102,6 +102,14 @@ beforeAll(async () => {
 	hlsAudio('ep-a/low', a, '32k');
 	hlsAudio('ep-b/low', b, '32k');
 	hlsAudio('ep-a/high', a, '128k');
+	// The same two episodes for a source that names no height, and one that
+	// offers nothing at or below 480p.
+	hlsAudio('n1', a, '32k');
+	hlsAudio('n2', b, '32k');
+	hlsAudio('k1', a, '32k');
+	hlsAudio('k2', b, '32k');
+	hlsAudio('h1', a, '32k');
+	hlsAudio('h2', b, '32k');
 	server = createServer((req, res) => {
 		seen.push(req.url ?? '');
 		if (req.headers.authorization !== 'Bearer engine-secret') return res.writeHead(401).end();
@@ -127,26 +135,66 @@ beforeAll(async () => {
 				episodeData?: { url?: string };
 			};
 			if (body.method !== 'getVideoList') return res.writeHead(404).end('{}');
-			const ep = body.episodeData?.url?.includes('/ep/b') ? 'ep-b' : 'ep-a';
-			res.writeHead(200, { 'content-type': 'application/json' }).end(
-				JSON.stringify([
-					{
-						quality: 'High - 1080p',
-						videoUrl: `${self}/video/broken.webm`,
-						audioTracks: [{ url: `${self}/video/hls/ep-a/high/index.m3u8`, lang: 'Japanese' }]
-					},
-					{
-						quality: 'Broken - 360p',
-						videoUrl: `${self}/video/broken.webm`,
-						audioTracks: [{ url: `${self}/video/hls/missing/index.m3u8`, lang: 'Japanese' }]
-					},
-					{
-						quality: 'Kwik - 360p',
-						videoUrl: `${self}/video/broken.webm`,
-						audioTracks: [{ url: `${self}/video/hls/${ep}/low/index.m3u8`, lang: 'Japanese' }]
-					}
-				])
-			);
+			const kind = /\/ep\/([a-z0-9]+)/.exec(body.episodeData?.url ?? '')?.[1] ?? 'a';
+			const pair = kind === 'b' ? 'ep-b' : 'ep-a';
+			const audio = (dir: string) => ({
+				url: `${self}/video/hls/${dir}/index.m3u8`,
+				lang: 'Japanese'
+			});
+			// KickAssAnime's live answer (2026-11-02): one server, "VidStreaming",
+			// three qualities, each with the source's own words and a height in
+			// them, and a separate audio rendition per language.
+			const kaaBody = (kind: string) =>
+				[
+					['1080p (1920x1080) - 3.52 Mbps', `${kind}/high`],
+					['720p (1280x720) - 1.31 Mbps', `${kind}/mid`],
+					['360p (640x360) - 506 kbps', kind]
+				].map(([label, dir]) => ({
+					quality: `VidStreaming - ${label}`,
+					videoUrl: `${self}/video/broken.webm`,
+					audioTracks: [audio(dir)]
+				}));
+			const videos = kind.startsWith('k')
+				? kaaBody(kind)
+				: kind === 'n1' || kind === 'n2'
+					? [
+							{
+								quality: 'VidStreaming - Default',
+								videoUrl: `${self}/video/broken.webm`,
+								audioTracks: [audio(kind)]
+							}
+						]
+					: kind === 'h1' || kind === 'h2'
+						? [
+								{
+									quality: 'VidStreaming - 1080p (1920x1080) - 3.52 Mbps',
+									videoUrl: `${self}/video/broken.webm`,
+									audioTracks: [audio(kind)]
+								},
+								{
+									quality: 'VidStreaming - 720p (1280x720) - 1.31 Mbps',
+									videoUrl: `${self}/video/broken.webm`,
+									audioTracks: [audio(kind)]
+								}
+							]
+						: [
+								{
+									quality: 'High - 1080p',
+									videoUrl: `${self}/video/broken.webm`,
+									audioTracks: [audio('ep-a/high')]
+								},
+								{
+									quality: 'Broken - 360p',
+									videoUrl: `${self}/video/broken.webm`,
+									audioTracks: [audio('missing')]
+								},
+								{
+									quality: 'Kwik - 360p',
+									videoUrl: `${self}/video/broken.webm`,
+									audioTracks: [audio(`${pair}/low`)]
+								}
+							];
+			res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(videos));
 		});
 	});
 	await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
@@ -183,7 +231,7 @@ const series = () =>
 			.run(root, `Stream Show ${++n}`, `aniyomi:${SOURCE}:/show/stream-${n}`).lastInsertRowid
 	);
 let position = 0;
-const episode = (seriesId: number) =>
+const episode = (seriesId: number, name?: string) =>
 	Number(
 		db
 			.prepare(
@@ -191,8 +239,12 @@ const episode = (seriesId: number) =>
 					duration_s, available, file)
 				VALUES (?, ?, 'Ep.', 0, ?, 1, ?, 340, 0, '')`
 			)
-			.run(seriesId, ++position, `/ep/${position % 2 === 1 ? 'a' : 'b'}`, (position % 2) + 1)
-			.lastInsertRowid
+			.run(
+				seriesId,
+				++position,
+				`/ep/${name ?? (position % 2 === 1 ? 'a' : 'b')}`,
+				(position % 2) + 1
+			).lastInsertRowid
 	);
 
 describe('fingerprinting streams', () => {
@@ -228,12 +280,16 @@ describe('fingerprinting streams', () => {
 			VALUES (?, ?, 1, 'downloading', 0)`
 		).run(b, show);
 		seen = [];
-		expect(await fingerprintSeason(show, a, { allowStreams: true, pauseMs: 0 })).toEqual({
-			episodes: 0,
-			found: 0
-		});
-		expect(seen).toEqual([]);
-		expect(marks.chosenMarks(a).intro).toBeNull();
+		try {
+			expect(await fingerprintSeason(show, a, { allowStreams: true, pauseMs: 0 })).toEqual({
+				episodes: 0,
+				found: 0
+			});
+			expect(seen).toEqual([]);
+			expect(marks.chosenMarks(a).intro).toBeNull();
+		} finally {
+			db.prepare(`DELETE FROM download_queue WHERE series_id = ?`).run(show);
+		}
 	}, 60_000);
 
 	it('targets the playing episode, the next two, and one more to pair them', () => {
@@ -242,4 +298,45 @@ describe('fingerprinting streams', () => {
 		expect(streamTargets([10, 11, 12, 13, 14], 14)).toEqual([14]);
 		expect(streamTargets([10, 11], 99)).toEqual([]);
 	});
+
+	it('reads KickAssAnime’s own shape: one VidStreaming server, three heights, and the 360p audio (live, 2026-11-02)', async () => {
+		// The engine's live answer was one server ("VidStreaming") whose qualities
+		// read "1080p (1920x1080) - 3.52 Mbps", "720p (1280x720) - 1.31 Mbps" and
+		// "360p (640x360) - 506 kbps", each with a separate audio rendition per
+		// language. Only the 360p audio is fetched.
+		const show = series();
+		const a = episode(show, 'k1');
+		episode(show, 'k2');
+		seen = [];
+		expect(await fingerprintSeason(show, a, { allowStreams: true, pauseMs: 0 })).toEqual({
+			episodes: 2,
+			found: 2
+		});
+		expect(seen.some((u) => u.includes('/hls/k1/index.m3u8'))).toBe(true);
+		expect(seen.some((u) => u.includes('/hls/k2/index.m3u8'))).toBe(true);
+		expect(seen.some((u) => u.includes('/hls/k1/high/'))).toBe(false);
+		expect(marks.chosenMarks(a).introFrom).toBe('fingerprint');
+	}, 180_000);
+
+	it('takes the lowest quality when the source names no height at all', async () => {
+		const show = series();
+		const a = episode(show, 'n1');
+		episode(show, 'n2');
+		expect(await fingerprintSeason(show, a, { allowStreams: true, pauseMs: 0 })).toEqual({
+			episodes: 2,
+			found: 2
+		});
+		expect(marks.chosenMarks(a).endingFrom).toBe('fingerprint');
+	}, 180_000);
+
+	it('takes the lowest quality there is when none is at most 480p', async () => {
+		const show = series();
+		const a = episode(show, 'h1');
+		episode(show, 'h2');
+		expect(await fingerprintSeason(show, a, { allowStreams: true, pauseMs: 0 })).toEqual({
+			episodes: 2,
+			found: 2
+		});
+		expect(marks.chosenMarks(a).introFrom).toBe('fingerprint');
+	}, 180_000);
 });

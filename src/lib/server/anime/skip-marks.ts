@@ -90,7 +90,9 @@ export function streamTargets(episodeIds: number[], playingEntryId: number): num
 	return i < 0 ? [] : episodeIds.slice(i, i + 4);
 }
 
-/** A stream's own quality to fingerprint: the lowest at most 480p, on the first server that has one. */
+/** A stream's own quality to fingerprint: the lowest at most 480p. A source that
+ * offers nothing that low, or that names no height at all, gives its lowest
+ * instead: reading audio costs the same at any video height (c299). */
 function lowestQuality(server: {
 	qualities: {
 		src: string;
@@ -99,12 +101,54 @@ function lowestQuality(server: {
 		audio: { src: string }[];
 	}[];
 }) {
-	return (
-		server.qualities
-			.filter((q) => q.height !== null && q.height <= 480)
-			.sort((a, b) => a.height! - b.height!)[0] ?? null
-	);
+	const qs = server.qualities;
+	if (!qs.length) return null;
+	const known = qs.filter((q) => q.height !== null);
+	if (!known.length) return qs[0];
+	const low = [...known].sort((a, b) => a.height! - b.height!);
+	return low[0];
 }
+
+type Server = {
+	name: string;
+	qualities: {
+		src: string;
+		kind: 'hls' | 'file';
+		height: number | null;
+		audio: { src: string }[];
+	}[];
+};
+
+/**
+ * The servers and qualities to read, best first: a server with a quality at
+ * or below 480p beats one without, then an unknown height, then one above;
+ * within a rank, the lowest happens first and the source's own server order
+ * breaks ties. So a 1080p-only server first never pre-empts a later server's
+ * 360p, and a source that names one height only still gives something to read
+ * (c299).
+ */
+function qualitiesToRead(
+	servers: Server[]
+): { server: Server; q: NonNullable<ReturnType<typeof lowestQuality>> }[] {
+	const out: {
+		server: Server;
+		q: NonNullable<ReturnType<typeof lowestQuality>>;
+		rank: number;
+		order: number;
+	}[] = [];
+	servers.forEach((server, order) => {
+		const q = lowestQuality(server);
+		if (!q) return;
+		out.push({ server, q, rank: q.height === null ? 1 : q.height <= 480 ? 0 : 2, order });
+	});
+	return out
+		.sort((a, b) => a.rank - b.rank || (a.q.height ?? 0) - (b.q.height ?? 0) || a.order - b.order)
+		.map(({ server, q }) => ({ server, q }));
+}
+
+/** One line for the log, INFO or WARN, so "why no skip on this episode" is answerable (c299). */
+const info = (line: string) => console.log(`tsundoku: skip-marks: ${line}`);
+const warn = (line: string) => console.error(`tsundoku: skip-marks: WARN ${line}`);
 
 /** A download of the same source is running: don't read its streams at the same time. */
 function sameSourceDownloading(seriesId: number, db: Database.Database): boolean {
@@ -122,25 +166,47 @@ function sameSourceDownloading(seriesId: number, db: Database.Database): boolean
 
 /**
  * Fingerprints an episode through the streams the player would use: the
- * lowest quality at most 480p, a separate audio rendition where the source
- * offers one, through the loopback proxy, seeking to the minutes it needs.
- * Servers are tried in the source's order; one that fails is left quietly.
+ * lowest quality at most (else above) 480p, a separate audio rendition where
+ * the source offers one, through the loopback proxy, seeking to the minutes
+ * it needs. Servers are tried in the source's order; one that fails is left
+ * quietly by the player, but says so in the log (c299), with the step and
+ * the server's name.
  */
 async function streamPrints(
 	entryId: number,
 	durationS: number | null,
 	db: Database.Database
 ): Promise<Prints | null> {
-	const streams = await episodeStreams(entryId, true).catch(() => null);
+	const streams = await episodeStreams(entryId, true).catch((e: unknown) => {
+		warn(`episode ${entryId}: the streams could not be resolved (${(e as Error).message})`);
+		return null;
+	});
 	if (!streams) return null;
+	if (!streams.servers.length) {
+		warn(`episode ${entryId}: the source named no server`);
+		return null;
+	}
 	const { port, secret } = await loopback();
-	for (const server of streams.servers) {
-		const q = lowestQuality(server);
-		if (!q) continue;
+	const readable = qualitiesToRead(streams.servers);
+	if (!readable.length) {
+		warn(`episode ${entryId}: no server named a quality to read`);
+		return null;
+	}
+	for (const { server, q } of readable) {
 		let duration = durationS;
 		if (!duration) {
-			const measured = await probe(q.src).catch(() => null);
-			if (!measured?.seconds) continue;
+			const measured = await probe(q.src).catch((e: unknown) => {
+				warn(
+					`episode ${entryId} · ${server.name || 'server'}: the length probe failed (${(e as Error).message})`
+				);
+				return null;
+			});
+			if (!measured?.seconds) {
+				warn(
+					`episode ${entryId} · ${server.name || 'server'}: no length, so no ending can be placed`
+				);
+				continue;
+			}
 			duration = measured.seconds;
 			db.prepare(`UPDATE entries SET duration_s = COALESCE(duration_s, ?) WHERE id = ?`).run(
 				Math.round(duration),
@@ -153,8 +219,15 @@ async function streamPrints(
 		const prints = await fingerprintRegions(`http://127.0.0.1:${port}${src}`, duration, {
 			header: `x-tsundoku: ${secret}`,
 			hls: q.audio.length > 0 || q.kind === 'hls'
-		}).catch(() => null);
+		}).catch((e: unknown) => {
+			warn(
+				`episode ${entryId} · ${server.name || 'server'}: the fingerprint failed at ${q.height ?? '?'}p (${(e as Error).message})`
+			);
+			return null;
+		});
 		if (prints && (prints.intro || prints.ending)) return prints;
+		if (prints)
+			warn(`episode ${entryId} · ${server.name || 'server'}: read, and the regions share nothing`);
 	}
 	return null;
 }
@@ -182,7 +255,10 @@ export async function fingerprintSeason(
 	const season = seasonOf(seriesId, playingEntryId, db);
 	if (!season || season.hidden) return { episodes: 0, found: 0 };
 	// A download of the same source is busy: its streams are left alone.
-	if (sameSourceDownloading(seriesId, db)) return { episodes: 0, found: 0 };
+	if (sameSourceDownloading(seriesId, db)) {
+		info(`series ${seriesId}: a download of the same source is running, so nothing was read`);
+		return { episodes: 0, found: 0 };
+	}
 	const streamIds = opts.allowStreams
 		? new Set(
 				streamTargets(
@@ -191,6 +267,10 @@ export async function fingerprintSeason(
 				)
 			)
 		: new Set<number>();
+	const seasonNo = season.playing.season === null ? '' : ` season ${season.playing.season}`;
+	info(
+		`series ${seriesId}${seasonNo}: episode ${playingEntryId} played, ${season.episodes.length} in the season, ${streamIds.size} to read from streams`
+	);
 
 	const prints = new Map<number, Prints>();
 	const missing = new Map<number, { intro: boolean; ending: boolean }>();
@@ -207,7 +287,13 @@ export async function fingerprintSeason(
 			if (sameSourceDownloading(seriesId, db)) break;
 			p = await streamPrints(episode.id, episode.duration_s, db);
 		}
-		if (!p || (!p.intro && !p.ending)) continue;
+		if (!p || (!p.intro && !p.ending)) {
+			if (p) info(`episode ${episode.id}: read, and neither region holds a mark`);
+			continue;
+		}
+		info(
+			`episode ${episode.id}: ${file ? 'its file' : 'its stream'} gave ${p.intro ? 'an opening' : 'no opening'} and ${p.ending ? 'an ending' : 'no ending'}`
+		);
 		prints.set(episode.id, p);
 		missing.set(episode.id, { intro: !chosen.intro, ending: !chosen.ending });
 		if (pauseMs) await new Promise((ok) => setTimeout(ok, pauseMs));
@@ -215,7 +301,12 @@ export async function fingerprintSeason(
 
 	// One episode is no pair: a season with nothing to compare leaves no mark
 	// and no memory, so the next episode to arrive can still be its partner.
-	if (prints.size < 2) return { episodes: prints.size, found: 0 };
+	if (prints.size < 2) {
+		info(
+			`series ${seriesId}: ${prints.size} episode${prints.size === 1 ? '' : 's'} read, and a pair needs two, so nothing was kept`
+		);
+		return { episodes: prints.size, found: 0 };
+	}
 
 	const intro = new Map<number, Best>();
 	const ending = new Map<number, Best>();
@@ -247,6 +338,7 @@ export async function fingerprintSeason(
 		const gotEnding = want.ending ? ending.get(id) : undefined;
 		if (!gotIntro && !gotEnding) {
 			saveAttempt(id, 'fingerprint', db, now);
+			info(`episode ${id}: no shared run with another episode, kept as a negative`);
 			continue;
 		}
 		saveMark(
@@ -258,6 +350,7 @@ export async function fingerprintSeason(
 		);
 		found += 1;
 	}
+	info(`series ${seriesId}: ${prints.size} read, ${found} with a mark`);
 	return { episodes: prints.size, found };
 }
 

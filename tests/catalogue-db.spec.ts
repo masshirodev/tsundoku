@@ -28,6 +28,10 @@ const media = (o: {
 	format?: string;
 	country?: string;
 	chapters?: number | null;
+	episodes?: number | null;
+	season?: string | null;
+	seasonYear?: number | null;
+	year?: number;
 }) => ({
 	id: o.id,
 	idMal: o.idMal ?? null,
@@ -36,17 +40,40 @@ const media = (o: {
 	status: 'RELEASING',
 	chapters: o.chapters ?? null,
 	volumes: null,
+	episodes: o.episodes ?? null,
+	season: o.season ?? null,
+	seasonYear: o.seasonYear ?? null,
 	synonyms: [],
 	title: { romaji: o.romaji ?? `Romaji ${o.id}`, english: o.english ?? null, native: null },
-	startDate: { year: 2021 },
+	startDate: { year: o.year ?? 2021 },
 	coverImage: { extraLarge: `https://s4.anilist.co/cover/${o.id}.jpg`, large: null }
 });
+
+/** An anime entry: AniList's other catalogue. */
+const anime = (o: {
+	id: number;
+	idMal?: number | null;
+	english: string;
+	year?: number;
+	episodes?: number;
+}) =>
+	media({
+		...o,
+		format: 'TV',
+		country: 'JP',
+		chapters: null,
+		episodes: o.episodes ?? 24,
+		season: 'FALL',
+		seasonYear: o.year ?? 2024,
+		year: o.year ?? 2024
+	});
 
 /** What the fake AniList holds, by id, and what each search finds. */
 let entries: ReturnType<typeof media>[] = [];
 let searches: Record<string, ReturnType<typeof media>[]> = {};
 const asked: string[] = [];
 const formatsAsked: string[] = [];
+const queriesAsked: string[] = [];
 
 const fake: typeof fetch = async (_url, init) => {
 	const { query, variables } = JSON.parse(String(init?.body)) as {
@@ -54,15 +81,30 @@ const fake: typeof fetch = async (_url, init) => {
 		variables: Record<string, unknown>;
 	};
 	asked.push(query.includes('search:') ? 'search' : 'ids');
+	queriesAsked.push(query);
 	const reply = (data: unknown) =>
 		new Response(JSON.stringify({ data }), { headers: { 'content-type': 'application/json' } });
 	if (query.includes('idMal_in')) {
 		const ids = variables.ids as number[];
-		return reply({ Page: { media: entries.filter((m) => ids.includes(m.idMal ?? -1)) } });
+		const type = /type: (ANIME|MANGA)/.exec(query)?.[1] ?? 'MANGA';
+		return reply({
+			Page: {
+				media: entries.filter(
+					(m) => ids.includes(m.idMal ?? -1) && (m.format === 'TV') === (type === 'ANIME')
+				)
+			}
+		});
 	}
 	if (query.includes('id_in')) {
 		const ids = variables.ids as number[];
-		return reply({ Page: { media: entries.filter((m) => ids.includes(m.id)) } });
+		const type = /type: (ANIME|MANGA)/.exec(query)?.[1] ?? 'MANGA';
+		return reply({
+			Page: {
+				media: entries.filter(
+					(m) => ids.includes(m.id) && (m.format === 'TV') === (type === 'ANIME')
+				)
+			}
+		});
 	}
 	const out: Record<string, unknown> = {};
 	for (const [k, q] of Object.entries(variables)) {
@@ -82,10 +124,30 @@ beforeEach(() => {
 	searches = {};
 	asked.length = 0;
 	formatsAsked.length = 0;
+	queriesAsked.length = 0;
 	delete process.env.TSUNDOKU_ANILIST;
 	for (const t of ['series_links', 'link_searches', 'link_candidates', 'link_decisions'])
 		db.prepare(`DELETE FROM ${t}`).run();
 });
+
+/** An anime in the library, keyed as an Aniyomi ADD writes one; removed after its test. */
+const animeSeries = (title: string) => {
+	const root = (db.prepare(`SELECT id FROM roots WHERE hidden = 0 LIMIT 1`).get() as { id: number })
+		.id;
+	const id = Number(
+		db
+			.prepare(
+				`INSERT INTO series (root_id, title, kind, added_at, origin_key, source, in_library)
+				VALUES (?, ?, 'anime', ?, ?, 'KickAssAnime', 1)`
+			)
+			.run(root, title, NOW, `aniyomi:9000:/${title.replace(/\W+/g, '-').toLowerCase()}`)
+			.lastInsertRowid
+	);
+	return id;
+};
+const forgetSerie = (id: number) => {
+	db.prepare(`DELETE FROM series WHERE id = ?`).run(id);
+};
 
 describe('what the pass searches', () => {
 	it('is manga, manhwa and novels in view: never a hidden series, a doujin or Hentoid’s', () => {
@@ -193,6 +255,144 @@ describe('searching', () => {
 	});
 });
 
+describe('an anime', () => {
+	it('is in the pass, and is searched in AniList’s anime catalogue with its own formats', async () => {
+		const id = animeSeries('Trigun Stampede');
+		try {
+			expect(cat.searchable(10_000).some((r) => r.id === id)).toBe(true);
+			searches['Trigun Stampede'] = [anime({ id: 155783, english: 'Trigun Stampede' })];
+			const r = await cat.searchSeries(
+				cat.searchable(10_000).filter((x) => x.id === id),
+				NOW
+			);
+			expect(r).toEqual({ linked: 1, offered: 0 });
+			expect(linkRow(id)).toMatchObject({ anilist_id: 155783, via: 'exact', format: 'TV' });
+			expect(formatsAsked).toEqual(['TV,TV_SHORT,MOVIE,OVA,ONA,SPECIAL']);
+			expect(queriesAsked.some((q) => q.includes('type: ANIME'))).toBe(true);
+			expect(queriesAsked.some((q) => q.includes('type: MANGA'))).toBe(false);
+		} finally {
+			forgetSerie(id);
+		}
+	});
+
+	it('never takes a manga’s exact title, even when the manga matches better', async () => {
+		const id = animeSeries('Ranma ½ (2024)');
+		try {
+			// AniList holds the manga (MANGA) and the 2024 anime under one title;
+			// the manga is first and its title is exactly the series' own.
+			searches['Ranma ½'] = [
+				media({ id: 30023, idMal: 23, english: 'Ranma ½' }),
+				anime({ id: 30024, idMal: 23, english: 'Ranma ½', year: 2024 })
+			];
+			db.prepare(`UPDATE series SET title = 'Ranma ½ (2024)' WHERE id = ?`).run(id);
+			const r = await cat.searchSeries(
+				cat.searchable(10_000).filter((x) => x.id === id),
+				NOW
+			);
+			expect(r).toEqual({ linked: 1, offered: 0 });
+			expect(linkRow(id)).toMatchObject({ anilist_id: 30024, mal_id: 23, format: 'TV' });
+		} finally {
+			forgetSerie(id);
+		}
+	});
+
+	it('a search the owner runs offers even one equal result, and links nothing until LINK', async () => {
+		const id = animeSeries('Ranma ½ (2024)');
+		try {
+			searches['Ranma ½'] = [anime({ id: 30024, idMal: 23, english: 'Ranma ½' })];
+			const r = await cat.searchNow(id, 'Ranma ½', NOW);
+			expect(r).toEqual({ outcome: 'found', found: 1 });
+			expect(linkRow(id)).toBeUndefined();
+			const item = cat.reviewItem(id, false)!;
+			expect(item.candidates.map((c) => c.anilistId)).toEqual([30024]);
+			expect(item.candidates[0].rows.map((x) => x.label)).toEqual([
+				'FORMAT',
+				'SEASON',
+				'EPISODES',
+				'STATUS'
+			]);
+			// LINK is the owner's press; UNDO of it puts the series back as it was.
+			cat.link(id, cat.offered(id, 30024)!, 'review', NOW);
+			expect(linkRow(id)).toMatchObject({ anilist_id: 30024, via: 'review' });
+			expect(cat.undoLink(id)).toBe(true);
+			expect(cat.reviewItem(id, false)!.candidates).toHaveLength(1);
+		} finally {
+			forgetSerie(id);
+		}
+	});
+
+	it('flags a link to the other kind as wrong, and never unlinks it by itself', () => {
+		const id = animeSeries('Ranma ½ (2024)');
+		try {
+			// The link c298 found live: the manga 30023 on the anime series.
+			cat.link(
+				id,
+				{
+					anilistId: 30023,
+					malId: 23,
+					title: 'Ranma ½',
+					alts: [],
+					format: 'MANGA',
+					country: 'JP',
+					year: 1989,
+					chapters: 407,
+					volumes: null,
+					episodes: null,
+					season: null,
+					seasonYear: null,
+					status: 'FINISHED',
+					coverUrl: ''
+				},
+				'exact',
+				NOW
+			);
+			expect(linkRow(id)).toBeDefined();
+			expect(cat.linkState(id)?.linked).toMatchObject({
+				wrongKind: true,
+				coverOnly: false
+			});
+			// A link of its own kind is not flagged.
+			cat.link(
+				id,
+				{
+					anilistId: 30024,
+					malId: 23,
+					title: 'Ranma ½',
+					alts: [],
+					format: 'TV',
+					country: 'JP',
+					year: 2024,
+					chapters: null,
+					volumes: null,
+					episodes: 24,
+					season: 'FALL',
+					seasonYear: 2024,
+					status: 'RELEASING',
+					coverUrl: ''
+				},
+				'review',
+				NOW
+			);
+			expect(cat.linkState(id)?.linked).toMatchObject({ wrongKind: false });
+		} finally {
+			forgetSerie(id);
+		}
+	});
+
+	it('resolves a MAL tracker in its own catalogue: an anime id is not a manga’s', async () => {
+		const id = animeSeries('Trigun Stampede');
+		try {
+			cat.linkFromTracker(db, id, { id: 52093, score: 0 }, NOW);
+			entries = [anime({ id: 155783, idMal: 52093, english: 'Trigun Stampede' })];
+			expect(await cat.resolveLinks(NOW)).toBe(1);
+			expect(linkRow(id)).toMatchObject({ anilist_id: 155783, title: 'Trigun Stampede' });
+			expect(queriesAsked.some((q) => q.includes('type: ANIME'))).toBe(true);
+		} finally {
+			forgetSerie(id);
+		}
+	});
+});
+
 describe('the review', () => {
 	const offer = async () => {
 		const hua = idOf('Return of the Mount Hua Sect');
@@ -266,10 +466,20 @@ describe('the review', () => {
 
 	it('reads a pasted link by its id alone', async () => {
 		entries = [media({ id: 171204, idMal: 160388, english: 'I Became the Sword Saint’s Son' })];
-		expect((await cat.readPasted({ service: 'mal', id: 160388 })).anilistId).toBe(171204);
-		expect((await cat.readPasted({ service: 'anilist', id: 171204 })).malId).toBe(160388);
-		await expect(cat.readPasted({ service: 'anilist', id: 5 })).rejects.toThrow();
+		expect((await cat.readPasted({ service: 'mal', id: 160388 }, 'manga')).anilistId).toBe(171204);
+		expect((await cat.readPasted({ service: 'anilist', id: 171204 }, 'manga')).malId).toBe(160388);
+		await expect(cat.readPasted({ service: 'anilist', id: 5 }, 'manga')).rejects.toThrow();
 		expect(asked).toEqual(['ids', 'ids', 'ids']);
+	});
+
+	it('reads an anime’s MAL id in AniList’s anime catalogue, never the manga’s', async () => {
+		entries = [
+			anime({ id: 30024, idMal: 23, english: 'Ranma ½' }),
+			media({ id: 30023, idMal: 23, english: 'Ranma ½' })
+		];
+		const c = await cat.readPasted({ service: 'mal', id: 23 }, 'anime');
+		expect(c).toMatchObject({ anilistId: 30024, format: 'TV', episodes: 24, season: 'FALL' });
+		expect(queriesAsked[0]).toContain('type: ANIME');
 	});
 });
 
@@ -316,6 +526,9 @@ describe('Mihon’s MAL tracker', () => {
 				year: null,
 				chapters: null,
 				volumes: null,
+				episodes: null,
+				season: null,
+				seasonYear: null,
 				status: '',
 				coverUrl: ''
 			},

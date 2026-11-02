@@ -12,7 +12,14 @@ import {
 	type Media
 } from './catalogue.ts';
 import * as ranobe from './ranobe.ts';
-import { cleanTitle, coverOnly, normaliseTitle, type Kind } from '../library/catalogue.ts';
+import {
+	cleanTitle,
+	coverOnly,
+	normaliseTitle,
+	sameKind,
+	candidateKind,
+	type Kind
+} from '../library/catalogue.ts';
 import {
 	SERVICES,
 	SERVICE_NAME,
@@ -300,9 +307,11 @@ function saveState(
 
 /**
  * Read the owner's list on one catalogue: what it says of each linked
- * series. AniList's list also links: an entry of it whose title is sure for
- * exactly one unlinked series in view links that series ('list'), and its
- * score fills an unrated series' rating (1w).
+ * series. Both of AniList's lists are read (manga and anime), and both of
+ * MAL's, since a series is linked to whichever kind it is. AniList's lists
+ * also link: an entry whose title is sure for exactly one unlinked series of
+ * its own kind in view links that series ('list'), and its score fills an
+ * unrated series' rating (1w).
  */
 export async function readList(
 	service: Service,
@@ -312,65 +321,77 @@ export async function readList(
 	if (!a) return { entries: 0, linked: 0 };
 	// The clock, not `now`: sends are stamped by it, and this is compared with them.
 	const readFrom = Date.now();
+	const byMedia = new Map<number, ListEntry>();
 	if (service === 'mal') {
 		const token = await malToken(a, now);
-		const byMedia = new Map<number, ListEntry>();
-		let path: string | null = '/users/@me/mangalist?fields=list_status&limit=1000&nsfw=true';
-		while (path) {
-			const page = (await mal(token, path)) as {
-				data: {
-					node: { id: number };
-					list_status: { status: string; score: number; num_chapters_read: number };
-				}[];
-				paging?: { next?: string };
-			};
-			for (const d of page.data)
-				byMedia.set(d.node.id, {
-					mediaId: d.node.id,
-					status: statusFrom('mal', d.list_status.status),
-					progress: d.list_status.num_chapters_read ?? 0,
-					score: d.list_status.score || null
-				});
-			path = page.paging?.next
-				? page.paging.next.replace('https://api.myanimelist.net/v2', '')
-				: null;
+		for (const list of ['mangalist', 'animelist'] as const) {
+			let path: string | null = `/users/@me/${list}?fields=list_status&limit=1000&nsfw=true`;
+			while (path) {
+				const page = (await mal(token, path)) as {
+					data: {
+						node: { id: number };
+						list_status: {
+							status: string;
+							score: number;
+							num_chapters_read?: number;
+							num_episodes_watched?: number;
+						};
+					}[];
+					paging?: { next?: string };
+				};
+				for (const d of page.data)
+					byMedia.set(d.node.id, {
+						mediaId: d.node.id,
+						status: statusFrom('mal', d.list_status.status),
+						progress: d.list_status.num_chapters_read ?? d.list_status.num_episodes_watched ?? 0,
+						score: d.list_status.score || null
+					});
+				path = page.paging?.next
+					? page.paging.next.replace('https://api.myanimelist.net/v2', '')
+					: null;
+			}
 		}
 		saveState('mal', byMedia, readFrom, now);
 		return { entries: byMedia.size, linked: 0 };
 	}
-	const data = (await anilistAs(
-		a.access_token,
-		`query ($userId: Int) { MediaListCollection(userId: $userId, type: MANGA) {
-			lists { entries { mediaId status progress score(format: POINT_10) media { ...M } } }
-		} } ${MEDIA}`,
-		{ userId: Number(a.user_id) }
-	)) as {
-		MediaListCollection: {
-			lists: {
-				entries: {
-					mediaId: number;
-					status: string;
-					progress: number;
-					score: number;
-					media: Media;
+	const entries: {
+		mediaId: number;
+		status: string;
+		progress: number;
+		score: number;
+		media: Media;
+	}[] = [];
+	for (const type of ['MANGA', 'ANIME'] as const) {
+		const data = (await anilistAs(
+			a.access_token,
+			`query ($userId: Int) { MediaListCollection(userId: $userId, type: ${type}) {
+				lists { entries { mediaId status progress score(format: POINT_10) media { ...M } } }
+			} } ${MEDIA}`,
+			{ userId: Number(a.user_id) }
+		)) as {
+			MediaListCollection: {
+				lists: {
+					entries: {
+						mediaId: number;
+						status: string;
+						progress: number;
+						score: number;
+						media: Media;
+					}[];
 				}[];
-			}[];
+			};
 		};
-	};
-	const entries = data.MediaListCollection.lists.flatMap((l) => l.entries);
+		entries.push(...data.MediaListCollection.lists.flatMap((l) => l.entries));
+	}
 	// Links first, so their state is saved with the rest.
 	const linked = linkFromEntries(entries, now);
-	const byMedia = new Map<number, ListEntry>(
-		entries.map((e) => [
-			e.mediaId,
-			{
-				mediaId: e.mediaId,
-				status: statusFrom('anilist', e.status),
-				progress: e.progress ?? 0,
-				score: e.score || null
-			}
-		])
-	);
+	for (const e of entries)
+		byMedia.set(e.mediaId, {
+			mediaId: e.mediaId,
+			status: statusFrom('anilist', e.status),
+			progress: e.progress ?? 0,
+			score: e.score || null
+		});
 	saveState('anilist', byMedia, readFrom, now);
 	return { entries: entries.length, linked };
 }
@@ -395,8 +416,10 @@ function linkFromEntries(
 		const found = new Map<number, Kind>();
 		for (const t of titles)
 			for (const s of index.get(normaliseTitle(t)) ?? []) found.set(s.id, s.kind);
-		// Of the series' own kind only: a list entry across kinds is no sure link.
-		const fits = [...found].filter(([, kind]) => !coverOnly(kind, c.format));
+		// Of the series' own kind only: a list entry across kinds is no sure link
+		// (a manga's title on an anime is another work; c298).
+		const entryKind = candidateKind(c);
+		const fits = [...found].filter(([, kind]) => sameKind(kind, entryKind));
 		if (fits.length !== 1) continue;
 		const [seriesId] = fits[0];
 		linkFromList(seriesId, c, e.score || null, now);
@@ -448,6 +471,11 @@ function targets(seriesId: number): Target[] {
 		| undefined;
 	if (!r || r.hidden || (r.kind !== 'manga' && r.kind !== 'manhwa')) return [];
 	if (coverOnly(r.kind, r.format ?? '')) return [];
+	// A link whose entry is the other kind sends nothing (c298): an anime entry
+	// never takes a manga's chapters, nor the other way round. An entry whose
+	// format isn't known yet is not a contradiction.
+	const entryKind = r.format ? candidateKind({ format: r.format, country: '' }) : null;
+	if (entryKind !== null && !sameKind(r.kind, entryKind)) return [];
 	const out: Target[] = [];
 	if (r.anilist_id && account('anilist')) out.push({ service: 'anilist', mediaId: r.anilist_id });
 	if (r.mal_id && account('mal')) out.push({ service: 'mal', mediaId: r.mal_id });

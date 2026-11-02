@@ -295,7 +295,8 @@ export const SERVER_ENV = [
 	'ENGINE_TOKEN',
 	'ENGINE_SOLVER_URL',
 	'FFMPEG',
-	'FFPROBE'
+	'FFPROBE',
+	'FPCALC'
 ] as const;
 
 /** The variables that change how serve.ts serves: what a launcher drops if it finds them inherited. */
