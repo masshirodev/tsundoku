@@ -3,8 +3,13 @@ import { expect, test } from './fixtures';
 /**
  * The text reader's chrome on a TV (c241): OK brings it up as a focus row, the
  * pad reaches READING, and LAYOUT changes by keys alone. Read-only: it reads in
- * incognito, so nothing is written, and it reads a series no other e2e spec
- * touches (Villainess Level 99).
+ * incognito, so no progress is written (the LAYOUT it changes is put back).
+ *
+ * It reads Mushoku Tensei, which no flow file removes from the library:
+ * history-flow removes one of its history rows and undoes it, and series-layout
+ * reads its series frame; neither groups or ungroups it. Villainess Level 99
+ * would not do: volumes-flow groups it away mid-run, in a project that runs
+ * beside `tv` on the same database.
  */
 
 test.beforeEach(async ({ page }) => {
@@ -15,7 +20,7 @@ test.beforeEach(async ({ page }) => {
 
 async function open(page: import('@playwright/test').Page) {
 	await page.goto('/?sort=title');
-	await page.locator('.grid .tile', { hasText: 'Villainess Level 99' }).click();
+	await page.locator('.grid .tile', { hasText: 'Mushoku Tensei' }).click();
 	await page.waitForURL(/\/series\/\d+/);
 	await page
 		.getByRole('link', { name: /READ AGAIN|CONTINUE|START|▶/ })
@@ -50,6 +55,11 @@ test('OK brings the chrome as a focus row, and READING changes LAYOUT by keys', 
 	await page.keyboard.press('Enter');
 	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
 	await expect(sheet).toBeVisible();
+	// The panel keeps the TV's 48px right side (Sheet.svelte): its ✕ ends there,
+	// not at the screen edge inside the overscan.
+	const panel = (await sheet.boundingBox())!;
+	const close = (await sheet.getByRole('button', { name: 'Close' }).boundingBox())!;
+	expect(panel.x + panel.width - (close.x + close.width)).toBeGreaterThanOrEqual(47);
 	const paged = sheet.getByRole('radio', { name: 'PAGED' });
 	const scroll = sheet.getByRole('radio', { name: 'SCROLL' });
 	const started = (await paged.getAttribute('aria-checked')) === 'true' ? paged : scroll;
