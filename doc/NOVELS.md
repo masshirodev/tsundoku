@@ -138,6 +138,14 @@ address.
   the source page bands. A plugin asking in a loop waits on the solve already
   underway instead of queueing another — the host dedupes by host, and so does
   the app (`novels/solver.ts`) — since a first solve takes 20–45 s.
+- **A failed solve is remembered for ten minutes.** A host the solver answered
+  for and could not clear (NovelFull and Scribble Hub, measured below) is not
+  asked again inside that window, so a browsing session or a 148-chapter
+  download doesn't pay a solve plus a retry per chapter for a site that won't
+  pass. A solver the app couldn't reach is **not** remembered: that says
+  nothing about the host, and a solver started after the app would otherwise
+  be ignored for ten minutes. A page the solver's own browser was refused
+  (`solution.status` 4xx or 5xx) counts as a failure, not as a clearance.
 - **BROWSE names it.** The app writes the host into `site_checks` when a solve
   succeeds, and `checkingSince` answers for a novel by its plugin's site
   (`novel_plugins.site`), so the live band on the source page and in SEARCH
@@ -165,7 +173,9 @@ on `127.0.0.1:8193` and the real host:
 `tests/novel-solver.spec.ts` is the app's half: a loopback or private address
 refused before the solver hears of it, only the asked host's cookies and its
 user agent in the answer, one solve per host at a time, the live line while it
-runs, `site_checks` on success, and which address the app uses.
+runs, `site_checks` on success, a page the solver's own browser was refused
+treated as no clearance, a host whose check failed remembered and not asked
+again, and which address the app uses.
 `tests/novel-host.spec.ts`'s check block is the host's half, and
 `tests/engine-browse-db.spec.ts` pins a novel's `checkingSince`.
 

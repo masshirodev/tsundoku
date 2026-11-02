@@ -20,7 +20,8 @@ vi.mock('node:dns/promises', () => ({
 }));
 
 const { getDb } = await import('$lib/server/db');
-const { novelSolverUrl, solveChallenge, solvingSince } = await import('$lib/server/novels/solver');
+const { forgetFailedSolves, novelSolverUrl, solveChallenge, solvingSince } =
+	await import('$lib/server/novels/solver');
 
 type Asked = { cmd?: string; url?: string; maxTimeout?: number };
 let asked: Asked[] = [];
@@ -75,6 +76,7 @@ beforeEach(() => {
 	asked = [];
 	delay = 0;
 	reply = () => ({ status: 200, body: ok() });
+	forgetFailedSolves();
 	getDb().prepare(`DELETE FROM site_checks`).run();
 });
 
@@ -133,11 +135,46 @@ describe('the app’s solve for a site’s check', () => {
 	it('answers nothing when the solver fails, and writes no check', async () => {
 		reply = () => ({ status: 200, body: JSON.stringify({ status: 'error', message: 'nope' }) });
 		expect(await solveChallenge('https://www.novel.example/')).toBeNull();
+		// Each shape is its own solve: one failure is remembered (below), so this
+		// forgets it rather than letting the first answer the second.
+		forgetFailedSolves();
 		reply = () => ({ status: 500, body: '{}' });
 		expect(await solveChallenge('https://www.novel.example/')).toBeNull();
+		forgetFailedSolves();
 		reply = () => ({ status: 200, body: 'not json' });
 		expect(await solveChallenge('https://www.novel.example/')).toBeNull();
 		expect(checked()).toEqual([]);
+	});
+
+	it('answers nothing when the page it fetched was refused, and writes no check (c152)', async () => {
+		// FlareSolverr's browser reached the site and the site still said 403:
+		// an answer that can carry cookies and a user agent, but no clearance.
+		reply = () => ({ status: 200, body: ok({ status: 403 }) });
+		expect(await solveChallenge('https://www.novel.example/')).toBeNull();
+		expect(checked()).toEqual([]);
+	});
+
+	it('remembers a host the solver could not clear, so one session solves it once', async () => {
+		reply = () => ({ status: 200, body: JSON.stringify({ status: 'error', message: 'nope' }) });
+		expect(await solveChallenge('https://www.novel.example/one')).toBeNull();
+		expect(asked).toHaveLength(1);
+		// A download asks chapter by chapter; the second must not wait 20-45 s
+		// on a solve that just failed.
+		expect(await solveChallenge('https://www.novel.example/two')).toBeNull();
+		expect(asked).toHaveLength(1);
+		// A solver it could not reach is not the host's fault, and is not remembered.
+		forgetFailedSolves();
+		process.env.NOVEL_SOLVER_URL = 'http://127.0.0.1:1/v1';
+		try {
+			expect(await solveChallenge('https://www.novel.example/three')).toBeNull();
+		} finally {
+			process.env.NOVEL_SOLVER_URL = `http://127.0.0.1:${port}/v1`;
+		}
+		expect(asked).toHaveLength(1);
+		// And it was not remembered: the host is asked for again.
+		reply = () => ({ status: 200, body: ok() });
+		expect(await solveChallenge('https://www.novel.example/four')).not.toBeNull();
+		expect(asked).toHaveLength(2);
 	});
 
 	it('answers nothing when a solution carries no clearance at all', async () => {

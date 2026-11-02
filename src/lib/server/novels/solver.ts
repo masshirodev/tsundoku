@@ -70,6 +70,25 @@ export function solvingSince(site: string): number | null {
 const underway = new Map<string, Promise<Clearance | null>>();
 
 /**
+ * Hosts the solver answered for and could not clear, and when: a plugin asking
+ * again in the same browsing or download session must not pay another 20-45 s
+ * solve plus a retry for a hopeless site (NovelFull and Scribble Hub are two,
+ * doc/NOVELS.md). Short on purpose: a site's check can change in an afternoon.
+ */
+const FAILED_MS = 10 * 60_000;
+const failed = new Map<string, number>();
+
+/** Forgets the negative memo; a spec needs a clean one, as it needs `browse.forgetAll()`. */
+export function forgetFailedSolves(): void {
+	failed.clear();
+}
+
+const recentlyFailed = (host: string): boolean => {
+	const at = failed.get(host);
+	return at !== undefined && Date.now() - at < FAILED_MS;
+};
+
+/**
  * Asks FlareSolverr for [url]'s clearance, or null: a private or loopback
  * address is refused here, before the solver ever hears of it, and a solver
  * that says nothing useful is a check that wasn't passed.
@@ -83,6 +102,8 @@ export function solveChallenge(url: string): Promise<Clearance | null> {
 	}
 	const started = underway.get(host);
 	if (started) return started;
+	// A check this host just failed is not asked again straight away.
+	if (recentlyFailed(host)) return Promise.resolve(null);
 	const one = solveOne(url, host).finally(() => {
 		if (underway.get(host) === one) underway.delete(host);
 	});
@@ -100,6 +121,10 @@ async function solveOne(url: string, host: string): Promise<Clearance | null> {
 	solving.set(host, since);
 	try {
 		const clearance = await ask(url, host);
+		// What the solver answered for and still refused is a check this host
+		// won't pass soon; a solver we couldn't reach says nothing about the host.
+		if (!clearance) failed.set(host, Date.now());
+		else failed.delete(host);
 		// BROWSE's past-tense line (engine/browse.ts reads site_checks).
 		if (clearance) noteChecked(host, Date.now());
 		return clearance;
@@ -118,7 +143,16 @@ async function ask(url: string, host: string): Promise<Clearance | null> {
 		signal: AbortSignal.timeout(SOLVE_MS)
 	});
 	const body = (await res.json().catch(() => null)) as Solution | null;
-	if (!res.ok || body?.status !== 'ok' || !body.solution) return null;
+	// Not `null`: an answer of the solver's own that failed is the solver's
+	// trouble, not this host's, and must not be remembered against it.
+	if (!res.ok) throw new Error(`the solver answered ${res.status}`);
+	if (body?.status !== 'ok' || !body.solution) return null;
+	// A solution is the page its browser fetched. One the site refused (a WAF,
+	// a regional block, a challenge FlareSolverr didn't classify as one) is not
+	// a clearance, though it may still carry cookies and a user agent: the host
+	// would retry with them, fail again, and BROWSE would claim a check the app
+	// never passed.
+	if ((body.solution.status ?? 200) >= 400) return null;
 	// Only this host's cookies. A solve may cross a redirect, and the cookies
 	// it picked up there are the host it crossed to, not the one asked about.
 	const cookies = (body.solution.cookies ?? [])
