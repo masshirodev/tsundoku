@@ -1,14 +1,19 @@
 # Syncing the tablet
 
 Downloading is Mihon's and Hentoid's on the tablet, and tsundoku's own on the
-workstation ([`DOWNLOADING.md`](DOWNLOADING.md)). What the tablet downloads reaches the workstation through
-[Syncthing](https://syncthing.net), and a timer imports it:
+workstation ([`DOWNLOADING.md`](DOWNLOADING.md)). What the tablet downloads
+reaches the workstation through [Syncthing](https://syncthing.net), and a timer
+imports what the importer reads:
 
 1. download on the tablet;
 2. Syncthing sends it to `LIBRARY_ROOT` on the workstation
    (`/mnt/hdd2/tsundoku/tablet`);
-3. within ten minutes of Syncthing finishing, tsundoku imports it: the band,
-   the NEW shelf and covers, the same as START SCAN;
+3. within ten minutes of Syncthing finishing, tsundoku imports the tablet's
+   `Hentoid/` books and `Library/` EPUBs — the band, the NEW shelf and covers,
+   the same as START SCAN — and the `Mihon/autobackup` backup beside them,
+   which names a series and its chapters but attaches no files. A Mihon
+   download is **not** imported (c191): `Mihon/downloads/` and `Mihon/local/`
+   are synced and kept, and no source reads them;
 4. delete it on the tablet to free the space. **The workstation keeps it.**
 
 The tablet has far less room than the workstation. The workstation is the
@@ -26,13 +31,18 @@ container on the workstation download too (below, "Other devices").
 | Accepting the folders  | `scripts/sync-setup.ts` (`yarn run sync-setup`)                                 |
 | The rules              | `src/lib/import/sync.ts`, tested in `tests/sync-domain.spec.ts`                 |
 
-Three folders are synced, each landing where the importer looks:
+Three folders are synced, each landing in the library folder:
 
 | On the tablet                                                  | On the workstation     |
 | -------------------------------------------------------------- | ---------------------- |
 | Mihon's storage folder (`downloads/`, `local/`, `autobackup/`) | `LIBRARY_ROOT/Mihon`   |
 | Hentoid's library folder                                       | `LIBRARY_ROOT/Hentoid` |
 | The EPUB folder (`Documents/Library`)                          | `LIBRARY_ROOT/Library` |
+
+Of the Mihon folder only `autobackup/` is read (c191): the backup names the
+series and its chapters, and attaches no file. `downloads/` and `local/` are
+synced and kept and read by nothing, so a chapter downloaded on the tablet
+arrives as a file no source takes, and the backup names it as not downloaded.
 
 ### Deletes are ignored, on purpose
 
@@ -141,10 +151,9 @@ What that means for each series:
   folder, so the phone deleting a chapter never marks the tablet's copy not
   downloaded. Deletes are ignored on the workstation anyway (above), so this
   only comes up when a file is deleted here.
-- **One root per source.** The phone's Mihon, Hentoid and Library join the
-  tablet's roots of the same name (`ensureNamedRoot`). There's one hidden
-  Hentoid shelf, and a book grouped on the tablet is still found when the
-  phone has it.
+- **One root per source.** The phone's Hentoid and Library join the tablet's
+  roots of the same name (`ensureNamedRoot`). There's one hidden Hentoid shelf,
+  and a book grouped on the tablet is still found when the phone has it.
 - **A folder one device's download is keyed by** (`mihon-dir:…`, while no
   backup lists the manga yet) is the same series as the one any device's
   backup names, and the two are settled before anything is written
