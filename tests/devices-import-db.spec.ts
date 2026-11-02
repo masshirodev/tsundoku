@@ -1049,3 +1049,103 @@ describe('a backup adopts a folder nothing scans any more', () => {
 		expect(byKey(URL)).toBe(folder);
 	});
 });
+
+/**
+ * A mirror's series after c191 (doc/IMPORT-MIHON.md, "What a mirror left
+ * behind"): its row, its path and its files stay, and nothing reads the folder
+ * any more. Then tsundoku downloads a chapter of it into its own device: the
+ * two files are one series, so its path widens to the folder both are under
+ * and every entry's file is rewritten against it (write.ts, `widenTo`). Get
+ * that rewrite wrong and every file of the series stops resolving -- reader,
+ * covers and DELETE all join the two -- with no test failing.
+ */
+describe('a download that widens a series a mirror left', () => {
+	const at = 1_800_004_000_000;
+	const mirrorPath = join(rootMihon, 'downloads', 'Weeb Central (EN)', 'Split Tale');
+	const devicePath = join(tsundokuMihon, 'downloads', 'Weeb Central (EN)', 'Split Tale');
+	const DIR = 'mihon-dir:Weeb Central (EN)/Split Tale';
+	let id: number;
+
+	beforeAll(async () => {
+		// What an earlier import of the library's own `Mihon/downloads` left:
+		// a folder-keyed series, available, its file on disk. The folder is not
+		// read now: only `autobackup` is.
+		const rootId = ensureRoot(db(), 'Mihon', rootMihon, false);
+		mkdirSync(mirrorPath, { recursive: true });
+		writeFileSync(
+			join(mirrorPath, 'Chapter 1.cbz'),
+			cbz(
+				comicInfo({
+					title: 'Chapter 1',
+					series: 'Split Tale',
+					number: 1,
+					web: 'https://weebcentral.com/chapters/SPL1',
+					source: 'Weeb Central'
+				})
+			)
+		);
+		id = Number(
+			db()
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, rating, favourite, added_at, indexed_at,
+						source, path, origin_key, in_library)
+					VALUES (?, 'Split Tale', 'manga', 0, 0, ?, ?, 'mihon', ?, ?, 1)`
+				)
+				.run(rootId, at, at, mirrorPath, DIR).lastInsertRowid
+		);
+		db()
+			.prepare(
+				`INSERT INTO entries (series_id, position, label, added_at, source_url, available, file,
+					bytes, page_count)
+				VALUES (?, 1, 'Ch. 1', ?, 'https://weebcentral.com/chapters/SPL1', 1, 'Chapter 1.cbz',
+					100, 3)`
+			)
+			.run(id, at);
+
+		// A different chapter of it, downloaded by tsundoku into its own device.
+		mkdirSync(devicePath, { recursive: true });
+		writeFileSync(
+			join(devicePath, 'Chapter 2.cbz'),
+			cbz(
+				comicInfo({
+					title: 'Chapter 2',
+					series: 'Split Tale',
+					number: 2,
+					web: 'https://weebcentral.com/chapters/SPL2',
+					source: 'Weeb Central'
+				})
+			)
+		);
+		await runImport(library, { now: at });
+	});
+
+	it('keeps one series, its path the folder both files are under', () => {
+		expect(db().prepare(`SELECT id, path FROM series WHERE origin_key = ?`).get(DIR)).toEqual({
+			id,
+			path: library
+		});
+		expect(
+			db().prepare(`SELECT COUNT(*) AS n FROM series WHERE title = 'Split Tale'`).get()
+		).toEqual({ n: 1 });
+	});
+
+	it('resolves every available entry from there, the mirror’s file too', () => {
+		const rows = db()
+			.prepare(
+				`SELECT label, file FROM entries WHERE series_id = ? AND available = 1 ORDER BY position`
+			)
+			.all(id) as { label: string; file: string }[];
+		expect(rows.map((r) => r.label)).toEqual(['Ch. 1', 'Ch. 2']);
+		for (const r of rows) expect(existsSync(join(library, r.file)), r.file).toBe(true);
+		// The mirror's chapter still names the mirror's own file, the new one this device's.
+		expect(join(library, rows[0].file)).toBe(join(mirrorPath, 'Chapter 1.cbz'));
+		expect(join(library, rows[1].file)).toBe(join(devicePath, 'Chapter 2.cbz'));
+	});
+
+	it('changes nothing on a rescan', async () => {
+		const before = snapshot();
+		const r = await runImport(library, { now: at + 10_000 });
+		expect(r.sources.every((s) => s.seriesCreated === 0)).toBe(true);
+		expect(snapshot()).toEqual(before);
+	});
+});

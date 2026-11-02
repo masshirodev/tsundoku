@@ -331,7 +331,8 @@ export async function attachWritten(
 	// One plan per series: a batch of chapters is one folder.
 	const planned = new Set<string>();
 	for (const file of files) {
-		// The innermost root holding it: Mihon's local folder sits inside Mihon's.
+		// The innermost root holding it: a device's own folder sits inside the
+		// library's, so the deepest match is the one that owns the file.
 		const source = sources
 			.filter((s) => s.planOne && isUnder(file, s.root))
 			.sort((a, b) => b.root.length - a.root.length)[0];
