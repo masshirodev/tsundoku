@@ -127,6 +127,15 @@ test('an arrow starts focus and the mark is an ink frame', async ({ page }) => {
 	expect(bar.shadow).toContain('7px');
 });
 
+test('a keyboard’s Escape is not a climb: focus stays where it was', async ({ page }) => {
+	// BACK climbs on a TV only (doc/TV.md, c235). On a keyboard the layer
+	// leaves Escape to whatever listens for it, so a tile keeps its focus.
+	await page.goto('/?shelf=all');
+	const tile = await gridFocus(page);
+	const after = await press(page, 'Escape');
+	expect(after.id).toBe(tile.id);
+});
+
 test('a sheet is a scope: focus stays in and comes back', async ({ page }) => {
 	test.skip(test.info().project.name !== 'tablet-portrait', 'MORE is the tablet and phone bar');
 

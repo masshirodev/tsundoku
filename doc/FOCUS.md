@@ -146,7 +146,11 @@ of them in `keys.ts`, and `tests/tv-keys.e2e.ts` walks them.
   4. **Climb.** From inside a `[data-back-climb="<selector>"]` container, to the
      first stop that selector names — the library's grid climbs to the active
      shelf tab. Otherwise to the screen's `[data-focus-start]`, or its top-left
-     stop. BACK never moves the mark downward.
+     stop. BACK never moves the mark downward. **On a TV only** (the `TV`
+     query), and never inside a `[data-focus-off]` screen: on a keyboard,
+     Escape belongs to whatever listens for it (a tile's rating picker, the
+     lookup panel), and a climb that took it left those open. `focus.e2e.ts`
+     pins that a keyboard's Escape leaves focus where it was.
   5. **Nothing.** `window.tsundokuBack()` returns false and the app leaves or
      goes back natively (c236's contract, [`TV.md`](TV.md)). Escape is then
      left to the browser, because it is also the way out of a filter panel, a

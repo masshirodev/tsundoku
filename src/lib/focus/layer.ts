@@ -17,6 +17,7 @@
 import { directionOf, nextInDirection } from './geometry';
 import { focusablesIn, isFocusable, isVisible, keepsArrow, rectOf } from './dom';
 import { isBackKey, isOkKey, isOptionsKey, OkPress } from './keys';
+import { TV } from '$lib/device.svelte';
 
 type Scope = {
 	node: HTMLElement;
@@ -192,8 +193,14 @@ function sendEscape(node: HTMLElement): void {
  * screen's own start, else nowhere and the screen is left.
  */
 function climb(): boolean {
+	// Climbing is a remote's idea. On a keyboard, Escape belongs to whatever
+	// listens for it (a tile's rating picker, the lookup panel): taking it for
+	// a focus move would leave those open. A screen that reads its own keys
+	// (the readers) has registered its own step and is not climbed either.
+	if (!window.matchMedia(TV).matches) return false;
 	const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 	if (!active || active === document.body || !isFocusable(active)) return false;
+	if (active.closest('[data-focus-off]')) return false;
 
 	const group = active.closest<HTMLElement>('[data-back-climb]');
 	const selector = group?.dataset.backClimb;

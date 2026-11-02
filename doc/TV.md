@@ -271,7 +271,8 @@ decisions (`isBackKey`, `isOptionsKey`, `OkPress`) and `layer.ts` wires them;
   panel first (a scope closes itself; the player, the reader, the page menu and
   a history row's REMOVE register a step instead), then climbs — a grid's
   tiles to the active shelf tab, anything else to `[data-focus-start]` (the
-  first CONTINUE card, the series' ▶ CONTINUE) — and at the top of the screen
+  first CONTINUE card, the series' ▶ CONTINUE; the climb is the TV's only, a
+  keyboard's Escape is not taken for it) — and at the top of the screen
   says nothing took it. `BrowserBack`/`GoBack` then take the history step
   themselves; Escape is left to the browser, since it is also the way out of a
   filter panel, a lightbox and a typed field.
