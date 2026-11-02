@@ -75,7 +75,9 @@
 		</div>
 	</main>
 {:else}
-	<main class="pair">
+	<!-- The band is 56 high at 84 (tv.css's .band), so it ends at 140 and the
+	     label at 108 would sit inside it: with-band moves the column down. -->
+	<main class="pair" class:with-band={!!band}>
 		<div class="bar">
 			<Wordmark size={20} />
 			<div class="grow"></div>
@@ -190,6 +192,19 @@
 	}
 	.digits {
 		top: 148px;
+	}
+	/*
+	 * A band draws over the column instead of in it, so with one the section
+	 * label and the digits move down by the band's own height: the label at
+	 * 164 is the rhythm 9D keeps below its band (TV-Pair.dc.html), and the
+	 * cards at 204 still clear the frame's bottom (2026-11-02, c246: the band
+	 * used to cover "02 — …" and the ✓ ANSWERED line).
+	 */
+	.pair.with-band .sl {
+		top: 164px;
+	}
+	.pair.with-band .digits {
+		top: 204px;
 	}
 	.entry {
 		position: absolute;

@@ -89,8 +89,13 @@ On the TV:
 1. **9A** — what the app does, and the three steps. START →.
 2. **9B** — the address, written for the TV: its own network's first three
    numbers and tsundoku's port (42143 unless the friend changed `PORT`), so
-   only the last number is typed. TYPE THE WHOLE ADDRESS takes `host:port` or
-   a full `http://…` for Tailscale or another port. NEXT probes it.
+   only the last number is typed. The mark starts on NEXT, never on the field:
+   a focused text field is what asks the WebView for the TV's number pad, and
+   the pad covers both buttons (c247). The number keys type into the field
+   wherever the mark is, so a remote that has them never needs the pad; a
+   remote without them reaches TYPE THE WHOLE ADDRESS in one press down, and
+   the field is one press up. TYPE THE WHOLE ADDRESS takes `host:port` or a
+   full `http://…` for Tailscale or another port. NEXT probes it.
 3. **9C** — the computer's own `/pair/tv`: six cells in two threes, the
    number keys type and ← erases, and PAIR → presses itself when the sixth
    arrives. A wrong code says how many tries are left.
@@ -127,12 +132,13 @@ job is to deliver them.
 | BACK          | The app. `window.tsundokuBack()` first (a sheet, a climb); `true` means the page took it. Then `Back.kt`: on the library the app leaves; elsewhere it goes back to the nearest earlier screen, past sign-in, pairing, set-up and the app's own first screens, and with none it leaves. `OnBackPressedDispatcher`, never the deprecated override. |
 | MENU          | Taken before the WebView: a synthetic `ContextMenu` keydown + keyup at `document.activeElement ?? document.body`, bubbling.                                                                                                                                                                                                                      |
 | ▶❚❚ ⏩ ⏪ ⏭ ⏮ | The same, as `MediaPlayPause`, `MediaFastForward`, `MediaRewind`, `MediaTrackNext`, `MediaTrackPrevious`, `MediaPlay`, `MediaPause`. The WebView would take them as media transport otherwise.                                                                                                                                                   |
-| Number keys   | Type into the focused field: the address's last number on 9B, the six digits on 9C. ← erases.                                                                                                                                                                                                                                                    |
+| Number keys   | Type into the address on 9B wherever the mark is, and into the six digits' field on 9C. ← erases.                                                                                                                                                                                                                                                |
 | MIC           | The TV's own voice search sits outside the app; nothing here forwards it.                                                                                                                                                                                                                                                                        |
 
 `Keys.kt` is the whole mapping, and `KeysTest.kt` pins it. A remote without
-number keys has to use the TV's on-screen keyboard; the app does not force it
-open (see Gaps).
+number keys uses the TV's on-screen keyboard: 9B opens it when the mark moves
+onto the field, never on arrival, and BACK closes it. The app itself never
+calls `showSoftInput` (see "What is not verified").
 
 ## The rest of the settings
 
@@ -214,8 +220,11 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   unit is read from Chromium's source; whether a particular TV's WebView
   honours `setInitialScale` with the page's `width=device-width` viewport meta
   present is not. Check `document.documentElement.clientWidth` reads 960.
-- **The on-screen number keyboard** on a remote with no number keys: focusing
-  the field does not open it, and the app does not call `showSoftInput`.
+- **The on-screen number keyboard** on a remote with no number keys. On the
+  owner's Android 11 TV, focusing 9B's field opens it over the buttons (c247),
+  and the page no longer focuses the field on arrival; that BACK closes the pad
+  is the owner's observation on that TV, not something testable here, and no
+  second TV has been tried. The app never calls `showSoftInput`.
 - **`onShowCustomView` over a real `<video>`**, the screen-awake flag, the
   immersive system UI, and the leanback banner's cropping on the home row.
 - **The keystore and a signed build**: no keystore exists yet.
@@ -227,9 +236,13 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   `ScaleTest` (18 tests), run by `./gradlew test`.
 - `tests/pairing-tv.spec.ts` — the six digits: once, 10 minutes, five wrong
   tries burn it, the state machine's every answer.
+- `tests/tv-app-pair.e2e.ts` — 9A and 9B from the shipped asset file: the mark
+  on NEXT rather than the field (and on TYPE THE WHOLE ADDRESS one press down),
+  the number keys typing into the field from there, and the whole-address field
+  that stays visible.
 - `tests/tv-pair.e2e.ts` — the computer's `/pair/tv` at 960×540 with no pointer:
-  a wrong code spends a try, the right one lands on 9E, and five wrong ones
-  burn it.
+  every band clearing the label and the six cells, a wrong code spending a
+  try, the right one landing on 9E, and five wrong ones burning it.
 - `tests/friend-wifi.e2e.ts` — the Wi-Fi panel's FOR A TV digits, beside the
   phone's QR.
 
@@ -242,3 +255,30 @@ and the app never closed. The library's shelf tabs each leave a history entry
 too, so even without that BACK walked back through every shelf opened. Now
 the library is home and BACK leaves from it; elsewhere `Back.steps` picks the
 nearest earlier screen worth returning to (`BackTest`).
+
+## The first TV's pairing bugs (2026-11-02)
+
+Both were found on the owner's Android 11 set (c243) and are the app's side or
+the computer's, decided without the device:
+
+- **9B's number pad** (c247). START focused the last-number field, and the
+  system number pad opened over the bottom half of the screen, covering TYPE
+  THE WHOLE ADDRESS — the one button a Tailscale user needs — with nothing on
+  screen saying BACK would close it. The mark now starts on NEXT; the pad
+  opens only when the mark is moved onto the field, which is the request to
+  type. The number keys stopped depending on that focus: they type into the
+  field from any of the three stops, so a remote that has them never sees the
+  pad, and a remote that does not (the owner's) reaches the whole-address
+  escape with one press down. `tv-app-pair.e2e.ts` pins the mark and the keys.
+- **9C's band** (c246, its second point). The band sits at 84 and is 56 high,
+  so it ended at 140 — over the section label at 108 and the ✓ ANSWERED line
+  beside it. With a band the label moves to 164 and the cells to 204, the
+  rhythm 9D keeps below its own band, and the buttons still end inside the
+  frame. `tv-pair.e2e.ts` checks every band state's box ends above the label
+  and the cells.
+
+What the card also asked for — an expired code replaced on arrival, so the TV
+is not stuck — is `/pair/tv`'s `ensureCode`, which says on purpose that an
+expired or burned code is not silently replaced (the computer's SETTINGS is
+where a new one comes from). That is the owner's call and the server file is
+unchanged.
