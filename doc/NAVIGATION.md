@@ -32,8 +32,11 @@ When there's no such entry (a link opened in a new tab, a bookmark, the app
 opened on a series), the link opens its screen as it always did.
 
 Back links: the series screen's ← (to the library, a shelf, a person or
-history), the readers' ← and ← SERIES, the end page's ← SERIES and LIBRARY,
-and a person page's ←.
+history), the readers' ← and ← SERIES, the player's ← and ← SERIES, the end
+page's ← SERIES and LIBRARY, and a person page's ←. Code that leaves a screen
+by itself (the player's Escape) uses `goBackTo`, the same decision. The
+player's were plain links until 2026-11-02: on a TV, ← then BACK opened the
+player again (`tests/tv-player.e2e.ts`).
 
 Tested in `tests/library-flow.e2e.ts` ("the app's own ← buttons come back…"),
 which fails without it.

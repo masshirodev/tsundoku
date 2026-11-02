@@ -78,11 +78,17 @@ test('six cells on one row, and the first arrow lands on ▶❚❚', async ({ pa
 	await expect(bar(page).nth(5)).toContainText('EP. 12 →');
 	// The first three are 76px, as TV-Focus draws the same bar.
 	for (const i of [0, 1, 2]) expect((await bar(page).nth(i).boundingBox())!.width).toBe(76);
-	// 56px under a 60px scrubber, inside the 28px safe bottom.
-	expect((await page.locator('.cells').boundingBox())!.height).toBe(56);
+	// 56px under a 60px scrubber, inside the 28px safe bottom and the 48px
+	// sides. The bars themselves reach the screen's edges (TV-Player: the
+	// margin is their padding), so no picture shows above or under them.
+	const cells = (await page.locator('.cells').boundingBox())!;
+	expect(cells.height).toBe(56);
+	expect(Math.round(cells.y + cells.height)).toBe(540 - 28);
+	expect([Math.round(cells.x), Math.round(cells.x + cells.width)]).toEqual([48, 960 - 48]);
 	expect((await page.locator('.scrubrow').boundingBox())!.height).toBe(60);
 	const bottom = (await page.locator('.bottom').boundingBox())!;
-	expect(Math.round(bottom.y + bottom.height)).toBe(540 - 28);
+	expect(Math.round(bottom.y + bottom.height)).toBe(540);
+	expect(Math.round((await page.locator('.top').boundingBox())!.y)).toBe(0);
 	// 6A: no middle cluster on a TV -- the bar is the interface.
 	await expect(page.locator('.cluster')).toBeHidden();
 
@@ -195,4 +201,20 @@ test('next episode is a cell of the bar, and OK on it moves to EP. 12', async ({
 	await page.keyboard.press('Enter');
 	await page.waitForURL(/\/read\/\d+/);
 	await expect(page.locator('.bottom .cells .grow')).toContainText('SUBS');
+});
+
+test('the player’s ← goes back to the series, so the next BACK does not reopen the player', async ({
+	page
+}) => {
+	await openEpisode(page);
+	await play(page);
+	const series = page.url().replace(/\/read\/.*/, '');
+	await page.locator('.top a.back').focus();
+	await page.keyboard.press('Enter');
+	await page.waitForURL(/\/series\/\d+/);
+	// Back in history, not a new series screen on top of the player
+	// (2026-11-02, the first real TV): one more step back is the library.
+	await page.goBack();
+	await expect(page).not.toHaveURL(/\/read\//);
+	expect(page.url().startsWith(series)).toBe(true);
 });

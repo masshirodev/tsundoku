@@ -3,6 +3,7 @@
 	import type { Json } from '$lib/settings/catalog';
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { backLink, goBackTo } from '$lib/back';
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import type Hls from 'hls.js';
@@ -837,7 +838,7 @@
 		else if (k === '?') keysOpen = true;
 		else if (k === 'Escape') {
 			if (document.fullscreenElement) void document.exitFullscreen();
-			else void goto(seriesHref);
+			else goBackTo(seriesHref);
 		} else return;
 		e.preventDefault();
 		showChrome();
@@ -1105,7 +1106,7 @@
 		</div>
 
 		<header class="top">
-			<a class="back" href={seriesHref} aria-label="Back to the series">←</a>
+			<a class="back" href={seriesHref} aria-label="Back to the series" use:backLink>←</a>
 			<div class="names">
 				<div class="t">
 					{data.series.title}{#if ep.title}<span>{` · ${ep.title}`}</span>{/if}
@@ -1240,7 +1241,7 @@
 		<!-- Portrait (Anime Calls, "Devices"): the controls always shown beneath, what's next below. -->
 		<section class="portrait" aria-label="Controls">
 			<div class="pbar">
-				<a class="back" href={seriesHref} aria-label="Back to the series">←</a>
+				<a class="back" href={seriesHref} aria-label="Back to the series" use:backLink>←</a>
 				<div class="m">{place}</div>
 				{@render addCell('padd')}
 				<button type="button" onclick={full}>FULL</button>
@@ -1568,7 +1569,7 @@
 				{/if}
 			</div>
 			<div class="icells">
-				<a class="icell br" href={seriesHref}>← SERIES</a>
+				<a class="icell br" href={seriesHref} use:backLink>← SERIES</a>
 				<div class="icell flex"></div>
 				{#if phase === 'noServer'}
 					<!-- The way out when a source sends no video (doc/MOVE.md). -->
@@ -2816,19 +2817,39 @@
 	 * bars, the scrubber is 60px over 56px cells, and the six cells are one
 	 * closed row. The middle cluster is the thumb's -- on a TV, the picture is
 	 * the interface until a key (6A), and then the bar is everything (6B).
+	 *
+	 * The margin is inside the bars, not around them: each bar reaches its edge
+	 * of the screen and keeps what it holds 28px from the top or bottom and 48px
+	 * from the sides (TV-Player: 28 0 0 / 0 0 28 padding, 48 either side). Set
+	 * around them, the picture showed above the top bar and under the cells
+	 * (2026-11-02, the first real TV).
 	 */
 	@media (pointer: none) and (min-width: 900px) {
 		.player {
 			--top-h: 56px;
 			--scrub-h: 60px;
 			--cell-h: 56px;
-			--pad-x: 48px;
+			--pad-x: 16px;
 		}
 		.top {
-			top: var(--safe-y);
+			top: 0;
+			height: calc(var(--top-h) + var(--safe-y) + 1px);
+			padding: var(--safe-y) var(--pad) 0;
+		}
+		.top .back {
+			width: auto;
+			justify-content: flex-start;
+			padding-right: 22px;
 		}
 		.bottom {
-			bottom: var(--safe-y);
+			bottom: 0;
+			padding: 0 var(--pad) var(--safe-y);
+		}
+		.cells {
+			border: var(--hairline);
+		}
+		.cells > :last-child {
+			border-right: 0;
 		}
 		.cluster {
 			display: none;
