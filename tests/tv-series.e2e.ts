@@ -1,16 +1,20 @@
 import { expect, test } from './fixtures';
 
 /**
- * The series screen on a TV (c238; TV-Series). Read-only: the one key it
- * presses is ← at the bottom of an unrated rating, which saves nothing
- * because the value does not change (0 stays 0).
+ * The series screen on a TV (c238; TV-Series). It opens Boku no Kokoro no
+ * Yabai Yatsu, which no other e2e spec touches: the flow files run beside the
+ * `tv` project on one database, and series-flow hides Tower of God for a
+ * moment. The RATING test moves the rating one half-bar down and back, so the
+ * series ends where it started (8).
  */
+
+const TITLE = 'Boku no Kokoro no Yabai Yatsu';
 
 async function open(page: import('@playwright/test').Page) {
 	await page.goto('/?sort=title');
-	await page.locator('.grid .tile', { hasText: 'Tower of God' }).click();
+	await page.locator('.grid .tile', { hasText: TITLE }).click();
 	await page.waitForURL(/\/series\/\d+/);
-	await expect(page.getByRole('heading', { name: 'Tower of God' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: TITLE })).toBeVisible();
 }
 
 test('the first arrow lands on ▶ CONTINUE', async ({ page }) => {
@@ -22,19 +26,27 @@ test('the first arrow lands on ▶ CONTINUE', async ({ page }) => {
 
 test('RATING keeps ← →: the value moves, the mark does not walk the halves', async ({ page }) => {
 	await open(page);
-	// The first half-cell, unrated. ← at 0 is a no-op, so the database is safe.
+	// Which half-cell is the chosen one: its index is the value, in half-bars.
+	const chosen = () =>
+		page
+			.locator('.rs .half')
+			.evaluateAll((cells) => cells.findIndex((c) => c.getAttribute('aria-pressed') === 'true'));
+	const before = await chosen();
+	expect(before).toBeGreaterThan(0);
 	const first = page.locator('.rs .half').first();
 	await first.focus();
-	expect(await page.locator('.rs .half[aria-pressed="true"]').count()).toBe(0);
-	await page.keyboard.press('ArrowLeft');
-	// The focus layer let the rating have the key: focus is still on the same
-	// half-cell, and still unrated.
-	expect(
-		await page.evaluate(() => document.activeElement?.classList.contains('half') ?? false)
-	).toBe(true);
-	expect(await page.locator('.rs .half[aria-pressed="true"]').count()).toBe(0);
 	// The row says it owns ← → (src/lib/focus/dom.ts, keepsArrow).
 	expect(
 		await page.locator('.rs .track').evaluate((n) => n.hasAttribute('data-focus-adjust'))
 	).toBe(true);
+
+	await page.keyboard.press('ArrowLeft');
+	// One half-bar down, and focus stayed on the half-cell it was on.
+	await expect.poll(chosen).toBe(before - 1);
+	expect(await first.evaluate((n) => n === document.activeElement)).toBe(true);
+
+	await page.keyboard.press('ArrowRight');
+	// And back: the series is as it was.
+	await expect.poll(chosen).toBe(before);
+	expect(await first.evaluate((n) => n === document.activeElement)).toBe(true);
 });

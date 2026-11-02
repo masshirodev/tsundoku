@@ -20,15 +20,16 @@ const base = process.env.PLAYWRIGHT_BASE_URL ?? '';
 
 /*
  * The handoff draws one series; the seeded database has its own ids. Open one
- * by title, as series-layout does -- Tower of God, which no flow file writes.
+ * by title, as series-layout does -- Boku no Kokoro no Yabai Yatsu, which no other e2e spec
+ * touches (series-flow hides Tower of God mid-run, and this project runs beside it).
  * This is the one hand edit to this generated file: regenerating writes the
  * plain `page.goto(base + '/')` back, and it has to be re-pointed.
  */
 async function go(page: import('@playwright/test').Page) {
 	await page.goto(`${base}/?sort=title`);
-	await page.locator('.grid .tile', { hasText: 'Tower of God' }).click();
+	await page.locator('.grid .tile', { hasText: 'Boku no Kokoro no Yabai Yatsu' }).click();
 	await page.waitForURL(/\/series\/\d+/);
-	await page.getByRole('heading', { name: 'Tower of God' }).waitFor();
+	await page.getByRole('heading', { name: 'Boku no Kokoro no Yabai Yatsu' }).waitFor();
 }
 
 const SEL = {
