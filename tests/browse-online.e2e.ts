@@ -87,9 +87,10 @@ test('a chapter opens online from the preview, a record keeps the place, the ser
 		timeout: 20_000
 	});
 
-	// Opened again from the same preview (an in-library series is its series, not
-	// a preview again), its ← still goes back to BROWSE (c262).
-	await page.goto(preview);
+	// Opened again from BROWSE, an in-library series is its series, not a
+	// preview again — and its ← still goes back to BROWSE (c262).
+	await page.goto(`/browse/${SOURCES.open.id}`);
+	await page.locator('.grid .tile', { hasText: 'Open Source 1-4' }).click();
 	await expect(page).toHaveURL(new RegExp(`${series}\\?from=`));
 	await expect(back.locator('.back-label')).toHaveText('BROWSE');
 	await back.click();
