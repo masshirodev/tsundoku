@@ -157,8 +157,9 @@ What that means for each series:
   roots of the same name (`ensureNamedRoot`). There's one hidden Hentoid shelf,
   and a book grouped on the tablet is still found when the phone has it.
 - **A folder one device's download is keyed by** (`mihon-dir:…`, while no
-  backup lists the manga yet) is the same series as the one the library's own
-  backup names, and the two are settled before anything is written
+  backup lists the manga yet) is the same series as the one the backup this
+  plan carries names — this device's own, or the library's own — and the two
+  are settled before anything is written
   ([`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Before the backup knows it"; c89).
 - **Read progress** comes from the library's own Mihon backup — the tablet's
   `Mihon/autobackup`, which lands at `LIBRARY_ROOT/Mihon` — and only moves

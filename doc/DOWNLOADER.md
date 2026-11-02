@@ -29,12 +29,13 @@ Why, over writing entries straight into the database:
   that took a month to get right: keys, two devices' copies of one series,
   tombstones, page counts, covers, the NEW shelf, arrivals, duplicates. A
   second writer would have to repeat all of it, and drift.
-- **A device folder with no backup is read as new series** keyed by folder
+- **A download with no backup entry is read as new series** keyed by folder
   (`mihon-dir:`, [`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Before the backup knows
-  it"), which only a later backup adopts. Files written anywhere under
-  `devices/` without a backup would wait for one; files written outside it
-  would be a second kind of library folder. Writing the backup is what makes
-  the files the right series' from the first scan.
+  it"), which only a later backup adopts. That is a rule about
+  `devices/tsundoku/Mihon/`, the one device folder read this way: a `Mihon/`
+  folder under any other device is not read at all (c191), so a file dropped
+  there becomes nothing and is not waiting for a backup. Writing the backup is
+  what makes the files the right series' from the first scan.
 - **Retiring Suwayomi (c129) was then swapping one device for another.** What
   Suwayomi downloaded stays where it is, under `devices/suwayomi/Mihon/`; it
   is not read any more (c191), and tsundoku's own folder is.

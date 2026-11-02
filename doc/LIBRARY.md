@@ -342,7 +342,7 @@ the handoff draws a still screen and doesn't say.
 
 Specific and honest, so a deliberate gap isn't mistaken for an oversight:
 
-- **Mihon and Hentoid import; EPUB doesn't yet.** START SCAN (and RESCAN or `/scan`
+- **Mihon, Hentoid and EPUB import.** START SCAN (and RESCAN or `/scan`
   later) reads a Mihon backup from `$LIBRARY_ROOT/Mihon/autobackup/`, tsundoku's
   own downloads under `$LIBRARY_ROOT/devices/tsundoku/Mihon/`, and
   `$LIBRARY_ROOT/H/.Hentoid/` ([`IMPORT-MIHON.md`](IMPORT-MIHON.md),

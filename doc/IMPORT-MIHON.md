@@ -32,7 +32,9 @@ was ([`DOWNLOADER.md`](DOWNLOADER.md), "The one decision: tsundoku is a
 device").
 
 Until c191 (2026-10-30) a `Mihon/` folder anywhere was also read as a device:
-the tablet's or the phone's downloads mirrored under `devices/<name>/Mihon/`.
+the tablet's downloads at `LIBRARY_ROOT/Mihon` — it is given no `--device-dir`,
+so its folder is the library's own — and the phone's or any other device's
+under `devices/<name>/Mihon/`.
 The owner had those stripped — "we can strip Mihon off this app" — so **no
 other device's `Mihon/` folder is read any more**. Their `Hentoid/` and
 `Library/` copies still are ([`SYNC.md`](SYNC.md), "Other devices").
