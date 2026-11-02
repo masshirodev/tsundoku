@@ -15,16 +15,20 @@ same screens over its API (c75, c94). It was retired on 2026-10-28 (c129):
 ## How a series and a chapter are matched
 
 A series is a source's manga by its key, `mihon:<source id>:<url>`: the same
-key the tablet's Mihon backup gives it, so a series downloaded here and the
-tablet's copy are **one series**, its chapters from whichever device has
-them. A chapter is the source's chapter by its URL. A novel from an LNReader
+key a Mihon backup gives it, so a series a backup lists here and one
+downloaded here are **one series**. A chapter is the source's chapter by its
+URL. A novel from an LNReader
 plugin is `lnreader:<plugin>:<path>`, each chapter by its path, and downloads
 through the same screens and queue into its EPUB ([`NOVELS.md`](NOVELS.md),
 "Downloading"), and FOLLOW asks its plugin. Series keyed any other way (Hentoid, an
-EPUB of the tablet's, a `mihon-dir:` folder) have nothing to download.
+EPUB, a `mihon-dir:` folder) have nothing to download — until a backup names
+one, which adopts it and gives it the URL key (c89,
+[`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Before the backup knows it").
 
-Downloads are written as one more Mihon device, `devices/tsundoku/Mihon/`, and
-imported like the phone's ([`DOWNLOADER.md`](DOWNLOADER.md)). **It's off unless
+Of the Mihon folders on disk, tsundoku reads its own downloads only,
+`devices/tsundoku/Mihon/` ([`DOWNLOADER.md`](DOWNLOADER.md)): the tablet's,
+the phone's and Waydroid's are not imported any more (c191,
+[`SYNC.md`](SYNC.md), "Other devices"). **Downloading is off unless
 `ENGINE_URL` and `ENGINE_TOKEN` are set** ([`SECRETS.md`](SECRETS.md)):
 without them no screen draws a DOWNLOAD row, a QUEUE cell, DOWNLOADS or
 BROWSE. The e2e build depends on this: only `tests/downloads-flow.e2e.ts` and
@@ -63,7 +67,9 @@ States.dc.html` (brief: [`briefs/done/DOWNLOADS.md`](briefs/done/DOWNLOADS.md)).
 - **FILE** counts the queue: `393 OF 612 DOWNLOADED · 4 QUEUED · 1 FAILED`.
 - **No extension for its source** (Bato.to, Hitomi): no DOWNLOAD row and no
   disabled button. The FILE line says it once: `BATO.TO DOWNLOADS ON THE
-TABLET`, named by the series' `source` tag.
+TABLET`, named by the series' `source` tag — a line that no longer leads
+  anywhere, since the tablet's downloads aren't imported (c191, "Not done
+  yet").
 - **The engine not answering, or the device offline:** the row stays where it
   was, with its cells at 0.35, and the second line says why: `○ NOT ANSWERING
 · THE EXTENSION ENGINE ON THE WORKSTATION · SINCE 14:02` or `○ OFFLINE ·
@@ -324,12 +330,19 @@ before an import, or a new series is keyed by its folder until one does
 
 ## Not done yet
 
-- **Series Mihon downloaded but never added to its library** (34 on
-  2026-10-03) are keyed by folder, so a downloaded copy of one is a second
-  series. Once one is added to the library and a backup lists it, the next
-  import folds the two (c90, [`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Before the
-  backup knows it").
-- **Bato.to and Hitomi** aren't in any repository added here, so their 71
-  series keep downloading on the tablet.
+- **A folder whose chapters a backup shares none of** waits beside it. The
+  same source and title are not enough on their own: folding them would list
+  every chapter twice, so the pair stays two series until a backup names a
+  chapter the folder has (c89,
+  [`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Before the backup knows it"). The
+  adoption itself is done, and described above.
+- **Bato.to and Hitomi** aren't in any repository added here, and their 71
+  series used to download on the tablet. The tablet's `Mihon/` downloads are
+  not imported any more (c191, [`SYNC.md`](SYNC.md), "Other devices"), so
+  those series get no new chapters here. Two ways out, both the owner's: a
+  repository that lists an extension carrying the source (BROWSE,
+  [`BROWSE.md`](BROWSE.md), "Extensions and repositories"), or MOVE to a
+  source that has one (["Moving a series to another source"](#moving-a-series-to-another-source),
+  [`MOVE.md`](MOVE.md)).
 - **A failure's reason** is kept and not shown ("Where it departs").
 - **Migrating a series to another source** is c139.

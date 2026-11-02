@@ -58,9 +58,11 @@ them. Deleting one of those series still trashes its files, as any delete does
   **`/scan`** typed in search (the way on a tablet or phone), starts it on the server in the background. The library's IMPORTING band follows the
   job (`scan_jobs`), re-reading it every two seconds. The FINISHED band and the
   NEW shelf follow.
-- One job runs every importer that finds its folder: the Mihon backup, then
-  tsundoku's downloads, then Hentoid
-  ([`IMPORT-HENTOID.md`](IMPORT-HENTOID.md)).
+- One job runs every importer that finds its folder, the library's first: the
+  Mihon backup, then Hentoid, then EPUBs, then anime, and last each device's
+  folders under `devices/` — of which only tsundoku's `Mihon/` holds
+  downloads (Hentoid and EPUBs on the others are read,
+  [`IMPORT-HENTOID.md`](IMPORT-HENTOID.md)).
 - **`yarn run import`** runs the same code without the app. Use it for the first
   large import, and `-- --root <folder>` to point it at another folder that
   holds a `Mihon/`, for example `/mnt/hdd2/tsundoku/samples`. It prints what it
