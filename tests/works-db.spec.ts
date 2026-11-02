@@ -519,4 +519,13 @@ describe('a Work’s parts as CONTINUE reads them', () => {
 		expect(continuePart(parts)!.seriesId).toBe(next);
 		expect(workFoot(parts).label).toBe('UP NEXT · PART 2');
 	});
+
+	it('carries the series’ own added_at, which W2’s “most recent part” sort needs', () => {
+		const [a, b] = UNRATED.map(idOf) as number[];
+		const { work } = works.createWork({ seriesIds: [a, b], name: 'Facts', now: NOW });
+		const addedAt = (id: number) =>
+			(getDb().prepare(`SELECT added_at AS at FROM series WHERE id = ?`).get(id) as { at: number })
+				.at;
+		expect(works.workParts(work.id, true).map((p) => p.addedAt)).toEqual([addedAt(a), addedAt(b)]);
+	});
 });

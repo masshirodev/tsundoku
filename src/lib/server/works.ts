@@ -239,7 +239,7 @@ function allParts(workId: number): WorkPartRow[] {
 function readParts(db: Database.Database, workId: number, where: string): WorkPartRow[] {
 	const rows = db
 		.prepare(
-			`SELECT ws.series_id AS seriesId, ws.position, s.title, s.kind,
+			`SELECT ws.series_id AS seriesId, ws.position, s.title, s.kind, s.added_at AS addedAt,
 				COALESCE(s.rating, 0) AS rating, s.favourite, s.cover_at AS cover, s.status,
 				${HIDDEN_SQL} AS hidden,
 				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id

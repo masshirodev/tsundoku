@@ -29,6 +29,8 @@ export type WorkPart = {
 	cover: number | null;
 	/** 1-based place in the owner's order. */
 	position: number;
+	/** When the series entered the library, for the 'added' order and W2's sort. */
+	addedAt: number;
 	/** Chapters or episodes counted, and how many are read. */
 	entries: number;
 	read: number;

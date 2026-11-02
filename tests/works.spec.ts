@@ -22,6 +22,7 @@ function part(patch: Partial<WorkPart> & { seriesId: number; position: number })
 		rating: 0,
 		favourite: false,
 		cover: null,
+		addedAt: 0,
 		entries: 100,
 		read: 0,
 		lastOpenedAt: null,
