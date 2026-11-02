@@ -328,10 +328,12 @@ the TV.
   and opening SETTINGS replace them. `/pair/tv` answers ok, wrong (with tries
   left), expired, used and burned, and a TV that opens the page before anyone
   opened SETTINGS gets a code made for it.
-- **Reaching the server**: on launch, a remembered address that answers opens
-  the library; one that stops answering shows 9D and keeps probing; a first
-  run shows 9A. The address is remembered in `SharedPreferences` once it
-  answers.
+- **Reaching the server**: on launch, an address handed to the app from
+  outside (an `am start` extra or a `tsundoku://connect?url=` link, c260) is
+  probed first and opens the pairing at that address; a remembered address
+  that answers opens the library; one that stops answering shows 9D and keeps
+  probing; a first run with neither shows 9A. The address is remembered in
+  `SharedPreferences` once it answers, never before.
 - **Release**: `ops/release/tv-apk.sh <version>` builds the APK beside the
   bundles (release-signed from `TSUNDOKU_TV_*` when the keystore is there, a
   `-debug` APK otherwise) and adds it to the release folder's `SHA256SUMS`
