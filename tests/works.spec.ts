@@ -120,18 +120,18 @@ describe('the rating and FAV rule', () => {
 			part({ seriesId: 1, position: 1, rating: 8 }),
 			part({ seriesId: 2, position: 2, rating: 0 })
 		];
-		expect(workRating(mixed)).toEqual({ shown: 8, settable: false, value: null });
+		expect(workRating(mixed, mixed.length)).toEqual({ shown: 8, settable: false, value: null });
 		const two = [
 			part({ seriesId: 1, position: 1, rating: 7 }),
 			part({ seriesId: 2, position: 2, rating: 8 })
 		];
 		// 7.5 rounds up, as the screen's whole number does.
-		expect(workRating(two)).toMatchObject({ shown: 8, settable: false });
+		expect(workRating(two, two.length)).toMatchObject({ shown: 8, settable: false });
 	});
 
 	it('lets all-unrated parts be rated at once, from nothing', () => {
 		const unrated = [part({ seriesId: 1, position: 1 }), part({ seriesId: 2, position: 2 })];
-		expect(workRating(unrated)).toEqual({ shown: 0, settable: true, value: 0 });
+		expect(workRating(unrated, unrated.length)).toEqual({ shown: 0, settable: true, value: 0 });
 	});
 
 	it('lets parts that share one rating be set, and writes it to all of them', () => {
@@ -139,7 +139,16 @@ describe('the rating and FAV rule', () => {
 			part({ seriesId: 1, position: 1, rating: 6 }),
 			part({ seriesId: 2, position: 2, rating: 6 })
 		];
-		expect(workRating(same)).toEqual({ shown: 6, settable: true, value: 6 });
+		expect(workRating(same, same.length)).toEqual({ shown: 6, settable: true, value: 6 });
+	});
+
+	it('refuses a set from a partial view, because it cannot know the parts agree', () => {
+		// A reveal-off page sees only the visible part. It still shows the
+		// rating it can see, but the Work-wide control is not settable: the
+		// server's rule runs over every member, hidden ones included.
+		const visible = [part({ seriesId: 1, position: 1, rating: 8 })];
+		expect(workRating(visible, 2)).toEqual({ shown: 8, settable: false, value: null });
+		expect(workFavourite(visible, 2)).toEqual({ value: null, settable: false, count: 0 });
 	});
 
 	it('sets FAV only while every part agrees, and counts the ones that are', () => {
@@ -147,14 +156,14 @@ describe('the rating and FAV rule', () => {
 			part({ seriesId: 1, position: 1, favourite: true }),
 			part({ seriesId: 2, position: 2, favourite: true })
 		];
-		expect(workFavourite(all)).toEqual({ value: true, settable: true, count: 2 });
+		expect(workFavourite(all, all.length)).toEqual({ value: true, settable: true, count: 2 });
 		const none = [part({ seriesId: 1, position: 1 }), part({ seriesId: 2, position: 2 })];
-		expect(workFavourite(none)).toEqual({ value: false, settable: true, count: 0 });
+		expect(workFavourite(none, none.length)).toEqual({ value: false, settable: true, count: 0 });
 		const mixed = [
 			part({ seriesId: 1, position: 1, favourite: true }),
 			part({ seriesId: 2, position: 2 })
 		];
-		expect(workFavourite(mixed)).toEqual({ value: null, settable: false, count: 1 });
+		expect(workFavourite(mixed, mixed.length)).toEqual({ value: null, settable: false, count: 1 });
 	});
 });
 

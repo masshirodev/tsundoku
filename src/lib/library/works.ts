@@ -131,6 +131,12 @@ export function workFoot(parts: WorkPart[]): WorkFoot {
  * screen's number is (a whole number out of 10, 0 unrated). It is settable
  * while the parts agree -- every part unrated, or every part one rating --
  * so one tap never overwrites ratings given apart (doc/WORKS.md).
+ *
+ * `total` is how many parts the Work holds, which is not always how many the
+ * caller can see: a reveal-off read drops hidden parts. A page that cannot see
+ * every part cannot know they agree, so it says not settable rather than
+ * offering a control the server will refuse. The server passes the count it
+ * acts on, so the page and the write decide on the same set.
  */
 export type WorkRating = {
 	/** 0 when no part is rated. */
@@ -140,20 +146,21 @@ export type WorkRating = {
 	value: Rating | null;
 };
 
-export function workRating(parts: WorkPart[]): WorkRating {
+export function workRating(parts: WorkPart[], total: number): WorkRating {
 	if (parts.length === 0) return { shown: 0, settable: false, value: null };
 	const rated = parts.filter((p) => p.rating > 0);
 	const shown = rated.length
 		? (Math.round(rated.reduce((n, p) => n + p.rating, 0) / rated.length) as Rating)
 		: 0;
-	const same = parts.every((p) => p.rating === parts[0].rating);
+	const same = parts.length === total && parts.every((p) => p.rating === parts[0].rating);
 	return { shown, settable: same, value: same ? parts[0].rating : null };
 }
 
 /**
  * FAV follows the same rule: settable while every part agrees (all FAV or
  * none), and mixed parts show the Work as not FAV with how many are. FAV never
- * goes to a tracker either way; only ratings do.
+ * goes to a tracker either way; only ratings do. `total` is the Work's member
+ * count, as for `workRating`: a partial view is never settable.
  */
 export type WorkFavourite = {
 	/** true when every part is a favourite, false when none, null while mixed. */
@@ -163,9 +170,10 @@ export type WorkFavourite = {
 	count: number;
 };
 
-export function workFavourite(parts: WorkPart[]): WorkFavourite {
+export function workFavourite(parts: WorkPart[], total: number): WorkFavourite {
 	const count = parts.filter((p) => p.favourite).length;
-	const same = parts.length > 0 && (count === parts.length || count === 0);
+	const same =
+		parts.length > 0 && parts.length === total && (count === parts.length || count === 0);
 	return { value: same ? count === parts.length : null, settable: same, count };
 }
 

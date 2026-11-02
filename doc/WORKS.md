@@ -113,8 +113,10 @@ existing one.
 - **The rating rule:** the shown rating is the average of the rated parts,
   rounded. It is settable only while every part is unrated or every part shares
   one rating, and a set writes that rating to every part through each series'
-  own rating path, so a linked part still sends its tracker. **FAV** follows the
-  same agreement rule, and mixed parts say how many are.
+  own rating path, so a linked part still sends its tracker. A read that can see
+  only some of the parts (reveal off, a hidden part) is never settable, because
+  it cannot know they agree. **FAV** follows the same agreement rule, and mixed
+  parts say how many are.
 - **The default name** is the words every title starts with (`sharedStart` in
   `src/lib/library/books.ts`), or empty when they share none.
 - **Kinds and the verb:** `WORK · MANGA + ANIME`, each kind once in the parts'

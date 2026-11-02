@@ -10,7 +10,7 @@ const { getDb } = await import('$lib/server/db');
 const { seedSample } = await import('$lib/server/fixtures');
 const lib = await import('$lib/server/library');
 const works = await import('$lib/server/works');
-const { continuePart, workFoot } = await import('$lib/library/works');
+const { continuePart, workFoot, workRating } = await import('$lib/library/works');
 
 /** A fresh library per test: grouping reshapes the data under test. */
 beforeEach(() => {
@@ -339,6 +339,28 @@ describe('a Work’s rating and FAV', () => {
 			},
 			{ timeout: 5000 }
 		);
+	});
+
+	it('refuses a set from a page that can see only part of the Work, as the server does', () => {
+		const [a, b] = UNRATED.map(idOf) as number[];
+		const { work } = works.createWork({ seriesIds: [a, b], name: 'Apart', now: NOW });
+		lib.setRating([a], 8);
+		lib.setRating([b], 3);
+		lib.setHidden([b], true);
+
+		// Reveal off: one part, and the page is told how many the Work holds.
+		const page = works.workPage(work.id, { reveal: false })!;
+		expect(page.parts.map((p) => p.seriesId)).toEqual([a]);
+		expect(page.total).toBe(2);
+		// The rule is over the visible parts, but knows it saw only one, so the
+		// control is not live -- exactly what setWorkRating would refuse.
+		expect(workRating(page.parts, page.total)).toEqual({ shown: 8, settable: false, value: null });
+		expect(() => works.setWorkRating(work.id, 5)).toThrow(/rated differently/);
+		expect([ratingOf(a), ratingOf(b)]).toEqual([8, 3]);
+
+		// Reveal on sees both and reaches the same answer for the same reason.
+		const all = works.workPage(work.id, { reveal: true })!;
+		expect(workRating(all.parts, all.total)).toEqual({ shown: 6, settable: false, value: null });
 	});
 
 	it('sets FAV on every part while they agree, and refuses mixed parts', () => {

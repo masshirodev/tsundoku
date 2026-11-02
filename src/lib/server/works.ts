@@ -84,7 +84,16 @@ export type UngroupFacts = { work: WorkRecord; members: SeriesPlace[] };
 /** A part as the Work screen needs it: the pure part, plus whether it is hidden. */
 export type WorkPartRow = WorkPart & { hidden: boolean };
 
-export type WorkPage = { work: WorkRecord; parts: WorkPartRow[] };
+export type WorkPage = {
+	work: WorkRecord;
+	parts: WorkPartRow[];
+	/**
+	 * How many parts the Work holds, hidden ones included: `parts` is only what
+	 * the viewer may see, and a rule about the whole Work has to know the
+	 * difference (a reveal-off page cannot offer a Work-wide rating).
+	 */
+	total: number;
+};
 
 // ---- rows ---------------------------------------------------------------------
 
@@ -189,6 +198,15 @@ function allIds(db: Database.Database, workId: number): number[] {
 	).map((r) => r.series_id);
 }
 
+/** The number of memberships, which a filtered read cannot tell from its own rows. */
+function memberCount(db: Database.Database, workId: number): number {
+	return (
+		db.prepare(`SELECT COUNT(*) AS n FROM work_series WHERE work_id = ?`).get(workId) as {
+			n: number;
+		}
+	).n;
+}
+
 // ---- reads --------------------------------------------------------------------
 
 /**
@@ -233,7 +251,9 @@ function readParts(db: Database.Database, workId: number, where: string): WorkPa
 /**
  * A Work and its parts, or null when it no longer exists or nothing of it is
  * visible: a Work is hidden or shown whole, so being unable to see any part
- * is being unable to see the Work.
+ * is being unable to see the Work. `total` is every member, so a page that can
+ * see only some of them says so instead of applying a whole-Work rule to the
+ * part it happened to see.
  */
 export function workPage(workId: number, opts: { reveal: boolean }): WorkPage | null {
 	const db = getDb();
@@ -241,7 +261,7 @@ export function workPage(workId: number, opts: { reveal: boolean }): WorkPage | 
 	if (!work) return null;
 	const parts = workParts(workId, opts.reveal);
 	if (parts.length === 0) return null;
-	return { work, parts };
+	return { work, parts, total: memberCount(db, workId) };
 }
 
 /** The Works a series belongs to at most one of; the row the series screen draws. */
@@ -516,7 +536,7 @@ export function setWorkRating(workId: number, rating: Rating): number {
 	if (!Number.isInteger(rating) || rating < 0 || rating > RATING_MAX)
 		throw new WorkError('a rating is 0-10');
 	const ids = allIds(db, workId);
-	if (!workRating(allParts(workId)).settable)
+	if (!workRating(allParts(workId), ids.length).settable)
 		throw new WorkError('the parts are rated differently; rate them one at a time');
 	return setRating(ids, rating);
 }
@@ -526,7 +546,7 @@ export function setWorkFavourite(workId: number, favourite: boolean): number {
 	const db = getDb();
 	if (!workRow(db, workId)) throw new WorkError('no such Work');
 	const ids = allIds(db, workId);
-	if (!workFavourite(allParts(workId)).settable)
+	if (!workFavourite(allParts(workId), ids.length).settable)
 		throw new WorkError('only some parts are a favourite; set them one at a time');
 	return setFavourite(ids, favourite);
 }
