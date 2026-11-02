@@ -33,8 +33,14 @@ export function adoptFormer(db: Database.Database, s: PlannedSeries, now: number
 	// the folder's series, which keeps the library row, its id and its key.
 	if (current && current.in_library !== 1) foldSeries(db, current.id, former.id);
 	// Both exist and the URL's is the library's: the folder's is folded into it,
-	// keeping whatever the owner did in either. No file is moved.
+	// keeping whatever the owner did in either. No file is moved. A fold keeps
+	// only one side's title, kind and direction, so the folder's edit is carried
+	// first, as `adoptNamed` does at the other door (doc/IMPORT-MIHON.md, "Both
+	// exist"). `formerKey` is always a `mihon-dir:` key (`folderKey`,
+	// mihon-plan.ts); the guard is for a key that somehow is not.
 	else if (current) {
+		const parts = folderParts(s.formerKey);
+		if (parts) carryEdit(db, former.id, current.id, parts.dir);
 		foldSeries(db, former.id, current.id);
 		rememberKey(db, current.id, s.formerKey, 'mihon', s.originKey, now);
 		return;

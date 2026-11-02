@@ -173,3 +173,115 @@ describe('a download a backup now knows', () => {
 		).toBe(2);
 	});
 });
+
+/**
+ * The same-device door (`adoptFormer`, the both-exist branch): a folder's
+ * series the owner renamed, the second series the old importer made under the
+ * URL key on the same files, and a newer backup that names both. The folder's
+ * series is folded into the URL's -- and the fold keeps only one side's title,
+ * kind and direction, so the owner's must be carried across (doc/IMPORT-MIHON.md,
+ * "Both exist").
+ */
+describe('a renamed folder series this device’s backup names', () => {
+	const at = 1_800_000_300_000;
+	const dir = join(root, 'downloads', 'Asura Scans (EN)', 'Renamed Orphan');
+	const RENAMED_DIR = 'mihon-dir:Asura Scans (EN)/Renamed Orphan';
+	const RENAMED_URL = `mihon:${ASURA}:/series/renamed-orphan`;
+	let renamed: number;
+	let urlSeries: number;
+
+	beforeAll(async () => {
+		mkdirSync(dir, { recursive: true });
+		writeFileSync(
+			join(dir, 'Chapter 1.cbz'),
+			cbz(
+				comicInfo({
+					title: 'Chapter 1',
+					series: 'Renamed Orphan',
+					number: 1,
+					web: 'https://asura.example/series/renamed-orphan/1',
+					source: 'Asura Scans'
+				})
+			)
+		);
+		// A scan while no backup names it: the download's own series.
+		await runImport(library, { now: at });
+		renamed = byKey(RENAMED_DIR)!;
+		expect(renamed).toBeTruthy();
+
+		// What the owner did with it while it was the only one.
+		db.prepare(
+			`UPDATE series SET title = 'My Own Name', kind = 'manhwa', direction = 'rtl' WHERE id = ?`
+		).run(renamed);
+		db.prepare(`UPDATE entries SET read_at = ? WHERE series_id = ?`).run(at + 1_000, renamed);
+
+		// The old importer made a second series under the URL key, on the same files.
+		urlSeries = Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, added_at, path, origin_key, source, rating)
+					SELECT root_id, 'Renamed Orphan', 'manga', added_at, path, ?, source, 0
+					FROM series WHERE id = ?`
+				)
+				.run(RENAMED_URL, renamed).lastInsertRowid
+		);
+		db.prepare(
+			`INSERT INTO entries (series_id, position, label, added_at, file, source_url, available)
+			SELECT ?, position, label, added_at, file, '/series/renamed-orphan/1', 1
+			FROM entries WHERE series_id = ?`
+		).run(urlSeries, renamed);
+
+		// A newer backup, taken after it was added to Mihon's library.
+		writeFileSync(
+			join(root, 'autobackup', 'app.mihon_2026-10-05_08-00.tachibk'),
+			gzipSync(
+				backup(
+					[],
+					[
+						manga('/series/not-in-the-backup', 'Not In The Backup', [1]),
+						manga('/series/second-orphan', 'Second Orphan', [1, 2]),
+						manga('/series/renamed-orphan', 'Renamed Orphan', [1])
+					]
+				)
+			)
+		);
+		await runImport(library, { now: at + 10_000 });
+	});
+
+	it('folds the folder into the URL’s series, keeping the URL’s id', () => {
+		expect(byKey(RENAMED_DIR)).toBeUndefined();
+		expect(byKey(RENAMED_URL)).toBe(urlSeries);
+		expect(
+			one<{ n: number }>(
+				`SELECT COUNT(*) AS n FROM series WHERE title IN ('My Own Name', 'Renamed Orphan')`
+			).n
+		).toBe(1);
+	});
+
+	it('carries the owner’s name, kind and direction onto the survivor', () => {
+		expect(
+			one<{ title: string; kind: string; direction: string | null }>(
+				`SELECT title, kind, direction FROM series WHERE id = ?`,
+				urlSeries
+			)
+		).toEqual({ title: 'My Own Name', kind: 'manhwa', direction: 'rtl' });
+	});
+
+	it('moves the folder’s chapter across, with its file and its reading', () => {
+		expect(
+			all<{ label: string; file: string; available: number; read_at: number | null }>(
+				`SELECT label, file, available, read_at FROM entries WHERE series_id = ? ORDER BY position`,
+				urlSeries
+			)
+		).toEqual([{ label: 'Ch. 1', file: 'Chapter 1.cbz', available: 1, read_at: at + 1_000 }]);
+	});
+
+	it('settles: a rescan creates neither series again', async () => {
+		await runImport(library, { now: at + 20_000 });
+		expect(byKey(RENAMED_DIR)).toBeUndefined();
+		expect(byKey(RENAMED_URL)).toBe(urlSeries);
+		expect(
+			one<{ n: number }>(`SELECT COUNT(*) AS n FROM entries WHERE series_id = ?`, urlSeries).n
+		).toBe(1);
+	});
+});
