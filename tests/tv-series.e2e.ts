@@ -50,3 +50,30 @@ test('RATING keeps ← →: the value moves, the mark does not walk the halves',
 	await expect.poll(chosen).toBe(before);
 	expect(await first.evaluate((n) => n === document.activeElement)).toBe(true);
 });
+
+test('every row of the panel fits its 352px column, and nothing sits over ▶ CONTINUE', async ({
+	page
+}) => {
+	await open(page);
+	// On the first real TV (2026-11-02) the rows took the tablet's full-width
+	// layout: cells ran past the column and over CONTINUE, labels were cut.
+	const report = await page.evaluate(() => {
+		const panel = document.querySelector('section.panel')!.getBoundingClientRect();
+		const cta = document.querySelector('.panel .cta')!.getBoundingClientRect();
+		const out: string[] = [];
+		for (const el of document.querySelectorAll<HTMLElement>(
+			'.panel .row, .panel .lc, .panel .label, .panel .lcs'
+		)) {
+			const r = el.getBoundingClientRect();
+			if (r.width === 0 || getComputedStyle(el).display === 'none') continue;
+			const name = `${el.className} "${el.textContent?.trim().slice(0, 20)}"`;
+			if (r.left < panel.left - 1 || r.right > panel.right + 1) out.push(`outside: ${name}`);
+			if (!el.closest('.cta') && r.bottom > cta.top + 1 && r.top < cta.bottom - 1)
+				out.push(`over CONTINUE: ${name}`);
+			if (el.scrollWidth > el.clientWidth + 1 && el.classList.contains('label'))
+				out.push(`cut: ${name}`);
+		}
+		return out;
+	});
+	expect(report).toEqual([]);
+});

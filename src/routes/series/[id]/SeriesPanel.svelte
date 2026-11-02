@@ -1671,8 +1671,11 @@
 		opacity: 0.35;
 		cursor: default;
 	}
-	/* Narrow (the phone, and the 440px landscape panel): the cells drop below, in equal columns (1t). */
-	@media (max-width: 599px), (min-width: 1024px) {
+	/* Narrow (the phone, the 440px landscape panel and the TV's 352px column):
+	   the cells drop below, in equal columns (1t). The TV is 960 wide, so it met
+	   neither width, and its column got the tablet's full-width inline row:
+	   cells past the edge and over ▶ CONTINUE (2026-11-02, the first real TV). */
+	@media (max-width: 599px), (min-width: 1024px), (pointer: none) and (min-width: 900px) {
 		.link-row {
 			border-bottom: 0;
 		}
@@ -1735,7 +1738,7 @@
 	.tl-r.alert {
 		color: var(--text-1);
 	}
-	@media (max-width: 599px), (min-width: 1024px) {
+	@media (max-width: 599px), (min-width: 1024px), (pointer: none) and (min-width: 900px) {
 		.track-row {
 			border-bottom: 0;
 		}
@@ -1854,6 +1857,10 @@
 	/* ---- the TV (c238; TV-Series) ----------------------------------------- */
 	@media (pointer: none) and (min-width: 900px) {
 		.panel {
+			/* The column already sits inside the 48px safe margin: its rows pad
+			   as a column does, not as the screen's edge. At 48 a 116px label
+			   had 68 left for RATING and its value, and cut them off. */
+			--pad: 16px;
 			--cov-w: 96px;
 			--title-size: 22px;
 			--label-w: 116px;
