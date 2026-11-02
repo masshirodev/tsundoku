@@ -34,7 +34,13 @@ $LIBRARY_ROOT/
   did.
 
 Only one import runs at a time. A second start while one runs joins it. A job
-left unfinished by a process that died is closed at the next start.
+left unfinished by a process that died (a crash, or a restart for an update)
+is closed when the app next starts (`init` in `src/hooks.server.ts`), and by
+the next import too. Until it is, the library believes it is still importing:
+the IMPORTING band never ends and the grid stays on NEWEST FIRST with no SORT
+(scan 750, 2026-11-01). One that brought no new series leaves no band. So a
+`yarn run import` against the live database must not run across a restart of
+the served app: the start closes its job too, and its band ends early.
 
 ## What becomes what
 

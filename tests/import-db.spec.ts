@@ -12,6 +12,8 @@ const { writeMihonFolder } = await import('./helpers/mihon-fixture');
 const { writeHentoidFolder } = await import('./helpers/hentoid-fixture');
 const { groupIntoSeries } = await import('$lib/server/books');
 const { markEntries } = await import('$lib/server/series');
+const { closeDeadJobs } = await import('$lib/server/import/write');
+const { currentScan, dismissScan } = await import('$lib/server/library');
 
 const root = writeMihonFolder(mkdtempSync(join(tmpdir(), 'tsundoku-mihon-')));
 const library = dirname(root);
@@ -291,5 +293,50 @@ describe('Mihon’s local source', () => {
 				.get() as { n: number }
 		).n;
 		expect(n).toBe(0);
+	});
+});
+
+describe('an import a dead process left open', () => {
+	const open = (found: number) =>
+		Number(
+			db()
+				.prepare(
+					`INSERT INTO scan_jobs (started_at, series_found, steps, step) VALUES (?, ?, 11, 1)`
+				)
+				.run(1_800_000_200_000, found).lastInsertRowid
+		);
+	const job = (id: number) =>
+		db().prepare(`SELECT finished_at, dismissed_at FROM scan_jobs WHERE id = ?`).get(id) as {
+			finished_at: number | null;
+			dismissed_at: number | null;
+		};
+
+	it('is closed at the next start, and one that brought nothing leaves no band', () => {
+		const id = open(0);
+		expect(currentScan()?.finishedAt).toBeNull();
+		expect(closeDeadJobs(db(), 1_800_000_300_000)).toBe(1);
+		expect(job(id)).toEqual({ finished_at: 1_800_000_300_000, dismissed_at: 1_800_000_300_000 });
+		expect(currentScan()?.id).not.toBe(id);
+	});
+
+	it('keeps its band when it brought series in before it died', () => {
+		const id = open(3);
+		closeDeadJobs(db(), 1_800_000_400_000);
+		expect(job(id)).toEqual({ finished_at: 1_800_000_400_000, dismissed_at: null });
+		dismissScan(id);
+	});
+
+	it('a later import that brought nothing does not hand the band back to an older one', () => {
+		const older = open(2);
+		closeDeadJobs(db(), 1_800_000_500_000);
+		expect(currentScan()?.id).toBe(older);
+		const quiet = open(0);
+		closeDeadJobs(db(), 1_800_000_600_000);
+		expect(job(quiet).dismissed_at).not.toBeNull();
+		expect(currentScan()).toBeNull();
+	});
+
+	it('leaves finished jobs alone', () => {
+		expect(closeDeadJobs(db())).toBe(0);
 	});
 });

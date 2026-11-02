@@ -18,7 +18,7 @@ import { hentoidBytes, hentoidRoot, planHentoidFolder } from './hentoid.ts';
 import { epubBytes, epubRoot, planEpubFile, planEpubFolder } from './epub.ts';
 import { animeBytes, animeSeriesDirs, planAnimeFolders, planAnimeSeries } from './anime.ts';
 import { ANIME_FOLDER } from '../../library/anime-files.ts';
-import { ensureRoot, ensureNamedRoot, finishJob, writeSeries } from './write.ts';
+import { closeDeadJobs, ensureRoot, ensureNamedRoot, finishJob, writeSeries } from './write.ts';
 import { reconcileDuplicates } from '../duplicates.ts';
 import { refreshCovers } from '../covers.ts';
 import { refreshLinks } from '../catalogue.ts';
@@ -376,7 +376,7 @@ export async function attachWritten(
 async function run(sources: Source[], now: number): Promise<ImportSummary> {
 	const db = getDb();
 	// A job left unfinished by a process that died is over.
-	db.prepare(`UPDATE scan_jobs SET finished_at = ? WHERE finished_at IS NULL`).run(now);
+	closeDeadJobs(db, now);
 	const jobId = Number(
 		db
 			.prepare(`INSERT INTO scan_jobs (started_at, source_label, steps, step) VALUES (?, ?, ?, 1)`)

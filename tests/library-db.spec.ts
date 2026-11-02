@@ -406,7 +406,7 @@ describe('the kind shelves', () => {
 });
 
 describe('scan state', () => {
-	it('reports a running scan over a finished one, and forgets a dismissed one', () => {
+	it('reports a running scan over a finished one, and a dismissed one hands the band to nobody', () => {
 		const db = getDb();
 		expect(lib.currentScan()).toBeNull();
 		const done = Number(
@@ -424,9 +424,9 @@ describe('scan state', () => {
 		);
 		expect(lib.currentScan()?.id).toBe(running);
 		db.prepare(`UPDATE scan_jobs SET finished_at = 4 WHERE id = ?`).run(running);
+		expect(lib.currentScan()?.id).toBe(running);
 		lib.dismissScan(running);
-		expect(lib.currentScan()?.id).toBe(done);
-		lib.dismissScan(done);
+		// Not back to the older band: only the newest import is ever shown.
 		expect(lib.currentScan()).toBeNull();
 	});
 });

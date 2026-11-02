@@ -234,11 +234,15 @@ const ORDER: Record<Exclude<Sort, 'random'>, (d: 'ASC' | 'DESC') => string> = {
 };
 
 /**
- * The import the library is showing: the one running, else the newest one
- * nobody has dismissed. The band is about it; the NEW shelf is not (NEW_SQL).
+ * The import the library is showing: the newest one (a running import is
+ * always the newest, run() closes the rest first), while it runs or until it
+ * is dismissed. Never an older one: an import that brought nothing dismisses
+ * itself, and reaching past it handed the band back to whichever import last
+ * brought something, days before (21 such on 2026-11-02, one dismissal each).
+ * The band is about it; the NEW shelf is not (NEW_SQL).
  */
-const CURRENT_SCAN_ID = `SELECT id FROM scan_jobs WHERE finished_at IS NULL OR dismissed_at IS NULL
-	ORDER BY (finished_at IS NULL) DESC, id DESC LIMIT 1`;
+const CURRENT_SCAN_ID = `SELECT id FROM scan_jobs WHERE id = (SELECT MAX(id) FROM scan_jobs)
+	AND (finished_at IS NULL OR dismissed_at IS NULL)`;
 
 /** How long an arrival stays on the NEW shelf unopened (doc/LIBRARY.md). */
 export const NEW_DAYS = 14;

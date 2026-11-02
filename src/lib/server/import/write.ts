@@ -503,3 +503,19 @@ export function finishJob(db: Database.Database, jobId: number, seriesCreated: n
 		`UPDATE scan_jobs SET finished_at = ?, dismissed_at = CASE WHEN ? = 0 THEN ? END WHERE id = ?`
 	).run(done, seriesCreated, done, jobId);
 }
+
+/**
+ * Close every job a process left unfinished by dying (a crash, or a restart
+ * for an update) mid-import. Left open, the library believes an import is
+ * still running: the IMPORTING band never ends and the grid stays on NEWEST
+ * with no SORT (2026-11-01, scan 750). Like finishJob, a job that brought no
+ * new series leaves no band. Returns how many it closed.
+ */
+export function closeDeadJobs(db: Database.Database, now = Date.now()): number {
+	return db
+		.prepare(
+			`UPDATE scan_jobs SET finished_at = ?, dismissed_at = CASE WHEN series_found = 0 THEN ? END
+			WHERE finished_at IS NULL`
+		)
+		.run(now, now).changes;
+}
