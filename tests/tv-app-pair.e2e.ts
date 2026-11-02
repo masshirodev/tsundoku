@@ -34,41 +34,55 @@ declare global {
  * flight while a second launch arrives is exactly what c260's round 2 is
  * about, and a file:// page has no bridge to hold one.
  *
- * A probe answers `false` after ~50 ms, as a LAN nobody answers does. `hold`
- * leaves it on `window.__bridge.pending` instead, so the test decides when and
- * what the answer is.
+ * `probe` answers with the origin `Address.originOf` keeps (a path, a query and
+ * userinfo dropped), never with the string it was handed, because that is what
+ * the real bridge answers and what the page's guard must accept. `answer` is
+ * what it says; `hold` leaves the probe on `window.__bridge.pending` instead, so
+ * the test decides when and what the answer is.
  *
  * What `remember` was called with is also kept on this side of the page: a
  * superseded answer stores its address immediately before the navigation that
  * answer would cause, and a navigation takes the page's own record with it.
  */
-async function stubBridge(page: Page, options: { hold?: boolean } = {}) {
+async function stubBridge(page: Page, options: { hold?: boolean; answer?: boolean } = {}) {
 	const remembered: string[] = [];
 	await page.exposeFunction('__bridgeRemembered', (at: string) => {
 		remembered.push(at);
 	});
-	await page.addInitScript((hold: boolean) => {
-		const state: StubBridge = { probes: [], remembered: [], pending: '' };
-		window.__bridge = state;
-		window.TsundokuTV = {
-			tvAddress: () => '192.168.1.31',
-			prefix: () => '192.168.1.',
-			defaultPort: () => 42143,
-			remembered: () => state.remembered[state.remembered.length - 1] ?? '',
-			remember: (at: string) => {
-				state.remembered.push(at);
-				void window.__bridgeRemembered?.(at);
-			},
-			forget: () => {
-				state.remembered = [];
-			},
-			probe: (at: string) => {
-				state.probes.push(at);
-				state.pending = at;
-				if (!hold) setTimeout(() => window.tsundokuProbe?.(at, false), 50);
-			}
-		};
-	}, options.hold ?? false);
+	await page.addInitScript(
+		({ hold, answer }: { hold: boolean; answer: boolean }) => {
+			const state: StubBridge = { probes: [], remembered: [], pending: '' };
+			// The origin a typed whole address becomes once the bridge parses it.
+			const clean = (at: string) => {
+				try {
+					const u = new URL(at.startsWith('http') ? at : 'http://' + at);
+					return u.origin;
+				} catch {
+					return at;
+				}
+			};
+			window.__bridge = state;
+			window.TsundokuTV = {
+				tvAddress: () => '192.168.1.31',
+				prefix: () => '192.168.1.',
+				defaultPort: () => 42143,
+				remembered: () => state.remembered[state.remembered.length - 1] ?? '',
+				remember: (at: string) => {
+					state.remembered.push(clean(at));
+					void window.__bridgeRemembered?.(clean(at));
+				},
+				forget: () => {
+					state.remembered = [];
+				},
+				probe: (at: string) => {
+					state.probes.push(at);
+					state.pending = at;
+					if (!hold) setTimeout(() => window.tsundokuProbe?.(clean(at), answer), 50);
+				}
+			};
+		},
+		{ hold: options.hold ?? false, answer: options.answer ?? false }
+	);
 	return { remembered };
 }
 
@@ -291,4 +305,96 @@ test('a probe a given address superseded neither stores nor navigates (c260)', a
 	await expect(page.locator('#refused')).toBeVisible();
 	await expect(page.locator('#next')).toBeEnabled();
 	await expect(page.locator('#checking')).toHaveText('');
+});
+
+test('a typed whole address with a path pairs at its origin (c260)', async ({ page }) => {
+	const bridge = await stubBridge(page, { answer: true });
+	// The typed address answers, so the page leaves for its /pair/tv. Abort
+	// that request and keep its URL: this test must see where it went, not dial.
+	const navigations: string[] = [];
+	await page.route('https://zen.tailnet.ts.net:8443/**', (route) => {
+		navigations.push(route.request().url());
+		return route.abort();
+	});
+	await page.goto(page9);
+	await page.keyboard.press('Enter'); // START → 9B, the mark on NEXT
+	await page.locator('#whole-toggle').focus();
+	await page.keyboard.press('Enter'); // TYPE THE WHOLE ADDRESS
+	await page.locator('#last').fill('https://zen.tailnet.ts.net:8443/library');
+	await page.locator('#next').click();
+
+	// The field keeps the path; the bridge answers the origin. The page used to
+	// compare the two raw strings and drop the answer, leaving 9B on CHECKING
+	// with NEXT disabled (c260). It now compares origins, so the success lands.
+	await expect.poll(() => bridge.remembered.length).toBeGreaterThan(0);
+	expect(bridge.remembered).toContain('https://zen.tailnet.ts.net:8443');
+	expect(bridge.remembered).not.toContain('https://zen.tailnet.ts.net:8443/library');
+	await expect.poll(() => navigations.length).toBeGreaterThan(0);
+	expect(navigations[0]).toBe('https://zen.tailnet.ts.net:8443/pair/tv');
+});
+
+test('a typed whole address with a query fails at its origin (c260)', async ({ page }) => {
+	await stubBridge(page);
+	await page.goto(page9);
+	await page.keyboard.press('Enter'); // START → 9B
+	await page.locator('#whole-toggle').focus();
+	await page.keyboard.press('Enter'); // TYPE THE WHOLE ADDRESS
+	await page.locator('#last').fill('http://192.168.1.23:42143/?q=1');
+	await page.locator('#next').click();
+
+	// A failure is the same identity question as a success: the query is not
+	// part of the origin, so 9D must name the address that was probed, and the
+	// answer must not be dropped with NEXT left disabled (c260).
+	await expect(page.locator('#retry')).toBeVisible();
+	await expect(page.locator('#lost-title')).toContainText('192.168.1.23:42143');
+	await expect(page.locator('#lost-title')).not.toContainText('q=1');
+	await expect(page.locator('#next')).toBeEnabled();
+});
+
+test('a refused address is not replaced by a probe already in flight (c260)', async ({ page }) => {
+	const bridge = await stubBridge(page, { hold: true });
+	await page.goto(page9);
+	await page.keyboard.press('Enter'); // START → 9B, the mark on NEXT
+	await page.keyboard.press('2');
+	await page.keyboard.press('3');
+	await page.keyboard.press('Enter'); // NEXT: the typed probe is held
+	const typed = 'http://192.168.1.23:42143';
+	await expect.poll(() => page.evaluate(() => window.__bridge!.pending)).toBe(typed);
+
+	// A second launch is refused. The band says nothing was saved; 9B is back.
+	await page.evaluate(() => {
+		location.hash = '#bad=' + encodeURIComponent('zen.local:42143');
+	});
+	await expect(page.locator('#refused')).toBeVisible();
+	await expect(page.locator('#address-form')).toBeVisible();
+
+	// The probe sent before the refusal now fails. It is an answer for the
+	// attempt the refusal replaced, so its failure must not erase the band and
+	// take the screen to 9D for an address nobody handed in (c260).
+	await page.evaluate((at) => window.tsundokuProbe?.(at, false), typed);
+	await page.waitForTimeout(300);
+	await expect(page.locator('#refused')).toBeVisible();
+	await expect(page.locator('#address-form')).toBeVisible();
+	await expect(page.locator('#retry')).toBeHidden();
+	await expect(page.locator('#lost')).toBeHidden();
+	expect(bridge.remembered).toEqual([]);
+});
+
+test('a new attempt after a refusal clears the band and can fail to 9D (c260)', async ({
+	page
+}) => {
+	await stubBridge(page);
+	await page.goto(`${page9}#bad=${encodeURIComponent('zen.local:42143')}`);
+	await expect(page.locator('#refused')).toBeVisible();
+
+	// The band describes the refused launch, not the attempt the owner makes
+	// next. If it outlived a new probe, the guard above would drop that probe's
+	// failure and leave 9B with NEXT disabled and no way forward (c260).
+	await page.locator('#whole-toggle').click();
+	await page.locator('#last').fill('https://zen.tailnet.ts.net:8443/library');
+	await page.locator('#next').click();
+	await expect(page.locator('#refused')).toBeHidden();
+	await expect(page.locator('#retry')).toBeVisible();
+	await expect(page.locator('#lost-title')).toContainText('zen.tailnet.ts.net:8443');
+	await expect(page.locator('#lost-title')).not.toContainText('library');
 });

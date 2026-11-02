@@ -585,6 +585,21 @@
 			});
 			next.addEventListener('click', probe);
 
+			/*
+			 * An origin, for comparing two addresses that mean the same server:
+			 * a typed field may carry a path, a query, userinfo or a different
+			 * host case, while the bridge answers with Address.originOf's origin.
+			 * Both sides go through this, so neither normalisation has to match
+			 * the other exactly (c260).
+			 */
+			const atOrigin = (u) => {
+				try {
+					return new URL(u).origin;
+				} catch {
+					return u;
+				}
+			};
+
 			function probe() {
 				const at = origin();
 				if (!at) {
@@ -593,6 +608,10 @@
 						: 'THE LAST NUMBER IS 0 TO 255';
 					return;
 				}
+				// The band describes the attempt that was refused, not this one:
+				// a new probe is a new question, so the band goes with it (c260).
+				refusedBand.hidden = true;
+				screens.address.classList.remove('with-band');
 				lastOrigin = at;
 				attempts = 1;
 				lastAt = Date.now();
@@ -667,7 +686,13 @@
 				// supersedes a typed probe by moving lastOrigin (connect()), and
 				// the answer for the attempt it replaced must neither store that
 				// address nor leave for its /pair/tv — success included (c260).
-				if (at !== lastOrigin) return;
+				// Compare origins, not raw strings: the field keeps a path and
+				// the bridge answers with the origin alone (c260).
+				if (atOrigin(at) !== atOrigin(lastOrigin)) return;
+				// A refusal band is up: a failure for an earlier attempt must not
+				// erase "NOTHING WAS SAVED" (c260). A success still pairs: the
+				// given address only replaced the remembered one after it answered.
+				if (!ok && !refusedBand.hidden) return;
 				// A given address is being checked with no screen in front of it
 				// (c260), which the two-screen test below would otherwise drop.
 				if (!connecting && screens.address.hidden && screens.lost.hidden) return;

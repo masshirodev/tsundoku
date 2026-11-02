@@ -123,7 +123,10 @@ on it, so the six digits are in SETTINGS › 08 — DEVICES itself, and the pair
 cookie `/pair/tv` sets is accepted by the guard for a request that came in on
 the instance's public host — the tailnet name — and ignored on a loopback one
 ([`SIGN-IN.md`](SIGN-IN.md), "The workstation: a token"). The TV app reaches
-that host by TYPE THE WHOLE ADDRESS on 9B, `https://name.ts.net:8443`.
+that host by TYPE THE WHOLE ADDRESS on 9B, `https://name.ts.net:8443`, or by
+being handed it at launch (`adb shell am start … --es url …`, or a
+`tsundoku://connect?url=` link), which skips 9A and 9B ([`TV-APP.md`](TV-APP.md),
+"The address from outside").
 
 ## The design
 

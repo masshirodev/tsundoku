@@ -128,7 +128,20 @@ Only the attempt that is current has its answer acted on. A given address
 supersedes a probe already in flight, and that probe's answer is dropped —
 success included — so a launch cannot be overtaken by the address it replaced.
 A refusal stops 9D's retry before showing the band, so the band is not replaced
-five seconds later by the old address's failure.
+five seconds later by the old address's failure, and a probe still in flight
+when the refusal arrives cannot replace it either: only a _failure_ is dropped,
+so a late success still remembers and opens the pairing (Decision 9 in the
+handoff notes). A new typed attempt clears the band first, because it is a new
+question.
+
+An address is compared by its **origin**, not its text. The field keeps what was
+typed — a path, a query, userinfo, a differently cased host — while
+`PairingBridge` answers with `Address.originOf`'s origin. Both sides of the
+comparison go through `new URL(…).origin` (the page's `atOrigin`), so a typed
+`https://zen.tailnet.ts.net:8443/library` and the bridge's
+`https://zen.tailnet.ts.net:8443` are the same attempt and its success or
+failure lands; comparing the raw strings dropped the answer and left 9B on
+CHECKING with NEXT disabled.
 
 The check is 9B's own: the web app manifest, through `PairingBridge`. A given
 address goes through the same `#connect=` path in the asset page, remembers
@@ -161,7 +174,9 @@ On the TV:
    remote without them reaches TYPE THE WHOLE ADDRESS in one press down, and
    the field is one press up. TYPE THE WHOLE ADDRESS takes `host:port` or a
    full `http://…` for Tailscale or another port. NEXT probes it; an address
-   handed in at launch is probed the same way and skips this screen (c260).
+   handed in at launch is probed the same way and skips this screen (c260). A
+   pasted address with a path or a query pairs at its origin: the origin is what
+   is probed, remembered and opened, never the whole string (c260).
 3. **9C** — the computer's own `/pair/tv`: six cells in two threes, the
    number keys type and ← erases, and PAIR → presses itself when the sixth
    arrives. A wrong code says how many tries are left.
@@ -319,19 +334,24 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   tries burn it, the state machine's every answer; the tailnet door, the rule
   that draws the DEVICES block only where that cookie opens, and the friend
   branch's refusal of a paired cookie off Wi-Fi (c245).
-- `tests/tv-app-pair.e2e.ts` — 9A and 9B from the shipped asset file: the mark
-  on NEXT rather than the field (and on TYPE THE WHOLE ADDRESS one press down),
-  the number keys typing into the field from there, and the whole-address field
-  that stays visible; and 9A's step 01 and 9D's second reason keeping a friend's
-  WI-FI remedy beside a Tailscale install's truth (c245). A `#connect=` given
-  address shows neither 9A nor 9B and names what it is checking; a `#bad=` shows
-  the band on 9B, above the label and inside the frame, with the screen still
-  usable (c260). Two cases stand up a stub bridge for the states only the app
+- `tests/tv-app-pair.e2e.ts` — 12 cases, 9A and 9B from the shipped asset file:
+  the mark on NEXT rather than the field (and on TYPE THE WHOLE ADDRESS one press
+  down), the number keys typing into the field from there, and the whole-address
+  field that stays visible; and 9A's step 01 and 9D's second reason keeping a
+  friend's WI-FI remedy beside a Tailscale install's truth (c245). A `#connect=`
+  given address shows neither 9A nor 9B and names what it is checking; a `#bad=`
+  shows the band on 9B, above the label and inside the frame, with the screen
+  still usable (c260). Cases stand up a stub bridge for the states only the app
   reaches: a refusal handed to a TV already on 9D stops its retry, so the band
-  is still there past a 5 s tick and no probe for the old address is made; and a
+  is still there past a 5 s tick and no probe for the old address is made; a
   typed probe still in flight when a given address arrives neither stores its
   answer nor leaves for its `/pair/tv`, while the refused door into 9B resets
-  the NEXT button and checking line the held probe left behind (c260).
+  the NEXT button and checking line the held probe left behind; a probe still
+  in flight when a refusal arrives fails without replacing the band; and a new
+  attempt after a refusal clears the band and can still reach 9D. Two more pin
+  the origin comparison: a typed whole address with a path pairs at its origin
+  (remembered and opened without the path), and one with a query fails to 9D
+  for the origin, not the raw string (c260).
 - `tests/tv-pair.e2e.ts` — the computer's `/pair/tv` at 960×540 with no pointer:
   every band clearing the label and the six cells, a wrong code spending a
   try, the right one landing on 9E, and five wrong ones burning it.
