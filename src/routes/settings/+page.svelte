@@ -406,7 +406,7 @@
 		other
 			? other.kind === 'phone'
 				? 'phone'
-				: other.kind === 'desktop'
+				: other.kind === 'desktop' || other.kind === 'tv'
 					? 'landscape'
 					: 'tablet'
 			: typeof window === 'undefined'
