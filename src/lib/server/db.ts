@@ -1142,6 +1142,37 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		tries INTEGER NOT NULL DEFAULT 1
 	);
 	CREATE INDEX episode_failures_series ON episode_failures(series_id, last_at);
+	`,
+	// v58: every key a series has left, not only the last (doc/MOVE.md; card
+	// c139). Rung 57 kept one, so a series moved A → B → C forgot A and a
+	// backup still naming A made a twin. This is what the writer resolves any
+	// former key through; series.former_key stays as the most recent, which is
+	// the one MOVE BACK offers. An entry has the same record of its own
+	// addresses: a chapter matched A → B → C kept only B's in former_url, so a
+	// backup naming A's copy would have added it again. Rung 57's values are
+	// copied in; a key or URL that is also the current one is not a former one.
+	`
+	CREATE TABLE series_former_keys (
+		series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+		origin_key TEXT NOT NULL,
+		source TEXT NOT NULL DEFAULT '',
+		left_at INTEGER NOT NULL,
+		PRIMARY KEY (series_id, origin_key)
+	) WITHOUT ROWID;
+	CREATE INDEX series_former_keys_key ON series_former_keys(origin_key);
+	CREATE TABLE entry_former_urls (
+		entry_id INTEGER NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
+		former_url TEXT NOT NULL,
+		left_at INTEGER NOT NULL,
+		PRIMARY KEY (entry_id, former_url)
+	) WITHOUT ROWID;
+	CREATE INDEX entry_former_urls_url ON entry_former_urls(former_url);
+	INSERT INTO series_former_keys (series_id, origin_key, source, left_at)
+		SELECT id, former_key, former_source, COALESCE(former_at, 0) FROM series
+		WHERE former_key IS NOT NULL AND former_key != COALESCE(origin_key, '');
+	INSERT INTO entry_former_urls (entry_id, former_url, left_at)
+		SELECT id, former_url, 0 FROM entries
+		WHERE former_url != '' AND former_url != source_url;
 	`
 ];
 
