@@ -1180,7 +1180,31 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	// SQLite cannot alter a CHECK in place; widening one that allows more
 	// changes nothing stored, so the schema's text is edited and the result
 	// checked before the rung commits (rung 47, and its reason).
-	(conn) => widenDeviceKinds(conn)
+	(conn) => widenDeviceKinds(conn),
+	// v60: an episode's opening and ending, found for it (doc/ANIME.md,
+	// "Openings and endings"; card c239). One row per episode and finder --
+	// the source's own timestamps, AniSkip, a fingerprint -- found or not, so
+	// a negative answer is remembered and the episode is not asked again.
+	// Longer than a source's honest truth is not required; the bounds are the
+	// fingerprint's. `entries.ending_at` stays where watching counts from, and
+	// the best ending is written there. Rung 47's source endings are copied in
+	// as the source's own (its +90 is what the downloaded-copy path used).
+	`
+	CREATE TABLE episode_marks (
+		entry_id INTEGER NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
+		method TEXT NOT NULL CHECK (method IN ('source', 'aniskip', 'fingerprint')),
+		intro_start REAL,
+		intro_end REAL,
+		ending_start REAL,
+		ending_end REAL,
+		tried_at INTEGER NOT NULL,
+		PRIMARY KEY (entry_id, method)
+	) WITHOUT ROWID;
+	CREATE INDEX episode_marks_tried ON episode_marks(method, tried_at);
+	INSERT INTO episode_marks (entry_id, method, ending_start, ending_end, tried_at)
+		SELECT id, 'source', ending_at, ending_at + 90, 0 FROM entries
+		WHERE ending_at IS NOT NULL AND ending_at > 0;
+	`
 ];
 
 /**

@@ -687,8 +687,16 @@
 	}
 	function skipNow() {
 		if (!video) return;
+		const skippingEnding = !inIntro && !!streams?.ending;
 		const r = inIntro ? streams?.intro : streams?.ending;
 		if (r) video.currentTime = r.end;
+		// SKIP ENDING is the owner's other way of finishing an episode (c239):
+		// the episode counts as watched the moment it is pressed, not only when
+		// the seek's next timeupdate happens to land.
+		if (skippingEnding && !finished) {
+			finished = true;
+			void send('finish');
+		}
 	}
 	function fromStart() {
 		reloadingTo = null;

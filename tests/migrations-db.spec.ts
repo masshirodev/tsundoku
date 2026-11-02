@@ -93,6 +93,37 @@ describe('rung 36: an arrival already read is not new', () => {
 	});
 });
 
+describe('rung 60: an episode’s marks (c239)', () => {
+	it('keeps the source endings rung 47 already stored', () => {
+		const conn = new Database(':memory:');
+		climb(conn, 59);
+		conn.exec(`
+			INSERT INTO roots (id, name, path) VALUES (1, 'Anime', '/nowhere');
+			INSERT INTO series (id, root_id, title, kind, added_at) VALUES (1, 1, 'Show', 'anime', 1);
+			INSERT INTO entries (series_id, position, label, added_at, ending_at) VALUES
+				(1, 1, 'Ep. 1', 1, 1290), (1, 2, 'Ep. 2', 1, NULL);
+		`);
+		climb(conn);
+		expect(
+			conn
+				.prepare(
+					`SELECT entry_id, method, intro_start, ending_start, ending_end, tried_at
+					FROM episode_marks ORDER BY entry_id`
+				)
+				.all()
+		).toEqual([
+			{
+				entry_id: 1,
+				method: 'source',
+				intro_start: null,
+				ending_start: 1290,
+				ending_end: 1380,
+				tried_at: 0
+			}
+		]);
+	});
+});
+
 describe('rung 55: a season the series named, not its episodes (c219)', () => {
 	it('stamps the episodes of an anime kept as its own season, and leaves the rest alone', () => {
 		const conn = new Database(':memory:');

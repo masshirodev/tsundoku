@@ -9,6 +9,8 @@ import { engineMedia, engineMediaPath, EngineError } from '../engine/client.ts';
 import { callSource } from '../engine/backend.ts';
 import { USER_AGENT } from '../engine/protocol.ts';
 import { parseAnimeKey } from '../../library/downloads.ts';
+import { chosenMarks, saveSourceMarks } from './marks.ts';
+import { lookupAniSkip } from './aniskip.ts';
 import {
 	chaptersOf,
 	headersOf,
@@ -364,15 +366,48 @@ const resolved = new Map<number, EpisodeStreams>();
 const RESOLVE_MS = 120_000;
 
 /**
+ * AniSkip fills an episode's opening and ending when the source gave none (or
+ * only one). It needs the episode's length; one it hasn't learnt yet is taken
+ * from the stream's own playlist, as probe reads it for ALL's ABOUT sizes.
+ * Only a player's resolve asks (lookup); a picture's or a fingerprint's does
+ * not, and neither does incognito.
+ */
+async function fillAniSkip(entryId: number, servers: StreamServer[], now: number): Promise<void> {
+	const db = getDb();
+	const row = db.prepare(`SELECT duration_s FROM entries WHERE id = ?`).get(entryId) as
+		{ duration_s: number | null } | undefined;
+	let duration = row?.duration_s ?? null;
+	if (duration === null) {
+		const quality = servers[0]?.qualities[0];
+		if (quality?.kind === 'hls') {
+			const measured = await Promise.race([
+				probe(quality.src).catch(() => null),
+				new Promise<null>((ok) => setTimeout(() => ok(null), 4000))
+			]);
+			if (measured?.seconds) {
+				duration = measured.seconds;
+				db.prepare(`UPDATE entries SET duration_s = COALESCE(duration_s, ?) WHERE id = ?`).run(
+					Math.round(duration),
+					entryId
+				);
+			}
+		}
+	}
+	if (duration) await lookupAniSkip(entryId, { durationS: duration, now, db });
+}
+
+/**
  * The episode's servers and their qualities, every address a token
  * (Player Waiting 3a/3b). [fresh] asks the source again: after a failure,
- * since a stream that stopped may simply have gone stale.
+ * since a stream that stopped may simply have gone stale. [lookup] lets the
+ * player's resolve ask AniSkip for marks the source didn't give.
  */
 export async function episodeStreams(
 	entryId: number,
 	reveal: boolean,
 	fresh = false,
-	now = Date.now()
+	now = Date.now(),
+	lookup = false
 ): Promise<EpisodeStreams | null> {
 	const e = episodeRow(entryId, reveal);
 	const key = parseAnimeKey(e?.origin_key ?? null);
@@ -382,23 +417,29 @@ export async function episodeStreams(
 	if (!fresh) {
 		const local = await localServer(entryId);
 		if (local) {
-			const ending = getDb().prepare(`SELECT ending_at FROM entries WHERE id = ?`).get(entryId) as {
-				ending_at: number | null;
-			};
+			// The file plays without the source, but its marks are still the
+			// episode's: the source's own, AniSkip's, or a fingerprint's.
+			if (lookup) await fillAniSkip(entryId, [local], now);
+			const marks = chosenMarks(entryId);
 			return {
 				entryId,
 				servers: [local],
-				intro: null,
-				ending:
-					ending.ending_at !== null
-						? { start: ending.ending_at, end: ending.ending_at + 90 }
-						: null,
+				intro: marks.intro,
+				ending: marks.ending,
 				resolvedAt: now
 			};
 		}
 	}
 	const kept = resolved.get(entryId);
-	if (!fresh && kept && now - kept.resolvedAt < KEEP_MS) return kept;
+	if (!fresh && kept && now - kept.resolvedAt < KEEP_MS) {
+		if (lookup && (!kept.intro || !kept.ending)) {
+			await fillAniSkip(entryId, kept.servers, now);
+			const marks = chosenMarks(entryId);
+			kept.intro = marks.intro;
+			kept.ending = marks.ending;
+		}
+		return kept;
+	}
 	// An episode kept from the source the series left plays from there (doc/MOVE.md).
 	const videos = await callSource<EngineVideo[]>(
 		e.origin_source || key.sourceId,
@@ -457,21 +498,36 @@ export async function episodeStreams(
 			};
 		})
 	}));
-	const marks = list.map(chaptersOf).find((c) => c.intro || c.ending) ?? {
+	const found = list.map(chaptersOf).find((c) => c.intro || c.ending) ?? {
 		intro: null,
 		ending: null
 	};
+	// The source's own timestamps are the first finder: kept as its answer, so
+	// AniSkip and fingerprints can fill only what it left empty (c239).
+	saveSourceMarks(entryId, found, getDb(), now);
 	// A source asked again too soon answers with fewer videos or none (AnimePahe,
 	// live 2026-10-29: 6, then 2, then 0, then 6 after 20 s), which isn't the
 	// episode losing its videos: a recent full answer stays the one kept.
-	if (!servers.length && kept?.servers.length && now - kept.resolvedAt < KEEP_MS) return kept;
-	const out: EpisodeStreams = { entryId, servers, ...marks, resolvedAt: now };
+	if (!servers.length && kept?.servers.length && now - kept.resolvedAt < KEEP_MS) {
+		if (lookup && (!kept.intro || !kept.ending)) {
+			await fillAniSkip(entryId, kept.servers, now);
+			const marks = chosenMarks(entryId);
+			kept.intro = marks.intro;
+			kept.ending = marks.ending;
+		}
+		return kept;
+	}
+	if (lookup) await fillAniSkip(entryId, servers, now);
+	const marks = chosenMarks(entryId);
+	const out: EpisodeStreams = {
+		entryId,
+		servers,
+		intro: marks.intro,
+		ending: marks.ending,
+		resolvedAt: now
+	};
 	if (servers.length) resolved.set(entryId, out);
 	if (resolved.size > 500) resolved.delete(resolved.keys().next().value!);
-	if (marks.ending)
-		getDb()
-			.prepare(`UPDATE entries SET ending_at = ? WHERE id = ?`)
-			.run(marks.ending.start, entryId);
 	return out;
 }
 

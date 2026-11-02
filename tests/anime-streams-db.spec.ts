@@ -84,9 +84,24 @@ vi.mock('node:dns/promises', () => ({
 		{ address: host === 'inside.example' ? '10.0.0.5' : '93.184.215.14', family: 4 }
 	]
 }));
+let aniSkipCalls = 0;
 const realFetch = globalThis.fetch;
 vi.stubGlobal('fetch', async (input: string | URL | Request, init?: RequestInit) => {
 	const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+	// AniSkip (c239): the player's resolve asks it when the source gave no marks.
+	if (url.startsWith('https://api.aniskip.com/v2/skip-times/')) {
+		aniSkipCalls++;
+		return new Response(
+			JSON.stringify({
+				found: true,
+				results: [
+					{ interval: { startTime: 60, endTime: 150 }, skipType: 'op' },
+					{ interval: { startTime: 1320, endTime: 1410 }, skipType: 'ed' }
+				]
+			}),
+			{ headers: { 'content-type': 'application/json' } }
+		);
+	}
 	if (!url.startsWith('https://site.example/')) return realFetch(input, init);
 	siteSeen.push({ url, referer: new Headers(init?.headers).get('referer') ?? '' });
 	if (url.endsWith('/master.m3u8'))
@@ -321,5 +336,44 @@ describe('an episode’s streams', () => {
 		videoAnswer = [{ quality: '720p', videoUrl: 'https://site.example/files/ep1.mp4?sig=1' }];
 		const s = (await streams.episodeStreams(shown, false, true))!;
 		expect(s.servers[0].qualities[0].kind).toBe('file');
+	});
+
+	it('ask AniSkip for what the source left empty, and only once (c239)', async () => {
+		const linked = Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, added_at, origin_key, hidden)
+					VALUES (?, 'Linked Show', 'anime', 0, 'aniyomi:${SOURCE}:/show/linked', 0)`
+				)
+				.run(root).lastInsertRowid
+		);
+		db.prepare(
+			`INSERT INTO series_links (series_id, anilist_id, mal_id, via, linked_at) VALUES (?, 1, 21, 'mihon', 0)`
+		).run(linked);
+		const ep = Number(
+			db
+				.prepare(
+					`INSERT INTO entries (series_id, position, label, added_at, source_url, season, episode_number, duration_s)
+					VALUES (?, 1, 'Ep. 3', 0, '/ep/3', 1, 3, 1440)`
+				)
+				.run(linked).lastInsertRowid
+		);
+		const saved = videoAnswer;
+		videoAnswer = [{ quality: 'Kwik - 1080p', videoUrl: `${ENGINE_SELF}/video/master.m3u8` }];
+		try {
+			aniSkipCalls = 0;
+			const s = (await streams.episodeStreams(ep, false, true, Date.now(), true))!;
+			expect(s.intro).toEqual({ start: 60, end: 150 });
+			expect(s.ending).toEqual({ start: 1320, end: 1410 });
+			expect(db.prepare(`SELECT ending_at FROM entries WHERE id = ?`).get(ep)).toEqual({
+				ending_at: 1320
+			});
+			// Asked again, the answer is the one already kept.
+			const again = (await streams.episodeStreams(ep, false, true, Date.now(), true))!;
+			expect(again.ending).toEqual({ start: 1320, end: 1410 });
+			expect(aniSkipCalls).toBe(1);
+		} finally {
+			videoAnswer = saved;
+		}
 	});
 });

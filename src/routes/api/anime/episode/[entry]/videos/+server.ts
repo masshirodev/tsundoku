@@ -22,7 +22,16 @@ export const GET: RequestHandler = async ({ params, cookies, url }) => {
 	if (!Number.isInteger(id) || id <= 0) error(404, 'not found');
 	const incognito = isIncognito(cookies);
 	try {
-		const s = await episodeStreams(id, isRevealed(cookies), url.searchParams.get('fresh') === '1');
+		// The source's own timestamps, then AniSkip for what it left empty
+		// (c239). Incognito asks neither, and a hidden series is never looked
+		// up; both are enforced before any request leaves the app.
+		const s = await episodeStreams(
+			id,
+			isRevealed(cookies),
+			url.searchParams.get('fresh') === '1',
+			Date.now(),
+			!incognito
+		);
 		if (!s) error(404, 'not found');
 		if (s.servers.length === 0 && !incognito) recordNoVideo(id);
 		// While its streams are fresh, an episode without a picture gets one
