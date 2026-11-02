@@ -142,9 +142,12 @@ marks the chosen page with a COVER corner.
 
 **The menu** (`PageMenu.svelte`): the pressed page keeps its light, ringed in
 the accent with its number in the corner, the rest under a scrim that takes
-every tap; ✕, the scrim or Esc close it. A preview shows the page as a tile
-would crop it (in the reader). One row per thing the page can become, each
-saying where that cover comes from now (`menuRows`,
+every tap; ✕, the scrim or Esc close it. On a TV it is the 420px panel from the
+right that every sheet is, framed in ink rather than the accent, and it is
+opened by **OK held or MENU** for the page in the middle of the screen, with
+the pad walking its rows ([`TV.md`](TV.md), c235). A preview shows the page as
+a tile would crop it (in the reader). One row per thing the page can become,
+each saying where that cover comes from now (`menuRows`,
 `src/lib/library/cover-menu.ts`):
 
 | Reading                   | Rows                                                            |

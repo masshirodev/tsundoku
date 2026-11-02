@@ -182,6 +182,17 @@ asks once. The move leaves no trace outside the series: no notice, no band
 anywhere but its own screen, no line in DOWNLOADS beyond the queue rows a
 hidden series already gets.
 
+### On a remote
+
+A TV ([`TV.md`](TV.md), c235) reaches all of it with a D-pad: the SOURCE row's
+MOVE → and MOVE BACK are stops of the ruled block, the NO VIDEO band's ANOTHER
+SOURCE → and NOT NOW are stops under CONTINUE, and on the move page the
+candidates, the comparison and the MOVE bar are stops with the mark drawn
+inside their cells. BACK climbs the comparison to its top bar, then leaves the
+page. The player's NO SERVER and the manga END page reach their ANOTHER SOURCE →
+the same way. MOVE has no TV layout of its own — it draws the one-pane shape
+below 1024px, which a 960-wide TV gets, and the handoff set has no board for it.
+
 ## Schema (rung 57)
 
 `series.former_key`, `former_at`, `former_source`, `former_offset`,

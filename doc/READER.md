@@ -63,7 +63,27 @@ still blanks the reader when the app goes to the background.
   offer to save or share it, in any mode ([`TOUCH.md`](TOUCH.md)).
 - **No hardware keys, by the owner's choice.** On desktop the arrows are
   spatial (in R→L, ← is forward), Space and PageDown go forward, Esc
-  toggles the controls, and + − 0 zoom ("Zoom").
+  hides the controls (it never brings them up, since c235: BACK is always a
+  step out), and + − 0 zoom ("Zoom").
+
+## On a TV and on a remote (c235)
+
+A TV has a D-pad, OK, BACK and often MENU ([`TV.md`](TV.md)). The reader keeps
+every arrow — ← → turn pages, ↑ ↓ scroll a strip — so the focus layer is
+opted out here, and the remote's keys are the reader's own:
+
+- **OK** shows the controls (the remote has no tap for the middle);
+- **OK held** (450 ms, the pointer's own hold) or **MENU** opens the page menu
+  for the page in the middle of the screen — in a spread, the one a turn leaves
+  behind, which is what the menu frames in ink there;
+- **BACK** closes the page menu, then the controls, then leaves for the series.
+
+The page menu is a 420px panel from the right on a TV, and it is the one
+dialog the pad drives inside the reader (its rows are `use:focusScope` with
+`force`). The reader's _**end page**_ is the other: it lifts the opt-out, so
+its cells — ← SERIES, the rating, LIBRARY, ANOTHER SOURCE → on a stale series
+— are stops. Its chrome is not a focus row: READING (mode, spreads, fit, dim)
+cannot be opened from a remote yet.
 
 ## Turning pages
 

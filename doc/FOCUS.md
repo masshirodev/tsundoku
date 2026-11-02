@@ -19,7 +19,8 @@ itself is c238 and the player's bar is c235.
 | ------------- | --------------------------------------------------------------------------------------------------------------- |
 | `geometry.ts` | The pure decision: given the focused rect, a direction and candidate rects, pick the next. No DOM, unit-tested. |
 | `dom.ts`      | What counts as a stop, what is visible, and which keys a text entry owns.                                       |
-| `layer.ts`    | The key listener, scopes, the start of a screen, scrolling, and focus across history.                           |
+| `keys.ts`     | The remote's keys as decisions: BACK, MENU, and OK's press-versus-hold (`OkPress`). Unit-tested.                |
+| `layer.ts`    | The key listener, scopes, the start of a screen, scrolling, BACK's climb, and focus across history.             |
 | `index.ts`    | What the app imports.                                                                                           |
 
 The root layout installs it once (`installFocusLayer()` in `onMount`). A screen
@@ -83,14 +84,18 @@ A scope is a stack, so a sheet opened from a sheet restores to the lower one.
 **Opting out.** A screen that already reads the arrows puts `data-focus-off` on
 its root and keeps every one of them:
 
-- `ImageReader.svelte` and `TextReader.svelte` (pages, scrolling a strip);
-- `VideoPlayer.svelte` (seek and volume). When c235 gives the player's controls
-  a focus row, it can bound the opt-out to "controls hidden";
+- `ImageReader.svelte` and `TextReader.svelte` (pages, scrolling a strip), and
+  their panels. The reader's **end page** lifts it (c235): the pad walks the
+  END page's cells — ← SERIES, the rating, ANOTHER SOURCE → — because there is
+  no page left to turn;
+- `VideoPlayer.svelte` (seek and volume) **while its bar is hidden**, on a TV
+  only. With the bar shown the pad moves among its six cells, and the player's
+  own arrows are the reader's again once BACK hides it (c235);
 - `EntryList.svelte`'s scrub rail and `BookGrid.svelte` while reordering, which
   use the arrows themselves.
 
-A sheet inside an opted-out screen is left alone too: a reader's READING panel
-still belongs to the reader.
+A sheet inside an opted-out screen is left alone too — unless it forces the
+scope in (`use:focusScope={{ force: true }}`, the reader's page menu).
 
 **Within it.** Two attributes keep a screen's own controls out of the pad's way
 without hiding them from Tab:
@@ -107,6 +112,50 @@ sort control would trap the pad. A range input is a slider and keeps all four.
 **A ruled row that adjusts a value** says so with `data-focus-adjust` and keeps
 ←/→ only, so ↑/↓ still leave it: the series screen's rating row (c238) moves by
 half a bar, saved as it changes.
+
+## The remote's other three keys (c235)
+
+A D-pad and OK get the pad around the app; a remote's other keys are the ones
+that open things and get out. All three live in `layer.ts`, with the pure part
+of them in `keys.ts`, and `tests/tv-keys.e2e.ts` walks them.
+
+- **OK held** is Enter kept down past **450 ms**, the same hold the pointer's
+  long press has (`src/lib/actions/longpress.ts`, `HOLD_MS`). It dispatches
+  `contextmenu` on the focused thing — the very event every long-press sheet
+  already listens for — so a remote and a finger open the same sheet through
+  one path: `CoverTile`, `BookTile`, `use:longpress` (the chapter, episode and
+  page rows, history), `PageMenu`. A thing with no handler for it is simply
+  pressed, so a held OK on a plain button is not a dead press. The release
+  after a hold presses nothing, and `e.repeat` neither opens twice nor clicks:
+  a short press is the click a keyboard's Enter would have made, made on the
+  release (`keys.ts`, `OkPress`).
+- **MENU** (`ContextMenu`) is the same event at once, where the remote has the
+  key.
+- **BACK** is Escape, `BrowserBack` or `GoBack`, and it goes in the design's
+  order (TV Calls, "BACK climbs before it leaves"):
+
+  1. **A screen's own step first.** A screen that has something to close but is
+     not a focus scope — the player's bar and panel, the reader's chrome and
+     its page menu, a history row's REMOVE — says so with `registerBack(step)`,
+     the innermost first. The step returns true when it took the key.
+  2. **An open sheet.** A scope closes itself on Escape, so the layer sends it
+     one (`closeScope` keeps it from coming back round).
+  3. **Climb.** From inside a `[data-back-climb="<selector>"]` container, to the
+     first stop that selector names — the library's grid climbs to the active
+     shelf tab. Otherwise to the screen's `[data-focus-start]`, or its top-left
+     stop. BACK never moves the mark downward.
+  4. **Nothing.** `window.tsundokuBack()` returns false and the app leaves or
+     goes back natively (c236's contract, [`TV.md`](TV.md)). Escape is then
+     left to the browser, because it is also the way out of a filter panel, a
+     lightbox or a typed field; `BrowserBack`/`GoBack` take the history step
+     themselves.
+
+  A text entry keeps Escape (the go-to row's own cancel).
+
+**A forced scope.** A dialog opened over a screen that reads its own keys can
+say `use:focusScope={{ force: true }}`: the reader's page menu is that, and
+while it is open the pad reaches it even though the page behind keeps every
+arrow.
 
 ## The mark
 
@@ -175,21 +224,24 @@ had no styles. Screen by screen:
   rating slider; the scope makes them reachable and trapped.
 - **Readers and player.** Opted out (above), so their arrows are untouched.
 
-Known gaps, left on purpose: the held-OK options belong to c235; a tile's
-rating and FAV are Tab stops, not arrow stops, on the desktop; `PersonView`,
-`/history`, `/settings`, `/browse`, `/downloads`, `/links` and `/duplicates`
-were not given the inside mark everywhere (their actions are already buttons and
-links, and their layouts are not the couch's). BACK climbing the screen is
-still c235's.
+Known gaps, left on purpose: a tile's rating and FAV are Tab stops, not arrow
+stops, on the desktop; `PersonView`, `/history`, `/settings`, `/browse`,
+`/downloads`, `/links` and `/duplicates` were not given the inside mark
+everywhere (their actions are already buttons and links, and their layouts are
+not the couch's). c235 closed two of these: the held-OK options are built, and
+BACK climbs the screen before it leaves.
 
 ## Departures from the design, and why
 
 - **Whole-row scrolling** is c238's next step: the layer scrolls the nearest it
   can; the TV's focus line and pinned tabs are built, but the grid still scrolls
   by `scrollIntoView` rather than snapping to whole rows.
-- **The reader and the player keep every arrow.** The design says the player
-  with its controls shown moves between them; that row is c235's, so for now the
-  whole player opts out rather than half of it.
+- **The reader keeps every arrow, and its chrome is not a focus row.** The
+  design says ↓ reaches the chapters either side and READING from the page
+  scrubber; the reader's chrome is still the tap-only `Chrome.svelte`, so its
+  cells are not stops. c235 gives it OK (chrome), OK held and MENU (the page
+  menu), and BACK (menu, then chrome, then the series), and leaves READING
+  unreachable from a remote (TV.md, "What it does not do yet").
 - **←/→ on a `<select>` change its value**, rather than moving focus: a remote
   has no other key for it. ↑/↓ leave, so the control is not a trap.
 - **A tile's rating and FAV are not arrow stops.** The design's focus board
@@ -197,13 +249,18 @@ still c235's.
   OK; stopping on three controls per cell would make a 6-wide grid unwalkable.
   Tab still reaches them.
 - **BACK climbing the screen** (to the shelf's tab, then the first CONTINUE card)
-  is c235's. The layer only moves, and leaves Back to the history it already
-  was (`doc/NAVIGATION.md`).
+  is c235's, and is built: see "The remote's other three keys".
 
 ## Tests
 
 - `tests/focus-geometry.spec.ts` — the pure decision.
+- `tests/focus-keys.spec.ts` — the remote's keys as decisions: which key is
+  BACK, which is MENU, and a held OK that opens, clicks, or does neither when
+  repeated or cancelled (c235).
 - `tests/focus.e2e.ts` — keyboard only: an arrow starts focus and the mark is an
   ink frame (all devices); a sheet is a scope and gives focus back (tablet and
   phone bars); library → series → reader → back, focus restored (the reader leg
   writes progress, so tablet-portrait only; it owns Hoshi no Umi no Tabibito).
+- `tests/tv-keys.e2e.ts` — OK held and MENU on a cover, a chapter row and a
+  history row; BACK closing a sheet, climbing shelf tab → CONTINUE, and
+  `window.tsundokuBack()` answering false at the top (c235).
