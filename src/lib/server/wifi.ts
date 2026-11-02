@@ -78,13 +78,13 @@ export type WifiView = {
  * 2 minutes the ✓ USED stays up. In either case a fresh one is made when the
  * panel (or the TV's page) is opened.
  */
-const REPLACED = ['none', 'expired', 'burned'] as const;
+const CODES: ('none' | 'live' | 'used' | 'expired' | 'burned')[] = ['none', 'expired', 'burned'];
 
 /** How long a used code's ✓ USED stays on the panel before opening SETTINGS makes a new one. */
 const USED_SHOWN_MS = 2 * 60_000;
 
 const spent = (state: string, used: { at: number } | null | undefined, now: number) =>
-	(REPLACED as readonly string[]).includes(state) ||
+	CODES.includes(state as (typeof CODES)[number]) ||
 	(state === 'used' && !!used && now - used.at > USED_SHOWN_MS);
 
 export function wifiView(o: { fresh?: boolean; now?: number } = {}): WifiView | null {

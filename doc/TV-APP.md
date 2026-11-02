@@ -102,9 +102,8 @@ On the TV:
 9A, 9B and 9D are the app's own pages, in `app/src/main/assets/pair/`; 9C and
 9E are the computer's route, so the code is posted same-origin and the paired
 cookie is set exactly as `/pair/<code>` sets it for a phone (no CORS, no second
-way to be signed in). The computer lists the TV as a TV: the app appends
-`TsundokuTV/<version>` to the WebView's own user agent, and the page reports
-no pointer at 960 wide.
+way to be signed in). The computer lists the TV as a DEVICES row because the
+app appends `TsundokuTV/<version>` to the WebView's own user agent.
 
 The bridge (`PairingBridge.kt`) is what a `file://` page cannot do: the TV's own
 IPv4 (for the prefix and 9D's third reason), a probe of a candidate, and

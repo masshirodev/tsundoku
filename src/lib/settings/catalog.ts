@@ -895,7 +895,7 @@ export const movesLine = (moves: Move[]) =>
 
 // ---- where it applies ----------------------------------------------------------------------
 
-export type DeviceKind = 'phone' | 'tablet' | 'desktop' | 'tv';
+export type DeviceKind = 'phone' | 'tablet' | 'desktop';
 
 /** THIS TABLET, or THE DESKTOP when the page shows another device's. */
 export const deviceName = (kind: DeviceKind, own: boolean) =>
@@ -909,18 +909,8 @@ export function scopeLabel(row: RowDef, device: string): string {
 	return row.control.type === 'zoom' ? `${device} · PER SCREEN` : device;
 }
 
-/**
- * The kind of device a browser is, from its screen: what its row in DEVICES is
- * called. `pointer: none` at 900px and wider is a TV (the layout's own query,
- * `layout.css`): a panel reports 960 or more with no pointer at all, where a
- * tablet's is coarse and a computer's fine.
- */
-export function deviceKind(o: {
-	width: number;
-	coarse: boolean;
-	pointerNone?: boolean;
-}): DeviceKind {
-	if (o.pointerNone && o.width >= 900) return 'tv';
+/** The kind of device a browser is, from its screen: what its row in DEVICES is called. */
+export function deviceKind(o: { width: number; coarse: boolean }): DeviceKind {
 	if (o.width < 600) return 'phone';
 	return o.coarse ? 'tablet' : 'desktop';
 }
