@@ -70,10 +70,12 @@ export function solvingSince(site: string): number | null {
 const underway = new Map<string, Promise<Clearance | null>>();
 
 /**
- * Hosts the solver answered for and could not clear, and when: a plugin asking
- * again in the same browsing or download session must not pay another 20-45 s
- * solve plus a retry for a hopeless site (NovelFull and Scribble Hub are two,
- * doc/NOVELS.md). Short on purpose: a site's check can change in an afternoon.
+ * Hosts the solver itself failed to produce a clearance for, and when: a plugin
+ * asking again in the same browsing or download session must not pay another
+ * 20-45 s solve. Short on purpose: a site's check can change in an afternoon.
+ * A clearance the site then refuses is a different failure, remembered by the
+ * host (plugin-host.cjs): there the solver succeeded, so this memo never fires
+ * and must not be read as covering NovelFull or Scribble Hub.
  */
 const FAILED_MS = 10 * 60_000;
 const failed = new Map<string, number>();
