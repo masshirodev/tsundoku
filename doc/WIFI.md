@@ -106,7 +106,7 @@ one at a time.
   SETTINGS gets a code made for it, so it is never a dead end.
 - **The TV in DEVICES** is named by its user agent: the app appends
   `TsundokuTV/<version>`, and `pairedLabel` reads that as "Android TV ·
-  Chrome".
+  Chrome"; `/api/devices/sync` also keeps its kind as `tv` (rung 59, c244).
 
 ## The screens
 

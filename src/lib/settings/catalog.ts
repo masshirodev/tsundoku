@@ -895,7 +895,10 @@ export const movesLine = (moves: Move[]) =>
 
 // ---- where it applies ----------------------------------------------------------------------
 
-export type DeviceKind = 'phone' | 'tablet' | 'desktop';
+export type DeviceKind = 'phone' | 'tablet' | 'desktop' | 'tv';
+
+/** Every kind a device may be: what `/api/devices/sync` accepts and `devices.kind` allows (rung 59). */
+export const DEVICE_KINDS: readonly DeviceKind[] = ['phone', 'tablet', 'desktop', 'tv'];
 
 /** THIS TABLET, or THE DESKTOP when the page shows another device's. */
 export const deviceName = (kind: DeviceKind, own: boolean) =>
@@ -909,12 +912,6 @@ export function scopeLabel(row: RowDef, device: string): string {
 	return row.control.type === 'zoom' ? `${device} · PER SCREEN` : device;
 }
 
-/** The kind of device a browser is, from its screen: what its row in DEVICES is called. */
-export function deviceKind(o: { width: number; coarse: boolean }): DeviceKind {
-	if (o.width < 600) return 'phone';
-	return o.coarse ? 'tablet' : 'desktop';
-}
-
 /**
  * The TV app (doc/TV-APP.md) appends `TsundokuTV/<version>` to its WebView's
  * user agent: the one sure sign a browser is a TV, since a page alone can't
@@ -923,11 +920,23 @@ export function deviceKind(o: { width: number; coarse: boolean }): DeviceKind {
 export const isTvApp = (ua: string) => /TsundokuTV\//i.test(ua);
 
 /**
- * "Android tablet · Chrome", from the browser's own words. `tv` is not a
- * DeviceKind: no browser reports its screen as one. It is what the TV app's
- * own user agent says (doc/TV-APP.md), so a paired TV reads as a TV in DEVICES.
+ * The kind of device a browser is: what its row in DEVICES is called. The
+ * screen says phone, tablet or desktop; only the app's own user agent says TV
+ * (doc/TV-APP.md). A wide page with no pointer is not enough — an unplugged
+ * mouse reads the same — so `ua` is what makes a TV.
  */
-export function deviceLabel(ua: string, kind: DeviceKind | 'tv'): string {
+export function deviceKind(o: { width: number; coarse: boolean; ua?: string }): DeviceKind {
+	if (o.ua && isTvApp(o.ua)) return 'tv';
+	if (o.width < 600) return 'phone';
+	return o.coarse ? 'tablet' : 'desktop';
+}
+
+/**
+ * "Android tablet · Chrome", from the browser's own words. `tv` is the TV
+ * app's own user agent (doc/TV-APP.md), so a paired or synced TV reads as a TV
+ * in DEVICES.
+ */
+export function deviceLabel(ua: string, kind: DeviceKind): string {
 	const os = /Android/i.test(ua)
 		? 'Android'
 		: /iPhone|iPad|iOS/i.test(ua)

@@ -93,4 +93,18 @@ describe('a device’s own settings', () => {
 		expect(await local.syncDevice()).toBe(false);
 		expect(storage.getItem('tsundoku:anime:12:audio')).toBe('"EN"');
 	});
+
+	it('calls this device a TV only when the app’s user agent says so', () => {
+		const original = globalThis.navigator;
+		try {
+			vi.stubGlobal('navigator', {
+				userAgent: 'Mozilla/5.0 (Linux; Android 9) Chrome/94 TsundokuTV/1.0.0'
+			});
+			expect(local.thisKind()).toBe('tv');
+		} finally {
+			vi.stubGlobal('navigator', original);
+		}
+		// The same 800px, coarse screen it read before: a screen alone is not a TV.
+		expect(local.thisKind()).toBe('tablet');
+	});
 });

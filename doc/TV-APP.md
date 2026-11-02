@@ -105,9 +105,9 @@ cookie is set exactly as `/pair/<code>` sets it for a phone (no CORS, no second
 way to be signed in). The computer lists the TV as a DEVICES row because the
 app appends `TsundokuTV/<version>` to the WebView's own user agent: `isTvApp`
 (`src/lib/settings/catalog.ts`) reads it, and both the pairing and the
-settings sync (`/api/devices/sync`) label the row "Android TV · Chrome". Its
-_kind_ is still `desktop`: `devices.kind` has a CHECK that allows only phone,
-tablet and desktop, and a TV kind is a schema rung of its own (c244).
+settings sync (`/api/devices/sync`) label the row "Android TV · Chrome". The
+sync route also reads that header for the row's _kind_: a TV is kept as `tv`
+in `devices.kind` (rung 59, card c244), not as an Android desktop.
 
 The bridge (`PairingBridge.kt`) is what a `file://` page cannot do: the TV's own
 IPv4 (for the prefix and 9D's third reason), a probe of a candidate, and

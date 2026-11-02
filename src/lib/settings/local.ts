@@ -82,7 +82,10 @@ export function deviceId(): string {
 export function thisKind(): DeviceKind {
 	return deviceKind({
 		width: Math.min(screen.width, innerWidth || screen.width),
-		coarse: matchMedia('(pointer: coarse)').matches
+		coarse: matchMedia('(pointer: coarse)').matches,
+		// The app's own user agent is the one sure sign of a TV (doc/TV-APP.md):
+		// the screen alone can't tell one from a pointerless desktop.
+		ua: typeof navigator === 'undefined' ? '' : navigator.userAgent
 	});
 }
 

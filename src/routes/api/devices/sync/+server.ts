@@ -2,7 +2,7 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { cleanStamped, isDeviceId, syncDevice } from '$lib/server/devices';
 import { adoptLegacy } from '$lib/server/anime/choices';
-import { deviceLabel, isTvApp, type DeviceKind } from '$lib/settings/catalog';
+import { DEVICE_KINDS, deviceLabel, isTvApp, type DeviceKind } from '$lib/settings/catalog';
 import { PAIRED_COOKIE, linkPaired } from '$lib/server/pairing';
 
 /**
@@ -18,18 +18,19 @@ export const POST: RequestHandler = async ({ request, cookies, locals }) => {
 		legacy?: unknown;
 		register?: unknown;
 	} | null;
-	const kind = body?.kind as DeviceKind;
 	const ua = request.headers.get('user-agent') ?? '';
-	if (!body || !isDeviceId(body.id) || !['phone', 'tablet', 'desktop'].includes(kind))
-		error(400, 'not a device');
+	// The app's user agent is the one sure sign of a TV (doc/TV-APP.md): a page
+	// can only say its screen, so the workstation decides the kind from the
+	// header rather than trusting a page's guess.
+	const kind = (isTvApp(ua) ? 'tv' : body?.kind) as DeviceKind;
+	if (!body || !isDeviceId(body.id) || !DEVICE_KINDS.includes(kind)) error(400, 'not a device');
 	if (body.legacy && typeof body.legacy === 'object')
 		adoptLegacy(body.legacy as Record<string, unknown>);
 	const { newer } = syncDevice({
 		id: body.id,
 		kind,
-		// The TV app syncs as a desktop (DeviceKind has no TV yet), but its row
-		// should still say TV: the label is what DEVICES shows (doc/TV-APP.md).
-		label: deviceLabel(ua, isTvApp(ua) ? 'tv' : kind),
+		// The row's words, from the same header: "Android TV · Chrome" for the app.
+		label: deviceLabel(ua, kind),
 		settings: cleanStamped(body.settings),
 		// A phone paired over Wi-Fi is a device from its first visit, so the
 		// computer's DEVICES lists it with SIGN OUT (doc/WIFI.md).

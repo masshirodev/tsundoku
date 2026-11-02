@@ -40,11 +40,11 @@ export function startFacts(reveal: boolean): StartFacts {
 			`SELECT (SELECT COUNT(*) FROM engine_extensions) + (SELECT COUNT(*) FROM novel_plugins) AS n`
 		),
 		series: series(`s.in_library = 1 AND NOT (${fromSource})`),
-		// Which door a device came in by isn't recorded, so a phone or tablet that
-		// has checked in at all stands for "a second device over Tailscale".
+		// Which door a device came in by isn't recorded, so a phone, tablet or TV
+		// that has checked in at all stands for "a second device over Tailscale".
 		phones: n(
 			`SELECT (SELECT COUNT(*) FROM paired_devices)
-				+ (SELECT COUNT(*) FROM devices WHERE kind IN ('phone', 'tablet')) AS n`
+				+ (SELECT COUNT(*) FROM devices WHERE kind IN ('phone', 'tablet', 'tv')) AS n`
 		),
 		// A record is written on the first chapter or episode opened, never by the preview alone.
 		records: series(`s.in_library = 0 AND s.origin_key IS NOT NULL`),
