@@ -467,8 +467,9 @@
 			function fill() {
 				const prefix = (bridge ? bridge.prefix() : '') || '192.168.1.';
 				document.getElementById('prefix').textContent = 'http://' + prefix;
+				// The field stays: whole or not, it is what's typed in. Only the
+				// written-out prefix and port go.
 				document.getElementById('prefix').hidden = whole;
-				last.hidden = whole;
 				document.getElementById('port').hidden = whole;
 				document.getElementById('port').textContent = ':' + DEFAULT_PORT;
 				wholeToggle.textContent = whole ? 'USE THE LAST NUMBER' : 'TYPE THE WHOLE ADDRESS';
@@ -481,9 +482,11 @@
 					last.maxLength = 3;
 					last.setAttribute('inputmode', 'numeric');
 				}
-				tvMeta.textContent = own
-					? `THIS TV IS AT ${own}, SO THE COMPUTER IS ${prefix}SOMETHING · THE REMOTE'S NUMBER KEYS TYPE HERE; WITHOUT THEM, THE TV'S NUMBER PAD OPENS`
-					: `THE TV HAS NO WI-FI ADDRESS OF ITS OWN · TYPE THE COMPUTER'S ADDRESS: THE LAST NUMBER, OR THE WHOLE ONE`;
+				tvMeta.textContent = whole
+					? 'THE WHOLE ADDRESS, LIKE http://192.168.1.23:42143, OR https://name.ts.net:8443 OVER TAILSCALE'
+					: own
+						? `THIS TV IS AT ${own}, SO THE COMPUTER IS ${prefix}SOMETHING · THE REMOTE'S NUMBER KEYS TYPE HERE; WITHOUT THEM, THE TV'S NUMBER PAD OPENS`
+						: `THE TV HAS NO WI-FI ADDRESS OF ITS OWN · TYPE THE COMPUTER'S ADDRESS: THE LAST NUMBER, OR THE WHOLE ONE`;
 			}
 
 			function origin() {
