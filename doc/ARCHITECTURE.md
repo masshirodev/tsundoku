@@ -98,6 +98,10 @@ can be handed to other people without asking them to run Suwayomi too.
 | Anime                    | Aniyomi           | the same engine                                                 |
 | Light and web novels     | LNReader plugins  | inside tsundoku, in a sandboxed host ([`NOVELS.md`](NOVELS.md)) |
 
+What each kind _is_ (its medium, unit, catalogue, sources, storage, and
+whether it moves) is planned to live in one registry, with movies and TV
+shows as its next entries: [`KINDS.md`](KINDS.md).
+
 **Extensions aren't self-contained, and they don't download.** A Mihon or
 Aniyomi extension is an Android APK built against `extensions-lib`, which is
 only stubs: at runtime it calls into its host for the HTTP client (OkHttp,
