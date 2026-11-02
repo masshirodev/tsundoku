@@ -22,6 +22,18 @@ Unchanged since the start: `TSUNDOKU_TOKEN`, typed once per browser at
 so rotating the token signs everything out. Without one in production the app
 answers 503. [`SECRETS.md`](SECRETS.md) says where it lives.
 
+**A TV paired on the tailnet signs in with its own cookie** (c245). The six
+digits on SETTINGS › 08 — DEVICES ([`WIFI.md`](WIFI.md), "A TV's code") are
+typed into `/pair/tv`, which sets the same `tsundoku_paired` cookie a phone's
+link does; `hooks.server.ts` then accepts it in token mode for a request whose
+Host is the instance's public origin — the tailnet name `tailscale serve`
+answers on, or the tailnet address in plain-http mode (`ORIGIN`, as
+`scripts/serve.ts` sets it). On `localhost`, `127.0.0.1` or `[::1]` it is
+ignored, and when no origin is known no paired cookie is accepted at all:
+fail closed (`tailnetDoor` in `src/lib/server/pairing.ts`). The TV's DEVICES
+row carries SIGN OUT, like a phone's. The token still opens every browser;
+this only saves typing 24 characters with a remote.
+
 ## A friend's install: a password, or none (c189)
 
 Releases up to 2026.10.30.2 made a token on first start and printed it in the

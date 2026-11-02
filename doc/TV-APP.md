@@ -78,15 +78,20 @@ The launcher shows **tsundoku** with the wordmark banner (320×180, drawn from
 
 ## Pairing, 9A to 9E
 
-On the computer: SETTINGS › 08 — DEVICES › WI-FI ON. The pairing panel shows
-the phone's QR **and, under a FOR A TV · SIX DIGITS label, six digits in two
-threes** (`src/routes/settings/+page.svelte`), with their own countdown. A new
-code lives for 10 minutes, pairs one TV once, and **five wrong tries burn it**;
-NEW CODE makes another.
+On the computer: SETTINGS › 08 — DEVICES. A friend's install switches WI-FI ON
+there first, and the pairing panel then shows the phone's QR **and, under a
+FOR A TV · SIX DIGITS label, six digits in two threes**
+(`src/routes/settings/+page.svelte`), with their own countdown. The owner's own
+tailnet instance has no WI-FI row at all: there the same six digits are the
+section's first row, in the WI-FI row's shape and without the phone's QR
+(c245). A new code lives for 10 minutes, pairs one TV once, and **five wrong
+tries burn it**; NEW CODE makes another.
 
 On the TV:
 
-1. **9A** — what the app does, and the three steps. START →.
+1. **9A** — what the app does, and the three steps. The first names the
+   computer's SETTINGS › 08 — DEVICES, where the code is, rather than WI-FI ON:
+   a tailnet install has no WI-FI switch to press. START →.
 2. **9B** — the address, written for the TV: its own network's first three
    numbers and tsundoku's port (42143 unless the friend changed `PORT`), so
    only the last number is typed. The mark starts on NEXT, never on the field:
@@ -107,12 +112,19 @@ On the TV:
 9A, 9B and 9D are the app's own pages, in `app/src/main/assets/pair/`; 9C and
 9E are the computer's route, so the code is posted same-origin and the paired
 cookie is set exactly as `/pair/<code>` sets it for a phone (no CORS, no second
-way to be signed in). The computer lists the TV as a DEVICES row because the
-app appends `TsundokuTV/<version>` to the WebView's own user agent: `isTvApp`
-(`src/lib/settings/catalog.ts`) reads it, and both the pairing and the
-settings sync (`/api/devices/sync`) label the row "Android TV · Chrome". The
-sync route also reads that header for the row's _kind_: a TV is kept as `tv`
-in `devices.kind` (rung 59, card c244), not as an Android desktop.
+way to be signed in). Its 9B whole-address hint says where the digits are — the
+computer's SETTINGS — and 9A reaches it without WI-FI ON, so a Tailscale
+install reads true. The computer lists the TV as a DEVICES row because the app
+appends `TsundokuTV/<version>` to the WebView's own user agent: `isTvApp`
+(`src/lib/settings/catalog.ts`) reads it, and both the pairing and the settings
+sync (`/api/devices/sync`) label the row "Android TV · Chrome". The sync route
+also reads that header for the row's _kind_: a TV is kept as `tv` in
+`devices.kind` (rung 59, card c244), not as an Android desktop.
+
+On a tailnet instance the cookie it sets signs the WebView in as a browser
+would: `hooks.server.ts` accepts it in token mode on the instance's public
+host, so the TV opens the library instead of `/login` (c245;
+[`SIGN-IN.md`](SIGN-IN.md)).
 
 The bridge (`PairingBridge.kt`) is what a `file://` page cannot do: the TV's own
 IPv4 (for the prefix and 9D's third reason), a probe of a candidate, and
