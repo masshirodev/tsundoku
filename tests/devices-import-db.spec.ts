@@ -1149,3 +1149,142 @@ describe('a download that widens a series a mirror left', () => {
 		expect(snapshot()).toEqual(before);
 	});
 });
+
+/**
+ * The series' own settings, where a fold has to choose: title, kind and
+ * direction cannot be kept from both rows. A folder's series the owner renamed
+ * no longer answers to its folder's name -- which is why a backup's row was
+ * made beside it -- so that name goes to the survivor, with the kind and
+ * direction set alongside it. One still named as its folder carries no edit,
+ * and the survivor keeps its own (doc/IMPORT-MIHON.md, "Before the backup
+ * knows it").
+ */
+describe('a renamed folder series a backup adopts', () => {
+	const at = 1_800_005_000_000;
+	const dirOf = (name: string) => join(tsundokuMihon, 'downloads', 'Weeb Central (EN)', name);
+	const RENAMED_DIR = 'mihon-dir:Weeb Central (EN)/Renamed Tale';
+	const RENAMED = `mihon:${WEEB}:/series/renamed-tale`;
+	const PLAIN_DIR = 'mihon-dir:Weeb Central (EN)/Plain Tale';
+	const PLAIN = `mihon:${WEEB}:/series/plain-tale`;
+	let renamed: number;
+	let plain: number;
+
+	const one = <T>(sql: string, ...args: unknown[]) =>
+		db()
+			.prepare(sql)
+			.get(...args) as T;
+	const byKey = (key: string) =>
+		one<{ id: number } | undefined>(`SELECT id FROM series WHERE origin_key = ?`, key)?.id;
+
+	beforeAll(async () => {
+		const rootId = ensureRoot(db(), 'Mihon', rootMihon, false);
+		const tag = `INSERT OR IGNORE INTO tags (namespace, value) VALUES ('source', 'Weeb Central')`;
+		db().prepare(tag).run();
+		const tagId = one<{ id: number }>(
+			`SELECT id FROM tags WHERE namespace = 'source' AND value = 'Weeb Central'`
+		).id;
+		// Two pairs as an earlier import left them: the series a backup's plan
+		// made (the survivor, its chapters addressed by the backup's path), and
+		// the folder's series beside it, its chapter downloaded.
+		const seed = (key: string, title: string, kind: string, path: string) =>
+			Number(
+				db()
+					.prepare(
+						`INSERT INTO series (root_id, title, kind, rating, favourite, added_at, indexed_at,
+							source, status, path, origin_key, in_library)
+						VALUES (?, ?, ?, 0, 0, ?, ?, 'mihon', '', ?, ?, 1)`
+					)
+					.run(rootId, title, kind, at, at, path, key).lastInsertRowid
+			);
+		const entry = (series: number, web: string, available: number, file: string) =>
+			db()
+				.prepare(
+					`INSERT INTO entries (series_id, position, label, added_at, source_url, available, file)
+					VALUES (?, 1, 'Ch. 1', ?, ?, ?, ?)`
+				)
+				.run(series, at, web, available, file);
+
+		renamed = seed(RENAMED, 'Renamed Tale', 'manga', '');
+		plain = seed(PLAIN, 'Plain Tale', 'manga', '');
+		for (const id of [renamed, plain])
+			db().prepare(`INSERT INTO series_tags (series_id, tag_id) VALUES (?, ?)`).run(id, tagId);
+		entry(renamed, '/chapters/RN1', 0, '');
+		entry(plain, '/chapters/PL1', 0, '');
+
+		// What tsundoku downloaded, keyed by its folder. The owner renamed the
+		// first and set its kind and direction; the other is as its import left it.
+		const folder = (name: string, title: string, kind: string, direction: string | null) => {
+			const dir = dirOf(name);
+			mkdirSync(dir, { recursive: true });
+			writeFileSync(
+				join(dir, 'Chapter 1.cbz'),
+				cbz(
+					comicInfo({
+						title: 'Chapter 1',
+						series: name,
+						number: 1,
+						web: `https://weebcentral.com/chapters/${name === 'Plain Tale' ? 'PL1' : 'RN1'}`,
+						source: 'Weeb Central'
+					})
+				)
+			);
+			const id = Number(
+				db()
+					.prepare(
+						`INSERT INTO series (root_id, title, kind, direction, rating, favourite, added_at,
+							indexed_at, source, path, origin_key, in_library)
+						VALUES (?, ?, ?, ?, 0, 0, ?, ?, 'mihon', ?, ?, 1)`
+					)
+					.run(rootId, title, kind, direction, at, at, dir, `mihon-dir:Weeb Central (EN)/${name}`)
+					.lastInsertRowid
+			);
+			entry(
+				id,
+				`https://weebcentral.com/chapters/${name === 'Plain Tale' ? 'PL1' : 'RN1'}`,
+				1,
+				'Chapter 1.cbz'
+			);
+			return id;
+		};
+		folder('Renamed Tale', 'My Own Name', 'manhwa', 'rtl');
+		folder('Plain Tale', 'Plain Tale', 'manhwa', 'rtl');
+
+		await runImport(library, { now: at });
+	});
+
+	it('carries the name the owner gave it, with the kind and direction', () => {
+		expect(byKey(RENAMED_DIR)).toBeUndefined();
+		expect(byKey(RENAMED)).toBe(renamed);
+		expect(
+			one<{ title: string; kind: string; direction: string | null }>(
+				`SELECT title, kind, direction FROM series WHERE id = ?`,
+				renamed
+			)
+		).toEqual({ title: 'My Own Name', kind: 'manhwa', direction: 'rtl' });
+		// Its chapter still answers to the backup's path, with the folder's file.
+		expect(
+			one<{ source_url: string; available: number; file: string }>(
+				`SELECT source_url, available, file FROM entries WHERE series_id = ?`,
+				renamed
+			)
+		).toEqual({ source_url: '/chapters/RN1', available: 1, file: 'Chapter 1.cbz' });
+	});
+
+	it('keeps the survivor’s own where the folder is still named as its folder', () => {
+		expect(byKey(PLAIN_DIR)).toBeUndefined();
+		expect(byKey(PLAIN)).toBe(plain);
+		expect(
+			one<{ title: string; kind: string; direction: string | null }>(
+				`SELECT title, kind, direction FROM series WHERE id = ?`,
+				plain
+			)
+		).toEqual({ title: 'Plain Tale', kind: 'manga', direction: null });
+	});
+
+	it('settles: a rescan creates neither series again', async () => {
+		const r = await runImport(library, { now: at + 20_000 });
+		expect(r.sources.every((s) => s.seriesCreated === 0)).toBe(true);
+		expect(byKey(RENAMED)).toBe(renamed);
+		expect(byKey(PLAIN)).toBe(plain);
+	});
+});

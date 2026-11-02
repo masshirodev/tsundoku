@@ -151,10 +151,32 @@ export function adoptNamed(
 		// entries move, so both sides name their files from it.
 		if (best.row.path === '' && own.path !== '')
 			db.prepare(`UPDATE series SET path = ? WHERE id = ?`).run(own.path, best.row.id);
+		carryEdit(db, own.id, best.row.id, parts.dir);
 		foldSeries(db, own.id, best.row.id);
 	}
 	rememberKey(db, best.row.id, s.originKey, 'mihon', best.row.origin_key, now);
 	return best.row.id;
+}
+
+/**
+ * The one thing a fold cannot keep from both sides: title, kind and direction.
+ * The folder's series wins them when the owner renamed it, which is the state
+ * that made the backup's row a second one -- it no longer answers to its
+ * folder's name, so `adoptFolder` could not have found it by name either, and
+ * the survivor would otherwise be the import's name over the owner's. A
+ * folder's series still named as its folder carries no edit, and the survivor
+ * keeps its own (doc/IMPORT-MIHON.md, "Before the backup knows it").
+ */
+function carryEdit(db: Database.Database, from: number, into: number, dir: string): void {
+	const own = db.prepare(`SELECT title FROM series WHERE id = ?`).get(from) as { title: string };
+	if (folderTitleMatches(dir, own.title)) return;
+	db.prepare(
+		`UPDATE series SET
+			title = (SELECT title FROM series WHERE id = @from),
+			kind = (SELECT kind FROM series WHERE id = @from),
+			direction = (SELECT direction FROM series WHERE id = @from)
+		WHERE id = @into`
+	).run({ from, into });
 }
 
 function rowsIn(db: Database.Database, rootId: number, family: string): KeyedRow[] {

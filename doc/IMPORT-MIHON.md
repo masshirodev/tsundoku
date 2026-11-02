@@ -219,11 +219,12 @@ A download the backup doesn't list is keyed by its folder
 (`mihon-dir:<source dir>/<series dir>`). That happens whenever a chapter is
 downloaded before the next backup: Mihon backs up daily; tsundoku's own device writes one with its downloads ([`DOWNLOADER.md`](DOWNLOADER.md)).
 
-**Another device's backup counts too** (c89). A series downloaded on the
-tablet, without being added to Mihon's library there, and in the phone's
-library has two keys by then: the tablet's folder (`mihon-dir:…`) and the
-phone's backup (`mihon:<source>:<url>`), because each device's copy is read on
-its own ([`SYNC.md`](SYNC.md), "Other devices"). The writer settles the two
+**A backup that names the manga settles the two** (c89). A series downloaded
+before the next backup has two keys by then: the folder's (`mihon-dir:…`) and
+the backup's (`mihon:<source>:<url>`). The backup can be the library's own —
+the owner's, or a friend's dropped into `Mihon/autobackup` — or tsundoku's,
+which writes one with its downloads; since c191 those are the only two read
+([`SYNC.md`](SYNC.md), "Other devices"). The writer settles the two
 before anything else, whichever of them the plan it is writing is
 (`src/lib/server/import/fold.ts`): **`adoptFormer`** when this device has both
 (the plan carries the folder key it used to have), **`adoptFolder`** when a
@@ -233,8 +234,9 @@ plan meets the series a backup names, including a pair that already exists.
 - **The folder's series is found by its source and title,** the same rule
   "Matching downloads" uses, in the same root (every device's Mihon is one
   root). **Only the folder's series exists:** if the plan has chapters, one of
-  them must be the folder's (below); it then takes the URL key, so both
-  devices' plans write into one row, and nothing the owner did is touched.
+  them must be the folder's (below); it then takes the URL key, so the
+  backup's plan and the folder's write into one row, and nothing the owner
+  did is touched.
 - **Both exist** (a backup that claims the folder, this one's or another
   device's): the folder's series is **folded** into the URL's
   (`foldSeries`), and its row goes — unless the URL series is a browsing
@@ -246,7 +248,12 @@ plan meets the series a backup names, including a pair that already exists.
   series has moves across. The reading log, shelves, tags, links and lookups
   follow, the URL series' own winning where both have one; caches of a file's
   pages follow only with that file. A hidden series stays hidden. No file
-  moves.
+  moves. Its **title, kind and direction** are the one setting a fold cannot
+  keep from both rows: a folder's series the owner renamed — its title no
+  longer the name its folder builds — passes that name to the survivor, with
+  the kind and direction set beside it, since the backup's row would otherwise
+  be the import's name over the owner's. A folder's series still named as its
+  folder carries no edit, and the survivor keeps its own.
 
 **A folder whose chapters the backup does not share waits beside it.** The
 source and title are not enough on their own: adopting would take the folder's
