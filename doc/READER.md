@@ -270,7 +270,10 @@ scrollable screen, which took some of them at random.
   reader. See "Vertical", below.
 - **The end of what's available:** "END · LAST AVAILABLE", the series' title,
   and, only while the series is unrated, RATING and FAV. The rating prompt
-  never interrupts twice.
+  never interrupts twice. An ongoing series whose source has added nothing for
+  eight weeks adds one line — `ASURA SCANS HAS ADDED NOTHING SINCE 6 SEP` —
+  and a cell ANOTHER SOURCE → that opens MOVE ([`MOVE.md`](MOVE.md)). No band:
+  a quiet source isn't a broken one.
 - **The next chapter isn't downloaded** (imported from a backup, read online):
   the boundary says so, "○ NOT DOWNLOADED", and doesn't pretend it opens.
 - **Offline:** "○ OFFLINE · CACHED STILL OPENS" and "○ NOT CACHED" on the next

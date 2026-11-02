@@ -173,6 +173,19 @@ An episode streams **through tsundoku** (`src/lib/server/anime/streams.ts`,
 pure parts in `src/lib/library/streams.ts`): the browser has no route to the
 engine, mustn't hold its token, and never asks a site ([`PRIVACY.md`](PRIVACY.md)).
 
+**NO SERVER is remembered.** A source that lists servers and sends no video,
+or fails as a source, is recorded against that episode (`episode_failures`,
+rung 57; never incognito). The series screen's NO VIDEO band and the player's
+"not just this episode" line are counted from it, and `ANOTHER SOURCE →` opens
+MOVE ([`MOVE.md`](MOVE.md)). The engine being down is not the source's
+failure and isn't recorded.
+
+**A moved season.** MOVE ([`MOVE.md`](MOVE.md)) takes a season-3 series to
+another source by season and episode; a candidate that numbers every season as
+one flat list takes an offset guessed from episode titles, editable on the
+comparison. `PLAYS` is checked there for the one episode CONTINUE would play,
+once a candidate is picked, and MOVE never waits on it.
+
 - **`GET /api/anime/episode/<entry>/videos`** asks the engine's `getVideoList`
   (two minutes: hosters have 30 s each, and a first call through a challenge
   takes 20–45 s) and answers the player's **servers**: a video's quality reads
@@ -303,6 +316,11 @@ screen but the video, and the subtitles, until a tap.
   4.58 Mbps): a link that couldn't carry it stalled there on every try. A
   fatal error still moves servers, never quality: that's a server broken,
   not a link too thin.
+- **ANOTHER SOURCE →** comes before TRY AGAIN on every NO SERVER (never on
+  SOURCES NOT ANSWERING, where the engine is down and every source would
+  fail). When the same series has failed the same way on more than one
+  episode, one line above the cells says so — `EPISODES 1, 2, 7 AND 8 FAILED
+THE SAME WAY SINCE 1 NOV` — and the cell opens MOVE ([`MOVE.md`](MOVE.md)).
 - **A reload never reports 0.** Switching server or quality, or asking the list
   afresh, destroys hls.js, and the emptied video reads 0 until the new stream
   is in. Until the video is back within 10 s of where it was heading

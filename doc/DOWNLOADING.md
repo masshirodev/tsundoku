@@ -101,12 +101,27 @@ re-reads the queue and acts only on what the viewer can see.
 **Cost.** The queue is tsundoku's own table (`download_queue`, rung 40), read
 on every page load for the QUEUE cell; nothing goes over the network for it.
 
+**A moved series' queue.** A move (`doc/MOVE.md`, c139) keeps a queued chapter
+whose number the new source has, and deletes one whose number it doesn't (the
+comparison counts it as `HAS NO PARTNER · LEAVES THE QUEUE`). A chapter kept
+from the old source downloads from that source, not the series' new one: the
+queue row's lane is `entries.origin_source` when it is set.
+
 ## Finding a series, and adding it
 
 The library's search keeps its own results, and after them **SEARCH THE
 SOURCES** carries the same query to `/downloads/search`. With no titles found,
 that row is all there is. There is no second search field. To browse a
 source rather than search it, BROWSE ([`BROWSE.md`](BROWSE.md)).
+
+## Moving a series to another source
+
+The series screen's SOURCE row offers **MOVE →** to `/series/[id]/move`, which
+searches the sources, compares a candidate by number, and moves the series
+itself — keeping its files, its reading and everything else the owner did with
+it. [`MOVE.md`](MOVE.md) has the rules. What matters here: a move queues
+nothing, FOLLOW keeps doing what it did from the new source, and a queued
+chapter the new source doesn't number at all leaves the queue.
 
 - **Which sources are asked:** the installed extensions the library already
   reads from (MangaDex's English source, not its forty other languages), and

@@ -114,6 +114,9 @@ is the mount development pressures.
   state, where it departs from the handoff, and what it doesn't do yet.
 - [`doc/SERIES.md`](doc/SERIES.md) — the series screen: frame, states,
   departures, and what waits on the reader.
+- [`doc/MOVE.md`](doc/MOVE.md) — moving a series to another source: the
+  by-number map, what stays and what is added, the queue and FOLLOW, the way
+  back for 30 days, and the tablet backup's old key.
 - [`doc/INSTALL.md`](doc/INSTALL.md) — installing on the tablet, the manifest,
   and the typeset 積 icon.
 - [`doc/OFFLINE.md`](doc/OFFLINE.md) — the device cache, the service worker,
