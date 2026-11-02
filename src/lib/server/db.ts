@@ -1210,9 +1210,14 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	// to one Work per series. `series_id UNIQUE` is what makes the last part
 	// true, and the cascade means a deleted series cannot leave a Work naming
 	// it. Positions start at 1 and a gap is harmless: order is by position.
-	// A Work of one cannot exist, so it is not a constraint here -- every path
-	// that removes a part checks the count after the write and ends the Work
-	// (src/lib/server/works.ts).
+	// A Work of one cannot exist, and the rule sits where a series disappears:
+	// this trigger runs after the cascade has taken the membership away, so any
+	// Work left with fewer than two members goes, memberships and all. The
+	// app's own removers (takeOut, a move in createWork or addSeries) never
+	// DELETE a series row, so they still end the Work themselves (`endIfOne`,
+	// src/lib/server/works.ts) with the facts UNDO needs. A DELETE that goes
+	// through `series` -- delete.ts, the books fold, an import -- needs no
+	// caller to remember: there is nothing to undo, because the part is gone.
 	//
 	// Work dismissals get a table of their own rather than reusing
 	// `suggestion_dismissals`: the books' reader takes every row of that table
@@ -1233,6 +1238,14 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		PRIMARY KEY (work_id, series_id)
 	);
 	CREATE INDEX work_series_work ON work_series(work_id, position);
+	-- A series can disappear through any delete path in the app, and the app's
+	-- own removers are not the only ones: a trigger is the one place every
+	-- path reaches. It sees the FK cascade already applied, so a Work of two
+	-- left with one ends here, and a Work left with none goes too.
+	CREATE TRIGGER series_deleted_ends_work AFTER DELETE ON series
+	BEGIN
+		DELETE FROM works WHERE (SELECT COUNT(*) FROM work_series ws WHERE ws.work_id = works.id) < 2;
+	END;
 	CREATE TABLE work_dismissals (
 		series_ids TEXT PRIMARY KEY,
 		dismissed_at INTEGER NOT NULL

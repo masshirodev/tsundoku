@@ -215,11 +215,14 @@ describe('rung 61: Works (c275)', () => {
 		conn.exec(`
 			INSERT INTO roots (id, name, path) VALUES (1, 'Library', '/nowhere');
 			INSERT INTO series (id, root_id, title, kind, added_at) VALUES
-				(1, 1, 'The Breaker', 'manhwa', 100), (2, 1, 'New Waves', 'manhwa', 200);
+				(1, 1, 'The Breaker', 'manhwa', 100), (2, 1, 'New Waves', 'manhwa', 200),
+				(3, 1, 'Other One', 'manhwa', 300), (4, 1, 'Other Two', 'manhwa', 400);
 			INSERT INTO works (id, name, created_at, order_mode) VALUES
 				(1, 'The Breaker', 100, 'hand'), (2, 'Other', 100, 'title');
 			INSERT INTO work_series (work_id, series_id, position) VALUES (1, 1, 1);
 			INSERT INTO work_series (work_id, series_id, position) VALUES (1, 2, 2);
+			INSERT INTO work_series (work_id, series_id, position) VALUES (2, 3, 1);
+			INSERT INTO work_series (work_id, series_id, position) VALUES (2, 4, 2);
 		`);
 		// A second Work cannot hold a series the first already has.
 		expect(() =>
@@ -232,10 +235,15 @@ describe('rung 61: Works (c275)', () => {
 		conn
 			.prepare(`INSERT INTO work_dismissals (series_ids, dismissed_at) VALUES ('work:1:2', 100)`)
 			.run();
-		// Deleting a series takes its membership with it.
+		// Deleting a series takes its membership with it, and the rung's trigger
+		// ends the Work the delete leaves with one series: the cascade then takes
+		// that last membership too. The row is gone because of the trigger, not
+		// the FK, and `work_series` holding only the other Work is what proves both ran.
 		conn.prepare(`DELETE FROM series WHERE id = 1`).run();
 		expect(conn.prepare(`SELECT series_id FROM work_series ORDER BY series_id`).all()).toEqual([
-			{ series_id: 2 }
+			{ series_id: 3 },
+			{ series_id: 4 }
 		]);
+		expect(conn.prepare(`SELECT id FROM works ORDER BY id`).all()).toEqual([{ id: 2 }]);
 	});
 });

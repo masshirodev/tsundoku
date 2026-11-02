@@ -6,7 +6,10 @@
  * sets, and at most one Work per series. `work_series.series_id` is UNIQUE, so
  * adding a series that is already in another Work moves it -- and a Work left
  * with fewer than two series ends, exactly as taking a part out does. Both
- * paths go through `endIfOne`, because a rule at one door is not a rule.
+ * paths go through `endIfOne`, because a rule at one door is not a rule. The
+ * other door is not in this file at all: rung 61's `series_deleted_ends_work`
+ * trigger ends the Work a deleted series is cascaded out of, so a delete that
+ * never touches this module cannot leave a Work of one either.
  *
  * Rating and FAV are NOT a Work's own: they are each part's. Both setters
  * enforce the pure rule and then call the library's own write, so a linked
@@ -140,9 +143,11 @@ const insertMember = (db: Database.Database) =>
 	db.prepare(`INSERT OR REPLACE INTO work_series (work_id, series_id, position) VALUES (?, ?, ?)`);
 
 /**
- * The one place a Work of one ends (Works Calls, question 5). Every path that
- * removes a part calls this after its write, handing the membership as it
- * stood BEFORE the action so UNDO can put the Work back whole.
+ * The one place the app's own removers end a Work of one (Works Calls, question
+ * 5). Every path here that removes a part calls this after its write, handing
+ * the membership as it stood BEFORE the action so UNDO can put the Work back
+ * whole. A series deleted from the table itself never reaches this: rung 61's
+ * trigger ends that Work, and there is no part left for UNDO to restore.
  */
 function endIfOne(db: Database.Database, workId: number, before: SeriesPlace[]): EndedWork | null {
 	if (membersOf(db, workId).length >= 2) return null;

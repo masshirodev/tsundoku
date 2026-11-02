@@ -85,10 +85,11 @@ existing one.
   a gap is harmless, because order is by position. `series_id` is UNIQUE, so a
   series belongs to at most one Work and adding one that is already elsewhere
   moves it; it cascades from `series`, so a deleted series can never leave a
-  Work naming it. A Work is never left with fewer than two series: every write
-  that removes a part counts after the write and deletes the Work
-  (`endIfOne` in `src/lib/server/works.ts`), and the UNDO facts carry its name,
-  order and members.
+  Work naming it. A Work is never left with fewer than two series: the rung's
+  `series_deleted_ends_work` trigger ends a Work left with one after the cascade
+  from a deleted series, wherever that delete came from, and the app's own
+  removers (`endIfOne` in `src/lib/server/works.ts`) end it for the paths that
+  never delete a series row. The UNDO facts carry its name, order and members.
 - `work_dismissals (series_ids, dismissed_at)`: W7's dismissed offers, kept
   apart from the books' `suggestion_dismissals` because that table's reader
   parses every row's key as sorted ids, a shape a Work's key would not have. A

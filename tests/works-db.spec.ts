@@ -406,6 +406,44 @@ describe('hiding a Work', () => {
 	});
 });
 
+describe('a series deleted through the app’s own door', () => {
+	it('ends the Work the delete leaves with one, and leaves another Work alone', async () => {
+		const [a, b] = ['Chainsaw Man', 'Tensei Shitara Ken Deshita'].map(idOf) as number[];
+		const [c, d] = ['Mushoku Tensei', 'Villainess Level 99'].map(idOf) as number[];
+		const ends = works.createWork({ seriesIds: [a, b], name: 'Ends', now: NOW });
+		const stays = works.createWork({ seriesIds: [c, d], name: 'Stays', now: NOW });
+
+		// The library's own delete, which knows nothing about Works: the rule has
+		// to be where the series row goes, not at the doors inside works.ts.
+		const { deleteSeries } = await import('$lib/server/delete');
+		await deleteSeries([a], true);
+
+		expect(workIds()).toEqual([stays.work.id]);
+		expect(works.workPage(ends.work.id, { reveal: true })).toBeNull();
+		expect(works.workOfSeries(b)).toBeNull();
+		expect(
+			(
+				getDb()
+					.prepare(`SELECT COUNT(*) AS n FROM work_series WHERE work_id = ?`)
+					.get(ends.work.id) as { n: number }
+			).n
+		).toBe(0);
+		expect(partsOf(stays.work.id)).toEqual([c, d]);
+	});
+
+	it('leaves no Works row behind when the last part goes', async () => {
+		const [a, b] = UNRATED.map(idOf) as number[];
+		works.createWork({ seriesIds: [a, b], name: 'Two', now: NOW });
+		const { deleteSeries } = await import('$lib/server/delete');
+		await deleteSeries([a], true);
+		await deleteSeries([b], true);
+		expect(workIds()).toEqual([]);
+		expect(
+			(getDb().prepare(`SELECT COUNT(*) AS n FROM work_series`).get() as { n: number }).n
+		).toBe(0);
+	});
+});
+
 describe('offers a later slice stores and undoes', () => {
 	it('keeps a Work dismissal apart from the books’ table, and takes it back', () => {
 		const [a, b] = UNRATED.map(idOf) as number[];
