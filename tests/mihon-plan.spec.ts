@@ -179,8 +179,9 @@ describe('the rules', () => {
 		expect(sourceDirMatches('Weeb Central (EN)', 'Asura Scans')).toBe(false);
 		expect(folderTitleMatches('Drawing_ Saikyou Mangaka', 'Drawing: Saikyou Mangaka')).toBe(true);
 		expect(folderTitleMatches('Drawing_ Saikyou Mangak', 'Drawing: Saikyou Mangaka')).toBe(false);
-		// A title longer than FAT allows: the folder is its first 240 characters.
+		// A title longer than FAT allows: the folder name is its first 240 characters.
 		const long = 'x'.repeat(240) + 'the rest';
+		expect(mihonFolderName(long)).toBe('x'.repeat(240));
 		expect(folderTitleMatches('x'.repeat(240), long)).toBe(true);
 	});
 });

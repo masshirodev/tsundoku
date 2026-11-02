@@ -118,7 +118,7 @@
 	"start_ext_body": "An extension is one source to browse and read from: a site, in a language. Your repository lists them. Pick one in AVAILABLE, and it's one search away.",
 	"start_ext_go": "AVAILABLE EXTENSIONS →",
 	"start_library_body_a": "Coming from Mihon? Put its backup in the library folder, under",
-	"start_library_body_b": ", with its downloads beside it if you have them. Your own EPUBs go in the library folder too. Then start a scan: series appear in the library as they're found.",
+	"start_library_body_b": ", and your own EPUBs go in the library folder too. Then start a scan: series appear in the library as they're found.",
 	"start_library_mihon": "MANGA, MANHWA · {path}",
 	"start_library_epub": "NOVELS · ANYWHERE IN THE FOLDER",
 	"start_library_aniyomi_backup": "Aniyomi backup",
