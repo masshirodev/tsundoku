@@ -121,14 +121,14 @@ given (`/manifest.webmanifest`).
 The page's focus layer ([`FOCUS.md`](FOCUS.md)) reads DOM keys, so the app's
 job is to deliver them.
 
-| Key           | Where it goes                                                                                                                                                                                                                         |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D-pad, OK     | The WebView itself: arrows and Enter, the page's own keys.                                                                                                                                                                            |
-| BACK          | The app. `window.tsundokuBack()` first (a sheet, a climb); `true` means the page took it. Then `canGoBack()`/`goBack()` (the app's pages and history), else the app leaves. `OnBackPressedDispatcher`, never the deprecated override. |
-| MENU          | Taken before the WebView: a synthetic `ContextMenu` keydown + keyup at `document.activeElement ?? document.body`, bubbling.                                                                                                           |
-| ▶❚❚ ⏩ ⏪ ⏭ ⏮ | The same, as `MediaPlayPause`, `MediaFastForward`, `MediaRewind`, `MediaTrackNext`, `MediaTrackPrevious`, `MediaPlay`, `MediaPause`. The WebView would take them as media transport otherwise.                                        |
-| Number keys   | Type into the focused field: the address's last number on 9B, the six digits on 9C. ← erases.                                                                                                                                         |
-| MIC           | The TV's own voice search sits outside the app; nothing here forwards it.                                                                                                                                                             |
+| Key           | Where it goes                                                                                                                                                                                                                                                                                                                                    |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| D-pad, OK     | The WebView itself: arrows and Enter, the page's own keys.                                                                                                                                                                                                                                                                                       |
+| BACK          | The app. `window.tsundokuBack()` first (a sheet, a climb); `true` means the page took it. Then `Back.kt`: on the library the app leaves; elsewhere it goes back to the nearest earlier screen, past sign-in, pairing, set-up and the app's own first screens, and with none it leaves. `OnBackPressedDispatcher`, never the deprecated override. |
+| MENU          | Taken before the WebView: a synthetic `ContextMenu` keydown + keyup at `document.activeElement ?? document.body`, bubbling.                                                                                                                                                                                                                      |
+| ▶❚❚ ⏩ ⏪ ⏭ ⏮ | The same, as `MediaPlayPause`, `MediaFastForward`, `MediaRewind`, `MediaTrackNext`, `MediaTrackPrevious`, `MediaPlay`, `MediaPause`. The WebView would take them as media transport otherwise.                                                                                                                                                   |
+| Number keys   | Type into the focused field: the address's last number on 9B, the six digits on 9C. ← erases.                                                                                                                                                                                                                                                    |
+| MIC           | The TV's own voice search sits outside the app; nothing here forwards it.                                                                                                                                                                                                                                                                        |
 
 `Keys.kt` is the whole mapping, and `KeysTest.kt` pins it. A remote without
 number keys has to use the TV's on-screen keyboard; the app does not force it
@@ -223,7 +223,7 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
 
 ## Tests
 
-- `android/tv/app/src/test/` — `AddressTest`, `KeysTest`, `ProbeTest`,
+- `android/tv/app/src/test/` — `AddressTest`, `BackTest`, `KeysTest`, `ProbeTest`,
   `ScaleTest` (18 tests), run by `./gradlew test`.
 - `tests/pairing-tv.spec.ts` — the six digits: once, 10 minutes, five wrong
   tries burn it, the state machine's every answer.
@@ -232,3 +232,13 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   burn it.
 - `tests/friend-wifi.e2e.ts` — the Wi-Fi panel's FOR A TV digits, beside the
   phone's QR.
+
+## BACK never left the app (2026-11-02)
+
+The first fallback was `canGoBack()`/`goBack()`. On the owner's TV the
+history still held the sign-in page, and going back to it sends a signed-in
+visitor to the library again, so BACK on the library went round in a circle
+and the app never closed. The library's shelf tabs each leave a history entry
+too, so even without that BACK walked back through every shelf opened. Now
+the library is home and BACK leaves from it; elsewhere `Back.steps` picks the
+nearest earlier screen worth returning to (`BackTest`).

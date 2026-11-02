@@ -57,9 +57,7 @@ class MainActivity : ComponentActivity() {
 					return
 				}
 				webView.evaluateJavascript(BACK_JS) { value ->
-					if (value != "true") {
-						if (webView.canGoBack()) webView.goBack() else finish()
-					}
+					if (value != "true") goBackOrLeave()
 				}
 			}
 		}
@@ -225,6 +223,16 @@ class MainActivity : ComponentActivity() {
 	}
 
 	private fun frame() = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+
+	/** The page took nothing: back to the screen before, or out (Back.kt says which). */
+	private fun goBackOrLeave() {
+		val list = webView.copyBackForwardList()
+		val at = list.currentIndex
+		val current = list.currentItem?.url ?: webView.url.orEmpty()
+		val history = (0 until at).mapNotNull { list.getItemAtIndex(it)?.url }
+		val steps = Back.steps(current, history)
+		if (steps != null && webView.canGoBackOrForward(-steps)) webView.goBackOrForward(-steps) else finish()
+	}
 
 	private fun open(origin: String) {
 		webView.loadUrl(origin)
