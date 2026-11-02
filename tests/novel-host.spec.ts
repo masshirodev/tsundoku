@@ -81,12 +81,24 @@ beforeAll(async () => {
 				.writeHead(200, { 'content-type': 'text/html' })
 				.end('<a class="novel" href="/n/one">Cleared</a>');
 		}
-		// The pair Cloudflare sends, and a check that says so only in its body.
+		// A check that is never passed, marked as Cloudflare marks one; the
+		// headers every proxied response carries ride along for realism.
 		if (u.pathname === '/always')
-			return res.writeHead(403, { 'cf-ray': '8d0', server: 'cloudflare' }).end();
+			return res
+				.writeHead(403, {
+					'cf-mitigated': 'challenge',
+					'cf-ray': '8d0',
+					server: 'cloudflare'
+				})
+				.end('<html>Just a moment…</html>');
 		if (u.pathname === '/bodyonly') return res.writeHead(403).end('<b>__cf_chl</b>');
 		// A site's own 403: no marker, so it is not the app's to solve.
 		if (u.pathname === '/plain') return res.writeHead(403).end('go away');
+		// A Cloudflare-fronted site's own 403: both of its headers, no challenge.
+		if (u.pathname === '/plain-cf')
+			return res
+				.writeHead(403, { 'cf-ray': '9a1b2c3d4e5f-SJC', server: 'cloudflare' })
+				.end('members only');
 		// A hop to another host, which must not be sent the first host's clearance.
 		if (u.pathname === '/away')
 			return res.writeHead(302, { location: `http://localhost:${otherPort}/leak` }).end();
@@ -285,6 +297,18 @@ describe('a site’s browser check', () => {
 		expect(solved).toHaveLength(1);
 		await expect(host.call(checked, 'parseChapter', ['/plain'])).rejects.toThrow(/answered 403$/);
 		expect(solved).toHaveLength(1);
+	});
+
+	it('leaves a Cloudflare site’s own 403 alone: its headers are not a marker', async () => {
+		// Cloudflare adds cf-ray and server to every response it proxies, so a
+		// members-only chapter or a maintenance page carries them too. Solving
+		// one would spend 20–45 s on a check that was never there, and the
+		// refused memo would then call the site's own 403 a check it failed.
+		await expect(host.call(checked, 'parseChapter', ['/plain-cf'])).rejects.toThrow(
+			/answered 403$/
+		);
+		expect(solved).toEqual([]);
+		expect(siteRequests()).toBe(1);
 	});
 });
 

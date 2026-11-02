@@ -233,14 +233,19 @@ function withJar(opts, url) {
 	return { ...opts, headers };
 }
 
-/** Whether a response is a site's check, not the site's own answer (a 403 it meant is left alone). */
+/**
+ * Whether a response is a site's check, not the site's own answer: a 403 it
+ * meant is left alone. Only Cloudflare's mitigation header and its challenge
+ * page are markers — `cf-ray` and `server: cloudflare` ride on every response
+ * it proxies, so a members-only 403 or a maintenance 503 carries them too.
+ */
 async function isChallenge(res) {
 	if (res.status !== 403 && res.status !== 503) return false;
 	const mitigated = res.headers.get('cf-mitigated');
 	if (mitigated && /challenge/i.test(mitigated)) return true;
-	if (res.headers.get('cf-ray') && /cloudflare/i.test(res.headers.get('server') || '')) return true;
 	try {
-		return (await res.clone().text()).includes('__cf_chl');
+		const body = await res.clone().text();
+		return body.includes('__cf_chl') || body.includes('/cdn-cgi/challenge-platform/');
 	} catch {
 		return false;
 	}

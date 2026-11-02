@@ -106,7 +106,8 @@ which the host still answers. And a site that answers with a check: the app is
 asked by URL only, the retry carries that host's cookies and user agent, the
 jar is kept per host and to no other, a retry that is still a check is
 reported and remembered so the next call is one request, a secure clearance is
-not sent over http, and a plain 403 stays the site's own answer.
+not sent over http, and a plain 403 stays the site's own answer — Cloudflare's
+headers or not.
 
 **Measured live on 2026-10-28**, four of the owner's repository's plugins
 through the host: NovelBin (10 popular, a novel's 148 chapters, a chapter's
@@ -126,11 +127,13 @@ plugin's does too, through the app, without giving the host a way to a local
 address.
 
 - **Detection first.** A response is a check only when it is a 403 or a 503
-  _and_ carries Cloudflare's markers: `cf-mitigated: challenge`, a `cf-ray`
-  with `server: cloudflare`, or `__cf_chl` in its body. Anything else is the
-  site's own answer, so "Could not reach site (403: Forbidden)" still happens
-  for a site that means it — and the three failures were not one shape, so a
-  plain 403 is never sent to a solver.
+  _and_ carries a marker of one: `cf-mitigated: challenge`, `__cf_chl` or
+  `/cdn-cgi/challenge-platform/` in its body. `cf-ray` and
+  `server: cloudflare` are not markers — Cloudflare sends both on every
+  response it proxies, so a members-only 403 and a maintenance 503 carry them
+  too. Anything else is the site's own answer, so "Could not reach site (403:
+  Forbidden)" still happens for a site that means it — and the three failures
+  were not one shape, so a plain 403 is never sent to a solver.
 - **The host asks the parent**, since a solver is a local address it refuses:
   `{ op: 'challenge', id, url }` over IPC, the URL and nothing else. The
   parent checks the address is on the internet (`checkPublic` in
@@ -160,7 +163,10 @@ address.
   refused) is not asked again for ten minutes either. A solver the app couldn't
   reach, or one that answered with an HTTP error of its own, is **not**
   remembered: that says nothing about the host, and a solver started after the
-  app would otherwise be ignored for ten minutes.
+  app would otherwise be ignored for ten minutes. TRY AGAIN on the source page
+  does nothing for a refused host until the ten minutes pass; a restart of the
+  app — which takes the host process with it — is the only way to force a
+  solve sooner.
 - **BROWSE names it.** The app writes the host into `site_checks` when a solve
   succeeds, and `checkingSince` answers for a novel by its plugin's site
   (`novel_plugins.site`), so the live band on the source page and in SEARCH
