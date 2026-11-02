@@ -355,6 +355,8 @@ describe('a site’s browser check', () => {
 	});
 
 	it('is the app’s own solve while it runs, and the engine needn’t answer (c152)', async () => {
+		// This test's own preconditions: no engine solve left by the test above.
+		challenges = { solving: {}, solved: {} };
 		// `shelfish` is the test above's; a second plugin so neither leans on the other.
 		db.prepare(
 			`INSERT INTO novel_plugins (id, name, site, lang, version, hash, installed_at, updated_at, failed)
@@ -374,6 +376,7 @@ describe('a site’s browser check', () => {
 			expect(await running).not.toBeNull();
 			expect(await browse.checkingSince('ln:junction')).toBeNull();
 		} finally {
+			challenges = { solving: {}, solved: {} };
 			process.env.ENGINE_URL = engine;
 			if (stub === undefined) delete process.env.NOVEL_SOLVER_URL;
 			else process.env.NOVEL_SOLVER_URL = stub;

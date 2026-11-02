@@ -22,8 +22,12 @@ let host: NovelHost;
 /** The URLs the app was asked to solve, and what the checked site was sent. */
 let solved: string[] = [];
 let seen: { cookie: string; agent: string }[] = [];
-let solveAs: (url: string) => Promise<{ cookies: string; userAgent: string } | null> = async () =>
-	null;
+let solveAs: (
+	url: string
+) => Promise<{ cookies: string; userAgent: string; httpsOnly?: boolean } | null> = async () => null;
+
+/** How many requests the challenged site has answered: `seen` has one entry each. */
+const siteRequests = () => seen.length;
 
 /** The fixtures, with their site's address written in (the vm context has no env to read). */
 function plugin(
@@ -240,6 +244,38 @@ describe('a site’s browser check', () => {
 		);
 		expect(solved).toHaveLength(1);
 		expect(seen.map((s) => s.cookie)).toEqual(['', 'cf_clearance=ok']);
+	});
+
+	it('remembers a clearance its site refused: the next call is one request and no solve', async () => {
+		// A hopeless host, as NovelFull and Scribble Hub measured: the solve
+		// works and the site refuses the clearance anyway. The retry taught the
+		// host that; a second chapter must not pay the solve and retry again.
+		await expect(host.call(checked, 'parseChapter', ['/always'])).rejects.toThrow(
+			/answered 403 \(its check could not be passed\)/
+		);
+		expect(solved).toHaveLength(1);
+		expect(siteRequests()).toBe(2); // the request, then the retry with the clearance
+		await expect(host.call(checked, 'parseChapter', ['/always'])).rejects.toThrow(
+			/answered 403 \(its check could not be passed\)/
+		);
+		expect(solved).toHaveLength(1); // no second solve
+		expect(siteRequests()).toBe(3); // one request: it was already a check, so no retry
+	});
+
+	it('keeps a secure clearance off http, where it was never meant to go', async () => {
+		// This site is http; FlareSolverr's clearance cookies are secure, so the
+		// jar must not be sent in clear text. http stays reachable: it just gets
+		// no clearance, and the check is reported as one that couldn't be passed.
+		solveAs = async () => ({
+			cookies: 'cf_clearance=ok',
+			userAgent: 'StubBrowser/1.0',
+			httpsOnly: true
+		});
+		await expect(host.call(checked, 'parseChapter', ['/list'])).rejects.toThrow(
+			/answered 403 \(its check could not be passed\)/
+		);
+		expect(solved).toHaveLength(1);
+		expect(seen.map((s) => s.cookie)).toEqual(['', '']);
 	});
 
 	it('names a check that is only in the body, and a plain 403 stays the site’s own answer', async () => {

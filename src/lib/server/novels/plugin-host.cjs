@@ -98,6 +98,12 @@ async function guardedFetch(input, init = {}) {
 	// One retry for the whole request: a site that keeps answering with a check
 	// is a check that wasn't passed, not something to keep asking about.
 	let retried = false;
+	// One 30 s budget for the whole request, redirects included: a fresh one per
+	// hop would let a six-hop chain run 180 s, past the 120 s the app allows a
+	// novel call. The retry after a clearance gets its own, since a solve takes
+	// 20-45 s first. A caller's own signal is never reset.
+	let deadline = init.signal || AbortSignal.timeout(30_000);
+	const attempt = () => ({ ...opts, signal: deadline });
 	for (let hop = 0; hop < 6; hop++) {
 		try {
 			await checkUrl(url);
@@ -105,9 +111,6 @@ async function guardedFetch(input, init = {}) {
 			note(e.message);
 			throw e;
 		}
-		// A fresh 30 s per attempt, not one budget for the whole request: a
-		// solve can take 20-45 s before the retry it makes.
-		const attempt = () => ({ ...opts, signal: init.signal || AbortSignal.timeout(30_000) });
 		let res;
 		try {
 			res = await fetch(url, withJar(attempt(), url));
@@ -120,6 +123,7 @@ async function guardedFetch(input, init = {}) {
 			retried = true;
 			const clearance = await challengeFor(url);
 			if (clearance) {
+				deadline = init.signal || AbortSignal.timeout(30_000);
 				try {
 					res = await fetch(url, withJar(attempt(), url));
 				} catch (e) {
@@ -129,6 +133,11 @@ async function guardedFetch(input, init = {}) {
 					throw e;
 				}
 				challenge = await isChallenge(res);
+				// The site refused the clearance it was just given. Remember that
+				// where it is seen: the next chapter would otherwise pay the same
+				// solve and retry for a check this host cannot pass.
+				if (challenge) refused.set(hostOf(url), Date.now());
+				else refused.delete(hostOf(url));
 			}
 		}
 		if (challenge)
@@ -154,9 +163,18 @@ async function guardedFetch(input, init = {}) {
 
 /** A host's clearance, from the app: cookies as a Cookie header's value, and the agent to send. */
 const jars = new Map();
+/**
+ * Hosts whose clearance the site still refused, and when: the retry above
+ * already asked, so asking again inside the window pays a solve and a retry
+ * for nothing — a 148-chapter download would pay 148 times.
+ */
+const refused = new Map();
+const REFUSED_MS = 10 * 60_000;
 let challengeId = 1;
 const asked = new Map();
 const solving = new Map();
+
+const hostOf = (url) => new URL(url).hostname.toLowerCase();
 
 /** The app's own timeout is shorter; this only stops a plugin waiting on nobody. */
 const CHALLENGE_MS = 70_000;
@@ -181,7 +199,11 @@ function askChallenge(url) {
 
 /** One solve per host at a time: a plugin asking in a loop waits on the first, not a queue. */
 function challengeFor(url) {
-	const host = new URL(url).hostname.toLowerCase();
+	const host = hostOf(url);
+	// A clearance this host just refused is not asked for again: the one request
+	// the call makes is already a check, and there is nothing to retry with.
+	const at = refused.get(host);
+	if (at !== undefined && Date.now() - at < REFUSED_MS) return Promise.resolve(null);
 	let one = solving.get(host);
 	if (!one) {
 		one = askChallenge(url)
@@ -197,11 +219,16 @@ function challengeFor(url) {
 
 /** The jar of the host [url] is on, and of no other: a redirect to another host carries none of it. */
 function withJar(opts, url) {
-	const jar = jars.get(new URL(url).hostname.toLowerCase());
+	const u = new URL(url);
+	const jar = jars.get(hostOf(url));
 	if (!jar) return opts;
 	const headers = new Headers(opts.headers || {});
 	const own = headers.get('cookie');
-	if (jar.cookies) headers.set('cookie', own ? `${own}; ${jar.cookies}` : jar.cookies);
+	// A jar goes as one Cookie header, so one secure cookie in it makes the whole
+	// jar https-only: a cf_clearance in clear text is the one thing it must never
+	// be. http stays reachable (checkUrl allows it); it just gets no clearance.
+	const secure = jar.httpsOnly && u.protocol !== 'https:';
+	if (jar.cookies && !secure) headers.set('cookie', own ? `${own}; ${jar.cookies}` : jar.cookies);
 	if (jar.userAgent) headers.set('user-agent', jar.userAgent);
 	return { ...opts, headers };
 }

@@ -39,7 +39,7 @@ const ok = (solution: Record<string, unknown> = {}) =>
 			status: 200,
 			userAgent: 'StubBrowser/2.0',
 			cookies: [
-				{ name: 'cf_clearance', value: 'yes', domain: '.novel.example' },
+				{ name: 'cf_clearance', value: 'yes', domain: '.novel.example', secure: true },
 				{ name: 'session', value: 'abc', domain: 'www.novel.example' },
 				{ name: 'theirs', value: 'no', domain: '.other.example' },
 				{ name: 'nowhere', value: 'no' }
@@ -89,12 +89,42 @@ const checked = () =>
 describe('the app’s solve for a site’s check', () => {
 	it('asks the solver and answers with that host’s cookies and user agent, and nothing else', async () => {
 		const c = await solveChallenge('https://www.novel.example/a/chapter');
-		expect(c).toEqual({ cookies: 'cf_clearance=yes; session=abc', userAgent: 'StubBrowser/2.0' });
+		expect(c).toEqual({
+			cookies: 'cf_clearance=yes; session=abc',
+			userAgent: 'StubBrowser/2.0',
+			httpsOnly: true
+		});
 		expect(asked).toEqual([
 			{ cmd: 'request.get', url: 'https://www.novel.example/a/chapter', maxTimeout: 50_000 }
 		]);
 		// The host is BROWSE's past-tense line once it has passed the check.
 		expect(checked()).toEqual([{ host: 'www.novel.example', seen_at: expect.any(Number) }]);
+	});
+
+	it('is https-only when one of its own cookies is secure, and only then (c152)', async () => {
+		// A Cookie header can't carry one cookie over http and another over https,
+		// so one secure cookie makes the whole jar https-only (novels/host.ts).
+		reply = () => ({
+			status: 200,
+			body: ok({
+				cookies: [{ name: 'cf_clearance', value: 'yes', domain: '.novel.example', secure: true }]
+			})
+		});
+		expect(await solveChallenge('https://www.novel.example/')).toMatchObject({ httpsOnly: true });
+		// Another host's secure cookie was dropped above, so it doesn't count here.
+		reply = () => ({
+			status: 200,
+			body: ok({
+				cookies: [
+					{ name: 'theirs', value: 'no', domain: '.other.example', secure: true },
+					{ name: 'plain', value: 'yes', domain: '.novel.example' }
+				]
+			})
+		});
+		expect(await solveChallenge('https://www.novel.example/again')).toMatchObject({
+			cookies: 'plain=yes',
+			httpsOnly: false
+		});
 	});
 
 	it('refuses a loopback or private address before the solver hears of it', async () => {

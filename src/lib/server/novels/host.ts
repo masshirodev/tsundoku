@@ -22,13 +22,14 @@ import { join, resolve } from '../fspath.ts';
  * itself, since a solver is a local address it refuses. It asks the parent
  * over IPC, naming only the URL; the app checks the address and answers with
  * that host's clearance cookies and user agent, or nothing. The host keeps a
- * jar per host and retries once.
+ * jar per host, sends a secure one over https only, retries once, and
+ * remembers for ten minutes a host whose retry was still a check.
  */
 
 export class NovelHostError extends Error {}
 
 /** What the app hands back for a host's check: its clearance cookies and user agent, nothing else. */
-export type Clearance = { cookies: string; userAgent: string };
+export type Clearance = { cookies: string; userAgent: string; httpsOnly?: boolean };
 
 export type HostOptions = {
 	/** Where installed plugins are kept: the host may read here. */

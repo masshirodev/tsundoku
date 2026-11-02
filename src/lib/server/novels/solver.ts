@@ -19,7 +19,7 @@ import { checkPublic } from '../net-guard.ts';
  * (ops/engine/compose.yml, doc/EXTENSION-ENGINE.md).
  */
 
-export type Clearance = { cookies: string; userAgent: string };
+export type Clearance = { cookies: string; userAgent: string; httpsOnly: boolean };
 
 /** A first solve takes 20-45 s (doc/EXTENSION-ENGINE.md). */
 const SOLVE_MS = 60_000;
@@ -47,7 +47,7 @@ type Solution = {
 		url?: string;
 		status?: number;
 		userAgent?: string;
-		cookies?: { name: string; value: string; domain?: string }[];
+		cookies?: { name: string; value: string; domain?: string; secure?: boolean }[];
 	};
 };
 
@@ -155,12 +155,13 @@ async function ask(url: string, host: string): Promise<Clearance | null> {
 	if ((body.solution.status ?? 200) >= 400) return null;
 	// Only this host's cookies. A solve may cross a redirect, and the cookies
 	// it picked up there are the host it crossed to, not the one asked about.
-	const cookies = (body.solution.cookies ?? [])
-		.filter((c) => applies(c.domain ?? '', host))
-		.map((c) => `${c.name}=${c.value}`);
+	const own = (body.solution.cookies ?? []).filter((c) => applies(c.domain ?? '', host));
+	const cookies = own.map((c) => `${c.name}=${c.value}`);
 	const userAgent = body.solution.userAgent ?? '';
 	if (!cookies.length && !userAgent) return null;
-	return { cookies: cookies.join('; '), userAgent };
+	// A Cookie header can't keep one cookie off http, so a jar with any secure
+	// cookie in it is https-only: the host's `withJar` sends nothing over http.
+	return { cookies: cookies.join('; '), userAgent, httpsOnly: own.some((c) => c.secure) };
 }
 
 /** Whether a cookie's domain applies to [host]: the cookie's own host or one above it. */
