@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
@@ -724,5 +724,332 @@ describe('two pairs an adoption cannot match up', () => {
 				byKey(BARE)!
 			)
 		).toEqual([{ n: 4 }]);
+	});
+});
+
+/**
+ * The same-device door: this root has the folder's download *and* the backup
+ * that names it, and a browsing record already holds the URL key (the manga
+ * was opened from a source's preview without ADD). The card's rule holds at
+ * every door -- a record is never the survivor -- so the record's data moves
+ * into the library's series and its row goes.
+ */
+describe('a record under the URL key this device’s own backup names', () => {
+	const l = mkdtempSync(join(tmpdir(), 'tsundoku-record-former-'));
+	const root = writeMihonFolder(l);
+	const seriesDir = join(root, 'downloads', 'Asura Scans (EN)', 'Adopted Tale');
+	const DIR = 'mihon-dir:Asura Scans (EN)/Adopted Tale';
+	const URL = `mihon:${ASURA}:/series/adopted-tale`;
+	const at = 1_800_001_000_000;
+	let folder: number;
+	let record: number;
+
+	const one = <T>(sql: string, ...args: unknown[]) =>
+		db()
+			.prepare(sql)
+			.get(...args) as T;
+	const all = <T>(sql: string, ...args: unknown[]) =>
+		db()
+			.prepare(sql)
+			.all(...args) as T[];
+	const byKey = (key: string) =>
+		one<{ id: number } | undefined>(`SELECT id FROM series WHERE origin_key = ?`, key)?.id;
+
+	beforeAll(async () => {
+		// The download on its own: keyed by its folder, as a scan before the backup knew it.
+		mkdirSync(seriesDir, { recursive: true });
+		writeFileSync(
+			join(seriesDir, 'Chapter 1.cbz'),
+			cbz(
+				comicInfo({
+					title: 'Chapter 1',
+					series: 'Adopted Tale',
+					number: 1,
+					web: 'https://asuracomic.net/series/adopted-tale-abc123/chapter/1',
+					source: 'Asura Scans'
+				})
+			)
+		);
+		await runImport(l, { now: at });
+		folder = byKey(DIR)!;
+		expect(folder).toBeTruthy();
+
+		const entry = one<{ id: number }>(
+			`SELECT id FROM entries WHERE series_id = ? AND label = 'Ch. 1'`,
+			folder
+		).id;
+		db().prepare(`UPDATE series SET rating = 4, favourite = 1 WHERE id = ?`).run(folder);
+		db()
+			.prepare(`UPDATE entries SET read_at = ?, last_opened_at = ?, last_position = 5 WHERE id = ?`)
+			.run(at + 1_000, at + 2_000, entry);
+
+		// A record under the URL key: the preview opened without ADD (doc/BROWSING.md).
+		record = Number(
+			db()
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, added_at, indexed_at, source,
+						origin_key, in_library, browsed_at)
+					SELECT root_id, 'Adopted Tale', 'manhwa', ?, ?, 'mihon', ?, 0, ?
+					FROM series WHERE id = ?`
+				)
+				.run(at, at, URL, at, folder).lastInsertRowid
+		);
+		db()
+			.prepare(
+				`INSERT INTO entries (series_id, position, label, added_at, source_url, available)
+				VALUES (?, 0, 'Ch. 1', ?, '/series/adopted-tale/chapter/1', 0)`
+			)
+			.run(record, at);
+
+		writeFileSync(
+			join(root, 'autobackup', 'app.mihon_2026-10-05_08-00.tachibk'),
+			gzipSync(
+				backup(
+					[],
+					[
+						manga(ASURA, '/series/adopted-tale', 'Adopted Tale', [
+							{ n: 1, url: '/series/adopted-tale/chapter/1' }
+						])
+					]
+				)
+			)
+		);
+		await runImport(l, { now: at + 10_000 });
+	});
+
+	it('leaves the library series the survivor, not the record', () => {
+		expect(byKey(URL)).toBe(folder);
+		expect(byKey(DIR)).toBeUndefined();
+		expect(
+			one<{ in_library: number; rating: number; favourite: number }>(
+				`SELECT in_library, rating, favourite FROM series WHERE id = ?`,
+				folder
+			)
+		).toEqual({ in_library: 1, rating: 4, favourite: 1 });
+		// The record's row went; its entry's state came across.
+		expect(byKey(URL)).not.toBe(record);
+		expect(all<{ id: number }>(`SELECT id FROM series WHERE id = ?`, record)).toEqual([]);
+	});
+
+	it('re-keys the chapter to the backup’s path, keeping its file and its reading', () => {
+		expect(
+			all<{ source_url: string; available: number; file: string; read_at: number | null }>(
+				`SELECT source_url, available, file, read_at FROM entries WHERE series_id = ?`,
+				folder
+			)
+		).toEqual([
+			{
+				source_url: '/series/adopted-tale/chapter/1',
+				available: 1,
+				file: 'Chapter 1.cbz',
+				read_at: at + 1_000
+			}
+		]);
+	});
+
+	it('settles: no rescan makes either series again', async () => {
+		const r = await runImport(l, { now: at + 20_000 });
+		expect(r.sources.every((s) => s.seriesCreated === 0)).toBe(true);
+		expect(byKey(URL)).toBe(folder);
+		expect(byKey(DIR)).toBeUndefined();
+		expect(
+			all<{ n: number }>(`SELECT COUNT(*) AS n FROM entries WHERE series_id = ?`, folder)
+		).toEqual([{ n: 1 }]);
+	});
+});
+
+/**
+ * One chapter number, two files: two scanlators of it, downloaded by the
+ * tablet while the phone's backup knows one chapter. The tablet's folder plan
+ * meets the series the backup made, and its label fallback must not let the
+ * second planned chapter take the first one's entry -- or the first file is
+ * left on disk with nothing pointing at it.
+ */
+describe('two files of one chapter number', () => {
+	const tablet = join(library, 'Mihon');
+	const seriesDir = join(tablet, 'downloads', 'Asura Scans (EN)', 'Twin Scan');
+	const URL = `mihon:${ASURA}:/series/twin-scan`;
+	const at = 1_800_002_000_000;
+	let id: number;
+
+	const all = <T>(sql: string, ...args: unknown[]) =>
+		db()
+			.prepare(sql)
+			.all(...args) as T[];
+	const byKey = (key: string) =>
+		(
+			db().prepare(`SELECT id FROM series WHERE origin_key = ?`).get(key) as
+				{ id: number } | undefined
+		)?.id;
+
+	beforeAll(async () => {
+		// The phone's backup names it first, and the tablet has downloaded nothing.
+		writeFileSync(
+			join(phoneMihon, 'autobackup', 'app.mihon_2026-10-06_08-00.tachibk'),
+			gzipSync(
+				backup(
+					[],
+					[
+						manga(ASURA, '/series/twin-scan', 'Twin Scan', [
+							{ n: 1, url: '/series/twin-scan/chapter/1' }
+						])
+					]
+				)
+			)
+		);
+		await runImport(library, { now: at });
+		id = byKey(URL)!;
+		expect(id).toBeTruthy();
+
+		// Then the tablet downloads that chapter from two scanlators: both say number 1.
+		mkdirSync(seriesDir, { recursive: true });
+		for (const [file, web] of [
+			['Chapter 1 (A).cbz', 'https://asuracomic.net/series/twin-scan/chapter/1?scanlator=A'],
+			['Chapter 1 (B).cbz', 'https://asuracomic.net/series/twin-scan/chapter/1?scanlator=B']
+		])
+			writeFileSync(
+				join(seriesDir, file),
+				cbz(
+					comicInfo({
+						title: 'Chapter 1',
+						series: 'Twin Scan',
+						number: 1,
+						web,
+						source: 'Asura Scans'
+					})
+				)
+			);
+		await runImport(library, { now: at + 10_000 });
+	});
+
+	it('folds the folder into the backup’s series', () => {
+		expect(byKey(URL)).toBe(id);
+		expect(byKey('mihon-dir:Asura Scans (EN)/Twin Scan')).toBeUndefined();
+	});
+
+	it('keeps an entry for each file, none overwriting the other', () => {
+		expect(
+			all<{ available: number; file: string }>(
+				`SELECT available, file FROM entries WHERE series_id = ? AND label = 'Ch. 1' ORDER BY file`,
+				id
+			)
+		).toEqual([
+			{ available: 1, file: 'Chapter 1 (A).cbz' },
+			{ available: 1, file: 'Chapter 1 (B).cbz' }
+		]);
+	});
+
+	it('leaves both on a rescan', async () => {
+		await runImport(library, { now: at + 20_000 });
+		expect(
+			all<{ n: number }>(
+				`SELECT COUNT(*) AS n FROM entries WHERE series_id = ? AND available = 1`,
+				id
+			)
+		).toEqual([{ n: 2 }]);
+	});
+});
+
+/**
+ * The card's own case: the backup is all this library reads. The folder was
+ * imported by its key before the backup knew the manga, and no scan sees that
+ * folder any more -- so the adoption has to come from the backup's source and
+ * title, not from a scanned plan (doc/IMPORT-MIHON.md, "Before the backup
+ * knows it").
+ */
+describe('a backup adopts a folder nothing scans any more', () => {
+	const l = mkdtempSync(join(tmpdir(), 'tsundoku-backup-only-'));
+	const root = writeMihonFolder(l);
+	const sourceDir = join(root, 'downloads', 'Weeb Central (EN)', 'Kept Tale');
+	const DIR = 'mihon-dir:Weeb Central (EN)/Kept Tale';
+	const URL = `mihon:${WEEB}:/series/kept-tale`;
+	const at = 1_800_003_000_000;
+	let folder: number;
+
+	const one = <T>(sql: string, ...args: unknown[]) =>
+		db()
+			.prepare(sql)
+			.get(...args) as T;
+	const all = <T>(sql: string, ...args: unknown[]) =>
+		db()
+			.prepare(sql)
+			.all(...args) as T[];
+	const byKey = (key: string) =>
+		one<{ id: number } | undefined>(`SELECT id FROM series WHERE origin_key = ?`, key)?.id;
+
+	beforeAll(async () => {
+		for (const n of [1, 2]) {
+			mkdirSync(sourceDir, { recursive: true });
+			writeFileSync(
+				join(sourceDir, `Chapter ${n}.cbz`),
+				cbz(
+					comicInfo({
+						title: `Chapter ${n}`,
+						series: 'Kept Tale',
+						number: n,
+						web: `https://weebcentral.com/chapters/KEPT${n}`,
+						source: 'Weeb Central'
+					})
+				)
+			);
+		}
+		await runImport(l, { now: at });
+		folder = byKey(DIR)!;
+		expect(folder).toBeTruthy();
+
+		const entry = one<{ id: number }>(
+			`SELECT id FROM entries WHERE series_id = ? AND label = 'Ch. 1'`,
+			folder
+		).id;
+		db()
+			.prepare(`UPDATE entries SET read_at = ?, last_opened_at = ?, last_position = 4 WHERE id = ?`)
+			.run(at + 1_000, at + 2_000, entry);
+
+		// Nothing scans the folder any more: the only thing left to read is a backup.
+		renameSync(join(root, 'downloads'), join(root, 'downloads-copied-elsewhere'));
+		writeFileSync(
+			join(root, 'autobackup', 'app.mihon_2026-10-07_08-00.tachibk'),
+			gzipSync(
+				backup(
+					[],
+					[
+						manga(WEEB, '/series/kept-tale', 'Kept Tale', [
+							{ n: 1, url: '/chapters/KEPT1' },
+							{ n: 2, url: '/chapters/KEPT2' }
+						])
+					]
+				)
+			)
+		);
+		await runImport(l, { now: at + 10_000 });
+	});
+
+	it('gives the folder’s series the URL key, with its id', () => {
+		expect(byKey(DIR)).toBeUndefined();
+		expect(byKey(URL)).toBe(folder);
+	});
+
+	it('matches chapters by URL suffix, keeping their files and reading', () => {
+		expect(
+			all<{ label: string; source_url: string; available: number; file: string }>(
+				`SELECT label, source_url, available, file FROM entries WHERE series_id = ? ORDER BY position`,
+				folder
+			).map((e) => [e.label, e.source_url, e.available, e.file])
+		).toEqual([
+			['Ch. 1', '/chapters/KEPT1', 1, 'Chapter 1.cbz'],
+			['Ch. 2', '/chapters/KEPT2', 1, 'Chapter 2.cbz']
+		]);
+		expect(
+			one<{ read_at: number | null }>(
+				`SELECT read_at FROM entries WHERE series_id = ? AND label = 'Ch. 1'`,
+				folder
+			)
+		).toEqual({ read_at: at + 1_000 });
+	});
+
+	it('settles: nothing is created again', async () => {
+		const r = await runImport(l, { now: at + 20_000 });
+		expect(r.sources.every((s) => s.seriesCreated === 0)).toBe(true);
+		expect(byKey(URL)).toBe(folder);
 	});
 });

@@ -25,35 +25,35 @@ export function adoptFormer(db: Database.Database, s: PlannedSeries, now: number
 	const former = seriesBy(db, s.formerKey);
 	if (!former) return;
 	const current = seriesBy(db, s.originKey);
-	if (current) {
+	// A browsing record is never the survivor (doc/BROWSING.md): this device has
+	// the folder's series *and* a record under the URL key, which is what an
+	// open from a source's preview without ADD makes. Folding the folder into
+	// the record would take a downloaded, rated, read series out of the library
+	// and let pruneRecords forget its reading. So the record's data moves into
+	// the folder's series, which keeps the library row, its id and its key.
+	if (current && current.in_library !== 1) foldSeries(db, current.id, former.id);
+	// Both exist and the URL's is the library's: the folder's is folded into it,
+	// keeping whatever the owner did in either. No file is moved.
+	else if (current) {
 		foldSeries(db, former.id, current.id);
 		rememberKey(db, current.id, s.formerKey, 'mihon', s.originKey, now);
 		return;
 	}
+	takeKey(db, s, former.id);
+	rememberKey(db, former.id, s.formerKey, 'mihon', s.originKey, now);
+	// ComicInfo's full `Web` URL against the backup's path: the same chapter
+	// takes the URL the writer will look it up by.
+	rekeyEntries(db, former.id, s.entries, now);
+}
+
+/** The URL key, the source URL and the direction a folder's series takes on. */
+function takeKey(db: Database.Database, s: PlannedSeries, id: number): void {
 	db.prepare(
 		`UPDATE series SET origin_key = ?,
 			source_url = CASE WHEN source_url = '' THEN ? ELSE source_url END,
 			direction = COALESCE(direction, ?)
 		WHERE id = ?`
-	).run(s.originKey, s.sourceUrl, s.direction, former.id);
-	rememberKey(db, former.id, s.formerKey, 'mihon', s.originKey, now);
-	// ComicInfo's full `Web` URL against the backup's path: the same chapter,
-	// found by its file, takes the URL the writer will look it up by.
-	const byFile = new Map(
-		s.entries.filter((e) => e.file !== '').map((e) => [posix.join(s.path, e.file), e.sourceUrl])
-	);
-	const rows = db
-		.prepare(`SELECT id, file, source_url FROM entries WHERE series_id = ?`)
-		.all(former.id) as { id: number; file: string; source_url: string }[];
-	const taken = new Set(rows.map((r) => r.source_url));
-	const set = db.prepare(`UPDATE entries SET source_url = ? WHERE id = ?`);
-	for (const r of rows) {
-		if (r.file === '') continue;
-		const url = byFile.get(posix.join(former.path, r.file));
-		if (!url || url === r.source_url || taken.has(url)) continue;
-		set.run(url, r.id);
-		taken.add(url);
-	}
+	).run(s.originKey, s.sourceUrl, s.direction, id);
 }
 
 const FOLDER_KEY = 'mihon-dir:';
@@ -110,12 +110,7 @@ export function adoptFolder(
 	// with no chapters proves nothing, so a chapterless backup entry is still
 	// adopted by name.
 	if (!best || (s.entries.length > 0 && best.matches.size === 0)) return null;
-	db.prepare(
-		`UPDATE series SET origin_key = ?,
-			source_url = CASE WHEN source_url = '' THEN ? ELSE source_url END,
-			direction = COALESCE(direction, ?)
-		WHERE id = ?`
-	).run(s.originKey, s.sourceUrl, s.direction, best.row.id);
+	takeKey(db, s, best.row.id);
 	rememberKey(db, best.row.id, best.row.origin_key, 'mihon', s.originKey, now);
 	for (const [entryId, planned] of best.matches) rekeyEntry(db, entryId, planned.sourceUrl, now);
 	return best.row.id;
@@ -291,8 +286,19 @@ function rekeyEntry(db: Database.Database, entryId: number, url: string, now: nu
 }
 
 function seriesBy(db: Database.Database, key: string) {
-	return db.prepare(`SELECT id, path FROM series WHERE origin_key = ?`).get(key) as
-		{ id: number; path: string } | undefined;
+	return db.prepare(`SELECT id, path, in_library FROM series WHERE origin_key = ?`).get(key) as
+		{ id: number; path: string; in_library: number } | undefined;
+}
+
+/** The series' entries, matched to the plan's by URL suffix then by label (below). */
+function rekeyEntries(
+	db: Database.Database,
+	seriesId: number,
+	planned: PlannedEntry[],
+	now: number
+): void {
+	for (const [entryId, e] of matchFolderEntries(db, seriesId, planned))
+		rekeyEntry(db, entryId, e.sourceUrl, now);
 }
 
 type Row = {

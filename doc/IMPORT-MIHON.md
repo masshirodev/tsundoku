@@ -231,10 +231,13 @@ one side, or one whose Mihon has chapter metadata off, `Chapter 1` against
 waits until a backup names chapters it shares. A backup entry with no chapters
 has nothing to prove and is still adopted by name. The pair is stable: a rescan
 creates neither series again. The same caution applies to a browsing record
-([`BROWSING.md`](BROWSING.md)): a library series is never folded into one,
-because a record is off every shelf, count and search and is forgotten 30 days
-after it was last opened. A folder whose only match is a record therefore also
-waits, until ADD promotes the record; the next scan then folds them.
+([`BROWSING.md`](BROWSING.md)): a record is never the survivor, at any of the
+three doors, because a record is off every shelf, count and search and is
+forgotten 30 days after it was last opened. A folder whose only match is a
+record therefore also waits, until ADD promotes the record; the next scan then
+folds them. When this device's own backup names the manga and a record already
+holds the URL key (`adoptFormer`), the record's data moves into the folder's
+series instead, which keeps the library's row and id; the record's row goes.
 
 **Chapters are re-keyed by the same rule the matching above uses:** a URL in
 ComicInfo's `Web` ending with the backup's chapter URL (Weeb Central), then

@@ -288,21 +288,25 @@ export function writeSeries(
 				WHERE series_id = @series AND ((@url != '' AND (source_url = @url OR former_url = @url
 						OR EXISTS (SELECT 1 FROM entry_former_urls f
 							WHERE f.entry_id = entries.id AND f.former_url = @url)))
-					OR (@url = '' AND file = @file))
-				LIMIT 1`
+					OR (@url = '' AND file = @file))`
 			);
 			// A folder's plan names a chapter by the ComicInfo URL it carries, while
 			// the series may know it by the backup's path once the two are one
 			// (adoptNamed): the same file, or else the same number, is that chapter.
 			const findFile = db.prepare(
 				`SELECT id, read_at, unread_at, last_opened_at, available, file FROM entries
-				WHERE series_id = @series AND file = @file LIMIT 1`
+				WHERE series_id = @series AND file = @file`
 			);
 			const findLabel = db.prepare(
 				`SELECT id, read_at, unread_at, last_opened_at, available, file FROM entries
 				WHERE series_id = @series AND label = @label
-				ORDER BY available, position, id LIMIT 1`
+				ORDER BY available, position, id`
 			);
+			// Two chapters of one number are two files (two scanlators, or a file the
+			// backup doesn't know): an entry an earlier planned chapter took is not
+			// free to take again, or the later one overwrites its file and the first
+			// is left on disk with nothing pointing at it.
+			const taken = new Set<number>();
 			const insert = db.prepare(
 				`INSERT INTO entries (series_id, position, label, title, added_at, read_at, last_position,
 					last_opened_at, page_count, file, bytes, source_url, available, cover_file, cover_phash,
@@ -320,20 +324,21 @@ export function writeSeries(
 			for (const e of s.entries) {
 				const file = fileOf(e);
 				if (e.available) planned.add(file);
-				let had = find.get({ series: seriesId, url: e.sourceUrl, file }) as
-					| {
-							id: number;
-							read_at: number | null;
-							unread_at: number | null;
-							last_opened_at: number | null;
-							available: number;
-							file: string;
-					  }
-					| undefined;
+				type Had = {
+					id: number;
+					read_at: number | null;
+					unread_at: number | null;
+					last_opened_at: number | null;
+					available: number;
+					file: string;
+				};
+				const free = (rows: unknown[]) => (rows as Had[]).find((r) => !taken.has(r.id));
+				let had = free(find.all({ series: seriesId, url: e.sourceUrl, file }));
 				if (!had && folderPlan) {
-					if (file !== '') had = findFile.get({ series: seriesId, file }) as typeof had;
-					if (!had) had = findLabel.get({ series: seriesId, label: e.label }) as typeof had;
+					if (file !== '') had = free(findFile.all({ series: seriesId, file }));
+					if (!had) had = free(findLabel.all({ series: seriesId, label: e.label }));
 				}
+				if (had) taken.add(had.id);
 				// Another device's copy, already here: kept, rather than swapped for this one.
 				const elsewhere =
 					!!had?.available &&
