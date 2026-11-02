@@ -21,7 +21,7 @@ const { ensureRoot } = await import('$lib/server/import/write');
  * One library after c191 (doc/IMPORT-MIHON.md, "Where it reads from"): the
  * library's own `Mihon/` holds a friend's backup, tsundoku's downloads sit in
  * `devices/tsundoku/Mihon/`, and the phone's Hentoid copy is read while its
- * `Mihon/` copy is not (doc/SYNC.md, "Two devices").
+ * `Mihon/` copy is not (doc/SYNC.md, "Other devices").
  */
 const library = mkdtempSync(join(tmpdir(), 'tsundoku-devices-'));
 // The library's own Mihon folder: a place to drop a backup, and no downloads.

@@ -25,9 +25,11 @@ EPUB, a `mihon-dir:` folder) have nothing to download — until a backup names
 one, which adopts it and gives it the URL key (c89,
 [`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Before the backup knows it").
 
-Of the Mihon folders on disk, tsundoku reads its own downloads only,
-`devices/tsundoku/Mihon/` ([`DOWNLOADER.md`](DOWNLOADER.md)): the tablet's,
-the phone's and Waydroid's are not imported any more (c191,
+Of the Mihon folders on disk, tsundoku reads its own downloads as a device,
+`devices/tsundoku/Mihon/` ([`DOWNLOADER.md`](DOWNLOADER.md)). The library's own
+`Mihon/` — the tablet's synced folder — is read for its `Mihon/autobackup`
+backup, which brings a series, its chapters and its reading but attaches no
+files; the phone's and Waydroid's `Mihon/` folders are not read at all (c191,
 [`SYNC.md`](SYNC.md), "Other devices"). **Downloading is off unless
 `ENGINE_URL` and `ENGINE_TOKEN` are set** ([`SECRETS.md`](SECRETS.md)):
 without them no screen draws a DOWNLOAD row, a QUEUE cell, DOWNLOADS or

@@ -122,9 +122,11 @@ tsundoku's downloads are written here into their folder directly
 was retired (c129), and is not read any more.
 
 Why not one shared folder: the same chapter downloaded on both devices would
-be two versions of one path, and Syncthing would keep a conflict copy. Mihon
-also keeps one backup per device, and one device's would replace the other's
-every scan. So the devices stay apart on disk, and the importer merges them.
+be two versions of one path, and Syncthing would keep a conflict copy. So the
+devices stay apart on disk, and the importer merges their Hentoid and Library
+copies. (Before c191 each device's Mihon backup was read too, and one device's
+would have replaced the other's every scan; now only the library's own backup
+is read, at `LIBRARY_ROOT/Mihon/autobackup`.)
 
 **The importer reads what it is given** (`sourcesIn`, src/lib/server/import/index.ts):
 the library folder's own sources, then each folder under `devices/` — but only
@@ -155,7 +157,7 @@ What that means for each series:
   roots of the same name (`ensureNamedRoot`). There's one hidden Hentoid shelf,
   and a book grouped on the tablet is still found when the phone has it.
 - **A folder one device's download is keyed by** (`mihon-dir:…`, while no
-  backup lists the manga yet) is the same series as the one any device's
+  backup lists the manga yet) is the same series as the one the library's own
   backup names, and the two are settled before anything is written
   ([`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Before the backup knows it"; c89).
 - **Read progress** comes from the library's own Mihon backup — the tablet's

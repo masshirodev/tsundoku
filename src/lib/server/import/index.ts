@@ -39,7 +39,7 @@ export function libraryRoot(): string {
 type Source = {
 	name: 'Mihon' | 'Hentoid' | 'Library' | 'Anime';
 	/**
-	 * Another device's copy (doc/SYNC.md, "Two devices"): `devices/<name>/`
+	 * Another device's copy (doc/SYNC.md, "Other devices"): `devices/<name>/`
 	 * under the library folder. Null for the library folder's own.
 	 */
 	device: string | null;
@@ -70,7 +70,7 @@ type Source = {
  * Every source the library reads. The library folder's own: a Mihon backup, a
  * Hentoid copy, EPUBs, the episodes tsundoku downloaded. Then each folder
  * under `devices/`: tsundoku's own `Mihon/` (its downloads) and any device's
- * `Hentoid/` and `Library/` (doc/SYNC.md, "Two devices").
+ * `Hentoid/` and `Library/` (doc/SYNC.md, "Other devices").
  */
 export function sourcesIn(library: string): Source[] {
 	const devices = join(library, 'devices');

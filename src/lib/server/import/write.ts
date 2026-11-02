@@ -40,7 +40,7 @@ export function ensureRoot(
 
 /**
  * The root of this name, whatever its path: another device's copy of a
- * source (doc/SYNC.md, "Two devices") shares the library folder's root, and
+ * source (doc/SYNC.md, "Other devices") shares the library folder's root, and
  * makes it only if there's none yet.
  */
 export function ensureNamedRoot(
@@ -96,7 +96,7 @@ export function writeSeries(
 		/** Entries of this series whose file is no longer planned become not downloaded. */
 		markMissing?: boolean;
 		/**
-		 * The device folder this plan was read from (doc/SYNC.md, "Two devices").
+		 * The device folder this plan was read from (doc/SYNC.md, "Other devices").
 		 * A series whose files are outside it has them on another device too.
 		 */
 		deviceRoot?: string;
@@ -195,7 +195,7 @@ export function writeSeries(
 				};
 				if (row.others > 0) volume = { path: row.path, name: row.name ?? s.title };
 			}
-			// A series another device has files in too (doc/SYNC.md, "Two devices"):
+			// A series another device has files in too (doc/SYNC.md, "Other devices"):
 			// its path is left where it is, widened only when this device brings a
 			// file the series has no copy of, and this device's files are named from
 			// there. A series with files on two devices is one, its chapters from

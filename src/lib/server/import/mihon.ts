@@ -14,9 +14,10 @@ import {
 import type { PlannedSeries } from '../../import/plan.ts';
 
 /**
- * The Mihon importer (doc/IMPORT-MIHON.md). It reads a copy of the device's
- * `Mihon/` folder -- `downloads/` and `autobackup/` -- in place, without
- * moving a file, and writes the library from it.
+ * The Mihon importer (doc/IMPORT-MIHON.md). It reads a Mihon backup at
+ * `<library>/Mihon/autobackup` and, for tsundoku's own device only, that
+ * device's `downloads/` -- in place, without moving a file -- and writes the
+ * library from them. No other device's `Mihon/` folder is read (c191).
  *
  * Idempotent: a rescan finds each series by its origin key and each chapter
  * by its source URL, adds what is new, attaches files that have arrived,
@@ -161,7 +162,7 @@ export async function downloadBytes(root: string): Promise<number> {
 
 // ---- planning a run -------------------------------------------------------------
 
-/** Where the owner's copy of the device's `Mihon/` folder lives. */
+/** Where a `Mihon/` folder lives: the library's own, or a device's copy of one. */
 export function mihonRoot(libraryRoot: string): string | null {
 	const path = join(libraryRoot, 'Mihon');
 	return existsSync(path) ? path : null;

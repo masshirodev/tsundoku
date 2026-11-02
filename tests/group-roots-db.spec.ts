@@ -13,7 +13,7 @@ const { writeHentoidFolder, book, content } = await import('./helpers/hentoid-fi
 
 /**
  * The same work in two folders: the library's Hentoid copy and the phone's,
- * both hidden (doc/SYNC.md, "Two devices"), and a visible book beside them.
+ * both hidden (doc/SYNC.md, "Other devices"), and a visible book beside them.
  * The first two group; a visible book and a hidden one don't.
  *
  * Until c191 this paired a Mihon local book with a Hentoid one; the local
