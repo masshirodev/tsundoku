@@ -6,14 +6,14 @@ Light and web novels, found, downloaded and read inside tsundoku on
 manga runs on Mihon's extensions ([`DOWNLOADER.md`](DOWNLOADER.md)). Card c127
 ("Novels from LNReader plugins, inside tsundoku"), split in five:
 
-| Part                                                 | Card | State |
-| ---------------------------------------------------- | ---- | ----- |
-| A sandboxed host for the plugins                     | c147 | Done  |
-| Repositories and plugins in EXTENSIONS               | c148 | Done  |
-| Browsing, searching and adding a novel               | c149 | Done  |
-| Downloading chapters into an EPUB the importer reads | c150 | Done  |
-| FOLLOW, live checks, the rest of this file           | c151 | Done  |
-| Past a site's bot check, through FlareSolverr        | c152 | Done  |
+| Part                                                 | Card | State                                |
+| ---------------------------------------------------- | ---- | ------------------------------------ |
+| A sandboxed host for the plugins                     | c147 | Done                                 |
+| Repositories and plugins in EXTENSIONS               | c148 | Done                                 |
+| Browsing, searching and adding a novel               | c149 | Done                                 |
+| Downloading chapters into an EPUB the importer reads | c150 | Done                                 |
+| FOLLOW, live checks, the rest of this file           | c151 | Done                                 |
+| Past a site's bot check, through FlareSolverr        | c152 | Done (one of three sites; see below) |
 
 The owner's repository (2026-10-28):
 `https://raw.githubusercontent.com/LNReader/lnreader-plugins/plugins/v3.0.0/.dist/plugins.min.json`,
@@ -144,10 +144,11 @@ address.
   for and could not clear (NovelFull and Scribble Hub, measured below) is not
   asked again inside that window, so a browsing session or a 148-chapter
   download doesn't pay a solve plus a retry per chapter for a site that won't
-  pass. A solver the app couldn't reach is **not** remembered: that says
-  nothing about the host, and a solver started after the app would otherwise
-  be ignored for ten minutes. A page the solver's own browser was refused
-  (`solution.status` 4xx or 5xx) counts as a failure, not as a clearance.
+  pass. A solver the app couldn't reach, or that answered with an HTTP error
+  of its own, is **not** remembered: that says nothing about the host, and a
+  solver started after the app would otherwise be ignored for ten minutes. A
+  page the solver's own browser was refused (`solution.status` 4xx or 5xx)
+  counts as a failure, not as a clearance.
 - **BROWSE names it.** The app writes the host into `site_checks` when a solve
   succeeds, and `checkingSince` answers for a novel by its plugin's site
   (`novel_plugins.site`), so the live band on the source page and in SEARCH

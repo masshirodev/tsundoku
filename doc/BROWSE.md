@@ -199,7 +199,10 @@ app itself, since the plugin host refuses local addresses and a solver is one
 ([`NOVELS.md`](NOVELS.md), "Past a site's bot check"): the novel's site is its
 plugin's (`novel_plugins.site`), the app knows while its own solve runs, and
 `solvingSince` joins what `/challenges` says, so every line below is there for
-a novel exactly as for an extension.
+a novel exactly as for an extension. The route is asked wherever BROWSE is:
+SEARCH THE SOURCES gates its poller on the downloads backend being the engine
+at all (without the engine there is no BROWSE, so no novels either), not on
+which of the two is answering a check.
 
 - **On a source's page**, while its first answer is coming, the page asks every
   second (`SiteCheck`, `src/lib/site-check.svelte.ts`). If the engine is
