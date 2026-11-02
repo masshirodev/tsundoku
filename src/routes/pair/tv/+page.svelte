@@ -71,7 +71,7 @@
 		</div>
 		<div class="safe go-row">
 			<a class="btn pri" href={resolve('/')}>OPEN THE LIBRARY →</a>
-			<div class="meta">ON THE COMPUTER IT'S A DEVICE: TV · OVER WI-FI, WITH SIGN OUT</div>
+			<div class="meta">ON THE COMPUTER IT'S A DEVICE: TV · WITH SIGN OUT</div>
 		</div>
 	</main>
 {:else}

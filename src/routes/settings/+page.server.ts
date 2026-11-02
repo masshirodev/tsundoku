@@ -27,8 +27,8 @@ import { currentLogin, friendLogin, localOnly, setSession, slowDown } from '$lib
 import { dataPaths } from '$lib/server/data-dirs';
 import { MIN_PASSWORD, makeLogin, sessionFor, verifyPassword, writeLogin } from '$lib/server/login';
 import { checkIfStale, updateView } from '$lib/server/updates';
-import { wifiView } from '$lib/server/wifi';
-import { pairedDevices, signOutDevice } from '$lib/server/pairing';
+import { wifiView, tvPanel } from '$lib/server/wifi';
+import { pairedDevices, signOutDevice, tvBlockFor } from '$lib/server/pairing';
 
 /** The languages the repositories list, most extensions first: the BROWSE row's cells. */
 function listedLanguages(): string[] {
@@ -62,6 +62,22 @@ export const load: PageServerLoad = async ({ cookies, url, locals }) => {
 			)
 			.get(reveal ? 1 : 0) as { n: number }
 	).n;
+	const wifi = (() => {
+		const w = wifiView();
+		return w && locals.via === 'lan' ? { ...w, code: null, tv: null } : w;
+	})();
+	// With no WI-FI panel there is no row to carry the TV's six digits, so
+	// DEVICES shows them itself -- but only where the cookie they set is a
+	// door (tvBlockFor). A friend's install served over the tailnet has no
+	// panel and no door either: its TV signs in with the password.
+	const tv = tvBlockFor({
+		hasWifi: !!wifi,
+		viaLan: locals.via === 'lan',
+		paired: !!locals.paired,
+		friend: friendLogin()
+	})
+		? tvPanel()
+		: null;
 	return {
 		values: libraryValues(),
 		counts: overrideCounts(reveal),
@@ -78,14 +94,13 @@ export const load: PageServerLoad = async ({ cookies, url, locals }) => {
 			subs: lastChoice('subs', reveal),
 			subsize: lastChoice('subsize', reveal)
 		},
-		// Reading on a phone over Wi-Fi (doc/WIFI.md): a local friend's install only.
-		// Opening the page on the computer shows a code that works (wifi.ts); a
-		// phone sees the row and never a code (3E).
-		wifi: (() => {
-			const w = wifiView();
-			return w && locals.via === 'lan' ? { ...w, code: null, tv: null } : w;
-		})(),
+		// Reading on a phone over Wi-Fi (doc/WIFI.md): a local friend's install
+		// only. Opening the page on the computer shows a code that works
+		// (wifi.ts); a phone sees the row and never a code (3E).
+		wifi,
 		viaLan: locals.via === 'lan',
+		// The TV's six digits where there is no WI-FI row to show them (c245).
+		tv,
 		paired: Object.fromEntries(
 			[...pairedDevices()].map(([id, p]) => [id, { address: p.address, pairedAt: p.pairedAt }])
 		),
@@ -162,6 +177,26 @@ export const actions: Actions = {
 		if (locals.via === 'lan') return fail(403, { message: 'set on the computer only' });
 		const id = String((await request.formData()).get('id') ?? '');
 		if (!signOutDevice(id)) return fail(404, { message: 'no such device' });
+		return { ok: true };
+	},
+	/**
+	 * NEW CODE on DEVICES' TV block (c245): the six digits a remote types. The
+	 * page's own data is reloaded after it, which is how the new code is read --
+	 * `/api/pair/tv` answers at the computer only, and the owner's SETTINGS is
+	 * on the tailnet.
+	 *
+	 * The same rule that draws the block decides whether this can make one: no
+	 * other door may change a code nothing on its screen can use.
+	 */
+	tvCode: async ({ locals }) => {
+		const shown = tvBlockFor({
+			hasWifi: !!wifiView(),
+			viaLan: locals.via === 'lan',
+			paired: !!locals.paired,
+			friend: friendLogin()
+		});
+		if (!shown) return fail(403, { message: 'set on the computer only' });
+		tvPanel({ fresh: true });
 		return { ok: true };
 	},
 	/**

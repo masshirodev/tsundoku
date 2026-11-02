@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { deviceLabel, isTvApp } from '../src/lib/settings/catalog.ts';
-import { CODE_MS, TV_TRIES, TvPairing, pairedLabel, sixDigits } from '../src/lib/server/pairing.ts';
+import {
+	CODE_MS,
+	TV_TRIES,
+	TvPairing,
+	addPaired,
+	friendPaired,
+	pairedLabel,
+	sixDigits,
+	tailnetDoor,
+	tailnetHost,
+	tvBlockFor
+} from '../src/lib/server/pairing.ts';
+
+// Read by getDb() the first time a test reaches the database; the pure cases
+// above never open one, and nothing here touches the live library.
+process.env.DATABASE_PATH = ':memory:';
 
 /**
  * The TV's typed code (c236; doc/TV.md, "Claims to check"): six digits, one
@@ -88,5 +103,69 @@ describe("the TV app's user agent (doc/TV-APP.md)", () => {
 		// /api/devices/sync reads the same user agent and stores the row as a TV
 		// (c244): the page's own kind is only what its screen can say.
 		expect(deviceLabel(tv, isTvApp(tv) ? 'tv' : 'desktop')).toBe('Android TV · Chrome');
+	});
+});
+
+describe("a TV's cookie on the owner's tailnet (c245; doc/SIGN-IN.md)", () => {
+	it('opens only on the instance’s own public host', () => {
+		// https mode: tailscale serve's certificate name, and the port serve.ts
+		// puts in ORIGIN (443 has none).
+		expect(tailnetHost('https://name.ts.net:8443')).toBe('name.ts.net:8443');
+		expect(tailnetHost('https://name.ts.net')).toBe('name.ts.net');
+		// http mode: the tailnet address itself.
+		expect(tailnetHost('http://100.101.102.103:42143')).toBe('100.101.102.103:42143');
+		expect(tailnetDoor('https://name.ts.net:8443', 'name.ts.net:8443')).toBe(true);
+		expect(tailnetDoor('https://name.ts.net:8443', 'NAME.TS.NET:8443')).toBe(true);
+	});
+
+	it('never on a loopback name: the computer itself gains nothing from it', () => {
+		for (const origin of ['http://localhost:42143', 'http://127.0.0.1:42143', 'http://[::1]:42143'])
+			expect(tailnetHost(origin)).toBeNull();
+		expect(tailnetDoor('https://name.ts.net:8443', 'localhost:8443')).toBe(false);
+		expect(tailnetDoor('https://name.ts.net:8443', '127.0.0.1:8443')).toBe(false);
+		expect(tailnetDoor('https://name.ts.net:8443', '[::1]:8443')).toBe(false);
+	});
+
+	it('fails closed: no origin, or another host, is no door at all', () => {
+		expect(tailnetHost(undefined)).toBeNull();
+		expect(tailnetHost('')).toBeNull();
+		expect(tailnetHost('not a url')).toBeNull();
+		expect(tailnetDoor(undefined, 'name.ts.net:8443')).toBe(false);
+		expect(tailnetDoor('not a url', 'name.ts.net:8443')).toBe(false);
+		// The port is part of the door, and another name is another door.
+		expect(tailnetDoor('https://name.ts.net:8443', 'name.ts.net')).toBe(false);
+		expect(tailnetDoor('https://name.ts.net:8443', 'other.ts.net:8443')).toBe(false);
+		expect(tailnetDoor('https://name.ts.net:8443', null)).toBe(false);
+	});
+});
+
+describe("where the TV's six digits are drawn (c245; doc/WIFI.md)", () => {
+	const block = (o: Partial<Parameters<typeof tvBlockFor>[0]> = {}) =>
+		tvBlockFor({ hasWifi: false, viaLan: false, paired: false, friend: false, ...o });
+
+	it('draws on the token install, and on no install whose cookie is refused', () => {
+		// The owner's own instance: no WI-FI panel, and the cookie those digits
+		// set is a door on its tailnet host.
+		expect(block()).toBe(true);
+		// A friend's local install has the WI-FI panel to carry them.
+		expect(block({ hasWifi: true })).toBe(false);
+		// A phone over Wi-Fi, and a device already signed in, never see a code.
+		expect(block({ viaLan: true })).toBe(false);
+		expect(block({ paired: true })).toBe(false);
+		// A friend's install served over the tailnet has no panel -- but its
+		// guard reads a paired cookie only over Wi-Fi, so drawing the digits
+		// there would pair a TV and land it on /login (the bug c245 removes).
+		expect(block({ friend: true })).toBe(false);
+		expect(block({ friend: true, hasWifi: true })).toBe(false);
+	});
+});
+
+describe("a friend's paired cookie (c245; doc/SIGN-IN.md)", () => {
+	it('signs in only over Wi-Fi, never on a localhost request', () => {
+		const token = addPaired({ label: 'Android phone · Chrome', address: '192.168.1.23:42143' });
+		// The read stays in the friend branch: off Wi-Fi it is not attempted, so
+		// a phone's cookie cannot become this computer's password bypass.
+		expect(friendPaired(false, token)).toBeNull();
+		expect(friendPaired(true, token)?.address).toBe('192.168.1.23:42143');
 	});
 });

@@ -70,3 +70,26 @@ test('TYPE THE WHOLE ADDRESS keeps a field to type it in, reachable from the but
 	await page.keyboard.press('ArrowUp');
 	await expect(field).toBeFocused();
 });
+
+test("9A and 9D keep a friend's WI-FI remedy beside a tailnet install's truth (c245)", async ({
+	page
+}) => {
+	await page.goto(page9);
+
+	// 9A step 01. A friend's install starts with WI-FI OFF and the six digits
+	// only render inside its panel, so the step must still name the switch; a
+	// tailnet install has no switch at all, so it must not send anyone to one.
+	const step = page.locator('#welcome .steps > div').first();
+	await expect(step.locator('.lab')).toHaveText('01 — ON THE COMPUTER');
+	await expect(step).toContainText('SETTINGS › 08 — DEVICES');
+	await expect(step).toContainText('WI-FI ON');
+	await expect(step).toContainText('Tailscale');
+
+	// 9D reason 2, on the screen a TV reaches when nothing answers: the same
+	// two installs fail in different ways, and WI-FI OFF is still one of them.
+	const reason = page.locator('#lost .reasons .reason').nth(1);
+	await expect(reason.locator('.n')).toHaveText('2');
+	await expect(reason).toContainText('WI-FI is off');
+	await expect(reason).toContainText('no six digits');
+	await expect(reason).toContainText('address changed');
+});

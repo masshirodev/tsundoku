@@ -89,6 +89,14 @@ export default defineConfig({
 				env: {
 					DATABASE_PATH: databasePath,
 					TSUNDOKU_TOKEN: E2E_TOKEN,
+					// The instance's public origin, as scripts/serve.ts sets it for a
+					// tailnet install (c245): a TV's paired cookie is a door only on
+					// this host, never localhost, so a spec can name it with a Host
+					// header. `vite preview` never reads it for a URL; the hook does.
+					ORIGIN: `http://tsundoku.test:${previewPort}`,
+					// Vite refuses a Host it hasn't been told about; the e2e's
+					// tailnet name is the one the origin above uses.
+					__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS: 'tsundoku.test',
 					// Covers, trash and the engine's store too: never the user's data folder.
 					TSUNDOKU_HOME: join(tmpdir(), 'tsundoku-e2e-home'),
 					LIBRARY_ROOT: join(tmpdir(), 'tsundoku-e2e-empty-library'),

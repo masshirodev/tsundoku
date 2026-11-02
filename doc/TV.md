@@ -73,6 +73,9 @@ start but was drawn for fingers.
   ([`NAVIGATION.md`](NAVIGATION.md)).
 - Serving to the home network and pairing ([`WIFI.md`](WIFI.md)), over plain
   http, and a six-digit code a remote can type, beside the phone's QR (c236).
+  On the owner's own tailnet instance the same six digits sit in SETTINGS ›
+  08 — DEVICES, and the cookie they set signs the TV in on the instance's
+  public host, never at localhost (c245).
 
 ## The work
 
@@ -113,6 +116,14 @@ through a phone's camera, which a TV hasn't got. c232 settled it on **WI-FI as
 it is plus a code typed with a remote**: the app keeps the screen awake, the
 computer shows six digits beside the phone's QR, and the TV types them
 ([`TV-APP.md`](TV-APP.md), [`WIFI.md`](WIFI.md)).
+
+The owner's own instance is the other way in (c245): served on the tailnet with
+`TSUNDOKU_TOKEN`, over https through `tailscale serve`. There is no WI-FI row
+on it, so the six digits are in SETTINGS › 08 — DEVICES itself, and the paired
+cookie `/pair/tv` sets is accepted by the guard for a request that came in on
+the instance's public host — the tailnet name — and ignored on a loopback one
+([`SIGN-IN.md`](SIGN-IN.md), "The workstation: a token"). The TV app reaches
+that host by TYPE THE WHOLE ADDRESS on 9B, `https://name.ts.net:8443`.
 
 ## The design
 

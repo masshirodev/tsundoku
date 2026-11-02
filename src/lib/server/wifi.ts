@@ -1,7 +1,14 @@
 import { env } from '$env/dynamic/private';
 import type { LanControl, LanStatus } from './lan-listen.ts';
 import { lanOrigin } from './lan.ts';
-import { minutesLeft, pairedDevices, pairing, tvPairing } from './pairing.ts';
+import {
+	CODE_MS,
+	minutesLeft,
+	pairedDevices,
+	pairing,
+	tvPairing,
+	type TvState
+} from './pairing.ts';
 
 /**
  * WI-FI in SETTINGS (doc/WIFI.md; card c188): the app's view of the
@@ -142,3 +149,40 @@ export function wifiView(o: { fresh?: boolean; now?: number } = {}): WifiView | 
 }
 
 const portOf = (origin: string | null) => (origin ? `:${new URL(origin).port}` : '');
+
+// ---- The TV's digits where there is no WI-FI panel (c245) -------------------------
+
+export type TvPanel = {
+	code: string;
+	state: TvState;
+	minutes: number;
+	/** Tries left before a wrong guess burns the code */
+	left: number;
+	/** When the six digits stop working: the page ticks its own countdown from this. */
+	expiresAt: number;
+};
+
+/**
+ * The TV's six digits on an install with no WI-FI panel to carry them: the
+ * owner's own instance, served on the tailnet with the token, where there is
+ * no phone's QR and SETTINGS › 08 — DEVICES is the only place the code can be
+ * seen (c245; doc/WIFI.md).
+ *
+ * Freshness is `wifiView`'s rule: a live code is kept and counts down, and
+ * anything spent (expired, burned, used longer ago than ✓ USED stays up) is
+ * replaced when the page opens. `fresh` is NEW CODE.
+ */
+export function tvPanel(o: { fresh?: boolean; now?: number } = {}): TvPanel | null {
+	const now = o.now ?? Date.now();
+	if (spent(tvPairing.state(now), tvPairing.current()?.used, now) || o.fresh) tvPairing.fresh(now);
+	const c = tvPairing.current();
+	const state = tvPairing.state(now);
+	if (!c || state === 'none') return null;
+	return {
+		code: c.code,
+		state,
+		minutes: minutesLeft(c, now),
+		left: tvPairing.triesLeft(),
+		expiresAt: c.madeAt + CODE_MS
+	};
+}

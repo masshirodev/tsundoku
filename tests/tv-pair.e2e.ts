@@ -11,6 +11,14 @@ import { expect, test } from './fixtures';
  */
 test.describe.configure({ mode: 'serial' });
 
+const PORT = process.env.PLAYWRIGHT_PORT ?? '4183';
+/**
+ * The host the e2e server's `ORIGIN` names (playwright.config.ts), as a
+ * tailnet install's own public origin would: the door a paired TV's cookie
+ * opens (c245).
+ */
+const TAILNET = `tsundoku.test:${PORT}`;
+
 type TvCode = { code: string | null; state: string; minutes: number; left: number };
 const tvCode = async (request: import('@playwright/test').APIRequestContext) =>
 	(await (await request.get('/api/pair/tv')).json()) as TvCode;
@@ -114,4 +122,97 @@ test('five wrong tries burn the code, and a new one is made on the computer', as
 	await typeCode(page, fresh.code!);
 	await expect(page.getByText('NO TRIES LEFT')).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'The library is on this TV' })).toHaveCount(0);
+});
+
+/**
+ * The owner's own instance (c245; doc/WIFI.md, doc/SIGN-IN.md): token mode,
+ * no WI-FI panel, so SETTINGS › 08 — DEVICES is where the six digits are seen.
+ * The block is the pairing panel's own, without the phone's QR.
+ */
+test('with no WI-FI panel, DEVICES shows the TV’s six digits', async ({ page, request }) => {
+	await page.goto('/settings#s-devices');
+	const row = page.locator('#s-devices .row.wifi');
+	await expect(row).toBeVisible();
+	const panel = row.locator('.pair-tv');
+	await expect(panel.getByText('FOR A TV · SIX DIGITS')).toBeVisible();
+	// No WI-FI row on this install: there is no Wi-Fi panel to carry the code.
+	await expect(page.getByRole('group', { name: 'Other devices on this Wi-Fi' })).toHaveCount(0);
+
+	const threes = panel.locator('.tvcode span');
+	await expect(threes).toHaveCount(2);
+	const shown = (await threes.allTextContents()).join('');
+	expect(shown).toMatch(/^\d{6}$/);
+	await expect(panel).toContainText(/GOOD FOR \d+ MIN · ONE TV, ONCE/);
+	// This row shows no address and a tailnet TV types the whole one (9B), so
+	// the panel's "last number" shortcut is not what this block says.
+	await expect(panel.locator('.pnote')).toHaveText(
+		'TYPE THE WHOLE ADDRESS ON THE TV, THEN THESE SIX'
+	);
+	// The page's data is the code: the computer's own route agrees with it.
+	expect((await tvCode(request)).code).toBe(shown);
+
+	// NEW CODE replaces it through the page's own data, not /api/pair/tv.
+	const next = page.locator('#s-devices .row.wifi').getByRole('button', { name: 'NEW CODE' });
+	await next.click();
+	await expect.poll(async () => (await threes.allTextContents()).join('')).not.toBe(shown);
+	const now = (await threes.allTextContents()).join('');
+	expect(now).toMatch(/^\d{6}$/);
+	expect((await tvCode(request)).code).toBe(now);
+});
+
+/**
+ * Token mode and `/pair/tv` (c245; doc/SIGN-IN.md): the six digits set the
+ * same cookie a phone's link does, and that cookie alone is a session on the
+ * tailnet host the instance's public origin names -- and nowhere else.
+ */
+test('a paired cookie signs in on the tailnet host, and not at localhost', async ({
+	playwright,
+	request,
+	browser
+}) => {
+	const fresh = (await (
+		await request.post('/api/pair/tv', { data: { action: 'code' } })
+	).json()) as TvCode;
+	expect(fresh.state).toBe('live');
+
+	// The TV's own page: public, and no session of its own.
+	const tv = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+	const tvPage = await tv.newPage();
+	await tvPage.goto('/pair/tv');
+	await typeCode(tvPage, fresh.code!);
+	await expect(tvPage.getByRole('heading', { name: 'The library is on this TV' })).toBeVisible();
+	// 9E names the DEVICES row by what both installs have, not by WI-FI: on the
+	// tailnet that row says OVER TAILSCALE (c245).
+	await expect(tvPage.getByText('TV · WITH SIGN OUT')).toBeVisible();
+	const paired = (await tv.cookies()).find((c) => c.name === 'tsundoku_paired');
+	expect(paired).toBeTruthy();
+	await tv.close();
+
+	// Only `tsundoku_paired`: no session cookie at all. The Host is the one
+	// playwright.config.ts gives the server as its public origin.
+	const tailnet = await playwright.request.newContext({
+		baseURL: `http://localhost:${PORT}`,
+		extraHTTPHeaders: { host: TAILNET },
+		storageState: { cookies: [paired!], origins: [] }
+	});
+	const home = await tailnet.get('/');
+	expect(home.status()).toBe(200);
+	expect(await home.text()).toContain('CONTINUE');
+	// A page inside the library too, not only its first byte: SETTINGS is a
+	// session's page and writes nothing of another spec's.
+	const settings = await tailnet.get('/settings');
+	expect(settings.status()).toBe(200);
+	expect(await settings.text()).toContain('SETTINGS');
+	await tailnet.dispose();
+
+	// The same cookie at localhost: the computer itself gains nothing from it.
+	const local = await playwright.request.newContext({
+		baseURL: `http://localhost:${PORT}`,
+		storageState: { cookies: [paired!], origins: [] },
+		maxRedirects: 0
+	});
+	const denied = await local.get('/');
+	expect(denied.status()).toBe(303);
+	expect(denied.headers()['location']).toMatch(/^\/login/);
+	await local.dispose();
 });
