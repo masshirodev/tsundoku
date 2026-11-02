@@ -302,10 +302,11 @@ began driving it (c94), and on 2026-10-28 tsundoku's own engine took over
   fake, `engine-seed` (which copied its extensions to the engine once) and
   `DOWNLOADS_BACKEND`.
 - **Nothing is deleted.** Its downloads stay at
-  `$LIBRARY_ROOT/devices/suwayomi/Mihon/`, with its last backups, and every
-  scan reads that folder as one more device, as before. Its data
-  (`/mnt/hdd2/tsundoku/suwayomi`: database, settings, extensions) stays where
-  it was.
+  `$LIBRARY_ROOT/devices/suwayomi/Mihon/`, with its last backups. They are not
+  read any more (c191, [`SYNC.md`](SYNC.md), "Other devices"): the series they
+  made keep their rows and files, and nothing marks them as the folder changes.
+  Its data (`/mnt/hdd2/tsundoku/suwayomi`: database, settings, extensions)
+  stays where it was.
 - **Its source settings didn't need moving.** Of 760 preferences on its
   installed sources, none differed from its default but MangaDex's blocked
   groups and uploaders, null against empty, which mean the same (measured

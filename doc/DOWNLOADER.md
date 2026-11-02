@@ -12,7 +12,8 @@ a manga's, and the novel worker takes those while this one takes the rest
 
 Suwayomi was integrated as **one more device**: it wrote Mihon's download
 layout and a Mihon backup into `$LIBRARY_ROOT/devices/suwayomi/Mihon/`, and the
-importer read that like the tablet's copy (it still does: the folder stays) ([`SYNC.md`](SYNC.md), "Other
+importer read that like the tablet's copy (until c191 stopped reading any
+`Mihon/` folder but tsundoku's own; the files stay, [`SYNC.md`](SYNC.md), "Other
 devices"). The downloader does exactly the same, as
 **`$LIBRARY_ROOT/devices/tsundoku/Mihon/`**:
 
@@ -35,7 +36,8 @@ Why, over writing entries straight into the database:
   would be a second kind of library folder. Writing the backup is what makes
   the files the right series' from the first scan.
 - **Retiring Suwayomi (c129) was then swapping one device for another.** What
-  Suwayomi downloaded stays a device's copy, read as before (done 2026-10-28).
+  Suwayomi downloaded stays where it is, under `devices/suwayomi/Mihon/`; it
+  is not read any more (c191), and tsundoku's own folder is.
 
 So tsundoku writes four things it has only ever read: a CBZ, its ComicInfo, a
 `.tachibk`, and chapter numbers.
@@ -199,9 +201,9 @@ waits a running scan out, and imports at startup what a restart left).
   check above.
 
 - **Suwayomi retired** (c129, 2026-10-28): its units stopped and disabled, its
-  code, container, timer and GraphQL fake removed, its folder kept as a
-  device. FOLLOW's step moved into the app (`followStep` in `engine/run.ts`,
-  every ten minutes). The screens' shared types live in
+  code, container, timer and GraphQL fake removed, its folder kept on disk and
+  not read after c191. FOLLOW's step moved into the app (`followStep` in
+  `engine/run.ts`, every ten minutes). The screens' shared types live in
   `server/download-types.ts`, the library queries in `library-sources.ts`, the
   live watcher in `downloads-watch.ts`. `tests/downloads-flow.e2e.ts` drives a
   fake engine now. [`DOWNLOADING.md`](DOWNLOADING.md), "Suwayomi, retired".

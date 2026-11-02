@@ -1,24 +1,56 @@
 # The Mihon importer
 
-Reads a copy of the device's `Mihon/` folder in place and writes the library
-from it: every series in Mihon's library with its chapters, read state and
-history, plus whatever was downloaded. Nothing on disk is moved or renamed.
+Reads a Mihon backup in place and writes the library from it: every series in
+Mihon's library with its chapters, read state and history, plus whatever was
+downloaded into tsundoku's own folder. Nothing on disk is moved or renamed.
 The formats themselves are in [`IMPORT-FORMATS.md`](IMPORT-FORMATS.md).
 
 ## Where it reads from
 
 `LIBRARY_ROOT` (default `TSUNDOKU_HOME/library`; on the workstation
-`/mnt/hdd2/tsundoku/tablet`, from `.env`) mirrors the tablet's
-shared storage, so the device folders sit in it under the names they have on
-the device, and a plain rsync refreshes them:
+`/mnt/hdd2/tsundoku/tablet`, from `.env`) holds the library's folders:
 
 ```
 $LIBRARY_ROOT/
   Mihon/
     autobackup/app.mihon_<date>_<time>.tachibk   ← the newest one by name is read
-    downloads/<Source> (<LANG>)/<Series>/<Chapter>.cbz
   H/.Hentoid/…                                   ← the Hentoid importer, next
+  devices/tsundoku/Mihon/                        ← tsundoku's own downloads
+    downloads/<Source> (<LANG>)/<Series>/<Chapter>.cbz
+    autobackup/tsundoku_<date>_<time>.tachibk
 ```
+
+**The library's `Mihon/` is a place to drop a backup** — a friend moving here
+from Mihon, or the owner's own — and a backup is the one thing read from it. It
+is also the root tsundoku's ADD and online reading put a series in, which is
+why the name stays (`<library>/Mihon`, [`BROWSING.md`](BROWSING.md), "A library
+with no Mihon folder"). Nothing else in it is scanned.
+
+**`devices/tsundoku/Mihon/` is the one Mihon folder read as a device**: what
+tsundoku's own downloader wrote, read back by the same rules a device's copy
+was ([`DOWNLOADER.md`](DOWNLOADER.md), "The one decision: tsundoku is a
+device").
+
+Until c191 (2026-10-30) a `Mihon/` folder anywhere was also read as a device:
+the tablet's or the phone's downloads mirrored under `devices/<name>/Mihon/`.
+The owner had those stripped — "we can strip Mihon off this app" — so **no
+other device's `Mihon/` folder is read any more**. Their `Hentoid/` and
+`Library/` copies still are ([`SYNC.md`](SYNC.md), "Other devices").
+
+The keys stay as they were: `mihon:<source>:<url>`, `mihon-dir:<source
+dir>/<series dir>` and `aniyomi:`. Renaming them would be a migration over
+every series and link for no visible change.
+
+## What a mirror left behind
+
+A series imported from a device's `Mihon/` keeps everything it had: its row,
+its files, its `available` flags, its reading, its shelves and its links. The
+removed source simply stops reading: nothing marks a file that left the mirror
+not downloaded any more, and no new chapter appears from it. A download into
+that folder is still legible (the files are where the entries say), and
+`mihon-dir:` series from it are adopted the same way if a backup later names
+them. Deleting one of those series still trashes its files, as any delete does
+([`DELETING.md`](DELETING.md)).
 
 ## Running it
 
@@ -26,7 +58,8 @@ $LIBRARY_ROOT/
   **`/scan`** typed in search (the way on a tablet or phone), starts it on the server in the background. The library's IMPORTING band follows the
   job (`scan_jobs`), re-reading it every two seconds. The FINISHED band and the
   NEW shelf follow.
-- One job runs every importer that finds its folder: Mihon, then Hentoid
+- One job runs every importer that finds its folder: the Mihon backup, then
+  tsundoku's downloads, then Hentoid
   ([`IMPORT-HENTOID.md`](IMPORT-HENTOID.md)).
 - **`yarn run import`** runs the same code without the app. Use it for the first
   large import, and `-- --root <folder>` to point it at another folder that
@@ -147,26 +180,17 @@ the owner changes it. On 2026-10-28 that was one series, from Hitomi.
 
 ## Local source
 
-Mihon's `local/` folder holds books put on the device by hand. On this tablet
-that's 2136 Hentoid exports (47 GB), each a `chapter_1` folder and a
-`cover.jpg`, named `artist - Title - [id]`. The `[id]` is the gallery's real id,
-the same one in Hentoid's own `contentV2.json`, not something Mihon invents: a
-local manga's URL is just its folder name.
-
-- They import into their own **hidden root, "Mihon local"**
-  (`src/lib/import/mihon-local-plan.ts`), as single doujin books. The title
-  and an `artist:` tag come from the folder name, `cover.jpg` is the cover,
-  and the book is tagged `source:mihon local`.
-- The backup's local manga (source `0`, 328 on this tablet, none in the library)
-  add their read state where the folder name matches. They are **never** also
-  made into not-downloaded series in the visible Mihon root.
-- 240 of them are also in Hentoid under the same id. Both copies are kept for
-  "Duplicate book detection" to settle.
+Mihon's `local/` folder held books put on the tablet by hand. **It is not
+imported any more** (c191): the folder is not read, no hidden "Mihon local"
+root is made, and a backup's local manga (source `0`) are skipped rather than
+made into not-downloaded series either. A library that imported them before
+keeps those rows where they are, under the "Mihon local" root; nothing updates
+them.
 
 ## The tablet's layout
 
-The copy in `/mnt/hdd2/tsundoku/tablet` differs from the phone samples, and the
-importer handles both:
+Mihon's own layout, which tsundoku's downloader copies and the importer still
+handles for its own folder:
 
 - **every `downloads*` folder:** Android left `downloads (1)` to `(7)` beside
   the real one;
@@ -175,13 +199,14 @@ importer handles both:
 - **the Hentoid root at `H/.Hentoid`, `.Hentoid` or `Hentoid`.**
 
 The first import of the real library (2026-09-23) read 166 GB in about 35
-seconds:
+seconds. It was before c191, so it read a mirrored `Mihon/` and its local
+folder too; neither is scanned now:
 
-| Source      | Series | Entries | Files attached | Skipped                           |
-| ----------- | ------ | ------- | -------------- | --------------------------------- |
-| Mihon       | 373    | 43,887  | 1,076          | 76 browsed only                   |
-| Mihon local | 2,135  | 2,135   | 2,135          | 1 folder of no images             |
-| Hentoid     | 4,341  | 4,868   | 4,868          | 3 galleries on disk twice, merged |
+| Source      | Series | Entries | Files attached | Skipped                              |
+| ----------- | ------ | ------- | -------------- | ------------------------------------ |
+| Mihon       | 373    | 43,887  | 1,076          | 76 browsed only                      |
+| Mihon local | 2,135  | 2,135   | 2,135          | 1 folder of no images (not read now) |
+| Hentoid     | 4,341  | 4,868   | 4,868          | 3 galleries on disk twice, merged    |
 
 Folder names with `#` (52 of them) are harmless: pages are addressed by entry
 id and number, never by path.
