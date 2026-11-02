@@ -65,6 +65,12 @@
 	let timer: ReturnType<typeof setTimeout> | null = null;
 	let start: { x: number; y: number } | null = null;
 	let longFired = false;
+	/**
+	 * The menu came from a pointer. Only then is a click on its heels the
+	 * release's own, to swallow: MENU and a held OK send no click at all, and
+	 * swallowing the next one would eat the press that follows.
+	 */
+	let fromPointer = false;
 
 	function cancel() {
 		if (timer) clearTimeout(timer);
@@ -73,6 +79,7 @@
 	}
 	function down(e: PointerEvent) {
 		longFired = false;
+		fromPointer = true;
 		if (e.button !== 0 || !onlongpress) return;
 		start = { x: e.clientX, y: e.clientY };
 		timer = setTimeout(() => {
@@ -97,7 +104,8 @@
 		e.preventDefault();
 		cancel();
 		if (!longFired) onlongpress();
-		longFired = true;
+		longFired = longFired || fromPointer;
+		fromPointer = false;
 	}
 </script>
 

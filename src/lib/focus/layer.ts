@@ -3,27 +3,57 @@
  * by geometry, and a scope per sheet (doc/FOCUS.md).
  *
  * Installed once from the root layout. A screen does not opt in; a screen that
- * already reads the arrows itself (the readers, the player) opts out by putting
- * `data-focus-off` on its root, and a sheet is a scope by putting
+ * already reads the arrows itself (the readers, the player's picture) opts out
+ * by putting `data-focus-off` on its root, and a sheet is a scope by putting
  * `use:focusScope` on its own element.
+ *
+ * The remote's own three verbs are here too (doc/TV.md, c235): OK held or MENU
+ * opens the focused thing's long-press options through the same `contextmenu`
+ * its pointer path listens for, and BACK closes what is open, then climbs, then
+ * leaves -- `window.tsundokuBack()` for the app, which a WebView hands BACK to
+ * rather than to the page.
  */
 
 import { directionOf, nextInDirection } from './geometry';
 import { focusablesIn, isFocusable, isVisible, keepsArrow, rectOf } from './dom';
+import { isBackKey, isOkKey, isOptionsKey, OkPress } from './keys';
 
 type Scope = {
 	node: HTMLElement;
 	/** What opened it, put back when it closes. */
 	restoreTo: HTMLElement | null;
+	/** A dialog inside a screen that reads its own keys (a reader's page menu). */
+	force: boolean;
 };
+
+declare global {
+	interface Window {
+		/** BACK in the page, for the Android app (doc/TV.md, c236's contract). */
+		tsundokuBack?: () => boolean;
+	}
+}
 
 const scopes: Scope[] = [];
 const SAVED = 'tsundoku.focus';
 
 /** The scope taking keys right now: the innermost open sheet, else the page. */
 function activeScope(): HTMLElement {
-	while (scopes.length > 0 && !scopes[scopes.length - 1].node.isConnected) scopes.pop();
+	pruneScopes();
 	return scopes[scopes.length - 1]?.node ?? document.body;
+}
+
+function pruneScopes(): void {
+	while (scopes.length > 0 && !scopes[scopes.length - 1].node.isConnected) scopes.pop();
+}
+
+/**
+ * A dialog that takes the keys even inside a screen that opted out: a reader's
+ * page menu sits over a page whose arrows turn pages, and the menu is the one
+ * thing the pad must reach while it is open.
+ */
+function forcedScope(): boolean {
+	pruneScopes();
+	return scopes[scopes.length - 1]?.force ?? false;
 }
 
 function isManagedScope(node: HTMLElement): boolean {
@@ -90,6 +120,118 @@ function move(el: HTMLElement): void {
 	take(el);
 }
 
+// ---- the remote's options: OK held, and MENU ---------------------------------
+
+/**
+ * A screen that is open inside the page but is not a focus scope (a reader's
+ * chrome, the player's bar and its settings panel) says how BACK gets out of
+ * it, in order. The step returns true when it took the key.
+ */
+export type BackStep = () => boolean;
+
+const backSteps: BackStep[] = [];
+
+export function registerBack(step: BackStep): () => void {
+	backSteps.push(step);
+	return () => {
+		const at = backSteps.lastIndexOf(step);
+		if (at !== -1) backSteps.splice(at, 1);
+	};
+}
+
+/** The long-press sheet's pointer path, fired from a key: one event, one path. */
+function openOptions(el: HTMLElement): boolean {
+	const event = new MouseEvent('contextmenu', {
+		bubbles: true,
+		cancelable: true,
+		view: window
+	});
+	// A handler that opened a sheet calls preventDefault, so this says whether
+	// the thing had options at all.
+	return !el.dispatchEvent(event);
+}
+
+let okTarget: HTMLElement | null = null;
+let replaying = false;
+
+const okPress = new OkPress(
+	() => {
+		// A thing with options opens its sheet; a plain button has none, so a
+		// hold that no handler took is still the press it was.
+		if (okTarget && !openOptions(okTarget)) okTarget.click();
+	},
+	() => {
+		okTarget?.click();
+	}
+);
+
+/** A text entry owns Enter (a search box, the go-to field). */
+function inTextEntry(el: Element | null): boolean {
+	return !!el?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])');
+}
+
+/**
+ * Let the open sheet close itself: every panel in the app closes on Escape,
+ * and some of them are not focus scopes (the reader's, the player's). Dispatching
+ * it at the scope keeps one path, and the guard keeps it from coming back here.
+ */
+function closeScope(node: HTMLElement): void {
+	replaying = true;
+	try {
+		node.dispatchEvent(
+			new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })
+		);
+	} finally {
+		replaying = false;
+	}
+}
+
+/**
+ * BACK climbs before it leaves (TV Calls, "BACK climbs before it leaves"): to
+ * the shelf's tab from a grid (its container names the target), else to the
+ * screen's own start, else nowhere and the screen is left.
+ */
+function climb(): boolean {
+	const active = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+	if (!active || active === document.body || !isFocusable(active)) return false;
+
+	const group = active.closest<HTMLElement>('[data-back-climb]');
+	const selector = group?.dataset.backClimb;
+	if (selector) {
+		const to = [...document.querySelectorAll<HTMLElement>(selector)].find(isFocusable);
+		if (to && to !== active) {
+			take(to);
+			return true;
+		}
+	}
+
+	const declared = [...document.querySelectorAll<HTMLElement>('[data-focus-start]')].filter(
+		isFocusable
+	);
+	const start = declared.find(inViewport) ?? declared[0] ?? startOf(document.body);
+	if (start && start !== active) {
+		take(start);
+		return true;
+	}
+	return false;
+}
+
+/**
+ * BACK: the open sheet or panel first, then the climb, then nothing -- which
+ * is the app's to take (`window.tsundokuBack`). Exported for that contract.
+ */
+export function back(): boolean {
+	for (let i = backSteps.length - 1; i >= 0; i--) {
+		if (backSteps[i]()) return true;
+	}
+	const scope = activeScope();
+	if (isManagedScope(scope)) {
+		closeScope(scope);
+		return true;
+	}
+	return climb();
+}
+
 function trapTab(e: KeyboardEvent, scope: HTMLElement): void {
 	const stops = focusablesIn(scope);
 	if (stops.length === 0) return;
@@ -103,27 +245,37 @@ function trapTab(e: KeyboardEvent, scope: HTMLElement): void {
 }
 
 function handleKeydown(e: KeyboardEvent): void {
-	if (e.defaultPrevented || e.isComposing) return;
+	if (e.defaultPrevented || e.isComposing || replaying) return;
 	if (e.altKey || e.ctrlKey || e.metaKey) return;
 
 	const target = e.target instanceof Element ? e.target : null;
-	// A screen that reads its own keys (the readers, the player while its
-	// controls are hidden) keeps them, sheets included.
-	if (target?.closest('[data-focus-off]')) return;
 
-	const scope = activeScope();
-
-	if (e.key === 'Tab') {
-		if (isManagedScope(scope)) trapTab(e, scope);
+	// BACK is the whole app's, even inside a screen that reads the other keys
+	// itself: closing its panel is how a reader or the player gets out. A text
+	// entry keeps Escape (a search field, the go-to row).
+	if (isBackKey(e.key) && !inTextEntry(document.activeElement)) {
+		if (back()) {
+			e.preventDefault();
+			e.stopPropagation();
+		} else if (e.key !== 'Escape') {
+			// The browser's own back button: it means the screen is left.
+			e.preventDefault();
+			window.history.back();
+		}
 		return;
 	}
 
-	const direction = directionOf(e.key);
+	// A screen that reads its own keys (the readers, the player while its
+	// controls are hidden) keeps them, sheets included -- unless the sheet is a
+	// dialog that forced the pad in (a reader's page menu).
+	if (target?.closest('[data-focus-off]') && !forcedScope()) return;
 
-	if (!direction) {
-		// With a sheet open, the screen under the scrim takes no keys: a press
-		// that would act under it moves focus into the sheet instead.
-		if (isManagedScope(scope) && (e.key === 'Enter' || e.key === ' ')) {
+	const scope = activeScope();
+
+	if (isOkKey(e.key)) {
+		// With a sheet open, the screen under the scrim takes no keys: OK on it
+		// moves focus into the sheet instead.
+		if (isManagedScope(scope)) {
 			const current = document.activeElement;
 			if (!(current instanceof Node) || !scope.contains(current)) {
 				const first = startOf(scope);
@@ -132,10 +284,52 @@ function handleKeydown(e: KeyboardEvent): void {
 					e.stopPropagation();
 					move(first);
 				}
+				return;
 			}
 		}
+		const el = document.activeElement;
+		if (!(el instanceof HTMLElement) || el === document.body) return;
+		if (inTextEntry(el)) return;
+		e.preventDefault();
+		e.stopPropagation();
+		if (e.repeat) return;
+		okTarget = el;
+		okPress.down(false);
 		return;
 	}
+
+	if (isOptionsKey(e.key)) {
+		const el = document.activeElement;
+		if (!(el instanceof HTMLElement) || el === document.body) return;
+		e.preventDefault();
+		e.stopPropagation();
+		openOptions(el);
+		return;
+	}
+
+	if (e.key === 'Tab') {
+		if (isManagedScope(scope)) trapTab(e, scope);
+		return;
+	}
+
+	// Space under a scrim is the same press as OK: it moves into the sheet
+	// rather than acting on the screen behind it.
+	if (e.key === ' ' && isManagedScope(scope)) {
+		const current = document.activeElement;
+		if (!(current instanceof Node) || !scope.contains(current)) {
+			const first = startOf(scope);
+			if (first) {
+				e.preventDefault();
+				e.stopPropagation();
+				move(first);
+			}
+			return;
+		}
+	}
+
+	const direction = directionOf(e.key);
+
+	if (!direction) return;
 
 	if (target && keepsArrow(target, direction)) return;
 
@@ -200,11 +394,42 @@ export function installFocusLayer(): () => void {
 		noteKey();
 		handleKeydown(e);
 	};
+
+	// The release is what clicks: OK held must not click on its way up (keys.ts).
+	const keyup = (e: KeyboardEvent) => {
+		if (!isOkKey(e.key) || !okTarget) return;
+		e.preventDefault();
+		e.stopPropagation();
+		const target = okTarget;
+		if (target !== document.activeElement && target.isConnected) {
+			// Focus moved while it was held: the hold opened something else's
+			// sheet, so there is nothing left to press.
+			okTarget = null;
+			okPress.cancel();
+			return;
+		}
+		// `up` clicks through okTarget, so it is cleared after, not before.
+		okPress.up();
+		okTarget = null;
+	};
+
+	const blur = () => {
+		okTarget = null;
+		okPress.cancel();
+	};
+
 	window.addEventListener('keydown', keydown, true);
+	window.addEventListener('keyup', keyup, true);
 	window.addEventListener('pointerdown', notePointer, true);
+	window.addEventListener('blur', blur);
+	// A WebView hands BACK to the app, not the page (doc/TV.md, c236's contract).
+	window.tsundokuBack = back;
 	return () => {
 		window.removeEventListener('keydown', keydown, true);
+		window.removeEventListener('keyup', keyup, true);
 		window.removeEventListener('pointerdown', notePointer, true);
+		window.removeEventListener('blur', blur);
+		delete window.tsundokuBack;
 	};
 }
 
@@ -212,10 +437,14 @@ export function installFocusLayer(): () => void {
  * A sheet's scope: `use:focusScope`. It traps Tab and the arrows, starts on
  * its first row, and puts focus back where it was when it closes. A sheet
  * inside an opted-out screen (a reader's READING panel) does nothing: that
- * screen owns its keys.
+ * screen owns its keys, unless the sheet says `force` -- a dialog the pad has
+ * to reach even over a page that reads its own arrows.
  */
-export function focusScope(node: HTMLElement): { destroy(): void } {
-	if (node.closest('[data-focus-off]')) return { destroy: () => undefined };
+export function focusScope(
+	node: HTMLElement,
+	options: { force?: boolean } = {}
+): { destroy(): void } {
+	if (!options.force && node.closest('[data-focus-off]')) return { destroy: () => undefined };
 
 	const opener =
 		document.activeElement instanceof HTMLElement &&
@@ -223,7 +452,7 @@ export function focusScope(node: HTMLElement): { destroy(): void } {
 		!node.contains(document.activeElement)
 			? document.activeElement
 			: null;
-	scopes.push({ node, restoreTo: opener });
+	scopes.push({ node, restoreTo: opener, force: !!options.force });
 
 	// The rows exist by the time the action runs, but the browser has not laid
 	// them out in the same task: focus on the next frame so a rect is real.

@@ -6,6 +6,7 @@
 	import Band from '$lib/components/chrome/Band.svelte';
 	import Cover from '$lib/components/content/Cover.svelte';
 	import { longpress } from '$lib/actions/longpress';
+	import { registerBack } from '$lib/focus';
 	import { coverSrc, seriesHref } from '$lib/library/links';
 	import type { HistoryRow } from '$lib/library/history';
 
@@ -43,6 +44,16 @@
 		const where = r.kind === 'doujin' ? `BOOK ${r.last.rank}` : r.last.label.toUpperCase();
 		return `${where} STAYS`;
 	}
+
+	// A long press puts a row's REMOVE up in the row itself: BACK takes it back
+	// down before it leaves the screen (c235, doc/TV.md).
+	$effect(() =>
+		registerBack(() => {
+			if (!pressed) return false;
+			pressed = null;
+			return true;
+		})
+	);
 
 	const olderHref = $derived(
 		data.older

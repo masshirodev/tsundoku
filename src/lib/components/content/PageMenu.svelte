@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { MenuRow } from '$lib/library/cover-menu';
+	import { focusScope } from '$lib/focus';
 
 	/**
 	 * The page menu (Page Menu, card c26; doc/COVERS.md, "Chosen"): what a
@@ -72,6 +73,7 @@
 	aria-label="Page {page + 1}"
 	role="dialog"
 	aria-modal="true"
+	use:focusScope={{ force: true }}
 >
 	<div class="head">
 		<div class="hl">PAGE · P. {page + 1} OF {pages}</div>
@@ -96,7 +98,7 @@
 			<span>○ OFFLINE</span><span class="dim">COVERS NEED THE WORKSTATION</span>
 		</div>
 	{/if}
-	{#each rows as row (row.target)}
+	{#each rows as row, i (row.target)}
 		<div class="row">
 			<div class="label">{row.label}</div>
 			<button
@@ -104,6 +106,7 @@
 				class="act"
 				class:this={row.isThis}
 				disabled={offline}
+				data-focus-start={i === 0 ? '' : undefined}
 				onclick={() => onchoose(row)}
 			>
 				<span class="line"
@@ -422,5 +425,40 @@
 	}
 	.sheet.grid .x {
 		padding: 0 18px;
+	}
+
+	/*
+	 * The TV (c235; TV-Reader 7F): the menu is the 420px panel from the right,
+	 * as every sheet is there, and the page it means is framed in ink rather
+	 * than in the accent -- the accent means "yours", the frame is where the
+	 * remote is.
+	 */
+	@media (pointer: none) and (min-width: 900px) {
+		.sheet {
+			left: auto;
+			right: 0;
+			top: 0;
+			bottom: 0;
+			width: var(--tv-panel-w);
+			max-height: none;
+			border-top: 0;
+			border-left: var(--rule-strong);
+			padding-bottom: var(--safe-y);
+		}
+		.row,
+		.sheet.grid .row {
+			min-height: 72px;
+		}
+		.hole {
+			box-shadow:
+				inset 0 0 0 4px var(--text-1),
+				0 0 0 4000px rgba(0, 0, 0, 0.6);
+		}
+		.pn {
+			background: var(--surface-page);
+			color: var(--text-1);
+			border-right: var(--hairline);
+			border-bottom: var(--hairline);
+		}
 	}
 </style>
