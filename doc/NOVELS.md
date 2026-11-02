@@ -74,7 +74,9 @@ never runs in the app (`src/lib/server/novels/`):
   own answer ("answered 403"), as does one whose check it couldn't pass.
 - **Calls over IPC with a timeout** (a minute; two for a list that may wait on
   a first solve); a plugin stuck in a loop gets the host restarted, and its
-  failure is the caller's error, not a crash.
+  failure is the caller's error, not a crash. A host replaced while the one it
+  replaces is still exiting answers its own calls: the dying process's exit
+  can't fail its successor's.
 
 **What it doesn't stop.** Node 24 has no `--allow-net`, and the plugins need
 the network. Code that escapes the vm context (a host object's constructor

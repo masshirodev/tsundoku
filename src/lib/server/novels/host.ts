@@ -97,7 +97,10 @@ export class NovelHost {
 			}
 		);
 		child.on('exit', () => {
-			if (this.#child === child) this.#child = null;
+			// A host that was replaced while this one was dying has no calls of
+			// its own left: a late exit must not fail its successor's.
+			if (this.#child !== child) return;
+			this.#child = null;
 			for (const [id, p] of this.#pending) {
 				clearTimeout(p.timer);
 				p.reject(new NovelHostError('The plugin host stopped'));
@@ -133,10 +136,19 @@ export class NovelHost {
 		let clearance: Clearance | null = null;
 		const asked = this.#opts.solve?.(url);
 		if (asked) {
-			clearance = await Promise.race([
-				asked.catch(() => null),
-				new Promise<null>((ok) => setTimeout(() => ok(null), 65_000))
-			]);
+			// The guard is a minute long, and a solve that answers must not leave
+			// it running: a timer per challenge would hold the app's event loop.
+			let timer: ReturnType<typeof setTimeout> | undefined;
+			try {
+				clearance = await Promise.race([
+					asked.catch(() => null),
+					new Promise<null>((ok) => {
+						timer = setTimeout(() => ok(null), 65_000);
+					})
+				]);
+			} finally {
+				clearTimeout(timer);
+			}
 		}
 		// The host that asked may have been restarted while the solve ran: its
 		// successor starts its own ids at 1, and a stale answer must not land.
@@ -161,7 +173,15 @@ export class NovelHost {
 	}
 
 	stop(): void {
-		this.#child?.kill();
+		const child = this.#child;
 		this.#child = null;
+		child?.kill();
+		// What it was serving can't be answered now: say so rather than let a
+		// call wait out its timeout.
+		for (const [id, p] of this.#pending) {
+			clearTimeout(p.timer);
+			p.reject(new NovelHostError('The plugin host stopped'));
+			this.#pending.delete(id);
+		}
 	}
 }

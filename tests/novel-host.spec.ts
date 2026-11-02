@@ -182,8 +182,10 @@ describe('a plugin whose site failed it', () => {
 describe('a site’s browser check', () => {
 	// The host can't reach a solver (it refuses local addresses on purpose), so
 	// it asks the app, which is the only thing that may (doc/NOVELS.md, c152).
-	// The order matters: the jar outlives one test, as it outlives one call.
+	// The jar lives in the host process, so each test starts a fresh one: a
+	// test that needs a clearance makes one with its own first challenged call.
 	beforeEach(() => {
+		host.stop();
 		solved = [];
 		seen = [];
 		solveAs = async () => ({ cookies: 'cf_clearance=ok', userAgent: 'StubBrowser/1.0' });
@@ -209,24 +211,35 @@ describe('a site’s browser check', () => {
 	});
 
 	it('keeps the jar per host: the next call asks for nothing', async () => {
+		// The jar is this test's own: the first call is challenged and solved,
+		// the second must then ask for nothing.
 		await host.call(cleared, 'popularNovels', [1, {}]);
+		expect(solved).toHaveLength(1);
+		solved = [];
 		await host.call(cleared, 'popularNovels', [1, {}]);
 		expect(solved).toHaveLength(0);
 	});
 
 	it('sends the cookies to that host and to no other', async () => {
-		// The checked site redirects to localhost, another host: the hop must
-		// arrive without the clearance, which belongs to the first.
+		// Make this host's jar with a first challenged-and-solved call; a
+		// redirect to localhost — another host — must then arrive without it.
+		expect(await host.call(cleared, 'popularNovels', [1, {}])).toHaveLength(1);
+		expect(solved).toHaveLength(1);
 		const n = await host.call<{ name: string }>(checked, 'parseNovel', ['/away']);
 		expect(n.name).toBe('cookie=none');
+		// And the jar was there: the request it redirected came with it.
+		expect(seen[seen.length - 1].cookie).toBe('cf_clearance=ok');
+		expect(solved).toHaveLength(1);
 	});
 
 	it('retries once, and reports a check it still can’t pass', async () => {
+		// No jar exists before this call: the first request is challenged, the
+		// solve sets one, and the one retry carries it.
 		await expect(host.call(checked, 'parseChapter', ['/always'])).rejects.toThrow(
 			/answered 403 \(its check could not be passed\)/
 		);
 		expect(solved).toHaveLength(1);
-		expect(seen.filter((s) => s.cookie === 'cf_clearance=ok')).toHaveLength(2);
+		expect(seen.map((s) => s.cookie)).toEqual(['', 'cf_clearance=ok']);
 	});
 
 	it('names a check that is only in the body, and a plain 403 stays the site’s own answer', async () => {
