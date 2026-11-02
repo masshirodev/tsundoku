@@ -238,7 +238,8 @@ export const actions: Actions = {
 	 * FOLD AS LANGUAGES (doc/EDITIONS.md): two or three single books, one per
 	 * language, go to the duplicates review as a pair to fold -- the review is
 	 * where editions are folded, whoever found them.
-	 */ fold: async ({ request }) => {
+	 */
+	fold: async ({ request }) => {
 		const target = ids(await request.formData());
 		if (target.length < 2 || target.length > 3)
 			return fail(400, { foldMessage: 'FOLD TWO OR THREE BOOKS' });
