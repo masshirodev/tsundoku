@@ -1,0 +1,3 @@
+MOVE: when a source stops working for a series, move the series to another source and keep everything that's yours: what you've read or watched, your rating, shelves and downloaded files. Find it under SOURCE on the series, or ANOTHER SOURCE when an episode won't play. MOVE BACK undoes it for 30 days.
+The arrow keys now move between everything on every screen, and a TV gets a layout made for the couch, with a remote's play, pause and skip keys in the player.
+At the end of a chapter, the mouse no longer brings the reader's bars up over ← SERIES.
