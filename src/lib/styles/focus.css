@@ -1,0 +1,21 @@
+/*
+ * The focus mark (card c234; doc/FOCUS.md; the design's TV-Focus board, "The
+ * mark"). One treatment everywhere: a 4px frame of text ink held 3px off the
+ * thing by the page's own colour.
+ *
+ * Outside a thing that stands alone -- a cover, a button, a chip, a field.
+ * Inside a cell of a ruled block -- a list row, a tab, a bar cell -- so the
+ * frame never crosses the hairline that draws the cell. A cell says which with
+ * `data-focus-mark="in"`.
+ *
+ * It is only drawn for `:focus-visible`, so a mouse or a finger never sees it,
+ * and a desktop keyboard gets exactly what a TV does.
+ */
+:focus-visible {
+	outline: none;
+	box-shadow: var(--focus-ring);
+}
+
+[data-focus-mark='in']:focus-visible {
+	box-shadow: var(--focus-ring-in);
+}

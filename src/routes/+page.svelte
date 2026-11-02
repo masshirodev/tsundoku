@@ -656,15 +656,21 @@
 	{#if selecting}
 		<TopBar inverse sticky label="Selection">
 			{#snippet left()}
-				<button type="button" class="cell-btn x" aria-label="Stop selecting" onclick={stopSelecting}
-					>✕</button
+				<button
+					type="button"
+					class="cell-btn x"
+					aria-label="Stop selecting"
+					data-focus-mark="in"
+					onclick={stopSelecting}>✕</button
 				>
 			{/snippet}
 			{#snippet middle()}
 				<div class="selected-count" aria-live="polite">{selected.size} SELECTED</div>
 			{/snippet}
 			{#snippet right()}
-				<button type="button" class="cell-btn" onclick={() => void selectAll()}>SELECT ALL</button>
+				<button type="button" class="cell-btn" data-focus-mark="in" onclick={() => void selectAll()}
+					>SELECT ALL</button
+				>
 			{/snippet}
 		</TopBar>
 	{:else if data.person}
@@ -688,7 +694,7 @@
 				<a class="brand" href={resolve('/')} aria-label="Library"><Wordmark /></a>
 			{/snippet}
 			{#snippet middle()}
-				<a class="search-hint" href={resolve('/search')} aria-label="Search"
+				<a class="search-hint" href={resolve('/search')} aria-label="Search" data-focus-mark="in"
 					><span class="short">/<span class="word"> search</span></span><span class="long"
 						>/ search title, tag, artist</span
 					></a
@@ -734,6 +740,7 @@
 				<button
 					type="button"
 					class="cell-btn"
+					data-focus-mark="in"
 					onclick={() => (selecting = true)}
 					disabled={data.empty}>SELECT</button
 				>
@@ -743,6 +750,8 @@
 					class="cell-btn more-cell"
 					class:on={moreOpen}
 					aria-expanded={moreOpen}
+					data-focus-mark="in"
+					data-focus-id="library-more"
 					onclick={() => (moreOpen = true)}>MORE</button
 				>
 			{/snippet}
@@ -912,7 +921,7 @@
 					{/snippet}
 				</SectionLabel>
 				<div class="cont">
-					{#each contShown as item (item.id)}
+					{#each contShown as item, i (item.id)}
 						{@const cached = cachedCount(item.id) > 0}
 						<ContinueRow
 							title={item.title}
@@ -921,6 +930,8 @@
 							src={coverSrc(item.id, item.cover)}
 							hue={item.hue}
 							unavailable={isOffline && !cached}
+							focusId={`continue-${item.id}`}
+							startFocus={i === 0}
 							onresume={item.resumeId !== null
 								? // eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves
 									() => goto(readHref(item.resumeId!))
@@ -988,7 +999,7 @@
 			<GridOutline />
 		{:else if data.shelf !== 'people'}
 			<div class="grid">
-				{#each shown as s (s.id)}
+				{#each shown as s, i (s.id)}
 					{@const cached = cachedCount(s.id)}
 					<CoverTile
 						src={coverSrc(s.id, s.cover)}
@@ -1004,6 +1015,8 @@
 						dimmed={isOffline && cached === 0}
 						selectable={selecting}
 						selected={selected.has(s.id)}
+						focusId={`series-${s.id}`}
+						startFocus={!showContinue && i === 0}
 						onpress={() => press(s.id)}
 						onlongpress={() => (selecting ? toggle(s.id) : (sheetId = s.id))}
 						onfavourite={isOffline ? undefined : (on) => favourite(s.id, on)}

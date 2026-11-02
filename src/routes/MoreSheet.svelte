@@ -50,28 +50,34 @@
 <Sheet {open} {onclose} label={m.more_label()}>
 	<div class="head">
 		<div class="title">{m.more_title()}</div>
-		<button type="button" class="x" aria-label={m.chrome_close()} onclick={onclose}>✕</button>
+		<button
+			type="button"
+			class="x"
+			aria-label={m.chrome_close()}
+			data-focus-mark="in"
+			onclick={onclose}>✕</button
+		>
 	</div>
 	{#if start}
-		<a class="row start" href={resolve('/start')}
+		<a class="row start" data-focus-mark="in" href={resolve('/start')}
 			><span>{m.name_get_started()}</span><span class="n">{start.done} / {start.total} →</span></a
 		>
 	{/if}
-	<a class="row" href={resolve('/history')}
+	<a class="row" data-focus-mark="in" href={resolve('/history')}
 		><span>{m.name_history()} →</span><span class="n"></span></a
 	>
-	<a class="row" href={resolve('/downloads')}
+	<a class="row" data-focus-mark="in" href={resolve('/downloads')}
 		><span>{m.name_downloads()} →</span><span class="n"
 			>{queued ? m.more_queued({ n: num(queued) }) : ''}</span
 		></a
 	>
-	<a class="row" href={resolve('/settings')}
+	<a class="row" data-focus-mark="in" href={resolve('/settings')}
 		><span>{m.name_settings()} →</span><span class="n"
 			>{changed ? m.more_changed({ count: changed, n: num(changed) }) : ''}</span
 		></a
 	>
 	<!-- HELP after SETTINGS, counting its topics (doc/HELP.md; the HELP handoff, 1D). -->
-	<a class="row" href={resolve('/help')}
+	<a class="row" data-focus-mark="in" href={resolve('/help')}
 		><span>{m.name_help()} →</span><span class="n"
 			>{m.more_topics({ count: topics().length, n: num(topics().length) })}</span
 		></a

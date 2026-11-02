@@ -457,6 +457,8 @@
 		bind:this={cta}
 		href={resumeHref}
 		aria-disabled={!resumeHref}
+		data-focus-id="series-continue"
+		data-focus-start="true"
 	>
 		<span>▶ {outline ? 'CONTINUE' : ctaLabel}</span>
 		{#if outline}

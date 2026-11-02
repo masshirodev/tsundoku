@@ -281,6 +281,8 @@
 							class="entry-btn"
 							aria-disabled={!opens && !rowQueues}
 							aria-pressed={selecting ? on : undefined}
+							data-focus-mark="in"
+							data-focus-id={`entry-${e.id}`}
 							use:longpress={() => !selecting && onlong?.(e)}
 							onclick={() => opens && onrow(e)}
 						>
@@ -357,6 +359,7 @@
 					bind:this={track}
 					role="slider"
 					tabindex="0"
+					data-focus-off
 					aria-label="Scrub through {series.entries.length} entries"
 					aria-valuemin={first}
 					aria-valuemax={last}

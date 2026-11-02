@@ -30,7 +30,9 @@
 		selectable = false,
 		selected = false,
 		onpress,
-		onlongpress
+		onlongpress,
+		focusId,
+		startFocus = false
 	}: {
 		title: string;
 		hue: number;
@@ -52,6 +54,10 @@
 		selected?: boolean;
 		onpress?: () => void;
 		onlongpress?: () => void;
+		/** Where focus comes back to after a trip away (doc/FOCUS.md). */
+		focusId?: string;
+		/** The screen's first arrow lands here (doc/FOCUS.md). */
+		startFocus?: boolean;
 	} = $props();
 
 	const HOLD_MS = 450;
@@ -99,6 +105,8 @@
 	type="button"
 	class="tile"
 	aria-pressed={selectable ? selected : undefined}
+	data-focus-id={focusId}
+	data-focus-start={startFocus ? '' : undefined}
 	onpointerdown={down}
 	onpointermove={move}
 	onpointerup={() => timer && cancel()}
@@ -147,6 +155,13 @@
 		-webkit-user-select: none;
 		-webkit-touch-callout: none;
 		touch-action: manipulation;
+	}
+	/* The mark is around the cover, as on the library's tiles (doc/FOCUS.md). */
+	.tile:focus-visible {
+		box-shadow: none;
+	}
+	.tile:focus-visible :global(.cover) {
+		box-shadow: var(--focus-ring);
 	}
 	.num {
 		position: absolute;
