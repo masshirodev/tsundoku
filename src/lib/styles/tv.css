@@ -1,0 +1,32 @@
+/*
+ * The TV's own rules (c238; doc/TV.md). The device variables are in
+ * layout.css, last; this file holds the handoff's fixed sizes that more than
+ * one screen reads, and the one rule no screen can own itself.
+ *
+ * Measurements come from TV Calls.dc.html's `sizes` and tv.css: a 960x540
+ * frame, 48px safe sides, 28px safe top and bottom, a 56px header and tab
+ * row, 420px panels, a 520px strip in the reader, and a 64px focus line.
+ */
+@media (pointer: none) and (min-width: 900px) {
+	:root {
+		--tv-panel-w: 420px;
+		--tv-focus-line-h: 64px;
+		--tv-tab-h: 56px;
+		--tv-cover-cell: 144px;
+		--tv-strip-w: 520px;
+		/*
+		 * Overscan: the frame is drawn 20px in from the sides and 14 from the
+		 * top and bottom, 6px wide, so a TV that crops its edges cannot crop it
+		 * away (TV Calls.dc.html, "Reveal, and the overscan").
+		 */
+		--reveal-frame: inset 0 0 0 6px var(--reveal);
+	}
+	/*
+	 * The frame's element belongs to the root layout, so the inset cannot be
+	 * moved from a screen. !important is the only thing that beats a Svelte
+	 * scoped rule's `inset: 0` from here; it is TV-only and says one thing.
+	 */
+	.reveal-frame {
+		inset: 14px 20px !important;
+	}
+}

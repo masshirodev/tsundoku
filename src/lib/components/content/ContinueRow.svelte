@@ -154,4 +154,85 @@
 	.go:disabled {
 		cursor: default;
 	}
+	/*
+	 * The TV's CONTINUE card (c238; TV-Library 3A; TV Calls, "CONTINUE"): one
+	 * 288x120 button, three across, with a 72px cover, the title on two lines,
+	 * where you are and the progress bar. The whole card is the button, so the
+	 * ▶ cell becomes an invisible overlay and the mark is drawn inside the
+	 * card, as a cell of the ruled grid.
+	 */
+	@media (pointer: none) and (min-width: 900px) {
+		.row {
+			position: relative;
+			display: grid;
+			grid-template-columns: 72px minmax(0, 1fr);
+			grid-template-rows: auto auto;
+			column-gap: 14px;
+			row-gap: 6px;
+			align-content: center;
+			align-items: stretch;
+			min-height: 120px;
+			padding: 8px 14px 8px 8px;
+			border-bottom: 0;
+			background: var(--surface-page);
+		}
+		.cover {
+			grid-row: 1 / span 2;
+			width: 72px;
+			height: 104px;
+			align-self: center;
+		}
+		.text {
+			grid-column: 2;
+			grid-row: 1;
+			justify-content: center;
+		}
+		.title {
+			font: 500 17px/1.25 var(--font-sans);
+			white-space: normal;
+			display: -webkit-box;
+			-webkit-line-clamp: 2;
+			line-clamp: 2;
+			-webkit-box-orient: vertical;
+			overflow: hidden;
+		}
+		.meta {
+			font: var(--type-meta);
+		}
+		.progress {
+			grid-column: 2;
+			grid-row: 2;
+			width: auto;
+			align-self: end;
+			align-items: stretch;
+			gap: 0;
+		}
+		.pct {
+			display: none;
+		}
+		/* 4px, the TV's own bar (tv.css --progress-h): the component's inline
+		   height is 3px, so it takes !important to redraw it at TV size. */
+		.progress :global(.track),
+		.progress :global(.track > div) {
+			height: 4px !important;
+			width: 100%;
+		}
+		.inline-progress {
+			display: none;
+		}
+		.go {
+			position: absolute;
+			inset: 0;
+			width: auto;
+			height: auto;
+			border: 0;
+			padding: 0;
+			background: transparent;
+			color: transparent;
+			font-size: 0;
+		}
+		.go:focus-visible {
+			box-shadow: var(--focus-ring-in);
+		}
+	}
 </style>

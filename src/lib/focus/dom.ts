@@ -63,6 +63,9 @@ export function rectOf(el: Element): Rect {
  * sort control. A range input is a slider and keeps all four.
  */
 export function keepsArrow(target: Element, direction: Direction): boolean {
+	// A ruled row that changes its value in place says so (the TV's rating:
+	// ← → one half-bar, ↑ ↓ leaves the row; c238).
+	if (target.closest('[data-focus-adjust]')) return direction === 'left' || direction === 'right';
 	const entry = target.closest<HTMLElement>(
 		'input, textarea, select, [contenteditable]:not([contenteditable="false"])'
 	);

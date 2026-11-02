@@ -5,12 +5,14 @@ import { expect, test } from './fixtures';
  * above the list in portrait and a 440px panel beside it in landscape; rows
  * are 60px (52px on a phone); the rail is 56px (44px on a phone).
  */
-type Frame = { side: boolean; row: number; rail: number };
+type Frame = { side: boolean; row: number; rail: number; panel?: number; gap?: number };
 const FRAMES: Record<string, Frame> = {
 	'tablet-portrait': { side: false, row: 60, rail: 56 },
 	'tablet-landscape': { side: true, row: 60, rail: 56 },
 	phone: { side: false, row: 52, rail: 44 },
-	desktop: { side: true, row: 60, rail: 56 }
+	desktop: { side: true, row: 60, rail: 56 },
+	// TV-Series: a 352px column, 32px away from a list whose rows are 56 tall.
+	tv: { side: true, row: 56, rail: 56, panel: 352, gap: 32 }
 };
 
 test('the series frame matches the design for this device', async ({ page }, info) => {
@@ -25,8 +27,8 @@ test('the series frame matches the design for this device', async ({ page }, inf
 	const panel = (await page.locator('.panel-col').boundingBox())!;
 	const list = (await page.locator('.list-col').boundingBox())!;
 	if (frame.side) {
-		expect(panel.width).toBe(440);
-		expect(Math.round(list.x)).toBe(Math.round(panel.x + panel.width));
+		expect(panel.width).toBe(frame.panel ?? 440);
+		expect(Math.round(list.x)).toBe(Math.round(panel.x + panel.width + (frame.gap ?? 0)));
 		// Each column scrolls on its own.
 		expect(await page.locator('.panel-col').evaluate((n) => getComputedStyle(n).overflowY)).toBe(
 			'auto'

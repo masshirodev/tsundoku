@@ -2,6 +2,8 @@
 	import SourceRow from '../browse/SourceRow.svelte';
 	import { ago } from '$lib/library/tracking';
 	import { goto, invalidateAll } from '$app/navigation';
+	import { MediaQuery } from 'svelte/reactivity';
+	import { TV } from '$lib/device.svelte';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import Cover from '$lib/components/content/Cover.svelte';
 	import SearchField from '$lib/components/controls/SearchField.svelte';
@@ -19,6 +21,10 @@
 	} from '@simplewebauthn/browser';
 
 	let { data } = $props();
+
+	// The TV cannot turn reveal on: no fingerprint, no screen lock (owner,
+	// 2026-11-01). `/reveal` says so instead of asking for a ceremony.
+	const tvScreen = new MediaQuery(TV, false);
 
 	// Seeded once from the URL; after that the field owns the text and the URL
 	// follows it, not the other way round.
@@ -83,6 +89,17 @@
 		const input = parseSearch(q);
 		if (input.type !== 'command' || !(input.command in PURPOSE)) return;
 		e.preventDefault();
+		// A TV has no fingerprint and no screen lock (owner, 2026-11-01): say
+		// so rather than raise a prompt it cannot answer.
+		if (input.command === 'reveal' && tvScreen.current) {
+			gate = {
+				command: '/reveal',
+				purpose: 'reveal',
+				status: 'done',
+				text: 'NOT ON A TV · TURN REVEAL ON FROM THE COMPUTER'
+			};
+			return;
+		}
 		void ceremony(input.command as keyof typeof PURPOSE);
 	}
 
@@ -496,5 +513,57 @@
 	.why {
 		font: var(--type-meta);
 		color: var(--text-2);
+	}
+	/* ---- the TV (c238; TV-Search) ----------------------------------------- */
+	@media (pointer: none) and (min-width: 900px) {
+		/* Search sits in the top half, above Android's keyboard (TV Calls,
+		   "SEARCH IN THE TOP HALF"). The field is the top bar; below it the
+		   first results are three cards across, 114px tall. */
+		.label {
+			padding: 9px var(--pad);
+			font: var(--type-label);
+		}
+		.label.first {
+			padding-top: 9px;
+			min-height: 36px;
+		}
+		.hits {
+			display: grid;
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+			gap: 1px;
+			margin: 0 var(--pad);
+			background: var(--line-1);
+			border: var(--hairline);
+		}
+		.hit {
+			min-height: 114px;
+			gap: 14px;
+			padding: 8px 14px 8px 8px;
+			border: 0;
+			background: var(--surface-page);
+		}
+		.hit :global(.cover) {
+			width: 66px !important;
+			height: 96px !important;
+		}
+		.title {
+			font-size: 17px;
+			white-space: normal;
+			display: -webkit-box;
+			-webkit-line-clamp: 2;
+			line-clamp: 2;
+			-webkit-box-orient: vertical;
+			overflow: hidden;
+		}
+		.to-sources {
+			margin: 0 var(--pad);
+			border: var(--hairline);
+		}
+		.chips {
+			padding: 0 var(--pad) 12px;
+		}
+		.cell {
+			font: var(--type-control);
+		}
 	}
 </style>

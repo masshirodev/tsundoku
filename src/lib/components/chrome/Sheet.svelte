@@ -58,4 +58,26 @@
 		z-index: 21;
 		padding-bottom: env(safe-area-inset-bottom);
 	}
+	/*
+	 * Every sheet on a TV is a panel from the right (c238; TV Calls, "SHEETS
+	 * ARE PANELS"): 420px wide, the strong rule on its left edge, the screen it
+	 * opened over still in view at the left. The page's own rows keep their
+	 * 48px right padding, which is what makes the panel's content 372px wide,
+	 * as TV-Series and TV-Reader draw it.
+	 */
+	@media (pointer: none) and (min-width: 900px) {
+		.sheet {
+			left: auto;
+			right: 0;
+			top: 0;
+			bottom: 0;
+			width: var(--tv-panel-w);
+			max-height: none;
+			height: 100dvh;
+			border-top: 0;
+			border-left: var(--rule-strong);
+			padding: var(--safe-y) var(--pad) var(--safe-y) 0;
+			padding-bottom: var(--safe-y);
+		}
+	}
 </style>

@@ -30,3 +30,42 @@
 		--sheet-left: var(--sidebar-w);
 	}
 }
+/*
+ * The TV (c238; doc/TV.md, "The design"; TV Calls.dc.html's `sizes`). Last,
+ * after the desktop block, because a 1280-wide TV matches the 1024px width
+ * rules above and must take this instead. `pointer: none` is true only where
+ * there is no pointer: phones and tablets say coarse, a computer says fine.
+ * The width keeps a small pointerless browser out; a TV with an air mouse
+ * reports a pointer and keeps the layout it can point at.
+ *
+ * Sizes are the handoff's, in its 960x540 frame: 48px safe margin left and
+ * right, 56px header, six 144px columns, CONTINUE three across, every
+ * focusable thing at least 56 tall, and a 15px floor on the type.
+ */
+@media (pointer: none) and (min-width: 900px) {
+	:root {
+		--pad: 48px;
+		--safe-y: 28px;
+		--header-h: 56px;
+		--grid-cols: 6;
+		--cont-cols: 3;
+		--cont-count: 3;
+		--hit-min: 56px;
+		--hit-row: 56px;
+		--bar-h: 56px;
+		--progress-h: 4px;
+		--rating-h: 6px;
+		--sheet-left: auto;
+		/* The TV's type scale: 15 minimum, controls 17, rows 20, titles 28/36. */
+		--type-label: 500 15px/1.2 var(--font-mono);
+		--type-control: 500 17px/1.2 var(--font-mono);
+		--type-meta: 400 15px/1.3 var(--font-mono);
+		--type-badge: 500 14px/1 var(--font-mono);
+		--type-row: 500 20px/1.3 var(--font-sans);
+		--type-tile: 500 16px/1.25 var(--font-sans);
+		--type-title: 500 28px/1.2 var(--font-sans);
+		--type-title-lg: 500 36px/1.15 var(--font-sans);
+		--type-body: 400 19px/1.5 var(--font-sans);
+		--type-wordmark: 500 20px/1 var(--font-mono);
+	}
+}

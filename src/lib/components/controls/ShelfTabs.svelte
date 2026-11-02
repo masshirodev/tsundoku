@@ -113,4 +113,11 @@
 		padding: 0 24px;
 		border-right: 0;
 	}
+	/* The TV's row is 56px, in the bar the library draws around it (c238). */
+	@media (pointer: none) and (min-width: 900px) {
+		.tab {
+			height: 100%;
+			padding: 0 18px;
+		}
+	}
 </style>

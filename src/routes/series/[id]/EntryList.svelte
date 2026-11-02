@@ -810,4 +810,30 @@
 	.b-title {
 		font: 400 14px var(--font-sans);
 	}
+	/* ---- the TV (c238; TV-Series) ----------------------------------------- */
+	@media (pointer: none) and (min-width: 900px) {
+		.list {
+			--row-h: 56px;
+			--num-w: 64px;
+			--rail-w: 56px;
+			border: var(--hairline);
+		}
+		/* The list's own label is the 36px band TV-Series draws at `01`. */
+		.head {
+			height: 36px;
+		}
+		.title,
+		.tool {
+			font: var(--type-label);
+		}
+		.t {
+			font-size: 17px;
+		}
+		.status {
+			font: var(--type-meta);
+		}
+		.rail {
+			top: 36px;
+		}
+	}
 </style>

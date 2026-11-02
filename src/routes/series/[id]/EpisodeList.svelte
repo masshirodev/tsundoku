@@ -458,4 +458,30 @@
 			width: 52px;
 		}
 	}
+	/* ---- the TV (c238; TV-Series) ----------------------------------------- */
+	@media (pointer: none) and (min-width: 900px) {
+		.list {
+			border: var(--hairline);
+		}
+		.head {
+			height: 36px;
+		}
+		.title,
+		.tool {
+			font: var(--type-label);
+		}
+		/* The handoff's rows are 56 at TV size, not the tablet's 72. */
+		.entry-btn {
+			height: 56px;
+		}
+		.t {
+			font-size: 17px;
+		}
+		.status {
+			font: var(--type-meta);
+		}
+		.fold button {
+			height: 56px;
+		}
+	}
 </style>

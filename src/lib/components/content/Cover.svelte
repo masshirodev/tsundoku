@@ -15,6 +15,7 @@
 		ring = false,
 		dashed = false,
 		label,
+		stripeTitle,
 		children
 	}: {
 		src?: string | null;
@@ -24,6 +25,8 @@
 		ring?: boolean;
 		dashed?: boolean;
 		label?: string;
+		/** With no image, the title set on the stripes -- the TV's one titled cover (c238). */
+		stripeTitle?: string;
 		children?: Snippet;
 	} = $props();
 
@@ -47,6 +50,7 @@
 	style:background
 >
 	{#if label}<span class="label">{label}</span>{/if}
+	{#if stripeTitle && !src}<span class="stripe-title">{stripeTitle}</span>{/if}
 	{@render children?.()}
 </div>
 
@@ -82,5 +86,26 @@
 	.label {
 		font: 400 11px var(--font-mono);
 		color: var(--text-2);
+	}
+	/*
+	 * The TV's coverless tile names itself (TV-Library, state 3F): at 144px a
+	 * tile's own caption is gone, so the stripes carry the name. Off a TV it
+	 * stays hidden -- the tile's caption is what names it there.
+	 */
+	.stripe-title {
+		display: none;
+	}
+	@media (pointer: none) and (min-width: 900px) {
+		.stripe-title {
+			position: absolute;
+			inset: 0;
+			z-index: 1;
+			display: flex;
+			align-items: flex-end;
+			padding: 10px;
+			font: 500 15px/1.25 var(--font-sans);
+			color: var(--text-1);
+			text-wrap: pretty;
+		}
 	}
 </style>

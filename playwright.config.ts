@@ -128,6 +128,25 @@ export default defineConfig({
 			use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } }
 		},
 		{
+			// A TV (c238, doc/TV.md): 960x540 CSS px, no pointer and no hover. A
+			// context cannot set the pointer type, so Chromium is told through
+			// Blink's media-feature settings at launch. `availablePointerTypes`
+			// and `availableHoverTypes` are the pair that makes
+			// matchMedia('(pointer: none)') true; setting the primary ones as
+			// well turns it false again (tests/tv-layout.e2e.ts proves both the
+			// query and the TV variables, so this cannot rot silently).
+			name: 'tv',
+			testMatch: ['**/tv-*.e2e.ts', '**/library-layout.e2e.ts', '**/series-layout.e2e.ts'],
+			use: {
+				...devices['Desktop Chrome'],
+				viewport: { width: 960, height: 540 },
+				deviceScaleFactor: 1,
+				launchOptions: {
+					args: ['--blink-settings=availablePointerTypes=none,availableHoverTypes=none']
+				}
+			}
+		},
+		{
 			// A friend's install (doc/SIGN-IN.md): SET UP, a password, none. One
 			// login.json for the whole server, so one worker, in order, signed out.
 			name: 'friend',
@@ -162,13 +181,13 @@ export default defineConfig({
 			// after every device, nothing else loads the library meanwhile.
 			name: 'duplicates',
 			testMatch: '**/duplicates-flow.e2e.ts',
-			dependencies: ['tablet-portrait', 'tablet-landscape', 'phone', 'desktop'],
+			dependencies: ['tablet-portrait', 'tablet-landscape', 'phone', 'desktop', 'tv'],
 			use: { ...devices['Galaxy Tab S4'], viewport: { width: 800, height: 1280 } }
 		},
 		{
 			name: 'gate',
 			testMatch: '**/unlock-gate.e2e.ts',
-			dependencies: ['tablet-portrait', 'tablet-landscape', 'phone', 'desktop', 'duplicates'],
+			dependencies: ['tablet-portrait', 'tablet-landscape', 'phone', 'desktop', 'tv', 'duplicates'],
 			use: { ...devices['Galaxy Tab S4'], viewport: { width: 800, height: 1280 } }
 		}
 	]

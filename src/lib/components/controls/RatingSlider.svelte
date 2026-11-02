@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { MediaQuery } from 'svelte/reactivity';
+	import { TV } from '$lib/device.svelte';
 	import { halfOn, minLabel, readout, valueAt, type SliderMode } from '$lib/library/rating';
 
 	/**
@@ -87,6 +89,7 @@
 	} = $props();
 
 	const bulk = $derived(value === undefined);
+	const tvScreen = new MediaQuery(TV, false);
 	let drag = $state<number | null>(null);
 	/** The bulk bar fills under the finger and while the save goes, then empties (1c). */
 	let flash = $state<number | null>(null);
@@ -147,6 +150,20 @@
 		commit(n);
 	}
 
+	/**
+	 * The TV's rating (c238; TV-Series, state 4C): ← → move the value by half a
+	 * bar and save as it changes, rather than walking the ten half-cells; OK or
+	 * BACK leaves. The focus layer keeps these two keys for whatever sits
+	 * inside `[data-focus-adjust]` (doc/FOCUS.md), so ↑ ↓ still leave the row.
+	 */
+	function adjust(e: KeyboardEvent) {
+		if (!tvScreen.current || disabled) return;
+		if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+		e.preventDefault();
+		const floor = mode === 'min' ? 1 : 0;
+		commit(Math.min(10, Math.max(floor, shown + (e.key === 'ArrowRight' ? 1 : -1))));
+	}
+
 	const blocks = [0, 1, 2, 3, 4];
 	const style = $derived(
 		[
@@ -192,11 +209,17 @@
 				value="0"
 				aria-label="Unrated"
 				{disabled}
+				onkeydown={adjust}
 				onclick={() => flashBulk(0)}>0</button
 			>
 		{:else}
-			<button type="button" class="zero" aria-label="Unrated" {disabled} onclick={() => commit(0)}
-				>0</button
+			<button
+				type="button"
+				class="zero"
+				aria-label="Unrated"
+				{disabled}
+				onkeydown={adjust}
+				onclick={() => commit(0)}>0</button
 			>
 		{/if}
 	{/if}
@@ -205,6 +228,7 @@
 		bind:this={track}
 		role="group"
 		aria-label={mode === 'min' ? 'At least' : 'Rating'}
+		data-focus-adjust={tvScreen.current ? '' : undefined}
 		onpointerdown={down}
 		onpointermove={move}
 		onpointerup={up}
@@ -228,6 +252,7 @@
 							aria-label={said}
 							aria-current={chosen ? 'true' : undefined}
 							draggable="false"
+							onkeydown={adjust}
 						></a>
 						<!-- eslint-enable svelte/no-navigation-without-resolve -->
 					{:else if name}
@@ -240,6 +265,7 @@
 							aria-label={said}
 							aria-pressed={bulk ? undefined : chosen}
 							{disabled}
+							onkeydown={adjust}
 						></button>
 					{:else}
 						<button
@@ -249,6 +275,7 @@
 							aria-label={said}
 							aria-pressed={chosen}
 							{disabled}
+							onkeydown={adjust}
 							onclick={() => commit(n)}
 						></button>
 					{/if}
@@ -522,6 +549,41 @@
 		.count {
 			width: var(--rs-count-w-p);
 			padding: 0 10px;
+		}
+	}
+	/* ---- the TV (c238; TV-Series, state 4C) ------------------------------- */
+	@media (pointer: none) and (min-width: 900px) {
+		/* A narrower label and FAV leave the blocks room to be seen from the
+		   couch; the instance's inline sizes are the tablet's, so !important. */
+		.rs {
+			--rs-label-w: 84px !important;
+			--rs-zero-w: 44px !important;
+			--rs-fav-w: 76px !important;
+		}
+		.lab-top {
+			font: var(--type-label);
+		}
+		.num {
+			font-size: 17px;
+		}
+		.digit {
+			font-size: 13px;
+		}
+		.fav {
+			font: var(--type-control);
+		}
+		/* The actions are one closed block: the mark frames the row, not the
+		   half-cell the arrows are standing on. */
+		.half:focus-visible,
+		.zero:focus-visible,
+		.fav:focus-visible {
+			outline: none;
+			box-shadow: none;
+		}
+		.rs:has(.half:focus-visible),
+		.rs:has(.zero:focus-visible),
+		.rs:has(.fav:focus-visible) {
+			box-shadow: var(--focus-ring-in);
 		}
 	}
 </style>

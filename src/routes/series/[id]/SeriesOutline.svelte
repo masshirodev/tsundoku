@@ -176,4 +176,33 @@
 			flex: 1;
 		}
 	}
+	/* ---- the TV (c238; TV-Series, state 4E) ------------------------------- */
+	@media (pointer: none) and (min-width: 900px) {
+		.bar {
+			margin-top: var(--safe-y);
+		}
+		.body {
+			flex-direction: row;
+			height: calc(100dvh - var(--header-h) - var(--safe-y) - var(--banner-h, 0px));
+			flex: none;
+			gap: 32px;
+			padding: 0 var(--pad);
+		}
+		.panel-col {
+			flex-shrink: 0;
+			width: 352px;
+			overflow: hidden;
+			border-right: 0;
+		}
+		.list-col {
+			flex: 1;
+		}
+		.head {
+			height: 36px;
+			font: var(--type-label);
+		}
+		.row {
+			height: 56px;
+		}
+	}
 </style>

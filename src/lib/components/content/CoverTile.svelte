@@ -38,7 +38,8 @@
 		onfavourite,
 		onrate,
 		focusId,
-		startFocus = false
+		startFocus = false,
+		meta = ''
 	}: {
 		title: string;
 		src?: string | null;
@@ -62,6 +63,8 @@
 		focusId?: string;
 		/** The screen's first arrow lands here (doc/FOCUS.md). */
 		startFocus?: boolean;
+		/** The TV focus line's second line: kind, progress, +N, FAV (c238). */
+		meta?: string;
 	} = $props();
 
 	const editable = $derived(!selectable);
@@ -155,6 +158,10 @@
 			aria-pressed={selectable ? selected : undefined}
 			data-focus-id={focusId}
 			data-focus-start={startFocus ? '' : undefined}
+			data-focus-line={meta ? '' : undefined}
+			data-focus-title={meta ? title : undefined}
+			data-focus-meta={meta || undefined}
+			data-focus-rating={meta ? rating : undefined}
 			onpointerdown={down}
 			onpointermove={move}
 			onpointerup={() => timer && cancel()}
@@ -163,7 +170,7 @@
 			onclick={click}
 			oncontextmenu={contextmenu}
 		>
-			<Cover {src} {hue} ring={selected}>
+			<Cover {src} {hue} ring={selected} stripeTitle={title}>
 				{#if hidden}<Badge tone="reveal" corner="top-left">HIDDEN</Badge>{/if}
 				{#if favourite && !(editable && onfavourite)}
 					<Badge tone="accent" corner="top-right">FAV</Badge>
@@ -347,5 +354,22 @@
 	}
 	.skel-rating {
 		height: 14px;
+	}
+	/*
+	 * The TV (c238; TV-Library): the cover is the tile. At 144px a caption is
+	 * a dozen unreadable characters, and the focus line under the tabs names
+	 * the cover in full. FAV and the rating are the tile's options (a held OK,
+	 * c235), not two more stops a 6-wide grid has to walk, so their buttons
+	 * and the bars leave the cell.
+	 */
+	@media (pointer: none) and (min-width: 900px) {
+		.open {
+			gap: 0;
+		}
+		.title,
+		.rating,
+		.ghost {
+			display: none;
+		}
 	}
 </style>
