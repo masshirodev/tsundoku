@@ -344,8 +344,12 @@
 <div class="series" class:selecting>
 	{#if selecting}
 		<header class="bar inverse" aria-label="Selection">
-			<button type="button" class="cell x" aria-label="Stop selecting" onclick={stopSelecting}
-				>✕</button
+			<button
+				type="button"
+				class="cell x"
+				aria-label="Stop selecting"
+				data-focus-mark="in"
+				onclick={stopSelecting}>✕</button
 			>
 			<div class="mid count" aria-live="polite">
 				{selected.size} SELECTED{rangeArmed ? ' · TAP THE OTHER END' : ''}
@@ -356,11 +360,13 @@
 				class:armed={rangeArmed}
 				aria-pressed={rangeArmed}
 				disabled={anchor === null}
+				data-focus-mark="in"
 				onclick={() => (rangeArmed = !rangeArmed)}>RANGE</button
 			>
 			<button
 				type="button"
 				class="cell"
+				data-focus-mark="in"
 				onclick={() =>
 					series.entries.filter((e) => e.readAt === null).forEach((e) => selected.add(e.id))}
 				>ALL UNREAD</button
@@ -382,21 +388,26 @@
 				type="button"
 				class="cell x"
 				aria-label="Cancel reordering"
+				data-focus-mark="in"
 				onclick={() => (reordering = false)}>✕</button
 			>
 			<div class="mid count">
 				<span class="long">REORDER · {series.entries.length}</span><span class="short">REORDER</span
 				>
 			</div>
-			<button type="button" class="cell" onclick={() => orderBy('date')}>BY DATE</button>
-			<button type="button" class="cell" onclick={() => orderBy('title')}>BY TITLE</button>
+			<button type="button" class="cell" data-focus-mark="in" onclick={() => orderBy('date')}
+				>BY DATE</button
+			>
+			<button type="button" class="cell" data-focus-mark="in" onclick={() => orderBy('title')}
+				>BY TITLE</button
+			>
 			{#each order as id (id)}<input type="hidden" name="entry" value={id} />{/each}
-			<button type="submit" class="cell done">DONE</button>
+			<button type="submit" class="cell done" data-focus-mark="in">DONE</button>
 		</form>
 	{:else if data.book}
 		<header class="bar" aria-label="Book">
 			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam() keeps the current, resolved path -->
-			<a class="cell back" href={withParam(page.url, 'book', null)}>
+			<a class="cell back" href={withParam(page.url, 'book', null)} data-focus-mark="in">
 				<span class="arrow">←</span>
 				<span class="back-label">{series.title.toUpperCase()}</span>
 			</a>
@@ -405,15 +416,26 @@
 	{:else}
 		<header class="bar" class:compact={!ctaVisible} aria-label="Series">
 			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- data.back.href is a library URL built on the server -->
-			<a class="cell back" href={data.back.href} use:backLink>
+			<a
+				class="cell back"
+				href={data.back.href}
+				use:backLink
+				data-focus-mark="in"
+				data-focus-id="series-back"
+			>
 				<span class="arrow">←</span>
 				<span class="back-label">{data.back.label.toUpperCase()}</span>
 			</a>
 			<div class="mid title">{series.title}</div>
-			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves -->
-			<a class="cell go" href={action.entry ? readHref(action.entry.id) : undefined}
-				>▶ {action.short || action.label}</a
+			<!-- eslint-disable svelte/no-navigation-without-resolve -- readHref() resolves -->
+			<a
+				class="cell go"
+				href={action.entry ? readHref(action.entry.id) : undefined}
+				data-focus-mark="in"
+				data-focus-id="series-continue"
+				data-focus-start="true">▶ {action.short || action.label}</a
 			>
+			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 			<NavLine />
 		</header>
 	{/if}

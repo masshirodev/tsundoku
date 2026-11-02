@@ -858,6 +858,7 @@
 	class:chrome
 	bind:this={root}
 	role="presentation"
+	data-focus-off
 	onpointermove={pointerMoved}
 >
 	<div class="stage">

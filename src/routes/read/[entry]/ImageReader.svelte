@@ -1559,7 +1559,12 @@
 <svelte:head><title>{data.series.title} · {data.entry.name}</title></svelte:head>
 <svelte:window onkeydown={keydown} onpointermove={hover} />
 
-<div class="reader" class:vertical={mode === 'vertical'} class:incognito={data.incognito}>
+<div
+	class="reader"
+	class:vertical={mode === 'vertical'}
+	class:incognito={data.incognito}
+	data-focus-off
+>
 	{#if !data.manifest}
 		<div class="missing">
 			<div class="mt">{data.entry.name} IS NOT DOWNLOADED</div>

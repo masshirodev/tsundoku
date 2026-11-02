@@ -47,6 +47,8 @@
 			aria-current={shelf.key === active ? 'page' : undefined}
 			data-sveltekit-noscroll
 			data-sveltekit-keepfocus
+			data-focus-mark="in"
+			data-focus-id={`shelf-${shelf.key}`}
 		>
 			<span>{shelf.name.toUpperCase()}</span>
 			<span class="n">{shelf.countText ?? count(shelf.count)}</span>
@@ -55,7 +57,7 @@
 	{/each}
 	{#if newHref}
 		<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the caller's href resolves -->
-		<a class="tab new" href={newHref} data-sveltekit-noscroll>+ NEW</a>
+		<a class="tab new" href={newHref} data-sveltekit-noscroll data-focus-mark="in">+ NEW</a>
 	{/if}
 </nav>
 

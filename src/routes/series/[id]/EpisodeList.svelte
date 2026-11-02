@@ -163,6 +163,8 @@
 							? `, ${e.title}`
 							: ''}"
 						aria-pressed={selecting ? on : undefined}
+						data-focus-mark="in"
+						data-focus-id={`entry-${e.id}`}
 						use:longpress={() => !selecting && onlong?.(e)}
 						onclick={() => onrow(e)}
 					>

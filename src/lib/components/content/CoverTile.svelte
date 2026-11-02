@@ -36,7 +36,9 @@
 		onpress,
 		onlongpress,
 		onfavourite,
-		onrate
+		onrate,
+		focusId,
+		startFocus = false
 	}: {
 		title: string;
 		src?: string | null;
@@ -56,6 +58,10 @@
 		onlongpress?: () => void;
 		onfavourite?: (on: boolean) => void;
 		onrate?: (rating: Rating) => void;
+		/** Where focus comes back to after a trip away (doc/FOCUS.md). */
+		focusId?: string;
+		/** The screen's first arrow lands here (doc/FOCUS.md). */
+		startFocus?: boolean;
 	} = $props();
 
 	const editable = $derived(!selectable);
@@ -147,6 +153,8 @@
 			type="button"
 			class="open"
 			aria-pressed={selectable ? selected : undefined}
+			data-focus-id={focusId}
+			data-focus-start={startFocus ? '' : undefined}
 			onpointerdown={down}
 			onpointermove={move}
 			onpointerup={() => timer && cancel()}
@@ -177,6 +185,7 @@
 				class="rating"
 				aria-label={rating === 0 ? 'Rate, unrated' : `Rate, rated ${rating} of 10`}
 				aria-expanded={picking}
+				data-focus-skip
 				onclick={() => (picking = !picking)}
 			>
 				<RatingBars value={rating} />
@@ -191,6 +200,7 @@
 				class="fav"
 				aria-label="Favourite"
 				aria-pressed={favourite}
+				data-focus-skip
 				onclick={() => onfavourite(!favourite)}
 			>
 				{#if favourite}
@@ -253,6 +263,16 @@
 		flex-direction: column;
 		gap: 8px;
 		min-width: 0;
+	}
+	/*
+	 * The mark is around the cover, not the button: the tile's title is not
+	 * what a D-pad user is pointing at (doc/FOCUS.md, "The mark").
+	 */
+	.open:focus-visible {
+		box-shadow: none;
+	}
+	.open:focus-visible :global(.cover) {
+		box-shadow: var(--focus-ring);
 	}
 	.tile:has(.open:active) {
 		background: var(--surface-inverse);

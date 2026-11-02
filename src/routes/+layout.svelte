@@ -17,6 +17,7 @@
 	import { shelfHref, withParam } from '$lib/library/links';
 	import { onMount } from 'svelte';
 	import { afterNavigate, beforeNavigate, goto, invalidateAll } from '$app/navigation';
+	import { saveFocus, restoreFocus, installFocusLayer } from '$lib/focus';
 	import { noteVisit } from '$lib/back';
 	import { trail } from '$lib/start-trail.svelte';
 	import { waiting } from '$lib/waiting.svelte';
@@ -27,6 +28,10 @@
 	import SeriesOutline from './series/[id]/SeriesOutline.svelte';
 
 	let { data, children } = $props();
+
+	// D-pad focus for the whole app (src/lib/focus, doc/FOCUS.md): one key
+	// listener, arrow keys moving by geometry, sheets as scopes.
+	onMount(() => installFocusLayer());
 
 	// The scan action's refusal is drawn by the empty library only, so the
 	// sidebar's RESCAN says it in its own place rather than nowhere.
@@ -134,6 +139,10 @@
 	let navSeq = 0;
 	beforeNavigate((nav) => {
 		if (nav.willUnload || !nav.to) return;
+		// Which thing on this screen has focus, so a back returns to it
+		// (doc/FOCUS.md, "Where focus comes back"). The screen is still the
+		// one being left, whatever the URL now says.
+		saveFocus(nav.from?.url ?? null);
 		const seq = ++navSeq;
 		const from = lastTap && Date.now() - lastTap.at < 400 ? lastTap.el : null;
 		lastTap = null;
@@ -144,9 +153,11 @@
 			() => seq === navSeq && waiting.end()
 		);
 	});
-	afterNavigate(() => {
+	afterNavigate((navigation) => {
 		// Where this history entry is, so a back link can go back to it (src/lib/back.ts).
 		noteVisit();
+		// A trip back puts focus on what the screen was left from (src/lib/focus).
+		if (navigation.type === 'popstate') restoreFocus(page.url.pathname, page.url.search);
 		// A GET STARTED trip ends once its screen is left (src/lib/start-trail.svelte.ts).
 		trail.load();
 		trail.follow(page.url.pathname);
