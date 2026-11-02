@@ -639,6 +639,59 @@ export type ApplyResult = {
 const PENDING = 1e9;
 
 /**
+ * The key a series has just left joins every other one it has left (rung 58),
+ * which is what the tablet's backup resolves through; the key it moved to is
+ * its current one, so it is not also a former one. `series.former_key` keeps
+ * the most recent, which is the one MOVE BACK offers.
+ */
+function rememberKey(
+	db: Database.Database,
+	seriesId: number,
+	leftKey: string,
+	source: string,
+	currentKey: string,
+	now: number
+): void {
+	db.prepare(
+		`INSERT INTO series_former_keys (series_id, origin_key, source, left_at) VALUES (?, ?, ?, ?)
+		ON CONFLICT (series_id, origin_key) DO UPDATE SET source = excluded.source,
+			left_at = excluded.left_at`
+	).run(seriesId, leftKey, source, now);
+	db.prepare(`DELETE FROM series_former_keys WHERE series_id = ? AND origin_key = ?`).run(
+		seriesId,
+		currentKey
+	);
+}
+
+/**
+ * An entry matched to a candidate takes the new source's address. The one it
+ * had becomes `former_url` and joins every other address it has left (rung 58),
+ * so a backup naming any of them finds this chapter rather than adding a second
+ * copy; the address it now has is not also a former one.
+ */
+function rekeyEntry(db: Database.Database, entryId: number, url: string, now: number): void {
+	const was = (
+		db.prepare(`SELECT source_url FROM entries WHERE id = ?`).get(entryId) as {
+			source_url: string;
+		}
+	).source_url;
+	if (was !== '')
+		db.prepare(
+			`INSERT INTO entry_former_urls (entry_id, former_url, left_at) VALUES (?, ?, ?)
+			ON CONFLICT (entry_id, former_url) DO UPDATE SET left_at = excluded.left_at`
+		).run(entryId, was, now);
+	db.prepare(
+		`UPDATE entries SET former_url = CASE WHEN source_url != '' THEN source_url ELSE former_url END,
+			source_url = ?, origin_source = '' WHERE id = ?`
+	).run(url, entryId);
+	if (url !== '')
+		db.prepare(`DELETE FROM entry_former_urls WHERE entry_id = ? AND former_url = ?`).run(
+			entryId,
+			url
+		);
+}
+
+/**
  * MOVE as one transaction (doc/MOVE.md, "The move"): re-key the series, match,
  * keep and add chapters by number, carry reading by number, move FOLLOW and
  * the queue, and take an unmatched queued chapter out of the queue. Nothing
@@ -679,18 +732,15 @@ export function applyMove(
 				throw new MoveError('The source lists nothing to move to');
 
 			// Matched: the same chapter, now from the new source. Its file and its
-			// reading state stay; the address it had is kept for the backup's plan.
-			const setSource = db.prepare(
-				`UPDATE entries SET former_url = CASE WHEN source_url != '' THEN source_url ELSE former_url END,
-					source_url = ?, origin_source = '' WHERE id = ?`
-			);
+			// reading state stay; the address it had is kept for the backup's plan,
+			// and every address before it too (rung 58).
 			const setChapter = db.prepare(
 				`INSERT INTO engine_chapters (entry_id, engine_url, name) VALUES (?, ?, ?)
 				ON CONFLICT (entry_id) DO UPDATE SET engine_url = excluded.engine_url, name = excluded.name`
 			);
 			for (const m of plan.matches) {
 				const url = m.candidate.url;
-				setSource.run(url, m.entry.id);
+				rekeyEntry(db, m.entry.id, url, now);
 				setChapter.run(m.entry.id, url, m.candidate.name);
 			}
 
@@ -786,6 +836,7 @@ export function applyMove(
 				target.url,
 				seriesId
 			);
+			rememberKey(db, seriesId, oldKey, oldName, target.key, now);
 			const title = (
 				db.prepare(`SELECT title FROM engine_series WHERE series_id = ?`).get(seriesId) as
 					{ title: string } | undefined
@@ -881,16 +932,12 @@ export function applyMoveBack(
 				to: target.source
 			});
 
-			const setSource = db.prepare(
-				`UPDATE entries SET former_url = CASE WHEN source_url != '' THEN source_url ELSE former_url END,
-					source_url = ?, origin_source = '' WHERE id = ?`
-			);
 			const setChapter = db.prepare(
 				`INSERT INTO engine_chapters (entry_id, engine_url, name) VALUES (?, ?, ?)
 				ON CONFLICT (entry_id) DO UPDATE SET engine_url = excluded.engine_url, name = excluded.name`
 			);
 			for (const m of plan.matches) {
-				setSource.run(m.candidate.url, m.entry.id);
+				rekeyEntry(db, m.entry.id, m.candidate.url, now);
 				setChapter.run(m.entry.id, m.candidate.url, m.candidate.name);
 			}
 			// A chapter only the source just left has: it stays if it has a file
@@ -991,6 +1038,7 @@ export function applyMoveBack(
 				target.url,
 				seriesId
 			);
+			rememberKey(db, seriesId, leftKey, leftName, target.key, now);
 			db.prepare(
 				`INSERT INTO engine_series (series_id, source_id, engine_url, title, resolved_at)
 				VALUES (?, ?, ?, ?, ?)

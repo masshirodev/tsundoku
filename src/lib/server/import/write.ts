@@ -128,11 +128,17 @@ export function writeSeries(
 						{ id: number } | undefined
 				)?.id ?? null;
 			// Moved to another source (doc/MOVE.md): the backup still names the
-			// source it was downloaded from, and that key was kept as `former_key`.
-			// The series is this one, not a twin; its key stays where it moved to.
+			// source it was downloaded from, and every key the series has left is
+			// in series_former_keys (rung 58), however many moves ago. The series
+			// is this one, not a twin; its key stays where it moved to. If two
+			// series somehow list one key, the most recent move away wins: a key
+			// has one series that left it last.
 			if (seriesId === null) {
 				const former = db
-					.prepare(`SELECT id FROM series WHERE former_key = ? LIMIT 1`)
+					.prepare(
+						`SELECT series_id AS id FROM series_former_keys WHERE origin_key = ?
+						ORDER BY left_at DESC LIMIT 1`
+					)
 					.get(s.originKey) as { id: number } | undefined;
 				if (former) seriesId = former.id;
 			}
@@ -267,7 +273,9 @@ export function writeSeries(
 			).path;
 			const find = db.prepare(
 				`SELECT id, read_at, unread_at, last_opened_at, available, file FROM entries
-				WHERE series_id = @series AND ((@url != '' AND (source_url = @url OR former_url = @url))
+				WHERE series_id = @series AND ((@url != '' AND (source_url = @url OR former_url = @url
+						OR EXISTS (SELECT 1 FROM entry_former_urls f
+							WHERE f.entry_id = entries.id AND f.former_url = @url)))
 					OR (@url = '' AND file = @file))
 				LIMIT 1`
 			);
