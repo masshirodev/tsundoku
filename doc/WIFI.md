@@ -123,8 +123,9 @@ one at a time.
 - **`/pair/tv`** (9C, 9E; `src/routes/pair/tv/`): the TV's six digits in two
   threes on the TV layout, PAIR → pressing itself on the sixth, a band for a
   wrong code (with the tries left), a burned, used or expired one; then 9E,
-  "The library is on this TV", and OPEN THE LIBRARY →. Public, because the TV
-  is not signed in yet.
+  "The library is on this TV", and OPEN THE LIBRARY →. A band is drawn at 84
+  and the label and cells move down under it rather than being covered (c246).
+  Public, because the TV is not signed in yet.
 - **`/welcome`** (3A): the phone, just paired: what works, what doesn't, how
   to come back (Add to Home screen), OPEN THE LIBRARY →.
 - **`/login`** over Wi-Fi: the used or expired code's band (3B, 3C), and the

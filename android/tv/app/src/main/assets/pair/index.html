@@ -374,10 +374,14 @@
 				</form>
 				<div class="safe meta address-meta" id="tv-meta">
 					THIS TV IS AT 192.168.1.40, SO THE COMPUTER IS 192.168.1.SOMETHING · THE REMOTE'S NUMBER
-					KEYS TYPE HERE; WITHOUT THEM, THE TV'S NUMBER PAD OPENS
+					KEYS TYPE HERE; WITHOUT THEM, MOVE THE MARK TO THE FIELD FOR THE PAD · BACK CLOSES IT
 				</div>
 				<div class="safe address-actions">
-					<button class="btn pri" type="button" data-focus id="next">NEXT →</button>
+					<!-- data-start: the mark lands on NEXT, not on the field. A field
+					     that takes focus asks the WebView for the TV's number pad, and
+					     the pad covers these two buttons (c247). A remote without
+					     number keys reaches TYPE THE WHOLE ADDRESS from here. -->
+					<button class="btn pri" type="button" data-focus data-start id="next">NEXT →</button>
 					<button class="btn" type="button" data-focus id="whole-toggle">
 						TYPE THE WHOLE ADDRESS
 					</button>
@@ -485,7 +489,7 @@
 				tvMeta.textContent = whole
 					? 'THE WHOLE ADDRESS, LIKE http://192.168.1.23:42143, OR https://name.ts.net:8443 OVER TAILSCALE'
 					: own
-						? `THIS TV IS AT ${own}, SO THE COMPUTER IS ${prefix}SOMETHING · THE REMOTE'S NUMBER KEYS TYPE HERE; WITHOUT THEM, THE TV'S NUMBER PAD OPENS`
+						? `THIS TV IS AT ${own}, SO THE COMPUTER IS ${prefix}SOMETHING · THE REMOTE'S NUMBER KEYS TYPE HERE; WITHOUT THEM, MOVE THE MARK TO THE FIELD FOR THE PAD · BACK CLOSES IT`
 						: `THE TV HAS NO WI-FI ADDRESS OF ITS OWN · TYPE THE COMPUTER'S ADDRESS: THE LAST NUMBER, OR THE WHOLE ONE`;
 			}
 
@@ -610,18 +614,25 @@
 			document.getElementById('change').addEventListener('click', () => {
 				stopRetry();
 				show('address');
-				last.focus();
 			});
 			document.getElementById('start').addEventListener('click', () => {
 				show('address');
 				fill();
-				last.focus();
 			});
 
 			/* ---- focus: the D-pad moves the mark, the router has no spatial nav ---- */
 			document.addEventListener('keydown', (e) => {
 				const target = e.target;
 				const entry = target instanceof HTMLInputElement;
+				// A remote's number keys type into the address field wherever
+				// the mark is, so a remote without them never has the pad under
+				// its fingers: focusing the field is the only thing that asks
+				// the WebView for it (c247).
+				if (!screens.address.hidden && !entry && /^\d$/.test(e.key)) {
+					e.preventDefault();
+					last.value = (last.value + e.key).slice(0, whole ? 80 : 3);
+					return;
+				}
 				const dir =
 					e.key === 'ArrowDown' || e.key === 'ArrowRight'
 						? 1

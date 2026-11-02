@@ -23,6 +23,45 @@ async function typeCode(page: import('@playwright/test').Page, code: string) {
 /** A code that is certainly not the real one. */
 const wrong = (code: string) => (code === '000000' ? '111111' : '000000');
 
+/**
+ * The band's every state, reached through `r` — what the action redirects to —
+ * so the geometry is checked without spending a try or a code. The page shows
+ * the same band markup for a state it read on arrival.
+ */
+const BANDS = [
+	['wrong&left=4', 'NOT THAT CODE', '4 TRIES LEFT'],
+	['short', 'SIX DIGITS', 'TYPE ALL SIX'],
+	['expired', 'THIS CODE EXPIRED', 'MAKE A NEW ONE ON THE COMPUTER'],
+	['used', 'THIS CODE IS USED', 'ONE TV, ONCE'],
+	['burned', 'NO TRIES LEFT', 'MAKE A NEW CODE ON THE COMPUTER']
+] as const;
+
+test('a band pushes the column down instead of drawing over it (c246)', async ({ page }) => {
+	// The design's 9C: the section label at 108, the six cards at 148.
+	await page.goto('/pair/tv');
+	await expect(page.locator('.band')).toHaveCount(0);
+	expect((await page.locator('.sl').boundingBox())!.y).toBe(108);
+	expect((await page.locator('.cell').first().boundingBox())!.y).toBe(148);
+
+	for (const [r, head, meta] of BANDS) {
+		await page.goto(`/pair/tv?r=${r}`);
+		const band = page.locator('.band');
+		await expect(band).toContainText(head);
+		await expect(band).toContainText(meta);
+
+		// 2026-11-02: the band was drawn over "02 — …" and its ✓ ANSWERED
+		// line. It now ends above both that label and the cards.
+		const b = (await band.boundingBox())!;
+		const label = (await page.locator('.sl').boundingBox())!;
+		const cell = (await page.locator('.cell').first().boundingBox())!;
+		expect(b.y + b.height).toBeLessThanOrEqual(label.y);
+		expect(b.y + b.height).toBeLessThanOrEqual(cell.y);
+		// Still inside the frame the handoff draws, not pushed off the bottom.
+		const actions = (await page.locator('.actions').boundingBox())!;
+		expect(actions.y + actions.height).toBeLessThanOrEqual(540 - 28);
+	}
+});
+
 test('a wrong code spends a try, and the right one pairs the TV', async ({ page, request }) => {
 	await page.goto('/pair/tv');
 	await expect(page.getByText('02 — THE SIX DIGITS ON THE COMPUTER')).toBeVisible();
