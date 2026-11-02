@@ -93,7 +93,12 @@ one at a time.
   with the same block, minus the phone's QR. The row clears and renews its
   countdown by itself; NEW CODE is a SETTINGS action, so the code never comes
   from `/api/pair/tv` on a tailnet host. A device signed in by a paired cookie
-  is never shown the code.
+  is never shown the code. **That row is the token install's alone**
+  (`tvBlockFor` in `src/lib/server/pairing.ts`): a friend's install served over
+  the tailnet has no panel, but its guard still reads a paired cookie only over
+  Wi-Fi, so the digits stay wherever its panel would draw them with WI-FI ON.
+  Putting them on DEVICES there would pair a TV and land it on `/login`, the
+  defect c245 removes; its TV signs in with the friend's password instead.
 - **The same limits**: 10 minutes, one TV, once. Six digits is a million
   guesses, so **five wrong tries burn it** and a new code is made on the
   computer; `/pair/tv` answers `ok`, `wrong` (with the tries left), `expired`,
@@ -104,10 +109,16 @@ one at a time.
   the paired cookie is set exactly as the phone's is
   (`PAIRED_COOKIE_OPTIONS`). It never shows a code: the digits live on the
   computer's screen.
-- **The computer's own view** is `GET`/`POST /api/pair/tv`, which answers only
-  at localhost: a friend's panel reads the code through `wifiView`, and a test
-  reads it here. On the tailnet the page's own data (`tvPanel`) is the source,
-  so that host rule stays shut.
+- **The computer's own view** is `GET`/`POST /api/pair/tv`, whose host rule is
+  `onComputer(url)`: `localhost`, `127.0.0.1` or `[::1]` only. That holds in
+  `local` mode and under `vite dev`/`preview`, where the request URL is built
+  from the Host header — a friend's panel reads the code through `wifiView`,
+  and a test reads it here. On a served instance the URL is built from `ORIGIN`
+  instead (`node_modules/@sveltejs/adapter-node/files/handler.js`), which is
+  the tailnet name or address, so the rule refuses every request there, even
+  one made at `127.0.0.1` on the computer itself. That is why the tailnet's
+  SETTINGS reads the code from the page's own data (`tvPanel`) and never from
+  here; the rule stays shut.
 - **The app's own screens** before that — 9A, 9B and 9D — are in the APK,
   which finds the computer by probing its web app manifest and remembers the
   address that answered. A TV that opens `/pair/tv` before anyone opened
@@ -185,8 +196,10 @@ phone's row with SIGN OUT, the same code refused as used, the typed address
 with no password, the phone's own SETTINGS, a foreign Host refused over
 Wi-Fi, SIGN OUT, and OFF closing the door while localhost goes on. The
 handoff's measurements are pinned there. The TV's code has its own:
-`tests/pairing-tv.spec.ts` (once, 10 minutes, five tries, every answer, and
-`tailnetDoor`: the public host opens, loopback and no origin never do) and
+`tests/pairing-tv.spec.ts` (once, 10 minutes, five tries, every answer,
+`tailnetDoor`: the public host opens, loopback and no origin never do,
+`tvBlockFor`: the DEVICES row is the token install's only, and `friendPaired`:
+a friend's cookie signs in only over Wi-Fi) and
 `tests/tv-pair.e2e.ts` (the computer's `/pair/tv` on the `tv` project: a wrong
 code, the tries left, the right one landing on 9E, five wrong ones burning
 it; with no WI-FI panel, the six digits in DEVICES and NEW CODE; a request

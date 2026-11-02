@@ -28,7 +28,7 @@ import { dataPaths } from '$lib/server/data-dirs';
 import { MIN_PASSWORD, makeLogin, sessionFor, verifyPassword, writeLogin } from '$lib/server/login';
 import { checkIfStale, updateView } from '$lib/server/updates';
 import { wifiView, tvPanel } from '$lib/server/wifi';
-import { pairedDevices, signOutDevice } from '$lib/server/pairing';
+import { pairedDevices, signOutDevice, tvBlockFor } from '$lib/server/pairing';
 
 /** The languages the repositories list, most extensions first: the BROWSE row's cells. */
 function listedLanguages(): string[] {
@@ -67,9 +67,17 @@ export const load: PageServerLoad = async ({ cookies, url, locals }) => {
 		return w && locals.via === 'lan' ? { ...w, code: null, tv: null } : w;
 	})();
 	// With no WI-FI panel there is no row to carry the TV's six digits, so
-	// DEVICES shows them itself (c245): the owner's tailnet install. A paired
-	// device is never shown the code that would pair another.
-	const tv = wifi || locals.via === 'lan' || locals.paired ? null : tvPanel();
+	// DEVICES shows them itself -- but only where the cookie they set is a
+	// door (tvBlockFor). A friend's install served over the tailnet has no
+	// panel and no door either: its TV signs in with the password.
+	const tv = tvBlockFor({
+		hasWifi: !!wifi,
+		viaLan: locals.via === 'lan',
+		paired: !!locals.paired,
+		friend: friendLogin()
+	})
+		? tvPanel()
+		: null;
 	return {
 		values: libraryValues(),
 		counts: overrideCounts(reveal),
@@ -176,10 +184,18 @@ export const actions: Actions = {
 	 * page's own data is reloaded after it, which is how the new code is read --
 	 * `/api/pair/tv` answers at the computer only, and the owner's SETTINGS is
 	 * on the tailnet.
+	 *
+	 * The same rule that draws the block decides whether this can make one: no
+	 * other door may change a code nothing on its screen can use.
 	 */
 	tvCode: async ({ locals }) => {
-		if (locals.via === 'lan' || locals.paired)
-			return fail(403, { message: 'set on the computer only' });
+		const shown = tvBlockFor({
+			hasWifi: !!wifiView(),
+			viaLan: locals.via === 'lan',
+			paired: !!locals.paired,
+			friend: friendLogin()
+		});
+		if (!shown) return fail(403, { message: 'set on the computer only' });
 		tvPanel({ fresh: true });
 		return { ok: true };
 	},

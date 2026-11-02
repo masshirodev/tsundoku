@@ -34,6 +34,12 @@ fail closed (`tailnetDoor` in `src/lib/server/pairing.ts`). The TV's DEVICES
 row carries SIGN OUT, like a phone's. The token still opens every browser;
 this only saves typing 24 characters with a remote.
 
+That DEVICES block is the token install's alone (`tvBlockFor` in
+`src/lib/server/pairing.ts`). A friend's install keeps the six digits in its
+WI-FI panel and signs a TV in with its password — or, with no password, not at
+all — even when it serves on the tailnet, because its guard reads a paired
+cookie only over Wi-Fi. Nothing on it promises a cookie its guard would refuse.
+
 ## A friend's install: a password, or none (c189)
 
 Releases up to 2026.10.30.2 made a token on first start and printed it in the

@@ -14,7 +14,7 @@ import {
 	isValidSession
 } from '$lib/server/auth';
 import { foreignHost, loopbackRedirect } from '$lib/server/bind';
-import { PAIRED_COOKIE, pairedBy, tailnetDoor } from '$lib/server/pairing';
+import { PAIRED_COOKIE, friendPaired, pairedBy, tailnetDoor } from '$lib/server/pairing';
 import { lanHosts, viaLan } from '$lib/server/wifi';
 import { isRevealed, themeOf } from '$lib/server/prefs';
 
@@ -56,7 +56,7 @@ const guard: Handle = async ({ event, resolve }) => {
 		// A friend's install (doc/SIGN-IN.md): SET UP until a password, or none, is chosen.
 		const login = currentLogin();
 		// A phone paired over Wi-Fi signs in with its own cookie (doc/WIFI.md).
-		const paired = lan ? pairedBy(event.cookies.get(PAIRED_COOKIE)) : null;
+		const paired = friendPaired(lan, event.cookies.get(PAIRED_COOKIE));
 		event.locals.paired = paired;
 		authed = !!paired || friendAuthed(login, event.cookies.get(SESSION_COOKIE), lan);
 		if (!login) {

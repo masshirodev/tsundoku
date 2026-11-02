@@ -90,8 +90,10 @@ tries burn it**; NEW CODE makes another.
 On the TV:
 
 1. **9A** — what the app does, and the three steps. The first names the
-   computer's SETTINGS › 08 — DEVICES, where the code is, rather than WI-FI ON:
-   a tailnet install has no WI-FI switch to press. START →.
+   computer's SETTINGS › 08 — DEVICES and WI-FI ON for a friend's install
+   (whose digits only render with the switch on), and says a Tailscale install
+   has no switch to press: both truths, so neither install is sent to a
+   section with no digits. START →.
 2. **9B** — the address, written for the TV: its own network's first three
    numbers and tsundoku's port (42143 unless the friend changed `PORT`), so
    only the last number is typed. The mark starts on NEXT, never on the field:
@@ -113,8 +115,9 @@ On the TV:
 9E are the computer's route, so the code is posted same-origin and the paired
 cookie is set exactly as `/pair/<code>` sets it for a phone (no CORS, no second
 way to be signed in). Its 9B whole-address hint says where the digits are — the
-computer's SETTINGS — and 9A reaches it without WI-FI ON, so a Tailscale
-install reads true. The computer lists the TV as a DEVICES row because the app
+computer's SETTINGS — and 9D's second reason names both a friend's WI-FI switch
+and a tailnet install with no digits, so neither reads false. The computer lists
+the TV as a DEVICES row because the app
 appends `TsundokuTV/<version>` to the WebView's own user agent: `isTvApp`
 (`src/lib/settings/catalog.ts`) reads it, and both the pairing and the settings
 sync (`/api/devices/sync`) label the row "Android TV · Chrome". The sync route
@@ -247,11 +250,14 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
 - `android/tv/app/src/test/` — `AddressTest`, `BackTest`, `KeysTest`, `ProbeTest`,
   `ScaleTest` (18 tests), run by `./gradlew test`.
 - `tests/pairing-tv.spec.ts` — the six digits: once, 10 minutes, five wrong
-  tries burn it, the state machine's every answer.
+  tries burn it, the state machine's every answer; the tailnet door, the rule
+  that draws the DEVICES block only where that cookie opens, and the friend
+  branch's refusal of a paired cookie off Wi-Fi (c245).
 - `tests/tv-app-pair.e2e.ts` — 9A and 9B from the shipped asset file: the mark
   on NEXT rather than the field (and on TYPE THE WHOLE ADDRESS one press down),
   the number keys typing into the field from there, and the whole-address field
-  that stays visible.
+  that stays visible; and 9A's step 01 and 9D's second reason keeping a friend's
+  WI-FI remedy beside a Tailscale install's truth (c245).
 - `tests/tv-pair.e2e.ts` — the computer's `/pair/tv` at 960×540 with no pointer:
   every band clearing the label and the six cells, a wrong code spending a
   try, the right one landing on 9E, and five wrong ones burning it.

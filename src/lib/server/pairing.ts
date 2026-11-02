@@ -190,6 +190,26 @@ export function tailnetDoor(
 	return door !== null && !!host && host.toLowerCase() === door;
 }
 
+/**
+ * Whether SETTINGS › 08 — DEVICES draws the TV's six digits itself (c245,
+ * doc/WIFI.md, "Where they show").
+ *
+ * Only where the cookie those digits set is a door. On a friend's install the
+ * WI-FI panel carries them, and a paired device is never shown the code that
+ * would pair another. A friend's install served over the tailnet has no WI-FI
+ * panel, but its guard reads a paired cookie only over Wi-Fi (`friendPaired`),
+ * so drawing the digits there would pair a TV and land it on `/login` -- the
+ * bug c245 exists to remove. The block is the token install's.
+ */
+export function tvBlockFor(o: {
+	hasWifi: boolean;
+	viaLan: boolean;
+	paired: boolean;
+	friend: boolean;
+}): boolean {
+	return !o.hasWifi && !o.viaLan && !o.paired && !o.friend;
+}
+
 /** Whole minutes left, as the panel counts them (no ticking seconds: motion here is minimal). */
 export const minutesLeft = (c: Code, now: number) =>
 	Math.max(0, Math.ceil((CODE_MS - (now - c.madeAt)) / 60_000) - 1);
@@ -253,6 +273,15 @@ export function pairedBy(token: string | undefined, now = Date.now()): Paired | 
 	if (now - r.seen_at > 60_000)
 		db.prepare(`UPDATE paired_devices SET seen_at = ? WHERE token_hash = ?`).run(now, hash(token));
 	return shape(r);
+}
+
+/**
+ * A friend's install: the paired cookie a request carries, read only over
+ * Wi-Fi (doc/SIGN-IN.md). Never over localhost, whatever the origin says --
+ * a phone's cookie must not become this computer's password bypass.
+ */
+export function friendPaired(lan: boolean, cookie: string | undefined): Paired | null {
+	return lan ? pairedBy(cookie) : null;
 }
 
 /** The browser's own device id, once it checks in (devices.ts): what joins it to its DEVICES row. */

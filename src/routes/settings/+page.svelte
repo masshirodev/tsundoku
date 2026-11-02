@@ -1238,7 +1238,7 @@
 						{t.state === 'used' ? '✓ USED' : t.state === 'burned' ? 'BURNED' : 'EXPIRED'}
 					</div>
 				{/if}
-				<div class="pnote">TYPE THE ADDRESS'S LAST NUMBER ON THE TV, THEN THESE SIX</div>
+				<div class="pnote">TYPE THE WHOLE ADDRESS ON THE TV, THEN THESE SIX</div>
 				{#if live}
 					<div class="tvline">
 						{mins > 0

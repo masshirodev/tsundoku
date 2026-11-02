@@ -143,6 +143,11 @@ test('with no WI-FI panel, DEVICES shows the TV’s six digits', async ({ page, 
 	const shown = (await threes.allTextContents()).join('');
 	expect(shown).toMatch(/^\d{6}$/);
 	await expect(panel).toContainText(/GOOD FOR \d+ MIN · ONE TV, ONCE/);
+	// This row shows no address and a tailnet TV types the whole one (9B), so
+	// the panel's "last number" shortcut is not what this block says.
+	await expect(panel.locator('.pnote')).toHaveText(
+		'TYPE THE WHOLE ADDRESS ON THE TV, THEN THESE SIX'
+	);
 	// The page's data is the code: the computer's own route agrees with it.
 	expect((await tvCode(request)).code).toBe(shown);
 
@@ -176,6 +181,9 @@ test('a paired cookie signs in on the tailnet host, and not at localhost', async
 	await tvPage.goto('/pair/tv');
 	await typeCode(tvPage, fresh.code!);
 	await expect(tvPage.getByRole('heading', { name: 'The library is on this TV' })).toBeVisible();
+	// 9E names the DEVICES row by what both installs have, not by WI-FI: on the
+	// tailnet that row says OVER TAILSCALE (c245).
+	await expect(tvPage.getByText('TV · WITH SIGN OUT')).toBeVisible();
 	const paired = (await tv.cookies()).find((c) => c.name === 'tsundoku_paired');
 	expect(paired).toBeTruthy();
 	await tv.close();
