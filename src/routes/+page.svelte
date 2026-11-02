@@ -32,6 +32,7 @@
 	import Wordmark from '$lib/components/chrome/Wordmark.svelte';
 	import ContinueRow from '$lib/components/content/ContinueRow.svelte';
 	import CoverTile from '$lib/components/content/CoverTile.svelte';
+	import WorkTile from '$lib/components/content/WorkTile.svelte';
 	import FocusLine from '$lib/components/content/FocusLine.svelte';
 	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
 	import { waiting } from '$lib/waiting.svelte';
@@ -75,6 +76,7 @@
 	import { coverSrc, readHref, seriesHref, shelfHref, withParam } from '$lib/library/links';
 	import { num, upper } from '$lib/i18n/format';
 	import type { Rating, RefreshBatch, SeriesCard, Shelf } from '$lib/library/types';
+	import type { LibraryCard } from '$lib/library/works';
 	import { pageQuery } from '$lib/library/paging';
 	import type { Snapshot } from './$types';
 
@@ -159,7 +161,7 @@
 	// The grid arrives a page at a time (doc/LIBRARY.md, "Pages"): the server
 	// sends the first, and the rest are asked for as the end of the grid comes
 	// near. `more` is every page after the first.
-	let more = $state<SeriesCard[]>([]);
+	let more = $state<LibraryCard[]>([]);
 	let loadingMore = $state(false);
 	let moreFailed = $state(false);
 	/** Bumped whenever the list changes under a request, so a late answer is dropped. */
@@ -178,13 +180,13 @@
 	);
 	let shownKey = '';
 
-	async function fetchPage(offset: number, limit: number): Promise<SeriesCard[] | null> {
+	async function fetchPage(offset: number, limit: number): Promise<LibraryCard[] | null> {
 		try {
 			const res = await fetch(
 				`/api/library?${pageQuery({ shelf: data.shelf, tag: data.tag, filters: data.filters, sort: data.sort, dir: dirParam, seed: data.seed, offset, limit })}`
 			);
 			if (!res.ok) return null;
-			return ((await res.json()) as { series: SeriesCard[] }).series;
+			return ((await res.json()) as { series: LibraryCard[] }).series;
 		} catch {
 			return null;
 		}
@@ -289,7 +291,7 @@
 		leftAt = scrollY;
 	});
 
-	export const snapshot: Snapshot<{ key: string; more: SeriesCard[]; y: number }> = {
+	export const snapshot: Snapshot<{ key: string; more: LibraryCard[]; y: number }> = {
 		capture: () => ({ key: listKey, more: more.slice(0, 4000), y: leftAt ?? scrollY }),
 		restore: async (v) => {
 			if (!v || v.key !== listKey || v.more.length === 0) return;
@@ -409,7 +411,13 @@
 		const langs = picked.map((s) => s.language!);
 		return new Set(langs).size === langs.length ? langs.map(langCode) : null;
 	});
-	const foldMessage = $derived(form && 'foldMessage' in form ? String(form.foldMessage) : '');
+	const foldMessage = $derived(
+		form && 'foldMessage' in form
+			? String(form.foldMessage)
+			: form && 'workMessage' in form
+				? String(form.workMessage)
+				: ''
+	);
 	/**
 	 * REFRESH's answer over the selection (card c221). It is the library's own
 	 * band, above the bar that asked, and it is replaced by the next run's: a
@@ -466,26 +474,44 @@
 		selected.size > 0 && series.filter((s) => selected.has(s.id)).every((s) => s.hidden)
 	);
 
-	/** A tap opens the series; a long press opens the sheet (see CoverTile). */
-	function press(id: number) {
-		if (selecting) return toggle(id);
+	/**
+	 * A Work tile is the run, so selecting it selects its parts: the bulk bar's
+	 * actions all act on series, and a Work is one tile over them (doc/WORKS.md).
+	 */
+	const cardIds = (c: LibraryCard) => (c.tile ? c.tile.parts.map((p) => p.seriesId) : [c.id]);
+	const cardSelected = (c: LibraryCard) => cardIds(c).every((id) => selected.has(id));
+	function toggleCard(c: LibraryCard) {
+		const ids = cardIds(c);
+		const on = ids.every((id) => selected.has(id));
+		for (const id of ids) {
+			if (on) selected.delete(id);
+			else selected.add(id);
+		}
+	}
+
+	/** A tap opens the series; a long press opens the sheet (see CoverTile). A Work opens its own screen. */
+	function press(c: LibraryCard) {
+		if (selecting) return toggleCard(c);
+		if (c.tile) {
+			// eslint-disable-next-line svelte/no-navigation-without-resolve -- the route is static
+			void goto(`/work/${c.tile.id}`);
+			return;
+		}
 		// The series screen opens with what this tile already knows (doc/WAITING.md).
-		const s = series.find((x) => x.id === id);
-		if (s)
-			waiting.preview = {
-				id: s.id,
-				title: s.title,
-				kind: s.kind,
-				hue: s.hue,
-				rating: ratingNow.get(s.id) ?? s.rating,
-				favourite: favNow.get(s.id) ?? s.favourite,
-				hidden: s.hidden,
-				entryCount: s.entryCount,
-				readCount: s.readCount,
-				cover: s.cover
-			};
+		waiting.preview = {
+			id: c.id,
+			title: c.title,
+			kind: c.kind,
+			hue: c.hue,
+			rating: ratingNow.get(c.id) ?? c.rating,
+			favourite: favNow.get(c.id) ?? c.favourite,
+			hidden: c.hidden,
+			entryCount: c.entryCount,
+			readCount: c.readCount,
+			cover: c.cover
+		};
 		// eslint-disable-next-line svelte/no-navigation-without-resolve -- seriesHref() resolves
-		void goto(seriesHref(id, data.tag ? null : data.shelf));
+		void goto(seriesHref(c.id, data.tag ? null : data.shelf));
 	}
 
 	// A shelf tab on its way past 1 s: the grid in outline, CONTINUE and the
@@ -823,6 +849,25 @@
 			{/snippet}
 		</TopBar>
 	{/if}
+	{#if data.gone}
+		{@const gone = data.gone}
+		<!-- A Work ended on its own screen: the band and its UNDO live here, on the
+		     library it went back to (Work-States 2; doc/NAVIGATION.md). -->
+		<Band
+			title={gone.kind === 'ended'
+				? `${gone.name.toUpperCase()} IS NO LONGER A WORK`
+				: `UNGROUPED · ${gone.name.toUpperCase()}`}
+			detail={gone.kind === 'ended' ? 'ONE SERIES WAS LEFT' : 'EVERY SERIES IS ITS OWN AGAIN'}
+		>
+			{#snippet action()}
+				<form method="POST" action="?/undoWork" use:enhance>
+					<input type="hidden" name="kind" value={gone.kind} />
+					<input type="hidden" name="facts" value={gone.facts} />
+					<button type="submit">UNDO</button>
+				</form>
+			{/snippet}
+		</Band>
+	{/if}
 	<MoreSheet
 		open={moreOpen}
 		onclose={() => (moreOpen = false)}
@@ -966,6 +1011,7 @@
 		<PersonView
 			page={data.person}
 			reveal={data.reveal}
+			workFeet={data.workFeet}
 			{selecting}
 			{selected}
 			onselect={(i) =>
@@ -991,7 +1037,10 @@
 						{@const cached = cachedCount(item.id) > 0}
 						<ContinueRow
 							title={item.title}
-							meta={continueSub(item, isOffline ? { cached } : undefined)}
+							meta={item.work
+								? item.entryLabel
+								: continueSub(item, isOffline ? { cached } : undefined)}
+							work={item.work ?? null}
 							progress={item.entryFraction ?? progress(item)}
 							src={coverSrc(item.id, item.cover)}
 							hue={item.hue}
@@ -1072,28 +1121,43 @@
 			<div class="grid" data-back-climb="nav[aria-label=Shelves] .tab.on">
 				{#each shown as s, i (s.id)}
 					{@const cached = cachedCount(s.id)}
-					<CoverTile
-						src={coverSrc(s.id, s.cover)}
-						title={s.title}
-						hue={s.hue}
-						rating={ratingNow.get(s.id) ?? s.rating}
-						favourite={favNow.get(s.id) ?? s.favourite}
-						newCount={s.newCount}
-						hidden={s.hidden}
-						indexing={!s.indexed}
-						languages={s.languages}
-						cached={isOffline && cached > 0 ? cached : null}
-						dimmed={isOffline && cached === 0}
-						selectable={selecting}
-						selected={selected.has(s.id)}
-						focusId={`series-${s.id}`}
-						startFocus={!showContinue && i === 0}
-						meta={focusMeta(s)}
-						onpress={() => press(s.id)}
-						onlongpress={() => (selecting ? toggle(s.id) : (sheetId = s.id))}
-						onfavourite={isOffline ? undefined : (on) => favourite(s.id, on)}
-						onrate={isOffline ? undefined : (r) => rate(s.id, r)}
-					/>
+					{#if s.tile}
+						<!-- Browsing shows the run as one tile (Work-Library; doc/WORKS.md). -->
+						<WorkTile
+							tile={s.tile}
+							cached={isOffline && cached > 0 ? cached : null}
+							dimmed={isOffline && cached === 0}
+							selectable={selecting}
+							selected={cardSelected(s)}
+							focusId={`work-${s.tile.id}`}
+							startFocus={!showContinue && i === 0}
+							meta={focusMeta(s)}
+							onpress={() => press(s)}
+						/>
+					{:else}
+						<CoverTile
+							src={coverSrc(s.id, s.cover)}
+							title={s.title}
+							hue={s.hue}
+							rating={ratingNow.get(s.id) ?? s.rating}
+							favourite={favNow.get(s.id) ?? s.favourite}
+							newCount={s.newCount}
+							hidden={s.hidden}
+							indexing={!s.indexed}
+							languages={s.languages}
+							cached={isOffline && cached > 0 ? cached : null}
+							dimmed={isOffline && cached === 0}
+							selectable={selecting}
+							selected={selected.has(s.id)}
+							focusId={`series-${s.id}`}
+							startFocus={!showContinue && i === 0}
+							meta={focusMeta(s)}
+							onpress={() => press(s)}
+							onlongpress={() => (selecting ? toggle(s.id) : (sheetId = s.id))}
+							onfavourite={isOffline ? undefined : (on) => favourite(s.id, on)}
+							onrate={isOffline ? undefined : (r) => rate(s.id, r)}
+						/>
+					{/if}
 				{/each}
 				{#each { length: fillers }, i (i)}
 					<div class="filler" aria-hidden="true"></div>
@@ -1192,10 +1256,14 @@
 							class="sub">{foldCodes.join(' · ')}</span
 						></button
 					>
-				{:else}
+				{:else if canGroup}
 					<!-- Index Books: GROUP, for singles only. -->
-					<button type="button" class="group" disabled={!canGroup} onclick={() => (grouping = true)}
-						>GROUP</button
+					<button type="button" class="group" onclick={() => (grouping = true)}>GROUP</button>
+				{:else}
+					<!-- Anything else that can be one run: a Work (doc/WORKS.md). W4's AS
+					     sheet replaces this cell with the choice. -->
+					<button type="submit" class="group" formaction="?/work" disabled={selected.size < 2}
+						>WORK</button
 					>
 				{/if}
 				<!-- REFRESH (c221): asks each selected series' source once, and downloads nothing. -->

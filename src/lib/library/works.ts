@@ -9,7 +9,7 @@
 
 import { sharedStart, titleWords } from './books';
 import { kindLabel } from './labels';
-import type { Kind, Rating } from './types';
+import type { ContinueItem, Kind, Rating, SeriesCard } from './types';
 
 /** How a Work's parts are ordered: the owner's hand, when each was added, or its title. */
 export type WorkOrder = 'hand' | 'added' | 'title';
@@ -56,7 +56,7 @@ export function partState(p: WorkPart): PartState {
 }
 
 /** Parts in the owner's order. Ties fall back to the id, so the answer is never the array's accident. */
-export const inOrder = (parts: WorkPart[]) =>
+export const inOrder = <T extends WorkPart>(parts: T[]): T[] =>
 	[...parts].sort((a, b) => a.position - b.position || a.seriesId - b.seriesId);
 
 /**
@@ -217,4 +217,84 @@ export const kindVerb = (kind: Kind) => (kind === 'anime' ? 'WATCH' : 'READ');
 export function workVerb(parts: WorkPart[]): 'READ' | 'WATCH' | null {
 	const current = continuePart(parts);
 	return current ? kindVerb(current.kind) : null;
+}
+
+/**
+ * The Work screen's count line (Work-Screen): "3 SERIES · 375 CHAPTERS · 86
+ * READ", and "2 SERIES · 227 CHAPTERS · ALL READ" once the run is read. The
+ * chapter count is the parts' own counted entries, front and back matter left
+ * out, as every count in the library is (doc/LIBRARY.md).
+ */
+export type WorkCounts = { series: number; chapters: number; read: number; allRead: boolean };
+
+export function workCounts(parts: WorkPart[]): WorkCounts {
+	const chapters = parts.reduce((n, p) => n + p.entries, 0);
+	const read = parts.reduce((n, p) => n + p.read, 0);
+	return { series: parts.length, chapters, read, allRead: chapters > 0 && read >= chapters };
+}
+
+/**
+ * A Work as a browse list draws it (doc/WORKS.md, "The one rule"): the run is
+ * one tile. `face` is the part whose cover the tile wears -- the part on the
+ * shelf being browsed, which is CONTINUE's part on ALL and on a shelf every
+ * part is on; `parts` is every part the viewer can see, for the foot, the
+ * counts and the badges. `total` is how many parts the Work holds, which is
+ * what a reveal-off read cannot always see. `newCount` and `downloaded` are
+ * the parts' sums, which is what the tile's +N and ↓ say.
+ */
+export type WorkTile = {
+	id: number;
+	name: string;
+	face: SeriesCard;
+	parts: WorkPart[];
+	total: number;
+	newCount: number;
+	downloaded: number;
+};
+
+/**
+ * Finding a series that belongs to a Work (search, a tag filter, a person's
+ * page): the match is the series, and its foot says where in the run it sits
+ * -- "PART 2 · THE BREAKER".
+ */
+export type WorkFootFacts = { id: number; name: string; part: number; of: number };
+
+/**
+ * A library row: a series as it always was, or a whole Work when the list is
+ * browsing. A Work row keeps the face series' card fields so that everything
+ * which reads a card (its cover, its hue, its focus line) keeps working, and
+ * carries `tile` for the tile's own marks.
+ */
+export type LibraryCard = SeriesCard & {
+	/** Finding: the Work this series is a part of, or null. */
+	work?: WorkFootFacts | null;
+	/** Browsing: set when this row is a Work rather than a series. */
+	tile?: WorkTile;
+};
+
+/**
+ * A CONTINUE row: a series, or a Work. A Work's row says the part and the
+ * Work's name ("WORK · PART 2 · CH. 15"), and between parts it says UP NEXT and
+ * points at the next part's first chapter.
+ */
+export type ContinueLine = ContinueItem & {
+	work?: {
+		id: number;
+		name: string;
+		part: number;
+		of: number;
+		upNext: boolean;
+		/** The part CONTINUE opens (or the next one), named in the row's own line. */
+		partTitle: string;
+	} | null;
+};
+
+/** "PART 2", "NEXT", "ALL READ": the tile foot's label, in the phone's shorter words. */
+export function workFootShort(foot: WorkFoot, parts: WorkPart[]): string {
+	if (foot.label === null) return '';
+	if (foot.upNext) return 'NEXT';
+	const current = continuePart(parts);
+	if (!current) return 'ALL READ';
+	const n = inOrder(parts).findIndex((p) => p.seriesId === current.seriesId) + 1;
+	return `${n} OF ${parts.length}`;
 }
