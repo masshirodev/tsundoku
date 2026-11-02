@@ -236,9 +236,13 @@ test.describe('on a desktop', () => {
 	test('BROWSE is in the sidebar, under HISTORY, and not on the bar', async ({ page }) => {
 		await page.goto('/');
 		await expect(page.locator('a.browse-cell')).toBeHidden();
-		const foot = page.locator('.side-foot a');
-		await expect(foot.nth(0)).toHaveText('HISTORY');
-		await expect(foot.nth(1)).toContainText('BROWSE');
+		// BROWSE sits under HISTORY, whatever else the foot holds: GET STARTED
+		// sits above it until onboarding is done (doc/ONBOARDING.md), so
+		// asserting "the first link is HISTORY" passed only after some earlier
+		// spec had finished the trail (c273).
+		const browse = page.locator('.side-foot a', { hasText: 'BROWSE' });
+		await expect(browse).toBeVisible();
+		await expect(browse.locator('xpath=preceding-sibling::a[1]')).toHaveText('HISTORY');
 	});
 });
 
