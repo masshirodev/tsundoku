@@ -964,14 +964,16 @@
 					NEWEST FIRST
 				{:else}
 					<span class="sort">
-						<select
-							aria-label="Sort"
-							value={data.sort}
-							onchange={(e) => sortTo(e.currentTarget.value)}
-						>
-							{#each SORTS as s (s)}<option value={s}>{SORT_NAME[s]}</option>{/each}
-						</select>
-						<span class="caret" aria-hidden="true">▾</span>
+						<span class="menu">
+							<select
+								aria-label="Sort"
+								value={data.sort}
+								onchange={(e) => sortTo(e.currentTarget.value)}
+							>
+								{#each SORTS as s (s)}<option value={s}>{SORT_NAME[s]}</option>{/each}
+							</select>
+							<span class="caret" aria-hidden="true">▾</span>
+						</span>
 						{#if data.sort !== 'random'}
 							<button type="button" class="dir" onclick={flipDir} aria-label="Reverse order"
 								>{dirLabel(data.sort, data.dir)}</button
@@ -1288,17 +1290,26 @@
 		z-index: 5;
 		background: var(--surface-page);
 	}
-	/* SORT: a menu in the label's own type, without the native box; ▾ says it opens. */
+	/* SORT: one closed block of square cells, the menu (▾ says it opens) and
+	   the direction beside it, as the panel rows draw a sort ("cells plus
+	   ↓ / ↑"). The native box is dropped for the block's own. */
 	.sort {
 		display: inline-flex;
-		align-items: baseline;
-		gap: 10px;
+		align-items: stretch;
+		height: 32px;
+		border: 1px solid var(--line-2);
+		color: var(--text-1);
+	}
+	.menu {
+		position: relative;
+		display: flex;
 	}
 	.sort select {
 		appearance: none;
 		border: 0;
+		border-radius: 0;
 		margin: 0;
-		padding: 0;
+		padding: 0 30px 0 12px;
 		background: none;
 		font: inherit;
 		letter-spacing: inherit;
@@ -1310,11 +1321,33 @@
 		color: var(--text-1);
 	}
 	.caret {
-		margin-left: -6px;
+		position: absolute;
+		top: 0;
+		bottom: 0;
+		right: 12px;
+		display: flex;
+		align-items: center;
 		pointer-events: none;
 	}
 	.sort .dir {
-		color: var(--text-1);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 44px;
+		box-sizing: border-box;
+		cursor: pointer;
+		padding: 0 10px;
+		border-left: 1px solid var(--line-2);
+	}
+	.sort select:focus-visible,
+	.sort .dir:focus-visible {
+		outline: 2px solid var(--accent);
+		outline-offset: -2px;
+	}
+	.sort select:active,
+	.sort .dir:active {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
 	}
 	.filter-desk,
 	.desk-count {

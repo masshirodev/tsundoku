@@ -35,6 +35,7 @@
 	.label {
 		flex-shrink: 0;
 		display: flex;
+		align-items: center;
 		justify-content: space-between;
 		gap: 12px;
 		padding: var(--tv-label-top, var(--label-top, 24px)) var(--pad) 12px;
@@ -44,6 +45,7 @@
 	}
 	.right {
 		display: flex;
+		align-items: center;
 		white-space: nowrap;
 	}
 	.extra {
