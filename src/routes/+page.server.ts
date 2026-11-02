@@ -331,7 +331,7 @@ export const actions: Actions = {
 		const r = startScan();
 		if (!r.started) {
 			return fail(400, {
-				scanMessage: `NOTHING TO IMPORT · NO Mihon/ OR H/.Hentoid/ FOLDER IN ${r.looked}`
+				scanMessage: `NOTHING TO IMPORT · NO Mihon/autobackup OR H/.Hentoid/ FOLDER IN ${r.looked}`
 			});
 		}
 		redirect(303, '/');

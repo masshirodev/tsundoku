@@ -510,8 +510,8 @@ export function planMihon(
 	const claimed = new Set<DownloadedSeries>();
 	let skipped = 0;
 	for (const m of backup?.manga ?? []) {
-		// Local manga (source 0) are the local folder's, planned by
-		// mihon-local-plan.ts: never a not-downloaded series in this root.
+		// Local manga (source 0) are Mihon's local folder, which tsundoku no
+		// longer imports (c191): never a series from the backup.
 		if (m.source === '0') continue;
 		const sourceName = backup!.sources.get(m.source);
 		const downloaded =

@@ -156,8 +156,8 @@ export function writeSeries(
 			}
 			let created = false;
 			// Grouped since the last scan: the entries are in another series, in
-			// this source or another -- a Mihon local book grouped with Hentoid's
-			// is in a series of Hentoid's root (doc/BOOKS.md).
+			// this source or another -- a Hentoid book grouped with another
+			// root's is in a series of that root (doc/BOOKS.md).
 			if (seriesId === null) {
 				const moved = s.entries
 					.filter((e) => e.sourceUrl !== '')

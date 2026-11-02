@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
@@ -15,19 +15,24 @@ const { writeMihonFolder, cbz, comicInfo, backup, ASURA, WEEB } =
 const { writeHentoidFolder, book, content } = await import('./helpers/hentoid-fixture');
 const { zip } = await import('./helpers/zip-writer');
 const { groupIntoSeries } = await import('$lib/server/books');
+const { ensureRoot } = await import('$lib/server/import/write');
 
 /**
- * Two devices syncing into one library (doc/SYNC.md, "Two devices"): the
- * tablet's copy in the library folder, the phone's under devices/phone/.
- * The phone has the same library, but downloaded Ch. 1 where the tablet has
- * Ch. 3.
+ * One library after c191 (doc/IMPORT-MIHON.md, "Where it reads from"): the
+ * library's own `Mihon/` holds a friend's backup, tsundoku's downloads sit in
+ * `devices/tsundoku/Mihon/`, and the phone's Hentoid copy is read while its
+ * `Mihon/` copy is not (doc/SYNC.md, "Two devices").
  */
 const library = mkdtempSync(join(tmpdir(), 'tsundoku-devices-'));
-writeMihonFolder(library);
+// The library's own Mihon folder: a place to drop a backup, and no downloads.
+const rootMihon = join(library, 'Mihon');
+mkdirSync(join(rootMihon, 'autobackup'), { recursive: true });
+// tsundoku's own device: what its downloader wrote.
+const tsundokuMihon = writeMihonFolder(join(library, 'devices', 'tsundoku'));
+// The phone's Mihon copy, which nothing reads any more, and its Hentoid one.
+const phoneMihon = writeMihonFolder(join(library, 'devices', 'phone'));
 writeHentoidFolder(library);
-const phone = join(library, 'devices', 'phone');
-const phoneMihon = writeMihonFolder(phone);
-const phoneHentoid = writeHentoidFolder(phone);
+const phoneHentoid = writeHentoidFolder(join(library, 'devices', 'phone'));
 // A book only the phone downloaded.
 book(
 	phoneHentoid,
@@ -35,10 +40,15 @@ book(
 	content({ title: 'Phone Only', site: 'NHENTAI', url: '/g/999/', pages: [{ name: '0001' }] }),
 	['0001.jpg']
 );
-const phoneWeeb = join(phoneMihon, 'downloads', 'Weeb Central (EN)', 'Drawing_ Saikyou Mangaka');
-rmSync(join(phoneWeeb, 'Unknown_Chapter 3_abc3.cbz'));
+// tsundoku downloaded Ch. 1 too, beside the fixture's 2 and 3.
+const tsundokuWeeb = join(
+	tsundokuMihon,
+	'downloads',
+	'Weeb Central (EN)',
+	'Drawing_ Saikyou Mangaka'
+);
 writeFileSync(
-	join(phoneWeeb, 'Unknown_Chapter 1_abc1.cbz'),
+	join(tsundokuWeeb, 'Unknown_Chapter 1_abc1.cbz'),
 	cbz(
 		comicInfo({
 			title: 'Chapter 1',
@@ -50,11 +60,14 @@ writeFileSync(
 		11
 	)
 );
-// The phone's backup is newer and knows a Ch. 4 nobody downloaded.
+// The library's backup is newer and knows a Ch. 4 nobody downloaded.
 writeFileSync(
-	join(phoneMihon, 'autobackup', 'app.mihon_2026-09-23_08-00.tachibk'),
+	join(rootMihon, 'autobackup', 'app.mihon_2026-09-23_08-00.tachibk'),
 	gzipSync(backup([4]))
 );
+// The phone downloaded Ch. 1 of the same manga; nothing may read it.
+const phoneWeeb = join(phoneMihon, 'downloads', 'Weeb Central (EN)', 'Drawing_ Saikyou Mangaka');
+rmSync(join(phoneWeeb, 'Unknown_Chapter 3_abc3.cbz'));
 
 const db = () => getDb();
 const drawing = () =>
@@ -77,16 +90,20 @@ beforeAll(async () => {
 	await runImport(library, { now: 1_800_000_000_000 });
 });
 
-describe('two devices', () => {
-	it('reads the phone as sources of its own', () => {
+describe('one library after c191', () => {
+	it('reads the library’s backup and tsundoku’s downloads, not a device’s Mihon folder', () => {
 		expect(sourcesIn(library).map((s) => [s.name, s.device])).toEqual([
 			['Mihon', null],
-			['Mihon local', null],
 			['Hentoid', null],
-			['Mihon', 'phone'],
-			['Mihon local', 'phone'],
-			['Hentoid', 'phone']
+			['Hentoid', 'phone'],
+			['Mihon', 'tsundoku']
 		]);
+		// The phone's Hentoid book is here; nothing from its Mihon copy is.
+		expect(db().prepare(`SELECT name FROM roots ORDER BY id`).all()).toEqual([
+			{ name: 'Mihon' },
+			{ name: 'Hentoid' }
+		]);
+		expect(db().prepare(`SELECT id FROM series WHERE title = 'Phone Only'`).get()).toBeTruthy();
 	});
 
 	it('makes one series of what both devices have, with no second root', () => {
@@ -94,17 +111,14 @@ describe('two devices', () => {
 			.prepare(`SELECT title FROM series GROUP BY title, root_id HAVING COUNT(*) > 1`)
 			.all();
 		expect(dupes).toEqual([]);
-		expect(db().prepare(`SELECT name FROM roots ORDER BY id`).all()).toEqual([
-			{ name: 'Mihon' },
-			{ name: 'Mihon local' },
-			{ name: 'Hentoid' }
-		]);
 		expect(drawing()).toHaveLength(1);
 	});
 
-	it('takes each chapter from whichever device has it, every file where it says', () => {
+	it('takes each chapter from the device that has it, every file where it says', () => {
 		const [d] = drawing();
-		expect(d.path).toBe(library);
+		expect(d.path).toBe(
+			join(tsundokuMihon, 'downloads', 'Weeb Central (EN)', 'Drawing_ Saikyou Mangaka')
+		);
 		expect(chapters(d.id).map((c) => [c.label, c.available])).toEqual([
 			['Ch. 1', 1],
 			['Ch. 2', 1],
@@ -113,17 +127,8 @@ describe('two devices', () => {
 		]);
 		// Not downloaded: no file, not the folder of the device that knew of it.
 		expect(chapters(d.id)[3].file).toBe('');
-		const files = chapters(d.id).map((c) => c.file);
-		// Ch. 1 only the phone has; Ch. 2 both, and the copy already there stays.
-		expect(files[0]).toMatch(/^devices\/phone\/Mihon\//);
-		expect(files[1]).toMatch(/^Mihon\//);
-		const all = db()
-			.prepare(
-				`SELECT s.path, e.file FROM entries e JOIN series s ON s.id = e.series_id
-				WHERE e.available = 1 AND e.file != ''`
-			)
-			.all() as { path: string; file: string }[];
-		for (const e of all) expect(existsSync(join(e.path, e.file)), e.file).toBe(true);
+		for (const c of chapters(d.id).slice(0, 3))
+			expect(existsSync(join(d.path, c.file)), c.file).toBe(true);
 	});
 
 	it('changes nothing on a rescan', async () => {
@@ -134,7 +139,7 @@ describe('two devices', () => {
 	});
 
 	it('marks missing only what left the device that had it', async () => {
-		rmSync(join(phoneWeeb, 'Unknown_Chapter 1_abc1.cbz'));
+		rmSync(join(tsundokuWeeb, 'Unknown_Chapter 1_abc1.cbz'));
 		await runImport(library, { now: 1_800_000_200_000 });
 		const [d] = drawing();
 		expect(chapters(d.id).map((c) => [c.label, c.available])).toEqual([
@@ -194,16 +199,16 @@ const manga = (
  * The tablet's two folders are named by the phone's backup; the phone's one is
  * named by the tablet's, so both orders are covered.
  */
-describe('a folder the other device’s backup names', () => {
+describe('a folder the library’s backup names', () => {
 	const at = 1_800_000_300_000;
-	const tablet = join(library, 'Mihon');
-	const flowersDir = join(tablet, 'downloads', 'Weeb Central (EN)', 'The Flowers of Evil');
-	const sluggedDir = join(tablet, 'downloads', 'Asura Scans (EN)', 'Slugged Tale');
-	const reverseDir = join(phoneMihon, 'downloads', 'Weeb Central (EN)', 'Reverse Tale');
+	const flowersDir = join(tsundokuMihon, 'downloads', 'Weeb Central (EN)', 'The Flowers of Evil');
+	const sluggedDir = join(tsundokuMihon, 'downloads', 'Asura Scans (EN)', 'Slugged Tale');
+	const reverseDir = join(tsundokuMihon, 'downloads', 'Weeb Central (EN)', 'Reverse Tale');
 	const FLOWERS_DIR = 'mihon-dir:Weeb Central (EN)/The Flowers of Evil';
 	const SLUGGED_DIR = 'mihon-dir:Asura Scans (EN)/Slugged Tale';
 	const REVERSE_DIR = 'mihon-dir:Weeb Central (EN)/Reverse Tale';
 	const FLOWERS = `mihon:${WEEB}:/series/flowers-of-evil`;
+	const REVERSE = `mihon:${WEEB}:/series/reverse-tale`;
 
 	const one = <T>(sql: string, ...args: unknown[]) =>
 		db()
@@ -218,10 +223,9 @@ describe('a folder the other device’s backup names', () => {
 
 	let flowers: number;
 	let slugged: number;
-	let reverse: number;
 
 	beforeAll(async () => {
-		// What each device downloaded before any backup named it.
+		// What tsundoku downloaded before any backup named it.
 		const chapter = (
 			dir: string,
 			file: string,
@@ -257,20 +261,11 @@ describe('a folder the other device’s backup names', () => {
 			1,
 			'https://asuracomic.net/series/slugged-tale-abc123/chapter/1'
 		);
-		chapter(
-			reverseDir,
-			'Chapter 1.cbz',
-			'Reverse Tale',
-			'Weeb Central',
-			1,
-			'https://weebcentral.com/chapters/RVT1'
-		);
 
 		await runImport(library, { now: at });
 		flowers = byKey(FLOWERS_DIR)!;
 		slugged = byKey(SLUGGED_DIR)!;
-		reverse = byKey(REVERSE_DIR)!;
-		expect(flowers && slugged && reverse).toBeTruthy();
+		expect(flowers && slugged).toBeTruthy();
 
 		// What the owner did with each folder's series while it was on its own.
 		const entryOf = (series: number, label: string) =>
@@ -304,27 +299,24 @@ describe('a folder the other device’s backup names', () => {
 				`INSERT INTO series_links (series_id, mal_id, via, linked_at) VALUES (?, 147272, 'mihon', ?)`
 			)
 			.run(flowers, at);
-		// The phone's folder, the other way round: the tablet's backup names it.
-		db()
-			.prepare(`UPDATE entries SET read_at = ? WHERE series_id = ?`)
-			.run(at + 3_000, reverse);
-		db().prepare(`UPDATE series SET rating = 2 WHERE id = ?`).run(reverse);
 
-		// A backup from each device, naming what the other downloaded.
+		// A download and the backup that names it arriving together, the other
+		// way round from the two above: no folder's series exists yet.
+		chapter(
+			reverseDir,
+			'Chapter 1.cbz',
+			'Reverse Tale',
+			'Weeb Central',
+			1,
+			'https://weebcentral.com/chapters/RVT1'
+		);
+
+		// The library's backup, naming all three.
 		writeFileSync(
-			join(tablet, 'autobackup', 'app.mihon_2026-09-22_19-06.tachibk'),
+			join(rootMihon, 'autobackup', 'app.mihon_2026-09-24_08-00.tachibk'),
 			gzipSync(
 				backup(
 					[],
-					[manga(WEEB, '/series/reverse-tale', 'Reverse Tale', [{ n: 1, url: '/chapters/RVT1' }])]
-				)
-			)
-		);
-		writeFileSync(
-			join(phoneMihon, 'autobackup', 'app.mihon_2026-09-23_08-00.tachibk'),
-			gzipSync(
-				backup(
-					[4],
 					[
 						manga(WEEB, '/series/flowers-of-evil', 'The Flowers of Evil', [
 							{ n: 1, url: '/chapters/FLO1' },
@@ -332,7 +324,8 @@ describe('a folder the other device’s backup names', () => {
 						]),
 						manga(ASURA, '/series/slugged-tale', 'Slugged Tale', [
 							{ n: 1, url: '/series/slugged-tale/chapter/1' }
-						])
+						]),
+						manga(WEEB, '/series/reverse-tale', 'Reverse Tale', [{ n: 1, url: '/chapters/RVT1' }])
 					]
 				)
 			)
@@ -422,21 +415,15 @@ describe('a folder the other device’s backup names', () => {
 		).toEqual({ mal_id: 147272 });
 	});
 
-	it('folds a folder into the series the backup named, the other way round', () => {
+	it('folds a download into the series the backup named, when both arrive at once', () => {
 		expect(byKey(REVERSE_DIR)).toBeUndefined();
-		expect(byKey(`mihon:${WEEB}:/series/reverse-tale`)).toBeDefined();
+		expect(byKey(REVERSE)).toBeDefined();
 		expect(
-			one<{ rating: number }>(
-				`SELECT rating FROM series WHERE origin_key = ?`,
-				`mihon:${WEEB}:/series/reverse-tale`
+			all<{ available: number; file: string }>(
+				`SELECT available, file FROM entries WHERE series_id = ?`,
+				byKey(REVERSE)!
 			)
-		).toEqual({ rating: 2 });
-		expect(
-			all<{ read_at: number | null; available: number; file: string }>(
-				`SELECT read_at, available, file FROM entries WHERE series_id = ?`,
-				byKey(`mihon:${WEEB}:/series/reverse-tale`)!
-			)
-		).toEqual([{ read_at: at + 3_000, available: 1, file: 'Chapter 1.cbz' }]);
+		).toEqual([{ available: 1, file: 'Chapter 1.cbz' }]);
 	});
 
 	it('settles both keys, so no scan makes the folder’s series again', async () => {
@@ -472,7 +459,7 @@ describe('a folder the other device’s backup names', () => {
  */
 describe('two pairs an adoption cannot match up', () => {
 	const at = 1_800_000_600_000;
-	const tablet = join(library, 'Mihon');
+	const tablet = tsundokuMihon;
 	const browsingDir = join(tablet, 'downloads', 'Asura Scans (EN)', 'Browsing Title');
 	const numberedDir = join(tablet, 'downloads', 'Weeb Central (EN)', 'Numbered Ahead');
 	const bareDir = join(tablet, 'downloads', 'Weeb Central (EN)', 'No Metadata');
@@ -586,9 +573,9 @@ describe('two pairs an adoption cannot match up', () => {
 		).id;
 		db().prepare(`INSERT INTO series_tags (series_id, tag_id) VALUES (?, ?)`).run(record, tag);
 
-		// The phone's backup names all three; the tablet's folder has them.
+		// The library's backup names all three; tsundoku's folder has them.
 		writeFileSync(
-			join(phoneMihon, 'autobackup', 'app.mihon_2026-09-29_08-00.tachibk'),
+			join(rootMihon, 'autobackup', 'app.mihon_2026-09-29_08-00.tachibk'),
 			gzipSync(
 				backup(
 					[],
@@ -735,9 +722,7 @@ describe('two pairs an adoption cannot match up', () => {
  * into the library's series and its row goes.
  */
 describe('a record under the URL key this device’s own backup names', () => {
-	const l = mkdtempSync(join(tmpdir(), 'tsundoku-record-former-'));
-	const root = writeMihonFolder(l);
-	const seriesDir = join(root, 'downloads', 'Asura Scans (EN)', 'Adopted Tale');
+	const seriesDir = join(tsundokuMihon, 'downloads', 'Asura Scans (EN)', 'Adopted Tale');
 	const DIR = 'mihon-dir:Asura Scans (EN)/Adopted Tale';
 	const URL = `mihon:${ASURA}:/series/adopted-tale`;
 	const at = 1_800_001_000_000;
@@ -770,7 +755,7 @@ describe('a record under the URL key this device’s own backup names', () => {
 				})
 			)
 		);
-		await runImport(l, { now: at });
+		await runImport(library, { now: at });
 		folder = byKey(DIR)!;
 		expect(folder).toBeTruthy();
 
@@ -802,7 +787,7 @@ describe('a record under the URL key this device’s own backup names', () => {
 			.run(record, at);
 
 		writeFileSync(
-			join(root, 'autobackup', 'app.mihon_2026-10-05_08-00.tachibk'),
+			join(tsundokuMihon, 'autobackup', 'app.mihon_2026-10-05_08-00.tachibk'),
 			gzipSync(
 				backup(
 					[],
@@ -814,7 +799,7 @@ describe('a record under the URL key this device’s own backup names', () => {
 				)
 			)
 		);
-		await runImport(l, { now: at + 10_000 });
+		await runImport(library, { now: at + 10_000 });
 	});
 
 	it('leaves the library series the survivor, not the record', () => {
@@ -848,7 +833,7 @@ describe('a record under the URL key this device’s own backup names', () => {
 	});
 
 	it('settles: no rescan makes either series again', async () => {
-		const r = await runImport(l, { now: at + 20_000 });
+		const r = await runImport(library, { now: at + 20_000 });
 		expect(r.sources.every((s) => s.seriesCreated === 0)).toBe(true);
 		expect(byKey(URL)).toBe(folder);
 		expect(byKey(DIR)).toBeUndefined();
@@ -859,15 +844,14 @@ describe('a record under the URL key this device’s own backup names', () => {
 });
 
 /**
- * One chapter number, two files: two scanlators of it, downloaded by the
- * tablet while the phone's backup knows one chapter. The tablet's folder plan
- * meets the series the backup made, and its label fallback must not let the
- * second planned chapter take the first one's entry -- or the first file is
- * left on disk with nothing pointing at it.
+ * One chapter number, two files: two scanlators of it, downloaded by tsundoku
+ * while the library's backup knows one chapter. The folder's plan meets the
+ * series the backup made, and its label fallback must not let the second
+ * planned chapter take the first one's entry -- or the first file is left on
+ * disk with nothing pointing at it.
  */
 describe('two files of one chapter number', () => {
-	const tablet = join(library, 'Mihon');
-	const seriesDir = join(tablet, 'downloads', 'Asura Scans (EN)', 'Twin Scan');
+	const seriesDir = join(tsundokuMihon, 'downloads', 'Asura Scans (EN)', 'Twin Scan');
 	const URL = `mihon:${ASURA}:/series/twin-scan`;
 	const at = 1_800_002_000_000;
 	let id: number;
@@ -883,9 +867,9 @@ describe('two files of one chapter number', () => {
 		)?.id;
 
 	beforeAll(async () => {
-		// The phone's backup names it first, and the tablet has downloaded nothing.
+		// The library's backup names it first, and tsundoku has downloaded nothing.
 		writeFileSync(
-			join(phoneMihon, 'autobackup', 'app.mihon_2026-10-06_08-00.tachibk'),
+			join(rootMihon, 'autobackup', 'app.mihon_2026-10-06_08-00.tachibk'),
 			gzipSync(
 				backup(
 					[],
@@ -951,16 +935,16 @@ describe('two files of one chapter number', () => {
 });
 
 /**
- * The card's own case: the backup is all this library reads. The folder was
- * imported by its key before the backup knew the manga, and no scan sees that
- * folder any more -- so the adoption has to come from the backup's source and
- * title, not from a scanned plan (doc/IMPORT-MIHON.md, "Before the backup
- * knows it").
+ * The card's own case, and the friend's: the backup is all this library
+ * reads. The folder-keyed series was imported before (an earlier version, or
+ * another library) and no scan reaches it now, so the adoption has to come
+ * from the backup's source and title, not from a scanned plan
+ * (doc/IMPORT-MIHON.md, "Before the backup knows it").
  */
 describe('a backup adopts a folder nothing scans any more', () => {
 	const l = mkdtempSync(join(tmpdir(), 'tsundoku-backup-only-'));
-	const root = writeMihonFolder(l);
-	const sourceDir = join(root, 'downloads', 'Weeb Central (EN)', 'Kept Tale');
+	const root = join(l, 'Mihon');
+	const seriesPath = join(root, 'downloads', 'Weeb Central (EN)', 'Kept Tale');
 	const DIR = 'mihon-dir:Weeb Central (EN)/Kept Tale';
 	const URL = `mihon:${WEEB}:/series/kept-tale`;
 	const at = 1_800_003_000_000;
@@ -978,10 +962,14 @@ describe('a backup adopts a folder nothing scans any more', () => {
 		one<{ id: number } | undefined>(`SELECT id FROM series WHERE origin_key = ?`, key)?.id;
 
 	beforeAll(async () => {
-		for (const n of [1, 2]) {
-			mkdirSync(sourceDir, { recursive: true });
+		mkdirSync(join(root, 'autobackup'), { recursive: true });
+		// What an earlier import of the folder left: its own key, its files, its
+		// ComicInfo URLs and a read mark.
+		const rootId = ensureRoot(db(), 'Mihon', root, false);
+		mkdirSync(seriesPath, { recursive: true });
+		for (const n of [1, 2])
 			writeFileSync(
-				join(sourceDir, `Chapter ${n}.cbz`),
+				join(seriesPath, `Chapter ${n}.cbz`),
 				cbz(
 					comicInfo({
 						title: `Chapter ${n}`,
@@ -992,21 +980,29 @@ describe('a backup adopts a folder nothing scans any more', () => {
 					})
 				)
 			);
-		}
-		await runImport(l, { now: at });
-		folder = byKey(DIR)!;
-		expect(folder).toBeTruthy();
-
-		const entry = one<{ id: number }>(
-			`SELECT id FROM entries WHERE series_id = ? AND label = 'Ch. 1'`,
-			folder
-		).id;
+		folder = Number(
+			db()
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, rating, favourite, added_at, indexed_at,
+						source, path, origin_key, in_library)
+					VALUES (?, 'Kept Tale', 'manga', 0, 0, ?, ?, 'mihon', ?, ?, 1)`
+				)
+				.run(rootId, at, at, seriesPath, DIR).lastInsertRowid
+		);
+		const add = db().prepare(
+			`INSERT INTO entries (series_id, position, label, added_at, source_url, available, file,
+				bytes, page_count)
+			VALUES (?, ?, ?, ?, ?, 1, ?, 100, 3)`
+		);
+		add.run(folder, 1, 'Ch. 1', at, `https://weebcentral.com/chapters/KEPT1`, 'Chapter 1.cbz');
+		add.run(folder, 2, 'Ch. 2', at, `https://weebcentral.com/chapters/KEPT2`, 'Chapter 2.cbz');
 		db()
-			.prepare(`UPDATE entries SET read_at = ?, last_opened_at = ?, last_position = 4 WHERE id = ?`)
-			.run(at + 1_000, at + 2_000, entry);
+			.prepare(
+				`UPDATE entries SET read_at = ?, last_opened_at = ?, last_position = 4 WHERE series_id = ? AND label = 'Ch. 1'`
+			)
+			.run(at + 1_000, at + 2_000, folder);
 
-		// Nothing scans the folder any more: the only thing left to read is a backup.
-		renameSync(join(root, 'downloads'), join(root, 'downloads-copied-elsewhere'));
+		// Only a backup is read from here on.
 		writeFileSync(
 			join(root, 'autobackup', 'app.mihon_2026-10-07_08-00.tachibk'),
 			gzipSync(

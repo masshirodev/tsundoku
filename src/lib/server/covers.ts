@@ -21,8 +21,7 @@ import { dataPaths } from './data-dirs.ts';
  * Covers (doc/COVERS.md). One thumbnail per series, made once and kept on the
  * library disk, from the first source that has one:
  *
- * 1. a cover the files carry: Hentoid's thumbnail, Mihon local's cover.jpg,
- *    an EPUB's cover image;
+ * 1. a cover the files carry: Hentoid's thumbnail, an EPUB's cover image;
  * 2. the source site's cover URL (Mihon's backup), fetched by
  *    `refreshCovers` -- never while a screen waits;
  * 3. the cover of the series' AniList entry, once it's linked
