@@ -11,8 +11,8 @@ import type Hls from 'hls.js';
  * It fetches only while the pointer is on the scrubber, never in the
  * background. hls.js would buffer ahead by default, so it is held on a short
  * lead: `autoStartLoad: false` (nothing until the first stop), a buffer goal
- * of one second, no back buffer, and `stopLoad()` as soon as a frame is drawn
- * and when the pointer leaves. A stop that takes longer than
+ * of one second, no back buffer, and `stopLoad()` as soon as the latest stop's
+ * frame is drawn and when the pointer leaves. A stop that takes longer than
  * `PREVIEW_TIMEOUT_MS`, or a source with no quality at or below
  * `PREVIEW_MAX_H`, shows the time alone.
  */
@@ -26,6 +26,18 @@ export const PREVIEW_MAX_H = 480;
 /** The frame drawn, as the sprite's tiles are. */
 export const PREVIEW_W = 160;
 export const PREVIEW_H = 90;
+
+/**
+ * How near the time under the pointer a stream's frame must be drawn for to
+ * be shown with it: half a percent of the episode, and at least a second.
+ * A stop takes the debounce and a segment to answer, and meanwhile the tip
+ * shows the time alone rather than another time's picture over it.
+ */
+export function nearFrame(drawnAt: number | null, at: number, duration: number): boolean {
+	if (drawnAt === null) return false;
+	const near = Math.max(1, (Number.isFinite(duration) ? duration : 0) * 0.005);
+	return Math.abs(at - drawnAt) <= near;
+}
 
 export type PreviewQuality = { kind: 'hls' | 'file'; src: string; height: number | null };
 
@@ -60,6 +72,8 @@ export class StreamPreview {
 	private hls: Hls | null = null;
 	private manifest: Promise<void> | null = null;
 	private dead = false;
+	/** The latest stop: an earlier one, answered or given up, must not stop its load. */
+	private seq = 0;
 
 	constructor(
 		private quality: PreviewQuality,
@@ -94,6 +108,7 @@ export class StreamPreview {
 	/** One stop: the frame at [t] seconds as a picture's address, or null if it was too slow. */
 	async frameAt(t: number): Promise<string | null> {
 		if (this.dead) return null;
+		const mine = ++this.seq;
 		const work = (async () => {
 			await this.open();
 			if (this.dead) return null;
@@ -110,8 +125,10 @@ export class StreamPreview {
 		} catch {
 			return null;
 		} finally {
-			// Drawn or given up: nothing more is fetched until the next stop.
-			this.stop();
+			// Drawn or given up: nothing more is fetched until the next stop. Only
+			// the latest stop's: an earlier one still waiting when a later one
+			// began (a slow engine) would otherwise stop the later one's segment.
+			if (mine === this.seq) this.stop();
 		}
 	}
 

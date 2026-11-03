@@ -562,9 +562,14 @@ screen but the video, and the subtitles, until a tap.
     pointer is on the bar**: nothing until the first stop
     (`autoStartLoad: false`), then the one segment the time falls in (a
     buffer goal of 1 s, no back buffer), and `stopLoad()` once the frame is
-    drawn and when the pointer leaves. A server whose lowest quality is above
-    480p, or of unknown height, and a stop that takes over 1 s show the time
-    alone.
+    drawn and when the pointer leaves. Only the latest stop stops the load:
+    a stop still waiting on a slow engine when the next begins gives up
+    without stopping the next one's segment. A server whose lowest quality is
+    above 480p, or of unknown height, and a stop that takes over 1 s show the
+    time alone. A frame is shown only near the time it was drawn for (half a
+    percent of the episode, at least a second; `nearFrame`): moved on, the
+    tip shows the new time alone until that time's frame comes, never the
+    last stop's picture over it.
   - **A TV** has no preview: the remote's ← → seek with the bar up shows the
     time on the bar, as before. The card left it optional; it is not built.
 - **Keys**: space, ← →, ↑ ↓ (volume), F, M, C (subtitles), S (skip), N (next),

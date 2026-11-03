@@ -47,7 +47,7 @@
 		type SubSize
 	} from '$lib/library/player';
 	import { coverSrc, readHref } from '$lib/library/links';
-	import { PREVIEW_DEBOUNCE_MS, previewQuality, StreamPreview } from './seek-preview';
+	import { nearFrame, PREVIEW_DEBOUNCE_MS, previewQuality, StreamPreview } from './seek-preview';
 	import { canPip, copyStyles, documentPip, moveBack, moveInto, srclang } from './pip';
 	import Cover from '$lib/components/content/Cover.svelte';
 	import { count as grouped, kindLabel, unitLabel } from '$lib/library/labels';
@@ -970,7 +970,8 @@
 	let previewOf = '';
 	let previewTimer: ReturnType<typeof setTimeout> | undefined;
 	let previewAsk = 0;
-	let streamPic = $state<string | null>(null);
+	/** A stream's last frame, and the time it was drawn for: shown only near it (`nearFrame`). */
+	let streamPic = $state<{ src: string; at: number } | null>(null);
 	function wantPreview(at: number) {
 		// The downloaded server (0) has a file: its sprite, or nothing to fetch.
 		if (sprite || !server || server.n === 0) return;
@@ -988,7 +989,7 @@
 			const pic = await preview.frameAt(at);
 			// A later stop, or the pointer gone: this one is nobody's now.
 			if (ask !== previewAsk || hoverAt === null) return;
-			streamPic = pic;
+			streamPic = pic ? { src: pic, at } : null;
 		}, PREVIEW_DEBOUNCE_MS);
 	}
 	// ---- picture-in-picture (c388; doc/ANIME.md, "The player"; pip.ts) ------------------------
@@ -1568,7 +1569,8 @@
      the frame there when there is one, kept inside the track. -->
 {#snippet tip(at: number)}
 	{@const tile = sprite ? spriteTile(sprite, at) : null}
-	{@const pic = !!tile || !!streamPic}
+	{@const still = streamPic && nearFrame(streamPic.at, at, duration) ? streamPic.src : null}
+	{@const pic = !!tile || !!still}
 	<div
 		class="tip"
 		class:pic
@@ -1584,8 +1586,8 @@
 				style:background-image="url({sprite.src})"
 				style:background-position="{-tile.x}px {-tile.y}px"
 			></div>
-		{:else if streamPic}
-			<div class="frame" style:background-image="url({streamPic})"></div>
+		{:else if still}
+			<div class="frame" style:background-image="url({still})"></div>
 		{/if}<span class="at">{clock(at)}</span>
 	</div>
 {/snippet}

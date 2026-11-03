@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { nearFrame } from '../src/routes/read/[entry]/seek-preview';
 import {
 	spriteTile,
 	cleanVolume,
@@ -275,5 +276,34 @@ describe('the sprite sheet (c385)', () => {
 		expect(spriteTile(sprite, 99_999)).toEqual(spriteTile(sprite, 1430));
 		expect(spriteTile(sprite, Number.NaN)).toEqual({ x: 0, y: 0 });
 		expect(spriteTile({ ...sprite, count: 1 }, 500)).toEqual({ x: 0, y: 0 });
+	});
+});
+
+/**
+ * A stream's frame beside the time under the pointer (c385, round 2 of the
+ * review): shown only near the time it was drawn for, half a percent of the
+ * episode and at least a second, so the tip never labels one time's picture
+ * with another.
+ */
+describe('nearFrame', () => {
+	it('is near within a second on a short clip, and never with no frame', () => {
+		expect(nearFrame(null, 2, 8)).toBe(false);
+		expect(nearFrame(2.5, 2.5, 8)).toBe(true);
+		expect(nearFrame(2.5, 3.5, 8)).toBe(true);
+		expect(nearFrame(2.5, 1.5, 8)).toBe(true);
+		// The next stop, 2 s on: the old frame is not this time's.
+		expect(nearFrame(2.5, 4.5, 8)).toBe(false);
+		expect(nearFrame(2.5, 3.51, 8)).toBe(false);
+	});
+	it('widens to half a percent of a long episode', () => {
+		// 24 min: 7.2 s, a few pixels of a desktop's bar.
+		expect(nearFrame(600, 607.1, 1440)).toBe(true);
+		expect(nearFrame(600, 592.9, 1440)).toBe(true);
+		expect(nearFrame(600, 607.3, 1440)).toBe(false);
+	});
+	it('holds at a second when the duration is unknown', () => {
+		expect(nearFrame(10, 11, 0)).toBe(true);
+		expect(nearFrame(10, 11, Number.NaN)).toBe(true);
+		expect(nearFrame(10, 11.01, Number.POSITIVE_INFINITY)).toBe(false);
 	});
 });

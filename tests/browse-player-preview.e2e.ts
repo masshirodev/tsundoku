@@ -232,21 +232,29 @@ test.describe('a stream', () => {
 		]);
 	});
 
-	test('shows a frame of its lowest quality, one segment a stop, nothing off the bar (c385)', async ({
-		page
-	}) => {
-		test.setTimeout(90_000);
-		const segments: string[] = [];
-		await page.route('**/__preview/hls/**', (route) => {
+	/**
+	 * Serves the cut HLS as the engine's loopback would, counting each segment
+	 * asked for; [delayMs] holds every segment back, as a slow engine does.
+	 */
+	async function serveHls(page: Page, segments: string[], delayMs = 0) {
+		await page.route('**/__preview/hls/**', async (route) => {
 			const name = new URL(route.request().url()).pathname.split('/').pop()!;
 			if (!readdirSync(hlsDir).includes(name)) return route.fulfill({ status: 404 });
-			if (name.endsWith('.m4s')) segments.push(name);
-			return route.fulfill({
-				body: readFileSync(join(hlsDir, name)),
-				contentType: name.endsWith('.m3u8') ? 'application/vnd.apple.mpegurl' : 'video/mp4'
-			});
+			if (name.endsWith('.m4s')) {
+				segments.push(name);
+				if (delayMs) await new Promise((ok) => setTimeout(ok, delayMs));
+			}
+			return route
+				.fulfill({
+					body: readFileSync(join(hlsDir, name)),
+					contentType: name.endsWith('.m3u8') ? 'application/vnd.apple.mpegurl' : 'video/mp4'
+				})
+				.catch(() => undefined); // hls.js stopped the load meanwhile
 		});
-		// The picture plays the 720p file; the preview reads the 360p HLS.
+	}
+
+	/** The picture plays the 720p file; the preview reads the 360p HLS. */
+	async function lowHls(page: Page) {
 		await widen(page, (a) => ({
 			...a,
 			servers: [
@@ -267,6 +275,52 @@ test.describe('a stream', () => {
 				}
 			]
 		}));
+	}
+
+	test('on a slow source, the last stop’s frame never sits over another time, and a stop soon after an earlier one still gets its own (c385)', async ({
+		page
+	}) => {
+		test.setTimeout(90_000);
+		const segments: string[] = [];
+		// Each segment 800 ms late: a stop still waiting when the next begins,
+		// and both answered inside a stop's second.
+		await serveHls(page, segments, 800);
+		await lowHls(page);
+		await openEpisode(page);
+		const frame = page.locator('.scrubrow .track .tip .frame');
+		const at = page.locator('.scrubrow .track .tip .at');
+
+		await hover(page, 2.5 / 8);
+		await expect(frame).toBeVisible({ timeout: 5000 });
+		await expect(at).toHaveText('0:02');
+		// Along the bar to 5.5 s: the 2.5 s frame goes at once, before the next
+		// one can be here (the debounce and 800 ms), and the time shows alone.
+		let p = await lineAt(page, 5.5 / 8);
+		await page.mouse.move(p.x, p.y);
+		await expect(at).toHaveText('0:05');
+		await expect(frame).toHaveCount(0, { timeout: 400 });
+		// Then 5.5 s's own.
+		await expect(frame).toBeVisible({ timeout: 5000 });
+
+		// Two stops 300 ms apart, the first still waiting on its segment when the
+		// second begins: the second still gets its frame. The first's give-up
+		// (its second running out) used to stop the second's segment loading.
+		p = await lineAt(page, 0.8 / 8);
+		await page.mouse.move(p.x, p.y);
+		await page.waitForTimeout(300);
+		p = await lineAt(page, 6.5 / 8);
+		await page.mouse.move(p.x, p.y);
+		await expect(at).toHaveText('0:06');
+		await expect(frame).toBeVisible({ timeout: 5000 });
+	});
+
+	test('shows a frame of its lowest quality, one segment a stop, nothing off the bar (c385)', async ({
+		page
+	}) => {
+		test.setTimeout(90_000);
+		const segments: string[] = [];
+		await serveHls(page, segments);
+		await lowHls(page);
 		await openEpisode(page);
 		// Played, paused, the controls shown and the pointer elsewhere: nothing.
 		await page.waitForTimeout(1500);
