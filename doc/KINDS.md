@@ -79,7 +79,8 @@ are what the registry should answer:
    Works and Seasons in `doc/WORKS.md`).
 8. **Move.** Which kinds can move between sources (`MoveKind = 'manga' | 'anime'`).
 
-**The list of kinds itself is written in five places, and they don't agree:**
+**At `e176cbe` the list of kinds was written in five places, and they didn't
+agree:**
 
 - `Kind` and `KINDS` in `src/lib/library/types.ts`
 - `FILTER_KINDS` in `src/lib/library/filters.ts`
