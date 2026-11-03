@@ -571,10 +571,12 @@ test('the block is a tap, never a swipe: a chapter boundary cannot cross into an
 	const stage = (await page.locator('.stage').boundingBox())!;
 	// R→L: a swipe to the right is forward. At the end of the series it must do
 	// nothing -- the next series may read the other way, and the rating is asked
-	// here (Works Calls, "Why a tap and not a swipe").
-	await page.mouse.move(stage.x + stage.width * 0.5, stage.y + stage.height * 0.5);
+	// here (Works Calls, "Why a tap and not a swipe"). The swipe starts above the
+	// block: a drag that begins on a link is the link's, never the page's.
+	const y = stage.y + stage.height * 0.15;
+	await page.mouse.move(stage.x + stage.width * 0.4, y);
 	await page.mouse.down();
-	await page.mouse.move(stage.x + stage.width * 0.85, stage.y + stage.height * 0.5, { steps: 8 });
+	await page.mouse.move(stage.x + stage.width * 0.8, y, { steps: 8 });
 	await page.mouse.up();
 	await page.waitForTimeout(400);
 	expect(page.url()).toBe(url);

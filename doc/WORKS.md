@@ -8,7 +8,7 @@ mirrored in [`design/handoff/`](design/handoff/) as `Works Calls.dc.html` (the
 designer's decisions, the canvas's `Main.dc.html`), the `Seasons-*` and
 `Work-*` boards, `wk.css`, and `Works canvas.json`.
 
-**Status: designed, W1 to W3 built** (the table at the end). Read
+**Status: designed, W1 to W3 and W6 built** (the table at the end). Read
 `Works Calls.dc.html` whole before a slice: it answers the brief's seven
 questions, and this file only records what the build decided on top of it.
 
@@ -226,11 +226,62 @@ a whole-shelf SELECT ALL must not collapse every Work on it into one. One cell,
 no sheet; W4 replaces it with AS → A WORK · SERIES, NAME and ORDER. The create
 leaves no UNDO band: taking the Work apart again is UNGROUP, and UNDO is W4's.
 
+### The end of a series (W6)
+
+The one place continuity is won (`Works Calls`, "The end of a series"). The
+rule is `nextPart(parts, seriesId)` in `src/lib/library/works.ts`: **the part
+after this one in the owner's order**, never the next unfinished one, so
+finishing part 2 of 3 leads to part 3 even when part 3 was started out of
+order. `partPlace` gives `PART 2 OF 3`; `workEndMode` says what the end offers
+-- `next` (the block), `meanwhile` (caught up on an ongoing source: a row, not
+a block), `read` (every part finished: the run is read) or null; `workHeld`
+builds the run's `2 SERIES · 227 CHAPTERS · MONSTER 10, PLUTO UNRATED` line.
+W5's series screen reads the same rule.
+
+- **The end page** (`src/routes/read/[entry]/EndPage.svelte`, the
+  `variant: 'series'` page) draws **NEXT IN `<WORK>` · PART n OF m** between
+  the title and the rating: the next part's cover, its title, its own
+  `KIND · N CHAPTERS · ALL DOWNLOADED · SCROLLS` (an anime next part says
+  EPISODES), the accent `▶ START · CH. 1` and `WORK →`. The kicker names the
+  series that ended (`END · THE BREAKER`) instead of `END · LAST AVAILABLE`,
+  because something follows; the foot gains `<WORK> · WORK` beside LIBRARY.
+- **The rating stays below, compact, only while this series is unrated**, and
+  still never asks twice: the block sits above it, and a rated series has no
+  row. The note says the next part opens on a tap, never a swipe.
+- **A tap, never a swipe.** A chapter boundary swipes on because the next
+  chapter is the same thing; the next series may read the other way (a manga
+  after a manhwa) and this is the one moment the rating is asked. A swipe or a
+  key at the end page stays where it is; only the block's own cells cross.
+- **Caught up is not read through.** An ongoing part with everything read
+  keeps `END · LAST AVAILABLE` and offers the next part as a MEANWHILE row
+  with START →, because the owner may rather wait for chapters.
+- **Not downloaded vs offline.** A next part whose first chapter has no file
+  but a source an installed extension serves says `○ NOT DOWNLOADED · READS
+ONLINE FROM <SOURCE>` with `▶ READ ONLINE · CH. 1` (c161) and DOWNLOAD FIRST
+  10, which posts the next series' own `?/download`. Offline and not cached on
+  the device it says `○ OFFLINE · NOT CACHED` with START dimmed; a cached one
+  opens as usual.
+- **The last part** says `THE WORK IS READ · n OF m`, the Work's name, what it
+  held, and WORK → in place of START -- never an empty block.
+- **Incognito still offers it**, and writes nothing either way.
+- **A novel's last volume** is the same page, so it gets the same block; a
+  volume that isn't the last ends as it did (`TextScreen`'s own copy, naming
+  the chapter that isn't downloaded). The text reader's true end now renders
+  `EndPage`, so a novel asks for its rating once, not twice.
+- **The player** (`VideoPlayer.svelte`): on the last episode the card the
+  player already draws at the ending turns into the Work's next part --
+  `NEXT IN THE WORK · READ|WATCH`, `PART n OF m`, the next part's title and
+  meta, `▶ READ · CH. 1` and WORK. No countdown and never an autoplay into
+  another series; the end-of-episode page keeps `END · LAST AVAILABLE` and
+  gains the same card. A Work of an anime and its manga says READ.
+
 ### The frames
 
 `tests/works-library-frame.e2e.ts` and `tests/work-screen-frame.e2e.ts` are
 `gen-conformance` output pinned from `Work-Library.dc.html` and
-`Work-Screen.dc.html`. The seeded library has no Work, so each file seeds a
+`Work-Screen.dc.html`; `tests/work-end-frame.e2e.ts` is pinned from
+`Work-End.dc.html` (its four states are hand-written cases in the same file).
+The seeded library has no Work, so each file seeds a
 database of its own and serves the same build on its own port, and makes one
 Work there through the app, in two series near the top of CONTINUE.
 `PLAYWRIGHT_WORKS_PORT` pins that port when the gate assigns one; with the
@@ -243,6 +294,12 @@ row. That preamble and a couple of width/shadow assertions the generator
 cannot see are hand-written, and **regenerating the files drops them** --
 `temp/design/assemble.py` is the script that puts them back. They run in the
 `works-frame` project (1280x800, one worker).
+
+`work-end-frame.e2e.ts` also seeds an anime series of its own, whose episodes
+are the fixture clip as downloaded files, so the player's last episode is real
+without the browse world's fake engine or its shared database. Its six Works
+are made through the app and renamed in SQL, and its "reads online" state is
+one `engine_sources` row for a source nothing calls.
 
 ### The flow
 
@@ -267,12 +324,13 @@ no detection of franchises, seasons or authors beyond the title-stem offers;
 two sources of one work stay the duplicates review's; the next part is not
 kept cached on the tablet.
 
-W4 to W7 are not built: GROUP AS A WORK's AS sheet (the WORK cell above is a
-stand-in), a person's page Work row, HIDE on a part, the series screen's WORK
-row and back cell, the end page and the player, MIGHT CONTINUE and the phone
-flow. The Work screen does not draw the handoff's `↓ 10` download cell: a tap
-on a row opens the series, where DOWNLOAD's NEXT 10 lives, and this slice adds
-no download action of its own.
+W4, W5 and W7 are not built: GROUP AS A WORK's AS sheet (the WORK cell above
+is a stand-in), a person's page Work row, HIDE on a part, the series screen's
+WORK row and back cell, MIGHT CONTINUE and the phone flow. The Work screen
+does not draw the handoff's `↓ 10` download cell: a tap on a row opens the
+series, where DOWNLOAD's NEXT 10 lives, and this slice adds no download action
+of its own. W6's block offers DOWNLOAD FIRST 10 for the next part, which is
+the series screen's own `?/download`.
 
 ## The slices
 
@@ -289,7 +347,7 @@ beside). A slice's card names its boards, files, specs and docs.
 | W3    | c277 | `/work/N`: the Work's own screen (built)                               |
 | W4    | c278 | GROUP AS A WORK, a person's page, HIDE on a part                       |
 | W5    | c279 | The series screen's WORK row and back cell                             |
-| W6    | c280 | The end of a series: the end page and the player                       |
+| W6    | c280 | The end of a series: the end page and the player (built)               |
 | W7    | c281 | MIGHT CONTINUE offers, the phone, and one flow end to end              |
 | S1    | c282 | Merged seasons: per-season source and folder (after c240)              |
 | S2    | c283 | GROUP AS SEASONS: the merge, UNDO, UNGROUP                             |

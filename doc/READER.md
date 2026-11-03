@@ -84,8 +84,9 @@ own:
 The page menu is a 420px panel from the right on a TV, and it is the one
 dialog the pad drives while the controls are hidden (its rows are
 `use:focusScope` with `force`). The reader's _**end page**_ lifts the opt-out,
-so its cells — ← SERIES, the rating, LIBRARY, ANOTHER SOURCE → on a stale
-series — are stops.
+so its cells — ← SERIES, the next part's block and its WORK cell on a series
+in a Work, the rating, LIBRARY, ANOTHER SOURCE → on a stale series — are
+stops.
 
 **With the controls up, the controls are a focus row** (c241; TV-Reader 7D).
 OK brings them up with the pad on the page scrubber; ↓ reaches the chapter
@@ -308,6 +309,19 @@ scrollable screen, which took some of them at random.
   eight weeks adds one line — `ASURA SCANS HAS ADDED NOTHING SINCE 6 SEP` —
   and a cell ANOTHER SOURCE → that opens MOVE ([`MOVE.md`](MOVE.md)). No band:
   a quiet source isn't a broken one.
+- **The end of a series in a Work** offers the next part
+  ([`WORKS.md`](WORKS.md), W6): a NEXT IN THE WORK block with the next part's
+  cover, title, its own kind's line, `▶ START · CH. 1` and WORK →, between the
+  title and the rating. **It is a tap, never a swipe**: a chapter boundary
+  swipes on because the next chapter is the same thing, while the next series
+  may read the other way and this is the one moment the rating is asked. A
+  swipe or a key at the end page stays where it is; only the block's own cells
+  cross. Caught up on an ongoing part keeps END · LAST AVAILABLE and offers a
+  MEANWHILE row instead; a next part with no file reads online from its source
+  (or says `○ OFFLINE · NOT CACHED` with START dimmed); and a run that is read
+  says `THE WORK IS READ · n OF m` with WORK → in place of START. The kicker
+  names the series when the Work carries on, and the foot gains
+  `<WORK> · WORK`.
 - **The next chapter isn't downloaded** (imported from a backup, read online):
   the boundary says so, "○ NOT DOWNLOADED", and doesn't pretend it opens.
 - **Offline:** "○ OFFLINE · CACHED STILL OPENS" and "○ NOT CACHED" on the next
