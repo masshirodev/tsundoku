@@ -135,6 +135,15 @@ export function isExact(seriesTitles: string[], c: Pick<Candidate, 'title' | 'al
 	return titlesOf(c).some((t) => ours.has(normaliseTitle(t)));
 }
 
+/**
+ * The titles a sure match may equal: each as written, cleaned (`cleanTitle`),
+ * and what its brackets hold. Shared by the automatic pass and the review's
+ * EXACT TITLE chip, so both call the same title exact.
+ */
+export const matchTitles = (titles: string[]): string[] => [
+	...new Set(titles.flatMap((t) => [t, cleanTitle(t), ...bracketed(t)]))
+];
+
 /** The AniList formats an anime is (doc/LINKS.md, "A novel never matches a comic"). */
 export const ANIME_FORMATS = ['TV', 'TV_SHORT', 'MOVIE', 'OVA', 'ONA', 'SPECIAL'] as const;
 
@@ -155,7 +164,9 @@ export function candidateKind(c: Pick<Candidate, 'format' | 'country'>): Kind | 
 export function sameKind(series: Kind, candidate: Kind | null): boolean {
 	if (candidate === null) return false;
 	if (series === 'anime' || candidate === 'anime') return series === candidate;
-	const comic = (k: Kind) => k === 'manga' || k === 'manhwa';
+	// Every kind that is not a novel or an anime is one comic family to AniList
+	// (a doujin's entry is a manga's): neither kind list may cross to the other.
+	const comic = (k: Kind) => k !== 'novel';
 	return comic(series) === comic(candidate);
 }
 

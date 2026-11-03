@@ -10,10 +10,9 @@ import {
 	coverOnly,
 	idsLine,
 	isCutShort,
+	matchTitles,
 	normaliseTitle,
 	scoreToRating,
-	bracketed,
-	cleanTitle,
 	searchTitles,
 	sureMatch,
 	wrongKind,
@@ -174,7 +173,7 @@ export function toCandidate(m: Media): Candidate {
 const mediaTypeOf = (kind: Kind): 'ANIME' | 'MANGA' => (kind === 'anime' ? 'ANIME' : 'MANGA');
 
 /** The two families a MAL id belongs to: anime's ids and manga's are separate sequences. */
-const family = (kind: Kind): 'anime' | 'comic' => (kind === 'anime' ? 'anime' : 'comic');
+export const family = (kind: Kind): 'anime' | 'comic' => (kind === 'anime' ? 'anime' : 'comic');
 
 /** The formats a kind can be: an anime its own, a novel NOVEL, anything else a comic. */
 const formatsOf = (kind: Kind): string[] =>
@@ -586,14 +585,6 @@ const titlesOfRow = (r: { title: string; alt_titles: string }): string[] => {
 	}
 	return [r.title, ...alts];
 };
-
-/**
- * The titles a sure match may equal: the series' own, each cleaned
- * (`cleanTitle`), and what their brackets hold.
- */
-const matchTitles = (titles: string[]): string[] => [
-	...new Set(titles.flatMap((t) => [t, cleanTitle(t), ...bracketed(t)]))
-];
 
 /**
  * Search AniList for each: the automatic pass links a sure match at once

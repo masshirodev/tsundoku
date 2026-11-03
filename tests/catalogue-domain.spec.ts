@@ -10,6 +10,7 @@ import {
 	idsLine,
 	isCutShort,
 	isExact,
+	matchTitles,
 	normaliseTitle,
 	parsePasted,
 	sameKind,
@@ -113,6 +114,17 @@ describe('a sure match', () => {
 			expect(sameKind('anime', k)).toBe(false);
 		}
 		expect(sameKind('manga', null)).toBe(false);
+		// A doujin is a comic, not a novel (round 2).
+		expect(sameKind('doujin', 'novel')).toBe(false);
+		expect(sameKind('doujin', 'manga')).toBe(true);
+		expect(sameKind('doujin', 'doujin')).toBe(true);
+	});
+
+	it('marks the same titles exact in the review’s chip as the pass matches them (round 2)', () => {
+		const anime = cand({ anilistId: 40, title: 'Ranma ½', alts: [], format: 'TV' });
+		// The raw title names 2024; the chip must read it as the pass does.
+		expect(isExact(['Ranma ½ (2024)'], anime)).toBe(false);
+		expect(isExact(matchTitles(['Ranma ½ (2024)']), anime)).toBe(true);
 	});
 
 	it('is never an anime for a manga’s exact title, however well it matches', () => {

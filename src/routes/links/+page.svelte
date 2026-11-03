@@ -3,7 +3,13 @@
 	import { resolve } from '$app/paths';
 	import { coverSrc } from '$lib/library/links';
 	import { coverPlaceholder, hueFor } from '$lib/library/cover';
-	import { anilistUrl, candidateKind, idsLine, isExact, parsePasted } from '$lib/library/catalogue';
+	import {
+		anilistUrl,
+		candidateKind,
+		isExact,
+		matchTitles,
+		parsePasted
+	} from '$lib/library/catalogue';
 	import { langName, parseRanobeUrl } from '$lib/library/ranobe';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { offline } from '$lib/offline.svelte';
@@ -298,9 +304,10 @@
 
 	/**
 	 * SEARCH AGAIN, at once (the owner's call, 2026-09-24; the handoff queued it
-	 * for the next cover pass). On AniList an exact match links; otherwise, and
-	 * always on Ranobe, the new candidates replace these, on the same series.
-	 * Out of reach, it waits for the pass after all, and says so.
+	 * for the next cover pass). A search the owner runs never links: its
+	 * candidates replace these, on the same series, even when there is only one,
+	 * and the owner presses LINK (c298). Out of reach, it waits for the pass
+	 * after all, and says so.
 	 */
 	let searchingNow = $state(false);
 	async function searchAgain() {
@@ -319,8 +326,7 @@
 			return;
 		}
 		const a = (await r.json()) as {
-			outcome: 'linked' | 'found' | 'queued';
-			candidate?: { anilistId: number; malId: number | null; title: string };
+			outcome: 'found' | 'queued';
 			found?: number;
 			was?: QueuedFrom;
 			item: Item | null;
@@ -331,34 +337,21 @@
 			series: it.seriesId,
 			was: a.was ?? undefined
 		};
-		if (a.outcome === 'linked' && single) {
-			await backToSeries(it.seriesId);
-			return;
-		}
-		if (a.outcome === 'linked' || a.outcome === 'queued') {
-			if (a.outcome === 'queued') nonet = it.service;
+		if (a.outcome === 'queued') {
+			nonet = it.service;
 			queue = queue.slice(1);
 			done += 1;
-			undo =
-				a.outcome === 'linked'
-					? {
-							title: `LINKED · ${a.candidate!.title.toUpperCase()}`,
-							detail: `THE SAME TITLE ON ${name} · ${idsLine(a.candidate!.anilistId, a.candidate!.malId)}`,
-							undo: back,
-							before: beforeQ,
-							restore: it
-						}
-					: {
-							title: `QUEUED · “${q}”`,
-							// AniList's search runs in the cover pass; Ranobe's in its own.
-							detail:
-								it.service === 'ranobe'
-									? 'RANOBE UNREACHABLE · SEARCHED IN THE NEXT PASS'
-									: 'ANILIST UNREACHABLE · SEARCHED IN THE NEXT COVER PASS',
-							undo: back,
-							before: beforeQ,
-							restore: it
-						};
+			undo = {
+				title: `QUEUED · “${q}”`,
+				// AniList's search runs in the cover pass; Ranobe's in its own.
+				detail:
+					it.service === 'ranobe'
+						? 'RANOBE UNREACHABLE · SEARCHED IN THE NEXT PASS'
+						: 'ANILIST UNREACHABLE · SEARCHED IN THE NEXT COVER PASS',
+				undo: back,
+				before: beforeQ,
+				restore: it
+			};
 			return;
 		}
 		if (a.item) byKey.set(qk(a.item), a.item);
@@ -806,7 +799,9 @@
 								{@const on = chosen === key}
 								{@const note = 'coverNote' in c ? c.coverNote : null}
 								{@const exactTitle =
-									!('work' in c) && item ? isExact([item.title, ...item.alts], c) : false}
+									!('work' in c) && item
+										? isExact(matchTitles([item.title, ...item.alts]), c)
+										: false}
 								<div
 									class="cand"
 									class:on
