@@ -1,6 +1,7 @@
 import { getDb } from '../db.ts';
 import { sourceUse } from '../library-sources.ts';
 import { mostlyHidden } from '../../library/downloads.ts';
+import { SOURCE_KINDS, type SourceFamily, type SourceKind } from '../../library/kinds.ts';
 import { cleanSchema, toEngine, type FilterField } from '../../library/browse-filters.ts';
 import type { SearchHit } from '../download-types.ts';
 import { asHits, callSource, type EngineManga } from './backend.ts';
@@ -35,7 +36,8 @@ export type BrowseSource = {
 	pkg: string;
 	name: string;
 	lang: string;
-	kind: 'manga' | 'anime' | 'novel';
+	/** The kind its family names a row by (`SOURCE_KINDS`): Mihon's manga, Aniyomi's anime, LNReader's novel. */
+	kind: SourceKind;
 	/** Series the library has from it that the viewer may see, and of those how many are hidden (0 with reveal off). */
 	series: number;
 	hidden: number;
@@ -252,14 +254,17 @@ export function browseList(reveal: boolean): BrowseList {
 		check: checked.some((h) => sameSite(h, bases.get(s.id) ?? ''))
 	}));
 	const visiblePkgs = new Set(shown.map((s) => s.pkg));
+	const ofFamily = (family: SourceFamily) => rows.filter((r) => r.kind === SOURCE_KINDS[family]);
 	return {
 		recent: rows
 			.filter((r) => r.browsedAt !== null)
 			.sort((a, b) => b.browsedAt! - a.browsedAt!)
 			.slice(0, RECENT),
-		manga: rows.filter((r) => r.kind === 'manga'),
-		anime: rows.filter((r) => r.kind === 'anime'),
-		novels: rows.filter((r) => r.kind === 'novel'),
+		// One list per source family, by the kind each family names its rows
+		// (`SOURCE_KINDS`; card c303): Mihon's, Aniyomi's, LNReader's.
+		manga: ofFamily('mihon'),
+		anime: ofFamily('aniyomi'),
+		novels: ofFamily('lnreader'),
 		extensions: visiblePkgs.size,
 		updates:
 			installed().filter((e) => e.update && visiblePkgs.has(e.pkg)).length +

@@ -23,6 +23,7 @@ import {
 } from '$lib/server/engine/manage';
 import { browseLanguages, browseSources, forgetSource } from '$lib/server/engine/browse';
 import type { Kind } from '$lib/server/engine/repo-index';
+import { SOURCE_KINDS, type SourceFamily } from '$lib/library/kinds';
 import {
 	addNovelRepo,
 	backPlugin,
@@ -106,13 +107,18 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 		null
 	);
 
+	// AVAILABLE's tabs are one per source family (card c303): Mihon's APKs,
+	// Aniyomi's, LNReader's plugins. The URL's word for each is unchanged
+	// (none, `anime`, `novels`), and so is `kind`, which the page sends back.
 	const kindAsked = url.searchParams.get('kind');
-	const kind: Kind | 'novels' =
-		kindAsked === 'anime' ? 'anime' : kindAsked === 'novels' ? 'novels' : 'manga';
+	const family: SourceFamily =
+		kindAsked === 'anime' ? 'aniyomi' : kindAsked === 'novels' ? 'lnreader' : 'mihon';
+	const kind: Kind | 'novels' = family === 'lnreader' ? 'novels' : SOURCE_KINDS[family];
 	// AVAILABLE's filters (doc/BROWSE.md, "Filters"): in the URL, for this visit.
 	const filters = parseExtFilters(url.searchParams);
 	const available = availableView({
-		kind: kind === 'novels' ? 'manga' : kind,
+		// The plugins' tab still counts the APKs' tabs, as Mihon's would.
+		kind: family === 'lnreader' ? SOURCE_KINDS.mihon : SOURCE_KINDS[family],
 		q: url.searchParams.get('q') ?? '',
 		filters,
 		reveal
@@ -135,8 +141,9 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 				preview = {
 					name: p.name,
 					base: p.base,
-					manga: p.listings.filter((l) => l.kind === 'manga').length,
-					anime: p.listings.filter((l) => l.kind === 'anime').length,
+					// An APK listing's kind is its family's (`SOURCE_KINDS`).
+					manga: p.listings.filter((l) => l.kind === SOURCE_KINDS.mihon).length,
+					anime: p.listings.filter((l) => l.kind === SOURCE_KINDS.aniyomi).length,
 					novels: 0
 				};
 			}
@@ -173,8 +180,8 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 		checkedAt,
 		installed: tab === 'installed' ? installedNow : null,
 		plugins: tab === 'installed' ? pluginsNow : null,
-		available: tab === 'available' ? { ...available, kind } : null,
-		novelsAvailable: tab === 'available' && kind === 'novels' ? plugins : null,
+		available: tab === 'available' ? { ...available, kind, family } : null,
+		novelsAvailable: tab === 'available' && family === 'lnreader' ? plugins : null,
 		availableCounts: { ...available.counts, novels: plugins.total },
 		filters,
 		// REPOSITORY's choices: the extension repositories for manga and anime, LNReader's for novels.

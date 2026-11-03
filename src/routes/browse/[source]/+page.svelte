@@ -8,6 +8,7 @@
 	import Band from '$lib/components/chrome/Band.svelte';
 	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
 	import { count } from '$lib/library/downloads';
+	import { SOURCE_KINDS } from '$lib/library/kinds';
 	import { writeFilters } from '$lib/library/browse-filters';
 	import { isSettled } from '$lib/library/settled';
 	import ResultTile from './ResultTile.svelte';
@@ -88,8 +89,9 @@
 	const value = $derived(shown?.ok ? shown.value : null);
 	const results = $derived(value?.results ?? null);
 	const name = $derived(data.source.name);
-	// An LNReader plugin (doc/NOVELS.md): no settings here, and its search takes no filters.
-	const novel = $derived(data.source.kind === 'novel');
+	// An LNReader plugin (doc/NOVELS.md): no settings here, and its search takes
+	// no filters. Its family names its rows by its kind (`SOURCE_KINDS`).
+	const novel = $derived(data.source.kind === SOURCE_KINDS.lnreader);
 	const tabTitle = $derived(
 		data.q
 			? `“${data.q.toUpperCase()}”`

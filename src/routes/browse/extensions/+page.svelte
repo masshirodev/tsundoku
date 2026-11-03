@@ -332,29 +332,29 @@
 	{#if data.available}
 		{@const a = data.available}
 		<nav class="tabs kinds" aria-label="Kinds">
-			<a class="tab" class:on={a.kind === 'manga'} href={link({ kind: null, n: null })}
+			<a class="tab" class:on={a.family === 'mihon'} href={link({ kind: null, n: null })}
 				>MANGA <span class="n">{count(a.counts.manga)}</span></a
 			>
-			<a class="tab" class:on={a.kind === 'anime'} href={link({ kind: 'anime', n: null })}
+			<a class="tab" class:on={a.family === 'aniyomi'} href={link({ kind: 'anime', n: null })}
 				>ANIME <span class="n">{count(a.counts.anime)}</span></a
 			>
-			<a class="tab" class:on={a.kind === 'novels'} href={link({ kind: 'novels', n: null })}
+			<a class="tab" class:on={a.family === 'lnreader'} href={link({ kind: 'novels', n: null })}
 				>NOVELS <span class="n">{count(data.availableCounts.novels)}</span></a
 			>
 		</nav>
 		{@const nv = data.novelsAvailable}
 		<form method="GET" action={base} class="filter">
 			<input type="hidden" name="tab" value="available" />
-			{#if a.kind !== 'manga'}<input type="hidden" name="kind" value={a.kind} />{/if}
+			{#if a.family !== 'mihon'}<input type="hidden" name="kind" value={a.kind} />{/if}
 			<input
 				class="find"
 				type="search"
 				name="q"
 				value={page.url.searchParams.get('q') ?? ''}
 				placeholder="/ search {count(
-					a.kind === 'novels'
+					a.family === 'lnreader'
 						? data.availableCounts.novels
-						: a.kind === 'manga'
+						: a.family === 'mihon'
 							? a.counts.manga
 							: a.counts.anime
 				)}"
@@ -365,8 +365,8 @@
 				filters={data.filters}
 				mine={data.languages}
 				languages={nv ? nv.languages : a.languages}
-				repos={a.kind === 'novels' ? data.filterRepos.novels : data.filterRepos.engine}
-				novels={a.kind === 'novels'}
+				repos={a.family === 'lnreader' ? data.filterRepos.novels : data.filterRepos.engine}
+				novels={a.family === 'lnreader'}
 				title="{a.kind === 'novels' ? 'NOVEL' : a.kind.toUpperCase()} EXTENSIONS"
 				count="{count(nv ? nv.rows.length : a.rows.length)} FOUND"
 				href={(f) => link({ ...extFilterParams(f), all: null, n: null })}
