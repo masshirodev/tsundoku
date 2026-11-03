@@ -8,8 +8,9 @@
  */
 
 import { sharedStart, titleWords } from './books';
-import { kindLabel } from './labels';
-import type { Kind, Rating } from './types';
+import { kindLabel, unitLabel } from './labels';
+import { ago } from './tracking';
+import type { ContinueItem, Kind, Rating, SeriesCard } from './types';
 
 /** How a Work's parts are ordered: the owner's hand, when each was added, or its title. */
 export type WorkOrder = 'hand' | 'added' | 'title';
@@ -56,7 +57,7 @@ export function partState(p: WorkPart): PartState {
 }
 
 /** Parts in the owner's order. Ties fall back to the id, so the answer is never the array's accident. */
-export const inOrder = (parts: WorkPart[]) =>
+export const inOrder = <T extends WorkPart>(parts: T[]): T[] =>
 	[...parts].sort((a, b) => a.position - b.position || a.seriesId - b.seriesId);
 
 /**
@@ -217,4 +218,157 @@ export const kindVerb = (kind: Kind) => (kind === 'anime' ? 'WATCH' : 'READ');
 export function workVerb(parts: WorkPart[]): 'READ' | 'WATCH' | null {
 	const current = continuePart(parts);
 	return current ? kindVerb(current.kind) : null;
+}
+
+/** What a run row's status column says: the ink, and the quieter line under it. */
+export type RunStatus = { ink: string; sub: string };
+
+/**
+ * THE RUN's status column (Work-Screen; Work-States 3 and 6): `READ ✓ ·
+ * FINISHED 12 MAR`, `CH. 15 OF 205 · OPENED 2 H AGO`, `NOT STARTED · +4 NEW`.
+ * The unit and the finished mark follow the part's kind, so an anime part --
+ * the designed manga-plus-anime Work -- says `EP. 5 OF 12` and `WATCH ✓`, not
+ * `CH.` and `READ ✓` beside its own `ANIME · EP.` meta line.
+ *
+ * A never-opened part's `newCount` is read against the Work's last open, not
+ * its own (there is none): chapters that arrived since the owner last read any
+ * part of the run are what `+N NEW` means there. A series tile keeps the
+ * library's rule that a never-opened series has only unread (doc/LIBRARY.md,
+ * "New chapters").
+ *
+ * The formatters come from the caller so the screen's date and time words stay
+ * the screen's (`ago`, the month's locale), and this stays testable alone.
+ */
+export function runStatus(
+	p: WorkPart & { finishedAt?: number | null; newCount?: number },
+	opts: {
+		current?: boolean;
+		/** The label of the entry ▶ opens, for the part CONTINUE opens. */
+		resumeLabel?: string | null;
+		now?: number;
+		month?: (ms: number) => string;
+	} = {}
+): RunStatus {
+	const state = partState(p);
+	if (state === 'read-through' || state === 'caught-up')
+		return {
+			ink: state === 'caught-up' ? 'CAUGHT UP ✓' : `${kindVerb(p.kind)} ✓`,
+			sub: p.finishedAt ? `FINISHED ${monthOf(opts)(p.finishedAt)}` : ''
+		};
+	if (state === 'not-started')
+		return {
+			ink: '',
+			sub: `NOT STARTED${(p.newCount ?? 0) > 0 ? ` · +${p.newCount} NEW` : ''}`
+		};
+	const chapter =
+		opts.current && opts.resumeLabel
+			? opts.resumeLabel.toUpperCase()
+			: `${unitLabel(p.kind)}. ${p.read + 1}`;
+	return {
+		ink: `${chapter} OF ${p.entries}`,
+		sub: p.lastOpenedAt ? `OPENED ${ago(p.lastOpenedAt, opts.now ?? Date.now())}` : 'IN PROGRESS'
+	};
+}
+
+const monthOf = (opts: { month?: (ms: number) => string }) =>
+	opts.month ??
+	((ms: number) =>
+		new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }).toUpperCase());
+
+/**
+ * The Work screen's count line (Work-Screen): "3 SERIES · 375 CHAPTERS · 86
+ * READ", and "2 SERIES · 227 CHAPTERS · ALL READ" once the run is read. The
+ * chapter count is the parts' own counted entries, front and back matter left
+ * out, as every count in the library is (doc/LIBRARY.md).
+ */
+export type WorkCounts = { series: number; chapters: number; read: number; allRead: boolean };
+
+export function workCounts(parts: WorkPart[]): WorkCounts {
+	const chapters = parts.reduce((n, p) => n + p.entries, 0);
+	const read = parts.reduce((n, p) => n + p.read, 0);
+	return { series: parts.length, chapters, read, allRead: chapters > 0 && read >= chapters };
+}
+
+/**
+ * A Work as a browse list draws it (doc/WORKS.md, "The one rule"): the run is
+ * one tile. `face` is the part whose cover the tile wears -- the part on the
+ * shelf being browsed, which is CONTINUE's part on ALL and on a shelf every
+ * part is on; `parts` is every part the viewer can see, for the foot, the
+ * counts and the badges. `total` is how many parts the Work holds, which is
+ * what a reveal-off read cannot always see. `newCount` and `downloaded` are
+ * the parts' sums, which is what the tile's +N and ↓ say.
+ */
+export type WorkTile = {
+	id: number;
+	name: string;
+	face: SeriesCard;
+	parts: WorkPart[];
+	total: number;
+	newCount: number;
+	downloaded: number;
+};
+
+/**
+ * Finding a series that belongs to a Work (search, a tag filter, a person's
+ * page): the match is the series, and its foot says where in the run it sits
+ * -- "PART 2 · THE BREAKER".
+ */
+export type WorkFootFacts = { id: number; name: string; part: number; of: number };
+
+/**
+ * A library row: a series as it always was, or a whole Work when the list is
+ * browsing. A Work row keeps the face series' card fields so that everything
+ * which reads a card (its cover, its hue, its focus line) keeps working, and
+ * carries `tile` for the tile's own marks.
+ */
+export type LibraryCard = SeriesCard & {
+	/** The series' most recent open, or null when it has never been opened. */
+	lastOpenedAt: number | null;
+	/** Finding: the Work this series is a part of, or null. */
+	work?: WorkFootFacts | null;
+	/** Browsing: set when this row is a Work rather than a series. */
+	tile?: WorkTile;
+};
+
+/**
+ * A row of the + ADD A SERIES picker: a series the Work could take, and the
+ * Work it would move out of. The picker reads its own page when it opens, so
+ * this is a page of the library, never the whole of it (doc/WORKS.md).
+ */
+export type AddableSeries = {
+	seriesId: number;
+	title: string;
+	kind: Kind;
+	hue: number;
+	cover: number | null;
+	inWork: string | null;
+};
+
+export type AddablePage = { items: AddableSeries[]; total: number };
+
+/**
+ * A CONTINUE row: a series, or a Work. A Work's row says the part and the
+ * Work's name ("WORK · PART 2 · CH. 15"), and between parts it says UP NEXT and
+ * points at the next part's first chapter.
+ */
+export type ContinueLine = ContinueItem & {
+	work?: {
+		id: number;
+		name: string;
+		part: number;
+		of: number;
+		upNext: boolean;
+		/** The part CONTINUE opens (or the next one), named in the row's own line. */
+		partTitle: string;
+	} | null;
+};
+
+/** "PART 2", "NEXT", "ALL READ": the tile foot's label, in the phone's shorter words. */
+export function workFootShort(foot: WorkFoot, parts: WorkPart[]): string {
+	if (foot.label === null) return '';
+	if (foot.upNext) return 'NEXT';
+	const current = continuePart(parts);
+	if (!current) return 'ALL READ';
+	const n = inOrder(parts).findIndex((p) => p.seriesId === current.seriesId) + 1;
+	return `${n} OF ${parts.length}`;
 }

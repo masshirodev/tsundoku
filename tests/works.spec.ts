@@ -8,6 +8,7 @@ import {
 	workFavourite,
 	workFoot,
 	kindVerb,
+	runStatus,
 	workKinds,
 	workRating,
 	workVerb,
@@ -211,5 +212,45 @@ describe('kinds and the verb', () => {
 		).toBeNull();
 		expect(kindVerb('novel')).toBe('READ');
 		expect(kindVerb('doujin')).toBe('READ');
+	});
+});
+
+describe('THE RUN’s status column', () => {
+	const month = () => '12 MAR';
+	const now = 1_000_000_000;
+
+	it('says EP. and WATCH on an anime part, never CH. and READ', () => {
+		// The designed manga-plus-anime Work: the row's own meta line says
+		// ANIME · EP., so its status column must not say CH.
+		const anime = part({
+			seriesId: 2,
+			position: 2,
+			kind: 'anime',
+			entries: 12,
+			read: 4,
+			lastOpenedAt: now - 2 * 60 * 60_000
+		});
+		expect(runStatus(anime, { now })).toEqual({ ink: 'EP. 5 OF 12', sub: 'OPENED 2 H AGO' });
+		const watched = { ...anime, read: 12, finishedAt: now };
+		expect(runStatus(watched, { month })).toEqual({ ink: 'WATCH ✓', sub: 'FINISHED 12 MAR' });
+		// A manga keeps the chapter word and the read mark.
+		const manga = part({ seriesId: 1, position: 1, read: 4, lastOpenedAt: now - 60_000 });
+		expect(runStatus(manga, { now })).toEqual({ ink: 'CH. 5 OF 100', sub: 'OPENED 1 MIN AGO' });
+		expect(runStatus({ ...manga, read: 100, finishedAt: now }, { month })).toEqual({
+			ink: 'READ ✓',
+			sub: 'FINISHED 12 MAR'
+		});
+	});
+
+	it('names the entry ▶ opens on the part CONTINUE opens, and says what has not started', () => {
+		const p = part({ seriesId: 1, position: 1, read: 40, lastOpenedAt: now - 60_000 });
+		expect(runStatus(p, { now, current: true, resumeLabel: 'Ch. 41' }).ink).toBe('CH. 41 OF 100');
+		// The count is fed here; tests/works-db.spec.ts proves the production
+		// path reaches it, through workPage's own read of a never-opened part.
+		const fresh = { ...part({ seriesId: 2, position: 2 }), newCount: 4 };
+		expect(runStatus(fresh)).toEqual({
+			ink: '',
+			sub: 'NOT STARTED · +4 NEW'
+		});
 	});
 });

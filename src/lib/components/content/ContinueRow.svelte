@@ -22,16 +22,30 @@
 		src,
 		hue,
 		unavailable = false,
+		work = null,
 		onresume,
 		focusId,
 		startFocus = false
 	}: {
 		title: string;
+		/** The entry's own label, e.g. "Ch. 41"; a Work row composes it. */
 		meta: string;
 		progress?: number;
 		src?: string | null;
 		hue: number;
 		unavailable?: boolean;
+		/**
+		 * A Work's row (Work-Library, the Akasaka row): the part CONTINUE opens,
+		 * or UP NEXT between parts. The row is never one per part.
+		 */
+		work?: {
+			id: number;
+			name: string;
+			part: number;
+			of: number;
+			upNext: boolean;
+			partTitle: string;
+		} | null;
 		onresume?: () => void;
 		/** Where focus comes back to after a trip away (doc/FOCUS.md). */
 		focusId?: string;
@@ -40,22 +54,33 @@
 	} = $props();
 </script>
 
-<div class="row" class:unavailable>
+<div class="row" class:unavailable class:work>
 	<div class="cover"><Cover {src} {hue} /></div>
 	<div class="text">
 		<div class="title">{title}</div>
-		<div class="meta">{meta}</div>
+		{#if work}
+			<!-- The part's own label, and the Work it belongs to (Work-Library B1). -->
+			<div class="meta">
+				{#if work.upNext}<span class="nx">UP NEXT</span><span class="ink"
+						>{work.partTitle} · {meta}</span
+					>
+				{:else}WORK · PART {work.part} · <span class="ink">{work.partTitle}</span> · {meta}{/if}
+			</div>
+		{:else}
+			<div class="meta">{meta}</div>
+		{/if}
 		<div class="inline-progress"><ProgressBar value={progress} /></div>
 	</div>
 	<div class="progress">
-		<div class="pct">{percent(progress)}</div>
+		<div class="pct">{work && work.upNext ? `PART ${work.part}` : percent(progress)}</div>
 		<ProgressBar value={progress} width={110} />
 	</div>
 	<button
 		type="button"
 		class="go"
+		class:acc={work?.upNext}
 		disabled={unavailable || !onresume}
-		aria-label="Resume {title}"
+		aria-label={work?.upNext ? `Start ${title}` : `Resume ${title}`}
 		data-focus-id={focusId}
 		data-focus-start={startFocus ? '' : undefined}
 		onclick={() => onresume?.()}>{unavailable ? '—' : '▶'}</button
@@ -106,6 +131,18 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
+	.meta .ink {
+		color: var(--text-1);
+	}
+	/* UP NEXT between parts: inverse, because the row is pointing rather than resuming (Work-Library). */
+	.nx {
+		font: 500 12px var(--font-mono);
+		letter-spacing: 0.06em;
+		padding: 2px 6px;
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+		margin-right: 8px;
+	}
 	.inline-progress {
 		display: none;
 	}
@@ -150,6 +187,12 @@
 	.go:active:not(:disabled) {
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
+	}
+	/* The next part's ▶ is the accent cell: it starts something (Work-Library). */
+	.go.acc {
+		background: var(--accent);
+		color: var(--on-accent);
+		border-color: var(--accent);
 	}
 	.go:disabled {
 		cursor: default;

@@ -21,10 +21,15 @@ import { getDb } from './db.ts';
 import { HIDDEN_SQL, IN_LIBRARY_SQL, libraryWhere } from './visibility.ts';
 import { setFavourite, setHidden, setRating } from './library.ts';
 import { RATING_MAX } from '../library/rating.ts';
+import { likePattern } from '../library/search.ts';
+import { GRID_PAGE } from '../library/paging.ts';
 import {
 	defaultWorkName,
 	workFavourite,
 	workRating,
+	type AddablePage,
+	type AddableSeries,
+	type WorkFootFacts,
 	type WorkOrder,
 	type WorkPart
 } from '../library/works.ts';
@@ -61,6 +66,9 @@ export type CreateFacts = {
 export type AddFacts = {
 	workId: number;
 	seriesId: number;
+	/** The series' own name, carried so the band can say what was added: the
+	 * page's lists have already changed by the time it renders. */
+	title: string;
 	position: number;
 	/** The Work it came from, when that Work survived. */
 	former: { workId: number; position: number } | null;
@@ -70,6 +78,8 @@ export type AddFacts = {
 export type TakeOutFacts = {
 	workId: number;
 	seriesId: number;
+	/** The series' own name, for the band (as in `AddFacts`). */
+	title: string;
 	position: number;
 	/** Set when fewer than two series were left and the Work ended. */
 	ended: EndedWork | null;
@@ -81,8 +91,24 @@ export type RenameFacts = { workId: number; name: string };
 
 export type UngroupFacts = { work: WorkRecord; members: SeriesPlace[] };
 
-/** A part as the Work screen needs it: the pure part, plus whether it is hidden. */
-export type WorkPartRow = WorkPart & { hidden: boolean };
+/** A part as the Work screen needs it: the pure part, plus what the run's row and the shelf say. */
+export type WorkPartRow = WorkPart & {
+	hidden: boolean;
+	workId: number;
+	/** The striped placeholder's hue, for a cover that has no thumbnail yet. */
+	hue: number;
+	/** The source's name ('asura', 'epub', '') for the run's kind · source · status line. */
+	source: string;
+	/**
+	 * Entries that arrived after this part was last opened -- or after the Work
+	 * was, when the part never has been: the run's "+4 NEW".
+	 */
+	newCount: number;
+	/** Entries on disk: the run's "ALL DOWNLOADED" / "0 OF 98 DOWNLOADED". */
+	downloaded: number;
+	/** When its last counted chapter was read: the run's "FINISHED 12 MAR", or null. */
+	finishedAt: number | null;
+};
 
 export type WorkPage = {
 	work: WorkRecord;
@@ -93,6 +119,8 @@ export type WorkPage = {
 	 * difference (a reveal-off page cannot offer a Work-wide rating).
 	 */
 	total: number;
+	/** The union of its parts' shelves, which is what the Work is on (doc/WORKS.md). */
+	shelves: { id: number; name: string }[];
 };
 
 // ---- rows ---------------------------------------------------------------------
@@ -225,37 +253,91 @@ function memberCount(db: Database.Database, workId: number): number {
  * hidden part never reaches the page (doc/LIBRARY.md, "Hidden means hidden").
  * `lastOpenedAt` is the most recent open of any of the part's entries, which
  * is what CONTINUE decides on; `entries` and `read` leave out front and back
- * matter, as the chapter counts do everywhere else.
+ * matter, as the chapter counts do everywhere else. `newCount` and
+ * `downloaded` come from the same grouped pass: the run asks every part's row
+ * for them, and a correlated subquery per part is what W1 warned about. A
+ * never-opened part's new chapters are read from the Work's last open, since
+ * it has no last open of its own and otherwise could never say `+N NEW`.
  */
 export function workParts(workId: number, reveal: boolean): WorkPartRow[] {
-	return readParts(getDb(), workId, libraryWhere(reveal));
+	return readParts(getDb(), [workId], libraryWhere(reveal));
+}
+
+/**
+ * The parts of several Works in one read, for a library page that draws Work
+ * tiles: one grouped pass over every part on the page, never `workParts` once
+ * per tile (doc/handoff-notes/works.md, the W1 gaps).
+ */
+export function partsOfWorks(workIds: number[], reveal: boolean): WorkPartRow[] {
+	if (workIds.length === 0) return [];
+	return readParts(getDb(), workIds, libraryWhere(reveal));
 }
 
 /** Every part a Work holds, hidden or not: for the writes that act on all of them. */
 function allParts(workId: number): WorkPartRow[] {
-	return readParts(getDb(), workId, '');
+	return readParts(getDb(), [workId], '');
 }
 
-function readParts(db: Database.Database, workId: number, where: string): WorkPartRow[] {
+function readParts(db: Database.Database, workIds: number[], where: string): WorkPartRow[] {
+	const ids = placeholders(workIds.length);
 	const rows = db
 		.prepare(
-			`SELECT ws.series_id AS seriesId, ws.position, s.title, s.kind, s.added_at AS addedAt,
+			`WITH part AS MATERIALIZED (
+				SELECT ws.work_id AS workId, ws.series_id AS seriesId, ws.position
+				FROM work_series ws WHERE ws.work_id IN (${ids})
+			), opened AS MATERIALIZED (
+				SELECT e.series_id, MAX(e.last_opened_at) AS at FROM entries e
+				WHERE e.series_id IN (SELECT seriesId FROM part) GROUP BY e.series_id
+			), work_opened AS MATERIALIZED (
+				-- A never-opened part has no last open of its own, so "new" is
+				-- measured from the last time the owner read any part of the Work.
+				SELECT p.workId, MAX(e.last_opened_at) AS at FROM part p
+				JOIN entries e ON e.series_id = p.seriesId GROUP BY p.workId
+			), aggs AS MATERIALIZED (
+				SELECT e.series_id,
+					SUM(e.shadowed = 0 AND e.matter = '') AS entries,
+					SUM(e.shadowed = 0 AND e.matter = '' AND e.read_at IS NOT NULL) AS read,
+					SUM(CASE WHEN e.shadowed = 0 AND (e.added_at > COALESCE(o.at, wo.at)
+						OR (e.read_at IS NULL AND COALESCE(e.arrived_at, 0) > COALESCE(o.at, wo.at)))
+						THEN 1 ELSE 0 END) AS newCount,
+					-- The same set the entries count uses: a shadowed duplicate and
+					-- front or back matter are not chapters the run can say are on
+					-- disk, and the library's own count leaves out a row with no
+					-- file (src/lib/server/catalogue.ts). Counting every available
+					-- row let ALL DOWNLOADED stand over a missing chapter and N
+					-- exceed M on a book.
+					SUM(e.shadowed = 0 AND e.matter = '' AND e.available = 1 AND e.file != '')
+						AS downloaded,
+					MAX(CASE WHEN e.shadowed = 0 AND e.matter = '' AND e.read_at IS NOT NULL
+						THEN e.read_at END) AS finishedAt
+				FROM entries e JOIN opened o ON o.series_id = e.series_id
+				JOIN part p ON p.seriesId = e.series_id
+				LEFT JOIN work_opened wo ON wo.workId = p.workId
+				GROUP BY e.series_id
+			)
+			SELECT p.workId, p.seriesId, p.position, s.title, s.kind, s.hue, s.source,
+				s.added_at AS addedAt,
 				COALESCE(s.rating, 0) AS rating, s.favourite, s.cover_at AS cover, s.status,
 				${HIDDEN_SQL} AS hidden,
-				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id
-					AND e.shadowed = 0 AND e.matter = '') AS entries,
-				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id
-					AND e.shadowed = 0 AND e.matter = '' AND e.read_at IS NOT NULL) AS read,
-				(SELECT MAX(e.last_opened_at) FROM entries e WHERE e.series_id = s.id) AS lastOpenedAt
-			FROM work_series ws JOIN series s ON s.id = ws.series_id JOIN roots r ON r.id = s.root_id
-			WHERE ws.work_id = ?${where ? ` AND ${where}` : ''}
-			ORDER BY ws.position, ws.series_id`
+				COALESCE(a.entries, 0) AS entries, COALESCE(a.read, 0) AS read,
+				o.at AS lastOpenedAt,
+				COALESCE(a.newCount, 0) AS newCount, COALESCE(a.downloaded, 0) AS downloaded,
+				a.finishedAt
+			FROM part p JOIN series s ON s.id = p.seriesId JOIN roots r ON r.id = s.root_id
+			LEFT JOIN aggs a ON a.series_id = p.seriesId
+			LEFT JOIN opened o ON o.series_id = p.seriesId
+			WHERE 1 = 1${where ? ` AND ${where}` : ''}
+			ORDER BY p.position, p.seriesId`
 		)
-		.all(workId) as (Omit<WorkPartRow, 'favourite' | 'hidden'> & {
+		.all(...workIds) as (Omit<WorkPartRow, 'favourite' | 'hidden'> & {
 		favourite: number;
 		hidden: number;
 	})[];
-	return rows.map((r) => ({ ...r, favourite: r.favourite !== 0, hidden: r.hidden !== 0 }));
+	return rows.map((r) => ({
+		...r,
+		favourite: r.favourite !== 0,
+		hidden: r.hidden !== 0
+	}));
 }
 
 /**
@@ -271,7 +353,96 @@ export function workPage(workId: number, opts: { reveal: boolean }): WorkPage | 
 	if (!work) return null;
 	const parts = workParts(workId, opts.reveal);
 	if (parts.length === 0) return null;
-	return { work, parts, total: memberCount(db, workId) };
+	return { work, parts, total: memberCount(db, workId), shelves: shelvesOf(db, workId) };
+}
+
+/** A Work's shelves: every collection any of its parts is on, which is what makes the Work be on it. */
+function shelvesOf(db: Database.Database, workId: number): { id: number; name: string }[] {
+	return db
+		.prepare(
+			`SELECT c.id, c.name FROM collections c WHERE c.id IN (
+				SELECT cs.collection_id FROM collection_series cs
+				WHERE cs.series_id IN (SELECT series_id FROM work_series WHERE work_id = ?)
+			) ORDER BY c.position, c.id`
+		)
+		.all(workId) as { id: number; name: string }[];
+}
+
+/** The Works' own rows for a page of Work tiles: one query, however many the page holds. */
+export function workRecords(ids: number[]): WorkRecord[] {
+	if (ids.length === 0) return [];
+	return getDb()
+		.prepare(
+			`SELECT id, name, created_at AS createdAt, order_mode AS orderMode FROM works
+				WHERE id IN (${placeholders(ids.length)})`
+		)
+		.all(...ids) as WorkRecord[];
+}
+
+/**
+ * Where each of these series sits in its Work, for the finding lists (search,
+ * a tag filter, a person's page): "PART 2 OF 3" and the Work's name, in one
+ * query. A series in no Work is absent from the map.
+ */
+export function workFeetFor(seriesIds: number[]): Map<number, WorkFootFacts> {
+	if (seriesIds.length === 0) return new Map();
+	const rows = getDb()
+		.prepare(
+			`SELECT ws.series_id AS seriesId, ws.work_id AS workId, ws.position,
+				w.name, (SELECT COUNT(*) FROM work_series x WHERE x.work_id = ws.work_id) AS total
+			FROM work_series ws JOIN works w ON w.id = ws.work_id
+			WHERE ws.series_id IN (${placeholders(seriesIds.length)})`
+		)
+		.all(...seriesIds) as {
+		seriesId: number;
+		workId: number;
+		position: number;
+		name: string;
+		total: number;
+	}[];
+	return new Map(
+		rows.map((r) => [r.seriesId, { id: r.workId, name: r.name, part: r.position, of: r.total }])
+	);
+}
+
+/**
+ * The library a Work's + ADD A SERIES picker offers: everything the viewer can
+ * see that is not already in it, with the Work it would move out of. A
+ * browsing record is not offered (doc/BROWSING.md), and neither is anything a
+ * diverged Work would refuse (W1's `workVisibility`).
+ */
+export function addableSeries(
+	workId: number,
+	reveal: boolean,
+	opts: { q?: string; limit?: number; offset?: number } = {}
+): AddablePage {
+	const q = opts.q?.trim() ?? '';
+	const limit =
+		Number.isInteger(opts.limit) && opts.limit! > 0 ? Math.min(opts.limit!, GRID_PAGE) : GRID_PAGE;
+	const offset = Number.isInteger(opts.offset) && opts.offset! > 0 ? opts.offset! : 0;
+	const db = getDb();
+	const where = `${libraryWhere(reveal)} AND s.id NOT IN (
+		SELECT series_id FROM work_series WHERE work_id = ?)`;
+	const filter = q === '' ? '' : ` AND s.title LIKE ? ESCAPE '\\'`;
+	const params = q === '' ? [workId] : [workId, likePattern(q)];
+	const total = (
+		db
+			.prepare(
+				`SELECT COUNT(*) AS n FROM series s JOIN roots r ON r.id = s.root_id WHERE ${where}${filter}`
+			)
+			.get(...params) as { n: number }
+	).n;
+	const items = db
+		.prepare(
+			`SELECT s.id AS seriesId, s.title, s.kind, s.hue, s.cover_at AS cover, w.name AS inWork
+			FROM series s JOIN roots r ON r.id = s.root_id
+			LEFT JOIN work_series ws ON ws.series_id = s.id LEFT JOIN works w ON w.id = ws.work_id
+			WHERE ${where}${filter}
+			ORDER BY s.title COLLATE NOCASE, s.id
+			LIMIT ? OFFSET ?`
+		)
+		.all(...params, limit, offset) as AddableSeries[];
+	return { items, total };
 }
 
 /** The Works a series belongs to at most one of; the row the series screen draws. */
@@ -404,7 +575,14 @@ export function addSeries(workId: number, seriesId: number): AddFacts {
 			const ended = formerRow && before ? endIfOne(db, formerRow.workId, before) : null;
 			const former =
 				formerRow && !ended ? { workId: formerRow.workId, position: formerRow.position } : null;
-			return { workId, seriesId, position, former, ended: ended ? [ended] : [] };
+			return {
+				workId,
+				seriesId,
+				title: facts.title,
+				position,
+				former,
+				ended: ended ? [ended] : []
+			};
 		})
 		.immediate();
 }
@@ -443,7 +621,13 @@ export function takeOut(workId: number, seriesId: number): TakeOutFacts {
 				seriesId
 			);
 			const ended = endIfOne(db, workId, before);
-			return { workId, seriesId, position: member.position, ended };
+			return {
+				workId,
+				seriesId,
+				title: factsOf(db, seriesId)?.title ?? '',
+				position: member.position,
+				ended
+			};
 		})
 		.immediate();
 }
