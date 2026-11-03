@@ -258,7 +258,8 @@ first**:
 2. **AniSkip**, the community database of openings and endings.
 3. **A fingerprint of the episodes themselves**, the Jellyfin Intro Skipper
    method: two episodes of a season share their opening and their ending, so
-   the audio both have at the same time is one of them.
+   the audio both have is one of them, wherever each episode's cold open puts
+   it (c384).
 
 **Precedence is per part**, not per episode: a source that gave an opening
 and no ending still takes AniSkip's or the fingerprint's ending. The best
@@ -329,12 +330,37 @@ episode's `ending_at` follows).
   10 minutes**, and its **last 4 minutes**, and chromaprint turns each into
   32-bit points (about eight a second). Only a normal download's own file is
   read here: the source isn't asked.
-- **How they are compared.** Both windows are resampled to 8 points a second
-  and shifted against each other (an opening by at most 30 s, an ending by
-  180 s, since episodes differ in length). A run is a stretch where every
-  point matches within **6 bits**; the longest run within **15–120 s** (an
-  opening) or **15–180 s** (an ending) is the mark. A season needs **at least
-  two episodes** with prints; one alone decides nothing and isn't remembered.
+- **How they are compared** (the rule since c384, 2026-11-03). Both windows
+  are resampled to 8 points a second and shifted against each other: an
+  opening **across its whole window**, since each episode's cold open moves
+  it, and an ending by up to 180 s, since episodes differ in length. A point
+  matches when it is within **6 bits**. A run is made of **streaks of at
+  least 4 matching points in a row** (half a second), joined across **gaps of
+  up to 3.5 s**, which count in its length, and is kept only when **at least
+  70 % of its points** are in those streaks. The longest such run within
+  **15–120 s** (an opening) or **15–180 s** (an ending) is the pair's span
+  for both episodes. Openings and endings follow the same rule: the noise is
+  the encode's, not the song's. A season needs **at least two episodes**
+  with prints; one alone decides nothing and isn't remembered.
+- **Why the rule is that** (c384). Ranma ½ (2024), streamed, had every
+  opening found as a third to a half of the song (31–48 s of about 90) and
+  episode 11's not at all. A run used to end at the first point past 6 bits,
+  and two encodes of the same song, a 360p stream's audio especially, differ
+  there at scattered points, so a 90 s opening came back in pieces and the
+  longest piece won; and the opening could only shift 30 s, while that series
+  put it at 30.75 s in one episode and 83.1 s in another. Bridging gaps is
+  Jellyfin's Intro Skipper's method (its `MaximumTimeSkip`, 3.5 s). Bridging
+  alone chains chance, though: two unrelated stretches of the db spec's pink
+  noise match at 8–11 % of points, nearly once every 3.5 s, and in streaks of
+  up to 3 s; the chains that made were 12–20 s at a density of 0.30–0.43,
+  while a shared opening comes out at 0.97–1.00 and one with a bad point
+  every 3 s at 0.96. Hence the streaks and the 70 %. Shifting across the
+  whole window costs about 80 ms a pair (10-minute windows, 190 ms), so the
+  season job yields to the app's requests between pairs.
+- **Which span an episode keeps.** Each pair gives both of its episodes a
+  span. Of an episode's spans the one **most of the others overlap** wins,
+  and the longest of those (`agreedSpan`): one pair's chance run no longer
+  decides an episode the rest disagree on. Until c384 the longest won.
 - **What is kept.** The run's own times in each episode, as a `fingerprint`
   row. An episode whose pair found nothing gets a negative row, tried again
   after 14 days.
@@ -356,15 +382,29 @@ muxer; [`DISTRIBUTION.md`](DISTRIBUTION.md) lists them.
 A missing `fpcalc` on a build without the muxer is said once in the log,
 naming the chromaprint package and `FPCALC` ([`LOGS.md`](LOGS.md)).
 
-`tests/fingerprint.spec.ts` (runs, bit errors, bounds, the two windows) and
+`tests/fingerprint.spec.ts` (runs, bit errors, bounds, the two windows;
+since c384 a 90 s opening with a bad point every 3 s, openings 55 s apart,
+the gap's bound, chance too sparse to chain, a lone chance point, an
+ending's bad points, and the agreed span) and
 `tests/anime-fingerprint-db.spec.ts` (two synthesised episodes sharing an
 opening and ending, the real ffmpeg and chromaprint, source precedence, a
-hidden series, one episode, a negative remembered, the background queue).
+hidden series, one episode, a negative remembered, the background queue,
+and since c384 a 90 s opening behind 25 s and 80 s cold opens with the
+second episode encoded at 12 kbps, which the strict rule found nothing of).
+
+**Marks found before c384 are fragments**, and stay until something clears
+them: an episode with a `fingerprint` row, found or negative, is not read
+again (a negative only after 14 days). The ladder is not this card's to
+climb this wave, so the rung that forgets them all, negatives included, is
+written down for after `tracking`'s v62 (`doc/handoff-notes/anime.md`,
+wave 17, _Gaps_): a fragment is worse than nothing, since SKIP INTRO lands
+in the middle of the song. On 2026-11-03 the live library's only
+`fingerprint` rows were Ranma ½ (2024)'s eight.
 
 ### Fingerprints of streams
 
-The same method, for an episode with no file, **only while it is being
-watched**: when the player resolves an episode, the background job takes the
+The same method, and the same matcher and rule (c384, above), for an
+episode with no file, **only while it is being watched**: when the player resolves an episode, the background job takes the
 playing episode, **the next two after it** and one more after those, so both
 next episodes have a pair. It never runs for a season outside the one being
 watched.

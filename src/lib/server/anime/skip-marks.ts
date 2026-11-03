@@ -10,15 +10,18 @@ import {
 	stopFingerprint,
 	type Prints
 } from './fingerprint.ts';
-import { sharedEnding, sharedIntro } from '../../library/fingerprint.ts';
+import { agreedSpan, sharedEnding, sharedIntro } from '../../library/fingerprint.ts';
 import { parseAnimeKey } from '../../library/downloads.ts';
 import type { Range } from '../../library/streams.ts';
 
 /**
  * Finding an opening and an ending in the episodes themselves (doc/ANIME.md,
  * "Openings and endings"; card c239). Two episodes of a season share both, so
- * their fingerprints are compared and the longest run of matching points
- * within sane lengths becomes the mark. A downloaded file is read from disk;
+ * their fingerprints are compared: each pair's longest run of matching
+ * points within sane lengths (gaps of a few seconds bridged, the opening
+ * free to sit anywhere in its window; c384) is a span for both, and of an
+ * episode's spans the one most pairs agree on becomes the mark. A downloaded
+ * file is read from disk;
  * a stream (card c239's third part) through the loopback proxy, at its
  * lowest quality.
  *
@@ -73,11 +76,13 @@ function seasonOf(
 	};
 }
 
-type Best = { span: Range; seconds: number };
+type Found = { span: Range; seconds: number };
 
-const keepLongest = (best: Map<number, Best>, entryId: number, span: Range, seconds: number) => {
-	const had = best.get(entryId);
-	if (!had || seconds > had.seconds) best.set(entryId, { span, seconds });
+/** Every span an episode's pairs found; agreedSpan picks the one it keeps (c384). */
+const keepFound = (found: Map<number, Found[]>, entryId: number, span: Range, seconds: number) => {
+	const had = found.get(entryId);
+	if (had) had.push({ span, seconds });
+	else found.set(entryId, [{ span, seconds }]);
 };
 
 /**
@@ -308,25 +313,29 @@ export async function fingerprintSeason(
 		return { episodes: prints.size, found: 0 };
 	}
 
-	const intro = new Map<number, Best>();
-	const ending = new Map<number, Best>();
+	const intro = new Map<number, Found[]>();
+	const ending = new Map<number, Found[]>();
 	const ids = [...prints.keys()];
 	for (let i = 0; i < ids.length; i++)
 		for (let j = i + 1; j < ids.length; j++) {
+			// A pair is tens of milliseconds of comparing since the opening may sit
+			// anywhere in its window (c384), and a downloaded season is hundreds of
+			// pairs: the app's requests go between them, not after them all.
+			await new Promise((ok) => setImmediate(ok));
 			const a = prints.get(ids[i])!;
 			const b = prints.get(ids[j])!;
 			if (a.intro && b.intro) {
 				const run = sharedIntro(a.intro, b.intro);
 				if (run) {
-					keepLongest(intro, ids[i], run.a, run.seconds);
-					keepLongest(intro, ids[j], run.b, run.seconds);
+					keepFound(intro, ids[i], run.a, run.seconds);
+					keepFound(intro, ids[j], run.b, run.seconds);
 				}
 			}
 			if (a.ending && b.ending) {
 				const run = sharedEnding(a.ending, b.ending);
 				if (run) {
-					keepLongest(ending, ids[i], run.a, run.seconds);
-					keepLongest(ending, ids[j], run.b, run.seconds);
+					keepFound(ending, ids[i], run.a, run.seconds);
+					keepFound(ending, ids[j], run.b, run.seconds);
 				}
 			}
 		}
@@ -334,8 +343,8 @@ export async function fingerprintSeason(
 	let found = 0;
 	for (const id of ids) {
 		const want = missing.get(id)!;
-		const gotIntro = want.intro ? intro.get(id) : undefined;
-		const gotEnding = want.ending ? ending.get(id) : undefined;
+		const gotIntro = want.intro ? agreedSpan(intro.get(id) ?? []) : null;
+		const gotEnding = want.ending ? agreedSpan(ending.get(id) ?? []) : null;
 		if (!gotIntro && !gotEnding) {
 			saveAttempt(id, 'fingerprint', db, now);
 			info(`episode ${id}: no shared run with another episode, kept as a negative`);

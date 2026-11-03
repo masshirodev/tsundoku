@@ -35,7 +35,7 @@ const noise = (name: string, seconds: number, seed: number) => {
 	);
 	return file;
 };
-const concat = (name: string, parts: string[]) => {
+const concat = (name: string, parts: string[], bitrate = '32k') => {
 	const file = join(work, name);
 	execFileSync(
 		FFMPEG,
@@ -50,7 +50,7 @@ const concat = (name: string, parts: string[]) => {
 			'-c:a',
 			'libopus',
 			'-b:a',
-			'32k',
+			bitrate,
 			file
 		],
 		{ stdio: 'ignore' }
@@ -142,6 +142,32 @@ describe('fingerprinting downloaded episodes', () => {
 		// Asked again, nothing is read: the answer is kept.
 		expect(await fingerprintSeason(show, a, { pauseMs: 0 })).toEqual({ episodes: 0, found: 0 });
 	}, 30_000);
+
+	it('finds the whole opening behind cold opens of different lengths, through two encodes (c384)', async () => {
+		// Ranma ½ (2024), 2026-11-03: its opening at 30.75 s in one episode and
+		// 83.1 s in another, and found as a 31-48 s piece of a 90 s song. Here a
+		// 90 s opening after a 25 s and an 80 s cold open, the second episode
+		// encoded at a third of the bitrate, as a 360p stream's audio is.
+		const song = noise('song.mka', 90, 77);
+		const coldC = noise('cold-c.mka', 25, 301);
+		const coldD = noise('cold-d.mka', 80, 302);
+		const midC = noise('mid-c.mka', 600, 303);
+		const midD = noise('mid-d.mka', 545, 304);
+		concat('ep-c-cold.mka', [coldC, song, midC, ed]);
+		concat('ep-d-cold.mka', [coldD, song, midD, ed], '12k');
+		const show = series(work);
+		const c = episode(show, 'ep-c-cold.mka', { duration: 735 });
+		const d = episode(show, 'ep-d-cold.mka', { duration: 735 });
+		expect(await fingerprintSeason(show, c, { pauseMs: 0 })).toEqual({ episodes: 2, found: 2 });
+		const want = { [c]: 25, [d]: 80 };
+		for (const id of [c, d]) {
+			const intro = marks.chosenMarks(id).intro!;
+			// Where the song starts, to a second, and all of it.
+			expect(Math.abs(intro.start - want[id])).toBeLessThan(1);
+			expect(intro.end - intro.start).toBeGreaterThan(88);
+			expect(intro.end - intro.start).toBeLessThan(92);
+		}
+	}, 120_000);
 
 	it('leaves the source’s own timestamps ahead of it', async () => {
 		const show = series(work);
