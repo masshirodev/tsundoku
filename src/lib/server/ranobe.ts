@@ -158,33 +158,36 @@ export function eligible(seriesId: number): boolean {
 // ---- matching -------------------------------------------------------------------------------
 
 /**
+ * The AniList/MAL ids Ranobe knows a series by, as a table to join on
+ * `series_id` (`anilist_id`, `mal_id`, `format`): its link, or -- for an anime
+ * linked a season at a time (c240) -- its lowest linked season's own row,
+ * part 1. That is the entry `series_links` mirrors when season 1 is linked,
+ * and still an answer when only a later season is and there is no mirror
+ * (wave 17): Ranobe keeps one work for the whole show either way. An anime's
+ * mirror is never read here, since its season row says the same.
+ */
+export const LINK_IDS_SQL = `(SELECT series_id, anilist_id, mal_id, format FROM series_links
+		WHERE series_id NOT IN (SELECT series_id FROM series_season_links)
+	UNION ALL SELECT x.series_id, x.anilist_id, x.mal_id, x.format FROM series_season_links x
+		WHERE x.part = 1
+			AND x.season = (SELECT MIN(y.season) FROM series_season_links y WHERE y.series_id = x.series_id))`;
+
+/**
  * Link every novel Ranobe knows by an id its catalogue link already has.
  * A cover-only link (a novel to its comic's entry) is the comic's id, so it
  * is never asked about: it would answer the comic.
  */
 export async function matchByLookup(now = Date.now()): Promise<number> {
 	const db = getDb();
-	// The ids a series is asked about: its link, or -- for an anime linked a
-	// season at a time (c240) -- its lowest linked season's own row. That is
-	// the entry `series_links` mirrors when season 1 is linked, and still an
-	// answer when only a later season is, where there is no mirror (wave 17):
-	// Ranobe keeps one work for the show either way.
 	const rows = db
 		.prepare(
-			`SELECT * FROM (
-				SELECT s.id, s.title, s.kind,
-					CASE WHEN sl.series_id IS NOT NULL THEN sl.anilist_id ELSE l.anilist_id END AS anilist_id,
-					CASE WHEN sl.series_id IS NOT NULL THEN sl.mal_id ELSE l.mal_id END AS mal_id,
-					CASE WHEN sl.series_id IS NOT NULL THEN sl.format ELSE l.format END AS format,
-					(SELECT e.file FROM entries e WHERE e.series_id = s.id AND e.file != '' LIMIT 1) AS file,
-					(SELECT e.language FROM entries e WHERE e.series_id = s.id AND e.language IS NOT NULL LIMIT 1) AS lang
-				FROM series s JOIN roots r ON r.id = s.root_id
-				LEFT JOIN series_links l ON l.series_id = s.id
-				LEFT JOIN series_season_links sl ON sl.series_id = s.id AND sl.part = 1
-					AND sl.season = (SELECT MIN(x.season) FROM series_season_links x WHERE x.series_id = s.id)
-				WHERE ${ELIGIBLE_SQL} AND s.id NOT IN (SELECT series_id FROM ranobe_links)
-					AND s.id NOT IN (SELECT series_id FROM ranobe_decisions)
-			) WHERE anilist_id IS NOT NULL OR mal_id IS NOT NULL`
+			`SELECT s.id, s.title, s.kind, l.anilist_id, l.mal_id, l.format,
+				(SELECT e.file FROM entries e WHERE e.series_id = s.id AND e.file != '' LIMIT 1) AS file,
+				(SELECT e.language FROM entries e WHERE e.series_id = s.id AND e.language IS NOT NULL LIMIT 1) AS lang
+			FROM series s JOIN roots r ON r.id = s.root_id JOIN ${LINK_IDS_SQL} l ON l.series_id = s.id
+			WHERE ${ELIGIBLE_SQL} AND s.id NOT IN (SELECT series_id FROM ranobe_links)
+				AND s.id NOT IN (SELECT series_id FROM ranobe_decisions)
+				AND (l.anilist_id IS NOT NULL OR l.mal_id IS NOT NULL)`
 		)
 		.all() as {
 		id: number;

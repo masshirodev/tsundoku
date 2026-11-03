@@ -1222,7 +1222,7 @@ describe('a door that names no season acts on the season that wants a look', () 
 		).toEqual([9400]);
 	});
 
-	it('Ranobe’s review says the AniList review holds an anime only while NEEDS_LOOK does', async () => {
+	it('Ranobe’s review says the AniList review holds an anime only while a season’s own search waits there', async () => {
 		const rv = await import('$lib/server/ranobe-review');
 		const id = show({
 			seasons: [
@@ -1231,20 +1231,26 @@ describe('a door that names no season acts on the season that wants a look', () 
 			]
 		});
 		const line = () => rv.ranobeItem(id)?.rows.find((r) => r.label === 'ANILIST')?.value;
-		// Season 2 searched and linked (no mirror: it is not the first season).
-		await cat.searchNow(id, 'Show Season 2', NOW, { season: 2 });
-		seasons.linkSeason(id, 2, 1, animeEntry(9600), 'review', NOW);
-		// Season 1 open but never searched: in no review yet.
+		const queued = () => cat.linkQueue(false).some((i) => i.seriesId === id);
+		// Never searched: in no review.
 		expect(line()).toBe('NOT LINKED');
-		expect(cat.linkQueue(false).some((i) => i.seriesId === id)).toBe(false);
 		// Season 1 searched: its own item in the queue, and the line says so.
 		await cat.searchNow(id, 'Show', NOW, { season: 1 });
 		expect(line()).toBe('NOT LINKED · ITS OWN REVIEW');
-		expect(cat.linkQueue(false).some((i) => i.seriesId === id)).toBe(true);
-		// Season 1 settled too: out of the AniList review, and the line says so.
+		expect(queued()).toBe(true);
+		// Season 1 settled, season 2 open but never searched: out of the review.
 		cat.noneOfThese(id, NOW, 1);
-		expect(cat.linkQueue(false).some((i) => i.seriesId === id)).toBe(false);
+		expect(queued()).toBe(false);
 		expect(line()).toBe('NOT LINKED');
+		// Season 2 searched: back in, as season 2.
+		await cat.searchNow(id, 'Show Season 2', NOW, { season: 2 });
+		expect(line()).toBe('NOT LINKED · ITS OWN REVIEW');
+		// Season 2 linked (no mirror: it is not the first season): the row names
+		// its entry, the lowest season linked (wave 17), not NOT LINKED.
+		seasons.linkSeason(id, 2, 1, animeEntry(9600), 'review', NOW);
+		expect(db.prepare(`SELECT 1 FROM series_links WHERE series_id = ?`).get(id)).toBeUndefined();
+		expect(line()).toBe('ANILIST 9600');
+		expect(queued()).toBe(false);
 	});
 
 	it('the queue’s LINK accepts only the season’s own candidates, never the series’ (wave 17)', async () => {
