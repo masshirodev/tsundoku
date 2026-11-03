@@ -33,9 +33,9 @@ tile and one CONTINUE row; search, tag filters and a person's page show the
 matching series as their own tiles, each with `PART 2 · <WORK>` in its foot.
 Hidden stays SQL's job (`src/lib/server/library.ts`): a Work is hidden or
 shown whole, and grouping refuses to mix hidden and visible series. A Work
-whose parts diverged after grouping -- one hidden on its own -- refuses every
-add, from every member, until HIDE settles it (W4: `HIDE ALL n`, or `TAKE OUT`
-then hide). With reveal on, such a Work
+whose parts diverged after grouping -- one hidden on its own, which since wave
+16 only an import's fold can still do -- refuses every add, from every member,
+until HIDE settles it (W4: `HIDE ALL n`, or `TAKE OUT` then hide). With reveal on, such a Work
 is one tile wearing HIDDEN when any of its parts is hidden: the mark is the
 Work's, never the face's, so it does not depend on which part the tile happens
 to show.
@@ -88,7 +88,11 @@ existing one.
 - `works (id, name, created_at, order_mode)`, where `order_mode` is `hand`,
   `added` or `title`.
 - `work_series (work_id, series_id UNIQUE, position)`: positions start at 1 and
-  a gap is harmless, because order is by position. `series_id` is UNIQUE, so a
+  a gap is harmless, because order is by position. A take-out leaves one, and
+  UNDO puts the series back at its own position, so a part's number is never
+  the column: `PART n OF m` is its place among the members (`partPlace`, and
+  the same count in SQL for the finding lists' `workFeetFor` and the library
+  card's `work_part`). `series_id` is UNIQUE, so a
   series belongs to at most one Work and adding one that is already elsewhere
   moves it; it cascades from `series`, so a deleted series can never leave a
   Work naming it. A Work is never left with fewer than two series: the rung's
@@ -258,10 +262,32 @@ Work: HIDE ALL covers every Work touched, TAKE OUT hides exactly what was
 selected. A series in no Work keeps the plain HIDE, and the bulk bar's UNHIDE
 is the same rule backwards (`?/showAll`): one hidden part of a hidden Work
 selected anywhere -- a person's page draws the parts as their own tiles -- shows
-the Work whole, with its own band and UNDO. So no door leaves a Work
-half-hidden, in either direction. Each answer's UNDO both shows the series
-again and puts back any take-out, including a Work that ended because it was
-left with one.
+the Work whole, with its own band and UNDO. Each answer's UNDO both shows the
+series again and puts back any take-out, including a Work that ended because it
+was left with one.
+
+**The rule sits at the write, not at the screen.** Every door that hides or
+shows series by id goes through `setHiddenWhole` (`src/lib/server/works.ts`),
+which takes each part's Work with it, every part, in either direction: the
+library's plain `?/hide` (the long-press series sheet's, on the library and on
+the search page, where any hit opens it -- a Work's part included), `?/bulk`'s
+HIDE and UNHIDE, `?/hideAll`, `?/showAll`, both UNDOs, and TAKE OUT's own hide
+on both screens. A series in no Work is written exactly as before. The series
+sheet does not ask a new question: on a part its cell says `HIDE ALL n` (or
+`UNHIDE ALL n`), the HIDE sheet's words, and the library's band says the Work
+went whole. The series screen's plain `?/hide` refuses a part outright
+(`A WORK IS HIDDEN WHOLE · HIDE ALL OR TAKE OUT`), because that screen always
+asks. So no door the app offers leaves a Work half-hidden, in either direction.
+The one write that still can is an import's fold (`foldSeries`,
+`src/lib/server/import/fold.ts`: a Mihon backup that names a series the library
+already holds under another key folds one into the other, `hidden = MAX(...)`);
+its account is in `doc/handoff-notes/works-screen.md`, "Wave 16".
+
+**The bands say how many Works** (`wholeBand`, `src/lib/library/works.ts`):
+`HIDDEN · THE WORK, WHOLE` for one, `HIDDEN · 2 WORKS, WHOLE` for a selection
+that touched two, with the Works' own series counted in the detail and the
+selected series in no Work named apart (`4 SERIES · 6 MORE ON THEIR OWN ·
+SHOWN AGAIN BY UNDO`). UNHIDE's band is the same with `SHOWN`.
 
 With reveal off, the series screen no longer exists after either answer, so the
 library carries the band: `HIDE ALL n` says the Work was hidden whole, and
