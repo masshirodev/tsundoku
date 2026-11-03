@@ -1168,7 +1168,8 @@ export type SearchNow =
 export async function searchNow(
 	seriesId: number,
 	query: string,
-	now = Date.now()
+	now = Date.now(),
+	o: { season?: number; part?: number } = {}
 ): Promise<SearchNow> {
 	const db = getDb();
 	const q = query.trim();
@@ -1189,6 +1190,13 @@ export async function searchNow(
 			.all(seriesId) as Before['candidates']
 	};
 	try {
+		// A season's own search (c240): asked in the anime catalogue and kept
+		// against that season, not the one CONTINUE happens to be in.
+		if (row.kind === 'anime' && o.season !== undefined) {
+			const hits = (await searchMany([{ title: q, kind: 'anime' }]))[0] ?? [];
+			saveSeasonSearch(seriesId, o.season, o.part ?? 1, q, hits, now);
+			return { outcome: 'found', found: hits.length };
+		}
 		await searchSeries([{ ...row, query: q }], now, { autoLink: false });
 		before.set(seriesId, snapshot);
 		const found = (

@@ -411,6 +411,36 @@ export function candidateRows(
 	];
 }
 
+/**
+ * One season of an anime as the series screen's rows draw it (c240): its
+ * link, its parts and what the last search found. Plain data, so the server's
+ * `seriesSeasons` can hand it to the component as it is.
+ */
+export type SeasonRowLink = {
+	anilistId: number | null;
+	malId: number | null;
+	title: string;
+	via: string;
+	format: string | null;
+	episodes: number | null;
+	year: number | null;
+	resolvedAt: number | null;
+};
+export type SeasonRow = {
+	season: number;
+	from: number;
+	to: number;
+	count: number;
+	aired: number;
+	watched: number;
+	link: SeasonRowLink | null;
+	parts: { part: number; from: number; to: number; link: SeasonRowLink | null }[];
+	candidates: number;
+	searched: boolean;
+	queued: boolean;
+	searchTitle: string;
+};
+
 /** "ANILIST 132215 · MAL 128830", or with no MAL entry just the first. */
 export function idsLine(anilistId: number | null, malId: number | null): string {
 	return [anilistId ? `ANILIST ${anilistId}` : '', malId ? `MAL ${malId}` : '']

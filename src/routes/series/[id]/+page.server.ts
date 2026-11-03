@@ -8,6 +8,7 @@ import { ocrPlace, restoreNotText, setSeriesOcr } from '$lib/server/japanese/ocr
 import { wordsOf } from '$lib/server/japanese/mining';
 import { decide, twinOf } from '$lib/server/dupes';
 import { linkState, unlink } from '$lib/server/catalogue';
+import { seriesSeasons } from '$lib/server/season-links';
 import { unlinkSeries } from '$lib/server/ranobe';
 import { ranobeSeries, retryRanobe } from '$lib/server/ranobe-review';
 import { afterReading, editTracking, sendPending, trackingOf } from '$lib/server/tracking';
@@ -167,6 +168,9 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		words: series.kind === 'novel' || series.kind === 'anime' ? null : wordsOf(series.id, reveal),
 		// Its MyAnimeList / AniList entry (doc/LINKS.md): the LINK and COVER rows.
 		link: linkState(series.id),
+		// An anime's seasons (c240): a link each, and the row folds round the one
+		// being watched. Null for anything else, which draws today's rows.
+		seasons: series.kind === 'anime' ? (seriesSeasons(series.id)?.seasons ?? null) : null,
 		// What each catalogue's list says, and what tsundoku sent (doc/TRACKING.md).
 		tracking: trackingOf(series.id),
 		// A novel's Ranobe link and line (doc/RANOBE.md). Null for a comic.
@@ -257,6 +261,14 @@ function target(params: { id: string }, cookies: Parameters<Actions[string]>[0][
 	const series = seriesPage(id, isRevealed(cookies));
 	if (!series) error(404, 'not found');
 	return series;
+}
+
+/** The season a form is about, when it names one: an anime's rows pass it. */
+function seasonOf(form: FormData): { season?: number; part?: number } {
+	const season = Number(form.get('season'));
+	const part = Number(form.get('part'));
+	if (!Number.isInteger(season)) return {};
+	return { season, part: Number.isInteger(part) && part > 0 ? part : 1 };
 }
 
 const entryIds = (form: FormData) =>
@@ -354,12 +366,16 @@ export const actions: Actions = {
 	},
 
 	// The TRACKING sheet (Series Link 1m): status, to both catalogues, now. The
-	// score is the rating (c67), sent by the RATING row's own save.
+	// score is the rating (c67), sent by the RATING row's own save. An anime
+	// sets the season the sheet is on (c240): the other seasons keep theirs.
 	tracking: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
-		const status = String((await request.formData()).get('status') ?? '');
+		const form = await request.formData();
+		const status = String(form.get('status') ?? '');
 		if (!(STATUSES as string[]).includes(status)) return fail(400, { message: 'no such status' });
-		if (editTracking(s.id, { status: status as Status }) > 0) await sendPending({ seriesId: s.id });
+		const where = seasonOf(form);
+		if (editTracking(s.id, { status: status as Status }, Date.now(), where) > 0)
+			await sendPending({ seriesId: s.id });
 		return { ok: true };
 	},
 
@@ -385,10 +401,13 @@ export const actions: Actions = {
 		return { ok: true };
 	},
 
-	// UNLINK (Series Link 1k): gone, and an import won't bring it back (doc/LINKS.md).
-	unlink: async ({ params, cookies }) => {
+	// UNLINK (Series Link 1k): gone, and an import won't bring it back
+	// (doc/LINKS.md). On an anime it is that season's link that goes (c240).
+	unlink: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
-		unlink(s.id);
+		const form = await request.formData();
+		const season = Number(form.get('season'));
+		unlink(s.id, Date.now(), Number.isInteger(season) ? season : undefined);
 		recover([s.id]);
 		return { ok: true };
 	},
