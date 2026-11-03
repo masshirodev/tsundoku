@@ -32,7 +32,9 @@ type Sent = { url: string; body: unknown; auth: string | null };
 let sent: Sent[] = [];
 let alList: { mediaId: number; status: string; progress: number; score: number; media: unknown }[] =
 	[];
+let alAnime: typeof alList = [];
 let malList: { node: { id: number }; list_status: Record<string, unknown> }[] = [];
+let malAnime: typeof malList = [];
 let malDown = false;
 
 const media = (id: number, english: string, idMal: number | null = null) => ({
@@ -43,10 +45,23 @@ const media = (id: number, english: string, idMal: number | null = null) => ({
 	status: 'RELEASING',
 	chapters: null,
 	volumes: null,
+	episodes: null,
+	season: null,
+	seasonYear: null,
 	synonyms: [],
 	title: { romaji: `Romaji ${id}`, english, native: null },
 	startDate: { year: 2020 },
 	coverImage: { extraLarge: `https://s4.anilist.co/${id}.jpg`, large: null }
+});
+
+/** An anime's entry, in AniList's other catalogue. */
+const animeMedia = (id: number, english: string, idMal: number | null = null) => ({
+	...media(id, english, idMal),
+	format: 'TV',
+	countryOfOrigin: 'JP',
+	episodes: 24,
+	season: 'FALL',
+	seasonYear: 2024
 });
 
 const json = (d: unknown, status = 200) =>
@@ -66,7 +81,13 @@ const fake: typeof fetch = async (input, init) => {
 		const q = (body as { query: string }).query;
 		if (q.includes('Viewer')) return json({ data: { Viewer: { id: 7, name: 'masshiro' } } });
 		if (q.includes('MediaListCollection'))
-			return json({ data: { MediaListCollection: { lists: [{ entries: alList }] } } });
+			return json({
+				data: {
+					MediaListCollection: {
+						lists: [{ entries: q.includes('type: ANIME') ? alAnime : alList }]
+					}
+				}
+			});
 		if (q.includes('SaveMediaListEntry')) return json({ data: { SaveMediaListEntry: { id: 1 } } });
 		return json({ data: null });
 	}
@@ -74,6 +95,8 @@ const fake: typeof fetch = async (input, init) => {
 		if (malDown) throw new TypeError('fetch failed');
 		if (url.endsWith('/users/@me')) return json({ id: 9, name: 'masshiro' });
 		if (url.includes('/users/@me/mangalist')) return json({ data: malList, paging: {} });
+		// AniList's reader asks both lists; MAL's anime one is its own.
+		if (url.includes('/users/@me/animelist')) return json({ data: malAnime, paging: {} });
 		if (url.includes('/my_list_status')) return json({ status: 'reading' });
 	}
 	return json({}, 404);
@@ -84,7 +107,9 @@ beforeEach(() => {
 	cat.setAnilistFetch(fake);
 	sent = [];
 	alList = [];
+	alAnime = [];
 	malList = [];
+	malAnime = [];
 	malDown = false;
 	for (const t of ['tracker_accounts', 'tracker_state', 'tracker_sends', 'series_links'])
 		db.prepare(`DELETE FROM ${t}`).run();
@@ -177,6 +202,141 @@ describe('reading the lists', () => {
 		await signIn('mal');
 		await tr.readList('mal', NOW);
 		expect(state(tog, 'mal')).toMatchObject({ status: 'on_hold', progress: 52, score: 7 });
+	});
+
+	it('reads an anime list too, and links an anime entry only to an anime series', async () => {
+		const root = (
+			db.prepare(`SELECT id FROM roots WHERE hidden = 0 LIMIT 1`).get() as { id: number }
+		).id;
+		const show = Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, added_at, origin_key, in_library)
+					VALUES (?, 'Ranma ½ (2024)', 'anime', ?, 'aniyomi:9001:/ranma', 1)`
+				)
+				.run(root, NOW).lastInsertRowid
+		);
+		try {
+			// Both lists carry an entry called Ranma ½, and the series' own title
+			// cleans to it: only the anime's may link (c298).
+			alList = [
+				{
+					mediaId: 30023,
+					status: 'CURRENT',
+					progress: 407,
+					score: 8,
+					media: media(30023, 'Ranma ½', 23)
+				}
+			];
+			alAnime = [
+				{
+					mediaId: 30024,
+					status: 'CURRENT',
+					progress: 5,
+					score: 8,
+					media: animeMedia(30024, 'Ranma ½', 23)
+				}
+			];
+			await signIn('anilist');
+			await tr.readList('anilist', NOW);
+			expect(
+				db.prepare(`SELECT via, anilist_id, format FROM series_links WHERE series_id = ?`).get(show)
+			).toEqual({ via: 'list', anilist_id: 30024, format: 'TV' });
+			expect(state(show, 'anilist')).toMatchObject({ status: 'reading', progress: 5, score: 8 });
+			// The manga entry matched nothing: the manga series it names has its
+			// own title, and it may not take the anime.
+			expect(
+				db.prepare(`SELECT COUNT(*) AS n FROM series_links WHERE via = 'list'`).get() as {
+					n: number;
+				}
+			).toEqual({ n: 1 });
+		} finally {
+			db.prepare(`DELETE FROM series WHERE id = ?`).run(show);
+		}
+	});
+
+	it('keeps MAL’s manga and anime state apart when both lists use id 23', async () => {
+		const root = (
+			db.prepare(`SELECT id FROM roots WHERE hidden = 0 LIMIT 1`).get() as { id: number }
+		).id;
+		const add = (title: string, kind: string, key: string) =>
+			Number(
+				db
+					.prepare(
+						`INSERT INTO series (root_id, title, kind, added_at, origin_key, in_library)
+						VALUES (?, ?, ?, ?, ?, 1)`
+					)
+					.run(root, title, kind, NOW, key).lastInsertRowid
+			);
+		const manga = add('Ranma ½', 'manga', 'mihon:23:/ranma');
+		const anime = add('Ranma ½ (1989)', 'anime', 'aniyomi:23:/ranma-1989');
+		try {
+			for (const id of [manga, anime])
+				db.prepare(
+					`INSERT INTO series_links (series_id, mal_id, via, linked_at, resolved_at, format)
+					VALUES (?, 23, 'review', ?, ?, ?)`
+				).run(id, NOW, NOW, id === anime ? 'TV' : 'MANGA');
+			// MAL's manga and anime ids are separate sequences: both may be 23.
+			malList = [
+				{
+					node: { id: 23 },
+					list_status: { status: 'reading', score: 7, num_chapters_read: 40 }
+				}
+			];
+			malAnime = [
+				{
+					node: { id: 23 },
+					list_status: { status: 'completed', score: 9, num_episodes_watched: 5 }
+				}
+			];
+			await signIn('mal');
+			const read = await tr.readList('mal', NOW);
+			expect(state(manga, 'mal')).toMatchObject({
+				status: 'reading',
+				progress: 40,
+				score: 7
+			});
+			expect(state(anime, 'mal')).toMatchObject({
+				status: 'completed',
+				progress: 5,
+				score: 9
+			});
+			// The rows read, not the map's size: the collision used to hide one.
+			expect(read.entries).toBe(2);
+		} finally {
+			db.prepare(`DELETE FROM series WHERE id IN (?, ?)`).run(manga, anime);
+		}
+	});
+
+	it('reads MAL’s anime list, with the episode count as its progress', async () => {
+		const root = (
+			db.prepare(`SELECT id FROM roots WHERE hidden = 0 LIMIT 1`).get() as { id: number }
+		).id;
+		const show = Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, added_at, origin_key, in_library)
+					VALUES (?, 'Trigun Stampede', 'anime', ?, 'aniyomi:9002:/trigun', 1)`
+				)
+				.run(root, NOW).lastInsertRowid
+		);
+		try {
+			db.prepare(
+				`INSERT INTO series_links (series_id, mal_id, via, linked_at, resolved_at, format)
+				VALUES (?, 52093, 'review', ?, ?, 'TV')`
+			).run(show, NOW, NOW);
+			malAnime = [
+				{
+					node: { id: 52093 },
+					list_status: { status: 'completed', score: 9, num_episodes_watched: 12 }
+				}
+			];
+			await signIn('mal');
+			await tr.readList('mal', NOW);
+			expect(state(show, 'mal')).toMatchObject({ status: 'completed', progress: 12, score: 9 });
+		} finally {
+			db.prepare(`DELETE FROM series WHERE id = ?`).run(show);
+		}
 	});
 });
 

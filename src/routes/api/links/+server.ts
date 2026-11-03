@@ -5,6 +5,7 @@ import { refreshCovers } from '$lib/server/covers';
 import {
 	Unreachable,
 	asReviewCandidate,
+	kindOf,
 	link,
 	noneOfThese,
 	offered,
@@ -81,20 +82,26 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 		if (typeof b.search === 'string') {
 			if (access.hidden) error(409, 'hidden series are never searched');
 			const r = await searchNow(seriesId, b.search);
-			// A search that linked gives the series its cover in the background.
-			if (r.outcome === 'linked') recover(true);
 			return json({ ...r, item: reviewItem(seriesId, reveal) });
 		}
 		if (typeof b.paste === 'string') {
-			const p = parsePasted(b.paste);
-			if (!p) error(400, 'not an AniList or MAL manga link');
 			const item = reviewItem(seriesId, reveal);
 			if (!item) error(404, 'not found');
-			return json({ candidate: asReviewCandidate(item, await readPasted(p)) });
+			const p = parsePasted(b.paste, item.kind);
+			if (!p)
+				error(
+					400,
+					item.kind === 'anime'
+						? 'not an AniList or MAL anime link'
+						: 'not an AniList or MAL manga link'
+				);
+			return json({ candidate: asReviewCandidate(item, await readPasted(p, item.kind)) });
 		}
 		if (typeof b.link === 'number') {
+			const kind = kindOf(seriesId);
+			if (!kind) error(404, 'not found');
 			const c = b.pasted
-				? await readPasted({ service: 'anilist', id: b.link })
+				? await readPasted({ service: 'anilist', id: b.link }, kind)
 				: offered(seriesId, b.link);
 			if (!c) error(409, 'not a candidate');
 			link(seriesId, c, b.pasted ? 'pasted' : 'review');

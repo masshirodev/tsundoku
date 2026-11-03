@@ -1,18 +1,21 @@
 import type Database from 'better-sqlite3';
 import { getDb } from './db.ts';
 import { HIDDEN_SQL, IN_LIBRARY_SQL, VISIBLE_SQL, visibleWhere } from './visibility.ts';
+import { clearAniSkip } from './anime/marks.ts';
 import {
+	ANIME_FORMATS,
+	candidateKind,
 	candidateRows,
 	coverLines,
 	coverOnly,
 	idsLine,
 	isCutShort,
+	matchTitles,
 	normaliseTitle,
 	scoreToRating,
-	bracketed,
-	cleanTitle,
 	searchTitles,
 	sureMatch,
+	wrongKind,
 	whyLine,
 	type Candidate,
 	type Kind,
@@ -120,7 +123,7 @@ export const anilistAs = (token: string, query: string, variables: Record<string
 	anilist(query, variables, token);
 
 export const MEDIA = `fragment M on Media {
-	id idMal format countryOfOrigin status chapters volumes synonyms
+	id idMal format countryOfOrigin status chapters volumes episodes season seasonYear synonyms
 	title { romaji english native }
 	startDate { year }
 	coverImage { extraLarge large }
@@ -134,6 +137,9 @@ export type Media = {
 	status: string | null;
 	chapters: number | null;
 	volumes: number | null;
+	episodes: number | null;
+	season: string | null;
+	seasonYear: number | null;
 	synonyms: string[] | null;
 	title: { romaji: string | null; english: string | null; native: string | null };
 	startDate: { year: number | null } | null;
@@ -155,17 +161,30 @@ export function toCandidate(m: Media): Candidate {
 		year: m.startDate?.year ?? null,
 		chapters: m.chapters ?? null,
 		volumes: m.volumes ?? null,
+		episodes: m.episodes ?? null,
+		season: m.season ?? null,
+		seasonYear: m.seasonYear ?? null,
 		status: m.status ?? '',
 		coverUrl: m.coverImage?.extraLarge || m.coverImage?.large || ''
 	};
 }
 
-/** Entries by AniList id or by MAL id, fifty to a request. */
-async function byIds(ids: number[], field: 'id_in' | 'idMal_in'): Promise<Candidate[]> {
+/** AniList's two catalogues: an anime series asks ANIME, everything else MANGA. */
+const mediaTypeOf = (kind: Kind): 'ANIME' | 'MANGA' => (kind === 'anime' ? 'ANIME' : 'MANGA');
+
+/** The two families a MAL id belongs to: anime's ids and manga's are separate sequences. */
+export const family = (kind: Kind): 'anime' | 'comic' => (kind === 'anime' ? 'anime' : 'comic');
+
+/** The formats a kind can be: an anime its own, a novel NOVEL, anything else a comic. */
+const formatsOf = (kind: Kind): string[] =>
+	kind === 'anime' ? [...ANIME_FORMATS] : kind === 'novel' ? ['NOVEL'] : ['MANGA', 'ONE_SHOT'];
+
+/** Entries by AniList id or by MAL id, fifty to a request, in the kind's own catalogue. */
+async function byIds(ids: number[], field: 'id_in' | 'idMal_in', kind: Kind): Promise<Candidate[]> {
 	const out: Candidate[] = [];
 	for (let i = 0; i < ids.length; i += 50) {
 		const data = (await anilist(
-			`query ($ids: [Int]) { Page(perPage: 50) { media(${field}: $ids, type: MANGA) { ...M } } } ${MEDIA}`,
+			`query ($ids: [Int]) { Page(perPage: 50) { media(${field}: $ids, type: ${mediaTypeOf(kind)}) { ...M } } } ${MEDIA}`,
 			{ ids: ids.slice(i, i + 50) }
 		)) as { Page: { media: Media[] } } | null;
 		out.push(...(data?.Page.media ?? []).map(toCandidate));
@@ -173,13 +192,11 @@ async function byIds(ids: number[], field: 'id_in' | 'idMal_in'): Promise<Candid
 	return out;
 }
 
-/** The AniList formats a kind can be: a novel is a NOVEL, anything else a comic. */
-const formatsOf = (kind: Kind): string[] => (kind === 'novel' ? ['NOVEL'] : ['MANGA', 'ONE_SHOT']);
-
 /**
- * AniList's search for each title, only in its kind's formats, five titles to
- * a request, best match first. The format keeps a novel out of a manhwa's
- * candidates (The Beginning After the End is both), and the other way round.
+ * AniList's search for each title, only in its kind's own catalogue and
+ * formats, five titles to a request, best match first. The type and the
+ * format keep a manga out of an anime's candidates, a novel out of a
+ * manhwa's (The Beginning After the End is both), and the other way round.
  */
 async function searchMany(
 	queries: { title: string; kind: Kind }[],
@@ -197,8 +214,8 @@ async function searchMany(
 		const query = `query (${chunk.map((_, j) => `$q${j}: String, $f${j}: [MediaFormat]`).join(', ')}) {
 			${chunk
 				.map(
-					(_, j) =>
-						`s${j}: Page(perPage: ${per}) { media(search: $q${j}, type: MANGA, format_in: $f${j}, sort: SEARCH_MATCH) { ...M } }`
+					(q, j) =>
+						`s${j}: Page(perPage: ${per}) { media(search: $q${j}, type: ${mediaTypeOf(q.kind)}, format_in: $f${j}, sort: SEARCH_MATCH) { ...M } }`
 				)
 				.join('\n')}
 		} ${MEDIA}`;
@@ -279,11 +296,13 @@ export function linkFromTracker(
 			`UPDATE series_links SET mal_id = ?, anilist_id = NULL, title = '', cover_url = '',
 				resolved_at = NULL, score = ?, linked_at = ? WHERE series_id = ?`
 		).run(mal.id, mal.score || null, now, seriesId);
+		clearAniSkip(seriesId, db);
 		return;
 	}
 	db.prepare(
 		`INSERT INTO series_links (series_id, mal_id, via, linked_at, score) VALUES (?, ?, 'mihon', ?, ?)`
 	).run(seriesId, mal.id, now, mal.score || null);
+	clearAniSkip(seriesId, db);
 	const filled = fill(db, seriesId, mal.score);
 	if (filled)
 		db.prepare(`UPDATE series_links SET filled_rating = ? WHERE series_id = ?`).run(
@@ -296,7 +315,8 @@ export function linkFromTracker(
  * Link a series to an AniList entry the owner chose (the review, FIND, a
  * pasted link) or that matched exactly. Replaces a link it had. The series
  * leaves the review; its search and candidates are kept, so UNDO brings it
- * back as it was.
+ * back as it was. AniSkip's answers go with the old link: the new MAL id must
+ * be asked afresh (c299).
  */
 export function link(seriesId: number, c: Candidate, via: Via, now = Date.now()): void {
 	const db = getDb();
@@ -310,6 +330,7 @@ export function link(seriesId: number, c: Candidate, via: Via, now = Date.now())
 				filled_rating = NULL, score = NULL, format = excluded.format`
 		).run(seriesId, c.anilistId, c.malId, via, c.title, c.coverUrl, now, now, c.format);
 		db.prepare(`DELETE FROM link_decisions WHERE series_id = ?`).run(seriesId);
+		clearAniSkip(seriesId, db);
 	})();
 }
 
@@ -337,7 +358,8 @@ export function linkFromList(
 
 /**
  * UNDO, just after a LINK: the link goes, and a rating it gave goes with it
- * (if nobody changed it since). The series is back in the review.
+ * (if nobody changed it since). The series is back in the review. AniSkip's
+ * answers go too: with no link there is no MAL entry (c299).
  */
 export function undoLink(seriesId: number): boolean {
 	const db = getDb();
@@ -350,6 +372,7 @@ export function undoLink(seriesId: number): boolean {
 				had.filled_rating
 			);
 		db.prepare(`DELETE FROM series_links WHERE series_id = ?`).run(seriesId);
+		clearAniSkip(seriesId, db);
 		return true;
 	})();
 }
@@ -358,6 +381,7 @@ export function undoLink(seriesId: number): boolean {
  * UNLINK, on the series screen: the link goes and stays gone. An import won't
  * bring Mihon's tracker back, and the pass won't search it again; FIND and
  * PASTE A LINK still can. The rating it gave, long since the owner's, stays.
+ * AniSkip's answers go: the old MAL id's negatives are not this series'.
  */
 export function unlink(seriesId: number, now = Date.now()): void {
 	const db = getDb();
@@ -366,6 +390,7 @@ export function unlink(seriesId: number, now = Date.now()): void {
 		db.prepare(
 			`INSERT OR REPLACE INTO link_decisions (series_id, decision, at) VALUES (?, 'unlinked', ?)`
 		).run(seriesId, now);
+		clearAniSkip(seriesId, db);
 	})();
 }
 
@@ -430,11 +455,12 @@ export function unqueueSearch(seriesId: number, was: QueuedFrom): void {
 
 /**
  * A pasted link, read as one candidate (Link Review 1d). Only its id goes to
- * AniList, never the title. A MAL id AniList doesn't know can't be shown, and
- * says so.
+ * AniList, never the title, and the id is read in the series' own catalogue
+ * (an anime's `/anime/` id is not a manga's). A MAL id AniList doesn't know
+ * can't be shown, and says so.
  */
-export async function readPasted(p: Pasted): Promise<Candidate> {
-	const found = await byIds([p.id], p.service === 'anilist' ? 'id_in' : 'idMal_in');
+export async function readPasted(p: Pasted, kind: Kind): Promise<Candidate> {
+	const found = await byIds([p.id], p.service === 'anilist' ? 'id_in' : 'idMal_in', kind);
 	const c = found.find((x) => (p.service === 'anilist' ? x.anilistId : x.malId) === p.id);
 	if (!c)
 		throw new Error(
@@ -443,33 +469,56 @@ export async function readPasted(p: Pasted): Promise<Candidate> {
 	return c;
 }
 
+/** A series' kind, for the doors that read a pasted link or ask for an id. */
+export function kindOf(seriesId: number): Kind | null {
+	const r = getDb().prepare(`SELECT kind FROM series WHERE id = ?`).get(seriesId) as
+		{ kind: Kind } | undefined;
+	return r?.kind ?? null;
+}
+
 // ---- the pass -----------------------------------------------------------------------------
 
 /**
  * Links that only know a MAL id (Mihon's trackers) learn their AniList entry
- * and cover: fifty ids a request, and ids are all that's sent.
+ * and cover: fifty ids a request, and ids are all that's sent. Each series'
+ * own kind picks the catalogue the id is read in: a MAL id means a manga on
+ * one and an anime on the other, and the wrong one is another work.
  */
 export async function resolveLinks(now = Date.now()): Promise<number> {
 	const db = getDb();
 	const waiting = db
 		// Also a link from before rung 26, which doesn't know its entry's format yet.
 		.prepare(
-			`SELECT series_id, anilist_id, mal_id FROM series_links
-			WHERE resolved_at IS NULL OR (format IS NULL AND anilist_id IS NOT NULL)`
+			`SELECT l.series_id, l.anilist_id, l.mal_id, s.kind FROM series_links l
+			JOIN series s ON s.id = l.series_id
+			WHERE l.resolved_at IS NULL OR (l.format IS NULL AND l.anilist_id IS NOT NULL)`
 		)
-		.all() as { series_id: number; anilist_id: number | null; mal_id: number | null }[];
+		.all() as {
+		series_id: number;
+		anilist_id: number | null;
+		mal_id: number | null;
+		kind: Kind;
+	}[];
 	if (!waiting.length) return 0;
-	const byMal = waiting.filter((w) => w.anilist_id === null && w.mal_id !== null);
-	const byAl = waiting.filter((w) => w.anilist_id !== null);
-	const mal = new Map(
-		(await byIds([...new Set(byMal.map((w) => w.mal_id!))], 'idMal_in')).map((c) => [c.malId, c])
+	const kinds: Kind[] = [...new Set(waiting.map((w) => w.kind))];
+	/** The ids of one field, read in each kind's own catalogue. */
+	const lookup = async (field: 'id_in' | 'idMal_in'): Promise<Candidate[]> => {
+		const out: Candidate[] = [];
+		for (const kind of kinds) {
+			const col = field === 'id_in' ? 'anilist_id' : 'mal_id';
+			const ids = [...new Set(waiting.filter((w) => w.kind === kind).map((w) => w[col]))].filter(
+				(n): n is number => n !== null
+			);
+			if (ids.length) out.push(...(await byIds(ids, field, kind)));
+		}
+		return out;
+	};
+	const malById = new Map(
+		(await lookup('idMal_in'))
+			.filter((c) => c.malId !== null)
+			.map((c) => [`${family(candidateKind(c) ?? 'manga')}:${c.malId}`, c])
 	);
-	const al = new Map(
-		(await byIds([...new Set(byAl.map((w) => w.anilist_id!))], 'id_in')).map((c) => [
-			c.anilistId,
-			c
-		])
-	);
+	const alById = new Map((await lookup('id_in')).map((c) => [c.anilistId, c]));
 	const set = db.prepare(
 		`UPDATE series_links SET anilist_id = ?, mal_id = COALESCE(?, mal_id), title = ?, cover_url = ?, resolved_at = ?,
 			format = ? WHERE series_id = ?`
@@ -480,7 +529,10 @@ export async function resolveLinks(now = Date.now()): Promise<number> {
 	let n = 0;
 	db.transaction(() => {
 		for (const w of waiting) {
-			const c = w.anilist_id !== null ? al.get(w.anilist_id) : mal.get(w.mal_id);
+			const c =
+				w.anilist_id !== null
+					? alById.get(w.anilist_id)
+					: malById.get(`${family(w.kind)}:${w.mal_id ?? -1}`);
 			if (c) {
 				set.run(c.anilistId, c.malId, c.title, c.coverUrl, now, c.format, w.series_id);
 				n += 1;
@@ -490,9 +542,9 @@ export async function resolveLinks(now = Date.now()): Promise<number> {
 	return n;
 }
 
-/** What a catalogue of manga and novels holds: never a doujin, never Hentoid's. */
+/** What a catalogue of manga, novels and anime holds: never a doujin, never Hentoid's. */
 // A browsing record (doc/BROWSING.md) is never in the LINK queue: it isn't the library's.
-const LINKABLE = `s.kind IN ('manga', 'manhwa', 'novel') AND s.source != 'hentoid' AND ${IN_LIBRARY_SQL}`;
+const LINKABLE = `s.kind IN ('manga', 'manhwa', 'novel', 'anime') AND s.source != 'hentoid' AND ${IN_LIBRARY_SQL}`;
 
 type SearchRow = {
 	id: number;
@@ -535,22 +587,19 @@ const titlesOfRow = (r: { title: string; alt_titles: string }): string[] => {
 };
 
 /**
- * The titles a sure match may equal: the series' own, each cleaned
- * (`cleanTitle`), and what their brackets hold.
- */
-const matchTitles = (titles: string[]): string[] => [
-	...new Set(titles.flatMap((t) => [t, cleanTitle(t), ...bracketed(t)]))
-];
-
-/**
- * Search AniList for each: a sure match links at once ('exact'); otherwise the
- * first four results wait for the review, and a search that found nothing
- * does too, so the owner can search again or paste a link.
+ * Search AniList for each: the automatic pass links a sure match at once
+ * ('exact'); the owner's own search (`autoLink: false`) only stores what it
+ * found, even a single equal title, and waits for LINK (the owner's rule,
+ * 2026-11-02). Either way the first four results wait for the review, and a
+ * search that found nothing does too, so the owner can search again or paste
+ * a link.
  */
 export async function searchSeries(
 	rows: SearchRow[],
-	now = Date.now()
+	now = Date.now(),
+	opts: { autoLink?: boolean } = {}
 ): Promise<{ linked: number; offered: number }> {
+	const autoLink = opts.autoLink ?? true;
 	const db = getDb();
 	// The owner's own title for a SEARCH AGAIN, as typed; the pass's cleaned,
 	// with a shorter one to fall back on.
@@ -604,7 +653,7 @@ export async function searchSeries(
 		db.transaction(() => {
 			saveSearch.run(r.id, queries[i], now, hits.length);
 			clear.run(r.id);
-			if (sure) {
+			if (sure && autoLink) {
 				link(r.id, sure, 'exact', now);
 				linked += 1;
 			} else {
@@ -715,6 +764,8 @@ export type ReviewItem = {
 	found: number;
 	/** Searched in some pass: false for a series FIND opens before any. */
 	searched: boolean;
+	/** When the last search ran: the review says "JUST NOW" for one the owner ran. */
+	searchedAt: number | null;
 	cutShort: boolean;
 	candidates: ReviewCandidate[];
 };
@@ -790,6 +841,7 @@ function itemOf(r: ItemRow): ReviewItem {
 		query: r.query || r.title,
 		found: r.found,
 		searched: r.searched_at !== null,
+		searchedAt: r.searched_at,
 		cutShort: isCutShort(r.title),
 		candidates: cands.map((c) => ({
 			...c,
@@ -862,6 +914,8 @@ export type LinkState = {
 		resolving: boolean;
 		/** Across kinds (a novel to its comic's entry): cover and details only, never tracked. */
 		coverOnly: boolean;
+		/** The entry is the other kind: a manga's on an anime, or an anime's on a manga (c298). */
+		wrongKind: boolean;
 	} | null;
 	/** Not linked: what the last pass found. */
 	candidates: number;
@@ -893,7 +947,8 @@ export function linkState(seriesId: number): LinkState | null {
 					via: l.via,
 					ids: idsLine(l.anilist_id, l.mal_id),
 					resolving: l.resolved_at === null,
-					coverOnly: coverOnly(r.kind, l.format ?? '')
+					coverOnly: coverOnly(r.kind, l.format ?? ''),
+					wrongKind: wrongKind(r.kind, l.format ?? '')
 				}
 			: null,
 		candidates: item.candidates.length,
@@ -956,16 +1011,15 @@ type Before = {
 const before = new Map<number, Before>();
 
 export type SearchNow =
-	| { outcome: 'linked'; candidate: Candidate }
-	| { outcome: 'found'; found: number }
-	| { outcome: 'queued'; was: QueuedFrom };
+	{ outcome: 'found'; found: number } | { outcome: 'queued'; was: QueuedFrom };
 
 /**
  * SEARCH AGAIN (and FIND on a series never searched): AniList asked at once,
- * with this title only. An exact match links there and then; otherwise what
- * it found replaces the candidates. AniList out of reach, the search waits
- * for the next pass instead, as it used to. The owner's call, 2026-09-24: a
- * pass can be hours off, and one request is a second's wait.
+ * with this title only, in the series' own catalogue and kind. What it found
+ * replaces the candidates and waits for LINK: a search the owner runs never
+ * links by itself, even on one equal title (the owner's rule, 2026-11-02).
+ * AniList out of reach, the search waits for the next pass instead, as it
+ * used to.
  */
 export async function searchNow(
 	seriesId: number,
@@ -991,15 +1045,8 @@ export async function searchNow(
 			.all(seriesId) as Before['candidates']
 	};
 	try {
-		const r = await searchSeries([{ ...row, query: q }], now);
+		await searchSeries([{ ...row, query: q }], now, { autoLink: false });
 		before.set(seriesId, snapshot);
-		if (r.linked) {
-			const l = linkOf(db, seriesId)!;
-			return {
-				outcome: 'linked',
-				candidate: asCandidate(l)
-			};
-		}
 		const found = (
 			db.prepare(`SELECT found FROM link_searches WHERE series_id = ?`).get(seriesId) as {
 				found: number;
@@ -1011,23 +1058,6 @@ export async function searchNow(
 		before.delete(seriesId);
 		return { outcome: 'queued', was: queueSearch(seriesId, q) };
 	}
-}
-
-/** The link a search just made, as a candidate for the band's words. */
-function asCandidate(l: LinkRow): Candidate {
-	return {
-		anilistId: l.anilist_id ?? 0,
-		malId: l.mal_id,
-		title: l.title,
-		alts: [],
-		format: '',
-		country: '',
-		year: null,
-		chapters: null,
-		volumes: null,
-		status: '',
-		coverUrl: l.cover_url
-	};
 }
 
 /**

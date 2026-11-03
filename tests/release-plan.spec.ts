@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { opener, plan, solverAt, solverSetAside } from '../ops/release/launcher/plan.ts';
 
 const base = { engineToken: 'eng', solverDir: null };
@@ -29,6 +31,8 @@ describe('the launcher’s plan (doc/RELEASE.md)', () => {
 			ENGINE_TOKEN: 'eng',
 			FFMPEG: 'C:\\Program Files\\tsundoku\\ffmpeg\\bin\\ffmpeg.exe'
 		});
+		// The bundle's own chromaprint, before whatever PATH holds (c297).
+		expect(p.server.env.FPCALC).toBe('C:\\Program Files\\tsundoku\\fpcalc\\fpcalc.exe');
 		expect(p.server.env.DATABASE_PATH).toBe(
 			'C:\\Users\\Ami\\AppData\\Local\\tsundoku\\tsundoku.sqlite'
 		);
@@ -65,6 +69,18 @@ describe('the launcher’s plan (doc/RELEASE.md)', () => {
 		expect(p.server.cmd).toBe('/opt/tsundoku/node/bin/node');
 		expect(p.engine.cmd).toBe('/opt/tsundoku/jre/bin/java');
 		expect(p.server.env.FFPROBE).toBe('/opt/tsundoku/ffmpeg/bin/ffprobe');
+		expect(p.server.env.FPCALC).toBe('/opt/tsundoku/fpcalc/fpcalc');
+	});
+
+	it('lets the data folder choose its own fpcalc, as it does ffmpeg', () => {
+		const p = plan({
+			...base,
+			root: '/t',
+			home: '/h',
+			env: { FPCALC: '/usr/bin/fpcalc' },
+			platform: 'linux'
+		});
+		expect(p.server.env.FPCALC).toBe('/usr/bin/fpcalc');
 	});
 
 	it('runs FlareSolverr, and tells the app where, only once it’s unzipped', () => {
@@ -110,6 +126,29 @@ describe('the launcher’s plan (doc/RELEASE.md)', () => {
 		expect(
 			plan({ ...base, root: '/t', home: '/h', env: { PORT: 'abc' }, platform: 'linux' }).ports.app
 		).toBe(42143);
+	});
+});
+
+describe('the pinned files (ops/release/versions.json)', () => {
+	const pins = JSON.parse(
+		readFileSync(fileURLToPath(new URL('../ops/release/versions.json', import.meta.url)), 'utf8')
+	) as Record<string, Record<string, unknown>>;
+
+	it('pins each component for both platforms, with the project’s own digest', () => {
+		for (const name of ['node', 'jre', 'flaresolverr', 'ffmpeg', 'fpcalc']) {
+			const p = pins[name];
+			expect(p, name).toBeDefined();
+			expect(typeof p.version).toBe('string');
+			expect(typeof p.licence).toBe('string');
+			for (const platform of ['win-x64', 'linux-x64']) {
+				const pin = p[platform] as { url: string; sha256: string };
+				expect(pin.url, `${name} ${platform}`).toMatch(/^https:\/\//);
+				expect(pin.sha256, `${name} ${platform}`).toMatch(/^[0-9a-f]{64}$/);
+			}
+		}
+		// The fpcalc the bundle carries is chromaprint's own release (c297).
+		expect(pins.fpcalc.version).toContain('1.6.2');
+		expect(pins.fpcalc.source).toBe('https://github.com/acoustid/chromaprint/tree/v1.6.2');
 	});
 });
 

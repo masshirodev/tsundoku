@@ -42,7 +42,7 @@ const repo = fileURLToPath(new URL('../../', import.meta.url));
 const engineRepo = resolve(repo, '../tsundoku-engine');
 const kotobaRepo = resolve(repo, '../kotoba');
 const pins = JSON.parse(readFileSync(join(repo, 'ops/release/versions.json'), 'utf8')) as Record<
-	'node' | 'jre' | 'flaresolverr' | 'ffmpeg',
+	'node' | 'jre' | 'flaresolverr' | 'ffmpeg' | 'fpcalc',
 	Component
 >;
 
@@ -292,6 +292,14 @@ for (const platform of platforms) {
 	}
 	copyFileSync(join(ff, 'LICENSE.txt'), join(dir, 'ffmpeg/LICENSE.txt'));
 
+	// fpcalc, chromaprint's own program: this bundle's ffmpeg has no chromaprint
+	// muxer, so fingerprints come through it (doc/RELEASE.md, "Pinned"; c297).
+	const fpcalc = unpack(await fetchPinned(pins.fpcalc[platform]), join(tmp, 'fpcalc'));
+	mkdirSync(join(dir, 'fpcalc'));
+	const fpcalcExe = `fpcalc${t.exe}`;
+	copyFileSync(join(fpcalc, fpcalcExe), join(dir, 'fpcalc', fpcalcExe));
+	chmodSync(join(dir, 'fpcalc', fpcalcExe), 0o755);
+
 	// The engine, the launcher, and what a friend reads.
 	mkdirSync(join(dir, 'engine'));
 	copyFileSync(jar, join(dir, 'engine/engine.jar'));
@@ -331,6 +339,7 @@ for (const platform of platforms) {
 				node: pins.node.version,
 				jre: pins.jre.version,
 				ffmpeg: pins.ffmpeg.version,
+				fpcalc: pins.fpcalc.version,
 				flaresolverr: pins.flaresolverr.version,
 				go: goVersion
 			},
@@ -578,6 +587,12 @@ function notices(
 		pins.ffmpeg.licence,
 		readFileSync(join(dir, 'ffmpeg/LICENSE.txt'), 'utf8'),
 		`Unmodified, from ${pins.ffmpeg[platform].url}. Source: ${pins.ffmpeg.source}`
+	);
+	add(
+		`${pins.fpcalc.version} (fpcalc/), chromaprint's own fpcalc`,
+		pins.fpcalc.licence,
+		null,
+		`Unmodified, from ${pins.fpcalc[platform].url}. Source: ${pins.fpcalc.source}. Part of chromaprint, which ships no licence file in this archive.`
 	);
 	// Linked into the tray: the Go modules its binary says it carries
 	// (`go version -m`), so a dependency only one platform links is listed

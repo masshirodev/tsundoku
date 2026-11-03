@@ -48,6 +48,8 @@ if [ -z "$only" ] || [ "$only" = linux-x64 ]; then
 	docker run --rm -v "$work:/w" -v "$here/smoke:/s:ro" debian:stable-slim sh -c '
 		export HOME=/root; mkdir -p /root/.local/share/tsundoku
 		cp -r /w/library /root/.local/share/tsundoku/library
+		echo "--- fingerprint"
+		sh /s/fingerprint.sh /w/tsundoku || exit 1
 		/w/tsundoku/tsundoku --foreground --no-browser > /tmp/launch.log 2>&1 &
 		launcher=$!
 		for i in $(seq 1 90); do grep -q "Open http" /tmp/launch.log && break; sleep 2; done
@@ -69,7 +71,7 @@ if [ -z "$only" ] || [ "$only" = win-x64 ]; then
 	scp -q "$out/tsundoku-$version-win-x64.zip" win-test:bundle.zip
 	scp -q "$out/tsundoku-$version-win-x64.exe" win-test:installer.exe
 	scp -q "$work/library.zip" "$here/smoke/probe.mjs" "$here/smoke/windows.ps1" \
-		"$here/smoke/windows-installer.ps1" win-test:
+		"$here/smoke/windows-installer.ps1" "$here/smoke/fingerprint.ps1" win-test:
 	echo "-- the zip"
 	ssh -o BatchMode=yes win-test 'powershell -ExecutionPolicy Bypass -File $HOME\windows.ps1' || status=1
 	echo "-- the installer: install, run, update while running, uninstall"

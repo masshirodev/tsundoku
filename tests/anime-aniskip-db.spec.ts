@@ -27,6 +27,7 @@ vi.stubGlobal('fetch', async (input: string | URL | Request) => {
 
 const { getDb } = await import('$lib/server/db');
 const marks = await import('$lib/server/anime/marks');
+const cat = await import('$lib/server/catalogue');
 const { ANISKIP_RETRY_MS, lookupAniSkip } = await import('$lib/server/anime/aniskip');
 
 const db = getDb();
@@ -224,5 +225,139 @@ describe('AniSkip', () => {
 		await lookupAniSkip(id);
 		expect(chosen(id).intro).toEqual({ start: 10, end: 100 });
 		expect(chosen(id).ending).toEqual({ start: 1400, end: 1440 });
+	});
+
+	it('a link set after a negative clears it, so the next resolve asks again (c299)', async () => {
+		const show = series();
+		const id = episode(show, { duration: 1440 });
+		// Asked with the wrong link (a manga's MAL id), and answered 404: kept.
+		answer = { found: false, results: [], statusCode: 404 };
+		expect(await lookupAniSkip(id)).toBe(false);
+		expect(marks.markTriedAt(id, 'aniskip')).not.toBeNull();
+
+		// The owner relinks the series to the right entry: the negative goes.
+		cat.link(
+			show,
+			{
+				anilistId: 30024,
+				malId: 23,
+				title: 'Ranma ½',
+				alts: [],
+				format: 'TV',
+				country: 'JP',
+				year: 2024,
+				chapters: null,
+				volumes: null,
+				episodes: 24,
+				season: 'FALL',
+				seasonYear: 2024,
+				status: 'RELEASING',
+				coverUrl: ''
+			},
+			'review',
+			9_000
+		);
+		expect(marks.markTriedAt(id, 'aniskip')).toBeNull();
+		answer = {
+			found: true,
+			results: [{ interval: { startTime: 90, endTime: 180 }, skipType: 'op' }]
+		};
+		expect(await lookupAniSkip(id)).toBe(true);
+		expect(calls).toHaveLength(2);
+		expect(calls[1]).toContain('/skip-times/23/');
+		expect(chosen(id).intro).toEqual({ start: 90, end: 180 });
+	});
+
+	it('removing a link clears the answer too, and so does UNDO', async () => {
+		const show = series();
+		const id = episode(show);
+		await lookupAniSkip(id);
+		expect(marks.markTriedAt(id, 'aniskip')).not.toBeNull();
+		cat.unlink(show, 9_001);
+		expect(marks.markTriedAt(id, 'aniskip')).toBeNull();
+		// UNDO of a link: the answers go with it.
+		cat.link(
+			show,
+			{
+				anilistId: 30024,
+				malId: 23,
+				title: 'Ranma ½',
+				alts: [],
+				format: 'TV',
+				country: 'JP',
+				year: 2024,
+				chapters: null,
+				volumes: null,
+				episodes: 24,
+				season: 'FALL',
+				seasonYear: 2024,
+				status: 'RELEASING',
+				coverUrl: ''
+			},
+			'review',
+			9_002
+		);
+		answer = {
+			found: true,
+			results: [{ interval: { startTime: 90, endTime: 180 }, skipType: 'op' }]
+		};
+		await lookupAniSkip(id);
+		expect(marks.markTriedAt(id, 'aniskip')).not.toBeNull();
+		cat.undoLink(show);
+		expect(marks.markTriedAt(id, 'aniskip')).toBeNull();
+	});
+
+	it('unlinking clears AniSkip’s ending from where watching counts (round 2)', async () => {
+		const show = series();
+		const id = episode(show, { duration: 1440 });
+		await lookupAniSkip(id);
+		expect(db.prepare(`SELECT ending_at FROM entries WHERE id = ?`).get(id)).toEqual({
+			ending_at: 1300
+		});
+		cat.unlink(show, 9_003);
+		// The row that gave the ending is gone, so nothing marks the episode watched.
+		expect(db.prepare(`SELECT ending_at FROM entries WHERE id = ?`).get(id)).toEqual({
+			ending_at: null
+		});
+	});
+
+	it('a relink leaves the fingerprint’s ending where AniSkip’s was (round 2)', async () => {
+		const show = series();
+		const id = episode(show, { duration: 1440 });
+		await lookupAniSkip(id);
+		marks.saveMark(id, 'fingerprint', {
+			intro: null,
+			ending: { start: 1000, end: 1100 }
+		});
+		// AniSkip wins over a fingerprint, so its ending is the one in force.
+		expect(chosen(id).endingFrom).toBe('aniskip');
+		expect(db.prepare(`SELECT ending_at FROM entries WHERE id = ?`).get(id)).toEqual({
+			ending_at: 1300
+		});
+		cat.link(
+			show,
+			{
+				anilistId: 30025,
+				malId: 24,
+				title: 'Ranma ½',
+				alts: [],
+				format: 'TV',
+				country: 'JP',
+				year: 2024,
+				chapters: null,
+				volumes: null,
+				episodes: 24,
+				season: 'FALL',
+				seasonYear: 2024,
+				status: 'RELEASING',
+				coverUrl: ''
+			},
+			'review',
+			9_004
+		);
+		// The old entry’s ending is gone; the fingerprint’s what remains.
+		expect(db.prepare(`SELECT ending_at FROM entries WHERE id = ?`).get(id)).toEqual({
+			ending_at: 1000
+		});
 	});
 });

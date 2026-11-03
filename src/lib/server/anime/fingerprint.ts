@@ -31,9 +31,12 @@ type Stream = { header: string; hls: boolean };
 
 /** ffmpeg without the muxer: the fallback is the only way on this build. */
 let muxerMissing = false;
+/** fpcalc's absence is said once, not on every episode (c297). */
+let warnedFpcalc = false;
 /** For specs: try the muxer again (another ffmpeg may be the one under test). */
 export function forgetFingerprint(): void {
 	muxerMissing = false;
+	warnedFpcalc = false;
 }
 
 type Ran = { code: number | null; stdout: Buffer; stderr: string };
@@ -169,7 +172,15 @@ function fpcalcPrint(input: string, region: Span, stream?: Stream): Promise<Fing
 	pipeline(ff.stdout, fp.stdin, () => {});
 	return new Promise((ok) => {
 		ff.on('error', () => ok(null));
-		fp.on('error', () => ok(null));
+		fp.on('error', () => {
+			if (!warnedFpcalc) {
+				warnedFpcalc = true;
+				console.error(
+					`tsundoku: fingerprinting needs fpcalc (chromaprint), and ${FPCALC()} could not be run: set FPCALC, or a bundle carries its own (c297)`
+				);
+			}
+			ok(null);
+		});
 		fp.on('close', (code) => {
 			if (code !== 0) return ok(null);
 			try {

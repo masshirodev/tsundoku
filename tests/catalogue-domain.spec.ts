@@ -1,20 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import {
+	ANIME_FORMATS,
 	bracketed,
 	cleanTitle,
 	searchTitles,
 	candidateKind,
 	candidateRows,
+	formatLabel,
 	idsLine,
 	isCutShort,
 	isExact,
+	matchTitles,
 	normaliseTitle,
 	parsePasted,
+	sameKind,
 	scoreToRating,
 	searchTitle,
+	seriesYear,
 	sharedWords,
 	sureMatch,
 	whyLine,
+	wrongKind,
+	yearIn,
 	type Candidate
 } from '$lib/library/catalogue';
 
@@ -28,6 +35,9 @@ const cand = (o: Partial<Candidate>): Candidate => ({
 	year: 2021,
 	chapters: 190,
 	volumes: null,
+	episodes: null,
+	season: null,
+	seasonYear: null,
 	status: 'RELEASING',
 	coverUrl: '',
 	...o
@@ -89,6 +99,87 @@ describe('a sure match', () => {
 		expect(candidateKind({ format: 'ONE_SHOT', country: 'JP' })).toBe('manga');
 		expect(candidateKind({ format: 'NOVEL', country: 'KR' })).toBe('novel');
 		expect(candidateKind({ format: 'MUSIC', country: 'JP' })).toBeNull();
+		// An anime, whatever its country (c298).
+		for (const format of ANIME_FORMATS)
+			expect(candidateKind({ format, country: 'JP' })).toBe('anime');
+	});
+
+	it('never crosses an anime with a comic or a novel, nor either with an anime', () => {
+		expect(sameKind('manga', 'manhwa')).toBe(true);
+		expect(sameKind('novel', 'novel')).toBe(true);
+		expect(sameKind('novel', 'manga')).toBe(false);
+		expect(sameKind('anime', 'anime')).toBe(true);
+		for (const k of ['manga', 'manhwa', 'novel'] as const) {
+			expect(sameKind(k, 'anime')).toBe(false);
+			expect(sameKind('anime', k)).toBe(false);
+		}
+		expect(sameKind('manga', null)).toBe(false);
+		// A doujin is a comic, not a novel (round 2).
+		expect(sameKind('doujin', 'novel')).toBe(false);
+		expect(sameKind('doujin', 'manga')).toBe(true);
+		expect(sameKind('doujin', 'doujin')).toBe(true);
+	});
+
+	it('marks the same titles exact in the review’s chip as the pass matches them (round 2)', () => {
+		const anime = cand({ anilistId: 40, title: 'Ranma ½', alts: [], format: 'TV' });
+		// The raw title names 2024; the chip must read it as the pass does.
+		expect(isExact(['Ranma ½ (2024)'], anime)).toBe(false);
+		expect(isExact(matchTitles(['Ranma ½ (2024)']), anime)).toBe(true);
+	});
+
+	it('is never an anime for a manga’s exact title, however well it matches', () => {
+		const manga = cand({ anilistId: 20, title: 'Ranma ½', alts: [] });
+		const anime = cand({
+			anilistId: 21,
+			title: 'Ranma ½',
+			alts: [],
+			format: 'TV',
+			chapters: null,
+			episodes: 24,
+			season: 'FALL',
+			seasonYear: 2024
+		});
+		// A manga series takes the manga; an anime series never takes it.
+		expect(sureMatch(['Ranma ½'], 'manga', [manga])?.anilistId).toBe(20);
+		expect(sureMatch(['Ranma ½'], 'anime', [manga])).toBeNull();
+		expect(sureMatch(['Ranma ½'], 'anime', [manga, anime])?.anilistId).toBe(21);
+		expect(sureMatch(['Ranma ½'], 'manga', [anime])).toBeNull();
+	});
+
+	it('settles two same-kind candidates by the year the series’ own title names', () => {
+		const old = cand({
+			anilistId: 31,
+			title: 'Ranma ½',
+			alts: [],
+			format: 'TV',
+			chapters: null,
+			episodes: 18,
+			season: 'SPRING',
+			seasonYear: 1989,
+			year: 1989
+		});
+		const recent = cand({
+			anilistId: 32,
+			title: 'Ranma ½',
+			alts: [],
+			format: 'TV',
+			chapters: null,
+			episodes: 24,
+			season: 'FALL',
+			seasonYear: 2024,
+			year: 2024
+		});
+		// A search is given the series' titles cleaned too (`matchTitles`), so
+		// "Ranma ½ (2024)" offers "Ranma ½" as well as itself.
+		const titles = ['Ranma ½ (2024)', 'Ranma ½', '2024'];
+		expect(sureMatch(titles, 'anime', [old, recent])?.anilistId).toBe(32);
+		expect(sureMatch(['Ranma ½'], 'anime', [old, recent])).toBeNull();
+		// The bracket is also one of the series' own titles, so an entry titled
+		// "2024" alone would be exact; what matters is which one is chosen.
+		expect(yearIn('Ranma ½ (2024)')).toBe(2024);
+		expect(yearIn('Kaiju No. 8')).toBeNull();
+		expect(seriesYear(['Some Show', 'Ranma ½ (2024)'])).toBe(2024);
+		expect(seriesYear(['Kaiju No. 8'])).toBeNull();
 	});
 });
 
@@ -117,6 +208,21 @@ describe('a pasted link', () => {
 		expect(parsePasted('https://example.com/manga/1')).toBeNull();
 		expect(parsePasted('The Genius Medicinal Mage')).toBeNull();
 		expect(parsePasted('anilist.co/manga/0')).toBeNull();
+	});
+
+	it('reads the anime path for an anime series, and only its own kind’s', () => {
+		expect(parsePasted('https://anilist.co/anime/30023', 'anime')).toEqual({
+			service: 'anilist',
+			id: 30023
+		});
+		expect(parsePasted('https://myanimelist.net/anime/23/Ranma', 'anime')).toEqual({
+			service: 'mal',
+			id: 23
+		});
+		// A manga link on an anime is another work, and the other way round.
+		expect(parsePasted('https://anilist.co/manga/30023', 'anime')).toBeNull();
+		expect(parsePasted('https://anilist.co/anime/30023', 'manga')).toBeNull();
+		expect(parsePasted('https://anilist.co/anime/30023', 'novel')).toBeNull();
 	});
 });
 
@@ -180,6 +286,46 @@ describe('the review’s words', () => {
 		expect(idsLine(132215, 128830)).toBe('ANILIST 132215 · MAL 128830');
 		expect(idsLine(118400, null)).toBe('ANILIST 118400');
 		expect(idsLine(null, 128830)).toBe('MAL 128830');
+	});
+
+	it('names an anime’s format, season and episodes, where a comic names chapters', () => {
+		const anime = cand({
+			format: 'TV',
+			chapters: null,
+			episodes: 24,
+			season: 'FALL',
+			seasonYear: 2024,
+			year: 2024
+		});
+		expect(formatLabel(anime)).toBe('TV');
+		expect(formatLabel(cand({ format: 'TV_SHORT' }))).toBe('TV SHORT');
+		const series = { kind: 'anime' as const, chapters: 24, titles: ['Ranma ½ (2024)'] };
+		expect(candidateRows(series, anime).map((r) => [r.label, r.value, r.agree])).toEqual([
+			['FORMAT', 'TV · SAME', true],
+			['SEASON', 'FALL 2024', true],
+			['EPISODES', '24 · THIS HAS 24', true],
+			['STATUS', 'RELEASING', false]
+		]);
+		// A manga keeps its own four rows.
+		expect(candidateRows({ kind: 'manhwa', chapters: 188 }, cand({})).map((r) => r.label)).toEqual([
+			'FORMAT',
+			'YEAR',
+			'CHAPTERS',
+			'STATUS'
+		]);
+	});
+
+	it('calls a link whose entry is the other kind wrong, but not a novel’s comic', () => {
+		expect(wrongKind('anime', 'MANGA')).toBe(true);
+		expect(wrongKind('anime', 'NOVEL')).toBe(true);
+		expect(wrongKind('anime', 'TV')).toBe(false);
+		expect(wrongKind('manga', 'TV')).toBe(true);
+		expect(wrongKind('manga', 'MANGA')).toBe(false);
+		// The deliberate cover-only crossing is not this.
+		expect(wrongKind('novel', 'MANGA')).toBe(false);
+		expect(wrongKind('manga', 'NOVEL')).toBe(false);
+		// Nothing known yet: nothing to flag.
+		expect(wrongKind('anime', '')).toBe(false);
 	});
 });
 

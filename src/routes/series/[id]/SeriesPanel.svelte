@@ -256,6 +256,7 @@
 						: 'THE NOVEL’S ENTRY · COVER AND DETAILS ONLY, NEVER TRACKED'
 					: '',
 				l.resolving ? 'ANILIST ASKED IN THE NEXT COVER PASS' : '',
+				l.wrongKind ? 'LINKED TO THE WRONG KIND · CHANGES ASK ANILIST FOR THIS SERIES’ OWN' : '',
 				link.hidden ? 'HIDDEN SERIES ARE NEVER SEARCHED' : ''
 			]
 				.filter(Boolean)
@@ -272,9 +273,9 @@
 	const openHref = $derived(
 		link?.linked
 			? link.linked.anilistId
-				? anilistUrl(link.linked.anilistId)
+				? anilistUrl(link.linked.anilistId, series.kind)
 				: link.linked.malId
-					? malUrl(link.linked.malId)
+					? malUrl(link.linked.malId, series.kind)
 					: null
 			: null
 	);

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -209,6 +209,34 @@ describe('fingerprinting downloaded episodes', () => {
 		expect(prints.ending!.seconds).toBe(240);
 		expect(prints.ending!.start).toBe(100);
 	}, 30_000);
+
+	// A bundle points FPCALC at its own copy, before anything on PATH (c297):
+	// on a build whose ffmpeg has no muxer, this is the only fpcalc that runs.
+	const hasMuxer = execFileSync(FFMPEG, ['-hide_banner', '-muxers'], { encoding: 'utf8' }).includes(
+		'chromaprint'
+	);
+	it.skipIf(hasMuxer)(
+		'runs the fpcalc FPCALC names, before anything on PATH',
+		async () => {
+			const marker = join(work, 'fpcalc-was-run');
+			const wrapper = join(work, 'fpcalc-wrapper.sh');
+			const real = process.env.FPCALC ?? 'fpcalc';
+			writeFileSync(wrapper, `#!/bin/sh\ntouch '${marker}'\nexec '${real}' "$@"\n`, {
+				mode: 0o755
+			});
+			const before = process.env.FPCALC;
+			process.env.FPCALC = wrapper;
+			try {
+				const prints = await fingerprintFile(epAFile, 340);
+				expect(prints.intro?.points.length).toBeGreaterThan(0);
+				expect(existsSync(marker)).toBe(true);
+			} finally {
+				if (before === undefined) delete process.env.FPCALC;
+				else process.env.FPCALC = before;
+			}
+		},
+		30_000
+	);
 
 	it('runs in the background, one job at a time, and says when it is idle', async () => {
 		const show = series(work);
