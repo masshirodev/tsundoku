@@ -29,6 +29,7 @@ const { getDb } = await import('$lib/server/db');
 const { seedSample } = await import('$lib/server/fixtures');
 const { ensureRoot, writeSeries } = await import('$lib/server/import/write');
 const { resolveLinks, setAnilistFetch } = await import('$lib/server/catalogue');
+const move = await import('$lib/server/move');
 
 const fresh = () => {
 	const conn = new Database(':memory:');
@@ -113,14 +114,76 @@ describe('engine_extensions.kind', () => {
 });
 
 describe('movable', () => {
-	it('is the kinds movableKind offers MOVE to, which is the server\u2019s rule', () => {
-		// `movableKind` (src/lib/server/move.ts:56-57) is what `moveState` and
-		// `moveEligible` ask; the registry's `movable` copies it until K4 makes
-		// MOVE read the fact. A doujin and a novel are left out although each
-		// can carry a family's key (a gallery's `mihon:`, LNReader's).
+	it('is the kinds movableKind offers MOVE to, as it offered them at fb2bd3a7', () => {
+		// `movableKind` (src/lib/server/move.ts) is what `moveState`,
+		// `moveEligible`, `moveComparison` and `applyMove` ask, and since K4
+		// (c304) it reads `movable`. So this pins its answers to the ones it
+		// gave as a list of names, for every kind, rather than to the fact.
+		const before: Record<string, boolean> = {
+			manga: true,
+			manhwa: true,
+			doujin: false,
+			novel: false,
+			anime: true
+		};
+		for (const k of KINDS) expect(movableKind(k), k).toBe(before[k]);
 		expect(KINDS.filter((k) => movableKind(k))).toEqual([...MOVABLE_KINDS]);
-		expect(movableKind('doujin')).toBe(false);
-		expect(movableKind('novel')).toBe(false);
+	});
+
+	/**
+	 * Wave 16's open question, decided in wave 17 (c304): a doujin with a
+	 * `mihon:` key does not move. A gallery source's series is a doujin and
+	 * keeps its Mihon key (`planMihon`, mihon-plan.ts), yet `movable` is false
+	 * for every doujin, so MOVE is not offered. Reached through the importer's
+	 * own doors from a fresh seed, then asked through MOVE's.
+	 */
+	it('refuses a gallery doujin with a mihon: key at every MOVE door', async () => {
+		const db = getDb();
+		const NOW = Date.UTC(2026, 10, 3, 1);
+		const NH = '7309872737163460316';
+		const gallery: MihonManga = {
+			source: NH,
+			url: '/g/kinds-db-move/',
+			title: 'A Gallery Doujin That Stays',
+			artist: '',
+			author: '',
+			description: '',
+			genres: [],
+			status: 2,
+			thumbnailUrl: '',
+			dateAdded: 1,
+			viewer: 0,
+			chapters: [],
+			categories: [],
+			favorite: true,
+			history: [],
+			trackers: []
+		};
+		const planned = planMihon(
+			{ categories: [], sources: new Map([[NH, 'NHentai']]), manga: [gallery] },
+			[],
+			NOW
+		).series[0];
+		expect(planned.kind).toBe('doujin');
+		expect(planned.originKey).toMatch(/^mihon:/);
+		const root = ensureRoot(db, 'Mihon', '/kinds-db/mihon-move', false);
+		writeSeries(planned, { rootId: root, jobId: null, now: NOW, markMissing: false }, db);
+		const row = db
+			.prepare(`SELECT id, kind, in_library FROM series WHERE origin_key = ?`)
+			.get(planned.originKey) as { id: number; kind: string; in_library: number };
+		expect(row).toMatchObject({ kind: 'doujin', in_library: 1 });
+
+		expect(move.moveState(row.id, NOW).eligible).toBe(false);
+		expect(move.moveEligible(row.id)).toBeNull();
+		expect(await move.moveComparison(row.id, '1~L3g', false, null, NOW)).toBeNull();
+		expect(() =>
+			move.applyMove(
+				row.id,
+				{ key: 'mihon:1:/x', source: 'Elsewhere', sourceId: '1', url: '/x' },
+				[],
+				{ now: NOW, db }
+			)
+		).toThrow(move.MoveError);
 	});
 });
 

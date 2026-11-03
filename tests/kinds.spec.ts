@@ -5,9 +5,14 @@ import {
 	anilistType,
 	KIND_FACTS,
 	kindFacts,
+	KEY_PREFIX,
 	KINDS,
+	kindsGrouped,
+	isMovable,
 	MOVE_MAP,
 	MOVABLE_KINDS,
+	moveKindOf,
+	SOURCE_FAMILIES,
 	SOURCE_KINDS,
 	type Kind,
 	type KindFacts,
@@ -26,9 +31,19 @@ import {
 	sameKind,
 	wrongKind
 } from '$lib/library/catalogue';
-import type { MoveKind } from '$lib/library/move';
+import { movesVideo, type MoveKind } from '$lib/library/move';
 import type { SeriesCard } from '$lib/library/types';
-import { parseAnimeKey, parseKey, parseNovelKey } from '$lib/library/downloads';
+import {
+	animeKeyOf,
+	keyFamily,
+	keyKind,
+	keyOf,
+	novelKeyOf,
+	parseAnimeKey,
+	parseKey,
+	parseNovelKey
+} from '$lib/library/downloads';
+import { readTvshowNfo, tvshowNfo } from '$lib/library/anime-files';
 import { isGallerySource, kindOf, planMihon } from '$lib/import/mihon-plan';
 import type { MihonManga } from '$lib/import/mihon-backup';
 import { planNovel } from '$lib/import/novel-plan';
@@ -146,6 +161,40 @@ describe('MOVABLE', () => {
 		// so a widened MoveKind would fail to compile here.
 		const mapKinds: Record<MoveKind, true> = { manga: true, anime: true };
 		expect(Object.keys(mapKinds)).toEqual(['manga', 'anime']);
+	});
+});
+
+/**
+ * K4 (card c304): MOVE asks the registry. Each replacement is asserted for
+ * every member of `KINDS` against the answer the code gave at `fb2bd3a7`,
+ * written out here as the old expressions, not derived from the registry,
+ * so a wrong fact goes red rather than agreeing with itself.
+ */
+describe('MOVE asks the registry', () => {
+	// `movableKind` at fb2bd3a7 (src/lib/server/move.ts:56-57).
+	const oldMovable = (k: Kind) => k === 'manga' || k === 'manhwa' || k === 'anime';
+	// The map kind at fb2bd3a7 (src/lib/server/move.ts:268, :556, :720, :923, :1079).
+	const oldMoveKind = (k: Kind): MoveKind => (k === 'anime' ? 'anime' : 'manga');
+
+	it('offers MOVE to exactly the kinds it offered it to', () => {
+		for (const k of KINDS) expect(isMovable(k), k).toBe(oldMovable(k));
+		// Every kind is asked: the registry's five, none skipped.
+		expect(KINDS).toHaveLength(5);
+	});
+
+	it('reads the map kind from the medium, as every kind read it', () => {
+		for (const k of KINDS) expect(moveKindOf(k), k).toBe(oldMoveKind(k));
+		// On the movable kinds it is MOVE_MAP, the registry's own rule.
+		for (const k of MOVABLE_KINDS) expect(moveKindOf(k), k).toBe(MOVE_MAP[k]);
+	});
+
+	it('says video only for the anime map, which is what every branch asked', () => {
+		const kinds: MoveKind[] = ['manga', 'anime'];
+		// Each `kind === 'anime'` in both move modules is now this question.
+		for (const k of kinds) expect(movesVideo(k), k).toBe(k === 'anime');
+		// The words the move says come from the map kind's unit.
+		expect(kindFacts('anime').unit.long).toBe('EPISODE');
+		expect(kindFacts('manga').unit.long).toBe('CHAPTER');
 	});
 });
 
@@ -278,6 +327,166 @@ describe('the source families', () => {
 			sizes: new Map()
 		});
 		expect([epub.kind, familyOf(epub.originKey)]).toEqual(['novel', null]);
+	});
+});
+
+/**
+ * K3 (card c303): a key's family is `keyFamily`, built on `KEY_PREFIX`. The
+ * old answers are written out here as the regular expressions
+ * library/downloads.ts had at fb2bd3a7, not derived from the new code, and
+ * every key prefix a writer stores is asked, plus the edges.
+ */
+describe('a key\u2019s family', () => {
+	const OLD_MIHON = /^mihon:(\d+):(.+)$/;
+	const OLD_NOVEL = /^lnreader:([A-Za-z0-9._-]+):(.+)$/;
+	const OLD_ANIME = /^aniyomi:(\d+):(.+)$/;
+	// `keyKind` at fb2bd3a7 (library/downloads.ts:78-83).
+	const oldKeyKind = (key: string | null): 'manga' | 'novel' | 'anime' | null =>
+		key && OLD_MIHON.test(key)
+			? 'manga'
+			: key && OLD_NOVEL.test(key)
+				? 'novel'
+				: key && OLD_ANIME.test(key)
+					? 'anime'
+					: null;
+
+	const ASURA = '6247824327199706550';
+	const NH = '7309872737163460316';
+	const mihonKeys = planMihon(
+		{
+			categories: [],
+			sources: new Map([
+				[ASURA, 'Asura Scans'],
+				[NH, 'NHentai']
+			]),
+			manga: [mihonManga(ASURA, '/manga/k3'), mihonManga(NH, '/g/k3/')]
+		},
+		[],
+		1
+	).series.map((p) => p.originKey);
+	const nfoKey = readTvshowNfo(
+		tvshowNfo({
+			title: 'A Show',
+			key: animeKeyOf('7000', '/a-show'),
+			plot: '',
+			status: '',
+			genres: [],
+			source: 'KAA'
+		})
+	)?.key;
+	/** Every prefix a writer stores (the audit table in doc/handoff-notes/kinds.md), and the edges. */
+	const KEYS: (string | null)[] = [
+		...mihonKeys,
+		planNovel({ name: 'N', path: '/novel/k3', chapters: [] }, { plugin: 'rr', name: 'RR' }, 1)
+			.originKey,
+		planAnime(
+			{ sourceId: '7000', sourceName: 'KAA', url: '/k3', title: 'K3', status: 2 },
+			[{ url: '/ep-1', name: 'Episode 1', episode_number: 1 }],
+			1
+		).originKey,
+		nfoKey ?? 'missing nfo key',
+		keyOf('100', '/moved'),
+		animeKeyOf('300', '/moved'),
+		novelKeyOf('rr', '/moved'),
+		planHentoidBook(
+			{ folder: 'nhentai/A Book', files: ['1.jpg'], bytes: 0, content: null },
+			'/hentoid',
+			1
+		).originKey,
+		'hentoid:NHENTAI:/g/111/',
+		'mihon-dir:Asura Scans (EN)/A Series',
+		planEpub({
+			relPath: 'a/b.epub',
+			dir: 'a',
+			file: 'b.epub',
+			addedAt: 1,
+			pkg: null,
+			toc: [],
+			sizes: new Map()
+		}).originKey,
+		// Malformed family keys: a Mihon or Aniyomi source is a number.
+		'mihon:abc:/x',
+		'aniyomi::/x',
+		'lnreader:bad plugin:/x',
+		'ln:rr',
+		'',
+		null
+	];
+
+	it('answers every key a writer stores as the old keyKind did', () => {
+		expect(nfoKey).toBe('aniyomi:7000:/a-show');
+		for (const key of KEYS) {
+			expect(keyKind(key), String(key)).toBe(oldKeyKind(key));
+			const family = keyFamily(key);
+			expect(family === null ? null : SOURCE_KINDS[family], String(key)).toBe(oldKeyKind(key));
+		}
+		// The families the writers produce, in order: every family is reached.
+		expect(KEYS.map(keyFamily)).toEqual([
+			'mihon',
+			'mihon',
+			'lnreader',
+			'aniyomi',
+			'aniyomi',
+			'mihon',
+			'aniyomi',
+			'lnreader',
+			null,
+			null,
+			null,
+			null,
+			null,
+			null,
+			null,
+			null,
+			null,
+			null
+		]);
+	});
+
+	it('has one prefix per family, and each builder writes it', () => {
+		expect(SOURCE_FAMILIES).toEqual(['mihon', 'lnreader', 'aniyomi']);
+		expect(Object.keys(KEY_PREFIX)).toEqual([...SOURCE_FAMILIES]);
+		expect(KEY_PREFIX).toEqual({ mihon: 'mihon', lnreader: 'lnreader', aniyomi: 'aniyomi' });
+		expect(keyOf('1', '/u')).toBe('mihon:1:/u');
+		expect(novelKeyOf('p', '/u')).toBe('lnreader:p:/u');
+		expect(animeKeyOf('1', '/u')).toBe('aniyomi:1:/u');
+		// No family's prefix starts another's, so one key is one family's.
+		for (const f of SOURCE_FAMILIES)
+			for (const g of SOURCE_FAMILIES)
+				if (f !== g) expect(`${KEY_PREFIX[f]}:`.startsWith(`${KEY_PREFIX[g]}:`)).toBe(false);
+	});
+
+	it('is a family each kind\u2019s sources name, or no family', () => {
+		for (const kind of KINDS)
+			for (const family of KIND_FACTS[kind].sources) expect(SOURCE_FAMILIES).toContain(family);
+		// Hentoid's two keys are no family: a doujin's Sources stay `mihon`.
+		expect(keyFamily('hentoid:NHENTAI:/g/1/')).toBeNull();
+		expect(keyFamily('hentoid-dir:nhentai/A Book')).toBeNull();
+		expect(KIND_FACTS.doujin.sources).toEqual(['mihon']);
+	});
+});
+
+/**
+ * K3 (card c303): books.ts and covers.ts ask `grouping` and `medium` where
+ * they named a doujin, a novel or an anime. Every kind, against the old
+ * expressions written out.
+ */
+describe('what GROUP binds, and which covers a kind has', () => {
+	it('binds books for exactly the kinds books.ts named doujin, volumes for novel', () => {
+		for (const k of KINDS) {
+			expect(KIND_FACTS[k].grouping === 'books', k).toBe(k === 'doujin');
+			expect(KIND_FACTS[k].grouping === 'volumes', k).toBe(k === 'novel');
+		}
+		expect(kindsGrouped('books')).toEqual(['doujin']);
+		expect(kindsGrouped('volumes')).toEqual(['novel']);
+	});
+
+	it('reads an EPUB cover for text and a first page only for pages, as covers.ts did', () => {
+		for (const k of KINDS) {
+			// covers.ts:87 and :121 at fb2bd3a7.
+			expect(kindFacts(k).medium === 'text', k).toBe(k === 'novel');
+			expect(kindFacts(k).medium !== 'pages', k).toBe(k === 'novel' || k === 'anime');
+		}
 	});
 });
 
@@ -441,7 +650,7 @@ describe('the unit and READ/WATCHED words (labels.ts)', () => {
  * How to lower it: delete or replace a check, then lower BASELINE by exactly
  * the count removed. Never raise it without a card saying which check and why.
  */
-const BASELINE = 152;
+const BASELINE = 93;
 /** One of `KINDS`' own names, as a bare alternation. */
 const NAME = String.raw`(?:manga|manhwa|doujin|novel|anime)`;
 const COMPARED = new RegExp(

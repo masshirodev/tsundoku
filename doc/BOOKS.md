@@ -18,6 +18,13 @@ its siblings on the Tsundoku board.
 | Series of books | A `doujin` series with two or more entries. Each entry is a **book**. |
 | Book number     | An entry's place in `entries.position`, the owner's reading order.    |
 
+Which kinds GROUP binds, and how, is the kind registry's `grouping` fact
+(`src/lib/library/kinds.ts`, [`KINDS.md`](KINDS.md); card c303): `books` for a
+doujin, `volumes` for a novel. `src/lib/server/books.ts` asks it
+(`bindsBooks`, `bindsVolumes`, and `kindsIn` for the BOOKS screen's SQL)
+rather than naming either kind; the series it writes are still made as
+`doujin` or `novel`.
+
 These are shapes of the existing tables, not new ones. No flag says "series of
 books": `isBookSeries()` in `src/lib/library/series.ts` asks the question,
 `isSingleton()` in `src/lib/server/books.ts` asks its mirror, and the two

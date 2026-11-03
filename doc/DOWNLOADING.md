@@ -25,6 +25,18 @@ EPUB, a `mihon-dir:` folder) have nothing to download — until a backup names
 one, which adopts it and gives it the URL key (c89,
 [`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Before the backup knows it").
 
+**Which downloader takes a series is its key's family, never its kind**
+(card c303; [`KINDS.md`](KINDS.md)). The prefix each family writes is one
+fact, `KEY_PREFIX` in `src/lib/library/kinds.ts`, and `keyFamily(key)`
+(`src/lib/library/downloads.ts`) answers `mihon`, `lnreader`, `aniyomi` or
+**null**. `src/lib/server/downloads.ts` sends a Mihon key to the engine, an
+LNReader key to the novel downloader and an Aniyomi key to the episode one
+(`byDownloader`), and null is a case of its own: its row says nothing to
+download, `enqueue` queues none of its chapters (the queue asks `sourceOfKey`
+first) and FOLLOW refuses it. Hentoid's keys stay no family's; making them
+one is a card of its own. The queue's lane (`QueueKind`) is the family's kind
+(`SOURCE_KINDS`), `manga`, `novel` or `anime`.
+
 Of the Mihon folders on disk, tsundoku reads its own downloads as a device,
 `devices/tsundoku/Mihon/` ([`DOWNLOADER.md`](DOWNLOADER.md)). The library's own
 `Mihon/` — the tablet's synced folder — is read for its `Mihon/autobackup`

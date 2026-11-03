@@ -1,5 +1,12 @@
 import { formatBytes, formatNumber, type SeriesEntry } from './series.ts';
 import { m } from '../paraglide/messages.js';
+import {
+	KEY_PREFIX,
+	SOURCE_FAMILIES,
+	SOURCE_KINDS,
+	type SourceFamily,
+	type SourceKind
+} from './kinds.ts';
 
 /**
  * Downloading, the rules (doc/DOWNLOADING.md, "From tsundoku"). Pure:
@@ -44,20 +51,25 @@ export type DownloadState =
 	/** Not on disk, and nothing under way. `chapterId` null: the source doesn't list it. */
 	| { kind: 'none'; chapterId: number | null };
 
-export const keyOf = (sourceId: string, url: string) => `mihon:${sourceId}:${url}`;
+export const keyOf = (sourceId: string, url: string) => `${KEY_PREFIX.mihon}:${sourceId}:${url}`;
+
+const MIHON_KEY = new RegExp(`^${KEY_PREFIX.mihon}:(\\d+):(.+)$`);
+const NOVEL_KEY = new RegExp(`^${KEY_PREFIX.lnreader}:([A-Za-z0-9._-]+):(.+)$`);
+const ANIME_KEY = new RegExp(`^${KEY_PREFIX.aniyomi}:(\\d+):(.+)$`);
 
 /** `mihon:<source>:<url>` apart; null for any other key (Hentoid, a folder, `mihon-dir:`). */
 export function parseKey(key: string | null): { sourceId: string; url: string } | null {
-	const m = key ? /^mihon:(\d+):(.+)$/.exec(key) : null;
+	const m = key ? MIHON_KEY.exec(key) : null;
 	return m ? { sourceId: m[1], url: m[2] } : null;
 }
 
 /** A novel series' key (doc/NOVELS.md): `lnreader:<plugin>:<path>`, as a Mihon one is `mihon:<source>:<url>`. */
-export const novelKeyOf = (plugin: string, path: string) => `lnreader:${plugin}:${path}`;
+export const novelKeyOf = (plugin: string, path: string) =>
+	`${KEY_PREFIX.lnreader}:${plugin}:${path}`;
 
 /** `lnreader:<plugin>:<path>` apart; null for any other key. */
 export function parseNovelKey(key: string | null): { plugin: string; path: string } | null {
-	const m = key ? /^lnreader:([A-Za-z0-9._-]+):(.+)$/.exec(key) : null;
+	const m = key ? NOVEL_KEY.exec(key) : null;
 	return m ? { plugin: m[1], path: m[2] } : null;
 }
 
@@ -66,20 +78,37 @@ export function parseNovelKey(key: string | null): { plugin: string; path: strin
  * source's anime by its URL, as a Mihon one is `mihon:<source>:<url>`. Its own
  * prefix, so nothing that downloads chapters takes it for a manga.
  */
-export const animeKeyOf = (sourceId: string, url: string) => `aniyomi:${sourceId}:${url}`;
+export const animeKeyOf = (sourceId: string, url: string) =>
+	`${KEY_PREFIX.aniyomi}:${sourceId}:${url}`;
 
 /** `aniyomi:<source>:<url>` apart; null for any other key. */
 export function parseAnimeKey(key: string | null): { sourceId: string; url: string } | null {
-	const m = key ? /^aniyomi:(\d+):(.+)$/.exec(key) : null;
+	const m = key ? ANIME_KEY.exec(key) : null;
 	return m ? { sourceId: m[1], url: m[2] } : null;
 }
 
-/** What a series from a source is, by its key: which worker downloads it. */
-export function keyKind(key: string | null): 'manga' | 'novel' | 'anime' | null {
-	if (parseKey(key)) return 'manga';
-	if (parseNovelKey(key)) return 'novel';
-	if (parseAnimeKey(key)) return 'anime';
-	return null;
+/** Each family's own parser: the key is the family's only when it parses. */
+const PARSES: Record<SourceFamily, (key: string | null) => unknown> = {
+	mihon: parseKey,
+	lnreader: parseNovelKey,
+	aniyomi: parseAnimeKey
+};
+
+/**
+ * The source family a key is (card c303; `KEY_PREFIX`, kinds.ts): the one
+ * family whose parser reads it. Null is a real answer, not a miss: Hentoid's
+ * `hentoid:` and `hentoid-dir:` keys, a folder's `mihon-dir:`, an EPUB's
+ * `epub:`, a malformed family key and no key at all are no family's, so
+ * nothing downloads, follows or moves them.
+ */
+export function keyFamily(key: string | null): SourceFamily | null {
+	return SOURCE_FAMILIES.find((f) => PARSES[f](key) !== null) ?? null;
+}
+
+/** What a series from a source is, by its key: which worker downloads it. Null for no family. */
+export function keyKind(key: string | null): SourceKind | null {
+	const family = keyFamily(key);
+	return family ? SOURCE_KINDS[family] : null;
 }
 
 /** A novel plugin's source id, `ln:<plugin>`, as against a Mihon source's number. */

@@ -421,3 +421,28 @@ describe('an extension with nothing in the owner’s languages', () => {
 		]);
 	});
 });
+
+describe('BROWSE’s lists by family (K3, c303)', () => {
+	it('puts every source in its family’s list, as the old kind filters did', () => {
+		db.prepare(
+			`INSERT INTO engine_extensions (pkg, name, kind, version_code, version_name, lib, handle, installed_at, updated_at)
+			VALUES ('en.k3anime', 'K3 Anime', 'anime', 1, '1.0', '1.4', ?, 0, 0)`
+		).run('en.k3anime'.padEnd(64, 'x'));
+		db.prepare(
+			`INSERT INTO engine_sources (id, pkg, name, lang, base_url) VALUES ('300', 'en.k3anime', 'K3 Anime', 'en', '')`
+		).run();
+		for (const reveal of [false, true]) {
+			const list = browse.browseList(reveal);
+			const all = [...list.manga, ...list.anime, ...list.novels];
+			// The filters at fb2bd3a7 (engine/browse.ts:260-262), written out.
+			expect(list.manga).toEqual(all.filter((r) => r.kind === 'manga'));
+			expect(list.anime).toEqual(all.filter((r) => r.kind === 'anime'));
+			expect(list.novels).toEqual(all.filter((r) => r.kind === 'novel'));
+			// Each list is reached: the anime source is in its own.
+			expect(list.anime.map((r) => r.id)).toContain('300');
+			expect(list.manga.length).toBeGreaterThan(0);
+			for (const r of all)
+				expect(browse.browseSources(reveal).find((s) => s.id === r.id)?.kind).toBe(r.kind);
+		}
+	});
+});

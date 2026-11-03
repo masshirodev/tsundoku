@@ -42,6 +42,13 @@ fails to load leaves the stripes.
    often a scanlator's credits or recruitment banner, and a webtoon page is a
    tall strip that would shrink to a sliver.
 
+Which of these a series can have is asked of its kind's facts
+(`src/lib/library/kinds.ts`, [`KINDS.md`](KINDS.md); card c303), never its
+name: an EPUB's cover is read for a **text** kind, a first page only for a
+**pages** kind (an episode has no pages, a novel's are text), and a series of
+books' first-book cover and an edition's cover for a kind GROUP binds as
+**books** (`grouping`, a doujin's).
+
 `series.cover_key` names what the thumbnail was made from (`file:`, `epub:`,
 `url:`, `page:`). A changed source makes a new thumbnail, and an unchanged one
 costs nothing. `cover_at` is when it was made, and the version in its URL

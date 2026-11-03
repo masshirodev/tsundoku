@@ -48,6 +48,15 @@ export type KindFacts = {
 	layout?: 'paged' | 'vertical' | 'rtl' | 'ltr';
 	/** Whether MOVE between sources is offered. */
 	movable: boolean;
+	/**
+	 * What GROUP binds this kind's series into (src/lib/server/books.ts; card
+	 * c303): `books`, single books into a series of books (`groupIntoSeries`), which
+	 * is also what folds editions (`foldEditions`) and gives a series of books
+	 * its first book's cover (`firstBookSource`, covers.ts); `volumes`, one
+	 * EPUB volume per series into one novel (`groupVolumes`); null, GROUP does
+	 * not take it (Works groups across kinds: doc/WORKS.md).
+	 */
+	grouping: 'books' | 'volumes' | null;
 };
 
 /**
@@ -67,8 +76,9 @@ export const KIND_FACTS = {
 	// `addToLibrary`, src/lib/server/engine/backend.ts:593); a downloaded
 	// folder the backup does not know is `mihon-dir:`, which is no family
 	// (mihon-plan.ts:447). Pages, R→L by default (`defaultDirection`,
-	// library/series.ts:89-93). MOVE is offered (`movableKind`,
-	// src/lib/server/move.ts:56-57).
+	// library/series.ts:89-93). MOVE is offered: `movableKind` was a list of
+	// names at c14a5d4e (src/lib/server/move.ts:56-57) and reads this fact
+	// since K4 (c304).
 	manga: {
 		kind: 'manga',
 		medium: 'pages',
@@ -78,13 +88,15 @@ export const KIND_FACTS = {
 		sources: ['mihon'],
 		storage: 'library',
 		layout: 'rtl',
-		movable: true
+		movable: true,
+		grouping: null
 	},
 	// `defaultDirection` reads a manhwa as a vertical strip
 	// (library/series.ts:90), and the image reader draws it that way. Same
 	// comic family and same Mihon source as a manga. MOVE is offered for it
-	// too (`movableKind`, src/lib/server/move.ts:56-57), planned as a manga:
-	// a comic matches by chapter number (src/lib/server/move.ts:268).
+	// too (`movableKind`'s list at c14a5d4e, src/lib/server/move.ts:56-57),
+	// planned as a manga: a comic matches by chapter number (`moveKindOf`, by
+	// medium, since c304).
 	manhwa: {
 		kind: 'manhwa',
 		medium: 'pages',
@@ -94,12 +106,16 @@ export const KIND_FACTS = {
 		sources: ['mihon'],
 		storage: 'library',
 		layout: 'vertical',
-		movable: true
+		movable: true,
+		grouping: null
 	},
 	// A doujin's own peculiarity: one book with no count (labels.ts:30-38,
 	// `continueSub`), and a series of two or more books is a cover grid
 	// (library/series.ts:207-208, `isBookSeries`). Its unit is still a chapter
-	// in `unitLabel` (labels.ts:45).
+	// in `unitLabel` (labels.ts:45). Grouping: books, because GROUP binds only
+	// single doujin books into a series of books, and folds only their editions
+	// (`groupIntoSeries`, `moveBook`, `foldEditions`, src/lib/server/books.ts at fb2bd3a7:166,
+	// 174, 594, 855, 886).
 	// Sources: a Mihon gallery source's series is a doujin whatever its genres
 	// say (`isGallerySource` and `kindOf`, src/lib/import/mihon-plan.ts:106,
 	// 127-128) and keeps its `mihon:` key (:388; doc/IMPORT-MIHON.md:123-143,
@@ -109,7 +125,7 @@ export const KIND_FACTS = {
 	// src/lib/import/hentoid-plan.ts:215), and a grouped series of books has
 	// no key at all (src/lib/server/books.ts:218); Hentoid's keys are not a
 	// `SourceFamily` yet, and making them one is a later card's call.
-	// Not movable: `movableKind` leaves it out (src/lib/server/move.ts:56-57),
+	// Not movable: `movableKind` left it out at c14a5d4e (move.ts:56-57),
 	// although a gallery doujin's key is one MOVE could read.
 	// Catalogue: read, although no LINK queue lists a doujin. A gallery
 	// doujin's Mihon MAL tracker is linked at import (`malLink`,
@@ -125,7 +141,8 @@ export const KIND_FACTS = {
 		sources: ['mihon'],
 		storage: 'library',
 		layout: 'rtl',
-		movable: false
+		movable: false,
+		grouping: 'books'
 	},
 	// Text: the text reader, volumes, READ (labels.ts:45). One EPUB volume is
 	// one series, grouped books are volumes (`volumesIn` and `isVolumeSeries`,
@@ -136,8 +153,11 @@ export const KIND_FACTS = {
 	// which is no family. `ln:` is a plugin's source id, not a key (:86).
 	// `matches` is itself alone: a novel is another work from its comic
 	// (doc/LINKS.md:69, 106-111), and the cover-only crossing is `coverOnly`,
-	// not a match. Not movable: `movableKind` leaves it out
-	// (src/lib/server/move.ts:56-57), although LNReader feeds it.
+	// not a match. Not movable: `movableKind` left it out at c14a5d4e
+	// (src/lib/server/move.ts:56-57), although LNReader feeds it. Grouping:
+	// volumes, because GROUP binds novels' EPUBs into one novel and takes one
+	// apart again (`groupVolumes`, `takeOutVolumes`, src/lib/server/books.ts at
+	// fb2bd3a7:163, 316, 423).
 	novel: {
 		kind: 'novel',
 		medium: 'text',
@@ -147,7 +167,8 @@ export const KIND_FACTS = {
 		sources: ['lnreader'],
 		storage: 'library',
 		layout: 'paged',
-		movable: false
+		movable: false,
+		grouping: 'volumes'
 	},
 	// Video: episodes, WATCHED, the player (library/anime.ts:3-9,
 	// labels.ts:45-54). Its own AniList catalogue (doc/LINKS.md:70-73;
@@ -156,8 +177,9 @@ export const KIND_FACTS = {
 	// src/lib/import/anime-plan.ts:156, browse's ADD and a folder's
 	// `tvshow.nfo`, which refuses any other key, library/anime-files.ts:154)
 	// and its MAL family. An anime matches only an anime: `coverOnly` refuses
-	// the crossing (library/catalogue.ts:224-231). Movable (`movableKind`,
-	// src/lib/server/move.ts:56-57), and MOVE's map kind (library/move.ts:70).
+	// the crossing (library/catalogue.ts:224-231). Movable (`movableKind`'s
+	// list at c14a5d4e, src/lib/server/move.ts:56-57), and MOVE's map kind for
+	// video (`moveKindOf`).
 	anime: {
 		kind: 'anime',
 		medium: 'video',
@@ -167,7 +189,8 @@ export const KIND_FACTS = {
 		sources: ['aniyomi'],
 		storage: 'library',
 		layout: 'rtl',
-		movable: true
+		movable: true,
+		grouping: null
 	}
 } as const satisfies Readonly<Record<Kind, KindFacts>>;
 
@@ -193,7 +216,8 @@ export const MOVABLE_KINDS = KINDS.filter((k): k is MovableKind => KIND_FACTS[k]
  * How MOVE reads a movable kind: the shape of its by-number map. A manhwa is
  * a comic, so it matches by chapter number exactly as a manga does; only an
  * anime matches by episode and season (`s.kind === 'anime' ? 'anime' :
- * 'manga'`, src/lib/server/move.ts:268). `satisfies` is what makes a new
+ * 'manga'`, src/lib/server/move.ts:268 at c14a5d4e; `moveKindOf` below
+ * since c304). `satisfies` is what makes a new
  * movable kind say how it maps instead of falling through to chapters.
  */
 export const MOVE_MAP = {
@@ -204,6 +228,29 @@ export const MOVE_MAP = {
 
 /** MOVE's own kind, narrower than `Kind` and narrower than the movable kinds. */
 export type MoveKind = (typeof MOVE_MAP)[MovableKind];
+
+/**
+ * Whether MOVE is offered for a kind: its `movable` fact (card c304). This is
+ * what `movableKind` (src/lib/server/move.ts) asks, so a kind added here moves
+ * or doesn't by saying so, never by being missing from a list of names. A
+ * doujin does not move although a gallery's key is `mihon:` (doc/KINDS.md,
+ * "A doujin carries a family's key and does not move").
+ */
+export const isMovable = (kind: Kind): kind is MovableKind => KIND_FACTS[kind].movable;
+
+/**
+ * The shape of MOVE's by-number map for a series of this kind, read from its
+ * medium (card c304): video maps by episode and season (`anime`), and
+ * everything else by number (`manga`). On every movable kind it is
+ * `MOVE_MAP`'s answer (tests/kinds.spec.ts asserts it for each). It answers
+ * every kind, not only the movable ones, because MOVE BACK and its candidate
+ * read it without asking `movable` (`applyMoveBack`, `formerCandidate`):
+ * there a novel or a doujin reads as `manga`, which is what the map always
+ * said for a kind that is not video.
+ */
+export function moveKindOf(kind: Kind): MoveKind {
+	return KIND_FACTS[kind].medium === 'video' ? MOVE_MAP.anime : MOVE_MAP.manga;
+}
 
 /**
  * The kind each source family names a row by: a Mihon row is a manga, an
@@ -218,6 +265,46 @@ export const SOURCE_KINDS = {
 } as const satisfies Record<SourceFamily, Kind>;
 
 export type SourceKind = (typeof SOURCE_KINDS)[SourceFamily];
+
+/**
+ * The prefix each family's `origin_key` starts with, before its first `:`
+ * (card c303): `mihon:<source>:<url>`, `lnreader:<plugin>:<path>`,
+ * `aniyomi:<source>:<url>`. `keyOf`, `novelKeyOf` and `animeKeyOf` build keys
+ * from it and `parseKey`, `parseNovelKey` and `parseAnimeKey` read them with
+ * it (library/downloads.ts), so the map is stated here once. Who writes each
+ * (doc/KINDS.md, the audit table in doc/handoff-notes/kinds.md, wave 17):
+ * Mihon's backup and browse's ADD through `planMihon`
+ * (src/lib/import/mihon-plan.ts:388), LNReader's through `novelKeyOf`
+ * (src/lib/import/novel-plan.ts:102, 135), Aniyomi's through `animeKeyOf`
+ * (src/lib/import/anime-plan.ts:156; engine/anime-source.ts) and a folder's
+ * `tvshow.nfo` (library/anime-files.ts:154), and MOVE's re-key through
+ * `keyOf`/`animeKeyOf` (server/move.ts, `candidateOf`).
+ *
+ * **No family is a real answer.** A key with any other prefix is no family's:
+ * Hentoid's `hentoid:<site>:<url>` and `hentoid-dir:<folder>`
+ * (src/lib/import/hentoid-plan.ts:215), a downloaded folder's `mihon-dir:`
+ * (mihon-plan.ts:447), an EPUB's `epub:<path>` (epub-plan.ts:35;
+ * server/books.ts when a volume is taken out), and a series with no key.
+ * `keyFamily` says `null` for them, and every caller decides what null means
+ * (no downloader, no FOLLOW, no MOVE). Hentoid is not a family yet: making it
+ * one would give its series a downloader to ask, which is a behaviour change
+ * and a card of its own.
+ */
+export const KEY_PREFIX = {
+	mihon: 'mihon',
+	lnreader: 'lnreader',
+	aniyomi: 'aniyomi'
+} as const satisfies Record<SourceFamily, string>;
+
+/** Every source family, in `SOURCE_KINDS`' order. */
+export const SOURCE_FAMILIES = Object.keys(SOURCE_KINDS) as readonly SourceFamily[];
+
+/**
+ * The kinds GROUP binds the given way (`grouping`): `['doujin']` for books,
+ * `['novel']` for volumes today. The BOOKS screen's SQL lists them.
+ */
+export const kindsGrouped = (grouping: 'books' | 'volumes'): readonly Kind[] =>
+	KINDS.filter((k) => KIND_FACTS[k].grouping === grouping);
 
 /** The AniList catalogue a kind is looked up in: `MANGA` for everything but an anime. */
 export function anilistType(kind: Kind): 'MANGA' | 'ANIME' {

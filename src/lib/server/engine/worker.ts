@@ -8,6 +8,7 @@ import { comicInfoXml } from '../../import/comicinfo.ts';
 import { encodeBackup, type MihonBackup, type MihonManga } from '../../import/mihon-backup.ts';
 import { mihonFolderName } from '../../import/mihon-plan.ts';
 import { parseKey } from '../../library/downloads.ts';
+import { SOURCE_KINDS } from '../../library/kinds.ts';
 import { call, fetchProxied, EngineError } from './client.ts';
 import { extensionFor, preferences } from './extensions.ts';
 import { imageType } from './protocol.ts';
@@ -368,7 +369,7 @@ export function writeDeviceBackup(d: Deps): string {
 export async function runOnce(d: Deps): Promise<number> {
 	if (isPaused()) return 0;
 	// A novel's chapters are the novel worker's (novels/downloader.ts).
-	const jobs = nextUp(LANES, d.now(), d.db, 'manga');
+	const jobs = nextUp(LANES, d.now(), d.db, SOURCE_KINDS.mihon);
 	if (jobs.length === 0) return 0;
 	const mark = d.db.prepare(`UPDATE download_queue SET state = 'downloading' WHERE entry_id = ?`);
 	for (const j of jobs) mark.run(j.entryId);
@@ -406,7 +407,7 @@ export function startWorker(
 	db: Database.Database = getDb()
 ): void {
 	if (loop || running) return;
-	recover(db, 'manga');
+	recover(db, SOURCE_KINDS.mihon);
 	const d: Deps = { db, library, now: Date.now };
 	const tick = async () => {
 		running = true;

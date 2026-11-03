@@ -16,6 +16,7 @@ import { linkCover } from './catalogue.ts';
 import { engineAuth } from './engine/auth.ts';
 import { publicFetch } from './net-guard.ts';
 import { dataPaths } from './data-dirs.ts';
+import { kindFacts, type Kind } from '../library/kinds.ts';
 
 /**
  * Covers (doc/COVERS.md). One thumbnail per series, made once and kept on the
@@ -48,7 +49,7 @@ const thumbPath = (seriesId: number) => join(coverDir(), `${seriesId}.webp`);
 type SeriesRow = {
 	id: number;
 	path: string;
-	kind: string;
+	kind: Kind;
 	cover_entry: number | null;
 	cover_page: number | null;
 	cover_url: string;
@@ -84,7 +85,8 @@ function ownSource(s: SeriesRow): Source | null {
 	}
 	const first = firstEntry(s);
 	if (!first) return null;
-	if (s.kind === 'novel' && /\.epub$/i.test(first.file)) {
+	// A text kind's EPUB carries its own cover (card c303: the medium, not the name).
+	if (kindFacts(s.kind).medium === 'text' && /\.epub$/i.test(first.file)) {
 		const path = join(s.path, first.file);
 		return {
 			key: `epub:${path}`,
@@ -118,7 +120,8 @@ function firstEntry(s: SeriesRow): { id: number; file: string } | undefined {
 
 /** The first page of the first downloaded entry: the last resort. An episode has no pages. */
 function pageSource(s: SeriesRow): Source | null {
-	if (!s.path || s.path.startsWith(SAMPLE_PREFIX) || s.kind === 'novel' || s.kind === 'anime')
+	// Only a pages kind has a first page: not a text's, not a video's.
+	if (!s.path || s.path.startsWith(SAMPLE_PREFIX) || kindFacts(s.kind).medium !== 'pages')
 		return null;
 	const first = firstEntry(s);
 	if (!first) return null;
@@ -156,7 +159,7 @@ function chosenSource(s: SeriesRow): Source | null {
  * what the book's own tile shows in BOOKS (card c57).
  */
 function firstBookSource(s: SeriesRow): Source | null {
-	if (s.kind !== 'doujin') return null;
+	if (kindFacts(s.kind).grouping !== 'books') return null;
 	const db = getDb();
 	const books = db
 		.prepare(
@@ -200,7 +203,9 @@ function firstBookSource(s: SeriesRow): Source | null {
  * page. Null when it opens in its own, base, edition: the usual chain covers it.
  */
 function editionSource(s: SeriesRow): Source | null {
-	if (s.kind !== 'doujin' || !s.path || s.path.startsWith(SAMPLE_PREFIX)) return null;
+	// Editions fold single books (`foldEditions`, books.ts): a kind GROUP binds as books.
+	if (kindFacts(s.kind).grouping !== 'books' || !s.path || s.path.startsWith(SAMPLE_PREFIX))
+		return null;
 	const db = getDb();
 	const eds = db
 		.prepare(

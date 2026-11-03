@@ -23,6 +23,7 @@ import {
 	type NovelManifest
 } from '../../import/novel-book.ts';
 import { parseNovelKey, type DownloadState } from '../../library/downloads.ts';
+import { SOURCE_KINDS } from '../../library/kinds.ts';
 import type { SeriesDownloads } from '../download-types.ts';
 import type { PlannedTag } from '../../import/plan.ts';
 import { chapterImages, chapterXhtml, hasText } from './chapter-html.ts';
@@ -418,7 +419,7 @@ async function runBatch(first: number, d: NovelDeps): Promise<number> {
 /** One pass: a batch for each plugin that has chapters ready, LANES at once. Returns how many chapters arrived. */
 export async function runNovelOnce(d: NovelDeps): Promise<number> {
 	if (isPaused()) return 0;
-	const jobs = nextUp(LANES, d.now(), d.db, 'novel');
+	const jobs = nextUp(LANES, d.now(), d.db, SOURCE_KINDS.lnreader);
 	const done = await Promise.all(jobs.map((j) => runBatch(j.entryId, d)));
 	return done.reduce((a, b) => a + b, 0);
 }
@@ -439,7 +440,7 @@ export function startNovelWorker(
 	db: Database.Database = getDb()
 ): void {
 	if (loop || running) return;
-	recover(db, 'novel');
+	recover(db, SOURCE_KINDS.lnreader);
 	const d: NovelDeps = { db, library, now: Date.now };
 	const tick = async () => {
 		running = true;

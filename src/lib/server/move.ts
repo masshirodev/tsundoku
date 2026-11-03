@@ -2,9 +2,9 @@ import type Database from 'better-sqlite3';
 import { getDb } from './db.ts';
 import {
 	imageRoute,
-	isAnimeSource,
 	parseSourceMangaId,
 	sourceManga,
+	sourceMedium,
 	sourceName
 } from './engine/backend.ts';
 import { fetchAnime, planOf } from './engine/anime-source.ts';
@@ -27,6 +27,7 @@ import {
 	guessOffset,
 	movedDetail,
 	moveSummary,
+	movesVideo,
 	queueCounts,
 	type MoveCandidateEntry,
 	type MoveEntry,
@@ -35,6 +36,7 @@ import {
 	type MoveSummaryRow
 } from '$lib/library/move';
 import type { Kind } from '$lib/library/types';
+import { isMovable, kindFacts, moveKindOf, type MovableKind } from '$lib/library/kinds';
 
 /**
  * MOVE (doc/MOVE.md; card c139): moving a series to another source, as one
@@ -52,9 +54,12 @@ import type { Kind } from '$lib/library/types';
  * not do yet").
  */
 
-/** The kinds whose series can move: a source's manga, manhwa, or anime. */
-export const movableKind = (kind: Kind): kind is 'manga' | 'manhwa' | 'anime' =>
-	kind === 'manga' || kind === 'manhwa' || kind === 'anime';
+/**
+ * The kinds whose series can move: the registry's `movable` (doc/KINDS.md;
+ * card c304), today a source's manga, manhwa, or anime. Not a doujin, even a
+ * gallery's with a `mihon:` key, and not a novel.
+ */
+export const movableKind = (kind: Kind): kind is MovableKind => isMovable(kind);
 
 export type MoveTarget = {
 	key: string;
@@ -265,7 +270,8 @@ export function moveState(seriesId: number, now = Date.now()): MoveState {
 	if (!s || s.in_library !== 1 || !movableKind(s.kind)) return emptyState();
 	const key = parseAnimeKey(s.origin_key) ?? parseKey(s.origin_key);
 	if (!key) return emptyState();
-	const kind: MoveKind = s.kind === 'anime' ? 'anime' : 'manga';
+	const kind: MoveKind = moveKindOf(s.kind);
+	const video = movesVideo(kind);
 	const db = getDb();
 	const source = sourceLabel(seriesId, s.origin_key, s.source);
 	const entries = db
@@ -277,7 +283,7 @@ export function moveState(seriesId: number, now = Date.now()): MoveState {
 	const resolved = db
 		.prepare(`SELECT resolved_at FROM engine_series WHERE series_id = ?`)
 		.get(seriesId) as { resolved_at: number | null } | undefined;
-	const noun = kind === 'anime' ? 'EPISODE' : 'CHAPTER';
+	const noun = kindFacts(kind).unit.long;
 	const meta = [
 		resolved?.resolved_at ? `LAST ASKED ${ago(resolved.resolved_at, now)}` : '',
 		`${entries.n} ${noun}${entries.n === 1 ? '' : 'S'} LISTED`
@@ -288,7 +294,7 @@ export function moveState(seriesId: number, now = Date.now()): MoveState {
 	const failures = episodeFailures(seriesId, db);
 	const recent = failures.filter((f) => now - f.lastAt <= FAILURE_DAYS * 86_400_000);
 	const trouble =
-		kind === 'anime' && recent.length
+		video && recent.length
 			? `NO VIDEO FOR ${recent.length} EPISODE${recent.length === 1 ? '' : 'S'} SINCE ${dayOf(Math.min(...recent.map((f) => f.firstAt)))}`
 			: s.status.toLowerCase() === 'ongoing' &&
 				  entries.latest !== null &&
@@ -306,7 +312,7 @@ export function moveState(seriesId: number, now = Date.now()): MoveState {
 	// Three episodes failed within a day, or every episode the series has where
 	// it has fewer (the brief's "or on every episode tried, if fewer").
 	const band =
-		kind === 'anime' &&
+		video &&
 		recent.length > 0 &&
 		(recent.length >= 3 || recent.length === entries.n) &&
 		(s.move_dismissed_at === null || Math.max(...recent.map((f) => f.lastAt)) > s.move_dismissed_at)
@@ -393,9 +399,10 @@ export async function moveSources(
 	formerSourceId: string | null = null
 ): Promise<{ id: string; name: string }[]> {
 	const all = await searchSources(reveal);
-	const sources = all.filter(
-		(s) => !s.id.startsWith('ln:') && isAnimeSource(s.id) === (kind === 'anime')
-	);
+	// The sources that serve the map kind's medium: a video kind's Aniyomi
+	// ones, a pages kind's Mihon ones, and never an LNReader plugin (text).
+	const medium = kindFacts(kind).medium;
+	const sources = all.filter((s) => sourceMedium(s.id) === medium);
 	if (!formerSourceId) return sources;
 	const at = sources.findIndex((s) => s.id === formerSourceId);
 	if (at > 0) return [sources[at], ...sources.slice(0, at), ...sources.slice(at + 1)];
@@ -411,7 +418,7 @@ export async function moveSources(
 export async function candidateOf(kind: MoveKind, mangaId: string): Promise<MoveCandidate> {
 	const ref = parseSourceMangaId(mangaId);
 	if (!ref) throw new MoveError('That is not a result of a source');
-	if (kind === 'anime') {
+	if (movesVideo(kind)) {
 		const a = await fetchAnime(mangaId);
 		if (!a) throw new MoveError('The source did not answer for that anime');
 		const plan = planOf(a, Date.now());
@@ -485,6 +492,9 @@ type EntryRow = {
 };
 
 function entriesOf(seriesId: number, kind: MoveKind, db: Database.Database = getDb()): MoveEntry[] {
+	// An episode is numbered by its episode number in its season; a page's
+	// entry by its position.
+	const video = movesVideo(kind);
 	return (
 		db
 			.prepare(
@@ -496,8 +506,8 @@ function entriesOf(seriesId: number, kind: MoveKind, db: Database.Database = get
 			.all(seriesId) as EntryRow[]
 	).map((e) => ({
 		id: e.id,
-		number: kind === 'anime' ? (e.episode_number ?? e.position) : e.position,
-		season: kind === 'anime' ? e.season : null,
+		number: video ? (e.episode_number ?? e.position) : e.position,
+		season: video ? e.season : null,
 		title: e.title,
 		label: e.label,
 		readAt: e.read_at,
@@ -553,11 +563,11 @@ export async function moveComparison(
 ): Promise<MoveComparison | null> {
 	const s = seriesRow(seriesId);
 	if (!s || s.in_library !== 1 || !movableKind(s.kind)) return null;
-	const kind: MoveKind = s.kind === 'anime' ? 'anime' : 'manga';
+	const kind: MoveKind = moveKindOf(s.kind);
 	const candidate = await candidateOf(kind, mangaId);
 	const yours = entriesOf(seriesId, kind);
 	const seasons = new Set(yours.map((e) => e.season).filter((x): x is number => x !== null));
-	const needsOffset = kind === 'anime' && seasons.size > 0 && candidate.flat;
+	const needsOffset = movesVideo(kind) && seasons.size > 0 && candidate.flat;
 	const guess = needsOffset
 		? guessOffset(yours, candidate.chapters)
 		: { offset: 1, agree: 0, of: 0 };
@@ -592,7 +602,7 @@ export async function moveComparison(
 		yours[0];
 	const playMatch = open ? plan.matches.find((m) => m.entry.id === open.id) : undefined;
 	const playCheck =
-		kind === 'anime' && playMatch
+		movesVideo(kind) && playMatch
 			? {
 					sourceId: candidate.sourceId,
 					url: playMatch.candidate.url,
@@ -717,7 +727,8 @@ export function applyMove(
 				.prepare(`SELECT id FROM series WHERE origin_key = ? AND id != ? LIMIT 1`)
 				.get(target.key, seriesId);
 			if (taken) throw new MoveError('That entry is already another series in the library');
-			const kind: MoveKind = s.kind === 'anime' ? 'anime' : 'manga';
+			const kind: MoveKind = moveKindOf(s.kind);
+			const video = movesVideo(kind);
 			const oldKey = s.origin_key;
 			const oldSource = sourceOfKey(oldKey) ?? '';
 			const oldName = sourceLabel(seriesId, oldKey, s.source);
@@ -790,30 +801,27 @@ export function applyMove(
 			let pending = 0;
 			for (const t of additions) {
 				const numbered = t.number >= 0;
-				const position =
-					kind === 'anime'
-						? PENDING + ++pending
-						: numbered
-							? t.number
-							: maxPosition + ++unnumbered / 1000;
+				const position = video
+					? PENDING + ++pending
+					: numbered
+						? t.number
+						: maxPosition + ++unnumbered / 1000;
 				const entryId = Number(
 					insert.run({
 						series: seriesId,
 						position,
-						label: numbered
-							? `${kind === 'anime' ? 'Ep.' : 'Ch.'} ${formatNumber(t.number)}`
-							: 'Chapter',
+						label: numbered ? `${video ? 'Ep.' : 'Ch.'} ${formatNumber(t.number)}` : 'Chapter',
 						title: t.title || t.name,
 						added: t.uploaded || now,
 						read: readOfUrl.get(t.url) ?? null,
 						url: t.url,
-						season: kind === 'anime' ? t.season : null,
-						number: kind === 'anime' ? t.number : null
+						season: video ? t.season : null,
+						number: video ? t.number : null
 					}).lastInsertRowid
 				);
 				setChapter.run(entryId, t.url, t.name);
 			}
-			if (kind === 'anime') resequenceAnime(db, seriesId);
+			if (video) resequenceAnime(db, seriesId);
 
 			// Queued chapters move by number; one with no partner leaves the queue.
 			const queued = queueCounts(yours, plan);
@@ -920,7 +928,8 @@ export function applyMoveBack(
 			const s = seriesRow(seriesId, db);
 			const target = moveBackTarget(seriesId);
 			if (!s || !target || !s.origin_key) throw new MoveError('There is no source to move back to');
-			const kind: MoveKind = s.kind === 'anime' ? 'anime' : 'manga';
+			const kind: MoveKind = moveKindOf(s.kind);
+			const video = movesVideo(kind);
 			const leftKey = s.origin_key;
 			const leftSource = sourceOfKey(leftKey) ?? '';
 			const leftName = sourceLabel(seriesId, leftKey, s.source);
@@ -999,24 +1008,23 @@ export function applyMoveBack(
 				const entryId = Number(
 					insert.run({
 						series: seriesId,
-						position:
-							kind === 'anime'
-								? PENDING + ++pending
-								: t.number >= 0
-									? t.number
-									: maxPosition + pending / 1000,
-						label: `${kind === 'anime' ? 'Ep.' : 'Ch.'} ${formatNumber(t.number)}`,
+						position: video
+							? PENDING + ++pending
+							: t.number >= 0
+								? t.number
+								: maxPosition + pending / 1000,
+						label: `${video ? 'Ep.' : 'Ch.'} ${formatNumber(t.number)}`,
 						title: t.title || t.name,
 						added: t.uploaded || now,
 						url: t.url,
-						season: kind === 'anime' ? t.season : null,
-						number: kind === 'anime' ? t.number : null
+						season: video ? t.season : null,
+						number: video ? t.number : null
 					}).lastInsertRowid
 				);
 				setChapter.run(entryId, t.url, t.name);
-				if (kind !== 'anime') pending++;
+				if (!video) pending++;
 			}
-			if (kind === 'anime') resequenceAnime(db, seriesId);
+			if (video) resequenceAnime(db, seriesId);
 
 			// Queued chapters without a partner in the old source leave.
 			const queued = queueCounts(yours, plan);
@@ -1052,7 +1060,7 @@ export function applyMoveBack(
 			const keptStayed = plan.kept.length - gone.length;
 			const detail = [
 				readd.length
-					? `${readd.length} ${kind === 'anime' ? 'EPISODE' : 'CHAPTER'}${readd.length === 1 ? '' : 'S'} BACK FROM THE OLD SOURCE`
+					? `${readd.length} ${kindFacts(kind).unit.long}${readd.length === 1 ? '' : 'S'} BACK FROM THE OLD SOURCE`
 					: '',
 				keptStayed ? `${keptStayed} KEPT FROM ${leftName.toUpperCase()}` : ''
 			]
@@ -1076,8 +1084,7 @@ export async function formerCandidate(seriesId: number): Promise<MoveCandidate |
 	if (!s?.former_key) return null;
 	const id = sourceMangaIdOf(s.former_key);
 	if (!id) return null;
-	const kind: MoveKind = s.kind === 'anime' ? 'anime' : 'manga';
-	return candidateOf(kind, id);
+	return candidateOf(moveKindOf(s.kind), id);
 }
 
 /** A key as the opaque result id the candidate fetch takes. */

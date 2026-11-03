@@ -29,7 +29,9 @@ sources, one list with the kinds as sections: **01 — RECENT** (the last four
 browsed, any kind, "MANGA · EN · BROWSED 2 H AGO"; nothing to pin or
 manage), then **MANGA**, **ANIME** and **NOVELS**, a section only where it has
 a source. Read from tsundoku's own tables, so it draws while the engine is
-down.
+down. The sections are the source families (Mihon's, Aniyomi's, LNReader's),
+each the kind its family names a row by (`SOURCE_KINDS` in
+`src/lib/library/kinds.ts`; card c303), not a list of kind names.
 
 **Which sources.** Those in the owner's languages (the `browse_languages`
 setting, `en,ja` by default; its SETTINGS row comes with c144), an
@@ -249,7 +251,9 @@ without script): the series that come from it stay, files and all; its
 queued chapters leave the queue and its followed series stop being checked;
 its settings are kept for a reinstall. Counts are what reveal lets you see.
 
-**AVAILABLE** is every repository's listings, one tab per kind with its count,
+**AVAILABLE** is every repository's listings, one tab per source family (MANGA
+for Mihon's APKs, ANIME for Aniyomi's, NOVELS for LNReader's plugins; the URL
+says `kind=anime` or `kind=novels`) with its count,
 a search, and FILTER. The search ignores case and spacing and matches the
 extension's name or any of its sources' (`weebcentral` finds Weeb Central). A
 multi-language extension counts only its sources in the languages asked. INSTALL

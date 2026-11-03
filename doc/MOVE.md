@@ -9,10 +9,19 @@ its progress behind.
 
 MOVE moves the series itself. It is a page of its own,
 `/series/[id]/move`, opened from the SOURCE row on the series screen or from
-the player's NO SERVER. It asks every installed source of the series' kind as
+the player's NO SERVER. It asks every installed source that serves the series' medium as
 they answer, lays the picked candidate beside the series by number before
 anything changes, and moves on one tap. The series screen comes back as the
 same series with a new source.
+
+Which series MOVE is offered for, and how its map reads them, is the kind
+registry's (`src/lib/library/kinds.ts`, [`KINDS.md`](KINDS.md); card c304):
+`movable` says whether a kind moves (a manga, a manhwa, an anime), and the
+kind's **medium** says how. A video kind's series maps by episode and season
+(the map kind `anime`), every other by number (`manga`); the sources asked are
+the installed ones serving that medium (`sourceMedium`); and the words a move
+says (`EPISODES`, `Ep.`, WATCHING) are the map kind's. Nothing in MOVE names a
+kind.
 
 Design: `doc/design/handoff/Migrate Calls.dc.html` (the decisions) and the
 boards beside it. Brief: [`briefs/MIGRATE.md`](briefs/MIGRATE.md). Card c139.
@@ -63,7 +72,8 @@ move, which is the place to see it.
 
 ### Anime: seasons, and a flat list
 
-An anime series knows its season. When both sides have seasons, season 3
+What follows holds for a series whose kind's medium is video (`movesVideo`,
+`library/move.ts`), which today is an anime. An anime series knows its season. When both sides have seasons, season 3
 matches season 3 episode by episode, and another season is **not taken**: a
 season of a multi-season entry is a different series (`NOT TAKEN · ANOTHER
 SEASON`). Episodes outside the series' own range are not taken either —

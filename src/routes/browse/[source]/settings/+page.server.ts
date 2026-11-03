@@ -8,6 +8,7 @@ import { EngineError } from '$lib/server/engine/client';
 import { keepPreferences, preferences, setPreference } from '$lib/server/engine/extensions';
 import type { Preference } from '$lib/server/engine/protocol';
 import { settingOf, valueFromForm } from '$lib/library/source-settings';
+import { SOURCE_KINDS } from '$lib/library/kinds';
 
 /**
  * A source's settings (Index-Browse, settings; Browse Calls, "Settings, per
@@ -21,8 +22,9 @@ import { settingOf, valueFromForm } from '$lib/library/source-settings';
 function source(id: string, reveal: boolean) {
 	if (downloadsBackend() !== 'engine') error(404, 'not found');
 	const s = browseSource(id, reveal);
-	// A novel plugin keeps no settings here (doc/NOVELS.md).
-	if (!s || s.kind === 'novel') error(404, 'not found');
+	// A novel plugin keeps no settings here (doc/NOVELS.md): LNReader's family
+	// names its sources' rows by its kind (`SOURCE_KINDS`).
+	if (!s || s.kind === SOURCE_KINDS.lnreader) error(404, 'not found');
 	return s;
 }
 

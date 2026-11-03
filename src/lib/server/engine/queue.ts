@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
 import { getSetting, setSetting } from '../settings.ts';
 import { keyKind, sourceOfKey } from '../../library/downloads.ts';
+import { SOURCE_KINDS, type SourceKind } from '../../library/kinds.ts';
 
 /**
  * tsundoku's download queue (doc/DOWNLOADER.md; card c137): chapters, as
@@ -17,7 +18,17 @@ import { keyKind, sourceOfKey } from '../../library/downloads.ts';
  * manga, or the engine's episode lane for an anime (doc/ANIME.md), by its
  * series' key.
  */
-export type QueueKind = 'novel' | 'manga' | 'anime';
+export type QueueKind = SourceKind;
+
+/**
+ * The worker a queued chapter's series key sends it to: its family's kind
+ * (`keyKind`, `SOURCE_KINDS`). A key that is no family's (Hentoid's, a
+ * folder's, an EPUB's, none) never enters the queue (`enqueue` asks
+ * `sourceOfKey` first), so one here is a series whose key changed after its
+ * chapter was queued; it stays in the engine's lane, the Mihon worker's,
+ * which fails it as it fails any chapter its source cannot be asked for.
+ */
+export const queueKindOf = (key: string | null): QueueKind => keyKind(key) ?? SOURCE_KINDS.mihon;
 const ofKind = (r: QueueRow, kind: QueueKind | undefined) => kind === undefined || r.kind === kind;
 
 /** After this many tries a chapter is FAILED and waits for RETRY. */
@@ -136,7 +147,7 @@ export function queueRows(db: Database.Database = getDb()): QueueRow[] {
 		// A chapter kept from the source the series left downloads from there
 		// (doc/MOVE.md), so its lane is that source's too.
 		sourceId: r.origin_source || sourceOfKey(r.origin_key) || '',
-		kind: keyKind(r.origin_key) ?? 'manga',
+		kind: queueKindOf(r.origin_key),
 		state: r.state,
 		tries: r.tries,
 		failure: r.failure,
