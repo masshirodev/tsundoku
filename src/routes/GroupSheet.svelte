@@ -111,7 +111,9 @@
 			orderMode = answer === 'work' ? 'hand' : 'date';
 			rows = answer === 'work' ? asSelected(books) : orderBooks(books.map(withId), 'date');
 			mode = 'new';
-			into = existingWorks[0]?.id ?? existing[0]?.id ?? null;
+			// No target yet: `intoValue` takes the answer's own first, so a Work's
+			// id can never be read as a series' (they are both small integers).
+			into = null;
 			ticked = books.map((b) => b.seriesId);
 			refused = '';
 			name = defaultName(answer);
@@ -128,7 +130,9 @@
 		orderMode = a === 'work' ? 'hand' : 'date';
 		rows = a === 'work' ? asSelected(rows) : orderBooks(rows.map(withId), 'date');
 		mode = 'new';
-		into = a === 'work' ? (existingWorks[0]?.id ?? null) : (existing[0]?.id ?? null);
+		// The answer's own first, chosen by `intoValue`; a target from the old
+		// answer's list is not carried over.
+		into = null;
 		name = defaultName(a);
 		refused = '';
 	}
@@ -162,14 +166,6 @@
 	const orderLabel = $derived(
 		orderMode === 'date' ? 'BY DATE ADDED' : orderMode === 'title' ? 'BY TITLE' : 'BY HAND'
 	);
-	const canCreate = $derived(
-		mode === 'new' ? chosen.length >= 2 && name.trim() !== '' : chosen.length >= 1 && into !== null
-	);
-	const title = $derived(
-		suggested
-			? `SUGGESTED · ${chosen.length} OF ${books.length} TICKED`
-			: `GROUP ${books.length} ${sheetNoun}`
-	);
 	/** The INTO choice's list: the answer's own, so a Work never offers a series. */
 	const intoList = $derived(
 		work
@@ -177,6 +173,26 @@
 			: answer === 'volumes'
 				? existingVolumes
 				: existing
+	);
+	/**
+	 * The INTO target that is actually offered, checked and posted: never an id
+	 * the visible list does not hold. A change of answer, or a new selection
+	 * arriving, can leave `into` pointing at another answer's list; the sheet
+	 * then falls back to the first of the answer's own, and only to none when
+	 * that list is empty.
+	 */
+	const intoValue = $derived(
+		into !== null && intoList.some((s) => s.id === into) ? into : (intoList[0]?.id ?? null)
+	);
+	const canCreate = $derived(
+		mode === 'new'
+			? chosen.length >= 2 && name.trim() !== ''
+			: chosen.length >= 1 && intoValue !== null
+	);
+	const title = $derived(
+		suggested
+			? `SUGGESTED · ${chosen.length} OF ${books.length} TICKED`
+			: `GROUP ${books.length} ${sheetNoun}`
 	);
 
 	/** "2 BOOKS, ONE SERIES"; "3 SERIES, KEPT APART": the answer's own line. */
@@ -295,12 +311,12 @@
 			</div>
 			<div class="existing">
 				{#each intoList as s (s.id)}
-					<label class="ex" class:on={into === s.id}>
+					<label class="ex" class:on={intoValue === s.id}>
 						<input
 							type="radio"
 							name="into"
 							value={s.id}
-							checked={into === s.id}
+							checked={intoValue === s.id}
 							onchange={() => (into = s.id)}
 						/>
 						<span class="ex-title">{s.title}</span>
@@ -411,7 +427,7 @@
 			<input type="hidden" name="sheet" value="1" />
 			<input type="hidden" name="answer" value={answer} />
 			<input type="hidden" name="mode" value={mode} />
-			{#if mode === 'existing'}<input type="hidden" name="work" value={into ?? ''} />{/if}
+			{#if mode === 'existing'}<input type="hidden" name="work" value={intoValue ?? ''} />{/if}
 		{:else}
 			<input type="hidden" name="order" value={orderLabel} />
 			<input type="hidden" name="mode" value={mode} />
