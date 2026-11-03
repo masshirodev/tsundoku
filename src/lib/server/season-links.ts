@@ -13,7 +13,6 @@ import { clearAniSkip } from './anime/marks.ts';
 import {
 	candidateKind,
 	coverOnly,
-	idsLine,
 	isAnime,
 	normaliseTitle,
 	wrongKind,
@@ -24,7 +23,6 @@ import {
 	partsOf,
 	seasonSearchTitle,
 	seasonsOf,
-	watchedReached,
 	type PartSpan,
 	type SeasonSpan
 } from '../library/anime.ts';
@@ -329,15 +327,6 @@ export function seriesSeasons(seriesId: number): SeriesSeasons | null {
 			};
 		})
 	};
-}
-
-/** The parts of one season, with where each starts, as the season screen and the send read them. */
-export function seasonParts(seriesId: number, season: number, aired: number): PartSpan[] {
-	const links = seasonLinks(seriesId).filter((l) => l.season === season);
-	return partsOf(
-		links.map((l) => ({ part: l.part, episodes: l.episodes })),
-		aired
-	);
 }
 
 // ---- writing -------------------------------------------------------------------------------
@@ -907,15 +896,6 @@ export async function resolveSeasonLinks(now = Date.now()): Promise<number> {
 	return n;
 }
 
-/** "ANILIST AND MAL", "ANILIST", "MAL": which catalogues a season's link names. */ export const servicesOf =
-	(links: SeasonLink[]): string =>
-		[links.some((l) => l.anilistId) ? 'ANILIST' : '', links.some((l) => l.malId) ? 'MAL' : '']
-			.filter(Boolean)
-			.join(' AND ');
-
-/** The ids, as the review and the panel name them. */
-export const seasonIds = (l: SeasonLink): string => idsLine(l.anilistId, l.malId);
-
 /** The entry's own kind, from its stored format: the door OPEN and the send use (c298). */
 export const seasonKind = (l: SeasonLink): Kind | null =>
 	l.format ? candidateKind({ format: l.format, country: '' }) : null;
@@ -923,17 +903,6 @@ export const seasonKind = (l: SeasonLink): Kind | null =>
 /** Whether a season's link sends nothing: across kinds, or the other kind's entry. */
 export const seasonUntracked = (seriesKind: Kind, l: SeasonLink): boolean =>
 	coverOnly(seriesKind, l.format ?? '') || wrongKind(seriesKind, l.format ?? '');
-
-/** "... · TV · 24 EP. · 2018", as the LINK row and the review draw it. */
-export function seasonMeta(l: SeasonLink): string {
-	return [
-		l.format ? l.format.replace(/_/g, ' ') : '',
-		l.episodes ? `${l.episodes} EP.` : '',
-		l.year ? String(l.year) : ''
-	]
-		.filter(Boolean)
-		.join(' · ');
-}
 
 /**
  * Which season an entry on the owner's list is, by the titles it carries: a
@@ -951,26 +920,4 @@ export function seasonForTitles(seriesId: number, titles: string[]): number {
 			(s.season <= 1 && keys.has(normaliseTitle(view.title)))
 	);
 	return hit?.season ?? view.open;
-}
-
-/** A season's episodes and its watched ones, for the panel's counts. */
-export function watchedIn(seriesId: number, season: number, from?: number, to?: number): number {
-	return watchedReached(
-		seasonEntries(seriesId).map((e) => ({
-			id: e.id,
-			number: e.number,
-			readAt: e.readAt,
-			lastPosition: null,
-			lastOpenedAt: null,
-			episode: {
-				durationS: null,
-				season: e.season,
-				number: e.number,
-				note: e.note as '' | 'filler' | 'recap',
-				thumb: '',
-				endingAt: null
-			}
-		})),
-		{ season, from, to }
-	);
 }
