@@ -175,8 +175,9 @@ key.
 
 ### An import never undoes the owner
 
-- An UNLINK is remembered (`link_decisions`, `unlinked`), and an import won't
-  bring the tracker's link back.
+- An UNLINK is remembered (`link_decisions`, `unlinked`; an anime's in
+  `season_link_decisions`, a season at a time), and an import won't bring
+  the tracker's link back.
 - A link the owner chose (review, pasted) is never replaced by a tracker.
 - A tracker that moved to another MAL entry moves a link it made itself.
 
@@ -287,11 +288,14 @@ anime's LINK row is a line a season (c240; above).
   seasons or fewer have a line each; more fold round the one being watched,
   and SHOW opens both the LINK and the TRACKING row. A season in two parts
   says so on one line (`2 PARTS · EP. 1 – 12 · EP. 13 – 23`). A season with
-  no link says why, in the decision's own word: `UNLINKED · NO PASS ASKS
-AGAIN` after an UNLINK, `NONE OF THESE · NO PASS ASKS AGAIN` after NONE OF
-  THESE (`SeasonRow.decision`, the latest of its parts'), else what its last
-  search found. A series with one season draws exactly what it always did.
-  Ranobe stays one line under the seasons ([`RANOBE.md`](RANOBE.md)).
+  no link says why, in the decision's own word: after an UNLINK
+  `UNLINKED · NO PASS ASKS AGAIN`, after NONE OF THESE
+  `NONE OF THESE · NO PASS ASKS AGAIN` (`SeasonRow.decision`, the latest of
+  its parts'), else what its last search found. A series with one season
+  draws exactly what it always did, and its UNLINK, which names no season,
+  takes every part of that season and writes the season's own `unlinked`
+  decision, never one for season 0. Ranobe stays one line under the seasons
+  ([`RANOBE.md`](RANOBE.md)).
 - **A season's link is its own row** (`series_season_links`, rung 62):
   `series_links` keeps meaning what it meant for a manga or a novel, and an
   anime's row there is a **mirror of its first season, written only while that
