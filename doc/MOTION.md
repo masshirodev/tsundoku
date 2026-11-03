@@ -139,6 +139,14 @@ screen is in the page, before it's painted, puts it on `.main` as
   and a moving ancestor holds everything fixed inside it to its own box for as
   long as it moves. Elsewhere that's only a sheet opened within the first
   240 ms, which is accepted.
+- **Once it has arrived, the screen holds nothing.** The animation fills
+  `backwards`, never `both` or `forwards` (c426). A finished animation that
+  keeps filling its last frame still sets `translate: 0px` on the screen, and
+  that makes the screen the containing block of everything fixed inside it,
+  for good: FILTER's scrim began a sidebar's width past the sidebar and was
+  only as tall as the library, and a sheet's scrim missed the screen's left
+  edge. `motion.e2e.ts` measures both scrims against the viewport after a
+  navigation, and checks a screen at rest has `translate: none`.
 - **A slow screen's outline is what slides in.** From 150 ms the next screen's
   outline shows (`WAITING.md`). It carries `data-arrive`, and `.main` carries
   `data-arriving` from the moment the navigation starts, so the outline slides
@@ -155,7 +163,8 @@ Animations panel, step frame by frame, try taps and scrolls on the tablet and
 the phone themselves, and look again the next day. `tests/motion.e2e.ts`
 checks the mechanics on every device (the press and its hold, the scrim, a
 sheet leaving and being opened again before it's gone, the screen moving both
-ways, a tap the moment it arrives, the slow screen's outline, the hover);
+ways, a tap the moment it arrives, the slow screen's outline, the hover, and
+the scrims' boxes once a screen has arrived);
 `tests/tv-motion.e2e.ts` checks a TV's screens don't move;
 `tests/motion.spec.ts` covers the decisions.
 
