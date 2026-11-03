@@ -727,50 +727,32 @@ function want(
 function reachedFor(t: Target, o: { chapters: number }): number {
 	if (t.kind !== 'anime') return o.chapters;
 	const entries = animeEntries(t.seriesId);
-	const seasonTop = watchedReached(
-		entries.map((e) => ({
-			id: 0,
-			number: e.number,
-			readAt: e.readAt,
-			lastPosition: null,
-			lastOpenedAt: null,
-			episode: {
-				durationS: null,
-				season: e.season,
-				number: e.number,
-				note: (e.note as '' | 'filler' | 'recap') ?? '',
-				thumb: '',
-				endingAt: null
-			}
-		})),
-		{ season: t.season }
-	);
-	// A run watched into a later part fills the ones before it: EP. 15 of the
-	// design's SAO S4 is part 2's EP. 3, and part 1 completed itself at 12.
-	// The last part has nowhere for the extra episodes to go, so they wait.
-	if (!t.last && seasonTop >= t.from) return Math.min(seasonTop, t.to) - t.from + 1;
-	if (t.last && seasonTop > t.to) return 0;
 	// `counted` lives in library/anime: a recap or a half number is never sent.
-	const top = watchedReached(
-		entries.map((e) => ({
-			id: 0,
+	const rows = entries.map((e) => ({
+		id: 0,
+		number: e.number,
+		readAt: e.readAt,
+		lastPosition: null,
+		lastOpenedAt: null,
+		episode: {
+			durationS: null,
+			season: e.season,
 			number: e.number,
-			readAt: e.readAt,
-			lastPosition: null,
-			lastOpenedAt: null,
-			episode: {
-				durationS: null,
-				season: e.season,
-				number: e.number,
-				note: (e.note as '' | 'filler' | 'recap') ?? '',
-				thumb: '',
-				endingAt: null
-			}
-		})),
-		{ season: t.season, from: t.from, to: t.to }
-	);
+			note: (e.note as '' | 'filler' | 'recap') ?? '',
+			thumb: '',
+			endingAt: null
+		}
+	}));
+	const seasonTop = watchedReached(rows, { season: t.season });
+	const within = watchedReached(rows, { season: t.season, from: t.from, to: t.to });
 	// The part's own numbering: part 2 starts at 1, not at part 1's last + 1.
-	return top > 0 ? top - t.from + 1 : 0;
+	if (within > 0) return within - t.from + 1;
+	// A run watched into a later part fills the ones before it: EP. 15 of the
+	// design's SAO S4 is part 2's EP. 3, and part 1 completed itself at 12. An
+	// episode past the last part's count has nowhere to go and waits -- and if
+	// it is the only one watched, nothing is sent for the part it passed.
+	if (!t.last && seasonTop >= t.from) return t.to - t.from + 1;
+	return 0;
 }
 
 /**

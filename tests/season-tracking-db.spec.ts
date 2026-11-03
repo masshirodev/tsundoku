@@ -386,7 +386,7 @@ describe('sending a season', () => {
 	});
 
 	it('never sends a recap or a half number', async () => {
-		const id = show({ seasons: [[1, 2, 13, 14, 15]] });
+		const id = show({ seasons: [[1, 2, 13, 14, 15, 16]] });
 		// The design's SAO S3: 14.5 Recollection is a recap, never sent.
 		db.prepare(
 			`INSERT INTO entries (series_id, position, label, added_at, season, episode_number, episode_note, duration_s)
@@ -403,6 +403,11 @@ describe('sending a season', () => {
 		);
 		expect(tr.queueProgress(id, NOW)).toBe(0);
 		markWatched(entryId(id, 1, 15));
+		// A recap with a whole number of its own counts for nothing either.
+		db.prepare(
+			`UPDATE entries SET episode_note = 'recap' WHERE series_id = ? AND episode_number = 16`
+		).run(id);
+		markWatched(entryId(id, 1, 16));
 		tr.queueProgress(id, NOW);
 		await tr.sendPending({ now: NOW });
 		const save = sent.find((s) => JSON.stringify(s.body).includes('SaveMediaListEntry'))!;
@@ -430,6 +435,21 @@ describe('sending a season', () => {
 				expect.objectContaining({ mediaId: 202, progress: 3 })
 			])
 		);
+	});
+
+	it('waits when an episode is past the entry’s count and there is no part 2', async () => {
+		// The design's "EP. 13 WAITS · ANILIST LISTS 12": a source with 13
+		// episodes, a catalogue entry with 12, and no second part to take it.
+		const id = show({ seasons: [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]] });
+		seasons.linkSeason(id, 1, 1, animeEntry(101, { episodes: 12 }), 'review', NOW);
+		await signIn('anilist');
+		markWatched(entryId(id, 1, 13));
+		expect(tr.queueProgress(id, NOW)).toBe(0);
+		const t = tr.trackingOf(id)!;
+		expect(t.seasons?.[0].waits).toMatchObject({ episode: 13, of: 12, service: 'anilist' });
+		// EP. 12 still sends: it is within the entry.
+		markWatched(entryId(id, 1, 12));
+		expect(tr.queueProgress(id, NOW)).toBe(1);
 	});
 
 	it('sends nothing for a hidden series, or a season linked to the other kind', async () => {

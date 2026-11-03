@@ -95,6 +95,8 @@ describe('a season (c240)', () => {
 		const rows = [ep(3, 14, 1), ep(3, 14.5, 1, 'recap'), ep(3, 15, 1)];
 		expect(watchedReached(rows, { season: 3 })).toBe(15);
 		expect(watchedReached([ep(3, 14.5, 1, 'recap')], { season: 3 })).toBe(0);
+		// A recap with a whole number of its own is no episode a catalogue counts.
+		expect(watchedReached([ep(3, 14, 1), ep(3, 15, 1, 'recap')], { season: 3 })).toBe(14);
 	});
 
 	it('splits a season into parts at the first entry’s count', () => {
