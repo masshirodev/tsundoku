@@ -3,7 +3,13 @@
 	import { resolve } from '$app/paths';
 	import { coverSrc } from '$lib/library/links';
 	import { coverPlaceholder, hueFor } from '$lib/library/cover';
-	import { anilistUrl, idsLine, parsePasted } from '$lib/library/catalogue';
+	import {
+		anilistUrl,
+		candidateKind,
+		isExact,
+		matchTitles,
+		parsePasted
+	} from '$lib/library/catalogue';
 	import { langName, parseRanobeUrl } from '$lib/library/ranobe';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { offline } from '$lib/offline.svelte';
@@ -35,7 +41,10 @@
 	/** An item's place in the queue: a novel can be in it once per catalogue. */
 	const qk = (i: { service: Service; seriesId: number }) => `${i.service}:${i.seriesId}`;
 	const keyOf = (c: Cand) => ('work' in c ? c.work : String(c.anilistId));
-	const hrefOf = (c: Cand) => ('href' in c ? c.href : anilistUrl(c.anilistId));
+	const hrefOf = (c: Cand) =>
+		'href' in c
+			? c.href
+			: anilistUrl(c.anilistId, candidateKind(c) === 'anime' ? 'anime' : 'manga');
 
 	// svelte-ignore state_referenced_locally
 	const byKey = new SvelteMap(data.items.map((i) => [qk(i), i]));
@@ -295,9 +304,10 @@
 
 	/**
 	 * SEARCH AGAIN, at once (the owner's call, 2026-09-24; the handoff queued it
-	 * for the next cover pass). On AniList an exact match links; otherwise, and
-	 * always on Ranobe, the new candidates replace these, on the same series.
-	 * Out of reach, it waits for the pass after all, and says so.
+	 * for the next cover pass). A search the owner runs never links: its
+	 * candidates replace these, on the same series, even when there is only one,
+	 * and the owner presses LINK (c298). Out of reach, it waits for the pass
+	 * after all, and says so.
 	 */
 	let searchingNow = $state(false);
 	async function searchAgain() {
@@ -316,8 +326,7 @@
 			return;
 		}
 		const a = (await r.json()) as {
-			outcome: 'linked' | 'found' | 'queued';
-			candidate?: { anilistId: number; malId: number | null; title: string };
+			outcome: 'found' | 'queued';
 			found?: number;
 			was?: QueuedFrom;
 			item: Item | null;
@@ -328,34 +337,21 @@
 			series: it.seriesId,
 			was: a.was ?? undefined
 		};
-		if (a.outcome === 'linked' && single) {
-			await backToSeries(it.seriesId);
-			return;
-		}
-		if (a.outcome === 'linked' || a.outcome === 'queued') {
-			if (a.outcome === 'queued') nonet = it.service;
+		if (a.outcome === 'queued') {
+			nonet = it.service;
 			queue = queue.slice(1);
 			done += 1;
-			undo =
-				a.outcome === 'linked'
-					? {
-							title: `LINKED · ${a.candidate!.title.toUpperCase()}`,
-							detail: `THE SAME TITLE ON ANILIST · ${idsLine(a.candidate!.anilistId, a.candidate!.malId)}`,
-							undo: back,
-							before: beforeQ,
-							restore: it
-						}
-					: {
-							title: `QUEUED · “${q}”`,
-							// AniList's search runs in the cover pass; Ranobe's in its own.
-							detail:
-								it.service === 'ranobe'
-									? 'RANOBE UNREACHABLE · SEARCHED IN THE NEXT PASS'
-									: 'ANILIST UNREACHABLE · SEARCHED IN THE NEXT COVER PASS',
-							undo: back,
-							before: beforeQ,
-							restore: it
-						};
+			undo = {
+				title: `QUEUED · “${q}”`,
+				// AniList's search runs in the cover pass; Ranobe's in its own.
+				detail:
+					it.service === 'ranobe'
+						? 'RANOBE UNREACHABLE · SEARCHED IN THE NEXT PASS'
+						: 'ANILIST UNREACHABLE · SEARCHED IN THE NEXT COVER PASS',
+				undo: back,
+				before: beforeQ,
+				restore: it
+			};
 			return;
 		}
 		if (a.item) byKey.set(qk(a.item), a.item);
@@ -366,7 +362,7 @@
 			detail: a.found
 				? it.service === 'ranobe'
 					? 'TAP ONE TO LINK'
-					: 'NO TITLE EQUAL · TAP ONE TO LINK'
+					: 'NOTHING IS LINKED BY A SEARCH · TAP ONE TO LINK'
 				: 'NOTHING UNDER THIS TITLE EITHER',
 			undo: back,
 			before: beforeQ,
@@ -439,13 +435,15 @@
 		if (!item) return;
 		const it = item;
 		const r1 = it.service === 'ranobe';
-		const ok = r1 ? parseRanobeUrl(text) !== null : parsePasted(text) !== null;
+		const ok = r1 ? parseRanobeUrl(text) !== null : parsePasted(text, it.kind) !== null;
 		if (!ok) {
 			pasted = null;
 			pasteNote = text.trim()
 				? r1
 					? 'NOT A RANOBE WORK LINK'
-					: 'NOT AN ANILIST OR MAL MANGA LINK'
+					: it.kind === 'anime'
+						? 'NOT AN ANILIST OR MAL ANIME LINK'
+						: 'NOT AN ANILIST OR MAL MANGA LINK'
 				: null;
 			return;
 		}
@@ -466,7 +464,7 @@
 			pasted = null;
 			pasteNote = r1
 				? 'NO SUCH WORK ON RANOBE'
-				: parsePasted(text)?.service === 'mal'
+				: parsePasted(text, it.kind)?.service === 'mal'
 					? 'ANILIST HAS NO ENTRY FOR THAT MAL ID'
 					: 'NO SUCH ANILIST ENTRY';
 			return;
@@ -564,6 +562,9 @@
 			? { href: resolve('/series/[id]', { id: String(item.seriesId) }), label: '← SERIES' }
 			: { href: resolve('/'), label: '← LIBRARY' }
 	);
+	/** A search the owner has just run says "JUST NOW"; one from a pass says when. */
+	const when = (at: number | null, now: number) =>
+		at !== null && now - at < 120_000 ? 'JUST NOW' : 'IN THE COVER PASS';
 	const searched = $derived(
 		!item
 			? ''
@@ -575,7 +576,7 @@
 						? `A SEARCH FOR “${item.query}” WAITS FOR THE NEXT COVER PASS`
 						: !item.searched
 							? 'NOT SEARCHED YET · SEARCH AGAIN ASKS ANILIST NOW'
-							: `SEARCHED ANILIST FOR “${item.query}” IN THE COVER PASS · ${item.found} FOUND${item.found ? ' · NO TITLE EQUAL, SO NOTHING WAS LINKED' : ''}`
+							: `SEARCHED ANILIST FOR “${item.query}” ${when(item.searchedAt, Date.now())} · ${item.found} FOUND${item.found ? ' · TAP ONE TO LINK' : ''}`
 	);
 	const hint = $derived(
 		item?.cutShort
@@ -587,8 +588,13 @@
 		if (!item) return [];
 		if (item.service === 'ranobe') return item.rows;
 		return [
-			{ label: 'SOURCE', value: [item.sourceKind, item.source].filter(Boolean).join(' · ') },
-			{ label: 'CHAPTERS', value: String(item.chapters) },
+			// An Aniyomi source is the series' own; a manga's second name is the
+			// site its files came from. One name when they are the same (c298).
+			{
+				label: 'SOURCE',
+				value: [...new Set([item.sourceKind, item.source].filter(Boolean))].join(' · ')
+			},
+			{ label: item.kind === 'anime' ? 'EPISODES' : 'CHAPTERS', value: String(item.chapters) },
 			{ label: 'COVER', value: [item.cover.a, item.cover.b].filter(Boolean).join(' · ') }
 		];
 	});
@@ -600,7 +606,7 @@
 			: cands.length
 				? ranobe
 					? `${cands.length} FOUND · A WORK, NOT AN EDITION`
-					: `${cands.length} FOUND · TAP ONE`
+					: `${cands.length}${item && item.found > cands.length ? ` OF ${item.found}` : ''} FOUND · TAP ONE`
 				: ranobe
 					? 'NOVELS · 0 FOUND'
 					: '0 FOUND'
@@ -760,6 +766,20 @@
 								<span>{single.linked} · A NEW LINK REPLACES IT</span>
 							</div>
 						{/if}
+						{#if single?.wrongKind}
+							<div class="r">
+								<span class="rl">WRONG KIND</span>
+								<span
+									>LINKED TO THE WRONG KIND · NOT UNLINKED, SO UNDO STILL TAKES IT BACK ·
+									<button
+										type="button"
+										class="relink"
+										onclick={openSearch}
+										disabled={netDim || noSearch}>RELINK</button
+									></span
+								>
+							</div>
+						{/if}
 					</div>
 					{#if searched}<div class="searched">{searched}</div>{/if}
 				</section>
@@ -778,6 +798,10 @@
 								{@const key = keyOf(c)}
 								{@const on = chosen === key}
 								{@const note = 'coverNote' in c ? c.coverNote : null}
+								{@const exactTitle =
+									!('work' in c) && item
+										? isExact(matchTitles([item.title, ...item.alts], item.query), c)
+										: false}
 								<div
 									class="cand"
 									class:on
@@ -795,6 +819,7 @@
 									<div class="strip">
 										<div class="letter">{letter(i)}</div>
 										<div class="ids">{c.ids}</div>
+										{#if exactTitle}<div class="chip exact">EXACT TITLE</div>{/if}
 										{#if on}<div class="chip">✓ LINK THIS</div>{/if}
 										<a
 											class="open"
@@ -901,7 +926,7 @@
 						<div class="fnote">
 							{ranobe
 								? 'RANOBE IS ASKED NOW, WITH THIS TITLE ONLY, NOVELS ONLY. NOTHING IS LINKED: WHAT IT FINDS COMES BACK HERE TO CHOOSE FROM.'
-								: 'ANILIST IS ASKED NOW, WITH THIS TITLE ONLY. AN EQUAL TITLE LINKS; ANYTHING ELSE COMES BACK HERE TO CHOOSE FROM.'}
+								: 'ANILIST IS ASKED NOW, WITH THIS TITLE ONLY, IN THIS SERIES’ OWN KIND. NOTHING IS LINKED: WHAT IT FINDS COMES BACK HERE TO CHOOSE FROM.'}
 						</div>
 					{/if}
 
@@ -919,7 +944,9 @@
 								oninput={(e) => readPaste(e.currentTarget.value)}
 								placeholder={ranobe
 									? 'ranobe.ink/w…'
-									: 'anilist.co/manga/… or myanimelist.net/manga/…'}
+									: item?.kind === 'anime'
+										? 'anilist.co/anime/… or myanimelist.net/anime/…'
+										: 'anilist.co/manga/… or myanimelist.net/manga/…'}
 								aria-label={ranobe ? 'Ranobe link' : 'AniList or MAL link'}
 								autocomplete="off"
 								autofocus
@@ -1248,6 +1275,20 @@
 	.r.tight span:not(.rl):not(.agree) {
 		color: var(--text-2);
 	}
+	/* RELINK sits in the row it explains: the wrong-kind flag never unlinks by itself. */
+	.relink {
+		padding: 0 0 0 2px;
+		border: 0;
+		border-radius: 0;
+		background: transparent;
+		color: var(--accent);
+		font: inherit;
+		text-decoration: underline;
+		cursor: pointer;
+	}
+	.relink:disabled {
+		opacity: 0.35;
+	}
 	.searched {
 		font: 400 13px/1.45 var(--font-mono);
 		color: var(--text-2);
@@ -1333,6 +1374,12 @@
 		background: var(--accent);
 		color: var(--on-accent);
 		white-space: nowrap;
+	}
+	/* An equal title is marked, never preselected: the owner still presses LINK (c298). */
+	.chip.exact {
+		background: transparent;
+		color: var(--text-2);
+		border-left: 1px solid var(--line-subtle);
 	}
 	.open {
 		display: flex;

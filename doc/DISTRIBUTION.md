@@ -46,10 +46,12 @@ Measured 2026-10-29, the things a fresh machine trips over:
 - **The engine** is an image built locally from the private `tsundoku-engine`
   repo, and its compose file mounts `/mnt/hdd2` and pins `TZ=America/Cuiaba`.
 - **External binaries**: `ffmpeg`/`ffprobe` for anime, FlareSolverr beside the
-  engine, a Java runtime under the engine. An episode's opening and ending
-  are found with chromaprint (`doc/ANIME.md`, "Openings and endings"): an
-  ffmpeg built with its muxer needs nothing else, and one built without it
-  (this workstation's) needs `fpcalc` from the `chromaprint` package.
+  engine, a Java runtime under the engine. An episode's opening and ending are
+  found with chromaprint (`doc/ANIME.md`, "Openings and endings"), and a
+  bundle's pinned ffmpeg carries chromaprint's muxer itself, so it needs no
+  program beside it ([`RELEASE.md`](RELEASE.md), "Pinned"). On this box Arch's
+  ffmpeg has no muxer, so development falls back to `/usr/bin/fpcalc` from the
+  `chromaprint` package.
 - **Native modules**: `better-sqlite3` and `sharp` are per-OS, per-architecture.
 
 ## The phases
@@ -239,7 +241,8 @@ a build to a friend obliges:
   gets it** (a collaborator invite is enough), and the release notes say so.
 - **ffmpeg** is LGPL or GPL depending on the build chosen for a bundle. The
   bundle ships its licence and says where its source is, as ffmpeg's own
-  builds do. Pick an LGPL build where one fits.
+  builds do. Pick an LGPL build where one fits; the pinned one carries
+  chromaprint, so nothing else has to ship for fingerprints.
 - **FlareSolverr** is MIT, and ships as its own release, unmodified, with
   the Chrome it carries under Chrome's terms. Its archive holds no licence
   file; THIRD-PARTY-NOTICES names it.

@@ -32,6 +32,10 @@ const FROM: Record<Service, Record<string, Status>> = {
 	mal: {
 		reading: 'reading',
 		plan_to_read: 'planning',
+		// MAL's anime list says the same two in its own words; no manga row is
+		// ever either, so one map still holds both lists (c298).
+		watching: 'reading',
+		plan_to_watch: 'planning',
 		on_hold: 'on_hold',
 		completed: 'completed',
 		dropped: 'dropped'

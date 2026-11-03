@@ -15,6 +15,9 @@ describe('status', () => {
 		expect(statusFrom('anilist', 'REPEATING')).toBe('reading');
 		expect(statusFrom('anilist', 'PAUSED')).toBe('on_hold');
 		expect(statusFrom('mal', 'plan_to_read')).toBe('planning');
+		// MAL's anime list says the same statuses in its own words (c298).
+		expect(statusFrom('mal', 'watching')).toBe('reading');
+		expect(statusFrom('mal', 'plan_to_watch')).toBe('planning');
 		expect(statusFrom('mal', null)).toBeNull();
 		expect(statusTo('anilist', 'on_hold')).toBe('PAUSED');
 		expect(statusTo('mal', 'planning')).toBe('plan_to_read');

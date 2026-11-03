@@ -115,6 +115,18 @@ change a pin, take the new file's checksum from its project (Node's
 `SHASUMS256.txt`, Adoptium's API, GitHub's asset digest), never from a
 download of your own, and say so in the commit.
 
+**The pinned ffmpeg fingerprints by itself.** It is built `--enable-chromaprint`
+on both platforms: `ffmpeg -hide_banner -muxers` prints `E chromaprint
+Chromaprint`, and a six-second tone through `-f chromaprint -fp_format raw`
+gives 108 bytes, 27 points, exactly what `fpcalc` gives for the same tone
+(measured 2026-11-02 on the pinned Linux archive in the release cache, sha256
+`6d2016ff…`). So a bundle needs no chromaprint program beside it
+(`src/lib/server/anime/fingerprint.ts` prefers the muxer), and the smoke test
+checks that the bundle's own ffmpeg still can make points: a future pin
+without the muxer is the risk, not this one. This workstation's Arch ffmpeg
+has no muxer, so its `fpcalc` from the `chromaprint` package is the
+development route ([`DISTRIBUTION.md`](DISTRIBUTION.md), "External binaries").
+
 ## What's in a bundle
 
 ```
@@ -288,6 +300,12 @@ fixture's seven series and refuses its one broken file, every visible
 chapter's first page is an image, the hidden local books stay hidden, and
 the novels plugin host, started as the server starts it, loads a plugin that
 requires each library it lends (no network: c227 would have failed here).
+First comes the **fingerprint** step (`smoke/fingerprint.sh`,
+`smoke/fingerprint.ps1`, c299): the bundle's own ffmpeg must make chromaprint
+points of a tone (`-f chromaprint -fp_format raw`, failing under four bytes
+with "the bundle's ffmpeg has no chromaprint muxer"). The binary is named from
+the bundle, never from PATH: a step that named PATH would pass here on a
+build the app never takes, which is how a longer-lived mistake would ship.
 On Linux, the launcher (`./tsundoku --foreground`) is then hung up as a
 closed terminal does, and nothing of the bundle may be left running (c187: on
 2026.10.30.1, two were). Then the tray (`smoke/linux-tray.sh`): `./tsundoku`

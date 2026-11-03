@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import Sheet from '$lib/components/chrome/Sheet.svelte';
 	import { anilistUrl, malUrl } from '$lib/library/catalogue';
+	import type { Kind } from '$lib/library/types';
 	import { SERVICE_NAME, STATUSES, STATUS_LABEL } from '$lib/library/tracking';
 	import type { Tracking } from '$lib/server/tracking';
 
@@ -10,9 +11,16 @@
 	 * catalogues, and each one's progress from the reading here. A tap sends at
 	 * once; DONE only closes. No SCORE row since c67: the rating above is out
 	 * of 10 as the catalogues' score is, and is what they get, one number.
+	 *
+	 * OPEN ↗ needs the series' kind: a linked anime's entries are AniList's and
+	 * MAL's `/anime/` ones, and `/manga/23` is another work (c298).
 	 */
-	let { open, tracking, onclose }: { open: boolean; tracking: Tracking; onclose: () => void } =
-		$props();
+	let {
+		open,
+		tracking,
+		kind,
+		onclose
+	}: { open: boolean; tracking: Tracking; kind: Kind; onclose: () => void } = $props();
 
 	const status = $derived(tracking.status);
 	const both = $derived(
@@ -41,7 +49,7 @@
 						: f.service === 'anilist'
 							? 'SIGNED IN · MAIN LIST'
 							: 'SIGNED IN',
-					href: f.service === 'anilist' ? anilistUrl(media) : malUrl(media)
+					href: f.service === 'anilist' ? anilistUrl(media, kind) : malUrl(media, kind)
 				};
 			})
 	);

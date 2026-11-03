@@ -6,13 +6,21 @@ import {
 	SignedOut,
 	Unreachable,
 	anilistAs,
+	family,
 	linkFromList,
 	linkableByTitle,
 	toCandidate,
 	type Media
 } from './catalogue.ts';
 import * as ranobe from './ranobe.ts';
-import { cleanTitle, coverOnly, normaliseTitle, type Kind } from '../library/catalogue.ts';
+import {
+	cleanTitle,
+	coverOnly,
+	normaliseTitle,
+	sameKind,
+	candidateKind,
+	type Kind
+} from '../library/catalogue.ts';
 import {
 	SERVICES,
 	SERVICE_NAME,
@@ -258,21 +266,39 @@ async function malToken(a: Account, now = Date.now()): Promise<string> {
 type ListEntry = { mediaId: number; status: Status | null; progress: number; score: number | null };
 
 /**
+ * Where a list row's state is filed. AniList's media ids are one sequence for
+ * both lists; MAL's manga and anime ids are not, so a MAL id is filed under a
+ * family. The family is the *linked entry's* when its format is known -- a
+ * manga series linked to a MAL anime entry is on the anime list, and reading
+ * the manga list's row for that id would show another work's status and
+ * progress (c298's wrong-kind link). With no format yet, the series' own kind
+ * is the best there is.
+ */
+const stateKey = (service: Service, media: number, kind: Kind, format: string | null): string =>
+	service === 'mal'
+		? `${family(format ? (candidateKind({ format, country: '' }) ?? kind) : kind)}:${media}`
+		: String(media);
+
+/**
  * What a list says, kept per linked series. `readFrom` is when the read
  * began: a series sent to since then keeps what the send made of it, since
  * the list, as read, didn't have it yet.
  */
 function saveState(
 	service: Service,
-	byMedia: Map<number, ListEntry>,
+	byMedia: Map<string, ListEntry>,
 	readFrom: number,
 	now: number
 ): number {
 	const db = getDb();
 	const col = service === 'anilist' ? 'anilist_id' : 'mal_id';
 	const links = db
-		.prepare(`SELECT series_id, ${col} AS media FROM series_links WHERE ${col} IS NOT NULL`)
-		.all() as { series_id: number; media: number }[];
+		.prepare(
+			`SELECT l.series_id, l.${col} AS media, l.format, s.kind
+			FROM series_links l JOIN series s ON s.id = l.series_id
+			WHERE l.${col} IS NOT NULL`
+		)
+		.all() as { series_id: number; media: number; format: string | null; kind: Kind }[];
 	const put = db.prepare(
 		`INSERT INTO tracker_state (series_id, service, status, score, progress, read_at) VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT (series_id, service) DO UPDATE SET status = excluded.status, score = excluded.score,
@@ -285,7 +311,7 @@ function saveState(
 	let n = 0;
 	db.transaction(() => {
 		for (const l of links) {
-			const e = byMedia.get(l.media);
+			const e = byMedia.get(stateKey(service, l.media, l.kind, l.format));
 			// Off the list now: nothing to show for it.
 			if (!e) drop.run(l.series_id, service, readFrom);
 			else {
@@ -300,9 +326,11 @@ function saveState(
 
 /**
  * Read the owner's list on one catalogue: what it says of each linked
- * series. AniList's list also links: an entry of it whose title is sure for
- * exactly one unlinked series in view links that series ('list'), and its
- * score fills an unrated series' rating (1w).
+ * series. Both of AniList's lists are read (manga and anime), and both of
+ * MAL's, since a series is linked to whichever kind it is. AniList's lists
+ * also link: an entry whose title is sure for exactly one unlinked series of
+ * its own kind in view links that series ('list'), and its score fills an
+ * unrated series' rating (1w).
  */
 export async function readList(
 	service: Service,
@@ -312,65 +340,82 @@ export async function readList(
 	if (!a) return { entries: 0, linked: 0 };
 	// The clock, not `now`: sends are stamped by it, and this is compared with them.
 	const readFrom = Date.now();
+	const byMedia = new Map<string, ListEntry>();
 	if (service === 'mal') {
 		const token = await malToken(a, now);
-		const byMedia = new Map<number, ListEntry>();
-		let path: string | null = '/users/@me/mangalist?fields=list_status&limit=1000&nsfw=true';
-		while (path) {
-			const page = (await mal(token, path)) as {
-				data: {
-					node: { id: number };
-					list_status: { status: string; score: number; num_chapters_read: number };
-				}[];
-				paging?: { next?: string };
-			};
-			for (const d of page.data)
-				byMedia.set(d.node.id, {
-					mediaId: d.node.id,
-					status: statusFrom('mal', d.list_status.status),
-					progress: d.list_status.num_chapters_read ?? 0,
-					score: d.list_status.score || null
-				});
-			path = page.paging?.next
-				? page.paging.next.replace('https://api.myanimelist.net/v2', '')
-				: null;
+		let read = 0;
+		for (const list of ['mangalist', 'animelist'] as const) {
+			const fam = family(list === 'animelist' ? 'anime' : 'manga');
+			let path: string | null = `/users/@me/${list}?fields=list_status&limit=1000&nsfw=true`;
+			while (path) {
+				const page = (await mal(token, path)) as {
+					data: {
+						node: { id: number };
+						list_status: {
+							status: string;
+							score: number;
+							num_chapters_read?: number;
+							num_episodes_watched?: number;
+						};
+					}[];
+					paging?: { next?: string };
+				};
+				for (const d of page.data) {
+					byMedia.set(`${fam}:${d.node.id}`, {
+						mediaId: d.node.id,
+						status: statusFrom('mal', d.list_status.status),
+						progress: d.list_status.num_chapters_read ?? d.list_status.num_episodes_watched ?? 0,
+						score: d.list_status.score || null
+					});
+					read += 1;
+				}
+				path = page.paging?.next
+					? page.paging.next.replace('https://api.myanimelist.net/v2', '')
+					: null;
+			}
 		}
 		saveState('mal', byMedia, readFrom, now);
-		return { entries: byMedia.size, linked: 0 };
+		// The rows read, not the map's size: one id in each family is two rows.
+		return { entries: read, linked: 0 };
 	}
-	const data = (await anilistAs(
-		a.access_token,
-		`query ($userId: Int) { MediaListCollection(userId: $userId, type: MANGA) {
-			lists { entries { mediaId status progress score(format: POINT_10) media { ...M } } }
-		} } ${MEDIA}`,
-		{ userId: Number(a.user_id) }
-	)) as {
-		MediaListCollection: {
-			lists: {
-				entries: {
-					mediaId: number;
-					status: string;
-					progress: number;
-					score: number;
-					media: Media;
+	const entries: {
+		mediaId: number;
+		status: string;
+		progress: number;
+		score: number;
+		media: Media;
+	}[] = [];
+	for (const type of ['MANGA', 'ANIME'] as const) {
+		const data = (await anilistAs(
+			a.access_token,
+			`query ($userId: Int) { MediaListCollection(userId: $userId, type: ${type}) {
+				lists { entries { mediaId status progress score(format: POINT_10) media { ...M } } }
+			} } ${MEDIA}`,
+			{ userId: Number(a.user_id) }
+		)) as {
+			MediaListCollection: {
+				lists: {
+					entries: {
+						mediaId: number;
+						status: string;
+						progress: number;
+						score: number;
+						media: Media;
+					}[];
 				}[];
-			}[];
+			};
 		};
-	};
-	const entries = data.MediaListCollection.lists.flatMap((l) => l.entries);
+		entries.push(...data.MediaListCollection.lists.flatMap((l) => l.entries));
+	}
 	// Links first, so their state is saved with the rest.
 	const linked = linkFromEntries(entries, now);
-	const byMedia = new Map<number, ListEntry>(
-		entries.map((e) => [
-			e.mediaId,
-			{
-				mediaId: e.mediaId,
-				status: statusFrom('anilist', e.status),
-				progress: e.progress ?? 0,
-				score: e.score || null
-			}
-		])
-	);
+	for (const e of entries)
+		byMedia.set(String(e.mediaId), {
+			mediaId: e.mediaId,
+			status: statusFrom('anilist', e.status),
+			progress: e.progress ?? 0,
+			score: e.score || null
+		});
 	saveState('anilist', byMedia, readFrom, now);
 	return { entries: entries.length, linked };
 }
@@ -395,8 +440,10 @@ function linkFromEntries(
 		const found = new Map<number, Kind>();
 		for (const t of titles)
 			for (const s of index.get(normaliseTitle(t)) ?? []) found.set(s.id, s.kind);
-		// Of the series' own kind only: a list entry across kinds is no sure link.
-		const fits = [...found].filter(([, kind]) => !coverOnly(kind, c.format));
+		// Of the series' own kind only: a list entry across kinds is no sure link
+		// (a manga's title on an anime is another work; c298).
+		const entryKind = candidateKind(c);
+		const fits = [...found].filter(([, kind]) => sameKind(kind, entryKind));
 		if (fits.length !== 1) continue;
 		const [seriesId] = fits[0];
 		linkFromList(seriesId, c, e.score || null, now);
@@ -448,6 +495,11 @@ function targets(seriesId: number): Target[] {
 		| undefined;
 	if (!r || r.hidden || (r.kind !== 'manga' && r.kind !== 'manhwa')) return [];
 	if (coverOnly(r.kind, r.format ?? '')) return [];
+	// A link whose entry is the other kind sends nothing (c298): an anime entry
+	// never takes a manga's chapters, nor the other way round. An entry whose
+	// format isn't known yet is not a contradiction.
+	const entryKind = r.format ? candidateKind({ format: r.format, country: '' }) : null;
+	if (entryKind !== null && !sameKind(r.kind, entryKind)) return [];
 	const out: Target[] = [];
 	if (r.anilist_id && account('anilist')) out.push({ service: 'anilist', mediaId: r.anilist_id });
 	if (r.mal_id && account('mal')) out.push({ service: 'mal', mediaId: r.mal_id });
