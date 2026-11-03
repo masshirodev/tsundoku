@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { PlannedSeries } from '$lib/import/plan';
@@ -7,6 +7,14 @@ import type { PlannedSeries } from '$lib/import/plan';
 process.env.DATABASE_PATH = ':memory:';
 process.env.ENGINE_TOKEN = 't';
 delete process.env.SUWAYOMI_URL;
+
+// A novel's check is solved by the app, which checks the address is on the
+// internet before the solver hears of it (novels/solver.ts, net-guard.ts).
+// Names resolve as the stub says, so the test site is a public one.
+const ADDRESSES: Record<string, string[]> = { 'www.novel.example': ['93.184.215.14'] };
+vi.mock('node:dns/promises', () => ({
+	lookup: async (host: string) => (ADDRESSES[host] ?? []).map((address) => ({ address, family: 4 }))
+}));
 
 const { getDb } = await import('$lib/server/db');
 const { ensureRoot, writeSeries } = await import('$lib/server/import/write');
@@ -26,12 +34,16 @@ type Call = {
 	filterList?: unknown;
 };
 let calls: Call[] = [];
+/** How many times the fake engine's /challenges was asked. */
+let challengeCalls = 0;
 /** What the fake engine's /challenges says. */
 let challenges: { solving: Record<string, number>; solved: Record<string, number> } = {
 	solving: {},
 	solved: {}
 };
 let server: Server;
+/** Where the app's own solver is stubbed: the same fake engine, on /v1. */
+let enginePort = 0;
 
 const manga = (sourceId: string, page: number, i: number) => ({
 	url: `/s${sourceId}/p${page}-${i}`,
@@ -43,10 +55,37 @@ const manga = (sourceId: string, page: number, i: number) => ({
 
 beforeAll(async () => {
 	server = createServer((req, res) => {
-		if (req.url === '/challenges')
+		if (req.url === '/challenges') {
+			challengeCalls++;
 			return res
 				.writeHead(200, { 'content-type': 'application/json' })
 				.end(JSON.stringify(challenges));
+		}
+		// A stubbed FlareSolverr (c152): a clearance for the novel site, slow
+		// enough that a test can see the solve underway.
+		if (req.url === '/v1') {
+			let raw = '';
+			req.on('data', (c) => (raw += c));
+			req.on('end', () =>
+				setTimeout(
+					() =>
+						res.writeHead(200, { 'content-type': 'application/json' }).end(
+							JSON.stringify({
+								status: 'ok',
+								message: 'ok',
+								solution: {
+									url: 'https://www.novel.example/',
+									status: 200,
+									userAgent: 'StubBrowser/2.0',
+									cookies: [{ name: 'cf_clearance', value: 'ok', domain: '.novel.example' }]
+								}
+							})
+						),
+					40
+				)
+			);
+			return;
+		}
 		let raw = '';
 		req.on('data', (c) => (raw += c));
 		req.on('end', () => {
@@ -81,7 +120,8 @@ beforeAll(async () => {
 		});
 	});
 	await new Promise<void>((ok) => server.listen(0, '127.0.0.1', ok));
-	process.env.ENGINE_URL = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+	enginePort = (server.address() as AddressInfo).port;
+	process.env.ENGINE_URL = `http://127.0.0.1:${enginePort}`;
 });
 afterAll(async () => {
 	server.closeAllConnections();
@@ -89,6 +129,7 @@ afterAll(async () => {
 });
 beforeEach(() => {
 	calls = [];
+	challengeCalls = 0;
 	browse.forgetAll();
 	forgetSourceUse();
 });
@@ -301,6 +342,52 @@ describe('a site’s browser check', () => {
 		await browse.checkingSince(OPEN);
 		expect(browse.browseList(false).manga.find((r) => r.id === OPEN)!.check).toBe(true);
 		challenges = { solving: {}, solved: {} };
+	});
+
+	it('is a novel’s own, matched by its plugin’s site (c152)', async () => {
+		db.prepare(
+			`INSERT INTO novel_plugins (id, name, site, lang, version, hash, installed_at, updated_at, failed)
+			VALUES ('shelfish', 'Shelf Novels', 'https://www.novel.example/', 'en', '1.0.0', 'h', 0, 0, '')`
+		).run();
+		challenges = { solving: { 'api.novel.example': 7_000 }, solved: {} };
+		expect(await browse.checkingSince('ln:shelfish')).toBe(7_000);
+		// A plugin that isn't installed has no site, and the engine isn't asked at all.
+		challengeCalls = 0;
+		expect(await browse.checkingSince('ln:absent')).toBeNull();
+		expect(challengeCalls).toBe(0);
+		challenges = { solving: {}, solved: { 'www.novel.example': 8_000 } };
+		await browse.checkingSince('ln:shelfish');
+		expect(browse.browseList(false).novels.find((r) => r.id === 'ln:shelfish')!.check).toBe(true);
+		challenges = { solving: {}, solved: {} };
+	});
+
+	it('is the app’s own solve while it runs, and the engine needn’t answer (c152)', async () => {
+		// This test's own preconditions: no engine solve left by the test above.
+		challenges = { solving: {}, solved: {} };
+		// `shelfish` is the test above's; a second plugin so neither leans on the other.
+		db.prepare(
+			`INSERT INTO novel_plugins (id, name, site, lang, version, hash, installed_at, updated_at, failed)
+			VALUES ('junction', 'Junction Novels', 'https://www.novel.example/', 'en', '1.0.0', 'h', 0, 0, '')`
+		).run();
+		const solver = await import('$lib/server/novels/solver');
+		const engine = process.env.ENGINE_URL;
+		const stub = process.env.NOVEL_SOLVER_URL;
+		// The engine is not there: a novel's live line is the app's own solve, and
+		// checkingSince's catch is what must still return it.
+		delete process.env.ENGINE_URL;
+		process.env.NOVEL_SOLVER_URL = `http://127.0.0.1:${enginePort}/v1`;
+		try {
+			const running = solver.solveChallenge('https://www.novel.example/');
+			await new Promise((ok) => setTimeout(ok, 10));
+			expect(await browse.checkingSince('ln:junction')).toEqual(expect.any(Number));
+			expect(await running).not.toBeNull();
+			expect(await browse.checkingSince('ln:junction')).toBeNull();
+		} finally {
+			challenges = { solving: {}, solved: {} };
+			process.env.ENGINE_URL = engine;
+			if (stub === undefined) delete process.env.NOVEL_SOLVER_URL;
+			else process.env.NOVEL_SOLVER_URL = stub;
+		}
 	});
 });
 

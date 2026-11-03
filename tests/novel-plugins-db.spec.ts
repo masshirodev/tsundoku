@@ -10,6 +10,7 @@ process.env.NOVEL_STORE = store;
 
 const { getDb } = await import('$lib/server/db');
 const plugins = await import('$lib/server/novels/plugins');
+const solver = await import('$lib/server/novels/solver');
 const { parseIndex, langCode, newer, repoUrl, isNovelRepoAddress, NovelRepoError } =
 	await import('$lib/library/lnreader-index');
 type Fetcher = import('$lib/server/novels/plugins').Fetcher;
@@ -171,5 +172,15 @@ describe('a plugin', () => {
 		plugins.removePlugin('royalroad');
 		expect(plugins.installedPlugins()).toEqual([]);
 		expect(existsSync(file)).toBe(false);
+	});
+});
+
+describe('the host the app builds', () => {
+	it('solves a site’s check with the app’s own solver (c152)', () => {
+		// The one line that puts the card into production. Every other spec builds
+		// its own host with its own solve, so nothing would notice this going.
+		const opts = plugins.hostOptions();
+		expect(opts.solve).toBe(solver.solveChallenge);
+		expect(opts.store).toBe(store);
 	});
 });

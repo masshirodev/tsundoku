@@ -1,6 +1,7 @@
 <script lang="ts">
 	import StartTrail from '$lib/components/start/StartTrail.svelte';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import TopBar from '$lib/components/chrome/TopBar.svelte';
 	import Cover from '$lib/components/content/Cover.svelte';
 	import type { SearchHit } from '$lib/server/download-types';
@@ -44,8 +45,9 @@
 			else void h.then((s) => settled.set(g.id, countOf(s)));
 		}
 	});
-	// A source still asking: is the engine passing its site's check? (c143) Asked only on the
-	// engine, which is the one that can say.
+	// A source still asking: is its site's check being passed? (c143) The engine
+	// says for an extension, the app itself for a novel (c152); asked only with
+	// the engine set up, which BROWSE needs anyway.
 	const checks = new SvelteMap<string, SiteCheck>();
 	$effect(() => {
 		if (!data.engine) return;
@@ -135,12 +137,15 @@
 		{#snippet answer(hits: SearchHit[] | null)}
 			{#if hits}
 				{#each data.only ? hits : hits.slice(0, SHOWN) as h (h.mangaId)}
-					<!-- A preview asks the source: loaded on tap, not hover (see ResultTile). -->
+					<!-- A preview asks the source: loaded on tap, not hover (see ResultTile).
+					     An in-library hit is the series, not its preview, and keeps the
+					     search it was found by as its origin, so its ← says SOURCES (c262,
+					     c152): the same rule BROWSE's tile follows. -->
 					<a
 						class="hit"
 						data-sveltekit-preload-data="tap"
 						href={h.match.kind === 'in-library'
-							? seriesHref(h.match.seriesId)
+							? seriesHref(h.match.seriesId, page.url.pathname + page.url.search)
 							: `${resolve('/downloads/source/[id]', { id: String(h.mangaId) })}?q=${encodeURIComponent(data.q)}`}
 					>
 						<Cover src={h.cover} width={44} height={62} />

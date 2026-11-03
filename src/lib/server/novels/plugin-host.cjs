@@ -13,7 +13,9 @@
  * Messages (IPC): { id, op: 'info' | 'call', file, method?, args? } in;
  * { id, ok: true, value } or { id, ok: false, error } out. The first message
  * may be { op: 'config', allow: ['127.0.0.1:4170'] }: loopback ports the
- * parent opens on purpose, for tests. Nothing else can open one.
+ * parent opens on purpose, for tests. Nothing else can open one. When a site
+ * answers with a browser check the host sends { op: 'challenge', id, url } and
+ * the parent answers { op: 'challenge-result', id, ok, value } (card c152).
  */
 const vm = require('node:vm');
 const fs = require('node:fs');
@@ -91,9 +93,17 @@ async function guardedFetch(input, init = {}) {
 	const opts = {
 		...init,
 		headers,
-		redirect: 'manual',
-		signal: init.signal || AbortSignal.timeout(30_000)
+		redirect: 'manual'
 	};
+	// One retry for the whole request: a site that keeps answering with a check
+	// is a check that wasn't passed, not something to keep asking about.
+	let retried = false;
+	// One 30 s budget for the whole request, redirects included: a fresh one per
+	// hop would let a six-hop chain run 180 s, past the 120 s the app allows a
+	// novel call. The retry after a clearance gets its own, since a solve takes
+	// 20-45 s first. A caller's own signal is never reset.
+	let deadline = init.signal || AbortSignal.timeout(30_000);
+	const attempt = () => ({ ...opts, signal: deadline });
 	for (let hop = 0; hop < 6; hop++) {
 		try {
 			await checkUrl(url);
@@ -103,12 +113,36 @@ async function guardedFetch(input, init = {}) {
 		}
 		let res;
 		try {
-			res = await fetch(url, opts);
+			res = await fetch(url, withJar(attempt(), url));
 		} catch (e) {
 			note(`${new URL(url).hostname} did not answer (${(e.cause && e.cause.code) || e.message})`);
 			throw e;
 		}
-		if (res.status >= 400) note(`${new URL(url).hostname} answered ${res.status}`);
+		let challenge = await isChallenge(res);
+		if (challenge && !retried) {
+			retried = true;
+			const clearance = await challengeFor(url);
+			if (clearance) {
+				deadline = init.signal || AbortSignal.timeout(30_000);
+				try {
+					res = await fetch(url, withJar(attempt(), url));
+				} catch (e) {
+					note(
+						`${new URL(url).hostname} did not answer (${(e.cause && e.cause.code) || e.message})`
+					);
+					throw e;
+				}
+				challenge = await isChallenge(res);
+				// The site refused the clearance it was just given. Remember that
+				// where it is seen: the next chapter would otherwise pay the same
+				// solve and retry for a check this host cannot pass.
+				if (challenge) refused.set(hostOf(url), Date.now());
+				else refused.delete(hostOf(url));
+			}
+		}
+		if (challenge)
+			note(`${new URL(url).hostname} answered ${res.status} (its check could not be passed)`);
+		else if (res.status >= 400) note(`${new URL(url).hostname} answered ${res.status}`);
 		const to = res.status >= 300 && res.status < 400 ? res.headers.get('location') : null;
 		if (!to) return res;
 		url = new URL(to, url).href;
@@ -119,6 +153,102 @@ async function guardedFetch(input, init = {}) {
 			Object.assign(opts, { method: 'GET', body: undefined });
 	}
 	throw new Error('refused: too many redirects');
+}
+
+// ---- a site's browser check (doc/NOVELS.md, "Past a site's bot check"; c152) ---------------
+// The host refuses local addresses, and a solver is one, so it can't reach one
+// itself. It asks the parent over IPC, naming only the URL; the app checks the
+// address is on the internet and answers with that host's clearance cookies
+// and user agent, or nothing. Never the solver's address, never .env.
+
+/** A host's clearance, from the app: cookies as a Cookie header's value, and the agent to send. */
+const jars = new Map();
+/**
+ * Hosts whose clearance the site still refused, and when: the retry above
+ * already asked, so asking again inside the window pays a solve and a retry
+ * for nothing — a 148-chapter download would pay 148 times.
+ */
+const refused = new Map();
+const REFUSED_MS = 10 * 60_000;
+let challengeId = 1;
+const asked = new Map();
+const solving = new Map();
+
+const hostOf = (url) => new URL(url).hostname.toLowerCase();
+
+/** The app's own timeout is shorter; this only stops a plugin waiting on nobody. */
+const CHALLENGE_MS = 70_000;
+
+function askChallenge(url) {
+	const id = challengeId++;
+	return new Promise((resolve) => {
+		const timer = setTimeout(() => {
+			asked.delete(id);
+			resolve(null);
+		}, CHALLENGE_MS);
+		asked.set(id, { resolve, timer });
+		try {
+			process.send({ op: 'challenge', id, url });
+		} catch {
+			clearTimeout(timer);
+			asked.delete(id);
+			resolve(null);
+		}
+	});
+}
+
+/** One solve per host at a time: a plugin asking in a loop waits on the first, not a queue. */
+function challengeFor(url) {
+	const host = hostOf(url);
+	// A clearance this host just refused is not asked for again: the one request
+	// the call makes is already a check, and there is nothing to retry with.
+	const at = refused.get(host);
+	if (at !== undefined && Date.now() - at < REFUSED_MS) return Promise.resolve(null);
+	let one = solving.get(host);
+	if (!one) {
+		one = askChallenge(url)
+			.then((clearance) => {
+				if (clearance && (clearance.cookies || clearance.userAgent)) jars.set(host, clearance);
+				return clearance;
+			})
+			.finally(() => solving.delete(host));
+		solving.set(host, one);
+	}
+	return one;
+}
+
+/** The jar of the host [url] is on, and of no other: a redirect to another host carries none of it. */
+function withJar(opts, url) {
+	const u = new URL(url);
+	const jar = jars.get(hostOf(url));
+	if (!jar) return opts;
+	const headers = new Headers(opts.headers || {});
+	const own = headers.get('cookie');
+	// A jar goes as one Cookie header, so one secure cookie in it makes the whole
+	// jar https-only: a cf_clearance in clear text is the one thing it must never
+	// be. http stays reachable (checkUrl allows it); it just gets no clearance.
+	const secure = jar.httpsOnly && u.protocol !== 'https:';
+	if (jar.cookies && !secure) headers.set('cookie', own ? `${own}; ${jar.cookies}` : jar.cookies);
+	if (jar.userAgent) headers.set('user-agent', jar.userAgent);
+	return { ...opts, headers };
+}
+
+/**
+ * Whether a response is a site's check, not the site's own answer: a 403 it
+ * meant is left alone. Only Cloudflare's mitigation header and its challenge
+ * page are markers — `cf-ray` and `server: cloudflare` ride on every response
+ * it proxies, so a members-only 403 or a maintenance 503 carries them too.
+ */
+async function isChallenge(res) {
+	if (res.status !== 403 && res.status !== 503) return false;
+	const mitigated = res.headers.get('cf-mitigated');
+	if (mitigated && /challenge/i.test(mitigated)) return true;
+	try {
+		const body = await res.clone().text();
+		return body.includes('__cf_chl') || body.includes('/cdn-cgi/challenge-platform/');
+	} catch {
+		return false;
+	}
 }
 
 // ---- the shims: @libs/*, as LNReader's runtime gives them (lnreader-plugins, MIT) ------------
@@ -373,6 +503,15 @@ async function handle(m) {
 }
 
 process.on('message', (m) => {
+	// The app's answer to a site's check: a clearance for the host asked about, or nothing.
+	if (m && m.op === 'challenge-result') {
+		const wait = asked.get(m.id);
+		if (!wait) return;
+		asked.delete(m.id);
+		clearTimeout(wait.timer);
+		wait.resolve(m.ok && m.value ? m.value : null);
+		return;
+	}
 	Promise.resolve()
 		.then(() => explained(m))
 		.then(

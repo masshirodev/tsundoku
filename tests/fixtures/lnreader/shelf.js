@@ -18,8 +18,15 @@ var CHAPTERS = [
 Shelf.prototype.popularNovels = async function (page) {
 	return page === 1 ? [{ name: 'The Quiet Shelf', path: '/novel/quiet', cover: '' }] : [];
 };
-Shelf.prototype.searchNovels = async function () {
-	return [];
+Shelf.prototype.searchNovels = async function (term) {
+	// What a plugin's search does: its own list, filtered by the term. A novel
+	// already added is then an in-library hit (tests/browse-novels.e2e.ts).
+	var q = String(term || '')
+		.toLowerCase()
+		.trim();
+	return 'the quiet shelf'.includes(q) && q
+		? [{ name: 'The Quiet Shelf', path: '/novel/quiet' }]
+		: [];
 };
 Shelf.prototype.parseNovel = async function (path) {
 	return {

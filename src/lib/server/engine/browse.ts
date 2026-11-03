@@ -18,6 +18,7 @@ import {
 	type NovelItem
 } from '../novels/source.ts';
 import { installedPlugins } from '../novels/plugins.ts';
+import { solvingSince } from '../novels/solver.ts';
 
 /**
  * Browsing a source (doc/BROWSE.md; card c141): its POPULAR and LATEST
@@ -107,6 +108,21 @@ const baseUrlOf = (sourceId: string) =>
 			{ base_url: string } | undefined
 	)?.base_url ?? '';
 
+/**
+ * A source's site: an extension's base URL, or, for an LNReader plugin, the
+ * site its file names (`novel_plugins.site`). A novel's checks are solved by
+ * the app, but its site is matched the same way (card c152).
+ */
+function siteOfSource(sourceId: string): string {
+	if (isNovelSource(sourceId)) {
+		const row = getDb()
+			.prepare(`SELECT site FROM novel_plugins WHERE id = ?`)
+			.get(sourceId.slice(3)) as { site: string } | undefined;
+		return row ? siteOf(row.site) : '';
+	}
+	return siteOf(baseUrlOf(sourceId));
+}
+
 /** Remembers the hosts the engine has solved a check for, so BROWSE can say so after. */
 function noteChecked(solved: Record<string, number>): void {
 	const put = getDb().prepare(
@@ -117,22 +133,26 @@ function noteChecked(solved: Record<string, number>): void {
 }
 
 /**
- * Whether the engine is passing [sourceId]'s site's browser check right now,
- * and since when: what the waiting page names at once (Browse Calls, "A
- * site's check is named at once"). Null when it isn't, or the engine can't say.
+ * Whether [sourceId]'s site's browser check is being passed right now, and
+ * since when: what the waiting page names at once (Browse Calls, "A site's
+ * check is named at once"). The engine says for an extension; the app itself
+ * for a novel, which it solves (novels/solver.ts). Null when neither is.
  */
 export async function checkingSince(sourceId: string): Promise<number | null> {
-	const site = siteOf(baseUrlOf(sourceId));
+	const site = siteOfSource(sourceId);
+	if (!site) return null;
+	const since: number[] = [];
+	const own = solvingSince(site);
+	if (own !== null) since.push(own);
 	try {
 		const c = await challenges();
 		noteChecked(c.solved);
-		const since = Object.entries(c.solving)
-			.filter(([host]) => sameSite(host.toLowerCase(), site))
-			.map(([, t]) => t);
-		return since.length ? Math.min(...since) : null;
+		for (const [host, at] of Object.entries(c.solving))
+			if (sameSite(host.toLowerCase(), site)) since.push(at);
 	} catch {
-		return null;
+		// The engine not answering is drawn elsewhere; the app's own solve still counts.
 	}
+	return since.length ? Math.min(...since) : null;
 }
 
 /**
@@ -214,6 +234,7 @@ export function browseList(reveal: boolean): BrowseList {
 		).map((r) => [r.source_id, r.browsed_at])
 	);
 	const checked = checkedSites();
+	const plugins = installedPlugins();
 	const bases = new Map(
 		(
 			getDb().prepare(`SELECT id, base_url FROM engine_sources`).all() as {
@@ -222,6 +243,8 @@ export function browseList(reveal: boolean): BrowseList {
 			}[]
 		).map((r) => [r.id, siteOf(r.base_url)])
 	);
+	// A plugin's site is the plugin's, not an engine source's (c152).
+	for (const p of plugins) bases.set(`ln:${p.id}`, siteOf(p.site));
 	const rows: BrowseRow[] = shown.map((s) => ({
 		...s,
 		label: (perPkg.get(s.pkg) ?? 0) > 1 ? `${s.name} · ${s.lang.toUpperCase()}` : s.name,
@@ -240,7 +263,7 @@ export function browseList(reveal: boolean): BrowseList {
 		extensions: visiblePkgs.size,
 		updates:
 			installed().filter((e) => e.update && visiblePkgs.has(e.pkg)).length +
-			installedPlugins().filter((p) => p.update && visiblePkgs.has(`ln:${p.id}`)).length
+			plugins.filter((p) => p.update && visiblePkgs.has(`ln:${p.id}`)).length
 	};
 }
 
