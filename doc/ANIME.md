@@ -305,7 +305,11 @@ length is kept.
   kept AniSkip from being asked for a week. A series with no link is never
   asked at all, and writes no negative: `lookupAniSkip` returns before
   `saveAttempt` when `mal_id` is null (the live row that looked like one was
-  written while the background pass's manga link was in place).
+  written while the background pass's manga link was in place). The episodes'
+  watched-at ending follows the marks that remain: clearing AniSkip's rows
+  recomputes each affected episode's `entries.ending_at` and writes `NULL`
+  when no mark is left, so an old entry's ending is never left behind to mark
+  an episode watched early (or never).
 - **Cost:** one small HTTP request per episode, once, on the resolve that
   plays it. It is awaited so the buttons are there on the first play; every
   later resolve is a database read.

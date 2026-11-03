@@ -144,18 +144,29 @@ export function saveAttempt(
  * set, changed or removed asks a different MAL entry, and a negative kept
  * from the old one would keep AniSkip from being asked for a week (card
  * c299). Called inside every door that writes a link (catalogue.ts).
+ *
+ * `entries.ending_at` is where the app decides an episode counts as watched,
+ * so it follows the marks that remain: an episode whose only ending was
+ * AniSkip's has none once its row is gone, and a relink's fingerprint ending
+ * takes the place the old AniSkip one held.
  */
 export function clearAniSkip(seriesId: number, db: Database.Database = getDb()): void {
+	const ids = (
+		db.prepare(`SELECT id FROM entries WHERE series_id = ?`).all(seriesId) as { id: number }[]
+	).map((r) => r.id);
 	db.prepare(
 		`DELETE FROM episode_marks WHERE method = 'aniskip'
 		AND entry_id IN (SELECT id FROM entries WHERE series_id = ?)`
 	).run(seriesId);
+	for (const id of ids) syncEndingAt(id, db);
 }
 
-/** `entries.ending_at` is where an episode counts as watched: the best ending, or none. */
+/**
+ * `entries.ending_at` is where an episode counts as watched: the best ending,
+ * or none. It is written even when no mark remains, so a cleared or replaced
+ * finder cannot leave its ending behind.
+ */
 export function syncEndingAt(entryId: number, db: Database.Database = getDb()): void {
-	const rows = storedMarks(entryId, db);
-	if (!rows.length) return;
 	const chosen = chosenMarks(entryId, db);
 	db.prepare(`UPDATE entries SET ending_at = ? WHERE id = ?`).run(
 		chosen.ending?.start ?? null,
