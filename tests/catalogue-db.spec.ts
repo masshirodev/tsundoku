@@ -407,6 +407,26 @@ describe('an anime', () => {
 			forgetSerie(id);
 		}
 	});
+
+	it('resolves the same MAL id in each catalogue, never across them', async () => {
+		const manga = idOf('Tower of God');
+		const show = animeSeries('Ranma ½ (2024)');
+		try {
+			cat.linkFromTracker(db, manga, { id: 23, score: 0 }, NOW);
+			cat.linkFromTracker(db, show, { id: 23, score: 0 }, NOW);
+			entries = [
+				media({ id: 30023, idMal: 23, english: 'Ranma ½' }),
+				anime({ id: 30024, idMal: 23, english: 'Ranma ½' })
+			];
+			expect(await cat.resolveLinks(NOW)).toBe(2);
+			expect(linkRow(manga)).toMatchObject({ anilist_id: 30023, mal_id: 23 });
+			expect(linkRow(show)).toMatchObject({ anilist_id: 30024, mal_id: 23 });
+		} finally {
+			forgetSerie(show);
+			cat.unlink(manga, NOW);
+			db.prepare(`DELETE FROM link_decisions WHERE series_id = ?`).run(manga);
+		}
+	});
 });
 
 describe('the review', () => {

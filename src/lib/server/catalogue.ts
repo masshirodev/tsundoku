@@ -4,6 +4,7 @@ import { HIDDEN_SQL, IN_LIBRARY_SQL, VISIBLE_SQL, visibleWhere } from './visibil
 import { clearAniSkip } from './anime/marks.ts';
 import {
 	ANIME_FORMATS,
+	candidateKind,
 	candidateRows,
 	coverLines,
 	coverOnly,
@@ -171,6 +172,9 @@ export function toCandidate(m: Media): Candidate {
 
 /** AniList's two catalogues: an anime series asks ANIME, everything else MANGA. */
 const mediaTypeOf = (kind: Kind): 'ANIME' | 'MANGA' => (kind === 'anime' ? 'ANIME' : 'MANGA');
+
+/** The two families a MAL id belongs to: anime's ids and manga's are separate sequences. */
+const family = (kind: Kind): 'anime' | 'comic' => (kind === 'anime' ? 'anime' : 'comic');
 
 /** The formats a kind can be: an anime its own, a novel NOVEL, anything else a comic. */
 const formatsOf = (kind: Kind): string[] =>
@@ -511,7 +515,9 @@ export async function resolveLinks(now = Date.now()): Promise<number> {
 		return out;
 	};
 	const malById = new Map(
-		(await lookup('idMal_in')).filter((c) => c.malId !== null).map((c) => [c.malId!, c])
+		(await lookup('idMal_in'))
+			.filter((c) => c.malId !== null)
+			.map((c) => [`${family(candidateKind(c) ?? 'manga')}:${c.malId}`, c])
 	);
 	const alById = new Map((await lookup('id_in')).map((c) => [c.anilistId, c]));
 	const set = db.prepare(
@@ -524,7 +530,10 @@ export async function resolveLinks(now = Date.now()): Promise<number> {
 	let n = 0;
 	db.transaction(() => {
 		for (const w of waiting) {
-			const c = w.anilist_id !== null ? alById.get(w.anilist_id) : malById.get(w.mal_id ?? -1);
+			const c =
+				w.anilist_id !== null
+					? alById.get(w.anilist_id)
+					: malById.get(`${family(w.kind)}:${w.mal_id ?? -1}`);
 			if (c) {
 				set.run(c.anilistId, c.malId, c.title, c.coverUrl, now, c.format, w.series_id);
 				n += 1;
