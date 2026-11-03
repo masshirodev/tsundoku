@@ -137,7 +137,6 @@
 			? resolve('/series/[id]', { id: String(workNext.seriesId) })
 			: '';
 	let workClosed = $state(false);
-	/** The next part's place, in the Work screen's run-row words. */
 	const stateWord = (s: WorkNextPart['state']) =>
 		s === 'not-started'
 			? 'NOT STARTED'
@@ -146,6 +145,10 @@
 				: s === 'caught-up'
 					? 'CAUGHT UP'
 					: 'READ';
+	/** The next part's own line (Work-EndStates 3): "MANGA · 140 CH. · NOT STARTED". */
+	const workMeta = workNext
+		? `${kindLabel(workNext.kind)} · ${grouped(workNext.entries)} ${unitLabel(workNext.kind)}. · ${stateWord(workNext.state)}`
+		: '';
 	const upNext = episodes.slice(index + 1, index + 5);
 	const leftInSeason = episodes.filter(
 		(e, i) => i > index && e.season === ep.season && e.readAt === null
@@ -1178,10 +1181,7 @@
 				>
 				<div class="t">
 					<div class="a">{workNext.title}</div>
-					<div class="b">
-						{kindLabel(workNext.kind)} · {grouped(workNext.entries)}
-						{unitLabel(workNext.kind)} · {stateWord(workNext.state)}
-					</div>
+					<div class="b">{workMeta}</div>
 					<div class="b">WORK · {work.name.toUpperCase()}</div>
 				</div>
 			</div>

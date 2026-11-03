@@ -426,12 +426,16 @@ export function directionWord(direction: Direction): string {
  * "MANHWA · 205 CHAPTERS · ALL DOWNLOADED · SCROLLS". The unit word follows the
  * part's kind -- an anime next part says EPISODES -- because a Work may hold
  * mixed kinds and the block speaks for the part it offers, not for this one.
+ * It comes from `unitLabel`, the accent's own word, so one part never says two:
+ * a novel's part reads "NOVEL · 12 VOLUMES" above "▶ READ · VOL. 1".
  */
+const PLURAL_UNIT: Record<string, string> = { EP: 'EPISODES', VOL: 'VOLUMES', CH: 'CHAPTERS' };
+
 export function workPartMeta(
 	p: { kind: Kind; entries: number; downloaded: number },
 	direction: Direction
 ): string {
-	const unit = p.kind === 'anime' ? 'EPISODES' : 'CHAPTERS';
+	const unit = PLURAL_UNIT[unitLabel(p.kind)] ?? 'CHAPTERS';
 	const downloaded =
 		p.entries > 0 && p.downloaded >= p.entries
 			? 'ALL DOWNLOADED'

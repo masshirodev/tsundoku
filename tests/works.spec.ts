@@ -337,9 +337,13 @@ describe('the next part, at the end of one', () => {
 		expect(workPartMeta({ kind: 'manhwa', entries: 205, downloaded: 205 }, 'vertical')).toBe(
 			'MANHWA · 205 CHAPTERS · ALL DOWNLOADED · SCROLLS'
 		);
-		// A mixed Work speaks for the part it offers: an anime says EPISODES.
+		// A mixed Work speaks for the part it offers: an anime says EPISODES, a
+		// novel VOLUMES -- the same word its accent says (unitLabel).
 		expect(workPartMeta({ kind: 'anime', entries: 12, downloaded: 0 }, 'rtl')).toBe(
 			'ANIME · 12 EPISODES · NOT DOWNLOADED · R→L'
+		);
+		expect(workPartMeta({ kind: 'novel', entries: 12, downloaded: 0 }, 'paged')).toBe(
+			'NOVEL · 12 VOLUMES · NOT DOWNLOADED · PAGED'
 		);
 		expect(workPartMeta({ kind: 'manga', entries: 10, downloaded: 4 }, 'rtl')).toBe(
 			'MANGA · 10 CHAPTERS · 4 OF 10 DOWNLOADED · R→L'

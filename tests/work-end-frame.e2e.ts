@@ -49,7 +49,9 @@ const PART2 = {
 	online: 'Tower of God',
 	read: 'Chainsaw Man',
 	player: 'Boku no Kokoro no Yabai Yatsu',
-	novel: 'Sousou no Frieren'
+	novel: 'Sousou no Frieren',
+	stalled: 'The Greatest Estate Developer',
+	scroll: 'Dungeon Meshi'
 };
 let server: ChildProcess | null = null;
 const wipe = () => {
@@ -121,6 +123,12 @@ function prepare() {
 		`UPDATE series SET origin_key = 'mihon:1:https://example.test/tower',
 			source_url = 'https://example.test/tower', source = 'Fake Source' WHERE id = 14`
 	).run();
+	// A second caught-up part (Drawing is ongoing and read to its end) whose next
+	// part has no file and no source: its meanwhile row cannot open.
+	db.prepare(`UPDATE entries SET read_at = ? WHERE series_id = 1`).run(now);
+	db.prepare(`UPDATE entries SET available = 0 WHERE series_id = 7`).run();
+	// The scroll novel, whose last volume's end is the reader's end page too.
+	db.prepare(`UPDATE series SET direction = 'scroll' WHERE id = 16`).run();
 	db.prepare(
 		`INSERT INTO engine_extensions (pkg, repo_id, name, kind, version_code, version_name, lib,
 			handle, installed_at, updated_at) VALUES ('fake', NULL, 'Fake', 'manga', 1, '1.0', '1.0',
@@ -130,7 +138,7 @@ function prepare() {
 		`INSERT INTO engine_sources (id, pkg, name, lang, base_url)
 			VALUES ('1', 'fake', 'Fake Source', 'en', 'https://example.test')`
 	).run();
-	for (const id of [22, 3, 8, 21, 20])
+	for (const id of [22, 3, 8, 21, 20, 1, 15, 16])
 		lastEntry[id] = (
 			db
 				.prepare(
@@ -225,6 +233,12 @@ test.beforeAll(async ({ browser }, info) => {
 	works.read = await makeWork(page, 'Hikaru ga Shinda Natsu', PART2.read);
 	works.player = await makeWork(page, ANIME, PART2.player);
 	works.novel = await makeWork(page, 'Tensei Shitara Ken Deshita', PART2.novel);
+	works.stalled = await makeWork(
+		page,
+		'Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru',
+		PART2.stalled
+	);
+	works.scroll = await makeWork(page, 'Villainess Level 99', PART2.scroll);
 	await close();
 
 	// Their names, so the blocks say something this file can assert on.
@@ -236,6 +250,8 @@ test.beforeAll(async ({ browser }, info) => {
 	rename.run('Hikaru Run', works.read);
 	rename.run('Frieren Run', works.player);
 	rename.run('Ken Run', works.novel);
+	rename.run('Drawing Run', works.stalled);
+	rename.run('Villainess Run', works.scroll);
 	db.close();
 });
 
@@ -618,6 +634,79 @@ test('a next part with no file reads online from its source, and offers DOWNLOAD
 	await expect(page.locator('.end .nextw .go .dl')).toHaveText('DOWNLOAD FIRST 10');
 });
 
+test('offline and not cached: OFFLINE · NOT CACHED, START dimmed, no download cell', async ({
+	page,
+	context
+}) => {
+	await openEnd(page);
+	await expect(page.locator(SEL.nextSub)).toHaveText(/ALL DOWNLOADED/);
+	await context.setOffline(true);
+	await expect(page.locator(SEL.nextSub)).toHaveText('○ OFFLINE · NOT CACHED');
+	// START is a dimmed span, not a link: nothing pretends a chapter opens.
+	await expect(page.locator('.end .nextw .go > a.acc')).toHaveCount(0);
+	await expect(page.locator('.end .nextw .go > .dim')).toContainText('NOT CACHED');
+	// DOWNLOAD FIRST 10 is a queue, and a queue with no network is a lie.
+	await expect(page.locator('.end .nextw .go .dl')).toHaveCount(0);
+	await context.setOffline(false);
+});
+
+test('a meanwhile row whose next part has no file says so instead of offering a cell', async ({
+	page
+}) => {
+	await openEnd(page, 1);
+	await expect(page.getByText('END · LAST AVAILABLE')).toBeVisible();
+	await expect(page.locator(SEL.nextw)).toHaveCount(0);
+	const row = page.locator('.end .wrow');
+	await expect(row).toContainText('MEANWHILE');
+	await expect(row).toContainText('The Greatest Estate Developer · CH. 1');
+	await expect(row).toContainText(/NEXT IN DRAWING RUN · PART 2 · \d+ CH\. · ○ NOT DOWNLOADED/);
+	await expect(row).toHaveAttribute('aria-disabled', 'true');
+	await expect(row.locator('.wr')).toHaveText('NOT DOWNLOADED');
+	// No link: the row is not a cell, so it cannot open the reader's IS NOT
+	// DOWNLOADED page.
+	await expect(page.locator('.end a.wrow')).toHaveCount(0);
+	await expect(page.locator(SEL.foot)).toContainText('DRAWING RUN · WORK');
+});
+
+test('a novel read in SCROLL reaches the end page, so the Work is offered there too', async ({
+	page
+}) => {
+	await page.goto(`${base}/read/${lastEntry[16]}`);
+	await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15_000 });
+	// This series' LAYOUT is SCROLL (its own database, so nothing to put back):
+	// its last volume has no page to turn past, so its own end must be the end.
+	await expect(page.locator('.text-reader.scroll')).toBeVisible();
+	await page.locator('.page').evaluate((n) => (n.scrollTop = n.scrollHeight));
+	await expect(page.locator('[data-end-page]')).toBeVisible();
+	await expect(page.locator(SEL.kicker)).toContainText('NOVEL · CH. 20 OF 20');
+	await expect(page.locator(SEL.nextw)).toBeVisible();
+	await expect(page.locator(SEL.kickerLine)).toHaveText('NEXT IN VILLAINESS RUN · PART 2 OF 2');
+	await expect(page.locator(SEL.nextTitle)).toHaveText('Dungeon Meshi');
+	await expect(page.locator(SEL.nextSub)).toHaveText('MANGA · 97 CHAPTERS · ALL DOWNLOADED · R→L');
+	// One rating ask, as the paged path has.
+	await expect(page.locator('.end .note')).toHaveCount(1);
+	await expect(page.getByRole('button', { name: 'Rate 1 of 10' })).toHaveCount(1);
+	// The end page is over the text: a wheel up returns to it, and a wheel down
+	// at the bottom ends it again -- the door a chapter too short to scroll has,
+	// since such a chapter never fires onscroll.
+	await page.mouse.move(640, 400);
+	await page.mouse.wheel(0, -400);
+	await expect(page.locator('[data-end-page]')).toHaveCount(0);
+	await page.mouse.wheel(0, 400);
+	await expect(page.locator('[data-end-page]')).toBeVisible();
+});
+
+test('an earlier part of a read run is not called the end of the Work', async ({ page }) => {
+	await openEnd(page, 15);
+	// Both parts are read, and this is part 1 of 2: the Work is read, but this
+	// part is not where it ends, so the page is the series' own end page.
+	await expect(page.getByText('THE WORK IS READ')).toHaveCount(0);
+	await expect(page.locator(SEL.kicker)).toContainText('END · HIKARU GA SHINDA NATSU');
+	await expect(page.locator(SEL.title)).toHaveText('Hikaru ga Shinda Natsu');
+	await expect(page.locator(SEL.nextw)).toHaveCount(0);
+	await expect(page.locator(SEL.foot)).toContainText('HIKARU RUN · WORK');
+});
+
 test('the last part says the Work is read, what it held, and WORK → where START was', async ({
 	page
 }) => {
@@ -662,6 +751,8 @@ test('the last episode ends on the Work: no countdown, and nothing plays by itse
 	await expect(card).toContainText('PART 2 OF 2');
 	await expect(card).toContainText('Boku no Kokoro no Yabai Yatsu');
 	await expect(card).toContainText('WORK · FRIEREN RUN');
+	// The part's own line, built once: one dot, and the unit's.
+	await expect(card.locator('.b').first()).toHaveText('MANGA · 160 CH. · IN PROGRESS');
 	await expect(card.locator('.acc')).toContainText('▶ READ · CH. 1');
 	await expect(card.getByRole('link', { name: 'WORK' })).toBeVisible();
 	// The countdown is for episodes, never for another series.

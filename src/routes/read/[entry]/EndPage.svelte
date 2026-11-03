@@ -98,7 +98,7 @@
 		work?: WorkEnd | null;
 		/** The Work's own screen, for the block's WORK → and the foot's cell. */
 		workHref?: string;
-		/** "CH." for pages, "VOL." for a novel's volumes: the series kicker's unit. */
+		/** "CH" for pages, "VOL" for a novel's volumes: the kicker adds the dot itself. */
 		unit?: string;
 	} = $props();
 
@@ -111,8 +111,13 @@
 					.toUpperCase()
 			: ''
 	);
-	/** The run is read (Work-EndStates 4): the page speaks for the Work, not the series. */
-	const runRead = $derived(variant === 'series' && work?.mode === 'read');
+	/**
+	 * The run is read at its last part (Work-EndStates 4): the page speaks for
+	 * the Work, not the series. An earlier part of a read run falls through to
+	 * the series' own end page, because "THE WORK IS READ · 1 OF 2" reads as its
+	 * own contradiction; the foot still offers the Work.
+	 */
+	const runRead = $derived(variant === 'series' && work?.mode === 'read' && work.part === work.of);
 	const started = $derived(
 		work
 			? new Date(work.createdAt)
@@ -145,11 +150,34 @@
 	const meanwhileLine = $derived(
 		work?.next ? `${work.next.title} · ${partUnit(work.next.kind)}. ${first?.number ?? 1}` : ''
 	);
+	/**
+	 * The row says what a tap would do, and whether it can: the same three states
+	 * the block has, because it is the same next part (a caught-up part whose
+	 * next one has no file is not a download count but a NOT DOWNLOADED).
+	 */
+	const meanwhileNote = $derived(
+		offlineState
+			? '○ OFFLINE · NOT CACHED'
+			: onlineOnly
+				? `○ NOT DOWNLOADED · READS ONLINE FROM ${(work?.next?.source ?? '').toUpperCase()}`
+				: unreadable
+					? '○ NOT DOWNLOADED'
+					: downloads
+	);
+	const meanwhileAction = $derived(
+		offlineState
+			? 'NOT CACHED'
+			: unreadable
+				? 'NOT DOWNLOADED'
+				: onlineOnly
+					? 'READ ONLINE →'
+					: 'START →'
+	);
 	const meanwhileSub = $derived(
 		work?.next
 			? `NEXT IN ${work.name.toUpperCase()} · PART ${work.part + 1} · ${count(
 					work.next.entries
-				)} ${partUnit(work.next.kind)}. · ${downloads}`
+				)} ${partUnit(work.next.kind)}. · ${meanwhileNote}`
 			: ''
 	);
 	const note = $derived(
@@ -291,13 +319,23 @@
 					</div>
 				</section>
 			{:else if work?.mode === 'meanwhile' && work.next}
-				<!-- Caught up on an ongoing part (Work-EndStates 1): a row, not a block. -->
-				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves -->
-				<a class="wrow" href={startHref} data-focus-mark="in">
-					<span class="wl">MEANWHILE</span>
-					<span class="wn">{meanwhileLine}<span class="b">{meanwhileSub}</span></span>
-					<span class="wr">START →</span>
-				</a>
+				<!-- Caught up on an ongoing part (Work-EndStates 1): a row, not a block.
+				     A next part that cannot open says so rather than offering a cell
+				     that lands on the reader's IS NOT DOWNLOADED page. -->
+				{#if offlineState || unreadable}
+					<div class="wrow dim" aria-disabled="true">
+						<span class="wl">MEANWHILE</span>
+						<span class="wn">{meanwhileLine}<span class="b">{meanwhileSub}</span></span>
+						<span class="wr">{meanwhileAction}</span>
+					</div>
+				{:else}
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves -->
+					<a class="wrow" href={startHref} data-focus-mark="in">
+						<span class="wl">MEANWHILE</span>
+						<span class="wn">{meanwhileLine}<span class="b">{meanwhileSub}</span></span>
+						<span class="wr">{meanwhileAction}</span>
+					</a>
+				{/if}
 			{:else if runRead && work}
 				<!-- The run is read: WORK → in place of START (Work-EndStates 4). -->
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved by the page -->
@@ -685,6 +723,13 @@
 	.wrow:active {
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
+	}
+	/* A row that cannot open (no file, or offline and not cached): dimmed, and not a cell. */
+	.wrow.dim {
+		color: var(--text-2);
+	}
+	.wrow.dim .wr {
+		color: var(--text-2);
 	}
 	.why {
 		margin: 0;

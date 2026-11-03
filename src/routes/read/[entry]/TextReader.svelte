@@ -507,11 +507,11 @@
 	}
 
 	function prev() {
-		if (layout === 'scroll') return;
 		if (atEnd) {
 			atEnd = false;
 			return;
 		}
+		if (layout === 'scroll') return;
 		if (page > 0) return void go(page - 1);
 		if (prevReadable) void openChapter(index - 1, 'end');
 	}
@@ -525,8 +525,30 @@
 	// Scroll: where you are, and crossing into the next chapter once its start
 	// passes the middle of the screen, with nothing on screen moving.
 	let scrolling: ReturnType<typeof setTimeout> | undefined;
+
+	/** The page element is scrolled as far as it goes: a chapter may be shorter than the screen. */
+	function scrollAtEnd() {
+		return !!pageEl && pageEl.scrollHeight - pageEl.scrollTop - pageEl.clientHeight <= 2;
+	}
+
+	/**
+	 * Scroll: the end of the last chapter is the end of the series, as it is at
+	 * the last page in the paged layouts -- the one door to EndPage, and so to
+	 * the Work's next part (Work-End). A last chapter too short to scroll never
+	 * fires `onscroll`, so a wheel or a key at its bottom reaches it too (see
+	 * `wheel` and `keydown`).
+	 */
+	function reachScrollEnd(): boolean {
+		if (layout !== 'scroll' || atEnd || nextReadable || !scrollAtEnd()) return false;
+		markFinished();
+		atEnd = true;
+		return true;
+	}
+
 	function onscroll() {
 		if (!pageEl || layout !== 'scroll') return;
+		// The end page is over the text: what happens under it is not the reader's.
+		if (atEnd) return;
 		const max = Math.max(1, (blocksEl?.offsetHeight ?? 1) - pageEl.clientHeight);
 		scrollFraction = Math.min(1, pageEl.scrollTop / max);
 		const first = nextEl?.firstElementChild as HTMLElement | null;
@@ -545,6 +567,7 @@
 			pos = positionOnPage() ?? pos;
 			noteSpeed();
 			if (scrollFraction >= 0.999) markFinished();
+			reachScrollEnd();
 		}, 250);
 	}
 
@@ -879,7 +902,21 @@
 		// On a TV with the chrome up the pad owns the arrows and the turn keys
 		// (c241): an arrow moves among the chrome's cells, BACK hides it.
 		if (tvScreen.current && chrome && TURNS.has(e.key)) return;
-		if (layout === 'scroll') return;
+		if (layout === 'scroll') {
+			// The end page is over the text: BACK's own keys return to it, as
+			// ← does in the paged layouts.
+			if (atEnd) {
+				if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+					e.preventDefault();
+					prev();
+				}
+				return;
+			}
+			// A chapter too short to scroll has no onscroll to end it (above).
+			if ((e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === ' ') && reachScrollEnd())
+				e.preventDefault();
+			return;
+		}
 		const left = e.key === 'ArrowLeft';
 		const right = e.key === 'ArrowRight';
 		if (left || right) {
@@ -921,8 +958,26 @@
 	const wheelTurn = new WheelTurn();
 	function wheel(e: WheelEvent) {
 		// Ctrl is the browser's zoom, and a touchpad's pinch.
-		if (e.ctrlKey || layout === 'scroll') return;
+		if (e.ctrlKey) return;
 		if (lookup || fullImage || wide || sheet || contents) return;
+		if (layout === 'scroll') {
+			// A last chapter too short to scroll never fires onscroll, so the
+			// wheel that would have scrolled it is the one that ends it. The end
+			// page is over the text, so a wheel back up is the way back to it,
+			// as ← is in the paged layouts.
+			if (atEnd) {
+				if (e.deltaY < 0) {
+					e.preventDefault();
+					prev();
+				}
+				return;
+			}
+			if (e.deltaY > 0 && scrollAtEnd()) {
+				e.preventDefault();
+				reachScrollEnd();
+			}
+			return;
+		}
 		// Not passive, so a sideways scroll can't also go back in history.
 		e.preventDefault();
 		const action = wheelTurn.feed(wheelForward(e, mode), e.timeStamp);
@@ -1026,7 +1081,7 @@
 	style:--side="{f.x}px"
 	role="presentation"
 	bind:this={readerEl}
-	data-focus-off={!(tvScreen.current && chrome) ? '' : undefined}
+	data-focus-off={!atEnd && !(tvScreen.current && chrome) ? '' : undefined}
 	onpointerdown={pointerdown}
 	onpointermove={pointermove}
 	onpointerup={pointerup}
