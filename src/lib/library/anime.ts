@@ -148,6 +148,179 @@ export function episodeRows<T extends E>(
 export const seasonLabel = (season: number, from: number, to: number) =>
 	`${season > 0 ? `SEASON ${season}` : 'OTHER'} · EP. ${formatNumber(from)}${to !== from ? ` – ${formatNumber(to)}` : ''}`;
 
+/** The short tag in front of a season's line: "S3", "S1"; "ALL" for a list with no seasons. */
+export const seasonTag = (season: number) => (season > 0 ? `S${season}` : 'ALL');
+
+/**
+ * One season of an anime series, as the LINK and TRACKING rows count it
+ * (doc/TRACKING.md, "A link per season"; card c240). `season` is the
+ * source's own number -- 0 for a flat list, which is one season to tsundoku
+ * -- and `aired` is what a catalogue counts: whole numbered episodes, a
+ * recap left out (S3's 14.5 is never sent).
+ */
+export type SeasonSpan = {
+	season: number;
+	from: number;
+	to: number;
+	/** Episodes in the list, recaps and half numbers included. */
+	count: number;
+	/** Episodes a catalogue counts: whole numbers, no recap. */
+	aired: number;
+	/** Watched here. */
+	watched: number;
+};
+
+/** Whether an episode is one a catalogue numbers: a whole number, and not a recap. */
+export const counted = (e: E) =>
+	e.episode?.note !== 'recap' && Number.isInteger(episodeNumber(e)) && episodeNumber(e) > 0;
+
+/** The seasons an episode list holds, in the order it holds them (season 0 is "no season given"). */
+export function seasonsOf<E2 extends E>(entries: E2[]): SeasonSpan[] {
+	const out: SeasonSpan[] = [];
+	for (const e of entries) {
+		const season = e.episode?.season ?? 0;
+		const n = episodeNumber(e);
+		const last = out[out.length - 1];
+		if (!last || last.season !== season)
+			out.push({
+				season,
+				from: n,
+				to: n,
+				count: 1,
+				aired: counted(e) ? 1 : 0,
+				watched: e.readAt !== null ? 1 : 0
+			});
+		else {
+			last.to = n;
+			last.count += 1;
+			if (counted(e)) last.aired += 1;
+			if (e.readAt !== null) last.watched += 1;
+		}
+	}
+	return out;
+}
+
+/**
+ * The season an anime's CONTINUE is in, or the one the screen opens on: the
+ * part-watched episode's, the first season on a series not begun, the last
+ * one watched through ("FINISHED opens its last season"). Null for no
+ * episodes at all.
+ */
+export function openSeason<E2 extends E>(entries: E2[]): number | null {
+	const seasons = seasonsOf(entries);
+	if (!seasons.length) return null;
+	const cur = currentEntry(entries as never) as E2 | null;
+	if (!cur) return seasons[0].season;
+	const season = cur.episode?.season ?? 0;
+	if (seasons.some((s) => s.season === season)) return season;
+	return seasons[seasons.length - 1].season;
+}
+
+/** An episode's own number in its season: the catalogue counts from 1 on its entry. */
+export const episodeInSeason = (e: E) => episodeNumber(e);
+
+/**
+ * The furthest episode watched in one season, or within one part of it, as a
+ * catalogue counts it: whole numbers only, recaps and half numbers passed
+ * over (c240). 0 when nothing countable is read in the range.
+ */
+export function watchedReached<E2 extends E>(
+	entries: E2[],
+	o: { season: number; from?: number; to?: number } = { season: 0 }
+): number {
+	let top = 0;
+	for (const e of entries) {
+		if ((e.episode?.season ?? 0) !== o.season || e.readAt === null || !counted(e)) continue;
+		const n = episodeInSeason(e);
+		if (o.from !== undefined && n < o.from) continue;
+		if (o.to !== undefined && n > o.to) continue;
+		top = Math.max(top, n);
+	}
+	return top;
+}
+
+/** A part of a season, as the catalogue split it: `PART 1 · EP. 1 – 12`. */
+export type PartSpan = { part: number; from: number; to: number };
+
+/**
+ * Where each linked part starts and ends in the season's own numbering: part
+ * 2 begins after part 1's episode count, so the season's EP. 13 is part 2's
+ * EP. 1 (the design's SAO S4, 12 + 11). A season with one part is 1..`of`.
+ */
+export function partsOf(
+	parts: { part: number; episodes: number | null }[],
+	of: number
+): PartSpan[] {
+	const out: PartSpan[] = [];
+	let next = 1;
+	for (const p of [...parts].sort((a, b) => a.part - b.part)) {
+		const count = p.episodes && p.episodes > 0 ? p.episodes : Math.max(0, of - next + 1);
+		if (count <= 0) continue;
+		out.push({ part: p.part, from: next, to: next + count - 1 });
+		next += count;
+	}
+	return out.length ? out : [{ part: 1, from: 1, to: of }];
+}
+
+/** Which part of a season an episode is in, and where the catalogue files it. */
+export function partOf(parts: PartSpan[], n: number): { part: number; number: number } | null {
+	for (const p of parts)
+		if (n >= p.from && n <= p.to) return { part: p.part, number: n - p.from + 1 };
+	return null;
+}
+
+/** `PART 1 · EP. 1 – 12 · PART 2 · EP. 13 – 23`, only when there are two parts. */
+export function partsLabel(parts: PartSpan[]): string {
+	if (parts.length < 2) return '';
+	return parts
+		.map((p) => `PART ${p.part} · EP. ${formatNumber(p.from)} – ${formatNumber(p.to)}`)
+		.join(' · ');
+}
+
+/**
+ * What FIND searches for a season: the series' own title for season 1 (or a
+ * flat list), and the title with the source's season number after it for any
+ * other. Nothing is invented: the source gave the series one title and its
+ * episodes a season number, and that is what goes to AniList.
+ */
+export function seasonSearchTitle(seriesTitle: string, season: number): string {
+	return season > 1 ? `${seriesTitle} Season ${season}` : seriesTitle;
+}
+
+export type SeasonRowPlan =
+	| { type: 'line'; season: number }
+	| { type: 'fold'; above: boolean; seasons: number[] }
+	| { type: 'toggle'; seasons: number[]; expanded: boolean };
+
+/**
+ * How the LINK and TRACKING rows stack their seasons (Track Calls, "The
+ * shape"): three seasons or fewer have a line each; more fold round the one
+ * being watched, above and below, as the episode list does. SHOW opens both
+ * at once, and a fold that would hold one season is drawn as that season's
+ * line instead.
+ */
+export function seasonPlan(seasons: number[], current: number, expanded: boolean): SeasonRowPlan[] {
+	if (seasons.length <= 3) return seasons.map((season) => ({ type: 'line', season }));
+	if (expanded)
+		return [
+			{ type: 'toggle', seasons, expanded: true },
+			...seasons.map((season): SeasonRowPlan => ({ type: 'line', season }))
+		];
+	const at = Math.max(0, seasons.indexOf(current));
+	const above = seasons.slice(0, at);
+	const below = seasons.slice(at + 1);
+	const out: SeasonRowPlan[] = [];
+	const fold = (list: number[], isAbove: boolean) => {
+		if (!list.length) return;
+		if (list.length === 1) out.push({ type: 'line', season: list[0] });
+		else out.push({ type: 'fold', above: isAbove, seasons: list });
+	};
+	fold(above, true);
+	out.push({ type: 'line', season: seasons[at] });
+	fold(below, false);
+	return out;
+}
+
 /** "24 · 18 WATCHED", the list head's count; "24 · NONE WATCHED" before any. */
 export function episodeCount(entries: E[]): string {
 	const watched = entries.filter((e) => e.readAt !== null).length;

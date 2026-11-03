@@ -2,13 +2,14 @@ import { basename } from './fspath.ts';
 import { getDb } from './db.ts';
 import { IN_LIBRARY_SQL, VISIBLE_SQL } from './visibility.ts';
 import { SignedOut, Unreachable } from './catalogue.ts';
-import { cleanTitle, coverOnly } from '../library/catalogue.ts';
+import { cleanTitle, coverOnly, isAnime } from '../library/catalogue.ts';
 import {
 	DEFAULT_LANG,
 	RANOBE_KINDS,
 	byWork,
 	chooseEdition,
 	iso,
+	mapAnimeUnits,
 	mapUnits,
 	mapWorkUnits,
 	searchKinds,
@@ -37,6 +38,9 @@ import type { Kind } from '../library/types.ts';
  *   contents, and a unit read here is sent as one read.
  * - **Comics** (card c98) read against the work's own chapters: no edition,
  *   no suggestion, and only a chapter the work counts is sent.
+ * - **Anime** (c240) read against the work's own episodes, numbered straight
+ *   through the seasons: one work for the whole show, its entry on season 1
+ *   (Ranobe c134).
  * - **Never** for a hidden series or anything from Hentoid: not looked up,
  *   not suggested, not sent. Incognito reading records nothing, so nothing
  *   follows it here either.
@@ -181,9 +185,12 @@ export async function matchByLookup(now = Date.now()): Promise<number> {
 		lang: string | null;
 	}[];
 	const asked = rows.filter((r) => !coverOnly(r.kind, r.format ?? ''));
+	// MAL keeps anime ids apart from manga's, and Ranobe files them that way
+	// (`mal_anime:`; API-V1.md, "External ids"). AniList's one sequence serves
+	// both lists.
 	const keysOf = (r: (typeof asked)[number]) => [
 		...(r.anilist_id ? [`anilist:${r.anilist_id}`] : []),
-		...(r.mal_id ? [`mal:${r.mal_id}`] : [])
+		...(r.mal_id ? [`${isAnime(r.kind) ? 'mal_anime' : 'mal'}:${r.mal_id}`] : [])
 	];
 	let linked = 0;
 	// 200 keys a request; a series asks with at most two.
@@ -736,12 +743,22 @@ export async function mapSeries(o: { seriesId?: number; now?: number } = {}): Pr
 		}
 		const entries = db
 			.prepare(
-				`SELECT id, label, matter, read_at AS readAt FROM entries WHERE series_id = ? AND shadowed = 0`
+				`SELECT id, label, matter, read_at AS readAt, COALESCE(episode_note, '') AS note
+				FROM entries WHERE series_id = ? AND shadowed = 0`
 			)
-			.all(l.series_id) as { id: number; label: string; matter: string; readAt: number | null }[];
-		const units = comic
-			? mapWorkUnits(l.work, workUnits(l.work), entries)
-			: mapUnits(tocs.get(l.edition!) ?? [], { volume: l.volume, entries });
+			.all(l.series_id) as {
+			id: number;
+			label: string;
+			matter: string;
+			readAt: number | null;
+			note: string;
+		}[];
+		const rows = entries.map((e) => ({ ...e, recap: e.note === 'recap' }));
+		const units = isAnime(l.kind)
+			? mapAnimeUnits(l.work, workUnits(l.work), rows)
+			: comic
+				? mapWorkUnits(l.work, workUnits(l.work), rows)
+				: mapUnits(tocs.get(l.edition!) ?? [], { volume: l.volume, entries: rows });
 		db.transaction(() => {
 			const set = db.prepare(`UPDATE entries SET ranobe_unit = ? WHERE id = ?`);
 			for (const e of entries) set.run(units.get(e.id) ?? null, e.id);

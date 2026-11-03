@@ -7,6 +7,7 @@ import {
 	Unreachable,
 	anilistAs,
 	family,
+	fillRating,
 	linkFromList,
 	linkableByTitle,
 	toCandidate,
@@ -16,11 +17,25 @@ import * as ranobe from './ranobe.ts';
 import {
 	cleanTitle,
 	coverOnly,
+	isAnime,
 	normaliseTitle,
 	sameKind,
 	candidateKind,
+	wrongKind,
+	type Candidate,
 	type Kind
 } from '../library/catalogue.ts';
+import {
+	linkSeason,
+	seasonForTitles,
+	seasonKind,
+	seasonLinks,
+	seasonSettled,
+	seasonUntracked,
+	seriesSeasons,
+	type SeasonLink
+} from './season-links.ts';
+import { watchedReached } from '../library/anime.ts';
 import {
 	SERVICES,
 	SERVICE_NAME,
@@ -28,6 +43,8 @@ import {
 	progressToSend,
 	statusFrom,
 	statusTo,
+	type SeasonFact,
+	type SeasonTrackFacts,
 	type Service,
 	type Status,
 	type TrackFacts
@@ -41,9 +58,11 @@ import {
  *   a year, no refresh), MAL's with a plain PKCE verifier (31 days, refreshed).
  * - **Reading the lists** keeps what each says of a linked series, and links
  *   an entry on the AniList list to its series when the title is sure.
- * - **Sending** follows a chapter finished here: the furthest one, only when
- *   it's further than the list has. Never for a hidden series, never through
- *   a cover-only link, never while incognito (the reading isn't recorded).
+ * - **Sending** follows a chapter finished here (an episode watched, on an
+ *   anime): the furthest one, only when it's further than the list has --
+ *   within its own season and part (c240). Never for a hidden series, never
+ *   through a cover-only or wrong-kind link, never while incognito (the
+ *   reading isn't recorded).
  */
 
 type Account = {
@@ -299,6 +318,20 @@ function saveState(
 			WHERE l.${col} IS NOT NULL`
 		)
 		.all() as { series_id: number; media: number; format: string | null; kind: Kind }[];
+	// An anime's links are per season (c240): the row that says what the list
+	// has of a season is `season_tracker_state`, keyed the season's own way.
+	const seasons = db
+		.prepare(
+			`SELECT l.series_id, l.season, l.part, l.${col} AS media, l.format
+			FROM series_season_links l WHERE l.${col} IS NOT NULL`
+		)
+		.all() as {
+		series_id: number;
+		season: number;
+		part: number;
+		media: number;
+		format: string | null;
+	}[];
 	const put = db.prepare(
 		`INSERT INTO tracker_state (series_id, service, status, score, progress, read_at) VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT (series_id, service) DO UPDATE SET status = excluded.status, score = excluded.score,
@@ -308,6 +341,17 @@ function saveState(
 	const drop = db.prepare(
 		`DELETE FROM tracker_state WHERE series_id = ? AND service = ? AND (sent_at IS NULL OR sent_at < ?)`
 	);
+	const putSeason = db.prepare(
+		`INSERT INTO season_tracker_state (series_id, season, part, service, status, score, progress, read_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT (series_id, season, part, service) DO UPDATE SET status = excluded.status,
+			score = excluded.score, progress = excluded.progress, read_at = excluded.read_at
+		WHERE season_tracker_state.sent_at IS NULL OR season_tracker_state.sent_at < ?`
+	);
+	const dropSeason = db.prepare(
+		`DELETE FROM season_tracker_state WHERE series_id = ? AND season = ? AND part = ? AND service = ?
+		AND (sent_at IS NULL OR sent_at < ?)`
+	);
 	let n = 0;
 	db.transaction(() => {
 		for (const l of links) {
@@ -316,6 +360,24 @@ function saveState(
 			if (!e) drop.run(l.series_id, service, readFrom);
 			else {
 				put.run(l.series_id, service, e.status, e.score, e.progress, now, readFrom);
+				n += 1;
+			}
+		}
+		for (const l of seasons) {
+			const e = byMedia.get(stateKey(service, l.media, 'anime', l.format));
+			if (!e) dropSeason.run(l.series_id, l.season, l.part, service, readFrom);
+			else {
+				putSeason.run(
+					l.series_id,
+					l.season,
+					l.part,
+					service,
+					e.status,
+					e.score,
+					e.progress,
+					now,
+					readFrom
+				);
 				n += 1;
 			}
 		}
@@ -424,11 +486,15 @@ function linkFromEntries(
 	entries: { mediaId: number; score: number; media: Media }[],
 	now: number
 ): number {
+	const db = getDb();
 	const taken = new Set(
 		(
-			getDb().prepare(`SELECT anilist_id FROM series_links WHERE anilist_id IS NOT NULL`).all() as {
-				anilist_id: number;
-			}[]
+			db
+				.prepare(
+					`SELECT anilist_id FROM series_links WHERE anilist_id IS NOT NULL
+					UNION SELECT anilist_id FROM series_season_links WHERE anilist_id IS NOT NULL`
+				)
+				.all() as { anilist_id: number }[]
 		).map((r) => r.anilist_id)
 	);
 	const index = linkableByTitle();
@@ -445,8 +511,12 @@ function linkFromEntries(
 		const entryKind = candidateKind(c);
 		const fits = [...found].filter(([, kind]) => sameKind(kind, entryKind));
 		if (fits.length !== 1) continue;
-		const [seriesId] = fits[0];
-		linkFromList(seriesId, c, e.score || null, now);
+		const [seriesId, kind] = fits[0];
+		// An anime's entry is one season of the show (c240): the season whose own
+		// title it names, or the one being watched.
+		if (isAnime(kind)) {
+			if (!linkSeasonFromList(seriesId, c, e.score || null, now)) continue;
+		} else linkFromList(seriesId, c, e.score || null, now);
 		taken.add(e.mediaId);
 		for (const [k, list] of index)
 			index.set(
@@ -456,6 +526,40 @@ function linkFromEntries(
 		n += 1;
 	}
 	return n;
+}
+
+/**
+ * A link from the owner's AniList list to one season of an anime (c240): the
+ * season the entry's own title names, else the one being watched. The series'
+ * rating is filled once, as any link from the list does (1w), and the score
+ * is kept on the season's own row.
+ *
+ * A season already linked or settled is left alone, and nothing is written
+ * (false): the series is offered while any one of its seasons is still open
+ * (`linkableByTitle`), but an entry found by the series' own title names its
+ * first season, and an entry that only shares that title (a movie, another
+ * cut) must not replace the owner's link or undo their NONE OF THESE (c240).
+ */
+export function linkSeasonFromList(
+	seriesId: number,
+	c: Candidate,
+	score: number | null,
+	now = Date.now()
+): boolean {
+	const db = getDb();
+	const season = seasonForTitles(seriesId, [c.title, ...c.alts, cleanTitle(c.title)]);
+	if (seasonLinks(seriesId).some((l) => l.season === season) || seasonSettled(seriesId, season))
+		return false;
+	const view = seriesSeasons(seriesId);
+	const part = view?.seasons.find((s) => s.season === season)?.parts[0]?.part ?? 1;
+	db.transaction(() => {
+		linkSeason(seriesId, season, part, c, 'list', now);
+		const filled = fillRating(db, seriesId, score);
+		db.prepare(
+			`UPDATE series_season_links SET score = ?, filled_rating = ? WHERE series_id = ? AND season = ? AND part = ?`
+		).run(score || null, filled, seriesId, season, part);
+	})();
+	return true;
 }
 
 /** Both lists, for the pass after an import: each on its own, so one failing doesn't stop the other. */
@@ -470,86 +574,210 @@ export async function readLists(now = Date.now()): Promise<void> {
 
 // ---- sending --------------------------------------------------------------------------------
 
-type Target = { service: Service; mediaId: number };
+/**
+ * Where a series' progress may go: each catalogue signed in whose entry the
+ * link names. A season of an anime is its own target (c240), with the episode
+ * range its part covers; a comic is one target for the whole series.
+ */
+type Target = {
+	seriesId: number;
+	service: Service;
+	mediaId: number;
+	/** The season this target is (0 for a comic, or a flat list). */
+	season: number;
+	part: number;
+	/** The entry's own kind: it decides the MAL endpoint and the field (c240). */
+	kind: Kind;
+	/** The first and last episode of the season's part, in the season's numbering. */
+	from: number;
+	to: number;
+	/** The season's last linked part: past its count, an episode waits (c240). */
+	last: boolean;
+};
+
+/** The episodes of a season, read once for its targets. */
+function animeEntries(seriesId: number) {
+	return getDb()
+		.prepare(
+			`SELECT COALESCE(season, 0) AS season, COALESCE(episode_number, position) AS number,
+				COALESCE(episode_note, '') AS note, read_at AS readAt
+			FROM entries WHERE series_id = ? AND shadowed = 0 ORDER BY position, id`
+		)
+		.all(seriesId) as { season: number; number: number; note: string; readAt: number | null }[];
+}
+
+/** Those episodes as `library/anime`'s watch rules read them (a recap never counts). */
+function watchedRows(seriesId: number) {
+	return animeEntries(seriesId).map((e) => ({
+		id: 0,
+		number: e.number,
+		readAt: e.readAt,
+		lastPosition: null,
+		lastOpenedAt: null,
+		episode: {
+			durationS: null,
+			season: e.season,
+			number: e.number,
+			note: (e.note as '' | 'filler' | 'recap') ?? '',
+			thumb: '',
+			endingAt: null
+		}
+	}));
+}
 
 /**
  * Where a series' progress may go: each catalogue signed in whose entry the
- * link names. None for a hidden series, a cover-only link, or anything but a
- * comic (a novel's chapters aren't counted yet: doc/TRACKING.md, "Not yet").
+ * link names. None for a hidden series, a cover-only link, or a season whose
+ * own link names nothing. Both kinds whose unit is an episode or a chapter
+ * send (c240 widened this from comics alone): an anime sends the episode
+ * within its season, a comic its chapter.
  */
 function targets(seriesId: number): Target[] {
 	const r = getDb()
 		.prepare(
-			`SELECT s.kind, ${HIDDEN_SQL} AS hidden, l.anilist_id, l.mal_id, l.format
-			FROM series s JOIN roots r ON r.id = s.root_id JOIN series_links l ON l.series_id = s.id
-			WHERE s.id = ?`
+			`SELECT s.kind, ${HIDDEN_SQL} AS hidden FROM series s JOIN roots r ON r.id = s.root_id WHERE s.id = ?`
 		)
+		.get(seriesId) as { kind: Kind; hidden: number } | undefined;
+	if (!r || r.hidden) return [];
+	if (isAnime(r.kind)) {
+		const view = seriesSeasons(seriesId);
+		if (!view) return [];
+		const out: Target[] = [];
+		for (const sv of view.seasons) {
+			const lastPart = sv.parts[sv.parts.length - 1]?.part ?? 1;
+			for (const p of sv.parts) {
+				const l = p.link;
+				if (!l) continue;
+				// The same refusals as a comic's (c298, c240): a wrong-kind entry and
+				// a cover-only link send nothing, and the season is left out.
+				if (seasonUntracked(r.kind, l)) continue;
+				const kind = seasonKind(l) ?? r.kind;
+				const base = {
+					seriesId,
+					season: sv.season,
+					part: p.part,
+					kind,
+					from: p.from,
+					to: p.to,
+					last: p.part === lastPart
+				};
+				if (l.anilistId && account('anilist'))
+					out.push({ ...base, service: 'anilist', mediaId: l.anilistId });
+				if (l.malId && account('mal')) out.push({ ...base, service: 'mal', mediaId: l.malId });
+			}
+		}
+		return out;
+	}
+	// A comic, and only a comic: a novel's chapters still go to Ranobe alone
+	// (doc/TRACKING.md, "Not yet").
+	if (r.kind !== 'manga' && r.kind !== 'manhwa') return [];
+	const l = getDb()
+		.prepare(`SELECT anilist_id, mal_id, format FROM series_links WHERE series_id = ?`)
 		.get(seriesId) as
-		| {
-				kind: Kind;
-				hidden: number;
-				anilist_id: number | null;
-				mal_id: number | null;
-				format: string | null;
-		  }
-		| undefined;
-	if (!r || r.hidden || (r.kind !== 'manga' && r.kind !== 'manhwa')) return [];
-	if (coverOnly(r.kind, r.format ?? '')) return [];
+		{ anilist_id: number | null; mal_id: number | null; format: string | null } | undefined;
+	if (!l) return [];
+	if (coverOnly(r.kind, l.format ?? '')) return [];
 	// A link whose entry is the other kind sends nothing (c298): an anime entry
 	// never takes a manga's chapters, nor the other way round. An entry whose
 	// format isn't known yet is not a contradiction.
-	const entryKind = r.format ? candidateKind({ format: r.format, country: '' }) : null;
+	const entryKind = l.format ? candidateKind({ format: l.format, country: '' }) : null;
 	if (entryKind !== null && !sameKind(r.kind, entryKind)) return [];
 	const out: Target[] = [];
-	if (r.anilist_id && account('anilist')) out.push({ service: 'anilist', mediaId: r.anilist_id });
-	if (r.mal_id && account('mal')) out.push({ service: 'mal', mediaId: r.mal_id });
+	const base = { seriesId, season: 0, part: 1, kind: r.kind, from: 1, to: 0, last: true };
+	if (l.anilist_id && account('anilist'))
+		out.push({ ...base, service: 'anilist', mediaId: l.anilist_id });
+	if (l.mal_id && account('mal')) out.push({ ...base, service: 'mal', mediaId: l.mal_id });
 	return out;
 }
 
-function waitingRow(seriesId: number, service: Service) {
-	return getDb()
+function waitingRow(t: Target) {
+	const db = getDb();
+	if (isAnime(t.kind))
+		return db
+			.prepare(
+				`SELECT progress, status, score FROM season_tracker_sends
+				WHERE series_id = ? AND season = ? AND part = ? AND service = ?`
+			)
+			.get(t.seriesId, t.season, t.part, t.service) as
+			{ progress: number | null; status: Status | null; score: number | null } | undefined;
+	return db
 		.prepare(
 			`SELECT progress, status, score FROM tracker_sends WHERE series_id = ? AND service = ?`
 		)
-		.get(seriesId, service) as
+		.get(t.seriesId, t.service) as
 		{ progress: number | null; status: Status | null; score: number | null } | undefined;
 }
 
-function stateRow(seriesId: number, service: Service) {
-	return getDb()
+function stateRow(t: Target) {
+	const db = getDb();
+	if (isAnime(t.kind))
+		return db
+			.prepare(
+				`SELECT status, progress, score FROM season_tracker_state
+				WHERE series_id = ? AND season = ? AND part = ? AND service = ?`
+			)
+			.get(t.seriesId, t.season, t.part, t.service) as
+			{ status: Status | null; progress: number; score: number | null } | undefined;
+	return db
 		.prepare(
 			`SELECT status, progress, score FROM tracker_state WHERE series_id = ? AND service = ?`
 		)
-		.get(seriesId, service) as
+		.get(t.seriesId, t.service) as
 		{ status: Status | null; progress: number; score: number | null } | undefined;
 }
 
 function want(
-	seriesId: number,
-	service: Service,
+	t: Target,
 	w: { progress?: number | null; status?: Status | null; score?: number | null },
 	now: number
 ): void {
-	const had = waitingRow(seriesId, service);
-	getDb()
-		.prepare(
+	const db = getDb();
+	const had = waitingRow(t);
+	const progress = w.progress !== undefined ? w.progress : (had?.progress ?? null);
+	const status = w.status !== undefined ? w.status : (had?.status ?? null);
+	const score = w.score !== undefined ? w.score : (had?.score ?? null);
+	if (isAnime(t.kind))
+		db.prepare(
+			`INSERT INTO season_tracker_sends (series_id, season, part, service, progress, status, score, wanted_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT (series_id, season, part, service) DO UPDATE SET progress = excluded.progress,
+				status = excluded.status, score = excluded.score, wanted_at = excluded.wanted_at,
+				failed_at = NULL, error = NULL`
+		).run(t.seriesId, t.season, t.part, t.service, progress, status, score, now);
+	else
+		db.prepare(
 			`INSERT INTO tracker_sends (series_id, service, progress, status, score, wanted_at) VALUES (?, ?, ?, ?, ?, ?)
 			ON CONFLICT (series_id, service) DO UPDATE SET progress = excluded.progress, status = excluded.status,
 				score = excluded.score, wanted_at = excluded.wanted_at, failed_at = NULL, error = NULL`
-		)
-		.run(
-			seriesId,
-			service,
-			w.progress !== undefined ? w.progress : (had?.progress ?? null),
-			w.status !== undefined ? w.status : (had?.status ?? null),
-			w.score !== undefined ? w.score : (had?.score ?? null),
-			now
-		);
+		).run(t.seriesId, t.service, progress, status, score, now);
 }
 
 /**
- * A chapter of this series was finished here: the furthest chapter read, to
- * every catalogue that has less. Returns how many sends it queued.
+ * What a target has to send: the highest chapter read here (a comic), or the
+ * highest episode watched in the season -- within its part (c240). Both are
+ * counted in the entry's own numbering, so part 2's EP. 3 is what a catalogue
+ * hears about, not EP. 15.
+ */
+function reachedFor(t: Target, o: { chapters: number }): number {
+	if (!isAnime(t.kind)) return o.chapters;
+	const rows = watchedRows(t.seriesId);
+	const seasonTop = watchedReached(rows, { season: t.season });
+	const within = watchedReached(rows, { season: t.season, from: t.from, to: t.to });
+	// The part's own numbering: part 2 starts at 1, not at part 1's last + 1.
+	if (within > 0) return within - t.from + 1;
+	// A run watched into a later part fills the ones before it: EP. 15 of the
+	// design's SAO S4 is part 2's EP. 3, and part 1 completed itself at 12. An
+	// episode past the last part's count has nowhere to go and waits -- and if
+	// it is the only one watched, nothing is sent for the part it passed.
+	if (!t.last && seasonTop >= t.from) return t.to - t.from + 1;
+	return 0;
+}
+
+/**
+ * A chapter (or an episode) of this series was finished here: the furthest
+ * one read, to every catalogue that has less. Returns how many sends it
+ * queued. An anime queues one per season, and a part's send never overwrites
+ * its sibling's: they are separate rows (c240).
  */
 export function queueProgress(seriesId: number, now = Date.now()): number {
 	const t = targets(seriesId);
@@ -559,138 +787,204 @@ export function queueProgress(seriesId: number, now = Date.now()): number {
 			`SELECT position FROM entries WHERE series_id = ? AND read_at IS NOT NULL AND shadowed = 0`
 		)
 		.all(seriesId) as { position: number }[];
-	const reached = chapterReached(read);
+	const chapters = chapterReached(read);
 	let n = 0;
-	for (const { service } of t) {
-		const remote = stateRow(seriesId, service);
+	for (const target of t) {
+		const reached = reachedFor(target, { chapters });
+		if (reached <= 0) continue;
+		const remote = stateRow(target);
+		// The part's last counted episode watched finishes the entry (c240): the
+		// design's "its last sends COMPLETED", unless the owner has it ON HOLD or
+		// DROPPED (`progressToSend`). A season in two parts completes
+		// each part on its own count, which is what `reached` is already in.
+		const complete = isAnime(target.kind) && reached >= target.to - target.from + 1;
 		const r = progressToSend({
 			reached,
 			remote: remote ? { progress: remote.progress, status: remote.status } : null,
-			waiting: waitingRow(seriesId, service)?.progress ?? null
+			waiting: waitingRow(target)?.progress ?? null,
+			complete
 		});
 		if (!r) continue;
-		want(
-			seriesId,
-			service,
-			{ progress: r.progress, ...(r.status ? { status: r.status } : {}) },
-			now
-		);
+		want(target, { progress: r.progress, ...(r.status ? { status: r.status } : {}) }, now);
 		n += 1;
 	}
 	return n;
 }
 
-/** The TRACKING sheet's edit (Series Link 1m): status and score, to both catalogues. */
+/**
+ * The TRACKING sheet's edit (Series Link 1m): status and score, to both
+ * catalogues. An anime sets the season it was asked about (`season`, `part`);
+ * the others keep their own (c240).
+ */
 export function editTracking(
 	seriesId: number,
 	e: { status?: Status; score?: number | null },
-	now = Date.now()
+	now = Date.now(),
+	o: { season?: number; part?: number } = {}
 ): number {
-	const t = targets(seriesId);
-	for (const { service } of t) want(seriesId, service, { ...e }, now);
+	const all = targets(seriesId);
+	const t =
+		o.season === undefined
+			? all
+			: all.filter((x) => x.season === o.season && x.part === (o.part ?? 1));
+	for (const target of t) want(target, { ...e }, now);
 	return t.length;
 }
 
 async function sendOne(
-	service: Service,
-	mediaId: number,
+	t: Target,
 	w: { progress: number | null; status: Status | null; score: number | null },
 	now: number
 ): Promise<void> {
-	const a = account(service);
+	const a = account(t.service);
 	if (!a) throw new SignedOut('not signed in');
-	if (service === 'anilist') {
+	if (t.service === 'anilist') {
 		await anilistAs(
 			a.access_token,
 			`mutation ($mediaId: Int, $progress: Int, $status: MediaListStatus, $scoreRaw: Int) {
 				SaveMediaListEntry(mediaId: $mediaId, progress: $progress, status: $status, scoreRaw: $scoreRaw) { id }
 			}`,
 			{
-				mediaId,
+				mediaId: t.mediaId,
 				...(w.progress !== null ? { progress: w.progress } : {}),
-				...(w.status ? { status: statusTo('anilist', w.status) } : {}),
+				...(w.status ? { status: statusTo('anilist', w.status, t.kind) } : {}),
 				// Out of 10 here; scoreRaw is AniList's 100, whatever format the owner shows.
 				...(w.score !== null ? { scoreRaw: Math.round(w.score * 10) } : {})
 			}
 		);
 		return;
 	}
+	// MAL keeps two lists: an anime entry takes `num_watched_episodes` on
+	// `/anime/`, a manga's entry `num_chapters_read` on `/manga/` (c240).
+	const anime = isAnime(t.kind);
 	const form: Record<string, string> = {};
-	if (w.progress !== null) form.num_chapters_read = String(w.progress);
-	if (w.status) form.status = statusTo('mal', w.status);
+	if (w.progress !== null)
+		form[anime ? 'num_watched_episodes' : 'num_chapters_read'] = String(w.progress);
+	if (w.status) form.status = statusTo('mal', w.status, t.kind);
 	if (w.score !== null) form.score = String(Math.round(w.score));
-	await mal(await malToken(a, now), `/manga/${mediaId}/my_list_status`, { method: 'PATCH', form });
+	await mal(await malToken(a, now), `/${anime ? 'anime' : 'manga'}/${t.mediaId}/my_list_status`, {
+		method: 'PATCH',
+		form
+	});
+}
+
+/** The series with something waiting: both tables, once each. */
+function pendingSeries(service?: Service): number[] {
+	const db = getDb();
+	const rows = db
+		.prepare(`SELECT DISTINCT series_id FROM tracker_sends ${service ? 'WHERE service = ?' : ''}`)
+		.all(...(service ? [service] : [])) as { series_id: number }[];
+	const seasons = db
+		.prepare(
+			`SELECT DISTINCT series_id FROM season_tracker_sends ${service ? 'WHERE service = ?' : ''}`
+		)
+		.all(...(service ? [service] : [])) as { series_id: number }[];
+	return [...new Set([...rows, ...seasons].map((r) => r.series_id))];
+}
+
+/** Drop what waits for a target that no longer exists: a season unlinked, a series hidden. */
+function pruneSends(seriesId: number, live: Target[]): void {
+	const db = getDb();
+	for (const r of db
+		.prepare(`SELECT service FROM tracker_sends WHERE series_id = ?`)
+		.all(seriesId) as { service: Service }[])
+		if (!live.some((t) => !isAnime(t.kind) && t.service === r.service))
+			db.prepare(`DELETE FROM tracker_sends WHERE series_id = ? AND service = ?`).run(
+				seriesId,
+				r.service
+			);
+	for (const r of db
+		.prepare(`SELECT service, season, part FROM season_tracker_sends WHERE series_id = ?`)
+		.all(seriesId) as { service: Service; season: number; part: number }[])
+		if (
+			!live.some(
+				(t) =>
+					isAnime(t.kind) && t.service === r.service && t.season === r.season && t.part === r.part
+			)
+		)
+			db.prepare(
+				`DELETE FROM season_tracker_sends WHERE series_id = ? AND season = ? AND part = ? AND service = ?`
+			).run(seriesId, r.season, r.part, r.service);
 }
 
 /**
  * Send what waits: each catalogue its own, one at a time. A send that fails
- * stays, with why, for TRY AGAIN or the next chapter read.
+ * stays, with why, for TRY AGAIN or the next chapter read. A season's send is
+ * its own row, so one season's failure never holds another's up (c240).
  */
 export async function sendPending(
 	opts: { seriesId?: number; now?: number } = {}
 ): Promise<{ sent: number; failed: number }> {
 	const db = getDb();
 	const now = opts.now ?? Date.now();
-	const rows = db
-		.prepare(
-			`SELECT w.series_id, w.service, w.progress, w.status, w.score, l.anilist_id, l.mal_id
-			FROM tracker_sends w JOIN series_links l ON l.series_id = w.series_id
-			${opts.seriesId !== undefined ? 'WHERE w.series_id = ?' : ''}`
-		)
-		.all(...(opts.seriesId !== undefined ? [opts.seriesId] : [])) as {
-		series_id: number;
-		service: Service;
-		progress: number | null;
-		status: Status | null;
-		score: number | null;
-		anilist_id: number | null;
-		mal_id: number | null;
-	}[];
+	const ids = opts.seriesId !== undefined ? [opts.seriesId] : pendingSeries();
 	let sent = 0;
 	let failed = 0;
-	for (const r of rows) {
-		const mediaId = r.service === 'anilist' ? r.anilist_id : r.mal_id;
-		// Still allowed? A series hidden since, or a link changed, sends nothing.
-		if (!mediaId || !targets(r.series_id).some((t) => t.service === r.service)) {
-			db.prepare(`DELETE FROM tracker_sends WHERE series_id = ? AND service = ?`).run(
-				r.series_id,
-				r.service
-			);
-			continue;
-		}
-		try {
-			await sendOne(r.service, mediaId, r, now);
-			const had = stateRow(r.series_id, r.service);
-			db.transaction(() => {
-				db.prepare(
-					`INSERT INTO tracker_state (series_id, service, status, score, progress, sent_at) VALUES (?, ?, ?, ?, ?, ?)
-					ON CONFLICT (series_id, service) DO UPDATE SET status = excluded.status, score = excluded.score,
-						progress = excluded.progress, sent_at = excluded.sent_at`
-				).run(
-					r.series_id,
-					r.service,
-					r.status ?? had?.status ?? 'reading',
-					r.score !== null ? r.score || null : (had?.score ?? null),
-					Math.max(r.progress ?? 0, had?.progress ?? 0),
-					now
-				);
-				db.prepare(`DELETE FROM tracker_sends WHERE series_id = ? AND service = ?`).run(
-					r.series_id,
-					r.service
-				);
-			})();
-			sent += 1;
-		} catch (e) {
-			const why =
-				e instanceof SignedOut
-					? `${SERVICE_NAME[r.service]} SIGN-IN EXPIRED`
-					: e instanceof Unreachable
-						? `${SERVICE_NAME[r.service]} DID NOT ANSWER`
-						: `${SERVICE_NAME[r.service]} REFUSED IT`;
-			db.prepare(
-				`UPDATE tracker_sends SET failed_at = ?, error = ? WHERE series_id = ? AND service = ?`
-			).run(now, why, r.series_id, r.service);
-			failed += 1;
+	for (const seriesId of ids) {
+		const live = targets(seriesId);
+		pruneSends(seriesId, live);
+		for (const target of live) {
+			const w = waitingRow(target);
+			if (!w) continue;
+			try {
+				await sendOne(target, w, now);
+				const had = stateRow(target);
+				const row = {
+					status: w.status ?? had?.status ?? 'reading',
+					score: w.score !== null ? w.score || null : (had?.score ?? null),
+					progress: Math.max(w.progress ?? 0, had?.progress ?? 0)
+				};
+				db.transaction(() => {
+					if (isAnime(target.kind)) {
+						db.prepare(
+							`INSERT INTO season_tracker_state (series_id, season, part, service, status, score, progress, sent_at)
+							VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+							ON CONFLICT (series_id, season, part, service) DO UPDATE SET status = excluded.status,
+								score = excluded.score, progress = excluded.progress, sent_at = excluded.sent_at`
+						).run(
+							seriesId,
+							target.season,
+							target.part,
+							target.service,
+							row.status,
+							row.score,
+							row.progress,
+							now
+						);
+						db.prepare(
+							`DELETE FROM season_tracker_sends WHERE series_id = ? AND season = ? AND part = ? AND service = ?`
+						).run(seriesId, target.season, target.part, target.service);
+					} else {
+						db.prepare(
+							`INSERT INTO tracker_state (series_id, service, status, score, progress, sent_at) VALUES (?, ?, ?, ?, ?, ?)
+							ON CONFLICT (series_id, service) DO UPDATE SET status = excluded.status, score = excluded.score,
+								progress = excluded.progress, sent_at = excluded.sent_at`
+						).run(seriesId, target.service, row.status, row.score, row.progress, now);
+						db.prepare(`DELETE FROM tracker_sends WHERE series_id = ? AND service = ?`).run(
+							seriesId,
+							target.service
+						);
+					}
+				})();
+				sent += 1;
+			} catch (e) {
+				const why =
+					e instanceof SignedOut
+						? `${SERVICE_NAME[target.service]} SIGN-IN EXPIRED`
+						: e instanceof Unreachable
+							? `${SERVICE_NAME[target.service]} DID NOT ANSWER`
+							: `${SERVICE_NAME[target.service]} REFUSED IT`;
+				if (isAnime(target.kind))
+					db.prepare(
+						`UPDATE season_tracker_sends SET failed_at = ?, error = ?
+						WHERE series_id = ? AND season = ? AND part = ? AND service = ?`
+					).run(now, why, seriesId, target.season, target.part, target.service);
+				else
+					db.prepare(
+						`UPDATE tracker_sends SET failed_at = ?, error = ? WHERE series_id = ? AND service = ?`
+					).run(now, why, seriesId, target.service);
+				failed += 1;
+			}
 		}
 	}
 	return { sent, failed };
@@ -700,10 +994,30 @@ export async function sendPending(
  * A rating set here is the score both catalogues get (c67: one number, out
  * of 10 on every side). 0, unrated, clears the score. Same rules as any send:
  * never a hidden series, never through a cover-only link.
+ *
+ * An anime sends it to the season being watched only (c240): a series has one
+ * rating and four entries, and sending it to all of them would overwrite the
+ * scores the owner gave earlier seasons.
  */
 export async function afterRating(seriesIds: number[], rating: number): Promise<void> {
-	for (const id of seriesIds)
-		if (editTracking(id, { score: rating }) > 0) await sendPending({ seriesId: id });
+	for (const id of seriesIds) {
+		const where = ratingPart(id);
+		if (editTracking(id, { score: rating }, Date.now(), where) > 0)
+			await sendPending({ seriesId: id });
+	}
+}
+
+/** The season, and the part of it, a rating and the sheet's edit go to: the one being watched. */
+export function ratingPart(seriesId: number): { season?: number; part?: number } {
+	const view = seriesSeasons(seriesId);
+	if (!view) return {};
+	const sv = view.seasons.find((s) => s.season === view.open) ?? view.seasons[0];
+	if (!sv) return {};
+	// The open season's own highest watched episode decides the part: season 1
+	// finished at 24 says nothing about season 2's half (c240).
+	const watched = watchedReached(watchedRows(seriesId), { season: sv.season });
+	const part = sv.parts.find((p) => watched >= p.from && watched <= p.to);
+	return { season: sv.season, part: part?.part ?? sv.parts[0]?.part ?? 1 };
 }
 
 /**
@@ -731,15 +1045,46 @@ export type Tracking = {
 	status: Status | null;
 	score: number | null;
 	links: { service: Service; mediaId: number }[];
+	/** An anime: one entry per season (c240), the open one first in `openSeason`. */
+	seasons?: SeasonTrack[];
+	openSeason?: number;
 };
 
-/** The TRACKING row (Series Link 1k–1s). Null when the series isn't linked. */
+/** One season's part of the TRACKING row: its link, its facts, and its parts. */
+export type SeasonTrack = {
+	season: number;
+	from: number;
+	to: number;
+	count: number;
+	aired: number;
+	watched: number;
+	/** The part being watched. */
+	part: number;
+	parts: { part: number; from: number; to: number }[];
+	/** Part 1's link, which is the season's line. */
+	link: SeasonLink | null;
+	facts: SeasonFact[];
+	/** The other part's own word, when the season has two. */
+	other: SeasonTrackFacts['other'];
+	/** An episode past every part's count. */
+	waits: SeasonTrackFacts['waits'];
+	hidden: boolean;
+	coverOnly: boolean;
+	wrongKind: boolean;
+};
+
+/**
+ * `series_links` keeps meaning what it meant for a comic (one entry for the
+ * series). An anime answers per season (c240): the row's own `facts` are the
+ * open season's, and `seasons` carries every one of them, which is what the
+ * panel draws its lines from.
+ */
 export function trackingOf(seriesId: number): Tracking | null {
 	const db = getDb();
 	const r = db
 		.prepare(
 			`SELECT s.kind, ${HIDDEN_SQL} AS hidden, l.anilist_id, l.mal_id, l.format
-			FROM series s JOIN roots r ON r.id = s.root_id JOIN series_links l ON l.series_id = s.id WHERE s.id = ?`
+			FROM series s JOIN roots r ON r.id = s.root_id LEFT JOIN series_links l ON l.series_id = s.id WHERE s.id = ?`
 		)
 		.get(seriesId) as
 		| {
@@ -751,6 +1096,25 @@ export function trackingOf(seriesId: number): Tracking | null {
 		  }
 		| undefined;
 	if (!r) return null;
+	if (isAnime(r.kind)) {
+		const seasons = seasonsTracking(seriesId, !!r.hidden);
+		const open = seriesSeasons(seriesId)?.open ?? 0;
+		const at = seasons.find((s) => s.season === open) ?? seasons[0] ?? null;
+		const main =
+			at?.facts.find((f) => f.service === 'anilist')?.state ??
+			at?.facts.find((f) => f.service === 'mal')?.state ??
+			null;
+		return {
+			facts: at?.facts ?? [],
+			hidden: !!r.hidden,
+			coverOnly: !!at?.coverOnly,
+			status: main?.status ?? null,
+			score: main?.score ?? null,
+			links: factsLinks(at?.facts ?? [], at?.link ?? null),
+			seasons,
+			openSeason: open
+		};
+	}
 	const facts = SERVICES.map((service): TrackFacts => {
 		const st = db
 			.prepare(
@@ -798,6 +1162,120 @@ export function trackingOf(seriesId: number): Tracking | null {
 	};
 }
 
+/** The ids the sheet's OPEN cells use, from a season's link. */
+function factsLinks(
+	facts: SeasonFact[],
+	link: SeasonLink | null
+): { service: Service; mediaId: number }[] {
+	return facts
+		.filter((f) => f.linked)
+		.map((f) => ({
+			service: f.service,
+			mediaId: (f.service === 'anilist' ? link?.anilistId : link?.malId) ?? 0
+		}))
+		.filter((l) => l.mediaId > 0);
+}
+
+/** Every season's line, for the panel and the sheet: one per season, its parts folded in. */
+function seasonsTracking(seriesId: number, hidden: boolean): SeasonTrack[] {
+	const view = seriesSeasons(seriesId);
+	if (!view) return [];
+	const db = getDb();
+	const entries = watchedRows(seriesId);
+	const of = (season: number, from?: number, to?: number) =>
+		watchedReached(entries, { season, from, to });
+	return view.seasons.map((sv) => {
+		const watchedAll = of(sv.season);
+		const parts = sv.parts;
+		const at = parts.find((p) => watchedAll >= p.from && watchedAll <= p.to) ??
+			parts[0] ?? { part: 1, from: 1, to: sv.aired };
+		const facts: SeasonFact[] = SERVICES.map((service): SeasonFact => {
+			const l = parts.find((p) => p.part === at.part)?.link ?? null;
+			const mediaId = service === 'anilist' ? l?.anilistId : l?.malId;
+			const st = l
+				? (db
+						.prepare(
+							`SELECT status, progress, score, read_at, sent_at FROM season_tracker_state
+							WHERE series_id = ? AND season = ? AND part = ? AND service = ?`
+						)
+						.get(seriesId, sv.season, at.part, service) as
+						| {
+								status: Status | null;
+								progress: number;
+								score: number | null;
+								read_at: number | null;
+								sent_at: number | null;
+						  }
+						| undefined)
+				: undefined;
+			const w = l
+				? (db
+						.prepare(
+							`SELECT progress, failed_at, error FROM season_tracker_sends
+							WHERE series_id = ? AND season = ? AND part = ? AND service = ?`
+						)
+						.get(seriesId, sv.season, at.part, service) as
+						{ progress: number | null; failed_at: number | null; error: string | null } | undefined)
+				: undefined;
+			return {
+				service,
+				part: at.part,
+				of: l?.episodes ?? at.to,
+				signedIn: !!account(service),
+				linked: !!mediaId,
+				state: st ? { status: st.status, progress: st.progress, score: st.score } : null,
+				waiting: w ? { progress: w.progress, failedAt: w.failed_at, error: w.error } : null,
+				sentAt: st?.sent_at ?? null
+			};
+		});
+		const otherPart = parts.find((p) => p.part !== at.part) ?? null;
+		const otherLink = otherPart?.link ?? null;
+		const otherSt = otherPart
+			? ((db
+					.prepare(
+						`SELECT status, progress, score FROM season_tracker_state
+						WHERE series_id = ? AND season = ? AND part = ? AND service = 'anilist'`
+					)
+					.get(seriesId, sv.season, otherPart.part) as
+					{ status: Status | null; progress: number; score: number | null } | undefined) ??
+				(db
+					.prepare(
+						`SELECT status, progress, score FROM season_tracker_state
+						WHERE series_id = ? AND season = ? AND part = ? AND service = 'mal'`
+					)
+					.get(seriesId, sv.season, otherPart.part) as
+					{ status: Status | null; progress: number; score: number | null } | undefined))
+			: undefined;
+		const last = parts[parts.length - 1];
+		const service = facts.find((f) => f.service === 'anilist')?.linked ? 'anilist' : 'mal';
+		return {
+			season: sv.season,
+			from: sv.from,
+			to: sv.to,
+			count: sv.count,
+			aired: sv.aired,
+			watched: sv.watched,
+			part: at.part,
+			parts: parts.map((p) => ({ part: p.part, from: p.from, to: p.to })),
+			link: sv.link,
+			facts,
+			other:
+				otherPart && otherLink
+					? {
+							part: otherPart.part,
+							state: otherSt?.status ?? null,
+							progress: otherSt?.progress ?? 0,
+							of: otherLink.episodes ?? otherPart.to
+						}
+					: null,
+			waits: last && watchedAll > last.to ? { episode: watchedAll, of: last.to, service } : null,
+			hidden,
+			coverOnly: !!sv.link && coverOnly('anime', sv.link.format ?? ''),
+			wrongKind: !!sv.link && wrongKind('anime', sv.link.format ?? '')
+		};
+	});
+}
+
 export type AccountView = {
 	service: Service;
 	configured: boolean;
@@ -832,7 +1310,11 @@ export function accounts(): AccountView[] {
 		const linked = (
 			db
 				.prepare(
-					`SELECT COUNT(*) AS n FROM series_links WHERE ${service === 'anilist' ? 'anilist_id' : 'mal_id'} IS NOT NULL`
+					`SELECT COUNT(*) AS n FROM (
+						SELECT series_id FROM series_links WHERE ${service === 'anilist' ? 'anilist_id' : 'mal_id'} IS NOT NULL
+						UNION
+						SELECT series_id FROM series_season_links WHERE ${service === 'anilist' ? 'anilist_id' : 'mal_id'} IS NOT NULL
+					)`
 				)
 				.get() as { n: number }
 		).n;
@@ -851,19 +1333,16 @@ export function accounts(): AccountView[] {
 
 /** TRY AGAIN, on SETTINGS: every send that failed, for one catalogue. */
 export async function retry(service: Service): Promise<{ sent: number; failed: number }> {
-	getDb()
-		.prepare(`UPDATE tracker_sends SET failed_at = NULL, error = NULL WHERE service = ?`)
-		.run(service);
-	const ids = (
-		getDb()
-			.prepare(`SELECT DISTINCT series_id FROM tracker_sends WHERE service = ?`)
-			.all(service) as {
-			series_id: number;
-		}[]
-	).map((r) => r.series_id);
+	const db = getDb();
+	db.prepare(`UPDATE tracker_sends SET failed_at = NULL, error = NULL WHERE service = ?`).run(
+		service
+	);
+	db.prepare(
+		`UPDATE season_tracker_sends SET failed_at = NULL, error = NULL WHERE service = ?`
+	).run(service);
 	let sent = 0;
 	let failed = 0;
-	for (const id of ids) {
+	for (const id of pendingSeries(service)) {
 		const r = await sendPending({ seriesId: id });
 		sent += r.sent;
 		failed += r.failed;
