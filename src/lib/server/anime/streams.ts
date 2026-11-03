@@ -15,12 +15,13 @@ import {
 	chaptersOf,
 	headersOf,
 	isPlaylist,
-	langCode,
+	langName,
 	onePerLanguage,
 	playlistSeconds,
 	rewritePlaylist,
 	serversOf,
 	toVtt,
+	trackCodes,
 	variantsOf,
 	videoKind,
 	type EngineVideo,
@@ -219,7 +220,12 @@ export async function serveSubtitle(token: string): Promise<Response> {
 
 // ---- an episode -----------------------------------------------------------------------------
 
-export type Track = { lang: string; src: string };
+/**
+ * A track: [lang] its code, which the sheet shows and a choice keeps
+ * (langCode, c386), and [name] the language in full, for the cell's title
+ * and MORE's list. A downloaded file's tracks have codes alone.
+ */
+export type Track = { lang: string; name?: string; src: string };
 export type StreamQuality = {
 	label: string;
 	height: number | null;
@@ -299,39 +305,14 @@ async function fileTracks(path: string): Promise<{ subtitles: string[]; height: 
 	};
 	const streams = j.streams ?? [];
 	return {
-		subtitles: streams
-			.filter((s) => s.codec_type === 'subtitle')
-			.map((s) => langCode(iso2(s.tags?.language ?? ''))),
+		// Matroska's three letters ("eng", "ger") are read as any source's
+		// label is (langCode knows ISO 639-2), each its own code.
+		subtitles: trackCodes(
+			streams.filter((s) => s.codec_type === 'subtitle').map((s) => s.tags?.language ?? '')
+		),
 		height: streams.find((s) => s.codec_type === 'video')?.height ?? null
 	};
 }
-
-/** Matroska's three-letter languages, back to the two the sheet shows. */
-const iso2 = (l: string) =>
-	({
-		eng: 'en',
-		jpn: 'ja',
-		spa: 'es',
-		por: 'pt',
-		fre: 'fr',
-		fra: 'fr',
-		ger: 'de',
-		deu: 'de',
-		ita: 'it',
-		ara: 'ar',
-		rus: 'ru',
-		ind: 'id',
-		chi: 'zh',
-		zho: 'zh',
-		kor: 'ko',
-		hin: 'hi',
-		tam: 'ta',
-		tel: 'te',
-		tha: 'th',
-		vie: 'vi',
-		tur: 'tr',
-		pol: 'pl'
-	})[l.toLowerCase()] ?? l;
 
 /** The downloaded episode as a server of its own, first: DOWNLOADED, played from the file. */
 async function localServer(entryId: number): Promise<StreamServer | null> {
@@ -455,16 +436,18 @@ export async function episodeStreams(
 		ts: { url: string; lang: string }[] | null | undefined,
 		h: Record<string, string>,
 		sub: boolean
-	) =>
-		(ts ?? [])
-			.filter((t) => t?.url)
-			.map((t) => {
-				const token = register({ url: t.url, headers: h, engine: engineMediaPath(t.url) !== null });
-				return {
-					lang: langCode(t.lang || ''),
-					src: sub ? subtitleRoute(token) : mediaRoute(token)
-				};
-			});
+	) => {
+		const kept = (ts ?? []).filter((t) => t?.url);
+		const codes = trackCodes(kept.map((t) => t.lang || ''));
+		return kept.map((t, i) => {
+			const token = register({ url: t.url, headers: h, engine: engineMediaPath(t.url) !== null });
+			return {
+				lang: codes[i],
+				name: langName(t.lang || ''),
+				src: sub ? subtitleRoute(token) : mediaRoute(token)
+			};
+		});
+	};
 	const servers = serversOf(list).map((s) => ({
 		n: s.n,
 		name: s.name,
@@ -476,8 +459,11 @@ export async function episodeStreams(
 				headers,
 				engine: engineMediaPath(address) !== null
 			});
-			const audio = onePerLanguage((q.video.audioTracks ?? []).filter((t) => t?.url)).map((t) => ({
-				lang: langCode(t.lang || ''),
+			const sources = onePerLanguage((q.video.audioTracks ?? []).filter((t) => t?.url));
+			const codes = trackCodes(sources.map((t) => t.lang || ''));
+			const audio = sources.map((t, i) => ({
+				lang: codes[i],
+				name: langName(t.lang || ''),
 				token: register({ url: t.url, headers, engine: engineMediaPath(t.url) !== null })
 			}));
 			// Separate audio: a master playlist of tsundoku's own names it.
@@ -496,7 +482,7 @@ export async function episodeStreams(
 				height: q.height,
 				kind: audio.length ? ('hls' as const) : videoKind(address),
 				src,
-				audio: audio.map((a) => ({ lang: a.lang, src: mediaRoute(a.token) })),
+				audio: audio.map((a) => ({ lang: a.lang, name: a.name, src: mediaRoute(a.token) })),
 				subtitles: tracks(q.video.subtitleTracks, headers, true)
 			};
 		})

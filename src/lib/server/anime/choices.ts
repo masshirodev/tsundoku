@@ -33,7 +33,14 @@ export type PlayerStart = {
 
 type Last = Partial<Record<What, { v: string | null; seriesId: number; at: number }>>;
 
-const isLang = (v: unknown): v is string => typeof v === 'string' && /^[A-Z]{2,3}$/.test(v);
+/**
+ * A track's code (langCode): two or three capitals, and since c386 a variant
+ * or two after them -- PT-BR, ES-419, ZH-HANT, and ES-2 for the second of two
+ * tracks that came to the same code. A whole word ("HUNGARIAN", which the
+ * sheet once showed) never passed, so none is kept.
+ */
+const isLang = (v: unknown): v is string =>
+	typeof v === 'string' && /^[A-Z]{2,3}(-[A-Z0-9]{1,4}){0,2}$/.test(v);
 
 /** Only what a choice can be: a browser's word is checked. */
 export function cleanChoice(what: What, v: unknown): string | null | undefined {

@@ -278,7 +278,13 @@ export async function downloadEpisode(entryId: number, d: AnimeDeps): Promise<st
 		kept: keptOf(getSetting('anime_download_audio')),
 		subs: getSetting('anime_download_subs') === 'audio' ? ('audio' as const) : ('all' as const)
 	};
-	const kept = (q: (typeof tries)[number]['quality']) => keptTracks(q.audio, q.subtitles, keep);
+	// Kept and tagged by language alone, as before c386 gave tracks variants
+	// (PT-BR, ES-419): SETTINGS' AUDIO KEPT names languages, and a file's
+	// tag is ISO 639-2's three letters, which have no variant.
+	const base = <T extends { lang: string }>(ts: T[]) =>
+		ts.map((t) => ({ ...t, lang: t.lang.split('-')[0] }));
+	const kept = (q: (typeof tries)[number]['quality']) =>
+		keptTracks(base(q.audio), base(q.subtitles), keep);
 	let got: (typeof tries)[number] | null = null;
 	let last: unknown = null;
 	for (const pick of tries) {

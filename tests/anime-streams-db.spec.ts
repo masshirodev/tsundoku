@@ -196,7 +196,11 @@ describe('an episode’s streams', () => {
 		const json = JSON.stringify(s);
 		expect(json).not.toMatch(/127\.0\.0\.1|site\.example|engine-secret/);
 		expect(s.servers[1].qualities[0].subtitles).toEqual([
-			{ lang: 'EN', src: expect.stringMatching(/^\/api\/anime\/subtitle\/[A-Za-z0-9_-]{32}$/) }
+			{
+				lang: 'EN',
+				name: 'English',
+				src: expect.stringMatching(/^\/api\/anime\/subtitle\/[A-Za-z0-9_-]{32}$/)
+			}
 		]);
 	});
 
@@ -330,6 +334,85 @@ describe('an episode’s streams', () => {
 		expect((await text(again.servers[0].qualities[0].src)).body.toString()).toMatch(
 			/#EXT-X-STREAM-INF:BANDWIDTH=2300000,RESOLUTION=1920x1080\n\/api\/anime\/media\//
 		);
+	});
+
+	it('name every track by a short code of its own, the language in full beside it (c386)', async () => {
+		// The owner's screenshot (VidStreaming, KickAssAnime, 2026-11-03): most
+		// labels were codes, Hungarian and Italian whole words, and dozens of
+		// subtitles printed over each other.
+		const sub = (lang: string, i: number) => ({ url: `${ENGINE_SELF}/subs/${i}.vtt`, lang });
+		videoAnswer = [
+			{
+				quality: 'VidStreaming - 1080p',
+				videoUrl: `${ENGINE_SELF}/video/v1080.m3u8`,
+				audioTracks: ['Japanese', 'English', 'Hungarian', 'Italian', 'Portuguese (Brazil)'].map(
+					(lang, i) => ({ url: `${ENGINE_SELF}/video/a${i}.m3u8`, lang })
+				),
+				subtitleTracks: [
+					'English',
+					'Chinese (Traditional)',
+					'Chinese (Simplified)',
+					'Norwegian (nob)',
+					'Spanish',
+					'Español',
+					'Klingon'
+				].map(sub)
+			}
+		];
+		const q = (await streams.episodeStreams(shown, false, true))!.servers[0].qualities[0];
+		expect(q.audio.map((a) => [a.lang, a.name])).toEqual([
+			['JA', 'Japanese'],
+			['EN', 'English'],
+			['HU', 'Hungarian'],
+			['IT', 'Italian'],
+			['PT-BR', 'Portuguese (Brazil)']
+		]);
+		expect(q.subtitles.map((t) => [t.lang, t.name])).toEqual([
+			['EN', 'English'],
+			['ZH-HANT', 'Chinese (Traditional)'],
+			['ZH-HANS', 'Chinese (Simplified)'],
+			['NB', 'Norwegian Bokmål'],
+			['ES', 'Spanish'],
+			// Two labels that come to one code stay two choices.
+			['ES-2', 'Spanish'],
+			['KLI', 'Klingon']
+		]);
+		// The master playlist names the alternate audio by the same code the player matches.
+		const master = (await text(q.src)).body.toString();
+		expect(master).toMatch(/NAME="PT-BR",LANGUAGE="pt-br"/);
+	});
+
+	it('keep a choice of every code the sheet can show, and never a whole word (c386)', async () => {
+		const { cleanChoice } = await import('$lib/server/anime/choices');
+		const { LANGS, langCode, trackCodes } = await import('$lib/library/streams');
+		// Every language, every variant a label can carry, an unknown one, and
+		// the second of two that share a code: each must be a choice the
+		// workstation keeps, or a pick from the sheet is refused and forgotten.
+		const labels = LANGS.flatMap(([, name]) => [
+			name,
+			`${name} (Brazil)`,
+			`${name} (Latin America)`,
+			`${name} (Traditional)`,
+			`${name} (Simplified)`,
+			`${name} (Canada)`
+		]);
+		const codes = [
+			...new Set([
+				...labels.map(langCode),
+				...trackCodes([
+					'Spanish',
+					'Español',
+					'Klingon',
+					'Klingonese',
+					'Chinese (Traditional)',
+					'zh-TW'
+				])
+			])
+		];
+		expect(codes.filter((c) => cleanChoice('audio', c) !== c)).toEqual([]);
+		expect(codes.filter((c) => cleanChoice('subs', c) !== c)).toEqual([]);
+		for (const word of ['HUNGARIAN', 'ITALIAN', 'pt-BR', 'PT-', 'EN-TOOLONG', ''])
+			expect(cleanChoice('subs', word)).toBeUndefined();
 	});
 
 	it('tell a file a hoster links to from HLS', async () => {

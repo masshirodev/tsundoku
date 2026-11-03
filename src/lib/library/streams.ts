@@ -256,34 +256,272 @@ export function toVtt(text: string): string {
 	return `WEBVTT\n\n${body.trim()}\n`;
 }
 
-/** "en", "English", "eng" as the sheet names it: EN, JA, … */
+/**
+ * The languages a track can be named in (doc/ANIME.md, "The settings sheet";
+ * c386): the code the sheet shows, the English name its `title` says, then
+ * every other way a source writes it -- ISO 639-2's three letters (both the
+ * B and T forms), the language's own name. A source's label is matched
+ * against all of them, so "Hungarian", "hun", "hu" and "Magyar" are all HU.
+ */
+export const LANGS: [code: string, name: string, ...aliases: string[]][] = [
+	['af', 'Afrikaans', 'afr'],
+	['am', 'Amharic', 'amh'],
+	['ar', 'Arabic', 'ara', 'العربية'],
+	['az', 'Azerbaijani', 'aze'],
+	['be', 'Belarusian', 'bel'],
+	['bg', 'Bulgarian', 'bul', 'български'],
+	['bn', 'Bengali', 'ben', 'bangla', 'বাংলা'],
+	['bs', 'Bosnian', 'bos'],
+	['ca', 'Catalan', 'cat', 'català'],
+	['cs', 'Czech', 'cze', 'ces', 'čeština'],
+	['cy', 'Welsh', 'wel', 'cym'],
+	['da', 'Danish', 'dan', 'dansk'],
+	['de', 'German', 'ger', 'deu', 'deutsch'],
+	['el', 'Greek', 'gre', 'ell', 'ελληνικά'],
+	['en', 'English', 'eng'],
+	['es', 'Spanish', 'spa', 'español', 'espanol', 'castellano', 'castilian'],
+	['et', 'Estonian', 'est', 'eesti'],
+	['eu', 'Basque', 'baq', 'eus', 'euskara'],
+	['fa', 'Persian', 'per', 'fas', 'farsi', 'فارسی'],
+	['fi', 'Finnish', 'fin', 'suomi'],
+	['fil', 'Filipino', 'tagalog', 'tl', 'tgl'],
+	['fr', 'French', 'fre', 'fra', 'français', 'francais'],
+	['ga', 'Irish', 'gle', 'gaeilge'],
+	['gl', 'Galician', 'glg', 'galego'],
+	['gu', 'Gujarati', 'guj'],
+	['he', 'Hebrew', 'heb', 'iw', 'עברית'],
+	['hi', 'Hindi', 'hin', 'हिन्दी'],
+	['hr', 'Croatian', 'hrv', 'hrvatski'],
+	['hu', 'Hungarian', 'hun', 'magyar'],
+	['hy', 'Armenian', 'arm', 'hye'],
+	['id', 'Indonesian', 'ind', 'bahasa indonesia'],
+	['is', 'Icelandic', 'ice', 'isl', 'íslenska'],
+	['it', 'Italian', 'ita', 'italiano'],
+	['ja', 'Japanese', 'jpn', 'jp', '日本語'],
+	['ka', 'Georgian', 'geo', 'kat'],
+	['kk', 'Kazakh', 'kaz'],
+	['km', 'Khmer', 'khm'],
+	['kn', 'Kannada', 'kan'],
+	['ko', 'Korean', 'kor', '한국어'],
+	['lo', 'Lao', 'lao'],
+	['lt', 'Lithuanian', 'lit', 'lietuvių'],
+	['lv', 'Latvian', 'lav', 'latviešu'],
+	['mk', 'Macedonian', 'mac', 'mkd'],
+	['ml', 'Malayalam', 'mal'],
+	['mn', 'Mongolian', 'mon'],
+	['mr', 'Marathi', 'mar'],
+	['ms', 'Malay', 'may', 'msa', 'melayu', 'bahasa melayu'],
+	['my', 'Burmese', 'bur', 'mya'],
+	['nb', 'Norwegian Bokmål', 'nob', 'bokmål', 'bokmal'],
+	['ne', 'Nepali', 'nep'],
+	['nl', 'Dutch', 'dut', 'nld', 'nederlands', 'flemish'],
+	['nn', 'Norwegian Nynorsk', 'nno', 'nynorsk'],
+	['no', 'Norwegian', 'nor', 'norsk'],
+	['pa', 'Punjabi', 'pan'],
+	['pl', 'Polish', 'pol', 'polski'],
+	['pt', 'Portuguese', 'por', 'português', 'portugues'],
+	['ro', 'Romanian', 'rum', 'ron', 'română'],
+	['ru', 'Russian', 'rus', 'русский'],
+	['si', 'Sinhala', 'sin'],
+	['sk', 'Slovak', 'slo', 'slk', 'slovenčina'],
+	['sl', 'Slovenian', 'slv', 'slovene', 'slovenščina'],
+	['sq', 'Albanian', 'alb', 'sqi'],
+	['sr', 'Serbian', 'srp', 'srpski'],
+	['sv', 'Swedish', 'swe', 'svenska'],
+	['sw', 'Swahili', 'swa'],
+	['ta', 'Tamil', 'tam'],
+	['te', 'Telugu', 'tel'],
+	['th', 'Thai', 'tha', 'ไทย'],
+	['tr', 'Turkish', 'tur', 'türkçe'],
+	['uk', 'Ukrainian', 'ukr', 'українська'],
+	['ur', 'Urdu', 'urd'],
+	['uz', 'Uzbek', 'uzb'],
+	['vi', 'Vietnamese', 'vie', 'tiếng việt'],
+	['yue', 'Cantonese', '粵語'],
+	['zh', 'Chinese', 'chi', 'zho', 'mandarin', 'cmn', '中文'],
+	['zu', 'Zulu', 'zul']
+];
+
+const BY_ALIAS = new Map<string, string>();
+const NAME_OF = new Map<string, string>();
+for (const [code, name, ...aliases] of LANGS) {
+	NAME_OF.set(code, name);
+	for (const a of [code, name.toLowerCase(), ...aliases]) BY_ALIAS.set(a, code);
+}
+
+/**
+ * The variants a sheet tells apart, each a word a source may use for it.
+ * Every other region a tag carries (`en-US`, `ja-JP`) is the language
+ * itself: two cells reading EN-US and EN-GB would be a choice nobody makes.
+ */
+const VARIANTS: { base: string; code: string; name: string; words: string[] }[] = [
+	{
+		base: 'pt',
+		code: 'BR',
+		name: 'Brazil',
+		words: ['br', 'brazil', 'brazilian', 'brasil', 'brasileiro']
+	},
+	{
+		base: 'es',
+		code: '419',
+		name: 'Latin America',
+		words: [
+			'419',
+			'latin',
+			'latino',
+			'latam',
+			'latinoamérica',
+			'latinoamerica',
+			'mx',
+			'mexico',
+			'méxico',
+			'la'
+		]
+	},
+	{
+		base: 'zh',
+		code: 'HANT',
+		name: 'Traditional',
+		words: ['hant', 'traditional', 'tw', 'taiwan', 'hk', 'hong', '繁體']
+	},
+	{
+		base: 'zh',
+		code: 'HANS',
+		name: 'Simplified',
+		words: ['hans', 'simplified', 'cn', 'mainland', '简体']
+	},
+	{
+		base: 'fr',
+		code: 'CA',
+		name: 'Canada',
+		words: ['ca', 'canada', 'canadian', 'québec', 'quebec']
+	}
+];
+/** A language a word can narrow a broader one to: "Norwegian (nob)" is Bokmål. */
+const NARROWS: Record<string, string[]> = { no: ['nb', 'nn'], zh: ['yue'] };
+
+const words = (label: string) =>
+	label
+		.trim()
+		.toLowerCase()
+		.split(/[\s()[\]{},;:/|_.-]+/)
+		.filter(Boolean);
+
+/** The language a label names and the variant it narrows to, if either is known. */
+function parseLang(label: string): { base: string; variant: string | null } | null {
+	const l = label.trim().toLowerCase();
+	const w = words(label);
+	let base = BY_ALIAS.get(l) ?? null;
+	let at = -1;
+	if (!base) {
+		// Two words first ("bahasa indonesia", "norwegian bokmål"), then one.
+		for (let i = 0; i < w.length && !base; i++) {
+			const two = i + 1 < w.length ? BY_ALIAS.get(`${w[i]} ${w[i + 1]}`) : undefined;
+			const one = BY_ALIAS.get(w[i]);
+			if (two || one) {
+				base = (two ?? one)!;
+				at = i;
+			}
+		}
+	}
+	if (!base) return null;
+	// The other words narrow it, wherever they stand: "Chinese (Traditional)",
+	// and "Latin American Spanish" or "Brazilian Portuguese" as much.
+	const rest = w.filter((_, i) => i !== at);
+	const narrower = NARROWS[base]?.find((n) => rest.some((x) => BY_ALIAS.get(x) === n));
+	if (narrower) return { base: narrower, variant: null };
+	const v = VARIANTS.find((v) => v.base === base && rest.some((x) => v.words.includes(x)));
+	return { base, variant: v?.code ?? null };
+}
+
+/**
+ * A track's language as the sheet shows it (c386): its short code, `JA`,
+ * `PT-BR`, `ES-419`, `ZH-HANT`, `NB`, whatever the source wrote ("English",
+ * "eng", "en-US", "Chinese (Traditional)", "Norwegian (nob)", "Magyar"). A
+ * name nobody knows is cut to a code of its own, its first three letters
+ * ("Klingon" is KLI), so no cell ever holds a whole word; the name itself
+ * goes in the cell's `title` (langName).
+ */
 export function langCode(lang: string): string {
-	const l = lang.trim().toLowerCase();
-	const NAMES: Record<string, string> = {
-		english: 'en',
-		eng: 'en',
-		japanese: 'ja',
-		jpn: 'ja',
-		spanish: 'es',
-		portuguese: 'pt',
-		french: 'fr',
-		german: 'de',
-		italian: 'it',
-		arabic: 'ar',
-		russian: 'ru',
-		indonesian: 'id',
-		chinese: 'zh',
-		korean: 'ko',
-		hindi: 'hi',
-		tamil: 'ta',
-		telugu: 'te',
-		thai: 'th',
-		vietnamese: 'vi',
-		turkish: 'tr',
-		polish: 'pl'
-	};
-	const word = l.split(/[\s(_-]/)[0];
-	return (NAMES[word] ?? (/^[a-z]{2}$/.test(word) ? word : l)).toUpperCase();
+	const p = parseLang(lang);
+	if (p) return (p.variant ? `${p.base}-${p.variant}` : p.base).toUpperCase();
+	const w = words(lang);
+	if (!w.length) return '';
+	if (/^[a-z]{2,3}$/.test(w[0])) return w[0].toUpperCase();
+	const letters = w.join('').replace(/[^\p{L}]/gu, '');
+	return (letters || w.join('')).slice(0, 3).toUpperCase();
+}
+
+/**
+ * A track's language in full, for the cell's `title` and `aria-label` and
+ * MORE's list (c386): "Portuguese (Brazil)", "Norwegian Bokmål". A label
+ * nobody knows is given back as the source wrote it, trimmed.
+ */
+export function langName(lang: string): string {
+	const p = parseLang(lang);
+	if (!p) return lang.trim();
+	const name = NAME_OF.get(p.base) ?? p.base.toUpperCase();
+	const v = p.variant ? VARIANTS.find((x) => x.base === p.base && x.code === p.variant) : null;
+	return v ? `${name} (${v.name})` : name;
+}
+
+/**
+ * The codes of one list of tracks, each its own: two names that come to the
+ * same code ("Spanish" and "Español" on one server) are told apart as ES and
+ * ES-2, since a choice is kept by its code and must pick one track.
+ */
+export function trackCodes(names: string[]): string[] {
+	const seen = new Map<string, number>();
+	return names.map((n) => {
+		const code = langCode(n);
+		const k = (seen.get(code) ?? 0) + 1;
+		seen.set(code, k);
+		return k === 1 ? code : `${code}-${k}`;
+	});
+}
+
+/**
+ * Which offered track a remembered choice means (c386). A choice is a code,
+ * kept by the workstation; the codes grew regions in c386 (PT-BR, ES-419)
+ * and lost ISO 639-2's three letters (`HUN` is HU), so one kept before then
+ * is read through langCode and, failing the exact code, takes the same
+ * language: PT finds PT-BR, PT-BR finds PT. Undefined when nothing offered
+ * is that language.
+ */
+export function matchLang(choice: string, offered: string[]): string | undefined {
+	const c = langCode(choice);
+	if (offered.includes(c)) return c;
+	const base = c.split('-')[0];
+	return offered.find((o) => o === base) ?? offered.find((o) => o.split('-')[0] === base);
+}
+
+/**
+ * How many languages a sheet row shows as cells before it collapses
+ * (c386). Twelve is two lines of the 520px sheet's six cells: past that the
+ * row would be taller than the rest of the sheet together, and on a TV's
+ * 420px panel (four to a line) three lines already.
+ */
+export const LANG_ROW_MAX = 12;
+
+/**
+ * A language row's cells (c386): every language when there are LANG_ROW_MAX
+ * or fewer; else only those that matter -- the ones in [keep] (what is on,
+ * what the series or SETTINGS chose, the device's language, English) -- in
+ * the source's order, and how many MORE · N holds besides.
+ */
+export function langRow(
+	offered: string[],
+	keep: (string | null | undefined)[]
+): { shown: string[]; more: number } {
+	if (offered.length <= LANG_ROW_MAX) return { shown: offered, more: 0 };
+	const want = new Set<string>();
+	for (const k of keep) {
+		if (!k) continue;
+		const m = matchLang(k, offered);
+		if (m) want.add(m);
+	}
+	const shown = offered.filter((o) => want.has(o));
+	return { shown, more: offered.length - shown.length };
 }
 
 /**

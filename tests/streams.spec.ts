@@ -3,7 +3,12 @@ import {
 	chaptersOf,
 	headersOf,
 	heightOf,
+	LANGS,
+	LANG_ROW_MAX,
 	langCode,
+	langName,
+	langRow,
+	matchLang,
 	onePerLanguage,
 	qualitiesLine,
 	qualityName,
@@ -12,6 +17,7 @@ import {
 	serversOf,
 	startQuality,
 	toVtt,
+	trackCodes,
 	variantsOf
 } from '$lib/library/streams';
 
@@ -150,11 +156,12 @@ describe('subtitles', () => {
 			'Dialogue: 0,0:00:02.50,0:00:04.00,Default,,0,0,0,,{\\i1}Wait,{\\i0}\\Nplease'
 		].join('\n');
 		expect(toVtt(ass)).toBe('WEBVTT\n\n00:00:02.500 --> 00:00:04.000\nWait,\nplease\n');
+		// pt-BR is PT-BR since c386; Klingon, a name nobody knows, is cut to a code.
 		expect([langCode('English'), langCode('jpn'), langCode('pt-BR'), langCode('Klingon')]).toEqual([
 			'EN',
 			'JA',
-			'PT',
-			'KLINGON'
+			'PT-BR',
+			'KLI'
 		]);
 		expect([langCode('Hindi'), langCode('Tamil')]).toEqual(['HI', 'TA']);
 	});
@@ -187,5 +194,129 @@ describe('quality names (2026-10-29)', () => {
 				{ label: 'B', height: null }
 			])
 		).toBe('2 QUALITIES');
+	});
+});
+
+// The sheet's languages (doc/ANIME.md, "The settings sheet"; card c386).
+describe('a track’s language: one short code, the name in full beside it', () => {
+	it('names every language of the table by its code, its name and every alias', () => {
+		// The whole table, not a sample: an alias that two languages share
+		// would make one of them unreachable, and only the exhaustive case sees it.
+		const wrong: string[] = [];
+		for (const [code, name, ...aliases] of LANGS) {
+			for (const a of [code, name, name.toUpperCase(), ...aliases])
+				if (langCode(a) !== code.toUpperCase()) wrong.push(`${a} -> ${langCode(a)} (not ${code})`);
+			if (langName(code) !== name) wrong.push(`name of ${code}: ${langName(code)}`);
+			if (langName(name) !== name) wrong.push(`name of ${name}: ${langName(name)}`);
+		}
+		expect(wrong).toEqual([]);
+		const codes = LANGS.map(([c]) => c);
+		expect(new Set(codes).size).toBe(codes.length);
+	});
+
+	it('gives every label in the owner’s screenshot a code, never a whole word', () => {
+		// VidStreaming (KickAssAnime), 2026-11-03: the AUDIO row's labels.
+		const audio = ['Japanese', 'English', 'German', 'Spanish', 'French', 'Hindi'];
+		const long = ['Hungarian', 'Italian', 'Portuguese', 'Thai'];
+		expect([...audio, ...long].map(langCode)).toEqual([
+			'JA',
+			'EN',
+			'DE',
+			'ES',
+			'FR',
+			'HI',
+			'HU',
+			'IT',
+			'PT',
+			'TH'
+		]);
+		// And the SUBTITLES row's, the two the owner named among them.
+		expect(langCode('Chinese (Traditional)')).toBe('ZH-HANT');
+		expect(langCode('Norwegian (nob)')).toBe('NB');
+		expect(langName('Chinese (Traditional)')).toBe('Chinese (Traditional)');
+		expect(langName('Norwegian (nob)')).toBe('Norwegian Bokmål');
+	});
+
+	it('tells the variants a sheet offers apart, however the source writes them', () => {
+		const cases: [string, string, string][] = [
+			['pt-BR', 'PT-BR', 'Portuguese (Brazil)'],
+			['Portuguese (Brazil)', 'PT-BR', 'Portuguese (Brazil)'],
+			['Brazilian Portuguese', 'PT-BR', 'Portuguese (Brazil)'],
+			['Português (Brasil)', 'PT-BR', 'Portuguese (Brazil)'],
+			['pt-PT', 'PT', 'Portuguese'],
+			['Spanish (Latin America)', 'ES-419', 'Spanish (Latin America)'],
+			['Latin American Spanish', 'ES-419', 'Spanish (Latin America)'],
+			['es-419', 'ES-419', 'Spanish (Latin America)'],
+			['Español (España)', 'ES', 'Spanish'],
+			['es-ES', 'ES', 'Spanish'],
+			['zh-Hant', 'ZH-HANT', 'Chinese (Traditional)'],
+			['zh-TW', 'ZH-HANT', 'Chinese (Traditional)'],
+			['Traditional Chinese', 'ZH-HANT', 'Chinese (Traditional)'],
+			['Chinese (Simplified)', 'ZH-HANS', 'Chinese (Simplified)'],
+			['zh-CN', 'ZH-HANS', 'Chinese (Simplified)'],
+			['Chinese', 'ZH', 'Chinese'],
+			['Chinese (Cantonese)', 'YUE', 'Cantonese'],
+			['French (Canada)', 'FR-CA', 'French (Canada)'],
+			['fr-CA', 'FR-CA', 'French (Canada)'],
+			['Norwegian Bokmål', 'NB', 'Norwegian Bokmål'],
+			['Norwegian (Nynorsk)', 'NN', 'Norwegian Nynorsk'],
+			['Norwegian', 'NO', 'Norwegian'],
+			// A region nobody chooses between is the language itself.
+			['en-US', 'EN', 'English'],
+			['English (United Kingdom)', 'EN', 'English'],
+			['ja-JP', 'JA', 'Japanese'],
+			['Bahasa Indonesia', 'ID', 'Indonesian'],
+			['Magyar', 'HU', 'Hungarian'],
+			['  english  ', 'EN', 'English'],
+			['English [CC]', 'EN', 'English']
+		];
+		expect(cases.map(([l]) => [l, langCode(l), langName(l)])).toEqual(cases);
+	});
+
+	it('cuts a name nobody knows to a code, and keeps the name as written', () => {
+		expect(langCode('Klingon')).toBe('KLI');
+		expect(langName('Klingon')).toBe('Klingon');
+		expect(langCode('tlh')).toBe('TLH');
+		expect(langCode('Signs & Songs')).toBe('SIG');
+		expect(langCode('')).toBe('');
+		// No code the sheet shows is longer than a cell holds.
+		const names = LANGS.flatMap(([, name]) => [name, `${name} (Traditional)`, `${name} (Brazil)`]);
+		expect(Math.max(...names.map((n) => langCode(n).length))).toBeLessThanOrEqual(7);
+	});
+
+	it('gives each track of a list its own code', () => {
+		expect(
+			trackCodes(['Spanish', 'Español', 'Spanish (Latin America)', 'Klingon', 'Klingonese'])
+		).toEqual(['ES', 'ES-2', 'ES-419', 'KLI', 'KLI-2']);
+	});
+
+	it('reads a choice kept before c386 as the track it meant', () => {
+		// Codes a choice could be stored as before: two letters, ISO 639-2's
+		// three (a source's "hun", ffprobe's "ita"), and PT for a Brazilian
+		// track, which was PT then. A whole word never was: the workstation
+		// refused anything but two or three capitals (choices.ts, cleanChoice).
+		expect(matchLang('PT', ['JA', 'PT-BR', 'EN'])).toBe('PT-BR');
+		expect(matchLang('PT', ['PT', 'PT-BR'])).toBe('PT');
+		expect(matchLang('PT-BR', ['PT', 'EN'])).toBe('PT');
+		expect(matchLang('HUN', ['JA', 'HU'])).toBe('HU');
+		expect(matchLang('ITA', ['JA', 'IT'])).toBe('IT');
+		expect(matchLang('ES', ['ES-419', 'ES'])).toBe('ES');
+		expect(matchLang('ES-419', ['ES', 'ES-419'])).toBe('ES-419');
+		expect(matchLang('pt-BR', ['PT-BR'])).toBe('PT-BR');
+		expect(matchLang('FR', ['JA', 'EN'])).toBeUndefined();
+	});
+
+	it('shows every language up to LANG_ROW_MAX, and past it what matters with MORE', () => {
+		const few = Array.from({ length: LANG_ROW_MAX }, (_, i) => `L${i}`);
+		expect(langRow(few, [])).toEqual({ shown: few, more: 0 });
+		const many = trackCodes(LANGS.slice(0, 30).map(([, name]) => name));
+		expect(many).toHaveLength(30);
+		// The current choice, the series' (an old PT for a PT-BR track), the
+		// device's language, English; in the source's order, without repeats.
+		const row = langRow(many, ['FR', 'PT', 'pt-BR', 'EN', null, undefined, 'XX']);
+		expect(row.shown).toEqual(many.filter((c) => ['EN', 'FR'].includes(c)));
+		expect(row.more).toBe(30 - row.shown.length);
+		const withPt = [...many, 'PT-BR'];
+		expect(langRow(withPt, ['PT', 'EN']).shown).toEqual(['EN', 'PT-BR']);
 	});
 });
