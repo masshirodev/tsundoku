@@ -24,6 +24,7 @@ only downloader: Suwayomi, which ran beside it, was retired.
 | Its APKs     | `/mnt/hdd2/tsundoku/engine/apks`, under each APK's SHA-256 (its handle)                                                                                                                  |
 | Development  | `ops/engine/compose.yml`: the image above on `127.0.0.1:4591`, its APKs in `/mnt/hdd2/tsundoku/engine-dev`, started by hand. `ops/systemd/tsundoku-engine.service` was retired with c228 |
 | The settings | `ENGINE_URL` and `ENGINE_TOKEN` in tsundoku's `.env` ([`SECRETS.md`](SECRETS.md))                                                                                                        |
+| The solver   | FlareSolverr beside the engine: the engine asks it through `cf-proxy-url`, the app through `NOVEL_SOLVER_URL` ("The solver, and a novel's check")                                        |
 
 What the fork adds to the contract below:
 
@@ -55,6 +56,39 @@ ENGINE_TOKEN=<the dev .env's> docker compose -f ops/engine/compose.yml up -d
 
 Until 2026-11-01 that compose ran the live engine, under
 `tsundoku-engine.service` (retired), and what follows was measured on it.
+
+### The solver, and a novel's check
+
+FlareSolverr is a `/v1` solver (Byparr's protocol is the same): a `POST` with
+`{ cmd: 'request.get', url, maxTimeout }` answers the page it fetched and the
+cookies and user agent that got past the site's check. The engine uses it for
+an extension, through `cf-proxy-url`; **tsundoku itself uses it for an LNReader
+plugin** (c152), whose host process refuses local addresses on purpose, a
+solver being one ([`NOVELS.md`](NOVELS.md), "Past a site's bot check").
+
+The two addresses are deliberately different:
+
+- **`ENGINE_SOLVER_URL`** is what tsundoku sends the engine as `cf-proxy-url`.
+  Its default, `http://flaresolverr:8191/v1`, is a name only the engine's
+  compose network resolves; the app can't use it.
+- **`NOVEL_SOLVER_URL`** is where the app asks the solver itself. Unset, it
+  falls back to `ENGINE_SOLVER_URL` when that is a loopback address the app can
+  reach — a release, where the launcher sets `http://127.0.0.1:8191/v1` for
+  both — and otherwise to `http://127.0.0.1:8193/v1`.
+
+Development publishes the solver on **`127.0.0.1:8193`**, never `8191`, which
+belongs to the live release's own solver (`ops/engine/compose.yml`); a
+development `.env` sets `NOVEL_SOLVER_URL=http://127.0.0.1:8193/v1`. The engine
+keeps reaching the same container as `http://flaresolverr:8191/v1` inside its
+network, so publishing changes nothing for it.
+
+A first solve takes 20–45 s. The app checks the URL is on the internet
+(`net-guard.ts`) before the solver hears of it, asks once per host at a time,
+and keeps only that host's clearance cookies and its user agent; a cookie for
+another host, or one from a redirect's host, is dropped. Its cookies carry
+`secure`, so a clearance with any secure cookie is https-only and the host never
+sends it over `http:`. `site_checks` gets the host on success, so BROWSE knows a
+first visit waits ([`BROWSE.md`](BROWSE.md), "A site's check").
 
 Checked on 2026-10-28, against the running service: 401 without the token;
 MangaDex, Mangahere and Kumaraw (through FlareSolverr, 17.5 s on the first
