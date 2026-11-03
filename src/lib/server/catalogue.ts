@@ -38,6 +38,8 @@ import {
 // ---- AniList ------------------------------------------------------------------------------
 
 const ANILIST = 'https://graphql.anilist.co';
+/** The address, overridable so a spec can stand in for AniList (tests/links-flow.e2e.ts). */
+const anilistUrl = () => process.env.TSUNDOKU_ANILIST_URL ?? ANILIST;
 
 /** Nothing reached AniList: no internet, AniList down, or switched off for the specs. */
 export class Unreachable extends Error {}
@@ -70,7 +72,7 @@ async function post(
 		last = Date.now();
 		let res: Response;
 		try {
-			res = await fetcher(ANILIST, {
+			res = await fetcher(anilistUrl(), {
 				method: 'POST',
 				headers: {
 					'content-type': 'application/json',

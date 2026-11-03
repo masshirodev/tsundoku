@@ -82,7 +82,10 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 		if (typeof b.search === 'string') {
 			if (access.hidden) error(409, 'hidden series are never searched');
 			const r = await searchNow(seriesId, b.search);
-			return json({ ...r, item: reviewItem(seriesId, reveal) });
+			// The review draws the series it just searched, so the item carries the catalogue
+			// it came from: the page files items by `service:id` (c298's search shows it).
+			const item = reviewItem(seriesId, reveal);
+			return json({ ...r, item: item ? { ...item, service: 'anilist' as const } : null });
 		}
 		if (typeof b.paste === 'string') {
 			const item = reviewItem(seriesId, reveal);
