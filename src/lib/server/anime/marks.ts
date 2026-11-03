@@ -151,13 +151,24 @@ export function saveAttempt(
  * takes the place the old AniSkip one held.
  */
 export function clearAniSkip(seriesId: number, db: Database.Database = getDb()): void {
+	// An AniSkip row can only exist for an anime (`lookupRow`'s join), so any
+	// other series has nothing to clear and nothing to recompute.
+	const kind = db.prepare(`SELECT kind FROM series WHERE id = ?`).get(seriesId) as
+		{ kind: string } | undefined;
+	if (kind?.kind !== 'anime') return;
+	const gone = db
+		.prepare(
+			`DELETE FROM episode_marks WHERE method = 'aniskip'
+		AND entry_id IN (SELECT id FROM entries WHERE series_id = ?)`
+		)
+		.run(seriesId);
+	// Only a deleted row can have held an ending: with none, every `ending_at`
+	// is already the one the remaining marks choose. `linkFromTracker` calls
+	// this per tracked series inside an import, most of them manga.
+	if (!gone.changes) return;
 	const ids = (
 		db.prepare(`SELECT id FROM entries WHERE series_id = ?`).all(seriesId) as { id: number }[]
 	).map((r) => r.id);
-	db.prepare(
-		`DELETE FROM episode_marks WHERE method = 'aniskip'
-		AND entry_id IN (SELECT id FROM entries WHERE series_id = ?)`
-	).run(seriesId);
 	for (const id of ids) syncEndingAt(id, db);
 }
 

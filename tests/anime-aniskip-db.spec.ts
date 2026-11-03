@@ -360,4 +360,32 @@ describe('AniSkip', () => {
 			ending_at: 1000
 		});
 	});
+
+	it('writes nothing for a series with no AniSkip row, and nothing at all for a manga (c299)', () => {
+		const changes = () => (db.prepare(`SELECT total_changes() AS n`).get() as { n: number }).n;
+		// An anime no finder has reached yet: the DELETE matches nothing, so no
+		// ending_at can have moved. `linkFromTracker` runs this per tracked series
+		// inside an import's transaction.
+		const show = series();
+		episode(show, { position: 1 });
+		episode(show, { position: 2 });
+		let before = changes();
+		marks.clearAniSkip(show);
+		expect(changes() - before).toBe(0);
+		// A manga never has an AniSkip row at all (`lookupRow` joins on an anime),
+		// and a first import of a few hundred tracked comics reaches every one.
+		const comic = Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, added_at, origin_key, hidden)
+					VALUES (?, 'A Comic', 'manga', 0, 'mihon:1:/comic', 0)`
+				)
+				.run(root).lastInsertRowid
+		);
+		episode(comic, { position: 1 });
+		episode(comic, { position: 2 });
+		before = changes();
+		marks.clearAniSkip(comic);
+		expect(changes() - before).toBe(0);
+	});
 });
