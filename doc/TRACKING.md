@@ -98,7 +98,9 @@ lands in `series_season_links` with the list's score on it. The series is
 offered while any season is still open, but a season already linked or
 settled is never replaced from the list (`linkSeasonFromList` writes nothing):
 an entry found by the series' own title names its first season, and one that
-only shares that title, a movie say, is not the owner's link.
+only shares that title, a movie say, is not the owner's link. Nor is an entry
+another season or part of the show already holds (`linkSeason` refuses it at
+every door, wave 17 round 2; [`LINKS.md`](LINKS.md), "One season, one entry").
 
 ## Sending
 
