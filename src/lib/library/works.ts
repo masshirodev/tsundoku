@@ -135,22 +135,38 @@ export const partDone = (state: PartState): boolean =>
  * The WORK row's second line, as the three Work-Row boards draw it:
  *
  * - `PART 2 OF 3 · NEXT · ETERNAL FORCE` while the run is here;
- * - `PART 1 OF 3 · YOU'RE IN NEW WAVES` when CONTINUE opens another part, so
- *   the row says where the run actually is rather than naming a neighbour the
- *   owner is not being sent to.
+ * - `PART 1 OF 3 · YOU'RE IN NEW WAVES` when the run is already in another
+ *   part, so the row says where the owner actually is;
+ * - and `accent`, when this part is done and the next one has *not been
+ *   started*: then the row leads into it (Work-Row's second slice) and the
+ *   series screen's one accent is the run's.
  *
- * Null when the series is not a part. The "NEXT" word and the ink are the
- * markup's; this decides which title, if any, the line names.
+ * A next part the owner is already in is not offered as an accent ("you're in
+ * it"), and a part that is not done never takes the accent. Null when the
+ * series is not a part. The "NEXT" word and the ink are the markup's; this
+ * decides which title, if any, the line names.
  */
-export type WorkRowLine = { nextTitle: string | null; youAreIn: string | null };
+export type WorkRowLine = { nextTitle: string | null; youAreIn: string | null; accent: boolean };
 
 export function workRowLine(parts: WorkPart[], seriesId: number): WorkRowLine | null {
-	if (!partPlace(parts, seriesId)) return null;
+	const place = partPlace(parts, seriesId);
+	const current = inOrder(parts).find((p) => p.seriesId === seriesId);
+	if (!place || !current) return null;
 	const next = nextPart(parts, seriesId);
-	const current = continuePart(parts);
+	const here = continuePart(parts);
+	const done = partDone(partState(current));
+	// The accent leads into a part that has not begun: once the owner is in it,
+	// the row says where they are instead (Work-Row's third slice).
+	const leads =
+		done &&
+		!!next &&
+		!!here &&
+		here.seriesId === next.seriesId &&
+		partState(next) === 'not-started';
 	return {
 		nextTitle: next ? next.title : null,
-		youAreIn: current && current.seriesId !== seriesId ? current.title : null
+		youAreIn: done && here && here.seriesId !== seriesId && !leads ? here.title : null,
+		accent: leads
 	};
 }
 

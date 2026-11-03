@@ -445,15 +445,21 @@ export function worksOnTagPage(seriesIds: number[], reveal: boolean): TagWork[] 
 		rows.map((r) => r.id),
 		reveal
 	);
-	return rows.map((r) => {
-		const current = continuePart(parts.filter((p) => p.workId === r.id));
-		return {
-			id: r.id,
-			name: r.name,
-			here: r.here,
-			of: memberCount(db, r.id),
-			upNext: current ? current.title : null
-		};
+	return rows.flatMap((r) => {
+		const mine = parts.filter((p) => p.workId === r.id);
+		// A Work is hidden or shown whole: with reveal off, one of its parts being
+		// unreadable means the Work is too, and the page says nothing of it.
+		if (mine.length === 0) return [];
+		const current = continuePart(mine);
+		return [
+			{
+				id: r.id,
+				name: r.name,
+				here: r.here,
+				of: memberCount(db, r.id),
+				upNext: current ? current.title : null
+			}
+		];
 	});
 }
 
@@ -477,10 +483,12 @@ export type SeriesWorkRow = {
 	next: SeriesWorkPart | null;
 	/** The next part, in the shape the accent row and the end block both read. */
 	nextPart: WorkNextPart | null;
-	/** "YOU'RE IN NEW WAVES" when CONTINUE opens another part; null otherwise. */
+	/** "YOU'RE IN NEW WAVES" when the run is already in another part; null otherwise. */
 	youAreIn: string | null;
 	/** "NEXT · ETERNAL FORCE": the neighbour's title, when the run is here. */
 	nextTitle: string | null;
+	/** This part is done and leads into an unstarted next one: the accent row. */
+	accent: boolean;
 };
 
 export function seriesWorkRow(seriesId: number, reveal: boolean): SeriesWorkRow | null {
@@ -493,8 +501,10 @@ export function seriesWorkRow(seriesId: number, reveal: boolean): SeriesWorkRow 
 	const ordered = inOrder(parts);
 	const i = ordered.findIndex((p) => p.seriesId === seriesId);
 	const mode = workEndMode(parts, seriesId);
-	const next = mode === 'next' || mode === 'meanwhile' ? nextPart(parts, seriesId) : null;
 	const line = workRowLine(parts, seriesId);
+	// The row's accent is the pure row's own rule; `mode` stays for the end page,
+	// which offers the next part however far into it the owner is.
+	const next = line?.accent ? nextPart(parts, seriesId) : null;
 	return {
 		id: work.id,
 		name: work.name,
@@ -509,7 +519,8 @@ export function seriesWorkRow(seriesId: number, reveal: boolean): SeriesWorkRow 
 				: null,
 		nextPart: next ? nextFacts(next) : null,
 		youAreIn: line?.youAreIn ?? null,
-		nextTitle: line?.nextTitle ?? null
+		nextTitle: line?.nextTitle ?? null,
+		accent: line?.accent ?? false
 	};
 }
 

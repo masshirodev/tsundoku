@@ -6,8 +6,8 @@ from `Index Series.dc.html` (the "Index" system, see
 tablet and desktop.
 
 Route: `/series/[id]`, with `?from=` naming where it was opened from (a shelf
-key, or `continue`) so the back cell can say so, and `?edit=tags` to open
-straight into SHELVES & TAGS. That's what the library sheet's TAGS button uses.
+key, `continue`, a person's page, a source's page, or a Work as `work:<id>`) so
+the back cell can say so, and `?edit=tags` to open straight into SHELVES & TAGS. That's what the library sheet's TAGS button uses.
 `/api/series/[id]/tags?q=` answers the tag field's suggestions.
 
 A tap on a library tile opens this screen. A long-press still opens the
@@ -52,6 +52,36 @@ the panel is 352px beside the list, rows are 56px and the rail stays 56px
 | Followed             | FOLLOWING ✓ in accent at the DOWNLOAD row's end; caught up, it is the row's only cell and says when its source was last asked.                                                                                                                                                                                                                                                                                                                               |
 | Refreshed            | REFRESH, the cell before FOLLOW, on a series in the library whose source can be asked: it looks once, adds what the source lists that no entry is, and queues nothing. The band says "3 NEW CHAPTERS" or "NOTHING NEW". See [`DOWNLOADING.md`](DOWNLOADING.md), "REFRESH" (c220).                                                                                                                                                                            |
 | Just added           | `?added=<manga>` after ADD TO LIBRARY: the ADDED TO THE LIBRARY band with UNDO, FIRST 10, and START dimmed until chapter 1 has a file. `&queued=<n>`/`down` after ADD AND DOWNLOAD (c205): the band says what it queued.                                                                                                                                                                                                                                     |
+
+## The WORK row
+
+A series in a Work gets **one row between CONTINUE and DOWNLOAD**, because it
+answers the same question: what after this ([`WORKS.md`](WORKS.md), W5;
+`Work-Row.dc.html`, B3). It shows the Work's name over `PART 2 OF 3 · NEXT ·
+ETERNAL FORCE`, and two 52px ← → cells (44px on a phone) that open the
+neighbouring parts, dimmed at the ends. A tap on the name opens `/work/N`; a
+long press, MENU or a held OK opens the row's sheet -- OPEN, MOVE ↑ ↓, and TAKE
+OUT with a band and UNDO. A series in no Work has no row.
+
+- **Where the run is.** The line says `NEXT · <part>` while the run is here, and
+  `YOU'RE IN <part>` once the owner is already in another part it begun (the
+  row's third board slice). Both are `workRowLine`'s.
+- **The accent.** When this part is done -- read through, or caught up on a
+  source still going -- and the next part has **not been started**, the row
+  becomes the accent row `NEXT · <next part> · IN <WORK> · PART 3 · 98 CH. · ▶
+CH. 1`, one tap into the next series' first chapter, and CONTINUE above it
+  goes quiet as `↺ READ AGAIN`. There is **one accent on the screen, and it is
+  the run's**: the panel and the header's ▶ cell read the same part state, so a
+  read-through part never shows two accent bars. A next part the owner has
+  already begun is not offered as an accent -- the plain row says `YOU'RE IN`
+  it.
+- **The back cell** names the Work when the series was opened from its run
+  (`?from=work:<id>`): `← THE BREAKER`, and `← LIBRARY` otherwise. The id is
+  validated and the series' own membership checked, so a stale id is not a
+  claim the cell repeats ([`NAVIGATION.md`](NAVIGATION.md), "From a Work").
+
+Tested in `tests/work-row-frame.e2e.ts` (the three states' measurements, the
+links, MOVE and TAKE OUT) and in [`WORKS.md`](WORKS.md)'s flow.
 
 ## Rules worth knowing
 

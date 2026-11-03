@@ -175,13 +175,29 @@ const tile = (page: Page, title: string) =>
 		})
 	});
 
-/** Picks these two titles in this order and presses WORK, landing on the Work. */
+/**
+ * Picks these two titles in this order and groups them AS A WORK through W4's
+ * sheet, then opens the Work. Its name is this file's own (every Work here is
+ * renamed in SQL after it is made), because titles sharing no words have no
+ * default.
+ */
+let madeWorks = 0;
 async function makeWork(page: Page, first: string, second: string): Promise<number> {
+	// A name of its own per Work: eight of them exist at once, and a tile found
+	// by a shared name would match the wrong one.
+	const name = `Frame Run ${++madeWorks}`;
 	await page.goto('/');
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
 	await tile(page, first).locator('.open').click();
 	await tile(page, second).locator('.open').click();
-	await page.getByRole('button', { name: 'WORK', exact: true }).click();
+	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+	const sheet = page.getByRole('dialog', { name: 'Group into a series' });
+	await expect(sheet).toBeVisible();
+	await sheet.getByRole('radio', { name: /A WORK · SERIES/ }).click();
+	await sheet.getByRole('textbox', { name: 'Work name' }).fill(name);
+	await sheet.getByRole('button', { name: /CREATE WORK/ }).click();
+	await expect(page.locator('.band', { hasText: `${name.toUpperCase()} IS A WORK` })).toBeVisible();
+	await page.locator('.grid .tile.work', { hasText: name }).click();
 	await page.waitForURL(/\/work\/\d+/);
 	return Number(/\/work\/(\d+)/.exec(page.url())![1]);
 }

@@ -379,20 +379,50 @@ describe('the series screen’s WORK row (W5)', () => {
 	it('names the neighbour while the run is here, and where the run is when it is not', () => {
 		const parts = run();
 		// Part 2 is where CONTINUE is: the line names part 3.
-		expect(workRowLine(parts, 2)).toEqual({ nextTitle: 'Eternal Force', youAreIn: null });
-		// Part 1 is read through, so CONTINUE opens part 2: the row says where the
-		// run is rather than naming a neighbour the owner is not sent to.
-		expect(workRowLine(parts, 1)).toEqual({ nextTitle: 'New Waves', youAreIn: 'New Waves' });
-		// The last part has no next; the run is here (part 2 is still in it, so
-		// CONTINUE is not on part 3 but the line has nothing else to say).
-		expect(workRowLine(parts, 3)).toEqual({ nextTitle: null, youAreIn: 'New Waves' });
+		expect(workRowLine(parts, 2)).toEqual({
+			nextTitle: 'Eternal Force',
+			youAreIn: null,
+			accent: false
+		});
+		// Part 1 is read through and the owner is already in part 2: the row says
+		// where the run is, rather than offering an accent into a part begun.
+		expect(workRowLine(parts, 1)).toEqual({
+			nextTitle: 'New Waves',
+			youAreIn: 'New Waves',
+			accent: false
+		});
+		// A part the owner has not started names nothing about where they are.
+		expect(workRowLine(parts, 3)).toEqual({
+			nextTitle: null,
+			youAreIn: null,
+			accent: false
+		});
 		// A series in no Work has no line at all.
 		expect(workRowLine(parts, 99)).toBeNull();
 	});
 
+	it('the accent leads into a next part that has not been started', () => {
+		// Part 2 read through, part 3 never started: the row is the run's accent.
+		const parts = run().map((p, i) => (i === 1 ? { ...p, read: p.entries } : p));
+		expect(workRowLine(parts, 2)).toEqual({
+			nextTitle: 'Eternal Force',
+			youAreIn: null,
+			accent: true
+		});
+		// A part that is caught up on a going source leads the same way.
+		const caught = run().map((p, i) =>
+			i === 1 ? { ...p, read: p.entries, status: 'ongoing' } : p
+		);
+		expect(workRowLine(caught, 2)?.accent).toBe(true);
+	});
+
 	it('the last part of a run read through names no neighbour', () => {
 		const parts = run().map((p) => ({ ...p, read: p.entries }));
-		expect(workRowLine(parts, 3)).toEqual({ nextTitle: null, youAreIn: null });
+		expect(workRowLine(parts, 3)).toEqual({
+			nextTitle: null,
+			youAreIn: null,
+			accent: false
+		});
 	});
 });
 

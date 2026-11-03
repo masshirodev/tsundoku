@@ -86,8 +86,21 @@ GROUP. The same group sheet reads VOLUMES instead of BOOKS: name the series,
 order the volumes by date added, by title or by hand, then CREATE SERIES, or
 ADD TO EXISTING to put them after another novel.
 
-GROUP is offered when every selected item can be grouped **and all are one
-kind**: doujin singletons together, or novels together, never mixed.
+GROUP is offered for any selection (W4). The sheet's first row is **AS**, and
+it shows only the answers the selection allows:
+
+| Answer                 | What it takes                                                     |
+| ---------------------- | ----------------------------------------------------------------- |
+| `ONE SERIES · BOOKS`   | doujin singletons, every selected item one book                   |
+| `ONE SERIES · VOLUMES` | novels, every selected item one file's series                     |
+| `A WORK · SERIES`      | any series: a Work keeps them apart, so nothing here has to merge |
+
+The answer names the noun for the rest of the sheet, which is otherwise the
+same as it always was: NEW SERIES / ADD TO EXISTING, NAME, ORDER, rows, and
+CREATE. Books and volumes behave exactly as they did; the AS row only decides
+which grouping the sheet is asking about. `ONE SHOW · SEASONS` is S2's, and
+`groupAnswers()` in `src/lib/library/books.ts` is where the rule lives.
+Selecting the work's answer is doc/WORKS.md, "Making one".
 
 The model is the same tables again:
 
@@ -187,9 +200,11 @@ guards keep it from matching everything:
   date added, downloaded, and hidden while reveal is on
   ([`FILTERS.md`](FILTERS.md)).
 - SELECT and the library's bulk bar work here, REFRESH included (a book with no
-  source is skipped). **GROUP** in the bulk bar is
-  offered only when every selected item is a singleton. Books already in a
-  series can't be selected.
+  source is skipped). **GROUP** is the bulk bar's, and its AS sheet can make a
+  series of books, a series of volumes, or a **Work** (W4) -- the common way an
+  author's Work is made. Books already in a series can't be selected (they are
+  entries, not series), and a Work with a series here gets one row above the
+  grid saying the run exists without pulling its other series in.
 
 Hidden means hidden here too. Every query takes `reveal`, and a tag with
 nothing visible is a **404**, the same answer as a tag that doesn't exist. A

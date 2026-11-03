@@ -230,8 +230,8 @@
 
 		{#if !suggested}
 			<!-- AS: only what the selection allows, and a Work always (Works Calls, Q7). -->
-			<div class="sl"><span>AS</span><span>WHAT THEY BECOME</span></div>
-			<div class="seg tall" role="radiogroup" aria-label="Group as">
+			<div class="sl as"><span>AS</span><span>WHAT THEY BECOME</span></div>
+			<div class="seg tall answers" role="radiogroup" aria-label="Group as">
 				{#each answers as a (a)}
 					<button
 						type="button"
@@ -250,8 +250,8 @@
 			</div>
 		{/if}
 
-		<div class="sl"><span>{work ? 'INTO' : 'INTO'}</span><span></span></div>
-		<div class="seg" role="radiogroup" aria-label="Group into">
+		<div class="sl into"><span>INTO</span><span></span></div>
+		<div class="seg into" role="radiogroup" aria-label="Group into">
 			<button
 				type="button"
 				role="radio"
@@ -271,7 +271,7 @@
 		</div>
 
 		{#if mode === 'new'}
-			<div class="sl">
+			<div class="sl name-label">
 				<span>NAME</span>
 				<span
 					>{work && name.trim() === ''
@@ -315,7 +315,7 @@
 				>{work && orderMode === 'hand' ? 'BY HAND: AS SELECTED' : orderLabel}</span
 			>
 		</div>
-		<div class="seg">
+		<div class="seg order">
 			{#if work}
 				<button type="button" class:on={orderMode === 'hand'} onclick={() => setOrder('hand')}
 					>BY HAND</button
@@ -495,6 +495,10 @@
 	.order-label {
 		padding-top: 22px;
 	}
+	/* The first label under the head sits 2px tighter (Work-Group B5). */
+	.sl.as {
+		padding-top: 18px;
+	}
 	.seg {
 		display: grid;
 		grid-auto-flow: column;
@@ -583,6 +587,8 @@
 	}
 	/* A Work's rows are the board's .grows: one frame around every row. */
 	.rows.grows {
+		display: flex;
+		flex-direction: column;
 		margin: 0 24px;
 		border: var(--hairline);
 	}
@@ -593,6 +599,8 @@
 		border-bottom: var(--hairline);
 	}
 	.rows.grows .row {
+		height: auto;
+		min-height: 64px;
 		border-bottom: 0;
 	}
 	.rows.grows .row + .row {

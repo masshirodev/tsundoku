@@ -159,6 +159,18 @@
 	let hiding = $state(false);
 	/** This part is done, so CONTINUE goes quiet and the run's next is the accent (Work-Row B3). */
 	const quiet = $derived(!outline && !!work && partDone(work.state));
+	/**
+	 * The WORK row's second line, in two pieces so its title stays in ink:
+	 * `PART 2 OF 3 · NEXT · ` + the neighbouring part, or `... · YOU'RE IN ` +
+	 * the part the run has moved into (`workRowLine` decides which).
+	 */
+	const workLine = $derived.by(() => {
+		if (!work) return { lead: '', ink: '' };
+		const place = `PART ${work.part} OF ${work.of}`;
+		if (work.youAreIn) return { lead: `${place} · YOU'RE IN `, ink: work.youAreIn.toUpperCase() };
+		if (work.nextTitle) return { lead: `${place} · NEXT · `, ink: work.nextTitle.toUpperCase() };
+		return { lead: place, ink: '' };
+	});
 	const dlStates = $derived(
 		downloads?.kind === 'ok'
 			? new Map(Object.entries(downloads.states).map(([k, v]) => [Number(k), v as DownloadState]))
@@ -559,7 +571,7 @@
 	{/if}
 
 	{#if !outline && work}
-		{#if partDone(work.state) && work.nextPart}
+		{#if work.accent && work.nextPart}
 			<!-- Read through (or caught up while the next part has something): one accent
 			     on the screen, and it is the run's. A tap opens the next part's CH. 1. -->
 			{@const next = work.nextPart}
@@ -581,7 +593,7 @@
 				</div>
 				<div class="lc next-cell">
 					{opens && next.entry
-						? `▶ ${unitLabel(next.kind)} ${next.entry.number}`
+						? `▶ ${unitLabel(next.kind)}. ${next.entry.number}`
 						: 'NOT DOWNLOADED'}
 				</div>
 			</svelte:element>
@@ -596,12 +608,9 @@
 					use:longpress={() => (workSheet = true)}
 				>
 					<span class="lk-a">{work.name}</span>
-					<span class="lk-b">
-						PART {work.part} OF {work.of}{#if work.youAreIn}
-							· YOU'RE IN <span class="ink">{work.youAreIn.toUpperCase()}</span
-							>{:else if work.nextTitle}
-							· NEXT · <span class="ink">{work.nextTitle.toUpperCase()}</span>{/if}
-					</span>
+					<span class="lk-b"
+						>{workLine.lead}{#if workLine.ink}<span class="ink">{workLine.ink}</span>{/if}</span
+					>
 				</a>
 				<!-- eslint-disable svelte/no-navigation-without-resolve -- seriesHref() resolves -->
 				{#if work.prev}
@@ -1516,6 +1525,7 @@
 		opacity: 0.35;
 	}
 	.prow .lc {
+		justify-content: center;
 		border: 0;
 		border-left: var(--hairline);
 		border-radius: 0;
@@ -1554,6 +1564,7 @@
 		display: flex;
 		align-items: stretch;
 		height: 64px;
+		border-top: var(--hairline);
 		border-bottom: var(--hairline);
 	}
 	.sh-title {

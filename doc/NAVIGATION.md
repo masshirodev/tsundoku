@@ -31,10 +31,10 @@ showing the screen it opens (the same path), and goes back that many steps:
 When there's no such entry (a link opened in a new tab, a bookmark, the app
 opened on a series), the link opens its screen as it always did.
 
-Back links: the series screen's ← (to the library, a shelf, a person,
-history, or the source it was added from), the readers' ← and ← SERIES, the player's ← and ← SERIES, the end
-page's ← SERIES and LIBRARY, a person page's ←, and the Work screen's
-← LIBRARY (`/work/N`; W5 will name the series it was opened from). Code that leaves a screen
+Back links: the series screen's ← (to the library, a shelf, a person, history,
+the source it was added from, or the Work whose run opened it), the readers' ←
+and ← SERIES, the player's ← and ← SERIES, the end page's ← SERIES and LIBRARY,
+a person page's ←, and the Work screen's ← LIBRARY (`/work/N`). Code that leaves a screen
 by itself (the player's Escape) uses `goBackTo`, the same decision. The
 player's were plain links until 2026-11-02: on a TV, ← then BACK opened the
 player again (`tests/tv-player.e2e.ts`).
@@ -63,6 +63,19 @@ source's BROWSE page or to the search (`sourceOrigin`,
 says LIBRARY. Tested in `tests/origin.spec.ts`, `tests/browse-online.e2e.ts`
 (BROWSE, the already-added preview, the refused origins) and
 `tests/downloads-flow.e2e.ts` (SOURCES, with the query).
+
+## From a Work
+
+A Work's run rows open their series with `?from=work:<id>` (`tests/work/[id]/
+Run.svelte`), and the series' ← then says `← <WORK>` -- `← THE BREAKER` -- and
+opens the Work, as a back link, so it returns through history when the Work is
+a few entries back.
+
+The id is a claim, not a fact (W5). `backTo` in
+`src/routes/series/[id]/+page.server.ts` accepts it only when it is a positive
+integer _and_ the series really is a part of that Work; anything else -- a
+stale id, a hand-typed one, a Work that has since ended -- says `← LIBRARY`
+rather than lying or 404ing. Tested in `tests/work-row-frame.e2e.ts`.
 
 ## Screens that are gone
 
