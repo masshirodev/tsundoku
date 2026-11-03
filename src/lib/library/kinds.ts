@@ -111,6 +111,11 @@ export const KIND_FACTS = {
 	// `SourceFamily` yet, and making them one is a later card's call.
 	// Not movable: `movableKind` leaves it out (src/lib/server/move.ts:56-57),
 	// although a gallery doujin's key is one MOVE could read.
+	// Catalogue: read, although no LINK queue lists a doujin. A gallery
+	// doujin's Mihon MAL tracker is linked at import (`malLink`,
+	// mihon-plan.ts:414; server/import/write.ts:448), and `resolveLinks`
+	// reads that id in this catalogue (server/catalogue.ts:487-545). Pinned by
+	// tests/kinds-db.spec.ts ("a doujin's catalogue").
 	doujin: {
 		kind: 'doujin',
 		medium: 'pages',

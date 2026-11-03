@@ -1,8 +1,10 @@
 import Database from 'better-sqlite3';
 import { describe, expect, it } from 'vitest';
 import { climb } from '$lib/server/db';
-import { KINDS, MOVABLE_KINDS, MOVE_MAP, SOURCE_KINDS } from '$lib/library/kinds';
+import { KIND_FACTS, KINDS, MOVABLE_KINDS, MOVE_MAP, SOURCE_KINDS } from '$lib/library/kinds';
 import { movableKind } from '$lib/server/move';
+import { planMihon } from '$lib/import/mihon-plan';
+import type { MihonManga } from '$lib/import/mihon-backup';
 
 /**
  * The registry against the database (doc/KINDS.md; card c301): the CHECK that
@@ -18,6 +20,15 @@ import { movableKind } from '$lib/server/move';
  * Like every spec that opens a database it can flake under the whole parallel
  * unit run and passes alone; it is one of the migration specs by nature.
  */
+
+// The one case below that goes through the app's own doors needs `getDb()`'s
+// database: getDb reads this once, on first use, and nothing above calls it.
+// The other cases climb connections of their own and never touch it.
+process.env.DATABASE_PATH = ':memory:';
+const { getDb } = await import('$lib/server/db');
+const { seedSample } = await import('$lib/server/fixtures');
+const { ensureRoot, writeSeries } = await import('$lib/server/import/write');
+const { resolveLinks, setAnilistFetch } = await import('$lib/server/catalogue');
 
 const fresh = () => {
 	const conn = new Database(':memory:');
@@ -110,5 +121,93 @@ describe('movable', () => {
 		expect(KINDS.filter((k) => movableKind(k))).toEqual([...MOVABLE_KINDS]);
 		expect(movableKind('doujin')).toBe(false);
 		expect(movableKind('novel')).toBe(false);
+	});
+});
+
+describe('a doujin\u2019s catalogue', () => {
+	/**
+	 * Round 2 of wave 16 (c301): the audit said a doujin's catalogue was asked
+	 * by no door, having looked only at the owner-facing ones (LINKABLE,
+	 * linkState). The importer is a door too: `planMihon` keeps Mihon's MAL
+	 * tracker for a gallery source's doujin (`malLink`, mihon-plan.ts:414),
+	 * `writeSeries` links it (write.ts:448, `linkFromTracker`, no kind check),
+	 * and `resolveLinks` reads the MAL id in the series' own kind's catalogue
+	 * (catalogue.ts:487-545, `byIds`). So the fact is reached here through
+	 * those, from a fresh seed, not through KIND_FACTS.
+	 */
+	it('is the one resolveLinks reads a gallery doujin\u2019s Mihon tracker in', async () => {
+		const db = getDb();
+		const NOW = Date.UTC(2026, 10, 3);
+		seedSample(db, NOW);
+		const NH = '7309872737163460316';
+		const MAL = 424242;
+		const gallery: MihonManga = {
+			source: NH,
+			url: '/g/kinds-db/',
+			title: 'A Gallery Doujin',
+			artist: '',
+			author: '',
+			description: '',
+			genres: [],
+			status: 2,
+			thumbnailUrl: '',
+			dateAdded: 1,
+			viewer: 0,
+			chapters: [],
+			categories: [],
+			favorite: true,
+			history: [],
+			trackers: [
+				{
+					service: 1,
+					mediaId: MAL,
+					title: 'A Gallery Doujin',
+					status: 1,
+					score: 0,
+					lastChapterRead: 0,
+					totalChapters: 0
+				}
+			]
+		};
+		const planned = planMihon(
+			{ categories: [], sources: new Map([[NH, 'NHentai']]), manga: [gallery] },
+			[],
+			NOW
+		).series[0];
+		expect(planned.kind).toBe('doujin');
+		expect(planned.malLink).toEqual({ id: MAL, score: 0 });
+		const root = ensureRoot(db, 'Mihon', '/kinds-db/mihon', false);
+		writeSeries(planned, { rootId: root, jobId: null, now: NOW, markMissing: false }, db);
+		const series = db
+			.prepare(
+				`SELECT s.id, s.kind, l.via FROM series s JOIN series_links l ON l.series_id = s.id
+				WHERE s.origin_key = ?`
+			)
+			.get(planned.originKey) as { id: number; kind: string; via: string } | undefined;
+		expect(series).toMatchObject({ kind: 'doujin', via: 'mihon' });
+
+		const queries: { query: string; ids: unknown }[] = [];
+		setAnilistFetch(async (_url, init) => {
+			const { query, variables } = JSON.parse(String(init?.body)) as {
+				query: string;
+				variables: { ids?: unknown };
+			};
+			queries.push({ query, ids: variables.ids });
+			return new Response(JSON.stringify({ data: { Page: { media: [] } } }), {
+				headers: { 'content-type': 'application/json' }
+			});
+		});
+		try {
+			await resolveLinks(NOW);
+		} finally {
+			setAnilistFetch(null);
+		}
+		const asked = queries.filter(
+			(q) => q.query.includes('idMal_in') && Array.isArray(q.ids) && q.ids.includes(MAL)
+		);
+		expect(asked).toHaveLength(1);
+		const type = /type: (\w+)/.exec(asked[0].query)?.[1];
+		expect(type).toBe(KIND_FACTS.doujin.catalogue.type);
+		expect(type).toBe('MANGA');
 	});
 });

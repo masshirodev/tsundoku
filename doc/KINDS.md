@@ -281,14 +281,22 @@ none of these was "fixed" here.
   (`src/lib/server/move.ts:56-57`) leaves every doujin out, and a novel too,
   although LNReader feeds it. `movable` records what `movableKind` does, not
   what the key would allow.
-- **A doujin's catalogue is asked by no door.** `catalogue` says AniList
-  `MANGA` for a doujin because that is what the type choice answers for it
-  (`anilistType`, as `mediaTypeOf` did before K1), but no door looks one up:
-  `LINKABLE` (`src/lib/server/catalogue.ts:547`) keeps it out of the LINK
-  queue and `linkState` (`:944`) gives its series screen no LINK row. And
-  `candidateKind` never names a candidate `doujin`, so the `doujin` in a
-  comic's `matches` is reached only by a series' own kind, which is the
-  shipped `sameKind` (a doujin was in the comic family before K1 too).
+- **A doujin's catalogue is read by the import's door, not the owner's.**
+  `catalogue` says AniList `MANGA` for a doujin (`anilistType`, as
+  `mediaTypeOf` did before K1), and a live path asks it: `planMihon` keeps
+  Mihon's MAL tracker for a gallery source's doujin (`malLink`,
+  `src/lib/import/mihon-plan.ts:414`), the import writes it as a link with
+  no kind check (`src/lib/server/import/write.ts:448`, `linkFromTracker`),
+  and `resolveLinks` (`src/lib/server/catalogue.ts:487-545`) reads that MAL
+  id in the series' own kind's catalogue through `byIds` (`:183-193`), so the
+  request says `type: MANGA`. The resolved entry then gives the series its
+  cover (`linkCover`, `:970`). Only the owner-facing doors leave a doujin
+  out: `LINKABLE` (`:547`) keeps it out of the LINK queue and the pass, and
+  `linkState` (`:944`) gives its series screen no LINK row.
+  `tests/kinds-db.spec.ts` ("a doujin's catalogue") goes through that import
+  door. Separately, `candidateKind` never names a candidate `doujin`, so the
+  `doujin` in a comic's `matches` is reached only by a series' own kind, which
+  is the shipped `sameKind` (a doujin was in the comic family before K1 too).
 - **`layout` is stated twice.** `defaultDirection` still decides it; the fact
   records the same default so a reader can ask. K2 removes the duplication.
 - **`medium`, `sources`, `storage` and `unit.long` have no reader in K1.**
