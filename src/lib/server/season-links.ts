@@ -176,6 +176,52 @@ export function openSeasonOf(seriesId: number): number {
 	return view?.open ?? 0;
 }
 
+/**
+ * The season of an anime that still wants a look: the one a door that names
+ * no season settles (the pass's search and its sure match, the review queue's
+ * LINK and NONE OF THESE, `/links?series=N` with no `&season`). That is the
+ * open season when it has neither a link nor a decision, otherwise the first
+ * season in list order with neither, otherwise none (c240, round 2).
+ *
+ * This is the TypeScript twin of `NEEDS_LOOK` in `catalogue.ts`: a season is
+ * `COALESCE(entries.season, 0)` over the series' unshadowed entries, and it is
+ * settled by any `series_season_links` or `season_link_decisions` row at that
+ * season, whatever the part. A series with no season rows at all keeps the
+ * series-level gate there, so a link or decision of the series' own (one made
+ * before rung 62) leaves nothing to look at here either. The two must agree:
+ * a series `NEEDS_LOOK` lets in has a season here, and one it keeps out has
+ * none.
+ *
+ * Not the season being watched: that is `openSeasonOf`, which rating, the
+ * sheet and tracking read.
+ */
+export function seasonToLook(seriesId: number): number | undefined {
+	const s = seriesRow(seriesId);
+	if (!s || !isAnime(s.kind)) return undefined;
+	const db = getDb();
+	const rows = (
+		db
+			.prepare(
+				`SELECT season FROM series_season_links WHERE series_id = ?
+				UNION SELECT season FROM season_link_decisions WHERE series_id = ?`
+			)
+			.all(seriesId, seriesId) as { season: number }[]
+	).map((r) => r.season);
+	// No season rows: `NEEDS_LOOK`'s series-level arm, and the open season is
+	// open by definition -- season 0 for a show whose source gave no episodes yet.
+	if (!rows.length)
+		return db.prepare(`SELECT 1 FROM series_links WHERE series_id = ?`).get(seriesId) ||
+			db.prepare(`SELECT 1 FROM link_decisions WHERE series_id = ?`).get(seriesId)
+			? undefined
+			: openSeasonOf(seriesId);
+	const settled = new Set(rows);
+	const order: number[] = [];
+	for (const e of seasonEntries(seriesId)) if (!order.includes(e.season)) order.push(e.season);
+	const open = openSeasonOf(seriesId);
+	if (order.includes(open) && !settled.has(open)) return open;
+	return order.find((n) => !settled.has(n));
+}
+
 /** The episode numbers of a season, in list order, as a catalogue counts them. */
 function seasonEntries(seriesId: number): {
 	id: number;

@@ -1057,6 +1057,168 @@ describe('every door writes the season’s row', () => {
 	});
 });
 
+// ---- the season that wants a look (wave 15, round 2) -----------------------------------
+
+describe('a door that names no season acts on the season that wants a look', () => {
+	/** Season 1 linked by the owner, scored and watched into; season 2 open. */
+	function probe(title = 'Probe Show'): number {
+		const id = show({
+			title,
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		seasons.linkSeason(id, 1, 1, animeEntry(555, { mal: 777 }), 'review', NOW);
+		db.prepare(`UPDATE series_season_links SET score = 8 WHERE series_id = ?`).run(id);
+		markWatched(entryId(id, 1, 1));
+		return id;
+	}
+	const seasonOne = (id: number) =>
+		db
+			.prepare(
+				`SELECT anilist_id AS anilist, mal_id AS mal, via, score FROM series_season_links
+				WHERE series_id = ? AND season = 1`
+			)
+			.all(id);
+	const OWNERS = [{ anilist: 555, mal: 777, via: 'review', score: 8 }];
+	const searches = (id: number) =>
+		db
+			.prepare(
+				`SELECT season, part, query FROM season_link_searches WHERE series_id = ? ORDER BY season`
+			)
+			.all(id);
+
+	afterEach(() => {
+		db.prepare(`DELETE FROM link_searches`).run();
+		db.prepare(`DELETE FROM link_candidates`).run();
+		db.prepare(`DELETE FROM link_decisions`).run();
+	});
+
+	it('is the open season while it is open, then the first open one, then none', () => {
+		const id = show({
+			seasons: [
+				[1, 2],
+				[1, 2],
+				[1, 2]
+			]
+		});
+		// Nothing watched: the open season is the first.
+		expect(seasons.seasonToLook(id)).toBe(1);
+		markWatched(entryId(id, 1, 1));
+		markWatched(entryId(id, 1, 2));
+		markWatched(entryId(id, 2, 1));
+		expect(seasons.openSeasonOf(id)).toBe(2);
+		expect(seasons.seasonToLook(id)).toBe(2);
+		seasons.linkSeason(id, 2, 1, animeEntry(2), 'review', NOW);
+		expect(seasons.seasonToLook(id)).toBe(1);
+		seasons.noneOfSeason(id, 1, 1, NOW);
+		expect(seasons.seasonToLook(id)).toBe(3);
+		seasons.unlinkSeason(id, 3, 1, NOW);
+		expect(seasons.seasonToLook(id)).toBeUndefined();
+		// The twin of NEEDS_LOOK: no season to look at is no place in the pass.
+		expect(cat.searchable(10_000).some((r) => r.id === id)).toBe(false);
+	});
+
+	it('the pass searches season 2 and leaves the owner’s season 1 alone', async () => {
+		const id = probe();
+		const rows = cat.searchable(10_000).filter((r) => r.id === id);
+		expect(rows).toHaveLength(1);
+		await cat.searchSeries(rows, NOW);
+		expect(seasonOne(id)).toEqual(OWNERS);
+		expect(searches(id)).toEqual([{ season: 2, part: 1, query: 'Probe Show Season 2' }]);
+	});
+
+	it('a sure match links season 2, never season 1', async () => {
+		const id = probe('Sure Show');
+		// AniList answers with the series' own title, whatever is asked: a sure match.
+		const sure: typeof fetch = async (input, init) => {
+			const raw = init?.body ? String(init.body) : '';
+			if (String(input) === 'https://graphql.anilist.co' && raw.includes('search:'))
+				return json({ data: { s0: { media: [animeMedia(9302, 'Sure Show')] } } });
+			return fake(input, init);
+		};
+		cat.setAnilistFetch(sure);
+		const r = await cat.searchSeries(
+			cat.searchable(10_000).filter((x) => x.id === id),
+			NOW
+		);
+		expect(r).toEqual({ linked: 1, offered: 0 });
+		expect(seasonOne(id)).toEqual(OWNERS);
+		expect(
+			seasons
+				.seasonLinks(id)
+				.filter((l) => l.season === 2)
+				.map((l) => [l.anilistId, l.via])
+		).toEqual([[9302, 'exact']]);
+		// Every season linked: nothing left for the pass.
+		expect(cat.searchable(10_000).some((x) => x.id === id)).toBe(false);
+	});
+
+	it('a sure match never replaces a season the owner linked while the search was out', async () => {
+		const id = probe('Raced Show');
+		const sure: typeof fetch = async (input, init) => {
+			const raw = init?.body ? String(init.body) : '';
+			if (String(input) === 'https://graphql.anilist.co' && raw.includes('search:')) {
+				// The owner links season 2 on the series screen meanwhile.
+				seasons.linkSeason(id, 2, 1, animeEntry(8800), 'review', NOW);
+				return json({ data: { s0: { media: [animeMedia(9302, 'Raced Show')] } } });
+			}
+			return fake(input, init);
+		};
+		cat.setAnilistFetch(sure);
+		const r = await cat.searchSeries(
+			cat.searchable(10_000).filter((x) => x.id === id),
+			NOW
+		);
+		expect(r).toEqual({ linked: 0, offered: 1 });
+		expect(seasonOne(id)).toEqual(OWNERS);
+		expect(seasons.seasonLinks(id).map((l) => [l.season, l.anilistId])).toEqual([
+			[1, 555],
+			[2, 8800]
+		]);
+	});
+
+	it('NONE OF THESE with no season settles season 2, and the series leaves the queue', () => {
+		const id = probe();
+		db.prepare(
+			`INSERT INTO link_searches (series_id, query, searched_at, found) VALUES (?, 'Probe Show Season 2', ?, 1)`
+		).run(id, NOW);
+		const queued = () => cat.linkQueue(false).find((i) => i.seriesId === id);
+		// The queue's item carries the season it is for.
+		expect(queued()).toMatchObject({ season: 2, part: 1 });
+		cat.noneOfThese(id, NOW);
+		expect(
+			db.prepare(`SELECT season, decision FROM season_link_decisions WHERE series_id = ?`).all(id)
+		).toEqual([{ season: 2, decision: 'none' }]);
+		expect(seasonOne(id)).toEqual(OWNERS);
+		expect(queued()).toBeUndefined();
+	});
+
+	it('LINK with no season links season 2 and leaves season 1 alone', () => {
+		const id = probe();
+		cat.link(id, animeEntry(9400, { mal: 9401 }), 'review', NOW);
+		expect(seasonOne(id)).toEqual(OWNERS);
+		expect(
+			seasons
+				.seasonLinks(id)
+				.filter((l) => l.season === 2)
+				.map((l) => l.anilistId)
+		).toEqual([9400]);
+	});
+
+	it('the queue’s LINK accepts what the queue drew: the season’s candidates, then the series’', () => {
+		const id = probe();
+		db.prepare(
+			`INSERT INTO link_candidates (series_id, anilist_id, rank, data) VALUES (?, 9500, 0, ?)`
+		).run(id, JSON.stringify(animeEntry(9500)));
+		// A search from before the season had one of its own: the series' row only.
+		expect(cat.offered(id, 9500)?.anilistId).toBe(9500);
+		expect(cat.offered(id, 9500, 2)?.anilistId).toBe(9500);
+		expect(cat.offered(id, 9999, 2)).toBeNull();
+	});
+});
+
 // ---- Ranobe ------------------------------------------------------------------------------
 
 describe('Ranobe on an anime', () => {

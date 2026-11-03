@@ -170,9 +170,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			if (!kind) error(404, 'not found');
 			const c = b.pasted
 				? await readPasted({ service: 'anilist', id: b.link }, kind)
-				: kind === 'anime' && season !== undefined
-					? offeredSeason(seriesId, season, kind, b.link, part)
-					: offered(seriesId, b.link, season);
+				: offered(seriesId, b.link, season, part);
 			if (!c) error(409, 'not a candidate');
 			if (kind === 'anime' && season !== undefined)
 				linkSeason(seriesId, season, part, c, b.pasted ? 'pasted' : 'review');
