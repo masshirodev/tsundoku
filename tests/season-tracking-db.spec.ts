@@ -36,6 +36,19 @@ const fake: typeof fetch = async (input, init) => {
 	if (url === 'https://graphql.anilist.co') {
 		const q = (body as { query: string }).query;
 		if (q.includes('Viewer')) return json({ data: { Viewer: { id: 7, name: 'masshiro' } } });
+		if (q.includes('search:'))
+			return json({
+				data: {
+					s0: {
+						media: [
+							animeMedia(
+								9302,
+								String((body as { variables: Record<string, unknown> }).variables.q0)
+							)
+						]
+					}
+				}
+			});
 		if (q.includes('MediaListCollection'))
 			return json({ data: { MediaListCollection: { lists: [{ entries: [] }] } } });
 		if (q.includes('SaveMediaListEntry')) return json({ data: { SaveMediaListEntry: { id: 1 } } });
@@ -136,6 +149,24 @@ const entryId = (seriesId: number, season: number, number: number) =>
 
 const markWatched = (id: number) =>
 	db.prepare(`UPDATE entries SET read_at = ? WHERE id = ?`).run(NOW, id);
+
+/** An anime entry as AniList sends it: what a search answers with. */
+const animeMedia = (id: number, title: string) => ({
+	id,
+	idMal: null,
+	format: 'TV',
+	countryOfOrigin: 'JP',
+	status: 'FINISHED',
+	chapters: null,
+	volumes: null,
+	episodes: 24,
+	season: 'FALL',
+	seasonYear: 2018,
+	synonyms: [],
+	title: { romaji: title, english: title, native: null },
+	startDate: { year: 2018 },
+	coverImage: { extraLarge: null, large: null }
+});
 
 const animeEntry = (id: number, o: { mal?: number | null; episodes?: number } = {}) => ({
 	anilistId: id,
@@ -549,6 +580,94 @@ describe('sending a season', () => {
 			.map((s) => (s.body as { variables: Record<string, unknown> }).variables);
 		expect(saves).toHaveLength(1);
 		expect(saves[0]).toMatchObject({ mediaId: 102, scoreRaw: 80 });
+	});
+});
+
+// ---- the doors an anime's link comes through ----------------------------------------------
+
+describe('every door writes the season’s row', () => {
+	it('LINK, from the review or FIND, writes the season table, and its mirror', async () => {
+		const id = show({
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		// The review's LINK goes through `link`, which must know an anime is a season.
+		cat.link(id, animeEntry(101, { mal: 501 }), 'review', NOW);
+		expect(
+			db
+				.prepare(
+					`SELECT season, part, anilist_id, mal_id, via FROM series_season_links WHERE series_id = ?`
+				)
+				.all(id)
+		).toEqual([{ season: 1, part: 1, anilist_id: 101, mal_id: 501, via: 'review' }]);
+		expect(
+			db.prepare(`SELECT anilist_id, mal_id, via FROM series_links WHERE series_id = ?`).get(id)
+		).toEqual({ anilist_id: 101, mal_id: 501, via: 'review' });
+		// OPEN and the sheet follow the entry's own kind.
+		expect(cat.linkState(id)?.linked).toMatchObject({
+			anilistId: 101,
+			wrongKind: false,
+			kind: 'anime'
+		});
+		// UNDO takes the season's row and the mirror with it.
+		expect(cat.undoLink(id)).toBe(true);
+		expect(db.prepare(`SELECT COUNT(*) AS n FROM series_season_links`).get()).toEqual({ n: 0 });
+		expect(
+			db.prepare(`SELECT COUNT(*) AS n FROM series_links WHERE series_id = ?`).get(id)
+		).toEqual({
+			n: 0
+		});
+	});
+
+	it('UNLINK takes one season, and leaves its sibling alone', () => {
+		const id = show({
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		seasons.linkSeason(id, 1, 1, animeEntry(101), 'review', NOW);
+		seasons.linkSeason(id, 2, 1, animeEntry(102), 'review', NOW);
+		cat.unlink(id, NOW, 1);
+		expect(seasons.seasonLinks(id).map((l) => l.season)).toEqual([2]);
+		// The mirror is the first season still linked, which is now season 2's.
+		expect(db.prepare(`SELECT anilist_id FROM series_links WHERE series_id = ?`).get(id)).toEqual({
+			anilist_id: 102
+		});
+		expect(
+			db.prepare(`SELECT season FROM season_link_decisions WHERE series_id = ?`).all(id)
+		).toEqual([{ season: 1 }]);
+	});
+
+	it('NONE OF THESE settles one season, and the series stays in the pass for the others', () => {
+		const id = show({
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		expect(cat.searchable(10_000).some((r) => r.id === id)).toBe(true);
+		cat.noneOfThese(id, NOW, 1);
+		expect(seasons.seasonSettled(id, 1)).toBe(true);
+		expect(seasons.seasonSettled(id, 2)).toBe(false);
+		expect(cat.undoNone(id)).toBe(true);
+		expect(seasons.seasonSettled(id, 1)).toBe(false);
+	});
+
+	it('a season’s own search is kept against that season, not the open one', async () => {
+		const id = show({
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		const r = await cat.searchNow(id, 'Show Season 2', NOW, { season: 2 });
+		expect(r).toEqual({ outcome: 'found', found: 1 });
+		expect(seasons.seasonSearch(id, 2)?.query).toBe('Show Season 2');
+		expect(seasons.seasonSearch(id, 1)).toBeNull();
+		expect(seasons.seasonCandidates(id, 2).map((c) => c.anilistId)).toEqual([9302]);
 	});
 });
 
