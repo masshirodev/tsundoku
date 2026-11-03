@@ -513,8 +513,17 @@ screen but the video, and the subtitles, until a tap.
   variants a viewer actually picks between are kept (Brazilian Portuguese,
   Latin American Spanish, Traditional and Simplified Chinese, Canadian
   French), every other region is the language (`en-US` is EN). A name nobody
-  knows is cut to its first three letters (Klingon is KLI) with the name
-  itself as the title, so no cell ever holds a whole word. The server sends
+  knows is cut to a code of its own, with the name itself as the title, so
+  no cell ever holds a whole word: its first word when that is two or three
+  letters, else its first three letters (Klingon is KLI), in ASCII with the
+  accents dropped. A cut that is itself an alias in the table is that
+  alias's language (Indonesia cuts to IND, which is ID; China is ZH,
+  Vietnam VI), and a label with no Latin letters left, blank or in another
+  script ("Тагальский"), is UND, named Unknown when it is blank. So every
+  code the sheet shows is one `langCode` gives back unchanged and one the
+  workstation keeps as a choice (two or three capitals, then up to two
+  parts: PT-BR, ES-419, UND-2). Two tracks of one list that still come to
+  one code are told apart as ES and ES-2 (`trackCodes`). The server sends
   each track's code and name (`langName`); a downloaded file's tracks have
   codes alone, and the player names them from the code. **AUDIO and
   SUBTITLES are a grid of equal cells** (at least 60px wide, 44px high, the
@@ -534,8 +543,14 @@ screen but the video, and the subtitles, until a tap.
   and a few dozen labels printed over each other; a name the short table
   did not know ("HUNGARIAN") showed whole, and the workstation refused to
   keep it as a choice (only two or three capitals passed), so it was never
-  remembered. A choice kept before is read as the track it meant
-  (`matchLang`): `PT` finds PT-BR, `HUN` finds HU. Downloads keep and tag
+  remembered. A remembered choice is the track that carries its code, as it
+  is: ES-2 is the second Spanish, on the next episode and as the row's cell
+  that is on, never the first (until round 2 of the fix the choice was read
+  through `langCode` first, and ES-2 came back as ES). Only a choice no
+  track carries is read again, as the track it meant (`matchLang`): one
+  kept before 2026-11-03 named `PT` for what is PT-BR now and `HUN` for HU,
+  so `PT` finds PT-BR, `HUN` finds HU, `IND` finds ID, and ES-2 finds ES
+  where only one Spanish is offered. Downloads keep and tag
   tracks by the language alone, as before, since AUDIO KEPT names
   languages and Matroska's tag has no variant.
 - **Subtitles** are drawn by tsundoku from the WebVTT: IBM Plex on a scrim

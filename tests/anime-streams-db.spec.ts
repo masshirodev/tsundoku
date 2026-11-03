@@ -405,7 +405,11 @@ describe('an episode’s streams', () => {
 					'Klingon',
 					'Klingonese',
 					'Chinese (Traditional)',
-					'zh-TW'
+					'zh-TW',
+					'Indonesia',
+					'',
+					'',
+					'Тагальский'
 				])
 			])
 		];

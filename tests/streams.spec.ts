@@ -278,10 +278,88 @@ describe('a track’s language: one short code, the name in full beside it', () 
 		expect(langName('Klingon')).toBe('Klingon');
 		expect(langCode('tlh')).toBe('TLH');
 		expect(langCode('Signs & Songs')).toBe('SIG');
-		expect(langCode('')).toBe('');
+		// A cut that is itself an alias is that alias's language, so the code
+		// is one langCode gives back unchanged (round 2: Indonesia was IND).
+		expect(['Indonesia', 'China', 'Vietnam'].map(langCode)).toEqual(['ID', 'ZH', 'VI']);
+		expect(langCode('Ñoño')).toBe('NON');
 		// No code the sheet shows is longer than a cell holds.
 		const names = LANGS.flatMap(([, name]) => [name, `${name} (Traditional)`, `${name} (Brazil)`]);
 		expect(Math.max(...names.map((n) => langCode(n).length))).toBeLessThanOrEqual(7);
+	});
+
+	it('gives a blank label, or one with no Latin letters, UND and a name', () => {
+		// cleanChoice keeps only capitals A to Z: a blank cell, '-2' or
+		// 'ТАГ' could be shown and never remembered.
+		expect(trackCodes(['', '', '   '])).toEqual(['UND', 'UND-2', 'UND-3']);
+		expect(langName('')).toBe('Unknown');
+		expect(langCode('Тагальский')).toBe('UND');
+		expect(langName('Тагальский')).toBe('Тагальский');
+		expect(langCode('und')).toBe('UND');
+		expect(langName('und')).toBe('Unknown');
+		expect(trackCodes(['Тагальский', 'Klingon', '', '!!'])).toEqual([
+			'UND',
+			'KLI',
+			'UND-2',
+			'UND-3'
+		]);
+		for (const c of trackCodes(['', 'Тагальский', '日本語字幕なし', 'x', '42']))
+			expect(c).toMatch(/^[A-Z]{2,3}(-[A-Z0-9]{1,4}){0,2}$/);
+	});
+
+	it('gives every code it makes back as itself, and a choice of it picks that track', () => {
+		// Round 2 (review finding 1): matchLang read a kept code through
+		// langCode first, which turned ES-2 into ES (the other track) and IND
+		// into ID (no track). The whole table, every variant a label carries,
+		// and a list with duplicates and unknowns, not a sample.
+		const labels = LANGS.flatMap(([code, name, ...aliases]) => [
+			code,
+			name,
+			...aliases,
+			`${name} (Brazil)`,
+			`${name} (Latin America)`,
+			`${name} (Traditional)`,
+			`${name} (Simplified)`,
+			`${name} (Canada)`
+		]);
+		const odd = [
+			'English',
+			'English (Signs & Songs)',
+			'Spanish',
+			'Español',
+			'Klingon',
+			'Klingonese',
+			'Indonesia',
+			'China',
+			'Vietnam',
+			'Spanish (Latin America)',
+			'es-419',
+			'',
+			'Тагальский'
+		];
+		const lists = [trackCodes(labels), trackCodes(odd), trackCodes([...odd, ...odd])];
+		const wrong: string[] = [];
+		for (const codes of lists) {
+			for (const c of codes) {
+				if (matchLang(c, codes) !== c) wrong.push(`match ${c} -> ${matchLang(c, codes)}`);
+				// A code without trackCodes' numeric suffix reads as itself.
+				if (!/-\d{1,2}$/.test(c) && langCode(c) !== c) wrong.push(`code ${c} -> ${langCode(c)}`);
+			}
+			expect(new Set(codes).size).toBe(codes.length);
+		}
+		for (const l of [...labels, ...odd])
+			if (langCode(langCode(l)) !== langCode(l)) wrong.push(`twice ${l}`);
+		expect(wrong).toEqual([]);
+		expect(trackCodes(odd).slice(0, 9)).toEqual([
+			'EN',
+			'EN-2',
+			'ES',
+			'ES-2',
+			'KLI',
+			'KLI-2',
+			'ID',
+			'ZH',
+			'VI'
+		]);
 	});
 
 	it('gives each track of a list its own code', () => {
@@ -304,6 +382,13 @@ describe('a track’s language: one short code, the name in full beside it', () 
 		expect(matchLang('ES-419', ['ES', 'ES-419'])).toBe('ES-419');
 		expect(matchLang('pt-BR', ['PT-BR'])).toBe('PT-BR');
 		expect(matchLang('FR', ['JA', 'EN'])).toBeUndefined();
+		// A choice of IND, kept while Indonesia cut to it, finds the ID track.
+		expect(matchLang('IND', ['JA', 'ID'])).toBe('ID');
+		// The second of two tracks of one language is that track, and where
+		// only one is offered, the language.
+		expect(matchLang('EN-2', ['EN', 'EN-2'])).toBe('EN-2');
+		expect(matchLang('ES-2', ['ES', 'ES-2', 'ES-419'])).toBe('ES-2');
+		expect(matchLang('EN-2', ['JA', 'EN'])).toBe('EN');
 	});
 
 	it('shows every language up to LANG_ROW_MAX, and past it what matters with MORE', () => {
@@ -318,5 +403,17 @@ describe('a track’s language: one short code, the name in full beside it', () 
 		expect(row.more).toBe(30 - row.shown.length);
 		const withPt = [...many, 'PT-BR'];
 		expect(langRow(withPt, ['PT', 'EN']).shown).toEqual(['EN', 'PT-BR']);
+		// The track that is on is a cell, though it is the second of its
+		// language or a code its source made up (round 2).
+		const dup = trackCodes([
+			...LANGS.slice(0, 15).map(([, name]) => name),
+			'English (Full)',
+			'Indonesia'
+		]);
+		expect(dup).toContain('EN-2');
+		expect(langRow(dup, ['EN-2', 'EN']).shown).toEqual(['EN', 'EN-2']);
+		const id = langRow(dup, ['ID', 'EN']);
+		expect(id.shown).toEqual(['EN', 'ID']);
+		expect(id.more).toBe(dup.length - 2);
 	});
 });

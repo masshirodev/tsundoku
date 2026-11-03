@@ -55,7 +55,9 @@ const SUBS = [
 	'Swedish',
 	'Thai',
 	'Turkish',
-	'Vietnamese'
+	// A second English, as a source lists full subtitles beside signs and
+	// songs: trackCodes makes it EN-2, a code of its own (round 2).
+	'English (Full)'
 ];
 
 /** The episode's streams, with every quality offering AUDIO and SUBS. */
@@ -237,6 +239,30 @@ test.describe('the settings sheet with many languages, tablet landscape (c386)',
 				'MORE · 28'
 			]);
 			await expect(sheet.getByRole('button', { name: 'Chinese (Traditional)' })).toHaveClass(/on/);
+
+			// The second English, from MORE (round 2, review finding 1): the
+			// track that is on is its own cell, on and focused, and the next
+			// episode starts on it, not on the first English.
+			await sheet.getByRole('button', { name: /^MORE · / }).click();
+			await list.filter({ hasText: 'EN-2' }).click();
+			await expect(list).toHaveCount(0);
+			const en2 = sheet.locator('.langs[data-which="subs"] [data-lang="EN-2"]');
+			await expect(en2).toBeVisible();
+			await expect(en2).toHaveClass(/on/);
+			await expect(en2).toBeFocused();
+			await expect(sheet.locator('.langs[data-which="subs"] .on')).toHaveCount(1);
+			await sheet.getByRole('button', { name: 'Close' }).click();
+			await expect(page.locator('.player .cells .grow')).toContainText('EN-2 SUBS');
+			await openEpisode(page, 'A Letter from Hollin');
+			await expect(page.locator('.player .cells .grow')).toContainText('EN-2 SUBS');
+			sheet = await openSheet(page);
+			await expect(sheet.getByRole('group', { name: 'Subtitles' }).getByRole('button')).toHaveText([
+				'OFF',
+				'EN',
+				'EN-2',
+				'MORE · 28'
+			]);
+			await expect(sheet.locator('.langs[data-which="subs"] [data-lang="EN-2"]')).toHaveClass(/on/);
 		} finally {
 			// The series and every other anime start in English again, as the
 			// other specs on this server expect.

@@ -334,6 +334,9 @@ export const LANGS: [code: string, name: string, ...aliases: string[]][] = [
 	['th', 'Thai', 'tha', 'ไทย'],
 	['tr', 'Turkish', 'tur', 'türkçe'],
 	['uk', 'Ukrainian', 'ukr', 'українська'],
+	// ISO 639-2's "undetermined", which Matroska writes for an untagged track,
+	// and the code a label with no letters gets (langCode).
+	['und', 'Unknown', 'undetermined'],
 	['ur', 'Urdu', 'urd'],
 	['uz', 'Uzbek', 'uzb'],
 	['vi', 'Vietnamese', 'vie', 'tiếng việt'],
@@ -438,28 +441,36 @@ function parseLang(label: string): { base: string; variant: string | null } | nu
  * A track's language as the sheet shows it (c386): its short code, `JA`,
  * `PT-BR`, `ES-419`, `ZH-HANT`, `NB`, whatever the source wrote ("English",
  * "eng", "en-US", "Chinese (Traditional)", "Norwegian (nob)", "Magyar"). A
- * name nobody knows is cut to a code of its own, its first three letters
- * ("Klingon" is KLI), so no cell ever holds a whole word; the name itself
- * goes in the cell's `title` (langName).
+ * name nobody knows is cut to a code of its own, so no cell ever holds a
+ * whole word; the name itself goes in the cell's `title` (langName). The
+ * cut code is its first word when that is two or three letters, else its
+ * first three letters ("Klingon" is KLI), in ASCII with the accents
+ * dropped. A cut that is itself an alias is that alias's language
+ * ("Indonesia" cuts to IND, which is ID), and a label with no letters left
+ * (blank, or in a script without them, "Тагальский") is UND. So every code
+ * is one langCode gives back unchanged, and one the workstation keeps as a
+ * choice (choices.ts, isLang).
  */
 export function langCode(lang: string): string {
 	const p = parseLang(lang);
 	if (p) return (p.variant ? `${p.base}-${p.variant}` : p.base).toUpperCase();
-	const w = words(lang);
-	if (!w.length) return '';
-	if (/^[a-z]{2,3}$/.test(w[0])) return w[0].toUpperCase();
-	const letters = w.join('').replace(/[^\p{L}]/gu, '');
-	return (letters || w.join('')).slice(0, 3).toUpperCase();
+	const ascii = words(lang)
+		.map((w) => w.normalize('NFD').replace(/[^a-z]/g, ''))
+		.filter(Boolean);
+	const cut = /^[a-z]{2,3}$/.test(ascii[0] ?? '') ? ascii[0] : ascii.join('').slice(0, 3);
+	if (cut.length < 2) return 'UND';
+	return (BY_ALIAS.get(cut) ?? cut).toUpperCase();
 }
 
 /**
  * A track's language in full, for the cell's `title` and `aria-label` and
  * MORE's list (c386): "Portuguese (Brazil)", "Norwegian Bokmål". A label
- * nobody knows is given back as the source wrote it, trimmed.
+ * nobody knows is given back as the source wrote it, trimmed, and a blank
+ * one is "Unknown".
  */
 export function langName(lang: string): string {
 	const p = parseLang(lang);
-	if (!p) return lang.trim();
+	if (!p) return lang.trim() || 'Unknown';
 	const name = NAME_OF.get(p.base) ?? p.base.toUpperCase();
 	const v = p.variant ? VARIANTS.find((x) => x.base === p.base && x.code === p.variant) : null;
 	return v ? `${name} (${v.name})` : name;
@@ -482,13 +493,16 @@ export function trackCodes(names: string[]): string[] {
 
 /**
  * Which offered track a remembered choice means (c386). A choice is a code,
- * kept by the workstation; the codes grew regions in c386 (PT-BR, ES-419)
- * and lost ISO 639-2's three letters (`HUN` is HU), so one kept before then
- * is read through langCode and, failing the exact code, takes the same
- * language: PT finds PT-BR, PT-BR finds PT. Undefined when nothing offered
- * is that language.
+ * kept by the workstation, and a code offered as it is is that track: ES-2
+ * is the second Spanish, never the first, and IND is a track whose source
+ * named it so. Only a choice no track carries is read again: the codes grew
+ * regions in c386 (PT-BR, ES-419) and lost ISO 639-2's three letters (`HUN`
+ * is HU), so one kept before then is read through langCode and, failing the
+ * exact code, takes the same language: PT finds PT-BR, PT-BR finds PT.
+ * Undefined when nothing offered is that language.
  */
 export function matchLang(choice: string, offered: string[]): string | undefined {
+	if (offered.includes(choice)) return choice;
 	const c = langCode(choice);
 	if (offered.includes(c)) return c;
 	const base = c.split('-')[0];
