@@ -1429,9 +1429,20 @@ export function linkCover(seriesId: number): { anilistId: number; url: string } 
 	return r ? { anilistId: r.anilist_id, url: r.cover_url } : null;
 }
 
-/** Links in all, for SETTINGS and the logs. */
+/**
+ * Series linked, for SETTINGS and the logs: a comic's or a novel's link, or
+ * any season of an anime's (c240). An anime counts once, by its season rows,
+ * whether or not its first season's mirror is in `series_links`.
+ */
 export function linkCount(): number {
-	return (getDb().prepare(`SELECT COUNT(*) AS n FROM series_links`).get() as { n: number }).n;
+	return (
+		getDb()
+			.prepare(
+				`SELECT COUNT(*) AS n FROM (SELECT series_id FROM series_links
+				UNION SELECT series_id FROM series_season_links)`
+			)
+			.get() as { n: number }
+	).n;
 }
 
 /** A candidate as the review draws it for this series: a pasted one, read afresh. */

@@ -1546,6 +1546,22 @@ describe('an anime’s list state and sends are its seasons’, at every door', 
 		).toEqual({ n: 0 });
 	});
 
+	it('SETTINGS counts an anime linked once, by any season, mirror or not', () => {
+		const before = cat.linkCount();
+		const id = show({
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		// Season 2 alone: no mirror, still a linked series.
+		seasons.linkSeason(id, 2, 1, animeEntry(102), 'review', NOW);
+		expect(cat.linkCount()).toBe(before + 1);
+		// Season 1 too, with its mirror: still one series.
+		seasons.linkSeason(id, 1, 1, animeEntry(101), 'review', NOW);
+		expect(cat.linkCount()).toBe(before + 1);
+	});
+
 	it('SETTINGS counts a season’s failed send, and SIGN OUT takes a season’s waiting send with it', async () => {
 		const id = show({ seasons: [[1, 2]] });
 		seasons.linkSeason(id, 1, 1, animeEntry(101, { mal: 501 }), 'review', NOW);
