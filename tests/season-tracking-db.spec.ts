@@ -771,6 +771,8 @@ describe('every door writes the season’s row', () => {
 		expect(
 			db.prepare(`SELECT season FROM season_link_decisions WHERE series_id = ?`).all(id)
 		).toEqual([{ season: 1 }]);
+		// The line says UNLINKED, not NONE OF THESE: it carries the decision's word.
+		expect(seasons.seriesSeasons(id)!.seasons.map((s) => s.decision)).toEqual(['unlinked', null]);
 	});
 
 	it('UNLINK takes a season’s second part with its first', () => {
@@ -825,7 +827,7 @@ describe('every door writes the season’s row', () => {
 		// Season 1 settled: season 2 still wants a look.
 		cat.noneOfThese(id, NOW, 1);
 		expect(queued()).toBe(true);
-		expect(seasons.seriesSeasons(id)!.seasons[0].settled).toBe(true);
+		expect(seasons.seriesSeasons(id)!.seasons[0].decision).toBe('none');
 		// Season 2 settled too: the series is done.
 		cat.noneOfThese(id, NOW, 2);
 		expect(queued()).toBe(false);

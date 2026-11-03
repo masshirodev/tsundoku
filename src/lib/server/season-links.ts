@@ -16,7 +16,8 @@ import {
 	isAnime,
 	normaliseTitle,
 	wrongKind,
-	type Candidate
+	type Candidate,
+	type SeasonDecision
 } from '../library/catalogue.ts';
 import {
 	openSeason,
@@ -209,8 +210,8 @@ export type SeasonView = SeasonSpan & {
 	candidates: number;
 	searched: boolean;
 	queued: boolean;
-	/** NONE OF THESE or UNLINK settled it: no pass asks again (c240). */
-	settled: boolean;
+	/** NONE OF THESE (`none`) or UNLINK (`unlinked`) settled it: no pass asks again (c240). */
+	decision: SeasonDecision | null;
 	/** What FIND asks AniList for. */
 	searchTitle: string;
 };
@@ -325,7 +326,7 @@ export function seriesSeasons(seriesId: number): SeriesSeasons | null {
 					!!getDb()
 						.prepare(`SELECT 1 FROM season_link_searches WHERE series_id = ? AND season = ?`)
 						.get(seriesId, span.season),
-				settled: seasonSettled(seriesId, span.season),
+				decision: seasonDecision(seriesId, span.season),
 				searchTitle: seasonSearchTitle(s.title, span.season)
 			};
 		})
@@ -488,9 +489,21 @@ export function undoNoneSeason(seriesId: number, season: number, part = 1): bool
 
 /** A season settled by a decision: never searched again by the pass. */
 export function seasonSettled(seriesId: number, season: number): boolean {
-	return !!getDb()
-		.prepare(`SELECT 1 FROM season_link_decisions WHERE series_id = ? AND season = ?`)
-		.get(seriesId, season);
+	return seasonDecision(seriesId, season) !== null;
+}
+
+/**
+ * Which decision settled a season, the latest of its parts': the season's
+ * line says UNLINKED for an UNLINK and NONE OF THESE only for that (c240).
+ */
+export function seasonDecision(seriesId: number, season: number): SeasonDecision | null {
+	const r = getDb()
+		.prepare(
+			`SELECT decision FROM season_link_decisions WHERE series_id = ? AND season = ?
+			ORDER BY at DESC, part LIMIT 1`
+		)
+		.get(seriesId, season) as { decision: SeasonDecision } | undefined;
+	return r?.decision ?? null;
 }
 
 // ---- searching a season --------------------------------------------------------------------

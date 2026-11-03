@@ -640,6 +640,45 @@ test.describe('a catalogue that answers', () => {
 			relinkTwoParts(show);
 		}
 	});
+	test('a season settled without a link says which decision settled it (c240)', async ({
+		page
+	}) => {
+		// What UNLINK and NONE OF THESE leave on season 2: no row, and a decision.
+		// Season 2's own rows are put back as they were, whichever case ran first.
+		const db = new Database(dbPath);
+		const kept = db
+			.prepare(`SELECT * FROM series_season_links WHERE series_id = ? AND season = 2`)
+			.all(ids.sao) as Record<string, unknown>[];
+		const decide = (decision: 'unlinked' | 'none') => {
+			db.prepare(`DELETE FROM series_season_links WHERE series_id = ? AND season = 2`).run(ids.sao);
+			db.prepare(
+				`INSERT OR REPLACE INTO season_link_decisions (series_id, season, part, decision, at)
+				VALUES (?, 2, 1, ?, ?)`
+			).run(ids.sao, decision, Date.UTC(2026, 10, 3));
+		};
+		try {
+			const line = () =>
+				page.locator('.seasons').first().locator('.sline', { hasText: 'S2' }).locator('.s-b');
+			// UNLINK is not NONE OF THESE: the owner never dismissed a search.
+			decide('unlinked');
+			await page.goto(`${BASE}/series/${ids.sao}`);
+			await expect(line()).toHaveText('UNLINKED · NO PASS ASKS AGAIN');
+			decide('none');
+			await page.reload();
+			await expect(line()).toHaveText('NONE OF THESE · NO PASS ASKS AGAIN');
+		} finally {
+			db.prepare(`DELETE FROM season_link_decisions WHERE series_id = ? AND season = 2`).run(
+				ids.sao
+			);
+			for (const row of kept) {
+				const cols = Object.keys(row);
+				db.prepare(
+					`INSERT OR REPLACE INTO series_season_links (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`
+				).run(...cols.map((c) => row[c]));
+			}
+			db.close();
+		}
+	});
 });
 
 /** A series' season links and season decisions, as the server left them. */

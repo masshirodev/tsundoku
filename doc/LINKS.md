@@ -286,9 +286,12 @@ anime's LINK row is a line a season (c240; above).
   title, `ANILIST AND MAL · TV · 24 EP. · 2018`, and EDIT or FIND. Three
   seasons or fewer have a line each; more fold round the one being watched,
   and SHOW opens both the LINK and the TRACKING row. A season in two parts
-  says so on one line (`2 PARTS · EP. 1 – 12 · EP. 13 – 23`). A series with
-  one season draws exactly what it always did. Ranobe stays one line under
-  the seasons ([`RANOBE.md`](RANOBE.md)).
+  says so on one line (`2 PARTS · EP. 1 – 12 · EP. 13 – 23`). A season with
+  no link says why, in the decision's own word: `UNLINKED · NO PASS ASKS
+AGAIN` after an UNLINK, `NONE OF THESE · NO PASS ASKS AGAIN` after NONE OF
+  THESE (`SeasonRow.decision`, the latest of its parts'), else what its last
+  search found. A series with one season draws exactly what it always did.
+  Ranobe stays one line under the seasons ([`RANOBE.md`](RANOBE.md)).
 - **A season's link is its own row** (`series_season_links`, rung 62):
   `series_links` keeps meaning what it meant for a manga or a novel, and an
   anime's row there is a **mirror of its first season, written only while that

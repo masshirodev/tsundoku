@@ -446,10 +446,17 @@ export type SeasonRow = {
 	candidates: number;
 	searched: boolean;
 	queued: boolean;
-	/** NONE OF THESE or UNLINK settled it: no pass asks again (c240). */
-	settled: boolean;
+	/**
+	 * What settled it, when something did: NONE OF THESE (`none`) or UNLINK
+	 * (`unlinked`). No pass asks again either way, but the line says which
+	 * (c240).
+	 */
+	decision: SeasonDecision | null;
 	searchTitle: string;
 };
+
+/** A season settled without a link: the owner's NONE OF THESE, or an UNLINK. */
+export type SeasonDecision = 'none' | 'unlinked';
 
 /** "ANILIST 132215 · MAL 128830", or with no MAL entry just the first. */
 export function idsLine(anilistId: number | null, malId: number | null): string {
