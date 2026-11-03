@@ -7,8 +7,17 @@ import { langCode, openingEdition } from '$lib/library/editions';
 import { likePattern } from '$lib/library/search';
 import { dayStart, FILTER_KINDS, type FilterKind, type Filters } from '$lib/library/filters';
 import { naturalDir, type Dir, type Sort } from '$lib/library/labels';
+import {
+	continuePart,
+	facePart,
+	inOrder,
+	partState,
+	type ContinueLine,
+	type LibraryCard,
+	type WorkTile
+} from '$lib/library/works';
+import { partsOfWorks, workRecords } from './works.ts';
 import type {
-	ContinueItem,
 	Kind,
 	Rating,
 	ScanJob,
@@ -47,7 +56,12 @@ type CardRow = {
 	available: number;
 	followed: number;
 	opened: number;
+	last_opened_at: number | null;
 	language?: string | null;
+	work_id?: number | null;
+	work_name?: string | null;
+	work_part?: number | null;
+	work_size?: number | null;
 };
 
 /**
@@ -94,10 +108,14 @@ function cardQuery(where: string, order: string, limit = ''): string {
 		COALESCE(t.available, 0) AS available,
 		s.followed_at IS NOT NULL AS followed,
 		t.last_opened IS NOT NULL AS opened,
-		l.language
+		t.last_opened AS last_opened_at,
+		l.language,
+		ws.work_id AS work_id, w.name AS work_name, ws.position AS work_part,
+		(SELECT COUNT(*) FROM work_series n WHERE n.work_id = ws.work_id) AS work_size
 	FROM picked p JOIN series s ON s.id = p.id JOIN roots r ON r.id = s.root_id
 	LEFT JOIN stats t ON t.series_id = s.id LEFT JOIN fresh f ON f.series_id = s.id
 	LEFT JOIN langs l ON l.series_id = s.id
+	LEFT JOIN work_series ws ON ws.series_id = s.id LEFT JOIN works w ON w.id = ws.work_id
 	ORDER BY ${order} ${limit}`;
 }
 
@@ -106,7 +124,7 @@ function cardQuery(where: string, order: string, limit = ''): string {
  * edition's title and says its languages. One indexed look at the editions,
  * however long the page; a library without any folded book pays nothing more.
  */
-function withEditions(cards: SeriesCard[]): SeriesCard[] {
+function withEditions<T extends SeriesCard>(cards: T[]): T[] {
 	const db = getDb();
 	const rows = db
 		.prepare(
@@ -155,7 +173,7 @@ function withEditions(cards: SeriesCard[]): SeriesCard[] {
 	});
 }
 
-function toCard(row: CardRow): SeriesCard {
+function toCard(row: CardRow): LibraryCard {
 	return {
 		id: row.id,
 		title: row.title,
@@ -173,7 +191,17 @@ function toCard(row: CardRow): SeriesCard {
 		downloaded: row.available === 1,
 		followed: row.followed === 1,
 		opened: row.opened === 1,
-		language: row.language ?? null
+		lastOpenedAt: row.last_opened_at,
+		language: row.language ?? null,
+		work:
+			row.work_id == null
+				? null
+				: {
+						id: row.work_id,
+						name: row.work_name ?? '',
+						part: row.work_part ?? 0,
+						of: row.work_size ?? 0
+					}
 	};
 }
 
@@ -440,7 +468,7 @@ export function languagesOn(opts: Omit<ListOpts, 'filters'>): string[] {
  */
 export function listSeries(
 	opts: ListOpts & { limit?: number; offset?: number; seed?: number }
-): SeriesCard[] {
+): LibraryCard[] {
 	const where = listWhere(opts);
 	const rows = getDb()
 		.prepare(cardQuery(where.sql, orderFor(opts), 'LIMIT ? OFFSET ?'))
@@ -451,24 +479,31 @@ export function listSeries(
 
 /** How many cards a shelf holds: what paging runs up to. */
 export function countListed(opts: ListOpts): number {
-	const where = listWhere(opts);
-	return (
-		getDb()
-			.prepare(
-				`SELECT COUNT(*) AS n FROM series s JOIN roots r ON r.id = s.root_id WHERE ${where.sql}`
-			)
-			.get(...where.params) as { n: number }
-	).n;
+	return countTilesOn(opts);
 }
 
-/** Every id on a shelf, in no order: SELECT ALL, without loading every card. */
-export function listedIds(opts: ListOpts): number[] {
+/**
+ * Every series id a shelf's tiles hold, in no order: what SELECT ALL means
+ * now that a tile can be a Work. A Work contributes every part the viewer can
+ * see, not only the one that put it on the shelf -- a kind, collection, NEW or
+ * FAV shelf picks one part, and selecting only that one would leave the Work
+ * diverged under a bulk HIDE (doc/WORKS.md).
+ */
+export function tileIds(opts: ListOpts & { seed?: number }): number[] {
 	const where = listWhere(opts);
-	return (
-		getDb()
-			.prepare(`SELECT s.id FROM series s JOIN roots r ON r.id = s.root_id WHERE ${where.sql}`)
-			.all(...where.params) as { id: number }[]
-	).map((r) => r.id);
+	const sort = opts.sort ?? 'recent';
+	const order = unitOrder(sort, opts.dir ?? naturalDir(sort), opts.shelf, opts.seed);
+	const rows = getDb()
+		.prepare(unitQuery(where.sql, visibility(opts.reveal), order))
+		.all(...where.params) as UnitRow[];
+	const workIds = [...new Set(rows.map((r) => r.workId).filter((id): id is number => id != null))];
+	const parts = byWork(partsOfWorks(workIds, opts.reveal));
+	const ids = new Set<number>();
+	for (const row of rows) {
+		if (row.workId == null) ids.add(row.seriesId);
+		else for (const p of parts.get(row.workId) ?? []) ids.add(p.seriesId);
+	}
+	return [...ids];
 }
 
 export function countSeries(reveal: boolean): number {
@@ -481,10 +516,228 @@ export function countSeries(reveal: boolean): number {
 }
 
 /**
- * Series with an entry opened and not everything read, most recent first.
- * `total` is how many are open, which is what the section label counts; the
- * screen shows fewer on a phone.
+ * Every card the library holds, counting tiles: a Work of three parts is one.
+ * The sidebar's ALL and "is the library empty" must count what the grid draws
+ * (doc/WORKS.md, "The one rule"), or a Work makes the count disagree with the
+ * screen on its own.
  */
+export function countTiles(reveal: boolean): number {
+	return countUnitsOf(visibility(reveal), []);
+}
+
+/** A Work's parts grouped, for a page of tiles. */
+function byWork(parts: ReturnType<typeof partsOfWorks>): Map<number, typeof parts> {
+	const out = new Map<number, typeof parts>();
+	for (const p of parts) {
+		const list = out.get(p.workId);
+		if (list) list.push(p);
+		else out.set(p.workId, [p]);
+	}
+	return out;
+}
+
+/** The cards for these series, in one query: a page asks once, never per tile. */
+function cardsOf(ids: number[]): Map<number, LibraryCard> {
+	if (ids.length === 0) return new Map();
+	const rows = getDb()
+		.prepare(cardQuery(`s.id IN (${ids.map(() => '?').join(',')})`, 's.id'))
+		.all(...ids) as CardRow[];
+	return new Map(withEditions(rows.map(toCard)).map((c) => [c.id, c]));
+}
+
+/**
+ * A Work's card: the face's own fields, with the marks a run carries -- any
+ * part a favourite, the parts' new chapters summed, the parts' downloads
+ * summed. The foot draws segments rather than rating bars (a Work has no
+ * rating of its own), so the average is only what a focus line may say.
+ */
+function workCard(
+	id: number,
+	name: string,
+	face: LibraryCard,
+	parts: ReturnType<typeof partsOfWorks>
+): LibraryCard & { tile: WorkTile } {
+	const ordered = inOrder(parts);
+	const rated = ordered.filter((p) => p.rating > 0);
+	return {
+		...face,
+		title: name,
+		rating: (rated.length
+			? Math.round(rated.reduce((n, p) => n + p.rating, 0) / rated.length)
+			: 0) as Rating,
+		favourite: ordered.some((p) => p.favourite),
+		hidden: ordered.some((p) => p.hidden),
+		newCount: ordered.reduce((n, p) => n + p.newCount, 0),
+		entryCount: ordered.reduce((n, p) => n + p.entries, 0),
+		readCount: ordered.reduce((n, p) => n + p.read, 0),
+		downloaded: ordered.some((p) => p.downloaded > 0),
+		opened: ordered.some((p) => p.lastOpenedAt !== null),
+		addedAt: Math.max(face.addedAt, ...ordered.map((p) => p.addedAt)),
+		tile: {
+			id,
+			name,
+			face,
+			parts: ordered,
+			newCount: ordered.reduce((n, p) => n + p.newCount, 0),
+			hidden: ordered.some((p) => p.hidden)
+		} satisfies WorkTile
+	};
+}
+
+type UnitRow = {
+	workId: number | null;
+	seriesId: number;
+	workName: string | null;
+};
+
+/**
+ * A Work's place in an order is its most recent part's (doc/WORKS.md, "The one
+ * rule"): its latest read, its newest chapter, its latest added. The keys are
+ * aggregates over every part, so a Work sits where the part the owner would
+ * open sits, not where its first part was added.
+ */
+function unitOrder(sort: Sort, dir: Dir, shelf: string | undefined, seed = 1): string {
+	const d = dir.toUpperCase() as 'ASC' | 'DESC';
+	if (sort === 'title') return `COALESCE(w.name, fs.title) COLLATE NOCASE ${d}, u.series ${d}`;
+	if (sort === 'added')
+		return shelf === 'new' ? `k.arrived_at ${d}, u.series ${d}` : `k.added_at ${d}, u.series ${d}`;
+	if (sort === 'rating')
+		return `COALESCE(k.rating, 0) ${d}, COALESCE(w.name, fs.title) COLLATE NOCASE ASC, u.series ASC`;
+	if (sort === 'progress') {
+		const begun = `(k.opened > 0 OR k.read_count > 0)`;
+		const reading = `(${begun} AND k.read_count < k.entry_count)`;
+		const tier =
+			d === 'DESC'
+				? `CASE WHEN ${reading} THEN 0 WHEN NOT ${begun} THEN 1 ELSE 2 END`
+				: `CASE WHEN NOT ${begun} THEN 0 WHEN ${reading} THEN 2 ELSE 1 END`;
+		return `${tier}, COALESCE(k.last_opened, k.added_at) DESC, u.series DESC`;
+	}
+	if (sort === 'random') {
+		const k = Math.trunc(seed);
+		const h = `(((COALESCE(u.work, 0) * 7919 + u.series) * 1103515245 + ${k} * 40503 + 12345) % 2147483647)`;
+		return `((${h} * ${h}) % 2147483647), u.series`;
+	}
+	return `k.last_opened ${d} NULLS LAST, k.added_at ${d}, u.series ${d}`;
+}
+
+/**
+ * The browse list's units: one row per Work whose any part is picked, and one
+ * per series in no Work. The face is chosen among the picked parts by
+ * CONTINUE's own rule, so on MANGA a Work of a manga and its anime wears the
+ * manga's cover and on ALL it wears the part CONTINUE would open.
+ *
+ * Three independent reads, never one per tile: the units here, the page's
+ * cards in `cardsOf`, and every part of every Work on the page in
+ * `partsOfWorks` (doc/handoff-notes/works.md, the W1 gaps).
+ */
+function unitQuery(where: string, vis: string, order: string, limit = ''): string {
+	return `
+	WITH picked AS MATERIALIZED (
+		SELECT s.id FROM series s JOIN roots r ON r.id = s.root_id WHERE ${where}
+	), wids AS MATERIALIZED (
+		SELECT DISTINCT ws.work_id AS id FROM work_series ws JOIN picked p ON p.id = ws.series_id
+	), members AS MATERIALIZED (
+		SELECT ws.work_id AS work, ws.series_id AS series, ws.position AS position,
+			(p.id IS NOT NULL) AS picked
+		FROM work_series ws
+		JOIN series s ON s.id = ws.series_id JOIN roots r ON r.id = s.root_id
+		LEFT JOIN picked p ON p.id = ws.series_id
+		WHERE ws.work_id IN (SELECT id FROM wids) AND ${vis}
+		UNION ALL
+		SELECT NULL, p.id, 0, 1 FROM picked p
+		WHERE NOT EXISTS (SELECT 1 FROM work_series ws WHERE ws.series_id = p.id)
+	), stats AS MATERIALIZED (
+		SELECT e.series_id,
+			SUM(e.shadowed = 0 AND e.matter = '') AS entry_count,
+			SUM(e.shadowed = 0 AND e.matter = '' AND e.read_at IS NOT NULL) AS read_count,
+			MAX(e.last_opened_at) AS last_opened
+		FROM entries e WHERE e.series_id IN (SELECT series FROM members) GROUP BY e.series_id
+	), keys AS MATERIALIZED (
+		SELECT COALESCE(CAST(m.work AS TEXT), 's' || m.series) AS unit,
+			MAX(st.last_opened) AS last_opened, MAX(s.arrived_at) AS arrived_at,
+			MAX(s.added_at) AS added_at, AVG(NULLIF(s.rating, 0)) AS rating,
+			SUM(COALESCE(st.entry_count, 0)) AS entry_count,
+			SUM(COALESCE(st.read_count, 0)) AS read_count,
+			COUNT(st.last_opened) AS opened
+		FROM members m JOIN series s ON s.id = m.series
+		LEFT JOIN stats st ON st.series_id = m.series
+		GROUP BY unit
+	), face AS MATERIALIZED (
+		SELECT work, series FROM (
+			SELECT m.work, m.series, ROW_NUMBER() OVER (PARTITION BY m.work ORDER BY
+				m.picked DESC,
+				CASE WHEN COALESCE(st.entry_count, 0) > 0
+					AND COALESCE(st.read_count, 0) >= COALESCE(st.entry_count, 0) THEN 1 ELSE 0 END ASC,
+				CASE WHEN st.last_opened IS NULL THEN 1 ELSE 0 END ASC,
+				st.last_opened DESC, m.position ASC) AS rn
+			FROM members m LEFT JOIN stats st ON st.series_id = m.series
+			WHERE m.work IS NOT NULL
+		) WHERE rn = 1
+	), units AS MATERIALIZED (
+		SELECT work, series FROM members WHERE work IS NULL
+		UNION ALL SELECT work, series FROM face
+	)
+	SELECT u.work AS workId, u.series AS seriesId, w.name AS workName
+	FROM units u LEFT JOIN works w ON w.id = u.work
+	JOIN series fs ON fs.id = u.series
+	LEFT JOIN keys k ON k.unit = COALESCE(CAST(u.work AS TEXT), 's' || u.series)
+	ORDER BY ${order} ${limit}`;
+}
+
+/**
+ * A shelf's cards as browsing draws them: a Work once, a series in no Work as
+ * itself. `limit`/`offset` page the tiles, not the series underneath.
+ */
+export function listTiles(
+	opts: ListOpts & { limit?: number; offset?: number; seed?: number }
+): LibraryCard[] {
+	const where = listWhere(opts);
+	const sort = opts.sort ?? 'recent';
+	const order = unitOrder(sort, opts.dir ?? naturalDir(sort), opts.shelf, opts.seed);
+	const rows = getDb()
+		.prepare(unitQuery(where.sql, visibility(opts.reveal), order, 'LIMIT ? OFFSET ?'))
+		.all(...where.params, opts.limit ?? -1, opts.offset ?? 0) as UnitRow[];
+	if (rows.length === 0) return [];
+	const cards = cardsOf([...new Set(rows.map((r) => r.seriesId))]);
+	const workIds = [...new Set(rows.map((r) => r.workId).filter((id): id is number => id != null))];
+	const parts = byWork(partsOfWorks(workIds, opts.reveal));
+	return rows.map((row) => {
+		const face = cards.get(row.seriesId)!;
+		if (row.workId == null) return { ...face, work: null };
+		const own = parts.get(row.workId) ?? [];
+		return workCard(row.workId, row.workName ?? face.title, face, own);
+	});
+}
+
+/**
+ * How many tiles a shelf holds. The same two arms as `listTiles`: a Work whose
+ * any part is picked is one, and a series in no Work is one. `where` is any
+ * clause over `s` and `r` (the shelf, a tag, the filters), and its params
+ * appear twice -- once in each arm.
+ */
+function countUnitsOf(where: string, params: unknown[]): number {
+	const free = `NOT EXISTS (SELECT 1 FROM work_series ws WHERE ws.series_id = s.id)`;
+	const works = `EXISTS (SELECT 1 FROM work_series ws JOIN series s ON s.id = ws.series_id
+		JOIN roots r ON r.id = s.root_id WHERE ws.work_id = w.id AND ${where})`;
+	return (
+		getDb()
+			.prepare(
+				`SELECT (
+					(SELECT COUNT(*) FROM series s JOIN roots r ON r.id = s.root_id
+						WHERE ${where} AND ${free})
+					+ (SELECT COUNT(*) FROM works w WHERE ${works})
+				) AS n`
+			)
+			.get(...params, ...params) as { n: number }
+	).n;
+}
+
+/** How many tiles a shelf holds: what paging runs up to. */
+export function countTilesOn(opts: ListOpts): number {
+	const where = listWhere(opts);
+	return countUnitsOf(where.sql, where.params);
+}
+
 /**
  * Where ▶ resumes a series: the unread entry opened last, else the first
  * unread one, else the first. The same rule as the series screen's CONTINUE
@@ -504,20 +757,26 @@ export function resumeEntry(seriesId: number): { id: number; label: string } | n
 	);
 }
 
+/**
+ * Series with an entry opened and not everything read, most recent first; a
+ * Work is one row, however many of its parts are open (doc/WORKS.md, "The one
+ * rule"). `total` counts the rows -- one per open Work, one per open series in
+ * no Work -- which is what the section label counts; the screen shows fewer on
+ * a phone.
+ */
 export function continueReading(
 	reveal: boolean,
 	limit = 4
-): { items: ContinueItem[]; total: number } {
+): { items: ContinueLine[]; total: number } {
 	const db = getDb();
 	const open = `
 		FROM series s JOIN roots r ON r.id = s.root_id
 		WHERE ${visibility(reveal)}
 			AND EXISTS (SELECT 1 FROM entries e WHERE e.series_id = s.id AND e.last_opened_at IS NOT NULL)
 			AND EXISTS (SELECT 1 FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0 AND e.matter = '' AND e.read_at IS NULL)`;
-	const total = (db.prepare(`SELECT COUNT(*) AS n ${open}`).get() as { n: number }).n;
 	const rows = db
-		.prepare(cardQuery(`s.id IN (SELECT s.id ${open})`, `t.last_opened DESC`, 'LIMIT ?'))
-		.all(limit) as CardRow[];
+		.prepare(cardQuery(`s.id IN (SELECT s.id ${open})`, `t.last_opened DESC`))
+		.all() as CardRow[];
 	// A book in a series of books is named by its place in the owner's order
 	// ("Book 3"), since its own label is just "Book" (doc/BOOKS.md).
 	const last = db.prepare(
@@ -528,21 +787,26 @@ export function continueReading(
 		ORDER BY e.last_opened_at DESC LIMIT 1`
 	);
 	const cards = withEditions(rows.map(toCard));
-	const items = rows.map((row, i) => {
-		const entry = last.get(row.id) as {
-			id: number;
-			position: number;
-			label: string;
-			last_opened_at: number;
-			read_at: number | null;
-			last_position: number | null;
-			duration_s: number | null;
-			season: number | null;
-			episode_number: number | null;
-			rank: number;
-			seasons: number;
-		};
-		const card = cards[i];
+	const byId = new Map(cards.map((c) => [c.id, c]));
+
+	/** The label and the way in for a card, from the entry the owner last had open. */
+	function entryLine(card: LibraryCard) {
+		const entry = last.get(card.id) as
+			| {
+					id: number;
+					position: number;
+					label: string;
+					last_opened_at: number;
+					read_at: number | null;
+					last_position: number | null;
+					duration_s: number | null;
+					season: number | null;
+					episode_number: number | null;
+					rank: number;
+					seasons: number;
+			  }
+			| undefined;
+		if (!entry) return null;
 		// An episode says where watching got to: "S2 EP. 7 · 14:32 LEFT" (doc/ANIME.md).
 		const entryLabel =
 			card.kind === 'anime'
@@ -568,15 +832,108 @@ export function continueReading(
 					? `Book ${entry.rank}`
 					: entry.label;
 		return {
-			...card,
 			entryLabel,
 			lastReadAt: entry.last_opened_at,
-			resumeId: resumeEntry(row.id)?.id ?? null,
+			resumeId: resumeEntry(card.id)?.id ?? null,
 			...(card.kind === 'anime' && entry.duration_s && entry.last_position !== null
 				? { entryFraction: Math.min(1, entry.last_position / entry.duration_s) }
 				: {})
 		};
-	});
+	}
+
+	// A Work is open when any part of it has ever been opened, and its CONTINUE
+	// part is not the last finished one: a run read through to part 1 still
+	// points at part 2 (Work-Library, the Akasaka row), which the series rule --
+	// opened *and* something unread in the same series -- cannot say.
+	const workIds = (
+		db
+			.prepare(
+				`SELECT DISTINCT ws.work_id AS id FROM work_series ws
+				JOIN series s ON s.id = ws.series_id JOIN roots r ON r.id = s.root_id
+				WHERE ${visibility(reveal)} AND EXISTS (
+					SELECT 1 FROM entries e WHERE e.series_id = s.id AND e.last_opened_at IS NOT NULL)`
+			)
+			.all() as { id: number }[]
+	).map((r) => r.id);
+	const partsByWork = byWork(partsOfWorks(workIds, reveal));
+	const works = new Map(workRecords(workIds).map((w) => [w.id, w]));
+	type WorkPick = {
+		seriesId: number;
+		work: Omit<NonNullable<ContinueLine['work']>, 'partTitle'>;
+		lastReadAt: number;
+	};
+	const picks: WorkPick[] = [];
+	for (const id of workIds) {
+		const own = partsByWork.get(id) ?? [];
+		const work = works.get(id);
+		if (!work || own.length === 0) continue;
+		const current = continuePart(own);
+		if (!current) continue;
+		const part = inOrder(own).findIndex((p) => p.seriesId === current.seriesId) + 1;
+		const upNext = partState(current) === 'not-started';
+		picks.push({
+			seriesId: current.seriesId,
+			work: { id, name: work.name, part, of: own.length, upNext },
+			lastReadAt: Math.max(0, ...own.map((p) => p.lastOpenedAt ?? 0))
+		});
+	}
+	// The part CONTINUE opens may be the one it has not started, which the
+	// open-series query above does not carry (it has no last open). One read for
+	// all of them, never one per Work on the page.
+	const missing = [...new Set(picks.map((p) => p.seriesId).filter((id) => !byId.has(id)))];
+	const extra = cardsOf(missing);
+
+	// Sort and slice on the card query's own fields first: `entryLine` costs two
+	// prepared reads per row, and the section only ever shows `limit` of them.
+	type Candidate = {
+		card: LibraryCard;
+		lastReadAt: number;
+		work: (Omit<NonNullable<ContinueLine['work']>, 'partTitle'> & { partTitle: string }) | null;
+	};
+	const candidates: Candidate[] = [];
+	for (const card of cards) {
+		// A series in a Work is not a row of its own; the Work's row is below.
+		if (card.work) continue;
+		candidates.push({ card, lastReadAt: card.lastOpenedAt ?? 0, work: null });
+	}
+	for (const pick of picks) {
+		const card = byId.get(pick.seriesId) ?? extra.get(pick.seriesId);
+		if (!card) continue;
+		candidates.push({
+			card,
+			lastReadAt: pick.lastReadAt,
+			work: { ...pick.work, partTitle: card.title }
+		});
+	}
+	candidates.sort((a, b) => b.lastReadAt - a.lastReadAt);
+	const total = candidates.length;
+
+	const items: ContinueLine[] = [];
+	for (const candidate of candidates.slice(0, limit)) {
+		const line = entryLine(candidate.card);
+		if (line) {
+			items.push({
+				...candidate.card,
+				...line,
+				...(candidate.work ? { title: candidate.work.name } : {}),
+				work: candidate.work
+			});
+			continue;
+		}
+		if (!candidate.work) continue;
+		// Between parts: the next one has not been started, so ▶ opens its first
+		// chapter and the row says UP NEXT (Work-Library, the Akasaka row).
+		const first = resumeEntry(candidate.card.id);
+		items.push({
+			...candidate.card,
+			title: candidate.work.name,
+			entryLabel: first?.label ?? '',
+			lastReadAt: candidate.lastReadAt,
+			resumeId: first?.id ?? null,
+			work: candidate.work
+		});
+	}
+
 	return { items, total };
 }
 
@@ -592,14 +949,8 @@ const KIND_SHELVES = [
 export function listShelves(opts: { reveal: boolean; withNew: boolean }): Shelf[] {
 	const db = getDb();
 	const where = visibility(opts.reveal);
-	const n = (extra: string, ...params: unknown[]) =>
-		(
-			db
-				.prepare(
-					`SELECT COUNT(*) AS n FROM series s JOIN roots r ON r.id = s.root_id WHERE ${where} AND ${extra}`
-				)
-				.get(...params) as { n: number }
-		).n;
+	// A shelf's count is its tiles (doc/WORKS.md): a Work of three parts is one.
+	const n = (extra: string, ...params: unknown[]) => countUnitsOf(`${where} AND ${extra}`, params);
 
 	const shelves: Shelf[] = [];
 	// While an import runs, or while anything is new.
@@ -659,7 +1010,14 @@ export function listShelves(opts: { reveal: boolean; withNew: boolean }): Shelf[
 export type SearchResult = {
 	tags: TagHit[];
 	shelves: Shelf[];
-	titles: (SeriesCard & { why: string })[];
+	/**
+	 * Works whose own name matched, drawn before their parts (doc/WORKS.md,
+	 * "The one rule"): finding opens a Work only when its name is what was
+	 * typed, and then it is the first thing found.
+	 */
+	works: WorkTile[];
+	titles: (LibraryCard & { why: string })[];
+	/** Tiles found: the matching Works plus the matching series. */
 	titleTotal: number;
 };
 
@@ -712,6 +1070,34 @@ export function search(query: string, reveal: boolean, limit = 30): SearchResult
 		return { ...toCard(row), why };
 	});
 
+	// A Work is found by its own name, whatever its parts are called: the run
+	// is one thing and searching for it must not hide it behind a part.
+	const workRows = db
+		.prepare(
+			`SELECT w.id, w.name FROM works w
+			WHERE w.name LIKE @like ESCAPE '\\' AND EXISTS (
+				SELECT 1 FROM work_series ws JOIN series s ON s.id = ws.series_id
+				JOIN roots r ON r.id = s.root_id WHERE ws.work_id = w.id AND ${where})
+			ORDER BY w.name COLLATE NOCASE, w.id LIMIT @limit`
+		)
+		.all({ like, limit }) as { id: number; name: string }[];
+	const workIds = workRows.map((w) => w.id);
+	const parts = byWork(partsOfWorks(workIds, reveal));
+	// The face is CONTINUE's part, or the last part once the run is read
+	// (`facePart`): a Work whose every part is finished is still one the owner
+	// typed the name of, and leaving it out of the hits would hide it entirely.
+	const faceIds = workIds
+		.map((id) => facePart(parts.get(id) ?? [])?.seriesId)
+		.filter((id): id is number => id !== undefined);
+	const faces = cardsOf([...new Set(faceIds)]);
+	const works: WorkTile[] = [];
+	for (const row of workRows) {
+		const own = parts.get(row.id) ?? [];
+		const face = faces.get(facePart(own)?.seriesId ?? -1);
+		if (!face) continue;
+		works.push(workCard(row.id, row.name, face, own).tile);
+	}
+
 	return {
 		tags: tags.map((t) => ({
 			namespace: t.namespace || 'tag',
@@ -720,8 +1106,9 @@ export function search(query: string, reveal: boolean, limit = 30): SearchResult
 			key: `${t.namespace}:${t.value}`
 		})),
 		shelves,
+		works,
 		titles,
-		titleTotal
+		titleTotal: titleTotal + works.length
 	};
 }
 

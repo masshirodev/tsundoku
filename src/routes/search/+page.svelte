@@ -246,13 +246,28 @@
 		</div>
 	{/if}
 	<div class="hits">
+		<!-- A Work whose own name matched comes first, as the run (Work-States 5). -->
+		{#each r.works as w (w.id)}
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- a Work's route is static -->
+			<a class="hit work" href="/work/{w.id}">
+				<Cover src={coverSrc(w.face.id, w.face.cover)} hue={w.face.hue} width={44} height={62} />
+				<span class="text">
+					<span class="title">{w.name}</span>
+					<span class="why">WORK · {w.parts.length} SERIES</span>
+				</span>
+			</a>
+		{/each}
 		{#each r.titles as item (item.id)}
 			{@const m = splitMatch(item.title, query)}
 			<button type="button" class="hit" onclick={() => (sheetId = item.id)}>
 				<Cover src={coverSrc(item.id, item.cover)} hue={item.hue} width={44} height={62} />
 				<span class="text">
 					<span class="title">{m.pre}<mark>{m.mid}</mark>{m.post}</span>
-					<span class="why">{kindLabel(item.kind)} · {item.why}</span>
+					<span class="why"
+						>{kindLabel(item.kind)} · {item.why}{item.work
+							? ` · PART ${item.work.part} · ${item.work.name.toUpperCase()}`
+							: ''}</span
+					>
 				</span>
 			</button>
 		{/each}
@@ -492,6 +507,9 @@
 	.hit:active {
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
+	}
+	a.hit {
+		text-decoration: none;
 	}
 	.text {
 		flex: 1;

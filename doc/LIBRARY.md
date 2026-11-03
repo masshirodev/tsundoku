@@ -12,30 +12,30 @@ Routes: `/` (the library, with `?shelf=`, `?tag=`, `?sort=`, `?dir=`), `/search?
 The mock draws each state from a `state` prop. The code has no such prop: every
 state is the result of real data or real input.
 
-| State            | What drives it                                                                                                                                                                                                                                                                                                                |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Home             | Default.                                                                                                                                                                                                                                                                                                                      |
-| Long-press sheet | Pressing and holding a tile for 450ms, or a right-click. A plain tap opens the series screen ([`SERIES.md`](SERIES.md)). Esc or the scrim closes it.                                                                                                                                                                          |
-| Search           | `/search`. Results follow the typing, 180ms behind it, by replacing the URL.                                                                                                                                                                                                                                                  |
-| Multi-select     | SELECT in the header. Taps then toggle tiles, and the bulk bar applies FAV, + SHELF, TAG, GROUP, REFRESH, HIDE or DELETE to exactly the selection. GROUP is enabled only when every selected tile is a single book ([`BOOKS.md`](BOOKS.md)); REFRESH asks every selected series' source once ([below](#refresh-a-selection)). |
-| Person / tag     | `/?tag=namespace:value`, from a tag on the series screen or a chip. The person header replaces CONTINUE ([`BOOKS.md`](BOOKS.md)). A tag with nothing visible is a 404.                                                                                                                                                        |
-| History          | **N OPEN · HISTORY →** on CONTINUE, and a HISTORY row in the desktop sidebar, open [`HISTORY.md`](HISTORY.md)'s screen.                                                                                                                                                                                                       |
-| Rescan           | **RESCAN** in the desktop sidebar, or typing `/scan`. Starts the same import as START SCAN; a press while one runs joins it. With nothing to import, the sidebar says where it looked, under the row ([`IMPORT-MIHON.md`](IMPORT-MIHON.md)).                                                                                  |
-| Incognito        | Typing `/incognito`. A dashed INCOGNITO · NOTHING SAVED band with END, on every screen ([`PRIVACY.md`](PRIVACY.md)).                                                                                                                                                                                                          |
-| Words            | Typing `/words`. The words looked up while reading Japanese, waiting for review ([`JAPANESE.md`](JAPANESE.md)).                                                                                                                                                                                                               |
-| Duplicates band  | Pairs of books with alike covers to review, only those the viewer can see: **N POSSIBLE DUPLICATES · REVIEW →** ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md)).                                                                                                                                                                 |
-| Queue cell       | QUEUE over its count, a cell before SELECT, while chapters are queued; DOWNLOADS in the desktop sidebar's foot. Dimmed at its last count offline or when the engine isn't answering ([`DOWNLOADING.md`](DOWNLOADING.md)).                                                                                                     |
-| Failures band    | Downloads that failed, as the duplicates band is drawn: **N DOWNLOADS FAILED**, the series, **REVIEW →** to the queue. Hidden series are never counted with reveal off.                                                                                                                                                       |
-| Links band       | Series AniList found, not for certain, to review, only those the viewer can see: **N SERIES TO LINK · REVIEW →**, below duplicates. Offline, its REVIEW cell dims ([`LINKS.md`](LINKS.md)).                                                                                                                                   |
-| PEOPLE shelf     | `?shelf=people`. Exists while a favourite person has a visible book, and lists them as chips instead of a grid.                                                                                                                                                                                                               |
-| SERIES, ONE-OFF  | `?shelf=series`, `?shelf=oneoff`: the library split by what a thing is. A one-off is a single doujin book; everything else is a series ([`FILTERS.md`](FILTERS.md)).                                                                                                                                                          |
-| FILTER           | The FILTER cell at the end of the tabs (the top bar on the desktop) narrows whichever shelf is showing: rating, FAV, language, date added, downloaded, and hidden while reveal is on. Favourites, rated and downloaded were shelves until c68 ([`FILTERS.md`](FILTERS.md)).                                                   |
-| Kind shelves     | `?shelf=k:manga`, `k:manhwa`, `k:novel`, `k:anime`: MANGA, MANHWA, NOVELS and ANIME ([`ANIME.md`](ANIME.md)), after ONE-OFF. Each lists one kind and shows only while the library has some. Doujins have no kind shelf; they're books, grouped and found by person and tag.                                                   |
-| Reveal on        | Typing exactly `/reveal` in search and pressing Enter. A **session** cookie, so closing the app also ends it. HIDE AGAIN, or `/hide`, ends it.                                                                                                                                                                                |
-| Empty            | No visible series and no scan job.                                                                                                                                                                                                                                                                                            |
-| Importing        | A `scan_jobs` row with no `finished_at`. Series the scanner found but hasn't indexed (`indexed_at IS NULL`) draw as dashed "indexing" tiles.                                                                                                                                                                                  |
-| Import finished  | The latest job, finished and not yet dismissed; never an older one behind it, so a rescan that brought nothing leaves no band, not the one before's. TIDY NEW dismisses it and opens the NEW shelf, which keeps what it had.                                                                                                  |
-| Offline          | `navigator.onLine` is false. What counts as cached is read from the `tsundoku-entries` Cache Storage bucket.                                                                                                                                                                                                                  |
+| State            | What drives it                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Home             | Default.                                                                                                                                                                                                                                                                                                                                                                              |
+| Long-press sheet | Pressing and holding a tile for 450ms, or a right-click. A plain tap opens the series screen ([`SERIES.md`](SERIES.md)). Esc or the scrim closes it.                                                                                                                                                                                                                                  |
+| Search           | `/search`. Results follow the typing, 180ms behind it, by replacing the URL.                                                                                                                                                                                                                                                                                                          |
+| Multi-select     | SELECT in the header. Taps then toggle tiles, and the bulk bar applies FAV, + SHELF, TAG, GROUP, REFRESH, HIDE or DELETE to exactly the selection (a Work tile selects its parts, [`WORKS.md`](WORKS.md)). GROUP is enabled only when every selected tile is a single book ([`BOOKS.md`](BOOKS.md)); REFRESH asks every selected series' source once ([below](#refresh-a-selection)). |
+| Person / tag     | `/?tag=namespace:value`, from a tag on the series screen or a chip. The person header replaces CONTINUE ([`BOOKS.md`](BOOKS.md)). A tag with nothing visible is a 404.                                                                                                                                                                                                                |
+| History          | **N OPEN · HISTORY →** on CONTINUE, and a HISTORY row in the desktop sidebar, open [`HISTORY.md`](HISTORY.md)'s screen.                                                                                                                                                                                                                                                               |
+| Rescan           | **RESCAN** in the desktop sidebar, or typing `/scan`. Starts the same import as START SCAN; a press while one runs joins it. With nothing to import, the sidebar says where it looked, under the row ([`IMPORT-MIHON.md`](IMPORT-MIHON.md)).                                                                                                                                          |
+| Incognito        | Typing `/incognito`. A dashed INCOGNITO · NOTHING SAVED band with END, on every screen ([`PRIVACY.md`](PRIVACY.md)).                                                                                                                                                                                                                                                                  |
+| Words            | Typing `/words`. The words looked up while reading Japanese, waiting for review ([`JAPANESE.md`](JAPANESE.md)).                                                                                                                                                                                                                                                                       |
+| Duplicates band  | Pairs of books with alike covers to review, only those the viewer can see: **N POSSIBLE DUPLICATES · REVIEW →** ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md)).                                                                                                                                                                                                                         |
+| Queue cell       | QUEUE over its count, a cell before SELECT, while chapters are queued; DOWNLOADS in the desktop sidebar's foot. Dimmed at its last count offline or when the engine isn't answering ([`DOWNLOADING.md`](DOWNLOADING.md)).                                                                                                                                                             |
+| Failures band    | Downloads that failed, as the duplicates band is drawn: **N DOWNLOADS FAILED**, the series, **REVIEW →** to the queue. Hidden series are never counted with reveal off.                                                                                                                                                                                                               |
+| Links band       | Series AniList found, not for certain, to review, only those the viewer can see: **N SERIES TO LINK · REVIEW →**, below duplicates. Offline, its REVIEW cell dims ([`LINKS.md`](LINKS.md)).                                                                                                                                                                                           |
+| PEOPLE shelf     | `?shelf=people`. Exists while a favourite person has a visible book, and lists them as chips instead of a grid.                                                                                                                                                                                                                                                                       |
+| SERIES, ONE-OFF  | `?shelf=series`, `?shelf=oneoff`: the library split by what a thing is. A one-off is a single doujin book; everything else is a series ([`FILTERS.md`](FILTERS.md)).                                                                                                                                                                                                                  |
+| FILTER           | The FILTER cell at the end of the tabs (the top bar on the desktop) narrows whichever shelf is showing: rating, FAV, language, date added, downloaded, and hidden while reveal is on. Favourites, rated and downloaded were shelves until c68 ([`FILTERS.md`](FILTERS.md)).                                                                                                           |
+| Kind shelves     | `?shelf=k:manga`, `k:manhwa`, `k:novel`, `k:anime`: MANGA, MANHWA, NOVELS and ANIME ([`ANIME.md`](ANIME.md)), after ONE-OFF. Each lists one kind and shows only while the library has some. Doujins have no kind shelf; they're books, grouped and found by person and tag.                                                                                                           |
+| Reveal on        | Typing exactly `/reveal` in search and pressing Enter. A **session** cookie, so closing the app also ends it. HIDE AGAIN, or `/hide`, ends it.                                                                                                                                                                                                                                        |
+| Empty            | No visible series and no scan job.                                                                                                                                                                                                                                                                                                                                                    |
+| Importing        | A `scan_jobs` row with no `finished_at`. Series the scanner found but hasn't indexed (`indexed_at IS NULL`) draw as dashed "indexing" tiles.                                                                                                                                                                                                                                          |
+| Import finished  | The latest job, finished and not yet dismissed; never an older one behind it, so a rescan that brought nothing leaves no band, not the one before's. TIDY NEW dismisses it and opens the NEW shelf, which keeps what it had.                                                                                                                                                          |
+| Offline          | `navigator.onLine` is false. What counts as cached is read from the `tsundoku-entries` Cache Storage bucket.                                                                                                                                                                                                                                                                          |
 
 ## Hidden means hidden
 
@@ -88,12 +88,64 @@ the sheet. They're gone while selecting (every tap is a pick then) and while
 offline (writes need the workstation). `CoverTile` takes them as `onfavourite`
 and `onrate`; without those it draws the plain badge and bars.
 
+## Works
+
+A **Work** is a level above series that merges nothing: a name, an order the
+owner sets, and up to one Work per series ([`WORKS.md`](WORKS.md)). The
+library follows one rule: **browsing shows the run, finding shows the
+series**.
+
+- **ALL, a shelf, NEW, a collection, FAV** draw a Work once: one tile, with
+  the cover of its part that is on that shelf (CONTINUE's part on ALL), the
+  `WORK · N` badge, its name, and a foot of one segment per part with
+  `PART 2 OF 3` or `UP NEXT · PART 2` where a series draws rating bars. `+N`
+  sums the parts' new chapters and `↓` the parts' cached chapters; FAV shows
+  when any part is. A Work is on a shelf, or a kind shelf, when any of its series is,
+  and its cover is the part that is there -- a Work of a manga and its anime
+  is one tile on MANGA and on ANIME.
+- **Search, a tag filter and a person's page** find series, so a Work opens:
+  each matching series is its own tile with `PART 2 · <WORK>` in its foot. A
+  search that matches the Work's own name shows the Work first, then its
+  parts. A person's page foot says the same; the Work's row above its grid
+  (W4) is not drawn yet.
+- **CONTINUE** is one row per Work, never one per part: `WORK · PART 2 ·
+<part> · CH. 15`, and between parts `UP NEXT` in inverse pointing at the
+  next part's first chapter, with ▶ in accent. A Work whose part 1 is read
+  through stays in CONTINUE for part 2. Its `total` counts rows, so the
+  section's `N OPEN` counts Works. The open-series cards are read once -- the
+  card query carries no LIMIT and `withEditions` runs over every open series
+  -- and the rows are then sorted and sliced to `limit` before `entryLine` and
+  `resumeEntry` run, the two prepared reads per row, so the series arm hydrates
+  every open series but reads entry lines only for the four rows it shows (8 ms
+  at 816 open series). The Work arm reads every open Work's parts in one
+  grouped pass (`partsOfWorks`), because each Work's CONTINUE part is decided
+  from all of them, and it is one query, not one per Work.
+- **Sorts** place a Work by its most recent part: its latest read, its
+  newest chapter, its latest added; TITLE by the Work's name. The unit
+  query aggregates over every part, so a Work sits where the part you would
+  open sits.
+- **Counts count tiles**: `countTiles`, `countListed`, `listShelves` and the
+  `44 OF 188` line all count a Work as one. A Work of three parts is one of
+  each.
+- **Hidden**: a Work is hidden or shown whole (W1's `workPage`). With reveal
+  off it is absent from lists, counts and search; with reveal on it is one
+  tile carrying HIDDEN in `--reveal`. A Work whose parts diverged after
+  grouping reads as the parts the viewer may see; W4's HIDE settles it.
+- **SELECT** on a Work tile selects its parts, because every bulk action acts
+  on series.
+
+The three reads behind a page are independent of the tiles' number: the
+units, the cards of the parts drawn, and every part of every Work on the
+page (`listTiles`, `cardsOf`, `partsOfWorks` in `src/lib/server/library.ts`).
+
 ## New chapters
 
 A tile's `+N` counts entries that **arrived after the series was last opened**:
 listed by the source since then (`added_at`), or downloaded since then and
-still unread (`arrived_at`). It is not the unread count. Drawing has 18 unread and 3 new. A
-series never opened has no "new", only unread.
+still unread (`arrived_at`). It is not the unread count. Drawing has 18 unread and 3 new. On
+its own tile, a series never opened has no "new", only unread; a never-opened
+part of a Work is read against the Work's last open instead
+([`WORKS.md`](WORKS.md), THE RUN).
 
 ## The NEW shelf
 
@@ -206,15 +258,21 @@ rows before and after:
 
 ## Pages
 
-The grid arrives a page of 120 cards at a time (`GRID_PAGE`,
+The grid arrives a page of 120 tiles at a time (`GRID_PAGE`,
 `src/lib/library/paging.ts`), because the real library's ALL shelf, with reveal
 on, is 6,800 series. The whole shelf in one answer made the first load drag, and
 a silent 5,000-card cap left the last 1,800 off the grid entirely. The cap is
 gone.
 
+A page is a page of **tiles**, not of series: a Work is one tile, and the
+offset counts tiles, so page two carries on where page one stopped even when a
+Work's parts sit across the boundary (`doc/WORKS.md`).
+
 - **The first page** comes with the screen, with the shelf's `total`
   (`countListed`).
-- **The rest** comes from `GET /api/library?shelf&tag&sort&offset&limit`. It's
+- **The rest** comes from `GET /api/library?shelf&tag&sort&offset&limit`. It
+  answers the same units the first page does -- `listTiles`, one row per Work,
+  one per series in no Work -- and takes the same `offset` in tiles. It's
   asked for when the end of the grid comes within one and a half screens
   (an `IntersectionObserver` on the row below the grid). After each page the
   reader checks again, since on a tall screen a page may not push the end out
@@ -226,8 +284,10 @@ gone.
   every loaded page after the first as well, in one request, so a tile deep in
   the grid shows the server's value. A new shelf, tag or sort starts again from
   its first page. A request answered after the list changed is dropped.
-- **SELECT ALL** means the whole shelf. The ids of pages not yet loaded come
-  from `/api/library?ids`, without their cards.
+- **SELECT ALL** means the whole shelf, tiles and all. The ids of pages not yet
+  loaded come from `/api/library?ids`, without their cards, and a Work's every
+  part is among them even when a kind, collection, NEW or FAV shelf picked only
+  one -- a bulk HIDE must hide the run whole (`tileIds`, `doc/WORKS.md`).
 - **Back** (the gesture, or the browser's) comes back to the pages and the place
   it left. A SvelteKit snapshot keeps the loaded cards (up to 4,000) and the
   scroll, and sets the scroll again once they're back, since SvelteKit scrolls
@@ -284,6 +344,10 @@ meant tapping through the others, and nothing ran the other way round.
   RATING's ties stay A–Z either way. Every order still ends in the id, so
   pages stay clean in both directions (`ORDER`, `src/lib/server/library.ts`).
 - **On NEW**, RECENTLY ADDED is newest arrival, and turned round, oldest.
+- **A Work** sorts by its most recent part under every order (see "Works"):
+  RECENTLY READ by the part read last, RECENTLY ADDED by the part added last,
+  TITLE by the Work's name, RATING by the rated parts' average, PROGRESS over
+  the parts' totals.
 
 ## Random
 

@@ -10,7 +10,7 @@ const { getDb } = await import('$lib/server/db');
 const { seedSample } = await import('$lib/server/fixtures');
 const lib = await import('$lib/server/library');
 const works = await import('$lib/server/works');
-const { continuePart, workFoot, workRating } = await import('$lib/library/works');
+const { continuePart, runStatus, workFoot, workRating } = await import('$lib/library/works');
 type Rating = import('$lib/library/types').Rating;
 
 /** A fresh library per test: grouping reshapes the data under test. */
@@ -506,6 +506,71 @@ describe('the Work a series belongs to', () => {
 		works.takeOut(work.id, b);
 		expect(works.workOfSeries(a)).toBeNull();
 		expect(works.workOfSeries(b)).toBeNull();
+	});
+});
+
+describe('the ADD A SERIES picker', () => {
+	it('pages and searches in SQL, and never offers a part the Work already holds', () => {
+		const [a, b] = UNRATED.map(idOf) as number[];
+		const { work } = works.createWork({ seriesIds: [a, b], name: 'Isekai', now: NOW });
+
+		const first = works.addableSeries(work.id, true, { limit: 1 });
+		expect(first.items).toHaveLength(1);
+		expect(first.total).toBeGreaterThan(1);
+		expect(first.items.map((s) => s.seriesId)).not.toContain(a);
+		// The page is in the library's order, and the total is what the filter
+		// holds, not the page: the sheet says "N TO OFFER" while showing 120.
+		const second = works.addableSeries(work.id, true, { limit: 1, offset: 1 });
+		expect(second.items).toHaveLength(1);
+		expect(second.items[0].seriesId).not.toBe(first.items[0].seriesId);
+		expect(second.total).toBe(first.total);
+
+		const matched = works.addableSeries(work.id, true, { q: 'Isekai', limit: 50 });
+		expect(matched.items.length).toBeGreaterThan(0);
+		expect(matched.items.every((s) => s.title.toLowerCase().includes('isekai'))).toBe(true);
+		expect(matched.items.some((s) => s.seriesId === a)).toBe(false);
+		expect(matched.total).toBe(matched.items.length);
+		expect(works.addableSeries(work.id, true, { q: 'no such title' })).toEqual({
+			items: [],
+			total: 0
+		});
+	});
+});
+
+describe('a never-opened part reports new chapters', () => {
+	it('reads NEW from the Work’s last open, so the run can draw NOT STARTED · +N NEW', () => {
+		// Yofukashi is read through, so the Work has a last open; Isekai
+		// Yakkyoku has never been opened, which is the state the run's
+		// `NOT STARTED · +4 NEW` promises but a part-local read can never say.
+		const opened = idOf('Yofukashi no Uta')!;
+		const fresh = idOf('Isekai Yakkyoku')!;
+		const { work } = works.createWork({ seriesIds: [opened, fresh], name: 'New Run', now: NOW });
+		const db = getDb();
+		const at = NOW - 60_000;
+		db.prepare(`UPDATE entries SET last_opened_at = NULL WHERE series_id = ?`).run(opened);
+		db.prepare(`UPDATE entries SET last_opened_at = ? WHERE series_id = ? AND position = 1`).run(
+			at,
+			opened
+		);
+		// Nothing on the never-opened part is new until one chapter arrives after
+		// the Work's open.
+		db.prepare(
+			`UPDATE entries SET added_at = ?, arrived_at = NULL, read_at = NULL WHERE series_id = ?`
+		).run(at - 1000, fresh);
+		db.prepare(`UPDATE entries SET arrived_at = ? WHERE series_id = ? AND position = 1`).run(
+			at + 1000,
+			fresh
+		);
+
+		const part = works
+			.workPage(work.id, { reveal: true })!
+			.parts.find((p) => p.seriesId === fresh)!;
+		expect(part.lastOpenedAt).toBeNull();
+		expect(part.newCount).toBe(1);
+		expect(runStatus(part, { now: at + 2000 })).toEqual({
+			ink: '',
+			sub: 'NOT STARTED · +1 NEW'
+		});
 	});
 });
 
