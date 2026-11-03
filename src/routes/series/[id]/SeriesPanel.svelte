@@ -22,7 +22,7 @@
 	import type { Shelf } from '$lib/library/types';
 	import { isBookSeries, isVolumeSeries } from '$lib/library/series';
 	import { isPersonNamespace, suggestionLabel, type Suggestion } from '$lib/library/books';
-	import { coverSrc, tagHref, readHref, withParam } from '$lib/library/links';
+	import { coverSrc, tagHref, readHref, seriesHref, withParam } from '$lib/library/links';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -41,6 +41,12 @@
 	import type { RanobeSeries } from '$lib/server/ranobe-review';
 	import type { SeriesDownloads } from '$lib/server/downloads';
 	import type { MoveState } from '$lib/server/move';
+	import { partDone } from '$lib/library/works';
+	import type { SeriesWorkRow, TakeOutFacts } from '$lib/server/works';
+	import Sheet from '$lib/components/chrome/Sheet.svelte';
+	import { longpress } from '$lib/actions/longpress';
+	import HideSheet from '../../HideSheet.svelte';
+	import { unitLabel } from '$lib/library/labels';
 	import {
 		downloadCounts,
 		downloadRow,
@@ -79,7 +85,10 @@
 		downloads = null,
 		move = null,
 		noVideo = null,
-		readOnline = false
+		readOnline = false,
+		work = null,
+		takenOut = null,
+		hideFacts = null
 	}: {
 		/** FIRST READ's next step is this row: a 2px accent ring while its trip lasts (doc/ONBOARDING.md). */
 		ringDownload?: boolean;
@@ -129,6 +138,12 @@
 		noVideo?: { title: string; detail: string } | null;
 		/** A chapter with no file reads online (doc/BROWSING.md): START opens it, as an episode streams. */
 		readOnline?: boolean;
+		/** Where this series sits in its Work (W5; doc/WORKS.md): the WORK row and its sheet. */
+		work?: SeriesWorkRow | null;
+		/** TAKE OUT from the WORK row: the facts UNDO reads, and the Work it left. */
+		takenOut?: { facts: TakeOutFacts; from: string } | null;
+		/** HIDE ALL n or TAKE OUT, THEN HIDE, where the screen is still here (W4). */
+		hideFacts?: { hidden: number[]; out: TakeOutFacts[]; whole: number[] } | null;
 	} = $props();
 
 	/** An anime series: episodes for chapters, here and in DOWNLOAD (doc/ANIME.md). */
@@ -137,6 +152,13 @@
 	// ---- DOWNLOAD (Index Series Download) ------------------------------------------------
 	/** DOWNLOAD's "?" sheet (doc/HELP.md). */
 	let helpOpen = $state(false);
+	// ---- the WORK row (W5) ---------------------------------------------------------------
+	/** The WORK row's own sheet: OPEN, MOVE ↑ ↓, TAKE OUT. */
+	let workSheet = $state(false);
+	/** HIDE on a part asks first (W4; Work-States 4). */
+	let hiding = $state(false);
+	/** This part is done, so CONTINUE goes quiet and the run's next is the accent (Work-Row B3). */
+	const quiet = $derived(!outline && !!work && partDone(work.state));
 	const dlStates = $derived(
 		downloads?.kind === 'ok'
 			? new Map(Object.entries(downloads.states).map(([k, v]) => [Number(k), v as DownloadState]))
@@ -473,18 +495,22 @@
 	<a
 		class="cta"
 		class:nofile={noFile}
+		class:quiet
 		bind:this={cta}
 		href={resumeHref}
 		aria-disabled={!resumeHref}
 		data-focus-id="series-continue"
 		data-focus-start="true"
 	>
-		<span>▶ {outline ? 'CONTINUE' : ctaLabel}</span>
+		<span>{quiet ? '↺ READ AGAIN' : `▶ ${outline ? 'CONTINUE' : ctaLabel}`}</span>
 		{#if outline}
 			<i class="cta-out" aria-hidden="true"></i>
 		{:else}
 			<span class="cta-meta">
-				{#if opening}
+				{#if quiet}
+					<span class="long">{action.meta}</span>
+					<span class="short">{action.short || action.meta}</span>
+				{:else if opening}
 					<span class="long">{opening.code} · {opening.pages} PAGES</span>
 					<span class="short">{opening.code}</span>
 				{:else}
@@ -499,6 +525,108 @@
 		{/if}
 	</a>
 	<!-- eslint-enable svelte/no-navigation-without-resolve -->
+
+	{#if !outline && work}
+		<!-- The WORK row (W5; Work-Row B3): under CONTINUE, because it answers the same
+		     question, what after this. Nothing in the header: the meta line stays the
+		     series' own. A tap on the name opens the Work, ← and → the neighbours. -->
+		{#if takenOut}
+			<Band
+				title={takenOut.facts.ended
+					? `${takenOut.from.toUpperCase()} IS NO LONGER A WORK`
+					: `TAKEN OUT OF ${takenOut.from.toUpperCase()}`}
+				detail={takenOut.facts.ended
+					? 'ONE SERIES WAS LEFT'
+					: 'A SERIES ON ITS OWN AGAIN · KEEPS ITS RATING, FAV AND FOLDER'}
+			>
+				{#snippet action()}
+					<form method="POST" action="?/undoTakeOutWork" use:enhance>
+						<input type="hidden" name="facts" value={JSON.stringify(takenOut.facts)} />
+						<button type="submit">UNDO</button>
+					</form>
+				{/snippet}
+			</Band>
+		{:else if hideFacts}
+			<Band
+				title={hideFacts.whole.length > 0 ? 'HIDDEN · THE WORK, WHOLE' : 'HIDDEN · TAKEN OUT'}
+				detail={hideFacts.whole.length > 0
+					? `${hideFacts.hidden.length} SERIES · SHOWN AGAIN BY UNDO`
+					: 'A SERIES ON ITS OWN AGAIN · SHOWN AGAIN BY UNDO'}
+			>
+				{#snippet action()}
+					<form method="POST" action="?/undoHide" use:enhance>
+						<input type="hidden" name="facts" value={JSON.stringify(hideFacts)} />
+						<button type="submit">UNDO</button>
+					</form>
+				{/snippet}
+			</Band>
+		{:else if partDone(work.state) && work.nextPart}
+			<!-- Read through (or caught up while the next part has something): one accent
+			     on the screen, and it is the run's. A tap opens the next part's CH. 1. -->
+			{@const next = work.nextPart}
+			{@const opens = !!next.entry && (next.entry.available || next.entry.online)}
+			<svelte:element
+				this={opens ? 'a' : 'div'}
+				class="prow next"
+				class:off={!opens}
+				href={opens && next.entry ? readHref(next.entry.id) : undefined}
+				aria-disabled={opens ? undefined : 'true'}
+			>
+				<div class="label">NEXT</div>
+				<div class="lk">
+					<div class="lk-a">{next.title}</div>
+					<div class="lk-b">
+						IN {work.name.toUpperCase()} · PART {work.part + 1} · {next.entries}
+						{unitLabel(next.kind)}.
+					</div>
+				</div>
+				<div class="lc next-cell">
+					{opens && next.entry
+						? `▶ ${unitLabel(next.kind)} ${next.entry.number}`
+						: 'NOT DOWNLOADED'}
+				</div>
+			</svelte:element>
+		{:else}
+			<div class="prow work-row">
+				<div class="label">WORK</div>
+				<!-- A long press (or MENU, or a held OK) opens its sheet; a tap opens the Work. -->
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolve() builds the Work's URL -->
+				<a
+					class="lk"
+					href={resolve('/work/[id]', { id: String(work.id) })}
+					use:longpress={() => (workSheet = true)}
+				>
+					<span class="lk-a">{work.name}</span>
+					<span class="lk-b">
+						PART {work.part} OF {work.of}{#if work.youAreIn}
+							· YOU'RE IN <span class="ink">{work.youAreIn.toUpperCase()}</span
+							>{:else if work.nextTitle}
+							· NEXT · <span class="ink">{work.nextTitle.toUpperCase()}</span>{/if}
+					</span>
+				</a>
+				<!-- eslint-disable svelte/no-navigation-without-resolve -- seriesHref() resolves -->
+				{#if work.prev}
+					<a
+						class="pn"
+						href={seriesHref(work.prev.seriesId, `work:${work.id}`)}
+						aria-label="Part {work.part - 1}, {work.prev.title}">←</a
+					>
+				{:else}
+					<span class="pn off" aria-hidden="true">←</span>
+				{/if}
+				{#if work.next}
+					<a
+						class="pn"
+						href={seriesHref(work.next.seriesId, `work:${work.id}`)}
+						aria-label="Part {work.part + 1}, {work.next.title}">→</a
+					>
+				{:else}
+					<span class="pn off" aria-hidden="true">→</span>
+				{/if}
+				<!-- eslint-enable svelte/no-navigation-without-resolve -->
+			</div>
+		{/if}
+	{/if}
 
 	{#if !outline && dlRow}
 		<!-- DOWNLOAD (Index Series Download): under CONTINUE, as LINK's shape. NEXT never asks; ALL opens its confirmation by URL. -->
@@ -1024,10 +1152,20 @@
 				<div class="label">FOLDED</div>
 				<div class="file">{foldedOn ? `${foldedOn} · ` : ''}FROM THE DUPLICATES REVIEW</div>
 				<button type="button" class="edit" onclick={() => (unfolding = true)}>UNFOLD</button>
-				<form method="POST" action="?/hide" use:enhance={replacing} class="hide-form">
-					<input type="hidden" name="on" value={series.hidden ? '0' : '1'} />
-					<button type="submit" class="edit">{series.hidden ? 'UNHIDE' : 'HIDE'}</button>
-				</form>
+				{#if work && !series.hidden}
+					<!-- A Work is hidden or shown whole (W4; Work-States 4): on a part, HIDE asks. -->
+					<button type="button" class="edit" onclick={() => (hiding = true)}>HIDE</button>
+				{:else if work && series.hidden}
+					<!-- Showing one part would leave the Work half-hidden, so this shows it whole. -->
+					<form method="POST" action="?/showWork" use:enhance={replacing} class="hide-form">
+						<button type="submit" class="edit">UNHIDE</button>
+					</form>
+				{:else}
+					<form method="POST" action="?/hide" use:enhance={replacing} class="hide-form">
+						<input type="hidden" name="on" value={series.hidden ? '0' : '1'} />
+						<button type="submit" class="edit">{series.hidden ? 'UNHIDE' : 'HIDE'}</button>
+					</form>
+				{/if}
 			</div>
 		{:else}
 			<div class="row file-row">
@@ -1046,10 +1184,20 @@
 						<button type="submit" class="edit">UNGROUP</button>
 					</form>
 				{/if}
-				<form method="POST" action="?/hide" use:enhance={replacing} class="hide-form">
-					<input type="hidden" name="on" value={series.hidden ? '0' : '1'} />
-					<button type="submit" class="edit">{series.hidden ? 'UNHIDE' : 'HIDE'}</button>
-				</form>
+				{#if work && !series.hidden}
+					<!-- A Work is hidden or shown whole (W4; Work-States 4): on a part, HIDE asks. -->
+					<button type="button" class="edit" onclick={() => (hiding = true)}>HIDE</button>
+				{:else if work && series.hidden}
+					<!-- Showing one part would leave the Work half-hidden, so this shows it whole. -->
+					<form method="POST" action="?/showWork" use:enhance={replacing} class="hide-form">
+						<button type="submit" class="edit">UNHIDE</button>
+					</form>
+				{:else}
+					<form method="POST" action="?/hide" use:enhance={replacing} class="hide-form">
+						<input type="hidden" name="on" value={series.hidden ? '0' : '1'} />
+						<button type="submit" class="edit">{series.hidden ? 'UNHIDE' : 'HIDE'}</button>
+					</form>
+				{/if}
 				<button type="button" class="edit" onclick={ondelete}>DELETE</button>
 			</div>
 		{/if}
@@ -1073,6 +1221,67 @@
 			].join(' · ')
 		}))}
 		onclose={() => (unfolding = false)}
+	/>
+{/if}
+
+{#if work && workSheet}
+	<!-- The WORK row's sheet (W5; Work-Row B3): OPEN, MOVE ↑ ↓, TAKE OUT. A long
+	     press, MENU or a held OK opens it, the same event as every long press. -->
+	<Sheet open onclose={() => (workSheet = false)} label="{work.name} · WORK">
+		<div class="sh-head">
+			<div class="sh-title">
+				<div class="t">{work.name.toUpperCase()} · WORK</div>
+				<div class="s">PART {work.part} OF {work.of}</div>
+			</div>
+		</div>
+		<div class="prow">
+			<div class="label">OPEN</div>
+			<div class="lk">
+				<div class="lk-a">The Work's screen</div>
+			</div>
+			<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolve() builds the Work's URL -->
+			<a class="lc" href={resolve('/work/[id]', { id: String(work.id) })}>→</a>
+		</div>
+		<form method="POST" action="?/moveWork" use:enhance class="prow">
+			<div class="label">MOVE</div>
+			<div class="lk">
+				<div class="lk-a">Earlier or later in the run</div>
+			</div>
+			<button type="submit" name="dir" value="up" class="lc" disabled={!work.prev}>↑</button>
+			<button type="submit" name="dir" value="down" class="lc" disabled={!work.next}>↓</button>
+		</form>
+		<form
+			method="POST"
+			action="?/takeOutWork"
+			use:enhance={() =>
+				async ({ update }) => {
+					await update();
+					workSheet = false;
+				}}
+			class="prow"
+		>
+			<div class="label">TAKE OUT</div>
+			<div class="lk">
+				<div class="lk-a">Out of the Work</div>
+				<div class="lk-b">A SERIES ON ITS OWN AGAIN · UNDO</div>
+			</div>
+			<button type="submit" class="lc">TAKE OUT</button>
+		</form>
+	</Sheet>
+{/if}
+
+{#if work && hiding}
+	<HideSheet
+		open
+		title="HIDE {series.title.toUpperCase()}?"
+		detail="IT'S PART {work.part} OF {work.name.toUpperCase()}"
+		ids={[String(series.id)]}
+		wholeCount={work.of}
+		remainCount={work.of - 1}
+		actionAll="?/hideWork"
+		actionPart="?/hidePart"
+		ondone={() => (hiding = false)}
+		onclose={() => (hiding = false)}
 	/>
 {/if}
 
@@ -1129,6 +1338,10 @@
 			--title-size: 20px;
 			--cta-h: 56px;
 			--ns-w: 56px;
+		}
+		/* The WORK row keeps its 52px height; its cells drop to 44px (Work-Row's notes). */
+		.prow .pn {
+			width: 44px;
 		}
 	}
 
@@ -1274,6 +1487,103 @@
 		align-items: stretch;
 		border-bottom: var(--hairline);
 		min-height: 60px;
+	}
+	/* The WORK row (W5; Work-Row B3): a label, the run's name, two 52px cells.
+	   Under CONTINUE, because it answers what after this. */
+	.prow {
+		display: flex;
+		align-items: stretch;
+		min-height: 64px;
+		border-bottom: var(--hairline);
+		color: var(--text-1);
+		text-decoration: none;
+	}
+	.prow .lk {
+		text-decoration: none;
+		color: inherit;
+	}
+	.prow .pn {
+		width: 52px;
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-left: var(--hairline);
+		font: 500 13px var(--font-mono);
+		color: var(--text-1);
+		text-decoration: none;
+	}
+	.prow .pn.off {
+		opacity: 0.35;
+	}
+	.prow .lc {
+		border: 0;
+		border-left: var(--hairline);
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-1);
+		padding: 0 18px;
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.04em;
+		cursor: pointer;
+	}
+	.prow .lc:disabled {
+		opacity: 0.35;
+		cursor: default;
+	}
+	/* Read through (or caught up): the run's next is the one accent on the screen. */
+	.prow.next {
+		background: var(--accent);
+		color: var(--on-accent);
+	}
+	.prow.next .label,
+	.prow.next .lk-b {
+		color: var(--on-accent);
+	}
+	.prow.next .label {
+		border-right-color: rgba(14, 15, 16, 0.25);
+	}
+	.prow.next .next-cell {
+		border-left-color: rgba(14, 15, 16, 0.25);
+		color: var(--on-accent);
+	}
+	.prow.next.off {
+		opacity: 0.5;
+	}
+	.sh-head {
+		flex-shrink: 0;
+		display: flex;
+		align-items: stretch;
+		height: 64px;
+		border-bottom: var(--hairline);
+	}
+	.sh-title {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 3px;
+		padding: 0 var(--pad);
+	}
+	.sh-title .t {
+		font: 500 15px var(--font-mono);
+		letter-spacing: 0.04em;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.sh-title .s {
+		font: 400 12px var(--font-mono);
+		color: var(--text-2);
+	}
+	.cta.quiet {
+		background: none;
+		color: var(--text-1);
+		border-bottom: var(--hairline);
+	}
+	.cta.quiet .cta-meta {
+		color: var(--text-2);
 	}
 	.twin {
 		display: flex;

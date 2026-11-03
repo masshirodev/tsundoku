@@ -123,6 +123,38 @@ export function partPlace(
 }
 
 /**
+ * Whether this part is done -- read through, or caught up on a source still
+ * going. CONTINUE goes quiet on it (`↺ READ AGAIN`) wherever it is in a Work,
+ * so the run's next part is the one accent on the series screen (Work-Row B3;
+ * doc/SERIES.md, "The WORK row"). A series in no Work keeps CONTINUE's accent.
+ */
+export const partDone = (state: PartState): boolean =>
+	state === 'read-through' || state === 'caught-up';
+
+/**
+ * The WORK row's second line, as the three Work-Row boards draw it:
+ *
+ * - `PART 2 OF 3 · NEXT · ETERNAL FORCE` while the run is here;
+ * - `PART 1 OF 3 · YOU'RE IN NEW WAVES` when CONTINUE opens another part, so
+ *   the row says where the run actually is rather than naming a neighbour the
+ *   owner is not being sent to.
+ *
+ * Null when the series is not a part. The "NEXT" word and the ink are the
+ * markup's; this decides which title, if any, the line names.
+ */
+export type WorkRowLine = { nextTitle: string | null; youAreIn: string | null };
+
+export function workRowLine(parts: WorkPart[], seriesId: number): WorkRowLine | null {
+	if (!partPlace(parts, seriesId)) return null;
+	const next = nextPart(parts, seriesId);
+	const current = continuePart(parts);
+	return {
+		nextTitle: next ? next.title : null,
+		youAreIn: current && current.seriesId !== seriesId ? current.title : null
+	};
+}
+
+/**
  * What the end of a part offers (doc/WORKS.md, W6):
  *
  * - `next`: the part after this one, as the block.

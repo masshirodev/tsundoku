@@ -76,6 +76,17 @@ import { libraryRoot } from '$lib/server/import';
 import { ANIME_FOLDER, HIDDEN_ANIME_FOLDER, seriesFolderName } from '$lib/library/anime-files';
 import { join } from '$lib/server/fspath';
 import { originLabel, sourceOrigin } from '$lib/library/origin';
+import {
+	WorkError,
+	hideWork,
+	reorder,
+	seriesWorkRow,
+	takeOut as takeOutPart,
+	undoTakeOut,
+	workOfSeries,
+	workParts,
+	type TakeOutFacts
+} from '$lib/server/works';
 
 /** Where an anime's episodes go: its folder once it has one, else where its first will. */
 function animeFolderOf(seriesId: number, title: string, hidden: boolean): string {
@@ -97,9 +108,10 @@ function seriesId(raw: string): number {
 /**
  * Where the back cell leads, and what it says. `from` is set by the link that
  * opened the series: a shelf key, `continue`, a source's BROWSE page or the
- * search it was added from (an in-app path, card c262), or nothing.
+ * search it was added from (an in-app path, card c262), a Work (`work:<id>`,
+ * set by its run rows, W5), or nothing.
  */
-function backTo(from: string | null, shelves: { key: string; name: string }[]) {
+function backTo(from: string | null, seriesId: number, shelves: { key: string; name: string }[]) {
 	if (from?.startsWith('/')) {
 		const origin = sourceOrigin(from);
 		if (origin) return { label: originLabel(origin), href: origin };
@@ -111,6 +123,15 @@ function backTo(from: string | null, shelves: { key: string; name: string }[]) {
 	if (from?.startsWith('tag:')) {
 		const tag = from.slice(4);
 		return { label: tag.slice(tag.indexOf(':') + 1), href: `/?tag=${encodeURIComponent(tag)}` };
+	}
+	// From a Work's run: ← names the Work, and only when this series really is
+	// one of its parts. A stale or hand-typed id is not a claim the back cell
+	// can repeat, so it falls back to the library (W5; doc/NAVIGATION.md).
+	if (from?.startsWith('work:')) {
+		const id = Number(from.slice(5));
+		const work = Number.isInteger(id) && id > 0 ? workOfSeries(seriesId) : null;
+		if (work && work.id === id) return { label: work.name, href: `/work/${work.id}` };
+		return { label: 'Library', href: '/' };
 	}
 	const shelf = from ? shelves.find((s) => s.key === from) : undefined;
 	if (shelf && shelf.key !== 'all') {
@@ -146,7 +167,10 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 	const root = rootOf(series.id);
 	return {
 		series,
-		back: backTo(url.searchParams.get('from'), shelves),
+		back: backTo(url.searchParams.get('from'), series.id, shelves),
+		// Where this series sits in its Work (W5; doc/WORKS.md): one row under
+		// CONTINUE, its neighbours, and what the run offers at the end of this part.
+		work: seriesWorkRow(series.id, reveal),
 		editing: url.searchParams.get('edit') === 'tags',
 		// A book of a series of books opened on its own: its pages.
 		book: books ? (series.entries.find((e) => e.id === bookParam) ?? null) : null,
@@ -399,6 +423,126 @@ export const actions: Actions = {
 		setHidden([s.id], hide);
 		// Hidden with reveal off, this screen no longer exists for the viewer.
 		if (hide && !isRevealed(cookies)) redirect(303, '/');
+		return { ok: true };
+	},
+
+	/**
+	 * HIDE ALL n on a series in a Work (W4; Work-States 4): a Work is hidden or
+	 * shown whole, so one part never leaves it half-hidden. With reveal off this
+	 * screen no longer exists afterwards: the library carries the band and UNDO.
+	 */
+	hideWork: async ({ params, cookies }) => {
+		const s = target(params, cookies);
+		const work = workOfSeries(s.id);
+		if (!work) return fail(400, { message: 'THIS SERIES IS IN NO WORK' });
+		const { ids } = hideWork(work.id, true);
+		const facts = { hidden: ids, out: [], whole: ids };
+		if (!isRevealed(cookies)) {
+			const gone = new URLSearchParams({
+				band: 'hidden',
+				name: work.name,
+				n: String(ids.length),
+				facts: JSON.stringify(facts)
+			});
+			redirect(303, `/?${gone}`);
+		}
+		return { hideFacts: facts };
+	},
+
+	/**
+	 * TAKE OUT on the HIDE sheet: the series leaves its Work and is hidden on
+	 * its own, so the other parts stay a Work. UNDO puts both back.
+	 */
+	hidePart: async ({ params, cookies }) => {
+		const s = target(params, cookies);
+		const work = workOfSeries(s.id);
+		const out: TakeOutFacts[] = [];
+		if (work) {
+			try {
+				out.push(takeOutPart(work.id, s.id));
+			} catch (e) {
+				if (!(e instanceof WorkError)) throw e;
+			}
+		}
+		setHidden([s.id], true);
+		const facts = { hidden: [s.id], out, whole: [] };
+		if (!isRevealed(cookies)) {
+			const gone = new URLSearchParams({
+				band: 'hidden',
+				name: work?.name ?? s.title,
+				n: '1',
+				facts: JSON.stringify(facts)
+			});
+			redirect(303, `/?${gone}`);
+		}
+		return { hideFacts: facts };
+	},
+
+	/** UNDO after either HIDE answer, on the screen that is still there (reveal on). */
+	undoHide: async ({ request }) => {
+		const facts = JSON.parse(String((await request.formData()).get('facts') ?? 'null')) as {
+			hidden: number[];
+			out: TakeOutFacts[];
+		};
+		setHidden(facts.hidden, false);
+		for (const f of [...facts.out].reverse()) undoTakeOut(f);
+		return { ok: true };
+	},
+
+	/**
+	 * UNHIDE on a part of a Work shows the Work whole, not this series alone: one
+	 * part visible among hidden ones is the diverged state W4's HIDE settles, and
+	 * the rule is a Work is hidden or shown whole at every door.
+	 */
+	showWork: async ({ params, cookies }) => {
+		const s = target(params, cookies);
+		const work = workOfSeries(s.id);
+		if (!work) return fail(400, { message: 'THIS SERIES IS IN NO WORK' });
+		const { ids } = hideWork(work.id, false);
+		return { shown: { ids } };
+	},
+
+	/**
+	 * MOVE ↑ ↓ on the WORK row's sheet (W5): one step earlier or later in the
+	 * owner's order. The whole list is rewritten, as `reorder` requires, from
+	 * every part the Work holds -- hidden ones too, or a partial list would
+	 * leave the rest wherever they fell.
+	 */
+	moveWork: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const work = workOfSeries(s.id);
+		if (!work) return fail(400, { message: 'THIS SERIES IS IN NO WORK' });
+		const dir = String((await request.formData()).get('dir') ?? '');
+		if (dir !== 'up' && dir !== 'down') return fail(400, { message: 'NO SUCH DIRECTION' });
+		const order = workParts(work.id, true)
+			.slice()
+			.sort((a, b) => a.position - b.position || a.seriesId - b.seriesId)
+			.map((p) => p.seriesId);
+		const i = order.indexOf(s.id);
+		const j = dir === 'up' ? i - 1 : i + 1;
+		if (i < 0 || j < 0 || j >= order.length) return fail(400, { message: 'NO PART THAT WAY' });
+		[order[i], order[j]] = [order[j], order[i]];
+		reorder(work.id, order);
+		return { ok: true };
+	},
+
+	/**
+	 * TAKE OUT on the WORK row's sheet (W5): the series is its own again, and
+	 * the Work ends if it is left with one. The band stays on this screen, since
+	 * the series itself is still here; the Work's name rides in the facts'
+	 * owner (`takenFrom`).
+	 */
+	takeOutWork: async ({ params, cookies }) => {
+		const s = target(params, cookies);
+		const work = workOfSeries(s.id);
+		if (!work) return fail(400, { message: 'THIS SERIES IS IN NO WORK' });
+		const facts = takeOutPart(work.id, s.id);
+		return { workTakenOut: facts, workFrom: work.name };
+	},
+
+	undoTakeOutWork: async ({ request }) => {
+		const facts = JSON.parse(String((await request.formData()).get('facts') ?? 'null'));
+		undoTakeOut(facts as TakeOutFacts);
 		return { ok: true };
 	},
 

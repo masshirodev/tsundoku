@@ -19,8 +19,11 @@ import {
 	workKinds,
 	workRating,
 	workVerb,
+	partDone,
+	workRowLine,
 	type WorkPart
 } from '$lib/library/works';
+import { groupAnswers } from '$lib/library/books';
 
 /** A part with sane defaults; each test overrides only what it argues about. */
 function part(patch: Partial<WorkPart> & { seriesId: number; position: number }): WorkPart {
@@ -348,5 +351,71 @@ describe('the next part, at the end of one', () => {
 		expect(workPartMeta({ kind: 'manga', entries: 10, downloaded: 4 }, 'rtl')).toBe(
 			'MANGA · 10 CHAPTERS · 4 OF 10 DOWNLOADED · R→L'
 		);
+	});
+});
+
+describe('the series screen’s WORK row (W5)', () => {
+	/** Three parts in order: 1 read through, 2 in progress, 3 not started. */
+	const run = () => {
+		const parts = [
+			{ ...part({ seriesId: 1, position: 1, title: 'The Breaker', entries: 72 }), read: 72 },
+			{
+				...part({ seriesId: 2, position: 2, title: 'New Waves', entries: 205 }),
+				read: 14,
+				lastOpenedAt: 9
+			},
+			part({ seriesId: 3, position: 3, title: 'Eternal Force', entries: 98 })
+		];
+		return parts;
+	};
+
+	it('says a part is done when it is read through, or caught up on a going source', () => {
+		expect(partDone('read-through')).toBe(true);
+		expect(partDone('caught-up')).toBe(true);
+		expect(partDone('in-progress')).toBe(false);
+		expect(partDone('not-started')).toBe(false);
+	});
+
+	it('names the neighbour while the run is here, and where the run is when it is not', () => {
+		const parts = run();
+		// Part 2 is where CONTINUE is: the line names part 3.
+		expect(workRowLine(parts, 2)).toEqual({ nextTitle: 'Eternal Force', youAreIn: null });
+		// Part 1 is read through, so CONTINUE opens part 2: the row says where the
+		// run is rather than naming a neighbour the owner is not sent to.
+		expect(workRowLine(parts, 1)).toEqual({ nextTitle: 'New Waves', youAreIn: 'New Waves' });
+		// The last part has no next; the run is here (part 2 is still in it, so
+		// CONTINUE is not on part 3 but the line has nothing else to say).
+		expect(workRowLine(parts, 3)).toEqual({ nextTitle: null, youAreIn: 'New Waves' });
+		// A series in no Work has no line at all.
+		expect(workRowLine(parts, 99)).toBeNull();
+	});
+
+	it('the last part of a run read through names no neighbour', () => {
+		const parts = run().map((p) => ({ ...p, read: p.entries }));
+		expect(workRowLine(parts, 3)).toEqual({ nextTitle: null, youAreIn: null });
+	});
+});
+
+describe('what GROUP can make (W4)', () => {
+	it('offers books for doujin singletons, volumes for novels, and a Work always', () => {
+		expect(groupAnswers([{ kind: 'doujin', entryCount: 1 }])).toEqual(['books', 'work']);
+		expect(
+			groupAnswers([
+				{ kind: 'doujin', entryCount: 1 },
+				{ kind: 'doujin', entryCount: 1 }
+			])
+		).toEqual(['books', 'work']);
+		expect(groupAnswers([{ kind: 'novel', entryCount: 1 }])).toEqual(['volumes', 'work']);
+		// A Work takes anything that is a series, so a mixed selection has one answer.
+		expect(
+			groupAnswers([
+				{ kind: 'doujin', entryCount: 1 },
+				{ kind: 'novel', entryCount: 1 }
+			])
+		).toEqual(['work']);
+		// A doujin series of books and a manga are not one series of anything.
+		expect(groupAnswers([{ kind: 'doujin', entryCount: 5 }])).toEqual(['work']);
+		expect(groupAnswers([{ kind: 'manga', entryCount: 60 }])).toEqual(['work']);
+		expect(groupAnswers([])).toEqual(['work']);
 	});
 });

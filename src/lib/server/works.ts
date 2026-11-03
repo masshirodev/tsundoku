@@ -32,9 +32,14 @@ import {
 	workFavourite,
 	workHeld,
 	workRating,
+	workRowLine,
+	continuePart,
+	inOrder,
 	type AddablePage,
 	type AddableSeries,
+	type PartState,
 	type WorkEnd,
+	type WorkEndMode,
 	type WorkFootFacts,
 	type WorkNextPart,
 	type WorkOrder,
@@ -387,6 +392,125 @@ export function workRecords(ids: number[]): WorkRecord[] {
 				WHERE id IN (${placeholders(ids.length)})`
 		)
 		.all(...ids) as WorkRecord[];
+}
+
+/**
+ * The Works a GROUP sheet can add to (W4; Works Calls, "Making and breaking a
+ * Work"): each name and how many series it holds. One query, for the sheet's
+ * ADD TO A WORK · N.
+ */
+export type WorkChoice = { id: number; name: string; series: number };
+
+export function workChoices(): WorkChoice[] {
+	return getDb()
+		.prepare(
+			`SELECT w.id, w.name, COUNT(ws.series_id) AS series FROM works w
+				LEFT JOIN work_series ws ON ws.work_id = w.id
+				GROUP BY w.id ORDER BY w.name COLLATE NOCASE, w.id`
+		)
+		.all() as WorkChoice[];
+}
+
+/**
+ * Finding a person's page (Works Calls, question 7; Work-States 7): one row
+ * per Work that has a series here -- "3 OF 3 HERE · UP NEXT: OSHI NO KO". It
+ * says the run exists and is one tap away; it never pulls the Work's other
+ * series onto the page. Two queries for the whole page: which Works these
+ * series are in, then every part of those Works in one grouped pass.
+ */
+export type TagWork = {
+	id: number;
+	name: string;
+	/** How many of this page's series are in it. */
+	here: number;
+	/** How many series the Work holds, hidden ones included. */
+	of: number;
+	/** The part CONTINUE opens, named; null once the run is read. */
+	upNext: string | null;
+};
+
+export function worksOnTagPage(seriesIds: number[], reveal: boolean): TagWork[] {
+	const uniq = [...new Set(seriesIds)];
+	if (uniq.length === 0) return [];
+	const db = getDb();
+	const rows = db
+		.prepare(
+			`SELECT ws.work_id AS id, w.name, COUNT(DISTINCT ws.series_id) AS here FROM work_series ws
+				JOIN works w ON w.id = ws.work_id
+				WHERE ws.series_id IN (${placeholders(uniq.length)})
+				GROUP BY ws.work_id ORDER BY w.name COLLATE NOCASE, w.id`
+		)
+		.all(...uniq) as { id: number; name: string; here: number }[];
+	const parts = partsOfWorks(
+		rows.map((r) => r.id),
+		reveal
+	);
+	return rows.map((r) => {
+		const current = continuePart(parts.filter((p) => p.workId === r.id));
+		return {
+			id: r.id,
+			name: r.name,
+			here: r.here,
+			of: memberCount(db, r.id),
+			upNext: current ? current.title : null
+		};
+	});
+}
+
+/**
+ * One series' Work as the series screen's WORK row draws it (W5; Work-Row B3):
+ * its place, its state, the neighbours its ← → cells open, and the next part
+ * the read-through row offers. `mode` is the same rule the end page reads
+ * (`workEndMode`), so the series screen and the end of a part cannot disagree.
+ */
+export type SeriesWorkPart = { seriesId: number; title: string };
+
+export type SeriesWorkRow = {
+	id: number;
+	name: string;
+	part: number;
+	of: number;
+	/** Where this part is: not started, in progress, caught up, read through. */
+	state: PartState;
+	mode: WorkEndMode;
+	prev: SeriesWorkPart | null;
+	next: SeriesWorkPart | null;
+	/** The next part, in the shape the accent row and the end block both read. */
+	nextPart: WorkNextPart | null;
+	/** "YOU'RE IN NEW WAVES" when CONTINUE opens another part; null otherwise. */
+	youAreIn: string | null;
+	/** "NEXT · ETERNAL FORCE": the neighbour's title, when the run is here. */
+	nextTitle: string | null;
+};
+
+export function seriesWorkRow(seriesId: number, reveal: boolean): SeriesWorkRow | null {
+	const work = workOfSeries(seriesId);
+	if (!work) return null;
+	const parts = workParts(work.id, reveal);
+	const place = partPlace(parts, seriesId);
+	const current = parts.find((p) => p.seriesId === seriesId);
+	if (!place || !current) return null;
+	const ordered = inOrder(parts);
+	const i = ordered.findIndex((p) => p.seriesId === seriesId);
+	const mode = workEndMode(parts, seriesId);
+	const next = mode === 'next' || mode === 'meanwhile' ? nextPart(parts, seriesId) : null;
+	const line = workRowLine(parts, seriesId);
+	return {
+		id: work.id,
+		name: work.name,
+		part: place.part,
+		of: place.of,
+		state: partState(current),
+		mode,
+		prev: i > 0 ? { seriesId: ordered[i - 1].seriesId, title: ordered[i - 1].title } : null,
+		next:
+			i + 1 < ordered.length
+				? { seriesId: ordered[i + 1].seriesId, title: ordered[i + 1].title }
+				: null,
+		nextPart: next ? nextFacts(next) : null,
+		youAreIn: line?.youAreIn ?? null,
+		nextTitle: line?.nextTitle ?? null
+	};
 }
 
 /**

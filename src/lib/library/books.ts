@@ -119,6 +119,31 @@ export function suggestionLabel(set: Candidate[]): string {
 
 export type OrderMode = 'date' | 'title' | 'hand';
 
+/**
+ * What GROUP can make of a selection (Works Calls, question 7; Work-Group B5):
+ * one series of books, one series of volumes, or a Work. Only the answers the
+ * selection allows are offered, and a Work is always one of them.
+ *
+ * The library passes what it already holds -- a selected item's kind and how
+ * many books it has -- so no route writes the rule a second time. SEASONS
+ * (S2) is a fourth answer, not built yet.
+ */
+export type GroupAnswer = 'books' | 'volumes' | 'work';
+
+/** What `groupAnswers` reads off a selection: its kind and its books. */
+export type AnswerItem = { kind: Kind; entryCount: number };
+
+export function groupAnswers(items: AnswerItem[]): GroupAnswer[] {
+	const out: GroupAnswer[] = [];
+	// One series of books is doujin singletons; one series of volumes is
+	// novels. Both refuse a mixed selection, as grouping itself does.
+	if (items.length > 0 && items.every((i) => i.kind === 'doujin' && i.entryCount === 1))
+		out.push('books');
+	if (items.length > 0 && items.every((i) => i.kind === 'novel')) out.push('volumes');
+	out.push('work');
+	return out;
+}
+
 /** A book's place in the grouping sheet and the ORDER screen. */
 export type Orderable = { id: number; title: string; addedAt: number };
 
