@@ -7,8 +7,11 @@
 #
 # The deploy key is locked on the VPS (authorized_keys, `restrict` and
 # `command="rrsync ..."`) to writing the one folder Caddy serves at
-# tsundoku.masshiro.pro (~/sites/tsundoku, write-only): it can't open a shell,
-# read, or reach anything else. That is why the destination has no path. SSH
+# tsundoku.masshiro.pro (rooted at ~/sites/tsundoku, write-only): it can't
+# open a shell, read, or reach anything else. The destination is still named
+# (public/, which Caddy serves), never a bare `host:`: without the lock that is
+# the home directory, and an rsync --delete aimed at one deleted most of the
+# VPS home on 2026-11-03 (Masshiro c60). SSH
 # on the VPS listens on 8443, and the host key is pinned (SITE_KNOWN_HOSTS
 # holds the `[vps.example]:8443 ssh-ed25519 ...` line), never learned on
 # first contact.
@@ -70,5 +73,5 @@ jobs:
           printf '%s\n' "$SITE_KNOWN_HOSTS" > ~/.ssh/known_hosts
           rsync -rlz --delete-delay --delay-updates --checksum \
             -e 'ssh -p 8443 -i ~/.ssh/site -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.ssh/known_hosts' \
-            site/build/ masshiro@vps.example:
+            site/build/ masshiro@vps.example:public/
           rm -f ~/.ssh/site

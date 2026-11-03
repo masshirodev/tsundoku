@@ -163,13 +163,16 @@ latest.json, and rsyncs `site/build/` to the VPS:
 ```sh
 rsync -rlz --delete-delay --delay-updates --checksum \
   -e 'ssh -p 8443 -i ~/.ssh/site -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=~/.ssh/known_hosts' \
-  site/build/ masshiro@vps.example:
+  site/build/ masshiro@vps.example:public/
 ```
 
 - **`SITE_DEPLOY_KEY`**: a key used for nothing else, locked on the VPS by
   `authorized_keys` (`restrict`, `command="rrsync -wo ~/sites/tsundoku"`) to
-  writing that one folder: no shell, no reading, nothing else. That's why the
-  destination has no path.
+  writing that one folder: no shell, no reading, nothing else.
+- **The destination is named**, `public/` (what Caddy serves), never a bare
+  `host:`. Through rrsync they'd be the same folder, but without the lock a bare
+  `host:` is the home directory, and an `rsync --delete` aimed at one deleted
+  most of the VPS home on 2026-11-03 (Masshiro card c60).
 - **`SITE_KNOWN_HOSTS`**: the VPS's host key line for `[vps.example]:8443`,
   pinned; it is never learned on first contact. SSH on the VPS listens on 8443.
 - `--delay-updates` and `--delete-delay` swap the new files in at the end and
@@ -183,7 +186,7 @@ leaves as a dangling link on a runner. The site never imports kotoba.
 
 The repository is private, so its Actions minutes are metered; a deploy is a
 minute or two. The VPS side (Caddy's block with `basic_auth`, the read-only
-mount of `~/sites/tsundoku`, the hub's `sites.yaml`, the probe expecting 401)
+mount of `~/sites`, the hub's `sites.yaml`, the probe expecting 401)
 lives in the homelab repository on the VPS.
 
 ## Where it departs from the handoff
