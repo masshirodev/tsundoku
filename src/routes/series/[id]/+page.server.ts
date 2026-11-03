@@ -408,12 +408,13 @@ export const actions: Actions = {
 	},
 
 	// UNLINK (Series Link 1k): gone, and an import won't bring it back
-	// (doc/LINKS.md). On an anime it is that season's link that goes (c240).
+	// (doc/LINKS.md). On an anime it is the named season's link that goes, and
+	// with no season named (the one-season LINK row posts none) every season's
+	// (c240). Read through `seasonOf`, never `Number(form.get(...))`: an absent
+	// field is no season, and 0 is a real one.
 	unlink: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
-		const form = await request.formData();
-		const season = Number(form.get('season'));
-		unlink(s.id, Date.now(), Number.isInteger(season) ? season : undefined);
+		unlink(s.id, Date.now(), seasonOf(await request.formData()).season);
 		recover([s.id]);
 		return { ok: true };
 	},

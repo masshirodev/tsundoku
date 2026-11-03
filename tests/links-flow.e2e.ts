@@ -612,7 +612,76 @@ test.describe('a catalogue that answers', () => {
 			unseedAccount();
 		}
 	});
+
+	test('UNLINK on a one-season anime takes its link, every part of it (c240)', async ({ page }) => {
+		// The one-season row is the LINK row a series always drew, and its UNLINK
+		// form names no season: absent is every season, never season 0, which is
+		// a real one (a flat list). Wave 13's round 2 found it read as 0, and the
+		// link stayed while a season-0 decision was written.
+		const show = seedTwoParts();
+		try {
+			expect(seasonRowsOf(show).links).toEqual([
+				{ season: 1, part: 1 },
+				{ season: 1, part: 2 }
+			]);
+			await page.goto(`${BASE}/series/${show}`);
+			const unlinkButton = page.locator('form[action="?/unlink"] button:visible');
+			await expect(unlinkButton).toHaveText('UNLINK');
+			await unlinkButton.click();
+			await expect(unlinkButton).toHaveCount(0);
+			const after = seasonRowsOf(show);
+			expect(after.links).toEqual([]);
+			// The decision is the season's own, for each part it had -- never season 0's.
+			expect(after.decisions).toEqual([
+				{ season: 1, part: 1, decision: 'unlinked' },
+				{ season: 1, part: 2, decision: 'unlinked' }
+			]);
+		} finally {
+			relinkTwoParts(show);
+		}
+	});
 });
+
+/** A series' season links and season decisions, as the server left them. */
+function seasonRowsOf(id: number): {
+	links: { season: number; part: number }[];
+	decisions: { season: number; part: number; decision: string }[];
+} {
+	const db = new Database(dbPath, { readonly: true });
+	try {
+		return {
+			links: db
+				.prepare(
+					`SELECT season, part FROM series_season_links WHERE series_id = ? ORDER BY season, part`
+				)
+				.all(id) as { season: number; part: number }[],
+			decisions: db
+				.prepare(
+					`SELECT season, part, decision FROM season_link_decisions WHERE series_id = ? ORDER BY season, part`
+				)
+				.all(id) as { season: number; part: number; decision: string }[]
+		};
+	} finally {
+		db.close();
+	}
+}
+
+/** Put the two-part show's links back as `seedTwoParts` wrote them, and forget the UNLINK. */
+function relinkTwoParts(id: number): void {
+	const db = new Database(dbPath);
+	try {
+		const now = Date.UTC(2026, 10, 2, 12, 0);
+		db.prepare(`DELETE FROM season_link_decisions WHERE series_id = ?`).run(id);
+		const link = db.prepare(
+			`INSERT OR REPLACE INTO series_season_links (series_id, season, part, anilist_id, via, title, linked_at, resolved_at, format, episodes)
+			VALUES (?, 1, ?, ?, 'relations', ?, ?, ?, 'TV', ?)`
+		);
+		link.run(id, 1, 9901, 'Sword Art Online: Alicization', now, now, 12);
+		link.run(id, 2, 9902, 'Sword Art Online: Alicization Part 2', now, now, 11);
+	} finally {
+		db.close();
+	}
+}
 
 /** The one-season, two-part show this spec's last case edits, and a sign-in to reach the sheet. */
 let twoParts: number | null = null;
