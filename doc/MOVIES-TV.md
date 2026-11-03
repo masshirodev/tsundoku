@@ -12,7 +12,7 @@ extension" and needs no new engine. This is what was measured on
 if a source worked.
 
 **Verdict: go-with-caveats.** The source side exists and plays: two of the
-eight English film/TV sources tried produced a stream that ffmpeg pulled with
+ten English sources loaded produced a stream that ffmpeg pulled with
 audio (and, on one, five subtitle tracks), and both give a film back as a
 single episode. The official repository also carries **Jellyfin**, which plays
 the owner's own library and needs no scraper at all. What is missing is not a
@@ -54,7 +54,8 @@ first page showed.
 
 | Repo              | Source           | Lib | Lang | Site               | Indexes                                                    | Today                           |
 | ----------------- | ---------------- | --- | ---- | ------------------ | ---------------------------------------------------------- | ------------------------------- |
-| mojuru/anime-repo | KissKH 16.10     | 16  | en   | kisskh.ovh         | Asian TV drama and films, by season and episode            | **Works**: HLS, 5 subtitle sets |     | mojuru/anime-repo | Movies Mod 16.4 | 16  | en  | moviesmod.zone | Films and TV seasons as download entries, Hindi + English | **Works**: direct MKV |
+| mojuru/anime-repo | KissKH 16.10     | 16  | en   | kisskh.ovh         | Asian TV drama and films, by season and episode            | **Works**: HLS, 5 subtitle sets |
+| mojuru/anime-repo | Movies Mod 16.4  | 16  | en   | moviesmod.zone     | Films and TV seasons as download entries, Hindi + English  | **Works**: direct MKV           |
 | aniyomiorg/…      | Jellyfin 14.17   | 14  | all  | your own server    | Whatever the owner's Jellyfin holds, by library and season | Installs; needs a server        |
 | mojuru/anime-repo | AsiaFlix 14.33   | 14  | en   | asiaflix.net       | Asian TV drama (20 titles)                                 | Browses; **0 videos**           |
 | mojuru/anime-repo | PinoyMoviePedia  | 14  | en   | pinoymoviepedia.ru | Filipino films (30 titles)                                 | Browses; **0 videos**           |
@@ -183,8 +184,8 @@ that it only holds what is already on the server.
   30 titles, details, 16 episodes and a film as one episode — and then
   `getVideoList` answers **0**. There is nothing to play.
 - **MKissa 16.74**: not a film source at all, and its `getVideoList` timed out
-  waiting for the hoster ("Timed out waiting for MKissa to load the episode",
-  the engine's 30 s hoster budget). The card's enquiry should not count it.
+  after 30 s with the source's own "Timed out waiting for MKissa to load the
+  episode". The card's enquiry should not count it.
 - **KimoiTV 14.1**: POPULAR comes back empty.
 
 None of this needed FlareSolverr: no film or TV source showed a Cloudflare
@@ -260,7 +261,7 @@ its `RequiresLiveData` / `SubtitleFile` shapes), so hosting them headless means
 reimplementing that API on the JVM and giving it CloudStream's resolution
 model — a second engine with a second extension format, beside the one tsundoku
 already runs. It would be worth it only if CloudStream's repositories carried
-film and TV sources that Aniyomi's do not; the eight tried here say the Aniyomi
+film and TV sources that Aniyomi's do not; the ten tried here say the Aniyomi
 family already has them, so a second extension format buys a second maintenance
 burden and no new source.
 
@@ -274,13 +275,15 @@ burden and no new source.
    through the engine, with no scraper and no licensing question. What it
    cannot do is find something the server does not have.
 2. **If the point is finding films and shows, the source side works, thinly.**
-   Two of eight English sources tried play: KissKH (HLS, five subtitle sets,
+   Two of the ten English sources loaded play: KissKH (HLS, five subtitle sets,
    Asian drama and films) and Movies Mod (direct MKV files, dual audio,
    films and whole seasons). Both return a film as one episode, which the
    current anime model draws correctly enough to watch but not to call a film.
-   The other six either browse and serve no stream (AsiaFlix,
-   PinoyMoviePedia), cannot be reached (UHD Movies' certificate), or are not
-   film sources at all (MKissa). A user could install one and watch today;
+   The others are a mixed bag: two browse and serve no stream (AsiaFlix,
+   PinoyMoviePedia), one cannot be reached (UHD Movies' certificate), one's
+   popular is empty (KimoiTV), two were surveyed and not played (BLZone, My
+   Running Man), and two are not film sources at all (MKissa is anime, WcoTv
+   is children's animation). A user could install one and watch today;
    tsundoku would call it an anime.
 3. **The blockers are tsundoku's, and they are the same four whatever the
    source:** a film is not a kind, a show's seasons are flattened, neither

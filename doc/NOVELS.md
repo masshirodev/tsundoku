@@ -6,14 +6,14 @@ Light and web novels, found, downloaded and read inside tsundoku on
 manga runs on Mihon's extensions ([`DOWNLOADER.md`](DOWNLOADER.md)). Card c127
 ("Novels from LNReader plugins, inside tsundoku"), split in five:
 
-| Part                                                 | Card | State                                |
-| ---------------------------------------------------- | ---- | ------------------------------------ |
-| A sandboxed host for the plugins                     | c147 | Done                                 |
-| Repositories and plugins in EXTENSIONS               | c148 | Done                                 |
-| Browsing, searching and adding a novel               | c149 | Done                                 |
-| Downloading chapters into an EPUB the importer reads | c150 | Done                                 |
-| FOLLOW, live checks, the rest of this file           | c151 | Done                                 |
-| Past a site's bot check, through FlareSolverr        | c152 | Done (one of three sites; see below) |
+| Part                                                 | Card | State                                                                              |
+| ---------------------------------------------------- | ---- | ---------------------------------------------------------------------------------- |
+| A sandboxed host for the plugins                     | c147 | Done                                                                               |
+| Repositories and plugins in EXTENSIONS               | c148 | Done                                                                               |
+| Browsing, searching and adding a novel               | c149 | Done                                                                               |
+| Downloading chapters into an EPUB the importer reads | c150 | Done                                                                               |
+| FOLLOW, live checks, the rest of this file           | c151 | Done                                                                               |
+| Past a site's bot check, through FlareSolverr        | c152 | Done for one of three: Royal Road; NovelFull and Scribble Hub still refuse (below) |
 
 The owner's repository (2026-10-28):
 `https://raw.githubusercontent.com/LNReader/lnreader-plugins/plugins/v3.0.0/.dist/plugins.min.json`,

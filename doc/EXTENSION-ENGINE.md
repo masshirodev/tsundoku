@@ -407,8 +407,8 @@ Expiry:
 
 **Movies and live-action TV.** The same repositories carry film and TV sources,
 and the same calls serve them: a film comes back as one episode and a show as
-one entry with every season flattened. Two of eight English sources tried
-played; what is missing is tsundoku's own model of a film and a show, not a
+one entry with every season flattened. Two of the ten English sources
+loaded played; what is missing is tsundoku's own model of a film and a show, not a
 source or an engine change. The measurements, the sources and the recommendation
 are in [`MOVIES-TV.md`](MOVIES-TV.md) (c295).
 
