@@ -327,6 +327,26 @@ describe('the review’s words', () => {
 		]);
 	});
 
+	it('reads a candidate stored before episodes and season existed as having neither', () => {
+		// A row kept in link_candidates before `Candidate` grew the three keys
+		// parses with no key at all, and `!== null` would build a row from
+		// `undefined` (the live Trigun Stampede candidates, c298).
+		const legacy = cand({ format: 'TV', chapters: null }) as unknown as Record<string, unknown>;
+		delete legacy.episodes;
+		delete legacy.season;
+		delete legacy.seasonYear;
+		const rows = candidateRows(
+			{ kind: 'anime', chapters: 12, titles: ['Trigun Stampede'] },
+			legacy as unknown as Candidate
+		);
+		expect(rows.map((r) => [r.label, r.value])).toEqual([
+			['FORMAT', 'TV · SAME'],
+			['SEASON', '2021'],
+			['EPISODES', '—'],
+			['STATUS', 'RELEASING']
+		]);
+	});
+
 	it('calls a link whose entry is the other kind wrong, but not a novel’s comic', () => {
 		expect(wrongKind('anime', 'MANGA')).toBe(true);
 		expect(wrongKind('anime', 'NOVEL')).toBe(true);

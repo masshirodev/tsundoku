@@ -237,7 +237,11 @@ desktop and in tablet landscape.
   band says so. FIND on a series never searched searches as the review opens.
 - The band, the panel's count and the rows show one search: the band counts
   what AniList returned, the count what was kept for the review, and the rows
-  are exactly the kept candidates (`4 OF 6 FOUND`).
+  are exactly the kept candidates (`4 OF 6 FOUND`). A series searched before
+  the catalogue asked for its own kind keeps what that search stored — for an
+  anime, the manga entries it found — until SEARCH AGAIN replaces them: they
+  are still offered, a tap still links one (flagged **WRONG KIND**, never
+  removed), and only the owner's press decides.
 - Every decision is carried out at once. UNDO takes back LINK (and a rating it
   gave), NONE OF THESE and SEARCH AGAIN. A search's UNDO puts back the search
   and the candidates it replaced; it never made a link, so it takes none back.

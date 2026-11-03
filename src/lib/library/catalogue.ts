@@ -400,7 +400,7 @@ export function candidateRows(
 		{
 			label: 'EPISODES',
 			value:
-				c.episodes !== null ? `${c.episodes}${close ? ` · THIS HAS ${series.chapters}` : ''}` : '—',
+				c.episodes != null ? `${c.episodes}${close ? ` · THIS HAS ${series.chapters}` : ''}` : '—',
 			agree: close
 		},
 		rows[3]
