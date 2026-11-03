@@ -68,13 +68,14 @@ says LIBRARY. Tested in `tests/origin.spec.ts`, `tests/browse-online.e2e.ts`
 
 Some actions end what their own screen shows, then redirect somewhere else:
 
-| Action, on the screen it ends                 | Goes to                  |
-| --------------------------------------------- | ------------------------ |
-| GROUP (a singleton, from its suggestion)      | the new series           |
-| UNGROUP, or the UNDO after SERIES CREATED     | the library              |
-| TAKE OUT or MOVE TO… on the series' last book | that book, or its target |
-| HIDE, with reveal off                         | the library              |
-| DELETE on the series' last book               | the library              |
+| Action, on the screen it ends                             | Goes to                  |
+| --------------------------------------------------------- | ------------------------ |
+| GROUP (a singleton, from its suggestion)                  | the new series           |
+| UNGROUP, or the UNDO after SERIES CREATED                 | the library              |
+| TAKE OUT or MOVE TO… on the series' last book             | that book, or its target |
+| TAKE OUT of a Work's second-to-last, or UNGROUP on a Work | the library              |
+| HIDE, with reveal off                                     | the library              |
+| DELETE on the series' last book                           | the library              |
 
 Followed as an ordinary navigation, each one pushed a new history entry on
 top of a screen that no longer exists, so the system's back (a swipe on

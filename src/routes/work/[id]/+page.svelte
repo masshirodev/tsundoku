@@ -58,12 +58,11 @@
 	const refusal = $derived(
 		form && 'message' in form && typeof form.message === 'string' ? form.message : ''
 	);
-	const outTitles = $derived(
-		takenOut ? takenOut.map((f) => parts.find((p) => p.seriesId === f.seriesId)?.title ?? '') : []
-	);
-	const addedTitle = $derived(
-		added ? (data.addable.find((s) => s.seriesId === added.seriesId)?.title ?? '') : ''
-	);
+	// The names come from the facts, never from `parts`/`addable`: `update()`
+	// has already re-read both lists by the time the band renders, so looking a
+	// series up there says TAKEN OUT ·  with an empty name.
+	const outTitles = $derived(takenOut ? takenOut.map((f) => f.title) : []);
+	const addedTitle = $derived(added ? added.title : '');
 
 	// ---- ORDER ------------------------------------------------------------
 	function startOrder() {

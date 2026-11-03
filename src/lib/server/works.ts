@@ -62,6 +62,9 @@ export type CreateFacts = {
 export type AddFacts = {
 	workId: number;
 	seriesId: number;
+	/** The series' own name, carried so the band can say what was added: the
+	 * page's lists have already changed by the time it renders. */
+	title: string;
 	position: number;
 	/** The Work it came from, when that Work survived. */
 	former: { workId: number; position: number } | null;
@@ -71,6 +74,8 @@ export type AddFacts = {
 export type TakeOutFacts = {
 	workId: number;
 	seriesId: number;
+	/** The series' own name, for the band (as in `AddFacts`). */
+	title: string;
 	position: number;
 	/** Set when fewer than two series were left and the Work ended. */
 	ended: EndedWork | null;
@@ -549,7 +554,14 @@ export function addSeries(workId: number, seriesId: number): AddFacts {
 			const ended = formerRow && before ? endIfOne(db, formerRow.workId, before) : null;
 			const former =
 				formerRow && !ended ? { workId: formerRow.workId, position: formerRow.position } : null;
-			return { workId, seriesId, position, former, ended: ended ? [ended] : [] };
+			return {
+				workId,
+				seriesId,
+				title: facts.title,
+				position,
+				former,
+				ended: ended ? [ended] : []
+			};
 		})
 		.immediate();
 }
@@ -588,7 +600,13 @@ export function takeOut(workId: number, seriesId: number): TakeOutFacts {
 				seriesId
 			);
 			const ended = endIfOne(db, workId, before);
-			return { workId, seriesId, position: member.position, ended };
+			return {
+				workId,
+				seriesId,
+				title: factsOf(db, seriesId)?.title ?? '',
+				position: member.position,
+				ended
+			};
 		})
 		.immediate();
 }

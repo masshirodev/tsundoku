@@ -553,6 +553,38 @@ test('ORDER reorders the run, TAKE OUT of the second-to-last ends the Work, and 
 	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
 });
 
+test('the TAKE OUT and ADD A SERIES bands name the series they moved', async ({ page }) => {
+	// Three parts, so taking one out leaves a Work of two: the Work survives and
+	// its own screen has to say which series left. The bands are built after
+	// `update()` has re-read the lists the series used to be found in, so their
+	// names come from the action's facts (round 2's finding).
+	await makeWork(page, ['Mushoku Tensei', 'Sousou no Frieren', 'Isekai Ojisan']);
+	await expect(page.locator('.run .part')).toHaveCount(3);
+
+	// Take one out; two are left, so the Work stays and the band names it.
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await page.locator('.run .part', { hasText: 'Isekai Ojisan' }).locator('.rowlink').click();
+	await page.getByRole('button', { name: 'TAKE OUT' }).click();
+	const takenOut = page.locator('.band', { hasText: 'TAKEN OUT · ISEKAI OJISAN' });
+	await expect(takenOut).toBeVisible();
+	await expect(takenOut).toContainText('A SERIES ON ITS OWN AGAIN');
+	await expect(page.locator('.run .part')).toHaveCount(2);
+
+	// Add one: the sheet lists the library, and the band names what joined.
+	await page.getByRole('button', { name: '+ ADD A SERIES' }).click();
+	const sheet = page.getByRole('dialog', { name: 'Add a series to this Work' });
+	await expect(sheet).toBeVisible();
+	await sheet.getByRole('button', { name: /Dungeon Meshi/ }).click();
+	const added = page.locator('.band', { hasText: 'ADDED · DUNGEON MESHI' });
+	await expect(added).toBeVisible();
+	await expect(added).toContainText('AT THE END OF THE RUN');
+	await expect(page.locator('.run .part')).toHaveCount(3);
+
+	// Done with it: the seed stays what the other specs expect.
+	await page.getByRole('button', { name: 'UNGROUP' }).click();
+	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
+});
+
 test('a Work’s RATING and FAV are the parts’, set together while they agree, and RENAME undoes', async ({
 	page
 }) => {

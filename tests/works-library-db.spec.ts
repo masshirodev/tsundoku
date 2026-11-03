@@ -176,6 +176,19 @@ describe('finding shows the series', () => {
 		// The count is tiles: one Work plus the series it found.
 		expect(byWork.titleTotal).toBe(1);
 	});
+
+	it('finds a Work whose run is read through, wearing its last part', () => {
+		// Both parts are finished, so CONTINUE's part is null: the face must be
+		// the last part (`facePart`), or the Work is missing from the hits
+		// entirely even though its own name is what was typed.
+		const facts = make(['Yofukashi no Uta', 'Natsu no Owari ni Kimi to'], 'Read Through Run');
+		const found = lib.search('Read Through Run', true);
+		expect(found.works).toHaveLength(1);
+		expect(found.works[0].name).toBe('Read Through Run');
+		expect(found.works[0].id).toBe(facts.work.id);
+		expect(found.works[0].face.id).toBe(idOf('Natsu no Owari ni Kimi to'));
+		expect(found.titleTotal).toBe(1);
+	});
 });
 
 describe('CONTINUE is one row per Work', () => {

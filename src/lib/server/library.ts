@@ -9,6 +9,7 @@ import { dayStart, FILTER_KINDS, type FilterKind, type Filters } from '$lib/libr
 import { naturalDir, type Dir, type Sort } from '$lib/library/labels';
 import {
 	continuePart,
+	facePart,
 	inOrder,
 	partState,
 	type ContinueLine,
@@ -1073,14 +1074,17 @@ export function search(query: string, reveal: boolean, limit = 30): SearchResult
 		.all({ like, limit }) as { id: number; name: string }[];
 	const workIds = workRows.map((w) => w.id);
 	const parts = byWork(partsOfWorks(workIds, reveal));
+	// The face is CONTINUE's part, or the last part once the run is read
+	// (`facePart`): a Work whose every part is finished is still one the owner
+	// typed the name of, and leaving it out of the hits would hide it entirely.
 	const faceIds = workIds
-		.map((id) => continuePart(parts.get(id) ?? [])?.seriesId)
+		.map((id) => facePart(parts.get(id) ?? [])?.seriesId)
 		.filter((id): id is number => id !== undefined);
 	const faces = cardsOf([...new Set(faceIds)]);
 	const works: WorkTile[] = [];
 	for (const row of workRows) {
 		const own = parts.get(row.id) ?? [];
-		const face = faces.get(continuePart(own)?.seriesId ?? -1);
+		const face = faces.get(facePart(own)?.seriesId ?? -1);
 		if (!face) continue;
 		works.push(workCard(row.id, row.name, face, own, own.length).tile);
 	}
