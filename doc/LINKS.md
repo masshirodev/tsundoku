@@ -166,8 +166,23 @@ again or paste a link.
   acted on -- is read by `series_links` and `link_decisions`, as a comic is.
   One rule, one SQL fragment (`NEEDS_LOOK` in `catalogue.ts`), at every door:
   the pass (`searchable`), the review and its count (`linkQueue`,
-  `linkQueueCount`), `links --again` (`requeueSearched`) and the list's
-  auto-link (`linkableByTitle`).
+  `linkQueueCount`), `links --again` (`requeueSearched`), the list's
+  auto-link (`linkableByTitle`) and Ranobe's review line that says an item
+  is in AniList's own review.
+
+  **Which season a door that names no season acts on** is the one that still
+  wants a look (`seasonToLook` in `season-links.ts`, the TypeScript twin of
+  `NEEDS_LOOK`): the open season if it has neither a link nor a decision,
+  otherwise the first season in list order with neither. The pass searches
+  that season, by its own title (`Probe Show Season 2`), keeps the search on
+  that season, and links a sure match only onto it, and only while it is
+  still open -- never over a season the owner linked or settled, even one
+  linked while the search was out. The review queue's item for an anime
+  carries that season, and its LINK, NONE OF THESE, SEARCH AGAIN and their
+  UNDO post it, so the queue never leans on a default; `?series=N` with no
+  `&season=` opens on it too. The season **being watched** (`openSeasonOf`)
+  is a different question, and the one a rating, the TRACKING sheet and the
+  cover ask.
 
 **Resolving** a MAL link from Mihon learns its AniList entry and cover. It
 sends only ids, fifty to a request (`Media(idMal_in: …)`), and needs no
@@ -309,8 +324,9 @@ anime's LINK row is a line a season (c240; above).
   is that season's own title (`Sword Art Online Season 3`, the source's
   season number after the series' title), asked in the anime formats, and
   each candidate is set against that season's own episode count. With no
-  `&season=` (or an empty one) the review opens on the season being watched,
-  never season 0, which is a flat list's and real (`seasonNamed`, the same
+  `&season=` (or an empty one) the review opens on the season that still
+  wants a look (above), then on the season being watched once every season
+  is settled, never season 0 by default, which is a flat list's and real (`seasonNamed`, the same
   reader the series screen's forms use: there, no season named on UNLINK is
   every season). LINK A TO SEASON 3 writes that season's row. After it, the page offers the rest of
   the show from the linked entry's AniList PREQUEL and SEQUEL relations, in

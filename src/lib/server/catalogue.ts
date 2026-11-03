@@ -812,7 +812,8 @@ export async function searchSeries(
  * Search again every series the pass searched and couldn't link, with the
  * titles cleaned as they are now: `yarn run links --again`. The owner's own
  * SEARCH AGAIN titles, NONE OF THESE and UNLINK are left alone; an anime with
- * a season still open is searched again, by its open season (`NEEDS_LOOK`).
+ * a season still open is searched again, by the season that wants a look
+ * (`NEEDS_LOOK`; `seasonToLook` names it).
  */
 export function requeueSearched(): number {
 	const db = getDb();
