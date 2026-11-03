@@ -679,7 +679,50 @@ test.describe('a catalogue that answers', () => {
 			db.close();
 		}
 	});
+	test('the review with no season asked opens on the open season, never season 0 (c240)', async ({
+		page
+	}) => {
+		// A list holding a flat, unseasoned part (season 0, a real season) and
+		// then season 1. Season 0 is watched, so the open season is 1: an absent
+		// `&season=` is that one, not `Number(null)`'s 0.
+		const id = seedFlatThenNumbered();
+		await page.goto(`${BASE}/links?series=${id}`);
+		await expect(page.locator('.heading .long')).toHaveText('LINK · SEASON 1');
+		await expect(page.locator('.seasonbar .sb-b')).toHaveText('SEASON 1 OF 2 · 3 EPISODES HERE');
+		// Asked for, season 0 is still there to link.
+		await page.goto(`${BASE}/links?series=${id}&season=0`);
+		await expect(page.locator('.seasonbar .sb-b')).toContainText('2 EPISODES HERE');
+	});
 });
+
+/** An anime whose list is two watched unseasoned episodes, then a season 1 of three. */
+function seedFlatThenNumbered(): number {
+	const db = new Database(dbPath);
+	try {
+		const now = Date.UTC(2026, 10, 2, 12, 0);
+		const root = (db.prepare(`SELECT id FROM roots WHERE name = 'Library'`).get() as { id: number })
+			.id;
+		const id = Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, source, hue, added_at, indexed_at, origin_key, in_library, cover_key)
+					VALUES (?, 'Flat Then Numbered', 'anime', 'aniyomi', 210, ?, ?, 'aniyomi:1:/flat-then-numbered', 1, '')`
+				)
+				.run(root, now, now).lastInsertRowid
+		);
+		const put = db.prepare(
+			`INSERT INTO entries (series_id, position, label, season, episode_number, added_at, file, bytes, page_count, available, source_url, read_at)
+			VALUES (?, ?, ?, ?, ?, ?, '', 0, 0, 0, ?, ?)`
+		);
+		put.run(id, 1, 'Episode 1', null, 1, now, '/flat/1', now);
+		put.run(id, 2, 'Episode 2', null, 2, now, '/flat/2', now);
+		for (let i = 1; i <= 3; i++)
+			put.run(id, 2 + i, `Episode ${i}`, 1, i, now, `/flat/s1/${i}`, null);
+		return id;
+	} finally {
+		db.close();
+	}
+}
 
 /** A series' season links and season decisions, as the server left them. */
 function seasonRowsOf(id: number): {

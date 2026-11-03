@@ -678,3 +678,17 @@ describe('a novel AniList lacks', () => {
 		expect(linkRow(novel)).toMatchObject({ format: 'MANGA' });
 	});
 });
+
+describe('the season a field names (c240)', () => {
+	it('reads absent or empty as no season, never season 0, which is a real one', async () => {
+		const { seasonNamed } = await import('$lib/library/catalogue');
+		// What `FormData.get` and `URLSearchParams.get` give for a missing field.
+		expect(seasonNamed(null)).toBeUndefined();
+		expect(seasonNamed('')).toBeUndefined();
+		expect(seasonNamed(undefined)).toBeUndefined();
+		expect(seasonNamed('0')).toBe(0);
+		expect(seasonNamed('2')).toBe(2);
+		expect(seasonNamed('1.5')).toBeUndefined();
+		expect(seasonNamed('two')).toBeUndefined();
+	});
+});

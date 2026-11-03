@@ -304,8 +304,11 @@ AGAIN` after an UNLINK, `NONE OF THESE · NO PASS ASKS AGAIN` after NONE OF
 - **A season's FIND** opens the review with `?series=N&season=S`: the search
   is that season's own title (`Sword Art Online Season 3`, the source's
   season number after the series' title), asked in the anime formats, and
-  each candidate is set against that season's own episode count. LINK A TO
-  SEASON 3 writes that season's row. After it, the page offers the rest of
+  each candidate is set against that season's own episode count. With no
+  `&season=` (or an empty one) the review opens on the season being watched,
+  never season 0, which is a flat list's and real (`seasonNamed`, the same
+  reader the series screen's forms use: there, no season named on UNLINK is
+  every season). LINK A TO SEASON 3 writes that season's row. After it, the page offers the rest of
   the show from the linked entry's AniList PREQUEL and SEQUEL relations, in
   order along the chain and ticked where the episode counts agree -- or
   where two entries add up to the season as `PART 1` and `PART 2`. A movie

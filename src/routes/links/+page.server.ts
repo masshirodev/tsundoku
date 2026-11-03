@@ -19,6 +19,7 @@ import {
 	type RelationOffer
 } from '$lib/server/season-links';
 import { account } from '$lib/server/tracking';
+import { seasonNamed } from '$lib/library/catalogue';
 
 /**
  * The link review (Link Review, Ranobe Review; doc/LINKS.md, doc/RANOBE.md):
@@ -62,7 +63,8 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 		// An anime's season: its own title, its own candidates, and the entry its
 		// line names (c240).
 		const view = item.kind === 'anime' ? seriesSeasons(id) : null;
-		const seasonParam = Number(url.searchParams.get('season'));
+		// Absent is the open season, never season 0 (a flat list's, and real).
+		const seasonParam = seasonNamed(url.searchParams.get('season'));
 		const at = view
 			? (view.seasons.find((s) => s.season === seasonParam) ??
 				view.seasons.find((s) => s.season === view.open) ??

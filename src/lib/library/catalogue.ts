@@ -156,6 +156,18 @@ export const matchTitles = (titles: string[], query?: string | null): string[] =
  */
 export const isAnime = (kind: Kind | null | undefined): boolean => kind === 'anime';
 
+/**
+ * The season a form field or a URL parameter names, or none. Absent or empty
+ * is no season -- "every season" to UNLINK, "the open season" to the review --
+ * and never season 0, which is a real one (a flat list): `Number(null)` and
+ * `Number('')` are both 0, so neither may read the field (c240).
+ */
+export function seasonNamed(raw: unknown): number | undefined {
+	if (raw === null || raw === undefined || String(raw) === '') return undefined;
+	const n = Number(raw);
+	return Number.isInteger(n) ? n : undefined;
+}
+
 /** The AniList formats an anime is (doc/LINKS.md, "A novel never matches a comic"). */
 export const ANIME_FORMATS = ['TV', 'TV_SHORT', 'MOVIE', 'OVA', 'ONA', 'SPECIAL'] as const;
 

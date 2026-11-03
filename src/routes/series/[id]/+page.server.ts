@@ -14,6 +14,7 @@ import { ranobeSeries, retryRanobe } from '$lib/server/ranobe-review';
 import { afterReading, editTracking, sendPending, trackingOf } from '$lib/server/tracking';
 import { afterReading as ranobeAfterReading } from '$lib/server/ranobe';
 import { STATUSES, type Status } from '$lib/library/tracking';
+import { seasonNamed } from '$lib/library/catalogue';
 import {
 	collectionExists,
 	createCollection,
@@ -269,12 +270,10 @@ function target(params: { id: string }, cookies: Parameters<Actions[string]>[0][
  * and 0 is a real season (a flat list) (c240).
  */
 function seasonOf(form: FormData): { season?: number; part?: number } {
-	const raw = form.get('season');
-	if (raw === null || String(raw) === '') return {};
-	const season = Number(raw);
-	const part = Number(form.get('part'));
-	if (!Number.isInteger(season)) return {};
-	return { season, part: Number.isInteger(part) && part > 0 ? part : 1 };
+	const season = seasonNamed(form.get('season'));
+	if (season === undefined) return {};
+	const part = seasonNamed(form.get('part'));
+	return { season, part: part !== undefined && part > 0 ? part : 1 };
 }
 
 const entryIds = (form: FormData) =>
