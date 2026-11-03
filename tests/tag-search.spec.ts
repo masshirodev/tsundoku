@@ -11,7 +11,8 @@ import { lnSchema, type LnFilters } from '$lib/library/lnreader-filters';
 import {
 	libraryTagKey,
 	matchFilter,
-	previewOrigin,
+	backOrigin,
+	backOriginLabel,
 	tagSearchHref,
 	tagSearchParams
 } from '$lib/library/tag-search';
@@ -245,11 +246,14 @@ describe('the URL', () => {
 });
 
 describe('where a source page’s back cell may return', () => {
-	it('is a preview, with its own query', () => {
-		expect(previewOrigin('/downloads/source/100~abc?from=%2Fbrowse%2F100')).toBe(
+	it('is a preview or a series, with its own query', () => {
+		expect(backOrigin('/series/12?from=continue')).toBe('/series/12?from=continue');
+		expect(backOriginLabel('/series/12')).toBe('Back to the series');
+		expect(backOriginLabel('/downloads/source/1~a')).toBe('Back to the preview');
+		expect(backOrigin('/downloads/source/100~abc?from=%2Fbrowse%2F100')).toBe(
 			'/downloads/source/100~abc?from=%2Fbrowse%2F100'
 		);
-		expect(previewOrigin('/downloads/source/100~abc')).toBe('/downloads/source/100~abc');
+		expect(backOrigin('/downloads/source/100~abc')).toBe('/downloads/source/100~abc');
 	});
 
 	it('and nothing else: never another host or screen', () => {
@@ -264,14 +268,16 @@ describe('where a source page’s back cell may return', () => {
 			'/downloads/search?q=x',
 			'/browse/100',
 			'/settings',
+			'/series/12/move',
+			'/series/abc',
 			'downloads/source/1'
 		])
-			expect(previewOrigin(raw), String(raw)).toBe('');
+			expect(backOrigin(raw), String(raw)).toBe('');
 	});
 
 	it('holds on its own output', () => {
-		const once = previewOrigin('/downloads/source/100~abc?q=a%20b');
-		expect(previewOrigin(once)).toBe(once);
+		const once = backOrigin('/downloads/source/100~abc?q=a%20b');
+		expect(backOrigin(once)).toBe(once);
 	});
 });
 

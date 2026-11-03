@@ -10,6 +10,7 @@
 	import { count } from '$lib/library/downloads';
 	import { SOURCE_KINDS } from '$lib/library/kinds';
 	import { writeFilters } from '$lib/library/browse-filters';
+	import { backOriginLabel } from '$lib/library/tag-search';
 	import { isSettled } from '$lib/library/settled';
 	import ResultTile from './ResultTile.svelte';
 	import { SiteCheck, checkLine } from '$lib/site-check.svelte';
@@ -158,7 +159,12 @@
 	<TopBar sticky label="{name} in BROWSE">
 		<!-- Every cell in the middle, each with its own left rule, as the mock builds the bar. -->
 		{#snippet middle()}
-			<a class="cell back" href={resolve('/browse')} aria-label="Back to BROWSE">←</a>
+			{#if data.back}
+				<!-- From a tag on a preview or a series (c313): back to it, whose own ← is unchanged. -->
+				<a class="cell back" href={data.back} aria-label={backOriginLabel(data.back)}>←</a>
+			{:else}
+				<a class="cell back" href={resolve('/browse')} aria-label="Back to BROWSE">←</a>
+			{/if}
 			<div class="title" class:searching={data.find || !!data.q}>
 				<span class="name">{name.toUpperCase()}</span>
 				<span class="sub">{data.source.kind.toUpperCase()} · {data.source.lang.toUpperCase()}</span>

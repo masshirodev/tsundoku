@@ -596,6 +596,7 @@
 					seasons={data.seasons}
 					downloads={data.downloads}
 					move={data.move}
+					tagSource={data.tagSource}
 					noVideo={data.move.band}
 					work={data.work}
 					takenOut={form && 'workTakenOut' in form

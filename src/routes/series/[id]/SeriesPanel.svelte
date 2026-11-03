@@ -27,7 +27,7 @@
 	} from '$lib/library/series';
 	import type { Shelf } from '$lib/library/types';
 	import { isBookSeries, isVolumeSeries } from '$lib/library/series';
-	import { isPersonNamespace, suggestionLabel, type Suggestion } from '$lib/library/books';
+	import { suggestionLabel, type Suggestion } from '$lib/library/books';
 	import { coverSrc, tagHref, readHref, seriesHref, withParam } from '$lib/library/links';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import { invalidateAll } from '$app/navigation';
@@ -37,6 +37,9 @@
 	import type { BookEditions } from '$lib/server/editions';
 	import { baseToEdition, langName } from '$lib/library/editions';
 	import UnfoldSheet from './UnfoldSheet.svelte';
+	import TagSheet from './TagSheet.svelte';
+	import { libraryTagKey, tagSearchHref } from '$lib/library/tag-search';
+	import type { FilterField } from '$lib/library/browse-filters';
 	import type { LinkState } from '$lib/server/catalogue';
 	import { anilistUrl, malUrl, viaLabel, type SeasonRow } from '$lib/library/catalogue';
 	import { offline } from '$lib/offline.svelte';
@@ -91,6 +94,7 @@
 		seasons = null,
 		downloads = null,
 		move = null,
+		tagSource = null,
 		noVideo = null,
 		readOnline = false,
 		work = null,
@@ -147,6 +151,8 @@
 		downloads?: SeriesDownloads | null;
 		/** MOVE's SOURCE row (doc/MOVE.md): where the series comes from and the way out. */
 		move?: MoveState | null;
+		/** The source TAGS search besides the library (c313); null for none, and a tag opens the library. */
+		tagSource?: { id: string; name: string } | null;
 		/** A source that lists episodes but sends no video: the NO VIDEO band under CONTINUE. */
 		noVideo?: { title: string; detail: string } | null;
 		/** A chapter with no file reads online (doc/BROWSING.md): START opens it, as an episode streams. */
@@ -531,6 +537,49 @@
 	const action = $derived(anime ? animeContinue(series.entries) : continueAction(series));
 	const direction = $derived(effectiveDirection(series, series.kindDirection));
 	const tags = $derived(tagGroups(series.tags));
+
+	// ---- a tag searched for (c313; doc/SERIES.md, the TAGS row) ------------------------------
+	// Every value is a link to the library; with a source BROWSE can open, a tap
+	// asks where to look instead (TagSheet), and without script the link stands.
+	// The source's filters, asked the first time a tag is (once per screen):
+	// until they come, or without them, a tag is a search for its value.
+	let tagFilters = $state<FilterField[]>([]);
+	let tagFiltersAsked = false;
+	function askTagFilters() {
+		if (tagFiltersAsked || !tagSource) return;
+		tagFiltersAsked = true;
+		fetch(resolve('/series/[id]/tag-filters', { id: String(series.id) }))
+			.then((r) => (r.ok ? (r.json() as Promise<{ filters: FilterField[] }>) : { filters: [] }))
+			.then((j) => (tagFilters = j.filters))
+			.catch(() => {});
+	}
+	/** The tag as stored: a bare tag is grouped under `tag` but has no namespace (`tagGroups`). */
+	const storedTag = (namespace: string, value: string) =>
+		series.tags.find((t) => t.value === value && (t.namespace || 'tag') === namespace) ?? {
+			namespace,
+			value
+		};
+	/** The tag last tapped, kept while its sheet leaves so the head doesn't empty mid-motion. */
+	let tagAsked = $state<{ namespace: string; value: string } | null>(null);
+	let tagOpen = $state(false);
+	const tagLibraryHref = (t: { namespace: string; value: string }) => tagHref(libraryTagKey(t));
+	const tagSourceHref = $derived(
+		tagSource && tagAsked
+			? tagSearchHref(
+					resolve('/browse/[source]', { source: tagSource.id }),
+					tagFilters,
+					tagAsked,
+					page.url.pathname + page.url.search
+				)
+			: ''
+	);
+	function askTag(e: MouseEvent, t: { namespace: string; value: string }) {
+		if (!tagSource) return;
+		e.preventDefault();
+		askTagFilters();
+		tagAsked = t;
+		tagOpen = true;
+	}
 	const onShelves = $derived(
 		shelves.filter(
 			(s) => s.kind === 'collection' && series.collections.includes(Number(s.key.slice(2)))
@@ -1397,17 +1446,20 @@
 					<div class="tag-line">
 						<span class="ns">{g.namespace}</span>
 						<span class="vals">
-							{#if isPersonNamespace(g.namespace)}
-								<!-- People open their person page (Index Books). -->
-								<!-- eslint-disable svelte/no-navigation-without-resolve -- tagHref() resolves -->
-								{#each g.values as v, i (v)}{#if i > 0}<span class="sep"> · </span>{/if}<a
-										class="person"
-										href={tagHref(`${g.namespace}:${v}`)}>{v}</a
-									>{/each}
-								<!-- eslint-enable svelte/no-navigation-without-resolve -->
-							{:else}
-								{g.values.join(' · ')}
-							{/if}
+							<!-- Every value opens the library's person or tag page (Index Books), or,
+							     with a source, asks where to look (c313). -->
+							<!-- eslint-disable svelte/no-navigation-without-resolve -- tagHref() resolves -->
+							{#each g.values as v, i (v)}{@const t = storedTag(g.namespace, v)}{#if i > 0}<span
+										class="sep"
+									>
+										·
+									</span>{/if}<a
+									class="person"
+									href={tagLibraryHref(t)}
+									aria-haspopup={tagSource ? 'dialog' : undefined}
+									onclick={(e) => askTag(e, t)}>{v}</a
+								>{/each}
+							<!-- eslint-enable svelte/no-navigation-without-resolve -->
 						</span>
 					</div>
 				{/each}
@@ -1515,6 +1567,17 @@
 		{/if}
 	{/if}
 </section>
+
+{#if tagSource}
+	<TagSheet
+		open={tagOpen}
+		tag={tagAsked}
+		source={tagSource.name}
+		libraryHref={tagAsked ? tagLibraryHref(tagAsked) : ''}
+		sourceHref={tagSourceHref}
+		onclose={() => (tagOpen = false)}
+	/>
+{/if}
 
 {#if editions}
 	<UnfoldSheet

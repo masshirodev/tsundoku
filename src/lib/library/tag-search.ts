@@ -76,7 +76,7 @@ export function tagSearchParams(schema: FilterField[], tag: TagQuery): [string, 
 /**
  * `/browse/<source>` finding a tag, with `from` when the page it was tapped
  * on should be where the source page's back cell returns (the preview's own
- * address; `previewOrigin` checks it on arrival). `base` is the source page's
+ * address; `backOrigin` checks it on arrival). `base` is the source page's
  * resolved path.
  */
 export function tagSearchHref(
@@ -94,13 +94,14 @@ const BASE = 'http://in.app';
 
 /**
  * The address a source page's back cell may return to, or '' (card c313):
- * a source's preview, `/downloads/source/<id>` with its own query, which is
- * how the preview's own back still goes where it went before. Anything else
- * (an absolute URL, `//host`, a climb with `..`, another screen) is refused,
- * or ← would be an open redirect, as `sourceOrigin` refuses the same
+ * the screen a tag was tapped on, with its own query, so that screen's own
+ * back still goes where it went before. That is a source's preview
+ * (`/downloads/source/<id>`) or a series (`/series/<id>`). Anything else (an
+ * absolute URL, `//host`, a climb with `..`, another screen) is refused, or ←
+ * would be an open redirect, as `sourceOrigin` refuses the same
  * (library/origin.ts).
  */
-export function previewOrigin(raw: string | null | undefined): string {
+export function backOrigin(raw: string | null | undefined): string {
 	if (!raw || !raw.startsWith('/') || raw.startsWith('//') || raw.includes('\\')) return '';
 	let u: URL;
 	try {
@@ -109,9 +110,14 @@ export function previewOrigin(raw: string | null | undefined): string {
 		return '';
 	}
 	if (u.origin !== BASE) return '';
-	if (!/^\/downloads\/source\/[^/]+$/.test(u.pathname)) return '';
+	if (!/^\/downloads\/source\/[^/]+$/.test(u.pathname) && !/^\/series\/\d+$/.test(u.pathname))
+		return '';
 	return u.pathname + u.search;
 }
+
+/** What ← says it returns to, for an origin `backOrigin` accepted. */
+export const backOriginLabel = (origin: string): string =>
+	origin.startsWith('/series/') ? 'Back to the series' : 'Back to the preview';
 
 /**
  * The library's own key for a tag (`/?tag=`, server/library.ts `tagClause`):
