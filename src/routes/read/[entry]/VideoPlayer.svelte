@@ -48,6 +48,7 @@
 	} from '$lib/library/player';
 	import { coverSrc, readHref } from '$lib/library/links';
 	import { PREVIEW_DEBOUNCE_MS, previewQuality, StreamPreview } from './seek-preview';
+	import { canPip, copyStyles, documentPip, moveBack, moveInto, srclang } from './pip';
 	import Cover from '$lib/components/content/Cover.svelte';
 	import { count as grouped, kindLabel, unitLabel } from '$lib/library/labels';
 	import { kindVerb, type WorkEnd, type WorkNextPart } from '$lib/library/works';
@@ -990,6 +991,85 @@
 			streamPic = pic;
 		}, PREVIEW_DEBOUNCE_MS);
 	}
+	// ---- picture-in-picture (c388; doc/ANIME.md, "The player"; pip.ts) ------------------------
+	let stage = $state<HTMLElement | null>(null);
+	let pipWin: Window | null = null;
+	/** The picture layer is in a Document Picture-in-Picture window. */
+	let inDocPip = $state(false);
+	/** The <video> alone is in the browser's own picture-in-picture: the native track shows. */
+	let inNativePip = $state(false);
+	let pipable = $state(false);
+	/** The subtitles chosen, as a native track for the browser's own PiP to draw. */
+	const pipTrack = $derived(quality?.subtitles.find((t) => t.lang === subLang) ?? null);
+	let trackEl = $state<HTMLTrackElement | null>(null);
+	$effect(() => {
+		// Shown only while the browser's own PiP has the picture, so the page
+		// never shows subtitles twice; hidden (its cues loaded) otherwise.
+		const el = trackEl;
+		const mode = inNativePip ? 'showing' : 'hidden';
+		if (el?.track) el.track.mode = mode;
+	});
+	/**
+	 * PIP: the picture layer into a floating window of its own, where Document
+	 * Picture-in-Picture exists, else the <video> into the browser's own. A
+	 * second press brings it back.
+	 */
+	async function pip() {
+		if (pipWin) {
+			closePip();
+			return;
+		}
+		if (document.pictureInPictureElement) {
+			await document.exitPictureInPicture().catch(() => undefined);
+			return;
+		}
+		const api = documentPip();
+		if (api && stage) {
+			const box = stage.getBoundingClientRect();
+			let w: Window;
+			try {
+				w = await api.requestWindow({
+					width: Math.max(320, Math.round(box.width / 2)),
+					height: Math.max(180, Math.round(box.height / 2))
+				});
+			} catch {
+				return;
+			}
+			copyStyles(document, w.document);
+			w.document.title = document.title;
+			moveInto(w, stage);
+			pipWin = w;
+			inDocPip = true;
+			// The window's own close button, or the browser closing it: the picture comes back.
+			w.addEventListener('pagehide', putBack, { once: true });
+			return;
+		}
+		if (video && canPip()) await video.requestPictureInPicture().catch(() => undefined);
+	}
+	/** The browser's own PiP opening and closing on the <video> (its own button, or PIP). */
+	function nativePipEvents(el: HTMLVideoElement) {
+		const on = () => (inNativePip = true);
+		const off = () => (inNativePip = false);
+		el.addEventListener('enterpictureinpicture', on);
+		el.addEventListener('leavepictureinpicture', off);
+		return () => {
+			el.removeEventListener('enterpictureinpicture', on);
+			el.removeEventListener('leavepictureinpicture', off);
+		};
+	}
+	/** The picture layer back in its place: the player's first child, as the markup has it. */
+	function putBack() {
+		if (stage && root) moveBack(root, stage);
+		pipWin = null;
+		inDocPip = false;
+	}
+	/** Every door out of PiP: PIP again, NEXT, leaving the page. Never a dead window. */
+	function closePip() {
+		const w = pipWin;
+		putBack();
+		w?.close();
+	}
+
 	/** The pointer left the bar (a touch's lift too): nothing more is fetched or shown. */
 	function leaveScrub() {
 		hoverAt = null;
@@ -1310,6 +1390,7 @@
 		if (video) video.volume = volume;
 		device = navigator.language;
 		mouse = matchMedia('(pointer: fine)').matches;
+		pipable = canPip();
 		void start();
 		const close = () => opened && void send('close');
 		addEventListener('pagehide', close);
@@ -1317,6 +1398,11 @@
 	});
 	onDestroy(() => {
 		if (opened) void send('close');
+		// NEXT and leaving the page destroy the player: the picture comes back
+		// first, and the floating window goes with it rather than staying empty.
+		closePip();
+		if (document.pictureInPictureElement === video)
+			void document.exitPictureInPicture().catch(() => undefined);
 		detach();
 		preview?.destroy();
 		for (const t of [waitTimer, checkTimer, stallTimer, countTimer]) clearInterval(t);
@@ -1505,12 +1591,16 @@
 	onfocusin={onFocusIn}
 	onpointermove={pointerMoved}
 >
-	<div class="stage">
-		<!-- No <track>: subtitles are drawn by tsundoku from the WebVTT (Anime Calls, "Subtitles"). -->
+	<div class="stage" bind:this={stage}>
+		<!-- Subtitles are drawn by tsundoku from the WebVTT (Anime Calls, "Subtitles"), in the
+		     page and in a Document Picture-in-Picture window alike. The <track> is the same
+		     WebVTT for the browser's own picture-in-picture only, which moves the <video>
+		     alone: it shows only while that is open (c388, pip.ts). -->
 		<video
 			bind:this={video}
 			bind:paused
 			playsinline
+			{@attach nativePipEvents}
 			ontimeupdate={onTime}
 			ondurationchange={onDuration}
 			onwaiting={onWaiting}
@@ -1519,7 +1609,19 @@
 				(buffered = video ? bufferedTo(rangesOf(video.buffered), video.currentTime) : 0)}
 			onended={onEnded}
 			onerror={() => phase === 'playing' && !hls && void fail()}
-		></video>
+		>
+			{#if pipTrack}
+				{#key pipTrack.src}
+					<track
+						bind:this={trackEl}
+						kind="subtitles"
+						src={pipTrack.src}
+						srclang={srclang(pipTrack.lang)}
+						label={langName(pipTrack.lang)}
+					/>
+				{/key}
+			{/if}
+		</video>
 		<button
 			type="button"
 			class="tapzone"
@@ -1542,6 +1644,14 @@
 			</div>
 		{/if}
 	</div>
+
+	{#if inDocPip}
+		<!-- The picture is in its own window: the page says so where it was (c388). -->
+		<div class="pipnote" role="status">
+			<div>IN PICTURE-IN-PICTURE</div>
+			<div class="mut">PIP · ON BRINGS IT BACK</div>
+		</div>
+	{/if}
 
 	{#if phase === 'playing'}
 		{#if resumedAt !== null}
@@ -1782,6 +1892,15 @@
 					</div>
 				</div>
 				<button type="button" class="cell grow" onclick={() => (sheet = true)}>{playing}</button>
+				{#if pipable}
+					<button
+						type="button"
+						class="cell desk"
+						aria-label={inDocPip ? 'Bring the picture back' : 'Picture in picture'}
+						aria-pressed={inDocPip}
+						onclick={() => void pip()}>{inDocPip ? 'PIP · ON' : 'PIP'}</button
+					>
+				{/if}
 				<button type="button" class="cell desk" onclick={() => (keysOpen = true)}>? KEYS</button>
 				<button type="button" class="cell" disabled={!next || !playable(next)} onclick={playNext}
 					>{next
@@ -2311,6 +2430,22 @@
 		inset: 0;
 		background: #000;
 		pointer-events: none;
+	}
+	.pipnote {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.04em;
+		color: var(--text-1);
+		pointer-events: none;
+	}
+	.pipnote .mut {
+		color: var(--text-2);
 	}
 	.subs {
 		position: absolute;
