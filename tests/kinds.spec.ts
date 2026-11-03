@@ -345,6 +345,24 @@ describe('what may match what (doc/LINKS.md, "A novel never matches a comic")', 
 		for (const [series, candidate] of no) expect(sameKind(series, candidate)).toBe(false);
 	});
 
+	it('answers all 25 ordered pairs as the pre-K1 sameKind did', () => {
+		// The lists above are the readable half; this is the exhaustive one.
+		// The oracle is `sameKind` as it shipped at a698f974, before it read
+		// `matches` (`git show a698f974:src/lib/library/catalogue.ts`,
+		// :168-175), transcribed here rather than derived from KIND_FACTS: an
+		// anime only with an anime, and otherwise novel-or-not must agree.
+		const before = (series: Kind, candidate: Kind): boolean => {
+			if (series === 'anime' || candidate === 'anime') return series === candidate;
+			return (series !== 'novel') === (candidate !== 'novel');
+		};
+		const pairs = KINDS.flatMap((s) => KINDS.map((c) => [s, c] as const));
+		expect(pairs).toHaveLength(25);
+		for (const [series, candidate] of pairs)
+			expect(sameKind(series, candidate), `${series} against ${candidate}`).toBe(
+				before(series, candidate)
+			);
+	});
+
 	it('flags a wrong-kind link, but never the cover-only crossing', () => {
 		expect(wrongKind('anime', 'TV')).toBe(false);
 		expect(wrongKind('anime', 'MANGA')).toBe(true);
