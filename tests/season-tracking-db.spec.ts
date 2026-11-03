@@ -1506,6 +1506,66 @@ describe('the pass and the queue ask each season’s own search, never the serie
 	});
 });
 
+// ---- the series-level state and sends are a comic's (wave 17) ----------------------------
+
+describe('an anime’s list state and sends are its seasons’, at every door', () => {
+	afterEach(() => vi.stubGlobal('fetch', fake));
+
+	it('reading the list never files season 1’s entry as the series’ through the mirror', async () => {
+		const id = show({
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		seasons.linkSeason(id, 1, 1, animeEntry(101, { mal: 501 }), 'review', NOW);
+		// The mirror is there: the row a series-level reader would take.
+		expect(db.prepare(`SELECT mal_id FROM series_links WHERE series_id = ?`).get(id)).toEqual({
+			mal_id: 501
+		});
+		const listed: typeof fetch = async (input, init) => {
+			if (String(input).includes('/users/@me/animelist'))
+				return json({
+					data: [
+						{
+							node: { id: 501 },
+							list_status: { status: 'watching', score: 7, num_episodes_watched: 2 }
+						}
+					],
+					paging: {}
+				});
+			return fake(input, init);
+		};
+		vi.stubGlobal('fetch', listed);
+		await signIn('mal');
+		expect(
+			db.prepare(`SELECT season, progress FROM season_tracker_state WHERE series_id = ?`).all(id)
+		).toEqual([{ season: 1, progress: 2 }]);
+		expect(
+			db.prepare(`SELECT COUNT(*) AS n FROM tracker_state WHERE series_id = ?`).get(id)
+		).toEqual({ n: 0 });
+	});
+
+	it('SETTINGS counts a season’s failed send, and SIGN OUT takes a season’s waiting send with it', async () => {
+		const id = show({ seasons: [[1, 2]] });
+		seasons.linkSeason(id, 1, 1, animeEntry(101, { mal: 501 }), 'review', NOW);
+		await signIn('mal');
+		const failing: typeof fetch = async (input, init) =>
+			String(input).includes('/my_list_status') ? json({ error: 'down' }, 500) : fake(input, init);
+		vi.stubGlobal('fetch', failing);
+		markWatched(entryId(id, 1, 1));
+		tr.queueProgress(id, NOW);
+		await tr.sendPending({ now: NOW });
+		const mal = () => tr.accounts().find((a) => a.service === 'mal')!;
+		expect(mal().failed.count).toBe(1);
+		expect(mal().waiting).toBe(0);
+		tr.signOut('mal');
+		expect(
+			db.prepare(`SELECT COUNT(*) AS n FROM season_tracker_sends WHERE series_id = ?`).get(id)
+		).toEqual({ n: 0 });
+	});
+});
+
 // ---- Ranobe ------------------------------------------------------------------------------
 
 describe('Ranobe on an anime', () => {

@@ -217,6 +217,8 @@ export function signOut(service: Service): void {
 	db.transaction(() => {
 		db.prepare(`DELETE FROM tracker_accounts WHERE service = ?`).run(service);
 		db.prepare(`DELETE FROM tracker_sends WHERE service = ?`).run(service);
+		// An anime's sends wait a season at a time (c240): they go with the token too.
+		db.prepare(`DELETE FROM season_tracker_sends WHERE service = ?`).run(service);
 	})();
 }
 
@@ -311,11 +313,17 @@ function saveState(
 ): number {
 	const db = getDb();
 	const col = service === 'anilist' ? 'anilist_id' : 'mal_id';
+	// An anime with season links has a `series_links` row only as its first
+	// season's AniSkip mirror (`syncSeriesLink`): that season's own row below
+	// carries what the list says, so the mirror is not filed as the series'
+	// too (wave 17). An anime linked before rung 62, with no season rows, keeps
+	// its one link here, as it always had.
 	const links = db
 		.prepare(
 			`SELECT l.series_id, l.${col} AS media, l.format, s.kind
 			FROM series_links l JOIN series s ON s.id = l.series_id
-			WHERE l.${col} IS NOT NULL`
+			WHERE l.${col} IS NOT NULL
+				AND NOT EXISTS (SELECT 1 FROM series_season_links x WHERE x.series_id = l.series_id)`
 		)
 		.all() as { series_id: number; media: number; format: string | null; kind: Kind }[];
 	// An anime's links are per season (c240): the row that says what the list
@@ -1294,15 +1302,19 @@ export function accounts(): AccountView[] {
 	const db = getDb();
 	return SERVICES.map((service) => {
 		const a = account(service);
+		// A series' sends and an anime's season sends (c240) are one account's
+		// queue: TRY AGAIN retries both, so the count says both.
+		const SENDS = `(SELECT service, failed_at, error FROM tracker_sends
+			UNION ALL SELECT service, failed_at, error FROM season_tracker_sends)`;
 		const f = db
 			.prepare(
-				`SELECT COUNT(*) AS n, MAX(failed_at) AS at, (SELECT error FROM tracker_sends WHERE service = ? AND failed_at IS NOT NULL ORDER BY failed_at DESC LIMIT 1) AS error
-				FROM tracker_sends WHERE service = ? AND failed_at IS NOT NULL`
+				`SELECT COUNT(*) AS n, MAX(failed_at) AS at, (SELECT error FROM ${SENDS} WHERE service = ? AND failed_at IS NOT NULL ORDER BY failed_at DESC LIMIT 1) AS error
+				FROM ${SENDS} WHERE service = ? AND failed_at IS NOT NULL`
 			)
 			.get(service, service) as { n: number; at: number | null; error: string | null };
 		const waiting = (
 			db
-				.prepare(`SELECT COUNT(*) AS n FROM tracker_sends WHERE service = ? AND failed_at IS NULL`)
+				.prepare(`SELECT COUNT(*) AS n FROM ${SENDS} WHERE service = ? AND failed_at IS NULL`)
 				.get(service) as {
 				n: number;
 			}
