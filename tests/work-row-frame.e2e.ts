@@ -660,3 +660,21 @@ test('the sheet: MOVE reorders the run, and TAKE OUT leaves it with a band and U
 	await expect(page.locator('.prow.work-row')).toBeVisible();
 	await expect(page.locator('.prow.work-row .lk-b')).toContainText('PART 2 OF 3');
 });
+
+test('on a phone the row keeps the board’s height and its ← → cells drop to 44px', async ({
+	page
+}) => {
+	// Work-Row's note: "ON A PHONE THE ROW IS THE SAME 52PX ROW, AND THE ← → CELLS
+	// DROP INTO IT AT 44PX." The 52px is `.prow .pn`'s width in the handoff's
+	// `wk.css`, and `.prow` itself is `min-height: 64px` there, at every width
+	// (the row measured 64px at 390x844 too). So a phone narrows the cells and
+	// leaves the row's height alone.
+	await page.setViewportSize({ width: 390, height: 844 });
+	await openMid(page);
+	const row = page.locator(SEL.workRow);
+	await expect(row).toBeVisible();
+	expect(await row.evaluate((n) => getComputedStyle(n).minHeight)).toBe('64px');
+	const cells = page.locator('.panel .prow.work-row .pn');
+	await expect(cells).toHaveCount(2);
+	expect(await cells.first().evaluate((n) => getComputedStyle(n).width)).toBe('44px');
+});

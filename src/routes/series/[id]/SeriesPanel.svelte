@@ -1347,8 +1347,11 @@
 			--cta-h: 56px;
 			--ns-w: 56px;
 		}
-		/* The WORK row keeps its 52px height; its cells drop to 44px (Work-Row's notes). */
-		.prow .pn {
+		/* Only the ← → cells narrow on a phone: 52px to 44px. The row itself keeps
+		   the board's 64px (`wk.css`'s `.prow`; the note's "52px" is the cell's
+		   width, and the row measured 64px at 390x844 too). `.panel` here because
+		   the base `.prow .pn` width comes later in this file. */
+		.panel .prow .pn {
 			width: 44px;
 		}
 	}

@@ -64,7 +64,7 @@ long press, MENU or a held OK opens the row's sheet -- OPEN, MOVE ↑ ↓, and T
 OUT with a band and UNDO. A series in no Work has no row.
 
 - **Where the run is.** The line says `NEXT · <part>` while the run is here, and
-  `YOU'RE IN <part>` once the owner is already in another part it begun (the
+  `YOU'RE IN <part>` once the owner is already in another part it has begun (the
   row's third board slice). Both are `workRowLine`'s.
 - **The accent.** When this part is done -- read through, or caught up on a
   source still going -- and the next part has **not been started**, the row
