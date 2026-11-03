@@ -1225,11 +1225,22 @@
 						{#if onRanobe && ranobe}{@render ranobeLinkLine()}{/if}
 					</div>
 				{:else}
-					<div class="lk">
-						<div class="lk-a" class:muted={!link.linked}>{linkPrimary}</div>
-						<div class="lk-b">{linkMeta}</div>
-					</div>
-					{#if onRanobe && ranobe}{@render ranobeLinkLine()}{/if}
+					{#snippet linkBlock()}
+						<div class="lk">
+							<div class="lk-a" class:muted={!link.linked}>{linkPrimary}</div>
+							<div class="lk-b">{linkMeta}</div>
+						</div>
+					{/snippet}
+					{#if onRanobe && ranobe}
+						<!-- One season: AniList's block, Ranobe's line under it, in one column
+						     (c422). As a sibling in the row's flex line it took half the width. -->
+						<div class="own-col">
+							{@render linkBlock()}
+							{@render ranobeLinkLine()}
+						</div>
+					{:else}
+						{@render linkBlock()}
+					{/if}
 					<div class="lcs inline">{@render linkCells()}</div>
 				{/if}
 			</div>
@@ -1310,15 +1321,25 @@
 							{#if onRanobe && ranobeTrack}{@render ranobeTrackLine()}{/if}
 						</div>
 					{:else}
-						<div class="tk">
-							{#each trackLines as t, i (i)}
-								<div class="tl">
-									<div class="tl-l" class:strong={t.strong}>{t.left}</div>
-									{#if t.right}<div class="tl-r" class:alert={t.alert}>{t.right}</div>{/if}
-								</div>
-							{/each}
-						</div>
-						{#if onRanobe && ranobeTrack}{@render ranobeTrackLine()}{/if}
+						{#snippet trackBlock()}
+							<div class="tk">
+								{#each trackLines as t, i (i)}
+									<div class="tl">
+										<div class="tl-l" class:strong={t.strong}>{t.left}</div>
+										{#if t.right}<div class="tl-r" class:alert={t.alert}>{t.right}</div>{/if}
+									</div>
+								{/each}
+							</div>
+						{/snippet}
+						{#if onRanobe && ranobeTrack}
+							<!-- The same column as LINK's (c422). -->
+							<div class="own-col">
+								{@render trackBlock()}
+								{@render ranobeTrackLine()}
+							</div>
+						{:else}
+							{@render trackBlock()}
+						{/if}
 					{/if}
 					<div class="lcs inline">{@render trackCells()}</div>
 				</div>
@@ -2310,6 +2331,17 @@
 		margin-left: auto;
 		padding: 0 var(--pad) 0 8px;
 		color: var(--text-1);
+	}
+	/* One season with Ranobe (c422): the row's own block and Ranobe's line in one
+	   column, the line under it, as the seasons' column holds them on a long show. */
+	.own-col {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+	}
+	.own-col > .ranobe-line {
+		border-top: 1px solid var(--line-subtle);
 	}
 	/* A stacked row keeps its own rule at the bottom, as the single-season one does. */
 	.link-row.stacked,

@@ -99,7 +99,10 @@ links, MOVE and TAKE OUT) and in [`WORKS.md`](WORKS.md)'s flow.
   PASTE A LINK; and where its cover comes from ([`LINKS.md`](LINKS.md)). An
   anime's LINK row is a line a season, each with its own FIND or EDIT, and
   Ranobe's one line under them ([`LINKS.md`](LINKS.md), "The series
-  screen").
+  screen"). A one-season anime has no seasons' column, so its LINK and
+  TRACKING rows each hold AniList's block and Ranobe's line in a column of
+  their own, the line under the block at every width (c422: as a sibling in
+  the row it took half the width, and LINK's words went one a line).
 - **SOURCE sits after LINK and COVER**, before TAGS and ABOUT, on every series
   whose chapters or episodes come from a Mihon or Aniyomi source: MOVE → to
   another source, and for 30 days after a move WAS … · UNTIL … with MOVE BACK
