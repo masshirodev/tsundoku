@@ -175,9 +175,23 @@ test.describe('the player, tablet landscape (c156)', () => {
 			await page.mouse.move(640, 300 + Math.random() * 10);
 		};
 		// A browser that won't start a video by itself is started by a tap, as a person would.
+		// It may also start by itself between a look at ▶ and the tap (server 2 taking
+		// over), and then the bar hides from under the tap, which waited on it until the
+		// clip had played through every episode (wave 18, red on its base too): so ▶ is
+		// tapped only while the picture is still paused, and again until it plays.
 		const pp = player.locator('.cluster .pp');
 		await expect(pp).toBeVisible({ timeout: 20_000 });
-		if ((await pp.getAttribute('aria-label')) === 'Play') await pp.click();
+		const playing = () =>
+			page.evaluate(() => {
+				const v = document.querySelector('.stage video') as HTMLVideoElement | null;
+				return !!v && !v.paused;
+			});
+		await expect(async () => {
+			if (await playing()) return;
+			await shown();
+			if ((await pp.getAttribute('aria-label')) === 'Play') await pp.click({ timeout: 1000 });
+			expect(await playing()).toBe(true);
+		}).toPass({ timeout: 20_000 });
 
 		// Server 1 sent nothing: server 2 plays, at the same second, by itself.
 		await expect(player.locator('.subs .line')).toHaveText('There is a town past this ridge.', {
