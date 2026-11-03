@@ -86,15 +86,31 @@ agree:**
 - `FILTER_KINDS` in `src/lib/library/filters.ts`
 - `MoveKind = 'manga' | 'anime'` in `src/lib/library/move.ts`
 - an inline `'manga' | 'anime' | 'novel'` in `src/lib/library/start.ts`
-- the database's `CHECK (kind IN (…))` on `series` (and `'manga', 'anime'` on
-  the move table), which rung 47 had to rewrite by string replacement to add
-  `anime`
+- the database's `CHECK (kind IN (…))` on `series`, which rung 47 had to
+  rewrite by string replacement to add `anime` (and `engine_extensions.kind`'s
+  `CHECK (kind IN ('manga', 'anime'))` at `db.ts:813`, the two APK extension
+  families' kinds — not MOVE's: MOVE has no table of its own)
 
 Two more lists were found while K1 measured this, and the audit above missed
 both: `RANOBE_KINDS` in `src/lib/library/ranobe.ts:14` (`['novel', 'manga',
 'manhwa']`, the kinds Ranobe tracks, not all kinds) and `KIND_LABEL` in
-`src/lib/library/filters.ts:45`, which is labels rather than kinds and says
+`src/lib/library/filters.ts:52`, which is labels rather than kinds and says
 `DOUJINS` and `NOVELS` where `kindLabel` says `DOUJIN` and `NOVEL`.
+
+**The audit is still not exhaustive, and the ratchet cannot make it so.**
+Three more kind lists are array or SQL literals rather than comparisons, so
+`tests/kinds.spec.ts` does not count them: `KIND_SHELVES`
+(`src/lib/server/library.ts:942`) gives manga, manhwa, novel and anime a shelf
+and deliberately gives a doujin none (its books group by other means);
+`overrideCounts`'s `['manga', 'manhwa', 'doujin', 'novel'] as Kind[]`
+(`src/lib/server/settings-page.ts:92`) is every kind but an anime, whose
+reading direction has no per-series override; and `LINKABLE`
+(`src/lib/server/catalogue.ts:547`) is every kind but a doujin, which is never
+in the LINK queue. Each is deliberate at `c14a5d4e`. But a `movie`/`show`
+that lands without a shelf, an override row or a place in the LINK queue is
+exactly the bug this doc exists to prevent, so **a new kind must grep these
+three by hand**; K5 should fold them into the registry, and this paragraph is
+where the next worker will look if it does not.
 
 **What K1 did with them.** `Kind`, `KINDS`, `FILTER_KINDS`, `MoveKind` and
 `start.ts`'s inline union are now one list, derived from `KIND_FACTS` (below).
@@ -174,8 +190,8 @@ What each fact says today, and the lines it was read from:
   (`library/series.ts`, `library/anime.ts`).
 - **Unit**: `labels.ts`'s `unitLabel` reads `unit.short` for CH/VOL/EP and
   `sheetMeta` reads `unit.done` for READ/WATCHED. `unit.long` is the singular
-  the catalogue and MOVE speak (`CHAPTER`, `VOLUME`, `EPISODE`); it has no
-  reader in K1.
+  spelling (`CHAPTER`, `VOLUME`, `EPISODE`) that K2/K3 will use where the code
+  spells a unit out; nothing reads it yet.
 - **Catalogue** is the AniList type: `server/catalogue.ts` asks
   `anilistType(kind)` in the lookup by id and in the search, and
   `library/catalogue.ts` builds the entry's URL and reads a pasted link on the
@@ -196,7 +212,7 @@ What each fact says today, and the lines it was read from:
   still decides it — K2 makes it read the registry. An anime's row is `rtl`
   because `directionOptions` treats every non-novel the same way; the player
   ignores direction, but a Work's face and the reader's mode do not.
-- **Movable** is `movableKind` (`src/lib/server/move.ts:55-57`): a manga, a
+- **Movable** is `movableKind` (`src/lib/server/move.ts:56-57`): a manga, a
   manhwa or an anime. `MOVE_MAP` keeps MOVE's own kind at `manga` and `anime`,
   because a manhwa is planned as a manga (`src/lib/server/move.ts:268`).
 
@@ -213,8 +229,11 @@ The rules that go with it:
 - **Real differences stay real.** The image reader, the text reader and the
   player stay separate components. The registry picks which one opens; it
   doesn't merge them. A check that is about one kind's own peculiarity (a
-  doujin's single book, manhwa's strip) may name the kind, from inside the
-  registry or the module that owns that peculiarity, with a comment saying why.
+  doujin's single book, manhwa's strip) may name the kind from inside the
+  module that owns that peculiarity, with a comment saying why — but it sits
+  inside the ratchet's baseline of 152 like any other check. The allow-list is
+  `src/lib/library/kinds.ts` alone, so "what the allow-list alone leaves" is
+  zero: K2–K5 lower the number by moving each such question into a fact.
 
 ### The disagreements I kept (K1 changes no behaviour)
 
@@ -222,7 +241,7 @@ Each is real in the code at `c14a5d4e`; the registry records what ships, and
 none of these was "fixed" here.
 
 - **A manhwa moves, but not as its own map.** `movableKind` offers MOVE to a
-  manhwa (`src/lib/server/move.ts:55-57`) and the plan is built as a `manga`
+  manhwa (`src/lib/server/move.ts:56-57`) and the plan is built as a `manga`
   (`:268`). So `MOVABLE_KINDS` is three and `MoveKind` is two; the card's own
   premise ("`MoveKind` is the truth" for `movable`) was measured false.
 - **A novel's unit is a volume in `labels.ts` and a chapter in the review.**
@@ -231,7 +250,7 @@ none of these was "fixed" here.
   `CHAPTERS` for a novel. `unit.long` is `VOLUME`; nothing reads it yet, so
   the review's words are unchanged until K2/K3.
 - **The FILTER panel's words for two kinds are plurals.** `KIND_LABEL`
-  (`filters.ts:45`) says `DOUJINS` and `NOVELS`, `kindLabel` says `DOUJIN` and
+  (`filters.ts:52`) says `DOUJINS` and `NOVELS`, `kindLabel` says `DOUJIN` and
   `NOVEL`. It is a list of labels, not of kinds; K1 left it as it was.
 - **`RANOBE_KINDS` is a list of its own.** `['novel', 'manga', 'manhwa']` in
   `ranobe.ts:14`, and `byWork(kind)` is its own `kind !== 'novel'`. Not
@@ -242,6 +261,10 @@ none of these was "fixed" here.
   (also two, for another reason). The DB spec asserts it against
   `SOURCE_KINDS.mihon` and `SOURCE_KINDS.aniyomi`, and the card's "move table"
   does not exist: MOVE has no table.
+- **Three kind lists are not comparisons.** `KIND_SHELVES`, `overrideCounts`'
+  four-kind list and `LINKABLE` (the audit names the files) each decide by kind
+  in an array or SQL literal, so the ratchet cannot count them; K1 left them
+  as they were. A new kind must grep them by hand until K5 folds them in.
 - **`layout` is stated twice.** `defaultDirection` still decides it; the fact
   records the same default so a reader can ask. K2 removes the duplication.
 - **`medium`, `sources`, `storage` and `unit.long` have no reader in K1.**
