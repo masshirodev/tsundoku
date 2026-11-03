@@ -418,14 +418,26 @@ hidden series, one episode, a negative remembered, the background queue,
 and since c384 a 90 s opening behind 25 s and 80 s cold opens with the
 second episode encoded at 12 kbps, which the strict rule found nothing of).
 
-**Marks found before c384 are fragments**, and stay until something clears
-them: an episode with a `fingerprint` row, found or negative, is not read
-again (a negative only after 14 days). The ladder is not this card's to
-climb this wave, so the rung that forgets them all, negatives included, is
-written down for after `tracking`'s v62 (`doc/handoff-notes/anime.md`,
-wave 17, _Gaps_): a fragment is worse than nothing, since SKIP INTRO lands
-in the middle of the song. On 2026-11-03 the live library's only
-`fingerprint` rows were Ranma ½ (2024)'s eight.
+**Marks found before c384 were fragments, and rung 63 forgot them once**
+(wave 18). An episode with a `fingerprint` row, found or negative, is not
+read again (a negative only after 14 days), so the new matcher alone changed
+nothing for an episode already marked: the owner's Ranma ½ (2024) kept
+skipping into the middle of the song after wave 17. The rung deletes every
+`fingerprint` row, negatives included, and recomputes `entries.ending_at`
+from what remains, so the next play finds them under the rule above: a
+fragment is worse than no mark, since SKIP INTRO lands in the middle of the
+song and no mark shows no button at all. On the live library (a copy taken
+2026-11-03, at v62) those were Ranma ½ (2024)'s eight rows, the library's
+only ones, and all eight episodes' `ending_at` went to `NULL` with them (a
+fingerprint was each one's only ending). On that copy, with the workstation's
+engine, the season job then found, from the streams, every opening of
+episodes 5 to 12 at **89.5 to 94.6 s** (31 to 48 s before, and episode 11's
+for the first time; it starts between 11.6 s and 73.4 s, as each cold open
+puts it) and every ending from **1294 to 1298 s** to the end of the episode
+(before, six of the eight started near 1385 s, a fragment)
+(`doc/handoff-notes/anime.md`, wave 18). The rung's spec is
+`tests/anime-rungs-db.spec.ts`, which also checks its frozen copy of
+`syncEndingAt` against the app's own rule on every entry.
 
 ### Fingerprints of streams
 
