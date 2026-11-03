@@ -37,13 +37,20 @@ Ranobe's candidates, ahead of its AniList item if it has one. That half is
 
 ## Where a link comes from
 
-| Via      | How                                                                                        | Sure?           |
-| -------- | ------------------------------------------------------------------------------------------ | --------------- |
-| `mihon`  | A MAL tracker (Mihon tracker 1) in a backup, at import                                     | Yes, at once    |
-| `exact`  | The background pass's AniList search found one entry whose title equals one of the series' | Yes, at once    |
-| `review` | The owner chose a candidate in the review                                                  | The owner's say |
-| `pasted` | The owner pasted an AniList or MAL link                                                    | The owner's say |
-| `list`   | The owner's AniList list, once signed in ([`TRACKING.md`](TRACKING.md))                    | Yes, at once    |
+| Via     | How                                                                                        | Sure?        |
+| ------- | ------------------------------------------------------------------------------------------ | ------------ |
+| `mihon` | A MAL tracker (Mihon tracker 1) in a backup, at import                                     | Yes, at once |
+| `exact` | The background pass's AniList search found one entry whose title equals one of the series' | Yes, at once |
+
+An anime's season past the first is the exception to the `exact` row: its
+title is the season's own (below, "One season, one entry").
+| `review` | The owner chose a candidate in the review | The owner's say |
+| `pasted` | The owner pasted an AniList or MAL link | The owner's say |
+| `list` | The owner's AniList list, once signed in ([`TRACKING.md`](TRACKING.md)) | Yes, at once |
+| `relations` | A season offered by the linked entry's own prequels and sequels, ticked by the owner | The owner's say |
+
+`relations` is a season's alone (`series_season_links.via`); `series_links`
+has no such value, so the mirror it keeps says `review`.
 
 `exact` is the **background pass's only** (the owner's rule, 2026-11-02): a
 search the owner runs never links by itself, even when exactly one result has
@@ -79,6 +86,36 @@ romaji, native, synonyms) can equal any of the series' own (title and
   one names the year the series' own title does: "Ranma ½ (2024)" takes the
   2024 series, not the 1989 one, and a series with no year in its title takes
   neither.
+
+#### One season, one entry
+
+An anime's season is searched by its own title (`Show Season 2`), and is
+judged by it too (wave 17, round 2):
+
+- **A season past the first is sure only by its own titles**: the series'
+  titles with the season after them (`seasonSearchTitle`, `Show Season 2`),
+  and a title the owner typed. Never the series' plain title, which is season
+  1's entry: AniList's answer for `Show Season 2` usually lists `Show` too,
+  and taking it would send season 2's episode numbers to season 1's entry.
+  Not cleaned either: `cleanTitle` takes `Season 2` off and gives the plain
+  title back. Season 1 (and a flat list's season 0) is judged by the series'
+  titles, as a comic is. An entry titled `Show 2nd Season` is not equal to
+  `Show Season 2`, so it waits for the owner's LINK.
+- **No two seasons or parts of a show are the same entry**, AniList id or
+  MAL id. `linkSeason` refuses an entry another season or part holds
+  (`seasonHolding`; a link from before rung 62 with no season row counts as
+  the first season's), whatever the door: the pass's sure match (it is then
+  offered), the owner's list (`linkSeasonFromList` writes nothing), LINK N
+  SEASONS from the relations, the queue's LINK and a pasted link (the API
+  answers 409, and the page says `NOT OFFERED FOR THIS ONE · NOTHING
+CHANGED`). A season's own entry linked again (a CHANGE to itself) is not
+  refused.
+- **A season's candidates leave out an entry another season holds**: at the
+  save (`saveSeasonSearch`, so the four kept are the season's to choose from,
+  and `found` counts them) and again at read time (`seasonCandidates`,
+  `offeredSeason`), since season 1 may be linked after season 2 was
+  searched. So season 2's item never offers season 1's entry, and LINK
+  refuses it whatever the page posts.
 
 ### Cleaning a title before it's searched
 
@@ -153,7 +190,59 @@ again or paste a link.
   linked by pasting a link, which sends only the id.
 - **Doujins and anything from Hentoid.** A catalogue of manga and novels
   doesn't hold them.
-- **A series already linked, or settled:** NONE OF THESE, or an UNLINK.
+- **A series already linked, or settled:** NONE OF THESE, or an UNLINK. An
+  anime linked or settled a season at a time is decided by its seasons alone
+  (c240): it is searched, queued for the review and offered to the list's
+  auto-link while **any one** season has neither a link nor a decision, and
+  its `series_links` row (the AniSkip mirror of season 1) does not end that.
+  An anime with no season rows -- linked or settled before rung 62, or never
+  acted on -- is read by `series_links` and `link_decisions`, as a comic is.
+  One rule at every door: the pass (`searchable`), the review and its count
+  (`linkQueue`, `linkQueueCount`), `links --again` (`requeueSearched`), the
+  list's auto-link (`linkableByTitle`) and Ranobe's review line that says an
+  item is in AniList's own review (`IN_LINK_REVIEW`). `NEEDS_LOOK` in
+  `catalogue.ts` asks it of a series, `seasonOpen` of one season.
+
+  **An anime's search is its season's, and stored once** (wave 17; c352,
+  c355). AniList and MAL list each season as its own entry, so a search is
+  one season's: its title, its hits, its candidates. They live in
+  `season_link_searches` and `season_link_candidates` only. The series-level
+  `link_searches`/`link_candidates` belong to a comic or a novel and are
+  never written or read for an anime -- a series-level search would be one
+  season's standing in for the others, which is how the queue once offered
+  season 1's entry for season 2. (Rows an anime has there from before rung
+  62 are left in place and read by nothing. That includes a SEARCH AGAIN
+  the owner queued for an anime before this branch, while AniList was out
+  of reach: its typed title is **discarded**, and the pass searches each
+  open season by the season's own title instead. The owner types it again
+  on the season it was meant for.)
+
+  - **The pass** searches each open season whose own search hasn't run (or
+    waits on a SEARCH AGAIN), by that season's title (`Fresh Show`, `Fresh
+Show Season 2`), in one pass if the limit allows: a row of `searchable`
+    is a season. A sure match is judged by the season's own title ("One
+    season, one entry", above), links only that season, and only while it
+    is still open at write time -- never over a season the owner linked or
+    settled, even one linked while the search was out, and never with an
+    entry another season holds. Linking or settling
+    season 1 changes nothing about season 2's search: it is its own.
+  - **The review queue holds an item a season** (c352): every open season
+    with a searched row of its own, carrying that season's query, count,
+    candidates and SKIP. The item's heading, its LINK button and the band
+    after it name the season (`LINK · SEASON 2`, `LINK A TO SEASON 2`,
+    `LINKED · SEASON 2 · …`), and LINK, NONE OF THESE, SKIP, SEARCH AGAIN
+    and their UNDO post it. A season 0 item (a flat list, the whole run)
+    names none. LINK accepts only a candidate of that season's own search
+    (`offered`), never another season's and never the series', and never
+    an entry another season or part of the show holds.
+  - **A door that names no season** (`/links?series=N` with no `&season=`,
+    the API called without one) acts on the season that still wants a look
+    (`seasonToLook` in `season-links.ts`, the TypeScript twin of
+    `NEEDS_LOOK`): the open season if it has neither a link nor a decision,
+    otherwise the first season in list order with neither.
+
+  The season **being watched** (`openSeasonOf`) is a different question, and
+  the one a rating, the TRACKING sheet and the cover ask.
 
 **Resolving** a MAL link from Mihon learns its AniList entry and cover. It
 sends only ids, fifty to a request (`Media(idMal_in: …)`), and needs no
@@ -161,8 +250,9 @@ key.
 
 ### An import never undoes the owner
 
-- An UNLINK is remembered (`link_decisions`, `unlinked`), and an import won't
-  bring the tracker's link back.
+- An UNLINK is remembered (`link_decisions`, `unlinked`; an anime's in
+  `season_link_decisions`, a season at a time), and an import won't bring
+  the tracker's link back.
 - A link the owner chose (review, pasted) is never replaced by a tracker.
 - A tracker that moved to another MAL entry moves a link it made itself.
 
@@ -175,7 +265,8 @@ key.
 - by hand, with `yarn run links`.
 
 It resolves waiting MAL links, then searches up to 60 series (all of them by
-hand; `--limit` caps it, and `--again` first searches again every series a
+hand; `--limit` caps it; an anime's open seasons are a row each, so a
+three-season show is three of the 60; and `--again` first searches again every series a
 pass searched and couldn't link, with titles cleaned as they are now). A SEARCH AGAIN goes first, then series with no
 cover. Five titles go to a request, as aliased `Page` queries.
 
@@ -226,8 +317,9 @@ POSSIBLE DUPLICATES, which are older and fewer.
 
 ### The review, `/links` (Link Review 1b–1j)
 
-One series at a time: the series above its candidates, or beside them on
-desktop and in tablet landscape.
+One item at a time -- a series, or one season of an anime (c352; "What's
+never searched", above) -- the series above its candidates, or beside them
+on desktop and in tablet landscape.
 
 - **Nothing is preselected.** Tap a candidate, and LINK A makes it.
 - Each candidate shows:
@@ -238,7 +330,9 @@ desktop and in tablet landscape.
   - **EXACT TITLE**, beside its ids, when one of its titles equals one of the
     series'. That is a mark, not a choice: LINK is still the owner's press.
 - **NONE OF THESE** is remembered. **SKIP** sends it to the back.
-  **PASTE A LINK** reads the link as one candidate, sending only its id.
+  **PASTE A LINK** reads the link as one candidate, sending only its id. An
+  anime's paste is the item's season's: its rows are set against that
+  season's title and episodes, and its LINK lands there.
 - **SEARCH AGAIN asks AniList at once** with the edited title, in the series'
   own catalogue and kind. **It never links: the results replace these and wait
   for LINK**, even when there is exactly one, or one with the same title. With
@@ -246,11 +340,14 @@ desktop and in tablet landscape.
   band says so. FIND on a series never searched searches as the review opens.
 - The band, the panel's count and the rows show one search: the band counts
   what AniList returned, the count what was kept for the review, and the rows
-  are exactly the kept candidates (`4 OF 6 FOUND`). A series searched before
-  the catalogue asked for its own kind keeps what that search stored — for an
-  anime, the manga entries it found — until SEARCH AGAIN replaces them: they
-  are still offered, a tap still links one (flagged **WRONG KIND**, never
-  removed), and only the owner's press decides.
+  are exactly the kept candidates (`4 OF 6 FOUND`). A comic or a novel
+  searched before the catalogue asked for its own kind keeps what that search
+  stored until SEARCH AGAIN replaces them: they are still offered, a tap
+  still links one (flagged **WRONG KIND**, never removed), and only the
+  owner's press decides. An anime's search from before rung 62 (the manga
+  entries it found, kept at series level) is no season's, so it is not
+  offered at all: the pass searches each season again, in the anime
+  catalogue, by the season's own title (wave 17).
 - Every decision is carried out at once. UNDO takes back LINK (and a rating it
   gave), NONE OF THESE and SEARCH AGAIN. A search's UNDO puts back the search
   and the candidates it replaced; it never made a link, so it takes none back.
@@ -261,10 +358,52 @@ desktop and in tablet landscape.
 
 ### The series screen (Series Link 1k–1t)
 
-**LINK** and **COVER** rows under SHELVES, on every series but a doujin.
+**LINK** and **COVER** rows under SHELVES, on every series but a doujin. An
+anime's LINK row is a line a season (c240; above).
 
 - **Linked:** the entry's title, its ids and where the link came from, then
   OPEN ↗, CHANGE and UNLINK.
+- **An anime trades one link for one a season** (c240, the owner's decision
+  A): AniList and MAL list each season as its own entry while a tsundoku
+  series holds several, so an anime's LINK row is a line a season -- tag,
+  title, `ANILIST AND MAL · TV · 24 EP. · 2018`, and EDIT or FIND. Three
+  seasons or fewer have a line each; more fold round the one being watched,
+  and SHOW opens both the LINK and the TRACKING row. A season in two parts
+  says so on one line (`2 PARTS · EP. 1 – 12 · EP. 13 – 23`). A season with
+  no link says why, in the decision's own word: after an UNLINK
+  `UNLINKED · NO PASS ASKS AGAIN`, after NONE OF THESE
+  `NONE OF THESE · NO PASS ASKS AGAIN` (`SeasonRow.decision`, the latest of
+  its parts'), else what its last search found. A series with one season
+  draws exactly what it always did, and its UNLINK, which names no season,
+  takes every part of that season and writes the season's own `unlinked`
+  decision, never one for season 0. Ranobe stays one line under the seasons
+  ([`RANOBE.md`](RANOBE.md)).
+- **A season's link is its own row** (`series_season_links`, rung 62):
+  `series_links` keeps meaning what it meant for a manga or a novel, and an
+  anime's row there is a **mirror of its first season, written only while that
+  season is linked** (season 1, or a flat list). With only a later season
+  linked there is no row at all: the one reader that asks a series for a
+  single MAL entry (AniSkip) numbers an episode within its entry and refuses a
+  later season, so an empty row is its honest "not looked up". Tracking never
+  reads it for an anime. A link an anime had before rung 62 is read as its
+  first season's; nothing was migrated, since no anime was linked then.
+- **A season's FIND** opens the review with `?series=N&season=S`: the search
+  is that season's own title (`Sword Art Online Season 3`, the source's
+  season number after the series' title), asked in the anime formats, and
+  each candidate is set against that season's own episode count. With no
+  `&season=` (or an empty one) the review opens on the season that still
+  wants a look (above), then on the season being watched once every season
+  is settled, never season 0 by default, which is a flat list's and real (`seasonNamed`, the same
+  reader the series screen's forms use: there, no season named on UNLINK is
+  every season). LINK A TO SEASON 3 writes that season's row. After it, the page offers the rest of
+  the show from the linked entry's AniList PREQUEL and SEQUEL relations, in
+  order along the chain and ticked where the episode counts agree -- or
+  where two entries add up to the season as `PART 1` and `PART 2`. A movie
+  or a special standing on that chain is listed dimmed and never ticked; a
+  side story or a spin-off is not collected at all, because the walk follows
+  PREQUEL and SEQUEL edges only. A season already linked says `REPLACES …`
+  and is not ticked either. LINK N SEASONS writes them all
+  (`via 'relations'`), and NOT NOW leaves them.
 - **Not linked:** what the last pass found, then FIND (accent) and PASTE A
   LINK.
 - **COVER** says where the cover comes from and why the sources before it
@@ -274,9 +413,10 @@ desktop and in tablet landscape.
 - The review's series panel says **EPISODES** for an anime, not CHAPTERS, and
   names one source when the origin and the site are the same ("KICKASSANIME",
   not "KICKASSANIME · KICKASSANIME").
-- **A link to the other kind is flagged, never removed**: a `series_links`
-  row whose format contradicts the series' kind (MANGA/NOVEL/ONE_SHOT on an
-  anime, TV/MOVIE/OVA on a manga) says **LINKED TO THE WRONG KIND**. The LINK
+- **A link to the other kind is flagged, never removed**: a link row
+  (`series_links`, or `series_season_links` on a season) whose format
+  contradicts the series' kind (MANGA/NOVEL/ONE_SHOT on an anime, TV/MOVIE/OVA
+  on a manga) says **LINKED TO THE WRONG KIND**. The LINK
   page's `?series=N` row offers **RELINK**; the series screen's own line says
   changes ask AniList for the series' own kind, and its CHANGE is the door.
   OPEN ↗ opens the entry's own catalogue: the link's stored format decides,
@@ -288,7 +428,8 @@ desktop and in tablet landscape.
   novel across to its comic's entry is the deliberate cover-only link, and
   isn't this.
 - On the phone, and in the 440px landscape panel, the cells drop below the
-  row in equal columns.
+  row in equal columns. An anime's season lines keep their own EDIT or FIND
+  at the line's end, as the design draws them.
 - Offline, everything but OPEN ↗ dims.
 
 ## Where it departs from the handoff

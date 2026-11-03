@@ -239,14 +239,39 @@ describe('reading the lists', () => {
 			];
 			await signIn('anilist');
 			await tr.readList('anilist', NOW);
+			// An anime's link is one season's (c240): the entry already names the
+			// season, so the row is the season table's, not the series' one.
 			expect(
-				db.prepare(`SELECT via, anilist_id, format FROM series_links WHERE series_id = ?`).get(show)
-			).toEqual({ via: 'list', anilist_id: 30024, format: 'TV' });
-			expect(state(show, 'anilist')).toMatchObject({ status: 'reading', progress: 5, score: 8 });
+				db
+					.prepare(
+						`SELECT via, anilist_id, format, season FROM series_season_links WHERE series_id = ?`
+					)
+					.get(show)
+			).toEqual({ via: 'list', anilist_id: 30024, format: 'TV', season: 0 });
+			// `series_links` keeps the mirror of the first season linked (AniSkip
+			// asks a series for one entry); tracking never reads it for an anime.
+			expect(
+				db.prepare(`SELECT via, anilist_id, mal_id FROM series_links WHERE series_id = ?`).get(show)
+			).toEqual({ via: 'list', anilist_id: 30024, mal_id: 23 });
+			// What the list says of it is the season's row (c240), as for manga.
+			expect(
+				db
+					.prepare(
+						`SELECT status, progress, score FROM season_tracker_state
+						WHERE series_id = ? AND season = 0 AND part = 1 AND service = 'anilist'`
+					)
+					.get(show)
+			).toMatchObject({ status: 'reading', progress: 5, score: 8 });
 			// The manga entry matched nothing: the manga series it names has its
-			// own title, and it may not take the anime.
+			// own title, and it may not take the anime. One link in all, and its
+			// own mirror.
 			expect(
 				db.prepare(`SELECT COUNT(*) AS n FROM series_links WHERE via = 'list'`).get() as {
+					n: number;
+				}
+			).toEqual({ n: 1 });
+			expect(
+				db.prepare(`SELECT COUNT(*) AS n FROM series_season_links WHERE via = 'list'`).get() as {
 					n: number;
 				}
 			).toEqual({ n: 1 });

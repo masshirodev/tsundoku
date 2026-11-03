@@ -27,6 +27,7 @@ import {
 	type MappedEntry,
 	byWork,
 	comicChapterOf,
+	mapAnimeUnits,
 	mapWorkUnits,
 	searchKinds,
 	workLists,
@@ -495,11 +496,39 @@ describe('comics, against the work (c98)', () => {
 	});
 
 	it('tracks manga and manhwa, never doujinshi, and searches comics as comics', () => {
-		expect(RANOBE_KINDS).toEqual(['novel', 'manga', 'manhwa']);
+		expect(RANOBE_KINDS).toEqual(['novel', 'manga', 'manhwa', 'anime']);
 		expect(byWork('manhwa')).toBe(true);
 		expect(byWork('novel')).toBe(false);
 		expect(searchKinds('manga')).toBe('manga,manhwa,manhua');
 		expect(searchKinds('novel')).toBe('light_novel,web_novel');
+		// An anime is one work for the whole show, its episodes counted straight
+		// through the seasons (c240).
+		expect(byWork('anime')).toBe(true);
+		expect(searchKinds('anime')).toBe('anime,donghua');
+	});
+
+	it('maps an anime’s episodes onto the one work, across its seasons', () => {
+		const work = { type: 'episode', count: 5, extra: [] };
+		const rows = [entry(1, 'Episode 1'), entry(2, 'Episode 2'), entry(3, 'Episode 1')];
+		expect([...mapAnimeUnits('w900', work, rows)]).toEqual([
+			[1, 'w900:episode:1'],
+			[2, 'w900:episode:2'],
+			[3, 'w900:episode:3']
+		]);
+		// A recap and a half number take no number, and are never sent.
+		const withRecap = [
+			entry(1, 'Episode 1'),
+			entry(2, '14.5 Recollection', ''),
+			{ ...entry(3, 'Episode 15'), recap: true },
+			entry(4, 'Episode 2')
+		];
+		expect([...mapAnimeUnits('w900', work, withRecap)]).toEqual([
+			[1, 'w900:episode:1'],
+			[4, 'w900:episode:2']
+		]);
+		// Past the count: the next pass that reads a higher count maps it.
+		expect(mapAnimeUnits('w900', { ...work, count: 1 }, rows).size).toBe(1);
+		expect(mapAnimeUnits('w900', null, rows).size).toBe(0);
 	});
 
 	it('reads a chapter number from the labels comics have', () => {
@@ -548,5 +577,19 @@ describe('comics, against the work (c98)', () => {
 		]);
 		// A work that counts nothing yet maps nothing: no read goes on a guess.
 		expect(mapWorkUnits('w9', null, [entry(1, 'Ch. 1')]).size).toBe(0);
+	});
+});
+
+describe('searchKinds asks the kind registry (wave 17)', async () => {
+	const { searchKinds } = await import('$lib/library/ranobe');
+	const { KINDS } = await import('$lib/library/kinds');
+	it('names Ranobe’s kinds for every tsundoku kind', () => {
+		expect(Object.fromEntries(KINDS.map((k) => [k, searchKinds(k)]))).toEqual({
+			manga: 'manga,manhwa,manhua',
+			manhwa: 'manga,manhwa,manhua',
+			doujin: 'manga,manhwa,manhua',
+			novel: 'light_novel,web_novel',
+			anime: 'anime,donghua'
+		});
 	});
 });

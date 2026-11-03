@@ -1,4 +1,5 @@
 import type { Kind } from './types.ts';
+import { kindFacts } from './kinds.ts';
 
 /**
  * Ranobe, the pure part (doc/RANOBE.md): what is sent there, how a file's
@@ -9,9 +10,12 @@ import type { Kind } from './types.ts';
 /**
  * The kinds Ranobe tracks. Novels since card c66; manga and manhwa since card
  * c98 (2026-10-14), once Ranobe's works counted their own chapters (its card
- * c226). Doujinshi never: they're Hentoid's, and Hentoid stays off Ranobe.
+ * c226); anime since card c240 (2026-11-03), as one work for the whole show,
+ * its episodes counted straight through the seasons (Ranobe c134,
+ * doc/RANOBE.md, "Anime"). Doujinshi never: they're Hentoid's, and Hentoid
+ * stays off Ranobe.
  */
-export const RANOBE_KINDS: readonly Kind[] = ['novel', 'manga', 'manhwa'];
+export const RANOBE_KINDS: readonly Kind[] = ['novel', 'manga', 'manhwa', 'anime'];
 
 /**
  * Whether a kind reads against the work's own units rather than an
@@ -22,7 +26,12 @@ export const byWork = (kind: Kind) => kind !== 'novel';
 
 /** Ranobe's kinds a tsundoku series of this kind may be, for `/search?kind=`. */
 export const searchKinds = (kind: Kind) =>
-	byWork(kind) ? 'manga,manhwa,manhua' : 'light_novel,web_novel';
+	// What is watched, not read: Ranobe files it under its own video kinds (c240).
+	kindFacts(kind).medium === 'video'
+		? 'anime,donghua'
+		: byWork(kind)
+			? 'manga,manhwa,manhua'
+			: 'light_novel,web_novel';
 
 /** The language an EPUB with none recorded is taken to be in. */
 export const DEFAULT_LANG = 'en';
@@ -130,12 +139,55 @@ export function mapWorkUnits(
 	return out;
 }
 
+/**
+ * Each episode's unit, as Ranobe counts an anime: the work's own episodes,
+ * numbered straight through the seasons -- season 1's EP. 24 is 24, season
+ * 2's EP. 1 is 25 (Ranobe c134, "A series is one entry"). A series here can
+ * hold several seasons while Ranobe holds one work, so the number is the
+ * episode's place in the list, not the one the source printed. A recap and a
+ * half number are not episodes a catalogue numbers, and map to nothing.
+ */
+export function mapAnimeUnits(
+	work: string,
+	units: WorkUnits | null,
+	entries: MappedEntry[]
+): Map<number, string> {
+	const out = new Map<number, string>();
+	if (!units || !units.type) return out;
+	let n = 0;
+	for (const e of entries) {
+		if (e.matter) continue;
+		const number = episodeOf(e.label);
+		// A recap and a half number are no aired episode: they take no number,
+		// and are never sent (as AniList and MAL never get them either).
+		if (number === null || e.recap || !/^\d+$/.test(number)) continue;
+		n += 1;
+		const ref = `${work}:${units.type}:${n}`;
+		if (workLists(units, String(n))) out.set(e.id, ref);
+	}
+	return out;
+}
+
+/**
+ * An episode's own number from its label ("Episode 5", "Ep. 12", "5"), or
+ * null for a recap and for a title with no number. A half number ("14.5") is
+ * a real episode in the list and is counted, as Ranobe's own run never folds
+ * a fraction: it maps only when the work lists it.
+ */
+export function episodeOf(label: string): string | null {
+	const t = label.trim();
+	const m = t.match(/^(?:ep(?:isode)?\b\.?\s*)?(\d+(?:\.\d+)?)\b/i);
+	return m ? unitNumber(m[1]) : null;
+}
+
 export type MappedEntry = {
 	id: number;
 	label: string;
 	/** 'front' or 'back' is the book's matter, never a unit's reading. */
 	matter: string;
 	readAt: number | null;
+	/** An anime's recap: listed, never a catalogue's episode (c240). */
+	recap?: boolean;
 };
 
 /** The volume an entry is, when its label says so: "Vol. 3", "Volume 12". */
@@ -353,6 +405,8 @@ export type RanobeFacts = {
 	edition: boolean;
 	/** A comic, read as the work's own chapters (card c98). */
 	comic: boolean;
+	/** An anime, read as the work's own episodes, one work across the seasons (c240). */
+	anime?: boolean;
 	/** The work counts its units on Ranobe, so a comic's reads can go. */
 	counted: boolean;
 	/** The suggestion for it was refused or withdrawn. */
@@ -381,7 +435,7 @@ export const langName = (lang: string) => LANG_NAME[lang.split('-')[0]] ?? lang.
 export function unitLabel(u: string | { type: string; number: string }): string {
 	const [type, number] =
 		typeof u === 'string' ? (u.split(':').slice(1) as [string, string]) : [u.type, u.number];
-	const short: Record<string, string> = { volume: 'VOL.', chapter: 'CH.' };
+	const short: Record<string, string> = { volume: 'VOL.', chapter: 'CH.', episode: 'EP.' };
 	return `${short[type] ?? type.toUpperCase()} ${number}`;
 }
 
@@ -441,8 +495,12 @@ export function ranobeLines(
 	if (f.comic && !f.counted)
 		return {
 			lines: [
-				line('RANOBE · WAITING ON ITS CHAPTER COUNT', 'NOTHING SENT'),
-				line('RANOBE DOESN’T COUNT THIS WORK’S CHAPTERS YET · READS GO ONCE IT DOES', '', false)
+				line(`RANOBE · WAITING ON ITS ${f.anime ? 'EPISODE' : 'CHAPTER'} COUNT`, 'NOTHING SENT'),
+				line(
+					`RANOBE DOESN’T COUNT THIS WORK’S ${f.anime ? 'EPISODES' : 'CHAPTERS'} YET · READS GO ONCE IT DOES`,
+					'',
+					false
+				)
 			],
 			retry: false
 		};

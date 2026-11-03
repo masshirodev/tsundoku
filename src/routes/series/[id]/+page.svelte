@@ -592,6 +592,7 @@
 					link={data.link}
 					tracking={data.tracking}
 					ranobe={data.ranobe}
+					seasons={data.seasons}
 					downloads={data.downloads}
 					move={data.move}
 					noVideo={data.move.band}

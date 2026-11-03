@@ -297,6 +297,50 @@ CHAPTERS SO FAR ON RANOBE`, or `STILL RUNNING ON RANOBE` with no count.
 - **Progress** comes back as the work's refs (`CH. 154 OF 179`), and the
   rest (rating, FAV, unreads, the backfill) is the same as a novel's.
 
+## Anime
+
+Card c240, since 2026-11-03. Ranobe's kinds include `anime`, and a seasonal
+work's season-1 work is **one entry for the whole show** (Ranobe c134,
+"Series": a seasonal kind's works joined by sequel relations are a series,
+its entry on the season-1 work, and every season's units count in it). So
+tsundoku sends an anime as one work, however many seasons its source lists:
+
+- **One link for the series.** `ranobe_links` holds the work, and the series
+  screen draws Ranobe as **one line under the season lines** in LINK and
+  TRACKING -- never in AniList's place, since each season still has its own
+  entry there. LINK: the work's title, `ONE ENTRY FOR ALL 4 SEASONS`, and
+  RANOBE ↗, or **Not on Ranobe** with FIND. TRACKING: `WATCHING · EP. 57 OF
+96` / `SENT 12 MIN AGO`, counted straight through the seasons (25 + 24 +
+  8), since Ranobe keeps no seasons.
+- **Linked by its ids, or shortened.** `/lookup` asks with the show's
+  AniList id and its MAL id as **`mal_anime:`** (MAL's anime ids are their
+  own sequence): those of its lowest linked season, so a show linked only
+  from season 2 is asked about too (wave 17; `series_links` holds no mirror
+  then). Ranobe's review and its series rows name the same ids
+  (`LINK_IDS_SQL`): `ANILIST 9600` for a show linked only from season 2, not
+  NOT LINKED. The pass does not search an anime by title: the relation
+  page already offers the show's entries, and a title search would fill the
+  review. FIND on its screen still searches (`kind=anime,donghua`).
+- **Episodes, numbered through the seasons** (`mapAnimeUnits`). The work
+  counts its own episodes, so season 1's EP. 24 is 24 and season 2's EP. 1 is
+  25 -- the episode's place in the list, not the number the source printed
+  twice. A recap and a half number take no number and are never sent (Ranobe
+  refuses a fraction it doesn't list as an extra).
+- **Only what the work lists,** as a comic: an episode past a finished
+  work's count waits for the next pass that reads a higher one, and a
+  running work takes any number to 10,000.
+- **What is sent:** each episode read here, as one `w…:episode:N` read, with
+  `entries.read_at` as its time; a mark-read-through sends every episode it
+  marked. MARK UNREAD takes back the reads tsundoku sent, as for a novel.
+  The rating and FAV are the work's, through `PUT /me/library/{work}`, and
+  a write to a season's id sets that season's rating on Ranobe -- tsundoku
+  sends the series' own.
+- **A read-through fills every aired episode.** When the owner marks a show
+  completed on Ranobe, Ranobe itself fills every aired episode of every
+  season (its c134 / c146); tsundoku's part is to send the reads it made
+  here, and to keep the unit numbering straight so those reads land on the
+  right episodes.
+
 ## Sending
 
 `ranobe_units` is each unit **as read here** (`read_at`) against **what was
@@ -397,6 +441,12 @@ CHAPTERS READ HERE` / `SENT ONCE ALL 9 ARE` (2b), so a chapter that
 THE FIRST READ`.
 - **No EDIT.** Ranobe works status out from the reads, and the RATING row
   is what it gets.
+- **On an anime** (c240) neither row is Ranobe's alone: the season lines
+  come first and Ranobe is their last line, one for the whole show
+  (`ONE ENTRY FOR ALL 4 SEASONS`). Its LINK cell is RANOBE ↗ or FIND; its
+  TRACKING line is one (`RANOBE · WATCHING · EP. 57 OF 96`), with TRY AGAIN
+  in the row's cells when it failed. No sheet edits Ranobe, on an anime as
+  on a novel: its status is worked out from the reads.
 
 ## SETTINGS
 

@@ -149,6 +149,29 @@ export const matchTitles = (titles: string[], query?: string | null): string[] =
 	)
 ];
 
+/**
+ * Whether a kind is listed by AniList and MAL as anime, a season at a time:
+ * the registry's own answer (`anilistType`, kinds.ts), which is what decides
+ * that its link, search and send are a season's (c240) and which pair of
+ * catalogues a MAL id can be in (`family`). Asked of the registry rather than
+ * spelled against a kind's name, so a new kind that airs needs no change here;
+ * a kind outside AniList's catalogue (`anilistType` refuses one) is not anime.
+ */
+export const isAnime = (kind: Kind | null | undefined): boolean =>
+	!!kind && kindFacts(kind).catalogue.provider === 'anilist' && anilistType(kind) === 'ANIME';
+
+/**
+ * The season a form field or a URL parameter names, or none. Absent or empty
+ * is no season -- "every season" to UNLINK, "the open season" to the review --
+ * and never season 0, which is a real one (a flat list): `Number(null)` and
+ * `Number('')` are both 0, so neither may read the field (c240).
+ */
+export function seasonNamed(raw: unknown): number | undefined {
+	if (raw === null || raw === undefined || String(raw) === '') return undefined;
+	const n = Number(raw);
+	return Number.isInteger(n) ? n : undefined;
+}
+
 /** The AniList formats an anime is (doc/LINKS.md, "A novel never matches a comic"). */
 export const ANIME_FORMATS = ['TV', 'TV_SHORT', 'MOVIE', 'OVA', 'ONA', 'SPECIAL'] as const;
 
@@ -415,6 +438,45 @@ export function candidateRows(
 	];
 }
 
+/**
+ * One season of an anime as the series screen's rows draw it (c240): its
+ * link, its parts and what the last search found. Plain data, so the server's
+ * `seriesSeasons` can hand it to the component as it is.
+ */
+export type SeasonRowLink = {
+	anilistId: number | null;
+	malId: number | null;
+	title: string;
+	via: string;
+	format: string | null;
+	episodes: number | null;
+	year: number | null;
+	resolvedAt: number | null;
+};
+export type SeasonRow = {
+	season: number;
+	from: number;
+	to: number;
+	count: number;
+	aired: number;
+	watched: number;
+	link: SeasonRowLink | null;
+	parts: { part: number; from: number; to: number; link: SeasonRowLink | null }[];
+	candidates: number;
+	searched: boolean;
+	queued: boolean;
+	/**
+	 * What settled it, when something did: NONE OF THESE (`none`) or UNLINK
+	 * (`unlinked`). No pass asks again either way, but the line says which
+	 * (c240).
+	 */
+	decision: SeasonDecision | null;
+	searchTitle: string;
+};
+
+/** A season settled without a link: the owner's NONE OF THESE, or an UNLINK. */
+export type SeasonDecision = 'none' | 'unlinked';
+
 /** "ANILIST 132215 · MAL 128830", or with no MAL entry just the first. */
 export function idsLine(anilistId: number | null, malId: number | null): string {
 	return [anilistId ? `ANILIST ${anilistId}` : '', malId ? `MAL ${malId}` : '']
@@ -433,6 +495,8 @@ export function viaLabel(via: string): string {
 			return 'THE SAME TITLE ON ANILIST';
 		case 'review':
 			return 'CHOSEN IN THE REVIEW';
+		case 'relations':
+			return 'FROM ANILIST’S RELATIONS';
 		case 'pasted':
 			return 'PASTED';
 		default:
