@@ -600,6 +600,11 @@ test.describe('a catalogue that answers', () => {
 			await page.goto(`${BASE}/series/${show}`);
 			const row = page.locator('.track-row');
 			await row.getByRole('button', { name: 'EDIT' }).click();
+			// The status rule, as the send keeps it (round 1's low): the last episode
+			// completes a season, but never over the owner's ON HOLD or DROPPED.
+			await expect(page.locator('.notes')).toContainText(
+				'ITS LAST SENDS COMPLETED. ON HOLD AND DROPPED ARE YOURS AND STAY: ONLY THE EPISODE GOES.'
+			);
 			await page.locator('form.statuses button', { hasText: 'COMPLETED' }).click();
 			// The action queues and sends before it answers: what waits or what was
 			// sent is this skill's to read, beside the server.
