@@ -89,7 +89,10 @@ paged reader's zones drawn as a chapter opens, by finger ([`READER.md`](READER.m
   - **N SERIES DIFFER →** lists each series, what it keeps, and when it was
     chosen in the player.
 - **QUALITY** is the device's: what a stream starts at.
-- **SPEED** and **DIM** are listed with no control.
+- **SPEED**, **DIM** and **VOLUME** are listed with no control. VOLUME
+  (`tsundoku:anime:volume`, the device's, c385) is where the next episode
+  starts, set by the player's VOL slider, wheel and ↑ ↓; mute is never kept,
+  so a muted episode does not leave the next one silent.
 
 ## 04 — Downloading
 

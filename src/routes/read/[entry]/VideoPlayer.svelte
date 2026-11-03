@@ -36,6 +36,10 @@
 		STALL_S,
 		stallStep,
 		SUB_SIZES,
+		cleanVolume,
+		verticalFraction,
+		KEY_STEP,
+		WHEEL_STEP,
 		subtitlePx,
 		type Cue,
 		type SubSize
@@ -224,7 +228,7 @@
 			// Offline: the choice lasts this episode.
 		});
 	};
-	// Quality and dim are this device's, stamped for the workstation's copy (settings/local.ts).
+	// Quality, dim and volume are this device's, stamped for the workstation's copy (settings/local.ts).
 	const load = <T,>(k: string, fallback: T): T => readLocal(k, fallback);
 	const save = (k: string, v: Json) => writeLocal(k, v);
 	let audioLang = $state<string | null>(null);
@@ -1085,8 +1089,8 @@
 		if (k === ' ') toggle();
 		else if (k === 'ArrowLeft') seekArrow(-10);
 		else if (k === 'ArrowRight') seekArrow(10);
-		else if (k === 'ArrowUp') setVolume(Math.min(1, volume + 0.1));
-		else if (k === 'ArrowDown') setVolume(Math.max(0, volume - 0.1));
+		else if (k === 'ArrowUp') setVolume(volume + KEY_STEP);
+		else if (k === 'ArrowDown') setVolume(volume - KEY_STEP);
 		else if (k === 'f' || k === 'F') void full();
 		else if (k === 'm' || k === 'M') setMuted(!muted);
 		else if (k === 'c' || k === 'C') setSub(subLang ? null : (quality?.subtitles[0]?.lang ?? null));
@@ -1101,9 +1105,44 @@
 		showChrome();
 	}
 
+	const VOLUME_KEY = 'tsundoku:anime:volume';
+	/**
+	 * The one door every volume change goes through (c385): the slider, the
+	 * wheel and ↑ ↓. The level is this device's and the next episode starts at
+	 * it; mute is never written, so a muted episode can't leave the next one
+	 * silent. Setting a level above 0 unmutes, as a slider moved while muted
+	 * would otherwise move nothing anyone can hear.
+	 */
 	function setVolume(v: number) {
-		volume = v;
-		if (video) video.volume = v;
+		volume = cleanVolume(v);
+		if (video) video.volume = volume;
+		save(VOLUME_KEY, volume);
+		if (muted && volume > 0) setMuted(false);
+	}
+	/** The VOL cell's slider (c385): a pointer's, so it has no key handler; ↑ ↓ are the keys. */
+	let volOpen = $state(false);
+	function volAt(e: PointerEvent) {
+		const el = e.currentTarget as HTMLElement;
+		const box = el.getBoundingClientRect();
+		setVolume(verticalFraction(e.clientY, { top: box.top, height: box.height }));
+	}
+	function volDown(e: PointerEvent) {
+		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+		volAt(e);
+	}
+	function volMove(e: PointerEvent) {
+		if (e.buttons & 1) volAt(e);
+	}
+	/** The wheel over the cell or its slider steps 5 %; not passive, so the page doesn't scroll. */
+	function volWheel(node: HTMLElement) {
+		const onWheel = (e: WheelEvent) => {
+			if (!e.deltaY) return;
+			e.preventDefault();
+			setVolume(volume + (e.deltaY < 0 ? WHEEL_STEP : -WHEEL_STEP));
+			showChrome();
+		};
+		node.addEventListener('wheel', onWheel, { passive: false });
+		return () => node.removeEventListener('wheel', onWheel);
 	}
 	function setMuted(m: boolean) {
 		muted = m;
@@ -1217,6 +1256,9 @@
 	onMount(() => {
 		subSize = startTracks({ audio: [], subs: [], ...data.player }).subsize;
 		dim = load<number>('tsundoku:anime:dim', 0);
+		// Read once, before the stream starts, so the first frame is already at it.
+		volume = cleanVolume(load<unknown>(VOLUME_KEY, 1));
+		if (video) video.volume = volume;
 		device = navigator.language;
 		mouse = matchMedia('(pointer: fine)').matches;
 		void start();
@@ -1624,9 +1666,44 @@
 				<button type="button" class="cell" disabled={!prev} onclick={playPrev}
 					>{prev ? `← ${epShort(prev)}` : '←'}</button
 				>
-				<button type="button" class="cell desk" onclick={() => setMuted(!muted)}
-					>{muted ? 'MUTED' : `VOL ${Math.round(volume * 100)}%`}</button
+				<!-- VOL (c385): the label mutes, as before; hovering or clicking it opens
+				     the slider above it, and the wheel over either steps 5 %. -->
+				<div
+					class="vol desk"
+					class:open={volOpen}
+					role="group"
+					aria-label="Volume"
+					onpointerleave={() => (volOpen = false)}
+					{@attach volWheel}
 				>
+					<button
+						type="button"
+						class="cell"
+						aria-label={muted ? 'Unmute' : 'Mute'}
+						onclick={() => {
+							setMuted(!muted);
+							volOpen = true;
+						}}>{muted ? 'MUTED' : `VOL ${Math.round(volume * 100)}%`}</button
+					>
+					<div class="volpop">
+						<div
+							class="vtrack"
+							role="slider"
+							tabindex="-1"
+							aria-label="Volume"
+							aria-orientation="vertical"
+							aria-valuemin={0}
+							aria-valuemax={100}
+							aria-valuenow={Math.round(volume * 100)}
+							aria-valuetext={muted ? 'Muted' : `${Math.round(volume * 100)}%`}
+							onpointerdown={volDown}
+							onpointermove={volMove}
+						>
+							<div class="vfill" style:height="{(muted ? 0 : volume) * 100}%"></div>
+							<div class="vthumb" style:bottom="{(muted ? 0 : volume) * 100}%"></div>
+						</div>
+					</div>
+				</div>
 				<button type="button" class="cell grow" onclick={() => (sheet = true)}>{playing}</button>
 				<button type="button" class="cell desk" onclick={() => (keysOpen = true)}>? KEYS</button>
 				<button type="button" class="cell" disabled={!next || !playable(next)} onclick={playNext}
@@ -2531,6 +2608,65 @@
 	}
 	.cell:last-child {
 		border-right: 0;
+	}
+	/*
+	 * VOL (c385): the cell keeps its place in the row; the slider rises above
+	 * it, a column of the bar's own surface with the hairline, its track the
+	 * scrubber's turned upright. It is open while the pointer is over either,
+	 * so the gap-free stack is what keeps it open on the way up.
+	 */
+	.vol {
+		position: relative;
+		border-right: var(--hairline);
+	}
+	.vol > .cell {
+		border-right: 0;
+	}
+	.volpop {
+		display: none;
+		position: absolute;
+		bottom: 100%;
+		left: 0;
+		right: 0;
+		height: 148px;
+		padding: 16px 0;
+		background: var(--surface-page);
+		border: var(--hairline);
+		border-bottom: 0;
+	}
+	.vol:hover .volpop,
+	.vol.open .volpop {
+		display: block;
+	}
+	.vtrack {
+		position: relative;
+		width: 4px;
+		height: 100%;
+		margin: 0 auto;
+		background: var(--line-1);
+		touch-action: none;
+		cursor: pointer;
+	}
+	.vtrack::before {
+		/* A pointer's worth of target around a 4px line: the column's width. */
+		content: '';
+		position: absolute;
+		inset: -16px -20px;
+	}
+	.vtrack .vfill {
+		position: absolute;
+		left: 0;
+		bottom: 0;
+		width: 4px;
+		background: var(--accent);
+	}
+	.vtrack .vthumb {
+		position: absolute;
+		left: -10px;
+		width: 24px;
+		height: 4px;
+		margin-bottom: -2px;
+		background: var(--text-1);
 	}
 	.cell.grow {
 		flex: 1 1 auto;

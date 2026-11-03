@@ -284,3 +284,25 @@ export function bufferedTo(ranges: [number, number][], t: number): number {
 	const r = ranges.find(([start, end]) => start <= t + 0.5 && t <= end);
 	return r ? r[1] : t;
 }
+
+/** The VOL slider's and the wheel's step, and ↑ ↓'s (c385). */
+export const WHEEL_STEP = 0.05;
+export const KEY_STEP = 0.1;
+
+/**
+ * A volume as the player keeps it (c385): 0 to 1, in whole percent, and the
+ * full volume for anything that is not a number (a value another build or a
+ * hand edit left in the device's storage). Whole percent because the cell
+ * prints it so, and ten ↑ presses must land on 100 %, not 0.9999999.
+ */
+export function cleanVolume(v: unknown): number {
+	const n = typeof v === 'number' ? v : Number.NaN;
+	if (!Number.isFinite(n)) return 1;
+	return Math.round(Math.max(0, Math.min(1, n)) * 100) / 100;
+}
+
+/** Where on a vertical slider a pointer is, 0 at the bottom to 1 at the top. */
+export function verticalFraction(clientY: number, box: { top: number; height: number }): number {
+	if (!(box.height > 0)) return 0;
+	return Math.max(0, Math.min(1, 1 - (clientY - box.top) / box.height));
+}

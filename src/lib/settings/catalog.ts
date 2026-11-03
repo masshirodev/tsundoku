@@ -120,6 +120,9 @@ export const VALUES = {
 	// Null: the highest the server offers.
 	'anime.quality': { where: 'device', key: 'tsundoku:anime:quality', def: null },
 	'anime.dim': { where: 'device', key: 'tsundoku:anime:dim', def: 0, label: pct },
+	// What the next episode starts at (c385): 0 to 1, as a <video>'s volume. Mute
+	// is never kept, so a muted episode can't leave the next one silent.
+	'anime.volume': { where: 'device', key: 'tsundoku:anime:volume', def: 1, label: pct },
 	// 04 — downloading
 	'dl.quality': { where: 'library', key: 'anime_download_quality', def: '1080' },
 	// The languages kept beside the original; '' keeps every one (c160).
@@ -652,6 +655,13 @@ export const SECTIONS: SectionDef[] = [
 				where: 'device',
 				control: { type: 'info', value: 'anime.dim' },
 				meta: 'SET IN THE PLAYER'
+			},
+			{
+				id: 'player-volume',
+				label: 'VOLUME',
+				where: 'device',
+				control: { type: 'info', value: 'anime.volume' },
+				meta: 'SET IN THE PLAYER · MUTE IS NOT KEPT'
 			}
 		]
 	},

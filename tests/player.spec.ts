@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+	cleanVolume,
+	verticalFraction,
+	KEY_STEP,
 	bufferedTo,
 	challengeScale,
 	CHROME_MOVE_PX,
@@ -210,5 +213,47 @@ describe('the tracks an anime starts on (card c171)', () => {
 			startTracks({ ...offered, series: { audio: 'ES' }, defaults: { audio: 'EN' }, last: {} })
 				.audio
 		).toBe('EN');
+	});
+});
+
+describe('the volume (c385)', () => {
+	it('keeps 0 to 1 in whole percent, and the full volume for anything not a number', () => {
+		const seen: [unknown, number][] = [
+			[0.5, 0.5],
+			[0.333, 0.33],
+			[0, 0],
+			[1, 1],
+			[1.4, 1],
+			[-0.2, 0],
+			[Number.NaN, 1],
+			[Number.POSITIVE_INFINITY, 1],
+			['0.4', 1],
+			[null, 1],
+			[undefined, 1],
+			[{}, 1]
+		];
+		for (const [v, want] of seen) {
+			expect(cleanVolume(v), String(v)).toBe(want);
+			// A normaliser holds on its own output.
+			expect(cleanVolume(cleanVolume(v))).toBe(cleanVolume(v));
+		}
+	});
+
+	it('lands ten steps up from 0 on exactly 100 %, and ten down on exactly 0', () => {
+		let v = 0;
+		for (let i = 0; i < 10; i++) v = cleanVolume(v + KEY_STEP);
+		expect(v).toBe(1);
+		for (let i = 0; i < 10; i++) v = cleanVolume(v - KEY_STEP);
+		expect(v).toBe(0);
+	});
+
+	it('reads a vertical slider from the bottom up, clamped to its box', () => {
+		const box = { top: 100, height: 120 };
+		expect(verticalFraction(220, box)).toBe(0);
+		expect(verticalFraction(100, box)).toBe(1);
+		expect(verticalFraction(160, box)).toBe(0.5);
+		expect(verticalFraction(400, box)).toBe(0);
+		expect(verticalFraction(0, box)).toBe(1);
+		expect(verticalFraction(160, { top: 0, height: 0 })).toBe(0);
 	});
 });
