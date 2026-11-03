@@ -559,12 +559,32 @@ card, which the owner found fighting the remote (2026-11-02).
   card are ever both up, because they do the same thing and the card is the
   button the owner reaches for; today `inEnding` stands down when there is a
   next, so they cannot be.
+- **The offer takes the pad when it starts, not when the bar draws it.**
+  SKIP inside its 8 s alone window is offered with the bar down, and a bar that
+  comes up renders it again; that is a reveal, not a new offer, so OK, ↑ and ↓
+  still bring the bar on ▶❚❚ (6A/6B) while a SKIP runs. ↑ from the bar reaches
+  it as before: ↓ or ↑ out of the bar is the bar's, and the bar's own ↑ names
+  PLAY NOW or SKIP.
+- **The chrome's own 4 s hands the pad back to the offer.** While the card or
+  SKIP is up, `.top` and `.bottom` are `data-focus-skip`, so a cell focused
+  there stops being a stop the moment the bar hides. A TV-only effect puts
+  focus back on PLAY NOW (or SKIP) instead of leaving OK on the dead track and
+  ↑/↓ on STAY. PLAY NOW and SKIP also carry `data-focus-start` while offered,
+  so the layer's "nothing focused" fallback and BACK's climb start on the
+  offer rather than on STAY. ↑ on the card itself has nothing above it and
+  stays there; it does not open the bar underneath the button.
+- **OK on the focused seek bar toggles the picture.** The layer turns OK into a
+  click on the focused thing, and a pointer's click on the bar is a seek, so
+  only a click with no pointer detail — one an element made — toggles. Scrubbing
+  with a finger or a mouse is untouched.
 - **The root lifts `data-focus-off` while the card or SKIP is up**, even with
   the bar hidden, so the pad reaches them; a hidden bar is not an arrow stop
   (`data-focus-skip`), so a key reaches the card rather than an invisible cell.
 - **Tests.** `tests/tv-player.e2e.ts` covers the bar's ← → and ↑ from its
-  cells, a hidden bar's seek, PLAY NOW and STAY, and SKIP's focus and its
-  going. `tests/focus-geometry.spec.ts` pins why the 1 px mattered.
+  cells, a hidden bar's seek, PLAY NOW and STAY, SKIP's focus and its going,
+  the chrome's auto-hide handing the pad back to the card, and a revealed bar
+  keeping ▶❚❚ while SKIP is offered. `tests/focus-geometry.spec.ts` pins why the
+  1 px mattered.
 
 ## What it does not do yet
 

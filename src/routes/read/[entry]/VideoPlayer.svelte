@@ -47,6 +47,7 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import { tv } from '$lib/device.svelte';
 	import { focusScope, registerBack } from '$lib/focus';
+	import { isFocusable } from '$lib/focus/dom';
 
 	/**
 	 * The player (doc/ANIME.md, "The player"; card c156): Index Player, Player
@@ -348,7 +349,8 @@
 	// ---- who a TV's keys are for (c296) ------------------------------------------------------------
 	/** Whether the last thing focused was one of the overlay's buttons. */
 	let overlayHadFocus = false;
-	let focusedOverlay: 'next' | 'skip' | null = null;
+	/** The offer that last took the pad, whether or not the chrome drew it. */
+	let offered: 'next' | 'skip' | null = null;
 
 	function overlayButton(kind: 'next' | 'skip'): HTMLElement | null {
 		const selector = kind === 'next' ? '[data-player-play]' : '[data-player-skip]';
@@ -360,24 +362,54 @@
 	}
 
 	/**
-	 * PLAY NOW, and SKIP, take focus the moment they appear on a TV (c296):
+	 * The offer as it *exists*, not as the chrome draws it (c296, round 2): a
+	 * SKIP inside its 8 s alone window shows without the bar, and one whose
+	 * window has closed shows only with it, so keying the auto-focus on what is
+	 * on screen moved the mark every time the bar was revealed -- off the ▶❚❚
+	 * the owner had just asked for. The offer takes the pad when it starts; a
+	 * bar that reveals an offer already running leaves focus where it is.
+	 */
+	const offer = $derived<'next' | 'skip' | null>(endcardShown ? 'next' : skip ? 'skip' : null);
+
+	/**
+	 * PLAY NOW, and SKIP, take focus the moment they are offered on a TV (c296):
 	 * OK then does the thing the card offers, in one press. Only a TV, never a
 	 * pointer, never over an open sheet. An owner already on the button keeps
 	 * it, and PLAY NOW wins over SKIP when both could be up (see `overlay`).
 	 */
 	$effect(() => {
-		const kind = overlay;
-		const was = focusedOverlay;
-		focusedOverlay = kind;
+		const kind = offer;
+		const was = offered;
+		offered = kind;
 		if (!kind || kind === was || !tv.current || sheet || keysOpen) return;
 		void tick().then(() => {
-			if (overlay !== kind || sheet || keysOpen) return;
+			if (offer !== kind || sheet || keysOpen) return;
 			const wanted = overlayButton(kind);
 			const active = document.activeElement;
 			if (!wanted || active === wanted) return;
 			// A sheet opened in the same breath keeps the pad: its scope owns it.
 			if (active instanceof Element && active.closest('[role="dialog"]')) return;
 			wanted.focus({ preventScroll: true });
+		});
+	});
+
+	/**
+	 * The chrome's own 4 s (HIDE_TOUCH_MS) must not strand the pad on a cell it
+	 * has just hidden (c296, round 2): with the card or SKIP up, `.top` and
+	 * `.bottom` are `data-focus-skip`, so a cell focused there is no stop any
+	 * more -- every arrow runs the layer's "nothing focused" path (STAY) and OK
+	 * clicks the track, which has nothing to do. While an offer is up the offer
+	 * keeps the pad; the picture does not take it back.
+	 */
+	$effect(() => {
+		if (!tv.current || chrome || !overlay) return;
+		void tick().then(() => {
+			if (!tv.current || chrome || !overlay) return;
+			const active = document.activeElement;
+			if (!(active instanceof HTMLElement) || active === document.body) return;
+			if (active.closest('.endcard, .skip')) return;
+			if (isFocusable(active)) return;
+			overlayButton(overlay)?.focus({ preventScroll: true });
 		});
 	});
 
@@ -943,9 +975,13 @@
 				scrub?.focus({ preventScroll: true });
 			} else if ((k === 'ArrowDown' || k === 'ArrowUp') && onOverlay) {
 				// ↓ out of the card (or SKIP) is into the bar; the owner is on the
-				// controls now, so the bar comes with it (c296).
-				showChrome();
-				scrub?.focus({ preventScroll: true });
+				// controls now, so the bar comes with it (c296). ↑ has nothing
+				// above it, so the offer keeps the pad rather than opening the bar
+				// underneath it and taking the focus back off the button.
+				if (k === 'ArrowDown') {
+					showChrome();
+					scrub?.focus({ preventScroll: true });
+				}
 			} else {
 				// 6A/6B: the key brings the bar and puts focus on ▶❚❚, so the next
 				// press is the one that acts.
@@ -1133,7 +1169,9 @@
 			</div>
 		{/if}
 		{#if skipShown}
-			<button type="button" class="skip" data-player-skip onclick={skipNow}>{skip}</button>
+			<button type="button" class="skip" data-player-skip data-focus-start onclick={skipNow}
+				>{skip}</button
+			>
 		{/if}
 		{#if seekFlash}
 			<div class="flash" class:back={seekFlash.by < 0} role="status">
@@ -1258,6 +1296,10 @@
 		<footer class="bottom" data-focus-skip={!tv.current || chrome ? undefined : ''}>
 			<div class="scrubrow">
 				<div class="e">{clock(time)}</div>
+				<!-- The pad's OK is turned into a click on the focused thing by the focus
+				     layer's own Enter handler, which is why there is no key handler here
+				     (and why one would press twice). -->
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<div
 					class="track"
 					bind:this={scrub}
@@ -1273,6 +1315,14 @@
 					onpointerdown={scrubDown}
 					onpointermove={scrubMove}
 					onpointerleave={() => (hoverAt = null)}
+					onclick={(e) => {
+						// OK on the pad clicks the focused thing (the layer's OK press), and
+						// the bar is an arrow stop since c296. A pointer's click on the bar is
+						// a seek, so only a detail-less click -- one an element made -- is the
+						// pad's, and it toggles the picture, the nearest verb the bar's own
+						// row acts out (c296, the review's round-1 low 5).
+						if (e.detail === 0) toggle();
+					}}
 				>
 					<div class="buf" style:width={pct(buffered)}></div>
 					<div class="seen" style:width={pct(time)}></div>
@@ -1344,7 +1394,9 @@
 				<div class="when">PLAYS WHEN THIS ONE ENDS · IN {clock(Math.max(0, duration - time))}</div>
 				<div class="two">
 					<button type="button" onclick={stayHere}>STAY</button>
-					<button type="button" class="acc" data-player-play onclick={playNext}>PLAY NOW →</button>
+					<button type="button" class="acc" data-player-play data-focus-start onclick={playNext}
+						>PLAY NOW →</button
+					>
 				</div>
 			</div>
 		{/if}

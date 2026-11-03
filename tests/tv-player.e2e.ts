@@ -300,6 +300,13 @@ test('the seek bar keeps ← →, and ↑ from every cell of the row lands on it
 	await cells.last().focus();
 	await page.keyboard.press('ArrowUp');
 	await expect(track).toBeFocused();
+
+	// OK on the bar is the pad's click on it, and it toggles the picture rather
+	// than doing nothing at all (c296, the review's round-1 low 5).
+	await page.keyboard.press('Enter');
+	await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(false);
+	await page.keyboard.press('Enter');
+	await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
 });
 
 /** Part 2: with the bar hidden, ← → seek and the bar comes with the keys on it. */
@@ -382,8 +389,9 @@ test('SKIP takes focus, gives the bar focus, and gives it back', async ({ page }
 	const track = page.locator('.scrubrow .track');
 	const skip = page.getByRole('button', { name: 'SKIP INTRO →' });
 
-	// The slow clip (beforeEach) keeps it inside the 1–3 s opening while the
-	// test presses keys.
+	// Paused: the chrome's 4 s timer never races the assertions below, and the
+	// opening stays open while the test walks the keys.
+	await video.evaluate((v: HTMLVideoElement) => v.pause());
 	await video.evaluate((v: HTMLVideoElement) => {
 		v.currentTime = 1.2;
 	});
@@ -425,4 +433,95 @@ test('OK on the focused SKIP skips the opening', async ({ page }) => {
 		.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime))
 		.toBeGreaterThanOrEqual(3);
 	await expect(skip).toHaveCount(0);
+});
+
+/**
+ * The chrome's own 4 s must not strand the pad on the bar it has just hidden
+ * (c296, round 2): with the card up, `.bottom` is `data-focus-skip`, so a cell
+ * focused there stops being a stop at all -- every arrow ran the layer's
+ * "nothing focused" path (STAY), and OK clicked the dead track. The offer keeps
+ * the pad while it is up. Playing, not paused: the card only stays while the
+ * clip does, and hiding the bar by hand would leave the timer out of it.
+ */
+test('the chrome’s auto-hide hands the pad back to the card', async ({ page }) => {
+	await openEpisode(page);
+	await play(page);
+	await streamReady(page);
+	const video = page.locator('video');
+	const track = page.locator('.scrubrow .track');
+	const playNow = page.locator('.endcard .acc');
+
+	// Playing with the bar down: the card appears over the picture.
+	await page.keyboard.press('Escape');
+	await expect(page.locator('.player')).not.toHaveClass(/chrome/);
+	await video.evaluate((v: HTMLVideoElement) => (v.currentTime = 6.2));
+	await expect(page.locator('.endcard')).toBeVisible();
+	await expect(playNow).toBeFocused();
+
+	// ↓ brings the bar, with the pad on the seek bar.
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('.player')).toHaveClass(/chrome/);
+	await expect(track).toBeFocused();
+
+	// The 4 s go by with the card still up: focus comes back to the offer
+	// rather than staying on a cell that is no longer a stop.
+	await page.waitForTimeout(4500);
+	await expect(page.locator('.player')).not.toHaveClass(/chrome/);
+	await expect(playNow).toBeFocused();
+
+	// ↑ has nothing above it, so the card keeps the pad (and the bar stays
+	// down); OK plays EP. 12 now. One snapshot: an assertion that polls would
+	// be satisfied later by the auto-hide putting the pad back on the card.
+	await page.keyboard.press('ArrowUp');
+	expect(
+		await page.evaluate(() => ({
+			chrome: document.querySelector('.player')?.classList.contains('chrome') ?? false,
+			onCard: document.activeElement?.hasAttribute('data-player-play') ?? false
+		}))
+	).toEqual({ chrome: false, onCard: true });
+	const before = page.url();
+	await page.keyboard.press('Enter');
+	await page.waitForURL((url) => url.toString() !== before);
+	await expect(page.locator('.player')).toBeVisible();
+});
+
+/**
+ * Revealing the bar must not take the mark off ▶❚❚ and put it on SKIP (c296,
+ * round 2). A SKIP inside its 8 s alone window is offered while the chrome is
+ * hidden, and the bar coming up renders it again: a reveal, not a new offer, so
+ * ▶❚❚ keeps the focus the owner asked for. ↑ still reaches SKIP, which is part
+ * 5's return path, one press later because ↑ from a cell stops on the bar.
+ */
+test('revealing the bar keeps ▶❚❚, and ↑ still reaches an offered SKIP', async ({ page }) => {
+	await openEpisode(page);
+	await play(page);
+	await streamReady(page);
+	const video = page.locator('video');
+	const track = page.locator('.scrubrow .track');
+	const skip = page.getByRole('button', { name: 'SKIP INTRO →' });
+
+	// Inside the opening with the bar down: SKIP shows alone and takes the pad.
+	await video.evaluate((v: HTMLVideoElement) => (v.currentTime = 1.2));
+	await expect(skip).toBeFocused();
+	await page.keyboard.press('Escape');
+	await expect(page.locator('.player')).not.toHaveClass(/chrome/);
+
+	// The alone window ends while the opening still runs: SKIP goes with the
+	// bar, and nothing is left focused on it.
+	await page.waitForTimeout(8500);
+	await expect(skip).toHaveCount(0);
+	await expect(page.locator('.player')).not.toHaveClass(/chrome/);
+
+	// OK brings the bar on ▶❚❚; the offer was already running, so it does not
+	// steal the mark.
+	await page.keyboard.press('Enter');
+	await expect(page.locator('.player')).toHaveClass(/chrome/);
+	await expect(skip).toBeVisible();
+	await expect(page.locator('.cells .pause')).toBeFocused();
+
+	// ↑ from the bar reaches SKIP: one press to the bar, one to the button.
+	await page.keyboard.press('ArrowUp');
+	await expect(track).toBeFocused();
+	await page.keyboard.press('ArrowUp');
+	await expect(skip).toBeFocused();
 });
