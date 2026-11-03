@@ -70,7 +70,7 @@ for ($i = 0; $i -lt 60 -and (Test-Path "$prog\uninstall.exe"); $i++) { Start-Sle
 Check 'the program is gone' (-not (Test-Path $prog))
 Check 'and its Start-menu entries' (-not (Test-Path $menu) -and -not (Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Reset tsundoku password.lnk"))
 Check 'and its Apps entry' (-not (Test-Path $key))
-Check 'the library stays' ((Test-Path "$data\tsundoku.sqlite") -and (Test-Path "$data\library\Mihon"))
+Check 'the library stays' ((Test-Path "$data\tsundoku.sqlite") -and (Test-Path "$data\library\devices\tsundoku\Mihon"))
 Check 'nothing left running' (@(Get-Process java, node -ErrorAction SilentlyContinue).Count -eq 0)
 
 if ($failed) { "`n$failed failed"; exit 1 } else { "`nall passed" }

@@ -8,6 +8,12 @@ The Windows installer is built too (an NSIS one, not Inno Setup: see
 [`RELEASE.md`](RELEASE.md), "The installer"). Docker (3), publishing and
 update notices are still the plan as decided that day. Cards on the Tsundoku board carry the `Friends` label.
 
+Friends land on **tsundoku.masshiro.pro** (2026-11-03, card c359): one page that
+says what tsundoku is and offers the newest release from dl.tsundoku.masshiro.pro,
+read from the signed latest.json at each deploy, with the friend README's steps
+laid out. It sits behind a password until the public release, when the gate
+comes off and nothing else on it changes. [`WEBSITE.md`](WEBSITE.md).
+
 Until now tsundoku had exactly one install: this workstation, served over the
 tailnet to the owner's tablet. Friends want to try it, some on Windows. This
 document is how a stranger's machine gets a working tsundoku without the

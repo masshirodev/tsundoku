@@ -106,6 +106,9 @@ is the mount development pressures.
 
 ## Documents
 
+- [`doc/WEBSITE.md`](doc/WEBSITE.md) — the website at tsundoku.masshiro.pro
+  (behind a password until the public release): how `site/` builds from the
+  signed latest.json, the captures, the deploy, and its departures from the handoff.
 - [`doc/ARCHITECTURE.md`](doc/ARCHITECTURE.md) — shape of the system, data
   model, how it talks to Kumiko and yomu, and the phases.
 - [`doc/IMPORT-FORMATS.md`](doc/IMPORT-FORMATS.md) — what Mihon, Hentoid and

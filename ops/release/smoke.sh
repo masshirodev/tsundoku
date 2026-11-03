@@ -36,9 +36,12 @@ fi
 rm -rf "$work"
 mkdir -p "$work/library"
 
-# The fixture the importer's specs use (tests/helpers/mihon-fixture.ts).
+# The fixtures the importer's specs use, where a scan reads them since c191
+# (doc/IMPORT-MIHON.md, "Where it reads from"): the Mihon one as tsundoku's own
+# device, since the library's own Mihon/ is read for its backup alone, and
+# Hentoid's at the library root, whose books are what GROUP takes.
 node --disable-warning=ExperimentalWarning -e \
-	"import('$repo/tests/helpers/mihon-fixture.ts').then((m) => m.writeMihonFolder('$work/library'))"
+	"Promise.all([import('$repo/tests/helpers/mihon-fixture.ts'), import('$repo/tests/helpers/hentoid-fixture.ts')]).then(([m, h]) => { m.writeMihonFolder('$work/library/devices/tsundoku'); h.writeHentoidFolder('$work/library'); })"
 (cd "$work/library" && zip -qr ../library.zip .)
 status=0
 

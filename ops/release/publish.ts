@@ -182,3 +182,20 @@ for (const f of Object.values(files)) {
 }
 rmSync(stage, { recursive: true, force: true });
 console.log(`published ${version}: ${URL_BASE}/latest/tsundoku-win-x64.exe`);
+
+// The website's download block reads latest.json at build time: rebuild it
+// now, so it offers this version (doc/WEBSITE.md, "Deploy"). The release is
+// already out, so a failure here only warns: the next push to the site, or
+// `gh workflow run site.yml`, catches the page up.
+try {
+	execFileSync('gh', ['workflow', 'run', 'site.yml', '--ref', 'main'], {
+		cwd: repo,
+		stdio: 'inherit'
+	});
+	console.log('website: rebuild dispatched (gh run list --workflow site.yml)');
+} catch (e) {
+	console.warn(
+		`website: couldn't dispatch site.yml (${(e as Error).message.split('\n')[0]}); ` +
+			'run `gh workflow run site.yml` so the download block shows this version.'
+	);
+}

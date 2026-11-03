@@ -15,3 +15,5 @@ yarn.lock
 !/project.inlang/settings.json
 # The Android TV app's Gradle output (android/tv/.gitignore), never source.
 /android/tv/**/build/
+# The website handoff, mirrored verbatim like the design project (doc/WEBSITE.md).
+/doc/handoffs/

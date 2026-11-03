@@ -36,6 +36,10 @@
 		"ranobe": "node --experimental-strip-types scripts/ranobe.ts",
 		"release": "node --experimental-strip-types ops/release/release.ts",
 		"release:publish": "node --experimental-strip-types ops/release/publish.ts",
+		"site": "node --experimental-strip-types site/build.ts",
+		"site:serve": "node --experimental-strip-types site/serve.ts",
+		"site:captures": "playwright test -c site/captures.config.ts",
+		"site:test": "node --experimental-strip-types --test site/test/*.test.ts && playwright test -c site/playwright.config.ts",
 		"secrets:pull": "sh scripts/secrets-pull.sh"
 	},
 	"dependencies": {
