@@ -1,5 +1,10 @@
+import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
+import { rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { Browser, TestInfo } from '@playwright/test';
 import { expect, test } from './fixtures';
+import { E2E_TOKEN } from '../playwright.config';
 
 /**
  * The library with Works, in a real browser.
@@ -18,34 +23,69 @@ import { expect, test } from './fixtures';
  * hand-written notes at its end, must be added back (doc/WORKS.md).
  */
 
-const base = process.env.PLAYWRIGHT_BASE_URL ?? '';
-
 /**
- * The seeded library has no Work: W2 and W3 draw one, and W4 is what groups.
- * So these measure a Work this file makes and ends again -- out of the two
- * series the seed reads newest, which is what puts the run first in CONTINUE.
- * This preamble is hand-written; regenerating the assertions below drops it
- * (doc/WORKS.md, "Where it departs from the handoff").
+ * A Work of its own, and a preview of its own to draw it on. The seeded
+ * library has none -- W2 and W3 draw one, and W4 is what groups -- and a
+ * frame spec that wrote to the shared database would hide two tiles from the
+ * flow specs running beside it. So this is the Ranobe review's arrangement
+ * (`tests/ranobe-flow.e2e.ts`): a seeded database of this file's own, and a
+ * preview of the same build on its own port, with a Work made through the app and
+ * left there. This preamble is hand-written; regenerating the assertions
+ * below drops it (doc/WORKS.md, "The frames").
  */
-let workId = 0;
+const PORT = Number(process.env.PLAYWRIGHT_WORKS_PORT ?? 4298);
+const base = `http://localhost:${PORT}`;
+const dbPath = join(tmpdir(), `tsundoku-e2e-works-${process.pid}.sqlite`);
+let server: ChildProcess | null = null;
 
-/** A page of this project's own: a beforeAll has no `page` fixture. */
+/** A page of this project's own, signed in as the suite's token signs in. */
 async function signedIn(browser: Browser, info: TestInfo) {
 	const context = await browser.newContext({
 		storageState: info.project.use.storageState as string,
-		baseURL: info.project.use.baseURL as string
+		baseURL: base
 	});
 	const page = await context.newPage();
 	return { page, close: () => context.close() };
 }
 
 test.beforeAll(async ({ browser }, info) => {
+	rmSync(dbPath, { force: true });
+	execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
+		env: { ...process.env, DATABASE_PATH: dbPath, NODE_NO_WARNINGS: '1' },
+		stdio: 'pipe'
+	});
+	server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], {
+		env: {
+			...process.env,
+			DATABASE_PATH: dbPath,
+			TSUNDOKU_TOKEN: E2E_TOKEN,
+			TSUNDOKU_ANILIST: 'off',
+			LIBRARY_ROOT: join(tmpdir(), `tsundoku-e2e-works-empty-${process.pid}`),
+			TSUNDOKU_HOME: join(tmpdir(), `tsundoku-e2e-works-home-${process.pid}`)
+		},
+		stdio: 'ignore'
+	});
+	let up = false;
+	for (let i = 0; i < 120 && !up; i++) {
+		try {
+			up = (await fetch(`${base}/`, { redirect: 'manual' })).status > 0;
+		} catch {
+			await new Promise((r) => setTimeout(r, 500));
+		}
+	}
+	if (!up) throw new Error('the works preview never answered');
+
+	// Two in progress and among the seed's newest reads, so the Work is near
+	// the top of CONTINUE. They are only this file's: the database is its own.
 	const { page, close } = await signedIn(browser, info);
 	await page.goto('/');
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
-	const tiles = page.locator('.grid .tile .open');
-	await tiles.nth(0).click();
-	await tiles.nth(1).click();
+	const tile = (title: string) =>
+		page.locator('.grid .tile').filter({
+			has: page.locator('.title', { hasText: new RegExp(`^${title}$`) })
+		});
+	for (const title of ["Omniscient Reader's Viewpoint", 'Hoshi no Umi no Tabibito'])
+		await tile(title).locator('.open').click();
 	await page.getByRole('button', { name: 'WORK', exact: true }).click();
 	await page.waitForURL(/\/work\/\d+/);
 	workId = Number(/\/work\/(\d+)/.exec(page.url())?.[1]);
@@ -53,13 +93,13 @@ test.beforeAll(async ({ browser }, info) => {
 	expect(workId).toBeGreaterThan(0);
 });
 
-test.afterAll(async ({ browser }, info) => {
-	if (workId === 0) return;
-	const { page, close } = await signedIn(browser, info);
-	await page.goto(`/work/${workId}`);
-	await page.getByRole('button', { name: 'UNGROUP' }).click();
-	await close();
+test.afterAll(() => {
+	server?.kill();
+	server = null;
+	rmSync(dbPath, { force: true });
 });
+
+let workId = 0;
 
 const SEL = {
 	tile: '.grid .tile.work',
@@ -208,6 +248,7 @@ test('The library with Works: the tile stands two hairline frames behind the cov
 	await page.goto(`${base}/`);
 	const shadow = await page
 		.locator('.grid .tile.work .frames')
+		.first()
 		.evaluate((node) => getComputedStyle(node).boxShadow);
 	expect(shadow).toContain('5px -5px');
 	expect(shadow).toContain('10px -10px');

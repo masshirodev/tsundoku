@@ -212,14 +212,16 @@ W4 replaces it with AS → A WORK · SERIES, NAME and ORDER.
 
 `tests/works-library-frame.e2e.ts` and `tests/work-screen-frame.e2e.ts` are
 `gen-conformance` output pinned from `Work-Library.dc.html` and
-`Work-Screen.dc.html`. The seeded library has no Work, so each makes one in
-`beforeAll` (the two newest reads, so the run is CONTINUE's first row) and
-ends it in `afterAll`; the generated tests compare the first match where a
-region repeats per row. That preamble and a couple of width/shadow assertions
-the generator cannot see are hand-written, and **regenerating the files drops
-them** -- `temp/design/assemble.py` is the script that puts them back. The two
-run in the `works-frame` project (1280x800, one worker), not in the device
-projects, because they write.
+`Work-Screen.dc.html`. The seeded library has no Work, so each file seeds a
+database of its own and serves the same build on its own port
+(`PLAYWRIGHT_WORKS_PORT`, 4298 -- the Ranobe review's arrangement) and makes
+one Work there through the app, in two series near the top of CONTINUE. It
+writes nothing to the shared library, so it runs in parallel with the flow
+specs. The generated tests compare the first match where a region repeats per
+row. That preamble and a couple of width/shadow assertions the generator
+cannot see are hand-written, and **regenerating the files drops them** --
+`temp/design/assemble.py` is the script that puts them back. They run in the
+`works-frame` project (1280x800, one worker).
 
 ## What it does not do yet
 
