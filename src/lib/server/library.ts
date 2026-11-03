@@ -56,6 +56,7 @@ type CardRow = {
 	available: number;
 	followed: number;
 	opened: number;
+	last_opened_at: number | null;
 	language?: string | null;
 	work_id?: number | null;
 	work_name?: string | null;
@@ -107,6 +108,7 @@ function cardQuery(where: string, order: string, limit = ''): string {
 		COALESCE(t.available, 0) AS available,
 		s.followed_at IS NOT NULL AS followed,
 		t.last_opened IS NOT NULL AS opened,
+		t.last_opened AS last_opened_at,
 		l.language,
 		ws.work_id AS work_id, w.name AS work_name, ws.position AS work_part,
 		(SELECT COUNT(*) FROM work_series n WHERE n.work_id = ws.work_id) AS work_size
@@ -189,6 +191,7 @@ function toCard(row: CardRow): LibraryCard {
 		downloaded: row.available === 1,
 		followed: row.followed === 1,
 		opened: row.opened === 1,
+		lastOpenedAt: row.last_opened_at,
 		language: row.language ?? null,
 		work:
 			row.work_id == null
@@ -479,23 +482,12 @@ export function countListed(opts: ListOpts): number {
 	return countTilesOn(opts);
 }
 
-/** Every id on a shelf, in no order: SELECT ALL, without loading every card. */
-export function listedIds(opts: ListOpts): number[] {
-	const where = listWhere(opts);
-	return (
-		getDb()
-			.prepare(`SELECT s.id FROM series s JOIN roots r ON r.id = s.root_id WHERE ${where.sql}`)
-			.all(...where.params) as { id: number }[]
-	).map((r) => r.id);
-}
-
 /**
  * Every series id a shelf's tiles hold, in no order: what SELECT ALL means
  * now that a tile can be a Work. A Work contributes every part the viewer can
  * see, not only the one that put it on the shelf -- a kind, collection, NEW or
  * FAV shelf picks one part, and selecting only that one would leave the Work
- * diverged under a bulk HIDE (doc/WORKS.md). `listedIds` stays the series the
- * shelf itself picks; this is the unit-aware read beside it.
+ * diverged under a bulk HIDE (doc/WORKS.md).
  */
 export function tileIds(opts: ListOpts & { seed?: number }): number[] {
 	const where = listWhere(opts);
@@ -798,15 +790,6 @@ export function continueReading(
 	);
 	const cards = withEditions(rows.map(toCard));
 	const byId = new Map(cards.map((c) => [c.id, c]));
-	// Which Work each series is a part of: one read, however long the list.
-	const workOf = new Map<number, number>();
-	for (const r of db
-		.prepare(`SELECT series_id AS seriesId, work_id AS workId FROM work_series`)
-		.all() as {
-		seriesId: number;
-		workId: number;
-	}[])
-		workOf.set(r.seriesId, r.workId);
 
 	/** The label and the way in for a card, from the entry the owner last had open. */
 	function entryLine(card: LibraryCard) {
@@ -877,8 +860,8 @@ export function continueReading(
 	const partsByWork = byWork(partsOfWorks(workIds, reveal));
 	const works = new Map(workRecords(workIds).map((w) => [w.id, w]));
 	type WorkPick = {
-		card: LibraryCard;
-		work: NonNullable<ContinueLine['work']>;
+		seriesId: number;
+		work: Omit<NonNullable<ContinueLine['work']>, 'partTitle'>;
 		lastReadAt: number;
 	};
 	const picks: WorkPick[] = [];
@@ -890,42 +873,70 @@ export function continueReading(
 		if (!current) continue;
 		const part = inOrder(own).findIndex((p) => p.seriesId === current.seriesId) + 1;
 		const upNext = partState(current) === 'not-started';
-		const record = byId.get(current.seriesId) ?? cardsOf([current.seriesId]).get(current.seriesId);
-		if (!record) continue;
 		picks.push({
-			card: record,
-			work: { id, name: work.name, part, of: own.length, upNext, partTitle: record.title },
+			seriesId: current.seriesId,
+			work: { id, name: work.name, part, of: own.length, upNext },
 			lastReadAt: Math.max(0, ...own.map((p) => p.lastOpenedAt ?? 0))
 		});
 	}
+	// The part CONTINUE opens may be the one it has not started, which the
+	// open-series query above does not carry (it has no last open). One read for
+	// all of them, never one per Work on the page.
+	const missing = [...new Set(picks.map((p) => p.seriesId).filter((id) => !byId.has(id)))];
+	const extra = cardsOf(missing);
 
-	const items: ContinueLine[] = [];
+	// Sort and slice on the card query's own fields first: `entryLine` costs two
+	// prepared reads per row, and the section only ever shows `limit` of them.
+	type Candidate = {
+		card: LibraryCard;
+		lastReadAt: number;
+		work: (Omit<NonNullable<ContinueLine['work']>, 'partTitle'> & { partTitle: string }) | null;
+	};
+	const candidates: Candidate[] = [];
 	for (const card of cards) {
-		if (workOf.has(card.id)) continue;
-		const line = entryLine(card);
-		if (line) items.push({ ...card, ...line, work: null });
+		// A series in a Work is not a row of its own; the Work's row is below.
+		if (card.work) continue;
+		candidates.push({ card, lastReadAt: card.lastOpenedAt ?? 0, work: null });
 	}
 	for (const pick of picks) {
-		const line = entryLine(pick.card);
+		const card = byId.get(pick.seriesId) ?? extra.get(pick.seriesId);
+		if (!card) continue;
+		candidates.push({
+			card,
+			lastReadAt: pick.lastReadAt,
+			work: { ...pick.work, partTitle: card.title }
+		});
+	}
+	candidates.sort((a, b) => b.lastReadAt - a.lastReadAt);
+	const total = candidates.length;
+
+	const items: ContinueLine[] = [];
+	for (const candidate of candidates.slice(0, limit)) {
+		const line = entryLine(candidate.card);
 		if (line) {
-			items.push({ ...pick.card, ...line, title: pick.work.name, work: pick.work });
+			items.push({
+				...candidate.card,
+				...line,
+				...(candidate.work ? { title: candidate.work.name } : {}),
+				work: candidate.work
+			});
 			continue;
 		}
+		if (!candidate.work) continue;
 		// Between parts: the next one has not been started, so ▶ opens its first
 		// chapter and the row says UP NEXT (Work-Library, the Akasaka row).
-		const first = resumeEntry(pick.card.id);
+		const first = resumeEntry(candidate.card.id);
 		items.push({
-			...pick.card,
-			title: pick.work.name,
+			...candidate.card,
+			title: candidate.work.name,
 			entryLabel: first?.label ?? '',
-			lastReadAt: pick.lastReadAt,
+			lastReadAt: candidate.lastReadAt,
 			resumeId: first?.id ?? null,
-			work: pick.work
+			work: candidate.work
 		});
 	}
 
-	items.sort((a, b) => b.lastReadAt - a.lastReadAt);
-	return { items: items.slice(0, limit), total: items.length };
+	return { items, total };
 }
 
 /** The kinds with a shelf of their own. Doujins are books, grouped by other means. */

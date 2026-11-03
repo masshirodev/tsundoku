@@ -33,7 +33,11 @@ import { E2E_TOKEN } from '../playwright.config';
  * left there. This preamble is hand-written; regenerating the assertions
  * below drops it (doc/WORKS.md, "The frames").
  */
-const PORT = Number(process.env.PLAYWRIGHT_WORKS_PORT ?? 4298);
+const PORT = Number(process.env.PLAYWRIGHT_WORKS_PORT);
+if (!Number.isInteger(PORT) || PORT <= 0 || PORT > 65535)
+	throw new Error(
+		'PLAYWRIGHT_WORKS_PORT is not assigned: ask the coordinator for the works-frame port. Do not pick one.'
+	);
 const base = `http://localhost:${PORT}`;
 const dbPath = join(tmpdir(), `tsundoku-e2e-works-${process.pid}.sqlite`);
 let server: ChildProcess | null = null;

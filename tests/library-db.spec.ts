@@ -365,11 +365,10 @@ describe('pages of a shelf', () => {
 		expect(paged).toEqual(ids(42));
 	});
 
-	it('count and list ids for exactly what the shelf shows, hidden left out', () => {
+	it('counts exactly what the shelf shows, hidden left out', () => {
 		for (const shelf of ['all', 'series', 'oneoff', 'k:novel']) {
 			const cards = lib.listSeries({ reveal: false, shelf });
 			expect(lib.countListed({ reveal: false, shelf })).toBe(cards.length);
-			expect(lib.listedIds({ reveal: false, shelf }).sort()).toEqual(cards.map((c) => c.id).sort());
 		}
 		expect(lib.countListed({ reveal: true })).toBeGreaterThan(lib.countListed({ reveal: false }));
 	});

@@ -220,6 +220,14 @@ describe('CONTINUE is one row per Work', () => {
 		expect(rows[0].resumeId).not.toBeNull();
 	});
 
+	it('sorts and slices before hydrating, and counts the rows it did not show', () => {
+		const page = lib.continueReading(true, 2);
+		expect(page.items).toHaveLength(2);
+		expect(page.total).toBe(cont().total);
+		expect(page.total).toBeGreaterThan(2);
+		expect(page.items[0].lastReadAt).toBeGreaterThanOrEqual(page.items[1].lastReadAt);
+	});
+
 	it('counts rows, not parts, in the section total', () => {
 		const a = idOf('Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru');
 		const b = idOf('Kusuriya no Hitorigoto');

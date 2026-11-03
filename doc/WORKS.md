@@ -146,7 +146,9 @@ unchanged and is what finding reads; every card carries its Work as
   part CONTINUE opens, or `UP NEXT` at the next part's first chapter. A Work
   is a candidate when any part has ever been opened -- a part read through and
   the next one never started is exactly the row the handoff draws -- and its
-  `total` counts rows.
+  `total` counts rows. The card query carries each series' last open; sorting
+  and slicing happen before `entryLine`/`resumeEntry`, so the section hydrates
+  only the rows it returns.
 - **A Work sorts by its most recent part**, as aggregates over every part
   (`keys` in `unitQuery`): latest read, newest chapter, latest added. The
   order lives in SQL rather than a `sortKey` on the part facts (W1's
@@ -177,7 +179,10 @@ SERIES · N CHAPTERS · N READ` (or `ALL READ`), `PART n OF m, MADE <date>`,
 · SOURCE · STATUS · N CH. · ALL DOWNLOADED` (or `0 OF N DOWNLOADED · READS
 ONLINE`), a progress bar, and the status column: `READ ✓ · FINISHED 12
 MAR`, `CH. 15 OF 205 · OPENED 2 H AGO` (`EP.` on an anime part), or `NOT STARTED
-· +4 NEW`. A tap
+· +4 NEW`. A never-opened part has no last open of its own, so its NEW is
+  counted from the Work's last open: chapters that arrived since the owner
+  last read any part of the run. A series tile keeps the library's rule that a
+  never-opened series has only unread (`doc/LIBRARY.md`, "New chapters"). A tap
   opens the series with `?from=work:<id>` (W5 reads it); ▶ continues the part
   CONTINUE opens. On a phone the rows are 104px and the status column folds
   into the meta line.
@@ -191,6 +196,9 @@ LONGER A WORK · ONE SERIES WAS LEFT` with UNDO, which restores the same id,
   returns to the library and not to a 404.
 - **+ ADD A SERIES** opens a library picker; a series already in another Work
   says `IN <WORK> · MOVES HERE` and moves, ending that Work if one is left.
+  The picker reads its own page when it opens (`GET /work/N/addable?q=&offset=`,
+  `GRID_PAGE` rows at a time, filtered by `s.title LIKE` in SQL), so the
+  screen's load never carries the whole library.
 - **A Work whose run is read** puts `THE RUN IS READ · FINISHED <date>` and
   READ AGAIN in place of CONTINUE, and + ADD A SERIES stays.
 
@@ -221,8 +229,9 @@ leaves no UNDO band: taking the Work apart again is UNGROUP, and UNDO is W4's.
 `gen-conformance` output pinned from `Work-Library.dc.html` and
 `Work-Screen.dc.html`. The seeded library has no Work, so each file seeds a
 database of its own and serves the same build on its own port
-(`PLAYWRIGHT_WORKS_PORT`, 4298 -- the Ranobe review's arrangement) and makes
-one Work there through the app, in two series near the top of CONTINUE. It
+(`PLAYWRIGHT_WORKS_PORT`, assigned by the coordinator and never defaulted -- a
+missing value fails the file with a message naming it) and makes one Work
+there through the app, in two series near the top of CONTINUE. It
 writes nothing to the shared library, so it runs in parallel with the flow
 specs. The generated tests compare the first match where a region repeats per
 row. That preamble and a couple of width/shadow assertions the generator

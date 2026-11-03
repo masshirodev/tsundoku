@@ -21,10 +21,14 @@ import { getDb } from './db.ts';
 import { HIDDEN_SQL, IN_LIBRARY_SQL, libraryWhere } from './visibility.ts';
 import { setFavourite, setHidden, setRating } from './library.ts';
 import { RATING_MAX } from '../library/rating.ts';
+import { likePattern } from '../library/search.ts';
+import { GRID_PAGE } from '../library/paging.ts';
 import {
 	defaultWorkName,
 	workFavourite,
 	workRating,
+	type AddablePage,
+	type AddableSeries,
 	type WorkFootFacts,
 	type WorkOrder,
 	type WorkPart
@@ -95,7 +99,10 @@ export type WorkPartRow = WorkPart & {
 	hue: number;
 	/** The source's name ('asura', 'epub', '') for the run's kind · source · status line. */
 	source: string;
-	/** Entries that arrived after this part was last opened: the run's "+4 NEW". */
+	/**
+	 * Entries that arrived after this part was last opened -- or after the Work
+	 * was, when the part never has been: the run's "+4 NEW".
+	 */
 	newCount: number;
 	/** Entries on disk: the run's "ALL DOWNLOADED" / "0 OF 98 DOWNLOADED". */
 	downloaded: number;
@@ -248,7 +255,9 @@ function memberCount(db: Database.Database, workId: number): number {
  * is what CONTINUE decides on; `entries` and `read` leave out front and back
  * matter, as the chapter counts do everywhere else. `newCount` and
  * `downloaded` come from the same grouped pass: the run asks every part's row
- * for them, and a correlated subquery per part is what W1 warned about.
+ * for them, and a correlated subquery per part is what W1 warned about. A
+ * never-opened part's new chapters are read from the Work's last open, since
+ * it has no last open of its own and otherwise could never say `+N NEW`.
  */
 export function workParts(workId: number, reveal: boolean): WorkPartRow[] {
 	return readParts(getDb(), [workId], libraryWhere(reveal));
@@ -279,12 +288,17 @@ function readParts(db: Database.Database, workIds: number[], where: string): Wor
 			), opened AS MATERIALIZED (
 				SELECT e.series_id, MAX(e.last_opened_at) AS at FROM entries e
 				WHERE e.series_id IN (SELECT seriesId FROM part) GROUP BY e.series_id
+			), work_opened AS MATERIALIZED (
+				-- A never-opened part has no last open of its own, so "new" is
+				-- measured from the last time the owner read any part of the Work.
+				SELECT p.workId, MAX(e.last_opened_at) AS at FROM part p
+				JOIN entries e ON e.series_id = p.seriesId GROUP BY p.workId
 			), aggs AS MATERIALIZED (
 				SELECT e.series_id,
 					SUM(e.shadowed = 0 AND e.matter = '') AS entries,
 					SUM(e.shadowed = 0 AND e.matter = '' AND e.read_at IS NOT NULL) AS read,
-					SUM(CASE WHEN e.shadowed = 0 AND (e.added_at > o.at
-						OR (e.read_at IS NULL AND COALESCE(e.arrived_at, 0) > o.at))
+					SUM(CASE WHEN e.shadowed = 0 AND (e.added_at > COALESCE(o.at, wo.at)
+						OR (e.read_at IS NULL AND COALESCE(e.arrived_at, 0) > COALESCE(o.at, wo.at)))
 						THEN 1 ELSE 0 END) AS newCount,
 					-- The same set the entries count uses: a shadowed duplicate and
 					-- front or back matter are not chapters the run can say are on
@@ -297,6 +311,8 @@ function readParts(db: Database.Database, workIds: number[], where: string): Wor
 					MAX(CASE WHEN e.shadowed = 0 AND e.matter = '' AND e.read_at IS NOT NULL
 						THEN e.read_at END) AS finishedAt
 				FROM entries e JOIN opened o ON o.series_id = e.series_id
+				JOIN part p ON p.seriesId = e.series_id
+				LEFT JOIN work_opened wo ON wo.workId = p.workId
 				GROUP BY e.series_id
 			)
 			SELECT p.workId, p.seriesId, p.position, s.title, s.kind, s.hue, s.source,
@@ -397,31 +413,36 @@ export function workFeetFor(seriesIds: number[]): Map<number, WorkFootFacts> {
  */
 export function addableSeries(
 	workId: number,
-	reveal: boolean
-): {
-	seriesId: number;
-	title: string;
-	kind: Kind;
-	hue: number;
-	cover: number | null;
-	inWork: string | null;
-}[] {
-	return getDb()
+	reveal: boolean,
+	opts: { q?: string; limit?: number; offset?: number } = {}
+): AddablePage {
+	const q = opts.q?.trim() ?? '';
+	const limit =
+		Number.isInteger(opts.limit) && opts.limit! > 0 ? Math.min(opts.limit!, GRID_PAGE) : GRID_PAGE;
+	const offset = Number.isInteger(opts.offset) && opts.offset! > 0 ? opts.offset! : 0;
+	const db = getDb();
+	const where = `${libraryWhere(reveal)} AND s.id NOT IN (
+		SELECT series_id FROM work_series WHERE work_id = ?)`;
+	const filter = q === '' ? '' : ` AND s.title LIKE ? ESCAPE '\\'`;
+	const params = q === '' ? [workId] : [workId, likePattern(q)];
+	const total = (
+		db
+			.prepare(
+				`SELECT COUNT(*) AS n FROM series s JOIN roots r ON r.id = s.root_id WHERE ${where}${filter}`
+			)
+			.get(...params) as { n: number }
+	).n;
+	const items = db
 		.prepare(
 			`SELECT s.id AS seriesId, s.title, s.kind, s.hue, s.cover_at AS cover, w.name AS inWork
 			FROM series s JOIN roots r ON r.id = s.root_id
 			LEFT JOIN work_series ws ON ws.series_id = s.id LEFT JOIN works w ON w.id = ws.work_id
-			WHERE ${libraryWhere(reveal)} AND s.id NOT IN (SELECT series_id FROM work_series WHERE work_id = ?)
-			ORDER BY s.title COLLATE NOCASE`
+			WHERE ${where}${filter}
+			ORDER BY s.title COLLATE NOCASE, s.id
+			LIMIT ? OFFSET ?`
 		)
-		.all(workId) as {
-		seriesId: number;
-		title: string;
-		kind: Kind;
-		hue: number;
-		cover: number | null;
-		inWork: string | null;
-	}[];
+		.all(...params, limit, offset) as AddableSeries[];
+	return { items, total };
 }
 
 /** The Works a series belongs to at most one of; the row the series screen draws. */

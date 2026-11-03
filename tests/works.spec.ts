@@ -245,6 +245,8 @@ describe('THE RUN’s status column', () => {
 	it('names the entry ▶ opens on the part CONTINUE opens, and says what has not started', () => {
 		const p = part({ seriesId: 1, position: 1, read: 40, lastOpenedAt: now - 60_000 });
 		expect(runStatus(p, { now, current: true, resumeLabel: 'Ch. 41' }).ink).toBe('CH. 41 OF 100');
+		// The count is fed here; tests/works-db.spec.ts proves the production
+		// path reaches it, through workPage's own read of a never-opened part.
 		const fresh = { ...part({ seriesId: 2, position: 2 }), newCount: 4 };
 		expect(runStatus(fresh)).toEqual({
 			ink: '',

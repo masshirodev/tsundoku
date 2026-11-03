@@ -470,6 +470,10 @@ test('a Work is one tile, one CONTINUE row, and a screen of its own', async ({ p
 	await expect(tile).toBeVisible();
 	await expect(tile.locator('.bdg.wb')).toHaveText('WORK · 2');
 	await expect(tile.locator('.ft')).toContainText('PART 1 OF 2');
+	// Online, a tile's ↓ is the device's cache, never the server's on-disk
+	// count: both parts are downloaded on disk, but this browser has cached
+	// none of them, so the Work wears no ↓ badge (round 2's finding).
+	await expect(tile.locator('.badge.inverse')).toHaveCount(0);
 	// The parts are not tiles of their own.
 	await expect(page.locator('.grid .tile', { hasText: 'Kusuriya' })).toHaveCount(0);
 

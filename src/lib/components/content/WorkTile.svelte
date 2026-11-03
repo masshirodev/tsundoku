@@ -83,8 +83,6 @@
 				{/if}
 				{#if cached != null && cached > 0}
 					<Badge tone="inverse" corner="bottom-right">↓ {cached}</Badge>
-				{:else if tile.downloaded > 0}
-					<Badge tone="inverse" corner="bottom-right">↓ {tile.downloaded}</Badge>
 				{/if}
 				{#if selectable}
 					<span class="check" class:on={selected} aria-hidden="true">{selected ? '✓' : ''}</span>

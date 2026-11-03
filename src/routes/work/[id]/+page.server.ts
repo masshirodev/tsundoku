@@ -7,7 +7,6 @@ import { resumeEntry } from '$lib/server/library';
 import {
 	WorkError,
 	addSeries,
-	addableSeries,
 	rename,
 	reorder,
 	setWorkFavourite,
@@ -39,7 +38,6 @@ export const load: PageServerLoad = async ({ params, cookies }) => {
 	return {
 		...page,
 		reveal,
-		addable: addableSeries(id, reveal),
 		// CONTINUE across the Work: the part CONTINUE opens and where ▶ resumes in
 		// it; once the run is read, part 1 is the way back in (Work-Screen).
 		resume: current ? resumeEntry(current.seriesId) : null,

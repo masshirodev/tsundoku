@@ -99,8 +99,8 @@ series**.
   the cover of its part that is on that shelf (CONTINUE's part on ALL), the
   `WORK · N` badge, its name, and a foot of one segment per part with
   `PART 2 OF 3` or `UP NEXT · PART 2` where a series draws rating bars. `+N`
-  sums the parts' new chapters and `↓` the ones on disk; FAV shows when any
-  part is. A Work is on a shelf, or a kind shelf, when any of its series is,
+  sums the parts' new chapters and `↓` the parts' cached chapters; FAV shows
+  when any part is. A Work is on a shelf, or a kind shelf, when any of its series is,
   and its cover is the part that is there -- a Work of a manga and its anime
   is one tile on MANGA and on ANIME.
 - **Search, a tag filter and a person's page** find series, so a Work opens:
@@ -112,7 +112,9 @@ series**.
 <part> · CH. 15`, and between parts `UP NEXT` in inverse pointing at the
   next part's first chapter, with ▶ in accent. A Work whose part 1 is read
   through stays in CONTINUE for part 2. Its `total` counts rows, so the
-  section's `N OPEN` counts Works.
+  section's `N OPEN` counts Works. The open-series cards are sorted and
+  sliced to `limit` before `entryLine`/`resumeEntry` run, so a large library
+  pays for the four rows it shows, not every open series.
 - **Sorts** place a Work by its most recent part: its latest read, its
   newest chapter, its latest added; TITLE by the Work's name. The unit
   query aggregates over every part, so a Work sits where the part you would
@@ -135,8 +137,10 @@ page (`listTiles`, `cardsOf`, `partsOfWorks` in `src/lib/server/library.ts`).
 
 A tile's `+N` counts entries that **arrived after the series was last opened**:
 listed by the source since then (`added_at`), or downloaded since then and
-still unread (`arrived_at`). It is not the unread count. Drawing has 18 unread and 3 new. A
-series never opened has no "new", only unread.
+still unread (`arrived_at`). It is not the unread count. Drawing has 18 unread and 3 new. On
+its own tile, a series never opened has no "new", only unread; a never-opened
+part of a Work is read against the Work's last open instead
+([`WORKS.md`](WORKS.md), THE RUN).
 
 ## The NEW shelf
 

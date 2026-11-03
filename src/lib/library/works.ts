@@ -230,6 +230,12 @@ export type RunStatus = { ink: string; sub: string };
  * the designed manga-plus-anime Work -- says `EP. 5 OF 12` and `WATCH ✓`, not
  * `CH.` and `READ ✓` beside its own `ANIME · EP.` meta line.
  *
+ * A never-opened part's `newCount` is read against the Work's last open, not
+ * its own (there is none): chapters that arrived since the owner last read any
+ * part of the run are what `+N NEW` means there. A series tile keeps the
+ * library's rule that a never-opened series has only unread (doc/LIBRARY.md,
+ * "New chapters").
+ *
  * The formatters come from the caller so the screen's date and time words stay
  * the screen's (`ago`, the month's locale), and this stays testable alone.
  */
@@ -316,11 +322,29 @@ export type WorkFootFacts = { id: number; name: string; part: number; of: number
  * carries `tile` for the tile's own marks.
  */
 export type LibraryCard = SeriesCard & {
+	/** The series' most recent open, or null when it has never been opened. */
+	lastOpenedAt: number | null;
 	/** Finding: the Work this series is a part of, or null. */
 	work?: WorkFootFacts | null;
 	/** Browsing: set when this row is a Work rather than a series. */
 	tile?: WorkTile;
 };
+
+/**
+ * A row of the + ADD A SERIES picker: a series the Work could take, and the
+ * Work it would move out of. The picker reads its own page when it opens, so
+ * this is a page of the library, never the whole of it (doc/WORKS.md).
+ */
+export type AddableSeries = {
+	seriesId: number;
+	title: string;
+	kind: Kind;
+	hue: number;
+	cover: number | null;
+	inWork: string | null;
+};
+
+export type AddablePage = { items: AddableSeries[]; total: number };
 
 /**
  * A CONTINUE row: a series, or a Work. A Work's row says the part and the

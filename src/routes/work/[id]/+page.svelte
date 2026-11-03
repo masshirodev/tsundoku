@@ -58,7 +58,7 @@
 	const refusal = $derived(
 		form && 'message' in form && typeof form.message === 'string' ? form.message : ''
 	);
-	// The names come from the facts, never from `parts`/`addable`: `update()`
+	// The names come from the facts, never from `parts` or the picker: `update()`
 	// has already re-read both lists by the time the band renders, so looking a
 	// series up there says TAKEN OUT ·  with an empty name.
 	const outTitles = $derived(takenOut ? takenOut.map((f) => f.title) : []);
@@ -376,7 +376,7 @@
 	</div>
 </div>
 
-<AddSeriesSheet open={adding} series={data.addable} onclose={() => (adding = false)} />
+<AddSeriesSheet open={adding} workId={work.id} onclose={() => (adding = false)} />
 
 <style>
 	.work {
