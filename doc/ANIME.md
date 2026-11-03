@@ -503,14 +503,15 @@ screen but the video, and the subtitles, until a tap.
   →), and the one addition, −10 / pause / +10 in the middle, pause two drawn
   bars, which steps aside while BUFFERING or a server's notice holds the
   middle (they overlapped). The scrubber ticks the opening and ending. A desktop adds play, VOL,
-  ? KEYS and FULL SCREEN · F, and a time on hover.
+  ? KEYS and FULL SCREEN · F, and a time on hover, with the frame there
+  above it (the seek preview, below).
 - **Taps**: on a touch screen one shows or hides the controls; a double-tap
   on the left or right third seeks 10 s, and each further tap in the burst 10
   more, said in the middle of that side. On a mouse a click on the picture
   plays or pauses it (c218), the click in the middle acting at once and one on
   a side third waiting out the double that seeks; a press that wanders more
-  than 10px is a drag, and neither. No swipes: volume and brightness are the
-  device's.
+  than 10px is a drag, and neither. No swipes: on a touch screen volume and
+  brightness are the device's (a pointer has VOL, below).
 - **The controls come back on a move, not a jitter** (c217). A resting mouse
   sends a pixel or two of movement all the time, and the chrome flashed in on
   every one of them; it now takes 12px of travel — quickly from where the
@@ -518,6 +519,53 @@ screen but the video, and the subtitles, until a tap.
   cluster (`−10`, pause, `+10`) does not fade with the bars: it is solid from
   its first frame, where a half-faded black box over the picture read as a
   translucent patch.
+- **Volume** (c385). VOL's label mutes, as before; hovering it (or clicking
+  it) opens a slider above the cell, a column of the bar's surface with the
+  scrubber's track upright, which a press or a drag sets; the wheel over the
+  cell or the slider steps 5 %, ↑ ↓ 10 %. Every one of them goes through one
+  door (`setVolume`), and the level is **remembered for this device**
+  (`tsundoku:anime:volume`, a device setting like DIM and quality, mirrored
+  on the workstation and listed in SETTINGS as VOLUME), read once as the
+  player mounts and given to the picture before the stream starts, so the
+  next episode and the next show start where it was left, from their first
+  frame. **Mute is never kept**: a muted episode does not leave the next one
+  silent. A level set above 0 while muted unmutes, since a slider moved under
+  MUTED would otherwise change nothing anyone hears. The slider is a
+  pointer's: on a phone the VOL cell stays hidden, and on a TV the remote's
+  volume is the TV's, as before.
+- **The seek preview** (c385). Over the scrubber, while the pointer is on it
+  (and on a touch screen while the thumb is dragged), the tip with the time
+  shows the frame at that time above it: 160 x 90, the hairline round it,
+  the time in the label face under it, and kept inside the track at either
+  end (`--tip-half`). Where it comes from:
+  - **A downloaded episode**: a sprite sheet the workstation cuts from the
+    file with ffmpeg, one frame every 10 s at 160 x 90, ten to a row, from the
+    key frames only (seconds, not a full decode), once, in the background
+    after the episode's first play (the videos route asks, never a page load,
+    and incognito never does; a hidden series' episode gets one too, the file
+    being local). It sits beside the episode's picture
+    (`covers/episodes/<id>.sprite.jpg`, served by
+    `/api/anime/sprite/<id>?v=<made at>`), with a sidecar naming the file it
+    was cut from: its path, size and modification time. **A sprite is only
+    the file's it was made from**: every reader asks `currentSprite`
+    (`src/lib/server/anime/sprites.ts`), which deletes a sheet whose file
+    changed (a re-download, MOVE), went (a deleted download, a scan) or is
+    another entry's (an id SQLite reused), so no door has to remember it, and
+    no rung was needed. The tile shown is the frame nearest the time, at most
+    5 s off. Until the sheet exists the tip shows the time alone.
+  - **A stream**: no sprite, which would mean reading the whole episode.
+    The player keeps a second, hidden picture on the server's **lowest**
+    quality, through the same loopback addresses, seeks it to the time under
+    the pointer after it rests there 150 ms, and draws the frame to a canvas
+    (`src/routes/read/[entry]/seek-preview.ts`). **It fetches only while the
+    pointer is on the bar**: nothing until the first stop
+    (`autoStartLoad: false`), then the one segment the time falls in (a
+    buffer goal of 1 s, no back buffer), and `stopLoad()` once the frame is
+    drawn and when the pointer leaves. A server whose lowest quality is above
+    480p, or of unknown height, and a stop that takes over 1 s show the time
+    alone.
+  - **A TV** has no preview: the remote's ← → seek with the bar up shows the
+    time on the bar, as before. The card left it optional; it is not built.
 - **Keys**: space, ← →, ↑ ↓ (volume), F, M, C (subtitles), S (skip), N (next),
   Esc (full screen, then the player), ? (the KEYS sheet). A remote's media
   keys work on every device (c235): ▶❚❚ plays or pauses, ⏩ ⏪ seek 10 s,
@@ -539,7 +587,7 @@ screen but the video, and the subtitles, until a tap.
   track (its original, the owner's answer to c171's question 3) and
   subtitles in the device's language (`startTracks`), worked out again for
   each server until a choice is made. Incognito keeps no choice. Speed is
-  this episode's; quality and DIM are this device's, mirrored on the
+  this episode's; quality, DIM and volume are this device's, mirrored on the
   workstation like every device setting. The sheet ends with ALL SETTINGS →.
 - **The settings sheet's languages** (c386). A language is its short code
   everywhere in a row -- `JA`, `EN`, `PT-BR`, `ES-419`, `ZH-HANT`, `NB` -- and
@@ -893,8 +941,10 @@ the fixture clip). The scratch library was deleted afterwards.
 - **The player's portrait layout is any portrait**, a tablet's too, as Anime
   Calls says ("Portrait, on the phone or the tablet"); the handoff draws the
   phone's.
-- **VOL is a cell, not a slider**: a tap mutes, ↑ ↓ set it. The handoff draws
-  only its label.
+- **VOL is a cell with a slider above it** (c385): its label mutes, as the
+  handoff's cell did, and the slider rises from it on hover. The handoff
+  draws only the label; the slider is drawn from the player's own cells
+  and track, with no design round (the card's call: one control in place).
 - **The last episode's end is END · LAST AVAILABLE**, not the reader's
   end-of-series page with RATING: the series screen has the rating, and the
   player has no rating anywhere else.
