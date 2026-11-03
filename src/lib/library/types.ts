@@ -4,10 +4,16 @@
  * every rule here is testable as a pure function.
  */
 
-/** `anime` is a series of episodes (doc/ANIME.md; rung 47). */
-export type Kind = 'manga' | 'manhwa' | 'doujin' | 'novel' | 'anime';
+import type { Kind } from './kinds';
 
-export const KINDS: readonly Kind[] = ['manga', 'manhwa', 'doujin', 'novel', 'anime'];
+/**
+ * `Kind` and `KINDS` live in the registry, which is keyed by the kind itself
+ * (doc/KINDS.md; card c301). Re-exported here because this is where most of
+ * the tree imports them from: a kind's facts are `kinds.ts`'s, its shape is
+ * this file's.
+ */
+export type { Kind };
+export { KINDS } from './kinds';
 
 /**
  * 0-10, where 0 is unrated and 1-10 is the owner's judgement: five steps with

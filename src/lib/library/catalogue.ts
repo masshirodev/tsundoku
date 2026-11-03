@@ -4,6 +4,7 @@
  * the review shows beside each candidate. No database, no network.
  */
 
+import { anilistType, kindFacts, type KindFacts } from './kinds.ts';
 import type { Kind } from './types.ts';
 export type { Kind };
 
@@ -163,15 +164,14 @@ export function candidateKind(c: Pick<Candidate, 'format' | 'country'>): Kind | 
  * Whether a candidate of [candidate] can be a series of [series]'s own entry
  * (doc/LINKS.md, "A novel never matches a comic"): manga and manhwa are one
  * kind to AniList, a novel is another work under the same title, and an anime
- * is another work again. Anything of an unknown format fits nothing.
+ * is another work again. The list is the registry's `matches` (doc/KINDS.md;
+ * card c301), so a kind added there says who it may link to. Anything of an
+ * unknown format fits nothing.
  */
 export function sameKind(series: Kind, candidate: Kind | null): boolean {
 	if (candidate === null) return false;
-	if (series === 'anime' || candidate === 'anime') return series === candidate;
-	// Every kind that is not a novel or an anime is one comic family to AniList
-	// (a doujin's entry is a manga's): neither kind list may cross to the other.
-	const comic = (k: Kind) => k !== 'novel';
-	return comic(series) === comic(candidate);
+	const facts: KindFacts = kindFacts(series);
+	return facts.matches.includes(candidate);
 }
 
 /** The year a title names in brackets: "Ranma ½ (2024)" → 2024. */
@@ -245,18 +245,22 @@ export function parsePasted(text: string, kind: Kind = 'manga'): Pasted | null {
 			t
 		);
 	if (!m) return null;
-	const asAnime = kind === 'anime';
+	const asAnime = anilistType(kind) === 'ANIME';
 	if ((m[2].toLowerCase() === 'anime') !== asAnime) return null;
 	const id = Number(m[3]);
 	if (!Number.isSafeInteger(id) || id <= 0) return null;
 	return { service: m[1].toLowerCase() === 'anilist.co' ? 'anilist' : 'mal', id };
 }
 
-/** An entry's own page, on the path its kind lives under. */
+/**
+ * An entry's own page, on the path its kind lives under: AniList's `ANIME`
+ * path for an anime and `MANGA` for everything else (the registry's
+ * `catalogue.type`; doc/KINDS.md, card c301). MAL uses the same two words.
+ */
 export const anilistUrl = (id: number, kind: Kind = 'manga') =>
-	`https://anilist.co/${kind === 'anime' ? 'anime' : 'manga'}/${id}`;
+	`https://anilist.co/${anilistType(kind).toLowerCase()}/${id}`;
 export const malUrl = (id: number, kind: Kind = 'manga') =>
-	`https://myanimelist.net/${kind === 'anime' ? 'anime' : 'manga'}/${id}`;
+	`https://myanimelist.net/${anilistType(kind).toLowerCase()}/${id}`;
 
 /**
  * A link whose entry is the other kind: a manga's entry on an anime, or an

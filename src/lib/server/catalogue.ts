@@ -2,6 +2,7 @@ import type Database from 'better-sqlite3';
 import { getDb } from './db.ts';
 import { HIDDEN_SQL, IN_LIBRARY_SQL, VISIBLE_SQL, visibleWhere } from './visibility.ts';
 import { clearAniSkip } from './anime/marks.ts';
+import { anilistType } from '../library/kinds.ts';
 import {
 	ANIME_FORMATS,
 	candidateKind,
@@ -171,9 +172,6 @@ export function toCandidate(m: Media): Candidate {
 	};
 }
 
-/** AniList's two catalogues: an anime series asks ANIME, everything else MANGA. */
-const mediaTypeOf = (kind: Kind): 'ANIME' | 'MANGA' => (kind === 'anime' ? 'ANIME' : 'MANGA');
-
 /** The two families a MAL id belongs to: anime's ids and manga's are separate sequences. */
 export const family = (kind: Kind): 'anime' | 'comic' => (kind === 'anime' ? 'anime' : 'comic');
 
@@ -186,7 +184,7 @@ async function byIds(ids: number[], field: 'id_in' | 'idMal_in', kind: Kind): Pr
 	const out: Candidate[] = [];
 	for (let i = 0; i < ids.length; i += 50) {
 		const data = (await anilist(
-			`query ($ids: [Int]) { Page(perPage: 50) { media(${field}: $ids, type: ${mediaTypeOf(kind)}) { ...M } } } ${MEDIA}`,
+			`query ($ids: [Int]) { Page(perPage: 50) { media(${field}: $ids, type: ${anilistType(kind)}) { ...M } } } ${MEDIA}`,
 			{ ids: ids.slice(i, i + 50) }
 		)) as { Page: { media: Media[] } } | null;
 		out.push(...(data?.Page.media ?? []).map(toCandidate));
@@ -217,7 +215,7 @@ async function searchMany(
 			${chunk
 				.map(
 					(q, j) =>
-						`s${j}: Page(perPage: ${per}) { media(search: $q${j}, type: ${mediaTypeOf(q.kind)}, format_in: $f${j}, sort: SEARCH_MATCH) { ...M } }`
+						`s${j}: Page(perPage: ${per}) { media(search: $q${j}, type: ${anilistType(q.kind)}, format_in: $f${j}, sort: SEARCH_MATCH) { ...M } }`
 				)
 				.join('\n')}
 		} ${MEDIA}`;

@@ -27,6 +27,9 @@ Tailscale. Read `README.md` and `doc/ARCHITECTURE.md` before changing anything.
 - Before committing: `yarn run check && yarn run lint && yarn run test`, plus
   `yarn run test:e2e` when the UI changed. See `doc/TESTING.md`.
 - Rating is an integer 0–10 and **0 means unrated** (`doc/RATINGS.md`). Never write `NULL`.
+- **A kind's facts live in `src/lib/library/kinds.ts`** (`doc/KINDS.md`): ask
+  `kindFacts(kind)` — `medium`, `unit`, `catalogue`, `matches` — never
+  `kind === 'anime'`; `tests/kinds.spec.ts` counts the checks left.
 - **Waves are Kantoku's** (`~/work/tsundoku/kantoku.toml`, `kantoku status`).
   It owns `~/work/tsundoku/wave<N>/`, the `agent/k<N>-*` and `integrate/k<N>`
   branches and its wave's In Progress cards: never edit, push or move them.
