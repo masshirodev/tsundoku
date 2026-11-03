@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { leave } from '$lib/motion';
 	import type { Snippet } from 'svelte';
 	import { m } from '$lib/paraglide/messages';
 	import { focusScope } from '$lib/focus';
@@ -27,9 +28,21 @@
 <svelte:window onkeydown={keydown} />
 
 {#if open}
-	<button type="button" class="scrim appear" aria-label={m.chrome_close()} onclick={onclose}
+	<button
+		type="button"
+		class="scrim appear"
+		aria-label={m.chrome_close()}
+		onclick={onclose}
+		out:leave
 	></button>
-	<div class="sheet appear" role="dialog" aria-modal="true" aria-label={label} use:focusScope>
+	<div
+		class="sheet rise"
+		out:leave={'down'}
+		role="dialog"
+		aria-modal="true"
+		aria-label={label}
+		use:focusScope
+	>
 		{@render children()}
 	</div>
 {/if}

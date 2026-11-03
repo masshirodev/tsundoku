@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { leave } from '$lib/motion';
 	/**
 	 * A code listing or a table on its own (Index Text Reader 1e, wideOpen):
 	 * full width, margins gone, panned by dragging here -- in the column a
@@ -27,7 +28,7 @@
 	});
 </script>
 
-<div class="view appear" role="dialog" aria-label={title}>
+<div class="view appear" out:leave role="dialog" aria-label={title}>
 	<div class="head">
 		<button type="button" class="x" aria-label="Close" onclick={onclose}>✕</button>
 		<div class="names">

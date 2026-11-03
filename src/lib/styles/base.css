@@ -37,9 +37,10 @@ img {
  * readers' controls, sheets, menus and their scrims (doc/design/README.md,
  * "Departures"; card c185). Asked for on 2026-10-29 with the double tap,
  * whose single tap now waits ~250 ms: controls that then snapped in felt
- * clunky. Opacity only, on the design's own ease-out. In only: they still go
- * at once, as the design's minimal motion wants. Kept under reduced motion,
- * which asks for less movement, and a fade doesn't move.
+ * clunky. Opacity only, on the design's own ease-out. They fade out again
+ * with `out:leave` (src/lib/motion.ts; doc/MOTION.md, card c396). Kept under
+ * reduced motion, which asks for less movement, and a fade doesn't move.
+ * Sheets rise instead (.rise, motion.css).
  */
 .appear {
 	transition: opacity var(--motion-appear) var(--ease);

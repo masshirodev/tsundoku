@@ -51,6 +51,12 @@ suite asserts against.
 
 ## E2E specs
 
+**Measure a screen only once it has come to rest.** A client-side navigation
+slides the next screen 40px in and sheets rise ([`MOTION.md`](MOTION.md)), so a
+`boundingBox()` taken at once reads a moving box. `screenSettled(page)` in
+`tests/fixtures.ts` waits for the screen's animations; a sheet waits on its own
+(`el.getAnimations()`, as `tv-screens.e2e.ts` does).
+
 `playwright.config.ts` builds the app, seeds a fresh database under the system
 temp directory (never the development one), and serves it with `vite preview`
 under a throwaway `TSUNDOKU_TOKEN`. Every test starts signed in with the session

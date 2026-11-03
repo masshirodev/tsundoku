@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { leave } from '$lib/motion';
 	/**
 	 * An illustration, full screen (Index Text Reader 1e, illusFull): the image
 	 * reader's black ground and fit. Two fingers pinch to zoom, one finger pans
@@ -63,6 +64,7 @@
 
 <div
 	class="view appear"
+	out:leave
 	role="dialog"
 	aria-label="Illustration"
 	tabindex="-1"

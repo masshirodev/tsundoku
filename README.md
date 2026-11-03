@@ -151,6 +151,8 @@ is the mount development pressures.
   cache, fetching from source sites, and sharp against the system libvips.
 - [`doc/WAITING.md`](doc/WAITING.md) — the time between a tap and the next
   screen: pressed, the line, outlines, not answering, and failed saves.
+- [`doc/MOTION.md`](doc/MOTION.md) — how tsundoku moves: the motion tokens,
+  the press layer, hover, sheets arriving and leaving, and screen transitions.
 - [`doc/TEXT-READER.md`](doc/TEXT-READER.md) — the text reader: the book
   downloaded once, pages from CSS columns, positions as paragraph and
   character, vertical Japanese, and departures.

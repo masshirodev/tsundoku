@@ -21,6 +21,12 @@ and ended by the root layout from SvelteKit's `beforeNavigate` and
 
 A fast answer draws nothing but the pressed state, so nothing flashes.
 
+The pressed state itself is the press layer's from the moment the pointer goes
+down ([`MOTION.md`](MOTION.md), "Pressing"); `.nav-pressed` takes over at the
+click and holds it to the next screen. When the next screen arrives it slides
+in, and when its outline shows first, the outline is what slides in
+([`MOTION.md`](MOTION.md), "Screens").
+
 ## The line
 
 The line sits over the header's own hairline (`NavLine`, in `TopBar` and the

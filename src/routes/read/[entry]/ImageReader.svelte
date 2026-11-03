@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { leave } from '$lib/motion';
 	import { readLocal, writeLocal } from '$lib/settings/local';
 	import type { Json } from '$lib/settings/catalog';
 	import { backLink } from '$lib/back';
@@ -1965,6 +1966,7 @@
 		<button
 			type="button"
 			class="to-top appear"
+			out:leave
 			aria-label="To the chapter's first page"
 			onclick={() => {
 				const first = document.querySelector(`[data-entry="${data.entry.id}"][data-index="0"]`);
@@ -1975,7 +1977,13 @@
 
 	{#if zones && mode !== 'vertical' && !chrome && !sheet && !menu}
 		<!-- The tap zones (doc/READER.md, "Tap zones"): drawn, never in the way of the tap they explain. -->
-		<div class="zones appear" role="status" aria-label="Tap zones" style:--edge="{EDGE * 100}%">
+		<div
+			class="zones appear"
+			out:leave
+			role="status"
+			aria-label="Tap zones"
+			style:--edge="{EDGE * 100}%"
+		>
 			<!-- Short words, the arrow above: a phone's edge is 16% of 390 px. -->
 			<div class="zone edge">
 				<span class="chip"><span class="ar">←</span>{mode === 'rtl' ? 'NEXT' : 'BACK'}</span>

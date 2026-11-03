@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { leave } from '$lib/motion';
 	import { goto } from '$app/navigation';
 
 	/**
@@ -22,8 +23,8 @@
 
 <div class="new-shelf">
 	<!-- eslint-disable svelte/no-navigation-without-resolve -- the caller's href resolves -->
-	<a class="scrim appear" href={closeHref} aria-label="Close" data-sveltekit-noscroll></a>
-	<div class="sheet appear" role="dialog" aria-modal="true" aria-label="New shelf">
+	<a class="scrim appear" out:leave href={closeHref} aria-label="Close" data-sveltekit-noscroll></a>
+	<div class="sheet rise" out:leave={'down'} role="dialog" aria-modal="true" aria-label="New shelf">
 		<div class="head">
 			<span>NEW SHELF</span>
 			<a class="x" href={closeHref} aria-label="Close" data-sveltekit-noscroll>✕</a>

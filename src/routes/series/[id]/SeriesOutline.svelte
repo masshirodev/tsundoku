@@ -58,7 +58,7 @@
 	];
 </script>
 
-<div class="series" aria-busy="true">
+<div class="series" aria-busy="true" data-arrive>
 	<header class="bar" aria-label="Series">
 		<a class="cell back" href={resolve('/')}>
 			<span class="arrow">←</span>

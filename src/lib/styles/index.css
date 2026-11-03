@@ -28,5 +28,6 @@
 @import './spacing.css';
 @import './base.css';
 @import './focus.css';
+@import './motion.css';
 @import './layout.css';
 @import './tv.css';

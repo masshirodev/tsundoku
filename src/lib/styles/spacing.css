@@ -37,4 +37,14 @@
 	   this long: not slow, not abrupt (owner, 2026-10-29; base.css, .appear). */
 	--motion-appear: 160ms;
 	--ease: cubic-bezier(0.2, 0, 0, 1);
+	/*
+	 * Motion (doc/MOTION.md, card c396). Use these, and do not invent a fifth
+	 * duration or another curve: a value they can't express is a question for
+	 * that document. --ease above stays the design's own, for fades.
+	 */
+	--ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+	--ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+	--motion-press: 140ms;
+	--motion-panel: 240ms;
+	--motion-leave: 180ms;
 }

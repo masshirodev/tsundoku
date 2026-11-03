@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { leave } from '$lib/motion';
 	import HelpSheet from '$lib/components/help/HelpSheet.svelte';
 	import { resolve } from '$app/paths';
 	import { modeName, type Fit, type Mode, type Wide } from '$lib/reader/reader';
@@ -119,9 +120,20 @@
 	}
 </script>
 
-<button type="button" class="scrim appear" aria-label="Close reading settings" onclick={onclose}
+<button
+	type="button"
+	class="scrim appear"
+	aria-label="Close reading settings"
+	onclick={onclose}
+	out:leave
 ></button>
-<div class="sheet appear" role="dialog" aria-label="Reading settings" use:focusScope>
+<div
+	class="sheet rise"
+	out:leave={'down'}
+	role="dialog"
+	aria-label="Reading settings"
+	use:focusScope
+>
 	{#if asking}
 		<!-- READING's "?" (doc/HELP.md; the HELP handoff, 2F): the same sheet changes,
 		     rather than a second one stacking on it; ← READING brings the rows back. -->

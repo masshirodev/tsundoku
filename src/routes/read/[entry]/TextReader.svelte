@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { leave } from '$lib/motion';
 	import { readLocal, writeLocal } from '$lib/settings/local';
 	import type { Json } from '$lib/settings/catalog';
 	import { onMount, tick, untrack } from 'svelte';
@@ -1222,10 +1223,11 @@
 		<button
 			type="button"
 			class="scrim appear"
+			out:leave
 			aria-label="Close contents"
 			onclick={() => (contents = false)}
 		></button>
-		<div class="contents appear" class:short={entries.length < 60}>
+		<div class="contents rise" out:leave={'down'} class:short={entries.length < 60}>
 			<EntryList
 				{series}
 				selecting={false}

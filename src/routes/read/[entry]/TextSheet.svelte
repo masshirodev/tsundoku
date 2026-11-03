@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { leave } from '$lib/motion';
 	import { resolve } from '$app/paths';
 	import RatingSlider from '$lib/components/controls/RatingSlider.svelte';
 	import {
@@ -96,7 +97,13 @@
 	}
 </script>
 
-<div class="sheet appear" role="dialog" aria-label="Reading settings" use:focusScope>
+<div
+	class="sheet rise"
+	out:leave={'down'}
+	role="dialog"
+	aria-label="Reading settings"
+	use:focusScope
+>
 	<div class="head">
 		<div class="h">READING</div>
 		<button type="button" class="x" aria-label="Close" data-focus-mark="in" onclick={onclose}

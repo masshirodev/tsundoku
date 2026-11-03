@@ -17,6 +17,9 @@ Tailscale. Read `README.md` and `doc/ARCHITECTURE.md` before changing anything.
 - Colours come from tokens in `src/lib/styles/`, never literals. `--reveal`
   (magenta) is reserved for reveal mode: the banner, the frame, HIDDEN badges.
 - Device layout is CSS media queries, not script, so the first paint is right.
+- Motion follows `doc/MOTION.md`: its tokens only, every tap drawn by the press
+  layer (`src/lib/press.ts`), and a new overlay gets both halves, an entrance
+  class (`.appear`, `.rise`, `.pop`) and `out:leave`. Page turns never animate.
 - Hidden means hidden: filter in SQL (`src/lib/server/library.ts`), never in the
   page.
 - **The live instance is the released bundle, not this checkout** (c228,

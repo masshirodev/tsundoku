@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { leave } from '$lib/motion';
 	import { fullscreen } from '$lib/reader/fullscreen.svelte';
 	import { backLink } from '$lib/back';
 	import { ratingBars } from '$lib/library/rating';
@@ -108,7 +109,7 @@
 	});
 </script>
 
-<header class="top appear">
+<header class="top appear" out:leave>
 	<!-- eslint-disable svelte/no-navigation-without-resolve -- seriesHref is resolved by the caller -->
 	<a
 		class="back"
@@ -137,7 +138,7 @@
 </header>
 
 {#if bottom}
-	<footer class="bottom appear">
+	<footer class="bottom appear" out:leave>
 		<div class="chapter">
 			<div class="ch">{chapter}</div>
 			<div class="left">{pageText}</div>
