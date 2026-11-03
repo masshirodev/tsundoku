@@ -1059,6 +1059,113 @@ test('UNDO after UNHIDE hides the Work whole again', async ({ page }) => {
 	await page.getByRole('button', { name: 'HIDE AGAIN' }).click();
 });
 
+// ---- Wave 16: the one rule at every door that writes `hidden` --------------
+
+/** The ids of a Work's parts, in its order, read from its own screen's run. */
+async function partIds(page: Page, workUrl: string): Promise<number[]> {
+	await page.goto(workUrl);
+	const hrefs = await page
+		.locator('.run .part .rowlink')
+		.evaluateAll((links) => links.map((a) => a.getAttribute('href') ?? ''));
+	return hrefs.map((h) => Number(/\/series\/(\d+)/.exec(h)![1]));
+}
+
+/** Whether each series is hidden, as the series sheet reads it (`/api/series/N`, reveal on). */
+async function hiddenOf(page: Page, ids: number[]): Promise<boolean[]> {
+	return Promise.all(
+		ids.map(async (id) => {
+			const res = await page.request.get(`/api/series/${id}`);
+			expect(res.ok()).toBe(true);
+			return ((await res.json()) as { hidden: boolean }).hidden;
+		})
+	);
+}
+
+test('the search sheet’s HIDE on a part hides its Work whole, and UNHIDE shows it whole', async ({
+	page
+}) => {
+	// The door wave 14's review reproduced: the search page opens the library's
+	// series sheet on any hit, a Work's part included, and its HIDE posts the
+	// library's plain ?/hide. Reached here through the app from the seed.
+	await revealOn(page);
+	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Sheet Run');
+	const workId = await openWork(page, 'Sheet Run');
+	const parts = await partIds(page, `/work/${workId}`);
+	expect(parts).toHaveLength(2);
+	expect(await hiddenOf(page, parts)).toEqual([false, false]);
+
+	// Search a part, open its hit's sheet: the cell says what HIDE takes.
+	await page.goto('/search?q=' + encodeURIComponent('Isekai Yakkyoku'));
+	const hit = page.locator('.hits .hit:not(.work)', { hasText: 'Isekai Yakkyoku' });
+	await expect(hit).toContainText('· SHEET RUN');
+	await hit.click();
+	let sheet = page.getByRole('dialog', { name: 'Isekai Yakkyoku' });
+	await expect(sheet).toBeVisible();
+	await sheet.getByRole('button', { name: 'HIDE ALL 2', exact: true }).click();
+	await expect(sheet).toHaveCount(0);
+	// The Work went whole: both parts hidden, not the one the sheet was open on.
+	await expect.poll(() => hiddenOf(page, parts)).toEqual([true, true]);
+
+	// UNHIDE through the same sheet brings the Work back whole.
+	await page.goto('/search?q=' + encodeURIComponent('Isekai Yakkyoku'));
+	await page.locator('.hits .hit:not(.work)', { hasText: 'Isekai Yakkyoku' }).click();
+	sheet = page.getByRole('dialog', { name: 'Isekai Yakkyoku' });
+	await sheet.getByRole('button', { name: 'UNHIDE ALL 2', exact: true }).click();
+	await expect(sheet).toHaveCount(0);
+	await expect.poll(() => hiddenOf(page, parts)).toEqual([false, false]);
+
+	// Put it back: the Work ended, nothing hidden.
+	await page.goto(`/work/${workId}`);
+	await endWork(page);
+	expect(await hiddenOf(page, parts)).toEqual([false, false]);
+});
+
+test('every library door that hides by id takes a part’s Work whole, both ways', async ({
+	page
+}) => {
+	// The class, not the site: `?/hide` (the series sheet's) and `?/bulk`'s
+	// HIDE / UNHIDE (the bar's, for a selection it thinks is Work-free) each
+	// get one part's id, by hand, and each must leave the Work whole.
+	await revealOn(page);
+	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Door Run');
+	const id = await openWork(page, 'Door Run');
+	const parts = await partIds(page, `/work/${id}`);
+	const post = async (action: string, form: Record<string, string>) => {
+		const res = await page.request.post(`/?/${action}`, {
+			form,
+			headers: { origin: new URL(page.url()).origin }
+		});
+		const answer = (await res.json()) as { type: string; data: string };
+		expect(answer.type).toBe('success');
+		return answer.data;
+	};
+
+	// ?/hide with the second part's id, on: the Work hidden whole, and the
+	// answer is the library's HIDE band (the Work, both its series).
+	const hid = await post('hide', { id: String(parts[1]), on: '1' });
+	expect(hid).toContain('hideFacts');
+	expect(await hiddenOf(page, parts)).toEqual([true, true]);
+	// ... and off: shown whole.
+	const shown = await post('hide', { id: String(parts[0]), on: '0' });
+	expect(shown).toContain('showFacts');
+	expect(await hiddenOf(page, parts)).toEqual([false, false]);
+
+	// ?/bulk do=hide / do=unhide with one part: the same rule.
+	await post('bulk', { id: String(parts[0]), do: 'hide' });
+	expect(await hiddenOf(page, parts)).toEqual([true, true]);
+	await post('bulk', { id: String(parts[1]), do: 'unhide' });
+	expect(await hiddenOf(page, parts)).toEqual([false, false]);
+
+	// A series in no Work is hidden and shown on its own, as before, with no band.
+	await page.goto(`/work/${id}`);
+	await endWork(page);
+	const plain = await post('hide', { id: String(parts[0]), on: '1' });
+	expect(plain).not.toContain('hideFacts');
+	expect(await hiddenOf(page, parts)).toEqual([true, false]);
+	await post('hide', { id: String(parts[0]), on: '0' });
+	expect(await hiddenOf(page, parts)).toEqual([false, false]);
+});
+
 test('a Work cannot be made of a hidden series and a visible one', async ({ page }) => {
 	await revealOn(page);
 	await page.goto('/?shelf=all&sort=title');

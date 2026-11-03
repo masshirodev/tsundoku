@@ -975,6 +975,54 @@ export function hideWork(workId: number, hidden: boolean): { ids: number[]; chan
 	return { ids, changed: setHidden(ids, hidden) };
 }
 
+/** The Works these series are parts of, once each. */
+export function worksTouched(seriesIds: number[]): number[] {
+	if (seriesIds.length === 0) return [];
+	const rows = getDb()
+		.prepare(
+			`SELECT DISTINCT work_id AS id FROM work_series
+				WHERE series_id IN (${placeholders(seriesIds.length)}) ORDER BY work_id`
+		)
+		.all(...seriesIds) as { id: number }[];
+	return rows.map((r) => r.id);
+}
+
+/** What `setHiddenWhole` did: every id it wrote, and which of them were a Work's. */
+export type WholeFacts = {
+	/** Every series hidden or shown: the Works' parts and the series in none. */
+	ids: number[];
+	/** The parts of the Works touched, each Work whole. */
+	whole: number[];
+	/** How many Works that was. */
+	works: number;
+};
+
+/**
+ * HIDE or SHOW series by id, with the one rule (doc/WORKS.md, "The one rule")
+ * applied at the write rather than at the screen that asked: a part of a Work
+ * takes its Work with it, every part, so no caller can leave a Work
+ * half-hidden in either direction. A series in no Work is written exactly as
+ * `setHidden` writes it.
+ *
+ * Every door that hides or shows series by id goes through here (the library's
+ * `?/hide`, `?/bulk`, `?/hideAll`, `?/showAll` and their UNDOs, the series
+ * screen's TAKE OUT and its UNDO), so the rule has one home. `hideWork` is the
+ * same write for a caller that already holds a Work's id.
+ */
+export function setHiddenWhole(seriesIds: number[], hidden: boolean): WholeFacts {
+	const db = getDb();
+	return db
+		.transaction((): WholeFacts => {
+			const works = worksTouched(seriesIds);
+			const whole = new Set<number>();
+			for (const workId of works) for (const id of allIds(db, workId)) whole.add(id);
+			const ids = [...new Set([...seriesIds, ...whole])];
+			setHidden(ids, hidden);
+			return { ids, whole: [...whole], works: works.length };
+		})
+		.immediate();
+}
+
 // ---- offers (W7 stores and undoes one) ----------------------------------------
 
 /**

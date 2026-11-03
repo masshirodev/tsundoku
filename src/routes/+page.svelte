@@ -527,7 +527,9 @@
 	);
 	/** The UNHIDE answer's facts (W4): every part it showed, and UNDO to hide them. */
 	const showFacts = $derived(
-		form && 'showFacts' in form ? (form.showFacts as { shown: number[]; works: boolean }) : null
+		form && 'showFacts' in form
+			? (form.showFacts as { shown: number[]; whole: number[]; works: number })
+			: null
 	);
 	/** How many failed titles the band names; the count is always the whole truth. */
 	const FAILED_SHOWN = 3;

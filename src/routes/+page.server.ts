@@ -16,7 +16,6 @@ import {
 	languagesOn,
 	listTiles,
 	setFavourite,
-	setHidden,
 	setInCollection,
 	setRating
 } from '$lib/server/library';
@@ -43,7 +42,7 @@ import {
 	WorkError,
 	addSeries,
 	createWork,
-	hideWork,
+	setHiddenWhole,
 	takeOut,
 	undoAdd,
 	undoCreate,
@@ -57,7 +56,8 @@ import {
 	type AddFacts,
 	type CreateFacts,
 	type TakeOutFacts,
-	type UngroupFacts
+	type UngroupFacts,
+	type WholeFacts
 } from '$lib/server/works';
 import { pageSizeOf } from '$lib/library/paging';
 
@@ -242,16 +242,15 @@ function ids(form: FormData): number[] {
 		.filter((n) => Number.isInteger(n) && n > 0);
 }
 
-/** The Works a selection touches, once each: what HIDE ALL asks about. */
-function worksTouched(seriesIds: number[]): number[] {
-	if (seriesIds.length === 0) return [];
-	const rows = getDb()
-		.prepare(
-			`SELECT DISTINCT work_id AS id FROM work_series
-				WHERE series_id IN (${seriesIds.map(() => '?').join(',')})`
-		)
-		.all(...seriesIds) as { id: number }[];
-	return rows.map((r) => r.id);
+/**
+ * The band facts for a HIDE or UNHIDE that touched a Work: what UNDO puts back,
+ * and the counts the band is worded from (`wholeBand`), with the series in no
+ * Work kept apart from the Works' own.
+ */
+function hideAnswer(facts: WholeFacts, hidden: boolean) {
+	return hidden
+		? { hideFacts: { hidden: facts.ids, out: [], whole: facts.whole, works: facts.works } }
+		: { showFacts: { shown: facts.ids, whole: facts.whole, works: facts.works } };
 }
 
 export const actions: Actions = {
@@ -269,10 +268,18 @@ export const actions: Actions = {
 		return { ok: true };
 	},
 
+	/**
+	 * The plain HIDE / UNHIDE, which the library's series sheet posts -- on the
+	 * search page too, for any hit, a Work's part included. A Work is hidden or
+	 * shown whole (doc/WORKS.md, "The one rule"), so a part takes its Work with
+	 * it, both ways, and the library's band says so. A series in no Work is
+	 * hidden or shown on its own, as it always was, with no band.
+	 */
 	hide: async ({ request }) => {
 		const form = await request.formData();
-		setHidden(ids(form), form.get('on') !== '0');
-		return { ok: true };
+		const on = form.get('on') !== '0';
+		const facts = setHiddenWhole(ids(form), on);
+		return facts.works > 0 ? hideAnswer(facts, on) : { ok: true };
 	},
 
 	/**
@@ -284,11 +291,7 @@ export const actions: Actions = {
 	hideAll: async ({ request }) => {
 		const target = ids(await request.formData());
 		if (target.length === 0) return fail(400, { message: 'nothing selected' });
-		const works = worksTouched(target);
-		const hidden = new Set<number>(target);
-		for (const workId of works) for (const id of hideWork(workId, true).ids) hidden.add(id);
-		setHidden([...hidden], true);
-		return { hideFacts: { hidden: [...hidden], out: [], whole: [...hidden] } };
+		return hideAnswer(setHiddenWhole(target, true), true);
 	},
 
 	/**
@@ -309,8 +312,10 @@ export const actions: Actions = {
 				if (!(e instanceof WorkError)) throw e;
 			}
 		}
-		setHidden(target, true);
-		return { hideFacts: { hidden: target, out, whole: [] } };
+		// Through the rule too: a part whose take-out failed is still a part, and
+		// hiding it alone would leave its Work half-hidden.
+		const facts = setHiddenWhole(target, true);
+		return { hideFacts: { hidden: facts.ids, out, whole: facts.whole, works: facts.works } };
 	},
 
 	/**
@@ -325,11 +330,7 @@ export const actions: Actions = {
 	showAll: async ({ request }) => {
 		const target = ids(await request.formData());
 		if (target.length === 0) return fail(400, { message: 'nothing selected' });
-		const works = worksTouched(target);
-		const shown = new Set<number>(target);
-		for (const workId of works) for (const id of hideWork(workId, false).ids) shown.add(id);
-		setHidden([...shown], false);
-		return { showFacts: { shown: [...shown], works: works.length > 0 } };
+		return hideAnswer(setHiddenWhole(target, false), false);
 	},
 
 	/** UNDO after either HIDE answer: shown again, and every take-out put back. */
@@ -339,8 +340,10 @@ export const actions: Actions = {
 			hidden: number[];
 			out: TakeOutFacts[];
 		};
-		setHidden(facts.hidden, false);
+		// The take-outs go back first, so the show below sees each series in the
+		// Work it returns to and shows that Work whole, as every door does.
 		for (const f of [...facts.out].reverse()) undoTakeOut(f);
+		setHiddenWhole(facts.hidden, false);
 		// A band that came from the URL (`from=band`) outlives an answer in the
 		// same shape: leaving the page is what takes it down.
 		if (form.get('from') === 'band') redirect(303, '/');
@@ -352,7 +355,7 @@ export const actions: Actions = {
 		const facts = JSON.parse(String((await request.formData()).get('facts') ?? 'null')) as {
 			shown: number[];
 		};
-		setHidden(facts.shown, true);
+		setHiddenWhole(facts.shown, true);
 		return { ok: true };
 	},
 
@@ -390,11 +393,14 @@ export const actions: Actions = {
 			setRating(target, rating);
 		} else if (form.get('do') === 'fav') {
 			setFavourite(target, true);
-		} else if (form.get('do') === 'hide') {
-			setHidden(target, true);
-		} else if (form.get('do') === 'unhide') {
-			// Out of a hidden root too: each becomes public (src/lib/server/visibility.ts).
-			setHidden(target, false);
+		} else if (form.get('do') === 'hide' || form.get('do') === 'unhide') {
+			// The bar sends a selection holding a Work's part to ?/hideAll's sheet
+			// or ?/showAll instead; this door keeps the rule anyway, so a posted
+			// part still takes its Work whole. UNHIDE comes out of a hidden root
+			// too: each becomes public (src/lib/server/visibility.ts).
+			const on = form.get('do') === 'hide';
+			const facts = setHiddenWhole(target, on);
+			if (facts.works > 0) return hideAnswer(facts, on);
 		}
 		return { ok: true };
 	},

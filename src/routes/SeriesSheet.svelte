@@ -9,6 +9,7 @@
 	import { sheetMeta } from '$lib/library/labels';
 	import { coverSrc, seriesHref, readHref } from '$lib/library/links';
 	import type { SeriesDetail, Shelf } from '$lib/library/types';
+	import type { LibraryCard } from '$lib/library/works';
 	import type { SubmitFunction } from '@sveltejs/kit';
 
 	/**
@@ -29,7 +30,12 @@
 		onchange: () => Promise<void>;
 	} = $props();
 
-	let detail = $state<SeriesDetail | null>(null);
+	/**
+	 * `/api/series/N` is `seriesDetail`, built on the library's card, so it
+	 * carries the card's Work too (`LibraryCard.work`): which Work, and how
+	 * many parts HIDE takes with it.
+	 */
+	let detail = $state<(SeriesDetail & Pick<LibraryCard, 'work'>) | null>(null);
 	let adding = $state(false);
 	let newShelf = $state('');
 
@@ -137,10 +143,15 @@
 			<a href={seriesHref(detail.id)}>SERIES</a>
 			<a href={seriesHref(detail.id, null, { edit: 'tags' })}>TAGS</a>
 			<!-- eslint-enable svelte/no-navigation-without-resolve -->
+			<!-- A Work is hidden or shown whole (doc/WORKS.md, "The one rule"): on a
+			     part, ?/hide takes every part with it, so the cell says how many, in
+			     the HIDE sheet's words, and the library's band says it was the Work. -->
 			<form method="POST" action="/?/hide" use:enhance={afterHide}>
 				<input type="hidden" name="id" value={detail.id} />
 				<input type="hidden" name="on" value={detail.hidden ? '0' : '1'} />
-				<button type="submit">{detail.hidden ? 'UNHIDE' : 'HIDE'}</button>
+				<button type="submit"
+					>{detail.hidden ? 'UNHIDE' : 'HIDE'}{detail.work ? ` ALL ${detail.work.of}` : ''}</button
+				>
 			</form>
 		</div>
 	{/if}

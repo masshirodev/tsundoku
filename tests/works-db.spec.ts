@@ -790,3 +790,38 @@ describe('a part’s place after a take-out (wave 16)', () => {
 		expect(works.seriesWorkRow(hi, true)).toMatchObject({ part: 2, of: 2 });
 	});
 });
+
+describe('hiding by id keeps a Work whole (wave 16)', () => {
+	it('takes a part’s Work with it, both ways, and leaves a series in no Work alone', () => {
+		const [a, b] = STEM.map(idOf) as number[];
+		const loose = idOf('Chainsaw Man')!;
+		const { work } = works.createWork({ seriesIds: [a, b], name: 'Isekai', now: NOW });
+
+		const hid = works.setHiddenWhole([b, loose], true);
+		expect([hiddenOf(a), hiddenOf(b), hiddenOf(loose)]).toEqual([true, true, true]);
+		expect(hid).toEqual({ ids: expect.arrayContaining([a, b, loose]), whole: [a, b], works: 1 });
+		expect(hid.ids).toHaveLength(3);
+
+		const shown = works.setHiddenWhole([a], false);
+		expect([hiddenOf(a), hiddenOf(b), hiddenOf(loose)]).toEqual([false, false, true]);
+		expect(shown).toMatchObject({ whole: [a, b], works: 1 });
+
+		// No Work in the ids: exactly setHidden, and nothing about a Work.
+		expect(works.setHiddenWhole([loose], false)).toEqual({ ids: [loose], whole: [], works: 0 });
+		expect(hiddenOf(loose)).toBe(false);
+		expect(works.worksTouched([a, loose])).toEqual([work.id]);
+	});
+
+	it('counts each Work a selection touches once', () => {
+		const one = works.createWork({ seriesIds: STEM.map(idOf) as number[], name: 'A', now: NOW });
+		const two = works.createWork({
+			seriesIds: [idOf('Sousou no Frieren')!, idOf('Dungeon Meshi')!],
+			name: 'B',
+			now: NOW
+		});
+		const facts = works.setHiddenWhole([...partsOf(one.work.id), partsOf(two.work.id)[0]], true);
+		expect(facts.works).toBe(2);
+		expect(facts.whole).toHaveLength(4);
+		expect([...partsOf(one.work.id), ...partsOf(two.work.id)].every(hiddenOf)).toBe(true);
+	});
+});

@@ -81,6 +81,7 @@ import {
 	hideWork,
 	reorder,
 	seriesWorkRow,
+	setHiddenWhole,
 	takeOut as takeOutPart,
 	undoTakeOut,
 	workOfSeries,
@@ -442,7 +443,7 @@ export const actions: Actions = {
 		const work = workOfSeries(s.id);
 		if (!work) return fail(400, { message: 'THIS SERIES IS IN NO WORK' });
 		const { ids } = hideWork(work.id, true);
-		const facts = { hidden: ids, out: [], whole: ids };
+		const facts = { hidden: ids, out: [], whole: ids, works: 1 };
 		if (!isRevealed(cookies)) {
 			const gone = new URLSearchParams({
 				band: 'hidden',
@@ -470,8 +471,10 @@ export const actions: Actions = {
 				if (!(e instanceof WorkError)) throw e;
 			}
 		}
-		setHidden([s.id], true);
-		const facts = { hidden: [s.id], out, whole: [] };
+		// Through the rule: a take-out that failed leaves the series a part, and
+		// a part is never hidden alone.
+		const hid = setHiddenWhole([s.id], true);
+		const facts = { hidden: hid.ids, out, whole: hid.whole, works: hid.works };
 		if (!isRevealed(cookies)) {
 			// TAKE OUT is not HIDE ALL n: only this series is hidden, and the rest
 			// of the Work is still on the shelf it stands on (`taken-out` says so,
@@ -493,8 +496,10 @@ export const actions: Actions = {
 			hidden: number[];
 			out: TakeOutFacts[];
 		};
-		setHidden(facts.hidden, false);
+		// The take-outs go back first, so the show sees each series in its Work
+		// again and shows that Work whole.
 		for (const f of [...facts.out].reverse()) undoTakeOut(f);
+		setHiddenWhole(facts.hidden, false);
 		return { ok: true };
 	},
 
