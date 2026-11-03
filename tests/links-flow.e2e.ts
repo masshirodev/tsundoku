@@ -126,7 +126,7 @@ test('the series screen: LINK and COVER rows, and FIND opens its own review', as
 	await page.waitForURL(/\/series\/\d+/);
 	await expect(page.locator('.link-row .lk-a')).toHaveText('Not linked');
 	await expect(page.locator('.link-row .lk-b')).toHaveText(
-		'3 CANDIDATES FROM THE LAST COVER PASS · NONE EXACT'
+		'3 CANDIDATES FROM THE LAST COVER PASS · NONE LINKED'
 	);
 	await page.locator('.lcs.inline').getByRole('link', { name: 'FIND' }).click();
 	await page.waitForURL(/\/links\?series=\d+/);

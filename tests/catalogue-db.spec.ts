@@ -365,7 +365,10 @@ describe('an anime', () => {
 			expect(linkRow(id)).toBeDefined();
 			expect(cat.linkState(id)?.linked).toMatchObject({
 				wrongKind: true,
-				coverOnly: false
+				coverOnly: false,
+				// OPEN and the sheet follow the entry's own kind, not the series':
+				// this is the manga 30023, so it opens anilist.co/manga/30023.
+				kind: 'manga'
 			});
 			// A link of its own kind is not flagged.
 			cat.link(
@@ -389,7 +392,7 @@ describe('an anime', () => {
 				'review',
 				NOW
 			);
-			expect(cat.linkState(id)?.linked).toMatchObject({ wrongKind: false });
+			expect(cat.linkState(id)?.linked).toMatchObject({ wrongKind: false, kind: 'anime' });
 		} finally {
 			forgetSerie(id);
 		}
@@ -595,6 +598,27 @@ describe('Mihon’s MAL tracker', () => {
 			via: 'mihon',
 			resolving: false
 		});
+	});
+
+	it('drops the old entry’s format when the tracker moves, so the resolve refills it (c298)', async () => {
+		const id = idOf('Tower of God');
+		// A link the tracker made whose resolve left the wrong kind's format:
+		// this branch now trusts `format` for the send guard, the MAL list and
+		// the wrong-kind flag, so a stale one must not outlive the move.
+		db.prepare(
+			`INSERT INTO series_links (series_id, mal_id, via, linked_at, resolved_at, format)
+			VALUES (?, 1000, 'mihon', ?, ?, 'TV')`
+		).run(id, NOW, NOW);
+		cat.linkFromTracker(db, id, { id: 122663, score: 0 }, NOW);
+		expect(linkRow(id)).toMatchObject({
+			mal_id: 122663,
+			anilist_id: null,
+			format: null,
+			resolved_at: null
+		});
+		entries = [media({ id: 85143, idMal: 122663, english: 'Tower of God' })];
+		expect(await cat.resolveLinks(NOW)).toBe(1);
+		expect(linkRow(id)).toMatchObject({ mal_id: 122663, anilist_id: 85143, format: 'MANGA' });
 	});
 
 	it('UNDO right after a link takes back the rating it gave', () => {

@@ -562,9 +562,13 @@
 			? { href: resolve('/series/[id]', { id: String(item.seriesId) }), label: '← SERIES' }
 			: { href: resolve('/'), label: '← LIBRARY' }
 	);
-	/** A search the owner has just run says "JUST NOW"; one from a pass says when. */
+	/**
+	 * A search the owner has just run says "JUST NOW"; anything older is
+	 * "EARLIER". `searched_at` is written by both the owner and the pass, so it
+	 * cannot say who searched, and the band must not claim the pass ran it.
+	 */
 	const when = (at: number | null, now: number) =>
-		at !== null && now - at < 120_000 ? 'JUST NOW' : 'IN THE COVER PASS';
+		at !== null && now - at < 120_000 ? 'JUST NOW' : 'EARLIER';
 	const searched = $derived(
 		!item
 			? ''

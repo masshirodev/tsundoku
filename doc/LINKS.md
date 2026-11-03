@@ -189,8 +189,10 @@ server runs that way, so the suite never reaches AniList.
 for the e2e alone: `links-flow.e2e.ts` serves a stand-in catalogue and points
 the preview there. **It receives a signed-in owner's bearer token**
 (`post` sends `authorization: Bearer <token>` to it), so it is never pointed
-anywhere but a local stand-in, and `bind.ts`'s `SERVER_ENV` has the launcher
-drop it if it is inherited rather than caught from a `.env`.
+anywhere but a local stand-in. An update's installer drops it, so a new
+version does not inherit it; a shell or unit that exports it still points the
+owner's token there, so it belongs only in a data folder `.env` beside a
+local stand-in.
 
 ## Covers
 
@@ -277,8 +279,10 @@ desktop and in tablet landscape.
   anime, TV/MOVIE/OVA on a manga) says **LINKED TO THE WRONG KIND**. The LINK
   page's `?series=N` row offers **RELINK**; the series screen's own line says
   changes ask AniList for the series' own kind, and its CHANGE is the door.
-  OPEN ↗ opens the series' own catalogue, so an anime's entry is never turned
-  into `/manga/<its id>` — on the series screen's LINK row and on each
+  OPEN ↗ opens the entry's own catalogue: the link's stored format decides,
+  and the series' kind is only the fallback when it isn't known yet, so a
+  manga's entry on an anime series opens `/manga/<its id>`, never a different
+  work on `/anime/<its id>` — on the series screen's LINK row and on each
   catalogue's row in the TRACKING sheet behind EDIT. The owner may have wanted
   the link, and UNDO still takes it back; nothing is unlinked silently. A
   novel across to its comic's entry is the deliberate cover-only link, and

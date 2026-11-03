@@ -346,6 +346,13 @@ describe('reading the lists', () => {
 				progress: 5,
 				score: 9
 			});
+			// The same link sends nothing: the entry on MAL is the anime's, and
+			// an anime's id is a different sequence from the manga's, so a send
+			// would write this series' chapters onto whatever manga holds it.
+			expect(tr.editTracking(comic, { status: 'on_hold' }, NOW)).toBe(0);
+			expect(
+				db.prepare(`SELECT COUNT(*) AS n FROM tracker_sends WHERE series_id = ?`).get(comic)
+			).toEqual({ n: 0 });
 		} finally {
 			db.prepare(`DELETE FROM series WHERE id = ?`).run(comic);
 		}

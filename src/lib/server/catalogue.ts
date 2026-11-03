@@ -296,7 +296,7 @@ export function linkFromTracker(
 	if (had) {
 		db.prepare(
 			`UPDATE series_links SET mal_id = ?, anilist_id = NULL, title = '', cover_url = '',
-				resolved_at = NULL, score = ?, linked_at = ? WHERE series_id = ?`
+				resolved_at = NULL, format = NULL, score = ?, linked_at = ? WHERE series_id = ?`
 		).run(mal.id, mal.score || null, now, seriesId);
 		clearAniSkip(seriesId, db);
 		return;
@@ -918,6 +918,12 @@ export type LinkState = {
 		coverOnly: boolean;
 		/** The entry is the other kind: a manga's on an anime, or an anime's on a manga (c298). */
 		wrongKind: boolean;
+		/**
+		 * The entry's own kind, from its stored format: what OPEN and the TRACKING
+		 * sheet must use, so a wrong-kind link opens the entry it names rather than
+		 * another work (c298). Null when the format isn't known yet.
+		 */
+		kind: Kind | null;
 	} | null;
 	/** Not linked: what the last pass found. */
 	candidates: number;
@@ -950,7 +956,8 @@ export function linkState(seriesId: number): LinkState | null {
 					ids: idsLine(l.anilist_id, l.mal_id),
 					resolving: l.resolved_at === null,
 					coverOnly: coverOnly(r.kind, l.format ?? ''),
-					wrongKind: wrongKind(r.kind, l.format ?? '')
+					wrongKind: wrongKind(r.kind, l.format ?? ''),
+					kind: l.format ? candidateKind({ format: l.format, country: '' }) : null
 				}
 			: null,
 		candidates: item.candidates.length,

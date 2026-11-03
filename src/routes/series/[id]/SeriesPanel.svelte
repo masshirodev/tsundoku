@@ -266,16 +266,16 @@
 		if (link.hidden) return 'HIDDEN SERIES ARE NEVER SEARCHED · PASTE A LINK';
 		if (link.queued) return 'A SEARCH WAITS FOR THE NEXT COVER PASS';
 		if (link.candidates)
-			return `${link.candidates} CANDIDATE${link.candidates === 1 ? '' : 'S'} FROM THE LAST COVER PASS · NONE EXACT`;
+			return `${link.candidates} CANDIDATE${link.candidates === 1 ? '' : 'S'} FROM THE LAST COVER PASS · NONE LINKED`;
 		return link.searched ? 'NOTHING FOUND IN THE LAST COVER PASS' : 'NOT SEARCHED YET';
 	});
 	const findHref = $derived(`${resolve('/links')}?series=${series.id}`);
 	const openHref = $derived(
 		link?.linked
 			? link.linked.anilistId
-				? anilistUrl(link.linked.anilistId, series.kind)
+				? anilistUrl(link.linked.anilistId, link.linked.kind ?? series.kind)
 				: link.linked.malId
-					? malUrl(link.linked.malId, series.kind)
+					? malUrl(link.linked.malId, link.linked.kind ?? series.kind)
 					: null
 			: null
 	);
@@ -910,7 +910,7 @@
 				<TrackingSheet
 					open={trackingOpen}
 					{tracking}
-					kind={series.kind}
+					kind={link.linked.kind ?? series.kind}
 					onclose={() => (trackingOpen = false)}
 				/>
 			{/if}
