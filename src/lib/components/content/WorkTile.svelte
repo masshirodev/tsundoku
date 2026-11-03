@@ -48,6 +48,10 @@
 	const parts = $derived(inOrder(tile.parts));
 	const foot = $derived(workFoot(parts));
 	const current = $derived(continuePart(parts));
+	// HIDDEN is the Work's mark, not the face's: a Work is hidden or shown
+	// whole, and a part hidden on its own after grouping still means the run
+	// is hidden (doc/WORKS.md, "The one rule"). The +N follows the same flag.
+	const hidden = $derived(tile.hidden);
 	const place = $derived(
 		current ? parts.findIndex((p) => p.seriesId === current.seriesId) + 1 : parts.length
 	);
@@ -74,11 +78,11 @@
 				ring={selected}
 				stripeTitle={tile.name}
 			>
-				{#if tile.face.hidden}<Badge tone="reveal" corner="bottom-left">HIDDEN</Badge>{/if}
+				{#if hidden}<Badge tone="reveal" corner="bottom-left">HIDDEN</Badge>{/if}
 				<span class="bdg wb">WORK · {parts.length}</span>
 				{#if tile.parts.some((p) => p.favourite)}<Badge tone="accent" corner="top-right">FAV</Badge
 					>{/if}
-				{#if tile.newCount > 0 && !tile.face.hidden}
+				{#if tile.newCount > 0 && !hidden}
 					<Badge corner="bottom-left">+{tile.newCount}</Badge>
 				{/if}
 				{#if cached != null && cached > 0}

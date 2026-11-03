@@ -28,6 +28,7 @@ function part(patch: Partial<WorkPart> & { seriesId: number; position: number })
 		read: 0,
 		lastOpenedAt: null,
 		status: 'completed',
+		hidden: false,
 		...patch
 	};
 }

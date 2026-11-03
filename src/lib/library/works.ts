@@ -39,6 +39,8 @@ export type WorkPart = {
 	lastOpenedAt: number | null;
 	/** The source's word: 'ongoing', 'completed' or ''. */
 	status: string;
+	/** Hidden itself or through its root, and not made public (doc/LIBRARY.md). */
+	hidden: boolean;
 };
 
 /** A part with nothing left to read. A part with no entries at all is never finished. */
@@ -295,8 +297,10 @@ export function workCounts(parts: WorkPart[]): WorkCounts {
  * shelf being browsed, which is CONTINUE's part on ALL and on a shelf every
  * part is on; `parts` is every part the viewer can see, for the foot, the
  * counts and the badges. `total` is how many parts the Work holds, which is
- * what a reveal-off read cannot always see. `newCount` and `downloaded` are
- * the parts' sums, which is what the tile's +N and ↓ say.
+ * what a reveal-off read cannot always see. `newCount` is the parts' sum, which
+ * is the tile's +N; `↓` is the device's own cache, never this row. `hidden` is
+ * the Work's, not the face's: a Work is hidden or shown whole, and the face can
+ * be the one part that is not (doc/WORKS.md, "The one rule").
  */
 export type WorkTile = {
 	id: number;
@@ -305,7 +309,7 @@ export type WorkTile = {
 	parts: WorkPart[];
 	total: number;
 	newCount: number;
-	downloaded: number;
+	hidden: boolean;
 };
 
 /**

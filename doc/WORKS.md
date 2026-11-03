@@ -34,7 +34,10 @@ matching series as their own tiles, each with `PART 2 · <WORK>` in its foot.
 Hidden stays SQL's job (`src/lib/server/library.ts`): a Work is hidden or
 shown whole, and grouping refuses to mix hidden and visible series. A Work
 whose parts diverged after grouping -- one hidden on its own -- refuses every
-add, from every member, until W4's HIDE settles it.
+add, from every member, until W4's HIDE settles it. With reveal on, such a Work
+is one tile wearing HIDDEN when any of its parts is hidden: the mark is the
+Work's, never the face's, so it does not depend on which part the tile happens
+to show.
 
 ## Decided on top of the handoff
 
@@ -228,10 +231,12 @@ leaves no UNDO band: taking the Work apart again is UNGROUP, and UNDO is W4's.
 `tests/works-library-frame.e2e.ts` and `tests/work-screen-frame.e2e.ts` are
 `gen-conformance` output pinned from `Work-Library.dc.html` and
 `Work-Screen.dc.html`. The seeded library has no Work, so each file seeds a
-database of its own and serves the same build on its own port
-(`PLAYWRIGHT_WORKS_PORT`, assigned by the coordinator and never defaulted -- a
-missing value fails the file with a message naming it) and makes one Work
-there through the app, in two series near the top of CONTINUE. It
+database of its own and serves the same build on its own port, and makes one
+Work there through the app, in two series near the top of CONTINUE.
+`PLAYWRIGHT_WORKS_PORT` pins that port when the gate assigns one; with the
+variable unset each file takes a free port from the OS (`node:net`'s
+`listen(0)`), so the repo's own `npx playwright test` runs them and two
+concurrent runs do not collide. It
 writes nothing to the shared library, so it runs in parallel with the flow
 specs. The generated tests compare the first match where a region repeats per
 row. That preamble and a couple of width/shadow assertions the generator

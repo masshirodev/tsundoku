@@ -589,6 +589,35 @@ test('the TAKE OUT and ADD A SERIES bands name the series they moved', async ({ 
 	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
 });
 
+test('the ADD A SERIES picker asks once the typing pauses, not once a letter', async ({ page }) => {
+	// A read per keystroke was seven `LIKE` scans over the library for one word
+	// (round 2's finding); the sheet now asks 180ms behind the typing, the
+	// library's own beat (doc/LIBRARY.md, "Search").
+	await makeWork(page, ['Mushoku Tensei', 'Sousou no Frieren']);
+	const reads: string[] = [];
+	page.on('request', (request) => {
+		const { pathname } = new URL(request.url());
+		if (/^\/work\/\d+\/addable$/.test(pathname)) reads.push(request.url());
+	});
+	await page.getByRole('button', { name: '+ ADD A SERIES' }).click();
+	const sheet = page.getByRole('dialog', { name: 'Add a series to this Work' });
+	await expect(sheet).toBeVisible();
+	// The open is immediate: one read before anything is typed.
+	await expect.poll(() => reads.length).toBe(1);
+
+	await sheet
+		.getByRole('searchbox', { name: 'Find a series' })
+		.pressSequentially('dungeon', { delay: 30 });
+	await expect(sheet.getByRole('button', { name: /Dungeon Meshi/ })).toBeVisible();
+	// Seven letters, one paused word: a second read at most (a slow machine can
+	// split the word, and the seq guard drops the older answer either way).
+	expect(reads.length).toBeLessThanOrEqual(2);
+
+	await page.keyboard.press('Escape');
+	await page.getByRole('button', { name: 'UNGROUP' }).click();
+	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
+});
+
 test('a Work’s RATING and FAV are the parts’, set together while they agree, and RENAME undoes', async ({
 	page
 }) => {

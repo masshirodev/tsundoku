@@ -113,8 +113,11 @@ series**.
   next part's first chapter, with ▶ in accent. A Work whose part 1 is read
   through stays in CONTINUE for part 2. Its `total` counts rows, so the
   section's `N OPEN` counts Works. The open-series cards are sorted and
-  sliced to `limit` before `entryLine`/`resumeEntry` run, so a large library
-  pays for the four rows it shows, not every open series.
+  sliced to `limit` before `entryLine`/`resumeEntry` run, so the series arm
+  pays for the four rows it shows, not every open series; the Work arm reads
+  every open Work's parts in one grouped pass (`partsOfWorks`), because each
+  Work's CONTINUE part is decided from all of them, and it is one query, not
+  one per Work.
 - **Sorts** place a Work by its most recent part: its latest read, its
   newest chapter, its latest added; TITLE by the Work's name. The unit
   query aggregates over every part, so a Work sits where the part you would

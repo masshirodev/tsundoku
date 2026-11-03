@@ -137,6 +137,26 @@ describe('browsing shows the run as one tile', () => {
 		expect(on.find((t) => t.id === facts.work.id)?.face.hidden).toBe(true);
 		expect(works.workPage(facts.work.id, { reveal: false })).toBeNull();
 	});
+
+	it('marks a Work hidden when any part is, whatever part the tile wears', () => {
+		// Grouping refuses to mix hidden and visible, but a part can be hidden on
+		// its own afterwards (the series screen's HIDE, until W4 settles it). The
+		// Work is then still one tile, and HIDDEN is the Work's mark: the face is
+		// the part the tile opens, which here is the visible one, so a mark read
+		// off the face would say this run is not hidden.
+		const a = idOf('Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru');
+		const b = idOf('Kusuriya no Hitorigoto');
+		const facts = make(
+			['Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru', 'Kusuriya no Hitorigoto'],
+			'Diverged Run'
+		);
+		getDb().prepare(`UPDATE series SET hidden = 1 WHERE id = ?`).run(b);
+		const own = workTiles({ reveal: true, shelf: 'all' }).find((t) => t.id === facts.work.id)!;
+		expect(own.face.id).toBe(a);
+		expect(own.face.hidden).toBe(false);
+		expect(own.parts.some((p) => p.hidden)).toBe(true);
+		expect(own.hidden).toBe(true);
+	});
 });
 
 describe('finding shows the series', () => {

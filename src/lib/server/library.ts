@@ -581,7 +581,7 @@ function workCard(
 			parts: ordered,
 			total,
 			newCount: ordered.reduce((n, p) => n + p.newCount, 0),
-			downloaded: ordered.reduce((n, p) => n + p.downloaded, 0)
+			hidden: ordered.some((p) => p.hidden)
 		} satisfies WorkTile
 	};
 }
@@ -743,11 +743,6 @@ export function countTilesOn(opts: ListOpts): number {
 }
 
 /**
- * Series with an entry opened and not everything read, most recent first.
- * `total` is how many are open, which is what the section label counts; the
- * screen shows fewer on a phone.
- */
-/**
  * Where ▶ resumes a series: the unread entry opened last, else the first
  * unread one, else the first. The same rule as the series screen's CONTINUE
  * (`currentEntry`), in SQL for the library's lists.
@@ -766,6 +761,13 @@ export function resumeEntry(seriesId: number): { id: number; label: string } | n
 	);
 }
 
+/**
+ * Series with an entry opened and not everything read, most recent first; a
+ * Work is one row, however many of its parts are open (doc/WORKS.md, "The one
+ * rule"). `total` counts the rows -- one per open Work, one per open series in
+ * no Work -- which is what the section label counts; the screen shows fewer on
+ * a phone.
+ */
 export function continueReading(
 	reveal: boolean,
 	limit = 4

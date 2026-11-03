@@ -50,10 +50,24 @@
 		}
 	}
 
+	// The first open reads at once; after that the server is asked 180ms behind
+	// the typing, the same beat as the library's own search (doc/LIBRARY.md,
+	// "Search"), so a word is one read rather than one per keystroke. The seq
+	// guard above keeps a slow answer to an older query off the screen.
+	let opened = false;
 	$effect(() => {
-		if (!open) return;
-		// Reading `q` here is what re-reads the server page as the reader types.
-		void read(false, q);
+		if (!open) {
+			opened = false;
+			return;
+		}
+		const query = q;
+		if (!opened) {
+			opened = true;
+			void read(false, query);
+			return;
+		}
+		const timer = setTimeout(() => void read(false, query), 180);
+		return () => clearTimeout(timer);
 	});
 </script>
 

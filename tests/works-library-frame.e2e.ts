@@ -1,5 +1,6 @@
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import { rmSync } from 'node:fs';
+import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Browser, TestInfo } from '@playwright/test';
@@ -33,11 +34,23 @@ import { E2E_TOKEN } from '../playwright.config';
  * left there. This preamble is hand-written; regenerating the assertions
  * below drops it (doc/WORKS.md, "The frames").
  */
-const PORT = Number(process.env.PLAYWRIGHT_WORKS_PORT);
-if (!Number.isInteger(PORT) || PORT <= 0 || PORT > 65535)
-	throw new Error(
-		'PLAYWRIGHT_WORKS_PORT is not assigned: ask the coordinator for the works-frame port. Do not pick one.'
-	);
+const pinnedPort = Number(process.env.PLAYWRIGHT_WORKS_PORT);
+const PORT =
+	Number.isInteger(pinnedPort) && pinnedPort > 0 && pinnedPort <= 65535
+		? pinnedPort
+		: // Nothing outside this file needs the number: it seeds its own database
+			// and serves it here. `PLAYWRIGHT_WORKS_PORT` pins the port when the
+			// gate assigns one; unset, the OS hands out a free one, so the repo's
+			// own `npx playwright test` can run the file (doc/WORKS.md, "The
+			// frames"). A literal default is what two concurrent runs collide on.
+			await new Promise<number>((resolve, reject) => {
+				const probe = createServer();
+				probe.once('error', reject);
+				probe.listen(0, '127.0.0.1', () => {
+					const { port } = probe.address() as AddressInfo;
+					probe.close(() => resolve(port));
+				});
+			});
 const base = `http://localhost:${PORT}`;
 const dbPath = join(tmpdir(), `tsundoku-e2e-works-${process.pid}.sqlite`);
 let server: ChildProcess | null = null;
