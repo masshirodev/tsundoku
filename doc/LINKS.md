@@ -261,10 +261,13 @@ desktop and in tablet landscape.
   not "KICKASSANIME · KICKASSANIME").
 - **A link to the other kind is flagged, never removed**: a `series_links`
   row whose format contradicts the series' kind (MANGA/NOVEL/ONE_SHOT on an
-  anime, TV/MOVIE/OVA on a manga) says **LINKED TO THE WRONG KIND**, with
-  RELINK. The owner may have wanted it, and UNDO still takes it back; nothing
-  is unlinked silently. A novel across to its comic's entry is the deliberate
-  cover-only link, and isn't this.
+  anime, TV/MOVIE/OVA on a manga) says **LINKED TO THE WRONG KIND**. The LINK
+  page's `?series=N` row offers **RELINK**; the series screen's own line says
+  changes ask AniList for the series' own kind, and its CHANGE is the door.
+  OPEN ↗ opens the series' own catalogue, so an anime's entry is never turned
+  into `/manga/<its id>`. The owner may have wanted the link, and UNDO still
+  takes it back; nothing is unlinked silently. A novel across to its comic's
+  entry is the deliberate cover-only link, and isn't this.
 - On the phone, and in the 440px landscape panel, the cells drop below the
   row in equal columns.
 - Offline, everything but OPEN ↗ dims.
