@@ -56,6 +56,7 @@
 	import ShelfPicker from './ShelfPicker.svelte';
 	import PersonView from './PersonView.svelte';
 	import GroupSheet from './GroupSheet.svelte';
+	import HideSheet from './HideSheet.svelte';
 	import TagChip from '$lib/components/controls/TagChip.svelte';
 	import { tagHref } from '$lib/library/links';
 	import { hueFor } from '$lib/library/cover';
@@ -65,18 +66,21 @@
 		continueSub,
 		count,
 		dirLabel,
+		kindLabel,
 		naturalDir,
 		newSeed,
 		parseSort,
 		progress,
 		SORT_NAME,
 		SORTS,
-		sheetMeta
+		sheetMeta,
+		unitLabel
 	} from '$lib/library/labels';
 	import { coverSrc, readHref, seriesHref, shelfHref, withParam } from '$lib/library/links';
 	import { num, upper } from '$lib/i18n/format';
-	import type { Rating, RefreshBatch, SeriesCard, Shelf } from '$lib/library/types';
-	import type { LibraryCard } from '$lib/library/works';
+	import type { Rating, Kind, RefreshBatch, SeriesCard, Shelf } from '$lib/library/types';
+	import { groupAnswers } from '$lib/library/books';
+	import { allHiddenAmong, isFinished, type LibraryCard } from '$lib/library/works';
 	import { pageQuery } from '$lib/library/paging';
 	import type { Snapshot } from './$types';
 
@@ -223,6 +227,25 @@
 		if (endNode.getBoundingClientRect().top < innerHeight * 2.5) void loadMore();
 	}
 
+	/**
+	 * A write changed which tiles a page already loaded holds -- a Work hidden
+	 * whole, one taken out of it -- and the load's *first* page can come back
+	 * identical, so SvelteKit keeps `data` and no effect re-reads the rest. The
+	 * page then still draws a tile the server has stopped listing (W4's HIDE,
+	 * and its UNDO). Ask for the loaded pages again by position: the answer is
+	 * the list as it is now, and the grid keeps its scroll.
+	 */
+	async function refillPages() {
+		if (more.length === 0) return;
+		const gen = ++generation;
+		const pageAgain = await fetchPage(data.series.length, more.length);
+		if (gen !== generation) return;
+		const have = new Set(data.series.map((c) => c.id));
+		more = pageAgain ? pageAgain.filter((c) => !have.has(c.id)) : [];
+		ended = false;
+		void keepGoing();
+	}
+
 	// A new shelf, tag or sort starts again from its first page. The same one
 	// re-read (a rating saved, a scan's progress) reads the pages after the
 	// first again too, so a tile deep in the grid shows what the server says.
@@ -354,50 +377,113 @@
 	let sheetId = $state<number | null>(null);
 	let pickerOpen = $state(false);
 	let grouping = $state(false);
+	/** HIDE on a part of a Work asks first (W4). */
+	let hiding = $state(false);
 
 	/**
-	 * What GROUP would take: selected doujin singletons, or selected novels
-	 * (volumes, doc/BOOKS.md), from the library grid or a person page. GROUP is
-	 * offered only when every selected item is one, all of one kind -- a manga,
-	 * or books mixed with novels, can't be grouped.
+	 * What GROUP would take (W4; doc/BOOKS.md, "The AS row"): every selected
+	 * series, with the facts the sheet's AS row needs -- its kind and how many
+	 * books it has -- and the Work it is in now. A Work tile contributes its
+	 * parts, since a Work is one tile over them (doc/WORKS.md). The rows keep
+	 * the order they were selected in, which is what a Work's BY HAND means.
 	 */
-	const groupPick = $derived.by(() => {
-		const out: {
-			seriesId: number;
-			title: string;
-			hue: number;
-			addedAt: number;
-			kind: string;
-			cover: number | null;
-		}[] = [];
-		const pool = data.person
-			? data.person.items
-					.filter((i) => i.groupable || (i.kind === 'novel' && i.entryId === null))
-					.map((i) => ({
-						id: i.seriesId,
-						title: i.title,
-						hue: hueFor(i.title),
-						addedAt: i.addedAt,
-						kind: i.kind,
-						cover: i.cover
-					}))
-			: series
-					.filter((c) => (c.kind === 'doujin' && c.entryCount === 1) || c.kind === 'novel')
-					.map((c) => ({
-						id: c.id,
+	type GroupRow = {
+		seriesId: number;
+		title: string;
+		hue: number;
+		addedAt: number;
+		cover: number | null;
+		kind: Kind;
+		entryCount: number;
+		/** "MANGA · 58 CH. · 41 READ": the row's second line. */
+		meta: string;
+		/** The Work it is in now: "IN <WORK> · MOVES HERE". */
+		inWork: string | null;
+	};
+	const groupRows = $derived.by((): GroupRow[] => {
+		const out: GroupRow[] = [];
+		const push = (r: GroupRow) => {
+			if (selected.has(r.seriesId) && !out.some((o) => o.seriesId === r.seriesId)) out.push(r);
+		};
+		if (data.person) {
+			for (const i of data.person.items) {
+				// A book inside a series is an entry, not a series: a Work and a
+				// series of books both take series.
+				if (i.entryId !== null) continue;
+				push({
+					seriesId: i.seriesId,
+					title: i.title,
+					hue: hueFor(i.title),
+					addedAt: i.addedAt,
+					cover: i.cover,
+					kind: i.kind,
+					entryCount: i.entries,
+					meta: `${kindLabel(i.kind)} · ${count(i.entries)} ${unitLabel(i.kind)}${i.read ? ' · READ' : ''}`,
+					inWork: data.workFeet[String(i.seriesId)]?.name ?? null
+				});
+			}
+		} else {
+			for (const c of series) {
+				if (!c.tile) {
+					push({
+						seriesId: c.id,
 						title: c.title,
 						hue: c.hue,
 						addedAt: c.addedAt,
+						cover: c.cover,
 						kind: c.kind,
-						cover: c.cover
-					}));
-		for (const b of pool) if (selected.has(b.id)) out.push({ seriesId: b.id, ...b });
-		return out;
+						entryCount: c.entryCount,
+						meta: sheetMeta(c),
+						inWork: data.workFeet[String(c.id)]?.name ?? null
+					});
+					continue;
+				}
+				for (const p of c.tile.parts)
+					push({
+						seriesId: p.seriesId,
+						title: p.title,
+						hue: hueFor(p.title),
+						addedAt: p.addedAt,
+						cover: p.cover,
+						kind: p.kind,
+						entryCount: p.entries,
+						meta: `${kindLabel(p.kind)} · ${count(p.entries)} ${unitLabel(p.kind)}${isFinished(p) ? ' · READ ✓' : ''}`,
+						inWork: c.tile.name
+					});
+			}
+		}
+		// Selection order, which SvelteSet keeps: a Work's rows start as selected.
+		const at = new Map([...selected].map((id, i) => [id, i]));
+		return out.sort((a, b) => (at.get(a.seriesId) ?? 0) - (at.get(b.seriesId) ?? 0));
 	});
-	const groupKinds = $derived(new Set(groupPick.map((b) => b.kind)));
-	const groupBooks = $derived(groupKinds.size === 1 ? groupPick : []);
-	const volumes = $derived(groupKinds.has('novel'));
-	const canGroup = $derived(selected.size > 0 && groupBooks.length === selected.size);
+	const answers = $derived(
+		groupAnswers(groupRows.map((r) => ({ kind: r.kind, entryCount: r.entryCount })))
+	);
+	/** The noun the sheet's title reads: the first answer the selection allows. */
+	const noun = $derived(answers[0] === 'volumes' ? 'VOLUMES' : 'BOOKS');
+	/** The Works the selection touches: HIDE asks when there is one (W4). */
+	const selectedWorks = $derived([
+		...new Set(
+			[...selected]
+				.map((id) => data.workFeet[String(id)]?.id)
+				.filter((id): id is number => typeof id === 'number')
+		)
+	]);
+	/** HIDE ALL n: every part of the Works touched, and the selected series in none. */
+	const hideWholeCount = $derived(
+		selectedWorks.reduce(
+			(n, id) => n + (data.existingWorks.find((w) => w.id === id)?.series ?? 0),
+			0
+		) + [...selected].filter((id) => !data.workFeet[String(id)]).length
+	);
+	/** TAKE OUT: how many series stay behind in their Works. */
+	const hideRemainCount = $derived(
+		selectedWorks.reduce((n, id) => {
+			const work = data.existingWorks.find((w) => w.id === id);
+			const here = [...selected].filter((s) => data.workFeet[String(s)]?.id === id).length;
+			return n + Math.max(0, (work?.series ?? here) - here);
+		}, 0)
+	);
 	/**
 	 * FOLD AS LANGUAGES (doc/EDITIONS.md): two or three single books, each in
 	 * a language of its own, none folded already. Their codes, or null.
@@ -424,6 +510,25 @@
 	 * bulk answer belongs where the selection is, not on a series screen.
 	 */
 	const batch = $derived(form && 'refreshed' in form ? (form.refreshed as RefreshBatch) : null);
+	/** GROUP AS A WORK's own answer (W4): the Work it made, or what joined one. */
+	const made = $derived(
+		form && 'made' in form ? (form.made as { work: { name: string }; members: unknown[] }) : null
+	);
+	const addedWork = $derived(
+		form && 'addedWork' in form
+			? (form.addedWork as { workId: number; name: string; facts: unknown[] })
+			: null
+	);
+	/** The HIDE answer's facts (W4): shown again, and taken out again, by UNDO. */
+	const hideFacts = $derived(
+		form && 'hideFacts' in form
+			? (form.hideFacts as { hidden: number[]; out: unknown[]; whole: number[] })
+			: null
+	);
+	/** The UNHIDE answer's facts (W4): every part it showed, and UNDO to hide them. */
+	const showFacts = $derived(
+		form && 'showFacts' in form ? (form.showFacts as { shown: number[]; works: boolean }) : null
+	);
 	/** How many failed titles the band names; the count is always the whole truth. */
 	const FAILED_SHOWN = 3;
 	const batchTitle = $derived(
@@ -470,9 +575,37 @@
 		async ({ update }) => {
 			await update({ reset: false });
 		};
-	const allHidden = $derived(
-		selected.size > 0 && series.filter((s) => selected.has(s.id)).every((s) => s.hidden)
-	);
+	/**
+	 * UNDO after a Work was made, added to, ended or hidden: the tiles a loaded
+	 * page holds change back, and the load's first page may not move, so the
+	 * pages are read again (see `refillPages`).
+	 */
+	const undoAfter: SubmitFunction =
+		() =>
+		async ({ update }) => {
+			await update();
+			await invalidateAll();
+			await refillPages();
+		};
+	/**
+	 * Which drawn series are hidden, by id: a Work's parts as well as the cards
+	 * themselves. A person's page draws a Work's series as their own tiles and a
+	 * shelf draws the Work as one card, so reading only the shelf's cards left
+	 * `every` over an empty list -- vacuously true -- and a person's page offered
+	 * UNHIDE for series that were plainly visible (W4's round 2).
+	 */
+	const hiddenById = $derived.by(() => {
+		const out = new SvelteMap<number, boolean>();
+		for (const c of series) {
+			if (c.tile) for (const p of c.tile.parts) out.set(p.seriesId, p.hidden);
+			else out.set(c.id, c.hidden);
+		}
+		// The page's own items last: one series, one answer.
+		for (const i of data.person?.items ?? []) if (i.entryId === null) out.set(i.seriesId, i.hidden);
+		return out;
+	});
+	/** Every series selected is hidden, and the page can see at least one. */
+	const allHidden = $derived(allHiddenAmong(selected, (id) => hiddenById.get(id)));
 
 	/**
 	 * A Work tile is the run, so selecting it selects its parts: the bulk bar's
@@ -864,21 +997,106 @@
 	{#if data.gone}
 		{@const gone = data.gone}
 		<!-- A Work ended on its own screen: the band and its UNDO live here, on the
-		     library it went back to (Work-States 2; doc/NAVIGATION.md). -->
+		     library it went back to (Work-States 2; doc/NAVIGATION.md). HIDE ALL n
+		     from a series screen with reveal off arrives the same way, and TAKE OUT
+		     says what it did -- one series hidden, on its own again -- rather than
+		     claiming the Work was hidden whole (W4). -->
 		<Band
 			title={gone.kind === 'ended'
 				? `${gone.name.toUpperCase()} IS NO LONGER A WORK`
-				: `UNGROUPED · ${gone.name.toUpperCase()}`}
-			detail={gone.kind === 'ended' ? 'ONE SERIES WAS LEFT' : 'EVERY SERIES IS ITS OWN AGAIN'}
+				: gone.kind === 'hidden'
+					? `${gone.name.toUpperCase()} HIDDEN`
+					: gone.kind === 'taken-out'
+						? 'HIDDEN · TAKEN OUT'
+						: `UNGROUPED · ${gone.name.toUpperCase()}`}
+			detail={gone.kind === 'ended'
+				? 'ONE SERIES WAS LEFT'
+				: gone.kind === 'hidden'
+					? `THE WORK, WHOLE${gone.n > 0 ? ` · ${gone.n} SERIES` : ''}`
+					: gone.kind === 'taken-out'
+						? `A SERIES ON ITS OWN AGAIN${gone.ended ? ` · ${gone.name.toUpperCase()} IS NO LONGER A WORK` : ''} · SHOWN AGAIN BY UNDO`
+						: 'EVERY SERIES IS ITS OWN AGAIN'}
 		>
 			{#snippet action()}
-				<form method="POST" action="?/undoWork" use:enhance>
-					<input type="hidden" name="kind" value={gone.kind} />
+				<form
+					method="POST"
+					action={gone.kind === 'hidden' || gone.kind === 'taken-out' ? '?/undoHide' : '?/undoWork'}
+					use:enhance={undoAfter}
+				>
+					{#if gone.kind !== 'hidden' && gone.kind !== 'taken-out'}<input
+							type="hidden"
+							name="kind"
+							value={gone.kind}
+						/>{/if}
+					<!-- This band came from the URL, so its UNDO leaves the page that
+					     carried it: a form's answer would not clear it. -->
+					<input type="hidden" name="from" value="band" />
 					<input type="hidden" name="facts" value={gone.facts} />
 					<button type="submit">UNDO</button>
 				</form>
 			{/snippet}
 		</Band>
+	{/if}
+	{#if made || addedWork}
+		<!-- W4's create and add answer here, where the sheet was opened: the Work's
+		     own screen would replace the library the owner was looking at. -->
+		<div class="lib-band">
+			<Band
+				title={made
+					? `${made.work.name.toUpperCase()} IS A WORK`
+					: `ADDED TO ${addedWork!.name.toUpperCase()}`}
+				detail={made
+					? `${made.members.length} SERIES · EACH KEEPS ITS OWN`
+					: `${addedWork!.facts.length} SERIES · AT THE END OF THE RUN`}
+			>
+				{#snippet action()}
+					<form method="POST" action="?/undoWork" use:enhance={undoAfter}>
+						<input type="hidden" name="kind" value={made ? 'create' : 'add'} />
+						<input type="hidden" name="facts" value={JSON.stringify(made ?? addedWork!.facts)} />
+						<button type="submit">UNDO</button>
+					</form>
+				{/snippet}
+			</Band>
+		</div>
+	{/if}
+	{#if hideFacts}
+		<!-- HIDE ALL n or TAKE OUT, THEN HIDE: the library's own band, with UNDO (W4). -->
+		<div class="lib-band">
+			<Band
+				title={hideFacts.whole.length > 0
+					? `HIDDEN · THE WORK, WHOLE`
+					: `HIDDEN · ${hideFacts.hidden.length} SERIES`}
+				detail={hideFacts.whole.length > 0
+					? `${hideFacts.hidden.length} SERIES · SHOWN AGAIN BY UNDO`
+					: 'TAKEN OUT OF THE WORK · A SERIES ON ITS OWN AGAIN'}
+			>
+				{#snippet action()}
+					<form method="POST" action="?/undoHide" use:enhance={undoAfter}>
+						<input type="hidden" name="facts" value={JSON.stringify(hideFacts)} />
+						<button type="submit">UNDO</button>
+					</form>
+				{/snippet}
+			</Band>
+		</div>
+	{/if}
+	{#if showFacts}
+		<!-- UNHIDE on a part shows the Work whole (W4): the same band and UNDO as
+		     HIDE, the other way round, because the same rule runs both ways. -->
+		<div class="lib-band">
+			<Band
+				title={showFacts.works
+					? 'SHOWN · THE WORK, WHOLE'
+					: `SHOWN · ${showFacts.shown.length} SERIES`}
+				detail={`${showFacts.shown.length} SERIES · HIDDEN AGAIN BY UNDO`}
+			>
+				{#snippet action()}
+					<form method="POST" action="?/undoShow" use:enhance={undoAfter}>
+						<input type="hidden" name="facts" value={JSON.stringify(showFacts)} />
+						<button type="submit">UNDO</button>
+					</form>
+				{/snippet}
+			</Band>
+		</div>
 	{/if}
 	<MoreSheet
 		open={moreOpen}
@@ -1024,6 +1242,7 @@
 			page={data.person}
 			reveal={data.reveal}
 			workFeet={data.workFeet}
+			works={data.works}
 			{selecting}
 			{selected}
 			onselect={(i) =>
@@ -1268,27 +1487,41 @@
 							class="sub">{foldCodes.join(' · ')}</span
 						></button
 					>
-				{:else if canGroup}
-					<!-- Index Books: GROUP, for singles only. -->
-					<button type="button" class="group" onclick={() => (grouping = true)}>GROUP</button>
 				{:else}
-					<!-- Anything else that can be one run: a Work (doc/WORKS.md). W4's AS
-					     sheet replaces this cell with the choice. -->
-					<button type="submit" class="group" formaction="?/work" disabled={selected.size < 2}
-						>WORK</button
+					<!-- Index Books: GROUP, and W4's AS sheet asks what they become. -->
+					<button
+						type="button"
+						class="group"
+						disabled={selected.size === 0}
+						onclick={() => (grouping = true)}>GROUP</button
 					>
 				{/if}
 				<!-- REFRESH (c221): asks each selected series' source once, and downloads nothing. -->
 				<button type="submit" formaction="?/refresh" disabled={selected.size === 0}
 					>{m.library_refresh()}</button
 				>
-				<!-- With reveal on and only hidden tiles selected, the same cell unhides them. -->
-				<button
-					type="submit"
-					name="do"
-					value={allHidden ? 'unhide' : 'hide'}
-					disabled={selected.size === 0}>{allHidden ? 'UNHIDE' : 'HIDE'}</button
-				>
+				<!-- With reveal on and only hidden tiles selected, the same cell unhides them.
+				     A selection that holds part of a Work asks first: a Work is hidden
+				     whole, or the part leaves it (W4; doc/WORKS.md, "The one rule").
+				     UNHIDE follows the same rule the other way: on a person's page a
+				     Work's parts are their own tiles, so showing one must show the Work. -->
+				{#if allHidden}
+					{#if selectedWorks.length > 0}
+						<button type="submit" formaction="?/showAll" disabled={selected.size === 0}
+							>UNHIDE</button
+						>
+					{:else}
+						<button type="submit" name="do" value="unhide" disabled={selected.size === 0}
+							>UNHIDE</button
+						>
+					{/if}
+				{:else if selectedWorks.length > 0}
+					<button type="button" disabled={selected.size === 0} onclick={() => (hiding = true)}
+						>HIDE</button
+					>
+				{:else}
+					<button type="submit" name="do" value="hide" disabled={selected.size === 0}>HIDE</button>
+				{/if}
 				<!-- Asks first (doc/DELETING.md): duplicates are cleared in bulk. -->
 				<button type="button" disabled={selected.size === 0} onclick={() => (deleting = true)}
 					>DELETE</button
@@ -1328,11 +1561,42 @@
 
 <GroupSheet
 	open={grouping}
-	books={groupBooks}
-	existing={(volumes ? data.existingVolumes : data.existing).filter((s) => !selected.has(s.id))}
-	noun={volumes ? 'VOLUMES' : 'BOOKS'}
+	books={groupRows}
+	existing={data.existing.filter((s) => !selected.has(s.id))}
+	existingVolumes={data.existingVolumes.filter((s) => !selected.has(s.id))}
+	existingWorks={data.existingWorks.filter(
+		(w) => selectedWorks.length === 0 || !selectedWorks.includes(w.id)
+	)}
+	{answers}
+	{noun}
+	ondone={() => {
+		grouping = false;
+		stopSelecting();
+	}}
 	onclose={() => (grouping = false)}
 />
+
+{#if hiding}
+	<HideSheet
+		open
+		title="HIDE {selected.size} {selected.size === 1 ? 'SERIES' : 'SERIES'}?"
+		detail={selectedWorks.length === 1
+			? `PART OF ${data.existingWorks.find((w) => w.id === selectedWorks[0])?.name.toUpperCase() ?? 'A WORK'}`
+			: `PART OF ${selectedWorks.length} WORKS`}
+		ids={[...selected].map(String)}
+		wholeCount={hideWholeCount}
+		remainCount={hideRemainCount}
+		actionAll="?/hideAll"
+		actionPart="?/hideParts"
+		ondone={async () => {
+			hiding = false;
+			stopSelecting();
+			await invalidateAll();
+			await refillPages();
+		}}
+		onclose={() => (hiding = false)}
+	/>
+{/if}
 
 <ConfirmSheet
 	open={deleting}
@@ -1831,13 +2095,19 @@
 		color: var(--accent);
 	}
 
-	/* REFRESH's answer (c221), pinned over the bulk bar it came from. */
+	/* REFRESH's answer (c221), pinned over the bulk bar it came from. A band is
+	   an answer, not a wall: the grid under it stays tappable, and only the band
+	   itself takes a press (its UNDO, its ASK N MORE). */
 	.refresh-band {
 		position: fixed;
 		left: var(--sheet-left, 0);
 		right: 0;
 		bottom: calc(121px + env(safe-area-inset-bottom));
 		z-index: 10;
+		pointer-events: none;
+	}
+	.refresh-band > :global(.band) {
+		pointer-events: auto;
 	}
 
 	/* ---- the TV (c238; TV-Library) ---------------------------------------- */

@@ -652,3 +652,93 @@ describe('a Work’s parts as CONTINUE reads them', () => {
 		expect(works.workParts(work.id, true).map((p) => p.addedAt)).toEqual([addedAt(a), addedAt(b)]);
 	});
 });
+
+describe('what W4 and W5 read off a Work', () => {
+	/** A Work of three: the manga trio the page reads below. */
+	const three = () =>
+		works.createWork({
+			seriesIds: [
+				idOf('Isekai Ojisan')!,
+				idOf('Isekai Yakkyoku')!,
+				idOf('Tensei Shitara Ken Deshita')!
+			],
+			name: 'Three',
+			now: NOW
+		});
+
+	it('lists the Works a sheet can add to, with how many series each holds', () => {
+		const made = three();
+		expect(works.workChoices()).toEqual([{ id: made.work.id, name: 'Three', series: 3 }]);
+	});
+
+	it('says, for a page of series, which Works have one here and where each run is', () => {
+		const made = three();
+		const [first, second, third] = partsOf(made.work.id);
+		// Only two of the page's series are in the Work: "2 OF 3 HERE".
+		const rows = works.worksOnTagPage([first, second], true);
+		expect(rows).toHaveLength(1);
+		expect(rows[0]).toMatchObject({ id: made.work.id, name: 'Three', here: 2, of: 3 });
+		// UP NEXT names the part CONTINUE opens, which is the first unfinished one.
+		expect(rows[0].upNext).toBe(continuePart(works.workParts(made.work.id, true))?.title);
+		// A page with nothing of it says nothing; the same series twice counts once.
+		expect(works.worksOnTagPage([third + 1000], true)).toEqual([]);
+		expect(works.worksOnTagPage([first, first], true)[0].here).toBe(1);
+		// A hidden Work is not on the page while reveal is off.
+		works.hideWork(made.work.id, true);
+		expect(works.worksOnTagPage([first, second], false)).toEqual([]);
+	});
+
+	it('draws one series’ row: its place, neighbours, and where the run is', () => {
+		const made = three();
+		const [first, second, third] = partsOf(made.work.id);
+		// Part 1 read through, part 2 in progress (opened, ten chapters read), part
+		// 3 never started.
+		getDb()
+			.prepare(`UPDATE entries SET read_at = ? WHERE series_id = ? AND shadowed = 0`)
+			.run(NOW, first);
+		getDb()
+			.prepare(
+				`UPDATE entries SET read_at = ? WHERE series_id = ? AND shadowed = 0 AND position <= 10`
+			)
+			.run(NOW, second);
+		getDb()
+			.prepare(
+				`UPDATE entries SET last_opened_at = ? WHERE series_id = ? AND shadowed = 0 AND position = 10`
+			)
+			.run(NOW, second);
+		const parts = works.workParts(made.work.id, true);
+
+		// Part 2 is where the run is: the plain row, naming the third.
+		const row = works.seriesWorkRow(second, true)!;
+		expect(row).toMatchObject({ id: made.work.id, name: 'Three', part: 2, of: 3 });
+		expect(row.prev).toEqual({ seriesId: first, title: expect.any(String) });
+		expect(row.next).toEqual({ seriesId: third, title: expect.any(String) });
+		expect(row.state).toBe('in-progress');
+		expect(row.accent).toBe(false);
+		expect(row.nextPart).toBeNull();
+		expect(row.nextTitle).toBe(parts[2].title);
+		expect(row.youAreIn).toBeNull();
+
+		// Part 1 is read through and the owner is already in part 2: the row says
+		// where the run is, and it is not the accent.
+		const firstRow = works.seriesWorkRow(first, true)!;
+		expect(firstRow.state).toBe('read-through');
+		expect(firstRow.youAreIn).toBe(parts[1].title);
+		expect(firstRow.accent).toBe(false);
+		expect(firstRow.prev).toBeNull();
+
+		// Read part 2 through too: now it leads into the unstarted third, and the
+		// accent carries the next part's first chapter.
+		getDb()
+			.prepare(`UPDATE entries SET read_at = ? WHERE series_id = ? AND shadowed = 0`)
+			.run(NOW, second);
+		const accent = works.seriesWorkRow(second, true)!;
+		expect(accent.accent).toBe(true);
+		expect(accent.youAreIn).toBeNull();
+		expect(accent.nextPart).toMatchObject({ seriesId: third });
+		expect(accent.nextPart!.entry).not.toBeNull();
+
+		// A series in no Work has no row at all.
+		expect(works.seriesWorkRow(third + 1000, true)).toBeNull();
+	});
+});

@@ -41,10 +41,21 @@ import { deleteSeries } from '$lib/server/delete';
 import { isGated } from '$lib/server/unlock';
 import {
 	WorkError,
+	addSeries,
 	createWork,
+	hideWork,
+	takeOut,
+	undoAdd,
+	undoCreate,
 	undoTakeOut,
 	undoUngroup,
+	workChoices,
 	workFeetFor,
+	workOfSeries,
+	workRecords,
+	worksOnTagPage,
+	type AddFacts,
+	type CreateFacts,
 	type TakeOutFacts,
 	type UngroupFacts
 } from '$lib/server/works';
@@ -95,13 +106,6 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	// 404 as a tag that doesn't exist.
 	const person = tag ? tagPage(tag, reveal) : null;
 	if (tag && !person) error(404, 'not found');
-	// A person's page is finding, so its series keep their own tiles -- each
-	// wearing the Work it is a part of (doc/WORKS.md, "The one rule").
-	const workFeet = person
-		? Object.fromEntries(
-				[...workFeetFor(person.items.map((i) => i.seriesId))].map(([id, w]) => [String(id), w])
-			)
-		: {};
 
 	const total = countTiles(reveal);
 	// Duplicate books (doc/DUPLICATE-BOOKS.md): a decision the review left
@@ -114,6 +118,37 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	// RANDOM's shuffle: one per choice of RANDOM, kept in the URL.
 	const seed = parseSeed(url.searchParams.get('seed'));
 	const pageSize = pageSizeOf(cookies.get('tsundoku_grid_page'));
+	// PEOPLE lists favourite people (from the layout), not series.
+	// The first page; the grid asks /api/library for the rest as it scrolls.
+	// CACHED is the exception: only the tablet knows which series it holds,
+	// so it gets them all, to narrow down itself.
+	const tiles =
+		shelf === 'people'
+			? []
+			: listTiles({
+					reveal,
+					shelf,
+					tag,
+					// CACHED narrows on the device, filters and all.
+					filters: shelf === 'cached' ? undefined : filters,
+					sort,
+					dir,
+					seed,
+					limit: shelf === 'cached' ? undefined : pageSize
+				});
+	// A person's page is finding, so its series keep their own tiles -- each
+	// wearing the Work it is a part of (doc/WORKS.md, "The one rule"). A
+	// browsing Work tile carries its parts, so a selection made through it can
+	// name the Work it would move them out of (W4's MOVES HERE). One query for
+	// the page, never one per tile.
+	const workFeet = Object.fromEntries(
+		[
+			...workFeetFor([
+				...(person ? person.items.map((i) => i.seriesId) : []),
+				...tiles.flatMap((c) => (c.tile ? c.tile.parts.map((p) => p.seriesId) : [c.id]))
+			])
+		].map(([id, w]) => [String(id), w])
+	);
 	return {
 		shelf,
 		tag,
@@ -146,35 +181,57 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		// A Work that ended (TAKE OUT of the second-to-last, UNGROUP) has no
 		// screen of its own any more: the library carries its band and its UNDO.
 		gone: goneBand(url),
-		// PEOPLE lists favourite people (from the layout), not series.
-		// The first page; the grid asks /api/library for the rest as it scrolls.
-		// CACHED is the exception: only the tablet knows which series it holds,
-		// so it gets them all, to narrow down itself.
-		series:
-			shelf === 'people'
-				? []
-				: listTiles({
-						reveal,
-						shelf,
-						tag,
-						// CACHED narrows on the device, filters and all.
-						filters: shelf === 'cached' ? undefined : filters,
-						sort,
-						dir,
-						seed,
-						limit: shelf === 'cached' ? undefined : pageSize
-					}),
+		// What GROUP can make of a selection (doc/BOOKS.md, "The AS row"): the
+		// Works a selection may move into, and the series' own Work names.
+		existingWorks: workChoices(),
+		// A person's page says the run exists without pulling it in (W4).
+		works: person
+			? worksOnTagPage(
+					person.items.map((i) => i.seriesId),
+					reveal
+				)
+			: [],
+		series: tiles,
 		total: shelf === 'people' ? 0 : countListed({ reveal, shelf, tag, filters }),
 		pageSize
 	};
 };
 
-/** The band a Work's own screen leaves behind when the Work ends (doc/NAVIGATION.md). */
-function goneBand(url: URL): { kind: 'ended' | 'ungrouped'; name: string; facts: string } | null {
+/** The band a Work's own screen or a series screen leaves behind (doc/NAVIGATION.md). */
+function goneBand(url: URL): {
+	kind: 'ended' | 'ungrouped' | 'hidden' | 'taken-out';
+	name: string;
+	facts: string;
+	/** SERIES hidden by HIDE ALL n, for the band's own line. */
+	n: number;
+	/** TAKE OUT of a Work of two leaves one series: the Work ended with it. */
+	ended: boolean;
+} | null {
 	const kind = url.searchParams.get('band');
 	const facts = url.searchParams.get('facts') ?? '';
-	if ((kind !== 'ended' && kind !== 'ungrouped') || facts === '') return null;
-	return { kind, name: url.searchParams.get('name') ?? '', facts };
+	if (
+		(kind !== 'ended' && kind !== 'ungrouped' && kind !== 'hidden' && kind !== 'taken-out') ||
+		facts === ''
+	)
+		return null;
+	return {
+		kind,
+		name: url.searchParams.get('name') ?? '',
+		facts,
+		n: Number(url.searchParams.get('n')) || 0,
+		// Only TAKE OUT can carry a Work's ending this way: it says so in its facts.
+		ended: kind === 'taken-out' && workEnded(facts)
+	};
+}
+
+/** Whether a TAKE OUT's facts left the Work with one series (its `ended` is set). */
+function workEnded(facts: string): boolean {
+	try {
+		const out = JSON.parse(facts) as { out?: { ended?: unknown }[] };
+		return out.out?.[0]?.ended != null;
+	} catch {
+		return false;
+	}
 }
 
 /** The ids a form acted on, as submitted by `name="id"` inputs. */
@@ -183,6 +240,18 @@ function ids(form: FormData): number[] {
 		.getAll('id')
 		.map((v) => Number(v))
 		.filter((n) => Number.isInteger(n) && n > 0);
+}
+
+/** The Works a selection touches, once each: what HIDE ALL asks about. */
+function worksTouched(seriesIds: number[]): number[] {
+	if (seriesIds.length === 0) return [];
+	const rows = getDb()
+		.prepare(
+			`SELECT DISTINCT work_id AS id FROM work_series
+				WHERE series_id IN (${seriesIds.map(() => '?').join(',')})`
+		)
+		.all(...seriesIds) as { id: number }[];
+	return rows.map((r) => r.id);
 }
 
 export const actions: Actions = {
@@ -203,6 +272,87 @@ export const actions: Actions = {
 	hide: async ({ request }) => {
 		const form = await request.formData();
 		setHidden(ids(form), form.get('on') !== '0');
+		return { ok: true };
+	},
+
+	/**
+	 * HIDE ALL n: a Work is hidden or shown whole (doc/WORKS.md, "The one
+	 * rule"), so a selection that holds part of one asks before it leaves a
+	 * Work half-hidden. This answer hides every part of every Work the
+	 * selection touches, and the selected series that are in none.
+	 */
+	hideAll: async ({ request }) => {
+		const target = ids(await request.formData());
+		if (target.length === 0) return fail(400, { message: 'nothing selected' });
+		const works = worksTouched(target);
+		const hidden = new Set<number>(target);
+		for (const workId of works) for (const id of hideWork(workId, true).ids) hidden.add(id);
+		setHidden([...hidden], true);
+		return { hideFacts: { hidden: [...hidden], out: [], whole: [...hidden] } };
+	},
+
+	/**
+	 * TAKE OUT, THEN HIDE: the selected parts leave their Works and are hidden
+	 * on their own; the rest stay a Work. Every part taken out keeps its rating,
+	 * FAV, link and folder, and UNDO puts both back.
+	 */
+	hideParts: async ({ request }) => {
+		const target = ids(await request.formData());
+		if (target.length === 0) return fail(400, { message: 'nothing selected' });
+		const out: TakeOutFacts[] = [];
+		for (const id of target) {
+			const work = workOfSeries(id);
+			if (!work) continue;
+			try {
+				out.push(takeOut(work.id, id));
+			} catch (e) {
+				if (!(e instanceof WorkError)) throw e;
+			}
+		}
+		setHidden(target, true);
+		return { hideFacts: { hidden: target, out, whole: [] } };
+	},
+
+	/**
+	 * UNHIDE over the selection: the same rule as HIDE ALL n, the other way
+	 * round. With reveal on a person's page draws a Work's series as their own
+	 * tiles, so selecting one hidden part of a hidden Work and pressing UNHIDE
+	 * must show the Work whole -- one part visible among hidden ones is the
+	 * diverged state this branch exists to remove, and a rule about a state is
+	 * not a rule until it is at every door to it. The selected series in no Work
+	 * are shown with the rest.
+	 */
+	showAll: async ({ request }) => {
+		const target = ids(await request.formData());
+		if (target.length === 0) return fail(400, { message: 'nothing selected' });
+		const works = worksTouched(target);
+		const shown = new Set<number>(target);
+		for (const workId of works) for (const id of hideWork(workId, false).ids) shown.add(id);
+		setHidden([...shown], false);
+		return { showFacts: { shown: [...shown], works: works.length > 0 } };
+	},
+
+	/** UNDO after either HIDE answer: shown again, and every take-out put back. */
+	undoHide: async ({ request }) => {
+		const form = await request.formData();
+		const facts = JSON.parse(String(form.get('facts') ?? 'null')) as {
+			hidden: number[];
+			out: TakeOutFacts[];
+		};
+		setHidden(facts.hidden, false);
+		for (const f of [...facts.out].reverse()) undoTakeOut(f);
+		// A band that came from the URL (`from=band`) outlives an answer in the
+		// same shape: leaving the page is what takes it down.
+		if (form.get('from') === 'band') redirect(303, '/');
+		return { ok: true };
+	},
+
+	/** UNDO of UNHIDE: the parts it showed are hidden again, whole. */
+	undoShow: async ({ request }) => {
+		const facts = JSON.parse(String((await request.formData()).get('facts') ?? 'null')) as {
+			shown: number[];
+		};
+		setHidden(facts.shown, true);
 		return { ok: true };
 	},
 
@@ -287,47 +437,86 @@ export const actions: Actions = {
 	},
 
 	/**
-	 * WORK: gather the selection into a Work, in the order it was selected
-	 * (doc/WORKS.md). The bulk bar's grouping cell asks this when the selection
-	 * is not one book series' to group; W4 replaces it with the AS sheet. The
-	 * Work's name defaults to the words every title starts with, and a
-	 * selection that shares none is refused rather than named wrongly -- the
-	 * Work screen's RENAME is where it gets one.
+	 * A WORK: gather the selection into a Work, in the order the sheet sent its
+	 * rows (doc/WORKS.md; Works Calls, "Making and breaking a Work"). This is
+	 * W4's AS sheet's create, replacing W2's stopgap cell.
+	 *
+	 * The sheet is the only door that may move a series out of another Work
+	 * (`sheet=1`): its rows say `IN <WORK> · MOVES HERE`, so the move is the
+	 * owner's. Every other caller keeps W2's refusal, because a whole-shelf
+	 * SELECT ALL must not collapse every Work on it into one. The sheet too
+	 * refuses a selection that touches two or more Works, which is exactly that
+	 * collapse by another route.
+	 *
+	 * The name defaults to the words every title starts with; titles that share
+	 * none have no default, and the sheet's own cell is disabled until one is
+	 * typed (`THE TITLES SHARE NO WORDS`).
 	 */
 	work: async ({ request }) => {
-		const seriesIds = ids(await request.formData());
+		const form = await request.formData();
+		const seriesIds = form
+			.getAll('series')
+			.map(Number)
+			.filter((n) => Number.isInteger(n) && n > 0);
 		if (seriesIds.length < 2) return fail(400, { workMessage: 'A WORK NEEDS TWO SERIES' });
-		// A series already in a Work is not this cell's to move. `createWork`
-		// would take it out of its Work and end that Work when one were left,
-		// so a whole-shelf SELECT ALL followed by WORK would collapse every Work
-		// on the shelf into one and leave no UNDO. Moving a series between Works
-		// is W4's AS sheet; this stand-in refuses instead (doc/WORKS.md).
-		const inWork = getDb()
+		const sheet = form.get('sheet') === '1';
+		const involved = getDb()
 			.prepare(
-				`SELECT COUNT(*) AS n FROM work_series WHERE series_id IN (${seriesIds.map(() => '?').join(',')})`
+				`SELECT DISTINCT work_id AS id FROM work_series
+					WHERE series_id IN (${seriesIds.map(() => '?').join(',')})`
 			)
-			.get(...seriesIds) as { n: number };
-		if (inWork.n > 0)
+			.all(...seriesIds) as { id: number }[];
+		if (!sheet && involved.length > 0)
 			return fail(400, {
 				workMessage: 'A WORK KEEPS ITS PARTS · MOVE ONE FROM ITS OWN SCREEN'
 			});
-		// The words every title starts with, as the books stem rule does; titles
-		// that share none get a name to replace at once, and the Work screen
-		// opens its RENAME row rather than guessing one.
+		if (involved.length > 1)
+			return fail(400, {
+				workMessage: 'A WORK KEEPS ITS PARTS · MOVE ONE FROM ITS OWN SCREEN'
+			});
 		const titles = seriesIds.map(
 			(id) =>
 				(getDb().prepare(`SELECT title FROM series WHERE id = ?`).get(id) as { title: string })
 					.title
 		);
-		const stem = defaultWorkName(titles);
-		let made;
+		const name = String(form.get('name') ?? '').trim() || defaultWorkName(titles);
+		if (name === '') return fail(400, { workMessage: 'A WORK NEEDS A NAME' });
+		let made: CreateFacts;
 		try {
-			made = createWork({ seriesIds, name: stem || 'Untitled work' });
+			// The sheet's rows are already in the owner's order: BY HAND is what
+			// it posts, whatever ORDER sorted them.
+			made = createWork({ seriesIds, name, order: 'hand' });
 		} catch (e) {
 			if (e instanceof WorkError) return fail(400, { workMessage: e.message.toUpperCase() });
 			throw e;
 		}
-		redirect(303, `/work/${made.work.id}${stem ? '' : '?rename=1'}`);
+		return { made };
+	},
+
+	/**
+	 * ADD TO A WORK · N: the sheet's existing Work, each chosen series moving in
+	 * at the end of the run (a Work left with one ends, and UNDO puts it back).
+	 */
+	addToWork: async ({ request }) => {
+		const form = await request.formData();
+		const workId = Number(form.get('work'));
+		if (!Number.isInteger(workId) || workId <= 0) return fail(400, { workMessage: 'PICK A WORK' });
+		const seriesIds = form
+			.getAll('series')
+			.map(Number)
+			.filter((n) => Number.isInteger(n) && n > 0);
+		const facts: AddFacts[] = [];
+		for (const id of seriesIds) {
+			try {
+				facts.push(addSeries(workId, id));
+			} catch (e) {
+				if (!(e instanceof WorkError)) throw e;
+				if (facts.length === 0) return fail(400, { workMessage: e.message.toUpperCase() });
+				break;
+			}
+		}
+		if (facts.length === 0) return fail(400, { workMessage: 'NOTHING WAS ADDED' });
+		return { addedWork: { workId, name: workRecords([workId])[0]?.name ?? '', facts } };
 	},
 
 	/**
@@ -377,12 +566,22 @@ export const actions: Actions = {
 	/**
 	 * UNDO after a Work ended. TAKE OUT's facts are a list (last first), an
 	 * UNGROUP's are the whole Work; the facts ride in the band's form because
-	 * the screen that made them is gone.
+	 * the screen that made them is gone. A create and an add name their own
+	 * kinds, and the library's own band carries them (`?/work`, `?/addToWork`).
 	 */
 	undoWork: async ({ request }) => {
 		const form = await request.formData();
+		const kind = String(form.get('kind') ?? '');
 		const facts = JSON.parse(String(form.get('facts') ?? 'null'));
-		if (form.get('kind') === 'ended') {
+		if (kind === 'create') {
+			undoCreate(facts as CreateFacts);
+			return { ok: true };
+		}
+		if (kind === 'add') {
+			for (const f of [...(facts as AddFacts[])].reverse()) undoAdd(f);
+			return { ok: true };
+		}
+		if (kind === 'ended') {
 			for (const f of [...(facts as TakeOutFacts[])].reverse()) undoTakeOut(f);
 		} else {
 			undoUngroup(facts as UngroupFacts);
