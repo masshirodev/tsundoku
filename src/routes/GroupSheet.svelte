@@ -11,6 +11,7 @@
 		type GroupAnswer,
 		type OrderMode
 	} from '$lib/library/books';
+	import { untrack } from 'svelte';
 	import { defaultWorkName } from '$lib/library/works';
 	import { addedMonth } from '$lib/library/series';
 	import { coverSrc } from '$lib/library/links';
@@ -98,19 +99,23 @@
 			? defaultWorkName(books.map((b) => b.title))
 			: sharedStart(books.map((b) => b.title));
 
-	// Each time the sheet opens, start from the given books.
+	// Each time the sheet opens, start from the given books. The reset reads them
+	// untracked: only `open` may run it again, or choosing an AS answer would be
+	// undone the next time the page handed down a new array (W4's AS row).
 	$effect(() => {
 		if (!open) return;
-		answer = answers[0] ?? 'work';
-		// A Work's ORDER starts BY HAND, in the order the series were selected;
-		// books and volumes start BY DATE ADDED, as they always have.
-		orderMode = answer === 'work' ? 'hand' : 'date';
-		rows = answer === 'work' ? asSelected(books) : orderBooks(books.map(withId), 'date');
-		mode = 'new';
-		into = existingWorks[0]?.id ?? existing[0]?.id ?? null;
-		ticked = books.map((b) => b.seriesId);
-		refused = '';
-		name = defaultName(answer);
+		untrack(() => {
+			answer = answers[0] ?? 'work';
+			// A Work's ORDER starts BY HAND, in the order the series were selected;
+			// books and volumes start BY DATE ADDED, as they always have.
+			orderMode = answer === 'work' ? 'hand' : 'date';
+			rows = answer === 'work' ? asSelected(books) : orderBooks(books.map(withId), 'date');
+			mode = 'new';
+			into = existingWorks[0]?.id ?? existing[0]?.id ?? null;
+			ticked = books.map((b) => b.seriesId);
+			refused = '';
+			name = defaultName(answer);
+		});
 	});
 
 	const withId = (b: Book) => ({ ...b, id: b.seriesId });

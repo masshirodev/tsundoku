@@ -526,41 +526,40 @@
 	</a>
 	<!-- eslint-enable svelte/no-navigation-without-resolve -->
 
+	{#if !outline && takenOut}
+		<Band
+			title={takenOut.facts.ended
+				? `${takenOut.from.toUpperCase()} IS NO LONGER A WORK`
+				: `TAKEN OUT OF ${takenOut.from.toUpperCase()}`}
+			detail={takenOut.facts.ended
+				? 'ONE SERIES WAS LEFT'
+				: 'A SERIES ON ITS OWN AGAIN · KEEPS ITS RATING, FAV AND FOLDER'}
+		>
+			{#snippet action()}
+				<form method="POST" action="?/undoTakeOutWork" use:enhance>
+					<input type="hidden" name="facts" value={JSON.stringify(takenOut.facts)} />
+					<button type="submit">UNDO</button>
+				</form>
+			{/snippet}
+		</Band>
+	{:else if !outline && hideFacts}
+		<Band
+			title={hideFacts.whole.length > 0 ? 'HIDDEN · THE WORK, WHOLE' : 'HIDDEN · TAKEN OUT'}
+			detail={hideFacts.whole.length > 0
+				? `${hideFacts.hidden.length} SERIES · SHOWN AGAIN BY UNDO`
+				: 'A SERIES ON ITS OWN AGAIN · SHOWN AGAIN BY UNDO'}
+		>
+			{#snippet action()}
+				<form method="POST" action="?/undoHide" use:enhance>
+					<input type="hidden" name="facts" value={JSON.stringify(hideFacts)} />
+					<button type="submit">UNDO</button>
+				</form>
+			{/snippet}
+		</Band>
+	{/if}
+
 	{#if !outline && work}
-		<!-- The WORK row (W5; Work-Row B3): under CONTINUE, because it answers the same
-		     question, what after this. Nothing in the header: the meta line stays the
-		     series' own. A tap on the name opens the Work, ← and → the neighbours. -->
-		{#if takenOut}
-			<Band
-				title={takenOut.facts.ended
-					? `${takenOut.from.toUpperCase()} IS NO LONGER A WORK`
-					: `TAKEN OUT OF ${takenOut.from.toUpperCase()}`}
-				detail={takenOut.facts.ended
-					? 'ONE SERIES WAS LEFT'
-					: 'A SERIES ON ITS OWN AGAIN · KEEPS ITS RATING, FAV AND FOLDER'}
-			>
-				{#snippet action()}
-					<form method="POST" action="?/undoTakeOutWork" use:enhance>
-						<input type="hidden" name="facts" value={JSON.stringify(takenOut.facts)} />
-						<button type="submit">UNDO</button>
-					</form>
-				{/snippet}
-			</Band>
-		{:else if hideFacts}
-			<Band
-				title={hideFacts.whole.length > 0 ? 'HIDDEN · THE WORK, WHOLE' : 'HIDDEN · TAKEN OUT'}
-				detail={hideFacts.whole.length > 0
-					? `${hideFacts.hidden.length} SERIES · SHOWN AGAIN BY UNDO`
-					: 'A SERIES ON ITS OWN AGAIN · SHOWN AGAIN BY UNDO'}
-			>
-				{#snippet action()}
-					<form method="POST" action="?/undoHide" use:enhance>
-						<input type="hidden" name="facts" value={JSON.stringify(hideFacts)} />
-						<button type="submit">UNDO</button>
-					</form>
-				{/snippet}
-			</Band>
-		{:else if partDone(work.state) && work.nextPart}
+		{#if partDone(work.state) && work.nextPart}
 			<!-- Read through (or caught up while the next part has something): one accent
 			     on the screen, and it is the run's. A tap opens the next part's CH. 1. -->
 			{@const next = work.nextPart}

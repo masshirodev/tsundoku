@@ -8,9 +8,9 @@ import { expect, test } from './fixtures';
 import { E2E_TOKEN } from '../playwright.config';
 
 /**
- * The Works flow end to end (c276, c277; doc/WORKS.md): browsing shows the run
- * as one tile and one CONTINUE row, finding shows the parts, and /work/N is the
- * run's own screen.
+ * The Works flow end to end (c276, c277, c278; doc/WORKS.md): browsing shows
+ * the run as one tile and one CONTINUE row, finding shows the parts, /work/N
+ * is the run's own screen, and W4's AS sheet is how a Work is made.
  *
  * Every case here groups series into a Work, and a Work takes its parts' own
  * tiles off the grid while it exists: a spec that finds a series by its grid
@@ -83,11 +83,12 @@ test.afterAll(() => {
 	wipe();
 });
 
-// ---- Works (c276, c277; doc/WORKS.md) ----------------------------------------
+// ---- Works (c276, c277, c278; doc/WORKS.md) ----------------------------------
 // Browsing shows the run as one tile and one CONTINUE row; finding shows the
-// series; /work/N is the run's own screen. Each test makes its Work and ends
-// it again, and a series it writes to is put back, so the next case -- and the
-// file's own proof at the end -- sees the seed.
+// series; /work/N is the run's own screen; GROUP AS A WORK makes one. Each
+// test makes its Work and ends it again, and a series it writes to is put
+// back, so the next case -- and the file's own proof at the end -- sees the
+// seed.
 
 const workTile = (page: Page, name: string) => page.locator('.grid .tile.work', { hasText: name });
 
@@ -99,32 +100,65 @@ const tileByTitle = (page: Page, title: string) =>
 		})
 	});
 
-/** Picks these titles in this order and presses WORK, landing on the Work. */
-async function makeWork(page: Page, titles: string[]) {
+const groupSheet = (page: Page) => page.getByRole('dialog', { name: 'Group into a series' });
+
+/** Selects these titles on the library, in this order. */
+async function select(page: Page, titles: string[]) {
 	await page.goto('/');
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
 	for (const t of titles)
 		await page.locator('.grid .tile', { hasText: t }).locator('.open').click();
-	await page.getByRole('button', { name: 'WORK', exact: true }).click();
-	await expect(page).toHaveURL(/\/work\/\d+/);
+}
+
+/**
+ * Makes a Work of these titles through W4's AS sheet, and leaves the library
+ * showing its band. The name is typed: titles that share no words have none.
+ */
+async function makeWork(page: Page, titles: string[], name: string) {
+	await select(page, titles);
+	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+	const sheet = groupSheet(page);
+	await expect(sheet).toBeVisible();
+	// A selection of singles or novels opens on BOOKS/VOLUMES; a Work is chosen.
+	await sheet.getByRole('radio', { name: /A WORK · SERIES/ }).click();
+	await sheet.getByRole('textbox', { name: 'Work name' }).fill(name);
+	await sheet.getByRole('button', { name: /CREATE WORK · \d+ SERIES/ }).click();
+	await expect(page.locator('.band', { hasText: `${name.toUpperCase()} IS A WORK` })).toBeVisible();
+	await expect(workTile(page, name)).toBeVisible();
+}
+
+/** Opens a Work by its name from the library, and is on its screen. */
+async function openWork(page: Page, name: string): Promise<number> {
+	await workTile(page, name).click();
+	await page.waitForURL(/\/work\/\d+/);
+	return Number(/\/work\/(\d+)/.exec(page.url())![1]);
+}
+
+/** Ends the Work on its own screen, so the seed is what the other cases expect. */
+async function endWork(page: Page) {
+	await page.getByRole('button', { name: 'UNGROUP' }).click();
+	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
 }
 
 test('a Work is one tile, one CONTINUE row, and a screen of its own', async ({ page }) => {
 	// Two runs in progress, the newest read of them five minutes old: the
 	// Work's CONTINUE row is the first one, and the section counts rows.
-	await makeWork(page, [
-		'Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru',
-		'Kusuriya no Hitorigoto'
-	]);
-	// They share no words, so it is named for the owner to replace.
-	await expect(page.locator('.rename')).toBeVisible();
-	await page.locator('.rename input').fill('Drawing Run');
-	await page.locator('.rename').getByRole('button', { name: 'DONE' }).click();
+	await makeWork(
+		page,
+		['Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru', 'Kusuriya no Hitorigoto'],
+		'Drawing Run'
+	);
+	await openWork(page, 'Drawing Run');
 	await expect(page.locator('.bar-title .t')).toHaveText('Drawing Run');
 	await expect(page.locator('.bar-title .s')).toContainText('WORK · 2 SERIES');
 	await expect(page.locator('.ident h1')).toHaveText('Drawing Run');
 	await expect(page.locator('.ident .meta')).toHaveText('WORK · MANGA');
 	await expect(page.locator('.ident .count').first()).toContainText('2 SERIES');
+
+	// RENAME is a round trip: the same name, DONE, and a band -- nothing changed.
+	await page.getByRole('button', { name: 'RENAME' }).click();
+	await page.locator('.rename input').fill('Drawing Run');
+	await page.locator('.rename').getByRole('button', { name: 'DONE' }).click();
 	await expect(page.locator('.band', { hasText: 'RENAMED · DRAWING RUN' })).toBeVisible();
 
 	// CONTINUE across the Work opens the part CONTINUE opens for it.
@@ -183,14 +217,14 @@ test('a Work is one tile, one CONTINUE row, and a screen of its own', async ({ p
 	await ungrouped.getByRole('button', { name: 'UNDO' }).click();
 	await expect(workTile(page, 'Drawing Run')).toBeVisible();
 	await workTile(page, 'Drawing Run').click();
-	await page.getByRole('button', { name: 'UNGROUP' }).click();
-	await expect(workTile(page, 'Drawing Run')).toHaveCount(0);
+	await endWork(page);
 });
 
 test('ORDER reorders the run, TAKE OUT of the second-to-last ends the Work, and UNDO restores it', async ({
 	page
 }) => {
-	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku']);
+	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Isekai');
+	await openWork(page, 'Isekai');
 	// Part 1 is read through and part 2 never started: CONTINUE crosses, and
 	// its row on the screen points at part 2's first chapter (the UP NEXT case).
 	await expect(page.locator('.cta').first()).toContainText('PART 2 · CH. 1');
@@ -231,8 +265,7 @@ test('ORDER reorders the run, TAKE OUT of the second-to-last ends the Work, and 
 	await workTile(page, 'Isekai').click();
 	await expect(page.locator('.run .part').nth(0)).toContainText('Isekai Yakkyoku');
 	// Done with it: the Work ends for good.
-	await page.getByRole('button', { name: 'UNGROUP' }).click();
-	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
+	await endWork(page);
 });
 
 test('the TAKE OUT and ADD A SERIES bands name the series they moved', async ({ page }) => {
@@ -240,7 +273,8 @@ test('the TAKE OUT and ADD A SERIES bands name the series they moved', async ({ 
 	// its own screen has to say which series left. The bands are built after
 	// `update()` has re-read the lists the series used to be found in, so their
 	// names come from the action's facts (round 2's finding).
-	await makeWork(page, ['Mushoku Tensei', 'Sousou no Frieren', 'Isekai Ojisan']);
+	await makeWork(page, ['Mushoku Tensei', 'Sousou no Frieren', 'Isekai Ojisan'], 'Mushoku Run');
+	await openWork(page, 'Mushoku Run');
 	await expect(page.locator('.run .part')).toHaveCount(3);
 
 	// Take one out; two are left, so the Work stays and the band names it.
@@ -263,15 +297,15 @@ test('the TAKE OUT and ADD A SERIES bands name the series they moved', async ({ 
 	await expect(page.locator('.run .part')).toHaveCount(3);
 
 	// Done with it: the seed stays what the other specs expect.
-	await page.getByRole('button', { name: 'UNGROUP' }).click();
-	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
+	await endWork(page);
 });
 
 test('the ADD A SERIES picker asks once the typing pauses, not once a letter', async ({ page }) => {
 	// A read per keystroke was seven `LIKE` scans over the library for one word
 	// (round 2's finding); the sheet now asks 180ms behind the typing, the
 	// library's own beat (doc/LIBRARY.md, "Search").
-	await makeWork(page, ['Mushoku Tensei', 'Sousou no Frieren']);
+	await makeWork(page, ['Mushoku Tensei', 'Sousou no Frieren'], 'Mushoku Run');
+	await openWork(page, 'Mushoku Run');
 	const reads: string[] = [];
 	page.on('request', (request) => {
 		const { pathname } = new URL(request.url());
@@ -292,23 +326,18 @@ test('the ADD A SERIES picker asks once the typing pauses, not once a letter', a
 	expect(reads.length).toBeLessThanOrEqual(2);
 
 	await page.keyboard.press('Escape');
-	await page.getByRole('button', { name: 'UNGROUP' }).click();
-	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
+	await endWork(page);
 });
 
 test('a Work’s RATING and FAV are the parts’, set together while they agree, and RENAME undoes', async ({
 	page
 }) => {
-	// These two share no words, so the Work is named for the owner to replace.
-	await makeWork(page, [
-		'Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru',
-		'Hikaru ga Shinda Natsu'
-	]);
-	await expect(page.locator('.rename')).toBeVisible();
-	await page.locator('.rename input').fill('Drawing Run');
-	await page.locator('.rename').getByRole('button', { name: 'DONE' }).click();
-	await expect(page.locator('.bar-title .t')).toHaveText('Drawing Run');
-	await expect(page.locator('.band', { hasText: 'RENAMED · DRAWING RUN' })).toBeVisible();
+	await makeWork(
+		page,
+		['Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru', 'Hikaru ga Shinda Natsu'],
+		'Drawing Run'
+	);
+	await openWork(page, 'Drawing Run');
 
 	// Both parts are rated 8 and both are a favourite: the row is settable.
 	await expect(page.locator('.rs .num')).toHaveText('8');
@@ -328,8 +357,8 @@ test('a Work’s RATING and FAV are the parts’, set together while they agree,
 	await expect(seriesSheet).toBeVisible();
 	await seriesSheet.getByRole('button', { name: 'Rate 8 of 10' }).click();
 	await page.keyboard.press('Escape');
-	await page.goto(page.url().match(/\/work\/\d+/) ? page.url() : '/');
 	// Back to the Work: it is on the library.
+	await page.goto('/');
 	const tile = workTile(page, 'Drawing Run');
 	await tile.click();
 	await expect(page.locator('.rs .lab-top')).toHaveText('PARTS DIFFER');
@@ -353,8 +382,7 @@ test('a Work’s RATING and FAV are the parts’, set together while they agree,
 	await expect(page.locator('.rs .num')).toHaveText('8');
 	await page.locator('.fav').click();
 	await expect(page.locator('.fav')).toHaveAttribute('aria-pressed', 'true');
-	await page.getByRole('button', { name: 'UNGROUP' }).click();
-	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
+	await endWork(page);
 
 	// From outside: each part, found by its own name, is the seed's 8 again.
 	for (const [q, title] of [
@@ -377,18 +405,24 @@ test('a hidden Work is the same 404 as one that does not exist', async ({ page }
 	await page.goto('/');
 	await expect(page.getByText('HENTOID')).toHaveCount(0);
 
-	// Reveal, so the hidden doujins are tiles, and make a Work of two of them.
+	// Reveal, so the hidden doujins are tiles, and make a Work of them.
 	await page.goto('/search');
 	await page.getByRole('searchbox').fill('/reveal');
 	await page.getByRole('searchbox').press('Enter');
 	await expect(page.getByText('HIDDEN SHOWN')).toBeVisible();
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
 	// A series of books and two singles: not one book series' to group, so the
-	// bulk bar offers a Work.
+	// AS row offers only a Work.
 	for (const t of ['Kaori Mama', 'Kōhai no Himitsu Nikki', 'Onsen Ryokan no Yoru'])
 		await tileByTitle(page, t).locator('.open').click();
-	await page.getByRole('button', { name: 'WORK', exact: true }).click();
-	await expect(page).toHaveURL(/\/work\/\d+/);
+	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+	const sheet = groupSheet(page);
+	await sheet.getByRole('radio', { name: /A WORK · SERIES/ }).click();
+	await sheet.getByRole('textbox', { name: 'Work name' }).fill('Hidden Run');
+	await sheet.getByRole('button', { name: /CREATE WORK/ }).click();
+	await expect(page.locator('.band', { hasText: 'HIDDEN RUN IS A WORK' })).toBeVisible();
+	await workTile(page, 'Hidden Run').click();
+	await page.waitForURL(/\/work\/\d+/);
 	const hiddenWork = page.url();
 
 	// Reveal off: the Work's own page is the 404 a missing id gets.
@@ -418,7 +452,7 @@ test('page two of the grid is the same list as page one: a Work once, never its 
 }) => {
 	// Two series that share a word, so the Work is named 'Isekai' without a
 	// rename, and neither part is a tile of its own anywhere on the shelf.
-	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku']);
+	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Isekai');
 	await page
 		.context()
 		.addCookies([{ name: 'tsundoku_grid_page', value: '6', url: 'http://localhost' }]);
@@ -449,25 +483,29 @@ test('page two of the grid is the same list as page one: a Work once, never its 
 		).toHaveCount(0);
 	// Done with it: the seed stays the one the other specs expect.
 	await page.locator('.grid .tile.work', { hasText: 'Isekai' }).click();
-	await page.getByRole('button', { name: 'UNGROUP' }).click();
-	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
+	await endWork(page);
 });
 
-test('SELECT ALL takes a Work’s every part, so a bulk HIDE hides the run whole', async ({
+test('SELECT ALL takes a Work’s every part, so a bulk HIDE asks and hides the run whole', async ({
 	page
 }) => {
 	// The seed has no anime series (fixtures.ts), so this is the same shape with
 	// a manhwa part off the kind shelf: the Work's face is the manga.
-	await makeWork(page, [
-		'Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru',
-		"Omniscient Reader's Viewpoint"
-	]);
+	await makeWork(
+		page,
+		[
+			'Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru',
+			"Omniscient Reader's Viewpoint"
+		],
+		'Cover Run'
+	);
+	await workTile(page, 'Cover Run').click();
+	await page.waitForURL(/\/work\/\d+/);
 	const work = page.url().split('?')[0];
-	// A page of six, sorted by title: the Work's own name ('Untitled work',
-	// since these two share no words) sorts onto a later page. Hold the pages
-	// after the first back until SELECT ALL has asked, so the Work's tile is
-	// not among the cards the fast path expands: the ids read is what must
-	// carry its manhwa part.
+	// A page of six, sorted by title: the Work's own name sorts onto a later
+	// page. Hold the pages after the first back until SELECT ALL has asked, so
+	// the Work's tile is not among the cards the fast path expands: the ids
+	// read is what must carry its manhwa part.
 	await page
 		.context()
 		.addCookies([{ name: 'tsundoku_grid_page', value: '6', url: 'http://localhost' }]);
@@ -485,24 +523,41 @@ test('SELECT ALL takes a Work’s every part, so a bulk HIDE hides the run whole
 		await page.waitForTimeout(150);
 	}
 	// The tile is checked only when every part is selected. The manhwa part is
-	// not on this shelf, so the old series-only read never selected it and the
+	// not on this shelf, so an old series-only read never selected it and the
 	// tile stayed unchecked while HIDE took one part.
 	const tile = page.locator('.grid .tile.work');
 	await expect(tile).toHaveCount(1);
 	await expect(tile.locator('.open')).toHaveAttribute('aria-pressed', 'true');
 	// SELECT ALL selected the Work's every part -- the tile is checked only
-	// when all of them are. HIDE acts on the selection, so hide this Work's own
-	// parts by selecting its tile, never the whole kind shelf (round 2's
-	// finding; the shelf-wide write is the node case in
-	// tests/works-library-db.spec.ts).
+	// when all of them are. HIDE acts on the selection, and a part of a Work
+	// asks first (W4).
 	await page.getByRole('button', { name: 'Stop selecting' }).click();
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
 	await expect(tile.locator('.open')).toHaveAttribute('aria-pressed', 'false');
 	await tile.locator('.open').click();
 	await expect(tile.locator('.open')).toHaveAttribute('aria-pressed', 'true');
 	await page.getByRole('button', { name: 'HIDE', exact: true }).click();
+	const hide = page.getByRole('dialog', { name: 'Hide' });
+	await expect(hide).toBeVisible();
+	await hide.getByRole('button', { name: /HIDE ALL 2/ }).click();
+	await expect(page.locator('.band', { hasText: 'HIDDEN · THE WORK, WHOLE' })).toBeVisible();
+	await page.locator('.band').getByRole('button', { name: 'UNDO' }).click();
+	// UNDO ended the selection, and the Work is one tile again with nothing hidden.
+	await expect(tile).toBeVisible();
+	await expect(page.locator('.grid .tile.work')).toHaveCount(1);
+	// Hide it again, for real this time: with reveal off the Work is the 404 a
+	// missing id is.
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await page.locator('.grid .tile.work').locator('.open').click();
+	await expect(page.locator('.grid .tile.work').locator('.open')).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
+	await page.getByRole('button', { name: 'HIDE', exact: true }).click();
+	await expect(hide).toBeVisible();
+	await hide.getByRole('button', { name: /HIDE ALL 2/ }).click();
+	await expect(page.locator('.band', { hasText: 'HIDDEN · THE WORK, WHOLE' })).toBeVisible();
 	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
-	// Both parts are hidden, so with reveal off the Work is the 404 a missing id is.
 	const res = await page.goto(work);
 	expect(res?.status()).toBe(404);
 
@@ -515,30 +570,235 @@ test('SELECT ALL takes a Work’s every part, so a bulk HIDE hides the run whole
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
 	const revealed = page.locator('.grid .tile.work');
 	await revealed.locator('.open').click();
+	// UNHIDE on a part of a Work shows the Work whole (W4).
 	await page.getByRole('button', { name: 'UNHIDE' }).click();
+	await expect(revealed.locator('.open')).toHaveAttribute('aria-pressed', 'true');
 	await page.getByRole('button', { name: 'Stop selecting' }).click();
 	// End the Work, then hide again.
 	await revealed.click();
-	await page.getByRole('button', { name: 'UNGROUP' }).click();
+	await endWork(page);
 	await page.getByRole('button', { name: 'HIDE AGAIN' }).click();
 	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
 });
 
-test('WORK refuses a selection that already holds a Work, and leaves every Work a tile', async ({
+// ---- W4: GROUP AS A WORK, the person page, HIDE on a part (c278) ------------
+
+test('GROUP AS A WORK from the library: the AS row, the name, the band and UNDO', async ({
 	page
 }) => {
-	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku']);
+	// Two doujin singletons: the AS row offers BOOKS as well, and a Work is the
+	// answer chosen. The default name is the words every title starts with.
+	await page
+		.context()
+		.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }]);
 	await page.goto('/');
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
-	await page.getByRole('button', { name: 'SELECT ALL' }).click();
-	await page.getByRole('button', { name: 'WORK', exact: true }).click();
-	// A selection that already holds a Work's part is W4's AS sheet to move,
-	// not this cell's: it refuses, and the Work on the shelf is untouched.
-	await expect(page.locator('.fold-refused')).toContainText('A WORK KEEPS ITS PARTS');
-	await expect(page.locator('.grid .tile.work')).toHaveCount(1);
-	// Done: end the Work so the seed is as the other specs expect.
-	await page.getByRole('button', { name: 'Stop selecting' }).click();
-	await page.locator('.grid .tile.work').click();
+	await tileByTitle(page, 'Kōhai no Himitsu Nikki').locator('.open').click();
+	await tileByTitle(page, 'Onsen Ryokan no Yoru').locator('.open').click();
+	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+	const sheet = groupSheet(page);
+	await expect(sheet).toBeVisible();
+	// The AS row: what the selection allows, and what it becomes.
+	await expect(sheet.getByRole('radio', { name: /ONE SERIES · BOOKS/ })).toHaveAttribute(
+		'aria-checked',
+		'true'
+	);
+	await expect(sheet.getByRole('radio', { name: /A WORK · SERIES/ })).toHaveAttribute(
+		'aria-checked',
+		'false'
+	);
+	await expect(sheet.getByRole('button', { name: /CREATE SERIES/ })).toBeVisible();
+	// A Work: NEW WORK, the name prompt, BY HAND first, numbered rows and the line.
+	await sheet.getByRole('radio', { name: /A WORK · SERIES/ }).click();
+	await expect(sheet.getByRole('radio', { name: /NEW WORK/ })).toBeVisible();
+	await expect(sheet.getByRole('button', { name: 'BY HAND', exact: true })).toHaveClass(/on/);
+	await expect(sheet.locator('.keeps')).toContainText('EACH KEEPS ITS OWN');
+	await expect(sheet.getByRole('textbox', { name: 'Work name' })).toHaveValue('');
+	await expect(sheet.getByText('THE TITLES SHARE NO WORDS')).toBeVisible();
+	await expect(sheet.getByRole('button', { name: /CREATE WORK/ })).toBeDisabled();
+	await sheet.getByRole('textbox', { name: 'Work name' }).fill('Onsen Run');
+	await sheet.getByRole('button', { name: /CREATE WORK · 2 SERIES/ }).click();
+
+	// The band is the answer, on the library the sheet was opened from.
+	const band = page.locator('.band', { hasText: 'ONSEN RUN IS A WORK' });
+	await expect(band).toBeVisible();
+	await expect(band).toContainText('2 SERIES · EACH KEEPS ITS OWN');
+	await expect(workTile(page, 'Onsen Run')).toBeVisible();
+	// Both parts are off the grid: the Work is one tile over them.
+	await expect(tileByTitle(page, 'Onsen Ryokan no Yoru')).toHaveCount(0);
+
+	// UNDO takes the Work apart again, and both tiles come back.
+	await band.getByRole('button', { name: 'UNDO' }).click();
+	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
+	await expect(tileByTitle(page, 'Onsen Ryokan no Yoru')).toBeVisible();
+	await page.getByRole('button', { name: 'HIDE AGAIN' }).click();
+	await expect(page.getByText('HIDDEN SHOWN')).toHaveCount(0);
+});
+
+test('a person’s page groups its series into a Work, and says the run without pulling it in', async ({
+	page
+}) => {
+	await page
+		.context()
+		.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }]);
+	const circle = '/?tag=' + encodeURIComponent('circle:Hakka Kousha');
+	await page.goto(circle);
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await page.locator('.grid li', { hasText: 'Holiday Duty' }).getByRole('button').click();
+	await page.locator('.grid li', { hasText: 'Illustrations 2024' }).getByRole('button').click();
+	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+	const sheet = groupSheet(page);
+	await sheet.getByRole('radio', { name: /A WORK · SERIES/ }).click();
+	await sheet.getByRole('textbox', { name: 'Work name' }).fill('Hakka Run');
+	await sheet.getByRole('button', { name: /CREATE WORK/ }).click();
+	await expect(page.locator('.band', { hasText: 'HAKKA RUN IS A WORK' })).toBeVisible();
+
+	// One row for the Work, above the grid: the run is said, not pulled in.
+	const row = page.locator('.work-row', { hasText: 'Hakka Run' });
+	await expect(row).toBeVisible();
+	await expect(row).toContainText('2 OF 2 HERE');
+	await expect(row).toContainText('UP NEXT:');
+	// The page still holds the person's series as their own tiles.
+	await expect(page.locator('.grid li', { hasText: 'Holiday Duty' })).toBeVisible();
+
+	// OPEN is the Work's own screen; UNGROUP ends it and the row goes.
+	await row.click();
+	await page.waitForURL(/\/work\/\d+/);
 	await page.getByRole('button', { name: 'UNGROUP' }).click();
 	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
+	await page.goto(circle);
+	await page.waitForLoadState('networkidle');
+	await expect(page.locator('.work-row')).toHaveCount(0);
+});
+
+test('ADD TO A WORK puts a series at the end, and IN <WORK> · MOVES HERE moves one', async ({
+	page
+}) => {
+	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Isekai');
+	// One more series, added through the sheet's existing Work.
+	await select(page, ['Dungeon Meshi']);
+	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+	let sheet = groupSheet(page);
+	// A manga selection has one answer, and the sheet opens on it.
+	await expect(sheet.getByRole('radio', { name: /A WORK · SERIES/ })).toHaveAttribute(
+		'aria-checked',
+		'true'
+	);
+	await sheet.getByRole('radio', { name: /ADD TO A WORK · 1/ }).click();
+	await sheet.getByText('Isekai', { exact: true }).click();
+	await sheet.getByRole('button', { name: /ADD 1 TO THE WORK/ }).click();
+	const band = page.locator('.band', { hasText: 'ADDED TO ISEKAI' });
+	await expect(band).toBeVisible();
+	await expect(band).toContainText('1 SERIES · AT THE END OF THE RUN');
+	await band.getByRole('button', { name: 'UNDO' }).click();
+	await expect(page.locator('.band', { hasText: 'ADDED TO ISEKAI' })).toHaveCount(0);
+	await expect(workTile(page, 'Isekai')).toBeVisible();
+	await openWork(page, 'Isekai');
+	await expect(page.locator('.run .part')).toHaveCount(2);
+	await page.goto('/');
+
+	// A second Work, then one of its parts moved into the first: the row says
+	// which Work it leaves, because a series belongs to one Work at most.
+	await makeWork(page, ['Mushoku Tensei', 'Sousou no Frieren'], 'Mushoku Run');
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await workTile(page, 'Mushoku Run').locator('.open').click();
+	await tileByTitle(page, 'Dungeon Meshi').locator('.open').click();
+	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+	sheet = groupSheet(page);
+	await sheet.getByRole('radio', { name: /A WORK · SERIES/ }).click();
+	await expect(sheet.locator('.gr', { hasText: 'Mushoku Tensei' })).toContainText(
+		'IN MUSHOKU RUN · MOVES HERE'
+	);
+	await sheet.getByRole('textbox', { name: 'Work name' }).fill('Moved Run');
+	await sheet.getByRole('button', { name: /CREATE WORK/ }).click();
+	await expect(page.locator('.band', { hasText: 'MOVED RUN IS A WORK' })).toBeVisible();
+	// The moved Work was left with one series, so it ended: the band's UNDO puts
+	// it back whole.
+	await expect(workTile(page, 'Mushoku Run')).toHaveCount(0);
+	await page.locator('.band').getByRole('button', { name: 'UNDO' }).click();
+	await expect(workTile(page, 'Mushoku Run')).toBeVisible();
+	await expect(workTile(page, 'Moved Run')).toHaveCount(0);
+
+	// Done with them.
+	for (const name of ['Isekai', 'Mushoku Run']) {
+		await workTile(page, name).click();
+		await page.waitForURL(/\/work\/\d+/);
+		await endWork(page);
+	}
+});
+
+test('HIDE on a part asks: the Work whole, or take it out and hide it', async ({ page }) => {
+	await page
+		.context()
+		.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }]);
+	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Isekai');
+	await openWork(page, 'Isekai');
+	// The part's own screen, opened from the run: ← names the Work (W5). Part 2
+	// is the one in progress, so the row is the plain WORK row, not the accent.
+	await page.locator('.run .part .rowlink').nth(1).click();
+	await page.waitForURL(/\/series\/\d+\?from=work/);
+	await expect(page.locator('a.back .back-label')).toHaveText('ISEKAI');
+	await expect(page.locator('.prow.work-row')).toBeVisible();
+
+	// HIDE on a part asks: the Work whole, or this series out of it.
+	await page.locator('.file-row').getByRole('button', { name: 'HIDE' }).click();
+	let hide = page.getByRole('dialog', { name: 'Hide' });
+	await expect(hide).toBeVisible();
+	await expect(hide).toContainText("IT'S PART 2 OF ISEKAI");
+	await expect(hide.getByRole('button', { name: /HIDE ALL 2/ })).toBeVisible();
+	await hide.getByRole('button', { name: 'TAKE OUT' }).click();
+	// Taken out and hidden: it is its own series again, and the Work of one ended.
+	const band = page.locator('.band', { hasText: 'HIDDEN · TAKEN OUT' });
+	await expect(band).toBeVisible();
+	await expect(page.locator('.prow.work-row')).toHaveCount(0);
+	await band.getByRole('button', { name: 'UNDO' }).click();
+	await expect(page.locator('.band', { hasText: 'HIDDEN · TAKEN OUT' })).toHaveCount(0);
+	await expect(page.locator('.prow.work-row')).toBeVisible();
+
+	// HIDE ALL n hides the Work whole, and UNDO shows it again.
+	await page.locator('.file-row').getByRole('button', { name: 'HIDE' }).click();
+	hide = page.getByRole('dialog', { name: 'Hide' });
+	await hide.getByRole('button', { name: /HIDE ALL 2/ }).click();
+	const whole = page.locator('.band', { hasText: 'HIDDEN · THE WORK, WHOLE' });
+	await expect(whole).toBeVisible();
+	await expect(whole).toContainText('2 SERIES');
+	await whole.getByRole('button', { name: 'UNDO' }).click();
+	await expect(page.locator('.badge', { hasText: 'HIDDEN' })).toHaveCount(0);
+
+	// Done: end the Work, and reveal off again.
+	await page.goto('/');
+	await workTile(page, 'Isekai').click();
+	await endWork(page);
+	await page.getByRole('button', { name: 'HIDE AGAIN' }).click();
+	await expect(page.getByText('HIDDEN SHOWN')).toHaveCount(0);
+});
+
+test('a selection that touches two Works is refused: SELECT ALL cannot collapse them', async ({
+	page
+}) => {
+	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Isekai');
+	await makeWork(page, ['Mushoku Tensei', 'Sousou no Frieren'], 'Mushoku Run');
+
+	// SELECT ALL touches both Works, so the sheet's own door refuses: one Work
+	// swallowing another is the collapse the stopgap refused.
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await page.getByRole('button', { name: 'SELECT ALL' }).click();
+	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+	const sheet = groupSheet(page);
+	await sheet.getByRole('radio', { name: /A WORK · SERIES/ }).click();
+	await sheet.getByRole('textbox', { name: 'Work name' }).fill('Everything');
+	await sheet.getByRole('button', { name: /CREATE WORK/ }).click();
+	await expect(sheet.locator('.refused')).toContainText('A WORK KEEPS ITS PARTS');
+	// Both Works are still one tile each, untouched.
+	await expect(page.locator('.grid .tile.work')).toHaveCount(2);
+	await sheet.getByRole('button', { name: 'CANCEL' }).click();
+
+	// Done with them.
+	await page.getByRole('button', { name: 'Stop selecting' }).click();
+	for (const name of ['Isekai', 'Mushoku Run']) {
+		await workTile(page, name).click();
+		await page.waitForURL(/\/work\/\d+/);
+		await endWork(page);
+	}
 });

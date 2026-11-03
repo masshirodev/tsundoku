@@ -227,6 +227,25 @@
 		if (endNode.getBoundingClientRect().top < innerHeight * 2.5) void loadMore();
 	}
 
+	/**
+	 * A write changed which tiles a page already loaded holds -- a Work hidden
+	 * whole, one taken out of it -- and the load's *first* page can come back
+	 * identical, so SvelteKit keeps `data` and no effect re-reads the rest. The
+	 * page then still draws a tile the server has stopped listing (W4's HIDE,
+	 * and its UNDO). Ask for the loaded pages again by position: the answer is
+	 * the list as it is now, and the grid keeps its scroll.
+	 */
+	async function refillPages() {
+		if (more.length === 0) return;
+		const gen = ++generation;
+		const pageAgain = await fetchPage(data.series.length, more.length);
+		if (gen !== generation) return;
+		const have = new Set(data.series.map((c) => c.id));
+		more = pageAgain ? pageAgain.filter((c) => !have.has(c.id)) : [];
+		ended = false;
+		void keepGoing();
+	}
+
 	// A new shelf, tag or sort starts again from its first page. The same one
 	// re-read (a rating saved, a scan's progress) reads the pages after the
 	// first again too, so a tile deep in the grid shows what the server says.
@@ -551,6 +570,18 @@
 		() =>
 		async ({ update }) => {
 			await update({ reset: false });
+		};
+	/**
+	 * UNDO after a Work was made, added to, ended or hidden: the tiles a loaded
+	 * page holds change back, and the load's first page may not move, so the
+	 * pages are read again (see `refillPages`).
+	 */
+	const undoAfter: SubmitFunction =
+		() =>
+		async ({ update }) => {
+			await update();
+			await invalidateAll();
+			await refillPages();
 		};
 	const allHidden = $derived(
 		selected.size > 0 && series.filter((s) => selected.has(s.id)).every((s) => s.hidden)
@@ -964,7 +995,7 @@
 				<form
 					method="POST"
 					action={gone.kind === 'hidden' ? '?/undoHide' : '?/undoWork'}
-					use:enhance
+					use:enhance={undoAfter}
 				>
 					{#if gone.kind !== 'hidden'}<input type="hidden" name="kind" value={gone.kind} />{/if}
 					<input type="hidden" name="facts" value={gone.facts} />
@@ -972,6 +1003,48 @@
 				</form>
 			{/snippet}
 		</Band>
+	{/if}
+	{#if made || addedWork}
+		<!-- W4's create and add answer here, where the sheet was opened: the Work's
+		     own screen would replace the library the owner was looking at. -->
+		<div class="lib-band">
+			<Band
+				title={made
+					? `${made.work.name.toUpperCase()} IS A WORK`
+					: `ADDED TO ${addedWork!.name.toUpperCase()}`}
+				detail={made
+					? `${made.members.length} SERIES · EACH KEEPS ITS OWN`
+					: `${addedWork!.facts.length} SERIES · AT THE END OF THE RUN`}
+			>
+				{#snippet action()}
+					<form method="POST" action="?/undoWork" use:enhance={undoAfter}>
+						<input type="hidden" name="kind" value={made ? 'create' : 'add'} />
+						<input type="hidden" name="facts" value={JSON.stringify(made ?? addedWork!.facts)} />
+						<button type="submit">UNDO</button>
+					</form>
+				{/snippet}
+			</Band>
+		</div>
+	{/if}
+	{#if hideFacts}
+		<!-- HIDE ALL n or TAKE OUT, THEN HIDE: the library's own band, with UNDO (W4). -->
+		<div class="lib-band">
+			<Band
+				title={hideFacts.whole.length > 0
+					? `HIDDEN · THE WORK, WHOLE`
+					: `HIDDEN · ${hideFacts.hidden.length} SERIES`}
+				detail={hideFacts.whole.length > 0
+					? `${hideFacts.hidden.length} SERIES · SHOWN AGAIN BY UNDO`
+					: 'TAKEN OUT OF THE WORK · A SERIES ON ITS OWN AGAIN'}
+			>
+				{#snippet action()}
+					<form method="POST" action="?/undoHide" use:enhance={undoAfter}>
+						<input type="hidden" name="facts" value={JSON.stringify(hideFacts)} />
+						<button type="submit">UNDO</button>
+					</form>
+				{/snippet}
+			</Band>
+		</div>
 	{/if}
 	<MoreSheet
 		open={moreOpen}
@@ -1413,48 +1486,6 @@
 			</Band>
 		</div>
 	{/if}
-	{#if made || addedWork}
-		<!-- W4's create and add answer here, where the sheet was opened: the Work's
-		     own screen would replace the library the owner was looking at. -->
-		<div class="refresh-band">
-			<Band
-				title={made
-					? `${made.work.name.toUpperCase()} IS A WORK`
-					: `ADDED TO ${addedWork!.name.toUpperCase()}`}
-				detail={made
-					? `${made.members.length} SERIES · EACH KEEPS ITS OWN`
-					: `${addedWork!.facts.length} SERIES · AT THE END OF THE RUN`}
-			>
-				{#snippet action()}
-					<form method="POST" action="?/undoWork" use:enhance>
-						<input type="hidden" name="kind" value={made ? 'create' : 'add'} />
-						<input type="hidden" name="facts" value={JSON.stringify(made ?? addedWork!.facts)} />
-						<button type="submit">UNDO</button>
-					</form>
-				{/snippet}
-			</Band>
-		</div>
-	{/if}
-	{#if hideFacts}
-		<!-- HIDE ALL n or TAKE OUT, THEN HIDE: the library's own band, with UNDO (W4). -->
-		<div class="refresh-band">
-			<Band
-				title={hideFacts.whole.length > 0
-					? `HIDDEN · THE WORK, WHOLE`
-					: `HIDDEN · ${hideFacts.hidden.length} SERIES`}
-				detail={hideFacts.whole.length > 0
-					? `${hideFacts.hidden.length} SERIES · SHOWN AGAIN BY UNDO`
-					: 'TAKEN OUT OF THE WORK · A SERIES ON ITS OWN AGAIN'}
-			>
-				{#snippet action()}
-					<form method="POST" action="?/undoHide" use:enhance>
-						<input type="hidden" name="facts" value={JSON.stringify(hideFacts)} />
-						<button type="submit">UNDO</button>
-					</form>
-				{/snippet}
-			</Band>
-		</div>
-	{/if}
 {/if}
 
 {#if newOpen}
@@ -1497,10 +1528,11 @@
 		remainCount={hideRemainCount}
 		actionAll="?/hideAll"
 		actionPart="?/hideParts"
-		ondone={() => {
+		ondone={async () => {
 			hiding = false;
 			stopSelecting();
-			void invalidateAll();
+			await invalidateAll();
+			await refillPages();
 		}}
 		onclose={() => (hiding = false)}
 	/>
@@ -2003,13 +2035,19 @@
 		color: var(--accent);
 	}
 
-	/* REFRESH's answer (c221), pinned over the bulk bar it came from. */
+	/* REFRESH's answer (c221), pinned over the bulk bar it came from. A band is
+	   an answer, not a wall: the grid under it stays tappable, and only the band
+	   itself takes a press (its UNDO, its ASK N MORE). */
 	.refresh-band {
 		position: fixed;
 		left: var(--sheet-left, 0);
 		right: 0;
 		bottom: calc(121px + env(safe-area-inset-bottom));
 		z-index: 10;
+		pointer-events: none;
+	}
+	.refresh-band > :global(.band) {
+		pointer-events: auto;
 	}
 
 	/* ---- the TV (c238; TV-Library) ---------------------------------------- */
