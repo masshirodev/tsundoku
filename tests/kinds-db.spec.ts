@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import { describe, expect, it } from 'vitest';
 import { climb } from '$lib/server/db';
 import { KINDS, MOVABLE_KINDS, MOVE_MAP, SOURCE_KINDS } from '$lib/library/kinds';
+import { movableKind } from '$lib/server/move';
 
 /**
  * The registry against the database (doc/KINDS.md; card c301): the CHECK that
@@ -97,5 +98,17 @@ describe('engine_extensions.kind', () => {
 		const values = kindCheck(conn, 'engine_extensions');
 		expect(sorted(values)).toEqual(sorted([...new Set(Object.values(MOVE_MAP))]));
 		expect(sorted(MOVABLE_KINDS)).toEqual(['anime', 'manga', 'manhwa']);
+	});
+});
+
+describe('movable', () => {
+	it('is the kinds movableKind offers MOVE to, which is the server\u2019s rule', () => {
+		// `movableKind` (src/lib/server/move.ts:56-57) is what `moveState` and
+		// `moveEligible` ask; the registry's `movable` copies it until K4 makes
+		// MOVE read the fact. A doujin and a novel are left out although each
+		// can carry a family's key (a gallery's `mihon:`, LNReader's).
+		expect(KINDS.filter((k) => movableKind(k))).toEqual([...MOVABLE_KINDS]);
+		expect(movableKind('doujin')).toBe(false);
+		expect(movableKind('novel')).toBe(false);
 	});
 });

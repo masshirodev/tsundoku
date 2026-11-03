@@ -35,6 +35,7 @@ import { planNovel } from '$lib/import/novel-plan';
 import { planAnime } from '$lib/import/anime-plan';
 import { planEpub } from '$lib/import/epub-plan';
 import { planHentoidBook } from '$lib/import/hentoid-plan';
+import { defaultDirection } from '$lib/library/series';
 
 /**
  * The kind registry's own invariants, and the behaviour its first users read
@@ -95,6 +96,13 @@ describe('the registry', () => {
 			expect(matches).toContain(kind);
 			for (const m of matches) expect(KINDS).toContain(m);
 		}
+	});
+
+	it('states the layout the reader starts from, as defaultDirection decides it', () => {
+		// `defaultDirection` (library/series.ts:89-93) still decides; the fact
+		// copies it until K2 makes series.ts read the registry. This goes red if
+		// either one changes without the other.
+		for (const kind of KINDS) expect(kindFacts(kind).layout).toBe(defaultDirection(kind));
 	});
 
 	it('keeps KINDS readonly, because FILTER_KINDS shares the object', () => {

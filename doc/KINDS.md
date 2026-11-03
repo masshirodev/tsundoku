@@ -5,9 +5,10 @@ movies and TV shows) and where the code learns what each kind can do. This is
 a refactor plan with an audit behind it. The cards are on the Tsundoku board
 under the **Kinds** label (the table at the end).
 
-**Status: K1 built, 2026-11-03** (card c301, branch `agent/k14-kinds` from
-`c14a5d4e`): the registry, one list of kinds, the database CHECK test and the
-ratchet that holds the count. K2–K5 below are not built. The rule at the end
+**Status: K1 done, 2026-11-03** (card c301: built in wave 14 on
+`agent/k14-kinds` from `c14a5d4e`, landed in wave 16 on `agent/k16-kinds` from
+`a698f974`, where a doujin's Sources became `mihon`): the registry, one list of
+kinds, the database CHECK test and the ratchet that holds the count. K2–K5 below are not built. The rule at the end
 ("No new kind checks") applies from here on.
 
 ## Why
@@ -381,6 +382,8 @@ for K1.
 K1 shipped `src/lib/library/kinds.ts`; `Kind`, `KINDS`, `FILTER_KINDS`,
 `FilterKind`, `MoveKind` and `start.ts`'s source-kind union derived from it;
 `tests/kinds.spec.ts` (the registry's invariants, the behaviour each first
-user reads, and the ratchet) and `tests/kinds-db.spec.ts` (a fresh database at
-the top rung, its `series.kind` CHECK parsed from `sqlite_master`); and no
-rung: the CHECK rung 47 widened is the one the spec reads.
+user reads, each importer's key against `sources`, `layout` against
+`defaultDirection`, and the ratchet) and `tests/kinds-db.spec.ts` (a fresh
+database at the top rung, its `series.kind` CHECK parsed from `sqlite_master`,
+and `movable` against the server's `movableKind`); and no rung: the CHECK
+rung 47 widened is the one the spec reads.
