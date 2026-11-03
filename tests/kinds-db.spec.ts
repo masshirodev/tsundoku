@@ -95,7 +95,7 @@ describe('engine_extensions.kind', () => {
 		// MOVABLE_KINDS is not this list -- the map kind is.
 		const conn = fresh();
 		const values = kindCheck(conn, 'engine_extensions');
-		expect(sorted(values)).toEqual(sorted(new Set(Object.values(MOVE_MAP))));
+		expect(sorted(values)).toEqual(sorted([...new Set(Object.values(MOVE_MAP))]));
 		expect(sorted(MOVABLE_KINDS)).toEqual(['anime', 'manga', 'manhwa']);
 	});
 });
