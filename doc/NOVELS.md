@@ -229,6 +229,19 @@ preview and first chapter:
   drifting apart, not a check: no solve is attempted and the host's own
   detection never fires. It worked on 2026-10-28, above.
 
+This run is reproducible from the commit. `doc/probes/novel-live.ts` drives
+POPULAR, a preview and a first chapter through the real host for each plugin,
+and prints every solve it performed beside its timing. The store is the owner's
+plugins unpacked one file per plugin, named by its id (`temp/plugins` here);
+Wuxia World re-ran unchanged on 2026-11-02 (`50 in 0.9 s`, 357 chapters, 8,351
+bytes), and a row that no longer matches is a measurement that has moved.
+
+```sh
+NOVEL_SOLVER_URL=http://127.0.0.1:8193/v1 \
+  node --experimental-strip-types doc/probes/novel-live.ts \
+    temp/plugins royalroad wuxiaworld novelfull scribblehub novelbin
+```
+
 So the card is met for **one of its three sites** (Royal Road), and two of the
 five plugins measured today, Wuxia World being the one that never needed it.
 
