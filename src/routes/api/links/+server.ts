@@ -20,15 +20,8 @@ import {
 	unlink,
 	type QueuedFrom
 } from '$lib/server/catalogue';
-import {
-	linkSeason,
-	linkSeasons,
-	offeredSeason,
-	seasonCandidates,
-	seasonRelations,
-	seasonSearch
-} from '$lib/server/season-links';
-import { parsePasted } from '$lib/library/catalogue';
+import { linkSeason, linkSeasons, offeredSeason, seasonRelations } from '$lib/server/season-links';
+import { isAnime, parsePasted } from '$lib/library/catalogue';
 import { account } from '$lib/server/tracking';
 
 type Pick = { season: number; part?: number; anilistId: number };
@@ -72,6 +65,9 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 	const access = seriesAccess(seriesId, reveal);
 	if (!access) error(404, 'not found');
 	const kind = kindOf(seriesId);
+	// A kind a catalogue lists a season at a time (c240): its search, LINK and
+	// their UNDO are the named season's.
+	const seasonal = isAnime(kind);
 	const season = Number.isInteger(b.season) ? Number(b.season) : undefined;
 	const part = Number.isInteger(b.part) && (b.part ?? 0) > 0 ? Number(b.part) : 1;
 	const recover = (remote: boolean) =>
@@ -85,7 +81,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 		}
 		if (b.undo === 'none') return json({ ok: await undoNone(seriesId, season, part) });
 		if (b.undo === 'search') {
-			undoSearch(seriesId, b.was ?? undefined);
+			undoSearch(seriesId, b.was ?? undefined, { season, part });
 			recover(false);
 			return json({ ok: true });
 		}
@@ -99,7 +95,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			return json({ ok: true });
 		}
 		if (b.skip) {
-			skip(seriesId);
+			skip(seriesId, Date.now(), season);
 			return json({ ok: true });
 		}
 		if (typeof b.search === 'string') {
@@ -108,36 +104,13 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 				seriesId,
 				b.search,
 				Date.now(),
-				kind === 'anime' && season !== undefined ? { season, part } : {}
+				seasonal && season !== undefined ? { season, part } : {}
 			);
 			// The review draws the series it just searched, so the item carries the catalogue
-			// it came from: the page files items by `service:id` (c298's search shows it).
-			const item = reviewItem(seriesId, reveal);
-			const candidates =
-				kind === 'anime' && season !== undefined && item
-					? seasonCandidates(seriesId, season, part).map((c) => asReviewCandidate(item, c))
-					: item?.candidates;
-			const row =
-				kind === 'anime' && season !== undefined ? seasonSearch(seriesId, season, part) : null;
-			return json({
-				...r,
-				item: item
-					? {
-							...item,
-							service: 'anilist' as const,
-							candidates,
-							// The season's own search, which the page's copy reads.
-							...(row
-								? {
-										query: row.query,
-										searchedAt: row.searchedAt,
-										found: row.found,
-										searched: !!row.searchedAt
-									}
-								: {})
-						}
-					: null
-			});
+			// it came from: the page files items by `service:id` (c298's search shows it). An
+			// anime's is the season's own search, the one record of it (c355).
+			const item = reviewItem(seriesId, reveal, seasonal ? season : undefined);
+			return json({ ...r, item: item ? { ...item, service: 'anilist' as const } : null });
 		}
 		if (typeof b.paste === 'string') {
 			const item = reviewItem(seriesId, reveal);
@@ -154,10 +127,10 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 		}
 		// LINK 3 SEASONS: every entry the relations page ticked, at once.
 		if (Array.isArray(b.seasons) && b.seasons.length) {
-			if (kind !== 'anime') error(400, 'only a season is linked this way');
+			if (!kind || !seasonal) error(400, 'only a season is linked this way');
 			const picks = b.seasons
 				.map((p) => {
-					const c = offeredSeason(seriesId, p.season, 'anime', p.anilistId);
+					const c = offeredSeason(seriesId, p.season, kind, p.anilistId);
 					return c ? { season: p.season, part: p.part ?? 1, candidate: c } : null;
 				})
 				.filter((p): p is NonNullable<typeof p> => p !== null);
@@ -172,14 +145,14 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 				? await readPasted({ service: 'anilist', id: b.link }, kind)
 				: offered(seriesId, b.link, season, part);
 			if (!c) error(409, 'not a candidate');
-			if (kind === 'anime' && season !== undefined)
+			if (seasonal && season !== undefined)
 				linkSeason(seriesId, season, part, c, b.pasted ? 'pasted' : 'review');
 			else link(seriesId, c, b.pasted ? 'pasted' : 'review');
 			// The cover follows in the background: the link's, if nothing comes before it.
 			recover(true);
 			// And the rest of the show, from the entry just chosen (c240).
 			let relations = null;
-			if (kind === 'anime' && season !== undefined)
+			if (seasonal && season !== undefined)
 				relations = await seasonRelations(
 					seriesId,
 					season,

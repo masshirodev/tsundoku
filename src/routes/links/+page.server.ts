@@ -1,20 +1,11 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { isRevealed } from '$lib/server/prefs';
-import {
-	asReviewCandidate,
-	linkState,
-	linkQueue,
-	reviewItem,
-	seriesAccess,
-	type ReviewCandidate
-} from '$lib/server/catalogue';
+import { linkState, linkQueue, reviewItem, seriesAccess } from '$lib/server/catalogue';
 import { configured, suggestConfigured } from '$lib/server/ranobe';
 import { ranobeItem, ranobeQueue, ranobeSeries } from '$lib/server/ranobe-review';
 import {
-	seasonCandidates,
 	seasonRelations,
-	seasonSearch,
 	seasonToLook,
 	seriesSeasons,
 	type RelationOffer
@@ -59,11 +50,10 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 				canSuggest: suggestConfigured()
 			};
 		}
-		const item = reviewItem(id, reveal);
-		if (!item) error(404, 'not found');
 		// An anime's season: its own title, its own candidates, and the entry its
-		// line names (c240).
-		const view = item.kind === 'anime' ? seriesSeasons(id) : null;
+		// line names (c240). `seriesSeasons` answers only for a kind a catalogue
+		// lists a season at a time.
+		const view = seriesSeasons(id);
 		// Absent is the season that still wants a look -- the open one unless it
 		// is linked or settled (`seasonToLook`) -- then the open one; never
 		// season 0 (a flat list's, and real) by default.
@@ -76,6 +66,11 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 				view.seasons[0] ??
 				null)
 			: null;
+		// The season's own item: its search, its candidates checked against its
+		// own title and episode count (24 here, 24 there), never the whole show's
+		// and never the series-level search (c240, wave 17).
+		const item = reviewItem(id, reveal, at?.season);
+		if (!item) error(404, 'not found');
 		// The LINK row is the season's own, never the open season's or the
 		// series' mirror: a season with no row of its own is not linked (c240).
 		const state = linkState(id, at?.season);
@@ -96,33 +91,11 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 					parts: at.parts.map((p) => ({ part: p.part, from: p.from, to: p.to, linked: !!p.link }))
 				}
 			: null;
-		// The season is what a candidate is checked against: its own title, and its
-		// own episode count (24 here, 24 there), never the whole show's (c240).
-		const seasonItem = at ? { ...item, title: at.searchTitle, chapters: at.aired } : item;
-		const candidates: ReviewCandidate[] = at
-			? seasonCandidates(id, at.season).map((c) => asReviewCandidate(seasonItem, c))
-			: item.candidates;
 		// The other seasons, from the entry just linked: only when there is a
 		// season left to offer one to, and only for the owner's own AniList.
 		const relations = await relationsFor(id, at, view);
-		const row = at ? seasonSearch(id, at.season) : null;
 		return {
-			items: [
-				{
-					...item,
-					service: 'anilist' as const,
-					candidates,
-					// The season's own search: what the page's copy says it asked, and when.
-					...(at
-						? {
-								query: row?.query ?? at.searchTitle,
-								searched: !!row?.searchedAt,
-								searchedAt: row?.searchedAt ?? null,
-								found: row?.found ?? 0
-							}
-						: {})
-				}
-			],
+			items: [{ ...item, service: 'anilist' as const }],
 			single: {
 				hidden: access.hidden,
 				linked: state.linked?.title || state.linked?.ids || null,

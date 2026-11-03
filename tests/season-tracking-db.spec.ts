@@ -197,6 +197,16 @@ const animeEntry = (id: number, o: { mal?: number | null; episodes?: number } = 
 	coverUrl: ''
 });
 
+/**
+ * The owner's SEARCH AGAIN on each season, through the door the review uses
+ * (`searchNow`): what puts an anime's season in the review queue, without
+ * hand-seeding a search the code would never write.
+ */
+async function searchEvery(id: number) {
+	for (const s of seasons.seriesSeasons(id)!.seasons)
+		await cat.searchNow(id, s.searchTitle, NOW, { season: s.season });
+}
+
 // ---- rung 62 -----------------------------------------------------------------------------
 
 describe('rung 62: a link per season (c240)', () => {
@@ -802,7 +812,7 @@ describe('every door writes the season’s row', () => {
 		expect(seasons.seasonSettled(id, 1)).toBe(false);
 	});
 
-	it('leaves the review queue only when every season is settled, and comes back on undo', () => {
+	it('leaves the review queue only when every season is settled, and comes back on undo', async () => {
 		const id = show({
 			seasons: [
 				[1, 2],
@@ -818,10 +828,8 @@ describe('every door writes the season’s row', () => {
 		expect(passable()).toBe(false);
 		expect(cat.undoNone(id, 2)).toBe(true);
 		expect(passable()).toBe(true);
-		// The review queue, made of a search that waits for LINK: the same rule.
-		db.prepare(
-			`INSERT INTO link_searches (series_id, query, searched_at, found) VALUES (?, 'Show', ?, 2)`
-		).run(id, NOW);
+		// The review queue, made of each season's search waiting for LINK: the same rule.
+		await searchEvery(id);
 		const queued = () => cat.linkQueue(false).some((i) => i.seriesId === id);
 		expect(queued()).toBe(true);
 		// Season 1 settled: season 2 still wants a look.
@@ -837,7 +845,7 @@ describe('every door writes the season’s row', () => {
 		expect(cat.undoNone(id, 2)).toBe(true);
 	});
 
-	it('stays in the queue and the pass while a season is unlinked, though the first is linked (wave 15)', () => {
+	it('stays in the queue and the pass while a season is unlinked, though the first is linked (wave 15)', async () => {
 		// Settling by LINK is the ordinary way, and season 1's link writes the
 		// series' AniSkip mirror in `series_links`: the series-level gate must not
 		// end the look while season 2 has neither a link nor a decision.
@@ -853,9 +861,7 @@ describe('every door writes the season’s row', () => {
 				[1, 2]
 			]
 		});
-		db.prepare(
-			`INSERT OR REPLACE INTO link_searches (series_id, query, searched_at, found) VALUES (?, 'Show', ?, 2)`
-		).run(queue, NOW);
+		await searchEvery(queue);
 		const state = () => ({
 			pass: cat.searchable(10_000).some((r) => r.id === pass),
 			queue: cat.linkQueue(false).some((i) => i.seriesId === queue),
@@ -893,7 +899,7 @@ describe('every door writes the season’s row', () => {
 		expect(state()).toEqual({ pass: false, queue: false, counted: 0, byTitle: false });
 	});
 
-	it('requeues a searched anime with a season still open, and not one whose seasons are all settled', () => {
+	it('requeues an open season the pass searched, and never a settled one or the owner’s own title', async () => {
 		const id = show({
 			title: 'Requeued Show',
 			seasons: [
@@ -901,31 +907,40 @@ describe('every door writes the season’s row', () => {
 				[1, 2]
 			]
 		});
-		const put = () =>
-			db
-				.prepare(
-					`INSERT OR REPLACE INTO link_searches (series_id, query, searched_at, found) VALUES (?, 'Requeued Show', ?, 0)`
-				)
-				.run(id, NOW);
-		const requeued = () => !db.prepare(`SELECT 1 FROM link_searches WHERE series_id = ?`).get(id);
-		put();
+		// The pass's own searches, one a season ("Requeued Show", "… Season 2").
+		await searchEvery(id);
+		const rows = () =>
+			(
+				db
+					.prepare(`SELECT season FROM season_link_searches WHERE series_id = ? ORDER BY season`)
+					.all(id) as { season: number }[]
+			).map((r) => r.season);
+		expect(rows()).toEqual([1, 2]);
 		seasons.linkSeason(id, 1, 1, animeEntry(701), 'review', NOW);
 		cat.requeueSearched();
-		expect(requeued()).toBe(true);
-		put();
+		// Season 2 is open and searched again; season 1 is linked and left alone.
+		expect(rows()).toEqual([1]);
+		expect(cat.searchable(10_000).filter((r) => r.id === id)).toMatchObject([
+			{ season: 2, query: null }
+		]);
+		// A title the owner typed is theirs: never requeued.
+		await cat.searchNow(id, 'Something Else Entirely', NOW, { season: 2 });
+		cat.requeueSearched();
+		expect(rows()).toEqual([1, 2]);
+		// A settled season is never requeued either.
+		await cat.searchNow(id, 'Requeued Show Season 2', NOW, { season: 2 });
 		cat.noneOfThese(id, NOW, 2);
 		cat.requeueSearched();
-		expect(requeued()).toBe(false);
+		expect(rows()).toEqual([1, 2]);
 	});
 
-	it('keeps an anime with a series-level link and no season rows out, as before rung 62', () => {
+	it('keeps an anime with a series-level link and no season rows out, as before rung 62', async () => {
 		// No episodes, a link from before rung 62, and nothing in the season tables:
 		// the legacy link still counts. With episodes too: still the series' one link.
 		for (const seasonsOf of [[], [[1, 2]]]) {
 			const id = show({ seasons: seasonsOf });
-			db.prepare(
-				`INSERT OR REPLACE INTO link_searches (series_id, query, searched_at, found) VALUES (?, 'Show', ?, 1)`
-			).run(id, NOW);
+			// The owner's search, on the season that wants a look (season 0 with no episodes).
+			await cat.searchNow(id, 'Show', NOW);
 			const state = () => ({
 				queue: cat.linkQueue(false).some((i) => i.seriesId === id),
 				byTitle: [...cat.linkableByTitle().values()].flat().some((s) => s.id === id)
@@ -1179,11 +1194,11 @@ describe('a door that names no season acts on the season that wants a look', () 
 		]);
 	});
 
-	it('NONE OF THESE with no season settles season 2, and the series leaves the queue', () => {
+	it('NONE OF THESE with no season settles season 2, and the series leaves the queue', async () => {
 		const id = probe();
-		db.prepare(
-			`INSERT INTO link_searches (series_id, query, searched_at, found) VALUES (?, 'Probe Show Season 2', ?, 1)`
-		).run(id, NOW);
+		// With no season named, the search is the season that wants a look's.
+		await cat.searchNow(id, 'Probe Show Season 2', NOW);
+		expect(seasons.seasonSearch(id, 2)?.query).toBe('Probe Show Season 2');
 		const queued = () => cat.linkQueue(false).find((i) => i.seriesId === id);
 		// The queue's item carries the season it is for.
 		expect(queued()).toMatchObject({ season: 2, part: 1 });
@@ -1215,12 +1230,15 @@ describe('a door that names no season acts on the season that wants a look', () 
 				[1, 2]
 			]
 		});
-		db.prepare(
-			`INSERT INTO link_searches (series_id, query, searched_at, found) VALUES (?, 'Show', ?, 1)`
-		).run(id, NOW);
 		const line = () => rv.ranobeItem(id)?.rows.find((r) => r.label === 'ANILIST')?.value;
-		// Season 2 linked (no mirror: it is not the first season), season 1 open.
+		// Season 2 searched and linked (no mirror: it is not the first season).
+		await cat.searchNow(id, 'Show Season 2', NOW, { season: 2 });
 		seasons.linkSeason(id, 2, 1, animeEntry(9600), 'review', NOW);
+		// Season 1 open but never searched: in no review yet.
+		expect(line()).toBe('NOT LINKED');
+		expect(cat.linkQueue(false).some((i) => i.seriesId === id)).toBe(false);
+		// Season 1 searched: its own item in the queue, and the line says so.
+		await cat.searchNow(id, 'Show', NOW, { season: 1 });
 		expect(line()).toBe('NOT LINKED · ITS OWN REVIEW');
 		expect(cat.linkQueue(false).some((i) => i.seriesId === id)).toBe(true);
 		// Season 1 settled too: out of the AniList review, and the line says so.
@@ -1229,15 +1247,262 @@ describe('a door that names no season acts on the season that wants a look', () 
 		expect(line()).toBe('NOT LINKED');
 	});
 
-	it('the queue’s LINK accepts what the queue drew: the season’s candidates, then the series’', () => {
+	it('the queue’s LINK accepts only the season’s own candidates, never the series’ (wave 17)', async () => {
 		const id = probe();
+		// What a search before rung 62 left behind (the owner's database has such
+		// rows): the series' pair, which belongs to no season.
+		db.prepare(
+			`INSERT INTO link_searches (series_id, query, searched_at, found) VALUES (?, 'Probe Show', ?, 1)`
+		).run(id, NOW);
 		db.prepare(
 			`INSERT INTO link_candidates (series_id, anilist_id, rank, data) VALUES (?, 9500, 0, ?)`
 		).run(id, JSON.stringify(animeEntry(9500)));
-		// A search from before the season had one of its own: the series' row only.
-		expect(cat.offered(id, 9500)?.anilistId).toBe(9500);
-		expect(cat.offered(id, 9500, 2)?.anilistId).toBe(9500);
-		expect(cat.offered(id, 9999, 2)).toBeNull();
+		expect(cat.offered(id, 9500)).toBeNull();
+		expect(cat.offered(id, 9500, 2)).toBeNull();
+		// Nor is it a queue item: season 2 has no search of its own yet.
+		expect(cat.linkQueue(false).some((i) => i.seriesId === id)).toBe(false);
+		expect(cat.linkQueueCount(false)).toBe(cat.linkQueue(false).length);
+		// Its own search is what LINK accepts.
+		await cat.searchNow(id, 'Probe Show Season 2', NOW, { season: 2 });
+		expect(cat.offered(id, 9302, 2)?.anilistId).toBe(9302);
+		expect(cat.offered(id, 9302)?.anilistId).toBe(9302);
+		expect(
+			cat
+				.linkQueue(false)
+				.filter((i) => i.seriesId === id)
+				.map((i) => [i.season, i.candidates.map((c) => c.anilistId)])
+		).toEqual([[2, [9302]]]);
+	});
+});
+
+// ---- a season's own search, from a fresh show (wave 17) -----------------------------------
+
+describe('the pass and the queue ask each season’s own search, never the series’ (wave 17)', () => {
+	/**
+	 * AniList as the review's repro had it: one hit a query, not equal to the
+	 * series' title, and a different entry for each season's own title.
+	 */
+	function byQuery(answers: Record<string, [number, string]>): typeof fetch {
+		return async (input, init) => {
+			const raw = init?.body ? String(init.body) : '';
+			if (String(input) === 'https://graphql.anilist.co' && raw.includes('search:')) {
+				// The pass asks several titles in one request, aliased s0, s1, ...
+				const vars = (JSON.parse(raw) as { variables: Record<string, unknown> }).variables;
+				const data: Record<string, { media: unknown[] }> = {};
+				for (const [k, v] of Object.entries(vars))
+					if (/^q\d+$/.test(k)) {
+						const hit = answers[String(v)];
+						data[`s${k.slice(1)}`] = { media: hit ? [animeMedia(hit[0], hit[1])] : [] };
+					}
+				return json({ data });
+			}
+			return fake(input, init);
+		};
+	}
+	/** One pass of the cover pass over this series, limited as the pass limits it. */
+	const pass = async (id: number, limit = 10_000) =>
+		cat.searchSeries(
+			cat
+				.searchable(10_000)
+				.filter((r) => r.id === id)
+				.slice(0, limit),
+			NOW
+		);
+	const item = (id: number, season: number) =>
+		cat.linkQueue(false).find((i) => i.seriesId === id && i.season === season);
+	const cands = (id: number, season: number) =>
+		item(id, season)?.candidates.map((c) => c.anilistId);
+	/** LINK from the queue, as the API does it: the item's season, the candidate it offered. */
+	const linkFromQueue = (id: number, season: number, anilistId: number) => {
+		const it = item(id, season)!;
+		const c = cat.offered(id, anilistId, it.season, it.part);
+		if (!c) return false;
+		seasons.linkSeason(id, it.season!, it.part!, c, 'review', NOW);
+		return true;
+	};
+
+	afterEach(() => cat.setAnilistFetch(fake));
+
+	it('the review’s repro: after season 1 is linked from the queue, season 2 is searched as its own and never offered season 1’s entry', async () => {
+		const id = show({
+			title: 'Fresh Show',
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		cat.setAnilistFetch(
+			byQuery({
+				'Fresh Show': [7001, 'Fresh Show Something'],
+				'Fresh Show Season 2': [7002, 'Fresh Show Second Something']
+			})
+		);
+		// The order of events the review reproduced: one pass reaches season 1 only.
+		expect(await pass(id, 1)).toEqual({ linked: 0, offered: 1 });
+		expect(seasons.seasonSearch(id, 1)?.query).toBe('Fresh Show');
+		expect(item(id, 1)).toMatchObject({ season: 1, part: 1, query: 'Fresh Show', found: 1 });
+		expect(cands(id, 1)).toEqual([7001]);
+		// Season 2 has no search yet: no item of its own, and nobody else's.
+		expect(item(id, 2)).toBeUndefined();
+		expect(cat.offered(id, 7001, 2, 1)).toBeNull();
+
+		expect(linkFromQueue(id, 1, 7001)).toBe(true);
+		// The pass now wants season 2, by its own title.
+		expect(cat.searchable(10_000).filter((r) => r.id === id)).toMatchObject([
+			{ season: 2, query: null }
+		]);
+		expect(await pass(id)).toEqual({ linked: 0, offered: 1 });
+		expect(seasons.seasonSearch(id, 2)).toMatchObject({ query: 'Fresh Show Season 2', found: 1 });
+		// The queue's season-2 item is season 2's search, and never offers 7001.
+		expect(item(id, 1)).toBeUndefined();
+		expect(item(id, 2)).toMatchObject({ query: 'Fresh Show Season 2', found: 1 });
+		expect(cands(id, 2)).toEqual([7002]);
+		expect(cat.offered(id, 7001, 2, 1)).toBeNull();
+		expect(linkFromQueue(id, 2, 7001)).toBe(false);
+		expect(linkFromQueue(id, 2, 7002)).toBe(true);
+		expect(seasons.seasonLinks(id).map((l) => [l.season, l.anilistId])).toEqual([
+			[1, 7001],
+			[2, 7002]
+		]);
+		// Every season settled: out of the pass and the queue.
+		expect(cat.searchable(10_000).some((r) => r.id === id)).toBe(false);
+		expect(cat.linkQueue(false).some((i) => i.seriesId === id)).toBe(false);
+		// An anime's search is stored once, against its season (c355).
+		expect(db.prepare(`SELECT 1 FROM link_searches WHERE series_id = ?`).get(id)).toBeUndefined();
+		expect(db.prepare(`SELECT 1 FROM link_candidates WHERE series_id = ?`).get(id)).toBeUndefined();
+	});
+
+	it('a sure match links season 1, and the next pass searches season 2 by its own title', async () => {
+		const id = show({
+			title: 'Auto Show',
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		cat.setAnilistFetch(
+			byQuery({
+				'Auto Show': [7101, 'Auto Show'],
+				'Auto Show Season 2': [7102, 'Auto Show 2nd Season']
+			})
+		);
+		expect(await pass(id, 1)).toEqual({ linked: 1, offered: 0 });
+		expect(seasons.seasonLinks(id).map((l) => [l.season, l.anilistId, l.via])).toEqual([
+			[1, 7101, 'exact']
+		]);
+		// Nothing waits on a search season 2 never had.
+		expect(cat.linkQueue(false).some((i) => i.seriesId === id)).toBe(false);
+		expect(cat.searchable(10_000).filter((r) => r.id === id)).toMatchObject([{ season: 2 }]);
+		expect(await pass(id)).toEqual({ linked: 0, offered: 1 });
+		expect(seasons.seasonSearch(id, 2)?.query).toBe('Auto Show Season 2');
+		expect(cands(id, 2)).toEqual([7102]);
+		expect(cat.offered(id, 7101, 2, 1)).toBeNull();
+	});
+
+	it('one item a season: every open season searched is in the queue, each with its own search, and the count agrees (c352)', async () => {
+		const id = show({
+			title: 'Many Show',
+			seasons: [
+				[1, 2],
+				[1, 2],
+				[1, 2]
+			]
+		});
+		cat.setAnilistFetch(
+			byQuery({
+				'Many Show': [7201, 'Many Show Something'],
+				'Many Show Season 2': [7202, 'Many Show Second'],
+				'Many Show Season 3': [7203, 'Many Show Third']
+			})
+		);
+		const before = cat.linkQueueCount(false);
+		// One pass, every season: each searched by its own title.
+		expect(await pass(id)).toEqual({ linked: 0, offered: 3 });
+		expect(
+			cat
+				.linkQueue(false)
+				.filter((i) => i.seriesId === id)
+				.map((i) => [i.season, i.query, i.candidates.map((c) => c.anilistId)])
+		).toEqual([
+			[1, 'Many Show', [7201]],
+			[2, 'Many Show Season 2', [7202]],
+			[3, 'Many Show Season 3', [7203]]
+		]);
+		expect(cat.linkQueueCount(false)).toBe(before + 3);
+		// SKIP sends that season's item to the back, not the series'.
+		cat.skip(id, NOW, 2);
+		const order = cat
+			.linkQueue(false)
+			.filter((i) => i.seriesId === id)
+			.map((i) => i.season);
+		expect(order).toEqual([1, 3, 2]);
+		// NONE OF THESE on season 3 takes that item only.
+		cat.noneOfThese(id, NOW, 3);
+		expect(
+			cat
+				.linkQueue(false)
+				.filter((i) => i.seriesId === id)
+				.map((i) => i.season)
+		).toEqual([1, 2]);
+		expect(cat.linkQueueCount(false)).toBe(before + 2);
+		// FIND on season 2 shows the same search the queue holds (c355).
+		expect(cat.reviewItem(id, false, 2)).toMatchObject({
+			season: 2,
+			query: 'Many Show Season 2',
+			found: 1
+		});
+		expect(seasons.seriesSeasons(id)!.seasons.map((s) => s.searched)).toEqual([true, true, true]);
+	});
+
+	it('SEARCH AGAIN on a season replaces that season’s search only, and UNDO puts it back', async () => {
+		const id = show({
+			title: 'Undo Show',
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		cat.setAnilistFetch(
+			byQuery({
+				'Undo Show': [7301, 'Undo Show Something'],
+				'Undo Show Season 2': [7302, 'Undo Show Second'],
+				'Undo Show Part Two': [7303, 'Undo Show Part Two']
+			})
+		);
+		await pass(id);
+		await cat.searchNow(id, 'Undo Show Part Two', NOW, { season: 2 });
+		expect(cands(id, 2)).toEqual([7303]);
+		expect(cands(id, 1)).toEqual([7301]);
+		cat.undoSearch(id, undefined, { season: 2 });
+		expect(cands(id, 2)).toEqual([7302]);
+		expect(item(id, 2)?.query).toBe('Undo Show Season 2');
+		expect(cands(id, 1)).toEqual([7301]);
+	});
+
+	it('a SEARCH AGAIN that waits for the pass is the season’s, and the pass runs it on that season', async () => {
+		const id = show({
+			title: 'Queued Show',
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		const was = cat.queueSearch(id, 'Queued Show Typed', { season: 2 });
+		expect(was).toBeNull();
+		expect(seasons.seriesSeasons(id)!.seasons.map((s) => s.queued)).toEqual([false, true]);
+		// The waiting search goes first, under the owner's title, on season 2.
+		const rows = cat.searchable(10_000).filter((r) => r.id === id);
+		expect(rows).toMatchObject([
+			{ season: 2, query: 'Queued Show Typed' },
+			{ season: 1, query: null }
+		]);
+		cat.unqueueSearch(id, was, { season: 2 });
+		expect(seasons.seasonSearch(id, 2)).toBeNull();
+		cat.queueSearch(id, 'Queued Show Typed', { season: 2 });
+		cat.setAnilistFetch(byQuery({ 'Queued Show Typed': [7401, 'Queued Show Typed'] }));
+		await pass(id, 1);
+		expect(seasons.seasonSearch(id, 2)).toMatchObject({ query: 'Queued Show Typed', found: 1 });
+		expect(seasons.seasonSearch(id, 1)).toBeNull();
 	});
 });
 

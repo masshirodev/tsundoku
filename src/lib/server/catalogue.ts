@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3';
 import { getDb } from './db.ts';
 import { HIDDEN_SQL, IN_LIBRARY_SQL, VISIBLE_SQL, visibleWhere } from './visibility.ts';
 import { clearAniSkip } from './anime/marks.ts';
-import { anilistType } from '../library/kinds.ts';
+import { KINDS, anilistType } from '../library/kinds.ts';
 import {
 	ANIME_FORMATS,
 	candidateKind,
@@ -32,6 +32,7 @@ import {
 	openSeasonOf,
 	resolveSeasonLinks,
 	saveSeasonSearch,
+	seasonCandidates,
 	seasonLink,
 	seasonSettled,
 	seasonToLook,
@@ -482,8 +483,25 @@ export function undoNone(seriesId: number, season?: number, part = 1): boolean {
 	);
 }
 
-/** SKIP: to the back of the queue. */
-export function skip(seriesId: number, now = Date.now()): void {
+/** The season an anime's search door acts on: the one named, else the one that wants a look, else the open one. */
+function searchSeason(seriesId: number, o: { season?: number; part?: number }) {
+	return {
+		season: o.season ?? seasonToLook(seriesId) ?? openSeasonOf(seriesId),
+		part: o.part ?? 1
+	};
+}
+
+/** SKIP: to the back of the queue. An anime's item is a season's, and so is its place (c352). */
+export function skip(seriesId: number, now = Date.now(), season?: number): void {
+	if (isAnime(kindOf(seriesId))) {
+		const at = searchSeason(seriesId, { season });
+		getDb()
+			.prepare(
+				`UPDATE season_link_searches SET skipped_at = ? WHERE series_id = ? AND season = ? AND part = ?`
+			)
+			.run(now, seriesId, at.season, at.part);
+		return;
+	}
 	getDb().prepare(`UPDATE link_searches SET skipped_at = ? WHERE series_id = ?`).run(now, seriesId);
 }
 
@@ -493,13 +511,36 @@ export type QueuedFrom = { query: string; searchedAt: number | null } | null;
  * SEARCH AGAIN (or FIND on a series never searched): the title to search,
  * for the next pass. The series leaves the review until then. Its old
  * candidates stay until the search replaces them, so UNDO (`unqueueSearch`,
- * with what this returns) puts it back as it was.
+ * with what this returns) puts it back as it was. An anime's is the season's
+ * own row (named, or the one that wants a look), which the pass then
+ * searches under this title.
  */
-export function queueSearch(seriesId: number, query: string): QueuedFrom {
+export function queueSearch(
+	seriesId: number,
+	query: string,
+	o: { season?: number; part?: number } = {}
+): QueuedFrom {
 	const db = getDb();
 	const q = query.trim();
 	if (!q) throw new Error('a title to search');
+	const anime = isAnime(kindOf(seriesId));
+	const at = searchSeason(seriesId, o);
 	return db.transaction(() => {
+		if (anime) {
+			const was = db
+				.prepare(
+					`SELECT query, searched_at FROM season_link_searches WHERE series_id = ? AND season = ? AND part = ?`
+				)
+				.get(seriesId, at.season, at.part) as
+				{ query: string; searched_at: number | null } | undefined;
+			db.prepare(
+				`INSERT INTO season_link_searches (series_id, season, part, query, searched_at, found)
+				VALUES (?, ?, ?, ?, NULL, 0)
+				ON CONFLICT (series_id, season, part) DO UPDATE SET query = excluded.query,
+					searched_at = NULL, skipped_at = NULL`
+			).run(seriesId, at.season, at.part, q);
+			return was ? { query: was.query, searchedAt: was.searched_at } : null;
+		}
 		const was = db
 			.prepare(`SELECT query, searched_at FROM link_searches WHERE series_id = ?`)
 			.get(seriesId) as { query: string; searched_at: number | null } | undefined;
@@ -511,9 +552,26 @@ export function queueSearch(seriesId: number, query: string): QueuedFrom {
 	})();
 }
 
-/** UNDO a SEARCH AGAIN that hasn't run yet. */
-export function unqueueSearch(seriesId: number, was: QueuedFrom): void {
+/** UNDO a SEARCH AGAIN that hasn't run yet: an anime's on the season it was queued for. */
+export function unqueueSearch(
+	seriesId: number,
+	was: QueuedFrom,
+	o: { season?: number; part?: number } = {}
+): void {
 	const db = getDb();
+	if (isAnime(kindOf(seriesId))) {
+		const at = searchSeason(seriesId, o);
+		if (was === null)
+			db.prepare(
+				`DELETE FROM season_link_searches WHERE series_id = ? AND season = ? AND part = ? AND searched_at IS NULL`
+			).run(seriesId, at.season, at.part);
+		else
+			db.prepare(
+				`UPDATE season_link_searches SET query = ?, searched_at = ?
+				WHERE series_id = ? AND season = ? AND part = ? AND searched_at IS NULL`
+			).run(was.query, was.searchedAt, seriesId, at.season, at.part);
+		return;
+	}
 	if (was === null)
 		db.prepare(`DELETE FROM link_searches WHERE series_id = ? AND searched_at IS NULL`).run(
 			seriesId
@@ -654,31 +712,114 @@ export const NEEDS_LOOK = `(CASE WHEN EXISTS (SELECT 1 FROM series_season_links 
 		AND NOT EXISTS (SELECT 1 FROM link_decisions d WHERE d.series_id = s.id)
 	END)`;
 
+/**
+ * The kinds a catalogue lists a season at a time: AniList's ANIME type, whose
+ * every season (and MAL's) is its own entry (c240). Their link, search,
+ * candidates and decisions are a season's rows (rung 62), never the
+ * series-level `link_searches`/`link_candidates`, which are one search for the
+ * whole series and so stand for no season in particular.
+ */
+const SEASONAL_KINDS = KINDS.filter((k) => anilistType(k) === 'ANIME');
+const seasonal = (alias: string) =>
+	`${alias}.kind IN (${SEASONAL_KINDS.map((k) => `'${k}'`).join(', ')})`;
+
+/**
+ * One season of `s` still wants a look (c240, wave 17): `season` (an SQL
+ * expression) has neither a link nor a decision of its own, and -- for a
+ * series with no season rows at all, which is every anime nobody has acted on
+ * and every one linked before rung 62 -- the series-level gate holds too.
+ * `NEEDS_LOOK` is exactly "some season of the series passes this".
+ */
+const seasonOpen = (season: string) => `(NOT EXISTS (SELECT 1 FROM series_season_links sl
+		WHERE sl.series_id = s.id AND sl.season = ${season})
+	AND NOT EXISTS (SELECT 1 FROM season_link_decisions sd
+		WHERE sd.series_id = s.id AND sd.season = ${season})
+	AND (EXISTS (SELECT 1 FROM series_season_links x WHERE x.series_id = s.id)
+		OR EXISTS (SELECT 1 FROM season_link_decisions x WHERE x.series_id = s.id)
+		OR (NOT EXISTS (SELECT 1 FROM series_links l WHERE l.series_id = s.id)
+			AND NOT EXISTS (SELECT 1 FROM link_decisions d WHERE d.series_id = s.id))))`;
+
+/**
+ * Whether `season` is one of `s`'s seasons, as `NEEDS_LOOK` and `seasonToLook`
+ * count them: `COALESCE(entries.season, 0)` over its unshadowed entries, or
+ * season 0 for an anime whose source gave no episodes yet and that has no
+ * season rows (the season its first link or search lands on).
+ */
+const seasonOf = (season: string) => `(EXISTS (SELECT 1 FROM entries e
+		WHERE e.series_id = s.id AND e.shadowed = 0 AND COALESCE(e.season, 0) = ${season})
+	OR (${season} = 0
+		AND NOT EXISTS (SELECT 1 FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0)
+		AND NOT EXISTS (SELECT 1 FROM series_season_links x WHERE x.series_id = s.id)
+		AND NOT EXISTS (SELECT 1 FROM season_link_decisions x WHERE x.series_id = s.id)))`;
+
+/** Every season of every seasonal series, as `seasonOf` counts them: `(series_id, season)`. */
+const SEASONS_SQL = `SELECT DISTINCT e.series_id, COALESCE(e.season, 0) AS season
+		FROM entries e JOIN series k ON k.id = e.series_id
+		WHERE e.shadowed = 0 AND ${seasonal('k')}
+	UNION SELECT k.id, 0 FROM series k
+		WHERE ${seasonal('k')}
+			AND NOT EXISTS (SELECT 1 FROM entries e WHERE e.series_id = k.id AND e.shadowed = 0)
+			AND NOT EXISTS (SELECT 1 FROM series_season_links x WHERE x.series_id = k.id)
+			AND NOT EXISTS (SELECT 1 FROM season_link_decisions x WHERE x.series_id = k.id)`;
+
+/**
+ * A series is in the AniList review: searched, and not linked or settled. A
+ * comic or a novel by its series-level search; an anime when one of its open
+ * seasons has a searched row of its own (c352: the queue holds an item a
+ * season). Ranobe's review line asks this too (ranobe-review.ts).
+ */
+export const IN_LINK_REVIEW = `(CASE WHEN ${seasonal('s')}
+	THEN EXISTS (SELECT 1 FROM season_link_searches ss
+		WHERE ss.series_id = s.id AND ss.part = 1 AND ss.searched_at IS NOT NULL
+			AND ${seasonOf('ss.season')} AND ${seasonOpen('ss.season')})
+	ELSE ${NEEDS_LOOK}
+		AND EXISTS (SELECT 1 FROM link_searches ls WHERE ls.series_id = s.id AND ls.searched_at IS NOT NULL)
+	END)`;
+
 type SearchRow = {
 	id: number;
 	title: string;
 	alt_titles: string;
 	kind: Kind;
 	query: string | null;
+	/**
+	 * An anime's season this row searches (c240): each open season is searched
+	 * by its own title, against its own row. Null for a comic or a novel.
+	 */
+	season?: number | null;
 };
 
 /**
- * What the pass may search: manga, manhwa, novels and anime with no link and
- * no NONE OF THESE or UNLINK -- an anime while one season has neither
- * (`NEEDS_LOOK`) -- never searched or waiting on a SEARCH AGAIN.
+ * What the pass may search: manga, manhwa and novels with no link and no NONE
+ * OF THESE or UNLINK, never searched or waiting on a SEARCH AGAIN; and each
+ * open season of an anime whose own search hasn't run, or waits on a SEARCH
+ * AGAIN (wave 17: never the series-level search, which is no season's).
  * Never a hidden series, never Hentoid's. A SEARCH AGAIN goes first, then
  * the series with no cover.
  */
 export function searchable(limit: number): SearchRow[] {
 	return getDb()
 		.prepare(
-			`SELECT s.id, s.title, s.alt_titles, s.kind, ls.query
-			FROM series s JOIN roots r ON r.id = s.root_id
-			LEFT JOIN link_searches ls ON ls.series_id = s.id
-			WHERE ${LINKABLE} AND ${VISIBLE_SQL}
-				AND ${NEEDS_LOOK}
-				AND (ls.series_id IS NULL OR ls.searched_at IS NULL)
-			ORDER BY ls.series_id IS NULL, s.cover_key != '', s.id
+			`SELECT id, title, alt_titles, kind, query, season FROM (
+				SELECT s.id, s.title, s.alt_titles, s.kind, ls.query, NULL AS season,
+					ls.series_id IS NULL AS fresh, s.cover_key != '' AS covered
+				FROM series s JOIN roots r ON r.id = s.root_id
+				LEFT JOIN link_searches ls ON ls.series_id = s.id
+				WHERE ${LINKABLE} AND ${VISIBLE_SQL} AND NOT ${seasonal('s')}
+					AND ${NEEDS_LOOK}
+					AND (ls.series_id IS NULL OR ls.searched_at IS NULL)
+				UNION ALL
+				SELECT s.id, s.title, s.alt_titles, s.kind, ss.query, q.season,
+					ss.series_id IS NULL AS fresh, s.cover_key != '' AS covered
+				FROM series s JOIN roots r ON r.id = s.root_id
+				JOIN (${SEASONS_SQL}) q ON q.series_id = s.id
+				LEFT JOIN season_link_searches ss
+					ON ss.series_id = s.id AND ss.season = q.season AND ss.part = 1
+				WHERE ${LINKABLE} AND ${VISIBLE_SQL} AND ${seasonal('s')}
+					AND ${seasonOpen('q.season')}
+					AND (ss.series_id IS NULL OR ss.searched_at IS NULL)
+			)
+			ORDER BY fresh, covered, id, season
 			LIMIT ?`
 		)
 		.all(limit) as SearchRow[];
@@ -712,21 +853,17 @@ export async function searchSeries(
 	// The owner's own title for a SEARCH AGAIN, as typed; the pass's cleaned,
 	// with a shorter one to fall back on. An anime is searched by its season's
 	// own title, since each season is its own catalogue entry (c240): the
-	// season that still wants a look, never the one CONTINUE is in, which may
-	// be linked already. An anime with no such season is not searched at all
-	// (`searchable` never offers one; the owner's own SEARCH AGAIN is kept on
-	// the series' row only).
-	const seasonOfRow = new Map<number, number>();
-	for (const r of all)
-		if (isAnime(r.kind)) {
-			const at = seasonToLook(r.id);
-			if (at !== undefined) seasonOfRow.set(r.id, at);
-		}
-	const rows = all.filter((r) => !isAnime(r.kind) || seasonOfRow.has(r.id));
-	const tries = rows.map((r) => {
+	// season the row names (`searchable` gives a row a season), or with none
+	// named the one that still wants a look, never the one CONTINUE is in,
+	// which may be linked already. An anime with no such season is not
+	// searched at all.
+	const named = all.map((r) => (isAnime(r.kind) ? (r.season ?? seasonToLook(r.id)) : undefined));
+	const rows = all.filter((r, i) => !isAnime(r.kind) || named[i] !== undefined);
+	const seasonOfRow = named.filter((_, i) => !isAnime(all[i].kind) || named[i] !== undefined);
+	const tries = rows.map((r, i) => {
 		if (r.query) return [r.query];
 		if (isAnime(r.kind)) {
-			const at = seasonOfRow.get(r.id)!;
+			const at = seasonOfRow[i]!;
 			// The cleaned title, as any search uses, and the season's number after
 			// it: "Ranma ½ (2024)" asks for "Ranma ½", season 1 of it.
 			return [seasonSearchTitle(searchTitles(r.title)[0], at)];
@@ -779,21 +916,28 @@ export async function searchSeries(
 		const sure = crossed.has(i)
 			? null
 			: sureMatch(matchTitles(titlesOfRow(r), r.query), r.kind, hits);
+		const at = seasonOfRow[i];
 		db.transaction(() => {
+			if (isAnime(r.kind) && at !== undefined) {
+				// An anime's search is its season's, and stored once (c355): the
+				// season's own row and candidates, which the queue, FIND and the
+				// season's line all read. The series-level pair is never written
+				// for it, so it can never stand in for another season.
+				saveSeasonSearch(r.id, at, 1, queries[i], hits, now);
+				// A sure match links only the season searched, and only while it is
+				// still open: never a season with a link or a decision (the owner's
+				// season 1, its score and its AniSkip answers stay as they were).
+				const open = !seasonLink(r.id, at) && !seasonSettled(r.id, at);
+				if (sure && autoLink && open) {
+					linkSeason(r.id, at, 1, sure, 'exact', now);
+					linked += 1;
+				} else offered += 1;
+				return;
+			}
 			saveSearch.run(r.id, queries[i], now, hits.length);
 			clear.run(r.id);
-			// A season keeps its own search and candidates too, so FIND on it has
-			// what the pass found without asking AniList again (c240).
-			const at = seasonOfRow.get(r.id);
-			if (at !== undefined) saveSeasonSearch(r.id, at, 1, queries[i], hits, now);
-			// A sure match links only the season searched, and only while it is
-			// still open: never a season with a link or a decision (the owner's
-			// season 1, its score and its AniSkip answers stay as they were).
-			const open =
-				!isAnime(r.kind) || (at !== undefined && !seasonLink(r.id, at) && !seasonSettled(r.id, at));
-			if (sure && autoLink && open) {
-				if (isAnime(r.kind) && at !== undefined) linkSeason(r.id, at, 1, sure, 'exact', now);
-				else link(r.id, sure, 'exact', now);
+			if (sure && autoLink) {
+				link(r.id, sure, 'exact', now);
 				linked += 1;
 			} else {
 				hits
@@ -809,9 +953,9 @@ export async function searchSeries(
 /**
  * Search again every series the pass searched and couldn't link, with the
  * titles cleaned as they are now: `yarn run links --again`. The owner's own
- * SEARCH AGAIN titles, NONE OF THESE and UNLINK are left alone; an anime with
- * a season still open is searched again, by the season that wants a look
- * (`NEEDS_LOOK`; `seasonToLook` names it).
+ * SEARCH AGAIN titles, NONE OF THESE and UNLINK are left alone. An anime's
+ * searches are its seasons': each open season the pass searched by its own
+ * title is searched again, a settled one never (wave 17).
  */
 export function requeueSearched(): number {
 	const db = getDb();
@@ -820,7 +964,8 @@ export function requeueSearched(): number {
 			db
 				.prepare(
 					`SELECT ls.series_id AS id, ls.query, s.title FROM link_searches ls JOIN series s ON s.id = ls.series_id
-					WHERE ls.searched_at IS NOT NULL AND ${IN_LIBRARY_SQL} AND ${NEEDS_LOOK}`
+					WHERE ls.searched_at IS NOT NULL AND ${IN_LIBRARY_SQL} AND NOT ${seasonal('s')}
+						AND ${NEEDS_LOOK}`
 				)
 				.all() as { id: number; query: string; title: string }[]
 		)
@@ -839,7 +984,33 @@ export function requeueSearched(): number {
 			del.run(id);
 			clear.run(id);
 		}
-		return ids.length;
+		// An anime: the season's own row, when its query is the pass's for that
+		// season ("Show", "Show Season 2", or a cleaning of either).
+		const seasons = (
+			db
+				.prepare(
+					`SELECT ss.series_id AS id, ss.season, ss.part, ss.query, s.title
+					FROM season_link_searches ss JOIN series s ON s.id = ss.series_id
+					WHERE ss.searched_at IS NOT NULL AND ${IN_LIBRARY_SQL} AND ${seasonal('s')}
+						AND ${seasonOpen('ss.season')}`
+				)
+				.all() as { id: number; season: number; part: number; query: string; title: string }[]
+		).filter((r) =>
+			[r.title, r.title.replace(/\s*(\.\.\.|…)$/, ''), ...searchTitles(r.title)].some(
+				(t) => seasonSearchTitle(t, r.season) === r.query
+			)
+		);
+		const delSeason = db.prepare(
+			`DELETE FROM season_link_searches WHERE series_id = ? AND season = ? AND part = ?`
+		);
+		const clearSeason = db.prepare(
+			`DELETE FROM season_link_candidates WHERE series_id = ? AND season = ? AND part = ?`
+		);
+		for (const r of seasons) {
+			delSeason.run(r.id, r.season, r.part);
+			clearSeason.run(r.id, r.season, r.part);
+		}
+		return ids.length + seasons.length;
 	})();
 }
 
@@ -936,18 +1107,43 @@ type ItemRow = {
 	query: string;
 	found: number;
 	searched_at: number | null;
+	skipped_at: number | null;
 	link_cover: string | null;
+	/** An anime's season the row's search is (c240); null for a comic or a novel. */
+	season: number | null;
 };
 
-const ITEM_SQL = `SELECT s.id, s.title, s.alt_titles, s.kind, s.hue, s.source, s.cover_key, s.cover_at,
+/** The series' own columns, whatever search the row is drawn from. */
+const ITEM_COLS = `s.id, s.title, s.alt_titles, s.kind, s.hue, s.source, s.cover_key, s.cover_at,
 		s.cover_url, s.cover_failed_at,
 		(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0) AS chapters,
 		(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0 AND e.available = 1 AND e.file != '') AS downloaded,
 		(SELECT t.value FROM series_tags st JOIN tags t ON t.id = st.tag_id
 			WHERE st.series_id = s.id AND t.namespace = 'source' LIMIT 1) AS site,
-		COALESCE(ls.query, '') AS query, COALESCE(ls.found, 0) AS found, ls.searched_at,
-		(SELECT l.cover_url FROM series_links l WHERE l.series_id = s.id) AS link_cover
+		(SELECT l.cover_url FROM series_links l WHERE l.series_id = s.id) AS link_cover`;
+
+/** A comic's or a novel's item: the series-level search. */
+const ITEM_SQL = `SELECT ${ITEM_COLS},
+		COALESCE(ls.query, '') AS query, COALESCE(ls.found, 0) AS found, ls.searched_at, ls.skipped_at,
+		NULL AS season
 	FROM series s JOIN roots r ON r.id = s.root_id LEFT JOIN link_searches ls ON ls.series_id = s.id`;
+
+/**
+ * An anime's item for one season (the one bound as the first parameter): that
+ * season's own search, never the series' (c240, wave 17).
+ */
+const SEASON_ITEM_SQL = `SELECT ${ITEM_COLS},
+		COALESCE(ss.query, '') AS query, COALESCE(ss.found, 0) AS found, ss.searched_at, ss.skipped_at,
+		q.season AS season
+	FROM (SELECT ? AS season) q JOIN series s JOIN roots r ON r.id = s.root_id
+	LEFT JOIN season_link_searches ss ON ss.series_id = s.id AND ss.season = q.season AND ss.part = 1`;
+
+/** The queue's anime items: every open season with a searched row of its own (c352). */
+const SEASON_QUEUE_SQL = `SELECT ${ITEM_COLS},
+		ss.query, ss.found, ss.searched_at, ss.skipped_at, ss.season AS season
+	FROM season_link_searches ss JOIN series s ON s.id = ss.series_id JOIN roots r ON r.id = s.root_id
+	WHERE ss.part = 1 AND ss.searched_at IS NOT NULL AND ${seasonal('s')}
+		AND ${seasonOf('ss.season')} AND ${seasonOpen('ss.season')}`;
 
 function firstPageOf(seriesId: number): string | undefined {
 	const r = getDb()
@@ -958,22 +1154,27 @@ function firstPageOf(seriesId: number): string | undefined {
 	return r?.label.toUpperCase();
 }
 
-/** The season an anime's item is for, and its first part: nothing for any other kind. */
-function seasonOfItem(r: { id: number; kind: Kind }): { season?: number; part?: number } {
-	if (!isAnime(r.kind)) return {};
-	const season = seasonToLook(r.id);
-	return season === undefined ? {} : { season, part: 1 };
-}
-
 function itemOf(r: ItemRow): ReviewItem {
 	const db = getDb();
 	const titles = titlesOfRow(r);
-	const cands = (
-		db.prepare(`SELECT data FROM link_candidates WHERE series_id = ? ORDER BY rank`).all(r.id) as {
-			data: string;
-		}[]
-	).map((x) => JSON.parse(x.data) as Candidate);
-	const series = { titles, kind: r.kind, chapters: r.chapters };
+	// An anime's item is one season's: its candidates are that season's own,
+	// checked against the season's title (c240), as FIND on the season is.
+	const season = isAnime(r.kind) ? r.season : null;
+	const own =
+		season !== null ? seriesSeasons(r.id)?.seasons.find((x) => x.season === season) : undefined;
+	const cands =
+		season !== null
+			? seasonCandidates(r.id, season)
+			: (
+					db
+						.prepare(`SELECT data FROM link_candidates WHERE series_id = ? ORDER BY rank`)
+						.all(r.id) as { data: string }[]
+				).map((x) => JSON.parse(x.data) as Candidate);
+	const series = {
+		titles: own ? [own.searchTitle, ...titles.slice(1)] : titles,
+		kind: r.kind,
+		chapters: own ? own.aired : r.chapters
+	};
 	return {
 		seriesId: r.id,
 		title: r.title,
@@ -994,12 +1195,12 @@ function itemOf(r: ItemRow): ReviewItem {
 			linkCover: !!r.link_cover,
 			pageOf: r.cover_key.startsWith('page:') ? firstPageOf(r.id) : undefined
 		}),
-		query: r.query || r.title,
+		query: r.query || (own ? own.searchTitle : r.title),
 		found: r.found,
 		searched: r.searched_at !== null,
 		searchedAt: r.searched_at,
 		cutShort: isCutShort(r.title),
-		...seasonOfItem(r),
+		...(season !== null ? { season, part: 1 } : {}),
 		candidates: cands.map((c) => ({
 			...c,
 			why: whyLine(series, c),
@@ -1009,51 +1210,76 @@ function itemOf(r: ItemRow): ReviewItem {
 	};
 }
 
+/** The queue's order: a skipped item last, then nothing found, then a series with a cover. */
+const QUEUE_ORDER = `ORDER BY skipped_at IS NOT NULL, skipped_at, found = 0, cover_key != '', id, season`;
+
 /**
  * The series to review: searched, not linked, not settled with NONE OF THESE
- * or UNLINK -- an anime while one season has neither (`NEEDS_LOOK`) -- with
- * candidates, or none found. A skipped one goes to the
- * back. Hidden series are never searched, so they're never here while reveal
- * is off; the filter is only belt and braces for one hidden since.
+ * or UNLINK, with candidates, or none found. An anime is an item a season
+ * (c352): each open season with a searched row of its own, carrying that
+ * season's search and candidates -- never another season's, and never the
+ * series-level search (wave 17). A skipped one goes to the back. Hidden
+ * series are never searched, so they're never here while reveal is off; the
+ * filter is only belt and braces for one hidden since.
  */
 export function linkQueue(reveal: boolean): ReviewItem[] {
 	const rows = getDb()
 		.prepare(
-			`${ITEM_SQL}
-			WHERE ls.searched_at IS NOT NULL AND ${visibleWhere(reveal)} AND ${LINKABLE}
-				AND ${NEEDS_LOOK}
-			ORDER BY ls.skipped_at IS NOT NULL, ls.skipped_at, ls.found = 0, s.cover_key != '', s.id`
+			`SELECT * FROM (
+				${ITEM_SQL}
+				WHERE ls.searched_at IS NOT NULL AND ${visibleWhere(reveal)} AND ${LINKABLE}
+					AND NOT ${seasonal('s')} AND ${NEEDS_LOOK}
+				UNION ALL
+				${SEASON_QUEUE_SQL} AND ${visibleWhere(reveal)} AND ${LINKABLE}
+			) ${QUEUE_ORDER}`
 		)
 		.all() as ItemRow[];
 	return rows.map(itemOf);
 }
 
-/** How many wait in the review: the library band's count. */
+/** How many wait in the review: the library band's count, an anime's seasons each one. */
 export function linkQueueCount(reveal: boolean): number {
-	return (
-		getDb()
-			.prepare(
-				`SELECT COUNT(*) AS n FROM link_searches ls JOIN series s ON s.id = ls.series_id JOIN roots r ON r.id = s.root_id
-				WHERE ls.searched_at IS NOT NULL AND ${visibleWhere(reveal)} AND ${LINKABLE}
-					AND ${NEEDS_LOOK}`
-			)
-			.get() as { n: number }
-	).n;
+	const db = getDb();
+	const comics = db
+		.prepare(
+			`SELECT COUNT(*) AS n FROM link_searches ls JOIN series s ON s.id = ls.series_id JOIN roots r ON r.id = s.root_id
+			WHERE ls.searched_at IS NOT NULL AND ${visibleWhere(reveal)} AND ${LINKABLE}
+				AND NOT ${seasonal('s')} AND ${NEEDS_LOOK}`
+		)
+		.get() as { n: number };
+	const seasons = db
+		.prepare(
+			`SELECT COUNT(*) AS n FROM (${SEASON_QUEUE_SQL} AND ${visibleWhere(reveal)} AND ${LINKABLE})`
+		)
+		.get() as { n: number };
+	return comics.n + seasons.n;
 }
 
-/** One series as the review shows it, whether or not it's in the queue: FIND on its screen. */
-export function reviewItem(seriesId: number, reveal: boolean): ReviewItem | null {
-	const r = getDb()
-		.prepare(`${ITEM_SQL} WHERE s.id = ? AND ${visibleWhere(reveal)}`)
-		.get(seriesId) as ItemRow | undefined;
+/**
+ * One series as the review shows it, whether or not it's in the queue: FIND
+ * on its screen. An anime is shown as one season: the one named, else the
+ * one that still wants a look, else the one CONTINUE is in.
+ */
+export function reviewItem(seriesId: number, reveal: boolean, season?: number): ReviewItem | null {
+	const db = getDb();
+	if (isAnime(kindOf(seriesId))) {
+		const at = season ?? seasonToLook(seriesId) ?? openSeasonOf(seriesId);
+		const r = db
+			.prepare(`${SEASON_ITEM_SQL} WHERE s.id = ? AND ${visibleWhere(reveal)}`)
+			.get(at, seriesId) as ItemRow | undefined;
+		return r ? itemOf(r) : null;
+	}
+	const r = db.prepare(`${ITEM_SQL} WHERE s.id = ? AND ${visibleWhere(reveal)}`).get(seriesId) as
+		ItemRow | undefined;
 	return r ? itemOf(r) : null;
 }
 
 /**
  * A candidate the review offered for this series, for LINK. An anime's is the
- * season's own (named, or the one that still wants a look), and failing that
- * the series' own candidates: the queue draws those, and a search made before
- * the season had a search of its own left only them (c240).
+ * season's own only (named, or the one that still wants a look): the queue
+ * and FIND both draw a season's candidates, so one season's candidate is
+ * never offered for another (wave 17; the series' own candidates, which
+ * belong to no season, are not asked).
  */
 export function offered(
 	seriesId: number,
@@ -1062,16 +1288,14 @@ export function offered(
 	part = 1
 ): Candidate | null {
 	const kind = kindOf(seriesId);
-	if (isAnime(kind) && kind) {
-		const own = offeredSeason(
+	if (kind && isAnime(kind))
+		return offeredSeason(
 			seriesId,
 			season ?? seasonToLook(seriesId) ?? openSeasonOf(seriesId),
 			kind,
 			anilistId,
 			part
 		);
-		if (own) return own;
-	}
 	const r = getDb()
 		.prepare(`SELECT data FROM link_candidates WHERE series_id = ? AND anilist_id = ?`)
 		.get(seriesId, anilistId) as { data: string } | undefined;
@@ -1163,7 +1387,9 @@ function seasonLinkState(
 	const at = season ?? view?.open ?? 0;
 	const sv = view?.seasons.find((s) => s.season === at) ?? null;
 	const l = sv?.link ?? null;
-	const item = itemOf({ ...r, chapters: sv?.aired ?? r.chapters });
+	// Only the cover is read from the item; it is drawn as the season's, so no
+	// series-level search is asked for an anime (wave 17).
+	const item = itemOf({ ...r, chapters: sv?.aired ?? r.chapters, season: at });
 	return {
 		linked: l
 			? {
@@ -1232,7 +1458,10 @@ export function seriesAccess(seriesId: number, reveal: boolean): { hidden: boole
 
 // ---- SEARCH AGAIN, now ----------------------------------------------------------------------
 
-/** What a search replaced, so its UNDO can put it back. One per series, this process only. */
+/**
+ * What a search replaced, so its UNDO can put it back. One per series (an
+ * anime's: one per season searched), this process only.
+ */
 type Before = {
 	search: {
 		query: string;
@@ -1242,7 +1471,9 @@ type Before = {
 	} | null;
 	candidates: { anilist_id: number; rank: number; data: string }[];
 };
-const before = new Map<number, Before>();
+const before = new Map<string, Before>();
+const beforeKey = (seriesId: number, at?: { season: number; part: number }) =>
+	at ? `${seriesId}:${at.season}:${at.part}` : String(seriesId);
 
 export type SearchNow =
 	{ outcome: 'found'; found: number } | { outcome: 'queued'; was: QueuedFrom };
@@ -1256,7 +1487,10 @@ export type SearchNow =
  * used to.
  *
  * An anime searches one season (c240): a season's own title, in the anime
- * formats, kept against that season, and LINK writes that season's row.
+ * formats, kept against that season only -- the one record of it, which the
+ * queue, FIND and the season's line all read (c355) -- and LINK writes that
+ * season's row. With no season named, the season that still wants a look,
+ * and only when every season is settled, the open one.
  */
 export async function searchNow(
 	seriesId: number,
@@ -1271,46 +1505,43 @@ export async function searchNow(
 		.prepare(`SELECT id, title, alt_titles, kind FROM series WHERE id = ?`)
 		.get(seriesId) as Omit<SearchRow, 'query'> | undefined;
 	if (!row) throw new Error('no such series');
-	const snapshot: Before = {
-		search:
-			(db
-				.prepare(
-					`SELECT query, searched_at, found, skipped_at FROM link_searches WHERE series_id = ?`
-				)
-				.get(seriesId) as Before['search'] | undefined) ?? null,
-		candidates: db
-			.prepare(`SELECT anilist_id, rank, data FROM link_candidates WHERE series_id = ?`)
-			.all(seriesId) as Before['candidates']
-	};
+	const at = isAnime(row.kind) ? searchSeason(seriesId, o) : undefined;
+	const snapshot: Before = at
+		? {
+				search:
+					(db
+						.prepare(
+							`SELECT query, searched_at, found, skipped_at FROM season_link_searches
+							WHERE series_id = ? AND season = ? AND part = ?`
+						)
+						.get(seriesId, at.season, at.part) as Before['search'] | undefined) ?? null,
+				candidates: db
+					.prepare(
+						`SELECT anilist_id, rank, data FROM season_link_candidates
+						WHERE series_id = ? AND season = ? AND part = ?`
+					)
+					.all(seriesId, at.season, at.part) as Before['candidates']
+			}
+		: {
+				search:
+					(db
+						.prepare(
+							`SELECT query, searched_at, found, skipped_at FROM link_searches WHERE series_id = ?`
+						)
+						.get(seriesId) as Before['search'] | undefined) ?? null,
+				candidates: db
+					.prepare(`SELECT anilist_id, rank, data FROM link_candidates WHERE series_id = ?`)
+					.all(seriesId) as Before['candidates']
+			};
 	try {
-		// A season's own search (c240): asked in the anime catalogue and kept
-		// against that season, not the one CONTINUE happens to be in. The series'
-		// own row is written too, so the review queue still finds it. With no
-		// season named, the season that still wants a look (`seasonToLook`), and
-		// only when every season is settled, the open one.
-		if (isAnime(row.kind)) {
-			const season = o.season ?? seasonToLook(seriesId) ?? openSeasonOf(seriesId);
-			const hits = (await searchMany([{ title: q, kind: 'anime' }]))[0] ?? [];
-			saveSeasonSearch(seriesId, season, o.part ?? 1, q, hits, now);
-			before.set(seriesId, snapshot);
-			db.transaction(() => {
-				db.prepare(
-					`INSERT INTO link_searches (series_id, query, searched_at, found) VALUES (?, ?, ?, ?)
-					ON CONFLICT (series_id) DO UPDATE SET query = excluded.query,
-						searched_at = excluded.searched_at, found = excluded.found`
-				).run(seriesId, q, now, hits.length);
-				db.prepare(`DELETE FROM link_candidates WHERE series_id = ?`).run(seriesId);
-				const put = db.prepare(
-					`INSERT OR REPLACE INTO link_candidates (series_id, anilist_id, rank, data) VALUES (?, ?, ?, ?)`
-				);
-				hits
-					.slice(0, 4)
-					.forEach((c, rank) => put.run(seriesId, c.anilistId, rank, JSON.stringify(c)));
-			})();
+		if (at) {
+			const hits = (await searchMany([{ title: q, kind: row.kind }]))[0] ?? [];
+			saveSeasonSearch(seriesId, at.season, at.part, q, hits, now);
+			before.set(beforeKey(seriesId, at), snapshot);
 			return { outcome: 'found', found: hits.length };
 		}
 		await searchSeries([{ ...row, query: q }], now, { autoLink: false });
-		before.set(seriesId, snapshot);
+		before.set(beforeKey(seriesId), snapshot);
 		const found = (
 			db.prepare(`SELECT found FROM link_searches WHERE series_id = ?`).get(seriesId) as {
 				found: number;
@@ -1319,8 +1550,8 @@ export async function searchNow(
 		return { outcome: 'found', found };
 	} catch (e) {
 		if (!(e instanceof Unreachable)) throw e;
-		before.delete(seriesId);
-		return { outcome: 'queued', was: queueSearch(seriesId, q) };
+		before.delete(beforeKey(seriesId, at));
+		return { outcome: 'queued', was: queueSearch(seriesId, q, at ?? {}) };
 	}
 }
 
@@ -1330,16 +1561,47 @@ export async function searchNow(
  * nothing of the search's to take back here -- a link made by the review's
  * own LINK is undone by that decision's UNDO. A search that waited for the
  * pass (AniList out of reach) is taken back as before, with what `searchNow`
- * returned.
+ * returned. An anime's is the season's it searched, which the caller names.
  */
-export function undoSearch(seriesId: number, was: QueuedFrom | undefined): void {
+export function undoSearch(
+	seriesId: number,
+	was: QueuedFrom | undefined,
+	o: { season?: number; part?: number } = {}
+): void {
 	const db = getDb();
-	const b = before.get(seriesId);
+	const at = isAnime(kindOf(seriesId)) ? searchSeason(seriesId, o) : undefined;
+	const key = beforeKey(seriesId, at);
+	const b = before.get(key);
 	if (!b) {
-		unqueueSearch(seriesId, was ?? null);
+		unqueueSearch(seriesId, was ?? null, at ?? {});
 		return;
 	}
 	db.transaction(() => {
+		if (at) {
+			const where = `WHERE series_id = ? AND season = ? AND part = ?`;
+			db.prepare(`DELETE FROM season_link_candidates ${where}`).run(seriesId, at.season, at.part);
+			db.prepare(`DELETE FROM season_link_searches ${where}`).run(seriesId, at.season, at.part);
+			if (b.search)
+				db.prepare(
+					`INSERT INTO season_link_searches (series_id, season, part, query, searched_at, found, skipped_at)
+					VALUES (?, ?, ?, ?, ?, ?, ?)`
+				).run(
+					seriesId,
+					at.season,
+					at.part,
+					b.search.query,
+					b.search.searched_at,
+					b.search.found,
+					b.search.skipped_at
+				);
+			const put = db.prepare(
+				`INSERT INTO season_link_candidates (series_id, season, part, anilist_id, rank, data)
+				VALUES (?, ?, ?, ?, ?, ?)`
+			);
+			for (const c of b.candidates)
+				put.run(seriesId, at.season, at.part, c.anilist_id, c.rank, c.data);
+			return;
+		}
 		db.prepare(`DELETE FROM link_candidates WHERE series_id = ?`).run(seriesId);
 		db.prepare(`DELETE FROM link_searches WHERE series_id = ?`).run(seriesId);
 		if (b.search)
@@ -1351,7 +1613,7 @@ export function undoSearch(seriesId: number, was: QueuedFrom | undefined): void 
 		);
 		for (const c of b.candidates) put.run(seriesId, c.anilist_id, c.rank, c.data);
 	})();
-	before.delete(seriesId);
+	before.delete(key);
 }
 
 /**

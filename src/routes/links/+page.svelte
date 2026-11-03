@@ -50,7 +50,11 @@
 	const SERVICE_NAME: Record<Service, string> = { anilist: 'ANILIST', ranobe: 'RANOBE' };
 
 	/** An item's place in the queue: a novel can be in it once per catalogue. */
-	const qk = (i: { service: Service; seriesId: number }) => `${i.service}:${i.seriesId}`;
+	// An anime's item is one season's (c352), so its season is part of its place.
+	const qk = (i: { service: Service; seriesId: number; season?: number }) =>
+		`${i.service}:${i.seriesId}${i.season !== undefined ? `:${i.season}` : ''}`;
+	/** "SEASON 2 · ", for a band about a decision on one season of an anime; '' otherwise. */
+	const seasonWord = (on: { no: number } | null) => (on ? `SEASON ${on.no} · ` : '');
 	const keyOf = (c: Cand) => ('work' in c ? c.work : String(c.anilistId));
 	const hrefOf = (c: Cand) =>
 		'href' in c
@@ -316,7 +320,8 @@
 		if (!('work' in c)) {
 			decide(
 				{ link: c.anilistId, pasted: !!pasted },
-				`LINKED · ${c.title.toUpperCase()}`,
+				// The queue's item names its season, and so does the band (c240).
+				`LINKED · ${seasonWord(at)}${c.title.toUpperCase()}`,
 				`${c.ids} · ${it.hasCover ? 'COVER STAYS AS IT IS' : 'ITS COVER COMES FROM THE LINK'}`,
 				'link'
 			);
@@ -427,6 +432,7 @@
 	async function searchAgain() {
 		if (!item || !query.trim() || busy) return;
 		const it = item;
+		const on = at;
 		const q = query.trim();
 		const beforeQ = { queue: [...queue], done };
 		busy = true;
@@ -435,7 +441,7 @@
 		const r = await post(it.service, {
 			series: it.seriesId,
 			search: q,
-			...(at ? { season: at.no, part: at.part } : {})
+			...(on ? { season: on.no, part: on.part } : {})
 		});
 		busy = false;
 		searchingNow = false;
@@ -453,6 +459,8 @@
 			kind: 'search' as const,
 			service: it.service,
 			series: it.seriesId,
+			// An anime's search is its season's: UNDO puts that season's back (c355).
+			...(on ? { season: on.no, part: on.part } : {}),
 			was: a.was ?? undefined
 		};
 		if (a.outcome === 'queued') {
@@ -646,9 +654,8 @@
 		if (!item) return [];
 		const link: Act = selected
 			? {
-					label: season
-						? `LINK ${selectedLetter} TO SEASON ${season.no}`
-						: `LINK ${selectedLetter}`,
+					// The season the LINK writes: the page's, or the queue item's own (c240).
+					label: at ? `LINK ${selectedLetter} TO SEASON ${at.no}` : `LINK ${selectedLetter}`,
 					run: linkChosen,
 					strong: true,
 					dim: off
@@ -677,7 +684,7 @@
 					: () =>
 							decide(
 								{ none: true },
-								'NONE OF THESE · WON’T ASK AGAIN',
+								`NONE OF THESE · ${seasonWord(at)}WON’T ASK AGAIN`,
 								'FIND AND PASTE A LINK STILL WORK ON ITS SERIES SCREEN',
 								'none'
 							),
@@ -773,8 +780,8 @@
 	<header class="head">
 		<a class="back" href={back.href}>{back.label}</a>
 		<div class="heading">
-			{#if season}
-				<span class="long">LINK · SEASON {season.no}</span><span class="short">S{season.no}</span>
+			{#if at}
+				<span class="long">LINK · SEASON {at.no}</span><span class="short">S{at.no}</span>
 			{:else}
 				<span class="long">SERIES TO LINK</span><span class="short">TO LINK</span>
 			{/if}
