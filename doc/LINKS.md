@@ -281,10 +281,13 @@ anime's LINK row is a line a season (c240; above).
   the seasons ([`RANOBE.md`](RANOBE.md)).
 - **A season's link is its own row** (`series_season_links`, rung 62):
   `series_links` keeps meaning what it meant for a manga or a novel, and an
-  anime's row there is a **mirror of its first season linked**, kept for the
-  one reader that asks a series for a single MAL entry (AniSkip). Tracking
-  never reads it for an anime. A link an anime had before rung 62 is read as
-  its first season's; nothing was migrated, since no anime was linked then.
+  anime's row there is a **mirror of its first season, written only while that
+  season is linked** (season 1, or a flat list). With only a later season
+  linked there is no row at all: the one reader that asks a series for a
+  single MAL entry (AniSkip) numbers an episode within its entry and refuses a
+  later season, so an empty row is its honest "not looked up". Tracking never
+  reads it for an anime. A link an anime had before rung 62 is read as its
+  first season's; nothing was migrated, since no anime was linked then.
 - **A season's FIND** opens the review with `?series=N&season=S`: the search
   is that season's own title (`Sword Art Online Season 3`, the source's
   season number after the series' title), asked in the anime formats, and
@@ -292,10 +295,12 @@ anime's LINK row is a line a season (c240; above).
   SEASON 3 writes that season's row. After it, the page offers the rest of
   the show from the linked entry's AniList PREQUEL and SEQUEL relations, in
   order along the chain and ticked where the episode counts agree -- or
-  where two entries add up to the season as `PART 1` and `PART 2`. A movie,
-  a special and a spin-off are listed dimmed and never ticked; a season
-  already linked says `REPLACES …` and is not ticked either. LINK N SEASONS
-  writes them all (`via 'relations'`), and NOT NOW leaves them.
+  where two entries add up to the season as `PART 1` and `PART 2`. A movie
+  or a special standing on that chain is listed dimmed and never ticked; a
+  side story or a spin-off is not collected at all, because the walk follows
+  PREQUEL and SEQUEL edges only. A season already linked says `REPLACES …`
+  and is not ticked either. LINK N SEASONS writes them all
+  (`via 'relations'`), and NOT NOW leaves them.
 - **Not linked:** what the last pass found, then FIND (accent) and PASTE A
   LINK.
 - **COVER** says where the cover comes from and why the sources before it

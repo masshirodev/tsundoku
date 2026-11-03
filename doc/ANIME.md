@@ -295,13 +295,14 @@ length is kept.
   rule is in the SQL (`HIDDEN_SQL`). Incognito doesn't ask either.
 - **Seasons.** AniSkip numbers episodes per MAL entry, and a MAL entry is one
   season -- which is why c240 links a season at a time (doc/LINKS.md). This
-  lookup still reads `series_links.mal_id`, which an anime keeps as a mirror
-  of its **first** season linked (`syncSeriesLink`, rung 62): a flat list's
-  or season 1's episodes are asked about with the right entry, and an
-  episode of a later season is not looked up rather than asked about under
-  another season's entry. Reading the season's own row here is the card that
-  closes the gap (doc/handoff-notes/tracking.md, "Gaps"). The episode number
-  is the source's own within the season (`episode_number`).
+  lookup still reads `series_links.mal_id`, where an anime keeps its **first**
+  season only while that season is linked (`syncSeriesLink`, rung 62): a flat
+  list's or season 1's episodes are asked about with the right entry, and an
+  episode of a later season -- or of any season when only a later one is
+  linked -- is not looked up rather than asked about under another season's
+  entry. Reading the season's own row here is the card that closes the gap
+  (doc/handoff-notes/tracking.md, "Gaps"). The episode number is the source's
+  own within the season (`episode_number`).
 - **Remembered.** A found answer is never asked again; a 404 is remembered
   for `ANISKIP_RETRY_MS` (7 days), since a running show's new episode may
   arrive late. A server that didn't answer is not remembered: the next
@@ -781,5 +782,6 @@ comes from the stream (c155) or the file (c157); a picture, where the source
 gives none, from a frame ("Episode pictures"). **A link is one season's**
 (c240): AniList and MAL list each season as its own entry, so an anime's
 LINK and TRACKING rows are a line a season (doc/LINKS.md, doc/TRACKING.md);
-`series_links` keeps the first season linked as a mirror, for AniSkip's one
-MAL id.
+`series_links` keeps the first season as a mirror while that season is
+linked -- and no row at all when only a later one is -- for AniSkip's one MAL
+id, which is one season's entry.

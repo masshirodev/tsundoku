@@ -69,7 +69,8 @@ of then.
 - **MAL:** `/users/@me/mangalist` and `/users/@me/animelist`, paged. MAL
   keeps anime progress as `num_episodes_watched` where a manga's is
   `num_chapters_read`, and its ids are two sequences: the state is filed
-  under `anime:<id>` or `manga:<id>` (`stateKey`), never one map keyed by id
+  under `anime:<id>` or `comic:<id>` (`stateKey`, `family()`'s two words),
+  never one map keyed by id
   alone (wave 10's 23-is-both bug).
 
 For each linked series, `tracker_state` keeps the list's status (in
