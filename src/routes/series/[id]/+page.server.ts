@@ -171,7 +171,7 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 	const root = rootOf(series.id);
 	return {
 		series,
-		// TAGS search the series' own source too (c313); its filters are asked when a tag is.
+		// TAGS search the series' own source too (c313); its filters only when IN <SOURCE> is followed (tag-search/).
 		tagSource: tagSourceOf(series.id, reveal),
 		back: backTo(url.searchParams.get('from'), series.id, shelves),
 		// Where this series sits in its Work (W5; doc/WORKS.md): one row under

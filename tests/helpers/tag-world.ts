@@ -22,12 +22,27 @@ import { E2E_TOKEN } from '../../playwright.config';
  */
 
 export const SOURCE = { id: '100', name: 'Tag Source' };
+/**
+ * A second working source, asked only by the preview's slow case: a source's
+ * filters are kept once they answer (`keep`), so a case that needs a cold
+ * cache needs a source no earlier case has asked.
+ */
+export const COLD = { id: '102', name: 'Cold Tags' };
 /** Installed, but its extension failed to load: BROWSE's page only says why. */
 export const BROKEN = { id: '101', name: 'Broken Tags' };
 
 /** The preview's manga, as a search result names it (`sourceMangaId`). */
 export const PREVIEW_URL = '/manga/preview-me';
 export const previewId = `${SOURCE.id}~${Buffer.from(PREVIEW_URL).toString('base64url')}`;
+/** The same manga, previewed from COLD. */
+export const coldPreviewId = `${COLD.id}~${Buffer.from(PREVIEW_URL).toString('base64url')}`;
+/**
+ * A manga whose genre string names one genre twice, as scraped themes do when
+ * they merge a type list and a genre list (the engine splits it on commas and
+ * keeps both: engine/backend.ts).
+ */
+export const REPEAT_URL = '/manga/repeats';
+export const repeatId = `${SOURCE.id}~${Buffer.from(REPEAT_URL).toString('base64url')}`;
 
 /** The source's filters (the browse world's shape: a sort, a select, a checkbox on, a text, a genre group). */
 export const SCHEMA = [
@@ -68,7 +83,10 @@ export type Call = {
 
 export type TagWorld = {
 	base: string;
-	ids: Record<'tagged' | 'unsourced' | 'missing' | 'broken' | 'hentoid' | 'gallery', number>;
+	ids: Record<
+		'tagged' | 'unsourced' | 'missing' | 'broken' | 'hentoid' | 'gallery' | 'twice',
+		number
+	>;
 	calls: () => Call[];
 	reset: () => void;
 	/** How the next schema calls answer: at once, after `ms`, or not at all (an engine error). */
@@ -107,6 +125,8 @@ function seed(dbPath: string): TagWorld['ids'] {
 		);
 		ext.run('e2e.tags', SOURCE.name, 'e2e.tags'.padEnd(64, '0'), '');
 		src.run(SOURCE.id, 'e2e.tags', SOURCE.name, 'https://tags.example');
+		ext.run('e2e.tags.cold', COLD.name, 'e2e.tags.cold'.padEnd(64, '0'), '');
+		src.run(COLD.id, 'e2e.tags.cold', COLD.name, 'https://cold.example');
 		ext.run('e2e.tags.broken', BROKEN.name, 'e2e.tags.broken'.padEnd(64, '0'), 'protobuf');
 		src.run(BROKEN.id, 'e2e.tags.broken', BROKEN.name, 'https://broken.example');
 
@@ -159,11 +179,16 @@ function seed(dbPath: string): TagWorld['ids'] {
 		const hentoid = series('Hentoid Gallery Tags', 'doujin', 'hentoid', 'hentoid:nhentai:/g/1');
 		// A doujin with a Mihon key: a source's gallery, so its tags search that source.
 		const gallery = series('Gallery From Tags', 'doujin', 'mihon', `mihon:${SOURCE.id}:/g/2`);
-		for (const id of [tagged, unsourced, missing, broken, hentoid, gallery]) {
+		// A bare tag and the same value under `tag:` (parseTag takes both): the
+		// TAGS row groups both under `tag`, the same value twice.
+		const twice = series('Twice Tagged Mecha', 'manga', 'mihon', `mihon:${SOURCE.id}:/manga/twice`);
+		tag(twice, '', 'Mecha');
+		tag(twice, 'tag', 'Mecha');
+		for (const id of [tagged, unsourced, missing, broken, hentoid, gallery, twice]) {
 			entry(id);
 			if (id !== tagged) tag(id, 'genre', 'Romance');
 		}
-		return { tagged, unsourced, missing, broken, hentoid, gallery };
+		return { tagged, unsourced, missing, broken, hentoid, gallery, twice };
 	} finally {
 		db.close();
 	}
@@ -209,6 +234,15 @@ function startEngine(
 						hasNextPage: false
 					});
 				case 'getDetailsManga':
+					if (url === REPEAT_URL)
+						return json(200, {
+							url,
+							title: 'Repeats Its Genres',
+							author: 'Aoi Hanamura',
+							genre: 'Action, Comedy, Action, Romance',
+							description: 'A genre listed twice.',
+							status: 1
+						});
 					return json(200, {
 						url,
 						title: 'Preview Me Tagged',

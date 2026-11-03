@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	cleanSchema,
 	EXCLUDE,
@@ -13,6 +13,11 @@ import {
 	matchFilter,
 	backOrigin,
 	backOriginLabel,
+	distinct,
+	readTagRoute,
+	settleWithin,
+	TAG_SCHEMA_WAIT_MS,
+	tagRouteHref,
 	tagSearchHref,
 	tagSearchParams
 } from '$lib/library/tag-search';
@@ -285,5 +290,87 @@ describe('the library’s key for a tag', () => {
 	it('is namespace:value, or the bare value', () => {
 		expect(libraryTagKey({ namespace: 'artist', value: 'Seo Haram' })).toBe('artist:Seo Haram');
 		expect(libraryTagKey({ namespace: '', value: 'isekai' })).toBe('isekai');
+	});
+});
+
+describe('a tag-search route’s address (round 2: the link names the tag, the server finds it)', () => {
+	const base = '/series/7/tag-search';
+
+	it('names the tag and where it was tapped, and reads back the same', () => {
+		for (const tag of [
+			{ namespace: 'genre', value: 'Slice of Life' },
+			{ namespace: '', value: 'isekai & co' },
+			{ namespace: 'artist', value: 'Ren Kisaragi?' }
+		]) {
+			const href = tagRouteHref(base, tag, '/series/7?from=%2F');
+			const u = new URL(href, 'http://in.app');
+			expect(u.pathname).toBe(base);
+			expect(readTagRoute(u)).toEqual({ tag, from: '/series/7?from=%2F' });
+		}
+	});
+
+	it('leaves `from` off when there is none', () => {
+		const href = tagRouteHref(base, { namespace: 'genre', value: 'Romance' }, '');
+		expect(new URL(href, 'http://in.app').searchParams.has('from')).toBe(false);
+	});
+
+	it('refuses a `from` backOrigin refuses, and a tag with no value', () => {
+		const u = new URL('http://in.app/x?ns=genre&value=Romance&from=https%3A%2F%2Fevil.example');
+		expect(readTagRoute(u)).toEqual({ tag: { namespace: 'genre', value: 'Romance' }, from: '' });
+		expect(readTagRoute(new URL('http://in.app/x?ns=genre&value=%20'))).toBeNull();
+		expect(readTagRoute(new URL('http://in.app/x?ns=genre'))).toBeNull();
+	});
+
+	it('reads a namespace as the library stores it, lower case', () => {
+		const u = new URL('http://in.app/x?ns=Author&value=Aoi');
+		expect(readTagRoute(u)!.tag).toEqual({ namespace: 'author', value: 'Aoi' });
+		// So a person stays a search however the namespace was spelt.
+		expect(tagSearchParams([], readTagRoute(u)!.tag)).toEqual([['q', 'Aoi']]);
+	});
+});
+
+describe('waiting for the source’s filters', () => {
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it('gives the answer when it comes in time', async () => {
+		await expect(settleWithin(Promise.resolve(['a']), 1000, [])).resolves.toEqual(['a']);
+	});
+
+	it('gives the fallback when the call fails', async () => {
+		await expect(settleWithin(Promise.reject(new Error('down')), 1000, [])).resolves.toEqual([]);
+	});
+
+	it('gives the fallback when the call has not answered in time, and not before', async () => {
+		vi.useFakeTimers();
+		let settled: string[] | null = null;
+		void settleWithin(new Promise<string[]>(() => {}), TAG_SCHEMA_WAIT_MS, []).then(
+			(v) => (settled = v)
+		);
+		await vi.advanceTimersByTimeAsync(TAG_SCHEMA_WAIT_MS - 1);
+		expect(settled).toBeNull();
+		await vi.advanceTimersByTimeAsync(1);
+		expect(settled).toEqual([]);
+	});
+
+	it('waits long enough for a slow source, but less than its own SLOW_MS', () => {
+		expect(TAG_SCHEMA_WAIT_MS).toBeGreaterThanOrEqual(10_000);
+		expect(TAG_SCHEMA_WAIT_MS).toBeLessThan(60_000);
+	});
+});
+
+describe('a source’s genres, each once', () => {
+	it('keeps the first of a repeated value, in order', () => {
+		expect(distinct(['Action', 'Comedy', 'Action'])).toEqual(['Action', 'Comedy']);
+	});
+
+	it('tells values apart by exact string: two spellings both stay', () => {
+		expect(distinct(['Action', 'action', 'Action '])).toEqual(['Action', 'action', 'Action ']);
+	});
+
+	it('holds on its own output', () => {
+		const once = distinct(['a', 'b', 'a', 'c', 'b']);
+		expect(distinct(once)).toEqual(once);
 	});
 });

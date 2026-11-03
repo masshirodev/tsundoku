@@ -117,8 +117,14 @@ links, MOVE and TAKE OUT) and in [`WORKS.md`](WORKS.md)'s flow.
   not installed or failed, and a Hentoid, folder, EPUB or import key have no
   sheet: the tap goes straight to the library, as before. The key decides,
   never the kind: a doujin from a Mihon source's gallery asks too. The
-  source's filters are asked when the sheet first opens, once a screen.
-  Without script the link is the library's. On a TV the pad reaches the
+  screen asks the source nothing: IN <SOURCE> is a link to
+  `/series/<id>/tag-search?ns=&value=&from=`, a server route that waits
+  for the source's filters (or `TAG_SCHEMA_WAIT_MS`) and then answers 303,
+  so the row is never a guess made before they came, and the sheet stays
+  open while it waits. A hidden series, with reveal off, has no sheet and
+  its route is not found. Without script the tag's link is the library's.
+  A value appears as often as it is stored: a bare `x` and a `tag:x` are
+  two values in the `tag` group, each its own link. On a TV the pad reaches the
   values (↓ to the row meets its EDIT, ← into them), OK opens the sheet on
   its first row, and BACK closes it onto the tag.
 - **SOURCE sits after LINK and COVER**, before TAGS and ABOUT, on every series

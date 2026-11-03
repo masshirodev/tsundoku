@@ -269,7 +269,10 @@ describe('the source a series’ tags search (c313)', () => {
 			folder: add('T Folder', 'manga', 'mihon-dir:/somewhere'),
 			epub: add('T Epub', 'novel', 'epub:/books/a.epub'),
 			// Two of its three series hidden: the source is mostly hidden.
-			hidden: add('T Hidden', 'manga', 'mihon:7400:/h1', 1)
+			hidden: add('T Hidden', 'manga', 'mihon:7400:/h1', 1),
+			// Hidden itself, on a source that is not: the series is the door
+			// (its `tag-search` route asks this and nothing else for access).
+			hiddenSeries: add('T Hidden Series', 'manga', 'mihon:7100:/z', 1)
 		};
 		add('T Hidden 2', 'manga', 'mihon:7400:/h2', 1);
 		add('T Hidden 3', 'manga', 'mihon:7400:/h3');
@@ -290,6 +293,10 @@ describe('the source a series’ tags search (c313)', () => {
 			// A mostly-hidden source is BROWSE's only with reveal on.
 			expect(name(ids.hidden, false)).toBeNull();
 			expect(name(ids.hidden, true)).toBe('Hidden Here');
+			expect(name(ids.hiddenSeries, false)).toBeNull();
+			expect(name(ids.hiddenSeries, true)).toBe('Comics Here');
+			// A series that is not there names nothing.
+			expect(name(999_999, true)).toBeNull();
 			// No engine, no BROWSE: no sheet anywhere.
 			delete process.env.ENGINE_URL;
 			expect(name(ids.manga, true)).toBeNull();

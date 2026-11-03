@@ -137,15 +137,24 @@ five real schemas (`tests/tag-search.spec.ts`):
   asked the same question; an empty schema, or a call that failed, is a
   search.
 
-**The schema never holds a screen.** It is a source call (`SLOW_MS`), and
-calls into one extension run one at a time (`inLane`, `engine/client.ts`).
-The preview streams it from its load and asks only once its manga has
-settled, so the schema can never queue in front of the details; until it
-comes, or if it fails, each link is a search for its value. The series screen
-asks for it when its sheet first opens, once a screen
-(`series/[id]/tag-filters/+server.ts`), so a series nobody taps a tag on asks
-the source nothing. Either way `filterSchema` keeps the answer per source
-(`keep`), and the source's page answers from the same cache.
+**The schema never holds a screen, and a link never guesses before it.** It
+is a source call (`SLOW_MS`), and calls into one extension run one at a time
+(`inLane`, `engine/client.ts`), so neither screen asks for it to paint: the
+preview's links and the series sheet's IN <SOURCE> row name the tag, not the
+answer, and point at a small server route, `GET /downloads/source/<id>/tag-search`
+or `GET /series/<id>/tag-search`, with `?ns=&value=&from=`. That route checks
+access as its screen does (the preview: the engine configured and a source
+BROWSE lists with this reveal; the series: `tagSourceOf`, which reads the one
+series row with the hidden rule), waits for `filterSchema`, and answers 303 to
+the address above. A failure, or no answer within `TAG_SCHEMA_WAIT_MS` (20 s,
+under the source's own 60), is a search for the value. So the href is the same
+from the first paint, with or without script, and a tap made before the filters
+have come still lands on the filter (review round 2: until then, a link built
+on the page was a search for its value, and a quick tap or ↓ OK on a TV landed
+there). A link to the route is a full navigation (`data-sveltekit-reload`); the
+series sheet stays open while it waits. `filterSchema` keeps the answer per
+source (`keep`), so after the first tap the wait is nothing, and the source's
+page answers from the same cache.
 
 **Back returns to where the tag was.** The link carries `from=` with the
 preview's or the series' own address, query included, and the source page's
@@ -387,20 +396,20 @@ values show and still save, under the NOT ANSWERING band.
 
 ## Where it lives in the code
 
-| What                                                      | Where                                                                                                                                                                                                          |
-| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The filter logic                                          | `src/lib/library/browse-filters.ts`                                                                                                                                                                            |
-| A tag's address on a source's page, and ← back            | `src/lib/library/tag-search.ts`; the preview's links in `src/routes/downloads/source/[id]/`, the series' sheet in `src/routes/series/[id]/` (`TagSheet.svelte`, `tag-source.server.ts`, `tag-filters/`)        |
-| Which sources, their shelves, what's kept                 | `src/lib/server/engine/browse.ts`                                                                                                                                                                              |
-| A result matched against the library (shared with search) | `asHits` in `src/lib/server/engine/backend.ts`                                                                                                                                                                 |
-| BROWSE                                                    | `src/routes/browse/` (`+page.server.ts`, `+page.svelte`, `SourceRow.svelte`, shared with the empty search)                                                                                                     |
-| An extension's icon                                       | `src/routes/api/browse/icon/[pkg]/+server.ts`                                                                                                                                                                  |
-| A source's page                                           | `src/routes/browse/[source]/` (`+page.server.ts`, `+page.svelte`, `FilterForm.svelte`, `ResultTile.svelte`)                                                                                                    |
-| A source's settings                                       | `src/routes/browse/[source]/settings/`, `src/lib/library/source-settings.ts`                                                                                                                                   |
-| Extensions and repositories                               | `src/routes/browse/extensions/` (`ExtRow.svelte`), `src/lib/server/engine/manage.ts`                                                                                                                           |
-| BROWSE's languages                                        | `src/routes/settings/` (03 — BROWSE)                                                                                                                                                                           |
-| A site's check                                            | `checkingSince` / `noteSolvedChecks` in `engine/browse.ts`, `novels/solver.ts` (the app's own solve, c152), `src/routes/api/browse/check/[source]/`, `src/lib/site-check.svelte.ts`; the fork's `ChallengeLog` |
-| The engine's schema                                       | the fork, `server/src/main/kotlin/mextensionserver/impl/FilterSchema.kt`                                                                                                                                       |
+| What                                                      | Where                                                                                                                                                                                                                                     |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The filter logic                                          | `src/lib/library/browse-filters.ts`                                                                                                                                                                                                       |
+| A tag's address on a source's page, and ← back            | `src/lib/library/tag-search.ts`; the preview's links in `src/routes/downloads/source/[id]/`, the series' sheet in `src/routes/series/[id]/` (`TagSheet.svelte`, `tag-source.server.ts`, `tag-search/`); the preview's `tag-search/` route |
+| Which sources, their shelves, what's kept                 | `src/lib/server/engine/browse.ts`                                                                                                                                                                                                         |
+| A result matched against the library (shared with search) | `asHits` in `src/lib/server/engine/backend.ts`                                                                                                                                                                                            |
+| BROWSE                                                    | `src/routes/browse/` (`+page.server.ts`, `+page.svelte`, `SourceRow.svelte`, shared with the empty search)                                                                                                                                |
+| An extension's icon                                       | `src/routes/api/browse/icon/[pkg]/+server.ts`                                                                                                                                                                                             |
+| A source's page                                           | `src/routes/browse/[source]/` (`+page.server.ts`, `+page.svelte`, `FilterForm.svelte`, `ResultTile.svelte`)                                                                                                                               |
+| A source's settings                                       | `src/routes/browse/[source]/settings/`, `src/lib/library/source-settings.ts`                                                                                                                                                              |
+| Extensions and repositories                               | `src/routes/browse/extensions/` (`ExtRow.svelte`), `src/lib/server/engine/manage.ts`                                                                                                                                                      |
+| BROWSE's languages                                        | `src/routes/settings/` (03 — BROWSE)                                                                                                                                                                                                      |
+| A site's check                                            | `checkingSince` / `noteSolvedChecks` in `engine/browse.ts`, `novels/solver.ts` (the app's own solve, c152), `src/routes/api/browse/check/[source]/`, `src/lib/site-check.svelte.ts`; the fork's `ChallengeLog`                            |
+| The engine's schema                                       | the fork, `server/src/main/kotlin/mextensionserver/impl/FilterSchema.kt`                                                                                                                                                                  |
 
 ## Tests
 

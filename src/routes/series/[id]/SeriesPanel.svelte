@@ -38,8 +38,7 @@
 	import { baseToEdition, langName } from '$lib/library/editions';
 	import UnfoldSheet from './UnfoldSheet.svelte';
 	import TagSheet from './TagSheet.svelte';
-	import { libraryTagKey, tagSearchHref } from '$lib/library/tag-search';
-	import type { FilterField } from '$lib/library/browse-filters';
+	import { libraryTagKey, tagRouteHref } from '$lib/library/tag-search';
 	import type { LinkState } from '$lib/server/catalogue';
 	import { anilistUrl, malUrl, viaLabel, type SeasonRow } from '$lib/library/catalogue';
 	import { offline } from '$lib/offline.svelte';
@@ -541,18 +540,9 @@
 	// ---- a tag searched for (c313; doc/SERIES.md, the TAGS row) ------------------------------
 	// Every value is a link to the library; with a source BROWSE can open, a tap
 	// asks where to look instead (TagSheet), and without script the link stands.
-	// The source's filters, asked the first time a tag is (once per screen):
-	// until they come, or without them, a tag is a search for its value.
-	let tagFilters = $state<FilterField[]>([]);
-	let tagFiltersAsked = false;
-	function askTagFilters() {
-		if (tagFiltersAsked || !tagSource) return;
-		tagFiltersAsked = true;
-		fetch(resolve('/series/[id]/tag-filters', { id: String(series.id) }))
-			.then((r) => (r.ok ? (r.json() as Promise<{ filters: FilterField[] }>) : { filters: [] }))
-			.then((j) => (tagFilters = j.filters))
-			.catch(() => {});
-	}
+	// IN <SOURCE> names the tag, not the answer: `tag-search` waits for the
+	// source's filters and only then says where to go, so this screen asks the
+	// source nothing, and the row is never a guess made before they came.
 	/** The tag as stored: a bare tag is grouped under `tag` but has no namespace (`tagGroups`). */
 	const storedTag = (namespace: string, value: string) =>
 		series.tags.find((t) => t.value === value && (t.namespace || 'tag') === namespace) ?? {
@@ -565,9 +555,8 @@
 	const tagLibraryHref = (t: { namespace: string; value: string }) => tagHref(libraryTagKey(t));
 	const tagSourceHref = $derived(
 		tagSource && tagAsked
-			? tagSearchHref(
-					resolve('/browse/[source]', { source: tagSource.id }),
-					tagFilters,
+			? tagRouteHref(
+					resolve('/series/[id]/tag-search', { id: String(series.id) }),
 					tagAsked,
 					page.url.pathname + page.url.search
 				)
@@ -576,7 +565,6 @@
 	function askTag(e: MouseEvent, t: { namespace: string; value: string }) {
 		if (!tagSource) return;
 		e.preventDefault();
-		askTagFilters();
 		tagAsked = t;
 		tagOpen = true;
 	}
@@ -1449,7 +1437,7 @@
 							<!-- Every value opens the library's person or tag page (Index Books), or,
 							     with a source, asks where to look (c313). -->
 							<!-- eslint-disable svelte/no-navigation-without-resolve -- tagHref() resolves -->
-							{#each g.values as v, i (v)}{@const t = storedTag(g.namespace, v)}{#if i > 0}<span
+							{#each g.values as v, i (i)}{@const t = storedTag(g.namespace, v)}{#if i > 0}<span
 										class="sep"
 									>
 										·

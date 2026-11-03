@@ -126,3 +126,48 @@ export const backOriginLabel = (origin: string): string =>
  */
 export const libraryTagKey = (tag: TagQuery) =>
 	tag.namespace ? `${tag.namespace}:${tag.value}` : tag.value;
+
+/**
+ * How long a tag's link waits for the source's filters before it settles for a
+ * search (`settleWithin`; the `tag-search` routes). The filters are a source
+ * call that can take a site's browser check (`SLOW_MS`, engine/browse.ts), and
+ * the owner is waiting on a tap: past this, a search for the value is the
+ * better answer than nothing. A late answer is still kept (`keep`), so the
+ * next tap on that source finds its filter.
+ */
+export const TAG_SCHEMA_WAIT_MS = 20_000;
+
+/** A promise's answer, or `fallback` if it fails or has not answered within `ms`. */
+export function settleWithin<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const late = new Promise<T>((ok) => {
+		timer = setTimeout(() => ok(fallback), ms);
+	});
+	return Promise.race([p.catch(() => fallback), late]).finally(() => clearTimeout(timer));
+}
+
+/**
+ * A `tag-search` route's address for a tag (card c313, round 2): the server
+ * waits for the source's filters there and answers 303 to `tagSearchHref`, so
+ * the link is right from the first paint and never guesses before the schema
+ * has settled. `base` is the route's resolved path; `from` is the screen the
+ * tag was tapped on, which the route checks with `backOrigin`.
+ */
+export function tagRouteHref(base: string, tag: TagQuery, from: string): string {
+	const params = new URLSearchParams({ ns: tag.namespace, value: tag.value });
+	if (from) params.set('from', from);
+	return `${base}?${params}`;
+}
+
+/** The tag a `tag-search` route was asked for, or null when it has no value. */
+export function readTagRoute(url: URL): { tag: TagQuery; from: string } | null {
+	const value = (url.searchParams.get('value') ?? '').trim();
+	if (value === '') return null;
+	return {
+		tag: { namespace: (url.searchParams.get('ns') ?? '').trim().toLowerCase(), value },
+		from: backOrigin(url.searchParams.get('from'))
+	};
+}
+
+/** Each value once, in its first place, by exact string: "Action" and "action" both stay. */
+export const distinct = (values: readonly string[]): string[] => [...new Set(values)];

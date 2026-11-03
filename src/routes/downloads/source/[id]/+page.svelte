@@ -7,8 +7,7 @@
 	import { formatNumber } from '$lib/library/series';
 	import { kindFacts } from '$lib/library/kinds';
 	import { resolve } from '$app/paths';
-	import { tagSearchHref } from '$lib/library/tag-search';
-	import type { FilterField } from '$lib/library/browse-filters';
+	import { distinct, tagRouteHref } from '$lib/library/tag-search';
 	import { count, previewConfirm, previewDownload } from '$lib/library/downloads';
 	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
 	import { coverPlaceholder } from '$lib/library/cover';
@@ -32,23 +31,18 @@
 	const back = $derived(data.origin);
 	/**
 	 * Author, artist and each genre search the source (c313; doc/BROWSE.md,
-	 * "Arriving from a tag"): its filters once they arrive, a search for the
-	 * value until then or without them. The source page's back cell returns
-	 * here, and this page's own back is untouched (its URL keeps its `from`).
+	 * "Arriving from a tag"). Each link names the tag, and `tag-search` waits for
+	 * the source's filters before it says where to go, so the link is right from
+	 * the first paint and never a search for a genre the filters name. The
+	 * source page's back cell returns here, and this page's own back is
+	 * untouched (its URL keeps its `from`).
 	 */
-	let schema = $state<FilterField[]>([]);
-	$effect(() => {
-		let live = true;
-		void data.schema.then((s) => {
-			if (live) schema = s;
-		});
-		return () => {
-			live = false;
-		};
-	});
-	const sourcePage = $derived(resolve('/browse/[source]', { source: data.sourceId }));
 	const searchTag = (namespace: string, value: string) =>
-		tagSearchHref(sourcePage, schema, { namespace, value }, page.url.pathname + page.url.search);
+		tagRouteHref(
+			resolve('/downloads/source/[id]/tag-search', { id: data.id }),
+			{ namespace, value },
+			page.url.pathname + page.url.search
+		);
 	const refusal = $derived(
 		form && 'message' in form && typeof form.message === 'string' ? form.message.toUpperCase() : ''
 	);
@@ -223,8 +217,9 @@
 
 					<div class="row top">
 						<div class="label">TAGS</div>
-						<div class="tags">
+						<div class="tags" data-sveltekit-reload>
 							<!-- eslint-disable svelte/no-navigation-without-resolve -- searchTag() builds on resolve() -->
+							<!-- tag-search is a server route, not a page: the browser follows its 303. -->
 							{#if m.author}<div class="tag-line">
 									<span class="ns">author</span><a class="tv" href={searchTag('author', m.author)}
 										>{m.author}</a
@@ -237,9 +232,9 @@
 								</div>{/if}
 							{#if m.genres.length}<div class="tag-line">
 									<span class="ns">genre</span><span
-										>{#each m.genres as g, i (g)}{#if i > 0}<span class="sep"> · </span>{/if}<a
-												class="tv"
-												href={searchTag('genre', g)}>{g.toLowerCase()}</a
+										>{#each distinct(m.genres) as g, i (i)}{#if i > 0}<span class="sep">
+													·
+												</span>{/if}<a class="tv" href={searchTag('genre', g)}>{g.toLowerCase()}</a
 											>{/each}</span
 									>
 								</div>{/if}

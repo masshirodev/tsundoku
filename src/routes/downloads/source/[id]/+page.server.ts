@@ -17,8 +17,7 @@ import {
 	entryKey
 } from '$lib/server/downloads';
 import { forgetRecord, recordView } from '$lib/server/browsing';
-import { browseSource, filterSchema } from '$lib/server/engine/browse';
-import type { FilterField } from '$lib/library/browse-filters';
+import { browseSource } from '$lib/server/engine/browse';
 import { searchOrigin, seriesWithOrigin, sourceOrigin } from '$lib/library/origin';
 
 /**
@@ -70,23 +69,8 @@ export const load: PageServerLoad = async ({ params, cookies, url }) => {
 			: m
 	);
 	manga.catch(() => {});
-	// The source's filters, for author, artist and genre to search it (c313):
-	// streamed, so a slow or absent engine never holds the preview, and a
-	// failure is no schema (a search for the value). Asked only once the manga
-	// has settled: calls into one extension run one at a time (`inLane`,
-	// engine/client.ts), and asked beside it a slow schema held the details.
-	// Kept by the source's own cache (`keep`), which the source page answers from.
-	const schema: Promise<FilterField[]> = manga
-		.then(
-			() => undefined,
-			() => undefined
-		)
-		.then(() => filterSchema(sourceId))
-		.catch(() => []);
 	return {
 		id,
-		sourceId,
-		schema,
 		q,
 		from: browsed,
 		origin,

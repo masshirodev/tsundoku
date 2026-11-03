@@ -5,7 +5,8 @@
 	 * A tag tapped on the series screen (card c313; doc/SERIES.md, the TAGS
 	 * row): where to look for it. Two rows, the owner's choice (2026-11-02):
 	 * the library's person or tag page, and the series' own source finding it
-	 * (its genre's filter included, or a search for the value). Built on the
+	 * (its genre's filter included, or a search for the value, decided by the
+	 * server once the source's filters have answered). Built on the
 	 * shared Sheet, with UnfoldSheet's head and its rows' cells, so it is a
 	 * scope on a TV: the first row takes focus, and BACK closes it.
 	 */
@@ -41,7 +42,11 @@
 			<span class="t">IN THE LIBRARY</span>
 			<span class="go" aria-hidden="true">→</span>
 		</a>
-		<a class="row" href={sourceHref} onclick={onclose}>
+		<!-- A server route (`tag-search`), not a page: it waits for the source's filters, then
+		     303s there. The sheet stays while the browser waits (up to TAG_SCHEMA_WAIT_MS on a
+		     cold source), so the row just chosen stays in view instead of the screen falling
+		     back to the TAGS row as if nothing had been tapped. -->
+		<a class="row" href={sourceHref} data-sveltekit-reload>
 			<span class="t">IN {source.toUpperCase()}</span>
 			<span class="go" aria-hidden="true">→</span>
 		</a>

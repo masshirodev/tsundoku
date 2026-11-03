@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { SOURCE, startTagWorld, type TagWorld } from './helpers/tag-world';
+import { GENRE, SOURCE, startTagWorld, type TagWorld } from './helpers/tag-world';
 
 /**
  * A tag on the series screen with the remote (card c313; doc/FOCUS.md): at
@@ -102,7 +102,17 @@ test('the pad reaches a tag, OK opens its sheet on the first row, BACK closes it
 	// OK on the source's row goes there.
 	await page.keyboard.press('Enter');
 	await expect(sheet).toBeVisible();
+	await expect(first).toBeFocused();
 	await page.keyboard.press('ArrowDown');
+	await expect(
+		sheet.getByRole('link', { name: new RegExp(`IN ${SOURCE.name.toUpperCase()}`) })
+	).toBeFocused();
 	await page.keyboard.press('Enter');
 	await expect(page).toHaveURL(new RegExp(`/browse/${SOURCE.id}\\?`));
+	// On the filter Romance names, included, and not a search for the word.
+	const u = new URL(page.url());
+	expect(u.searchParams.get('tab')).toBe('filtered');
+	expect(u.searchParams.get(`f${GENRE}.1`)).toBe('1');
+	expect(u.searchParams.get('q')).toBeNull();
+	await expect(page.locator('nav[aria-label="Lists"] .tab.on')).toHaveText('FILTERED');
 });
