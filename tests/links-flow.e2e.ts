@@ -11,8 +11,10 @@ import { expect, test } from './fixtures';
  * Catalogue links end to end (doc/LINKS.md), on the seed's links: Mount Hua
  * with three candidates, Yofukashi no Uta searched and nothing found, and The
  * Greatest Estate Developer linked from Mihon's MAL tracker. AniList is
- * switched off for the suite (TSUNDOKU_ANILIST=off), so a paste reads as
- * unreachable. Serial, tablet-portrait only; every test puts back what it did,
+ * switched off for the suite's shared server (TSUNDOKU_ANILIST=off), so a
+ * paste there reads as unreachable. The last block runs its own server, its own
+ * seeded anime and a stand-in catalogue, because those two cases need a search
+ * that answers. Serial, tablet-portrait only; every test puts back what it did,
  * but for a SKIP, which only reorders the queue.
  */
 test.describe.configure({ mode: 'serial' });
