@@ -227,13 +227,14 @@ once a candidate is picked, and MOVE never waits on it.
 - **Subtitles**, `/api/anime/subtitle/<token>`, are always WebVTT: SubRip's
   commas become dots, SubStation's Dialogue lines become plain cues (the
   player draws its own style). Languages are read as codes (English, eng →
-  EN).
+  EN; the whole rule is "The settings sheet", below).
 - **One audio track per language the source names** (`onePerLanguage`):
   KickAssAnime lists every language twice, two playlists apiece (16 tracks
   for 8 languages), which doubled the player's menu and the download. The
   first listed is kept; differently named ones ("Spanish", "Spanish (Latin
-  America)") are different tracks. Subtitles aren't folded: they're small,
-  and two ES ones are usually two dialects.
+  America)") are different tracks, ES and ES-419. Subtitles aren't folded:
+  they're small, and two Spanish ones are usually two dialects; two names that
+  still come to one code are ES and ES-2 (`trackCodes`).
 - **A stream's weight** (`probe`): a master playlist's best BANDWIDTH and its
   media playlist's length, for ALL N's ABOUT sizes; getVideoList gives no
   bitrate. tsundoku's own master (separate audio) is probed through the video
@@ -257,7 +258,8 @@ first**:
 2. **AniSkip**, the community database of openings and endings.
 3. **A fingerprint of the episodes themselves**, the Jellyfin Intro Skipper
    method: two episodes of a season share their opening and their ending, so
-   the audio both have at the same time is one of them.
+   the audio both have is one of them, wherever each episode's cold open puts
+   it (c384).
 
 **Precedence is per part**, not per episode: a source that gave an opening
 and no ending still takes AniSkip's or the fingerprint's ending. The best
@@ -328,12 +330,37 @@ episode's `ending_at` follows).
   10 minutes**, and its **last 4 minutes**, and chromaprint turns each into
   32-bit points (about eight a second). Only a normal download's own file is
   read here: the source isn't asked.
-- **How they are compared.** Both windows are resampled to 8 points a second
-  and shifted against each other (an opening by at most 30 s, an ending by
-  180 s, since episodes differ in length). A run is a stretch where every
-  point matches within **6 bits**; the longest run within **15–120 s** (an
-  opening) or **15–180 s** (an ending) is the mark. A season needs **at least
-  two episodes** with prints; one alone decides nothing and isn't remembered.
+- **How they are compared** (the rule since c384, 2026-11-03). Both windows
+  are resampled to 8 points a second and shifted against each other: an
+  opening **across its whole window**, since each episode's cold open moves
+  it, and an ending by up to 180 s, since episodes differ in length. A point
+  matches when it is within **6 bits**. A run is made of **streaks of at
+  least 4 matching points in a row** (half a second), joined across **gaps of
+  up to 3.5 s**, which count in its length, and is kept only when **at least
+  70 % of its points** are in those streaks. The longest such run within
+  **15–120 s** (an opening) or **15–180 s** (an ending) is the pair's span
+  for both episodes. Openings and endings follow the same rule: the noise is
+  the encode's, not the song's. A season needs **at least two episodes**
+  with prints; one alone decides nothing and isn't remembered.
+- **Why the rule is that** (c384). Ranma ½ (2024), streamed, had every
+  opening found as a third to a half of the song (31–48 s of about 90) and
+  episode 11's not at all. A run used to end at the first point past 6 bits,
+  and two encodes of the same song, a 360p stream's audio especially, differ
+  there at scattered points, so a 90 s opening came back in pieces and the
+  longest piece won; and the opening could only shift 30 s, while that series
+  put it at 30.75 s in one episode and 83.1 s in another. Bridging gaps is
+  Jellyfin's Intro Skipper's method (its `MaximumTimeSkip`, 3.5 s). Bridging
+  alone chains chance, though: two unrelated stretches of the db spec's pink
+  noise match at 8–11 % of points, nearly once every 3.5 s, and in streaks of
+  up to 3 s; the chains that made were 12–20 s at a density of 0.30–0.43,
+  while a shared opening comes out at 0.97–1.00 and one with a bad point
+  every 3 s at 0.96. Hence the streaks and the 70 %. Shifting across the
+  whole window costs about 80 ms a pair (10-minute windows, 190 ms), so the
+  season job yields to the app's requests between pairs.
+- **Which span an episode keeps.** Each pair gives both of its episodes a
+  span. Of an episode's spans the one **most of the others overlap** wins,
+  and the longest of those (`agreedSpan`): one pair's chance run no longer
+  decides an episode the rest disagree on. Until c384 the longest won.
 - **What is kept.** The run's own times in each episode, as a `fingerprint`
   row. An episode whose pair found nothing gets a negative row, tried again
   after 14 days.
@@ -355,15 +382,29 @@ muxer; [`DISTRIBUTION.md`](DISTRIBUTION.md) lists them.
 A missing `fpcalc` on a build without the muxer is said once in the log,
 naming the chromaprint package and `FPCALC` ([`LOGS.md`](LOGS.md)).
 
-`tests/fingerprint.spec.ts` (runs, bit errors, bounds, the two windows) and
+`tests/fingerprint.spec.ts` (runs, bit errors, bounds, the two windows;
+since c384 a 90 s opening with a bad point every 3 s, openings 55 s apart,
+the gap's bound, chance too sparse to chain, a lone chance point, an
+ending's bad points, and the agreed span) and
 `tests/anime-fingerprint-db.spec.ts` (two synthesised episodes sharing an
 opening and ending, the real ffmpeg and chromaprint, source precedence, a
-hidden series, one episode, a negative remembered, the background queue).
+hidden series, one episode, a negative remembered, the background queue,
+and since c384 a 90 s opening behind 25 s and 80 s cold opens with the
+second episode encoded at 12 kbps, which the strict rule found nothing of).
+
+**Marks found before c384 are fragments**, and stay until something clears
+them: an episode with a `fingerprint` row, found or negative, is not read
+again (a negative only after 14 days). The ladder is not this card's to
+climb this wave, so the rung that forgets them all, negatives included, is
+written down for after `tracking`'s v62 (`doc/handoff-notes/anime.md`,
+wave 17, _Gaps_): a fragment is worse than nothing, since SKIP INTRO lands
+in the middle of the song. On 2026-11-03 the live library's only
+`fingerprint` rows were Ranma ½ (2024)'s eight.
 
 ### Fingerprints of streams
 
-The same method, for an episode with no file, **only while it is being
-watched**: when the player resolves an episode, the background job takes the
+The same method, and the same matcher and rule (c384, above), for an
+episode with no file, **only while it is being watched**: when the player resolves an episode, the background job takes the
 playing episode, **the next two after it** and one more after those, so both
 next episodes have a pair. It never runs for a season outside the one being
 watched.
@@ -462,6 +503,56 @@ screen but the video, and the subtitles, until a tap.
   each server until a choice is made. Incognito keeps no choice. Speed is
   this episode's; quality and DIM are this device's, mirrored on the
   workstation like every device setting. The sheet ends with ALL SETTINGS →.
+- **The settings sheet's languages** (c386). A language is its short code
+  everywhere in a row -- `JA`, `EN`, `PT-BR`, `ES-419`, `ZH-HANT`, `NB` -- and
+  its name in full is the cell's `title` and accessible name ("Portuguese
+  (Brazil)", "Norwegian Bokmål"). `langCode` (`src/lib/library/streams.ts`)
+  reads whatever the source wrote ("Hungarian", "hun", "hu", "Magyar",
+  "Chinese (Traditional)", "zh-TW", "Norwegian (nob)") against one table of
+  about 75 languages, their ISO 639-2 letters and their own names; the
+  variants a viewer actually picks between are kept (Brazilian Portuguese,
+  Latin American Spanish, Traditional and Simplified Chinese, Canadian
+  French), every other region is the language (`en-US` is EN). A name nobody
+  knows is cut to a code of its own, with the name itself as the title, so
+  no cell ever holds a whole word: its first word when that is two or three
+  letters, else its first three letters (Klingon is KLI), in ASCII with the
+  accents dropped. A cut that is itself an alias in the table is that
+  alias's language (Indonesia cuts to IND, which is ID; China is ZH,
+  Vietnam VI), and a label with no Latin letters left, blank or in another
+  script ("Тагальский"), is UND, named Unknown when it is blank. So every
+  code the sheet shows is one `langCode` gives back unchanged and one the
+  workstation keeps as a choice (two or three capitals, then up to two
+  parts: PT-BR, ES-419, UND-2). Two tracks of one list that still come to
+  one code are told apart as ES and ES-2 (`trackCodes`). The server sends
+  each track's code and name (`langName`); a downloaded file's tracks have
+  codes alone, and the player names them from the code. **AUDIO and
+  SUBTITLES are a grid of equal cells** (at least 60px wide, 44px high, the
+  house tap size), as many to a line as fit -- six in the 520px sheet, four
+  on a TV's 420px panel, three on a phone -- wrapping onto further lines,
+  which a D-pad crosses as any grid. **Past twelve languages** a row shows
+  only OFF, the one on, the series' or SETTINGS' choice, the device's
+  language and English (for audio the original too), in the source's order,
+  then **MORE · N**, which opens every language as a list in the same sheet,
+  one a line, named in full with its code at the right. Picking from it
+  closes it and puts focus on the pick's cell, which the row now shows;
+  BACK closes the list before the sheet. Twelve is two lines of the sheet's
+  six: past it the row grows taller than the rest of the sheet together (on
+  a TV, three lines already), and the owner's VidStreaming episode had 11
+  audio languages and a few dozen subtitles, so its audio wraps and its
+  subtitles collapse. Until 2026-11-03 both rows were one segmented line,
+  and a few dozen labels printed over each other; a name the short table
+  did not know ("HUNGARIAN") showed whole, and the workstation refused to
+  keep it as a choice (only two or three capitals passed), so it was never
+  remembered. A remembered choice is the track that carries its code, as it
+  is: ES-2 is the second Spanish, on the next episode and as the row's cell
+  that is on, never the first (until round 2 of the fix the choice was read
+  through `langCode` first, and ES-2 came back as ES). Only a choice no
+  track carries is read again, as the track it meant (`matchLang`): one
+  kept before 2026-11-03 named `PT` for what is PT-BR now and `HUN` for HU,
+  so `PT` finds PT-BR, `HUN` finds HU, `IND` finds ID, and ES-2 finds ES
+  where only one Spanish is offered. Downloads keep and tag
+  tracks by the language alone, as before, since AUDIO KEPT names
+  languages and Matroska's tag has no variant.
 - **Subtitles** are drawn by tsundoku from the WebVTT: IBM Plex on a scrim
   box, rising above the controls while they show.
 - **SKIP INTRO / SKIP ENDING** wherever an opening or an ending is known --
@@ -516,7 +607,18 @@ THE SAME WAY SINCE 1 NOV` — and the cell opens MOVE ([`MOVE.md`](MOVE.md)).
   and plays it; STAY stops it. The last episode ends on END · LAST AVAILABLE.
 - **Portrait** (a phone or tablet held upright) puts the picture on top, the
   controls always shown beneath it, and UP NEXT below; FULL goes full screen
-  and turns it where the browser allows.
+  and turns it where the browser allows. **The scrubber under the picture
+  seeks** (c387): a tap goes there, a drag follows the finger with the time
+  under it shown over the picture, and the whole 44px row is the target, not
+  the 4px line. It is a slider like the bar's (`role="slider"`, its aria
+  values, ← → when focused), it takes the pointer itself (`touch-action:
+none`), and it sits fixed under the picture with UP NEXT scrolling below it,
+  so a drag never scrolls the page and its tip is never clipped. Until 2026-11-03
+  it was drawn with no handlers at all, a picture of a scrubber. Both tracks
+  measure the one the pointer is on (the hidden one is 0 wide), and the
+  scrubber goes by the video's own length from its `durationchange`: before,
+  it went by the episode's stored length until playback's first tick, so a
+  seek before ▶ could land far off the file's real end.
 - **Watching is reading.** The player sends the reader's events
   (`/api/reading`): `page` is seconds into the episode, and `length` its
   length as the player measured it, which is how an episode learns its length
@@ -530,7 +632,12 @@ THE SAME WAY SINCE 1 NOV` — and the cell opens MOVE ([`MOVE.md`](MOVE.md)).
 and file tests in `tests/anime-streams-db.spec.ts`, and the player tests in
 `tests/browse-anime.e2e.ts` (the fake engine's broken server passed over,
 subtitles, SKIP INTRO, the frame's literals, the sheet, the NEXT page and
-STAY, WATCHED on the series; portrait). The clip is
+STAY, WATCHED on the series; portrait), with the portrait scrubber's tap,
+drag, hit area and tip at a 390×844 touch phone in
+`tests/browse-player-portrait.e2e.ts`, and the sheet's languages (11 audio
+and 30 subtitles, MORE, a pick remembered on the next episode) in
+`tests/browse-player-languages.e2e.ts`, at the TV's 420px panel by D-pad in
+`tests/tv-player.e2e.ts`, and their codes in `tests/streams.spec.ts`. The clip is
 `tests/fixtures/video/clip.webm`, VP9 and Opus: Playwright's Chromium has no
 H.264.
 
@@ -561,7 +668,8 @@ pure parts in `src/lib/library/anime-files.ts`).
   Matroska file. **Which tracks** is SETTINGS' DOWNLOADING (card c160, since
   c171): every track by default, or the original (the source's first audio)
   and the languages chosen under AUDIO KEPT; subtitles all, or AS AUDIO for
-  those in a kept audio's language (`keptTracks`). New downloads only. The file is each track tagged with its language, written beside its
+  those in a kept audio's language (`keptTracks`), by language alone: an
+  ES-419 track is kept by ES and tagged `spa`. New downloads only. The file is each track tagged with its language, written beside its
   place and renamed. The NFOs are Jellyfin's (`tvshow`, `episodedetails`) and
   carry tsundoku's keys as `<uniqueid type="tsundoku">`, with AniList and MAL
   ids where the series is linked; `poster.jpg` is the library's own cover.

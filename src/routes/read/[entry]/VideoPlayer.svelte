@@ -43,7 +43,7 @@
 	import Cover from '$lib/components/content/Cover.svelte';
 	import { count as grouped, kindLabel, unitLabel } from '$lib/library/labels';
 	import { kindVerb, type WorkEnd, type WorkNextPart } from '$lib/library/works';
-	import { qualitiesLine, qualityName } from '$lib/library/streams';
+	import { langName, langRow, matchLang, qualitiesLine, qualityName } from '$lib/library/streams';
 	import { page } from '$app/state';
 	import { offline } from '$lib/offline.svelte';
 	import { keepEpisodesAhead } from '$lib/cache/device';
@@ -77,7 +77,8 @@
 		readAt: number | null;
 		lastPosition: number | null;
 	};
-	type Track = { lang: string; src: string };
+	/** [lang] the code a cell shows and a choice keeps; [name] in full (c386). */
+	type Track = { lang: string; name?: string; src: string };
 	type Quality = {
 		label: string;
 		height: number | null;
@@ -214,7 +215,10 @@
 		void fetch(`/api/anime/series/${data.series.id}/choice`, {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ what, v })
+			body: JSON.stringify({ what, v }),
+			// A pick and then ← at once: leaving the page cancels a plain request
+			// still in flight, and the choice would go with it.
+			keepalive: true
 		}).catch(() => {
 			// Offline: the choice lasts this episode.
 		});
@@ -286,6 +290,11 @@
 		registerBack(() => {
 			if (keysOpen) {
 				keysOpen = false;
+				return true;
+			}
+			// MORE's list climbs before the sheet closes (c386).
+			if (sheet && moreOf) {
+				void closeMore();
 				return true;
 			}
 			if (sheet) {
@@ -754,6 +763,15 @@
 	const rangesOf = (b: TimeRanges): [number, number][] =>
 		Array.from({ length: b.length }, (_, i) => [b.start(i), b.end(i)]);
 
+	/**
+	 * The file's own length, as soon as it is known: the episode's stored one
+	 * is a catalogue's figure, and before the first timeupdate a seek on the
+	 * scrubber went by it (c387: a paused 8 s clip, tapped at its middle, went
+	 * to 720 s of a stored 24 minutes, clamped to the end).
+	 */
+	function onDuration() {
+		if (video && Number.isFinite(video.duration) && video.duration > 0) duration = video.duration;
+	}
 	function onTime() {
 		if (!video) return;
 		// Mid-reload the emptied video says 0: neither shown nor sent, or a
@@ -857,7 +875,9 @@
 	}
 	/** ←/→: the track is a slider and flashes; the picture's own seek stays quiet. */
 	function seekArrow(by: number) {
-		if (document.activeElement === scrub) seekWithFlash(by);
+		// Either track: the bar's, or portrait's under the picture (c387).
+		if (document.activeElement instanceof HTMLElement && document.activeElement.matches('.track'))
+			seekWithFlash(by);
 		else seek(by);
 	}
 	function skipNow() {
@@ -890,21 +910,38 @@
 		const box = el.getBoundingClientRect();
 		return { left: box.left + el.clientLeft, width: el.clientWidth };
 	}
+	/**
+	 * Where on the timeline a pointer is, 0 to 1, measured on the track it is
+	 * over. There are two tracks, the bar's and portrait's (c387), and only one
+	 * is drawn at a time: the hidden one's box is 0 wide, so the event's own
+	 * track is the one to measure, never a ref to either.
+	 */
+	function scrubFraction(e: PointerEvent): number | null {
+		const box = scrubBox(e.currentTarget as HTMLElement);
+		if (!box.width) return null;
+		return Math.max(0, Math.min(1, (e.clientX - box.left) / box.width));
+	}
 	function scrubTo(e: PointerEvent) {
-		if (!scrub || !video || !duration) return;
-		const box = scrubBox(scrub);
+		const f = scrubFraction(e);
+		if (f === null || !video || !duration) return;
 		reloadingTo = null;
-		video.currentTime = Math.max(0, Math.min(1, (e.clientX - box.left) / box.width)) * duration;
+		video.currentTime = f * duration;
 		time = video.currentTime;
 	}
 	function scrubDown(e: PointerEvent) {
 		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+		// A finger has no hover: its tip shows from the press, the time it sought,
+		// and goes with the lift (a touch's pointerleave follows its pointerup).
+		if (e.pointerType !== 'mouse') {
+			const f = scrubFraction(e);
+			if (f !== null && duration) hoverAt = f * duration;
+		}
 		scrubTo(e);
 	}
 	function scrubMove(e: PointerEvent) {
-		if (!scrub || !duration) return;
-		const box = scrubBox(scrub);
-		hoverAt = Math.max(0, Math.min(1, (e.clientX - box.left) / box.width)) * duration;
+		const f = scrubFraction(e);
+		if (f === null || !duration) return;
+		hoverAt = f * duration;
 		if (e.buttons & 1) scrubTo(e);
 	}
 
@@ -990,7 +1027,9 @@
 		}
 
 		if (keysOpen || sheet) {
-			if (e.key === 'Escape') keysOpen = sheet = false;
+			// BACK closes MORE's list before the sheet (c386), and gives MORE its focus back.
+			if (e.key === 'Escape' && moreOf) closeMore();
+			else if (e.key === 'Escape') keysOpen = sheet = false;
 			return;
 		}
 		const k = e.key;
@@ -1085,6 +1124,68 @@
 		choose('subs', lang);
 		void loadSubtitles();
 	}
+	/**
+	 * The AUDIO and SUBTITLES rows (c386; doc/ANIME.md, "The settings sheet"):
+	 * a wrapping grid of codes, and past LANG_ROW_MAX languages only those that
+	 * matter, the rest one per line behind MORE · N. [moreOf] is the row whose
+	 * list is open.
+	 */
+	let moreOf = $state<'audio' | 'subs' | null>(null);
+	let device = $state<string | undefined>(undefined);
+	const fullName = (t: Track) => t.name ?? langName(t.lang);
+	const audioOn = (lang: string | null) =>
+		!!quality && (audioLang ?? quality.audio[0]?.lang) === lang;
+	const subOn = (lang: string | null) => subLang === lang;
+	const audioRow = $derived.by(() => {
+		const all = quality?.audio ?? [];
+		const r = langRow(
+			all.map((t) => t.lang),
+			[
+				audioLang ?? all[0]?.lang,
+				// The original, which the audio starts on.
+				all[0]?.lang,
+				data.player.series.audio,
+				data.player.defaults.audio,
+				device,
+				'EN'
+			]
+		);
+		return { shown: all.filter((t) => r.shown.includes(t.lang)), more: r.more };
+	});
+	const subRow = $derived.by(() => {
+		const all = quality?.subtitles ?? [];
+		const r = langRow(
+			all.map((t) => t.lang),
+			[subLang, data.player.series.subs, data.player.defaults.subs, device, 'EN']
+		);
+		return { shown: all.filter((t) => r.shown.includes(t.lang)), more: r.more };
+	});
+	const langCell = (which: 'audio' | 'subs', lang: string) =>
+		root?.querySelector<HTMLElement>(`.langs[data-which="${which}"] [data-lang="${lang}"]`);
+	async function openMore(which: 'audio' | 'subs') {
+		moreOf = moreOf === which ? null : which;
+		if (!moreOf) return;
+		await tick();
+		// Into the list, on what is playing, so a remote's ↓ goes on from there.
+		const list = root?.querySelector<HTMLElement>('.langlist');
+		(
+			list?.querySelector<HTMLElement>('.on') ?? list?.querySelector<HTMLElement>('button')
+		)?.focus();
+	}
+	async function closeMore() {
+		const which = moreOf;
+		moreOf = null;
+		await tick();
+		root?.querySelector<HTMLElement>(`.langs[data-which="${which}"] .more`)?.focus();
+	}
+	async function pickMore(which: 'audio' | 'subs', lang: string) {
+		if (which === 'audio') setAudio(lang);
+		else setSub(lang);
+		moreOf = null;
+		await tick();
+		// The pick is a cell of the row now (what is on always is): focus goes there.
+		langCell(which, lang)?.focus();
+	}
 	function setSubSize(z: SubSize) {
 		subSize = z;
 		choose('subsize', z);
@@ -1115,6 +1216,7 @@
 	onMount(() => {
 		subSize = startTracks({ audio: [], subs: [], ...data.player }).subsize;
 		dim = load<number>('tsundoku:anime:dim', 0);
+		device = navigator.language;
 		mouse = matchMedia('(pointer: fine)').matches;
 		void start();
 		const close = () => opened && void send('close');
@@ -1136,11 +1238,22 @@
 	let chosenHere = false;
 	$effect(() => {
 		if (!quality || chosenHere) return;
+		const audio = quality.audio.map((a) => a.lang);
+		const subs = quality.subtitles.map((t) => t.lang);
+		// A choice kept before c386 named PT for what is PT-BR now, or HUN
+		// for HU: each is read as the offered track it meant (matchLang).
+		const fit = (c: TrackChoice): TrackChoice => ({
+			...c,
+			audio: c.audio === undefined ? undefined : (matchLang(c.audio, audio) ?? c.audio),
+			subs: c.subs == null ? c.subs : (matchLang(c.subs, subs) ?? c.subs)
+		});
 		const start = startTracks({
-			audio: quality.audio.map((a) => a.lang),
-			subs: quality.subtitles.map((t) => t.lang),
-			...data.player,
-			device: deviceLang(navigator.language)
+			audio,
+			subs,
+			series: fit(data.player.series),
+			defaults: fit(data.player.defaults),
+			last: fit(data.player.last),
+			device: matchLang(navigator.language, subs) ?? deviceLang(navigator.language)
 		});
 		subLang = start.subs;
 		void loadSubtitles();
@@ -1165,6 +1278,69 @@
 </script>
 
 <svelte:window onkeydown={keydown} />
+
+<!-- A language row of the sheet (c386): equal cells of codes, as many to a line
+     as fit, the name in full as each one's title; MORE · N opens the rest as a
+     list, one language a line, in the same sheet. -->
+{#snippet langGrid(
+	which: 'audio' | 'subs',
+	all: Track[],
+	row: { shown: Track[]; more: number },
+	on: (lang: string | null) => boolean,
+	pick: (lang: string | null) => void
+)}
+	<div
+		class="langs"
+		data-which={which}
+		role="group"
+		aria-label={which === 'audio' ? 'Audio' : 'Subtitles'}
+	>
+		{#if which === 'subs'}
+			<button type="button" class:on={on(null)} aria-pressed={on(null)} onclick={() => pick(null)}
+				>OFF</button
+			>
+		{/if}
+		{#each row.shown as t (t.src)}
+			<button
+				type="button"
+				data-lang={t.lang}
+				class:on={on(t.lang)}
+				aria-pressed={on(t.lang)}
+				title={fullName(t)}
+				aria-label={fullName(t)}
+				onclick={() => pick(t.lang)}>{t.lang}</button
+			>
+		{/each}
+		{#if row.more}
+			<button
+				type="button"
+				class="more"
+				aria-expanded={moreOf === which}
+				onclick={() => openMore(which)}>MORE · {row.more}</button
+			>
+		{/if}
+	</div>
+	{#if moreOf === which}
+		<div
+			class="langlist"
+			role="group"
+			aria-label={which === 'audio' ? 'Every audio language' : 'Every subtitle language'}
+		>
+			{#each all as t (t.src)}
+				<button
+					type="button"
+					class="li"
+					class:on={on(t.lang)}
+					aria-pressed={on(t.lang)}
+					onclick={() => pickMore(which, t.lang)}
+				>
+					<span>{fullName(t).toUpperCase()}</span>
+					<span class="r">{on(t.lang) ? `● ${t.lang}` : t.lang}</span>
+				</button>
+			{/each}
+		</div>
+	{/if}
+{/snippet}
 
 {#snippet workCard()}
 	{#if workNext && work}
@@ -1216,6 +1392,7 @@
 			bind:paused
 			playsinline
 			ontimeupdate={onTime}
+			ondurationchange={onDuration}
 			onwaiting={onWaiting}
 			onplaying={onProgressing}
 			onprogress={() =>
@@ -1520,16 +1697,35 @@
 				{@render addCell('padd')}
 				<button type="button" onclick={full}>FULL</button>
 			</div>
-			<div class="pbody">
-				<div class="pscrub">
-					<div>{clock(time)}</div>
-					<div class="track">
-						<div class="buf" style:width={pct(buffered)}></div>
-						<div class="seen" style:width={pct(time)}></div>
-						<div class="thumb" style:left={pct(time)}></div>
-					</div>
-					<div class="mut">{leftLabel(time, duration)}</div>
+			<!-- The scrubber under the picture (c387): the bar's own handlers and
+			     slider role, measured on this track. It sits outside the scrolling
+			     body, so a drag's tip can rise over the picture rather than be
+			     clipped, and what is next scrolls under it. -->
+			<div class="pscrub">
+				<div>{clock(time)}</div>
+				<div
+					class="track"
+					role="slider"
+					tabindex="0"
+					aria-label="Position"
+					aria-valuemin={0}
+					aria-valuemax={Math.round(duration)}
+					aria-valuenow={Math.round(time)}
+					aria-valuetext={clock(time)}
+					onpointerdown={scrubDown}
+					onpointermove={scrubMove}
+					onpointerleave={() => (hoverAt = null)}
+				>
+					<div class="buf" style:width={pct(buffered)}></div>
+					<div class="seen" style:width={pct(time)}></div>
+					<div class="thumb" style:left={pct(time)}></div>
+					{#if hoverAt !== null}
+						<div class="tip" style:left={pct(hoverAt)}>{clock(hoverAt)}</div>
+					{/if}
 				</div>
+				<div class="mut">{leftLabel(time, duration)}</div>
+			</div>
+			<div class="pbody">
 				<div class="pcells">
 					<button type="button" aria-label="Back 10 seconds" onclick={() => seek(-10)}>−10</button>
 					<button type="button" aria-label={paused ? 'Play' : 'Pause'} onclick={toggle}
@@ -1625,15 +1821,7 @@
 					<div class="srow2">
 						<div class="lab">AUDIO</div>
 						<div class="val">
-							<div class="seg">
-								{#each quality.audio as a (a.src)}
-									<button
-										type="button"
-										class:on={(audioLang ?? quality.audio[0].lang) === a.lang}
-										onclick={() => setAudio(a.lang)}>{a.lang}</button
-									>
-								{/each}
-							</div>
+							{@render langGrid('audio', quality.audio, audioRow, audioOn, (l) => l && setAudio(l))}
 						</div>
 					</div>
 				{/if}
@@ -1641,16 +1829,7 @@
 					<div class="lab">SUBTITLES</div>
 					<div class="val">
 						{#if quality && quality.subtitles.length}
-							<div class="seg">
-								<button type="button" class:on={subLang === null} onclick={() => setSub(null)}
-									>OFF</button
-								>
-								{#each quality.subtitles as t (t.src)}
-									<button type="button" class:on={subLang === t.lang} onclick={() => setSub(t.lang)}
-										>{t.lang}</button
-									>
-								{/each}
-							</div>
+							{@render langGrid('subs', quality.subtitles, subRow, subOn, setSub)}
 							<div class="seg">
 								{#each SUB_SIZES as z (z)}
 									<button type="button" class:on={subSize === z} onclick={() => setSubSize(z)}
@@ -2621,6 +2800,45 @@
 		background: var(--text-1);
 		color: var(--surface-page);
 	}
+	/*
+	 * AUDIO and SUBTITLES (c386): equal cells as many to a line as fit (six in
+	 * the 520px sheet, four on a TV's 420px panel), wrapping, each a tap high.
+	 * A segmented row squeezed thirty languages into one line. The lines are
+	 * the cells' own right and bottom borders inside the grid's top and left,
+	 * so a short last line still closes.
+	 */
+	.langs {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+		border-top: 1px solid var(--line-2);
+		border-left: 1px solid var(--line-2);
+		font: 500 13px var(--font-mono);
+	}
+	.langs button {
+		min-width: 0;
+		min-height: 44px;
+		padding: 0 2px;
+		border-right: 1px solid var(--line-2);
+		border-bottom: 1px solid var(--line-2);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.langs button.on {
+		background: var(--text-1);
+		color: var(--surface-page);
+	}
+	.langs .more {
+		grid-column: span 2;
+	}
+	.langs .more[aria-expanded='true'] {
+		color: var(--accent);
+	}
+	.langlist {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
 	.li {
 		display: flex;
 		align-items: center;
@@ -2957,12 +3175,19 @@
 		position: absolute;
 		left: 0;
 		right: 0;
-		top: calc(56px + 100vw * 9 / 16);
+		/* Under the picture and the 44px scrubber with its 1px rule. */
+		top: calc(56px + 100vw * 9 / 16 + 45px);
 		bottom: 0;
 		overflow-y: auto;
 		background: var(--surface-page);
 	}
 	.pscrub {
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: calc(56px + 100vw * 9 / 16);
+		box-sizing: content-box;
+		background: var(--surface-page);
 		display: flex;
 		align-items: center;
 		gap: 12px;
@@ -2974,6 +3199,10 @@
 	.pscrub .track .thumb {
 		top: -8px;
 		height: 20px;
+	}
+	/* The whole 44px row is the finger's target, not the 4px line (c387). */
+	.pscrub .track::before {
+		inset: -20px 0;
 	}
 	.pcells {
 		display: grid;
