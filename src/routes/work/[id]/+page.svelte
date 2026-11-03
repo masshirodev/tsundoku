@@ -685,6 +685,11 @@
 		min-height: 64px;
 		border-bottom: var(--hairline);
 	}
+	/* A form in the row (UNGROUP's) must be a flex box too, as .rs-form and
+	   .fav-form are, or its .lc keeps its text's height at the row's top. */
+	.prow form {
+		display: flex;
+	}
 	.prow .lb {
 		width: 120px;
 		flex-shrink: 0;
