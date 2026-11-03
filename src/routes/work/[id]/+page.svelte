@@ -4,7 +4,6 @@
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
-	import { page } from '$app/state';
 	import { backLink, replacing, settleReplacing } from '$lib/back';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import Cover from '$lib/components/content/Cover.svelte';
@@ -26,12 +25,10 @@
 
 	let { data, form } = $props();
 	let adding = $state(false);
-	// A Work made from titles that share no words is named for the owner to
-	// replace, and the screen opens the row that does it (?rename=1).
+	// RENAME's row, opened by its own cell. A Work is named in the GROUP sheet
+	// before it exists (W4: CREATE waits for a name), so nothing lands here
+	// asking to be renamed -- W2's `?rename=1` landing went with its stopgap.
 	let renaming = $state(false);
-	$effect(() => {
-		if (page.url.searchParams.get('rename') === '1') renaming = true;
-	});
 	let reordering = $state(false);
 	let order = $state<number[]>([]);
 	let selecting = $state(false);
