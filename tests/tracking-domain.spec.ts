@@ -3,11 +3,23 @@ import {
 	ago,
 	chapterReached,
 	progressToSend,
+	seasonLine,
 	statusFrom,
 	statusTo,
 	trackLine,
+	type SeasonFact,
+	type SeasonTrackFacts,
 	type TrackFacts
 } from '$lib/library/tracking';
+import {
+	partOf,
+	partsLabel,
+	partsOf,
+	seasonPlan,
+	seasonSearchTitle,
+	seasonsOf,
+	watchedReached
+} from '$lib/library/anime';
 
 describe('status', () => {
 	it('reads each catalogue’s word as tsundoku’s, and back', () => {
@@ -54,6 +66,184 @@ describe('progress', () => {
 			progressToSend({ reached: 3, remote: { progress: 1, status: 'on_hold' }, waiting: null })
 				?.status
 		).toBeNull();
+	});
+});
+
+describe('a season (c240)', () => {
+	const ep = (season: number, number: number, readAt: number | null, note: '' | 'recap' = '') => ({
+		id: number * 100 + season,
+		number,
+		label: `Episode ${number}`,
+		readAt,
+		lastPosition: null,
+		lastOpenedAt: null,
+		episode: { durationS: 1440, season, number, note, thumb: '', endingAt: null }
+	});
+
+	it('counts each season’s own episodes, and the furthest watched one', () => {
+		const rows = [ep(1, 1, 1), ep(1, 2, 1), ep(2, 1, null), ep(2, 2, 1), ep(2, 3, null)];
+		expect(seasonsOf(rows).map((s) => [s.season, s.from, s.to, s.aired, s.watched])).toEqual([
+			[1, 1, 2, 2, 2],
+			[2, 1, 3, 3, 1]
+		]);
+		expect(watchedReached(rows, { season: 1 })).toBe(2);
+		expect(watchedReached(rows, { season: 2, from: 1, to: 1 })).toBe(0);
+		expect(watchedReached(rows, { season: 2, from: 2, to: 3 })).toBe(2);
+	});
+
+	it('never sends a recap or a half number', () => {
+		const rows = [ep(3, 14, 1), ep(3, 14.5, 1, 'recap'), ep(3, 15, 1)];
+		expect(watchedReached(rows, { season: 3 })).toBe(15);
+		expect(watchedReached([ep(3, 14.5, 1, 'recap')], { season: 3 })).toBe(0);
+	});
+
+	it('splits a season into parts at the first entry’s count', () => {
+		expect(
+			partsOf(
+				[
+					{ part: 1, episodes: 12 },
+					{ part: 2, episodes: 11 }
+				],
+				23
+			)
+		).toEqual([
+			{ part: 1, from: 1, to: 12 },
+			{ part: 2, from: 13, to: 23 }
+		]);
+		expect(partsOf([{ part: 1, episodes: 24 }], 24)).toEqual([{ part: 1, from: 1, to: 24 }]);
+		expect(
+			partOf(
+				partsOf(
+					[
+						{ part: 1, episodes: 12 },
+						{ part: 2, episodes: 11 }
+					],
+					23
+				),
+				15
+			)
+		).toEqual({
+			part: 2,
+			number: 3
+		});
+	});
+
+	it('folds round the season being watched, and never a fold of one', () => {
+		expect(seasonPlan([1, 2, 3], 2, false)).toEqual([
+			{ type: 'line', season: 1 },
+			{ type: 'line', season: 2 },
+			{ type: 'line', season: 3 }
+		]);
+		expect(seasonPlan([1, 2, 3, 4], 3, false)).toEqual([
+			{ type: 'fold', above: true, seasons: [1, 2] },
+			{ type: 'line', season: 3 },
+			{ type: 'line', season: 4 }
+		]);
+		expect(seasonPlan([1, 2, 3, 4], 1, false)).toEqual([
+			{ type: 'line', season: 1 },
+			{ type: 'fold', above: false, seasons: [2, 3, 4] }
+		]);
+		expect(seasonPlan([1, 2, 3, 4], 2, true)).toEqual([
+			{ type: 'toggle', seasons: [1, 2, 3, 4], expanded: true },
+			{ type: 'line', season: 1 },
+			{ type: 'line', season: 2 },
+			{ type: 'line', season: 3 },
+			{ type: 'line', season: 4 }
+		]);
+	});
+
+	it('asks for a season’s own title, and says where an entry is', () => {
+		expect(seasonSearchTitle('Sword Art Online', 1)).toBe('Sword Art Online');
+		expect(seasonSearchTitle('Sword Art Online', 3)).toBe('Sword Art Online Season 3');
+		expect(
+			partsLabel(
+				partsOf(
+					[
+						{ part: 1, episodes: 12 },
+						{ part: 2, episodes: 11 }
+					],
+					23
+				)
+			)
+		).toBe('PART 1 · EP. 1 – 12 · PART 2 · EP. 13 – 23');
+		expect(partsLabel(partsOf([{ part: 1, episodes: 24 }], 24))).toBe('');
+	});
+
+	it('says a season’s line in the row’s own words', () => {
+		const facts = (
+			o: Partial<SeasonFact> = {},
+			service: 'anilist' | 'mal' = 'anilist'
+		): SeasonFact => ({
+			service,
+			part: 1,
+			of: 24,
+			signedIn: true,
+			linked: true,
+			state: { status: 'reading', progress: 8, score: 7 },
+			waiting: null,
+			sentAt: 1_000,
+			...o
+		});
+		const now = 1_000 + 12 * 60_000;
+		const base: SeasonTrackFacts = {
+			season: 3,
+			part: 1,
+			parts: [{ part: 1, from: 1, to: 24 }],
+			facts: [facts(), facts({}, 'mal')],
+			other: null,
+			linked: true,
+			waits: null
+		};
+		expect(seasonLine(base, { now, offline: false })).toMatchObject({
+			left: 'WATCHING · EP. 8 OF 24 · 7',
+			right: 'ANILIST AND MAL · SENT 12 MIN AGO'
+		});
+		// MAL said only where it differs.
+		expect(
+			seasonLine(
+				{
+					...base,
+					facts: [facts(), facts({ state: { status: 'reading', progress: 6, score: 7 } }, 'mal')]
+				},
+				{ now, offline: false }
+			).right
+		).toContain('MAL AT EP. 6');
+		// A season with no link says so, and nothing is sent.
+		expect(
+			seasonLine({ ...base, linked: false, facts: [] }, { now, offline: false })
+		).toMatchObject({
+			left: 'NOT LINKED · NOTHING SENT'
+		});
+		// Not on the list yet.
+		expect(
+			seasonLine({ ...base, facts: [facts({ state: null })] }, { now, offline: false })
+		).toMatchObject({ left: 'NOT ON YOUR LIST', right: 'ADDED ON ITS FIRST EPISODE' });
+		// A failed send is its season's, in ink.
+		expect(
+			seasonLine(
+				{
+					...base,
+					facts: [
+						facts({
+							state: null,
+							waiting: { progress: 9, failedAt: now, error: 'ANILIST DID NOT ANSWER' }
+						})
+					]
+				},
+				{ now, offline: false }
+			)
+		).toMatchObject({ left: 'EP. 9 NOT SENT', alert: true });
+		// Past the entry's count, with no part 2.
+		expect(
+			seasonLine(
+				{
+					...base,
+					facts: [facts({ state: null })],
+					waits: { episode: 13, of: 12, service: 'anilist' }
+				},
+				{ now, offline: false }
+			)
+		).toMatchObject({ left: 'EP. 13 WAITS', right: 'ANILIST LISTS 12' });
 	});
 });
 

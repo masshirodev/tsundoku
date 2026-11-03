@@ -9,6 +9,7 @@ import {
 	byWork,
 	chooseEdition,
 	iso,
+	mapAnimeUnits,
 	mapUnits,
 	mapWorkUnits,
 	searchKinds,
@@ -181,9 +182,12 @@ export async function matchByLookup(now = Date.now()): Promise<number> {
 		lang: string | null;
 	}[];
 	const asked = rows.filter((r) => !coverOnly(r.kind, r.format ?? ''));
+	// MAL keeps anime ids apart from manga's, and Ranobe files them that way
+	// (`mal_anime:`; API-V1.md, "External ids"). AniList's one sequence serves
+	// both lists.
 	const keysOf = (r: (typeof asked)[number]) => [
 		...(r.anilist_id ? [`anilist:${r.anilist_id}`] : []),
-		...(r.mal_id ? [`mal:${r.mal_id}`] : [])
+		...(r.mal_id ? [`${r.kind === 'anime' ? 'mal_anime' : 'mal'}:${r.mal_id}`] : [])
 	];
 	let linked = 0;
 	// 200 keys a request; a series asks with at most two.
@@ -736,12 +740,23 @@ export async function mapSeries(o: { seriesId?: number; now?: number } = {}): Pr
 		}
 		const entries = db
 			.prepare(
-				`SELECT id, label, matter, read_at AS readAt FROM entries WHERE series_id = ? AND shadowed = 0`
+				`SELECT id, label, matter, read_at AS readAt, COALESCE(episode_note, '') AS note
+				FROM entries WHERE series_id = ? AND shadowed = 0`
 			)
-			.all(l.series_id) as { id: number; label: string; matter: string; readAt: number | null }[];
-		const units = comic
-			? mapWorkUnits(l.work, workUnits(l.work), entries)
-			: mapUnits(tocs.get(l.edition!) ?? [], { volume: l.volume, entries });
+			.all(l.series_id) as {
+			id: number;
+			label: string;
+			matter: string;
+			readAt: number | null;
+			note: string;
+		}[];
+		const rows = entries.map((e) => ({ ...e, recap: e.note === 'recap' }));
+		const units =
+			l.kind === 'anime'
+				? mapAnimeUnits(l.work, workUnits(l.work), rows)
+				: comic
+					? mapWorkUnits(l.work, workUnits(l.work), rows)
+					: mapUnits(tocs.get(l.edition!) ?? [], { volume: l.volume, entries: rows });
 		db.transaction(() => {
 			const set = db.prepare(`UPDATE entries SET ranobe_unit = ? WHERE id = ?`);
 			for (const e of entries) set.run(units.get(e.id) ?? null, e.id);

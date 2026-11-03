@@ -115,6 +115,13 @@ export type TrackFacts = {
 	linked: boolean;
 };
 
+/**
+ * Tsundoku's status in the row's words. An anime is watched rather than read
+ * (c240, the design's "WATCHING"): the underlying status is the same one.
+ */
+export const statusLabel = (status: Status, live = false): string =>
+	live && status === 'reading' ? 'WATCHING' : STATUS_LABEL[status];
+
 /** "ANILIST · READING · CH. 187 · 9": status, chapter, score, as far as known. */
 export function stateLine(service: Service, s: NonNullable<TrackFacts['state']>): string {
 	return [
@@ -174,6 +181,125 @@ export function trackLine(
 		left: stateLine(f.service, f.state),
 		right,
 		strong: f.service === 'anilist' || o.mainIsEmpty,
+		alert: false
+	};
+}
+
+// ---- a season's line (c240; doc/TRACKING.md, "The screens") ---------------------------------
+
+/** One catalogue's facts for a season's part, with the entry's own episode count. */
+export type SeasonFact = TrackFacts & { part: number; of: number | null };
+
+/** What one season's TRACKING line needs, its parts already folded in. */
+export type SeasonTrackFacts = {
+	season: number;
+	/** The part being watched: part 2 when that is where the watched mark is. */
+	part: number;
+	/** Where each linked part starts and ends in the season's own numbering. */
+	parts: { part: number; from: number; to: number }[];
+	facts: SeasonFact[];
+	/** The other part, when the season has two: its own word, on the right. */
+	other: { part: number; state: Status | null; progress: number; of: number | null } | null;
+	/** A season with no link at all: nothing is sent, and the row says so. */
+	linked: boolean;
+	/** An episode watched past the entry's count, with no part 2 to take it. */
+	waits: { episode: number; of: number; service: Service } | null;
+};
+
+/** "EP. 3 OF 11", "EP. 8 OF 24", "COMPLETED · 25 OF 25". */
+function seasonState(
+	s: { status: Status | null; progress: number; score: number | null },
+	of: number | null
+): string {
+	const where = s.progress > 0 ? `EP. ${s.progress}${of ? ` OF ${of}` : ''}` : '';
+	return [
+		s.status ? statusLabel(s.status, true) : '',
+		where,
+		s.score ? String(Math.round(s.score * 10) / 10) : ''
+	]
+		.filter(Boolean)
+		.join(' · ');
+}
+
+/**
+ * The season's line on the TRACKING row (Track Calls, "The words"): one line
+ * a season, both catalogues folded into it -- AniList is the main list, so
+ * MAL is named only where it differs. `PART 2 · ` leads the one being
+ * watched, and the other part is named on the right.
+ */
+export function seasonLine(
+	f: SeasonTrackFacts,
+	o: { now: number; offline: boolean }
+): { left: string; right: string; strong: boolean; alert: boolean } {
+	if (!f.linked)
+		return { left: 'NOT LINKED · NOTHING SENT', right: '', strong: false, alert: false };
+	const signed = f.facts.filter((x) => x.linked && x.signedIn);
+	if (!signed.length) {
+		const any = f.facts.find((x) => x.linked);
+		return {
+			left: any?.state ? seasonState(any.state, any.of) : 'NOT SIGNED IN · NOTHING SENT',
+			right: '',
+			strong: false,
+			alert: false
+		};
+	}
+	const failed = signed.find((x) => x.waiting?.failedAt);
+	if (failed && !o.offline) {
+		const ep = failed.waiting?.progress ?? failed.state?.progress ?? 0;
+		return {
+			left: `EP. ${ep} NOT SENT`,
+			right: `${failed.waiting?.error ?? `${SERVICE_NAME[failed.service]} DID NOT ANSWER`} · ${clock(failed.waiting!.failedAt!)}`,
+			strong: true,
+			alert: true
+		};
+	}
+	const main = signed.find((x) => x.service === 'anilist') ?? signed[0];
+	const lead = f.part > 1 ? `PART ${f.part} · ` : '';
+	const right: string[] = [];
+	// What the other catalogue says, where it differs (MAL AT EP. 6).
+	for (const x of signed) {
+		if (x === main) continue;
+		if (!x.state) right.push(`${SERVICE_NAME[x.service]} NOT ON YOUR LIST`);
+		else if ((x.state.progress ?? 0) !== (main.state?.progress ?? 0))
+			right.push(`${SERVICE_NAME[x.service]} AT EP. ${x.state.progress}`);
+	}
+	if (!main.state) {
+		const waited = f.waits;
+		if (waited)
+			return {
+				left: `EP. ${waited.episode} WAITS`,
+				right: `${SERVICE_NAME[waited.service]} LISTS ${waited.of}`,
+				strong: true,
+				alert: false
+			};
+		if (!o.offline) right.unshift('ADDED ON ITS FIRST EPISODE');
+		return {
+			left: `${lead}NOT ON YOUR LIST`,
+			right: right.join(' · '),
+			strong: false,
+			alert: false
+		};
+	}
+	if (f.other) {
+		const o2 = f.other;
+		const said = o2.state ? statusLabel(o2.state, true) : '';
+		right.push(
+			[`PART ${o2.part}`, said, o2.progress > 0 ? `${o2.progress} OF ${o2.of ?? '—'}` : '']
+				.filter(Boolean)
+				.join(' ')
+		);
+	}
+	const sentAt = Math.max(...signed.map((x) => x.sentAt ?? 0)) || null;
+	const names = signed.map((x) => SERVICE_NAME[x.service]).join(' AND ');
+	if (o.offline) {
+		if (sentAt) right.unshift(`AS OF ${clock(sentAt)}`);
+	} else if (signed.some((x) => x.waiting)) right.unshift('SENDING');
+	else if (sentAt) right.push(`${names} · SENT ${ago(sentAt, o.now)}`);
+	else right.push(names);
+	return {
+		left: `${lead}${seasonState(main.state, main.of)}`,
+		right: right.join(' · '),
+		strong: true,
 		alert: false
 	};
 }

@@ -22,6 +22,21 @@ import {
 	type Pasted,
 	type Row
 } from '../library/catalogue.ts';
+import {
+	legacyLink,
+	linkSeason,
+	noneOfSeason,
+	offeredSeason,
+	openSeasonOf,
+	resolveSeasonLinks,
+	saveSeasonSearch,
+	seasonLink,
+	seriesSeasons,
+	unlinkSeason,
+	undoNoneSeason,
+	undoSeasonLink
+} from './season-links.ts';
+import { seasonSearchTitle } from '../library/anime.ts';
 
 /**
  * Catalogue links on the workstation (doc/LINKS.md): a series' MyAnimeList /
@@ -231,6 +246,25 @@ async function searchMany(
 
 export type Via = 'mihon' | 'exact' | 'review' | 'pasted' | 'list';
 
+/** A season's link, and the two catalogue ids it names (c240). */
+export type SeasonLinkFacts = {
+	anilistId: number | null;
+	malId: number | null;
+	title: string;
+	via: string;
+	ids: string;
+	/** The entry's own kind, from its stored format; null when it isn't known yet. */
+	kind: Kind | null;
+	format: string | null;
+	episodes: number | null;
+	year: number | null;
+	meta: string;
+	coverOnly: boolean;
+	wrongKind: boolean;
+	resolving: boolean;
+	href: string | null;
+};
+
 type LinkRow = {
 	series_id: number;
 	anilist_id: number | null;
@@ -256,7 +290,11 @@ function linkOf(db: Database.Database, seriesId: number): LinkRow | null {
  * An unrated series takes the link's score once, when the link is made
  * (Catalogue Links 1w). Returns the rating given, or null.
  */
-function fill(db: Database.Database, seriesId: number, score: number | null): number | null {
+export function fillRating(
+	db: Database.Database,
+	seriesId: number,
+	score: number | null
+): number | null {
 	if (!score) return null;
 	const r = scoreToRating(score);
 	if (!r) return null;
@@ -265,6 +303,8 @@ function fill(db: Database.Database, seriesId: number, score: number | null): nu
 		.run(r, seriesId).changes;
 	return done ? r : null;
 }
+
+const fill = fillRating;
 
 /**
  * A MAL tracker from Mihon's backup (called by the import's writer, inside
@@ -319,8 +359,17 @@ export function linkFromTracker(
  * leaves the review; its search and candidates are kept, so UNDO brings it
  * back as it was. AniSkip's answers go with the old link: the new MAL id must
  * be asked afresh (c299).
+ *
+ * An anime links a season, not the series (c240, doc/LINKS.md): every door
+ * that wrote `series_links` writes `series_season_links` instead, at the
+ * season CONTINUE is in, so no caller has to know. `linkSeason` is the one
+ * write.
  */
 export function link(seriesId: number, c: Candidate, via: Via, now = Date.now()): void {
+	if (kindOf(seriesId) === 'anime') {
+		linkSeason(seriesId, openSeasonOf(seriesId), 1, c, via, now);
+		return;
+	}
 	const db = getDb();
 	db.transaction(() => {
 		db.prepare(
@@ -364,6 +413,7 @@ export function linkFromList(
  * answers go too: with no link there is no MAL entry (c299).
  */
 export function undoLink(seriesId: number): boolean {
+	if (kindOf(seriesId) === 'anime') return undoSeasonLink(seriesId, openSeasonOf(seriesId));
 	const db = getDb();
 	return db.transaction(() => {
 		const had = linkOf(db, seriesId);
@@ -384,8 +434,17 @@ export function undoLink(seriesId: number): boolean {
  * bring Mihon's tracker back, and the pass won't search it again; FIND and
  * PASTE A LINK still can. The rating it gave, long since the owner's, stays.
  * AniSkip's answers go: the old MAL id's negatives are not this series'.
+ *
+ * An anime unlinks a season -- the one the screen asked about, or every one
+ * it has when nobody said, which is what the review's own UNLINK means.
  */
-export function unlink(seriesId: number, now = Date.now()): void {
+export function unlink(seriesId: number, now = Date.now(), season?: number): void {
+	if (kindOf(seriesId) === 'anime') {
+		const view = seriesSeasons(seriesId);
+		const list = view ? view.seasons.map((s) => s.season) : [0];
+		for (const s of season === undefined ? list : [season]) unlinkSeason(seriesId, s, 1, now);
+		return;
+	}
 	const db = getDb();
 	db.transaction(() => {
 		db.prepare(`DELETE FROM series_links WHERE series_id = ?`).run(seriesId);
@@ -397,7 +456,11 @@ export function unlink(seriesId: number, now = Date.now()): void {
 }
 
 /** NONE OF THESE: remembered, so it doesn't come back. */
-export function noneOfThese(seriesId: number, now = Date.now()): void {
+export function noneOfThese(seriesId: number, now = Date.now(), season?: number): void {
+	if (kindOf(seriesId) === 'anime') {
+		noneOfSeason(seriesId, season ?? openSeasonOf(seriesId), 1, now);
+		return;
+	}
 	getDb()
 		.prepare(
 			`INSERT OR REPLACE INTO link_decisions (series_id, decision, at) VALUES (?, 'none', ?)`
@@ -406,6 +469,7 @@ export function noneOfThese(seriesId: number, now = Date.now()): void {
 }
 
 export function undoNone(seriesId: number): boolean {
+	if (kindOf(seriesId) === 'anime') return undoNoneSeason(seriesId, openSeasonOf(seriesId));
 	return (
 		getDb()
 			.prepare(`DELETE FROM link_decisions WHERE series_id = ? AND decision = 'none'`)
@@ -604,8 +668,20 @@ export async function searchSeries(
 	const autoLink = opts.autoLink ?? true;
 	const db = getDb();
 	// The owner's own title for a SEARCH AGAIN, as typed; the pass's cleaned,
-	// with a shorter one to fall back on.
-	const tries = rows.map((r) => (r.query ? [r.query] : searchTitles(r.title)));
+	// with a shorter one to fall back on. An anime is searched by its season's
+	// own title, since each season is its own catalogue entry (c240).
+	const seasonOfRow = new Map<number, number>();
+	const tries = rows.map((r) => {
+		if (r.query) return [r.query];
+		if (r.kind === 'anime') {
+			const at = openSeasonOf(r.id);
+			seasonOfRow.set(r.id, at);
+			// The cleaned title, as any search uses, and the season's number after
+			// it: "Ranma ½ (2024)" asks for "Ranma ½", season 1 of it.
+			return [seasonSearchTitle(searchTitles(r.title)[0], at)];
+		}
+		return searchTitles(r.title);
+	});
 	const found = await searchMany(tries.map((t, i) => ({ title: t[0], kind: rows[i].kind })));
 	const queries = tries.map((t) => t[0]);
 	const again = rows.map((_, i) => i).filter((i) => found[i].length === 0 && tries[i].length > 1);
@@ -655,6 +731,12 @@ export async function searchSeries(
 		db.transaction(() => {
 			saveSearch.run(r.id, queries[i], now, hits.length);
 			clear.run(r.id);
+			// A season keeps its own search and candidates too, so FIND on it has
+			// what the pass found without asking AniList again (c240).
+			if (r.kind === 'anime') {
+				const at = seasonOfRow.get(r.id) ?? openSeasonOf(r.id);
+				saveSeasonSearch(r.id, at, 1, queries[i], hits, now);
+			}
 			if (sure && autoLink) {
 				link(r.id, sure, 'exact', now);
 				linked += 1;
@@ -728,6 +810,8 @@ export async function refreshLinks(
 	const now = opts.now ?? Date.now();
 	try {
 		out.resolved = await resolveLinks(now);
+		// A season's own link, where only one id was known (c240).
+		out.resolved += await resolveSeasonLinks(now);
 		const rows = searchable(opts.limit ?? 60);
 		for (let i = 0; i < rows.length; i += 25) {
 			const r = await searchSeries(rows.slice(i, i + 25), now);
@@ -896,7 +980,10 @@ export function reviewItem(seriesId: number, reveal: boolean): ReviewItem | null
 }
 
 /** A candidate the review offered for this series, for LINK. */
-export function offered(seriesId: number, anilistId: number): Candidate | null {
+export function offered(seriesId: number, anilistId: number, season?: number): Candidate | null {
+	const kind = kindOf(seriesId);
+	if (kind === 'anime')
+		return offeredSeason(seriesId, season ?? openSeasonOf(seriesId), kind, anilistId);
 	const r = getDb()
 		.prepare(`SELECT data FROM link_candidates WHERE series_id = ? AND anilist_id = ?`)
 		.get(seriesId, anilistId) as { data: string } | undefined;
@@ -935,8 +1022,12 @@ export type LinkState = {
 	cover: { a: string; b: string };
 };
 
-/** The LINK and COVER rows (Series Link 1k–1s). Null for what's never linked: doujins. */
-export function linkState(seriesId: number): LinkState | null {
+/**
+ * The LINK and COVER rows (Series Link 1k–1s). Null for what's never linked: doujins.
+ * An anime answers for one season (c240): the one the screen asked about, or
+ * the one CONTINUE is in.
+ */
+export function linkState(seriesId: number, season?: number): LinkState | null {
 	const db = getDb();
 	const r = db
 		.prepare(
@@ -944,6 +1035,7 @@ export function linkState(seriesId: number): LinkState | null {
 		)
 		.get(seriesId) as (ItemRow & { hidden: number }) | undefined;
 	if (!r || r.kind === 'doujin') return null;
+	if (r.kind === 'anime') return seasonLinkState(seriesId, r, season);
 	const l = linkOf(db, seriesId);
 	const item = itemOf(r);
 	return {
@@ -968,8 +1060,48 @@ export function linkState(seriesId: number): LinkState | null {
 	};
 }
 
-/** The cover a link offers (doc/COVERS.md), for covers.ts. */
+/** An anime's LINK row for one season: its own link, or the series' shape before rung 62. */
+function seasonLinkState(
+	seriesId: number,
+	r: ItemRow & { hidden: number },
+	season?: number
+): LinkState {
+	const view = seriesSeasons(seriesId);
+	const at = season ?? view?.open ?? 0;
+	const sv = view?.seasons.find((s) => s.season === at) ?? null;
+	const l = sv?.link ?? legacyLink(seriesId);
+	const item = itemOf({ ...r, chapters: sv?.aired ?? r.chapters });
+	return {
+		linked: l
+			? {
+					anilistId: l.anilistId,
+					malId: l.malId,
+					title: l.title,
+					via: l.via as Via,
+					ids: idsLine(l.anilistId, l.malId),
+					resolving: l.resolvedAt === null,
+					coverOnly: coverOnly(r.kind, l.format ?? ''),
+					wrongKind: wrongKind(r.kind, l.format ?? ''),
+					kind: l.format ? candidateKind({ format: l.format, country: '' }) : null
+				}
+			: null,
+		candidates: sv?.candidates ?? 0,
+		searched: sv?.searched ?? false,
+		queued: sv?.queued ?? false,
+		hidden: !!r.hidden,
+		cover: item.cover
+	};
+}
+
+/** The cover a link offers (doc/COVERS.md), for covers.ts. An anime's is the open season's. */
 export function linkCover(seriesId: number): { anilistId: number; url: string } | null {
+	if (kindOf(seriesId) === 'anime') {
+		const l = seasonLink(seriesId, openSeasonOf(seriesId));
+		const legacy = l ?? legacyLink(seriesId);
+		return legacy?.anilistId && legacy.coverUrl
+			? { anilistId: legacy.anilistId, url: legacy.coverUrl }
+			: null;
+	}
 	const r = getDb()
 		.prepare(
 			`SELECT anilist_id, cover_url FROM series_links WHERE series_id = ? AND anilist_id IS NOT NULL AND cover_url != ''`
@@ -1029,6 +1161,9 @@ export type SearchNow =
  * links by itself, even on one equal title (the owner's rule, 2026-11-02).
  * AniList out of reach, the search waits for the next pass instead, as it
  * used to.
+ *
+ * An anime searches one season (c240): a season's own title, in the anime
+ * formats, kept against that season, and LINK writes that season's row.
  */
 export async function searchNow(
 	seriesId: number,
