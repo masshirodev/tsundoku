@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures';
+import { expect, screenSettled, test } from './fixtures';
 
 /**
  * The series frame per device, from Index Series.dc.html: metadata is a header
@@ -23,6 +23,7 @@ test('the series frame matches the design for this device', async ({ page }, inf
 	// The title shows at once from the tile (doc/WAITING.md): wait for the screen itself.
 	await page.waitForURL(/\/series\/\d+/);
 	await expect(page.getByRole('heading', { name: 'Tower of God' })).toBeVisible();
+	await screenSettled(page);
 
 	const panel = (await page.locator('.panel-col').boundingBox())!;
 	const list = (await page.locator('.list-col').boundingBox())!;

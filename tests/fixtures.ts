@@ -33,3 +33,18 @@ export async function readerReady(page: import('@playwright/test').Page): Promis
 	await page.waitForURL(/\/read\/\d+/);
 	await expect(page.locator('.reader')).toHaveCSS('background-color', 'rgb(0, 0, 0)');
 }
+
+/**
+ * The screen has come to rest: a client-side navigation slides the next
+ * screen 40px in (doc/MOTION.md, "Screens"), and a measurement taken while it
+ * moves reads fractions of a pixel. Call it before measuring a screen that
+ * was navigated to.
+ */
+export async function screenSettled(page: import('@playwright/test').Page): Promise<void> {
+	await page
+		.locator('.main > .route-view > *')
+		.first()
+		.evaluate((n) =>
+			Promise.all(n.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => undefined)))
+		);
+}

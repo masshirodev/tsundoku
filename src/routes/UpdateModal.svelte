@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { leave } from '$lib/motion';
 	import {
 		clock,
 		downloadLine,
@@ -59,10 +60,16 @@
 
 <svelte:window onkeydown={keydown} />
 
-<button type="button" class="scrim appear" aria-label={m.update_later_label()} onclick={dismiss}
+<button
+	type="button"
+	class="scrim appear"
+	aria-label={m.update_later_label()}
+	onclick={dismiss}
+	out:leave
 ></button>
 <div
-	class="modal appear"
+	class="modal pop"
+	out:leave={'pop'}
 	role="dialog"
 	aria-modal="true"
 	aria-label={phase === 'offer'

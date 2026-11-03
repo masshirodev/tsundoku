@@ -17,6 +17,8 @@
 	import { shelfHref, withParam } from '$lib/library/links';
 	import { onMount } from 'svelte';
 	import { afterNavigate, beforeNavigate, goto, invalidateAll } from '$app/navigation';
+	import { installPress } from '$lib/press';
+	import { screenMove, type ScreenMove } from '$lib/motion';
 	import { saveFocus, restoreFocus, installFocusLayer } from '$lib/focus';
 	import { noteVisit } from '$lib/back';
 	import { trail } from '$lib/start-trail.svelte';
@@ -50,6 +52,13 @@
 		addEventListener('click', tap, true);
 		return () => removeEventListener('click', tap, true);
 	});
+
+	// ---- motion (doc/MOTION.md) ----------------------------------------------------
+	// Every tap is drawn, held long enough to be seen (src/lib/press.ts).
+	onMount(installPress);
+	// The next screen slides in from the side it lies on (src/lib/motion.ts,
+	// screenMove; motion.css, "Screens"): the move is worked out as the
+	// navigation starts, and drawn once the new screen is in the page.
 
 	// ---- this device's settings, kept on the workstation too (doc/SETTINGS.md, "Devices") ----
 	// Checked in on load and when the network is back. The theme and the
@@ -137,6 +146,10 @@
 	});
 
 	let navSeq = 0;
+	/** Which way the screen on its way moves: its outline, if one shows first, slides in with it. */
+	let arriving = $state<ScreenMove | null>(null);
+	/** Which way the screen just drawn moved in; null for none. */
+	let arrived = $state<ScreenMove | null>(null);
 	beforeNavigate((nav) => {
 		if (nav.willUnload || !nav.to) return;
 		// Which thing on this screen has focus, so a back returns to it
@@ -147,6 +160,16 @@
 		const from = lastTap && Date.now() - lastTap.at < 400 ? lastTap.el : null;
 		lastTap = null;
 		waiting.start(nav.to.url, nav.to.route.id, from);
+		// Which way the next screen comes in. Its outline, if one shows first,
+		// slides in at once; the screen itself once it's drawn.
+		arrived = null;
+		arriving = screenMove({
+			type: nav.type,
+			delta: nav.delta,
+			from: nav.from?.route.id ?? null,
+			to: nav.to.route.id,
+			covered: false
+		});
 		// A navigation that fails or is replaced ends its wait too.
 		void nav.complete.then(
 			() => undefined,
@@ -154,6 +177,9 @@
 		);
 	});
 	afterNavigate((navigation) => {
+		// The new screen is in the page and not yet painted: it moves in now. A
+		// screen whose outline already slid in only fades over it.
+		if (navigation.type !== 'enter') arrived = cover !== null && arriving ? 'fade' : arriving;
 		// Where this history entry is, so a back link can go back to it (src/lib/back.ts).
 		noteVisit();
 		// A trip back puts focus on what the screen was left from (src/lib/focus).
@@ -358,7 +384,7 @@
 			</aside>
 		{/if}
 
-		<div class="main">
+		<div class="main" data-arriving={arriving} data-arrived={arrived}>
 			{#if data.reveal}
 				<Banner kind="reveal" title={m.nav_reveal_title()}>
 					{#snippet action()}

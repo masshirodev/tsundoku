@@ -212,3 +212,12 @@ are in [`../LIBRARY.md`](../LIBRARY.md).
     the owner's install and nonsense on a friend's, which has none
     ([`../DISTRIBUTION.md`](../DISTRIBUTION.md)). It now starts at "Put files in
     the library folder…". The handoff's copies are left as drawn.
+20. **It moves like an app** (asked 2026-11-03, card c396). The handoff's
+    "minimal and instant" left most taps showing nothing until their result
+    arrived. The press keeps the handoff's look, the inversion, but one layer
+    now draws it on everything pressable and holds it 100 ms, and small things
+    also sink to 0.97. A real pointer tints what it's over. Sheets rise on the
+    drawer curve and leave the way they came; the update dialog grows in; the
+    next screen slides 40px in from the side it lies on (a reader fades; not on a TV).
+    Departure 18's fade-in stays and now fades out too. The readers' page
+    turns stay instant. The rules and tokens are [`../MOTION.md`](../MOTION.md).

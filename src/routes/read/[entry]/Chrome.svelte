@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { leave } from '$lib/motion';
 	import { fullscreen } from '$lib/reader/fullscreen.svelte';
 	import { enhance } from '$app/forms';
 	import { backLink } from '$lib/back';
@@ -92,7 +93,7 @@
 	}
 </script>
 
-<header class="top appear" aria-label="Reader">
+<header class="top appear" out:leave aria-label="Reader">
 	<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- backHref is resolved by the page -->
 	<a class="back" href={backHref} aria-label="Back to the series" use:backLink data-focus-mark="in"
 		>←</a
@@ -161,7 +162,7 @@
 	{/if}
 </header>
 
-<footer class="bottom appear" aria-label="Reader controls">
+<footer class="bottom appear" out:leave aria-label="Reader controls">
 	<div class="scrub">
 		<span class="end">{mode === 'rtl' ? total : 1}</span>
 		<div

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { leave } from '$lib/motion';
 	import type { MenuRow } from '$lib/library/cover-menu';
 	import { focusScope } from '$lib/focus';
 
@@ -68,7 +69,8 @@
 </div>
 
 <div
-	class="sheet appear"
+	class="sheet rise"
+	out:leave={'down'}
 	class:grid={!preview}
 	aria-label="Page {page + 1}"
 	role="dialog"

@@ -26,7 +26,7 @@
 	const history = ['54%', '38%', '62%', '46%', '58%', '41%', '66%', '50%', '35%', '60%'];
 </script>
 
-<div class="waiting" aria-busy="true">
+<div class="waiting" aria-busy="true" data-arrive>
 	{#if to.kind === 'library'}
 		<TopBar label="Library">
 			{#snippet left()}<a class="brand" href={resolve('/')} aria-label="Library"><Wordmark /></a

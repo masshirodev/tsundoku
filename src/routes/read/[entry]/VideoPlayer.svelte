@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { leave } from '$lib/motion';
 	import { readLocal, writeLocal } from '$lib/settings/local';
 	import type { Json } from '$lib/settings/catalog';
 	import { onDestroy, onMount, tick } from 'svelte';
@@ -1766,10 +1767,17 @@
 		<button
 			type="button"
 			class="scrim appear"
+			out:leave
 			aria-label="Close the settings"
 			onclick={() => (sheet = false)}
 		></button>
-		<div class="sheet appear" role="dialog" aria-label="Playback settings" use:focusScope>
+		<div
+			class="sheet rise rise-right"
+			out:leave={'right'}
+			role="dialog"
+			aria-label="Playback settings"
+			use:focusScope
+		>
 			<div class="shead">
 				<div>PLAYBACK · {epShort(ep)}</div>
 				<button type="button" aria-label="Close" onclick={() => (sheet = false)}>✕</button>
@@ -1887,10 +1895,11 @@
 		<button
 			type="button"
 			class="scrim keys-scrim appear"
+			out:leave
 			aria-label="Close the keys"
 			onclick={() => (keysOpen = false)}
 		></button>
-		<div class="sheet keys appear" role="dialog" aria-label="Keys">
+		<div class="sheet keys rise rise-right" out:leave={'right'} role="dialog" aria-label="Keys">
 			<div class="shead">
 				<div>KEYS</div>
 				<button type="button" aria-label="Close" onclick={() => (keysOpen = false)}>✕</button>

@@ -1,0 +1,160 @@
+/*
+ * Motion (doc/MOTION.md, card c396): the press, the hover, how sheets and
+ * dialogs arrive, and how one screen gives way to the next. The tokens are in
+ * spacing.css; the leaves are Svelte transitions in src/lib/motion.ts, which
+ * mirror these entrances.
+ */
+
+/* ---- pressing (src/lib/press.ts) ------------------------------------------------ */
+
+/*
+ * The design's press: the cell inverts. Held by the press layer for at least
+ * 100 ms, so a quick tap is seen. Important for the same reason .nav-pressed
+ * is: a component's own colours are scoped and would otherwise win.
+ */
+[data-pressed='both'],
+[data-pressed='fill'] {
+	background-color: var(--surface-inverse) !important;
+	color: var(--text-inverse) !important;
+}
+
+/* ---- hovering ------------------------------------------------------------------ */
+
+/*
+ * A pointer over something pressable tints it. Only where there is a real
+ * pointer: a tap fires a false hover on touch, and a TV has none. The tint is
+ * a gradient over the element's own background, so it works on any colour
+ * (a primary button, an inverted tab) and leaves box-shadows alone, which are
+ * the focus mark and reveal's frame. A colour change, so it doesn't move.
+ */
+@media (hover: hover) and (pointer: fine) {
+	:is(
+			a[href],
+			button,
+			summary,
+			[role='button'],
+			[role='tab'],
+			[role='option'],
+			[role='menuitem']
+		):not(
+			:disabled,
+			[aria-disabled='true'],
+			.scrim,
+			[data-press='off'],
+			[data-press='scale'],
+			[style*='background-image']
+		):hover {
+		background-image: linear-gradient(
+			color-mix(in oklab, currentColor 9%, transparent),
+			color-mix(in oklab, currentColor 9%, transparent)
+		) !important;
+	}
+}
+
+/* ---- arriving ------------------------------------------------------------------ */
+
+/*
+ * A bottom sheet rises from the bottom edge on the drawer curve, and leaves
+ * the same way (leave 'down'). On a TV every sheet is a panel from the right,
+ * so it comes from there. `translate` rather than `transform`, so a sheet's
+ * own transform is never fought.
+ */
+.rise {
+	transition: translate var(--motion-panel) var(--ease-drawer);
+	@starting-style {
+		translate: var(--rise-from, 0 100%);
+	}
+}
+.rise-right {
+	--rise-from: 100% 0;
+}
+@media (pointer: none) and (min-width: 900px) {
+	.rise {
+		--rise-from: 100% 0;
+	}
+}
+
+/* A centred dialog grows out of a slightly smaller self; never from nothing. */
+.pop {
+	transition:
+		opacity var(--motion-appear) var(--ease),
+		scale var(--motion-panel) var(--ease-out);
+	@starting-style {
+		opacity: 0;
+		scale: 0.96;
+	}
+}
+
+/* Reduced motion keeps the fades and drops the movement (base.css, .appear). */
+@media (prefers-reduced-motion: reduce) {
+	.rise {
+		transition: opacity var(--motion-appear) var(--ease);
+		@starting-style {
+			translate: none;
+			opacity: 0;
+		}
+	}
+	.pop {
+		transition: opacity var(--motion-appear) var(--ease);
+		@starting-style {
+			scale: none;
+		}
+	}
+}
+
+/* ---- one screen to the next (src/lib/motion.ts, screenMove) --------------------- */
+
+/*
+ * Deeper screens slide in from the right, shallower ones from the left, and
+ * screens side by side fade in. 40px, not a whole screen: it says where the
+ * screen came from without making anyone wait for it.
+ *
+ * It is the real screen that moves, as a plain CSS animation, never a View
+ * Transition: while one plays, Chromium sends every tap to <html> whatever
+ * the pictures' pointer-events say, and the reader lost the first tap after
+ * it opened. Nothing covers this screen, so a tap always lands on it.
+ *
+ * The root layout sets `data-arrived` on .main once the new screen is in the
+ * page (afterNavigate, before it's painted), and `data-arriving` as the
+ * navigation starts, for the outline (doc/WAITING.md) that shows when the
+ * screen is slow: the outline is then the screen arriving, so it slides in,
+ * and the screen only fades over it. Not on a TV (pointer: none), where the
+ * remote moves a key at a time and the ten-foot layout answers at once.
+ */
+@media (pointer: fine), (pointer: coarse) {
+	[data-arrived] > .route-view > *,
+	[data-arriving] > [data-arrive] {
+		animation: screen-in-right var(--motion-panel) var(--ease-out) both;
+	}
+	[data-arrived='back'] > .route-view > *,
+	[data-arriving='back'] > [data-arrive] {
+		animation-name: screen-in-left;
+	}
+	[data-arrived='fade'] > .route-view > *,
+	[data-arriving='fade'] > [data-arrive] {
+		animation-name: screen-fade-in;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		[data-arrived] > .route-view > *,
+		[data-arriving] > [data-arrive] {
+			animation-name: screen-fade-in;
+		}
+	}
+}
+@keyframes screen-in-right {
+	from {
+		opacity: 0;
+		translate: 40px 0;
+	}
+}
+@keyframes screen-in-left {
+	from {
+		opacity: 0;
+		translate: -40px 0;
+	}
+}
+@keyframes screen-fade-in {
+	from {
+		opacity: 0;
+	}
+}

@@ -47,6 +47,8 @@ test('a sheet is a 420px panel from the right, not a bottom sheet', async ({ pag
 	await page.getByRole('button', { name: 'MORE' }).click();
 	const panel = page.locator('.sheet');
 	await expect(panel).toBeVisible();
+	// It slides in from the right (doc/MOTION.md): measure where it comes to rest.
+	await panel.evaluate((n) => Promise.all(n.getAnimations().map((a) => a.finished)));
 	const box = (await panel.boundingBox())!;
 	expect(box.width).toBe(420);
 	expect(Math.round(box.x)).toBe(960 - 420);
