@@ -55,9 +55,11 @@ import {
  *   a year, no refresh), MAL's with a plain PKCE verifier (31 days, refreshed).
  * - **Reading the lists** keeps what each says of a linked series, and links
  *   an entry on the AniList list to its series when the title is sure.
- * - **Sending** follows a chapter finished here: the furthest one, only when
- *   it's further than the list has. Never for a hidden series, never through
- *   a cover-only link, never while incognito (the reading isn't recorded).
+ * - **Sending** follows a chapter finished here (an episode watched, on an
+ *   anime): the furthest one, only when it's further than the list has --
+ *   within its own season and part (c240). Never for a hidden series, never
+ *   through a cover-only or wrong-kind link, never while incognito (the
+ *   reading isn't recorded).
  */
 
 type Account = {

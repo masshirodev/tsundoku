@@ -778,7 +778,8 @@ spans a restart fails and is tried again. **No lengths or FILLER/RECAP from
 the source yet**: the engine's episode list carries neither (`JEpisode` is
 url, name, date, number, scanlator, and its picture since c225). A length
 comes from the stream (c155) or the file (c157); a picture, where the source
-gives none, from a frame ("Episode pictures"). **A link is the whole
-series'**: an anime links to its own AniList/MAL entry like any other series
-(c298), which is what AniSkip needs, but a season of a multi-season series
-is still not linked on its own (c240).
+gives none, from a frame ("Episode pictures"). **A link is one season's**
+(c240): AniList and MAL list each season as its own entry, so an anime's
+LINK and TRACKING rows are a line a season (doc/LINKS.md, doc/TRACKING.md);
+`series_links` keeps the first season linked as a mirror, for AniSkip's one
+MAL id.

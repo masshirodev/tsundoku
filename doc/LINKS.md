@@ -305,9 +305,10 @@ anime's LINK row is a line a season (c240; above).
 - The review's series panel says **EPISODES** for an anime, not CHAPTERS, and
   names one source when the origin and the site are the same ("KICKASSANIME",
   not "KICKASSANIME · KICKASSANIME").
-- **A link to the other kind is flagged, never removed**: a `series_links`
-  row whose format contradicts the series' kind (MANGA/NOVEL/ONE_SHOT on an
-  anime, TV/MOVIE/OVA on a manga) says **LINKED TO THE WRONG KIND**. The LINK
+- **A link to the other kind is flagged, never removed**: a link row
+  (`series_links`, or `series_season_links` on a season) whose format
+  contradicts the series' kind (MANGA/NOVEL/ONE_SHOT on an anime, TV/MOVIE/OVA
+  on a manga) says **LINKED TO THE WRONG KIND**. The LINK
   page's `?series=N` row offers **RELINK**; the series screen's own line says
   changes ask AniList for the series' own kind, and its CHANGE is the door.
   OPEN ↗ opens the entry's own catalogue: the link's stored format decides,
@@ -319,7 +320,8 @@ anime's LINK row is a line a season (c240; above).
   novel across to its comic's entry is the deliberate cover-only link, and
   isn't this.
 - On the phone, and in the 440px landscape panel, the cells drop below the
-  row in equal columns.
+  row in equal columns. An anime's season lines keep their own EDIT or FIND
+  at the line's end, as the design draws them.
 - Offline, everything but OPEN ↗ dims.
 
 ## Where it departs from the handoff

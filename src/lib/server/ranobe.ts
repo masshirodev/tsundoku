@@ -38,6 +38,9 @@ import type { Kind } from '../library/types.ts';
  *   contents, and a unit read here is sent as one read.
  * - **Comics** (card c98) read against the work's own chapters: no edition,
  *   no suggestion, and only a chapter the work counts is sent.
+ * - **Anime** (c240) read against the work's own episodes, numbered straight
+ *   through the seasons: one work for the whole show, its entry on season 1
+ *   (Ranobe c134).
  * - **Never** for a hidden series or anything from Hentoid: not looked up,
  *   not suggested, not sent. Incognito reading records nothing, so nothing
  *   follows it here either.
