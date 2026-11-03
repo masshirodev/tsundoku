@@ -8,7 +8,8 @@
  */
 
 import { sharedStart, titleWords } from './books';
-import { kindLabel } from './labels';
+import { kindLabel, unitLabel } from './labels';
+import { ago } from './tracking';
 import type { ContinueItem, Kind, Rating, SeriesCard } from './types';
 
 /** How a Work's parts are ordered: the owner's hand, when each was added, or its title. */
@@ -218,6 +219,55 @@ export function workVerb(parts: WorkPart[]): 'READ' | 'WATCH' | null {
 	const current = continuePart(parts);
 	return current ? kindVerb(current.kind) : null;
 }
+
+/** What a run row's status column says: the ink, and the quieter line under it. */
+export type RunStatus = { ink: string; sub: string };
+
+/**
+ * THE RUN's status column (Work-Screen; Work-States 3 and 6): `READ ✓ ·
+ * FINISHED 12 MAR`, `CH. 15 OF 205 · OPENED 2 H AGO`, `NOT STARTED · +4 NEW`.
+ * The unit and the finished mark follow the part's kind, so an anime part --
+ * the designed manga-plus-anime Work -- says `EP. 5 OF 12` and `WATCH ✓`, not
+ * `CH.` and `READ ✓` beside its own `ANIME · EP.` meta line.
+ *
+ * The formatters come from the caller so the screen's date and time words stay
+ * the screen's (`ago`, the month's locale), and this stays testable alone.
+ */
+export function runStatus(
+	p: WorkPart & { finishedAt?: number | null; newCount?: number },
+	opts: {
+		current?: boolean;
+		/** The label of the entry ▶ opens, for the part CONTINUE opens. */
+		resumeLabel?: string | null;
+		now?: number;
+		month?: (ms: number) => string;
+	} = {}
+): RunStatus {
+	const state = partState(p);
+	if (state === 'read-through' || state === 'caught-up')
+		return {
+			ink: state === 'caught-up' ? 'CAUGHT UP ✓' : `${kindVerb(p.kind)} ✓`,
+			sub: p.finishedAt ? `FINISHED ${monthOf(opts)(p.finishedAt)}` : ''
+		};
+	if (state === 'not-started')
+		return {
+			ink: '',
+			sub: `NOT STARTED${(p.newCount ?? 0) > 0 ? ` · +${p.newCount} NEW` : ''}`
+		};
+	const chapter =
+		opts.current && opts.resumeLabel
+			? opts.resumeLabel.toUpperCase()
+			: `${unitLabel(p.kind)}. ${p.read + 1}`;
+	return {
+		ink: `${chapter} OF ${p.entries}`,
+		sub: p.lastOpenedAt ? `OPENED ${ago(p.lastOpenedAt, opts.now ?? Date.now())}` : 'IN PROGRESS'
+	};
+}
+
+const monthOf = (opts: { month?: (ms: number) => string }) =>
+	opts.month ??
+	((ms: number) =>
+		new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }).toUpperCase());
 
 /**
  * The Work screen's count line (Work-Screen): "3 SERIES · 375 CHAPTERS · 86

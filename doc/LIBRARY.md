@@ -249,15 +249,21 @@ rows before and after:
 
 ## Pages
 
-The grid arrives a page of 120 cards at a time (`GRID_PAGE`,
+The grid arrives a page of 120 tiles at a time (`GRID_PAGE`,
 `src/lib/library/paging.ts`), because the real library's ALL shelf, with reveal
 on, is 6,800 series. The whole shelf in one answer made the first load drag, and
 a silent 5,000-card cap left the last 1,800 off the grid entirely. The cap is
 gone.
 
+A page is a page of **tiles**, not of series: a Work is one tile, and the
+offset counts tiles, so page two carries on where page one stopped even when a
+Work's parts sit across the boundary (`doc/WORKS.md`).
+
 - **The first page** comes with the screen, with the shelf's `total`
   (`countListed`).
-- **The rest** comes from `GET /api/library?shelf&tag&sort&offset&limit`. It's
+- **The rest** comes from `GET /api/library?shelf&tag&sort&offset&limit`. It
+  answers the same units the first page does -- `listTiles`, one row per Work,
+  one per series in no Work -- and takes the same `offset` in tiles. It's
   asked for when the end of the grid comes within one and a half screens
   (an `IntersectionObserver` on the row below the grid). After each page the
   reader checks again, since on a tall screen a page may not push the end out
@@ -269,8 +275,10 @@ gone.
   every loaded page after the first as well, in one request, so a tile deep in
   the grid shows the server's value. A new shelf, tag or sort starts again from
   its first page. A request answered after the list changed is dropped.
-- **SELECT ALL** means the whole shelf. The ids of pages not yet loaded come
-  from `/api/library?ids`, without their cards.
+- **SELECT ALL** means the whole shelf, tiles and all. The ids of pages not yet
+  loaded come from `/api/library?ids`, without their cards, and a Work's every
+  part is among them even when a kind, collection, NEW or FAV shelf picked only
+  one -- a bulk HIDE must hide the run whole (`tileIds`, `doc/WORKS.md`).
 - **Back** (the gesture, or the browser's) comes back to the pages and the place
   it left. A SvelteKit snapshot keeps the loaded cards (up to 4,000) and the
   scroll, and sets the scroll again once they're back, since SvelteKit scrolls

@@ -95,6 +95,22 @@ describe('browsing shows the run as one tile', () => {
 		expect(workTiles({ reveal: true, shelf: 'k:manhwa' })).toHaveLength(1);
 	});
 
+	it('pages the same tiles the whole shelf is: a Work once, in order, no part as its own card', () => {
+		make(['Isekai Ojisan', 'Isekai Yakkyoku'], 'Paged Run');
+		// The offset is in tiles: a page of two carries on where the last
+		// stopped, whether the boundary falls inside a Work or between two.
+		for (const sort of ['recent', 'title', 'added', 'random'] as const) {
+			const whole = tiles({ reveal: true, shelf: 'all', sort }).map((t) => t.id);
+			const paged: number[] = [];
+			for (let offset = 0; offset < whole.length; offset += 2)
+				paged.push(
+					...tiles({ reveal: true, shelf: 'all', sort, limit: 2, offset }).map((t) => t.id)
+				);
+			expect(paged).toEqual(whole);
+			expect(new Set(paged).size).toBe(whole.length);
+		}
+	});
+
 	it('sorts a Work by its most recent part', () => {
 		// Two runs, each a pair: one is in the newest thing read, the other in
 		// the oldest. Their names order the other way, so title is a real check.
@@ -208,5 +224,50 @@ describe('CONTINUE is one row per Work', () => {
 		expect(own[0].work).not.toBeNull();
 		// `limit` is rows, too.
 		expect(lib.continueReading(true, 2).items).toHaveLength(2);
+	});
+});
+
+describe('THE RUN counts what the library counts', () => {
+	it('ignores a shadowed duplicate and front matter, and never exceeds the chapters it lists', () => {
+		const id = idOf('Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru');
+		const db = getDb();
+		// A duplicate of chapter 1, shadowed in place and still on disk, and a
+		// cover downloaded like a chapter: neither is a chapter the run prints.
+		db.prepare(
+			`UPDATE entries SET shadowed = 1, available = 1, file = 'Chapter 1.cbz'
+			WHERE series_id = ? AND position = 1`
+		).run(id);
+		db.prepare(
+			`INSERT INTO entries (series_id, position, label, added_at, matter, available, file)
+			VALUES (?, 0, 'Cover', ?, 'front', 1, 'Cover.jpg')`
+		).run(id, NOW);
+		// And one counted chapter that is not on disk: the count is below the
+		// denominator, not over it.
+		db.prepare(
+			`UPDATE entries SET available = 0, file = '' WHERE series_id = ? AND position = 2`
+		).run(id);
+		const facts = make(
+			['Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru', 'Kusuriya no Hitorigoto'],
+			'Counted Run'
+		);
+		const part = works
+			.workPage(facts.work.id, { reveal: true })!
+			.parts.find((p) => p.seriesId === id)!;
+		const chapters = db
+			.prepare(
+				`SELECT COUNT(*) AS n FROM entries WHERE series_id = ? AND shadowed = 0 AND matter = ''`
+			)
+			.get(id) as { n: number };
+		// The denominator the run prints, and a numerator under it: the matter
+		// row and the shadowed copy are both `available = 1`, so counting every
+		// available row said N > M and could say ALL DOWNLOADED over a gap.
+		expect(part.entries).toBe(chapters.n);
+		expect(part.downloaded).toBe(chapters.n - 1);
+		expect(part.downloaded).toBeLessThanOrEqual(part.entries);
+		const loose = db
+			.prepare(`SELECT COUNT(*) AS n FROM entries WHERE series_id = ? AND available = 1`)
+			.get(id) as { n: number };
+		expect(loose.n).toBeGreaterThan(part.downloaded);
+		expect(loose.n).toBeGreaterThan(part.entries);
 	});
 });

@@ -297,6 +297,20 @@ export const actions: Actions = {
 	work: async ({ request }) => {
 		const seriesIds = ids(await request.formData());
 		if (seriesIds.length < 2) return fail(400, { workMessage: 'A WORK NEEDS TWO SERIES' });
+		// A series already in a Work is not this cell's to move. `createWork`
+		// would take it out of its Work and end that Work when one were left,
+		// so a whole-shelf SELECT ALL followed by WORK would collapse every Work
+		// on the shelf into one and leave no UNDO. Moving a series between Works
+		// is W4's AS sheet; this stand-in refuses instead (doc/WORKS.md).
+		const inWork = getDb()
+			.prepare(
+				`SELECT COUNT(*) AS n FROM work_series WHERE series_id IN (${seriesIds.map(() => '?').join(',')})`
+			)
+			.get(...seriesIds) as { n: number };
+		if (inWork.n > 0)
+			return fail(400, {
+				workMessage: 'A WORK KEEPS ITS PARTS · MOVE ONE FROM ITS OWN SCREEN'
+			});
 		// The words every title starts with, as the books stem rule does; titles
 		// that share none get a name to replace at once, and the Work screen
 		// opens its RENAME row rather than guessing one.

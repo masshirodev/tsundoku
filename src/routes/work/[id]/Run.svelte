@@ -3,8 +3,7 @@
 	import { coverSrc, readHref, seriesHref } from '$lib/library/links';
 	import { kindLabel, unitLabel } from '$lib/library/labels';
 	import { moveItem } from '$lib/library/books';
-	import { ago } from '$lib/library/tracking';
-	import { isFinished, partState, type WorkPart } from '$lib/library/works';
+	import { isFinished, runStatus, type WorkPart } from '$lib/library/works';
 	import type { WorkPartRow } from '$lib/server/works';
 
 	/**
@@ -57,19 +56,12 @@
 
 	/** What the row says on its right (the design's status column), and on the phone in its meta line. */
 	function stateOf(p: WorkPartRow): { ink: string; sub: string } {
-		const state = partState(p);
-		if (state === 'read-through' || state === 'caught-up')
-			return {
-				ink: state === 'caught-up' ? 'CAUGHT UP ✓' : 'READ ✓',
-				sub: p.finishedAt ? `FINISHED ${month(p.finishedAt)}` : ''
-			};
-		if (state === 'not-started')
-			return { ink: '', sub: `NOT STARTED${p.newCount > 0 ? ` · +${p.newCount} NEW` : ''}` };
-		const chapter = isCurrent(p) && resume ? resume.label.toUpperCase() : `CH. ${p.read + 1}`;
-		return {
-			ink: `${chapter} OF ${p.entries}`,
-			sub: p.lastOpenedAt ? `OPENED ${ago(p.lastOpenedAt, now)}` : 'IN PROGRESS'
-		};
+		return runStatus(p, {
+			current: isCurrent(p),
+			resumeLabel: resume?.label ?? null,
+			now,
+			month
+		});
 	}
 
 	/** "ALL DOWNLOADED", "12 OF 98 DOWNLOADED", or the online note the handoff draws. */

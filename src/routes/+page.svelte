@@ -587,6 +587,12 @@
 	const showContinue = $derived(contShown.length > 0 && !scanning && !justImported);
 
 	const cachedCount = (id: number) => offline.cached[id] ?? 0;
+	/**
+	 * What a tile has on the device: a Work's parts summed, not only its face's
+	 * -- the part CONTINUE opens may be the one that is cached (doc/WORKS.md).
+	 */
+	const cachedOn = (c: { id: number; tile?: LibraryCard['tile'] }) =>
+		c.tile ? c.tile.parts.reduce((n, p) => n + cachedCount(p.seriesId), 0) : cachedCount(c.id);
 
 	/**
 	 * The TV focus line's second line (c238): the kind, the counts and where
@@ -603,7 +609,7 @@
 	 * server lists everything and this narrows it, filters included: the
 	 * device can answer every one of them.
 	 */
-	const cachedSeries = $derived(series.filter((s) => cachedCount(s.id) > 0));
+	const cachedSeries = $derived(series.filter((s) => cachedOn(s) > 0));
 	const shown = $derived(
 		data.shelf === 'cached'
 			? cachedSeries.filter((s) => matches({ ...s, languages: codesOf(s) }, data.filters))
@@ -691,8 +697,12 @@
 	 * ids come without their cards.
 	 */
 	async function selectAll() {
-		shown.forEach((s) => selected.add(s.id));
-		if (!hasMore) return;
+		// The loaded tiles at once, a Work's parts with it (a Work tile is one
+		// tile over its parts, doc/WORKS.md).
+		for (const s of shown) for (const id of cardIds(s)) selected.add(id);
+		// CACHED narrows on the device: only the tablet knows what it holds, so
+		// the server cannot answer its ids.
+		if (data.shelf === 'cached') return;
 		try {
 			const q = pageQuery({
 				shelf: data.shelf,
@@ -703,6 +713,8 @@
 				offset: 0,
 				limit: 0
 			});
+			// Every page, not only the loaded ones -- and unit-aware, so a Work's
+			// parts a kind shelf never picked are selected too.
 			const res = await fetch(`/api/library?${q}&ids=1`);
 			if (res.ok) for (const id of ((await res.json()) as { ids: number[] }).ids) selected.add(id);
 		} catch {
@@ -1023,7 +1035,7 @@
 				<SectionLabel index={1} text="Continue" top={18}>
 					{#snippet right()}
 						{#if isOffline}
-							{contShown.filter((c) => cachedCount(c.id) > 0).length} OF {contShown.length} CACHED
+							{contShown.filter((c) => cachedOn(c) > 0).length} OF {contShown.length} CACHED
 						{:else}
 							<!-- History is CONTINUE going further back (Index Addendum). -->
 							<a class="to-history" href={resolve('/history')}
@@ -1034,7 +1046,7 @@
 				</SectionLabel>
 				<div class="cont">
 					{#each contShown as item, i (item.id)}
-						{@const cached = cachedCount(item.id) > 0}
+						{@const cached = cachedOn(item) > 0}
 						<ContinueRow
 							title={item.title}
 							meta={item.work
@@ -1120,7 +1132,7 @@
 		{:else if data.shelf !== 'people'}
 			<div class="grid" data-back-climb="nav[aria-label=Shelves] .tab.on">
 				{#each shown as s, i (s.id)}
-					{@const cached = cachedCount(s.id)}
+					{@const cached = cachedOn(s)}
 					{#if s.tile}
 						<!-- Browsing shows the run as one tile (Work-Library; doc/WORKS.md). -->
 						<WorkTile

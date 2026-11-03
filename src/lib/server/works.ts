@@ -281,7 +281,14 @@ function readParts(db: Database.Database, workIds: number[], where: string): Wor
 					SUM(CASE WHEN e.shadowed = 0 AND (e.added_at > o.at
 						OR (e.read_at IS NULL AND COALESCE(e.arrived_at, 0) > o.at))
 						THEN 1 ELSE 0 END) AS newCount,
-					SUM(e.available = 1) AS downloaded,
+					-- The same set the entries count uses: a shadowed duplicate and
+					-- front or back matter are not chapters the run can say are on
+					-- disk, and the library's own count leaves out a row with no
+					-- file (src/lib/server/catalogue.ts). Counting every available
+					-- row let ALL DOWNLOADED stand over a missing chapter and N
+					-- exceed M on a book.
+					SUM(e.shadowed = 0 AND e.matter = '' AND e.available = 1 AND e.file != '')
+						AS downloaded,
 					MAX(CASE WHEN e.shadowed = 0 AND e.matter = '' AND e.read_at IS NOT NULL
 						THEN e.read_at END) AS finishedAt
 				FROM entries e JOIN opened o ON o.series_id = e.series_id

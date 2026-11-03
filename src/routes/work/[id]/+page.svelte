@@ -5,7 +5,7 @@
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { backLink, replacing } from '$lib/back';
+	import { backLink, replacing, settleReplacing } from '$lib/back';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import Cover from '$lib/components/content/Cover.svelte';
 	import RatingSlider from '$lib/components/controls/RatingSlider.svelte';
@@ -101,12 +101,17 @@
 		void goto(seriesHref(part.seriesId, `work:${work.id}`));
 	}
 
-	const selAfter: SubmitFunction =
-		() =>
-		async ({ update }) => {
-			stopSelecting();
-			await update();
-		};
+	/**
+	 * TAKE OUT of the second-to-last ends the Work, and the action redirects to
+	 * the library's band. That redirect must replace this screen in history,
+	 * not sit on top of it: pushed, the system's back lands on a Work that no
+	 * longer exists (doc/NAVIGATION.md, "Screens that are gone"). UNGROUP
+	 * beside it already does this through `replacing`.
+	 */
+	const selAfter: SubmitFunction = () => async (opts) => {
+		stopSelecting();
+		await settleReplacing(opts);
+	};
 </script>
 
 <svelte:head><title>{work.name} · tsundoku</title></svelte:head>

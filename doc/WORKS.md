@@ -175,7 +175,8 @@ SERIES · N CHAPTERS · N READ` (or `ALL READ`), `PART n OF m, MADE <date>`,
   inverted on the part CONTINUE opens (`NOW`), a 68px cover, the title, `KIND
 · SOURCE · STATUS · N CH. · ALL DOWNLOADED` (or `0 OF N DOWNLOADED · READS
 ONLINE`), a progress bar, and the status column: `READ ✓ · FINISHED 12
-MAR`, `CH. 15 OF 205 · OPENED 2 H AGO`, or `NOT STARTED · +4 NEW`. A tap
+MAR`, `CH. 15 OF 205 · OPENED 2 H AGO` (`EP.` on an anime part), or `NOT STARTED
+· +4 NEW`. A tap
   opens the series with `?from=work:<id>` (W5 reads it); ▶ continues the part
   CONTINUE opens. On a phone the rows are 104px and the status column folds
   into the meta line.
@@ -184,8 +185,9 @@ MAR`, `CH. 15 OF 205 · OPENED 2 H AGO`, or `NOT STARTED · +4 NEW`. A tap
 - **SELECT → TAKE OUT** with a band and UNDO. Taking out the second-to-last
   ends the Work: the screen is gone, so the library shows `<NAME> IS NO
 LONGER A WORK · ONE SERIES WAS LEFT` with UNDO, which restores the same id,
-  name and order. UNGROUP goes the same way (`UNGROUPED · <NAME>`) and
-  replaces the gone screen in history (`replacing`).
+  name and order. UNGROUP goes the same way (`UNGROUPED · <NAME>`). Both
+  replace the gone screen in history (`replacing`), so the system's back
+  returns to the library and not to a 404.
 - **+ ADD A SERIES** opens a library picker; a series already in another Work
   says `IN <WORK> · MOVES HERE` and moves, ending that Work if one is left.
 - **A Work whose run is read** puts `THE RUN IS READ · FINISHED <date>` and

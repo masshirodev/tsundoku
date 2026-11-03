@@ -478,6 +478,9 @@ test('a Work is one tile, one CONTINUE row, and a screen of its own', async ({ p
 	await expect(cont).toHaveCount(1);
 	await expect(cont).toContainText('WORK · PART 1');
 	await expect(cont).toContainText('CH. 41');
+	// The ▶ names the Work it resumes: a literal '{title}' would say the
+	// placeholder, not the row's own title.
+	await expect(cont.locator('.go')).toHaveAttribute('aria-label', 'Resume Drawing Run');
 
 	// Finding opens the Work: its own name finds it first, its parts after.
 	await page.goto('/search?q=Drawing');
@@ -530,6 +533,15 @@ test('ORDER reorders the run, TAKE OUT of the second-to-last ends the Work, and 
 	await expect(ended).toBeVisible();
 	await expect(ended).toContainText('ONE SERIES WAS LEFT');
 	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
+
+	// The library replaced the dead Work in history: BACK lands on the library,
+	// never on /work/N (doc/NAVIGATION.md, "Screens that are gone"). Forward
+	// returns to the band, whose UNDO is the next step.
+	await page.goBack();
+	expect(new URL(page.url()).pathname).toBe('/');
+	expect(page.url()).not.toMatch(/\/work\/\d+/);
+	await page.goForward();
+	await expect(page.locator('.band', { hasText: 'ISEKAI IS NO LONGER A WORK' })).toBeVisible();
 
 	// UNDO puts the Work back with its name and its order.
 	await ended.getByRole('button', { name: 'UNDO' }).click();
@@ -633,5 +645,125 @@ test('a hidden Work is the same 404 as one that does not exist', async ({ page }
 	await page.goto(hiddenWork);
 	await page.getByRole('button', { name: 'UNGROUP' }).click();
 	await page.getByRole('button', { name: 'HIDE AGAIN' }).click();
+	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
+});
+
+test('page two of the grid is the same list as page one: a Work once, never its parts', async ({
+	page
+}) => {
+	// Two series that share a word, so the Work is named 'Isekai' without a
+	// rename, and neither part is a tile of its own anywhere on the shelf.
+	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku']);
+	await page
+		.context()
+		.addCookies([{ name: 'tsundoku_grid_page', value: '6', url: 'http://localhost' }]);
+	// A phone: three columns, so the first page's end is near and the row below
+	// the grid stays on screen to be read.
+	await page.setViewportSize({ width: 360, height: 400 });
+	await page.goto('/?shelf=all&sort=title');
+	const tiles = page.locator('.grid .tile');
+	const more = page.locator('.more');
+	await expect(more).toBeVisible();
+	const total = Number(/OF (\d+)/.exec((await more.textContent()) ?? '')![1]);
+	// Scroll the pages in, as a reader would.
+	for (let i = 0; i < 20 && (await more.count()) > 0; i++) {
+		await more.scrollIntoViewIfNeeded({ timeout: 1000 }).catch(() => undefined);
+		await page.waitForTimeout(150);
+	}
+	await expect(more).toHaveCount(0);
+	// The offset is in tiles, so every unit arrives once and in one order: the
+	// old endpoint paged series under a tile count, which skipped series and
+	// sent a Work's remaining parts back as their own cards.
+	await expect(tiles).toHaveCount(total);
+	await expect(page.locator('.grid .tile.work', { hasText: 'Isekai' })).toHaveCount(1);
+	for (const part of ['Isekai Ojisan', 'Isekai Yakkyoku'])
+		await expect(
+			page.locator('.grid .tile').filter({
+				has: page.locator('.title', { hasText: new RegExp(`^${part}$`) })
+			})
+		).toHaveCount(0);
+	// Done with it: the seed stays the one the other specs expect.
+	await page.locator('.grid .tile.work', { hasText: 'Isekai' }).click();
+	await page.getByRole('button', { name: 'UNGROUP' }).click();
+	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
+});
+
+test('SELECT ALL takes a Work’s every part, so a bulk HIDE hides the run whole', async ({
+	page
+}) => {
+	// The seed has no anime series (fixtures.ts), so this is the same shape with
+	// a manhwa part off the kind shelf: the Work's face is the manga.
+	await makeWork(page, [
+		'Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru',
+		"Omniscient Reader's Viewpoint"
+	]);
+	const work = page.url().split('?')[0];
+	// A page of six, sorted by title: the Work's own name ('Untitled work',
+	// since these two share no words) sorts onto a later page. Hold the pages
+	// after the first back until SELECT ALL has asked, so the Work's tile is
+	// not among the cards the fast path expands: the ids read is what must
+	// carry its manhwa part.
+	await page
+		.context()
+		.addCookies([{ name: 'tsundoku_grid_page', value: '6', url: 'http://localhost' }]);
+	const pages = (url: URL) => url.pathname === '/api/library' && !url.searchParams.has('ids');
+	await page.route(pages, (route) => route.abort());
+	await page.goto('/?shelf=k:manga&sort=title');
+	await expect(page.locator('.more')).toContainText('THE REST');
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await page.getByRole('button', { name: 'SELECT ALL' }).click();
+	await page.unroute(pages);
+	await page.locator('.more').getByRole('button', { name: 'RETRY' }).click();
+	const more = page.locator('.more');
+	for (let i = 0; i < 20 && (await more.count()) > 0; i++) {
+		await more.scrollIntoViewIfNeeded({ timeout: 1000 }).catch(() => undefined);
+		await page.waitForTimeout(150);
+	}
+	// The tile is checked only when every part is selected. The manhwa part is
+	// not on this shelf, so the old series-only read never selected it and the
+	// tile stayed unchecked while HIDE took one part.
+	const tile = page.locator('.grid .tile.work');
+	await expect(tile).toHaveCount(1);
+	await expect(tile.locator('.open')).toHaveAttribute('aria-pressed', 'true');
+	await page.getByRole('button', { name: 'HIDE', exact: true }).click();
+	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
+	// Both parts are hidden, so with reveal off the Work is the 404 a missing id is.
+	const res = await page.goto(work);
+	expect(res?.status()).toBe(404);
+
+	// Restore: reveal, and unhide the whole kind shelf the bulk HIDE took --
+	// SELECT ALL meant every manga, not only the Work's parts.
+	await page.goto('/search');
+	await page.getByRole('searchbox').fill('/reveal');
+	await page.getByRole('searchbox').press('Enter');
+	await expect(page).toHaveURL('/');
+	await page.goto('/?shelf=k:manga');
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await page.getByRole('button', { name: 'SELECT ALL' }).click();
+	await page.getByRole('button', { name: 'UNHIDE' }).click();
+	await page.getByRole('button', { name: 'Stop selecting' }).click();
+	// End the Work, then hide the shelf again.
+	await page.locator('.grid .tile.work').click();
+	await page.getByRole('button', { name: 'UNGROUP' }).click();
+	await page.getByRole('button', { name: 'HIDE AGAIN' }).click();
+	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
+});
+
+test('WORK refuses a selection that already holds a Work, and leaves every Work a tile', async ({
+	page
+}) => {
+	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku']);
+	await page.goto('/');
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await page.getByRole('button', { name: 'SELECT ALL' }).click();
+	await page.getByRole('button', { name: 'WORK', exact: true }).click();
+	// A selection that already holds a Work's part is W4's AS sheet to move,
+	// not this cell's: it refuses, and the Work on the shelf is untouched.
+	await expect(page.locator('.fold-refused')).toContainText('A WORK KEEPS ITS PARTS');
+	await expect(page.locator('.grid .tile.work')).toHaveCount(1);
+	// Done: end the Work so the seed is as the other specs expect.
+	await page.getByRole('button', { name: 'Stop selecting' }).click();
+	await page.locator('.grid .tile.work').click();
+	await page.getByRole('button', { name: 'UNGROUP' }).click();
 	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
 });

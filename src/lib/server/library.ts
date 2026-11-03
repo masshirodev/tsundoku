@@ -488,6 +488,31 @@ export function listedIds(opts: ListOpts): number[] {
 	).map((r) => r.id);
 }
 
+/**
+ * Every series id a shelf's tiles hold, in no order: what SELECT ALL means
+ * now that a tile can be a Work. A Work contributes every part the viewer can
+ * see, not only the one that put it on the shelf -- a kind, collection, NEW or
+ * FAV shelf picks one part, and selecting only that one would leave the Work
+ * diverged under a bulk HIDE (doc/WORKS.md). `listedIds` stays the series the
+ * shelf itself picks; this is the unit-aware read beside it.
+ */
+export function tileIds(opts: ListOpts & { seed?: number }): number[] {
+	const where = listWhere(opts);
+	const sort = opts.sort ?? 'recent';
+	const order = unitOrder(sort, opts.dir ?? naturalDir(sort), opts.shelf, opts.seed);
+	const rows = getDb()
+		.prepare(unitQuery(where.sql, visibility(opts.reveal), order))
+		.all(...where.params) as UnitRow[];
+	const workIds = [...new Set(rows.map((r) => r.workId).filter((id): id is number => id != null))];
+	const parts = byWork(partsOfWorks(workIds, opts.reveal));
+	const ids = new Set<number>();
+	for (const row of rows) {
+		if (row.workId == null) ids.add(row.seriesId);
+		else for (const p of parts.get(row.workId) ?? []) ids.add(p.seriesId);
+	}
+	return [...ids];
+}
+
 export function countSeries(reveal: boolean): number {
 	const row = getDb()
 		.prepare(

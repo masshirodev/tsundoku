@@ -80,7 +80,7 @@
 		class="go"
 		class:acc={work?.upNext}
 		disabled={unavailable || !onresume}
-		aria-label={work?.upNext ? 'Start {title}' : 'Resume {title}'}
+		aria-label={work?.upNext ? `Start ${title}` : `Resume ${title}`}
 		data-focus-id={focusId}
 		data-focus-start={startFocus ? '' : undefined}
 		onclick={() => onresume?.()}>{unavailable ? '—' : '▶'}</button
