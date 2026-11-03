@@ -503,8 +503,9 @@ screen but the video, and the subtitles, until a tap.
   →), and the one addition, −10 / pause / +10 in the middle, pause two drawn
   bars, which steps aside while BUFFERING or a server's notice holds the
   middle (they overlapped). The scrubber ticks the opening and ending. A desktop adds play, VOL,
-  ? KEYS and FULL SCREEN · F, and a time on hover, with the frame there
-  above it (the seek preview, below).
+  PIP where the browser has picture-in-picture, ? KEYS and FULL SCREEN · F,
+  and a time on hover, with the frame there above it (the seek preview,
+  below).
 - **Taps**: on a touch screen one shows or hides the controls; a double-tap
   on the left or right third seeks 10 s, and each further tap in the burst 10
   more, said in the middle of that side. On a mouse a click on the picture
@@ -640,7 +641,41 @@ screen but the video, and the subtitles, until a tap.
   tracks by the language alone, as before, since AUDIO KEPT names
   languages and Matroska's tag has no variant.
 - **Subtitles** are drawn by tsundoku from the WebVTT: IBM Plex on a scrim
-  box, rising above the controls while they show.
+  box, rising above the controls while they show. The one place the browser
+  draws them instead is its own picture-in-picture (below), from a native
+  `<track>` of the same WebVTT that shows only while that is open.
+- **Picture-in-picture** (c388). A video's own picture-in-picture moves only
+  the `<video>`, so tsundoku's drawn subtitles stayed on the page. Now, by
+  browser (`src/routes/read/[entry]/pip.ts`):
+  - **Chrome and Edge on a desktop** (Document Picture-in-Picture, since 116):
+    a **PIP** cell on the desktop's bar moves the picture layer -- the
+    `<video>`, the drawn subtitles, the dim -- into a floating window of its
+    own, with the page's stylesheets copied in (Svelte's scoped styles live
+    there, and a node moved into another document no longer sees them), and
+    the page says IN PICTURE-IN-PICTURE where the picture was. The subtitles
+    keep tsundoku's face, scrim and S M L there; with no controls in the
+    window they sit 7 % from its bottom, where the page puts them while the
+    controls are hidden, and never rise. A subtitle change on the page (the
+    sheet, C) shows in the window at once: it is the same element. Every way
+    out puts the picture back in the page, the same `<video>` still playing:
+    PIP · ON, the window's own close (its `pagehide`), and NEXT or leaving the
+    page, which close the window too rather than leave it empty (a new
+    window needs a press, so NEXT does not carry it over to the next
+    episode). The browser's own PiP button keeps doing what it does, as
+    below.
+  - **Firefox, Safari, and the browser's own PiP button anywhere**: the
+    `<video>` alone goes, and the subtitles chosen go with it as a native
+    `<track kind="subtitles">` of the same WebVTT, `showing` only between
+    `enterpictureinpicture` and `leavepictureinpicture` and `hidden` otherwise,
+    so the page never shows them twice. The browser draws those in its own
+    style, not tsundoku's. Subtitles off is no track at all; a language
+    changed in PiP is the new track, shown at once.
+  - **A phone: not yet checked.** Android Chrome's picture-in-picture is the
+    system's, and whether it draws a native track is not known; no slot has
+    an Android phone, so nothing is claimed here (the check for the owner is
+    in `doc/handoff-notes/anime.md`, wave 18, _Gaps_). The PIP cell is a
+    desktop's; on a phone, the system's own PiP is the native path above.
+  - **A TV** has no PIP cell.
 - **SKIP INTRO / SKIP ENDING** wherever an opening or an ending is known --
   the source's, AniSkip's or a fingerprint's ("Openings and endings") --
   alone for 8 s, then with the controls. SKIP ENDING marks the episode
