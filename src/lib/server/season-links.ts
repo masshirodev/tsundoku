@@ -14,6 +14,7 @@ import {
 	candidateKind,
 	coverOnly,
 	idsLine,
+	isAnime,
 	normaliseTitle,
 	wrongKind,
 	type Candidate
@@ -230,7 +231,7 @@ export type SeriesSeasons = {
  */
 export function seriesSeasons(seriesId: number): SeriesSeasons | null {
 	const s = seriesRow(seriesId);
-	if (!s || s.kind !== 'anime') return null;
+	if (!s || !isAnime(s.kind)) return null;
 	const entries = seasonEntries(seriesId);
 	const spans: SeasonSpan[] = seasonsOf(
 		entries.map((e) => ({
@@ -716,7 +717,7 @@ export async function seasonRelations(
 		if (id === start.id) continue;
 		const kind = candidateKind({ format: v.node.format ?? '', country: '' });
 		const outside =
-			kind !== 'anime' || v.node.format === 'MOVIE' || v.node.format === 'SPECIAL' || !ABOVE[v.at];
+			!isAnime(kind) || v.node.format === 'MOVIE' || v.node.format === 'SPECIAL' || !ABOVE[v.at];
 		const seasonAt = at + v.at;
 		if (!outside && (seasonAt < 0 || seasonAt >= view.seasons.length)) continue;
 		const key = outside ? -1 : seasonAt;

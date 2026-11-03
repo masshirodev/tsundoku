@@ -148,6 +148,14 @@ export const matchTitles = (titles: string[], query?: string | null): string[] =
 	)
 ];
 
+/**
+ * Whether a kind is an anime, asked where the answer decides something the
+ * kind registry will one day own (`family` is the pair of catalogues a MAL id
+ * can be in). One place spells it, so a new kind that airs is one line here
+ * rather than a grep through `kind === 'anime'` (c240; c301's registry).
+ */
+export const isAnime = (kind: Kind | null | undefined): boolean => kind === 'anime';
+
 /** The AniList formats an anime is (doc/LINKS.md, "A novel never matches a comic"). */
 export const ANIME_FORMATS = ['TV', 'TV_SHORT', 'MOVIE', 'OVA', 'ONA', 'SPECIAL'] as const;
 

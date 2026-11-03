@@ -2,7 +2,7 @@ import { basename } from './fspath.ts';
 import { getDb } from './db.ts';
 import { IN_LIBRARY_SQL, VISIBLE_SQL } from './visibility.ts';
 import { SignedOut, Unreachable } from './catalogue.ts';
-import { cleanTitle, coverOnly } from '../library/catalogue.ts';
+import { cleanTitle, coverOnly, isAnime } from '../library/catalogue.ts';
 import {
 	DEFAULT_LANG,
 	RANOBE_KINDS,
@@ -190,7 +190,7 @@ export async function matchByLookup(now = Date.now()): Promise<number> {
 	// both lists.
 	const keysOf = (r: (typeof asked)[number]) => [
 		...(r.anilist_id ? [`anilist:${r.anilist_id}`] : []),
-		...(r.mal_id ? [`${r.kind === 'anime' ? 'mal_anime' : 'mal'}:${r.mal_id}`] : [])
+		...(r.mal_id ? [`${isAnime(r.kind) ? 'mal_anime' : 'mal'}:${r.mal_id}`] : [])
 	];
 	let linked = 0;
 	// 200 keys a request; a series asks with at most two.
@@ -754,12 +754,11 @@ export async function mapSeries(o: { seriesId?: number; now?: number } = {}): Pr
 			note: string;
 		}[];
 		const rows = entries.map((e) => ({ ...e, recap: e.note === 'recap' }));
-		const units =
-			l.kind === 'anime'
-				? mapAnimeUnits(l.work, workUnits(l.work), rows)
-				: comic
-					? mapWorkUnits(l.work, workUnits(l.work), rows)
-					: mapUnits(tocs.get(l.edition!) ?? [], { volume: l.volume, entries: rows });
+		const units = isAnime(l.kind)
+			? mapAnimeUnits(l.work, workUnits(l.work), rows)
+			: comic
+				? mapWorkUnits(l.work, workUnits(l.work), rows)
+				: mapUnits(tocs.get(l.edition!) ?? [], { volume: l.volume, entries: rows });
 		db.transaction(() => {
 			const set = db.prepare(`UPDATE entries SET ranobe_unit = ? WHERE id = ?`);
 			for (const e of entries) set.run(units.get(e.id) ?? null, e.id);

@@ -17,6 +17,7 @@ import * as ranobe from './ranobe.ts';
 import {
 	cleanTitle,
 	coverOnly,
+	isAnime,
 	normaliseTitle,
 	sameKind,
 	candidateKind,
@@ -511,7 +512,7 @@ function linkFromEntries(
 		const [seriesId, kind] = fits[0];
 		// An anime's entry is one season of the show (c240): the season whose own
 		// title it names, or the one being watched.
-		if (kind === 'anime') linkSeasonFromList(seriesId, c, e.score || null, now);
+		if (isAnime(kind)) linkSeasonFromList(seriesId, c, e.score || null, now);
 		else linkFromList(seriesId, c, e.score || null, now);
 		taken.add(e.mediaId);
 		for (const [k, list] of index)
@@ -607,7 +608,7 @@ function targets(seriesId: number): Target[] {
 		)
 		.get(seriesId) as { kind: Kind; hidden: number } | undefined;
 	if (!r || r.hidden) return [];
-	if (r.kind === 'anime') {
+	if (isAnime(r.kind)) {
 		const view = seriesSeasons(seriesId);
 		if (!view) return [];
 		const out: Target[] = [];
@@ -660,7 +661,7 @@ function targets(seriesId: number): Target[] {
 
 function waitingRow(t: Target) {
 	const db = getDb();
-	if (t.kind === 'anime')
+	if (isAnime(t.kind))
 		return db
 			.prepare(
 				`SELECT progress, status, score FROM season_tracker_sends
@@ -678,7 +679,7 @@ function waitingRow(t: Target) {
 
 function stateRow(t: Target) {
 	const db = getDb();
-	if (t.kind === 'anime')
+	if (isAnime(t.kind))
 		return db
 			.prepare(
 				`SELECT status, progress, score FROM season_tracker_state
@@ -704,7 +705,7 @@ function want(
 	const progress = w.progress !== undefined ? w.progress : (had?.progress ?? null);
 	const status = w.status !== undefined ? w.status : (had?.status ?? null);
 	const score = w.score !== undefined ? w.score : (had?.score ?? null);
-	if (t.kind === 'anime')
+	if (isAnime(t.kind))
 		db.prepare(
 			`INSERT INTO season_tracker_sends (series_id, season, part, service, progress, status, score, wanted_at)
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -727,7 +728,7 @@ function want(
  * hears about, not EP. 15.
  */
 function reachedFor(t: Target, o: { chapters: number }): number {
-	if (t.kind !== 'anime') return o.chapters;
+	if (!isAnime(t.kind)) return o.chapters;
 	const entries = animeEntries(t.seriesId);
 	// `counted` lives in library/anime: a recap or a half number is never sent.
 	const rows = entries.map((e) => ({
@@ -834,7 +835,7 @@ async function sendOne(
 	}
 	// MAL keeps two lists: an anime entry takes `num_watched_episodes` on
 	// `/anime/`, a manga's entry `num_chapters_read` on `/manga/` (c240).
-	const anime = t.kind === 'anime';
+	const anime = isAnime(t.kind);
 	const form: Record<string, string> = {};
 	if (w.progress !== null)
 		form[anime ? 'num_watched_episodes' : 'num_chapters_read'] = String(w.progress);
@@ -866,7 +867,7 @@ function pruneSends(seriesId: number, live: Target[]): void {
 	for (const r of db
 		.prepare(`SELECT service FROM tracker_sends WHERE series_id = ?`)
 		.all(seriesId) as { service: Service }[])
-		if (!live.some((t) => t.kind !== 'anime' && t.service === r.service))
+		if (!live.some((t) => !isAnime(t.kind) && t.service === r.service))
 			db.prepare(`DELETE FROM tracker_sends WHERE series_id = ? AND service = ?`).run(
 				seriesId,
 				r.service
@@ -877,10 +878,7 @@ function pruneSends(seriesId: number, live: Target[]): void {
 		if (
 			!live.some(
 				(t) =>
-					t.kind === 'anime' &&
-					t.service === r.service &&
-					t.season === r.season &&
-					t.part === r.part
+					isAnime(t.kind) && t.service === r.service && t.season === r.season && t.part === r.part
 			)
 		)
 			db.prepare(
@@ -916,7 +914,7 @@ export async function sendPending(
 					progress: Math.max(w.progress ?? 0, had?.progress ?? 0)
 				};
 				db.transaction(() => {
-					if (target.kind === 'anime') {
+					if (isAnime(target.kind)) {
 						db.prepare(
 							`INSERT INTO season_tracker_state (series_id, season, part, service, status, score, progress, sent_at)
 							VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -955,7 +953,7 @@ export async function sendPending(
 						: e instanceof Unreachable
 							? `${SERVICE_NAME[target.service]} DID NOT ANSWER`
 							: `${SERVICE_NAME[target.service]} REFUSED IT`;
-				if (target.kind === 'anime')
+				if (isAnime(target.kind))
 					db.prepare(
 						`UPDATE season_tracker_sends SET failed_at = ?, error = ?
 						WHERE series_id = ? AND season = ? AND part = ? AND service = ?`
@@ -1080,7 +1078,7 @@ export function trackingOf(seriesId: number): Tracking | null {
 		  }
 		| undefined;
 	if (!r) return null;
-	if (r.kind === 'anime') {
+	if (isAnime(r.kind)) {
 		const seasons = seasonsTracking(seriesId, !!r.hidden);
 		const open = seriesSeasons(seriesId)?.open ?? 0;
 		const at = seasons.find((s) => s.season === open) ?? seasons[0] ?? null;
