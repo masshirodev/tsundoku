@@ -1389,6 +1389,39 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	)
 	WHERE id IN (SELECT entry_id FROM c384_stale);
 	DROP TABLE c384_stale;
+	`,
+	// v64: AniSkip numbers its answers by MAL **anime** id, and MAL numbers
+	// anime and manga apart, so an anime linked to a manga's entry asked about
+	// an unrelated anime (card c395; Ranma ½ (2024) was linked to the manga, MAL
+	// 23). From c395 on, AniSkip is asked only under a link whose format is an
+	// anime's (`lookupAniSkip`). What the old rule already stored goes: every
+	// `aniskip` row of an anime series whose `series_links` row is not an anime
+	// format -- a manga's, a novel's, an unknown (NULL or '') one, or no row at
+	// all, which is what the lookup would not ask under either.
+	//
+	// The formats are spelled out because SQL cannot ask `sameKind`: they are
+	// `ANIME_FORMATS` (src/lib/library/catalogue.ts) on the day this was
+	// written, frozen like the rest of a rung, which runs once. `ending_at`
+	// follows what remains, by the same frozen copy of `syncEndingAt` as v63.
+	`
+	CREATE TEMP TABLE c395_stale AS SELECT DISTINCT m.entry_id FROM episode_marks m
+		JOIN entries e ON e.id = m.entry_id
+		JOIN series s ON s.id = e.series_id
+		LEFT JOIN series_links l ON l.series_id = s.id
+		WHERE m.method = 'aniskip' AND s.kind = 'anime'
+			AND (l.format IS NULL OR l.format NOT IN ('TV', 'TV_SHORT', 'MOVIE', 'OVA', 'ONA', 'SPECIAL'));
+	DELETE FROM episode_marks WHERE method = 'aniskip' AND entry_id IN (SELECT entry_id FROM c395_stale);
+	UPDATE entries SET ending_at = (
+		SELECT m.ending_start FROM episode_marks m
+		WHERE m.entry_id = entries.id
+			AND m.ending_start IS NOT NULL AND m.ending_end IS NOT NULL
+			AND m.ending_start >= 0 AND m.ending_end > m.ending_start
+			AND (entries.duration_s IS NULL OR entries.duration_s <= 0 OR m.ending_end <= entries.duration_s + 1)
+		ORDER BY CASE m.method WHEN 'source' THEN 0 WHEN 'aniskip' THEN 1 ELSE 2 END
+		LIMIT 1
+	)
+	WHERE id IN (SELECT entry_id FROM c395_stale);
+	DROP TABLE c395_stale;
 	`
 ];
 

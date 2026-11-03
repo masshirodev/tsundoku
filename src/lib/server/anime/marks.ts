@@ -9,6 +9,8 @@ import {
 	type MarkRow
 } from '../../library/marks.ts';
 import type { Range } from '../../library/streams.ts';
+import { candidateKind, sameKind } from '../../library/catalogue.ts';
+import type { Kind } from '../../library/kinds.ts';
 
 /**
  * An episode's opening and ending, kept (doc/ANIME.md, "Openings and
@@ -199,19 +201,35 @@ export function saveSourceMarks(
 export type EpisodeForLookup = {
 	entry_id: number;
 	series_id: number;
+	kind: Kind;
 	episode_number: number | null;
 	position: number;
 	season: number | null;
 	duration_s: number | null;
 	hidden: number;
 	mal_id: number | null;
+	/** The linked entry's AniList format; null or '' when the link doesn't know it. */
+	format: string | null;
 };
 
 /**
+ * Whether a link's ids name the series' own kind of work, so they can be
+ * handed to a service that keys by them (card c395). MAL numbers anime and
+ * manga apart, so a manga's MAL id given to AniSkip, which takes MAL *anime*
+ * ids, names an unrelated anime, and that anime's opening and ending would be
+ * stored as this one's. The answer is the kind registry's (`sameKind`, the same
+ * one c298's LINKED TO THE WRONG KIND reads), and an unknown format is not the
+ * series' own: `wrongKind` lets an unknown format pass, because it only flags
+ * a contradiction, while this has to be sure.
+ */
+export const ownEntry = (kind: Kind, format: string | null): boolean =>
+	sameKind(kind, candidateKind({ format: format ?? '', country: '' }));
+
+/**
  * An episode and the facts a lookup needs: its number, its length, whether
- * its series is hidden, and the MAL entry its series is linked to. Null for
- * anything that isn't an anime episode. The join is the one rule: a hidden
- * series is never looked up, whatever reveal is doing.
+ * its series is hidden, and the MAL entry its series is linked to with that
+ * entry's format. Null for anything that isn't an anime episode. The join is
+ * the one rule: a hidden series is never looked up, whatever reveal is doing.
  */
 export function lookupRow(
 	entryId: number,
@@ -220,8 +238,8 @@ export function lookupRow(
 	return (
 		(db
 			.prepare(
-				`SELECT e.id AS entry_id, e.series_id, e.episode_number, e.position, e.season,
-					e.duration_s, ${HIDDEN_SQL} AS hidden, l.mal_id
+				`SELECT e.id AS entry_id, e.series_id, s.kind, e.episode_number, e.position, e.season,
+					e.duration_s, ${HIDDEN_SQL} AS hidden, l.mal_id, l.format
 				FROM entries e JOIN series s ON s.id = e.series_id JOIN roots r ON r.id = s.root_id
 				LEFT JOIN series_links l ON l.series_id = s.id
 				WHERE e.id = ? AND s.kind = 'anime'`

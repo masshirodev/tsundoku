@@ -282,18 +282,40 @@ library that had them keeps them.
 answers `{found, results:[{interval:{startTime,endTime}, skipType:'op'|'ed'}]}`;
 a 404 is "this episode has none". Only the MyAnimeList id, the episode number
 and the length leave the app: no title, no account, no reading. `malId` is
-the series' link (`series_links.mal_id`; doc/TRACKING.md); **no link, no
-lookup**. `episodeLength` is required by the API, so an episode whose length
+the series' link (`series_links.mal_id`; doc/TRACKING.md); **no anime link,
+no lookup** (c395). AniSkip's ids are MyAnimeList **anime** ids, and MAL
+numbers anime and manga apart, so a manga's id names an unrelated show:
+asked under it, AniSkip would answer with that show's opening and ending,
+and since AniSkip outranks a fingerprint, the episode would get a wrong SKIP
+INTRO, a wrong SKIP ENDING and a wrong watched mark. So AniSkip is asked only
+when the link's `format` is an anime's, by the kind registry
+(`ownEntry` in `src/lib/server/anime/marks.ts`:
+`sameKind(series.kind, candidateKind({ format }))`, the question c298's
+LINKED TO THE WRONG KIND asks the other way round). A format the link
+doesn't know (`NULL` until the resolve pass reads a Mihon tracker's MAL id,
+or `''` when it found nothing) is not an anime's: `wrongKind` lets an
+unknown format pass because it only flags a contradiction, and this has to
+be sure. A link that isn't asked under writes no negative row, so the next
+play after a relink asks at once. Ranma ½ (2024) was the case: linked to the
+manga (MAL 23, a link from before c298), it had AniSkip asked about anime 23,
+which answered nothing, by luck. `tvshow.nfo` follows the same rule
+(Downloading): a manga's AniList and MAL ids are not handed to Jellyfin as
+the show's. **Rung 64** forgot what the old rule stored: every `aniskip` row
+of an anime whose link is not an anime format (a manga's, an unknown one, or
+no link at all), with `entries.ending_at` recomputed; on the live library on
+2026-11-03 that was no row, since the owner had already unlinked Ranma ½.
+`episodeLength` is required by the API, so an episode whose length
 no source, file or playlist has yet is probed once (c155's `probe`) and the
 length is kept.
 
 - **A hidden series is never looked up**, even while reveal is on: the one
   rule is in the SQL (`HIDDEN_SQL`). Incognito doesn't ask either.
 - **Seasons.** AniSkip numbers episodes per MAL entry, and a MAL entry is one
-  season. Until c240 links a season rather than a series, only a flat list or
-  season 1 can be the entry the series' link names; a later season isn't
-  looked up. The episode number is the source's own within the season
-  (`episode_number`).
+  season. c240 links an anime a season at a time (`series_season_links`), and
+  `series_links` keeps a mirror of season 1's link (or a flat list's) only
+  (`syncSeriesLink`), so that is the one entry AniSkip is asked about; a
+  later season isn't looked up. The episode number is the source's own within
+  the season (`episode_number`).
 - **Remembered.** A found answer is never asked again; a 404 is remembered
   for `ANISKIP_RETRY_MS` (7 days), since a running show's new episode may
   arrive late. A server that didn't answer is not remembered: the next
@@ -316,7 +338,11 @@ length is kept.
   later resolve is a database read.
 
 `tests/anime-aniskip-db.spec.ts` (the request, the marks, hidden, no link,
-seasons, no length, the 7-day retry, a failing server not remembered) and
+seasons, no length, the 7-day retry, a failing server not remembered, and
+since c395 a link to the manga made through LINK, and every AniList format
+plus an unknown one, against a fake that answers any id with an opening),
+`tests/anime-rungs-db.spec.ts` (rung 64), `tests/anime-download-db.spec.ts`
+(the NFO's ids) and
 `tests/anime-streams-db.spec.ts` (the player's resolve asks it once, and the
 episode's `ending_at` follows).
 
@@ -672,7 +698,9 @@ pure parts in `src/lib/library/anime-files.ts`).
   ES-419 track is kept by ES and tagged `spa`. New downloads only. The file is each track tagged with its language, written beside its
   place and renamed. The NFOs are Jellyfin's (`tvshow`, `episodedetails`) and
   carry tsundoku's keys as `<uniqueid type="tsundoku">`, with AniList and MAL
-  ids where the series is linked; `poster.jpg` is the library's own cover.
+  ids where the series is linked to an anime's entry (a manga's ids would
+  have Jellyfin's plugins fetch another work, c395); `poster.jpg` is the
+  library's own cover.
 - **ffmpeg fetches nothing itself.** Its inputs are a loopback proxy inside
   the app that serves only the tokens `streams.ts` handed out, and only with a
   per-process secret header, so every request a download makes passes the
@@ -876,7 +904,7 @@ spans a restart fails and is tried again. **No lengths or FILLER/RECAP from
 the source yet**: the engine's episode list carries neither (`JEpisode` is
 url, name, date, number, scanlator, and its picture since c225). A length
 comes from the stream (c155) or the file (c157); a picture, where the source
-gives none, from a frame ("Episode pictures"). **A link is the whole
-series'**: an anime links to its own AniList/MAL entry like any other series
-(c298), which is what AniSkip needs, but a season of a multi-season series
-is still not linked on its own (c240).
+gives none, from a frame ("Episode pictures"). **AniSkip knows one
+season of a show**: an anime links each season to its own AniList/MAL entry
+(c240, doc/TRACKING.md), but AniSkip is asked about season 1's (or a flat
+list's) only ("AniSkip", Seasons).

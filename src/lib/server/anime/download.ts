@@ -6,6 +6,8 @@ import { getDb } from '../db.ts';
 import { coverDir } from '../covers.ts';
 import { getSetting } from '../settings.ts';
 import { loopback } from './loopback.ts';
+import { ownEntry } from './marks.ts';
+import type { Kind } from '../../library/kinds.ts';
 import { wantPictures } from './pictures.ts';
 import { keptOf } from '../../settings/catalog.ts';
 import { EngineError } from '../engine/client.ts';
@@ -174,9 +176,18 @@ async function writeSeriesFiles(db: Database.Database, s: SeriesRow, dir: string
 			)
 			.all(s.id) as { value: string }[]
 	).map((r) => r.value);
-	const link = db
-		.prepare(`SELECT anilist_id, mal_id FROM series_links WHERE series_id = ? LIMIT 1`)
-		.get(s.id) as { anilist_id: number | null; mal_id: number | null } | undefined;
+	// Jellyfin's metadata plugins look a show up by these ids, so only a link
+	// to the show's own kind of entry gives them (c395, `ownEntry`): a manga's
+	// AniList or MAL id would fetch another work's metadata, or another show's.
+	const row = db
+		.prepare(
+			`SELECT l.anilist_id, l.mal_id, l.format, s.kind FROM series_links l
+			JOIN series s ON s.id = l.series_id WHERE l.series_id = ? LIMIT 1`
+		)
+		.get(s.id) as
+		| { anilist_id: number | null; mal_id: number | null; format: string | null; kind: Kind }
+		| undefined;
+	const link = row && ownEntry(row.kind, row.format) ? row : undefined;
 	writeFileSync(
 		join(dir, 'tvshow.nfo'),
 		tvshowNfo({

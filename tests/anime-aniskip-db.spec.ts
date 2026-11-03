@@ -36,7 +36,9 @@ const root = Number(
 		.lastInsertRowid
 );
 let n = 0;
-const series = (opts: { hidden?: number; mal?: number | null } = {}) => {
+// A link's `format` is the entry's own (AniList's MediaFormat); `null` is a
+// link that does not know it yet (rung 26's column, a Mihon tracker's link).
+const series = (opts: { hidden?: number; mal?: number | null; format?: string | null } = {}) => {
 	const id = Number(
 		db
 			.prepare(
@@ -47,8 +49,8 @@ const series = (opts: { hidden?: number; mal?: number | null } = {}) => {
 	);
 	if (opts.mal !== null)
 		db.prepare(
-			`INSERT INTO series_links (series_id, anilist_id, mal_id, via, linked_at) VALUES (?, 1, ?, 'mihon', 0)`
-		).run(id, opts.mal ?? 21);
+			`INSERT INTO series_links (series_id, anilist_id, mal_id, via, linked_at, format) VALUES (?, 1, ?, 'mihon', 0, ?)`
+		).run(id, opts.mal ?? 21, opts.format === undefined ? 'TV' : opts.format);
 	return id;
 };
 const episode = (
@@ -387,5 +389,92 @@ describe('AniSkip', () => {
 		before = changes();
 		marks.clearAniSkip(comic);
 		expect(changes() - before).toBe(0);
+	});
+
+	// c395: AniSkip's ids are MAL *anime* ids, and MAL numbers anime and manga
+	// apart, so a manga's id names an unrelated anime. The fake answers any id
+	// with an opening, as the real service does for a real anime, so a lookup
+	// that should not happen leaves a wrong mark behind, not just a request.
+	const ranma = (format: string) => ({
+		anilistId: 30023,
+		malId: 23,
+		title: 'Ranma ½',
+		alts: [],
+		format,
+		country: 'JP',
+		year: 1987,
+		chapters: 407,
+		volumes: 38,
+		episodes: null,
+		season: null,
+		seasonYear: null,
+		status: 'FINISHED',
+		coverUrl: ''
+	});
+
+	it('is never asked under a link to a manga’s entry, and remembers nothing (c395)', async () => {
+		// Through the app's own door: LINK takes the entry it is given, and a
+		// wrong-kind one is flagged on the series, not refused (c298).
+		const show = series({ mal: null });
+		const id = episode(show);
+		expect(cat.link(show, ranma('MANGA'), 'review', 9_100)).toBe(true);
+		expect(
+			db.prepare(`SELECT mal_id, format FROM series_links WHERE series_id = ?`).get(show)
+		).toEqual({ mal_id: 23, format: 'MANGA' });
+		expect(await lookupAniSkip(id)).toBe(false);
+		expect(calls).toEqual([]);
+		// No row at all: a negative would hold AniSkip off for a week after a relink.
+		expect(marks.markTriedAt(id, 'aniskip')).toBeNull();
+		expect(chosen(id)).toMatchObject({ intro: null, ending: null });
+		expect(db.prepare(`SELECT ending_at FROM entries WHERE id = ?`).get(id)).toEqual({
+			ending_at: null
+		});
+		// Relinked to the anime, it is asked at once.
+		cat.link(show, { ...ranma('TV'), anilistId: 178533, malId: 58616 }, 'review', 9_101);
+		expect(await lookupAniSkip(id)).toBe(true);
+		expect(calls).toHaveLength(1);
+		expect(calls[0]).toContain('/skip-times/58616/');
+	});
+
+	it('is asked under an anime’s format and no other, an unknown one included (c395)', async () => {
+		// Every format AniList gives (MediaFormat), and the two a link without
+		// one carries: the whole domain, not a hand-picked part of it.
+		const asked: Record<string, boolean> = {};
+		for (const format of [
+			'TV',
+			'TV_SHORT',
+			'MOVIE',
+			'SPECIAL',
+			'OVA',
+			'ONA',
+			'MUSIC',
+			'MANGA',
+			'NOVEL',
+			'ONE_SHOT',
+			'',
+			null
+		]) {
+			calls.length = 0;
+			const id = episode(series({ format }));
+			await lookupAniSkip(id);
+			asked[String(format)] = calls.length > 0;
+			// What is not asked leaves no row: the series' own link may learn its
+			// format later (the resolve pass), and must be asked then.
+			if (!asked[String(format)]) expect(marks.markTriedAt(id, 'aniskip')).toBeNull();
+		}
+		expect(asked).toEqual({
+			TV: true,
+			TV_SHORT: true,
+			MOVIE: true,
+			SPECIAL: true,
+			OVA: true,
+			ONA: true,
+			MUSIC: false,
+			MANGA: false,
+			NOVEL: false,
+			ONE_SHOT: false,
+			'': false,
+			null: false
+		});
 	});
 });
