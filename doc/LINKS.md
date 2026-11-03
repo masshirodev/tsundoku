@@ -239,7 +239,9 @@ desktop and in tablet landscape.
   what AniList returned, the count what was kept for the review, and the rows
   are exactly the kept candidates (`4 OF 6 FOUND`).
 - Every decision is carried out at once. UNDO takes back LINK (and a rating it
-  gave), NONE OF THESE and SEARCH AGAIN. SKIP has no UNDO, as in the mock.
+  gave), NONE OF THESE and SEARCH AGAIN. A search's UNDO puts back the search
+  and the candidates it replaced; it never made a link, so it takes none back.
+  SKIP has no UNDO, as in the mock.
 - `?series=N` is one series only: FIND or CHANGE on its screen. It has no
   SKIP, and deciding goes back to the series. For a hidden series it's
   PASTE A LINK only.
@@ -265,9 +267,11 @@ desktop and in tablet landscape.
   page's `?series=N` row offers **RELINK**; the series screen's own line says
   changes ask AniList for the series' own kind, and its CHANGE is the door.
   OPEN ↗ opens the series' own catalogue, so an anime's entry is never turned
-  into `/manga/<its id>`. The owner may have wanted the link, and UNDO still
-  takes it back; nothing is unlinked silently. A novel across to its comic's
-  entry is the deliberate cover-only link, and isn't this.
+  into `/manga/<its id>` — on the series screen's LINK row and on each
+  catalogue's row in the TRACKING sheet behind EDIT. The owner may have wanted
+  the link, and UNDO still takes it back; nothing is unlinked silently. A
+  novel across to its comic's entry is the deliberate cover-only link, and
+  isn't this.
 - On the phone, and in the 440px landscape panel, the cells drop below the
   row in equal columns.
 - Offline, everything but OPEN ↗ dims.
