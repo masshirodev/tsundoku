@@ -268,12 +268,6 @@ also marks the episode watched the moment it is pressed, rather than waiting
 for the seek's next timeupdate (the owner's call, 2026-11-01). Without an
 ending, the last 3 % still counts (`isWatchedAt`).
 
-**Marked watched sends.** An episode's watched mark (the ending's start, or
-SKIP ENDING) is a chapter finished as far as tracking is concerned: it
-queues that **season's** highest watched episode for AniList and MAL, and the
-work's unit for Ranobe (doc/TRACKING.md, "Sending"; doc/RANOBE.md,
-"Anime"). A recap and a half number are never sent.
-
 **Storage.** Rung 59, `episode_marks`: one row per episode and finder
 (`source`, `aniskip`, `fingerprint`), with the opening and ending it found and
 when it was tried. **A negative answer is a row too**, so an episode is not
@@ -294,15 +288,10 @@ length is kept.
 - **A hidden series is never looked up**, even while reveal is on: the one
   rule is in the SQL (`HIDDEN_SQL`). Incognito doesn't ask either.
 - **Seasons.** AniSkip numbers episodes per MAL entry, and a MAL entry is one
-  season -- which is why c240 links a season at a time (doc/LINKS.md). This
-  lookup still reads `series_links.mal_id`, where an anime keeps its **first**
-  season only while that season is linked (`syncSeriesLink`, rung 62): a flat
-  list's or season 1's episodes are asked about with the right entry, and an
-  episode of a later season -- or of any season when only a later one is
-  linked -- is not looked up rather than asked about under another season's
-  entry. Reading the season's own row here is the card that closes the gap
-  (doc/handoff-notes/tracking.md, "Gaps"). The episode number is the source's
-  own within the season (`episode_number`).
+  season. Until c240 links a season rather than a series, only a flat list or
+  season 1 can be the entry the series' link names; a later season isn't
+  looked up. The episode number is the source's own within the season
+  (`episode_number`).
 - **Remembered.** A found answer is never asked again; a 404 is remembered
   for `ANISKIP_RETRY_MS` (7 days), since a running show's new episode may
   arrive late. A server that didn't answer is not remembered: the next
@@ -779,9 +768,7 @@ spans a restart fails and is tried again. **No lengths or FILLER/RECAP from
 the source yet**: the engine's episode list carries neither (`JEpisode` is
 url, name, date, number, scanlator, and its picture since c225). A length
 comes from the stream (c155) or the file (c157); a picture, where the source
-gives none, from a frame ("Episode pictures"). **A link is one season's**
-(c240): AniList and MAL list each season as its own entry, so an anime's
-LINK and TRACKING rows are a line a season (doc/LINKS.md, doc/TRACKING.md);
-`series_links` keeps the first season as a mirror while that season is
-linked -- and no row at all when only a later one is -- for AniSkip's one MAL
-id, which is one season's entry.
+gives none, from a frame ("Episode pictures"). **A link is the whole
+series'**: an anime links to its own AniList/MAL entry like any other series
+(c298), which is what AniSkip needs, but a season of a multi-season series
+is still not linked on its own (c240).
