@@ -405,6 +405,13 @@ Expiry:
 - AnimePahe's upstream (vault-08.uwucdn.top/stream/.../uwu.m3u8) gives a Cloudflare 403 to a plain client even with the extension's headers. Access depends on clearance cookies held in the engine, so it is downloadable only through the engine's proxy, which forgets every token on restart.
 - Resolve the video list right before each attempt and again after any failure. Cookie lifetime beyond a few minutes was not measured.
 
+**Movies and live-action TV.** The same repositories carry film and TV sources,
+and the same calls serve them: a film comes back as one episode and a show as
+one entry with every season flattened. Two of eight English sources tried
+played; what is missing is tsundoku's own model of a film and a show, not a
+source or an engine change. The measurements, the sources and the recommendation
+are in [`MOVIES-TV.md`](MOVIES-TV.md) (c295).
+
 ## KeiSource and how current the engine's API is
 
 - Keiyoushi now requires KeiSource (keiyoushi.source.KeiSource, in their core module, compiled into each APK) for new sources; their AGENTS.md says the build fails otherwise. It extends HttpSource and finalises getMangaUpdate over an abstract suspend fetchMangaUpdate.

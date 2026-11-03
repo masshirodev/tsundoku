@@ -196,11 +196,11 @@ on `127.0.0.1:8193` and the real host:
   the solver is the only way past those, and the card rules it out; it would be
   a later card's question.
 
-**Measured live on 2026-11-03**, the same dialogue again, with **the real
-plugin files** from the owner's repository (2.3.4 Royal Road, 3.0.0 Novel Bin,
-0.5.1 Wuxia World, 2.3.3 NovelFull, 1.0.2 Scribble Hub) through the real host
-and FlareSolverr 3.4.6 on `127.0.0.1:8193`, each plugin's own POPULAR, preview
-and first chapter:
+**Measured live again on 2026-11-02 (evening)**, the same dialogue with **the
+real plugin files** from the owner's repository (2.3.4 Royal Road, 3.0.0 Novel
+Bin, 0.5.1 Wuxia World, 2.3.3 NovelFull, 1.0.2 Scribble Hub) through the real
+host and FlareSolverr 3.4.6 on `127.0.0.1:8193`, each plugin's own POPULAR,
+preview and first chapter:
 
 - **Royal Road works, its own plugin and all.** POPULAR took 19.7 s, 18.5 s of
   it the solve, and gave 20 novels; _Mother of Learning_ came back with 109
