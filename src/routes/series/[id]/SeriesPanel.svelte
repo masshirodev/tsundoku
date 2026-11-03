@@ -1108,9 +1108,17 @@
 				{/snippet}
 				<!-- TRACKING (Series Link 1k–1s; doc/TRACKING.md): a line a season on an
 				     anime (c240), each catalogue's word on a comic, and what was sent. -->
-				<div class="row track-row" class:stacked={manySeasons}>
+				<div class="row track-row" class:stacked={manySeasons && !tracking.hidden}>
 					<div class="label">TRACKING</div>
-					{#if manySeasons && seasons}
+					{#if tracking.hidden}
+						<!-- Hidden: nothing is sent, and there is nothing a season could say
+						     (Track Calls, H). One line, no seasons. -->
+						<div class="tk">
+							<div class="tl">
+								<div class="tl-l">NOTHING SENT · HIDDEN SERIES STAY OFF BOTH LISTS</div>
+							</div>
+						</div>
+					{:else if manySeasons && seasons}
 						<div class="seasons">
 							{#each seasonPlanNow as plan (plan.type === 'line' ? `s${plan.season}` : plan.type === 'fold' ? `f${plan.above ? 'up' : 'down'}${plan.seasons[0]}` : 'toggle')}
 								{#if plan.type === 'line'}
