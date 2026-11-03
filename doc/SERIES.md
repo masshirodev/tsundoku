@@ -103,6 +103,24 @@ links, MOVE and TAKE OUT) and in [`WORKS.md`](WORKS.md)'s flow.
   TRACKING rows each hold AniList's block and Ranobe's line in a column of
   their own, the line under the block at every width (c422: as a sibling in
   the row it took half the width, and LINK's words went one a line).
+- **TAGS** groups a series' tags by namespace (genre, circle, artist, …; a
+  bare tag under `tag`), four lines at most. **Every value is a link** (card
+  c313): to the library's person page for a person and its tag page for the
+  rest (`/?tag=<namespace>:<value>`, or the bare value for a tag with none).
+  On a series whose origin key names a source BROWSE can open (installed,
+  listed with this reveal, loaded, and the engine there:
+  `tag-source.server.ts`), a tap opens a sheet of two rows instead, the
+  owner's choice (2026-11-02): **IN THE LIBRARY**, the same page, and **IN
+  <SOURCE>**, that source's page finding it -- its genre's filter included,
+  or a search for the value ([`BROWSE.md`](BROWSE.md), "Arriving from a
+  tag"), whose ← comes back to the series. A series with no origin, a source
+  not installed or failed, and a Hentoid, folder, EPUB or import key have no
+  sheet: the tap goes straight to the library, as before. The key decides,
+  never the kind: a doujin from a Mihon source's gallery asks too. The
+  source's filters are asked when the sheet first opens, once a screen.
+  Without script the link is the library's. On a TV the pad reaches the
+  values (↓ to the row meets its EDIT, ← into them), OK opens the sheet on
+  its first row, and BACK closes it onto the tag.
 - **SOURCE sits after LINK and COVER**, before TAGS and ABOUT, on every series
   whose chapters or episodes come from a Mihon or Aniyomi source: MOVE → to
   another source, and for 30 days after a move WAS … · UNTIL … with MOVE BACK

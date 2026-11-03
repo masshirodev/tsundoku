@@ -71,8 +71,9 @@ three, then ALL SOURCES · BROWSE with the number of sources.
 
 ## A source's page
 
-`/browse/<source id>`. The bar is ← (BROWSE), the source's name and kind, a
-field that searches this source with its filters, and SETTINGS. Under it,
+`/browse/<source id>`. The bar is ← (BROWSE, or the preview or series a tag
+was tapped on: "Arriving from a tag"), the source's name and kind, a field
+that searches this source with its filters, and SETTINGS. Under it,
 POPULAR, LATEST (only where the source has it: `supportLatestManga`) and,
 once filters are applied or a search is typed, FILTERED (SEARCH for a
 search), with FILTER pinned at the right end, counting the choices that
@@ -111,6 +112,49 @@ elsewhere (reported 2026-10-29: "Oshi no Ko" on KickAssAnime read SAME TITLE ·
 FROM WEEB CENTRAL). Anything else opens c94's
 preview (`/downloads/source/<manga>?from=<this page>`), whose back cell then
 says BROWSE and returns here.
+
+### Arriving from a tag
+
+An author, an artist or a genre on a source's preview, and a tag on a library
+series (through its sheet, [`SERIES.md`](SERIES.md), the TAGS row), open the
+source's page finding it (card c313). `src/lib/library/tag-search.ts` builds
+the address from the source's own filters, and is pure and tested over the
+five real schemas (`tests/tag-search.spec.ts`):
+
+- **A genre or a tag the filters name** -- a tri-state or a checkbox whose
+  name is the value's, case and spacing aside ("slice of life" is "Slice of
+  Life"), inside a group or not -- is `tab=filtered` with that one included
+  (`f<i>.<j>=1`) or ticked. The rest of the form is written out at the
+  source's own defaults, because on FILTERED the URL is the whole form: a
+  checkbox the source has on would otherwise turn off. A tri-state wins over
+  a checkbox of the same name, and the first in the schema's order over a
+  second group naming it too. A select, a text or a sort never names a genre.
+- **Everything else is a search**, `q=<value>`: a person (author, artist,
+  circle: most sources search title text only, even where a text filter is
+  called Author), a value no filter names, and a source with no schema.
+- **"No schema" is never a kind.** An Aniyomi source answers
+  `filterSchemaAnime` and an LNReader plugin its filters, so every family is
+  asked the same question; an empty schema, or a call that failed, is a
+  search.
+
+**The schema never holds a screen.** It is a source call (`SLOW_MS`), and
+calls into one extension run one at a time (`inLane`, `engine/client.ts`).
+The preview streams it from its load and asks only once its manga has
+settled, so the schema can never queue in front of the details; until it
+comes, or if it fails, each link is a search for its value. The series screen
+asks for it when its sheet first opens, once a screen
+(`series/[id]/tag-filters/+server.ts`), so a series nobody taps a tag on asks
+the source nothing. Either way `filterSchema` keeps the answer per source
+(`keep`), and the source's page answers from the same cache.
+
+**Back returns to where the tag was.** The link carries `from=` with the
+preview's or the series' own address, query included, and the source page's
+← goes there (`backOrigin`: only `/downloads/source/<id>` and `/series/<id>`,
+never another host or screen, as `sourceOrigin` refuses an open redirect).
+That screen's own ← is untouched, since its URL still carries its own `from`:
+preview → source page → ← → preview, whose ← still says BROWSE. The tabs and
+the search field start a new list from the source's base address, which
+drops `from`; the ← then says BROWSE again.
 
 ### Filters
 
@@ -346,6 +390,7 @@ values show and still save, under the NOT ANSWERING band.
 | What                                                      | Where                                                                                                                                                                                                          |
 | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | The filter logic                                          | `src/lib/library/browse-filters.ts`                                                                                                                                                                            |
+| A tag's address on a source's page, and ← back            | `src/lib/library/tag-search.ts`; the preview's links in `src/routes/downloads/source/[id]/`, the series' sheet in `src/routes/series/[id]/` (`TagSheet.svelte`, `tag-source.server.ts`, `tag-filters/`)        |
 | Which sources, their shelves, what's kept                 | `src/lib/server/engine/browse.ts`                                                                                                                                                                              |
 | A result matched against the library (shared with search) | `asHits` in `src/lib/server/engine/backend.ts`                                                                                                                                                                 |
 | BROWSE                                                    | `src/routes/browse/` (`+page.server.ts`, `+page.svelte`, `SourceRow.svelte`, shared with the empty search)                                                                                                     |
@@ -383,6 +428,15 @@ values show and still save, under the NOT ANSWERING band.
 - `tests/source-settings.spec.ts`: each of the five types read from the
   engine's shapes, a value no longer offered not shown as chosen, a form's
   answer stored or refused.
+- `tests/tag-search.spec.ts`: a genre in a tri-state group, one matching a
+  checkbox, one with no match, an author, case and spacing, no schema, a
+  default-on checkbox kept, and every option of every real fixture finding
+  itself; `backOrigin`'s refusals. `tests/browse-tags.e2e.ts` and
+  `tests/tv-tags.e2e.ts`, on a world of their own (`tests/helpers/tag-world.ts`:
+  a fake engine whose manga has an author and genres): a genre lands on
+  FILTERED with its chip included and what the source was asked, a search for
+  the rest, ← back to the preview, the series' sheet and each door with no
+  sheet, the engine down or slow, and the remote's walk to a tag.
 - `tests/browse-flow.e2e.ts` and the generated `tests/browse-frame.e2e.ts`
   (a source's page) and `tests/browse-list-frame.e2e.ts` (BROWSE),
   in the `browse` project against a fake engine (`tests/browse-setup.ts`,
@@ -448,9 +502,11 @@ values show and still save, under the NOT ANSWERING band.
   band, if it hasn't begun by the time the page asks. A novel is the exception
   (c152): the app knows its own solve the moment it starts, so the check band
   is there during the first one, not only after it.
-- Anime sources: only manga extensions are installed, and
-  `filterSchemaAnime` is in the fork but not called. Novel sources are LNReader
-  plugins ([`NOVELS.md`](NOVELS.md)).
+- Anime sources' filters are asked under their anime name
+  (`filterSchemaAnime`, through `callSource` since c154;
+  [`ANIME.md`](ANIME.md)), and novel sources are LNReader plugins with their
+  own filters ([`NOVELS.md`](NOVELS.md)), so a tag finds its genre on either
+  as on a manga source ("Arriving from a tag").
 - **A text filter inside a group can't be set.** The engine reads a group's
   text child from the child's name, which is also how it finds the child.
   None of the nine sources has one; it's dropped from the schema.
