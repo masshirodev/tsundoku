@@ -8,6 +8,7 @@
 	import { count } from '$lib/library/labels';
 	import { bookCoverSrc, coverSrc, seriesHref, tagHref } from '$lib/library/links';
 	import type { TagItem, TagPage } from '$lib/library/books';
+	import type { WorkFootFacts } from '$lib/library/works';
 	import { phone } from '$lib/device.svelte';
 	import FilterPanel from '$lib/components/controls/FilterPanel.svelte';
 	import {
@@ -33,7 +34,8 @@
 		selecting,
 		selected,
 		onselect,
-		reveal = false
+		reveal = false,
+		workFeet = {}
 	}: {
 		page: TagPage;
 		/** HIDDEN is in the panel only while reveal is on. */
@@ -41,6 +43,8 @@
 		selecting: boolean;
 		selected: Set<number>;
 		onselect: (item: TagItem) => void;
+		/** Each series' place in its Work: "PART 2 · THE BREAKER" (doc/WORKS.md). */
+		workFeet?: Record<string, WorkFootFacts>;
 	} = $props();
 
 	// FAV and RATED left the tabs for the FILTER panel, as the library's
@@ -96,6 +100,10 @@
 	const nextSort: Record<Sort, Sort> = { added: 'title', title: 'rating', rating: 'added' };
 
 	function meta(i: TagItem): { text: string; accent: boolean; progress?: number } {
+		// Finding shows the series; its foot says where in the run it sits
+		// (Work-States 7), and a book keeps its own place in its series.
+		const work = i.entryId === null ? workFeet[String(i.seriesId)] : undefined;
+		if (work) return { text: `PART ${work.part} · ${work.name.toUpperCase()}`, accent: false };
 		if (i.entryId !== null && i.seriesTitle) {
 			const series = bySeries ? `${i.total} BOOKS` : `${i.position}/${i.total}`;
 			return { text: `${i.seriesTitle.toUpperCase()} · ${series}`, accent: false };

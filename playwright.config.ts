@@ -41,7 +41,11 @@ const DEVICE_IGNORE = [
 	'**/start-frame.e2e.ts',
 	'**/first-read-frame.e2e.ts',
 	'**/help-frame.e2e.ts',
-	'**/unlock-gate.e2e.ts'
+	'**/unlock-gate.e2e.ts',
+	// Works' two frames make the Work they measure, and end it again: they run
+	// in their own project, after the devices, so no reader sees it (doc/WORKS.md).
+	'**/works-library-frame.e2e.ts',
+	'**/work-screen-frame.e2e.ts'
 ];
 
 // The projects are the devices the design system names: the tablet the library
@@ -121,7 +125,10 @@ export default defineConfig({
 				'**/browse-*.e2e.ts',
 				'**/friend-*.e2e.ts',
 				// The TV's own specs run in the `tv` project, whose Chromium has no pointer.
-				'**/tv-*.e2e.ts'
+				'**/tv-*.e2e.ts',
+				// Works' frames make the Work they measure; they run in `works-frame`.
+				'**/works-library-frame.e2e.ts',
+				'**/work-screen-frame.e2e.ts'
 			],
 			use: { ...devices['Galaxy Tab S4'], viewport: { width: 800, height: 1280 } }
 		},
@@ -157,6 +164,17 @@ export default defineConfig({
 					args: ['--blink-settings=availablePointerTypes=none,availableHoverTypes=none']
 				}
 			}
+		},
+		{
+			// Works' frames (c276, c277): each seeds a database of its own and
+			// serves the build on its own port, so they need not queue behind
+			// anything. The viewport is the board's own 1280, where the Work
+			// screen draws its 440 panel beside the run.
+			name: 'works-frame',
+			testMatch: ['**/works-library-frame.e2e.ts', '**/work-screen-frame.e2e.ts'],
+			fullyParallel: false,
+			workers: 1,
+			use: { ...devices['Galaxy Tab S4 landscape'], viewport: { width: 1280, height: 800 } }
 		},
 		{
 			// A friend's install (doc/SIGN-IN.md): SET UP, a password, none. One
