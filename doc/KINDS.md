@@ -55,7 +55,7 @@ count of kind checks is lower, around 300. The places with the most:
 | `src/routes/series/[id]/SeriesPanel.svelte`  |      11 | which rows the series screen shows                       |
 | `src/routes/series/[id]/+page.server.ts`     |      10 | what the series screen loads                             |
 | `src/lib/server/books.ts`                    |       9 | novels' EPUB handling                                    |
-| `src/lib/library/downloads.ts`               |       9 | a key's kind from its prefix (`ln:`, `aniyomi:`)         |
+| `src/lib/library/downloads.ts`               |       9 | a key's kind from its prefix (`lnreader:`, `aniyomi:`)   |
 | `src/routes/browse/extensions/…`             |      18 | which extensions list under which kind                   |
 | `src/lib/server/engine/browse.ts`            |       8 | anime or comic browse through the engine                 |
 | `src/routes/read/[entry]/ImageReader.svelte` |       7 | manhwa's vertical strip, doujin's single book            |
