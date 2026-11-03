@@ -319,9 +319,12 @@ scrollable screen, which took some of them at random.
   cross. Caught up on an ongoing part keeps END · LAST AVAILABLE and offers a
   MEANWHILE row instead; a next part with no file reads online from its source
   (or says `○ OFFLINE · NOT CACHED` with START dimmed); and a run that is read
-  says `THE WORK IS READ · n OF m` with WORK → in place of START. The kicker
-  names the series when the Work carries on, and the foot gains
-  `<WORK> · WORK`.
+  says `THE WORK IS READ · n OF m` with WORK → in place of START at its last
+  part. The kicker names the series when the Work carries on, and the foot
+  gains `<WORK> · WORK`. A novel reaches the same page in either layout: in
+  SCROLL its last volume's own end is the end page, so the block and the rating
+  are there too. **On a TV the text reader's end page takes the pad**, as the
+  image reader's does: the block, its WORK → and the rating are stops.
 - **The next chapter isn't downloaded** (imported from a backup, read online):
   the boundary says so, "○ NOT DOWNLOADED", and doesn't pretend it opens.
 - **Offline:** "○ OFFLINE · CACHED STILL OPENS" and "○ NOT CACHED" on the next

@@ -254,7 +254,10 @@ W5's series screen reads the same rule.
   key at the end page stays where it is; only the block's own cells cross.
 - **Caught up is not read through.** An ongoing part with everything read
   keeps `END · LAST AVAILABLE` and offers the next part as a MEANWHILE row
-  with START →, because the owner may rather wait for chapters.
+  with START →, because the owner may rather wait for chapters. The row carries
+  the block's states too: a next part with no file says `○ NOT DOWNLOADED` and
+  dims its cell, and offline and not cached it says `○ OFFLINE · NOT CACHED`,
+  rather than a START → that lands on the reader's IS NOT DOWNLOADED page.
 - **Not downloaded vs offline.** A next part whose first chapter has no file
   but a source an installed extension serves says `○ NOT DOWNLOADED · READS
 ONLINE FROM <SOURCE>` with `▶ READ ONLINE · CH. 1` (c161) and DOWNLOAD FIRST
@@ -262,12 +265,18 @@ ONLINE FROM <SOURCE>` with `▶ READ ONLINE · CH. 1` (c161) and DOWNLOAD FIRST
   the device it says `○ OFFLINE · NOT CACHED` with START dimmed; a cached one
   opens as usual.
 - **The last part** says `THE WORK IS READ · n OF m`, the Work's name, what it
-  held, and WORK → in place of START -- never an empty block.
+  held, and WORK → in place of START -- never an empty block. An earlier part of
+  a run that is read through is the series' own end page, with the foot still
+  offering the Work: `THE WORK IS READ · 1 OF 2` reads as its own contradiction,
+  and the board draws the state at the last part.
 - **Incognito still offers it**, and writes nothing either way.
-- **A novel's last volume** is the same page, so it gets the same block; a
-  volume that isn't the last ends as it did (`TextScreen`'s own copy, naming
-  the chapter that isn't downloaded). The text reader's true end now renders
-  `EndPage`, so a novel asks for its rating once, not twice.
+- **A novel's last volume** is the same page, so it gets the same block, in
+  either layout: PAGED turns past the last page to it, and SCROLL reaches it at
+  the bottom of its last volume -- and at the bottom of a last volume too short
+  to scroll, by the wheel or key that would have scrolled it. A volume that
+  isn't the last ends as it did (`TextScreen`'s own copy, naming the chapter
+  that isn't downloaded). The text reader's true end now renders `EndPage`, so
+  a novel asks for its rating once, not twice.
 - **The player** (`VideoPlayer.svelte`): on the last episode the card the
   player already draws at the ending turns into the Work's next part --
   `NEXT IN THE WORK · READ|WATCH`, `PART n OF m`, the next part's title and
