@@ -9,8 +9,8 @@ import { KINDS, MOVABLE_KINDS, MOVE_MAP, SOURCE_KINDS } from '$lib/library/kinds
  * registry without a rung has to fail here rather than in production.
  *
  * A **fresh database at the top rung**, not the source text: rung 47 rewrote
- * `series`'s CHECK in place by string replacement (`widenKinds`, db.ts:1268-
- * 1278), so the schema SQL in `sqlite_master` is the only thing that says
+ * `series`'s CHECK in place by string replacement (`OLD_KINDS`/`NEW_KINDS`
+ * and `widenKinds`, db.ts:1268-1293), so the schema SQL in `sqlite_master` is the only thing that says
  * what SQLite accepts today. `src/lib/server/db.ts` is not this card's to
  * edit, and no rung is.
  *

@@ -70,8 +70,8 @@ are what the registry should answer:
 3. **Catalogue and tracking.** AniList `MANGA` or `ANIME` (and TMDB for
    movies and TV), which MAL endpoint, which tracker list.
 4. **Sources and downloads.** Which extension family feeds it (Mihon `mihon:`,
-   LNReader `ln:`, Aniyomi `aniyomi:`), which downloader, and where its files
-   go.
+   LNReader `lnreader:`, Aniyomi `aniyomi:`), which downloader, and where its
+   files go.
 5. **Covers.** Is the cover from the archive's first page, the EPUB, the
    engine, or a doujin's own book?
 6. **Layout defaults.** Reading direction, vertical strip, paged.
@@ -141,7 +141,7 @@ export type KindFacts = {
 		| { provider: 'tmdb'; type: 'movie' | 'tv' };
 	/** Kinds it may be linked or matched against (an anime never to a manga). */
 	matches: readonly Kind[];
-	/** The extension families that may feed it. */
+	/** The extension families whose key a series of this kind can carry. */
 	sources: readonly SourceFamily[];
 	/** Where its files live: tsundoku's library root, or Jellyfin's folders. */
 	storage: 'library' | 'jellyfin';
@@ -153,7 +153,7 @@ export type KindFacts = {
 
 export const KIND_FACTS = { /* … */ } as const satisfies Readonly<Record<Kind, KindFacts>>;
 export const kindFacts = <K extends Kind>(kind: K) => KIND_FACTS[kind];
-export const KINDS = Object.keys(KIND_FACTS) as Kind[];
+export const KINDS: readonly Kind[] = Object.keys(KIND_FACTS) as Kind[];
 
 /** MOVE is offered for these, and each says how its map reads it. */
 export type MovableKind = …;
@@ -182,7 +182,7 @@ What each fact says today, and the lines it was read from:
 | -------- | ------ | ---- | --------------- | --------------------- | -------- | -------- | ------- |
 | `manga`  | pages  | CH   | AniList `MANGA` | manga, manhwa, doujin | mihon    | rtl      | yes     |
 | `manhwa` | pages  | CH   | AniList `MANGA` | manga, manhwa, doujin | mihon    | vertical | yes     |
-| `doujin` | pages  | CH   | AniList `MANGA` | manga, manhwa, doujin | —        | rtl      | no      |
+| `doujin` | pages  | CH   | AniList `MANGA` | manga, manhwa, doujin | mihon    | rtl      | no      |
 | `novel`  | text   | VOL  | AniList `MANGA` | novel                 | lnreader | paged    | no      |
 | `anime`  | video  | EP   | AniList `ANIME` | anime                 | aniyomi  | rtl      | yes     |
 
@@ -202,9 +202,19 @@ What each fact says today, and the lines it was read from:
   novel is another work from its comic; an anime is another work again.
   `coverOnly` is **not** `matches` and keeps its own rule: a novel may be
   linked to its comic's entry as a cover, and never tracked through it.
-- **Sources** is read from `origin_key`: `mihon:<source>:<url>`,
-  `lnreader:<plugin>:<path>` (`ln:`), `aniyomi:<source>:<url>`
-  (`library/downloads.ts:47-86`). A doujin is Hentoid's, so it has none.
+- **Sources** is the family of every `origin_key` a writer stores for the
+  kind, as `parseKey`/`parseNovelKey`/`parseAnimeKey` read it:
+  `mihon:<source>:<url>`, `lnreader:<plugin>:<path>`, `aniyomi:<source>:<url>`
+  (`library/downloads.ts:49-83`; LNReader's _source id_ is `ln:<plugin>`, not
+  a key). A doujin comes from a **Mihon gallery source**, whose series is a
+  doujin and keeps its `mihon:` key (`src/lib/import/mihon-plan.ts:106,128,388`;
+  `doc/IMPORT-MIHON.md`, "Gallery sources"), or from **Hentoid's folder**
+  (`hentoid:<site>:<url>` or `hentoid-dir:<folder>`), which is no family yet;
+  so its Sources are `mihon`. Keys that are no family are left out of every
+  kind's list: Hentoid's, a downloaded folder's `mihon-dir:`, an EPUB's
+  `epub:`, and a grouped series of books, which has no key. Making Hentoid a
+  family is a later card's call. `tests/kinds.spec.ts` plans one series per
+  importer and checks each key's family is in its kind's Sources.
   `SOURCE_KINDS` is the same fact the other way round, and is what
   `FirstReadSource.kind` is now.
 - **Storage** is `library` for all five; `jellyfin` is the movies card's.
@@ -265,6 +275,19 @@ none of these was "fixed" here.
   four-kind list and `LINKABLE` (the audit names the files) each decide by kind
   in an array or SQL literal, so the ratchet cannot count them; K1 left them
   as they were. A new kind must grep them by hand until K5 folds them in.
+- **A doujin carries a family's key and does not move.** A gallery doujin's
+  key is `mihon:` (its Sources are `mihon`), yet `movableKind`
+  (`src/lib/server/move.ts:56-57`) leaves every doujin out, and a novel too,
+  although LNReader feeds it. `movable` records what `movableKind` does, not
+  what the key would allow.
+- **A doujin's catalogue is asked by no door.** `catalogue` says AniList
+  `MANGA` for a doujin because that is what the type choice answers for it
+  (`anilistType`, as `mediaTypeOf` did before K1), but no door looks one up:
+  `LINKABLE` (`src/lib/server/catalogue.ts:547`) keeps it out of the LINK
+  queue and `linkState` (`:944`) gives its series screen no LINK row. And
+  `candidateKind` never names a candidate `doujin`, so the `doujin` in a
+  comic's `matches` is reached only by a series' own kind, which is the
+  shipped `sameKind` (a doujin was in the comic family before K1 too).
 - **`layout` is stated twice.** `defaultDirection` still decides it; the fact
   records the same default so a reader can ask. K2 removes the duplication.
 - **`medium`, `sources`, `storage` and `unit.long` have no reader in K1.**

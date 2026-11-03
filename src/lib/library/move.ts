@@ -65,7 +65,7 @@ export type MoveCandidateEntry = {
  * A series that can be moved, as MOVE's map reads it: `MOVE_MAP` in the
  * registry, derived there from `movable` and the map's shape (doc/KINDS.md;
  * card c301). Today `manga` and `anime`; a manhwa is movable and maps as a
- * manga, and a doujin is Hentoid's and does not move.
+ * manga, and a doujin does not move, even a gallery's with a `mihon:` key.
  */
 export type { MoveKind };
 

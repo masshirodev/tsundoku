@@ -12,7 +12,8 @@ import {
 	type Kind,
 	type KindFacts,
 	type Medium,
-	type MovableKind
+	type MovableKind,
+	type SourceFamily
 } from '$lib/library/kinds';
 import { FILTER_KINDS } from '$lib/library/filters';
 import { sheetMeta, unitLabel } from '$lib/library/labels';
@@ -27,6 +28,13 @@ import {
 } from '$lib/library/catalogue';
 import type { MoveKind } from '$lib/library/move';
 import type { SeriesCard } from '$lib/library/types';
+import { parseAnimeKey, parseKey, parseNovelKey } from '$lib/library/downloads';
+import { isGallerySource, kindOf, planMihon } from '$lib/import/mihon-plan';
+import type { MihonManga } from '$lib/import/mihon-backup';
+import { planNovel } from '$lib/import/novel-plan';
+import { planAnime } from '$lib/import/anime-plan';
+import { planEpub } from '$lib/import/epub-plan';
+import { planHentoidBook } from '$lib/import/hentoid-plan';
 
 /**
  * The kind registry's own invariants, and the behaviour its first users read
@@ -113,7 +121,9 @@ describe('MOVABLE', () => {
 		const movable: MovableKind[] = ['manga', 'manhwa', 'anime'];
 		expect(MOVABLE_KINDS).toEqual(movable);
 		expect(KINDS.filter((k) => KIND_FACTS[k].movable)).toEqual(movable);
-		// Not movable: a doujin is Hentoid's, and a novel has no extension family.
+		// Not movable, although both can carry a family's key (a gallery's
+		// `mihon:`, LNReader's `lnreader:`): `movableKind` leaves them out
+		// (src/lib/server/move.ts:56-57).
 		expect(KIND_FACTS.doujin.movable).toBe(false);
 		expect(KIND_FACTS.novel.movable).toBe(false);
 	});
@@ -131,14 +141,135 @@ describe('MOVABLE', () => {
 	});
 });
 
+/**
+ * The family a key belongs to, by the parsers that route it to a worker
+ * (`keyKind`, library/downloads.ts): the code that decides, not the registry.
+ * Null for a key no family parses (`hentoid:`, `hentoid-dir:`, `mihon-dir:`,
+ * `epub:`).
+ */
+const familyOf = (key: string): SourceFamily | null =>
+	parseKey(key) ? 'mihon' : parseNovelKey(key) ? 'lnreader' : parseAnimeKey(key) ? 'aniyomi' : null;
+
+/** A Mihon source's series, the way the backup and browse's ADD both hand it to `planMihon`. */
+const mihonManga = (source: string, url: string, over: Partial<MihonManga> = {}): MihonManga => ({
+	source,
+	url,
+	title: url,
+	artist: '',
+	author: '',
+	description: '',
+	genres: [],
+	status: 2,
+	thumbnailUrl: '',
+	dateAdded: 1,
+	viewer: 0,
+	chapters: [],
+	categories: [],
+	favorite: true,
+	history: [],
+	trackers: [],
+	...over
+});
+
 describe('the source families', () => {
 	it('name a kind each, and that kind is fed by that family', () => {
 		expect(SOURCE_KINDS).toEqual({ mihon: 'manga', lnreader: 'novel', aniyomi: 'anime' });
 		for (const [family, kind] of Object.entries(SOURCE_KINDS)) {
 			expect(KIND_FACTS[kind].sources).toContain(family);
 		}
-		// A doujin has no extension family: Hentoid's folder is not one.
-		expect(KIND_FACTS.doujin.sources).toEqual([]);
+	});
+
+	it('include Mihon for a doujin, because a gallery source keeps its mihon: key', () => {
+		// Round 2's medium (c301): `sources: []` was copied from a comment
+		// ("a doujin is Hentoid's"). The importer disproves it: a gallery
+		// source's series is a doujin and its key is `mihon:<source>:<url>`
+		// (src/lib/import/mihon-plan.ts:106,128,388; doc/IMPORT-MIHON.md).
+		expect(isGallerySource('NHentai')).toBe(true);
+		const kind = kindOf([], 0, 'NHentai');
+		expect(kind).toBe('doujin');
+		const NH = '7309872737163460316';
+		const plan = planMihon(
+			{
+				categories: [],
+				sources: new Map([[NH, 'NHentai']]),
+				manga: [mihonManga(NH, '/g/1/', { genres: ['Manga'] })]
+			},
+			[],
+			1
+		).series[0];
+		expect(plan.kind).toBe('doujin');
+		expect(familyOf(plan.originKey)).toBe('mihon');
+		expect(KIND_FACTS[kind].sources).toContain(familyOf(plan.originKey));
+	});
+
+	it('hold the family of every key an importer writes for a kind', () => {
+		// Each importer's plan is what `writeSeries` stores as kind and
+		// origin_key (browse's ADD plans through the same functions). A key no
+		// family parses is the gap the registry records, not a family.
+		const ASURA = '6247824327199706550';
+		const NH = '7309872737163460316';
+		const mihon = planMihon(
+			{
+				categories: [],
+				sources: new Map([
+					[ASURA, 'Asura Scans'],
+					[NH, 'NHentai']
+				]),
+				manga: [
+					mihonManga(ASURA, '/manga/a', { genres: ['Manga'] }),
+					mihonManga(ASURA, '/manga/b', { genres: ['Manhwa'] }),
+					mihonManga(NH, '/g/2/')
+				]
+			},
+			[],
+			1
+		).series;
+		const planned = [
+			...mihon,
+			planNovel(
+				{ name: 'A Novel', path: '/novel/a', chapters: [] },
+				{ plugin: 'rr', name: 'RR' },
+				1
+			),
+			planAnime(
+				{
+					sourceId: '7000',
+					sourceName: 'KickAssAnime',
+					url: '/a-show',
+					title: 'A Show',
+					status: 2
+				},
+				[{ url: '/ep-1', name: 'Episode 1', episode_number: 1 }],
+				1
+			)
+		];
+		expect(planned.map((p) => [p.kind, familyOf(p.originKey)])).toEqual([
+			['manga', 'mihon'],
+			['manhwa', 'mihon'],
+			['doujin', 'mihon'],
+			['novel', 'lnreader'],
+			['anime', 'aniyomi']
+		]);
+		for (const p of planned) expect(KIND_FACTS[p.kind].sources).toContain(familyOf(p.originKey));
+
+		// The keys that are no family yet: Hentoid's folder and an EPUB.
+		const hentoid = planHentoidBook(
+			{ folder: 'nhentai/A Book', files: ['1.jpg'], bytes: 0, content: null },
+			'/hentoid',
+			1
+		);
+		expect([hentoid.kind, hentoid.originKey]).toEqual(['doujin', 'hentoid-dir:nhentai/A Book']);
+		expect(familyOf(hentoid.originKey)).toBeNull();
+		const epub = planEpub({
+			relPath: 'a/b.epub',
+			dir: 'a',
+			file: 'b.epub',
+			addedAt: 1,
+			pkg: null,
+			toc: [],
+			sizes: new Map()
+		});
+		expect([epub.kind, familyOf(epub.originKey)]).toEqual(['novel', null]);
 	});
 });
 
