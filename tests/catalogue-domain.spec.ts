@@ -415,3 +415,19 @@ describe('cleaning a title before it’s searched', () => {
 		expect(bracketed('Player')).toEqual([]);
 	});
 });
+
+describe('isAnime asks the kind registry (c240, wave 17)', async () => {
+	const { isAnime } = await import('$lib/library/catalogue');
+	const { KINDS } = await import('$lib/library/kinds');
+	it('is true for exactly the kinds AniList lists as ANIME, over every kind', () => {
+		expect(Object.fromEntries(KINDS.map((k) => [k, isAnime(k)]))).toEqual({
+			manga: false,
+			manhwa: false,
+			doujin: false,
+			novel: false,
+			anime: true
+		});
+		expect(isAnime(null)).toBe(false);
+		expect(isAnime(undefined)).toBe(false);
+	});
+});

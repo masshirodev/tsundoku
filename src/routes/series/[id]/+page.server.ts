@@ -14,7 +14,7 @@ import { ranobeSeries, retryRanobe } from '$lib/server/ranobe-review';
 import { afterReading, editTracking, sendPending, trackingOf } from '$lib/server/tracking';
 import { afterReading as ranobeAfterReading } from '$lib/server/ranobe';
 import { STATUSES, type Status } from '$lib/library/tracking';
-import { seasonNamed } from '$lib/library/catalogue';
+import { isAnime, seasonNamed } from '$lib/library/catalogue';
 import {
 	collectionExists,
 	createCollection,
@@ -196,7 +196,7 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		link: linkState(series.id),
 		// An anime's seasons (c240): a link each, and the row folds round the one
 		// being watched. Null for anything else, which draws today's rows.
-		seasons: series.kind === 'anime' ? (seriesSeasons(series.id)?.seasons ?? null) : null,
+		seasons: isAnime(series.kind) ? (seriesSeasons(series.id)?.seasons ?? null) : null,
 		// What each catalogue's list says, and what tsundoku sent (doc/TRACKING.md).
 		tracking: trackingOf(series.id),
 		// A novel's Ranobe link and line (doc/RANOBE.md). Null for a comic.

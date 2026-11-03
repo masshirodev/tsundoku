@@ -150,12 +150,15 @@ export const matchTitles = (titles: string[], query?: string | null): string[] =
 ];
 
 /**
- * Whether a kind is an anime, asked where the answer decides something the
- * kind registry will one day own (`family` is the pair of catalogues a MAL id
- * can be in). One place spells it, so a new kind that airs is one line here
- * rather than a grep through `kind === 'anime'` (c240; c301's registry).
+ * Whether a kind is listed by AniList and MAL as anime, a season at a time:
+ * the registry's own answer (`anilistType`, kinds.ts), which is what decides
+ * that its link, search and send are a season's (c240) and which pair of
+ * catalogues a MAL id can be in (`family`). Asked of the registry rather than
+ * spelled against a kind's name, so a new kind that airs needs no change here;
+ * a kind outside AniList's catalogue (`anilistType` refuses one) is not anime.
  */
-export const isAnime = (kind: Kind | null | undefined): boolean => kind === 'anime';
+export const isAnime = (kind: Kind | null | undefined): boolean =>
+	!!kind && kindFacts(kind).catalogue.provider === 'anilist' && anilistType(kind) === 'ANIME';
 
 /**
  * The season a form field or a URL parameter names, or none. Absent or empty

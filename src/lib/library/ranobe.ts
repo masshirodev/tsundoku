@@ -1,4 +1,5 @@
 import type { Kind } from './types.ts';
+import { kindFacts } from './kinds.ts';
 
 /**
  * Ranobe, the pure part (doc/RANOBE.md): what is sent there, how a file's
@@ -25,7 +26,8 @@ export const byWork = (kind: Kind) => kind !== 'novel';
 
 /** Ranobe's kinds a tsundoku series of this kind may be, for `/search?kind=`. */
 export const searchKinds = (kind: Kind) =>
-	kind === 'anime'
+	// What is watched, not read: Ranobe files it under its own video kinds (c240).
+	kindFacts(kind).medium === 'video'
 		? 'anime,donghua'
 		: byWork(kind)
 			? 'manga,manhwa,manhua'

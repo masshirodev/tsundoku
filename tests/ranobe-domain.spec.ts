@@ -579,3 +579,17 @@ describe('comics, against the work (c98)', () => {
 		expect(mapWorkUnits('w9', null, [entry(1, 'Ch. 1')]).size).toBe(0);
 	});
 });
+
+describe('searchKinds asks the kind registry (wave 17)', async () => {
+	const { searchKinds } = await import('$lib/library/ranobe');
+	const { KINDS } = await import('$lib/library/kinds');
+	it('names Ranobe’s kinds for every tsundoku kind', () => {
+		expect(Object.fromEntries(KINDS.map((k) => [k, searchKinds(k)]))).toEqual({
+			manga: 'manga,manhwa,manhua',
+			manhwa: 'manga,manhwa,manhua',
+			doujin: 'manga,manhwa,manhua',
+			novel: 'light_novel,web_novel',
+			anime: 'anime,donghua'
+		});
+	});
+});

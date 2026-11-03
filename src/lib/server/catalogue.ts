@@ -719,7 +719,7 @@ export const NEEDS_LOOK = `(CASE WHEN EXISTS (SELECT 1 FROM series_season_links 
  * series-level `link_searches`/`link_candidates`, which are one search for the
  * whole series and so stand for no season in particular.
  */
-const SEASONAL_KINDS = KINDS.filter((k) => anilistType(k) === 'ANIME');
+const SEASONAL_KINDS = KINDS.filter(isAnime);
 const seasonal = (alias: string) =>
 	`${alias}.kind IN (${SEASONAL_KINDS.map((k) => `'${k}'`).join(', ')})`;
 

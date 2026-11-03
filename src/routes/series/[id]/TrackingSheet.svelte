@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import Sheet from '$lib/components/chrome/Sheet.svelte';
-	import { anilistUrl, malUrl, type SeasonRow } from '$lib/library/catalogue';
+	import { anilistUrl, isAnime, malUrl, type SeasonRow } from '$lib/library/catalogue';
 	import type { Kind } from '$lib/library/types';
 	import { SERVICE_NAME, STATUSES, statusLabel } from '$lib/library/tracking';
 	import type { SeasonTrack, Tracking } from '$lib/server/tracking';
@@ -34,7 +34,7 @@
 		onclose: () => void;
 	} = $props();
 
-	const anime = $derived(!!seasons && seasons.length > 0 && kind === 'anime');
+	const anime = $derived(!!seasons && seasons.length > 0 && isAnime(kind));
 	const tabbed = $derived(anime && (seasons?.length ?? 0) > 1);
 	let picked = $state<number | null>(null);
 	// The season the sheet is on, tabs or not: a one-season anime is still one
