@@ -11,6 +11,8 @@ import { USER_AGENT } from '../engine/protocol.ts';
 import { parseAnimeKey } from '../../library/downloads.ts';
 import { chosenMarks, saveSourceMarks } from './marks.ts';
 import { lookupAniSkip } from './aniskip.ts';
+import { currentSprite } from './sprites.ts';
+import type { Sprite } from '../../library/player.ts';
 import {
 	chaptersOf,
 	headersOf,
@@ -234,6 +236,12 @@ export type StreamQuality = {
 	src: string;
 	audio: Track[];
 	subtitles: Track[];
+	/**
+	 * A downloaded file's seek preview, once the workstation has made it for
+	 * the file there is now (sprites.ts; c385). A stream has none: its
+	 * preview is the player's hidden second picture.
+	 */
+	sprite?: Sprite | null;
 };
 export type StreamServer = { n: number; name: string; qualities: StreamQuality[] };
 export type EpisodeStreams = {
@@ -319,6 +327,7 @@ async function localServer(entryId: number): Promise<StreamServer | null> {
 	const path = episodeFile(entryId);
 	if (!path) return null;
 	const t = await fileTracks(path);
+	const sprite = await currentSprite(entryId).catch(() => null);
 	return {
 		n: 0,
 		name: 'DOWNLOADED',
@@ -332,7 +341,8 @@ async function localServer(entryId: number): Promise<StreamServer | null> {
 				subtitles: t.subtitles.map((lang, i) => ({
 					lang,
 					src: `/api/anime/file/${entryId}/subtitle/${i}`
-				}))
+				})),
+				sprite
 			}
 		]
 	};

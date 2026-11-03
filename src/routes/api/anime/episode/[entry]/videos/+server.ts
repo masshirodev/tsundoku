@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { isIncognito, isRevealed } from '$lib/server/prefs';
 import { wantPictures } from '$lib/server/anime/pictures';
 import { wantSkipMarks } from '$lib/server/anime/skip-marks';
+import { wantSprite } from '$lib/server/anime/sprites';
 import { episodeStreams } from '$lib/server/anime/streams';
 import { EngineError } from '$lib/server/engine/client';
 import { recordNoVideo } from '$lib/server/move';
@@ -42,6 +43,9 @@ export const GET: RequestHandler = async ({ params, cookies, url }) => {
 			// A season's downloaded episodes are fingerprinted for their opening
 			// and ending, in the background (c239). Incognito leaves nothing behind.
 			wantSkipMarks(id);
+			// A downloaded episode's seek preview, made once from its file after
+			// its first play (c385); a streamed one has nothing to make.
+			if (s.servers.some((x) => x.n === 0)) wantSprite(id);
 		}
 		return json(s, { headers: { 'cache-control': 'private, no-store' } });
 	} catch (e) {

@@ -306,3 +306,31 @@ export function verticalFraction(clientY: number, box: { top: number; height: nu
 	if (!(box.height > 0)) return 0;
 	return Math.max(0, Math.min(1, 1 - (clientY - box.top) / box.height));
 }
+
+/** A downloaded episode's seek preview (c385): one frame this often, at this size, this many to a row. */
+export const SPRITE_EVERY_S = 10;
+export const SPRITE_W = 160;
+export const SPRITE_H = 90;
+export const SPRITE_COLS = 10;
+
+/** A sprite sheet as the player is told of it: where it is, and how its frames lie. */
+export type Sprite = {
+	src: string;
+	everyS: number;
+	w: number;
+	h: number;
+	cols: number;
+	count: number;
+};
+
+/**
+ * Where the frame for [t] seconds lies on the sheet, in pixels from its top
+ * left corner: the frame nearest it (frame i is the one nearest i x everyS,
+ * so a preview is at most half an interval off), the last past the sheet's
+ * end, the first before 0. A CSS background position is these, negated.
+ */
+export function spriteTile(sprite: Sprite, t: number): { x: number; y: number } {
+	const at = Number.isFinite(t) ? t : 0;
+	const i = Math.max(0, Math.min(sprite.count - 1, Math.round(at / sprite.everyS)));
+	return { x: (i % sprite.cols) * sprite.w, y: Math.floor(i / sprite.cols) * sprite.h };
+}

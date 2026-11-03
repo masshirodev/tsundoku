@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	spriteTile,
 	cleanVolume,
 	verticalFraction,
 	KEY_STEP,
@@ -255,5 +256,24 @@ describe('the volume (c385)', () => {
 		expect(verticalFraction(400, box)).toBe(0);
 		expect(verticalFraction(0, box)).toBe(1);
 		expect(verticalFraction(160, { top: 0, height: 0 })).toBe(0);
+	});
+});
+
+describe('the sprite sheet (c385)', () => {
+	const sprite = { src: '', everyS: 10, w: 160, h: 90, cols: 10, count: 144 };
+	it('finds the frame nearest a time, row by row', () => {
+		expect(spriteTile(sprite, 0)).toEqual({ x: 0, y: 0 });
+		expect(spriteTile(sprite, 4.99)).toEqual({ x: 0, y: 0 });
+		expect(spriteTile(sprite, 5)).toEqual({ x: 160, y: 0 });
+		expect(spriteTile(sprite, 14.9)).toEqual({ x: 160, y: 0 });
+		expect(spriteTile(sprite, 92)).toEqual({ x: 1440, y: 0 });
+		expect(spriteTile(sprite, 100)).toEqual({ x: 0, y: 90 });
+		expect(spriteTile(sprite, 1430)).toEqual({ x: 480, y: 1260 });
+	});
+	it('holds the first frame before 0 and the last past the end', () => {
+		expect(spriteTile(sprite, -5)).toEqual({ x: 0, y: 0 });
+		expect(spriteTile(sprite, 99_999)).toEqual(spriteTile(sprite, 1430));
+		expect(spriteTile(sprite, Number.NaN)).toEqual({ x: 0, y: 0 });
+		expect(spriteTile({ ...sprite, count: 1 }, 500)).toEqual({ x: 0, y: 0 });
 	});
 });
