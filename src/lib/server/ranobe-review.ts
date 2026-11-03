@@ -13,7 +13,13 @@ import {
 	unlinkSeries,
 	workUnits
 } from './ranobe.ts';
-import { cleanTitle, coverOnly, isCutShort, normaliseTitle } from '../library/catalogue.ts';
+import {
+	cleanTitle,
+	coverOnly,
+	isAnime,
+	isCutShort,
+	normaliseTitle
+} from '../library/catalogue.ts';
 import {
 	RANOBE_KINDS,
 	byWork,
@@ -663,12 +669,12 @@ export function ranobeSeries(seriesId: number): RanobeSeries | null {
 						`RANOBE ${s.work.toUpperCase()}`,
 						comic
 							? !counted
-								? 'NO CHAPTER COUNT ON RANOBE YET'
+								? `NO ${isAnime(s.kind) ? 'EPISODE' : 'CHAPTER'} COUNT ON RANOBE YET`
 								: counted.open
 									? counted.count
-										? `${counted.count.toLocaleString('en')} CHAPTERS SO FAR ON RANOBE`
+										? `${counted.count.toLocaleString('en')} ${isAnime(s.kind) ? 'EPISODES' : 'CHAPTERS'} SO FAR ON RANOBE`
 										: 'STILL RUNNING ON RANOBE'
-									: `${(counted.count ?? 0).toLocaleString('en')} CHAPTERS ON RANOBE`
+									: `${(counted.count ?? 0).toLocaleString('en')} ${isAnime(s.kind) ? 'EPISODES' : 'CHAPTERS'} ON RANOBE`
 							: s.edition
 								? `${langName(lang)} EDITION`
 								: `NO ${langName(lang)} EDITION YET`,
@@ -687,6 +693,7 @@ export function ranobeSeries(seriesId: number): RanobeSeries | null {
 			suggested: !!suggested,
 			edition: !!s.edition,
 			comic,
+			anime: isAnime(s.kind),
 			counted: !!counted,
 			suggestionRefused: refused,
 			lang,

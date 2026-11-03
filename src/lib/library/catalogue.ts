@@ -148,6 +148,14 @@ export const matchTitles = (titles: string[], query?: string | null): string[] =
 	)
 ];
 
+/**
+ * Whether a kind is an anime, asked where the answer decides something the
+ * kind registry will one day own (`family` is the pair of catalogues a MAL id
+ * can be in). One place spells it, so a new kind that airs is one line here
+ * rather than a grep through `kind === 'anime'` (c240; c301's registry).
+ */
+export const isAnime = (kind: Kind | null | undefined): boolean => kind === 'anime';
+
 /** The AniList formats an anime is (doc/LINKS.md, "A novel never matches a comic"). */
 export const ANIME_FORMATS = ['TV', 'TV_SHORT', 'MOVIE', 'OVA', 'ONA', 'SPECIAL'] as const;
 
@@ -411,6 +419,38 @@ export function candidateRows(
 	];
 }
 
+/**
+ * One season of an anime as the series screen's rows draw it (c240): its
+ * link, its parts and what the last search found. Plain data, so the server's
+ * `seriesSeasons` can hand it to the component as it is.
+ */
+export type SeasonRowLink = {
+	anilistId: number | null;
+	malId: number | null;
+	title: string;
+	via: string;
+	format: string | null;
+	episodes: number | null;
+	year: number | null;
+	resolvedAt: number | null;
+};
+export type SeasonRow = {
+	season: number;
+	from: number;
+	to: number;
+	count: number;
+	aired: number;
+	watched: number;
+	link: SeasonRowLink | null;
+	parts: { part: number; from: number; to: number; link: SeasonRowLink | null }[];
+	candidates: number;
+	searched: boolean;
+	queued: boolean;
+	/** NONE OF THESE or UNLINK settled it: no pass asks again (c240). */
+	settled: boolean;
+	searchTitle: string;
+};
+
 /** "ANILIST 132215 · MAL 128830", or with no MAL entry just the first. */
 export function idsLine(anilistId: number | null, malId: number | null): string {
 	return [anilistId ? `ANILIST ${anilistId}` : '', malId ? `MAL ${malId}` : '']
@@ -429,6 +469,8 @@ export function viaLabel(via: string): string {
 			return 'THE SAME TITLE ON ANILIST';
 		case 'review':
 			return 'CHOSEN IN THE REVIEW';
+		case 'relations':
+			return 'FROM ANILIST’S RELATIONS';
 		case 'pasted':
 			return 'PASTED';
 		default:

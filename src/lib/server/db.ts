@@ -1250,6 +1250,117 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		series_ids TEXT PRIMARY KEY,
 		dismissed_at INTEGER NOT NULL
 	) WITHOUT ROWID;
+	`,
+	// v62: anime tracked a season at a time (doc/TRACKING.md, doc/LINKS.md;
+	// card c240, the owner's decision A on 2026-11-01). AniList and MAL list
+	// each season as its own entry, while a tsundoku series can hold several
+	// (c219), so an anime's link is per season -- and up to two parts, where a
+	// catalogue splits one season in two (`PART 1 · EP. 1 – 12`, `PART 2 · EP.
+	// 13 – 23`). `series_links` keeps meaning what it meant for manga and
+	// novels, which are one entry across a series; an anime's own link in that
+	// table is read as season 0's -- the whole run, where the source gave no
+	// seasons at all -- so a link made before this rung still tracks the show
+	// as the one entry it was (doc/handoff-notes/tracking.md).
+	//
+	// Nothing is migrated: no anime was linked when this shipped (the card's
+	// 0 links, measured at 5a8ce32a). A rung that found one would keep it as
+	// season 0's link by reading `series_links` as season 0, so no copy is
+	// needed either way.
+	//
+	// `season` is `entries.season` (rung 47's stamp), 0 for a source that
+	// gave none -- one flat list is one season to tsundoku. `episodes` is the
+	// entry's own count as the catalogue gave it, which is what puts part 2's
+	// first episode at part 1's count + 1: the link can say where the split
+	// is without asking AniList again, and `year` is the row's own ("TV · 24
+	// EP. · 2018") without another request. The primary key is the uniqueness
+	// that matters -- one live link per series, season, part and catalogue,
+	// each row naming at most one entry in each -- and the plain indexes are
+	// what the readers look a row up by. An entry is deliberately not unique
+	// across series: two tsundoku series for one show is the duplicate case,
+	// not an error to refuse.
+	//
+	// `series_links` keeps a mirror of the first season linked, refreshed by
+	// `syncSeriesLink` and never read for an anime by tracking: the one reader
+	// that asks a series for one MAL entry is AniSkip, whose episode numbers
+	// are per entry, and which refuses a season past the first (c240,
+	// doc/handoff-notes/tracking.md, "Gaps").
+	//
+	// The state and the queue are keyed the same way: a season's progress is
+	// its own highest watched episode, counted within its part, and one
+	// season's send must never overwrite its sibling's.
+	`
+	CREATE TABLE series_season_links (
+		series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+		season INTEGER NOT NULL,
+		part INTEGER NOT NULL DEFAULT 1 CHECK (part IN (1, 2)),
+		anilist_id INTEGER,
+		mal_id INTEGER,
+		via TEXT NOT NULL CHECK (via IN ('mihon', 'exact', 'review', 'pasted', 'list', 'relations')),
+		title TEXT NOT NULL DEFAULT '',
+		cover_url TEXT NOT NULL DEFAULT '',
+		linked_at INTEGER NOT NULL,
+		resolved_at INTEGER,
+		filled_rating INTEGER,
+		score REAL,
+		format TEXT,
+		episodes INTEGER,
+		year INTEGER,
+		PRIMARY KEY (series_id, season, part)
+	) WITHOUT ROWID;
+	CREATE INDEX series_season_links_anilist ON series_season_links(anilist_id);
+	CREATE INDEX series_season_links_mal ON series_season_links(mal_id);
+	CREATE TABLE season_link_searches (
+		series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+		season INTEGER NOT NULL,
+		part INTEGER NOT NULL DEFAULT 1,
+		query TEXT NOT NULL,
+		searched_at INTEGER,
+		found INTEGER NOT NULL DEFAULT 0,
+		skipped_at INTEGER,
+		PRIMARY KEY (series_id, season, part)
+	) WITHOUT ROWID;
+	CREATE TABLE season_link_candidates (
+		series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+		season INTEGER NOT NULL,
+		part INTEGER NOT NULL DEFAULT 1,
+		anilist_id INTEGER NOT NULL,
+		rank INTEGER NOT NULL,
+		data TEXT NOT NULL,
+		PRIMARY KEY (series_id, season, part, anilist_id)
+	) WITHOUT ROWID;
+	CREATE TABLE season_link_decisions (
+		series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+		season INTEGER NOT NULL,
+		part INTEGER NOT NULL DEFAULT 1,
+		decision TEXT NOT NULL CHECK (decision IN ('none', 'unlinked')),
+		at INTEGER NOT NULL,
+		PRIMARY KEY (series_id, season, part)
+	) WITHOUT ROWID;
+	CREATE TABLE season_tracker_state (
+		series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+		season INTEGER NOT NULL,
+		part INTEGER NOT NULL,
+		service TEXT NOT NULL CHECK (service IN ('anilist', 'mal')),
+		status TEXT,
+		score REAL,
+		progress INTEGER NOT NULL DEFAULT 0,
+		read_at INTEGER,
+		sent_at INTEGER,
+		PRIMARY KEY (series_id, season, part, service)
+	) WITHOUT ROWID;
+	CREATE TABLE season_tracker_sends (
+		series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+		season INTEGER NOT NULL,
+		part INTEGER NOT NULL,
+		service TEXT NOT NULL CHECK (service IN ('anilist', 'mal')),
+		progress INTEGER,
+		status TEXT,
+		score REAL,
+		wanted_at INTEGER NOT NULL,
+		failed_at INTEGER,
+		error TEXT,
+		PRIMARY KEY (series_id, season, part, service)
+	) WITHOUT ROWID;
 	`
 ];
 

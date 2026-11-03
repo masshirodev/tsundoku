@@ -1,7 +1,13 @@
 <script lang="ts">
 	import HelpMark from '$lib/components/help/HelpMark.svelte';
 	import HelpSheet from '$lib/components/help/HelpSheet.svelte';
-	import { animeContinue, seriesCountLine } from '$lib/library/anime';
+	import {
+		animeContinue,
+		partsLabel,
+		seasonPlan,
+		seasonTag,
+		seriesCountLine
+	} from '$lib/library/anime';
 	import { ocrLines, type OcrPlace } from '$lib/japanese/ocr';
 	import { enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
@@ -32,11 +38,11 @@
 	import { baseToEdition, langName } from '$lib/library/editions';
 	import UnfoldSheet from './UnfoldSheet.svelte';
 	import type { LinkState } from '$lib/server/catalogue';
-	import { anilistUrl, malUrl, viaLabel } from '$lib/library/catalogue';
+	import { anilistUrl, malUrl, viaLabel, type SeasonRow } from '$lib/library/catalogue';
 	import { offline } from '$lib/offline.svelte';
 	import TrackingSheet from './TrackingSheet.svelte';
 	import type { Tracking } from '$lib/server/tracking';
-	import { ago, clock, trackLine } from '$lib/library/tracking';
+	import { ago, clock, seasonLine, trackLine } from '$lib/library/tracking';
 	import { ranobeLines } from '$lib/library/ranobe';
 	import type { RanobeSeries } from '$lib/server/ranobe-review';
 	import type { SeriesDownloads } from '$lib/server/downloads';
@@ -76,6 +82,7 @@
 		link = null,
 		tracking = null,
 		ranobe = null,
+		seasons = null,
 		downloads = null,
 		move = null,
 		noVideo = null,
@@ -121,6 +128,12 @@
 		 * novel's reads go. Null for a comic.
 		 */
 		ranobe?: RanobeSeries | null;
+		/**
+		 * An anime's seasons (c240): a link and a line each, folded round the one
+		 * being watched. Null for a series that isn't an anime, which draws the
+		 * rows exactly as it did.
+		 */
+		seasons?: SeasonRow[] | null;
 		/** Downloading (doc/DOWNLOADING.md): the DOWNLOAD row and the FILE line's queue. */
 		downloads?: SeriesDownloads | null;
 		/** MOVE's SOURCE row (doc/MOVE.md): where the series comes from and the way out. */
@@ -133,6 +146,88 @@
 
 	/** An anime series: episodes for chapters, here and in DOWNLOAD (doc/ANIME.md). */
 	const anime = $derived(series.kind === 'anime');
+
+	/** More than one season: the rows fold, and each season has a line (Track Calls). */
+	const manySeasons = $derived(!!seasons && seasons.length > 1);
+	/** SHOW on a fold opens both rows at once, and closes when the screen is left. */
+	let seasonsOpen = $state(false);
+	const seasonNumbers = $derived((seasons ?? []).map((s) => s.season));
+	const seasonPlanNow = $derived(
+		manySeasons
+			? seasonPlan(seasonNumbers, tracking?.openSeason ?? seasonNumbers[0] ?? 0, seasonsOpen)
+			: []
+	);
+	const seasonAt = (n: number) => (seasons ?? []).find((s) => s.season === n) ?? null;
+	const isOpenSeason = (n: number) => n === (tracking?.openSeason ?? seasonNumbers[0]);
+	const seasonFind = (n: number, paste = false) =>
+		`${resolve('/links')}?series=${series.id}&season=${n}${paste ? '&paste' : ''}`;
+
+	/** The season's own line: what it is linked to, and where LINK came from. */
+	function seasonLinkMeta(sv: SeasonRow): string {
+		if (sv.link) {
+			const parts = sv.parts.filter((p) => p.link);
+			return [
+				parts.length > 1 ? `${parts.length} PARTS` : '',
+				parts.length > 1 ? partsLabel(parts).replace(/PART \d · /g, '') : '',
+				sv.link.format ? sv.link.format.replace(/_/g, ' ') : '',
+				sv.link.episodes && parts.length < 2 ? `${sv.link.episodes} EP.` : '',
+				sv.link.year ? String(sv.link.year) : '',
+				viaLabel(sv.link.via)
+			]
+				.filter(Boolean)
+				.join(' · ');
+		}
+		if (linkOff) return '○ OFFLINE · FINDING NEEDS THE WORKSTATION';
+		if (tracking?.hidden) return 'HIDDEN SERIES ARE NEVER SEARCHED · PASTE A LINK';
+		if (sv.queued) return 'A SEARCH WAITS FOR THE NEXT COVER PASS';
+		if (sv.settled) return 'NONE OF THESE · NO PASS ASKS AGAIN';
+		if (sv.candidates)
+			return `${sv.candidates} CANDIDATE${sv.candidates === 1 ? '' : 'S'} FROM THE LAST SEARCH · NONE LINKED`;
+		return sv.searched ? 'NOTHING FOUND IN THE LAST SEARCH' : 'NOT SEARCHED YET';
+	}
+
+	/** What a fold says is inside it, in ink when something in it wants the owner. */
+	function foldLinkLine(list: number[]): string {
+		const rows = list.map(seasonAt).filter((s): s is SeasonRow => !!s);
+		const unlinked = rows.filter((s) => !s.link && !s.parts.some((p) => p.link));
+		return unlinked.length
+			? `${unlinked.length} NOT LINKED`
+			: rows.length === 1
+				? 'LINKED'
+				: 'LINKED';
+	}
+
+	/** The season's facts for `seasonLine`, from the server's own rows. */
+	function seasonFactsOf(n: number) {
+		const sv = tracking?.seasons?.find((s) => s.season === n);
+		if (!sv) return null;
+		return {
+			season: sv.season,
+			part: sv.part,
+			parts: sv.parts,
+			facts: sv.facts,
+			other: sv.other,
+			linked: !!sv.link,
+			waits: sv.waits
+		};
+	}
+	const seasonLines = $derived(
+		(tracking?.seasons ?? []).map((sv) => ({
+			season: sv.season,
+			line: seasonLine(seasonFactsOf(sv.season) ?? { ...sv, linked: false }, {
+				now: Date.now(),
+				offline: linkOff
+			})
+		}))
+	);
+	const lineOf = (n: number) => seasonLines.find((l) => l.season === n)?.line ?? null;
+	/** What a fold says of the TRACKING row: nothing sent, or how the seasons ended. */
+	function foldTrackLine(list: number[]): string {
+		const rows = list.map((n) => lineOf(n)).filter((l): l is NonNullable<typeof l> => !!l);
+		if (rows.every((l) => l.left.startsWith('NOT LINKED'))) return 'NOTHING SENT';
+		if (rows.every((l) => l.left.startsWith('COMPLETED'))) return 'COMPLETED';
+		return 'SENT';
+	}
 
 	// ---- DOWNLOAD (Index Series Download) ------------------------------------------------
 	/** DOWNLOAD's "?" sheet (doc/HELP.md). */
@@ -190,6 +285,12 @@
 	// ---- Ranobe's LINK and TRACKING rows (Ranobe Series 2a–2k) --------------------------------
 	const onRanobe = $derived(!!ranobe?.configured);
 	const ranobeFindHref = $derived(`${resolve('/links')}?series=${series.id}&service=ranobe`);
+	/** Ranobe keeps one work for the whole show: "ONE ENTRY FOR ALL 4 SEASONS" (c240). */
+	const ranobeSeasonWords = $derived(
+		seasons && seasons.length > 1
+			? `ONE ENTRY FOR ALL ${seasons.length} SEASONS`
+			: 'ONE ENTRY FOR THE SERIES'
+	);
 	const ranobeTrack = $derived(
 		ranobe
 			? ranobeLines(ranobe.facts, {
@@ -756,8 +857,59 @@
 			<button type="button" class="edit" onclick={onedit}>EDIT</button>
 		</div>
 
-		{#if onRanobe && ranobe}
-			<!-- Ranobe's LINK and TRACKING (Ranobe Series 2a–2k; doc/RANOBE.md). No EDIT: Ranobe works status out from the reads, and the RATING row is what it gets. -->
+		{#snippet ranobeLinkLine()}
+			<!-- Ranobe on an anime is one line in each row, never in AniList's place
+			     (c240): one work for the whole show, its episodes counted through. -->
+			<div class="sline ranobe-line">
+				<span class="stag">RNB</span>
+				<div class="sbody">
+					<div class="s-a" class:muted={!ranobe?.link}>
+						{ranobe?.link ? ranobe.link.title : 'Not on Ranobe'}
+					</div>
+					<div class="s-b">
+						{ranobe?.link
+							? linkOff
+								? '○ OFFLINE · CHANGES NEED THE WORKSTATION'
+								: [ranobe.link.meta.split(' · ')[0], ranobeSeasonWords].filter(Boolean).join(' · ')
+							: linkOff
+								? '○ OFFLINE · FINDING NEEDS THE WORKSTATION'
+								: ranobe?.unlinkedMeta}
+					</div>
+				</div>
+				<div class="sc">
+					{#if ranobe?.link}
+						<a
+							class="lc"
+							href={ranobe.link.href}
+							target="_blank"
+							rel="noopener noreferrer external"
+							aria-label="Ranobe">↗</a
+						>
+					{:else if !linkOff}
+						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
+						<a class="lc acc" href={ranobeFindHref}>FIND</a>
+					{/if}
+				</div>
+			</div>
+		{/snippet}
+		{#snippet ranobeTrackLine()}
+			{#if ranobeTrack}
+				<div class="sline ranobe-line">
+					<span class="stag">RNB</span>
+					<div class="sbody">
+						{#each ranobeTrack.lines as t, i (i)}
+							<div class="tl">
+								<div class="tl-l" class:strong={t.strong}>{t.l}</div>
+								{#if t.r}<div class="tl-r" class:alert={t.rStrong}>{t.r}</div>{/if}
+							</div>
+						{/each}
+					</div>
+				</div>
+			{/if}
+		{/snippet}
+
+		{#if onRanobe && ranobe && !anime}
+			<!-- Ranobe's LINK and TRACKING (Ranobe Series 2a–2k; doc/RANOBE.md). No EDIT: Ranobe works status out from the reads, and the RATING row is what it gets. An anime keeps AniList's rows and adds a Ranobe line to each (c240). -->
 			{#snippet ranobeCells()}
 				{#if ranobe?.link}
 					<a class="lc" href={ranobe.link.href} target="_blank" rel="noopener noreferrer external"
@@ -836,7 +988,10 @@
 				</div>
 			{/if}
 		{:else if link}
-			<!-- LINK and COVER (Series Link 1k–1t; doc/LINKS.md). The cells drop below the row where it's narrow. -->
+			<!-- LINK and COVER (Series Link 1k–1t; doc/LINKS.md). The cells drop below
+			     the row where it's narrow. An anime draws a line a season, folded round
+			     the one being watched (Track Calls; c240), with Ranobe's one line under
+			     them; a series with one season draws what it always did. -->
 			{#snippet linkCells()}
 				{#if link?.linked}
 					{#if openHref}
@@ -864,16 +1019,72 @@
 					<!-- eslint-enable svelte/no-navigation-without-resolve -->
 				{/if}
 			{/snippet}
-			<div class="row link-row">
+			<div class="row link-row" class:stacked={manySeasons}>
 				<div class="label">LINK</div>
-				<div class="lk">
-					<div class="lk-a" class:muted={!link.linked}>{linkPrimary}</div>
-					<div class="lk-b">{linkMeta}</div>
-				</div>
-				<div class="lcs inline">{@render linkCells()}</div>
+				{#if manySeasons && seasons}
+					<div class="seasons">
+						{#each seasonPlanNow as plan (plan.type === 'line' ? `s${plan.season}` : plan.type === 'fold' ? `f${plan.above ? 'up' : 'down'}${plan.seasons[0]}` : 'toggle')}
+							{#if plan.type === 'line'}
+								{@const sv = seasonAt(plan.season)}
+								{#if sv}
+									<div class="sline" class:on={isOpenSeason(sv.season)}>
+										<span class="stag" class:on={isOpenSeason(sv.season)}
+											>{seasonTag(sv.season)}</span
+										>
+										<div class="sbody">
+											<div class="s-a" class:muted={!sv.link}>
+												{sv.link ? sv.link.title : 'Not linked'}
+											</div>
+											<div class="s-b">{seasonLinkMeta(sv)}</div>
+										</div>
+										<div class="sc">
+											{#if sv.link}
+												<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
+												<a class="lc" href={seasonFind(sv.season)}>EDIT</a>
+											{:else if linkOff}
+												<span class="lc acc dim" aria-disabled="true">FIND</span>
+											{:else}
+												<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
+												<a class="lc acc" href={seasonFind(sv.season, tracking?.hidden)}
+													>{tracking?.hidden ? 'PASTE' : 'FIND'}</a
+												>
+											{/if}
+										</div>
+									</div>
+								{/if}
+							{:else if plan.type === 'fold'}
+								{@const list = plan.seasons}
+								<button
+									type="button"
+									class="sfold"
+									class:ink={foldLinkLine(list).includes('NOT LINKED')}
+									onclick={() => (seasonsOpen = true)}
+								>
+									{plan.above ? '↑' : '↓'} S{list[0]} – S{list[list.length - 1]} · {foldLinkLine(
+										list
+									)}
+									<span class="sfold-go">SHOW</span>
+								</button>
+							{:else}
+								<button type="button" class="sfold" onclick={() => (seasonsOpen = !seasonsOpen)}>
+									{plan.expanded ? '↓' : '↑'} ALL {plan.seasons.length} SEASONS
+									<span class="sfold-go">{plan.expanded ? 'HIDE' : 'SHOW'}</span>
+								</button>
+							{/if}
+						{/each}
+						{#if onRanobe && ranobe}{@render ranobeLinkLine()}{/if}
+					</div>
+				{:else}
+					<div class="lk">
+						<div class="lk-a" class:muted={!link.linked}>{linkPrimary}</div>
+						<div class="lk-b">{linkMeta}</div>
+					</div>
+					{#if onRanobe && ranobe}{@render ranobeLinkLine()}{/if}
+					<div class="lcs inline">{@render linkCells()}</div>
+				{/if}
 			</div>
-			<div class="lcs stack">{@render linkCells()}</div>
-			{#if link.linked && tracking}
+			{#if !manySeasons}<div class="lcs stack">{@render linkCells()}</div>{/if}
+			{#if tracking && (link.linked || (manySeasons && seasons?.some((s) => s.link)))}
 				{#snippet trackCells()}
 					{#if trackFailed && !linkOff}
 						<form method="POST" action="?/retryTracking" use:enhance class="lc-form">
@@ -883,6 +1094,11 @@
 					{#if trackSignIn && !linkOff}
 						<a class="lc" href={resolve('/settings')}>SIGN IN →</a>
 					{/if}
+					{#if onRanobe && ranobeTrack?.retry && !linkOff}
+						<form method="POST" action="?/retryRanobe" use:enhance class="lc-form">
+							<button type="submit" class="lc">TRY AGAIN</button>
+						</form>
+					{/if}
 					{#if trackEditable}
 						{#if linkOff}
 							<span class="lc dim" aria-disabled="true">EDIT</span>
@@ -891,17 +1107,69 @@
 						{/if}
 					{/if}
 				{/snippet}
-				<!-- TRACKING (Series Link 1k–1s; doc/TRACKING.md): each catalogue's word, and what was sent. -->
-				<div class="row track-row">
+				<!-- TRACKING (Series Link 1k–1s; doc/TRACKING.md): a line a season on an
+				     anime (c240), each catalogue's word on a comic, and what was sent. -->
+				<div class="row track-row" class:stacked={manySeasons && !tracking.hidden}>
 					<div class="label">TRACKING</div>
-					<div class="tk">
-						{#each trackLines as t, i (i)}
+					{#if tracking.hidden}
+						<!-- Hidden: nothing is sent, and there is nothing a season could say
+						     (Track Calls, H). One line, no seasons. -->
+						<div class="tk">
 							<div class="tl">
-								<div class="tl-l" class:strong={t.strong}>{t.left}</div>
-								{#if t.right}<div class="tl-r" class:alert={t.alert}>{t.right}</div>{/if}
+								<div class="tl-l">NOTHING SENT · HIDDEN SERIES STAY OFF BOTH LISTS</div>
 							</div>
-						{/each}
-					</div>
+						</div>
+					{:else if manySeasons && seasons}
+						<div class="seasons">
+							{#each seasonPlanNow as plan (plan.type === 'line' ? `s${plan.season}` : plan.type === 'fold' ? `f${plan.above ? 'up' : 'down'}${plan.seasons[0]}` : 'toggle')}
+								{#if plan.type === 'line'}
+									{@const l = lineOf(plan.season)}
+									{#if l}
+										<div class="sline" class:on={isOpenSeason(plan.season)}>
+											<span class="stag" class:on={isOpenSeason(plan.season)}
+												>{seasonTag(plan.season)}</span
+											>
+											<div class="sbody">
+												<div class="tl">
+													<div class="tl-l" class:strong={l.strong}>{l.left}</div>
+													{#if l.right}<div class="tl-r" class:alert={l.alert}>{l.right}</div>{/if}
+												</div>
+											</div>
+										</div>
+									{/if}
+								{:else if plan.type === 'fold'}
+									{@const list = plan.seasons}
+									<button
+										type="button"
+										class="sfold"
+										class:ink={foldTrackLine(list) === 'NOTHING SENT'}
+										onclick={() => (seasonsOpen = true)}
+									>
+										{plan.above ? '↑' : '↓'} S{list[0]} – S{list[list.length - 1]} · {foldTrackLine(
+											list
+										)}
+										<span class="sfold-go">SHOW</span>
+									</button>
+								{:else}
+									<button type="button" class="sfold" onclick={() => (seasonsOpen = !seasonsOpen)}>
+										{plan.expanded ? '↓' : '↑'} ALL {plan.seasons.length} SEASONS
+										<span class="sfold-go">{plan.expanded ? 'HIDE' : 'SHOW'}</span>
+									</button>
+								{/if}
+							{/each}
+							{#if onRanobe && ranobeTrack}{@render ranobeTrackLine()}{/if}
+						</div>
+					{:else}
+						<div class="tk">
+							{#each trackLines as t, i (i)}
+								<div class="tl">
+									<div class="tl-l" class:strong={t.strong}>{t.left}</div>
+									{#if t.right}<div class="tl-r" class:alert={t.alert}>{t.right}</div>{/if}
+								</div>
+							{/each}
+						</div>
+						{#if onRanobe && ranobeTrack}{@render ranobeTrackLine()}{/if}
+					{/if}
 					<div class="lcs inline">{@render trackCells()}</div>
 				</div>
 				{#if trackEditable || trackFailed || trackSignIn}
@@ -910,7 +1178,8 @@
 				<TrackingSheet
 					open={trackingOpen}
 					{tracking}
-					kind={link.linked.kind ?? series.kind}
+					kind={link.linked?.kind ?? series.kind}
+					{seasons}
 					onclose={() => (trackingOpen = false)}
 				/>
 			{/if}
@@ -1619,6 +1888,107 @@
 	/* LINK and COVER (Series Link): the mock's literals. */
 	.link-row {
 		min-height: 68px;
+	}
+	/* ---- a line a season (c240; Track Calls, "The shape") ------------------ */
+	.seasons {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+	}
+	.sline {
+		display: flex;
+		align-items: stretch;
+		min-height: 52px;
+		border-bottom: 1px solid var(--line-subtle);
+	}
+	.sline:last-child {
+		border-bottom: 0;
+	}
+	/* The 48px tag cell: inverted on the season being watched, the house mark for
+	   "active" (the design's S3 in both rows). */
+	.stag {
+		width: 48px;
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0 4px;
+		border-right: var(--hairline);
+		font: 500 12px var(--font-mono);
+		letter-spacing: 0.04em;
+		color: var(--text-2);
+	}
+	.stag.on {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+	}
+	.sbody {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 4px;
+		padding: 9px 12px;
+	}
+	.s-a {
+		font: 500 14px/1.3 var(--font-sans);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.s-a.muted {
+		color: var(--text-2);
+	}
+	.s-b {
+		font: 400 12px/1.35 var(--font-mono);
+		color: var(--text-2);
+		text-wrap: pretty;
+	}
+	.sc {
+		display: flex;
+	}
+	.sfold {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		width: 100%;
+		min-height: 40px;
+		padding: 0 0 0 12px;
+		border: 0;
+		border-bottom: 1px solid var(--line-subtle);
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-2);
+		font: 500 12px var(--font-mono);
+		letter-spacing: 0.04em;
+		text-align: left;
+		cursor: pointer;
+	}
+	.sfold.ink {
+		color: var(--text-1);
+	}
+	.sfold-go {
+		margin-left: auto;
+		padding: 0 var(--pad) 0 8px;
+		color: var(--text-1);
+	}
+	/* A stacked row keeps its own rule at the bottom, as the single-season one does. */
+	.link-row.stacked,
+	.track-row.stacked {
+		border-bottom: var(--hairline);
+	}
+	@media (max-width: 599px) {
+		.stag {
+			width: 40px;
+		}
+		.sbody {
+			padding: 8px 10px;
+		}
+		.s-a {
+			font-size: 13px;
+		}
 	}
 	.lk {
 		flex: 1;

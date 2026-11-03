@@ -15,6 +15,7 @@
 	import { offline } from '$lib/offline.svelte';
 	import type { QueuedFrom, ReviewCandidate } from '$lib/server/catalogue';
 	import type { RanobeReviewCandidate, Sibling } from '$lib/server/ranobe-review';
+	import type { RelationOffer } from '$lib/server/season-links';
 
 	/**
 	 * The link review (Link Review, Ranobe Review; doc/LINKS.md,
@@ -34,6 +35,16 @@
 	let { data } = $props();
 
 	type Item = (typeof data.items)[number];
+	/** One season of an anime (c240), when FIND opened the page on one. */
+	// svelte-ignore state_referenced_locally
+	const season = data.season;
+	/** The rest of the show, from the entry just linked: ticked where the counts agree. */
+	// svelte-ignore state_referenced_locally
+	let relations = $state<RelationOffer[] | null>(data.relations ?? null);
+	// svelte-ignore state_referenced_locally
+	let pickedSeasons = $state<number[]>(
+		(data.relations ?? []).filter((o) => o.ticked).map((o) => o.season)
+	);
 	type Service = Item['service'];
 	type Cand = ReviewCandidate | RanobeReviewCandidate;
 	const SERVICE_NAME: Record<Service, string> = { anilist: 'ANILIST', ranobe: 'RANOBE' };
@@ -70,6 +81,9 @@
 			kind: UndoKind;
 			service: Service;
 			series: number;
+			/** An anime's season and part it acted on (c240): UNDO takes that one back. */
+			season?: number;
+			part?: number;
 			was?: QueuedFrom;
 			many?: number[];
 		} | null;
@@ -175,7 +189,11 @@
 		const before = { queue: [...queue], done };
 		busy = true;
 		failed = null;
-		const r = await post(it.service, { series: it.seriesId, ...body });
+		const r = await post(it.service, {
+			series: it.seriesId,
+			...(season ? { season: season.no, part: season.part } : {}),
+			...body
+		});
 		busy = false;
 		if (!r || !r.ok) {
 			if (r?.status === 503) nonet = it.service;
@@ -202,6 +220,9 @@
 				kind: kind as UndoKind,
 				service: it.service,
 				series: it.seriesId,
+				// The season the decision was about: UNDO takes that one back, not
+				// whichever the page happens to open on (c240).
+				...(season ? { season: season.no, part: season.part } : {}),
 				was: kind === 'search' ? ((answer.was as QueuedFrom) ?? null) : undefined
 			},
 			before
@@ -216,6 +237,8 @@
 		const r = await post(u.undo.service, {
 			series: u.undo.series,
 			undo: u.undo.kind,
+			season: u.undo.season,
+			part: u.undo.part,
 			was: u.undo.was,
 			many: u.undo.many
 		});
@@ -231,12 +254,51 @@
 		undo = null;
 		sibs = null;
 		shown = null;
+		// The offers came from the link just taken back: they have no start any more.
+		relations = null;
+		pickedSeasons = [];
 	}
 
 	async function linkChosen() {
 		if (!item || !selected) return;
 		const c = selected;
 		const it = item;
+		if (!('work' in c) && season) {
+			// A season linked: the page turns to the rest of the show (c240), so it
+			// stays rather than going back to the series.
+			busy = true;
+			failed = null;
+			const before = { queue: [...queue], done };
+			const r = await post(it.service, {
+				series: it.seriesId,
+				link: c.anilistId,
+				pasted: !!pasted,
+				season: season.no,
+				part: season.part
+			});
+			busy = false;
+			if (!r?.ok) {
+				failed = failText(r, it.service);
+				return;
+			}
+			const a = (await r.json().catch(() => ({}))) as { relations?: RelationOffer[] };
+			relations = a.relations?.length ? a.relations : null;
+			pickedSeasons = (relations ?? []).filter((o) => o.ticked).map((o) => o.season);
+			chosen = null;
+			undo = {
+				title: `LINKED · SEASON ${season.no} TO ${c.title.toUpperCase()}`,
+				detail: `${c.ids} · ITS SEND STARTS WITH THE NEXT EPISODE WATCHED`,
+				undo: {
+					kind: 'link',
+					service: it.service,
+					series: it.seriesId,
+					season: season.no,
+					part: season.part
+				},
+				before
+			};
+			return;
+		}
 		if (!('work' in c)) {
 			decide(
 				{ link: c.anilistId, pasted: !!pasted },
@@ -257,6 +319,44 @@
 		// The siblings as the review now draws them: the work first, chosen just now (1c).
 		for (const i of (answer?.items as Item[] | undefined) ?? []) byKey.set(qk(i), i);
 		if (rows.length) sibs = { work: c.work, title: c.title, series: it.seriesId, rows, picked: [] };
+	}
+
+	/** LINK 3 SEASONS: the ticked entries written at once, then back to the series. */
+	async function linkSeasonsNow() {
+		if (!item || busy || !relations || !pickedSeasons.length) return;
+		const it = item;
+		const picks = relations
+			.filter((o) => o.ticked && !o.outside && pickedSeasons.includes(o.season))
+			.map((o) => ({ season: o.season, part: o.part, anilistId: o.anilistId }));
+		busy = true;
+		failed = null;
+		const r = await post(it.service, { series: it.seriesId, seasons: picks });
+		busy = false;
+		if (!r?.ok) {
+			failed = failText(r, it.service);
+			return;
+		}
+		const n = relations.filter((o) => pickedSeasons.includes(o.season) && !o.outside).length;
+		relations = null;
+		if (single) {
+			await backToSeries(it.seriesId);
+			return;
+		}
+		queue = queue.slice(1);
+		done += 1;
+		undo = {
+			title: `LINKED ${n} SEASON${n === 1 ? '' : 'S'} · ${it.title.toUpperCase()}`,
+			detail: 'EACH SENDS ITS OWN EPISODES FROM THE NEXT ONE WATCHED',
+			undo: null,
+			before: { queue: [...queue], done: done - 1 }
+		};
+	}
+
+	/** A ticket on one of the seasons the relations offered. */
+	function toggleSeason(n: number) {
+		pickedSeasons = pickedSeasons.includes(n)
+			? pickedSeasons.filter((x) => x !== n)
+			: [...pickedSeasons, n];
 	}
 
 	// ---- THE SAME WORK FOR THESE? (Ranobe Review 1b) ------------------------------------------
@@ -318,7 +418,11 @@
 		busy = true;
 		searchingNow = true;
 		failed = null;
-		const r = await post(it.service, { series: it.seriesId, search: q });
+		const r = await post(it.service, {
+			series: it.seriesId,
+			search: q,
+			...(season ? { season: season.no } : {})
+		});
 		busy = false;
 		searchingNow = false;
 		if (!r?.ok) {
@@ -503,13 +607,38 @@
 		if (!item || pasted || !item.candidates.length) return [];
 		return [
 			{ label: 'SEARCH AGAIN', run: openSearch, dim: netDim || noSearch },
-			{ label: 'PASTE A LINK', run: openPaste, dim: netDim }
+			{ label: 'PASTE A LINK', run: openPaste, dim: netDim },
+			// A linked season's own UNLINK: gone, and no pass searches it again
+			// (c240). The series screen's EDIT on the season line comes here.
+			...(season && single?.linked ? [{ label: 'UNLINK', run: unlinkSeason, dim: netDim }] : [])
 		];
 	});
+
+	/** UNLINK on a season: its row goes, and the series' mirror with it. */
+	async function unlinkSeason() {
+		if (!item || !season || busy) return;
+		const it = item;
+		busy = true;
+		failed = null;
+		const r = await post(it.service, { series: it.seriesId, unlink: true, season: season.no });
+		busy = false;
+		if (!r?.ok) {
+			failed = failText(r, it.service);
+			return;
+		}
+		if (single) await backToSeries(it.seriesId);
+	}
 	const actions = $derived.by((): Act[] => {
 		if (!item) return [];
 		const link: Act = selected
-			? { label: `LINK ${selectedLetter}`, run: linkChosen, strong: true, dim: off }
+			? {
+					label: season
+						? `LINK ${selectedLetter} TO SEASON ${season.no}`
+						: `LINK ${selectedLetter}`,
+					run: linkChosen,
+					strong: true,
+					dim: off
+				}
 			: { label: 'TAP ONE TO LINK', run: () => {}, dim: true };
 		if (pasted) return [{ label: 'CANCEL', run: cancelPaste, dim: off }, link];
 		const search: Act = {
@@ -630,10 +759,28 @@
 	<header class="head">
 		<a class="back" href={back.href}>{back.label}</a>
 		<div class="heading">
-			<span class="long">SERIES TO LINK</span><span class="short">TO LINK</span>
+			{#if season}
+				<span class="long">LINK · SEASON {season.no}</span><span class="short">S{season.no}</span>
+			{:else}
+				<span class="long">SERIES TO LINK</span><span class="short">TO LINK</span>
+			{/if}
 		</div>
 		<div class="counter">{counter}</div>
 	</header>
+
+	{#if season && item}
+		<!-- FIND on a season asks the anime catalogue with that season's own title
+		     (c240): the header says what was asked and what is compared. -->
+		<div class="seasonbar">
+			<div class="sb-a">{item.title.toUpperCase()}</div>
+			<div class="sb-b">
+				SEASON {season.no} OF {season.of} · {season.aired} EPISODES HERE{season.count > season.aired
+					? ` AND ${season.count - season.aired} RECAP`
+					: ''}{season.parts.length > 1 ? ` · ${season.parts.length} PARTS` : ''}
+			</div>
+			<div class="sb-c">ASKED AS {season.title.toUpperCase()}</div>
+		</div>
+	{/if}
 
 	{#if off}
 		<div class="band two" role="status">
@@ -968,31 +1115,103 @@
 			</div>
 		{/key}
 
-		{#if tools.length}
-			<div class="tools">
-				{#each tools as t, i (t.label)}
+		{#if relations && relations.length}
+			<!-- 02 — THE REST OF THE SERIES ON ANILIST (Track Calls, "Linking four
+			     seasons without four searches"; c240). Matched by order along the
+			     entry's own prequel and sequel chain, then checked by episode count;
+			     ticked where it agrees, and a pair that adds up is one season in two
+			     parts. A movie or a special is outside the numbering and never ticked. -->
+			<section class="rels" aria-label="The other seasons">
+				<div class="ch">
+					<div>02 — THE REST OF THE SERIES ON ANILIST</div>
+					<div>
+						{pickedSeasons.length} OF {relations.filter((o) => !o.outside).length} TICKED
+					</div>
+				</div>
+				<div class="relnotes">
+					<div>
+						A SEASON IS MATCHED BY ORDER ALONG THE CHAIN, THEN CHECKED BY ITS EPISODE COUNT.
+					</div>
+					<div>
+						A SEASON ALREADY LINKED TO SOMETHING ELSE SAYS “REPLACES …” AND IS NEVER TICKED.
+					</div>
+				</div>
+				<div class="rellist">
+					{#each relations as o (`${o.season}:${o.part}:${o.anilistId}`)}
+						{@const on = pickedSeasons.includes(o.season) && !o.outside}
+						<div class="rel" class:on class:outside={o.outside}>
+							<button
+								type="button"
+								class="relbtn"
+								class:on
+								disabled={o.outside || !o.ticked || busy}
+								aria-pressed={on}
+								onclick={() => toggleSeason(o.season)}
+							>
+								<span class="tickcell"><span class="tick">{on ? '✓' : ''}</span></span>
+								<span class="rno"
+									>{o.outside ? '–' : o.part > 1 ? `PART ${o.part}` : `S${o.season}`}</span
+								>
+								<span class="rtext">
+									<span class="rtitle">{o.title}</span>
+									<span class="rmeta">
+										{[
+											o.how,
+											o.format ? o.format.replace(/_/g, ' ') : '',
+											o.episodes ? `${o.episodes} EP.` : '',
+											o.year
+										]
+											.filter(Boolean)
+											.join(' · ')}
+									</span>
+									<span class="rwhy" class:ink={o.ticked || o.outside}>
+										{o.why}{o.replaces ? ` · REPLACES ${o.replaces.toUpperCase()}` : ''}
+									</span>
+								</span>
+							</button>
+						</div>
+					{/each}
+				</div>
+				<div class="relacts">
+					<button type="button" class="first" disabled={busy} onclick={() => (relations = null)}
+						>NOT NOW</button
+					>
+					{#if pickedSeasons.length}
+						<button type="button" class="strong" disabled={busy} onclick={linkSeasonsNow}
+							>LINK {pickedSeasons.length} SEASON{pickedSeasons.length === 1 ? '' : 'S'}</button
+						>
+					{:else}
+						<button type="button" class="dim" disabled>TAP A SEASON TO LINK IT</button>
+					{/if}
+				</div>
+			</section>
+		{:else}
+			{#if tools.length}
+				<div class="tools">
+					{#each tools as t, i (t.label)}
+						<button
+							type="button"
+							class:first={i === 0}
+							class:dim={t.dim}
+							disabled={t.dim || busy}
+							onclick={t.run}>{t.label}</button
+						>
+					{/each}
+				</div>
+			{/if}
+			<div class="actions" style:grid-template-columns={actionCols}>
+				{#each actions as act, i (act.label)}
 					<button
 						type="button"
+						class:strong={act.strong}
 						class:first={i === 0}
-						class:dim={t.dim}
-						disabled={t.dim || busy}
-						onclick={t.run}>{t.label}</button
+						class:dim={act.dim}
+						disabled={act.dim || busy}
+						onclick={act.run}>{act.label}</button
 					>
 				{/each}
 			</div>
 		{/if}
-		<div class="actions" style:grid-template-columns={actionCols}>
-			{#each actions as act, i (act.label)}
-				<button
-					type="button"
-					class:strong={act.strong}
-					class:first={i === 0}
-					class:dim={act.dim}
-					disabled={act.dim || busy}
-					onclick={act.run}>{act.label}</button
-				>
-			{/each}
-		</div>
 	{/if}
 </div>
 
@@ -1299,11 +1518,277 @@
 		text-wrap: pretty;
 	}
 
+	/* ---- the season (c240) ------------------------------------------------- */
+	.seasonbar {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 4px 14px;
+		padding: 14px var(--pad);
+		border-bottom: 1px solid var(--line-1);
+		background: var(--surface-panel);
+	}
+	.sb-a {
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.06em;
+	}
+	.sb-b,
+	.sb-c {
+		font: 400 12px var(--font-mono);
+		color: var(--text-2);
+		letter-spacing: 0.04em;
+	}
+	.sb-c {
+		margin-left: auto;
+	}
+	.rels {
+		display: flex;
+		flex-direction: column;
+		border-top: 1px solid var(--line-1);
+	}
+	.relnotes {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		padding: 10px var(--pad) 14px;
+		font: 400 12px/1.4 var(--font-mono);
+		color: var(--text-2);
+	}
+	.rellist {
+		display: flex;
+		flex-direction: column;
+		border-top: 1px solid var(--line-1);
+	}
+	.rel {
+		border-bottom: 1px solid var(--line-1);
+	}
+	.relbtn {
+		display: flex;
+		align-items: stretch;
+		width: 100%;
+		min-height: 64px;
+		padding: 0;
+		border: 0;
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-1);
+		text-align: left;
+		cursor: pointer;
+	}
+	.relbtn.on {
+		background: var(--surface-panel);
+	}
+	.relbtn:disabled {
+		cursor: default;
+	}
+	.rel.outside .relbtn {
+		color: var(--text-2);
+	}
+	.tickcell {
+		width: 44px;
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-right: 1px solid var(--line-1);
+		font: 500 15px var(--font-mono);
+	}
+	.rno {
+		width: 64px;
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		padding: 0 8px;
+		border-right: 1px solid var(--line-1);
+		font: 500 12px var(--font-mono);
+		letter-spacing: 0.04em;
+	}
+	.rtext {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 3px;
+		padding: 10px 14px;
+	}
+	.rtitle {
+		font: 500 14px/1.3 var(--font-sans);
+	}
+	.rmeta,
+	.rwhy {
+		font: 400 12px/1.35 var(--font-mono);
+		color: var(--text-2);
+	}
+	.rwhy.ink {
+		color: var(--text-1);
+	}
+	.relacts {
+		display: flex;
+		height: 60px;
+		border-top: 1px solid var(--line-1);
+		margin-top: auto;
+	}
+	.relacts button {
+		flex: 1;
+		border: 0;
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-1);
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.04em;
+		cursor: pointer;
+	}
+	.relacts button.strong {
+		flex: 1.4;
+		background: var(--accent);
+		color: var(--on-accent);
+	}
+	.relacts button.first {
+		border-right: 1px solid var(--line-1);
+	}
+	.relacts button.dim {
+		color: var(--text-2);
+		cursor: default;
+	}
 	.cands {
 		flex: 1;
 		min-width: 0;
 	}
 	@media (min-width: 1200px) {
+		/* ---- the season (c240) ------------------------------------------------- */
+		.seasonbar {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: baseline;
+			gap: 4px 14px;
+			padding: 14px var(--pad);
+			border-bottom: 1px solid var(--line-1);
+			background: var(--surface-panel);
+		}
+		.sb-a {
+			font: 500 13px var(--font-mono);
+			letter-spacing: 0.06em;
+		}
+		.sb-b,
+		.sb-c {
+			font: 400 12px var(--font-mono);
+			color: var(--text-2);
+			letter-spacing: 0.04em;
+		}
+		.sb-c {
+			margin-left: auto;
+		}
+		.rels {
+			display: flex;
+			flex-direction: column;
+			border-top: 1px solid var(--line-1);
+		}
+		.relnotes {
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+			padding: 10px var(--pad) 14px;
+			font: 400 12px/1.4 var(--font-mono);
+			color: var(--text-2);
+		}
+		.rellist {
+			display: flex;
+			flex-direction: column;
+			border-top: 1px solid var(--line-1);
+		}
+		.rel {
+			border-bottom: 1px solid var(--line-1);
+		}
+		.relbtn {
+			display: flex;
+			align-items: stretch;
+			width: 100%;
+			min-height: 64px;
+			padding: 0;
+			border: 0;
+			border-radius: 0;
+			background: transparent;
+			color: var(--text-1);
+			text-align: left;
+			cursor: pointer;
+		}
+		.relbtn.on {
+			background: var(--surface-panel);
+		}
+		.relbtn:disabled {
+			cursor: default;
+		}
+		.rel.outside .relbtn {
+			color: var(--text-2);
+		}
+		.tickcell {
+			width: 44px;
+			flex-shrink: 0;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			border-right: 1px solid var(--line-1);
+			font: 500 15px var(--font-mono);
+		}
+		.rno {
+			width: 64px;
+			flex-shrink: 0;
+			display: flex;
+			align-items: center;
+			padding: 0 8px;
+			border-right: 1px solid var(--line-1);
+			font: 500 12px var(--font-mono);
+			letter-spacing: 0.04em;
+		}
+		.rtext {
+			flex: 1;
+			min-width: 0;
+			display: flex;
+			flex-direction: column;
+			justify-content: center;
+			gap: 3px;
+			padding: 10px 14px;
+		}
+		.rtitle {
+			font: 500 14px/1.3 var(--font-sans);
+		}
+		.rmeta,
+		.rwhy {
+			font: 400 12px/1.35 var(--font-mono);
+			color: var(--text-2);
+		}
+		.rwhy.ink {
+			color: var(--text-1);
+		}
+		.relacts {
+			display: flex;
+			height: 60px;
+			border-top: 1px solid var(--line-1);
+			margin-top: auto;
+		}
+		.relacts button {
+			flex: 1;
+			border: 0;
+			border-radius: 0;
+			background: transparent;
+			color: var(--text-1);
+			font: 500 14px var(--font-mono);
+			letter-spacing: 0.04em;
+			cursor: pointer;
+		}
+		.relacts button.strong {
+			flex: 1.4;
+			background: var(--accent);
+			color: var(--on-accent);
+		}
+		.relacts button.first {
+			border-right: 1px solid var(--line-1);
+		}
+		.relacts button.dim {
+			color: var(--text-2);
+			cursor: default;
+		}
 		.cands {
 			min-height: 0;
 			overflow-y: auto;

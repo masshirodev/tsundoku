@@ -15,9 +15,18 @@ const idOf = (title: string) =>
 	(db.prepare(`SELECT id FROM series WHERE title = ?`).get(title) as { id: number }).id;
 const ratingOf = (id: number) =>
 	(db.prepare(`SELECT rating FROM series WHERE id = ?`).get(id) as { rating: number }).rating;
+/**
+ * The row that holds a series' link, wherever its kind puts it: `series_links`
+ * for a comic or a novel, `series_season_links` for an anime, whose link is
+ * one season's (c240).
+ */
 const linkRow = (id: number) =>
-	db.prepare(`SELECT * FROM series_links WHERE series_id = ?`).get(id) as
-		Record<string, unknown> | undefined;
+	(db.prepare(`SELECT * FROM series_links WHERE series_id = ?`).get(id) ??
+		db
+			.prepare(
+				`SELECT * FROM series_season_links WHERE series_id = ? ORDER BY season, part LIMIT 1`
+			)
+			.get(id)) as Record<string, unknown> | undefined;
 
 /** An AniList entry as the API sends it. */
 const media = (o: {
