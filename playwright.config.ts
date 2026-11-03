@@ -166,10 +166,10 @@ export default defineConfig({
 			}
 		},
 		{
-			// Works' frames (c276, c277): they make the Work they measure and end
-			// it again, so they run once, after the devices -- never beside a
-			// spec reading the same library. The viewport is the board's own
-			// 1280, where the Work screen draws its 440 panel beside the run.
+			// Works' frames (c276, c277): each seeds a database of its own and
+			// serves the build on its own port, so they need not queue behind
+			// anything. The viewport is the board's own 1280, where the Work
+			// screen draws its 440 panel beside the run.
 			name: 'works-frame',
 			testMatch: ['**/works-library-frame.e2e.ts', '**/work-screen-frame.e2e.ts'],
 			fullyParallel: false,
