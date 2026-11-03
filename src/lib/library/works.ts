@@ -8,7 +8,8 @@
  */
 
 import { sharedStart, titleWords } from './books';
-import { kindLabel, unitLabel } from './labels';
+import { count, kindLabel, unitLabel } from './labels';
+import type { Direction } from './series';
 import { ago } from './tracking';
 import type { ContinueItem, Kind, Rating, SeriesCard } from './types';
 
@@ -94,6 +95,107 @@ export function facePart(parts: WorkPart[]): WorkPart | null {
 	const ordered = inOrder(parts);
 	return continuePart(ordered) ?? ordered[ordered.length - 1] ?? null;
 }
+
+/**
+ * The part after this one in the owner's order, or null when this one is last
+ * (or is not a part of the Work at all). "Next" is positional, never the next
+ * unfinished one: finishing part 2 of 3 leads to part 3 even when part 3 was
+ * started out of order, because the run is an order and the end page is where
+ * it crosses (Works Calls, "The end of a series").
+ *
+ * The end page and the player read this, and W5's series screen will: one rule,
+ * one place, so the three cannot drift apart.
+ */
+export function nextPart<T extends WorkPart>(parts: T[], seriesId: number): T | null {
+	const ordered = inOrder(parts);
+	const i = ordered.findIndex((p) => p.seriesId === seriesId);
+	return i < 0 ? null : (ordered[i + 1] ?? null);
+}
+
+/** This part's place: "PART 2 OF 3" is `{ part: 2, of: 3 }`. Null when it is not a part. */
+export function partPlace(
+	parts: WorkPart[],
+	seriesId: number
+): { part: number; of: number } | null {
+	const ordered = inOrder(parts);
+	const i = ordered.findIndex((p) => p.seriesId === seriesId);
+	return i < 0 ? null : { part: i + 1, of: ordered.length };
+}
+
+/**
+ * What the end of a part offers (doc/WORKS.md, W6):
+ *
+ * - `next`: the part after this one, as the block.
+ * - `meanwhile`: this part is caught up on an ongoing source, so the next part
+ *   is a quiet row instead -- the owner may rather wait for chapters.
+ * - `read`: every part is finished and this one is not merely caught up, so the
+ *   end says the run is read rather than offering anything.
+ * - null: nothing to say (no Work, or the last part of a run with an earlier
+ *   part still in it).
+ */
+export type WorkEndMode = 'next' | 'meanwhile' | 'read' | null;
+
+export function workEndMode(parts: WorkPart[], seriesId: number): WorkEndMode {
+	const current = inOrder(parts).find((p) => p.seriesId === seriesId);
+	if (!current) return null;
+	// The run is read only when every part is; a caught-up part has not been
+	// read through, and says nothing rather than "the Work is read".
+	if (continuePart(parts) === null) return partState(current) === 'caught-up' ? null : 'read';
+	if (nextPart(parts, seriesId)) return partState(current) === 'caught-up' ? 'meanwhile' : 'next';
+	return null;
+}
+
+/** The first chapter START opens on the next part, and whether it can. */
+export type WorkNextEntry = {
+	id: number;
+	/** Its number as the source gives it: "CH. 1" is built from this and the part's kind. */
+	number: number;
+	label: string;
+	/** A file on the workstation. */
+	available: boolean;
+	/** No file, but a source an installed extension serves (doc/BROWSING.md). */
+	online: boolean;
+};
+
+/**
+ * The next part, as the end page and the player draw it (Work-End). It carries
+ * the part's own kind and direction, because a Work may hold mixed kinds and
+ * the block speaks for the part it offers: an anime next part says WATCH and
+ * EPISODES, not READ and CHAPTERS.
+ */
+export type WorkNextPart = {
+	seriesId: number;
+	title: string;
+	kind: Kind;
+	hue: number;
+	cover: number | null;
+	entries: number;
+	downloaded: number;
+	/** Where it is at, as the Work screen's run rows say it. */
+	state: PartState;
+	direction: Direction;
+	source: string;
+	/** Where START opens: the part's first chapter, at page 1. */
+	entry: WorkNextEntry | null;
+};
+
+/**
+ * The end of a part in a Work, for the end page and the player (doc/WORKS.md,
+ * W6). `mode` is the pure rule's answer (`workEndMode`); `next` is the part
+ * after this one when there is one, and `held` is the run's own line once it
+ * is read. A series in no Work gets null, and the page stays as it was.
+ */
+export type WorkEnd = {
+	id: number;
+	name: string;
+	createdAt: number;
+	part: number;
+	of: number;
+	mode: WorkEndMode;
+	next: WorkNextPart | null;
+	/** "2 SERIES · 227 CHAPTERS · MONSTER 10, PLUTO UNRATED", for mode 'read'. */
+	held: string | null;
+};
 
 /**
  * The tile foot's segments: done grey, current ink, to come dark (Work-Library).
@@ -289,6 +391,54 @@ export function workCounts(parts: WorkPart[]): WorkCounts {
 	const chapters = parts.reduce((n, p) => n + p.entries, 0);
 	const read = parts.reduce((n, p) => n + p.read, 0);
 	return { series: parts.length, chapters, read, allRead: chapters > 0 && read >= chapters };
+}
+
+/**
+ * What the run held, for the end page's last part (Work-EndStates 4): "2
+ * SERIES · 227 CHAPTERS · MONSTER 10, PLUTO UNRATED". The ratings come last
+ * because they are the part of the line that can be long, and an unrated part
+ * says so rather than showing a 0 (doc/RATINGS.md).
+ */
+export function workHeld(parts: WorkPart[]): string {
+	const c = workCounts(parts);
+	const ratings = inOrder(parts)
+		.map((p) => `${p.title.toUpperCase()} ${p.rating > 0 ? p.rating : 'UNRATED'}`)
+		.join(', ');
+	return `${count(c.series)} SERIES · ${count(c.chapters)} CHAPTERS${
+		ratings ? ` · ${ratings}` : ''
+	}`;
+}
+
+/**
+ * How a part reads, in one word (Work-End's block): SCROLLS for a strip, and
+ * the direction's own name for the paged modes. A novel's layout is PAGED or
+ * SCROLLS, never a manga's R→L.
+ */
+export function directionWord(direction: Direction): string {
+	if (direction === 'vertical' || direction === 'scroll') return 'SCROLLS';
+	if (direction === 'rtl') return 'R→L';
+	if (direction === 'ltr') return 'L→R';
+	return 'PAGED';
+}
+
+/**
+ * The next part's own line under its title (Work-End, Work-EndStates 2):
+ * "MANHWA · 205 CHAPTERS · ALL DOWNLOADED · SCROLLS". The unit word follows the
+ * part's kind -- an anime next part says EPISODES -- because a Work may hold
+ * mixed kinds and the block speaks for the part it offers, not for this one.
+ */
+export function workPartMeta(
+	p: { kind: Kind; entries: number; downloaded: number },
+	direction: Direction
+): string {
+	const unit = p.kind === 'anime' ? 'EPISODES' : 'CHAPTERS';
+	const downloaded =
+		p.entries > 0 && p.downloaded >= p.entries
+			? 'ALL DOWNLOADED'
+			: p.downloaded > 0
+				? `${count(p.downloaded)} OF ${count(p.entries)} DOWNLOADED`
+				: 'NOT DOWNLOADED';
+	return `${kindLabel(p.kind)} · ${count(p.entries)} ${unit} · ${downloaded} · ${directionWord(direction)}`;
 }
 
 /**

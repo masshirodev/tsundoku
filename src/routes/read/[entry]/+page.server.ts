@@ -18,6 +18,7 @@ import { novelReadsOnline, onlineChapters, ONLINE_VERSION } from '$lib/server/no
 import { EngineError } from '$lib/server/engine/client';
 import { previewIdOf } from '$lib/server/downloads';
 import { noVideoLine, staleSource } from '$lib/server/move';
+import { workEndOf } from '$lib/server/works';
 
 /**
  * The reader (doc/READER.md). `/read/<entry>?p=<page>`, `p` 1-based. With no
@@ -110,7 +111,9 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			// What it starts in (card c171): the series', SETTINGS', the last choice.
 			player: playerStart(series.id),
 			// Not just this episode (doc/MOVE.md): the same NO SERVER on others.
-			failures: isIncognito(cookies) ? null : await noVideoLine(series.id)
+			failures: isIncognito(cookies) ? null : await noVideoLine(series.id),
+			// The Work's next part, where the last episode ends (doc/WORKS.md, W6).
+			work: workEndOf(series.id, reveal)
 		};
 	}
 
@@ -159,7 +162,9 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			/** "1 EPUB · 3.1 MB" while it opens: the file's size, from its version. */
 			bytes: version && /^\d+-/.test(version) ? Number(version.split('-')[0]) : 0,
 			versions,
-			incognito: isIncognito(cookies)
+			incognito: isIncognito(cookies),
+			// The Work's next part, at the end of a novel's last volume (doc/WORKS.md, W6).
+			work: workEndOf(series.id, reveal)
 		};
 	}
 
@@ -276,6 +281,8 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 			/** Japanese: its pages get text blocks to look words up in (doc/JAPANESE.md). */
 			ocr: ocrStatus(series.id),
 			incognito: isIncognito(cookies),
+			// The Work's next part, at the end of this series (doc/WORKS.md, W6).
+			work: workEndOf(series.id, reveal),
 			/** Its languages, for the switch in the top bar; null for a book in one. */
 			editions: folded
 				? {

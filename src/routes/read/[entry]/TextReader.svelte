@@ -56,6 +56,7 @@
 	import TextChrome from './TextChrome.svelte';
 	import TextSheet from './TextSheet.svelte';
 	import TextScreen from './TextScreen.svelte';
+	import EndPage from './EndPage.svelte';
 	import ImageView from './ImageView.svelte';
 	import WideView from './WideView.svelte';
 
@@ -967,6 +968,7 @@
 
 	// ---- what the controls say --------------------------------------------------------------------
 	const seriesHref = $derived(resolve('/series/[id]', { id: String(series.id) }));
+	const workHref = $derived(data.work ? resolve('/work/[id]', { id: String(data.work.id) }) : '');
 	const libraryHref = resolve('/');
 	const inChapter = $derived(
 		layout === 'scroll' ? scrollFraction : pages <= 1 ? 1 : page / (pages - 1)
@@ -1198,21 +1200,50 @@
 	{#if dim > 0}<div class="dim" style:opacity={dim} aria-hidden="true"></div>{/if}
 
 	{#if atEnd}
-		<TextScreen
-			kind="end"
-			title={series.title}
-			where="{webNovel ? 'WEB NOVEL' : 'NOVEL'} · {reached.toLocaleString(
-				'en-US'
-			)} OF {chapters.length.toLocaleString('en-US')}"
-			missing={nextEntry && !nextEntry.available ? short(nextEntry) : null}
-			{askRating}
-			{rating}
-			{favourite}
-			{seriesHref}
-			{libraryHref}
-			onrate={rate}
-			onfav={toggleFav}
-		/>
+		{#if nextEntry}
+			<!-- A volume that isn't the last ends as it did: it names the chapter that isn't here. -->
+			<TextScreen
+				kind="end"
+				title={series.title}
+				where="{webNovel ? 'WEB NOVEL' : 'NOVEL'} · {reached.toLocaleString(
+					'en-US'
+				)} OF {chapters.length.toLocaleString('en-US')}"
+				missing={!nextEntry.available ? short(nextEntry) : null}
+				{askRating}
+				{rating}
+				{favourite}
+				{seriesHref}
+				{libraryHref}
+				onrate={rate}
+				onfav={toggleFav}
+			/>
+		{:else}
+			<!-- The last volume is the reader's end page, so it offers the Work's next
+			     part too (Work-End, "A novel's last volume"): one page, one rating ask. -->
+			<div class="endwrap">
+				<EndPage
+					variant="series"
+					entryName={entry?.label ?? ''}
+					position="{reached} OF {chapters.length}"
+					kind={webNovel ? 'WEB NOVEL' : 'NOVEL'}
+					unit="CH"
+					seriesTitle={series.title}
+					next={null}
+					{rating}
+					{favourite}
+					incognito={data.incognito || !saved}
+					mode="ltr"
+					lastPage=""
+					{seriesHref}
+					{libraryHref}
+					onrate={rate}
+					onfav={toggleFav}
+					onback={() => (atEnd = false)}
+					work={data.work}
+					{workHref}
+				/>
+			</div>
+		{/if}
 	{/if}
 	{#if failure}
 		<TextScreen
@@ -1243,6 +1274,12 @@
 </div>
 
 <style>
+	/* The last volume's page is the image reader's end page: over the reader's chrome. */
+	.endwrap {
+		position: absolute;
+		inset: 0;
+		z-index: 40;
+	}
 	/*
 	 * The controls are the image reader's: always dark. The page itself follows
 	 * THEME -- DARK is true black with --text-prose, so white text doesn't

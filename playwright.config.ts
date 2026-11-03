@@ -46,6 +46,7 @@ const DEVICE_IGNORE = [
 	// in their own project, after the devices, so no reader sees it (doc/WORKS.md).
 	'**/works-library-frame.e2e.ts',
 	'**/work-screen-frame.e2e.ts',
+	'**/work-end-frame.e2e.ts',
 	// The Works flow groups series into Works, so it seeds and serves a database
 	// of its own (tests/works-flow.e2e.ts) and runs in its own project.
 	'**/works-flow.e2e.ts'
@@ -132,6 +133,7 @@ export default defineConfig({
 				// Works' frames make the Work they measure; they run in `works-frame`.
 				'**/works-library-frame.e2e.ts',
 				'**/work-screen-frame.e2e.ts',
+				'**/work-end-frame.e2e.ts',
 				// The Works flow seeds and serves its own database: `works-flow`.
 				'**/works-flow.e2e.ts'
 			],
@@ -176,7 +178,11 @@ export default defineConfig({
 			// anything. The viewport is the board's own 1280, where the Work
 			// screen draws its 440 panel beside the run.
 			name: 'works-frame',
-			testMatch: ['**/works-library-frame.e2e.ts', '**/work-screen-frame.e2e.ts'],
+			testMatch: [
+				'**/works-library-frame.e2e.ts',
+				'**/work-screen-frame.e2e.ts',
+				'**/work-end-frame.e2e.ts'
+			],
 			fullyParallel: false,
 			workers: 1,
 			use: { ...devices['Galaxy Tab S4 landscape'], viewport: { width: 1280, height: 800 } }
