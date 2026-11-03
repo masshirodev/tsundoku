@@ -1,4 +1,5 @@
 import { clock } from './anime.ts';
+import type { MoveKind } from './kinds.ts';
 import { formatNumber } from './series.ts';
 
 /**
@@ -60,7 +61,13 @@ export type MoveCandidateEntry = {
 	order: number;
 };
 
-export type MoveKind = 'manga' | 'anime';
+/**
+ * A series that can be moved, as MOVE's map reads it: `MOVE_MAP` in the
+ * registry, derived there from `movable` and the map's shape (doc/KINDS.md;
+ * card c301). Today `manga` and `anime`; a manhwa is movable and maps as a
+ * manga, and a doujin is Hentoid's and does not move.
+ */
+export type { MoveKind };
 
 /**
  * YOUR EP. 1 IS THEIR EP. [offset]: only a candidate that numbers every

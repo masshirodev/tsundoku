@@ -1,3 +1,4 @@
+import { kindFacts } from './kinds';
 import type { ContinueItem, Kind, SeriesCard } from './types';
 
 /**
@@ -41,13 +42,13 @@ export function continueSub(item: ContinueItem, offline?: { cached: boolean }): 
 }
 
 /** Novels are counted in volumes, anime in episodes, everything with pages in chapters. */
-export const unitLabel = (kind: Kind) =>
-	kind === 'novel' ? 'VOL' : kind === 'anime' ? 'EP' : 'CH';
+export const unitLabel = (kind: Kind) => kindFacts(kind).unit.short;
 
 /** "MANGA · 58 CH · 41 READ · +3 NEW"; an anime's are WATCHED. */
 export function sheetMeta(item: SeriesCard): string {
-	const parts = [kindLabel(item.kind), `${item.entryCount} ${unitLabel(item.kind)}`];
-	parts.push(`${item.readCount} ${item.kind === 'anime' ? 'WATCHED' : 'READ'}`);
+	const unit = kindFacts(item.kind).unit;
+	const parts = [kindLabel(item.kind), `${item.entryCount} ${unit.short}`];
+	parts.push(`${item.readCount} ${unit.done}`);
 	if (item.newCount > 0) parts.push(`+${item.newCount} NEW`);
 	return parts.join(' · ');
 }
