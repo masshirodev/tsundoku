@@ -8,7 +8,7 @@ mirrored in [`design/handoff/`](design/handoff/) as `Works Calls.dc.html` (the
 designer's decisions, the canvas's `Main.dc.html`), the `Seasons-*` and
 `Work-*` boards, `wk.css`, and `Works canvas.json`.
 
-**Status: designed, W1 to W3 and W6 built** (the table at the end). Read
+**Status: designed, W1 to W6 built** (the table at the end). Read
 `Works Calls.dc.html` whole before a slice: it answers the brief's seven
 questions, and this file only records what the build decided on top of it.
 
@@ -33,8 +33,9 @@ tile and one CONTINUE row; search, tag filters and a person's page show the
 matching series as their own tiles, each with `PART 2 · <WORK>` in its foot.
 Hidden stays SQL's job (`src/lib/server/library.ts`): a Work is hidden or
 shown whole, and grouping refuses to mix hidden and visible series. A Work
-whose parts diverged after grouping -- one hidden on its own -- refuses every
-add, from every member, until W4's HIDE settles it. With reveal on, such a Work
+whose parts diverged after grouping -- one hidden on its own, which since wave
+16 only an import's fold can still do -- refuses every add, from every member,
+until HIDE settles it (W4: `HIDE ALL n`, or `TAKE OUT` then hide). With reveal on, such a Work
 is one tile wearing HIDDEN when any of its parts is hidden: the mark is the
 Work's, never the face's, so it does not depend on which part the tile happens
 to show.
@@ -87,7 +88,11 @@ existing one.
 - `works (id, name, created_at, order_mode)`, where `order_mode` is `hand`,
   `added` or `title`.
 - `work_series (work_id, series_id UNIQUE, position)`: positions start at 1 and
-  a gap is harmless, because order is by position. `series_id` is UNIQUE, so a
+  a gap is harmless, because order is by position. A take-out leaves one, and
+  UNDO puts the series back at its own position, so a part's number is never
+  the column: `PART n OF m` is its place among the members (`partPlace`, and
+  the same count in SQL for the finding lists' `workFeetFor` and the library
+  card's `work_part`). `series_id` is UNIQUE, so a
   series belongs to at most one Work and adding one that is already elsewhere
   moves it; it cascades from `series`, so a deleted series can never leave a
   Work naming it. A Work is never left with fewer than two series: the rung's
@@ -123,9 +128,10 @@ existing one.
   it cannot know they agree. **FAV** follows the same agreement rule, and mixed
   parts say how many are.
 - **The default name** is the words every title starts with (`sharedStart` in
-  `src/lib/library/books.ts`), or empty when they share none. W2's bulk-bar
-  WORK cell names a Work with no shared stem `Untitled work` and lands on the
-  Work screen with its RENAME row open; W4's AS sheet replaces that cell.
+  `src/lib/library/books.ts`), or empty when they share none, which
+  `defaultWorkName` (`src/lib/library/works.ts`) checks before keeping it. The
+  AS sheet's NAME is that default, or empty with `THE TITLES SHARE NO WORDS`,
+  and its CREATE cell waits for a name (W4).
 - **Kinds and the verb:** `WORK · MANGA + ANIME`, each kind once in the parts'
   order, and CONTINUE says WATCH for an anime and READ for anything else.
 
@@ -186,7 +192,7 @@ MAR`, `CH. 15 OF 205 · OPENED 2 H AGO` (`EP.` on an anime part), or `NOT STARTE
   counted from the Work's last open: chapters that arrived since the owner
   last read any part of the run. A series tile keeps the library's rule that a
   never-opened series has only unread (`doc/LIBRARY.md`, "New chapters"). A tap
-  opens the series with `?from=work:<id>` (W5 reads it); ▶ continues the part
+  opens the series with `?from=work:<id>` (which W5's ← reads); ▶ continues the part
   CONTINUE opens. On a phone the rows are 104px and the status column folds
   into the meta line.
 - **ORDER** is the books grid's idiom: drag a row or focus it and use the
@@ -215,16 +221,78 @@ goes to a tracker; mixed parts show `PARTS DIFFER` and say how many are. A
 page that can see only some parts (reveal off, a hidden part) shows and does
 not offer: `workPage.total` is what tells it so.
 
-### Making one
+### Making one (W4)
 
-W2 needed a door, since W4's AS sheet is not planned: the bulk bar's grouping
-cell shows **WORK** when the selection is not one book series' to group, and
-`?/work` creates a Work from the selection in its order. A selection that holds
-any series already in a Work is refused (_A WORK KEEPS ITS PARTS · MOVE ONE
-FROM ITS OWN SCREEN_), because moving a series between Works is W4's sheet and
-a whole-shelf SELECT ALL must not collapse every Work on it into one. One cell,
-no sheet; W4 replaces it with AS → A WORK · SERIES, NAME and ORDER. The create
-leaves no UNDO band: taking the Work apart again is UNGROUP, and UNDO is W4's.
+GROUP opens the AS sheet (Work-Group B5; doc/BOOKS.md, "The AS row"). The bulk
+bar offers GROUP for any selection, and the sheet's first row says what the
+selection can become: `ONE SERIES · BOOKS`, `ONE SERIES · VOLUMES`
+(doc/BOOKS.md's), and `A WORK · SERIES`, which is always one of the answers. A Work
+takes any series; the other two take only the selection they fit.
+
+For a Work the sheet reads `NEW WORK` or `ADD TO A WORK · N`, a NAME (the words
+every title starts with, or empty with `THE TITLES SHARE NO WORDS`), ORDER
+(`BY HAND` first, the selection's own order, then BY DATE ADDED and BY TITLE),
+numbered rows with ↑ ↓, and the line that matters: `EACH KEEPS ITS OWN RATING,
+FAV, FOLLOW, LINK AND FOLDER`. A series already in another Work says `IN
+<WORK> · MOVES HERE`: a series belongs to one Work at most, and moving it in
+ends the Work it left when one was left behind, with the same facts UNDO reads.
+The create's band names the Work and offers UNDO, on the page the sheet was
+opened from, so making one never replaces the library with the Work's screen.
+
+`?/work` is the sheet's own door. It refuses a selection that touches **two or
+more** Works, which is what a whole-shelf SELECT ALL would be, so one Work can
+never swallow another by accident; any caller that does not identify as the
+sheet still gets W2's refusal (_A WORK KEEPS ITS PARTS · MOVE ONE FROM ITS OWN
+SCREEN_) whenever the selection holds a Work's part at all.
+
+**From a person's page** it is the same bulk bar over the person's items, and
+that is the common way an author's Work is made. The page then says the run
+exists, once per Work, without pulling the Work's other series in: `WORK ·
+<NAME> · 3 OF 3 HERE · UP NEXT: <part> · OPEN →` (Work-States 7), from
+`worksOnTagPage` -- one query for the page's Works and one grouped pass over
+their parts, never one read per row.
+
+### HIDE on a part (W4)
+
+A Work is hidden or shown whole (Work-States 4). HIDE on a series in a Work
+therefore asks: `HIDE ALL n` hides the Work, every part, with a band and UNDO;
+`TAKE OUT` takes this series out first and hides it on its own, and the rest
+stay a Work. The bulk bar asks the same way when its selection holds part of a
+Work: HIDE ALL covers every Work touched, TAKE OUT hides exactly what was
+selected. A series in no Work keeps the plain HIDE, and the bulk bar's UNHIDE
+is the same rule backwards (`?/showAll`): one hidden part of a hidden Work
+selected anywhere -- a person's page draws the parts as their own tiles -- shows
+the Work whole, with its own band and UNDO. Each answer's UNDO both shows the
+series again and puts back any take-out, including a Work that ended because it
+was left with one.
+
+**The rule sits at the write, not at the screen.** Every door that hides or
+shows series by id goes through `setHiddenWhole` (`src/lib/server/works.ts`),
+which takes each part's Work with it, every part, in either direction: the
+library's plain `?/hide` (the long-press series sheet's, on the library and on
+the search page, where any hit opens it -- a Work's part included), `?/bulk`'s
+HIDE and UNHIDE, `?/hideAll`, `?/showAll`, both UNDOs, and TAKE OUT's own hide
+on both screens. A series in no Work is written exactly as before. The series
+sheet does not ask a new question: on a part its cell says `HIDE ALL n` (or
+`UNHIDE ALL n`), the HIDE sheet's words, and the library's band says the Work
+went whole. The series screen's plain `?/hide` refuses a part outright
+(`A WORK IS HIDDEN WHOLE · HIDE ALL OR TAKE OUT`), because that screen always
+asks. So no door the app offers leaves a Work half-hidden, in either direction.
+The one write that still can is an import's fold (`foldSeries`,
+`src/lib/server/import/fold.ts`: a Mihon backup that names a series the library
+already holds under another key folds one into the other, `hidden = MAX(...)`);
+its account is in `doc/handoff-notes/works-screen.md`, "Wave 16".
+
+**The bands say how many Works** (`wholeBand`, `src/lib/library/works.ts`):
+`HIDDEN · THE WORK, WHOLE` for one, `HIDDEN · 2 WORKS, WHOLE` for a selection
+that touched two, with the Works' own series counted in the detail and the
+selected series in no Work named apart (`4 SERIES · 6 MORE ON THEIR OWN ·
+SHOWN AGAIN BY UNDO`). UNHIDE's band is the same with `SHOWN`.
+
+With reveal off, the series screen no longer exists after either answer, so the
+library carries the band: `HIDE ALL n` says the Work was hidden whole, and
+`TAKE OUT` says `HIDDEN · TAKEN OUT` -- one series hidden, on its own again,
+naming the Work it left if that Work ended.
 
 ### The end of a series (W6)
 
@@ -284,6 +352,32 @@ ONLINE FROM <SOURCE>` with `▶ READ ONLINE · CH. 1` (c161) and DOWNLOAD FIRST
   another series; the end-of-episode page keeps `END · LAST AVAILABLE` and
   gains the same card. A Work of an anime and its manga says READ.
 
+### The series screen's WORK row (W5)
+
+One row for a series in a Work, between CONTINUE and DOWNLOAD, because it
+answers the same question, what after this (Work-Row B3; doc/SERIES.md, "The
+WORK row"). It shows the Work's name over `PART 2 OF 3 · NEXT · <next part>`,
+or `PART 2 OF 3 · YOU'RE IN <part>` once the run has moved into another part it
+has already begun; the two 52px ← → cells (44px on a phone) open the
+neighbouring parts, dimmed at the ends; a tap on the name opens `/work/N`; a
+long press, MENU or a held OK opens the row's sheet -- OPEN, MOVE ↑ ↓, TAKE OUT
+with a band and UNDO.
+
+`workRowLine` (`src/lib/library/works.ts`) decides that line and the accent:
+when this part is done (read through, or caught up) and the next part has **not
+been started**, the row becomes the accent row `NEXT · <next part> · IN <WORK> ·
+PART 3 · 98 CH. · ▶ CH. 1`, one tap into the next series' first chapter, and
+CONTINUE above it goes quiet as `↺ READ AGAIN`. A next part the owner is
+already in is not offered as an accent -- the plain row says `YOU'RE IN` it --
+so there is exactly one accent on the screen and it is the run's.
+`seriesWorkRow` (`src/lib/server/works.ts`) reads the row, its neighbours and
+the next part once; `workEndMode` is still what the end page and the player
+read.
+
+`?from=work:<id>` on the series screen (set by the Work's run rows) makes ←
+name the Work: `backTo` validates the id, checks the series really is that
+Work's part, and falls back to `← LIBRARY` otherwise (doc/NAVIGATION.md).
+
 ### The frames
 
 `tests/works-library-frame.e2e.ts` and `tests/work-screen-frame.e2e.ts` are
@@ -310,11 +404,29 @@ without the browse world's fake engine or its shared database. Its six Works
 are made through the app and renamed in SQL, and its "reads online" state is
 one `engine_sources` row for a source nothing calls.
 
+`tests/work-group-frame.e2e.ts` (W4) is pinned from `Work-Group.dc.html`: the
+AS row, the INTO row, NAME, ORDER, the numbered rows with the line that matters,
+and the create foot. It selects three doujin singles, since that is the only
+selection whose AS row has the board's two answers, and fills a name. The
+board's own cell tracks are its 556px side sheet's, so the frame asserts the
+cells equal rather than 254px wide.
+
+`tests/work-row-frame.e2e.ts` (W5) is pinned from `Work-Row.dc.html`, and
+measures the board's three states on the screen that draws each: a part mid-run
+(the plain row, both cells live), a part read through with the next one
+unstarted (the accent row and a quiet CONTINUE), and a first part (← dimmed).
+It makes two Works in SQL -- one caught mid-run, one with its second part read
+through -- and its hand-written cases walk the row's links, ← from the Work, a
+stale `from=work:` id, MOVE and TAKE OUT with its band and UNDO.
+
 ### The flow
 
-`tests/works-flow.e2e.ts` is W2's and W3's end to end: the tile, the CONTINUE
-row, the Work's screen, ORDER, TAKE OUT and its bands, ADD A SERIES, the
-derived RATING and FAV, the hidden 404, paging and SELECT ALL. Every case groups
+`tests/works-flow.e2e.ts` is W2's, W3's and W4's end to end: the tile, the
+CONTINUE row, the Work's screen, ORDER, TAKE OUT and its bands, ADD A SERIES,
+the derived RATING and FAV, the hidden 404, paging and SELECT ALL, then GROUP
+AS A WORK from the library and from a person's page, ADD TO A WORK, `IN <WORK> ·
+MOVES HERE`, both HIDE answers (on a part and in the bulk bar), and the refusal
+that keeps SELECT ALL from collapsing two Works. Every case groups
 series into a Work, and a Work takes its parts' own tiles off the grid while it
 exists -- so a spec that finds one of those series by its grid tile, running
 beside this file on the shared database, would time out (the reader's
@@ -333,9 +445,8 @@ no detection of franchises, seasons or authors beyond the title-stem offers;
 two sources of one work stay the duplicates review's; the next part is not
 kept cached on the tablet.
 
-W4, W5 and W7 are not built: GROUP AS A WORK's AS sheet (the WORK cell above
-is a stand-in), a person's page Work row, HIDE on a part, the series screen's
-WORK row and back cell, MIGHT CONTINUE and the phone flow. The Work screen
+W7 is not built: MIGHT CONTINUE's offers, the phone flow and one flow end to
+end. The Work screen
 does not draw the handoff's `↓ 10` download cell: a tap on a row opens the
 series, where DOWNLOAD's NEXT 10 lives, and this slice adds no download action
 of its own. W6's block offers DOWNLOAD FIRST 10 for the next part, which is
@@ -354,8 +465,8 @@ beside). A slice's card names its boards, files, specs and docs.
 | W1    | c275 | Works: schema, pure rules, server actions (no screens)                 |
 | W2    | c276 | The library: one Work tile, one CONTINUE row, the finding rule (built) |
 | W3    | c277 | `/work/N`: the Work's own screen (built)                               |
-| W4    | c278 | GROUP AS A WORK, a person's page, HIDE on a part                       |
-| W5    | c279 | The series screen's WORK row and back cell                             |
+| W4    | c278 | GROUP AS A WORK, a person's page, HIDE on a part (built)               |
+| W5    | c279 | The series screen's WORK row and back cell (built)                     |
 | W6    | c280 | The end of a series: the end page and the player (built)               |
 | W7    | c281 | MIGHT CONTINUE offers, the phone, and one flow end to end              |
 | S1    | c282 | Merged seasons: per-season source and folder (after c240)              |

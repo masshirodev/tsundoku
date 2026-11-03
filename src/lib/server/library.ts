@@ -110,7 +110,12 @@ function cardQuery(where: string, order: string, limit = ''): string {
 		t.last_opened IS NOT NULL AS opened,
 		t.last_opened AS last_opened_at,
 		l.language,
-		ws.work_id AS work_id, w.name AS work_name, ws.position AS work_part,
+		ws.work_id AS work_id, w.name AS work_name,
+		-- The part's place, as partPlace counts it (src/lib/library/works.ts),
+		-- not its raw position: a take-out leaves the other positions sparse.
+		(SELECT COUNT(*) FROM work_series n WHERE n.work_id = ws.work_id
+			AND (n.position < ws.position
+				OR (n.position = ws.position AND n.series_id <= ws.series_id))) AS work_part,
 		(SELECT COUNT(*) FROM work_series n WHERE n.work_id = ws.work_id) AS work_size
 	FROM picked p JOIN series s ON s.id = p.id JOIN roots r ON r.id = s.root_id
 	LEFT JOIN stats t ON t.series_id = s.id LEFT JOIN fresh f ON f.series_id = s.id

@@ -47,6 +47,8 @@ const DEVICE_IGNORE = [
 	'**/works-library-frame.e2e.ts',
 	'**/work-screen-frame.e2e.ts',
 	'**/work-end-frame.e2e.ts',
+	'**/work-group-frame.e2e.ts',
+	'**/work-row-frame.e2e.ts',
 	// The Works flow groups series into Works, so it seeds and serves a database
 	// of its own (tests/works-flow.e2e.ts) and runs in its own project.
 	'**/works-flow.e2e.ts'
@@ -134,6 +136,8 @@ export default defineConfig({
 				'**/works-library-frame.e2e.ts',
 				'**/work-screen-frame.e2e.ts',
 				'**/work-end-frame.e2e.ts',
+				'**/work-group-frame.e2e.ts',
+				'**/work-row-frame.e2e.ts',
 				// The Works flow seeds and serves its own database: `works-flow`.
 				'**/works-flow.e2e.ts'
 			],
@@ -181,7 +185,9 @@ export default defineConfig({
 			testMatch: [
 				'**/works-library-frame.e2e.ts',
 				'**/work-screen-frame.e2e.ts',
-				'**/work-end-frame.e2e.ts'
+				'**/work-end-frame.e2e.ts',
+				'**/work-group-frame.e2e.ts',
+				'**/work-row-frame.e2e.ts'
 			],
 			fullyParallel: false,
 			workers: 1,

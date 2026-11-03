@@ -123,6 +123,54 @@ export function partPlace(
 }
 
 /**
+ * Whether this part is done -- read through, or caught up on a source still
+ * going. CONTINUE goes quiet on it (`↺ READ AGAIN`) wherever it is in a Work,
+ * so the run's next part is the one accent on the series screen (Work-Row B3;
+ * doc/SERIES.md, "The WORK row"). A series in no Work keeps CONTINUE's accent.
+ */
+export const partDone = (state: PartState): boolean =>
+	state === 'read-through' || state === 'caught-up';
+
+/**
+ * The WORK row's second line, as the three Work-Row boards draw it:
+ *
+ * - `PART 2 OF 3 · NEXT · ETERNAL FORCE` while the run is here;
+ * - `PART 1 OF 3 · YOU'RE IN NEW WAVES` when the run is already in another
+ *   part, so the row says where the owner actually is;
+ * - and `accent`, when this part is done and the next one has *not been
+ *   started*: then the row leads into it (Work-Row's second slice) and the
+ *   series screen's one accent is the run's.
+ *
+ * A next part the owner is already in is not offered as an accent ("you're in
+ * it"), and a part that is not done never takes the accent. Null when the
+ * series is not a part. The "NEXT" word and the ink are the markup's; this
+ * decides which title, if any, the line names.
+ */
+export type WorkRowLine = { nextTitle: string | null; youAreIn: string | null; accent: boolean };
+
+export function workRowLine(parts: WorkPart[], seriesId: number): WorkRowLine | null {
+	const place = partPlace(parts, seriesId);
+	const current = inOrder(parts).find((p) => p.seriesId === seriesId);
+	if (!place || !current) return null;
+	const next = nextPart(parts, seriesId);
+	const here = continuePart(parts);
+	const done = partDone(partState(current));
+	// The accent leads into a part that has not begun: once the owner is in it,
+	// the row says where they are instead (Work-Row's third slice).
+	const leads =
+		done &&
+		!!next &&
+		!!here &&
+		here.seriesId === next.seriesId &&
+		partState(next) === 'not-started';
+	return {
+		nextTitle: next ? next.title : null,
+		youAreIn: done && here && here.seriesId !== seriesId && !leads ? here.title : null,
+		accent: leads
+	};
+}
+
+/**
  * What the end of a part offers (doc/WORKS.md, W6):
  *
  * - `next`: the part after this one, as the block.
@@ -527,4 +575,57 @@ export function workFootShort(foot: WorkFoot, parts: WorkPart[]): string {
 	if (!current) return 'ALL READ';
 	const n = inOrder(parts).findIndex((p) => p.seriesId === current.seriesId) + 1;
 	return `${n} OF ${parts.length}`;
+}
+
+/**
+ * Whether every selected series is hidden: what the bulk bar's UNHIDE is for
+ * (W4). A series the page cannot see -- a Work's part the shelf draws as one
+ * card, a page not loaded yet -- says nothing either way, and reading it as
+ * hidden made UNHIDE the offer for plainly visible series. So at least one
+ * series must be known, and none known may be visible.
+ */
+export function allHiddenAmong(
+	ids: Iterable<number>,
+	hiddenOf: (id: number) => boolean | undefined
+): boolean {
+	let known = 0;
+	for (const id of ids) {
+		const hidden = hiddenOf(id);
+		if (hidden === undefined) continue;
+		if (!hidden) return false;
+		known++;
+	}
+	return known > 0;
+}
+
+/**
+ * The words for "a Work, whole" in a HIDE or UNHIDE band (W4), from the count:
+ * one Work is `THE WORK, WHOLE`, more are `2 WORKS, WHOLE`. A series screen
+ * only ever hides its own Work; the library's bulk bar and SELECT ALL can
+ * touch several, and the band must not call two of them one.
+ */
+export const wholeLine = (works: number): string =>
+	works === 1 ? 'THE WORK, WHOLE' : `${works} WORKS, WHOLE`;
+
+/**
+ * The band after a HIDE or UNHIDE that took one or more Works whole: the Works
+ * in the title, their own series in the detail, and the selected series in no
+ * Work kept out of the Works' count and named on their own.
+ */
+export function wholeBand(
+	verb: 'HIDDEN' | 'SHOWN',
+	facts: { ids: number[]; whole: number[]; works: number }
+): { title: string; detail: string } {
+	const loose = facts.ids.length - facts.whole.length;
+	const undo = verb === 'HIDDEN' ? 'SHOWN AGAIN BY UNDO' : 'HIDDEN AGAIN BY UNDO';
+	return {
+		title: `${verb} · ${wholeLine(facts.works)}`,
+		detail: [
+			`${facts.whole.length} SERIES`,
+			loose > 0 ? `${loose} MORE ON ${loose === 1 ? 'ITS' : 'THEIR'} OWN` : null,
+			undo
+		]
+			.filter(Boolean)
+			.join(' · ')
+	};
 }

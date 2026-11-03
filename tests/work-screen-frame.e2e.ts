@@ -103,7 +103,15 @@ test.beforeAll(async ({ browser }, info) => {
 		});
 	for (const title of ["Omniscient Reader's Viewpoint", 'Hoshi no Umi no Tabibito'])
 		await tile(title).locator('.open').click();
-	await page.getByRole('button', { name: 'WORK', exact: true }).click();
+	// W4's AS sheet is how a Work is made now: GROUP, A WORK, a name, CREATE.
+	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+	const sheet = page.getByRole('dialog', { name: 'Group into a series' });
+	await expect(sheet).toBeVisible();
+	await sheet.getByRole('radio', { name: /A WORK · SERIES/ }).click();
+	await sheet.getByRole('textbox', { name: 'Work name' }).fill('Frame Run');
+	await sheet.getByRole('button', { name: /CREATE WORK/ }).click();
+	await expect(page.locator('.band', { hasText: 'FRAME RUN IS A WORK' })).toBeVisible();
+	await page.locator('.grid .tile.work', { hasText: 'Frame Run' }).click();
 	await page.waitForURL(/\/work\/\d+/);
 	workId = Number(/\/work\/(\d+)/.exec(page.url())?.[1]);
 	await close();

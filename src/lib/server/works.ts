@@ -32,9 +32,14 @@ import {
 	workFavourite,
 	workHeld,
 	workRating,
+	workRowLine,
+	continuePart,
+	inOrder,
 	type AddablePage,
 	type AddableSeries,
+	type PartState,
 	type WorkEnd,
+	type WorkEndMode,
 	type WorkFootFacts,
 	type WorkNextPart,
 	type WorkOrder,
@@ -390,28 +395,166 @@ export function workRecords(ids: number[]): WorkRecord[] {
 }
 
 /**
+ * The Works a GROUP sheet can add to (W4; Works Calls, "Making and breaking a
+ * Work"): each name and how many series it holds. One query, for the sheet's
+ * ADD TO A WORK · N.
+ */
+export type WorkChoice = { id: number; name: string; series: number };
+
+export function workChoices(): WorkChoice[] {
+	return getDb()
+		.prepare(
+			`SELECT w.id, w.name, COUNT(ws.series_id) AS series FROM works w
+				LEFT JOIN work_series ws ON ws.work_id = w.id
+				GROUP BY w.id ORDER BY w.name COLLATE NOCASE, w.id`
+		)
+		.all() as WorkChoice[];
+}
+
+/**
+ * Finding a person's page (Works Calls, question 7; Work-States 7): one row
+ * per Work that has a series here -- "3 OF 3 HERE · UP NEXT: OSHI NO KO". It
+ * says the run exists and is one tap away; it never pulls the Work's other
+ * series onto the page. Two queries for the whole page: which Works these
+ * series are in, then every part of those Works in one grouped pass.
+ */
+export type TagWork = {
+	id: number;
+	name: string;
+	/** How many of this page's series are in it. */
+	here: number;
+	/** How many series the Work holds, hidden ones included. */
+	of: number;
+	/** The part CONTINUE opens, named; null once the run is read. */
+	upNext: string | null;
+};
+
+export function worksOnTagPage(seriesIds: number[], reveal: boolean): TagWork[] {
+	const uniq = [...new Set(seriesIds)];
+	if (uniq.length === 0) return [];
+	const db = getDb();
+	const rows = db
+		.prepare(
+			`SELECT ws.work_id AS id, w.name, COUNT(DISTINCT ws.series_id) AS here FROM work_series ws
+				JOIN works w ON w.id = ws.work_id
+				WHERE ws.series_id IN (${placeholders(uniq.length)})
+				GROUP BY ws.work_id ORDER BY w.name COLLATE NOCASE, w.id`
+		)
+		.all(...uniq) as { id: number; name: string; here: number }[];
+	const parts = partsOfWorks(
+		rows.map((r) => r.id),
+		reveal
+	);
+	return rows.flatMap((r) => {
+		const mine = parts.filter((p) => p.workId === r.id);
+		// A Work is hidden or shown whole: with reveal off, one of its parts being
+		// unreadable means the Work is too, and the page says nothing of it.
+		if (mine.length === 0) return [];
+		const current = continuePart(mine);
+		return [
+			{
+				id: r.id,
+				name: r.name,
+				here: r.here,
+				of: memberCount(db, r.id),
+				upNext: current ? current.title : null
+			}
+		];
+	});
+}
+
+/**
+ * One series' Work as the series screen's WORK row draws it (W5; Work-Row B3):
+ * its place, its state, the neighbours its ← → cells open, and the next part
+ * the read-through row offers. `mode` is the same rule the end page reads
+ * (`workEndMode`), so the series screen and the end of a part cannot disagree.
+ */
+export type SeriesWorkPart = { seriesId: number; title: string };
+
+export type SeriesWorkRow = {
+	id: number;
+	name: string;
+	part: number;
+	of: number;
+	/** Where this part is: not started, in progress, caught up, read through. */
+	state: PartState;
+	mode: WorkEndMode;
+	prev: SeriesWorkPart | null;
+	next: SeriesWorkPart | null;
+	/** The next part, in the shape the accent row and the end block both read. */
+	nextPart: WorkNextPart | null;
+	/** "YOU'RE IN NEW WAVES" when the run is already in another part; null otherwise. */
+	youAreIn: string | null;
+	/** "NEXT · ETERNAL FORCE": the neighbour's title, when the run is here. */
+	nextTitle: string | null;
+	/** This part is done and leads into an unstarted next one: the accent row. */
+	accent: boolean;
+};
+
+export function seriesWorkRow(seriesId: number, reveal: boolean): SeriesWorkRow | null {
+	const work = workOfSeries(seriesId);
+	if (!work) return null;
+	const parts = workParts(work.id, reveal);
+	const place = partPlace(parts, seriesId);
+	const current = parts.find((p) => p.seriesId === seriesId);
+	if (!place || !current) return null;
+	const ordered = inOrder(parts);
+	const i = ordered.findIndex((p) => p.seriesId === seriesId);
+	const mode = workEndMode(parts, seriesId);
+	const line = workRowLine(parts, seriesId);
+	// The row's accent is the pure row's own rule; `mode` stays for the end page,
+	// which offers the next part however far into it the owner is.
+	const next = line?.accent ? nextPart(parts, seriesId) : null;
+	return {
+		id: work.id,
+		name: work.name,
+		part: place.part,
+		of: place.of,
+		state: partState(current),
+		mode,
+		prev: i > 0 ? { seriesId: ordered[i - 1].seriesId, title: ordered[i - 1].title } : null,
+		next:
+			i + 1 < ordered.length
+				? { seriesId: ordered[i + 1].seriesId, title: ordered[i + 1].title }
+				: null,
+		nextPart: next ? nextFacts(next) : null,
+		youAreIn: line?.youAreIn ?? null,
+		nextTitle: line?.nextTitle ?? null,
+		accent: line?.accent ?? false
+	};
+}
+
+/**
  * Where each of these series sits in its Work, for the finding lists (search,
  * a tag filter, a person's page): "PART 2 OF 3" and the Work's name, in one
  * query. A series in no Work is absent from the map.
+ *
+ * The part is a place, counted the way `partPlace` counts it (the members
+ * before this one in `position, series_id` order, plus one), never the raw
+ * `position`: a take-out leaves the others' positions alone, so after a
+ * middle one goes the last part's position is past the count.
  */
 export function workFeetFor(seriesIds: number[]): Map<number, WorkFootFacts> {
 	if (seriesIds.length === 0) return new Map();
 	const rows = getDb()
 		.prepare(
-			`SELECT ws.series_id AS seriesId, ws.work_id AS workId, ws.position,
-				w.name, (SELECT COUNT(*) FROM work_series x WHERE x.work_id = ws.work_id) AS total
+			`SELECT ws.series_id AS seriesId, ws.work_id AS workId, w.name,
+				(SELECT COUNT(*) FROM work_series x WHERE x.work_id = ws.work_id
+					AND (x.position < ws.position
+						OR (x.position = ws.position AND x.series_id <= ws.series_id))) AS part,
+				(SELECT COUNT(*) FROM work_series x WHERE x.work_id = ws.work_id) AS total
 			FROM work_series ws JOIN works w ON w.id = ws.work_id
 			WHERE ws.series_id IN (${placeholders(seriesIds.length)})`
 		)
 		.all(...seriesIds) as {
 		seriesId: number;
 		workId: number;
-		position: number;
 		name: string;
+		part: number;
 		total: number;
 	}[];
 	return new Map(
-		rows.map((r) => [r.seriesId, { id: r.workId, name: r.name, part: r.position, of: r.total }])
+		rows.map((r) => [r.seriesId, { id: r.workId, name: r.name, part: r.part, of: r.total }])
 	);
 }
 
@@ -830,6 +973,54 @@ export function hideWork(workId: number, hidden: boolean): { ids: number[]; chan
 	if (!workRow(db, workId)) throw new WorkError('no such Work');
 	const ids = allIds(db, workId);
 	return { ids, changed: setHidden(ids, hidden) };
+}
+
+/** The Works these series are parts of, once each. */
+export function worksTouched(seriesIds: number[]): number[] {
+	if (seriesIds.length === 0) return [];
+	const rows = getDb()
+		.prepare(
+			`SELECT DISTINCT work_id AS id FROM work_series
+				WHERE series_id IN (${placeholders(seriesIds.length)}) ORDER BY work_id`
+		)
+		.all(...seriesIds) as { id: number }[];
+	return rows.map((r) => r.id);
+}
+
+/** What `setHiddenWhole` did: every id it wrote, and which of them were a Work's. */
+export type WholeFacts = {
+	/** Every series hidden or shown: the Works' parts and the series in none. */
+	ids: number[];
+	/** The parts of the Works touched, each Work whole. */
+	whole: number[];
+	/** How many Works that was. */
+	works: number;
+};
+
+/**
+ * HIDE or SHOW series by id, with the one rule (doc/WORKS.md, "The one rule")
+ * applied at the write rather than at the screen that asked: a part of a Work
+ * takes its Work with it, every part, so no caller can leave a Work
+ * half-hidden in either direction. A series in no Work is written exactly as
+ * `setHidden` writes it.
+ *
+ * Every door that hides or shows series by id goes through here (the library's
+ * `?/hide`, `?/bulk`, `?/hideAll`, `?/showAll` and their UNDOs, the series
+ * screen's TAKE OUT and its UNDO), so the rule has one home. `hideWork` is the
+ * same write for a caller that already holds a Work's id.
+ */
+export function setHiddenWhole(seriesIds: number[], hidden: boolean): WholeFacts {
+	const db = getDb();
+	return db
+		.transaction((): WholeFacts => {
+			const works = worksTouched(seriesIds);
+			const whole = new Set<number>();
+			for (const workId of works) for (const id of allIds(db, workId)) whole.add(id);
+			const ids = [...new Set([...seriesIds, ...whole])];
+			setHidden(ids, hidden);
+			return { ids, whole: [...whole], works: works.length };
+		})
+		.immediate();
 }
 
 // ---- offers (W7 stores and undoes one) ----------------------------------------

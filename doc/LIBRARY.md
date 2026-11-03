@@ -106,8 +106,10 @@ series**.
 - **Search, a tag filter and a person's page** find series, so a Work opens:
   each matching series is its own tile with `PART 2 · <WORK>` in its foot. A
   search that matches the Work's own name shows the Work first, then its
-  parts. A person's page foot says the same; the Work's row above its grid
-  (W4) is not drawn yet.
+  parts. A person's page foot says the same, and above its grid one row per
+  Work with a series there (W4, `worksOnTagPage`; doc/WORKS.md). The part
+  number is the part's place in its Work, counted, never the raw position a
+  take-out leaves sparse.
 - **CONTINUE** is one row per Work, never one per part: `WORK · PART 2 ·
 <part> · CH. 15`, and between parts `UP NEXT` in inverse pointing at the
   next part's first chapter, with ▶ in accent. A Work whose part 1 is read

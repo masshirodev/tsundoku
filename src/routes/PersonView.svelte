@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import BookTile from '$lib/components/content/BookTile.svelte';
 	import Cover from '$lib/components/content/Cover.svelte';
 	import Badge from '$lib/components/content/Badge.svelte';
@@ -8,6 +9,7 @@
 	import { count } from '$lib/library/labels';
 	import { bookCoverSrc, coverSrc, seriesHref, tagHref } from '$lib/library/links';
 	import type { TagItem, TagPage } from '$lib/library/books';
+	import type { TagWork } from '$lib/server/works';
 	import type { WorkFootFacts } from '$lib/library/works';
 	import { phone } from '$lib/device.svelte';
 	import FilterPanel from '$lib/components/controls/FilterPanel.svelte';
@@ -24,7 +26,9 @@
 	/**
 	 * A person or tag page (Index Books, states 4, 5 and 8): the library at
 	 * `/?tag=…`, where this header replaces CONTINUE. Tiles, SELECT and the bulk
-	 * bar stay the library's own, so grouping from here needs nothing new.
+	 * bar stay the library's own. GROUP here is the usual way an author's Work is
+	 * made (W4); a Work with a series on the page gets one row above the grid,
+	 * which says the run exists without pulling its other series in.
 	 *
 	 * People (artist, circle, author) get FAV, a circle its ARTISTS, and a
 	 * SERIES strip; a plain tag gets the same page with less.
@@ -35,7 +39,8 @@
 		selected,
 		onselect,
 		reveal = false,
-		workFeet = {}
+		workFeet = {},
+		works = []
 	}: {
 		page: TagPage;
 		/** HIDDEN is in the panel only while reveal is on. */
@@ -45,6 +50,8 @@
 		onselect: (item: TagItem) => void;
 		/** Each series' place in its Work: "PART 2 · THE BREAKER" (doc/WORKS.md). */
 		workFeet?: Record<string, WorkFootFacts>;
+		/** One row per Work with a series here (W4): "3 OF 3 HERE · UP NEXT: …". */
+		works?: TagWork[];
 	} = $props();
 
 	// FAV and RATED left the tabs for the FILTER panel, as the library's
@@ -165,6 +172,27 @@
 			<div class="c"><b>{count(page.counts.favourite)}</b><span>FAVOURITE</span></div>
 		{/if}
 	</div>
+
+	{#if works.length > 0}
+		<!-- The run exists, and is one tap away (Works Calls, question 7): the Work's
+		     other series stay off the page, which is about this person. -->
+		<div class="works">
+			{#each works as w (w.id)}
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolve() builds the Work's own URL -->
+				<a class="work-row" href={resolve('/work/[id]', { id: String(w.id) })}>
+					<span class="w-label">WORK</span>
+					<span class="w-lk">
+						<span class="w-a">{w.name}</span>
+						<span class="w-b"
+							>{w.here} OF {w.of} HERE{#if w.upNext}
+								· UP NEXT: <span class="ink">{w.upNext.toUpperCase()}</span>{/if}</span
+						>
+					</span>
+					<span class="w-open">OPEN →</span>
+				</a>
+			{/each}
+		</div>
+	{/if}
 
 	{#if page.members.length > 0}
 		<div class="members">
@@ -376,6 +404,70 @@
 	.fav.on {
 		background: var(--accent);
 		color: var(--on-accent);
+	}
+	/* A Work with a series here (W4; Work-States 7): one row, above the grid. */
+	.works {
+		display: flex;
+		flex-direction: column;
+	}
+	.work-row {
+		display: flex;
+		align-items: stretch;
+		min-height: 64px;
+		border-top: var(--hairline);
+		color: var(--text-1);
+		text-decoration: none;
+	}
+	.w-label {
+		display: flex;
+		align-items: center;
+		width: var(--label-w);
+		flex-shrink: 0;
+		padding-left: var(--pad);
+		border-right: var(--hairline);
+		font: 500 12px var(--font-mono);
+		letter-spacing: var(--tracking-label);
+		color: var(--text-2);
+	}
+	.w-lk {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 5px;
+		padding: 10px 14px;
+	}
+	.w-a {
+		font: 500 15px/1.3 var(--font-sans);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.w-b {
+		font: 400 13px/1.35 var(--font-mono);
+		color: var(--text-2);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.w-b .ink {
+		color: var(--text-1);
+	}
+	.w-open {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0 18px;
+		border-left: var(--hairline);
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.04em;
+		white-space: nowrap;
+	}
+	@media (max-width: 599px) {
+		.w-open {
+			padding: 0 12px;
+		}
 	}
 	.members {
 		display: flex;

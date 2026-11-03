@@ -30,6 +30,8 @@
 	import { watchQueue } from '$lib/downloads-live.svelte';
 	import { cacheMany, dropMany } from '$lib/cache/device';
 	import { orderBooks } from '$lib/library/books';
+	import { partDone } from '$lib/library/works';
+	import type { TakeOutFacts } from '$lib/server/works';
 	import { withParam, readHref } from '$lib/library/links';
 	import {
 		addedDetail,
@@ -157,6 +159,12 @@
 	const action = $derived(
 		series.kind === 'anime' ? animeContinue(series.entries) : continueAction(series)
 	);
+	/**
+	 * The run's accent (W5; Work-Row B3): a part that is done makes CONTINUE
+	 * quiet, and the WORK row offers the next part. The panel decides the same
+	 * thing from `data.work`, so the header's ▶ and the bar cannot disagree.
+	 */
+	const quiet = $derived(!!data.work && partDone(data.work.state));
 
 	// ---- deleting ------------------------------------------------------------------
 	let deletingSeries = $state(false);
@@ -433,7 +441,8 @@
 				href={action.entry ? readHref(action.entry.id) : undefined}
 				data-focus-mark="in"
 				data-focus-id="series-continue"
-				data-focus-start="true">▶ {action.short || action.label}</a
+				data-focus-start="true"
+				>{quiet ? '↺' : '▶'} {quiet ? 'READ AGAIN' : action.short || action.label}</a
 			>
 			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 			<NavLine />
@@ -586,6 +595,21 @@
 					downloads={data.downloads}
 					move={data.move}
 					noVideo={data.move.band}
+					work={data.work}
+					takenOut={form && 'workTakenOut' in form
+						? {
+								facts: form.workTakenOut as TakeOutFacts,
+								from: String(('workFrom' in form && form.workFrom) || '')
+							}
+						: null}
+					hideFacts={form && 'hideFacts' in form
+						? (form.hideFacts as {
+								hidden: number[];
+								out: TakeOutFacts[];
+								whole: number[];
+								works: number;
+							})
+						: null}
 				/>
 			</div>
 		{/if}

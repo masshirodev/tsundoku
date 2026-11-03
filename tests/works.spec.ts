@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+	allHiddenAmong,
+	wholeBand,
+	wholeLine,
 	continuePart,
 	defaultWorkName,
 	directionWord,
@@ -19,8 +22,11 @@ import {
 	workKinds,
 	workRating,
 	workVerb,
+	partDone,
+	workRowLine,
 	type WorkPart
 } from '$lib/library/works';
+import { groupAnswers } from '$lib/library/books';
 
 /** A part with sane defaults; each test overrides only what it argues about. */
 function part(patch: Partial<WorkPart> & { seriesId: number; position: number }): WorkPart {
@@ -347,6 +353,147 @@ describe('the next part, at the end of one', () => {
 		);
 		expect(workPartMeta({ kind: 'manga', entries: 10, downloaded: 4 }, 'rtl')).toBe(
 			'MANGA · 10 CHAPTERS · 4 OF 10 DOWNLOADED · R→L'
+		);
+	});
+});
+
+describe('the series screen’s WORK row (W5)', () => {
+	/** Three parts in order: 1 read through, 2 in progress, 3 not started. */
+	const run = () => {
+		const parts = [
+			{ ...part({ seriesId: 1, position: 1, title: 'The Breaker', entries: 72 }), read: 72 },
+			{
+				...part({ seriesId: 2, position: 2, title: 'New Waves', entries: 205 }),
+				read: 14,
+				lastOpenedAt: 9
+			},
+			part({ seriesId: 3, position: 3, title: 'Eternal Force', entries: 98 })
+		];
+		return parts;
+	};
+
+	it('says a part is done when it is read through, or caught up on a going source', () => {
+		expect(partDone('read-through')).toBe(true);
+		expect(partDone('caught-up')).toBe(true);
+		expect(partDone('in-progress')).toBe(false);
+		expect(partDone('not-started')).toBe(false);
+	});
+
+	it('names the neighbour while the run is here, and where the run is when it is not', () => {
+		const parts = run();
+		// Part 2 is where CONTINUE is: the line names part 3.
+		expect(workRowLine(parts, 2)).toEqual({
+			nextTitle: 'Eternal Force',
+			youAreIn: null,
+			accent: false
+		});
+		// Part 1 is read through and the owner is already in part 2: the row says
+		// where the run is, rather than offering an accent into a part begun.
+		expect(workRowLine(parts, 1)).toEqual({
+			nextTitle: 'New Waves',
+			youAreIn: 'New Waves',
+			accent: false
+		});
+		// A part the owner has not started names nothing about where they are.
+		expect(workRowLine(parts, 3)).toEqual({
+			nextTitle: null,
+			youAreIn: null,
+			accent: false
+		});
+		// A series in no Work has no line at all.
+		expect(workRowLine(parts, 99)).toBeNull();
+	});
+
+	it('the accent leads into a next part that has not been started', () => {
+		// Part 2 read through, part 3 never started: the row is the run's accent.
+		const parts = run().map((p, i) => (i === 1 ? { ...p, read: p.entries } : p));
+		expect(workRowLine(parts, 2)).toEqual({
+			nextTitle: 'Eternal Force',
+			youAreIn: null,
+			accent: true
+		});
+		// A part that is caught up on a going source leads the same way.
+		const caught = run().map((p, i) =>
+			i === 1 ? { ...p, read: p.entries, status: 'ongoing' } : p
+		);
+		expect(workRowLine(caught, 2)?.accent).toBe(true);
+	});
+
+	it('the last part of a run read through names no neighbour', () => {
+		const parts = run().map((p) => ({ ...p, read: p.entries }));
+		expect(workRowLine(parts, 3)).toEqual({
+			nextTitle: null,
+			youAreIn: null,
+			accent: false
+		});
+	});
+});
+
+describe('what GROUP can make (W4)', () => {
+	it('offers books for doujin singletons, volumes for novels, and a Work always', () => {
+		expect(groupAnswers([{ kind: 'doujin', entryCount: 1 }])).toEqual(['books', 'work']);
+		expect(
+			groupAnswers([
+				{ kind: 'doujin', entryCount: 1 },
+				{ kind: 'doujin', entryCount: 1 }
+			])
+		).toEqual(['books', 'work']);
+		expect(groupAnswers([{ kind: 'novel', entryCount: 1 }])).toEqual(['volumes', 'work']);
+		// A Work takes anything that is a series, so a mixed selection has one answer.
+		expect(
+			groupAnswers([
+				{ kind: 'doujin', entryCount: 1 },
+				{ kind: 'novel', entryCount: 1 }
+			])
+		).toEqual(['work']);
+		// A doujin series of books and a manga are not one series of anything.
+		expect(groupAnswers([{ kind: 'doujin', entryCount: 5 }])).toEqual(['work']);
+		expect(groupAnswers([{ kind: 'manga', entryCount: 60 }])).toEqual(['work']);
+		expect(groupAnswers([])).toEqual(['work']);
+	});
+});
+
+describe('UNHIDE is offered only when every selected series is hidden (W4 round 2)', () => {
+	it('is true when every selected series is hidden', () => {
+		expect(allHiddenAmong([1, 2, 3], () => true)).toBe(true);
+	});
+
+	it('is false as soon as one of them is visible', () => {
+		expect(allHiddenAmong([1, 2], (id) => id !== 2)).toBe(false);
+	});
+
+	it('is false for a selection the page cannot see at all', () => {
+		// A Work's part drawn as one card, or a page not loaded: `every` over an
+		// empty list used to answer true, so a person's page offered UNHIDE for
+		// plainly visible series.
+		expect(allHiddenAmong([1, 2], () => undefined)).toBe(false);
+		expect(allHiddenAmong([], () => true)).toBe(false);
+	});
+
+	it('ignores what it cannot see beside what it can', () => {
+		// An unloaded page is not evidence either way; the visible ones still are.
+		expect(allHiddenAmong([1, 2, 3], (id) => (id === 3 ? undefined : true))).toBe(true);
+		expect(allHiddenAmong([1, 2, 3], (id) => (id === 1 ? false : undefined))).toBe(false);
+	});
+});
+
+describe('the HIDE and UNHIDE bands are worded from the count (wave 16)', () => {
+	it('says THE WORK for one Work and the number for more', () => {
+		expect(wholeLine(1)).toBe('THE WORK, WHOLE');
+		expect(wholeLine(2)).toBe('2 WORKS, WHOLE');
+	});
+
+	it('counts only the Works’ own series, and names the loose ones apart', () => {
+		expect(wholeBand('HIDDEN', { ids: [1, 2, 3, 4, 5], whole: [1, 2, 3, 4], works: 2 })).toEqual({
+			title: 'HIDDEN · 2 WORKS, WHOLE',
+			detail: '4 SERIES · 1 MORE ON ITS OWN · SHOWN AGAIN BY UNDO'
+		});
+		expect(wholeBand('SHOWN', { ids: [1, 2, 7, 8], whole: [1, 2], works: 1 })).toEqual({
+			title: 'SHOWN · THE WORK, WHOLE',
+			detail: '2 SERIES · 2 MORE ON THEIR OWN · HIDDEN AGAIN BY UNDO'
+		});
+		expect(wholeBand('HIDDEN', { ids: [1, 2], whole: [1, 2], works: 1 }).detail).toBe(
+			'2 SERIES · SHOWN AGAIN BY UNDO'
 		);
 	});
 });
