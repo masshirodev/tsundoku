@@ -127,6 +127,12 @@ describe('a sure match', () => {
 		// The raw title names 2024; the chip must read it as the pass does.
 		expect(isExact(['Ranma ½ (2024)'], anime)).toBe(false);
 		expect(isExact(matchTitles(['Ranma ½ (2024)']), anime)).toBe(true);
+		// The title the owner types is one of the series' too, as it is for the
+		// pass: opening "Sousou no Frieren" and searching "Frieren" is exact.
+		const frieren = cand({ anilistId: 41, title: 'Frieren', alts: [], format: 'TV' });
+		expect(isExact(matchTitles(['Sousou no Frieren']), frieren)).toBe(false);
+		expect(isExact(matchTitles(['Sousou no Frieren'], 'Frieren'), frieren)).toBe(true);
+		expect(matchTitles(['Sousou no Frieren'], null)).toEqual(matchTitles(['Sousou no Frieren']));
 	});
 
 	it('is never an anime for a manga’s exact title, however well it matches', () => {

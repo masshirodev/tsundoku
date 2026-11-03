@@ -137,11 +137,15 @@ export function isExact(seriesTitles: string[], c: Pick<Candidate, 'title' | 'al
 
 /**
  * The titles a sure match may equal: each as written, cleaned (`cleanTitle`),
- * and what its brackets hold. Shared by the automatic pass and the review's
- * EXACT TITLE chip, so both call the same title exact.
+ * and what its brackets hold, plus the title the owner typed (`query`), which
+ * is the owner's choice of title and counts as one of the series' too. Shared
+ * by the automatic pass and the review's EXACT TITLE chip, so both call the
+ * same title exact.
  */
-export const matchTitles = (titles: string[]): string[] => [
-	...new Set(titles.flatMap((t) => [t, cleanTitle(t), ...bracketed(t)]))
+export const matchTitles = (titles: string[], query?: string | null): string[] => [
+	...new Set(
+		(query ? [...titles, query] : titles).flatMap((t) => [t, cleanTitle(t), ...bracketed(t)])
+	)
 ];
 
 /** The AniList formats an anime is (doc/LINKS.md, "A novel never matches a comic"). */

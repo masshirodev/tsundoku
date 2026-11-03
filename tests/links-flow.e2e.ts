@@ -259,8 +259,8 @@ function freePort(): Promise<number> {
 	});
 }
 
-/** The sample library, then this spec's two anime; the seed's own two review rows are settled. */
-function seedAnime(): { ranma: number; frieren: number } {
+/** The sample library, then this spec's anime; the seed's own two review rows are settled. */
+function seedAnime(): { ranma: number; frieren: number; sousou: number } {
 	rmSync(dbPath, { force: true });
 	execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
 		env: { ...process.env, DATABASE_PATH: dbPath, LIBRARY_ROOT: library, NODE_NO_WARNINGS: '1' },
@@ -294,7 +294,13 @@ function seedAnime(): { ranma: number; frieren: number } {
 		};
 		const ranma = add('Ranma ½ (2024)', 24, 'aniyomi:1:/ranma-2024');
 		const frieren = add('Frieren', 28, 'aniyomi:1:/frieren');
-		return { ranma, frieren };
+		// Its own title is longer than the title a search will type at it, so the
+		// chip has to come from the query rather than from the series' titles.
+		const sousou = add('Sousou no Frieren', 28, 'aniyomi:1:/sousou-no-frieren');
+		db.prepare(
+			`INSERT OR REPLACE INTO link_decisions (series_id, decision, at) VALUES (?, 'none', ?)`
+		).run(sousou, now);
+		return { ranma, frieren, sousou };
 	} finally {
 		db.close();
 	}
@@ -411,6 +417,23 @@ test.describe('a catalogue that answers', () => {
 		await expect(page.locator('.title')).toHaveText('Frieren');
 		expect(linkedCount()).toBe(0);
 		await expect(page.locator('.cand')).toHaveCount(1);
+	});
+
+	test('the query counts as one of the series’ titles for the EXACT TITLE chip', async ({
+		page
+	}) => {
+		// "Sousou no Frieren" is the series' own title; the chip has to see the
+		// title the owner typed too, or an exact candidate carries no mark.
+		await page.goto(`${BASE}/links?series=${ids.sousou}`);
+		await page.getByRole('button', { name: 'SEARCH AGAIN' }).click();
+		await page.getByLabel('Title to search on AniList').fill('Frieren');
+		await page.getByRole('button', { name: 'SEARCH', exact: true }).click();
+		await expect(page.locator('.searched')).toContainText('“Frieren” JUST NOW · 1 FOUND');
+		await expect(page.locator('.cand')).toHaveCount(1);
+		await expect(page.locator('.cand .ctitle')).toHaveText('Frieren');
+		await expect(page.locator('.cand .chip.exact')).toHaveText('EXACT TITLE');
+		// A mark is not a choice: the search still links nothing.
+		await expect(page.locator('.cand[aria-pressed="true"]')).toHaveCount(0);
 	});
 });
 

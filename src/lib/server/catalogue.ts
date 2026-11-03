@@ -651,7 +651,7 @@ export async function searchSeries(
 		// The by-hand query is the owner's choice of title, so it counts as one of the series'.
 		const sure = crossed.has(i)
 			? null
-			: sureMatch(matchTitles([...titlesOfRow(r), ...(r.query ? [r.query] : [])]), r.kind, hits);
+			: sureMatch(matchTitles(titlesOfRow(r), r.query), r.kind, hits);
 		db.transaction(() => {
 			saveSearch.run(r.id, queries[i], now, hits.length);
 			clear.run(r.id);

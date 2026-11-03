@@ -800,7 +800,7 @@
 								{@const note = 'coverNote' in c ? c.coverNote : null}
 								{@const exactTitle =
 									!('work' in c) && item
-										? isExact(matchTitles([item.title, ...item.alts]), c)
+										? isExact(matchTitles([item.title, ...item.alts], item.query), c)
 										: false}
 								<div
 									class="cand"
