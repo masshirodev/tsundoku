@@ -1361,6 +1361,34 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		error TEXT,
 		PRIMARY KEY (series_id, season, part, service)
 	) WITHOUT ROWID;
+	`,
+	// v63: fingerprints found before c384 are fragments of an opening, a third
+	// to a half of the song, so SKIP INTRO landed in its middle (doc/ANIME.md,
+	// "Fingerprints of downloaded episodes"). The matcher that finds the whole
+	// opening shipped in wave 17, but an episode with any `fingerprint` row is
+	// not read again (a negative waits 14 days), so the old rows are forgotten
+	// here, negatives too, and the next play finds them under the new rule. A
+	// fragment is worse than no mark: no mark shows no SKIP INTRO at all.
+	//
+	// `entries.ending_at` follows the marks that remain. The ORDER BY and the
+	// validity test below are `MARK_ORDER` and `saneRange` (src/lib/library/
+	// marks.ts) as they stood when this rung was written, which is what
+	// `syncEndingAt` would choose. That is frozen history, run once on the data
+	// of its day: it is not a second copy of the rule to keep in step.
+	`
+	CREATE TEMP TABLE c384_stale AS SELECT DISTINCT entry_id FROM episode_marks WHERE method = 'fingerprint';
+	DELETE FROM episode_marks WHERE method = 'fingerprint';
+	UPDATE entries SET ending_at = (
+		SELECT m.ending_start FROM episode_marks m
+		WHERE m.entry_id = entries.id
+			AND m.ending_start IS NOT NULL AND m.ending_end IS NOT NULL
+			AND m.ending_start >= 0 AND m.ending_end > m.ending_start
+			AND (entries.duration_s IS NULL OR entries.duration_s <= 0 OR m.ending_end <= entries.duration_s + 1)
+		ORDER BY CASE m.method WHEN 'source' THEN 0 WHEN 'aniskip' THEN 1 ELSE 2 END
+		LIMIT 1
+	)
+	WHERE id IN (SELECT entry_id FROM c384_stale);
+	DROP TABLE c384_stale;
 	`
 ];
 
