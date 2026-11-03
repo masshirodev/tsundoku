@@ -141,6 +141,17 @@
 				: ''
 	);
 	const downloads = $derived(work?.next ? downloadWords(work.next) : '');
+	/** The meanwhile row's two lines, built once so no template whitespace splits them. */
+	const meanwhileLine = $derived(
+		work?.next ? `${work.next.title} · ${partUnit(work.next.kind)}. ${first?.number ?? 1}` : ''
+	);
+	const meanwhileSub = $derived(
+		work?.next
+			? `NEXT IN ${work.name.toUpperCase()} · PART ${work.part + 1} · ${count(
+					work.next.entries
+				)} ${partUnit(work.next.kind)}. · ${downloads}`
+			: ''
+	);
 	const note = $derived(
 		[
 			'SHOWN WHILE UNRATED',
@@ -284,12 +295,7 @@
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves -->
 				<a class="wrow" href={startHref} data-focus-mark="in">
 					<span class="wl">MEANWHILE</span>
-					<span class="wn"
-						>{work.next.title} · {partUnit(work.next.kind)}. {first?.number ?? 1}<span class="b"
-							>NEXT IN {work.name.toUpperCase()} · PART {work.part + 1} · {count(work.next.entries)}
-							{partUnit(work.next.kind)}. · {downloads}</span
-						></span
-					>
+					<span class="wn">{meanwhileLine}<span class="b">{meanwhileSub}</span></span>
 					<span class="wr">START →</span>
 				</a>
 			{:else if runRead && work}
