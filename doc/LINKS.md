@@ -37,13 +37,17 @@ Ranobe's candidates, ahead of its AniList item if it has one. That half is
 
 ## Where a link comes from
 
-| Via      | How                                                                                        | Sure?           |
-| -------- | ------------------------------------------------------------------------------------------ | --------------- |
-| `mihon`  | A MAL tracker (Mihon tracker 1) in a backup, at import                                     | Yes, at once    |
-| `exact`  | The background pass's AniList search found one entry whose title equals one of the series' | Yes, at once    |
-| `review` | The owner chose a candidate in the review                                                  | The owner's say |
-| `pasted` | The owner pasted an AniList or MAL link                                                    | The owner's say |
-| `list`   | The owner's AniList list, once signed in ([`TRACKING.md`](TRACKING.md))                    | Yes, at once    |
+| Via         | How                                                                                        | Sure?           |
+| ----------- | ------------------------------------------------------------------------------------------ | --------------- |
+| `mihon`     | A MAL tracker (Mihon tracker 1) in a backup, at import                                     | Yes, at once    |
+| `exact`     | The background pass's AniList search found one entry whose title equals one of the series' | Yes, at once    |
+| `review`    | The owner chose a candidate in the review                                                  | The owner's say |
+| `pasted`    | The owner pasted an AniList or MAL link                                                    | The owner's say |
+| `list`      | The owner's AniList list, once signed in ([`TRACKING.md`](TRACKING.md))                    | Yes, at once    |
+| `relations` | A season offered by the linked entry's own prequels and sequels, ticked by the owner       | The owner's say |
+
+`relations` is a season's alone (`series_season_links.via`); `series_links`
+has no such value, so the mirror it keeps says `review`.
 
 `exact` is the **background pass's only** (the owner's rule, 2026-11-02): a
 search the owner runs never links by itself, even when exactly one result has
@@ -261,10 +265,37 @@ desktop and in tablet landscape.
 
 ### The series screen (Series Link 1k–1t)
 
-**LINK** and **COVER** rows under SHELVES, on every series but a doujin.
+**LINK** and **COVER** rows under SHELVES, on every series but a doujin. An
+anime's LINK row is a line a season (c240; above).
 
 - **Linked:** the entry's title, its ids and where the link came from, then
   OPEN ↗, CHANGE and UNLINK.
+- **An anime trades one link for one a season** (c240, the owner's decision
+  A): AniList and MAL list each season as its own entry while a tsundoku
+  series holds several, so an anime's LINK row is a line a season -- tag,
+  title, `ANILIST AND MAL · TV · 24 EP. · 2018`, and EDIT or FIND. Three
+  seasons or fewer have a line each; more fold round the one being watched,
+  and SHOW opens both the LINK and the TRACKING row. A season in two parts
+  says so on one line (`2 PARTS · EP. 1 – 12 · EP. 13 – 23`). A series with
+  one season draws exactly what it always did. Ranobe stays one line under
+  the seasons ([`RANOBE.md`](RANOBE.md)).
+- **A season's link is its own row** (`series_season_links`, rung 62):
+  `series_links` keeps meaning what it meant for a manga or a novel, and an
+  anime's row there is a **mirror of its first season linked**, kept for the
+  one reader that asks a series for a single MAL entry (AniSkip). Tracking
+  never reads it for an anime. A link an anime had before rung 62 is read as
+  its first season's; nothing was migrated, since no anime was linked then.
+- **A season's FIND** opens the review with `?series=N&season=S`: the search
+  is that season's own title (`Sword Art Online Season 3`, the source's
+  season number after the series' title), asked in the anime formats, and
+  each candidate is set against that season's own episode count. LINK A TO
+  SEASON 3 writes that season's row. After it, the page offers the rest of
+  the show from the linked entry's AniList PREQUEL and SEQUEL relations, in
+  order along the chain and ticked where the episode counts agree -- or
+  where two entries add up to the season as `PART 1` and `PART 2`. A movie,
+  a special and a spin-off are listed dimmed and never ticked; a season
+  already linked says `REPLACES …` and is not ticked either. LINK N SEASONS
+  writes them all (`via 'relations'`), and NOT NOW leaves them.
 - **Not linked:** what the last pass found, then FIND (accent) and PASTE A
   LINK.
 - **COVER** says where the cover comes from and why the sources before it

@@ -62,10 +62,14 @@ the panel is 352px beside the list, rows are 56px and the rail stays 56px
   with KEEP BOTH and REVIEW → ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md)).
 - **TRACKING** sits under LINK on a linked series: what the AniList and
   MAL lists say of it, what was sent, and EDIT for status and score
-  ([`TRACKING.md`](TRACKING.md)).
+  ([`TRACKING.md`](TRACKING.md)). An anime has a line a season there, folded
+  round the one being watched, and its EDIT sheet is one season at a time.
 - **LINK and COVER** sit under SHELVES on every series but a doujin: its
   MyAnimeList / AniList entry with OPEN ↗, CHANGE and UNLINK, or FIND and
-  PASTE A LINK; and where its cover comes from ([`LINKS.md`](LINKS.md)).
+  PASTE A LINK; and where its cover comes from ([`LINKS.md`](LINKS.md)). An
+  anime's LINK row is a line a season, each with its own FIND or EDIT, and
+  Ranobe's one line under them ([`LINKS.md`](LINKS.md), "The series
+  screen").
 - **SOURCE sits after LINK and COVER**, before TAGS and ABOUT, on every series
   whose chapters or episodes come from a Mihon or Aniyomi source: MOVE → to
   another source, and for 30 days after a move WAS … · UNTIL … with MOVE BACK

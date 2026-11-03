@@ -393,9 +393,11 @@ export function linkSeason(
  * Keep the series' own `series_links` row in step with its seasons, for the
  * one reader that asks a series for a single entry: AniSkip numbers an
  * episode within its MAL entry, and gets the id from `series_links` (c299,
- * `src/lib/server/anime/marks.ts`). The row is the newest season linked --
- * the one being watched when the owner linked it -- and for an anime it is
- * never read by tracking, which reads the season rows. No season left: the
+ * `src/lib/server/anime/marks.ts`). The row is the **first** season linked,
+ * which is the entry AniSkip could already reach before rung 62 -- season 1,
+ * or a flat list -- so no episode is asked about under a later season's entry
+ * (doc/ANIME.md, "Seasons"; doc/handoff-notes/tracking.md, "Gaps"). Tracking
+ * never reads it for an anime: it reads the season rows. No season left, the
  * mirror goes.
  */
 export function syncSeriesLink(seriesId: number, now = Date.now()): void {
@@ -405,7 +407,7 @@ export function syncSeriesLink(seriesId: number, now = Date.now()): void {
 		db.prepare(`DELETE FROM series_links WHERE series_id = ?`).run(seriesId);
 		return;
 	}
-	const l = links.reduce((a, b) => (b.linkedAt >= a.linkedAt ? b : a));
+	const l = links.reduce((a, b) => (b.season < a.season ? b : a));
 	db.prepare(
 		`INSERT INTO series_links (series_id, anilist_id, mal_id, via, title, cover_url, linked_at, resolved_at, format)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
