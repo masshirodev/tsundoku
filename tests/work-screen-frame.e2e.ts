@@ -469,3 +469,36 @@ test("The Work screen: the panel is the series screen's 440px", async ({ page })
 	// The run sits beside it, not under it, once there is room.
 	await expect(page.locator('.work > .body')).toHaveCSS('flex-direction', 'row');
 });
+
+/**
+ * Hand-written (c357): the FILE row's RENAME and UNGROUP are two `.lc` cells of
+ * one `.prow` in the handoff (Work-Screen.dc.html, the FILE row). UNGROUP sits
+ * in a `<form>`, and a block form stretched by the row left its button at the
+ * text's own height, pinned to the row's top; `.prow form { display: flex }`
+ * is what lets it fill the cell as RENAME does. Height is what that bug breaks,
+ * so both cells must be the row's height inside its bottom hairline (64px at
+ * this viewport, 63 above the hairline) and start where it starts.
+ */
+test('The Work screen: RENAME and UNGROUP fill the FILE row', async ({ page }) => {
+	await page.goto(`${base}/work/${workId}`);
+	const rename = page.getByRole('button', { name: 'RENAME', exact: true });
+	const ungroup = page.getByRole('button', { name: 'UNGROUP', exact: true });
+	await expect(ungroup).toBeVisible();
+
+	const box = (node: Element) => {
+		const r = node.getBoundingClientRect();
+		return { top: r.top, height: r.height, inner: node.clientHeight };
+	};
+	const row = await page
+		.locator('.panel .prow')
+		.filter({ has: page.locator('.lb', { hasText: /^FILE$/ }) })
+		.evaluate(box);
+	const renameBox = await rename.evaluate(box);
+	const ungroupBox = await ungroup.evaluate(box);
+
+	expect(row.height).toBeCloseTo(64, 0);
+	expect(renameBox.height).toBeCloseTo(row.inner, 0);
+	expect(ungroupBox.height).toBeCloseTo(row.inner, 0);
+	expect(ungroupBox.top).toBeCloseTo(renameBox.top, 0);
+	expect(renameBox.top).toBeCloseTo(row.top, 0);
+});
