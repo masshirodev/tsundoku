@@ -2,11 +2,18 @@ import { describe, expect, it } from 'vitest';
 import {
 	continuePart,
 	defaultWorkName,
+	directionWord,
 	facePart,
+	inOrder,
 	isFinished,
+	nextPart,
+	partPlace,
 	partState,
+	workEndMode,
 	workFavourite,
 	workFoot,
+	workHeld,
+	workPartMeta,
 	kindVerb,
 	runStatus,
 	workKinds,
@@ -253,5 +260,93 @@ describe('THE RUN’s status column', () => {
 			ink: '',
 			sub: 'NOT STARTED · +4 NEW'
 		});
+	});
+});
+
+describe('the next part, at the end of one', () => {
+	const three = () => [
+		part({ seriesId: 1, position: 1 }),
+		part({ seriesId: 2, position: 2 }),
+		part({ seriesId: 3, position: 3 })
+	];
+
+	it('is the part after this one in the owner’s order, mid-run', () => {
+		expect(nextPart(three(), 2)!.seriesId).toBe(3);
+		expect(partPlace(three(), 2)).toEqual({ part: 2, of: 3 });
+	});
+
+	it('is the second part from the first, and nothing from the last', () => {
+		expect(nextPart(three(), 1)!.seriesId).toBe(2);
+		expect(nextPart(three(), 3)).toBeNull();
+		expect(partPlace(three(), 3)).toEqual({ part: 3, of: 3 });
+	});
+
+	it('is nothing for a Work of one, and nothing for a series in no Work', () => {
+		const one = [part({ seriesId: 7, position: 1 })];
+		expect(nextPart(one, 7)).toBeNull();
+		expect(nextPart(three(), 99)).toBeNull();
+		expect(partPlace(three(), 99)).toBeNull();
+	});
+
+	it('follows inOrder when two parts tie on position, never the array’s accident', () => {
+		// Positions are the owner's, and a tie is broken by the id (inOrder), so
+		// "the next part" is the same answer whichever order the rows arrive in.
+		const tied = [part({ seriesId: 9, position: 2 }), part({ seriesId: 4, position: 2 })];
+		expect(inOrder(tied).map((p) => p.seriesId)).toEqual([4, 9]);
+		expect(nextPart(tied, 4)!.seriesId).toBe(9);
+		expect(nextPart([...tied].reverse(), 4)!.seriesId).toBe(9);
+		expect(nextPart(tied, 9)).toBeNull();
+		expect(partPlace(tied, 9)).toEqual({ part: 2, of: 2 });
+	});
+
+	it('offers the next part as a block, unless this one is caught up', () => {
+		const parts = three();
+		expect(workEndMode(parts, 1)).toBe('next');
+		// Caught up: all of it read on a source that may still add (Work-EndStates 1).
+		const caught = [{ ...read(parts[0]), status: 'ongoing' }, parts[1]];
+		expect(partState(caught[0])).toBe('caught-up');
+		expect(workEndMode(caught, 1)).toBe('meanwhile');
+		// Read through, with a next part: still the block.
+		expect(workEndMode([read(parts[0]), parts[1]], 1)).toBe('next');
+	});
+
+	it('says the run is read only when every part is', () => {
+		const parts = three();
+		expect(workEndMode(parts, 3)).toBeNull(); // part 3 is last, parts 1-2 are not read
+		const allRead = parts.map(read);
+		expect(workEndMode(allRead, 3)).toBe('read');
+		expect(workEndMode(allRead, 1)).toBe('read');
+		// A caught-up last part is not read through, so it claims nothing.
+		const caughtLast = [read(parts[0]), read(parts[1]), { ...read(parts[2]), status: 'ongoing' }];
+		expect(partState(caughtLast[2])).toBe('caught-up');
+		expect(workEndMode(caughtLast, 3)).toBeNull();
+	});
+
+	it('counts what the run held, ratings and all', () => {
+		const parts = [
+			{ ...read(part({ seriesId: 1, position: 1, title: 'Monster', rating: 10, entries: 162 })) },
+			{ ...read(part({ seriesId: 2, position: 2, title: 'Pluto', rating: 0, entries: 65 })) }
+		];
+		expect(workHeld(parts)).toBe('2 SERIES · 227 CHAPTERS · MONSTER 10, PLUTO UNRATED');
+	});
+
+	it('says how a part reads, and its own kind’s word for its entries', () => {
+		expect(directionWord('vertical')).toBe('SCROLLS');
+		expect(directionWord('rtl')).toBe('R→L');
+		expect(directionWord('paged')).toBe('PAGED');
+		expect(workPartMeta({ kind: 'manhwa', entries: 205, downloaded: 205 }, 'vertical')).toBe(
+			'MANHWA · 205 CHAPTERS · ALL DOWNLOADED · SCROLLS'
+		);
+		// A mixed Work speaks for the part it offers: an anime says EPISODES, a
+		// novel VOLUMES -- the same word its accent says (unitLabel).
+		expect(workPartMeta({ kind: 'anime', entries: 12, downloaded: 0 }, 'rtl')).toBe(
+			'ANIME · 12 EPISODES · NOT DOWNLOADED · R→L'
+		);
+		expect(workPartMeta({ kind: 'novel', entries: 12, downloaded: 0 }, 'paged')).toBe(
+			'NOVEL · 12 VOLUMES · NOT DOWNLOADED · PAGED'
+		);
+		expect(workPartMeta({ kind: 'manga', entries: 10, downloaded: 4 }, 'rtl')).toBe(
+			'MANGA · 10 CHAPTERS · 4 OF 10 DOWNLOADED · R→L'
+		);
 	});
 });

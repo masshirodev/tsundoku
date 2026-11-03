@@ -1,9 +1,12 @@
 import { expect, test } from './fixtures';
 
 /**
- * The text reader's chrome on a TV (c241): OK brings it up as a focus row, the
- * pad reaches READING, and LAYOUT changes by keys alone. Read-only: it reads in
- * incognito, so no progress is written (the LAYOUT it changes is put back).
+ * The text reader on a TV: its chrome (c241) -- OK brings it up as a focus row,
+ * the pad reaches READING, and LAYOUT changes by keys alone -- and its end page,
+ * which takes the pad as the image reader's does (c280: a novel's last volume
+ * is EndPage, so its cells are the Work's block, the rating and the foot).
+ * Read-only: it reads in incognito, so no progress is written (the LAYOUT it
+ * changes is put back).
  *
  * It reads Mushoku Tensei, which no flow file removes from the library:
  * history-flow removes one of its history rows and undoes it, and series-layout
@@ -97,4 +100,27 @@ test('OK brings the chrome as a focus row, and READING changes LAYOUT by keys', 
 	await page.keyboard.press('Enter');
 	await page.keyboard.press('Escape');
 	await expect(reading).toContainText(started === paged ? 'PAGED' : 'SCROLL');
+});
+
+test('the end of the book takes the pad: its cells are reachable, as the image reader’s are', async ({
+	page
+}) => {
+	await open(page);
+	const reader = page.locator('.text-reader');
+	const end = page.locator('[data-end-page]');
+	// L→R: → turns forward, and past the last page it is the end page (a novel's
+	// last volume is EndPage, so the Work's block and the rating are cells there).
+	for (let i = 0; i < 500 && (await end.count()) === 0; i++) {
+		await page.keyboard.press('ArrowRight');
+		await page.waitForTimeout(20);
+	}
+	await expect(end).toBeVisible({ timeout: 15_000 });
+	// The end page lifts the reader's opt-out, as the image reader's has since
+	// c235: before it, every arrow was the reader's.
+	expect(await reader.evaluate((n) => n.hasAttribute('data-focus-off'))).toBe(false);
+	await page.keyboard.press('ArrowDown');
+	const cell = await page.evaluate(
+		() => document.activeElement?.textContent?.replace(/\s+/g, ' ').trim() ?? ''
+	);
+	expect(cell).toMatch(/SERIES|LIBRARY|RATE|FAV/i);
 });

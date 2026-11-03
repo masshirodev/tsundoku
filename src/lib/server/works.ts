@@ -25,14 +25,24 @@ import { likePattern } from '../library/search.ts';
 import { GRID_PAGE } from '../library/paging.ts';
 import {
 	defaultWorkName,
+	nextPart,
+	partPlace,
+	partState,
+	workEndMode,
 	workFavourite,
+	workHeld,
 	workRating,
 	type AddablePage,
 	type AddableSeries,
+	type WorkEnd,
 	type WorkFootFacts,
+	type WorkNextPart,
 	type WorkOrder,
 	type WorkPart
 } from '../library/works.ts';
+import { effectiveDirection, type Direction } from '../library/series.ts';
+import { kindDirection } from './series.ts';
+import { readsOnline } from './pages/online.ts';
 import type { Kind, Rating } from '$lib/library/types';
 
 export class WorkError extends Error {}
@@ -451,6 +461,73 @@ export function workOfSeries(seriesId: number): WorkRecord | null {
 	const row = db.prepare(`SELECT work_id FROM work_series WHERE series_id = ?`).get(seriesId) as
 		{ work_id: number } | undefined;
 	return row ? (workRow(db, row.work_id) ?? null) : null;
+}
+
+/** The first chapter START opens on the next part, and whether it can. */
+export function workEndOf(seriesId: number, reveal: boolean): WorkEnd | null {
+	const work = workOfSeries(seriesId);
+	if (!work) return null;
+	const parts = workParts(work.id, reveal);
+	const place = partPlace(parts, seriesId);
+	if (!place) return null;
+	const mode = workEndMode(parts, seriesId);
+	const next = mode === 'next' || mode === 'meanwhile' ? nextPart(parts, seriesId) : null;
+	return {
+		id: work.id,
+		name: work.name,
+		createdAt: work.createdAt,
+		part: place.part,
+		of: place.of,
+		mode,
+		next: next ? nextFacts(next) : null,
+		held: mode === 'read' ? workHeld(parts) : null
+	};
+}
+
+function nextFacts(p: WorkPartRow): WorkNextPart {
+	const db = getDb();
+	const series = db.prepare(`SELECT direction FROM series WHERE id = ?`).get(p.seriesId) as
+		{ direction: Direction | null } | undefined;
+	// The first chapter, never front or back matter and never a shadowed copy;
+	// a part with only matter (unlikely) still offers its first row rather than
+	// nothing.
+	const first = (db
+		.prepare(
+			`SELECT id, COALESCE(episode_number, position) AS number, label, available FROM entries
+				WHERE series_id = ? AND shadowed = 0 AND matter = '' ORDER BY position, id LIMIT 1`
+		)
+		.get(p.seriesId) ??
+		db
+			.prepare(
+				`SELECT id, COALESCE(episode_number, position) AS number, label, available FROM entries
+					WHERE series_id = ? AND shadowed = 0 ORDER BY position, id LIMIT 1`
+			)
+			.get(p.seriesId)) as
+		{ id: number; number: number; label: string; available: number } | undefined;
+	return {
+		seriesId: p.seriesId,
+		title: p.title,
+		kind: p.kind,
+		hue: p.hue,
+		cover: p.cover,
+		entries: p.entries,
+		downloaded: p.downloaded,
+		state: partState(p),
+		direction: effectiveDirection(
+			{ kind: p.kind, direction: series?.direction ?? null },
+			kindDirection(p.kind)
+		),
+		source: p.source,
+		entry: first
+			? {
+					id: first.id,
+					number: first.number,
+					label: first.label,
+					available: first.available !== 0,
+					online: first.available === 0 && readsOnline(first.id)
+				}
+			: null
+	};
 }
 
 // ---- writes -------------------------------------------------------------------

@@ -16,6 +16,8 @@
 		wheelPixels
 	} from '$lib/reader/smooth-scroll';
 	import type { PageData } from './$types';
+	import { unitLabel } from '$lib/library/labels';
+	import type { Kind } from '$lib/library/types';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { TV } from '$lib/device.svelte';
 	import {
@@ -1664,6 +1666,8 @@
 
 	// ---- what the chrome says -----------------------------------------------------------
 	const seriesHref = $derived(resolve('/series/[id]', { id: String(data.series.id) }));
+	const workHref = $derived(data.work ? resolve('/work/[id]', { id: String(data.work.id) }) : '');
+	const unitOf = (k: Kind) => unitLabel(k);
 	const moveHref = $derived(resolve('/series/[id]/move', { id: String(data.series.id) }));
 	const libraryHref = resolve('/');
 	const wordsHref = $derived(`${resolve('/words')}?series=${data.series.id}`);
@@ -1776,6 +1780,9 @@
 				words={text?.entry === data.entry.id ? text.lookedUp : 0}
 				{wordsHref}
 				nextOcr={data.next?.ocr ?? false}
+				work={data.work}
+				{workHref}
+				unit={unitOf(data.series.kind)}
 			/>
 		{/if}
 	{:else if atEnd}
@@ -1809,6 +1816,9 @@
 				words={text?.entry === data.entry.id ? text.lookedUp : 0}
 				{wordsHref}
 				nextOcr={data.next?.ocr ?? false}
+				work={data.work}
+				{workHref}
+				unit={unitOf(data.series.kind)}
 			/>
 		</div>
 	{:else}

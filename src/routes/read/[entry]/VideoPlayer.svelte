@@ -39,7 +39,10 @@
 		type Cue,
 		type SubSize
 	} from '$lib/library/player';
-	import { readHref } from '$lib/library/links';
+	import { coverSrc, readHref } from '$lib/library/links';
+	import Cover from '$lib/components/content/Cover.svelte';
+	import { count as grouped, kindLabel, unitLabel } from '$lib/library/labels';
+	import { kindVerb, type WorkEnd, type WorkNextPart } from '$lib/library/works';
 	import { qualitiesLine, qualityName } from '$lib/library/streams';
 	import { page } from '$app/state';
 	import { offline } from '$lib/offline.svelte';
@@ -103,6 +106,8 @@
 			record?: { preview: string | null } | null;
 			/** What it starts in (card c171): the series', SETTINGS', the last choice. */
 			player: { series: TrackChoice; defaults: TrackChoice; last: TrackChoice };
+			/** The Work's next part, where the last episode ends (doc/WORKS.md, W6). */
+			work?: WorkEnd | null;
 		};
 	} = $props();
 
@@ -115,6 +120,35 @@
 	const ofSeason = episodes.filter((e) => e.season === ep.season).length;
 	const next = episodes[index + 1] ?? null;
 	const prev = episodes[index - 1] ?? null;
+	/**
+	 * The Work's next part (doc/WORKS.md, W6). At the last episode the up-next
+	 * card the player already draws turns into this one, with the next part's
+	 * own verb -- a Work of an anime and its manga says READ -- and no
+	 * countdown: an episode's countdown never plays another series.
+	 */
+	// svelte-ignore state_referenced_locally
+	const work = data.work ?? null;
+	const workNext =
+		work?.next && (work.mode === 'next' || work.mode === 'meanwhile') ? work.next : null;
+	const workHref = work ? resolve('/work/[id]', { id: String(work.id) }) : '';
+	const workStart = workNext?.entry
+		? readHref(workNext.entry.id, 1)
+		: workNext
+			? resolve('/series/[id]', { id: String(workNext.seriesId) })
+			: '';
+	let workClosed = $state(false);
+	const stateWord = (s: WorkNextPart['state']) =>
+		s === 'not-started'
+			? 'NOT STARTED'
+			: s === 'in-progress'
+				? 'IN PROGRESS'
+				: s === 'caught-up'
+					? 'CAUGHT UP'
+					: 'READ';
+	/** The next part's own line (Work-EndStates 3): "MANGA · 140 CH. · NOT STARTED". */
+	const workMeta = workNext
+		? `${kindLabel(workNext.kind)} · ${grouped(workNext.entries)} ${unitLabel(workNext.kind)}. · ${stateWord(workNext.state)}`
+		: '';
 	const upNext = episodes.slice(index + 1, index + 5);
 	const leftInSeason = episodes.filter(
 		(e, i) => i > index && e.season === ep.season && e.readAt === null
@@ -315,13 +349,22 @@
 	const skipShown = $derived(!!skip && (chrome || skipAlone));
 	const endcardShown = $derived(offering && !!next);
 	/**
+	 * The Work card takes the end card's place on the last episode, from the
+	 * same moment the next-episode card would appear (its ending's start, or 30
+	 * s before the end). It never counts down and never plays another series
+	 * (doc/WORKS.md, W6).
+	 */
+	const workCardShown = $derived(
+		!!workNext && !next && !workClosed && phase === 'playing' && time >= offerAt
+	);
+	/**
 	 * The overlay a TV's pad starts on (c296), PLAY NOW over SKIP: both cannot
 	 * be up today (`inEnding` stands down when there is a next), but an ending
 	 * skip and PLAY NOW do the same thing and the card is the button the owner
 	 * reaches for, so the card stays first if they ever can be.
 	 */
-	const overlay = $derived<'next' | 'skip' | null>(
-		endcardShown ? 'next' : skipShown ? 'skip' : null
+	const overlay = $derived<'next' | 'skip' | 'work' | null>(
+		endcardShown ? 'next' : workCardShown ? 'work' : skipShown ? 'skip' : null
 	);
 	/** The bar's ↑, when an overlay is up: back to the button it was left from (c296). */
 	const focusUp = $derived(
@@ -329,7 +372,9 @@
 			? undefined
 			: overlay === 'next'
 				? '[data-player-play]'
-				: '[data-player-skip]'
+				: overlay === 'work'
+					? '[data-player-work]'
+					: '[data-player-skip]'
 	);
 	const marks = $derived(
 		[streams?.intro, streams?.ending]
@@ -350,15 +395,20 @@
 	/** Whether the last thing focused was one of the overlay's buttons. */
 	let overlayHadFocus = false;
 	/** The offer that last took the pad, whether or not the chrome drew it. */
-	let offered: 'next' | 'skip' | null = null;
+	let offered: 'next' | 'skip' | 'work' | null = null;
 
-	function overlayButton(kind: 'next' | 'skip'): HTMLElement | null {
-		const selector = kind === 'next' ? '[data-player-play]' : '[data-player-skip]';
+	function overlayButton(kind: 'next' | 'skip' | 'work'): HTMLElement | null {
+		const selector =
+			kind === 'next'
+				? '[data-player-play]'
+				: kind === 'work'
+					? '[data-player-work]'
+					: '[data-player-skip]';
 		return root?.querySelector<HTMLElement>(selector) ?? null;
 	}
 
 	function onFocusIn(e: FocusEvent): void {
-		overlayHadFocus = e.target instanceof Element && !!e.target.closest('.endcard, .skip');
+		overlayHadFocus = e.target instanceof Element && !!e.target.closest('.endcard, .skip, .upn');
 	}
 
 	/**
@@ -369,7 +419,9 @@
 	 * the owner had just asked for. The offer takes the pad when it starts; a
 	 * bar that reveals an offer already running leaves focus where it is.
 	 */
-	const offer = $derived<'next' | 'skip' | null>(endcardShown ? 'next' : skip ? 'skip' : null);
+	const offer = $derived<'next' | 'skip' | 'work' | null>(
+		endcardShown ? 'next' : workCardShown ? 'work' : skip ? 'skip' : null
+	);
 
 	/**
 	 * PLAY NOW, and SKIP, take focus the moment they are offered on a TV (c296):
@@ -407,7 +459,7 @@
 			if (!tv.current || chrome || !overlay) return;
 			const active = document.activeElement;
 			if (!(active instanceof HTMLElement) || active === document.body) return;
-			if (active.closest('.endcard, .skip')) return;
+			if (active.closest('.endcard, .skip, .upn')) return;
 			if (isFocusable(active)) return;
 			overlayButton(overlay)?.focus({ preventScroll: true });
 		});
@@ -1114,6 +1166,39 @@
 
 <svelte:window onkeydown={keydown} />
 
+{#snippet workCard()}
+	{#if workNext && work}
+		<!-- The Work's next part, where the end card is (Work-EndStates 3): no
+				     countdown, and nothing plays another series by itself. -->
+		<section class="upn" aria-label="Next in the Work">
+			<div class="k">
+				<span>NEXT IN THE WORK · {kindVerb(workNext.kind)}</span>
+				<span>PART {work.part + 1} OF {work.of}</span>
+			</div>
+			<div class="bd">
+				<span class="cv"
+					><Cover src={coverSrc(workNext.seriesId, workNext.cover)} hue={workNext.hue} /></span
+				>
+				<div class="t">
+					<div class="a">{workNext.title}</div>
+					<div class="b">{workMeta}</div>
+					<div class="b">WORK · {work.name.toUpperCase()}</div>
+				</div>
+			</div>
+			<div class="acts">
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref()/resolve() built both -->
+				<a class="acc" href={workStart} data-player-work data-focus-mark="in" data-focus-start
+					>▶ {kindVerb(workNext.kind)} · {unitLabel(workNext.kind)}. {workNext.entry?.number ??
+						1}<span>→</span></a
+				>
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved above -->
+				<a href={workHref} data-focus-mark="in">WORK</a>
+				<button type="button" aria-label="Close" onclick={() => (workClosed = true)}>✕</button>
+			</div>
+		</section>
+	{/if}
+{/snippet}
+
 <div
 	class="player"
 	class:hidden-series={data.series.hidden}
@@ -1399,6 +1484,10 @@
 					>
 				</div>
 			</div>
+		{/if}
+
+		{#if workCardShown}
+			{@render workCard()}
 		{/if}
 
 		{#snippet addCell(cls: string)}
@@ -1732,6 +1821,10 @@
 							<div style:width="{((NEXT_COUNT_S - count) / NEXT_COUNT_S) * 100}%"></div>
 						</div>
 					</div>
+				{/if}
+				{#if phase === 'ended' && !next && workNext && !workClosed}
+					<!-- The last episode of a Work ends on its next part, not only LIBRARY (W6). -->
+					<div class="work-end">{@render workCard()}</div>
 				{/if}
 				{#if phase === 'noServer'}
 					<div class="prose">
@@ -2338,6 +2431,86 @@
 		padding: 0 22px 16px;
 		font-size: 13px;
 	}
+	/* The Work's next part where the end card is (Work-EndStates 3) ----------- */
+	.upn {
+		position: absolute;
+		right: 32px;
+		bottom: calc(var(--scrub-h) + var(--cell-h) + 32px);
+		width: min(460px, calc(100% - 64px));
+		display: flex;
+		flex-direction: column;
+		background: var(--surface-page);
+		border: var(--hairline);
+	}
+	.player:not(.chrome) .upn {
+		bottom: 32px;
+	}
+	.upn .k {
+		display: flex;
+		justify-content: space-between;
+		gap: 12px;
+		padding: 14px 18px 10px;
+		font: 500 12px var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+	}
+	.upn .bd {
+		display: flex;
+		gap: 16px;
+		padding: 0 18px 16px;
+	}
+	.upn .bd .cv {
+		display: block;
+		width: 64px;
+		flex-shrink: 0;
+	}
+	.upn .bd .t {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		min-width: 0;
+	}
+	.upn .bd .t .a {
+		font: 500 18px/1.25 var(--font-sans);
+	}
+	.upn .bd .t .b {
+		font: 400 12px var(--font-mono);
+		color: var(--text-2);
+	}
+	.upn .acts {
+		display: flex;
+		height: 56px;
+		border-top: var(--hairline);
+	}
+	.upn .acts > * {
+		display: flex;
+		align-items: center;
+		padding: 0 18px;
+		font: 500 13px var(--font-mono);
+		letter-spacing: 0.04em;
+		border-left: var(--hairline);
+		white-space: nowrap;
+		color: var(--text-1);
+		text-decoration: none;
+		background: transparent;
+		border-top: 0;
+		border-right: 0;
+		border-bottom: 0;
+		cursor: pointer;
+	}
+	.upn .acts > .acc {
+		flex: 1;
+		justify-content: space-between;
+		background: var(--accent);
+		color: var(--on-accent);
+		border-left: 0;
+	}
+	/* In the end-of-episode page it sits in the column, not over the picture. */
+	.inter .upn {
+		position: static;
+		width: 100%;
+		max-width: 460px;
+	}
 	.two {
 		display: grid;
 		grid-template-columns: 1fr 1fr;
@@ -2716,7 +2889,8 @@
 		.cluster,
 		.top,
 		.bottom,
-		.endcard {
+		.endcard,
+		.player > .upn {
 			display: none;
 		}
 		.subs,
