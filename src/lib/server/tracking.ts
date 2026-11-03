@@ -794,7 +794,8 @@ export function queueProgress(seriesId: number, now = Date.now()): number {
 		if (reached <= 0) continue;
 		const remote = stateRow(target);
 		// The part's last counted episode watched finishes the entry (c240): the
-		// design's "its last sends COMPLETED". A season in two parts completes
+		// design's "its last sends COMPLETED", unless the owner has it ON HOLD or
+		// DROPPED (`progressToSend`). A season in two parts completes
 		// each part on its own count, which is what `reached` is already in.
 		const complete = isAnime(target.kind) && reached >= target.to - target.from + 1;
 		const r = progressToSend({

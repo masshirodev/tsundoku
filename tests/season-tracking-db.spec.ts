@@ -620,6 +620,30 @@ describe('sending a season', () => {
 		});
 	});
 
+	it('never sends COMPLETED over the owner’s ON HOLD or DROPPED, only the episode (wave 15)', async () => {
+		const id = show({ seasons: [[1, 2, 3]] });
+		seasons.linkSeason(id, 1, 1, animeEntry(101, { mal: 501, episodes: 3 }), 'review', NOW);
+		await signIn('anilist');
+		await signIn('mal');
+		// The owner put it on hold on AniList and dropped it on MAL at EP. 1.
+		const state = db.prepare(
+			`INSERT INTO season_tracker_state (series_id, season, part, service, status, progress, sent_at)
+			VALUES (?, 1, 1, ?, ?, 1, ?)`
+		);
+		state.run(id, 'anilist', 'on_hold', NOW);
+		state.run(id, 'mal', 'dropped', NOW);
+		markWatched(entryId(id, 1, 3));
+		expect(tr.queueProgress(id, NOW)).toBe(2);
+		await tr.sendPending({ now: NOW });
+		const save = sent.find((s) => JSON.stringify(s.body).includes('SaveMediaListEntry'))!;
+		expect((save.body as { variables: Record<string, unknown> }).variables).toEqual({
+			mediaId: 101,
+			progress: 3
+		});
+		const patch = sent.findLast((s) => s.url.includes('/my_list_status'))!;
+		expect(patch.body).toEqual({ num_watched_episodes: '3' });
+	});
+
 	it('places a rating by the open season’s own watching, not an earlier season’s', async () => {
 		// Season 1 has 15 episodes and is watched through, so season 2 opens. Its
 		// two entries are 12 + 11: the season's EP. 13 is part 2's EP. 1. Season 1's

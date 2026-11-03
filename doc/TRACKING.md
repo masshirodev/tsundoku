@@ -118,8 +118,10 @@ only shares that title, a movie say, is not the owner's link.
   ahead, and a lower chapter is never sent back over it. A season is its own
   row, so one season's send never lowers or raises another's.
 - **Status:** a series (or season) on nobody's list, or only planned, starts
-  READING (WATCHING on an anime's row). Any other status is the owner's and
-  stays.
+  READING (WATCHING on an anime's row). On an anime, the part's last counted
+  episode watched sends COMPLETED with it -- over READING or PLANNING, never
+  over ON HOLD or DROPPED: those are the owner's and stay, and only the
+  episode goes (`progressToSend`). Any other status is the owner's and stays.
 - **The rating** (c67) goes to the season being watched only (c240): a
   series has one rating and four entries, and sending it to all of them
   would overwrite the scores earlier seasons already have. The sheet shows
@@ -170,8 +172,8 @@ the rating, sent when the rating is set. AniList gets it as `scoreRaw` (its 100)
   across the top, opening on the one being watched; a tab reads
   `S3 EP. 8 / 24`, `S1 COMPLETED` or `S4 2 PARTS · NOT LISTED`. STATUS goes
   to that season's entry on both catalogues; a season's first episode
-  watched sends WATCHING and its last COMPLETED, and the other statuses are
-  the owner's. PROGRESS shows that season's part, and the other part under
+  watched sends WATCHING and its last COMPLETED, and ON HOLD and DROPPED are
+  the owner's: never overwritten, the last episode included. PROGRESS shows that season's part, and the other part under
   it. Ranobe is one line under the seasons (`WATCHING · EP. 57 OF 96`),
   counted straight through ([`RANOBE.md`](RANOBE.md), "Anime").
 
@@ -181,6 +183,12 @@ the rating, sent when the rating is set. AniList gets it as `scoreRaw` (its 100)
   "Which season does the sheet edit?" recommends; sending one rating to four
   entries would overwrite the owner's earlier scores. The sheet draws each
   other season's score read-only, from the list.
+- **PLANNING moves to WATCHING with the first episode watched.** Track
+  Calls (question 2) lists PLANNING with ON HOLD and DROPPED as statuses
+  that are "never overwritten", but its own sentence before that sends
+  WATCHING on the first episode, and a planned comic has always started
+  READING here. So ON HOLD and DROPPED are the owner's, even at the last
+  episode (only the episode goes); PLANNING is not.
 - **A fold is drawn only when it would hold more than one season**: the
   design says so, and a fold of one is just that season's line.
 - **"ANILIST · NOT ON YOUR LIST"** (1p) says **ADDED ON THE NEXT CHAPTER

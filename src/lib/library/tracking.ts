@@ -99,7 +99,9 @@ export function chapterReached(read: { position: number }[]): number {
  * is watched, so the entry itself is done. It is queued as COMPLETED unless
  * the catalogue already says so -- which is what keeps it from being sent
  * again on every pass. When the progress has already gone (the list was
- * ahead of us), only the status is sent, so nothing is ever lowered.
+ * ahead of us), only the status is sent, so nothing is ever lowered. ON HOLD
+ * and DROPPED are the owner's even then: the progress goes, the status stays
+ * (Track Calls, question 2: "never overwritten").
  */
 export function progressToSend(o: {
 	reached: number;
@@ -109,7 +111,8 @@ export function progressToSend(o: {
 }): { progress: number | null; status: Status | null } | null {
 	if (o.reached <= 0) return null;
 	const known = Math.max(o.remote?.progress ?? 0, o.waiting ?? 0);
-	const done = !!o.complete && o.remote?.status !== 'completed';
+	const owners = o.remote?.status === 'on_hold' || o.remote?.status === 'dropped';
+	const done = !!o.complete && o.remote?.status !== 'completed' && !owners;
 	if (o.reached <= known) {
 		// The progress has gone (the list can be ahead of us): the last episode
 		// finishes the entry, and a status alone is sent -- nothing lowered.

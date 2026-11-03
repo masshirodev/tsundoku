@@ -110,6 +110,35 @@ describe('progress', () => {
 			progress: 11,
 			status: 'reading'
 		});
+		// ON HOLD and DROPPED are the owner's, the last episode too: the progress
+		// goes, the status stays -- and with the progress already there, nothing.
+		for (const status of ['on_hold', 'dropped'] as const) {
+			expect(
+				progressToSend({
+					reached: 12,
+					remote: { progress: 8, status },
+					waiting: null,
+					complete: true
+				})
+			).toEqual({ progress: 12, status: null });
+			expect(
+				progressToSend({
+					reached: 12,
+					remote: { progress: 12, status },
+					waiting: null,
+					complete: true
+				})
+			).toBeNull();
+		}
+		// PLANNING is not one of them: the first episode already moved it to WATCHING.
+		expect(
+			progressToSend({
+				reached: 12,
+				remote: { progress: 0, status: 'planning' },
+				waiting: null,
+				complete: true
+			})
+		).toEqual({ progress: 12, status: 'completed' });
 	});
 });
 
