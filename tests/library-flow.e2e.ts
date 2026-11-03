@@ -405,3 +405,233 @@ test('SORT is a menu, and the toggle beside it turns the order round', async ({ 
 	await page.waitForURL(/sort=random/);
 	await expect(page.getByRole('button', { name: /reverse/i })).toHaveCount(0);
 });
+
+// ---- Works (c276, c277; doc/WORKS.md) ----------------------------------------
+// Browsing shows the run as one tile and one CONTINUE row; finding shows the
+// series; /work/N is the run's own screen. Each test makes its Work and ends
+// it again, so the seeded library is the one the other specs expect.
+
+const workTile = (page: Page, name: string) => page.locator('.grid .tile.work', { hasText: name });
+
+/** A series tile by its exact title: "Kaori Mama" is a prefix of two others. */
+const tileByTitle = (page: Page, title: string) =>
+	page.locator('.grid .tile').filter({
+		has: page.locator('.title', {
+			hasText: new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)
+		})
+	});
+
+/** Picks these titles in this order and presses WORK, landing on the Work. */
+async function makeWork(page: Page, titles: string[]) {
+	await page.goto('/');
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	for (const t of titles)
+		await page.locator('.grid .tile', { hasText: t }).locator('.open').click();
+	await page.getByRole('button', { name: 'WORK', exact: true }).click();
+	await expect(page).toHaveURL(/\/work\/\d+/);
+}
+
+test('a Work is one tile, one CONTINUE row, and a screen of its own', async ({ page }) => {
+	// Two runs in progress, the newest read of them five minutes old: the
+	// Work's CONTINUE row is the first one, and the section counts rows.
+	await makeWork(page, [
+		'Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru',
+		'Kusuriya no Hitorigoto'
+	]);
+	// They share no words, so it is named for the owner to replace.
+	await expect(page.locator('.rename')).toBeVisible();
+	await page.locator('.rename input').fill('Drawing Run');
+	await page.locator('.rename').getByRole('button', { name: 'DONE' }).click();
+	await expect(page.locator('.bar-title .t')).toHaveText('Drawing Run');
+	await expect(page.locator('.bar-title .s')).toContainText('WORK · 2 SERIES');
+	await expect(page.locator('.ident h1')).toHaveText('Drawing Run');
+	await expect(page.locator('.ident .meta')).toHaveText('WORK · MANGA');
+	await expect(page.locator('.ident .count').first()).toContainText('2 SERIES');
+	await expect(page.locator('.band', { hasText: 'RENAMED · DRAWING RUN' })).toBeVisible();
+
+	// CONTINUE across the Work opens the part CONTINUE opens for it.
+	const cta = page.locator('.cta').first();
+	await expect(cta).toContainText('PART 1');
+	await expect(cta).toContainText('CH. 41');
+
+	const rows = page.locator('.run .part');
+	await expect(rows).toHaveCount(2);
+	await expect(rows.nth(0)).toContainText('Drawing: Saikyou Mangaka');
+	await expect(rows.nth(1)).toContainText('Kusuriya no Hitorigoto');
+	// The number cell is inverted on the part CONTINUE opens.
+	await expect(rows.nth(0).locator('.no')).toHaveText(/^1\s*NOW$/);
+	await expect(rows.nth(0).locator('.st')).toContainText('CH. 41 OF 58');
+	await expect(rows.nth(1).locator('.no')).toHaveText(/^2\s*NEXT$/);
+
+	// The library: one tile, its foot the run.
+	await page.locator('a.back').click();
+	await expect(page).toHaveURL('/');
+	const tile = workTile(page, 'Drawing Run');
+	await expect(tile).toBeVisible();
+	await expect(tile.locator('.bdg.wb')).toHaveText('WORK · 2');
+	await expect(tile.locator('.ft')).toContainText('PART 1 OF 2');
+	// The parts are not tiles of their own.
+	await expect(page.locator('.grid .tile', { hasText: 'Kusuriya' })).toHaveCount(0);
+
+	// One CONTINUE row for the run, never one per part.
+	const cont = page.locator('.cont .row.work');
+	await expect(cont).toHaveCount(1);
+	await expect(cont).toContainText('WORK · PART 1');
+	await expect(cont).toContainText('CH. 41');
+
+	// Finding opens the Work: its own name finds it first, its parts after.
+	await page.goto('/search?q=Drawing');
+	await expect(page.locator('.hit.work')).toContainText('WORK · 2 SERIES');
+	await expect(page.locator('.hits .hit').first()).toContainText('Drawing Run');
+	// A part found by its own name says which run it is in.
+	await page.goto('/search?q=Kusuriya');
+	await expect(page.locator('.hit', { hasText: 'Kusuriya' })).toContainText('PART 2 · DRAWING RUN');
+
+	// UNGROUP ends it, and UNDO puts it back; then it ends for good.
+	await page.goto('/');
+	await tile.click();
+	await page.getByRole('button', { name: 'UNGROUP' }).click();
+	await expect(page).toHaveURL(/band=ungrouped/);
+	const ungrouped = page.locator('.band', { hasText: 'UNGROUPED · DRAWING RUN' });
+	await expect(ungrouped).toBeVisible();
+	await expect(workTile(page, 'Drawing Run')).toHaveCount(0);
+	await ungrouped.getByRole('button', { name: 'UNDO' }).click();
+	await expect(workTile(page, 'Drawing Run')).toBeVisible();
+	await workTile(page, 'Drawing Run').click();
+	await page.getByRole('button', { name: 'UNGROUP' }).click();
+	await expect(workTile(page, 'Drawing Run')).toHaveCount(0);
+});
+
+test('ORDER reorders the run, TAKE OUT of the second-to-last ends the Work, and UNDO restores it', async ({
+	page
+}) => {
+	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku']);
+	// Part 1 is read through and part 2 never started: CONTINUE crosses, and
+	// its row on the screen points at part 2's first chapter (the UP NEXT case).
+	await expect(page.locator('.cta').first()).toContainText('PART 2 · CH. 1');
+	const rows = page.locator('.run .part');
+	await expect(rows.nth(0)).toContainText('Isekai Ojisan');
+
+	// ORDER: focus a row and use the arrow keys, as the books grid does; DONE saves.
+	await page.getByRole('button', { name: 'ORDER', exact: true }).click();
+	await page.locator('.run .part .rowlink').first().focus();
+	await page.keyboard.press('ArrowDown');
+	await page.getByRole('button', { name: 'DONE' }).click();
+	await expect(rows.nth(0)).toContainText('Isekai Yakkyoku');
+	await page.reload();
+	await expect(page.locator('.run .part').nth(0)).toContainText('Isekai Yakkyoku');
+
+	// SELECT, take one out: the Work of two ends, and the library says so.
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await page.locator('.run .part', { hasText: 'Isekai Ojisan' }).locator('.rowlink').click();
+	await page.getByRole('button', { name: 'TAKE OUT' }).click();
+	await expect(page).toHaveURL(/band=ended/);
+	const ended = page.locator('.band', { hasText: 'ISEKAI IS NO LONGER A WORK' });
+	await expect(ended).toBeVisible();
+	await expect(ended).toContainText('ONE SERIES WAS LEFT');
+	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
+
+	// UNDO puts the Work back with its name and its order.
+	await ended.getByRole('button', { name: 'UNDO' }).click();
+	await expect(workTile(page, 'Isekai')).toBeVisible();
+	await workTile(page, 'Isekai').click();
+	await expect(page.locator('.run .part').nth(0)).toContainText('Isekai Yakkyoku');
+	// Done with it: the Work ends for good.
+	await page.getByRole('button', { name: 'UNGROUP' }).click();
+	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
+});
+
+test('a Work’s RATING and FAV are the parts’, set together while they agree, and RENAME undoes', async ({
+	page
+}) => {
+	// These two share no words, so the Work is named for the owner to replace.
+	await makeWork(page, [
+		'Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru',
+		'Hikaru ga Shinda Natsu'
+	]);
+	await expect(page.locator('.rename')).toBeVisible();
+	await page.locator('.rename input').fill('Drawing Run');
+	await page.locator('.rename').getByRole('button', { name: 'DONE' }).click();
+	await expect(page.locator('.bar-title .t')).toHaveText('Drawing Run');
+	await expect(page.locator('.band', { hasText: 'RENAMED · DRAWING RUN' })).toBeVisible();
+
+	// Both parts are rated 8 and both are a favourite: the row is settable.
+	await expect(page.locator('.rs .num')).toHaveText('8');
+	await expect(page.locator('.fav')).toHaveAttribute('aria-pressed', 'true');
+
+	// A set writes every part, and the row follows.
+	await page.getByRole('button', { name: 'Rate 5 of 10' }).click();
+	await expect(page.locator('.rs .num')).toHaveText('5');
+	await page.locator('.fav').click();
+	await expect(page.locator('.fav')).toHaveAttribute('aria-pressed', 'false');
+
+	// Rate one part apart: the row shows the average and refuses to set.
+	await page.goto('/');
+	await page.goto('/search?q=Hikaru');
+	await page.locator('.hit', { hasText: 'Hikaru ga Shinda Natsu' }).click();
+	const seriesSheet = page.getByRole('dialog', { name: 'Hikaru ga Shinda Natsu' });
+	await expect(seriesSheet).toBeVisible();
+	await seriesSheet.getByRole('button', { name: 'Rate 8 of 10' }).click();
+	await page.keyboard.press('Escape');
+	await page.goto(page.url().match(/\/work\/\d+/) ? page.url() : '/');
+	// Back to the Work: it is on the library.
+	const tile = workTile(page, 'Drawing Run');
+	await tile.click();
+	await expect(page.locator('.rs .lab-top')).toHaveText('PARTS DIFFER');
+	await expect(page.getByRole('button', { name: 'Rate 5 of 10' })).toBeDisabled();
+
+	// Put the part back, then ungroup: the seeded library as it was.
+	await page.goto('/search?q=Hikaru');
+	await page.locator('.hit', { hasText: 'Hikaru ga Shinda Natsu' }).click();
+	await page
+		.getByRole('dialog', { name: 'Hikaru ga Shinda Natsu' })
+		.getByRole('button', { name: 'Rate 5 of 10' })
+		.click();
+	await page.keyboard.press('Escape');
+	await page.goto('/');
+	await workTile(page, 'Drawing Run').click();
+	await expect(page.locator('.bar-title .t')).toHaveText('Drawing Run');
+	await page.locator('.fav').click();
+	await page.getByRole('button', { name: 'UNGROUP' }).click();
+	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
+});
+
+test('a hidden Work is the same 404 as one that does not exist', async ({ page }) => {
+	await page.goto('/');
+	await expect(page.getByText('HENTOID')).toHaveCount(0);
+
+	// Reveal, so the hidden doujins are tiles, and make a Work of two of them.
+	await page.goto('/search');
+	await page.getByRole('searchbox').fill('/reveal');
+	await page.getByRole('searchbox').press('Enter');
+	await expect(page.getByText('HIDDEN SHOWN')).toBeVisible();
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	// A series of books and two singles: not one book series' to group, so the
+	// bulk bar offers a Work.
+	for (const t of ['Kaori Mama', 'Kōhai no Himitsu Nikki', 'Onsen Ryokan no Yoru'])
+		await tileByTitle(page, t).locator('.open').click();
+	await page.getByRole('button', { name: 'WORK', exact: true }).click();
+	await expect(page).toHaveURL(/\/work\/\d+/);
+	const hiddenWork = page.url();
+
+	// Reveal off: the Work's own page is the 404 a missing id gets.
+	await page.goto('/');
+	await page.getByRole('button', { name: 'HIDE AGAIN' }).click();
+	await expect(page.getByText('HIDDEN SHOWN')).toHaveCount(0);
+	const res = await page.goto(hiddenWork);
+	expect(res?.status()).toBe(404);
+	const missing = await page.goto('/work/999999');
+	expect(missing?.status()).toBe(404);
+
+	// Reveal on again: the Work is one tile with HIDDEN. Then ungroup it.
+	await page.goto('/search');
+	await page.getByRole('searchbox').fill('/reveal');
+	await page.getByRole('searchbox').press('Enter');
+	await expect(page).toHaveURL('/');
+	await expect(page.getByText('HIDDEN SHOWN')).toBeVisible();
+	await expect(page.locator('.grid .tile.work', { hasText: 'HIDDEN' })).toHaveCount(1);
+	await page.goto(hiddenWork);
+	await page.getByRole('button', { name: 'UNGROUP' }).click();
+	await page.getByRole('button', { name: 'HIDE AGAIN' }).click();
+	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
+});

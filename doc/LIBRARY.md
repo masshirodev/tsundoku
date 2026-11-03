@@ -88,6 +88,49 @@ the sheet. They're gone while selecting (every tap is a pick then) and while
 offline (writes need the workstation). `CoverTile` takes them as `onfavourite`
 and `onrate`; without those it draws the plain badge and bars.
 
+## Works
+
+A **Work** is a level above series that merges nothing: a name, an order the
+owner sets, and up to one Work per series ([`WORKS.md`](WORKS.md)). The
+library follows one rule: **browsing shows the run, finding shows the
+series**.
+
+- **ALL, a shelf, NEW, a collection, FAV** draw a Work once: one tile, with
+  the cover of its part that is on that shelf (CONTINUE's part on ALL), the
+  `WORK · N` badge, its name, and a foot of one segment per part with
+  `PART 2 OF 3` or `UP NEXT · PART 2` where a series draws rating bars. `+N`
+  sums the parts' new chapters and `↓` the ones on disk; FAV shows when any
+  part is. A Work is on a shelf, or a kind shelf, when any of its series is,
+  and its cover is the part that is there -- a Work of a manga and its anime
+  is one tile on MANGA and on ANIME.
+- **Search, a tag filter and a person's page** find series, so a Work opens:
+  each matching series is its own tile with `PART 2 · <WORK>` in its foot. A
+  search that matches the Work's own name shows the Work first, then its
+  parts. A person's page foot says the same; the Work's row above its grid
+  (W4) is not drawn yet.
+- **CONTINUE** is one row per Work, never one per part: `WORK · PART 2 ·
+<part> · CH. 15`, and between parts `UP NEXT` in inverse pointing at the
+  next part's first chapter, with ▶ in accent. A Work whose part 1 is read
+  through stays in CONTINUE for part 2. Its `total` counts rows, so the
+  section's `N OPEN` counts Works.
+- **Sorts** place a Work by its most recent part: its latest read, its
+  newest chapter, its latest added; TITLE by the Work's name. The unit
+  query aggregates over every part, so a Work sits where the part you would
+  open sits.
+- **Counts count tiles**: `countTiles`, `countListed`, `listShelves` and the
+  `44 OF 188` line all count a Work as one. A Work of three parts is one of
+  each.
+- **Hidden**: a Work is hidden or shown whole (W1's `workPage`). With reveal
+  off it is absent from lists, counts and search; with reveal on it is one
+  tile carrying HIDDEN in `--reveal`. A Work whose parts diverged after
+  grouping reads as the parts the viewer may see; W4's HIDE settles it.
+- **SELECT** on a Work tile selects its parts, because every bulk action acts
+  on series.
+
+The three reads behind a page are independent of the tiles' number: the
+units, the cards of the parts drawn, and every part of every Work on the
+page (`listTiles`, `cardsOf`, `partsOfWorks` in `src/lib/server/library.ts`).
+
 ## New chapters
 
 A tile's `+N` counts entries that **arrived after the series was last opened**:
@@ -284,6 +327,10 @@ meant tapping through the others, and nothing ran the other way round.
   RATING's ties stay A–Z either way. Every order still ends in the id, so
   pages stay clean in both directions (`ORDER`, `src/lib/server/library.ts`).
 - **On NEW**, RECENTLY ADDED is newest arrival, and turned round, oldest.
+- **A Work** sorts by its most recent part under every order (see "Works"):
+  RECENTLY READ by the part read last, RECENTLY ADDED by the part added last,
+  TITLE by the Work's name, RATING by the rated parts' average, PROGRESS over
+  the parts' totals.
 
 ## Random
 

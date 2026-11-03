@@ -192,14 +192,21 @@ describe('CONTINUE is one row per Work', () => {
 	});
 
 	it('counts rows, not parts, in the section total', () => {
+		const a = idOf('Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru');
+		const b = idOf('Kusuriya no Hitorigoto');
+		const before = lib.continueReading(true, 1000).total;
 		make(
-			['Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru', 'Hikaru ga Shinda Natsu'],
+			['Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru', 'Kusuriya no Hitorigoto'],
 			'The Breaker'
 		);
-		const { items, total } = lib.continueReading(true, 2);
-		expect(items.length).toBe(2);
-		// The seed's open series, less the two parts, plus one Work.
-		expect(total).toBe(lib.continueReading(true, 100).items.length);
-		expect(total).toBeGreaterThan(2);
+		const { items, total } = lib.continueReading(true, 1000);
+		// Two open series became one row.
+		expect(total).toBe(before - 1);
+		// Neither part is a row of its own: the one row that names either is the Work's.
+		const own = items.filter((i) => i.id === a || i.id === b);
+		expect(own).toHaveLength(1);
+		expect(own[0].work).not.toBeNull();
+		// `limit` is rows, too.
+		expect(lib.continueReading(true, 2).items).toHaveLength(2);
 	});
 });

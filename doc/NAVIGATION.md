@@ -33,7 +33,8 @@ opened on a series), the link opens its screen as it always did.
 
 Back links: the series screen's ← (to the library, a shelf, a person,
 history, or the source it was added from), the readers' ← and ← SERIES, the player's ← and ← SERIES, the end
-page's ← SERIES and LIBRARY, and a person page's ←. Code that leaves a screen
+page's ← SERIES and LIBRARY, a person page's ←, and the Work screen's
+← LIBRARY (`/work/N`; W5 will name the series it was opened from). Code that leaves a screen
 by itself (the player's Escape) uses `goBackTo`, the same decision. The
 player's were plain links until 2026-11-02: on a TV, ← then BACK opened the
 player again (`tests/tv-player.e2e.ts`).
@@ -67,7 +68,7 @@ says LIBRARY. Tested in `tests/origin.spec.ts`, `tests/browse-online.e2e.ts`
 
 Some actions end what their own screen shows, then redirect somewhere else:
 
-| Action, on the series screen                  | Goes to                  |
+| Action, on the screen it ends                 | Goes to                  |
 | --------------------------------------------- | ------------------------ |
 | GROUP (a singleton, from its suggestion)      | the new series           |
 | UNGROUP, or the UNDO after SERIES CREATED     | the library              |

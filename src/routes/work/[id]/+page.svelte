@@ -4,6 +4,7 @@
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { backLink, replacing } from '$lib/back';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import Cover from '$lib/components/content/Cover.svelte';
@@ -25,7 +26,12 @@
 
 	let { data, form } = $props();
 	let adding = $state(false);
+	// A Work made from titles that share no words is named for the owner to
+	// replace, and the screen opens the row that does it (?rename=1).
 	let renaming = $state(false);
+	$effect(() => {
+		if (page.url.searchParams.get('rename') === '1') renaming = true;
+	});
 	let reordering = $state(false);
 	let order = $state<number[]>([]);
 	let selecting = $state(false);
@@ -664,6 +670,10 @@
 	}
 	.cta.quiet .m {
 		color: var(--text-2);
+	}
+	.panel {
+		display: flex;
+		flex-direction: column;
 	}
 	.prow {
 		display: flex;

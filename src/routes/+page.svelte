@@ -1038,7 +1038,7 @@
 						<ContinueRow
 							title={item.title}
 							meta={item.work
-								? item.entryLabel
+								? item.entryLabel.toUpperCase()
 								: continueSub(item, isOffline ? { cached } : undefined)}
 							work={item.work ?? null}
 							progress={item.entryFraction ?? progress(item)}

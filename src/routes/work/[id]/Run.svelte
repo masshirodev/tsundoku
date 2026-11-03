@@ -148,6 +148,7 @@
 				href={!reordering && !selecting ? seriesHref(p.seriesId, `work:${workId}`) : undefined}
 				class="rowlink"
 				role={reordering ? 'presentation' : undefined}
+				tabindex={reordering ? 0 : undefined}
 				aria-pressed={selecting ? selected.has(p.seriesId) : undefined}
 				aria-label={selecting ? `Select ${p.title}` : undefined}
 				onclick={reordering ? undefined : () => (selecting ? onselect?.(p) : onrow?.(p))}

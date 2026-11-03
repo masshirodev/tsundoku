@@ -22,6 +22,7 @@ import {
 } from '$lib/server/library';
 import { isRevealed, runCommand } from '$lib/server/prefs';
 import { parseRating } from '$lib/library/rating';
+import { defaultWorkName } from '$lib/library/works';
 import { activeCount, legacyShelf, parseFilters } from '$lib/library/filters';
 import { parseDir, parseSeed, parseSort } from '$lib/library/labels';
 import {
@@ -296,14 +297,23 @@ export const actions: Actions = {
 	work: async ({ request }) => {
 		const seriesIds = ids(await request.formData());
 		if (seriesIds.length < 2) return fail(400, { workMessage: 'A WORK NEEDS TWO SERIES' });
+		// The words every title starts with, as the books stem rule does; titles
+		// that share none get a name to replace at once, and the Work screen
+		// opens its RENAME row rather than guessing one.
+		const titles = seriesIds.map(
+			(id) =>
+				(getDb().prepare(`SELECT title FROM series WHERE id = ?`).get(id) as { title: string })
+					.title
+		);
+		const stem = defaultWorkName(titles);
 		let made;
 		try {
-			made = createWork({ seriesIds });
+			made = createWork({ seriesIds, name: stem || 'Untitled work' });
 		} catch (e) {
 			if (e instanceof WorkError) return fail(400, { workMessage: e.message.toUpperCase() });
 			throw e;
 		}
-		redirect(303, `/work/${made.work.id}`);
+		redirect(303, `/work/${made.work.id}${stem ? '' : '?rename=1'}`);
 	},
 
 	/**
