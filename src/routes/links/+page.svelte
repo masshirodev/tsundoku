@@ -113,6 +113,14 @@
 				? { no: item.season, part: item.part ?? 1 }
 				: null
 	);
+	/**
+	 * The season the screen names (c240): the page's own on `?series=`, or a
+	 * queue item's from season 1 up. A queue item for season 0 is a flat list,
+	 * the whole run, so it names none; it still posts its season (`at`).
+	 */
+	const named = $derived<{ no: number } | null>(
+		season ? { no: season.no } : at && at.no > 0 ? at : null
+	);
 	const ranobe = $derived(item?.service === 'ranobe');
 	const name = $derived(item ? SERVICE_NAME[item.service] : '');
 	let chosen = $state<string | null>(null);
@@ -321,7 +329,7 @@
 			decide(
 				{ link: c.anilistId, pasted: !!pasted },
 				// The queue's item names its season, and so does the band (c240).
-				`LINKED · ${seasonWord(at)}${c.title.toUpperCase()}`,
+				`LINKED · ${seasonWord(named)}${c.title.toUpperCase()}`,
 				`${c.ids} · ${it.hasCover ? 'COVER STAYS AS IT IS' : 'ITS COVER COMES FROM THE LINK'}`,
 				'link'
 			);
@@ -655,7 +663,7 @@
 		const link: Act = selected
 			? {
 					// The season the LINK writes: the page's, or the queue item's own (c240).
-					label: at ? `LINK ${selectedLetter} TO SEASON ${at.no}` : `LINK ${selectedLetter}`,
+					label: named ? `LINK ${selectedLetter} TO SEASON ${named.no}` : `LINK ${selectedLetter}`,
 					run: linkChosen,
 					strong: true,
 					dim: off
@@ -684,7 +692,7 @@
 					: () =>
 							decide(
 								{ none: true },
-								`NONE OF THESE · ${seasonWord(at)}WON’T ASK AGAIN`,
+								`NONE OF THESE · ${seasonWord(named)}WON’T ASK AGAIN`,
 								'FIND AND PASTE A LINK STILL WORK ON ITS SERIES SCREEN',
 								'none'
 							),
@@ -780,8 +788,8 @@
 	<header class="head">
 		<a class="back" href={back.href}>{back.label}</a>
 		<div class="heading">
-			{#if at}
-				<span class="long">LINK · SEASON {at.no}</span><span class="short">S{at.no}</span>
+			{#if named}
+				<span class="long">LINK · SEASON {named.no}</span><span class="short">S{named.no}</span>
 			{:else}
 				<span class="long">SERIES TO LINK</span><span class="short">TO LINK</span>
 			{/if}

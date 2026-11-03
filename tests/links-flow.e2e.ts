@@ -699,53 +699,86 @@ test.describe('a catalogue that answers', () => {
 		await expect(page.locator('.seasonbar .sb-b')).toContainText('2 EPISODES HERE');
 	});
 
-	test('the queue’s LINK on an anime with season 1 linked links season 2, and says so (c240)', async ({
+	test('the queue holds an anime a season at a time, each with its own search, and names the season (c240, c352)', async ({
 		page
 	}) => {
-		// Season 1 is the owner's, season 2 was searched by the pass. The queue's
-		// item names no season on screen, so LINK must post the season it is for:
-		// the default would be the open season, which is season 1 here.
+		// What the pass leaves after searching both seasons: each season's own
+		// search and candidates, and nothing at series level (wave 17). The
+		// owner links season 1 from the queue; season 2's item must then be its
+		// own search, never season 1's entry.
 		const id = seedQueuedSecondSeason();
-		try {
-			// FIND with no season named opens where the queue would: season 1 is
-			// open (nothing watched) but linked, so season 2.
-			await page.goto(`${BASE}/links?series=${id}`);
-			await expect(page.locator('.heading .long')).toHaveText('LINK · SEASON 2');
-			await page.goto(`${BASE}/links`);
-			// Its place in the queue is the queue's business: SKIP until it is first,
-			// each SKIP waiting for the page to turn before the title is read again.
-			for (let i = 0; i < 4; i++) {
-				const shown = await page.locator('.title').textContent();
-				if (shown === 'Queued Second Season') break;
+		/** SKIP until the show's item for this season is first, each SKIP waiting for the page to turn. */
+		const toItem = async (season: number) => {
+			for (let i = 0; i < 8; i++) {
+				const shown = `${await page.locator('.title').textContent()}|${await page.locator('.heading .long').textContent()}`;
+				if (shown === `Queued Second Season|LINK · SEASON ${season}`) return;
 				await page.getByRole('button', { name: 'SKIP' }).click();
-				await expect(page.locator('.title')).not.toHaveText(shown ?? '');
+				await expect
+					.poll(
+						async () =>
+							`${await page.locator('.title').textContent()}|${await page.locator('.heading .long').textContent()}`
+					)
+					.not.toBe(shown);
 			}
-			await expect(page.locator('.title')).toHaveText('Queued Second Season');
+		};
+		const link = async (season: number, anilistId: number, band: string) => {
 			await page.locator('.cand').first().click();
+			// The button says which season the LINK writes (the low of wave 15's round 2).
+			await expect(page.locator('.actions button').last()).toHaveText(`LINK A TO SEASON ${season}`);
 			const posted = page.waitForRequest(
 				(r) => r.url().endsWith('/api/links') && r.method() === 'POST'
 			);
 			await page.locator('.actions button').last().click();
 			expect((await posted).postDataJSON()).toMatchObject({
 				series: id,
-				link: 9202,
-				season: 2,
+				link: anilistId,
+				season,
 				part: 1
 			});
-			await expect(page.locator('.band .line').first()).toHaveText(
-				'LINKED · QUEUED SECOND SEASON II'
-			);
+			// And so does the band its UNDO lives in.
+			await expect(page.locator('.band .line').first()).toHaveText(band);
+		};
+		try {
+			await page.goto(`${BASE}/links`);
+			await toItem(1);
+			await expect(page.locator('.heading .long')).toHaveText('LINK · SEASON 1');
+			await expect(page.locator('.cand')).toHaveCount(1);
+			await expect(page.locator('.cand')).toContainText('9201');
+			await link(1, 9201, 'LINKED · SEASON 1 · QUEUED SECOND SEASON');
+			expect(seasonLinksOf(id)).toEqual([{ season: 1, anilist_id: 9201, via: 'review' }]);
+
+			// The queue as the workstation now draws it: season 2's own search only.
+			await page.goto(`${BASE}/links`);
+			await toItem(2);
+			await expect(page.locator('.heading .long')).toHaveText('LINK · SEASON 2');
+			await expect(page.locator('.cand')).toHaveCount(1);
+			await expect(page.locator('.cand')).toContainText('9202');
+			await expect(page.locator('.cand')).not.toContainText('9201');
+			// FIND with no season named opens where the queue does: season 1 is the
+			// open season (nothing watched) but linked, so season 2.
+			await link(2, 9202, 'LINKED · SEASON 2 · QUEUED SECOND SEASON II');
 			expect(seasonLinksOf(id)).toEqual([
 				{ season: 1, anilist_id: 9201, via: 'review' },
 				{ season: 2, anilist_id: 9202, via: 'review' }
 			]);
+			// UNDO takes back the season the band named, and no other.
+			await page.getByRole('button', { name: 'UNDO' }).click();
+			await expect
+				.poll(() => seasonLinksOf(id))
+				.toEqual([{ season: 1, anilist_id: 9201, via: 'review' }]);
+			await page.goto(`${BASE}/links?series=${id}`);
+			await expect(page.locator('.heading .long')).toHaveText('LINK · SEASON 2');
 		} finally {
 			unlinkQueuedSecondSeason(id);
 		}
 	});
 });
 
-/** A two-season anime, season 1 linked, season 2 searched and offered one entry: queued. */
+/**
+ * A two-season anime the pass searched: each season's own search and its one
+ * candidate, exactly what `searchSeries` writes (`saveSeasonSearch`), and no
+ * series-level row, which the pass never writes for an anime (wave 17).
+ */
 let queuedSecond: number | null = null;
 function seedQueuedSecondSeason(): number {
 	if (queuedSecond !== null) return queuedSecond;
@@ -772,54 +805,51 @@ function seedQueuedSecondSeason(): number {
 				position += 1;
 				put.run(id, position, `Episode ${i}`, season, i, now, `/queued/${season}/${i}`);
 			}
-		db.prepare(
-			`INSERT INTO series_season_links (series_id, season, part, anilist_id, via, title, linked_at, resolved_at, format, episodes)
-			VALUES (?, 1, 1, 9201, 'review', 'Queued Second Season', ?, ?, 'TV', 3)`
-		).run(id, now, now);
-		const candidate = JSON.stringify({
-			anilistId: 9202,
-			malId: null,
-			title: 'Queued Second Season II',
-			alts: [],
-			format: 'TV',
-			country: 'JP',
-			year: 2020,
-			chapters: null,
-			volumes: null,
-			episodes: 3,
-			season: 'FALL',
-			seasonYear: 2020,
-			status: 'FINISHED',
-			coverUrl: ''
-		});
-		// What the pass leaves: the series' own search and the season's, alike.
-		db.prepare(
-			`INSERT INTO link_searches (series_id, query, searched_at, found) VALUES (?, 'Queued Second Season Season 2', ?, 1)`
-		).run(id, now);
-		db.prepare(
-			`INSERT INTO link_candidates (series_id, anilist_id, rank, data) VALUES (?, 9202, 0, ?)`
-		).run(id, candidate);
-		db.prepare(
-			`INSERT INTO season_link_searches (series_id, season, part, query, searched_at, found)
-			VALUES (?, 2, 1, 'Queued Second Season Season 2', ?, 1)`
-		).run(id, now);
-		db.prepare(
-			`INSERT INTO season_link_candidates (series_id, season, part, anilist_id, rank, data)
-			VALUES (?, 2, 1, 9202, 0, ?)`
-		).run(id, candidate);
+		const candidate = (anilistId: number, title: string) =>
+			JSON.stringify({
+				anilistId,
+				malId: null,
+				title,
+				alts: [],
+				format: 'TV',
+				country: 'JP',
+				year: 2020,
+				chapters: null,
+				volumes: null,
+				episodes: 3,
+				season: 'FALL',
+				seasonYear: 2020,
+				status: 'FINISHED',
+				coverUrl: ''
+			});
+		for (const [season, query, anilistId, title] of [
+			[1, 'Queued Second Season', 9201, 'Queued Second Season'],
+			[2, 'Queued Second Season Season 2', 9202, 'Queued Second Season II']
+		] as const) {
+			db.prepare(
+				`INSERT INTO season_link_searches (series_id, season, part, query, searched_at, found)
+				VALUES (?, ?, 1, ?, ?, 1)`
+			).run(id, season, query, now);
+			db.prepare(
+				`INSERT INTO season_link_candidates (series_id, season, part, anilist_id, rank, data)
+				VALUES (?, ?, 1, ?, 0, ?)`
+			).run(id, season, anilistId, candidate(anilistId, title));
+		}
 		return (queuedSecond = id);
 	} finally {
 		db.close();
 	}
 }
 
-/** Put the queued show back as seeded: season 2 open again, season 1 as it was. */
+/** Put the queued show back as seeded: both seasons open and searched, nothing skipped. */
 function unlinkQueuedSecondSeason(id: number): void {
 	const db = new Database(dbPath);
 	try {
-		db.prepare(`DELETE FROM series_season_links WHERE series_id = ? AND season = 2`).run(id);
+		db.prepare(`DELETE FROM series_season_links WHERE series_id = ?`).run(id);
 		db.prepare(`DELETE FROM season_link_decisions WHERE series_id = ?`).run(id);
-		db.prepare(`UPDATE link_searches SET skipped_at = NULL WHERE series_id = ?`).run(id);
+		db.prepare(`UPDATE season_link_searches SET skipped_at = NULL WHERE series_id = ?`).run(id);
+		// LINK asks the relations, which a catalogue that answers keeps as candidates.
+		db.prepare(`DELETE FROM series_links WHERE series_id = ?`).run(id);
 	} finally {
 		db.close();
 	}
