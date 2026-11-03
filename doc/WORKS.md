@@ -255,10 +255,18 @@ therefore asks: `HIDE ALL n` hides the Work, every part, with a band and UNDO;
 `TAKE OUT` takes this series out first and hides it on its own, and the rest
 stay a Work. The bulk bar asks the same way when its selection holds part of a
 Work: HIDE ALL covers every Work touched, TAKE OUT hides exactly what was
-selected. A series in no Work keeps the plain HIDE, and UNHIDE on a part shows
-the Work whole, so no door leaves a Work half-hidden. Each answer's UNDO both
-shows the series again and puts back any take-out, including a Work that ended
-because it was left with one.
+selected. A series in no Work keeps the plain HIDE, and the bulk bar's UNHIDE
+is the same rule backwards (`?/showAll`): one hidden part of a hidden Work
+selected anywhere -- a person's page draws the parts as their own tiles -- shows
+the Work whole, with its own band and UNDO. So no door leaves a Work
+half-hidden, in either direction. Each answer's UNDO both shows the series
+again and puts back any take-out, including a Work that ended because it was
+left with one.
+
+With reveal off, the series screen no longer exists after either answer, so the
+library carries the band: `HIDE ALL n` says the Work was hidden whole, and
+`TAKE OUT` says `HIDDEN · TAKEN OUT` -- one series hidden, on its own again,
+naming the Work it left if that Work ended.
 
 ### The end of a series (W6)
 

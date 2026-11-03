@@ -90,6 +90,11 @@ Some actions end what their own screen shows, then redirect somewhere else:
 | HIDE, with reveal off                                     | the library              |
 | DELETE on the series' last book                           | the library              |
 
+HIDE covers both of W4's answers. `HIDE ALL n` redirects with `band=hidden` and
+`TAKE OUT` with `band=taken-out`, so the library's band says which of them
+happened -- a Work hidden whole, or one series on its own again, naming the Work
+it left when that Work ended. UNDO from that band leaves the page it was on.
+
 Followed as an ordinary navigation, each one pushed a new history entry on
 top of a screen that no longer exists, so the system's back (a swipe on
 Android) landed on a 404: grouping two books from one's own screen and
