@@ -1,0 +1,64 @@
+{
+	"library-desktop": {
+		"dark": {
+			"file": "library-desktop-dark.webp",
+			"width": 2880,
+			"height": 1800
+		},
+		"light": {
+			"file": "library-desktop-light.webp",
+			"width": 2880,
+			"height": 1800
+		}
+	},
+	"library-phone": {
+		"dark": {
+			"file": "library-phone-dark.webp",
+			"width": 824,
+			"height": 1830
+		},
+		"light": {
+			"file": "library-phone-light.webp",
+			"width": 824,
+			"height": 1830
+		}
+	},
+	"series-tablet": {
+		"dark": {
+			"file": "series-tablet-dark.webp",
+			"width": 1600,
+			"height": 2560
+		},
+		"light": {
+			"file": "series-tablet-light.webp",
+			"width": 1600,
+			"height": 2560
+		}
+	},
+	"history-phone": {
+		"dark": {
+			"file": "history-phone-dark.webp",
+			"width": 824,
+			"height": 1830
+		},
+		"light": {
+			"file": "history-phone-light.webp",
+			"width": 824,
+			"height": 1830
+		}
+	},
+	"reader-phone": {
+		"dark": {
+			"file": "reader-phone-dark.webp",
+			"width": 824,
+			"height": 1830
+		}
+	},
+	"strip-phone": {
+		"dark": {
+			"file": "strip-phone-dark.webp",
+			"width": 824,
+			"height": 1830
+		}
+	}
+}
