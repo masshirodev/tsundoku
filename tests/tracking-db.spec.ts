@@ -368,15 +368,17 @@ describe('reading the lists', () => {
 				`INSERT INTO series_links (series_id, mal_id, via, linked_at, resolved_at, format)
 				VALUES (?, 52093, 'review', ?, ?, 'TV')`
 			).run(show, NOW, NOW);
+			// MAL's anime list has its own words: `watching` is the one the owner is
+			// in almost every time, and the manga list never uses it.
 			malAnime = [
 				{
 					node: { id: 52093 },
-					list_status: { status: 'completed', score: 9, num_episodes_watched: 12 }
+					list_status: { status: 'watching', score: 9, num_episodes_watched: 12 }
 				}
 			];
 			await signIn('mal');
 			await tr.readList('mal', NOW);
-			expect(state(show, 'mal')).toMatchObject({ status: 'completed', progress: 12, score: 9 });
+			expect(state(show, 'mal')).toMatchObject({ status: 'reading', progress: 12, score: 9 });
 		} finally {
 			db.prepare(`DELETE FROM series WHERE id = ?`).run(show);
 		}
