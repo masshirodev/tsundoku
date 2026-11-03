@@ -525,3 +525,165 @@ test('revealing the bar keeps ▶❚❚, and ↑ still reaches an offered SKIP',
 	await page.keyboard.press('ArrowUp');
 	await expect(skip).toBeFocused();
 });
+
+/**
+ * Many languages on the 420px panel (c386, doc/ANIME.md "The settings
+ * sheet"): the episode's answer is widened in the browser to 11 audio and 30
+ * subtitle languages, labelled as the workstation labels them, as
+ * tests/browse-player-languages.e2e.ts does at the 520px sheet. Incognito
+ * keeps no choice, so nothing here carries to another spec.
+ */
+const MANY_AUDIO = [
+	'Japanese',
+	'English',
+	'German',
+	'Spanish',
+	'French',
+	'Hindi',
+	'Hungarian',
+	'Italian',
+	'Portuguese (Brazil)',
+	'Thai',
+	'Spanish (Latin America)'
+];
+const MANY_SUBS = [
+	'English',
+	'Arabic',
+	'Chinese (Simplified)',
+	'Chinese (Traditional)',
+	'Czech',
+	'Danish',
+	'Dutch',
+	'Finnish',
+	'French',
+	'German',
+	'Greek',
+	'Hebrew',
+	'Hindi',
+	'Hungarian',
+	'Indonesian',
+	'Italian',
+	'Japanese',
+	'Korean',
+	'Malay',
+	'Norwegian (nob)',
+	'Polish',
+	'Portuguese (Brazil)',
+	'Romanian',
+	'Russian',
+	'Spanish',
+	'Spanish (Latin America)',
+	'Swedish',
+	'Thai',
+	'Turkish',
+	'Vietnamese'
+];
+
+test.describe('many languages (c386)', () => {
+	// The service worker answers a page it controls itself, past page.route.
+	test.use({ serviceWorkers: 'block' });
+
+	test('on the 420px panel they wrap, and the pad moves through the grid and MORE', async ({
+		page
+	}) => {
+		const { langName, trackCodes } = await import('../src/lib/library/streams');
+		await page.route('**/api/anime/episode/*/videos**', async (route) => {
+			const response = await route.fetch();
+			const body = (await response.json()) as {
+				servers: {
+					qualities: { audio: unknown[]; subtitles: { lang: string; src: string }[] }[];
+				}[];
+			};
+			const qualities = body.servers.flatMap((s) => s.qualities);
+			const vtt = qualities.flatMap((q) => q.subtitles).find((t) => t.lang === 'EN')?.src;
+			const a = trackCodes(MANY_AUDIO);
+			const t = trackCodes(MANY_SUBS);
+			for (const q of qualities) {
+				q.audio = MANY_AUDIO.map((n, i) => ({
+					lang: a[i],
+					name: langName(n),
+					src: `/api/anime/media/fake-audio-${i}`
+				}));
+				q.subtitles = MANY_SUBS.map((n, i) => ({
+					lang: t[i],
+					name: langName(n),
+					src: `${vtt}?n=${i}`
+				}));
+			}
+			await route.fulfill({ response, json: body });
+		});
+		await openEpisode(page);
+		await play(page);
+		await streamReady(page);
+		const settings = page.locator('.cells .grow');
+		await settings.focus();
+		await page.keyboard.press('Enter');
+		const panel = page.getByRole('dialog', { name: 'Playback settings' });
+		await expect(panel).toBeVisible();
+		expect((await panel.boundingBox())!.width).toBe(420);
+
+		// AUDIO: all eleven, wrapped, none over another, each at least a tap.
+		const audio = panel.getByRole('group', { name: 'Audio' }).getByRole('button');
+		await expect(audio).toHaveText(trackCodes(MANY_AUDIO));
+		const boxes = await audio.evaluateAll((els) =>
+			els.map((el) => {
+				const r = el.getBoundingClientRect();
+				return {
+					x: r.x,
+					y: r.y,
+					w: r.width,
+					h: r.height,
+					clipped: el.scrollWidth > el.clientWidth
+				};
+			})
+		);
+		expect(boxes.every((b) => b.w >= 44 && b.h >= 44 && !b.clipped)).toBe(true);
+		for (let i = 0; i < boxes.length; i++)
+			for (let j = i + 1; j < boxes.length; j++) {
+				const dx =
+					Math.min(boxes[i].x + boxes[i].w, boxes[j].x + boxes[j].w) -
+					Math.max(boxes[i].x, boxes[j].x);
+				const dy =
+					Math.min(boxes[i].y + boxes[i].h, boxes[j].y + boxes[j].h) -
+					Math.max(boxes[i].y, boxes[j].y);
+				expect(dx > 1 && dy > 1, `cells ${i} and ${j} overlap`).toBe(false);
+			}
+		// The pad moves through the wrapped grid: → along a line, ↓ to the cell
+		// beneath, on the next line.
+		const perLine = boxes.filter((b) => Math.abs(b.y - boxes[0].y) < 1).length;
+		expect(perLine).toBeGreaterThan(1);
+		expect(perLine).toBeLessThan(boxes.length);
+		await audio.first().focus();
+		await page.keyboard.press('ArrowRight');
+		await expect(audio.nth(1)).toBeFocused();
+		await page.keyboard.press('ArrowDown');
+		await expect(audio.nth(1 + perLine)).toBeFocused();
+
+		// SUBTITLES: OFF, what is on, MORE · 29. OK on MORE opens the list on what is on.
+		const subs = panel.getByRole('group', { name: 'Subtitles' }).getByRole('button');
+		await expect(subs).toHaveText(['OFF', 'EN', 'MORE · 29']);
+		const more = panel.getByRole('button', { name: 'MORE · 29' });
+		await more.focus();
+		await page.keyboard.press('Enter');
+		const list = panel.getByRole('group', { name: 'Every subtitle language' }).getByRole('button');
+		await expect(list).toHaveCount(30);
+		await expect(list.first()).toBeFocused();
+		await page.keyboard.press('ArrowDown');
+		await expect(list.nth(1)).toBeFocused();
+		// BACK closes the list first, and MORE has the mark again; the panel stays.
+		await page.keyboard.press('Escape');
+		await expect(list).toHaveCount(0);
+		await expect(more).toBeFocused();
+		await expect(panel).toBeVisible();
+		// OK on a language in the list takes it, and the mark lands on its cell.
+		await page.keyboard.press('Enter');
+		await expect(list.first()).toBeFocused();
+		await page.keyboard.press('ArrowDown');
+		await page.keyboard.press('Enter');
+		await expect(list).toHaveCount(0);
+		const ar = panel.getByRole('button', { name: 'Arabic', exact: true });
+		await expect(ar).toHaveClass(/on/);
+		await expect(ar).toBeFocused();
+		await expect(subs).toHaveText(['OFF', 'EN', 'AR', 'MORE · 28']);
+	});
+});

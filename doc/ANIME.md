@@ -227,13 +227,14 @@ once a candidate is picked, and MOVE never waits on it.
 - **Subtitles**, `/api/anime/subtitle/<token>`, are always WebVTT: SubRip's
   commas become dots, SubStation's Dialogue lines become plain cues (the
   player draws its own style). Languages are read as codes (English, eng →
-  EN).
+  EN; the whole rule is "The settings sheet", below).
 - **One audio track per language the source names** (`onePerLanguage`):
   KickAssAnime lists every language twice, two playlists apiece (16 tracks
   for 8 languages), which doubled the player's menu and the download. The
   first listed is kept; differently named ones ("Spanish", "Spanish (Latin
-  America)") are different tracks. Subtitles aren't folded: they're small,
-  and two ES ones are usually two dialects.
+  America)") are different tracks, ES and ES-419. Subtitles aren't folded:
+  they're small, and two Spanish ones are usually two dialects; two names that
+  still come to one code are ES and ES-2 (`trackCodes`).
 - **A stream's weight** (`probe`): a master playlist's best BANDWIDTH and its
   media playlist's length, for ALL N's ABOUT sizes; getVideoList gives no
   bitrate. tsundoku's own master (separate audio) is probed through the video
@@ -462,6 +463,41 @@ screen but the video, and the subtitles, until a tap.
   each server until a choice is made. Incognito keeps no choice. Speed is
   this episode's; quality and DIM are this device's, mirrored on the
   workstation like every device setting. The sheet ends with ALL SETTINGS →.
+- **The settings sheet's languages** (c386). A language is its short code
+  everywhere in a row -- `JA`, `EN`, `PT-BR`, `ES-419`, `ZH-HANT`, `NB` -- and
+  its name in full is the cell's `title` and accessible name ("Portuguese
+  (Brazil)", "Norwegian Bokmål"). `langCode` (`src/lib/library/streams.ts`)
+  reads whatever the source wrote ("Hungarian", "hun", "hu", "Magyar",
+  "Chinese (Traditional)", "zh-TW", "Norwegian (nob)") against one table of
+  about 75 languages, their ISO 639-2 letters and their own names; the
+  variants a viewer actually picks between are kept (Brazilian Portuguese,
+  Latin American Spanish, Traditional and Simplified Chinese, Canadian
+  French), every other region is the language (`en-US` is EN). A name nobody
+  knows is cut to its first three letters (Klingon is KLI) with the name
+  itself as the title, so no cell ever holds a whole word. The server sends
+  each track's code and name (`langName`); a downloaded file's tracks have
+  codes alone, and the player names them from the code. **AUDIO and
+  SUBTITLES are a grid of equal cells** (at least 60px wide, 44px high, the
+  house tap size), as many to a line as fit -- six in the 520px sheet, four
+  on a TV's 420px panel, three on a phone -- wrapping onto further lines,
+  which a D-pad crosses as any grid. **Past twelve languages** a row shows
+  only OFF, the one on, the series' or SETTINGS' choice, the device's
+  language and English (for audio the original too), in the source's order,
+  then **MORE · N**, which opens every language as a list in the same sheet,
+  one a line, named in full with its code at the right. Picking from it
+  closes it and puts focus on the pick's cell, which the row now shows;
+  BACK closes the list before the sheet. Twelve is two lines of the sheet's
+  six: past it the row grows taller than the rest of the sheet together (on
+  a TV, three lines already), and the owner's VidStreaming episode had 11
+  audio languages and a few dozen subtitles, so its audio wraps and its
+  subtitles collapse. Until 2026-11-03 both rows were one segmented line,
+  and a few dozen labels printed over each other; a name the short table
+  did not know ("HUNGARIAN") showed whole, and the workstation refused to
+  keep it as a choice (only two or three capitals passed), so it was never
+  remembered. A choice kept before is read as the track it meant
+  (`matchLang`): `PT` finds PT-BR, `HUN` finds HU. Downloads keep and tag
+  tracks by the language alone, as before, since AUDIO KEPT names
+  languages and Matroska's tag has no variant.
 - **Subtitles** are drawn by tsundoku from the WebVTT: IBM Plex on a scrim
   box, rising above the controls while they show.
 - **SKIP INTRO / SKIP ENDING** wherever an opening or an ending is known --
@@ -543,7 +579,10 @@ and file tests in `tests/anime-streams-db.spec.ts`, and the player tests in
 subtitles, SKIP INTRO, the frame's literals, the sheet, the NEXT page and
 STAY, WATCHED on the series; portrait), with the portrait scrubber's tap,
 drag, hit area and tip at a 390×844 touch phone in
-`tests/browse-player-portrait.e2e.ts`. The clip is
+`tests/browse-player-portrait.e2e.ts`, and the sheet's languages (11 audio
+and 30 subtitles, MORE, a pick remembered on the next episode) in
+`tests/browse-player-languages.e2e.ts`, at the TV's 420px panel by D-pad in
+`tests/tv-player.e2e.ts`, and their codes in `tests/streams.spec.ts`. The clip is
 `tests/fixtures/video/clip.webm`, VP9 and Opus: Playwright's Chromium has no
 H.264.
 
@@ -574,7 +613,8 @@ pure parts in `src/lib/library/anime-files.ts`).
   Matroska file. **Which tracks** is SETTINGS' DOWNLOADING (card c160, since
   c171): every track by default, or the original (the source's first audio)
   and the languages chosen under AUDIO KEPT; subtitles all, or AS AUDIO for
-  those in a kept audio's language (`keptTracks`). New downloads only. The file is each track tagged with its language, written beside its
+  those in a kept audio's language (`keptTracks`), by language alone: an
+  ES-419 track is kept by ES and tagged `spa`. New downloads only. The file is each track tagged with its language, written beside its
   place and renamed. The NFOs are Jellyfin's (`tvshow`, `episodedetails`) and
   carry tsundoku's keys as `<uniqueid type="tsundoku">`, with AniList and MAL
   ids where the series is linked; `poster.jpg` is the library's own cover.
