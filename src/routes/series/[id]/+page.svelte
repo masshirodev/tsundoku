@@ -2,6 +2,7 @@
 	import { animeConfirm, animeContinue } from '$lib/library/anime';
 	import { resolve } from '$app/paths';
 	import EpisodeList from './EpisodeList.svelte';
+	import { movedUnit } from './move-words';
 	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
 	import { replacing, stepsBackTo } from '$lib/back';
 	import type { ActionResult } from '@sveltejs/kit';
@@ -135,7 +136,7 @@
 		data.moved
 			? [
 					data.moved.added
-						? `${data.moved.added} ${series.kind === 'anime' ? 'EPISODE' : 'CHAPTER'}${data.moved.added === 1 ? '' : 'S'} ADDED, NOT DOWNLOADED`
+						? `${data.moved.added} ${movedUnit(series.kind)}${data.moved.added === 1 ? '' : 'S'} ADDED, NOT DOWNLOADED`
 						: '',
 					data.moved.kept
 						? `${data.moved.kept} KEPT FROM ${(data.move.former?.name ?? 'THE OLD SOURCE').toUpperCase()}`

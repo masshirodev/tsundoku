@@ -8,6 +8,7 @@
 	import { SiteCheck } from '$lib/site-check.svelte';
 	import { formatNumber } from '$lib/library/series';
 	import type { SearchHit } from '$lib/server/download-types';
+	import { comparedKind, searchedSources } from '../move-words';
 
 	/**
 	 * MOVE TO ANOTHER SOURCE (doc/MOVE.md; Migrate Calls Q1–Q4, boards 2–4).
@@ -162,8 +163,8 @@
 				<div class="k">01 — NOTHING ASKED YET</div>
 				<div class="big">Hidden series are never searched by themselves.</div>
 				<p>
-					SEARCH asks every {data.series.kind === 'anime' ? 'anime' : 'manga'} source for this title,
-					once. PASTE A LINK asks only the site it names.
+					SEARCH asks every {searchedSources(data.series.kind)} source for this title, once. PASTE A LINK
+					asks only the site it names.
 				</p>
 			</div>
 		{:else if data.q}
@@ -273,9 +274,8 @@
 					<Cover src={c.candidate.cover} width={72} height={104} />
 					<div class="nm">
 						<div class="meta">
-							{c.candidate.source.toUpperCase()} · {c.kind === 'anime'
-								? 'ANIME'
-								: data.series.kind.toUpperCase()}{c.candidate.status
+							{c.candidate.source.toUpperCase()} · {comparedKind(c.kind, data.series.kind)}{c
+								.candidate.status
 								? ` · ${c.candidate.status.toUpperCase()}`
 								: ''}
 						</div>

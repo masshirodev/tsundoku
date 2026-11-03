@@ -18,10 +18,13 @@ Which series MOVE is offered for, and how its map reads them, is the kind
 registry's (`src/lib/library/kinds.ts`, [`KINDS.md`](KINDS.md); card c304):
 `movable` says whether a kind moves (a manga, a manhwa, an anime), and the
 kind's **medium** says how. A video kind's series maps by episode and season
-(the map kind `anime`), every other by number (`manga`); the sources asked are
-the installed ones serving that medium (`sourceMedium`); and the words a move
-says (`EPISODES`, `Ep.`, WATCHING) are the map kind's. Nothing in MOVE names a
-kind.
+(the map kind `anime`), every other by number (`manga`); the sources asked,
+and the one a pasted link is matched to, are the installed ones serving that
+medium (`sourceMedium`; PASTE A LINK's in `series/[id]/move/paste.server.ts`);
+and the words a move says (`EPISODES`, `Ep.`, WATCHING, SEARCH's "every anime
+source", the comparison's ANIME, the MOVED band's EPISODE or CHAPTER) are the
+map kind's (`series/[id]/move-words.ts`). Nothing in MOVE names a kind: the
+modules since K4 (wave 17), the route and the MOVED band since wave 18.
 
 Design: `doc/design/handoff/Migrate Calls.dc.html` (the decisions) and the
 boards beside it. Brief: [`briefs/MIGRATE.md`](briefs/MIGRATE.md). Card c139.

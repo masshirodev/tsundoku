@@ -519,3 +519,38 @@ describe('the sources MOVE asks (K4, c304)', () => {
 			}
 	});
 });
+
+describe('PASTE A LINK asks the medium too (K4, c304)', () => {
+	/**
+	 * The move route's pasted address (`pastedSourceId`, series/[id]/move/
+	 * paste.server.ts) keeps the installed sources whose medium is the map
+	 * kind's, where it used to keep `isAnimeSource(id) === (kind === 'anime')`.
+	 * One host served by a Mihon and an Aniyomi extension: each map kind must
+	 * land on its own medium's source, and a host nothing serves on nothing.
+	 */
+	it('lands on the source of the map kind’s medium, as the old rule did', async () => {
+		const { pastedSourceId } = await import('../src/routes/series/[id]/move/paste.server');
+		const { isAnimeSource, sourceMangaId } = await import('$lib/server/engine/backend');
+		const db = getDb();
+		const ext = db.prepare(
+			`INSERT INTO engine_extensions (pkg, name, kind, version_code, version_name, lib, handle, installed_at, updated_at, failed)
+			VALUES (?, ?, ?, 1, '1', '1', ?, 0, 0, '')`
+		);
+		const src = db.prepare(
+			`INSERT INTO engine_sources (id, pkg, name, lang, base_url) VALUES (?, ?, ?, 'en', ?)`
+		);
+		ext.run('e2e.both.m', 'Both (comics)', 'manga', 'e2e.both.m'.padEnd(64, '0'));
+		ext.run('e2e.both.a', 'Both (video)', 'anime', 'e2e.both.a'.padEnd(64, '0'));
+		src.run('410', 'e2e.both.m', 'Both', 'https://www.both.example');
+		src.run('420', 'e2e.both.a', 'Both', 'https://both.example');
+		const url = 'https://both.example/title/abc';
+		const id = (sourceId: string) => sourceMangaId(sourceId, url);
+		for (const kind of ['manga', 'anime'] as const) {
+			const old = ['410', '420'].find((s) => isAnimeSource(s) === (kind === 'anime'))!;
+			expect(pastedSourceId(url, kind), kind).toBe(id(old));
+		}
+		expect(id('410')).not.toBe(id('420'));
+		expect(pastedSourceId('https://nowhere.example/x', 'manga')).toBeNull();
+		expect(pastedSourceId('not a url', 'anime')).toBeNull();
+	});
+});

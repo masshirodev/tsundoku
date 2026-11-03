@@ -650,7 +650,7 @@ describe('the unit and READ/WATCHED words (labels.ts)', () => {
  * How to lower it: delete or replace a check, then lower BASELINE by exactly
  * the count removed. Never raise it without a card saying which check and why.
  */
-const BASELINE = 93;
+const BASELINE = 89;
 /** One of `KINDS`' own names, as a bare alternation. */
 const NAME = String.raw`(?:manga|manhwa|doujin|novel|anime)`;
 const COMPARED = new RegExp(
