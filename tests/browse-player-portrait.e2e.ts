@@ -90,6 +90,12 @@ test('the portrait scrubber seeks on a tap and follows a drag, without scrolling
 	// the screen sends it. The row is 44px; the finger is 19px below the
 	// line, still inside the row (where a thumb actually lands) and past the
 	// bar's own 14px reach, so the row's whole height is what is tested.
+	// What keeps a drag from scrolling is the track's own `touch-action: none`:
+	// the browser hands the finger to the page's handlers instead of panning.
+	// Asked of the style, since the scroll check at the end is structural:
+	// the row sits outside the scrolling .pbody and the page itself does not
+	// scroll, so it would hold with or without the rule (round 2, finding 3).
+	await expect(track).toHaveCSS('touch-action', 'none');
 	const before = await page.evaluate(() => ({
 		body: document.querySelector('.pbody')!.scrollTop,
 		page: window.scrollY
