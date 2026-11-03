@@ -589,9 +589,27 @@
 		if (!item || pasted || !item.candidates.length) return [];
 		return [
 			{ label: 'SEARCH AGAIN', run: openSearch, dim: netDim || noSearch },
-			{ label: 'PASTE A LINK', run: openPaste, dim: netDim }
+			{ label: 'PASTE A LINK', run: openPaste, dim: netDim },
+			// A linked season's own UNLINK: gone, and no pass searches it again
+			// (c240). The series screen's EDIT on the season line comes here.
+			...(season && single?.linked ? [{ label: 'UNLINK', run: unlinkSeason, dim: netDim }] : [])
 		];
 	});
+
+	/** UNLINK on a season: its row goes, and the series' mirror with it. */
+	async function unlinkSeason() {
+		if (!item || !season || busy) return;
+		const it = item;
+		busy = true;
+		failed = null;
+		const r = await post(it.service, { series: it.seriesId, unlink: true, season: season.no });
+		busy = false;
+		if (!r?.ok) {
+			failed = failText(r, it.service);
+			return;
+		}
+		if (single) await backToSeries(it.seriesId);
+	}
 	const actions = $derived.by((): Act[] => {
 		if (!item) return [];
 		const link: Act = selected

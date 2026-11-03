@@ -198,8 +198,32 @@ const ANIME_MEDIA: Media[] = [
 		episodes: 28,
 		season: 'FALL',
 		seasonYear: 2023
+	}),
+	// A show the source names two seasons of, and AniList two entries (c240). FIND
+	// asks with the season's own title, which the source's number and the series'
+	// title give.
+	entry({
+		id: 9001,
+		idMal: 7001,
+		title: 'Sword Art Online',
+		episodes: 12,
+		season: 'FALL',
+		seasonYear: 2012
+	}),
+	entry({
+		id: 9002,
+		idMal: 7002,
+		title: 'Sword Art Online II',
+		episodes: 11,
+		season: 'FALL',
+		seasonYear: 2014
 	})
 ];
+// The chain the relations are walked along: S1 and S2 are each other's sequel.
+const RELATIONS: Record<number, { id: number; type: 'PREQUEL' | 'SEQUEL' }[]> = {
+	9001: [{ id: 9002, type: 'SEQUEL' }],
+	9002: [{ id: 9001, type: 'PREQUEL' }]
+};
 const COMIC_MEDIA: Media[] = [
 	entry({ id: 30024, idMal: 24, title: 'Ranma ½', format: 'MANGA', chapters: 38 })
 ];
@@ -208,7 +232,7 @@ const COMIC_MEDIA: Media[] = [
 let asked: { type: string; formats: string[] }[] = [];
 
 function catalogue(query: string, variables: Record<string, unknown>) {
-	const out: Record<string, { media: Media[] }> = {};
+	const out: Record<string, unknown> = {};
 	const search =
 		/s(\d+):\s*Page\(perPage:\s*\d+\)\s*\{\s*media\(search:\s*\$q(\d+),\s*type:\s*(ANIME|MANGA),\s*format_in:\s*\$f(\d+)/g;
 	for (const m of query.matchAll(search)) {
@@ -218,9 +242,22 @@ function catalogue(query: string, variables: Record<string, unknown>) {
 		const pool = (type === 'ANIME' ? ANIME_MEDIA : COMIC_MEDIA).filter(
 			(e) =>
 				formats.includes(e.format) &&
+				// A season is asked for by its own title: "Sword Art Online Season 2",
+				// which the source's season number and the series' title give (c240).
 				[e.title.english, e.title.romaji, ...e.synonyms]
 					.filter((t): t is string => !!t)
-					.some((t) => t.toLowerCase().includes(String(variables[`q${qi}`]).toLowerCase()))
+					.some((t) => {
+						const said = String(variables[`q${qi}`]).toLowerCase();
+						const lower = t.toLowerCase();
+						if (lower.includes(said)) return true;
+						// The show's seasons, asked for as "Sword Art Online Season 2".
+						const season = /\bseason\s*(\d+)$/.exec(said);
+						if (!season) return false;
+						return (
+							(season[1] === '1' && lower === 'sword art online') ||
+							(season[1] === '2' && lower === 'sword art online ii')
+						);
+					})
 		);
 		out[`s${alias}`] = { media: pool };
 	}
@@ -234,6 +271,21 @@ function catalogue(query: string, variables: Record<string, unknown>) {
 		const pool = byIds[2] === 'ANIME' ? ANIME_MEDIA : COMIC_MEDIA;
 		out.Page = {
 			media: pool.filter((e) => ids.includes(byIds[1] === 'id_in' ? e.id : (e.idMal ?? -1)))
+		};
+	}
+	// The relations (c240): m0: Media(id: $i0) { … relations { edges { relationType node { … } } } }.
+	for (const m of query.matchAll(/m(\d+):\s*Media\(id:\s*\$i(\d+)\)/g)) {
+		const id = Number(variables[`i${m[2]}`]);
+		const self = ANIME_MEDIA.find((e) => e.id === id);
+		if (!self) continue;
+		out[`m${m[1]}`] = {
+			...self,
+			relations: {
+				edges: (RELATIONS[id] ?? []).map((rel) => ({
+					relationType: rel.type,
+					node: ANIME_MEDIA.find((e) => e.id === rel.id) ?? self
+				}))
+			}
 		};
 	}
 	return out;
@@ -260,7 +312,12 @@ function freePort(): Promise<number> {
 }
 
 /** The sample library, then this spec's anime; the seed's own two review rows are settled. */
-function seedAnime(): { ranma: number; frieren: number; sousou: number } {
+function seedAnime(): {
+	ranma: number;
+	frieren: number;
+	sousou: number;
+	sao: number;
+} {
 	rmSync(dbPath, { force: true });
 	execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
 		env: { ...process.env, DATABASE_PATH: dbPath, LIBRARY_ROOT: library, NODE_NO_WARNINGS: '1' },
@@ -297,10 +354,35 @@ function seedAnime(): { ranma: number; frieren: number; sousou: number } {
 		// Its own title is longer than the title a search will type at it, so the
 		// chip has to come from the query rather than from the series' titles.
 		const sousou = add('Sousou no Frieren', 28, 'aniyomi:1:/sousou-no-frieren');
+		// A show the source names two seasons of, for the per-season rows (c240):
+		// one series here, one entry a season on AniList.
+		const sao = Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, source, hue, added_at, indexed_at, origin_key, in_library, cover_key)
+					VALUES (?, 'Sword Art Online', 'anime', 'aniyomi', 210, ?, ?, 'aniyomi:1:/sao', 1, '')`
+				)
+				.run(root, now, now).lastInsertRowid
+		);
+		{
+			let position = 0;
+			const put = db.prepare(
+				`INSERT INTO entries (series_id, position, label, season, episode_number, added_at, file, bytes, page_count, available, source_url)
+				VALUES (?, ?, ?, ?, ?, ?, '', 0, 0, 0, ?)`
+			);
+			for (const [season, count] of [
+				[1, 12],
+				[2, 11]
+			] as const)
+				for (let i = 1; i <= count; i++) {
+					position += 1;
+					put.run(sao, position, `Episode ${i}`, season, i, now, `/sao/${season}/${i}`);
+				}
+		}
 		db.prepare(
 			`INSERT OR REPLACE INTO link_decisions (series_id, decision, at) VALUES (?, 'none', ?)`
 		).run(sousou, now);
-		return { ranma, frieren, sousou };
+		return { ranma, frieren, sousou, sao };
 	} finally {
 		db.close();
 	}
@@ -435,9 +517,76 @@ test.describe('a catalogue that answers', () => {
 		// A mark is not a choice: the search still links nothing.
 		await expect(page.locator('.cand[aria-pressed="true"]')).toHaveCount(0);
 	});
+
+	test('a season links on its own line, and the rest come from the relations (c240)', async ({
+		page
+	}) => {
+		// The source names two seasons of this show; AniList has an entry each.
+		await page.goto(`${BASE}/series/${ids.sao}`);
+		// The first season lines are the LINK row's; the TRACKING row has its own.
+		const linkRow = page.locator('.seasons').first();
+		await expect(linkRow.locator('.stag')).toHaveText(['S1', 'S2']);
+		await expect(linkRow.locator('.s-b').first()).toHaveText('NOT SEARCHED YET');
+		// FIND opens the review on that season, not the series.
+		await linkRow.locator('.sline', { hasText: 'S2' }).getByRole('link', { name: 'FIND' }).click();
+		await page.waitForURL(new RegExp(`/links\\?series=${ids.sao}&season=2`));
+		await expect(page.locator('.heading .long')).toHaveText('LINK · SEASON 2');
+		await expect(page.locator('.seasonbar .sb-b')).toHaveText('SEASON 2 OF 2 · 11 EPISODES HERE');
+		// The season's own title is what was asked: the source's number and the
+		// series' title, never invented.
+		await expect(page.locator('.seasonbar .sb-c')).toHaveText('ASKED AS SWORD ART ONLINE SEASON 2');
+		await expect(page.locator('.cand')).toHaveCount(1);
+		await expect(page.locator('.cand .ctitle')).toHaveText('Sword Art Online II');
+		await page.locator('.cand').first().click();
+		await expect(page.locator('.actions button').last()).toHaveText('LINK A TO SEASON 2');
+		await page.locator('.actions button').last().click();
+		// The page turns to the rest of the show, the other season ticked (its count
+		// agrees: 12 here, 12 there).
+		await expect(page.locator('.band .line').first()).toHaveText(
+			'LINKED · SEASON 2 TO SWORD ART ONLINE II'
+		);
+		await expect(page.locator('.rels .ch div').first()).toHaveText(
+			'02 — THE REST OF THE SERIES ON ANILIST'
+		);
+		const offered = page.locator('.relbtn');
+		await expect(offered).toHaveCount(1);
+		await expect(offered.locator('.rno')).toHaveText('S1');
+		await expect(offered).toHaveAttribute('aria-pressed', 'true');
+		await expect(offered.locator('.rwhy')).toContainText('COUNT AGREES');
+		await page.getByRole('button', { name: 'LINK 1 SEASON' }).click();
+		await page.waitForURL(new RegExp(`/series/${ids.sao}`));
+		// Both seasons linked, each with its own line and its own entry.
+		await expect(page.locator('.seasons').first().locator('.s-a')).toHaveText([
+			'Sword Art Online',
+			'Sword Art Online II'
+		]);
+		const written = seasonLinks();
+		expect(written).toEqual([
+			{ season: 1, anilist_id: 9001, mal_id: 7001 },
+			{ season: 2, anilist_id: 9002, mal_id: 7002 }
+		]);
+		// And the TRACKING row draws the same two seasons: nothing is signed in here.
+		await expect(page.locator('.track-row .stag')).toHaveText(['S1', 'S2']);
+		await expect(page.locator('.track-row .tl-l').first()).toHaveText(
+			'NOT SIGNED IN · NOTHING SENT'
+		);
+	});
 });
 
 /** The spec's own database, read beside the server: what a decision actually wrote. */
+function seasonLinks(): { season: number; anilist_id: number; mal_id: number }[] {
+	const db = new Database(dbPath, { readonly: true });
+	try {
+		return db
+			.prepare(
+				`SELECT season, anilist_id, mal_id FROM series_season_links WHERE series_id = ? ORDER BY season`
+			)
+			.all(ids.sao) as { season: number; anilist_id: number; mal_id: number }[];
+	} finally {
+		db.close();
+	}
+}
+
 function linkedCount(): number {
 	const db = new Database(dbPath, { readonly: true });
 	try {

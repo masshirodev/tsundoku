@@ -181,10 +181,12 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			recover(true);
 			// And the rest of the show, from the entry just chosen (c240).
 			let relations = null;
-			if (kind === 'anime' && season !== undefined) {
-				const token = account('anilist')?.access_token;
-				if (token) relations = await seasonRelations(seriesId, season, token).catch(() => null);
-			}
+			if (kind === 'anime' && season !== undefined)
+				relations = await seasonRelations(
+					seriesId,
+					season,
+					account('anilist')?.access_token ?? null
+				).catch(() => null);
 			return json({
 				ok: true,
 				title: c.title,

@@ -139,6 +139,13 @@ function anilist(
 export const anilistAs = (token: string, query: string, variables: Record<string, unknown> = {}) =>
 	anilist(query, variables, token);
 
+/**
+ * AniList asked without a token, as its search asks it: its catalogue is
+ * public, and an entry's relations are no more private than its title (c240).
+ */
+export const anilistPublic = (query: string, variables: Record<string, unknown> = {}) =>
+	anilist(query, variables);
+
 export const MEDIA = `fragment M on Media {
 	id idMal format countryOfOrigin status chapters volumes episodes season seasonYear synonyms
 	title { romaji english native }
@@ -1191,10 +1198,26 @@ export async function searchNow(
 	};
 	try {
 		// A season's own search (c240): asked in the anime catalogue and kept
-		// against that season, not the one CONTINUE happens to be in.
+		// against that season, not the one CONTINUE happens to be in. The series'
+		// own row is written too, so the review queue still finds it.
 		if (row.kind === 'anime' && o.season !== undefined) {
 			const hits = (await searchMany([{ title: q, kind: 'anime' }]))[0] ?? [];
 			saveSeasonSearch(seriesId, o.season, o.part ?? 1, q, hits, now);
+			before.set(seriesId, snapshot);
+			db.transaction(() => {
+				db.prepare(
+					`INSERT INTO link_searches (series_id, query, searched_at, found) VALUES (?, ?, ?, ?)
+					ON CONFLICT (series_id) DO UPDATE SET query = excluded.query,
+						searched_at = excluded.searched_at, found = excluded.found`
+				).run(seriesId, q, now, hits.length);
+				db.prepare(`DELETE FROM link_candidates WHERE series_id = ?`).run(seriesId);
+				const put = db.prepare(
+					`INSERT OR REPLACE INTO link_candidates (series_id, anilist_id, rank, data) VALUES (?, ?, ?, ?)`
+				);
+				hits
+					.slice(0, 4)
+					.forEach((c, rank) => put.run(seriesId, c.anilistId, rank, JSON.stringify(c)));
+			})();
 			return { outcome: 'found', found: hits.length };
 		}
 		await searchSeries([{ ...row, query: q }], now, { autoLink: false });

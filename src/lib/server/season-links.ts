@@ -1,6 +1,14 @@
 import { getDb } from './db.ts';
 import { HIDDEN_SQL } from './visibility.ts';
-import { MEDIA, Unreachable, anilistAs, toCandidate, type Media, type Via } from './catalogue.ts';
+import {
+	MEDIA,
+	Unreachable,
+	anilistAs,
+	anilistPublic,
+	toCandidate,
+	type Media,
+	type Via
+} from './catalogue.ts';
 import { clearAniSkip } from './anime/marks.ts';
 import {
 	candidateKind,
@@ -596,7 +604,10 @@ type RelAnswer = {
 const REL_FIELDS = `id idMal format episodes seasonYear title { english romaji native }`;
 
 /** One request for several entries at once (aliases), so a chain is two round trips. */
-async function mediaMany(token: string, ids: number[]): Promise<Map<number, RelAnswer['Media']>> {
+async function mediaMany(
+	token: string | null,
+	ids: number[]
+): Promise<Map<number, RelAnswer['Media']>> {
 	const out = new Map<number, RelAnswer['Media']>();
 	if (!ids.length) return out;
 	const vars = Object.fromEntries(ids.map((id, i) => [`i${i}`, id]));
@@ -608,7 +619,9 @@ async function mediaMany(token: string, ids: number[]): Promise<Map<number, RelA
 			)
 			.join('\n')}
 	}`;
-	const data = (await anilistAs(token, query, vars)) as Record<string, RelAnswer['Media']> | null;
+	const data = (await (token
+		? anilistAs(token, query, vars)
+		: anilistPublic(query, vars))) as Record<string, RelAnswer['Media']> | null;
 	ids.forEach((id, i) => out.set(id, data?.[`m${i}`] ?? null));
 	return out;
 }
@@ -655,7 +668,8 @@ const ABOVE: Record<number, string> = {
 export async function seasonRelations(
 	seriesId: number,
 	season: number,
-	token: string
+	/** The owner's token, when there is one; the catalogue is public without it. */
+	token: string | null = null
 ): Promise<RelationOffer[] | null> {
 	const view = seriesSeasons(seriesId);
 	if (!view) return null;
@@ -757,9 +771,30 @@ export async function seasonRelations(
 			for (const o of offers)
 				if (o.season === target.season) o.replaces = already.title || 'LINKED';
 	}
-	return offers.sort(
+	offers.sort(
 		(a, b) => a.season - b.season || a.part - b.part || Number(a.outside) - Number(b.outside)
 	);
+	// Kept as each season's candidates, so LINK 3 SEASONS reads them back by id
+	// through the same door a searched candidate comes through, rather than
+	// trusting the page's own copy of the entry.
+	rememberOffers(seriesId, offers);
+	return offers;
+}
+
+/** The offers as a season's candidates, without touching the search that found it. */
+function rememberOffers(seriesId: number, offers: RelationOffer[]): void {
+	const db = getDb();
+	const put = db.prepare(
+		`INSERT OR REPLACE INTO season_link_candidates (series_id, season, part, anilist_id, rank, data)
+		VALUES (?, ?, ?, ?, ?, ?)`
+	);
+	db.transaction(() => {
+		offers
+			.filter((o) => !o.outside)
+			.forEach((o, rank) =>
+				put.run(seriesId, o.season, o.part, o.anilistId, rank, JSON.stringify(o.candidate))
+			);
+	})();
 }
 
 function offerOf(

@@ -89,7 +89,7 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 		const seasonItem = at ? { ...item, title: at.searchTitle, chapters: at.aired } : item;
 		const candidates: ReviewCandidate[] = at
 			? seasonCandidates(id, at.season).map((c) => asReviewCandidate(seasonItem, c))
-			: [];
+			: item.candidates;
 		// The other seasons, from the entry just linked: only when there is a
 		// season left to offer one to, and only for the owner's own AniList.
 		const relations = await relationsFor(id, at, view);
@@ -152,10 +152,13 @@ async function relationsFor(
 	if (!at || !at.link || !view) return null;
 	// Nothing to offer once every other season has a link of its own.
 	if (view.seasons.every((s) => s.season === at.season || s.link)) return null;
-	const token = account('anilist')?.access_token;
-	if (!token) return null;
 	try {
-		const offers = await seasonRelations(seriesId, at.season, token);
+		// AniList's relations are public: no sign-in is needed to walk them (c240).
+		const offers = await seasonRelations(
+			seriesId,
+			at.season,
+			account('anilist')?.access_token ?? null
+		);
 		return offers && offers.length ? offers : null;
 	} catch {
 		return null;
