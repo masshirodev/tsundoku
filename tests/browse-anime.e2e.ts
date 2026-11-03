@@ -239,7 +239,10 @@ test.describe('the player, tablet landscape (c156)', () => {
 		const player = page.locator('.player');
 		const pp = player.locator('.cluster .pp');
 		await expect(pp).toBeVisible({ timeout: 20_000 });
-		if ((await pp.getAttribute('aria-label')) === 'Play') await pp.click();
+		// Server 1's failover notice can hold the middle as the tap lands, and the
+		// click then waits out the test (wave 17, 1 run in 4 under load): the
+		// player's own key starts it without a tap, as the SKIP ENDING case does.
+		if ((await pp.getAttribute('aria-label')) === 'Play') await page.keyboard.press('Space');
 		await page.waitForFunction(() => {
 			const v = document.querySelector('video');
 			return !!v && v.currentTime > 0;
