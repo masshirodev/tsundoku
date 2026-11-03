@@ -185,6 +185,13 @@ as it says. **Unreachable is not an error:** the pass stops, and the next one
 carries on. `TSUNDOKU_ANILIST=off` makes every call unreachable. The e2e
 server runs that way, so the suite never reaches AniList.
 
+`TSUNDOKU_ANILIST_URL` is the other address AniList can be at, and it exists
+for the e2e alone: `links-flow.e2e.ts` serves a stand-in catalogue and points
+the preview there. **It receives a signed-in owner's bearer token**
+(`post` sends `authorization: Bearer <token>` to it), so it is never pointed
+anywhere but a local stand-in, and `bind.ts`'s `SERVER_ENV` has the launcher
+drop it if it is inherited rather than caught from a `.env`.
+
 ## Covers
 
 A link's cover is a new source in the chain ([`COVERS.md`](COVERS.md)):

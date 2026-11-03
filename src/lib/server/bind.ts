@@ -294,6 +294,9 @@ export const SERVER_ENV = [
 	'ENGINE_URL',
 	'ENGINE_TOKEN',
 	'ENGINE_SOLVER_URL',
+	// The address a signed-in owner's AniList token is posted to: only the
+	// e2e's stand-in sets it, and it must never be inherited (c298).
+	'TSUNDOKU_ANILIST_URL',
 	'FFMPEG',
 	'FFPROBE',
 	'FPCALC'
