@@ -5,6 +5,7 @@ import { getDb } from './db.ts';
 import { splitMemo } from './engine/protocol.ts';
 import {
 	allToDownload,
+	keyFamily,
 	nextToDownload,
 	parseAnimeKey,
 	parseKey,
@@ -20,6 +21,7 @@ import * as animeDownloads from './anime/download.ts';
 import * as animeFollow from './anime/follow.ts';
 import { NovelHostError } from './novels/host.ts';
 import type { SeriesDownloads } from './download-types.ts';
+import type { SourceFamily } from '../library/kinds.ts';
 
 /**
  * What the download screens ask (doc/DOWNLOADING.md, doc/DOWNLOADER.md):
@@ -50,17 +52,44 @@ export const isDownloadsError = (e: unknown) =>
 export const isAddError = (e: unknown) =>
 	e instanceof engine.AddError || e instanceof novels.NovelAddError || isDownloadsError(e);
 
+/** A series' source family, by its key (`keyFamily`); null when it has none. */
+function seriesFamily(seriesId: number): SourceFamily | null {
+	const s = getDb().prepare(`SELECT origin_key FROM series WHERE id = ?`).get(seriesId) as
+		{ origin_key: string | null } | undefined;
+	return keyFamily(s?.origin_key ?? null);
+}
+
+/** One answer per downloader, and one for a series no family's downloader takes. */
+type ByDownloader<T> = Record<SourceFamily, () => T> & { none: () => T };
+
+/**
+ * Which downloader takes a series (doc/DOWNLOADING.md; card c303): its key's
+ * family, never its kind's name. An LNReader key is the novel downloader's
+ * (novels/downloader.ts), an Aniyomi key the episode downloader's
+ * (anime/download.ts), a Mihon key the engine's. **No family** (Hentoid's
+ * `hentoid:`/`hentoid-dir:`, a folder's `mihon-dir:`, an EPUB's, no key) is
+ * a case of its own, answered by `none`: today every caller sends it to the
+ * engine too, which says `none` for its row and refuses FOLLOW, as it did
+ * before the family was asked.
+ */
+function byDownloader<T>(seriesId: number, ways: ByDownloader<T>): T {
+	const family = seriesFamily(seriesId);
+	return family ? ways[family]() : ways.none();
+}
+
 export const queue = async () => engine.engineQueue();
 export const queueSummary = async (reveal: boolean) => engine.queueSummary(reveal);
 export const seriesDownloads = async (
 	seriesId: number,
 	entries: { id: number; available: boolean }[]
 ): Promise<SeriesDownloads> => {
-	const d = novelDownloads.isNovelSeries(seriesId)
-		? novelDownloads.novelSeriesDownloads(seriesId, entries)
-		: animeDownloads.isAnimeSeries(seriesId)
-			? animeDownloads.animeSeriesDownloads(seriesId, entries)
-			: engine.seriesDownloads(seriesId, entries);
+	const fromEngine = () => engine.seriesDownloads(seriesId, entries);
+	const d = byDownloader(seriesId, {
+		lnreader: () => novelDownloads.novelSeriesDownloads(seriesId, entries),
+		aniyomi: () => animeDownloads.animeSeriesDownloads(seriesId, entries),
+		mihon: fromEngine,
+		none: fromEngine
+	});
 	// REFRESH (card c220): the row offers it wherever the series has a source to
 	// ask and is in the library. A folder-scanned series has nothing to ask, and
 	// a browsing record is not kept.
@@ -71,7 +100,7 @@ export const seriesDownloads = async (
 	const key = row?.origin_key ?? null;
 	return {
 		...d,
-		refreshable: !!row?.in_library && !!(parseKey(key) || parseAnimeKey(key) || parseNovelKey(key))
+		refreshable: !!row?.in_library && keyFamily(key) !== null
 	};
 };
 
@@ -83,7 +112,8 @@ export const enqueue = async (
 ) => {
 	// A browsing record (doc/BROWSING.md) downloads nothing: ADD comes first.
 	if (!inLibrary(seriesId)) return { queued: 0, missing: entryIds.length };
-	if (height !== null && animeDownloads.isAnimeSeries(seriesId))
+	// A quality of its own is the episode downloader's alone.
+	if (height !== null && seriesFamily(seriesId) === 'aniyomi')
 		animeDownloads.rememberQuality(entryIds, height);
 	return engine.enqueue(seriesId, entryIds);
 };
@@ -202,14 +232,17 @@ export async function openFromSource(id: string, url: string): Promise<number | 
 		.get(seriesId, url, splitMemo(url).url) as { id: number } | undefined;
 	return row?.id ?? null;
 }
-export const setFollowed = async (seriesId: number, on: boolean) =>
-	on && !inLibrary(seriesId)
-		? Promise.reject(new EngineError('only a series in the library can be followed', 'not-found'))
-		: novelDownloads.isNovelSeries(seriesId)
-			? novelFollow.setNovelFollowed(seriesId, on)
-			: animeDownloads.isAnimeSeries(seriesId)
-				? animeFollow.setAnimeFollowed(seriesId, on)
-				: engine.setFollowed(seriesId, on);
+export const setFollowed = async (seriesId: number, on: boolean) => {
+	if (on && !inLibrary(seriesId))
+		throw new EngineError('only a series in the library can be followed', 'not-found');
+	const engineFollows = () => engine.setFollowed(seriesId, on);
+	return byDownloader(seriesId, {
+		lnreader: () => novelFollow.setNovelFollowed(seriesId, on),
+		aniyomi: () => animeFollow.setAnimeFollowed(seriesId, on),
+		mihon: engineFollows,
+		none: engineFollows
+	});
+};
 /**
  * FOLLOW's step: the engine's followed manga and anime and the plugins'
  * followed novels, each whatever the others did, so an engine that stopped

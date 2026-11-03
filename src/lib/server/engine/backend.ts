@@ -30,7 +30,13 @@ import {
 } from '../../library/downloads.ts';
 import { call, engineDownSince, engineImageToken, EngineError } from './client.ts';
 import { titleFromPath } from '../../library/titles.ts';
-import { kindFacts, SOURCE_KINDS, type Kind, type Medium } from '../../library/kinds.ts';
+import {
+	kindFacts,
+	SOURCE_FAMILIES,
+	SOURCE_KINDS,
+	type Medium,
+	type SourceFamily
+} from '../../library/kinds.ts';
 import { extensionFor, preferences } from './extensions.ts';
 import { splitMemo } from './protocol.ts';
 import { chapterName } from './device.ts';
@@ -299,33 +305,37 @@ const STATUS_NAME = [
 	'ON_HIATUS'
 ];
 
-/** Whether a source is an Aniyomi one: an anime extension's (doc/ANIME.md). */
-export function isAnimeSource(sourceId: string): boolean {
+/**
+ * The source family a source is (card c303): an LNReader plugin's
+ * (`ln:<plugin>`, BROWSE's id for it) is `lnreader`, and an installed
+ * extension's is the family whose kind its row names (`engine_extensions.kind`,
+ * `manga` for a Mihon APK and `anime` for an Aniyomi one, read through
+ * `SOURCE_KINDS`). Null for a source the engine has no row for.
+ */
+export function sourceFamily(sourceId: string): SourceFamily | null {
+	if (sourceId.startsWith('ln:')) return 'lnreader';
 	const r = db()
 		.prepare(
 			`SELECT e.kind FROM engine_sources s JOIN engine_extensions e ON e.pkg = s.pkg WHERE s.id = ?`
 		)
 		.get(sourceId) as { kind: string } | undefined;
-	return r?.kind === 'anime';
+	return r ? (SOURCE_FAMILIES.find((f) => SOURCE_KINDS[f] === r.kind) ?? null) : null;
 }
 
 /**
- * The medium a source serves (doc/KINDS.md; card c304): an LNReader plugin's
- * (`ln:<plugin>`, BROWSE's id for it) is text, and an installed extension's
- * is the medium of its family's kind (`engine_extensions.kind`, `manga` for a
- * Mihon APK and `anime` for an Aniyomi one: `SOURCE_KINDS`). Null for a source
- * the engine has no row for, which serves nothing it can say. MOVE asks it for
- * the sources of a series' medium (`moveSources`, server/move.ts).
+ * The medium a source serves (doc/KINDS.md; card c304): the medium of its
+ * family's kind, so an LNReader plugin's is text, a Mihon extension's pages
+ * and an Aniyomi one's video. Null for a source the engine has no row for,
+ * which serves nothing it can say. MOVE asks it for the sources of a series'
+ * medium (`moveSources`, server/move.ts).
  */
 export function sourceMedium(sourceId: string): Medium | null {
-	if (sourceId.startsWith('ln:')) return kindFacts(SOURCE_KINDS.lnreader).medium;
-	const r = db()
-		.prepare(
-			`SELECT e.kind FROM engine_sources s JOIN engine_extensions e ON e.pkg = s.pkg WHERE s.id = ?`
-		)
-		.get(sourceId) as { kind: Kind } | undefined;
-	return r ? kindFacts(r.kind).medium : null;
+	const family = sourceFamily(sourceId);
+	return family ? kindFacts(SOURCE_KINDS[family]).medium : null;
 }
+
+/** Whether a source is an Aniyomi one: an anime extension's (doc/ANIME.md). */
+export const isAnimeSource = (sourceId: string): boolean => sourceFamily(sourceId) === 'aniyomi';
 
 /**
  * An Aniyomi source's names for the calls a Mihon one answers (doc/EXTENSION-ENGINE.md,

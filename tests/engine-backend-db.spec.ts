@@ -388,3 +388,65 @@ describe('FOLLOW', () => {
 		expect(await refreshSeries(seriesId)).toEqual({ kind: 'manga', added: 0 });
 	});
 });
+
+describe('a Hentoid book, which is no source family (K3, c303)', () => {
+	/**
+	 * Hentoid's keys are not a `SourceFamily` (doc/KINDS.md; `keyFamily` says
+	 * null), and that is a case every door handles, not an undefined that
+	 * falls through. Planned by Hentoid's own importer, written by the
+	 * importers' writer, then asked through the download doors the screens
+	 * use: no downloader takes it, nothing queues, FOLLOW refuses it.
+	 */
+	it('has no downloader, queues nothing and cannot be followed, by either key', async () => {
+		const { planHentoidBook, parseContent } = await import('$lib/import/hentoid-plan');
+		const { content } = await import('./helpers/hentoid-fixture');
+		const { keyFamily } = await import('$lib/library/downloads');
+		const { queueKindOf } = await import('$lib/server/engine/queue');
+		const hentoidRoot = ensureRoot(db, 'Hentoid', '/h/.Hentoid', false);
+		const json = content({
+			title: 'A Hentoid Book',
+			site: 'NHENTAI',
+			url: '/g/k3/',
+			pages: [{ name: '0001' }]
+		});
+		const books = [
+			planHentoidBook(
+				{ folder: 'nhentai/k3', files: ['0001.jpg'], bytes: 1, content: parseContent(json) },
+				'/h/.Hentoid',
+				1
+			),
+			planHentoidBook(
+				{ folder: 'nhentai/k3-loose', files: ['0001.jpg'], bytes: 1, content: null },
+				'/h/.Hentoid',
+				1
+			)
+		];
+		expect(books.map((b) => b.originKey)).toEqual([
+			'hentoid:NHENTAI:/g/k3/',
+			'hentoid-dir:nhentai/k3-loose'
+		]);
+		for (const book of books) {
+			expect(keyFamily(book.originKey)).toBeNull();
+			writeSeries(book, { rootId: hentoidRoot, jobId: null, now: 1, markMissing: false }, db);
+			const id = (
+				db.prepare(`SELECT id FROM series WHERE origin_key = ?`).get(book.originKey) as {
+					id: number;
+				}
+			).id;
+			const entries = (
+				db.prepare(`SELECT id FROM entries WHERE series_id = ?`).all(id) as { id: number }[]
+			).map((e) => ({ id: e.id, available: false }));
+			expect(entries.length).toBeGreaterThan(0);
+			expect(await downloads.seriesDownloads(id, entries)).toEqual({ kind: 'none' });
+			expect(
+				await downloads.enqueue(
+					id,
+					entries.map((e) => e.id)
+				)
+			).toEqual({ queued: 0, missing: entries.length });
+			await expect(downloads.setFollowed(id, true)).rejects.toThrow(/can be followed/);
+			// Were one ever queued (a key changed after queueing), it is the engine's lane.
+			expect(queueKindOf(book.originKey)).toBe('manga');
+		}
+	});
+});

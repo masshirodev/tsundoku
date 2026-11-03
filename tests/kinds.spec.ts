@@ -5,11 +5,13 @@ import {
 	anilistType,
 	KIND_FACTS,
 	kindFacts,
+	KEY_PREFIX,
 	KINDS,
 	isMovable,
 	MOVE_MAP,
 	MOVABLE_KINDS,
 	moveKindOf,
+	SOURCE_FAMILIES,
 	SOURCE_KINDS,
 	type Kind,
 	type KindFacts,
@@ -30,7 +32,17 @@ import {
 } from '$lib/library/catalogue';
 import { movesVideo, type MoveKind } from '$lib/library/move';
 import type { SeriesCard } from '$lib/library/types';
-import { parseAnimeKey, parseKey, parseNovelKey } from '$lib/library/downloads';
+import {
+	animeKeyOf,
+	keyFamily,
+	keyKind,
+	keyOf,
+	novelKeyOf,
+	parseAnimeKey,
+	parseKey,
+	parseNovelKey
+} from '$lib/library/downloads';
+import { readTvshowNfo, tvshowNfo } from '$lib/library/anime-files';
 import { isGallerySource, kindOf, planMihon } from '$lib/import/mihon-plan';
 import type { MihonManga } from '$lib/import/mihon-backup';
 import { planNovel } from '$lib/import/novel-plan';
@@ -317,6 +329,142 @@ describe('the source families', () => {
 	});
 });
 
+/**
+ * K3 (card c303): a key's family is `keyFamily`, built on `KEY_PREFIX`. The
+ * old answers are written out here as the regular expressions
+ * library/downloads.ts had at fb2bd3a7, not derived from the new code, and
+ * every key prefix a writer stores is asked, plus the edges.
+ */
+describe('a key\u2019s family', () => {
+	const OLD_MIHON = /^mihon:(\d+):(.+)$/;
+	const OLD_NOVEL = /^lnreader:([A-Za-z0-9._-]+):(.+)$/;
+	const OLD_ANIME = /^aniyomi:(\d+):(.+)$/;
+	// `keyKind` at fb2bd3a7 (library/downloads.ts:78-83).
+	const oldKeyKind = (key: string | null): 'manga' | 'novel' | 'anime' | null =>
+		key && OLD_MIHON.test(key)
+			? 'manga'
+			: key && OLD_NOVEL.test(key)
+				? 'novel'
+				: key && OLD_ANIME.test(key)
+					? 'anime'
+					: null;
+
+	const ASURA = '6247824327199706550';
+	const NH = '7309872737163460316';
+	const mihonKeys = planMihon(
+		{
+			categories: [],
+			sources: new Map([
+				[ASURA, 'Asura Scans'],
+				[NH, 'NHentai']
+			]),
+			manga: [mihonManga(ASURA, '/manga/k3'), mihonManga(NH, '/g/k3/')]
+		},
+		[],
+		1
+	).series.map((p) => p.originKey);
+	const nfoKey = readTvshowNfo(
+		tvshowNfo({
+			title: 'A Show',
+			key: animeKeyOf('7000', '/a-show'),
+			plot: '',
+			status: '',
+			genres: [],
+			source: 'KAA'
+		})
+	)?.key;
+	/** Every prefix a writer stores (the audit table in doc/handoff-notes/kinds.md), and the edges. */
+	const KEYS: (string | null)[] = [
+		...mihonKeys,
+		planNovel({ name: 'N', path: '/novel/k3', chapters: [] }, { plugin: 'rr', name: 'RR' }, 1)
+			.originKey,
+		planAnime(
+			{ sourceId: '7000', sourceName: 'KAA', url: '/k3', title: 'K3', status: 2 },
+			[{ url: '/ep-1', name: 'Episode 1', episode_number: 1 }],
+			1
+		).originKey,
+		nfoKey ?? 'missing nfo key',
+		keyOf('100', '/moved'),
+		animeKeyOf('300', '/moved'),
+		novelKeyOf('rr', '/moved'),
+		planHentoidBook(
+			{ folder: 'nhentai/A Book', files: ['1.jpg'], bytes: 0, content: null },
+			'/hentoid',
+			1
+		).originKey,
+		'hentoid:NHENTAI:/g/111/',
+		'mihon-dir:Asura Scans (EN)/A Series',
+		planEpub({
+			relPath: 'a/b.epub',
+			dir: 'a',
+			file: 'b.epub',
+			addedAt: 1,
+			pkg: null,
+			toc: [],
+			sizes: new Map()
+		}).originKey,
+		// Malformed family keys: a Mihon or Aniyomi source is a number.
+		'mihon:abc:/x',
+		'aniyomi::/x',
+		'lnreader:bad plugin:/x',
+		'ln:rr',
+		'',
+		null
+	];
+
+	it('answers every key a writer stores as the old keyKind did', () => {
+		expect(nfoKey).toBe('aniyomi:7000:/a-show');
+		for (const key of KEYS) {
+			expect(keyKind(key), String(key)).toBe(oldKeyKind(key));
+			const family = keyFamily(key);
+			expect(family === null ? null : SOURCE_KINDS[family], String(key)).toBe(oldKeyKind(key));
+		}
+		// The families the writers produce, in order: every family is reached.
+		expect(KEYS.map(keyFamily)).toEqual([
+			'mihon',
+			'mihon',
+			'lnreader',
+			'aniyomi',
+			'aniyomi',
+			'mihon',
+			'aniyomi',
+			'lnreader',
+			null,
+			null,
+			null,
+			null,
+			null,
+			null,
+			null,
+			null,
+			null,
+			null
+		]);
+	});
+
+	it('has one prefix per family, and each builder writes it', () => {
+		expect(SOURCE_FAMILIES).toEqual(['mihon', 'lnreader', 'aniyomi']);
+		expect(Object.keys(KEY_PREFIX)).toEqual([...SOURCE_FAMILIES]);
+		expect(KEY_PREFIX).toEqual({ mihon: 'mihon', lnreader: 'lnreader', aniyomi: 'aniyomi' });
+		expect(keyOf('1', '/u')).toBe('mihon:1:/u');
+		expect(novelKeyOf('p', '/u')).toBe('lnreader:p:/u');
+		expect(animeKeyOf('1', '/u')).toBe('aniyomi:1:/u');
+		// No family's prefix starts another's, so one key is one family's.
+		for (const f of SOURCE_FAMILIES)
+			for (const g of SOURCE_FAMILIES)
+				if (f !== g) expect(`${KEY_PREFIX[f]}:`.startsWith(`${KEY_PREFIX[g]}:`)).toBe(false);
+	});
+
+	it('is a family each kind\u2019s sources name, or no family', () => {
+		for (const kind of KINDS)
+			for (const family of KIND_FACTS[kind].sources) expect(SOURCE_FAMILIES).toContain(family);
+		// Hentoid's two keys are no family: a doujin's Sources stay `mihon`.
+		expect(keyFamily('hentoid:NHENTAI:/g/1/')).toBeNull();
+		expect(keyFamily('hentoid-dir:nhentai/A Book')).toBeNull();
+		expect(KIND_FACTS.doujin.sources).toEqual(['mihon']);
+	});
+});
+
 describe('the AniList catalogue', () => {
 	it('asks MANGA for every comic and novel, ANIME for an anime', () => {
 		expect(KINDS.filter((k) => anilistType(k) === 'ANIME')).toEqual(['anime']);
@@ -477,7 +625,7 @@ describe('the unit and READ/WATCHED words (labels.ts)', () => {
  * How to lower it: delete or replace a check, then lower BASELINE by exactly
  * the count removed. Never raise it without a card saying which check and why.
  */
-const BASELINE = 121;
+const BASELINE = 120;
 /** One of `KINDS`' own names, as a bare alternation. */
 const NAME = String.raw`(?:manga|manhwa|doujin|novel|anime)`;
 const COMPARED = new RegExp(

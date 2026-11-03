@@ -246,6 +246,39 @@ export const SOURCE_KINDS = {
 
 export type SourceKind = (typeof SOURCE_KINDS)[SourceFamily];
 
+/**
+ * The prefix each family's `origin_key` starts with, before its first `:`
+ * (card c303): `mihon:<source>:<url>`, `lnreader:<plugin>:<path>`,
+ * `aniyomi:<source>:<url>`. `keyOf`, `novelKeyOf` and `animeKeyOf` build keys
+ * from it and `parseKey`, `parseNovelKey` and `parseAnimeKey` read them with
+ * it (library/downloads.ts), so the map is stated here once. Who writes each
+ * (doc/KINDS.md, the audit table in doc/handoff-notes/kinds.md, wave 17):
+ * Mihon's backup and browse's ADD through `planMihon`
+ * (src/lib/import/mihon-plan.ts:388), LNReader's through `novelKeyOf`
+ * (src/lib/import/novel-plan.ts:102, 135), Aniyomi's through `animeKeyOf`
+ * (src/lib/import/anime-plan.ts:156; engine/anime-source.ts) and a folder's
+ * `tvshow.nfo` (library/anime-files.ts:154), and MOVE's re-key through
+ * `keyOf`/`animeKeyOf` (server/move.ts, `candidateOf`).
+ *
+ * **No family is a real answer.** A key with any other prefix is no family's:
+ * Hentoid's `hentoid:<site>:<url>` and `hentoid-dir:<folder>`
+ * (src/lib/import/hentoid-plan.ts:215), a downloaded folder's `mihon-dir:`
+ * (mihon-plan.ts:447), an EPUB's `epub:<path>` (epub-plan.ts:35;
+ * server/books.ts when a volume is taken out), and a series with no key.
+ * `keyFamily` says `null` for them, and every caller decides what null means
+ * (no downloader, no FOLLOW, no MOVE). Hentoid is not a family yet: making it
+ * one would give its series a downloader to ask, which is a behaviour change
+ * and a card of its own.
+ */
+export const KEY_PREFIX = {
+	mihon: 'mihon',
+	lnreader: 'lnreader',
+	aniyomi: 'aniyomi'
+} as const satisfies Record<SourceFamily, string>;
+
+/** Every source family, in `SOURCE_KINDS`' order. */
+export const SOURCE_FAMILIES = Object.keys(SOURCE_KINDS) as readonly SourceFamily[];
+
 /** The AniList catalogue a kind is looked up in: `MANGA` for everything but an anime. */
 export function anilistType(kind: Kind): 'MANGA' | 'ANIME' {
 	const c = kindFacts(kind).catalogue;

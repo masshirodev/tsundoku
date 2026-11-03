@@ -218,8 +218,14 @@ What each fact says today, and the lines it was read from:
   so its Sources are `mihon`. Keys that are no family are left out of every
   kind's list: Hentoid's, a downloaded folder's `mihon-dir:`, an EPUB's
   `epub:`, and a grouped series of books, which has no key. Making Hentoid a
-  family is a later card's call. `tests/kinds.spec.ts` plans one series per
-  importer and checks each key's family is in its kind's Sources.
+  family is a later card's call; **K3 (wave 17) decided: not yet.** The
+  prefix-to-family map is one fact since K3, `KEY_PREFIX`, and `keyFamily`
+  (`library/downloads.ts`) reads a key with it, answering `null` for every key
+  no family parses; the download doors treat null as its own case
+  (doc/DOWNLOADING.md, "Which downloader"). `tests/kinds.spec.ts` plans one
+  series per importer and checks each key's family is in its kind's Sources,
+  and asks `keyFamily`/`keyKind` for every prefix a writer stores against the
+  old parsers.
   `SOURCE_KINDS` is the same fact the other way round, and is what
   `FirstReadSource.kind` is now.
 - **Storage** is `library` for all five; `jellyfin` is the movies card's.
