@@ -267,11 +267,17 @@ type ListEntry = { mediaId: number; status: Status | null; progress: number; sco
 
 /**
  * Where a list row's state is filed. AniList's media ids are one sequence for
- * both lists; MAL's manga and anime ids are not, so a MAL id is filed under
- * the family of the series' kind (a manga 23 and an anime 23 are two works).
+ * both lists; MAL's manga and anime ids are not, so a MAL id is filed under a
+ * family. The family is the *linked entry's* when its format is known -- a
+ * manga series linked to a MAL anime entry is on the anime list, and reading
+ * the manga list's row for that id would show another work's status and
+ * progress (c298's wrong-kind link). With no format yet, the series' own kind
+ * is the best there is.
  */
-const stateKey = (service: Service, media: number, kind: Kind): string =>
-	service === 'mal' ? `${family(kind)}:${media}` : String(media);
+const stateKey = (service: Service, media: number, kind: Kind, format: string | null): string =>
+	service === 'mal'
+		? `${family(format ? (candidateKind({ format, country: '' }) ?? kind) : kind)}:${media}`
+		: String(media);
 
 /**
  * What a list says, kept per linked series. `readFrom` is when the read
@@ -288,11 +294,11 @@ function saveState(
 	const col = service === 'anilist' ? 'anilist_id' : 'mal_id';
 	const links = db
 		.prepare(
-			`SELECT l.series_id, l.${col} AS media, s.kind
+			`SELECT l.series_id, l.${col} AS media, l.format, s.kind
 			FROM series_links l JOIN series s ON s.id = l.series_id
 			WHERE l.${col} IS NOT NULL`
 		)
-		.all() as { series_id: number; media: number; kind: Kind }[];
+		.all() as { series_id: number; media: number; format: string | null; kind: Kind }[];
 	const put = db.prepare(
 		`INSERT INTO tracker_state (series_id, service, status, score, progress, read_at) VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT (series_id, service) DO UPDATE SET status = excluded.status, score = excluded.score,
@@ -305,7 +311,7 @@ function saveState(
 	let n = 0;
 	db.transaction(() => {
 		for (const l of links) {
-			const e = byMedia.get(stateKey(service, l.media, l.kind));
+			const e = byMedia.get(stateKey(service, l.media, l.kind, l.format));
 			// Off the list now: nothing to show for it.
 			if (!e) drop.run(l.series_id, service, readFrom);
 			else {

@@ -22,7 +22,6 @@ the second amended to Jellyfin's TV layout (card c128 has them in full).
 | An episode's opening and ending: AniSkip, fingerprints   | c239 | Done  |
 | Linking an anime to its own entry, never its manga's     | c298 | Done  |
 | Why an episode has no skip marks: the log and the link   | c299 | Done  |
-| A bundle that can fingerprint (fpcalc)                   | c297 | Done  |
 
 Episodes play in the player (c156) since 2026-10-29; until then
 `/read/<entry>` answered 404 for one, which is why nothing of anime was
@@ -342,20 +341,19 @@ episode's `ending_at` follows).
   background. A season's downloaded episodes are read when one of them is
   played; a hidden series is left alone, and incognito starts nothing.
 
-**ffmpeg's chromaprint muxer is the brief's way** (`-f chromaprint -fp_format
-raw`). This workstation's ffmpeg (Arch's n9.0.1) is built without it, so the
-extractor falls back to **`fpcalc`**, chromaprint's own program, fed the same
-audio through the same ffmpeg; the points are the same. A build with the
-muxer uses it. Either way `ffmpeg`/`ffprobe` and (on a build without the
-muxer) `fpcalc` are needed; doc/DISTRIBUTION.md lists them.
+**ffmpeg's chromaprint muxer is the way** (`-f chromaprint -fp_format raw`),
+and every release bundle's pinned ffmpeg has it: BtbN's n8.1.3 LGPL build is
+`--enable-chromaprint`, prints `E chromaprint Chromaprint` from `-muxers`, and
+makes 27 points of a six-second tone, exactly as `fpcalc` does
+([`RELEASE.md`](RELEASE.md), "Pinned"). This workstation's ffmpeg (Arch's
+n9.0.1) is built without the muxer, so the extractor falls back to
+**`fpcalc`**, chromaprint's own program from the `chromaprint` package, fed
+the same audio through the same ffmpeg; the points are the same. Either way
+`ffmpeg`/`ffprobe` are needed, and `fpcalc` only on a build without the
+muxer; [`DISTRIBUTION.md`](DISTRIBUTION.md) lists them.
 
-**A bundle carries its own fpcalc** (c297): a release's ffmpeg is LGPL shared
-with no chromaprint muxer, so `fpcalc/` sits beside `ffmpeg/` and the
-launcher points `FPCALC` at it, before anything on PATH. That matters on a
-friend's computer, where no Arch package installs one: without it every
-season would fall back to AniSkip alone and say nothing about why. A missing
-`fpcalc` is now said once in the log, naming `FPCALC`
-([`LOGS.md`](LOGS.md)).
+A missing `fpcalc` on a build without the muxer is said once in the log,
+naming the chromaprint package and `FPCALC` ([`LOGS.md`](LOGS.md)).
 
 `tests/fingerprint.spec.ts` (runs, bit errors, bounds, the two windows) and
 `tests/anime-fingerprint-db.spec.ts` (two synthesised episodes sharing an
@@ -389,7 +387,9 @@ watched.
 - **One at a time, and never beside a download.** The job reads one episode
   at a time. If a download of the **same source** is running, it stops and
   leaves no negative row, so a later play can try again. A server that fails
-  is left quietly and the next server in the source's order is tried.
+  says so in the log, naming the step and the server, and the next one **in
+  the ranked order** is tried; the source's own server order only breaks a
+  tie between servers of the same rank.
 - **A server that fails isn't remembered.** Only a successful read that found
   no shared run is a negative, for the same 14 days.
 - **It says what it did** (c299): one INFO line per season job (series,

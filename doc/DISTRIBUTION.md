@@ -46,11 +46,12 @@ Measured 2026-10-29, the things a fresh machine trips over:
 - **The engine** is an image built locally from the private `tsundoku-engine`
   repo, and its compose file mounts `/mnt/hdd2` and pins `TZ=America/Cuiaba`.
 - **External binaries**: `ffmpeg`/`ffprobe` for anime, FlareSolverr beside the
-  engine, a Java runtime under the engine. An episode's opening and ending
-  are found with chromaprint (`doc/ANIME.md`, "Openings and endings"): a
-  bundle carries chromaprint's own `fpcalc` beside `ffmpeg/` and points
-  `FPCALC` at it (c297), because its LGPL ffmpeg has no chromaprint muxer.
-  On this box Arch's `/usr/bin/fpcalc` serves when no bundle does.
+  engine, a Java runtime under the engine. An episode's opening and ending are
+  found with chromaprint (`doc/ANIME.md`, "Openings and endings"), and a
+  bundle's pinned ffmpeg carries chromaprint's muxer itself, so it needs no
+  program beside it ([`RELEASE.md`](RELEASE.md), "Pinned"). On this box Arch's
+  ffmpeg has no muxer, so development falls back to `/usr/bin/fpcalc` from the
+  `chromaprint` package.
 - **Native modules**: `better-sqlite3` and `sharp` are per-OS, per-architecture.
 
 ## The phases
@@ -159,7 +160,7 @@ each self-contained:
 - the engine's shadow jar with a jlinked JRE (`tsundoku-engine` already has
   `build_jre.sh`, `package_windows.ps1` and an Inno Setup `setup.iss` from
   upstream, which are the starting point);
-- FlareSolverr's own release binary, and `ffmpeg` and chromaprint's `fpcalc`;
+- FlareSolverr's own release binary, and `ffmpeg`;
 - a launcher (`tsundoku.cmd` / `tsundoku`) that starts engine, FlareSolverr and
   the app, and opens the browser. Since c222 a friend starts it through the
   tray (`tsundoku.exe` / `./tsundoku`), with no window and an icon by the
@@ -240,10 +241,8 @@ a build to a friend obliges:
   gets it** (a collaborator invite is enough), and the release notes say so.
 - **ffmpeg** is LGPL or GPL depending on the build chosen for a bundle. The
   bundle ships its licence and says where its source is, as ffmpeg's own
-  builds do. Pick an LGPL build where one fits.
-- **fpcalc** is chromaprint's (LGPL-2.1-or-later), shipped unmodified from
-  the project's own release; its archive carries no licence file, so
-  `THIRD-PARTY-NOTICES` names it and its source (c297).
+  builds do. Pick an LGPL build where one fits; the pinned one carries
+  chromaprint, so nothing else has to ship for fingerprints.
 - **FlareSolverr** is MIT, and ships as its own release, unmodified, with
   the Chrome it carries under Chrome's terms. Its archive holds no licence
   file; THIRD-PARTY-NOTICES names it.

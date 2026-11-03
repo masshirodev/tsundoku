@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
 	ANIME_FORMATS,
+	anilistUrl,
 	bracketed,
 	cleanTitle,
+	malUrl,
 	searchTitles,
 	candidateKind,
 	candidateRows,
@@ -223,6 +225,16 @@ describe('a pasted link', () => {
 		expect(parsePasted('https://anilist.co/manga/30023', 'anime')).toBeNull();
 		expect(parsePasted('https://anilist.co/anime/30023', 'manga')).toBeNull();
 		expect(parsePasted('https://anilist.co/anime/30023', 'novel')).toBeNull();
+	});
+});
+
+describe('an entry’s own page', () => {
+	it('is on the path of the series’ kind, at every door (c298)', () => {
+		expect(anilistUrl(30024, 'anime')).toBe('https://anilist.co/anime/30024');
+		expect(malUrl(23, 'anime')).toBe('https://myanimelist.net/anime/23');
+		// The default stays the manga path, which is what a comic and a novel read.
+		expect(anilistUrl(30024)).toBe('https://anilist.co/manga/30024');
+		expect(malUrl(23, 'manga')).toBe('https://myanimelist.net/manga/23');
 	});
 });
 

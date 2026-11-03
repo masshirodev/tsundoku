@@ -308,6 +308,49 @@ describe('reading the lists', () => {
 		}
 	});
 
+	it('files a wrong-kind link’s state under the entry’s own list (c298)', async () => {
+		const root = (
+			db.prepare(`SELECT id FROM roots WHERE hidden = 0 LIMIT 1`).get() as { id: number }
+		).id;
+		// A manga the owner linked to the anime's MAL entry: the id is on MAL's
+		// anime list, so that is the row the sheet must show (never the manga's).
+		const comic = Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, added_at, origin_key, in_library)
+					VALUES (?, 'Ranma ½ (2024)', 'manga', ?, 'mihon:23:/ranma-2024', 1)`
+				)
+				.run(root, NOW).lastInsertRowid
+		);
+		try {
+			db.prepare(
+				`INSERT INTO series_links (series_id, mal_id, via, linked_at, resolved_at, format)
+				VALUES (?, 23, 'review', ?, ?, 'TV')`
+			).run(comic, NOW, NOW);
+			malList = [
+				{
+					node: { id: 23 },
+					list_status: { status: 'reading', score: 7, num_chapters_read: 40 }
+				}
+			];
+			malAnime = [
+				{
+					node: { id: 23 },
+					list_status: { status: 'completed', score: 9, num_episodes_watched: 5 }
+				}
+			];
+			await signIn('mal');
+			await tr.readList('mal', NOW);
+			expect(state(comic, 'mal')).toMatchObject({
+				status: 'completed',
+				progress: 5,
+				score: 9
+			});
+		} finally {
+			db.prepare(`DELETE FROM series WHERE id = ?`).run(comic);
+		}
+	});
+
 	it('reads MAL’s anime list, with the episode count as its progress', async () => {
 		const root = (
 			db.prepare(`SELECT id FROM roots WHERE hidden = 0 LIMIT 1`).get() as { id: number }

@@ -210,8 +210,8 @@ describe('fingerprinting downloaded episodes', () => {
 		expect(prints.ending!.start).toBe(100);
 	}, 30_000);
 
-	// A bundle points FPCALC at its own copy, before anything on PATH (c297):
-	// on a build whose ffmpeg has no muxer, this is the only fpcalc that runs.
+	// On a build whose ffmpeg has no muxer (this workstation's), FPCALC names
+	// the fpcalc that runs; it is `fpcalc` on PATH when nothing names one.
 	const hasMuxer = execFileSync(FFMPEG, ['-hide_banner', '-muxers'], { encoding: 'utf8' }).includes(
 		'chromaprint'
 	);

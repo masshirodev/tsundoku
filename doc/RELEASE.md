@@ -108,7 +108,6 @@ smoke machines have not got.
 | Node         | 24.16.0                   | the workstation's (mise). Only the program and its licence ship.               |
 | JRE          | Temurin 21.0.13+9         | the engine needs Java 21 (its image is `distroless/java21`).                   |
 | ffmpeg       | BtbN n8.1.3, LGPL, shared | LGPL rather than GPL; the shared build is half the size. `ffplay` is left out. |
-| fpcalc       | chromaprint 1.6.2         | the ffmpeg above has no chromaprint muxer, so openings and endings need it.    |
 | FlareSolverr | 3.4.6                     | the version the workstation's compose file runs.                               |
 
 BtbN deletes old builds after a while, which is what the cache is for. To
@@ -116,15 +115,17 @@ change a pin, take the new file's checksum from its project (Node's
 `SHASUMS256.txt`, Adoptium's API, GitHub's asset digest), never from a
 download of your own, and say so in the commit.
 
-**fpcalc is chromaprint's own release** (`acoustid/chromaprint` v1.6.2,
-`chromaprint-fpcalc-1.6.2-linux-x86_64.tar.gz` and `…-windows-x86_64.zip`),
-pinned by the digests GitHub publishes for those assets
-(`c968ad4a0821592a79b158fb2e1f46cbe0a22a0a1dbc0743c67d68e75d15d2bb` and
-`b74369726676670af3ab0eadff45f960cf969fdf4a87a971ba37eaf8d530e874`), so
-neither is a digest of our own download. The alternative — an ffmpeg build
-with the chromaprint muxer — was not taken: the pinned build was measured to
-have none, and no LGPL build of it with one was found, so a bundle carrying
-chromaprint's own program is the certain way.
+**The pinned ffmpeg fingerprints by itself.** It is built `--enable-chromaprint`
+on both platforms: `ffmpeg -hide_banner -muxers` prints `E chromaprint
+Chromaprint`, and a six-second tone through `-f chromaprint -fp_format raw`
+gives 108 bytes, 27 points, exactly what `fpcalc` gives for the same tone
+(measured 2026-11-02 on the pinned Linux archive in the release cache, sha256
+`6d2016ff…`). So a bundle needs no chromaprint program beside it
+(`src/lib/server/anime/fingerprint.ts` prefers the muxer), and the smoke test
+checks that the bundle's own ffmpeg still can make points: a future pin
+without the muxer is the risk, not this one. This workstation's Arch ffmpeg
+has no muxer, so its `fpcalc` from the `chromaprint` package is the
+development route ([`DISTRIBUTION.md`](DISTRIBUTION.md), "External binaries").
 
 ## What's in a bundle
 
@@ -139,7 +140,6 @@ tsundoku/
   jre/                        Temurin
   engine/engine.jar
   ffmpeg/bin (+ lib on Linux)
-  fpcalc/            chromaprint's fpcalc: openings and endings need it (c297)
   LICENSE  README.txt  release.json  THIRD-PARTY-NOTICES.txt
   flaresolverr/               only once its optional archive is unzipped here
 ```
@@ -301,11 +301,11 @@ chapter's first page is an image, the hidden local books stay hidden, and
 the novels plugin host, started as the server starts it, loads a plugin that
 requires each library it lends (no network: c227 would have failed here).
 First comes the **fingerprint** step (`smoke/fingerprint.sh`,
-`smoke/fingerprint.ps1`, c297): the bundle's own ffmpeg makes a tone and the
-bundle's own `fpcalc` must make points of it. Both binaries are named from
-the bundle, never from PATH: this workstation's Arch `fpcalc` passing is
-exactly how a bundle without one shipped, and a step that names PATH would
-pass here while every friend's season fell back to AniSkip alone.
+`smoke/fingerprint.ps1`, c299): the bundle's own ffmpeg must make chromaprint
+points of a tone (`-f chromaprint -fp_format raw`, failing under four bytes
+with "the bundle's ffmpeg has no chromaprint muxer"). The binary is named from
+the bundle, never from PATH: a step that named PATH would pass here on a
+build the app never takes, which is how a longer-lived mistake would ship.
 On Linux, the launcher (`./tsundoku --foreground`) is then hung up as a
 closed terminal does, and nothing of the bundle may be left running (c187: on
 2026.10.30.1, two were). Then the tray (`smoke/linux-tray.sh`): `./tsundoku`

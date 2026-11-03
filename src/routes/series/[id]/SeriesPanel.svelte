@@ -907,7 +907,12 @@
 				{#if trackEditable || trackFailed || trackSignIn}
 					<div class="lcs stack">{@render trackCells()}</div>
 				{/if}
-				<TrackingSheet open={trackingOpen} {tracking} onclose={() => (trackingOpen = false)} />
+				<TrackingSheet
+					open={trackingOpen}
+					{tracking}
+					kind={series.kind}
+					onclose={() => (trackingOpen = false)}
+				/>
 			{/if}
 			<div class="row cover-row">
 				<div class="label">COVER</div>

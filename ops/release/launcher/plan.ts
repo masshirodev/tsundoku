@@ -57,7 +57,6 @@ export function plan(o: {
 			? p.join(o.root, 'node', 'node.exe')
 			: p.join(o.root, 'node', 'bin', 'node');
 	const ffmpeg = p.join(o.root, 'ffmpeg', 'bin');
-	const fpcalc = p.join(o.root, 'fpcalc');
 
 	const server: Proc = {
 		name: 'tsundoku',
@@ -83,10 +82,7 @@ export function plan(o: {
 			ENGINE_TOKEN: o.engineToken,
 			...(o.solverDir ? { ENGINE_SOLVER_URL: `http://127.0.0.1:${ports.solver}/v1` } : {}),
 			FFMPEG: o.env.FFMPEG || p.join(ffmpeg, `ffmpeg${exe}`),
-			FFPROBE: o.env.FFPROBE || p.join(ffmpeg, `ffprobe${exe}`),
-			// The bundle's own chromaprint, before whatever PATH holds: an opening
-			// and ending can't be fingerprinted without it (c297).
-			FPCALC: o.env.FPCALC || p.join(fpcalc, `fpcalc${exe}`)
+			FFPROBE: o.env.FFPROBE || p.join(ffmpeg, `ffprobe${exe}`)
 		}
 	};
 

@@ -165,12 +165,12 @@ function sameSourceDownloading(seriesId: number, db: Database.Database): boolean
 }
 
 /**
- * Fingerprints an episode through the streams the player would use: the
- * lowest quality at most (else above) 480p, a separate audio rendition where
- * the source offers one, through the loopback proxy, seeking to the minutes
- * it needs. Servers are tried in the source's order; one that fails is left
- * quietly by the player, but says so in the log (c299), with the step and
- * the server's name.
+ * Fingerprints an episode through the streams the player would use: a
+ * quality at or below 480p where there is one, else the lowest there is, a
+ * separate audio rendition where the source offers one, through the loopback
+ * proxy, seeking to the minutes it needs. Servers are tried in the ranked
+ * order `qualitiesToRead` gives, and one that fails says so in the log (c299)
+ * with the step and the server's name.
  */
 async function streamPrints(
 	entryId: number,

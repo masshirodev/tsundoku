@@ -555,8 +555,8 @@ type SearchRow = {
 };
 
 /**
- * What the pass may search: manga, manhwa and novels with no link and no
- * NONE OF THESE or UNLINK, never searched or waiting on a SEARCH AGAIN.
+ * What the pass may search: manga, manhwa, novels and anime with no link and
+ * no NONE OF THESE or UNLINK, never searched or waiting on a SEARCH AGAIN.
  * Never a hidden series, never Hentoid's. A SEARCH AGAIN goes first, then
  * the series with no cover.
  */
@@ -1061,9 +1061,12 @@ export async function searchNow(
 }
 
 /**
- * UNDO a SEARCH AGAIN: the link it made goes, and the search and candidates
- * it replaced come back. A search that waited for the pass (AniList out of
- * reach) is taken back as before, with what `searchNow` returned.
+ * UNDO a SEARCH AGAIN: the search and the candidates it replaced come back.
+ * A search the owner runs never makes a link (c298's rule), so there is
+ * nothing of the search's to take back here -- a link made by the review's
+ * own LINK is undone by that decision's UNDO. A search that waited for the
+ * pass (AniList out of reach) is taken back as before, with what `searchNow`
+ * returned.
  */
 export function undoSearch(seriesId: number, was: QueuedFrom | undefined): void {
 	const db = getDb();
@@ -1073,8 +1076,6 @@ export function undoSearch(seriesId: number, was: QueuedFrom | undefined): void 
 		return;
 	}
 	db.transaction(() => {
-		const l = linkOf(db, seriesId);
-		if (l?.via === 'exact') undoLink(seriesId);
 		db.prepare(`DELETE FROM link_candidates WHERE series_id = ?`).run(seriesId);
 		db.prepare(`DELETE FROM link_searches WHERE series_id = ?`).run(seriesId);
 		if (b.search)

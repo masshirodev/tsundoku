@@ -42,8 +42,11 @@ by stream: `console.log` is INFO, `console.error` is ERROR.
   a negative kept), and `WARN` (on stderr, so the log calls it ERROR) for a
   step that failed, naming the episode and the server. One line answers "why
   no skip on this episode".
-- **Fingerprinting without fpcalc** (c297): said once per run, naming
-  `FPCALC`, so a friend's install can tell why no fingerprint arrives.
+- **Fingerprinting without chromaprint** (c299): on a build whose ffmpeg has
+  no chromaprint muxer and no `fpcalc` to fall back to, said once per run,
+  naming the chromaprint package and `FPCALC`, so a friend's install can tell
+  why no fingerprint arrives. A release bundle's own ffmpeg has the muxer, so
+  it never writes this.
 
 ## SAVE A REPORT
 

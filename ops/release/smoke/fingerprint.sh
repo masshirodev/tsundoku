@@ -1,7 +1,10 @@
 #!/bin/sh
-# A bundle's own tools must fingerprint (doc/RELEASE.md, "Smoke test"; c297).
-# Both binaries are named from the bundle, never from PATH: this workstation's
-# Arch fpcalc passing is exactly how a bundle without one shipped.
+# A bundle's own ffmpeg must fingerprint (doc/RELEASE.md, "Smoke test"; c299).
+# The app's first route to a fingerprint is ffmpeg's chromaprint muxer
+# (src/lib/server/anime/fingerprint.ts), and the pinned BtbN build has it, so
+# that is what is tested here: the binary is named from the bundle, never from
+# PATH, since a future pin that drops the muxer is the risk this guards and
+# this workstation's Arch ffmpeg cannot stand in for the bundle's.
 set -eu
 b=${1:?usage: fingerprint.sh <bundle> [work dir]}
 work=${2:-}
@@ -11,27 +14,20 @@ if [ -z "$work" ]; then
 fi
 
 ff="$b/ffmpeg/bin/ffmpeg"
-fp="$b/fpcalc/fpcalc"
 [ -x "$ff" ] || {
 	echo "FAIL fingerprint: the bundle carries no ffmpeg ($ff)"
 	exit 1
 }
-[ -x "$fp" ] || {
-	echo "FAIL fingerprint: the bundle carries no fpcalc ($fp)"
+
+# A tone is enough: it only has to reach chromaprint as points. Two seconds
+# of raw 32-bit points is 0.25 s of audio, far past the four bytes that would
+# separate "made points" from "made none".
+bytes=$(
+	"$ff" -hide_banner -loglevel error -f lavfi -i 'sine=frequency=440:duration=14' \
+		-ac 1 -ar 44100 -vn -t 6 -f chromaprint -fp_format raw pipe:1 | wc -c
+)
+if [ "$bytes" -lt 4 ]; then
+	echo "FAIL fingerprint: the bundle's ffmpeg has no chromaprint muxer (wrote $bytes bytes)"
 	exit 1
-}
-
-# A tone is enough: it only has to reach chromaprint with points.
-"$ff" -hide_banner -loglevel error -f lavfi -i 'sine=frequency=440:duration=6' \
-	-ac 1 -ar 11025 -f s16le pipe:1 |
-	"$fp" -format s16le -rate 11025 -channels 1 -length 8 -raw -json - >"$work/fingerprint.json"
-
-"$b/node/bin/node" -e '
-	const fs = require("node:fs");
-	const j = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-	if (!Array.isArray(j.fingerprint) || !j.fingerprint.length) {
-		console.error("FAIL fingerprint: the bundle’s fpcalc returned no points");
-		process.exit(1);
-	}
-	console.log("ok   fingerprint ·", j.fingerprint.length, "points");
-' "$work/fingerprint.json"
+fi
+echo "ok   fingerprint · $((bytes / 4)) points"

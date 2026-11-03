@@ -13,12 +13,11 @@ import {
  * comparison is the pure module's. Only the minutes a decision needs are
  * read: a seek before the input, and a length after it.
  *
- * The brief names ffmpeg's own chromaprint muxer (`-f chromaprint -fp_format
- * raw`). This machine's ffmpeg is built without it, so a build that doesn't
- * know the muxer falls back to `fpcalc`, chromaprint's own program, fed the
- * same audio through the same ffmpeg. Both produce the same points; `fpcalc`
- * is only the route to them on a build whose ffmpeg lacks the muxer (see
- * doc/ANIME.md).
+ * The first route is ffmpeg's own chromaprint muxer (`-f chromaprint
+ * -fp_format raw`), which every pinned release bundle's ffmpeg has. A build
+ * without it -- this workstation's Arch ffmpeg -- falls back to `fpcalc`,
+ * chromaprint's own program, fed the same audio through the same ffmpeg.
+ * Both produce the same points (doc/ANIME.md).
  */
 
 const FFMPEG = () => process.env.FFMPEG ?? 'ffmpeg';
@@ -31,7 +30,7 @@ type Stream = { header: string; hls: boolean };
 
 /** ffmpeg without the muxer: the fallback is the only way on this build. */
 let muxerMissing = false;
-/** fpcalc's absence is said once, not on every episode (c297). */
+/** A build without the muxer needs chromaprint's own fpcalc, said once per run. */
 let warnedFpcalc = false;
 /** For specs: try the muxer again (another ffmpeg may be the one under test). */
 export function forgetFingerprint(): void {
@@ -176,7 +175,7 @@ function fpcalcPrint(input: string, region: Span, stream?: Stream): Promise<Fing
 			if (!warnedFpcalc) {
 				warnedFpcalc = true;
 				console.error(
-					`tsundoku: fingerprinting needs fpcalc (chromaprint), and ${FPCALC()} could not be run: set FPCALC, or a bundle carries its own (c297)`
+					`tsundoku: fingerprinting needs chromaprint, and this ffmpeg has no chromaprint muxer: install the chromaprint package (its fpcalc) and set FPCALC to it, or use an ffmpeg built with --enable-chromaprint (${FPCALC()} could not be run)`
 				);
 			}
 			ok(null);
