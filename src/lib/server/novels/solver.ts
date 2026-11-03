@@ -70,12 +70,19 @@ export function solvingSince(site: string): number | null {
 const underway = new Map<string, Promise<Clearance | null>>();
 
 /**
- * Hosts the solver itself failed to produce a clearance for, and when: a plugin
- * asking again in the same browsing or download session must not pay another
- * 20-45 s solve. Short on purpose: a site's check can change in an afternoon.
- * A clearance the site then refuses is a different failure, remembered by the
- * host (plugin-host.cjs): there the solver succeeded, so this memo never fires
- * and must not be read as covering NovelFull or Scribble Hub.
+ * Hosts a solve answered for without a usable clearance, and when: the page its
+ * browser fetched was refused (a `solution.status` of 400 or more) or carried
+ * no cookie and no user agent. A plugin asking again in the same browsing or
+ * download session must not pay another 20-45 s solve. Short on purpose: a
+ * site's check can change in an afternoon.
+ *
+ * A solve that failed is not remembered here. FlareSolverr 3.4.6 reports its
+ * own `status: 'error'` as an HTTP 500 (measured 2026-11-02), which `ask`
+ * throws on, and this app's 60 s budget can abort before that answer arrives at
+ * all: either way the next call asks again, since a solver's trouble says
+ * nothing about the host. A clearance the site then refused is a third failure,
+ * remembered by the host (plugin-host.cjs), so this memo must not be read as
+ * covering NovelFull or Scribble Hub.
  */
 const FAILED_MS = 10 * 60_000;
 const failed = new Map<string, number>();
@@ -123,8 +130,10 @@ async function solveOne(url: string, host: string): Promise<Clearance | null> {
 	solving.set(host, since);
 	try {
 		const clearance = await ask(url, host);
-		// What the solver answered for and still refused is a check this host
-		// won't pass soon; a solver we couldn't reach says nothing about the host.
+		// A solve that answered but left nothing usable (the site refused the
+		// page, or there was no cookie and no user agent) is a check this host
+		// won't pass soon. A solver that failed or was out of reach says nothing
+		// about the host, and must not be remembered against it.
 		if (!clearance) failed.set(host, Date.now());
 		else failed.delete(host);
 		// BROWSE's past-tense line (engine/browse.ts reads site_checks).

@@ -163,10 +163,12 @@ describe('the app’s solve for a site’s check', () => {
 	});
 
 	it('answers nothing when the solver fails, and writes no check', async () => {
+		// A 200 carrying `status: 'error'` is a shape FlareSolverr does not send
+		// (it sends that body as an HTTP 500, below); it is tolerated, and is not
+		// the shape the memo exists for.
 		reply = () => ({ status: 200, body: JSON.stringify({ status: 'error', message: 'nope' }) });
 		expect(await solveChallenge('https://www.novel.example/')).toBeNull();
-		// Each shape is its own solve: one failure is remembered (below), so this
-		// forgets it rather than letting the first answer the second.
+		// Each shape is its own solve, so each forgets the memo the one before it set.
 		forgetFailedSolves();
 		reply = () => ({ status: 500, body: '{}' });
 		expect(await solveChallenge('https://www.novel.example/')).toBeNull();
@@ -184,15 +186,34 @@ describe('the app’s solve for a site’s check', () => {
 		expect(checked()).toEqual([]);
 	});
 
-	it('remembers a host the solver could not clear, so one session solves it once', async () => {
-		reply = () => ({ status: 200, body: JSON.stringify({ status: 'error', message: 'nope' }) });
+	it('remembers a host the solve answered for and the site still refused, so one session solves it once', async () => {
+		// The shape the memo exists for: the solver's browser fetched the page
+		// and the site answered 403, so `ask` returns null and `solveOne`
+		// remembers the host.
+		reply = () => ({ status: 200, body: ok({ status: 403 }) });
 		expect(await solveChallenge('https://www.novel.example/one')).toBeNull();
 		expect(asked).toHaveLength(1);
 		// A download asks chapter by chapter; the second must not wait 20-45 s
 		// on a solve that just failed.
 		expect(await solveChallenge('https://www.novel.example/two')).toBeNull();
 		expect(asked).toHaveLength(1);
-		// A solver it could not reach is not the host's fault, and is not remembered.
+	});
+
+	it('does not remember a solver’s own failure, which FlareSolverr sends as an HTTP 500 (c152)', async () => {
+		// Measured 2026-11-02: FlareSolverr 3.4.6 answers a solve it could not
+		// produce as `{"status":"error",...}` **with HTTP 500** (the capture is
+		// temp/fs-rrs.json, a 60.59 s round trip). `ask` throws on `!res.ok`, so
+		// no memo is written: a solver's trouble says nothing about the host, and
+		// the next call asks again rather than being ignored for ten minutes.
+		reply = () => ({
+			status: 500,
+			body: JSON.stringify({ status: 'error', message: 'Error solving the challenge' })
+		});
+		expect(await solveChallenge('https://www.novel.example/one')).toBeNull();
+		expect(asked).toHaveLength(1);
+		expect(await solveChallenge('https://www.novel.example/two')).toBeNull();
+		expect(asked).toHaveLength(2);
+		// A solver it could not reach is the same kind of failure: not remembered.
 		forgetFailedSolves();
 		process.env.NOVEL_SOLVER_URL = 'http://127.0.0.1:1/v1';
 		try {
@@ -200,16 +221,17 @@ describe('the app’s solve for a site’s check', () => {
 		} finally {
 			process.env.NOVEL_SOLVER_URL = `http://127.0.0.1:${port}/v1`;
 		}
-		expect(asked).toHaveLength(1);
-		// And it was not remembered: the host is asked for again.
+		expect(asked).toHaveLength(2);
 		reply = () => ({ status: 200, body: ok() });
 		expect(await solveChallenge('https://www.novel.example/four')).not.toBeNull();
-		expect(asked).toHaveLength(2);
+		expect(asked).toHaveLength(3);
 	});
 
-	it('answers nothing when a solution carries no clearance at all', async () => {
+	it('remembers a solve that carried no clearance at all, the memo’s other shape', async () => {
 		reply = () => ({ status: 200, body: ok({ cookies: [], userAgent: '' }) });
-		expect(await solveChallenge('https://www.novel.example/')).toBeNull();
+		expect(await solveChallenge('https://www.novel.example/one')).toBeNull();
+		expect(await solveChallenge('https://www.novel.example/two')).toBeNull();
+		expect(asked).toHaveLength(1);
 	});
 
 	it('answers nothing when the solver can’t be reached', async () => {
