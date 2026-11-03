@@ -15,7 +15,11 @@ export const GET: RequestHandler = ({ params, url, cookies }) => {
 	if (!Number.isInteger(id) || id <= 0 || !workPage(id, { reveal })) error(404, 'not found');
 	const q = url.searchParams.get('q') ?? '';
 	const offset = Number(url.searchParams.get('offset') ?? '0');
-	return json(addableSeries(id, reveal, { q, offset }), {
+	// The sheet sends the page size it wants; `addableSeries` clamps it to
+	// GRID_PAGE, and falls back to that same page when nothing is sent.
+	const sendLimit = url.searchParams.get('limit');
+	const limit = sendLimit === null ? undefined : Number(sendLimit);
+	return json(addableSeries(id, reveal, { q, offset, limit }), {
 		headers: { 'cache-control': 'private, no-store' }
 	});
 };

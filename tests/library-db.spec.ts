@@ -366,8 +366,10 @@ describe('pages of a shelf', () => {
 	});
 
 	it('counts exactly what the shelf shows, hidden left out', () => {
+		// A tile count against a tile list: a Work is one tile, however many
+		// series it holds (tests/works-library-db.spec.ts has that fixture).
 		for (const shelf of ['all', 'series', 'oneoff', 'k:novel']) {
-			const cards = lib.listSeries({ reveal: false, shelf });
+			const cards = lib.listTiles({ reveal: false, shelf, limit: 1000 });
 			expect(lib.countListed({ reveal: false, shelf })).toBe(cards.length);
 		}
 		expect(lib.countListed({ reveal: true })).toBeGreaterThan(lib.countListed({ reveal: false }));
@@ -378,7 +380,9 @@ describe('the kind shelves', () => {
 	it('read ANIME as a kind, not as no shelf at all (which lists everything)', () => {
 		const anime = lib.listSeries({ reveal: true, shelf: 'k:anime' });
 		expect(anime.every((c) => c.kind === 'anime')).toBe(true);
-		expect(lib.countListed({ reveal: true, shelf: 'k:anime' })).toBe(anime.length);
+		expect(lib.countListed({ reveal: true, shelf: 'k:anime' })).toBe(
+			lib.listTiles({ reveal: true, shelf: 'k:anime', limit: 1000 }).length
+		);
 	});
 
 	it('list one kind each, counted the same way, and only kinds the library has', () => {
@@ -392,9 +396,10 @@ describe('the kind shelves', () => {
 				continue;
 			}
 			const listed = lib.listSeries({ reveal: false, shelf: `k:${kind}` });
+			const onShelf = lib.listTiles({ reveal: false, shelf: `k:${kind}`, limit: 1000 });
 			expect(listed.every((c) => c.kind === kind)).toBe(true);
 			expect(listed.length).toBe(want.length);
-			expect(shelf).toMatchObject({ kind: 'smart', count: want.length });
+			expect(shelf).toMatchObject({ kind: 'smart', count: onShelf.length });
 		}
 		// The sample library has manga, manhwa and novels, so none of the above was vacuous.
 		expect(shelves.filter((s) => s.key.startsWith('k:')).length).toBe(3);

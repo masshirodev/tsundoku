@@ -296,18 +296,16 @@ export function workCounts(parts: WorkPart[]): WorkCounts {
  * one tile. `face` is the part whose cover the tile wears -- the part on the
  * shelf being browsed, which is CONTINUE's part on ALL and on a shelf every
  * part is on; `parts` is every part the viewer can see, for the foot, the
- * counts and the badges. `total` is how many parts the Work holds, which is
- * what a reveal-off read cannot always see. `newCount` is the parts' sum, which
- * is the tile's +N; `↓` is the device's own cache, never this row. `hidden` is
- * the Work's, not the face's: a Work is hidden or shown whole, and the face can
- * be the one part that is not (doc/WORKS.md, "The one rule").
+ * counts and the badges. `newCount` is the parts' sum, which is the tile's +N;
+ * `↓` is the device's own cache, never this row. `hidden` is the Work's, not
+ * the face's: a Work is hidden or shown whole, and the face can be the one part
+ * that is not (doc/WORKS.md, "The one rule").
  */
 export type WorkTile = {
 	id: number;
 	name: string;
 	face: SeriesCard;
 	parts: WorkPart[];
-	total: number;
 	newCount: number;
 	hidden: boolean;
 };

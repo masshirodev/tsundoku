@@ -555,8 +555,7 @@ function workCard(
 	id: number,
 	name: string,
 	face: LibraryCard,
-	parts: ReturnType<typeof partsOfWorks>,
-	total: number
+	parts: ReturnType<typeof partsOfWorks>
 ): LibraryCard & { tile: WorkTile } {
 	const ordered = inOrder(parts);
 	const rated = ordered.filter((p) => p.rating > 0);
@@ -579,7 +578,6 @@ function workCard(
 			name,
 			face,
 			parts: ordered,
-			total,
 			newCount: ordered.reduce((n, p) => n + p.newCount, 0),
 			hidden: ordered.some((p) => p.hidden)
 		} satisfies WorkTile
@@ -590,7 +588,6 @@ type UnitRow = {
 	workId: number | null;
 	seriesId: number;
 	workName: string | null;
-	workTotal: number | null;
 };
 
 /**
@@ -680,8 +677,7 @@ function unitQuery(where: string, vis: string, order: string, limit = ''): strin
 		SELECT work, series FROM members WHERE work IS NULL
 		UNION ALL SELECT work, series FROM face
 	)
-	SELECT u.work AS workId, u.series AS seriesId, w.name AS workName,
-		(SELECT COUNT(*) FROM work_series x WHERE x.work_id = u.work) AS workTotal
+	SELECT u.work AS workId, u.series AS seriesId, w.name AS workName
 	FROM units u LEFT JOIN works w ON w.id = u.work
 	JOIN series fs ON fs.id = u.series
 	LEFT JOIN keys k ON k.unit = COALESCE(CAST(u.work AS TEXT), 's' || u.series)
@@ -709,7 +705,7 @@ export function listTiles(
 		const face = cards.get(row.seriesId)!;
 		if (row.workId == null) return { ...face, work: null };
 		const own = parts.get(row.workId) ?? [];
-		return workCard(row.workId, row.workName ?? face.title, face, own, row.workTotal ?? own.length);
+		return workCard(row.workId, row.workName ?? face.title, face, own);
 	});
 }
 
@@ -1099,7 +1095,7 @@ export function search(query: string, reveal: boolean, limit = 30): SearchResult
 		const own = parts.get(row.id) ?? [];
 		const face = faces.get(facePart(own)?.seriesId ?? -1);
 		if (!face) continue;
-		works.push(workCard(row.id, row.name, face, own, own.length).tile);
+		works.push(workCard(row.id, row.name, face, own).tile);
 	}
 
 	return {

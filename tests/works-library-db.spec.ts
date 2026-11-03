@@ -43,7 +43,7 @@ describe('browsing shows the run as one tile', () => {
 		const list = tiles({ reveal: true, shelf: 'all' });
 		const own = workTiles({ reveal: true, shelf: 'all' });
 		expect(own).toHaveLength(1);
-		expect(own[0]).toMatchObject({ id: facts.work.id, name: 'The Breaker', total: 2 });
+		expect(own[0]).toMatchObject({ id: facts.work.id, name: 'The Breaker' });
 		expect(own[0].parts.map((p) => p.seriesId)).toEqual([drawing, kusuriya]);
 		// Drawing was opened five minutes ago and Kusuriya ten hours: CONTINUE
 		// opens Drawing, so that is the cover the tile wears.
@@ -136,6 +136,33 @@ describe('browsing shows the run as one tile', () => {
 		expect(on.filter((t) => t.id === facts.work.id)).toHaveLength(1);
 		expect(on.find((t) => t.id === facts.work.id)?.face.hidden).toBe(true);
 		expect(works.workPage(facts.work.id, { reveal: false })).toBeNull();
+	});
+
+	it('hides a Work whole from a kind shelf, so its screen is the missing 404', () => {
+		// SELECT ALL over MANGA hands every series id the tiles hold, a Work's
+		// off-shelf manhwa part included (`tileIds`); bulk HIDE acts on series,
+		// so it hides the run part by part. This is the node half of the flow
+		// case that used to prove it by hiding the whole shelf (round 2's
+		// finding): a write there landed on every manga in the shared library.
+		const manga = idOf('Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru');
+		const manhwa = idOf("Omniscient Reader's Viewpoint");
+		const facts = make(
+			[
+				'Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru',
+				"Omniscient Reader's Viewpoint"
+			],
+			'Two Kinds'
+		);
+		const picked = lib.tileIds({ reveal: false, shelf: 'k:manga' });
+		expect(picked).toContain(manga);
+		expect(picked).toContain(manhwa);
+		const hidden = works.hideWork(facts.work.id, true);
+		expect(hidden.ids.sort()).toEqual([manga, manhwa].sort());
+		// With reveal off the Work is gone from the shelf and its screen is the
+		// 404 a missing id gets; with reveal on it is one tile again.
+		expect(lib.tileIds({ reveal: false, shelf: 'k:manga' })).not.toContain(manga);
+		expect(works.workPage(facts.work.id, { reveal: false })).toBeNull();
+		expect(lib.tileIds({ reveal: true, shelf: 'k:manga' })).toContain(manga);
 	});
 
 	it('marks a Work hidden when any part is, whatever part the tile wears', () => {

@@ -18,8 +18,7 @@
 	 * part instead of rating bars: a Work has no rating of its own.
 	 *
 	 * `tile.parts` is every part the viewer can see, which is what the segments,
-	 * the PART n OF m and the sums are about; `tile.total` is how many the Work
-	 * holds, for the times those differ (a part hidden on its own).
+	 * the PART n OF m and the sums are about.
 	 */
 	let {
 		tile,
