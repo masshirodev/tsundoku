@@ -546,8 +546,10 @@ test.describe('a catalogue that answers', () => {
 			'LINKED · SEASON 2 TO SWORD ART ONLINE II'
 		);
 		// UNDO here is season 2's, though the series' open season is 1: a season's
-		// decision is its own (c240).
+		// decision is its own (c240). The bar goes once the workstation has taken
+		// it back, which is when the row is really gone.
 		await page.getByRole('button', { name: 'UNDO' }).click();
+		await expect(page.getByRole('button', { name: 'UNDO' })).toHaveCount(0);
 		expect(seasonLinks()).toEqual([]);
 		// Link it again, to carry on with the relations below.
 		await page.locator('.cand').first().click();
@@ -576,6 +578,11 @@ test.describe('a catalogue that answers', () => {
 			{ season: 1, anilist_id: 9001, mal_id: 7001 },
 			{ season: 2, anilist_id: 9002, mal_id: 7002 }
 		]);
+		// A link given by the relations says where it came from, as every other
+		// one does (c240).
+		await expect(page.locator('.seasons').first().locator('.s-b').first()).toContainText(
+			'FROM ANILIST’S RELATIONS'
+		);
 		// And the TRACKING row draws the same two seasons: nothing is signed in here.
 		await expect(page.locator('.track-row .stag')).toHaveText(['S1', 'S2']);
 		await expect(page.locator('.track-row .tl-l').first()).toHaveText(
