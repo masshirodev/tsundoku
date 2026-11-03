@@ -446,6 +446,8 @@ export type SeasonRow = {
 	candidates: number;
 	searched: boolean;
 	queued: boolean;
+	/** NONE OF THESE or UNLINK settled it: no pass asks again (c240). */
+	settled: boolean;
 	searchTitle: string;
 };
 
@@ -467,6 +469,8 @@ export function viaLabel(via: string): string {
 			return 'THE SAME TITLE ON ANILIST';
 		case 'review':
 			return 'CHOSEN IN THE REVIEW';
+		case 'relations':
+			return 'FROM ANILIST’S RELATIONS';
 		case 'pasted':
 			return 'PASTED';
 		default:

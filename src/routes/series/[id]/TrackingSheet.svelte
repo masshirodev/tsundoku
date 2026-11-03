@@ -37,8 +37,10 @@
 	const anime = $derived(!!seasons && seasons.length > 0 && kind === 'anime');
 	const tabbed = $derived(anime && (seasons?.length ?? 0) > 1);
 	let picked = $state<number | null>(null);
+	// The season the sheet is on, tabs or not: a one-season anime is still one
+	// season's entry, and a change must name it (c240).
 	const at = $derived(
-		tabbed
+		anime
 			? (tracking.seasons?.find((s) => s.season === (picked ?? tracking.openSeason)) ??
 					tracking.seasons?.[0] ??
 					null)
@@ -104,9 +106,7 @@
 			})
 	);
 	/** What the notes say about the scope: one season's entry, or both. */
-	const scope = $derived(
-		tabbed ? `SEASON ${seasonNo}’S ENTRY ON BOTH CATALOGUES` : 'BOTH CATALOGUES'
-	);
+	const scope = $derived(at ? `SEASON ${seasonNo}’S ENTRY ON BOTH CATALOGUES` : 'BOTH CATALOGUES');
 </script>
 
 <Sheet {open} {onclose} label="Tracking">
@@ -143,9 +143,11 @@
 		<div>{both ? `GOES TO ${both}` : 'NOTHING SIGNED IN'}</div>
 	</div>
 	<form method="POST" action="?/tracking" use:enhance class="statuses">
-		{#if tabbed}
+		{#if at}
+			<!-- One season's entry, named even when it is the only one: a part's
+			     send must not reach its sibling (c240). -->
 			<input type="hidden" name="season" value={seasonNo} />
-			<input type="hidden" name="part" value={at?.part ?? 1} />
+			<input type="hidden" name="part" value={at.part ?? 1} />
 		{/if}
 		{#each STATUSES as s (s)}
 			<button
@@ -200,7 +202,7 @@
 	{/if}
 
 	<div class="notes">
-		{#if tabbed}
+		{#if at}
 			<p>A CHANGE HERE GOES TO {scope}. THE OTHER SEASONS KEEP THEIRS.</p>
 			<p>
 				A SEASON’S FIRST EPISODE WATCHED SENDS WATCHING, ITS LAST SENDS COMPLETED. ON HOLD, DROPPED

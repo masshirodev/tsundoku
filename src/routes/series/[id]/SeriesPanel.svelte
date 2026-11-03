@@ -180,6 +180,7 @@
 		if (linkOff) return '○ OFFLINE · FINDING NEEDS THE WORKSTATION';
 		if (tracking?.hidden) return 'HIDDEN SERIES ARE NEVER SEARCHED · PASTE A LINK';
 		if (sv.queued) return 'A SEARCH WAITS FOR THE NEXT COVER PASS';
+		if (sv.settled) return 'NONE OF THESE · NO PASS ASKS AGAIN';
 		if (sv.candidates)
 			return `${sv.candidates} CANDIDATE${sv.candidates === 1 ? '' : 'S'} FROM THE LAST SEARCH · NONE LINKED`;
 		return sv.searched ? 'NOTHING FOUND IN THE LAST SEARCH' : 'NOT SEARCHED YET';

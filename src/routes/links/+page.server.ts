@@ -58,8 +58,7 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 			};
 		}
 		const item = reviewItem(id, reveal);
-		const state = item ? linkState(id) : null;
-		if (!item || !state) error(404, 'not found');
+		if (!item) error(404, 'not found');
 		// An anime's season: its own title, its own candidates, and the entry its
 		// line names (c240).
 		const view = item.kind === 'anime' ? seriesSeasons(id) : null;
@@ -70,6 +69,10 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 				view.seasons[0] ??
 				null)
 			: null;
+		// The LINK row is the season's own, never the open season's or the
+		// series' mirror: a season with no row of its own is not linked (c240).
+		const state = linkState(id, at?.season);
+		if (!state) error(404, 'not found');
 		const season = at
 			? {
 					no: at.season,
@@ -81,6 +84,8 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 					/** What the search sends, and what the header says it asked. */
 					title: at.searchTitle,
 					linked: at.link?.title ?? null,
+					/** The part the season's line holds: what LINK, UNLINK and UNDO act on. */
+					part: at.link?.part ?? 1,
 					parts: at.parts.map((p) => ({ part: p.part, from: p.from, to: p.to, linked: !!p.link }))
 				}
 			: null;
@@ -113,10 +118,8 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 			],
 			single: {
 				hidden: access.hidden,
-				linked: at?.link?.title || state.linked?.title || state.linked?.ids || null,
-				wrongKind: at?.link
-					? (state.linked?.wrongKind ?? false)
-					: (state.linked?.wrongKind ?? false),
+				linked: state.linked?.title || state.linked?.ids || null,
+				wrongKind: state.linked?.wrongKind ?? false,
 				queued: at?.queued ?? state.queued
 			},
 			season,

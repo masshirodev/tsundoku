@@ -209,6 +209,8 @@ export type SeasonView = SeasonSpan & {
 	candidates: number;
 	searched: boolean;
 	queued: boolean;
+	/** NONE OF THESE or UNLINK settled it: no pass asks again (c240). */
+	settled: boolean;
 	/** What FIND asks AniList for. */
 	searchTitle: string;
 };
@@ -323,6 +325,7 @@ export function seriesSeasons(seriesId: number): SeriesSeasons | null {
 					!!getDb()
 						.prepare(`SELECT 1 FROM season_link_searches WHERE series_id = ? AND season = ?`)
 						.get(seriesId, span.season),
+				settled: seasonSettled(seriesId, span.season),
 				searchTitle: seasonSearchTitle(s.title, span.season)
 			};
 		})
@@ -393,11 +396,15 @@ export function linkSeason(
 export function syncSeriesLink(seriesId: number, now = Date.now()): void {
 	const db = getDb();
 	const links = seasonLinks(seriesId).filter((l) => l.part === 1);
-	if (!links.length) {
+	const l = links.reduce((a, b) => (b.season < a.season ? b : a), links[0]);
+	// Only the series' first season can be the single entry AniSkip is asked
+	// about: it numbers an episode within its entry and refuses a season past
+	// the first, so a later season's MAL id would make every season 1 episode
+	// a wrong answer (c240, doc/ANIME.md, "Seasons"). No first season, no row.
+	if (!l || l.season > 1) {
 		db.prepare(`DELETE FROM series_links WHERE series_id = ?`).run(seriesId);
 		return;
 	}
-	const l = links.reduce((a, b) => (b.season < a.season ? b : a));
 	db.prepare(
 		`INSERT INTO series_links (series_id, anilist_id, mal_id, via, title, cover_url, linked_at, resolved_at, format)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -654,8 +661,10 @@ const ABOVE: Record<number, string> = {
  * both ways (PREQUEL, SEQUEL), each entry placed at the season that far from
  * the one just linked, and ticked where its episode count agrees with the
  * season's -- or where two entries add up to it, one season in two parts.
- * A movie, a special or a spin-off is listed outside the numbering and never
- * ticked. Null when the linked entry is unknown or AniList can't be reached.
+ * A movie or a special standing on that chain is listed outside the numbering
+ * and never ticked; a side story or a spin-off is not collected at all, since
+ * only PREQUEL and SEQUEL edges are followed (doc/LINKS.md). Null when the
+ * linked entry is unknown or AniList can't be reached.
  */
 export async function seasonRelations(
 	seriesId: number,

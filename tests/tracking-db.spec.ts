@@ -248,7 +248,7 @@ describe('reading the lists', () => {
 					)
 					.get(show)
 			).toEqual({ via: 'list', anilist_id: 30024, format: 'TV', season: 0 });
-			// `series_links` keeps the mirror of the newest season linked (AniSkip
+			// `series_links` keeps the mirror of the first season linked (AniSkip
 			// asks a series for one entry); tracking never reads it for an anime.
 			expect(
 				db.prepare(`SELECT via, anilist_id, mal_id FROM series_links WHERE series_id = ?`).get(show)

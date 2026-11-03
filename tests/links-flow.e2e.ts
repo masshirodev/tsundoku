@@ -545,6 +545,17 @@ test.describe('a catalogue that answers', () => {
 		await expect(page.locator('.band .line').first()).toHaveText(
 			'LINKED · SEASON 2 TO SWORD ART ONLINE II'
 		);
+		// UNDO here is season 2's, though the series' open season is 1: a season's
+		// decision is its own (c240).
+		await page.getByRole('button', { name: 'UNDO' }).click();
+		expect(seasonLinks()).toEqual([]);
+		// Link it again, to carry on with the relations below.
+		await page.locator('.cand').first().click();
+		await page.locator('.actions button').last().click();
+		await expect(page.locator('.band .line').first()).toHaveText(
+			'LINKED · SEASON 2 TO SWORD ART ONLINE II'
+		);
+		expect(seasonLinks()).toEqual([{ season: 2, anilist_id: 9002, mal_id: 7002 }]);
 		await expect(page.locator('.rels .ch div').first()).toHaveText(
 			'02 — THE REST OF THE SERIES ON ANILIST'
 		);
@@ -571,7 +582,102 @@ test.describe('a catalogue that answers', () => {
 			'NOT SIGNED IN · NOTHING SENT'
 		);
 	});
+
+	test('a sheet edit on a one-season anime in two parts goes to one part (c240)', async ({
+		page
+	}) => {
+		// One season, split 12 + 11 on its catalogues: the sheet has no tabs to
+		// read the season and part from, so it must still name them.
+		const show = seedTwoParts();
+		try {
+			await page.goto(`${BASE}/series/${show}`);
+			const row = page.locator('.track-row');
+			await row.getByRole('button', { name: 'EDIT' }).click();
+			await page.locator('form.statuses button', { hasText: 'COMPLETED' }).click();
+			// The action queues and sends before it answers: what waits or what was
+			// sent is this skill's to read, beside the server.
+			await expect.poll(() => trackerRows(show).length).toBeGreaterThan(0);
+			const rows = trackerRows(show);
+			// Part 1 is what the sheet was on; part 2 keeps whatever its owner had.
+			expect(rows.filter((r) => r.part === 1).map((r) => r.status)).toEqual(['completed']);
+			expect(rows.filter((r) => r.part === 2)).toEqual([]);
+		} finally {
+			unseedAccount();
+		}
+	});
 });
+
+/** The one-season, two-part show this spec's last case edits, and a sign-in to reach the sheet. */
+let twoParts: number | null = null;
+function seedTwoParts(): number {
+	if (twoParts !== null) return twoParts;
+	const db = new Database(dbPath);
+	try {
+		const now = Date.UTC(2026, 10, 2, 12, 0);
+		const root = (db.prepare(`SELECT id FROM roots WHERE name = 'Library'`).get() as { id: number })
+			.id;
+		const id = Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, source, hue, added_at, indexed_at, origin_key, in_library, cover_key)
+					VALUES (?, 'Sword Art Online: Alicization', 'anime', 'aniyomi', 210, ?, ?, 'aniyomi:1:/sao-alicization', 1, '')`
+				)
+				.run(root, now, now).lastInsertRowid
+		);
+		const put = db.prepare(
+			`INSERT INTO entries (series_id, position, label, season, episode_number, added_at, file, bytes, page_count, available, source_url)
+			VALUES (?, ?, ?, 1, ?, ?, '', 0, 0, 0, ?)`
+		);
+		for (let i = 1; i <= 23; i++) put.run(id, i, `Episode ${i}`, i, now, `/sao4/${i}`);
+		const link = db.prepare(
+			`INSERT INTO series_season_links (series_id, season, part, anilist_id, via, title, linked_at, resolved_at, format, episodes)
+			VALUES (?, 1, ?, ?, 'relations', ?, ?, ?, 'TV', ?)`
+		);
+		link.run(id, 1, 9901, 'Sword Art Online: Alicization', now, now, 12);
+		link.run(id, 2, 9902, 'Sword Art Online: Alicization Part 2', now, now, 11);
+		// The sheet's EDIT needs a sign-in; nothing here reaches AniList but the
+		// spec's stand-in, and MAL is not signed in at all.
+		db.prepare(
+			`INSERT OR REPLACE INTO tracker_accounts (service, user_id, user_name, access_token, signed_in_at)
+			VALUES ('anilist', '7', 'masshiro', 'e2e-token', ?)`
+		).run(now);
+		return (twoParts = id);
+	} finally {
+		db.close();
+	}
+}
+
+function unseedAccount(): void {
+	const db = new Database(dbPath);
+	try {
+		db.prepare(`DELETE FROM tracker_accounts WHERE service = 'anilist'`).run();
+	} finally {
+		db.close();
+	}
+}
+
+/** A season's sent or waiting rows, from either side of the send. */
+function trackerRows(
+	id: number
+): { season: number; part: number; service: string; status: string }[] {
+	const db = new Database(dbPath, { readonly: true });
+	try {
+		return [
+			...(db
+				.prepare(
+					`SELECT season, part, service, status FROM season_tracker_state WHERE series_id = ?`
+				)
+				.all(id) as { season: number; part: number; service: string; status: string }[]),
+			...(db
+				.prepare(
+					`SELECT season, part, service, status FROM season_tracker_sends WHERE series_id = ?`
+				)
+				.all(id) as { season: number; part: number; service: string; status: string }[])
+		];
+	} finally {
+		db.close();
+	}
+}
 
 /** The spec's own database, read beside the server: what a decision actually wrote. */
 function seasonLinks(): { season: number; anilist_id: number; mal_id: number }[] {

@@ -254,25 +254,6 @@ async function searchMany(
 
 export type Via = 'mihon' | 'exact' | 'review' | 'pasted' | 'list';
 
-/** A season's link, and the two catalogue ids it names (c240). */
-export type SeasonLinkFacts = {
-	anilistId: number | null;
-	malId: number | null;
-	title: string;
-	via: string;
-	ids: string;
-	/** The entry's own kind, from its stored format; null when it isn't known yet. */
-	kind: Kind | null;
-	format: string | null;
-	episodes: number | null;
-	year: number | null;
-	meta: string;
-	coverOnly: boolean;
-	wrongKind: boolean;
-	resolving: boolean;
-	href: string | null;
-};
-
 type LinkRow = {
 	series_id: number;
 	anilist_id: number | null;
@@ -419,9 +400,14 @@ export function linkFromList(
  * UNDO, just after a LINK: the link goes, and a rating it gave goes with it
  * (if nobody changed it since). The series is back in the review. AniSkip's
  * answers go too: with no link there is no MAL entry (c299).
+ *
+ * An anime's UNDO is the season's it acted on (c240), falling back to the
+ * open one only when the caller named none: UNDO after linking season 2 must
+ * not take season 1's link.
  */
-export function undoLink(seriesId: number): boolean {
-	if (isAnime(kindOf(seriesId))) return undoSeasonLink(seriesId, openSeasonOf(seriesId));
+export function undoLink(seriesId: number, season?: number, part = 1): boolean {
+	if (isAnime(kindOf(seriesId)))
+		return undoSeasonLink(seriesId, season ?? openSeasonOf(seriesId), part);
 	const db = getDb();
 	return db.transaction(() => {
 		const had = linkOf(db, seriesId);
@@ -443,14 +429,18 @@ export function undoLink(seriesId: number): boolean {
  * PASTE A LINK still can. The rating it gave, long since the owner's, stays.
  * AniSkip's answers go: the old MAL id's negatives are not this series'.
  *
- * An anime unlinks a season -- the one the screen asked about, or every one
- * it has when nobody said, which is what the review's own UNLINK means.
+ * An anime unlinks a season -- every part of it, since a season's line stands
+ * for the whole season -- or every season it has when nobody said, which is
+ * what the review's own UNLINK means.
  */
 export function unlink(seriesId: number, now = Date.now(), season?: number): void {
 	if (isAnime(kindOf(seriesId))) {
 		const view = seriesSeasons(seriesId);
 		const list = view ? view.seasons.map((s) => s.season) : [0];
-		for (const s of season === undefined ? list : [season]) unlinkSeason(seriesId, s, 1, now);
+		for (const s of season === undefined ? list : [season]) {
+			const parts = view?.seasons.find((x) => x.season === s)?.parts.map((p) => p.part) ?? [1];
+			for (const p of parts) unlinkSeason(seriesId, s, p, now);
+		}
 		return;
 	}
 	const db = getDb();
@@ -463,10 +453,10 @@ export function unlink(seriesId: number, now = Date.now(), season?: number): voi
 	})();
 }
 
-/** NONE OF THESE: remembered, so it doesn't come back. */
-export function noneOfThese(seriesId: number, now = Date.now(), season?: number): void {
+/** NONE OF THESE: remembered, so it doesn't come back. An anime settles the season it names. */
+export function noneOfThese(seriesId: number, now = Date.now(), season?: number, part = 1): void {
 	if (isAnime(kindOf(seriesId))) {
-		noneOfSeason(seriesId, season ?? openSeasonOf(seriesId), 1, now);
+		noneOfSeason(seriesId, season ?? openSeasonOf(seriesId), part, now);
 		return;
 	}
 	getDb()
@@ -476,8 +466,9 @@ export function noneOfThese(seriesId: number, now = Date.now(), season?: number)
 		.run(seriesId, now);
 }
 
-export function undoNone(seriesId: number): boolean {
-	if (isAnime(kindOf(seriesId))) return undoNoneSeason(seriesId, openSeasonOf(seriesId));
+export function undoNone(seriesId: number, season?: number, part = 1): boolean {
+	if (isAnime(kindOf(seriesId)))
+		return undoNoneSeason(seriesId, season ?? openSeasonOf(seriesId), part);
 	return (
 		getDb()
 			.prepare(`DELETE FROM link_decisions WHERE series_id = ? AND decision = 'none'`)
@@ -620,6 +611,28 @@ export async function resolveLinks(now = Date.now()): Promise<number> {
 // A browsing record (doc/BROWSING.md) is never in the LINK queue: it isn't the library's.
 const LINKABLE = `s.kind IN ('manga', 'manhwa', 'novel', 'anime') AND s.source != 'hentoid' AND ${IN_LIBRARY_SQL}`;
 
+/**
+ * An anime still wants a look: one of its seasons has neither a link nor a
+ * decision (c240). Settling is a season's act now, and `link_decisions` is one
+ * row a series, so it cannot say "season 2 is still to link" -- the season rows
+ * can. Computed from the rows themselves rather than cached on the series, so
+ * a season the source adds later puts the series back in the queue by itself.
+ * An anime whose list holds no episodes yet stays: there is no season to
+ * settle, and a pasted link can still be made on it.
+ */
+const NOT_SETTLED = `((s.kind = 'anime' AND (
+	NOT EXISTS (SELECT 1 FROM entries e0 WHERE e0.series_id = s.id AND e0.shadowed = 0)
+	OR EXISTS (
+		SELECT 1 FROM entries e
+		WHERE e.series_id = s.id AND e.shadowed = 0
+			AND NOT EXISTS (SELECT 1 FROM series_season_links sl
+				WHERE sl.series_id = s.id AND sl.season = COALESCE(e.season, 0))
+			AND NOT EXISTS (SELECT 1 FROM season_link_decisions sd
+				WHERE sd.series_id = s.id AND sd.season = COALESCE(e.season, 0))
+	)
+)) OR (s.kind != 'anime'
+	AND NOT EXISTS (SELECT 1 FROM link_decisions d WHERE d.series_id = s.id)))`;
+
 type SearchRow = {
 	id: number;
 	title: string;
@@ -642,7 +655,7 @@ export function searchable(limit: number): SearchRow[] {
 			LEFT JOIN link_searches ls ON ls.series_id = s.id
 			WHERE ${LINKABLE} AND ${VISIBLE_SQL}
 				AND NOT EXISTS (SELECT 1 FROM series_links l WHERE l.series_id = s.id)
-				AND NOT EXISTS (SELECT 1 FROM link_decisions d WHERE d.series_id = s.id)
+				AND ${NOT_SETTLED}
 				AND (ls.series_id IS NULL OR ls.searched_at IS NULL)
 			ORDER BY ls.series_id IS NULL, s.cover_key != '', s.id
 			LIMIT ?`
@@ -958,7 +971,7 @@ export function linkQueue(reveal: boolean): ReviewItem[] {
 			`${ITEM_SQL}
 			WHERE ls.searched_at IS NOT NULL AND ${visibleWhere(reveal)} AND ${LINKABLE}
 				AND NOT EXISTS (SELECT 1 FROM series_links l WHERE l.series_id = s.id)
-				AND NOT EXISTS (SELECT 1 FROM link_decisions d WHERE d.series_id = s.id)
+				AND ${NOT_SETTLED}
 			ORDER BY ls.skipped_at IS NOT NULL, ls.skipped_at, ls.found = 0, s.cover_key != '', s.id`
 		)
 		.all() as ItemRow[];
@@ -973,7 +986,7 @@ export function linkQueueCount(reveal: boolean): number {
 				`SELECT COUNT(*) AS n FROM link_searches ls JOIN series s ON s.id = ls.series_id JOIN roots r ON r.id = s.root_id
 				WHERE ls.searched_at IS NOT NULL AND ${visibleWhere(reveal)} AND ${LINKABLE}
 					AND NOT EXISTS (SELECT 1 FROM series_links l WHERE l.series_id = s.id)
-					AND NOT EXISTS (SELECT 1 FROM link_decisions d WHERE d.series_id = s.id)`
+					AND ${NOT_SETTLED}`
 			)
 			.get() as { n: number }
 	).n;
@@ -1068,7 +1081,12 @@ export function linkState(seriesId: number, season?: number): LinkState | null {
 	};
 }
 
-/** An anime's LINK row for one season: its own link, or the series' shape before rung 62. */
+/**
+ * An anime's LINK row for one season: its own row, or the series' shape from
+ * before rung 62 -- which `seriesSeasons` reads as the first season's, and only
+ * for a series that has no season rows at all. A season with no row of its own
+ * is not linked, whatever the open season or the mirror says (c240).
+ */
 function seasonLinkState(
 	seriesId: number,
 	r: ItemRow & { hidden: number },
@@ -1077,7 +1095,7 @@ function seasonLinkState(
 	const view = seriesSeasons(seriesId);
 	const at = season ?? view?.open ?? 0;
 	const sv = view?.seasons.find((s) => s.season === at) ?? null;
-	const l = sv?.link ?? legacyLink(seriesId);
+	const l = sv?.link ?? null;
 	const item = itemOf({ ...r, chapters: sv?.aired ?? r.chapters });
 	return {
 		linked: l

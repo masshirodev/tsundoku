@@ -263,9 +263,15 @@ function target(params: { id: string }, cookies: Parameters<Actions[string]>[0][
 	return series;
 }
 
-/** The season a form is about, when it names one: an anime's rows pass it. */
+/**
+ * The season a form is about, when it names one: an anime's rows pass it. An
+ * absent field is no season at all, not season 0 -- a comic's form has none,
+ * and 0 is a real season (a flat list) (c240).
+ */
 function seasonOf(form: FormData): { season?: number; part?: number } {
-	const season = Number(form.get('season'));
+	const raw = form.get('season');
+	if (raw === null || String(raw) === '') return {};
+	const season = Number(raw);
 	const part = Number(form.get('part'));
 	if (!Number.isInteger(season)) return {};
 	return { season, part: Number.isInteger(part) && part > 0 ? part : 1 };

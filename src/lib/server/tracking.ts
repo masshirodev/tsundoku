@@ -594,6 +594,25 @@ function animeEntries(seriesId: number) {
 		.all(seriesId) as { season: number; number: number; note: string; readAt: number | null }[];
 }
 
+/** Those episodes as `library/anime`'s watch rules read them (a recap never counts). */
+function watchedRows(seriesId: number) {
+	return animeEntries(seriesId).map((e) => ({
+		id: 0,
+		number: e.number,
+		readAt: e.readAt,
+		lastPosition: null,
+		lastOpenedAt: null,
+		episode: {
+			durationS: null,
+			season: e.season,
+			number: e.number,
+			note: (e.note as '' | 'filler' | 'recap') ?? '',
+			thumb: '',
+			endingAt: null
+		}
+	}));
+}
+
 /**
  * Where a series' progress may go: each catalogue signed in whose entry the
  * link names. None for a hidden series, a cover-only link, or a season whose
@@ -729,23 +748,7 @@ function want(
  */
 function reachedFor(t: Target, o: { chapters: number }): number {
 	if (!isAnime(t.kind)) return o.chapters;
-	const entries = animeEntries(t.seriesId);
-	// `counted` lives in library/anime: a recap or a half number is never sent.
-	const rows = entries.map((e) => ({
-		id: 0,
-		number: e.number,
-		readAt: e.readAt,
-		lastPosition: null,
-		lastOpenedAt: null,
-		episode: {
-			durationS: null,
-			season: e.season,
-			number: e.number,
-			note: (e.note as '' | 'filler' | 'recap') ?? '',
-			thumb: '',
-			endingAt: null
-		}
-	}));
+	const rows = watchedRows(t.seriesId);
 	const seasonTop = watchedReached(rows, { season: t.season });
 	const within = watchedReached(rows, { season: t.season, from: t.from, to: t.to });
 	// The part's own numbering: part 2 starts at 1, not at part 1's last + 1.
@@ -778,10 +781,15 @@ export function queueProgress(seriesId: number, now = Date.now()): number {
 		const reached = reachedFor(target, { chapters });
 		if (reached <= 0) continue;
 		const remote = stateRow(target);
+		// The part's last counted episode watched finishes the entry (c240): the
+		// design's "its last sends COMPLETED". A season in two parts completes
+		// each part on its own count, which is what `reached` is already in.
+		const complete = isAnime(target.kind) && reached >= target.to - target.from + 1;
 		const r = progressToSend({
 			reached,
 			remote: remote ? { progress: remote.progress, status: remote.status } : null,
-			waiting: waitingRow(target)?.progress ?? null
+			waiting: waitingRow(target)?.progress ?? null,
+			complete
 		});
 		if (!r) continue;
 		want(target, { progress: r.progress, ...(r.status ? { status: r.status } : {}) }, now);
@@ -826,7 +834,7 @@ async function sendOne(
 			{
 				mediaId: t.mediaId,
 				...(w.progress !== null ? { progress: w.progress } : {}),
-				...(w.status ? { status: statusTo('anilist', w.status) } : {}),
+				...(w.status ? { status: statusTo('anilist', w.status, t.kind) } : {}),
 				// Out of 10 here; scoreRaw is AniList's 100, whatever format the owner shows.
 				...(w.score !== null ? { scoreRaw: Math.round(w.score * 10) } : {})
 			}
@@ -839,7 +847,7 @@ async function sendOne(
 	const form: Record<string, string> = {};
 	if (w.progress !== null)
 		form[anime ? 'num_watched_episodes' : 'num_chapters_read'] = String(w.progress);
-	if (w.status) form.status = statusTo('mal', w.status);
+	if (w.status) form.status = statusTo('mal', w.status, t.kind);
 	if (w.score !== null) form.score = String(Math.round(w.score));
 	await mal(await malToken(a, now), `/${anime ? 'anime' : 'manga'}/${t.mediaId}/my_list_status`, {
 		method: 'PATCH',
@@ -992,13 +1000,10 @@ export function ratingPart(seriesId: number): { season?: number; part?: number }
 	if (!view) return {};
 	const sv = view.seasons.find((s) => s.season === view.open) ?? view.seasons[0];
 	if (!sv) return {};
-	const watched = getDb()
-		.prepare(
-			`SELECT MAX(COALESCE(episode_number, position)) AS n FROM entries
-			WHERE series_id = ? AND shadowed = 0 AND read_at IS NOT NULL`
-		)
-		.get(seriesId) as { n: number | null };
-	const part = sv.parts.find((p) => (watched.n ?? 0) >= p.from && (watched.n ?? 0) <= p.to);
+	// The open season's own highest watched episode decides the part: season 1
+	// finished at 24 says nothing about season 2's half (c240).
+	const watched = watchedReached(watchedRows(seriesId), { season: sv.season });
+	const part = sv.parts.find((p) => watched >= p.from && watched <= p.to);
 	return { season: sv.season, part: part?.part ?? sv.parts[0]?.part ?? 1 };
 }
 
@@ -1163,26 +1168,9 @@ function seasonsTracking(seriesId: number, hidden: boolean): SeasonTrack[] {
 	const view = seriesSeasons(seriesId);
 	if (!view) return [];
 	const db = getDb();
-	const entries = animeEntries(seriesId);
+	const entries = watchedRows(seriesId);
 	const of = (season: number, from?: number, to?: number) =>
-		watchedReached(
-			entries.map((e) => ({
-				id: 0,
-				number: e.number,
-				readAt: e.readAt,
-				lastPosition: null,
-				lastOpenedAt: null,
-				episode: {
-					durationS: null,
-					season: e.season,
-					number: e.number,
-					note: (e.note as '' | 'filler' | 'recap') ?? '',
-					thumb: '',
-					endingAt: null
-				}
-			})),
-			{ season, from, to }
-		);
+		watchedReached(entries, { season, from, to });
 	return view.seasons.map((sv) => {
 		const watchedAll = of(sv.season);
 		const parts = sv.parts;

@@ -34,6 +34,19 @@ describe('status', () => {
 		expect(statusTo('anilist', 'on_hold')).toBe('PAUSED');
 		expect(statusTo('mal', 'planning')).toBe('plan_to_read');
 	});
+
+	it('writes an anime to MAL in its anime list’s words (c240)', () => {
+		expect(statusTo('mal', 'reading', 'anime')).toBe('watching');
+		expect(statusTo('mal', 'planning', 'anime')).toBe('plan_to_watch');
+		// Everything else is the same word on both lists.
+		expect(statusTo('mal', 'on_hold', 'anime')).toBe('on_hold');
+		expect(statusTo('mal', 'completed', 'anime')).toBe('completed');
+		expect(statusTo('mal', 'dropped', 'anime')).toBe('dropped');
+		// AniList's words do not differ by kind, and a manga keeps its own.
+		expect(statusTo('anilist', 'reading', 'anime')).toBe('CURRENT');
+		expect(statusTo('mal', 'reading', 'manga')).toBe('reading');
+		expect(statusTo('mal', 'reading', 'novel')).toBe('reading');
+	});
 });
 
 describe('progress', () => {
@@ -66,6 +79,37 @@ describe('progress', () => {
 			progressToSend({ reached: 3, remote: { progress: 1, status: 'on_hold' }, waiting: null })
 				?.status
 		).toBeNull();
+	});
+
+	it('finishes the entry with its last counted episode, once (c240)', () => {
+		// The season's last episode: the progress and COMPLETED in one send.
+		expect(progressToSend({ reached: 12, remote: null, waiting: null, complete: true })).toEqual({
+			progress: 12,
+			status: 'completed'
+		});
+		// Already completed there: nothing to send, however many passes run.
+		expect(
+			progressToSend({
+				reached: 12,
+				remote: { progress: 12, status: 'completed' },
+				waiting: null,
+				complete: true
+			})
+		).toBeNull();
+		// The list is ahead of us: the status alone, never a lower progress.
+		expect(
+			progressToSend({
+				reached: 12,
+				remote: { progress: 12, status: 'reading' },
+				waiting: null,
+				complete: true
+			})
+		).toEqual({ progress: null, status: 'completed' });
+		// A part not yet finished keeps the ordinary rule.
+		expect(progressToSend({ reached: 11, remote: null, waiting: null, complete: false })).toEqual({
+			progress: 11,
+			status: 'reading'
+		});
 	});
 });
 

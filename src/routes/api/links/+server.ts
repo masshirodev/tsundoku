@@ -79,11 +79,11 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 
 	try {
 		if (b.undo === 'link') {
-			undoLink(seriesId);
+			undoLink(seriesId, season, part);
 			recover(false);
 			return json({ ok: true });
 		}
-		if (b.undo === 'none') return json({ ok: await undoNone(seriesId) });
+		if (b.undo === 'none') return json({ ok: await undoNone(seriesId, season, part) });
 		if (b.undo === 'search') {
 			undoSearch(seriesId, b.was ?? undefined);
 			recover(false);
@@ -95,7 +95,7 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			return json({ ok: true });
 		}
 		if (b.none) {
-			noneOfThese(seriesId, Date.now(), season);
+			noneOfThese(seriesId, Date.now(), season, part);
 			return json({ ok: true });
 		}
 		if (b.skip) {

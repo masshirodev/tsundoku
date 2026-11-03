@@ -4,6 +4,9 @@
  * TRACKING row shows. No database, no network.
  */
 
+import { isAnime } from './catalogue.ts';
+import type { Kind } from './types.ts';
+
 export type Service = 'anilist' | 'mal';
 export const SERVICES: Service[] = ['anilist', 'mal'];
 export const SERVICE_NAME: Record<Service, string> = { anilist: 'ANILIST', mal: 'MAL' };
@@ -60,7 +63,21 @@ const TO: Record<Service, Record<Status, string>> = {
 
 export const statusFrom = (service: Service, remote: string | null | undefined): Status | null =>
 	remote ? (FROM[service][remote] ?? null) : null;
-export const statusTo = (service: Service, status: Status): string => TO[service][status];
+
+/**
+ * Tsundoku's status in one catalogue's words. MAL keeps two lists with two
+ * sets of words -- `reading`/`plan_to_read` for a manga, `watching`/
+ * `plan_to_watch` for an anime -- so the entry's own kind decides the two
+ * that differ (c240). Without a kind it is the manga's words, which is what
+ * every caller but an anime's send means.
+ */
+export const statusTo = (service: Service, status: Status, kind?: Kind): string => {
+	if (service === 'mal' && isAnime(kind)) {
+		if (status === 'reading') return 'watching';
+		if (status === 'planning') return 'plan_to_watch';
+	}
+	return TO[service][status];
+};
 
 /**
  * How far a series has been read, as a chapter a catalogue counts: the
@@ -72,19 +89,39 @@ export function chapterReached(read: { position: number }[]): number {
 }
 
 /**
- * What a chapter read here would send: the chapter, only when it's further
- * than the catalogue has and than what already waits (a lower one is never
- * sent: Mihon on the phone can be ahead). A series on nobody's list, or
- * only planned, starts READING; any other status is the owner's and stays.
+ * What a chapter (or an episode) read here would send: the progress, only
+ * when it's further than the catalogue has and than what already waits (a
+ * lower one is never sent: Mihon on the phone can be ahead). A series on
+ * nobody's list, or only planned, starts READING; any other status is the
+ * owner's and stays.
+ *
+ * `complete` is the anime's own rule (c240): the part's last counted episode
+ * is watched, so the entry itself is done. It is queued as COMPLETED unless
+ * the catalogue already says so -- which is what keeps it from being sent
+ * again on every pass. When the progress has already gone (the list was
+ * ahead of us), only the status is sent, so nothing is ever lowered.
  */
 export function progressToSend(o: {
 	reached: number;
 	remote: { progress: number; status: Status | null } | null;
 	waiting: number | null;
-}): { progress: number; status: Status | null } | null {
+	complete?: boolean;
+}): { progress: number | null; status: Status | null } | null {
+	if (o.reached <= 0) return null;
 	const known = Math.max(o.remote?.progress ?? 0, o.waiting ?? 0);
-	if (o.reached <= 0 || o.reached <= known) return null;
-	const status = !o.remote?.status || o.remote.status === 'planning' ? 'reading' : null;
+	const done = !!o.complete && o.remote?.status !== 'completed';
+	if (o.reached <= known) {
+		// The progress has gone (the list can be ahead of us): the last episode
+		// finishes the entry, and a status alone is sent -- nothing lowered.
+		return done && (o.remote?.progress ?? 0) >= o.reached
+			? { progress: null, status: 'completed' }
+			: null;
+	}
+	const status: Status | null = done
+		? 'completed'
+		: !o.remote?.status || o.remote.status === 'planning'
+			? 'reading'
+			: null;
 	return { progress: o.reached, status };
 }
 

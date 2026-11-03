@@ -1279,10 +1279,11 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	// across series: two tsundoku series for one show is the duplicate case,
 	// not an error to refuse.
 	//
-	// `series_links` keeps a mirror of the newest season linked, refreshed by
+	// `series_links` keeps a mirror of the first season linked, refreshed by
 	// `syncSeriesLink` and never read for an anime by tracking: the one reader
 	// that asks a series for one MAL entry is AniSkip, whose episode numbers
-	// are per entry (doc/handoff-notes/tracking.md, "Gaps").
+	// are per entry, and which refuses a season past the first (c240,
+	// doc/handoff-notes/tracking.md, "Gaps").
 	//
 	// The state and the queue are keyed the same way: a season's progress is
 	// its own highest watched episode, counted within its part, and one

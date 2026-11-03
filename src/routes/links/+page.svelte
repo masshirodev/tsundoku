@@ -81,6 +81,9 @@
 			kind: UndoKind;
 			service: Service;
 			series: number;
+			/** An anime's season and part it acted on (c240): UNDO takes that one back. */
+			season?: number;
+			part?: number;
 			was?: QueuedFrom;
 			many?: number[];
 		} | null;
@@ -188,7 +191,7 @@
 		failed = null;
 		const r = await post(it.service, {
 			series: it.seriesId,
-			...(season ? { season: season.no } : {}),
+			...(season ? { season: season.no, part: season.part } : {}),
 			...body
 		});
 		busy = false;
@@ -217,6 +220,9 @@
 				kind: kind as UndoKind,
 				service: it.service,
 				series: it.seriesId,
+				// The season the decision was about: UNDO takes that one back, not
+				// whichever the page happens to open on (c240).
+				...(season ? { season: season.no, part: season.part } : {}),
 				was: kind === 'search' ? ((answer.was as QueuedFrom) ?? null) : undefined
 			},
 			before
@@ -231,6 +237,8 @@
 		const r = await post(u.undo.service, {
 			series: u.undo.series,
 			undo: u.undo.kind,
+			season: u.undo.season,
+			part: u.undo.part,
 			was: u.undo.was,
 			many: u.undo.many
 		});
@@ -246,6 +254,9 @@
 		undo = null;
 		sibs = null;
 		shown = null;
+		// The offers came from the link just taken back: they have no start any more.
+		relations = null;
+		pickedSeasons = [];
 	}
 
 	async function linkChosen() {
@@ -262,7 +273,8 @@
 				series: it.seriesId,
 				link: c.anilistId,
 				pasted: !!pasted,
-				season: season.no
+				season: season.no,
+				part: season.part
 			});
 			busy = false;
 			if (!r?.ok) {
@@ -276,7 +288,13 @@
 			undo = {
 				title: `LINKED · SEASON ${season.no} TO ${c.title.toUpperCase()}`,
 				detail: `${c.ids} · ITS SEND STARTS WITH THE NEXT EPISODE WATCHED`,
-				undo: { kind: 'link', service: it.service, series: it.seriesId },
+				undo: {
+					kind: 'link',
+					service: it.service,
+					series: it.seriesId,
+					season: season.no,
+					part: season.part
+				},
 				before
 			};
 			return;

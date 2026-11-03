@@ -58,7 +58,19 @@ const fake: typeof fetch = async (input, init) => {
 		if (url.endsWith('/users/@me')) return json({ id: 9, name: 'masshiro' });
 		if (url.includes('/users/@me/mangalist')) return json({ data: [], paging: {} });
 		if (url.includes('/users/@me/animelist')) return json({ data: [], paging: {} });
-		if (url.includes('/my_list_status')) return json({ status: 'watching' });
+		if (url.includes('/my_list_status')) {
+			// MAL keeps two lists with two sets of status words: a manga's is
+			// reading/plan_to_read, an anime's is watching/plan_to_watch, and the
+			// other list's word is a 400 that takes the progress with it (c240).
+			const status = (body as Record<string, string>).status;
+			const wrong = url.includes('/anime/')
+				? status === 'reading' || status === 'plan_to_read'
+				: url.includes('/manga/')
+					? status === 'watching' || status === 'plan_to_watch'
+					: false;
+			if (wrong) return json({ error: 'invalid status' }, 400);
+			return json({ status: status ?? 'watching' });
+		}
 	}
 	return json({}, 404);
 };
@@ -363,13 +375,17 @@ describe('sending a season', () => {
 		expect(tr.queueProgress(id, NOW)).toBe(2);
 		await tr.sendPending({ now: NOW });
 		const save = sent.find((s) => JSON.stringify(s.body).includes('SaveMediaListEntry'))!;
-		expect((save.body as { variables: Record<string, unknown> }).variables).toMatchObject({
+		// AniList's own word for watching; the entry starts there (c240).
+		expect((save.body as { variables: Record<string, unknown> }).variables).toEqual({
 			mediaId: 102,
-			progress: 5
+			progress: 5,
+			status: 'CURRENT'
 		});
 		const patch = sent.find((s) => s.url.includes('/my_list_status'))!;
 		expect(patch.url).toBe('https://api.myanimelist.net/v2/anime/502/my_list_status');
-		expect(patch.body).toMatchObject({ num_watched_episodes: '5' });
+		// MAL's anime list says `watching`, never the manga list's `reading`: the
+		// stand-in refuses that word with a 400, as MAL does.
+		expect(patch.body).toEqual({ num_watched_episodes: '5', status: 'watching' });
 		// Season 1 has nothing watched: it sent nothing and waits for nothing.
 		expect(
 			db
@@ -539,6 +555,96 @@ describe('sending a season', () => {
 		expect(last.body).toMatchObject({ num_chapters_read: '40' });
 	});
 
+	it('sends MAL its own list’s words for an anime, in the sheet as on the first episode', async () => {
+		const id = show({ seasons: [[1, 2, 3]] });
+		seasons.linkSeason(id, 1, 1, animeEntry(101, { mal: 501, episodes: 3 }), 'review', NOW);
+		await signIn('anilist');
+		await signIn('mal');
+		// The TRACKING sheet's PLANNING, on a season with nothing watched: MAL's
+		// anime list spells it `plan_to_watch`, and AniList's PLANNING.
+		tr.editTracking(id, { status: 'planning' }, NOW, { season: 1, part: 1 });
+		await tr.sendPending({ now: NOW });
+		const patch = sent.findLast((s) => s.url.includes('/my_list_status'))!;
+		expect(patch.url).toBe('https://api.myanimelist.net/v2/anime/501/my_list_status');
+		expect(patch.body).toEqual({ status: 'plan_to_watch' });
+		const save = sent.findLast((s) => JSON.stringify(s.body).includes('SaveMediaListEntry'))!;
+		expect((save.body as { variables: Record<string, unknown> }).variables).toEqual({
+			mediaId: 101,
+			status: 'PLANNING'
+		});
+	});
+
+	it('sends COMPLETED with the part’s last counted episode, and never again', async () => {
+		const id = show({ seasons: [[1, 2, 3]] });
+		seasons.linkSeason(id, 1, 1, animeEntry(101, { mal: 501, episodes: 3 }), 'review', NOW);
+		await signIn('anilist');
+		await signIn('mal');
+		markWatched(entryId(id, 1, 3));
+		expect(tr.queueProgress(id, NOW)).toBe(2);
+		await tr.sendPending({ now: NOW });
+		const save = sent.find((s) => JSON.stringify(s.body).includes('SaveMediaListEntry'))!;
+		expect((save.body as { variables: Record<string, unknown> }).variables).toEqual({
+			mediaId: 101,
+			progress: 3,
+			status: 'COMPLETED'
+		});
+		const patch = sent.findLast((s) => s.url.includes('/my_list_status'))!;
+		expect(patch.body).toEqual({ num_watched_episodes: '3', status: 'completed' });
+		// The list says completed now: another pass queues and sends nothing.
+		sent = [];
+		expect(tr.queueProgress(id, NOW)).toBe(0);
+		await tr.sendPending({ now: NOW });
+		expect(sent.filter((s) => s.url.includes('/my_list_status'))).toHaveLength(0);
+		expect(sent.filter((s) => JSON.stringify(s.body).includes('SaveMediaListEntry'))).toHaveLength(
+			0
+		);
+	});
+
+	it('sends only COMPLETED when the list was already at the part’s last episode', async () => {
+		const id = show({ seasons: [[1, 2, 3]] });
+		seasons.linkSeason(id, 1, 1, animeEntry(101, { mal: 501, episodes: 3 }), 'review', NOW);
+		await signIn('anilist');
+		await signIn('mal');
+		db.prepare(
+			`INSERT INTO season_tracker_state (series_id, season, part, service, status, progress, sent_at)
+			VALUES (?, 1, 1, 'anilist', 'reading', 3, ?)`
+		).run(id, NOW);
+		markWatched(entryId(id, 1, 3));
+		expect(tr.queueProgress(id, NOW)).toBe(2);
+		await tr.sendPending({ now: NOW });
+		// No progress: a lower one is never sent. The status alone finishes it.
+		const save = sent.find((s) => JSON.stringify(s.body).includes('SaveMediaListEntry'))!;
+		expect((save.body as { variables: Record<string, unknown> }).variables).toEqual({
+			mediaId: 101,
+			status: 'COMPLETED'
+		});
+	});
+
+	it('places a rating by the open season’s own watching, not an earlier season’s', async () => {
+		// Season 1 has 15 episodes and is watched through, so season 2 opens. Its
+		// two entries are 12 + 11: the season's EP. 13 is part 2's EP. 1. Season 1's
+		// last episode is 15, which read across the whole series would land in
+		// part 2 (c240). It must be part 1: season 2 has nothing watched.
+		const id = show({
+			seasons: [
+				Array.from({ length: 15 }, (_, i) => i + 1),
+				Array.from({ length: 23 }, (_, i) => i + 1)
+			]
+		});
+		seasons.linkSeason(id, 2, 1, animeEntry(201, { mal: 601, episodes: 12 }), 'relations', NOW);
+		seasons.linkSeason(id, 2, 2, animeEntry(202, { mal: 602, episodes: 11 }), 'relations', NOW);
+		await signIn('anilist');
+		for (let n = 1; n <= 15; n++) markWatched(entryId(id, 1, n));
+		expect(seasons.seriesSeasons(id)!.open).toBe(2);
+		expect(tr.ratingPart(id)).toEqual({ season: 2, part: 1 });
+		await tr.afterRating([id], 8);
+		const saves = sent
+			.filter((s) => JSON.stringify(s.body).includes('SaveMediaListEntry'))
+			.map((s) => (s.body as { variables: Record<string, unknown> }).variables);
+		expect(saves).toHaveLength(1);
+		expect(saves[0]).toMatchObject({ mediaId: 201, scoreRaw: 80 });
+	});
+
 	it('shows each season on the TRACKING row, its parts folded in', async () => {
 		const id = show({
 			seasons: [
@@ -554,8 +660,9 @@ describe('sending a season', () => {
 		await tr.sendPending({ now: NOW });
 		const t = tr.trackingOf(id)!;
 		expect(t.seasons?.map((s) => s.season)).toEqual([1, 2]);
+		// Every episode of season 1 watched: the entry is complete (c240).
 		expect(t.seasons?.[0].facts.find((f) => f.service === 'anilist')).toMatchObject({
-			state: { status: 'reading', progress: 4 }
+			state: { status: 'completed', progress: 4 }
 		});
 		// Season 2 is not linked: its line says so, and sends nothing.
 		expect(t.seasons?.[1].link).toBeNull();
@@ -632,13 +739,26 @@ describe('every door writes the season’s row', () => {
 		seasons.linkSeason(id, 2, 1, animeEntry(102), 'review', NOW);
 		cat.unlink(id, NOW, 1);
 		expect(seasons.seasonLinks(id).map((l) => l.season)).toEqual([2]);
-		// The mirror is the first season still linked, which is now season 2's.
-		expect(db.prepare(`SELECT anilist_id FROM series_links WHERE series_id = ?`).get(id)).toEqual({
-			anilist_id: 102
-		});
+		// Season 2 is not the series' first season, so there is no mirror for
+		// AniSkip to ask under a later season's entry (c240).
+		expect(db.prepare(`SELECT anilist_id FROM series_links WHERE series_id = ?`).get(id)).toBe(
+			undefined
+		);
 		expect(
 			db.prepare(`SELECT season FROM season_link_decisions WHERE series_id = ?`).all(id)
 		).toEqual([{ season: 1 }]);
+	});
+
+	it('UNLINK takes a season’s second part with its first', () => {
+		const id = show({ seasons: [Array.from({ length: 23 }, (_, i) => i + 1)] });
+		seasons.linkSeason(id, 1, 1, animeEntry(201, { episodes: 12 }), 'relations', NOW);
+		seasons.linkSeason(id, 1, 2, animeEntry(202, { episodes: 11 }), 'relations', NOW);
+		// The season's line stands for the season: UNLINK leaves no part behind.
+		cat.unlink(id, NOW, 1);
+		expect(seasons.seasonLinks(id)).toEqual([]);
+		expect(
+			db.prepare(`SELECT COUNT(*) AS n FROM series_links WHERE series_id = ?`).get(id)
+		).toEqual({ n: 0 });
 	});
 
 	it('NONE OF THESE settles one season, and the series stays in the pass for the others', () => {
@@ -654,6 +774,114 @@ describe('every door writes the season’s row', () => {
 		expect(seasons.seasonSettled(id, 2)).toBe(false);
 		expect(cat.undoNone(id)).toBe(true);
 		expect(seasons.seasonSettled(id, 1)).toBe(false);
+	});
+
+	it('leaves the review queue only when every season is settled, and comes back on undo', () => {
+		const id = show({
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		const passable = () => cat.searchable(10_000).some((r) => r.id === id);
+		// The cover pass asks while any season is unsettled.
+		expect(passable()).toBe(true);
+		cat.noneOfThese(id, NOW, 1);
+		expect(passable()).toBe(true);
+		cat.noneOfThese(id, NOW, 2);
+		expect(passable()).toBe(false);
+		expect(cat.undoNone(id, 2)).toBe(true);
+		expect(passable()).toBe(true);
+		// The review queue, made of a search that waits for LINK: the same rule.
+		db.prepare(
+			`INSERT INTO link_searches (series_id, query, searched_at, found) VALUES (?, 'Show', ?, 2)`
+		).run(id, NOW);
+		const queued = () => cat.linkQueue(false).some((i) => i.seriesId === id);
+		expect(queued()).toBe(true);
+		// Season 1 settled: season 2 still wants a look.
+		cat.noneOfThese(id, NOW, 1);
+		expect(queued()).toBe(true);
+		expect(seasons.seriesSeasons(id)!.seasons[0].settled).toBe(true);
+		// Season 2 settled too: the series is done.
+		cat.noneOfThese(id, NOW, 2);
+		expect(queued()).toBe(false);
+		// UNDO one season's decision and the series is back in both.
+		expect(cat.undoNone(id, 1)).toBe(true);
+		expect(queued()).toBe(true);
+		expect(cat.undoNone(id, 2)).toBe(true);
+	});
+
+	it('shows a season the link of that season, never the open season’s or the mirror’s', () => {
+		const id = show({
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		seasons.linkSeason(id, 1, 1, animeEntry(101), 'review', NOW);
+		// The open season is 1; its own page keeps its entry.
+		expect(cat.linkState(id)?.linked).toMatchObject({ anilistId: 101, title: 'Entry 101' });
+		// Season 2 has no row, though `series_links` holds season 1's mirror.
+		expect(db.prepare(`SELECT anilist_id FROM series_links WHERE series_id = ?`).get(id)).toEqual({
+			anilist_id: 101
+		});
+		expect(cat.linkState(id, 2)?.linked).toBeNull();
+		expect(cat.linkState(id, 1)?.linked).toMatchObject({ anilistId: 101 });
+	});
+
+	it('UNDO takes back the season it acted on, not the open one', () => {
+		const id = show({
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		seasons.linkSeason(id, 1, 1, animeEntry(101), 'review', NOW);
+		seasons.linkSeason(id, 2, 1, animeEntry(102), 'review', NOW);
+		// The open season is 1: UNDO after linking season 2 must take season 2's.
+		expect(seasons.seriesSeasons(id)!.open).toBe(1);
+		expect(cat.undoLink(id, 2)).toBe(true);
+		expect(seasons.seasonLinks(id).map((l) => l.season)).toEqual([1]);
+	});
+
+	it('UNDO of NONE OF THESE takes back that season’s decision, and no other', () => {
+		const id = show({
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		cat.noneOfThese(id, NOW, 1);
+		cat.noneOfThese(id, NOW, 2);
+		expect(cat.undoNone(id, 2)).toBe(true);
+		expect(seasons.seasonSettled(id, 1)).toBe(true);
+		expect(seasons.seasonSettled(id, 2)).toBe(false);
+	});
+
+	it('mirrors only the series’ first season into series_links, so AniSkip is never asked the wrong entry', async () => {
+		const { lookupAniSkip } = await import('$lib/server/anime/aniskip');
+		const id = show({
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		// Only season 2 linked: no mirror, and season 1's episode asks nothing.
+		seasons.linkSeason(id, 2, 1, animeEntry(102, { mal: 502 }), 'review', NOW);
+		expect(
+			db.prepare(`SELECT COUNT(*) AS n FROM series_links WHERE series_id = ?`).get(id)
+		).toEqual({ n: 0 });
+		sent = [];
+		await lookupAniSkip(entryId(id, 1, 1), { now: NOW });
+		expect(sent.filter((s) => s.url.includes('/skip-times/'))).toHaveLength(0);
+		// Season 1 linked: the mirror is season 1's entry, and its episode is asked.
+		seasons.linkSeason(id, 1, 1, animeEntry(101, { mal: 501 }), 'review', NOW);
+		expect(db.prepare(`SELECT mal_id FROM series_links WHERE series_id = ?`).get(id)).toEqual({
+			mal_id: 501
+		});
+		sent = [];
+		await lookupAniSkip(entryId(id, 1, 1), { now: NOW });
+		expect(sent.filter((s) => s.url.includes('/skip-times/501/1'))).toHaveLength(1);
 	});
 
 	it('a season’s own search is kept against that season, not the open one', async () => {
