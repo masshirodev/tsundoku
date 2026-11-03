@@ -360,8 +360,8 @@
 	 * skip and PLAY NOW do the same thing and the card is the button the owner
 	 * reaches for, so the card stays first if they ever can be.
 	 */
-	const overlay = $derived<'next' | 'skip' | null>(
-		endcardShown ? 'next' : skipShown ? 'skip' : null
+	const overlay = $derived<'next' | 'skip' | 'work' | null>(
+		endcardShown ? 'next' : workCardShown ? 'work' : skipShown ? 'skip' : null
 	);
 	/** The bar's ↑, when an overlay is up: back to the button it was left from (c296). */
 	const focusUp = $derived(
@@ -369,7 +369,9 @@
 			? undefined
 			: overlay === 'next'
 				? '[data-player-play]'
-				: '[data-player-skip]'
+				: overlay === 'work'
+					? '[data-player-work]'
+					: '[data-player-skip]'
 	);
 	const marks = $derived(
 		[streams?.intro, streams?.ending]
@@ -390,15 +392,20 @@
 	/** Whether the last thing focused was one of the overlay's buttons. */
 	let overlayHadFocus = false;
 	/** The offer that last took the pad, whether or not the chrome drew it. */
-	let offered: 'next' | 'skip' | null = null;
+	let offered: 'next' | 'skip' | 'work' | null = null;
 
-	function overlayButton(kind: 'next' | 'skip'): HTMLElement | null {
-		const selector = kind === 'next' ? '[data-player-play]' : '[data-player-skip]';
+	function overlayButton(kind: 'next' | 'skip' | 'work'): HTMLElement | null {
+		const selector =
+			kind === 'next'
+				? '[data-player-play]'
+				: kind === 'work'
+					? '[data-player-work]'
+					: '[data-player-skip]';
 		return root?.querySelector<HTMLElement>(selector) ?? null;
 	}
 
 	function onFocusIn(e: FocusEvent): void {
-		overlayHadFocus = e.target instanceof Element && !!e.target.closest('.endcard, .skip');
+		overlayHadFocus = e.target instanceof Element && !!e.target.closest('.endcard, .skip, .upn');
 	}
 
 	/**
@@ -409,7 +416,9 @@
 	 * the owner had just asked for. The offer takes the pad when it starts; a
 	 * bar that reveals an offer already running leaves focus where it is.
 	 */
-	const offer = $derived<'next' | 'skip' | null>(endcardShown ? 'next' : skip ? 'skip' : null);
+	const offer = $derived<'next' | 'skip' | 'work' | null>(
+		endcardShown ? 'next' : workCardShown ? 'work' : skip ? 'skip' : null
+	);
 
 	/**
 	 * PLAY NOW, and SKIP, take focus the moment they are offered on a TV (c296):
@@ -447,7 +456,7 @@
 			if (!tv.current || chrome || !overlay) return;
 			const active = document.activeElement;
 			if (!(active instanceof HTMLElement) || active === document.body) return;
-			if (active.closest('.endcard, .skip')) return;
+			if (active.closest('.endcard, .skip, .upn')) return;
 			if (isFocusable(active)) return;
 			overlayButton(overlay)?.focus({ preventScroll: true });
 		});
@@ -1178,7 +1187,7 @@
 			</div>
 			<div class="acts">
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref()/resolve() built both -->
-				<a class="acc" href={workStart} data-focus-mark="in"
+				<a class="acc" href={workStart} data-player-work data-focus-mark="in" data-focus-start
 					>▶ {kindVerb(workNext.kind)} · {unitLabel(workNext.kind)}. {workNext.entry?.number ??
 						1}<span>→</span></a
 				>
