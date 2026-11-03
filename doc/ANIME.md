@@ -516,7 +516,18 @@ THE SAME WAY SINCE 1 NOV` — and the cell opens MOVE ([`MOVE.md`](MOVE.md)).
   and plays it; STAY stops it. The last episode ends on END · LAST AVAILABLE.
 - **Portrait** (a phone or tablet held upright) puts the picture on top, the
   controls always shown beneath it, and UP NEXT below; FULL goes full screen
-  and turns it where the browser allows.
+  and turns it where the browser allows. **The scrubber under the picture
+  seeks** (c387): a tap goes there, a drag follows the finger with the time
+  under it shown over the picture, and the whole 44px row is the target, not
+  the 4px line. It is a slider like the bar's (`role="slider"`, its aria
+  values, ← → when focused), it takes the pointer itself (`touch-action:
+none`), and it sits fixed under the picture with UP NEXT scrolling below it,
+  so a drag never scrolls the page and its tip is never clipped. Until 2026-11-03
+  it was drawn with no handlers at all, a picture of a scrubber. Both tracks
+  measure the one the pointer is on (the hidden one is 0 wide), and the
+  scrubber goes by the video's own length from its `durationchange`: before,
+  it went by the episode's stored length until playback's first tick, so a
+  seek before ▶ could land far off the file's real end.
 - **Watching is reading.** The player sends the reader's events
   (`/api/reading`): `page` is seconds into the episode, and `length` its
   length as the player measured it, which is how an episode learns its length
@@ -530,7 +541,9 @@ THE SAME WAY SINCE 1 NOV` — and the cell opens MOVE ([`MOVE.md`](MOVE.md)).
 and file tests in `tests/anime-streams-db.spec.ts`, and the player tests in
 `tests/browse-anime.e2e.ts` (the fake engine's broken server passed over,
 subtitles, SKIP INTRO, the frame's literals, the sheet, the NEXT page and
-STAY, WATCHED on the series; portrait). The clip is
+STAY, WATCHED on the series; portrait), with the portrait scrubber's tap,
+drag, hit area and tip at a 390×844 touch phone in
+`tests/browse-player-portrait.e2e.ts`. The clip is
 `tests/fixtures/video/clip.webm`, VP9 and Opus: Playwright's Chromium has no
 H.264.
 

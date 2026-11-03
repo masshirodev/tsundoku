@@ -754,6 +754,15 @@
 	const rangesOf = (b: TimeRanges): [number, number][] =>
 		Array.from({ length: b.length }, (_, i) => [b.start(i), b.end(i)]);
 
+	/**
+	 * The file's own length, as soon as it is known: the episode's stored one
+	 * is a catalogue's figure, and before the first timeupdate a seek on the
+	 * scrubber went by it (c387: a paused 8 s clip, tapped at its middle, went
+	 * to 720 s of a stored 24 minutes, clamped to the end).
+	 */
+	function onDuration() {
+		if (video && Number.isFinite(video.duration) && video.duration > 0) duration = video.duration;
+	}
 	function onTime() {
 		if (!video) return;
 		// Mid-reload the emptied video says 0: neither shown nor sent, or a
@@ -857,7 +866,9 @@
 	}
 	/** ←/→: the track is a slider and flashes; the picture's own seek stays quiet. */
 	function seekArrow(by: number) {
-		if (document.activeElement === scrub) seekWithFlash(by);
+		// Either track: the bar's, or portrait's under the picture (c387).
+		if (document.activeElement instanceof HTMLElement && document.activeElement.matches('.track'))
+			seekWithFlash(by);
 		else seek(by);
 	}
 	function skipNow() {
@@ -890,21 +901,38 @@
 		const box = el.getBoundingClientRect();
 		return { left: box.left + el.clientLeft, width: el.clientWidth };
 	}
+	/**
+	 * Where on the timeline a pointer is, 0 to 1, measured on the track it is
+	 * over. There are two tracks, the bar's and portrait's (c387), and only one
+	 * is drawn at a time: the hidden one's box is 0 wide, so the event's own
+	 * track is the one to measure, never a ref to either.
+	 */
+	function scrubFraction(e: PointerEvent): number | null {
+		const box = scrubBox(e.currentTarget as HTMLElement);
+		if (!box.width) return null;
+		return Math.max(0, Math.min(1, (e.clientX - box.left) / box.width));
+	}
 	function scrubTo(e: PointerEvent) {
-		if (!scrub || !video || !duration) return;
-		const box = scrubBox(scrub);
+		const f = scrubFraction(e);
+		if (f === null || !video || !duration) return;
 		reloadingTo = null;
-		video.currentTime = Math.max(0, Math.min(1, (e.clientX - box.left) / box.width)) * duration;
+		video.currentTime = f * duration;
 		time = video.currentTime;
 	}
 	function scrubDown(e: PointerEvent) {
 		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+		// A finger has no hover: its tip shows from the press, the time it sought,
+		// and goes with the lift (a touch's pointerleave follows its pointerup).
+		if (e.pointerType !== 'mouse') {
+			const f = scrubFraction(e);
+			if (f !== null && duration) hoverAt = f * duration;
+		}
 		scrubTo(e);
 	}
 	function scrubMove(e: PointerEvent) {
-		if (!scrub || !duration) return;
-		const box = scrubBox(scrub);
-		hoverAt = Math.max(0, Math.min(1, (e.clientX - box.left) / box.width)) * duration;
+		const f = scrubFraction(e);
+		if (f === null || !duration) return;
+		hoverAt = f * duration;
 		if (e.buttons & 1) scrubTo(e);
 	}
 
@@ -1216,6 +1244,7 @@
 			bind:paused
 			playsinline
 			ontimeupdate={onTime}
+			ondurationchange={onDuration}
 			onwaiting={onWaiting}
 			onplaying={onProgressing}
 			onprogress={() =>
@@ -1520,16 +1549,35 @@
 				{@render addCell('padd')}
 				<button type="button" onclick={full}>FULL</button>
 			</div>
-			<div class="pbody">
-				<div class="pscrub">
-					<div>{clock(time)}</div>
-					<div class="track">
-						<div class="buf" style:width={pct(buffered)}></div>
-						<div class="seen" style:width={pct(time)}></div>
-						<div class="thumb" style:left={pct(time)}></div>
-					</div>
-					<div class="mut">{leftLabel(time, duration)}</div>
+			<!-- The scrubber under the picture (c387): the bar's own handlers and
+			     slider role, measured on this track. It sits outside the scrolling
+			     body, so a drag's tip can rise over the picture rather than be
+			     clipped, and what is next scrolls under it. -->
+			<div class="pscrub">
+				<div>{clock(time)}</div>
+				<div
+					class="track"
+					role="slider"
+					tabindex="0"
+					aria-label="Position"
+					aria-valuemin={0}
+					aria-valuemax={Math.round(duration)}
+					aria-valuenow={Math.round(time)}
+					aria-valuetext={clock(time)}
+					onpointerdown={scrubDown}
+					onpointermove={scrubMove}
+					onpointerleave={() => (hoverAt = null)}
+				>
+					<div class="buf" style:width={pct(buffered)}></div>
+					<div class="seen" style:width={pct(time)}></div>
+					<div class="thumb" style:left={pct(time)}></div>
+					{#if hoverAt !== null}
+						<div class="tip" style:left={pct(hoverAt)}>{clock(hoverAt)}</div>
+					{/if}
 				</div>
+				<div class="mut">{leftLabel(time, duration)}</div>
+			</div>
+			<div class="pbody">
 				<div class="pcells">
 					<button type="button" aria-label="Back 10 seconds" onclick={() => seek(-10)}>−10</button>
 					<button type="button" aria-label={paused ? 'Play' : 'Pause'} onclick={toggle}
@@ -2957,12 +3005,19 @@
 		position: absolute;
 		left: 0;
 		right: 0;
-		top: calc(56px + 100vw * 9 / 16);
+		/* Under the picture and the 44px scrubber with its 1px rule. */
+		top: calc(56px + 100vw * 9 / 16 + 45px);
 		bottom: 0;
 		overflow-y: auto;
 		background: var(--surface-page);
 	}
 	.pscrub {
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: calc(56px + 100vw * 9 / 16);
+		box-sizing: content-box;
+		background: var(--surface-page);
 		display: flex;
 		align-items: center;
 		gap: 12px;
@@ -2974,6 +3029,10 @@
 	.pscrub .track .thumb {
 		top: -8px;
 		height: 20px;
+	}
+	/* The whole 44px row is the finger's target, not the 4px line (c387). */
+	.pscrub .track::before {
+		inset: -20px 0;
 	}
 	.pcells {
 		display: grid;
