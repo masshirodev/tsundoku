@@ -656,7 +656,15 @@ screen but the video, and the subtitles, until a tap.
     keep tsundoku's face, scrim and S M L there; with no controls in the
     window they sit 7 % from its bottom, where the page puts them while the
     controls are hidden, and never rise. A subtitle change on the page (the
-    sheet, C) shows in the window at once: it is the same element. Every way
+    sheet, C) shows in the window at once: it is the same element. The
+    window answers on its own: a mouse's click on the picture plays or pauses
+    it, as on the page, and the player's keys (Space, ← →, ↑ ↓, M, C, N) work
+    with the window focused, except Escape, which brings the picture back
+    rather than leaving the page behind it. It needs listeners of its own,
+    added when it opens and removed when the picture comes back: the
+    picture's pointer handlers are Svelte's delegated ones, heard on the
+    page's root, and the keys are the page's window, so neither hears the
+    floating window's document. There are no controls in it. Every way
     out puts the picture back in the page, the same `<video>` still playing:
     PIP · ON, the window's own close (its `pagehide`), and NEXT or leaving the
     page, which close the window too rather than leave it empty (a new

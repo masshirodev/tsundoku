@@ -1040,6 +1040,7 @@
 			moveInto(w, stage);
 			pipWin = w;
 			inDocPip = true;
+			pipInputOff = pipInput(w);
 			// The window's own close button, or the browser closing it: the picture comes back.
 			w.addEventListener('pagehide', putBack, { once: true });
 			return;
@@ -1057,8 +1058,47 @@
 			el.removeEventListener('leavepictureinpicture', off);
 		};
 	}
+	let pipInputOff: (() => void) | null = null;
+	/**
+	 * The floating window's own input (round 2 of c388). The tapzone's
+	 * pointer handlers are Svelte's delegated ones, whose one listener is on
+	 * the page's root, and the keys are the page's window: neither hears the
+	 * floating window's document. So the window gets native listeners of its
+	 * own, removed when the picture comes back: a click on the picture plays
+	 * or pauses as it does on the page, and the player's keys work with the
+	 * window focused, except Escape, which brings the picture back rather
+	 * than leaving the page behind it.
+	 */
+	function pipInput(w: Window): () => void {
+		// Not `instanceof w.Element`: a node moved in keeps the page's prototypes.
+		const zoneOf = (e: Event) =>
+			((e.target as Element | null)?.closest?.('.tapzone') as HTMLElement | null) ?? null;
+		const down = (e: PointerEvent) => {
+			if (zoneOf(e)) pressed = { x: e.clientX, y: e.clientY };
+		};
+		const up = (e: PointerEvent) => {
+			const zone = zoneOf(e);
+			if (zone) pictureTap(e, zone);
+		};
+		const key = (e: KeyboardEvent) => {
+			if (e.key === 'Escape' && !keysOpen && !sheet) {
+				e.preventDefault();
+				closePip();
+			} else keydown(e);
+		};
+		w.document.addEventListener('pointerdown', down);
+		w.document.addEventListener('pointerup', up);
+		w.addEventListener('keydown', key);
+		return () => {
+			w.document.removeEventListener('pointerdown', down);
+			w.document.removeEventListener('pointerup', up);
+			w.removeEventListener('keydown', key);
+		};
+	}
 	/** The picture layer back in its place: the player's first child, as the markup has it. */
 	function putBack() {
+		pipInputOff?.();
+		pipInputOff = null;
 		if (stage && root) moveBack(root, stage);
 		pipWin = null;
 		inDocPip = false;
@@ -1093,7 +1133,7 @@
 	let flashTimer: ReturnType<typeof setTimeout> | undefined;
 	/** Where the press began: a pointer that wandered is a drag, not a click. */
 	let pressed: { x: number; y: number } | null = null;
-	function pictureTap(e: PointerEvent) {
+	function pictureTap(e: PointerEvent, zone = e.currentTarget as HTMLElement) {
 		const kind = e.pointerType === 'mouse' ? 'mouse' : 'touch';
 		if (kind === 'mouse') {
 			mouse = true;
@@ -1103,7 +1143,7 @@
 		const tap = isTap(pressed, at);
 		pressed = null;
 		if (!tap) return;
-		const box = (e.currentTarget as HTMLElement).getBoundingClientRect();
+		const box = zone.getBoundingClientRect();
 		const x = (at.x - box.left) / box.width;
 		const side: -1 | 0 | 1 = x < 1 / 3 ? -1 : x > 2 / 3 ? 1 : 0;
 		const now = Date.now();

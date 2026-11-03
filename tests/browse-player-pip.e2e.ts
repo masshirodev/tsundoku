@@ -131,6 +131,64 @@ test.describe('Document Picture-in-Picture (Chromium)', () => {
 		await expect(page.getByRole('button', { name: 'Picture in picture' })).toHaveText('PIP');
 	});
 
+	test('the window answers on its own: a click on the picture and the keys play and pause (c388)', async ({
+		page
+	}) => {
+		test.setTimeout(90_000);
+		await openEpisode(page);
+		await showControls(page);
+		const opened = page
+			.context()
+			.waitForEvent('page', { timeout: 5_000 })
+			.catch(() => null);
+		await page.getByRole('button', { name: 'Picture in picture' }).click();
+		await expect.poll(() => inWindow(page)).toMatchObject({ video: true });
+		const win = await opened;
+		expect(win, 'Playwright drives the floating window as a page of its own').not.toBeNull();
+		const paused = () => page.evaluate(() => document.querySelector('video')?.paused ?? null);
+		const inside = () =>
+			page.evaluate(() => {
+				const w = (window as Window & { documentPictureInPicture?: { window: Window | null } })
+					.documentPictureInPicture?.window;
+				return w?.document.querySelector('video')?.paused ?? null;
+			});
+		// The picture went over paused (openEpisode holds it at 1 s).
+		expect(await inside()).toBe(true);
+		expect(await paused()).toBeNull();
+		// A mouse's click in the middle of the picture, in the window: it plays...
+		const box = await win!.evaluate(() => ({ w: innerWidth, h: innerHeight }));
+		await win!.mouse.click(box.w / 2, box.h / 2);
+		await expect.poll(inside).toBe(false);
+		// ...and Space, typed with the window focused, pauses it again.
+		await win!.keyboard.press(' ');
+		await expect.poll(inside).toBe(true);
+		// M mutes, the player's other keys being the same function.
+		await win!.keyboard.press('m');
+		await expect
+			.poll(() =>
+				page.evaluate(
+					() =>
+						(
+							window as Window & { documentPictureInPicture?: { window: Window | null } }
+						).documentPictureInPicture?.window?.document.querySelector('video')?.muted
+				)
+			)
+			.toBe(true);
+		await win!.keyboard.press('m');
+		// Escape in the window brings the picture back, not the page away.
+		const here = page.url();
+		await win!.keyboard.press('Escape');
+		await expect.poll(() => inWindow(page)).toBeNull();
+		await expect(page.locator('.player > .stage video')).toHaveCount(1);
+		expect(page.url()).toBe(here);
+		// Back in the page, the page's own click still plays and pauses: once, not
+		// twice (the window's listeners went with it). Above the ▶ in the middle.
+		const before = await paused();
+		const stage = (await page.locator('.player > .stage').boundingBox())!;
+		await page.mouse.click(stage.x + stage.width / 2, stage.y + stage.height / 4);
+		await expect.poll(paused).toBe(!before);
+	});
+
 	test('PIP again, and NEXT, close the window: none is left empty (c388)', async ({ page }) => {
 		test.setTimeout(90_000);
 		await openEpisode(page);
