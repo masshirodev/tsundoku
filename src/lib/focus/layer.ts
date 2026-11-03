@@ -14,7 +14,7 @@
  * rather than to the page.
  */
 
-import { directionOf, nextInDirection } from './geometry';
+import { directionOf, nextInDirection, type Direction } from './geometry';
 import { focusablesIn, isFocusable, isVisible, keepsArrow, rectOf } from './dom';
 import { isBackKey, isOkKey, isOptionsKey, OkPress } from './keys';
 import { TV } from '$lib/device.svelte';
@@ -181,6 +181,26 @@ function startOf(scope: HTMLElement): HTMLElement | null {
 
 function move(el: HTMLElement): void {
 	take(el);
+}
+
+/**
+ * Where one arrow goes instead of the nearest thing that way. A control can
+ * name it with `data-focus-up` (and the other three): the player's seek bar
+ * sends ↑ back to the card it sits under (c296), where the two buttons above
+ * it are equally near and the geometry would pick STAY rather than PLAY NOW.
+ * The value is a selector inside the scope; a selector that matches nothing
+ * lets the geometry decide.
+ */
+function namedTarget(
+	current: HTMLElement,
+	direction: Direction,
+	scope: HTMLElement
+): HTMLElement | null {
+	const host = current.closest<HTMLElement>(`[data-focus-${direction}]`);
+	const selector = host?.getAttribute(`data-focus-${direction}`);
+	if (!selector) return null;
+	const found = [...scope.querySelectorAll<HTMLElement>(selector)].find(isFocusable);
+	return found && found !== current ? found : null;
 }
 
 // ---- the remote's options: OK held, and MENU ---------------------------------
@@ -444,6 +464,14 @@ function handleKeydown(e: KeyboardEvent): void {
 			e.stopPropagation();
 			move(start);
 		}
+		return;
+	}
+
+	const named = namedTarget(current, direction, scope);
+	if (named) {
+		e.preventDefault();
+		e.stopPropagation();
+		move(named);
 		return;
 	}
 

@@ -310,6 +310,26 @@
 		duration ? offerNextAt(duration, streams?.ending?.start ?? null) : Infinity
 	);
 	const offering = $derived(phase === 'playing' && !!next && !stay && time >= offerAt);
+	/** SKIP on screen: alone for its first seconds, then with the bar (c156). */
+	const skipShown = $derived(!!skip && (chrome || skipAlone));
+	const endcardShown = $derived(offering && !!next);
+	/**
+	 * The overlay a TV's pad starts on (c296), PLAY NOW over SKIP: both cannot
+	 * be up today (`inEnding` stands down when there is a next), but an ending
+	 * skip and PLAY NOW do the same thing and the card is the button the owner
+	 * reaches for, so the card stays first if they ever can be.
+	 */
+	const overlay = $derived<'next' | 'skip' | null>(
+		endcardShown ? 'next' : skipShown ? 'skip' : null
+	);
+	/** The bar's ↑, when an overlay is up: back to the button it was left from (c296). */
+	const focusUp = $derived(
+		!tv.current || !overlay
+			? undefined
+			: overlay === 'next'
+				? '[data-player-play]'
+				: '[data-player-skip]'
+	);
 	const marks = $derived(
 		[streams?.intro, streams?.ending]
 			.filter((r): r is { start: number; end: number } => !!r && duration > 0)
@@ -324,6 +344,55 @@
 			speed
 		})
 	);
+
+	// ---- who a TV's keys are for (c296) ------------------------------------------------------------
+	/** Whether the last thing focused was one of the overlay's buttons. */
+	let overlayHadFocus = false;
+	let focusedOverlay: 'next' | 'skip' | null = null;
+
+	function overlayButton(kind: 'next' | 'skip'): HTMLElement | null {
+		const selector = kind === 'next' ? '[data-player-play]' : '[data-player-skip]';
+		return root?.querySelector<HTMLElement>(selector) ?? null;
+	}
+
+	function onFocusIn(e: FocusEvent): void {
+		overlayHadFocus = e.target instanceof Element && !!e.target.closest('.endcard, .skip');
+	}
+
+	/**
+	 * PLAY NOW, and SKIP, take focus the moment they appear on a TV (c296):
+	 * OK then does the thing the card offers, in one press. Only a TV, never a
+	 * pointer, never over an open sheet. An owner already on the button keeps
+	 * it, and PLAY NOW wins over SKIP when both could be up (see `overlay`).
+	 */
+	$effect(() => {
+		const kind = overlay;
+		const was = focusedOverlay;
+		focusedOverlay = kind;
+		if (!kind || kind === was || !tv.current || sheet || keysOpen) return;
+		void tick().then(() => {
+			if (overlay !== kind || sheet || keysOpen) return;
+			const wanted = overlayButton(kind);
+			const active = document.activeElement;
+			if (!wanted || active === wanted) return;
+			// A sheet opened in the same breath keeps the pad: its scope owns it.
+			if (active instanceof Element && active.closest('[role="dialog"]')) return;
+			wanted.focus({ preventScroll: true });
+		});
+	});
+
+	/**
+	 * When the card or SKIP goes away (STAY, a skip, the mark passed, the
+	 * alone window closing), focus lands somewhere real: the seek bar when it
+	 * is shown, else nothing -- and the picture keeps the keys. Never on the
+	 * node that was removed (c296).
+	 */
+	$effect(() => {
+		if (!tv.current || overlay !== null || !overlayHadFocus) return;
+		overlayHadFocus = false;
+		if (chrome) scrub?.focus({ preventScroll: true });
+		else if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+	});
 
 	// ---- resolving --------------------------------------------------------------------------------
 	let waitTimer: ReturnType<typeof setInterval> | undefined;
@@ -694,6 +763,19 @@
 		video.currentTime = Math.max(0, Math.min(duration || Infinity, video.currentTime + by));
 		time = video.currentTime;
 	}
+	/** The seek the bar and the media keys show: the flash names the move (c296). */
+	function seekWithFlash(by: number) {
+		seek(by);
+		seekFlash = { by, to: time };
+		clearTimeout(flashTimer);
+		flashTimer = setTimeout(() => (seekFlash = null), 900);
+		showChrome();
+	}
+	/** ←/→: the track is a slider and flashes; the picture's own seek stays quiet. */
+	function seekArrow(by: number) {
+		if (document.activeElement === scrub) seekWithFlash(by);
+		else seek(by);
+	}
 	function skipNow() {
 		if (!video) return;
 		const skippingEnding = !inIntro && !!streams?.ending;
@@ -715,9 +797,18 @@
 
 	let scrub = $state<HTMLElement | null>(null);
 	let hoverAt = $state<number | null>(null);
+	/**
+	 * The line's box, not the element's: the track carries a transparent left
+	 * border so ↑ from ▶❚❚ can reach it (c296), and a click in that border
+	 * still means the beginning of the timeline.
+	 */
+	function scrubBox(el: HTMLElement): { left: number; width: number } {
+		const box = el.getBoundingClientRect();
+		return { left: box.left + el.clientLeft, width: el.clientWidth };
+	}
 	function scrubTo(e: PointerEvent) {
 		if (!scrub || !video || !duration) return;
-		const box = scrub.getBoundingClientRect();
+		const box = scrubBox(scrub);
 		reloadingTo = null;
 		video.currentTime = Math.max(0, Math.min(1, (e.clientX - box.left) / box.width)) * duration;
 		time = video.currentTime;
@@ -728,7 +819,7 @@
 	}
 	function scrubMove(e: PointerEvent) {
 		if (!scrub || !duration) return;
-		const box = scrub.getBoundingClientRect();
+		const box = scrubBox(scrub);
 		hoverAt = Math.max(0, Math.min(1, (e.clientX - box.left) / box.width)) * duration;
 		if (e.buttons & 1) scrubTo(e);
 	}
@@ -807,19 +898,9 @@
 		if (media) {
 			e.preventDefault();
 			if (media === 'toggle') toggle();
-			else if (media === 'forward') {
-				seek(10);
-				seekFlash = { by: 10, to: time };
-				clearTimeout(flashTimer);
-				flashTimer = setTimeout(() => (seekFlash = null), 900);
-				showChrome();
-			} else if (media === 'back') {
-				seek(-10);
-				seekFlash = { by: -10, to: time };
-				clearTimeout(flashTimer);
-				flashTimer = setTimeout(() => (seekFlash = null), 900);
-				showChrome();
-			} else if (media === 'next' && next && playable(next)) playNext();
+			else if (media === 'forward') seekWithFlash(10);
+			else if (media === 'back') seekWithFlash(-10);
+			else if (media === 'next' && next && playable(next)) playNext();
 			else if (media === 'prev' && prev) playPrev();
 			return;
 		}
@@ -829,12 +910,43 @@
 			return;
 		}
 		const k = e.key;
-		// On a TV the picture is the interface (TV-Board-Player 6A): OK, ↑ or ↓
-		// shows the bar, and OK skips the intro while it is offered alone.
-		if (tv.current && !chrome && (k === 'Enter' || k === 'ArrowUp' || k === 'ArrowDown')) {
+		// ← → between STAY and PLAY NOW belong to the focus layer while the
+		// card has focus; the picture's seek must not also fire (c296).
+		if (
+			(k === 'ArrowLeft' || k === 'ArrowRight') &&
+			document.activeElement instanceof Element &&
+			document.activeElement.closest('.endcard')
+		)
+			return;
+		// On a TV the picture is the interface (TV-Board-Player 6A). With the
+		// bar hidden a key brings it: OK, ↑ or ↓ on ▶❚❚; ← → seek and then
+		// keep seeking on the bar itself (c296). While a card or SKIP is up the
+		// focus layer owns their arrows and OK, so this branch only takes ↓
+		// into the bar (their buttons have no stop below them).
+		if (
+			tv.current &&
+			!chrome &&
+			(k === 'Enter' ||
+				k === 'ArrowUp' ||
+				k === 'ArrowDown' ||
+				k === 'ArrowLeft' ||
+				k === 'ArrowRight')
+		) {
 			e.preventDefault();
-			if (k === 'Enter' && skip && skipAlone) skipNow();
-			else {
+			const onOverlay =
+				document.activeElement instanceof HTMLElement &&
+				!!document.activeElement.closest('.endcard, .skip');
+			if (k === 'Enter' && skip && skipAlone && !onOverlay) skipNow();
+			else if (k === 'ArrowLeft' || k === 'ArrowRight') {
+				// Part 2: the seek comes with the bar, and the bar keeps the keys.
+				seekWithFlash(k === 'ArrowLeft' ? -10 : 10);
+				scrub?.focus({ preventScroll: true });
+			} else if ((k === 'ArrowDown' || k === 'ArrowUp') && onOverlay) {
+				// ↓ out of the card (or SKIP) is into the bar; the owner is on the
+				// controls now, so the bar comes with it (c296).
+				showChrome();
+				scrub?.focus({ preventScroll: true });
+			} else {
 				// 6A/6B: the key brings the bar and puts focus on ▶❚❚, so the next
 				// press is the one that acts.
 				showChrome();
@@ -843,8 +955,8 @@
 			return;
 		}
 		if (k === ' ') toggle();
-		else if (k === 'ArrowLeft') seek(-10);
-		else if (k === 'ArrowRight') seek(10);
+		else if (k === 'ArrowLeft') seekArrow(-10);
+		else if (k === 'ArrowRight') seekArrow(10);
 		else if (k === 'ArrowUp') setVolume(Math.min(1, volume + 0.1));
 		else if (k === 'ArrowDown') setVolume(Math.max(0, volume - 0.1));
 		else if (k === 'f' || k === 'F') void full();
@@ -972,7 +1084,8 @@
 	class:chrome
 	bind:this={root}
 	role="presentation"
-	data-focus-off={!tv.current || (phase === 'playing' && !chrome) ? '' : undefined}
+	data-focus-off={!tv.current || (phase === 'playing' && !chrome && !overlay) ? '' : undefined}
+	onfocusin={onFocusIn}
 	onpointermove={pointerMoved}
 >
 	<div class="stage">
@@ -992,6 +1105,7 @@
 		<button
 			type="button"
 			class="tapzone"
+			data-focus-skip
 			aria-label={mouse
 				? paused
 					? 'Play'
@@ -1018,8 +1132,8 @@
 				<button type="button" onclick={fromStart}>FROM 0:00</button>
 			</div>
 		{/if}
-		{#if skip && (chrome || skipAlone)}
-			<button type="button" class="skip" onclick={skipNow}>{skip}</button>
+		{#if skipShown}
+			<button type="button" class="skip" data-player-skip onclick={skipNow}>{skip}</button>
 		{/if}
 		{#if seekFlash}
 			<div class="flash" class:back={seekFlash.by < 0} role="status">
@@ -1122,7 +1236,7 @@
 			>
 		</div>
 
-		<header class="top">
+		<header class="top" data-focus-skip={!tv.current || chrome ? undefined : ''}>
 			<a class="back" href={seriesHref} aria-label="Back to the series" use:backLink>←</a>
 			<div class="names">
 				<div class="t">
@@ -1141,7 +1255,7 @@
 			<button type="button" class="cell desk" onclick={full}>FULL SCREEN · F</button>
 		</header>
 
-		<footer class="bottom">
+		<footer class="bottom" data-focus-skip={!tv.current || chrome ? undefined : ''}>
 			<div class="scrubrow">
 				<div class="e">{clock(time)}</div>
 				<div
@@ -1149,6 +1263,8 @@
 					bind:this={scrub}
 					role="slider"
 					tabindex="0"
+					data-focus-adjust
+					data-focus-up={focusUp}
 					aria-label="Position"
 					aria-valuemin={0}
 					aria-valuemax={Math.round(duration)}
@@ -1210,7 +1326,7 @@
 			</div>
 		</footer>
 
-		{#if offering && next}
+		{#if endcardShown}
 			<div class="endcard" role="status">
 				<div class="row">
 					<div
@@ -1228,7 +1344,7 @@
 				<div class="when">PLAYS WHEN THIS ONE ENDS · IN {clock(Math.max(0, duration - time))}</div>
 				<div class="two">
 					<button type="button" onclick={stayHere}>STAY</button>
-					<button type="button" class="acc" onclick={playNext}>PLAY NOW →</button>
+					<button type="button" class="acc" data-player-play onclick={playNext}>PLAY NOW →</button>
 				</div>
 			</div>
 		{/if}
@@ -2761,7 +2877,20 @@
 		position: relative;
 		flex: 1;
 		height: 4px;
+		/*
+		 * The bar's cells start at the screen's edge while the line starts after
+		 * the time, so ▶❚❚ (49–125) did not overlap the line (126–826): ↑ from it
+		 * took the far-away top bar's ←, which does overlap, because an
+		 * overlapping candidate wins over a nearer one out of line (c296). The
+		 * transparent border reaches the element's own box under that first
+		 * cell without moving the line: the fill is clipped to the padding box
+		 * and its children are positioned from there, so the bar looks the same
+		 * and ↑ from any cell in the row lands on it.
+		 */
+		margin-left: -20px;
+		border-left: 20px solid transparent;
 		background: var(--line-1);
+		background-clip: padding-box;
 		touch-action: none;
 		cursor: pointer;
 	}
