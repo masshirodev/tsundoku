@@ -712,9 +712,13 @@ test.describe('a catalogue that answers', () => {
 			await page.goto(`${BASE}/links?series=${id}`);
 			await expect(page.locator('.heading .long')).toHaveText('LINK · SEASON 2');
 			await page.goto(`${BASE}/links`);
+			// Its place in the queue is the queue's business: SKIP until it is first,
+			// each SKIP waiting for the page to turn before the title is read again.
 			for (let i = 0; i < 4; i++) {
-				if ((await page.locator('.title').textContent()) === 'Queued Second Season') break;
+				const shown = await page.locator('.title').textContent();
+				if (shown === 'Queued Second Season') break;
 				await page.getByRole('button', { name: 'SKIP' }).click();
+				await expect(page.locator('.title')).not.toHaveText(shown ?? '');
 			}
 			await expect(page.locator('.title')).toHaveText('Queued Second Season');
 			await page.locator('.cand').first().click();
