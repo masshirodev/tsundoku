@@ -29,6 +29,8 @@ import {
 	linkSeason,
 	seasonForTitles,
 	seasonKind,
+	seasonLinks,
+	seasonSettled,
 	seasonUntracked,
 	seriesSeasons,
 	type SeasonLink
@@ -512,8 +514,9 @@ function linkFromEntries(
 		const [seriesId, kind] = fits[0];
 		// An anime's entry is one season of the show (c240): the season whose own
 		// title it names, or the one being watched.
-		if (isAnime(kind)) linkSeasonFromList(seriesId, c, e.score || null, now);
-		else linkFromList(seriesId, c, e.score || null, now);
+		if (isAnime(kind)) {
+			if (!linkSeasonFromList(seriesId, c, e.score || null, now)) continue;
+		} else linkFromList(seriesId, c, e.score || null, now);
 		taken.add(e.mediaId);
 		for (const [k, list] of index)
 			index.set(
@@ -530,15 +533,23 @@ function linkFromEntries(
  * season the entry's own title names, else the one being watched. The series'
  * rating is filled once, as any link from the list does (1w), and the score
  * is kept on the season's own row.
+ *
+ * A season already linked or settled is left alone, and nothing is written
+ * (false): the series is offered while any one of its seasons is still open
+ * (`linkableByTitle`), but an entry found by the series' own title names its
+ * first season, and an entry that only shares that title (a movie, another
+ * cut) must not replace the owner's link or undo their NONE OF THESE (c240).
  */
 export function linkSeasonFromList(
 	seriesId: number,
 	c: Candidate,
 	score: number | null,
 	now = Date.now()
-): void {
+): boolean {
 	const db = getDb();
 	const season = seasonForTitles(seriesId, [c.title, ...c.alts, cleanTitle(c.title)]);
+	if (seasonLinks(seriesId).some((l) => l.season === season) || seasonSettled(seriesId, season))
+		return false;
 	const view = seriesSeasons(seriesId);
 	const part = view?.seasons.find((s) => s.season === season)?.parts[0]?.part ?? 1;
 	db.transaction(() => {
@@ -548,6 +559,7 @@ export function linkSeasonFromList(
 			`UPDATE series_season_links SET score = ?, filled_rating = ? WHERE series_id = ? AND season = ? AND part = ?`
 		).run(score || null, filled, seriesId, season, part);
 	})();
+	return true;
 }
 
 /** Both lists, for the pass after an import: each on its own, so one failing doesn't stop the other. */

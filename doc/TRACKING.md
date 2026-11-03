@@ -89,7 +89,11 @@ title rules as the search ([`LINKS.md`](LINKS.md)), and of the series' own
 kind, so never a novel to a comic. Its score fills an unrated series' rating.
 An anime's entry links one **season** (c240): the one whose own title it
 names (`Sword Art Online Season 3`), else the one being watched, and the row
-lands in `series_season_links` with the list's score on it.
+lands in `series_season_links` with the list's score on it. The series is
+offered while any season is still open, but a season already linked or
+settled is never replaced from the list (`linkSeasonFromList` writes nothing):
+an entry found by the series' own title names its first season, and one that
+only shares that title, a movie say, is not the owner's link.
 
 ## Sending
 

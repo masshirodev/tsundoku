@@ -811,6 +811,138 @@ describe('every door writes the season’s row', () => {
 		expect(cat.undoNone(id, 2)).toBe(true);
 	});
 
+	it('stays in the queue and the pass while a season is unlinked, though the first is linked (wave 15)', () => {
+		// Settling by LINK is the ordinary way, and season 1's link writes the
+		// series' AniSkip mirror in `series_links`: the series-level gate must not
+		// end the look while season 2 has neither a link nor a decision.
+		const pass = show({
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		const queue = show({
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		db.prepare(
+			`INSERT OR REPLACE INTO link_searches (series_id, query, searched_at, found) VALUES (?, 'Show', ?, 2)`
+		).run(queue, NOW);
+		const state = () => ({
+			pass: cat.searchable(10_000).some((r) => r.id === pass),
+			queue: cat.linkQueue(false).some((i) => i.seriesId === queue),
+			// The count is the queue's own query, so it moves with it.
+			counted: cat.linkQueueCount(false) - cat.linkQueue(false).length,
+			byTitle: [...cat.linkableByTitle().values()].flat().some((s) => s.id === pass)
+		});
+		expect(state()).toEqual({ pass: true, queue: true, counted: 0, byTitle: true });
+
+		for (const id of [pass, queue])
+			seasons.linkSeason(id, 1, 1, animeEntry(id * 10 + 1), 'review', NOW);
+		// The mirror is there, and it is not what decides.
+		expect(
+			db
+				.prepare(`SELECT COUNT(*) AS n FROM series_links WHERE series_id IN (?, ?)`)
+				.get(pass, queue)
+		).toEqual({ n: 2 });
+		expect(state()).toEqual({ pass: true, queue: true, counted: 0, byTitle: true });
+
+		for (const id of [pass, queue])
+			seasons.linkSeason(id, 2, 1, animeEntry(id * 10 + 2), 'review', NOW);
+		expect(state()).toEqual({ pass: false, queue: false, counted: 0, byTitle: false });
+
+		// UNDO one season's LINK leaves that season open again: back in.
+		for (const id of [pass, queue]) expect(cat.undoLink(id, 2)).toBe(true);
+		expect(seasons.seasonLinks(pass).map((l) => l.season)).toEqual([1]);
+		expect(state()).toEqual({ pass: true, queue: true, counted: 0, byTitle: true });
+		// UNLINK is a decision, as it is for a comic ("UNLINKED · NO PASS ASKS
+		// AGAIN"): the season is settled without a link, and the series stays out.
+		for (const id of [pass, queue]) {
+			seasons.linkSeason(id, 2, 1, animeEntry(id * 10 + 2), 'review', NOW);
+			cat.unlink(id, NOW, 2);
+		}
+		expect(seasons.seasonLinks(pass).map((l) => l.season)).toEqual([1]);
+		expect(state()).toEqual({ pass: false, queue: false, counted: 0, byTitle: false });
+	});
+
+	it('requeues a searched anime with a season still open, and not one whose seasons are all settled', () => {
+		const id = show({
+			title: 'Requeued Show',
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		const put = () =>
+			db
+				.prepare(
+					`INSERT OR REPLACE INTO link_searches (series_id, query, searched_at, found) VALUES (?, 'Requeued Show', ?, 0)`
+				)
+				.run(id, NOW);
+		const requeued = () => !db.prepare(`SELECT 1 FROM link_searches WHERE series_id = ?`).get(id);
+		put();
+		seasons.linkSeason(id, 1, 1, animeEntry(701), 'review', NOW);
+		cat.requeueSearched();
+		expect(requeued()).toBe(true);
+		put();
+		cat.noneOfThese(id, NOW, 2);
+		cat.requeueSearched();
+		expect(requeued()).toBe(false);
+	});
+
+	it('keeps an anime with a series-level link and no season rows out, as before rung 62', () => {
+		// No episodes, a link from before rung 62, and nothing in the season tables:
+		// the legacy link still counts. With episodes too: still the series' one link.
+		for (const seasonsOf of [[], [[1, 2]]]) {
+			const id = show({ seasons: seasonsOf });
+			db.prepare(
+				`INSERT OR REPLACE INTO link_searches (series_id, query, searched_at, found) VALUES (?, 'Show', ?, 1)`
+			).run(id, NOW);
+			const state = () => ({
+				queue: cat.linkQueue(false).some((i) => i.seriesId === id),
+				byTitle: [...cat.linkableByTitle().values()].flat().some((s) => s.id === id)
+			});
+			expect(state()).toEqual({ queue: true, byTitle: true });
+			db.prepare(
+				`INSERT INTO series_links (series_id, anilist_id, mal_id, via, title, cover_url, linked_at) VALUES (?, 801, 901, 'review', 'Old', '', ?)`
+			).run(id, NOW);
+			expect(state()).toEqual({ queue: false, byTitle: false });
+			// And a NONE OF THESE from before rung 62 is a settled series too.
+			db.prepare(`DELETE FROM series_links WHERE series_id = ?`).run(id);
+			db.prepare(
+				`INSERT OR REPLACE INTO link_decisions (series_id, decision, at) VALUES (?, 'none', ?)`
+			).run(id, NOW);
+			expect(state()).toEqual({ queue: false, byTitle: false });
+			db.prepare(`DELETE FROM link_decisions WHERE series_id = ?`).run(id);
+		}
+	});
+
+	it('a list entry never replaces a season already linked or settled', () => {
+		const id = show({
+			title: 'Listed Show',
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		seasons.linkSeason(id, 1, 1, animeEntry(601), 'review', NOW);
+		// Season 2 is open, so the series is offered by its title; an entry that
+		// only shares that title names season 1, which is the owner's.
+		const sameTitle = { ...animeEntry(602), title: 'Listed Show', format: 'MOVIE' };
+		expect(tr.linkSeasonFromList(id, sameTitle, null, NOW)).toBe(false);
+		expect(seasons.seasonLinks(id).map((l) => [l.season, l.anilistId])).toEqual([[1, 601]]);
+		// NONE OF THESE on season 1 is the owner's too.
+		cat.unlink(id, NOW, 1);
+		expect(tr.linkSeasonFromList(id, sameTitle, null, NOW)).toBe(false);
+		expect(seasons.seasonLinks(id)).toEqual([]);
+		// An open season takes it.
+		db.prepare(`DELETE FROM season_link_decisions WHERE series_id = ?`).run(id);
+		expect(tr.linkSeasonFromList(id, sameTitle, null, NOW)).toBe(true);
+		expect(seasons.seasonLinks(id).map((l) => [l.season, l.anilistId])).toEqual([[1, 602]]);
+	});
+
 	it('shows a season the link of that season, never the open season’s or the mirror’s', () => {
 		const id = show({
 			seasons: [

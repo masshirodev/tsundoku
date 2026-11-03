@@ -612,26 +612,37 @@ export async function resolveLinks(now = Date.now()): Promise<number> {
 const LINKABLE = `s.kind IN ('manga', 'manhwa', 'novel', 'anime') AND s.source != 'hentoid' AND ${IN_LIBRARY_SQL}`;
 
 /**
- * An anime still wants a look: one of its seasons has neither a link nor a
- * decision (c240). Settling is a season's act now, and `link_decisions` is one
- * row a series, so it cannot say "season 2 is still to link" -- the season rows
- * can. Computed from the rows themselves rather than cached on the series, so
- * a season the source adds later puts the series back in the queue by itself.
- * An anime whose list holds no episodes yet stays: there is no season to
- * settle, and a pasted link can still be made on it.
+ * A series still wants a look: the one rule of "not linked and not settled"
+ * (c240), at every door that asks it -- the cover pass (`searchable`), the
+ * review queue and its count, `links --again` (`requeueSearched`) and the
+ * tracker lists' auto-link (`linkableByTitle`).
+ *
+ * A series with season rows (an anime linked or settled a season at a time,
+ * rung 62) is decided by those rows alone: it wants a look while one of its
+ * seasons has neither a link nor a decision. The series-level `series_links`
+ * row is not asked, because for such an anime it is only the AniSkip mirror
+ * of its first season (`syncSeriesLink`), written the moment season 1 is
+ * linked, and would end the look while season 2 is still open. Computed from
+ * the rows rather than cached on the series, so a season the source adds
+ * later puts the series back by itself.
+ *
+ * A series with no season rows -- every comic and novel, an anime linked
+ * before rung 62, and an anime nobody has acted on -- keeps the series-level
+ * gate: no `series_links` row and no `link_decisions` row, so a legacy link or
+ * a legacy NONE OF THESE still counts.
  */
-const NOT_SETTLED = `((s.kind = 'anime' AND (
-	NOT EXISTS (SELECT 1 FROM entries e0 WHERE e0.series_id = s.id AND e0.shadowed = 0)
-	OR EXISTS (
+const NEEDS_LOOK = `(CASE WHEN EXISTS (SELECT 1 FROM series_season_links x WHERE x.series_id = s.id)
+		OR EXISTS (SELECT 1 FROM season_link_decisions x WHERE x.series_id = s.id)
+	THEN EXISTS (
 		SELECT 1 FROM entries e
 		WHERE e.series_id = s.id AND e.shadowed = 0
 			AND NOT EXISTS (SELECT 1 FROM series_season_links sl
 				WHERE sl.series_id = s.id AND sl.season = COALESCE(e.season, 0))
 			AND NOT EXISTS (SELECT 1 FROM season_link_decisions sd
-				WHERE sd.series_id = s.id AND sd.season = COALESCE(e.season, 0))
-	)
-)) OR (s.kind != 'anime'
-	AND NOT EXISTS (SELECT 1 FROM link_decisions d WHERE d.series_id = s.id)))`;
+				WHERE sd.series_id = s.id AND sd.season = COALESCE(e.season, 0)))
+	ELSE NOT EXISTS (SELECT 1 FROM series_links l WHERE l.series_id = s.id)
+		AND NOT EXISTS (SELECT 1 FROM link_decisions d WHERE d.series_id = s.id)
+	END)`;
 
 type SearchRow = {
 	id: number;
@@ -643,7 +654,8 @@ type SearchRow = {
 
 /**
  * What the pass may search: manga, manhwa, novels and anime with no link and
- * no NONE OF THESE or UNLINK, never searched or waiting on a SEARCH AGAIN.
+ * no NONE OF THESE or UNLINK -- an anime while one season has neither
+ * (`NEEDS_LOOK`) -- never searched or waiting on a SEARCH AGAIN.
  * Never a hidden series, never Hentoid's. A SEARCH AGAIN goes first, then
  * the series with no cover.
  */
@@ -654,8 +666,7 @@ export function searchable(limit: number): SearchRow[] {
 			FROM series s JOIN roots r ON r.id = s.root_id
 			LEFT JOIN link_searches ls ON ls.series_id = s.id
 			WHERE ${LINKABLE} AND ${VISIBLE_SQL}
-				AND NOT EXISTS (SELECT 1 FROM series_links l WHERE l.series_id = s.id)
-				AND ${NOT_SETTLED}
+				AND ${NEEDS_LOOK}
 				AND (ls.series_id IS NULL OR ls.searched_at IS NULL)
 			ORDER BY ls.series_id IS NULL, s.cover_key != '', s.id
 			LIMIT ?`
@@ -775,7 +786,8 @@ export async function searchSeries(
 /**
  * Search again every series the pass searched and couldn't link, with the
  * titles cleaned as they are now: `yarn run links --again`. The owner's own
- * SEARCH AGAIN titles, NONE OF THESE and UNLINK are left alone.
+ * SEARCH AGAIN titles, NONE OF THESE and UNLINK are left alone; an anime with
+ * a season still open is searched again, by its open season (`NEEDS_LOOK`).
  */
 export function requeueSearched(): number {
 	const db = getDb();
@@ -784,9 +796,7 @@ export function requeueSearched(): number {
 			db
 				.prepare(
 					`SELECT ls.series_id AS id, ls.query, s.title FROM link_searches ls JOIN series s ON s.id = ls.series_id
-					WHERE ls.searched_at IS NOT NULL AND ${IN_LIBRARY_SQL}
-						AND NOT EXISTS (SELECT 1 FROM series_links l WHERE l.series_id = ls.series_id)
-						AND NOT EXISTS (SELECT 1 FROM link_decisions d WHERE d.series_id = ls.series_id)`
+					WHERE ls.searched_at IS NOT NULL AND ${IN_LIBRARY_SQL} AND ${NEEDS_LOOK}`
 				)
 				.all() as { id: number; query: string; title: string }[]
 		)
@@ -961,7 +971,8 @@ function itemOf(r: ItemRow): ReviewItem {
 
 /**
  * The series to review: searched, not linked, not settled with NONE OF THESE
- * or UNLINK -- with candidates, or none found. A skipped one goes to the
+ * or UNLINK -- an anime while one season has neither (`NEEDS_LOOK`) -- with
+ * candidates, or none found. A skipped one goes to the
  * back. Hidden series are never searched, so they're never here while reveal
  * is off; the filter is only belt and braces for one hidden since.
  */
@@ -970,8 +981,7 @@ export function linkQueue(reveal: boolean): ReviewItem[] {
 		.prepare(
 			`${ITEM_SQL}
 			WHERE ls.searched_at IS NOT NULL AND ${visibleWhere(reveal)} AND ${LINKABLE}
-				AND NOT EXISTS (SELECT 1 FROM series_links l WHERE l.series_id = s.id)
-				AND ${NOT_SETTLED}
+				AND ${NEEDS_LOOK}
 			ORDER BY ls.skipped_at IS NOT NULL, ls.skipped_at, ls.found = 0, s.cover_key != '', s.id`
 		)
 		.all() as ItemRow[];
@@ -985,8 +995,7 @@ export function linkQueueCount(reveal: boolean): number {
 			.prepare(
 				`SELECT COUNT(*) AS n FROM link_searches ls JOIN series s ON s.id = ls.series_id JOIN roots r ON r.id = s.root_id
 				WHERE ls.searched_at IS NOT NULL AND ${visibleWhere(reveal)} AND ${LINKABLE}
-					AND NOT EXISTS (SELECT 1 FROM series_links l WHERE l.series_id = s.id)
-					AND ${NOT_SETTLED}`
+					AND ${NEEDS_LOOK}`
 			)
 			.get() as { n: number }
 	).n;
@@ -1286,16 +1295,17 @@ export function undoSearch(seriesId: number, was: QueuedFrom | undefined): void 
 
 /**
  * Series an entry on the owner's list could link to, by title: linkable, in
- * view, not linked and not settled -- each under its titles, cleaned and
- * normalised as a sure match compares them (doc/TRACKING.md).
+ * view, not linked and not settled (`NEEDS_LOOK`: an anime while one season
+ * has neither) -- each under its titles, cleaned and normalised as a sure
+ * match compares them (doc/TRACKING.md). The season an anime's entry lands on
+ * is `linkSeasonFromList`'s to decide, and it never replaces a settled one.
  */
 export function linkableByTitle(): Map<string, { id: number; kind: Kind }[]> {
 	const rows = getDb()
 		.prepare(
 			`SELECT s.id, s.title, s.alt_titles, s.kind FROM series s JOIN roots r ON r.id = s.root_id
 			WHERE ${LINKABLE} AND ${VISIBLE_SQL}
-				AND NOT EXISTS (SELECT 1 FROM series_links l WHERE l.series_id = s.id)
-				AND NOT EXISTS (SELECT 1 FROM link_decisions d WHERE d.series_id = s.id)`
+				AND ${NEEDS_LOOK}`
 		)
 		.all() as { id: number; title: string; alt_titles: string; kind: Kind }[];
 	const out = new Map<string, { id: number; kind: Kind }[]>();

@@ -157,7 +157,17 @@ again or paste a link.
   linked by pasting a link, which sends only the id.
 - **Doujins and anything from Hentoid.** A catalogue of manga and novels
   doesn't hold them.
-- **A series already linked, or settled:** NONE OF THESE, or an UNLINK.
+- **A series already linked, or settled:** NONE OF THESE, or an UNLINK. An
+  anime linked or settled a season at a time is decided by its seasons alone
+  (c240): it is searched, queued for the review and offered to the list's
+  auto-link while **any one** season has neither a link nor a decision, and
+  its `series_links` row (the AniSkip mirror of season 1) does not end that.
+  An anime with no season rows -- linked or settled before rung 62, or never
+  acted on -- is read by `series_links` and `link_decisions`, as a comic is.
+  One rule, one SQL fragment (`NEEDS_LOOK` in `catalogue.ts`), at every door:
+  the pass (`searchable`), the review and its count (`linkQueue`,
+  `linkQueueCount`), `links --again` (`requeueSearched`) and the list's
+  auto-link (`linkableByTitle`).
 
 **Resolving** a MAL link from Mihon learns its AniList entry and cover. It
 sends only ids, fifty to a request (`Media(idMal_in: …)`), and needs no
