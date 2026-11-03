@@ -164,25 +164,45 @@ again or paste a link.
   its `series_links` row (the AniSkip mirror of season 1) does not end that.
   An anime with no season rows -- linked or settled before rung 62, or never
   acted on -- is read by `series_links` and `link_decisions`, as a comic is.
-  One rule, one SQL fragment (`NEEDS_LOOK` in `catalogue.ts`), at every door:
-  the pass (`searchable`), the review and its count (`linkQueue`,
-  `linkQueueCount`), `links --again` (`requeueSearched`), the list's
-  auto-link (`linkableByTitle`) and Ranobe's review line that says an item
-  is in AniList's own review.
+  One rule at every door: the pass (`searchable`), the review and its count
+  (`linkQueue`, `linkQueueCount`), `links --again` (`requeueSearched`), the
+  list's auto-link (`linkableByTitle`) and Ranobe's review line that says an
+  item is in AniList's own review (`IN_LINK_REVIEW`). `NEEDS_LOOK` in
+  `catalogue.ts` asks it of a series, `seasonOpen` of one season.
 
-  **Which season a door that names no season acts on** is the one that still
-  wants a look (`seasonToLook` in `season-links.ts`, the TypeScript twin of
-  `NEEDS_LOOK`): the open season if it has neither a link nor a decision,
-  otherwise the first season in list order with neither. The pass searches
-  that season, by its own title (`Probe Show Season 2`), keeps the search on
-  that season, and links a sure match only onto it, and only while it is
-  still open -- never over a season the owner linked or settled, even one
-  linked while the search was out. The review queue's item for an anime
-  carries that season, and its LINK, NONE OF THESE, SEARCH AGAIN and their
-  UNDO post it, so the queue never leans on a default; `?series=N` with no
-  `&season=` opens on it too. The season **being watched** (`openSeasonOf`)
-  is a different question, and the one a rating, the TRACKING sheet and the
-  cover ask.
+  **An anime's search is its season's, and stored once** (wave 17; c352,
+  c355). AniList and MAL list each season as its own entry, so a search is
+  one season's: its title, its hits, its candidates. They live in
+  `season_link_searches` and `season_link_candidates` only. The series-level
+  `link_searches`/`link_candidates` belong to a comic or a novel and are
+  never written or read for an anime -- a series-level search would be one
+  season's standing in for the others, which is how the queue once offered
+  season 1's entry for season 2. (Rows an anime has there from before rung
+  62 are left in place and read by nothing.)
+
+  - **The pass** searches each open season whose own search hasn't run (or
+    waits on a SEARCH AGAIN), by that season's title (`Fresh Show`, `Fresh
+Show Season 2`), in one pass if the limit allows: a row of `searchable`
+    is a season. A sure match links only that season, and only while it is
+    still open at write time -- never over a season the owner linked or
+    settled, even one linked while the search was out. Linking or settling
+    season 1 changes nothing about season 2's search: it is its own.
+  - **The review queue holds an item a season** (c352): every open season
+    with a searched row of its own, carrying that season's query, count,
+    candidates and SKIP. The item's heading, its LINK button and the band
+    after it name the season (`LINK · SEASON 2`, `LINK A TO SEASON 2`,
+    `LINKED · SEASON 2 · …`), and LINK, NONE OF THESE, SKIP, SEARCH AGAIN
+    and their UNDO post it. A season 0 item (a flat list, the whole run)
+    names none. LINK accepts only a candidate of that season's own search
+    (`offered`), never another season's and never the series'.
+  - **A door that names no season** (`/links?series=N` with no `&season=`,
+    the API called without one) acts on the season that still wants a look
+    (`seasonToLook` in `season-links.ts`, the TypeScript twin of
+    `NEEDS_LOOK`): the open season if it has neither a link nor a decision,
+    otherwise the first season in list order with neither.
+
+  The season **being watched** (`openSeasonOf`) is a different question, and
+  the one a rating, the TRACKING sheet and the cover ask.
 
 **Resolving** a MAL link from Mihon learns its AniList entry and cover. It
 sends only ids, fifty to a request (`Media(idMal_in: …)`), and needs no
@@ -205,7 +225,8 @@ key.
 - by hand, with `yarn run links`.
 
 It resolves waiting MAL links, then searches up to 60 series (all of them by
-hand; `--limit` caps it, and `--again` first searches again every series a
+hand; `--limit` caps it; an anime's open seasons are a row each, so a
+three-season show is three of the 60; and `--again` first searches again every series a
 pass searched and couldn't link, with titles cleaned as they are now). A SEARCH AGAIN goes first, then series with no
 cover. Five titles go to a request, as aliased `Page` queries.
 
@@ -256,8 +277,9 @@ POSSIBLE DUPLICATES, which are older and fewer.
 
 ### The review, `/links` (Link Review 1b–1j)
 
-One series at a time: the series above its candidates, or beside them on
-desktop and in tablet landscape.
+One item at a time -- a series, or one season of an anime (c352; "What's
+never searched", above) -- the series above its candidates, or beside them
+on desktop and in tablet landscape.
 
 - **Nothing is preselected.** Tap a candidate, and LINK A makes it.
 - Each candidate shows:
@@ -276,11 +298,14 @@ desktop and in tablet landscape.
   band says so. FIND on a series never searched searches as the review opens.
 - The band, the panel's count and the rows show one search: the band counts
   what AniList returned, the count what was kept for the review, and the rows
-  are exactly the kept candidates (`4 OF 6 FOUND`). A series searched before
-  the catalogue asked for its own kind keeps what that search stored — for an
-  anime, the manga entries it found — until SEARCH AGAIN replaces them: they
-  are still offered, a tap still links one (flagged **WRONG KIND**, never
-  removed), and only the owner's press decides.
+  are exactly the kept candidates (`4 OF 6 FOUND`). A comic or a novel
+  searched before the catalogue asked for its own kind keeps what that search
+  stored until SEARCH AGAIN replaces them: they are still offered, a tap
+  still links one (flagged **WRONG KIND**, never removed), and only the
+  owner's press decides. An anime's search from before rung 62 (the manga
+  entries it found, kept at series level) is no season's, so it is not
+  offered at all: the pass searches each season again, in the anime
+  catalogue, by the season's own title (wave 17).
 - Every decision is carried out at once. UNDO takes back LINK (and a rating it
   gave), NONE OF THESE and SEARCH AGAIN. A search's UNDO puts back the search
   and the candidates it replaced; it never made a link, so it takes none back.

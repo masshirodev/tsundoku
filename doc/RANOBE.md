@@ -314,7 +314,9 @@ tsundoku sends an anime as one work, however many seasons its source lists:
   8), since Ranobe keeps no seasons.
 - **Linked by its ids, or shortened.** `/lookup` asks with the show's
   AniList id and its MAL id as **`mal_anime:`** (MAL's anime ids are their
-  own sequence). The pass does not search an anime by title: the relation
+  own sequence): those of its lowest linked season, so a show linked only
+  from season 2 is asked about too (wave 17; `series_links` holds no mirror
+  then). The pass does not search an anime by title: the relation
   page already offers the show's entries, and a title search would fill the
   review. FIND on its screen still searches (`kind=anime,donghua`).
 - **Episodes, numbered through the seasons** (`mapAnimeUnits`). The work

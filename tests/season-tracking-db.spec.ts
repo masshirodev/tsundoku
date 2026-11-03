@@ -1602,6 +1602,41 @@ describe('Ranobe on an anime', () => {
 		return { f, calls };
 	};
 
+	it('is looked up on Ranobe by its lowest linked season, mirror or not (wave 17)', async () => {
+		process.env.RANOBE_TOKEN = 'rb_test';
+		process.env.RANOBE_URL = 'https://ranobe.test/api/v1';
+		const rb = await import('$lib/server/ranobe');
+		const asked: string[][] = [];
+		rb.setRanobeFetch(async (input, init) => {
+			const path = String(input).replace('https://ranobe.test/api/v1', '');
+			if (path === '/lookup') {
+				const keys = (JSON.parse(String(init?.body)) as { keys: string[] }).keys;
+				asked.push(keys);
+				return json({
+					results: Object.fromEntries(
+						keys.map((k) => [k, k === 'mal_anime:502' ? { ref: 'w901' } : null])
+					)
+				});
+			}
+			return json({});
+		});
+		const id = show({
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		// Only season 2 linked: no mirror in `series_links`, and still asked about.
+		seasons.linkSeason(id, 2, 1, animeEntry(102, { mal: 502 }), 'review', NOW);
+		expect(db.prepare(`SELECT 1 FROM series_links WHERE series_id = ?`).get(id)).toBeUndefined();
+		await rb.matchByLookup(NOW);
+		expect(asked.flat()).toEqual(expect.arrayContaining(['anilist:102', 'mal_anime:502']));
+		expect(db.prepare(`SELECT work FROM ranobe_links WHERE series_id = ?`).get(id)).toEqual({
+			work: 'w901'
+		});
+		db.prepare(`DELETE FROM ranobe_links WHERE series_id = ?`).run(id);
+	});
+
 	it('maps every episode straight through the seasons, and sends them as work units', async () => {
 		process.env.RANOBE_TOKEN = 'rb_test';
 		process.env.RANOBE_URL = 'https://ranobe.test/api/v1';

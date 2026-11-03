@@ -56,8 +56,8 @@ catalogue, is still signed in.
 
 **Tokens live in the database** (`tracker_accounts`), which stays on the
 workstation, as do its backups ([`BACKUPS.md`](BACKUPS.md)). **SIGN OUT**
-forgets the token and what waited to be sent. What the list said stays, as
-of then.
+forgets the token and what waited to be sent -- a series' sends and an
+anime's season sends alike (wave 17). What the list said stays, as of then.
 
 ## Reading the lists
 
@@ -81,7 +81,12 @@ sent to after the read began keeps what the send made of it.
 **An anime is one row a season** (c240): `season_tracker_state`, keyed by
 the series, the season and the part, keeps each season's own entry's status,
 episode and score. Reading the list fills them from the season links'
-ids, exactly as `series_links` is filled for a comic.
+ids, exactly as `series_links` is filled for a comic. An anime's own
+`series_links` row, where it has season links, is only its first season's
+AniSkip mirror and is not read as the series' entry: that season's row
+already says what the list has (wave 17). An anime linked before rung 62,
+with no season rows, keeps its one `series_links` link and its
+`tracker_state` row, as it had.
 
 **The AniList list also links.** An entry whose title is sure for exactly
 **one** unlinked series in view links it, `via 'list'`. Sure means the same
@@ -147,9 +152,16 @@ the rating, sent when the rating is set. AniList gets it as `scoreRaw` (its 100)
 
 - **SETTINGS** (1u, 1v): per catalogue, who's signed in and one line:
   - `MAIN LIST · READ AND WRITTEN · LIST READ 14:20`;
-  - or `N SERIES NOT SENT · … · 09:14`, with TRY AGAIN;
+  - or `N SERIES NOT SENT · … · 09:14`, with TRY AGAIN -- N counts a
+    series' failed sends and an anime's failed season sends together, as TRY
+    AGAIN retries both (wave 17);
   - or AniList's sign-in running out within a month;
   - or, not signed in, `N LINKED · SHOWN, BUT NOTHING SENT`.
+
+  The catalogues' line above them, `N LINKED · M TO REVIEW`, counts a linked
+  anime once, by any of its season links, whether or not its first season's
+  mirror is there (`linkCount`), and M counts an anime's open seasons one
+  review item each ([`LINKS.md`](LINKS.md)) (wave 17).
 
   A catalogue whose keys aren't in `.env` says **THE APP ISN'T REGISTERED**
   and offers no SIGN IN. Offline, the section says so and its cells dim.
