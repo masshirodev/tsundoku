@@ -1207,6 +1207,28 @@ describe('a door that names no season acts on the season that wants a look', () 
 		).toEqual([9400]);
 	});
 
+	it('Ranobe’s review says the AniList review holds an anime only while NEEDS_LOOK does', async () => {
+		const rv = await import('$lib/server/ranobe-review');
+		const id = show({
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		db.prepare(
+			`INSERT INTO link_searches (series_id, query, searched_at, found) VALUES (?, 'Show', ?, 1)`
+		).run(id, NOW);
+		const line = () => rv.ranobeItem(id)?.rows.find((r) => r.label === 'ANILIST')?.value;
+		// Season 2 linked (no mirror: it is not the first season), season 1 open.
+		seasons.linkSeason(id, 2, 1, animeEntry(9600), 'review', NOW);
+		expect(line()).toBe('NOT LINKED · ITS OWN REVIEW');
+		expect(cat.linkQueue(false).some((i) => i.seriesId === id)).toBe(true);
+		// Season 1 settled too: out of the AniList review, and the line says so.
+		cat.noneOfThese(id, NOW, 1);
+		expect(cat.linkQueue(false).some((i) => i.seriesId === id)).toBe(false);
+		expect(line()).toBe('NOT LINKED');
+	});
+
 	it('the queue’s LINK accepts what the queue drew: the season’s candidates, then the series’', () => {
 		const id = probe();
 		db.prepare(

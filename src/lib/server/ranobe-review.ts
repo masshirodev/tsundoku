@@ -1,6 +1,7 @@
 import { basename } from './fspath.ts';
 import { getDb } from './db.ts';
 import { HIDDEN_SQL } from './visibility.ts';
+import { NEEDS_LOOK } from './catalogue.ts';
 import {
 	ELIGIBLE_NOVEL_SQL,
 	ELIGIBLE_SQL,
@@ -106,8 +107,7 @@ const ROW_SQL = `SELECT s.id, s.title, s.alt_titles, s.kind, s.hue, s.source, s.
 		(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0) AS chapters,
 		(SELECT e.language FROM entries e WHERE e.series_id = s.id AND e.language IS NOT NULL LIMIT 1) AS lang,
 		rs.query, rs.found, rs.searched_at, l.anilist_id, l.mal_id, l.format,
-		(l.series_id IS NULL AND EXISTS (SELECT 1 FROM link_searches ls WHERE ls.series_id = s.id AND ls.searched_at IS NOT NULL)
-			AND NOT EXISTS (SELECT 1 FROM link_decisions d WHERE d.series_id = s.id)) AS in_anilist_review
+		(${NEEDS_LOOK} AND EXISTS (SELECT 1 FROM link_searches ls WHERE ls.series_id = s.id AND ls.searched_at IS NOT NULL)) AS in_anilist_review
 	FROM series s JOIN roots r ON r.id = s.root_id
 	LEFT JOIN ranobe_searches rs ON rs.series_id = s.id
 	LEFT JOIN series_links l ON l.series_id = s.id`;

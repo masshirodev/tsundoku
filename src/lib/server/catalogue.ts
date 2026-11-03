@@ -638,8 +638,12 @@ const LINKABLE = `s.kind IN ('manga', 'manhwa', 'novel', 'anime') AND s.source !
  * before rung 62, and an anime nobody has acted on -- keeps the series-level
  * gate: no `series_links` row and no `link_decisions` row, so a legacy link or
  * a legacy NONE OF THESE still counts.
+ *
+ * Its TypeScript twin is `seasonToLook` (season-links.ts), which names the
+ * season this lets a series in for; Ranobe's review reads it too, for the
+ * line that says an item is in the AniList review (ranobe-review.ts).
  */
-const NEEDS_LOOK = `(CASE WHEN EXISTS (SELECT 1 FROM series_season_links x WHERE x.series_id = s.id)
+export const NEEDS_LOOK = `(CASE WHEN EXISTS (SELECT 1 FROM series_season_links x WHERE x.series_id = s.id)
 		OR EXISTS (SELECT 1 FROM season_link_decisions x WHERE x.series_id = s.id)
 	THEN EXISTS (
 		SELECT 1 FROM entries e
