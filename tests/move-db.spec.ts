@@ -477,3 +477,45 @@ describe('NO SERVER', () => {
 		expect(await move.noVideoLine(anime, NOW)).toBeNull();
 	});
 });
+
+describe('the sources MOVE asks (K4, c304)', () => {
+	/**
+	 * `moveSources` keeps the sources whose medium is the map kind's
+	 * (`sourceMedium`, engine/backend.ts), where it used to keep
+	 * `!id.startsWith('ln:') && isAnimeSource(id) === (kind === 'anime')`.
+	 * Asserted for every kind of source id there is (a Mihon extension's, an
+	 * Aniyomi one's, an LNReader plugin's, one with no row) against both map
+	 * kinds, with the old predicate written out.
+	 */
+	it('answers the medium each source serves, and filters as the old rule did', async () => {
+		const { isAnimeSource, sourceMedium } = await import('$lib/server/engine/backend');
+		const { kindFacts } = await import('$lib/library/kinds');
+		const db = getDb();
+		db.prepare(
+			`INSERT INTO engine_extensions (pkg, name, kind, version_code, version_name, lib, handle, installed_at, updated_at, failed)
+			VALUES ('e2e.pahe', 'AnimePahe', 'anime', 1, '1', '1', ?, 0, 0, '')`
+		).run('e2e.pahe'.padEnd(64, '0'));
+		db.prepare(
+			`INSERT INTO engine_sources (id, pkg, name, lang, base_url) VALUES ('300', 'e2e.pahe', 'AnimePahe', 'en', '')`
+		).run();
+
+		expect(sourceMedium('100')).toBe('pages');
+		expect(sourceMedium('300')).toBe('video');
+		expect(sourceMedium('ln:novelfire')).toBe('text');
+		expect(sourceMedium('999')).toBeNull();
+
+		const ids = ['100', '200', '300', 'ln:novelfire', '999'];
+		const kinds = ['manga', 'anime'] as const;
+		for (const kind of kinds)
+			for (const id of ids) {
+				const old = !id.startsWith('ln:') && isAnimeSource(id) === (kind === 'anime');
+				// An id with no engine row was "not anime", so the old rule kept it
+				// for a manga; no such id reaches moveSources (searchSources lists
+				// engine rows and LNReader plugins only), and the new rule says
+				// it serves nothing.
+				const now = sourceMedium(id) === kindFacts(kind).medium;
+				if (id === '999') expect([old, now], `${kind} ${id}`).toEqual([kind === 'manga', false]);
+				else expect(now, `${kind} ${id}`).toBe(old);
+			}
+	});
+});

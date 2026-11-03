@@ -67,8 +67,9 @@ export const KIND_FACTS = {
 	// `addToLibrary`, src/lib/server/engine/backend.ts:593); a downloaded
 	// folder the backup does not know is `mihon-dir:`, which is no family
 	// (mihon-plan.ts:447). Pages, R→L by default (`defaultDirection`,
-	// library/series.ts:89-93). MOVE is offered (`movableKind`,
-	// src/lib/server/move.ts:56-57).
+	// library/series.ts:89-93). MOVE is offered: `movableKind` was a list of
+	// names at c14a5d4e (src/lib/server/move.ts:56-57) and reads this fact
+	// since K4 (c304).
 	manga: {
 		kind: 'manga',
 		medium: 'pages',
@@ -83,8 +84,9 @@ export const KIND_FACTS = {
 	// `defaultDirection` reads a manhwa as a vertical strip
 	// (library/series.ts:90), and the image reader draws it that way. Same
 	// comic family and same Mihon source as a manga. MOVE is offered for it
-	// too (`movableKind`, src/lib/server/move.ts:56-57), planned as a manga:
-	// a comic matches by chapter number (src/lib/server/move.ts:268).
+	// too (`movableKind`'s list at c14a5d4e, src/lib/server/move.ts:56-57),
+	// planned as a manga: a comic matches by chapter number (`moveKindOf`, by
+	// medium, since c304).
 	manhwa: {
 		kind: 'manhwa',
 		medium: 'pages',
@@ -109,7 +111,7 @@ export const KIND_FACTS = {
 	// src/lib/import/hentoid-plan.ts:215), and a grouped series of books has
 	// no key at all (src/lib/server/books.ts:218); Hentoid's keys are not a
 	// `SourceFamily` yet, and making them one is a later card's call.
-	// Not movable: `movableKind` leaves it out (src/lib/server/move.ts:56-57),
+	// Not movable: `movableKind` left it out at c14a5d4e (move.ts:56-57),
 	// although a gallery doujin's key is one MOVE could read.
 	// Catalogue: read, although no LINK queue lists a doujin. A gallery
 	// doujin's Mihon MAL tracker is linked at import (`malLink`,
@@ -136,7 +138,7 @@ export const KIND_FACTS = {
 	// which is no family. `ln:` is a plugin's source id, not a key (:86).
 	// `matches` is itself alone: a novel is another work from its comic
 	// (doc/LINKS.md:69, 106-111), and the cover-only crossing is `coverOnly`,
-	// not a match. Not movable: `movableKind` leaves it out
+	// not a match. Not movable: `movableKind` left it out at c14a5d4e
 	// (src/lib/server/move.ts:56-57), although LNReader feeds it.
 	novel: {
 		kind: 'novel',
@@ -156,8 +158,9 @@ export const KIND_FACTS = {
 	// src/lib/import/anime-plan.ts:156, browse's ADD and a folder's
 	// `tvshow.nfo`, which refuses any other key, library/anime-files.ts:154)
 	// and its MAL family. An anime matches only an anime: `coverOnly` refuses
-	// the crossing (library/catalogue.ts:224-231). Movable (`movableKind`,
-	// src/lib/server/move.ts:56-57), and MOVE's map kind (library/move.ts:70).
+	// the crossing (library/catalogue.ts:224-231). Movable (`movableKind`'s
+	// list at c14a5d4e, src/lib/server/move.ts:56-57), and MOVE's map kind for
+	// video (`moveKindOf`).
 	anime: {
 		kind: 'anime',
 		medium: 'video',
@@ -193,7 +196,8 @@ export const MOVABLE_KINDS = KINDS.filter((k): k is MovableKind => KIND_FACTS[k]
  * How MOVE reads a movable kind: the shape of its by-number map. A manhwa is
  * a comic, so it matches by chapter number exactly as a manga does; only an
  * anime matches by episode and season (`s.kind === 'anime' ? 'anime' :
- * 'manga'`, src/lib/server/move.ts:268). `satisfies` is what makes a new
+ * 'manga'`, src/lib/server/move.ts:268 at c14a5d4e; `moveKindOf` below
+ * since c304). `satisfies` is what makes a new
  * movable kind say how it maps instead of falling through to chapters.
  */
 export const MOVE_MAP = {
@@ -204,6 +208,29 @@ export const MOVE_MAP = {
 
 /** MOVE's own kind, narrower than `Kind` and narrower than the movable kinds. */
 export type MoveKind = (typeof MOVE_MAP)[MovableKind];
+
+/**
+ * Whether MOVE is offered for a kind: its `movable` fact (card c304). This is
+ * what `movableKind` (src/lib/server/move.ts) asks, so a kind added here moves
+ * or doesn't by saying so, never by being missing from a list of names. A
+ * doujin does not move although a gallery's key is `mihon:` (doc/KINDS.md,
+ * "A doujin carries a family's key and does not move").
+ */
+export const isMovable = (kind: Kind): kind is MovableKind => KIND_FACTS[kind].movable;
+
+/**
+ * The shape of MOVE's by-number map for a series of this kind, read from its
+ * medium (card c304): video maps by episode and season (`anime`), and
+ * everything else by number (`manga`). On every movable kind it is
+ * `MOVE_MAP`'s answer (tests/kinds.spec.ts asserts it for each). It answers
+ * every kind, not only the movable ones, because MOVE BACK and its candidate
+ * read it without asking `movable` (`applyMoveBack`, `formerCandidate`):
+ * there a novel or a doujin reads as `manga`, which is what the map always
+ * said for a kind that is not video.
+ */
+export function moveKindOf(kind: Kind): MoveKind {
+	return KIND_FACTS[kind].medium === 'video' ? MOVE_MAP.anime : MOVE_MAP.manga;
+}
 
 /**
  * The kind each source family names a row by: a Mihon row is a manga, an

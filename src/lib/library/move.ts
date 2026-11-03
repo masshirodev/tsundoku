@@ -1,5 +1,5 @@
 import { clock } from './anime.ts';
-import type { MoveKind } from './kinds.ts';
+import { kindFacts, type MoveKind } from './kinds.ts';
 import { formatNumber } from './series.ts';
 
 /**
@@ -64,10 +64,18 @@ export type MoveCandidateEntry = {
 /**
  * A series that can be moved, as MOVE's map reads it: `MOVE_MAP` in the
  * registry, derived there from `movable` and the map's shape (doc/KINDS.md;
- * card c301). Today `manga` and `anime`; a manhwa is movable and maps as a
+ * cards c301, c304), and `moveKindOf` reads it from a kind's medium. Today
+ * `manga` (pages) and `anime` (video); a manhwa is movable and maps as a
  * manga, and a doujin does not move, even a gallery's with a `mihon:` key.
  */
 export type { MoveKind };
+
+/**
+ * Whether a move maps video (episodes, seasons, an offset, a position in
+ * time) rather than pages: the medium of MOVE's map kind (doc/KINDS.md; card
+ * c304). Every per-medium rule below asks this, never the kind's name.
+ */
+export const movesVideo = (kind: MoveKind): boolean => kindFacts(kind).medium === 'video';
 
 /**
  * YOUR EP. 1 IS THEIR EP. [offset]: only a candidate that numbers every
@@ -234,16 +242,16 @@ export function buildMoveMap(
 	theirs: MoveCandidateEntry[],
 	opts: MapOptions
 ): MovePlan {
-	const anime = opts.kind === 'anime';
+	const video = movesVideo(opts.kind);
 	const offset = opts.offset ?? 1;
 	const yourSeasons = new Set(yours.map((e) => e.season).filter((s): s is number => s !== null));
 	const theirSeasons = new Set(theirs.map((t) => t.season).filter((s): s is number => s !== null));
 	// Seasons are compared only when both sides have them: a flat candidate is
 	// the offset case, and a flat series is one list like a manga's.
-	const seasoned = anime && yourSeasons.size > 0 && theirSeasons.size > 0;
+	const seasoned = video && yourSeasons.size > 0 && theirSeasons.size > 0;
 	// A flat candidate for a series that knows its season: the offset maps its
 	// numbers into the series' own.
-	const flatOffset = anime && yourSeasons.size > 0 && theirSeasons.size === 0;
+	const flatOffset = video && yourSeasons.size > 0 && theirSeasons.size === 0;
 
 	const normalized: Normalized[] = theirs.map((t) => ({
 		...t,
@@ -263,7 +271,7 @@ export function buildMoveMap(
 		else ranges.set(s, { from: Math.min(r.from, e.number), to: Math.max(r.to, e.number) });
 	}
 	const inRange = (t: Normalized): boolean => {
-		if (!anime) return true;
+		if (!video) return true;
 		if (seasoned && !ranges.has(t.season)) return false;
 		const r = ranges.get(seasoned ? t.season : null);
 		return !!r && t.at >= r.from && t.at <= r.to;
@@ -394,7 +402,7 @@ function rowOf(u: Unit, opts: MapOptions & { seasoned: boolean; here?: MoveEntry
 				: `MATCH${read ? ' · READ' : ''}${queued ? ' · QUEUED' : ''}`,
 			...(isHere
 				? {
-						detail: kind === 'anime' ? episodeReadingDetail(u.entry) : readingDetail(u.entry, to)
+						detail: movesVideo(kind) ? episodeReadingDetail(u.entry) : readingDetail(u.entry, to)
 					}
 				: {}),
 			downloaded: u.entry.available,
@@ -608,8 +616,9 @@ export type MoveSummaryContext = {
  * here can promise a count the move won't deliver.
  */
 export function moveSummary(plan: MovePlan, ctx: MoveSummaryContext): MoveSummaryRow[] {
-	const anime = ctx.kind === 'anime';
-	const noun = anime ? 'EPISODE' : 'CHAPTER';
+	const video = movesVideo(ctx.kind);
+	// EPISODE or CHAPTER: the map kind's own unit, spelled out.
+	const noun = kindFacts(ctx.kind).unit.long;
 	const nouns = `${noun}S`;
 
 	const downloaded = ctx.yours.filter((e) => e.available);
@@ -619,10 +628,10 @@ export function moveSummary(plan: MovePlan, ctx: MoveSummaryContext): MoveSummar
 		.filter((e) => e.readAt === null && e.lastOpenedAt !== null)
 		.sort((a, b) => (b.lastOpenedAt ?? 0) - (a.lastOpenedAt ?? 0))[0];
 	const through = read.length
-		? `${anime ? 'Watched' : 'Read'} through ${anime ? 'ep.' : 'ch.'} ${formatNumber(read[read.length - 1].number)}`
+		? `${video ? 'Watched' : 'Read'} through ${video ? 'ep.' : 'ch.'} ${formatNumber(read[read.length - 1].number)}`
 		: '';
 	const where = current
-		? anime
+		? video
 			? `at ${clock(current.lastPosition ?? 0)} in ep. ${formatNumber(current.number)}`
 			: `on p. ${(current.lastPosition ?? 0) + 1} of ch. ${formatNumber(current.number)}`
 		: '';
@@ -657,7 +666,7 @@ export function moveSummary(plan: MovePlan, ctx: MoveSummaryContext): MoveSummar
 	return [
 		{
 			key: 'chapters',
-			label: anime ? 'EPISODES' : 'CHAPTERS',
+			label: video ? 'EPISODES' : 'CHAPTERS',
 			a: [
 				`${plan.matches.length} match by number`,
 				plan.kept.length ? `${plan.kept.length} kept from ${ctx.from}` : '',
@@ -672,7 +681,7 @@ export function moveSummary(plan: MovePlan, ctx: MoveSummaryContext): MoveSummar
 		},
 		{
 			key: 'reading',
-			label: anime ? 'WATCHING' : 'READING',
+			label: video ? 'WATCHING' : 'READING',
 			a: reading || 'Nothing read yet',
 			b: carries,
 			status: 'MOVES'
@@ -681,7 +690,7 @@ export function moveSummary(plan: MovePlan, ctx: MoveSummaryContext): MoveSummar
 			key: 'files',
 			label: 'FILES',
 			a: downloaded.length
-				? `${downloaded.length} downloaded, ${anime ? 'ep.' : 'ch.'} ${
+				? `${downloaded.length} downloaded, ${video ? 'ep.' : 'ch.'} ${
 						dlNumbers.length === 1
 							? formatNumber(dlNumbers[0])
 							: `${formatNumber(Math.min(...dlNumbers))} – ${formatNumber(Math.max(...dlNumbers))}`
@@ -709,11 +718,11 @@ export function moveSummary(plan: MovePlan, ctx: MoveSummaryContext): MoveSummar
 		{
 			key: 'rest',
 			label: 'THE REST',
-			a: anime
+			a: video
 				? 'Title, cover, rating, FAV, shelves, tags, link, season'
 				: 'Title, cover, rating, FAV, shelves, tags, link, notes',
 			b:
-				anime && ctx.season != null
+				video && ctx.season != null
 					? `THE SAME SERIES · STILL SEASON ${ctx.season}`
 					: 'THE SAME SERIES',
 			status: 'UNCHANGED'
@@ -730,7 +739,7 @@ export function movedDetail(plan: MovePlan, from: string, kind: MoveKind): strin
 	const added = plan.added.length + plan.readAdded.length;
 	if (added)
 		parts.push(
-			`${added} ${kind === 'anime' ? 'EPISODE' : 'CHAPTER'}${added === 1 ? '' : 'S'} ADDED, NOT DOWNLOADED`
+			`${added} ${kindFacts(kind).unit.long}${added === 1 ? '' : 'S'} ADDED, NOT DOWNLOADED`
 		);
 	if (plan.kept.length) parts.push(`${plan.kept.length} KEPT FROM ${from.toUpperCase()}`);
 	return parts.join(' · ') || 'NOTHING ADDED OR KEPT';

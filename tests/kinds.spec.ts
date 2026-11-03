@@ -6,8 +6,10 @@ import {
 	KIND_FACTS,
 	kindFacts,
 	KINDS,
+	isMovable,
 	MOVE_MAP,
 	MOVABLE_KINDS,
+	moveKindOf,
 	SOURCE_KINDS,
 	type Kind,
 	type KindFacts,
@@ -26,7 +28,7 @@ import {
 	sameKind,
 	wrongKind
 } from '$lib/library/catalogue';
-import type { MoveKind } from '$lib/library/move';
+import { movesVideo, type MoveKind } from '$lib/library/move';
 import type { SeriesCard } from '$lib/library/types';
 import { parseAnimeKey, parseKey, parseNovelKey } from '$lib/library/downloads';
 import { isGallerySource, kindOf, planMihon } from '$lib/import/mihon-plan';
@@ -146,6 +148,40 @@ describe('MOVABLE', () => {
 		// so a widened MoveKind would fail to compile here.
 		const mapKinds: Record<MoveKind, true> = { manga: true, anime: true };
 		expect(Object.keys(mapKinds)).toEqual(['manga', 'anime']);
+	});
+});
+
+/**
+ * K4 (card c304): MOVE asks the registry. Each replacement is asserted for
+ * every member of `KINDS` against the answer the code gave at `fb2bd3a7`,
+ * written out here as the old expressions, not derived from the registry,
+ * so a wrong fact goes red rather than agreeing with itself.
+ */
+describe('MOVE asks the registry', () => {
+	// `movableKind` at fb2bd3a7 (src/lib/server/move.ts:56-57).
+	const oldMovable = (k: Kind) => k === 'manga' || k === 'manhwa' || k === 'anime';
+	// The map kind at fb2bd3a7 (src/lib/server/move.ts:268, :556, :720, :923, :1079).
+	const oldMoveKind = (k: Kind): MoveKind => (k === 'anime' ? 'anime' : 'manga');
+
+	it('offers MOVE to exactly the kinds it offered it to', () => {
+		for (const k of KINDS) expect(isMovable(k), k).toBe(oldMovable(k));
+		// Every kind is asked: the registry's five, none skipped.
+		expect(KINDS).toHaveLength(5);
+	});
+
+	it('reads the map kind from the medium, as every kind read it', () => {
+		for (const k of KINDS) expect(moveKindOf(k), k).toBe(oldMoveKind(k));
+		// On the movable kinds it is MOVE_MAP, the registry's own rule.
+		for (const k of MOVABLE_KINDS) expect(moveKindOf(k), k).toBe(MOVE_MAP[k]);
+	});
+
+	it('says video only for the anime map, which is what every branch asked', () => {
+		const kinds: MoveKind[] = ['manga', 'anime'];
+		// Each `kind === 'anime'` in both move modules is now this question.
+		for (const k of kinds) expect(movesVideo(k), k).toBe(k === 'anime');
+		// The words the move says come from the map kind's unit.
+		expect(kindFacts('anime').unit.long).toBe('EPISODE');
+		expect(kindFacts('manga').unit.long).toBe('CHAPTER');
 	});
 });
 
@@ -441,7 +477,7 @@ describe('the unit and READ/WATCHED words (labels.ts)', () => {
  * How to lower it: delete or replace a check, then lower BASELINE by exactly
  * the count removed. Never raise it without a card saying which check and why.
  */
-const BASELINE = 152;
+const BASELINE = 121;
 /** One of `KINDS`' own names, as a bare alternation. */
 const NAME = String.raw`(?:manga|manhwa|doujin|novel|anime)`;
 const COMPARED = new RegExp(

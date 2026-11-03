@@ -8,7 +8,9 @@ under the **Kinds** label (the table at the end).
 **Status: K1 done, 2026-11-03** (card c301: built in wave 14 on
 `agent/k14-kinds` from `c14a5d4e`, landed in wave 16 on `agent/k16-kinds` from
 `a698f974`, where a doujin's Sources became `mihon`): the registry, one list of
-kinds, the database CHECK test and the ratchet that holds the count. K2–K5 below are not built. The rule at the end
+kinds, the database CHECK test and the ratchet that holds the count. **K4
+done, 2026-11-03** (card c304, wave 17 on `agent/k17-kinds` from `fb2bd3a7`):
+MOVE's two modules ask `movable`, `medium` and `unit.long`, and the ratchet is 121. K2, K3 and K5 below are not built (see the table at the end for K3). The rule at the end
 ("No new kind checks") applies from here on.
 
 ## Why
@@ -191,8 +193,10 @@ What each fact says today, and the lines it was read from:
   (`library/series.ts`, `library/anime.ts`).
 - **Unit**: `labels.ts`'s `unitLabel` reads `unit.short` for CH/VOL/EP and
   `sheetMeta` reads `unit.done` for READ/WATCHED. `unit.long` is the singular
-  spelling (`CHAPTER`, `VOLUME`, `EPISODE`) that K2/K3 will use where the code
-  spells a unit out; nothing reads it yet.
+  spelling (`CHAPTER`, `VOLUME`, `EPISODE`). MOVE reads it since K4 for its
+  map kind's noun (`moveState`'s `25 EPISODES LISTED`, `moveSummary`,
+  `movedDetail`, MOVE BACK's line); K2/K3 will use it where the rest of the
+  code spells a unit out.
 - **Catalogue** is the AniList type: `server/catalogue.ts` asks
   `anilistType(kind)` in the lookup by id and in the search, and
   `library/catalogue.ts` builds the entry's URL and reads a pasted link on the
@@ -223,9 +227,17 @@ What each fact says today, and the lines it was read from:
   still decides it — K2 makes it read the registry. An anime's row is `rtl`
   because `directionOptions` treats every non-novel the same way; the player
   ignores direction, but a Work's face and the reader's mode do not.
-- **Movable** is `movableKind` (`src/lib/server/move.ts:56-57`): a manga, a
-  manhwa or an anime. `MOVE_MAP` keeps MOVE's own kind at `manga` and `anime`,
-  because a manhwa is planned as a manga (`src/lib/server/move.ts:268`).
+- **Movable** decides whether MOVE is offered: a manga, a manhwa or an anime.
+  It was `movableKind`'s list of names at `c14a5d4e`
+  (`src/lib/server/move.ts:56-57`); since K4 `movableKind` is `isMovable`,
+  which reads this fact. `MOVE_MAP` keeps MOVE's own kind at `manga` and
+  `anime`, because a manhwa is planned as a manga, and `moveKindOf(kind)` reads
+  the map kind from the medium (video maps as `anime`, anything else as
+  `manga`), which equals `MOVE_MAP` on every movable kind. Inside MOVE every
+  per-medium rule (episodes and seasons, the offset, positions resequenced,
+  `Ep.` against `Ch.`, WATCHING against READING) asks `movesVideo(kind)`
+  (`library/move.ts`), the map kind's medium, and which sources MOVE asks is
+  the sources whose `sourceMedium` (`engine/backend.ts`) is the map kind's.
 
 The rules that go with it:
 
@@ -251,15 +263,17 @@ The rules that go with it:
 Each is real in the code at `c14a5d4e`; the registry records what ships, and
 none of these was "fixed" here.
 
-- **A manhwa moves, but not as its own map.** `movableKind` offers MOVE to a
-  manhwa (`src/lib/server/move.ts:56-57`) and the plan is built as a `manga`
-  (`:268`). So `MOVABLE_KINDS` is three and `MoveKind` is two; the card's own
-  premise ("`MoveKind` is the truth" for `movable`) was measured false.
+- **A manhwa moves, but not as its own map.** `movableKind` offered MOVE to a
+  manhwa (`src/lib/server/move.ts:56-57` at `c14a5d4e`) and the plan is built
+  as a `manga` (`:268` then, `moveKindOf` since K4). So `MOVABLE_KINDS` is
+  three and `MoveKind` is two; the card's own premise ("`MoveKind` is the
+  truth" for `movable`) was measured false.
 - **A novel's unit is a volume in `labels.ts` and a chapter in the review.**
   `unitLabel(novel)` is `VOL` and `sheetMeta` says `12 VOL`, while
   `catalogue.ts`'s `whyLine` and `candidateRows` still say `CHAPTERS CLOSE` /
-  `CHAPTERS` for a novel. `unit.long` is `VOLUME`; nothing reads it yet, so
-  the review's words are unchanged until K2/K3.
+  `CHAPTERS` for a novel. `unit.long` is `VOLUME`; the review does not read
+  it (MOVE, which does, never moves a novel), so the review's words are
+  unchanged until K2/K3.
 - **The FILTER panel's words for two kinds are plurals.** `KIND_LABEL`
   (`filters.ts:52`) says `DOUJINS` and `NOVELS`, `kindLabel` says `DOUJIN` and
   `NOVEL`. It is a list of labels, not of kinds; K1 left it as it was.
@@ -278,9 +292,15 @@ none of these was "fixed" here.
   as they were. A new kind must grep them by hand until K5 folds them in.
 - **A doujin carries a family's key and does not move.** A gallery doujin's
   key is `mihon:` (its Sources are `mihon`), yet `movableKind`
-  (`src/lib/server/move.ts:56-57`) leaves every doujin out, and a novel too,
-  although LNReader feeds it. `movable` records what `movableKind` does, not
-  what the key would allow.
+  (`src/lib/server/move.ts:56-57` at `c14a5d4e`) left every doujin out, and a
+  novel too, although LNReader feeds it. `movable` recorded what `movableKind`
+  did, not what the key would allow, and since K4 `movableKind` reads
+  `movable`. **Decided in K4 (wave 17): it stays so.** A gallery doujin with a
+  `mihon:` key is not offered MOVE; `tests/kinds-db.spec.ts` ("refuses a
+  gallery doujin with a mihon: key at every MOVE door") plans one through
+  `planMihon`, writes it, and asks `moveState`, `moveEligible`,
+  `moveComparison` and `applyMove`. Making it move is a card of its own, with
+  a doc/MOVE.md change (departure 7 there).
 - **A doujin's catalogue is read by the import's door, not the owner's.**
   `catalogue` says AniList `MANGA` for a doujin (`anilistType`, as
   `mediaTypeOf` did before K1), and a live path asks it: `planMihon` keeps
@@ -299,9 +319,10 @@ none of these was "fixed" here.
   is the shipped `sameKind` (a doujin was in the comic family before K1 too).
 - **`layout` is stated twice.** `defaultDirection` still decides it; the fact
   records the same default so a reader can ask. K2 removes the duplication.
-- **`medium`, `sources`, `storage` and `unit.long` have no reader in K1.**
-  They are the facts K2-K5 read; K1 proves the shape with `unit.short`,
-  `unit.done`, `catalogue.type` and `matches`.
+- **`medium`, `sources`, `storage` and `unit.long` had no reader in K1.**
+  They are the facts K2-K5 read; K1 proved the shape with `unit.short`,
+  `unit.done`, `catalogue.type` and `matches`. K4 reads `movable`, `medium`
+  (through `moveKindOf`, `movesVideo` and `sourceMedium`) and `unit.long`.
 
 ## No new kind checks
 
@@ -327,7 +348,12 @@ rg -n --glob 'src/**/*.{ts,svelte}' --glob '!src/lib/library/kinds.ts' \
 At `c14a5d4e`, before K1, that prints **158**. After K1 it prints **152**: the
 six lines it removed are `mediaTypeOf`'s type choice, `unitLabel`'s and
 `sheetMeta`'s, and the AniList and MAL URL paths and the paste path. The
-spec's `BASELINE` is 152, and it skips the same one file this command does.
+spec's `BASELINE` was 152, and it skips the same one file this command does.
+After K4 (wave 17) it prints **121**: the 31 lines it removed are every
+comparison left in `src/lib/server/move.ts` (27) and `src/lib/library/move.ts`
+(4). The move route's three (`src/routes/series/[id]/move/`) stay in the count
+for K2, which owns that route next. `BASELINE` follows the latest slice; the
+handoff notes (`doc/handoff-notes/kinds.md`) record each one's number.
 The number is smaller than the audit's rough ~340 because this counts only a
 `kind` compared against a kind name: not the `isAnime…`-style helpers, not a
 download's or a device's `kind`, and not a comparison between two variables.
@@ -339,9 +365,10 @@ The modules that own a kind's own peculiarity are **counted, not excused**:
 `library/labels.ts` (a doujin's single book line, an anime's episode line),
 `library/catalogue.ts` (the cover-only crossing, an entry's path, the review's
 words), `server/catalogue.ts` (the per-kind format lists),
-`read/[entry]/ImageReader.svelte` (manhwa's vertical strip), `move.ts` and
-`server/move.ts` (anime's seasons). They are what K2-K5 lower, by asking the
-registry instead.
+`read/[entry]/ImageReader.svelte` (manhwa's vertical strip). They are what
+K2-K5 lower, by asking the registry instead. `move.ts` and `server/move.ts`
+(anime's seasons) were on this list and count none since K4: their seasons are
+a question about video, asked as `movesVideo`.
 
 How to lower it: delete or replace a check, then lower `BASELINE` by exactly
 the count. **Never raise it without a card** saying which check and why. The
@@ -379,13 +406,13 @@ changes no behaviour except where its card says so. K1 waits for c298 (which
 fixes the catalogue first, the bug the owner is waiting on), and K2–K4 wait
 for K1.
 
-| Slice | Card | What                                                                                                                                                                                     |
-| ----- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| K1    | c301 | **done, 2026-11-03** — the registry, one list of kinds, the DB CHECK test, the no-new-checks ratchet (152); labels' CH/VOL/EP and READ/WATCHED and both catalogues' AniList type read it |
-| K2    | c302 | the series screen, library cards, labels, readers and the player ask the registry                                                                                                        |
-| K3    | c303 | downloads, sources, browse, extensions and covers ask the registry                                                                                                                       |
-| K4    | c304 | MOVE asks the registry (`movable`), both halves                                                                                                                                          |
-| K5    | c305 | the rest (settings, filters, home, layout, history, people) and the ratchet down to the allow-list                                                                                       |
+| Slice | Card | What                                                                                                                                                                                                                                                               |
+| ----- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| K1    | c301 | **done, 2026-11-03** — the registry, one list of kinds, the DB CHECK test, the no-new-checks ratchet (152); labels' CH/VOL/EP and READ/WATCHED and both catalogues' AniList type read it                                                                           |
+| K2    | c302 | the series screen, library cards, labels, readers and the player ask the registry                                                                                                                                                                                  |
+| K3    | c303 | downloads, sources, browse, extensions and covers ask the registry                                                                                                                                                                                                 |
+| K4    | c304 | **done, 2026-11-03** — MOVE asks the registry, both modules: `movable` (`isMovable`), the map kind by `medium` (`moveKindOf`, `movesVideo`), the sources by `sourceMedium`, nouns by `unit.long`; ratchet 152 → 121. The move route's three checks are K2's (c302) |
+| K5    | c305 | the rest (settings, filters, home, layout, history, people) and the ratchet down to the allow-list                                                                                                                                                                 |
 
 K1 shipped `src/lib/library/kinds.ts`; `Kind`, `KINDS`, `FILTER_KINDS`,
 `FilterKind`, `MoveKind` and `start.ts`'s source-kind union derived from it;
