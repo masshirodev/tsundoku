@@ -96,6 +96,19 @@
 	let undo = $state<Undo | null>(null);
 
 	const item = $derived<Item | null>(queue.length ? (byKey.get(queue[0]) ?? null) : null);
+	/**
+	 * The season a decision is about (c240): the page's own on `?series=`, or
+	 * the one the queue's item is for -- an anime's season that still wants a
+	 * look. Posted with LINK, NONE OF THESE, SEARCH AGAIN and their UNDO, so the
+	 * workstation never falls back to a default season.
+	 */
+	const at = $derived<{ no: number; part: number } | null>(
+		season
+			? { no: season.no, part: season.part }
+			: item && 'season' in item && item.season !== undefined
+				? { no: item.season, part: item.part ?? 1 }
+				: null
+	);
 	const ranobe = $derived(item?.service === 'ranobe');
 	const name = $derived(item ? SERVICE_NAME[item.service] : '');
 	let chosen = $state<string | null>(null);
@@ -186,12 +199,13 @@
 	): Promise<Record<string, unknown> | null> {
 		if (!item || busy) return null;
 		const it = item;
+		const on = at;
 		const before = { queue: [...queue], done };
 		busy = true;
 		failed = null;
 		const r = await post(it.service, {
 			series: it.seriesId,
-			...(season ? { season: season.no, part: season.part } : {}),
+			...(on ? { season: on.no, part: on.part } : {}),
 			...body
 		});
 		busy = false;
@@ -222,7 +236,7 @@
 				series: it.seriesId,
 				// The season the decision was about: UNDO takes that one back, not
 				// whichever the page happens to open on (c240).
-				...(season ? { season: season.no, part: season.part } : {}),
+				...(on ? { season: on.no, part: on.part } : {}),
 				was: kind === 'search' ? ((answer.was as QueuedFrom) ?? null) : undefined
 			},
 			before
@@ -421,7 +435,7 @@
 		const r = await post(it.service, {
 			series: it.seriesId,
 			search: q,
-			...(season ? { season: season.no } : {})
+			...(at ? { season: at.no, part: at.part } : {})
 		});
 		busy = false;
 		searchingNow = false;

@@ -693,10 +693,147 @@ test.describe('a catalogue that answers', () => {
 		await page.goto(`${BASE}/links?series=${id}&season=0`);
 		await expect(page.locator('.seasonbar .sb-b')).toContainText('2 EPISODES HERE');
 	});
+
+	test('the queue’s LINK on an anime with season 1 linked links season 2, and says so (c240)', async ({
+		page
+	}) => {
+		// Season 1 is the owner's, season 2 was searched by the pass. The queue's
+		// item names no season on screen, so LINK must post the season it is for:
+		// the default would be the open season, which is season 1 here.
+		const id = seedQueuedSecondSeason();
+		try {
+			// FIND with no season named opens where the queue would: season 1 is
+			// open (nothing watched) but linked, so season 2.
+			await page.goto(`${BASE}/links?series=${id}`);
+			await expect(page.locator('.heading .long')).toHaveText('LINK · SEASON 2');
+			await page.goto(`${BASE}/links`);
+			for (let i = 0; i < 4; i++) {
+				if ((await page.locator('.title').textContent()) === 'Queued Second Season') break;
+				await page.getByRole('button', { name: 'SKIP' }).click();
+			}
+			await expect(page.locator('.title')).toHaveText('Queued Second Season');
+			await page.locator('.cand').first().click();
+			const posted = page.waitForRequest(
+				(r) => r.url().endsWith('/api/links') && r.method() === 'POST'
+			);
+			await page.locator('.actions button').last().click();
+			expect((await posted).postDataJSON()).toMatchObject({
+				series: id,
+				link: 9202,
+				season: 2,
+				part: 1
+			});
+			await expect(page.locator('.band .line').first()).toHaveText(
+				'LINKED · QUEUED SECOND SEASON II'
+			);
+			expect(seasonLinksOf(id)).toEqual([
+				{ season: 1, anilist_id: 9201, via: 'review' },
+				{ season: 2, anilist_id: 9202, via: 'review' }
+			]);
+		} finally {
+			unlinkQueuedSecondSeason(id);
+		}
+	});
 });
 
+/** A two-season anime, season 1 linked, season 2 searched and offered one entry: queued. */
+let queuedSecond: number | null = null;
+function seedQueuedSecondSeason(): number {
+	if (queuedSecond !== null) return queuedSecond;
+	const db = new Database(dbPath);
+	try {
+		const now = Date.UTC(2026, 10, 2, 12, 0);
+		const root = (db.prepare(`SELECT id FROM roots WHERE name = 'Library'`).get() as { id: number })
+			.id;
+		const id = Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, source, hue, added_at, indexed_at, origin_key, in_library, cover_key)
+					VALUES (?, 'Queued Second Season', 'anime', 'aniyomi', 210, ?, ?, 'aniyomi:1:/queued-second', 1, '')`
+				)
+				.run(root, now, now).lastInsertRowid
+		);
+		const put = db.prepare(
+			`INSERT INTO entries (series_id, position, label, season, episode_number, added_at, file, bytes, page_count, available, source_url)
+			VALUES (?, ?, ?, ?, ?, ?, '', 0, 0, 0, ?)`
+		);
+		let position = 0;
+		for (const season of [1, 2])
+			for (let i = 1; i <= 3; i++) {
+				position += 1;
+				put.run(id, position, `Episode ${i}`, season, i, now, `/queued/${season}/${i}`);
+			}
+		db.prepare(
+			`INSERT INTO series_season_links (series_id, season, part, anilist_id, via, title, linked_at, resolved_at, format, episodes)
+			VALUES (?, 1, 1, 9201, 'review', 'Queued Second Season', ?, ?, 'TV', 3)`
+		).run(id, now, now);
+		const candidate = JSON.stringify({
+			anilistId: 9202,
+			malId: null,
+			title: 'Queued Second Season II',
+			alts: [],
+			format: 'TV',
+			country: 'JP',
+			year: 2020,
+			chapters: null,
+			volumes: null,
+			episodes: 3,
+			season: 'FALL',
+			seasonYear: 2020,
+			status: 'FINISHED',
+			coverUrl: ''
+		});
+		// What the pass leaves: the series' own search and the season's, alike.
+		db.prepare(
+			`INSERT INTO link_searches (series_id, query, searched_at, found) VALUES (?, 'Queued Second Season Season 2', ?, 1)`
+		).run(id, now);
+		db.prepare(
+			`INSERT INTO link_candidates (series_id, anilist_id, rank, data) VALUES (?, 9202, 0, ?)`
+		).run(id, candidate);
+		db.prepare(
+			`INSERT INTO season_link_searches (series_id, season, part, query, searched_at, found)
+			VALUES (?, 2, 1, 'Queued Second Season Season 2', ?, 1)`
+		).run(id, now);
+		db.prepare(
+			`INSERT INTO season_link_candidates (series_id, season, part, anilist_id, rank, data)
+			VALUES (?, 2, 1, 9202, 0, ?)`
+		).run(id, candidate);
+		return (queuedSecond = id);
+	} finally {
+		db.close();
+	}
+}
+
+/** Put the queued show back as seeded: season 2 open again, season 1 as it was. */
+function unlinkQueuedSecondSeason(id: number): void {
+	const db = new Database(dbPath);
+	try {
+		db.prepare(`DELETE FROM series_season_links WHERE series_id = ? AND season = 2`).run(id);
+		db.prepare(`DELETE FROM season_link_decisions WHERE series_id = ?`).run(id);
+		db.prepare(`UPDATE link_searches SET skipped_at = NULL WHERE series_id = ?`).run(id);
+	} finally {
+		db.close();
+	}
+}
+
+function seasonLinksOf(id: number): { season: number; anilist_id: number; via: string }[] {
+	const db = new Database(dbPath, { readonly: true });
+	try {
+		return db
+			.prepare(
+				`SELECT season, anilist_id, via FROM series_season_links WHERE series_id = ? ORDER BY season`
+			)
+			.all(id) as { season: number; anilist_id: number; via: string }[];
+	} finally {
+		db.close();
+	}
+}
+
 /** An anime whose list is two watched unseasoned episodes, then a season 1 of three. */
+let flatThenNumbered: number | null = null;
 function seedFlatThenNumbered(): number {
+	// Once a run: its origin key is unique, and a retry must not insert it again.
+	if (flatThenNumbered !== null) return flatThenNumbered;
 	const db = new Database(dbPath);
 	try {
 		const now = Date.UTC(2026, 10, 2, 12, 0);
@@ -718,7 +855,7 @@ function seedFlatThenNumbered(): number {
 		put.run(id, 2, 'Episode 2', null, 2, now, '/flat/2', now);
 		for (let i = 1; i <= 3; i++)
 			put.run(id, 2 + i, `Episode ${i}`, 1, i, now, `/flat/s1/${i}`, null);
-		return id;
+		return (flatThenNumbered = id);
 	} finally {
 		db.close();
 	}

@@ -15,6 +15,7 @@ import {
 	seasonCandidates,
 	seasonRelations,
 	seasonSearch,
+	seasonToLook,
 	seriesSeasons,
 	type RelationOffer
 } from '$lib/server/season-links';
@@ -63,10 +64,14 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 		// An anime's season: its own title, its own candidates, and the entry its
 		// line names (c240).
 		const view = item.kind === 'anime' ? seriesSeasons(id) : null;
-		// Absent is the open season, never season 0 (a flat list's, and real).
+		// Absent is the season that still wants a look -- the open one unless it
+		// is linked or settled (`seasonToLook`) -- then the open one; never
+		// season 0 (a flat list's, and real) by default.
 		const seasonParam = seasonNamed(url.searchParams.get('season'));
+		const toLook = view ? seasonToLook(id) : undefined;
 		const at = view
 			? (view.seasons.find((s) => s.season === seasonParam) ??
+				view.seasons.find((s) => s.season === toLook) ??
 				view.seasons.find((s) => s.season === view.open) ??
 				view.seasons[0] ??
 				null)
