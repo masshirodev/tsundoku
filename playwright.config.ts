@@ -45,7 +45,10 @@ const DEVICE_IGNORE = [
 	// Works' two frames make the Work they measure, and end it again: they run
 	// in their own project, after the devices, so no reader sees it (doc/WORKS.md).
 	'**/works-library-frame.e2e.ts',
-	'**/work-screen-frame.e2e.ts'
+	'**/work-screen-frame.e2e.ts',
+	// The Works flow groups series into Works, so it seeds and serves a database
+	// of its own (tests/works-flow.e2e.ts) and runs in its own project.
+	'**/works-flow.e2e.ts'
 ];
 
 // The projects are the devices the design system names: the tablet the library
@@ -128,7 +131,9 @@ export default defineConfig({
 				'**/tv-*.e2e.ts',
 				// Works' frames make the Work they measure; they run in `works-frame`.
 				'**/works-library-frame.e2e.ts',
-				'**/work-screen-frame.e2e.ts'
+				'**/work-screen-frame.e2e.ts',
+				// The Works flow seeds and serves its own database: `works-flow`.
+				'**/works-flow.e2e.ts'
 			],
 			use: { ...devices['Galaxy Tab S4'], viewport: { width: 800, height: 1280 } }
 		},
@@ -175,6 +180,18 @@ export default defineConfig({
 			fullyParallel: false,
 			workers: 1,
 			use: { ...devices['Galaxy Tab S4 landscape'], viewport: { width: 1280, height: 800 } }
+		},
+		{
+			// The Works flow (c276, c277): every case groups series into a Work,
+			// and a Work takes its parts' own grid tiles away while it exists.
+			// It seeds a database of its own and serves the build on one of its
+			// own ports, like `works-frame`, so no other spec's grid lookups can
+			// see a Work and a case that fails halfway cannot leave one behind.
+			name: 'works-flow',
+			testMatch: ['**/works-flow.e2e.ts'],
+			fullyParallel: false,
+			workers: 1,
+			use: { ...devices['Galaxy Tab S4'], viewport: { width: 800, height: 1280 } }
 		},
 		{
 			// A friend's install (doc/SIGN-IN.md): SET UP, a password, none. One

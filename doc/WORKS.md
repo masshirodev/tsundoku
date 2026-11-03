@@ -244,6 +244,22 @@ cannot see are hand-written, and **regenerating the files drops them** --
 `temp/design/assemble.py` is the script that puts them back. They run in the
 `works-frame` project (1280x800, one worker).
 
+### The flow
+
+`tests/works-flow.e2e.ts` is W2's and W3's end to end: the tile, the CONTINUE
+row, the Work's screen, ORDER, TAKE OUT and its bands, ADD A SERIES, the
+derived RATING and FAV, the hidden 404, paging and SELECT ALL. Every case groups
+series into a Work, and a Work takes its parts' own tiles off the grid while it
+exists -- so a spec that finds one of those series by its grid tile, running
+beside this file on the shared database, would time out (the reader's
+`seriesId()` is the arrangement that does). It therefore runs on the frames'
+arrangement: its own seeded database, its own preview port taken from the OS,
+and the `works-flow` project, one worker. Nothing it writes can be seen by
+another spec, and a case that fails halfway leaves the suite's database as it
+was. The one destructive step that is not a browser case -- SELECT ALL over a
+kind shelf takes a Work's off-shelf part, and a bulk HIDE hides the run whole --
+is in `tests/works-library-db.spec.ts`, which reseeds before every case.
+
 ## What it does not do yet
 
 Everything in the slices below that is not marked done. Also, by the brief:
