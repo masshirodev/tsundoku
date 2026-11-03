@@ -37,13 +37,18 @@ Ranobe's candidates, ahead of its AniList item if it has one. That half is
 
 ## Where a link comes from
 
-| Via      | How                                                                             | Sure?           |
-| -------- | ------------------------------------------------------------------------------- | --------------- |
-| `mihon`  | A MAL tracker (Mihon tracker 1) in a backup, at import                          | Yes, at once    |
-| `exact`  | The pass's AniList search found one entry whose title equals one of the series' | Yes, at once    |
-| `review` | The owner chose a candidate in the review                                       | The owner's say |
-| `pasted` | The owner pasted an AniList or MAL link                                         | The owner's say |
-| `list`   | The owner's AniList list, once signed in ([`TRACKING.md`](TRACKING.md))         | Yes, at once    |
+| Via      | How                                                                                        | Sure?           |
+| -------- | ------------------------------------------------------------------------------------------ | --------------- |
+| `mihon`  | A MAL tracker (Mihon tracker 1) in a backup, at import                                     | Yes, at once    |
+| `exact`  | The background pass's AniList search found one entry whose title equals one of the series' | Yes, at once    |
+| `review` | The owner chose a candidate in the review                                                  | The owner's say |
+| `pasted` | The owner pasted an AniList or MAL link                                                    | The owner's say |
+| `list`   | The owner's AniList list, once signed in ([`TRACKING.md`](TRACKING.md))                    | Yes, at once    |
+
+`exact` is the **background pass's only** (the owner's rule, 2026-11-02): a
+search the owner runs never links by itself, even when exactly one result has
+the same title. It offers that result, marked **EXACT TITLE**, and waits for
+the owner's LINK.
 
 Measured on 2026-09-24, when a device's mirrored `Mihon/` was still read
 (c191 stopped that; a backup placed in the library's `Mihon/autobackup` is
@@ -62,10 +67,18 @@ romaji, native, synonyms) can equal any of the series' own (title and
 `alt_titles`).
 
 - A novel never matches a comic, however equal the title.
+- **An anime never matches a manga, a manhwa or a novel, nor any of those an
+  anime** (c298). AniList has two catalogues, and a series is searched,
+  resolved and matched in its own: `ANIME` for an anime, `MANGA` for
+  everything else.
 - Manga and manhwa count as one kind: AniList calls both MANGA, and Mihon's
   guess between them can be wrong.
 - A title Mihon cut short with `...` never matches exactly. It's searched
   with the stub taken off and goes to the review.
+- **Two entries of the same kind under one title** are no sure match, unless
+  one names the year the series' own title does: "Ranma ½ (2024)" takes the
+  2024 series, not the 1989 one, and a series with no year in its title takes
+  neither.
 
 ### Cleaning a title before it's searched
 
@@ -89,14 +102,20 @@ searched once more (`Clevatess - The King of Devil Beasts, …` →
 (`Hero Killer (Beolkkul)` → `Beolkkul`) count as titles of the series too.
 A title the owner types into SEARCH AGAIN is searched as typed.
 
-### Manga or novel
+### Manga, novel or anime
 
 AniList holds a comic and its novel as two entries under the same title
-(The Beginning After the End is both). The search asks only for the
-series' own kind's formats: `NOVEL` for a novel, `MANGA` and `ONE_SHOT` for
-anything else. So a novel never takes up one of a comic's candidate slots,
-and the other way round. A series whose kind is wrong here won't find its
-entry; PASTE A LINK is the way round that.
+(The Beginning After the End is both), and an anime as a third. The search
+asks only for the series' own kind's catalogue and formats: `NOVEL` for a
+novel, `MANGA` and `ONE_SHOT` for a comic, and `ANIME` with `TV`, `TV_SHORT`,
+`MOVIE`, `OVA`, `ONA` and `SPECIAL` for an anime. So a novel never takes up
+one of a comic's candidate slots, nor either one of an anime's, and the other
+way round. A series whose kind is wrong here won't find its entry; PASTE A
+LINK is the way round that, and only with a link of its own kind.
+
+An anime's candidates show FORMAT, SEASON (its season and year), EPISODES and
+STATUS, where a comic's show FORMAT, YEAR, CHAPTERS and STATUS. Its MAL id,
+which AniSkip needs, is AniList's `idMal` on the anime entry.
 
 Some entries AniList's search doesn't return at all. On 2026-09-24 that
 included the manhwa of The Beginning After the End (only the anime came
@@ -166,6 +185,15 @@ as it says. **Unreachable is not an error:** the pass stops, and the next one
 carries on. `TSUNDOKU_ANILIST=off` makes every call unreachable. The e2e
 server runs that way, so the suite never reaches AniList.
 
+`TSUNDOKU_ANILIST_URL` is the other address AniList can be at, and it exists
+for the e2e alone: `links-flow.e2e.ts` serves a stand-in catalogue and points
+the preview there. **It receives a signed-in owner's bearer token**
+(`post` sends `authorization: Bearer <token>` to it), so it is never pointed
+anywhere but a local stand-in. An update's installer drops it, so a new
+version does not inherit it; a shell or unit that exports it still points the
+owner's token there, so it belongs only in a data folder `.env` beside a
+local stand-in.
+
 ## Covers
 
 A link's cover is a new source in the chain ([`COVERS.md`](COVERS.md)):
@@ -206,16 +234,27 @@ desktop and in tablet landscape.
   - its ids and OPEN ↗;
   - its cover, titles, and a line saying why it might be the one (`whyLine`);
   - FORMAT, YEAR, CHAPTERS and STATUS, drawn strong where they agree with the
-    series (`candidateRows`).
+    series (`candidateRows`); FORMAT, SEASON, EPISODES and STATUS for an anime;
+  - **EXACT TITLE**, beside its ids, when one of its titles equals one of the
+    series'. That is a mark, not a choice: LINK is still the owner's press.
 - **NONE OF THESE** is remembered. **SKIP** sends it to the back.
   **PASTE A LINK** reads the link as one candidate, sending only its id.
-- **SEARCH AGAIN asks AniList at once** with the edited title. An equal
-  title links there and then. Otherwise the new candidates replace these, on
-  the same series. With AniList out of reach, the search waits for the next
-  pass instead, and the band says so. FIND on a series never searched
-  searches as the review opens.
+- **SEARCH AGAIN asks AniList at once** with the edited title, in the series'
+  own catalogue and kind. **It never links: the results replace these and wait
+  for LINK**, even when there is exactly one, or one with the same title. With
+  AniList out of reach, the search waits for the next pass instead, and the
+  band says so. FIND on a series never searched searches as the review opens.
+- The band, the panel's count and the rows show one search: the band counts
+  what AniList returned, the count what was kept for the review, and the rows
+  are exactly the kept candidates (`4 OF 6 FOUND`). A series searched before
+  the catalogue asked for its own kind keeps what that search stored — for an
+  anime, the manga entries it found — until SEARCH AGAIN replaces them: they
+  are still offered, a tap still links one (flagged **WRONG KIND**, never
+  removed), and only the owner's press decides.
 - Every decision is carried out at once. UNDO takes back LINK (and a rating it
-  gave), NONE OF THESE and SEARCH AGAIN. SKIP has no UNDO, as in the mock.
+  gave), NONE OF THESE and SEARCH AGAIN. A search's UNDO puts back the search
+  and the candidates it replaced; it never made a link, so it takes none back.
+  SKIP has no UNDO, as in the mock.
 - `?series=N` is one series only: FIND or CHANGE on its screen. It has no
   SKIP, and deciding goes back to the series. For a hidden series it's
   PASTE A LINK only.
@@ -229,7 +268,25 @@ desktop and in tablet landscape.
 - **Not linked:** what the last pass found, then FIND (accent) and PASTE A
   LINK.
 - **COVER** says where the cover comes from and why the sources before it
-  gave nothing (`coverLines`).
+  gave nothing (`coverLines`). An Aniyomi series' picture is **the source's
+  own**, never "Mihon's cover URL": it comes from the engine, which is what
+  the review's row names.
+- The review's series panel says **EPISODES** for an anime, not CHAPTERS, and
+  names one source when the origin and the site are the same ("KICKASSANIME",
+  not "KICKASSANIME · KICKASSANIME").
+- **A link to the other kind is flagged, never removed**: a `series_links`
+  row whose format contradicts the series' kind (MANGA/NOVEL/ONE_SHOT on an
+  anime, TV/MOVIE/OVA on a manga) says **LINKED TO THE WRONG KIND**. The LINK
+  page's `?series=N` row offers **RELINK**; the series screen's own line says
+  changes ask AniList for the series' own kind, and its CHANGE is the door.
+  OPEN ↗ opens the entry's own catalogue: the link's stored format decides,
+  and the series' kind is only the fallback when it isn't known yet, so a
+  manga's entry on an anime series opens `/manga/<its id>`, never a different
+  work on `/anime/<its id>` — on the series screen's LINK row and on each
+  catalogue's row in the TRACKING sheet behind EDIT. The owner may have wanted
+  the link, and UNDO still takes it back; nothing is unlinked silently. A
+  novel across to its comic's entry is the deliberate cover-only link, and
+  isn't this.
 - On the phone, and in the 440px landscape panel, the cells drop below the
   row in equal columns.
 - Offline, everything but OPEN ↗ dims.
@@ -248,7 +305,9 @@ desktop and in tablet landscape.
 - **SEARCH AGAIN searches now**, not in the next cover pass. That was the
   owner's call on 2026-09-24: the pass only runs after an import, which can
   be hours off, and one request is a second's wait. It still falls back to
-  the pass when AniList can't be reached.
+  the pass when AniList can't be reached. Since 2026-11-02 it **never links**:
+  what it finds waits for LINK, as the owner asked after Ranma ½ (2024)
+  silently became its manga.
 - **SKIP is offered when nothing was found too** (1c drew only SEARCH AGAIN
   and PASTE A LINK), the owner's addition, so such a series doesn't block the
   queue.

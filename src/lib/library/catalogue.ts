@@ -15,13 +15,18 @@ export type Candidate = {
 	title: string;
 	/** The other titles: romaji, native, synonyms. Never the one in `title`. */
 	alts: string[];
-	/** 'MANGA', 'NOVEL', 'ONE_SHOT' (AniList's format). */
+	/** 'MANGA', 'NOVEL', 'ONE_SHOT', or an anime's 'TV', 'MOVIE'… (AniList's format). */
 	format: string;
 	/** 'JP', 'KR', 'CN', 'TW'. */
 	country: string;
 	year: number | null;
 	chapters: number | null;
 	volumes: number | null;
+	/** An anime's episodes; null for anything else. */
+	episodes: number | null;
+	/** An anime's broadcast season ('FALL'), and the year it aired in. */
+	season: string | null;
+	seasonYear: number | null;
 	/** 'RELEASING', 'FINISHED', 'HIATUS', 'CANCELLED', 'NOT_YET_RELEASED'. */
 	status: string;
 	coverUrl: string;
@@ -130,17 +135,66 @@ export function isExact(seriesTitles: string[], c: Pick<Candidate, 'title' | 'al
 	return titlesOf(c).some((t) => ours.has(normaliseTitle(t)));
 }
 
+/**
+ * The titles a sure match may equal: each as written, cleaned (`cleanTitle`),
+ * and what its brackets hold, plus the title the owner typed (`query`), which
+ * is the owner's choice of title and counts as one of the series' too. Shared
+ * by the automatic pass and the review's EXACT TITLE chip, so both call the
+ * same title exact.
+ */
+export const matchTitles = (titles: string[], query?: string | null): string[] => [
+	...new Set(
+		(query ? [...titles, query] : titles).flatMap((t) => [t, cleanTitle(t), ...bracketed(t)])
+	)
+];
+
+/** The AniList formats an anime is (doc/LINKS.md, "A novel never matches a comic"). */
+export const ANIME_FORMATS = ['TV', 'TV_SHORT', 'MOVIE', 'OVA', 'ONA', 'SPECIAL'] as const;
+
 /** The kind a candidate would be here, from its format and country. */
 export function candidateKind(c: Pick<Candidate, 'format' | 'country'>): Kind | null {
 	if (c.format === 'NOVEL') return 'novel';
+	if ((ANIME_FORMATS as readonly string[]).includes(c.format)) return 'anime';
 	if (c.format !== 'MANGA' && c.format !== 'ONE_SHOT') return null;
 	return c.country === 'KR' || c.country === 'CN' || c.country === 'TW' ? 'manhwa' : 'manga';
 }
 
 /**
+ * Whether a candidate of [candidate] can be a series of [series]'s own entry
+ * (doc/LINKS.md, "A novel never matches a comic"): manga and manhwa are one
+ * kind to AniList, a novel is another work under the same title, and an anime
+ * is another work again. Anything of an unknown format fits nothing.
+ */
+export function sameKind(series: Kind, candidate: Kind | null): boolean {
+	if (candidate === null) return false;
+	if (series === 'anime' || candidate === 'anime') return series === candidate;
+	// Every kind that is not a novel or an anime is one comic family to AniList
+	// (a doujin's entry is a manga's): neither kind list may cross to the other.
+	const comic = (k: Kind) => k !== 'novel';
+	return comic(series) === comic(candidate);
+}
+
+/** The year a title names in brackets: "Ranma ½ (2024)" → 2024. */
+export function yearIn(title: string): number | null {
+	const m = /[([{【]\s*((?:19|20)\d{2})\s*[)\]}】]/.exec(title);
+	return m ? Number(m[1]) : null;
+}
+
+/** The year the series' own titles name, if any: what a season or year tie is broken on. */
+export function seriesYear(titles: string[]): number | null {
+	for (const t of titles) {
+		const y = yearIn(t);
+		if (y !== null) return y;
+	}
+	return null;
+}
+
+/**
  * The one sure link among a search's results, or null. Exact on a title, and
- * of the same kind when more than one is exact (a manhwa and its novel share
- * a title more often than not). Two of the same kind is no sure link.
+ * of the same kind (a manhwa and its novel share a title more often than
+ * not, and an anime is never its manga). Two candidates of the same kind are
+ * no sure link, unless one names the series' own year ("Ranma ½ (2024)",
+ * where AniList holds the 1989 series and the 2024 one under one title).
  */
 export function sureMatch(
 	seriesTitles: string[],
@@ -148,16 +202,16 @@ export function sureMatch(
 	found: Candidate[]
 ): Candidate | null {
 	const exact = found.filter((c) => isExact(seriesTitles, c));
-	// Manga and manhwa are one kind to AniList (MANGA, told apart by country),
-	// and Mihon's guess between them can be wrong; a novel against a comic is
-	// another work under the same title.
-	const fits = (c: Candidate) => {
-		const k = candidateKind(c);
-		return k === null || k === kind || (k !== 'novel' && kind !== 'novel');
-	};
+	const fits = (c: Candidate) => sameKind(kind, candidateKind(c));
 	if (exact.length === 1) return fits(exact[0]) ? exact[0] : null;
-	const same = exact.filter((c) => candidateKind(c) === kind);
-	return same.length === 1 ? same[0] : null;
+	const same = exact.filter(fits);
+	if (same.length === 1) return same[0];
+	const year = seriesYear(seriesTitles);
+	if (year !== null) {
+		const aged = same.filter((c) => (c.seasonYear ?? c.year) === year);
+		if (aged.length === 1) return aged[0];
+	}
+	return null;
 }
 
 /**
@@ -170,6 +224,9 @@ export function sureMatch(
 export function coverOnly(seriesKind: Kind, format: string): boolean {
 	const k = candidateKind({ format, country: '' });
 	if (k === null || !format) return false;
+	// The crossing is a novel's to its comic's entry, and the other way round:
+	// an anime's entry is another work, never a cover for one (c298).
+	if (seriesKind === 'anime' || k === 'anime') return false;
 	return (seriesKind === 'novel') !== (k === 'novel');
 }
 
@@ -178,20 +235,40 @@ export type Pasted = { service: 'anilist' | 'mal'; id: number };
 /**
  * A pasted link, read for its id and nothing else: `anilist.co/manga/171204`,
  * `myanimelist.net/manga/160388/Some_Title`, with or without the scheme. An
- * anime link, or anything else, is null.
+ * anime series reads `/anime/`, and only its own kind's path is accepted (a
+ * manga link on an anime is another work). Anything else is null.
  */
-export function parsePasted(text: string): Pasted | null {
+export function parsePasted(text: string, kind: Kind = 'manga'): Pasted | null {
 	const t = text.trim();
 	const m =
-		/^(?:https?:\/\/)?(?:www\.)?(anilist\.co|myanimelist\.net)\/manga\/(\d+)(?:[/?#].*)?$/i.exec(t);
+		/^(?:https?:\/\/)?(?:www\.)?(anilist\.co|myanimelist\.net)\/(manga|anime)\/(\d+)(?:[/?#].*)?$/i.exec(
+			t
+		);
 	if (!m) return null;
-	const id = Number(m[2]);
+	const asAnime = kind === 'anime';
+	if ((m[2].toLowerCase() === 'anime') !== asAnime) return null;
+	const id = Number(m[3]);
 	if (!Number.isSafeInteger(id) || id <= 0) return null;
 	return { service: m[1].toLowerCase() === 'anilist.co' ? 'anilist' : 'mal', id };
 }
 
-export const anilistUrl = (id: number) => `https://anilist.co/manga/${id}`;
-export const malUrl = (id: number) => `https://myanimelist.net/manga/${id}`;
+/** An entry's own page, on the path its kind lives under. */
+export const anilistUrl = (id: number, kind: Kind = 'manga') =>
+	`https://anilist.co/${kind === 'anime' ? 'anime' : 'manga'}/${id}`;
+export const malUrl = (id: number, kind: Kind = 'manga') =>
+	`https://myanimelist.net/${kind === 'anime' ? 'anime' : 'manga'}/${id}`;
+
+/**
+ * A link whose entry is the other kind: a manga's entry on an anime, or an
+ * anime's on a manga (doc/LINKS.md). Such a link is flagged, never removed:
+ * the owner may have meant it, and UNDO still takes it back. A novel across
+ * to its comic is the deliberate cover-only link, not this.
+ */
+export function wrongKind(series: Kind, format: string): boolean {
+	if (!format) return false;
+	const k = candidateKind({ format, country: '' });
+	return k !== null && !sameKind(series, k) && !coverOnly(series, format);
+}
 
 /**
  * A catalogue's score as a rating here, for an unrated series when a link is
@@ -247,10 +324,11 @@ export function whyLine(
 	const parts: string[] = [];
 	const shared = sharedWords(series.titles, c);
 	const sameKind = candidateKind(c) === series.kind;
-	const close = chaptersClose(c.chapters, series.chapters);
+	const close = chaptersClose(c.chapters ?? c.episodes, series.chapters);
+	const unit = series.kind === 'anime' ? 'EPISODES CLOSE' : 'CHAPTERS CLOSE';
 	if (shared.length) parts.push(`SHARES ${shared.slice(0, 3).join(' · ').toUpperCase()}`);
 	else parts.push('ANOTHER ENGLISH TITLE');
-	if (sameKind && close) parts.push('SAME KIND, CHAPTERS CLOSE');
+	if (sameKind && close) parts.push(`SAME KIND, ${unit}`);
 	else if (sameKind && !shared.length) parts.push('SAME KIND');
 	if (c.malId === null) parts.push('NOT ON MAL');
 	if (coverOnly(series.kind, c.format))
@@ -262,10 +340,12 @@ export function whyLine(
 	return parts.join(' · ');
 }
 
-/** A candidate's kind as the review names it: "MANHWA", "NOVEL", "ONE SHOT". */
+/** A candidate's kind as the review names it: "MANHWA", "NOVEL", "ONE SHOT", "TV". */
 export function formatLabel(c: Pick<Candidate, 'format' | 'country'>): string {
 	if (c.format === 'ONE_SHOT') return 'ONE SHOT';
-	return (candidateKind(c) ?? c.format.toLowerCase()).toUpperCase();
+	const k = candidateKind(c);
+	if (k === 'anime') return c.format.replace(/_/g, ' ');
+	return (k ?? c.format.toLowerCase()).toUpperCase();
 }
 
 /** AniList's release status in the review's words. */
@@ -276,14 +356,19 @@ export function statusLabel(s: string): string {
 export type Row = { label: string; value: string; agree: boolean };
 
 /**
- * A candidate's rows in the review: FORMAT, YEAR, CHAPTERS, STATUS. Where it
- * agrees with the series (the same kind, chapters within five) it says so,
- * and the row is drawn strong.
+ * A candidate's rows in the review: FORMAT, YEAR, CHAPTERS, STATUS for a
+ * comic or a novel; FORMAT, SEASON, EPISODES, STATUS for an anime. Where it
+ * agrees with the series (the same kind, chapters or episodes within five,
+ * the year the series' own title names) it says so, and the row is drawn
+ * strong.
  */
-export function candidateRows(series: { kind: Kind; chapters: number }, c: Candidate): Row[] {
+export function candidateRows(
+	series: { kind: Kind; chapters: number; titles?: string[] },
+	c: Candidate
+): Row[] {
 	const sameKind = candidateKind(c) === series.kind;
-	const close = chaptersClose(c.chapters, series.chapters);
-	return [
+	const close = chaptersClose(c.chapters ?? c.episodes, series.chapters);
+	const rows: Row[] = [
 		{
 			label: 'FORMAT',
 			value: sameKind ? `${formatLabel(c)} · SAME` : formatLabel(c),
@@ -301,6 +386,28 @@ export function candidateRows(series: { kind: Kind; chapters: number }, c: Candi
 			agree: close
 		},
 		{ label: 'STATUS', value: c.status ? statusLabel(c.status) : '—', agree: false }
+	];
+	if (series.kind !== 'anime') return rows;
+	const year = seriesYear(series.titles ?? []);
+	const aired = c.seasonYear ?? c.year;
+	return [
+		rows[0],
+		{
+			label: 'SEASON',
+			value: c.season
+				? [statusLabel(c.season), aired ?? ''].filter(Boolean).join(' ')
+				: aired
+					? String(aired)
+					: '—',
+			agree: year !== null && aired === year
+		},
+		{
+			label: 'EPISODES',
+			value:
+				c.episodes != null ? `${c.episodes}${close ? ` · THIS HAS ${series.chapters}` : ''}` : '—',
+			agree: close
+		},
+		rows[3]
 	];
 }
 
@@ -352,7 +459,11 @@ export type CoverFacts = {
  */
 export function coverLines(f: CoverFacts): { a: string; b: string } {
 	const why = [
-		f.urlFailed ? 'MIHON’S COVER URL IS DEAD' : '',
+		f.urlFailed
+			? f.kind === 'anime'
+				? 'ITS SOURCE’S COVER IS DEAD'
+				: 'MIHON’S COVER URL IS DEAD'
+			: '',
 		f.downloaded === 0 ? 'NOTHING DOWNLOADED' : '',
 		f.kind === 'novel' && f.downloaded > 0 ? 'THE EPUB HAS NO IMAGE' : ''
 	]
@@ -366,7 +477,12 @@ export function coverLines(f: CoverFacts): { a: string; b: string } {
 	if (k.startsWith('edition:')) return { a: 'THE OPENING EDITION’S', b: before };
 	if (k.startsWith('file:')) return { a: 'FROM THE FILES', b: before };
 	if (k.startsWith('epub:')) return { a: 'THE EPUB’S OWN', b: before };
-	if (k.startsWith('url:')) return { a: 'FROM MIHON’S COVER URL', b: before };
+	// An Aniyomi series' picture is the engine's, not a Mihon backup's URL.
+	if (k.startsWith('url:'))
+		return {
+			a: f.kind === 'anime' ? 'FROM THE SOURCE’S COVER' : 'FROM MIHON’S COVER URL',
+			b: before
+		};
 	if (k.startsWith('page:'))
 		return {
 			a: `FIRST PAGE OF ${f.pageOf ?? 'THE FIRST CHAPTER'}`,

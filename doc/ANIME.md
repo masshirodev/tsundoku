@@ -20,6 +20,8 @@ the second amended to Jellyfin's TV layout (card c128 has them in full).
 | FOLLOW, and the tablet keeping the next episode          | c158 | Done  |
 | Live checks, departures and docs                         | c159 | Done  |
 | An episode's opening and ending: AniSkip, fingerprints   | c239 | Done  |
+| Linking an anime to its own entry, never its manga's     | c298 | Done  |
+| Why an episode has no skip marks: the log and the link   | c299 | Done  |
 
 Episodes play in the player (c156) since 2026-10-29; until then
 `/read/<entry>` answered 404 for one, which is why nothing of anime was
@@ -294,6 +296,19 @@ length is kept.
   for `ANISKIP_RETRY_MS` (7 days), since a running show's new episode may
   arrive late. A server that didn't answer is not remembered: the next
   resolve tries again.
+- **A link set, changed or removed clears the series' AniSkip answers**,
+  negatives included (c299): every door that writes a link
+  (`link`, `linkFromTracker`, `linkFromList`, `unlink`, `undoLink`) deletes
+  that series' `method = 'aniskip'` rows, so the next play asks with the new
+  MAL id. Before, a 404 taken while the series was linked to the wrong entry
+  kept AniSkip from being asked for a week. A series with no link is never
+  asked at all, and writes no negative: `lookupAniSkip` returns before
+  `saveAttempt` when `mal_id` is null (the live row that looked like one was
+  written while the background pass's manga link was in place). The episodes'
+  watched-at ending follows the marks that remain: clearing AniSkip's rows
+  recomputes each affected episode's `entries.ending_at` and writes `NULL`
+  when no mark is left, so an old entry's ending is never left behind to mark
+  an episode watched early (or never).
 - **Cost:** one small HTTP request per episode, once, on the resolve that
   plays it. It is awaited so the buttons are there on the first play; every
   later resolve is a database read.
@@ -326,12 +341,19 @@ episode's `ending_at` follows).
   background. A season's downloaded episodes are read when one of them is
   played; a hidden series is left alone, and incognito starts nothing.
 
-**ffmpeg's chromaprint muxer is the brief's way** (`-f chromaprint -fp_format
-raw`). This workstation's ffmpeg (Arch's n9.0.1) is built without it, so the
-extractor falls back to **`fpcalc`**, chromaprint's own program, fed the same
-audio through the same ffmpeg; the points are the same. A build with the
-muxer uses it. Either way `ffmpeg`/`ffprobe` and (on a build without the
-muxer) `fpcalc` are needed; doc/DISTRIBUTION.md lists them.
+**ffmpeg's chromaprint muxer is the way** (`-f chromaprint -fp_format raw`),
+and every release bundle's pinned ffmpeg has it: BtbN's n8.1.3 LGPL build is
+`--enable-chromaprint`, prints `E chromaprint Chromaprint` from `-muxers`, and
+makes 27 points of a six-second tone, exactly as `fpcalc` does
+([`RELEASE.md`](RELEASE.md), "Pinned"). This workstation's ffmpeg (Arch's
+n9.0.1) is built without the muxer, so the extractor falls back to
+**`fpcalc`**, chromaprint's own program from the `chromaprint` package, fed
+the same audio through the same ffmpeg; the points are the same. Either way
+`ffmpeg`/`ffprobe` are needed, and `fpcalc` only on a build without the
+muxer; [`DISTRIBUTION.md`](DISTRIBUTION.md) lists them.
+
+A missing `fpcalc` on a build without the muxer is said once in the log,
+naming the chromaprint package and `FPCALC` ([`LOGS.md`](LOGS.md)).
 
 `tests/fingerprint.spec.ts` (runs, bit errors, bounds, the two windows) and
 `tests/anime-fingerprint-db.spec.ts` (two synthesised episodes sharing an
@@ -346,20 +368,37 @@ playing episode, **the next two after it** and one more after those, so both
 next episodes have a pair. It never runs for a season outside the one being
 watched.
 
-- **What is read.** The stream's **lowest quality at most 480p**, through the
-  same loopback proxy downloads and pictures use (`loopback.ts`), so ffmpeg
-  fetches nothing itself and the net guard still applies. A **separate audio
-  rendition** is preferred where the source offers one (KickAssAnime's); it
-  is the smallest thing carrying the opening and ending. A stream whose
-  lowest quality is above 480p is left alone.
+- **What is read.** The stream's **lowest quality**, preferring one at or
+  below 480p, through the same loopback proxy downloads and pictures use
+  (`loopback.ts`), so ffmpeg fetches nothing itself and the net guard still
+  applies. A source that names nothing that low, or no height at all, gives
+  its lowest instead: reading audio costs the same at any video height
+  (c299). A **separate audio rendition** is preferred where the source offers
+  one (KickAssAnime's); it is the smallest thing carrying the opening and
+  ending.
+- **What KickAssAnime answers** (measured live, 2026-11-02, through the
+  engine): one server, `VidStreaming`, with qualities `1080p (1920x1080) -
+3.52 Mbps`, `720p (1280x720) - 1.31 Mbps` and `360p (640x360) - 506 kbps`,
+  each naming a separate audio rendition per language. Its heights are read
+  from those labels, so 360p is what is fingerprinted. `tests/anime-stream-fingerprint-db.spec.ts`
+  pins that shape, and the two fallbacks (no height anyone, nothing ≤480p).
 - **Only the minutes it needs.** `-ss` before the input seeks, then `-t`
   bounds the read; ffmpeg fetches the segments it lands in, not the episode.
 - **One at a time, and never beside a download.** The job reads one episode
   at a time. If a download of the **same source** is running, it stops and
   leaves no negative row, so a later play can try again. A server that fails
-  is left quietly and the next server in the source's order is tried.
+  says so in the log, naming the step and the server, and the next one **in
+  the ranked order** is tried; the source's own server order only breaks a
+  tie between servers of the same rank.
 - **A server that fails isn't remembered.** Only a successful read that found
   no shared run is a negative, for the same 14 days.
+- **It says what it did** (c299): one INFO line per season job (series,
+  episode, how many in the season, how many to read) and per episode outcome
+  (its file or stream, opening and ending found or not, and a negative kept),
+  and a WARN for a step that failed — the resolve, the length probe, or the
+  fingerprint — naming the episode and the server. The catches stay, so the
+  player never waits; the log answers "why no skip on this episode"
+  ([`LOGS.md`](LOGS.md)).
 
 `tests/anime-stream-fingerprint-db.spec.ts` (the lowest 360p audio rather than
 1080p, a separate audio track, a failing server passed over, no read during a
@@ -729,5 +768,7 @@ spans a restart fails and is tried again. **No lengths or FILLER/RECAP from
 the source yet**: the engine's episode list carries neither (`JEpisode` is
 url, name, date, number, scanlator, and its picture since c225). A length
 comes from the stream (c155) or the file (c157); a picture, where the source
-gives none, from a frame ("Episode pictures"). **No LINK for anime**: the
-catalogue search (AniList, MAL) asks for manga and novels only.
+gives none, from a frame ("Episode pictures"). **A link is the whole
+series'**: an anime links to its own AniList/MAL entry like any other series
+(c298), which is what AniSkip needs, but a season of a multi-season series
+is still not linked on its own (c240).

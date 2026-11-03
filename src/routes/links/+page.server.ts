@@ -29,6 +29,7 @@ export const load: PageServerLoad = ({ cookies, url }) => {
 				single: {
 					hidden: access.hidden,
 					linked: state.link?.title ?? null,
+					wrongKind: false,
 					queued: item.queued
 				},
 				paste: url.searchParams.has('paste'),
@@ -43,6 +44,7 @@ export const load: PageServerLoad = ({ cookies, url }) => {
 			single: {
 				hidden: access.hidden,
 				linked: state.linked?.title || state.linked?.ids || null,
+				wrongKind: state.linked?.wrongKind ?? false,
 				queued: state.queued
 			},
 			paste: url.searchParams.has('paste'),

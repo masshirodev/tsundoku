@@ -37,6 +37,10 @@ Check 'and runs the launcher in tray mode' ($launcher.Count -eq 1)
 & "$b\node\node.exe" "$HOME\probe.mjs" $b
 Check 'the probe passes' ($LASTEXITCODE -eq 0)
 
+'--- fingerprint (the bundle''s own tools)'
+& powershell -ExecutionPolicy Bypass -File "$HOME\fingerprint.ps1" -Bundle $b
+Check 'the bundle fingerprints a tone' ($LASTEXITCODE -eq 0)
+
 '--- listening'
 $wide = @(Get-NetTCPConnection -State Listen | Where-Object { $_.LocalPort -in 42143, 4590, 8191 })
 $wide | ForEach-Object { "$($_.LocalAddress):$($_.LocalPort) $((Get-Process -Id $_.OwningProcess).Name)" }

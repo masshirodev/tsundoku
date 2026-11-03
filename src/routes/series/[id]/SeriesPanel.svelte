@@ -256,6 +256,7 @@
 						: 'THE NOVEL’S ENTRY · COVER AND DETAILS ONLY, NEVER TRACKED'
 					: '',
 				l.resolving ? 'ANILIST ASKED IN THE NEXT COVER PASS' : '',
+				l.wrongKind ? 'LINKED TO THE WRONG KIND · CHANGES ASK ANILIST FOR THIS SERIES’ OWN' : '',
 				link.hidden ? 'HIDDEN SERIES ARE NEVER SEARCHED' : ''
 			]
 				.filter(Boolean)
@@ -265,16 +266,16 @@
 		if (link.hidden) return 'HIDDEN SERIES ARE NEVER SEARCHED · PASTE A LINK';
 		if (link.queued) return 'A SEARCH WAITS FOR THE NEXT COVER PASS';
 		if (link.candidates)
-			return `${link.candidates} CANDIDATE${link.candidates === 1 ? '' : 'S'} FROM THE LAST COVER PASS · NONE EXACT`;
+			return `${link.candidates} CANDIDATE${link.candidates === 1 ? '' : 'S'} FROM THE LAST COVER PASS · NONE LINKED`;
 		return link.searched ? 'NOTHING FOUND IN THE LAST COVER PASS' : 'NOT SEARCHED YET';
 	});
 	const findHref = $derived(`${resolve('/links')}?series=${series.id}`);
 	const openHref = $derived(
 		link?.linked
 			? link.linked.anilistId
-				? anilistUrl(link.linked.anilistId)
+				? anilistUrl(link.linked.anilistId, link.linked.kind ?? series.kind)
 				: link.linked.malId
-					? malUrl(link.linked.malId)
+					? malUrl(link.linked.malId, link.linked.kind ?? series.kind)
 					: null
 			: null
 	);
@@ -906,7 +907,12 @@
 				{#if trackEditable || trackFailed || trackSignIn}
 					<div class="lcs stack">{@render trackCells()}</div>
 				{/if}
-				<TrackingSheet open={trackingOpen} {tracking} onclose={() => (trackingOpen = false)} />
+				<TrackingSheet
+					open={trackingOpen}
+					{tracking}
+					kind={link.linked.kind ?? series.kind}
+					onclose={() => (trackingOpen = false)}
+				/>
 			{/if}
 			<div class="row cover-row">
 				<div class="label">COVER</div>

@@ -32,6 +32,22 @@ and `tray.log`, the tray's, in the default data folder.
 The workstation doesn't run the launcher: its logs are the journal
 (`journalctl --user -u tsundoku`, [`SERVING.md`](SERVING.md)).
 
+## What the app writes
+
+The app's own lines go through `console`, so the launcher's rule stamps them
+by stream: `console.log` is INFO, `console.error` is ERROR.
+
+- **Skip marks** (c299): `tsundoku: skip-marks: …`, INFO for a season job and
+  each episode outcome (its file or stream, opening and ending found or not,
+  a negative kept), and `WARN` (on stderr, so the log calls it ERROR) for a
+  step that failed, naming the episode and the server. One line answers "why
+  no skip on this episode".
+- **Fingerprinting without chromaprint** (c299): on a build whose ffmpeg has
+  no chromaprint muxer and no `fpcalc` to fall back to, said once per run,
+  naming the chromaprint package and `FPCALC`, so a friend's install can tell
+  why no fingerprint arrives. A release bundle's own ffmpeg has the muxer, so
+  it never writes this.
+
 ## SAVE A REPORT
 
 SETTINGS › 05 — LIBRARY › REPORT › SAVE downloads `tsundoku-report-<date>.txt`

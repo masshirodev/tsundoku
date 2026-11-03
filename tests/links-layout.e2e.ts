@@ -50,6 +50,9 @@ test('the link review matches the design for this device', async ({ page }, info
 	const id = /\/series\/(\d+)/.exec(page.url())![1];
 	await page.goto(`/links?series=${id}`);
 	await expect(page.locator('.cand')).toHaveCount(3);
+	// The third candidate is the series' own title: marked, not preselected
+	// (doc/LINKS.md, "The review").
+	await expect(page.locator('.chip.exact')).toHaveCount(1);
 
 	const box = async (sel: string) => (await page.locator(sel).first().boundingBox())!;
 	expect((await box('.head')).height).toBe(f.head);

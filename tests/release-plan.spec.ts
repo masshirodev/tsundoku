@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { opener, plan, solverAt, solverSetAside } from '../ops/release/launcher/plan.ts';
 
 const base = { engineToken: 'eng', solverDir: null };
@@ -67,6 +69,19 @@ describe('the launcher’s plan (doc/RELEASE.md)', () => {
 		expect(p.server.env.FFPROBE).toBe('/opt/tsundoku/ffmpeg/bin/ffprobe');
 	});
 
+	it('leaves FPCALC to the data folder: a bundle fingerprints through its ffmpeg', () => {
+		const plain = plan({ ...base, root: '/opt/tsundoku', home: '/h', env: {}, platform: 'linux' });
+		expect(plain.server.env).not.toHaveProperty('FPCALC');
+		const chosen = plan({
+			...base,
+			root: '/t',
+			home: '/h',
+			env: { FPCALC: '/usr/bin/fpcalc' },
+			platform: 'linux'
+		});
+		expect(chosen.server.env).not.toHaveProperty('FPCALC');
+	});
+
 	it('runs FlareSolverr, and tells the app where, only once it’s unzipped', () => {
 		const without = plan({ ...base, root: '/t', home: '/h', env: {}, platform: 'linux' });
 		expect(without.solver).toBeNull();
@@ -110,6 +125,29 @@ describe('the launcher’s plan (doc/RELEASE.md)', () => {
 		expect(
 			plan({ ...base, root: '/t', home: '/h', env: { PORT: 'abc' }, platform: 'linux' }).ports.app
 		).toBe(42143);
+	});
+});
+
+describe('the pinned files (ops/release/versions.json)', () => {
+	const pins = JSON.parse(
+		readFileSync(fileURLToPath(new URL('../ops/release/versions.json', import.meta.url)), 'utf8')
+	) as Record<string, Record<string, unknown>>;
+
+	it('pins each component for both platforms, with the project’s own digest', () => {
+		for (const name of ['node', 'jre', 'flaresolverr', 'ffmpeg']) {
+			const p = pins[name];
+			expect(p, name).toBeDefined();
+			expect(typeof p.version).toBe('string');
+			expect(typeof p.licence).toBe('string');
+			for (const platform of ['win-x64', 'linux-x64']) {
+				const pin = p[platform] as { url: string; sha256: string };
+				expect(pin.url, `${name} ${platform}`).toMatch(/^https:\/\//);
+				expect(pin.sha256, `${name} ${platform}`).toMatch(/^[0-9a-f]{64}$/);
+			}
+		}
+		// c297's premise was false (c299): a bundle fingerprints through its own
+		// ffmpeg's chromaprint muxer, so no fpcalc is pinned or shipped.
+		expect(pins.fpcalc).toBeUndefined();
 	});
 });
 
