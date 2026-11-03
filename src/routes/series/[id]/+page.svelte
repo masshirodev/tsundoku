@@ -603,7 +603,12 @@
 							}
 						: null}
 					hideFacts={form && 'hideFacts' in form
-						? (form.hideFacts as { hidden: number[]; out: TakeOutFacts[]; whole: number[] })
+						? (form.hideFacts as {
+								hidden: number[];
+								out: TakeOutFacts[];
+								whole: number[];
+								works: number;
+							})
 						: null}
 				/>
 			</div>

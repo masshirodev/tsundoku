@@ -80,7 +80,13 @@
 	import { num, upper } from '$lib/i18n/format';
 	import type { Rating, Kind, RefreshBatch, SeriesCard, Shelf } from '$lib/library/types';
 	import { groupAnswers } from '$lib/library/books';
-	import { allHiddenAmong, isFinished, type LibraryCard } from '$lib/library/works';
+	import {
+		allHiddenAmong,
+		isFinished,
+		wholeBand,
+		wholeLine,
+		type LibraryCard
+	} from '$lib/library/works';
 	import { pageQuery } from '$lib/library/paging';
 	import type { Snapshot } from './$types';
 
@@ -522,13 +528,28 @@
 	/** The HIDE answer's facts (W4): shown again, and taken out again, by UNDO. */
 	const hideFacts = $derived(
 		form && 'hideFacts' in form
-			? (form.hideFacts as { hidden: number[]; out: unknown[]; whole: number[] })
+			? (form.hideFacts as { hidden: number[]; out: unknown[]; whole: number[]; works: number })
 			: null
 	);
 	/** The UNHIDE answer's facts (W4): every part it showed, and UNDO to hide them. */
 	const showFacts = $derived(
 		form && 'showFacts' in form
 			? (form.showFacts as { shown: number[]; whole: number[]; works: number })
+			: null
+	);
+	/** Both bands' words, from the counts: one Work or several, and the loose series apart. */
+	const hiddenBand = $derived(
+		hideFacts && hideFacts.works > 0
+			? wholeBand('HIDDEN', {
+					ids: hideFacts.hidden,
+					whole: hideFacts.whole,
+					works: hideFacts.works
+				})
+			: null
+	);
+	const shownBand = $derived(
+		showFacts && showFacts.works > 0
+			? wholeBand('SHOWN', { ids: showFacts.shown, whole: showFacts.whole, works: showFacts.works })
 			: null
 	);
 	/** How many failed titles the band names; the count is always the whole truth. */
@@ -1014,7 +1035,7 @@
 			detail={gone.kind === 'ended'
 				? 'ONE SERIES WAS LEFT'
 				: gone.kind === 'hidden'
-					? `THE WORK, WHOLE${gone.n > 0 ? ` · ${gone.n} SERIES` : ''}`
+					? `${wholeLine(1)}${gone.n > 0 ? ` · ${gone.n} SERIES` : ''}`
 					: gone.kind === 'taken-out'
 						? `A SERIES ON ITS OWN AGAIN${gone.ended ? ` · ${gone.name.toUpperCase()} IS NO LONGER A WORK` : ''} · SHOWN AGAIN BY UNDO`
 						: 'EVERY SERIES IS ITS OWN AGAIN'}
@@ -1065,12 +1086,8 @@
 		<!-- HIDE ALL n or TAKE OUT, THEN HIDE: the library's own band, with UNDO (W4). -->
 		<div class="lib-band">
 			<Band
-				title={hideFacts.whole.length > 0
-					? `HIDDEN · THE WORK, WHOLE`
-					: `HIDDEN · ${hideFacts.hidden.length} SERIES`}
-				detail={hideFacts.whole.length > 0
-					? `${hideFacts.hidden.length} SERIES · SHOWN AGAIN BY UNDO`
-					: 'TAKEN OUT OF THE WORK · A SERIES ON ITS OWN AGAIN'}
+				title={hiddenBand?.title ?? `HIDDEN · ${hideFacts.hidden.length} SERIES`}
+				detail={hiddenBand?.detail ?? 'TAKEN OUT OF THE WORK · A SERIES ON ITS OWN AGAIN'}
 			>
 				{#snippet action()}
 					<form method="POST" action="?/undoHide" use:enhance={undoAfter}>
@@ -1086,10 +1103,8 @@
 		     HIDE, the other way round, because the same rule runs both ways. -->
 		<div class="lib-band">
 			<Band
-				title={showFacts.works
-					? 'SHOWN · THE WORK, WHOLE'
-					: `SHOWN · ${showFacts.shown.length} SERIES`}
-				detail={`${showFacts.shown.length} SERIES · HIDDEN AGAIN BY UNDO`}
+				title={shownBand?.title ?? `SHOWN · ${showFacts.shown.length} SERIES`}
+				detail={shownBand?.detail ?? `${showFacts.shown.length} SERIES · HIDDEN AGAIN BY UNDO`}
 			>
 				{#snippet action()}
 					<form method="POST" action="?/undoShow" use:enhance={undoAfter}>

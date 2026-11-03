@@ -41,7 +41,7 @@
 	import type { RanobeSeries } from '$lib/server/ranobe-review';
 	import type { SeriesDownloads } from '$lib/server/downloads';
 	import type { MoveState } from '$lib/server/move';
-	import { partDone } from '$lib/library/works';
+	import { partDone, wholeBand } from '$lib/library/works';
 	import type { SeriesWorkRow, TakeOutFacts } from '$lib/server/works';
 	import Sheet from '$lib/components/chrome/Sheet.svelte';
 	import { longpress } from '$lib/actions/longpress';
@@ -143,7 +143,12 @@
 		/** TAKE OUT from the WORK row: the facts UNDO reads, and the Work it left. */
 		takenOut?: { facts: TakeOutFacts; from: string } | null;
 		/** HIDE ALL n or TAKE OUT, THEN HIDE, where the screen is still here (W4). */
-		hideFacts?: { hidden: number[]; out: TakeOutFacts[]; whole: number[] } | null;
+		hideFacts?: {
+			hidden: number[];
+			out: TakeOutFacts[];
+			whole: number[];
+			works: number;
+		} | null;
 	} = $props();
 
 	/** An anime series: episodes for chapters, here and in DOWNLOAD (doc/ANIME.md). */
@@ -157,6 +162,16 @@
 	let workSheet = $state(false);
 	/** HIDE on a part asks first (W4; Work-States 4). */
 	let hiding = $state(false);
+	/** HIDE ALL n's band, worded from the count (`wholeBand`); TAKE OUT has its own words. */
+	const hiddenBand = $derived(
+		hideFacts && hideFacts.whole.length > 0
+			? wholeBand('HIDDEN', {
+					ids: hideFacts.hidden,
+					whole: hideFacts.whole,
+					works: hideFacts.works
+				})
+			: null
+	);
 	/** This part is done, so CONTINUE goes quiet and the run's next is the accent (Work-Row B3). */
 	const quiet = $derived(!outline && !!work && partDone(work.state));
 	/**
@@ -556,10 +571,8 @@
 		</Band>
 	{:else if !outline && hideFacts}
 		<Band
-			title={hideFacts.whole.length > 0 ? 'HIDDEN · THE WORK, WHOLE' : 'HIDDEN · TAKEN OUT'}
-			detail={hideFacts.whole.length > 0
-				? `${hideFacts.hidden.length} SERIES · SHOWN AGAIN BY UNDO`
-				: 'A SERIES ON ITS OWN AGAIN · SHOWN AGAIN BY UNDO'}
+			title={hiddenBand?.title ?? 'HIDDEN · TAKEN OUT'}
+			detail={hiddenBand?.detail ?? 'A SERIES ON ITS OWN AGAIN · SHOWN AGAIN BY UNDO'}
 		>
 			{#snippet action()}
 				<form method="POST" action="?/undoHide" use:enhance>

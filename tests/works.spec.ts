@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
 	allHiddenAmong,
+	wholeBand,
+	wholeLine,
 	continuePart,
 	defaultWorkName,
 	directionWord,
@@ -472,5 +474,26 @@ describe('UNHIDE is offered only when every selected series is hidden (W4 round 
 		// An unloaded page is not evidence either way; the visible ones still are.
 		expect(allHiddenAmong([1, 2, 3], (id) => (id === 3 ? undefined : true))).toBe(true);
 		expect(allHiddenAmong([1, 2, 3], (id) => (id === 1 ? false : undefined))).toBe(false);
+	});
+});
+
+describe('the HIDE and UNHIDE bands are worded from the count (wave 16)', () => {
+	it('says THE WORK for one Work and the number for more', () => {
+		expect(wholeLine(1)).toBe('THE WORK, WHOLE');
+		expect(wholeLine(2)).toBe('2 WORKS, WHOLE');
+	});
+
+	it('counts only the Works’ own series, and names the loose ones apart', () => {
+		expect(wholeBand('HIDDEN', { ids: [1, 2, 3, 4, 5], whole: [1, 2, 3, 4], works: 2 })).toEqual({
+			title: 'HIDDEN · 2 WORKS, WHOLE',
+			detail: '4 SERIES · 1 MORE ON ITS OWN · SHOWN AGAIN BY UNDO'
+		});
+		expect(wholeBand('SHOWN', { ids: [1, 2, 7, 8], whole: [1, 2], works: 1 })).toEqual({
+			title: 'SHOWN · THE WORK, WHOLE',
+			detail: '2 SERIES · 2 MORE ON THEIR OWN · HIDDEN AGAIN BY UNDO'
+		});
+		expect(wholeBand('HIDDEN', { ids: [1, 2], whole: [1, 2], works: 1 }).detail).toBe(
+			'2 SERIES · SHOWN AGAIN BY UNDO'
+		);
 	});
 });

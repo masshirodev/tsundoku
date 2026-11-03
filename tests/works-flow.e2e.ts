@@ -1166,6 +1166,46 @@ test('every library door that hides by id takes a part’s Work whole, both ways
 	expect(await hiddenOf(page, parts)).toEqual([false, false]);
 });
 
+test('a bulk HIDE over two Works says 2 WORKS, WHOLE and keeps the loose series apart', async ({
+	page
+}) => {
+	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'First Run');
+	await makeWork(page, ['Sousou no Frieren', 'Dungeon Meshi'], 'Second Run');
+	// SELECT ALL over the manga shelf: two Works, and the shelf's series in none.
+	await page.goto('/?shelf=k:manga');
+	await expect(page.locator('.grid .tile.work')).toHaveCount(2);
+	const loose = await page.locator('.grid .tile:not(.work)').count();
+	expect(loose).toBeGreaterThan(0);
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await page.getByRole('button', { name: 'SELECT ALL' }).click();
+	await page.getByRole('button', { name: 'HIDE', exact: true }).click();
+	const hide = page.getByRole('dialog', { name: 'Hide' });
+	await expect(hide).toContainText('PART OF 2 WORKS');
+	await hide.getByRole('button', { name: /HIDE ALL \d+/ }).click();
+	// One band for two Works: their count in the title, their four series in
+	// the detail, and the loose series named apart rather than counted in.
+	const band = page.locator('.band', { hasText: 'HIDDEN · 2 WORKS, WHOLE' });
+	await expect(band).toBeVisible();
+	await expect(band).toContainText(
+		`4 SERIES · ${loose} MORE ON ${loose === 1 ? 'ITS' : 'THEIR'} OWN · SHOWN AGAIN BY UNDO`
+	);
+	await expect(page.locator('.band', { hasText: 'THE WORK, WHOLE' })).toHaveCount(0);
+
+	// UNDO shows everything again; then both Works end, and the seed is back.
+	await band.getByRole('button', { name: 'UNDO' }).click();
+	await expect(page.locator('.grid .tile.work')).toHaveCount(2);
+	await expect(page.locator('.grid .tile:not(.work)')).toHaveCount(loose);
+	for (const name of ['First Run', 'Second Run']) {
+		await page.goto('/?shelf=k:manga');
+		await openWork(page, name);
+		// Not endWork: it waits for a grid with no Work, and the other is still one.
+		await page.getByRole('button', { name: 'UNGROUP' }).click();
+		await expect(page).toHaveURL(/band=ungrouped/);
+	}
+	await page.goto('/?shelf=k:manga');
+	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
+});
+
 test('a Work cannot be made of a hidden series and a visible one', async ({ page }) => {
 	await revealOn(page);
 	await page.goto('/?shelf=all&sort=title');

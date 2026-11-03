@@ -597,3 +597,35 @@ export function allHiddenAmong(
 	}
 	return known > 0;
 }
+
+/**
+ * The words for "a Work, whole" in a HIDE or UNHIDE band (W4), from the count:
+ * one Work is `THE WORK, WHOLE`, more are `2 WORKS, WHOLE`. A series screen
+ * only ever hides its own Work; the library's bulk bar and SELECT ALL can
+ * touch several, and the band must not call two of them one.
+ */
+export const wholeLine = (works: number): string =>
+	works === 1 ? 'THE WORK, WHOLE' : `${works} WORKS, WHOLE`;
+
+/**
+ * The band after a HIDE or UNHIDE that took one or more Works whole: the Works
+ * in the title, their own series in the detail, and the selected series in no
+ * Work kept out of the Works' count and named on their own.
+ */
+export function wholeBand(
+	verb: 'HIDDEN' | 'SHOWN',
+	facts: { ids: number[]; whole: number[]; works: number }
+): { title: string; detail: string } {
+	const loose = facts.ids.length - facts.whole.length;
+	const undo = verb === 'HIDDEN' ? 'SHOWN AGAIN BY UNDO' : 'HIDDEN AGAIN BY UNDO';
+	return {
+		title: `${verb} · ${wholeLine(facts.works)}`,
+		detail: [
+			`${facts.whole.length} SERIES`,
+			loose > 0 ? `${loose} MORE ON ${loose === 1 ? 'ITS' : 'THEIR'} OWN` : null,
+			undo
+		]
+			.filter(Boolean)
+			.join(' · ')
+	};
+}
