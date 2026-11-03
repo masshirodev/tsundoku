@@ -169,6 +169,40 @@ describe('fingerprinting downloaded episodes', () => {
 		}
 	}, 120_000);
 
+	it('keeps the opening most of an episode’s pairs agree on, not one pair’s longer run (c384)', async () => {
+		// Round 2 (review finding 2): the pairing in fingerprintSeason, not
+		// agreedSpan alone. A, B and D share a 20 s opening; C shares a longer
+		// 40 s stretch with A only, 30 s after A's opening (spans that touch
+		// would count as agreeing, and the longer win the tie), a run
+		// valid for that pair. A's pairs give it the opening twice (B, D) and
+		// the stretch once (C). Four episodes, not three: with one span per
+		// partner, three give A two spans that agree with nothing, and the
+		// longer wins under either rule.
+		const stretch = noise('stretch.mka', 40, 501);
+		const cold = noise('cold-e.mka', 10, 502);
+		const mid = (seed: number, seconds: number) => noise(`mid-${seed}.mka`, seconds, seed);
+		concat('ep-agree-a.mka', [op, mid(515, 30), stretch, mid(511, 270), ed]);
+		concat('ep-agree-b.mka', [op, mid(512, 340), ed]);
+		concat('ep-agree-c.mka', [cold, stretch, mid(513, 310), ed]);
+		concat('ep-agree-d.mka', [op, mid(514, 340), ed]);
+		const show = series(work);
+		const [a, b, c, d] = ['a', 'b', 'c', 'd'].map((x) =>
+			episode(show, `ep-agree-${x}.mka`, { duration: 380 })
+		);
+		expect(await fingerprintSeason(show, a, { pauseMs: 0 })).toEqual({ episodes: 4, found: 4 });
+		// A keeps the opening, where B and D agree, and not the longer stretch C found.
+		for (const id of [a, b, d]) {
+			const intro = marks.chosenMarks(id).intro!;
+			expect(intro.start).toBeLessThan(1);
+			expect(intro.end - intro.start).toBeGreaterThan(18);
+			expect(intro.end - intro.start).toBeLessThan(22);
+		}
+		// C has only the stretch, which is what its one pair found.
+		const onC = marks.chosenMarks(c).intro!;
+		expect(Math.abs(onC.start - 10)).toBeLessThan(1);
+		expect(onC.end - onC.start).toBeGreaterThan(38);
+	}, 120_000);
+
 	it('leaves the source’s own timestamps ahead of it', async () => {
 		const show = series(work);
 		const a = episode(show, 'ep-a.mka');
