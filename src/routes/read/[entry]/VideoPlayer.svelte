@@ -40,11 +40,14 @@
 		verticalFraction,
 		KEY_STEP,
 		WHEEL_STEP,
+		spriteTile,
+		type Sprite,
 		subtitlePx,
 		type Cue,
 		type SubSize
 	} from '$lib/library/player';
 	import { coverSrc, readHref } from '$lib/library/links';
+	import { PREVIEW_DEBOUNCE_MS, previewQuality, StreamPreview } from './seek-preview';
 	import Cover from '$lib/components/content/Cover.svelte';
 	import { count as grouped, kindLabel, unitLabel } from '$lib/library/labels';
 	import { kindVerb, type WorkEnd, type WorkNextPart } from '$lib/library/works';
@@ -91,6 +94,8 @@
 		src: string;
 		audio: Track[];
 		subtitles: Track[];
+		/** A downloaded file's seek preview, once the workstation has made it (c385). */
+		sprite?: Sprite | null;
 	};
 	type Server = { n: number; name: string; qualities: Quality[] };
 	type Streams = {
@@ -939,7 +944,10 @@
 		// and goes with the lift (a touch's pointerleave follows its pointerup).
 		if (e.pointerType !== 'mouse') {
 			const f = scrubFraction(e);
-			if (f !== null && duration) hoverAt = f * duration;
+			if (f !== null && duration) {
+				hoverAt = f * duration;
+				wantPreview(hoverAt);
+			}
 		}
 		scrubTo(e);
 	}
@@ -947,7 +955,48 @@
 		const f = scrubFraction(e);
 		if (f === null || !duration) return;
 		hoverAt = f * duration;
+		wantPreview(hoverAt);
 		if (e.buttons & 1) scrubTo(e);
+	}
+
+	// ---- the seek preview (c385; doc/ANIME.md, "The player") ------------------------------------
+	// A downloaded episode shows its sprite's tile in the tip, once the
+	// workstation has cut it; until then, and for a downloaded episode always,
+	// the time alone. A stream shows a frame of its own lowest quality, read by
+	// a hidden second picture only while the pointer is on the bar (seek-preview.ts).
+	const sprite = $derived<Sprite | null>(quality?.sprite ?? null);
+	let preview: StreamPreview | null = null;
+	let previewOf = '';
+	let previewTimer: ReturnType<typeof setTimeout> | undefined;
+	let previewAsk = 0;
+	let streamPic = $state<string | null>(null);
+	function wantPreview(at: number) {
+		// The downloaded server (0) has a file: its sprite, or nothing to fetch.
+		if (sprite || !server || server.n === 0) return;
+		const q = previewQuality(server.qualities);
+		if (!q) return;
+		clearTimeout(previewTimer);
+		previewTimer = setTimeout(async () => {
+			if (!preview || previewOf !== q.src) {
+				preview?.destroy();
+				const { default: HlsClass } = await import('hls.js');
+				preview = new StreamPreview(q, HlsClass);
+				previewOf = q.src;
+			}
+			const ask = ++previewAsk;
+			const pic = await preview.frameAt(at);
+			// A later stop, or the pointer gone: this one is nobody's now.
+			if (ask !== previewAsk || hoverAt === null) return;
+			streamPic = pic;
+		}, PREVIEW_DEBOUNCE_MS);
+	}
+	/** The pointer left the bar (a touch's lift too): nothing more is fetched or shown. */
+	function leaveScrub() {
+		hoverAt = null;
+		clearTimeout(previewTimer);
+		previewAsk++;
+		preview?.stop();
+		streamPic = null;
 	}
 
 	// Taps on the picture: on a touch screen one shows or hides the controls,
@@ -1269,8 +1318,9 @@
 	onDestroy(() => {
 		if (opened) void send('close');
 		detach();
+		preview?.destroy();
 		for (const t of [waitTimer, checkTimer, stallTimer, countTimer]) clearInterval(t);
-		for (const t of [hideTimer, flashTimer]) clearTimeout(t);
+		for (const t of [hideTimer, flashTimer, previewTimer]) clearTimeout(t);
 	});
 
 	// The tracks to start with, once the source says which it has (startTracks:
@@ -1383,6 +1433,33 @@
 			{/each}
 		</div>
 	{/if}
+{/snippet}
+
+<!-- The scrubber's tip (c387, c385): the time under the pointer, and above it
+     the frame there when there is one, kept inside the track. -->
+{#snippet tip(at: number)}
+	{@const tile = sprite ? spriteTile(sprite, at) : null}
+	{@const pic = !!tile || !!streamPic}
+	<div
+		class="tip"
+		class:pic
+		style:left="clamp({pic ? 'var(--tip-half)' : '0px'}, {pct(at)}, calc(100% - {pic
+			? 'var(--tip-half)'
+			: '0px'}))"
+	>
+		{#if sprite && tile}
+			<div
+				class="frame"
+				style:width="{sprite.w}px"
+				style:height="{sprite.h}px"
+				style:background-image="url({sprite.src})"
+				style:background-position="{-tile.x}px {-tile.y}px"
+			></div>
+		{:else if streamPic}
+			<div class="frame" style:background-image="url({streamPic})"></div>
+		{/if}
+		<span class="at">{clock(at)}</span>
+	</div>
 {/snippet}
 
 {#snippet workCard()}
@@ -1619,7 +1696,7 @@
 					aria-valuetext={clock(time)}
 					onpointerdown={scrubDown}
 					onpointermove={scrubMove}
-					onpointerleave={() => (hoverAt = null)}
+					onpointerleave={leaveScrub}
 					onclick={(e) => {
 						// OK on the pad clicks the focused thing (the layer's OK press), and
 						// the bar is an arrow stop since c296. A pointer's click on the bar is
@@ -1635,7 +1712,7 @@
 					<div class="thumb" style:left={pct(time)}></div>
 					{#if hoverAt !== null}
 						<div class="hover" style:left={pct(hoverAt)}></div>
-						<div class="tip" style:left={pct(hoverAt)}>{clock(hoverAt)}</div>
+						{@render tip(hoverAt)}
 					{/if}
 				</div>
 				<div class="l">{leftLabel(time, duration)}</div>
@@ -1792,13 +1869,13 @@
 					aria-valuetext={clock(time)}
 					onpointerdown={scrubDown}
 					onpointermove={scrubMove}
-					onpointerleave={() => (hoverAt = null)}
+					onpointerleave={leaveScrub}
 				>
 					<div class="buf" style:width={pct(buffered)}></div>
 					<div class="seen" style:width={pct(time)}></div>
 					<div class="thumb" style:left={pct(time)}></div>
 					{#if hoverAt !== null}
-						<div class="tip" style:left={pct(hoverAt)}>{clock(hoverAt)}</div>
+						{@render tip(hoverAt)}
 					{/if}
 				</div>
 				<div class="mut">{leftLabel(time, duration)}</div>
@@ -3543,6 +3620,23 @@
 		color: var(--text-inverse);
 		font: 500 13px var(--font-mono);
 		pointer-events: none;
+		/* Half the tip with a frame (160 + its hairlines + padding): how far from
+		   the track's ends its middle may come, so the frame stays inside (c385). */
+		--tip-half: 87px;
+	}
+	.track .tip.pic {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 6px;
+		padding: 6px;
+	}
+	.track .tip .frame {
+		width: 160px;
+		height: 90px;
+		border: var(--hairline);
+		background-color: var(--surface-page);
+		background-repeat: no-repeat;
 	}
 	/*
 	 * The settings panel on a TV (c235): the 420px panel every sheet is there
