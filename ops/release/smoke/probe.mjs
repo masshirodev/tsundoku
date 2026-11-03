@@ -103,16 +103,18 @@ for (let i = 0; i < 60 && !job?.finished_at; i++) {
 	if (!job?.finished_at) await new Promise((ok) => setTimeout(ok, 1000));
 }
 check('the scan finishes', !!job?.finished_at);
-// The fixture's known shape (tests/helpers/mihon-fixture.ts, tests/import-db.spec.ts):
-// seven series, one deliberately broken file.
+// The fixtures' known shape, where smoke.sh puts them (tests/helpers/
+// mihon-fixture.ts as tsundoku's own device, hentoid-fixture.ts at the root;
+// tests/devices-import-db.spec.ts): five series from Mihon's backup and
+// downloads, four of Hentoid's books, one deliberately broken file.
 const series = db.prepare(`SELECT title, path FROM series ORDER BY id`).all();
-check('seven series imported', series.length === 7, series.map((s) => s.title).join(', '));
+check('nine series imported', series.length === 9, series.map((s) => s.title).join(', '));
 check(
 	'one file refused (the fixture’s broken one)',
 	job?.failed_files === 1,
 	String(job?.failed_files)
 );
-// Visible as the app decides it (src/lib/server/visibility.ts): the local books
+// Visible as the app decides it (src/lib/server/visibility.ts): Hentoid's books
 // land in their own hidden root, and hidden means hidden, pages included.
 const entries = db
 	.prepare(
@@ -121,7 +123,7 @@ const entries = db
 		WHERE e.available = 1 AND e.file != '' ORDER BY e.id`
 	)
 	.all();
-check('six chapters on disk', entries.length === 6, String(entries.length));
+check('ten chapters on disk', entries.length === 10, String(entries.length));
 for (const e of entries) {
 	r = await fetch(`${base}/api/entries/${e.id}/pages`, { headers: { cookie } });
 	const m = r.ok ? await r.json() : null;
@@ -181,7 +183,7 @@ check(
 check('and the series is gone', !db.prepare(`SELECT 1 FROM series WHERE id = ?`).get(gone.id));
 const books = db
 	.prepare(
-		`SELECT id, path FROM series WHERE title IN ('Local Book', 'No Artist Here') ORDER BY id`
+		`SELECT id, path FROM series WHERE title IN ('Summer Days', 'Summer Days 2') ORDER BY id`
 	)
 	.all();
 r = await action('/?/group', [
@@ -201,7 +203,11 @@ check(
 );
 
 r = await fetch(`${base}/`, { headers: { cookie } });
-check('the library names its series', (await r.text()).includes(series[0]?.title ?? '\0'));
+// A visible one: the first series by id is a hidden Hentoid book.
+check(
+	'the library names its series',
+	(await r.text()).includes(entries.find((e) => e.visible)?.title ?? '\0')
+);
 
 // The novels plugin host (card c227): a file the server forks by path, and
 // the libraries it lends to plugins. 2026.10.31.3 shipped without them all,

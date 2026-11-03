@@ -291,13 +291,16 @@ starts by path is found the same way, as long as its path is written whole.
   the bundle in, `ops/release/smoke/windows.ps1`, `zen.sh down`, so Zen is
   left as it was.
 
-Each unzips the bundle, puts the importer specs' synthesised Mihon library
-(`tests/helpers/mihon-fixture.ts`) in the data folder, starts the launcher
-and runs `ops/release/smoke/probe.mjs` with the bundle's Node: 127.0.0.1 is
+Each unzips the bundle, puts the importer specs' synthesised libraries in the
+data folder where a scan reads them since c191 ([`IMPORT-MIHON.md`](IMPORT-MIHON.md),
+"Where it reads from"): the Mihon one (`tests/helpers/mihon-fixture.ts`) as
+tsundoku's own device, `library/devices/tsundoku/Mihon/`, and the Hentoid one
+(`tests/helpers/hentoid-fixture.ts`) at `library/H/.Hentoid/`. It starts the
+launcher and runs `ops/release/smoke/probe.mjs` with the bundle's Node: 127.0.0.1 is
 sent to localhost, the first-run token signs in, five screens answer, the
 engine answers with its token and refuses without it, a scan imports the
-fixture's seven series and refuses its one broken file, every visible
-chapter's first page is an image, the hidden local books stay hidden, and
+fixtures' nine series and ten chapters and refuses the one broken file, every visible
+chapter's first page is an image, the hidden Hentoid books stay hidden, and
 the novels plugin host, started as the server starts it, loads a plugin that
 requires each library it lends (no network: c227 would have failed here).
 First comes the **fingerprint** step (`smoke/fingerprint.sh`,
@@ -315,9 +318,13 @@ opens it and starts nothing; `--quit` stops everything ([`TRAY.md`](TRAY.md),
 checks `tsundoku.cmd` still starts it in a window.
 Then the paths (c183, [`DISTRIBUTION.md`](DISTRIBUTION.md), "Windows
 paths"): no series path stored with a backslash, a DELETE moves the series'
-file into the trash and out of the library, and a GROUP of the two local
-books takes the folder they share as its path. Run on the bundle before c183,
-the first two failed on Windows; since, all pass on both.
+file into the trash and out of the library, and a GROUP of two Hentoid
+books in sibling folders (`nhentai/`, `nhentai2/`) takes the folder they share
+as its path. Run on the bundle before c183, the first two failed on Windows;
+since, all pass on both. Until 2026.11.03 these were Mihon's local-source
+books, which c191 stopped reading: that release's first smoke run found four
+series and no chapters, because the fixture still sat in the library's own
+`Mihon/`, where only a backup is read now.
 On Windows it also checks that nothing listens beyond 127.0.0.1 and that no
 `java` or `node` outlives the launcher. Then the installer
 (`smoke/windows-installer.ps1`): a silent install puts the program, the
