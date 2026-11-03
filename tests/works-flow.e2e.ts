@@ -749,6 +749,20 @@ test('HIDE on a part asks: the Work whole, or take it out and hide it', async ({
 	await expect(page.locator('a.back .back-label')).toHaveText('ISEKAI');
 	await expect(page.locator('.prow.work-row')).toBeVisible();
 
+	// The plain HIDE action is not a second door: posted for a part, it refuses
+	// rather than leaving the Work hidden in one series.
+	const here = new URL(page.url());
+	here.search = '';
+	const plain = await page.request.post(`${here.href}?/hide`, {
+		form: { on: '1' },
+		headers: { origin: here.origin }
+	});
+	const answer = (await plain.json()) as { type: string; status: number; data: string };
+	expect(answer.type).toBe('failure');
+	expect(answer.status).toBe(400);
+	expect(answer.data).toContain('A WORK IS HIDDEN WHOLE');
+	await expect(page.locator('.badge', { hasText: 'HIDDEN' })).toHaveCount(0);
+
 	// HIDE on a part asks: the Work whole, or this series out of it.
 	await page.locator('.file-row').getByRole('button', { name: 'HIDE' }).click();
 	let hide = page.getByRole('dialog', { name: 'Hide' });

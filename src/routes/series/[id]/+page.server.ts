@@ -420,6 +420,12 @@ export const actions: Actions = {
 	hide: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
 		const hide = (await request.formData()).get('on') !== '0';
+		// A Work is hidden or shown whole (W4): a part goes through ?/hideWork,
+		// ?/hidePart (take out, then hide) or ?/showWork. No screen offers this
+		// action for a part, and a hand-posted one would leave it hidden among
+		// visible parts, so it refuses here too.
+		if (workOfSeries(s.id))
+			return fail(400, { message: 'A WORK IS HIDDEN WHOLE · HIDE ALL OR TAKE OUT' });
 		setHidden([s.id], hide);
 		// Hidden with reveal off, this screen no longer exists for the viewer.
 		if (hide && !isRevealed(cookies)) redirect(303, '/');
