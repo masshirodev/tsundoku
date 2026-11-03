@@ -74,6 +74,9 @@ let searches: Record<string, ReturnType<typeof media>[]> = {};
 const asked: string[] = [];
 const formatsAsked: string[] = [];
 const queriesAsked: string[] = [];
+/** AniList should never send one kind's entries for another's search; a test can
+ * make it leak, to prove the client's own kind rule as a second belt (c298). */
+let leakFormats = false;
 
 const fake: typeof fetch = async (_url, init) => {
 	const { query, variables } = JSON.parse(String(init?.body)) as {
@@ -112,7 +115,7 @@ const fake: typeof fetch = async (_url, init) => {
 		const formats = variables[k.replace('q', 'f')] as string[];
 		formatsAsked.push(formats.join(','));
 		out[k.replace('q', 's')] = {
-			media: (searches[q as string] ?? []).filter((m) => formats.includes(m.format))
+			media: (searches[q as string] ?? []).filter((m) => leakFormats || formats.includes(m.format))
 		};
 	}
 	return reply(out);
@@ -125,6 +128,7 @@ beforeEach(() => {
 	asked.length = 0;
 	formatsAsked.length = 0;
 	queriesAsked.length = 0;
+	leakFormats = false;
 	delete process.env.TSUNDOKU_ANILIST;
 	for (const t of ['series_links', 'link_searches', 'link_candidates', 'link_decisions'])
 		db.prepare(`DELETE FROM ${t}`).run();
@@ -278,17 +282,29 @@ describe('an anime', () => {
 	it('never takes a manga’s exact title, even when the manga matches better', async () => {
 		const id = animeSeries('Ranma ½ (2024)');
 		try {
-			// AniList holds the manga (MANGA) and the 2024 anime under one title;
-			// the manga is first and its title is exactly the series' own.
+			// AniList holds the manga (MANGA) and the 2024 anime under one title,
+			// the manga first and exactly the series' own. Alone, it links nothing
+			// at all; beside the anime, the anime is the one (c298).
+			// The catalogue answers with the manga though it asked for anime: the
+			// client's own rule is the second belt, and it is what this pins.
+			leakFormats = true;
+			searches['Ranma ½'] = [media({ id: 30023, idMal: 23, english: 'Ranma ½', year: 2024 })];
+			db.prepare(`UPDATE series SET title = 'Ranma ½ (2024)' WHERE id = ?`).run(id);
+			const row = {
+				id,
+				title: 'Ranma ½ (2024)',
+				alt_titles: '[]',
+				kind: 'anime' as const,
+				query: null
+			};
+			await cat.searchSeries([row], NOW);
+			expect(linkRow(id)).toBeUndefined();
+			// The same year on both, so only the kind can decide.
 			searches['Ranma ½'] = [
-				media({ id: 30023, idMal: 23, english: 'Ranma ½' }),
+				media({ id: 30023, idMal: 23, english: 'Ranma ½', year: 2024 }),
 				anime({ id: 30024, idMal: 23, english: 'Ranma ½', year: 2024 })
 			];
-			db.prepare(`UPDATE series SET title = 'Ranma ½ (2024)' WHERE id = ?`).run(id);
-			const r = await cat.searchSeries(
-				cat.searchable(10_000).filter((x) => x.id === id),
-				NOW
-			);
+			const r = await cat.searchSeries([row], NOW);
 			expect(r).toEqual({ linked: 1, offered: 0 });
 			expect(linkRow(id)).toMatchObject({ anilist_id: 30024, mal_id: 23, format: 'TV' });
 		} finally {

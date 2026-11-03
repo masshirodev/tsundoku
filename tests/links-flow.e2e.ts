@@ -29,7 +29,7 @@ test('nothing is preselected; a tap chooses, LINK links, UNDO takes it back', as
 	await expect(link).toBeDisabled();
 	await page.locator('.cand').first().click();
 	await expect(page.locator('.cand').first()).toHaveAttribute('aria-pressed', 'true');
-	await expect(page.locator('.chip')).toHaveText('✓ LINK THIS');
+	await expect(page.locator('.cand').first().locator('.chip')).toHaveText('✓ LINK THIS');
 	await expect(link).toHaveText('LINK A');
 	await link.click();
 	await expect(page.locator('.band .line').first()).toHaveText(
