@@ -1394,15 +1394,18 @@
 		void start();
 		const close = () => opened && void send('close');
 		addEventListener('pagehide', close);
-		return () => removeEventListener('pagehide', close);
+		return () => {
+			removeEventListener('pagehide', close);
+			// NEXT and leaving the page destroy the player: the picture comes back
+			// first, and the floating window goes with it rather than staying
+			// empty (c388). Here and not in onDestroy, which runs on the server too.
+			closePip();
+			if (document.pictureInPictureElement === video)
+				void document.exitPictureInPicture().catch(() => undefined);
+		};
 	});
 	onDestroy(() => {
 		if (opened) void send('close');
-		// NEXT and leaving the page destroy the player: the picture comes back
-		// first, and the floating window goes with it rather than staying empty.
-		closePip();
-		if (document.pictureInPictureElement === video)
-			void document.exitPictureInPicture().catch(() => undefined);
 		detach();
 		preview?.destroy();
 		for (const t of [waitTimer, checkTimer, stallTimer, countTimer]) clearInterval(t);
@@ -1543,8 +1546,7 @@
 			></div>
 		{:else if streamPic}
 			<div class="frame" style:background-image="url({streamPic})"></div>
-		{/if}
-		<span class="at">{clock(at)}</span>
+		{/if}<span class="at">{clock(at)}</span>
 	</div>
 {/snippet}
 

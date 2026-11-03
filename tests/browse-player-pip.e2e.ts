@@ -134,6 +134,16 @@ test.describe('Document Picture-in-Picture (Chromium)', () => {
 	test('PIP again, and NEXT, close the window: none is left empty (c388)', async ({ page }) => {
 		test.setTimeout(90_000);
 		await openEpisode(page);
+		// The player drawn by the server too (a reload, a link): its PiP doors
+		// are the browser's alone, and the server's render must not reach them.
+		const reload = await page.reload();
+		expect(reload?.status()).toBe(200);
+		await page.waitForFunction(() => (document.querySelector('video')?.duration ?? 0) > 0);
+		await page.evaluate(() => {
+			const v = document.querySelector('video')!;
+			v.pause();
+			v.currentTime = 1;
+		});
 		await showControls(page);
 		await page.getByRole('button', { name: 'Picture in picture' }).click();
 		await expect.poll(() => inWindow(page)).toMatchObject({ video: true });
