@@ -48,6 +48,15 @@ export type KindFacts = {
 	layout?: 'paged' | 'vertical' | 'rtl' | 'ltr';
 	/** Whether MOVE between sources is offered. */
 	movable: boolean;
+	/**
+	 * What GROUP binds this kind's series into (src/lib/server/books.ts; card
+	 * c303): `books`, single books into a series of books (`groupIntoSeries`), which
+	 * is also what folds editions (`foldEditions`) and gives a series of books
+	 * its first book's cover (`firstBookSource`, covers.ts); `volumes`, one
+	 * EPUB volume per series into one novel (`groupVolumes`); null, GROUP does
+	 * not take it (Works groups across kinds: doc/WORKS.md).
+	 */
+	grouping: 'books' | 'volumes' | null;
 };
 
 /**
@@ -79,7 +88,8 @@ export const KIND_FACTS = {
 		sources: ['mihon'],
 		storage: 'library',
 		layout: 'rtl',
-		movable: true
+		movable: true,
+		grouping: null
 	},
 	// `defaultDirection` reads a manhwa as a vertical strip
 	// (library/series.ts:90), and the image reader draws it that way. Same
@@ -96,12 +106,16 @@ export const KIND_FACTS = {
 		sources: ['mihon'],
 		storage: 'library',
 		layout: 'vertical',
-		movable: true
+		movable: true,
+		grouping: null
 	},
 	// A doujin's own peculiarity: one book with no count (labels.ts:30-38,
 	// `continueSub`), and a series of two or more books is a cover grid
 	// (library/series.ts:207-208, `isBookSeries`). Its unit is still a chapter
-	// in `unitLabel` (labels.ts:45).
+	// in `unitLabel` (labels.ts:45). Grouping: books, because GROUP binds only
+	// single doujin books into a series of books, and folds only their editions
+	// (`groupIntoSeries`, `moveBook`, `foldEditions`, src/lib/server/books.ts at fb2bd3a7:166,
+	// 174, 594, 855, 886).
 	// Sources: a Mihon gallery source's series is a doujin whatever its genres
 	// say (`isGallerySource` and `kindOf`, src/lib/import/mihon-plan.ts:106,
 	// 127-128) and keeps its `mihon:` key (:388; doc/IMPORT-MIHON.md:123-143,
@@ -127,7 +141,8 @@ export const KIND_FACTS = {
 		sources: ['mihon'],
 		storage: 'library',
 		layout: 'rtl',
-		movable: false
+		movable: false,
+		grouping: 'books'
 	},
 	// Text: the text reader, volumes, READ (labels.ts:45). One EPUB volume is
 	// one series, grouped books are volumes (`volumesIn` and `isVolumeSeries`,
@@ -139,7 +154,10 @@ export const KIND_FACTS = {
 	// `matches` is itself alone: a novel is another work from its comic
 	// (doc/LINKS.md:69, 106-111), and the cover-only crossing is `coverOnly`,
 	// not a match. Not movable: `movableKind` left it out at c14a5d4e
-	// (src/lib/server/move.ts:56-57), although LNReader feeds it.
+	// (src/lib/server/move.ts:56-57), although LNReader feeds it. Grouping:
+	// volumes, because GROUP binds novels' EPUBs into one novel and takes one
+	// apart again (`groupVolumes`, `takeOutVolumes`, src/lib/server/books.ts at
+	// fb2bd3a7:163, 316, 423).
 	novel: {
 		kind: 'novel',
 		medium: 'text',
@@ -149,7 +167,8 @@ export const KIND_FACTS = {
 		sources: ['lnreader'],
 		storage: 'library',
 		layout: 'paged',
-		movable: false
+		movable: false,
+		grouping: 'volumes'
 	},
 	// Video: episodes, WATCHED, the player (library/anime.ts:3-9,
 	// labels.ts:45-54). Its own AniList catalogue (doc/LINKS.md:70-73;
@@ -170,7 +189,8 @@ export const KIND_FACTS = {
 		sources: ['aniyomi'],
 		storage: 'library',
 		layout: 'rtl',
-		movable: true
+		movable: true,
+		grouping: null
 	}
 } as const satisfies Readonly<Record<Kind, KindFacts>>;
 
@@ -278,6 +298,13 @@ export const KEY_PREFIX = {
 
 /** Every source family, in `SOURCE_KINDS`' order. */
 export const SOURCE_FAMILIES = Object.keys(SOURCE_KINDS) as readonly SourceFamily[];
+
+/**
+ * The kinds GROUP binds the given way (`grouping`): `['doujin']` for books,
+ * `['novel']` for volumes today. The BOOKS screen's SQL lists them.
+ */
+export const kindsGrouped = (grouping: 'books' | 'volumes'): readonly Kind[] =>
+	KINDS.filter((k) => KIND_FACTS[k].grouping === grouping);
 
 /** The AniList catalogue a kind is looked up in: `MANGA` for everything but an anime. */
 export function anilistType(kind: Kind): 'MANGA' | 'ANIME' {

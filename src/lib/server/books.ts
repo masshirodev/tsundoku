@@ -6,6 +6,7 @@ import { getDb } from './db.ts';
 import { hueFor } from '../library/cover.ts';
 import { setKey, suggestionSets, type Candidate, type Suggestion } from '../library/books.ts';
 import type { Rating } from '$lib/library/types';
+import { kindFacts, kindsGrouped, type Kind } from '../library/kinds.ts';
 
 const { dirname, join, relative, basename } = posix;
 
@@ -27,13 +28,26 @@ type SeriesRow = {
 	id: number;
 	root_id: number;
 	title: string;
-	kind: string;
+	kind: Kind;
 	rating: number;
 	favourite: number;
 	hidden: number;
 	source: string;
 	added_at: number;
 };
+
+/**
+ * What GROUP may bind a series into, by its kind's `grouping` (doc/KINDS.md;
+ * card c303): single books into a series of books (a doujin's), or EPUB
+ * volumes into one novel. Never by the kind's name.
+ */
+const bindsBooks = (s: Pick<SeriesRow, 'kind'>) => kindFacts(s.kind).grouping === 'books';
+const bindsVolumes = (s: Pick<SeriesRow, 'kind'>) => kindFacts(s.kind).grouping === 'volumes';
+/** The same, as SQL: `s.kind IN (…)` over the kinds the registry says (a literal list, never input). */
+const kindsIn = (grouping: 'books' | 'volumes') =>
+	`s.kind IN (${kindsGrouped(grouping)
+		.map((k) => `'${k}'`)
+		.join(', ')})`;
 
 function seriesRow(db: Database.Database, id: number): SeriesRow | undefined {
 	return db
@@ -84,7 +98,7 @@ const MIXED = "hidden and visible books can't share a series";
 export function isSingleton(seriesId: number): boolean {
 	const db = getDb();
 	const s = seriesRow(db, seriesId);
-	return !!s && s.kind === 'doujin' && entryIdsOf(db, seriesId).length === 1;
+	return !!s && bindsBooks(s) && entryIdsOf(db, seriesId).length === 1;
 }
 
 /**
@@ -160,10 +174,10 @@ export function groupIntoSeries(opts: {
 			const rows = opts.seriesIds.map((id) => seriesRow(db, id));
 			if (rows.some((r) => !r)) throw new GroupingError('a book no longer exists');
 			const singles = rows as SeriesRow[];
-			if (singles.length > 0 && singles.every((r) => r.kind === 'novel'))
+			if (singles.length > 0 && singles.every(bindsVolumes))
 				return groupVolumes(db, singles, opts, now);
 			for (const s of singles) {
-				if (s.kind !== 'doujin' || entryIdsOf(db, s.id).length !== 1) {
+				if (!bindsBooks(s) || entryIdsOf(db, s.id).length !== 1) {
 					throw new GroupingError(`"${s.title}" is not a single book`);
 				}
 			}
@@ -171,7 +185,7 @@ export function groupIntoSeries(opts: {
 			let next: number;
 			if (opts.into != null) {
 				const t = seriesRow(db, opts.into);
-				if (!t || t.kind !== 'doujin') throw new GroupingError('no such series of books');
+				if (!t || !bindsBooks(t)) throw new GroupingError('no such series of books');
 				if (!alike(db, [t.root_id, ...singles.map((s) => s.root_id)])) {
 					throw new GroupingError(MIXED);
 				}
@@ -313,7 +327,7 @@ function groupVolumes(
 	let target: SeriesRow;
 	if (opts.into != null) {
 		const t = seriesRow(db, opts.into);
-		if (!t || t.kind !== 'novel') throw new GroupingError('no such novel');
+		if (!t || !bindsVolumes(t)) throw new GroupingError('no such novel');
 		if (!alike(db, [t.root_id, root])) throw new GroupingError(MIXED);
 		if (books.some((b) => b.id === t.id)) throw new GroupingError('a series cannot join itself');
 		target = t;
@@ -420,7 +434,7 @@ export function takeOutVolumes(seriesId: number, files?: string[], now = Date.no
 	return db
 		.transaction((): number[] => {
 			const series = seriesRow(db, seriesId);
-			if (!series || series.kind !== 'novel') throw new GroupingError('no such novel');
+			if (!series || !bindsVolumes(series)) throw new GroupingError('no such novel');
 			const path = pathOf(db, seriesId);
 			const extra = db
 				.prepare(`SELECT public, direction, description FROM series WHERE id = ?`)
@@ -591,7 +605,7 @@ export function moveBook(fromSeries: number, entryId: number, toSeries: number):
 	db.transaction(() => {
 		const to = seriesRow(db, toSeries);
 		const from = seriesRow(db, fromSeries);
-		if (!to || !from || to.kind !== 'doujin') throw new GroupingError('no such series of books');
+		if (!to || !from || !bindsBooks(to)) throw new GroupingError('no such series of books');
 		if (!alike(db, [to.root_id, from.root_id])) throw new GroupingError(MIXED);
 		const owned = db
 			.prepare(`SELECT 1 FROM entries WHERE id = ? AND series_id = ?`)
@@ -643,7 +657,7 @@ function singletonCandidates(
 		.prepare(
 			`SELECT s.id AS seriesId, s.title, s.hue, s.added_at AS addedAt, s.cover_at AS cover
 			FROM series s JOIN roots r ON r.id = s.root_id
-			WHERE s.kind = 'doujin' AND ${libraryWhere(reveal)}
+			WHERE ${kindsIn('books')} AND ${libraryWhere(reveal)}
 			AND (SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) = 1`
 		)
 		.all() as (Candidate & { hue: number; addedAt: number; cover: number | null })[];
@@ -697,7 +711,7 @@ export function seriesOfBooks(reveal: boolean): BookSeriesOption[] {
 			`SELECT s.id, s.title, s.root_id AS rootId,
 				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) AS books
 			FROM series s JOIN roots r ON r.id = s.root_id
-			WHERE s.kind = 'doujin' AND ${libraryWhere(reveal)}
+			WHERE ${kindsIn('books')} AND ${libraryWhere(reveal)}
 			AND (SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id) > 1
 			ORDER BY s.title COLLATE NOCASE`
 		)
@@ -714,7 +728,7 @@ export function seriesOfVolumes(reveal: boolean): BookSeriesOption[] {
 			`SELECT s.id, s.title, s.root_id AS rootId,
 				(SELECT COUNT(DISTINCT e.file) FROM entries e WHERE e.series_id = s.id) AS books
 			FROM series s JOIN roots r ON r.id = s.root_id
-			WHERE s.kind = 'novel' AND ${libraryWhere(reveal)}
+			WHERE ${kindsIn('volumes')} AND ${libraryWhere(reveal)}
 			ORDER BY s.title COLLATE NOCASE`
 		)
 		.all() as BookSeriesOption[];
@@ -852,7 +866,7 @@ export function foldEditions(
 	return db
 		.transaction((): number[] => {
 			const base = seriesRow(db, baseSeries);
-			if (!base || base.kind !== 'doujin') throw new EditionError('no such book');
+			if (!base || !bindsBooks(base)) throw new EditionError('no such book');
 			const [baseEntry] = entryIdsOf(db, baseSeries);
 			if (!baseEntry || entryIdsOf(db, baseSeries).length !== 1)
 				throw new EditionError('only a single book folds: this is a series of books');
@@ -883,7 +897,7 @@ export function foldEditions(
 			for (const id of others) {
 				const s = seriesRow(db, id);
 				const ids = s ? entryIdsOf(db, id) : [];
-				if (!s || s.kind !== 'doujin' || ids.length !== 1)
+				if (!s || !bindsBooks(s) || ids.length !== 1)
 					throw new EditionError('only single books fold into another');
 				if (!alike(db, [base.root_id, s.root_id])) throw new EditionError(MIXED);
 				const lang = languageOfSeries(db, id);

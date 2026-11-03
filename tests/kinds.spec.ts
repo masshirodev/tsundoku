@@ -7,6 +7,7 @@ import {
 	kindFacts,
 	KEY_PREFIX,
 	KINDS,
+	kindsGrouped,
 	isMovable,
 	MOVE_MAP,
 	MOVABLE_KINDS,
@@ -465,6 +466,30 @@ describe('a key\u2019s family', () => {
 	});
 });
 
+/**
+ * K3 (card c303): books.ts and covers.ts ask `grouping` and `medium` where
+ * they named a doujin, a novel or an anime. Every kind, against the old
+ * expressions written out.
+ */
+describe('what GROUP binds, and which covers a kind has', () => {
+	it('binds books for exactly the kinds books.ts named doujin, volumes for novel', () => {
+		for (const k of KINDS) {
+			expect(KIND_FACTS[k].grouping === 'books', k).toBe(k === 'doujin');
+			expect(KIND_FACTS[k].grouping === 'volumes', k).toBe(k === 'novel');
+		}
+		expect(kindsGrouped('books')).toEqual(['doujin']);
+		expect(kindsGrouped('volumes')).toEqual(['novel']);
+	});
+
+	it('reads an EPUB cover for text and a first page only for pages, as covers.ts did', () => {
+		for (const k of KINDS) {
+			// covers.ts:87 and :121 at fb2bd3a7.
+			expect(kindFacts(k).medium === 'text', k).toBe(k === 'novel');
+			expect(kindFacts(k).medium !== 'pages', k).toBe(k === 'novel' || k === 'anime');
+		}
+	});
+});
+
 describe('the AniList catalogue', () => {
 	it('asks MANGA for every comic and novel, ANIME for an anime', () => {
 		expect(KINDS.filter((k) => anilistType(k) === 'ANIME')).toEqual(['anime']);
@@ -625,7 +650,7 @@ describe('the unit and READ/WATCHED words (labels.ts)', () => {
  * How to lower it: delete or replace a check, then lower BASELINE by exactly
  * the count removed. Never raise it without a card saying which check and why.
  */
-const BASELINE = 109;
+const BASELINE = 93;
 /** One of `KINDS`' own names, as a bare alternation. */
 const NAME = String.raw`(?:manga|manhwa|doujin|novel|anime)`;
 const COMPARED = new RegExp(

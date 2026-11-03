@@ -5,6 +5,7 @@
 	import { enhance } from '$app/forms';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import { formatNumber } from '$lib/library/series';
+	import { kindFacts } from '$lib/library/kinds';
 	import { count, previewConfirm, previewDownload } from '$lib/library/downloads';
 	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
 	import { coverPlaceholder } from '$lib/library/cover';
@@ -66,7 +67,8 @@
 		{#if !m}
 			<div class="asking">THE SOURCE NO LONGER HAS IT</div>
 		{:else}
-			{@const anime = m.kind === 'anime'}
+			<!-- Episodes, or chapters: the preview's medium (card c303). Only an Aniyomi preview names its kind. -->
+			{@const anime = !!m.kind && kindFacts(m.kind).medium === 'video'}
 			{@const cell = continueCell(data.record?.next ?? null, anime)}
 			{@const meta = [m.source.toUpperCase(), STATUS[m.status], data.record ? 'NOT IN LIBRARY' : '']
 				.filter(Boolean)
@@ -170,8 +172,8 @@
 							<div class="label">RECORD</div>
 							<div class="lk">
 								<div class="lk-a">
-									<span class="long">{recordLine(data.record, m.kind === 'anime')}</span>
-									<span class="short">{recordLine(data.record, m.kind === 'anime', true)}</span>
+									<span class="long">{recordLine(data.record, anime)}</span>
+									<span class="short">{recordLine(data.record, anime, true)}</span>
 								</div>
 								<div class="lk-b">
 									<span class="long">{keptLine(data.record, Date.now(), KEEP_DAYS)}</span>

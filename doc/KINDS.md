@@ -152,6 +152,8 @@ export type KindFacts = {
 	layout?: 'paged' | 'vertical' | 'rtl' | 'ltr';
 	/** Whether MOVE between sources is offered. */
 	movable: boolean;
+	/** What GROUP binds its series into (server/books.ts): books, volumes, or nothing. Since K3. */
+	grouping: 'books' | 'volumes' | null;
 };
 
 export const KIND_FACTS = { /* … */ } as const satisfies Readonly<Record<Kind, KindFacts>>;
@@ -181,13 +183,13 @@ tree still works.
 
 What each fact says today, and the lines it was read from:
 
-| Kind     | Medium | Unit | Catalogue       | Matches               | Sources  | Layout   | Movable |
-| -------- | ------ | ---- | --------------- | --------------------- | -------- | -------- | ------- |
-| `manga`  | pages  | CH   | AniList `MANGA` | manga, manhwa, doujin | mihon    | rtl      | yes     |
-| `manhwa` | pages  | CH   | AniList `MANGA` | manga, manhwa, doujin | mihon    | vertical | yes     |
-| `doujin` | pages  | CH   | AniList `MANGA` | manga, manhwa, doujin | mihon    | rtl      | no      |
-| `novel`  | text   | VOL  | AniList `MANGA` | novel                 | lnreader | paged    | no      |
-| `anime`  | video  | EP   | AniList `ANIME` | anime                 | aniyomi  | rtl      | yes     |
+| Kind     | Medium | Unit | Catalogue       | Matches               | Sources  | Layout   | Movable | Grouping |
+| -------- | ------ | ---- | --------------- | --------------------- | -------- | -------- | ------- | -------- |
+| `manga`  | pages  | CH   | AniList `MANGA` | manga, manhwa, doujin | mihon    | rtl      | yes     | —        |
+| `manhwa` | pages  | CH   | AniList `MANGA` | manga, manhwa, doujin | mihon    | vertical | yes     | —        |
+| `doujin` | pages  | CH   | AniList `MANGA` | manga, manhwa, doujin | mihon    | rtl      | no      | books    |
+| `novel`  | text   | VOL  | AniList `MANGA` | novel                 | lnreader | paged    | no      | volumes  |
+| `anime`  | video  | EP   | AniList `ANIME` | anime                 | aniyomi  | rtl      | yes     | —        |
 
 - **Medium** decides the reader or the player and how progress is said
   (`library/series.ts`, `library/anime.ts`).
@@ -229,6 +231,15 @@ What each fact says today, and the lines it was read from:
   `SOURCE_KINDS` is the same fact the other way round, and is what
   `FirstReadSource.kind` is now.
 - **Storage** is `library` for all five; `jellyfin` is the movies card's.
+  K3 read it and changed nothing by it: every current kind's files go under
+  the library root, so no writer asks yet.
+- **Grouping** (since K3) is what GROUP binds a kind's series into
+  (`src/lib/server/books.ts`): `books` for a doujin (single books into a
+  series of books, which also fold editions and give the series its first
+  book's cover in `covers.ts`), `volumes` for a novel (EPUB volumes into one
+  novel), and nothing for the rest (Works groups across kinds). It was
+  `kind === 'doujin'` and `kind === 'novel'` in `books.ts` (9) and `covers.ts`
+  (2) at `fb2bd3a7`; `kindsGrouped(g)` gives the BOOKS screen's SQL its list.
 - **Layout** is `defaultDirection`'s default (`library/series.ts:89-93`), which
   still decides it — K2 makes it read the registry. An anime's row is `rtl`
   because `directionOptions` treats every non-novel the same way; the player
