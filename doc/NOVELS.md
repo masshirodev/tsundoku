@@ -75,8 +75,11 @@ never runs in the app (`src/lib/server/novels/`):
   minutes, so its next chapter is one request, not a solve and a retry. A plain
   403 with no marker stays the site's own answer ("answered 403"), as does one
   whose check it couldn't pass.
-- **Calls over IPC with a timeout** (a minute; two for a list that may wait on
-  a first solve); a plugin stuck in a loop gets the host restarted, and its
+- **Calls over IPC with a timeout**: two minutes for every call a plugin
+  makes — a list, a search, a preview, a chapter — since its first request may
+  meet a site's check the app solves (20–45 s) before the host retries with
+  the clearance; the host's own default is a minute, which only `info` uses. A
+  plugin stuck in a loop gets the host restarted, and its
   failure is the caller's error, not a crash. A host replaced while the one it
   replaces is still exiting answers its own calls: the dying process's exit
   can't fail its successor's. Each request the host makes has 30 s, redirects
@@ -192,6 +195,39 @@ on `127.0.0.1:8193` and the real host:
   once and then makes one request per chapter. Fetching the page itself through
   the solver is the only way past those, and the card rules it out; it would be
   a later card's question.
+
+**Measured live on 2026-11-03**, the same dialogue again, with **the real
+plugin files** from the owner's repository (2.3.4 Royal Road, 3.0.0 Novel Bin,
+0.5.1 Wuxia World, 2.3.3 NovelFull, 1.0.2 Scribble Hub) through the real host
+and FlareSolverr 3.4.6 on `127.0.0.1:8193`, each plugin's own POPULAR, preview
+and first chapter:
+
+- **Royal Road works, its own plugin and all.** POPULAR took 19.7 s, 18.5 s of
+  it the solve, and gave 20 novels; _Mother of Learning_ came back with 109
+  chapters and its first chapter as 54,606 bytes of HTML. The solve is for the
+  deep URL the plugin asks (`/fictions/search?...`), not only the home page.
+  One earlier attempt timed out inside FlareSolverr (50 s) and returned
+  nothing, so a first visit can fail and a retry succeed; the host reports that
+  as a check it could not pass, not as a plain 403.
+- **Wuxia World works, as it did** (50 popular, 357 chapters, 8,351 bytes),
+  and never needed a solve.
+- **NovelFull and Scribble Hub still refuse a Node request.** NovelFull's solve
+  answered in 1.9 s with only the site's own `nt_csrf`; Scribble Hub's in 4.9 s
+  with a `cf_clearance`. Neither cookie makes a Node fetch pass: both are still
+  a challenge when retried, so the check is bound to the browser that solved
+  it, not to the cookie. NovelFull's plugin reports it as its own "Could not
+  reach site (403: Forbidden)"; Scribble Hub's list comes back empty and the
+  host says "answered 403 (its check could not be passed)". Fetching the page
+  through the solver is the only way past those, and the card rules it out.
+- **Novel Bin is no longer a bot-check question.** Its API answers the site's
+  own SPA shell — `200 text/html`, 24,153 bytes, for
+  `api/cdn/lists/web_popular.json` — where the plugin expects JSON, so the
+  plugin throws "Unexpected token '<'". That is the site and the plugin
+  drifting apart, not a check: no solve is attempted and the host's own
+  detection never fires. It worked on 2026-10-28, above.
+
+So the card is met for **one of its three sites** (Royal Road), and two of the
+five plugins measured today, Wuxia World being the one that never needed it.
 
 `tests/novel-solver.spec.ts` is the app's half: a loopback or private address
 refused before the solver hears of it, only the asked host's cookies and its

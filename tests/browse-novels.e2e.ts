@@ -82,4 +82,16 @@ test('a novel is added, downloaded into its EPUB chapter by chapter, and read on
 	await expect(page.locator('.dl-row .lcs.inline .lc').last()).toHaveText('FOLLOWING ✓');
 	await page.locator('.dl-row .lcs.inline').getByRole('button', { name: 'FOLLOWING ✓' }).click();
 	await expect(page.locator('.dl-row .lcs.inline .lc').last()).toHaveText('FOLLOW');
+
+	// SEARCH THE SOURCES finds it in the library, and an in-library hit is the
+	// series, not its preview — keeping the search as its origin, so its ← says
+	// SOURCES (c262, c152): the same rule BROWSE's tile follows.
+	await page.goto('/downloads/search?q=quiet');
+	const hit = page.locator('a.hit', { hasText: 'The Quiet Shelf' });
+	await expect(hit.locator('.m')).toContainText('IN LIBRARY ·');
+	await hit.click();
+	await expect(page).toHaveURL(new RegExp(`${series}\\?from=%2Fdownloads%2Fsearch%3Fq%3Dquiet`));
+	const fromSources = page.getByRole('banner', { name: 'Series' }).locator('a.back');
+	await expect(fromSources.locator('.back-label')).toHaveText('SOURCES');
+	await expect(fromSources).toHaveAttribute('href', '/downloads/search?q=quiet');
 });
