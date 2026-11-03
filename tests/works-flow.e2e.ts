@@ -140,6 +140,14 @@ async function endWork(page: Page) {
 	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
 }
 
+/** Reveal on for this page, as `/reveal` does: hidden series become tiles that
+ * say HIDDEN. Each test has its own context, so the cookie ends with it. */
+async function revealOn(page: Page) {
+	await page
+		.context()
+		.addCookies([{ name: 'tsundoku_reveal', value: '1', url: 'http://localhost' }]);
+}
+
 test('a Work is one tile, one CONTINUE row, and a screen of its own', async ({ page }) => {
 	// Two runs in progress, the newest read of them five minutes old: the
 	// Work's CONTINUE row is the first one, and the section counts rows.
@@ -801,4 +809,261 @@ test('a selection that touches two Works is refused: SELECT ALL cannot collapse 
 		await page.waitForURL(/\/work\/\d+/);
 		await endWork(page);
 	}
+});
+
+// ---- W4 round 2: ADD TO EXISTING's target, TAKE OUT's band, UNHIDE ----------
+
+test('ADD TO EXISTING on volumes starts on the series of volumes, not on a Work', async ({
+	page
+}) => {
+	// A Work exists, which is the library's normal state after W4. With the old
+	// target the sheet would start on the Work's id -- a small integer, like a
+	// series' -- so no volume was checked and ADD posted nothing at all.
+	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Isekai');
+
+	// A series of volumes to add to: two of the seed's four novels.
+	await page.goto('/?shelf=k:novel&sort=title');
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	for (const t of ['Mushoku Tensei', 'Honzuki no Gekokujou'])
+		await page.locator('.grid .tile', { hasText: t }).locator('.open').click();
+	await page.getByRole('button', { name: /GROUP/ }).click();
+	let sheet = groupSheet(page);
+	await expect(sheet.getByText('GROUP 2 VOLUMES')).toBeVisible();
+	await sheet.getByRole('textbox', { name: 'Series name' }).fill('Two Novels');
+	await sheet.getByRole('button', { name: /CREATE SERIES · 2 VOLUMES/ }).click();
+	await page.waitForURL(/\/series\/\d+\?created=2/);
+	const volumes = page.url().replace(/\?.*$/, '');
+
+	// The other two novels, onto the end of it.
+	await page.goto('/?shelf=k:novel&sort=title');
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	for (const t of ['Villainess Level 99', 'Tensei Shitara Ken Deshita'])
+		await page.locator('.grid .tile', { hasText: t }).locator('.open').click();
+	await page.getByRole('button', { name: /GROUP/ }).click();
+	sheet = groupSheet(page);
+	await sheet.getByRole('radio', { name: /ADD TO EXISTING · 1/ }).click();
+	// The target is the series of volumes, and it arrives already chosen.
+	await expect(sheet.getByRole('radio', { name: /Two Novels/ })).toBeChecked();
+	await sheet.getByRole('button', { name: /ADD 2 VOLUMES/ }).click();
+	await expect(page.getByText('2 VOLUMES ADDED')).toBeVisible();
+	await expect(page.getByText('AT THE END · ORDER TO CHANGE')).toBeVisible();
+	await expect(page).toHaveURL(new RegExp(`^${volumes}\\?`));
+
+	// Restore: the volumes back out on their own, and the Work ended.
+	await page.goto(volumes);
+	await page.getByRole('button', { name: 'UNGROUP' }).click();
+	await page.waitForURL(/\/\?sort=added/);
+	await page.goto('/');
+	await workTile(page, 'Isekai').click();
+	await page.waitForURL(/\/work\/\d+/);
+	await endWork(page);
+});
+
+test('ADD TO EXISTING on books starts on the series of books, not on a Work', async ({ page }) => {
+	// A Work first: the same small-integer collision, now for books, where the
+	// old target could even pre-check an unrelated doujin series.
+	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Isekai');
+
+	// A series of books to add to: the seed's doujin are all singletons, so it
+	// is made the way the owner would.
+	await page.goto('/?shelf=k:doujin&sort=title');
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	for (const t of ['Hoshi no Umi no Tabibito', 'Natsu no Owari ni Kimi to'])
+		await page.locator('.grid .tile', { hasText: t }).locator('.open').click();
+	await page.getByRole('button', { name: /GROUP/ }).click();
+	let sheet = groupSheet(page);
+	await expect(sheet.getByText('GROUP 2 BOOKS')).toBeVisible();
+	await sheet.getByRole('textbox', { name: 'Series name' }).fill('Quiet Books');
+	await sheet.getByRole('button', { name: /CREATE SERIES · 2 BOOKS/ }).click();
+	await page.waitForURL(/\/series\/\d+\?created=2/);
+	const books = page.url().replace(/\?.*$/, '');
+
+	// Two more singletons, into it.
+	await page.goto('/?shelf=k:doujin&sort=title');
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	for (const t of ['Ame no Hi no Toshokan', 'Sekai no Owari no Kissaten'])
+		await page.locator('.grid .tile', { hasText: t }).locator('.open').click();
+	await page.getByRole('button', { name: /GROUP/ }).click();
+	sheet = groupSheet(page);
+	await sheet.getByRole('radio', { name: /ADD TO EXISTING · 1/ }).click();
+	await expect(sheet.getByRole('radio', { name: /Quiet Books/ })).toBeChecked();
+	await sheet.getByRole('button', { name: /ADD 2 BOOKS/ }).click();
+	await expect(page.getByText('2 BOOKS ADDED')).toBeVisible();
+	await expect(page).toHaveURL(new RegExp(`^${books}\\?`));
+
+	// Restore: the books back out, and the Work ended.
+	await page.goto(books);
+	await page.getByRole('button', { name: 'UNGROUP' }).click();
+	await page.waitForURL(/\/\?sort=added/);
+	await page.goto('/');
+	await workTile(page, 'Isekai').click();
+	await page.waitForURL(/\/work\/\d+/);
+	await endWork(page);
+});
+
+test('TAKE OUT with reveal off says the series left, not that the Work was hidden whole', async ({
+	page
+}) => {
+	// A Work of three: taking one part out leaves two, so the Work is still the
+	// shelf's and only that series was hidden.
+	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku', 'Dungeon Meshi'], 'Three Run');
+	await openWork(page, 'Three Run');
+	await page.locator('.run .part .rowlink').nth(1).click();
+	await page.waitForURL(/\/series\/\d+/);
+	await page.locator('.file-row').getByRole('button', { name: 'HIDE' }).click();
+	const hide = page.getByRole('dialog', { name: 'Hide' });
+	await expect(hide).toBeVisible();
+	await hide.getByRole('button', { name: 'TAKE OUT' }).click();
+
+	// Reveal off: the screen is gone, and the library says what was done. It
+	// was not the Work, whole -- the other two parts are still on the shelf.
+	await expect(page).toHaveURL(/\/\?.*band=taken-out/);
+	const band = page.locator('.band', { hasText: 'HIDDEN · TAKEN OUT' });
+	await expect(band).toBeVisible();
+	await expect(band).toContainText('A SERIES ON ITS OWN AGAIN');
+	await expect(band).toContainText('SHOWN AGAIN BY UNDO');
+	await expect(workTile(page, 'Three Run')).toBeVisible();
+	await expect(tileByTitle(page, 'Dungeon Meshi')).toHaveCount(0);
+
+	// UNDO puts the part back into the run.
+	await band.getByRole('button', { name: 'UNDO' }).click();
+	await expect(page.locator('.band', { hasText: 'HIDDEN · TAKEN OUT' })).toHaveCount(0);
+	await openWork(page, 'Three Run');
+	await expect(page.locator('.run .part')).toHaveCount(3);
+	await endWork(page);
+
+	// A Work of two: taking one out ends it, and the band says so.
+	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Two Run');
+	await openWork(page, 'Two Run');
+	await page.locator('.run .part .rowlink').nth(1).click();
+	await page.waitForURL(/\/series\/\d+/);
+	await page.locator('.file-row').getByRole('button', { name: 'HIDE' }).click();
+	await page
+		.getByRole('dialog', { name: 'Hide' })
+		.getByRole('button', { name: 'TAKE OUT' })
+		.click();
+	await expect(page).toHaveURL(/\/\?.*band=taken-out/);
+	const ended = page.locator('.band', { hasText: 'HIDDEN · TAKEN OUT' });
+	await expect(ended).toBeVisible();
+	await expect(ended).toContainText('TWO RUN IS NO LONGER A WORK');
+	await expect(workTile(page, 'Two Run')).toHaveCount(0);
+	// The series left behind is its own tile again.
+	await expect(tileByTitle(page, 'Isekai Ojisan')).toBeVisible();
+
+	// UNDO restores the run whole; then it ends for good.
+	await ended.getByRole('button', { name: 'UNDO' }).click();
+	await expect(workTile(page, 'Two Run')).toBeVisible();
+	await openWork(page, 'Two Run');
+	await endWork(page);
+});
+
+test('UNHIDE on one part of a hidden Work shows the Work whole', async ({ page }) => {
+	// The seed's book shop is a hidden root, so these two are hidden already:
+	// the Work made of them is a hidden Work, and its parts are selectable tiles
+	// of their own here (a shelf draws the Work as one card instead).
+	await revealOn(page);
+	const circle = '/?tag=' + encodeURIComponent('circle:Hakka Kousha');
+	const parts = [/Holiday Duty/, /Illustrations 2024/];
+	const tile = (title: RegExp) =>
+		page.locator('.grid li').filter({ has: page.locator('.title', { hasText: title }) });
+	await page.goto(circle);
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	for (const t of parts) await tile(t).getByRole('button').click();
+	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+	const sheet = groupSheet(page);
+	await sheet.getByRole('radio', { name: /A WORK · SERIES/ }).click();
+	await sheet.getByRole('textbox', { name: 'Work name' }).fill('Duty Run');
+	await sheet.getByRole('button', { name: /CREATE WORK/ }).click();
+	await expect(page.locator('.band', { hasText: 'DUTY RUN IS A WORK' })).toBeVisible();
+
+	// ONE part of the hidden Work selected: UNHIDE shows the run whole, never
+	// one part among hidden ones.
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await tile(/Holiday Duty/)
+		.getByRole('button')
+		.click();
+	await page.getByRole('button', { name: 'UNHIDE' }).click();
+	const shown = page.locator('.band', { hasText: 'SHOWN · THE WORK, WHOLE' });
+	await expect(shown).toBeVisible();
+	await expect(shown).toContainText('2 SERIES · HIDDEN AGAIN BY UNDO');
+	await expect(shown.getByRole('button', { name: 'UNDO' })).toBeVisible();
+
+	// The proof is on the shelf: the Work's own tile, with no HIDDEN mark. The
+	// old write left the other part hidden, so the tile kept it.
+	await page.goto('/?shelf=k:doujin');
+	const run = page.locator('.grid .tile.work', { hasText: 'Duty Run' });
+	await expect(run).toBeVisible();
+	await expect(run.locator('.badge', { hasText: 'HIDDEN' })).toHaveCount(0);
+
+	// Back to the seed: the run hidden whole again, then ended and reveal off.
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await run.locator('.open').click();
+	await page.getByRole('button', { name: 'HIDE', exact: true }).click();
+	await page
+		.getByRole('dialog', { name: 'Hide' })
+		.getByRole('button', { name: /HIDE ALL 2/ })
+		.click();
+	await expect(page.locator('.band', { hasText: 'HIDDEN · THE WORK, WHOLE' })).toBeVisible();
+	await run.click();
+	await page.waitForURL(/\/work\/\d+/);
+	await endWork(page);
+	await page.getByRole('button', { name: 'HIDE AGAIN' }).click();
+});
+
+test('UNDO after UNHIDE hides the Work whole again', async ({ page }) => {
+	await revealOn(page);
+	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Undo Run');
+	await page.goto('/?shelf=k:manga');
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	const run = page.locator('.grid .tile.work', { hasText: 'Undo Run' });
+	await run.locator('.open').click();
+	await page.getByRole('button', { name: 'HIDE', exact: true }).click();
+	await page
+		.getByRole('dialog', { name: 'Hide' })
+		.getByRole('button', { name: /HIDE ALL 2/ })
+		.click();
+	await expect(page.locator('.band', { hasText: 'HIDDEN · THE WORK, WHOLE' })).toBeVisible();
+
+	// UNHIDE, then its UNDO: shown whole, hidden whole again.
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await run.locator('.open').click();
+	await page.getByRole('button', { name: 'UNHIDE' }).click();
+	const shown = page.locator('.band', { hasText: 'SHOWN · THE WORK, WHOLE' });
+	await expect(shown).toContainText('2 SERIES · HIDDEN AGAIN BY UNDO');
+	await shown.getByRole('button', { name: 'UNDO' }).click();
+	await expect(page.locator('.band', { hasText: 'SHOWN · THE WORK, WHOLE' })).toHaveCount(0);
+	await expect(run.locator('.badge', { hasText: 'HIDDEN' })).toBeVisible();
+
+	// Shown again, so the seed is what the next case expects, and ended.
+	await page.getByRole('button', { name: 'UNHIDE' }).click();
+	await expect(run.locator('.badge', { hasText: 'HIDDEN' })).toHaveCount(0);
+	await page.getByRole('button', { name: 'Stop selecting' }).click();
+	await run.click();
+	await page.waitForURL(/\/work\/\d+/);
+	await endWork(page);
+	await page.getByRole('button', { name: 'HIDE AGAIN' }).click();
+});
+
+test('a Work cannot be made of a hidden series and a visible one', async ({ page }) => {
+	await revealOn(page);
+	await page.goto('/?shelf=all&sort=title');
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	// Kōhai is hidden in the seed; Isekai Ojisan is not.
+	for (const t of ['Kōhai no Himitsu Nikki', 'Isekai Ojisan'])
+		await tileByTitle(page, t).locator('.open').click();
+	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+	const sheet = groupSheet(page);
+	await sheet.getByRole('radio', { name: /A WORK · SERIES/ }).click();
+	await sheet.getByRole('textbox', { name: 'Work name' }).fill('Mixed Run');
+	await sheet.getByRole('button', { name: /CREATE WORK/ }).click();
+	// The server refuses, the sheet stays open with the reason, and no Work is made.
+	await expect(sheet.locator('.refused')).toContainText(
+		/HIDDEN AND VISIBLE SERIES CAN.T SHARE A WORK/
+	);
+	await expect(sheet).toBeVisible();
+	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
+	await sheet.getByRole('button', { name: 'CANCEL' }).click();
+	await page.getByRole('button', { name: 'Stop selecting' }).click();
+	await page.getByRole('button', { name: 'HIDE AGAIN' }).click();
 });

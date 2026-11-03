@@ -576,3 +576,24 @@ export function workFootShort(foot: WorkFoot, parts: WorkPart[]): string {
 	const n = inOrder(parts).findIndex((p) => p.seriesId === current.seriesId) + 1;
 	return `${n} OF ${parts.length}`;
 }
+
+/**
+ * Whether every selected series is hidden: what the bulk bar's UNHIDE is for
+ * (W4). A series the page cannot see -- a Work's part the shelf draws as one
+ * card, a page not loaded yet -- says nothing either way, and reading it as
+ * hidden made UNHIDE the offer for plainly visible series. So at least one
+ * series must be known, and none known may be visible.
+ */
+export function allHiddenAmong(
+	ids: Iterable<number>,
+	hiddenOf: (id: number) => boolean | undefined
+): boolean {
+	let known = 0;
+	for (const id of ids) {
+		const hidden = hiddenOf(id);
+		if (hidden === undefined) continue;
+		if (!hidden) return false;
+		known++;
+	}
+	return known > 0;
+}

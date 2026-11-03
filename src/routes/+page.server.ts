@@ -199,21 +199,39 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 
 /** The band a Work's own screen or a series screen leaves behind (doc/NAVIGATION.md). */
 function goneBand(url: URL): {
-	kind: 'ended' | 'ungrouped' | 'hidden';
+	kind: 'ended' | 'ungrouped' | 'hidden' | 'taken-out';
 	name: string;
 	facts: string;
 	/** SERIES hidden by HIDE ALL n, for the band's own line. */
 	n: number;
+	/** TAKE OUT of a Work of two leaves one series: the Work ended with it. */
+	ended: boolean;
 } | null {
 	const kind = url.searchParams.get('band');
 	const facts = url.searchParams.get('facts') ?? '';
-	if ((kind !== 'ended' && kind !== 'ungrouped' && kind !== 'hidden') || facts === '') return null;
+	if (
+		(kind !== 'ended' && kind !== 'ungrouped' && kind !== 'hidden' && kind !== 'taken-out') ||
+		facts === ''
+	)
+		return null;
 	return {
 		kind,
 		name: url.searchParams.get('name') ?? '',
 		facts,
-		n: Number(url.searchParams.get('n')) || 0
+		n: Number(url.searchParams.get('n')) || 0,
+		// Only TAKE OUT can carry a Work's ending this way: it says so in its facts.
+		ended: kind === 'taken-out' && workEnded(facts)
 	};
+}
+
+/** Whether a TAKE OUT's facts left the Work with one series (its `ended` is set). */
+function workEnded(facts: string): boolean {
+	try {
+		const out = JSON.parse(facts) as { out?: { ended?: unknown }[] };
+		return out.out?.[0]?.ended != null;
+	} catch {
+		return false;
+	}
 }
 
 /** The ids a form acted on, as submitted by `name="id"` inputs. */
@@ -295,14 +313,46 @@ export const actions: Actions = {
 		return { hideFacts: { hidden: target, out, whole: [] } };
 	},
 
+	/**
+	 * UNHIDE over the selection: the same rule as HIDE ALL n, the other way
+	 * round. With reveal on a person's page draws a Work's series as their own
+	 * tiles, so selecting one hidden part of a hidden Work and pressing UNHIDE
+	 * must show the Work whole -- one part visible among hidden ones is the
+	 * diverged state this branch exists to remove, and a rule about a state is
+	 * not a rule until it is at every door to it. The selected series in no Work
+	 * are shown with the rest.
+	 */
+	showAll: async ({ request }) => {
+		const target = ids(await request.formData());
+		if (target.length === 0) return fail(400, { message: 'nothing selected' });
+		const works = worksTouched(target);
+		const shown = new Set<number>(target);
+		for (const workId of works) for (const id of hideWork(workId, false).ids) shown.add(id);
+		setHidden([...shown], false);
+		return { showFacts: { shown: [...shown], works: works.length > 0 } };
+	},
+
 	/** UNDO after either HIDE answer: shown again, and every take-out put back. */
 	undoHide: async ({ request }) => {
-		const facts = JSON.parse(String((await request.formData()).get('facts') ?? 'null')) as {
+		const form = await request.formData();
+		const facts = JSON.parse(String(form.get('facts') ?? 'null')) as {
 			hidden: number[];
 			out: TakeOutFacts[];
 		};
 		setHidden(facts.hidden, false);
 		for (const f of [...facts.out].reverse()) undoTakeOut(f);
+		// A band that came from the URL (`from=band`) outlives an answer in the
+		// same shape: leaving the page is what takes it down.
+		if (form.get('from') === 'band') redirect(303, '/');
+		return { ok: true };
+	},
+
+	/** UNDO of UNHIDE: the parts it showed are hidden again, whole. */
+	undoShow: async ({ request }) => {
+		const facts = JSON.parse(String((await request.formData()).get('facts') ?? 'null')) as {
+			shown: number[];
+		};
+		setHidden(facts.shown, true);
 		return { ok: true };
 	},
 

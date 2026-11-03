@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+	allHiddenAmong,
 	continuePart,
 	defaultWorkName,
 	directionWord,
@@ -447,5 +448,29 @@ describe('what GROUP can make (W4)', () => {
 		expect(groupAnswers([{ kind: 'doujin', entryCount: 5 }])).toEqual(['work']);
 		expect(groupAnswers([{ kind: 'manga', entryCount: 60 }])).toEqual(['work']);
 		expect(groupAnswers([])).toEqual(['work']);
+	});
+});
+
+describe('UNHIDE is offered only when every selected series is hidden (W4 round 2)', () => {
+	it('is true when every selected series is hidden', () => {
+		expect(allHiddenAmong([1, 2, 3], () => true)).toBe(true);
+	});
+
+	it('is false as soon as one of them is visible', () => {
+		expect(allHiddenAmong([1, 2], (id) => id !== 2)).toBe(false);
+	});
+
+	it('is false for a selection the page cannot see at all', () => {
+		// A Work's part drawn as one card, or a page not loaded: `every` over an
+		// empty list used to answer true, so a person's page offered UNHIDE for
+		// plainly visible series.
+		expect(allHiddenAmong([1, 2], () => undefined)).toBe(false);
+		expect(allHiddenAmong([], () => true)).toBe(false);
+	});
+
+	it('ignores what it cannot see beside what it can', () => {
+		// An unloaded page is not evidence either way; the visible ones still are.
+		expect(allHiddenAmong([1, 2, 3], (id) => (id === 3 ? undefined : true))).toBe(true);
+		expect(allHiddenAmong([1, 2, 3], (id) => (id === 1 ? false : undefined))).toBe(false);
 	});
 });

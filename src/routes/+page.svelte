@@ -80,7 +80,7 @@
 	import { num, upper } from '$lib/i18n/format';
 	import type { Rating, Kind, RefreshBatch, SeriesCard, Shelf } from '$lib/library/types';
 	import { groupAnswers } from '$lib/library/books';
-	import { isFinished, type LibraryCard } from '$lib/library/works';
+	import { allHiddenAmong, isFinished, type LibraryCard } from '$lib/library/works';
 	import { pageQuery } from '$lib/library/paging';
 	import type { Snapshot } from './$types';
 
@@ -525,6 +525,10 @@
 			? (form.hideFacts as { hidden: number[]; out: unknown[]; whole: number[] })
 			: null
 	);
+	/** The UNHIDE answer's facts (W4): every part it showed, and UNDO to hide them. */
+	const showFacts = $derived(
+		form && 'showFacts' in form ? (form.showFacts as { shown: number[]; works: boolean }) : null
+	);
 	/** How many failed titles the band names; the count is always the whole truth. */
 	const FAILED_SHOWN = 3;
 	const batchTitle = $derived(
@@ -583,9 +587,25 @@
 			await invalidateAll();
 			await refillPages();
 		};
-	const allHidden = $derived(
-		selected.size > 0 && series.filter((s) => selected.has(s.id)).every((s) => s.hidden)
-	);
+	/**
+	 * Which drawn series are hidden, by id: a Work's parts as well as the cards
+	 * themselves. A person's page draws a Work's series as their own tiles and a
+	 * shelf draws the Work as one card, so reading only the shelf's cards left
+	 * `every` over an empty list -- vacuously true -- and a person's page offered
+	 * UNHIDE for series that were plainly visible (W4's round 2).
+	 */
+	const hiddenById = $derived.by(() => {
+		const out = new SvelteMap<number, boolean>();
+		for (const c of series) {
+			if (c.tile) for (const p of c.tile.parts) out.set(p.seriesId, p.hidden);
+			else out.set(c.id, c.hidden);
+		}
+		// The page's own items last: one series, one answer.
+		for (const i of data.person?.items ?? []) if (i.entryId === null) out.set(i.seriesId, i.hidden);
+		return out;
+	});
+	/** Every series selected is hidden, and the page can see at least one. */
+	const allHidden = $derived(allHiddenAmong(selected, (id) => hiddenById.get(id)));
 
 	/**
 	 * A Work tile is the run, so selecting it selects its parts: the bulk bar's
@@ -978,26 +998,39 @@
 		{@const gone = data.gone}
 		<!-- A Work ended on its own screen: the band and its UNDO live here, on the
 		     library it went back to (Work-States 2; doc/NAVIGATION.md). HIDE ALL n
-		     from a series screen with reveal off arrives the same way (W4). -->
+		     from a series screen with reveal off arrives the same way, and TAKE OUT
+		     says what it did -- one series hidden, on its own again -- rather than
+		     claiming the Work was hidden whole (W4). -->
 		<Band
 			title={gone.kind === 'ended'
 				? `${gone.name.toUpperCase()} IS NO LONGER A WORK`
 				: gone.kind === 'hidden'
 					? `${gone.name.toUpperCase()} HIDDEN`
-					: `UNGROUPED · ${gone.name.toUpperCase()}`}
+					: gone.kind === 'taken-out'
+						? 'HIDDEN · TAKEN OUT'
+						: `UNGROUPED · ${gone.name.toUpperCase()}`}
 			detail={gone.kind === 'ended'
 				? 'ONE SERIES WAS LEFT'
 				: gone.kind === 'hidden'
 					? `THE WORK, WHOLE${gone.n > 0 ? ` · ${gone.n} SERIES` : ''}`
-					: 'EVERY SERIES IS ITS OWN AGAIN'}
+					: gone.kind === 'taken-out'
+						? `A SERIES ON ITS OWN AGAIN${gone.ended ? ` · ${gone.name.toUpperCase()} IS NO LONGER A WORK` : ''} · SHOWN AGAIN BY UNDO`
+						: 'EVERY SERIES IS ITS OWN AGAIN'}
 		>
 			{#snippet action()}
 				<form
 					method="POST"
-					action={gone.kind === 'hidden' ? '?/undoHide' : '?/undoWork'}
+					action={gone.kind === 'hidden' || gone.kind === 'taken-out' ? '?/undoHide' : '?/undoWork'}
 					use:enhance={undoAfter}
 				>
-					{#if gone.kind !== 'hidden'}<input type="hidden" name="kind" value={gone.kind} />{/if}
+					{#if gone.kind !== 'hidden' && gone.kind !== 'taken-out'}<input
+							type="hidden"
+							name="kind"
+							value={gone.kind}
+						/>{/if}
+					<!-- This band came from the URL, so its UNDO leaves the page that
+					     carried it: a form's answer would not clear it. -->
+					<input type="hidden" name="from" value="band" />
 					<input type="hidden" name="facts" value={gone.facts} />
 					<button type="submit">UNDO</button>
 				</form>
@@ -1040,6 +1073,25 @@
 				{#snippet action()}
 					<form method="POST" action="?/undoHide" use:enhance={undoAfter}>
 						<input type="hidden" name="facts" value={JSON.stringify(hideFacts)} />
+						<button type="submit">UNDO</button>
+					</form>
+				{/snippet}
+			</Band>
+		</div>
+	{/if}
+	{#if showFacts}
+		<!-- UNHIDE on a part shows the Work whole (W4): the same band and UNDO as
+		     HIDE, the other way round, because the same rule runs both ways. -->
+		<div class="lib-band">
+			<Band
+				title={showFacts.works
+					? 'SHOWN · THE WORK, WHOLE'
+					: `SHOWN · ${showFacts.shown.length} SERIES`}
+				detail={`${showFacts.shown.length} SERIES · HIDDEN AGAIN BY UNDO`}
+			>
+				{#snippet action()}
+					<form method="POST" action="?/undoShow" use:enhance={undoAfter}>
+						<input type="hidden" name="facts" value={JSON.stringify(showFacts)} />
 						<button type="submit">UNDO</button>
 					</form>
 				{/snippet}
@@ -1450,11 +1502,19 @@
 				>
 				<!-- With reveal on and only hidden tiles selected, the same cell unhides them.
 				     A selection that holds part of a Work asks first: a Work is hidden
-				     whole, or the part leaves it (W4; doc/WORKS.md, "The one rule"). -->
+				     whole, or the part leaves it (W4; doc/WORKS.md, "The one rule").
+				     UNHIDE follows the same rule the other way: on a person's page a
+				     Work's parts are their own tiles, so showing one must show the Work. -->
 				{#if allHidden}
-					<button type="submit" name="do" value="unhide" disabled={selected.size === 0}
-						>UNHIDE</button
-					>
+					{#if selectedWorks.length > 0}
+						<button type="submit" formaction="?/showAll" disabled={selected.size === 0}
+							>UNHIDE</button
+						>
+					{:else}
+						<button type="submit" name="do" value="unhide" disabled={selected.size === 0}
+							>UNHIDE</button
+						>
+					{/if}
 				{:else if selectedWorks.length > 0}
 					<button type="button" disabled={selected.size === 0} onclick={() => (hiding = true)}
 						>HIDE</button

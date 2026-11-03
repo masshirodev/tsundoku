@@ -467,8 +467,11 @@ export const actions: Actions = {
 		setHidden([s.id], true);
 		const facts = { hidden: [s.id], out, whole: [] };
 		if (!isRevealed(cookies)) {
+			// TAKE OUT is not HIDE ALL n: only this series is hidden, and the rest
+			// of the Work is still on the shelf it stands on (`taken-out` says so,
+			// and the band tells the owner when the Work ended too).
 			const gone = new URLSearchParams({
-				band: 'hidden',
+				band: 'taken-out',
 				name: work?.name ?? s.title,
 				n: '1',
 				facts: JSON.stringify(facts)
