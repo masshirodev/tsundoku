@@ -93,8 +93,10 @@ its root and keeps every one of them:
 - `TextReader.svelte` the same way (c241): opted out while its chrome is
   hidden, and off a TV always. Its end screen is still behind the opt-out;
 - `VideoPlayer.svelte` (seek and volume) **while its bar is hidden**, on a TV
-  only. With the bar shown the pad moves among its six cells, and the player's
-  own arrows are the reader's again once BACK hides it (c235);
+  only — except while SKIP or the next-episode card is up, which take the pad
+  for themselves (c296). With the bar shown the pad moves among its cells and
+  the seek bar, and the player's own arrows are the reader's again once BACK
+  hides it (c235);
 - `EntryList.svelte`'s scrub rail and `BookGrid.svelte` while reordering, which
   use the arrows themselves.
 
@@ -103,13 +105,17 @@ scope in (`use:focusScope={{ force: true }}`, the reader's page menu). A sheet
 inside a reader whose chrome is up is a plain scope, the way it is on a tablet
 (c241: the reader's READING, the text reader's).
 
-**Within it.** Two attributes keep a screen's own controls out of the pad's way
+**Within it.** Three attributes keep a screen's own controls out of the pad's way
 without hiding them from Tab:
 
 - `data-focus-skip` on a subtree: not an arrow stop (a tile's rating and FAV
   buttons — a tile is its cover, and its options are a held OK, c235);
 - `data-focus-mark="in"` on a focusable cell of a ruled block: the mark is drawn
-  inside it (see below).
+  inside it (see below);
+- `data-focus-up` (and `-down`, `-left`, `-right`) on a control, with a
+  selector: that arrow goes there instead of to the nearest thing. It is for
+  the case the geometry cannot choose — the player's seek bar sends ↑ back to
+  PLAY NOW, where the card's two buttons above it are equally near (c296).
 
 **Text entries.** ←/→ keep the caret in a single-line input; ↑/↓ leave it. A
 textarea or a contenteditable keeps all four. A `<select>` keeps ←/→ to change
@@ -119,7 +125,7 @@ sort control would trap the pad. A range input is a slider and keeps all four.
 ←/→ only, so ↑/↓ still leave it: the series screen's rating row (c238) moves by
 half a bar, saved as it changes; the reader's page scrubber and its dim slider
 keep ←/→ the same way (c241), and the page scrubber is where the chrome's pad
-starts.
+starts; the player's seek bar does too (c296).
 
 ## The remote's other three keys (c235)
 

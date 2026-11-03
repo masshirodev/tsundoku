@@ -56,7 +56,10 @@ start but was drawn for fingers.
   top of the screen in full view, BACK leaves at once.
 - **The player is the picture until a key**, then six cells on one row with
   focus on ▶❚❚: ▶❚❚, −10, +10, ← EP. n, the cell naming the stream (the
-  settings panel), EP. n+1 →. SKIP INTRO takes OK while it is offered alone.
+  settings panel), EP. n+1 →. The seek bar above them keeps ← → (it seeks 10 s
+  with the flash) and ↑ from any cell reaches it. SKIP INTRO and the
+  next-episode card's PLAY NOW → take focus themselves the moment they appear,
+  so OK does what they say; ↓ is the bar and ↑ returns to them (c296).
   ▶❚❚ ⏩ ⏪ ⏭ ⏮ (`MediaPlayPause`, `MediaFastForward`, `MediaRewind`,
   `MediaTrackNext`, `MediaTrackPrevious`) work on every device, and on the
   library ▶❚❚ resumes the focused CONTINUE card there and then, without the
@@ -420,7 +423,8 @@ decisions (`isBackKey`, `isOptionsKey`, `OkPress`) and `layer.ts` wires them;
   bars set 28px in, the picture showed above the top bar and under the cells
   on the first real TV (2026-11-02). The middle cluster is not
   drawn (it is the thumb's), and nothing changes off a TV. SKIP INTRO shows
-  alone while offered and OK takes it. BACK hides the bar at once, then leaves
+  alone while offered, takes focus itself, and OK presses it (c296). BACK hides
+  the bar at once, then leaves
   for the series. The settings cell opens the 420px panel every sheet is, the
   picture playing at the left, focus on its first row; ←/→ move along a row,
   OK takes the value, BACK closes and gives focus back to the cell. A server
@@ -525,6 +529,62 @@ remote.
 - **The text reader's end screen is not a focus row.** Its chrome is (c241),
   but the end-of-book screen is still beneath the reader's opt-out; the image
   reader's end page has lifted it since c235. Recorded below.
+
+## What is built (c296)
+
+The player's D-pad on the real TV: the seek bar, SKIP and the next-episode
+card, which the owner found fighting the remote (2026-11-02).
+
+- **The seek bar keeps ← →.** The track carries `data-focus-adjust`, so ← →
+  seek 10 s with the flash and ↑ ↓ leave it, as the series' rating row does
+  (c238). Its element's box also reaches 20 px left of the line (a transparent
+  border; the fill is clipped to the padding box, and the pointer maps from the
+  padding box), so ▶❚❚ overlaps it. The line used to start at 126 while the
+  cell ends at 125: an overlapping candidate beats a nearer one out of line
+  ([`FOCUS.md`](FOCUS.md)), so ↑ from ▶❚❚ took the top bar's ← 372 px away,
+  and ← from the bar took ▶❚❚. Every cell in the row now lands on the bar.
+- **With the bar hidden, ← → seek and bring the bar with focus on the seek
+  bar**, so the next ← → keeps seeking there; OK, ↑ and ↓ still bring it on
+  ▶❚❚ (6A/6B).
+- **The next-episode card's PLAY NOW → takes focus when the card appears** (a
+  TV only, never a pointer), so OK plays the next episode at once; ← reaches
+  STAY, ↓ goes into the bar, and ↑ returns to PLAY NOW. The bar names it with
+  `data-focus-up`, because the card's two buttons are equally near above it and
+  the geometry would pick STAY.
+- **SKIP INTRO and SKIP ENDING take focus the same way**, so OK skips in one
+  press. The old Enter shortcut survives only where the button is not focused,
+  so the two cannot both fire. ↓ and ↑ move between it and the bar; when it
+  goes (used, or the mark passed) focus lands on the seek bar if the bar is
+  shown, else back on the picture. PLAY NOW wins if an ending's skip and the
+  card are ever both up, because they do the same thing and the card is the
+  button the owner reaches for; today `inEnding` stands down when there is a
+  next, so they cannot be.
+- **The offer takes the pad when it starts, not when the bar draws it.**
+  SKIP inside its 8 s alone window is offered with the bar down, and a bar that
+  comes up renders it again; that is a reveal, not a new offer, so OK, ↑ and ↓
+  still bring the bar on ▶❚❚ (6A/6B) while a SKIP runs. ↑ from the bar reaches
+  it as before: ↓ or ↑ out of the bar is the bar's, and the bar's own ↑ names
+  PLAY NOW or SKIP.
+- **The chrome's own 4 s hands the pad back to the offer.** While the card or
+  SKIP is up, `.top` and `.bottom` are `data-focus-skip`, so a cell focused
+  there stops being a stop the moment the bar hides. A TV-only effect puts
+  focus back on PLAY NOW (or SKIP) instead of leaving OK on the dead track and
+  ↑/↓ on STAY. PLAY NOW and SKIP also carry `data-focus-start` while offered,
+  so the layer's "nothing focused" fallback and BACK's climb start on the
+  offer rather than on STAY. ↑ on the card itself has nothing above it and
+  stays there; it does not open the bar underneath the button.
+- **OK on the focused seek bar toggles the picture.** The layer turns OK into a
+  click on the focused thing, and a pointer's click on the bar is a seek, so
+  only a click with no pointer detail — one an element made — toggles. Scrubbing
+  with a finger or a mouse is untouched.
+- **The root lifts `data-focus-off` while the card or SKIP is up**, even with
+  the bar hidden, so the pad reaches them; a hidden bar is not an arrow stop
+  (`data-focus-skip`), so a key reaches the card rather than an invisible cell.
+- **Tests.** `tests/tv-player.e2e.ts` covers the bar's ← → and ↑ from its
+  cells, a hidden bar's seek, PLAY NOW and STAY, SKIP's focus and its going,
+  the chrome's auto-hide handing the pad back to the card, and a revealed bar
+  keeping ▶❚❚ while SKIP is offered. `tests/focus-geometry.spec.ts` pins why the
+  1 px mattered.
 
 ## What it does not do yet
 

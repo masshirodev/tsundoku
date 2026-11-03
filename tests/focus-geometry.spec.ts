@@ -141,4 +141,24 @@ describe('nextInDirection', () => {
 		const two = rect(0, 200, 100, 300);
 		expect(nextIndex(from, 'down', labels([one, two]))).toBe(0);
 	});
+
+	it('lands on the player’s seek bar above a cell, not the far top bar that overlaps it', () => {
+		// The player's bar at 960x540 (c296): ▶❚❚ is 49–125 and the top bar's ←
+		// is 48–113, so it overlaps the cell; the seek bar's line was 126–826,
+		// one pixel aside, and the overlap rule sent ↑ to the far link. The line's
+		// own box now reaches 106, so the bar is the overlapping, nearer thing.
+		const cell = rect(49, 457, 125, 511);
+		const top = rect(48, 0, 113, 85);
+		const reached = rect(106, 424, 826, 428);
+		expect(nextInDirection(cell, 'up', labels([top, reached]))).toBe('c1');
+		// The old line: no overlap, so the link that overlaps wins despite the
+		// 372 px between them.
+		const short = rect(126, 424, 826, 428);
+		expect(nextInDirection(cell, 'up', labels([top, short]))).toBe('c0');
+		// The same 1 px was why ← left the bar: with the line at 126, ▶❚❚'s
+		// right edge (125) was a stop to its left; reaching to 106 leaves the
+		// key to the slider itself (data-focus-adjust, or the player's seek).
+		expect(nextInDirection(short, 'left', labels([cell]))).toBe('c0');
+		expect(nextInDirection(reached, 'left', labels([cell]))).toBeNull();
+	});
 });
