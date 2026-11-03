@@ -528,25 +528,33 @@ export function seriesWorkRow(seriesId: number, reveal: boolean): SeriesWorkRow 
  * Where each of these series sits in its Work, for the finding lists (search,
  * a tag filter, a person's page): "PART 2 OF 3" and the Work's name, in one
  * query. A series in no Work is absent from the map.
+ *
+ * The part is a place, counted the way `partPlace` counts it (the members
+ * before this one in `position, series_id` order, plus one), never the raw
+ * `position`: a take-out leaves the others' positions alone, so after a
+ * middle one goes the last part's position is past the count.
  */
 export function workFeetFor(seriesIds: number[]): Map<number, WorkFootFacts> {
 	if (seriesIds.length === 0) return new Map();
 	const rows = getDb()
 		.prepare(
-			`SELECT ws.series_id AS seriesId, ws.work_id AS workId, ws.position,
-				w.name, (SELECT COUNT(*) FROM work_series x WHERE x.work_id = ws.work_id) AS total
+			`SELECT ws.series_id AS seriesId, ws.work_id AS workId, w.name,
+				(SELECT COUNT(*) FROM work_series x WHERE x.work_id = ws.work_id
+					AND (x.position < ws.position
+						OR (x.position = ws.position AND x.series_id <= ws.series_id))) AS part,
+				(SELECT COUNT(*) FROM work_series x WHERE x.work_id = ws.work_id) AS total
 			FROM work_series ws JOIN works w ON w.id = ws.work_id
 			WHERE ws.series_id IN (${placeholders(seriesIds.length)})`
 		)
 		.all(...seriesIds) as {
 		seriesId: number;
 		workId: number;
-		position: number;
 		name: string;
+		part: number;
 		total: number;
 	}[];
 	return new Map(
-		rows.map((r) => [r.seriesId, { id: r.workId, name: r.name, part: r.position, of: r.total }])
+		rows.map((r) => [r.seriesId, { id: r.workId, name: r.name, part: r.part, of: r.total }])
 	);
 }
 

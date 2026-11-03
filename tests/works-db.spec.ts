@@ -742,3 +742,51 @@ describe('what W4 and W5 read off a Work', () => {
 		expect(works.seriesWorkRow(third + 1000, true)).toBeNull();
 	});
 });
+
+describe('a part’s place after a take-out (wave 16)', () => {
+	it('says PART 2 OF 2 for the last part on every read, not its sparse position', () => {
+		const ids = [
+			idOf('Isekai Ojisan')!,
+			idOf('Isekai Yakkyoku')!,
+			idOf('Tensei Shitara Ken Deshita')!
+		];
+		const { work } = works.createWork({ seriesIds: ids, name: 'Three', now: NOW });
+		// The middle part goes; the last keeps position 3, so the run is 1, 3.
+		works.takeOut(work.id, ids[1]);
+		expect(positions(work.id).map((p) => p.position)).toEqual([1, 3]);
+		const last = ids[2];
+
+		// The search hit (the library's card, `cardQuery`'s `work_part`).
+		const hit = lib.search('Tensei Shitara', true).titles.find((t) => t.id === last)!;
+		expect(hit.work).toMatchObject({ id: work.id, part: 2, of: 2 });
+		// A tag page's and a person's page's foot (`workFeetFor`).
+		expect(works.workFeetFor([last]).get(last)).toMatchObject({ part: 2, of: 2 });
+		// The series screen's WORK row (`seriesWorkRow`, through `partPlace`).
+		expect(works.seriesWorkRow(last, true)).toMatchObject({ part: 2, of: 2 });
+		// The first is still the first everywhere.
+		expect(works.workFeetFor([ids[0]]).get(ids[0])).toMatchObject({ part: 1, of: 2 });
+
+		// UNDO puts the middle back at its own place, and the numbers follow.
+		works.undoTakeOut({
+			workId: work.id,
+			seriesId: ids[1],
+			title: '',
+			position: 2,
+			ended: null
+		});
+		expect(works.workFeetFor(ids).get(last)).toMatchObject({ part: 3, of: 3 });
+		expect(
+			lib.search('Tensei Shitara', true).titles.find((t) => t.id === last)!.work
+		).toMatchObject({ part: 3, of: 3 });
+	});
+
+	it('breaks a tie of positions by series id, as partPlace does', () => {
+		const ids = STEM.map(idOf) as number[];
+		const { work } = works.createWork({ seriesIds: ids, name: 'Tie', now: NOW });
+		getDb().prepare(`UPDATE work_series SET position = 1 WHERE work_id = ?`).run(work.id);
+		const [lo, hi] = [...ids].sort((a, b) => a - b);
+		const feet = works.workFeetFor(ids);
+		expect([feet.get(lo)!.part, feet.get(hi)!.part]).toEqual([1, 2]);
+		expect(works.seriesWorkRow(hi, true)).toMatchObject({ part: 2, of: 2 });
+	});
+});
