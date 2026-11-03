@@ -149,6 +149,7 @@
 				class="rowlink"
 				role={reordering ? 'presentation' : undefined}
 				tabindex={reordering ? 0 : undefined}
+				data-focus-mark={reordering ? undefined : 'in'}
 				aria-pressed={selecting ? selected.has(p.seriesId) : undefined}
 				aria-label={selecting ? `Select ${p.title}` : undefined}
 				onclick={reordering ? undefined : () => (selecting ? onselect?.(p) : onrow?.(p))}
@@ -193,6 +194,7 @@
 				<a
 					class="go"
 					class:acc={current}
+					data-focus-mark="in"
 					href={current && resume ? readHref(resume.id) : seriesHref(p.seriesId, `work:${workId}`)}
 					aria-label={current ? `Continue ${p.title}` : `Open ${p.title}`}
 				>
