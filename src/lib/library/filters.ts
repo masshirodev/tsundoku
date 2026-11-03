@@ -1,3 +1,4 @@
+import { KINDS } from './kinds';
 import { DEFAULT_MIN, minLabel, RATING_MAX } from './rating';
 
 /**
@@ -40,8 +41,14 @@ export type Filters = {
 };
 
 export type Progress = 'unread' | 'read';
-export const FILTER_KINDS = ['manga', 'manhwa', 'doujin', 'novel', 'anime'] as const;
+/**
+ * The kinds the FILTER panel offers, in the panel's order -- the registry's
+ * order (doc/KINDS.md; card c301), which is also the order `kindsAmong` and
+ * the library's counts use.
+ */
+export const FILTER_KINDS = KINDS;
 export type FilterKind = (typeof FILTER_KINDS)[number];
+/** The panel's word for a kind; DOUJINS and NOVELS are the filter's own plural, not `kindLabel`. */
 const KIND_LABEL: Record<FilterKind, string> = {
 	manga: 'MANGA',
 	manhwa: 'MANHWA',

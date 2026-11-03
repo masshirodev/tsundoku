@@ -11,6 +11,7 @@
 
 import { m } from '../paraglide/messages.js';
 import { num, upper } from '../i18n/format.ts';
+import type { SourceKind } from './kinds.ts';
 
 export type StepId = 'repo' | 'ext' | 'library' | 'phone' | 'find' | 'add' | 'download';
 export const STEPS: StepId[] = ['repo', 'ext', 'library', 'phone', 'find', 'add', 'download'];
@@ -312,7 +313,8 @@ export function readLeads(v: StartView): boolean {
 export type FirstReadSource = {
 	id: string;
 	label: string;
-	kind: 'manga' | 'anime' | 'novel';
+	/** The source family's kind: `SOURCE_KINDS` in the registry (doc/KINDS.md; card c301). */
+	kind: SourceKind;
 	lang: string;
 };
 
