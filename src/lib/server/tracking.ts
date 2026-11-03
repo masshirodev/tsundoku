@@ -6,6 +6,7 @@ import {
 	SignedOut,
 	Unreachable,
 	anilistAs,
+	family,
 	linkFromList,
 	linkableByTitle,
 	toCandidate,
@@ -265,21 +266,33 @@ async function malToken(a: Account, now = Date.now()): Promise<string> {
 type ListEntry = { mediaId: number; status: Status | null; progress: number; score: number | null };
 
 /**
+ * Where a list row's state is filed. AniList's media ids are one sequence for
+ * both lists; MAL's manga and anime ids are not, so a MAL id is filed under
+ * the family of the series' kind (a manga 23 and an anime 23 are two works).
+ */
+const stateKey = (service: Service, media: number, kind: Kind): string =>
+	service === 'mal' ? `${family(kind)}:${media}` : String(media);
+
+/**
  * What a list says, kept per linked series. `readFrom` is when the read
  * began: a series sent to since then keeps what the send made of it, since
  * the list, as read, didn't have it yet.
  */
 function saveState(
 	service: Service,
-	byMedia: Map<number, ListEntry>,
+	byMedia: Map<string, ListEntry>,
 	readFrom: number,
 	now: number
 ): number {
 	const db = getDb();
 	const col = service === 'anilist' ? 'anilist_id' : 'mal_id';
 	const links = db
-		.prepare(`SELECT series_id, ${col} AS media FROM series_links WHERE ${col} IS NOT NULL`)
-		.all() as { series_id: number; media: number }[];
+		.prepare(
+			`SELECT l.series_id, l.${col} AS media, s.kind
+			FROM series_links l JOIN series s ON s.id = l.series_id
+			WHERE l.${col} IS NOT NULL`
+		)
+		.all() as { series_id: number; media: number; kind: Kind }[];
 	const put = db.prepare(
 		`INSERT INTO tracker_state (series_id, service, status, score, progress, read_at) VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT (series_id, service) DO UPDATE SET status = excluded.status, score = excluded.score,
@@ -292,7 +305,7 @@ function saveState(
 	let n = 0;
 	db.transaction(() => {
 		for (const l of links) {
-			const e = byMedia.get(l.media);
+			const e = byMedia.get(stateKey(service, l.media, l.kind));
 			// Off the list now: nothing to show for it.
 			if (!e) drop.run(l.series_id, service, readFrom);
 			else {
@@ -321,10 +334,12 @@ export async function readList(
 	if (!a) return { entries: 0, linked: 0 };
 	// The clock, not `now`: sends are stamped by it, and this is compared with them.
 	const readFrom = Date.now();
-	const byMedia = new Map<number, ListEntry>();
+	const byMedia = new Map<string, ListEntry>();
 	if (service === 'mal') {
 		const token = await malToken(a, now);
+		let read = 0;
 		for (const list of ['mangalist', 'animelist'] as const) {
+			const fam = family(list === 'animelist' ? 'anime' : 'manga');
 			let path: string | null = `/users/@me/${list}?fields=list_status&limit=1000&nsfw=true`;
 			while (path) {
 				const page = (await mal(token, path)) as {
@@ -339,20 +354,23 @@ export async function readList(
 					}[];
 					paging?: { next?: string };
 				};
-				for (const d of page.data)
-					byMedia.set(d.node.id, {
+				for (const d of page.data) {
+					byMedia.set(`${fam}:${d.node.id}`, {
 						mediaId: d.node.id,
 						status: statusFrom('mal', d.list_status.status),
 						progress: d.list_status.num_chapters_read ?? d.list_status.num_episodes_watched ?? 0,
 						score: d.list_status.score || null
 					});
+					read += 1;
+				}
 				path = page.paging?.next
 					? page.paging.next.replace('https://api.myanimelist.net/v2', '')
 					: null;
 			}
 		}
 		saveState('mal', byMedia, readFrom, now);
-		return { entries: byMedia.size, linked: 0 };
+		// The rows read, not the map's size: one id in each family is two rows.
+		return { entries: read, linked: 0 };
 	}
 	const entries: {
 		mediaId: number;
@@ -386,7 +404,7 @@ export async function readList(
 	// Links first, so their state is saved with the rest.
 	const linked = linkFromEntries(entries, now);
 	for (const e of entries)
-		byMedia.set(e.mediaId, {
+		byMedia.set(String(e.mediaId), {
 			mediaId: e.mediaId,
 			status: statusFrom('anilist', e.status),
 			progress: e.progress ?? 0,

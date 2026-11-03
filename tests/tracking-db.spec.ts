@@ -255,6 +255,59 @@ describe('reading the lists', () => {
 		}
 	});
 
+	it('keeps MAL’s manga and anime state apart when both lists use id 23', async () => {
+		const root = (
+			db.prepare(`SELECT id FROM roots WHERE hidden = 0 LIMIT 1`).get() as { id: number }
+		).id;
+		const add = (title: string, kind: string, key: string) =>
+			Number(
+				db
+					.prepare(
+						`INSERT INTO series (root_id, title, kind, added_at, origin_key, in_library)
+						VALUES (?, ?, ?, ?, ?, 1)`
+					)
+					.run(root, title, kind, NOW, key).lastInsertRowid
+			);
+		const manga = add('Ranma ½', 'manga', 'mihon:23:/ranma');
+		const anime = add('Ranma ½ (1989)', 'anime', 'aniyomi:23:/ranma-1989');
+		try {
+			for (const id of [manga, anime])
+				db.prepare(
+					`INSERT INTO series_links (series_id, mal_id, via, linked_at, resolved_at, format)
+					VALUES (?, 23, 'review', ?, ?, ?)`
+				).run(id, NOW, NOW, id === anime ? 'TV' : 'MANGA');
+			// MAL's manga and anime ids are separate sequences: both may be 23.
+			malList = [
+				{
+					node: { id: 23 },
+					list_status: { status: 'reading', score: 7, num_chapters_read: 40 }
+				}
+			];
+			malAnime = [
+				{
+					node: { id: 23 },
+					list_status: { status: 'completed', score: 9, num_episodes_watched: 5 }
+				}
+			];
+			await signIn('mal');
+			const read = await tr.readList('mal', NOW);
+			expect(state(manga, 'mal')).toMatchObject({
+				status: 'reading',
+				progress: 40,
+				score: 7
+			});
+			expect(state(anime, 'mal')).toMatchObject({
+				status: 'completed',
+				progress: 5,
+				score: 9
+			});
+			// The rows read, not the map's size: the collision used to hide one.
+			expect(read.entries).toBe(2);
+		} finally {
+			db.prepare(`DELETE FROM series WHERE id IN (?, ?)`).run(manga, anime);
+		}
+	});
+
 	it('reads MAL’s anime list, with the episode count as its progress', async () => {
 		const root = (
 			db.prepare(`SELECT id FROM roots WHERE hidden = 0 LIMIT 1`).get() as { id: number }
