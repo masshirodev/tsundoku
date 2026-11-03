@@ -53,13 +53,14 @@ export type KindFacts = {
  * derived at the type level rather than restated.
  */
 export const KIND_FACTS = {
-	// `KINDS` (types.ts:8-10); the comic family in `sameKind`
-	// (library/catalogue.ts:168-175): manga, manhwa and a doujin are one
-	// family to AniList. A doujin is Hentoid's, so no extension feeds it
-	// (`src/lib/server/downloads.ts:69-72`: its `origin_key` has no
+	// `KINDS` as it was in `types.ts` at `c14a5d4e`; the comic family in
+	// `sameKind` (library/catalogue.ts:171-175): manga, manhwa and a doujin
+	// are one family to AniList. A doujin is Hentoid's, so no extension feeds
+	// it (`src/lib/library/downloads.ts:49-54`, `parseKey`: "null for any
+	// other key (Hentoid, a folder, `mihon-dir:`)" -- its `origin_key` has no
 	// `mihon:`/`ln:`/`aniyomi:` prefix). Pages, R→L by default
 	// (`defaultDirection`, library/series.ts:89-93). MOVE is offered
-	// (`movableKind`, src/lib/server/move.ts:55-57).
+	// (`movableKind`, src/lib/server/move.ts:56-57).
 	manga: {
 		kind: 'manga',
 		medium: 'pages',
@@ -74,7 +75,7 @@ export const KIND_FACTS = {
 	// `defaultDirection` reads a manhwa as a vertical strip
 	// (library/series.ts:90), and the image reader draws it that way. Same
 	// comic family and same Mihon source as a manga. MOVE is offered for it
-	// too (`movableKind`, src/lib/server/move.ts:55-57), planned as a manga:
+	// too (`movableKind`, src/lib/server/move.ts:56-57), planned as a manga:
 	// a comic matches by chapter number (src/lib/server/move.ts:268).
 	manhwa: {
 		kind: 'manhwa',
@@ -89,7 +90,7 @@ export const KIND_FACTS = {
 	},
 	// A doujin's own peculiarity: one book with no count (labels.ts:31-38,
 	// `continueSub`), and a series of two or more books is a cover grid
-	// (library/series.ts:209, `isBookSeries`). Its unit is still a chapter in
+	// (library/series.ts:208, `isBookSeries`). Its unit is still a chapter in
 	// `unitLabel` (labels.ts:45). Not movable.
 	doujin: {
 		kind: 'doujin',
@@ -103,8 +104,9 @@ export const KIND_FACTS = {
 		movable: false
 	},
 	// Text: the text reader, volumes, READ (labels.ts:45). One EPUB volume is
-	// one series, grouped books are volumes (library/series.ts:205, 291-295).
-	// LNReader's plugins are `lnreader:`/`ln:` keys (downloads.ts:55-86).
+	// one series, grouped books are volumes (library/series.ts:192, 204).
+	// LNReader's plugins are `lnreader:`/`ln:` keys
+	// (src/lib/library/downloads.ts:56-85).
 	// `matches` is itself alone: a novel is another work from its comic
 	// (doc/LINKS.md:69, 106-111), and the cover-only crossing is `coverOnly`,
 	// not a match. Not movable.
@@ -121,9 +123,9 @@ export const KIND_FACTS = {
 	},
 	// Video: episodes, WATCHED, the player (library/anime.ts:1-8,
 	// labels.ts:45-51). Its own AniList catalogue (doc/LINKS.md:70-73;
-	// c298), its own `aniyomi:` keys (downloads.ts:65-73) and its MAL family.
-	// An anime matches only an anime: `coverOnly` refuses the crossing
-	// (library/catalogue.ts:228-236). Movable (library/move.ts:63).
+	// c298), its own `aniyomi:` keys (src/lib/library/downloads.ts:64-75) and
+	// its MAL family. An anime matches only an anime: `coverOnly` refuses the
+	// crossing (library/catalogue.ts:224-232). Movable (library/move.ts:63).
 	anime: {
 		kind: 'anime',
 		medium: 'video',
@@ -140,8 +142,12 @@ export const KIND_FACTS = {
 /** One kind's facts. */
 export const kindFacts = <K extends Kind>(kind: K): (typeof KIND_FACTS)[K] => KIND_FACTS[kind];
 
-/** Every kind, in the registry's order: the library's, the FILTER's and KIND's. */
-export const KINDS = Object.keys(KIND_FACTS) as Kind[];
+/**
+ * Every kind, in the registry's order: the library's, the FILTER's and KIND's.
+ * Readonly because `FILTER_KINDS` is the same object and that order is
+ * load-bearing: one in-place sort in a screen would reorder the registry.
+ */
+export const KINDS: readonly Kind[] = Object.keys(KIND_FACTS) as Kind[];
 
 /** The kinds MOVE offers between sources (`movable`: a manga, a manhwa, an anime). */
 export type MovableKind = {

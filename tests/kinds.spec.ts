@@ -9,6 +9,7 @@ import {
 	MOVE_MAP,
 	MOVABLE_KINDS,
 	SOURCE_KINDS,
+	type Kind,
 	type KindFacts,
 	type Medium,
 	type MovableKind
@@ -52,13 +53,14 @@ const card = (kind: SeriesCard['kind'], over: Partial<SeriesCard> = {}): SeriesC
 });
 
 describe('the registry', () => {
-	it('has facts for every kind, and the kind knows its own name', () => {
-		expect(Object.keys(KIND_FACTS)).toEqual(KINDS);
-		for (const kind of KINDS) {
-			expect(kindFacts(kind).kind).toBe(kind);
-			expect(kindFacts(kind)).toBe(KIND_FACTS[kind]);
-		}
-		expect(KINDS).toEqual(['manga', 'manhwa', 'doujin', 'novel', 'anime']);
+	it('has exactly five entries, and each literal kind reaches its own facts', () => {
+		// A hand-written list, not `KINDS` or `Object.keys(KIND_FACTS)`: those
+		// *are* the registry's own keys, so comparing them proves nothing. This
+		// goes red if a key is renamed or an entry dropped (round 2, c301).
+		const literals: Kind[] = ['manga', 'manhwa', 'doujin', 'novel', 'anime'];
+		expect(Object.keys(KIND_FACTS)).toHaveLength(literals.length);
+		for (const kind of literals) expect(KIND_FACTS[kind].kind).toBe(kind);
+		expect(KINDS).toEqual(literals);
 	});
 
 	it('gives every kind a medium, a unit, a catalogue and a storage', () => {
@@ -87,10 +89,21 @@ describe('the registry', () => {
 		}
 	});
 
+	it('keeps KINDS readonly, because FILTER_KINDS shares the object', () => {
+		// Type-level proof, not a runtime one: `FILTER_KINDS` is the same array,
+		// so one in-place `sort()` in a screen would reorder the panel and the
+		// registry together. If `KINDS` widened back to `Kind[]`, the assignment
+		// below would compile and this directive would be an unused-error, which
+		// `yarn run check` fails on (round 2, c301).
+		// @ts-expect-error KINDS is readonly.
+		const mutable: Kind[] = KINDS;
+		expect(mutable).toBe(KINDS);
+	});
+
 	it('derives the FILTER panel\u2019s list from the one list, in the same order', () => {
 		// The order is load-bearing: the panel lists chips in it (kindsAmong) and
-		// the library counts by it (src/lib/server/library.ts:440).
-		expect(FILTER_KINDS).toEqual(KINDS);
+		// the library counts by it (src/lib/server/library.ts:440). The literal
+		// list is what can go red; `FILTER_KINDS` being `KINDS` is a tautology.
 		expect(FILTER_KINDS).toEqual(['manga', 'manhwa', 'doujin', 'novel', 'anime']);
 	});
 });
