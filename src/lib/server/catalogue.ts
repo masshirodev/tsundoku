@@ -354,13 +354,13 @@ export function linkFromTracker(
  * that wrote `series_links` writes `series_season_links` instead. A caller
  * that names no season links the season that still wants a look
  * (`seasonToLook`), never one already linked or settled; only when every
- * season is, the one CONTINUE is in (a CHANGE). `linkSeason` is the one write.
+ * season is, the one CONTINUE is in (a CHANGE). `linkSeason` is the one write,
+ * and it refuses an entry another season of the show holds: then nothing is
+ * written and this answers false.
  */
-export function link(seriesId: number, c: Candidate, via: Via, now = Date.now()): void {
-	if (isAnime(kindOf(seriesId))) {
-		linkSeason(seriesId, seasonToLook(seriesId) ?? openSeasonOf(seriesId), 1, c, via, now);
-		return;
-	}
+export function link(seriesId: number, c: Candidate, via: Via, now = Date.now()): boolean {
+	if (isAnime(kindOf(seriesId)))
+		return linkSeason(seriesId, seasonToLook(seriesId) ?? openSeasonOf(seriesId), 1, c, via, now);
 	const db = getDb();
 	db.transaction(() => {
 		db.prepare(
@@ -374,6 +374,7 @@ export function link(seriesId: number, c: Candidate, via: Via, now = Date.now())
 		db.prepare(`DELETE FROM link_decisions WHERE series_id = ?`).run(seriesId);
 		clearAniSkip(seriesId, db);
 	})();
+	return true;
 }
 
 /**
@@ -915,11 +916,25 @@ export async function searchSeries(
 	);
 	rows.forEach((r, i) => {
 		const hits = found[i] ?? [];
-		// The by-hand query is the owner's choice of title, so it counts as one of the series'.
-		const sure = crossed.has(i)
-			? null
-			: sureMatch(matchTitles(titlesOfRow(r), r.query), r.kind, hits);
 		const at = seasonOfRow[i];
+		// The by-hand query is the owner's choice of title, so it counts as one of
+		// the series'. A season past the first is judged by its own titles
+		// ("Show Season 2") and the typed query, never the series' plain one,
+		// which is season 1's entry: AniList's answer for "Show Season 2" lists
+		// "Show" too (wave 17, round 2). Not through `matchTitles`, whose cleaning
+		// cuts "Season 2" off and gives the plain title back.
+		const titles =
+			at !== undefined && at > 1
+				? [
+						...new Set([
+							...titlesOfRow(r)
+								.flatMap((t) => [t, ...searchTitles(t)])
+								.map((t) => seasonSearchTitle(t, at)),
+							...(r.query ? [r.query] : [])
+						])
+					]
+				: matchTitles(titlesOfRow(r), r.query);
+		const sure = crossed.has(i) ? null : sureMatch(titles, r.kind, hits);
 		db.transaction(() => {
 			if (isAnime(r.kind) && at !== undefined) {
 				// An anime's search is its season's, and stored once (c355): the
@@ -930,11 +945,11 @@ export async function searchSeries(
 				// A sure match links only the season searched, and only while it is
 				// still open: never a season with a link or a decision (the owner's
 				// season 1, its score and its AniSkip answers stay as they were).
+				// And never an entry another season holds (`linkSeason` refuses it,
+				// and the save above left it out of the candidates): offered instead.
 				const open = !seasonLink(r.id, at) && !seasonSettled(r.id, at);
-				if (sure && autoLink && open) {
-					linkSeason(r.id, at, 1, sure, 'exact', now);
-					linked += 1;
-				} else offered += 1;
+				if (sure && autoLink && open && linkSeason(r.id, at, 1, sure, 'exact', now)) linked += 1;
+				else offered += 1;
 				return;
 			}
 			saveSearch.run(r.id, queries[i], now, hits.length);
@@ -1550,9 +1565,9 @@ export async function searchNow(
 	try {
 		if (at) {
 			const hits = (await searchMany([{ title: q, kind: row.kind }]))[0] ?? [];
-			saveSeasonSearch(seriesId, at.season, at.part, q, hits, now);
+			const found = saveSeasonSearch(seriesId, at.season, at.part, q, hits, now);
 			before.set(beforeKey(seriesId, at), snapshot);
-			return { outcome: 'found', found: hits.length };
+			return { outcome: 'found', found };
 		}
 		await searchSeries([{ ...row, query: q }], now, { autoLink: false });
 		before.set(beforeKey(seriesId), snapshot);

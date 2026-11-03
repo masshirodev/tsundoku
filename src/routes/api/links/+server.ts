@@ -113,7 +113,9 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			return json({ ...r, item: item ? { ...item, service: 'anilist' as const } : null });
 		}
 		if (typeof b.paste === 'string') {
-			const item = reviewItem(seriesId, reveal);
+			// The posted season's item, as the search's: the pasted entry's rows
+			// are checked against that season's title and episodes.
+			const item = reviewItem(seriesId, reveal, seasonal ? season : undefined);
 			if (!item) error(404, 'not found');
 			const p = parsePasted(b.paste, item.kind);
 			if (!p)
@@ -135,9 +137,9 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 				})
 				.filter((p): p is NonNullable<typeof p> => p !== null);
 			if (!picks.length) error(409, 'not a candidate');
-			linkSeasons(seriesId, picks);
+			const linked = linkSeasons(seriesId, picks);
 			recover(true);
-			return json({ ok: true, linked: picks.length });
+			return json({ ok: true, linked });
 		}
 		if (typeof b.link === 'number') {
 			if (!kind) error(404, 'not found');
@@ -145,9 +147,13 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 				? await readPasted({ service: 'anilist', id: b.link }, kind)
 				: offered(seriesId, b.link, season, part);
 			if (!c) error(409, 'not a candidate');
-			if (seasonal && season !== undefined)
-				linkSeason(seriesId, season, part, c, b.pasted ? 'pasted' : 'review');
-			else link(seriesId, c, b.pasted ? 'pasted' : 'review');
+			// Refused when another season of the show holds the entry (a pasted
+			// link of season 1 for season 2): nothing is written.
+			const done =
+				seasonal && season !== undefined
+					? linkSeason(seriesId, season, part, c, b.pasted ? 'pasted' : 'review')
+					: link(seriesId, c, b.pasted ? 'pasted' : 'review');
+			if (!done) error(409, 'another season holds that entry');
 			// The cover follows in the background: the link's, if nothing comes before it.
 			recover(true);
 			// And the rest of the show, from the entry just chosen (c240).

@@ -196,7 +196,11 @@
 			? `${SERVICE_NAME[service]} DID NOT ANSWER · ${what}`
 			: r?.status === 422
 				? `${SERVICE_NAME[service]} REFUSED IT · ${what}`
-				: NO_ANSWER;
+				: r?.status === 409
+					? // Not this season's to take: another season of the show holds the
+						// entry, or it is no longer among the candidates (wave 17, round 2).
+						`NOT OFFERED FOR THIS ONE · ${what}`
+					: NO_ANSWER;
 
 	async function backToSeries(id: number) {
 		await goto(resolve('/series/[id]', { id: String(id) }), { invalidateAll: true });
@@ -583,7 +587,11 @@
 		}
 		const mine = ++reading;
 		pasteNote = 'READING…';
-		const r = await post(it.service, { series: it.seriesId, paste: text });
+		const r = await post(it.service, {
+			series: it.seriesId,
+			...(at ? { season: at.no, part: at.part } : {}),
+			paste: text
+		});
 		if (mine !== reading) return;
 		if (!r) {
 			pasteNote = NO_ANSWER;

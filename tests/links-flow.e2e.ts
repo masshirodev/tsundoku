@@ -740,6 +740,10 @@ test.describe('a catalogue that answers', () => {
 		};
 		try {
 			await page.goto(`${BASE}/links`);
+			// Before season 1 is linked, season 2's item lists both entries: the
+			// rule below is about a held entry, not a missing one.
+			await toItem(2);
+			await expect(page.locator('.cand')).toHaveCount(2);
 			await toItem(1);
 			await expect(page.locator('.heading .long')).toHaveText('LINK · SEASON 1');
 			await expect(page.locator('.cand')).toHaveCount(1);
@@ -754,6 +758,12 @@ test.describe('a catalogue that answers', () => {
 			await expect(page.locator('.cand')).toHaveCount(1);
 			await expect(page.locator('.cand')).toContainText('9202');
 			await expect(page.locator('.cand')).not.toContainText('9201');
+			// Nor does LINK take it for season 2, whatever the page posts (wave 17, round 2).
+			const refused = await page.request.post(`${BASE}/api/links`, {
+				data: { series: id, link: 9201, season: 2, part: 1 }
+			});
+			expect(refused.status()).toBe(409);
+			expect(seasonLinksOf(id)).toEqual([{ season: 1, anilist_id: 9201, via: 'review' }]);
 			// FIND with no season named opens where the queue does: season 1 is the
 			// open season (nothing watched) but linked, so season 2.
 			await link(2, 9202, 'LINKED · SEASON 2 · QUEUED SECOND SEASON II');
@@ -775,9 +785,11 @@ test.describe('a catalogue that answers', () => {
 });
 
 /**
- * A two-season anime the pass searched: each season's own search and its one
- * candidate, exactly what `searchSeries` writes (`saveSeasonSearch`), and no
- * series-level row, which the pass never writes for an anime (wave 17).
+ * A two-season anime the pass searched in one go: each season's own search
+ * and candidates, exactly what `searchSeries` writes (`saveSeasonSearch`)
+ * while no season is linked, season 2's listing season 1's entry after its
+ * own; and no series-level row, which the pass never writes for an anime
+ * (wave 17).
  */
 let queuedSecond: number | null = null;
 function seedQueuedSecondSeason(): number {
@@ -822,18 +834,27 @@ function seedQueuedSecondSeason(): number {
 				status: 'FINISHED',
 				coverUrl: ''
 			});
-		for (const [season, query, anilistId, title] of [
-			[1, 'Queued Second Season', 9201, 'Queued Second Season'],
-			[2, 'Queued Second Season Season 2', 9202, 'Queued Second Season II']
+		// Season 2's search lists season 1's entry too, after its own, as
+		// AniList's answer for "… Season 2" does: both seasons were searched in
+		// one pass while neither was linked, so nobody held 9201 to leave out.
+		const s1: [number, string] = [9201, 'Queued Second Season'];
+		const s2: [number, string] = [9202, 'Queued Second Season II'];
+		for (const [season, query, hits] of [
+			[1, 'Queued Second Season', [s1]],
+			[2, 'Queued Second Season Season 2', [s2, s1]]
 		] as const) {
 			db.prepare(
 				`INSERT INTO season_link_searches (series_id, season, part, query, searched_at, found)
-				VALUES (?, ?, 1, ?, ?, 1)`
-			).run(id, season, query, now);
-			db.prepare(
-				`INSERT INTO season_link_candidates (series_id, season, part, anilist_id, rank, data)
-				VALUES (?, ?, 1, ?, 0, ?)`
-			).run(id, season, anilistId, candidate(anilistId, title));
+				VALUES (?, ?, 1, ?, ?, ?)`
+			).run(id, season, query, now, hits.length);
+			hits.forEach(([anilistId, title], rank) =>
+				db
+					.prepare(
+						`INSERT INTO season_link_candidates (series_id, season, part, anilist_id, rank, data)
+						VALUES (?, ?, 1, ?, ?, ?)`
+					)
+					.run(id, season, anilistId, rank, candidate(anilistId, title))
+			);
 		}
 		return (queuedSecond = id);
 	} finally {

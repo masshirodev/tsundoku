@@ -160,6 +160,36 @@ export function legacyLink(seriesId: number): SeasonLink | null {
 	};
 }
 
+/**
+ * The season (and part) of this series that already holds the entry, other
+ * than the one named: no two seasons or parts of one show are ever the same
+ * AniList or MAL entry (wave 17, round 2). AniList's search for "Show Season
+ * 2" lists "Show" too, so season 1's entry turns up among season 2's hits;
+ * linking it there would send season 2's episode numbers to season 1's entry.
+ * A link of the series' from before rung 62, with no season row beside it,
+ * is its first season's (as `seriesSeasons` reads it).
+ */
+export function seasonHolding(
+	seriesId: number,
+	season: number,
+	part: number,
+	c: { anilistId: number | null; malId: number | null }
+): { season: number; part: number } | null {
+	let held = seasonLinks(seriesId);
+	if (!held.length) {
+		const old = legacyLink(seriesId);
+		const first = seasonEntries(seriesId)[0]?.season ?? 0;
+		held = old ? [{ ...old, season: first }] : [];
+	}
+	const other = held.find(
+		(l) =>
+			!(l.season === season && l.part === part) &&
+			((c.anilistId !== null && l.anilistId === c.anilistId) ||
+				(c.malId !== null && l.malId === c.malId))
+	);
+	return other ? { season: other.season, part: other.part } : null;
+}
+
 /** A series' kind, its title, and whether it is hidden: what every season door asks first. */
 export function seriesRow(seriesId: number) {
 	return getDb()
@@ -388,6 +418,11 @@ export function seriesSeasons(seriesId: number): SeriesSeasons | null {
  * link it had; a link of the series' before rung 62 goes with it, since the
  * season's own row now says what that one said. AniSkip's answers go too, as
  * at every other link door.
+ *
+ * Refused (false, nothing written) when another season or part of the show
+ * holds the entry (`seasonHolding`), whatever the door: the pass's sure
+ * match, the owner's list, the relations, the queue's LINK and a pasted link
+ * all come through here, so the rule holds at every one (wave 17, round 2).
  */
 export function linkSeason(
 	seriesId: number,
@@ -396,9 +431,10 @@ export function linkSeason(
 	c: Candidate,
 	via: SeasonVia,
 	now = Date.now()
-): void {
+): boolean {
 	const db = getDb();
-	db.transaction(() => {
+	return db.transaction(() => {
+		if (seasonHolding(seriesId, season, part, c)) return false;
 		db.prepare(
 			`INSERT INTO series_season_links
 				(series_id, season, part, anilist_id, mal_id, via, title, cover_url, linked_at, resolved_at, format, episodes, year)
@@ -428,6 +464,7 @@ export function linkSeason(
 		).run(seriesId, season, part);
 		clearAniSkip(seriesId, db);
 		syncSeriesLink(seriesId, now);
+		return true;
 	})();
 }
 
@@ -475,14 +512,20 @@ export function syncSeriesLink(seriesId: number, now = Date.now()): void {
 	);
 }
 
-/** LINK 3 SEASONS: one write per season, so a season already right is left alone by the caller. */
+/**
+ * LINK 3 SEASONS: one write per season, so a season already right is left
+ * alone by the caller. How many were linked: a pick another season holds is
+ * refused by `linkSeason`.
+ */
 export function linkSeasons(
 	seriesId: number,
 	picks: { season: number; part: number; candidate: Candidate }[],
 	now = Date.now()
 ): number {
-	for (const p of picks) linkSeason(seriesId, p.season, p.part, p.candidate, 'relations', now);
-	return picks.length;
+	let n = 0;
+	for (const p of picks)
+		if (linkSeason(seriesId, p.season, p.part, p.candidate, 'relations', now)) n += 1;
+	return n;
 }
 
 /** UNDO, just after a LINK: the row goes; a link of the series' before rung 62 is NOT brought back. */
@@ -567,6 +610,12 @@ export function seasonSearch(seriesId: number, season: number, part = 1): Season
 	return r ?? null;
 }
 
+/**
+ * What a season's search found, less any entry another season or part of the
+ * show holds (`seasonHolding`): season 2's search lists season 1's entry too,
+ * and that one is never offered for season 2. Asked at read time as well as
+ * at the save, since season 1 may be linked after season 2 was searched.
+ */
 export function seasonCandidates(seriesId: number, season: number, part = 1): Candidate[] {
 	return (
 		getDb()
@@ -574,7 +623,9 @@ export function seasonCandidates(seriesId: number, season: number, part = 1): Ca
 				`SELECT data FROM season_link_candidates WHERE series_id = ? AND season = ? AND part = ? ORDER BY rank`
 			)
 			.all(seriesId, season, part) as { data: string }[]
-	).map((x) => JSON.parse(x.data) as Candidate);
+	)
+		.map((x) => JSON.parse(x.data) as Candidate)
+		.filter((c) => !seasonHolding(seriesId, season, part, c));
 }
 
 export function offeredSeason(
@@ -589,7 +640,11 @@ export function offeredSeason(
 			`SELECT data FROM season_link_candidates WHERE series_id = ? AND season = ? AND part = ? AND anilist_id = ?`
 		)
 		.get(seriesId, season, part, anilistId) as { data: string } | undefined;
-	if (r) return JSON.parse(r.data) as Candidate;
+	if (r) {
+		const c = JSON.parse(r.data) as Candidate;
+		// Another season's entry is no candidate of this one (wave 17, round 2).
+		return seasonHolding(seriesId, season, part, c) ? null : c;
+	}
 	// A season already linked to it: CHANGE asks again from the row's own entry.
 	const own = seasonLink(seriesId, season, part);
 	if (own && own.anilistId === anilistId && own.title)
@@ -612,16 +667,22 @@ export function offeredSeason(
 	return null;
 }
 
-/** Keep what a search found for a season, replacing the last one's. */
+/**
+ * Keep what a search found for a season, replacing the last one's. An entry
+ * another season or part of the show holds is left out (`seasonHolding`), so
+ * the four kept are all this season's to choose from; how many were kept is
+ * returned, and is the row's `found`.
+ */
 export function saveSeasonSearch(
 	seriesId: number,
 	season: number,
 	part: number,
 	query: string,
-	found: Candidate[],
+	hits: Candidate[],
 	now: number
-): void {
+): number {
 	const db = getDb();
+	const found = hits.filter((c) => !seasonHolding(seriesId, season, part, c));
 	db.transaction(() => {
 		db.prepare(
 			`INSERT INTO season_link_searches (series_id, season, part, query, searched_at, found)
@@ -640,6 +701,7 @@ export function saveSeasonSearch(
 			.slice(0, 4)
 			.forEach((c, rank) => put.run(seriesId, season, part, c.anilistId, rank, JSON.stringify(c)));
 	})();
+	return found.length;
 }
 
 // ---- the relations (the design's "LINKING FOUR SEASONS WITHOUT FOUR SEARCHES") --------------

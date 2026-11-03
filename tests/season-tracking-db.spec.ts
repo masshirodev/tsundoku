@@ -1146,11 +1146,13 @@ describe('a door that names no season acts on the season that wants a look', () 
 
 	it('a sure match links season 2, never season 1', async () => {
 		const id = probe('Sure Show');
-		// AniList answers with the series' own title, whatever is asked: a sure match.
+		// AniList answers with season 2's own title: a sure match for season 2.
+		// (The series' plain title is season 1's, and is no sure match for a
+		// season past the first: wave 17, round 2, in the wave-17 cases below.)
 		const sure: typeof fetch = async (input, init) => {
 			const raw = init?.body ? String(init.body) : '';
 			if (String(input) === 'https://graphql.anilist.co' && raw.includes('search:'))
-				return json({ data: { s0: { media: [animeMedia(9302, 'Sure Show')] } } });
+				return json({ data: { s0: { media: [animeMedia(9302, 'Sure Show Season 2')] } } });
 			return fake(input, init);
 		};
 		cat.setAnilistFetch(sure);
@@ -1284,11 +1286,14 @@ describe('a door that names no season acts on the season that wants a look', () 
 // ---- a season's own search, from a fresh show (wave 17) -----------------------------------
 
 describe('the pass and the queue ask each season’s own search, never the series’ (wave 17)', () => {
+	type Hit = [number, string];
 	/**
-	 * AniList as the review's repro had it: one hit a query, not equal to the
-	 * series' title, and a different entry for each season's own title.
+	 * AniList answering each query with a list, in its order. One hit is
+	 * written as a pair; AniList's real answer for "Show Season 2" usually
+	 * lists "Show" (season 1's entry) after the season's own, and the round-2
+	 * cases give it exactly that (wave 17, round 2).
 	 */
-	function byQuery(answers: Record<string, [number, string]>): typeof fetch {
+	function byQuery(answers: Record<string, Hit | Hit[]>): typeof fetch {
 		return async (input, init) => {
 			const raw = init?.body ? String(init.body) : '';
 			if (String(input) === 'https://graphql.anilist.co' && raw.includes('search:')) {
@@ -1297,8 +1302,9 @@ describe('the pass and the queue ask each season’s own search, never the serie
 				const data: Record<string, { media: unknown[] }> = {};
 				for (const [k, v] of Object.entries(vars))
 					if (/^q\d+$/.test(k)) {
-						const hit = answers[String(v)];
-						data[`s${k.slice(1)}`] = { media: hit ? [animeMedia(hit[0], hit[1])] : [] };
+						const a = answers[String(v)];
+						const hits: Hit[] = !a ? [] : Array.isArray(a[0]) ? (a as Hit[]) : [a as Hit];
+						data[`s${k.slice(1)}`] = { media: hits.map(([n, t]) => animeMedia(n, t)) };
 					}
 				return json({ data });
 			}
@@ -1340,7 +1346,11 @@ describe('the pass and the queue ask each season’s own search, never the serie
 		cat.setAnilistFetch(
 			byQuery({
 				'Fresh Show': [7001, 'Fresh Show Something'],
-				'Fresh Show Season 2': [7002, 'Fresh Show Second Something']
+				// AniList lists season 1's entry under season 2's title too.
+				'Fresh Show Season 2': [
+					[7002, 'Fresh Show Second Something'],
+					[7001, 'Fresh Show Something']
+				]
 			})
 		);
 		// The order of events the review reproduced: one pass reaches season 1 only.
@@ -1389,7 +1399,11 @@ describe('the pass and the queue ask each season’s own search, never the serie
 		cat.setAnilistFetch(
 			byQuery({
 				'Auto Show': [7101, 'Auto Show'],
-				'Auto Show Season 2': [7102, 'Auto Show 2nd Season']
+				// Season 1's entry is the one hit equal to the series' plain title.
+				'Auto Show Season 2': [
+					[7102, 'Auto Show 2nd Season'],
+					[7101, 'Auto Show']
+				]
 			})
 		);
 		expect(await pass(id, 1)).toEqual({ linked: 1, offered: 0 });
@@ -1401,8 +1415,111 @@ describe('the pass and the queue ask each season’s own search, never the serie
 		expect(cat.searchable(10_000).filter((r) => r.id === id)).toMatchObject([{ season: 2 }]);
 		expect(await pass(id)).toEqual({ linked: 0, offered: 1 });
 		expect(seasons.seasonSearch(id, 2)?.query).toBe('Auto Show Season 2');
+		// Season 2 is not linked to season 1's entry: offered, by its own entry only.
+		expect(seasons.seasonLinks(id).map((l) => [l.season, l.anilistId, l.via])).toEqual([
+			[1, 7101, 'exact']
+		]);
 		expect(cands(id, 2)).toEqual([7102]);
 		expect(cat.offered(id, 7101, 2, 1)).toBeNull();
+	});
+
+	it('one pass over both seasons links each to its own entry, never both to season 1’s', async () => {
+		const id = show({
+			title: 'Twin Show',
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		cat.setAnilistFetch(
+			byQuery({
+				'Twin Show': [7601, 'Twin Show'],
+				'Twin Show Season 2': [
+					[7602, 'Twin Show Season 2'],
+					[7601, 'Twin Show']
+				]
+			})
+		);
+		expect(await pass(id)).toEqual({ linked: 2, offered: 0 });
+		expect(seasons.seasonLinks(id).map((l) => [l.season, l.anilistId, l.via])).toEqual([
+			[1, 7601, 'exact'],
+			[2, 7602, 'exact']
+		]);
+	});
+
+	it('season 2 searched before season 1 is linked: its item drops season 1’s entry once it is held', async () => {
+		const id = show({
+			title: 'Late Show',
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		cat.setAnilistFetch(
+			byQuery({
+				'Late Show': [7801, 'Late Show Something'],
+				'Late Show Season 2': [
+					[7802, 'Late Show Second Something'],
+					[7801, 'Late Show Something']
+				]
+			})
+		);
+		// Both seasons searched in one pass, while neither is linked: season 2
+		// lists both entries, as it should, since nobody holds 7801 yet.
+		expect(await pass(id)).toEqual({ linked: 0, offered: 2 });
+		expect(cands(id, 2)).toEqual([7802, 7801]);
+		expect(linkFromQueue(id, 1, 7801)).toBe(true);
+		// Now season 1 holds it: season 2's item never offers it, and LINK refuses it.
+		expect(cands(id, 2)).toEqual([7802]);
+		expect(cat.offered(id, 7801, 2, 1)).toBeNull();
+		expect(linkFromQueue(id, 2, 7801)).toBe(false);
+		expect(seasons.seasonLinks(id).map((l) => [l.season, l.anilistId])).toEqual([[1, 7801]]);
+	});
+
+	it('the pass never links an entry another season holds, even on the owner’s own title', async () => {
+		const id = show({
+			title: 'Typed Show',
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		cat.setAnilistFetch(byQuery({ 'Typed Show': [7701, 'Typed Show'] }));
+		expect(await pass(id, 1)).toEqual({ linked: 1, offered: 0 });
+		// The owner's SEARCH AGAIN on season 2, typed as season 1's title: the
+		// typed query counts as the season's own title, so 7701 is a sure match,
+		// and only the "taken by another season" rule keeps it off season 2.
+		cat.queueSearch(id, 'Typed Show', { season: 2 });
+		expect(await pass(id)).toEqual({ linked: 0, offered: 1 });
+		expect(seasons.seasonLinks(id).map((l) => [l.season, l.anilistId])).toEqual([[1, 7701]]);
+		expect(seasons.seasonSearch(id, 2)).toMatchObject({ query: 'Typed Show', found: 0 });
+	});
+
+	it('no door links an entry another season or part holds: pasted, review, list and the relations', () => {
+		const id = show({
+			title: 'Door Show',
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		expect(seasons.linkSeason(id, 1, 1, animeEntry(7901, { mal: 8901 }), 'review', NOW)).toBe(true);
+		// The same AniList entry, or another AniList id with the same MAL entry.
+		for (const via of ['pasted', 'review', 'exact', 'list', 'relations'] as const) {
+			expect(seasons.linkSeason(id, 2, 1, animeEntry(7901), via, NOW)).toBe(false);
+			expect(seasons.linkSeason(id, 1, 2, animeEntry(7999, { mal: 8901 }), via, NOW)).toBe(false);
+		}
+		expect(
+			seasons.linkSeasons(id, [{ season: 2, part: 1, candidate: animeEntry(7901) }], NOW)
+		).toBe(0);
+		// The owner's list: an entry whose title names season 2, but is season 1's.
+		const listed = { ...animeEntry(7901), title: 'Door Show Season 2' };
+		expect(tr.linkSeasonFromList(id, listed, 80, NOW)).toBe(false);
+		expect(seasons.seasonLinks(id).map((l) => [l.season, l.part, l.anilistId])).toEqual([
+			[1, 1, 7901]
+		]);
+		// The season's own entry may be linked again (a CHANGE to itself).
+		expect(seasons.linkSeason(id, 1, 1, animeEntry(7901, { mal: 8901 }), 'review', NOW)).toBe(true);
 	});
 
 	it('one item a season: every open season searched is in the queue, each with its own search, and the count agrees (c352)', async () => {

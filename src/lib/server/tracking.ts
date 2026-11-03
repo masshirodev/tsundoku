@@ -543,7 +543,7 @@ function linkFromEntries(
  * is kept on the season's own row.
  *
  * A season already linked or settled is left alone, and nothing is written
- * (false): the series is offered while any one of its seasons is still open
+ * (false), as is an entry another season or part of the show holds: the series is offered while any one of its seasons is still open
  * (`linkableByTitle`), but an entry found by the series' own title names its
  * first season, and an entry that only shares that title (a movie, another
  * cut) must not replace the owner's link or undo their NONE OF THESE (c240).
@@ -560,14 +560,16 @@ export function linkSeasonFromList(
 		return false;
 	const view = seriesSeasons(seriesId);
 	const part = view?.seasons.find((s) => s.season === season)?.parts[0]?.part ?? 1;
-	db.transaction(() => {
-		linkSeason(seriesId, season, part, c, 'list', now);
+	// An entry another season of the show holds is refused by `linkSeason`,
+	// and then nothing is filled either (wave 17, round 2).
+	return db.transaction(() => {
+		if (!linkSeason(seriesId, season, part, c, 'list', now)) return false;
 		const filled = fillRating(db, seriesId, score);
 		db.prepare(
 			`UPDATE series_season_links SET score = ?, filled_rating = ? WHERE series_id = ? AND season = ? AND part = ?`
 		).run(score || null, filled, seriesId, season, part);
+		return true;
 	})();
-	return true;
 }
 
 /** Both lists, for the pass after an import: each on its own, so one failing doesn't stop the other. */
