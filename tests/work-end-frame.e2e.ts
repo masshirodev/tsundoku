@@ -666,6 +666,20 @@ test('a meanwhile row whose next part has no file says so instead of offering a 
 	// DOWNLOADED page.
 	await expect(page.locator('.end a.wrow')).toHaveCount(0);
 	await expect(page.locator(SEL.foot)).toContainText('DRAWING RUN · WORK');
+
+	// The same row with a source that can serve its first chapter: it opens, so
+	// it is a link again, and says where it reads from.
+	const db = new Database(dbPath);
+	db.prepare(
+		`UPDATE series SET origin_key = 'mihon:1:https://example.test/estate',
+			source_url = 'https://example.test/estate', source = 'Fake Source' WHERE id = 7`
+	).run();
+	db.close();
+	await openEnd(page, 1);
+	const online = page.locator('.end a.wrow');
+	await expect(online).toBeVisible();
+	await expect(online).toContainText('○ NOT DOWNLOADED · READS ONLINE FROM FAKE SOURCE');
+	await expect(online.locator('.wr')).toHaveText('READ ONLINE →');
 });
 
 test('a novel read in SCROLL reaches the end page, so the Work is offered there too', async ({
