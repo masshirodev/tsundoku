@@ -5,16 +5,24 @@
  * subtitles stayed on the page. Two paths:
  *
  * - **Document Picture-in-Picture** (`documentPictureInPicture.requestWindow`,
- *   Chrome and Edge on a desktop): the player's picture layer -- the <video>,
+ *   Chrome and Edge on a desktop, and Firefox 155): the player's picture layer -- the <video>,
  *   the drawn subtitles, the dim -- is moved into the floating window and back
  *   on close, so the subtitles keep tsundoku's face, size and placement.
  *   Svelte's scoped styles live in the page's stylesheets, which a node moved
  *   into another document no longer sees: they are copied in (`copyStyles`).
- * - **A native track**, where only a video's own picture-in-picture exists
- *   (Firefox, Safari), and for the browser's own PiP button everywhere: the
- *   same WebVTT as a `<track kind="subtitles">`, `showing` only between
- *   `enterpictureinpicture` and `leavepictureinpicture`, so the page never
- *   shows subtitles twice. The browser draws those in its own style.
+ * - **A native track** of the same WebVTT, `<track kind="subtitles">`, for a
+ *   video's own picture-in-picture, which moves the <video> alone (the
+ *   browser's own PiP button anywhere; the PIP cell where Document PiP is
+ *   missing). It is `showing` all the time, so a PiP window has cues to read
+ *   whether or not the browser tells the page it opened, and the page draws
+ *   those cues invisibly (`video.cueless::cue`, transparent), tsundoku's own
+ *   line being the only one on the page. While the browser says its PiP has
+ *   the picture (`enterpictureinpicture` to `leavepictureinpicture`) the
+ *   cues are drawn plainly, in case a PiP window takes the page's cue style.
+ *   Whether a browser's own PiP window draws the track is **not checked**
+ *   here (doc/ANIME.md, "The player"; doc/handoff-notes/anime.md, wave 18,
+ *   Gaps): Playwright opens one but cannot look into it. Only the page's
+ *   side is tested, in Chromium and Firefox.
  */
 
 /** The part of the Document Picture-in-Picture API the player uses. */

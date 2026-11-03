@@ -1003,11 +1003,11 @@
 	const pipTrack = $derived(quality?.subtitles.find((t) => t.lang === subLang) ?? null);
 	let trackEl = $state<HTMLTrackElement | null>(null);
 	$effect(() => {
-		// Shown only while the browser's own PiP has the picture, so the page
-		// never shows subtitles twice; hidden (its cues loaded) otherwise.
+		// Showing always, for whichever PiP window reads it, whether or not
+		// the browser says it opened; drawn invisibly on the page (`cueless`)
+		// except while it says its PiP has the picture (pip.ts).
 		const el = trackEl;
-		const mode = inNativePip ? 'showing' : 'hidden';
-		if (el?.track) el.track.mode = mode;
+		if (el?.track) el.track.mode = 'showing';
 	});
 	/**
 	 * PIP: the picture layer into a floating window of its own, where Document
@@ -1637,11 +1637,13 @@
 		<!-- Subtitles are drawn by tsundoku from the WebVTT (Anime Calls, "Subtitles"), in the
 		     page and in a Document Picture-in-Picture window alike. The <track> is the same
 		     WebVTT for the browser's own picture-in-picture only, which moves the <video>
-		     alone: it shows only while that is open (c388, pip.ts). -->
+		     alone: always showing, its cues drawn invisibly on the page except while the
+		     browser says that is open (c388, pip.ts). -->
 		<video
 			bind:this={video}
 			bind:paused
 			playsinline
+			class:cueless={!inNativePip}
 			{@attach nativePipEvents}
 			ontimeupdate={onTime}
 			ondurationchange={onDuration}
@@ -2457,6 +2459,13 @@
 		height: 100%;
 		object-fit: contain;
 		background: #000;
+	}
+	/* The native track's cues (pip.ts): showing for a PiP window to read,
+	   invisible on the page, where tsundoku draws its own line. */
+	video.cueless::cue {
+		color: transparent;
+		background: transparent;
+		text-shadow: none;
 	}
 	.tapzone {
 		position: absolute;

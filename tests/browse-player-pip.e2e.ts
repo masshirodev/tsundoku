@@ -88,6 +88,14 @@ test.describe('Document Picture-in-Picture (Chromium)', () => {
 		await cell.click();
 		await expect.poll(() => inWindow(page)).toMatchObject({ video: true, line: CUE });
 		const w = (await inWindow(page))!;
+		// The native track went too, drawn invisibly there as on the page: one line.
+		expect(
+			await page.evaluate(() => {
+				const d = (window as Window & { documentPictureInPicture?: { window: Window | null } })
+					.documentPictureInPicture!.window!.document;
+				return d.querySelector('video')!.classList.contains('cueless');
+			})
+		).toBe(true);
 		expect(w.background).toBe('rgba(0, 0, 0, 0.6)');
 		expect(w.font).toMatch(/plex|sans/i);
 		// No controls in the window: the subtitles sit where the page puts them
@@ -177,7 +185,10 @@ test.describe('Document Picture-in-Picture (Chromium)', () => {
 		await win!.keyboard.press('m');
 		// Escape in the window brings the picture back, not the page away.
 		const here = page.url();
-		await win!.keyboard.press('Escape');
+		// Its keydown closes the window, so there may be no window for the keyup.
+		await win!.keyboard.down('Escape').catch((e: Error) => {
+			if (!/closed/.test(e.message)) throw e;
+		});
 		await expect.poll(() => inWindow(page)).toBeNull();
 		await expect(page.locator('.player > .stage video')).toHaveCount(1);
 		expect(page.url()).toBe(here);
@@ -233,50 +244,82 @@ test.describe('Document Picture-in-Picture (Chromium)', () => {
 	});
 });
 
-test.describe('a browser with only the video’s own picture-in-picture', () => {
-	test('the native track shows only between enter and leave, and follows the subtitles (c388)', async ({
+/**
+ * The picture the page shows of the <video> alone, its drawn line and the
+ * controls set aside: with the track showing it must look as it does with
+ * the track off, or the page shows a native cue box under tsundoku's line.
+ */
+async function pageCuesInvisible(page: Page): Promise<boolean> {
+	const style = await page.addStyleTag({
+		content: '.player > :not(.stage), .subs { visibility: hidden !important; }'
+	});
+	const video = page.locator('.player > .stage video');
+	const shown = await video.screenshot({ animations: 'disabled' });
+	const modes = await page.evaluate(() =>
+		Array.from(document.querySelector('video')!.textTracks).map((t) => {
+			const was = t.mode;
+			t.mode = 'disabled';
+			return was;
+		})
+	);
+	const off = await video.screenshot({ animations: 'disabled' });
+	await page.evaluate((modes) => {
+		const tt = Array.from(document.querySelector('video')!.textTracks);
+		tt.forEach((t, i) => (t.mode = modes[i]));
+	}, modes);
+	await style.evaluate((el) => (el as Element).remove());
+	return shown.equals(off);
+}
+
+test.describe('a video’s own picture-in-picture (no Document PiP: Safari’s case)', () => {
+	test('the native track shows always, drawn invisibly on the page except while the browser says PiP has it (c388)', async ({
 		page
 	}) => {
 		test.setTimeout(90_000);
-		// Firefox's and Safari's case: no Document Picture-in-Picture.
 		await page.addInitScript(() => {
 			delete (window as Window & { documentPictureInPicture?: unknown }).documentPictureInPicture;
 		});
 		await openEpisode(page);
-		const mode = () =>
+		const state = () =>
 			page.evaluate(() => {
 				const v = document.querySelector('video')!;
 				const t = v.querySelector('track');
+				const tt = Array.from(v.textTracks);
 				return {
 					track: t?.getAttribute('src') ?? null,
 					kind: t?.getAttribute('kind') ?? null,
-					modes: Array.from(v.textTracks).map((x) => x.mode)
+					modes: tt.map((x) => x.mode),
+					// The cue a PiP window would read, loaded and active at the held time.
+					active: tt.flatMap((x) => Array.from(x.activeCues ?? []).map((c) => (c as VTTCue).text)),
+					cueless: v.classList.contains('cueless')
 				};
 			});
-		const before = await mode();
+		await expect.poll(async () => (await state()).active).toEqual([CUE]);
+		const before = await state();
 		expect(before.kind).toBe('subtitles');
 		expect(before.track).toMatch(/^\/api\/anime\//);
-		// Hidden on the page: tsundoku draws its own, and never twice.
-		expect(before.modes).toEqual(['hidden']);
-		// The browser's own picture-in-picture opens and closes on the <video>.
+		// Showing, for a PiP window that opens without telling the page...
+		expect(before.modes).toEqual(['showing']);
+		expect(before.cueless).toBe(true);
+		// ...and invisible on the page, where tsundoku draws its own line once.
+		expect(await pageCuesInvisible(page), 'no native cue box on the page').toBe(true);
+		// While the browser says its PiP has the picture, the cues are drawn plainly.
 		await page.evaluate(() =>
 			document.querySelector('video')!.dispatchEvent(new Event('enterpictureinpicture'))
 		);
-		await expect.poll(async () => (await mode()).modes).toEqual(['showing']);
+		await expect.poll(async () => (await state()).cueless).toBe(false);
+		expect((await state()).modes).toEqual(['showing']);
 		await page.evaluate(() =>
 			document.querySelector('video')!.dispatchEvent(new Event('leavepictureinpicture'))
 		);
-		await expect.poll(async () => (await mode()).modes).toEqual(['hidden']);
+		await expect.poll(async () => (await state()).cueless).toBe(true);
 
-		// Subtitles off in the sheet while in PiP: no track at all, so none shows.
-		await page.evaluate(() =>
-			document.querySelector('video')!.dispatchEvent(new Event('enterpictureinpicture'))
-		);
+		// Subtitles off in the sheet: no track at all, so none shows anywhere.
 		await page.keyboard.press('c');
-		await expect.poll(async () => (await mode()).track).toBeNull();
-		await expect.poll(async () => (await mode()).modes.filter((m) => m === 'showing')).toEqual([]);
-		// And on again: the new track shows at once, since PiP is still open.
+		await expect.poll(async () => (await state()).track).toBeNull();
+		await expect.poll(async () => (await state()).modes.filter((m) => m === 'showing')).toEqual([]);
+		// And on again: the new track shows at once.
 		await page.keyboard.press('c');
-		await expect.poll(async () => (await mode()).modes).toContain('showing');
+		await expect.poll(async () => (await state()).modes).toContain('showing');
 	});
 });
