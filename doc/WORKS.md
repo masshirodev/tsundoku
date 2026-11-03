@@ -132,11 +132,12 @@ existing one.
 
 `listTiles` is the browse list: one unit per Work whose any part is on the
 shelf, and one per series in no Work, paged and sorted by that unit. The
-Work's face is chosen among the _picked_ parts by CONTINUE's rule, so on
-MANGA a Work of a manga and its anime wears the manga's cover and on ALL it
-wears the part CONTINUE opens. `listSeries` is unchanged and is what finding
-reads; every card carries its Work as `work: { id, name, part, of }` for the
-`PART 2 · <WORK>` foot.
+Work's face is the picked part CONTINUE would open -- a part on the shelf
+first, unfinished before finished, then the one opened most recently
+(`unitQuery`'s `face`) -- so on MANGA a Work of a manga and its anime wears
+the manga's cover and on ALL it wears the part CONTINUE opens. `listSeries` is
+unchanged and is what finding reads; every card carries its Work as
+`work: { id, name, part, of }` for the `PART 2 · <WORK>` foot.
 
 - **Counts count tiles** everywhere the sidebar, a tab or `44 OF 188` shows a
   number: `countTiles` / `countListed` / `listShelves` count units, and a Work
@@ -207,8 +208,12 @@ not offer: `workPage.total` is what tells it so.
 
 W2 needed a door, since W4's AS sheet is not planned: the bulk bar's grouping
 cell shows **WORK** when the selection is not one book series' to group, and
-`?/work` creates a Work from the selection in its order. One cell, no sheet;
-W4 replaces it with AS → A WORK · SERIES, NAME and ORDER.
+`?/work` creates a Work from the selection in its order. A selection that holds
+any series already in a Work is refused (_A WORK KEEPS ITS PARTS · MOVE ONE
+FROM ITS OWN SCREEN_), because moving a series between Works is W4's sheet and
+a whole-shelf SELECT ALL must not collapse every Work on it into one. One cell,
+no sheet; W4 replaces it with AS → A WORK · SERIES, NAME and ORDER. The create
+leaves no UNDO band: taking the Work apart again is UNGROUP, and UNDO is W4's.
 
 ### The frames
 
