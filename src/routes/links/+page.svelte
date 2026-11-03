@@ -102,9 +102,9 @@
 	const item = $derived<Item | null>(queue.length ? (byKey.get(queue[0]) ?? null) : null);
 	/**
 	 * The season a decision is about (c240): the page's own on `?series=`, or
-	 * the one the queue's item is for -- an anime's season that still wants a
-	 * look. Posted with LINK, NONE OF THESE, SEARCH AGAIN and their UNDO, so the
-	 * workstation never falls back to a default season.
+	 * the one the queue's item is for -- the queue holds an anime an item a
+	 * season (c352). Posted with LINK, NONE OF THESE, SKIP, SEARCH AGAIN and
+	 * their UNDO, so the workstation never falls back to a default season.
 	 */
 	const at = $derived<{ no: number; part: number } | null>(
 		season

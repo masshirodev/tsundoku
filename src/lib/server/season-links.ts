@@ -178,8 +178,10 @@ export function openSeasonOf(seriesId: number): number {
 
 /**
  * The season of an anime that still wants a look: the one a door that names
- * no season settles (the pass's search and its sure match, the review queue's
- * LINK and NONE OF THESE, `/links?series=N` with no `&season`). That is the
+ * no season acts on (`link`, `noneOfThese`, `offered`, `searchNow`, SKIP and a
+ * pass row with no season, `/links?series=N` with no `&season`). The pass and
+ * the review queue name their own season, a row and an item a season (wave
+ * 17, c352), so they do not ask this. That is the
  * open season when it has neither a link nor a decision, otherwise the first
  * season in list order with neither, otherwise none (c240, round 2).
  *

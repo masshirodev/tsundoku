@@ -677,9 +677,11 @@ const LINKABLE = `s.kind IN ('manga', 'manhwa', 'novel', 'anime') AND s.source !
 
 /**
  * A series still wants a look: the one rule of "not linked and not settled"
- * (c240), at every door that asks it -- the cover pass (`searchable`), the
- * review queue and its count, `links --again` (`requeueSearched`) and the
- * tracker lists' auto-link (`linkableByTitle`).
+ * (c240), at every door that asks it of a series -- the cover pass, the
+ * review queue and its count and `links --again` for a comic or a novel, and
+ * the tracker lists' auto-link (`linkableByTitle`) for every kind. Those
+ * doors ask an anime the same rule a season at a time (`seasonOpen`, below),
+ * since its search and its queue item are a season's (wave 17).
  *
  * A series with season rows (an anime linked or settled a season at a time,
  * rung 62) is decided by those rows alone: it wants a look while one of its
@@ -696,8 +698,9 @@ const LINKABLE = `s.kind IN ('manga', 'manhwa', 'novel', 'anime') AND s.source !
  * a legacy NONE OF THESE still counts.
  *
  * Its TypeScript twin is `seasonToLook` (season-links.ts), which names the
- * season this lets a series in for; Ranobe's review reads it too, for the
- * line that says an item is in the AniList review (ranobe-review.ts).
+ * season this lets a series in for; `IN_LINK_REVIEW` builds on it for
+ * Ranobe's review line that says an item is in the AniList review
+ * (ranobe-review.ts).
  */
 export const NEEDS_LOOK = `(CASE WHEN EXISTS (SELECT 1 FROM series_season_links x WHERE x.series_id = s.id)
 		OR EXISTS (SELECT 1 FROM season_link_decisions x WHERE x.series_id = s.id)
