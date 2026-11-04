@@ -238,29 +238,97 @@ test('a code a TV uses while SETTINGS is open turns USED when the window regains
 	}
 });
 
-test('a code a TV burns while SETTINGS is open is replaced when the page is shown again (c265)', async ({
+/**
+ * Wait for the row's next answer from `GET /settings/tv`, armed before the
+ * event that should cause it. Without it, "the server's code is unchanged"
+ * could be read before the refresh had even asked, and pass for that reason.
+ */
+const rowAsks = (page: Page) =>
+	page.waitForResponse((r) => new URL(r.url()).pathname === '/settings/tv');
+
+/** Five wrong guesses from a TV, never the code itself: the last one burns it. */
+async function burn(page: Page, code: string) {
+	const wrong = code === '000000' ? '111111' : '000000';
+	await typeOnTv(door, [wrong, wrong, wrong, wrong, wrong]);
+	await expect.poll(async () => (await tvCode(page)).state).toBe('burned');
+	// Nothing has told the page yet: it still draws the burned code as live.
+	expect(await shownDigits(page)).toBe(code);
+}
+
+/** The row draws BURNED and no digits at all. */
+async function showsBurned(page: Page) {
+	await expect(page.getByText('NO TRIES LEFT · MAKE A NEW CODE')).toBeVisible();
+	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('BURNED');
+	await expect(page.getByLabel('Pairing code for a TV')).toHaveCount(0);
+}
+
+test('a code a TV burns while SETTINGS is open shows BURNED, and stays burned until NEW CODE (c265)', async ({
 	browser
 }, info) => {
 	const { page, close } = await settings(browser, info, door);
 	try {
 		await freshCode(page);
 		await openFrozen(page);
-		const code = await shownDigits(page);
+		const code = (await shownDigits(page))!;
 		expect(code).toMatch(/^\d{6}$/);
+		await burn(page, code);
 
-		const wrong = code === '000000' ? '111111' : '000000';
-		await typeOnTv(door, [wrong, wrong, wrong, wrong, wrong]);
-		await expect.poll(async () => (await tvCode(page)).state).toBe('burned');
-		expect(await shownDigits(page)).toBe(code);
-
-		// The tab comes back into view. A burned code is spent, and a spent code
-		// is replaced before the server answers: the row shows a new, live one,
-		// never the burned one as live and never a BURNED it cannot reach.
+		// The tab comes back into view: the row reads the code as it is.
+		let asked = rowAsks(page);
 		await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-		await expect.poll(() => shownDigits(page)).not.toBe(code);
-		expect(await shownDigits(page)).toMatch(/^\d{6}$/);
-		expect(await shownDigits(page)).toBe((await tvCode(page)).code);
-		await expect(page.getByText('BURNED', { exact: true })).toHaveCount(0);
+		await asked;
+		await showsBurned(page);
+		expect(await tvCode(page)).toMatchObject({ code, state: 'burned' });
+
+		// Time passes and the owner comes back again. Neither may make a code:
+		// a refresh that replaced a burned one would hand a guesser five more
+		// tries every time the open page asked.
+		await page.clock.runFor(15_000);
+		asked = rowAsks(page);
+		await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+		await asked;
+		await showsBurned(page);
+		expect(await tvCode(page)).toMatchObject({ code, state: 'burned' });
+
+		// NEW CODE is what brings a live code back.
+		await page.getByRole('button', { name: 'NEW CODE' }).click();
+		await expect.poll(() => shownDigits(page)).toMatch(/^\d{6}$/);
+		const now = await tvCode(page);
+		expect(now.state).toBe('live');
+		expect(now.code).not.toBe(code);
+		expect(await shownDigits(page)).toBe(now.code);
+		await expect(page.getByText('NO TRIES LEFT · MAKE A NEW CODE')).toHaveCount(0);
+	} finally {
+		await close();
+	}
+});
+
+test("the row's own tick shows a burned code as BURNED and makes no new one (c265)", async ({
+	browser
+}, info) => {
+	const { page, close } = await settings(browser, info, door);
+	try {
+		await freshCode(page);
+		await openFrozen(page);
+		const code = (await shownDigits(page))!;
+		await burn(page, code);
+
+		// No focus, no visibility change: SETTINGS stays in front, and only the
+		// 5 s poll asks.
+		const asked = rowAsks(page);
+		await page.clock.runFor(5_000);
+		await asked;
+		await showsBurned(page);
+		expect(await tvCode(page)).toMatchObject({ code, state: 'burned' });
+
+		// And it stops asking once the row is not live: another 15 s, no request.
+		let more = 0;
+		page.on('request', (r) => {
+			if (new URL(r.url()).pathname === '/settings/tv') more += 1;
+		});
+		await page.clock.runFor(15_000);
+		expect(more).toBe(0);
+		expect(await tvCode(page)).toMatchObject({ code, state: 'burned' });
 	} finally {
 		await close();
 	}
@@ -282,6 +350,30 @@ test('a code a TV uses while SETTINGS stays in front turns USED within a tick (c
 		// typing on the TV. The row's own 5 s tick is what notices.
 		await page.clock.runFor(5_000);
 		await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('✓ USED');
+	} finally {
+		await close();
+	}
+});
+
+test('the row asks every 5 s while live, and the 15 s countdown does not reset that (c265)', async ({
+	browser
+}, info) => {
+	const { page, close } = await settings(browser, info, door);
+	try {
+		await freshCode(page);
+		await openFrozen(page);
+		const code = await shownDigits(page);
+		let asked = 0;
+		page.on('request', (r) => {
+			if (new URL(r.url()).pathname === '/settings/tv') asked += 1;
+		});
+		// 30 s is six polls. An interval rebuilt by each 15 s countdown tick
+		// starts over at 15 and 30, and loses one poll in three: four.
+		await page.clock.runFor(30_000);
+		await expect.poll(() => asked).toBe(6);
+		// Asking changed nothing: the same live code, drawn and held.
+		expect(await tvCode(page)).toMatchObject({ code, state: 'live' });
+		expect(await shownDigits(page)).toBe(code);
 	} finally {
 		await close();
 	}

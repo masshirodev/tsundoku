@@ -10,7 +10,8 @@ import {
 	tvBlockFor,
 	tvDoor,
 	tvPairing,
-	type Paired
+	type Paired,
+	type TvState
 } from './pairing.ts';
 
 /**
@@ -77,7 +78,10 @@ export type WifiView = {
 	/**
 	 * The TV's six digits, beside the phone's code (c236): typed with a remote.
 	 * Only live or used: a spent code is replaced before the view is built
-	 * (`shownState`), and the panel polls this view (c265).
+	 * (`shownState`), and the panel polls this view every 5 s, so on a friend's
+	 * install a burned code is replaced within a tick. That is the burn bypass
+	 * the DEVICES row no longer has (c265 round 2); the panel's is a follow-up
+	 * (doc/handoff-notes/tv-app.md, Gaps).
 	 */
 	tv: {
 		code: string;
@@ -89,8 +93,10 @@ export type WifiView = {
 
 /**
  * Whether a code is past showing: expired, burned, or used longer ago than the
- * 2 minutes the ✓ USED stays up. In either case a fresh one is made when the
- * panel (or the TV's page) is opened.
+ * 2 minutes the ✓ USED stays up. In either case a fresh one is made when
+ * SETTINGS is opened (and, for the WI-FI panel, when its poll asks). The TV's
+ * own page makes one only when there is none at all (`ensureCode`), and the
+ * DEVICES row's refresh never makes one (`tvCodeNow`).
  */
 const CODES: ('none' | 'live' | 'used' | 'expired' | 'burned')[] = ['none', 'expired', 'burned'];
 
@@ -102,9 +108,10 @@ const spent = (state: string, used: { at: number } | null | undefined, now: numb
 	(state === 'used' && !!used && now - used.at > USED_SHOWN_MS);
 
 /**
- * The two states a TV code can be shown in once `spent` has replaced the rest
- * (c265): expired, burned and an old used code are made fresh first, so a
- * view never carries them, and a screen has no BURNED to draw.
+ * The two states the WI-FI panel's TV code can be in once `spent` has replaced
+ * the rest: expired, burned and an old used code are made fresh before
+ * `wifiView` is built, so the panel has no BURNED to draw. The DEVICES row is
+ * not narrowed this way (`TvPanel`): its refresh reads the code as it is.
  */
 export type ShownTvState = 'live' | 'used';
 const shownState = (state: string): ShownTvState | null =>
@@ -170,13 +177,41 @@ const portOf = (origin: string | null) => (origin ? `:${new URL(origin).port}` :
 
 export type TvPanel = {
 	code: string;
-	state: ShownTvState;
+	/**
+	 * Every state a code can be in. The load (`tvPanel`) only ever gives live or
+	 * used, since it replaces a spent code; the row's refresh (`tvCodeNow`)
+	 * gives the code as it is, burned and expired included, and the row draws
+	 * them (c265).
+	 */
+	state: Exclude<TvState, 'none'>;
 	minutes: number;
 	/** Tries left before a wrong guess burns the code */
 	left: number;
 	/** When the six digits stop working: the page ticks its own countdown from this. */
 	expiresAt: number;
 };
+
+/**
+ * The TV's code as it is right now, spent or not, and nothing made: what the
+ * DEVICES row's refresh (`GET /settings/tv`) answers with (c265).
+ *
+ * Read only, on purpose. Five wrong tries on `/pair/tv` burn the code, and
+ * only the owner makes another (NEW CODE, or opening SETTINGS): a refresh
+ * that replaced a burned code would give a guesser five more tries every time
+ * the open page asked, which is no lockout at all (c265 round 2).
+ */
+export function tvCodeNow(now: number = Date.now()): TvPanel | null {
+	const c = tvPairing.current();
+	const state = tvPairing.state(now);
+	if (!c || state === 'none') return null;
+	return {
+		code: c.code,
+		state,
+		minutes: minutesLeft(c, now),
+		left: tvPairing.triesLeft(),
+		expiresAt: c.madeAt + CODE_MS
+	};
+}
 
 /**
  * The TV's six digits on an install with no WI-FI panel to carry them: the
@@ -186,21 +221,13 @@ export type TvPanel = {
  *
  * Freshness is `wifiView`'s rule: a live code is kept and counts down, and
  * anything spent (expired, burned, used longer ago than ✓ USED stays up) is
- * replaced when the page opens. `fresh` is NEW CODE.
+ * replaced when the page opens. `fresh` is NEW CODE. Only the page's load and
+ * `?/tvCode` call this: it writes, so the row's refresh never does.
  */
 export function tvPanel(o: { fresh?: boolean; now?: number } = {}): TvPanel | null {
 	const now = o.now ?? Date.now();
 	if (spent(tvPairing.state(now), tvPairing.current()?.used, now) || o.fresh) tvPairing.fresh(now);
-	const c = tvPairing.current();
-	const state = shownState(tvPairing.state(now));
-	if (!c || !state) return null;
-	return {
-		code: c.code,
-		state,
-		minutes: minutesLeft(c, now),
-		left: tvPairing.triesLeft(),
-		expiresAt: c.madeAt + CODE_MS
-	};
+	return tvCodeNow(now);
 }
 
 /**

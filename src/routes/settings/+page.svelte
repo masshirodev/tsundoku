@@ -130,12 +130,17 @@
 	 * A TV that pairs with the code, or burns it, while SETTINGS stays open
 	 * changes nothing on this page by itself, and a spent code left showing as
 	 * live invites a second TV to type it (c265). So the row asks the server
-	 * what the code is now: every 5 s while it claims a live code and the page
+	 * what the code is now: every 5 s while it shows a live code and the page
 	 * is in view, and once whenever the window regains focus or the page
 	 * becomes visible again. The owner usually keeps SETTINGS in front while
-	 * typing on the TV, so focus alone would miss the common case. A changed
-	 * code or state reloads the page's data, which is also how a TV that just
-	 * paired joins the list below.
+	 * typing on the TV, so focus alone would miss the common case.
+	 *
+	 * The answer is drawn as it is. Only a code that has just become USED
+	 * reloads the page's data, so the TV that paired joins the list below (the
+	 * WI-FI panel's `usedBefore`). A burned or expired code stays on the row:
+	 * the load replaces a spent code (`tvPanel`), so reloading here would undo
+	 * the burn the five wrong tries just earned. A new code comes from NEW CODE
+	 * or from opening SETTINGS again.
 	 */
 	async function refreshTv() {
 		const before = tv;
@@ -146,15 +151,18 @@
 			const { tv: next } = (await r.json()) as { tv: Tv | null };
 			if (next?.code === before.code && next?.state === before.state) return;
 			tv = next;
-			await invalidateAll();
+			if (next?.state === 'used' && before.state !== 'used') await invalidateAll();
 		} catch {
 			// Not answering for a moment: the next tick, or the next focus, asks again.
 		}
 	}
+	// Keyed on the state alone, not `tvLive`: that reads the 15 s countdown, which
+	// would tear the interval down and rebuild it, losing one tick in three.
+	const tvPolls = $derived(tv?.state === 'live');
 	$effect(() => {
-		if (!tv || !tvLive(tv)) return;
+		if (!tvPolls) return;
 		const t = setInterval(() => {
-			if (document.visibilityState === 'visible') void refreshTv();
+			if (tv && tvLive(tv) && document.visibilityState === 'visible') void refreshTv();
 		}, 5000);
 		return () => clearInterval(t);
 	});
@@ -1273,9 +1281,11 @@
 						<span>{t.code.slice(0, 3)}</span><span>{t.code.slice(3)}</span>
 					</div>
 				{:else}
-					<!-- Not live is used, or past its time by this page's clock: a
-					     burned code is replaced before the server answers (c265). -->
-					<div class="tvcode dim">{t.state === 'used' ? '✓ USED' : 'EXPIRED'}</div>
+					<!-- Used, burned (the refresh reads the code as it is, c265), or
+					     past its time by the server or by this page's own clock. -->
+					<div class="tvcode dim">
+						{t.state === 'used' ? '✓ USED' : t.state === 'burned' ? 'BURNED' : 'EXPIRED'}
+					</div>
 				{/if}
 				<div class="pnote">TYPE THE WHOLE ADDRESS ON THE TV, THEN THESE SIX</div>
 				{#if live}
@@ -1286,6 +1296,8 @@
 					</div>
 				{:else if t.state === 'used'}
 					<div class="tvline">✓ USED · ONE TV, ONCE</div>
+				{:else if t.state === 'burned'}
+					<div class="tvline">NO TRIES LEFT · MAKE A NEW CODE</div>
 				{:else}
 					<div class="tvline">EXPIRED · MAKE A NEW CODE</div>
 				{/if}
@@ -1406,7 +1418,9 @@
 							</div>
 						{:else}
 							<!-- wifiView replaces an expired or burned code before it
-							     answers, so the panel's other state is used (c265). -->
+							     answers, so the panel's other state is used (c265). That
+							     replacement is a known burn bypass, a follow-up in
+							     doc/handoff-notes/tv-app.md (Gaps); the DEVICES row has none. -->
 							<div class="tvcode dim">✓ USED</div>
 						{/if}
 						<div class="pnote">TYPE THE ADDRESS'S LAST NUMBER ON THE TV, THEN THESE SIX</div>
