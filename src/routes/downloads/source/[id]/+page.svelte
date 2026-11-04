@@ -43,6 +43,13 @@
 			{ namespace, value },
 			page.url.pathname + page.url.search
 		);
+	/**
+	 * The tag link tapped, while the browser waits on `tag-search` (c452): up
+	 * to TAG_SCHEMA_WAIT_MS on a cold source, and a TV's WebView draws no
+	 * loading bar, so the link says it is busy and a line says why. A page
+	 * restored by BACK (the bfcache, where nothing else runs) clears it.
+	 */
+	let tagWaiting = $state<string | null>(null);
 	/** The author and artist lines, one link a person (c456; `previewPeople`). */
 	const people = (m: { author?: string | null; artist?: string | null }) =>
 		previewPeople(m.author, m.artist);
@@ -67,6 +74,7 @@
 </script>
 
 <svelte:head><title>preview · tsundoku</title></svelte:head>
+<svelte:window onpageshow={() => (tagWaiting = null)} />
 
 <div class="preview">
 	<header class="bar">
@@ -228,7 +236,12 @@
 									<span class="ns">{line.ns}</span><span
 										>{#each line.names as name, i (name)}{#if i > 0}<span class="sep">
 													·
-												</span>{/if}<a class="tv" href={searchTag(line.ns, name)}>{name}</a
+												</span>{/if}<a
+												class="tv"
+												class:pending={tagWaiting === `${line.ns}:${name}`}
+												aria-busy={tagWaiting === `${line.ns}:${name}` ? 'true' : undefined}
+												href={searchTag(line.ns, name)}
+												onclick={() => (tagWaiting = `${line.ns}:${name}`)}>{name}</a
 											>{/each}</span
 									>
 								</div>{/each}
@@ -236,12 +249,22 @@
 									<span class="ns">genre</span><span
 										>{#each distinct(m.genres) as g, i (i)}{#if i > 0}<span class="sep">
 													·
-												</span>{/if}<a class="tv" href={searchTag('genre', g)}>{g.toLowerCase()}</a
+												</span>{/if}<a
+												class="tv"
+												class:pending={tagWaiting === `genre:${g}`}
+												aria-busy={tagWaiting === `genre:${g}` ? 'true' : undefined}
+												href={searchTag('genre', g)}
+												onclick={() => (tagWaiting = `genre:${g}`)}>{g}</a
 											>{/each}</span
 									>
 								</div>{/if}
 							<!-- eslint-enable svelte/no-navigation-without-resolve -->
 							<div class="more">FROM THE SOURCE</div>
+							{#if tagWaiting}
+								<div class="tag-wait" role="status">
+									FINDING {m.source.toUpperCase()}'S FILTERS… · A FIRST CALL TAKES UP TO 20 S
+								</div>
+							{/if}
 						</div>
 					</div>
 
@@ -759,5 +782,17 @@
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+	}
+	/* A tag link waiting on its source (c452): underlined in ink and said below. */
+	.tv.pending {
+		color: var(--text-1);
+		text-decoration: underline;
+		text-underline-offset: 3px;
+	}
+	.tag-wait {
+		margin-top: 6px;
+		font: 500 12px var(--font-mono);
+		letter-spacing: 0.04em;
+		color: var(--text-1);
 	}
 </style>

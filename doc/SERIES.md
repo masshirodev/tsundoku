@@ -127,10 +127,18 @@ links, MOVE and TAKE OUT) and in [`WORKS.md`](WORKS.md)'s flow.
   `/series/<id>/tag-search?ns=&value=&from=`, a server route that waits
   for the source's filters (or `TAG_SCHEMA_WAIT_MS`) and then answers 303,
   so the row is never a guess made before they came, and the sheet stays
-  open while it waits. A hidden series, with reveal off, has no sheet and
+  open while it waits. That wait is up to 20 s on a cold source, and a TV's
+  WebView draws no loading bar, so the chosen row says it: `aria-busy` and a
+  second line, `FINDING <SOURCE>'S FILTERS…`, until the page goes; it stays
+  the focused stop, readable (c452). BACK restores the screen from the
+  bfcache, where nothing else runs, so `pageshow` clears the mark, and so
+  does another tag. A hidden series, with reveal off, has no sheet and
   its route is not found. Without script the tag's link is the library's.
   A value appears as often as it is stored: a bare `x` and a `tag:x` are
-  two values in the `tag` group, each its own link. On a TV the pad reaches the
+  two values in the `tag` group, each its own link to its own library tag
+  (`?tag=x` and `?tag=tag%3Ax`). Each link is built from its stored tag, in
+  `tagGroups`' order, never looked up by its value: until c451 both found the
+  first and linked to `?tag=x`. On a TV the pad reaches the
   values (↓ to the row meets its EDIT, ← into them), OK opens the sheet on
   its first row, and BACK closes it onto the tag.
 - **SOURCE sits after LISTS and COVER**, before TAGS and ABOUT, on every series

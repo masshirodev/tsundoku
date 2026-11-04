@@ -140,6 +140,12 @@ five real schemas (`tests/tag-search.spec.ts`):
   every artist on Weeb Central) is still a search for the name.
 - **Everything else is a search**, `q=<value>`: a value no filter names, and
   a source with no schema.
+- **A genre is drawn as the source spells it** (c451): `Action` and `action`
+  from one source are two values, each its own link, searched as it is
+  written; the preview no longer lowercases the label, which drew them as
+  `action · action`. The list keeps each distinct string once (`distinct`),
+  so a genre named twice in the same spelling is one link. The series
+  screen's TAGS row draws its values as stored too.
 - **One link a person** on the preview (`previewPeople`, `splitPeople`): a
   source's author and artist strings are split as the importer splits them
   into tags (`people`, `src/lib/import/mihon-plan.ts`: commas, `/`, `;` and
@@ -171,7 +177,13 @@ from the first paint, with or without script, and a tap made before the filters
 have come still lands on the filter (review round 2: until then, a link built
 on the page was a search for its value, and a quick tap or ↓ OK on a TV landed
 there). A link to the route is a full navigation (`data-sveltekit-reload`); the
-series sheet stays open while it waits. `filterSchema` keeps the answer per
+series sheet stays open while it waits. **The wait says so** (c452): up to
+`TAG_SCHEMA_WAIT_MS` on a cold source, with no loading bar on a TV's WebView,
+so the link tapped on the preview is `aria-busy` and underlined, with
+`FINDING <SOURCE>'S FILTERS… · A FIRST CALL TAKES UP TO 20 S` under the TAGS
+row, and the sheet's IN <SOURCE> row is `aria-busy` with `FINDING <SOURCE>'S
+FILTERS…` as its second line. `pageshow` clears both, for BACK from the
+bfcache. `filterSchema` keeps the answer per
 source (`keep`), so after the first tap the wait is nothing, and the source's
 page answers from the same cache.
 

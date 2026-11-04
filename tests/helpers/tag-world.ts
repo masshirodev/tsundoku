@@ -28,6 +28,11 @@ export const SOURCE = { id: '100', name: 'Tag Source' };
  * cache needs a source no earlier case has asked.
  */
 export const COLD = { id: '102', name: 'Cold Tags' };
+/**
+ * A third working source, asked only by the preview's pending case (c452),
+ * which needs a cold cache after the slow case above has warmed COLD.
+ */
+export const COLDER = { id: '103', name: 'Colder Tags' };
 /** Installed, but its extension failed to load: BROWSE's page only says why. */
 export const BROKEN = { id: '101', name: 'Broken Tags' };
 
@@ -36,6 +41,8 @@ export const PREVIEW_URL = '/manga/preview-me';
 export const previewId = `${SOURCE.id}~${Buffer.from(PREVIEW_URL).toString('base64url')}`;
 /** The same manga, previewed from COLD. */
 export const coldPreviewId = `${COLD.id}~${Buffer.from(PREVIEW_URL).toString('base64url')}`;
+/** The same manga, previewed from COLDER. */
+export const colderPreviewId = `${COLDER.id}~${Buffer.from(PREVIEW_URL).toString('base64url')}`;
 /**
  * A manga whose genre string names one genre twice, as scraped themes do when
  * they merge a type list and a genre list (the engine splits it on commas and
@@ -84,7 +91,7 @@ export type Call = {
 export type TagWorld = {
 	base: string;
 	ids: Record<
-		'tagged' | 'unsourced' | 'missing' | 'broken' | 'hentoid' | 'gallery' | 'twice',
+		'tagged' | 'unsourced' | 'missing' | 'broken' | 'hentoid' | 'gallery' | 'twice' | 'edited',
 		number
 	>;
 	calls: () => Call[];
@@ -127,6 +134,8 @@ function seed(dbPath: string): TagWorld['ids'] {
 		src.run(SOURCE.id, 'e2e.tags', SOURCE.name, 'https://tags.example');
 		ext.run('e2e.tags.cold', COLD.name, 'e2e.tags.cold'.padEnd(64, '0'), '');
 		src.run(COLD.id, 'e2e.tags.cold', COLD.name, 'https://cold.example');
+		ext.run('e2e.tags.colder', COLDER.name, 'e2e.tags.colder'.padEnd(64, '0'), '');
+		src.run(COLDER.id, 'e2e.tags.colder', COLDER.name, 'https://colder.example');
 		ext.run('e2e.tags.broken', BROKEN.name, 'e2e.tags.broken'.padEnd(64, '0'), 'protobuf');
 		src.run(BROKEN.id, 'e2e.tags.broken', BROKEN.name, 'https://broken.example');
 
@@ -184,11 +193,19 @@ function seed(dbPath: string): TagWorld['ids'] {
 		const twice = series('Twice Tagged Mecha', 'manga', 'mihon', `mihon:${SOURCE.id}:/manga/twice`);
 		tag(twice, '', 'Mecha');
 		tag(twice, 'tag', 'Mecha');
-		for (const id of [tagged, unsourced, missing, broken, hentoid, gallery, twice]) {
+		// No tag but its genre: c451's case gives it a bare `Mecha` and a
+		// `tag:Mecha` through the EDIT sheet, the owner's own door.
+		const edited = series(
+			'Edited Mecha Tale',
+			'manga',
+			'mihon',
+			`mihon:${SOURCE.id}:/manga/edited`
+		);
+		for (const id of [tagged, unsourced, missing, broken, hentoid, gallery, twice, edited]) {
 			entry(id);
 			if (id !== tagged) tag(id, 'genre', 'Romance');
 		}
-		return { tagged, unsourced, missing, broken, hentoid, gallery, twice };
+		return { tagged, unsourced, missing, broken, hentoid, gallery, twice, edited };
 	} finally {
 		db.close();
 	}

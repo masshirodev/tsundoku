@@ -18,6 +18,37 @@ test.afterAll(async () => {
 	await world?.stop();
 });
 
+/**
+ * What the page shows one second into a wait on `tag-search` (c452), as the
+ * page itself saw it: once a link starts a navigation, Playwright waits for
+ * it before it reads the page again, so the old page writes down its busy
+ * element, its words and whether it is focused, in sessionStorage, which the
+ * landing (same tab, same origin) reads back.
+ */
+async function recordWait(page: Page): Promise<void> {
+	await page.evaluate(() => {
+		sessionStorage.removeItem('c452');
+		setTimeout(() => {
+			const busy = document.querySelector<HTMLElement>('[aria-busy="true"]');
+			sessionStorage.setItem(
+				'c452',
+				JSON.stringify({
+					text: busy?.innerText.replace(/\s+/g, ' ').trim() ?? null,
+					focused: !!busy && document.activeElement === busy,
+					line:
+						document.querySelector('.tag-wait')?.textContent?.replace(/\s+/g, ' ').trim() ?? null
+				})
+			);
+		}, 1000);
+	});
+}
+const recorded = async (page: Page) =>
+	JSON.parse((await page.evaluate(() => sessionStorage.getItem('c452'))) ?? 'null') as {
+		text: string | null;
+		focused: boolean;
+		line: string | null;
+	} | null;
+
 const focusedText = (page: Page) =>
 	page.evaluate(() => (document.activeElement as HTMLElement | null)?.innerText?.trim() ?? '');
 
@@ -104,11 +135,22 @@ test('the pad reaches a tag, OK opens its sheet on the first row, BACK closes it
 	await expect(sheet).toBeVisible();
 	await expect(first).toBeFocused();
 	await page.keyboard.press('ArrowDown');
-	await expect(
-		sheet.getByRole('link', { name: new RegExp(`IN ${SOURCE.name.toUpperCase()}`) })
-	).toBeFocused();
+	const toSource = sheet.getByRole('link', {
+		name: new RegExp(`IN ${SOURCE.name.toUpperCase()}`)
+	});
+	await expect(toSource).toBeFocused();
+	// The source's filters are slow and nothing has asked for them yet (c452):
+	// the row says it is finding them, and stays the focused stop, readable.
+	world.schema({ slowMs: 3000 });
+	await recordWait(page);
 	await page.keyboard.press('Enter');
-	await expect(page).toHaveURL(new RegExp(`/browse/${SOURCE.id}\\?`));
+	await expect(page).toHaveURL(new RegExp(`/browse/${SOURCE.id}\\?`), { timeout: 15_000 });
+	world.schema('ok');
+	const wait = await recorded(page);
+	expect(wait?.text).toBe(
+		`IN ${SOURCE.name.toUpperCase()} FINDING ${SOURCE.name.toUpperCase()}'S FILTERS… →`
+	);
+	expect(wait?.focused).toBe(true);
 	// On the filter Romance names, included, and not a search for the word.
 	const u = new URL(page.url());
 	expect(u.searchParams.get('tab')).toBe('filtered');
