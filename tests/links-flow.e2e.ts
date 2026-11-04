@@ -276,8 +276,15 @@ const ANIME_MEDIA: Media[] = [
 		episodes: 11,
 		seasonYear: 2022
 	}),
-	entry({ id: 9504, idMal: 9514, title: 'Split Show 3rd Season', episodes: 12, seasonYear: 2023 })
+	entry({ id: 9504, idMal: 9514, title: 'Split Show 3rd Season', episodes: 12, seasonYear: 2023 }),
+	// A show whose entry has no chain edge into the show's seasons (round 2 of
+	// c423): only the manga it adapts. And one whose relations AniList fails to
+	// answer (the stand-in errors on it), as when it is out of reach.
+	entry({ id: 9601, idMal: 9611, title: 'Lone Show', episodes: 12, seasonYear: 2019 }),
+	entry({ id: 9602, idMal: 9612, title: 'Lone Show Again', episodes: 12, seasonYear: 2021 })
 ];
+/** The entries whose relations the stand-in answers with an error, as AniList's 500. */
+const RELATIONS_FAIL = new Set([9602]);
 // The chain the relations are walked along: S1 and S2 are each other's sequel.
 // Every edge AniList lists is answered, not only the chain's: the manga S1 was
 // adapted from, its side story, S2's spin-off (and the spin-off's way back).
@@ -316,7 +323,9 @@ const RELATIONS: Record<number, { id: number; type: string }[]> = {
 		{ id: 9501, type: 'PREQUEL' },
 		{ id: 9504, type: 'SEQUEL' }
 	],
-	9504: [{ id: 9503, type: 'PREQUEL' }]
+	9504: [{ id: 9503, type: 'PREQUEL' }],
+	9601: [{ id: 30024, type: 'ADAPTATION' }],
+	9602: [{ id: 9601, type: 'PREQUEL' }]
 };
 const COMIC_MEDIA: Media[] = [
 	entry({ id: 30024, idMal: 24, title: 'Ranma ½', format: 'MANGA', chapters: 38 })
@@ -495,6 +504,16 @@ test.describe('a catalogue that answers', () => {
 					query: string;
 					variables: Record<string, unknown>;
 				};
+				// A relations request for an entry AniList fails on: a 500, as when
+				// it is down, so the LINK's answer carries no relations at all.
+				const relationsOf = [...(query ?? '').matchAll(/Media\(id:\s*\$i(\d+)\)/g)].map((m) =>
+					Number((variables ?? {})[`i${m[1]}`])
+				);
+				if (relationsOf.some((id) => RELATIONS_FAIL.has(id))) {
+					res.writeHead(500, { 'content-type': 'application/json' });
+					res.end(JSON.stringify({ errors: [{ message: 'Internal Server Error', status: 500 }] }));
+					return;
+				}
 				res.writeHead(200, { 'content-type': 'application/json' });
 				res.end(JSON.stringify({ data: catalogue(query, variables ?? {}) }));
 			});
@@ -986,6 +1005,55 @@ test.describe('a catalogue that answers', () => {
 				{ season: 2, part: 2, anilist_id: 9503 },
 				{ season: 4, part: 1, anilist_id: 9504 }
 			]);
+		} finally {
+			forgetFlatList(id);
+		}
+	});
+
+	for (const [what, entry, season] of [
+		['no chain edge into the show’s seasons', 9601, 1],
+		['relations AniList fails to answer', 9602, 2]
+	] as const)
+		test(`a season LINK with ${what} goes back to the series (c423, round 2)`, async ({ page }) => {
+			const id = seedSeasons(`Lone Show ${season}`, [12, 12]);
+			try {
+				await page.goto(`${BASE}/links?series=${id}&season=${season}`);
+				await page.getByRole('button', { name: 'PASTE A LINK' }).first().click();
+				await page.getByLabel('AniList or MAL link').fill(`https://anilist.co/anime/${entry}`);
+				const link = page.locator('.actions button').last();
+				await expect(link).toHaveText(new RegExp(`^LINK [A-Z] TO SEASON ${season}$`));
+				// Pressed at once: the answer has no rest of the show to stay for.
+				await link.click();
+				await page.waitForURL(new RegExp(`/series/${id}$`));
+				const line = page
+					.locator('.seasons')
+					.first()
+					.locator('.sline', { hasText: `S${season}` });
+				await expect(line.locator('.s-a')).toHaveText(
+					entry === 9601 ? 'Lone Show' : 'Lone Show Again'
+				);
+				expect(partsOf(id)).toEqual([{ season, part: 1, anilist_id: entry }]);
+			} finally {
+				forgetFlatList(id);
+			}
+		});
+
+	test('NOT NOW on the rest of the show goes back to the series, the season linked (c423, round 2)', async ({
+		page
+	}) => {
+		const id = seedSeasons('Split Pair Not Now', [12, 23]);
+		try {
+			await page.goto(`${BASE}/links?series=${id}&season=1`);
+			await page.getByRole('button', { name: 'PASTE A LINK' }).first().click();
+			await page.getByLabel('AniList or MAL link').fill('https://anilist.co/anime/9501');
+			await expect(page.locator('.actions button').last()).toHaveText(/^LINK [A-Z] TO SEASON 1$/);
+			await page.locator('.actions button').last().click();
+			await page.getByRole('button', { name: 'NOT NOW' }).click({ timeout: 20_000 });
+			await page.waitForURL(new RegExp(`/series/${id}$`));
+			await expect(
+				page.locator('.seasons').first().locator('.sline', { hasText: 'S1' }).locator('.s-a')
+			).toHaveText('Split Show');
+			expect(partsOf(id)).toEqual([{ season: 1, part: 1, anilist_id: 9501 }]);
 		} finally {
 			forgetFlatList(id);
 		}

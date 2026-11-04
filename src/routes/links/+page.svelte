@@ -333,6 +333,13 @@
 				return;
 			}
 			const a = (await r.json().catch(() => ({}))) as { relations?: RelationOffer[] };
+			// No rest to show (AniList unreachable, or no chain neighbour inside the
+			// show's seasons): staying would redraw the untouched review, so the LINK
+			// goes back to the series as a one-season show's does (c423, round 2).
+			if (single && !a.relations?.length) {
+				await backToSeries(it.seriesId);
+				return;
+			}
 			relations = a.relations?.length ? a.relations : null;
 			pickedSeasons = ticked(relations ?? []);
 			chosen = null;
@@ -425,6 +432,19 @@
 			undo: null,
 			before
 		};
+	}
+
+	/**
+	 * NOT NOW on the rest of the show: the season is linked, so for one series
+	 * the page goes back to it (its LINK row shows the new link), never to the
+	 * untouched review it came from (c423, round 2). In the queue, the offer
+	 * closes and the band's UNDO stays.
+	 */
+	async function notNow() {
+		const id = item?.seriesId;
+		relations = null;
+		pickedSeasons = [];
+		if (single && id !== undefined) await backToSeries(id);
 	}
 
 	/** "SEASON 1 NOT LINKED · SEASON 3 HOLDS ITS ENTRY", for each pick the workstation refused. */
@@ -1268,9 +1288,7 @@
 					{/each}
 				</div>
 				<div class="relacts">
-					<button type="button" class="first" disabled={busy} onclick={() => (relations = null)}
-						>NOT NOW</button
-					>
+					<button type="button" class="first" disabled={busy} onclick={notNow}>NOT NOW</button>
 					{#if pickedSeasons.length}
 						<button type="button" class="strong" disabled={busy} onclick={linkSeasonsNow}
 							>LINK {pickedSeasons.length} SEASON{pickedSeasons.length === 1 ? '' : 'S'}</button
