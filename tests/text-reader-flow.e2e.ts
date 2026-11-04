@@ -111,6 +111,75 @@ test('the controls say where you are, and READING keeps your place as type chang
 	await page.getByRole('button', { name: 'Close', exact: true }).click();
 });
 
+/** How many pages the open chapter's flow lays out to, from the flow itself. */
+const pagesNow = (page: Page) =>
+	page.locator('.flow').evaluate((el: HTMLElement) => {
+		const box = el.parentElement!;
+		const gap = parseFloat(getComputedStyle(el).columnGap) || 0;
+		return Math.round((el.scrollWidth + gap) / (box.clientWidth + gap));
+	});
+
+/** Whether OpenDyslexic is declared on the page at all, and whether a face of it has loaded. */
+const dyslexic = (page: Page) =>
+	page.evaluate(() => {
+		const faces = [...document.fonts].filter(
+			(f) => f.family.replace(/["']/g, '') === 'OpenDyslexic'
+		);
+		return { declared: faces.length > 0, loaded: faces.some((f) => f.status === 'loaded') };
+	});
+
+test('FONT offers OpenDyslexic, loads it only once chosen, keeps it, and lays the pages out again (c442)', async ({
+	page
+}) => {
+	await openBook(page);
+	// Nothing of it until it is asked for: the bundle's face costs nothing to a Plex reader.
+	expect(await dyslexic(page)).toEqual({ declared: false, loaded: false });
+	const before = await pagesNow(page);
+
+	await middle(page);
+	await page.getByRole('button', { name: /^PAGED · SERIF/ }).click();
+	const choice = page.getByRole('radiogroup', { name: 'FONT' }).getByRole('radio', {
+		name: 'OpenDyslexic'
+	});
+	// Each name is drawn in its own font.
+	await expect(choice).toHaveCSS('font-family', /^"?OpenDyslexic"?,/);
+	await choice.click();
+	await expect(choice).toHaveAttribute('aria-checked', 'true');
+	await expect(page.locator('.flow')).toHaveCSS(
+		'font-family',
+		/^"?OpenDyslexic"?, "IBM Plex Sans JP"/
+	);
+	await expect.poll(() => dyslexic(page)).toEqual({ declared: true, loaded: true });
+	expect(await page.evaluate(() => document.fonts.check('20px OpenDyslexic'))).toBe(true);
+	// The wider face makes more pages, and the reader counted them again.
+	await expect.poll(() => pagesNow(page)).toBeGreaterThan(before);
+	await page.getByRole('button', { name: 'Close', exact: true }).click();
+	await expect(page.getByRole('button', { name: /^PAGED · DYSLEXIC/ })).toBeVisible();
+
+	// Kept on the device: a reload opens in it, and fetches it again.
+	await page.reload();
+	await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+	await expect(page.locator('.flow')).toHaveCSS('font-family', /^"?OpenDyslexic"?,/);
+	await expect.poll(() => dyslexic(page)).toEqual({ declared: true, loaded: true });
+
+	// A FONT this build doesn't know (a newer build's) is the default, never an
+	// empty font-family; the rest of the stored settings stay.
+	await page.evaluate(() => {
+		const k = 'tsundoku.text.settings';
+		const s = JSON.parse(localStorage.getItem(k) ?? '{}');
+		localStorage.setItem(k, JSON.stringify({ ...s, font: 'literata', theme: 'paper' }));
+	});
+	await page.reload();
+	await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+	await expect(page.locator('.flow')).toHaveCSS(
+		'font-family',
+		/^"IBM Plex Serif", "IBM Plex Sans JP"/
+	);
+	await expect(page.locator('.text-reader')).toHaveClass(/paper/);
+	await middle(page);
+	await expect(page.getByRole('button', { name: /^PAGED · SERIF \d+ · PAPER/ })).toBeVisible();
+});
+
 test('the wheel turns one page a gesture, and back', async ({ page }) => {
 	await openBook(page);
 	const v = page.viewportSize()!;

@@ -34,6 +34,14 @@ import {
 	dragStarts,
 	forwardBy
 } from '$lib/reader/reader';
+import {
+	DEFAULT_SETTINGS,
+	TEXT_FONTS,
+	fontOf,
+	settingsLabel as textSettingsLabel,
+	textFont,
+	textSettings
+} from '$lib/reader/text';
 
 describe('mouse buttons', () => {
 	it('click turns forward and right click back, whichever way the pages run', () => {
@@ -434,5 +442,53 @@ describe('shapeOf', () => {
 
 	it('stays unknown with nothing to go on', () => {
 		expect(shapeOf(unknown)).toBe(unknown);
+	});
+});
+
+describe('the text reader’s fonts (c442)', () => {
+	it('lists Plex first and OpenDyslexic beside it, each with a stack that keeps JP and KR', () => {
+		expect(TEXT_FONTS.map((f) => [f.id, f.name, f.word, f.lazy])).toEqual([
+			['serif', 'Plex Serif', 'SERIF', false],
+			['sans', 'Plex Sans', 'SANS', false],
+			['opendyslexic', 'OpenDyslexic', 'DYSLEXIC', true]
+		]);
+		// A face with no CJK glyphs falls through to Plex's, never to boxes.
+		for (const f of TEXT_FONTS)
+			if (f.lazy) expect(f.family).toMatch(/'IBM Plex Sans JP', 'IBM Plex Sans KR'/);
+	});
+
+	it('reads a stored FONT this build knows as itself, and anything else as the default', () => {
+		for (const f of TEXT_FONTS) expect(textFont(f.id)).toBe(f.id);
+		for (const v of ['comic', '', null, undefined, 3, 'SERIF', 'OpenDyslexic'])
+			expect(textFont(v)).toBe('serif');
+		// It holds on its own output.
+		for (const f of TEXT_FONTS) expect(textFont(textFont(f.id))).toBe(f.id);
+		expect(fontOf('opendyslexic').name).toBe('OpenDyslexic');
+	});
+
+	it('lays the stored settings over the defaults, an old value kept and an unknown one not', () => {
+		expect(textSettings(null)).toEqual(DEFAULT_SETTINGS);
+		// Saved before c442: still read as saved.
+		expect(textSettings({ font: 'sans', size: 21 })).toMatchObject({ font: 'sans', size: 21 });
+		// From a newer build: the default font, and the rest kept.
+		expect(textSettings({ font: 'literata' as never, theme: 'paper' }).font).toBe('serif');
+		expect(textSettings({ font: 'literata' as never, theme: 'paper' }).theme).toBe('paper');
+	});
+
+	it('says the font in READING’s cell by its own word', () => {
+		const at = (font: (typeof TEXT_FONTS)[number]['id']) =>
+			textSettingsLabel({
+				layout: 'paged',
+				font,
+				size: 20,
+				theme: 'dark',
+				vertical: false,
+				furigana: 'all'
+			});
+		expect(TEXT_FONTS.map((f) => at(f.id))).toEqual([
+			'PAGED · SERIF 20 · DARK',
+			'PAGED · SANS 20 · DARK',
+			'PAGED · DYSLEXIC 20 · DARK'
+		]);
 	});
 });

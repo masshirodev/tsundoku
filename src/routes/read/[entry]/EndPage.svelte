@@ -4,10 +4,11 @@
 	import Cover from '$lib/components/content/Cover.svelte';
 	import { coverSrc, readHref } from '$lib/library/links';
 	import { count, unitLabel } from '$lib/library/labels';
-	import { kindVerb, workPartMeta, type WorkEnd } from '$lib/library/works';
+	import { kindVerb, nextPartWords, workPartMeta, type WorkEnd } from '$lib/library/works';
 	import type { Kind } from '$lib/library/types';
 	import { offline } from '$lib/offline.svelte';
 	import type { Mode } from '$lib/reader/reader';
+	import { deserialize } from '$app/forms';
 	import { resolve } from '$app/paths';
 
 	/**
@@ -137,6 +138,8 @@
 	const onlineOnly = $derived(!!first && !first.available && first.online && offline.online);
 	const unreadable = $derived(!!first && !first.available && !first.online);
 	const nextVerb = $derived(work?.next ? kindVerb(work.next.kind) : 'READ');
+	/** The words beside the verb that follow the next part's kind too (c343). */
+	const nextWords = $derived(work?.next ? nextPartWords(work.next.kind) : null);
 	/** Where START goes: the next part's first chapter, or its screen when there is none. */
 	const startHref = $derived(
 		first
@@ -159,7 +162,7 @@
 		offlineState
 			? '○ OFFLINE · NOT CACHED'
 			: onlineOnly
-				? `○ NOT DOWNLOADED · READS ONLINE FROM ${(work?.next?.source ?? '').toUpperCase()}`
+				? `○ NOT DOWNLOADED · ${nextWords?.online(work?.next?.source ?? '') ?? ''}`
 				: unreadable
 					? '○ NOT DOWNLOADED'
 					: downloads
@@ -170,8 +173,14 @@
 			: unreadable
 				? 'NOT DOWNLOADED'
 				: onlineOnly
-					? 'READ ONLINE →'
+					? `${nextVerb} ONLINE →`
 					: 'START →'
+	);
+	/** The unopenable row's name, which says why it cannot open (c345). */
+	const meanwhileLabel = $derived(
+		work?.next
+			? `NEXT IN ${work.name.toUpperCase()}, ${offlineState ? 'NOT CACHED' : 'NOT DOWNLOADED'}`
+			: ''
 	);
 	const meanwhileSub = $derived(
 		work?.next
@@ -195,7 +204,15 @@
 	const namesSeries = $derived(
 		variant === 'series' && (work?.mode === 'next' || work?.mode === 'read')
 	);
-	let queued = $state(false);
+	/** DOWNLOAD FIRST 10's answer: nothing asked yet, asking, queued, or refused (c344). */
+	let queue = $state<'idle' | 'asking' | 'queued' | 'failed'>('idle');
+	const downloadCell = $derived(
+		queue === 'queued'
+			? 'QUEUED ✓'
+			: queue === 'failed'
+				? 'NOT QUEUED · TRY THE SERIES'
+				: (nextWords?.downloadFirst ?? '')
+	);
 
 	function downloadWords(p: NonNullable<WorkEnd['next']>): string {
 		if (p.entries > 0 && p.downloaded >= p.entries) return 'ALL DOWNLOADED';
@@ -203,10 +220,19 @@
 		return '0 DOWNLOADED';
 	}
 
-	/** DOWNLOAD FIRST 10 of the next part, through its own series screen's action. */
+	/**
+	 * DOWNLOAD FIRST 10 of the next part, through its own series screen's
+	 * action. An action called this way answers 200 even when it fails: the
+	 * outcome is the body's `type`, so `r.ok` alone said QUEUED ✓ over an
+	 * engine that was down (c344). And a success can queue nothing (no chapter
+	 * the source lists is left to fetch), which is no more a queue. Anything
+	 * but a success that queued something says NOT QUEUED and leaves the cell
+	 * pressable, so a retry is a second press.
+	 */
 	async function downloadFirst() {
 		const p = work?.next;
-		if (!p || queued) return;
+		if (!p || queue === 'asking' || queue === 'queued') return;
+		queue = 'asking';
 		const body = new FormData();
 		body.set('which', 'next');
 		const r = await fetch(`${resolve('/series/[id]', { id: String(p.seriesId) })}?/download`, {
@@ -214,7 +240,18 @@
 			body,
 			headers: { 'x-sveltekit-action': 'true' }
 		}).catch(() => null);
-		if (r?.ok) queued = true;
+		let ok = false;
+		try {
+			const result = r?.ok ? deserialize(await r.text()) : null;
+			const done =
+				result?.type === 'success'
+					? (result.data?.downloaded as { queued?: number } | undefined)
+					: undefined;
+			ok = Number(done?.queued) > 0;
+		} catch {
+			// A body that isn't an action's answer (a proxy's page, a cut connection) is no queue.
+		}
+		queue = ok ? 'queued' : 'failed';
 	}
 </script>
 
@@ -282,7 +319,7 @@
 								<div class="sub"><span class="ink">○ OFFLINE</span> · NOT CACHED</div>
 							{:else if onlineOnly}
 								<div class="sub">
-									<span class="ink">○ NOT DOWNLOADED</span> · READS ONLINE FROM {work.next.source.toUpperCase()}
+									<span class="ink">○ NOT DOWNLOADED</span> · {nextWords?.online(work.next.source)}
 								</div>
 							{:else if unreadable}
 								<div class="sub"><span class="ink">○ NOT DOWNLOADED</span></div>
@@ -303,14 +340,17 @@
 									>▶ {nextVerb}{onlineOnly ? ' ONLINE' : ''} · {partUnit(work.next.kind)}. {first?.number ??
 										1}<span class="m"
 										>{onlineOnly
-											? 'STREAMED PAGES'
+											? nextWords?.streamed
 											: `IT OPENS AT ${partUnit(work.next.kind)}. ${first?.number ?? 1}`}</span
 									></a
 								>
 							{/if}
 							{#if unreadable || onlineOnly}
-								<button type="button" class="dl" disabled={queued} onclick={downloadFirst}
-									>{queued ? 'QUEUED ✓' : 'DOWNLOAD FIRST 10'}</button
+								<button
+									type="button"
+									class="dl"
+									disabled={queue === 'queued' || queue === 'asking'}
+									onclick={downloadFirst}>{downloadCell}</button
 								>
 							{/if}
 							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved by the page -->
@@ -321,12 +361,31 @@
 			{:else if work?.mode === 'meanwhile' && work.next}
 				<!-- Caught up on an ongoing part (Work-EndStates 1): a row, not a block.
 				     A next part that cannot open says so rather than offering a cell
-				     that lands on the reader's IS NOT DOWNLOADED page. -->
+				     that lands on the reader's IS NOT DOWNLOADED page. It is a group
+				     named for why (c345), so a screen reader hears it as one thing,
+				     and its one stop is the block's own DOWNLOAD FIRST 10: offline
+				     there is nothing to queue, so offline it has none. -->
 				{#if offlineState || unreadable}
-					<div class="wrow dim" aria-disabled="true">
+					<!-- aria-disabled reaches what a group holds, so only the row with no cell says it. -->
+					<div
+						class="wrow dim"
+						role="group"
+						aria-disabled={offlineState ? 'true' : undefined}
+						aria-label={meanwhileLabel}
+					>
 						<span class="wl">MEANWHILE</span>
 						<span class="wn">{meanwhileLine}<span class="b">{meanwhileSub}</span></span>
-						<span class="wr">{meanwhileAction}</span>
+						{#if offlineState}
+							<span class="wr">{meanwhileAction}</span>
+						{:else}
+							<button
+								type="button"
+								class="wr dl"
+								data-focus-mark="in"
+								disabled={queue === 'queued' || queue === 'asking'}
+								onclick={downloadFirst}>{downloadCell}</button
+							>
+						{/if}
 					</div>
 				{:else}
 					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves -->
@@ -730,6 +789,19 @@
 	}
 	.wrow.dim .wr {
 		color: var(--text-2);
+	}
+	/* The unopenable row's one cell: live ink in a dimmed row, as the block's is. */
+	.wrow.dim .wr.dl {
+		border: 0;
+		border-left: var(--hairline);
+		background: transparent;
+		color: var(--text-1);
+		font-size: 13px;
+		letter-spacing: 0.04em;
+		cursor: pointer;
+	}
+	.wrow.dim .wr.dl:disabled {
+		cursor: default;
 	}
 	.why {
 		margin: 0;

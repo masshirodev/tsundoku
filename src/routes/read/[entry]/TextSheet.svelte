@@ -6,6 +6,9 @@
 		LINES,
 		SIZE_MAX,
 		SIZE_MIN,
+		TEXT_FONTS,
+		fontOf,
+		loadReadingFonts,
 		type Furigana,
 		type Layout,
 		type Margins,
@@ -71,10 +74,10 @@
 		['dark', 'DARK'],
 		['paper', 'PAPER']
 	];
-	const FONTS: [TextFont, string][] = [
-		['serif', 'Plex Serif'],
-		['sans', 'Plex Sans']
-	];
+	const FONTS: [TextFont, string][] = TEXT_FONTS.map((f) => [f.id, f.name]);
+	// Each name is drawn in its own font (c442), so the row declares the lazy
+	// faces while it is open: a face's file is fetched only for what is drawn.
+	$effect(() => void loadReadingFonts());
 	const MARGINS: [Margins, string][] = [
 		['narrow', 'NARROW'],
 		['normal', 'NORMAL'],
@@ -166,7 +169,7 @@
 		<div class="row">
 			<div class="label">{label}</div>
 			<div class="body col">
-				<div class="seg" role="radiogroup" aria-label={label}>
+				<div class="seg" class:fonts role="radiogroup" aria-label={label}>
 					{#each opts as [v, name] (v)}
 						<button
 							type="button"
@@ -174,11 +177,7 @@
 							aria-checked={on === v}
 							class:on={on === v}
 							data-focus-mark="in"
-							style:font-family={fonts
-								? v === 'serif'
-									? 'var(--font-serif)'
-									: 'var(--font-sans)'
-								: undefined}
+							style:font-family={fonts ? fontOf(v as TextFont).family : undefined}
 							onclick={() => pick(v)}>{name}</button
 						>
 					{/each}
@@ -438,6 +437,29 @@
 	.seg button.on {
 		background: var(--text-1);
 		color: var(--surface-page);
+	}
+	/*
+	 * FONT names are drawn in their own fonts, and OpenDyslexic is wide: when
+	 * the three don't fit on one line (a phone, a TV's panel) they wrap into
+	 * blocky cells of the sheet's own height, never crushed. The 1px gap over
+	 * the line colour draws the cells' rules however they wrap.
+	 */
+	.seg.fonts {
+		height: auto;
+		flex-wrap: wrap;
+		gap: 1px;
+		background: var(--line-2);
+	}
+	.seg.fonts button {
+		flex: 1 0 auto;
+		min-height: 46px;
+		padding: 0 14px;
+		border-right: 0;
+		background: var(--surface-page);
+		white-space: nowrap;
+	}
+	.seg.fonts button.on {
+		background: var(--text-1);
 	}
 	.under {
 		display: flex;

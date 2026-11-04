@@ -176,6 +176,14 @@ On a PC, in L→R and R→L, the buttons turn the page, not the side you click o
   with a click turning the page, clicking couldn't reach them. The text reader
   does the same.
 
+**The page never tints under a mouse** (c485). The image reader catches taps
+on its stage and the text reader on its page, both plain elements, so
+motion.css's hover rule never matches them; the player's tap zone is a button
+and says `data-press="off"` instead (doc/ANIME.md). `tests/reader-hover.e2e.ts`
+hovers the middle and both edges of each reader's page on a desktop, finds
+nothing pressable and no tint there, and checks a control of the same reader
+still tints.
+
 The pointer's type decides, so a finger on the tablet keeps the strips above.
 With the controls up, a click only puts them away, as a tap does. The owner
 asked for this on 2026-09-23.

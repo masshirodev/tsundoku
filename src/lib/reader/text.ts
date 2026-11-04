@@ -9,7 +9,7 @@ import type { Mode } from './reader';
 
 export type Layout = 'paged' | 'scroll';
 export type Theme = 'dark' | 'paper';
-export type TextFont = 'serif' | 'sans';
+export type TextFont = 'serif' | 'sans' | 'opendyslexic';
 export type Margins = 'narrow' | 'normal' | 'wide';
 export type Furigana = 'all' | 'unknown' | 'none';
 export type Device = 'tablet' | 'landscape' | 'phone';
@@ -38,6 +38,68 @@ export const DEFAULT_SETTINGS: TextSettings = {
 	columns: true,
 	furigana: 'all'
 };
+
+/**
+ * The reading fonts (doc/TEXT-READER.md, "FONT"), in the FONT row's order.
+ * `family` is the flow's whole stack: a face without a glyph falls through to
+ * Plex's Japanese and Korean, so a mixed novel shows no boxes. `lazy` faces
+ * are declared by src/lib/styles/fonts-reading.css, which the page imports
+ * once one is chosen or the FONT row is drawn (`loadReadingFonts`); their
+ * woff2 are precached by the service worker regardless. Plex is the app's own
+ * and always there.
+ */
+export const TEXT_FONTS: readonly {
+	id: TextFont;
+	/** The FONT row's name, drawn in the font itself. */
+	name: string;
+	/** The READING cell's word: "PAGED · SERIF 20 · DARK". */
+	word: string;
+	family: string;
+	lazy: boolean;
+}[] = [
+	{ id: 'serif', name: 'Plex Serif', word: 'SERIF', family: 'var(--font-serif)', lazy: false },
+	{ id: 'sans', name: 'Plex Sans', word: 'SANS', family: 'var(--font-sans)', lazy: false },
+	{
+		id: 'opendyslexic',
+		name: 'OpenDyslexic',
+		word: 'DYSLEXIC',
+		family: "'OpenDyslexic', 'IBM Plex Sans JP', 'IBM Plex Sans KR', var(--font-sans)",
+		lazy: true
+	}
+];
+
+/**
+ * A stored FONT as one this build knows: anything else (a value from a newer
+ * build, a hand-edited one) is the default, never an empty font-family.
+ */
+export function textFont(v: unknown): TextFont {
+	return TEXT_FONTS.find((f) => f.id === v)?.id ?? DEFAULT_SETTINGS.font;
+}
+
+export const fontOf = (font: TextFont) => TEXT_FONTS.find((f) => f.id === font) ?? TEXT_FONTS[0];
+
+/** The device's stored settings over the defaults, each value one this build knows. */
+export function textSettings(stored: Partial<TextSettings> | null | undefined): TextSettings {
+	const s = { ...DEFAULT_SETTINGS, ...(stored ?? {}) };
+	return { ...s, font: textFont(s.font) };
+}
+
+let readingFonts: Promise<unknown> | null = null;
+/**
+ * Declare the lazy faces, once: called when such a font is chosen or READING
+ * is open, since the FONT row draws each name in its own face, so opening
+ * READING fetches OpenDyslexic's woff2 too. Declaring costs a stylesheet of
+ * three @font-face rules. The woff2 files are in the build either way, so the
+ * service worker precaches them on every installed device (doc/OFFLINE.md),
+ * which is what lets the font work offline once chosen; this only decides
+ * when the page asks for them, and after install that is answered from cache.
+ */
+export function loadReadingFonts(): Promise<unknown> {
+	readingFonts ??= import('$lib/styles/fonts-reading.css').catch(() => {
+		readingFonts = null;
+	});
+	return readingFonts;
+}
 
 export const SIZE_MIN = 14;
 export const SIZE_MAX = 30;
@@ -105,7 +167,7 @@ export function settingsLabel(o: {
 	furigana: Furigana;
 }): string {
 	if (o.vertical) return `VERTICAL · SANS JP ${o.size} · FURIGANA ${o.furigana.toUpperCase()}`;
-	return `${o.layout.toUpperCase()} · ${o.font.toUpperCase()} ${o.size} · ${o.theme.toUpperCase()}`;
+	return `${o.layout.toUpperCase()} · ${fontOf(o.font).word} ${o.size} · ${o.theme.toUpperCase()}`;
 }
 
 /** The reader's touch mode: turning left-to-right, right-to-left (vertical Japanese), or none. */

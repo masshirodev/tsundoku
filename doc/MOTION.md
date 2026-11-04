@@ -91,6 +91,11 @@ box-shadows alone, which are the focus mark and reveal's frame. **Only under
 a TV has no pointer. Scrims and `data-press="off"` and `"scale"` are left out.
 The tint is a colour change, so it is instant and isn't gated by reduced motion.
 
+A surface that only catches input says `data-press="off"`, which leaves out
+the hover and the press together: the player's tap zone over the picture is
+the one such button (c485, doc/ANIME.md); the readers catch taps on plain
+elements, which the rule never matches.
+
 **The tint never lands on a picture** (c486). It is a `background-image`, so
 it _replaces_ whatever image the element draws, and hovering the series cover
 made the cover vanish. The rule leaves out:

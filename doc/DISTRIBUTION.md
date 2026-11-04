@@ -255,6 +255,10 @@ a build to a friend obliges:
 - Every third-party licence in a bundle is collected into
   `THIRD-PARTY-NOTICES.txt` by the release build: the packages the server
   loads, the ones compiled into `build/` (the fonts are OFL), Node, the JRE,
-  the engine and ffmpeg.
+  the engine and ffmpeg. A compiled package is every entry of `dependencies`
+  the server doesn't load, with the licence file it ships, so a font added
+  there is listed with no change to the release: OpenDyslexic
+  (`@fontsource/opendyslexic`, OFL-1.1, c442) ships its `LICENSE` and is
+  listed beside Plex.
 
 At the public release, both repositories open and the first point goes away.

@@ -1,0 +1,44 @@
+/*
+ * The text reader's own reading fonts beyond Plex (c442; doc/TEXT-READER.md,
+ * "FONT"). Not imported by index.css: src/lib/reader/text.ts's
+ * `loadReadingFonts` imports this sheet once such a font is chosen or READING
+ * is open, so the page declares the faces only then. The files themselves are
+ * in the build, so the service worker precaches the three woff2 on every
+ * installed device (doc/OFFLINE.md, the shell cache), whatever FONT says; that
+ * is what lets OpenDyslexic work offline once chosen.
+ *
+ * Written by hand rather than importing @fontsource's 400.css, 400-italic.css
+ * and 700.css, because those also name a woff fallback per face: Vite then
+ * puts the woff in the build and the service worker precaches 389,208 bytes no
+ * browser that reads woff2 uses. font-family, font-style, font-display and
+ * font-weight are copied from the package's latin-400.css,
+ * latin-400-italic.css and latin-700.css, which carry no unicode-range.
+ *
+ * Self-hosted, never a CDN. OpenDyslexic is OFL-1.1; the release's
+ * THIRD-PARTY-NOTICES carries its licence with the other dependencies'
+ * (doc/DISTRIBUTION.md). Latin only: the reader's stack falls through to
+ * Plex's Japanese and Korean for the rest.
+ */
+@font-face {
+	font-family: 'OpenDyslexic';
+	font-style: normal;
+	font-display: swap;
+	font-weight: 400;
+	src: url('@fontsource/opendyslexic/files/opendyslexic-latin-400-normal.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'OpenDyslexic';
+	font-style: italic;
+	font-display: swap;
+	font-weight: 400;
+	src: url('@fontsource/opendyslexic/files/opendyslexic-latin-400-italic.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'OpenDyslexic';
+	font-style: normal;
+	font-display: swap;
+	font-weight: 700;
+	src: url('@fontsource/opendyslexic/files/opendyslexic-latin-700-normal.woff2') format('woff2');
+}

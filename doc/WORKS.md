@@ -369,12 +369,35 @@ W5's series screen reads the same rule.
   the block's states too: a next part with no file says `○ NOT DOWNLOADED` and
   dims its cell, and offline and not cached it says `○ OFFLINE · NOT CACHED`,
   rather than a START → that lands on the reader's IS NOT DOWNLOADED page.
+  Such a row is a `role="group"` named for why it cannot open (`NEXT IN
+<WORK>, NOT DOWNLOADED`, or `NOT CACHED`), not a bare `div` a screen reader
+  reads as text (c345). With no file it offers the block's DOWNLOAD FIRST 10
+  in place of its dimmed action, which is also the pad's one stop on a TV;
+  offline it has no cell (a queue with no network is a lie), so the pad
+  passes it, as it passes any text. Only the offline row is `aria-disabled`:
+  on the one with a cell it would disable the cell inside.
 - **Not downloaded vs offline.** A next part whose first chapter has no file
   but a source an installed extension serves says `○ NOT DOWNLOADED · READS
 ONLINE FROM <SOURCE>` with `▶ READ ONLINE · CH. 1` (c161) and DOWNLOAD FIRST
-  10, which posts the next series' own `?/download`. Offline and not cached on
-  the device it says `○ OFFLINE · NOT CACHED` with START dimmed; a cached one
-  opens as usual.
+  10 CHAPTERS, which posts the next series' own `?/download` (`which=next`).
+  Offline and not cached on the device it says `○ OFFLINE · NOT CACHED` with
+  START dimmed; a cached one opens as usual.
+- **The next part speaks its own kind** (c343), in every word beside its verb
+  and unit, from `nextPartWords` in `src/lib/library/works.ts`, which asks the
+  registry's medium and unit, never a kind's name: a manga `READS ONLINE FROM`
+  and is `STREAMED PAGES`, a novel `STREAMED TEXT`, an anime `STREAMS FROM` and
+  is `STREAMED VIDEO`, and DOWNLOAD FIRST 10 names its unit (`CHAPTERS`,
+  `VOLUMES`, `EPISODES`). The design's cell said `DOWNLOAD FIRST 10` alone;
+  with an anime next part that offered ten episodes as ten of nothing. An
+  anime next part with no file is never "online" here today (`readsOnline`
+  knows Mihon keys only), so it shows `○ NOT DOWNLOADED`, a dimmed `▶ WATCH ·
+EP. 1` and DOWNLOAD FIRST 10 EPISODES.
+- **DOWNLOAD FIRST 10 says when nothing was queued** (c344): `NOT QUEUED ·
+TRY THE SERIES`, and stays pressable, so a retry is a second press. A
+  SvelteKit action called with `x-sveltekit-action` answers HTTP 200 even
+  when it fails, so the cell reads the answer's `type`, and a success that
+  queued nothing (no chapter the source lists is left to fetch) is no queue
+  either. Only a success that queued something says `QUEUED ✓`.
 - **The last part** says `THE WORK IS READ · n OF m`, the Work's name, what it
   held, and WORK → in place of START -- never an empty block. An earlier part of
   a run that is read through is the series' own end page, with the foot still
@@ -493,7 +516,8 @@ end. The Work screen
 does not draw the handoff's `↓ 10` download cell: a tap on a row opens the
 series, where DOWNLOAD's NEXT 10 lives, and this slice adds no download action
 of its own. W6's block offers DOWNLOAD FIRST 10 for the next part, which is
-the series screen's own `?/download`.
+the series screen's own `?/download`; the MEANWHILE row that cannot open offers
+the same cell (c345).
 
 ## The slices
 

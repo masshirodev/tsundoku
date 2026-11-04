@@ -42,6 +42,12 @@ const PORT =
 const base = `http://localhost:${PORT}`;
 const dbPath = join(tmpdir(), `tsundoku-e2e-work-end-${process.pid}.sqlite`);
 const ANIME = "Frieren: Beyond Journey's End";
+/**
+ * An anime as a Work's next part (c343): its own row, because a series is in
+ * one Work at most and ANIME is already the first part of the player's. No
+ * file, so the block offers to download its first episodes.
+ */
+const ANIME_NEXT = 'Hoshizora Lantern';
 /** The manga each case's Work offers as its next part. */
 const PART2 = {
 	block: 'Isekai Ojisan',
@@ -112,6 +118,28 @@ function prepare() {
 		);
 	episode(1, 'The Journey Begins');
 	animeEpisode = episode(2, 'The Last Road');
+	const animeNextId = Number(
+		db
+			.prepare(
+				`INSERT INTO series (root_id, title, kind, status, source, path, origin_key,
+					source_url, added_at, indexed_at, in_library, hue)
+				VALUES (1, ?, 'anime', 'completed', 'Fake Source', ?, ?, ?, ?, ?, 1, 120)`
+			)
+			.run(
+				ANIME_NEXT,
+				video,
+				'aniyomi:1:https://example.test/lantern',
+				'https://example.test/lantern',
+				now,
+				now
+			).lastInsertRowid
+	);
+	for (const n of [1, 2, 3])
+		db.prepare(
+			`INSERT INTO entries (series_id, position, label, title, added_at, page_count, file,
+				available, duration_s, season, episode_number, source_url, origin_source)
+			VALUES (?, ?, ?, ?, ?, 0, '', 0, 0, 1, ?, ?, '')`
+		).run(animeNextId, n, `Ep. ${n}`, `Lantern ${n}`, now, n, `https://example.test/lantern/${n}`);
 
 	// Caught up: every chapter read on a source that is still ongoing (Kusuriya).
 	db.prepare(`UPDATE entries SET read_at = ? WHERE series_id = 3`).run(now);
@@ -138,7 +166,10 @@ function prepare() {
 		`INSERT INTO engine_sources (id, pkg, name, lang, base_url)
 			VALUES ('1', 'fake', 'Fake Source', 'en', 'https://example.test')`
 	).run();
-	for (const id of [22, 3, 8, 21, 20, 1, 15, 16])
+	// Lookism, the anime's first part, read paged R→L as openEnd turns it:
+	// a manhwa scrolls by default, and a strip has no page to turn past.
+	db.prepare(`UPDATE series SET direction = 'rtl' WHERE id = 19`).run();
+	for (const id of [22, 3, 8, 21, 20, 1, 15, 16, 19])
 		lastEntry[id] = (
 			db
 				.prepare(
@@ -183,7 +214,7 @@ const tile = (page: Page, title: string) =>
  */
 let madeWorks = 0;
 async function makeWork(page: Page, first: string, second: string): Promise<number> {
-	// A name of its own per Work: eight of them exist at once, and a tile found
+	// A name of its own per Work: nine of them exist at once, and a tile found
 	// by a shared name would match the wrong one.
 	const name = `Frame Run ${++madeWorks}`;
 	await page.goto('/');
@@ -213,6 +244,12 @@ async function openEnd(page: Page, seriesId = 22) {
 }
 
 test.beforeAll(async ({ browser }, info) => {
+	// The hook builds nothing but waits up to 60 s for its own preview, then
+	// makes nine Works: past the default 30 s under a loaded box, where it was
+	// red in every run of wave 20's gate (c477). In a hook, test.setTimeout sets
+	// the hook's own budget (Playwright's test.d.ts, "Changing timeout for a
+	// beforeAll").
+	test.setTimeout(120_000);
 	seed();
 	prepare();
 	server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], {
@@ -240,7 +277,7 @@ test.beforeAll(async ({ browser }, info) => {
 	}
 	if (!up) throw new Error('the work-end preview never answered');
 
-	// Five Works, each a pair this file owns: the database is its own, so no
+	// Nine Works, each a pair this file owns: the database is its own, so no
 	// title has to be kept from any other spec.
 	const { page, close } = await signedIn(browser, info);
 	works.block = await makeWork(page, 'Isekai Yakkyoku', PART2.block);
@@ -255,6 +292,7 @@ test.beforeAll(async ({ browser }, info) => {
 		PART2.stalled
 	);
 	works.scroll = await makeWork(page, 'Villainess Level 99', PART2.scroll);
+	works.animeNext = await makeWork(page, 'Lookism', ANIME_NEXT);
 	await close();
 
 	// Their names, so the blocks say something this file can assert on.
@@ -268,6 +306,7 @@ test.beforeAll(async ({ browser }, info) => {
 	rename.run('Ken Run', works.novel);
 	rename.run('Drawing Run', works.stalled);
 	rename.run('Villainess Run', works.scroll);
+	rename.run('Lookism Run', works.animeNext);
 	db.close();
 });
 
@@ -647,7 +686,84 @@ test('a next part with no file reads online from its source, and offers DOWNLOAD
 	);
 	await expect(page.locator(SEL.start)).toContainText('▶ READ ONLINE · CH. 1');
 	await expect(page.locator(SEL.start)).toContainText('STREAMED PAGES');
-	await expect(page.locator('.end .nextw .go .dl')).toHaveText('DOWNLOAD FIRST 10');
+	await expect(page.locator('.end .nextw .go .dl')).toHaveText('DOWNLOAD FIRST 10 CHAPTERS');
+});
+
+test('DOWNLOAD FIRST 10 that queues nothing says so, and can be pressed again (c344)', async ({
+	page
+}) => {
+	// The real action, on this file's own server: its engine is
+	// http://127.0.0.1:9, where nothing listens, so the source lists no chapter
+	// to fetch and ?/download answers a success that queued nothing.
+	await openEnd(page, 8);
+	const dl = page.locator('.end .nextw .go .dl');
+	await expect(dl).toHaveText('DOWNLOAD FIRST 10 CHAPTERS');
+	const asked = page.waitForRequest((r) => /\?\/download$/.test(r.url()) && r.method() === 'POST');
+	await dl.click();
+	const request = await asked;
+	expect(request.url()).toContain('/series/14?/download');
+	expect(request.postData()).toMatch(/name="which"\r\n\r\nnext\r\n/);
+	// The answer as the page reads it: a success, and devalue's table says 0 queued.
+	const answer = JSON.parse(await (await request.response())!.text());
+	expect(answer.type).toBe('success');
+	const table = JSON.parse(answer.data);
+	expect(table[table[table[0].downloaded].queued]).toBe(0);
+	await expect(dl).toHaveText('NOT QUEUED · TRY THE SERIES');
+	// Not a dead end: still a cell, and a second press asks again.
+	await expect(dl).toBeEnabled();
+
+	// The engine down, as the action says it: HTTP 200 and a failure inside,
+	// which is how SvelteKit answers an action called with x-sveltekit-action.
+	await page.route(/\?\/download$/, (route) =>
+		route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify({
+				type: 'failure',
+				status: 503,
+				data: '[{"message":1},"Downloading is not answering"]'
+			})
+		})
+	);
+	await dl.click();
+	await expect(dl).toHaveText('NOT QUEUED · TRY THE SERIES');
+	await expect(dl).toBeEnabled();
+
+	// And a queue that took: QUEUED ✓, and the cell is done.
+	await page.unroute(/\?\/download$/);
+	await page.route(/\?\/download$/, (route) =>
+		route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify({
+				type: 'success',
+				status: 200,
+				data: '[{"downloaded":1},{"queued":2,"missing":3},10,0]'
+			})
+		})
+	);
+	await dl.click();
+	await expect(dl).toHaveText('QUEUED ✓');
+	await expect(dl).toBeDisabled();
+	await page.unroute(/\?\/download$/);
+});
+
+test('an anime next part with no file speaks in episodes, and offers its first 10 episodes (c343)', async ({
+	page
+}) => {
+	// Reached through the app's own doors: an aniyomi series with no file is not
+	// "online" to the end page (readsOnline knows Mihon keys only), so the block
+	// is in its NOT DOWNLOADED state. The online words for every kind are
+	// tests/works.spec.ts's, over the whole registry.
+	await openEnd(page, 19);
+	await expect(page.locator(SEL.kickerLine)).toHaveText('NEXT IN LOOKISM RUN · PART 2 OF 2');
+	await expect(page.locator(SEL.nextTitle)).toHaveText(ANIME_NEXT);
+	await expect(page.locator(SEL.nextSub)).toHaveText('○ NOT DOWNLOADED');
+	const go = page.locator('.end .nextw .go');
+	await expect(go.locator('> .dim')).toContainText('▶ WATCH · EP. 1');
+	await expect(go).not.toContainText('PAGES');
+	await expect(go).not.toContainText('CHAPTERS');
+	await expect(go.locator('.dl')).toHaveText('DOWNLOAD FIRST 10 EPISODES');
 });
 
 test('offline and not cached: OFFLINE · NOT CACHED, START dimmed, no download cell', async ({
@@ -676,11 +792,25 @@ test('a meanwhile row whose next part has no file says so instead of offering a 
 	await expect(row).toContainText('MEANWHILE');
 	await expect(row).toContainText('The Greatest Estate Developer · CH. 1');
 	await expect(row).toContainText(/NEXT IN DRAWING RUN · PART 2 · \d+ CH\. · ○ NOT DOWNLOADED/);
-	await expect(row).toHaveAttribute('aria-disabled', 'true');
-	await expect(row.locator('.wr')).toHaveText('NOT DOWNLOADED');
+	// A group named for why it cannot open (c345), not a bare div read as text.
+	// Not aria-disabled: that would reach the cell it holds, below.
+	await expect(row).not.toHaveAttribute('aria-disabled');
+	await expect(row).toHaveAttribute('role', 'group');
+	await expect(
+		page.getByRole('group', { name: 'NEXT IN DRAWING RUN, NOT DOWNLOADED' })
+	).toBeVisible();
 	// No link: the row is not a cell, so it cannot open the reader's IS NOT
 	// DOWNLOADED page.
 	await expect(page.locator('.end a.wrow')).toHaveCount(0);
+	// Its one cell is the block's DOWNLOAD FIRST 10, the pad's stop on a TV. This
+	// part has no source, so the real action refuses it, and the cell says so.
+	const dl = row.getByRole('button', { name: 'DOWNLOAD FIRST 10 CHAPTERS' });
+	await expect(dl).toBeEnabled();
+	await expect(dl).toHaveAttribute('data-focus-mark', 'in');
+	const asked = page.waitForRequest((r) => /\/series\/7\?\/download$/.test(r.url()));
+	await dl.click();
+	expect((await asked).postData()).toMatch(/name="which"\r\n\r\nnext\r\n/);
+	await expect(row.locator('.dl')).toHaveText('NOT QUEUED · TRY THE SERIES');
 	await expect(page.locator(SEL.foot)).toContainText('DRAWING RUN · WORK');
 
 	// The same row with a source that can serve its first chapter: it opens, so
@@ -696,6 +826,22 @@ test('a meanwhile row whose next part has no file says so instead of offering a 
 	await expect(online).toBeVisible();
 	await expect(online).toContainText('○ NOT DOWNLOADED · READS ONLINE FROM FAKE SOURCE');
 	await expect(online.locator('.wr')).toHaveText('READ ONLINE →');
+});
+
+test('a meanwhile row offline and not cached is a group named for why, with no cell (c345)', async ({
+	page,
+	context
+}) => {
+	await openEnd(page, 3);
+	await expect(page.locator('.end a.wrow')).toBeVisible();
+	await context.setOffline(true);
+	const row = page.getByRole('group', { name: 'NEXT IN KUSURIYA RUN, NOT CACHED' });
+	await expect(row).toBeVisible();
+	await expect(row.locator('.wr')).toHaveText('NOT CACHED');
+	await expect(row).toHaveAttribute('aria-disabled', 'true');
+	// A queue with no network is a lie, here as in the block.
+	await expect(row.getByRole('button')).toHaveCount(0);
+	await context.setOffline(false);
 });
 
 test('a novel read in SCROLL reaches the end page, so the Work is offered there too', async ({

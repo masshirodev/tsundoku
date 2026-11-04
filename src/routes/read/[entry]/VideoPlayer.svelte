@@ -1686,10 +1686,12 @@
 				{/key}
 			{/if}
 		</video>
+		<!-- A surface that draws nothing: hovering or clicking the picture never tints it (c485). -->
 		<button
 			type="button"
 			class="tapzone"
 			data-focus-skip
+			data-press="off"
 			aria-label={mouse
 				? paused
 					? 'Play'

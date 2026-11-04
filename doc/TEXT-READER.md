@@ -223,6 +223,39 @@ the reader's whatever the controls.
   on the workstation, [`SETTINGS.md`](SETTINGS.md), "Devices"), and DIM is
   shared with the image reader. A novel's default LAYOUT is SETTINGS'. The
   sheet ends with ALL SETTINGS →.
+- **FONT** (c442) offers three, in this order: **Plex Serif** (the default),
+  **Plex Sans** and **OpenDyslexic**. The list is `TEXT_FONTS` in
+  `src/lib/reader/text.ts`, and SETTINGS' TYPEFACE row allows exactly those
+  values (`tests/settings-domain.spec.ts` holds the two together). Each name
+  in the row is drawn in its own font; when they don't fit on one line (a
+  phone, a TV's panel) they wrap into blocky cells rather than shrink.
+  - **Self-hosted and precached; declared once chosen or READING is open.**
+    Plex is the app's own type, imported eagerly by `index.css`. OpenDyslexic
+    is declared by `src/lib/styles/fonts-reading.css`, which
+    `loadReadingFonts()` imports once the font is chosen or READING is open
+    (the FONT row draws its name in the face, so opening READING fetches that
+    face's woff2). The files themselves are in the build, so the service
+    worker precaches all three woff2 on every installed device whatever FONT
+    says (doc/OFFLINE.md, the shell cache); that is what lets OpenDyslexic
+    work offline once chosen, and after install the page's fetch is answered
+    from that cache. The stylesheet's `@font-face` rules are hand-written and
+    name woff2 only: @fontsource's own CSS also names a woff per face, which
+    put 389,208 bytes of woff in the build that no woff2 browser uses. What
+    the build carries (round 2, `ls -l build/client/_app/immutable/assets`):
+    `opendyslexic-latin-400-normal` 115,280 bytes, `-400-italic` 112,360 and
+    `-700-normal` 120,356, 347,996 in all, plus a 478-byte stylesheet; the
+    service worker's list names exactly those three woff2 and
+    `fonts-reading.*.css`. Never a CDN.
+  - **A face without a glyph falls back cleanly.** OpenDyslexic is Latin only,
+    so its stack goes on to Plex Sans JP and KR, and a mixed novel shows no
+    boxes. Vertical Japanese is set in Plex Sans JP whatever FONT says.
+  - **A saved FONT this build doesn't know** (a newer build's, or one edited
+    by hand) reads as Plex Serif, never as an empty `font-family`
+    (`textSettings`); one saved before c442 reads as it was.
+  - Changing it lays the chapter out again, keeping the character, as SIZE
+    does; the face arriving later lays it out once more (`loadingdone`).
+  - READING's cell names it SERIF, SANS or DYSLEXIC ("PAGED · DYSLEXIC 20 ·
+    DARK").
 - **CONTENTS** is the series screen's own list (`EntryList`, in its sheet
   mode). It's headed CONTENTS with a ✕, has `#` and the rail only from 60
   entries, and opens on the chapter being read. A book's front and back matter
@@ -294,6 +327,10 @@ There's always ← SERIES and LIBRARY.
   (card "Japanese layer").
 - **A mincho for Japanese.** Vertical text is set in Plex Sans JP, since Plex
   has no Japanese serif. Whether FONT should offer a mincho is still open.
+- **More reading fonts.** Atkinson Hyperlegible and a book serif such as
+  Literata were suggested beside OpenDyslexic (c442) and wait on the owner. A
+  new one is a row in `TEXT_FONTS`, its `@import` in `fonts-reading.css`, and
+  the TYPEFACE row's option.
 - **Scroll doesn't carry back into the previous chapter.** Scrolling up past
   the top stops there, and `← CH.` goes back.
 - **The budget ignores books' weight after the first marker,** and letting go

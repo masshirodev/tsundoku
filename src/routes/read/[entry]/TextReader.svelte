@@ -49,12 +49,15 @@
 		aboutMinutes,
 		addReading,
 		bookFraction,
+		fontOf,
 		frame,
+		loadReadingFonts,
 		minutesLeft,
 		settingsLabel,
 		textMetaLine,
 		textMode,
 		textPageLabel,
+		textSettings,
 		type Layout,
 		type Speed,
 		type TextSettings
@@ -100,7 +103,8 @@
 	let sw = $state(800);
 	let sh = $state(1280);
 	onMount(() => {
-		settings = { ...DEFAULT_SETTINGS, ...stored<Partial<TextSettings>>('settings', {}) };
+		// A FONT this build doesn't know (a newer build's) reads as the default (c442).
+		settings = textSettings(stored<Partial<TextSettings>>('settings', {}));
 		// DIM is shared with the image reader: it's about the room, not the book.
 		dim = stored('tsundoku.reader.dim', 0);
 		speed = stored('speed', { chars: 0, ms: 0 });
@@ -493,6 +497,12 @@
 							: 'start';
 			void openChapter(data.entry.index, start);
 		});
+	});
+
+	// A lazy face is declared once it is chosen (c442); its file then arrives on
+	// first use, and `loadingdone` below lays the pages out again for it.
+	$effect(() => {
+		if (fontOf(settings.font).lazy) void loadReadingFonts();
 	});
 
 	// Anything that moves text around lays it out again, keeping the character.
@@ -1265,8 +1275,8 @@
 	class:scroll={layout === 'scroll'}
 	class:web={webNovel}
 	class:justify={settings.justify}
-	class:sans={settings.font === 'sans'}
 	class:no-ruby={settings.furigana === 'none'}
+	style:--text-font={fontOf(settings.font).family}
 	style:--fs="{f.fontSize}px"
 	style:--lh={f.lineHeight}
 	style:--hs="{f.headSize}px"
@@ -1605,7 +1615,7 @@
 		box-sizing: border-box;
 		column-fill: auto;
 		color: var(--prose);
-		font: 400 var(--fs) / var(--lh) var(--font-serif);
+		font: 400 var(--fs) / var(--lh) var(--text-font, var(--font-serif));
 		hyphens: auto;
 		-webkit-hyphens: auto;
 		overflow-wrap: break-word;
@@ -1631,9 +1641,6 @@
 		.flow.sliding {
 			transition: none;
 		}
-	}
-	.sans .flow {
-		font-family: var(--font-sans);
 	}
 	.justify .flow {
 		text-align: justify;
