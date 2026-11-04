@@ -414,16 +414,26 @@ test('a refresh answered after NEW CODE leaves the new code live (c461)', async 
 
 	// The row asks: the server answers for the burned old code, and the
 	// answer is held back from the page.
+	// Only the first ask is held: a later one (a real focus on a loaded run)
+	// goes straight through and cannot stand in for the old answer.
 	let release!: () => Promise<void>;
+	let answer: unknown;
 	const held = new Promise<void>((arrived) => {
-		void page.route('**/settings/tv', async (route) => {
-			const response = await route.fetch();
-			release = () => route.fulfill({ response });
-			arrived();
-		});
+		void page.route(
+			'**/settings/tv',
+			async (route) => {
+				const response = await route.fetch();
+				answer = await response.json();
+				release = () => route.fulfill({ response });
+				arrived();
+			},
+			{ times: 1 }
+		);
 	});
 	await page.evaluate(() => window.dispatchEvent(new Event('focus')));
 	await held;
+	// The held answer is the one the guard is for: the old code, burned.
+	expect(answer).toEqual({ tv: expect.objectContaining({ code: old, state: 'burned' }) });
 
 	// NEW CODE, while that answer is still out.
 	await page.getByRole('button', { name: 'NEW CODE' }).click();
