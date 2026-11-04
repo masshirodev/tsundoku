@@ -320,6 +320,17 @@ test.describe('the player, tablet landscape (c156)', () => {
 		page
 	}) => {
 		test.setTimeout(90_000);
+		// The fixture clip is 8 s, and this test waits out the controls' fade
+		// (up to 6 s) while it plays: on a loaded box the clip used to end under
+		// it and the end screen took the cluster away (c439). Every play starts
+		// it 10x slower, as tv-player's do.
+		await page.addInitScript(() => {
+			const play = HTMLMediaElement.prototype.play;
+			HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+				this.playbackRate = 0.1;
+				return play.call(this);
+			};
+		});
 		await page.goto('/');
 		await page.getByRole('link', { name: /^ANIME/ }).click();
 		await page.locator('.grid .tile', { hasText: 'Tsukiakari no Ryokōsha' }).click();
@@ -366,16 +377,24 @@ test.describe('the player, tablet landscape (c156)', () => {
 		await page.mouse.click(mid.x, mid.y);
 		await expect(pp).toHaveAttribute('aria-label', 'Pause');
 
-		// Two clicks on the right third seek 10 s, and don't pause it.
-		const right = { x: box.x + box.width * 0.85, y: mid.y };
-		await page.mouse.dblclick(right.x, right.y);
-		await expect(player.locator('.flash .by')).toHaveText('+10 S');
-		await expect(pp).toHaveAttribute('aria-label', 'Pause');
-
 		// The cluster is solid, never drawn half-faded over the picture: the bars
-		// fade, it does not.
+		// fade, it does not. Read before any seek: +10 s on the 8 s clip reaches
+		// its end, and the end screen replaces the cluster (c439).
 		await expect(player.locator('.cluster')).toHaveCSS('transition-duration', '0s');
 		await expect(player.locator('.top')).not.toHaveCSS('transition-duration', '0s');
+
+		// Two clicks on the left third seek back 10 s, and don't pause it.
+		const left = { x: box.x + box.width * 0.15, y: mid.y };
+		await page.mouse.dblclick(left.x, left.y);
+		await expect(player.locator('.flash .by')).toHaveText('−10 S');
+		await expect(pp).toHaveAttribute('aria-label', 'Pause');
+
+		// Two on the right third seek 10 s ahead, which on this clip is its end:
+		// the episode ends, and the end screen says so. (The flash is drawn only
+		// while playing, so it can't be the witness here.)
+		const right = { x: box.x + box.width * 0.85, y: mid.y };
+		await page.mouse.dblclick(right.x, right.y);
+		await expect(player.getByText(/^END · EP\. 9/)).toBeVisible();
 	});
 });
 
