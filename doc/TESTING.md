@@ -261,8 +261,12 @@ workstation during gates. What it assumes, and the rules that follow (c439):
   `/api/reading`'s `finish`), a mark the app draws when it is done (a
   setting's row is `.saved` once its action answered, which `browse-flow`
   waits for), or the thing that changed (`text-reader-flow`'s turn waits for
-  the flow's transform to move). `waitForTimeout` is for asserting that
-  nothing happens in a while, and nothing else.
+  the flow's transform or the chapter's heading to move). A witness must be
+  something the action changes, and only it: the reader rewrites `?at=` in
+  the URL 800 ms after the previous turn, so a URL read as "this turn
+  happened" moved with no click at all (measured in round 2 of wave 19).
+  `waitForTimeout` is for asserting that nothing happens in a while, and
+  nothing else.
 - **Don't wait for the answer you expect before acting** (wave 18): wait on
   the app's state, then act as the user would, then assert.
 - **Timeouts are raised only where the step is measured to be slow** under
@@ -278,12 +282,30 @@ workstation during gates. What it assumes, and the rules that follow (c439):
   5.5, the same failures otherwise) and not taken: it would mean projects
   split around two files for a sixth of the time. The specs that stub
   requests the worker would answer block it themselves
-  (`serviceWorkers: 'block'`, as `browse-player-*` and `tv-player` do).
+  (`serviceWorkers: 'block'`, as `browse-player-*`, `tv-player` and
+  `text-reader-flow` do): once the worker controls the page, `page.route`
+  never sees a request the worker sends. The worker answers the app shell,
+  page images (`/api/entries/<id>/pages/<n>`), a novel's whole EPUB
+  (`/api/series/<id>/epub`), an episode's file, subtitles and videos, a
+  chapter's `pages` and `text`, `/read/<id>`, every navigation and every
+  `__data.json` (`src/service-worker.ts`); every other `/api/` request goes
+  straight to the network, where `page.route` sees it. A stub on one of the
+  worker's paths with the worker allowed is a race the worker wins once it
+  has installed: `text-reader-flow`'s Japanese book was set from the seed's
+  English EPUB, which the worker fetched past the stub, 1 run in 34
+  (wave 19, from the run's trace).
 - **A flow's writes are a reader's race**: see "Each flow file owns its
   series" and "The readers beside the flows" above.
 - **`duplicates` and `gate` depend on every device project**, so any red in
-  those (the base failures included) leaves them, about 40 tests, "did not
-  run". A gate that reports "did not run" has not run them.
+  those leaves them, about 40 tests, "did not run". With the known base
+  failures (`library`'s c311: `library-frame` and the two in `library-flow`
+  and `reader-flow`) red on every run, **a gate never runs `duplicates` and
+  `gate` at all**: no whole run in wave 19 before round 2 executed
+  `duplicates-flow` or `unlock-gate` once. A gate that reports "did not run"
+  has not run them. Until the base failures are fixed, run the whole suite
+  with them excluded by title (`--grep-invert`, the list in this slot's
+  wave-19 notes) so the dependants run in their place in the order, or at
+  least `npx playwright test --project=duplicates --project=gate --no-deps`.
 
 **One folder per run.** `tests/helpers/run-dir.ts`, imported first by the
 config, makes `<TMPDIR>/tsundoku-e2e-run-<runner pid>` and points `TMPDIR` at
