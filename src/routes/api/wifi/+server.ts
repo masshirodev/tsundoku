@@ -1,6 +1,6 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { setWifi, wifiView } from '$lib/server/wifi';
+import { setWifi, wifiStatus, wifiView } from '$lib/server/wifi';
 
 /**
  * WI-FI (doc/WIFI.md): the panel's view, polled while it's open so the code
@@ -8,6 +8,10 @@ import { setWifi, wifiView } from '$lib/server/wifi';
  * CODE (POST). Only on the computer itself: a phone over Wi-Fi sees the row,
  * never switches it (3E), and a code is no use on the screen that scans it.
  * The TV's six digits (c236) travel with it, and NEW CODE replaces both.
+ *
+ * The poll reads the codes as they are and never makes one (c460): a burned
+ * TV code stays burned until NEW CODE or the page is opened again, so five
+ * wrong guesses on `/pair/tv` don't buy five more every 5 s.
  */
 export const GET: RequestHandler = ({ locals }) => {
 	const view = wifiView();
@@ -16,7 +20,7 @@ export const GET: RequestHandler = ({ locals }) => {
 };
 
 export const POST: RequestHandler = async ({ request, locals }) => {
-	if (!wifiView()) error(404, 'no Wi-Fi here');
+	if (!wifiStatus()) error(404, 'no Wi-Fi here');
 	if (locals.via === 'lan') error(403, 'set on the computer only');
 	const { action } = (await request.json().catch(() => ({}))) as { action?: string };
 	if (action === 'on' || action === 'off') {

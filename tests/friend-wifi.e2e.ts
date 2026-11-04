@@ -60,6 +60,68 @@ test('ON shows a code, the address in text, and what typing it does', async ({ p
 	await expect(page.getByText(/WITH NO PASSWORD SET, ONLY A CODE SIGNS IN/)).toBeVisible();
 });
 
+/**
+ * A TV's six digits burned by five wrong tries while the panel is open (c460).
+ * The panel polls `/api/wifi` every 5 s, and that poll once replaced a burned
+ * code, so anyone on the Wi-Fi got five more guesses every 5 s. The poll now
+ * reads the code as it is: BURNED, and the same code on the server two polls
+ * later, until NEW CODE.
+ */
+test('a TV code burned on /pair/tv stays BURNED on the open panel until NEW CODE (c460)', async ({
+	page,
+	playwright,
+	request
+}) => {
+	// Two polls after the burn shows, at 5 s each, on top of the page's load.
+	test.setTimeout(60_000);
+	const onComputer = async () =>
+		(await (await request.get(`${local}/api/pair/tv`)).json()) as { code: string; state: string };
+	await page.goto('/settings#s-devices');
+	await expect(page.getByLabel('Pairing code for a TV')).toBeVisible();
+	const { code, state } = await onComputer();
+	expect(state).toBe('live');
+
+	// A TV on the Wi-Fi, not this browser: the form 9C posts, five wrong codes.
+	const { phone } = await wifi(request);
+	const tv = await playwright.request.newContext({ baseURL: phone! });
+	try {
+		const wrong = code === '000000' ? '111111' : '000000';
+		for (let i = 0; i < 5; i += 1) {
+			const r = await tv.post('/pair/tv', {
+				form: { code: wrong },
+				headers: { origin: phone!, accept: 'text/html' },
+				maxRedirects: 0
+			});
+			expect(r.status()).toBe(303);
+		}
+	} finally {
+		await tv.dispose();
+	}
+	expect(await onComputer()).toEqual(expect.objectContaining({ code, state: 'burned' }));
+
+	// The panel's own poll notices, and draws the burn rather than a new code.
+	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('BURNED', { timeout: 15_000 });
+	await expect(page.getByText('NO TRIES LEFT · MAKE A NEW CODE')).toBeVisible();
+	await expect(page.getByLabel('Pairing code for a TV')).toHaveCount(0);
+
+	// Two more polls, 10 s: each answered, and the server still holds the same
+	// burned code. Read from the server, not from the page.
+	for (let i = 0; i < 2; i += 1)
+		await page.waitForResponse((r) => new URL(r.url()).pathname === '/api/wifi', {
+			timeout: 15_000
+		});
+	expect(await onComputer()).toEqual(expect.objectContaining({ code, state: 'burned' }));
+	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('BURNED');
+
+	// NEW CODE is what brings live digits back, and they are new ones.
+	await page.locator('.pair-foot').getByRole('button', { name: 'NEW CODE' }).click();
+	await expect(page.getByLabel('Pairing code for a TV')).toBeVisible();
+	const next = await onComputer();
+	expect(next.state).toBe('live');
+	expect(next.code).not.toBe(code);
+	await expect(page.getByText('NO TRIES LEFT · MAKE A NEW CODE')).toHaveCount(0);
+});
+
 test('the phone scans it, is signed in, and the computer lists it with SIGN OUT', async ({
 	page,
 	browser,

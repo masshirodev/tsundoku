@@ -77,11 +77,10 @@ export type WifiView = {
 	} | null;
 	/**
 	 * The TV's six digits, beside the phone's code (c236): typed with a remote.
-	 * Only live or used: a spent code is replaced before the view is built
-	 * (`shownState`), and the panel polls this view every 5 s, so on a friend's
-	 * install a burned code is replaced within a tick. That is the burn bypass
-	 * the DEVICES row no longer has (c265 round 2); the panel's is a follow-up
-	 * (doc/handoff-notes/tv-app.md, Gaps).
+	 * In every state a code can be in, burned and expired included: the panel
+	 * polls this view every 5 s, and only the page's load and NEW CODE may
+	 * replace a spent code (`wifiView`'s `renew` and `fresh`), so five wrong
+	 * tries on `/pair/tv` stay burned while the panel is open (c460).
 	 */
 	tv: {
 		code: string;
@@ -93,10 +92,11 @@ export type WifiView = {
 
 /**
  * Whether a code is past showing: expired, burned, or used longer ago than the
- * 2 minutes the ✓ USED stays up. In either case a fresh one is made when
- * SETTINGS is opened (and, for the WI-FI panel, when its poll asks). The TV's
- * own page makes one only when there is none at all (`ensureCode`), and the
- * DEVICES row's refresh never makes one (`tvCodeNow`).
+ * 2 minutes the ✓ USED stays up. Then a fresh one is made when SETTINGS is
+ * opened on the computer (`wifiView({ renew })`, `tvPanel`), and nowhere else:
+ * neither the WI-FI panel's poll (`GET /api/wifi`, c460) nor the DEVICES row's
+ * refresh (`tvCodeNow`, c265) makes one, and the TV's own page makes one only
+ * when there is none at all (`ensureCode`).
  */
 const CODES: ('none' | 'live' | 'used' | 'expired' | 'burned')[] = ['none', 'expired', 'burned'];
 
@@ -108,16 +108,29 @@ const spent = (state: string, used: { at: number } | null | undefined, now: numb
 	(state === 'used' && !!used && now - used.at > USED_SHOWN_MS);
 
 /**
- * The two states the WI-FI panel's TV code can be in once `spent` has replaced
- * the rest: expired, burned and an old used code are made fresh before
- * `wifiView` is built, so the panel has no BURNED to draw. The DEVICES row is
- * not narrowed this way (`TvPanel`): its refresh reads the code as it is.
+ * Every state the WI-FI panel's TV code can be in: the view reads the code as
+ * it is, as the DEVICES row's refresh does (`tvCodeNow`), so a code five wrong
+ * tries burned is drawn BURNED until the owner makes another (c460). Until
+ * c460 this was `'live' | 'used'`, because the view replaced the rest first.
  */
-export type ShownTvState = 'live' | 'used';
-const shownState = (state: string): ShownTvState | null =>
-	state === 'live' || state === 'used' ? state : null;
+export type ShownTvState = Exclude<TvState, 'none'>;
 
-export function wifiView(o: { fresh?: boolean; now?: number } = {}): WifiView | null {
+/**
+ * The WI-FI panel's view (`GET /api/wifi`, the page's load, ON, OFF, NEW CODE).
+ *
+ * Read only unless asked. Which doors may make a code (c460):
+ * - `renew`: replace a spent code (`spent`), keeping a live one and a just-used
+ *   one. Only SETTINGS' load on the computer passes it: opening the page shows
+ *   a code that works.
+ * - `fresh`: replace both codes whatever they are. ON and NEW CODE only.
+ * - neither: the codes as they are, burned and expired included. The panel's
+ *   5 s poll, OFF, and every door check. A poll that replaced a burned TV code
+ *   gave anyone on the Wi-Fi five more guesses every 5 s while the panel was
+ *   open; a door check that did would make one on every request it guarded.
+ */
+export function wifiView(
+	o: { renew?: boolean; fresh?: boolean; now?: number } = {}
+): WifiView | null {
 	const s = wifiStatus();
 	if (!s) return null;
 	const now = o.now ?? Date.now();
@@ -126,16 +139,16 @@ export function wifiView(o: { fresh?: boolean; now?: number } = {}): WifiView | 
 	// still live (kept, counting down) or was used just now (USED stays up,
 	// with NEW CODE, until pressed). A reload of the page's data when a phone
 	// pairs mustn't replace the code it just used.
-	if (phone && (spent(pairing.state(now), pairing.current()?.used, now) || o.fresh))
-		pairing.fresh(now);
+	const renew = (state: string, used: { at: number } | null | undefined) =>
+		!!phone && (o.fresh || (o.renew && spent(state, used, now)));
+	if (renew(pairing.state(now), pairing.current()?.used)) pairing.fresh(now);
 	// The TV's code follows the same rule (c236): one beside the phone's, and NEW
 	// CODE replaces both, so the two countdowns can diverge only by a reopen.
-	if (phone && (spent(tvPairing.state(now), tvPairing.current()?.used, now) || o.fresh))
-		tvPairing.fresh(now);
+	if (renew(tvPairing.state(now), tvPairing.current()?.used)) tvPairing.fresh(now);
 	const c = pairing.current();
 	const state = pairing.state(now);
 	const tvc = tvPairing.current();
-	const tvState = shownState(tvPairing.state(now));
+	const tvState = tvPairing.state(now);
 	// The band stays while a phone is still paired at the old address.
 	const stale = s.changed
 		? [...pairedDevices().values()].some((p) => p.address === s.changed!.from + portOf(phone))
@@ -160,7 +173,7 @@ export function wifiView(o: { fresh?: boolean; now?: number } = {}): WifiView | 
 					}
 				: null,
 		tv:
-			phone && tvc && tvState
+			phone && tvc && tvState !== 'none'
 				? {
 						code: tvc.code,
 						state: tvState,
@@ -240,7 +253,9 @@ export function tvPanel(o: { fresh?: boolean; now?: number } = {}): TvPanel | nu
  */
 export function tvBlockHere(locals: { via: 'local' | 'lan'; paired: Paired | null }): boolean {
 	return tvBlockFor({
-		hasWifi: !!wifiView(),
+		// Whether there is a panel at all, asked of the listeners: `wifiView()`
+		// here once made a code on every request the door guarded (c460).
+		hasWifi: wifiStatus() !== null,
 		viaLan: locals.via === 'lan',
 		paired: !!locals.paired,
 		friend: friendLogin(),
