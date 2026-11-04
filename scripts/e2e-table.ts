@@ -41,8 +41,11 @@ export function projectsByFile(): Map<string, Set<string>> {
 		encoding: 'utf8',
 		maxBuffer: 64 * 1024 * 1024,
 		stdio: ['ignore', 'pipe', 'pipe'],
-		// Listing starts no server; a gate's ports are irrelevant here.
-		env: { ...process.env, PLAYWRIGHT_NO_SERVER: '1' }
+		// Listing starts no server; a gate's ports are irrelevant here. The table
+		// describes the files the config collects, not one run's skips, so a
+		// PLAYWRIGHT_SKIP exported for the gate (doc/TESTING.md, "Load") must not
+		// become every project's grepInvert here: empty is falsy, so none is set.
+		env: { ...process.env, PLAYWRIGHT_NO_SERVER: '1', PLAYWRIGHT_SKIP: '' }
 	});
 	const json = JSON.parse(out.slice(out.indexOf('{'))) as { suites: Suite[] };
 	const files = new Map<string, Set<string>>();

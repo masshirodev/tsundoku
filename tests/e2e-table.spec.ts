@@ -81,6 +81,22 @@ describe('the e2e table', () => {
 		]);
 	});
 
+	it('lists every file the config collects, whatever one run skips', { timeout: 120_000 }, () => {
+		// doc/TESTING.md's "Load" tells a gate to export this expression; every
+		// library-frame test matches it, and the table must keep that file anyway.
+		const before = process.env.PLAYWRIGHT_SKIP;
+		process.env.PLAYWRIGHT_SKIP =
+			'screen: (continueList|continueRow|grid|tile) matches the handoff|START SCAN with nothing to import|the end of the series asks for a rating while unrated|a spread is the default on a TV, not one page';
+		try {
+			expect([...(projectsByFile().get('library-frame.e2e.ts') ?? [])]).toContain(
+				'tablet-portrait'
+			);
+		} finally {
+			if (before === undefined) delete process.env.PLAYWRIGHT_SKIP;
+			else process.env.PLAYWRIGHT_SKIP = before;
+		}
+	});
+
 	it('lists every spec file, on the projects the config gives it', { timeout: 120_000 }, () => {
 		const wrong = problems(readFileSync('doc/TESTING.md', 'utf8'), projectsByFile());
 		expect(wrong, 'run `yarn run e2e:table`').toEqual([]);
