@@ -1,19 +1,27 @@
-import { chmodSync, existsSync, mkdtempSync, readdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';
 const work = mkdtempSync(join(tmpdir(), 'tsundoku-ocr-'));
 process.env.OCR_SCRATCH = join(work, 'scratch');
+// The folder is this file's alone, wherever TMPDIR puts it, and it goes with the file.
+afterAll(() => rmSync(work, { recursive: true, force: true }));
 
 /**
  * A stand-in for mokuro: for each chapter folder under --parent_dir it writes
  * `<folder>.mokuro` with one block per page, as mokuro 0.2 does. With FAIL
  * set it fails, as a crashed run would.
+ *
+ * It is CommonJS, so it is named `.cjs` (c321): a file with no extension takes
+ * its module type from the nearest package.json, and when TMPDIR is inside the
+ * worktree (the waves keep it at `temp/`) that is the repo's `"type": "module"`,
+ * where `require` is undefined. The fake then crashed on every batch, and three
+ * cases failed as if the OCR run were wrong.
  */
-const fake = join(work, 'mokuro');
+const fake = join(work, 'mokuro.cjs');
 writeFileSync(
 	fake,
 	`#!/usr/bin/env node
