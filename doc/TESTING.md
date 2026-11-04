@@ -435,10 +435,12 @@ x, y)` in `tests/helpers/touch.ts` sends the four touch events together, so
 
   Leaving the base failures out by title does not get the dependants run
   under load. Measured at wave 20's base (`d5c4bf6f`, its loaded runs in
-  `doc/handoff-notes/e2e.md`), the filed reds are two: `library-layout:156`
+  `doc/handoff-notes/e2e.md`), the filed reds were two: `library-layout:156`
   on the desktop (c433 pinned the bar it expects to scroll away;
-  deterministic, filed) and `tv-reader:24` (nobody's; it fails about 2 of 3
-  runs even alone, filed). But two more were red in **every** loaded
+  deterministic) and `tv-reader:24` (nobody's; it fails about 2 of 3 runs
+  even alone, filed). The first is fixed since `ccf4689` (c489, 2026-11-04):
+  the spec now expects the bar on top on every device, so `tv-reader:24` is
+  the one filed red left. But two more were red in **every** loaded
   wave-20 run, so the dependants ran in none of the six: `install.e2e.ts:6`
   (the service worker's 30 s, in one to four device projects a run, at loads
   past about 39) and `work-end-frame.e2e.ts:297` (its `beforeAll`'s 30 s,
@@ -446,17 +448,18 @@ x, y)` in `tests/helpers/touch.ts` sends the four touch events together, so
   expression, because both pass alone and a title left out is a test
   nobody checks; their likely causes and budgets are under Gaps in
   `doc/handoff-notes/e2e.md` (wave 20). The expression leaves out only the
-  two filed reds. Wave 18's base reds that it used to name
+  filed red. Wave 18's base reds that it used to name
   (`library-frame`'s four, START SCAN and the rating at the end of a series)
   all pass since wave 19 and are out of it:
 
   ```sh
-  PLAYWRIGHT_SKIP='the bar with the name, search and SELECT stays on top as the grid scrolls, except on a desktop|a spread is the default on a TV, not one page' \
+  PLAYWRIGHT_SKIP='a spread is the default on a TV, not one page' \
     npx playwright test
   ```
 
-  `library-layout:156` passes on the tablets, the phone and the TV, and a
-  title is left out of every project, so those four go unrun too; the
+  A title is left out of every project, so wherever the same test passes
+  it goes unrun too (`library-layout:156`, while it was in here, left the
+  tablets, the phone and the TV unrun with it); the
   reporter does not count a test left out this way, so name the expression
   beside the run's result. Take each alternative out once its test is fixed.
   `PLAYWRIGHT_SKIP` is safe to leave exported for the unit run and for
