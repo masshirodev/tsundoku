@@ -104,12 +104,15 @@ test('unrated (0) draws no track at all; a rated series draws its whole track', 
 			.locator('.grid .tile', { hasText: title })
 			.locator('.bars .bar')
 			.evaluateAll((els) => els.map((e) => getComputedStyle(e).backgroundColor));
-	// Series no flow file rates, hides or groups: flows run beside this spec on
-	// the same database. Villainess Level 99 was read here until c252, and
-	// volumes-flow groups it away mid-run; privacy-flow only logs Yofukashi's
-	// reading, and Boku no Kokoro is read by the TV's series specs alone.
+	// Series no other spec rates, hides or groups: they run beside this one on
+	// the same database (doc/TESTING.md, "The readers beside the flows").
+	// Villainess Level 99 was read here until c252, and volumes-flow groups it
+	// away mid-run; Boku no Kokoro after it, until tv-series' RATING case was
+	// seen moving it a half-bar down and back, and a half bar is a gradient
+	// whose colour reads as none. privacy-flow only logs Yofukashi's reading
+	// and links-flow undoes its link; Mushoku Tensei's history is history-flow's.
 	const unrated = await bars('Yofukashi no Uta');
-	const rated = await bars('Boku no Kokoro no Yabai Yatsu');
+	const rated = await bars('Mushoku Tensei');
 	expect(unrated).toHaveLength(5);
 	for (const c of unrated) expect(c).toBe('rgba(0, 0, 0, 0)');
 	// Rated 8: four filled bars and one empty, all of them drawn.

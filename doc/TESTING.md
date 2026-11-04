@@ -227,16 +227,16 @@ writes). The `tv` project and the device projects run at the same time as
 the flows, so a series one of them reads is safe only if no flow removes its
 tile or changes what is read:
 
-| Reader                            | Reads                                     | Written by                                                          | Safe because                                                                                                                       |
-| --------------------------------- | ----------------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `library-layout` (devices, tv)    | Yofukashi no Uta's rating bars            | `privacy-flow`: reading only; `links-flow`: its link, undone        | Nothing rates or hides it. Read Villainess Level 99 until c252, which `volumes-flow` groups away mid-run.                          |
-| `library-layout`                  | Boku no Kokoro's rating bars              | nobody                                                              | Also read by `tv-series`, `tv-series-frame`, never written. Read Lookism until c252 (`series-flow` tags it).                       |
-| `library-layout`                  | Sousou no Frieren's FAV and +1            | nobody on this database                                             | `reader-layout` and `tv-reader` open its reader in incognito, which logs nothing; the +1 counts entries since one was last opened. |
-| `series-layout` (devices, tv)     | Tower of God's frame                      | `series-flow`: opens its reader from the cover, `#` reads           | Its tile stays; the frame doesn't depend on progress.                                                                              |
-| `series-layout`                   | Hoshi no Umi's frame                      | `library-flow` (rating, undone), `focus` (reading, tablet-portrait) | Only the frame is measured.                                                                                                        |
-| `series-layout`, `tv-text-reader` | Mushoku Tensei                            | `history-flow`: removes one history row and undoes it               | Neither reads history.                                                                                                             |
-| `tv-keys`                         | Isekai Yakkyoku: marks read through, UNDO | `library-flow` (rating, undone)                                     | Different fields, each put back. A writer in `tv`: name it here.                                                                   |
-| `tv-series`, `tv-series-frame`    | Boku no Kokoro no Yabai Yatsu             | nobody                                                              |                                                                                                                                    |
+| Reader                            | Reads                                     | Written by                                                          | Safe because                                                                                                                                                                                    |
+| --------------------------------- | ----------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `library-layout` (devices, tv)    | Yofukashi no Uta's rating bars            | `privacy-flow`: reading only; `links-flow`: its link, undone        | Nothing rates or hides it. Read Villainess Level 99 until c252, which `volumes-flow` groups away mid-run.                                                                                       |
+| `library-layout`                  | Mushoku Tensei's rating bars              | `history-flow`: one history row, undone                             | Nothing rates it. Read Lookism until c252 (`series-flow` tags it), then Boku no Kokoro, which `tv-series` moves a half-bar down and back: a half bar is a gradient, whose colour reads as none. |
+| `library-layout`                  | Sousou no Frieren's FAV and +1            | nobody on this database                                             | `reader-layout` and `tv-reader` open its reader in incognito, which logs nothing; the +1 counts entries since one was last opened.                                                              |
+| `series-layout` (devices, tv)     | Tower of God's frame                      | `series-flow`: opens its reader from the cover, `#` reads           | Its tile stays; the frame doesn't depend on progress.                                                                                                                                           |
+| `series-layout`                   | Hoshi no Umi's frame                      | `library-flow` (rating, undone), `focus` (reading, tablet-portrait) | Only the frame is measured.                                                                                                                                                                     |
+| `series-layout`, `tv-text-reader` | Mushoku Tensei                            | `history-flow`: removes one history row and undoes it               | Neither reads history. `tv-text-reader` only focuses a cell on its end page.                                                                                                                    |
+| `tv-keys`                         | Isekai Yakkyoku: marks read through, UNDO | `library-flow` (rating, undone)                                     | Different fields, each put back. A writer in `tv`: name it here.                                                                                                                                |
+| `tv-series`, `tv-series-frame`    | Boku no Kokoro no Yabai Yatsu             | `tv-series`' RATING case: a half-bar down and back                  | The writer is one of its readers; `tv-series-frame` reads the panel's layout, not the value.                                                                                                    |
 
 `tv-series.e2e.ts` and `tv-series-frame.e2e.ts` say `series-flow` hides
 Tower of God; it hides Ame no Hi no Toshokan. Their move off Tower of God is
@@ -251,8 +251,8 @@ workstation during gates. What it assumes, and the rules that follow (c439):
 - **Workers are half the logical cores, fixed** (`workers: '50%'` in
   `playwright.config.ts`, 6 here), not capped by load. Measured on
   2026-11-03, the box loaded by the other slots plus six `node` CPU burners:
-  six workers took 14.7 minutes at a load average of 13 to 45, three took
-  17.7 at 29 to 33, and three workers failed no fewer tests. Load stretches
+  six workers took 14.7 minutes at a load average of 13 to 56, three took
+  17.7 at 20 to 41, and three workers failed no fewer tests. Load stretches
   every step, so a fixed wait that held at rest stops holding; fewer workers
   stretch the run instead and leave the wait as wrong as it was.
 - **Wait on the page's own state, never on time.** Hydration
