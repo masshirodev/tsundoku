@@ -1,7 +1,13 @@
 import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
 import { visibleWhere } from '../visibility.ts';
-import { importRow, type ImportOutcome, type ImportRow, type ImportState } from './backup.ts';
+import {
+	closeDeadImports,
+	importRow,
+	type ImportOutcome,
+	type ImportRow,
+	type ImportState
+} from './backup.ts';
 
 /**
  * The IMPORT LOG (c438, doc/IMPORT.md, "The log"): every import of a backup
@@ -120,6 +126,7 @@ export function backupEntry(row: ImportRow, reveal: boolean): LogEntry & { kind:
  * A preview nobody imported is not an import and is not listed.
  */
 export function importLog(reveal: boolean, db: Database.Database = getDb()): LogEntry[] {
+	closeDeadImports(db);
 	const imports = (
 		db.prepare(`SELECT id FROM imports WHERE state != 'read' ORDER BY id DESC`).all() as {
 			id: number;
@@ -179,6 +186,7 @@ export function lastImport(reveal: boolean, db: Database.Database = getDb()) {
 
 /** The import running or waiting, if one is: the sidebar's IMPORT LOG row counts it. */
 export function liveImport(db: Database.Database = getDb()): ImportRow | null {
+	closeDeadImports(db);
 	const r = db
 		.prepare(`SELECT id FROM imports WHERE state IN ('running', 'waiting') ORDER BY id LIMIT 1`)
 		.get() as { id: number } | undefined;

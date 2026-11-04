@@ -13,6 +13,7 @@ import {
 } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import { getDb } from '../db.ts';
+import { visibleWhere } from '../visibility.ts';
 import { join } from '../fspath.ts';
 import { importArea } from '../data-dirs.ts';
 import { libraryRoot, runQueued, type Source } from './index.ts';
@@ -116,9 +117,43 @@ function rowOf(r: Record<string, unknown>): ImportRow {
 	};
 }
 
+/**
+ * The imports this process has queued or is running. Only its promise moves a
+ * row on from `running` or `waiting`, and the queue a `waiting` row waits in
+ * is in memory: a row in either state that is not here was left by a process
+ * that died (a restart, a crash), and nothing will ever finish it.
+ */
+const live = new Set<number>();
+
+/**
+ * Close the imports a dead process left `running` or `waiting`: `failed`, so
+ * the result page says STOPPED with what it wrote (the series it wrote stay,
+ * as a stopped scan's do). Run where rows are read, never from `run()`'s
+ * closeDeadJobs, where a second import is legitimately waiting while the
+ * first one's job opens.
+ */
+export function closeDeadImports(db: Database.Database = getDb(), now = Date.now()): void {
+	const rows = db.prepare(`SELECT id FROM imports WHERE state IN ('running', 'waiting')`).all() as {
+		id: number;
+	}[];
+	for (const r of rows) if (!live.has(r.id)) closeDead(db, r.id, now);
+}
+
+function closeDead(db: Database.Database, id: number, now: number): void {
+	db.prepare(
+		`UPDATE imports SET state = 'failed', finished_at = COALESCE(finished_at, ?)
+		WHERE id = ? AND state IN ('running', 'waiting')`
+	).run(now, id);
+}
+
 export function importRow(id: number, db: Database.Database = getDb()): ImportRow | null {
-	const r = db.prepare(`SELECT * FROM imports WHERE id = ?`).get(id) as
-		Record<string, unknown> | undefined;
+	const read = () =>
+		db.prepare(`SELECT * FROM imports WHERE id = ?`).get(id) as Record<string, unknown> | undefined;
+	let r = read();
+	if (r && (r.state === 'running' || r.state === 'waiting') && !live.has(id)) {
+		closeDead(db, id, Date.now());
+		r = read();
+	}
 	return r ? rowOf(r) : null;
 }
 
@@ -148,7 +183,15 @@ export function madeAtOf(name: string): number | null {
 	return Number.isFinite(t) ? t : null;
 }
 
-export function readBackupFile(bytes: Uint8Array, name: string): Reading {
+/**
+ * The most a file may inflate to. The upload is foreign input: a gzip of
+ * zeros under MAX_BACKUP_BYTES would otherwise inflate to many gigabytes in
+ * the server's memory, on every preview. A real backup's protobuf packs
+ * about five to one; ten times the upload limit leaves room for any library.
+ */
+export const MAX_RAW_BYTES = 10 * MAX_BACKUP_BYTES;
+
+export function readBackupFile(bytes: Uint8Array, name: string, maxRaw = MAX_RAW_BYTES): Reading {
 	const upper = name.toUpperCase();
 	const notOne = (why: string, app: BackupApp | '' = ''): Reading => ({
 		ok: false,
@@ -163,8 +206,13 @@ export function readBackupFile(bytes: Uint8Array, name: string): Reading {
 		return notOne('NOT A MIHON BACKUP: A .tachibk IS GZIPPED, THIS ISN’T');
 	let raw: Uint8Array;
 	try {
-		raw = gunzipSync(bytes);
-	} catch {
+		raw = gunzipSync(bytes, { maxOutputLength: maxRaw });
+	} catch (e) {
+		if ((e as { code?: string }).code === 'ERR_BUFFER_TOO_LARGE')
+			return notOne(
+				`IT UNPACKS TO MORE THAN THE ${maxRaw / 1024 / 1024} MB A BACKUP MAY HOLD`,
+				'mihon'
+			);
 		return notOne('A .tachibk THAT ISN’T WHOLE (CUT OFF IN THE COPY)', 'mihon');
 	}
 	let read: ReturnType<typeof readBackupLenient>;
@@ -343,18 +391,24 @@ function readStored(row: ImportRow): Reading {
 	return readBackupFile(readFileSync(row.stored), row.fileName);
 }
 
-/** The library's side of a preview: what is here, the shelves, the sources. */
+/**
+ * The library's side of a preview: what is here, the shelves, the sources.
+ * What is here, and what an earlier import brought, follow reveal: with it
+ * off, a hidden series is neither ALREADY HERE nor GONE, so nothing on the
+ * preview says one exists (round 2).
+ */
 export function libraryFacts(
 	app: BackupApp,
 	exceptImport: number,
-	db: Database.Database = getDb()
+	db: Database.Database = getDb(),
+	reveal = true
 ): LibraryFacts {
 	const here = new Map<string, Set<string>>();
 	const rows = db
 		.prepare(
-			`SELECT s.origin_key AS k, e.source_url AS u FROM series s
+			`SELECT s.origin_key AS k, e.source_url AS u FROM series s JOIN roots r ON r.id = s.root_id
 			LEFT JOIN entries e ON e.series_id = s.id AND e.read_at IS NOT NULL
-			WHERE s.origin_key LIKE 'mihon:%'`
+			WHERE s.origin_key LIKE 'mihon:%' AND ${visibleWhere(reveal)}`
 		)
 		.all() as { k: string; u: string | null }[];
 	for (const r of rows) {
@@ -401,7 +455,8 @@ export function libraryFacts(
 				db
 					.prepare(
 						`SELECT s.origin_key AS k FROM import_series i JOIN series s ON s.id = i.series_id
-						WHERE i.import_id = ?`
+						JOIN roots r ON r.id = s.root_id
+						WHERE i.import_id = ? AND ${visibleWhere(reveal)}`
 					)
 					.all(i.id) as { k: string }[]
 			).map((r) => r.k)
@@ -414,7 +469,7 @@ export type Previewed =
 	| { ok: true; row: ImportRow; preview: BackupPreview }
 	| { ok: false; row: ImportRow; reason: string };
 
-export function previewImport(id: number, now = Date.now()): Previewed | null {
+export function previewImport(id: number, reveal: boolean, now = Date.now()): Previewed | null {
 	const row = importRow(id);
 	if (!row) return null;
 	if (row.state === 'refused') return { ok: false, row, reason: row.refusal };
@@ -424,7 +479,12 @@ export function previewImport(id: number, now = Date.now()): Previewed | null {
 	return {
 		ok: true,
 		row,
-		preview: previewBackup(r.backup, plan, libraryFacts('mihon', row.id), r.damaged)
+		preview: previewBackup(
+			r.backup,
+			plan,
+			libraryFacts('mihon', row.id, getDb(), reveal),
+			r.damaged
+		)
 	};
 }
 
@@ -447,6 +507,8 @@ export function startBackupImport(
 	const leaveOut = new Set(opts.leaveOut ?? []);
 	const backup = reading.backup;
 	const set = (sql: string, ...args: unknown[]) => db.prepare(sql).run(...args, id);
+	// Live from here until its promise settles; a row read meanwhile stays as written.
+	live.add(id);
 	set(
 		`UPDATE imports SET state = 'running', started_at = ?, outcome = ? WHERE id = ?`,
 		Date.now(),
@@ -516,8 +578,10 @@ export function startBackupImport(
 				Date.now(),
 				JSON.stringify(outcome())
 			);
+			live.delete(id);
 		})
 		.catch((e: unknown) => {
+			live.delete(id);
 			console.error('[import] the backup failed:', e);
 			set(
 				`UPDATE imports SET state = 'failed', finished_at = ?, outcome = ? WHERE id = ?`,
@@ -534,6 +598,7 @@ export function startBackupImport(
 export async function settled(timeoutMs = 10_000): Promise<void> {
 	const end = Date.now() + timeoutMs;
 	while (Date.now() < end) {
+		closeDeadImports();
 		const n = getDb()
 			.prepare(`SELECT COUNT(*) n FROM imports WHERE state IN ('waiting', 'running')`)
 			.get() as { n: number };

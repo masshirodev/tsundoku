@@ -30,7 +30,9 @@ const mihonBackup = await import('$lib/import/mihon-backup');
 const { encodeBackup } = mihonBackup;
 const { setRating, setFavourite, setInCollection, setHidden } = await import('$lib/server/library');
 const { setDirection } = await import('$lib/server/series');
-const { runImport, sourcesIn } = await import('$lib/server/import');
+const { BACKUP_LABEL } = await import('$lib/import/backup-preview');
+const { runImport, runQueued, sourcesIn, startScan, SCAN_WAITS } =
+	await import('$lib/server/import');
 
 const db = () => getDb();
 const NAME = 'app.mihon_2026-11-02_03-14.tachibk';
@@ -199,6 +201,19 @@ describe('a file that is not a backup it reads', () => {
 		expect((db().prepare(`SELECT COUNT(*) n FROM series`).get() as { n: number }).n).toBe(series0);
 	});
 
+	it('a small file that unpacks past the cap is refused with a sentence (round 2)', () => {
+		// 2 MB of zeros gzips to about 2 KB; with a 1 MB cap it never inflates whole.
+		const bomb = gz(new Uint8Array(2 * 1024 * 1024));
+		expect(bomb.length).toBeLessThan(10_000);
+		const r = b.readBackupFile(bomb, 'bomb.tachibk', 1024 * 1024);
+		expect(r).toMatchObject({ ok: false, app: 'mihon' });
+		expect(!r.ok && r.reason).toBe(
+			'BOMB.TACHIBK · IT UNPACKS TO MORE THAN THE 1 MB A BACKUP MAY HOLD · NOTHING CHANGED'
+		);
+		// The cap the upload reads with.
+		expect(b.MAX_RAW_BYTES).toBe(10 * b.MAX_BACKUP_BYTES);
+	});
+
 	it('a backup whose library is empty says there is nothing to bring in', () => {
 		const onlyBrowsed = encodeBackup({
 			manga: [
@@ -239,7 +254,7 @@ describe('the preview, and IMPORT', () => {
 	});
 
 	it('counts the file before anything is written', () => {
-		const p = b.previewImport(first)!;
+		const p = b.previewImport(first, true)!;
 		expect(p.ok).toBe(true);
 		if (!p.ok) return;
 		// The fixture's library: four series in it, one only browsed, one local.
@@ -272,7 +287,7 @@ describe('the preview, and IMPORT', () => {
 
 	it('a category named like an existing shelf adds to it', () => {
 		db().prepare(`INSERT INTO collections (name, position) VALUES ('To Read', 0)`).run();
-		const p = b.previewImport(first)!;
+		const p = b.previewImport(first, true)!;
 		expect(p.ok && p.preview.categories.find((c) => c.name === 'To Read')).toMatchObject({
 			effect: 'adds'
 		});
@@ -356,7 +371,7 @@ describe('a second backup of the same library', () => {
 		] as never);
 		const r = upload(gz(raw), 'app.mihon_2026-11-03_08-00.tachibk');
 		second = r.state === 'read' ? r.id : -1;
-		const p = b.previewImport(second)!;
+		const p = b.previewImport(second, true)!;
 		expect(p.ok).toBe(true);
 		if (!p.ok) return;
 		expect(p.preview.same).toMatchObject({ importId: firstId, fresh: 1, here: 4, gone: 0 });
@@ -425,8 +440,11 @@ describe('a second backup of the same library', () => {
 			manga: full.manga.filter((m) => !['Bunk Beds', 'Myst, Might, Mayhem'].includes(m.title))
 		});
 		const r = upload(gz(lean), 'app.mihon_2026-11-04_08-00.tachibk');
-		const p = b.previewImport(r.state === 'read' ? r.id : -1)!;
+		const p = b.previewImport(r.state === 'read' ? r.id : -1, true)!;
 		expect(p.ok && p.preview.same).toMatchObject({ importId: second, gone: 2, fresh: 0 });
+		// Bunk Beds is hidden: with reveal off it is neither here nor gone (round 2).
+		const off = b.previewImport(r.state === 'read' ? r.id : -1, false)!;
+		expect(off.ok && off.preview.same).toMatchObject({ importId: second, gone: 1, fresh: 0 });
 		expect(series('Bunk Beds') ?? series('My Title')).toBeDefined();
 	});
 
@@ -456,7 +474,7 @@ describe('a second backup of the same library', () => {
 			sources: new Map([['77', 'Elsewhere']])
 		});
 		const r = upload(gz(other), 'friend.tachibk');
-		const p = b.previewImport(r.state === 'read' ? r.id : -1)!;
+		const p = b.previewImport(r.state === 'read' ? r.id : -1, true)!;
 		expect(p.ok && p.preview.same).toBeNull();
 	});
 });
@@ -490,5 +508,141 @@ describe('one import or scan at a time', () => {
 		expect(entries.some((e) => e.kind === 'scan')).toBe(true);
 		const ats = entries.map((e) => e.at);
 		expect(ats).toEqual([...ats].sort((x, y) => y - x));
+	});
+});
+
+/**
+ * A backup's job whose plan is held open until `release()`: the queue
+ * runQueued keeps for IMPORT, with nothing in the file.
+ */
+function heldBackup() {
+	let release = () => {};
+	const gate = new Promise<void>((r) => (release = r));
+	const job = runQueued({
+		name: 'Mihon',
+		label: BACKUP_LABEL,
+		device: null,
+		root: join(home, 'held'),
+		hidden: false,
+		markMissing: false,
+		counts: 'series',
+		bytes: async () => 0,
+		plan: async () => {
+			await gate;
+			return { series: [], skipped: 0 };
+		}
+	});
+	return { job, release };
+}
+
+const jobs = () =>
+	db()
+		.prepare(`SELECT id, started_at, finished_at, source_label FROM scan_jobs ORDER BY id`)
+		.all() as {
+		id: number;
+		started_at: number;
+		finished_at: number | null;
+		source_label: string;
+	}[];
+
+describe('an import whose process died (round 2)', () => {
+	it('reads as stopped, and the log has nothing live', () => {
+		// Rows left `running` and `waiting` by a process that is gone: no queue here holds them.
+		const ids = ['app.mihon_2026-11-06_01-00.tachibk', 'app.mihon_2026-11-06_02-00.tachibk'].map(
+			(name) => {
+				const r = upload(gz(backup()), name);
+				return r.state === 'read' ? r.id : -1;
+			}
+		);
+		db()
+			.prepare(`UPDATE imports SET state = 'running', started_at = ? WHERE id = ?`)
+			.run(1, ids[0]);
+		db()
+			.prepare(`UPDATE imports SET state = 'waiting', started_at = ? WHERE id = ?`)
+			.run(1, ids[1]);
+		expect(log.liveImport()).toBeNull();
+		for (const id of ids) {
+			const row = b.importRow(id)!;
+			expect(row.state).toBe('failed');
+			expect(row.finishedAt).not.toBeNull();
+		}
+		const live = log
+			.importLog(true)
+			.filter((e) => (e.kind === 'scan' ? e.running : ['running', 'waiting'].includes(e.state)));
+		expect(live).toEqual([]);
+	});
+
+	it('an import really queued behind a running job still waits, then runs', async () => {
+		const held = heldBackup();
+		const r = upload(gz(backup([5])), 'app.mihon_2026-11-06_03-00.tachibk');
+		const id = r.state === 'read' ? r.id : -1;
+		expect(b.startBackupImport(id)).toEqual({ started: true });
+		// Read through every door that reconciles: still waiting, in the log too.
+		expect(b.importRow(id)!.state).toBe('waiting');
+		expect(log.liveImport()!.id).toBe(id);
+		expect(log.importLog(true).find((e) => e.kind === 'backup' && e.id === id)).toMatchObject({
+			state: 'waiting'
+		});
+		await new Promise((r) => setTimeout(r, 50));
+		expect(b.importRow(id)!.state).toBe('waiting');
+		held.release();
+		await held.job;
+		await b.settled();
+		expect(b.importRow(id)!.state).toBe('done');
+	});
+});
+
+describe('a scan asked for during a backup’s import (round 2)', () => {
+	it('waits its turn, says so, then reads the folder in a job of its own', async () => {
+		const { writeFileSync } = await import('node:fs');
+		mkdirSync(join(library, 'Mihon', 'autobackup'), { recursive: true });
+		writeFileSync(join(library, 'Mihon', 'autobackup', NAME), gzipSync(backup()));
+		const label = sourcesIn(library)
+			.map((s) => s.label ?? s.name.toUpperCase())
+			.join(' + ');
+		// The folder's series are gone first, so the scan's job is seen writing them.
+		db().prepare(`DELETE FROM series`).run();
+		const before = jobs().length;
+		const held = heldBackup();
+		const scan = startScan(library);
+		expect(scan).toEqual({ started: true, waiting: true });
+		// A second press while it waits joins the waiting scan: still one job to come.
+		const a = runImport(library);
+		const c = runImport(library);
+		expect(a).toBe(c);
+		held.release();
+		const [backupDone, scanDone] = await Promise.all([held.job, a]);
+		const after = jobs().slice(before);
+		expect(after).toHaveLength(2);
+		const [own, theScan] = after;
+		expect(own.id).toBe(backupDone.jobId);
+		expect(own.source_label).toBe(BACKUP_LABEL);
+		expect(theScan.id).toBe(scanDone.jobId);
+		expect(theScan.source_label).toBe(label);
+		expect(theScan.started_at).toBeGreaterThanOrEqual(own.finished_at!);
+		const written = db()
+			.prepare(`SELECT COUNT(*) n FROM series WHERE scan_job_id = ?`)
+			.get(theScan.id) as { n: number };
+		expect(written.n).toBeGreaterThan(0);
+		rmSync(join(library, 'Mihon'), { recursive: true });
+	});
+
+	it('two scans asked for during a scan are still one job', async () => {
+		mkdirSync(join(library, 'Mihon', 'autobackup'), { recursive: true });
+		const { writeFileSync } = await import('node:fs');
+		writeFileSync(join(library, 'Mihon', 'autobackup', NAME), gzipSync(backup()));
+		const before = jobs().length;
+		const first = runImport(library);
+		const second = runImport(library);
+		expect(second).toBe(first);
+		expect(startScan(library)).toEqual({ started: true, waiting: false });
+		await first;
+		await new Promise((r) => setTimeout(r, 20));
+		expect(jobs().length - before).toBe(1);
+		rmSync(join(library, 'Mihon'), { recursive: true });
+	});
+
+	it('START SCAN’s sentence for a scan that waits', () => {
+		expect(SCAN_WAITS).toMatch(/^WAITING · /);
 	});
 });

@@ -285,24 +285,53 @@ export type SourceSummary = {
 export type ImportSummary = { jobId: number; failedFiles: number; sources: SourceSummary[] };
 
 let running: Promise<ImportSummary> | null = null;
+/**
+ * Whether the running job is a scan of the library folder (runImport's) and
+ * not one backup's import (runQueued's): only a scan is joined, because a
+ * backup's job reads one file and never the folder (c438, round 2).
+ */
+let runningScan = false;
+/** A scan waiting its turn behind a backup's import: a second call joins it. */
+let queuedScan: Promise<ImportSummary> | null = null;
 
 /** The import under way, if one is: a caller whose files arrived after it began waits for it, then starts its own. */
 export const importRunning = (): Promise<ImportSummary> | null => running;
 
+/** Whether a scan asked for now waits its turn: a backup's import runs, or one is queued before it. */
+export const scanWaits = (): boolean => queuedScan !== null || (running !== null && !runningScan);
+
 /**
  * Import every device folder under `library`. One at a time: a second call
- * while one runs gets the running one.
+ * while a scan runs gets the running one. While a backup's import runs, the
+ * scan waits its turn and then reads the folder itself (one job each), and a
+ * call while it waits gets the waiting one.
  */
 export function runImport(
 	library: string,
 	opts: { now?: number; covers?: boolean } = {}
 ): Promise<ImportSummary> {
-	if (running) return running;
-	running = run(sourcesIn(library), opts.now ?? Date.now()).finally(() => {
+	if (running && runningScan) return running;
+	if (queuedScan) return queuedScan;
+	if (!running) return claimScan(library, opts);
+	const turn = (async () => {
+		while (running) await running.catch(() => {});
+		queuedScan = null;
+		return claimScan(library, opts);
+	})();
+	queuedScan = turn;
+	return turn;
+}
+
+/** Open the scan's own job; nothing runs (the caller has made sure). */
+function claimScan(library: string, opts: { now?: number; covers?: boolean }) {
+	runningScan = true;
+	const job = run(sourcesIn(library), opts.now ?? Date.now()).finally(() => {
 		running = null;
+		runningScan = false;
 	});
-	if (opts.covers) afterImport(running);
-	return running;
+	running = job;
+	if (opts.covers) afterImport(job);
+	return job;
 }
 
 /**
@@ -315,13 +344,16 @@ export async function runQueued(
 	source: Source,
 	opts: { covers?: boolean; waiting?: () => void } = {}
 ): Promise<ImportSummary> {
-	if (running) opts.waiting?.();
+	if (running || queuedScan) opts.waiting?.();
+	// A scan queued first goes first: it is awaiting the same promise, ahead.
 	while (running) await running.catch(() => {});
-	running = run([source], Date.now()).finally(() => {
+	runningScan = false;
+	const job = run([source], Date.now()).finally(() => {
 		running = null;
 	});
-	if (opts.covers) afterImport(running);
-	return running;
+	running = job;
+	if (opts.covers) afterImport(job);
+	return job;
 }
 
 function afterImport(running: Promise<ImportSummary>): void {
@@ -529,15 +561,17 @@ export function nothingToImport(l: Looked): string {
 
 /**
  * START SCAN and `/scan`: start the import in the background and return at
- * once. `started: false` when there is nothing to import, with where it looked.
+ * once. `started: false` when there is nothing to import, with where it looked;
+ * `waiting` when a backup's import runs first and the scan starts after it.
  */
 export function startScan(
 	root = libraryRoot()
-): { started: true } | ({ started: false; message: string } & Looked) {
+): { started: true; waiting: boolean } | ({ started: false; message: string } & Looked) {
 	if (sourcesIn(root).length === 0) {
 		const looked = whereItLooked(root);
 		return { started: false, ...looked, message: nothingToImport(looked) };
 	}
+	const waiting = scanWaits();
 	runImport(root, { covers: true })
 		// New books are compared with the rest (doc/DUPLICATE-BOOKS.md). Loaded
 		// here, not above: finding also runs from a plain node script.
@@ -549,5 +583,8 @@ export function startScan(
 			// The job row is already marked finished with a failure; the log says why.
 			console.error('[import] failed:', e);
 		});
-	return { started: true };
+	return { started: true, waiting };
 }
+
+/** What START SCAN and RESCAN say when the scan waits its turn behind a backup's import. */
+export const SCAN_WAITS = 'WAITING · THE SCAN STARTS WHEN THE BACKUP’S IMPORT ENDS';

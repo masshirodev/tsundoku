@@ -19,7 +19,7 @@ export const load: PageServerLoad = ({ params, cookies }) => {
 	if (!row) error(404, 'no such import');
 	const reveal = isRevealed(cookies);
 	if (row.state === 'read' || row.state === 'refused') {
-		const p = previewImport(id);
+		const p = previewImport(id, reveal);
 		if (!p) error(404, 'no such import');
 		return p.ok
 			? { view: 'preview' as const, row, preview: p.preview, running: otherJob(id) }

@@ -32,7 +32,7 @@ import {
 	seriesOfVolumes
 } from '$lib/server/books';
 import { setPersonFavourite, tagPage } from '$lib/server/people';
-import { libraryRoot, startScan } from '$lib/server/import';
+import { libraryRoot, SCAN_WAITS, startScan } from '$lib/server/import';
 import { lastImport } from '$lib/server/import/log';
 import { firstReadExtras, readSources } from '$lib/server/start';
 import { refreshCovers } from '$lib/server/covers';
@@ -632,6 +632,8 @@ export const actions: Actions = {
 		if (!r.started) {
 			return fail(400, { scanMessage: r.message });
 		}
+		// One import or scan at a time: behind a backup's import it says it waits.
+		if (r.waiting) return { scanMessage: SCAN_WAITS };
 		redirect(303, '/');
 	}
 };

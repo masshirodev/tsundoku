@@ -352,15 +352,18 @@
 							></a
 						>
 					{/if}
-					<!-- START SCAN for a library that isn't empty. A press while
-					     one runs joins it (doc/IMPORT-MIHON.md, "Running it"). -->
+					<!-- START SCAN for a library that isn't empty. A press while a
+					     scan runs joins it (doc/IMPORT-MIHON.md, "Running it"); while a
+					     backup's import runs it waits its turn and says so. -->
 					<form
 						method="POST"
 						action="/?/scan"
 						use:enhance={() =>
 							async ({ result, update }) => {
 								rescanNote =
-									result.type === 'failure' ? String(result.data?.scanMessage ?? '') : '';
+									result.type === 'failure' || result.type === 'success'
+										? String(result.data?.scanMessage ?? '')
+										: '';
 								if (result.type !== 'failure') await update();
 							}}
 					>
