@@ -142,7 +142,8 @@ test('an LNReader repository is asked, added, a novel plugin installed in the ho
 	await expect(row('Good Novels')).toContainText('1.0.0');
 	await expect(row('Good Novels')).not.toContainText('FAILED');
 
-	// BROWSE lists it under NOVELS, and its page is a novel source's: no SETTINGS.
+	// BROWSE lists it under NOVELS, and its page is a novel source's. Its SETTINGS
+	// holds only tsundoku's own switches (c435): the plugin keeps none of its own.
 	await page.goto('/browse');
 	const novels = page.locator('.label', { hasText: 'NOVELS' });
 	await expect(novels).toBeVisible();
@@ -152,7 +153,10 @@ test('an LNReader repository is asked, added, a novel plugin installed in the ho
 		.click();
 	await expect(page).toHaveURL(/\/browse\/ln:goodnovels$/);
 	await expect(page.locator('.title .sub')).toHaveText('NOVEL · EN');
-	await expect(page.getByRole('link', { name: 'SETTINGS' })).toHaveCount(0);
+	await expect(page.getByRole('link', { name: 'SETTINGS', exact: true })).toHaveAttribute(
+		'href',
+		'/browse/ln:goodnovels/settings'
+	);
 	await expect(page.getByRole('searchbox', { name: 'Search Good Novels' })).toHaveAttribute(
 		'placeholder',
 		'/ search Good Novels'
@@ -162,7 +166,39 @@ test('an LNReader repository is asked, added, a novel plugin installed in the ho
 	await expect(page.locator('.band')).toContainText('GOOD NOVELS DID NOT ANSWER');
 	await expect(page.locator('.band')).toContainText('IS NOT ON THE INTERNET');
 	await expect(page.locator('.band')).toContainText('TRY AGAIN');
-	expect((await page.request.get('/browse/ln:goodnovels/settings')).status()).toBe(404);
+	await page.goto('/browse/ln:goodnovels/settings');
+	await expect(page.locator('form.own .t')).toHaveText([
+		'Hidden source',
+		'Added hidden',
+		'Off history'
+	]);
+	await expect(page.locator('form.set')).toHaveCount(0);
+	await expect(page.getByText(/only tsundoku's switches above/)).toBeVisible();
+
+	// HIDDEN SOURCE hides the plugin in EXTENSIONS too (c435, round 2): neither
+	// INSTALLED nor AVAILABLE's NOVELS names it outside reveal; inside reveal both do.
+	const hiddenSource = page.locator('form.own', { hasText: 'Hidden source' }).getByRole('switch');
+	await page.waitForLoadState('networkidle');
+	await hiddenSource.click();
+	await expect(page).toHaveURL(/\/browse$/);
+	for (const path of ['/browse/extensions', '/browse/extensions?tab=available&kind=novels']) {
+		await page.goto(path);
+		await expect(page.locator('body'), path).not.toContainText(/good novels/i);
+	}
+	const origin = new URL(page.url()).origin;
+	await page
+		.context()
+		.addCookies([{ name: 'tsundoku_reveal', value: '1', url: origin, httpOnly: true }]);
+	for (const path of ['/browse/extensions', '/browse/extensions?tab=available&kind=novels']) {
+		await page.goto(path);
+		await expect(row('Good Novels'), path).toBeVisible();
+	}
+	await page.goto('/browse/ln:goodnovels/settings');
+	await page.waitForLoadState('networkidle');
+	await expect(hiddenSource).toHaveAttribute('aria-checked', 'true');
+	await hiddenSource.click();
+	await expect(hiddenSource).toHaveAttribute('aria-checked', 'false');
+	await page.context().clearCookies({ name: 'tsundoku_reveal' });
 
 	await page.goto('/browse/extensions');
 	await row('Good Novels').getByRole('link', { name: 'REMOVE…' }).click();

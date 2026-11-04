@@ -16,6 +16,7 @@ import {
 } from './extensions.ts';
 import { browseLanguages, browseSources, type BrowseSource } from './browse.ts';
 import { NO_EXT_FILTERS, searchMatches, type ExtFilters } from '../../library/ext-filters.ts';
+import { novelListings, pluginsAvailable } from '../novels/plugins.ts';
 
 /**
  * EXTENSIONS, BROWSE's back room (Index-Extensions; doc/BROWSE.md,
@@ -80,6 +81,72 @@ export function installedView(reveal: boolean, now = Date.now()): InstalledView 
 		needsHand: rows.filter((r) => r.failed || r.obsolete),
 		updates: rows.filter((r) => !r.failed && !r.obsolete && r.update),
 		current: rows.filter((r) => !r.failed && !r.obsolete && !r.update)
+	};
+}
+
+// ---- LNReader's plugins, as EXTENSIONS shows them ---------------------------------------------
+
+/**
+ * The installed plugins hidden outside reveal: their `ln:<id>` is not among
+ * the sources BROWSE may name, because the owner switched on its HIDDEN
+ * SOURCE or because it is mostly hidden (card c435; doc/BROWSE.md, "Hidden
+ * means hidden"). Plugin ids, without `ln:`. Inside reveal, none.
+ * `pluginView` and `pluginsAvailable` (novels/plugins.ts) take no reveal, so
+ * EXTENSIONS asks this, as `installedView` asks `browseSources` for packages.
+ */
+export function pluginsHidden(reveal: boolean): Set<string> {
+	if (reveal) return new Set();
+	const shown = new Set(browseSources(false).map((s) => s.id));
+	return new Set(
+		browseSources(true)
+			.filter((s) => s.family === 'lnreader' && !shown.has(s.id))
+			.map((s) => s.id.slice(3))
+	);
+}
+
+type PluginSections<R> = { needsHand: R[]; updates: R[]; current: R[] };
+
+/**
+ * INSTALLED's plugin sections (`pluginView`) with what reveal hides left
+ * out, so the tab's count and UPDATE ALL, which updates only what's shown,
+ * see only the rows drawn.
+ */
+export function pluginsShown<R extends { id: string }>(
+	view: PluginSections<R>,
+	reveal: boolean
+): PluginSections<R> {
+	const hidden = pluginsHidden(reveal);
+	if (hidden.size === 0) return view;
+	const keep = (rows: R[]) => rows.filter((r) => !hidden.has(r.id));
+	return {
+		needsHand: keep(view.needsHand),
+		updates: keep(view.updates),
+		current: keep(view.current)
+	};
+}
+
+/**
+ * AVAILABLE's NOVELS tab (`pluginsAvailable`) without an installed plugin
+ * reveal hides: not a row, not in "+ N IN OTHER LANGUAGES", not in the
+ * tab's count. A plugin not installed is never hidden: it has no use yet.
+ */
+export function novelsAvailable(opts: Parameters<typeof pluginsAvailable>[0]) {
+	const view = pluginsAvailable(opts);
+	const hidden = pluginsHidden(!!opts.reveal);
+	if (hidden.size === 0) return view;
+	const rows = view.rows.filter((r) => !hidden.has(r.id));
+	// The matches in other languages are those every language would add.
+	const everyLanguage = pluginsAvailable({
+		...opts,
+		filters: { ...(opts.filters ?? NO_EXT_FILTERS), langs: [] }
+	}).rows;
+	const drawn = new Set(view.rows.map((r) => r.id));
+	const hiddenElsewhere = everyLanguage.filter((r) => !drawn.has(r.id) && hidden.has(r.id)).length;
+	return {
+		...view,
+		rows,
+		total: view.total - novelListings(opts.db).filter((l) => hidden.has(l.id)).length,
+		otherLanguages: view.otherLanguages - hiddenElsewhere
 	};
 }
 

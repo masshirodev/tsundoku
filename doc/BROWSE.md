@@ -48,15 +48,16 @@ and how many series the library has from it, as reveal lets you see them
 ("41 SERIES HERE"; inside reveal, "126 SERIES HERE, 112 HIDDEN"). A source the
 engine refused is c94's failed row (a 3px ink rule on the left, the reason in
 a word, "FAILED TO LOAD · PROTOBUF · TRY AGAIN IN EXTENSIONS") and leads to
-EXTENSIONS rather than to a page that can't answer. A mostly-hidden source is
-only listed inside reveal, with HIDDEN on its icon.
+EXTENSIONS rather than to a page that can't answer. A mostly-hidden source,
+and one whose own HIDDEN SOURCE switch is on ("A source's own switches",
+below), is only listed inside reveal, with HIDDEN on its icon.
 
 **Icons** come through `/api/browse/icon/<package>`: the server fetches the
 repository's icon once, keeps it beside the APKs as an 80px WebP
 (`<ENGINE_STORE>/icons`), and serves it from then on, so the viewer's browser
 never asks the repository's host, and a repository that dies keeps its
-icons. An extension whose every source is mostly hidden answers 404 outside
-reveal.
+icons. An extension whose every source is mostly hidden (or switched to
+HIDDEN SOURCE) answers 404 outside reveal.
 
 **RECENT** is rung 42's `browse_recent`, a row a source, moved to now on each
 visit to its page; a visit in incognito leaves nothing. Who may see a row is
@@ -129,9 +130,27 @@ five real schemas (`tests/tag-search.spec.ts`):
   checkbox the source has on would otherwise turn off. A tri-state wins over
   a checkbox of the same name, and the first in the schema's order over a
   second group naming it too. A select, a text or a sort never names a genre.
-- **Everything else is a search**, `q=<value>`: a person (author, artist,
-  circle: most sources search title text only, even where a text filter is
-  called Author), a value no filter names, and a source with no schema.
+- **A person** (author, artist, circle) **fills the source's own text filter
+  named for them** (card c456), on `tab=filtered` with the rest at the
+  source's defaults: the first top-level text field whose name, a trailing
+  bracketed note aside, folds to the namespace (mangahere's Author and Artist,
+  Weeb Central's "Author (Case-sensitive)"; `matchPersonFilter`). Most
+  sources' plain search reads titles only, so `q=` found nothing by an
+  author. A source with no such field (three of the five real schemas, and
+  every artist on Weeb Central) is still a search for the name.
+- **Everything else is a search**, `q=<value>`: a value no filter names, and
+  a source with no schema.
+- **One link a person** on the preview (`previewPeople`, `splitPeople`): a
+  source's author and artist strings are split as the importer splits them
+  into tags (`people`, `src/lib/import/mihon-plan.ts`: commas, `/`, `;` and
+  `&`), so each link is a tag its series carries once added. Each name is
+  its own link, searched on its own. A part that is only a generational
+  suffix ("Jr.", "Sr.", "II", "III", "IV") stays with the name before it, so
+  "Tanaka, Jr." is one person; the importer still makes two tags of it. A
+  name written surname-first ("Oda, Eiichiro") cannot be told from two
+  people, and is two links. A name on both lines is drawn once, as an
+  author. A library series' person tags were split by the same importer
+  when they were written, so its sheet needs nothing here.
 - **"No schema" is never a kind.** An Aniyomi source answers
   `filterSchemaAnime` and an LNReader plugin its filters, so every family is
   asked the same question; an empty schema, or a call that failed, is a
@@ -161,9 +180,16 @@ preview's or the series' own address, query included, and the source page's
 ← goes there (`backOrigin`: only `/downloads/source/<id>` and `/series/<id>`,
 never another host or screen, as `sourceOrigin` refuses an open redirect).
 That screen's own ← is untouched, since its URL still carries its own `from`:
-preview → source page → ← → preview, whose ← still says BROWSE. The tabs and
-the search field start a new list from the source's base address, which
-drops `from`; the ← then says BROWSE again.
+preview → source page → ← → preview, whose ← still says BROWSE. **Every way
+to another list of the same source keeps it** (card c453): POPULAR and LATEST,
+the search field (a hidden `from`), FILTER's APPLY (a hidden `from`) and
+RESET, paging and the panel's toggle (`link()` keeps every parameter), and
+SETTINGS, whose ← and rows carry it back (`keepOrigin`, tag-search.ts). Only
+the value `backOrigin` accepted is carried, never the raw parameter. Until
+wave 20 the tabs and the search started from the source's base address and
+dropped it, so after one change of list ← said BROWSE again
+(`tests/browse-tags.e2e.ts` walks every one of those doors; LATEST is tapped
+in `tests/browse-flow.e2e.ts`, whose source has a latest list).
 
 ### Filters
 
@@ -231,8 +257,17 @@ default sends its original scans, up to 2.8 MB a cover (measured
 ### Hidden means hidden
 
 A source whose series here are mostly hidden ([`PRIVACY.md`](PRIVACY.md);
-Toonily, Toonily.me and Omega Scans today) answers 404 with reveal off, and so
-does a preview of one of its series. A result that is a hidden series isn't
+Toonily, Toonily.me and Omega Scans today), or whose own HIDDEN SOURCE switch
+is on (card c435), answers 404 with reveal off, and so does a preview of one
+of its series, its settings, and a tag's search on it. Both are one field,
+`BrowseSource.mostlyHidden` (with `hiddenSource` saying which), so every door
+that asks it (BROWSE, RECENT, EXTENSIONS, the icons, `/search`'s list, the
+check's poll) closes for both. EXTENSIONS asks it for LNReader's plugins
+too, whose own lists (`pluginView`, `pluginsAvailable`) take no reveal: the
+route filters them through `pluginsHidden`, `pluginsShown` and
+`novelsAvailable` (`src/lib/server/engine/manage.ts`), so a hidden plugin is
+not on INSTALLED, not in its count, not in UPDATE ALL and not on AVAILABLE's
+NOVELS tab outside reveal (card c435, round 2). A result that is a hidden series isn't
 sent. Counts are what reveal lets the viewer see. A twin of a series from such
 a source is still SAME TITLE IN LIBRARY (the series is visible), but the
 source isn't named: "FROM TOONILY" said what reveal hides. That was true of
@@ -394,6 +429,43 @@ isn't one of the setting's values. A source's kept answers are keyed by its
 settings, so its page asks again on return. With the engine down, the kept
 values show and still save, under the NOT ANSWERING band.
 
+Since card c435 the extension's own settings are `02 — <SOURCE> · <LANG>`,
+under tsundoku's own switches, and every family has the page: an LNReader
+plugin, which keeps no preferences here, has only the switches, and its
+source page draws the SETTINGS cell like any other (until then it had no
+cell and its page answered 404).
+
+### A source's own switches
+
+Three rows above the extension's own (`01 — IN TSUNDOKU`), drawn as the
+page's switch rows are, each its own form posting `?/flag`. They are
+tsundoku's, not the extension's: nothing is sent to the source. Card c435,
+the owner's request of 2026-11-03.
+
+| Switch            | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Hidden source** | The source is listed, opened, searched and named only inside reveal, as a mostly-hidden one is: BROWSE and RECENT, EXTENSIONS (an extension whose every source is hidden, and an LNReader plugin: INSTALLED, its count, UPDATE ALL and AVAILABLE's NOVELS, filtered by the route through `pluginsShown` and `novelsAvailable`), its icon, its page, its settings and its previews, SEARCH THE SOURCES (`searchSources`, `novelSearchSources`), and SAME TITLE's "FROM <SOURCE>" (`nameable`). Its series keep their own hidden state. |
+| **Added hidden**  | A series added to the library from it starts hidden. Every ADD door of a source: `addToLibrary` (Mihon's), `addAnime`, `addNovel` and `keepOrPromote` (a browsing record promoted by ADD). With reveal off, ADD then lands on the source's page with "ADDED TO THE LIBRARY, AND HIDDEN", since the hidden series isn't found. A browsing record is not an add.                                                                                                                                                                        |
+| **Off history**   | Its reads and watches never show in HISTORY, inside reveal or not, and its time is not in HISTORY's total ([`HISTORY.md`](HISTORY.md)). They are still logged: progress, CONTINUE, the series' own time and tracking are unchanged.                                                                                                                                                                                                                                                                                                   |
+
+**Kept** in the `settings` key/value table, one row per switch that is on
+(`source.hidden:<id>`, `source.added-hidden:<id>`, `source.off-history:<id>`,
+value `1`; off deletes the row), keyed by BROWSE's source id (an engine
+source's number, `ln:<plugin>`). No rung: a row per switch is a primary-key
+lookup for SQL (`sourceFlagSql`, `src/lib/server/engine/source-flags.ts`),
+which is how HISTORY filters in SQL. A series' source in SQL is
+`sourceIdSql(origin_key)`, held to `sourceOfKey` over every key a writer
+stores (`tests/source-flags-db.spec.ts`).
+
+**What ADDED HIDDEN does not reach** (wave 20): a series imported from a
+Mihon backup (`src/lib/server/import/`, whose writer every importer shares).
+That door is the importer's, so a backup's series from such a source arrive
+as the backup says. A follow's or a refresh's new chapters are not an add,
+and a download of a series already in the library neither.
+
+With reveal off, turning HIDDEN SOURCE on lands on BROWSE, since the page it
+was set on is no longer found. Turning it off again is done inside reveal.
+
 ## Where it lives in the code
 
 | What                                                      | Where                                                                                                                                                                                                                                     |
@@ -405,7 +477,7 @@ values show and still save, under the NOT ANSWERING band.
 | BROWSE                                                    | `src/routes/browse/` (`+page.server.ts`, `+page.svelte`, `SourceRow.svelte`, shared with the empty search)                                                                                                                                |
 | An extension's icon                                       | `src/routes/api/browse/icon/[pkg]/+server.ts`                                                                                                                                                                                             |
 | A source's page                                           | `src/routes/browse/[source]/` (`+page.server.ts`, `+page.svelte`, `FilterForm.svelte`, `ResultTile.svelte`)                                                                                                                               |
-| A source's settings                                       | `src/routes/browse/[source]/settings/`, `src/lib/library/source-settings.ts`                                                                                                                                                              |
+| A source's settings                                       | `src/routes/browse/[source]/settings/`, `src/lib/library/source-settings.ts`; tsundoku's own switches in `src/lib/server/engine/source-flags.ts`                                                                                          |
 | Extensions and repositories                               | `src/routes/browse/extensions/` (`ExtRow.svelte`), `src/lib/server/engine/manage.ts`                                                                                                                                                      |
 | BROWSE's languages                                        | `src/routes/settings/` (03 — BROWSE)                                                                                                                                                                                                      |
 | A site's check                                            | `checkingSince` / `noteSolvedChecks` in `engine/browse.ts`, `novels/solver.ts` (the app's own solve, c152), `src/routes/api/browse/check/[source]/`, `src/lib/site-check.svelte.ts`; the fork's `ChallengeLog`                            |
@@ -433,19 +505,33 @@ values show and still save, under the NOT ANSWERING band.
   install, CHECK NOW, UPDATE, BACK TO and REMOVE through the sheet, against
   real signed APKs over https; an untrusted install refused with both keys;
   the languages row; an 18+ extension listed and marked, a search ignoring
-  case and spacing, FILTER's 18+ ONLY, CLEAR ALL and DONE.
+  case and spacing, FILTER's 18+ ONLY, CLEAR ALL and DONE; an LNReader
+  plugin installed, browsed, its HIDDEN SOURCE set (gone from INSTALLED and
+  AVAILABLE's NOVELS outside reveal, there inside it) and removed.
 - `tests/source-settings.spec.ts`: each of the five types read from the
   engine's shapes, a value no longer offered not shown as chosen, a form's
   answer stored or refused.
 - `tests/tag-search.spec.ts`: a genre in a tri-state group, one matching a
   checkbox, one with no match, an author, case and spacing, no schema, a
   default-on checkbox kept, and every option of every real fixture finding
-  itself; `backOrigin`'s refusals. `tests/browse-tags.e2e.ts` and
+  itself; each person's namespace against every real fixture's text fields,
+  written out, and the comma split (c456); `backOrigin`'s refusals and
+  `keepOrigin` (c453). `tests/browse-tags.e2e.ts` and
   `tests/tv-tags.e2e.ts`, on a world of their own (`tests/helpers/tag-world.ts`:
   a fake engine whose manga has an author and genres): a genre lands on
   FILTERED with its chip included and what the source was asked, a search for
   the rest, ← back to the preview, the series' sheet and each door with no
   sheet, the engine down or slow, and the remote's walk to a tag.
+- `tests/source-flags-db.spec.ts`: a source's own switches (card c435): the
+  rows they are kept in, `sourceIdSql` against `sourceOfKey` on every key,
+  HIDDEN SOURCE at BROWSE, RECENT, EXTENSIONS (a package, and a plugin's
+  INSTALLED rows, UPDATE ALL's set and AVAILABLE's NOVELS), both searches and SAME TITLE,
+  and OFF HISTORY's rows, total and the log it leaves alone. ADDED HIDDEN per
+  family in `tests/engine-backend-db.spec.ts`, `tests/anime-source-db.spec.ts`
+  and `tests/novel-source-db.spec.ts` (a browsing record, then ADD; ADD
+  alone; the switch off). `tests/browse-source-flags.e2e.ts`, on its own tag
+  world: the page's rows, and each switch followed to the screens it
+  changes.
 - `tests/browse-flow.e2e.ts` and the generated `tests/browse-frame.e2e.ts`
   (a source's page) and `tests/browse-list-frame.e2e.ts` (BROWSE),
   in the `browse` project against a fake engine (`tests/browse-setup.ts`,
@@ -487,7 +573,8 @@ values show and still save, under the NOT ANSWERING band.
 - **UNTRUSTED has no REVIEW… step and no install anyway.** The refusal shows
   both keys at once; see "An untrusted extension is never installed".
 - **No progress bar, no periodic check** (What it does not do yet).
-- **A novel source has no SETTINGS** cell, and its search box doesn't offer
+- **A novel source's SETTINGS holds only tsundoku's switches** (card c435;
+  until wave 20 it had no SETTINGS cell), and its search box doesn't offer
   "with its filters": LNReader's search takes none ([`NOVELS.md`](NOVELS.md)).
   Its section is NOVELS, numbered after the others like any section.
 - **A multi-select without script has a SAVE.** The mock draws ✓ cells only;

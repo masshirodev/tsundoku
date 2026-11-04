@@ -30,13 +30,9 @@ import {
 } from '../../library/downloads.ts';
 import { call, engineDownSince, engineImageToken, EngineError } from './client.ts';
 import { titleFromPath } from '../../library/titles.ts';
-import {
-	kindFacts,
-	SOURCE_FAMILIES,
-	SOURCE_KINDS,
-	type Medium,
-	type SourceFamily
-} from '../../library/kinds.ts';
+import { kindFacts, SOURCE_KINDS, type Medium, type SourceFamily } from '../../library/kinds.ts';
+import { familyOfKind } from './repo-index.ts';
+import { hideIfAddedHidden, sourcesWith } from './source-flags.ts';
 import { extensionFor, preferences } from './extensions.ts';
 import { splitMemo } from './protocol.ts';
 import { chapterName } from './device.ts';
@@ -279,7 +275,14 @@ export function searchSources(reveal: boolean): { id: string; name: string }[] {
 			WHERE e.failed = ''`
 		)
 		.all() as { id: string; name: string }[];
-	return sourcesToSearch(rows, sourceUse(), reveal, browsedIds(reveal));
+	// A HIDDEN SOURCE is asked only inside reveal (card c435).
+	const hiddenOn = reveal ? new Set<string>() : sourcesWith('hidden');
+	return sourcesToSearch(
+		rows.filter((r) => !hiddenOn.has(r.id)),
+		sourceUse(),
+		reveal,
+		browsedIds(reveal)
+	);
 }
 
 export type EngineManga = {
@@ -309,8 +312,8 @@ const STATUS_NAME = [
  * The source family a source is (card c303): an LNReader plugin's
  * (`ln:<plugin>`, BROWSE's id for it) is `lnreader`, and an installed
  * extension's is the family whose kind its row names (`engine_extensions.kind`,
- * `manga` for a Mihon APK and `anime` for an Aniyomi one, read through
- * `SOURCE_KINDS`). Null for a source the engine has no row for.
+ * `manga` for a Mihon APK and `anime` for an Aniyomi one, decoded by
+ * `familyOfKind`, repo-index.ts). Null for a source the engine has no row for.
  */
 export function sourceFamily(sourceId: string): SourceFamily | null {
 	if (sourceId.startsWith('ln:')) return 'lnreader';
@@ -319,7 +322,7 @@ export function sourceFamily(sourceId: string): SourceFamily | null {
 			`SELECT e.kind FROM engine_sources s JOIN engine_extensions e ON e.pkg = s.pkg WHERE s.id = ?`
 		)
 		.get(sourceId) as { kind: string } | undefined;
-	return r ? (SOURCE_FAMILIES.find((f) => SOURCE_KINDS[f] === r.kind) ?? null) : null;
+	return r ? familyOfKind(r.kind) : null;
 }
 
 /**
@@ -640,7 +643,11 @@ export async function addToLibrary(
 				: 'its chapters are already in another series here'
 		);
 	}
-	if (!browsing) db().prepare(`UPDATE series SET arrived_at = ? WHERE id = ?`).run(now, row.id);
+	if (!browsing) {
+		db().prepare(`UPDATE series SET arrived_at = ? WHERE id = ?`).run(now, row.id);
+		// ADD from a source that adds hidden (card c435): it starts hidden.
+		hideIfAddedHidden(row.id, db());
+	}
 	rememberAtSource(row.id, m, now);
 	if (!browsing) forgetSourceUse();
 	void refreshCovers({ ids: [row.id], remote: true });

@@ -8,6 +8,7 @@ import { refreshCovers } from '../covers.ts';
 import { forgetSourceUse, libraryIndex, sourceUse } from '../library-sources.ts';
 import { checkPublic } from '../net-guard.ts';
 import { TSUNDOKU_DEVICE } from '../engine/device.ts';
+import { hideIfAddedHidden, sourcesWith } from '../engine/source-flags.ts';
 import {
 	highlight,
 	mostlyHidden,
@@ -66,11 +67,14 @@ const call = <T>(p: InstalledPlugin, method: string, args: unknown[], timeoutMs 
  */
 export function novelSources(reveal: boolean): BrowseSource[] {
 	const use = sourceUse();
+	const switchedOff = sourcesWith('hidden');
 	const out: BrowseSource[] = [];
 	for (const p of installedPlugins()) {
 		const id = `ln:${p.id}`;
 		const u = use.get(id) ?? { series: 0, hidden: 0 };
-		const hiddenMostly = mostlyHidden(u);
+		// Its own HIDDEN SOURCE switch, or mostly hidden (card c435).
+		const hiddenSource = switchedOff.has(id);
+		const hiddenMostly = hiddenSource || mostlyHidden(u);
 		if (hiddenMostly && !reveal) continue;
 		out.push({
 			id,
@@ -78,9 +82,11 @@ export function novelSources(reveal: boolean): BrowseSource[] {
 			name: p.name,
 			lang: p.lang,
 			kind: 'novel',
+			family: 'lnreader',
 			series: reveal ? u.series : u.series - u.hidden,
 			hidden: reveal ? u.hidden : 0,
 			mostlyHidden: hiddenMostly,
+			hiddenSource,
 			failed: p.failed
 		});
 	}
@@ -89,9 +95,12 @@ export function novelSources(reveal: boolean): BrowseSource[] {
 
 /** The plugins SEARCH THE SOURCES asks: those the library reads from, as for manga. */
 export function novelSearchSources(reveal: boolean): { id: string; name: string }[] {
+	const hiddenOn = reveal ? new Set<string>() : sourcesWith('hidden');
 	const rows = installedPlugins()
 		.filter((p) => !p.failed)
-		.map((p) => ({ id: `ln:${p.id}`, name: p.name }));
+		.map((p) => ({ id: `ln:${p.id}`, name: p.name }))
+		// A HIDDEN SOURCE is asked only inside reveal (card c435).
+		.filter((p) => !hiddenOn.has(p.id));
 	return sourcesToSearch(rows, sourceUse(), reveal, browsedIds(reveal));
 }
 
@@ -384,6 +393,8 @@ export async function addNovel(id: string, now = Date.now(), browsing = false): 
 	}
 	if (!browsing) {
 		db.prepare(`UPDATE series SET arrived_at = ? WHERE id = ?`).run(now, row.id);
+		// ADD from a source that adds hidden (card c435): it starts hidden.
+		hideIfAddedHidden(row.id, db);
 		forgetSourceUse();
 	}
 	void refreshCovers({ ids: [row.id], remote: true });

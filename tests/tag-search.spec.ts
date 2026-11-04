@@ -8,12 +8,18 @@ import {
 	type FilterField
 } from '$lib/library/browse-filters';
 import { lnSchema, type LnFilters } from '$lib/library/lnreader-filters';
+import { people } from '$lib/import/mihon-plan';
 import {
 	libraryTagKey,
 	matchFilter,
 	backOrigin,
 	backOriginLabel,
+	keepOrigin,
 	distinct,
+	matchPersonFilter,
+	personKey,
+	previewPeople,
+	splitPeople,
 	readTagRoute,
 	settleWithin,
 	TAG_SCHEMA_WAIT_MS,
@@ -199,6 +205,150 @@ describe('everything else is a search for the value', () => {
 	});
 });
 
+describe('a person on the source’s own text filter (card c456)', () => {
+	// Written out from the fixtures, not derived: which top-level text field
+	// each person's namespace fills, by name, in every real schema.
+	const EXPECTED: Record<string, Record<'author' | 'artist' | 'circle', string | null>> = {
+		'asura-scans': { author: null, artist: null, circle: null },
+		'mangadex-en': { author: null, artist: null, circle: null },
+		mangahere: { author: 'Author', artist: 'Artist', circle: null },
+		'webtoons-en': { author: null, artist: null, circle: null },
+		'weeb-central': { author: 'Author (Case-sensitive)', artist: null, circle: null }
+	};
+
+	it('covers every fixture', () => {
+		expect(Object.keys(real).sort()).toEqual(Object.keys(EXPECTED).sort());
+	});
+
+	for (const name of Object.keys(EXPECTED))
+		for (const ns of ['author', 'artist', 'circle'] as const)
+			it(`${name}: ${ns} ${EXPECTED[name][ns] ? `fills ${EXPECTED[name][ns]}` : 'is a search'}`, () => {
+				const schema = real[name];
+				const want = EXPECTED[name][ns];
+				const at = matchPersonFilter(schema, ns);
+				expect(at === null ? null : schema[at].name).toBe(want);
+				const params = tagSearchParams(schema, { namespace: ns, value: ' Aoi Hanamura ' });
+				if (!want) {
+					expect(params).toEqual([['q', 'Aoi Hanamura']]);
+					return;
+				}
+				const p = new URLSearchParams(params);
+				expect(p.get('tab')).toBe('filtered');
+				expect(p.has('q')).toBe(false);
+				// The page reads back the name in that field, and nothing else moved.
+				const form = landed(schema, params);
+				expect(form[at!].state).toBe('Aoi Hanamura');
+				expect(changes(schema, form)).toEqual([`${want}="Aoi Hanamura"`]);
+			});
+
+	it('folds the field’s name as matchFilter does, and sets a bracketed note aside', () => {
+		const text = (n: string): FilterField => ({ type: 'text', name: n, state: '' });
+		for (const n of [
+			'Author',
+			'AUTHOR',
+			' author ',
+			'Au thor',
+			'Author (Case-sensitive)',
+			'Author ( exact )'
+		])
+			expect(matchPersonFilter([text(n)], 'author'), n).toBe(0);
+		for (const n of ['Authors', 'Author name', 'Co-author', 'Title', '(Author)'])
+			expect(matchPersonFilter([text(n)], 'author'), n).toBeNull();
+		// The first of two, in the schema's order.
+		expect(matchPersonFilter([text('Title'), text('Author'), text('author')], 'author')).toBe(1);
+	});
+
+	it('is only ever a person’s, and only ever a text field', () => {
+		const schema: FilterField[] = [
+			{ type: 'checkbox', name: 'Author', state: false },
+			{ type: 'select', name: 'Artist', state: 0, values: ['All', 'X'] },
+			tri('Circle')
+		];
+		for (const ns of ['author', 'artist', 'circle'])
+			expect(matchPersonFilter(schema, ns), ns).toBeNull();
+		const withText: FilterField[] = [{ type: 'text', name: 'Genre', state: '' }];
+		expect(matchPersonFilter(withText, 'genre')).toBeNull();
+		expect(tagSearchParams(withText, { namespace: 'genre', value: 'Romance' })).toEqual([
+			['q', 'Romance']
+		]);
+		// A text inside a group is never drawn or sent, so cleanSchema drops it.
+		const grouped = cleanSchema([
+			{
+				type: 'group',
+				name: 'People',
+				children: [
+					{ type: 'text', name: 'Author', state: '' },
+					{ type: 'tristate', name: 'Romance', state: 0 }
+				]
+			}
+		]);
+		expect(grouped[0].children!.map((c) => c.type)).toEqual(['tristate']);
+		expect(matchPersonFilter(grouped, 'author')).toBeNull();
+	});
+
+	it('leaves a blank name a search, as before', () => {
+		expect(tagSearchParams(real.mangahere, { namespace: 'author', value: '  ' })).toEqual([
+			['q', '']
+		]);
+	});
+});
+
+describe('a preview’s people (card c456)', () => {
+	it('is one name a link, split on commas', () => {
+		expect(splitPeople('Aoi Hanamura, Ren Kisaragi')).toEqual(['Aoi Hanamura', 'Ren Kisaragi']);
+		expect(splitPeople('ONE')).toEqual(['ONE']);
+		expect(splitPeople(' A ,B,, C ')).toEqual(['A', 'B', 'C']);
+		// The importer's own separators, so a link is the tag the series gets once added.
+		expect(splitPeople('A / B; C & D')).toEqual(['A', 'B', 'C', 'D']);
+		expect(splitPeople('Unknown, _, Aoi')).toEqual(['Aoi']);
+		for (const raw of ['Aoi Hanamura, Ren Kisaragi', 'A / B; C & D', 'X,Y', 'Solo'])
+			expect(splitPeople(raw), raw).toEqual(people(raw));
+	});
+
+	it('keeps a generational suffix with its name', () => {
+		expect(splitPeople('Tanaka, Jr.')).toEqual(['Tanaka, Jr.']);
+		expect(splitPeople('Tanaka, Jr., Sato')).toEqual(['Tanaka, Jr.', 'Sato']);
+		expect(splitPeople('John Smith, III, Jane Doe, sr')).toEqual([
+			'John Smith, III',
+			'Jane Doe, sr'
+		]);
+		// A suffix with nobody before it is a name as written.
+		expect(splitPeople('Jr., Sato')).toEqual(['Jr.', 'Sato']);
+	});
+
+	it('names a person once, case and spacing aside, in the source’s order', () => {
+		expect(splitPeople('B, A, b,  a ')).toEqual(['B', 'A']);
+		expect(personKey('Aoi  Hanamura')).toBe(personKey('aoi hanamura'));
+	});
+
+	it('is nobody for nothing', () => {
+		for (const raw of ['', '  ', ',', ' , ', null, undefined]) expect(splitPeople(raw)).toEqual([]);
+	});
+
+	it('draws an author line and an artist line, an author who draws once', () => {
+		expect(previewPeople('Aoi Hanamura', 'Ren Kisaragi')).toEqual([
+			{ ns: 'author', names: ['Aoi Hanamura'] },
+			{ ns: 'artist', names: ['Ren Kisaragi'] }
+		]);
+		// The same person for both, as most sources write it: one line.
+		expect(previewPeople('ONE', 'ONE')).toEqual([{ ns: 'author', names: ['ONE'] }]);
+		expect(previewPeople('A, B', 'b, C')).toEqual([
+			{ ns: 'author', names: ['A', 'B'] },
+			{ ns: 'artist', names: ['C'] }
+		]);
+		expect(previewPeople('', 'Ren')).toEqual([{ ns: 'artist', names: ['Ren'] }]);
+		expect(previewPeople(null, undefined)).toEqual([]);
+	});
+
+	it('holds on its own output', () => {
+		for (const raw of ['Aoi Hanamura, Ren Kisaragi', 'Tanaka, Jr., Sato', 'B, A, b', 'A / B & C']) {
+			const once = splitPeople(raw);
+			expect(splitPeople(once.join(', ')), raw).toEqual(once);
+			for (const n of once) expect(splitPeople(n), n).toEqual([n]);
+		}
+	});
+});
+
 describe('every real fixture', () => {
 	/** Every tri-state and checkbox in a schema, with its path: each must find itself. */
 	const pickables = (schema: FilterField[]) =>
@@ -283,6 +433,34 @@ describe('where a source page’s back cell may return', () => {
 	it('holds on its own output', () => {
 		const once = backOrigin('/downloads/source/100~abc?q=a%20b');
 		expect(backOrigin(once)).toBe(once);
+	});
+});
+
+describe('a source page’s own links keep the origin (card c453)', () => {
+	const origin = '/downloads/source/100~abc?from=%2Fbrowse%2F100';
+	it('adds from= to a bare address, to one with a query, and before a fragment', () => {
+		for (const href of ['/browse/100', '/browse/100?tab=latest', '/browse/100/settings?/set']) {
+			const u = new URL(keepOrigin(href, origin), 'http://x');
+			expect(u.searchParams.get('from'), href).toBe(origin);
+			expect(backOrigin(u.searchParams.get('from')), href).toBe(origin);
+		}
+		expect(keepOrigin('/browse/100?tab=latest', origin)).toBe(
+			`/browse/100?tab=latest&from=${encodeURIComponent(origin)}`
+		);
+		expect(keepOrigin('/browse/100#top', origin)).toBe(
+			`/browse/100?from=${encodeURIComponent(origin)}#top`
+		);
+	});
+	it('adds nothing when there is no origin, or backOrigin refused it', () => {
+		expect(keepOrigin('/browse/100?tab=latest', '')).toBe('/browse/100?tab=latest');
+		expect(keepOrigin('/browse/100', backOrigin('https://evil.example/series/1'))).toBe(
+			'/browse/100'
+		);
+	});
+	it('leaves the action a settings row posts to readable as that action', () => {
+		// SvelteKit reads the action from the parameter that starts with `/`.
+		const u = new URL(keepOrigin('/browse/100/settings?/set', origin), 'http://x');
+		expect([...u.searchParams.keys()]).toEqual(['/set', 'from']);
 	});
 });
 

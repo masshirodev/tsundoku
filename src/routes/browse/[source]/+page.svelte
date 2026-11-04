@@ -8,9 +8,8 @@
 	import Band from '$lib/components/chrome/Band.svelte';
 	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
 	import { count } from '$lib/library/downloads';
-	import { SOURCE_KINDS } from '$lib/library/kinds';
 	import { writeFilters } from '$lib/library/browse-filters';
-	import { backOriginLabel } from '$lib/library/tag-search';
+	import { backOriginLabel, keepOrigin } from '$lib/library/tag-search';
 	import { isSettled } from '$lib/library/settled';
 	import ResultTile from './ResultTile.svelte';
 	import { SiteCheck, checkLine } from '$lib/site-check.svelte';
@@ -36,6 +35,8 @@
 	function link(over: Record<string, string | null>): string {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a throwaway copy, never read reactively
 		const p = new URLSearchParams(page.url.searchParams);
+		// The ADDED band is said once, not carried onto the next list.
+		p.delete('added');
 		for (const [k, v] of Object.entries(over)) {
 			if (v === null) p.delete(k);
 			else p.set(k, v);
@@ -43,11 +44,18 @@
 		const s = p.toString();
 		return s ? `${base}?${s}` : base;
 	}
+	/**
+	 * Every way to another list of this source keeps `from`, the preview or
+	 * series a tag opened it from, so ← still returns there (card c453). The
+	 * value kept is the one `backOrigin` accepted, never the raw parameter.
+	 */
+	const fromPair = $derived<[string, string][]>(data.back ? [['from', data.back]] : []);
+	const withFrom = (href: string) => keepOrigin(href, data.back);
 	/** Which list this is, whatever page it's on: what decides appending vs starting over. */
 	const listKey = (u: URL) => {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a throwaway copy, never read reactively
 		const p = new URLSearchParams(u.searchParams);
-		for (const k of ['pages', 'panel', 'find']) p.delete(k);
+		for (const k of ['pages', 'panel', 'find', 'added']) p.delete(k);
 		return `${u.pathname}?${p}`;
 	};
 
@@ -90,9 +98,9 @@
 	const value = $derived(shown?.ok ? shown.value : null);
 	const results = $derived(value?.results ?? null);
 	const name = $derived(data.source.name);
-	// An LNReader plugin (doc/NOVELS.md): no settings here, and its search takes
-	// no filters. Its family names its rows by its kind (`SOURCE_KINDS`).
-	const novel = $derived(data.source.kind === SOURCE_KINDS.lnreader);
+	// An LNReader plugin (doc/NOVELS.md): its search takes no filters, and its
+	// settings page has only tsundoku's own switches (c435). The family is asked, not the kind (card c420).
+	const novel = $derived(data.source.family === 'lnreader');
 	const tabTitle = $derived(
 		data.q
 			? `“${data.q.toUpperCase()}”`
@@ -142,8 +150,8 @@
 	/** RESET is the source's own choices, on the filtered tab, with the panel open. */
 	const resetHref = $derived(
 		value
-			? `${base}?${new URLSearchParams([['tab', 'filtered'], ['panel', '1'], ...(data.q ? [['q', data.q]] : []), ...writeFilters(value.schema)] as [string, string][])}`
-			: base
+			? `${base}?${new URLSearchParams([['tab', 'filtered'], ['panel', '1'], ...(data.q ? [['q', data.q]] : []), ...writeFilters(value.schema), ...fromPair] as [string, string][])}`
+			: withFrom(base)
 	);
 	/** The search keeps the filters it was asked with. */
 	const keptFilters = $derived(
@@ -172,6 +180,7 @@
 			<form method="GET" action={base} class="find" class:open={data.find || !!data.q}>
 				{#each keptFilters as [k, v] (k)}<input type="hidden" name={k} value={v} />{/each}
 				{#if keptFilters.length}<input type="hidden" name="tab" value="filtered" />{/if}
+				{#each fromPair as [k, v] (k)}<input type="hidden" name={k} value={v} />{/each}
 				<input
 					type="search"
 					name="q"
@@ -182,17 +191,26 @@
 				/>
 			</form>
 			<a class="cell slash" href={link({ find: '1' })} aria-label="Search {name}">/</a>
-			{#if !novel}<a class="cell settings" href="{base}/settings">SETTINGS</a>{/if}
+			<!-- Every family's, since tsundoku's own switches are every source's (c435). -->
+			<a class="cell settings" href={withFrom(`${base}/settings`)}>SETTINGS</a>
 		{/snippet}
 	</TopBar>
 	<!-- The way back to GET STARTED, while FIRST READ's trip lasts (doc/ONBOARDING.md). -->
 	<StartTrail start={data.start} />
+	{#if data.addedHidden}
+		<Band
+			title="ADDED TO THE LIBRARY, AND HIDDEN"
+			detail="{name.toUpperCase()} ADDS ITS SERIES HIDDEN · REVEAL SHOWS IT"
+		/>
+	{/if}
 
 	<nav class="tabs" aria-label="Lists">
 		<div class="tab-list">
-			<a class="tab" class:on={data.mode === 'popular'} href={base}>POPULAR</a>
+			<a class="tab" class:on={data.mode === 'popular'} href={withFrom(base)}>POPULAR</a>
 			{#if value?.latest}
-				<a class="tab" class:on={data.mode === 'latest'} href="{base}?tab=latest">LATEST</a>
+				<a class="tab" class:on={data.mode === 'latest'} href={withFrom(`${base}?tab=latest`)}
+					>LATEST</a
+				>
 			{/if}
 			{#if data.mode === 'filtered'}
 				<span class="tab on">{data.q ? 'SEARCH' : 'FILTERED'}</span>
@@ -220,6 +238,7 @@
 			schema={value.schema}
 			applied={value.applied}
 			q={data.q}
+			keep={fromPair}
 			{resetHref}
 			cancelHref={link({ panel: null })}
 		/>

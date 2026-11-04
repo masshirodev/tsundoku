@@ -88,6 +88,9 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		q,
 		panel: url.searchParams.get('panel') === '1',
 		find: url.searchParams.get('find') === '1',
+		// ADD from a source that adds hidden, with reveal off (card c435): the
+		// preview lands here, since the hidden series isn't found, and says so.
+		addedHidden: url.searchParams.get('added') === 'hidden',
 		// Arrived from a tag (c313): ← returns to where it was tapped, never anywhere else.
 		back: backOrigin(url.searchParams.get('from')),
 		// Without script a streamed promise never resolves, so the page waits for it instead.

@@ -1,7 +1,13 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { isRevealed } from '$lib/server/prefs';
-import { historyDays, isDay, removeHistoryRow, restoreHistoryRow } from '$lib/server/history';
+import {
+	historyDays,
+	historyTotals,
+	isDay,
+	removeHistoryRow,
+	restoreHistoryRow
+} from '$lib/server/history';
 import {
 	clock,
 	dayKey,
@@ -12,7 +18,6 @@ import {
 	type HistoryRow
 } from '$lib/library/history';
 import { kindLabel } from '$lib/library/labels';
-import { readingTotals } from '$lib/server/reading-time';
 import { previewIdOf } from '$lib/server/downloads';
 
 /** Days per page; `?before=` continues from the last one shown. */
@@ -71,7 +76,8 @@ export const load: PageServerLoad = ({ cookies, url }) => {
  * nothing more; a later one (novels, logged since /api/reading) says its day.
  */
 function total(reveal: boolean) {
-	const t = readingTotals(reveal);
+	// Without the sources kept OFF HISTORY (card c435).
+	const t = historyTotals(reveal);
 	if (t.ms <= 0 || !t.since) return null;
 	return {
 		time: readTime(t.ms),

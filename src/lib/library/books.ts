@@ -4,6 +4,7 @@
  */
 
 import type { Kind, Rating } from './types.ts';
+import { kindFacts } from './kinds.ts';
 
 /** Namespaces that name a person, and so get a person page with a FAV. */
 export const PERSON_NAMESPACES = ['artist', 'circle', 'author'] as const;
@@ -135,11 +136,14 @@ export type AnswerItem = { kind: Kind; entryCount: number };
 
 export function groupAnswers(items: AnswerItem[]): GroupAnswer[] {
 	const out: GroupAnswer[] = [];
-	// One series of books is doujin singletons; one series of volumes is
-	// novels. Both refuse a mixed selection, as grouping itself does.
-	if (items.length > 0 && items.every((i) => i.kind === 'doujin' && i.entryCount === 1))
+	// What GROUP binds a kind into is the registry's `grouping` (doc/KINDS.md;
+	// card c375): one series of books is single books of a kind grouped into
+	// books, one series of volumes is series of a kind grouped into volumes.
+	// Both refuse a mixed selection, as grouping itself does.
+	const binds = (i: AnswerItem) => kindFacts(i.kind).grouping;
+	if (items.length > 0 && items.every((i) => binds(i) === 'books' && i.entryCount === 1))
 		out.push('books');
-	if (items.length > 0 && items.every((i) => i.kind === 'novel')) out.push('volumes');
+	if (items.length > 0 && items.every((i) => binds(i) === 'volumes')) out.push('volumes');
 	out.push('work');
 	return out;
 }

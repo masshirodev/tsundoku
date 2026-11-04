@@ -32,6 +32,26 @@ function mangaId(raw: string): string {
 	return raw;
 }
 
+/**
+ * Where ADD lands (card c435). Normally the new series. A source whose ADDED
+ * HIDDEN switch is on makes it hidden at once, and with reveal off a hidden
+ * series is not found, so ADD lands back on the source's page instead (the
+ * BROWSE page it came from, its place kept), which says it was added hidden.
+ */
+function afterAdd(
+	seriesId: number,
+	mangaId: string,
+	origin: string,
+	reveal: boolean,
+	params: Record<string, string>
+): string {
+	if (reveal || seriesPage(seriesId, false)) return seriesWithOrigin(seriesId, origin, params);
+	const safe = sourceOrigin(origin);
+	const source = sourceOfMangaId(mangaId);
+	const page = safe.startsWith('/browse/') ? safe : source ? `/browse/${source}` : '/browse';
+	return `${page}${page.includes('?') ? '&' : '?'}added=hidden`;
+}
+
 export const load: PageServerLoad = async ({ params, cookies, url }) => {
 	const id = mangaId(params.id);
 	let key: string | null;
@@ -107,7 +127,7 @@ export const actions: Actions = {
 		redirect(303, `/read/${entryId}`);
 	},
 	/** + ADD TO LIBRARY: into both libraries, then the new series, with a band to UNDO. */
-	add: async ({ params, request }) => {
+	add: async ({ params, request, cookies }) => {
 		const id = mangaId(params.id);
 		const origin = String((await request.formData()).get('from') ?? '');
 		let seriesId: number;
@@ -117,7 +137,7 @@ export const actions: Actions = {
 			if (isAddError(e)) return fail(409, { message: (e as Error).message });
 			throw e;
 		}
-		redirect(303, seriesWithOrigin(seriesId, origin, { added: id }));
+		redirect(303, afterAdd(seriesId, id, origin, isRevealed(cookies), { added: id }));
 	},
 	/**
 	 * DOWNLOAD's FIRST 10 or ALL N, confirmed (card c205): a download lives in
@@ -137,7 +157,9 @@ export const actions: Actions = {
 			if (isAddError(e)) return fail(409, { message: (e as Error).message });
 			throw e;
 		}
-		const s = seriesPage(seriesId, isRevealed(cookies));
+		// The series just added is the viewer's to queue, even when its source
+		// adds hidden and reveal is off (card c435): queueing it shows nothing.
+		const s = seriesPage(seriesId, true);
 		let queued = 'none';
 		try {
 			const r = s ? await queueSeries(seriesId, s.entries, which) : null;
@@ -146,6 +168,6 @@ export const actions: Actions = {
 			if (!isDownloadsError(e)) throw e;
 			queued = 'down';
 		}
-		redirect(303, seriesWithOrigin(seriesId, origin, { added: id, queued }));
+		redirect(303, afterAdd(seriesId, id, origin, isRevealed(cookies), { added: id, queued }));
 	}
 };

@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
 import { getDb } from './db.ts';
 import { forgetSourceUse } from './library-sources.ts';
+import { hideIfAddedHidden } from './engine/source-flags.ts';
 import { KEEP_DAYS } from '../library/keep.ts';
 
 /**
@@ -148,6 +149,8 @@ export function keepOrPromote(
 			db.prepare(
 				`UPDATE series SET in_library = 1, browsed_at = NULL, pruned_at = NULL, added_at = ?, arrived_at = ? WHERE id = ?`
 			).run(now, now, s.id);
+			// ADD from a source that adds hidden (card c435): it starts hidden.
+			hideIfAddedHidden(s.id, db);
 			forgetSourceUse();
 		}
 	}

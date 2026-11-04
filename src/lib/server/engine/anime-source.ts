@@ -12,6 +12,7 @@ import { animeKeyOf } from '../../library/downloads.ts';
 import type { SourceManga } from '../download-types.ts';
 import { engineImageToken } from './client.ts';
 import { splitMemo } from './protocol.ts';
+import { hideIfAddedHidden } from './source-flags.ts';
 import {
 	AddError,
 	callSource,
@@ -158,6 +159,8 @@ export async function addAnime(id: string, now = Date.now()): Promise<number> {
 	if (existing) return keepOrPromote(existing, false, now, db);
 	const seriesId = await writeAnime(id, key, now, false);
 	db.prepare(`UPDATE series SET arrived_at = ? WHERE id = ?`).run(now, seriesId);
+	// ADD from a source that adds hidden (card c435): it starts hidden.
+	if (hideIfAddedHidden(seriesId, db)) forgetSourceUse();
 	return seriesId;
 }
 

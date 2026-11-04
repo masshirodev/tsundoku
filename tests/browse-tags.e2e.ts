@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import {
 	COLD,
 	GENRE,
+	SCHEMA,
 	SOURCE,
 	coldPreviewId,
 	previewId,
@@ -31,6 +32,8 @@ test.afterAll(async () => {
 });
 
 const fromBrowse = `/browse/${SOURCE.id}`;
+/** Where the source's Author text field sits, for its `f<i>` key (card c456). */
+const AUTHOR = SCHEMA.findIndex((f) => f.name === 'Author');
 const previewPath = `/downloads/source/${previewId}?from=${encodeURIComponent(fromBrowse)}`;
 const at = (page: Page) => new URL(page.url());
 const series = (id: number) => `${world.base}/series/${id}`;
@@ -174,7 +177,65 @@ test('a genre on the preview lands on FILTERED with its chip included, and ← c
 	expect(new URL((await own.getAttribute('href'))!, world.base).pathname).toBe(fromBrowse);
 });
 
-test('a genre the filters spell otherwise still matches; one they lack, and the author, are searches', async ({
+/**
+ * Card c453: every way to another list of the same source keeps the tag's
+ * origin, so ← still lands on the preview after the reader has looked around.
+ * Each step is a tap on what the screen offers (the tabs, the search field,
+ * FILTER's APPLY and RESET, SETTINGS and its ←), and each is asserted by the
+ * parameter the next ← reads. LATEST is not offered here (this world's source
+ * has no latest list); browse-flow.e2e.ts taps it in BROWSE's own world.
+ */
+test('a source page opened from a tag keeps its origin through every tab, search, FILTER and SETTINGS', async ({
+	page
+}) => {
+	// The preview's own address, its own `from` included.
+	const origin = previewPath;
+	const fromHere = () => at(page).searchParams.get('from');
+	await open(page, `${world.base}${previewPath}`);
+	await page.getByRole('link', { name: 'romance', exact: true }).click();
+	await expect(page).toHaveURL(/tab=filtered/);
+	expect(fromHere()).toBe(origin);
+
+	// POPULAR, the tab every source has.
+	await page.locator('nav[aria-label="Lists"]').getByRole('link', { name: 'POPULAR' }).click();
+	await expect(page.locator('nav[aria-label="Lists"] .tab.on')).toHaveText('POPULAR');
+	await expect(page).not.toHaveURL(/tab=filtered/);
+	expect(fromHere()).toBe(origin);
+
+	// One search, typed into the source's own field (on the tablet's bar).
+	const field = page.getByRole('searchbox', { name: `Search ${SOURCE.name}` });
+	await field.fill('Found');
+	await field.press('Enter');
+	await expect(page).toHaveURL(/q=Found/);
+	await expect(page.locator('nav[aria-label="Lists"] .tab.on')).toHaveText('SEARCH');
+	expect(fromHere()).toBe(origin);
+
+	// FILTER's APPLY, then its RESET.
+	await page.getByRole('link', { name: /^FILTER/ }).click();
+	await page.getByRole('button', { name: /^APPLY/ }).click();
+	await expect(page).toHaveURL(/tab=filtered/);
+	await expect(page).not.toHaveURL(/panel=1/);
+	expect(fromHere()).toBe(origin);
+	await page.getByRole('link', { name: /^FILTER/ }).click();
+	await page.getByRole('link', { name: '✕ RESET' }).click();
+	await expect(page).toHaveURL(/panel=1/);
+	expect(fromHere()).toBe(origin);
+
+	// SETTINGS and back.
+	await page.getByRole('link', { name: 'SETTINGS', exact: true }).click();
+	await expect(page).toHaveURL(new RegExp(`/browse/${SOURCE.id}/settings\\?`));
+	expect(fromHere()).toBe(origin);
+	await page.getByRole('link', { name: `Back to ${SOURCE.name}` }).click();
+	await expect(page).toHaveURL(new RegExp(`/browse/${SOURCE.id}\\?`));
+	expect(fromHere()).toBe(origin);
+
+	// And ← is still the preview's.
+	await page.getByRole('link', { name: 'Back to the preview' }).click();
+	await expect(page.getByRole('heading', { name: 'Preview Me Tagged' })).toBeVisible();
+	expect(at(page).pathname + at(page).search).toBe(previewPath);
+});
+
+test('a genre the filters spell otherwise still matches; one they lack is a search, the author fills Author', async ({
 	page
 }) => {
 	world.reset();
@@ -196,14 +257,29 @@ test('a genre the filters spell otherwise still matches; one they lack, and the 
 	await page.getByRole('link', { name: 'Back to the preview' }).click();
 	await expect(page.getByRole('heading', { name: 'Preview Me Tagged' })).toBeVisible();
 
+	// The author fills the source's own Author field (card c456), not the title search.
 	await page.getByRole('link', { name: 'Aoi Hanamura', exact: true }).click();
-	await expect(page).toHaveURL(/q=Aoi\+Hanamura/);
+	await expect(page).toHaveURL(/tab=filtered/);
+	expect(at(page).searchParams.get(`f${AUTHOR}`)).toBe('Aoi Hanamura');
+	expect(at(page).searchParams.get('q')).toBeNull();
+	await expect(page.locator('nav[aria-label="Lists"] .tab.on')).toHaveText('FILTERED');
+	const asked = () =>
+		world
+			.calls()
+			.filter((c) => c.method === 'getSearchManga')
+			.map((c) => ({
+				search: c.search ?? '',
+				author: (c.filterList as { name: string; stateString?: string }[] | undefined)?.find(
+					(f) => f.name === 'Author'
+				)?.stateString
+			}));
+	await expect.poll(() => asked().some((a) => a.author === 'Aoi Hanamura')).toBe(true);
+	expect(asked().find((a) => a.author === 'Aoi Hanamura')!.search).toBe('');
+	// The artist: this source has no Artist field, so a search for the name.
+	await page.getByRole('link', { name: 'Back to the preview' }).click();
+	await page.getByRole('link', { name: 'Ren Kisaragi', exact: true }).click();
+	await expect(page).toHaveURL(/q=Ren\+Kisaragi/);
 	expect(at(page).searchParams.get('tab')).toBeNull();
-	await expect
-		.poll(() =>
-			world.calls().some((c) => c.method === 'getSearchManga' && c.search === 'Aoi Hanamura')
-		)
-		.toBe(true);
 });
 
 /**

@@ -7,7 +7,7 @@
 	import { formatNumber } from '$lib/library/series';
 	import { kindFacts } from '$lib/library/kinds';
 	import { resolve } from '$app/paths';
-	import { distinct, tagRouteHref } from '$lib/library/tag-search';
+	import { distinct, previewPeople, tagRouteHref } from '$lib/library/tag-search';
 	import { count, previewConfirm, previewDownload } from '$lib/library/downloads';
 	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
 	import { coverPlaceholder } from '$lib/library/cover';
@@ -43,6 +43,9 @@
 			{ namespace, value },
 			page.url.pathname + page.url.search
 		);
+	/** The author and artist lines, one link a person (c456; `previewPeople`). */
+	const people = (m: { author?: string | null; artist?: string | null }) =>
+		previewPeople(m.author, m.artist);
 	const refusal = $derived(
 		form && 'message' in form && typeof form.message === 'string' ? form.message.toUpperCase() : ''
 	);
@@ -220,16 +223,15 @@
 						<div class="tags" data-sveltekit-reload>
 							<!-- eslint-disable svelte/no-navigation-without-resolve -- searchTag() builds on resolve() -->
 							<!-- tag-search is a server route, not a page: the browser follows its 303. -->
-							{#if m.author}<div class="tag-line">
-									<span class="ns">author</span><a class="tv" href={searchTag('author', m.author)}
-										>{m.author}</a
+							<!-- One link a person (c456): "A, B" is two, each searched on its own. -->
+							{#each people(m) as line (line.ns)}<div class="tag-line">
+									<span class="ns">{line.ns}</span><span
+										>{#each line.names as name, i (name)}{#if i > 0}<span class="sep">
+													·
+												</span>{/if}<a class="tv" href={searchTag(line.ns, name)}>{name}</a
+											>{/each}</span
 									>
-								</div>{/if}
-							{#if m.artist && m.artist !== m.author}<div class="tag-line">
-									<span class="ns">artist</span><a class="tv" href={searchTag('artist', m.artist)}
-										>{m.artist}</a
-									>
-								</div>{/if}
+								</div>{/each}
 							{#if m.genres.length}<div class="tag-line">
 									<span class="ns">genre</span><span
 										>{#each distinct(m.genres) as g, i (i)}{#if i > 0}<span class="sep">
