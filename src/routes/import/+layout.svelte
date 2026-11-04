@@ -26,6 +26,8 @@
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
+		align-items: flex-start;
+		text-align: left;
 		gap: 3px;
 		padding: 0 20px;
 	}
@@ -393,6 +395,11 @@
 		}
 		.imp :global(.r .cl) {
 			white-space: normal;
+		}
+		/* A cell the phone's boards leave out (SKIP: NO NEW CHAPTERS, THEIR FILES STAYED…). */
+		.imp :global(.r .cl.wide),
+		.imp :global(.wide) {
+			display: none;
 		}
 		.imp :global(.confirm) {
 			height: auto;

@@ -145,6 +145,10 @@
 				<div class="v acc">{n(p.withReading)}</div>
 				<div class="t">WITH READING · {n(p.chaptersRead)} CHAPTERS READ</div>
 			</div>
+			<!-- Four cells always, as the board draws them: fewer kinds leave a blank cell, not a gap. -->
+			{#each [0, 1, 2].slice(Math.min(3, p.kinds.length)) as i (i)}<div
+					aria-hidden="true"
+				></div>{/each}
 		</div>
 
 		{#if p.same}
