@@ -104,14 +104,18 @@ test('unrated (0) draws no track at all; a rated series draws its whole track', 
 			.locator('.grid .tile', { hasText: title })
 			.locator('.bars .bar')
 			.evaluateAll((els) => els.map((e) => getComputedStyle(e).backgroundColor));
-	// Not one a flow file rates: flows run beside this spec, on the same database.
-	const unrated = await bars('Villainess Level 99');
-	const one = await bars('Lookism');
+	// Series no flow file rates, hides or groups: flows run beside this spec on
+	// the same database. Villainess Level 99 was read here until c252, and
+	// volumes-flow groups it away mid-run; privacy-flow only logs Yofukashi's
+	// reading, and Boku no Kokoro is read by the TV's series specs alone.
+	const unrated = await bars('Yofukashi no Uta');
+	const rated = await bars('Boku no Kokoro no Yabai Yatsu');
 	expect(unrated).toHaveLength(5);
 	for (const c of unrated) expect(c).toBe('rgba(0, 0, 0, 0)');
-	// Rated 1: one filled bar and four empty ones, all of them drawn.
-	for (const c of one) expect(c).not.toBe('rgba(0, 0, 0, 0)');
-	expect(new Set(one).size).toBe(2);
+	// Rated 8: four filled bars and one empty, all of them drawn.
+	expect(rated).toHaveLength(5);
+	for (const c of rated) expect(c).not.toBe('rgba(0, 0, 0, 0)');
+	expect(new Set(rated).size).toBe(2);
 });
 
 test('nothing is rounded and nothing casts a shadow', async ({ page }) => {
