@@ -2,7 +2,9 @@ import { test as base, expect, type Page } from '@playwright/test';
 import { hydrated } from './helpers/hydration';
 
 /**
- * Every e2e spec imports `test` from here. Every full document load it makes
+ * Most e2e specs import `test` from here: 77 of the 94 at wave 21, counted
+ * and named in doc/TESTING.md ("E2E specs", the paragraph after the table), which
+ * `tests/e2e-table.spec.ts` checks. Every full document load such a test makes
  * -- `page.goto`, `page.reload`, `page.goBack` and `page.goForward` -- waits
  * for the page to have hydrated (`hydrated()`, `tests/helpers/hydration.ts`),
  * and `goto` waits for the network to go quiet first. SvelteKit hydrates
@@ -14,12 +16,14 @@ import { hydrated } from './helpers/hydration';
  * Network quiet alone was this fixture's wait until wave 21 (c477): 500 ms
  * without a request is a guess at hydration, and on a loaded box the last
  * module arrives and then waits longer than that for the CPU. SvelteKit's
- * route announcer is the page's own mark (doc/TESTING.md, "Waiting on the
- * page's own state"). `tests/helpers/hydrated.ts`, which added the same wait
+ * route announcer is the page's own mark (doc/TESTING.md, "E2E specs":
+ * "Network quiet is a guess at hydration"). `tests/helpers/hydrated.ts`, which added the same wait
  * for the specs that imported it, is now this `test` under another name.
  *
  * A spec that means to act before hydration, as a quick thumb does
- * (`browse-tags`, `library-top-bar`), imports `test` from `@playwright/test`.
+ * (`browse-tags`, `filters-layout`, `library-top-bar`'s FILTER case), imports
+ * `test` from `@playwright/test`. Fifteen more do so only because nobody
+ * moved them over; the doc names them, and they get no wait at all.
  */
 export const test = base.extend({
 	page: async ({ page }, use) => {

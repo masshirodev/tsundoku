@@ -4,8 +4,8 @@ import type { Page } from '@playwright/test';
  * The page has hydrated: SvelteKit's root component draws its route
  * announcer (`#svelte-announcer`) from its own `onMount`, which runs after
  * every component under it has mounted, so the element is there exactly when
- * the whole tree's handlers are (doc/TESTING.md, "Waiting on the page's own
- * state"; c439).
+ * the whole tree's handlers are (doc/TESTING.md, "E2E specs": "Network quiet
+ * is a guess at hydration"; c439).
  *
  * `networkidle` alone is a guess at the same moment: 500 ms with no request.
  * On a loaded box the last module arrives and the CPU then takes longer than
