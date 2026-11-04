@@ -47,8 +47,12 @@ novel") is one download **per volume**. The URL names the file
 copy a device already keeps stays valid. The reader opens the volume the
 chapter is in, and moving past a volume's last chapter shows OPENING while the
 next one downloads, once. An entry's documents run up to the next entry **of
-its own file**. Scroll doesn't preload across a volume's end. Each volume is
-kept in the device cache with markers for its own entries.
+its own file**. Scroll doesn't preload across a volume's end: below the band
+that ends a volume's last chapter is a screen of room where the next volume's
+first chapter will be, and when its top passes the middle of the screen, as
+any next chapter's start does, the next volume opens, OPENING over it while it
+downloads (c347; before, the band said ↓ KEEP SCROLLING and nothing came).
+Each volume is kept in the device cache with markers for its own entries.
 
 ## A chapter's text
 

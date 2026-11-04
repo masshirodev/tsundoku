@@ -414,7 +414,9 @@
 
 	/** Scroll: the next chapter is already below this one, so reading carries on. */
 	async function loadNext() {
-		// The next volume is another download: it opens when reading reaches it.
+		// The next volume is another download: it opens when reading reaches it,
+		// its start being the room drawn below the band (c347), which crosses the
+		// middle of the screen as a chapter's start does (`onscroll`).
 		if (!book || !nextReadable || layout !== 'scroll' || nextReadable.file !== bookFile) return;
 		try {
 			nextChapter = await chapterBlocks(book.zip, docsOf(book, index + 1), book.images);
@@ -1147,7 +1149,17 @@
 					</div>
 					<div class="go">↓ KEEP SCROLLING</div>
 				</div>
-				<div class="blocks next" bind:this={nextEl}></div>
+				{#if nextReadable.file !== bookFile}
+					<!-- The next volume is another download (c347): a screen of room where
+					     its first chapter will be, so its start crosses the middle of the
+					     screen as any next chapter's does, and the crossing opens it, with
+					     OPENING over it while it downloads, as a turn does in PAGED. -->
+					<div class="blocks next" bind:this={nextEl}>
+						<div class="volume-room" aria-hidden="true"></div>
+					</div>
+				{:else}
+					<div class="blocks next" bind:this={nextEl}></div>
+				{/if}
 			{/if}
 		</div>
 	</div>
@@ -1617,6 +1629,10 @@
 		border-top: 1px solid var(--text-1);
 		border-bottom: 1px solid var(--text-1);
 		text-align: left;
+	}
+	/* As tall as the screen, so the room's top can reach the middle of it. */
+	.volume-room {
+		height: 100dvh;
 	}
 	.sband .rule {
 		height: 1px;
