@@ -223,6 +223,13 @@ test('✕ puts the band away; it stays away on reload, and a new series to link 
 		.evaluate((n) => getComputedStyle(n).backgroundColor);
 	await expect(putAway(page)).not.toHaveCSS('background-color', review);
 	await expect(putAway(page)).toHaveCSS('border-left-width', '1px');
+	// One block at the band's end, REVIEW then ✕: the band's own space-between
+	// spread them apart once, REVIEW stranded mid-band.
+	const r = (await page.getByRole('link', { name: 'Review the series to link' }).boundingBox())!;
+	const x = (await putAway(page).boundingBox())!;
+	const b = (await band(page).boundingBox())!;
+	expect(Math.abs(x.x - (r.x + r.width))).toBeLessThanOrEqual(1);
+	expect(Math.abs(x.x + x.width - (b.x + b.width))).toBeLessThanOrEqual(1);
 
 	await putAway(page).click();
 	await expect(band(page)).toHaveCount(0);

@@ -1286,18 +1286,21 @@
 			detail={isOffline ? 'THE REVIEW NEEDS THE WORKSTATION' : 'FOUND ON ANILIST, NOT FOR CERTAIN'}
 		>
 			{#snippet action()}
-				{#if isOffline}
-					<span class="dimmed" aria-disabled="true">REVIEW →</span>
-				{:else}
-					<a href={resolve('/links')} aria-label="Review the series to link">REVIEW →</a>
-				{/if}
-				<button
-					type="button"
-					class="put-away"
-					aria-label="Put away the series to link until there are more"
-					data-focus-mark="in"
-					onclick={() => rememberLinksAt(data.toLink)}>✕</button
-				>
+				<!-- One block at the band's end: the band spreads its children apart. -->
+				<span class="link-acts">
+					{#if isOffline}
+						<span class="dimmed" aria-disabled="true">REVIEW →</span>
+					{:else}
+						<a href={resolve('/links')} aria-label="Review the series to link">REVIEW →</a>
+					{/if}
+					<button
+						type="button"
+						class="put-away"
+						aria-label="Put away the series to link until there are more"
+						data-focus-mark="in"
+						onclick={() => rememberLinksAt(data.toLink)}>✕</button
+					>
+				</span>
 			{/snippet}
 		</Banner>
 	{/if}
@@ -1791,6 +1794,10 @@
 	}
 	/* The SERIES TO LINK band's ✕ (c430): a plain cell after REVIEW, not a
 	   second accent action. */
+	.link-acts {
+		align-self: stretch;
+		display: flex;
+	}
 	.library .put-away {
 		min-width: 60px;
 		justify-content: center;
