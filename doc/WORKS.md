@@ -282,6 +282,12 @@ Work is one that HIDE hid. Every UNDO that puts a series back into a Work
 GROUP's and UNGROUP's) refuses, whole, when the series has joined another Work
 since, has left the library, or the Work it goes back to has ended or changed;
 and one that is not about to show anything refuses a result hidden in part.
+An id alone does not name a Work: once the newest Work ends, the next one made
+is given its id, so an UNDO knows each Work by its id and the moment it was
+made (`created_at`, carried in the facts) and refuses a different Work under
+the same id. An ended Work it brings back under a new id takes the rest of the
+same UNDO with it: a second take-out, add or GROUP move in that press goes into
+the restored Work, never into the newer one holding the old id.
 The route answers with the reason (`… IS IN <WORK> NOW · TAKE IT OUT THERE
 FIRST`), never a 500. Before, `INSERT OR REPLACE` took the series from the Work
 it had joined and left that Work with one member for good.

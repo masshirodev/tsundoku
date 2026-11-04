@@ -126,7 +126,9 @@ describe('creating a Work', () => {
 			name: 'Second',
 			now: NOW
 		});
-		expect(second.movedFrom).toEqual([{ seriesId: b, workId: first.work.id, position: 2 }]);
+		expect(second.movedFrom).toEqual([
+			{ seriesId: b, workId: first.work.id, createdAt: NOW, position: 2 }
+		]);
 		expect(partsOf(first.work.id)).toEqual([a, c]);
 		expect(partsOf(second.work.id)).toContain(b);
 		// The former Work kept two series, so it did not end.
@@ -769,6 +771,7 @@ describe('a part’s place after a take-out (wave 16)', () => {
 		// UNDO puts the middle back at its own place, and the numbers follow.
 		works.undoTakeOut({
 			workId: work.id,
+			workCreatedAt: NOW,
 			seriesId: ids[1],
 			title: '',
 			position: 2,
@@ -901,7 +904,7 @@ describe('an UNDO never takes a series from the Work it joined since (c308)', ()
 		const from = works.createWork({ seriesIds: [a, b, c], name: 'From', now: NOW });
 		const into = works.createWork({ seriesIds: [d, e], name: 'Into', now: NOW });
 		const added = works.addSeries(into.work.id, c);
-		expect(added.former).toEqual({ workId: from.work.id, position: 3 });
+		expect(added.former).toEqual({ workId: from.work.id, createdAt: NOW, position: 3 });
 		// The sheet moves it on again: Into keeps two, so nothing ends.
 		const f = idOf('Honzuki no Gekokujou')!;
 		const third = works.createWork({ seriesIds: [c, f], name: 'Third', now: NOW });
@@ -1050,6 +1053,104 @@ describe('an UNDO never takes a series from the Work it joined since (c308)', ()
 	});
 });
 
+describe('an UNDO that brings an ended Work back under a new id carries the id through (round 2)', () => {
+	// Seven visible series in no Work: a Work of three, a Work to add into, and
+	// two for the newer Work that is given the ended one's id.
+	const seven = () =>
+		[
+			'Isekai Yakkyoku',
+			'Tensei Shitara Ken Deshita',
+			'Mushoku Tensei',
+			'Villainess Level 99',
+			'Chainsaw Man',
+			'Honzuki no Gekokujou',
+			'Isekai Ojisan'
+		].map(idOf) as number[];
+
+	it('puts every take-out back into the restored Work, not the newer one with its old id', () => {
+		const [a, b, c, x, y] = seven();
+		const w = works.createWork({ seriesIds: [a, b, c], name: 'Three', now: NOW });
+		const f1 = works.takeOut(w.work.id, a);
+		const f2 = works.takeOut(w.work.id, b);
+		expect(f2.ended).not.toBeNull();
+		const n = works.createWork({ seriesIds: [x, y], name: 'Newer', now: NOW + 1 });
+		expect(n.work.id).toBe(w.work.id);
+
+		works.undoTakeOuts([f1, f2]);
+		// Before the fix, a went into Newer, making it [x, a, y].
+		expect(membersNow(n.work.id)).toEqual([x, y]);
+		const back = works.workOfSeries(a)!;
+		expect(back).toMatchObject({ name: 'Three', createdAt: NOW });
+		expect(back.id).not.toBe(n.work.id);
+		expect(membersNow(back.id)).toEqual([a, b, c]);
+	});
+
+	it('does the same for the HIDE > TAKE OUT band’s UNDO over two parts of a Work of three', () => {
+		const [a, b, c, x, y] = seven();
+		const w = works.createWork({ seriesIds: [a, b, c], name: 'Three', now: NOW });
+		const { out, facts } = works.takeOutAndHide([a, b]);
+		expect(out.map((f) => f.ended !== null)).toEqual([false, true]);
+		const n = works.createWork({ seriesIds: [x, y], name: 'Newer', now: NOW + 1 });
+		expect(n.work.id).toBe(w.work.id);
+
+		works.undoHideWhole({ hidden: facts.ids, out });
+		expect(membersNow(n.work.id)).toEqual([x, y]);
+		const back = works.workOfSeries(a)!;
+		expect(back).toMatchObject({ name: 'Three', createdAt: NOW });
+		expect(membersNow(back.id)).toEqual([a, b, c]);
+		expect([a, b, c, x, y].map(hiddenOf)).toEqual([false, false, false, false, false]);
+	});
+
+	it('does the same for two adds whose second ended the Work they came from', () => {
+		const [a, b, c, x, y, p, q] = seven();
+		// Into first, so the Work of three holds the highest id and gives it up.
+		const into = works.createWork({ seriesIds: [p, q], name: 'Into', now: NOW });
+		const w = works.createWork({ seriesIds: [a, b, c], name: 'Three', now: NOW });
+		const f1 = works.addSeries(into.work.id, a);
+		const f2 = works.addSeries(into.work.id, b);
+		expect(f1.former).toMatchObject({ workId: w.work.id });
+		expect(f2.ended.map((e) => e.work.id)).toEqual([w.work.id]);
+		const n = works.createWork({ seriesIds: [x, y], name: 'Newer', now: NOW + 1 });
+		expect(n.work.id).toBe(w.work.id);
+
+		works.undoAdds([f1, f2]);
+		expect(membersNow(n.work.id)).toEqual([x, y]);
+		expect(membersNow(into.work.id)).toEqual([p, q]);
+		const back = works.workOfSeries(a)!;
+		expect(back).toMatchObject({ name: 'Three', createdAt: NOW });
+		expect(membersNow(back.id)).toEqual([a, b, c]);
+	});
+
+	it('refuses to put a series back into a newer Work that holds the id, when its own Work is not restored', () => {
+		const [a, b, c, x, y] = seven();
+		const w = works.createWork({ seriesIds: [a, b, c], name: 'Three', now: NOW });
+		const f1 = works.takeOut(w.work.id, a);
+		// Ended by a later press whose UNDO is not this one.
+		works.ungroup(w.work.id);
+		const n = works.createWork({ seriesIds: [x, y], name: 'Newer', now: NOW + 1 });
+		expect(n.work.id).toBe(w.work.id);
+
+		expect(() => works.undoTakeOuts([f1])).toThrow(works.WorkError);
+		expect(() => works.undoTakeOut(f1)).toThrow(/has ended/);
+		expect(membersNow(n.work.id)).toEqual([x, y]);
+		void b;
+		void c;
+	});
+
+	it('refuses an add’s UNDO whose Work has ended, rather than take the series out of a newer one', () => {
+		const [a, , , x, , p, q] = seven();
+		const into = works.createWork({ seriesIds: [p, q], name: 'Into', now: NOW });
+		const added = works.addSeries(into.work.id, a);
+		works.ungroup(into.work.id);
+		const n = works.createWork({ seriesIds: [a, x], name: 'Newer', now: NOW + 1 });
+		expect(n.work.id).toBe(into.work.id);
+
+		// Before, the DELETE took a out of Newer and left it a Work of one.
+		expect(() => works.undoAdds([added])).toThrow(/has ended/);
+		expect(membersNow(n.work.id)).toEqual([a, x]);
+	});
+});
+
 describe('a HIDE’s UNDO puts back only what the HIDE changed (c390)', () => {
 	const W = ['Isekai Yakkyoku', 'Tensei Shitara Ken Deshita', 'Mushoku Tensei'];
 
@@ -1103,6 +1204,9 @@ describe('a HIDE’s UNDO puts back only what the HIDE changed (c390)', () => {
 		const x = idOf('Villainess Level 99')!;
 		works.createWork({ seriesIds: [p, q, r], name: 'Run', now: NOW });
 		works.setHiddenWhole([p], true);
+		// x is hidden with no UNDO: a Work-less band on the library page would
+		// read TAKEN OUT OF THE WORK (its fallback words, `library`'s), so the
+		// trade-off is recorded under the notes' Decisions until that changes.
 		expect(await post(library.actions.hideAll, ids([p, x]))).toEqual({ ok: true });
 		expect(hiddenOf(x)).toBe(true);
 		expect(works.setHiddenWhole([p, q], true)).toEqual({ ids: [], whole: [], works: 0 });
