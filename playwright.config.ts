@@ -1,3 +1,6 @@
+// First, for its side effect: this run's own temporary directory, which
+// every tmpdir() below and in the suite resolves to (tests/helpers/run-dir.ts).
+import './tests/helpers/run-dir';
 import { defineConfig, devices } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
@@ -62,10 +65,24 @@ export default defineConfig({
 	testMatch: '**/*.e2e.{ts,js}',
 	testIgnore: ['**/build/**'],
 	fullyParallel: true,
+	// Half the logical cores, whatever else the box is doing (doc/TESTING.md,
+	// "Load"). Measured in wave 19 with the box loaded: three workers instead of
+	// six took 17.7 minutes instead of 14.7 and failed no fewer tests. A test
+	// that fails under load waits on time instead of the page's own state, and
+	// fewer workers only hides that. `--workers` still overrides it.
+	workers: '50%',
+	// Tests left out of every project by title, as a regular expression
+	// (doc/TESTING.md, "Load"). The CLI's `--grep-invert` cannot do this:
+	// Playwright never applies a command-line filter to a dependency project, so
+	// a known red in a device project still runs and still keeps `duplicates`
+	// and `gate`, which depend on all of them, from running at all. A filter in
+	// the config is the projects' own, dependencies included.
+	grepInvert: process.env.PLAYWRIGHT_SKIP ? new RegExp(process.env.PLAYWRIGHT_SKIP) : undefined,
 	// BROWSE's own server and fake engine, started after the shared server has
 	// built (tests/browse-setup.ts): the browse project below runs against it.
 	// And a friend's install (tests/friend-setup.ts), for the friend project.
-	globalSetup: ['./tests/browse-setup.ts', './tests/friend-setup.ts'],
+	// The run's directory first, so its teardown -- removing it -- runs last.
+	globalSetup: ['./tests/helpers/run-dir.ts', './tests/browse-setup.ts', './tests/friend-setup.ts'],
 	reporter: process.env.CI ? 'github' : 'list',
 	use: {
 		baseURL: `http://localhost:${previewPort}`,
@@ -91,9 +108,13 @@ export default defineConfig({
 	webServer: process.env.PLAYWRIGHT_NO_SERVER
 		? undefined
 		: {
+				// kuromoji's dictionary is `yarn prepare`'s copy, untracked, so a
+				// worktree that never ran it builds an app whose lookup has no
+				// words (c249): copied here, before the build takes static/.
 				command:
-					`rm -f ${databasePath}* && yarn run seed && yarn run build && ` +
-					`yarn run preview --port ${previewPort} --strictPort`,
+					`rm -f ${databasePath}* && yarn run seed && ` +
+					`node node_modules/kotoba/scripts/sync-dict.js static/dict > /dev/null && ` +
+					`yarn run build && yarn run preview --port ${previewPort} --strictPort`,
 				// An empty library folder: START SCAN must never import real files
 				// into the seeded database the suite asserts against.
 				env: {

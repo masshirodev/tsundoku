@@ -1,5 +1,5 @@
 import { type Page } from '@playwright/test';
-import { expect, test } from './fixtures';
+import { expect, test } from './helpers/hydrated';
 
 /**
  * Duplicate books end to end (doc/DUPLICATE-BOOKS.md), on the seed's hidden

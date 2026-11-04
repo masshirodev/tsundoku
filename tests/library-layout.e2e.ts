@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures';
+import { expect, test } from './helpers/hydrated';
 
 /**
  * The frame on every device the design draws, hand-written beside the
@@ -104,14 +104,21 @@ test('unrated (0) draws no track at all; a rated series draws its whole track', 
 			.locator('.grid .tile', { hasText: title })
 			.locator('.bars .bar')
 			.evaluateAll((els) => els.map((e) => getComputedStyle(e).backgroundColor));
-	// Not one a flow file rates: flows run beside this spec, on the same database.
-	const unrated = await bars('Villainess Level 99');
-	const one = await bars('Lookism');
+	// Series no other spec rates, hides or groups: they run beside this one on
+	// the same database (doc/TESTING.md, "The readers beside the flows").
+	// Villainess Level 99 was read here until c252, and volumes-flow groups it
+	// away mid-run; Boku no Kokoro after it, until tv-series' RATING case was
+	// seen moving it a half-bar down and back, and a half bar is a gradient
+	// whose colour reads as none. privacy-flow only logs Yofukashi's reading
+	// and links-flow undoes its link; Mushoku Tensei's history is history-flow's.
+	const unrated = await bars('Yofukashi no Uta');
+	const rated = await bars('Mushoku Tensei');
 	expect(unrated).toHaveLength(5);
 	for (const c of unrated) expect(c).toBe('rgba(0, 0, 0, 0)');
-	// Rated 1: one filled bar and four empty ones, all of them drawn.
-	for (const c of one) expect(c).not.toBe('rgba(0, 0, 0, 0)');
-	expect(new Set(one).size).toBe(2);
+	// Rated 8: four filled bars and one empty, all of them drawn.
+	expect(rated).toHaveLength(5);
+	for (const c of rated) expect(c).not.toBe('rgba(0, 0, 0, 0)');
+	expect(new Set(rated).size).toBe(2);
 });
 
 test('nothing is rounded and nothing casts a shadow', async ({ page }) => {

@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures';
+import { test, expect } from './helpers/hydrated';
 import { ANIME_SOURCE } from './browse-world';
 
 /**
@@ -261,12 +261,17 @@ test.describe('the player, tablet landscape (c156)', () => {
 			const v = document.querySelector('video');
 			return !!v && v.currentTime > 0;
 		});
-		// The clip's ending starts at 6 s: reaching it is enough, no skip.
+		// The clip's ending starts at 6 s: reaching it is enough, no skip. The
+		// player says so to the server, and the series is read once it has: a
+		// fixed 1.5 s for that was too short under a loaded suite (c336, c439).
+		const finished = page.waitForResponse(
+			(r) => r.url().endsWith('/api/reading') && r.request().postDataJSON()?.kind === 'finish'
+		);
 		await page.evaluate(() => {
 			const v = document.querySelector('video');
 			if (v) v.currentTime = 6.3;
 		});
-		await page.waitForTimeout(1500);
+		await finished;
 		const href = await player.getByRole('link', { name: '← SERIES' }).first().getAttribute('href');
 		await page.goto(href!);
 		await expect(
@@ -292,6 +297,12 @@ test.describe('the player, tablet landscape (c156)', () => {
 			const v = document.querySelector('video');
 			return !!v && v.currentTime > 0;
 		});
+		// 6.2 s is inside the ending, so the seek itself may already report the
+		// episode finished (c239) before SKIP is pressed: whichever sends it,
+		// the series is read once the server has it, not after a fixed second.
+		const finished = page.waitForResponse(
+			(r) => r.url().endsWith('/api/reading') && r.request().postDataJSON()?.kind === 'finish'
+		);
 		await page.evaluate(() => {
 			const v = document.querySelector('video');
 			if (v) v.currentTime = 6.2;
@@ -299,7 +310,7 @@ test.describe('the player, tablet landscape (c156)', () => {
 		const skip = player.getByRole('button', { name: 'SKIP ENDING →' });
 		await expect(skip).toBeVisible({ timeout: 10_000 });
 		await skip.click();
-		await page.waitForTimeout(1000);
+		await finished;
 		const href = await player.getByRole('link', { name: '← SERIES' }).first().getAttribute('href');
 		await page.goto(href!);
 		await expect(list.locator('.entry').last().locator('.status')).toHaveText('WATCHED');
@@ -309,6 +320,17 @@ test.describe('the player, tablet landscape (c156)', () => {
 		page
 	}) => {
 		test.setTimeout(90_000);
+		// The fixture clip is 8 s, and this test waits out the controls' fade
+		// (up to 6 s) while it plays: on a loaded box the clip used to end under
+		// it and the end screen took the cluster away (c439). Every play starts
+		// it 10x slower, as tv-player's do.
+		await page.addInitScript(() => {
+			const play = HTMLMediaElement.prototype.play;
+			HTMLMediaElement.prototype.play = function (this: HTMLMediaElement) {
+				this.playbackRate = 0.1;
+				return play.call(this);
+			};
+		});
 		await page.goto('/');
 		await page.getByRole('link', { name: /^ANIME/ }).click();
 		await page.locator('.grid .tile', { hasText: 'Tsukiakari no Ryokōsha' }).click();
@@ -355,16 +377,39 @@ test.describe('the player, tablet landscape (c156)', () => {
 		await page.mouse.click(mid.x, mid.y);
 		await expect(pp).toHaveAttribute('aria-label', 'Pause');
 
-		// Two clicks on the right third seek 10 s, and don't pause it.
-		const right = { x: box.x + box.width * 0.85, y: mid.y };
-		await page.mouse.dblclick(right.x, right.y);
-		await expect(player.locator('.flash .by')).toHaveText('+10 S');
-		await expect(pp).toHaveAttribute('aria-label', 'Pause');
-
 		// The cluster is solid, never drawn half-faded over the picture: the bars
-		// fade, it does not.
+		// fade, it does not. Read before any seek: +10 s on the 8 s clip reaches
+		// its end, and the end screen replaces the cluster (c439).
 		await expect(player.locator('.cluster')).toHaveCSS('transition-duration', '0s');
 		await expect(player.locator('.top')).not.toHaveCSS('transition-duration', '0s');
+
+		// Two clicks on the left third seek back 10 s, and don't pause it.
+		const left = { x: box.x + box.width * 0.15, y: mid.y };
+		await page.mouse.dblclick(left.x, left.y);
+		await expect(player.locator('.flash .by')).toHaveText('−10 S');
+		await expect(pp).toHaveAttribute('aria-label', 'Pause');
+
+		// Two on the right third seek 10 s ahead. The clip is 8.008 s and a seek
+		// stops at the end, so from anywhere in it +10 s is its end: the flash is
+		// drawn while playing and the end screen replaces it within a frame or so,
+		// too briefly for a poll to be sure of. Record every flash the player
+		// draws from here on, then seek, then read what it drew and where it ended.
+		// The −10 S one goes first, on its own 900 ms timer.
+		await expect(player.locator('.flash')).toHaveCount(0);
+		await page.evaluate(() => {
+			const seen: string[] = [];
+			(window as unknown as { flashes: string[] }).flashes = seen;
+			new MutationObserver(() => {
+				for (const by of document.querySelectorAll('.player .flash .by'))
+					if (!seen.includes(by.textContent ?? '')) seen.push(by.textContent ?? '');
+			}).observe(document.body, { childList: true, subtree: true, characterData: true });
+		});
+		const right = { x: box.x + box.width * 0.85, y: mid.y };
+		await page.mouse.dblclick(right.x, right.y);
+		await expect(player.getByText(/^END · EP\. 9/)).toBeVisible();
+		expect(await page.evaluate(() => (window as unknown as { flashes: string[] }).flashes)).toEqual(
+			['+10 S']
+		);
 	});
 });
 

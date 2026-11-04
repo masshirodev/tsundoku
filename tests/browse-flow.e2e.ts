@@ -1,5 +1,5 @@
 import { devices } from '@playwright/test';
-import { test, expect } from './fixtures';
+import { test, expect, hydrated } from './helpers/hydrated';
 import { behindACheck, engineCalls, engineDown, resetEngine, SOURCES } from './browse-world';
 
 /**
@@ -252,6 +252,7 @@ test('a source’s settings: each type saves, and the source’s page asks again
 	await page.goto(OPEN);
 	await page.getByRole('link', { name: 'SETTINGS' }).click();
 	await expect(page).toHaveURL(`${OPEN}/settings`);
+	await hydrated(page);
 	const row = (t: string) => page.locator('form.set', { hasText: t });
 	// In the source's own order, not the keys'.
 	await expect(page.locator('form.set .t')).toHaveText([
@@ -273,10 +274,16 @@ test('a source’s settings: each type saves, and the source’s page asks again
 		'aria-checked',
 		'true'
 	);
+	// A box is ticked by the browser at once, and saved after: the row is
+	// marked saved when the page has the action's answer. Read only the tick
+	// and the test went on while the save was in flight, so the source's page
+	// sometimes asked before it landed (c249).
 	await row('Content rating').locator('label', { hasText: 'SUGGESTIVE' }).click();
 	await expect(row('Content rating').locator('input[value="suggestive"]')).toBeChecked();
+	await expect(row('Content rating')).toHaveClass(/\bsaved\b/);
 	await row('Blocked groups').getByRole('textbox').fill('abc-123');
 	await row('Blocked groups').getByRole('button', { name: 'SAVE' }).click();
+	await expect(row('Blocked groups')).toHaveClass(/\bsaved\b/);
 	await expect(row('Blocked groups').getByRole('textbox')).toHaveValue('abc-123');
 
 	await resetEngine();
