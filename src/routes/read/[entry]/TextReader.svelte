@@ -27,7 +27,7 @@
 		wheelForward
 	} from '$lib/reader/reader';
 	import { BookFailure, bookUrl, openBook, type OpenBook } from '$lib/reader/book';
-	import { registerBack } from '$lib/focus';
+	import { focusScope, registerBack } from '$lib/focus';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { TV } from '$lib/device.svelte';
 	import {
@@ -1227,7 +1227,17 @@
 			aria-label="Close contents"
 			onclick={() => (contents = false)}
 		></button>
-		<div class="contents rise" out:leave={'down'} class:short={entries.length < 60}>
+		<!-- A focus scope (c250): on a TV with the chrome up the pad goes in, on the
+		     row being read, and BACK gives it to CONTENTS again. Off a TV the reader
+		     is opted out and the scope is the no-op it is for READING. -->
+		<div
+			class="contents rise"
+			out:leave={'down'}
+			class:short={entries.length < 60}
+			use:focusScope={{
+				start: entry ? [`#entry-${entry.id} .entry-btn`, '.entry-btn'] : ['.entry-btn']
+			}}
+		>
 			<EntryList
 				{series}
 				selecting={false}

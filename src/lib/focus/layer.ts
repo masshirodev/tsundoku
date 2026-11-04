@@ -155,7 +155,20 @@ function inViewport(el: HTMLElement): boolean {
  * opens: the screen's declared start (`data-focus-start`), else the first stop
  * in the scope, else the top-left one on the page.
  */
+/**
+ * A scope's own start, where its markup cannot say \`data-focus-start\`: a
+ * panel that hosts another screen's list (the text reader's CONTENTS hosts the
+ * series' EntryList, c250) names the row to land on. Selectors are tried in
+ * order; the first that finds a stop wins, and none falls through to the
+ * markup's own start.
+ */
+const declaredStarts = new WeakMap<HTMLElement, () => readonly string[]>();
+
 function startOf(scope: HTMLElement): HTMLElement | null {
+	for (const selector of declaredStarts.get(scope)?.() ?? []) {
+		const named = [...scope.querySelectorAll<HTMLElement>(selector)].find(isFocusable);
+		if (named) return named;
+	}
 	const declared = [...scope.querySelectorAll<HTMLElement>('[data-focus-start]')].filter(
 		isFocusable
 	);
@@ -564,7 +577,7 @@ export function installFocusLayer(): () => void {
 
 /**
  * A sheet's scope: `use:focusScope`. It traps Tab and the arrows, starts on
- * its first row, and puts focus back where it was when it closes. A sheet
+ * its first row (or the first of \`start\`'s selectors that finds one), and puts focus back where it was when it closes. A sheet
  * inside an opted-out screen (a reader's READING panel) does nothing: that
  * screen owns its keys, unless the sheet says `force` -- a dialog the pad has
  * to reach even over a page that reads its own arrows.
@@ -579,9 +592,12 @@ export function installFocusLayer(): () => void {
  */
 export function focusScope(
 	node: HTMLElement,
-	options: { force?: boolean } = {}
-): { destroy(): void } {
-	if (!options.force && node.closest('[data-focus-off]')) return { destroy: () => undefined };
+	options: { force?: boolean; start?: readonly string[] } = {}
+): { destroy(): void; update(next: { force?: boolean; start?: readonly string[] }): void } {
+	if (!options.force && node.closest('[data-focus-off]'))
+		return { destroy: () => undefined, update: () => undefined };
+	let start = options.start ?? [];
+	declaredStarts.set(node, () => start);
 
 	const opener =
 		document.activeElement instanceof HTMLElement &&
@@ -629,9 +645,13 @@ export function focusScope(
 	open();
 
 	return {
+		update(next) {
+			start = next.start ?? [];
+		},
 		destroy() {
 			leaving.disconnect();
 			close();
+			declaredStarts.delete(node);
 		}
 	};
 }

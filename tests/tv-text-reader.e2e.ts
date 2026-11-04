@@ -135,6 +135,40 @@ test('a sheet on its way out keeps no keys: ↓ at once after BACK reaches the c
 	await expect(reading).toBeFocused();
 });
 
+test('CONTENTS is a focus scope: OK lands on a row, and BACK gives the pad back to the cell (c250)', async ({
+	page
+}) => {
+	await open(page);
+	await page.keyboard.press('Enter');
+	const scrub = page.locator('.text-reader footer .track');
+	await expect(scrub).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(page.locator('.text-reader footer .cell.grow')).toBeFocused();
+	// CONTENTS is the cell left of READING (TextChrome: prev, CONTENTS, READING, next).
+	const cell = page.locator('.text-reader footer .cell', { hasText: 'CONTENTS' });
+	await page.keyboard.press('ArrowLeft');
+	await expect(cell).toBeFocused();
+	await page.keyboard.press('Enter');
+	const panel = page.locator('.text-reader .contents');
+	await expect(panel).toBeVisible();
+	// The pad is inside, on a chapter row -- the one being read -- not on the
+	// cell the panel now covers.
+	const row = panel.locator('.entry-btn:focus');
+	await expect(row).toHaveCount(1);
+	const read = await page.evaluate(() => location.pathname.match(/\/read\/(\d+)/)?.[1]);
+	await expect(panel.locator(`#entry-${read} .entry-btn`)).toBeFocused();
+	// The arrows stay inside: ↓ moves to the next row, still in the panel.
+	await page.keyboard.press('ArrowDown');
+	await expect(panel.locator('.entry-btn:focus')).toHaveCount(1);
+	// BACK closes it and the pad is on CONTENTS again, as soon as the panel leaves.
+	await page.keyboard.press('Escape');
+	await expect(panel).toHaveCount(0);
+	await expect(cell).toBeFocused();
+	// ...and it still walks the chrome: → is READING.
+	await page.keyboard.press('ArrowRight');
+	await expect(page.locator('.text-reader footer .cell.grow')).toBeFocused();
+});
+
 test('the end of the book takes the pad: its cells are reachable, as the image reader’s are', async ({
 	page
 }) => {
