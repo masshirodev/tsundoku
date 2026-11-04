@@ -361,8 +361,8 @@ on desktop and in tablet landscape.
   SKIP has no UNDO, as in the mock.
 - `?series=N` is one series only: FIND or CHANGE on its screen. It has no
   SKIP, and deciding goes back to the series, but for a season's LINK on an
-  anime with more seasons, which first offers the rest of the show ("The
-  series screen", below). For a hidden series it's
+  anime with more seasons whose answer has the rest of the show to offer,
+  which it offers first ("The series screen", below). For a hidden series it's
   PASTE A LINK only.
 
 ### The series screen (Series Link 1k–1t)
@@ -408,12 +408,20 @@ anime's LINK row is a line a season (c240; above).
   one season** (a flat list, or a single numbered season) has no rest to
   offer, so its LINK goes back to the series screen, as a comic's does, and
   the new link is on its LINK row (c423: Ranma ½ (2024)'s LINK stayed on an
-  unchanged page and read as a refusal). Otherwise, after it, the page offers the rest of
+  unchanged page and read as a refusal). Neither does a LINK whose answer
+  has no relations to show (AniList out of reach, or no chain neighbour
+  inside the show's seasons): it goes back to the series too, never to the
+  untouched review (c423, round 2). Otherwise, after it, the page offers the rest of
   the show from the linked entry's AniList PREQUEL and SEQUEL relations, in
   order along the chain and ticked where the episode counts agree -- or
   where two entries add up to the season as `PART 1` and `PART 2`, part 1
   being the one that aired first (not the longer one: SAO's War of
-  Underworld is 12 + 11). The walk asks two rings: the linked entry, then
+  Underworld is 12 + 11). A pair is found only where both entries stand at
+  the same step of the chain (both the linked season's SEQUEL); where
+  AniList chains part 2 off part 1, the walk places part 2 a season further
+  out, and the pair is not offered as one (a gap, `doc/handoff-notes/links.md`).
+  A pair is **one season** everywhere the page counts: `N OF M TICKED`,
+  `LINK N SEASONS` and the band count distinct seasons (c418, round 2). The walk asks two rings: the linked entry, then
   its chain neighbours in one request, whose own PREQUEL and SEQUEL place
   the second ring. AniList answers every edge an entry has, and a chain can
   branch (a movie and the next TV season both SEQUEL of one entry) or loop
@@ -437,8 +445,12 @@ NEVER TICKED`; c418), since `linkSeason` would refuse it, and a split
   goes back to the series; when the workstation refused any (another tab
   linked meanwhile), the page stays and its band is the answer, not the
   ticks: `LINKED 1 OF 2 SEASONS · …` and `SEASON 2 NOT LINKED · SEASON 3
-HOLDS ITS ENTRY`, or `NOTHING LINKED · …` when none was. NOT NOW leaves
-  them.
+HOLDS ITS ENTRY`, or `NOTHING LINKED · …` when none was. The band's numbers
+  are seasons, from the workstation's `linked` and `of` (`seasonsLinked`): a
+  pair linked whole is one, and a pair with a part refused is that season
+  not linked, the refusal naming its part. NOT NOW on one series goes back
+  to it, the season just linked showing on its LINK row (c423, round 2); in
+  the queue it closes the offer, and the band's UNDO stays.
 - **Not linked:** what the last pass found, then FIND (accent) and PASTE A
   LINK.
 - **COVER** says where the cover comes from and why the sources before it
