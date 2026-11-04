@@ -3,6 +3,8 @@ import { posix } from '../fspath.ts';
 import { fileIn, widenTo } from '../paths.ts';
 import { folderTitleMatches, sourceDirMatches } from '../../import/mihon-plan.ts';
 import type { PlannedEntry, PlannedSeries } from '../../import/plan.ts';
+import { HIDDEN_SQL } from '../visibility.ts';
+import { setHiddenWhole } from '../works.ts';
 
 /**
  * A Mihon download imports keyed by its folder (`mihon-dir:`) until a backup
@@ -368,7 +370,11 @@ function tablesWith(db: Database.Database, column: string): string[] {
  * or FAV fills in where `into` has none, and `into` takes the file if it had
  * none. A chapter only `from` has moves across. Everything else that hangs
  * off either -- reading log, shelves, tags, links, lookups -- joins `into`,
- * which keeps its own where both have one. A hidden series stays hidden.
+ * which keeps its own where both have one. A hidden series stays hidden,
+ * and takes its Work with it (`setHiddenWhole`).
+ *
+ * Runs inside the writer's transaction, on `getDb()`'s connection, which is
+ * the one `setHiddenWhole` writes through.
  */
 export function foldSeries(db: Database.Database, from: number, into: number): void {
 	const pathOf = (id: number) =>
@@ -452,14 +458,36 @@ export function foldSeries(db: Database.Database, from: number, into: number): v
 		repoint(f.id, t.id, sameFile || takesFile);
 	}
 
+	// Read before the row goes: hidden by its own flag, or by its root's.
+	const fromHidden = hiddenNow(db, from);
+	// `work_series` is one of these: `from`'s membership moves to `into` when
+	// `into` is in no Work, and is dropped when it is in one (a series is in
+	// one Work at most), the trigger ending a Work that leaves with one.
 	for (const t of tablesWith(db, 'series_id'))
 		db.prepare(`UPDATE OR IGNORE ${t} SET series_id = ? WHERE series_id = ?`).run(into, from);
 	db.prepare(
 		`UPDATE series SET
 			rating = CASE WHEN rating = 0 THEN (SELECT rating FROM series WHERE id = @from) ELSE rating END,
-			favourite = MAX(favourite, (SELECT favourite FROM series WHERE id = @from)),
-			hidden = MAX(hidden, (SELECT hidden FROM series WHERE id = @from))
+			favourite = MAX(favourite, (SELECT favourite FROM series WHERE id = @from))
 		WHERE id = @into`
 	).run({ from, into });
 	db.prepare(`DELETE FROM series WHERE id = ?`).run(from);
+	// A hidden series stays hidden, and a Work is hidden or shown whole
+	// (doc/WORKS.md, "The one rule"): so when either side was hidden, `into`
+	// is hidden through the rule's own write, taking any Work it is a part of
+	// with it (c389). Merging the flag by hand left a hidden part in a visible
+	// Work -- `into` a part and `from` hidden, or `from` a visible part whose
+	// Work `into` joined hidden -- the half-hidden Work no other door makes.
+	// Never the other way: a fold never shows anything.
+	if (fromHidden || hiddenNow(db, into)) setHiddenWhole([into], true);
+}
+
+/** Whether SQL's rule reads this series as hidden: its own flag, or its root's. */
+function hiddenNow(db: Database.Database, id: number): boolean {
+	const row = db
+		.prepare(
+			`SELECT ${HIDDEN_SQL} AS hidden FROM series s JOIN roots r ON r.id = s.root_id WHERE s.id = ?`
+		)
+		.get(id) as { hidden: number } | undefined;
+	return (row?.hidden ?? 0) !== 0;
 }

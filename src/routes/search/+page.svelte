@@ -9,6 +9,10 @@
 	import SearchField from '$lib/components/controls/SearchField.svelte';
 	import TagChip from '$lib/components/controls/TagChip.svelte';
 	import SeriesSheet from '../SeriesSheet.svelte';
+	import Band from '$lib/components/chrome/Band.svelte';
+	import { enhance } from '$app/forms';
+	import type { SubmitFunction } from '@sveltejs/kit';
+	import { wholeBand, type WholeAnswer } from '$lib/library/works';
 	import { count, kindLabel } from '$lib/library/labels';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
@@ -57,6 +61,50 @@
 	});
 
 	const query = $derived(parseSearch(data.q).type === 'query' ? data.q.trim() : '');
+
+	/**
+	 * HIDE ALL n from a hit's series sheet (c391): the library's band, here. The
+	 * sheet posts the library's `?/hide`, whose answer SvelteKit applies only on
+	 * the library, so the sheet hands it over (`onhid`) and this page draws it
+	 * with the library's own words (`wholeBand`) and UNDO. It belongs to the
+	 * query it was pressed on, as the library's `form` belongs to its page: a
+	 * new query is a new page, and the band goes with the old one.
+	 */
+	let hid = $state<{ q: string; answer: WholeAnswer; refused: string } | null>(null);
+	const hidBand = $derived.by(() => {
+		if (!hid || hid.q !== data.q) return null;
+		const a = hid.answer;
+		if ('hideFacts' in a) {
+			const f = a.hideFacts;
+			return {
+				...wholeBand('HIDDEN', { ids: f.hidden, whole: f.whole, works: f.works }),
+				action: '/?/undoHide',
+				facts: JSON.stringify(f)
+			};
+		}
+		const f = a.showFacts;
+		return {
+			...wholeBand('SHOWN', { ids: f.shown, whole: f.whole, works: f.works }),
+			action: '/?/undoShow',
+			facts: JSON.stringify(f)
+		};
+	});
+	/**
+	 * UNDO posts the library's own UNDO, whose answer is not this page's either:
+	 * a success takes the band down and re-reads the hits; a refusal (the
+	 * library has moved on since, c308) stays on the band and says why.
+	 */
+	const undoHid: SubmitFunction =
+		() =>
+		async ({ result }) => {
+			if (result.type === 'failure' && hid) {
+				const why = result.data?.workMessage;
+				hid = { ...hid, refused: typeof why === 'string' ? why : 'NOT UNDONE' };
+				return;
+			}
+			hid = null;
+			await invalidateAll();
+		};
 	/** A page command as it's typed: offered as a result, opened by Enter or a tap (Reach, command). */
 	const pageCmd = $derived.by(() => {
 		const p = parseSearch(q);
@@ -190,6 +238,20 @@
 		{/snippet}
 	</TopBar>
 </form>
+
+{#if hidBand}
+	<Band
+		title={hid?.refused || hidBand.title}
+		detail={hid?.refused ? hidBand.title : hidBand.detail}
+	>
+		{#snippet action()}
+			<form method="POST" action={hidBand.action} use:enhance={undoHid}>
+				<input type="hidden" name="facts" value={hidBand.facts} />
+				<button type="submit">UNDO</button>
+			</form>
+		{/snippet}
+	</Band>
+{/if}
 
 {#if pageCmd && !gate}
 	<div class="label first">COMMAND</div>
@@ -328,6 +390,7 @@
 	shelves={data.shelves}
 	onclose={() => (sheetId = null)}
 	onchange={() => invalidateAll()}
+	onhid={(answer) => (hid = { q: data.q, answer, refused: '' })}
 />
 
 <style>

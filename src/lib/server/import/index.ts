@@ -94,8 +94,15 @@ export function sourcesIn(library: string): Source[] {
  * What earlier imports made of folders that turn out to hold no pages: an
  * entry planned from nothing but the thumbnail, and a series left with no
  * entries at all. Removed only while untouched -- never opened, unrated, not
- * a favourite, on no shelf, not linked. Not a delete: no tombstone, so a
- * download finished later imports as it would have.
+ * a favourite, on no shelf, not linked, and in no Work. Not a delete: no
+ * tombstone, so a download finished later imports as it would have.
+ *
+ * "Linked" is every row a link leaves (c382): `series_links`, and since rung
+ * 62 a season's own link or decision, which a series can hold with no
+ * `series_links` mirror at all (`syncSeriesLink` mirrors season 1 alone). The
+ * cascade would take those rows with the series. A Work is the owner's
+ * grouping, as a shelf is, and its delete would end the Work it leaves with
+ * one (rung 61's trigger).
  */
 export function prunePageless(
 	db: Database.Database,
@@ -124,7 +131,10 @@ export function prunePageless(
 			`DELETE FROM series WHERE root_id = ? AND COALESCE(rating, 0) = 0 AND favourite = 0
 				AND NOT EXISTS (SELECT 1 FROM entries e WHERE e.series_id = series.id)
 				AND NOT EXISTS (SELECT 1 FROM collection_series c WHERE c.series_id = series.id)
-				AND NOT EXISTS (SELECT 1 FROM series_links l WHERE l.series_id = series.id)`
+				AND NOT EXISTS (SELECT 1 FROM series_links l WHERE l.series_id = series.id)
+				AND NOT EXISTS (SELECT 1 FROM series_season_links l WHERE l.series_id = series.id)
+				AND NOT EXISTS (SELECT 1 FROM season_link_decisions d WHERE d.series_id = series.id)
+				AND NOT EXISTS (SELECT 1 FROM work_series w WHERE w.series_id = series.id)`
 		)
 		.run(rootId).changes;
 	return { entries, series };

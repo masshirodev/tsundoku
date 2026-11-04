@@ -1288,3 +1288,167 @@ describe('a renamed folder series a backup adopts', () => {
 		expect(byKey(PLAIN)).toBe(plain);
 	});
 });
+
+/**
+ * c389: an import's fold is a writer of `hidden` too, so it keeps the one rule
+ * (doc/WORKS.md): a Work is hidden or shown whole. Each pair here is a folder's
+ * series and the series the library's backup names, which could not be matched
+ * while they shared no chapter (the backup counts from 5, the folder from 1),
+ * so both exist, and the owner grouped and hid them while they did. Then
+ * tsundoku downloads chapter 5, the folder's plan meets the backup's series by
+ * it (`adoptNamed`), and the folder's series is folded into it.
+ */
+describe('a fold keeps a Work hidden or shown whole (c389)', () => {
+	const at = 1_800_003_000_000;
+	const works = () => import('$lib/server/works');
+	const one = <T>(sql: string, ...args: unknown[]) =>
+		db()
+			.prepare(sql)
+			.get(...args) as T;
+	const byKey = (key: string) =>
+		one<{ id: number } | undefined>(`SELECT id FROM series WHERE origin_key = ?`, key)?.id;
+	const dirOf = (title: string) => join(tsundokuMihon, 'downloads', 'Weeb Central (EN)', title);
+	const DIR = (title: string) => `mihon-dir:Weeb Central (EN)/${title}`;
+	const URL = (slug: string) => `mihon:${WEEB}:/series/${slug}`;
+	const chapter = (title: string, slug: string, n: number) => {
+		mkdirSync(dirOf(title), { recursive: true });
+		writeFileSync(
+			join(dirOf(title), `Chapter ${n}.cbz`),
+			cbz(
+				comicInfo({
+					title: `Chapter ${n}`,
+					series: title,
+					number: n,
+					web: `https://weebcentral.com/chapters/${slug}-${n}`,
+					source: 'Weeb Central'
+				})
+			)
+		);
+	};
+	const visibility = async (workId: number) => {
+		const parts = (await works()).workParts(workId, true);
+		return parts.length === 0 ? 'none' : parts.map((p) => (p.hidden ? 'hidden' : 'visible'));
+	};
+
+	/** Folded pairs: [folder title, slug]. Partners are folders the backup never names. */
+	const PAIRS = [
+		['Fold Into Part', 'fold-into-part'],
+		['Fold From Part', 'fold-from-part'],
+		['Fold Both Parts', 'fold-both-parts']
+	] as const;
+	const PARTNERS = [
+		'Fold Partner One',
+		'Fold Partner Two',
+		'Fold Partner Three',
+		'Fold Partner Four'
+	];
+	const ids: Record<string, { folder: number; named: number }> = {};
+	const partner: Record<string, number> = {};
+	const made: Record<string, number> = {};
+
+	beforeAll(async () => {
+		for (const [title, slug] of PAIRS) for (const n of [1, 2]) chapter(title, slug, n);
+		for (const title of PARTNERS) chapter(title, title.toLowerCase().replace(/ /g, '-'), 1);
+		writeFileSync(
+			join(rootMihon, 'autobackup', 'app.mihon_2026-10-20_08-00.tachibk'),
+			gzipSync(
+				backup(
+					[],
+					PAIRS.map(([title, slug]) =>
+						manga(WEEB, `/series/${slug}`, title, [
+							{ n: 5, url: `/chapters/${slug}-5` },
+							{ n: 6, url: `/chapters/${slug}-6` }
+						])
+					)
+				)
+			)
+		);
+		await runImport(library, { now: at });
+		for (const [title, slug] of PAIRS) {
+			ids[title] = { folder: byKey(DIR(title))!, named: byKey(URL(slug))! };
+			expect(ids[title].folder && ids[title].named).toBeTruthy();
+			expect(ids[title].folder).not.toBe(ids[title].named);
+		}
+		for (const title of PARTNERS) partner[title] = byKey(DIR(title))!;
+
+		// What the owner did while both rows existed, through the app's own writes.
+		const w = await works();
+		// Shape 1: `into` (the backup's) a part of a visible Work; `from` hidden.
+		const one1 = ids['Fold Into Part'];
+		made.into = w.createWork({
+			seriesIds: [one1.named, partner['Fold Partner One']],
+			name: 'Into Work',
+			now: at
+		}).work.id;
+		w.setHiddenWhole([one1.folder], true);
+		// Shape 2: `from` (the folder's) a visible part; `into` hidden, in no Work.
+		const two = ids['Fold From Part'];
+		made.from = w.createWork({
+			seriesIds: [two.folder, partner['Fold Partner Two']],
+			name: 'From Work',
+			now: at
+		}).work.id;
+		w.setHiddenWhole([two.named], true);
+		// Shape 3: each in a Work of its own, `from`'s hidden, `into`'s visible.
+		const three = ids['Fold Both Parts'];
+		made.hiddenWork = w.createWork({
+			seriesIds: [three.folder, partner['Fold Partner Three']],
+			name: 'Hidden Work',
+			now: at
+		}).work.id;
+		w.setHiddenWhole([three.folder], true);
+		made.shownWork = w.createWork({
+			seriesIds: [three.named, partner['Fold Partner Four']],
+			name: 'Shown Work',
+			now: at
+		}).work.id;
+		expect(await visibility(made.into)).toEqual(['visible', 'visible']);
+		expect(await visibility(made.from)).toEqual(['visible', 'visible']);
+		expect(await visibility(made.hiddenWork)).toEqual(['hidden', 'hidden']);
+
+		// tsundoku downloads chapter 5 of each: the pair now shares one, and folds.
+		for (const [title, slug] of PAIRS) chapter(title, slug, 5);
+		await runImport(library, { now: at + 10_000 });
+		for (const [title] of PAIRS) expect(byKey(DIR(title))).toBeUndefined();
+	});
+
+	it('hides the Work `into` is a part of when `from` was hidden, rather than leave one part hidden', async () => {
+		const { named } = ids['Fold Into Part'];
+		expect((await works()).workOfSeries(named)?.id).toBe(made.into);
+		// Before c389: `hidden = MAX(...)` made the backup's series a hidden part
+		// of a visible Work -- ['hidden', 'visible'], the mixed state.
+		expect(await visibility(made.into)).toEqual(['hidden', 'hidden']);
+	});
+
+	it('hides the Work `into` joins in `from`’s place when `into` was hidden', async () => {
+		const { named } = ids['Fold From Part'];
+		// The membership moved to the survivor, at the folder's own place.
+		expect((await works()).workOfSeries(named)?.id).toBe(made.from);
+		expect(await visibility(made.from)).toEqual(['hidden', 'hidden']);
+	});
+
+	it('keeps `into`’s own Work when both were parts: `from`’s Work ends, and the survivor’s goes whole', async () => {
+		const { named } = ids['Fold Both Parts'];
+		const w = await works();
+		// A series is in one Work at most: `into` keeps its own, `from`'s row is
+		// dropped with it, and the Work left with one ends (rung 61's trigger).
+		expect(w.workOfSeries(named)?.id).toBe(made.shownWork);
+		expect(w.workPage(made.hiddenWork, { reveal: true })).toBeNull();
+		expect(w.workOfSeries(partner['Fold Partner Three'])).toBeNull();
+		// `from` was hidden, so the survivor is, and its Work with it.
+		expect(await visibility(made.shownWork)).toEqual(['hidden', 'hidden']);
+	});
+
+	it('never leaves any Work in the library hidden in part', () => {
+		expect(
+			one<{ n: number }>(
+				`SELECT COUNT(*) AS n FROM (
+					SELECT ws.work_id FROM work_series ws JOIN series s ON s.id = ws.series_id
+					JOIN roots r ON r.id = s.root_id
+					GROUP BY ws.work_id
+					HAVING COUNT(DISTINCT (s.hidden = 1 OR (r.hidden = 1 AND s.public = 0))) > 1
+				)`
+			).n
+		).toBe(0);
+	});
+});

@@ -33,9 +33,10 @@ tile and one CONTINUE row; search, tag filters and a person's page show the
 matching series as their own tiles, each with `PART 2 · <WORK>` in its foot.
 Hidden stays SQL's job (`src/lib/server/library.ts`): a Work is hidden or
 shown whole, and grouping refuses to mix hidden and visible series. A Work
-whose parts diverged after grouping -- one hidden on its own, which since wave
-16 only an import's fold can still do -- refuses every add, from every member,
-until HIDE settles it (W4: `HIDE ALL n`, or `TAKE OUT` then hide). With reveal on, such a Work
+whose parts diverged after grouping -- one hidden on its own, which no write
+makes since wave 19 (an import's fold made it until c389) but a library can
+still hold from before -- refuses every add, from every member, until HIDE
+settles it (W4: `HIDE ALL n`, or `TAKE OUT` then hide). With reveal on, such a Work
 is one tile wearing HIDDEN when any of its parts is hidden: the mark is the
 Work's, never the face's, so it does not depend on which part the tile happens
 to show.
@@ -200,7 +201,8 @@ MAR`, `CH. 15 OF 205 · OPENED 2 H AGO` (`EP.` on an anime part), or `NOT STARTE
 - **SELECT → TAKE OUT** with a band and UNDO. Taking out the second-to-last
   ends the Work: the screen is gone, so the library shows `<NAME> IS NO
 LONGER A WORK · ONE SERIES WAS LEFT` with UNDO, which restores the same id,
-  name and order. UNGROUP goes the same way (`UNGROUPED · <NAME>`). Both
+  name and order -- or the same name and order under a new id, when a Work made
+  since has been given the old one (`works.id` is a plain INTEGER PRIMARY KEY). UNGROUP goes the same way (`UNGROUPED · <NAME>`). Both
   replace the gone screen in history (`replacing`), so the system's back
   returns to the library and not to a 404.
 - **+ ADD A SERIES** opens a library picker; a series already in another Work
@@ -266,28 +268,59 @@ the Work whole, with its own band and UNDO. Each answer's UNDO both shows the
 series again and puts back any take-out, including a Work that ended because it
 was left with one.
 
+**An UNDO puts back only what its press changed, and only where the library
+has not moved on** (wave 19, c390 and c308). HIDE's and UNHIDE's facts name
+the series whose visibility the write changed, read inside its transaction, so
+a series that was already hidden is never shown by UNDO. A press that changed
+no Work -- a selection whose Work was hidden already -- has no band, like the
+plain HIDE of series on their own. HIDE ALL n on a Work hidden in part settles
+it hidden and offers no UNDO either: an UNDO could only leave it half-hidden
+again or show the part the owner had hidden, so when in doubt it stays hidden.
+For the same reason HIDE's UNDO shows a part only while every hidden part of its
+Work is one that HIDE hid. Every UNDO that puts a series back into a Work
+(`putBack` and `restore` in `src/lib/server/works.ts`: TAKE OUT's, ADD's,
+GROUP's and UNGROUP's) refuses, whole, when the series has joined another Work
+since, has left the library, or the Work it goes back to has ended or changed;
+and one that is not about to show anything refuses a result hidden in part.
+An id alone does not name a Work: once the newest Work ends, the next one made
+is given its id, so an UNDO knows each Work by its id and the moment it was
+made (`created_at`, carried in the facts) and refuses a different Work under
+the same id. An ended Work it brings back under a new id takes the rest of the
+same UNDO with it: a second take-out, add or GROUP move in that press goes into
+the restored Work, never into the newer one holding the old id.
+The route answers with the reason (`… IS IN <WORK> NOW · TAKE IT OUT THERE
+FIRST`), never a 500. Before, `INSERT OR REPLACE` took the series from the Work
+it had joined and left that Work with one member for good.
+
 **The rule sits at the write, not at the screen.** Every door that hides or
 shows series by id goes through `setHiddenWhole` (`src/lib/server/works.ts`),
 which takes each part's Work with it, every part, in either direction: the
 library's plain `?/hide` (the long-press series sheet's, on the library and on
 the search page, where any hit opens it -- a Work's part included), `?/bulk`'s
-HIDE and UNHIDE, `?/hideAll`, `?/showAll`, both UNDOs, and TAKE OUT's own hide
-on both screens. A series in no Work is written exactly as before. The series
+HIDE and UNHIDE, `?/hideAll`, `?/showAll`, both UNDOs, TAKE OUT's own hide
+on both screens, and an import's fold. A series in no Work is written exactly as before. The series
 sheet does not ask a new question: on a part its cell says `HIDE ALL n` (or
-`UNHIDE ALL n`), the HIDE sheet's words, and the library's band says the Work
-went whole. The series screen's plain `?/hide` refuses a part outright
+`UNHIDE ALL n`), the HIDE sheet's words, and the band says the Work went
+whole -- the library's own, and on the search page the same band and UNDO
+(wave 19, c391): the sheet hands the answer to the page that opened it, since
+SvelteKit applies an action's answer only on the action's own page. The series screen's plain `?/hide` refuses a part outright
 (`A WORK IS HIDDEN WHOLE · HIDE ALL OR TAKE OUT`), because that screen always
 asks. So no door the app offers leaves a Work half-hidden, in either direction.
-The one write that still can is an import's fold (`foldSeries`,
-`src/lib/server/import/fold.ts`: a Mihon backup that names a series the library
-already holds under another key folds one into the other, `hidden = MAX(...)`);
-its account is in `doc/handoff-notes/works-screen.md`, "Wave 16".
+Nor does an import's fold (`foldSeries`, `src/lib/server/import/fold.ts`: a
+Mihon backup that names a series the library already holds under another key
+folds one into the other), since wave 19 (c389): it merged `hidden` with
+`MAX(...)` by hand, which could make the survivor a hidden part of a visible
+Work, or bring it hidden into the Work its partner was a part of. Now, when
+either side was hidden, the survivor is hidden through `setHiddenWhole` and
+takes its Work with it; a fold never shows anything. The door table is in
+`doc/handoff-notes/works-screen.md`, "Wave 16".
 
 **The bands say how many Works** (`wholeBand`, `src/lib/library/works.ts`):
 `HIDDEN · THE WORK, WHOLE` for one, `HIDDEN · 2 WORKS, WHOLE` for a selection
 that touched two, with the Works' own series counted in the detail and the
 selected series in no Work named apart (`4 SERIES · 6 MORE ON THEIR OWN ·
-SHOWN AGAIN BY UNDO`). UNHIDE's band is the same with `SHOWN`.
+SHOWN AGAIN BY UNDO`). UNHIDE's band is the same with `SHOWN`. Every count is
+of series the press changed, which is what its UNDO puts back.
 
 With reveal off, the series screen no longer exists after either answer, so the
 library carries the band: `HIDE ALL n` says the Work was hidden whole, and
