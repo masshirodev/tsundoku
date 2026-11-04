@@ -249,8 +249,14 @@ plan meets the series a backup names, including a pair that already exists.
   none, and it takes the file if it had none. A chapter only the folder's
   series has moves across. The reading log, shelves, tags, links and lookups
   follow, the URL series' own winning where both have one; caches of a file's
-  pages follow only with that file. A hidden series stays hidden. No file
-  moves. Its **title, kind and direction** are the one setting a fold cannot
+  pages follow only with that file. A hidden series stays hidden: when either
+  row was hidden (by its own flag, or by a hidden root), the survivor is
+  hidden through the Works rule's own write (`setHiddenWhole`), so a Work it
+  is a part of -- or the folder's Work it joins in the folder's place -- is
+  hidden whole, never left with one part hidden (c389, doc/WORKS.md, "The one
+  rule"). A fold never shows anything. A survivor already in a Work keeps
+  that Work; the folder's membership is dropped with its row, and a Work left
+  with one series ends. No file moves. Its **title, kind and direction** are the one setting a fold cannot
   keep from both rows: a folder's series the owner renamed — its title no
   longer the name its folder builds — passes that name to the survivor, with
   the kind and direction set beside it, since the backup's row would otherwise
