@@ -15,8 +15,8 @@ import type { FullConfig, Reporter, Suite, TestCase } from '@playwright/test/rep
  * "Did not run" is Playwright's own rule (its base reporter): a test whose
  * outcome is skipped although it was not skipped on purpose, or that has no
  * result at all, and was not interrupted. A serial file's tests after its
- * first red are counted the same way; they are named as that, not as a
- * dependency's.
+ * first red, and a file's tests after its failed beforeAll, are counted the
+ * same way; they are named as that, not as a dependency's.
  */
 
 /** One test, as much of it as the summary reads. */
@@ -65,7 +65,7 @@ export function summarize(projects: Project[], rows: Row[]): string[] {
 			for (const r of reds) lines.push(`    [${r.project}] ${r.where} › ${r.title}`);
 		} else {
 			lines.push(
-				`  ${project.name}: ${here.length}, after a red earlier in a serial file, or the run stopped`
+				`  ${project.name}: ${here.length}, after a red earlier in the same file (serial, or a failed beforeAll), or the run stopped`
 			);
 		}
 	}

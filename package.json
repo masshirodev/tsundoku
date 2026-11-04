@@ -22,6 +22,7 @@
 		"test:coverage": "vitest run --coverage",
 		"test:e2e": "playwright test",
 		"test:e2e:install": "playwright install chromium firefox",
+		"test:e2e:dependants": "playwright test --project=duplicates --no-deps; s=$?; playwright test --project=gate --no-deps && exit $s",
 		"e2e:table": "node --experimental-strip-types scripts/e2e-table.ts",
 		"test:all": "yarn run test && yarn run test:e2e",
 		"serve": "node --experimental-strip-types scripts/serve.ts",

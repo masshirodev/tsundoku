@@ -68,7 +68,7 @@ describe('the did-not-run summary', () => {
 			])
 		).toEqual([
 			'2 did not run, and have not passed:',
-			'  desktop: 1, after a red earlier in a serial file, or the run stopped',
+			'  desktop: 1, after a red earlier in the same file (serial, or a failed beforeAll), or the run stopped',
 			'  duplicates: 1, because 3 tests it depends on failed:',
 			'    [desktop] tests/desktop.e2e.ts:1 › first',
 			'    [tv] tests/tv.e2e.ts:1 › x',

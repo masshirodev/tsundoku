@@ -15,7 +15,11 @@ the names apart.
 ```sh
 yarn run check && yarn run lint && yarn run test   # before every commit
 yarn run test:e2e                                  # when the UI changed
+yarn run test:e2e:dependants                       # after every whole e2e run
 ```
+
+The last line runs `duplicates` and `gate` on their own, because a red in any
+device project leaves them unrun in the whole run ("Load", below).
 
 Always spelled `yarn run`: Yarn 1's builtin `check` shadows the script and exits
 0 having typechecked nothing.
@@ -384,7 +388,8 @@ x, y)` in `tests/helpers/touch.ts` sends the four touch events together, so
   series" and "The readers beside the flows" above.
 - **`duplicates` and `gate` depend on every device project**, so any red in
   those leaves their 8 tests "did not run" (a run's larger "did not run"
-  count is the rest of each serial file after its first red). With a known
+  count is the rest of each file after its first red in a serial file, or
+  after a failed `beforeAll`). With a known
   base failure red on every run, **a gate never runs `duplicates` and `gate`
   at all**: no whole run in wave 19 before round 2 executed `duplicates-flow`
   or `unlock-gate` once, and wave 19's gate had them in its "12 did not run"
@@ -396,20 +401,47 @@ x, y)` in `tests/helpers/touch.ts` sends the four touch events together, so
 
   ```text
   44 did not run, and have not passed:
-    works-flow: 23, after a red earlier in a serial file, or the run stopped
+    works-flow: 23, after a red earlier in the same file (serial, or a failed beforeAll), or the run stopped
     duplicates: 7, because 15 tests it depends on failed:
       [desktop] tests/library-layout.e2e.ts:156 › the bar with the name, …
   ```
 
-  Until the base failures are fixed, run the whole suite with them left out
-  by title, so the dependants run in their place in the order. Measured at
-  wave 20's base (`d5c4bf6f`, its loaded runs in `doc/handoff-notes/e2e.md`),
-  the known reds are two: `library-layout:156` on the desktop (c433 pinned
-  the bar it expects to scroll away; deterministic, filed) and `tv-reader:24`
-  (nobody's; it fails about 2 of 3 runs even alone, filed). Wave 18's base
-  reds that the expression used to name (`library-frame`'s four, START SCAN
-  and the rating at the end of a series) all pass since wave 19 and are out
-  of it:
+  **So after every whole run, the gate's included, run the dependants on
+  their own**, whatever the device projects did:
+
+  ```sh
+  yarn run test:e2e:dependants
+  ```
+
+  It runs `--project=duplicates --no-deps`, then `--project=gate --no-deps`,
+  and fails if either did. `--no-deps` is safe here because the two depend
+  on the device projects only for their order on the one seeded database,
+  not for anything those write. They are **two runs, not one**:
+  `--no-deps` drops the `duplicates` → `gate` order as well, so in one run
+  `unlock-gate` enrolls its authenticator while `duplicates-flow` is still
+  typing `/reveal`, which then waits for the device (measured in wave 20:
+  `duplicates-flow:29` red and 5 did not run in one run; 7 and 1 passed as
+  two). Each run has its own temp folder and so its own database, which is
+  why the gate's enrolment does not carry into the next. Report the
+  dependants' counts beside the whole run's. When the whole run's reporter
+  names neither project, they ran there and this step is a repeat.
+
+  Leaving the base failures out by title does not get the dependants run
+  under load. Measured at wave 20's base (`d5c4bf6f`, its loaded runs in
+  `doc/handoff-notes/e2e.md`), the filed reds are two: `library-layout:156`
+  on the desktop (c433 pinned the bar it expects to scroll away;
+  deterministic, filed) and `tv-reader:24` (nobody's; it fails about 2 of 3
+  runs even alone, filed). But two more were red in **every** loaded
+  wave-20 run, so the dependants ran in none of the six: `install.e2e.ts:6`
+  (the service worker's 30 s, in one to four device projects a run, at loads
+  past about 39) and `work-end-frame.e2e.ts:297` (its `beforeAll`'s 30 s,
+  which also leaves `works-frame`'s other 24 unrun). Neither is in the
+  expression, because both pass alone and a title left out is a test
+  nobody checks; their likely causes and budgets are under Gaps in
+  `doc/handoff-notes/e2e.md` (wave 20). The expression leaves out only the
+  two filed reds. Wave 18's base reds that it used to name
+  (`library-frame`'s four, START SCAN and the rating at the end of a series)
+  all pass since wave 19 and are out of it:
 
   ```sh
   PLAYWRIGHT_SKIP='the bar with the name, search and SELECT stays on top as the grid scrolls, except on a desktop|a spread is the default on a TV, not one page' \
