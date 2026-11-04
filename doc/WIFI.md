@@ -246,7 +246,11 @@ the server two polls later, and live again only from NEW CODE (c460), a phone
 context scanning it to the
 welcome screen and the library, the panel turning ✓ USED by itself and the
 phone's row with SIGN OUT, the same code refused as used, the typed address
-with no password, the phone's own SETTINGS, a foreign Host refused over
+with no password, the phone's own SETTINGS, a paired phone reopening
+SETTINGS over Wi-Fi after five wrong tries burned the TV's code and the
+server still holding that same burned code (c460: the phone's load does not
+renew; a case of its own with no computer page open, because the panel's
+reload when a phone pairs does renew), a foreign Host refused over
 Wi-Fi, SIGN OUT, and OFF closing the door while localhost goes on. The
 handoff's measurements are pinned there. The TV's code has its own:
 `tests/pairing-tv.spec.ts` (once, 10 minutes, five tries, every answer,
@@ -261,7 +265,8 @@ without the door; a code a TV uses turning ✓ USED on focus and on the row's
 return and on the tick alone, the server's code still the same burned one
 after 15 s and a focus, and a live one back only from NEW CODE; the poll
 asking six times in 30 s, not reset by the countdown; and a refresh answered
-after NEW CODE, for the old burned code, leaving the new one live, c461) and
+after NEW CODE, for the old burned code, leaving the new one live, with only
+that first ask held, c461) and
 `tests/tv-pair.e2e.ts` (the computer's `/pair/tv` on the `tv` project: a wrong
 code, the tries left, the right one landing on 9E, five wrong ones burning
 it; with no WI-FI panel, the six digits in DEVICES and NEW CODE; a request
