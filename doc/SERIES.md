@@ -23,7 +23,7 @@ library's sheet.
 - The order inside the metadata is the handoff's: identity, then rating and FAV,
   then CONTINUE, all within thumb reach. After that come direction, shelves,
   tags, about, and the FILE row with HIDE, as far from CONTINUE as it can be.
-  LINK and COVER sit under SHELVES, and SOURCE after them ([`MOVE.md`](MOVE.md)).
+  LISTS and COVER sit under SHELVES, and SOURCE after them ([`MOVE.md`](MOVE.md)).
 
 Like the library, the frame is CSS media queries, so the server's first paint
 is already right for the device. `tests/series-layout.e2e.ts` pins the panel
@@ -33,25 +33,25 @@ the panel is 352px beside the list, rows are 56px and the rail stays 56px
 
 ## What drives each state
 
-| State                | What drives it                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Long manhwa, mid-way | Any series with chapters. The fold hides everything read before the last two chapters (`listRows`).                                                                                                                                                                                                                                                                                                                                                          |
-| Doujin               | `kind = 'doujin'`. The contents are its pages, and the last page opened carries the accent ring.                                                                                                                                                                                                                                                                                                                                                             |
-| Novel                | `kind = 'novel'`. The EPUB's table of contents with no number column, percentages, a typeset cover, and LAYOUT instead of DIRECTION.                                                                                                                                                                                                                                                                                                                         |
-| 612 rows, 1 → 540    | The scrub rail (drag, or arrow keys and PageUp/PageDown when focused), and `#` for a typed number. Both open the fold if the target is inside it.                                                                                                                                                                                                                                                                                                            |
-| Multi-select         | SELECT. Tap rows, or tap one, then RANGE and the other end. ALL UNREAD. Each bulk action shows how many rows it will change.                                                                                                                                                                                                                                                                                                                                 |
-| Shelves & tags       | EDIT on either row. Shelves are toggles in the owner's order. Tags are typed as `namespace:value` with suggestions from existing tags.                                                                                                                                                                                                                                                                                                                       |
-| Hidden, reveal on    | The magenta banner and frame from the layout, HIDDEN on the cover, and UNHIDE instead of HIDE. With reveal off the route answers 404, the same as a series that doesn't exist.                                                                                                                                                                                                                                                                               |
-| Series of books      | A doujin series with two or more entries. BOOKS replaces the contents as a cover grid, `?book=` shows one book's pages, long-press opens its sheet, ORDER reorders. See [`BOOKS.md`](BOOKS.md).                                                                                                                                                                                                                                                              |
-| Might be one series  | A single book whose title stem matches other singles. The suggestion band offers REVIEW → and NOT A SERIES ([`BOOKS.md`](BOOKS.md)).                                                                                                                                                                                                                                                                                                                         |
-| Created / taken out  | `?created=N` after grouping, and a take-out, each show a band with UNDO.                                                                                                                                                                                                                                                                                                                                                                                     |
-| Not downloaded       | An imported chapter whose file isn't on disk (`entries.available = 0`): NOT DOWNLOADED (phone: NO FILE), a dimmed title, and FILE reads "25 OF 166 DOWNLOADED". See [`IMPORT-MIHON.md`](IMPORT-MIHON.md).                                                                                                                                                                                                                                                    |
-| Downloading          | A Mihon series from an installed source (`ENGINE_URL` set): the DOWNLOAD row under CONTINUE with NEXT 10 and ALL N, a tap on a row with no file queues it, and rows say QUEUED, DOWNLOADING, FAILED or IMPORTING. See [`DOWNLOADING.md`](DOWNLOADING.md), "From tsundoku".                                                                                                                                                                                   |
-| From a source        | The SOURCE row under LINK and COVER, on every series whose chapters or episodes come from a Mihon or Aniyomi source: the source's name, what it last answered and how many chapters or episodes it lists, with MOVE →. In trouble the second line is in ink (NO VIDEO, NOTHING NEW, NOT ANSWERED). After a move it reads WAS … · UNTIL 1 DEC with MOVE BACK for 30 days, and a kept chapter's status says the source it came from. See [`MOVE.md`](MOVE.md). |
-| No video             | After NO SERVER on three episodes within a day (or on every episode, where the series has fewer), a NO VIDEO band under CONTINUE: NO VIDEO FROM KICKASSANIME, ANOTHER SOURCE → and NOT NOW. See [`MOVE.md`](MOVE.md), "The screens".                                                                                                                                                                                                                         |
-| Followed             | FOLLOWING ✓ in accent at the DOWNLOAD row's end; caught up, it is the row's only cell and says when its source was last asked.                                                                                                                                                                                                                                                                                                                               |
-| Refreshed            | REFRESH, the cell before FOLLOW, on a series in the library whose source can be asked: it looks once, adds what the source lists that no entry is, and queues nothing. The band says "3 NEW CHAPTERS" or "NOTHING NEW". See [`DOWNLOADING.md`](DOWNLOADING.md), "REFRESH" (c220).                                                                                                                                                                            |
-| Just added           | `?added=<manga>` after ADD TO LIBRARY: the ADDED TO THE LIBRARY band with UNDO, FIRST 10, and START dimmed until chapter 1 has a file. `&queued=<n>`/`down` after ADD AND DOWNLOAD (c205): the band says what it queued.                                                                                                                                                                                                                                     |
+| State                | What drives it                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Long manhwa, mid-way | Any series with chapters. The fold hides everything read before the last two chapters (`listRows`).                                                                                                                                                                                                                                                                                                                                                           |
+| Doujin               | `kind = 'doujin'`. The contents are its pages, and the last page opened carries the accent ring.                                                                                                                                                                                                                                                                                                                                                              |
+| Novel                | `kind = 'novel'`. The EPUB's table of contents with no number column, percentages, a typeset cover, and LAYOUT instead of DIRECTION.                                                                                                                                                                                                                                                                                                                          |
+| 612 rows, 1 → 540    | The scrub rail (drag, or arrow keys and PageUp/PageDown when focused), and `#` for a typed number. Both open the fold if the target is inside it.                                                                                                                                                                                                                                                                                                             |
+| Multi-select         | SELECT. Tap rows, or tap one, then RANGE and the other end. ALL UNREAD. Each bulk action shows how many rows it will change.                                                                                                                                                                                                                                                                                                                                  |
+| Shelves & tags       | EDIT on either row. Shelves are toggles in the owner's order. Tags are typed as `namespace:value` with suggestions from existing tags.                                                                                                                                                                                                                                                                                                                        |
+| Hidden, reveal on    | The magenta banner and frame from the layout, HIDDEN on the cover, and UNHIDE instead of HIDE. With reveal off the route answers 404, the same as a series that doesn't exist.                                                                                                                                                                                                                                                                                |
+| Series of books      | A doujin series with two or more entries. BOOKS replaces the contents as a cover grid, `?book=` shows one book's pages, long-press opens its sheet, ORDER reorders. See [`BOOKS.md`](BOOKS.md).                                                                                                                                                                                                                                                               |
+| Might be one series  | A single book whose title stem matches other singles. The suggestion band offers REVIEW → and NOT A SERIES ([`BOOKS.md`](BOOKS.md)).                                                                                                                                                                                                                                                                                                                          |
+| Created / taken out  | `?created=N` after grouping, and a take-out, each show a band with UNDO.                                                                                                                                                                                                                                                                                                                                                                                      |
+| Not downloaded       | An imported chapter whose file isn't on disk (`entries.available = 0`): NOT DOWNLOADED (phone: NO FILE), a dimmed title, and FILE reads "25 OF 166 DOWNLOADED". See [`IMPORT-MIHON.md`](IMPORT-MIHON.md).                                                                                                                                                                                                                                                     |
+| Downloading          | A Mihon series from an installed source (`ENGINE_URL` set): the DOWNLOAD row under CONTINUE with NEXT 10 and ALL N, a tap on a row with no file queues it, and rows say QUEUED, DOWNLOADING, FAILED or IMPORTING. See [`DOWNLOADING.md`](DOWNLOADING.md), "From tsundoku".                                                                                                                                                                                    |
+| From a source        | The SOURCE row under LISTS and COVER, on every series whose chapters or episodes come from a Mihon or Aniyomi source: the source's name, what it last answered and how many chapters or episodes it lists, with MOVE →. In trouble the second line is in ink (NO VIDEO, NOTHING NEW, NOT ANSWERED). After a move it reads WAS … · UNTIL 1 DEC with MOVE BACK for 30 days, and a kept chapter's status says the source it came from. See [`MOVE.md`](MOVE.md). |
+| No video             | After NO SERVER on three episodes within a day (or on every episode, where the series has fewer), a NO VIDEO band under CONTINUE: NO VIDEO FROM KICKASSANIME, ANOTHER SOURCE → and NOT NOW. See [`MOVE.md`](MOVE.md), "The screens".                                                                                                                                                                                                                          |
+| Followed             | FOLLOWING ✓ in accent at the DOWNLOAD row's end; caught up, it is the row's only cell and says when its source was last asked.                                                                                                                                                                                                                                                                                                                                |
+| Refreshed            | REFRESH, the cell before FOLLOW, on a series in the library whose source can be asked: it looks once, adds what the source lists that no entry is, and queues nothing. The band says "3 NEW CHAPTERS" or "NOTHING NEW". See [`DOWNLOADING.md`](DOWNLOADING.md), "REFRESH" (c220).                                                                                                                                                                             |
+| Just added           | `?added=<manga>` after ADD TO LIBRARY: the ADDED TO THE LIBRARY band with UNDO, FIRST 10, and START dimmed until chapter 1 has a file. `&queued=<n>`/`down` after ADD AND DOWNLOAD (c205): the band says what it queued.                                                                                                                                                                                                                                      |
 
 ## The WORK row
 
@@ -99,19 +99,12 @@ links, MOVE and TAKE OUT) and in [`WORKS.md`](WORKS.md)'s flow.
   ([`COVERS.md`](COVERS.md), "Chosen").
 - **SAME BOOK AS …** is a band under CONTINUE on a book with a likely twin,
   with KEEP BOTH and REVIEW → ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md)).
-- **TRACKING** sits under LINK on a linked series: what the AniList and
-  MAL lists say of it, what was sent, and EDIT for status and score
-  ([`TRACKING.md`](TRACKING.md)). An anime has a line a season there, folded
-  round the one being watched, and its EDIT sheet is one season at a time.
-- **LINK and COVER** sit under SHELVES on every series but a doujin: its
-  MyAnimeList / AniList entry with OPEN ↗, CHANGE and UNLINK, or FIND and
-  PASTE A LINK; and where its cover comes from ([`LINKS.md`](LINKS.md)). An
-  anime's LINK row is a line a season, each with its own FIND or EDIT, and
-  Ranobe's one line under them ([`LINKS.md`](LINKS.md), "The series
-  screen"). A one-season anime has no seasons' column, so its LINK and
-  TRACKING rows each hold AniList's block and Ranobe's line in a column of
-  their own, the line under the block at every width (c422: as a sibling in
-  the row it took half the width, and LINK's words went one a line).
+- **LISTS and COVER** sit under SHELVES on every series but a doujin. LISTS
+  (card c424) is one row with a line per list: the entry the series is linked
+  to, what that list says of it, what was sent, and the line's cells. It
+  replaced the LINK and TRACKING rows, which listed AniList, MAL and Ranobe
+  twice; its own section below says what each line draws. COVER says where
+  the cover comes from ([`LINKS.md`](LINKS.md)).
 - **TAGS** groups a series' tags by namespace (genre, circle, artist, …; a
   bare tag under `tag`), four lines at most. **Every value is a link** (card
   c313): to the library's person page for a person and its tag page for the
@@ -136,7 +129,7 @@ links, MOVE and TAKE OUT) and in [`WORKS.md`](WORKS.md)'s flow.
   two values in the `tag` group, each its own link. On a TV the pad reaches the
   values (↓ to the row meets its EDIT, ← into them), OK opens the sheet on
   its first row, and BACK closes it onto the tag.
-- **SOURCE sits after LINK and COVER**, before TAGS and ABOUT, on every series
+- **SOURCE sits after LISTS and COVER**, before TAGS and ABOUT, on every series
   whose chapters or episodes come from a Mihon or Aniyomi source: MOVE → to
   another source, and for 30 days after a move WAS … · UNTIL … with MOVE BACK
   ([`MOVE.md`](MOVE.md)). A local import has no such row. A chapter kept from
@@ -182,6 +175,134 @@ links, MOVE and TAKE OUT) and in [`WORKS.md`](WORKS.md)'s flow.
   suggestions exist to prevent. `tests/series-flow.e2e.ts` holds that down.
 - **Suggestion counts only include visible series**, so the tag field can't be
   used to learn how many hidden series carry a tag.
+
+## LISTS (c424)
+
+The handoff is `doc/handoffs/series-lists/` (`canvas.json`, five boards:
+1A before and after, 1B every state in the 440px panel, 1C an anime, 1D the
+phone, the TV and the tablet in portrait, 1E EDIT's sheet), from the brief
+`doc/briefs/SERIES-LISTS.md`. It was implemented with `design-tools`
+(extract, reconcile, pin): every colour is a token, and the spacing is the
+mock's own literals, on no ladder, pinned by `tests/series-lists-frame.e2e.ts`,
+`tests/series-layout.e2e.ts` and `tests/tv-series.e2e.ts`.
+
+**What draws it.** `src/routes/series/[id]/lists.ts` derives every word and
+cell from what the server already hands the panel (`LinkState`, `Tracking`,
+`RanobeSeries`, an anime's `SeasonRow`s); `ListsRow.svelte` only draws, and
+`TrackingSheet.svelte` is EDIT's sheet. `tests/series-lists.spec.ts` pins the
+rules; `tests/series-lists-flow.e2e.ts` reaches the states through the app's
+doors.
+
+**A line** is a tag cell (ANILIST, RNB, or S1 to S4 on an anime with several
+seasons), then the entry's title, its meta, and its state lines, then its
+cells. The line that tracks comes first: AniList on a comic, Ranobe on a
+novel (`Tracking.catalogueTracks`, never a kind check), the seasons on an
+anime with Ranobe's one line under them, a rule above it.
+
+- **MAL folds into AniList's line**: its id in the meta, and `ANILIST AND MAL
+· SENT 12 MIN AGO` on the right. It gets a quiet line of its own, inside
+  AniList's, only when it differs (`entryStates`): signed in where AniList
+  isn't or the other way round, a send of its own that failed, or another
+  word or chapter on its list (`MAL AT CH. 198`). MAL alone (AniList not asked
+  yet) leads with its name and says `SHOWN · ANILIST HAS NOTHING`. The line
+  speaks for the first list that is signed in, AniList before MAL
+  (`mainList`): with AniList signed out and MAL signed in, MAL's word leads
+  (`MAL · WATCHING · EP. 8`, on every season, watched or not) and AniList's
+  NOT SIGNED IN is the quiet line. A fold's word and the sheet's STATUS ask
+  the same list (`listState`).
+- **An anime's seasons**: three or fewer have a line each; more fold round the
+  one being watched (its tag inverted), and the fold says the run's state
+  (`COMPLETED`, `2 NOT LINKED`, `A SEND FAILED`). SHOW opens one row now, not
+  two. Every season line carries its list's word; only the season being
+  watched adds its meta and what was sent. A season in two parts leads with
+  `PART 2 · `, part 1's word on the right and the send under it.
+- **A flat list** (episodes with no season numbers, season 0 inside) and a
+  show of one season draw one ANILIST line, never an S tag and never SEASON 0
+  (c423). Season 0 beside numbered seasons is tagged OTHER, and a fold that
+  holds it says `OTHER + S1 – S2`.
+
+**The cells.** One stays at the line's end; two or more drop under the line
+in equal columns on the phone, the 440px panel and the TV, and stay inline
+on the tablet in portrait. The order is TRY AGAIN, SIGN IN →, FIND or CHANGE,
+PASTE A LINK, EDIT. TRY AGAIN is per line: a season's names its season
+(`?/retryTracking` sends that season's alone), a comic's sends both its lists,
+and Ranobe's is `?/retryRanobe`. A sign-in that expired offers SIGN IN → in
+TRY AGAIN's place, unless the other list's send failed for another reason:
+then the line offers both. A season's FIND keeps one cell (PASTE A LINK is on the
+review it opens); a hidden season's is PASTE. A settled line's FIND is plain,
+not the accent: the owner already said no.
+
+**Where the row sends you** (1E's table): FIND on AniList's line opens
+`/links?series=N`, a season's `&season=S`, Ranobe's `&service=ranobe`, and
+PASTE adds `&paste`. CHANGE on a wrong-kind line, and in the sheet, opens the
+review on the current link. SIGN IN → goes to SETTINGS. EDIT opens the sheet.
+
+**EDIT's sheet** opens on that line's entry and season tab. ENTRY is new:
+the entry's title and ids, where the link came from, and OPEN ↗, CHANGE and
+UNLINK, which left the row (UNLINK names the tab's season on a show with
+several, and none on a show of one, whose UNLINK takes every part). STATUS
+sends at once to the lists signed in, and says NOTHING SIGNED IN rather than
+offering what can't be sent; a cover-only, wrong-kind, hidden or novel's
+entry says why it is never tracked instead. PROGRESS is each list's. On
+Ranobe's line it is the same sheet with nothing to set: Ranobe works the
+status out from the reads, and its ENTRY has RANOBE ↗, CHANGE and UNLINK.
+
+**Every state, and where it is drawn** (the brief's twelve):
+
+| State                 | Drawn as                                                                                                                                                                                                                                                                                             | Reached in                                   |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| 1 Not linked          | `Not linked` muted; the search's own words (`NOT SEARCHED YET · THE NEXT PASS SEARCHES IT`, `A SEARCH WAITS FOR THE NEXT COVER PASS`, `4 FOUND ON ANILIST · NOT FOR CERTAIN`, `NOTHING FOUND ON ANILIST`, `NONE OF THESE · NO PASS ASKS AGAIN`, `UNLINKED · NO PASS ASKS AGAIN`); FIND, PASTE A LINK | links-flow, series-lists-flow                |
+| 2 Linked and tracked  | the list's word in ink, what was sent on the right; EDIT                                                                                                                                                                                                                                             | series-lists-flow                            |
+| 3 Signed out          | `ANILIST AND MAL · NOT SIGNED IN` / `NOTHING SENT`, or MAL's quiet line; SIGN IN → and EDIT                                                                                                                                                                                                          | tracking-flow, the frame spec                |
+| 4 A send that failed  | `CH. 3 NOT SENT`, the reason in ink on the right; TRY AGAIN                                                                                                                                                                                                                                          | series-lists-flow (a catalogue that is down) |
+| 5 Cover-only          | `THE COMIC’S ENTRY · …`; `COVER AND DETAILS ONLY · NEVER TRACKED`                                                                                                                                                                                                                                    | series-lists-flow                            |
+| 6 Wrong kind          | `LINKED TO THE WRONG KIND · NOTHING SENT`, `CHANGE SEARCHES ANILIST’S ANIME`; CHANGE as the accent, EDIT                                                                                                                                                                                             | series-lists-flow (hand-seeded link)         |
+| 7 Hidden              | `HIDDEN SERIES ARE NEVER SEARCHED`, PASTE A LINK alone as the accent; linked, `NOTHING SENT · HIDDEN SERIES STAY OFF EVERY LIST`; with seasons the strip says `NOTHING SENT · HIDDEN` once                                                                                                           | series-lists-flow                            |
+| 8 Offline             | the strip: `○ OFFLINE · CHANGES NEED THE WORKSTATION`; EDIT turns into OPEN ↗, every other cell dims, sends read `AS OF 14:20`                                                                                                                                                                       | series-lists-flow                            |
+| 9 Ranobe on a novel   | RNB first; the AniList line `COVER AND DETAILS · TRACKED ON RANOBE`                                                                                                                                                                                                                                  | ranobe-flow                                  |
+| 10 Ranobe on an anime | one RNB line under the seasons, `RANOBE · ONE ENTRY FOR ALL 4 SEASONS`                                                                                                                                                                                                                               | series-layout (one season), the unit spec    |
+| 11 Many seasons       | the fold, the watched season inverted, SHOW / HIDE                                                                                                                                                                                                                                                   | series-lists-flow                            |
+| 12 A flat list        | one ANILIST line, no S tag, no SEASON 0 on the row or in the sheet                                                                                                                                                                                                                                   | links-flow                                   |
+
+**Per device** (1B, 1D): the 440px panel and desktop: a 36px strip above the
+lines, tag 64, line 56, title 14, meta 12, cells 13, the drop 48. The phone:
+tag 60 (see below), line 52, title 13, the drop 52. The tablet in portrait:
+the label column (120) instead of the strip, title 15, meta 13, cells 14,
+every cell inline. The TV: tag 56, line 56, title 16, meta hidden (one OK
+away, in EDIT), cells 15; ↑ ↓ move a line at a time and ← → between a line's
+cells, with the house's inset focus mark.
+
+### Where LISTS departs from the handoff
+
+- **EDIT stays on a line that is signed out.** 1B says AniList signed out has
+  one cell, SIGN IN →, and EDIT "waits for the sign-in". But OPEN ↗, CHANGE and
+  UNLINK live in EDIT's sheet now, so without it a signed-out series could
+  never be relinked or unlinked from this screen. The sheet says NOTHING
+  SIGNED IN where STATUS would be.
+- **The phone's tag is 60px, not 1D's 56.** 1D only ever puts S3 or RNB in
+  it; ANILIST, which 1A draws on a phone at 60, does not fit 56.
+- **A line's meta names no year or country**: `series_links` stores neither,
+  so a comic reads `MANGA · MAL 132214`, not 1B's `MANHWA · 2020 · …`. The
+  ANILIST id stands in for MAL's where there is no MAL entry (1B, 5 and 9 do
+  the same).
+- **1B's `SEARCH WAITS · ANILIST OUT OF REACH · NEXT PASS` is not drawn**: a
+  queued search doesn't know whether AniList was out of reach, so it keeps
+  `A SEARCH WAITS FOR THE NEXT COVER PASS`, which is true of every queued one.
+- **A novel's AniList line says `COVER AND DETAILS · TRACKED ON RANOBE`**, not
+  1B's `… · NOVELS ARE TRACKED ON RANOBE`, so no line names a kind; without a
+  Ranobe token it says `COVER AND DETAILS · NOT TRACKED HERE`.
+- **The sheet's UNLINK has no UNDO band.** 1E's table says "the band with
+  UNDO"; the series screen never had one for UNLINK, and this wave didn't add
+  it.
+- **Ranobe's line keeps FIND and PASTE A LINK on a comic or a novel** (1B, 1
+  and 8) and FIND alone on an anime (1C), as the boards draw each.
+
+### What LISTS does not do yet
+
+- The fold in the phone's series header (c425, `doc/handoffs/series-phone/`):
+  the next wave folds these rows.
+- `doc/TV.md` (not this slot's) doesn't say yet that the TV's focus moves
+  through LISTS a line at a time.
 
 ## Where it departs from the handoff
 

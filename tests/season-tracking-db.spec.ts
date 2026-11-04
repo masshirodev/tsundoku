@@ -1817,3 +1817,39 @@ describe('Ranobe on an anime', () => {
 		expect((post.body as { backfill: boolean }).backfill).toBe(false);
 	});
 });
+
+// ---- TRY AGAIN on one season's line (c424) ------------------------------------------------
+
+describe('TRY AGAIN on a season’s line sends that season’s alone (c424)', () => {
+	it('sends the season it names, and leaves another season’s wait for its own line', async () => {
+		const id = show({
+			seasons: [
+				[1, 2],
+				[1, 2]
+			]
+		});
+		seasons.linkSeason(id, 1, 1, animeEntry(101), 'review', NOW);
+		seasons.linkSeason(id, 2, 1, animeEntry(102), 'review', NOW);
+		await signIn('anilist');
+		markWatched(entryId(id, 1, 1));
+		markWatched(entryId(id, 2, 1));
+		tr.queueProgress(id, NOW);
+		const waiting = () =>
+			(
+				db
+					.prepare(`SELECT season FROM season_tracker_sends WHERE series_id = ? ORDER BY season`)
+					.all(id) as { season: number }[]
+			).map((r) => r.season);
+		expect(waiting()).toEqual([1, 2]);
+		sent = [];
+		await tr.sendPending({ seriesId: id, season: 2, now: NOW });
+		const saved = sent
+			.filter((s) => JSON.stringify(s.body).includes('SaveMediaListEntry'))
+			.map((s) => (s.body as { variables: { mediaId: number } }).variables.mediaId);
+		expect(saved).toEqual([102]);
+		expect(waiting()).toEqual([1]);
+		// With no season named (a comic's line, SETTINGS), every wait goes.
+		await tr.sendPending({ seriesId: id, now: NOW });
+		expect(waiting()).toEqual([]);
+	});
+});

@@ -214,24 +214,45 @@ test('a pasted link reads the id only, and says when Ranobe doesn’t answer (1e
 	);
 });
 
-test('the series screen draws Ranobe’s LINK and TRACKING rows (2a, 2h)', async ({ page }) => {
+test('the series screen draws Ranobe’s line on LISTS, first on a novel (2a, 2h; c424)', async ({
+	page
+}) => {
 	await page.goto(`/series/${ids.v2}`);
-	const link = page.locator('.link-row');
-	await expect(link.locator('.lk-a')).toHaveText('The Beginning After the End');
-	await expect(link.locator('.lk-b')).toContainText('RANOBE W388');
-	await expect(link.getByRole('link', { name: 'RANOBE ↗' })).toHaveAttribute(
+	const row = page.locator('[data-row="lists"]');
+	const rnb = row.locator('[data-line="ranobe"]');
+	// A novel is tracked on Ranobe, so Ranobe's line comes first (1B, 9).
+	await expect(row.locator('.tag').first()).toHaveText('RNB');
+	await expect(rnb.locator('.t')).toHaveText('The Beginning After the End');
+	await expect(rnb.locator('.m')).toContainText('RANOBE W388');
+	// The tag says RANOBE, so the line's word doesn't lead with it.
+	await expect(rnb.locator('.s .l').first()).toHaveText('WAITING ON AN EDITION');
+	// EDIT opens the sheet on the entry, with nothing to set: Ranobe works the
+	// status out from the reads. RANOBE ↗, CHANGE and UNLINK are its ENTRY's.
+	await rnb.getByRole('button', { name: 'EDIT' }).click();
+	const sheet = page.getByRole('dialog', { name: 'Tracking' });
+	await expect(sheet.locator('.ti')).toHaveText('RANOBE');
+	await expect(sheet.getByRole('link', { name: 'RANOBE ↗' })).toHaveAttribute(
 		'href',
 		'https://ranobe.ink/w388'
 	);
-	await expect(page.locator('.track-row .tl-l').first()).toHaveText(
-		'RANOBE · WAITING ON AN EDITION'
+	await expect(sheet.getByRole('link', { name: 'CHANGE' })).toHaveAttribute(
+		'href',
+		`/links?series=${ids.v2}&service=ranobe`
 	);
+	await expect(sheet.locator('form.sts')).toHaveCount(0);
+	await sheet.getByRole('button', { name: 'DONE' }).click();
 	await page.goto(`/series/${ids.lotm}`);
-	await expect(page.locator('.link-row .lk-a')).toHaveText('Not on Ranobe');
-	await expect(page.locator('.track-row .tl-l')).toHaveText('NOT ON RANOBE');
-	await expect(page.locator('.link-row').getByRole('link', { name: 'FIND' })).toHaveAttribute(
+	const lotm = page.locator('[data-row="lists"] [data-line="ranobe"]');
+	await expect(lotm.locator('.t')).toHaveText('Not on Ranobe');
+	// Not linked, the title says it: no state line repeats NOT ON RANOBE under it.
+	await expect(lotm.locator('.s')).toHaveCount(0);
+	await expect(lotm.getByRole('link', { name: 'FIND' })).toHaveAttribute(
 		'href',
 		`/links?series=${ids.lotm}&service=ranobe`
+	);
+	await expect(lotm.getByRole('link', { name: 'PASTE A LINK' })).toHaveAttribute(
+		'href',
+		`/links?series=${ids.lotm}&service=ranobe&paste`
 	);
 });
 
