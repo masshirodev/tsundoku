@@ -81,6 +81,15 @@ into the sheet instead.
 
 A scope is a stack, so a sheet opened from a sheet restores to the lower one.
 
+**A scope's start.** A scope opens on its `data-focus-start`, or its first stop.
+A panel that hosts another screen's list, and so cannot put the attribute in
+that list's markup, names it instead: `use:focusScope={{ start: [selectors] }}`,
+tried in order, the first that finds a stop winning, before the markup's own
+start (c250). The text reader's CONTENTS is that: it hosts the series' own
+`EntryList` and starts on the row being read (`#entry-<id> .entry-btn`), then
+any row, never the list's `#` tool above them. BACK closes it, and focus goes
+back to the CONTENTS cell, which the panel never removed.
+
 **A scope closes when its sheet starts to leave, not when it is gone** (c445).
 A sheet with `out:leave` ([`MOTION.md`](MOTION.md)) stays in the page for its
 180 ms exit, and Svelte makes it `inert` the moment the exit starts, so
@@ -104,7 +113,10 @@ its root and keeps every one of them:
   READING, and the reader's own turn keys stand down. Its **end page** lifts
   the opt-out everywhere (c235), because there is no page left to turn;
 - `TextReader.svelte` the same way (c241): opted out while its chrome is
-  hidden, and off a TV always. Its end screen is still behind the opt-out;
+  hidden, and off a TV always. At its end it lifts the opt-out everywhere,
+  as the image reader does: the last volume's end page and the END · LAST
+  AVAILABLE screen of a novel downloaded so far both take the pad, their
+  ruled cells marked inside (c251);
 - `VideoPlayer.svelte` (seek and volume) **while its bar is hidden**, on a TV
   only — except while SKIP or the next-episode card is up, which take the pad
   for themselves (c296). With the bar shown the pad moves among its cells and
@@ -301,4 +313,7 @@ BACK climbs the screen before it leaves.
   with focus on the scrubber, ↓ reaches READING, and the mode changes by keys
   alone (c241).
 - `tests/tv-text-reader.e2e.ts` — the same for the text reader's LAYOUT
-  (c241).
+  (c241); a sheet leaving keeps no keys (c445); CONTENTS as a scope that
+  starts on the row being read and gives the pad back to its cell (c250); and
+  both ends of a book: the end page, and, on the spec's own seeded database,
+  END · LAST AVAILABLE with its cells marked inside, rated and unrated (c251).
