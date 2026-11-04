@@ -1,3 +1,5 @@
+// The shared `page.goto` waits for hydration (tests/fixtures.ts), as the other
+// frame specs' do: kept by hand over the generator's own import.
 import { expect, test } from './fixtures';
 
 /**
@@ -10,13 +12,13 @@ import { expect, test } from './fixtures';
  * silently redraw the screen. That is what this is here to stop; it is not
  * pedantry.
  *
- * Source: /home/masshiro/projects/tsundoku/temp/design/Index Library.dc.html
- * Extracted at 2026-09-23T02:15:17.649Z at 1440x2400.
+ * Source: doc/design/handoff/Index Library.dc.html
+ * Extracted at 2026-11-04T01:10:30.675Z at 1440x2400.
  *
  * Regenerating overwrites this file. Hand edits belong in a sibling spec.
  */
 
-const base = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:4183';
+const base = process.env.PLAYWRIGHT_BASE_URL ?? '';
 
 const SEL = {
 	continueList: '.cont',

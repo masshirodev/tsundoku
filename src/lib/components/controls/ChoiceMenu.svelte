@@ -119,7 +119,11 @@
 		white-space: nowrap;
 		cursor: pointer;
 	}
+	/* Open, the cell stays lit above the scrim, as FILTER's does, and takes
+	   the second tap itself. */
 	.menu > .cell.on {
+		position: relative;
+		z-index: 7;
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
 	}

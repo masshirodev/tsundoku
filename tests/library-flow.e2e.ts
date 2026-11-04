@@ -2,6 +2,14 @@ import { type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /**
+ * The preview's own origin, which a form action's POST must carry or
+ * SvelteKit refuses it as cross-site: the project's `baseURL`, which follows
+ * PLAYWRIGHT_PORT. It was a fixed 'http://localhost:4183', so on any other
+ * port the POST was refused and the case failed (c311).
+ */
+const sameOrigin = () => new URL(test.info().project.use.baseURL!).origin;
+
+/**
  * One complete flow with real data, end to end: rate, favourite, shelve and
  * hide from the long-press sheet, then reveal and unhide. This is the walk
  * doc/design's HANDOFF asks for early, because it is what surfaces an
@@ -214,7 +222,7 @@ test('START SCAN with nothing to import says where it looked', async ({ request 
 	// playwright.config.ts points LIBRARY_ROOT at an empty folder, so a scan
 	// here can never import into the shared seeded database.
 	const res = await request.post('/?/scan', {
-		headers: { origin: 'http://localhost:4183', 'x-sveltekit-action': 'true' },
+		headers: { origin: sameOrigin(), 'x-sveltekit-action': 'true' },
 		form: {}
 	});
 	expect(await res.text()).toContain('NOTHING TO IMPORT');
