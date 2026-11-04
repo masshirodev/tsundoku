@@ -6,6 +6,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
+import { doubleTap } from './helpers/touch';
 
 /**
  * Catalogue links end to end (doc/LINKS.md), on the seed's links: Mount Hua
@@ -93,6 +94,39 @@ test('with nothing found: SEARCH AGAIN, AniList out of reach, waits for the pass
 	await expect(page.locator('.title')).toHaveText('Yofukashi no Uta');
 	await page.goto('/');
 	await expect(band(page)).toHaveText('02 SERIES TO LINK');
+});
+
+test('a double tap on SEARCH AGAIN opens the form and searches nothing (c329)', async ({
+	page
+}) => {
+	// Every decision the page posts, so a search nobody typed is seen even when
+	// the band would not show it.
+	const posts: string[] = [];
+	page.on('request', (r) => {
+		if (r.method() === 'POST' && new URL(r.url()).pathname === '/api/links')
+			posts.push(r.postData() ?? '');
+	});
+	await page.goto('/links');
+	// Nothing found puts SEARCH AGAIN among the actions, where the form's
+	// SEARCH once took its place under the finger.
+	if ((await page.locator('.title').textContent()) !== 'Yofukashi no Uta')
+		await page.getByRole('button', { name: 'SKIP' }).click();
+	await expect(page.locator('.title')).toHaveText('Yofukashi no Uta');
+	posts.length = 0;
+	const again = page.locator('.actions button', { hasText: 'SEARCH AGAIN' });
+	const box = (await again.boundingBox())!;
+	// A thumb's double tap, at once, on a page that has not settled anything.
+	await doubleTap(page, box.x + box.width / 2, box.y + box.height / 2);
+	await expect(page.getByLabel('Title to search on AniList')).toBeVisible();
+	// The search waits for the form's own SEARCH: give a stray one time to go out.
+	await page.waitForTimeout(1000);
+	expect(posts.filter((p) => p.includes('"search"'))).toEqual([]);
+	await expect(page.locator('.cand')).toHaveCount(0);
+	// A press while it is open only puts the caret back in the field.
+	await page.getByLabel('Title to search on AniList').blur();
+	await again.click();
+	await expect(page.getByLabel('Title to search on AniList')).toBeFocused();
+	expect(posts).toEqual([]);
 });
 
 test('a pasted link needs AniList: unreachable, it says so and links nothing', async ({ page }) => {
@@ -1100,6 +1134,14 @@ test.describe('a catalogue that answers', () => {
 			await expect(page.locator('.band .line').nth(1)).toHaveText(
 				'SEASON 3 NOT LINKED · SEASON 4 HOLDS ITS ENTRY'
 			);
+			// The page stays, and under the band the season it is on is drawn as it
+			// now stands: linked, with its entry and its UNLINK, not the untouched
+			// review it opened on (c465).
+			const linkedRow = page
+				.locator('.rows .r')
+				.filter({ has: page.locator('.rl', { hasText: /^LINKED$/ }) });
+			await expect(linkedRow).toHaveText(/^LINKED\s*Split Show · A NEW LINK REPLACES IT$/);
+			await expect(page.getByRole('button', { name: 'UNLINK', exact: true })).toBeVisible();
 			expect(partsOf(id)).toEqual([
 				{ season: 1, part: 1, anilist_id: 9501 },
 				{ season: 2, part: 1, anilist_id: 9502 },

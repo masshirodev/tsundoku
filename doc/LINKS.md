@@ -347,7 +347,10 @@ on desktop and in tablet landscape.
   own catalogue and kind. **It never links: the results replace these and wait
   for LINK**, even when there is exactly one, or one with the same title. With
   AniList out of reach, the search waits for the next pass instead, and the
-  band says so. FIND on a series never searched searches as the review opens.
+  band says so. **The SEARCH AGAIN cell only opens the form**; pressed while
+  it is open, it puts the caret back in the field. The search is the form's
+  own SEARCH (or Enter), below the field, so a double tap, or the press that
+  opens it on a slow render, never searches a title nobody typed (c329). FIND on a series never searched searches as the review opens.
 - The band, the panel's count and the rows show one search: the band counts
   what AniList returned, the count what was kept for the review, and the rows
   are exactly the kept candidates (`4 OF 6 FOUND`). A comic or a novel
@@ -485,7 +488,12 @@ NEVER TICKED`; c418), since `linkSeason` would refuse it, and a split
   goes back to the series; when the workstation refused any (another tab
   linked meanwhile), the page stays and its band is the answer, not the
   ticks: `LINKED 1 OF 2 SEASONS · …` and `SEASON 2 NOT LINKED · SEASON 3
-HOLDS ITS ENTRY`, or `NOTHING LINKED · …` when none was. The band's numbers
+HOLDS ITS ENTRY`, or `NOTHING LINKED · …` when none was. Under that band
+  the season the page is on is drawn as it now stands (c465): linked, its
+  LINKED row naming the entry with UNLINK beside it, the pasted entry and the
+  forms put away -- never the untouched review it opened on. The workstation
+  answers it with the counts (`seasonReview`, the same reader the page's load
+  draws it with). The band's numbers
   are seasons, from the workstation's `linked` and `of` (`seasonsLinked`): a
   pair linked whole is one, and a pair with a part refused is that season
   not linked, the refusal naming its part. **NOT NOW has two cases on one

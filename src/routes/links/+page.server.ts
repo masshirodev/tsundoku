@@ -1,7 +1,8 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { isRevealed } from '$lib/server/prefs';
-import { linkState, linkQueue, reviewItem, seriesAccess } from '$lib/server/catalogue';
+import { linkQueue, reviewItem, seriesAccess } from '$lib/server/catalogue';
+import { seasonReview } from './review-state.server';
 import { configured, suggestConfigured } from '$lib/server/ranobe';
 import { ranobeItem, ranobeQueue, ranobeSeries } from '$lib/server/ranobe-review';
 import {
@@ -73,35 +74,15 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 		if (!item) error(404, 'not found');
 		// The LINK row is the season's own, never the open season's or the
 		// series' mirror: a season with no row of its own is not linked (c240).
-		const state = linkState(id, at?.season);
-		if (!state) error(404, 'not found');
-		const season = at
-			? {
-					no: at.season,
-					of: view!.seasons.length,
-					from: at.from,
-					to: at.to,
-					count: at.count,
-					aired: at.aired,
-					/** What the search sends, and what the header says it asked. */
-					title: at.searchTitle,
-					linked: at.link?.title ?? null,
-					/** The part the season's line holds: what LINK, UNLINK and UNDO act on. */
-					part: at.link?.part ?? 1,
-					parts: at.parts.map((p) => ({ part: p.part, from: p.from, to: p.to, linked: !!p.link }))
-				}
-			: null;
+		const drawn = seasonReview(id, at, view?.seasons.length ?? 0, access.hidden);
+		if (!drawn) error(404, 'not found');
+		const { single, season } = drawn;
 		// The other seasons, from the entry just linked: only when there is a
 		// season left to offer one to, and only for the owner's own AniList.
 		const relations = await relationsFor(id, at, view);
 		return {
 			items: [{ ...item, service: 'anilist' as const }],
-			single: {
-				hidden: access.hidden,
-				linked: state.linked?.title || state.linked?.ids || null,
-				wrongKind: state.linked?.wrongKind ?? false,
-				queued: at?.queued ?? state.queued
-			},
+			single,
 			season,
 			relations,
 			paste: url.searchParams.has('paste'),

@@ -37,8 +37,9 @@
 
 	type Item = (typeof data.items)[number];
 	/** One season of an anime (c240), when FIND opened the page on one. */
+	// A partial LINK N SEASONS redraws it from the workstation's answer (c465).
 	// svelte-ignore state_referenced_locally
-	const season = data.season;
+	let season = $state(data.season);
 	/** The rest of the show, from the entry just linked: ticked where the counts agree. */
 	// svelte-ignore state_referenced_locally
 	let relations = $state<RelationOffer[] | null>(data.relations ?? null);
@@ -79,7 +80,7 @@
 	// svelte-ignore state_referenced_locally
 	const total = data.items.length;
 	// svelte-ignore state_referenced_locally
-	const single = data.single;
+	let single = $state(data.single);
 	// The queue is this visit's: SKIP sends a series to the back of it.
 	// svelte-ignore state_referenced_locally
 	let queue = $state<string[]>(data.items.map(qk));
@@ -406,13 +407,18 @@
 			.map((o) => ({ season: o.season, part: o.part, anilistId: o.anilistId }));
 		busy = true;
 		failed = null;
-		const r = await post(it.service, { series: it.seriesId, seasons: picks });
+		const r = await post(it.service, {
+			series: it.seriesId,
+			seasons: picks,
+			...(single && season ? { season: season.no } : {})
+		});
 		busy = false;
 		// `linked` and `of` are seasons, not parts: a pair is one (round 2).
 		const a = (r ? await r.json().catch(() => ({})) : {}) as {
 			linked?: number;
 			of?: number;
 			refused?: RefusedPick[];
+			review?: { single: typeof single; season: typeof season } | null;
 		};
 		const refused = a.refused ?? [];
 		if (!r?.ok) {
@@ -427,6 +433,18 @@
 		if (single && !refused.length) {
 			await backToSeries(it.seriesId);
 			return;
+		}
+		// Some linked, some refused, on one series: the page stays to say which,
+		// so the season it is on is drawn as it now stands -- linked, its LINK
+		// row naming the entry -- not as the review it opened on (c465). The
+		// band names the season still to do.
+		if (single && a.review) {
+			single = a.review.single;
+			season = a.review.season;
+			// The pasted entry and the open forms were the review's, before LINK.
+			cancelPaste();
+			searching = false;
+			chosen = null;
 		}
 		if (!single) {
 			queue = queue.slice(1);
@@ -717,6 +735,16 @@
 	type Act = { label: string; run: () => void; strong?: boolean; dim?: boolean };
 	const netDim = $derived(off || (item !== null && nonet === item.service));
 	const openSearch = () => ((searching = !searching), (pasting = false));
+	/** The search field, to put the caret back in when SEARCH AGAIN is pressed while open. */
+	let searchField = $state<HTMLInputElement | null>(null);
+	function showSearch() {
+		if (searching) {
+			searchField?.focus();
+			return;
+		}
+		searching = true;
+		pasting = false;
+	}
 	const openPaste = () => ((pasting = !pasting), (searching = false));
 	const notOn = () =>
 		decide(
@@ -771,9 +799,14 @@
 				}
 			: { label: 'TAP ONE TO LINK', run: () => {}, dim: true };
 		if (pasted) return [{ label: 'CANCEL', run: cancelPaste, dim: off }, link];
+		// SEARCH AGAIN only opens the form, and a press while it is open only
+		// puts the caret in its field: the search is the form's own SEARCH, below
+		// it. Once this cell ran the search when open, so the second tap of a
+		// double tap, or the press that opened it on a slow render, searched the
+		// shown title nobody typed (c329).
 		const search: Act = {
 			label: 'SEARCH AGAIN',
-			run: searching ? searchAgain : () => ((searching = true), (pasting = false)),
+			run: showSearch,
 			strong: searching,
 			dim: netDim || noSearch
 		};
@@ -1201,6 +1234,7 @@
 							<!-- svelte-ignore a11y_autofocus -->
 							<input
 								type="text"
+								bind:this={searchField}
 								bind:value={query}
 								aria-label={ranobe ? 'Title to search on Ranobe' : 'Title to search on AniList'}
 								autocomplete="off"

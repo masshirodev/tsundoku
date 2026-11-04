@@ -26,8 +26,10 @@ import {
 	seasonsLinked,
 	linkSeason,
 	seasonHolding,
-	seasonRelations
+	seasonRelations,
+	seriesSeasons
 } from '$lib/server/season-links';
+import { seasonReview } from '../../links/review-state.server';
 import { isAnime, parsePasted } from '$lib/library/catalogue';
 import { account } from '$lib/server/tracking';
 
@@ -50,7 +52,10 @@ type Body = {
 	/** One season of an anime (c240): FIND on its line, and LINK A TO SEASON n. */
 	season?: number;
 	part?: number;
-	/** LINK 3 SEASONS: the entries picked on the relations page. */
+	/**
+	 * LINK 3 SEASONS: the entries picked on the relations page. `season` with
+	 * it is the season the page is on, which the answer redraws (c465).
+	 */
 	seasons?: Pick[];
 };
 
@@ -160,7 +165,13 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			const count = seasonsLinked(linked, refused);
 			if (!linked.length) return json({ ok: false, ...count, refused }, { status: 409 });
 			recover(true);
-			return json({ ok: true, ...count, refused });
+			// The season the page is on, as it now stands (c465): a partial link
+			// leaves the page there, which redraws it from this rather than from
+			// the review it opened on.
+			const view = season !== undefined ? seriesSeasons(seriesId) : null;
+			const at = view?.seasons.find((s) => s.season === season) ?? null;
+			const review = at ? seasonReview(seriesId, at, view!.seasons.length, access.hidden) : null;
+			return json({ ok: true, ...count, refused, review });
 		}
 		if (typeof b.link === 'number') {
 			if (!kind) error(404, 'not found');
