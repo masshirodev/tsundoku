@@ -396,6 +396,38 @@ describe('the relation walk (c351)', () => {
 	});
 });
 
+describe('LINK N SEASONS counts seasons, not parts (c418, round 2)', () => {
+	const part = (season: number, p = 1) => ({ season, part: p });
+	it.each([
+		['nothing', [], [], { linked: 0, of: 0 }],
+		['a pair linked whole is one season', [part(2), part(2, 2)], [], { linked: 1, of: 1 }],
+		['a pair and a season', [part(2), part(2, 2), part(3)], [], { linked: 2, of: 2 }],
+		['a pair beside a refused season', [part(2), part(2, 2)], [part(3)], { linked: 1, of: 2 }],
+		// Half a pair written is not the season linked: its refused part is named.
+		[
+			'a pair with a part refused is that season refused',
+			[part(2)],
+			[part(2, 2)],
+			{ linked: 0, of: 1 }
+		],
+		['everything refused', [], [part(1), part(3)], { linked: 0, of: 2 }]
+	])('%s', (_, linked, refused, want) => {
+		expect(seasons.seasonsLinked(linked, refused)).toEqual(want);
+	});
+	it('holds on linkPicks’ own answer for a split season', async () => {
+		const id = show([12, 23]);
+		link(id, 1, 201);
+		const offers = (await seasons.seasonRelations(id, 1))!;
+		const r = seasons.linkPicks(
+			id,
+			'anime',
+			offers.map((o) => ({ season: o.season, part: o.part, anilistId: o.anilistId })),
+			NOW
+		);
+		expect(seasons.seasonsLinked(r.linked, r.refused)).toEqual({ linked: 1, of: 1 });
+	});
+});
+
 describe('an entry another season holds (c418)', () => {
 	it('is offered unticked, saying which season holds it, and is no candidate', async () => {
 		// Shifted links: season 3 holds season 2's entry. Season 1 is linked, and

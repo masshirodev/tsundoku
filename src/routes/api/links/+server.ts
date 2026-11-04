@@ -23,6 +23,7 @@ import {
 import {
 	holdsLine,
 	linkPicks,
+	seasonsLinked,
 	linkSeason,
 	seasonHolding,
 	seasonRelations
@@ -155,9 +156,11 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			const { linked, refused } = linkPicks(seriesId, kind, picks);
 			// Nothing written is a refusal, as at every other link door; it still
 			// says which seasons, and why.
-			if (!linked.length) return json({ ok: false, linked: 0, refused }, { status: 409 });
+			// Counted in seasons, not parts: a pair is one (round 2).
+			const count = seasonsLinked(linked, refused);
+			if (!linked.length) return json({ ok: false, ...count, refused }, { status: 409 });
 			recover(true);
-			return json({ ok: true, linked: linked.length, refused });
+			return json({ ok: true, ...count, refused });
 		}
 		if (typeof b.link === 'number') {
 			if (!kind) error(404, 'not found');

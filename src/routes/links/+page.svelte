@@ -43,9 +43,15 @@
 	// svelte-ignore state_referenced_locally
 	let relations = $state<RelationOffer[] | null>(data.relations ?? null);
 	// svelte-ignore state_referenced_locally
-	let pickedSeasons = $state<number[]>(
-		(data.relations ?? []).filter((o) => o.ticked).map((o) => o.season)
-	);
+	let pickedSeasons = $state<number[]>(ticked(data.relations ?? []));
+	/**
+	 * The seasons the relations tick, each once: a split season's two parts
+	 * are both ticked and are one season (c418, round 2), so the count, the
+	 * button and the band never say two for it.
+	 */
+	function ticked(offers: RelationOffer[]): number[] {
+		return [...new Set(offers.filter((o) => o.ticked).map((o) => o.season))];
+	}
 	type Service = Item['service'];
 	type Cand = ReviewCandidate | RanobeReviewCandidate;
 	const SERVICE_NAME: Record<Service, string> = { anilist: 'ANILIST', ranobe: 'RANOBE' };
@@ -328,7 +334,7 @@
 			}
 			const a = (await r.json().catch(() => ({}))) as { relations?: RelationOffer[] };
 			relations = a.relations?.length ? a.relations : null;
-			pickedSeasons = (relations ?? []).filter((o) => o.ticked).map((o) => o.season);
+			pickedSeasons = ticked(relations ?? []);
 			chosen = null;
 			undo = {
 				// Season 0 (a flat part of a longer list) names no season (c423).
@@ -387,8 +393,10 @@
 		failed = null;
 		const r = await post(it.service, { series: it.seriesId, seasons: picks });
 		busy = false;
+		// `linked` and `of` are seasons, not parts: a pair is one (round 2).
 		const a = (r ? await r.json().catch(() => ({})) : {}) as {
 			linked?: number;
+			of?: number;
 			refused?: RefusedPick[];
 		};
 		const refused = a.refused ?? [];
@@ -408,7 +416,7 @@
 			queue = queue.slice(1);
 			done += 1;
 		}
-		const of = n + refused.length;
+		const of = a.of ?? n;
 		undo = {
 			title: `LINKED ${refused.length ? `${n} OF ${of}` : n} SEASON${of === 1 ? '' : 'S'} · ${it.title.toUpperCase()}`,
 			detail: refused.length

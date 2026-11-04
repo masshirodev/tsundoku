@@ -264,7 +264,19 @@ const ANIME_MEDIA: Media[] = [
 		episodes: 12,
 		season: 'FALL',
 		seasonYear: 2026
-	})
+	}),
+	// A show whose second season AniList splits in two (round 2 of c418): 12,
+	// then 12 + 11 for the source's 23, then 12. The chain runs through all four.
+	entry({ id: 9501, idMal: 9511, title: 'Split Show', episodes: 12, seasonYear: 2020 }),
+	entry({ id: 9502, idMal: 9512, title: 'Split Show 2nd Season', episodes: 12, seasonYear: 2021 }),
+	entry({
+		id: 9503,
+		idMal: 9513,
+		title: 'Split Show 2nd Season Part 2',
+		episodes: 11,
+		seasonYear: 2022
+	}),
+	entry({ id: 9504, idMal: 9514, title: 'Split Show 3rd Season', episodes: 12, seasonYear: 2023 })
 ];
 // The chain the relations are walked along: S1 and S2 are each other's sequel.
 // Every edge AniList lists is answered, not only the chain's: the manga S1 was
@@ -286,7 +298,25 @@ const RELATIONS: Record<number, { id: number; type: string }[]> = {
 		{ id: 9301, type: 'PREQUEL' },
 		{ id: 9303, type: 'SEQUEL' }
 	],
-	9303: [{ id: 9302, type: 'PREQUEL' }]
+	9303: [{ id: 9302, type: 'PREQUEL' }],
+	// Both parts listed as season 1's sequel, the shape the walker pairs (as in
+	// season-links-db's Split Show). AniList more often chains part 2 off part 1,
+	// which the walker places a season further out: a gap in the notes, not this.
+	9501: [
+		{ id: 9502, type: 'SEQUEL' },
+		{ id: 9503, type: 'SEQUEL' },
+		{ id: 30024, type: 'ADAPTATION' }
+	],
+	9502: [
+		{ id: 9501, type: 'PREQUEL' },
+		{ id: 9503, type: 'SEQUEL' }
+	],
+	9503: [
+		{ id: 9502, type: 'PREQUEL' },
+		{ id: 9501, type: 'PREQUEL' },
+		{ id: 9504, type: 'SEQUEL' }
+	],
+	9504: [{ id: 9503, type: 'PREQUEL' }]
 };
 const COMIC_MEDIA: Media[] = [
 	entry({ id: 30024, idMal: 24, title: 'Ranma ½', format: 'MANGA', chapters: 38 })
@@ -866,6 +896,101 @@ test.describe('a catalogue that answers', () => {
 		}
 	});
 
+	test('a split season is one season on the relations: its count, its button, and LINK lands (c418, round 2)', async ({
+		page
+	}) => {
+		// Two seasons here, the second 23 episodes; AniList has it as 12 + 11. The
+		// relations from season 1 tick both parts, and they are one season.
+		const id = seedSeasons('Split Pair Show', [12, 23]);
+		try {
+			await page.goto(`${BASE}/links?series=${id}&season=1`);
+			await page.getByRole('button', { name: 'PASTE A LINK' }).first().click();
+			await page.getByLabel('AniList or MAL link').fill('https://anilist.co/anime/9501');
+			const link = page.locator('.actions button').last();
+			await expect(link).toHaveText(/^LINK [A-Z] TO SEASON 1$/);
+			await link.click();
+			// The relations walk is two paced AniList requests: seconds, not one.
+			const offered = page.locator('.rel:not(.outside) .relbtn');
+			await expect(offered.locator('.rno')).toHaveText(['S2', 'PART 2'], { timeout: 20_000 });
+			await expect(page.locator('.rels .ch div').nth(1)).toHaveText('1 OF 1 TICKED');
+			await expect(page.locator('.relacts button').last()).toHaveText('LINK 1 SEASON');
+			// Pressed at once, and back on the series with both parts written.
+			await page.locator('.relacts button').last().click();
+			await page.waitForURL(new RegExp(`/series/${id}$`));
+			await expect(page.locator('.seasons').first().locator('.s-a')).toHaveText([
+				'Split Show',
+				'Split Show 2nd Season'
+			]);
+			expect(partsOf(id)).toEqual([
+				{ season: 1, part: 1, anilist_id: 9501 },
+				{ season: 2, part: 1, anilist_id: 9502 },
+				{ season: 2, part: 2, anilist_id: 9503 }
+			]);
+		} finally {
+			forgetFlatList(id);
+		}
+	});
+
+	test('LINK N SEASONS counts a pair as one and names the season it refused (c418, round 2)', async ({
+		page
+	}) => {
+		// Four seasons: 12, 23 (AniList's 12 + 11), 12, and a fourth of 10 the
+		// chain does not reach. Season 1 linked offers the pair and season 3.
+		const id = seedSeasons('Split Four Show', [12, 23, 12, 10]);
+		try {
+			await page.goto(`${BASE}/links?series=${id}&season=1`);
+			await page.getByRole('button', { name: 'PASTE A LINK' }).first().click();
+			await page.getByLabel('AniList or MAL link').fill('https://anilist.co/anime/9501');
+			await expect(page.locator('.actions button').last()).toHaveText(/^LINK [A-Z] TO SEASON 1$/);
+			await page.locator('.actions button').last().click();
+			const offered = page.locator('.rel:not(.outside) .relbtn');
+			await expect(offered.locator('.rno')).toHaveText(['S2', 'PART 2', 'S3'], { timeout: 20_000 });
+			const count = page.locator('.rels .ch div').nth(1);
+			const go = page.locator('.relacts button').last();
+			await expect(count).toHaveText('2 OF 2 TICKED');
+			await expect(go).toHaveText('LINK 2 SEASONS');
+			// Untick and retick season 3: the same state reads the same both ways.
+			await offered.filter({ has: page.locator('.rno', { hasText: 'S3' }) }).click();
+			await expect(count).toHaveText('1 OF 2 TICKED');
+			await expect(go).toHaveText('LINK 1 SEASON');
+			await offered.filter({ has: page.locator('.rno', { hasText: 'S3' }) }).click();
+			await expect(count).toHaveText('2 OF 2 TICKED');
+			await expect(go).toHaveText('LINK 2 SEASONS');
+			// Meanwhile, in a second tab, season 4 is given season 3's entry by a
+			// pasted link: the app's own door, not a row written here.
+			const other = await page.context().newPage();
+			try {
+				await other.goto(`${BASE}/links?series=${id}&season=4`);
+				await other.getByRole('button', { name: 'PASTE A LINK' }).first().click();
+				await other.getByLabel('AniList or MAL link').fill('https://anilist.co/anime/9504');
+				await expect(other.locator('.actions button').last()).toHaveText(
+					/^LINK [A-Z] TO SEASON 4$/
+				);
+				await other.locator('.actions button').last().click();
+				await expect.poll(() => partsOf(id).map((l) => l.season)).toEqual([1, 4]);
+			} finally {
+				await other.close();
+			}
+			// LINK 2 SEASONS: the pair is written, season 3 refused. The band counts
+			// seasons (the pair is one), and names the one refused and why.
+			await go.click();
+			await expect(page.locator('.band .line').first()).toHaveText(
+				'LINKED 1 OF 2 SEASONS · SPLIT FOUR SHOW'
+			);
+			await expect(page.locator('.band .line').nth(1)).toHaveText(
+				'SEASON 3 NOT LINKED · SEASON 4 HOLDS ITS ENTRY'
+			);
+			expect(partsOf(id)).toEqual([
+				{ season: 1, part: 1, anilist_id: 9501 },
+				{ season: 2, part: 1, anilist_id: 9502 },
+				{ season: 2, part: 2, anilist_id: 9503 },
+				{ season: 4, part: 1, anilist_id: 9504 }
+			]);
+		} finally {
+			forgetFlatList(id);
+		}
+	});
+
 	test('the queue holds an anime a season at a time, each with its own search, and names the season (c240, c352)', async ({
 		page
 	}) => {
@@ -1079,6 +1204,57 @@ function seedFlatList(): number {
 		);
 		for (let i = 1; i <= 12; i++) put.run(id, i, `Episode ${i}`, i, now, `/flat-list/${i}`);
 		return (flatList = id);
+	} finally {
+		db.close();
+	}
+}
+
+/** A show in numbered seasons of these counts, once a run (its origin key is unique). */
+const seasonShows = new Map<string, number>();
+function seedSeasons(title: string, counts: number[]): number {
+	const known = seasonShows.get(title);
+	if (known !== undefined) return known;
+	const db = new Database(dbPath);
+	try {
+		const now = Date.UTC(2026, 10, 2, 12, 0);
+		const root = (db.prepare(`SELECT id FROM roots WHERE name = 'Library'`).get() as { id: number })
+			.id;
+		const id = Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, source, hue, added_at, indexed_at, origin_key, in_library, cover_key)
+					VALUES (?, ?, 'anime', 'aniyomi', 210, ?, ?, ?, 1, '')`
+				)
+				.run(root, title, now, now, `aniyomi:1:/${title.toLowerCase().replace(/\W+/g, '-')}`)
+				.lastInsertRowid
+		);
+		const put = db.prepare(
+			`INSERT INTO entries (series_id, position, label, season, episode_number, added_at, file, bytes, page_count, available, source_url)
+			VALUES (?, ?, ?, ?, ?, ?, '', 0, 0, 0, ?)`
+		);
+		let position = 0;
+		counts.forEach((count, i) => {
+			for (let e = 1; e <= count; e++) {
+				position += 1;
+				put.run(id, position, `Episode ${e}`, i + 1, e, now, `/${id}/${i + 1}/${e}`);
+			}
+		});
+		seasonShows.set(title, id);
+		return id;
+	} finally {
+		db.close();
+	}
+}
+
+/** A season's link, with its part. */
+function partsOf(id: number): { season: number; part: number; anilist_id: number }[] {
+	const db = new Database(dbPath, { readonly: true });
+	try {
+		return db
+			.prepare(
+				`SELECT season, part, anilist_id FROM series_season_links WHERE series_id = ? ORDER BY season, part`
+			)
+			.all(id) as { season: number; part: number; anilist_id: number }[];
 	} finally {
 		db.close();
 	}

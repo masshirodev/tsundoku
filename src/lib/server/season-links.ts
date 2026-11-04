@@ -646,6 +646,21 @@ export function linkPicks(
 	return { linked, refused };
 }
 
+/**
+ * LINK N SEASONS' band counts seasons, not parts (c418, round 2): a pair
+ * linked whole is one season, and a pair with a part refused is that one
+ * season refused, its part named by the refusal's own line. `of` is every
+ * season picked; `linked` the seasons every picked part of which was written.
+ */
+export function seasonsLinked(
+	linked: { season: number }[],
+	refused: { season: number }[]
+): { linked: number; of: number } {
+	const off = new Set(refused.map((p) => p.season));
+	const all = new Set([...linked.map((p) => p.season), ...off]);
+	return { linked: [...all].filter((n) => !off.has(n)).length, of: all.size };
+}
+
 /** UNDO, just after a LINK: the row goes; a link of the series' before rung 62 is NOT brought back. */
 export function undoSeasonLink(seriesId: number, season: number, part = 1): boolean {
 	const db = getDb();
