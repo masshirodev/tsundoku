@@ -2,7 +2,9 @@ import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
 import {
 	backupBytes,
+	backupFolder,
 	downloadBytes,
+	hasBackup,
 	mihonRoot,
 	planMihonBackup,
 	planMihonFolder,
@@ -164,8 +166,12 @@ function sourcesAt(library: string, device: string | null): Source[] {
 	// c191: the mirror scan is gone (the tablet's, the phone's and Waydroid's
 	// `Mihon/` folders); what a library reads from a `Mihon/` folder now is a
 	// backup, and tsundoku's own downloads in the one device it writes
-	// (doc/IMPORT-MIHON.md, "Where it reads from").
-	if (mihon && device === null)
+	// (doc/IMPORT-MIHON.md, "Where it reads from"). A folder with no backup in
+	// it is no source (c268, c292): a scan of it would find nothing and leave
+	// no band, where refusing says where it looked. Asked here rather than in
+	// the plan, so no job is opened for it and the same answer serves the
+	// refusal's sentence.
+	if (mihon && device === null && hasBackup(mihon))
 		out.push({
 			name: 'Mihon',
 			device,
@@ -455,13 +461,38 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 }
 
 /**
+ * Where a scan with nothing to import looked: the library folder, and, when it
+ * has a `Mihon/` folder, the folder in it a backup is read from (c268), so an
+ * empty `Mihon/` answers with where the backup should have been.
+ */
+export type Looked = { looked: string; backups: string | null };
+
+export function whereItLooked(root: string): Looked {
+	const mihon = mihonRoot(root);
+	return { looked: root, backups: mihon ? backupFolder(mihon) : null };
+}
+
+/**
+ * The sentence a refused scan shows (START SCAN, RESCAN, `/scan`): what it
+ * found nothing in, by the folders it read.
+ */
+export function nothingToImport(l: Looked): string {
+	return l.backups
+		? `NOTHING TO IMPORT · NO BACKUP IN ${l.backups} AND NO H/.Hentoid/ FOLDER IN ${l.looked}`
+		: `NOTHING TO IMPORT · NO Mihon/ FOLDER OR H/.Hentoid/ FOLDER IN ${l.looked}`;
+}
+
+/**
  * START SCAN and `/scan`: start the import in the background and return at
  * once. `started: false` when there is nothing to import, with where it looked.
  */
 export function startScan(
 	root = libraryRoot()
-): { started: true } | { started: false; looked: string } {
-	if (sourcesIn(root).length === 0) return { started: false, looked: root };
+): { started: true } | ({ started: false; message: string } & Looked) {
+	if (sourcesIn(root).length === 0) {
+		const looked = whereItLooked(root);
+		return { started: false, ...looked, message: nothingToImport(looked) };
+	}
 	runImport(root, { covers: true })
 		// New books are compared with the rest (doc/DUPLICATE-BOOKS.md). Loaded
 		// here, not above: finding also runs from a plain node script.

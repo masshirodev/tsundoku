@@ -627,9 +627,7 @@ export const actions: Actions = {
 	scan: async () => {
 		const r = startScan();
 		if (!r.started) {
-			return fail(400, {
-				scanMessage: `NOTHING TO IMPORT · NO Mihon/ FOLDER OR H/.Hentoid/ FOLDER IN ${r.looked}`
-			});
+			return fail(400, { scanMessage: r.message });
 		}
 		redirect(303, '/');
 	}
