@@ -1,3 +1,4 @@
+import Database from 'better-sqlite3';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
@@ -28,6 +29,7 @@ vi.stubGlobal('fetch', async (input: string | URL | Request) => {
 const { getDb } = await import('$lib/server/db');
 const marks = await import('$lib/server/anime/marks');
 const cat = await import('$lib/server/catalogue');
+const seasons = await import('$lib/server/season-links');
 const { ANISKIP_RETRY_MS, lookupAniSkip } = await import('$lib/server/anime/aniskip');
 
 const db = getDb();
@@ -91,6 +93,30 @@ beforeEach(() => {
 	};
 });
 
+/** An entry as the review keeps it, for a season's link. */
+const entryOf = (anilistId: number, malId: number | null, format = 'TV', episodes = 12) => ({
+	anilistId,
+	malId,
+	title: `Entry ${anilistId}`,
+	alts: [] as string[],
+	format,
+	country: 'JP',
+	year: 2024,
+	chapters: null,
+	volumes: null,
+	episodes,
+	season: null,
+	seasonYear: 2024,
+	status: 'FINISHED',
+	coverUrl: ''
+});
+/** The MAL id and episode each AniSkip call named: what was asked, not only that it answered. */
+const asked = () =>
+	calls.map((u) => {
+		const m = /\/skip-times\/(\d+)\/([\d.]+)\?/.exec(u)!;
+		return [Number(m[1]), Number(m[2])];
+	});
+
 describe('AniSkip', () => {
 	it('asks with the MAL id, the episode and its length, and keeps both marks', async () => {
 		const id = episode(series());
@@ -148,10 +174,102 @@ describe('AniSkip', () => {
 		expect(calls).toEqual([]);
 	});
 
-	it('is not asked for a later season: the link is one season’s entry until c240', async () => {
+	it('is not asked for a later season under a link from before rung 62: it is the first season’s entry', async () => {
+		// No season rows: the series' one link stands for its first season (or
+		// its flat list), so a season-2 episode has no entry of its own.
 		const id = episode(series(), { season: 2 });
 		expect(await lookupAniSkip(id)).toBe(false);
 		expect(calls).toEqual([]);
+	});
+
+	it('asks each season’s own MAL entry: season 2’s EP. 3 is season 2’s, season 1’s EP. 3 season 1’s (c349)', async () => {
+		// The fake answers any id with an opening, so the id asked is the proof.
+		const show = series({ mal: null });
+		const s1 = [1, 2, 3].map((n) => episode(show, { position: n, season: 1, number: n }));
+		const s2 = [1, 2, 3].map((n) => episode(show, { position: 3 + n, season: 2, number: n }));
+		expect(seasons.linkSeason(show, 1, 1, entryOf(1001, 501), 'review', 0)).toBe(true);
+		expect(seasons.linkSeason(show, 2, 1, entryOf(1002, 502), 'review', 0)).toBe(true);
+		// Season 1's mirror is there (`syncSeriesLink`); it must not stand for season 2.
+		expect(db.prepare(`SELECT mal_id FROM series_links WHERE series_id = ?`).get(show)).toEqual({
+			mal_id: 501
+		});
+		expect(await lookupAniSkip(s2[2])).toBe(true);
+		expect(await lookupAniSkip(s1[2])).toBe(true);
+		expect(asked()).toEqual([
+			[502, 3],
+			[501, 3]
+		]);
+	});
+
+	it('reads the season’s MAL id from the database it is handed, as it reads the episode (round 2)', async () => {
+		const show = series({ mal: null });
+		const s2 = [1, 2, 3].map((n) => episode(show, { position: 3 + n, season: 2, number: n }));
+		expect(seasons.linkSeason(show, 2, 1, entryOf(1102, 552), 'review', 0)).toBe(true);
+		// A copy whose season 2 is linked to another MAL entry: the lookup on the
+		// copy asks the copy's, never getDb()'s.
+		const copy = new Database(db.serialize());
+		try {
+			copy
+				.prepare(`UPDATE series_season_links SET mal_id = 553 WHERE series_id = ? AND season = 2`)
+				.run(show);
+			expect(await lookupAniSkip(s2[1], { db: copy })).toBe(true);
+			expect(asked()).toEqual([[553, 2]]);
+		} finally {
+			copy.close();
+		}
+	});
+
+	it('asks for a season linked alone, with no mirror, and never for a season with no link (c349)', async () => {
+		const show = series({ mal: null });
+		const s1 = episode(show, { position: 1, season: 1, number: 3 });
+		const s2 = episode(show, { position: 2, season: 2, number: 3 });
+		expect(seasons.linkSeason(show, 2, 1, entryOf(1102, 602), 'review', 0)).toBe(true);
+		expect(db.prepare(`SELECT 1 FROM series_links WHERE series_id = ?`).get(show)).toBe(undefined);
+		expect(await lookupAniSkip(s1)).toBe(false);
+		expect(await lookupAniSkip(s2)).toBe(true);
+		expect(asked()).toEqual([[602, 3]]);
+		// Season 1 linked now, season 2 unlinked: a stale mirror naming season 2's
+		// entry is not read for season 2 either.
+		expect(seasons.linkSeason(show, 1, 1, entryOf(1101, 601), 'review', 0)).toBe(true);
+		seasons.unlinkSeason(show, 2, 1, 0);
+		const s2b = episode(show, { position: 3, season: 2, number: 4 });
+		db.prepare(`UPDATE series_links SET mal_id = 602 WHERE series_id = ?`).run(show);
+		expect(await lookupAniSkip(s2b)).toBe(false);
+		expect(asked()).toEqual([[602, 3]]);
+	});
+
+	it('asks a season’s part 2 for its own episodes, numbered within it (c349)', async () => {
+		// One season the catalogues split 12 + 11: the season's EP. 13 is part 2's EP. 1.
+		const show = series({ mal: null });
+		const ep = (n: number) => episode(show, { position: n, season: 1, number: n });
+		const twelve = ep(12);
+		const thirteen = ep(13);
+		const last = ep(23);
+		for (let n = 1; n <= 23; n++) if (![12, 13, 23].includes(n)) ep(n);
+		expect(seasons.linkSeason(show, 1, 1, entryOf(1201, 701, 'TV', 12), 'review', 0)).toBe(true);
+		expect(seasons.linkSeason(show, 1, 2, entryOf(1202, 702, 'TV', 11), 'review', 0)).toBe(true);
+		await lookupAniSkip(twelve);
+		await lookupAniSkip(thirteen);
+		await lookupAniSkip(last);
+		expect(asked()).toEqual([
+			[701, 12],
+			[702, 1],
+			[702, 11]
+		]);
+	});
+
+	it('asks a flat list’s own season-0 row (c349), and keeps the anime-only rule on it (c395)', async () => {
+		const show = series({ mal: null });
+		const id = episode(show, { position: 5, season: null, number: null });
+		expect(seasons.linkSeason(show, 0, 1, entryOf(1301, 801), 'review', 0)).toBe(true);
+		expect(await lookupAniSkip(id)).toBe(true);
+		expect(asked()).toEqual([[801, 5]]);
+		// A season linked to the manga is no anime's entry: never asked.
+		const other = series({ mal: null });
+		const e = episode(other, { season: 2, number: 1 });
+		expect(seasons.linkSeason(other, 2, 1, entryOf(1302, 802, 'MANGA'), 'review', 0)).toBe(true);
+		expect(await lookupAniSkip(e)).toBe(false);
+		expect(asked()).toEqual([[801, 5]]);
 	});
 
 	it('is not asked without a length', async () => {

@@ -1509,9 +1509,22 @@ describe('the pass and the queue ask each season’s own search, never the serie
 			expect(seasons.linkSeason(id, 2, 1, animeEntry(7901), via, NOW)).toBe(false);
 			expect(seasons.linkSeason(id, 1, 2, animeEntry(7999, { mal: 8901 }), via, NOW)).toBe(false);
 		}
-		expect(
-			seasons.linkSeasons(id, [{ season: 2, part: 1, candidate: animeEntry(7901) }], NOW)
-		).toBe(0);
+		// LINK N SEASONS, even with the entry kept as season 2's candidate: refused,
+		// and named (c418).
+		db.prepare(
+			`INSERT INTO season_link_candidates (series_id, season, part, anilist_id, rank, data) VALUES (?, 2, 1, 7901, 0, ?)`
+		).run(id, JSON.stringify(animeEntry(7901)));
+		expect(seasons.linkPicks(id, 'anime', [{ season: 2, part: 1, anilistId: 7901 }], NOW)).toEqual({
+			linked: [],
+			refused: [
+				{
+					season: 2,
+					part: 1,
+					heldBy: { season: 1, part: 1 },
+					why: 'SEASON 2 NOT LINKED · SEASON 1 HOLDS ITS ENTRY'
+				}
+			]
+		});
 		// The owner's list: an entry whose title names season 2, but is season 1's.
 		const listed = { ...animeEntry(7901), title: 'Door Show Season 2' };
 		expect(tr.linkSeasonFromList(id, listed, 80, NOW)).toBe(false);

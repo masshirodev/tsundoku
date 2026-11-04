@@ -115,7 +115,11 @@ CHANGED`). A season's own entry linked again (a CHANGE to itself) is not
   and `found` counts them) and again at read time (`seasonCandidates`,
   `offeredSeason`), since season 1 may be linked after season 2 was
   searched. So season 2's item never offers season 1's entry, and LINK
-  refuses it whatever the page posts.
+  refuses it whatever the page posts. Two doors still show such an entry,
+  each saying which season holds it (c418): the relations page, unticked and
+  never kept as a candidate ("The series screen", below), and PASTE A LINK,
+  which reads any entry and, for one another season holds, says
+  `SEASON 2 HOLDS THIS ENTRY · LINK REFUSES IT` and keeps LINK dimmed.
 
 ### Cleaning a title before it's searched
 
@@ -194,7 +198,7 @@ again or paste a link.
   anime linked or settled a season at a time is decided by its seasons alone
   (c240): it is searched, queued for the review and offered to the list's
   auto-link while **any one** season has neither a link nor a decision, and
-  its `series_links` row (the AniSkip mirror of season 1) does not end that.
+  its `series_links` row (the mirror of season 1) does not end that.
   An anime with no season rows -- linked or settled before rung 62, or never
   acted on -- is read by `series_links` and `link_decisions`, as a comic is.
   One rule at every door: the pass (`searchable`), the review and its count
@@ -231,8 +235,11 @@ Show Season 2`), in one pass if the limit allows: a row of `searchable`
     candidates and SKIP. The item's heading, its LINK button and the band
     after it name the season (`LINK · SEASON 2`, `LINK A TO SEASON 2`,
     `LINKED · SEASON 2 · …`), and LINK, NONE OF THESE, SKIP, SEARCH AGAIN
-    and their UNDO post it. A season 0 item (a flat list, the whole run)
-    names none. LINK accepts only a candidate of that season's own search
+    and their UNDO post it. Season 0 (a flat list, the whole run) is named
+    nowhere, as a queue item or as `/links?series=N`'s own season (c423):
+    its LINK reads `LINK A`, the header `SERIES TO LINK`, the season bar
+    only `12 EPISODES HERE`, and its bands no `SEASON 0 ·`. It still posts
+    season 0, whose row is the whole show's. LINK accepts only a candidate of that season's own search
     (`offered`), never another season's and never the series', and never
     an entry another season or part of the show holds.
   - **A door that names no season** (`/links?series=N` with no `&season=`,
@@ -353,7 +360,9 @@ on desktop and in tablet landscape.
   and the candidates it replaced; it never made a link, so it takes none back.
   SKIP has no UNDO, as in the mock.
 - `?series=N` is one series only: FIND or CHANGE on its screen. It has no
-  SKIP, and deciding goes back to the series. For a hidden series it's
+  SKIP, and deciding goes back to the series, but for a season's LINK on an
+  anime with more seasons whose answer has the rest of the show to offer,
+  which it offers first ("The series screen", below). For a hidden series it's
   PASTE A LINK only.
 
 ### The series screen (Series Link 1k–1t)
@@ -382,10 +391,10 @@ anime's LINK row is a line a season (c240; above).
   `series_links` keeps meaning what it meant for a manga or a novel, and an
   anime's row there is a **mirror of its first season, written only while that
   season is linked** (season 1, or a flat list). With only a later season
-  linked there is no row at all: the one reader that asks a series for a
-  single MAL entry (AniSkip) numbers an episode within its entry and refuses a
-  later season, so an empty row is its honest "not looked up". Tracking never
-  reads it for an anime. A link an anime had before rung 62 is read as its
+  linked there is no row at all. Neither tracking, AniSkip (an episode is
+  asked under its own season's entry, c349) nor `tvshow.nfo` (the show's ids
+  from its season rows, c381) reads it for an anime; the importer's
+  keep-test still does (c382), so it stays. A link an anime had before rung 62 is read as its
   first season's; nothing was migrated, since no anime was linked then.
 - **A season's FIND** opens the review with `?series=N&season=S`: the search
   is that season's own title (`Sword Art Online Season 3`, the source's
@@ -395,15 +404,60 @@ anime's LINK row is a line a season (c240; above).
   wants a look (above), then on the season being watched once every season
   is settled, never season 0 by default, which is a flat list's and real (`seasonNamed`, the same
   reader the series screen's forms use: there, no season named on UNLINK is
-  every season). LINK A TO SEASON 3 writes that season's row. After it, the page offers the rest of
+  every season). LINK A TO SEASON 3 writes that season's row. **A show with
+  one season** (a flat list, or a single numbered season) has no rest to
+  offer, so its LINK goes back to the series screen, as a comic's does, and
+  the new link is on its LINK row (c423: Ranma ½ (2024)'s LINK stayed on an
+  unchanged page and read as a refusal). Neither does a LINK whose answer
+  has no relations to show (AniList out of reach, or no chain neighbour
+  inside the show's seasons): it goes back to the series too, never to the
+  untouched review (c423, round 2). Otherwise, after it, the page offers the rest of
   the show from the linked entry's AniList PREQUEL and SEQUEL relations, in
   order along the chain and ticked where the episode counts agree -- or
-  where two entries add up to the season as `PART 1` and `PART 2`. A movie
-  or a special standing on that chain is listed dimmed and never ticked; a
-  side story or a spin-off is not collected at all, because the walk follows
-  PREQUEL and SEQUEL edges only. A season already linked says `REPLACES …`
-  and is not ticked either. LINK N SEASONS writes them all
-  (`via 'relations'`), and NOT NOW leaves them.
+  where two entries add up to the season as `PART 1` and `PART 2`, part 1
+  being the one that aired first (not the longer one: SAO's War of
+  Underworld is 12 + 11). A pair is found only where both entries stand at
+  the same step of the chain (both the linked season's SEQUEL); where
+  AniList chains part 2 off part 1, the walk places part 2 a season further
+  out, and the pair is not offered as one (a gap, `doc/handoff-notes/links.md`).
+  A pair is **one season** everywhere the page counts: `N OF M TICKED`,
+  `LINK N SEASONS` and the band count distinct seasons (c418, round 2). The walk asks two rings: the linked entry, then
+  its chain neighbours in one request, whose own PREQUEL and SEQUEL place
+  the second ring. AniList answers every edge an entry has, and a chain can
+  branch (a movie and the next TV season both SEQUEL of one entry) or loop
+  back, so each entry is placed once, where the walk first reaches it.
+  **Outside the numbering**, dimmed, never ticked and never kept as a
+  season's candidate (so LINK N SEASONS cannot reach one): a movie or a
+  special standing on the chain, and a `SIDE STORY` or `SPIN-OFF, NOT A
+SEQUEL` of any entry the walk asked about (c351, the design's `SPECIAL
+Sword Art Online: Extra Edition` and `SPIN-OFF Gun Gale Online`), whatever
+  its format or count: a TV spin-off of 24 episodes is still no season. A
+  side entry's own relations are not followed (Gun Gale Online's sequel is
+  its own), an entry on the chain is never listed beside it too, and the
+  other kinds (ADAPTATION, CHARACTER, SUMMARY, ALTERNATIVE and the rest) are
+  not listed. They come last, under the seasons. A season already linked
+  says `REPLACES …` and is not ticked either; its own entry offered back to
+  it says `ALREADY ITS LINK`. **An entry another season or part already
+  holds** is listed unticked, saying which (`SEASON 3 HOLDS THIS ENTRY ·
+NEVER TICKED`; c418), since `linkSeason` would refuse it, and a split
+  season with a held part is unticked whole. LINK N SEASONS writes the
+  ticked ones (`via 'relations'`, each at its own part, `linkPicks`) and
+  goes back to the series; when the workstation refused any (another tab
+  linked meanwhile), the page stays and its band is the answer, not the
+  ticks: `LINKED 1 OF 2 SEASONS · …` and `SEASON 2 NOT LINKED · SEASON 3
+HOLDS ITS ENTRY`, or `NOTHING LINKED · …` when none was. The band's numbers
+  are seasons, from the workstation's `linked` and `of` (`seasonsLinked`): a
+  pair linked whole is one, and a pair with a part refused is that season
+  not linked, the refusal naming its part. **NOT NOW has two cases on one
+  series.** After a LINK made on the page, it goes back to the series, the
+  season just linked showing on its LINK row (c423, round 2). An offer that
+  came with the page's load (EDIT on a linked season, while another season
+  has no link) follows no decision made there: NOT NOW closes it and the page
+  stays on the season, with SEARCH AGAIN, PASTE A LINK, UNLINK and its LINK,
+  so a season linked to the wrong entry can still be changed or unlinked
+  from EDIT (round 3). A season linked by a pasted link has no candidates,
+  and its UNLINK stands among the actions then. In the queue NOT NOW closes
+  the offer, and the band's UNDO stays.
 - **Not linked:** what the last pass found, then FIND (accent) and PASTE A
   LINK.
 - **COVER** says where the cover comes from and why the sources before it

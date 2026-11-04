@@ -1,3 +1,4 @@
+import type Database from 'better-sqlite3';
 import { getDb } from './db.ts';
 import { HIDDEN_SQL } from './visibility.ts';
 import {
@@ -21,6 +22,7 @@ import {
 } from '../library/catalogue.ts';
 import {
 	openSeason,
+	partOf,
 	partsOf,
 	seasonSearchTitle,
 	seasonsOf,
@@ -110,9 +112,9 @@ export function seasonLink(seriesId: number, season: number, part = 1): SeasonLi
 	return r ? asLink(r) : null;
 }
 
-export function seasonLinks(seriesId: number): SeasonLink[] {
+export function seasonLinks(seriesId: number, db: Database.Database = getDb()): SeasonLink[] {
 	return (
-		getDb()
+		db
 			.prepare(`SELECT * FROM series_season_links WHERE series_id = ? ORDER BY season, part`)
 			.all(seriesId) as Row[]
 	).map(asLink);
@@ -125,8 +127,8 @@ export function seasonLinks(seriesId: number): SeasonLink[] {
  * The caller says which season it is attributed to (the first one in its
  * list), since only the list knows.
  */
-export function legacyLink(seriesId: number): SeasonLink | null {
-	const r = getDb().prepare(`SELECT * FROM series_links WHERE series_id = ?`).get(seriesId) as
+export function legacyLink(seriesId: number, db: Database.Database = getDb()): SeasonLink | null {
+	const r = db.prepare(`SELECT * FROM series_links WHERE series_id = ?`).get(seriesId) as
 		| {
 				anilist_id: number | null;
 				mal_id: number | null;
@@ -191,8 +193,8 @@ export function seasonHolding(
 }
 
 /** A series' kind, its title, and whether it is hidden: what every season door asks first. */
-export function seriesRow(seriesId: number) {
-	return getDb()
+export function seriesRow(seriesId: number, db: Database.Database = getDb()) {
+	return db
 		.prepare(
 			`SELECT s.kind, s.title, ${HIDDEN_SQL} AS hidden
 			FROM series s JOIN roots r ON r.id = s.root_id WHERE s.id = ?`
@@ -248,14 +250,17 @@ export function seasonToLook(seriesId: number): number | undefined {
 			: openSeasonOf(seriesId);
 	const settled = new Set(rows);
 	const order: number[] = [];
-	for (const e of seasonEntries(seriesId)) if (!order.includes(e.season)) order.push(e.season);
+	for (const e of seasonEntries(seriesId, db)) if (!order.includes(e.season)) order.push(e.season);
 	const open = openSeasonOf(seriesId);
 	if (order.includes(open) && !settled.has(open)) return open;
 	return order.find((n) => !settled.has(n));
 }
 
 /** The episode numbers of a season, in list order, as a catalogue counts them. */
-function seasonEntries(seriesId: number): {
+function seasonEntries(
+	seriesId: number,
+	db: Database.Database = getDb()
+): {
 	id: number;
 	season: number;
 	number: number;
@@ -263,7 +268,7 @@ function seasonEntries(seriesId: number): {
 	note: string;
 	position: number;
 }[] {
-	return getDb()
+	return db
 		.prepare(
 			`SELECT id, COALESCE(season, 0) AS season, COALESCE(episode_number, position) AS number,
 				read_at AS readAt, COALESCE(episode_note, '') AS note, position
@@ -308,10 +313,13 @@ export type SeriesSeasons = {
  * for a series with no episodes, or one that isn't an anime: only an anime
  * links a season at a time.
  */
-export function seriesSeasons(seriesId: number): SeriesSeasons | null {
-	const s = seriesRow(seriesId);
+export function seriesSeasons(
+	seriesId: number,
+	db: Database.Database = getDb()
+): SeriesSeasons | null {
+	const s = seriesRow(seriesId, db);
 	if (!s || !isAnime(s.kind)) return null;
-	const entries = seasonEntries(seriesId);
+	const entries = seasonEntries(seriesId, db);
 	const spans: SeasonSpan[] = seasonsOf(
 		entries.map((e) => ({
 			id: e.id,
@@ -330,11 +338,11 @@ export function seriesSeasons(seriesId: number): SeriesSeasons | null {
 			}
 		}))
 	);
-	const links = seasonLinks(seriesId);
+	const links = seasonLinks(seriesId, db);
 	// A series whose source gave no episodes yet still has one season: the row
 	// its link is in, which is what a pasted or listed link can be made on.
 	if (!spans.length) {
-		const own = links[0] ?? legacyLink(seriesId);
+		const own = links[0] ?? legacyLink(seriesId, db);
 		if (own)
 			spans.push({
 				season: own.season,
@@ -345,7 +353,7 @@ export function seriesSeasons(seriesId: number): SeriesSeasons | null {
 				watched: 0
 			});
 	}
-	const searched = getDb()
+	const searched = db
 		.prepare(`SELECT season, searched_at, found FROM season_link_searches WHERE series_id = ?`)
 		.all(seriesId) as { season: number; searched_at: number | null; found: number }[];
 	return {
@@ -381,7 +389,9 @@ export function seriesSeasons(seriesId: number): SeriesSeasons | null {
 			// season's only when no season has a row of its own: otherwise the
 			// series' mirror (`syncSeriesLink`) would look like every season's link.
 			const old =
-				!links.length && (span.season === 0 || span.season === first) ? legacyLink(seriesId) : null;
+				!links.length && (span.season === 0 || span.season === first)
+					? legacyLink(seriesId, db)
+					: null;
 			const legacy = old ? { ...old, season: span.season } : null;
 			const head = own.find((l) => l.part === 1) ?? own[0] ?? legacy;
 			const partRows = own.length ? own : head ? [head] : [];
@@ -401,14 +411,84 @@ export function seriesSeasons(seriesId: number): SeriesSeasons | null {
 				searched: !!search?.searched_at,
 				queued:
 					!!search?.searched_at === false &&
-					!!getDb()
+					!!db
 						.prepare(`SELECT 1 FROM season_link_searches WHERE series_id = ? AND season = ?`)
 						.get(seriesId, span.season),
-				decision: seasonDecision(seriesId, span.season),
+				decision: seasonDecision(seriesId, span.season, db),
 				searchTitle: seasonSearchTitle(s.title, span.season)
 			};
 		})
 	};
+}
+
+/**
+ * The catalogue entry an anime's episode is in, and its number there: what
+ * AniSkip is keyed by (c349). An episode is its season's, so it is read from
+ * that season's own row (`series_season_links`) -- part 2 of a season split
+ * in two from part 2's, numbered from 1 within it (the season's EP. 13 is
+ * part 2's EP. 1) -- and never from another season's, so season 2's EP. 3 is
+ * season 2's entry and season 1's EP. 3 season 1's. A season with no row of
+ * its own has no entry, even when the series' first-season mirror
+ * (`series_links`, `syncSeriesLink`) names one.
+ *
+ * Only a series with no season rows at all, linked before rung 62, reads
+ * `series_links`: its one link is its first season's or its flat list's
+ * (`legacyLink`), so an episode of season 0 or 1 is that entry's and a later
+ * season's is nobody's. Null for no entry, or an episode its parts don't
+ * number.
+ */
+export function episodeEntry(
+	seriesId: number,
+	season: number | null,
+	number: number,
+	db: Database.Database = getDb()
+): {
+	anilistId: number | null;
+	malId: number | null;
+	format: string | null;
+	number: number;
+} | null {
+	const s = season ?? 0;
+	if (!seasonLinks(seriesId, db).length) {
+		const old = s <= 1 ? legacyLink(seriesId, db) : null;
+		return old ? { anilistId: old.anilistId, malId: old.malId, format: old.format, number } : null;
+	}
+	const sv = seriesSeasons(seriesId, db)?.seasons.find((x) => x.season === s);
+	if (!sv) return null;
+	// One part is the whole season, however its episodes are numbered.
+	const at =
+		sv.parts.length > 1 ? partOf(sv.parts, number) : { part: sv.parts[0]?.part ?? 1, number };
+	const l = at ? sv.parts.find((p) => p.part === at.part)?.link : null;
+	return at && l
+		? { anilistId: l.anilistId, malId: l.malId, format: l.format, number: at.number }
+		: null;
+}
+
+/**
+ * The show's own ids, for what names the whole show to another service
+ * (Jellyfin's `tvshow.nfo`; c381): season 1's link, else the earliest season
+ * linked, part 1 first, among links to an anime's own kind of entry (c395,
+ * `ownEntry`'s rule, which the caller passes in). Read from the season rows,
+ * so a show with only season 2 linked still has ids; `series_links` answers
+ * only for a series linked before rung 62, with no season rows (the mirror
+ * would be a copy of a season row, or nothing).
+ */
+export function showEntry(
+	seriesId: number,
+	own: (format: string | null) => boolean,
+	db: Database.Database = getDb()
+): { anilistId: number | null; malId: number | null } | null {
+	const rows = seasonLinks(seriesId, db).filter((l) => own(l.format));
+	if (!rows.length) {
+		if (seasonLinks(seriesId, db).length) return null;
+		const old = legacyLink(seriesId, db);
+		return old && own(old.format) ? { anilistId: old.anilistId, malId: old.malId } : null;
+	}
+	const order = (n: number) => (n === 1 ? -1 : n);
+	const l = rows.reduce((a, b) =>
+		order(b.season) < order(a.season) || (b.season === a.season && b.part < a.part) ? b : a
+	);
+	return { anilistId: l.anilistId, malId: l.malId };
 }
 
 // ---- writing -------------------------------------------------------------------------------
@@ -469,24 +549,19 @@ export function linkSeason(
 }
 
 /**
- * Keep the series' own `series_links` row in step with its seasons, for the
- * one reader that asks a series for a single entry: AniSkip numbers an
- * episode within its MAL entry, and gets the id from `series_links` (c299,
- * `src/lib/server/anime/marks.ts`). The row is the **first** season linked,
- * which is the entry AniSkip could already reach before rung 62 -- season 1,
- * or a flat list -- so no episode is asked about under a later season's entry
- * (doc/ANIME.md, "Seasons"; doc/handoff-notes/tracking.md, "Gaps"). Tracking
- * never reads it for an anime: it reads the season rows. No season left, the
- * mirror goes.
+ * Keep the series' own `series_links` row in step with its seasons: a mirror
+ * of the **first** season linked -- season 1, or a flat list -- for the
+ * readers that still ask a series for one row (the importer's keep-test,
+ * c382; doc/handoff-notes/links.md, "Gaps"). AniSkip (`episodeEntry`, c349),
+ * Jellyfin's `tvshow.nfo` (`showEntry`, c381) and tracking read the season
+ * rows instead. No first season, no row; no season left, the mirror goes.
  */
 export function syncSeriesLink(seriesId: number, now = Date.now()): void {
 	const db = getDb();
 	const links = seasonLinks(seriesId).filter((l) => l.part === 1);
 	const l = links.reduce((a, b) => (b.season < a.season ? b : a), links[0]);
-	// Only the series' first season can be the single entry AniSkip is asked
-	// about: it numbers an episode within its entry and refuses a season past
-	// the first, so a later season's MAL id would make every season 1 episode
-	// a wrong answer (c240, doc/ANIME.md, "Seasons"). No first season, no row.
+	// Only the series' first season stands for the series: a later season's
+	// entry is not the show's (c240). No first season, no row.
 	if (!l || l.season > 1) {
 		db.prepare(`DELETE FROM series_links WHERE series_id = ?`).run(seriesId);
 		return;
@@ -512,20 +587,89 @@ export function syncSeriesLink(seriesId: number, now = Date.now()): void {
 	);
 }
 
+/** A season the relations page ticked: the entry, and the season and part it goes on. */
+export type SeasonPick = { season: number; part: number; anilistId: number };
+
 /**
- * LINK 3 SEASONS: one write per season, so a season already right is left
- * alone by the caller. How many were linked: a pick another season holds is
- * refused by `linkSeason`.
+ * A pick that was not linked, and why: another season or part of the show
+ * holds the entry (`heldBy`), or it is no longer among the season's offers
+ * (`heldBy` null). The page names each one (c418).
  */
-export function linkSeasons(
+export type RefusedPick = {
+	season: number;
+	part: number;
+	heldBy: { season: number; part: number } | null;
+	/** What the page says: "SEASON 1 NOT LINKED · SEASON 3 HOLDS ITS ENTRY". */
+	why: string;
+};
+
+/** A season's stored candidate as it was found, the holding rule not yet applied. */
+function storedCandidate(
 	seriesId: number,
-	picks: { season: number; part: number; candidate: Candidate }[],
+	season: number,
+	part: number,
+	anilistId: number
+): Candidate | null {
+	const r = getDb()
+		.prepare(
+			`SELECT data FROM season_link_candidates WHERE series_id = ? AND season = ? AND part = ? AND anilist_id = ?`
+		)
+		.get(seriesId, season, part, anilistId) as { data: string } | undefined;
+	return r ? (JSON.parse(r.data) as Candidate) : null;
+}
+
+/**
+ * LINK N SEASONS (c418): each pick read back through `offeredSeason`, at its
+ * own part (a pair's part 2 is part 2's offer), then written by `linkSeason`.
+ * What was linked and what was refused, so the page says the true count and
+ * names the rest, rather than counting its own ticks. Picks are taken in
+ * order, so two picks of one entry link the first and refuse the second.
+ */
+export function linkPicks(
+	seriesId: number,
+	kind: Kind,
+	picks: SeasonPick[],
 	now = Date.now()
-): number {
-	let n = 0;
-	for (const p of picks)
-		if (linkSeason(seriesId, p.season, p.part, p.candidate, 'relations', now)) n += 1;
-	return n;
+): { linked: { season: number; part: number }[]; refused: RefusedPick[] } {
+	const linked: { season: number; part: number }[] = [];
+	const refused: RefusedPick[] = [];
+	for (const p of picks) {
+		const c = offeredSeason(seriesId, p.season, kind, p.anilistId, p.part);
+		if (c && linkSeason(seriesId, p.season, p.part, c, 'relations', now)) {
+			linked.push({ season: p.season, part: p.part });
+			continue;
+		}
+		// A held offer is never kept as a candidate (`rememberOffers`), so the
+		// pick's own id is asked too: whichever holds it is named.
+		const asked = c ??
+			storedCandidate(seriesId, p.season, p.part, p.anilistId) ?? {
+				anilistId: p.anilistId,
+				malId: null
+			};
+		const heldBy = seasonHolding(seriesId, p.season, p.part, asked);
+		refused.push({
+			season: p.season,
+			part: p.part,
+			heldBy,
+			why: `${seasonWords(p)} NOT LINKED · ${heldBy ? `${seasonWords(heldBy)} HOLDS ITS ENTRY` : 'NO LONGER OFFERED'}`
+		});
+	}
+	return { linked, refused };
+}
+
+/**
+ * LINK N SEASONS' band counts seasons, not parts (c418, round 2): a pair
+ * linked whole is one season, and a pair with a part refused is that one
+ * season refused, its part named by the refusal's own line. `of` is every
+ * season picked; `linked` the seasons every picked part of which was written.
+ */
+export function seasonsLinked(
+	linked: { season: number }[],
+	refused: { season: number }[]
+): { linked: number; of: number } {
+	const off = new Set(refused.map((p) => p.season));
+	const all = new Set([...linked.map((p) => p.season), ...off]);
+	return { linked: [...all].filter((n) => !off.has(n)).length, of: all.size };
 }
 
 /** UNDO, just after a LINK: the row goes; a link of the series' before rung 62 is NOT brought back. */
@@ -587,8 +731,12 @@ export function seasonSettled(seriesId: number, season: number): boolean {
  * Which decision settled a season, the latest of its parts': the season's
  * line says UNLINKED for an UNLINK and NONE OF THESE only for that (c240).
  */
-export function seasonDecision(seriesId: number, season: number): SeasonDecision | null {
-	const r = getDb()
+export function seasonDecision(
+	seriesId: number,
+	season: number,
+	db: Database.Database = getDb()
+): SeasonDecision | null {
+	const r = db
 		.prepare(
 			`SELECT decision FROM season_link_decisions WHERE series_id = ? AND season = ?
 			ORDER BY at DESC, part LIMIT 1`
@@ -758,14 +906,23 @@ export type RelationOffer = {
 	format: string;
 	episodes: number | null;
 	year: number | null;
-	/** "PREQUEL", "PREQUEL’S PREQUEL", "SEQUEL". */
+	/** "PREQUEL", "PREQUEL’S PREQUEL", "SEQUEL"; "SIDE STORY", "SPIN-OFF, NOT A SEQUEL". */
 	how: string;
 	/** Why it is ticked, or why it isn't: "COUNT AGREES", "24 EP. HERE · ANILIST LISTS 22". */
 	why: string;
 	ticked: boolean;
 	/** The season is already linked to another entry: "REPLACES …", and never ticked. */
 	replaces: string | null;
-	/** A movie, a special, a spin-off: outside the seasons' numbering, dimmed, never ticked. */
+	/**
+	 * Another season or part of the show already holds this entry (c418): the
+	 * offer is shown, says which, and is never ticked, since `linkSeason`
+	 * would refuse it.
+	 */
+	heldBy: { season: number; part: number } | null;
+	/**
+	 * A movie, a special, a side story, a spin-off: outside the seasons'
+	 * numbering, dimmed, never ticked, never a season's candidate (c351).
+	 */
 	outside: boolean;
 	candidate: Candidate;
 };
@@ -779,15 +936,48 @@ const ABOVE: Record<number, string> = {
 	3: 'SEQUEL’S SEQUEL’S SEQUEL'
 };
 
+/** The edges the seasons are numbered along: a SEQUEL is the next one, a PREQUEL the one before. */
+const CHAIN: Record<string, 1 | -1> = { SEQUEL: 1, PREQUEL: -1 };
+
+/**
+ * The edges collected beside the chain, and the word each is listed under
+ * (c351; the design's `SPECIAL Sword Art Online: Extra Edition` and
+ * `SPIN-OFF Gun Gale Online`). Never followed further: a spin-off's own
+ * sequel is the spin-off's, not this show's.
+ */
+const SIDE: Record<string, string> = {
+	SIDE_STORY: 'SIDE STORY',
+	SPIN_OFF: 'SPIN-OFF, NOT A SEQUEL'
+};
+
+/** "SEASON 3 HOLDS THIS ENTRY": what a door offering a held entry says of it (c418). */
+export const holdsLine = (h: { season: number; part: number }): string =>
+	`${seasonWords(h)} HOLDS THIS ENTRY`;
+
+/** Side stories before spin-offs, as the design lists them; the chain's own first. */
+const sideOrder = (how: string) => Object.values(SIDE).indexOf(how);
+
+/** "SEASON 3", "SEASON 3 PART 2"; season 0, a flat list's, is named by none (c423). */
+const seasonWords = (h: { season: number; part: number }): string =>
+	`${h.season > 0 ? `SEASON ${h.season}` : 'THE EPISODES WITH NO SEASON'}${h.part > 1 ? ` PART ${h.part}` : ''}`;
+
 /**
  * The other seasons, from the chosen entry's own relations: the chain walked
  * both ways (PREQUEL, SEQUEL), each entry placed at the season that far from
  * the one just linked, and ticked where its episode count agrees with the
  * season's -- or where two entries add up to it, one season in two parts.
- * A movie or a special standing on that chain is listed outside the numbering
- * and never ticked; a side story or a spin-off is not collected at all, since
- * only PREQUEL and SEQUEL edges are followed (doc/LINKS.md). Null when the
- * linked entry is unknown or AniList can't be reached.
+ * A movie or a special standing on that chain, and a SIDE_STORY or SPIN_OFF
+ * of any entry the walk asked about (c351), is listed outside the numbering:
+ * dimmed, never ticked, and never kept as a season's candidate. An entry
+ * another season or part of the show already holds is listed unticked, with
+ * the season that holds it (c418). Null when the linked entry is unknown or
+ * AniList can't be reached.
+ *
+ * The walk asks two rings: the linked entry, then its chain neighbours, in
+ * one request; their own chain neighbours are placed from that answer. AniList
+ * answers every edge an entry has, of every kind and in both directions, and
+ * a chain can loop back or branch, so each entry is placed once, at the first
+ * place the walk reaches it, and a chain place always outranks a side one.
  */
 export async function seasonRelations(
 	seriesId: number,
@@ -808,32 +998,34 @@ export async function seasonRelations(
 	const level = new Map<number, { node: RelNode; at: number }>([
 		[start.id, { node: start, at: 0 }]
 	]);
-	const edgesOf = (id: number) => first.get(id)?.relations?.edges ?? [];
-	const step = (from: { node: RelNode; at: number }, sign: 1 | -1): number[] => {
-		const out: number[] = [];
-		for (const e of edgesOf(from.node.id)) {
-			const dir = e.relationType === 'SEQUEL' ? 1 : e.relationType === 'PREQUEL' ? -1 : 0;
-			if (dir !== sign) continue;
-			if (level.has(e.node.id)) continue;
-			level.set(e.node.id, { node: e.node, at: from.at + sign });
-			out.push(e.node.id);
+	const side = new Map<number, { node: RelNode; how: string }>();
+	/** One entry's edges: the chain's placed a step from it, the side kinds kept aside. */
+	const collect = (fromAt: number, edges: { relationType: string; node: RelNode }[]) => {
+		const placed: number[] = [];
+		for (const e of edges) {
+			const dir = CHAIN[e.relationType];
+			if (dir) {
+				if (level.has(e.node.id)) continue;
+				level.set(e.node.id, { node: e.node, at: fromAt + dir });
+				placed.push(e.node.id);
+			} else if (SIDE[e.relationType] && !side.has(e.node.id))
+				side.set(e.node.id, { node: e.node, how: SIDE[e.relationType] });
 		}
-		return out;
+		return placed;
 	};
-	const inner = [...level.values()].flatMap((v) => [step(v, 1), step(v, -1)]).flat();
+	const inner = collect(0, start.relations?.edges ?? []);
 	// One more step out, asked in one request: the second season either way.
 	const second = inner.length ? await mediaMany(token, inner) : new Map();
-	for (const [id, answer] of second) {
-		const from = level.get(id);
-		if (!from || !answer) continue;
-		for (const e of answer.relations?.edges ?? []) {
-			const dir = e.relationType === 'SEQUEL' ? 1 : e.relationType === 'PREQUEL' ? -1 : 0;
-			if (!dir || level.has(e.node.id)) continue;
-			level.set(e.node.id, { node: e.node, at: from.at + dir });
-		}
+	for (const id of inner) {
+		const answer = second.get(id);
+		if (answer) collect(level.get(id)!.at, answer.relations?.edges ?? []);
 	}
-	const offers: RelationOffer[] = [];
-	const bySeason = new Map<number, { node: RelNode; at: number; outside: boolean }[]>();
+	const bySeason = new Map<
+		number,
+		{ node: RelNode; at: number; outside: boolean; how: string }[]
+	>();
+	const put = (key: number, x: { node: RelNode; at: number; outside: boolean; how: string }) =>
+		bySeason.set(key, [...(bySeason.get(key) ?? []), x]);
 	for (const [id, v] of level) {
 		if (id === start.id) continue;
 		const kind = candidateKind({ format: v.node.format ?? '', country: '' });
@@ -841,25 +1033,43 @@ export async function seasonRelations(
 			!isAnime(kind) || v.node.format === 'MOVIE' || v.node.format === 'SPECIAL' || !ABOVE[v.at];
 		const seasonAt = at + v.at;
 		if (!outside && (seasonAt < 0 || seasonAt >= view.seasons.length)) continue;
-		const key = outside ? -1 : seasonAt;
-		bySeason.set(key, [...(bySeason.get(key) ?? []), { node: v.node, at: v.at, outside }]);
+		put(outside ? -1 : seasonAt, {
+			node: v.node,
+			at: v.at,
+			outside,
+			how: ABOVE[v.at] ?? 'OUTSIDE THE SEASONS’ NUMBERING'
+		});
 	}
+	// Beside the chain, whatever its format: a TV side story is no season either.
+	for (const [id, v] of side)
+		if (id !== start.id && !level.has(id))
+			put(-2, { node: v.node, at: 0, outside: true, how: v.how });
+	const offers: RelationOffer[] = [];
 	// A season's own count is what a catalogue's entry is checked against.
 	const aired = (i: number) => view.seasons[i].aired;
 	for (const [key, list] of bySeason) {
-		if (key === -1) {
+		if (key < 0) {
 			// Outside the numbering: listed, dimmed, never ticked. Movie and special
-			// first, as the design draws them.
-			list.sort((a, b) => Number(a.node.format !== 'MOVIE') - Number(b.node.format !== 'MOVIE'));
+			// first, as the design draws them, then the side stories and spin-offs.
+			list.sort(
+				(a, b) =>
+					Number(a.node.format !== 'MOVIE') - Number(b.node.format !== 'MOVIE') ||
+					sideOrder(a.how) - sideOrder(b.how) ||
+					(a.node.seasonYear ?? 0) - (b.node.seasonYear ?? 0) ||
+					a.node.id - b.node.id
+			);
 			for (const x of list)
 				offers.push(offerOf(view, -1, 0, x, 'OUTSIDE THE SEASONS’ NUMBERING', false));
 			continue;
 		}
 		const target = view.seasons[key];
 		if (!target) continue;
+		// In the order they aired (AniList's ids follow it within a year): part 1
+		// is the earlier entry, whichever is longer. Sorting by count made SAO's
+		// War of Underworld, 12 + 11, part 1 the 11-episode Part 2.
 		const parts = list
 			.filter((x) => !x.outside)
-			.sort((a, b) => (a.node.episodes ?? 0) - (b.node.episodes ?? 0));
+			.sort((a, b) => (a.node.seasonYear ?? 0) - (b.node.seasonYear ?? 0) || a.node.id - b.node.id);
 		const have = aired(key);
 		const already = target.link;
 		if (
@@ -890,13 +1100,42 @@ export async function seasonRelations(
 				)
 			);
 		}
-		// A season linked already says what its ticks would replace.
-		if (already)
-			for (const o of offers)
-				if (o.season === target.season) o.replaces = already.title || 'LINKED';
 	}
+	for (const o of offers) {
+		if (o.outside) continue;
+		const target = view.seasons.find((s) => s.season === o.season);
+		const mine = target?.parts.find((p) => p.part === o.part)?.link ?? null;
+		// The season's own entry, offered back to it: nothing to replace or tick.
+		if (mine && mine.anilistId === o.anilistId) {
+			o.ticked = false;
+			o.why = 'ALREADY ITS LINK';
+			continue;
+		}
+		// A season linked already says what its ticks would replace.
+		if (target?.link) o.replaces = target.link.title || 'LINKED';
+		// Held by another season or part (c418): `linkSeason` refuses it, so the
+		// offer says by which, and is never ticked.
+		const held = seasonHolding(seriesId, o.season, o.part, o.candidate);
+		if (held) {
+			o.ticked = false;
+			o.heldBy = held;
+			o.why = `${holdsLine(held)} · NEVER TICKED`;
+		}
+	}
+	// One season in two parts is ticked as one: a held part unticks its pair.
+	const pairs = new Set(offers.filter((o) => !o.outside && o.part > 1).map((o) => o.season));
+	const heldPair = new Set(
+		offers.filter((o) => !o.outside && o.heldBy && pairs.has(o.season)).map((o) => o.season)
+	);
+	for (const o of offers)
+		if (!o.outside && !o.heldBy && o.ticked && heldPair.has(o.season)) {
+			o.ticked = false;
+			o.why = `${o.why} · ITS OTHER PART IS HELD`;
+		}
+	// The seasons in order, then what is outside their numbering, as the design
+	// lists it: NOT OFFERED, at the end.
 	offers.sort(
-		(a, b) => a.season - b.season || a.part - b.part || Number(a.outside) - Number(b.outside)
+		(a, b) => Number(a.outside) - Number(b.outside) || a.season - b.season || a.part - b.part
 	);
 	// Kept as each season's candidates, so LINK 3 SEASONS reads them back by id
 	// through the same door a searched candidate comes through, rather than
@@ -905,7 +1144,11 @@ export async function seasonRelations(
 	return offers;
 }
 
-/** The offers as a season's candidates, without touching the search that found it. */
+/**
+ * The offers as a season's candidates, without touching the search that found
+ * it. Only a season's: nothing outside the numbering (c351), and nothing
+ * another season holds (c418), which no door would link anyway.
+ */
 function rememberOffers(seriesId: number, offers: RelationOffer[]): void {
 	const db = getDb();
 	const put = db.prepare(
@@ -914,7 +1157,7 @@ function rememberOffers(seriesId: number, offers: RelationOffer[]): void {
 	);
 	db.transaction(() => {
 		offers
-			.filter((o) => !o.outside)
+			.filter((o) => !o.outside && !o.heldBy)
 			.forEach((o, rank) =>
 				put.run(seriesId, o.season, o.part, o.anilistId, rank, JSON.stringify(o.candidate))
 			);
@@ -925,7 +1168,7 @@ function offerOf(
 	view: SeriesSeasons,
 	key: number,
 	part: number,
-	x: { node: RelNode; at: number; outside: boolean },
+	x: { node: RelNode; at: number; outside: boolean; how: string },
 	why: string,
 	ticked: boolean,
 	said?: string
@@ -945,10 +1188,11 @@ function offerOf(
 		format: c.format,
 		episodes: node.episodes,
 		year: node.seasonYear,
-		how: ABOVE[x.at] ?? 'OUTSIDE THE SEASONS’ NUMBERING',
+		how: x.how,
 		why: said ?? why,
 		ticked,
 		replaces: null,
+		heldBy: null,
 		outside: x.outside,
 		candidate: c
 	};

@@ -282,7 +282,8 @@ library that had them keeps them.
 answers `{found, results:[{interval:{startTime,endTime}, skipType:'op'|'ed'}]}`;
 a 404 is "this episode has none". Only the MyAnimeList id, the episode number
 and the length leave the app: no title, no account, no reading. `malId` is
-the series' link (`series_links.mal_id`; doc/TRACKING.md); **no anime link,
+the episode's own season's link (`series_season_links.mal_id`, `episodeEntry`
+in `season-links.ts`; "Seasons", below; doc/TRACKING.md); **no anime link,
 no lookup** (c395). AniSkip's ids are MyAnimeList **anime** ids, and MAL
 numbers anime and manga apart, so a manga's id names an unrelated show:
 asked under it, AniSkip would answer with that show's opening and ending,
@@ -312,10 +313,23 @@ length is kept.
   rule is in the SQL (`HIDDEN_SQL`). Incognito doesn't ask either.
 - **Seasons.** AniSkip numbers episodes per MAL entry, and a MAL entry is one
   season. c240 links an anime a season at a time (`series_season_links`), and
-  `series_links` keeps a mirror of season 1's link (or a flat list's) only
-  (`syncSeriesLink`), so that is the one entry AniSkip is asked about; a
-  later season isn't looked up. The episode number is the source's own within
-  the season (`episode_number`).
+  an episode is asked about under **its own season's** entry (c349,
+  `episodeEntry`): season 2's EP. 3 under season 2's MAL id, season 1's EP. 3
+  under season 1's. The episode number is the source's own within the season
+  (`episode_number`; a flat list's position when it has none), and within
+  the part for a season the catalogues split in two: the season's EP. 13 is
+  part 2's EP. 1 under part 2's id. A season with no link of its own is not
+  looked up, whatever another season has. The first-season mirror in
+  `series_links` (`syncSeriesLink`) is not read: only a series with no season
+  rows at all, linked before rung 62, is asked under its `series_links` link,
+  for season 0 or 1 alone, since that one link is its first season's.
+  Answers stored before c349 were asked under the mirror, which is the
+  lowest season linked: right for a flat list, a pre-rung-62 link and a
+  season 1 linked alone, but wrong for a season-1 episode of a show whose
+  season 0 is linked too, and for part 2 of a split season 1 (asked under
+  part 1's id with the season's number). A found answer is never asked
+  again, so those stay until a rung forgets them (doc/handoff-notes/links.md,
+  "Gaps"); a relink clears them now, as it always did.
 - **Remembered.** A found answer is never asked again; a 404 is remembered
   for `ANISKIP_RETRY_MS` (7 days), since a running show's new episode may
   arrive late. A server that didn't answer is not remembered: the next
@@ -824,8 +838,14 @@ pure parts in `src/lib/library/anime-files.ts`).
   place and renamed. The NFOs are Jellyfin's (`tvshow`, `episodedetails`) and
   carry tsundoku's keys as `<uniqueid type="tsundoku">`, with AniList and MAL
   ids where the series is linked to an anime's entry (a manga's ids would
-  have Jellyfin's plugins fetch another work, c395); `poster.jpg` is the
-  library's own cover.
+  have Jellyfin's plugins fetch another work, c395). They are the show's ids
+  (`showEntry` in `season-links.ts`, c381): season 1's link, else the
+  earliest season linked, part 1 first, read from the season rows, so a show
+  with only season 2 linked names season 2's entry rather than none. A
+  season linked to a manga is passed over for the next one that is an
+  anime's. `series_links` answers only for a show linked before rung 62. An
+  `.nfo` already written is rewritten at the series' next download.
+  `poster.jpg` is the library's own cover.
 - **ffmpeg fetches nothing itself.** Its inputs are a loopback proxy inside
   the app that serves only the tokens `streams.ts` handed out, and only with a
   per-process secret header, so every request a download makes passes the

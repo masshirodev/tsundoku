@@ -11,11 +11,12 @@
 		parsePasted
 	} from '$lib/library/catalogue';
 	import { langName, parseRanobeUrl } from '$lib/library/ranobe';
+	import { seasonTag } from '$lib/library/anime';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { offline } from '$lib/offline.svelte';
 	import type { QueuedFrom, ReviewCandidate } from '$lib/server/catalogue';
 	import type { RanobeReviewCandidate, Sibling } from '$lib/server/ranobe-review';
-	import type { RelationOffer } from '$lib/server/season-links';
+	import type { RefusedPick, RelationOffer } from '$lib/server/season-links';
 
 	/**
 	 * The link review (Link Review, Ranobe Review; doc/LINKS.md,
@@ -42,9 +43,21 @@
 	// svelte-ignore state_referenced_locally
 	let relations = $state<RelationOffer[] | null>(data.relations ?? null);
 	// svelte-ignore state_referenced_locally
-	let pickedSeasons = $state<number[]>(
-		(data.relations ?? []).filter((o) => o.ticked).map((o) => o.season)
-	);
+	let pickedSeasons = $state<number[]>(ticked(data.relations ?? []));
+	/**
+	 * Whether the offer on screen follows a LINK made on this page, rather than
+	 * coming with the page's load (EDIT on a linked season, round 3). Only then
+	 * is the season's decision made, so only then does NOT NOW leave.
+	 */
+	let offerFromLink = $state(false);
+	/**
+	 * The seasons the relations tick, each once: a split season's two parts
+	 * are both ticked and are one season (c418, round 2), so the count, the
+	 * button and the band never say two for it.
+	 */
+	function ticked(offers: RelationOffer[]): number[] {
+		return [...new Set(offers.filter((o) => o.ticked).map((o) => o.season))];
+	}
 	type Service = Item['service'];
 	type Cand = ReviewCandidate | RanobeReviewCandidate;
 	const SERVICE_NAME: Record<Service, string> = { anilist: 'ANILIST', ranobe: 'RANOBE' };
@@ -115,12 +128,22 @@
 	);
 	/**
 	 * The season the screen names (c240): the page's own on `?series=`, or a
-	 * queue item's from season 1 up. A queue item for season 0 is a flat list,
-	 * the whole run, so it names none; it still posts its season (`at`).
+	 * queue item's, from season 1 up. Season 0 is a flat list, the whole run,
+	 * so it names none, on the page's own season as on a queue item's (c423:
+	 * Ranma ½ (2024)'s LINK read `LINK A TO SEASON 0`); it still posts its
+	 * season (`at`), which is the whole show's row.
 	 */
 	const named = $derived<{ no: number } | null>(
-		season ? { no: season.no } : at && at.no > 0 ? at : null
+		season && season.no > 0 ? { no: season.no } : !season && at && at.no > 0 ? at : null
 	);
+	/**
+	 * Whether a season's LINK stays on the page for the rest of the show: only
+	 * when there is a rest. A show with one season (a flat list, or one
+	 * numbered season) has none to offer, so its LINK goes back to the series
+	 * as a comic's does, and the new link shows on the LINK row (c423: a LINK
+	 * that worked looked like it hadn't, the item still on screen).
+	 */
+	const staysForTheRest = $derived(!!season && season.of > 1);
 	const ranobe = $derived(item?.service === 'ranobe');
 	const name = $derived(item ? SERVICE_NAME[item.service] : '');
 	let chosen = $state<string | null>(null);
@@ -130,6 +153,8 @@
 	let pasteText = $state('');
 	let pasted = $state<Cand | null>(null);
 	let pasteNote = $state<string | null>(null);
+	/** A pasted entry another season holds (c418): said so, and LINK stays dimmed. */
+	let pastedHeld = $state<string | null>(null);
 
 	/** THE SAME WORK FOR THESE? (1b): after a Ranobe LINK, until decided. */
 	let sibs = $state<{
@@ -148,6 +173,7 @@
 		shown = k;
 		chosen = null;
 		pasted = null;
+		pastedHeld = null;
 		pasteText = '';
 		pasteNote = null;
 		searching = false;
@@ -287,15 +313,17 @@
 		// The offers came from the link just taken back: they have no start any more.
 		relations = null;
 		pickedSeasons = [];
+		offerFromLink = false;
 	}
 
 	async function linkChosen() {
 		if (!item || !selected) return;
 		const c = selected;
 		const it = item;
-		if (!('work' in c) && season) {
+		if (!('work' in c) && season && staysForTheRest) {
 			// A season linked: the page turns to the rest of the show (c240), so it
-			// stays rather than going back to the series.
+			// stays rather than going back to the series. A one-season show has no
+			// rest, and takes the plain LINK below, back to its screen (c423).
 			busy = true;
 			failed = null;
 			const before = { queue: [...queue], done };
@@ -312,11 +340,22 @@
 				return;
 			}
 			const a = (await r.json().catch(() => ({}))) as { relations?: RelationOffer[] };
+			// No rest to show (AniList unreachable, or no chain neighbour inside the
+			// show's seasons): staying would redraw the untouched review, so the LINK
+			// goes back to the series as a one-season show's does (c423, round 2).
+			if (single && !a.relations?.length) {
+				await backToSeries(it.seriesId);
+				return;
+			}
 			relations = a.relations?.length ? a.relations : null;
-			pickedSeasons = (relations ?? []).filter((o) => o.ticked).map((o) => o.season);
+			pickedSeasons = ticked(relations ?? []);
+			offerFromLink = !!relations;
 			chosen = null;
 			undo = {
-				title: `LINKED · SEASON ${season.no} TO ${c.title.toUpperCase()}`,
+				// Season 0 (a flat part of a longer list) names no season (c423).
+				title: named
+					? `LINKED · SEASON ${named.no} TO ${c.title.toUpperCase()}`
+					: `LINKED · ${c.title.toUpperCase()}`,
 				detail: `${c.ids} · ITS SEND STARTS WITH THE NEXT EPISODE WATCHED`,
 				undo: {
 					kind: 'link',
@@ -352,10 +391,16 @@
 		if (rows.length) sibs = { work: c.work, title: c.title, series: it.seriesId, rows, picked: [] };
 	}
 
-	/** LINK 3 SEASONS: the ticked entries written at once, then back to the series. */
+	/**
+	 * LINK 3 SEASONS: the ticked entries written at once, then back to the
+	 * series. The band is the workstation's answer, never the page's own ticks
+	 * (c418): a pick another season holds is refused there, and the page stays
+	 * to say which, with the true count.
+	 */
 	async function linkSeasonsNow() {
 		if (!item || busy || !relations || !pickedSeasons.length) return;
 		const it = item;
+		const before = { queue: [...queue], done };
 		const picks = relations
 			.filter((o) => o.ticked && !o.outside && pickedSeasons.includes(o.season))
 			.map((o) => ({ season: o.season, part: o.part, anilistId: o.anilistId }));
@@ -363,25 +408,61 @@
 		failed = null;
 		const r = await post(it.service, { series: it.seriesId, seasons: picks });
 		busy = false;
+		// `linked` and `of` are seasons, not parts: a pair is one (round 2).
+		const a = (r ? await r.json().catch(() => ({})) : {}) as {
+			linked?: number;
+			of?: number;
+			refused?: RefusedPick[];
+		};
+		const refused = a.refused ?? [];
 		if (!r?.ok) {
-			failed = failText(r, it.service);
+			failed = refused.length
+				? `NOTHING LINKED · ${refusedLine(refused)}`
+				: failText(r, it.service);
 			return;
 		}
-		const n = relations.filter((o) => pickedSeasons.includes(o.season) && !o.outside).length;
+		const n = a.linked ?? 0;
 		relations = null;
-		if (single) {
+		offerFromLink = false;
+		if (single && !refused.length) {
 			await backToSeries(it.seriesId);
 			return;
 		}
-		queue = queue.slice(1);
-		done += 1;
+		if (!single) {
+			queue = queue.slice(1);
+			done += 1;
+		}
+		const of = a.of ?? n;
 		undo = {
-			title: `LINKED ${n} SEASON${n === 1 ? '' : 'S'} · ${it.title.toUpperCase()}`,
-			detail: 'EACH SENDS ITS OWN EPISODES FROM THE NEXT ONE WATCHED',
+			title: `LINKED ${refused.length ? `${n} OF ${of}` : n} SEASON${of === 1 ? '' : 'S'} · ${it.title.toUpperCase()}`,
+			detail: refused.length
+				? refusedLine(refused)
+				: 'EACH SENDS ITS OWN EPISODES FROM THE NEXT ONE WATCHED',
 			undo: null,
-			before: { queue: [...queue], done: done - 1 }
+			before
 		};
 	}
+
+	/**
+	 * NOT NOW on the rest of the show. After a LINK made here the season is
+	 * linked, so for one series the page goes back to it (its LINK row shows
+	 * the new link), never to the untouched review it came from (c423, round
+	 * 2). An offer that came with the page's load (EDIT on a linked season)
+	 * follows no decision: NOT NOW closes it and stays, so the season's own
+	 * tools (PASTE A LINK, UNLINK, LINK) are reachable (round 3). In the
+	 * queue, the offer closes and the band's UNDO stays.
+	 */
+	async function notNow() {
+		const id = item?.seriesId;
+		const leave = offerFromLink;
+		relations = null;
+		pickedSeasons = [];
+		offerFromLink = false;
+		if (leave && single && id !== undefined) await backToSeries(id);
+	}
+
+	/** "SEASON 1 NOT LINKED · SEASON 3 HOLDS ITS ENTRY", for each pick the workstation refused. */
+	const refusedLine = (refused: RefusedPick[]) => refused.map((p) => p.why).join(' · ');
 
 	/** A ticket on one of the seasons the relations offered. */
 	function toggleSeason(n: number) {
@@ -570,6 +651,7 @@
 	let reading = 0;
 	async function readPaste(text: string) {
 		pasteText = text;
+		pastedHeld = null;
 		if (!item) return;
 		const it = item;
 		const r1 = it.service === 'ranobe';
@@ -611,18 +693,21 @@
 					: 'NO SUCH ANILIST ENTRY';
 			return;
 		}
-		const { candidate } = (await r.json()) as { candidate: Cand };
+		const { candidate, held } = (await r.json()) as { candidate: Cand; held?: string | null };
 		pasted = candidate;
 		chosen = keyOf(candidate);
 		nonet = null;
+		pastedHeld = held ?? null;
 		pasteNote =
 			'work' in candidate
 				? `READ AS RANOBE ${candidate.work.toUpperCase()} · ITS ${langName('en')} EDITION IS TAKEN, OR SUGGESTED, IN THE NEXT PASS`
-				: `READ AS ANILIST ${candidate.anilistId} · ONLY THE ID WAS SENT, NEVER THE TITLE`;
+				: (pastedHeld ??
+					`READ AS ANILIST ${candidate.anilistId} · ONLY THE ID WAS SENT, NEVER THE TITLE`);
 	}
 	function cancelPaste() {
 		pasting = false;
 		pasted = null;
+		pastedHeld = null;
 		pasteText = '';
 		pasteNote = null;
 		chosen = null;
@@ -648,9 +733,17 @@
 			{ label: 'PASTE A LINK', run: openPaste, dim: netDim },
 			// A linked season's own UNLINK: gone, and no pass searches it again
 			// (c240). The series screen's EDIT on the season line comes here.
-			...(season && single?.linked ? [{ label: 'UNLINK', run: unlinkSeason, dim: netDim }] : [])
+			...unlinkAct
 		];
 	});
+	/**
+	 * A linked season's own UNLINK, wherever the season's tools are drawn: in
+	 * the tool row beside its candidates, or among the actions when it has
+	 * none (a season linked by a pasted link was never searched, round 3).
+	 */
+	const unlinkAct = $derived<Act[]>(
+		season && single?.linked ? [{ label: 'UNLINK', run: unlinkSeason, dim: netDim }] : []
+	);
 
 	/** UNLINK on a season: its row goes, and the series' mirror with it. */
 	async function unlinkSeason() {
@@ -674,7 +767,7 @@
 					label: named ? `LINK ${selectedLetter} TO SEASON ${named.no}` : `LINK ${selectedLetter}`,
 					run: linkChosen,
 					strong: true,
-					dim: off
+					dim: off || (!!pasted && !!pastedHeld)
 				}
 			: { label: 'TAP ONE TO LINK', run: () => {}, dim: true };
 		if (pasted) return [{ label: 'CANCEL', run: cancelPaste, dim: off }, link];
@@ -691,7 +784,12 @@
 		// SKIP too with nothing found: the owner's addition to 1c, so a series
 		// with no answer yet doesn't block the queue.
 		if (!item.candidates.length)
-			return [search, paste, ...(single ? [] : [{ label: 'SKIP', run: skipIt, dim: off }])];
+			return [
+				search,
+				paste,
+				...unlinkAct,
+				...(single ? [] : [{ label: 'SKIP', run: skipIt, dim: off }])
+			];
 		return [
 			{
 				label: 'NONE OF THESE',
@@ -811,7 +909,8 @@
 		<div class="seasonbar">
 			<div class="sb-a">{item.title.toUpperCase()}</div>
 			<div class="sb-b">
-				SEASON {season.no} OF {season.of} · {season.aired} EPISODES HERE{season.count > season.aired
+				{named ? `SEASON ${named.no} OF ${season.of} · ` : ''}{season.aired} EPISODES HERE{season.count >
+				season.aired
 					? ` AND ${season.count - season.aired} RECAP`
 					: ''}{season.parts.length > 1 ? ` · ${season.parts.length} PARTS` : ''}
 			</div>
@@ -1162,7 +1261,9 @@
 				<div class="ch">
 					<div>02 — THE REST OF THE SERIES ON ANILIST</div>
 					<div>
-						{pickedSeasons.length} OF {relations.filter((o) => !o.outside).length} TICKED
+						{pickedSeasons.length} OF {new Set(
+							relations.filter((o) => !o.outside).map((o) => o.season)
+						).size} TICKED
 					</div>
 				</div>
 				<div class="relnotes">
@@ -1172,10 +1273,14 @@
 					<div>
 						A SEASON ALREADY LINKED TO SOMETHING ELSE SAYS “REPLACES …” AND IS NEVER TICKED.
 					</div>
+					<div>AN ENTRY ANOTHER SEASON HOLDS SAYS WHICH, AND IS NEVER TICKED.</div>
 				</div>
 				<div class="rellist">
 					{#each relations as o (`${o.season}:${o.part}:${o.anilistId}`)}
-						{@const on = pickedSeasons.includes(o.season) && !o.outside}
+						<!-- A ✓ only on an offer that can be ticked: never one outside the
+					     numbering (c351), nor one another season holds (c418), even when
+					     its season is ticked through another entry. -->
+						{@const on = pickedSeasons.includes(o.season) && o.ticked && !o.outside}
 						<div class="rel" class:on class:outside={o.outside}>
 							<button
 								type="button"
@@ -1187,7 +1292,7 @@
 							>
 								<span class="tickcell"><span class="tick">{on ? '✓' : ''}</span></span>
 								<span class="rno"
-									>{o.outside ? '–' : o.part > 1 ? `PART ${o.part}` : `S${o.season}`}</span
+									>{o.outside ? '–' : o.part > 1 ? `PART ${o.part}` : seasonTag(o.season)}</span
 								>
 								<span class="rtext">
 									<span class="rtitle">{o.title}</span>
@@ -1210,9 +1315,7 @@
 					{/each}
 				</div>
 				<div class="relacts">
-					<button type="button" class="first" disabled={busy} onclick={() => (relations = null)}
-						>NOT NOW</button
-					>
+					<button type="button" class="first" disabled={busy} onclick={notNow}>NOT NOW</button>
 					{#if pickedSeasons.length}
 						<button type="button" class="strong" disabled={busy} onclick={linkSeasonsNow}
 							>LINK {pickedSeasons.length} SEASON{pickedSeasons.length === 1 ? '' : 'S'}</button

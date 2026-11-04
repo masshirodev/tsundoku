@@ -68,6 +68,7 @@ const { attachWritten, runImport } = await import('$lib/server/import/index');
 const queue = await import('$lib/server/engine/queue');
 const downloads = await import('$lib/server/downloads');
 const anime = await import('$lib/server/anime/download');
+const seasons = await import('$lib/server/season-links');
 const streams = await import('$lib/server/anime/streams');
 
 const db = getDb();
@@ -254,6 +255,69 @@ describe('downloading an episode', () => {
 		expect(tv()).toContain('<uniqueid type="anilist">178533</uniqueid>');
 		expect(tv()).toContain('<uniqueid type="mal">58616</uniqueid>');
 		db.prepare(`DELETE FROM series_links WHERE series_id = ?`).run(shown);
+	});
+
+	it('names the show by its season links, so one with only season 2 linked has ids (c381)', async () => {
+		// Under rung 62 `series_links` is only season 1's mirror: with season 2
+		// linked alone there is no row at all, and tvshow.nfo had no ids.
+		db.prepare(`DELETE FROM download_queue`).run();
+		const tv = () => readFileSync(join(show, 'tvshow.nfo'), 'utf8');
+		const fetchIt = async (n: number) => {
+			const id = Number(
+				db
+					.prepare(
+						`INSERT INTO entries (series_id, position, label, title, added_at, source_url, season, episode_number, available) VALUES (?, ?, ?, '', 0, ?, 2, ?, 0)`
+					)
+					.run(shown, 100 + n, `Ep. ${n}`, `/ep/${shown}/s2/${n}`, n).lastInsertRowid
+			);
+			await downloads.enqueue(shown, [id], 720);
+			expect(await anime.runAnimeOnce(deps)).toBe(1);
+		};
+		const entryOf = (anilistId: number, malId: number, format: string) => ({
+			anilistId,
+			malId,
+			title: `Entry ${anilistId}`,
+			alts: [],
+			format,
+			country: 'JP',
+			year: 2024,
+			chapters: null,
+			volumes: null,
+			episodes: 12,
+			season: null,
+			seasonYear: 2024,
+			status: 'FINISHED',
+			coverUrl: ''
+		});
+		try {
+			expect(seasons.linkSeason(shown, 2, 1, entryOf(20002, 30002, 'TV'), 'review')).toBe(true);
+			expect(db.prepare(`SELECT 1 FROM series_links WHERE series_id = ?`).get(shown)).toBe(
+				undefined
+			);
+			await fetchIt(1);
+			expect(tv()).toContain('<uniqueid type="anilist">20002</uniqueid>');
+			expect(tv()).toContain('<uniqueid type="mal">30002</uniqueid>');
+			// Season 1 linked to the manga: not the show's own kind of entry (c395),
+			// so season 2's ids still name it.
+			expect(seasons.linkSeason(shown, 1, 1, entryOf(30023, 23, 'MANGA'), 'review')).toBe(true);
+			await fetchIt(2);
+			expect(tv()).toContain('<uniqueid type="anilist">20002</uniqueid>');
+			expect(tv()).not.toContain('type="mal">23<');
+			// Season 1 linked to its anime: season 1's ids are the show's.
+			expect(seasons.linkSeason(shown, 1, 1, entryOf(40001, 50001, 'TV'), 'review')).toBe(true);
+			await fetchIt(3);
+			expect(tv()).toContain('<uniqueid type="anilist">40001</uniqueid>');
+			expect(tv()).toContain('<uniqueid type="mal">50001</uniqueid>');
+			// A mirror that says otherwise is not read: the season rows are.
+			db.prepare(`UPDATE series_links SET anilist_id = 1, mal_id = 2 WHERE series_id = ?`).run(
+				shown
+			);
+			await fetchIt(4);
+			expect(tv()).toContain('<uniqueid type="anilist">40001</uniqueid>');
+		} finally {
+			db.prepare(`DELETE FROM series_season_links WHERE series_id = ?`).run(shown);
+			db.prepare(`DELETE FROM series_links WHERE series_id = ?`).run(shown);
+		}
 	});
 });
 
