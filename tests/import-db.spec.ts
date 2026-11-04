@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -326,5 +326,120 @@ describe('an import a dead process left open', () => {
 
 	it('leaves finished jobs alone', () => {
 		expect(closeDeadJobs(db())).toBe(0);
+	});
+});
+
+/**
+ * c382: the importer's one delete of a series, `prunePageless`, keeps an empty
+ * series only while nobody has touched it. A link is a touch, and since rung 62
+ * an anime's link is per season: with only a later season linked there is no
+ * `series_links` mirror (`syncSeriesLink` mirrors season 1 alone), so the
+ * keep-test has to ask the season rows too.
+ */
+describe('an empty series the owner touched is never pruned (c382)', () => {
+	const seasons = () => import('$lib/server/season-links');
+	const works = () => import('$lib/server/works');
+	const cand = (anilistId: number) => ({
+		anilistId,
+		malId: null,
+		title: `Entry ${anilistId}`,
+		alts: [],
+		format: 'TV',
+		country: 'JP',
+		year: 2020,
+		chapters: null,
+		volumes: null,
+		episodes: 12,
+		season: null,
+		seasonYear: null,
+		status: 'FINISHED',
+		coverUrl: ''
+	});
+	const byTitle = (title: string) =>
+		db().prepare(`SELECT id FROM series WHERE title = ?`).get(title) as { id: number } | undefined;
+
+	it('keeps an anime with only season 2 linked when every episode file has gone (the card’s case)', async () => {
+		const { tvshowNfo, episodeNfo } = await import('$lib/library/anime-files');
+		const show = join(library, 'Anime', 'Two Seasons');
+		const key = 'aniyomi:7001:/anime/two-seasons';
+		mkdirSync(show, { recursive: true });
+		writeFileSync(
+			join(show, 'tvshow.nfo'),
+			tvshowNfo({ key, title: 'Two Seasons', plot: '', status: '', genres: [], source: 'fake' })
+		);
+		const episode = (season: number, n: number, position: number) => {
+			const dir = join(show, `Season ${season}`);
+			mkdirSync(dir, { recursive: true });
+			const name = `S0${season}E0${n}`;
+			writeFileSync(join(dir, `${name}.mkv`), Buffer.alloc(64, n));
+			writeFileSync(
+				join(dir, `${name}.nfo`),
+				episodeNfo({
+					sourceUrl: `/anime/two-seasons/s${season}e${n}`,
+					title: '',
+					season,
+					number: n,
+					position,
+					durationS: 1440,
+					note: ''
+				})
+			);
+			return join(dir, `${name}.mkv`);
+		};
+		const files = [episode(1, 1, 1), episode(1, 2, 2), episode(2, 1, 3)];
+		await runImport(library, { now: 1_800_001_000_000 });
+		const id = byTitle('Two Seasons')!.id;
+		expect((await seasons()).linkSeason(id, 2, 1, cand(2002), 'pasted')).toBe(true);
+		// The state the card names: a season row, and no series_links mirror.
+		expect(db().prepare(`SELECT 1 FROM series_links WHERE series_id = ?`).get(id)).toBeUndefined();
+
+		for (const f of files) rmSync(f);
+		await runImport(library, { now: 1_800_001_100_000 });
+		expect(byTitle('Two Seasons')?.id).toBe(id);
+		expect((await seasons()).seasonLinks(id).map((l) => l.season)).toEqual([2]);
+		// The anime source marks a gone file NOT DOWNLOADED; it never empties the
+		// series, so nothing here reaches the prune (the card's premise, measured).
+		expect(entries(id).map((e) => e.available)).toEqual([0, 0, 0]);
+	});
+
+	it('keeps an empty series in the pruned root that has a season link, a season decision, or a Work', async () => {
+		const rootId = (
+			db().prepare(`SELECT id FROM roots WHERE path = ?`).get(hentoid) as { id: number }
+		).id;
+		const now = 1_800_001_200_000;
+		// What an earlier import made of folders with no pages (card c64): empty
+		// series, the state the prune exists for, made as tests/hentoid-pageless-db
+		// makes them.
+		const add = (title: string) =>
+			Number(
+				db()
+					.prepare(
+						`INSERT INTO series (root_id, title, kind, rating, added_at, source, path, origin_key)
+						VALUES (?, ?, 'doujin', 0, ?, 'hentoid', ?, ?)`
+					)
+					.run(rootId, title, now, hentoid, `hentoid:NHENTAI:/c382-${title}/`).lastInsertRowid
+			);
+		const linked = add('Season Linked');
+		const decided = add('Season Decided');
+		const grouped = add('Grouped Empty');
+		add('Untouched Empty');
+		const s = await seasons();
+		expect(s.linkSeason(linked, 2, 1, cand(3003), 'pasted')).toBe(true);
+		s.noneOfSeason(decided, 1, 1, now);
+		// A Work is the owner's grouping, as a shelf is: grouped with a real book.
+		const book = byTitle('Summer Days')!.id;
+		const w = await works();
+		const work = w.createWork({ seriesIds: [grouped, book], name: 'Kept Run', now });
+
+		await runImport(library, { now: now + 1 });
+		expect(byTitle('Untouched Empty')).toBeUndefined();
+		expect(byTitle('Season Linked')?.id).toBe(linked);
+		expect(byTitle('Season Decided')?.id).toBe(decided);
+		expect(byTitle('Grouped Empty')?.id).toBe(grouped);
+		// Before, the cascade took the link and the decision, and rung 61's
+		// trigger ended the Work the deleted series left with one.
+		expect(s.seasonLinks(linked)).toHaveLength(1);
+		expect(w.workOfSeries(book)?.id).toBe(work.work.id);
+		w.ungroup(work.work.id);
 	});
 });
