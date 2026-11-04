@@ -47,6 +47,9 @@ class MainActivity : ComponentActivity() {
 	private val io = Executors.newSingleThreadExecutor()
 	private val ui = Handler(Looper.getMainLooper())
 
+	/** Which launch owns the WebView: a later door wins over an earlier answer (c306). */
+	private val attempts = Attempts()
+
 	/** BACK is the page's while it can take it; then history; then leaving. */
 	private val back =
 		object : OnBackPressedCallback(true) {
@@ -96,10 +99,13 @@ class MainActivity : ComponentActivity() {
 			loadAsset()
 		} else {
 			// On launch a remembered address that answers opens the library;
-			// one that doesn't shows 9D, with what it tried.
+			// one that doesn't shows 9D, with what it tried. A launch handed an
+			// address while this probe is out owns the screen, so a late answer
+			// is dropped rather than replacing its 9B (c306).
+			val mine = attempts.begin()
 			io.execute {
 				val ok = Probe.check(remembered)
-				ui.post { if (ok) open(remembered) else showLost(remembered) }
+				ui.post { attempts.answer(mine) { if (ok) open(remembered) else showLost(remembered) } }
 			}
 		}
 	}
@@ -286,6 +292,9 @@ class MainActivity : ComponentActivity() {
 	 * never stored.
 	 */
 	private fun takeGiven(raw: String) {
+		// This launch's page is the one in hand now: an answer still owed to
+		// an earlier door (the remembered address's probe) no longer counts.
+		attempts.begin()
 		val origin = Address.intentOrigin(raw)
 		loadAsset(
 			if (origin == null) "#bad=${Uri.encode(raw)}"

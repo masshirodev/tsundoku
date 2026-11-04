@@ -10,7 +10,8 @@ import {
 	sixDigits,
 	tailnetDoor,
 	tailnetHost,
-	tvBlockFor
+	tvBlockFor,
+	tvDoor
 } from '../src/lib/server/pairing.ts';
 
 // Read by getDb() the first time a test reaches the database; the pure cases
@@ -141,7 +142,7 @@ describe("a TV's cookie on the owner's tailnet (c245; doc/SIGN-IN.md)", () => {
 
 describe("where the TV's six digits are drawn (c245; doc/WIFI.md)", () => {
 	const block = (o: Partial<Parameters<typeof tvBlockFor>[0]> = {}) =>
-		tvBlockFor({ hasWifi: false, viaLan: false, paired: false, friend: false, ...o });
+		tvBlockFor({ hasWifi: false, viaLan: false, paired: false, friend: false, door: true, ...o });
 
 	it('draws on the token install, and on no install whose cookie is refused', () => {
 		// The owner's own instance: no WI-FI panel, and the cookie those digits
@@ -157,6 +158,53 @@ describe("where the TV's six digits are drawn (c245; doc/WIFI.md)", () => {
 		// there would pair a TV and land it on /login (the bug c245 removes).
 		expect(block({ friend: true })).toBe(false);
 		expect(block({ friend: true, hasWifi: true })).toBe(false);
+	});
+
+	it('draws nowhere the hook refuses every TV cookie: no ORIGIN, or a loopback one (c264)', () => {
+		// The token install with no door: `yarn run dev`, `vite preview` and
+		// serve.ts's local mode. A TV paired there would land on /login.
+		expect(block({ door: false })).toBe(false);
+		// And no other fact brings it back.
+		for (const hasWifi of [false, true])
+			for (const viaLan of [false, true])
+				for (const paired of [false, true])
+					for (const friend of [false, true])
+						expect(block({ hasWifi, viaLan, paired, friend, door: false })).toBe(false);
+	});
+
+	it('has a door exactly where tailnetDoor can open for some host (c264)', () => {
+		// The same ORIGIN the hook reads, judged the same way: whatever fails
+		// tailnetHost fails here, and the block's door is that answer.
+		for (const origin of [
+			undefined,
+			'',
+			'not a url',
+			'http://localhost:42143',
+			'http://127.0.0.1:42143',
+			'http://[::1]:42143'
+		]) {
+			expect(tvDoor(origin)).toBe(false);
+			expect(tailnetDoor(origin, 'localhost:42143')).toBe(false);
+		}
+		for (const origin of ['https://name.ts.net:8443', 'http://100.101.102.103:42143']) {
+			expect(tvDoor(origin)).toBe(true);
+			expect(tailnetDoor(origin, new URL(origin).host)).toBe(true);
+		}
+	});
+
+	it("reads the process's ORIGIN when given none, as the hook does (c264)", () => {
+		const kept = process.env.ORIGIN;
+		try {
+			delete process.env.ORIGIN;
+			expect(tvDoor()).toBe(false);
+			process.env.ORIGIN = 'http://localhost:42143';
+			expect(tvDoor()).toBe(false);
+			process.env.ORIGIN = 'https://name.ts.net:8443';
+			expect(tvDoor()).toBe(true);
+		} finally {
+			if (kept === undefined) delete process.env.ORIGIN;
+			else process.env.ORIGIN = kept;
+		}
 	});
 });
 

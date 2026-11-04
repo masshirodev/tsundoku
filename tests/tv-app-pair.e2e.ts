@@ -86,6 +86,27 @@ async function stubBridge(page: Page, options: { hold?: boolean; answer?: boolea
 	return { remembered };
 }
 
+/**
+ * How wide a no-wrap line of monospace text is on a TV, in CSS px.
+ *
+ * This box's `monospace` is Iosevka, about 0.5 em a glyph, so a line that fits
+ * here can still be cut off by an ellipsis on the TV. The asset asks for
+ * `ui-monospace, 'Roboto Mono', monospace`, and a TV's WebView ends on Roboto
+ * Mono or Android's own monospace, Droid Sans Mono: both advance every glyph
+ * they have by 1229/2048 em (0.6001), read from the fonts' `hmtx` tables
+ * (c307). A glyph neither has (○, ✓, →) falls back to another font, so it is
+ * counted at a whole em, the wide case.
+ */
+async function tvMonoWidth(page: Page, selector: string): Promise<number> {
+	return page.locator(selector).evaluate((el) => {
+		const size = parseFloat(getComputedStyle(el).fontSize);
+		const text = (el as HTMLElement).innerText.trim();
+		let ems = 0;
+		for (const ch of text) ems += ch.codePointAt(0)! < 0x2500 ? 1229 / 2048 : 1;
+		return ems * size;
+	});
+}
+
 test('START opens 9B on NEXT, so no number pad covers the buttons (c247)', async ({ page }) => {
 	await page.goto(page9);
 	await page.keyboard.press('Enter'); // START →
@@ -170,6 +191,26 @@ test("9A and 9D keep a friend's WI-FI remedy beside a tailnet install's truth (c
 	await expect(reason).toContainText('address changed');
 });
 
+test("9A's steps end above START, whatever step 01 says (c263)", async ({ page }) => {
+	await page.goto(page9);
+	await page.evaluate(() => document.fonts.ready);
+
+	// The handoff puts the steps grid at 262 and the action row at 400. A step
+	// that wraps to one line more than the grid has room for pushes its bottom
+	// border behind START (the round-2 9A copy did: 413.75 against 400), so
+	// the grid must end at or above the row, not merely the text inside it.
+	const steps = await page.locator('#welcome .steps').boundingBox();
+	const actions = await page.locator('#welcome .welcome-actions').boundingBox();
+	const start = await page.locator('#start').boundingBox();
+	expect(steps).not.toBeNull();
+	expect(actions).not.toBeNull();
+	expect(start).not.toBeNull();
+	expect(steps!.y + steps!.height).toBeLessThanOrEqual(actions!.y);
+	expect(steps!.y + steps!.height).toBeLessThanOrEqual(start!.y);
+	// And the row itself still ends inside the 540 frame.
+	expect(actions!.y + actions!.height).toBeLessThanOrEqual(540);
+});
+
 test('a given address is checked without 9A or 9B (c260)', async ({ page }) => {
 	const origin = 'https://zen.tailnet.ts.net:8443';
 	await page.goto(`${page9}#connect=${encodeURIComponent(origin)}`);
@@ -218,6 +259,28 @@ test('a refused address shows the band on 9B and leaves it usable (c260)', async
 	expect(fieldBox!.y + fieldBox!.height).toBeLessThanOrEqual(540);
 	expect(actionsBox!.y + actionsBox!.height).toBeLessThanOrEqual(540);
 	expect(checkingBox!.y).toBeLessThanOrEqual(540);
+
+	// The hint names every rule the activity refused by, and no other
+	// (Address.intentOrigin: the scheme, a host, no userinfo, a port of 1 to
+	// 65535; c307). Neither half of the band may be cut off by an ellipsis: not
+	// in this browser, and not at a TV's wider monospace, where a hint that
+	// fits here can push the first line's NOTHING WAS SAVED out of sight.
+	const hint = band.locator('.meta');
+	await expect(hint).toHaveText('http(s)://HOST · NO LOGIN · PORT 1–65535');
+	for (const half of await band.locator(':scope > div').all()) {
+		const cut = await half.evaluate((el) => el.scrollWidth > el.clientWidth);
+		expect(cut).toBe(false);
+	}
+	const room = await band.evaluate((el) => {
+		const css = getComputedStyle(el);
+		return {
+			inner: el.clientWidth - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight),
+			gap: parseFloat(css.columnGap)
+		};
+	});
+	const firstAtTv = await tvMonoWidth(page, '#refused > div:first-child');
+	const hintAtTv = await tvMonoWidth(page, '#refused > .meta');
+	expect(firstAtTv + room.gap + hintAtTv).toBeLessThanOrEqual(room.inner);
 
 	// The screen is still the address screen: the whole-address escape works.
 	await page.locator('#whole-toggle').click();

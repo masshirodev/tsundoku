@@ -118,12 +118,28 @@ password is refused. A bare `host:port` is not enough here, although it is on
 
 - **Refused** lands on 9B with the existing band: the field empty, the mark on
   NEXT, and the band saying the address was refused and nothing was saved.
+  Its hint, `http(s)://HOST · NO LOGIN · PORT 1–65535`, names every rule
+  `Address.intentOrigin` refuses by and no other (c307): the scheme, a host, no
+  userinfo (LOGIN is a username, a password or both, before an `@`), and a
+  port in range when one is given. A string that is not an address at all
+  fails the first two. The row does not wrap, and on a TV its monospace is
+  0.6 em a glyph (Roboto Mono and Droid Sans Mono alike), so the hint is
+  short enough to sit beside REFUSED · NOTHING WAS SAVED there; the longer
+  `http:// OR https:// WITH A HOST, NO USERNAME, PORT 1–65535` fits a desktop's
+  narrower font and cut the first line off on a TV.
 - **Answered** is remembered (`KEY_ADDRESS` in the `pairing` prefs) and opens
   the pairing at that address: the six digits on a tailnet instance (c245), or
   a friend's 9C.
 - **Not answered** shows 9D for that address and keeps trying. A previously
-  remembered address is left alone, so the next plain launch still opens the
-  library.
+  remembered address is left alone, but 9D does not give up the given one by
+  itself, and the launcher's icon does not bring the library back (c307): the
+  activity is `singleTask`, so tapping the icon while the app is open hands a
+  plain MAIN intent to `onNewIntent`, which carries no address and changes
+  nothing, and the TV stays on 9D retrying the mistyped address. **BACK** is
+  the way back: the asset takes no BACK of its own, so `Back.kt` goes to the
+  nearest earlier screen past the app's own pages, which is the library when
+  the app was open on it, and otherwise leaves the app. The next launch, with
+  no address given, probes the remembered address and opens the library.
 
 Only the attempt that is current has its answer acted on. A given address
 supersedes a probe already in flight, and that probe's answer is dropped —
@@ -137,6 +153,16 @@ question — whether it is typed on 9B or handed in at launch. The band's flag i
 cleared at all three doors into that screen (`probe`, `show`, `connect`), so a
 visible band always means the refusal is still the attempt in hand; hiding the
 screen alone does not hide the flag.
+
+The activity keeps the same rule for the one probe it makes itself, the
+remembered address's on a cold start (c306). That probe can take up to six
+seconds (`Probe.kt`'s 3 s connect and 3 s read, longer when a `.ts.net` name
+stalls with Tailscale down), and a second launch handed an address inside that
+window reaches `onNewIntent` and loads 9B at once. `Attempts.kt` numbers the
+two doors: the probe takes an attempt before it starts, `takeGiven` takes the
+next, and the probe's answer is acted on only if its attempt is still the
+latest. So the given address's 9B is not replaced by the library at the
+remembered address, nor by 9D naming an address nobody handed in.
 
 An address is compared by its **origin**, not its text. The field keeps what was
 typed — a path, a query, userinfo, a differently cased host — while
@@ -168,7 +194,10 @@ On the TV:
    computer's SETTINGS › 08 — DEVICES and WI-FI ON for a friend's install
    (whose digits only render with the switch on), and says a Tailscale install
    has no switch to press: both truths, so neither install is sent to a
-   section with no digits. START →.
+   section with no digits. The step's copy is kept short enough that the
+   steps grid ends above START (c263: a longer wording ran the grid to 413.75
+   against START's 400 at 960x540; `tv-app-pair.e2e.ts` checks the two
+   boxes). START →.
 2. **9B** — the address, written for the TV: its own network's first three
    numbers and tsundoku's port (42143 unless the friend changed `PORT`), so
    only the last number is typed. The mark starts on NEXT, never on the field:
@@ -329,24 +358,34 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
 
 ## Tests
 
-- `android/tv/app/src/test/` — `AddressTest`, `BackTest`, `IntentAddressTest`,
-  `KeysTest`, `ProbeTest`, `ScaleTest` (31 tests), run by `./gradlew test`.
+- `android/tv/app/src/test/` — `AddressTest`, `AttemptsTest`, `BackTest`,
+  `IntentAddressTest`, `KeysTest`, `ProbeTest`, `ScaleTest` (37 tests), run by
+  `./gradlew test`. `AttemptsTest` plays the activity's two launch doors in
+  order: a given address during the remembered probe keeps its 9B whether the
+  probe answers or not (c306). That `MainActivity` calls `Attempts` at both
+  doors is read, not run: a JVM test cannot drive the Activity.
   `IntentAddressTest` is the given address's parser: a tailnet name, a LAN
   address and a domain; its port kept and its path dropped; `null` for a wrong
   scheme, a missing host, userinfo, and a port of 0 or above 65535 (`null` is
   the refusal, not a rewrite to the default port) (c260).
 - `tests/pairing-tv.spec.ts` — the six digits: once, 10 minutes, five wrong
   tries burn it, the state machine's every answer; the tailnet door, the rule
-  that draws the DEVICES block only where that cookie opens, and the friend
-  branch's refusal of a paired cookie off Wi-Fi (c245).
-- `tests/tv-app-pair.e2e.ts` — 14 cases, 9A and 9B from the shipped asset file:
+  that draws the DEVICES block only where that cookie opens (never with no
+  `ORIGIN` or a loopback one, c264), and the friend branch's refusal of a
+  paired cookie off Wi-Fi (c245). `tests/settings-devices.e2e.ts` is the
+  same row on two token installs of its own, with and without a tailnet
+  `ORIGIN`, and a code a TV spends while SETTINGS is open (c264, c265;
+  `WIFI.md`).
+- `tests/tv-app-pair.e2e.ts` — 15 cases, 9A and 9B from the shipped asset file:
   the mark on NEXT rather than the field (and on TYPE THE WHOLE ADDRESS one press
   down), the number keys typing into the field from there, and the whole-address
   field that stays visible; and 9A's step 01 and 9D's second reason keeping a
   friend's WI-FI remedy beside a Tailscale install's truth (c245). A `#connect=`
   given address shows neither 9A nor 9B and names what it is checking; a `#bad=`
   shows the band on 9B, above the label and inside the frame, with the screen
-  still usable (c260). Cases stand up a stub bridge for the states only the app
+  still usable (c260), and its hint and first line whole, both in this browser
+  and at a TV's 0.6 em monospace (c307). 9A's steps grid ends above START
+  (c263). Cases stand up a stub bridge for the states only the app
   reaches: a refusal handed to a TV already on 9D stops its retry, so the band
   is still there past a 5 s tick and no probe for the old address is made; a
   typed probe still in flight when a given address arrives neither stores its
