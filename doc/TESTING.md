@@ -267,7 +267,18 @@ workstation during gates. What it assumes, and the rules that follow (c439):
   the app's state, then act as the user would, then assert.
 - **Timeouts are raised only where the step is measured to be slow** under
   load, and the comment says so (`tv-player`'s clip runs at a tenth of its
-  speed for the same reason).
+  speed for the same reason). The one raised in wave 19 is `offline-flow`'s
+  wait for the service worker to take control.
+- **The service worker is allowed everywhere it isn't in the way.** Every
+  fresh context registers it, and it precaches the whole build (about 1,400
+  files) from the shared preview. Six contexts doing only that took 10-16 s
+  each at a load average of 25, and in a whole loaded run the worker
+  `install` and `offline-flow` wait for passed 30 s. Blocking it for every
+  other spec was measured on the four device projects (4.7 minutes against
+  5.5, the same failures otherwise) and not taken: it would mean projects
+  split around two files for a sixth of the time. The specs that stub
+  requests the worker would answer block it themselves
+  (`serviceWorkers: 'block'`, as `browse-player-*` and `tv-player` do).
 - **A flow's writes are a reader's race**: see "Each flow file owns its
   series" and "The readers beside the flows" above.
 - **`duplicates` and `gate` depend on every device project**, so any red in
