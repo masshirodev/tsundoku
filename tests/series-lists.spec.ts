@@ -3,6 +3,8 @@ import {
 	entryStates,
 	foldTag,
 	listsRow,
+	listState,
+	mainList,
 	OFFLINE_NOTE,
 	seasonCellTag,
 	seasonWords,
@@ -762,5 +764,100 @@ describe('entryStates', () => {
 			{ l: 'ANILIST · SENT 12 MIN AGO', r: '', quiet: true, alert: false },
 			{ l: 'MAL AT EP. 6', r: 'NOT SIGNED IN · NOTHING SENT', quiet: true, alert: false }
 		]);
+	});
+});
+
+describe('AniList signed out, MAL signed in: MAL’s word leads (round 2)', () => {
+	const watching = { status: 'reading' as const, progress: 8, score: null };
+	const done = { status: 'completed' as const, progress: 12, score: null };
+	const anilistOut = (o: Partial<TrackFacts> = {}) => fact('anilist', { signedIn: false, ...o });
+	const malIn = (state: TrackFacts['state']) => fact('mal', { state, sentAt: NOW - MIN });
+
+	it('an anime season not being watched draws MAL’s word, and SIGN IN → is among its cells', () => {
+		const numbers = [1, 2];
+		const row = listsRow(
+			input({
+				kind: 'anime',
+				link: linked({ kind: 'anime', format: 'TV' }),
+				seasons: numbers.map((s) => seasonRow(s)),
+				tracking: tracking([], {
+					openSeason: 2,
+					seasons: numbers.map((s) => seasonTrack(s, [anilistOut(), malIn(watching)]))
+				})
+			})
+		)!;
+		const s1 = row.items.flatMap((x) =>
+			x.type === 'line' && x.line.tag === 'S1' ? [x.line] : []
+		)[0];
+		expect(s1.on).toBe(false);
+		expect(s1.states[0]).toEqual({
+			l: 'MAL · WATCHING · EP. 8 OF 12',
+			r: '',
+			quiet: false,
+			alert: false
+		});
+		expect(labels(s1.cells)).toContain('SIGN IN →');
+	});
+
+	it('on a comic MAL’s state and SENT lead, and AniList’s NOT SIGNED IN is the quiet line', () => {
+		const [l] = lines(
+			input({
+				link: linked(),
+				tracking: tracking([anilistOut(), malIn({ status: 'reading', progress: 198, score: null })])
+			})
+		);
+		expect(l.states).toEqual([
+			{ l: 'MAL · READING · CH. 198', r: 'SENT 1 MIN AGO', quiet: false, alert: false },
+			{ l: 'ANILIST', r: 'NOT SIGNED IN · NOTHING SENT', quiet: true, alert: false }
+		]);
+		expect(labels(l.cells)).toEqual(['SIGN IN →', 'EDIT']);
+	});
+
+	it('a fold and the sheet’s STATUS say MAL’s word over a stale signed-out AniList', () => {
+		const stale = anilistOut({ state: watching });
+		const facts = [stale, malIn(done)];
+		expect(mainList(facts)?.service).toBe('mal');
+		expect(listState(facts)?.status).toBe('completed');
+		const numbers = [1, 2, 3, 4];
+		const row = listsRow(
+			input({
+				kind: 'anime',
+				link: linked({ kind: 'anime', format: 'TV' }),
+				seasons: numbers.map((s) => seasonRow(s)),
+				tracking: tracking([], {
+					openSeason: 4,
+					seasons: numbers.map((s) => seasonTrack(s, facts))
+				})
+			})
+		)!;
+		expect(row.items[0]).toMatchObject({ type: 'fold', word: 'COMPLETED' });
+	});
+
+	it('AniList is main when it is signed in, and when neither is', () => {
+		expect(mainList([fact('anilist'), fact('mal')])?.service).toBe('anilist');
+		expect(mainList([anilistOut(), fact('mal', { signedIn: false })])?.service).toBe('anilist');
+		expect(mainList([fact('anilist', { linked: false }), fact('mal')])?.service).toBe('mal');
+		expect(mainList([fact('anilist', { linked: false })])).toBeNull();
+	});
+});
+
+describe('TRY AGAIN beside an expired sign-in (round 2, low)', () => {
+	it('offers both when one list’s sign-in expired and another’s send did not answer', () => {
+		const [l] = lines(
+			input({
+				link: linked(),
+				tracking: tracking([
+					fact('anilist', {
+						state: { status: 'reading', progress: 3, score: null },
+						waiting: { progress: 3, failedAt: NOW, error: 'ANILIST SIGN-IN EXPIRED' }
+					}),
+					fact('mal', {
+						state: { status: 'reading', progress: 2, score: null },
+						waiting: { progress: 3, failedAt: NOW, error: 'MAL DID NOT ANSWER' }
+					})
+				])
+			})
+		);
+		expect(labels(l.cells)).toEqual(['TRY AGAIN', 'SIGN IN →', 'EDIT']);
 	});
 });

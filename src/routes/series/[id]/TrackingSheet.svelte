@@ -9,7 +9,14 @@
 	import type { LinkState } from '$lib/server/catalogue';
 	import type { SeasonTrack, Tracking } from '$lib/server/tracking';
 	import type { RanobeSeries } from '$lib/server/ranobe-review';
-	import { formatWords, seasonCellTag, seasonWords, type SheetAt } from './lists';
+	import {
+		formatWords,
+		listState,
+		mainList,
+		seasonCellTag,
+		seasonWords,
+		type SheetAt
+	} from './lists';
 
 	/**
 	 * EDIT's sheet (Series Link 1m, redrawn by the LISTS handoff's 1E; card
@@ -164,12 +171,7 @@
 			.map((f) => SERVICE_NAME[f.service])
 			.join(' AND ')
 	);
-	const status = $derived(
-		(
-			facts.find((f) => f.service === 'anilist')?.state ??
-			facts.find((f) => f.service === 'mal')?.state
-		)?.status ?? null
-	);
+	const status = $derived(listState(facts)?.status ?? null);
 	/** "EP." on an anime's season, "CH." on a comic: the registry's unit. */
 	const unit = $derived(`${kindFacts(anime ? kind : (link?.linked?.kind ?? kind)).unit.short}.`);
 	const rows = $derived(
@@ -194,7 +196,7 @@
 						: 'NOT ON YOUR LIST',
 					b: !f.signedIn
 						? 'NOT SIGNED IN'
-						: f.service === 'anilist'
+						: f === mainList(facts)
 							? 'SIGNED IN · MAIN LIST'
 							: 'SIGNED IN',
 					href:
@@ -207,10 +209,7 @@
 	/** The season's own short word under its tab: "COMPLETED", "EP. 8 / 24", "NOT LINKED". */
 	function tabWord(t: SeasonTrack | undefined, row: SeasonRow): string {
 		if (!row.link) return 'NOT LINKED';
-		const main =
-			t?.facts.find((f) => f.service === 'anilist')?.state ??
-			t?.facts.find((f) => f.service === 'mal')?.state ??
-			null;
+		const main = t ? listState(t.facts) : null;
 		if (!main) return 'NOT LISTED';
 		const label = statusLabel(main.status ?? 'reading', true);
 		const of = t?.facts.find((f) => f.linked)?.of ?? null;

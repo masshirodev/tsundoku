@@ -178,6 +178,26 @@ const failedWhy = (f: TrackFacts) =>
 	`${f.waiting?.error ?? `${SERVICE_NAME[f.service]} DID NOT ANSWER`} · ${clock(f.waiting!.failedAt!)}`;
 
 /**
+ * The list an entry's line speaks for: the first linked list that is signed
+ * in, AniList before MAL, and AniList when neither is. A MAL-only owner with
+ * AniList linked but signed out sees MAL's word, as the base's `seasonLine`
+ * did; the signed-out list is then the quiet line that differs. The line, a
+ * fold's word and the sheet's STATUS all ask this, so they agree.
+ */
+export function mainList<F extends TrackFacts>(facts: F[]): F | null {
+	const linked = facts.filter((f) => f.linked);
+	const a = linked.find((f) => f.service === 'anilist') ?? null;
+	const m = linked.find((f) => f.service === 'mal') ?? null;
+	return [a, m].find((f) => f?.signedIn) ?? a ?? m;
+}
+
+/** The word an entry's lists say: the main list's, else the other linked list's. */
+export function listState<F extends TrackFacts>(facts: F[]): F['state'] {
+	const main = mainList(facts);
+	return main?.state ?? facts.find((f) => f.linked && f !== main && f.state)?.state ?? null;
+}
+
+/**
  * The state lines of one entry on AniList (and MAL, through it): a comic's,
  * or one season's of an anime (Q3). MAL folds into AniList's line, and gets a
  * quiet line of its own only when it differs: signed in or out where AniList
@@ -204,9 +224,10 @@ export function entryStates(
 ): StateLine[] {
 	const a = facts.find((f) => f.service === 'anilist' && f.linked) ?? null;
 	const m = facts.find((f) => f.service === 'mal' && f.linked) ?? null;
-	const main = a ?? m;
+	const main = mainList(facts);
 	if (!main) return [];
-	const other = a && m ? m : null;
+	const other = a && m ? (main === a ? m : a) : null;
+	const on = other ? SERVICE_NAME[other.service] : '';
 	const failed = (f: TrackFacts) => !!f.waiting?.failedAt;
 	const folded =
 		!!other &&
@@ -261,7 +282,7 @@ export function entryStates(
 			? folded && !o.offline && main.sentAt && !main.waiting
 				? `ANILIST AND MAL · ${sent}`
 				: sent
-			: main === m
+			: main === m && !a
 				? 'SHOWN · ANILIST HAS NOTHING'
 				: folded
 					? 'ANILIST AND MAL · ON YOUR LIST'
@@ -276,18 +297,18 @@ export function entryStates(
 		if (!other.signedIn)
 			out.push(
 				line(
-					other.state?.progress ? `MAL AT ${unit} ${other.state.progress}` : 'MAL',
+					other.state?.progress ? `${on} AT ${unit} ${other.state.progress}` : on,
 					'NOT SIGNED IN · NOTHING SENT',
 					true
 				)
 			);
 		else if (failed(other)) {
 			const p = other.waiting?.progress ?? other.state?.progress ?? 0;
-			out.push(line(`MAL · ${unit} ${p} NOT SENT`, failedWhy(other), true, true));
+			out.push(line(`${on} · ${unit} ${p} NOT SENT`, failedWhy(other), true, true));
 		} else if (!other.state)
 			out.push(
 				line(
-					'MAL · NOT ON YOUR LIST',
+					`${on} · NOT ON YOUR LIST`,
 					o.offline ? '' : other.waiting ? 'SENDING' : addedOnNext(o.kind),
 					true
 				)
@@ -296,8 +317,8 @@ export function entryStates(
 			out.push(
 				line(
 					main.state && main.state.status === other.state.status
-						? `MAL AT ${unit} ${other.state.progress}`
-						: `MAL · ${stateWords(other.state, o.kind, other.of ?? null)}`,
+						? `${on} AT ${unit} ${other.state.progress}`
+						: `${on} · ${stateWords(other.state, o.kind, other.of ?? null)}`,
 					sentWords(other, o) || 'ON YOUR LIST',
 					true
 				)
@@ -314,9 +335,11 @@ function trackCells(
 	const linked = facts.filter((f) => f.linked);
 	const failed = linked.filter((f) => f.waiting?.failedAt);
 	// A sign-in that expired is not tried again: SIGN IN → takes TRY AGAIN's place (1B, 4).
-	const expired = failed.some((f) => /SIGN-IN EXPIRED/.test(f.waiting?.error ?? ''));
+	const isExpired = (f: TrackFacts) => /SIGN-IN EXPIRED/.test(f.waiting?.error ?? '');
+	const expired = failed.some(isExpired);
 	const out: Cell[] = [];
-	if (failed.length && !expired)
+	// Another list's failure is still tried again beside an expired sign-in.
+	if (failed.some((f) => !isExpired(f)))
 		out.push({
 			key: 'retry',
 			label: 'TRY AGAIN',
@@ -736,11 +759,7 @@ function foldWord(i: ListsInput, list: number[]): { word: string; ink: boolean }
 		.filter((s): s is SeasonTrack => !!s);
 	if (tracks.some((s) => s.facts.some((f) => f.waiting?.failedAt)))
 		return { word: 'A SEND FAILED', ink: true };
-	const word = (s: SeasonTrack) =>
-		(
-			s.facts.find((f) => f.service === 'anilist' && f.state) ??
-			s.facts.find((f) => f.service === 'mal' && f.state)
-		)?.state?.status ?? null;
+	const word = (s: SeasonTrack) => listState(s.facts)?.status ?? null;
 	if (tracks.length === rows.length && tracks.every((s) => word(s) === 'completed'))
 		return { word: 'COMPLETED', ink: false };
 	return { word: 'LINKED', ink: false };
