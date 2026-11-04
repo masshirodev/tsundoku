@@ -292,11 +292,21 @@
 			}
 			return null;
 		}
+		// The caret snaps to the nearest text where a point has none, so on a
+		// page that is the band alone it named a character pages back (found
+		// with c441): only a character on this page counts.
+		const here = (p: TextPosition | null) => {
+			const r = p && flowEl ? rectOf(flowEl, p) : null;
+			if (!r) return false;
+			const cx = r.left + r.width / 2;
+			const cy = r.top + r.height / 2;
+			return cx >= box.left && cx <= box.right && cy >= box.top && cy <= box.bottom;
+		};
 		if (vertical) {
 			for (let x = box.right - 4; x > box.left; x -= 12)
 				for (const y of [box.top + 6, box.top + f.fontSize * 2]) {
 					const p = positionAt(x, y);
-					if (p) return p;
+					if (here(p)) return p;
 				}
 			return null;
 		}
@@ -304,7 +314,7 @@
 		for (let y = box.top + 4; y < box.bottom; y += 12)
 			for (const x of [box.left + 4, box.left + colW / 2]) {
 				const p = positionAt(x, y);
-				if (p) return p;
+				if (here(p)) return p;
 			}
 		return null;
 	}
@@ -409,7 +419,15 @@
 			// chapter's first character, and the next relayout (a font arriving)
 			// took the reader back from the last page (found with c441).
 			await tick();
-			pos = positionOnPage() ?? pos;
+			// A last page that is the band alone has no character to read: the
+			// chapter's last one stands for it, so a relayout keeps the reader at
+			// the end rather than taking it back to the start (c441).
+			const last = ch.blocks.length - 1;
+			pos =
+				positionOnPage() ??
+				(last >= 0
+					? { block: last, offset: Math.max(0, (ch.blocks[last].textContent ?? '').length - 1) }
+					: pos);
 		}
 		clock.resume(Date.now());
 		void send('open');

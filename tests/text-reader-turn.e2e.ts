@@ -193,11 +193,13 @@ test("across a chapter's end the next chapter's first page slides in, and back i
 	await expect.poll(async () => (await flow(page)).at).toBe(lastAt);
 	await landed(page);
 	expect(await slides()).toBe(2);
-	// And it stays on the last page when the chapter is laid out again, as an
-	// illustration arriving late lays it out (the reader listens for `load`).
+	// And it stays at the chapter's end when the chapter is laid out again, as
+	// an illustration arriving late lays it out (the reader listens for
+	// `load`): on the last page, or, where that page is the band alone and
+	// has no character to keep, the last page of text before it.
 	await page.evaluate(() => window.dispatchEvent(new Event('load')));
 	await page.waitForTimeout(500);
-	expect((await flow(page)).at).toBe(lastAt);
+	expect([lastAt, lastAt + first.step]).toContain((await flow(page)).at);
 });
 
 test('with reduced motion a turn is instant and a drag does not move the page (c441)', async ({
