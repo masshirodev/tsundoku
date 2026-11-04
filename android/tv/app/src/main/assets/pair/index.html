@@ -363,10 +363,7 @@
 				<div class="safe steps">
 					<div>
 						<div class="lab">01 — ON THE COMPUTER</div>
-						<b
-							>SETTINGS › 08 — DEVICES, then WI-FI ON (a Tailscale install: no switch, the digits
-							are there)</b
-						>
+						<b>SETTINGS › 08 — DEVICES, then WI-FI ON (a Tailscale install has no switch)</b>
 					</div>
 					<div>
 						<div class="lab">02 — PAIR A TV</div>
@@ -390,7 +387,12 @@
 				     (c246's rhythm), so it never covers the label. -->
 				<div class="band" id="refused" role="status" hidden>
 					<div>○ THAT ADDRESS WAS REFUSED · NOTHING WAS SAVED</div>
-					<div class="meta">ONLY http:// OR https:// WITH A HOST</div>
+					<!-- Every rule Address.intentOrigin refuses by, and no other
+					     (c307): LOGIN is userinfo, a username, a password or both.
+					     The row does not wrap, and a TV's monospace is 0.6 em a
+					     glyph, wider than a desktop's: tv-app-pair.e2e.ts checks
+					     that this fits beside the first line at that width. -->
+					<div class="meta">http(s)://HOST · NO LOGIN · PORT 1–65535</div>
 				</div>
 				<div class="safe address-label lab">
 					<div>01 — THE COMPUTER'S ADDRESS · ON ITS SCREEN, UNDER THE CODE</div>
