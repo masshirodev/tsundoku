@@ -117,6 +117,15 @@ read. A book's own LANGUAGE row overrides this, and the row counts how many
 books do. Changing it refreshes the folded books' covers. The header counts
 the folded books. Counts follow reveal.
 
+**IMPORT A BACKUP** (c438, [`IMPORT.md`](IMPORT.md)) is the door for a later
+import: _Mihon, Aniyomi or LNReader_, when the last one came in
+(`LAST: MIHON BACKUP · 2 NOV · 382 SERIES`, or `NO IMPORT YET`), CHOOSE A
+FILE → to `/import`, and IMPORT LOG → in the scope cell. Its meta line says a
+second backup of the same app adds and updates and removes nothing. The count
+follows reveal. On a TV the row says _From the computer or a phone_ and has no
+button and nothing to focus: the TV never imports. It is a catalogue row of
+type `account` (`src/lib/settings/catalog.ts`), drawn by the page itself.
+
 ## 06 — Catalogues
 
 The AniList and MAL sign-ins, and Ranobe's row, as before

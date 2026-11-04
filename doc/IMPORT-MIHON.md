@@ -69,6 +69,12 @@ them. Deleting one of those series still trashes its files, as any delete does
 
 ## Running it
 
+- **IMPORT A BACKUP** (`/import`, c438; [`IMPORT.md`](IMPORT.md)) takes a
+  backup from the browser, on the computer or a phone, with no folder to find:
+  it is uploaded into the data folder's import area, previewed, and on IMPORT
+  run as a job of its own through this importer's plan (`planMihon`) and the
+  same writer, into the same `Mihon` root. A second backup merges by the
+  rescan rule below.
 - **START SCAN** on the empty library, then **RESCAN** in the desktop sidebar or
   **`/scan`** typed in search (the way on a tablet or phone), starts it on the server in the background. The library's IMPORTING band follows the
   job (`scan_jobs`), re-reading it every two seconds. The FINISHED band and the
