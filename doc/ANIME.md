@@ -783,7 +783,11 @@ THE SAME WAY SINCE 1 NOV` — and the cell opens MOVE ([`MOVE.md`](MOVE.md)).
   answering is SOURCES NOT ANSWERING, without naming the engine.
 - **The next episode** offers itself from the ending's start (or 30 s before
   the end): a card, STAY or PLAY NOW →. At the end, the NEXT page counts 5 s
-  and plays it; STAY stops it. The last episode ends on END · LAST AVAILABLE.
+  and plays it; STAY stops it. The last episode ends on END · LAST AVAILABLE,
+  and in a Work the next part's card takes the next-episode card's place: from
+  the same moment, NEXT IN THE WORK with the next part, ▶ and WORK, never a
+  countdown and never an autoplay into another series; the END · LAST
+  AVAILABLE page gains the same card (doc/WORKS.md, "The end page", W6).
 - **Portrait** (a phone or tablet held upright) puts the picture on top, the
   controls always shown beneath it, and UP NEXT below; FULL goes full screen
   and turns it where the browser allows. **The scrubber under the picture
@@ -1046,7 +1050,8 @@ the fixture clip). The scratch library was deleted afterwards.
   and track, with no design round (the card's call: one control in place).
 - **The last episode's end is END · LAST AVAILABLE**, not the reader's
   end-of-series page with RATING: the series screen has the rating, and the
-  player has no rating anywhere else.
+  player has no rating anywhere else. In a Work it gains the next part's card
+  (NEXT IN THE WORK, ▶ and WORK; doc/WORKS.md, W6), still with no rating.
 - **No year in the folder name**: Jellyfin's `<Series> (<year>)` wants a year
   Aniyomi never gives.
 - **The episode lane's band says a percentage**, not "156 / 410 MB · 6.1 MB/S":
