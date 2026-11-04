@@ -270,6 +270,14 @@ also marks the episode watched the moment it is pressed, rather than waiting
 for the seek's next timeupdate (the owner's call, 2026-11-01). Without an
 ending, the last 3 % still counts (`isWatchedAt`).
 
+**Marked watched sends.** An episode's watched mark (the ending's start,
+SKIP ENDING, the last 3 % without an ending, or the end of the video) is a
+chapter finished as far as tracking is concerned: the player sends `finish`,
+and the server queues that **season's** highest watched episode, counted
+within its part, for AniList and MAL, and the work's unit for Ranobe
+(doc/TRACKING.md, "Sending"; doc/RANOBE.md, "Anime"). A recap and a half
+number are never sent. Incognito records nothing, so nothing is sent.
+
 **Storage.** Rung 59, `episode_marks`: one row per episode and finder
 (`source`, `aniskip`, `fingerprint`), with the opening and ending it found and
 when it was tried. **A negative answer is a row too**, so an episode is not
@@ -590,7 +598,9 @@ screen but the video, and the subtitles, until a tap.
   Esc (full screen, then the player), ? (the KEYS sheet). A remote's media
   keys work on every device (c235): ▶❚❚ plays or pauses, ⏩ ⏪ seek 10 s,
   ⏭ the next episode and ⏮ the previous one — harmless where nothing sends
-  them, and the only player keys a remote has ([`TV.md`](TV.md)).
+  them, and the only player keys a remote has ([`TV.md`](TV.md)). On a TV,
+  SKIP INTRO, SKIP ENDING and the next-episode card's PLAY NOW → take focus
+  when they are offered, so OK presses them (c296).
 - **The settings sheet**, the middle cell ("JA · EN SUBS · 1080P · 1×"): a
   520px side sheet with the picture playing beside it. QUALITY (this
   server's), SERVER (the hosters by name, the one playing and the ones that
@@ -725,11 +735,15 @@ screen but the video, and the subtitles, until a tap.
   alone for 8 s, then with the controls. SKIP ENDING marks the episode
   watched as it is pressed.
 - **On a TV** (c235; [`TV.md`](TV.md)) the controls are a D-pad row: the
-  picture until a key, then focus on ▶❚❚ and all six cells on one line —
+  picture until a key, then, when no offer is up, focus on ▶❚❚ and all six
+  cells on one line —
   ▶❚❚, −10, +10, ← EP. n, the cell naming the stream (which opens the
   settings), EP. n+1 → — under a 60px scrubber, inside the 28px safe margin.
-  OK on the picture brings the bar and that focus; BACK hides it, then leaves
-  for the series. SKIP INTRO, where offered, shows alone and OK takes it. The
+  With no offer up, OK on the picture brings the bar and that focus; BACK
+  hides it, then leaves for the series. SKIP INTRO (or SKIP ENDING), where
+  offered, shows alone and takes focus itself, as the next-episode card's PLAY
+  NOW → does: OK presses the focused button, ↑ is a no-op while the bar is
+  down, and ↓ brings the bar with focus on the seek bar (c296). The
   settings sheet is the 420px panel from the right that every sheet is there,
   with the picture playing at the left, and it keeps its focus when a server
   fails over and the rows redraw under it. Nothing changes off a TV: the
@@ -1051,7 +1065,9 @@ spans a restart fails and is tried again. **No lengths or FILLER/RECAP from
 the source yet**: the engine's episode list carries neither (`JEpisode` is
 url, name, date, number, scanlator, and its picture since c225). A length
 comes from the stream (c155) or the file (c157); a picture, where the source
-gives none, from a frame ("Episode pictures"). **AniSkip knows one
-season of a show**: an anime links each season to its own AniList/MAL entry
-(c240, doc/TRACKING.md), but AniSkip is asked about season 1's (or a flat
-list's) only ("AniSkip", Seasons).
+gives none, from a frame ("Episode pictures"). **A link is one season's**
+(c240, doc/LINKS.md, doc/TRACKING.md): an anime links each season to its own
+AniList/MAL entry, and AniSkip asks about an episode under its own season's
+entry (c349); a season with no link of its own is not looked up ("AniSkip",
+Seasons). **AniSkip answers stored before c349** under the first-season
+mirror stay until a rung forgets them.
