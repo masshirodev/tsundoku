@@ -17,6 +17,7 @@ import {
 	workFoot,
 	workHeld,
 	workPartMeta,
+	nextPartWords,
 	kindVerb,
 	runStatus,
 	workKinds,
@@ -27,6 +28,7 @@ import {
 	type WorkPart
 } from '$lib/library/works';
 import { groupAnswers } from '$lib/library/books';
+import { KINDS } from '$lib/library/kinds';
 
 /** A part with sane defaults; each test overrides only what it argues about. */
 function part(patch: Partial<WorkPart> & { seriesId: number; position: number }): WorkPart {
@@ -354,6 +356,28 @@ describe('the next part, at the end of one', () => {
 		expect(workPartMeta({ kind: 'manga', entries: 10, downloaded: 4 }, 'rtl')).toBe(
 			'MANGA · 10 CHAPTERS · 4 OF 10 DOWNLOADED · R→L'
 		);
+	});
+
+	it('the end page’s next part speaks its own kind, for every kind there is (c343)', () => {
+		// The whole registry, not a pick: a sixth kind lands here with its own words.
+		const all = Object.fromEntries(
+			KINDS.map((k) => {
+				const w = nextPartWords(k);
+				return [k, [w.online('Fake Source'), w.streamed, w.downloadFirst]];
+			})
+		);
+		expect(all).toEqual({
+			manga: ['READS ONLINE FROM FAKE SOURCE', 'STREAMED PAGES', 'DOWNLOAD FIRST 10 CHAPTERS'],
+			manhwa: ['READS ONLINE FROM FAKE SOURCE', 'STREAMED PAGES', 'DOWNLOAD FIRST 10 CHAPTERS'],
+			doujin: ['READS ONLINE FROM FAKE SOURCE', 'STREAMED PAGES', 'DOWNLOAD FIRST 10 CHAPTERS'],
+			novel: ['READS ONLINE FROM FAKE SOURCE', 'STREAMED TEXT', 'DOWNLOAD FIRST 10 VOLUMES'],
+			anime: ['STREAMS FROM FAKE SOURCE', 'STREAMED VIDEO', 'DOWNLOAD FIRST 10 EPISODES']
+		});
+		// Every word agrees with the part's own line under its title (workPartMeta).
+		for (const k of KINDS)
+			expect(workPartMeta({ kind: k, entries: 10, downloaded: 0 }, 'rtl')).toContain(
+				nextPartWords(k).downloadFirst.replace('DOWNLOAD FIRST ', '')
+			);
 	});
 });
 

@@ -8,6 +8,7 @@
  */
 
 import { sharedStart, titleWords } from './books.ts';
+import { kindFacts } from './kinds.ts';
 import { count, kindLabel, unitLabel } from './labels.ts';
 import type { Direction } from './series.ts';
 import { ago } from './tracking.ts';
@@ -477,13 +478,17 @@ export function directionWord(direction: Direction): string {
  * It comes from `unitLabel`, the accent's own word, so one part never says two:
  * a novel's part reads "NOVEL · 12 VOLUMES" above "▶ READ · VOL. 1".
  */
-const PLURAL_UNIT: Record<string, string> = { EP: 'EPISODES', VOL: 'VOLUMES', CH: 'CHAPTERS' };
+const PLURAL_UNIT: Record<ReturnType<typeof unitLabel>, string> = {
+	EP: 'EPISODES',
+	VOL: 'VOLUMES',
+	CH: 'CHAPTERS'
+};
 
 export function workPartMeta(
 	p: { kind: Kind; entries: number; downloaded: number },
 	direction: Direction
 ): string {
-	const unit = PLURAL_UNIT[unitLabel(p.kind)] ?? 'CHAPTERS';
+	const unit = PLURAL_UNIT[unitLabel(p.kind)];
 	const downloaded =
 		p.entries > 0 && p.downloaded >= p.entries
 			? 'ALL DOWNLOADED'
@@ -491,6 +496,40 @@ export function workPartMeta(
 				? `${count(p.downloaded)} OF ${count(p.entries)} DOWNLOADED`
 				: 'NOT DOWNLOADED';
 	return `${kindLabel(p.kind)} · ${count(p.entries)} ${unit} · ${downloaded} · ${directionWord(direction)}`;
+}
+
+/** The words beside the end page's next part that depend on what it is (c343). */
+export type NextPartWords = {
+	/** After `○ NOT DOWNLOADED · `: how it plays from its source. */
+	online: (source: string) => string;
+	/** Under `▶ READ ONLINE` / `▶ WATCH ONLINE`: what arrives over the network. */
+	streamed: string;
+	/** The cell that queues the next part's first ten entries (`?/download`, `which=next`). */
+	downloadFirst: string;
+};
+
+/**
+ * The end page's next part speaks in its own kind's words, as its verb and
+ * unit already do (c343): an anime next part STREAMS and offers its first ten
+ * EPISODES, never STREAMED PAGES. Asked of the registry's medium and unit, not
+ * of a kind's name (doc/KINDS.md). A manga's words are the design's own
+ * (Work-EndStates 2), with the unit added to DOWNLOAD FIRST 10 so every kind
+ * says what ten of.
+ */
+const STREAMED: Record<ReturnType<typeof kindFacts>['medium'], string> = {
+	pages: 'STREAMED PAGES',
+	text: 'STREAMED TEXT',
+	video: 'STREAMED VIDEO'
+};
+
+export function nextPartWords(kind: Kind): NextPartWords {
+	const medium = kindFacts(kind).medium;
+	const plays = medium === 'video' ? 'STREAMS' : 'READS ONLINE';
+	return {
+		online: (source) => `${plays} FROM ${source.toUpperCase()}`,
+		streamed: STREAMED[medium],
+		downloadFirst: `DOWNLOAD FIRST 10 ${PLURAL_UNIT[unitLabel(kind)]}`
+	};
 }
 
 /**

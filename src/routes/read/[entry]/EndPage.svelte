@@ -4,7 +4,7 @@
 	import Cover from '$lib/components/content/Cover.svelte';
 	import { coverSrc, readHref } from '$lib/library/links';
 	import { count, unitLabel } from '$lib/library/labels';
-	import { kindVerb, workPartMeta, type WorkEnd } from '$lib/library/works';
+	import { kindVerb, nextPartWords, workPartMeta, type WorkEnd } from '$lib/library/works';
 	import type { Kind } from '$lib/library/types';
 	import { offline } from '$lib/offline.svelte';
 	import type { Mode } from '$lib/reader/reader';
@@ -137,6 +137,8 @@
 	const onlineOnly = $derived(!!first && !first.available && first.online && offline.online);
 	const unreadable = $derived(!!first && !first.available && !first.online);
 	const nextVerb = $derived(work?.next ? kindVerb(work.next.kind) : 'READ');
+	/** The words beside the verb that follow the next part's kind too (c343). */
+	const nextWords = $derived(work?.next ? nextPartWords(work.next.kind) : null);
 	/** Where START goes: the next part's first chapter, or its screen when there is none. */
 	const startHref = $derived(
 		first
@@ -159,7 +161,7 @@
 		offlineState
 			? '○ OFFLINE · NOT CACHED'
 			: onlineOnly
-				? `○ NOT DOWNLOADED · READS ONLINE FROM ${(work?.next?.source ?? '').toUpperCase()}`
+				? `○ NOT DOWNLOADED · ${nextWords?.online(work?.next?.source ?? '') ?? ''}`
 				: unreadable
 					? '○ NOT DOWNLOADED'
 					: downloads
@@ -170,7 +172,7 @@
 			: unreadable
 				? 'NOT DOWNLOADED'
 				: onlineOnly
-					? 'READ ONLINE →'
+					? `${nextVerb} ONLINE →`
 					: 'START →'
 	);
 	const meanwhileSub = $derived(
@@ -282,7 +284,7 @@
 								<div class="sub"><span class="ink">○ OFFLINE</span> · NOT CACHED</div>
 							{:else if onlineOnly}
 								<div class="sub">
-									<span class="ink">○ NOT DOWNLOADED</span> · READS ONLINE FROM {work.next.source.toUpperCase()}
+									<span class="ink">○ NOT DOWNLOADED</span> · {nextWords?.online(work.next.source)}
 								</div>
 							{:else if unreadable}
 								<div class="sub"><span class="ink">○ NOT DOWNLOADED</span></div>
@@ -303,14 +305,14 @@
 									>▶ {nextVerb}{onlineOnly ? ' ONLINE' : ''} · {partUnit(work.next.kind)}. {first?.number ??
 										1}<span class="m"
 										>{onlineOnly
-											? 'STREAMED PAGES'
+											? nextWords?.streamed
 											: `IT OPENS AT ${partUnit(work.next.kind)}. ${first?.number ?? 1}`}</span
 									></a
 								>
 							{/if}
 							{#if unreadable || onlineOnly}
 								<button type="button" class="dl" disabled={queued} onclick={downloadFirst}
-									>{queued ? 'QUEUED ✓' : 'DOWNLOAD FIRST 10'}</button
+									>{queued ? 'QUEUED ✓' : nextWords?.downloadFirst}</button
 								>
 							{/if}
 							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved by the page -->
