@@ -196,7 +196,7 @@ again or paste a link.
   anime linked or settled a season at a time is decided by its seasons alone
   (c240): it is searched, queued for the review and offered to the list's
   auto-link while **any one** season has neither a link nor a decision, and
-  its `series_links` row (the AniSkip mirror of season 1) does not end that.
+  its `series_links` row (the mirror of season 1) does not end that.
   An anime with no season rows -- linked or settled before rung 62, or never
   acted on -- is read by `series_links` and `link_decisions`, as a comic is.
   One rule at every door: the pass (`searchable`), the review and its count
@@ -389,10 +389,10 @@ anime's LINK row is a line a season (c240; above).
   `series_links` keeps meaning what it meant for a manga or a novel, and an
   anime's row there is a **mirror of its first season, written only while that
   season is linked** (season 1, or a flat list). With only a later season
-  linked there is no row at all: the one reader that asks a series for a
-  single MAL entry (AniSkip) numbers an episode within its entry and refuses a
-  later season, so an empty row is its honest "not looked up". Tracking never
-  reads it for an anime. A link an anime had before rung 62 is read as its
+  linked there is no row at all. Neither tracking, AniSkip (an episode is
+  asked under its own season's entry, c349) nor `tvshow.nfo` (the show's ids
+  from its season rows, c381) reads it for an anime; the importer's
+  keep-test still does (c382), so it stays. A link an anime had before rung 62 is read as its
   first season's; nothing was migrated, since no anime was linked then.
 - **A season's FIND** opens the review with `?series=N&season=S`: the search
   is that season's own title (`Sword Art Online Season 3`, the source's

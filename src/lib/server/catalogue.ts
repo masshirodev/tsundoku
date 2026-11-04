@@ -687,8 +687,8 @@ const LINKABLE = `s.kind IN ('manga', 'manhwa', 'novel', 'anime') AND s.source !
  * A series with season rows (an anime linked or settled a season at a time,
  * rung 62) is decided by those rows alone: it wants a look while one of its
  * seasons has neither a link nor a decision. The series-level `series_links`
- * row is not asked, because for such an anime it is only the AniSkip mirror
- * of its first season (`syncSeriesLink`), written the moment season 1 is
+ * row is not asked, because for such an anime it is only the mirror of its
+ * first season (`syncSeriesLink`), written the moment season 1 is
  * linked, and would end the look while season 2 is still open. Computed from
  * the rows rather than cached on the series, so a season the source adds
  * later puts the series back by itself.

@@ -82,9 +82,11 @@ sent to after the read began keeps what the send made of it.
 the series, the season and the part, keeps each season's own entry's status,
 episode and score. Reading the list fills them from the season links'
 ids, exactly as `series_links` is filled for a comic. An anime's own
-`series_links` row, where it has season links, is only its first season's
-AniSkip mirror and is not read as the series' entry: that season's row
-already says what the list has (wave 17). An anime linked before rung 62,
+`series_links` row, where it has season links, is only a mirror of its
+first season (`syncSeriesLink`) and is not read as the series' entry: that
+season's row already says what the list has (wave 17). Neither AniSkip nor
+Jellyfin's `tvshow.nfo` reads it any more: each reads the season rows
+(c349, c381; doc/ANIME.md). An anime linked before rung 62,
 with no season rows, keeps its one `series_links` link and its
 `tracker_state` row, as it had.
 

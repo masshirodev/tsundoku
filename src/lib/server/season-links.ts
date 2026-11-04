@@ -21,6 +21,7 @@ import {
 } from '../library/catalogue.ts';
 import {
 	openSeason,
+	partOf,
 	partsOf,
 	seasonSearchTitle,
 	seasonsOf,
@@ -411,6 +412,74 @@ export function seriesSeasons(seriesId: number): SeriesSeasons | null {
 	};
 }
 
+/**
+ * The catalogue entry an anime's episode is in, and its number there: what
+ * AniSkip is keyed by (c349). An episode is its season's, so it is read from
+ * that season's own row (`series_season_links`) -- part 2 of a season split
+ * in two from part 2's, numbered from 1 within it (the season's EP. 13 is
+ * part 2's EP. 1) -- and never from another season's, so season 2's EP. 3 is
+ * season 2's entry and season 1's EP. 3 season 1's. A season with no row of
+ * its own has no entry, even when the series' first-season mirror
+ * (`series_links`, `syncSeriesLink`) names one.
+ *
+ * Only a series with no season rows at all, linked before rung 62, reads
+ * `series_links`: its one link is its first season's or its flat list's
+ * (`legacyLink`), so an episode of season 0 or 1 is that entry's and a later
+ * season's is nobody's. Null for no entry, or an episode its parts don't
+ * number.
+ */
+export function episodeEntry(
+	seriesId: number,
+	season: number | null,
+	number: number
+): {
+	anilistId: number | null;
+	malId: number | null;
+	format: string | null;
+	number: number;
+} | null {
+	const s = season ?? 0;
+	if (!seasonLinks(seriesId).length) {
+		const old = s <= 1 ? legacyLink(seriesId) : null;
+		return old ? { anilistId: old.anilistId, malId: old.malId, format: old.format, number } : null;
+	}
+	const sv = seriesSeasons(seriesId)?.seasons.find((x) => x.season === s);
+	if (!sv) return null;
+	// One part is the whole season, however its episodes are numbered.
+	const at =
+		sv.parts.length > 1 ? partOf(sv.parts, number) : { part: sv.parts[0]?.part ?? 1, number };
+	const l = at ? sv.parts.find((p) => p.part === at.part)?.link : null;
+	return at && l
+		? { anilistId: l.anilistId, malId: l.malId, format: l.format, number: at.number }
+		: null;
+}
+
+/**
+ * The show's own ids, for what names the whole show to another service
+ * (Jellyfin's `tvshow.nfo`; c381): season 1's link, else the earliest season
+ * linked, part 1 first, among links to an anime's own kind of entry (c395,
+ * `ownEntry`'s rule, which the caller passes in). Read from the season rows,
+ * so a show with only season 2 linked still has ids; `series_links` answers
+ * only for a series linked before rung 62, with no season rows (the mirror
+ * would be a copy of a season row, or nothing).
+ */
+export function showEntry(
+	seriesId: number,
+	own: (format: string | null) => boolean
+): { anilistId: number | null; malId: number | null } | null {
+	const rows = seasonLinks(seriesId).filter((l) => own(l.format));
+	if (!rows.length) {
+		if (seasonLinks(seriesId).length) return null;
+		const old = legacyLink(seriesId);
+		return old && own(old.format) ? { anilistId: old.anilistId, malId: old.malId } : null;
+	}
+	const order = (n: number) => (n === 1 ? -1 : n);
+	const l = rows.reduce((a, b) =>
+		order(b.season) < order(a.season) || (b.season === a.season && b.part < a.part) ? b : a
+	);
+	return { anilistId: l.anilistId, malId: l.malId };
+}
+
 // ---- writing -------------------------------------------------------------------------------
 
 /**
@@ -469,24 +538,19 @@ export function linkSeason(
 }
 
 /**
- * Keep the series' own `series_links` row in step with its seasons, for the
- * one reader that asks a series for a single entry: AniSkip numbers an
- * episode within its MAL entry, and gets the id from `series_links` (c299,
- * `src/lib/server/anime/marks.ts`). The row is the **first** season linked,
- * which is the entry AniSkip could already reach before rung 62 -- season 1,
- * or a flat list -- so no episode is asked about under a later season's entry
- * (doc/ANIME.md, "Seasons"; doc/handoff-notes/tracking.md, "Gaps"). Tracking
- * never reads it for an anime: it reads the season rows. No season left, the
- * mirror goes.
+ * Keep the series' own `series_links` row in step with its seasons: a mirror
+ * of the **first** season linked -- season 1, or a flat list -- for the
+ * readers that still ask a series for one row (the importer's keep-test,
+ * c382; doc/handoff-notes/links.md, "Gaps"). AniSkip (`episodeEntry`, c349),
+ * Jellyfin's `tvshow.nfo` (`showEntry`, c381) and tracking read the season
+ * rows instead. No first season, no row; no season left, the mirror goes.
  */
 export function syncSeriesLink(seriesId: number, now = Date.now()): void {
 	const db = getDb();
 	const links = seasonLinks(seriesId).filter((l) => l.part === 1);
 	const l = links.reduce((a, b) => (b.season < a.season ? b : a), links[0]);
-	// Only the series' first season can be the single entry AniSkip is asked
-	// about: it numbers an episode within its entry and refuses a season past
-	// the first, so a later season's MAL id would make every season 1 episode
-	// a wrong answer (c240, doc/ANIME.md, "Seasons"). No first season, no row.
+	// Only the series' first season stands for the series: a later season's
+	// entry is not the show's (c240). No first season, no row.
 	if (!l || l.season > 1) {
 		db.prepare(`DELETE FROM series_links WHERE series_id = ?`).run(seriesId);
 		return;

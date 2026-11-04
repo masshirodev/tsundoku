@@ -7,6 +7,7 @@ import { coverDir } from '../covers.ts';
 import { getSetting } from '../settings.ts';
 import { loopback } from './loopback.ts';
 import { ownEntry } from './marks.ts';
+import { showEntry } from '../season-links.ts';
 import type { Kind } from '../../library/kinds.ts';
 import { wantPictures } from './pictures.ts';
 import { keptOf } from '../../settings/catalog.ts';
@@ -179,15 +180,12 @@ async function writeSeriesFiles(db: Database.Database, s: SeriesRow, dir: string
 	// Jellyfin's metadata plugins look a show up by these ids, so only a link
 	// to the show's own kind of entry gives them (c395, `ownEntry`): a manga's
 	// AniList or MAL id would fetch another work's metadata, or another show's.
-	const row = db
-		.prepare(
-			`SELECT l.anilist_id, l.mal_id, l.format, s.kind FROM series_links l
-			JOIN series s ON s.id = l.series_id WHERE l.series_id = ? LIMIT 1`
-		)
-		.get(s.id) as
-		| { anilist_id: number | null; mal_id: number | null; format: string | null; kind: Kind }
-		| undefined;
-	const link = row && ownEntry(row.kind, row.format) ? row : undefined;
+	// They are the show's: season 1's link, else the earliest season linked,
+	// read from the season rows (c381), so a show with only season 2 linked
+	// has them too. The first-season mirror, `series_links`, is not read.
+	const kind = (db.prepare(`SELECT kind FROM series WHERE id = ?`).get(s.id) as { kind: Kind })
+		.kind;
+	const link = showEntry(s.id, (format) => ownEntry(kind, format));
 	writeFileSync(
 		join(dir, 'tvshow.nfo'),
 		tvshowNfo({
@@ -197,8 +195,8 @@ async function writeSeriesFiles(db: Database.Database, s: SeriesRow, dir: string
 			status: s.status,
 			genres,
 			source: s.source,
-			anilist: link?.anilist_id ?? null,
-			mal: link?.mal_id ?? null
+			anilist: link?.anilistId ?? null,
+			mal: link?.malId ?? null
 		})
 	);
 	const poster = join(dir, 'poster.jpg');

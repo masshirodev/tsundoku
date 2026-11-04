@@ -207,9 +207,6 @@ export type EpisodeForLookup = {
 	season: number | null;
 	duration_s: number | null;
 	hidden: number;
-	mal_id: number | null;
-	/** The linked entry's AniList format; null or '' when the link doesn't know it. */
-	format: string | null;
 };
 
 /**
@@ -226,10 +223,14 @@ export const ownEntry = (kind: Kind, format: string | null): boolean =>
 	sameKind(kind, candidateKind({ format: format ?? '', country: '' }));
 
 /**
- * An episode and the facts a lookup needs: its number, its length, whether
- * its series is hidden, and the MAL entry its series is linked to with that
- * entry's format. Null for anything that isn't an anime episode. The join is
- * the one rule: a hidden series is never looked up, whatever reveal is doing.
+ * An episode and the facts a lookup needs: its number, its season, its
+ * length and whether its series is hidden. Null for anything that isn't an
+ * anime episode. The join is the one rule: a hidden series is never looked
+ * up, whatever reveal is doing.
+ *
+ * Not the MAL entry: that is the episode's own season's (`episodeEntry` in
+ * season-links.ts, c349). This row once joined `series_links`, the first
+ * season's mirror, which kept AniSkip from every season past the first.
  */
 export function lookupRow(
 	entryId: number,
@@ -239,9 +240,8 @@ export function lookupRow(
 		(db
 			.prepare(
 				`SELECT e.id AS entry_id, e.series_id, s.kind, e.episode_number, e.position, e.season,
-					e.duration_s, ${HIDDEN_SQL} AS hidden, l.mal_id, l.format
+					e.duration_s, ${HIDDEN_SQL} AS hidden
 				FROM entries e JOIN series s ON s.id = e.series_id JOIN roots r ON r.id = s.root_id
-				LEFT JOIN series_links l ON l.series_id = s.id
 				WHERE e.id = ? AND s.kind = 'anime'`
 			)
 			.get(entryId) as EpisodeForLookup | undefined) ?? null
