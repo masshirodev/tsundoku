@@ -32,17 +32,52 @@ async function command(page: Page, text: string) {
 	await page.keyboard.press('Enter');
 }
 
+/**
+ * A plain POST of a command to /search, from the preview's own origin: the
+ * project's `baseURL`, which follows PLAYWRIGHT_PORT. A fixed
+ * `http://localhost:4183` here was refused by SvelteKit's CSRF check (403) on
+ * any other port before the gate was ever asked, so "refused" passed with no
+ * gate at all (c476). A POST that doesn't ask for a document gets the action's
+ * own result as JSON: the redirect to the library, either way, and the reveal
+ * cookie only when the command ran.
+ */
+async function plainPost(page: Page, q: string) {
+	const origin = new URL(test.info().project.use.baseURL!).origin;
+	const res = await page.request.post('/search', { headers: { origin }, form: { q } });
+	return {
+		status: res.status(),
+		result: await res.json().catch(() => res.text()),
+		reveals: res
+			.headersArray()
+			.some((h) => h.name.toLowerCase() === 'set-cookie' && /^tsundoku_reveal=1;/.test(h.value))
+	};
+}
+
+/** The action's answer to a command: back to the library (src/routes/search/+page.server.ts). */
+const toLibrary = { type: 'redirect', status: 303, location: '/' };
+
 test('lock, reveal with the fingerprint, refuse without it, and unlock', async ({ page }) => {
 	const { cdp, id } = await authenticator(page);
 
-	// No gate yet: /reveal is the plain command, and /lock enrols this device.
+	// No gate yet: a plain POST of /reveal reaches the action and reveals, so
+	// the same POST below is refused by the gate, not before it.
+	expect(await plainPost(page, '/reveal')).toEqual({
+		status: 200,
+		result: toLibrary,
+		reveals: true
+	});
+	await plainPost(page, '/hide');
+
+	// /lock enrols this device.
 	await command(page, '/lock');
 	await expect(page.getByText('LOCKED · /reveal NOW ASKS THIS DEVICE')).toBeVisible();
 
-	// A plain POST of /reveal no longer reveals anything.
-	await page.request.post('/search', {
-		headers: { origin: 'http://localhost:4183' },
-		form: { q: '/reveal' }
+	// A plain POST of /reveal no longer reveals anything: the action answers as
+	// before, and sets no reveal cookie (runCommand, src/lib/server/prefs.ts).
+	expect(await plainPost(page, '/reveal')).toEqual({
+		status: 200,
+		result: toLibrary,
+		reveals: false
 	});
 	await page.goto('/');
 	await expect(page.getByText('HIDDEN SHOWN')).toHaveCount(0);
