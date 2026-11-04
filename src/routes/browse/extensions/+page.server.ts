@@ -18,6 +18,8 @@ import {
 	availableView,
 	installedView,
 	loadAgain,
+	novelsAvailable,
+	pluginsShown,
 	removal,
 	removeExtension
 } from '$lib/server/engine/manage';
@@ -30,7 +32,6 @@ import {
 	installPlugin,
 	listNovelRepos,
 	pluginRemoval,
-	pluginsAvailable,
 	pluginView,
 	previewNovelRepo,
 	refreshNovelRepo,
@@ -91,7 +92,9 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 	const repos = listRepos();
 	const novelRepos = listNovelRepos();
 	const installedNow = installedView(reveal);
-	const pluginsNow = pluginView();
+	// Hidden means hidden: a plugin with HIDDEN SOURCE on, or mostly hidden, is
+	// drawn and counted only inside reveal, as a package is (card c435).
+	const pluginsNow = pluginsShown(pluginView(), reveal);
 	const counts = {
 		installed:
 			installedNow.needsHand.length +
@@ -165,7 +168,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 		: null;
 	const repoAsked = Number(url.searchParams.get('removeRepo'));
 	const novelRepoAsked = Number(url.searchParams.get('removeNovelRepo'));
-	const plugins = pluginsAvailable({
+	const plugins = novelsAvailable({
 		q: url.searchParams.get('q') ?? '',
 		filters,
 		languages: browseLanguages(),
@@ -238,7 +241,7 @@ export const actions: Actions = {
 				failed.push(e.name);
 			}
 		}
-		for (const p of pluginView().updates) {
+		for (const p of pluginsShown(pluginView(), isRevealed(cookies)).updates) {
 			try {
 				await installPlugin(p.id);
 			} catch {

@@ -12,12 +12,14 @@ const { forgetSourceUse, libraryIndex } = await import('$lib/server/library-sour
 const flags = await import('$lib/server/engine/source-flags');
 const browse = await import('$lib/server/engine/browse');
 const { searchSources } = await import('$lib/server/engine/backend');
-const { installedView } = await import('$lib/server/engine/manage');
+const { installedView, novelsAvailable, pluginsShown } = await import('$lib/server/engine/manage');
+const { pluginView } = await import('$lib/server/novels/plugins');
 const { novelSearchSources } = await import('$lib/server/novels/source');
 const { historyDays, historyTotals } = await import('$lib/server/history');
 const { readingTotals, seriesReadingTime } = await import('$lib/server/reading-time');
 const { recordReading } = await import('$lib/server/series');
 const { sourceOfKey, keyOf, animeKeyOf, novelKeyOf } = await import('$lib/library/downloads');
+const { NO_EXT_FILTERS } = await import('$lib/library/ext-filters');
 
 /**
  * A source's own switches (card c435; doc/BROWSE.md, "A source's own
@@ -242,6 +244,63 @@ describe('HIDDEN SOURCE', () => {
 		flags.setSourceFlag(MANGA, 'hidden', true);
 		expect(pkgs(false)).not.toContain('en.manga');
 		expect(pkgs(true)).toContain('en.manga');
+	});
+
+	it('lists its LNReader plugin in EXTENSIONS, and updates it, only inside reveal', () => {
+		// A repository listing a newer version, so the plugin waits in UPDATES.
+		const repo = Number(
+			db
+				.prepare(`INSERT INTO novel_repos (url, name, added_at) VALUES (?, 'Novels', 0)`)
+				.run('https://novels.example/plugins.min.json').lastInsertRowid
+		);
+		db.prepare(`INSERT INTO novel_listings (repo_id, plugin, listing) VALUES (?, ?, ?)`).run(
+			repo,
+			PLUGIN,
+			JSON.stringify({
+				id: PLUGIN,
+				name: 'Good Novels',
+				site: 'https://good.example',
+				lang: 'en',
+				version: '2.0.0',
+				url: 'https://novels.example/good.js',
+				iconUrl: null
+			})
+		);
+		try {
+			// What the route draws and counts (INSTALLED) and what UPDATE ALL reaches (`updates`).
+			const installed = (reveal: boolean) => {
+				const v = pluginsShown(pluginView(NOW), reveal);
+				return [...v.needsHand, ...v.updates, ...v.current].map((r) => r.id);
+			};
+			const updating = (reveal: boolean) =>
+				pluginsShown(pluginView(NOW), reveal).updates.map((r) => r.id);
+			const available = (reveal: boolean, langs: string[] | null = null) =>
+				novelsAvailable({
+					languages: ['en'],
+					reveal,
+					filters: { ...NO_EXT_FILTERS, langs }
+				});
+			expect(installed(false)).toEqual([PLUGIN]);
+			expect(updating(false)).toEqual([PLUGIN]);
+			expect(available(false).rows.map((r) => r.id)).toEqual([PLUGIN]);
+			expect(available(false).total).toBe(1);
+
+			flags.setSourceFlag(NOVEL, 'hidden', true);
+			expect(installed(false)).toEqual([]);
+			expect(updating(false)).toEqual([]);
+			expect(available(false).rows).toEqual([]);
+			expect(available(false).total).toBe(0);
+			// Not a match in another language either.
+			expect(available(false, ['ja']).otherLanguages).toBe(0);
+			expect(available(true, ['ja']).otherLanguages).toBe(1);
+
+			expect(installed(true)).toEqual([PLUGIN]);
+			expect(updating(true)).toEqual([PLUGIN]);
+			expect(available(true).rows.map((r) => r.id)).toEqual([PLUGIN]);
+			expect(available(true).total).toBe(1);
+		} finally {
+			db.prepare(`DELETE FROM novel_repos WHERE id = ?`).run(repo);
+		}
 	});
 
 	it('is searched only inside reveal, by the sources’ search and the plugins’', () => {

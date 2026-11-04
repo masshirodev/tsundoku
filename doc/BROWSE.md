@@ -262,7 +262,12 @@ is on (card c435), answers 404 with reveal off, and so does a preview of one
 of its series, its settings, and a tag's search on it. Both are one field,
 `BrowseSource.mostlyHidden` (with `hiddenSource` saying which), so every door
 that asks it (BROWSE, RECENT, EXTENSIONS, the icons, `/search`'s list, the
-check's poll) closes for both. A result that is a hidden series isn't
+check's poll) closes for both. EXTENSIONS asks it for LNReader's plugins
+too, whose own lists (`pluginView`, `pluginsAvailable`) take no reveal: the
+route filters them through `pluginsHidden`, `pluginsShown` and
+`novelsAvailable` (`src/lib/server/engine/manage.ts`), so a hidden plugin is
+not on INSTALLED, not in its count, not in UPDATE ALL and not on AVAILABLE's
+NOVELS tab outside reveal (card c435, round 2). A result that is a hidden series isn't
 sent. Counts are what reveal lets the viewer see. A twin of a series from such
 a source is still SAME TITLE IN LIBRARY (the series is visible), but the
 source isn't named: "FROM TOONILY" said what reveal hides. That was true of
@@ -437,11 +442,11 @@ page's switch rows are, each its own form posting `?/flag`. They are
 tsundoku's, not the extension's: nothing is sent to the source. Card c435,
 the owner's request of 2026-11-03.
 
-| Switch            | What it does                                                                                                                                                                                                                                                                                                                                                                     |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Hidden source** | The source is listed, opened, searched and named only inside reveal, as a mostly-hidden one is: BROWSE and RECENT, EXTENSIONS (an extension whose every source is hidden), its icon, its page, its settings and its previews, SEARCH THE SOURCES (`searchSources`, `novelSearchSources`), and SAME TITLE's "FROM <SOURCE>" (`nameable`). Its series keep their own hidden state. |
-| **Added hidden**  | A series added to the library from it starts hidden. Every ADD door of a source: `addToLibrary` (Mihon's), `addAnime`, `addNovel` and `keepOrPromote` (a browsing record promoted by ADD). With reveal off, ADD then lands on the source's page with "ADDED TO THE LIBRARY, AND HIDDEN", since the hidden series isn't found. A browsing record is not an add.                   |
-| **Off history**   | Its reads and watches never show in HISTORY, inside reveal or not, and its time is not in HISTORY's total ([`HISTORY.md`](HISTORY.md)). They are still logged: progress, CONTINUE, the series' own time and tracking are unchanged.                                                                                                                                              |
+| Switch            | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Hidden source** | The source is listed, opened, searched and named only inside reveal, as a mostly-hidden one is: BROWSE and RECENT, EXTENSIONS (an extension whose every source is hidden, and an LNReader plugin: INSTALLED, its count, UPDATE ALL and AVAILABLE's NOVELS, filtered by the route through `pluginsShown` and `novelsAvailable`), its icon, its page, its settings and its previews, SEARCH THE SOURCES (`searchSources`, `novelSearchSources`), and SAME TITLE's "FROM <SOURCE>" (`nameable`). Its series keep their own hidden state. |
+| **Added hidden**  | A series added to the library from it starts hidden. Every ADD door of a source: `addToLibrary` (Mihon's), `addAnime`, `addNovel` and `keepOrPromote` (a browsing record promoted by ADD). With reveal off, ADD then lands on the source's page with "ADDED TO THE LIBRARY, AND HIDDEN", since the hidden series isn't found. A browsing record is not an add.                                                                                                                                                                        |
+| **Off history**   | Its reads and watches never show in HISTORY, inside reveal or not, and its time is not in HISTORY's total ([`HISTORY.md`](HISTORY.md)). They are still logged: progress, CONTINUE, the series' own time and tracking are unchanged.                                                                                                                                                                                                                                                                                                   |
 
 **Kept** in the `settings` key/value table, one row per switch that is on
 (`source.hidden:<id>`, `source.added-hidden:<id>`, `source.off-history:<id>`,
@@ -500,7 +505,9 @@ was set on is no longer found. Turning it off again is done inside reveal.
   install, CHECK NOW, UPDATE, BACK TO and REMOVE through the sheet, against
   real signed APKs over https; an untrusted install refused with both keys;
   the languages row; an 18+ extension listed and marked, a search ignoring
-  case and spacing, FILTER's 18+ ONLY, CLEAR ALL and DONE.
+  case and spacing, FILTER's 18+ ONLY, CLEAR ALL and DONE; an LNReader
+  plugin installed, browsed, its HIDDEN SOURCE set (gone from INSTALLED and
+  AVAILABLE's NOVELS outside reveal, there inside it) and removed.
 - `tests/source-settings.spec.ts`: each of the five types read from the
   engine's shapes, a value no longer offered not shown as chosen, a form's
   answer stored or refused.
@@ -517,7 +524,8 @@ was set on is no longer found. Turning it off again is done inside reveal.
   sheet, the engine down or slow, and the remote's walk to a tag.
 - `tests/source-flags-db.spec.ts`: a source's own switches (card c435): the
   rows they are kept in, `sourceIdSql` against `sourceOfKey` on every key,
-  HIDDEN SOURCE at BROWSE, RECENT, EXTENSIONS, both searches and SAME TITLE,
+  HIDDEN SOURCE at BROWSE, RECENT, EXTENSIONS (a package, and a plugin's
+  INSTALLED rows, UPDATE ALL's set and AVAILABLE's NOVELS), both searches and SAME TITLE,
   and OFF HISTORY's rows, total and the log it leaves alone. ADDED HIDDEN per
   family in `tests/engine-backend-db.spec.ts`, `tests/anime-source-db.spec.ts`
   and `tests/novel-source-db.spec.ts` (a browsing record, then ADD; ADD

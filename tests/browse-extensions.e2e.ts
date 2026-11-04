@@ -175,6 +175,31 @@ test('an LNReader repository is asked, added, a novel plugin installed in the ho
 	await expect(page.locator('form.set')).toHaveCount(0);
 	await expect(page.getByText(/only tsundoku's switches above/)).toBeVisible();
 
+	// HIDDEN SOURCE hides the plugin in EXTENSIONS too (c435, round 2): neither
+	// INSTALLED nor AVAILABLE's NOVELS names it outside reveal; inside reveal both do.
+	const hiddenSource = page.locator('form.own', { hasText: 'Hidden source' }).getByRole('switch');
+	await page.waitForLoadState('networkidle');
+	await hiddenSource.click();
+	await expect(page).toHaveURL(/\/browse$/);
+	for (const path of ['/browse/extensions', '/browse/extensions?tab=available&kind=novels']) {
+		await page.goto(path);
+		await expect(page.locator('body'), path).not.toContainText(/good novels/i);
+	}
+	const origin = new URL(page.url()).origin;
+	await page
+		.context()
+		.addCookies([{ name: 'tsundoku_reveal', value: '1', url: origin, httpOnly: true }]);
+	for (const path of ['/browse/extensions', '/browse/extensions?tab=available&kind=novels']) {
+		await page.goto(path);
+		await expect(row('Good Novels'), path).toBeVisible();
+	}
+	await page.goto('/browse/ln:goodnovels/settings');
+	await page.waitForLoadState('networkidle');
+	await expect(hiddenSource).toHaveAttribute('aria-checked', 'true');
+	await hiddenSource.click();
+	await expect(hiddenSource).toHaveAttribute('aria-checked', 'false');
+	await page.context().clearCookies({ name: 'tsundoku_reveal' });
+
 	await page.goto('/browse/extensions');
 	await row('Good Novels').getByRole('link', { name: 'REMOVE…' }).click();
 	const sheet = page.getByRole('dialog');
