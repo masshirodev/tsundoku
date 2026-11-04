@@ -291,4 +291,11 @@ describe('rung 66: IMPORT A BACKUP and its log (c438)', () => {
 		conn.prepare(`DELETE FROM scan_jobs WHERE id = 1`).run();
 		expect(conn.prepare(`SELECT job_id FROM imports`).get()).toEqual({ job_id: null });
 	});
+
+	// The top rung's own block says it is the top; the next rung moves this line.
+	it('is the top of a fresh database', () => {
+		const conn = new Database(':memory:');
+		climb(conn);
+		expect(conn.pragma('user_version', { simple: true })).toBe(66);
+	});
 });

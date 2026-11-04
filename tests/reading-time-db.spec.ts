@@ -267,8 +267,4 @@ describe('rung 65: anime watched before c443 gets the time its positions vouch f
 			15: 0
 		});
 	});
-
-	it('is the top of a fresh database', () => {
-		expect(getDb().pragma('user_version', { simple: true })).toBe(65);
-	});
 });
