@@ -70,9 +70,27 @@ test('a sheet leaves the way it came, and then is gone', async ({ page }, info) 
 	await page.goto('/?new=shelf');
 	const sheet = page.getByRole('dialog', { name: 'New shelf' });
 	await expect(sheet).toBeVisible();
+	// Leaving, it is still drawn for a moment, sliding down, and can't be tapped
+	// twice. Read in the page as the leave starts: Svelte runs `out:leave`
+	// (`src/lib/motion.ts`) as the element's own `animate()`, so its style is
+	// read right after that call. Polled from here, a loaded run found the
+	// sheet already gone, and a starved page may draw no frame inside the
+	// animation at all (c439, phone).
+	type Look = { drawn: boolean; taps: string };
+	await sheet.evaluate((el) => {
+		const w = window as unknown as { leaving: Look[] };
+		w.leaving = [];
+		const animate = el.animate.bind(el);
+		el.animate = (...args: Parameters<Element['animate']>) => {
+			const running = animate(...args);
+			w.leaving.push({ drawn: el.isConnected, taps: getComputedStyle(el).pointerEvents });
+			return running;
+		};
+	});
 	await sheet.getByRole('link', { name: 'Close' }).click();
-	// Leaving, it is still drawn for a moment, sliding down, and can't be tapped twice.
-	await expect(sheet).toHaveCSS('pointer-events', 'none');
+	await expect
+		.poll(() => page.evaluate(() => (window as unknown as { leaving: Look[] }).leaving))
+		.toContainEqual({ drawn: true, taps: 'none' });
 	await expect(sheet).toHaveCount(0);
 	await expect(page).not.toHaveURL(/new=shelf/);
 });

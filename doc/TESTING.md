@@ -318,7 +318,17 @@ workstation during gates. What it assumes, and the rules that follow (c439):
   per-case budget to 90 s (c448): at a load average of 15-68 every case took
   24-30 s even when it passed, and all eight reds of that run were the default
   30 s running out, each case waiting on the right state (the bar's own 4 s,
-  SKIP's 8 s alone window, the working stream's attach).
+  SKIP's 8 s alone window, the working stream's attach). `works-flow`'s is
+  60 s (c439): two of its cases ran out the 30 s in page loads on its own
+  server in whole loaded runs, where alone its slowest took 17.7 s.
+- **A passing state read from outside the page can be gone before the read.**
+  `motion`'s leaving sheet carries `pointer-events: none` for its leave's
+  few hundred ms; polled from the runner, a loaded phone found it already
+  removed. The case reads the style inside the page at the moment the leave
+  starts (it wraps the sheet's own `animate()`, which is how Svelte runs
+  `out:leave`) and asserts that afterwards (c439). A starved page may draw
+  no frame inside a short animation at all, so a `requestAnimationFrame`
+  loop is not enough either.
 - **A timer the app runs is the app's state; a test that races it loses
   under load.** `tv-player`'s bar hides itself 4 s after a key while the
   picture plays, and BACK at a bare picture leaves the player: a case that

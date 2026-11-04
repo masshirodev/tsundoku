@@ -27,7 +27,12 @@ import { E2E_TOKEN } from '../playwright.config';
  * the proof that a Work's grouping, name, rating and FAV end where they
  * started.
  */
-test.describe.configure({ mode: 'serial' });
+// Measured, not guessed (doc/TESTING.md, "Load"; c439): alone at a load
+// average of 15-31 the slowest case took 17.7 s, and in whole loaded runs two
+// cases ran out the default 30 s, each in a page's load wait on this file's
+// own server (`:170` at about 48, `:359` at 16-54). One red here also leaves
+// the rest of the file unrun, since it is serial.
+test.describe.configure({ mode: 'serial', timeout: 60_000 });
 
 // Nothing outside this file needs the number: it seeds its own database and
 // serves it here. A literal default is what two concurrent runs collide on.
