@@ -209,9 +209,17 @@ owns Harbour Lights and 港の灯, `text-reader-flow` owns Honzuki no Gekokujou,
 `waiting-flow` owns Dungeon Meshi, and `series-flow` owns Mount Hua, Tower of
 God, Ame no Hi and Lookism (it hides Ame no Hi, rates Mount Hua, tags Lookism
 and reads Tower of God). Pick an unused series for a new flow, and say which
-in the file's header. `links-flow`, `works-flow`, `ranobe-flow`,
-`downloads-flow`, `start-flow` and the `works-frame` files seed databases of
-their own, so they own nothing here.
+in the file's header. `works-flow`, `ranobe-flow`, `downloads-flow`,
+`start-flow` and the `works-frame` files seed databases of their own, so they
+own nothing here. `links-flow` does too, but only for its last block ("a
+catalogue that answers"): its first blocks run on the shared database and
+decide Mount Hua's and Yofukashi no Uta's links from the seed's queue (LINK,
+NONE OF THESE, a search), undoing each. So
+Mount Hua has two writers on different fields, `links-flow` (its link) and
+`series-flow` (its rating and FAV), each putting back what it wrote. c105
+asked for one of them to move. Neither did, because every unrated series in
+the seed already has a flow writing it, and a new one would mean editing the
+shared seed.
 
 **The readers beside the flows** (c252, swept 2026-11-03 for every series
 title a `tv`-project or all-device spec names, against what each flow
@@ -221,7 +229,7 @@ tile or changes what is read:
 
 | Reader                            | Reads                                     | Written by                                                          | Safe because                                                                                                                       |
 | --------------------------------- | ----------------------------------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `library-layout` (devices, tv)    | Yofukashi no Uta's rating bars            | `privacy-flow`: reading only                                        | Nothing rates or hides it. Read Villainess Level 99 until c252, which `volumes-flow` groups away mid-run.                          |
+| `library-layout` (devices, tv)    | Yofukashi no Uta's rating bars            | `privacy-flow`: reading only; `links-flow`: its link, undone        | Nothing rates or hides it. Read Villainess Level 99 until c252, which `volumes-flow` groups away mid-run.                          |
 | `library-layout`                  | Boku no Kokoro's rating bars              | nobody                                                              | Also read by `tv-series`, `tv-series-frame`, never written. Read Lookism until c252 (`series-flow` tags it).                       |
 | `library-layout`                  | Sousou no Frieren's FAV and +1            | nobody on this database                                             | `reader-layout` and `tv-reader` open its reader in incognito, which logs nothing; the +1 counts entries since one was last opened. |
 | `series-layout` (devices, tv)     | Tower of God's frame                      | `series-flow`: opens its reader from the cover, `#` reads           | Its tile stays; the frame doesn't depend on progress.                                                                              |
