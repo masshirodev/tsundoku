@@ -853,7 +853,10 @@ export function undoCreate(facts: CreateFacts): void {
 	db.transaction(() => {
 		const now = membersOf(db, facts.work.id).map((m) => m.seriesId);
 		const made = new Set(facts.members.map((m) => m.seriesId));
-		if (!isSameWork(db, facts.work) || now.length !== made.size || now.some((id) => !made.has(id)))
+		// The same Work by id and the moment it was made: a rename since changes
+		// nothing this UNDO puts back, so it does not count as a change here.
+		const same = workRow(db, facts.work.id)?.createdAt === facts.work.createdAt;
+		if (!same || now.length !== made.size || now.some((id) => !made.has(id)))
 			throw new WorkError(`${facts.work.name} has changed since it was made · undo that first`);
 		db.prepare(`DELETE FROM works WHERE id = ?`).run(facts.work.id);
 		// Ended Works go back after the delete, so a series can't be in two at once.

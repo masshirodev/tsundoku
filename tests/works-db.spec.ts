@@ -932,6 +932,11 @@ describe('an UNDO never takes a series from the Work it joined since (c308)', ()
 		works.addSeries(made.work.id, c);
 		expect(() => works.undoCreate(made)).toThrow(/Made has changed since/i);
 		expect(membersNow(made.work.id)).toEqual([a, b, c]);
+		// A rename alone is not such a change: the UNDO still takes the Work away.
+		works.takeOut(made.work.id, c);
+		works.rename(made.work.id, 'Renamed');
+		works.undoCreate(made);
+		expect(workIds()).toEqual([]);
 	});
 
 	it('refuses an ungroup’s UNDO once a member is in another Work', () => {
