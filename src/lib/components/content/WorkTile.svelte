@@ -57,10 +57,11 @@
 	const word = $derived(workFootShort(foot, parts));
 </script>
 
-<div class="tile work" class:dimmed>
+<div class="tile work" class:dimmed data-hover="group">
 	<button
 		type="button"
 		class="open"
+		data-hover="off"
 		aria-pressed={selectable ? selected : undefined}
 		aria-label={tile.name}
 		data-focus-id={focusId}

@@ -160,10 +160,11 @@
 		<div class="skel-rating"></div>
 	</div>
 {:else}
-	<div class="tile" class:dimmed bind:this={tile}>
+	<div class="tile" class:dimmed bind:this={tile} data-hover="group">
 		<button
 			type="button"
 			class="open"
+			data-hover="off"
 			aria-pressed={selectable ? selected : undefined}
 			data-focus-id={focusId}
 			data-focus-start={startFocus ? '' : undefined}
@@ -295,11 +296,12 @@
 		color: var(--text-inverse);
 	}
 	/* The bars are 4px; the button reaches into the gap above and the padding
-	   below so a finger finds it, without moving anything. */
+	   below so a finger finds it, and across the tile's padding so its hover
+	   runs the tile's full width (c487), without moving anything. */
 	.rating {
 		display: block;
-		padding: 8px 0;
-		margin: -8px 0;
+		padding: 8px 10px;
+		margin: -8px -10px;
 	}
 	.fav {
 		position: absolute;

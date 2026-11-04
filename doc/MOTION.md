@@ -112,6 +112,28 @@ cover, a link that resumes, carried its picture itself. `motion.e2e.ts` hovers
 it with its placeholder and with a picture, and checks a plain link is still
 tinted.
 
+**A library tile hovers as one** (c487). A `CoverTile` is three buttons: the
+cover and title (`.open`), the rating, and FAV. Tinted each on its own, they
+grayed a patchwork of the tile, and the rating only its own inset box. So the
+hover can belong to a group:
+
+- `data-hover="group"` on the container tints the container whole while the
+  pointer is anywhere over it. That's the tile's whole rectangle, padding
+  included. The tile's own background is a colour, and its children paint over
+  the tint, so the cover keeps its picture.
+- `data-hover="off"` on a part whose hover is the group's (the tile's `.open`)
+  keeps that part from being tinted a second time.
+- A part with a response of its own keeps it, on top of the group's tint. The
+  rating button reaches across the tile's 10px padding (a negative margin,
+  matched by padding, so nothing moves), and its tint runs the full width.
+  FAV keeps its own box.
+
+`WorkTile` does the same with its one button. `BookTile` (the tiles inside a
+series' book grid) is one button already, so it was always tinted whole.
+`motion.e2e.ts`, "a library tile hovers as one", reads the tint on the tile,
+none on `.open`, the cover's picture unchanged, the rating as wide as the tile,
+and no move.
+
 ## Arriving and leaving
 
 Everything that appears over the page leaves **the way it came**, with

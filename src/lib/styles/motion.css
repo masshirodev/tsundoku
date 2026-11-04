@@ -33,6 +33,12 @@
  * shorthand, and hovering it made the cover vanish. A placeholder's stripes
  * are a picture too. A picture set from a stylesheet can't be seen by any
  * attribute selector, so such an element says so with `data-picture`.
+ *
+ * Some things hover as one (c487): a library tile is three buttons (the cover
+ * and title, the rating, FAV), and tinting each on its own grayed a patchwork
+ * of its rectangle. The tile carries `data-hover="group"` and is tinted
+ * whole; a part whose hover is the group's carries `data-hover="off"`. A
+ * part with a response of its own (the rating, FAV) keeps it, on top.
  */
 @media (hover: hover) and (pointer: fine) {
 	:is(
@@ -50,8 +56,10 @@
 			[data-press='off'],
 			[data-press='scale'],
 			[style*='background'],
-			[data-picture]
-		):hover {
+			[data-picture],
+			[data-hover='off']
+		):hover,
+	[data-hover='group']:hover {
 		background-image: linear-gradient(
 			color-mix(in oklab, currentColor 9%, transparent),
 			color-mix(in oklab, currentColor 9%, transparent)

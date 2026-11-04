@@ -236,6 +236,52 @@ test('a pointer never tints a picture away: the series cover keeps its image', a
 	await expect(plain).toHaveCSS('background-image', /linear-gradient/);
 });
 
+/**
+ * A library tile hovers as one (c487): three buttons tinted on their own
+ * grayed a patchwork of the tile. The tile is tinted whole, the rating keeps
+ * its own tint across the tile's full width, and the cover keeps its picture.
+ */
+test('a library tile hovers as one, and its rating runs edge to edge', async ({
+	page,
+	isMobile
+}) => {
+	test.skip(isMobile, 'a tap fires a false hover on touch, so touch gets none');
+	await page.goto('/?sort=title');
+	const tile = page.locator('.grid .tile:has(button.rating)').first();
+	await expect(tile).toBeVisible();
+	await screenSettled(page);
+	const open = tile.locator('button.open');
+	const rating = tile.locator('button.rating');
+	const cover = tile.locator('.cover').first();
+	const bg = (l: import('@playwright/test').Locator) =>
+		l.evaluate((el) => getComputedStyle(el).backgroundImage);
+	const box = (l: import('@playwright/test').Locator) =>
+		l.evaluate((el) => {
+			const r = el.getBoundingClientRect();
+			return { left: r.left, top: r.top, width: r.width, height: r.height };
+		});
+
+	const before = await box(tile);
+	const picture = await bg(cover);
+	expect(await bg(tile)).toBe('none');
+
+	// Over the cover: the whole rectangle, not the cover button's own box.
+	await open.hover();
+	await expect.poll(() => bg(tile)).toMatch(/linear-gradient/);
+	expect(await bg(open)).toBe('none');
+	expect(await bg(cover)).toBe(picture);
+	expect(await box(tile)).toEqual(before);
+
+	// The rating: the tile's full width, with its own tint on top of the tile's.
+	const r = await box(rating);
+	expect(r.left).toBeCloseTo(before.left, 0);
+	expect(r.width).toBeCloseTo(before.width, 0);
+	await rating.hover();
+	await expect.poll(() => bg(rating)).toMatch(/linear-gradient/);
+	expect(await bg(tile)).toMatch(/linear-gradient/);
+	expect(await box(tile)).toEqual(before);
+});
+
 test('a slow screen: its outline is what slides in', async ({ page }) => {
 	await page.goto('/?sort=title');
 	await page.route('**/series/*/__data.json*', async (route) => {
