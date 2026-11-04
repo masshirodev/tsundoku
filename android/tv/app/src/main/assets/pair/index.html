@@ -19,6 +19,12 @@
 			The bridge (`window.TsundokuTV`) gives the page the TV's own address,
 			a probe of a candidate, and the memory of the one that answered
 			(PairingBridge.kt). Everything else is this page.
+
+			c261 (doc/handoffs/tv-servers/, doc/TV-APP.md "Servers") adds the TV's
+			list of servers to four of these screens: 9B as ADD A SERVER (S7, #add),
+			9E after an add (S8, #added=), RENAME (S5, #rename=) and 9D with the
+			other servers offered (S9). SERVERS itself, its options and FORGET are
+			drawn by the web app's MORE, over the library they switch.
 		-->
 		<style>
 			:root {
@@ -338,6 +344,166 @@
 				display: flex;
 				gap: 16px;
 			}
+			/* c261 · S9: 9D with the other servers. The reasons narrow to 500 at
+			   the left and the others take 332 at 580 (TV-Servers.dc.html, lost);
+			   the rows are 60 high there, and the buttons move to 416. */
+			#lost.with-others .lost-label,
+			#lost.with-others .reasons {
+				right: auto;
+				width: 500px;
+			}
+			#lost.with-others .reason {
+				min-height: 60px;
+			}
+			#lost.with-others .lost-actions {
+				top: 416px;
+			}
+			.others-label {
+				position: absolute;
+				left: 580px;
+				width: 332px;
+				top: 164px;
+				height: 36px;
+				display: flex;
+				justify-content: space-between;
+				align-items: flex-end;
+				padding-bottom: 9px;
+			}
+			.others {
+				position: absolute;
+				left: 580px;
+				width: 332px;
+				top: 200px;
+				display: flex;
+				flex-direction: column;
+				border: var(--hairline);
+			}
+			/* A server, as a row (tv.css, .srv): 72 high, a 56 glyph cell. */
+			.srv {
+				display: flex;
+				align-items: stretch;
+				width: 100%;
+				min-height: 72px;
+				padding: 0;
+				border: 0;
+				border-bottom: var(--hairline);
+				background: none;
+				color: var(--text-1);
+				text-align: left;
+				font: inherit;
+				cursor: pointer;
+			}
+			.srv:last-child {
+				border-bottom: 0;
+			}
+			.srv > .g {
+				width: 56px;
+				flex-shrink: 0;
+				display: flex;
+				align-items: center;
+				justify-content: center;
+				border-right: var(--hairline);
+				font: 500 18px var(--font-mono);
+			}
+			.srv > .b {
+				flex: 1;
+				min-width: 0;
+				display: flex;
+				flex-direction: column;
+				justify-content: center;
+				gap: 4px;
+				padding: 0 18px;
+			}
+			.srv .n {
+				display: flex;
+				align-items: baseline;
+				justify-content: space-between;
+				gap: 12px;
+			}
+			.srv .n > span:first-child {
+				font: 500 20px/1.3 var(--font-sans);
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				min-width: 0;
+			}
+			.srv .st {
+				font: 500 14px/1 var(--font-mono);
+				letter-spacing: 0.04em;
+				white-space: nowrap;
+				flex-shrink: 0;
+				color: var(--text-2);
+			}
+			.srv .meta {
+				font: 400 15px/1.3 var(--font-mono);
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+			}
+			[data-focus].srv:focus {
+				box-shadow:
+					inset 0 0 0 4px var(--text-1),
+					inset 0 0 0 7px var(--surface-page);
+			}
+			.t2 {
+				color: var(--text-2);
+			}
+			.acc {
+				color: var(--accent);
+			}
+			/* S7 · 9B as ADD A SERVER: what BACK does, under the buttons. */
+			.add-back {
+				top: 392px;
+			}
+			#address.with-band .add-back {
+				top: 448px;
+			}
+			/* S8 · added. */
+			.added-head {
+				top: 112px;
+				display: flex;
+				flex-direction: column;
+				gap: 12px;
+				max-width: 720px;
+			}
+			.added-actions {
+				top: 330px;
+				display: flex;
+				gap: 16px;
+				align-items: center;
+			}
+			.added-actions .meta {
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				min-width: 0;
+			}
+			/* S5 · RENAME: the field in the top half, above Android's keyboard. */
+			.rename-label {
+				top: 100px;
+				height: 36px;
+				display: flex;
+				align-items: flex-end;
+				padding-bottom: 9px;
+			}
+			.rename-field {
+				top: 140px;
+				height: 64px;
+				display: block;
+				/* An input does not stretch between left and right as a block does. */
+				width: calc(100% - 2 * var(--safe-x));
+				padding: 0 20px;
+				border: var(--rule-strong);
+				background: none;
+				color: var(--text-1);
+				font: 500 26px var(--font-sans);
+				caret-color: var(--accent);
+				outline: none;
+			}
+			.rename-meta {
+				top: 220px;
+				line-height: 1.5;
+			}
 			[hidden] {
 				display: none !important;
 			}
@@ -394,8 +560,12 @@
 					     that this fits beside the first line at that width. -->
 					<div class="meta">http(s)://HOST · NO LOGIN · PORT 1–65535</div>
 				</div>
+				<!-- S7: an address already in the list skips pairing and opens it. -->
+				<div class="band" id="already" role="status" hidden>
+					<div id="already-line"></div>
+				</div>
 				<div class="safe address-label lab">
-					<div>01 — THE COMPUTER'S ADDRESS · ON ITS SCREEN, UNDER THE CODE</div>
+					<div id="address-label">01 — THE COMPUTER'S ADDRESS · ON ITS SCREEN, UNDER THE CODE</div>
 					<div></div>
 				</div>
 				<form class="safe address" id="address-form">
@@ -427,6 +597,8 @@
 					</button>
 				</div>
 				<div class="safe meta checking" id="checking" role="status"></div>
+				<!-- S7: where BACK goes from an add. -->
+				<div class="safe meta add-back" id="add-back" hidden></div>
 			</section>
 
 			<!-- 9D · nothing answers -->
@@ -456,10 +628,49 @@
 						<div class="v" id="reason-3">This TV is on another Wi-Fi</div>
 					</div>
 				</div>
+				<!-- S9: the other servers, each probed; OK opens one. -->
+				<div class="lab others-label" id="others-label" hidden>
+					<div>OR OPEN ANOTHER</div>
+					<div id="others-count"></div>
+				</div>
+				<div class="others" id="others" hidden></div>
 				<div class="safe lost-actions">
 					<button class="btn pri" type="button" data-focus data-start id="retry">TRY AGAIN</button>
 					<button class="btn" type="button" data-focus id="change">CHANGE THE ADDRESS</button>
 				</div>
+			</section>
+
+			<!-- S8 · 9E after an add: the app's own, in place of the computer's 9E. -->
+			<section class="screen" id="added" hidden>
+				<div class="safe added-head">
+					<div class="lab acc" id="added-lab"></div>
+					<h1 id="added-title"></h1>
+					<p id="added-prose"></p>
+				</div>
+				<div class="safe added-actions">
+					<button class="btn pri" type="button" data-focus data-start id="added-open"></button>
+					<button class="btn" type="button" data-focus id="added-rename">RENAME</button>
+					<div class="meta" id="added-meta"></div>
+				</div>
+			</section>
+
+			<!-- S5 · RENAME: the TV's own name for a server, kept on the TV only. -->
+			<section class="screen" id="rename" hidden>
+				<div class="safe rename-label lab"><div id="rename-label"></div></div>
+				<form id="rename-form">
+					<input
+						class="safe rename-field"
+						id="rename-field"
+						type="text"
+						maxlength="60"
+						autocomplete="off"
+						enterkeyhint="done"
+						aria-label="This TV's name for the server"
+						data-focus
+						data-start
+					/>
+				</form>
+				<div class="safe meta rename-meta" id="rename-meta"></div>
 			</section>
 
 			<!-- c260 · a given address, checked before 9B: the app was handed one,
@@ -482,7 +693,9 @@
 			const screens = {
 				welcome: document.getElementById('welcome'),
 				address: document.getElementById('address'),
-				lost: document.getElementById('lost')
+				lost: document.getElementById('lost'),
+				added: document.getElementById('added'),
+				rename: document.getElementById('rename')
 			};
 			const step = document.getElementById('step');
 			const connectBox = document.getElementById('connect');
@@ -492,8 +705,49 @@
 				welcome: 'PAIR THIS TV',
 				address: 'PAIR THIS TV · 1 OF 2',
 				lost: 'PAIR THIS TV · 1 OF 2',
-				connect: 'PAIR THIS TV · 1 OF 2'
+				connect: 'PAIR THIS TV · 1 OF 2',
+				added: 'ADDED',
+				rename: 'RENAME A SERVER'
 			};
+
+			/* ---- c261: the TV's servers ------------------------------------------ */
+			/*
+			 * The list is the bridge's (Servers.kt), the one in use first. An
+			 * older bridge, or none (this file opened in a browser), has no list:
+			 * every screen then behaves exactly as before c261.
+			 */
+			function serverList() {
+				if (!bridge || typeof bridge.servers !== 'function') return [];
+				try {
+					const list = JSON.parse(bridge.servers());
+					return Array.isArray(list) ? list : [];
+				} catch {
+					return [];
+				}
+			}
+			const hostOf = (o) => String(o).replace(/^https?:\/\//i, '');
+			const known = (at) => serverList().find((s) => atOrigin(s.origin) === atOrigin(at)) || null;
+			const inUse = () => serverList()[0] || null;
+			/** "LIVING ROOM, MASSHIRO'S, STUDIO": the names a meta line lists. */
+			const names = (list) => list.map((s) => String(s.shown).toUpperCase()).join(', ');
+			/** Back to the library the TV was in: the server in use (S7, S5, S8). */
+			function backToLibrary() {
+				const here = inUse();
+				if (!here || !bridge || typeof bridge.open !== 'function') return false;
+				bridge.open(here.origin);
+				return true;
+			}
+
+			/*
+			 * What 9B is for: pairing the first server, adding another (S7), or
+			 * giving a server that moved its new address (9D's CHANGE THE
+			 * ADDRESS on a server in the list).
+			 */
+			let mode = 'pair';
+			let moving = '';
+			/* What BACK means on this page, when it is not the app's to take. */
+			let backStep = null;
+			window.tsundokuBack = () => (backStep ? backStep() : false);
 			const own = bridge ? bridge.tvAddress() : '';
 			const prefixOf = (ip) => {
 				const parts = (ip || '').split('.');
@@ -521,6 +775,8 @@
 					checking.textContent = '';
 				}
 				step.textContent = STEPS[name];
+				backStep = null;
+				document.getElementById('already').hidden = true;
 				const start =
 					screens[name].querySelector('[data-start]') ||
 					screens[name].querySelector('[data-focus]');
@@ -559,6 +815,41 @@
 					: own
 						? `THIS TV IS AT ${own}, SO THE COMPUTER IS ${prefix}SOMETHING · THE REMOTE'S NUMBER KEYS TYPE HERE; WITHOUT THEM, MOVE THE MARK TO THE FIELD FOR THE PAD · BACK CLOSES IT`
 						: `THE TV HAS NO WI-FI ADDRESS OF ITS OWN · TYPE THE COMPUTER'S ADDRESS: THE LAST NUMBER, OR THE WHOLE ONE`;
+				// S7: it names who is already here, and what BACK does.
+				const list = serverList();
+				const label = document.getElementById('address-label');
+				const addBack = document.getElementById('add-back');
+				if (mode === 'add') {
+					label.textContent = "01 — THE NEW COMPUTER'S ADDRESS · ON ITS SCREEN, UNDER THE CODE";
+					if (list.length) tvMeta.textContent += ' · ALREADY HERE: ' + names(list);
+					const here = list[0];
+					addBack.textContent = here
+						? `BACK RETURNS TO ${String(here.shown).toUpperCase()}'S LIBRARY · NOTHING THERE CHANGES`
+						: '';
+					addBack.hidden = !here;
+				} else if (mode === 'move') {
+					const was = known(moving);
+					label.textContent = `01 — ${String(was ? was.shown : hostOf(moving)).toUpperCase()}'S NEW ADDRESS · ON ITS SCREEN, UNDER THE CODE`;
+					addBack.hidden = true;
+				} else {
+					label.textContent = "01 — THE COMPUTER'S ADDRESS · ON ITS SCREEN, UNDER THE CODE";
+					addBack.hidden = true;
+				}
+			}
+
+			/* 9B in one of its three modes, at its start. */
+			function addressAs(m, from = '') {
+				mode = m;
+				moving = from;
+				stopRetry();
+				show('address');
+				if (m === 'add') {
+					step.textContent = 'ADD A SERVER · 1 OF 2';
+					backStep = backToLibrary;
+				}
+				whole = false;
+				last.value = '';
+				fill();
 			}
 
 			function origin() {
@@ -614,6 +905,20 @@
 				// a new probe is a new question, so the band goes with it (c260).
 				refusedBand.hidden = true;
 				screens.address.classList.remove('with-band');
+				// S7: an address already in the list is not paired again; it
+				// opens. Compared by origin, as everything here is.
+				const there = mode !== 'pair' ? known(at) : null;
+				if (there) {
+					stopRetry();
+					const band = document.getElementById('already');
+					document.getElementById('already-line').textContent =
+						`ALREADY IN SERVERS AS ${String(there.shown).toUpperCase()} · OPENING`;
+					band.hidden = false;
+					screens.address.classList.add('with-band');
+					checking.textContent = '';
+					setTimeout(() => bridge.open(there.origin), 1200);
+					return;
+				}
 				lastOrigin = at;
 				attempts = 1;
 				lastAt = Date.now();
@@ -650,6 +955,11 @@
 				refusedBand.hidden = true;
 				screens.address.classList.remove('with-band');
 				const shown = at.replace(/^https?:\/\//i, '');
+				// A given address is judged as a pairing: one already in the list
+				// opens once it answers, a new one is added and pairs (c261).
+				mode = 'pair';
+				moving = '';
+				backStep = null;
 				for (const el of Object.values(screens)) el.hidden = true;
 				connecting = true;
 				connectBox.hidden = false;
@@ -676,6 +986,8 @@
 				// origin, fail, and replace the refusal with 9D for an address
 				// nobody handed in. #change stops it the same way (c260).
 				stopRetry();
+				mode = 'pair';
+				moving = '';
 				show('address');
 				fill();
 				last.value = '';
@@ -687,7 +999,14 @@
 			/* ---- the probe's answer -------------------------------------------- */
 			const seen = new Set();
 			window.tsundokuProbe = function (at, ok) {
-				if (typeof at !== 'string' || seen.has(at)) return;
+				if (typeof at !== 'string') return;
+				// S9: an answer for one of the other servers 9D offers is that
+				// row's, and never the attempt's.
+				if (otherRows.has(at) && atOrigin(at) !== atOrigin(lastOrigin)) {
+					paintOther(at, ok ? 'ok' : 'no');
+					return;
+				}
+				if (seen.has(at)) return;
 				seen.add(at);
 				setTimeout(() => seen.delete(at), 2000);
 				// Only the current attempt's answer counts. A given address
@@ -709,9 +1028,20 @@
 				if (ok) {
 					stopRetry();
 					lastOrigin = at;
-					if (bridge) bridge.remember(at);
 					checking.textContent = '';
 					connectLine.textContent = '';
+					// c261: a server already in the list has its pairing: its
+					// library opens (a given address, or 9D's server back).
+					const there = known(at);
+					if (there && mode !== 'move' && typeof bridge.open === 'function') {
+						bridge.open(there.origin);
+						return;
+					}
+					// A server that moved: the new address takes that entry's
+					// place, keeping the TV's name for it, then pairs.
+					if (mode === 'move' && moving && typeof bridge.move === 'function') {
+						bridge.move(moving, at);
+					} else if (bridge) bridge.remember(at);
 					location.href = at + '/pair/tv';
 					return;
 				}
@@ -739,7 +1069,69 @@
 					? `This TV is on another Wi-Fi: it's at ${own}, not ${wanted.replace(/\.$/, '')}.`
 					: 'This TV has no Wi-Fi address: connect it to the Wi-Fi the computer is on.';
 				show('lost');
+				paintOthers(at);
 				startRetry();
+			}
+
+			/* ---- S9: the other servers, under 9D ------------------------------- */
+			const othersBox = document.getElementById('others');
+			const othersLabel = document.getElementById('others-label');
+			/** origin -> its row, for the probe's answers. */
+			const otherRows = new Map();
+
+			function paintOther(origin, state) {
+				const row = otherRows.get(origin);
+				if (!row) return;
+				row.querySelector('.g').textContent = state === 'ok' ? '●' : state === 'no' ? '○' : '';
+				row.querySelector('.g').classList.toggle('t2', state !== 'ok');
+				row.querySelector('.st').textContent =
+					state === 'ok' ? 'ANSWERS' : state === 'no' ? 'NO ANSWER' : 'CHECKING';
+			}
+
+			function paintOthers(at) {
+				otherRows.clear();
+				othersBox.replaceChildren();
+				const list = serverList().filter((s) => atOrigin(s.origin) !== atOrigin(at));
+				const here = known(at);
+				// 9D's title names the server by its name once it has one (S9).
+				if (here)
+					lostTitle.textContent = `○ NOTHING ANSWERS AT ${String(here.shown).toUpperCase()} · ${hostOf(at)}`;
+				screens.lost.classList.toggle('with-others', list.length > 0);
+				othersBox.hidden = othersLabel.hidden = list.length === 0;
+				document.getElementById('others-count').textContent = list.length
+					? String(list.length)
+					: '';
+				for (const s of list) {
+					const row = document.createElement('button');
+					row.type = 'button';
+					row.className = 'srv';
+					row.dataset.focus = '';
+					row.dataset.origin = s.origin;
+					const g = document.createElement('div');
+					g.className = 'g t2';
+					const b = document.createElement('div');
+					b.className = 'b';
+					const n = document.createElement('div');
+					n.className = 'n';
+					const name = document.createElement('span');
+					name.textContent = s.shown;
+					const st = document.createElement('span');
+					st.className = 'st';
+					n.append(name, st);
+					const meta = document.createElement('div');
+					meta.className = 'meta';
+					meta.textContent = hostOf(s.origin);
+					b.append(n, meta);
+					row.append(g, b);
+					row.addEventListener('click', () => {
+						stopRetry();
+						if (bridge && typeof bridge.open === 'function') bridge.open(s.origin);
+					});
+					othersBox.append(row);
+					otherRows.set(s.origin, row);
+					paintOther(s.origin, 'checking');
+					if (bridge) bridge.probe(s.origin);
+				}
 			}
 
 			function paint() {
@@ -771,12 +1163,95 @@
 				if (bridge) bridge.probe(lastOrigin);
 			});
 			document.getElementById('change').addEventListener('click', () => {
-				stopRetry();
-				show('address');
+				// A server in the list moved: 9B for that entry, not a new one.
+				// A move whose new address did not answer is still that entry's.
+				const there = known(lastOrigin) || (mode === 'move' && moving ? known(moving) : null);
+				addressAs(there ? 'move' : 'pair', there ? there.origin : '');
 			});
 			document.getElementById('start').addEventListener('click', () => {
-				show('address');
-				fill();
+				addressAs('pair');
+			});
+
+			/* ---- S8: added ------------------------------------------------------- */
+			let addedOrigin = '';
+			function added(origin) {
+				const s = known(origin);
+				if (!s) {
+					show('welcome');
+					return;
+				}
+				addedOrigin = s.origin;
+				const list = serverList();
+				const others = list.filter((x) => x.origin !== s.origin);
+				const called = String(s.name || hostOf(s.origin).toUpperCase());
+				show('added');
+				step.textContent = `ADDED · ${list.length} SERVERS`;
+				document.getElementById('added-lab').textContent =
+					`✓ PAIRED WITH ${called} · ${hostOf(s.origin).toUpperCase()}`;
+				document.getElementById('added-title').textContent =
+					`${s.shown} is one of this TV's servers`;
+				const still =
+					others.length === 0
+						? ''
+						: others.length === 1
+							? `${others[0].shown} is still here. `
+							: `${others[0].shown} and ${others.length - 1} more are still here. `;
+				// No name at the top of the library yet: that cell is the
+				// library page's (doc/TV-APP.md, "Servers"), so MORE is the door.
+				document.getElementById('added-prose').textContent =
+					still +
+					'Switch from MORE › SERVERS. Each keeps its own pairing, so switching never asks for digits again.';
+				document.getElementById('added-open').textContent =
+					`OPEN ${String(s.shown).toUpperCase()} →`;
+				document.getElementById('added-meta').textContent = s.name
+					? `${s.name} IS WHAT THE COMPUTER CALLS ITSELF`
+					: '';
+				backStep = backToLibrary;
+			}
+			document.getElementById('added-open').addEventListener('click', () => {
+				if (bridge && typeof bridge.open === 'function') bridge.open(addedOrigin);
+			});
+			document.getElementById('added-rename').addEventListener('click', () => {
+				renameScreen(addedOrigin, 'added');
+			});
+
+			/* ---- S5: rename ------------------------------------------------------ */
+			const renameField = document.getElementById('rename-field');
+			let renaming = '';
+			let renameFrom = '';
+			function renameScreen(origin, from) {
+				const s = known(origin);
+				if (!s) {
+					show('welcome');
+					return;
+				}
+				renaming = s.origin;
+				renameFrom = from;
+				show('rename');
+				document.getElementById('rename-label').textContent =
+					`THIS TV'S NAME FOR ${hostOf(s.origin).toUpperCase()}`;
+				renameField.value = s.tvName || '';
+				document.getElementById('rename-meta').textContent = s.name
+					? `THE SERVER CALLS ITSELF ${s.name} · EMPTY GOES BACK TO THAT · KEPT ON THIS TV ONLY`
+					: `THE SERVER HAS NOT SAID ITS NAME YET · EMPTY GOES BACK TO ITS ADDRESS · KEPT ON THIS TV ONLY`;
+				// The field takes focus at once: the keyboard rising is the point
+				// of this screen (S5), unlike 9B's, where it covered the buttons.
+				renameField.focus();
+				backStep = renameDone;
+			}
+			/** Where RENAME returns, saved or not: S8 it came from, or the library. */
+			function renameDone() {
+				if (renameFrom === 'added') {
+					added(renaming);
+					return true;
+				}
+				return backToLibrary();
+			}
+			document.getElementById('rename-form').addEventListener('submit', (e) => {
+				e.preventDefault();
+				if (bridge && typeof bridge.rename === 'function')
+					bridge.rename(renaming, renameField.value);
+				renameDone();
 			});
 
 			/* ---- focus: the D-pad moves the mark, the router has no spatial nav ---- */
@@ -827,6 +1302,9 @@
 				if (hash.startsWith('lost=')) lost(decode(hash.slice(5)));
 				else if (hash.startsWith('connect=')) connect(decode(hash.slice(8)));
 				else if (hash.startsWith('bad=')) refused();
+				else if (hash === 'add') addressAs('add');
+				else if (hash.startsWith('added=')) added(decode(hash.slice(6)));
+				else if (hash.startsWith('rename=')) renameScreen(decode(hash.slice(7)), '');
 				else show('welcome');
 			}
 			// A singleTask activity that is already open gets the second launch
