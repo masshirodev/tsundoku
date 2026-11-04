@@ -134,6 +134,29 @@ series' book grid) is one button already, so it was always tinted whole.
 none on `.open`, the cover's picture unchanged, the rating as wide as the tile,
 and no move.
 
+**The rating slider previews its value** (c494). A rating is a level, so the
+hover shows what a click would set instead of tinting the one half under the
+pointer. Each half carries `data-hover="off"` and `RatingSlider` draws the
+preview itself, in CSS alone (`:has()`), so a slider in a plain form previews
+too. The rule, from the hovered half:
+
+- A half it would add gets a **light fill**, 30% of `--rating-on`, never the
+  real one, so what the rating is and what it would be can't be confused. A
+  half already filled that stays filled is unchanged.
+- A filled half it would take away is **hatched**, so hovering below the
+  rating shows where it would drop to. Hovering the `0` cell hatches all of
+  it.
+- The rating runs from the start to the pointer. FILTER's AT LEAST
+  (`mode="min"`) runs from the pointer to the end, the ratings it would keep.
+- Leaving clears it. A drag captures the pointer and draws its own fill, as
+  before. A disabled slider has no preview, and touch and the TV are
+  unchanged.
+
+The slider is one component, so this holds everywhere it's used: the series
+screen, the reading sheets, the end page, the tile's picker, FILTER and the
+bulk bar. `motion.e2e.ts` hovers the series screen's slider and FILTER's,
+reads every half's state, and checks leaving clears it and nothing was saved.
+
 ## Arriving and leaving
 
 Everything that appears over the page leaves **the way it came**, with

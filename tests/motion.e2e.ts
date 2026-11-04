@@ -282,6 +282,91 @@ test('a library tile hovers as one, and its rating runs edge to edge', async ({
 	expect(await box(tile)).toEqual(before);
 });
 
+/**
+ * The rating slider previews what a click would set (c494): every half from
+ * the start to the pointer, or for FILTER's AT LEAST from the pointer to the
+ * end. Each half reads as `on` (a real fill), `preview` (a light fill it
+ * would add), `drop` (hatched: a fill it would take away) or `none`.
+ */
+type Half = 'on' | 'preview' | 'drop' | 'none';
+const halvesOf = (track: import('@playwright/test').Locator): Promise<Half[]> =>
+	track.locator('.half').evaluateAll((els) =>
+		els.map((el): Half => {
+			const s = getComputedStyle(el);
+			if (s.backgroundImage.includes('repeating-linear-gradient')) return 'drop';
+			if (el.classList.contains('on')) return 'on';
+			return s.backgroundColor === 'rgba(0, 0, 0, 0)' ? 'none' : 'preview';
+		})
+	);
+/** The slider at rest: its real fill and nothing else. */
+const resting = (value: number, min: boolean): Half[] =>
+	Array.from({ length: 10 }, (_, i) =>
+		(min ? value > 0 && i + 1 >= value : i + 1 <= value) ? 'on' : 'none'
+	);
+/** What the slider would show for `value`, hovered at half `at` (1-10), before it is clicked. */
+function expected(value: number, at: number, min: boolean): Half[] {
+	return Array.from({ length: 10 }, (_, i) => {
+		const n = i + 1;
+		const filled = min ? value > 0 && n >= value : n <= value;
+		const kept = min ? n >= at : n <= at;
+		return filled ? (kept ? 'on' : 'drop') : kept ? 'preview' : 'none';
+	});
+}
+
+test('hovering the rating previews every half up to the pointer, and leaving clears it', async ({
+	page,
+	isMobile
+}) => {
+	test.skip(isMobile, 'a tap fires a false hover on touch, so touch gets none');
+	await page.goto('/?sort=title');
+	await page.locator('.grid .tile', { hasText: 'Tower of God' }).click();
+	await page.waitForURL(/\/series\/\d+/);
+	await screenSettled(page);
+	const track = page.getByRole('group', { name: 'Rating', exact: true }).first();
+	await expect(track).toBeVisible();
+	const pressed = track.locator('.half[aria-pressed="true"]');
+	const stored = (await pressed.count())
+		? Number((await pressed.getAttribute('aria-label'))!.match(/Rate (\d+)/)![1])
+		: 0;
+	const at = stored >= 7 ? 3 : 7;
+	const half = track.locator('.half').nth(at - 1);
+
+	await half.hover();
+	await expect.poll(() => halvesOf(track)).toEqual(expected(stored, at, false));
+	// Leaving clears it, and the saved value never moved.
+	await page.mouse.move(0, 0);
+	await expect.poll(() => halvesOf(track)).toEqual(resting(stored, false));
+	await expect(pressed).toHaveCount(stored ? 1 : 0);
+
+	// The 0 cell clears, so every filled half is hatched and none is added.
+	await track.locator('xpath=..').getByRole('button', { name: 'Unrated' }).hover();
+	await expect.poll(() => halvesOf(track)).toEqual(expected(stored, 0, false));
+});
+
+test("FILTER's AT LEAST previews from the pointer to the end, the ratings it would keep", async ({
+	page,
+	isMobile
+}) => {
+	test.skip(isMobile, 'a tap fires a false hover on touch, so touch gets none');
+	await page.goto('/?shelf=all&sort=title&min=6');
+	await page.locator('summary:visible', { hasText: 'FILTER' }).first().click();
+	const track = page
+		.getByRole('group', { name: 'At least', exact: true })
+		.filter({ visible: true });
+	await expect(track).toBeVisible();
+	await expect.poll(() => halvesOf(track)).toEqual(resting(6, true));
+
+	// Above the threshold: the halves from 6 to the pointer would go.
+	await track.locator('.half').nth(7).hover();
+	await expect.poll(() => halvesOf(track)).toEqual(expected(6, 8, true));
+	// Below it: the halves from the pointer up to 6 would be added.
+	await track.locator('.half').nth(2).hover();
+	await expect.poll(() => halvesOf(track)).toEqual(expected(6, 3, true));
+	await page.mouse.move(0, 0);
+	await expect.poll(() => halvesOf(track)).toEqual(resting(6, true));
+	await expect(page).toHaveURL(/min=6/);
+});
+
 test('a slow screen: its outline is what slides in', async ({ page }) => {
 	await page.goto('/?sort=title');
 	await page.route('**/series/*/__data.json*', async (route) => {

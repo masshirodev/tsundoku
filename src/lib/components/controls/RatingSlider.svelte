@@ -250,6 +250,7 @@
 						<!-- eslint-disable svelte/no-navigation-without-resolve -- the caller's href resolves (minHref) -->
 						<a
 							class="half"
+							data-hover="off"
 							class:on={filled}
 							href={href(n)}
 							aria-label={said}
@@ -262,6 +263,7 @@
 						<button
 							type="submit"
 							class="half"
+							data-hover="off"
 							class:on={filled}
 							{name}
 							value={n}
@@ -274,6 +276,7 @@
 						<button
 							type="button"
 							class="half"
+							data-hover="off"
 							class:on={filled}
 							aria-label={said}
 							aria-pressed={chosen}
@@ -409,6 +412,34 @@
 	.half:focus-visible {
 		outline: 2px solid var(--text-1);
 		outline-offset: -2px;
+	}
+	/*
+	 * Hovering previews the value a click would set (c494): a rating is a
+	 * level, so every half from the start to the pointer, not the one cell
+	 * under it (each half opts out of the app's own hover tint for this). A
+	 * half it would add is a light fill, never the real one; a filled half it
+	 * would take away is hatched, so hovering below the rating shows where it
+	 * drops to, and the 0 cell hatches all of it. 'min' fills from the
+	 * pointer up, so its preview runs that way. CSS alone, so a slider in a
+	 * plain form previews too; a drag captures the pointer, and draws itself.
+	 */
+	@media (hover: hover) and (pointer: fine) {
+		.rs {
+			--rs-preview: color-mix(in oklab, var(--rating-on) 30%, transparent);
+			--rs-drop: repeating-linear-gradient(135deg, var(--rating-on) 0 2px, transparent 2px 6px);
+		}
+		.rs:not(.disabled, .min)
+			:is(.half:hover, .half:has(~ .half:hover), .block:has(~ .block .half:hover) .half):not(.on),
+		.rs.min:not(.disabled)
+			:is(.half:hover, .half:hover ~ .half, .block:has(.half:hover) ~ .block .half):not(.on) {
+			background-color: var(--rs-preview);
+		}
+		.rs:not(.disabled, .min) :is(.half:hover ~ .half, .block:has(.half:hover) ~ .block .half).on,
+		.rs:not(.disabled, .min):has(.zero:hover) .half.on,
+		.rs.min:not(.disabled)
+			:is(.half:has(~ .half:hover), .block:has(~ .block .half:hover) .half).on {
+			background: var(--rs-drop);
+		}
 	}
 	.tick {
 		position: absolute;
