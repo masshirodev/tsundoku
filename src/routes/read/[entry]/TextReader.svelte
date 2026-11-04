@@ -21,7 +21,12 @@
 		IDLE_CAPS,
 		ProgressClock,
 		TEXT_EDGE,
+		TURN_EASE,
+		TURN_MS,
 		WheelTurn,
+		dragGive,
+		dragStarts,
+		forwardBy,
 		hoverAction,
 		swipeAction,
 		tapAction,
@@ -287,11 +292,21 @@
 			}
 			return null;
 		}
+		// The caret snaps to the nearest text where a point has none, so on a
+		// page that is the band alone it named a character pages back (found
+		// with c441): only a character on this page counts.
+		const here = (p: TextPosition | null) => {
+			const r = p && flowEl ? rectOf(flowEl, p) : null;
+			if (!r) return false;
+			const cx = r.left + r.width / 2;
+			const cy = r.top + r.height / 2;
+			return cx >= box.left && cx <= box.right && cy >= box.top && cy <= box.bottom;
+		};
 		if (vertical) {
 			for (let x = box.right - 4; x > box.left; x -= 12)
 				for (const y of [box.top + 6, box.top + f.fontSize * 2]) {
 					const p = positionAt(x, y);
-					if (p) return p;
+					if (here(p)) return p;
 				}
 			return null;
 		}
@@ -299,7 +314,7 @@
 		for (let y = box.top + 4; y < box.bottom; y += 12)
 			for (const x of [box.left + 4, box.left + colW / 2]) {
 				const p = positionAt(x, y);
-				if (p) return p;
+				if (here(p)) return p;
 			}
 		return null;
 	}
@@ -400,7 +415,19 @@
 		await relayout();
 		if (at === 'end') {
 			page = pages - 1;
-			pos = positionOnPage() ?? pos;
+			// Read once the flow has moved there: read before, it was the
+			// chapter's first character, and the next relayout (a font arriving)
+			// took the reader back from the last page (found with c441).
+			await tick();
+			// A last page that is the band alone has no character to read: the
+			// chapter's last one stands for it, so a relayout keeps the reader at
+			// the end rather than taking it back to the start (c441).
+			const last = ch.blocks.length - 1;
+			pos =
+				positionOnPage() ??
+				(last >= 0
+					? { block: last, offset: Math.max(0, (ch.blocks[last].textContent ?? '').length - 1) }
+					: pos);
 		}
 		clock.resume(Date.now());
 		void send('open');
@@ -414,7 +441,9 @@
 
 	/** Scroll: the next chapter is already below this one, so reading carries on. */
 	async function loadNext() {
-		// The next volume is another download: it opens when reading reaches it.
+		// The next volume is another download: it opens when reading reaches it,
+		// its start being the room drawn below the band (c347), which crosses the
+		// middle of the screen as a chapter's start does (`onscroll`).
 		if (!book || !nextReadable || layout !== 'scroll' || nextReadable.file !== bookFile) return;
 		try {
 			nextChapter = await chapterBlocks(book.zip, docsOf(book, index + 1), book.images);
@@ -465,7 +494,15 @@
 		// An illustration that arrives late changes the pages after it.
 		const loaded = () => void relayout();
 		addEventListener('load', loaded, true);
-		return () => removeEventListener('load', loaded, true);
+		// So does a face: `ready` above has usually settled before the book's
+		// text asks for its font, and the pages counted before the font
+		// arrived left the last one (the band's, when the text fills the page
+		// before it) out of reach of a turn (found with c441).
+		document.fonts?.addEventListener('loadingdone', loaded);
+		return () => {
+			removeEventListener('load', loaded, true);
+			document.fonts?.removeEventListener('loadingdone', loaded);
+		};
 	});
 
 	// ---- turning ----------------------------------------------------------------------------------
@@ -516,6 +553,114 @@
 		if (layout === 'scroll') return;
 		if (page > 0) return void go(page - 1);
 		if (prevReadable) void openChapter(index - 1, 'end');
+	}
+
+	// ---- the slide (c441; doc/TEXT-READER.md, "Turning") ------------------------------------
+	// A paged turn slides and a drag follows the finger, as a manga's page does
+	// (doc/READER.md, "Turning pages"), on the image reader's numbers
+	// (src/lib/reader/reader.ts). The chapter is one CSS-columns flow, so the
+	// page either side is already laid out beside this one: a turn is a
+	// transition on the flow's transform and nothing else, and nothing lays the
+	// columns out again while it moves.
+	/**
+	 * The axis the pages follow each other along, and which way. Horizontal
+	 * text's next page lies to the right (x, +1). Vertical Japanese's lies below
+	 * (y, +1), so its turn translates up while the finger, as everywhere in an
+	 * R->L book, pulls it in by dragging right (`forwardBy`). A horizontal R->L
+	 * book (c440) would be x with -1: this pair is the only place that knows.
+	 */
+	const pageAxis = $derived<'X' | 'Y'>(vertical ? 'Y' : 'X');
+	const pageSign: 1 | -1 = 1;
+	/** How far the flow is moved past `page`, in px towards the next page: a drag, or where a slide is going. */
+	let drag = $state(0);
+	/** The flow's transform is transitioning (the CSS class). */
+	let sliding = $state(false);
+	/** A turn is under way (sliding, or opening the chapter it slides into): another one waits for it. */
+	let turning = false;
+	/** A turn asked for mid-turn: taken as soon as this one lands, so quick taps all count. */
+	let queuedTurn: 'next' | 'prev' | null = null;
+	let dragging = false;
+	const reduceMotion = new MediaQuery('(prefers-reduced-motion: reduce)', false);
+	const shift = $derived(-pageSign * (page * step + drag));
+	const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+	const painted = () => new Promise((r) => requestAnimationFrame(() => r(undefined)));
+
+	/** The chapter on screen has another page that way (the end page has none). */
+	const pageThat = (dir: 'next' | 'prev') =>
+		!atEnd && (dir === 'next' ? page < pages - 1 : page > 0);
+	/** That way is a chapter's page: the next chapter's first, or the previous one's last. */
+	const chapterThat = (dir: 'next' | 'prev') =>
+		!atEnd && (dir === 'next' ? page >= pages - 1 && !!nextReadable : page <= 0 && !!prevReadable);
+
+	/**
+	 * Turn, sliding: within the chapter the flow moves one page over and the
+	 * page turned to becomes the one read where it stands, so nothing moves at
+	 * the end. Into the next chapter its first page slides in from where the
+	 * next page lies, and back into the previous one its last page from the
+	 * other side. The end page arrives, and leaves, as it always has; reduced
+	 * motion turns at once.
+	 */
+	async function turn(dir: 'next' | 'prev') {
+		if (layout === 'scroll' || !chapter) return;
+		if (turning) {
+			queuedTurn = dir;
+			return;
+		}
+		if (reduceMotion.current || (!pageThat(dir) && !chapterThat(dir))) {
+			drag = 0;
+			return dir === 'next' ? next() : prev();
+		}
+		turning = true;
+		if (pageThat(dir)) {
+			sliding = true;
+			drag = dir === 'next' ? step : -step;
+			await pause(TURN_MS);
+			sliding = false;
+			drag = 0;
+			await go(dir === 'next' ? page + 1 : page - 1);
+		} else {
+			drag = 0;
+			if (dir === 'next') markFinished();
+			await openChapter(dir === 'next' ? index + 1 : index - 1, dir === 'next' ? 'start' : 'end');
+			// Opened (another volume may have failed to): the page starts a step
+			// short of where it is read, and slides the rest of the way.
+			if (chapter) await slideIn(dir === 'next' ? -step : step);
+		}
+		turning = false;
+		const then = queuedTurn;
+		queuedTurn = null;
+		if (then) void turn(then);
+	}
+
+	async function slideIn(from: number) {
+		drag = from;
+		await tick();
+		// The start has to be a style the browser has resolved, or the move to 0
+		// is one change and nothing transitions: a frame callback runs before
+		// that frame's styles, so read the computed transform to settle it.
+		if (flowEl) void getComputedStyle(flowEl).transform;
+		await painted();
+		sliding = true;
+		drag = 0;
+		await pause(TURN_MS);
+		sliding = false;
+	}
+
+	/** A drag that didn't turn: back into place. */
+	async function settleBack() {
+		if (reduceMotion.current || drag === 0) {
+			drag = 0;
+			return;
+		}
+		turning = true;
+		sliding = true;
+		drag = 0;
+		await pause(TURN_MS);
+		sliding = false;
+		turning = false;
+		const then = queuedTurn;
+		queuedTurn = null;
+		if (then) void turn(then);
 	}
 
 	function jump(i: number) {
@@ -758,14 +903,33 @@
 			? null
 			: { x: e.clientX, y: e.clientY };
 		pressed = false;
+		dragging = false;
 		clearTimeout(press);
 		if (down && japanese && !atEnd) {
 			const { x, y } = down;
 			press = setTimeout(() => lookUpAt(x, y), PRESS_MS);
 		}
 	}
+	/**
+	 * The page follows a sideways drag in the paged layouts (c441), all the way
+	 * where there's a page that way in the chapter and a quarter as much where
+	 * there isn't. Not in scroll, not with the lookup open, not on the end
+	 * page, and not with reduced motion.
+	 */
 	function pointermove(e: PointerEvent) {
 		if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 10) clearTimeout(press);
+		if (!down || layout === 'scroll' || turning || lookup || atEnd || reduceMotion.current) return;
+		const dx = e.clientX - down.x;
+		const dy = e.clientY - down.y;
+		if (!dragging && !dragStarts(dx, dy)) return;
+		dragging = true;
+		drag = dragGive(forwardBy(dx, mode), pageThat('next'), pageThat('prev'));
+	}
+	function pointercancel() {
+		clearTimeout(press);
+		down = null;
+		if (dragging) void settleBack();
+		dragging = false;
 	}
 	function pointerup(e: PointerEvent) {
 		clearTimeout(press);
@@ -785,10 +949,13 @@
 		const dy = e.clientY - down.y;
 		down = null;
 		const swipe = swipeAction(dx, dy, mode);
+		const dragged = dragging;
+		dragging = false;
 		if (swipe) {
 			chrome = false;
-			return swipe === 'next' ? next() : prev();
+			return void turn(swipe === 'next' ? 'next' : 'prev');
 		}
+		if (dragged) return void settleBack();
 		if (Math.hypot(dx, dy) > 10) return;
 		if (atEnd) {
 			if (tapAction(e.clientX, window.innerWidth, mode, TEXT_EDGE) === 'prev') prev();
@@ -820,8 +987,7 @@
 		}
 		const action = tapAction(e.clientX, window.innerWidth, mode, TEXT_EDGE);
 		if (action === 'chrome') chrome = true;
-		else if (action === 'next') next();
-		else prev();
+		else void turn(action);
 	}
 
 	/** The controls came up because the mouse reached an edge: they go when it leaves. */
@@ -903,7 +1069,13 @@
 		}
 		// On a TV with the chrome up the pad owns the arrows and the turn keys
 		// (c241): an arrow moves among the chrome's cells, BACK hides it.
-		if (tvScreen.current && chrome && TURNS.has(e.key)) return;
+		// An arrow that found no cell is not the browser's either: on a strip
+		// its own scroll moved the chapter 40px under the chrome (c253). Space
+		// is left alone: on a focused cell it presses it.
+		if (tvScreen.current && chrome && TURNS.has(e.key)) {
+			if (e.key !== ' ') e.preventDefault();
+			return;
+		}
 		if (layout === 'scroll') {
 			// The end page is over the text: BACK's own keys return to it, as
 			// ← does in the paged layouts.
@@ -923,14 +1095,13 @@
 		const right = e.key === 'ArrowRight';
 		if (left || right) {
 			e.preventDefault();
-			if (left === (mode === 'rtl')) next();
-			else prev();
+			void turn(left === (mode === 'rtl') ? 'next' : 'prev');
 		} else if (e.key === ' ' || e.key === 'PageDown') {
 			e.preventDefault();
-			next();
+			void turn('next');
 		} else if (e.key === 'PageUp') {
 			e.preventDefault();
-			prev();
+			void turn('prev');
 		}
 	}
 
@@ -983,8 +1154,7 @@
 		// Not passive, so a sideways scroll can't also go back in history.
 		e.preventDefault();
 		const action = wheelTurn.feed(wheelForward(e, mode), e.timeStamp);
-		if (action === 'next') next();
-		else if (action === 'prev') prev();
+		if (action) void turn(action);
 	}
 	onMount(() => {
 		addEventListener('wheel', wheel, { passive: false });
@@ -1087,7 +1257,7 @@
 	onpointerdown={pointerdown}
 	onpointermove={pointermove}
 	onpointerup={pointerup}
-	onpointercancel={() => clearTimeout(press)}
+	onpointercancel={pointercancel}
 	oncontextmenu={(e) => japanese && e.preventDefault()}
 >
 	<div
@@ -1101,6 +1271,8 @@
 	>
 		<div
 			class="flow"
+			class:sliding
+			class:moving={sliding || drag !== 0}
 			bind:this={flowEl}
 			style:column-width={layout === 'paged'
 				? `${vertical ? f.h : f.cols > 1 ? (f.w - f.gap) / 2 : f.w}px`
@@ -1109,11 +1281,9 @@
 			style:height={layout === 'paged' ? `${f.h}px` : undefined}
 			style:width={layout === 'paged' && vertical ? `${f.w}px` : undefined}
 			style:padding={layout === 'scroll' ? `${f.y}px ${f.x}px` : undefined}
-			style:transform={layout === 'paged'
-				? vertical
-					? `translateY(${-page * step}px)`
-					: `translateX(${-page * step}px)`
-				: undefined}
+			style:transform={layout === 'paged' ? `translate${pageAxis}(${shift}px)` : undefined}
+			style:--turn-ms="{TURN_MS}ms"
+			style:--turn-ease={TURN_EASE}
 		>
 			<div class="blocks" bind:this={blocksEl}></div>
 			{#if chapter && nextReadable && layout === 'paged'}
@@ -1147,7 +1317,17 @@
 					</div>
 					<div class="go">↓ KEEP SCROLLING</div>
 				</div>
-				<div class="blocks next" bind:this={nextEl}></div>
+				{#if nextReadable.file !== bookFile}
+					<!-- The next volume is another download (c347): a screen of room where
+					     its first chapter will be, so its start crosses the middle of the
+					     screen as any next chapter's does, and the crossing opens it, with
+					     OPENING over it while it downloads, as a turn does in PAGED. -->
+					<div class="blocks next" bind:this={nextEl}>
+						<div class="volume-room" aria-hidden="true"></div>
+					</div>
+				{:else}
+					<div class="blocks next" bind:this={nextEl}></div>
+				{/if}
 			{/if}
 		</div>
 	</div>
@@ -1409,6 +1589,28 @@
 		-webkit-hyphens: auto;
 		overflow-wrap: break-word;
 	}
+	/*
+	 * Paged, the flow moves by its transform alone (c441): following a drag,
+	 * or sliding a turn, and the columns are never laid out again for it. It
+	 * is a layer of its own only while it moves: kept as one, a long
+	 * chapter's flow (56 pages, 45,000px wide) made the slides' frames worse,
+	 * not better (measured, doc/handoff-notes/reader.md, wave 20). Horizontal
+	 * pans are the reader's, so a drag reaches it rather than the browser.
+	 */
+	.text-reader:not(.scroll) {
+		touch-action: pan-y pinch-zoom;
+	}
+	.flow.moving {
+		will-change: transform;
+	}
+	.flow.sliding {
+		transition: transform var(--turn-ms) var(--turn-ease);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.flow.sliding {
+			transition: none;
+		}
+	}
 	.sans .flow {
 		font-family: var(--font-sans);
 	}
@@ -1617,6 +1819,10 @@
 		border-top: 1px solid var(--text-1);
 		border-bottom: 1px solid var(--text-1);
 		text-align: left;
+	}
+	/* As tall as the screen, so the room's top can reach the middle of it. */
+	.volume-room {
+		height: 100dvh;
 	}
 	.sband .rule {
 		height: 1px;

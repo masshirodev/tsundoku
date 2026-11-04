@@ -1,4 +1,10 @@
 import type { Page } from '@playwright/test';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { join } from 'node:path';
+import { E2E_TOKEN } from '../playwright.config';
 import { sampleEpub } from '../src/lib/server/pages/sample-epub';
 import { Zip } from '../src/lib/epub/unzip';
 import { expect, test } from './helpers/hydrated';
@@ -36,9 +42,11 @@ const middle = async (page: Page) => {
 	await page.mouse.click(v.width / 2, 30);
 };
 /**
- * Turn one page, and return once the reader has turned it: the flow's
- * transform (page turns never animate) or the chapter's heading has moved,
- * both of which the click changes at once. A click the reader hadn't handled
+ * Turn one page, and return once the reader has turned it and the page has
+ * landed: the flow's transform (set to where the slide lands as it starts,
+ * c441) or the chapter's heading has moved, both of which the click changes
+ * at once, and the flow has stopped sliding, so what is measured next is not
+ * moving. A click the reader hadn't handled
  * yet was read as "no turn" under a loaded suite, and the next click turned
  * twice, past the page the test was looking for (c394, c439). The URL is no
  * witness: the reader rewrites `?at=` 800 ms after the *previous* turn, so it
@@ -57,6 +65,7 @@ const forward = async (page: Page) => {
 	const v = page.viewportSize()!;
 	await page.mouse.click(v.width - 8, v.height / 2);
 	await expect.poll(where).not.toBe(before);
+	await expect(page.locator('.flow')).not.toHaveClass(/sliding/);
 };
 
 test('a novel opens as text, turns, and carries on into the next chapter', async ({ page }) => {
@@ -197,8 +206,27 @@ test('a Japanese book is set vertically, with furigana and upright numbers', asy
 	await expect(page.locator('.blocks rt').first()).toHaveText('ぼうし');
 	await expect(page.locator('.blocks .tcy', { hasText: /^12$/ }).first()).toBeAttached();
 	// Right to left: the left strip turns forward, onto the chapter's first page of text.
+	const shift = () =>
+		page
+			.locator('.flow')
+			.evaluate((el: HTMLElement) => /translate([XY])\((-?[\d.]+)px\)/.exec(el.style.transform));
 	await page.mouse.click(8, page.viewportSize()!.height / 2);
 	await expect(page.locator('.bottom')).toHaveCount(0);
+	// It slid on the vertical text's own axis: the page went up (c441).
+	await expect.poll(async () => (await shift())?.[1]).toBe('Y');
+	await expect(page.locator('.flow')).not.toHaveClass(/sliding/);
+	const turned = Number((await shift())![2]);
+	expect(turned).toBeLessThan(0);
+	// A drag to the right pulls the next page in, so the page follows it up,
+	// and lifted short of the swipe it comes back down.
+	const v = page.viewportSize()!;
+	await page.mouse.move(v.width / 2, v.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(v.width / 2 + 24, v.height / 2, { steps: 4 });
+	expect(Number((await shift())![2])).toBeLessThan(turned);
+	await page.mouse.up();
+	await expect.poll(async () => Number((await shift())![2])).toBe(turned);
+	await expect(page.locator('.flow')).not.toHaveClass(/sliding/);
 	await middle(page);
 	await expect(page.locator('.bottom .left')).toHaveText(/^P\. 2 OF /);
 	await expect(page.getByRole('button', { name: /^VERTICAL · SANS JP/ })).toBeVisible();
@@ -217,4 +245,117 @@ test('a file that is not an EPUB says so, and offers the way back', async ({ pag
 	await expect(page.getByText('DID NOT OPEN')).toBeVisible({ timeout: 15000 });
 	await expect(page.getByText(/^BROKEN EPUB · /)).toBeVisible();
 	await expect(page.getByRole('link', { name: '← SERIES' })).toBeVisible();
+});
+
+// ---- SCROLL across a volume's end (c347) ------------------------------------------------
+//
+// A novel grouped from two books is one download per volume (doc/TEXT-READER.md,
+// "Opening"). The shared seed has none, and grouping writes, so this block seeds a
+// database of its own, groups two of its novels through GROUP as volumes-flow does,
+// and serves the build on a port the OS gives. Nothing it writes reaches another spec.
+
+test.describe('a novel of two volumes, read in SCROLL (c347)', () => {
+	// Made in beforeAll, not at load: `playwright test --list` loads this file too.
+	let work = '';
+	let preview: ChildProcess | null = null;
+	let base = '';
+
+	function freePort(): Promise<number> {
+		return new Promise((ok) => {
+			const s = createServer();
+			s.listen(0, '127.0.0.1', () => {
+				const port = (s.address() as AddressInfo).port;
+				s.close(() => ok(port));
+			});
+		});
+	}
+
+	test.beforeAll(async () => {
+		work = mkdtempSync(
+			join(process.env.TMPDIR ?? join(process.cwd(), 'temp'), 'tsundoku-text-volumes-')
+		);
+		const dbPath = join(work, 'text-volumes.sqlite');
+		const library = join(work, 'library');
+		execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
+			env: { ...process.env, DATABASE_PATH: dbPath, LIBRARY_ROOT: library, NODE_NO_WARNINGS: '1' },
+			stdio: 'pipe'
+		});
+		const port = await freePort();
+		base = `http://localhost:${port}`;
+		preview = spawn('npx', ['vite', 'preview', '--port', String(port), '--strictPort'], {
+			env: {
+				...process.env,
+				DATABASE_PATH: dbPath,
+				TSUNDOKU_TOKEN: E2E_TOKEN,
+				LIBRARY_ROOT: library,
+				TSUNDOKU_HOME: join(work, 'home'),
+				BACKUP_DIR: join(work, 'backups'),
+				TSUNDOKU_ANILIST: 'off'
+			},
+			stdio: 'ignore'
+		});
+		for (let i = 0; i < 120; i++) {
+			try {
+				if ((await fetch(`${base}/`, { redirect: 'manual' })).status) return;
+			} catch {
+				await new Promise((r) => setTimeout(r, 500));
+			}
+		}
+		throw new Error('the two-volume preview never answered');
+	});
+
+	test.afterAll(() => {
+		preview?.kill();
+		if (work) rmSync(work, { recursive: true, force: true });
+	});
+
+	test('scrolling past the band opens the next volume, as a turn does in PAGED', async ({
+		page
+	}) => {
+		test.setTimeout(120_000);
+		// Two Isekai: Tensei Shitara Ken Deshita's 15 volumes, then Villainess Level 99's.
+		await page.goto(`${base}/?shelf=k:novel&sort=title`);
+		await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+		for (const t of ['Tensei Shitara Ken Deshita', 'Villainess Level 99'])
+			await page.locator('.grid .tile', { hasText: t }).click();
+		await page.getByRole('button', { name: /GROUP/ }).click();
+		const sheet = page.getByRole('dialog', { name: 'Group into a series' });
+		await sheet.getByRole('textbox', { name: 'Series name' }).fill('Two Isekai');
+		await sheet.getByRole('button', { name: 'BY TITLE' }).click();
+		await sheet.getByRole('button', { name: /CREATE SERIES · 2 VOLUMES/ }).click();
+		await expect(page).toHaveURL(/\/series\/\d+\?created=2/);
+
+		// The first volume's last chapter, read in SCROLL (session state: nothing stored).
+		const list = page.getByRole('region', { name: 'Contents' });
+		await list.getByText('Vol. 15', { exact: true }).first().click();
+		await page.waitForURL(/\/read\//);
+		const heading = page.locator('.blocks:not(.next) h1').first();
+		await expect(heading).toHaveText('Vol. 15', { timeout: 15_000 });
+		await middle(page);
+		await page.getByRole('button', { name: /^PAGED · / }).click();
+		await page.getByRole('radio', { name: 'SCROLL' }).click();
+		await page.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect(page.locator('.text-reader')).toHaveClass(/scroll/);
+		// The band promises the next chapter, the other book's first.
+		const band = page.locator('.sband');
+		await expect(band.getByText('↓ KEEP SCROLLING')).toBeVisible();
+		await expect(band.locator('.nx .t')).toHaveText('Vol. 1');
+
+		// Scroll on, as a reader does, until the heading moves or 80 notches pass.
+		const files: string[] = [];
+		page.on('request', (r) => {
+			if (/\/epub\/files\?v=.*&f=/.test(r.url())) files.push(r.url());
+		});
+		const v = page.viewportSize()!;
+		await page.mouse.move(v.width / 2, v.height / 2);
+		for (let i = 0; i < 80 && (await heading.textContent()) === 'Vol. 15'; i++) {
+			await page.mouse.wheel(0, 400);
+			await page.waitForTimeout(60);
+		}
+		// Villainess' own Vol. 1, opened from its own file at its top.
+		await expect(heading).toHaveText('Vol. 1', { timeout: 15_000 });
+		expect(files.length).toBeGreaterThan(0);
+		await expect(heading).toBeInViewport();
+		await expect(page.locator('.text-reader')).toHaveClass(/scroll/);
+	});
 });

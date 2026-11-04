@@ -929,9 +929,10 @@
 	let scrub = $state<HTMLElement | null>(null);
 	let hoverAt = $state<number | null>(null);
 	/**
-	 * The line's box, not the element's: the track carries a transparent left
-	 * border so ↑ from ▶❚❚ can reach it (c296), and a click in that border
-	 * still means the beginning of the timeline.
+	 * The line's box, not the element's: on a TV the track carries a
+	 * transparent left border so ↑ from ▶❚❚ can reach it (c296), and the line
+	 * starts after it. Nothing points at a TV, so no click lands in that border
+	 * (c315); everywhere else `clientLeft` is 0.
 	 */
 	function scrubBox(el: HTMLElement): { left: number; width: number } {
 		const box = el.getBoundingClientRect();
@@ -2755,8 +2756,9 @@
 	/* The bars fade both ways here, on the app's own timing (base.css, .appear):
 	   they're kept in the page and hidden by class, so they can fade out too.
 	   The cluster does not fade (c217): it sits in the middle of the picture, and
-	   a half-faded black box over the video read as a translucent patch. It is
-	   solid from its first frame and gone on the next. */
+	   a box fading over the video read as a patch coming and going. It is all
+	   there from its first frame and gone on the next; its ground is translucent
+	   throughout (c429, below), which is a different thing from a fade. */
 	.top,
 	.bottom {
 		transition: opacity var(--motion-appear) var(--ease);
@@ -2776,7 +2778,13 @@
 		top: 50%;
 		transform: translate(-50%, -50%);
 		display: flex;
-		background: var(--surface-page);
+		/*
+		 * Translucent, so the frame shows through while the controls are up (the
+		 * owner, 2026-11-03, c429), and the glyphs at full strength. 70% of the
+		 * page's ground keeps the labels at AA over a white frame (5.9:1) as
+		 * well as a black one; browse-player-cluster measures both.
+		 */
+		background: color-mix(in oklab, var(--surface-page) 70%, transparent);
 		border: var(--hairline);
 	}
 	.cluster button {
@@ -3759,20 +3767,7 @@
 		position: relative;
 		flex: 1;
 		height: 4px;
-		/*
-		 * The bar's cells start at the screen's edge while the line starts after
-		 * the time, so ▶❚❚ (49–125) did not overlap the line (126–826): ↑ from it
-		 * took the far-away top bar's ←, which does overlap, because an
-		 * overlapping candidate wins over a nearer one out of line (c296). The
-		 * transparent border reaches the element's own box under that first
-		 * cell without moving the line: the fill is clipped to the padding box
-		 * and its children are positioned from there, so the bar looks the same
-		 * and ↑ from any cell in the row lands on it.
-		 */
-		margin-left: -20px;
-		border-left: 20px solid transparent;
 		background: var(--line-1);
-		background-clip: padding-box;
 		touch-action: none;
 		cursor: pointer;
 	}
@@ -3898,6 +3893,25 @@
 		}
 		.cluster {
 			display: none;
+		}
+		/*
+		 * The bar's cells start at the screen's edge while the line starts after
+		 * the time, so ▶❚❚ (49–125) did not overlap the line (126–826): ↑ from it
+		 * took the far-away top bar's ←, which does overlap, because an
+		 * overlapping candidate wins over a nearer one out of line (c296). The
+		 * transparent border reaches the element's own box under that first
+		 * cell without moving the line: the fill is clipped to the padding box
+		 * and its children are positioned from there, so the bar looks the same
+		 * and ↑ from any cell in the row lands on it.
+		 *
+		 * Only here, where nothing points (c315): set on every bar, the border
+		 * was a 20px strip between the time and the line that a click or a tap
+		 * turned into a seek to 0:00, where before it was inert.
+		 */
+		.track {
+			margin-left: -20px;
+			border-left: 20px solid transparent;
+			background-clip: padding-box;
 		}
 		.cells .pause,
 		.cells .cell.tv {

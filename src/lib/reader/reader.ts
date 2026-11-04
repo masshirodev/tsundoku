@@ -67,6 +67,51 @@ export function swipeAction(dx: number, dy: number, mode: Mode): Action | null {
 	return dx > 0 === (mode === 'rtl') ? 'next' : 'prev';
 }
 
+// ---- the slide of a paged turn ---------------------------------------------------
+// Both readers' paged turns follow the finger and slide (doc/READER.md, "Turning
+// pages"; doc/TEXT-READER.md, "Turning"): these are the numbers they share, so
+// a manga's page and a novel's move alike. The release itself is `swipeAction`
+// above: past SWIPE_PX, mostly sideways, it turns; short of it, it goes back.
+
+/** How long a turn slides, and how long a page that wasn't turned takes to go back. */
+export const TURN_MS = 220;
+/**
+ * The turn's curve: fast off the finger, slow into place. The readers' own,
+ * outside doc/MOTION.md's tokens, which are for things that come and go
+ * rather than for a page following a hand (doc/MOTION.md, "Page turns").
+ */
+export const TURN_EASE = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
+/** A press becomes a drag the page follows once it has moved this far, at least as much sideways. */
+export const DRAG_PX = 8;
+/** Where no page lies that way in the chapter, a drag gives this much of the finger's travel. */
+export const EDGE_GIVE = 0.25;
+
+/** Whether a press that has moved (dx, dy) is a drag the page follows. */
+export function dragStarts(dx: number, dy: number): boolean {
+	return Math.abs(dx) >= DRAG_PX && Math.abs(dx) >= Math.abs(dy);
+}
+
+/**
+ * How far a sideways drag has gone towards the next page, in px: negative is
+ * towards the previous one. In R->L the next page is pulled in by dragging
+ * right (as `swipeAction`), in L->R by dragging left. Vertical scroll has no
+ * pages to drag (0).
+ */
+export function forwardBy(dx: number, mode: Mode): number {
+	if (mode === 'vertical') return 0;
+	return mode === 'rtl' ? dx : -dx;
+}
+
+/**
+ * How far the page follows a drag `forward` px towards the next page: all of
+ * it while there is a page that way in the chapter, EDGE_GIVE of it where
+ * there isn't (the chapter's last page going on, its first going back).
+ */
+export function dragGive(forward: number, hasNext: boolean, hasPrev: boolean): number {
+	const open = forward > 0 ? hasNext : forward < 0 ? hasPrev : true;
+	return open ? forward : forward * EDGE_GIVE;
+}
+
 // ---- spreads ---------------------------------------------------------------------
 
 export type Page = { w: number; h: number };

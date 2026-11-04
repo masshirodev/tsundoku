@@ -287,9 +287,14 @@ test.describe('the end of what is downloaded (c251)', () => {
 		await page.goto(`${base}/read/${first[title]}`);
 		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15_000 });
 		const end = page.getByText('END · LAST AVAILABLE');
+		// A turn slides (c441), and a key pressed mid-slide waits for it to
+		// land: each press waits for the page to land first, so no turn is
+		// still queued when the end arrives (one landing after the loop's
+		// check sent the next → to the end screen, whose → moves the pad).
+		const flow = page.locator('.flow');
 		for (let i = 0; i < 500 && (await end.count()) === 0; i++) {
 			await page.keyboard.press('ArrowRight');
-			await page.waitForTimeout(20);
+			await expect(flow).not.toHaveClass(/sliding/);
 		}
 		await expect(end).toBeVisible();
 		await expect(page.getByText('CH. 2 IS NOT DOWNLOADED')).toBeVisible();

@@ -25,7 +25,14 @@ import {
 	wheelForward,
 	tapAction,
 	TEXT_EDGE,
-	shapeOf
+	shapeOf,
+	DRAG_PX,
+	EDGE_GIVE,
+	SWIPE_PX,
+	TURN_MS,
+	dragGive,
+	dragStarts,
+	forwardBy
 } from '$lib/reader/reader';
 
 describe('mouse buttons', () => {
@@ -81,6 +88,49 @@ describe('swipes', () => {
 		expect(swipeAction(20, 0, 'rtl')).toBeNull();
 		expect(swipeAction(80, 90, 'rtl')).toBeNull();
 		expect(swipeAction(200, 0, 'vertical')).toBeNull();
+	});
+});
+
+describe('the slide of a paged turn (c441)', () => {
+	it('is the numbers both readers had: 220 ms, 8px before a drag, a quarter at an edge, 40px to turn', () => {
+		expect(TURN_MS).toBe(220);
+		expect(DRAG_PX).toBe(8);
+		expect(EDGE_GIVE).toBe(0.25);
+		expect(SWIPE_PX).toBe(40);
+	});
+
+	it('follows a press once it has gone 8px, at least as far sideways as down', () => {
+		expect(dragStarts(7, 0)).toBe(false);
+		expect(dragStarts(8, 0)).toBe(true);
+		expect(dragStarts(-8, 0)).toBe(true);
+		expect(dragStarts(8, 9)).toBe(false);
+		expect(dragStarts(9, 9)).toBe(true);
+		expect(dragStarts(0, 40)).toBe(false);
+	});
+
+	it('measures a drag towards the next page the way swipeAction turns, in every mode', () => {
+		// For every mode, a drag far enough to swipe turns the way forwardBy's sign says.
+		for (const mode of ['ltr', 'rtl', 'vertical'] as const)
+			for (const dx of [-120, 120]) {
+				const f = forwardBy(dx, mode);
+				const swipe = swipeAction(dx, 0, mode);
+				if (mode === 'vertical') {
+					expect(f).toBe(0);
+					expect(swipe).toBeNull();
+				} else expect(swipe).toBe(f > 0 ? 'next' : 'prev');
+			}
+		expect(forwardBy(-30, 'ltr')).toBe(30);
+		expect(forwardBy(30, 'rtl')).toBe(30);
+	});
+
+	it('gives the whole drag where a page lies that way, and a quarter where none does', () => {
+		expect(dragGive(40, true, false)).toBe(40);
+		expect(dragGive(40, false, true)).toBe(10);
+		expect(dragGive(-40, true, false)).toBe(-10);
+		expect(dragGive(-40, false, true)).toBe(-40);
+		expect(dragGive(0, false, false)).toBe(0);
+		// The image reader's old `dx / 4`, to the bit.
+		for (const d of [-137, -1, 3, 41, 999]) expect(d * EDGE_GIVE).toBe(d / 4);
 	});
 });
 
