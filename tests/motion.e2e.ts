@@ -1,4 +1,4 @@
-import { expect, screenSettled, test } from './fixtures';
+import { expect, screenSettled, test } from './helpers/hydrated';
 
 /**
  * Motion in the real app (doc/MOTION.md, card c396): every tap is drawn and
@@ -70,9 +70,27 @@ test('a sheet leaves the way it came, and then is gone', async ({ page }, info) 
 	await page.goto('/?new=shelf');
 	const sheet = page.getByRole('dialog', { name: 'New shelf' });
 	await expect(sheet).toBeVisible();
+	// Leaving, it is still drawn for a moment, sliding down, and can't be tapped
+	// twice. Read in the page as the leave starts: Svelte runs `out:leave`
+	// (`src/lib/motion.ts`) as the element's own `animate()`, so its style is
+	// read right after that call. Polled from here, a loaded run found the
+	// sheet already gone, and a starved page may draw no frame inside the
+	// animation at all (c439, phone).
+	type Look = { drawn: boolean; taps: string };
+	await sheet.evaluate((el) => {
+		const w = window as unknown as { leaving: Look[] };
+		w.leaving = [];
+		const animate = el.animate.bind(el);
+		el.animate = (...args: Parameters<Element['animate']>) => {
+			const running = animate(...args);
+			w.leaving.push({ drawn: el.isConnected, taps: getComputedStyle(el).pointerEvents });
+			return running;
+		};
+	});
 	await sheet.getByRole('link', { name: 'Close' }).click();
-	// Leaving, it is still drawn for a moment, sliding down, and can't be tapped twice.
-	await expect(sheet).toHaveCSS('pointer-events', 'none');
+	await expect
+		.poll(() => page.evaluate(() => (window as unknown as { leaving: Look[] }).leaving))
+		.toContainEqual({ drawn: true, taps: 'none' });
 	await expect(sheet).toHaveCount(0);
 	await expect(page).not.toHaveURL(/new=shelf/);
 });
@@ -85,13 +103,23 @@ test('a sheet opened again before it was gone takes taps again', async ({ page }
 	await page.goto('/?new=shelf');
 	const sheet = page.getByRole('dialog', { name: 'New shelf' });
 	await expect(sheet).toBeVisible();
-	// Closed, and opened again while it is still on its way out.
-	await page.evaluate(async () => {
+	// Closed, and opened again while it is still on its way out. The back is
+	// taken the first frame the close has left the address, not 40 ms after
+	// the tap: under load the close's navigation had not happened yet by then,
+	// so back left the library altogether (c439). It reports whether the
+	// sheet was still drawn, leaving, when back went, which is this case's
+	// premise: had it gone already, this would be an ordinary second open.
+	const leaving = await page.evaluate(async () => {
 		const close = document.querySelector<HTMLAnchorElement>('.new-shelf .x')!;
 		close.click();
-		await new Promise((r) => setTimeout(r, 40));
+		const t0 = performance.now();
+		while (location.search.includes('new=shelf') && performance.now() - t0 < 10_000)
+			await new Promise(requestAnimationFrame);
+		const drawn = !!document.querySelector('.new-shelf');
 		history.back();
+		return drawn;
 	});
+	expect(leaving).toBe(true);
 	await expect(page).toHaveURL(/new=shelf/);
 	await expect(sheet).toHaveCount(1);
 	await expect(sheet).toHaveCSS('pointer-events', 'auto');
@@ -129,8 +157,11 @@ test('a tap the moment a screen arrives lands on it', async ({ page }) => {
 	await page.locator('.grid .tile').first().click();
 	await page.waitForURL(/\/series\/\d+/);
 	const back = page.locator('.main > .route-view a', { hasText: 'LIBRARY' }).first();
-	// Still sliding in, and already listening.
-	await back.click({ timeout: 2000 });
+	// Still sliding in, and already listening. `force`, because a plain click
+	// first waits for the cell to stop moving, which is the opposite of this
+	// case: under load the slide outlasted the 2 s it was given and the click
+	// never went (c439, desktop). The URL below is what proves it landed.
+	await back.click({ force: true });
 	await page.waitForURL((url) => url.pathname === '/');
 });
 

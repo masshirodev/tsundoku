@@ -20,6 +20,14 @@ const EPISODE = "The Ferryman's Count";
 
 test.use({ baseURL: BROWSE });
 
+// Measured, not guessed (doc/TESTING.md, "Load"; c448): with the box at a
+// load average of 15-68, every case here took 24-30 s even when it passed,
+// and all eight reds of that run were the default 30 s running out, each
+// waiting on the right state (the chrome's own 4 s, SKIP's 8 s alone window,
+// the working stream's attach). Each case opens the episode through the
+// library and the series, whose pages hydrate slowly under load.
+test.describe.configure({ timeout: 90_000 });
+
 test.beforeEach(async ({ context, page }) => {
 	await context.addCookies([{ name: 'tsundoku_incognito', value: '1', url: BROWSE }]);
 	// The fixture clip is 8 s and its ending starts at 6. A loaded suite can
@@ -61,17 +69,32 @@ async function openLastEpisode(page: import('@playwright/test').Page): Promise<v
 	await expect(page.locator('.player')).toBeVisible();
 }
 
-/** A browser that won't start a video by itself is started by the bar, as a remote would. */
+/**
+ * Playing, on the working stream, with the bar up. A browser that won't start
+ * a video by itself is started by the bar, as a remote would.
+ *
+ * Waits on the picture's own state, never on time (c448). Until wave 20 this
+ * gave autoplay 5 s and then pressed ▶❚❚ regardless: under load autoplay
+ * started in the same breath as the press, which paused it, and the case
+ * began on a paused picture (its "Pause" read "Play"). So ▶❚❚ is pressed only
+ * while its label still says Play, and again until the picture plays. And the
+ * fake's first server always fails over (the clip is 8 s; see streamReady), so
+ * this also waits for the working stream, whose attach would otherwise land
+ * under the case's first key.
+ */
 async function play(page: import('@playwright/test').Page): Promise<void> {
 	const video = page.locator('video');
-	await expect
-		.poll(() => video.evaluate((v: HTMLVideoElement) => v.paused), { timeout: 5000 })
-		.toBe(false)
-		.catch(async () => {
+	const pp = page.locator('.cells .pause');
+	await expect(async () => {
+		const playing = () => video.evaluate((v: HTMLVideoElement) => !v.paused);
+		if (!(await playing()) && (await pp.getAttribute('aria-label')) === 'Play') {
 			await page.keyboard.press('ArrowUp');
-			await page.locator('.cells .pause').focus();
-			await page.keyboard.press('Enter');
-		});
+			await pp.focus();
+			if ((await pp.getAttribute('aria-label')) === 'Play') await page.keyboard.press('Enter');
+		}
+		expect(await playing()).toBe(true);
+		expect(await video.evaluate((v: HTMLVideoElement) => v.duration)).toBeGreaterThan(7);
+	}).toPass({ timeout: 60_000 });
 	await page.keyboard.press('ArrowUp');
 	await expect(page.locator('.player')).toHaveClass(/chrome/);
 }
@@ -144,6 +167,12 @@ test('the settings cell opens the 420px panel, ← → changes a row, BACK gives
 }) => {
 	await openEpisode(page);
 	await play(page);
+	// Paused: SPEED's 1× below plays the clip at its own speed (the slowdown in
+	// beforeEach is a tenth), and under load it reached the 1 s opening before
+	// BACK, where SKIP INTRO takes the pad by design and the settings cell
+	// never got it back (c448). A paused picture also keeps the bar up.
+	await page.locator('video').evaluate((v: HTMLVideoElement) => v.pause());
+	await expect(page.locator('.cells .pause')).toHaveAttribute('aria-label', 'Play');
 	const settings = page.locator('.cells .grow');
 	await settings.focus();
 	await page.keyboard.press('Enter');
@@ -309,11 +338,75 @@ test('the seek bar keeps ← →, and ↑ from every cell of the row lands on it
 	await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
 });
 
-/** Part 2: with the bar hidden, ← → seek and the bar comes with the keys on it. */
-test('← → with the bar hidden seek and put focus on the seek bar', async ({ page }) => {
+/**
+ * Part 2: with the bar hidden and nothing offered, ← → seek and the bar comes
+ * with the keys on it. This is the state the opt-out exists for: no SKIP, no
+ * card, so the root carries `data-focus-off`, the focus layer never sees the
+ * arrow, and the player's own handler seeks (doc/handoff-notes/tv-player.md,
+ * part 2). The pause is at 0.4 s because the browse world's episodes open at
+ * 1-3 s (tests/browse-setup.ts), and inside the opening SKIP INTRO is offered,
+ * which lifts the opt-out (c316).
+ */
+test('← → with the bar hidden and nothing offered seek and put focus on the seek bar', async ({
+	page
+}) => {
 	await openLastEpisode(page);
 	await play(page);
 	await streamReady(page);
+	const player = page.locator('.player');
+	const track = page.locator('.scrubrow .track');
+	const video = page.locator('video');
+	const at = () => video.evaluate((v: HTMLVideoElement) => v.currentTime);
+
+	await video.evaluate((v: HTMLVideoElement) => {
+		v.pause();
+		v.currentTime = 0.4;
+	});
+	// The player has taken the pause in (its ▶❚❚ reads Play), which shows the
+	// bar: under a loaded suite the pause event landed after Escape and drew
+	// the bar again over the hidden one (c336, c439).
+	await expect(page.locator('.cells .pause')).toHaveAttribute('aria-label', 'Play');
+	await expect(page.getByRole('button', { name: /^SKIP/ })).toHaveCount(0);
+	// Escape hides the bar; the paused picture leaves it hidden, and with
+	// nothing offered the root opts out of the focus layer.
+	await page.keyboard.press('Escape');
+	await expect(player).not.toHaveClass(/chrome/);
+	await expect(player).toHaveAttribute('data-focus-off', '');
+
+	await page.keyboard.press('ArrowRight');
+	await expect(player).toHaveClass(/chrome/);
+	await expect(page.locator('.flash .by')).toHaveText('+10 S');
+	await expect(track).toBeFocused();
+	await expect.poll(at).toBeGreaterThan(5);
+
+	// ← the same way: the bar hidden again, at 5 s (past the opening, before
+	// the ending's 6 s), so the key again reaches the player and not the layer.
+	await video.evaluate((v: HTMLVideoElement) => (v.currentTime = 5));
+	await expect.poll(at).toBe(5);
+	await page.keyboard.press('Escape');
+	await expect(player).not.toHaveClass(/chrome/);
+	await expect(player).toHaveAttribute('data-focus-off', '');
+	await page.keyboard.press('ArrowLeft');
+	await expect(player).toHaveClass(/chrome/);
+	await expect(page.locator('.flash .by')).toHaveText('−10 S');
+	await expect(track).toBeFocused();
+	await expect.poll(at).toBeLessThan(1);
+});
+
+/**
+ * The same keys inside the opening, where SKIP INTRO is offered: the bar is
+ * hidden but the root's opt-out is lifted so the pad can reach SKIP (part 5),
+ * and ← → come through the focus layer, which has no stop beside SKIP and
+ * lets the key fall through to the player. Until c316 this was the only part-2
+ * case, under the title of the one above.
+ */
+test('with SKIP INTRO offered and the bar hidden, ← → still seek and put focus on the seek bar', async ({
+	page
+}) => {
+	await openLastEpisode(page);
+	await play(page);
+	await streamReady(page);
+	const player = page.locator('.player');
 	const track = page.locator('.scrubrow .track');
 	const video = page.locator('video');
 	const at = () => video.evaluate((v: HTMLVideoElement) => v.currentTime);
@@ -322,16 +415,15 @@ test('← → with the bar hidden seek and put focus on the seek bar', async ({ 
 		v.pause();
 		v.currentTime = 1;
 	});
-	// The player has taken the pause in (its ▶❚❚ reads Play), which shows the
-	// bar: under a loaded suite the pause event landed after Escape and drew
-	// the bar again over the hidden one (c336, c439).
 	await expect(page.locator('.cells .pause')).toHaveAttribute('aria-label', 'Play');
-	// Escape hides the bar; the paused picture leaves it hidden.
 	await page.keyboard.press('Escape');
-	await expect(page.locator('.player')).not.toHaveClass(/chrome/);
+	await expect(player).not.toHaveClass(/chrome/);
+	// SKIP is up on its own (its first 8 s), so the layer has the arrows.
+	await expect(page.getByRole('button', { name: 'SKIP INTRO →' })).toBeVisible();
+	await expect(player).not.toHaveAttribute('data-focus-off');
 
 	await page.keyboard.press('ArrowRight');
-	await expect(page.locator('.player')).toHaveClass(/chrome/);
+	await expect(player).toHaveClass(/chrome/);
 	await expect(track).toBeFocused();
 	await expect.poll(at).toBeGreaterThan(5);
 
@@ -455,9 +547,10 @@ test('the chrome’s auto-hide hands the pad back to the card', async ({ page })
 	const track = page.locator('.scrubrow .track');
 	const playNow = page.locator('.endcard .acc');
 
-	// Playing with the bar down: the card appears over the picture.
-	await page.keyboard.press('Escape');
-	await expect(page.locator('.player')).not.toHaveClass(/chrome/);
+	// Playing with the bar down: the card appears over the picture. The bar
+	// goes by its own 4 s rather than by BACK: under load those 4 s could pass
+	// before the key, and BACK at a bare picture leaves for the series (c448).
+	await expect(page.locator('.player')).not.toHaveClass(/chrome/, { timeout: 15_000 });
 	await video.evaluate((v: HTMLVideoElement) => (v.currentTime = 6.2));
 	await expect(page.locator('.endcard')).toBeVisible();
 	await expect(playNow).toBeFocused();
@@ -468,9 +561,9 @@ test('the chrome’s auto-hide hands the pad back to the card', async ({ page })
 	await expect(track).toBeFocused();
 
 	// The 4 s go by with the card still up: focus comes back to the offer
-	// rather than staying on a cell that is no longer a stop.
-	await page.waitForTimeout(4500);
-	await expect(page.locator('.player')).not.toHaveClass(/chrome/);
+	// rather than staying on a cell that is no longer a stop. Waited on as the
+	// bar going, not as 4.5 s, which a loaded worker stretches (c448).
+	await expect(page.locator('.player')).not.toHaveClass(/chrome/, { timeout: 15_000 });
 	await expect(playNow).toBeFocused();
 
 	// ↑ has nothing above it, so the card keeps the pad (and the bar stays
@@ -505,15 +598,22 @@ test('revealing the bar keeps ▶❚❚, and ↑ still reaches an offered SKIP',
 	const skip = page.getByRole('button', { name: 'SKIP INTRO →' });
 
 	// Inside the opening with the bar down: SKIP shows alone and takes the pad.
-	await video.evaluate((v: HTMLVideoElement) => (v.currentTime = 1.2));
+	// Paused, so the opening cannot run out while the alone window does (a
+	// loaded worker stretched the wait past the clip's 3 s), and the bar stays
+	// up until BACK hides it rather than hiding by itself first, which turned
+	// BACK into leaving the player (c448).
+	await video.evaluate((v: HTMLVideoElement) => {
+		v.pause();
+		v.currentTime = 1.2;
+	});
+	await expect(page.locator('.cells .pause')).toHaveAttribute('aria-label', 'Play');
 	await expect(skip).toBeFocused();
 	await page.keyboard.press('Escape');
 	await expect(page.locator('.player')).not.toHaveClass(/chrome/);
 
-	// The alone window ends while the opening still runs: SKIP goes with the
-	// bar, and nothing is left focused on it.
-	await page.waitForTimeout(8500);
-	await expect(skip).toHaveCount(0);
+	// The alone window (8 s) ends while the opening still runs: SKIP goes with
+	// the bar, and nothing is left focused on it.
+	await expect(skip).toHaveCount(0, { timeout: 15_000 });
 	await expect(page.locator('.player')).not.toHaveClass(/chrome/);
 
 	// OK brings the bar on ▶❚❚; the offer was already running, so it does not

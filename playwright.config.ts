@@ -83,7 +83,10 @@ export default defineConfig({
 	// And a friend's install (tests/friend-setup.ts), for the friend project.
 	// The run's directory first, so its teardown -- removing it -- runs last.
 	globalSetup: ['./tests/helpers/run-dir.ts', './tests/browse-setup.ts', './tests/friend-setup.ts'],
-	reporter: process.env.CI ? 'github' : 'list',
+	// The second names the tests that did not run and the reds that kept them
+	// out (tests/helpers/not-run-reporter.ts, c439): a bare "12 did not run" was
+	// read as a green `duplicates` and `gate` in wave 19's gate.
+	reporter: [[process.env.CI ? 'github' : 'list'], ['./tests/helpers/not-run-reporter.ts']],
 	use: {
 		baseURL: `http://localhost:${previewPort}`,
 		// The specs read English (doc/I18N.md): AUTO follows the browser, so the

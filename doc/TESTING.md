@@ -15,7 +15,11 @@ the names apart.
 ```sh
 yarn run check && yarn run lint && yarn run test   # before every commit
 yarn run test:e2e                                  # when the UI changed
+yarn run test:e2e:dependants                       # after every whole e2e run
 ```
+
+The last line runs `duplicates` and `gate` on their own, because a red in any
+device project leaves them unrun in the whole run ("Load", below).
 
 Always spelled `yarn run`: Yarn 1's builtin `check` shadows the script and exits
 0 having typechecked nothing.
@@ -51,6 +55,28 @@ suite asserts against.
 
 ## E2E specs
 
+**The browsers are Playwright's own: `yarn run test:e2e:install`** installs
+Chromium and Firefox (c446). Every project runs Chromium except one file,
+`browse-player-pip-firefox.e2e.ts`, which asks for Firefox with `test.use({
+browserName: 'firefox' })` inside the `browse` project. Each Playwright
+release pins its own browser revisions (`playwright-core/browsers.json`), so
+run the script again after `@playwright/test` changes, or that file fails at
+launch with "Executable doesn't exist" on a box that only had Chromium. Until
+wave 20 the script installed Chromium alone, and the Firefox spec passed only
+because the workstation's `~/.cache/ms-playwright` happened to hold
+`firefox-1543`.
+
+**`vite preview` holds a streamed page until it ends when the browser asks for
+gzip** (the series slot's probe, wave 18): with a 6 s schema the first byte
+came at 6087 ms under `accept-encoding: gzip` and at 61 ms under `identity`.
+The release's server (adapter-node, `scripts/serve.ts`) compresses no page, so
+it streams. A "paints first" e2e, one that asserts a page shows before a slow
+promise in its `load` settles, therefore asks as the release answers,
+`page.setExtraHTTPHeaders({ 'accept-encoding': 'identity' })`, and says why
+(`browse-tags.e2e.ts`'s cold-cache preview does). Under gzip every streamed
+promise reads as blocking, and the spec would assert the preview's buffering,
+not the app.
+
 **Measure a screen only once it has come to rest.** A client-side navigation
 slides the next screen 40px in and sheets rise ([`MOTION.md`](MOTION.md)), so a
 `boundingBox()` taken at once reads a moving box. `screenSettled(page)` in
@@ -78,6 +104,17 @@ paired cookie is a door only on that host ([`SIGN-IN.md`](SIGN-IN.md)), and
 `tv-pair.e2e.ts` names the same host in a request's `Host` header. Vite is told
 the name too (`__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS`), or it refuses the
 request before the app ever sees it.
+
+**The table below is generated** (c348): `yarn run e2e:table` writes it from
+`playwright test --list` (its "Runs on" column) and keeps each row's "Why",
+which is written by hand; a new file's row starts from its header comment.
+`tests/e2e-table.spec.ts` runs `--check`, so the unit suite is red while a
+spec file has no row or a row names the wrong projects. **A wave's merge
+regenerates it**: each slot that adds an e2e file leaves this spec red over
+its own new files (it cannot edit this file, and another slot's file is not
+on its branch), so whoever merges the slots runs `yarn run e2e:table`,
+rewrites each new row's "Why" from the slot's notes, runs Prettier over this
+file, and commits the table with the merge.
 
 <!-- e2e-table:start -->
 
@@ -116,7 +153,7 @@ request before the app ever sees it.
 | `browse-online-devices.e2e.ts`                                                                      | browse          | Reading online on the other devices (card c168; Online Calls 1C, 1D and board 5): the preview and the series rows at phone width and in the landscape panel, and the RECORD row's own measurements.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `browse-online.e2e.ts`                                                                              | browse          | A manga read online (doc/BROWSING.md, "Manga online"; card c166; Online Calls 1A, 1B and board 2): from a source's preview without ADD, its pages straight from the fake engine's /image/ proxy and never kept; then, added, its chapters read online from the series screen, ↓ downloading apart.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `browse-player-languages.e2e.ts`                                                                    | browse          | The settings sheet's AUDIO and SUBTITLES rows with many languages (c386, doc/ANIME.md "The settings sheet"): the owner's VidStreaming episode offered a few dozen subtitles, which a segmented row printed over each other.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `browse-player-pip-firefox.e2e.ts`                                                                  | browse          | Firefox's picture-in-picture (c388, round 2; doc/ANIME.md "The player", pip.ts).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `browse-player-pip-firefox.e2e.ts`                                                                  | browse          | Firefox's picture-in-picture (c388, round 2; doc/ANIME.md "The player", pip.ts). It runs in Firefox (`browserName: 'firefox'`, the one spec that does) because Firefox 155, the owner's and Playwright's build alike, has the Document Picture-in-Picture API, and this spec runs that path there; `yarn run test:e2e:install` installs Firefox for it (c446).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `browse-player-pip.e2e.ts`                                                                          | browse          | Picture-in-picture with subtitles (c388, doc/ANIME.md "The player").                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `browse-player-portrait.e2e.ts`                                                                     | browse          | The player in portrait on a phone (c387, doc/ANIME.md "The player"): the scrubber under the picture seeks on a tap and follows a drag, shows the time under the finger while it drags, and a drag never scrolls what is below.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `browse-player-preview.e2e.ts`                                                                      | browse          | The seek preview over the scrubber (c385, doc/ANIME.md "The player"): a downloaded episode shows its sprite's tile for the time under the pointer, the time alone while it has none, and a stream shows a frame of its lowest quality, fetched one segment per stop and only while the pointer is on the bar.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -183,7 +220,10 @@ mounted: the element exists exactly when every handler does.
 `tests/helpers/hydrated.ts`'s `test` extends the one above so `goto`, `reload`, `goBack` and `goForward` all wait
 for it, and `hydrated(page)` is there for a page the fixture didn't make (a
 context of a spec's own: `tv-pair`'s TV). The flake files `e2e` owned in
-wave 19 import it; moving the same wait into `tests/fixtures.ts` is the
+wave 19 import it, and in wave 20 `reader-flow`, `works-flow`, `motion`,
+`privacy-flow` and `unlock-gate` joined them (c439: `motion:80` and
+`privacy-flow:50` were the gate's flakes, and all five took a page from
+`goto` straight to a tap); moving the same wait into `tests/fixtures.ts` is the
 next step (`doc/handoff-notes/e2e.md`, Gaps). Specs that skip the fixture on
 purpose, to tap before hydration as a quick thumb does (`browse-tags`), keep
 doing so.
@@ -278,7 +318,51 @@ workstation during gates. What it assumes, and the rules that follow (c439):
 - **Timeouts are raised only where the step is measured to be slow** under
   load, and the comment says so (`tv-player`'s clip runs at a tenth of its
   speed for the same reason). The one raised in wave 19 is `offline-flow`'s
-  wait for the service worker to take control.
+  wait for the service worker to take control. Wave 20 raised `tv-player`'s
+  per-case budget to 90 s (c448): at a load average of 15-68 every case took
+  24-30 s even when it passed, and all eight reds of that run were the default
+  30 s running out, each case waiting on the right state (the bar's own 4 s,
+  SKIP's 8 s alone window, the working stream's attach). `works-flow`'s is
+  60 s (c439): two of its cases ran out the 30 s in page loads on its own
+  server in whole loaded runs, where alone its slowest took 17.7 s.
+- **A passing state read from outside the page can be gone before the read.**
+  `motion`'s leaving sheet carries `pointer-events: none` for its leave's
+  few hundred ms; polled from the runner, a loaded phone found it already
+  removed. The case reads the style inside the page at the moment the leave
+  starts (it wraps the sheet's own `animate()`, which is how Svelte runs
+  `out:leave`) and asserts that afterwards (c439). A starved page may draw
+  no frame inside a short animation at all, so a `requestAnimationFrame`
+  loop is not enough either.
+- **A timer the app runs is the app's state; a test that races it loses
+  under load.** `tv-player`'s bar hides itself 4 s after a key while the
+  picture plays, and BACK at a bare picture leaves the player: a case that
+  pressed BACK "to hide the bar" left the player whenever a loaded worker
+  took 4 s to get there. Pause the picture when the case doesn't need it
+  playing (a paused picture keeps the bar up), or wait for the bar to go by
+  itself (`not.toHaveClass(/chrome/)`) instead of pressing. The same goes
+  for a setting the case changes: `tv-player`'s settings case chose SPEED 1×,
+  which undid the clip's tenth-speed slowdown, ran it into the 1 s opening,
+  and SKIP INTRO took the focus by design (c448).
+- **Never act on a guess at what autoplay did** (c448, as `be2a5fc` did for
+  `browse-anime`). `tv-player`'s `play()` gave autoplay 5 s and then pressed
+  ▶❚❚ regardless; under load autoplay started in the same breath and the
+  press paused it. Press only while the control still says Play, and again
+  until the picture plays.
+- **A gesture with a time window is sent in one go.** The reader's double tap
+  is two taps within 250 ms (`src/lib/reader/zoom.ts`), and two
+  `page.touchscreen.tap` calls are four round trips to a loaded browser:
+  `reader-flow`'s strip case took two single taps (wave 19). `doubleTap(page,
+x, y)` in `tests/helpers/touch.ts` sends the four touch events together, so
+  the gap between the taps is the browser's (c439). A test that reads "these
+  two arrive together" uses it, or the same idea.
+- **"Nothing is left" is read where the thing would be.** `works-flow`'s
+  `endWork()` clicked UNGROUP and asserted no Work tile remained: on the Work
+  screen, before the redirect to the library landed, that was true with
+  nothing ended (the screen has no grid), and on the library with a second
+  Work still up it was red (wave 19, r2-tv1). It now waits for the library's
+  `UNGROUPED · <NAME>` band and asks after that Work's tile alone (c439). An
+  absence asserted before the page has changed passes vacuously, and an
+  absence of "every X" is wrong as soon as two exist.
 - **The service worker is allowed everywhere it isn't in the way.** Every
   fresh context registers it, and it precaches the whole build (about 1,400
   files) from the shared preview. Six contexts doing only that took 10-16 s
@@ -304,24 +388,70 @@ workstation during gates. What it assumes, and the rules that follow (c439):
   series" and "The readers beside the flows" above.
 - **`duplicates` and `gate` depend on every device project**, so any red in
   those leaves their 8 tests "did not run" (a run's larger "did not run"
-  count is the rest of each serial file after its first red). With the known base
-  failures (`library`'s c311: `library-frame` and the two in `library-flow`
-  and `reader-flow`) red on every run, **a gate never runs `duplicates` and
-  `gate` at all**: no whole run in wave 19 before round 2 executed
-  `duplicates-flow` or `unlock-gate` once. A gate that reports "did not run"
-  has not run them. Until the base failures are fixed, run the whole suite
-  with them left out by title, so the dependants run in their place in the
-  order:
+  count is the rest of each file after its first red in a serial file, or
+  after a failed `beforeAll`). With a known
+  base failure red on every run, **a gate never runs `duplicates` and `gate`
+  at all**: no whole run in wave 19 before round 2 executed `duplicates-flow`
+  or `unlock-gate` once, and wave 19's gate had them in its "12 did not run"
+  behind `library-layout:156`. A gate that reports "did not run" has not run
+  them. **The run's report says so** (c439):
+  `tests/helpers/not-run-reporter.ts`, the config's second reporter, ends
+  every run that left tests out with the projects they were in, how many, and
+  the reds in the projects each depends on that kept it out, for example:
+
+  ```text
+  44 did not run, and have not passed:
+    works-flow: 23, after a red earlier in the same file (serial, or a failed beforeAll), or the run stopped
+    duplicates: 7, because 15 tests it depends on failed:
+      [desktop] tests/library-layout.e2e.ts:156 › the bar with the name, …
+  ```
+
+  **So after every whole run, the gate's included, run the dependants on
+  their own**, whatever the device projects did:
 
   ```sh
-  PLAYWRIGHT_SKIP='screen: (continueList|continueRow|grid|tile) matches the handoff|START SCAN with nothing to import|the end of the series asks for a rating while unrated|a spread is the default on a TV, not one page' \
+  yarn run test:e2e:dependants
+  ```
+
+  It runs `--project=duplicates --no-deps`, then `--project=gate --no-deps`,
+  and fails if either did. `--no-deps` is safe here because the two depend
+  on the device projects only for their order on the one seeded database,
+  not for anything those write. They are **two runs, not one**:
+  `--no-deps` drops the `duplicates` → `gate` order as well, so in one run
+  `unlock-gate` enrolls its authenticator while `duplicates-flow` is still
+  typing `/reveal`, which then waits for the device (measured in wave 20:
+  `duplicates-flow:29` red and 5 did not run in one run; 7 and 1 passed as
+  two). Each run has its own temp folder and so its own database, which is
+  why the gate's enrolment does not carry into the next. Report the
+  dependants' counts beside the whole run's. When the whole run's reporter
+  names neither project, they ran there and this step is a repeat.
+
+  Leaving the base failures out by title does not get the dependants run
+  under load. Measured at wave 20's base (`d5c4bf6f`, its loaded runs in
+  `doc/handoff-notes/e2e.md`), the filed reds are two: `library-layout:156`
+  on the desktop (c433 pinned the bar it expects to scroll away;
+  deterministic, filed) and `tv-reader:24` (nobody's; it fails about 2 of 3
+  runs even alone, filed). But two more were red in **every** loaded
+  wave-20 run, so the dependants ran in none of the six: `install.e2e.ts:6`
+  (the service worker's 30 s, in one to four device projects a run, at loads
+  past about 39) and `work-end-frame.e2e.ts:297` (its `beforeAll`'s 30 s,
+  which also leaves `works-frame`'s other 24 unrun). Neither is in the
+  expression, because both pass alone and a title left out is a test
+  nobody checks; their likely causes and budgets are under Gaps in
+  `doc/handoff-notes/e2e.md` (wave 20). The expression leaves out only the
+  two filed reds. Wave 18's base reds that it used to name
+  (`library-frame`'s four, START SCAN and the rating at the end of a series)
+  all pass since wave 19 and are out of it:
+
+  ```sh
+  PLAYWRIGHT_SKIP='the bar with the name, search and SELECT stays on top as the grid scrolls, except on a desktop|a spread is the default on a TV, not one page' \
     npx playwright test
   ```
 
-  The last alternative, `tv-reader:24`, is nobody's red: it fails about 2 of
-  3 runs even alone (`doc/handoff-notes/e2e.md`, _Gaps_), and without it in
-  the expression the dependants are skipped about half the time. Take it out
-  once that test is fixed, as with each of the others.
+  `library-layout:156` passes on the tablets, the phone and the TV, and a
+  title is left out of every project, so those four go unrun too; the
+  reporter does not count a test left out this way, so name the expression
+  beside the run's result. Take each alternative out once its test is fixed.
   `PLAYWRIGHT_SKIP` is safe to leave exported for the unit run and for
   `yarn run e2e:table`: the table lists the files the config collects, and
   ignores the variable.
