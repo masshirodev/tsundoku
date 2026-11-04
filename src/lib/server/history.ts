@@ -1,7 +1,8 @@
 import { getDb } from './db';
 import { visibleWhere } from './visibility';
 import { KEEP_MS } from './browsing.ts';
-import { FIRST_PLAUSIBLE_DAY, readingTime } from './reading-time.ts';
+import { FIRST_PLAUSIBLE_DAY, readingTime, type TimeRow } from './reading-time.ts';
+import { sourceFlagSql } from './engine/source-flags.ts';
 import type { HistoryDay } from '$lib/library/history';
 import type { Kind } from '$lib/library/types';
 
@@ -16,6 +17,11 @@ import type { Kind } from '$lib/library/types';
  * LIBRARY; its link opens its source's preview, where ADD is.
  * Incognito reading was never written (see /api/reading), so there is nothing
  * of it to hide.
+ *
+ * OFF HISTORY (card c435): a series from a source whose OFF HISTORY switch is
+ * on has no rows, inside reveal or not, and its time is not in HISTORY's
+ * total. Its reading is still logged, so progress, CONTINUE, the series'
+ * own time and tracking are what they were (doc/HISTORY.md).
  */
 
 const READING = `('open', 'page', 'finish', 'close')`;
@@ -42,6 +48,7 @@ export function historyDays(
 		FROM reading_events re ${join}
 		JOIN series s ON s.id = re.series_id JOIN roots r ON r.id = s.root_id
 		WHERE re.kind IN ${READING} AND ${visible(reveal)} AND ${DAY} < @before AND ${DAY} >= @floor
+		AND NOT ${sourceFlagSql('offHistory')}
 		AND NOT EXISTS (SELECT 1 FROM history_removed h WHERE h.series_id = re.series_id AND h.day = ${DAY})`;
 
 	const days = (
@@ -149,6 +156,54 @@ export function historyDays(
 		};
 	});
 	return { rows, older: days.length > limit ? oldest : null };
+}
+
+/**
+ * HISTORY's total (card c443) without what OFF HISTORY keeps out of it (card
+ * c435): `readingTotals`' shape, summed from the one summary
+ * (`readingTime('series')`, reading-time.ts) over every series but those, so
+ * the rule for what counts as reading stays in one place. With no source
+ * switched off it is `readingTotals(reveal)` exactly.
+ */
+export function historyTotals(reveal: boolean): {
+	ms: number;
+	since: string | null;
+	kinds: TimeRow<'kind'>[];
+} {
+	const db = getDb();
+	const off = new Set(
+		(
+			db.prepare(`SELECT s.id FROM series s WHERE ${sourceFlagSql('offHistory')}`).all() as {
+				id: number;
+			}[]
+		).map((r) => r.id)
+	);
+	const kindOf = new Map(
+		(db.prepare(`SELECT id, kind FROM series`).all() as { id: number; kind: Kind }[]).map((r) => [
+			r.id,
+			r.kind
+		])
+	);
+	const byKind = new Map<Kind, TimeRow<'kind'>>();
+	for (const t of readingTime('series', { reveal })) {
+		const kind = kindOf.get(t.seriesId);
+		if (off.has(t.seriesId) || !kind) continue;
+		const k = byKind.get(kind);
+		if (!k) byKind.set(kind, { kind, ms: t.ms, since: t.since });
+		else {
+			k.ms += t.ms;
+			if (t.since < k.since) k.since = t.since;
+		}
+	}
+	// readingTime('kind')'s order: by kind.
+	const kinds = [...byKind.values()].sort((a, b) =>
+		a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : 0
+	);
+	return {
+		ms: kinds.reduce((n, k) => n + k.ms, 0),
+		since: kinds.reduce<string | null>((d, k) => (d === null || k.since < d ? k.since : d), null),
+		kinds
+	};
 }
 
 /**

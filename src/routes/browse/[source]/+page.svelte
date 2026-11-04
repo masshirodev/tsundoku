@@ -35,6 +35,8 @@
 	function link(over: Record<string, string | null>): string {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a throwaway copy, never read reactively
 		const p = new URLSearchParams(page.url.searchParams);
+		// The ADDED band is said once, not carried onto the next list.
+		p.delete('added');
 		for (const [k, v] of Object.entries(over)) {
 			if (v === null) p.delete(k);
 			else p.set(k, v);
@@ -53,7 +55,7 @@
 	const listKey = (u: URL) => {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a throwaway copy, never read reactively
 		const p = new URLSearchParams(u.searchParams);
-		for (const k of ['pages', 'panel', 'find']) p.delete(k);
+		for (const k of ['pages', 'panel', 'find', 'added']) p.delete(k);
 		return `${u.pathname}?${p}`;
 	};
 
@@ -194,6 +196,12 @@
 	</TopBar>
 	<!-- The way back to GET STARTED, while FIRST READ's trip lasts (doc/ONBOARDING.md). -->
 	<StartTrail start={data.start} />
+	{#if data.addedHidden}
+		<Band
+			title="ADDED TO THE LIBRARY, AND HIDDEN"
+			detail="{name.toUpperCase()} ADDS ITS SERIES HIDDEN · REVEAL SHOWS IT"
+		/>
+	{/if}
 
 	<nav class="tabs" aria-label="Lists">
 		<div class="tab-list">

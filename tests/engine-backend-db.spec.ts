@@ -326,6 +326,45 @@ describe('finding and adding a series', () => {
 	});
 });
 
+describe('a source that adds hidden', () => {
+	it('ADDED HIDDEN: added from a source that adds hidden, it starts hidden, a browsing record once ADD promotes it (c435)', async () => {
+		const flags = await import('$lib/server/engine/source-flags');
+		const row = (id: number) =>
+			db.prepare(`SELECT hidden, in_library AS inLibrary FROM series WHERE id = ?`).get(id);
+		const mangaId = (await import('$lib/server/engine/backend')).sourceMangaId(
+			SOURCE,
+			'/series/new'
+		);
+		flags.setSourceFlag(SOURCE, 'addedHidden', true);
+		try {
+			// Opened without ADD: a browsing record, written as it always was.
+			const record = await downloads
+				.openFromSource(mangaId, '/chapters/new-1')
+				.then(
+					() =>
+						db
+							.prepare(`SELECT id FROM series WHERE origin_key = ?`)
+							.get(`mihon:${SOURCE}:/series/new`) as { id: number }
+				);
+			expect(row(record.id)).toEqual({ hidden: 0, inLibrary: 0 });
+			// ADD promotes the record, and it starts hidden.
+			expect(await downloads.addToLibrary(mangaId)).toBe(record.id);
+			expect(row(record.id)).toEqual({ hidden: 1, inLibrary: 1 });
+			expect(await downloads.undoAdd(record.id)).toBe(true);
+			// ADD with no record first: written, then hidden.
+			const fresh = await downloads.addToLibrary(mangaId);
+			expect(row(fresh)).toEqual({ hidden: 1, inLibrary: 1 });
+			expect(await downloads.undoAdd(fresh)).toBe(true);
+		} finally {
+			flags.setSourceFlag(SOURCE, 'addedHidden', false);
+		}
+		// Without the switch, ADD leaves it visible.
+		const plain = await downloads.addToLibrary(mangaId);
+		expect(row(plain)).toEqual({ hidden: 0, inLibrary: 1 });
+		expect(await downloads.undoAdd(plain)).toBe(true);
+	});
+});
+
 describe('ADD on a library with no Mihon folder yet', () => {
 	it('makes the Mihon root, where a scan of Mihon/ would, instead of refusing (a friend, 2026-10-30)', async () => {
 		// Undone at the end: the rest of the file keeps its library.

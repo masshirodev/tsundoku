@@ -289,3 +289,39 @@ describe('a novel', () => {
 		expect(downloads.sourceOfMangaId(hits[0].mangaId)).toBe(SOURCE);
 	});
 });
+
+describe('a source that adds hidden', () => {
+	it('ADDED HIDDEN: added from a source that adds hidden, it starts hidden, a browsing record once ADD promotes it (c435)', async () => {
+		const flags = await import('$lib/server/engine/source-flags');
+		const row = (id: number) =>
+			db.prepare(`SELECT hidden, in_library AS inLibrary FROM series WHERE id = ?`).get(id);
+		const mangaId = source.novelMangaId(SOURCE, '/novel/hidden-add');
+		flags.setSourceFlag(SOURCE, 'addedHidden', true);
+		try {
+			// Opened without ADD: a browsing record, written as it always was.
+			const record = await downloads
+				.openFromSource(mangaId, '/c/1')
+				.then(
+					() =>
+						db
+							.prepare(`SELECT id FROM series WHERE origin_key = ?`)
+							.get('lnreader:good:/novel/hidden-add') as { id: number }
+				);
+			expect(row(record.id)).toEqual({ hidden: 0, inLibrary: 0 });
+			// ADD promotes the record, and it starts hidden.
+			expect(await downloads.addToLibrary(mangaId)).toBe(record.id);
+			expect(row(record.id)).toEqual({ hidden: 1, inLibrary: 1 });
+			expect(await downloads.undoAdd(record.id)).toBe(true);
+			// ADD with no record first: written, then hidden.
+			const fresh = await downloads.addToLibrary(mangaId);
+			expect(row(fresh)).toEqual({ hidden: 1, inLibrary: 1 });
+			expect(await downloads.undoAdd(fresh)).toBe(true);
+		} finally {
+			flags.setSourceFlag(SOURCE, 'addedHidden', false);
+		}
+		// Without the switch, ADD leaves it visible.
+		const plain = await downloads.addToLibrary(mangaId);
+		expect(row(plain)).toEqual({ hidden: 0, inLibrary: 1 });
+		expect(await downloads.undoAdd(plain)).toBe(true);
+	});
+});

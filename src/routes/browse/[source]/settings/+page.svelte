@@ -27,6 +27,26 @@
 	const back = $derived(keepOrigin(resolve('/browse/[source]', { source: s.id }), data.from));
 	const here = $derived(resolve('/browse/[source]/settings', { source: s.id }));
 	const act = (name: string) => keepOrigin(`${here}?/${name}`, data.from);
+	/** tsundoku's own switches (engine/source-flags.ts; doc/BROWSE.md, "A source's own switches"). */
+	const OWN = [
+		{
+			flag: 'hidden',
+			title: 'Hidden source',
+			summary:
+				'Listed in BROWSE and EXTENSIONS, searched and named only while reveal is on. Its series keep their own hidden state.'
+		},
+		{
+			flag: 'addedHidden',
+			title: 'Added hidden',
+			summary: 'A series added to the library from it starts hidden.'
+		},
+		{
+			flag: 'offHistory',
+			title: 'Off history',
+			summary:
+				'Its reads and watches never show in HISTORY. They still count for progress, CONTINUE and tracking.'
+		}
+	] as const;
 	const refusal = $derived(
 		form && 'message' in form && typeof form.message === 'string' ? form.message.toUpperCase() : ''
 	);
@@ -64,99 +84,132 @@
 	{/if}
 	{#if refusal}<Band title={refusal} detail="NOTHING CHANGED" />{/if}
 
+	<!-- tsundoku's own switches for this source (card c435), every family's,
+	     above the extension's: the same rows, in a form of their own each. -->
 	<div class="label">
-		<span>01 — {title}</span>
-		<span
-			>{data.settings.length} SETTING{data.settings.length === 1 ? '' : 'S'} · KEPT BY TSUNDOKU</span
-		>
+		<span>01 — IN TSUNDOKU</span>
+		<span>{OWN.length} SWITCHES · THIS SOURCE, NOT ITS EXTENSION</span>
 	</div>
-
-	{#if data.settings.length === 0}
-		<div class="none">
-			{s.failed ? `FAILED TO LOAD · ${s.failed.toUpperCase()}` : 'THIS SOURCE HAS NO SETTINGS'}
-		</div>
-	{/if}
-
-	{#each data.settings as x (x.key)}
-		{@const long = x.type === 'list' && x.entries.length > CELLS_MAX}
+	{#each OWN as o (o.flag)}
 		<form
 			method="POST"
-			action={act('set')}
-			class="set"
-			class:column={x.type === 'multi' ||
-				x.type === 'text' ||
-				(x.type === 'list' && data.change === x.key)}
-			class:saved={form && 'saved' in form && form.saved === x.key}
+			action={act('flag')}
+			class="own"
+			class:saved={form && 'saved' in form && form.saved === `flag:${o.flag}`}
 			use:enhance={keep}
 		>
-			<input type="hidden" name="key" value={x.key} />
+			<input type="hidden" name="flag" value={o.flag} />
 			<div class="what">
-				<div class="t">{x.title}</div>
-				{#if x.summary}<div class="s">{x.summary}</div>{/if}
+				<div class="t">{o.title}</div>
+				<div class="s">{o.summary}</div>
 			</div>
-			{#if x.type === 'switch'}
-				<div class="ctl"><Switch checked={x.on} name="value" value={String(!x.on)} /></div>
-			{:else if x.type === 'check'}
-				<button
-					type="submit"
-					name="value"
-					value={String(!x.on)}
-					class="check"
-					class:on={x.on}
-					role="checkbox"
-					aria-checked={x.on}
-					aria-label={x.title}><span class="box" aria-hidden="true">{x.on ? '✓' : ''}</span></button
-				>
-			{:else if x.type === 'list' && (!long || data.change === x.key)}
-				<div class="cells" role="radiogroup" aria-label={x.title}>
-					{#each x.entries as e, i (i)}
-						<button
-							type="submit"
-							name="value"
-							value={String(i)}
-							class="cell-opt"
-							class:on={i === x.index}
-							role="radio"
-							aria-checked={i === x.index}>{e.toUpperCase()}</button
-						>
-					{/each}
-				</div>
-			{:else if x.type === 'list'}
-				<div class="value">
-					<span class="v">{x.entries[x.index].toUpperCase()}</span>
-					<a
-						class="change"
-						href={keepOrigin(`${here}?change=${encodeURIComponent(x.key)}`, data.from)}>CHANGE ▾</a
-					>
-				</div>
-			{:else if x.type === 'multi'}
-				<div class="cells">
-					{#each x.entries as e, i (i)}
-						<label class="cell-opt box-opt"
-							><input
-								type="checkbox"
-								name="value"
-								value={x.entryValues[i]}
-								checked={x.chosen.includes(x.entryValues[i])}
-								onchange={(ev) => (ev.currentTarget.form as HTMLFormElement).requestSubmit()}
-							/><span>{e.toUpperCase()}</span></label
-						>
-					{/each}
-				</div>
-				{#if !js}<button type="submit" class="save-multi">SAVE</button>{/if}
-			{:else if x.type === 'text'}
-				<div class="field">
-					<input name="value" value={x.text} aria-label={x.title} autocomplete="off" />
-					<button type="submit" class="save">SAVE</button>
-				</div>
-			{/if}
+			<div class="ctl">
+				<Switch checked={data.flags[o.flag]} name="value" value={String(!data.flags[o.flag])} />
+			</div>
 		</form>
 	{/each}
 
-	<p class="prose">
-		A change is saved here and sent with every call to the source. Its page asks again when you go
-		back, since a setting can change what it lists.
-	</p>
+	{#if data.preferences}
+		<div class="label">
+			<span>02 — {title}</span>
+			<span
+				>{data.settings.length} SETTING{data.settings.length === 1 ? '' : 'S'} · KEPT BY TSUNDOKU</span
+			>
+		</div>
+
+		{#if data.settings.length === 0}
+			<div class="none">
+				{s.failed ? `FAILED TO LOAD · ${s.failed.toUpperCase()}` : 'THIS SOURCE HAS NO SETTINGS'}
+			</div>
+		{/if}
+
+		{#each data.settings as x (x.key)}
+			{@const long = x.type === 'list' && x.entries.length > CELLS_MAX}
+			<form
+				method="POST"
+				action={act('set')}
+				class="set"
+				class:column={x.type === 'multi' ||
+					x.type === 'text' ||
+					(x.type === 'list' && data.change === x.key)}
+				class:saved={form && 'saved' in form && form.saved === x.key}
+				use:enhance={keep}
+			>
+				<input type="hidden" name="key" value={x.key} />
+				<div class="what">
+					<div class="t">{x.title}</div>
+					{#if x.summary}<div class="s">{x.summary}</div>{/if}
+				</div>
+				{#if x.type === 'switch'}
+					<div class="ctl"><Switch checked={x.on} name="value" value={String(!x.on)} /></div>
+				{:else if x.type === 'check'}
+					<button
+						type="submit"
+						name="value"
+						value={String(!x.on)}
+						class="check"
+						class:on={x.on}
+						role="checkbox"
+						aria-checked={x.on}
+						aria-label={x.title}
+						><span class="box" aria-hidden="true">{x.on ? '✓' : ''}</span></button
+					>
+				{:else if x.type === 'list' && (!long || data.change === x.key)}
+					<div class="cells" role="radiogroup" aria-label={x.title}>
+						{#each x.entries as e, i (i)}
+							<button
+								type="submit"
+								name="value"
+								value={String(i)}
+								class="cell-opt"
+								class:on={i === x.index}
+								role="radio"
+								aria-checked={i === x.index}>{e.toUpperCase()}</button
+							>
+						{/each}
+					</div>
+				{:else if x.type === 'list'}
+					<div class="value">
+						<span class="v">{x.entries[x.index].toUpperCase()}</span>
+						<a
+							class="change"
+							href={keepOrigin(`${here}?change=${encodeURIComponent(x.key)}`, data.from)}
+							>CHANGE ▾</a
+						>
+					</div>
+				{:else if x.type === 'multi'}
+					<div class="cells">
+						{#each x.entries as e, i (i)}
+							<label class="cell-opt box-opt"
+								><input
+									type="checkbox"
+									name="value"
+									value={x.entryValues[i]}
+									checked={x.chosen.includes(x.entryValues[i])}
+									onchange={(ev) => (ev.currentTarget.form as HTMLFormElement).requestSubmit()}
+								/><span>{e.toUpperCase()}</span></label
+							>
+						{/each}
+					</div>
+					{#if !js}<button type="submit" class="save-multi">SAVE</button>{/if}
+				{:else if x.type === 'text'}
+					<div class="field">
+						<input name="value" value={x.text} aria-label={x.title} autocomplete="off" />
+						<button type="submit" class="save">SAVE</button>
+					</div>
+				{/if}
+			</form>
+		{/each}
+
+		<p class="prose">
+			A change is saved here and sent with every call to the source. Its page asks again when you go
+			back, since a setting can change what it lists.
+		</p>
+	{:else}
+		<p class="prose">
+			An LNReader plugin keeps no settings of its own here: only tsundoku's switches above.
+		</p>
+	{/if}
 </div>
 
 <!-- eslint-enable svelte/no-navigation-without-resolve -->
@@ -218,7 +271,8 @@
 		letter-spacing: 0.06em;
 		color: var(--text-2);
 	}
-	.set {
+	.set,
+	.own {
 		flex-shrink: 0;
 		display: flex;
 		align-items: center;

@@ -3,6 +3,7 @@ import { sourceUse } from '../library-sources.ts';
 import { mostlyHidden } from '../../library/downloads.ts';
 import type { SourceFamily, SourceKind } from '../../library/kinds.ts';
 import { familyOfKind } from './repo-index.ts';
+import { sourcesWith } from './source-flags.ts';
 import { cleanSchema, toEngine, type FilterField } from '../../library/browse-filters.ts';
 import type { SearchHit } from '../download-types.ts';
 import { asHits, callSource, type EngineManga } from './backend.ts';
@@ -47,8 +48,14 @@ export type BrowseSource = {
 	/** Series the library has from it that the viewer may see, and of those how many are hidden (0 with reveal off). */
 	series: number;
 	hidden: number;
-	/** Shown only while reveal is on: more than half of what's here from it is hidden. */
+	/**
+	 * Shown only while reveal is on: its HIDDEN SOURCE switch is on
+	 * (`hiddenSource`; card c435), or more than half of what's here from it
+	 * is hidden. Every door that hides a source reads this one field.
+	 */
 	mostlyHidden: boolean;
+	/** Its own HIDDEN SOURCE switch (engine/source-flags.ts), whatever its series are. */
+	hiddenSource: boolean;
 	/** The extension's own word when the engine refused it, else ''. */
 	failed: string;
 };
@@ -79,13 +86,15 @@ function engineSources(reveal: boolean): BrowseSource[] {
 		failed: string;
 	}[];
 	const use = sourceUse();
+	const switchedOff = sourcesWith('hidden');
 	const out: BrowseSource[] = [];
 	for (const r of rows) {
 		// The column's CHECK allows only a family's kind; a word none names is skipped.
 		const family = familyOfKind(r.kind);
 		if (!family) continue;
 		const u = use.get(r.id) ?? { series: 0, hidden: 0 };
-		const hiddenMostly = mostlyHidden(u);
+		const hiddenSource = switchedOff.has(r.id);
+		const hiddenMostly = hiddenSource || mostlyHidden(u);
 		if (hiddenMostly && !reveal) continue;
 		// Counts are what reveal lets the viewer see.
 		out.push({
@@ -93,7 +102,8 @@ function engineSources(reveal: boolean): BrowseSource[] {
 			family,
 			series: reveal ? u.series : u.series - u.hidden,
 			hidden: reveal ? u.hidden : 0,
-			mostlyHidden: hiddenMostly
+			mostlyHidden: hiddenMostly,
+			hiddenSource
 		});
 	}
 	return out;

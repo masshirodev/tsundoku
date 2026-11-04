@@ -32,6 +32,7 @@ import { call, engineDownSince, engineImageToken, EngineError } from './client.t
 import { titleFromPath } from '../../library/titles.ts';
 import { kindFacts, SOURCE_KINDS, type Medium, type SourceFamily } from '../../library/kinds.ts';
 import { familyOfKind } from './repo-index.ts';
+import { hideIfAddedHidden, sourcesWith } from './source-flags.ts';
 import { extensionFor, preferences } from './extensions.ts';
 import { splitMemo } from './protocol.ts';
 import { chapterName } from './device.ts';
@@ -274,7 +275,14 @@ export function searchSources(reveal: boolean): { id: string; name: string }[] {
 			WHERE e.failed = ''`
 		)
 		.all() as { id: string; name: string }[];
-	return sourcesToSearch(rows, sourceUse(), reveal, browsedIds(reveal));
+	// A HIDDEN SOURCE is asked only inside reveal (card c435).
+	const hiddenOn = reveal ? new Set<string>() : sourcesWith('hidden');
+	return sourcesToSearch(
+		rows.filter((r) => !hiddenOn.has(r.id)),
+		sourceUse(),
+		reveal,
+		browsedIds(reveal)
+	);
 }
 
 export type EngineManga = {
@@ -635,7 +643,11 @@ export async function addToLibrary(
 				: 'its chapters are already in another series here'
 		);
 	}
-	if (!browsing) db().prepare(`UPDATE series SET arrived_at = ? WHERE id = ?`).run(now, row.id);
+	if (!browsing) {
+		db().prepare(`UPDATE series SET arrived_at = ? WHERE id = ?`).run(now, row.id);
+		// ADD from a source that adds hidden (card c435): it starts hidden.
+		hideIfAddedHidden(row.id, db());
+	}
 	rememberAtSource(row.id, m, now);
 	if (!browsing) forgetSourceUse();
 	void refreshCovers({ ids: [row.id], remote: true });

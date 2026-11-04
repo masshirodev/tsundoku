@@ -1,8 +1,9 @@
-import { error, fail } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { isRevealed } from '$lib/server/prefs';
 import { downloadsBackend } from '$lib/server/engine/run';
 import { browseSource, forgetSource } from '$lib/server/engine/browse';
+import { isSourceFlag, setSourceFlag, sourceFlags } from '$lib/server/engine/source-flags';
 import { callSource } from '$lib/server/engine/backend';
 import { EngineError } from '$lib/server/engine/client';
 import { keepPreferences, preferences, setPreference } from '$lib/server/engine/extensions';
@@ -21,12 +22,16 @@ import { backOrigin } from '$lib/library/tag-search';
 
 function source(id: string, reveal: boolean) {
 	if (downloadsBackend() !== 'engine') error(404, 'not found');
+	// Every family has the page (card c435): tsundoku's own switches are
+	// every source's. Hidden means hidden: a hidden source's page is found
+	// only inside reveal, as its BROWSE page is.
 	const s = browseSource(id, reveal);
-	// A novel plugin keeps no settings here (doc/NOVELS.md): the family is
-	// asked, not the kind (card c420).
-	if (!s || s.family === 'lnreader') error(404, 'not found');
+	if (!s) error(404, 'not found');
 	return s;
 }
+
+/** Whether the extension has preferences of its own to describe: an LNReader plugin keeps none (doc/NOVELS.md). */
+const hasPreferences = (s: { family: string }) => s.family !== 'lnreader';
 
 const rank = (order: string[], key: string) => {
 	const i = order.indexOf(key);
@@ -38,7 +43,7 @@ export const load: PageServerLoad = async ({ params, cookies, url }) => {
 	let down: string | null = null;
 	// The source's own order, when it answered; the keys' otherwise.
 	let order: string[] = [];
-	if (!s.failed) {
+	if (!s.failed && hasPreferences(s)) {
 		try {
 			const described = await callSource<Preference[]>(s.id, 'preferencesManga', {}, 20_000);
 			const list = Array.isArray(described) ? described : [];
@@ -51,6 +56,9 @@ export const load: PageServerLoad = async ({ params, cookies, url }) => {
 	}
 	return {
 		source: s,
+		// tsundoku's own switches for it (card c435), above the extension's.
+		flags: sourceFlags(s.id),
+		preferences: hasPreferences(s),
 		settings: preferences(s.id)
 			.map(settingOf)
 			.filter((x) => x !== null)
@@ -63,6 +71,21 @@ export const load: PageServerLoad = async ({ params, cookies, url }) => {
 };
 
 export const actions: Actions = {
+	/** One of tsundoku's own switches (card c435): HIDDEN SOURCE, ADDED HIDDEN, OFF HISTORY. */
+	flag: async ({ params, cookies, request }) => {
+		const s = source(params.source, isRevealed(cookies));
+		const form = await request.formData();
+		const flag = String(form.get('flag') ?? '');
+		const value = String(form.get('value') ?? '');
+		if (!isSourceFlag(flag)) return fail(400, { message: 'No such switch' });
+		if (value !== 'true' && value !== 'false') return fail(400, { message: 'Not on or off' });
+		const on = value === 'true';
+		setSourceFlag(s.id, flag, on);
+		// Hidden means hidden: hidden with reveal off, the source is no longer
+		// found, this page included, so the switch lands on BROWSE.
+		if (flag === 'hidden' && on && !isRevealed(cookies)) redirect(303, '/browse');
+		return { saved: `flag:${flag}` };
+	},
 	/** One setting's new value. The source's page asks again on return: its kept answers are keyed by settings. */
 	set: async ({ params, cookies, request }) => {
 		const s = source(params.source, isRevealed(cookies));

@@ -1,5 +1,6 @@
 import { getDb } from './db.ts';
 import { IN_LIBRARY_SQL, libraryWhere, VISIBLE_SQL } from './visibility.ts';
+import { sourcesWith } from './engine/source-flags.ts';
 import {
 	mostlyHidden,
 	normTitle,
@@ -80,8 +81,11 @@ export function libraryIndex(reveal: boolean) {
 	// A twin in a mostly-hidden source is still a twin, but with reveal off the
 	// source isn't named: hidden means not named, not just not listed.
 	const use = sourceUse();
+	// Nor is a source whose own HIDDEN SOURCE switch is on (card c435).
+	const switchedOff = reveal ? new Set<string>() : sourcesWith('hidden');
 	const nameable = (sourceId: string) =>
-		reveal || !mostlyHidden(use.get(sourceId) ?? { series: 0, hidden: 0 });
+		reveal ||
+		(!switchedOff.has(sourceId) && !mostlyHidden(use.get(sourceId) ?? { series: 0, hidden: 0 }));
 	return { byKey, sameTitle, nameable };
 }
 
