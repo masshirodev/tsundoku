@@ -285,6 +285,10 @@ test('MORE in the library’s bar: the sidebar’s foot as a sheet', async ({ pa
 	// The seeded library has no repository, so GET STARTED isn't finished and leads (doc/ONBOARDING.md).
 	await expect(sheet.locator('.row')).toHaveText([
 		/GET STARTED\s*\d \/ 7 →/,
+		// TO LINK while anything waits (c475; doc/LIBRARY.md): the seed queues
+		// Mount Hua and Yofukashi no Uta, and links-flow decides them one at a
+		// time and undoes each, so the count moves but never reaches nothing.
+		/TO LINK →\s*\d+/,
 		/HISTORY →/,
 		/DOWNLOADS →/,
 		/SETTINGS →/,
