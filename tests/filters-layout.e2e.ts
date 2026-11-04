@@ -16,12 +16,14 @@ test('the panel, as the mock measures it on this device', async ({ page }, info)
 	await page.goto('/?shelf=all&min=8');
 	const cell = page.locator('summary', { hasText: 'FILTER' }).filter({ visible: true });
 	await expect(cell).toHaveCount(1);
-	// Hydration's bind:open shuts a panel a native click opened (filters-flow).
-	await page
-		.waitForFunction(() => document.cookie.includes('tsundoku_js=1'), null, { timeout: 2000 })
-		.catch(() => undefined);
+	// No wait for hydration: a native open before it now survives it (c105).
 	expect(await px(cell, 'font-size')).toBe('14px');
-	expect(await px(cell, 'border-left-width')).toBe('1px');
+	// On the tabs FILTER draws its own divider; in the desktop's top bar the
+	// cell before it draws that one, and FILTER the rule against SELECT (c431).
+	if (device === 'desktop') {
+		expect(await px(cell, 'border-left-width')).toBe('0px');
+		expect(await px(page.locator('.filter-desk'), 'border-right-width')).toBe('1px');
+	} else expect(await px(cell, 'border-left-width')).toBe('1px');
 	await cell.click();
 	const panel = page.getByRole('group', { name: 'Filters' }).filter({ visible: true });
 	await expect(panel).toBeVisible();

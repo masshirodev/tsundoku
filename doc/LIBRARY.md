@@ -367,7 +367,20 @@ The sort is a menu (see "Sort and direction"), and its last choice is
 The seed only ever reaches SQL as an integer (`parseSeed`). Going back to a
 screen as it was left is [`NAVIGATION.md`](NAVIGATION.md).
 
-## The top bar stays
+## The top bar
+
+**One hairline between every pair of cells** (c431, asked for on 2026-11-03:
+FILTER and SELECT sat side by side with nothing between them on the
+desktop). The right-hand group draws the first rule, on its left (`TopBar`);
+every cell before SELECT draws the one after it, on its right: BROWSE,
+QUEUE and the desktop's FILTER (`.filter-desk`, whose summary drops its own
+left rule there). MORE draws its own, on its left, so the rule goes with it
+where MORE is hidden (the desktop). Until then QUEUE and FILTER drew a left
+rule, which doubled the group's into 2px and left nothing against SELECT.
+`tests/library-top-bar.e2e.ts` walks every cell drawn on each device and
+wants exactly 1px at each boundary, FILTER open and closed.
+
+### It stays
 
 On a phone and the tablet, the bar with the name, `/ search` and SELECT
 (and the selection bar that replaces it) is sticky: it stays at the top while

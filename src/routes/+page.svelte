@@ -1794,9 +1794,15 @@
 	.desk-count {
 		display: none;
 	}
-	/* Not positioned: its panel hangs from the top bar's right edge, 640 wide (3j). */
+	/* Not positioned: its panel hangs from the top bar's right edge, 640 wide (3j).
+	   FILTER's own left rule is the tabs' divider; here the cell before it
+	   draws that one, and FILTER draws the rule against SELECT (c431). */
 	.filter-desk {
 		align-self: stretch;
+		border-right: var(--hairline);
+	}
+	.filter-desk :global(summary) {
+		border-left: 0;
 	}
 	/* Desktop: the wordmark and the shelves move into the sidebar, FILTER into
 	   the top bar beside SELECT, and the count into the section label (3j). */
@@ -1889,7 +1895,7 @@
 		justify-content: center;
 		gap: 4px;
 		padding: 0 var(--pad);
-		border-left: var(--hairline);
+		border-right: var(--hairline);
 		color: var(--text-1);
 		text-decoration: none;
 		white-space: nowrap;
@@ -1899,7 +1905,11 @@
 			padding: 0 12px;
 		}
 	}
-	/* The right-hand cell's own rule is on BROWSE's left; BROWSE draws the next one. */
+	/* The top bar's rules (c431). The right-hand cell draws the first one, on
+	   its left; every cell before SELECT draws the one after it, on its right
+	   (BROWSE, QUEUE, the desktop's FILTER); MORE draws its own on its left,
+	   so the rule goes with it where MORE is hidden. One rule per pair, never
+	   two: a cell that also drew a left rule doubled the right-hand cell's. */
 	.browse-cell {
 		display: flex;
 		align-items: center;
@@ -1913,9 +1923,6 @@
 		.browse-cell {
 			display: none;
 		}
-	}
-	.browse-cell + .queue-cell {
-		border-left: 0;
 	}
 	.queue-cell.stale {
 		opacity: 0.35;

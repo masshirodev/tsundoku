@@ -66,9 +66,23 @@
 		kinds?: readonly FilterKind[];
 	} = $props();
 
+	/**
+	 * The <details> is the truth and `open` only follows it (c105). Before
+	 * hydration a tap opens it natively; `bind:open` then wrote its `false`
+	 * back on mount and shut the panel under the finger, so on a slow tablet
+	 * a fast first tap came to nothing. Read once on mount, kept by `toggle`,
+	 * and closed through the element.
+	 */
+	let details = $state<HTMLDetailsElement | null>(null);
 	let open = $state(false);
 	let hydrated = $state(false);
-	onMount(() => (hydrated = true));
+	onMount(() => {
+		hydrated = true;
+		open = details?.open ?? false;
+	});
+	function close() {
+		if (details) details.open = false;
+	}
 	let panel = $state<HTMLElement | null>(null);
 	// Opened low on a page (a person's page, below its header), the panel
 	// comes into view rather than opening off the bottom of the screen.
@@ -95,15 +109,19 @@
 	}
 </script>
 
-<details class="filter" class:wide bind:open>
+<details
+	class="filter"
+	class:wide
+	bind:this={details}
+	ontoggle={(e) => (open = e.currentTarget.open)}
+>
 	<summary class="cell" aria-label={n ? `Filter, ${n} on` : 'Filter'}>
 		<span>FILTER</span>
 		{#if n}<span class="badge">{n}</span>{/if}
 		<span aria-hidden="true">{open ? '▴' : '▾'}</span>
 	</summary>
 	<!-- A tap outside closes it, as a sheet's scrim does. -->
-	<button type="button" class="scrim" aria-label="Close filters" onclick={() => (open = false)}
-	></button>
+	<button type="button" class="scrim" aria-label="Close filters" onclick={close}></button>
 	<div class="panel" role="group" aria-label="Filters" bind:this={panel}>
 		<div class="head"><span>FILTER {title}</span><span class="count">{count}</span></div>
 		{#each rows as row (row.key)}
@@ -178,7 +196,7 @@
 					>✕ CLEAR ALL</button
 				>
 			{/if}
-			<button type="button" class="done" onclick={() => (open = false)}>DONE</button>
+			<button type="button" class="done" onclick={close}>DONE</button>
 		</div>
 	</div>
 </details>
