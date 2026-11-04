@@ -1051,6 +1051,14 @@
 				}
 				next.disabled = false;
 				checking.textContent = '';
+				// A retry of the attempt 9D is already showing failed again: that
+				// is one more in the count, not a new 9D. Entering again would put
+				// the mark back on TRY AGAIN, rebuild the other servers' rows
+				// under it and probe each of them again, every 5 s (c261, round 2).
+				if (!screens.lost.hidden && lostFor && atOrigin(at) === atOrigin(lostFor)) {
+					paint();
+					return;
+				}
 				lost(at);
 			};
 
@@ -1059,8 +1067,17 @@
 			const lostMeta = document.getElementById('lost-meta');
 			const reason3 = document.getElementById('reason-3');
 
+			/** The origin 9D was last entered for; its retries only repaint. */
+			let lostFor = '';
+
+			/*
+			 * Entering 9D: from #lost=, from a typed or given address that did
+			 * not answer, or for another origin. Never a retry of the same one,
+			 * which the probe's answer above keeps to paint().
+			 */
 			function lost(at) {
 				lastOrigin = at;
+				lostFor = at;
 				lostTitle.textContent =
 					'○ NOTHING ANSWERS AT ' + at.replace('http://', '').replace('https://', '');
 				const prefix = prefixOf(own);

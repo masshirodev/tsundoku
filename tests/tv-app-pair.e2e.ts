@@ -654,6 +654,60 @@ test('S9: 9D for the one in use offers the others, each probed, OK opening one',
 	expect((await box('#retry')).y + 56 - main.y).toBeLessThanOrEqual(540);
 });
 
+test("S9: 9D's 5 s retries keep the mark on another server and its answer (c261, round 2)", async ({
+	page
+}) => {
+	// HOME never answers, so the 5 s retry fails again and again. A failure
+	// for the attempt already on 9D is a count, not a new 9D: rebuilding it
+	// took the mark back to TRY AGAIN, put every row back to CHECKING and
+	// probed every other server again, on every tick.
+	// Paused, so only runFor moves time: a slow assertion must not add a tick.
+	const t0 = new Date('2026-11-04T10:00:00Z');
+	await page.clock.install({ time: t0 });
+	await page.clock.pauseAt(new Date(t0.getTime() + 1));
+	await stubServers(page, three, {
+		[ZEN]: { ok: true, after: 300 },
+		[STUDIO]: { ok: false, after: 100 }
+	});
+	await page.goto(`${page9}#lost=${encodeURIComponent(HOME)}`);
+	await page.clock.runFor(1000);
+	const rows = page.locator('#others .srv');
+	await expect(rows.nth(0).locator('.st')).toHaveText('ANSWERS');
+	await expect(rows.nth(1).locator('.st')).toHaveText('NO ANSWER');
+	await expect(page.locator('#lost-meta')).toContainText('TRIED 0 TIMES');
+	await page.keyboard.press('ArrowUp');
+	await page.keyboard.press('ArrowUp');
+	await expect(rows.nth(0)).toBeFocused();
+	// A marker on the node itself: a rebuilt row is another element.
+	await rows.nth(0).evaluate((el) => (el.dataset.kept = 'yes'));
+
+	// 5.2 s: the first tick's probe failed at 5.05 s. A rebuilt 9D would show
+	// the others CHECKING until their own probes answer again (ZEN's at 5.35).
+	await page.clock.runFor(4200);
+	await expect(page.locator('#lost-meta')).toContainText('TRIED 1 TIME ');
+	await expect.soft(rows.nth(0).locator('.st')).toHaveText('ANSWERS', { timeout: 500 });
+	await expect.soft(rows.nth(1).locator('.st')).toHaveText('NO ANSWER', { timeout: 500 });
+	await page.clock.runFor(5000);
+	await expect(page.locator('#lost-meta')).toContainText('TRIED 2 TIMES');
+	await page.clock.runFor(1000);
+
+	await expect.soft(page.locator('#others .srv[data-kept="yes"]')).toBeFocused();
+	await expect.soft(rows.nth(0)).toContainText("Masshiro's");
+	await expect.soft(rows.nth(0).locator('.st')).toHaveText('ANSWERS');
+	await expect.soft(rows.nth(1).locator('.st')).toHaveText('NO ANSWER');
+	await expect.soft(rows).toHaveCount(2);
+	// Soft, so a run against a 9D that rebuilds itself names every one it breaks.
+	const probes = await page.evaluate(() => window.__servers!.probes);
+	// Each other server once, on entering 9D; HOME on each of the two ticks.
+	expect.soft(probes.filter((p) => p === ZEN)).toHaveLength(1);
+	expect.soft(probes.filter((p) => p === STUDIO)).toHaveLength(1);
+	expect.soft(probes.filter((p) => p === HOME)).toHaveLength(2);
+	expect(test.info().errors).toEqual([]);
+	// The mark still works where it was left.
+	await page.keyboard.press('Enter');
+	expect(await page.evaluate(() => window.__servers!.opened)).toEqual([ZEN]);
+});
+
 test('9D with one server is 9D as before c261: no others, the reasons full width', async ({
 	page
 }) => {
