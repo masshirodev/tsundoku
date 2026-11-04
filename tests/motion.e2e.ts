@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures';
+import { expect, screenSettled, test } from './fixtures';
 
 /**
  * Motion in the real app (doc/MOTION.md, card c396): every tap is drawn and
@@ -155,4 +155,76 @@ test('a slow screen: its outline is what slides in', async ({ page }) => {
 	await expect(outline).toHaveCSS('animation-name', 'screen-in-right');
 	await page.waitForURL(/\/series\/\d+/);
 	await expect(page.locator('[data-arrive]')).toHaveCount(0);
+});
+
+/**
+ * The scrim's box, against the viewport (c426). A screen that slid in must
+ * leave nothing behind it: an animation that kept filling its last frame held
+ * `translate` on the screen, which made the screen the containing block of
+ * every `position: fixed` inside it, so FILTER's scrim began a sidebar's width
+ * past the sidebar and a sheet's scrim missed the screen's left edge.
+ */
+const boxOf = (l: import('@playwright/test').Locator) =>
+	l.evaluate((el) => {
+		const r = el.getBoundingClientRect();
+		return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+	});
+
+/** Library → a series → back: the library arrives by a navigation, as the owner's did. */
+async function arriveAtLibrary(page: import('@playwright/test').Page) {
+	await page.goto('/?sort=title');
+	await page.locator('.grid .tile').first().click();
+	await page.waitForURL(/\/series\/\d+/);
+	await page.goBack();
+	await page.waitForURL((url) => url.pathname === '/');
+	await expect(page.locator('.main')).toHaveAttribute('data-arrived', /.+/);
+	await screenSettled(page);
+}
+
+test('a screen at rest holds no translate, so nothing fixed inside it is measured from it', async ({
+	page
+}) => {
+	await arriveAtLibrary(page);
+	await expect(page.locator('.main > .route-view > *').first()).toHaveCSS('translate', 'none');
+	await page.locator('.grid .tile').first().click();
+	await page.waitForURL(/\/series\/\d+/);
+	await screenSettled(page);
+	await expect(page.locator('.main > .route-view > *').first()).toHaveCSS('translate', 'none');
+});
+
+test('after a screen slides in, FILTER dims all of the screen but the bars', async ({ page }) => {
+	await arriveAtLibrary(page);
+	await page.locator('summary:visible', { hasText: 'FILTER' }).first().click();
+	const scrim = page.locator('.filter[open] .scrim').filter({ visible: true });
+	await expect(scrim).toHaveCount(1);
+	const box = await boxOf(scrim);
+	const vp = page.viewportSize()!;
+	expect(box.right).toBe(vp.width);
+	expect(box.bottom).toBe(vp.height);
+	const sidebar = page.locator('.sidebar').filter({ visible: true });
+	if (await sidebar.count()) {
+		// The desktop: the sidebar and the top bar stay lit (3j).
+		expect(box.left).toBe((await boxOf(sidebar.first())).right);
+		const headerH = await scrim.evaluate((el) =>
+			parseFloat(getComputedStyle(el).getPropertyValue('--header-h'))
+		);
+		expect(box.top).toBe(headerH);
+	} else {
+		expect(box.left).toBe(0);
+	}
+});
+
+test("after a screen slides in, a sheet's scrim covers the whole viewport", async ({
+	page
+}, info) => {
+	test.skip(info.project.name === 'desktop', 'MORE is the sidebar on the desktop, not a sheet');
+	await arriveAtLibrary(page);
+	await page.locator('button.more-cell').filter({ visible: true }).first().click();
+	const scrim = page.locator('.library button.scrim').filter({ visible: true }).last();
+	await expect(scrim).toBeVisible();
+	await scrim.evaluate((el) =>
+		Promise.all(el.getAnimations().map((a) => a.finished.catch(() => undefined)))
+	);
+	const vp = page.viewportSize()!;
+	expect(await boxOf(scrim)).toEqual({ left: 0, top: 0, right: vp.width, bottom: vp.height });
 });

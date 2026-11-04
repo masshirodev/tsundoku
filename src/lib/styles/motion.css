@@ -120,11 +120,18 @@
  * screen is slow: the outline is then the screen arriving, so it slides in,
  * and the screen only fades over it. Not on a TV (pointer: none), where the
  * remote moves a key at a time and the ten-foot layout answers at once.
+ *
+ * `backwards`, never `both` or `forwards` (c426): a finished animation that
+ * keeps filling its last frame still sets `translate` on the screen, and an
+ * element with a translate is the containing block of every `position: fixed`
+ * inside it. FILTER's scrim then began a sidebar's width past the sidebar and
+ * was only as tall as the screen's content, and a sheet's scrim missed the
+ * screen's left edge. Ended, the screen must hold nothing.
  */
 @media (pointer: fine), (pointer: coarse) {
 	[data-arrived] > .route-view > *,
 	[data-arriving] > [data-arrive] {
-		animation: screen-in-right var(--motion-panel) var(--ease-out) both;
+		animation: screen-in-right var(--motion-panel) var(--ease-out) backwards;
 	}
 	[data-arrived='back'] > .route-view > *,
 	[data-arriving='back'] > [data-arrive] {
