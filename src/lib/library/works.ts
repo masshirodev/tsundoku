@@ -608,6 +608,22 @@ export const wholeLine = (works: number): string =>
 	works === 1 ? 'THE WORK, WHOLE' : `${works} WORKS, WHOLE`;
 
 /**
+ * The library's answer to a HIDE or UNHIDE that changed a Work (`?/hide`,
+ * `?/hideAll`, `?/hideParts`, `?/showAll`, `?/bulk`): the facts its UNDO posts
+ * back, and the counts `wholeBand` words the band from. Every id is one the
+ * press changed (c390), so UNDO puts back exactly that.
+ */
+export type HideFacts = {
+	hidden: number[];
+	/** TAKE OUT's facts, put back by UNDO before it shows anything. */
+	out: unknown[];
+	whole: number[];
+	works: number;
+};
+export type ShowFacts = { shown: number[]; whole: number[]; works: number };
+export type WholeAnswer = { hideFacts: HideFacts } | { showFacts: ShowFacts };
+
+/**
  * The band after a HIDE or UNHIDE that took one or more Works whole: the Works
  * in the title, their own series in the detail, and the selected series in no
  * Work kept out of the Works' count and named on their own.

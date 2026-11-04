@@ -1147,6 +1147,33 @@ describe('a HIDE’s UNDO puts back only what the HIDE changed (c390)', () => {
 		expect([p, q].map(hiddenOf)).toEqual([false, false]);
 	});
 
+	it('gives no UNDO for a HIDE that settled a half-hidden Work: the Work stays hidden', async () => {
+		const [p, q] = W.map(idOf) as number[];
+		works.createWork({ seriesIds: [p, q], name: 'Two', now: NOW });
+		// The state an import's fold could leave before c389: one part hidden alone.
+		getDb().prepare(`UPDATE series SET hidden = 1, public = 0 WHERE id = ?`).run(q);
+		// HIDE ALL settles it hidden. An UNDO could only show P and leave the Work
+		// half-hidden again, or show Q too, which the owner had hidden: neither.
+		expect(await post(library.actions.hideAll, ids([p]))).toEqual({ ok: true });
+		expect([p, q].map(hiddenOf)).toEqual([true, true]);
+		expect(works.setHiddenWhole([p], true)).toEqual({ ids: [], whole: [], works: 0 });
+	});
+
+	it('leaves a part hidden when its Work was hidden since the HIDE, rather than show the Work', async () => {
+		const [p, q, r] = W.map(idOf) as number[];
+		const { work } = works.createWork({ seriesIds: [p, q, r], name: 'Run', now: NOW });
+		const first = await post(library.actions.hideParts, ids([p]));
+		// Later, the rest of the run is hidden by another press.
+		await post(library.actions.hideAll, ids([q]));
+		expect([q, r].map(hiddenOf)).toEqual([true, true]);
+
+		await post(library.actions.undoHide, [['facts', JSON.stringify(first.hideFacts)]]);
+		// P is back in its Work, which stays hidden whole: showing P would have
+		// shown Q and R, hidden by a press this UNDO did not make.
+		expect(membersNow(work.id)).toEqual([p, q, r]);
+		expect([p, q, r].map(hiddenOf)).toEqual([true, true, true]);
+	});
+
 	it('refuses the HIDE’s UNDO, whole, once a taken-out part has joined another Work', async () => {
 		const [p, q, r] = W.map(idOf) as number[];
 		const d = idOf('Villainess Level 99')!;

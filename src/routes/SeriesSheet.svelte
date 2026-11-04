@@ -9,7 +9,7 @@
 	import { sheetMeta } from '$lib/library/labels';
 	import { coverSrc, seriesHref, readHref } from '$lib/library/links';
 	import type { SeriesDetail, Shelf } from '$lib/library/types';
-	import type { LibraryCard } from '$lib/library/works';
+	import type { HideFacts, LibraryCard, ShowFacts, WholeAnswer } from '$lib/library/works';
 	import type { SubmitFunction } from '@sveltejs/kit';
 
 	/**
@@ -22,12 +22,20 @@
 		id,
 		shelves,
 		onclose,
-		onchange
+		onchange,
+		onhid
 	}: {
 		id: number | null;
 		shelves: Shelf[];
 		onclose: () => void;
 		onchange: () => Promise<void>;
+		/**
+		 * HIDE's answer when it took a Work whole (its band's facts), for a page
+		 * that is not the library: the library's own `form` carries the answer
+		 * there, but SvelteKit applies an action's result only on the action's
+		 * own page, so the search page would never see it (c391).
+		 */
+		onhid?: (answer: WholeAnswer) => void;
 	} = $props();
 
 	/**
@@ -66,8 +74,13 @@
 
 	const afterHide: SubmitFunction =
 		() =>
-		async ({ update }) => {
+		async ({ update, result }) => {
 			await update({ invalidateAll: false });
+			if (onhid && result.type === 'success' && result.data) {
+				const data = result.data as { hideFacts?: HideFacts; showFacts?: ShowFacts };
+				if (data.hideFacts) onhid({ hideFacts: data.hideFacts });
+				else if (data.showFacts) onhid({ showFacts: data.showFacts });
+			}
 			await onchange();
 			onclose();
 		};

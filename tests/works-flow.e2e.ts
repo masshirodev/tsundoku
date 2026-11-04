@@ -4,6 +4,7 @@ import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type Page } from '@playwright/test';
+import Database from 'better-sqlite3';
 import { expect, test } from './fixtures';
 import { E2E_TOKEN } from '../playwright.config';
 
@@ -1102,22 +1103,128 @@ test('the search sheet’s HIDE on a part hides its Work whole, and UNHIDE shows
 	let sheet = page.getByRole('dialog', { name: 'Isekai Yakkyoku' });
 	await expect(sheet).toBeVisible();
 	await sheet.getByRole('button', { name: 'HIDE ALL 2', exact: true }).click();
+	// The band, at once, in the library's words (c391): before, the search page
+	// dropped the answer, and a press that hid two series had no UNDO.
+	let band = page.locator('.band', { hasText: 'HIDDEN · THE WORK, WHOLE' });
+	await expect(band).toBeVisible();
+	await expect(band).toContainText('2 SERIES · SHOWN AGAIN BY UNDO');
 	await expect(sheet).toHaveCount(0);
 	// The Work went whole: both parts hidden, not the one the sheet was open on.
 	await expect.poll(() => hiddenOf(page, parts)).toEqual([true, true]);
 
-	// UNHIDE through the same sheet brings the Work back whole.
+	// UNDO responds: the Work is shown again, whole, and the band goes.
+	await band.getByRole('button', { name: 'UNDO' }).click();
+	await expect(band).toHaveCount(0);
+	await expect.poll(() => hiddenOf(page, parts)).toEqual([false, false]);
+	await expect(page).toHaveURL(/\/search\?q=/);
+
+	// Hide it again, then UNHIDE through the same sheet: the Work back whole.
+	await page.locator('.hits .hit:not(.work)', { hasText: 'Isekai Yakkyoku' }).click();
+	sheet = page.getByRole('dialog', { name: 'Isekai Yakkyoku' });
+	await sheet.getByRole('button', { name: 'HIDE ALL 2', exact: true }).click();
+	await expect(band).toBeVisible();
+	await expect.poll(() => hiddenOf(page, parts)).toEqual([true, true]);
 	await page.goto('/search?q=' + encodeURIComponent('Isekai Yakkyoku'));
+	// A new page: the band belonged to the press, not to the search.
+	await expect(band).toHaveCount(0);
 	await page.locator('.hits .hit:not(.work)', { hasText: 'Isekai Yakkyoku' }).click();
 	sheet = page.getByRole('dialog', { name: 'Isekai Yakkyoku' });
 	await sheet.getByRole('button', { name: 'UNHIDE ALL 2', exact: true }).click();
+	band = page.locator('.band', { hasText: 'SHOWN · THE WORK, WHOLE' });
+	await expect(band).toBeVisible();
+	await expect(band).toContainText('2 SERIES · HIDDEN AGAIN BY UNDO');
 	await expect(sheet).toHaveCount(0);
+	await expect.poll(() => hiddenOf(page, parts)).toEqual([false, false]);
+	// Its UNDO hides the Work again; a last UNHIDE puts the seed back.
+	await band.getByRole('button', { name: 'UNDO' }).click();
+	await expect(band).toHaveCount(0);
+	await expect.poll(() => hiddenOf(page, parts)).toEqual([true, true]);
+	await page.locator('.hits .hit:not(.work)', { hasText: 'Isekai Yakkyoku' }).click();
+	sheet = page.getByRole('dialog', { name: 'Isekai Yakkyoku' });
+	await sheet.getByRole('button', { name: 'UNHIDE ALL 2', exact: true }).click();
 	await expect.poll(() => hiddenOf(page, parts)).toEqual([false, false]);
 
 	// Put it back: the Work ended, nothing hidden.
 	await page.goto(`/work/${workId}`);
 	await endWork(page);
 	expect(await hiddenOf(page, parts)).toEqual([false, false]);
+});
+
+test('HIDE ALL n on a half-hidden Work settles it hidden, and offers no UNDO that would show a hidden part (c390, c391)', async ({
+	page
+}) => {
+	// A Work one of whose parts is hidden on its own: no door the app offers
+	// makes this any more, but an import's fold did until c389, so a library
+	// can hold one. It is written here as the fold left it, in the database.
+	await revealOn(page);
+	await makeWork(page, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Mixed Run');
+	const workId = await openWork(page, 'Mixed Run');
+	const parts = await partIds(page, `/work/${workId}`);
+	const first = (await (await page.request.get(`/api/series/${parts[0]}`)).json()) as {
+		title: string;
+	};
+	const [shownPart, hiddenPart] = first.title === 'Isekai Ojisan' ? parts : [...parts].reverse();
+	const db = new Database(dbPath);
+	db.prepare(`UPDATE series SET hidden = 1, public = 0 WHERE id = ?`).run(hiddenPart);
+	db.close();
+	expect(await hiddenOf(page, [shownPart, hiddenPart])).toEqual([false, true]);
+
+	// The visible part's sheet, from search: HIDE ALL 2 settles the Work hidden.
+	await page.goto('/search?q=' + encodeURIComponent('Isekai Ojisan'));
+	await page.locator('.hits .hit:not(.work)', { hasText: 'Isekai Ojisan' }).click();
+	const sheet = page.getByRole('dialog', { name: 'Isekai Ojisan' });
+	await sheet.getByRole('button', { name: 'HIDE ALL 2', exact: true }).click();
+	await expect(sheet).toHaveCount(0);
+	await expect.poll(() => hiddenOf(page, [shownPart, hiddenPart])).toEqual([true, true]);
+	// No band (reveal's own, HIDDEN SHOWN, aside): its UNDO could only leave
+	// the Work half-hidden again, or show the part the owner had hidden --
+	// before c390 it showed both.
+	await expect(page.locator('.band', { hasText: 'THE WORK, WHOLE' })).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'UNDO' })).toHaveCount(0);
+
+	// Put it back: the Work shown whole, then ended.
+	await page.locator('.hits .hit:not(.work)', { hasText: 'Isekai Ojisan' }).click();
+	await page
+		.getByRole('dialog', { name: 'Isekai Ojisan' })
+		.getByRole('button', { name: 'UNHIDE ALL 2', exact: true })
+		.click();
+	await expect.poll(() => hiddenOf(page, [shownPart, hiddenPart])).toEqual([false, false]);
+	await page.goto(`/work/${workId}`);
+	await endWork(page);
+});
+
+test('UNDO of a TAKE OUT refuses once the series has joined another Work, and leaves both whole (c308)', async ({
+	page,
+	context
+}) => {
+	// The interleaving W4 made reachable: the Work screen's band and its UNDO
+	// stay up while, in another tab, the owner groups the series it took out.
+	await makeWork(page, ['Mushoku Tensei', 'Sousou no Frieren', 'Isekai Ojisan'], 'Undo Run');
+	const runId = await openWork(page, 'Undo Run');
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await page.locator('.run .part', { hasText: 'Isekai Ojisan' }).locator('.rowlink').click();
+	await page.getByRole('button', { name: 'TAKE OUT' }).click();
+	const takenOut = page.locator('.band', { hasText: 'TAKEN OUT · ISEKAI OJISAN' });
+	await expect(takenOut).toBeVisible();
+
+	const other = await context.newPage();
+	await makeWork(other, ['Isekai Ojisan', 'Isekai Yakkyoku'], 'Other Run');
+	const otherId = await openWork(other, 'Other Run');
+
+	// Before c308, this UNDO's INSERT OR REPLACE took Isekai Ojisan out of
+	// Other Run without ending it: a Work of one, for good.
+	await takenOut.getByRole('button', { name: 'UNDO' }).click();
+	const refused = page.locator('.band', { hasText: 'ISEKAI OJISAN IS IN OTHER RUN NOW' });
+	await expect(refused).toBeVisible();
+	await expect(refused).toContainText('NOTHING CHANGED');
+	await expect(page.locator('.run .part')).toHaveCount(2);
+	expect(await partIds(other, `/work/${otherId}`)).toHaveLength(2);
+	await expect(other.locator('.run .part', { hasText: 'Isekai Ojisan' })).toHaveCount(1);
+
+	// Put both back: the seed has no Work.
+	await endWork(other);
+	await page.goto(`/work/${runId}`);
+	await endWork(page);
 });
 
 test('every library door that hides by id takes a part’s Work whole, both ways', async ({

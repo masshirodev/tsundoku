@@ -1192,7 +1192,18 @@ export function setHiddenWhole(seriesIds: number[], hidden: boolean): WholeFacts
 			const before = hiddenNow(db, asked);
 			setHidden(asked, hidden);
 			const after = hiddenNow(db, asked);
-			const ids = asked.filter((id) => after.has(id) && before.get(id) !== after.get(id));
+			// A HIDE that settles a Work some part of which was already hidden is
+			// not one UNDO can take back: it could only show the parts it hid,
+			// and leave the Work half-hidden again, or show the whole Work and a
+			// part the owner had hidden. So such a Work stays out of the facts,
+			// and its UNDO leaves it hidden -- when in doubt, hidden. UNHIDE has
+			// no such case: its UNDO hides the Work whole, never too little.
+			const settled = new Set<number>();
+			if (hidden) for (const [id, workId] of workOf) if (before.get(id)) settled.add(workId);
+			const ids = asked.filter(
+				(id) =>
+					after.has(id) && before.get(id) !== after.get(id) && !settled.has(workOf.get(id) ?? -1)
+			);
 			const changed = new Set(ids);
 			// In each Work's own order, as `allIds` reads it.
 			const whole = [...workOf.keys()].filter((id) => changed.has(id));
@@ -1234,7 +1245,21 @@ export function undoHideWhole(facts: { hidden: number[]; out: TakeOutFacts[] }):
 	const db = getDb();
 	db.transaction(() => {
 		const touched = [...facts.out].reverse().map((f) => putTakeOutBack(db, f));
-		setHiddenWhole(facts.hidden, false);
+		// Showing a part shows its Work whole, so a part is shown only while
+		// every hidden part of its Work is one this HIDE hid. A Work hidden
+		// since by another press keeps its parts hidden, this one included:
+		// UNDO never shows what it did not hide.
+		const mine = new Set(facts.hidden);
+		const hiddenNowOf = (workId: number) => {
+			const parts = allIds(db, workId);
+			const now = hiddenNow(db, parts);
+			return parts.filter((id) => now.get(id));
+		};
+		const show = facts.hidden.filter((id) => {
+			const work = workOfSeries(id);
+			return !work || hiddenNowOf(work.id).every((p) => mine.has(p));
+		});
+		setHiddenWhole(show, false);
 		refuseMixed(db, touched);
 	}).immediate();
 }
