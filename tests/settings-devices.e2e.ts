@@ -93,6 +93,9 @@ const desktop = () => test.info().project.name === 'desktop';
 
 test.beforeAll(async () => {
 	if (!desktop()) return;
+	// Two seeds and two `vite preview` starts: 30 s ran out at a load average
+	// of 56-73 (c459, wave 21); `serve` itself gives each up to 60 s.
+	test.setTimeout(120_000);
 	await Promise.all([
 		serve(door, `http://tsundoku.test:${new URL(door.base).port}`),
 		serve(bare, null)
@@ -192,7 +195,7 @@ async function typeOnTv(at: Install, codes: string[]) {
  * can refresh it. `install` alone lets the fake time flow, and the row's own
  * 5 s tick would then rescue a case whose event handler was missing; pausing
  * after the page is up races that flowing time under load ("cannot
- * fast-forward to the past"). So the clock is paused at the moment it is
+ * fast-forward to the past"). So the clock is paused as soon as it is
  * installed, before the page loads, and only `runFor` moves it.
  *
  * And hydrated before it returns (c459): the server-rendered row is visible
@@ -200,9 +203,14 @@ async function typeOnTv(at: Install, codes: string[]) {
  * 5 s tick makes up for a synthetic focus that found no listener.
  */
 async function openFrozen(page: Page) {
-	const at = new Date();
+	const at = Date.now();
 	await page.clock.install({ time: at });
-	await page.clock.pauseAt(at);
+	// Paused a little ahead of the install, not at it: the installed clock
+	// flows until this call, and under load that took long enough for pausing
+	// at `at` itself to be "fast-forward to the past" (c459, wave 21). Nothing
+	// is loaded yet, so the jump fires nothing; 30 s ahead of the server's
+	// clock leaves a fresh code's 10 minutes live.
+	await page.clock.pauseAt(at + 30_000);
 	await page.goto('/settings#s-devices');
 	await hydrated(page);
 	await expect(page.getByText('FOR A TV · SIX DIGITS')).toBeVisible();
@@ -419,6 +427,9 @@ test('a refresh answered after NEW CODE leaves the new code live (c461)', async 
 
 	// NEW CODE, while that answer is still out.
 	await page.getByRole('button', { name: 'NEW CODE' }).click();
+	// The burned code is still drawn as live digits until the reload lands:
+	// wait for other digits, not for any (a loaded run read the old ones).
+	await expect.poll(() => shownDigits(page)).not.toBe(old);
 	await expect.poll(() => shownDigits(page)).toMatch(/^\d{6}$/);
 	const fresh = await tvCode(page);
 	expect(fresh.state).toBe('live');
