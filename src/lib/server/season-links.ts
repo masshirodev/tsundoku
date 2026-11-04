@@ -1,3 +1,4 @@
+import type Database from 'better-sqlite3';
 import { getDb } from './db.ts';
 import { HIDDEN_SQL } from './visibility.ts';
 import {
@@ -111,9 +112,9 @@ export function seasonLink(seriesId: number, season: number, part = 1): SeasonLi
 	return r ? asLink(r) : null;
 }
 
-export function seasonLinks(seriesId: number): SeasonLink[] {
+export function seasonLinks(seriesId: number, db: Database.Database = getDb()): SeasonLink[] {
 	return (
-		getDb()
+		db
 			.prepare(`SELECT * FROM series_season_links WHERE series_id = ? ORDER BY season, part`)
 			.all(seriesId) as Row[]
 	).map(asLink);
@@ -126,8 +127,8 @@ export function seasonLinks(seriesId: number): SeasonLink[] {
  * The caller says which season it is attributed to (the first one in its
  * list), since only the list knows.
  */
-export function legacyLink(seriesId: number): SeasonLink | null {
-	const r = getDb().prepare(`SELECT * FROM series_links WHERE series_id = ?`).get(seriesId) as
+export function legacyLink(seriesId: number, db: Database.Database = getDb()): SeasonLink | null {
+	const r = db.prepare(`SELECT * FROM series_links WHERE series_id = ?`).get(seriesId) as
 		| {
 				anilist_id: number | null;
 				mal_id: number | null;
@@ -192,8 +193,8 @@ export function seasonHolding(
 }
 
 /** A series' kind, its title, and whether it is hidden: what every season door asks first. */
-export function seriesRow(seriesId: number) {
-	return getDb()
+export function seriesRow(seriesId: number, db: Database.Database = getDb()) {
+	return db
 		.prepare(
 			`SELECT s.kind, s.title, ${HIDDEN_SQL} AS hidden
 			FROM series s JOIN roots r ON r.id = s.root_id WHERE s.id = ?`
@@ -249,14 +250,17 @@ export function seasonToLook(seriesId: number): number | undefined {
 			: openSeasonOf(seriesId);
 	const settled = new Set(rows);
 	const order: number[] = [];
-	for (const e of seasonEntries(seriesId)) if (!order.includes(e.season)) order.push(e.season);
+	for (const e of seasonEntries(seriesId, db)) if (!order.includes(e.season)) order.push(e.season);
 	const open = openSeasonOf(seriesId);
 	if (order.includes(open) && !settled.has(open)) return open;
 	return order.find((n) => !settled.has(n));
 }
 
 /** The episode numbers of a season, in list order, as a catalogue counts them. */
-function seasonEntries(seriesId: number): {
+function seasonEntries(
+	seriesId: number,
+	db: Database.Database = getDb()
+): {
 	id: number;
 	season: number;
 	number: number;
@@ -264,7 +268,7 @@ function seasonEntries(seriesId: number): {
 	note: string;
 	position: number;
 }[] {
-	return getDb()
+	return db
 		.prepare(
 			`SELECT id, COALESCE(season, 0) AS season, COALESCE(episode_number, position) AS number,
 				read_at AS readAt, COALESCE(episode_note, '') AS note, position
@@ -309,10 +313,13 @@ export type SeriesSeasons = {
  * for a series with no episodes, or one that isn't an anime: only an anime
  * links a season at a time.
  */
-export function seriesSeasons(seriesId: number): SeriesSeasons | null {
-	const s = seriesRow(seriesId);
+export function seriesSeasons(
+	seriesId: number,
+	db: Database.Database = getDb()
+): SeriesSeasons | null {
+	const s = seriesRow(seriesId, db);
 	if (!s || !isAnime(s.kind)) return null;
-	const entries = seasonEntries(seriesId);
+	const entries = seasonEntries(seriesId, db);
 	const spans: SeasonSpan[] = seasonsOf(
 		entries.map((e) => ({
 			id: e.id,
@@ -331,11 +338,11 @@ export function seriesSeasons(seriesId: number): SeriesSeasons | null {
 			}
 		}))
 	);
-	const links = seasonLinks(seriesId);
+	const links = seasonLinks(seriesId, db);
 	// A series whose source gave no episodes yet still has one season: the row
 	// its link is in, which is what a pasted or listed link can be made on.
 	if (!spans.length) {
-		const own = links[0] ?? legacyLink(seriesId);
+		const own = links[0] ?? legacyLink(seriesId, db);
 		if (own)
 			spans.push({
 				season: own.season,
@@ -346,7 +353,7 @@ export function seriesSeasons(seriesId: number): SeriesSeasons | null {
 				watched: 0
 			});
 	}
-	const searched = getDb()
+	const searched = db
 		.prepare(`SELECT season, searched_at, found FROM season_link_searches WHERE series_id = ?`)
 		.all(seriesId) as { season: number; searched_at: number | null; found: number }[];
 	return {
@@ -382,7 +389,9 @@ export function seriesSeasons(seriesId: number): SeriesSeasons | null {
 			// season's only when no season has a row of its own: otherwise the
 			// series' mirror (`syncSeriesLink`) would look like every season's link.
 			const old =
-				!links.length && (span.season === 0 || span.season === first) ? legacyLink(seriesId) : null;
+				!links.length && (span.season === 0 || span.season === first)
+					? legacyLink(seriesId, db)
+					: null;
 			const legacy = old ? { ...old, season: span.season } : null;
 			const head = own.find((l) => l.part === 1) ?? own[0] ?? legacy;
 			const partRows = own.length ? own : head ? [head] : [];
@@ -402,10 +411,10 @@ export function seriesSeasons(seriesId: number): SeriesSeasons | null {
 				searched: !!search?.searched_at,
 				queued:
 					!!search?.searched_at === false &&
-					!!getDb()
+					!!db
 						.prepare(`SELECT 1 FROM season_link_searches WHERE series_id = ? AND season = ?`)
 						.get(seriesId, span.season),
-				decision: seasonDecision(seriesId, span.season),
+				decision: seasonDecision(seriesId, span.season, db),
 				searchTitle: seasonSearchTitle(s.title, span.season)
 			};
 		})
@@ -431,7 +440,8 @@ export function seriesSeasons(seriesId: number): SeriesSeasons | null {
 export function episodeEntry(
 	seriesId: number,
 	season: number | null,
-	number: number
+	number: number,
+	db: Database.Database = getDb()
 ): {
 	anilistId: number | null;
 	malId: number | null;
@@ -439,11 +449,11 @@ export function episodeEntry(
 	number: number;
 } | null {
 	const s = season ?? 0;
-	if (!seasonLinks(seriesId).length) {
-		const old = s <= 1 ? legacyLink(seriesId) : null;
+	if (!seasonLinks(seriesId, db).length) {
+		const old = s <= 1 ? legacyLink(seriesId, db) : null;
 		return old ? { anilistId: old.anilistId, malId: old.malId, format: old.format, number } : null;
 	}
-	const sv = seriesSeasons(seriesId)?.seasons.find((x) => x.season === s);
+	const sv = seriesSeasons(seriesId, db)?.seasons.find((x) => x.season === s);
 	if (!sv) return null;
 	// One part is the whole season, however its episodes are numbered.
 	const at =
@@ -465,12 +475,13 @@ export function episodeEntry(
  */
 export function showEntry(
 	seriesId: number,
-	own: (format: string | null) => boolean
+	own: (format: string | null) => boolean,
+	db: Database.Database = getDb()
 ): { anilistId: number | null; malId: number | null } | null {
-	const rows = seasonLinks(seriesId).filter((l) => own(l.format));
+	const rows = seasonLinks(seriesId, db).filter((l) => own(l.format));
 	if (!rows.length) {
-		if (seasonLinks(seriesId).length) return null;
-		const old = legacyLink(seriesId);
+		if (seasonLinks(seriesId, db).length) return null;
+		const old = legacyLink(seriesId, db);
 		return old && own(old.format) ? { anilistId: old.anilistId, malId: old.malId } : null;
 	}
 	const order = (n: number) => (n === 1 ? -1 : n);
@@ -720,8 +731,12 @@ export function seasonSettled(seriesId: number, season: number): boolean {
  * Which decision settled a season, the latest of its parts': the season's
  * line says UNLINKED for an UNLINK and NONE OF THESE only for that (c240).
  */
-export function seasonDecision(seriesId: number, season: number): SeasonDecision | null {
-	const r = getDb()
+export function seasonDecision(
+	seriesId: number,
+	season: number,
+	db: Database.Database = getDb()
+): SeasonDecision | null {
+	const r = db
 		.prepare(
 			`SELECT decision FROM season_link_decisions WHERE series_id = ? AND season = ?
 			ORDER BY at DESC, part LIMIT 1`

@@ -88,7 +88,7 @@ export async function lookupAniSkip(
 	if (episode === null || !Number.isFinite(episode) || episode <= 0) return false;
 	// A MAL entry is one season (or one part of one): the episode's own
 	// season's link, never the series' first-season mirror (c349).
-	const entry = episodeEntry(row.series_id, row.season, episode);
+	const entry = episodeEntry(row.series_id, row.season, episode, db);
 	if (!entry || entry.malId === null || entry.malId <= 0) return false;
 	// No anime link, no lookup (c395): a manga's MAL id is an unrelated anime's
 	// to AniSkip, and its answer would outrank the episode's own fingerprint.

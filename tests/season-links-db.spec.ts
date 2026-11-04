@@ -1,3 +1,4 @@
+import Database from 'better-sqlite3';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
@@ -425,6 +426,37 @@ describe('LINK N SEASONS counts seasons, not parts (c418, round 2)', () => {
 			NOW
 		);
 		expect(seasons.seasonsLinked(r.linked, r.refused)).toEqual({ linked: 1, of: 1 });
+	});
+});
+
+describe('the readers of a season’s link take the caller’s database (round 2)', () => {
+	it('episodeEntry and showEntry read the handle they are given, not getDb()’s', () => {
+		const id = show([12, 12]);
+		link(id, 1, 101);
+		link(id, 2, 102);
+		// A copy (as an import against a copy, or a test, would hold), whose
+		// season 2 is linked elsewhere and whose season 1 is not linked at all.
+		const copy = new Database(db.serialize());
+		try {
+			copy
+				.prepare(
+					`UPDATE series_season_links SET anilist_id = 777, mal_id = 7777 WHERE series_id = ? AND season = 2`
+				)
+				.run(id);
+			copy.prepare(`DELETE FROM series_season_links WHERE series_id = ? AND season = 1`).run(id);
+			expect(seasons.episodeEntry(id, 2, 3, copy)).toMatchObject({
+				anilistId: 777,
+				malId: 7777,
+				number: 3
+			});
+			expect(seasons.episodeEntry(id, 1, 3, copy)).toBe(null);
+			expect(seasons.showEntry(id, () => true, copy)).toEqual({ anilistId: 777, malId: 7777 });
+			// And getDb()'s own rows are what a caller with no handle reads.
+			expect(seasons.episodeEntry(id, 2, 3)).toMatchObject({ anilistId: 102 });
+			expect(seasons.showEntry(id, () => true)).toMatchObject({ anilistId: 101 });
+		} finally {
+			copy.close();
+		}
 	});
 });
 

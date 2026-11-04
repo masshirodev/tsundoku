@@ -1,3 +1,4 @@
+import Database from 'better-sqlite3';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
@@ -198,6 +199,24 @@ describe('AniSkip', () => {
 			[502, 3],
 			[501, 3]
 		]);
+	});
+
+	it('reads the season’s MAL id from the database it is handed, as it reads the episode (round 2)', async () => {
+		const show = series({ mal: null });
+		const s2 = [1, 2, 3].map((n) => episode(show, { position: 3 + n, season: 2, number: n }));
+		expect(seasons.linkSeason(show, 2, 1, entryOf(1102, 552), 'review', 0)).toBe(true);
+		// A copy whose season 2 is linked to another MAL entry: the lookup on the
+		// copy asks the copy's, never getDb()'s.
+		const copy = new Database(db.serialize());
+		try {
+			copy
+				.prepare(`UPDATE series_season_links SET mal_id = 553 WHERE series_id = ? AND season = 2`)
+				.run(show);
+			expect(await lookupAniSkip(s2[1], { db: copy })).toBe(true);
+			expect(asked()).toEqual([[553, 2]]);
+		} finally {
+			copy.close();
+		}
 	});
 
 	it('asks for a season linked alone, with no mirror, and never for a season with no link (c349)', async () => {

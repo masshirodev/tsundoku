@@ -185,7 +185,7 @@ async function writeSeriesFiles(db: Database.Database, s: SeriesRow, dir: string
 	// has them too. The first-season mirror, `series_links`, is not read.
 	const kind = (db.prepare(`SELECT kind FROM series WHERE id = ?`).get(s.id) as { kind: Kind })
 		.kind;
-	const link = showEntry(s.id, (format) => ownEntry(kind, format));
+	const link = showEntry(s.id, (format) => ownEntry(kind, format), db);
 	writeFileSync(
 		join(dir, 'tvshow.nfo'),
 		tvshowNfo({
