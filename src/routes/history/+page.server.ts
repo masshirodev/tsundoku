@@ -2,7 +2,17 @@ import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import { isRevealed } from '$lib/server/prefs';
 import { historyDays, isDay, removeHistoryRow, restoreHistoryRow } from '$lib/server/history';
-import { clock, dayKey, dayLabel, historyMeta, type HistoryRow } from '$lib/library/history';
+import {
+	clock,
+	dayKey,
+	dayLabel,
+	historyMeta,
+	readTime,
+	sinceDay,
+	type HistoryRow
+} from '$lib/library/history';
+import { kindLabel } from '$lib/library/labels';
+import { readingTotals } from '$lib/server/reading-time';
 import { previewIdOf } from '$lib/server/downloads';
 
 /** Days per page; `?before=` continues from the last one shown. */
@@ -25,7 +35,7 @@ export const load: PageServerLoad = ({ cookies, url }) => {
 		day: string;
 		left: string;
 		right: string;
-		rows: (HistoryRow & { preview: string | null })[];
+		rows: (HistoryRow & { preview: string | null; spent: string | null })[];
 	}[] = [];
 	for (const r of rows) {
 		let d = days[days.length - 1];
@@ -46,11 +56,38 @@ export const load: PageServerLoad = ({ cookies, url }) => {
 			originKey: undefined,
 			meta: historyMeta(r),
 			metaShort: historyMeta(r, true),
-			time: clock(r.lastAt)
+			time: clock(r.lastAt),
+			// The day's time read (card c443): nothing when the log holds none.
+			spent: r.timeMs ? readTime(r.timeMs) : null
 		});
 	}
-	return { days, older, next: from + days.length };
+	return { days, older, next: from + days.length, total: before ? null : total(reveal) };
 };
+
+/**
+ * The total at the top of the first page (card c443): everything the viewer may
+ * see, and each kind's, with SINCE where it starts, so a total is never read as
+ * all the reading there ever was. A kind whose log starts with the total's says
+ * nothing more; a later one (novels, logged since /api/reading) says its day.
+ */
+function total(reveal: boolean) {
+	const t = readingTotals(reveal);
+	if (t.ms <= 0 || !t.since) return null;
+	return {
+		time: readTime(t.ms),
+		since: sinceDay(t.since),
+		kinds: t.kinds
+			.filter((k) => k.ms > 0)
+			.sort((a, b) => b.ms - a.ms)
+			.map((k) => ({
+				kind: k.kind,
+				label: [
+					`${kindLabel(k.kind)} ${readTime(k.ms)}`,
+					...(k.since === t.since ? [] : [sinceDay(k.since)])
+				].join(' · ')
+			}))
+	};
+}
 
 function target(form: FormData) {
 	const series = Number(form.get('series'));

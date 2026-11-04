@@ -21,7 +21,8 @@ bury everything else. Each row is one series on one day. It shows:
   single chapter, a percentage for a novel;
 - "UP TO DATE" when the last entry was finished, or "FINISHED" instead when
   the series is complete or is a single book;
-- the **time** of the last event that day.
+- the **time** of the last event that day, and under it the **time read**
+  that day ("40 MIN", "1 H 56"; card c443), absent where the log holds none.
 
 `historyMeta()` in `src/lib/library/history.ts` writes that line, and
 `tests/history-domain.spec.ts` holds its examples. On a phone the page and UP
@@ -44,6 +45,21 @@ Days are numbered from the top: "01 — TODAY" and "02 — YESTERDAY" carry the 
 on the right, and older days are named ("03 — MON 21 SEP"). An older day's
 right side shows the year only where the year changes, so a long history says
 "2025" once, at the first day of 2025.
+
+## Time read (card c443)
+
+The first page opens with a total: `READ 289 H 30` and `SINCE 12 MAY 2023`, the
+first day of the log the viewer may see. Under it, each kind's total, largest
+first, and `· SINCE <day>` on a kind whose log starts later than the total's
+(novels: their reading is logged only since `/api/reading` arrived), so a
+kind's figure is never read as all of that kind's reading. Both come from
+`readingTime()` ([`READING-LOG.md`](READING-LOG.md), "Who reads it"), under
+the reveal filter: a hidden series' time is in no row and no total while
+reveal is off. A REMOVEd row's time still counts in the totals: removing a row
+hides the row, not the reading.
+
+**No 1970.** An event dated before 2015-01-01 is a clock that was never set
+(one live row has `at = 0`): HISTORY lists no such day, and no total counts it.
 
 ## Removing a row
 

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { dayLabel, entryRange, historyMeta, type HistoryDay } from '$lib/library/history';
+import {
+	dayLabel,
+	entryRange,
+	historyMeta,
+	readTime,
+	sinceDay,
+	type HistoryDay
+} from '$lib/library/history';
 
 const day = (
 	over: Partial<Omit<HistoryDay, 'last'>> & { last?: Partial<HistoryDay['last']> } = {}
@@ -139,5 +146,27 @@ describe('day labels', () => {
 			'ANIME · EP. 5 · 9:28'
 		);
 		expect(historyMeta(ep({ last: { finished: true, page: null } }))).toBe('ANIME · EP. 3 → 5');
+	});
+});
+
+describe('reading time (c443)', () => {
+	it('says hours and minutes from an hour, minutes under it, and never rounds up', () => {
+		const cases: [number, string][] = [
+			[0, '0 MIN'],
+			[-5, '0 MIN'],
+			[1, '< 1 MIN'],
+			[59_999, '< 1 MIN'],
+			[60_000, '1 MIN'],
+			[59 * 60_000 + 59_999, '59 MIN'],
+			[3_600_000, '1 H 00'],
+			[(12 * 60 + 40) * 60_000 + 59_000, '12 H 40'],
+			[(207 * 60 + 6) * 60_000, '207 H 06']
+		];
+		for (const [ms, text] of cases) expect(readTime(ms), String(ms)).toBe(text);
+	});
+
+	it('names the first day a total counts from', () => {
+		expect(sinceDay('2023-05-12')).toBe('SINCE 12 MAY 2023');
+		expect(sinceDay('2026-09-03')).toBe('SINCE 3 SEP 2026');
 	});
 });

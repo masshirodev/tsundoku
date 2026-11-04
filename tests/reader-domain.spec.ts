@@ -3,6 +3,9 @@ import {
 	hoverAction,
 	ProgressClock,
 	IDLE_CAP_MS,
+	IDLE_CAPS,
+	WatchClock,
+	WATCH_LAP_CAP_MS,
 	chapterCells,
 	metaLine,
 	pageLabel,
@@ -162,6 +165,111 @@ describe('reading time', () => {
 		expect(c.lap(30_000 + 10 * 60_000)).toBe(IDLE_CAP_MS);
 		c.resume(10_000_000);
 		expect(c.lap(10_005_000)).toBe(5_000);
+	});
+
+	it('gives text its own cap: a long page of prose is not cut at two minutes (c443)', () => {
+		expect(IDLE_CAP_MS).toBe(2 * 60_000);
+		const text = new ProgressClock(0, IDLE_CAPS.text);
+		expect(text.lap(4 * 60_000)).toBe(4 * 60_000);
+		expect(text.lap(4 * 60_000 + 60 * 60_000)).toBe(5 * 60_000);
+		// The image reader's clock is unchanged.
+		const pages = new ProgressClock(0);
+		expect(pages.lap(4 * 60_000)).toBe(2 * 60_000);
+	});
+});
+
+describe('watching time (c443)', () => {
+	/** Plays from `from` seconds for `seconds` at `rate`, a timeupdate every 250 ms of wall time. */
+	function play(
+		c: WatchClock,
+		t: { now: number; pos: number },
+		seconds: number,
+		opts: { rate?: number; watching?: boolean; advance?: boolean } = {}
+	) {
+		const rate = opts.rate ?? 1;
+		for (let i = 0; i < seconds * 4; i++) {
+			t.now += 250;
+			if (opts.advance !== false) t.pos += 0.25 * rate;
+			c.tick(t.now, t.pos, { rate, watching: opts.watching });
+		}
+	}
+
+	it('counts what played, and nothing while paused', () => {
+		const c = new WatchClock();
+		const t = { now: 1_000_000, pos: 0 };
+		c.tick(t.now, t.pos);
+		play(c, t, 15);
+		expect(c.lap()).toBe(15_000);
+		// Paused for ten minutes: no timeupdates, and the player stops the clock.
+		c.stop();
+		t.now += 10 * 60_000;
+		c.tick(t.now, t.pos);
+		play(c, t, 5);
+		expect(c.lap()).toBe(5_000);
+	});
+
+	it('a pause the player never reported still counts nothing', () => {
+		const c = new WatchClock();
+		const t = { now: 0, pos: 100 };
+		c.tick(t.now, t.pos);
+		t.now += 10 * 60_000;
+		t.pos += 0.25;
+		c.tick(t.now, t.pos);
+		expect(c.lap()).toBe(250);
+	});
+
+	it('buffering is not watching: the position stands still while the clock runs', () => {
+		const c = new WatchClock();
+		const t = { now: 0, pos: 30 };
+		c.tick(t.now, t.pos);
+		play(c, t, 10, { advance: false });
+		expect(c.lap()).toBe(0);
+		play(c, t, 3);
+		expect(c.lap()).toBe(3_000);
+	});
+
+	it('a seek either way is not watching, and counting goes on from where it landed', () => {
+		const c = new WatchClock();
+		const t = { now: 0, pos: 0 };
+		c.tick(t.now, t.pos);
+		play(c, t, 4);
+		t.now += 250;
+		t.pos += 85; // SKIP INTRO
+		c.tick(t.now, t.pos);
+		play(c, t, 4);
+		t.now += 250;
+		t.pos -= 30; // back ten, three times
+		c.tick(t.now, t.pos);
+		play(c, t, 2);
+		expect(c.lap()).toBe(10_000);
+	});
+
+	it('a hidden document is not watching', () => {
+		const c = new WatchClock();
+		const t = { now: 0, pos: 0 };
+		c.tick(t.now, t.pos);
+		play(c, t, 20, { watching: false });
+		expect(c.lap()).toBe(0);
+		play(c, t, 2);
+		expect(c.lap()).toBe(2_000);
+	});
+
+	it('faster playback counts the time spent, not the video watched', () => {
+		const c = new WatchClock();
+		const t = { now: 0, pos: 0 };
+		c.tick(t.now, t.pos, { rate: 2 });
+		play(c, t, 10, { rate: 2 });
+		expect(t.pos).toBe(20);
+		expect(c.lap()).toBe(10_000);
+	});
+
+	it('a lap is capped where the heartbeat should have been', () => {
+		const c = new WatchClock();
+		const t = { now: 0, pos: 0 };
+		c.tick(t.now, t.pos);
+		play(c, t, 5 * 60);
+		expect(c.lap()).toBe(WATCH_LAP_CAP_MS);
+		expect(c.lap()).toBe(0);
 	});
 });
 

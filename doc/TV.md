@@ -156,7 +156,8 @@ What it decided, in short:
 - **The library stays a grid, one shelf at a time**, not a row per shelf.
   Top bar, no sidebar, no SELECT.
 - **The remote:** arrows move focus (except where they already mean
-  something: the player with its bar hidden, the reader); OK presses; OK held
+  something: the player with its bar hidden, the readers with their chrome
+  hidden); OK presses; OK held
   500 ms or MENU opens the long-press options; BACK closes what's open, then
   climbs to the top of the screen, then leaves; ▶❚❚ on a tile resumes it;
   ⏪ ⏩ seek in the player and change chapter in the reader; MIC searches.
@@ -499,7 +500,12 @@ remote.
   opens on the mode in use; ← → step along a row, ↑ ↓ move between rows, OK
   takes a value. The dim slider is `data-focus-adjust` too, so it keeps ← →
   and ↑ ↓ leave it. On a tablet the sheet is inside the opted-out reader, so
-  the scope does nothing: the sheet is the same tap-only sheet it was.
+  the scope does nothing there: the same tap-only sheet it was, **except at
+  the end page**, where both readers lift the opt-out on every device (c235,
+  c241/W6), so a READING opened there is a managed scope on a tablet too. That
+  is harmless (a tap still lands; the scope only adds focus and a trapped
+  Tab), and making the scope TV-only would need an option in `src/lib/focus/`:
+  recorded below rather than built.
 - **BACK closes READING and puts the pad back on the cell that opened it**,
   then hides the chrome, then leaves. That is the existing reader step; the
   focus return is the scope's.
@@ -508,11 +514,14 @@ remote.
   and LAYOUT changes by keys alone. Its footer gives way to the sheet
   (`bottom={!sheet}`), so the cell that opened READING is gone when it closes:
   the reader puts the pad back on the scrubber instead (`TextReader.svelte`).
+  CONTENTS is a focus scope too (c250): it opens on the row being read, and
+  BACK puts the pad back on the CONTENTS cell, which stays.
 - **Tests.** `tests/tv-reader.e2e.ts` opens READING, walks to L→R with the
   arrows and OK, closes it with BACK, hides the chrome, and puts the mode back;
   `tests/tv-text-reader.e2e.ts` does the same with a novel's LAYOUT. Both read
   in incognito and change nothing stored: the mode and the layout are this
-  session's until REMEMBER.
+  session's until REMEMBER, which neither spec presses, so there is nothing to
+  put back.
 
 ### Departures from the handoff (c241)
 
@@ -526,9 +535,11 @@ remote.
 - **Off a TV, the chrome stays the reader's.** The design's exception is the
   reader's own: a desktop keyboard still turns pages with the chrome up, as
   [`READER.md`](READER.md) has always said.
-- **The text reader's end screen is not a focus row.** Its chrome is (c241),
-  but the end-of-book screen is still beneath the reader's opt-out; the image
-  reader's end page has lifted it since c235. Recorded below.
+- **The text reader's end lifts the opt-out** as the image reader's end page
+  has since c235 (W6 in wave 6's round, c251 in wave 19): the last volume's
+  end is the end page, with its cells, and a volume whose next chapter isn't
+  downloaded ends on END · LAST AVAILABLE, whose rating, FAV, ← SERIES and
+  LIBRARY the pad reaches, marked inside.
 
 ## What is built (c296)
 
@@ -592,10 +603,10 @@ card, which the owner found fighting the remote (2026-11-02).
   get the query's type scale and 420 px panels, but no layout of their own.
   HISTORY is the one the handoff names as likely to want one; it takes the pad
   (its rows are links and its REMOVE is a held OK) but has no TV frame.
-- **The text reader's end screen is not a focus row.** Unlike the image
-  reader's end page, its cells are behind the reader's opt-out, so a remote
-  cannot leave a finished book from its end screen; BACK still leaves the
-  screen.
+- **READING at the end page is a scope on every device.** Both readers lift
+  their opt-out at the end on a tablet as well as a TV, so the sheet's
+  non-forced scope applies there off a TV too (harmless). A TV-only scope
+  would be an option in `src/lib/focus/`, not built.
 - **MOVE has no TV layout.** Its screens take the pad and the mark, and the
   comparison and the MOVE bar are the one-pane shape below 1024 px, which a
   960-wide TV gets. The design set has no board for it: c139 predates the TV.

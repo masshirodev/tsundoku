@@ -32,6 +32,7 @@ import {
 	setDirection
 } from '$lib/server/series';
 import { isRevealed } from '$lib/server/prefs';
+import { seriesReadingTime } from '$lib/server/reading-time';
 import { setScanlator } from '$lib/server/duplicates';
 import { parseRating } from '$lib/library/rating';
 import { isBookSeries, parseDirection, parseTag } from '$lib/library/series';
@@ -230,6 +231,8 @@ export const load: PageServerLoad = async ({ params, cookies, url, parent }) => 
 		// MOVE (doc/MOVE.md; card c139): the SOURCE row, the NO VIDEO band, and
 		// what the series screen says just after a move.
 		move: moveState(series.id),
+		// Time read (card c443; doc/READING-LOG.md): the one summary, under the reveal filter.
+		readMs: seriesReadingTime(series.id, reveal),
 		moved:
 			url.searchParams.get('moved') === '1'
 				? {

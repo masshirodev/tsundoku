@@ -103,6 +103,21 @@
 		</section>
 		<div class="empty-after" aria-hidden="true"></div>
 	{:else}
+		{#if data.total}
+			<!-- Time read (card c443): the reading log's, for everything shown here. -->
+			<section class="total" aria-label="Time read">
+				<div class="total-line">
+					<span>READ {data.total.time}</span><span>{data.total.since}</span>
+				</div>
+				<ul class="kinds">
+					{#each data.total.kinds as k (k.kind)}
+						<li>
+							{k.label}
+						</li>
+					{/each}
+				</ul>
+			</section>
+		{/if}
 		<div class="days">
 			{#each data.days as d, di (d.day)}
 				<div class="day-label" class:first={di === 0}>
@@ -142,7 +157,10 @@
 										<span class="m short">{r.metaShort}</span>
 									{/if}
 								</span>
-								{#if !isPressed}<span class="time">{r.time}</span>{/if}
+								{#if !isPressed}<span class="time"
+										><span>{r.time}</span>{#if r.spent}<span class="spent">{r.spent}</span
+											>{/if}</span
+									>{/if}
 							</a>
 							{#if !isPressed && record && r.preview}
 								<!-- + ADD on the row, so adding needn't go through the preview (4A). -->
@@ -337,7 +355,38 @@
 	}
 	.time {
 		flex-shrink: 0;
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 4px;
 		font: 500 14px var(--font-mono);
+		color: var(--text-2);
+	}
+	/* The time read that day, under the time of its last event (c443). */
+	.spent {
+		font: 400 13px var(--font-mono);
+		color: var(--text-2);
+	}
+	.total {
+		padding: 18px var(--pad) 14px;
+		border-bottom: var(--hairline);
+	}
+	.total-line {
+		display: flex;
+		justify-content: space-between;
+		gap: 12px;
+		font: var(--type-label);
+		letter-spacing: var(--tracking-label);
+		color: var(--text-1);
+	}
+	.kinds {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px 18px;
+		list-style: none;
+		margin: 8px 0 0;
+		padding: 0;
+		font: 400 13px var(--font-mono);
 		color: var(--text-2);
 	}
 	.act-form {

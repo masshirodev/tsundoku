@@ -85,6 +85,15 @@ links, MOVE and TAKE OUT) and in [`WORKS.md`](WORKS.md)'s flow.
 
 ## Rules worth knowing
 
+- **The time read** is a line under the title and its alternatives (card
+  c443): `READ 12 H 40`, or `WATCHED` for video (the registry's `unit.done`),
+  `40 MIN` under an hour and `< 1 MIN` for a glance. It sits beside the read
+  progress (an anime's `seriesCountLine` is just above it), comes from the
+  reading log's one summary ([`READING-LOG.md`](READING-LOG.md), "Who reads
+  it"), and is absent where the log holds no time. A series' own total needs
+  no `SINCE`: it is that series' reading as logged. It is not drawn in the
+  outline, and is at the top of the panel, so a fold (c425) keeps it in view.
+
 - **A long press on a PAGES cell** opens the page menu: set it as the book's
   or series' cover, or read from it; the chosen page wears a COVER corner
   ([`COVERS.md`](COVERS.md), "Chosen").

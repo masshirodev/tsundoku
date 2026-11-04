@@ -23,6 +23,8 @@ export type HistoryDay = {
 	day: string;
 	/** The last event that day, epoch ms. */
 	lastAt: number;
+	/** Time read that day, ms (reading-time.ts; card c443). 0 for none recorded. */
+	timeMs?: number;
 	/** Entries in the series; 1 for a single book. */
 	entryCount: number;
 	/** The series' status as imported: 'completed', 'ongoing' or ''. */
@@ -152,4 +154,22 @@ export function dayLabel(
 export function clock(at: number): string {
 	const d = new Date(at);
 	return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/**
+ * Reading time (card c443), in the house's terms: "12 H 40" from an hour,
+ * "40 MIN" under it, "< 1 MIN" for a glance and "0 MIN" for none. Minutes are
+ * whole and rounded down, so a total never claims a minute that wasn't read.
+ */
+export function readTime(ms: number): string {
+	const minutes = Math.floor(Math.max(0, ms) / 60_000);
+	if (minutes === 0) return ms > 0 ? '< 1 MIN' : '0 MIN';
+	if (minutes < 60) return `${minutes} MIN`;
+	return `${Math.floor(minutes / 60)} H ${String(minutes % 60).padStart(2, '0')}`;
+}
+
+/** "SINCE 12 MAY 2023": where a total starts, so it isn't read as everything. */
+export function sinceDay(day: string): string {
+	const d = parseDay(day);
+	return `SINCE ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }

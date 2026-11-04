@@ -517,7 +517,9 @@ Everything goes through `POST /api/reading` ([`READING-LOG.md`](READING-LOG.md))
 - `close` on leaving (a beacon).
 
 Durations are the gap since the last event, capped at two minutes, and time in
-the background isn't reading (`ProgressClock`).
+the background isn't reading (`ProgressClock`). The text reader's cap is five
+minutes, and the player counts only what played
+([`READING-LOG.md`](READING-LOG.md), "The caps").
 
 **Incognito** is decided by the server: while it's on, `/api/reading` answers
 `{saved: false}` and writes nothing ([`PRIVACY.md`](PRIVACY.md)). The reader

@@ -28,6 +28,8 @@
 	import type { Shelf } from '$lib/library/types';
 	import { isBookSeries, isVolumeSeries } from '$lib/library/series';
 	import { suggestionLabel, type Suggestion } from '$lib/library/books';
+	import { readTime } from '$lib/library/history';
+	import { kindFacts } from '$lib/library/kinds';
 	import { coverSrc, tagHref, readHref, seriesHref, withParam } from '$lib/library/links';
 	import Band from '$lib/components/chrome/Band.svelte';
 	import { invalidateAll } from '$app/navigation';
@@ -97,6 +99,7 @@
 		noVideo = null,
 		readOnline = false,
 		work = null,
+		readMs = 0,
 		takenOut = null,
 		hideFacts = null
 	}: {
@@ -158,6 +161,8 @@
 		readOnline?: boolean;
 		/** Where this series sits in its Work (W5; doc/WORKS.md): the WORK row and its sheet. */
 		work?: SeriesWorkRow | null;
+		/** Time read, ms, from the reading log (card c443): READ 12 H 40, or WATCHED. */
+		readMs?: number;
 		/** TAKE OUT from the WORK row: the facts UNDO reads, and the Work it left. */
 		takenOut?: { facts: TakeOutFacts; from: string } | null;
 		/** HIDE ALL n or TAKE OUT, THEN HIDE, where the screen is still here (W4). */
@@ -644,6 +649,11 @@
 				{#each series.altTitles as alt (alt)}<div class="alt">{alt}</div>{/each}
 			{/if}
 			{#if anime && !outline}<div class="count">{seriesCountLine(series.entries)}</div>{/if}
+			<!-- The time read, as a fact beside the read progress (c443): the reading
+			     log's, so it is only what was recorded, and nothing when none was. -->
+			{#if !outline && readMs > 0}
+				<div class="count readtime">{kindFacts(series.kind).unit.done} {readTime(readMs)}</div>
+			{/if}
 		</div>
 	</div>
 

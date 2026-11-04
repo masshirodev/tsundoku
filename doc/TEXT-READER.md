@@ -108,6 +108,11 @@ server ever reading the book. The URL keeps `?at=<block>.<offset>`, so a
 reload, or incognito, which saves nothing, still comes back to the same
 sentence.
 
+Each event's `durationMs` is capped at **five minutes** a page, not the image
+reader's two: a page of prose at the default size is 352–391 words, which a
+slow, careful reader takes up to five minutes over (card c443;
+[`READING-LOG.md`](READING-LOG.md), "The caps").
+
 ## Touch
 
 The image reader's rules, and its code (`tapAction`, `swipeAction`), with
@@ -148,8 +153,13 @@ walks them (c241): focus starts on the page scrubber, ↓ reaches CONTENTS and
 READING, and READING is a 420px panel where LAYOUT and the rest change by keys
 alone — ← → along a row, ↑ ↓ between rows, OK takes the value. BACK closes it
 and the pad goes back to the scrubber in the chrome's place (the footer gives
-way to the sheet, so the cell that opened it is gone). Off a TV the arrows
-stay the reader's whatever the controls.
+way to the sheet, so the cell that opened it is gone). OK on CONTENTS opens a
+focus scope that starts on the row being read (c250), the arrows stay in it,
+and BACK gives the pad to CONTENTS again. At the end of what is downloaded
+(END · LAST AVAILABLE, a volume that isn't the last) the pad reaches the
+rating, FAV, ← SERIES and LIBRARY, marked inside (c251); the last volume's end
+is the end page, which takes the pad the same way. Off a TV the arrows stay
+the reader's whatever the controls.
 
 ## Controls
 

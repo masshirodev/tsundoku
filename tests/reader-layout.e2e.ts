@@ -51,11 +51,12 @@ test('the controls: a 64px bar on top, a 56px scrubber and 64px cells below', as
 
 test('off a TV the chrome declares no focus start of its own', async ({ page }) => {
 	await open(page);
-	// At the end page the reader lifts its opt-out everywhere (c235), so the
-	// layer is live: if the scrubber declared a start, the first arrow there
-	// would land on the footer instead of the end page. The start belongs to
-	// the TV's chrome (c241), where OK focuses it anyway, so it is off a TV
-	// that the attribute is absent.
+	// The start belongs to the TV's chrome (c241), where OK focuses it anyway.
+	// Off a TV it would matter where the reader lifts its opt-out, at the end
+	// page (c235): a declared start there would take the first arrow to the
+	// footer instead of the end page's cells. This case does not reach the end
+	// page (`open` resumes inside a chapter, never past it); it reads the attribute
+	// on the footer itself, with the chrome up.
 	const vp = page.viewportSize()!;
 	await page.mouse.click(vp.width / 2, vp.height / 2, { button: 'middle' });
 	const scrub = page.locator('footer[aria-label="Reader controls"] .track');
@@ -134,4 +135,42 @@ test('hiding under reduced motion, the bars only fade', async ({ page }) => {
 	);
 	expect([...ys(exit.top), ...ys(exit.bottom)].every((y) => y === 0)).toBe(true);
 	expect(exit.opacity.some((o) => parseFloat(o) < 1)).toBe(true);
+});
+
+test('READING: every segmented choice is the full-height cell SIDES is (c428)', async ({
+	page
+}) => {
+	await open(page);
+	const vp = page.viewportSize()!;
+	await page.mouse.click(vp.width / 2, vp.height / 2, { button: 'middle' });
+	await page.getByRole('button', { name: /SETTINGS ↑/ }).click();
+	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+	await expect(sheet).toBeVisible();
+	await sheet.evaluate((el) =>
+		Promise.all(el.getAnimations().map((a) => a.finished.catch(() => undefined)))
+	);
+	// Every cell of every segmented row, each group's buttons and its value
+	// readout, measured against SIDES' own cells: all of them, not a pick.
+	const cells = await sheet.locator('.seg').evaluateAll((segs) =>
+		segs.map((s) => ({
+			group: s.getAttribute('aria-label'),
+			box: s.getBoundingClientRect().height,
+			cells: [...s.children].map((c) => ({
+				text: c.textContent?.trim(),
+				h: c.getBoundingClientRect().height
+			}))
+		}))
+	);
+	const sides = cells.find((c) => c.group === 'Side margins')!;
+	expect(sides.cells.length).toBe(4);
+	const side = sides.cells[0].h;
+	// The design system's control height, not a strip.
+	expect(side).toBeGreaterThanOrEqual(44);
+	for (const seg of cells) {
+		expect(seg.cells.length, seg.group!).toBeGreaterThan(0);
+		for (const c of seg.cells) expect(c.h, `${seg.group}: ${c.text}`).toBeCloseTo(side, 0);
+	}
+	expect(cells.map((c) => c.group)).toEqual(
+		expect.arrayContaining(['Mode', 'Fit', 'Wide pages', 'Side margins', 'Zoom'])
+	);
 });

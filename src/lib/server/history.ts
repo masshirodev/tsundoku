@@ -1,6 +1,7 @@
 import { getDb } from './db';
 import { visibleWhere } from './visibility';
 import { KEEP_MS } from './browsing.ts';
+import { FIRST_PLAUSIBLE_DAY, readingTime } from './reading-time.ts';
 import type { HistoryDay } from '$lib/library/history';
 import type { Kind } from '$lib/library/types';
 
@@ -40,12 +41,13 @@ export function historyDays(
 	const scope = (join = '') => `
 		FROM reading_events re ${join}
 		JOIN series s ON s.id = re.series_id JOIN roots r ON r.id = s.root_id
-		WHERE re.kind IN ${READING} AND ${visible(reveal)} AND ${DAY} < @before
+		WHERE re.kind IN ${READING} AND ${visible(reveal)} AND ${DAY} < @before AND ${DAY} >= @floor
 		AND NOT EXISTS (SELECT 1 FROM history_removed h WHERE h.series_id = re.series_id AND h.day = ${DAY})`;
 
 	const days = (
 		db.prepare(`SELECT DISTINCT ${DAY} AS day ${scope()} ORDER BY day DESC LIMIT @n`).all({
 			before,
+			floor: FIRST_PLAUSIBLE_DAY,
 			n: limit + 1
 		}) as { day: string }[]
 	).map((d) => d.day);
@@ -65,7 +67,7 @@ export function historyDays(
 			GROUP BY re.series_id, day
 			ORDER BY day DESC, lastAt DESC`
 		)
-		.all({ before, oldest }) as {
+		.all({ before, oldest, floor: FIRST_PLAUSIBLE_DAY }) as {
 		seriesId: number;
 		day: string;
 		lastAt: number;
@@ -96,6 +98,14 @@ export function historyDays(
 				AND ${DAY} = @day) AS finished`
 	);
 
+	// Each row's time, from the one summary (reading-time.ts), over the same days.
+	const times = new Map(
+		readingTime('seriesDay', { reveal, from: oldest, before }).map((t) => [
+			`${t.seriesId}:${t.day}`,
+			t.ms
+		])
+	);
+
 	const rows = groups.map((g): HistoryDay => {
 		const first = entryAt.get(g.seriesId, g.firstPos) as { label: string; rank: number };
 		const last = entryAt.get(g.seriesId, g.lastPos) as {
@@ -116,6 +126,7 @@ export function historyDays(
 			cover: g.cover,
 			day: g.day,
 			lastAt: g.lastAt,
+			timeMs: times.get(`${g.seriesId}:${g.day}`) ?? 0,
 			entryCount: g.entryCount,
 			status: g.status,
 			inLibrary: g.inLibrary === 1,

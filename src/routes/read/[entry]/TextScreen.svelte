@@ -104,6 +104,7 @@
 								class="switch"
 								role="switch"
 								aria-checked={props.favourite}
+								data-focus-mark="in"
 								onclick={() => props.kind === 'end' && props.onfav()}
 							>
 								<span class="track" class:on={props.favourite}><span class="knob"></span></span>
@@ -117,13 +118,15 @@
 		</div>
 		<nav class="foot">
 			<!-- eslint-disable svelte/no-navigation-without-resolve -- both hrefs are resolved by the caller -->
-			<a href={props.seriesHref}>← SERIES</a>
+			<!-- Ruled cells: on a TV the pad reaches them at the end (c251; the reader
+			     lifts its opt-out there, doc/FOCUS.md), so the mark is drawn inside. -->
+			<a href={props.seriesHref} data-focus-mark="in">← SERIES</a>
 			<div class="gap">
 				{#if props.kind === 'failed' && (props.reason === 'offline' || props.reason === 'online') && props.onretry}
-					<button type="button" onclick={props.onretry}>RETRY</button>
+					<button type="button" data-focus-mark="in" onclick={props.onretry}>RETRY</button>
 				{/if}
 			</div>
-			<a href={props.libraryHref}>LIBRARY</a>
+			<a href={props.libraryHref} data-focus-mark="in">LIBRARY</a>
 			<!-- eslint-enable svelte/no-navigation-without-resolve -->
 		</nav>
 	</div>
