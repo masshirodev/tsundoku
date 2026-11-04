@@ -43,14 +43,14 @@ import {
 	addSeries,
 	createWork,
 	setHiddenWhole,
-	takeOut,
-	undoAdd,
+	takeOutAndHide,
+	undoAdds,
 	undoCreate,
-	undoTakeOut,
+	undoHideWhole,
+	undoTakeOuts,
 	undoUngroup,
 	workChoices,
 	workFeetFor,
-	workOfSeries,
 	workRecords,
 	worksOnTagPage,
 	type AddFacts,
@@ -243,14 +243,28 @@ function ids(form: FormData): number[] {
 }
 
 /**
- * The band facts for a HIDE or UNHIDE that touched a Work: what UNDO puts back,
+ * The band facts for a HIDE or UNHIDE that changed a Work: what UNDO puts back,
  * and the counts the band is worded from (`wholeBand`), with the series in no
- * Work kept apart from the Works' own.
+ * Work kept apart from the Works' own. Every count is of what the write
+ * changed (c390): a press that changed no Work -- a selection whose Work was
+ * already hidden, say -- is the plain HIDE of series on their own, which has
+ * no band, as `?/bulk`'s never had.
  */
-function hideAnswer(facts: WholeFacts, hidden: boolean) {
+function wholeAnswer(facts: WholeFacts, hidden: boolean) {
+	if (facts.works === 0) return { ok: true };
 	return hidden
 		? { hideFacts: { hidden: facts.ids, out: [], whole: facts.whole, works: facts.works } }
 		: { showFacts: { shown: facts.ids, whole: facts.whole, works: facts.works } };
+}
+
+/**
+ * An UNDO the library has moved past (c308): the refusal, worded by
+ * `WorkError`, in the field the library page already draws a Work's
+ * refusals from. Anything else is a real failure and is thrown.
+ */
+function refused(e: unknown) {
+	if (e instanceof WorkError) return fail(400, { workMessage: e.message.toUpperCase() });
+	throw e;
 }
 
 export const actions: Actions = {
@@ -278,8 +292,7 @@ export const actions: Actions = {
 	hide: async ({ request }) => {
 		const form = await request.formData();
 		const on = form.get('on') !== '0';
-		const facts = setHiddenWhole(ids(form), on);
-		return facts.works > 0 ? hideAnswer(facts, on) : { ok: true };
+		return wholeAnswer(setHiddenWhole(ids(form), on), on);
 	},
 
 	/**
@@ -291,7 +304,7 @@ export const actions: Actions = {
 	hideAll: async ({ request }) => {
 		const target = ids(await request.formData());
 		if (target.length === 0) return fail(400, { message: 'nothing selected' });
-		return hideAnswer(setHiddenWhole(target, true), true);
+		return wholeAnswer(setHiddenWhole(target, true), true);
 	},
 
 	/**
@@ -302,19 +315,7 @@ export const actions: Actions = {
 	hideParts: async ({ request }) => {
 		const target = ids(await request.formData());
 		if (target.length === 0) return fail(400, { message: 'nothing selected' });
-		const out: TakeOutFacts[] = [];
-		for (const id of target) {
-			const work = workOfSeries(id);
-			if (!work) continue;
-			try {
-				out.push(takeOut(work.id, id));
-			} catch (e) {
-				if (!(e instanceof WorkError)) throw e;
-			}
-		}
-		// Through the rule too: a part whose take-out failed is still a part, and
-		// hiding it alone would leave its Work half-hidden.
-		const facts = setHiddenWhole(target, true);
+		const { out, facts } = takeOutAndHide(target);
 		return { hideFacts: { hidden: facts.ids, out, whole: facts.whole, works: facts.works } };
 	},
 
@@ -330,27 +331,34 @@ export const actions: Actions = {
 	showAll: async ({ request }) => {
 		const target = ids(await request.formData());
 		if (target.length === 0) return fail(400, { message: 'nothing selected' });
-		return hideAnswer(setHiddenWhole(target, false), false);
+		return wholeAnswer(setHiddenWhole(target, false), false);
 	},
 
-	/** UNDO after either HIDE answer: shown again, and every take-out put back. */
+	/**
+	 * UNDO after either HIDE answer: every take-out put back, then what the
+	 * press hid shown again -- only what it changed (c390), so a series that
+	 * was hidden before the press stays hidden. The library may have moved on
+	 * since (the series added to another Work, the Work ended): that refuses,
+	 * whole, and says why (c308).
+	 */
 	undoHide: async ({ request }) => {
 		const form = await request.formData();
 		const facts = JSON.parse(String(form.get('facts') ?? 'null')) as {
 			hidden: number[];
 			out: TakeOutFacts[];
 		};
-		// The take-outs go back first, so the show below sees each series in the
-		// Work it returns to and shows that Work whole, as every door does.
-		for (const f of [...facts.out].reverse()) undoTakeOut(f);
-		setHiddenWhole(facts.hidden, false);
+		try {
+			undoHideWhole(facts);
+		} catch (e) {
+			return refused(e);
+		}
 		// A band that came from the URL (`from=band`) outlives an answer in the
 		// same shape: leaving the page is what takes it down.
 		if (form.get('from') === 'band') redirect(303, '/');
 		return { ok: true };
 	},
 
-	/** UNDO of UNHIDE: the parts it showed are hidden again, whole. */
+	/** UNDO of UNHIDE: what it showed is hidden again, whole. */
 	undoShow: async ({ request }) => {
 		const facts = JSON.parse(String((await request.formData()).get('facts') ?? 'null')) as {
 			shown: number[];
@@ -399,8 +407,7 @@ export const actions: Actions = {
 			// part still takes its Work whole. UNHIDE comes out of a hidden root
 			// too: each becomes public (src/lib/server/visibility.ts).
 			const on = form.get('do') === 'hide';
-			const facts = setHiddenWhole(target, on);
-			if (facts.works > 0) return hideAnswer(facts, on);
+			return wholeAnswer(setHiddenWhole(target, on), on);
 		}
 		return { ok: true };
 	},
@@ -579,19 +586,15 @@ export const actions: Actions = {
 		const form = await request.formData();
 		const kind = String(form.get('kind') ?? '');
 		const facts = JSON.parse(String(form.get('facts') ?? 'null'));
-		if (kind === 'create') {
-			undoCreate(facts as CreateFacts);
-			return { ok: true };
+		try {
+			if (kind === 'create') undoCreate(facts as CreateFacts);
+			else if (kind === 'add') undoAdds(facts as AddFacts[]);
+			else if (kind === 'ended') undoTakeOuts(facts as TakeOutFacts[]);
+			else undoUngroup(facts as UngroupFacts);
+		} catch (e) {
+			return refused(e);
 		}
-		if (kind === 'add') {
-			for (const f of [...(facts as AddFacts[])].reverse()) undoAdd(f);
-			return { ok: true };
-		}
-		if (kind === 'ended') {
-			for (const f of [...(facts as TakeOutFacts[])].reverse()) undoTakeOut(f);
-		} else {
-			undoUngroup(facts as UngroupFacts);
-		}
+		if (kind === 'create' || kind === 'add') return { ok: true };
 		redirect(303, '/');
 	},
 

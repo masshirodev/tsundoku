@@ -201,8 +201,22 @@ function workVisibility(db: Database.Database, workId: number): WorkVisibility |
 	return hidden === rows.length ? 'hidden' : 'mixed';
 }
 
+/**
+ * A membership written fresh: a plain INSERT, so `work_series.series_id`'s
+ * UNIQUE raises rather than REPLACE quietly deleting another Work's row
+ * (c308). Only the writes that have just cleared the series' old row use it
+ * (`createWork`, `addSeries`); an UNDO puts a series back through `putBack`,
+ * which first asks whether the place is still free.
+ */
 const insertMember = (db: Database.Database) =>
-	db.prepare(`INSERT OR REPLACE INTO work_series (work_id, series_id, position) VALUES (?, ?, ?)`);
+	db.prepare(`INSERT INTO work_series (work_id, series_id, position) VALUES (?, ?, ?)`);
+
+/** The series' title for a refusal, or its id when it has none. */
+function titleOf(db: Database.Database, seriesId: number): string {
+	const row = db.prepare(`SELECT title FROM series WHERE id = ?`).get(seriesId) as
+		{ title: string } | undefined;
+	return row?.title ?? `series ${seriesId}`;
+}
 
 /**
  * The one place the app's own removers end a Work of one (Works Calls, question
@@ -219,15 +233,95 @@ function endIfOne(db: Database.Database, workId: number, before: SeriesPlace[]):
 	return work ? { work, members: before } : null;
 }
 
-function restore(db: Database.Database, facts: { work: WorkRecord; members: SeriesPlace[] }): void {
-	db.prepare(`INSERT INTO works (id, name, created_at, order_mode) VALUES (?, ?, ?, ?)`).run(
-		facts.work.id,
-		facts.work.name,
-		facts.work.createdAt,
-		facts.work.orderMode
+/**
+ * UNDO puts a series back where an action took it from -- but an UNDO is
+ * pressed later, and the library may have moved on: the series added to
+ * another Work since, deleted, or the Work it goes back to ended. Each of
+ * those refuses (c308). Overwriting would take the series out of the Work it
+ * is in now without `endIfOne`, and leave that Work with one member for good,
+ * the state question 5 forbids. The caller's transaction rolls the whole UNDO
+ * back, so a refusal never leaves it half done.
+ */
+function putBack(db: Database.Database, workId: number, seriesId: number, position: number): void {
+	if (!workRow(db, workId)) throw new WorkError('the Work this UNDO puts it back into has ended');
+	mustBeFree(db, workId, seriesId);
+	insertMember(db).run(workId, seriesId, position);
+}
+
+/** A series an UNDO may put back: still in the library, and in no Work. */
+function mustBeFree(db: Database.Database, workId: number, seriesId: number): void {
+	if (!db.prepare(`SELECT 1 FROM series WHERE id = ?`).get(seriesId))
+		throw new WorkError('a series this UNDO puts back is no longer in the library');
+	const at = db
+		.prepare(
+			`SELECT w.id, w.name FROM work_series ws JOIN works w ON w.id = ws.work_id
+				WHERE ws.series_id = ?`
+		)
+		.get(seriesId) as { id: number; name: string } | undefined;
+	if (at)
+		throw new WorkError(
+			at.id === workId
+				? `${titleOf(db, seriesId)} is already back in ${at.name}`
+				: `${titleOf(db, seriesId)} is in ${at.name} now · take it out there first`
+		);
+}
+
+/**
+ * A Work an UNDO brings back, with its name, order and members, under its
+ * own id -- unless a newer Work has been given that id since (`works.id` is a
+ * plain INTEGER PRIMARY KEY, so the next Work made after the last one ended
+ * reuses it), when it comes back under a new one rather than answer for that
+ * Work. Returns the id it came back under. A second press of the same UNDO
+ * finds it already back and refuses.
+ */
+function restore(
+	db: Database.Database,
+	facts: { work: WorkRecord; members: SeriesPlace[] }
+): number {
+	if (isSameWork(db, facts.work)) throw new WorkError(`${facts.work.name} is already back`);
+	// Every member first, so the refusal names the series that moved on. No
+	// Work is this one yet (`isSameWork` above), so any Work a member is in now
+	// is another, whatever its id.
+	for (const m of facts.members) mustBeFree(db, 0, m.seriesId);
+	const taken = workRow(db, facts.work.id) !== undefined;
+	const id = Number(
+		db
+			.prepare(`INSERT INTO works (id, name, created_at, order_mode) VALUES (?, ?, ?, ?)`)
+			.run(
+				taken ? null : facts.work.id,
+				facts.work.name,
+				facts.work.createdAt,
+				facts.work.orderMode
+			).lastInsertRowid
 	);
-	const insert = insertMember(db);
-	for (const m of facts.members) insert.run(facts.work.id, m.seriesId, m.position);
+	for (const m of facts.members) putBack(db, id, m.seriesId, m.position);
+	return id;
+}
+
+/**
+ * Whether the Work in the database is the one these facts describe: by id,
+ * by the moment it was made and by name, since a Work made later can be
+ * given an ended one's id (and two made in one millisecond, in a test, share
+ * the moment). A rename since makes a second UNDO miss it here; its members
+ * then refuse it by name instead.
+ */
+function isSameWork(db: Database.Database, work: WorkRecord): boolean {
+	const row = workRow(db, work.id);
+	return row !== undefined && row.createdAt === work.createdAt && row.name === work.name;
+}
+
+/**
+ * The last check of an UNDO that is not about to show or hide anything: a
+ * Work it wrote into must not be left hidden in part (doc/WORKS.md, "The one
+ * rule"). A series taken out and then hidden on its own, put back into a
+ * visible Work, would be exactly the diverged state no door may make.
+ */
+function refuseMixed(db: Database.Database, workIds: Iterable<number>): void {
+	for (const id of new Set(workIds))
+		if (workVisibility(db, id) === 'mixed')
+			throw new WorkError(
+				"hidden and visible series can't share a Work · one was hidden or shown since"
+			);
 }
 
 /** Positions in the order the sheet asked for; 'hand' keeps the selection's own. */
@@ -748,15 +842,27 @@ export function createWork(opts: {
 		.immediate();
 }
 
-/** UNDO of a create: the Work goes, and every series it took goes back where it was. */
+/**
+ * UNDO of a create: the Work goes, and every series it took goes back where it
+ * was. It refuses when the Work is no longer the one the create made -- ended,
+ * or holding other series since -- because deleting it would take series out
+ * that the create never put in.
+ */
 export function undoCreate(facts: CreateFacts): void {
 	const db = getDb();
 	db.transaction(() => {
+		const now = membersOf(db, facts.work.id).map((m) => m.seriesId);
+		const made = new Set(facts.members.map((m) => m.seriesId));
+		if (!isSameWork(db, facts.work) || now.length !== made.size || now.some((id) => !made.has(id)))
+			throw new WorkError(`${facts.work.name} has changed since it was made · undo that first`);
 		db.prepare(`DELETE FROM works WHERE id = ?`).run(facts.work.id);
 		// Ended Works go back after the delete, so a series can't be in two at once.
-		for (const e of facts.ended) restore(db, e);
-		const insert = insertMember(db);
-		for (const m of facts.movedFrom) insert.run(m.workId, m.seriesId, m.position);
+		const touched = facts.ended.map((e) => restore(db, e));
+		for (const m of facts.movedFrom) {
+			putBack(db, m.workId, m.seriesId, m.position);
+			touched.push(m.workId);
+		}
+		refuseMixed(db, touched);
 	}).immediate();
 }
 
@@ -807,20 +913,33 @@ export function addSeries(workId: number, seriesId: number): AddFacts {
 		.immediate();
 }
 
-/** UNDO of an add: the series leaves, and the Work it came from is put back. */
+/**
+ * UNDO of an add: the series leaves, and the Work it came from is put back.
+ * A series that has since moved on to a third Work stays there: putting it
+ * back would take it from that one (c308), so the UNDO refuses instead.
+ */
 export function undoAdd(facts: AddFacts): void {
-	getDb()
-		.transaction(() => {
-			const db = getDb();
+	undoAdds([facts]);
+}
+
+/** Several adds' UNDO, last first, as one write: a refusal undoes none of them. */
+export function undoAdds(list: AddFacts[]): void {
+	const db = getDb();
+	db.transaction(() => {
+		const touched: number[] = [];
+		for (const facts of [...list].reverse()) {
 			db.prepare(`DELETE FROM work_series WHERE work_id = ? AND series_id = ?`).run(
 				facts.workId,
 				facts.seriesId
 			);
-			for (const e of facts.ended) restore(db, e);
-			if (facts.former)
-				insertMember(db).run(facts.former.workId, facts.seriesId, facts.former.position);
-		})
-		.immediate();
+			for (const e of facts.ended) touched.push(restore(db, e));
+			if (facts.former) {
+				putBack(db, facts.former.workId, facts.seriesId, facts.former.position);
+				touched.push(facts.former.workId);
+			}
+		}
+		refuseMixed(db, touched);
+	}).immediate();
 }
 
 /**
@@ -852,12 +971,39 @@ export function takeOut(workId: number, seriesId: number): TakeOutFacts {
 		.immediate();
 }
 
-/** UNDO of a take-out: the series goes back at its place, or the whole Work comes back. */
+/** One take-out put back, inside the caller's transaction; returns the Work it wrote into. */
+function putTakeOutBack(db: Database.Database, facts: TakeOutFacts): number {
+	if (facts.ended) return restore(db, facts.ended);
+	putBack(db, facts.workId, facts.seriesId, facts.position);
+	return facts.workId;
+}
+
+/**
+ * UNDO of a take-out: the series goes back at its place, or the whole Work
+ * comes back -- refusing, never overwriting, when the library has moved on
+ * (`putBack`, c308). This is the put-back half alone, with no check of the
+ * Work's visibility, because a HIDE's UNDO puts a hidden series back and then
+ * shows it: a caller that will not show anything afterwards uses
+ * `undoTakeOuts`, and the library's HIDE UNDO uses `undoHideWhole`.
+ */
 export function undoTakeOut(facts: TakeOutFacts): void {
 	const db = getDb();
 	db.transaction(() => {
-		if (facts.ended) restore(db, facts.ended);
-		else insertMember(db).run(facts.workId, facts.seriesId, facts.position);
+		putTakeOutBack(db, facts);
+	}).immediate();
+}
+
+/**
+ * Several take-outs' UNDO, last first (the last is the one that ended the
+ * Work, and it restores every member), as one write: a refusal undoes none.
+ * It also refuses to leave a Work hidden in part -- a series hidden on its own
+ * since it was taken out does not go back into a visible Work.
+ */
+export function undoTakeOuts(list: TakeOutFacts[]): void {
+	const db = getDb();
+	db.transaction(() => {
+		const touched = [...list].reverse().map((f) => putTakeOutBack(db, f));
+		refuseMixed(db, touched);
 	}).immediate();
 }
 
@@ -936,7 +1082,7 @@ export function ungroup(workId: number): UngroupFacts {
 export function undoUngroup(facts: UngroupFacts): void {
 	const db = getDb();
 	db.transaction(() => {
-		restore(db, facts);
+		refuseMixed(db, [restore(db, facts)]);
 	}).immediate();
 }
 
@@ -967,12 +1113,16 @@ export function setWorkFavourite(workId: number, favourite: boolean): number {
 	return setFavourite(ids, favourite);
 }
 
-/** HIDE or SHOW a whole Work: the library's own write, with every part's id. */
+/**
+ * HIDE or SHOW a whole Work: the same write as `setHiddenWhole`, from the
+ * Work's id. `ids` is what the write changed (c390), which is what an UNDO of
+ * it may put back; a part already as asked is not one of them.
+ */
 export function hideWork(workId: number, hidden: boolean): { ids: number[]; changed: number } {
 	const db = getDb();
 	if (!workRow(db, workId)) throw new WorkError('no such Work');
-	const ids = allIds(db, workId);
-	return { ids, changed: setHidden(ids, hidden) };
+	const { ids } = setHiddenWhole(allIds(db, workId), hidden);
+	return { ids, changed: ids.length };
 }
 
 /** The Works these series are parts of, once each. */
@@ -987,15 +1137,32 @@ export function worksTouched(seriesIds: number[]): number[] {
 	return rows.map((r) => r.id);
 }
 
-/** What `setHiddenWhole` did: every id it wrote, and which of them were a Work's. */
+/**
+ * What `setHiddenWhole` did: the series whose visibility it changed, and
+ * which of them were a Work's (c390). Only a change is reported, so an UNDO
+ * that reverses `ids` puts back exactly what the press did, and never shows
+ * a series that was hidden before it.
+ */
 export type WholeFacts = {
-	/** Every series hidden or shown: the Works' parts and the series in none. */
+	/** Every series this write hid or showed: the Works' parts and the series in none. */
 	ids: number[];
-	/** The parts of the Works touched, each Work whole. */
+	/** Those of `ids` that are a Work's parts. */
 	whole: number[];
-	/** How many Works that was. */
+	/** How many Works had a part change: what the band calls `THE WORK` or `2 WORKS`. */
 	works: number;
 };
+
+/** Each series' visibility as SQL reads it: its own flag, or its root's unless made public. */
+function hiddenNow(db: Database.Database, ids: number[]): Map<number, boolean> {
+	if (ids.length === 0) return new Map();
+	const rows = db
+		.prepare(
+			`SELECT s.id, ${HIDDEN_SQL} AS hidden FROM series s JOIN roots r ON r.id = s.root_id
+				WHERE s.id IN (${placeholders(ids.length)})`
+		)
+		.all(...ids) as { id: number; hidden: number }[];
+	return new Map(rows.map((r) => [r.id, r.hidden !== 0]));
+}
 
 /**
  * HIDE or SHOW series by id, with the one rule (doc/WORKS.md, "The one rule")
@@ -1006,21 +1173,70 @@ export type WholeFacts = {
  *
  * Every door that hides or shows series by id goes through here (the library's
  * `?/hide`, `?/bulk`, `?/hideAll`, `?/showAll` and their UNDOs, the series
- * screen's TAKE OUT and its UNDO), so the rule has one home. `hideWork` is the
- * same write for a caller that already holds a Work's id.
+ * screen's TAKE OUT and its UNDO, and an import's fold, `foldSeries`), so the
+ * rule has one home. `hideWork` is the same write for a caller that already
+ * holds a Work's id.
+ *
+ * Visibility is read before and after, inside the transaction, so the facts
+ * name only what changed (c390): a part of an already-hidden Work, hidden
+ * again by a selection that held it, is not something UNDO may show.
  */
 export function setHiddenWhole(seriesIds: number[], hidden: boolean): WholeFacts {
 	const db = getDb();
 	return db
 		.transaction((): WholeFacts => {
-			const works = worksTouched(seriesIds);
-			const whole = new Set<number>();
-			for (const workId of works) for (const id of allIds(db, workId)) whole.add(id);
-			const ids = [...new Set([...seriesIds, ...whole])];
-			setHidden(ids, hidden);
-			return { ids, whole: [...whole], works: works.length };
+			const workOf = new Map<number, number>();
+			for (const workId of worksTouched(seriesIds))
+				for (const id of allIds(db, workId)) workOf.set(id, workId);
+			const asked = [...new Set([...seriesIds, ...workOf.keys()])];
+			const before = hiddenNow(db, asked);
+			setHidden(asked, hidden);
+			const after = hiddenNow(db, asked);
+			const ids = asked.filter((id) => after.has(id) && before.get(id) !== after.get(id));
+			const changed = new Set(ids);
+			// In each Work's own order, as `allIds` reads it.
+			const whole = [...workOf.keys()].filter((id) => changed.has(id));
+			return { ids, whole, works: new Set(whole.map((id) => workOf.get(id))).size };
 		})
 		.immediate();
+}
+
+/**
+ * TAKE OUT, THEN HIDE over a selection (the library's `?/hideParts`): each
+ * selected part leaves its Work, then the selection is hidden, in one write.
+ * The hide still goes through the rule, so whatever is still a part when it
+ * runs takes its Work with it rather than being hidden alone. Inside one
+ * transaction a take-out cannot fail for a series `workOfSeries` has just
+ * found in a Work, so the route's old catch-and-carry-on branch is gone.
+ */
+export function takeOutAndHide(seriesIds: number[]): { out: TakeOutFacts[]; facts: WholeFacts } {
+	const db = getDb();
+	return db
+		.transaction(() => {
+			const out: TakeOutFacts[] = [];
+			for (const id of seriesIds) {
+				const work = workOfSeries(id);
+				if (work) out.push(takeOut(work.id, id));
+			}
+			return { out, facts: setHiddenWhole(seriesIds, true) };
+		})
+		.immediate();
+}
+
+/**
+ * UNDO after a HIDE answer: every take-out put back (last first), then what
+ * the HIDE changed shown again, through the rule, in one write. Put back
+ * first, so the show sees each series in the Work it returns to and shows
+ * that Work whole; then nothing it wrote into may be left hidden in part. A
+ * refusal from either half rolls back both.
+ */
+export function undoHideWhole(facts: { hidden: number[]; out: TakeOutFacts[] }): void {
+	const db = getDb();
+	db.transaction(() => {
+		const touched = [...facts.out].reverse().map((f) => putTakeOutBack(db, f));
+		setHiddenWhole(facts.hidden, false);
+		refuseMixed(db, touched);
+	}).immediate();
 }
 
 // ---- offers (W7 stores and undoes one) ----------------------------------------

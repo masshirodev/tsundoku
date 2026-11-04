@@ -15,7 +15,7 @@ import {
 	ungroup,
 	undoAdd,
 	undoRename,
-	undoTakeOut,
+	undoTakeOuts,
 	workPage,
 	type AddFacts,
 	type RenameFacts,
@@ -99,9 +99,16 @@ export const actions: Actions = {
 	undoTakeOut: async ({ request }) => {
 		const form = await request.formData();
 		const facts = JSON.parse(String(form.get('facts') ?? '[]')) as TakeOutFacts[];
-		// Last first: the second take-out is the one that ended the Work, and it
-		// restores every member the ending left behind.
-		for (const f of [...facts].reverse()) undoTakeOut(f);
+		// Last first, as one write (`undoTakeOuts`): the second take-out is the
+		// one that ended the Work, and it restores every member the ending left
+		// behind. A series the library has moved on with since -- added to
+		// another Work, say -- refuses the whole UNDO, and the band says why
+		// (c308).
+		try {
+			undoTakeOuts(facts);
+		} catch (e) {
+			return refused(e);
+		}
 		return { ok: true };
 	},
 
@@ -119,7 +126,11 @@ export const actions: Actions = {
 	undoAdd: async ({ request }) => {
 		const form = await request.formData();
 		const facts = JSON.parse(String(form.get('facts'))) as AddFacts;
-		undoAdd(facts);
+		try {
+			undoAdd(facts);
+		} catch (e) {
+			return refused(e);
+		}
 		return { ok: true };
 	},
 
