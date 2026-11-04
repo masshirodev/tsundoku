@@ -34,6 +34,24 @@ test('a source’s POPULAR shelf says what’s already yours, and names no hidde
 	await expect(other).toHaveAttribute('href', /^\/downloads\/source\/100~.+\?from=%2Fbrowse%2F100/);
 });
 
+test('LATEST keeps the origin a tag opened the source from, and ← still returns to it (c453)', async ({
+	page
+}) => {
+	// The address a tag on a preview builds (tag-search.ts, `tagSearchHref`); this
+	// world's details carry no tags to tap, so the source page is opened at it.
+	const origin = `/downloads/source/100~${Buffer.from('/manga/tagged').toString('base64url')}`;
+	await page.goto(`${OPEN}?from=${encodeURIComponent(origin)}`);
+	const latest = page.locator('nav[aria-label="Lists"]').getByRole('link', { name: 'LATEST' });
+	await latest.click();
+	await expect(page.locator('nav[aria-label="Lists"] .tab.on')).toHaveText('LATEST');
+	const u = new URL(page.url());
+	expect(u.searchParams.get('tab')).toBe('latest');
+	expect(u.searchParams.get('from')).toBe(origin);
+	const back = page.locator('header.bar a.back');
+	await expect(back).toHaveAttribute('aria-label', 'Back to the preview');
+	expect(new URL((await back.getAttribute('href'))!, u).pathname).toBe(origin);
+});
+
 test('it scrolls on: the next page is asked for and added, and the URL keeps the place', async ({
 	page
 }) => {

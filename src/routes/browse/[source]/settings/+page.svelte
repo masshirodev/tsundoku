@@ -6,6 +6,7 @@
 	import Band from '$lib/components/chrome/Band.svelte';
 	import Switch from '$lib/components/controls/Switch.svelte';
 	import { CELLS_MAX } from '$lib/library/source-settings';
+	import { keepOrigin } from '$lib/library/tag-search';
 
 	/**
 	 * A source's settings (Index-Browse, settings; Browse Calls, "Settings, per
@@ -22,8 +23,10 @@
 
 	const s = $derived(data.source);
 	const title = $derived(`${s.name.toUpperCase()} · ${s.lang.toUpperCase()}`);
-	const back = $derived(resolve('/browse/[source]', { source: s.id }));
+	// Opened from a source page a tag opened, the origin is kept both ways (card c453).
+	const back = $derived(keepOrigin(resolve('/browse/[source]', { source: s.id }), data.from));
 	const here = $derived(resolve('/browse/[source]/settings', { source: s.id }));
+	const act = (name: string) => keepOrigin(`${here}?/${name}`, data.from);
 	const refusal = $derived(
 		form && 'message' in form && typeof form.message === 'string' ? form.message.toUpperCase() : ''
 	);
@@ -78,7 +81,7 @@
 		{@const long = x.type === 'list' && x.entries.length > CELLS_MAX}
 		<form
 			method="POST"
-			action="{here}?/set"
+			action={act('set')}
 			class="set"
 			class:column={x.type === 'multi' ||
 				x.type === 'text' ||
@@ -121,7 +124,10 @@
 			{:else if x.type === 'list'}
 				<div class="value">
 					<span class="v">{x.entries[x.index].toUpperCase()}</span>
-					<a class="change" href="{here}?change={encodeURIComponent(x.key)}">CHANGE ▾</a>
+					<a
+						class="change"
+						href={keepOrigin(`${here}?change=${encodeURIComponent(x.key)}`, data.from)}>CHANGE ▾</a
+					>
 				</div>
 			{:else if x.type === 'multi'}
 				<div class="cells">

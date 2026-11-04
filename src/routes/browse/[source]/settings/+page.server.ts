@@ -8,6 +8,7 @@ import { EngineError } from '$lib/server/engine/client';
 import { keepPreferences, preferences, setPreference } from '$lib/server/engine/extensions';
 import type { Preference } from '$lib/server/engine/protocol';
 import { settingOf, valueFromForm } from '$lib/library/source-settings';
+import { backOrigin } from '$lib/library/tag-search';
 
 /**
  * A source's settings (Index-Browse, settings; Browse Calls, "Settings, per
@@ -55,7 +56,9 @@ export const load: PageServerLoad = async ({ params, cookies, url }) => {
 			.filter((x) => x !== null)
 			.sort((a, b) => rank(order, a.key) - rank(order, b.key)),
 		down,
-		change: url.searchParams.get('change') ?? ''
+		change: url.searchParams.get('change') ?? '',
+		// The source page's tag origin (card c453): ← and every row keep it.
+		from: backOrigin(url.searchParams.get('from'))
 	};
 };
 

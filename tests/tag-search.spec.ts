@@ -13,6 +13,7 @@ import {
 	matchFilter,
 	backOrigin,
 	backOriginLabel,
+	keepOrigin,
 	distinct,
 	readTagRoute,
 	settleWithin,
@@ -283,6 +284,34 @@ describe('where a source page’s back cell may return', () => {
 	it('holds on its own output', () => {
 		const once = backOrigin('/downloads/source/100~abc?q=a%20b');
 		expect(backOrigin(once)).toBe(once);
+	});
+});
+
+describe('a source page’s own links keep the origin (card c453)', () => {
+	const origin = '/downloads/source/100~abc?from=%2Fbrowse%2F100';
+	it('adds from= to a bare address, to one with a query, and before a fragment', () => {
+		for (const href of ['/browse/100', '/browse/100?tab=latest', '/browse/100/settings?/set']) {
+			const u = new URL(keepOrigin(href, origin), 'http://x');
+			expect(u.searchParams.get('from'), href).toBe(origin);
+			expect(backOrigin(u.searchParams.get('from')), href).toBe(origin);
+		}
+		expect(keepOrigin('/browse/100?tab=latest', origin)).toBe(
+			`/browse/100?tab=latest&from=${encodeURIComponent(origin)}`
+		);
+		expect(keepOrigin('/browse/100#top', origin)).toBe(
+			`/browse/100?from=${encodeURIComponent(origin)}#top`
+		);
+	});
+	it('adds nothing when there is no origin, or backOrigin refused it', () => {
+		expect(keepOrigin('/browse/100?tab=latest', '')).toBe('/browse/100?tab=latest');
+		expect(keepOrigin('/browse/100', backOrigin('https://evil.example/series/1'))).toBe(
+			'/browse/100'
+		);
+	});
+	it('leaves the action a settings row posts to readable as that action', () => {
+		// SvelteKit reads the action from the parameter that starts with `/`.
+		const u = new URL(keepOrigin('/browse/100/settings?/set', origin), 'http://x');
+		expect([...u.searchParams.keys()]).toEqual(['/set', 'from']);
 	});
 });
 

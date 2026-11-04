@@ -27,6 +27,7 @@
 		schema,
 		applied,
 		q,
+		keep = [],
 		resetHref,
 		cancelHref
 	}: {
@@ -35,6 +36,8 @@
 		schema: FilterField[];
 		applied: FilterField[];
 		q: string;
+		/** Parameters APPLY carries through unchanged: the page's `from` (card c453). */
+		keep?: [string, string][];
 		resetHref: string;
 		cancelHref: string;
 	} = $props();
@@ -88,6 +91,7 @@
 <form method="GET" {action} class="panel" bind:this={form} oninput={recount} onchange={recount}>
 	<input type="hidden" name="tab" value="filtered" />
 	{#if q}<input type="hidden" name="q" value={q} />{/if}
+	{#each keep as [k, v] (k)}<input type="hidden" name={k} value={v} />{/each}
 
 	<div class="head">
 		<span>FILTER {up(title)}</span>

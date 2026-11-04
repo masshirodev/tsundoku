@@ -115,6 +115,20 @@ export function backOrigin(raw: string | null | undefined): string {
 	return u.pathname + u.search;
 }
 
+/**
+ * `href` with `from=<origin>` added, for every way off a source page that
+ * lands on the same source (its tabs, its search, FILTER's APPLY and RESET,
+ * SETTINGS and back): each keeps the tag's origin, so ← still returns to it
+ * (card c453). An empty origin (none, or one `backOrigin` refused) adds
+ * nothing. `href` must not carry `from` already.
+ */
+export function keepOrigin(href: string, origin: string): string {
+	if (!origin) return href;
+	const hash = href.indexOf('#');
+	const [path, frag] = hash < 0 ? [href, ''] : [href.slice(0, hash), href.slice(hash)];
+	return `${path}${path.includes('?') ? '&' : '?'}from=${encodeURIComponent(origin)}${frag}`;
+}
+
 /** What ← says it returns to, for an origin `backOrigin` accepted. */
 export const backOriginLabel = (origin: string): string =>
 	origin.startsWith('/series/') ? 'Back to the series' : 'Back to the preview';

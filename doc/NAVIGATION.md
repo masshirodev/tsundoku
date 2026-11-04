@@ -64,6 +64,16 @@ says LIBRARY. Tested in `tests/origin.spec.ts`, `tests/browse-online.e2e.ts`
 (BROWSE, the already-added preview, the refused origins) and
 `tests/downloads-flow.e2e.ts` (SOURCES, with the query).
 
+A source's BROWSE page opened from a tag (an author, an artist or a genre on a
+preview, a tag on a series: [`BROWSE.md`](BROWSE.md), "Arriving from a tag")
+carries `from=<that preview or series>`, and its ← returns there, saying
+"Back to the preview" or "Back to the series". It keeps `from` on every way
+to another list of the same source (POPULAR, LATEST, its search, FILTER's
+APPLY and RESET, MORE, SETTINGS and back), so ← still lands on the preview
+after the reader has looked around (card c453). Only an in-app
+`/downloads/source/<id>` or `/series/<id>` path is accepted (`backOrigin`,
+`src/lib/library/tag-search.ts`); anything else leaves ← on BROWSE.
+
 ## From a Work
 
 A Work's run rows open their series with `?from=work:<id>` (`tests/work/[id]/

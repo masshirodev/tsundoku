@@ -9,7 +9,7 @@
 	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
 	import { count } from '$lib/library/downloads';
 	import { writeFilters } from '$lib/library/browse-filters';
-	import { backOriginLabel } from '$lib/library/tag-search';
+	import { backOriginLabel, keepOrigin } from '$lib/library/tag-search';
 	import { isSettled } from '$lib/library/settled';
 	import ResultTile from './ResultTile.svelte';
 	import { SiteCheck, checkLine } from '$lib/site-check.svelte';
@@ -42,6 +42,13 @@
 		const s = p.toString();
 		return s ? `${base}?${s}` : base;
 	}
+	/**
+	 * Every way to another list of this source keeps `from`, the preview or
+	 * series a tag opened it from, so ← still returns there (card c453). The
+	 * value kept is the one `backOrigin` accepted, never the raw parameter.
+	 */
+	const fromPair = $derived<[string, string][]>(data.back ? [['from', data.back]] : []);
+	const withFrom = (href: string) => keepOrigin(href, data.back);
 	/** Which list this is, whatever page it's on: what decides appending vs starting over. */
 	const listKey = (u: URL) => {
 		// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a throwaway copy, never read reactively
@@ -141,8 +148,8 @@
 	/** RESET is the source's own choices, on the filtered tab, with the panel open. */
 	const resetHref = $derived(
 		value
-			? `${base}?${new URLSearchParams([['tab', 'filtered'], ['panel', '1'], ...(data.q ? [['q', data.q]] : []), ...writeFilters(value.schema)] as [string, string][])}`
-			: base
+			? `${base}?${new URLSearchParams([['tab', 'filtered'], ['panel', '1'], ...(data.q ? [['q', data.q]] : []), ...writeFilters(value.schema), ...fromPair] as [string, string][])}`
+			: withFrom(base)
 	);
 	/** The search keeps the filters it was asked with. */
 	const keptFilters = $derived(
@@ -171,6 +178,7 @@
 			<form method="GET" action={base} class="find" class:open={data.find || !!data.q}>
 				{#each keptFilters as [k, v] (k)}<input type="hidden" name={k} value={v} />{/each}
 				{#if keptFilters.length}<input type="hidden" name="tab" value="filtered" />{/if}
+				{#each fromPair as [k, v] (k)}<input type="hidden" name={k} value={v} />{/each}
 				<input
 					type="search"
 					name="q"
@@ -181,7 +189,7 @@
 				/>
 			</form>
 			<a class="cell slash" href={link({ find: '1' })} aria-label="Search {name}">/</a>
-			{#if !novel}<a class="cell settings" href="{base}/settings">SETTINGS</a>{/if}
+			{#if !novel}<a class="cell settings" href={withFrom(`${base}/settings`)}>SETTINGS</a>{/if}
 		{/snippet}
 	</TopBar>
 	<!-- The way back to GET STARTED, while FIRST READ's trip lasts (doc/ONBOARDING.md). -->
@@ -189,9 +197,11 @@
 
 	<nav class="tabs" aria-label="Lists">
 		<div class="tab-list">
-			<a class="tab" class:on={data.mode === 'popular'} href={base}>POPULAR</a>
+			<a class="tab" class:on={data.mode === 'popular'} href={withFrom(base)}>POPULAR</a>
 			{#if value?.latest}
-				<a class="tab" class:on={data.mode === 'latest'} href="{base}?tab=latest">LATEST</a>
+				<a class="tab" class:on={data.mode === 'latest'} href={withFrom(`${base}?tab=latest`)}
+					>LATEST</a
+				>
 			{/if}
 			{#if data.mode === 'filtered'}
 				<span class="tab on">{data.q ? 'SEARCH' : 'FILTERED'}</span>
@@ -219,6 +229,7 @@
 			schema={value.schema}
 			applied={value.applied}
 			q={data.q}
+			keep={fromPair}
 			{resetHref}
 			cancelHref={link({ panel: null })}
 		/>

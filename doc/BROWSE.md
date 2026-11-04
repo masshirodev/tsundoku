@@ -161,9 +161,16 @@ preview's or the series' own address, query included, and the source page's
 ← goes there (`backOrigin`: only `/downloads/source/<id>` and `/series/<id>`,
 never another host or screen, as `sourceOrigin` refuses an open redirect).
 That screen's own ← is untouched, since its URL still carries its own `from`:
-preview → source page → ← → preview, whose ← still says BROWSE. The tabs and
-the search field start a new list from the source's base address, which
-drops `from`; the ← then says BROWSE again.
+preview → source page → ← → preview, whose ← still says BROWSE. **Every way
+to another list of the same source keeps it** (card c453): POPULAR and LATEST,
+the search field (a hidden `from`), FILTER's APPLY (a hidden `from`) and
+RESET, paging and the panel's toggle (`link()` keeps every parameter), and
+SETTINGS, whose ← and rows carry it back (`keepOrigin`, tag-search.ts). Only
+the value `backOrigin` accepted is carried, never the raw parameter. Until
+wave 20 the tabs and the search started from the source's base address and
+dropped it, so after one change of list ← said BROWSE again
+(`tests/browse-tags.e2e.ts` walks every one of those doors; LATEST is tapped
+in `tests/browse-flow.e2e.ts`, whose source has a latest list).
 
 ### Filters
 
