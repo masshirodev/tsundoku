@@ -113,9 +113,10 @@
 	 * the owner's tailnet install. Their countdown is the page's own, ticked
 	 * from the moment the server says they stop working -- the install has no
 	 * `/api/wifi` to poll, and `/api/pair/tv` answers at the computer only.
+	 * What the code itself is comes from `GET /settings/tv` (`refreshTv`).
 	 */
 	type Tv = NonNullable<typeof data.tv>;
-	const tv = $derived<Tv | null>(data.tv);
+	let tv = $derived<Tv | null>(data.tv);
 	let tvBusy = $state(false);
 	let tvNow = $state(Date.now());
 	$effect(() => {
@@ -125,6 +126,41 @@
 	});
 	const tvLive = (t: Tv) => t.state === 'live' && tvNow < t.expiresAt;
 	const tvMinutes = (t: Tv) => Math.max(0, Math.ceil((t.expiresAt - tvNow) / 60_000) - 1);
+	/**
+	 * A TV that pairs with the code, or burns it, while SETTINGS stays open
+	 * changes nothing on this page by itself, and a spent code left showing as
+	 * live invites a second TV to type it (c265). So the row asks the server
+	 * what the code is now: every 5 s while it claims a live code and the page
+	 * is in view, and once whenever the window regains focus or the page
+	 * becomes visible again. The owner usually keeps SETTINGS in front while
+	 * typing on the TV, so focus alone would miss the common case. A changed
+	 * code or state reloads the page's data, which is also how a TV that just
+	 * paired joins the list below.
+	 */
+	async function refreshTv() {
+		const before = tv;
+		if (!before) return;
+		try {
+			const r = await fetch('/settings/tv', { cache: 'no-store' });
+			if (!r.ok) return;
+			const { tv: next } = (await r.json()) as { tv: Tv | null };
+			if (next?.code === before.code && next?.state === before.state) return;
+			tv = next;
+			await invalidateAll();
+		} catch {
+			// Not answering for a moment: the next tick, or the next focus, asks again.
+		}
+	}
+	$effect(() => {
+		if (!tv || !tvLive(tv)) return;
+		const t = setInterval(() => {
+			if (document.visibilityState === 'visible') void refreshTv();
+		}, 5000);
+		return () => clearInterval(t);
+	});
+	const tvBack = () => {
+		if (document.visibilityState === 'visible') void refreshTv();
+	};
 	async function newTvCode() {
 		tvBusy = true;
 		try {
@@ -561,6 +597,9 @@
 </script>
 
 <svelte:head><title>Settings · tsundoku</title></svelte:head>
+<!-- The DEVICES row's TV code, asked again when the owner comes back (c265). -->
+<svelte:window onfocus={tvBack} />
+<svelte:document onvisibilitychange={tvBack} />
 
 <div
 	class="settings"
@@ -1234,9 +1273,9 @@
 						<span>{t.code.slice(0, 3)}</span><span>{t.code.slice(3)}</span>
 					</div>
 				{:else}
-					<div class="tvcode dim">
-						{t.state === 'used' ? '✓ USED' : t.state === 'burned' ? 'BURNED' : 'EXPIRED'}
-					</div>
+					<!-- Not live is used, or past its time by this page's clock: a
+					     burned code is replaced before the server answers (c265). -->
+					<div class="tvcode dim">{t.state === 'used' ? '✓ USED' : 'EXPIRED'}</div>
 				{/if}
 				<div class="pnote">TYPE THE WHOLE ADDRESS ON THE TV, THEN THESE SIX</div>
 				{#if live}
@@ -1247,8 +1286,6 @@
 					</div>
 				{:else if t.state === 'used'}
 					<div class="tvline">✓ USED · ONE TV, ONCE</div>
-				{:else if t.state === 'burned'}
-					<div class="tvline">NO TRIES LEFT · MAKE A NEW CODE</div>
 				{:else}
 					<div class="tvline">EXPIRED · MAKE A NEW CODE</div>
 				{/if}
@@ -1368,21 +1405,17 @@
 								<span>{w.tv.code.slice(0, 3)}</span><span>{w.tv.code.slice(3)}</span>
 							</div>
 						{:else}
-							<div class="tvcode dim">
-								{w.tv.state === 'used' ? '✓ USED' : w.tv.state === 'burned' ? 'BURNED' : 'EXPIRED'}
-							</div>
+							<!-- wifiView replaces an expired or burned code before it
+							     answers, so the panel's other state is used (c265). -->
+							<div class="tvcode dim">✓ USED</div>
 						{/if}
 						<div class="pnote">TYPE THE ADDRESS'S LAST NUMBER ON THE TV, THEN THESE SIX</div>
 						{#if w.tv.state === 'live'}
 							<div class="tvline">
 								GOOD FOR {w.tv.minutes} MIN · ONE TV, ONCE
 							</div>
-						{:else if w.tv.state === 'used'}
-							<div class="tvline">✓ USED · ONE TV, ONCE</div>
-						{:else if w.tv.state === 'burned'}
-							<div class="tvline">NO TRIES LEFT · MAKE A NEW CODE</div>
 						{:else}
-							<div class="tvline">EXPIRED · MAKE A NEW CODE</div>
+							<div class="tvline">✓ USED · ONE TV, ONCE</div>
 						{/if}
 					</div>
 				{/if}

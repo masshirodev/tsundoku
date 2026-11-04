@@ -1,13 +1,16 @@
 import { env } from '$env/dynamic/private';
 import type { LanControl, LanStatus } from './lan-listen.ts';
 import { lanOrigin } from './lan.ts';
+import { friendLogin } from './auth.ts';
 import {
 	CODE_MS,
 	minutesLeft,
 	pairedDevices,
 	pairing,
+	tvBlockFor,
+	tvDoor,
 	tvPairing,
-	type TvState
+	type Paired
 } from './pairing.ts';
 
 /**
@@ -71,10 +74,14 @@ export type WifiView = {
 		usedBy: string | null;
 		usedAt: number | null;
 	} | null;
-	/** The TV's six digits, beside the phone's code (c236): typed with a remote. */
+	/**
+	 * The TV's six digits, beside the phone's code (c236): typed with a remote.
+	 * Only live or used: a spent code is replaced before the view is built
+	 * (`shownState`), and the panel polls this view (c265).
+	 */
 	tv: {
 		code: string;
-		state: 'live' | 'used' | 'expired' | 'burned';
+		state: ShownTvState;
 		minutes: number;
 		left: number;
 	} | null;
@@ -94,6 +101,15 @@ const spent = (state: string, used: { at: number } | null | undefined, now: numb
 	CODES.includes(state as (typeof CODES)[number]) ||
 	(state === 'used' && !!used && now - used.at > USED_SHOWN_MS);
 
+/**
+ * The two states a TV code can be shown in once `spent` has replaced the rest
+ * (c265): expired, burned and an old used code are made fresh first, so a
+ * view never carries them, and a screen has no BURNED to draw.
+ */
+export type ShownTvState = 'live' | 'used';
+const shownState = (state: string): ShownTvState | null =>
+	state === 'live' || state === 'used' ? state : null;
+
 export function wifiView(o: { fresh?: boolean; now?: number } = {}): WifiView | null {
 	const s = wifiStatus();
 	if (!s) return null;
@@ -112,7 +128,7 @@ export function wifiView(o: { fresh?: boolean; now?: number } = {}): WifiView | 
 	const c = pairing.current();
 	const state = pairing.state(now);
 	const tvc = tvPairing.current();
-	const tvState = tvPairing.state(now);
+	const tvState = shownState(tvPairing.state(now));
 	// The band stays while a phone is still paired at the old address.
 	const stale = s.changed
 		? [...pairedDevices().values()].some((p) => p.address === s.changed!.from + portOf(phone))
@@ -137,7 +153,7 @@ export function wifiView(o: { fresh?: boolean; now?: number } = {}): WifiView | 
 					}
 				: null,
 		tv:
-			phone && tvc && tvState !== 'none'
+			phone && tvc && tvState
 				? {
 						code: tvc.code,
 						state: tvState,
@@ -154,7 +170,7 @@ const portOf = (origin: string | null) => (origin ? `:${new URL(origin).port}` :
 
 export type TvPanel = {
 	code: string;
-	state: TvState;
+	state: ShownTvState;
 	minutes: number;
 	/** Tries left before a wrong guess burns the code */
 	left: number;
@@ -176,8 +192,8 @@ export function tvPanel(o: { fresh?: boolean; now?: number } = {}): TvPanel | nu
 	const now = o.now ?? Date.now();
 	if (spent(tvPairing.state(now), tvPairing.current()?.used, now) || o.fresh) tvPairing.fresh(now);
 	const c = tvPairing.current();
-	const state = tvPairing.state(now);
-	if (!c || state === 'none') return null;
+	const state = shownState(tvPairing.state(now));
+	if (!c || !state) return null;
 	return {
 		code: c.code,
 		state,
@@ -185,4 +201,22 @@ export function tvPanel(o: { fresh?: boolean; now?: number } = {}): TvPanel | nu
 		left: tvPairing.triesLeft(),
 		expiresAt: c.madeAt + CODE_MS
 	};
+}
+
+/**
+ * Whether this request may see or make the TV's six digits in SETTINGS ›
+ * 08 — DEVICES: `tvBlockFor`, asked with this instance's and this request's
+ * facts. Every door that draws the block or makes its code asks this one
+ * function -- the load, `?/tvCode` (NEW CODE) and `GET /settings/tv` (the
+ * row's refresh) -- so none can make a code that nothing on its screen can
+ * use (c245, c264).
+ */
+export function tvBlockHere(locals: { via: 'local' | 'lan'; paired: Paired | null }): boolean {
+	return tvBlockFor({
+		hasWifi: !!wifiView(),
+		viaLan: locals.via === 'lan',
+		paired: !!locals.paired,
+		friend: friendLogin(),
+		door: tvDoor()
+	});
 }

@@ -191,6 +191,17 @@ export function tailnetDoor(
 }
 
 /**
+ * Whether a TV's paired cookie can be a door on this instance at all: its
+ * `ORIGIN` names a host that is not loopback (`tailnetHost`). The hook asks
+ * `tailnetDoor` with the same `process.env.ORIGIN`, so this is false exactly
+ * where the hook would refuse every TV's cookie: `yarn run dev`, `vite
+ * preview` and `scripts/serve.ts` in `local` mode, none of which set one
+ * (c264).
+ */
+export const tvDoor = (origin: string | null | undefined = process.env.ORIGIN): boolean =>
+	tailnetHost(origin) !== null;
+
+/**
  * Whether SETTINGS › 08 — DEVICES draws the TV's six digits itself (c245,
  * doc/WIFI.md, "Where they show").
  *
@@ -199,15 +210,19 @@ export function tailnetDoor(
  * would pair another. A friend's install served over the tailnet has no WI-FI
  * panel, but its guard reads a paired cookie only over Wi-Fi (`friendPaired`),
  * so drawing the digits there would pair a TV and land it on `/login` -- the
- * bug c245 exists to remove. The block is the token install's.
+ * bug c245 exists to remove. The token install with no `ORIGIN` (`door`
+ * false, `tvDoor`) is the same bug on another shape: the hook refuses every
+ * paired cookie there, so a TV would pair and land on `/login` too (c264).
+ * The block is the token install's, served on its tailnet origin.
  */
 export function tvBlockFor(o: {
 	hasWifi: boolean;
 	viaLan: boolean;
 	paired: boolean;
 	friend: boolean;
+	door: boolean;
 }): boolean {
-	return !o.hasWifi && !o.viaLan && !o.paired && !o.friend;
+	return o.door && !o.hasWifi && !o.viaLan && !o.paired && !o.friend;
 }
 
 /** Whole minutes left, as the panel counts them (no ticking seconds: motion here is minimal). */
