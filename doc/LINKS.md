@@ -178,8 +178,8 @@ is another work under the same name. A pasted manga link on a novel is the
 same, and so is the other way round (a comic linked to a novel's entry).
 
 The link keeps the entry's format (`series_links.format`, rung 26), and
-`coverOnly` tells such a link from the rest. Its LINK row says **THE
-COMIC'S ENTRY · COVER AND DETAILS ONLY, NEVER TRACKED**. **Tracking must
+`coverOnly` tells such a link from the rest. Its line on LISTS says **THE
+COMIC’S ENTRY · …** and **COVER AND DETAILS ONLY · NEVER TRACKED** (c424). **Tracking must
 never send progress through one:** a novel's chapter 300 isn't the
 manhwa's.
 
@@ -249,7 +249,7 @@ Show Season 2`), in one pass if the limit allows: a row of `searchable`
     otherwise the first season in list order with neither.
 
   The season **being watched** (`openSeasonOf`) is a different question, and
-  the one a rating, the TRACKING sheet and the cover ask.
+  the one a rating, EDIT's sheet and the cover ask.
 
 **Resolving** a MAL link from Mihon learns its AniList entry and cover. It
 sends only ids, fifty to a request (`Media(idMal_in: …)`), and needs no
@@ -365,25 +365,31 @@ on desktop and in tablet landscape.
   which it offers first ("The series screen", below). For a hidden series it's
   PASTE A LINK only.
 
-### The series screen (Series Link 1k–1t)
+### The series screen (LISTS, c424; it was Series Link 1k–1t)
 
-**LINK** and **COVER** rows under SHELVES, on every series but a doujin. An
-anime's LINK row is a line a season (c240; above).
+**LISTS** and **COVER** rows under SHELVES, on every series but a doujin.
+LISTS is LINK and TRACKING as one row, a line per list
+([`SERIES.md`](SERIES.md), "LISTS", has every state and where it is drawn).
+The link is AniList's line, a line a season on an anime (c240; above).
 
-- **Linked:** the entry's title, its ids and where the link came from, then
-  OPEN ↗, CHANGE and UNLINK.
+- **Linked:** AniList's line has the entry's title, its format and its MAL id
+  (AniList's where there is no MAL entry), its list's word, and EDIT. EDIT's
+  sheet opens on that entry: ENTRY has its ids, where the link came from,
+  and OPEN ↗, CHANGE and UNLINK, which left the row.
 - **An anime trades one link for one a season** (c240, the owner's decision
   A): AniList and MAL list each season as its own entry while a tsundoku
-  series holds several, so an anime's LINK row is a line a season -- tag,
-  title, `ANILIST AND MAL · TV · 24 EP. · 2018`, and EDIT or FIND. Three
+  series holds several, so an anime's LISTS row has a line a season -- tag,
+  title, the season's word on its list, and EDIT or FIND; the season being
+  watched adds `TV · 24 EP. · 2018 · MAL 36474` and what was sent. Three
   seasons or fewer have a line each; more fold round the one being watched,
-  and SHOW opens both the LINK and the TRACKING row. A season in two parts
+  and SHOW opens the row. A season in two parts
   says so on one line (`2 PARTS · EP. 1 – 12 · EP. 13 – 23`). A season with
   no link says why, in the decision's own word: after an UNLINK
   `UNLINKED · NO PASS ASKS AGAIN`, after NONE OF THESE
   `NONE OF THESE · NO PASS ASKS AGAIN` (`SeasonRow.decision`, the latest of
   its parts'), else what its last search found. A series with one season
-  draws exactly what it always did, and its UNLINK, which names no season,
+  (or a flat list) draws one ANILIST line, as a comic does, never an S tag
+  or SEASON 0, and its UNLINK (in EDIT's ENTRY), which names no season,
   takes every part of that season and writes the season's own `unlinked`
   decision, never one for season 0. Ranobe stays one line under the seasons
   ([`RANOBE.md`](RANOBE.md)).
@@ -407,7 +413,7 @@ anime's LINK row is a line a season (c240; above).
   every season). LINK A TO SEASON 3 writes that season's row. **A show with
   one season** (a flat list, or a single numbered season) has no rest to
   offer, so its LINK goes back to the series screen, as a comic's does, and
-  the new link is on its LINK row (c423: Ranma ½ (2024)'s LINK stayed on an
+  the new link is on its ANILIST line (c423: Ranma ½ (2024)'s LINK stayed on an
   unchanged page and read as a refusal). Neither does a LINK whose answer
   has no relations to show (AniList out of reach, or no chain neighbour
   inside the show's seasons): it goes back to the series too, never to the
@@ -450,16 +456,21 @@ HOLDS ITS ENTRY`, or `NOTHING LINKED · …` when none was. The band's numbers
   pair linked whole is one, and a pair with a part refused is that season
   not linked, the refusal naming its part. **NOT NOW has two cases on one
   series.** After a LINK made on the page, it goes back to the series, the
-  season just linked showing on its LINK row (c423, round 2). An offer that
-  came with the page's load (EDIT on a linked season, while another season
+  season just linked showing on its line on LISTS (c423, round 2). An offer that
+  came with the page's load (CHANGE in EDIT's sheet on a linked season, while another season
   has no link) follows no decision made there: NOT NOW closes it and the page
   stays on the season, with SEARCH AGAIN, PASTE A LINK, UNLINK and its LINK,
   so a season linked to the wrong entry can still be changed or unlinked
   from EDIT (round 3). A season linked by a pasted link has no candidates,
   and its UNLINK stands among the actions then. In the queue NOT NOW closes
   the offer, and the band's UNDO stays.
-- **Not linked:** what the last pass found, then FIND (accent) and PASTE A
-  LINK.
+- **Not linked:** what the last search found, in its own words (`4 FOUND ON
+ANILIST · NOT FOR CERTAIN`, `NOTHING FOUND ON ANILIST`), never which pass
+  ran it: `link_searches.searched_at` can't say who searched, so the row
+  doesn't claim the cover pass did, as the review's band doesn't (c337). A
+  queued search does wait for the next pass, and says so. Then FIND (the
+  accent, plain once NONE OF THESE or UNLINK settled it) and PASTE A LINK; a
+  season's line keeps FIND alone, and PASTE A LINK is on the review it opens.
 - **COVER** says where the cover comes from and why the sources before it
   gave nothing (`coverLines`). An Aniyomi series' picture is **the source's
   own**, never "Mihon's cover URL": it comes from the engine, which is what
@@ -472,19 +483,21 @@ HOLDS ITS ENTRY`, or `NOTHING LINKED · …` when none was. The band's numbers
   contradicts the series' kind (MANGA/NOVEL/ONE_SHOT on an anime, TV/MOVIE/OVA
   on a manga) says **LINKED TO THE WRONG KIND**. The LINK
   page's `?series=N` row offers **RELINK**; the series screen's own line says
-  changes ask AniList for the series' own kind, and its CHANGE is the door.
+  `LINKED TO THE WRONG KIND · NOTHING SENT` and `CHANGE SEARCHES ANILIST’S
+ANIME`, and its CHANGE, the line's accent, is the door.
   OPEN ↗ opens the entry's own catalogue: the link's stored format decides,
   and the series' kind is only the fallback when it isn't known yet, so a
   manga's entry on an anime series opens `/manga/<its id>`, never a different
-  work on `/anime/<its id>` — on the series screen's LINK row and on each
-  catalogue's row in the TRACKING sheet behind EDIT. The owner may have wanted
+  work on `/anime/<its id>` — in EDIT's ENTRY, on each list's PROGRESS row in
+  the sheet, and on the line itself offline. The owner may have wanted
   the link, and UNDO still takes it back; nothing is unlinked silently. A
   novel across to its comic's entry is the deliberate cover-only link, and
   isn't this.
-- On the phone, and in the 440px landscape panel, the cells drop below the
-  row in equal columns. An anime's season lines keep their own EDIT or FIND
-  at the line's end, as the design draws them.
-- Offline, everything but OPEN ↗ dims.
+- On the phone, the 440px panel and the TV, a line's two or more cells drop
+  below it in equal columns; one stays at its end, and the tablet in portrait
+  keeps them inline.
+- Offline, EDIT turns into OPEN ↗, every other cell dims, and the strip above
+  the lines says why.
 
 ## Where it departs from the handoff
 
@@ -518,12 +531,10 @@ HOLDS ITS ENTRY`, or `NOTHING LINKED · …` when none was. The band's numbers
 
 ## Not yet
 
-- **Tracking** (Series Link's TRACKING row and sheet, 1k–1q; the settings
-  sign-ins, 1u–1v): signing in to AniList (a year-long token, no refresh) and
-  MAL (plain PKCE, 31-day tokens that refresh), reading the owner's AniList
-  list as a source of links, and sending progress forward from the reading
-  log. The owner registers both apps first, with the redirect on
-  `https://workstation.example.ts.net:8443`.
+- **Tracking** shipped ([`TRACKING.md`](TRACKING.md)); on the series screen
+  its lines are LISTS' since c424. What this list still says of it (the
+  owner's app registrations, the redirect on
+  `https://workstation.example.ts.net:8443`) is TRACKING.md's to keep.
 - **A score from a review or pasted link** fills nothing. The score comes from
   the owner's list, which needs the sign-in. Only Mihon's MAL score fills a
   rating today.

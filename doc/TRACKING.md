@@ -8,11 +8,16 @@ link.
 
 - Handoff: `doc/design/handoff/Series Link.dc.html` (the TRACKING row and
   sheet, 1k–1t) and `Catalogue Links.dc.html` (SETTINGS' sign-ins, 1u, 1v).
+  Since c424 the series screen's half is `doc/handoffs/series-lists/`: LINK
+  and TRACKING are one LISTS row, and the sheet gained ENTRY
+  ([`SERIES.md`](SERIES.md), "LISTS").
 - Code:
   - `src/lib/library/tracking.ts`: the pure rules.
   - `src/lib/server/tracking.ts`: sign-ins, lists, sends.
   - `src/routes/settings/catalogues/[service]/`: the OAuth way out and back.
-  - The series screen's `?/tracking` and `?/retryTracking` actions.
+  - The series screen's `?/tracking` and `?/retryTracking` actions;
+    `src/routes/series/[id]/lists.ts` (what each LISTS line says) and
+    `TrackingSheet.svelte` (EDIT's sheet).
 - Rung 27: `tracker_accounts`, `tracker_state`, `tracker_sends`.
 - Rung 62 (c240): `series_season_links`, `season_link_searches`,
   `season_link_candidates`, `season_link_decisions`, `season_tracker_state`,
@@ -145,10 +150,15 @@ It's gone once sent, and `tracker_state` takes the new chapter and
 `sent_at`. An anime's waits in `season_tracker_sends`, one row a season and
 part, so a failure on one season never holds another's send up. A send that fails stays with why: **DID NOT ANSWER** (no
 answer), **SIGN-IN EXPIRED** (a 401), **REFUSED IT** (anything else). It's
-sent again with the next chapter read, or now with **TRY AGAIN** on the
-TRACKING row or SETTINGS.
+sent again with the next chapter read, or now with **TRY AGAIN** on its line
+on LISTS or on SETTINGS. A line's TRY AGAIN is that line's: a season's names
+its season, and `sendPending({ season })` sends that season's alone; a
+comic's sends both its catalogues, MAL riding on AniList's line (c424).
+SETTINGS' TRY AGAIN still retries every send of one catalogue.
 
-**The sheet** (TRACKING · EDIT, 1m) sets status for both catalogues at once.
+**The sheet** (EDIT on a LISTS line; 1m, redrawn by c424's 1E) opens on that
+line's entry: ENTRY (the ids, where the link came from, OPEN ↗, CHANGE,
+UNLINK), then STATUS, which it sets for both catalogues at once.
 A tap sends it; DONE only closes. It has no SCORE row since c67: the score is
 the rating, sent when the rating is set. AniList gets it as `scoreRaw` (its 100) whatever format the owner shows, and unrated clears it (0 on both).
 
@@ -170,28 +180,42 @@ the rating, sent when the rating is set. AniList gets it as `scoreRaw` (its 100)
   A catalogue whose keys aren't in `.env` says **THE APP ISN'T REGISTERED**
   and offers no SIGN IN. Offline, the section says so and its cells dim.
 
-- **The TRACKING row** (1k–1s), under LINK, on a linked series: a line per
-  catalogue (`trackLine`), and what was done about it: SENT 12 MIN AGO, NOT
-  SENT with why, NOT SIGNED IN, NOT ON YOUR LIST, SHOWN · ANILIST HAS
-  NOTHING, or AS OF 14:20 offline. Its cells are TRY AGAIN, SIGN IN → and
-  EDIT. A hidden series says **NOTHING SENT · HIDDEN SERIES STAY OFF BOTH
-  LISTS**, and a cover-only link says **NEVER TRACKED**.
+- **LISTS** (c424; [`SERIES.md`](SERIES.md), "LISTS", has every state):
+  TRACKING is no longer a row of its own. Each list's word is on its line,
+  beside the entry: AniList's, with MAL folded into it (`ANILIST AND MAL ·
+SENT 12 MIN AGO`) and given a quiet line of its own only where it differs
+  (signed in or out where AniList isn't, a failed send, another word or
+  chapter: `MAL AT CH. 198` / `NOT SIGNED IN · NOTHING SENT`), and Ranobe's
+  ([`RANOBE.md`](RANOBE.md)). What was done about it is on the right: SENT
+  12 MIN AGO, SENDING, NOT SENT with why in ink, NOT SIGNED IN, NOT ON YOUR
+  LIST with when it will be (ADDED ON THE NEXT CHAPTER READ, or EPISODE
+  WATCHED), SHOWN · ANILIST HAS NOTHING, or AS OF 14:20 offline. A line's
+  cells are TRY AGAIN, SIGN IN → and EDIT; a hidden series says **NOTHING
+  SENT · HIDDEN SERIES STAY OFF EVERY LIST** (with seasons, once, on the
+  strip), a cover-only link **COVER AND DETAILS ONLY · NEVER TRACKED**, and a
+  novel's AniList line **COVER AND DETAILS · TRACKED ON RANOBE**
+  (`Tracking.catalogueTracks`, the same rule `targets` sends by).
 - **An anime has a line a season** (c240): `WATCHING · EP. 8 OF 24 · 7` /
-  `ANILIST AND MAL · SENT 12 MIN AGO`, with MAL named only where it differs
-  (`MAL AT EP. 6 · NOT SIGNED IN`), `PART 2 · ` in front of the part being
-  watched and the other part on the right (`PART 1 COMPLETED`). Three
-  seasons or fewer have a line each; more fold round the one being watched
-  (`↑ S1 – S2 · COMPLETED · SHOW`), and SHOW opens both rows at once. A
-  season with no link says **NOT LINKED · NOTHING SENT**. TRY AGAIN retries
-  every season; a failed send is its own season's, in ink.
-- **TRACKING · EDIT is one season at a time** (c240): a tab per season
-  across the top, opening on the one being watched; a tab reads
-  `S3 EP. 8 / 24`, `S1 COMPLETED` or `S4 2 PARTS · NOT LISTED`. STATUS goes
-  to that season's entry on both catalogues; a season's first episode
-  watched sends WATCHING and its last COMPLETED, and ON HOLD and DROPPED are
-  the owner's: never overwritten, the last episode included. PROGRESS shows that season's part, and the other part under
-  it. Ranobe is one line under the seasons (`WATCHING · EP. 57 OF 96`),
-  counted straight through ([`RANOBE.md`](RANOBE.md), "Anime").
+  `ANILIST AND MAL · SENT 12 MIN AGO` on the season being watched; every
+  other season carries its word alone (`COMPLETED · 25 OF 25 · 8`). `PART 2
+· ` leads the part being watched, the other part's word on the right
+  (`PART 1 COMPLETED`) and the send under it. Three seasons or fewer have a
+  line each; more fold round the one being watched (`S1 – S2 · ↑ COMPLETED ·
+SHOW`), and SHOW opens the row. A season with no link says why in the
+  search's or the decision's own words, with FIND. TRY AGAIN is per season,
+  and a failed send is its own season's, in ink. A flat list or a show of one
+  season is one ANILIST line, and names no season anywhere (c423).
+- **EDIT is one season at a time** (c240): a tab per season across the
+  top, opening on the line EDIT was pressed on; a tab reads `S3 EP. 8 / 24`,
+  `S1 COMPLETED` or `S4 NOT LINKED`, and a not-linked tab's ENTRY offers
+  FIND. STATUS goes to that season's entry on both catalogues; a season's
+  first episode watched sends WATCHING and its last COMPLETED, and ON HOLD
+  and DROPPED are the owner's: never overwritten, the last episode included.
+  PROGRESS shows that season's part, and the other part under it. With
+  nothing signed in, STATUS says NOTHING SIGNED IN and offers nothing to
+  send. Ranobe is one line under the seasons (`WATCHING · EP. 57 OF 96`),
+  counted straight through ([`RANOBE.md`](RANOBE.md), "Anime"), and its EDIT
+  is the same sheet with nothing to set.
 
 ## Where it departs from the handoff
 

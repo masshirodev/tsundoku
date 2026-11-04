@@ -220,6 +220,7 @@ test.describe('a one-season anime with Ranobe (c422)', () => {
 			expect(strip.height).toBe(36);
 			expect(Math.round(a.width)).toBe(Math.round(whole.width));
 			// Two cells drop under the line in equal columns; one stays at its end.
+			await expect(anilist.locator('.cs')).toBeHidden();
 			const cells = anilist.locator('.drop .c');
 			await expect(cells).toHaveText(['SIGN IN →', 'EDIT']);
 			const [c1, c2] = [(await cells.nth(0).boundingBox())!, (await cells.nth(1).boundingBox())!];

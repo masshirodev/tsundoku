@@ -1,11 +1,15 @@
 # Ranobe
 
 tsundoku keeps the owner's **Ranobe** library (`ranobe.ink`, the owner's own
-catalogue, `~/projects/ranobe`) moving from what's read here: which novels and
-comics are in it, how far each is read, its rating and its favourite. It's
-card c66 ("Track novels through Ranobe, once it's ready"), and for comics card
-c98 ("Send comic reads to Ranobe, once Ranobe has work-level chapters"); see
-"Comics" below. The contract it's built
+catalogue, `~/projects/ranobe`) moving from what's read and watched here:
+which works are in it, how far each is read, its rating and its favourite.
+Four kinds go there, the four `RANOBE_KINDS` holds (`src/lib/library/ranobe.ts`):
+**novels**, read against an edition's volumes or chapters (card c66, "Track
+novels through Ranobe, once it's ready"); **manga** and **manhwa**, read as
+the work's own chapters (card c98, "Comics" below), which go to AniList and
+MAL as well; and **anime**, one Ranobe work for the whole show, its
+episodes counted straight through every season (card c240, "Anime" below),
+beside AniList's entry a season. A doujin goes nowhere. The contract it's built
 against is Ranobe's `doc/API-V1.md`, "For Tsundoku", and the steps below use
 its numbers.
 
@@ -14,7 +18,7 @@ its numbers.
   `Ranobe Series.dc.html` (the zip is `doc/handoffs/done/Ranobe.zip`).
 - Code:
   - `src/lib/library/ranobe.ts`: the pure rules (volumes, units, editions,
-    the review's lines, the TRACKING line).
+    the review's lines, Ranobe's line on the series screen's LISTS row).
   - `src/lib/server/ranobe.ts`: the client, the pass, the sends, searching.
   - `src/lib/server/ranobe-review.ts`: the review's queue and decisions, and
     what the series screen and SETTINGS read.
@@ -142,7 +146,7 @@ After every import (after the links and the AniList and MAL lists), and from
 6. **Sending** what's read (steps 7 and 8), marked `backfill` in the pass.
 7. **Reading the library**, `GET /me/library`, for what Ranobe says of each
    linked work: status, progress in the edition's units, rating, FAV. Every
-   send's answer updates it too. It's what the TRACKING line shows.
+   send's answer updates it too. It's what Ranobe's line on LISTS shows.
 
 **Each step runs on its own.** A refusal in one (a search Ranobe turns down,
 say) is logged and the rest go on, reads included. Ranobe out of reach
@@ -210,9 +214,9 @@ YET, and says what it needs. Never for a hidden series or Hentoid.
    bundle instead of sending a second one: The Beginning After the End is
    seven series, and one novel. Its UNDO leaves the bundle standing for the
    others; only the last one out withdraws it.
-4. **The series leaves the review** while it waits. Its LINK row says
-   `SUGGESTED TO RANOBE · BUNDLE 7 · WAITS FOR YOUR REVIEW THERE`, and its
-   TRACKING line `RANOBE · SUGGESTED, WAITING FOR YOUR REVIEW`. UNDO in the
+4. **The series leaves the review** while it waits. Its Ranobe line on LISTS
+   says `SUGGESTED TO RANOBE · BUNDLE 7 · WAITS FOR YOUR REVIEW THERE`, and
+   under it `SUGGESTED, WAITING FOR YOUR REVIEW`. UNDO in the
    review withdraws the bundle (`POST /bundles/{id}/withdraw`).
 5. **Each pass asks after it** (`checkWorkSuggestions`, before the search).
    Approved: the series is linked to the work it made, and its siblings (the
@@ -289,8 +293,8 @@ null`) mapped nothing and sent nothing, and a running one with a count
   flag, `workLists` takes the open range, and the series line says `N
 CHAPTERS SO FAR ON RANOBE`, or `STILL RUNNING ON RANOBE` with no count.
   Rung 52 clears every kept `type`, so the next pass asks each work again.
-- **A work that counts nothing yet** maps nothing, and its TRACKING line says
-  `RANOBE · WAITING ON ITS CHAPTER COUNT`. Ranobe was still filling its
+- **A work that counts nothing yet** maps nothing, and its line on LISTS says
+  `WAITING ON ITS CHAPTER COUNT`. Ranobe was still filling its
   counts in when this shipped (AniList's chapters and MangaUpdates' latest,
   about 15 hours from 2026-10-14 02:40 UTC), so a comic may wait a pass or
   two.
@@ -306,12 +310,12 @@ its entry on the season-1 work, and every season's units count in it). So
 tsundoku sends an anime as one work, however many seasons its source lists:
 
 - **One link for the series.** `ranobe_links` holds the work, and the series
-  screen draws Ranobe as **one line under the season lines** in LINK and
-  TRACKING -- never in AniList's place, since each season still has its own
-  entry there. LINK: the work's title, `ONE ENTRY FOR ALL 4 SEASONS`, and
-  RANOBE ↗, or **Not on Ranobe** with FIND. TRACKING: `WATCHING · EP. 57 OF
-96` / `SENT 12 MIN AGO`, counted straight through the seasons (25 + 24 +
-  8), since Ranobe keeps no seasons.
+  screen draws Ranobe as **one line under the season lines** on LISTS, a
+  rule above it -- never in AniList's place, since each season still has
+  its own entry there. The line: the work's title, `RANOBE · ONE ENTRY FOR
+ALL 4 SEASONS`, `WATCHING · EP. 57 OF 96` / `SENT 12 MIN AGO`, counted
+  straight through the seasons (25 + 24 + 8), since Ranobe keeps no
+  seasons, and EDIT; or **Not on Ranobe** with FIND.
 - **Linked by its ids, or shortened.** `/lookup` asks with the show's
   AniList id and its MAL id as **`mal_anime:`** (MAL's anime ids are their
   own sequence): those of its lowest linked season, so a show linked only
@@ -415,38 +419,42 @@ back, then those with nothing found. With no token, none of it shows.
 
 ## The series screen
 
-With a token, a novel's LINK and TRACKING rows are Ranobe's (Ranobe Series
-2a–2k), in place of AniList's. The COVER row stays: a novel's cover can
-still come from its AniList link, and the LINK row keeps that id in its
-meta line.
+With a token, Ranobe has **its own line on LISTS** (card c424; it was its
+own LINK and TRACKING rows, Ranobe Series 2a–2k, in place of AniList's).
+[`SERIES.md`](SERIES.md), "LISTS", has the row whole. The line that tracks
+comes first: on a **novel**, Ranobe's line leads, and AniList's link stays
+under it for the cover and details (`COVER AND DETAILS · TRACKED ON
+RANOBE`; `Tracking.catalogueTracks`, since AniList and MAL take no novel's
+progress); on a **comic**, AniList's line leads and Ranobe's is under it;
+on an **anime**, Ranobe's one line is under the seasons. The COVER row
+stays its own.
 
-- **LINK**: the work's title; `RANOBE W901 · ENGLISH EDITION · BY CHAPTER ·
-2 SERIES SHARE IT · ANILIST 108428`, as far as each applies; RANOBE ↗,
-  CHANGE, UNLINK. UNLINK is a decision: no pass links it again, and what was
-  sent stays on Ranobe. Not linked: **Not on Ranobe**, why (candidates
-  waiting, nothing found, settled), and FIND and PASTE A LINK. Hidden: **Not
-  linked**, `HIDDEN SERIES ARE NEVER LOOKED UP ON RANOBE`, PASTE A LINK only.
-- **TRACKING**, one line (`ranobeLines`): what Ranobe says, `RANOBE ·
-READING · VOL. 5 OF 6 · 8`, and on the right what tsundoku did, SENT 12
-  MIN AGO. Its other states:
+- **The line**: RNB, the work's title, and its meta, `RANOBE W901 · ENGLISH
+EDITION · BY CHAPTER · 2 SERIES SHARE IT · ANILIST 108428` as far as each
+  applies (`ONE ENTRY FOR THE SERIES`, or `… FOR ALL 4 SEASONS`, on an anime).
+  Then what Ranobe says (`ranobeLines`, without its `RANOBE · ` lead, since
+  the tag says it): `READING · VOL. 5 OF 6 · 8`, and on the right what
+  tsundoku did, SENT 12 MIN AGO. Its other states:
   - A volume partly read here gets a quiet second line, `VOL. 6 · 6 OF 9
 CHAPTERS READ HERE` / `SENT ONCE ALL 9 ARE` (2b), so a chapter that
     didn't go reads as expected.
-  - A failed send: `RANOBE · VOL. 5 NOT SENT` and why, with TRY AGAIN. The
-    second line says what to do: a new token, or that the edition has no
-    such unit (2d–2f).
-  - WAITING ON AN EDITION, with whether the suggestion was refused (2g).
-    NOT ON RANOBE (2h). AS OF 14:20 offline (2i). Hidden: nothing sent (2j).
-  - Linked but not read yet: `RANOBE · NOT IN YOUR LIBRARY YET` / `ADDED ON
-THE FIRST READ`.
-- **No EDIT.** Ranobe works status out from the reads, and the RATING row
-  is what it gets.
-- **On an anime** (c240) neither row is Ranobe's alone: the season lines
-  come first and Ranobe is their last line, one for the whole show
-  (`ONE ENTRY FOR ALL 4 SEASONS`). Its LINK cell is RANOBE ↗ or FIND; its
-  TRACKING line is one (`RANOBE · WATCHING · EP. 57 OF 96`), with TRY AGAIN
-  in the row's cells when it failed. No sheet edits Ranobe, on an anime as
-  on a novel: its status is worked out from the reads.
+  - A failed send: `VOL. 5 NOT SENT` and why, in ink, with the line's own
+    TRY AGAIN (`?/retryRanobe`). The quiet line under it says what to do: a
+    new token, or that the edition has no such unit (2d–2f).
+  - WAITING ON AN EDITION, with whether the suggestion was refused (2g). AS
+    OF 14:20 offline (2i). Hidden: nothing sent (2j).
+  - Linked but not read yet: `NOT IN YOUR LIBRARY YET` / `ADDED ON THE FIRST
+READ`.
+- **Not linked**: **Not on Ranobe** and why (candidates waiting, nothing
+  found, settled, a suggestion waiting), and FIND and PASTE A LINK (FIND
+  alone on an anime, as 1C draws it). Hidden: **Not linked**, `HIDDEN SERIES
+ARE NEVER LOOKED UP ON RANOBE`, PASTE A LINK only, as the accent.
+- **EDIT opens the sheet on the entry, with nothing to set.** Ranobe works
+  status out from the reads, and the RATING row and FAV are what it gets, so
+  the sheet has no STATUS buttons: its ENTRY holds RANOBE ↗, CHANGE and
+  UNLINK, which left the row. UNLINK is a decision: no pass links it again,
+  and what was sent stays on Ranobe. Offline, EDIT turns into OPEN ↗ (the
+  work on Ranobe) and every other cell dims.
 
 ## SETTINGS
 

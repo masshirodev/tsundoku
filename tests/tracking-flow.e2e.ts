@@ -2,8 +2,9 @@ import { expect, test } from './fixtures';
 
 /**
  * Tracking end to end (doc/TRACKING.md), as the e2e server has it: no
- * sign-ins, no app keys, no catalogue reachable. Read-only: what the TRACKING
- * row and SETTINGS say when nothing is signed in. Signing in itself leaves
+ * sign-ins, no app keys, no catalogue reachable. Read-only: what the series
+ * screen's LISTS line (c424; TRACKING was its own row before) and SETTINGS
+ * say when nothing is signed in. Signing in itself leaves
  * for the catalogue's own page, and is the db spec's to check.
  */
 test('the LISTS line asks for a sign-in, and sends nothing', async ({ page }) => {
