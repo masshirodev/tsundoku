@@ -39,6 +39,7 @@
 	import { postAction, saves } from '$lib/saves.svelte';
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
 	import FilterPanel from '$lib/components/controls/FilterPanel.svelte';
+	import ChoiceMenu from '$lib/components/controls/ChoiceMenu.svelte';
 	import NewShelfSheet from './NewShelfSheet.svelte';
 	import MoreSheet from './MoreSheet.svelte';
 	import {
@@ -880,6 +881,9 @@
 
 	const gb = (bytes: number) => (bytes / 1e9).toFixed(1).replace(/\.0$/, '');
 
+	/** The SORT menu's choices, in `SORTS`' order (c432). */
+	const SORT_CHOICES = SORTS.map((s) => ({ value: s, label: SORT_NAME[s] }));
+
 	/** A sort from the SORT menu, in its own direction. */
 	function sortTo(raw: string) {
 		const next = parseSort(raw);
@@ -1316,16 +1320,7 @@
 					NEWEST FIRST
 				{:else}
 					<span class="sort">
-						<span class="menu">
-							<select
-								aria-label="Sort"
-								value={data.sort}
-								onchange={(e) => sortTo(e.currentTarget.value)}
-							>
-								{#each SORTS as s (s)}<option value={s}>{SORT_NAME[s]}</option>{/each}
-							</select>
-							<span class="caret" aria-hidden="true">▾</span>
-						</span>
+						<ChoiceMenu label="Sort" choices={SORT_CHOICES} value={data.sort} onpick={sortTo} />
 						{#if data.sort !== 'random'}
 							<button type="button" class="dir" onclick={flipDir} aria-label="Reverse order"
 								>{dirLabel(data.sort, data.dir)}</button
@@ -1733,42 +1728,15 @@
 	}
 	/* SORT: one closed block of square cells, the menu (▾ says it opens) and
 	   the direction beside it, as the panel rows draw a sort ("cells plus
-	   ↓ / ↑"). The native box is dropped for the block's own. */
+	   ↓ / ↑"). The menu is the house's own (ChoiceMenu, c432); its list hangs
+	   from the whole block, so the block is what is positioned. */
 	.sort {
+		position: relative;
 		display: inline-flex;
 		align-items: stretch;
 		height: 32px;
 		border: 1px solid var(--line-2);
 		color: var(--text-1);
-	}
-	.menu {
-		position: relative;
-		display: flex;
-	}
-	.sort select {
-		appearance: none;
-		border: 0;
-		border-radius: 0;
-		margin: 0;
-		padding: 0 30px 0 12px;
-		background: none;
-		font: inherit;
-		letter-spacing: inherit;
-		color: inherit;
-		cursor: pointer;
-	}
-	.sort select option {
-		background: var(--surface-panel);
-		color: var(--text-1);
-	}
-	.caret {
-		position: absolute;
-		top: 0;
-		bottom: 0;
-		right: 12px;
-		display: flex;
-		align-items: center;
-		pointer-events: none;
 	}
 	.sort .dir {
 		display: flex;
@@ -1780,12 +1748,10 @@
 		padding: 0 10px;
 		border-left: 1px solid var(--line-2);
 	}
-	.sort select:focus-visible,
 	.sort .dir:focus-visible {
 		outline: 2px solid var(--accent);
 		outline-offset: -2px;
 	}
-	.sort select:active,
 	.sort .dir:active {
 		background: var(--surface-inverse);
 		color: var(--text-inverse);

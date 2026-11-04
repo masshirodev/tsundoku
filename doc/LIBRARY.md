@@ -323,10 +323,23 @@ else sets it.
 Asked for on 2026-10-14: the sort was a label that cycled, so reaching one
 meant tapping through the others, and nothing ran the other way round.
 
-- **SORT is a native `<select>`** in the label's own type, without the
-  browser's box, and ▾ after it: RECENTLY READ, RECENTLY ADDED, PROGRESS,
-  TITLE, RATING, RANDOM (`SORTS`, `src/lib/library/labels.ts`). Choosing
-  one goes to its URL.
+- **SORT is the house's own menu** (`ChoiceMenu`,
+  `src/lib/components/controls/`; c432, asked for on 2026-11-03: "the
+  recently added select should be stylized blocky like the filters are").
+  A cell in the label's own type names the sort, with ▾; it opens a column
+  of FILTER's blocky cells (52px, 14px mono, the full-ink rule on top, the
+  one in use inverted): RECENTLY READ, RECENTLY ADDED, PROGRESS, TITLE,
+  RATING, RANDOM (`SORTS`, `src/lib/library/labels.ts`). Choosing one goes
+  to its URL. The list hangs from the whole SORT block, ↓ / ↑ included,
+  right edges together. Escape, a tap anywhere outside (which opens nothing
+  under it) or the cell again close it without choosing. On a TV or a
+  keyboard the open list is a focus scope ([`FOCUS.md`](FOCUS.md)): OK opens
+  it on the sort in use, the arrows walk the choices and stay inside, OK
+  picks, BACK closes, and the mark goes back to the cell. The remote reaches
+  the cell from the shelf tabs with ↑. Until c432 it was a native `<select>`,
+  whose open list was the system's own and whose ←/→ changed the sort in
+  place on a TV. `tests/library-top-sort.e2e.ts` and
+  `tests/tv-library-top.e2e.ts`.
 - **PROGRESS** (`sort=progress`) is three tiers, as `progressOf` decides
   them: begun and not finished (one page opened is begun), by last read;
   then never opened, newest added first; then the rest, the finished, by
