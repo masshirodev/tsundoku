@@ -1422,6 +1422,35 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	)
 	WHERE id IN (SELECT entry_id FROM c395_stale);
 	DROP TABLE c395_stale;
+	`,
+	// v65: watching time for the anime watched before c443 (doc/READING-LOG.md,
+	// "Estimated rows"). The player sent no `durationMs` until c443, so every
+	// episode event carried 0. Its `page` is the position in seconds and it
+	// sent one every 15 s while playing, so where a step's position moved
+	// forward by what the clock did -- within 2 s -- the episode was playing
+	// for all of it, and that is the step's time. A pause or a stall moves the
+	// clock and not the position, a seek the position more than the clock, and
+	// both are left at 0: an estimate that only counts what it can vouch for.
+	// On the live library's copy (2026-11-03) 685 of 769 steps matched, 2.9 h.
+	//
+	// The kind is spelled out because SQL cannot ask the registry: it is the
+	// video medium's on the day this was written, frozen like the rest of a rung.
+	`
+	CREATE TEMP TABLE c443_steps AS
+	SELECT id, (page - prev_page) * 1000 AS ms FROM (
+		SELECT re.id, re.kind, re.page, re.at, re.duration_ms,
+			LAG(re.page) OVER w AS prev_page, LAG(re.at) OVER w AS prev_at
+		FROM reading_events re JOIN series s ON s.id = re.series_id
+		WHERE s.kind = 'anime' AND re.entry_id IS NOT NULL
+			AND re.kind IN ('open', 'page', 'finish', 'close')
+		WINDOW w AS (PARTITION BY re.entry_id ORDER BY re.at, re.id)
+	)
+	WHERE kind IN ('page', 'finish', 'close') AND duration_ms = 0
+		AND prev_at IS NOT NULL AND page > prev_page AND page - prev_page <= 60
+		AND ABS((page - prev_page) * 1000 - (at - prev_at)) <= 2000;
+	UPDATE reading_events SET duration_ms = (SELECT ms FROM c443_steps c WHERE c.id = reading_events.id)
+	WHERE id IN (SELECT id FROM c443_steps);
+	DROP TABLE c443_steps;
 	`
 ];
 
