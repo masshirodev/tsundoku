@@ -303,9 +303,22 @@ workstation during gates. What it assumes, and the rules that follow (c439):
   `gate` at all**: no whole run in wave 19 before round 2 executed
   `duplicates-flow` or `unlock-gate` once. A gate that reports "did not run"
   has not run them. Until the base failures are fixed, run the whole suite
-  with them excluded by title (`--grep-invert`, the list in this slot's
-  wave-19 notes) so the dependants run in their place in the order, or at
-  least `npx playwright test --project=duplicates --project=gate --no-deps`.
+  with them left out by title, so the dependants run in their place in the
+  order:
+
+  ```sh
+  PLAYWRIGHT_SKIP='screen: (continueList|continueRow|grid|tile) matches the handoff|START SCAN with nothing to import|the end of the series asks for a rating while unrated' \
+    npx playwright test
+  ```
+
+  `PLAYWRIGHT_SKIP` is a regular expression the config gives every project
+  as its `grepInvert`. **`--grep-invert` on the command line does not do
+  this**: Playwright never applies a command-line filter to a dependency
+  project, so the device projects run whole, their reds included, and the
+  dependants are skipped as before (measured: `--list` counts 710 tests with
+  `--grep-invert`, the same as with nothing, and 704 with `PLAYWRIGHT_SKIP`).
+  Name what you left out beside the run's result: a test that was skipped
+  has not passed.
 
 **One folder per run.** `tests/helpers/run-dir.ts`, imported first by the
 config, makes `<TMPDIR>/tsundoku-e2e-run-<runner pid>` and points `TMPDIR` at
