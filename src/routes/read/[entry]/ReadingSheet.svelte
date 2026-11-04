@@ -448,8 +448,12 @@
 		max-height: 90dvh;
 		overflow-y: auto;
 	}
+	/* The sheet is a column capped at 90dvh that scrolls: nothing in it may
+	   shrink to fit, or every row is squeezed to its min-height and a segmented
+	   row's 48px cells become 20px strips (c428). */
 	.head {
 		display: flex;
+		flex-shrink: 0;
 		align-items: stretch;
 		height: 56px;
 		border-bottom: var(--hairline);
@@ -488,6 +492,7 @@
 	}
 	.row {
 		display: flex;
+		flex-shrink: 0;
 		align-items: stretch;
 		min-height: 64px;
 		border-bottom: var(--hairline);
@@ -529,6 +534,7 @@
 	}
 	.seg {
 		display: flex;
+		flex-shrink: 0;
 		height: 48px;
 		border: 1px solid var(--line-2);
 	}

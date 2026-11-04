@@ -135,3 +135,41 @@ test('hiding under reduced motion, the bars only fade', async ({ page }) => {
 	expect([...ys(exit.top), ...ys(exit.bottom)].every((y) => y === 0)).toBe(true);
 	expect(exit.opacity.some((o) => parseFloat(o) < 1)).toBe(true);
 });
+
+test('READING: every segmented choice is the full-height cell SIDES is (c428)', async ({
+	page
+}) => {
+	await open(page);
+	const vp = page.viewportSize()!;
+	await page.mouse.click(vp.width / 2, vp.height / 2, { button: 'middle' });
+	await page.getByRole('button', { name: /SETTINGS ↑/ }).click();
+	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+	await expect(sheet).toBeVisible();
+	await sheet.evaluate((el) =>
+		Promise.all(el.getAnimations().map((a) => a.finished.catch(() => undefined)))
+	);
+	// Every cell of every segmented row, each group's buttons and its value
+	// readout, measured against SIDES' own cells: all of them, not a pick.
+	const cells = await sheet.locator('.seg').evaluateAll((segs) =>
+		segs.map((s) => ({
+			group: s.getAttribute('aria-label'),
+			box: s.getBoundingClientRect().height,
+			cells: [...s.children].map((c) => ({
+				text: c.textContent?.trim(),
+				h: c.getBoundingClientRect().height
+			}))
+		}))
+	);
+	const sides = cells.find((c) => c.group === 'Side margins')!;
+	expect(sides.cells.length).toBe(4);
+	const side = sides.cells[0].h;
+	// The design system's control height, not a strip.
+	expect(side).toBeGreaterThanOrEqual(44);
+	for (const seg of cells) {
+		expect(seg.cells.length, seg.group!).toBeGreaterThan(0);
+		for (const c of seg.cells) expect(c.h, `${seg.group}: ${c.text}`).toBeCloseTo(side, 0);
+	}
+	expect(cells.map((c) => c.group)).toEqual(
+		expect.arrayContaining(['Mode', 'Fit', 'Wide pages', 'Side margins', 'Zoom'])
+	);
+});
