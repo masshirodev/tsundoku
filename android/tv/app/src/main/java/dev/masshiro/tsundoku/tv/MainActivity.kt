@@ -1,7 +1,6 @@
 package dev.masshiro.tsundoku.tv
 
 import android.annotation.SuppressLint
-import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
@@ -22,6 +21,9 @@ import android.webkit.WebViewClient
 import android.widget.FrameLayout
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.core.content.pm.ShortcutInfoCompat
+import androidx.core.content.pm.ShortcutManagerCompat
+import androidx.core.graphics.drawable.IconCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -42,6 +44,7 @@ class MainActivity : ComponentActivity() {
 	private lateinit var webView: WebView
 	private lateinit var root: FrameLayout
 	private lateinit var bridge: PairingBridge
+	private lateinit var servers: Servers
 	private var customView: View? = null
 	private var customCallback: WebChromeClient.CustomViewCallback? = null
 	private val io = Executors.newSingleThreadExecutor()
@@ -81,13 +84,17 @@ class MainActivity : ComponentActivity() {
 		hideSystemUi()
 
 		configure(webView)
-		bridge = PairingBridge(this)
+		servers = Servers(PrefsKeyValue(this))
+		bridge = PairingBridge(this, servers)
 		webView.addJavascriptInterface(bridge, PairingBridge.NAME)
 		webView.webViewClient = client()
 		webView.webChromeClient = chrome()
 		onBackPressedDispatcher.addCallback(this, back)
 
-		val remembered = prefs().getString(KEY_ADDRESS, "").orEmpty()
+		// The last used server (c261): a TV paired before the list existed
+		// has its one address migrated into a list of one here (Servers.all).
+		val remembered = servers.lastUsed()?.origin.orEmpty()
+		serversChanged()
 		// A given address belongs to this launch. Android recreating the
 		// activity would otherwise hand it to a TV that already paired and
 		// send it back to pairing (c260).
@@ -98,8 +105,9 @@ class MainActivity : ComponentActivity() {
 			// 9A: nothing has been paired yet.
 			loadAsset()
 		} else {
-			// On launch a remembered address that answers opens the library;
-			// one that doesn't shows 9D, with what it tried. A launch handed an
+			// On launch the last used server that answers opens its library;
+			// one that doesn't shows 9D for it, with the others under it (S9),
+			// never silently another (c261). A launch handed an
 			// address while this probe is out owns the screen, so a late answer
 			// is dropped rather than replacing its 9B (c306).
 			val mine = attempts.begin()
@@ -211,7 +219,37 @@ class MainActivity : ComponentActivity() {
 				if (!request.isForMainFrame || request.url.scheme == "file") return
 				showLost(originOf(request.url))
 			}
+
+			/**
+			 * A server's own page has loaded (c261). Its library makes it the
+			 * one in use, which is what launch opens next; its 9E says its name,
+			 * and after an add, the app's own 9E (S8) takes over from it.
+			 */
+			override fun onPageFinished(view: WebView, url: String) {
+				val uri = Uri.parse(url)
+				if (uri.scheme != "http" && uri.scheme != "https") return
+				val origin = originOf(uri)
+				val known = servers.find(origin) ?: return
+				if (uri.path == "/pair/tv") {
+					view.evaluateJavascript(PAIRED_JS) { value -> pairedPage(known, value) }
+					return
+				}
+				if (!Back.passedOver(url) && servers.opened(origin)) serversChanged()
+			}
 		}
+
+	/**
+	 * 9E is on screen when its first line says PAIRED WITH. Its name is the
+	 * server's own; and when the TV already had another server and this one
+	 * has never been opened, this was an add, so S8 replaces it.
+	 */
+	private fun pairedPage(known: Servers.Server, value: String?) {
+		val line = runCatching { org.json.JSONArray("[" + (value ?: "null") + "]").optString(0, "") }.getOrDefault("")
+		val name = Forget.pairedName(line) ?: return
+		if (servers.named(known.origin, name)) serversChanged()
+		val wasAdd = known.opened == 0L && servers.all().size > 1
+		if (wasAdd) showAsset("#added=" + Uri.encode(known.origin))
+	}
 
 	private fun chrome() =
 		object : WebChromeClient() {
@@ -263,6 +301,55 @@ class MainActivity : ComponentActivity() {
 		webView.loadUrl(origin)
 	}
 
+	/** The bridge's open (SERVERS, 9D's others, S8's OPEN →): that server's library. */
+	fun openServer(origin: String) {
+		attempts.begin()
+		open(origin)
+	}
+
+	/** One of the app's own screens, from the bridge (S5, S7, 9A). */
+	fun showAsset(hash: String) {
+		attempts.begin()
+		loadAsset(hash)
+	}
+
+	/**
+	 * FORGET's cookies (Forget.kt says how): every cookie the jar sends that
+	 * origin, expired, and the jar written out, so the pairing is gone even if
+	 * the app is killed next.
+	 */
+	fun clearCookies(origin: String) {
+		val jar = CookieManager.getInstance()
+		for (line in Forget.expiring(jar.getCookie(origin), origin)) jar.setCookie(origin, line)
+		jar.flush()
+	}
+
+	/**
+	 * The list changed: the launcher's shortcuts follow it, one per server,
+	 * each the `tsundoku://connect?url=` link c260's filter takes (c287). A
+	 * launcher that shows no app shortcuts (an Android TV home screen may not)
+	 * simply never draws them; nothing else depends on it.
+	 */
+	fun serversChanged() {
+		runOnUiThread {
+			try {
+				val plan = Shortcuts.plan(servers.all(), minOf(Shortcuts.MAX, ShortcutManagerCompat.getMaxShortcutCountPerActivity(this).takeIf { it > 0 } ?: Shortcuts.MAX))
+				val list =
+					plan.map {
+						ShortcutInfoCompat.Builder(this, it.id)
+							.setShortLabel(it.label)
+							.setLongLabel(it.label)
+							.setIcon(IconCompat.createWithResource(this, R.mipmap.ic_launcher))
+							.setIntent(Intent(Intent.ACTION_VIEW, Uri.parse(it.link)).setPackage(packageName))
+							.build()
+					}
+				ShortcutManagerCompat.setDynamicShortcuts(this, list)
+			} catch (_: Exception) {
+				// A launcher that refuses shortcuts costs nothing but the shortcut.
+			}
+		}
+	}
+
 	private fun loadAsset(hash: String = "") {
 		webView.loadUrl("file:///android_asset/pair/index.html$hash")
 	}
@@ -302,8 +389,6 @@ class MainActivity : ComponentActivity() {
 		)
 	}
 
-	private fun prefs() = getSharedPreferences("pairing", Context.MODE_PRIVATE)
-
 	private fun originOf(url: Uri): String {
 		val port = if (url.port > 0) ":${url.port}" else ""
 		return "${url.scheme}://${url.host}$port"
@@ -317,10 +402,12 @@ class MainActivity : ComponentActivity() {
 	}
 
 	companion object {
-		private const val KEY_ADDRESS = "address"
-
 		/** The launch extra, and the deep link's query parameter (c260). */
 		private const val EXTRA_URL = "url"
+
+		/** 9E's first line, if the computer's /pair/tv is on 9E (Forget.pairedName reads it). */
+		private const val PAIRED_JS =
+			"(function(){var l=document.querySelector('main.paired .lab');return l?l.textContent:''})()"
 
 		/** c236's contract: true means the page took BACK. */
 		private const val BACK_JS =
