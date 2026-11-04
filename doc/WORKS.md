@@ -148,12 +148,14 @@ first, unfinished before finished, then the one opened most recently
 the manga's cover and on ALL it wears the part CONTINUE opens. Finding reads
 series, not tiles: search (`search`), the person and tag page (`tagPage`) and
 the Work feet the page asks for in one query (`workFeetFor`), so a part found
-there keeps its own tile, wearing its Work. Every card the card query builds
+there keeps its own tile, wearing its Work. The one Work tile finding draws is
+a Work whose own name is what was typed: `search` returns it in
+`SearchResult.works`, before its parts. Every card the card query builds
 (`toCard`) carries its Work as `work: { id, name, part, of }` for the
 `PART 2 · <WORK>` foot. `listSeries`, the per-series shelf list from before
 W1, has no caller in `src/` any more; it returns `LibraryCard[]` and is kept
-for the specs that read a shelf series by series (`editions-db`,
-`gallery-import-db`, `books-db`, `works-library-db`).
+for the twelve db specs that read a shelf series by series, `library-db` the
+most (`rg -l '\blistSeries\(' tests`).
 
 - **Counts count tiles** everywhere the sidebar, a tab or `44 OF 188` shows a
   number: `countTiles` / `countListed` / `listShelves` count units, and a Work
