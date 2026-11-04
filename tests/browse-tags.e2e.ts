@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import {
 	COLD,
 	GENRE,
+	SCHEMA,
 	SOURCE,
 	coldPreviewId,
 	previewId,
@@ -31,6 +32,8 @@ test.afterAll(async () => {
 });
 
 const fromBrowse = `/browse/${SOURCE.id}`;
+/** Where the source's Author text field sits, for its `f<i>` key (card c456). */
+const AUTHOR = SCHEMA.findIndex((f) => f.name === 'Author');
 const previewPath = `/downloads/source/${previewId}?from=${encodeURIComponent(fromBrowse)}`;
 const at = (page: Page) => new URL(page.url());
 const series = (id: number) => `${world.base}/series/${id}`;
@@ -232,7 +235,7 @@ test('a source page opened from a tag keeps its origin through every tab, search
 	expect(at(page).pathname + at(page).search).toBe(previewPath);
 });
 
-test('a genre the filters spell otherwise still matches; one they lack, and the author, are searches', async ({
+test('a genre the filters spell otherwise still matches; one they lack is a search, the author fills Author', async ({
 	page
 }) => {
 	world.reset();
@@ -254,14 +257,29 @@ test('a genre the filters spell otherwise still matches; one they lack, and the 
 	await page.getByRole('link', { name: 'Back to the preview' }).click();
 	await expect(page.getByRole('heading', { name: 'Preview Me Tagged' })).toBeVisible();
 
+	// The author fills the source's own Author field (card c456), not the title search.
 	await page.getByRole('link', { name: 'Aoi Hanamura', exact: true }).click();
-	await expect(page).toHaveURL(/q=Aoi\+Hanamura/);
+	await expect(page).toHaveURL(/tab=filtered/);
+	expect(at(page).searchParams.get(`f${AUTHOR}`)).toBe('Aoi Hanamura');
+	expect(at(page).searchParams.get('q')).toBeNull();
+	await expect(page.locator('nav[aria-label="Lists"] .tab.on')).toHaveText('FILTERED');
+	const asked = () =>
+		world
+			.calls()
+			.filter((c) => c.method === 'getSearchManga')
+			.map((c) => ({
+				search: c.search ?? '',
+				author: (c.filterList as { name: string; stateString?: string }[] | undefined)?.find(
+					(f) => f.name === 'Author'
+				)?.stateString
+			}));
+	await expect.poll(() => asked().some((a) => a.author === 'Aoi Hanamura')).toBe(true);
+	expect(asked().find((a) => a.author === 'Aoi Hanamura')!.search).toBe('');
+	// The artist: this source has no Artist field, so a search for the name.
+	await page.getByRole('link', { name: 'Back to the preview' }).click();
+	await page.getByRole('link', { name: 'Ren Kisaragi', exact: true }).click();
+	await expect(page).toHaveURL(/q=Ren\+Kisaragi/);
 	expect(at(page).searchParams.get('tab')).toBeNull();
-	await expect
-		.poll(() =>
-			world.calls().some((c) => c.method === 'getSearchManga' && c.search === 'Aoi Hanamura')
-		)
-		.toBe(true);
 });
 
 /**

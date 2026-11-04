@@ -130,9 +130,27 @@ five real schemas (`tests/tag-search.spec.ts`):
   checkbox the source has on would otherwise turn off. A tri-state wins over
   a checkbox of the same name, and the first in the schema's order over a
   second group naming it too. A select, a text or a sort never names a genre.
-- **Everything else is a search**, `q=<value>`: a person (author, artist,
-  circle: most sources search title text only, even where a text filter is
-  called Author), a value no filter names, and a source with no schema.
+- **A person** (author, artist, circle) **fills the source's own text filter
+  named for them** (card c456), on `tab=filtered` with the rest at the
+  source's defaults: the first top-level text field whose name, a trailing
+  bracketed note aside, folds to the namespace (mangahere's Author and Artist,
+  Weeb Central's "Author (Case-sensitive)"; `matchPersonFilter`). Most
+  sources' plain search reads titles only, so `q=` found nothing by an
+  author. A source with no such field (three of the five real schemas, and
+  every artist on Weeb Central) is still a search for the name.
+- **Everything else is a search**, `q=<value>`: a value no filter names, and
+  a source with no schema.
+- **One link a person** on the preview (`previewPeople`, `splitPeople`): a
+  source's author and artist strings are split as the importer splits them
+  into tags (`people`, `src/lib/import/mihon-plan.ts`: commas, `/`, `;` and
+  `&`), so each link is a tag its series carries once added. Each name is
+  its own link, searched on its own. A part that is only a generational
+  suffix ("Jr.", "Sr.", "II", "III", "IV") stays with the name before it, so
+  "Tanaka, Jr." is one person; the importer still makes two tags of it. A
+  name written surname-first ("Oda, Eiichiro") cannot be told from two
+  people, and is two links. A name on both lines is drawn once, as an
+  author. A library series' person tags were split by the same importer
+  when they were written, so its sheet needs nothing here.
 - **"No schema" is never a kind.** An Aniyomi source answers
   `filterSchemaAnime` and an LNReader plugin its filters, so every family is
   asked the same question; an empty schema, or a call that failed, is a
@@ -488,7 +506,9 @@ was set on is no longer found. Turning it off again is done inside reveal.
 - `tests/tag-search.spec.ts`: a genre in a tri-state group, one matching a
   checkbox, one with no match, an author, case and spacing, no schema, a
   default-on checkbox kept, and every option of every real fixture finding
-  itself; `backOrigin`'s refusals. `tests/browse-tags.e2e.ts` and
+  itself; each person's namespace against every real fixture's text fields,
+  written out, and the comma split (c456); `backOrigin`'s refusals and
+  `keepOrigin` (c453). `tests/browse-tags.e2e.ts` and
   `tests/tv-tags.e2e.ts`, on a world of their own (`tests/helpers/tag-world.ts`:
   a fake engine whose manga has an author and genres): a genre lands on
   FILTERED with its chip included and what the source was asked, a search for

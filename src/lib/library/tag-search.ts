@@ -1,5 +1,6 @@
 import { INCLUDE, writeFilters, type FilterField } from './browse-filters';
 import { isPersonNamespace } from './books';
+import { people } from '../import/mihon-plan';
 
 /**
  * A tag, searched for in a source (doc/BROWSE.md, "Arriving from a tag"; card
@@ -9,8 +10,11 @@ import { isPersonNamespace } from './books';
  * A source's page takes everything from its URL: `q` searches the source,
  * and on `tab=filtered` the URL is the whole filter form (browse-filters.ts).
  * So a genre the source's own filters name is that filter included, every
- * other choice at the source's default; anything else, and every person
- * (most sources search title text only), is a search for the value.
+ * other choice at the source's default. A person (an author, an artist, a
+ * circle) is the source's own text filter named for them, filled in, where
+ * the source has one (mangahere's Author and Artist, Weeb Central's "Author
+ * (Case-sensitive)"; card c456), because most sources' plain search reads
+ * titles only. Anything else is a search for the value.
  *
  * "No schema" is an empty one or a fetch that failed, never a kind: an
  * Aniyomi source answers filterSchemaAnime and an LNReader plugin its
@@ -62,15 +66,73 @@ function choose(schema: FilterField[], path: number[]): FilterField[] {
 }
 
 /**
+ * The text filter a person's namespace names, or null (card c456): the first
+ * top-level text field whose name, with a trailing note in brackets aside, is
+ * the namespace, folded as `matchFilter` folds ("Author (Case-sensitive)" is
+ * an author's, "AUTHOR" too). A text inside a group is never drawn or sent
+ * (browse-filters.ts), so it is never one. Only a person's namespace has one:
+ * a genre is never a text.
+ */
+export function matchPersonFilter(schema: FilterField[], namespace: string): number | null {
+	if (!isPersonNamespace(namespace)) return null;
+	const want = fold(namespace);
+	const i = schema.findIndex(
+		(f) => f.type === 'text' && fold(f.name.replace(/\s*\([^)]*\)\s*$/, '')) === want
+	);
+	return i < 0 ? null : i;
+}
+
+/**
  * The source page's parameters that find a tag: `tab=filtered` and the whole
- * form with the matching filter chosen, or `q=<value>` for a person, a value
- * the filters do not name, or a source with no schema.
+ * form with the matching filter chosen (a genre's tri-state or checkbox, a
+ * person's text filled with the name), or `q=<value>` for a person the
+ * filters have no field for, a value they do not name, or a source with no
+ * schema.
  */
 export function tagSearchParams(schema: FilterField[], tag: TagQuery): [string, string][] {
 	const value = tag.value.trim();
-	const path = isPersonNamespace(tag.namespace) ? null : matchFilter(schema, value);
+	if (isPersonNamespace(tag.namespace)) {
+		const at = value === '' ? null : matchPersonFilter(schema, tag.namespace);
+		if (at === null) return [['q', value]];
+		const filled = schema.map((f, i) => (i === at ? { ...f, state: value } : f));
+		return [['tab', 'filtered'], ...writeFilters(filled)];
+	}
+	const path = matchFilter(schema, value);
 	if (!path) return [['q', value]];
 	return [['tab', 'filtered'], ...writeFilters(choose(schema, path))];
+}
+
+/** Two people are one when only case and spacing tell them apart: the preview's lines compare by this. */
+export const personKey = (name: string) => fold(name);
+
+/** A name's own tail, never a name of its own: "Tanaka, Jr." is one person. */
+const SUFFIX = /^(jr|sr|ii|iii|iv)\.?$/i;
+
+/**
+ * A source's author or artist string as the people in it (card c456): "A, B"
+ * is two links, each searched on its own. The split is the importer's own
+ * (`people`, import/mihon-plan.ts: commas, `/`, `;` and ` & `, and no `_` or
+ * "unknown"), so a preview's names are the tags its series carries once
+ * added, and the person pages they open. On top of it, a name met twice is
+ * kept once (case and spacing aside), and a part that is only a generational
+ * suffix ("Jr.", "Sr.", "II", "III", "IV") stays with the name before it, so
+ * "Tanaka, Jr." is one person (the importer splits that one in two:
+ * doc/handoff-notes/browse.md, wave 20, Gaps). A name written surname-first
+ * ("Oda, Eiichiro") cannot be told from two people, and is two.
+ */
+export function splitPeople(raw: string | null | undefined): string[] {
+	const out: string[] = [];
+	for (const name of people(raw ?? '')) {
+		if (SUFFIX.test(name) && out.length > 0) out[out.length - 1] += `, ${name}`;
+		else out.push(name);
+	}
+	const seen = new Set<string>();
+	return out.filter((n) => {
+		const k = fold(n);
+		if (seen.has(k)) return false;
+		seen.add(k);
+		return true;
+	});
 }
 
 /**
@@ -185,3 +247,23 @@ export function readTagRoute(url: URL): { tag: TagQuery; from: string } | null {
 
 /** Each value once, in its first place, by exact string: "Action" and "action" both stay. */
 export const distinct = (values: readonly string[]): string[] => [...new Set(values)];
+
+/**
+ * A preview's author and artist lines (card c456): each string split into its
+ * people (`splitPeople`), the artist line only for names that are not authors
+ * already (an author who draws is one link, not two), and no line with nobody
+ * in it.
+ */
+export function previewPeople(
+	author: string | null | undefined,
+	artist: string | null | undefined
+): { ns: 'author' | 'artist'; names: string[] }[] {
+	const authors = splitPeople(author);
+	const known = new Set(authors.map(personKey));
+	const artists = splitPeople(artist).filter((n) => !known.has(personKey(n)));
+	const lines: { ns: 'author' | 'artist'; names: string[] }[] = [
+		{ ns: 'author', names: authors },
+		{ ns: 'artist', names: artists }
+	];
+	return lines.filter((l) => l.names.length > 0);
+}
