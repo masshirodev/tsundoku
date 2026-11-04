@@ -20,9 +20,13 @@ async function seriesUrl(page: Page) {
 
 async function controlled(page: Page) {
 	// The service worker has to be in charge before anything is cached. It
-	// caches every asset first, which under a full parallel run passes 15s.
+	// precaches the whole build first (about 1,400 files), from the preview
+	// every other test's context is also precaching from. Measured on
+	// 2026-11-03 (doc/handoff-notes/e2e.md): 10-16 s with six fresh contexts
+	// and nothing else at a load average of 25, and past 30 s in two of three
+	// whole loaded runs. The step is slow, not stuck, so it gets 90 s (c439).
 	await page.waitForFunction(() => navigator.serviceWorker?.controller !== null, null, {
-		timeout: 30000
+		timeout: 90_000
 	});
 }
 
@@ -30,7 +34,8 @@ test('opening a chapter keeps it and the next two on the tablet, and they read o
 	page,
 	context
 }) => {
-	test.setTimeout(120_000);
+	// 90 s for the worker, 60 s for three chapters' pages, and the reading.
+	test.setTimeout(180_000);
 	const series = await seriesUrl(page);
 	await controlled(page);
 	await page.getByRole('link', { name: /▶/ }).first().click();
