@@ -177,6 +177,67 @@ test('the phone scans it, is signed in, and the computer lists it with SIGN OUT'
 	await phone.close();
 });
 
+/**
+ * SETTINGS opened by a paired phone over Wi-Fi reads the codes and never makes
+ * one (c460, round 2): its load passes `renew` only at the computer
+ * (`settings/+page.server.ts`). Were it to renew, anyone with a paired phone
+ * could reopen SETTINGS to swap a TV code five wrong tries burned for a fresh
+ * one, and buy five more. A case of its own, with no computer page open:
+ * the panel's poll reruns the computer's load when a phone pairs, and that
+ * load does renew (doc/WIFI.md), which would replace the burn under the test.
+ */
+test('a paired phone opening SETTINGS over Wi-Fi leaves a burned TV code burned (c460)', async ({
+	browser,
+	playwright,
+	request
+}) => {
+	const onComputer = async () =>
+		(await (await request.get(`${local}/api/pair/tv`)).json()) as { code: string; state: string };
+	// NEW CODE, as the panel's button posts it: the last case's phone used the
+	// phone code, and a just-used one is kept by the computer's load.
+	const made = await request.post(`${local}/api/wifi`, {
+		data: { action: 'code' },
+		headers: { origin: local }
+	});
+	expect(made.ok()).toBe(true);
+	const { code: pairCode, phone: origin } = (await made.json()) as Wifi;
+	expect(pairCode?.state).toBe('live');
+
+	const phone = await browser.newPage({ storageState: { cookies: [], origins: [] } });
+	try {
+		await phone.goto(pairCode!.url);
+		await expect(phone).toHaveURL(/\/welcome$/);
+
+		// The TV's code is live, then burned from the Wi-Fi by five wrong tries.
+		const { code, state } = await onComputer();
+		expect(state).toBe('live');
+		const tv = await playwright.request.newContext({ baseURL: origin! });
+		try {
+			const wrong = code === '000000' ? '111111' : '000000';
+			for (let i = 0; i < 5; i += 1) {
+				const r = await tv.post('/pair/tv', {
+					form: { code: wrong },
+					headers: { origin: origin!, accept: 'text/html' },
+					maxRedirects: 0
+				});
+				expect(r.status()).toBe(303);
+			}
+		} finally {
+			await tv.dispose();
+		}
+		expect(await onComputer()).toEqual(expect.objectContaining({ code, state: 'burned' }));
+
+		// The paired phone opens SETTINGS at the Wi-Fi address: its load ran.
+		await phone.goto(`${origin}/settings#s-devices`);
+		await expect(phone.getByText('SET ON THE COMPUTER ONLY')).toBeVisible();
+
+		// The server, not the page: the same code, still burned.
+		expect(await onComputer()).toEqual(expect.objectContaining({ code, state: 'burned' }));
+	} finally {
+		await phone.close().catch(() => {});
+	}
+});
+
 test('over Wi-Fi, only its own address: another name is refused, and the computer’s switch too', async ({
 	request
 }) => {
