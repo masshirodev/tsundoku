@@ -145,3 +145,39 @@ test('OK brings the chrome as a focus row, and READING opens, changes the mode, 
 	await page.keyboard.press('Escape');
 	await expect(reading).toContainText('R→L');
 });
+
+test('a sheet on its way out keeps no keys: OK at once after BACK opens READING again (c445)', async ({
+	page
+}) => {
+	await open(page);
+	await page.keyboard.press('Enter');
+	await expect(page.locator('footer[aria-label="Reader controls"] .track')).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	const reading = page.locator('footer[aria-label="Reader controls"] .cell.grow');
+	await expect(reading).toBeFocused();
+	await page.keyboard.press('Enter');
+	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+	await expect(sheet).toBeVisible();
+	await sheet.evaluate((el) =>
+		Promise.all(el.getAnimations().map((a) => a.finished.catch(() => undefined)))
+	);
+	// BACK, then OK on READING inside the sheet's 180 ms exit. An inert sheet
+	// that kept the scope took the OK for itself, and READING stayed shut.
+	await page.evaluate(() => {
+		const key = (k: string) => {
+			const init = { key: k, bubbles: true, cancelable: true };
+			document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', init));
+			document.activeElement?.dispatchEvent(new KeyboardEvent('keyup', init));
+		};
+		key('Escape');
+		return new Promise<void>((r) =>
+			requestAnimationFrame(() => requestAnimationFrame(() => (key('Enter'), r())))
+		);
+	});
+	await expect(sheet).toHaveCount(1);
+	await expect(sheet).toBeVisible();
+	await expect(sheet.getByRole('radio', { name: 'R→L' })).toBeFocused();
+	await page.keyboard.press('Escape');
+	await expect(sheet).toHaveCount(0);
+	await expect(reading).toBeFocused();
+});
