@@ -7,7 +7,10 @@ import { test, expect, readerReady } from './fixtures';
  *
  * Keyboard only, on the projects the suite already has. The reader leg writes
  * reading progress, so it skips off tablet-portrait; it owns Hoshi no Umi no
- * Tabibito, which no flow file uses.
+ * Tabibito's progress. Two flow files touch other fields of that series on the
+ * same database, each putting them back: library-flow rates it 10 and clears
+ * it, and books-flow selects it for a group that is refused. Neither reads or
+ * writes its progress.
  */
 
 const TARGET = 'Hoshi no Umi no Tabibito';

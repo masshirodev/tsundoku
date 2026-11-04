@@ -17,6 +17,11 @@ const sameOrigin = () => new URL(test.info().project.use.baseURL!).origin;
  * Chainsaw Man (end of series), and restores what it changes.
  */
 test.describe.configure({ mode: 'serial' });
+// "a page that did not load" aborts a page image with page.route, and the
+// service worker answers page images itself once it controls the page, from
+// its cache or its own fetch, past the route (src/service-worker.ts;
+// doc/TESTING.md, "Load"). Nothing here reads offline; offline-flow owns that (c477).
+test.use({ serviceWorkers: 'block' });
 
 async function seriesId(page: Page, title: string) {
 	await page.goto('/?sort=title');
