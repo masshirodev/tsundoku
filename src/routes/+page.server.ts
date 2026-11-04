@@ -33,6 +33,7 @@ import {
 } from '$lib/server/books';
 import { setPersonFavourite, tagPage } from '$lib/server/people';
 import { libraryRoot, startScan } from '$lib/server/import';
+import { lastImport } from '$lib/server/import/log';
 import { firstReadExtras, readSources } from '$lib/server/start';
 import { refreshCovers } from '$lib/server/covers';
 import { refreshMany } from '$lib/server/refresh';
@@ -177,6 +178,8 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		// FOLLOWED is a filter while something the viewer can see is followed (doc/DOWNLOADING.md).
 		following: anyFollowed(reveal),
 		libraryRoot: libraryRoot(),
+		// IMPORT LOG under MORE says when the last backup came in (c438).
+		lastImportAt: lastImport(reveal)?.at ?? null,
 		cont: continueReading(reveal),
 		// A Work that ended (TAKE OUT of the second-to-last, UNGROUP) has no
 		// screen of its own any more: the library carries its band and its UNDO.

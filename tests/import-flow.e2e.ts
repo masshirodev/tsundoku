@@ -207,3 +207,20 @@ test('a second backup of the same library says so, and merges', async ({ page })
 	await expect(nums.locator('.v').nth(0)).toHaveText('0');
 	await expect(nums.locator('.v').nth(1)).toHaveText('3');
 });
+
+test('the doors: SETTINGS › 05 and MORE name the last import, the log opens from both', async ({
+	page
+}) => {
+	await page.goto('/settings');
+	const r = page.locator('.row', { has: page.locator('.label', { hasText: /^IMPORT A BACKUP$/ }) });
+	await expect(r).toContainText(/LAST: MIHON BACKUP · \d+ [A-Z]{3} · 3 SERIES/);
+	await r.getByRole('link', { name: 'IMPORT LOG →' }).click();
+	await expect(page).toHaveURL(/\/import\/log$/);
+	await page.goto('/');
+	await page.getByRole('button', { name: 'MORE' }).click();
+	const sheet = page.getByRole('dialog', { name: 'More' });
+	const log = sheet.getByRole('link', { name: /IMPORT LOG →/ });
+	await expect(log).toContainText(/LAST \d+ [A-Z]{3}/);
+	await log.click();
+	await expect(page).toHaveURL(/\/import\/log$/);
+});

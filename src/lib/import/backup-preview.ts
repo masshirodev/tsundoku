@@ -23,6 +23,13 @@ export const APP_NAMES: Record<BackupApp, string> = {
 	lnreader: 'LNREADER'
 };
 
+/**
+ * What a backup's job is called on the band and in the log. A job with this
+ * label counts series in `bytes_done`/`bytes_total`, not bytes (import/index.ts,
+ * `Source.counts`).
+ */
+export const BACKUP_LABEL = 'MIHON BACKUP';
+
 /** A source the file names: an extension provides it, a repository lists it, or neither. */
 export type MissingSource = {
 	id: string;

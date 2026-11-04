@@ -367,8 +367,18 @@
 						<button type="submit">{m.nav_rescan()}</button>
 						{#if rescanNote}<div class="rescan-note" role="status">{rescanNote}</div>{/if}
 					</form>
-					<!-- Not built yet; see doc/LIBRARY.md, "What it does not do yet". -->
-					<span aria-disabled="true">{m.name_import_log()}</span>
+					<!-- IMPORT LOG (c438; Import-Doors E): live, counting a running
+					     import or scan in accent. -->
+					<a
+						class="with-n run"
+						href={resolve('/import/log')}
+						aria-current={page.url.pathname === '/import/log' ? 'page' : undefined}
+						>{m.name_import_log()}<span class="n"
+							>{data.scan && data.scan.finishedAt === null
+								? `${data.scan.bytesTotal > 0 ? Math.floor((data.scan.bytesDone / data.scan.bytesTotal) * 100) : 0}%`
+								: ''}</span
+						></a
+					>
 					<a
 						href={resolve('/settings')}
 						aria-current={page.url.pathname === '/settings' ? 'page' : undefined}
@@ -570,6 +580,13 @@
 		font-weight: 500;
 	}
 	.side-foot a.start[aria-current='page'] .n {
+		color: var(--text-inverse);
+	}
+	.side-foot a.run .n {
+		color: var(--accent);
+		font-weight: 500;
+	}
+	.side-foot a.run[aria-current='page'] .n {
 		color: var(--text-inverse);
 	}
 	.side-foot a .n.stale {

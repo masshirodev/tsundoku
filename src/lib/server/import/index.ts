@@ -44,6 +44,13 @@ export type Source = {
 	label?: string;
 	/** The job opened for it: IMPORT A BACKUP ties its row to the job (c438). */
 	started?(db: Database.Database, jobId: number): void;
+	/**
+	 * What the job's progress counts: bytes read (a scan), or series written (a
+	 * backup, whose bytes are read in one go before anything is written). The
+	 * job's `bytes_done`/`bytes_total` then hold series, and its label says so
+	 * (MIHON BACKUP): the band reads `162 OF 384 SERIES` (c438).
+	 */
+	counts?: 'series';
 	/** After each series is written: IMPORT A BACKUP keeps which series it brought, and counts. */
 	written?(db: Database.Database, series: PlannedSeries, created: boolean): void;
 	/**
@@ -442,6 +449,10 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 					flush();
 				}
 			}, now);
+			if (source.counts === 'series') {
+				p.bytesTotal += plan.series.length;
+				flush();
+			}
 			const rootId = rootOf(db, source);
 			const out: SourceSummary = {
 				name: source.device ? `${source.name} · ${source.device}` : source.name,
@@ -462,6 +473,7 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 				if (r.created) out.seriesCreated += 1;
 				else out.seriesUpdated += 1;
 				source.written?.(db, series, r.created);
+				if (source.counts === 'series') p.bytesDone += 1;
 				out.entriesAdded += r.entriesAdded;
 				out.filesAttached += r.filesAttached;
 				// The band counts arrivals ("N SERIES SO FAR") and is shown while

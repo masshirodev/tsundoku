@@ -12,6 +12,7 @@ import { SERVICES, type Service } from '$lib/library/tracking';
 import { downloadsBackend } from '$lib/server/engine/run';
 import { browseLanguages } from '$lib/server/engine/browse';
 import { listings } from '$lib/server/engine/extensions';
+import { lastImport } from '$lib/server/import/log';
 import {
 	clearModes,
 	isLibraryValue,
@@ -77,6 +78,11 @@ export const load: PageServerLoad = async ({ cookies, url, locals }) => {
 		values: libraryValues(),
 		counts: overrideCounts(reveal),
 		folded,
+		// SETTINGS > 05's IMPORT A BACKUP row says when the last one came in (c438).
+		lastImport: (() => {
+			const e = lastImport(reveal);
+			return e ? { at: e.at, app: e.app, series: e.counts.fresh + e.counts.merged } : null;
+		})(),
 		// What N SERIES DIFFER → opens (2A).
 		lists: {
 			audio: overrides('audio', reveal),

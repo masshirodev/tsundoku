@@ -918,7 +918,38 @@
 {/snippet}
 
 {#snippet account(row: RowDef)}
-	{#if row.id === 'ranobe'}
+	{#if row.id === 'import'}
+		{@const last = data.lastImport}
+		{@const lastLine = last
+			? `LAST: ${last.app.toUpperCase()} BACKUP · ${new Date(last.at)
+					.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+					.toUpperCase()} · ${count(last.series)} SERIES`
+			: 'NO IMPORT YET'}
+		<!-- Import-Doors C; on a TV, D: no button, and nothing to focus. -->
+		<div class="row acct import" class:dim={off}>
+			<div class="label">IMPORT A BACKUP</div>
+			<div class="ctl">
+				<div class="acct-body">
+					<div class="who">
+						<div class="name">
+							<span class="not-tv">Mihon, Aniyomi or LNReader</span><span class="tv-only"
+								>From the computer or a phone</span
+							>
+						</div>
+						<div class="meta">{lastLine}</div>
+					</div>
+					<a class="cell acc not-tv" href={resolve('/import')}>CHOOSE A FILE →</a>
+				</div>
+				<div class="meta not-tv">{row.meta}</div>
+			</div>
+			{#if !phone.current}<div class="scope">
+					<span class="sa quiet">ALL DEVICES</span><a
+						class="sa not-tv"
+						href={resolve('/import/log')}>IMPORT LOG →</a
+					>
+				</div>{/if}
+		</div>
+	{:else if row.id === 'ranobe'}
 		<div class="row acct ranobe" class:dim={off}>
 			<div class="label">RANOBE</div>
 			<div class="ctl">
@@ -2090,6 +2121,30 @@
 	/* Three lines, so taller than a sign-in's row (Ranobe 3a: 84px against 68px). */
 	.row.acct.ranobe {
 		min-height: 84px;
+	}
+	/* IMPORT A BACKUP (c438): the row's body above its meta line, as Import-Doors C draws it. */
+	.row.acct.import .ctl {
+		display: flex;
+		flex-direction: column;
+	}
+	.row.acct.import .ctl > .meta {
+		padding: 10px 14px 12px;
+		border-top: var(--hairline);
+	}
+	.row.acct.import .scope a {
+		text-decoration: none;
+	}
+	.tv-only {
+		display: none;
+	}
+	/* The TV never imports (Import-Doors D): the row says so, with no button and nothing to focus. */
+	@media (pointer: none) and (min-width: 900px) {
+		.not-tv {
+			display: none;
+		}
+		.tv-only {
+			display: inline;
+		}
 	}
 	.acct-body {
 		flex: 1;

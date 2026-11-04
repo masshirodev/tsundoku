@@ -43,6 +43,7 @@
 	import { leave } from '$lib/motion';
 	import NewShelfSheet from './NewShelfSheet.svelte';
 	import MoreSheet from './MoreSheet.svelte';
+	import { BACKUP_LABEL } from '$lib/import/backup-preview';
 	import {
 		activeCount,
 		filterParams,
@@ -1183,12 +1184,23 @@
 		open={moreOpen}
 		onclose={() => (moreOpen = false)}
 		queued={data.queue?.queued ?? null}
+		lastImport={data.lastImportAt}
 		start={data.start && !data.start.finished
 			? { done: data.start.done + data.start.skipped, total: data.start.steps.length }
 			: null}
 	/>
 
-	{#if data.scan && scanning}
+	{#if data.scan && scanning && data.scan.sourceLabel === BACKUP_LABEL}
+		<!-- A backup importing (c438; Import-Progress, "on the library, meanwhile"):
+		     the scan's band, named, counting series rather than bytes. -->
+		<Banner
+			kind="progress"
+			title="IMPORTING · {BACKUP_LABEL}"
+			detail="{count(data.scan.bytesDone)} OF {count(data.scan.bytesTotal)} SERIES"
+			progress={data.scan.bytesTotal > 0 ? data.scan.bytesDone / data.scan.bytesTotal : 0}
+			meta="{count(data.scan.seriesFound)} SO FAR ON NEW"
+		/>
+	{:else if data.scan && scanning}
 		<Banner
 			kind="progress"
 			title="SCANNING ON WORKSTATION"

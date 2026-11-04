@@ -19,6 +19,7 @@ import { libraryRoot, runQueued, type Source } from './index.ts';
 import { readBackupLenient, type MihonBackup } from '../../import/mihon-backup.ts';
 import { planMihon } from '../../import/mihon-plan.ts';
 import {
+	BACKUP_LABEL,
 	previewBackup,
 	type BackupApp,
 	type BackupPreview,
@@ -458,7 +459,7 @@ export function startBackupImport(
 	const installedAtStart = libraryFacts('mihon', id, db).installed;
 	const source: Source = {
 		name: 'Mihon',
-		label: 'MIHON BACKUP',
+		label: BACKUP_LABEL,
 		device: null,
 		// The root a `Mihon/` folder's backup writes to, whether the folder
 		// exists or not: one Mihon root, so a later scan of a backup dropped
@@ -466,7 +467,9 @@ export function startBackupImport(
 		root: join(library, 'Mihon'),
 		hidden: false,
 		markMissing: false,
-		bytes: async () => row.fileBytes,
+		// Progress counts series written, not bytes: the file is read whole first.
+		counts: 'series',
+		bytes: async () => 0,
 		plan: async (_progress, now) => {
 			const plan = planMihon(backup, [], now, leaveOut);
 			db.prepare(`UPDATE imports SET series_total = ? WHERE id = ?`).run(plan.series.length, id);
