@@ -1,5 +1,6 @@
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -223,4 +224,102 @@ test('the doors: SETTINGS › 05 and MORE name the last import, the log opens fr
 	await expect(log).toContainText(/LAST \d+ [A-Z]{3}/);
 	await log.click();
 	await expect(page).toHaveURL(/\/import\/log$/);
+});
+
+/**
+ * The release serves adapter-node through scripts/serve.ts, which refuses a
+ * body over BODY_SIZE_LIMIT (512 KB unless set) with a bare 413, where `vite
+ * preview` above enforces nothing alike. So the upload is proved here through
+ * that server itself, on the build this run made: one 600 KB body is refused,
+ * and a 4 MB backup in the page's 256 KB pieces arrives whole.
+ */
+test('a multi-megabyte backup arrives through the release’s server, in pieces under its limit', async () => {
+	test.setTimeout(90_000);
+	const port = await new Promise<number>((resolve, reject) => {
+		const probe = createServer();
+		probe.once('error', reject);
+		probe.listen(0, '127.0.0.1', () => {
+			const { port } = probe.address() as AddressInfo;
+			probe.close(() => resolve(port));
+		});
+	});
+	const home = join(scratch, 'serve');
+	mkdirSync(join(home, 'library'), { recursive: true });
+	const token = 'import-flow-serve-token';
+	const release = spawn(process.execPath, ['--experimental-strip-types', 'scripts/serve.ts'], {
+		env: {
+			...process.env,
+			TSUNDOKU_SERVE: 'local',
+			TSUNDOKU_PROJECT_ENV: 'off',
+			TSUNDOKU_SNAPSHOT: 'off',
+			PORT: String(port),
+			TSUNDOKU_TOKEN: token,
+			DATABASE_PATH: join(home, 'db.sqlite'),
+			TSUNDOKU_HOME: join(home, 'home'),
+			LIBRARY_ROOT: join(home, 'library'),
+			IMPORT_DIR: join(home, 'imports'),
+			TSUNDOKU_ANILIST: 'off',
+			TSUNDOKU_IMPORT_COVERS: '0',
+			NODE_NO_WARNINGS: '1'
+		},
+		stdio: 'ignore'
+	});
+	try {
+		const url = `http://localhost:${port}`;
+		let up = false;
+		for (let i = 0; i < 60 && !up; i++) {
+			try {
+				up = (await fetch(`${url}/`, { redirect: 'manual' })).status > 0;
+			} catch {
+				await new Promise((r) => setTimeout(r, 500));
+			}
+		}
+		expect(up).toBe(true);
+		const cookie = `tsundoku_session=${createHash('sha256').update(`tsundoku/v1:${token}`).digest('hex')}`;
+		const send = (body: Uint8Array, q: Record<string, string>) =>
+			fetch(`${url}/import/upload?${new URLSearchParams(q)}`, {
+				method: 'POST',
+				headers: { cookie, 'content-type': 'application/octet-stream' },
+				body
+			});
+		// One body past adapter-node's default: what a plain upload would meet.
+		const big = new Uint8Array(600 * 1024);
+		const refused = await send(big, { name: 'big.bin', size: String(big.length), offset: '0' });
+		expect(refused.status).toBe(413);
+
+		const file = new Uint8Array(
+			readFileSync(backupFile('app.mihon_2026-11-04_09-00.tachibk', [], 9000))
+		);
+		expect(file.length).toBeGreaterThan(3 * 1024 * 1024);
+		let at = 0;
+		let tok = '';
+		let pieces = 0;
+		let answer: { state: string; id?: number; token?: string; written?: number } = {
+			state: 'more'
+		};
+		while (answer.state === 'more') {
+			const res = await send(file.subarray(at, at + 256 * 1024), {
+				name: 'app.mihon_2026-11-04_09-00.tachibk',
+				size: String(file.length),
+				offset: String(at),
+				from: 'desktop',
+				token: tok
+			});
+			expect(res.status).toBe(200);
+			answer = await res.json();
+			pieces += 1;
+			if (answer.state === 'more') {
+				tok = answer.token!;
+				at = answer.written!;
+			}
+		}
+		expect(answer.state).toBe('read');
+		expect(pieces).toBe(Math.ceil(file.length / (256 * 1024)));
+		const kept = readFileSync(
+			join(home, 'imports', `${answer.id}-app.mihon_2026-11-04_09-00.tachibk`)
+		);
+		expect(kept.length).toBe(file.length);
+	} finally {
+		release.kill();
+	}
 });
