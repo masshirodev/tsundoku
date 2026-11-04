@@ -99,7 +99,34 @@ links, MOVE and TAKE OUT) and in [`WORKS.md`](WORKS.md)'s flow.
   PASTE A LINK; and where its cover comes from ([`LINKS.md`](LINKS.md)). An
   anime's LINK row is a line a season, each with its own FIND or EDIT, and
   Ranobe's one line under them ([`LINKS.md`](LINKS.md), "The series
-  screen").
+  screen"). A one-season anime has no seasons' column, so its LINK and
+  TRACKING rows each hold AniList's block and Ranobe's line in a column of
+  their own, the line under the block at every width (c422: as a sibling in
+  the row it took half the width, and LINK's words went one a line).
+- **TAGS** groups a series' tags by namespace (genre, circle, artist, …; a
+  bare tag under `tag`), four lines at most. **Every value is a link** (card
+  c313): to the library's person page for a person and its tag page for the
+  rest (`/?tag=<namespace>:<value>`, or the bare value for a tag with none).
+  On a series whose origin key names a source BROWSE can open (installed,
+  listed with this reveal, loaded, and the engine there:
+  `tag-source.server.ts`), a tap opens a sheet of two rows instead, the
+  owner's choice (2026-11-02): **IN THE LIBRARY**, the same page, and **IN
+  <SOURCE>**, that source's page finding it -- its genre's filter included,
+  or a search for the value ([`BROWSE.md`](BROWSE.md), "Arriving from a
+  tag"), whose ← comes back to the series. A series with no origin, a source
+  not installed or failed, and a Hentoid, folder, EPUB or import key have no
+  sheet: the tap goes straight to the library, as before. The key decides,
+  never the kind: a doujin from a Mihon source's gallery asks too. The
+  screen asks the source nothing: IN <SOURCE> is a link to
+  `/series/<id>/tag-search?ns=&value=&from=`, a server route that waits
+  for the source's filters (or `TAG_SCHEMA_WAIT_MS`) and then answers 303,
+  so the row is never a guess made before they came, and the sheet stays
+  open while it waits. A hidden series, with reveal off, has no sheet and
+  its route is not found. Without script the tag's link is the library's.
+  A value appears as often as it is stored: a bare `x` and a `tag:x` are
+  two values in the `tag` group, each its own link. On a TV the pad reaches the
+  values (↓ to the row meets its EDIT, ← into them), OK opens the sheet on
+  its first row, and BACK closes it onto the tag.
 - **SOURCE sits after LINK and COVER**, before TAGS and ABOUT, on every series
   whose chapters or episodes come from a Mihon or Aniyomi source: MOVE → to
   another source, and for 30 days after a move WAS … · UNTIL … with MOVE BACK

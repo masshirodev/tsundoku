@@ -13,6 +13,7 @@ import {
 	type Shelf
 } from '$lib/server/engine/browse';
 import { changedCount, readFilters, type FilterField } from '$lib/library/browse-filters';
+import { backOrigin } from '$lib/library/tag-search';
 import type { Settled } from '$lib/library/settled';
 
 /**
@@ -23,8 +24,9 @@ import type { Settled } from '$lib/library/settled';
  *
  * The URL is the page: `tab` (popular, latest, filtered), `pages` (how many
  * are loaded, what MORE and back return to), `q` (a search in this source,
- * answered as a filtered list), the panel's `f*` choices, and `panel` /
- * `find` for the two things script would otherwise toggle.
+ * answered as a filtered list), the panel's `f*` choices, `panel` /
+ * `find` for the two things script would otherwise toggle, and `from`, the
+ * preview or series a tag was tapped on, for the back cell (c313).
  */
 
 type Answer = {
@@ -86,6 +88,8 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		q,
 		panel: url.searchParams.get('panel') === '1',
 		find: url.searchParams.get('find') === '1',
+		// Arrived from a tag (c313): ← returns to where it was tapped, never anywhere else.
+		back: backOrigin(url.searchParams.get('from')),
 		// Without script a streamed promise never resolves, so the page waits for it instead.
 		answer: hasScript(cookies) ? answer : await answer
 	};

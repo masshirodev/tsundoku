@@ -5,7 +5,8 @@ import { hasScript, isRevealed } from '$lib/server/prefs';
 import { seriesPage } from '$lib/server/series';
 import { searchSource } from '$lib/server/downloads';
 import { downloadsBackend } from '$lib/server/engine/run';
-import { isAnimeSource, parseSourceMangaId, sourceMangaId } from '$lib/server/engine/backend';
+import { parseSourceMangaId } from '$lib/server/engine/backend';
+import { pastedSourceId } from './paste.server';
 import {
 	applyMove,
 	candidateOf,
@@ -53,32 +54,6 @@ async function groups(
 	}));
 	if (script) return all;
 	return Promise.all(all.map(async (g) => ({ ...g, hits: await g.hits })));
-}
-
-/** A pasted address on a source's site, matched to the installed source of the series' kind that serves it. */
-function pastedSourceId(url: string, kind: 'manga' | 'anime'): string | null {
-	let host: string;
-	try {
-		host = new URL(url).hostname.replace(/^www\./, '').toLowerCase();
-	} catch {
-		return null;
-	}
-	const rows = getDb()
-		.prepare(
-			`SELECT s.id, s.base_url FROM engine_sources s JOIN engine_extensions e ON e.pkg = s.pkg
-			WHERE e.failed = ''`
-		)
-		.all() as { id: string; base_url: string }[];
-	const hit = rows.find((r) => {
-		if (isAnimeSource(r.id) !== (kind === 'anime')) return false;
-		try {
-			const base = new URL(r.base_url).hostname.replace(/^www\./, '').toLowerCase();
-			return host === base || host.endsWith(`.${base}`) || base.endsWith(`.${host}`);
-		} catch {
-			return false;
-		}
-	});
-	return hit ? sourceMangaId(hit.id, url) : null;
 }
 
 export const load: PageServerLoad = async ({ params, cookies, url }) => {

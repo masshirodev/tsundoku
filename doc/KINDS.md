@@ -11,7 +11,8 @@ under the **Kinds** label (the table at the end).
 kinds, the database CHECK test and the ratchet that holds the count. **K4
 done, 2026-11-03** (card c304, wave 17 on `agent/k17-kinds` from `fb2bd3a7`):
 MOVE's two modules ask `movable`, `medium` and `unit.long` (ratchet 152 →
-121). **K3 done, 2026-11-03** (card c303, the same branch): downloads,
+121), and in wave 18 (`agent/k18-series` from `e9aa7e3a`) the move route and
+the MOVED band do too (ratchet 93 → 89). **K3 done, 2026-11-03** (card c303, the same branch): downloads,
 BROWSE, the extensions' tabs, the source preview, covers and books ask
 `KEY_PREFIX`/`keyFamily`, `SOURCE_KINDS`, `medium` and the new `grouping`
 (ratchet 121 → 93). K2 and K5 below are not built. The rule at the end ("No
@@ -201,8 +202,9 @@ What each fact says today, and the lines it was read from:
   `sheetMeta` reads `unit.done` for READ/WATCHED. `unit.long` is the singular
   spelling (`CHAPTER`, `VOLUME`, `EPISODE`). MOVE reads it since K4 for its
   map kind's noun (`moveState`'s `25 EPISODES LISTED`, `moveSummary`,
-  `movedDetail`, MOVE BACK's line); K2/K3 will use it where the rest of the
-  code spells a unit out.
+  `movedDetail`, MOVE BACK's line, and since wave 18 the series screen's
+  MOVED band, through `moveKindOf` so a novel's says CHAPTER as it always
+  did); K2/K3 will use it where the rest of the code spells a unit out.
 - **Catalogue** is the AniList type: `server/catalogue.ts` asks
   `anilistType(kind)` in the lookup by id and in the search, and
   `library/catalogue.ts` builds the entry's URL and reads a pasted link on the
@@ -375,9 +377,12 @@ comparison left in `src/lib/server/move.ts` (27) and `src/lib/library/move.ts`
 (4). After K3 (the same wave) it prints **93**: 28 more, from
 `server/books.ts` (9), `server/covers.ts` (4), the extensions page (4 + 2),
 `engine/browse.ts` (3), the source preview (3), `engine/backend.ts` (1) and
-BROWSE's source page and its settings (1 + 1). The move route's three (`src/routes/series/[id]/move/`) stay in the count
-for K2, which owns that route next. `BASELINE` follows the latest slice; the
-handoff notes (`doc/handoff-notes/kinds.md`) record each one's number.
+BROWSE's source page and its settings (1 + 1). After K4's last part (wave 18) it prints **89**: the move route's three (`src/routes/series/[id]/move/`:
+SEARCH's source word, the comparison's kind and PASTE A LINK's source) and
+the series screen's MOVED band, now `moveKindOf`, `movesVideo`,
+`sourceMedium` and `kindFacts(moveKindOf(kind)).unit.long`
+(`series/[id]/move-words.ts`, `move/paste.server.ts`). `BASELINE` follows
+the latest slice; the handoff notes (`doc/handoff-notes/kinds.md`) record each one's number.
 The number is smaller than the audit's rough ~340 because this counts only a
 `kind` compared against a kind name: not the `isAnime…`-style helpers, not a
 download's or a device's `kind`, and not a comparison between two variables.
@@ -433,9 +438,9 @@ for K1.
 | Slice | Card | What                                                                                                                                                                                                                                                                                                |
 | ----- | ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | K1    | c301 | **done, 2026-11-03** — the registry, one list of kinds, the DB CHECK test, the no-new-checks ratchet (152); labels' CH/VOL/EP and READ/WATCHED and both catalogues' AniList type read it                                                                                                            |
-| K2    | c302 | the series screen, library cards, labels, readers and the player ask the registry                                                                                                                                                                                                                   |
+| K2    | c302 | the series screen, library cards, labels, readers and the player ask the registry (the move route and the MOVED band are K4's, done in wave 18)                                                                                                                                                     |
 | K3    | c303 | **done, 2026-11-03** — downloads pick a downloader by the key's family (`KEY_PREFIX`, `keyFamily`; no family is its own case), BROWSE and the extensions' tabs by source family (`SOURCE_KINDS`), the preview by `medium`, covers by `medium` and `grouping`, books by `grouping`; ratchet 121 → 93 |
-| K4    | c304 | **done, 2026-11-03** — MOVE asks the registry, both modules: `movable` (`isMovable`), the map kind by `medium` (`moveKindOf`, `movesVideo`), the sources by `sourceMedium`, nouns by `unit.long`; ratchet 152 → 121. The move route's three checks are K2's (c302)                                  |
+| K4    | c304 | **done, 2026-11-03** — MOVE asks the registry, both modules: `movable` (`isMovable`), the map kind by `medium` (`moveKindOf`, `movesVideo`), the sources by `sourceMedium`, nouns by `unit.long`; ratchet 152 → 121; the move route's three checks and the MOVED band in wave 18, 93 → 89           |
 | K5    | c305 | the rest (settings, filters, home, layout, history, people) and the ratchet down to the allow-list                                                                                                                                                                                                  |
 
 K1 shipped `src/lib/library/kinds.ts`; `Kind`, `KINDS`, `FILTER_KINDS`,

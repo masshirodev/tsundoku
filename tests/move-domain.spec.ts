@@ -375,3 +375,30 @@ describe('titles and numbers', () => {
 		expect(atOf(57, 50)).toBe(8);
 	});
 });
+
+describe('the words MOVE prints for a kind (K4, c304)', () => {
+	/**
+	 * The route's three words used to be spelled from the kind's name. Each
+	 * now asks the registry (series/[id]/move-words.ts), and must print what
+	 * the old comparison printed for every kind there is, not the two that
+	 * move: a novel's own unit is VOLUME, and the band said CHAPTER.
+	 */
+	it('says what the old comparisons said, for all five kinds', async () => {
+		const { KINDS, moveKindOf } = await import('$lib/library/kinds');
+		const { comparedKind, movedUnit, searchedSources } =
+			await import('../src/routes/series/[id]/move-words');
+		expect([...KINDS].sort()).toEqual(['anime', 'doujin', 'manga', 'manhwa', 'novel']);
+		for (const kind of KINDS) {
+			expect(searchedSources(kind), kind).toBe(kind === 'anime' ? 'anime' : 'manga');
+			expect(movedUnit(kind), kind).toBe(kind === 'anime' ? 'EPISODE' : 'CHAPTER');
+			for (const move of ['manga', 'anime'] as const)
+				expect(comparedKind(move, kind), `${move} ${kind}`).toBe(
+					move === 'anime' ? 'ANIME' : kind.toUpperCase()
+				);
+			// What the comparison is handed on the route: the series' own map kind.
+			expect(comparedKind(moveKindOf(kind), kind), kind).toBe(
+				kind === 'anime' ? 'ANIME' : kind.toUpperCase()
+			);
+		}
+	});
+});

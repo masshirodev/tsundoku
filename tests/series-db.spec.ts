@@ -213,3 +213,99 @@ describe('the reading log', () => {
 		]);
 	});
 });
+
+describe('the source a series’ tags search (c313)', () => {
+	/**
+	 * `tagSourceOf` (series/[id]/tag-source.server.ts) decides each door by
+	 * what can be asked -- does the key name a source, does BROWSE list it with
+	 * this reveal, did it load, is the engine there -- never by kind. Every
+	 * family's key, and each way to have no source, with the series really
+	 * keyed so.
+	 */
+	it('names the source for each family BROWSE can open, and none for every other door', async () => {
+		const { tagSourceOf } = await import('../src/routes/series/[id]/tag-source.server');
+		const { forgetSourceUse } = await import('$lib/server/library-sources');
+		const db = getDb();
+		const root = (
+			db.prepare(`SELECT id FROM roots WHERE hidden = 0 LIMIT 1`).get() as { id: number }
+		).id;
+		const ext = db.prepare(
+			`INSERT INTO engine_extensions (pkg, name, kind, version_code, version_name, lib, handle, installed_at, updated_at, failed)
+			VALUES (?, ?, ?, 1, '1', '1', ?, 0, 0, ?)`
+		);
+		const src = db.prepare(
+			`INSERT INTO engine_sources (id, pkg, name, lang, base_url) VALUES (?, ?, ?, 'en', '')`
+		);
+		ext.run('t.manga', 'Comics', 'manga', 't.manga'.padEnd(64, '0'), '');
+		src.run('7100', 't.manga', 'Comics Here');
+		ext.run('t.anime', 'Shows', 'anime', 't.anime'.padEnd(64, '0'), '');
+		src.run('7200', 't.anime', 'Shows Here');
+		ext.run('t.broken', 'Broken', 'manga', 't.broken'.padEnd(64, '0'), 'protobuf');
+		src.run('7300', 't.broken', 'Broken Here');
+		ext.run('t.hidden', 'Hidden', 'manga', 't.hidden'.padEnd(64, '0'), '');
+		src.run('7400', 't.hidden', 'Hidden Here');
+		db.prepare(
+			`INSERT INTO novel_plugins (id, name, site, lang, version, hash, installed_at, updated_at, failed)
+			VALUES ('tagshelf', 'Tag Shelf', 'https://shelf.example/', 'en', '1.0.0', ?, 0, 0, '')`
+		).run('f'.repeat(64));
+		const add = (title: string, kind: string, key: string | null, hidden = 0) =>
+			Number(
+				db
+					.prepare(
+						`INSERT INTO series (root_id, title, kind, source, hue, added_at, indexed_at, origin_key, in_library, hidden)
+						VALUES (?, ?, ?, 'mihon', 0, 0, 0, ?, 1, ?)`
+					)
+					.run(root, title, kind, key, hidden).lastInsertRowid
+			);
+		const ids = {
+			manga: add('T Manga', 'manga', 'mihon:7100:/a'),
+			gallery: add('T Gallery', 'doujin', 'mihon:7100:/g'),
+			anime: add('T Anime', 'anime', 'aniyomi:7200:/s'),
+			novel: add('T Novel', 'novel', 'lnreader:tagshelf:/n'),
+			none: add('T None', 'manga', null),
+			missing: add('T Missing', 'manga', 'mihon:7999:/x'),
+			broken: add('T Broken', 'manga', 'mihon:7300:/b'),
+			hentoid: add('T Hentoid', 'doujin', 'hentoid:nhentai:/g/9'),
+			folder: add('T Folder', 'manga', 'mihon-dir:/somewhere'),
+			epub: add('T Epub', 'novel', 'epub:/books/a.epub'),
+			// Two of its three series hidden: the source is mostly hidden.
+			hidden: add('T Hidden', 'manga', 'mihon:7400:/h1', 1),
+			// Hidden itself, on a source that is not: the series is the door
+			// (its `tag-search` route asks this and nothing else for access).
+			hiddenSeries: add('T Hidden Series', 'manga', 'mihon:7100:/z', 1)
+		};
+		add('T Hidden 2', 'manga', 'mihon:7400:/h2', 1);
+		add('T Hidden 3', 'manga', 'mihon:7400:/h3');
+		forgetSourceUse();
+
+		const before = { url: process.env.ENGINE_URL, token: process.env.ENGINE_TOKEN };
+		process.env.ENGINE_URL = 'http://127.0.0.1:1';
+		process.env.ENGINE_TOKEN = 'spec';
+		try {
+			const name = (id: number, reveal = false) => tagSourceOf(id, reveal)?.name ?? null;
+			expect(name(ids.manga)).toBe('Comics Here');
+			expect(name(ids.gallery)).toBe('Comics Here');
+			expect(name(ids.anime)).toBe('Shows Here');
+			expect(name(ids.novel)).toBe('Tag Shelf');
+			expect(tagSourceOf(ids.novel, false)?.id).toBe('ln:tagshelf');
+			for (const door of ['none', 'missing', 'broken', 'hentoid', 'folder', 'epub'] as const)
+				expect(name(ids[door], true), door).toBeNull();
+			// A mostly-hidden source is BROWSE's only with reveal on.
+			expect(name(ids.hidden, false)).toBeNull();
+			expect(name(ids.hidden, true)).toBe('Hidden Here');
+			expect(name(ids.hiddenSeries, false)).toBeNull();
+			expect(name(ids.hiddenSeries, true)).toBe('Comics Here');
+			// A series that is not there names nothing.
+			expect(name(999_999, true)).toBeNull();
+			// No engine, no BROWSE: no sheet anywhere.
+			delete process.env.ENGINE_URL;
+			expect(name(ids.manga, true)).toBeNull();
+			expect(name(ids.novel, true)).toBeNull();
+		} finally {
+			if (before.url === undefined) delete process.env.ENGINE_URL;
+			else process.env.ENGINE_URL = before.url;
+			if (before.token === undefined) delete process.env.ENGINE_TOKEN;
+			else process.env.ENGINE_TOKEN = before.token;
+		}
+	});
+});
