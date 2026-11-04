@@ -1,6 +1,7 @@
 import { expect, test } from './fixtures';
 import { makeLogin, writeLogin } from '../src/lib/server/login.ts';
 import { FRIEND_HOME, FRIEND_PORT } from './friend-world';
+import { hydrated } from './helpers/hydration';
 
 /**
  * Reading on a phone over home Wi-Fi (doc/WIFI.md; card c188), on the friend
@@ -23,6 +24,9 @@ test.beforeAll(() => {
 
 test('WI-FI is off until switched on, and says who it lets in', async ({ page }) => {
 	await page.goto('/settings#s-devices');
+	// ON, OFF and NEW CODE are clicked: a click before hydration lands on
+	// server-rendered markup with no handler (seen under load, wave 21).
+	await hydrated(page);
 	const seg = page.getByRole('group', { name: 'Other devices on this Wi-Fi' });
 	await expect(seg.getByRole('button', { name: 'OFF' })).toHaveAttribute('aria-pressed', 'true');
 	await expect(page.getByText(/ANYONE ON THE SAME WI-FI REACHES THE SIGN-IN PAGE/)).toBeVisible();
@@ -32,6 +36,7 @@ test('WI-FI is off until switched on, and says who it lets in', async ({ page })
 
 test('ON shows a code, the address in text, and what typing it does', async ({ page, request }) => {
 	await page.goto('/settings#s-devices');
+	await hydrated(page);
 	await page
 		.getByRole('group', { name: 'Other devices on this Wi-Fi' })
 		.getByRole('button', { name: 'ON' })
@@ -77,6 +82,7 @@ test('a TV code burned on /pair/tv stays BURNED on the open panel until NEW CODE
 	const onComputer = async () =>
 		(await (await request.get(`${local}/api/pair/tv`)).json()) as { code: string; state: string };
 	await page.goto('/settings#s-devices');
+	await hydrated(page);
 	await expect(page.getByLabel('Pairing code for a TV')).toBeVisible();
 	const { code, state } = await onComputer();
 	expect(state).toBe('live');
@@ -128,6 +134,7 @@ test('the phone scans it, is signed in, and the computer lists it with SIGN OUT'
 	request
 }) => {
 	await page.goto('/settings#s-devices');
+	await hydrated(page);
 	const { code } = await wifi(request);
 	const phone = await browser.newPage({ storageState: { cookies: [], origins: [] } });
 	await phone.goto(code!.url);
@@ -187,6 +194,7 @@ test('over Wi-Fi, only its own address: another name is refused, and the compute
 test('OFF stops listening on the Wi-Fi; the computer goes on', async ({ page, request }) => {
 	const { phone } = await wifi(request);
 	await page.goto('/settings#s-devices');
+	await hydrated(page);
 	await page
 		.getByRole('group', { name: 'Other devices on this Wi-Fi' })
 		.getByRole('button', { name: 'OFF' })
