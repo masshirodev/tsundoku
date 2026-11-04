@@ -72,7 +72,8 @@ async function bridge(
 				probe: (o: string) => {
 					calls.probes.push(o);
 					const a = answers[o];
-					if (a)
+					// A negative delay holds the answer: the test sends it itself.
+					if (a && a.after >= 0)
 						setTimeout(
 							() =>
 								(
@@ -161,8 +162,9 @@ test('S2: the one in use first, focus on the first not in use, each probed as it
 			{ origin: HOME, name: 'ZEN-HOME', tvName: 'Living room', opened: now },
 			{ origin: ZEN, name: 'ZEN', tvName: "Masshiro's", opened: now - 3 * DAY }
 		],
-		// Studio answers before Masshiro's: each lands on its own row.
-		{ [ZEN]: { ok: true, after: 700 }, [STUDIO]: { ok: false, after: 100 } }
+		// Studio answers before Masshiro's, which the test answers itself once
+		// it has seen CHECKING: each lands on its own row.
+		{ [ZEN]: { ok: true, after: -1 }, [STUDIO]: { ok: false, after: 100 } }
 	);
 	const sheet = await openMore(page);
 	await expect(sheet.locator('[data-more-servers]')).toHaveText(
@@ -181,9 +183,17 @@ test('S2: the one in use first, focus on the first not in use, each probed as it
 	await expect(rows.nth(0)).not.toBeFocused();
 	await expect(rows.nth(1)).toBeFocused();
 	expect((await calls(page)).probes.sort()).toEqual([HOME, STUDIO, ZEN].sort());
-	await expect(rows.nth(1).locator('.st')).toHaveText('CHECKING');
 	await expect(rows.nth(2).locator('.st')).toHaveText('NO ANSWER');
 	await expect(rows.nth(2).locator('.g')).toHaveText('○');
+	await expect(rows.nth(1).locator('.st')).toHaveText('CHECKING');
+	await page.evaluate(
+		(o) =>
+			(window as unknown as { tsundokuProbe?: (o: string, ok: boolean) => void }).tsundokuProbe?.(
+				o,
+				true
+			),
+		ZEN
+	);
 	await expect(rows.nth(1).locator('.st')).toHaveText('ANSWERS');
 	await expect(rows.nth(1).locator('.g')).toHaveText('●');
 	await expect(rows.nth(0).locator('.st')).toHaveText('IN USE');
@@ -245,6 +255,9 @@ test("S3 and S4: MENU opens a server's options, FORGET is a confirmation the rem
 		],
 		{ [STUDIO]: { ok: false, after: 50 } }
 	);
+	// FORGET's 0.6 s is a timer: the test holds the page's clock while the
+	// early keys arrive, so a loaded machine cannot let it run out first.
+	await page.clock.install();
 	const sheet = await openMore(page);
 	await sheet.locator('[data-more-servers]').focus();
 	await page.keyboard.press('Enter');
@@ -293,6 +306,7 @@ test("S3 and S4: MENU opens a server's options, FORGET is a confirmation the rem
 
 	// FORGET: its own panel, KEEP IT focused, FORGET out of reach for 0.6 s.
 	await sheet.locator('[data-act="forget"]').focus();
+	await page.clock.pauseAt(new Date(Date.now() + 60_000));
 	await page.keyboard.press('Enter');
 	await expect(sheet.locator('.p-head')).toHaveText('FORGET 192.168.1.61:42143?');
 	await expect(sheet.locator('.prose p')).toHaveText(
@@ -306,6 +320,10 @@ test("S3 and S4: MENU opens a server's options, FORGET is a confirmation the rem
 	await page.keyboard.press('Enter');
 	await expect(sheet.locator('[data-act="keep"]')).toBeFocused();
 	expect((await calls(page)).forgot).toEqual([]);
+	await expect(sheet.locator('[data-act="confirm"]')).toBeDisabled();
+	// 0.6 s on: FORGET can be reached.
+	await page.clock.runFor(700);
+	await page.clock.resume();
 	await expect(sheet.locator('[data-act="confirm"]')).toBeEnabled();
 	await page.keyboard.press('ArrowDown');
 	await expect(sheet.locator('[data-act="confirm"]')).toBeFocused();
