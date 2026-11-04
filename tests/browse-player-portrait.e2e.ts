@@ -36,7 +36,7 @@ async function openPlayer(page: Page) {
 	return controls;
 }
 
-/** The visible line's box: the track's own box carries c296's transparent left border. */
+/** The visible line's box (on a TV the track's own box carries c296's transparent left border; c315 keeps it there). */
 async function lineBox(page: Page) {
 	return page.locator('.pscrub .track').evaluate((el) => {
 		const r = el.getBoundingClientRect();

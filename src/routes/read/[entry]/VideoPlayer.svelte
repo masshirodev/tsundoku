@@ -929,9 +929,10 @@
 	let scrub = $state<HTMLElement | null>(null);
 	let hoverAt = $state<number | null>(null);
 	/**
-	 * The line's box, not the element's: the track carries a transparent left
-	 * border so ↑ from ▶❚❚ can reach it (c296), and a click in that border
-	 * still means the beginning of the timeline.
+	 * The line's box, not the element's: on a TV the track carries a
+	 * transparent left border so ↑ from ▶❚❚ can reach it (c296), and the line
+	 * starts after it. Nothing points at a TV, so no click lands in that border
+	 * (c315); everywhere else `clientLeft` is 0.
 	 */
 	function scrubBox(el: HTMLElement): { left: number; width: number } {
 		const box = el.getBoundingClientRect();
@@ -3759,20 +3760,7 @@
 		position: relative;
 		flex: 1;
 		height: 4px;
-		/*
-		 * The bar's cells start at the screen's edge while the line starts after
-		 * the time, so ▶❚❚ (49–125) did not overlap the line (126–826): ↑ from it
-		 * took the far-away top bar's ←, which does overlap, because an
-		 * overlapping candidate wins over a nearer one out of line (c296). The
-		 * transparent border reaches the element's own box under that first
-		 * cell without moving the line: the fill is clipped to the padding box
-		 * and its children are positioned from there, so the bar looks the same
-		 * and ↑ from any cell in the row lands on it.
-		 */
-		margin-left: -20px;
-		border-left: 20px solid transparent;
 		background: var(--line-1);
-		background-clip: padding-box;
 		touch-action: none;
 		cursor: pointer;
 	}
@@ -3898,6 +3886,25 @@
 		}
 		.cluster {
 			display: none;
+		}
+		/*
+		 * The bar's cells start at the screen's edge while the line starts after
+		 * the time, so ▶❚❚ (49–125) did not overlap the line (126–826): ↑ from it
+		 * took the far-away top bar's ←, which does overlap, because an
+		 * overlapping candidate wins over a nearer one out of line (c296). The
+		 * transparent border reaches the element's own box under that first
+		 * cell without moving the line: the fill is clipped to the padding box
+		 * and its children are positioned from there, so the bar looks the same
+		 * and ↑ from any cell in the row lands on it.
+		 *
+		 * Only here, where nothing points (c315): set on every bar, the border
+		 * was a 20px strip between the time and the line that a click or a tap
+		 * turned into a seek to 0:00, where before it was inert.
+		 */
+		.track {
+			margin-left: -20px;
+			border-left: 20px solid transparent;
+			background-clip: padding-box;
 		}
 		.cells .pause,
 		.cells .cell.tv {
