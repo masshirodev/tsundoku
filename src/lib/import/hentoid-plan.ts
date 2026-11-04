@@ -1,5 +1,5 @@
-import type { PlannedEntry, PlannedSeries, PlannedTag } from './plan';
-import type { Rating } from '$lib/library/types';
+import type { PlannedEntry, PlannedSeries, PlannedTag } from './plan.ts';
+import type { Rating } from '../library/types.ts';
 
 /**
  * Hentoid books as tsundoku series (doc/IMPORT-HENTOID.md). Pure: a book's

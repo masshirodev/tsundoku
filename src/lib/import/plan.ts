@@ -1,5 +1,5 @@
-import type { Direction } from '$lib/library/series';
-import type { Kind, Rating } from '$lib/library/types';
+import type { Direction } from '../library/series.ts';
+import type { Kind, Rating } from '../library/types.ts';
 
 /**
  * What an importer will write, shared by every importer and by the one

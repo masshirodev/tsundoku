@@ -1,14 +1,14 @@
-import type { Episode } from '$lib/library/anime';
-import { pictureRoute } from './anime/pictures';
-import { getDb } from './db';
-import { editionToBase } from '$lib/library/editions';
-import { libraryWhere, VISIBLE_SQL } from './visibility';
-import { seriesDetail } from './library';
-import { scanlatorsOf } from './duplicates';
-import { getSetting, isSettingKey } from './settings';
-import { sourceOfKey } from '$lib/library/downloads';
-import type { Kind } from '$lib/library/types';
-import type { Direction, SeriesEntry, SeriesPage, SeriesTag } from '$lib/library/series';
+import type { Episode } from '../library/anime.ts';
+import { pictureRoute } from './anime/pictures.ts';
+import { getDb } from './db.ts';
+import { editionToBase } from '../library/editions.ts';
+import { libraryWhere, VISIBLE_SQL } from './visibility.ts';
+import { seriesDetail } from './library.ts';
+import { scanlatorsOf } from './duplicates.ts';
+import { getSetting, isSettingKey } from './settings.ts';
+import { sourceOfKey } from '../library/downloads.ts';
+import type { Kind } from '../library/types.ts';
+import type { Direction, SeriesEntry, SeriesPage, SeriesTag } from '../library/series.ts';
 
 /**
  * Everything the series screen reads, and the writes only it makes. Reads

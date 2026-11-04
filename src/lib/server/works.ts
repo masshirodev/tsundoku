@@ -48,7 +48,7 @@ import {
 import { effectiveDirection, type Direction } from '../library/series.ts';
 import { kindDirection } from './series.ts';
 import { readsOnline } from './pages/online.ts';
-import type { Kind, Rating } from '$lib/library/types';
+import type { Kind, Rating } from '../library/types.ts';
 
 export class WorkError extends Error {}
 

@@ -1,4 +1,4 @@
-import type { Rating } from './types';
+import type { Rating } from './types.ts';
 
 /**
  * Ratings out of 10 (card c67; doc/SERIES.md, "Rating"): five steps with

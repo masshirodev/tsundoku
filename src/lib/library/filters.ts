@@ -1,5 +1,5 @@
-import { KINDS } from './kinds';
-import { DEFAULT_MIN, minLabel, RATING_MAX } from './rating';
+import { KINDS } from './kinds.ts';
+import { DEFAULT_MIN, minLabel, RATING_MAX } from './rating.ts';
 
 /**
  * The library's FILTER panel (Library Filters turn 3, card c68;

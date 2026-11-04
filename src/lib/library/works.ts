@@ -7,11 +7,11 @@
  * tests/works.spec.ts, not in markup.
  */
 
-import { sharedStart, titleWords } from './books';
-import { count, kindLabel, unitLabel } from './labels';
-import type { Direction } from './series';
-import { ago } from './tracking';
-import type { ContinueItem, Kind, Rating, SeriesCard } from './types';
+import { sharedStart, titleWords } from './books.ts';
+import { count, kindLabel, unitLabel } from './labels.ts';
+import type { Direction } from './series.ts';
+import { ago } from './tracking.ts';
+import type { ContinueItem, Kind, Rating, SeriesCard } from './types.ts';
 
 /** How a Work's parts are ordered: the owner's hand, when each was added, or its title. */
 export type WorkOrder = 'hand' | 'added' | 'title';

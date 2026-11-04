@@ -9,7 +9,7 @@
  * shows the same art, or one side alone.
  */
 
-import type { PageRow } from './dupes';
+import type { PageRow } from './dupes.ts';
 
 /** A `language:` tag's value, as the switch names it. */
 const CODES: Record<string, string> = {

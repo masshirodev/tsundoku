@@ -1,12 +1,12 @@
-import { watchingAt } from '$lib/library/anime';
-import { getDb } from './db';
+import { watchingAt } from '../library/anime.ts';
+import { getDb } from './db.ts';
 import { m } from '../paraglide/messages.js';
 import { HIDDEN_SQL, IN_LIBRARY_SQL, VISIBLE_SQL } from './visibility.ts';
 import { getSetting } from './settings.ts';
-import { langCode, openingEdition } from '$lib/library/editions';
-import { likePattern } from '$lib/library/search';
-import { dayStart, FILTER_KINDS, type FilterKind, type Filters } from '$lib/library/filters';
-import { naturalDir, type Dir, type Sort } from '$lib/library/labels';
+import { langCode, openingEdition } from '../library/editions.ts';
+import { likePattern } from '../library/search.ts';
+import { dayStart, FILTER_KINDS, type FilterKind, type Filters } from '../library/filters.ts';
+import { naturalDir, type Dir, type Sort } from '../library/labels.ts';
 import {
 	continuePart,
 	facePart,
@@ -15,7 +15,7 @@ import {
 	type ContinueLine,
 	type LibraryCard,
 	type WorkTile
-} from '$lib/library/works';
+} from '../library/works.ts';
 import { partsOfWorks, workRecords } from './works.ts';
 import type {
 	Kind,
@@ -25,7 +25,7 @@ import type {
 	SeriesDetail,
 	Shelf,
 	TagHit
-} from '$lib/library/types';
+} from '../library/types.ts';
 
 /**
  * Every read here takes `reveal`. With it off, a hidden series -- hidden

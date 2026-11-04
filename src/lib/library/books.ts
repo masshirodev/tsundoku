@@ -3,7 +3,7 @@
  * (doc/BOOKS.md). Tested in tests/books-domain.spec.ts.
  */
 
-import type { Kind, Rating } from './types';
+import type { Kind, Rating } from './types.ts';
 
 /** Namespaces that name a person, and so get a person page with a FAV. */
 export const PERSON_NAMESPACES = ['artist', 'circle', 'author'] as const;

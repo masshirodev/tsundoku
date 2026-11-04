@@ -1,8 +1,8 @@
-import type { ComicInfo } from './comicinfo';
-import type { PlannedEntry, PlannedSeries, PlannedTag } from './plan';
-import type { MihonBackup, MihonChapter, MihonManga } from './mihon-backup';
+import type { ComicInfo } from './comicinfo.ts';
+import type { PlannedEntry, PlannedSeries, PlannedTag } from './plan.ts';
+import type { MihonBackup, MihonChapter, MihonManga } from './mihon-backup.ts';
 import { defaultDirection, type Direction } from '../library/series.ts';
-import type { Kind, Rating } from '$lib/library/types';
+import type { Kind, Rating } from '../library/types.ts';
 
 /**
  * What a Mihon import will write, worked out without touching the database
@@ -34,7 +34,7 @@ export type DownloadedSeries = {
 
 // ---- what gets written: see plan.ts --------------------------------------------
 
-export type { PlannedEntry, PlannedSeries, PlannedTag } from './plan';
+export type { PlannedEntry, PlannedSeries, PlannedTag } from './plan.ts';
 
 // ---- categories ---------------------------------------------------------------
 

@@ -1,5 +1,5 @@
 import type { Episode } from './anime.ts';
-import type { Kind, Rating, SeriesCard } from './types';
+import type { Kind, Rating, SeriesCard } from './types.ts';
 
 /**
  * The series screen's rules, as pure functions. Everything the screen derives

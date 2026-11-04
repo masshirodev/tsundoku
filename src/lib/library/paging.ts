@@ -1,4 +1,4 @@
-import { filterParams, type Filters } from './filters';
+import { filterParams, type Filters } from './filters.ts';
 /**
  * The library grid loads a page of cards at a time as it scrolls
  * (doc/LIBRARY.md, "Pages"). About five screens of tiles on the tablet: the

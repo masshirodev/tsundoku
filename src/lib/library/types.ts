@@ -4,7 +4,7 @@
  * every rule here is testable as a pure function.
  */
 
-import type { Kind } from './kinds';
+import type { Kind } from './kinds.ts';
 
 /**
  * `Kind` and `KINDS` live in the registry, which is keyed by the kind itself
@@ -13,7 +13,7 @@ import type { Kind } from './kinds';
  * this file's.
  */
 export type { Kind };
-export { KINDS } from './kinds';
+export { KINDS } from './kinds.ts';
 
 /**
  * 0-10, where 0 is unrated and 1-10 is the owner's judgement: five steps with

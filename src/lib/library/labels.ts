@@ -1,5 +1,5 @@
-import { kindFacts } from './kinds';
-import type { ContinueItem, Kind, SeriesCard } from './types';
+import { kindFacts } from './kinds.ts';
+import type { ContinueItem, Kind, SeriesCard } from './types.ts';
 
 /**
  * Copy for the library screen. The voice is a catalogue card: uppercase mono
