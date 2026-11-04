@@ -61,7 +61,11 @@ answers the same question: what after this ([`WORKS.md`](WORKS.md), W5;
 ETERNAL FORCE`, and two 52px ← → cells (44px on a phone) that open the
 neighbouring parts, dimmed at the ends. A tap on the name opens `/work/N`; a
 long press, MENU or a held OK opens the row's sheet -- OPEN, MOVE ↑ ↓, and TAKE
-OUT with a band and UNDO. A series in no Work has no row.
+OUT with a band and UNDO. That UNDO refuses rather than overwrite when the
+library has moved on (the series is in another Work now, the Work has ended,
+or a newer one has its id), and the refusal is the screen's band with NOTHING
+CHANGED, never an error page (c468, as c390 did for TAKE OUT, THEN HIDE). A
+series in no Work has no row.
 
 - **Where the run is.** The line says `NEXT · <part>` while the run is here, and
   `YOU'RE IN <part>` once the owner is already in another part it has begun (the
@@ -123,10 +127,18 @@ links, MOVE and TAKE OUT) and in [`WORKS.md`](WORKS.md)'s flow.
   `/series/<id>/tag-search?ns=&value=&from=`, a server route that waits
   for the source's filters (or `TAG_SCHEMA_WAIT_MS`) and then answers 303,
   so the row is never a guess made before they came, and the sheet stays
-  open while it waits. A hidden series, with reveal off, has no sheet and
+  open while it waits. That wait is up to 20 s on a cold source, and a TV's
+  WebView draws no loading bar, so the chosen row says it: `aria-busy` and a
+  second line, `FINDING <SOURCE>'S FILTERS…`, until the page goes; it stays
+  the focused stop, readable (c452). BACK restores the screen from the
+  bfcache, where nothing else runs, so `pageshow` clears the mark, and so
+  does another tag. A hidden series, with reveal off, has no sheet and
   its route is not found. Without script the tag's link is the library's.
   A value appears as often as it is stored: a bare `x` and a `tag:x` are
-  two values in the `tag` group, each its own link. On a TV the pad reaches the
+  two values in the `tag` group, each its own link to its own library tag
+  (`?tag=x` and `?tag=tag%3Ax`). Each link is built from its stored tag, in
+  `tagGroups`' order, never looked up by its value: until c451 both found the
+  first and linked to `?tag=x`. On a TV the pad reaches the
   values (↓ to the row meets its EDIT, ← into them), OK opens the sheet on
   its first row, and BACK closes it onto the tag.
 - **SOURCE sits after LISTS and COVER**, before TAGS and ABOUT, on every series

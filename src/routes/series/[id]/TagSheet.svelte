@@ -27,7 +27,22 @@
 		sourceHref: string;
 		onclose: () => void;
 	} = $props();
+
+	/**
+	 * IN <SOURCE> chosen, while the browser waits on `tag-search` (c452): up to
+	 * TAG_SCHEMA_WAIT_MS on a cold source, with nothing else on screen saying
+	 * so (a TV's WebView has no loading bar). The row says it is busy until the
+	 * page goes; BACK restores this page from the bfcache, where nothing else
+	 * runs, so `pageshow` clears it, and so does another tag.
+	 */
+	let finding = $state(false);
+	$effect(() => {
+		void tag;
+		finding = false;
+	});
 </script>
+
+<svelte:window onpageshow={() => (finding = false)} />
 
 <Sheet {open} {onclose} label="Look for {tag?.value ?? 'this tag'}">
 	<div class="head">
@@ -46,8 +61,19 @@
 		     303s there. The sheet stays while the browser waits (up to TAG_SCHEMA_WAIT_MS on a
 		     cold source), so the row just chosen stays in view instead of the screen falling
 		     back to the TAGS row as if nothing had been tapped. -->
-		<a class="row" href={sourceHref} data-sveltekit-reload>
-			<span class="t">IN {source.toUpperCase()}</span>
+		<a
+			class="row"
+			class:finding
+			href={sourceHref}
+			data-sveltekit-reload
+			aria-busy={finding ? 'true' : undefined}
+			onclick={() => (finding = true)}
+		>
+			<span class="t"
+				>IN {source.toUpperCase()}{#if finding}<span class="wait"
+						>FINDING {source.toUpperCase()}'S FILTERS…</span
+					>{/if}</span
+			>
 			<span class="go" aria-hidden="true">→</span>
 		</a>
 	</nav>
@@ -118,5 +144,15 @@
 		justify-content: center;
 		border-left: var(--hairline);
 		font: 500 16px var(--font-mono);
+	}
+	/* The row chosen, while its source's filters are asked (c452). */
+	.row.finding .t {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+	.wait {
+		font: 400 12px var(--font-mono);
+		color: var(--text-2);
 	}
 </style>

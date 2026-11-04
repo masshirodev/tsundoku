@@ -4,6 +4,7 @@ import { hasScript, isRevealed } from '$lib/server/prefs';
 import type { Settled } from '$lib/library/settled';
 import { downloadsBackend } from '$lib/server/engine/run';
 import { configured, searchSource, searchSources, type SearchHit } from '$lib/server/downloads';
+import { withLanguages } from '$lib/server/move';
 
 /**
  * Searching the sources (Download States 1e, state 6; doc/DOWNLOADING.md).
@@ -18,14 +19,13 @@ import { configured, searchSource, searchSources, type SearchHit } from '$lib/se
  * the same, doc/BROWSE.md, "Waiting, and without script").
  */
 async function groups(
-	asked: { id: string; name: string }[],
+	asked: { id: string; name: string; lang: string }[],
 	q: string,
 	reveal: boolean,
 	script: boolean
 ) {
 	const all = asked.map((s) => ({
-		id: s.id,
-		name: s.name,
+		...s,
 		hits: searchSource(s.id, q, reveal).then(
 			(value): Settled<SearchHit[]> => ({ ok: true, value }),
 			(e): Settled<SearchHit[]> => ({ ok: false, error: (e as Error).message })
@@ -40,9 +40,9 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 	const reveal = isRevealed(cookies);
 	const q = (url.searchParams.get('q') ?? '').trim();
 	const only = url.searchParams.get('source');
-	let sources: { id: string; name: string }[];
+	let sources: { id: string; name: string; lang: string }[];
 	try {
-		sources = await searchSources(reveal);
+		sources = withLanguages(await searchSources(reveal));
 	} catch {
 		return { q, only, down: true, groups: [], engine: false };
 	}
@@ -54,7 +54,7 @@ export const load: PageServerLoad = async ({ url, cookies }) => {
 		q,
 		only,
 		down: false,
-		all: sources.map((s) => ({ id: s.id, name: s.name })),
+		all: sources.map((s) => ({ id: s.id, name: s.name, lang: s.lang })),
 		groups: q ? await groups(asked, q, reveal, hasScript(cookies)) : [],
 		// Only the engine can say a site's browser check is being passed (c143).
 		engine: downloadsBackend() === 'engine'

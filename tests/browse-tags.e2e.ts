@@ -1,10 +1,12 @@
 import { test, expect, type Page } from '@playwright/test';
 import {
 	COLD,
+	COLDER,
 	GENRE,
 	SCHEMA,
 	SOURCE,
 	coldPreviewId,
+	colderPreviewId,
 	previewId,
 	repeatId,
 	startTagWorld,
@@ -46,6 +48,37 @@ async function open(page: Page, url: string) {
 	await page.goto(url);
 	await page.waitForLoadState('networkidle');
 }
+/**
+ * What the page shows one second into a wait on `tag-search` (c452), as the
+ * page itself saw it: once a link starts a navigation, Playwright waits for
+ * it before it reads the page again, so the old page writes down its busy
+ * element, its words and whether it is focused, in sessionStorage, which the
+ * landing (same tab, same origin) reads back.
+ */
+async function recordWait(page: Page): Promise<void> {
+	await page.evaluate(() => {
+		sessionStorage.removeItem('c452');
+		setTimeout(() => {
+			const busy = document.querySelector<HTMLElement>('[aria-busy="true"]');
+			sessionStorage.setItem(
+				'c452',
+				JSON.stringify({
+					text: busy?.innerText.replace(/\s+/g, ' ').trim() ?? null,
+					focused: !!busy && document.activeElement === busy,
+					line:
+						document.querySelector('.tag-wait')?.textContent?.replace(/\s+/g, ' ').trim() ?? null
+				})
+			);
+		}, 1000);
+	});
+}
+const recorded = async (page: Page) =>
+	JSON.parse((await page.evaluate(() => sessionStorage.getItem('c452'))) ?? 'null') as {
+		text: string | null;
+		focused: boolean;
+		line: string | null;
+	} | null;
+
 const tagsRow = (page: Page) =>
 	page.locator('.row', { has: page.locator('.label', { hasText: /^TAGS$/ }) });
 
@@ -56,7 +89,7 @@ test('with the engine down, both screens paint, and a tag lands on a search for 
 	world.schema('down');
 	await open(page, `${world.base}${previewPath}`);
 	await expect(page.getByRole('heading', { name: 'Preview Me Tagged' })).toBeVisible();
-	await page.getByRole('link', { name: 'romance', exact: true }).click();
+	await page.getByRole('link', { name: 'Romance', exact: true }).click();
 	await expect(page).toHaveURL(new RegExp(`/browse/${SOURCE.id}\\?`));
 	expect(at(page).searchParams.get('q')).toBe('Romance');
 	expect(at(page).searchParams.get('tab')).toBeNull();
@@ -97,10 +130,10 @@ test('with the filters slow on a cold cache, the series paints at once and IN <S
 	expect(world.calls().filter((c) => c.method === 'filterSchemaManga')).toEqual([]);
 
 	await tagsRow(page).getByRole('link', { name: 'Romance', exact: true }).click();
-	await page
-		.getByRole('dialog', { name: 'Look for Romance' })
-		.getByRole('link', { name: `IN ${SOURCE.name.toUpperCase()}` })
-		.click();
+	const sheet = page.getByRole('dialog', { name: 'Look for Romance' });
+	const toSource = sheet.getByRole('link', { name: new RegExp(`IN ${SOURCE.name.toUpperCase()}`) });
+	await recordWait(page);
+	await toSource.click();
 	await expect(page).toHaveURL(new RegExp(`/browse/${SOURCE.id}\\?`), { timeout: 15_000 });
 	const u = at(page);
 	expect(u.searchParams.get('q'), u.href).toBeNull();
@@ -108,6 +141,14 @@ test('with the filters slow on a cold cache, the series paints at once and IN <S
 	expect(u.searchParams.get(`f${GENRE}.1`), u.href).toBe('1');
 	expect(u.searchParams.get('from'), u.href).toBe(`/series/${world.ids.tagged}`);
 	world.schema('ok');
+	// While the browser waited on the filters, the row said so (c452).
+	expect((await recorded(page))?.text).toBe(
+		`IN ${SOURCE.name.toUpperCase()} FINDING ${SOURCE.name.toUpperCase()}'S FILTERS… →`
+	);
+	// BACK, from the bfcache or not: the screen says nothing is being found.
+	await page.goBack();
+	await expect(page.getByRole('heading', { name: 'Tagbearer Heir' })).toBeVisible();
+	await expect(page.getByText(/FINDING .+'S FILTERS/)).toHaveCount(0);
 });
 
 test('with the filters slow on a cold cache, the preview paints at once and a genre waits for them', async ({
@@ -123,7 +164,7 @@ test('with the filters slow on a cold cache, the preview paints at once and a ge
 	const started = Date.now();
 	// Tapped as soon as the link shows, as a quick thumb does: hydrated or not.
 	await page.goto(`${world.base}${from}`, { waitUntil: 'commit' });
-	const romance = page.getByRole('link', { name: 'romance', exact: true });
+	const romance = page.getByRole('link', { name: 'Romance', exact: true });
 	await expect(romance).toBeVisible();
 	expect(Date.now() - started).toBeLessThan(3000);
 	await romance.click();
@@ -136,6 +177,40 @@ test('with the filters slow on a cold cache, the preview paints at once and a ge
 	world.schema('ok');
 });
 
+/**
+ * c452: a genre on the preview waits on `tag-search` for up to 20 s on a cold
+ * source, and a TV's WebView draws no loading bar. The link says it is busy
+ * and a line says why; the landing is still FILTERED; BACK, from the bfcache
+ * or not, shows the preview without the line.
+ */
+test('a genre on the preview says it is finding the filters while it waits, and BACK clears it (c452)', async ({
+	page
+}) => {
+	world.reset();
+	const from = `/downloads/source/${colderPreviewId}?from=${encodeURIComponent(`/browse/${COLDER.id}`)}`;
+	await open(page, `${world.base}${from}`);
+	await expect(page.getByRole('heading', { name: 'Preview Me Tagged' })).toBeVisible();
+	world.schema({ slowMs: 3000 });
+	const romance = page.getByRole('link', { name: 'Romance', exact: true });
+	await recordWait(page);
+	await romance.click();
+	await expect(page).toHaveURL(new RegExp(`/browse/${COLDER.id}\\?`), { timeout: 15_000 });
+	expect(at(page).searchParams.get('tab')).toBe('filtered');
+	expect(at(page).searchParams.get(`f${GENRE}.1`)).toBe('1');
+	world.schema('ok');
+	// One second in, the link was busy and the line said why.
+	const wait = await recorded(page);
+	expect(wait?.text).toBe('Romance');
+	expect(wait?.line).toBe(
+		`FINDING ${COLDER.name.toUpperCase()}'S FILTERS… · A FIRST CALL TAKES UP TO 20 S`
+	);
+
+	await page.goBack();
+	await expect(page.getByRole('heading', { name: 'Preview Me Tagged' })).toBeVisible();
+	await expect(page.locator('.tag-wait')).toHaveCount(0);
+	await expect(romance).not.toHaveAttribute('aria-busy');
+});
+
 test('a genre on the preview lands on FILTERED with its chip included, and ← comes back', async ({
 	page
 }) => {
@@ -143,7 +218,7 @@ test('a genre on the preview lands on FILTERED with its chip included, and ← c
 	// the source page keeps it (`keep`), so what the source was asked for it is there.
 	await open(page, `${world.base}${previewPath}`);
 	await expect(page.getByRole('heading', { name: 'Preview Me Tagged' })).toBeVisible();
-	await page.getByRole('link', { name: 'romance', exact: true }).click();
+	await page.getByRole('link', { name: 'Romance', exact: true }).click();
 
 	await expect(page).toHaveURL(new RegExp(`/browse/${SOURCE.id}\\?`));
 	const u = at(page);
@@ -192,7 +267,7 @@ test('a source page opened from a tag keeps its origin through every tab, search
 	const origin = previewPath;
 	const fromHere = () => at(page).searchParams.get('from');
 	await open(page, `${world.base}${previewPath}`);
-	await page.getByRole('link', { name: 'romance', exact: true }).click();
+	await page.getByRole('link', { name: 'Romance', exact: true }).click();
 	await expect(page).toHaveURL(/tab=filtered/);
 	expect(fromHere()).toBe(origin);
 
@@ -248,7 +323,7 @@ test('a genre the filters spell otherwise still matches; one they lack is a sear
 	await page.getByRole('link', { name: 'Back to the preview' }).click();
 	await expect(page.getByRole('heading', { name: 'Preview Me Tagged' })).toBeVisible();
 
-	await page.getByRole('link', { name: 'gourmet', exact: true }).click();
+	await page.getByRole('link', { name: 'Gourmet', exact: true }).click();
 	await expect(page).toHaveURL(/q=Gourmet/);
 	await expect(page.locator('nav[aria-label="Lists"] .tab.on')).toHaveText('SEARCH');
 	await expect
@@ -298,7 +373,7 @@ test('a preview whose source lists a genre twice still renders, each genre once'
 	);
 	await expect(page.getByRole('heading', { name: 'Repeats Its Genres' })).toBeVisible();
 	const genres = page.locator('.tag-line', { has: page.locator('.ns', { hasText: /^genre$/ }) });
-	await expect(genres.getByRole('link')).toHaveText(['action', 'comedy', 'romance']);
+	await expect(genres.getByRole('link')).toHaveText(['Action', 'Comedy', 'Romance']);
 	expect(errors).toEqual([]);
 });
 
@@ -388,6 +463,52 @@ test('a series with a bare tag and the same value under tag: still renders its T
 	await line.getByRole('link').first().click();
 	await expect(page.getByRole('dialog', { name: 'Look for Mecha' })).toBeVisible();
 	expect(errors).toEqual([]);
+});
+
+/**
+ * c451: a bare `Mecha` and a `tag:Mecha`, both typed on the EDIT sheet, are
+ * two links in the `tag` group, each to its own library tag. They used to be
+ * looked up by value, so both found the first and linked to `?tag=Mecha`, and
+ * the library page of `tag:Mecha` could not be reached from the row.
+ */
+test('a bare tag and its tag: twin, typed on EDIT, link each to its own library tag (c451)', async ({
+	page
+}) => {
+	await open(page, series(world.ids.edited));
+	await expect(page.getByRole('heading', { name: 'Edited Mecha Tale' })).toBeVisible();
+	await tagsRow(page).getByRole('button', { name: 'EDIT', exact: true }).click();
+	const edit = page.getByRole('dialog', { name: 'Shelves and tags' });
+	const field = edit.getByRole('textbox', { name: 'Add a tag, as namespace:value' });
+	for (const raw of ['Mecha', 'tag:Mecha']) {
+		await field.fill(raw);
+		await field.press('Enter');
+		await expect(field).toHaveValue('');
+	}
+	await page.keyboard.press('Escape');
+	await expect(edit).toBeHidden();
+
+	const line = tagsRow(page).locator('.tag-line', {
+		has: page.locator('.ns', { hasText: /^tag$/ })
+	});
+	const links = line.getByRole('link');
+	await expect(links).toHaveText(['Mecha', 'Mecha']);
+	const keys = await Promise.all(
+		[0, 1].map(async (i) =>
+			new URL((await links.nth(i).getAttribute('href'))!, world.base).searchParams.get('tag')
+		)
+	);
+	expect(keys.sort()).toEqual(['Mecha', 'tag:Mecha']);
+	// The twin's sheet names its own tag too, and its library page is reachable.
+	const twin = keys.indexOf('tag:Mecha');
+	await links.nth(twin).click();
+	const sheet = page.getByRole('dialog', { name: 'Look for Mecha' });
+	const lib = new URL(
+		(await sheet.getByRole('link', { name: /IN THE LIBRARY/ }).getAttribute('href'))!,
+		world.base
+	);
+	expect(lib.search).toBe('?tag=tag%3AMecha');
+	await sheet.getByRole('link', { name: /IN THE LIBRARY/ }).click();
+	await expect(page.locator('.grid .tile', { hasText: 'Edited Mecha Tale' })).toBeVisible();
 });
 
 for (const [door, key, title] of [

@@ -387,12 +387,19 @@
 	// IN <SOURCE> names the tag, not the answer: `tag-search` waits for the
 	// source's filters and only then says where to go, so this screen asks the
 	// source nothing, and the row is never a guess made before they came.
-	/** The tag as stored: a bare tag is grouped under `tag` but has no namespace (`tagGroups`). */
-	const storedTag = (namespace: string, value: string) =>
-		series.tags.find((t) => t.value === value && (t.namespace || 'tag') === namespace) ?? {
-			namespace,
-			value
-		};
+	/**
+	 * Each group's tags as stored, in `tagGroups`' own order: a bare tag is
+	 * grouped under `tag` but has no namespace, so a bare `Mecha` and a
+	 * `tag:Mecha` are two values of one group, and each link is built from its
+	 * own tag, never looked up by value (c451): both used to find the first
+	 * and link to `?tag=Mecha`.
+	 */
+	const groupTags = $derived(
+		tags.groups.map((g) => ({
+			...g,
+			tags: series.tags.filter((t) => (t.namespace || 'tag') === g.namespace)
+		}))
+	);
 	/** The tag last tapped, kept while its sheet leaves so the head doesn't empty mid-motion. */
 	let tagAsked = $state<{ namespace: string; value: string } | null>(null);
 	let tagOpen = $state(false);
@@ -959,22 +966,18 @@
 		<div class="row top">
 			<div class="label">TAGS</div>
 			<div class="tags">
-				{#each tags.groups as g (g.namespace)}
+				{#each groupTags as g (g.namespace)}
 					<div class="tag-line">
 						<span class="ns">{g.namespace}</span>
 						<span class="vals">
 							<!-- Every value opens the library's person or tag page (Index Books), or,
 							     with a source, asks where to look (c313). -->
 							<!-- eslint-disable svelte/no-navigation-without-resolve -- tagHref() resolves -->
-							{#each g.values as v, i (i)}{@const t = storedTag(g.namespace, v)}{#if i > 0}<span
-										class="sep"
-									>
-										·
-									</span>{/if}<a
+							{#each g.tags as t, i (i)}{#if i > 0}<span class="sep"> · </span>{/if}<a
 									class="person"
 									href={tagLibraryHref(t)}
 									aria-haspopup={tagSource ? 'dialog' : undefined}
-									onclick={(e) => askTag(e, t)}>{v}</a
+									onclick={(e) => askTag(e, t)}>{t.value}</a
 								>{/each}
 							<!-- eslint-enable svelte/no-navigation-without-resolve -->
 						</span>
