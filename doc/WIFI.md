@@ -95,12 +95,19 @@ one at a time.
   it, changes nothing on the computer's page. So the row asks
   `GET /settings/tv` what the code is now, every 5 s while it shows a live
   code and the page is in view, and once whenever the window regains focus or
-  the page becomes visible again (c265). A used code then turns ✓ USED, and a
-  burned one is replaced by a fresh live one (a spent code is replaced before
-  the server answers, so the row never has a BURNED to draw); either way the
-  page's data reloads, which is how the new TV's row appears. Focus alone was
-  not enough: the owner usually keeps SETTINGS in front while typing on the
-  TV. NEW CODE is a SETTINGS action, so the code never comes from
+  the page becomes visible again (c265). That answer is read only
+  (`tvCodeNow`): the row draws the code as it is. A used code turns ✓ USED,
+  and only then does the page's data reload, which is how the new TV's row
+  appears. A burned code shows BURNED and NO TRIES LEFT · MAKE A NEW CODE, an
+  expired one EXPIRED, and the 5 s poll stops (focus still asks). Neither is replaced by the
+  refresh: the load replaces a spent code (`tvPanel`), so a refresh that made
+  one, or reloaded the page's data to get one, would undo the burn within a
+  tick, and with SETTINGS in front five wrong tries would lock no one out.
+  A new code comes from NEW CODE or from opening SETTINGS again (or any
+  change made on the page, which reloads its data the way opening it does);
+  that is `/pair/tv`'s rule too, whose `ensureCode` never replaces a spent
+  code. Focus alone was not enough: the owner usually keeps SETTINGS in front
+  while typing on the TV. NEW CODE is a SETTINGS action, so the code never comes from
   `/api/pair/tv` on a tailnet host. A device signed in by a paired cookie is
   never shown the code. **That row is the token install's alone, on its
   tailnet origin** (`tvBlockFor` in `src/lib/server/pairing.ts`, asked through
@@ -159,7 +166,12 @@ one at a time.
   words: wifi, wi-fi, phone, pair. **On an install with no WI-FI panel** — the
   owner's tailnet one — the same TV block is the section's first row instead:
   label TV, the digits, the countdown and NEW CODE (`tvPanel` in
-  `src/lib/server/wifi.ts`; c245), and a paired TV's row says OVER TAILSCALE.
+  `src/lib/server/wifi.ts`; c245), refreshed read-only from `GET /settings/tv`
+  (`tvCodeNow`; c265) so it turns ✓ USED, BURNED or EXPIRED by itself, and a
+  paired TV's row says OVER TAILSCALE. **The WI-FI panel's poll still
+  replaces a burned TV code** (`wifiView`): on a friend's install, five wrong
+  tries buy five more within 5 s while the panel is open. That predates c265
+  and is a follow-up (doc/handoff-notes/tv-app.md, Gaps).
 
 - **`/pair/tv`** (9C, 9E; `src/routes/pair/tv/`): the TV's six digits in two
   threes on the TV layout, PAIR → pressing itself on the sixth, a band for a
@@ -219,8 +231,10 @@ friend's cookie signs in only over Wi-Fi),
 `tests/settings-devices.e2e.ts` (two token installs of its own, one with a
 tailnet `ORIGIN` and one with none: no row, no code and a refused `?/tvCode`
 without the door; a code a TV uses turning ✓ USED on focus and on the row's
-5 s tick, and a burned one replaced when the page is shown again, each with
-no NEW CODE press) and
+5 s tick with no NEW CODE press; a burned one drawn BURNED on the page's
+return and on the tick alone, the server's code still the same burned one
+after 15 s and a focus, and a live one back only from NEW CODE; and the poll
+asking six times in 30 s, not reset by the countdown) and
 `tests/tv-pair.e2e.ts` (the computer's `/pair/tv` on the `tv` project: a wrong
 code, the tries left, the right one landing on 9E, five wrong ones burning
 it; with no WI-FI panel, the six digits in DEVICES and NEW CODE; a request
