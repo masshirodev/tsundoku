@@ -64,8 +64,11 @@ export const load: PageServerLoad = async ({ cookies, url, locals }) => {
 			.get(reveal ? 1 : 0) as { n: number }
 	).n;
 	const wifi = (() => {
-		const w = wifiView();
-		return w && locals.via === 'lan' ? { ...w, code: null, tv: null } : w;
+		// Opening the page on the computer renews a spent code; a phone's
+		// SETTINGS over Wi-Fi is shown no code, so it makes none either (c460).
+		const lan = locals.via === 'lan';
+		const w = wifiView({ renew: !lan });
+		return w && lan ? { ...w, code: null, tv: null } : w;
 	})();
 	// With no WI-FI panel there is no row to carry the TV's six digits, so
 	// DEVICES shows them itself -- but only where the cookie they set is a

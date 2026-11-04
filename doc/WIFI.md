@@ -107,7 +107,11 @@ one at a time.
   change made on the page, which reloads its data the way opening it does);
   that is `/pair/tv`'s rule too, whose `ensureCode` never replaces a spent
   code. Focus alone was not enough: the owner usually keeps SETTINGS in front
-  while typing on the TV. NEW CODE is a SETTINGS action, so the code never comes from
+  while typing on the TV. An answer is about the code the row showed when it
+  asked: one that lands after NEW CODE (or any reload of the page's data) is
+  the old code's, burned or used, and is dropped rather than drawn over the
+  new live digits (c461). The WI-FI panel's poll drops a late answer the same
+  way, after NEW CODE, ON or OFF. NEW CODE is a SETTINGS action, so the code never comes from
   `/api/pair/tv` on a tailnet host. A device signed in by a paired cookie is
   never shown the code. **That row is the token install's alone, on its
   tailnet origin** (`tvBlockFor` in `src/lib/server/pairing.ts`, asked through
@@ -161,17 +165,31 @@ one at a time.
   in text and what typing it does, NEW CODE. Under the phone's address, the
   TV's six digits in two threes (FOR A TV · SIX DIGITS) with their own
   countdown. It polls `/api/wifi` every 5 s, so the code turns ✓ USED by
-  itself and the new phone's row appears. On a phone the row is shown with no
+  itself and the new phone's row appears, and a TV code five wrong tries
+  burned turns BURNED with NO TRIES LEFT · MAKE A NEW CODE (an expired one
+  EXPIRED · MAKE A NEW CODE), NEW CODE lit. That poll reads both codes as they
+  are and never makes one (c460). On a phone the row is shown with no
   control (3E). Paired devices' rows carry OVER WI-FI and SIGN OUT. Search
   words: wifi, wi-fi, phone, pair. **On an install with no WI-FI panel** — the
   owner's tailnet one — the same TV block is the section's first row instead:
   label TV, the digits, the countdown and NEW CODE (`tvPanel` in
   `src/lib/server/wifi.ts`; c245), refreshed read-only from `GET /settings/tv`
   (`tvCodeNow`; c265) so it turns ✓ USED, BURNED or EXPIRED by itself, and a
-  paired TV's row says OVER TAILSCALE. **The WI-FI panel's poll still
-  replaces a burned TV code** (`wifiView`): on a friend's install, five wrong
-  tries buy five more within 5 s while the panel is open. That predates c265
-  and is a follow-up (doc/handoff-notes/tv-app.md, Gaps).
+  paired TV's row says OVER TAILSCALE.
+- **Which doors make a code** (c460). Only the owner's, on the computer:
+  opening SETTINGS there (the load's `wifiView({ renew: true })` and
+  `tvPanel()`, which replace a spent code and keep a live or just-used one),
+  NEW CODE and ON (`fresh`: both codes, whatever they are), and the computer's
+  own `POST /api/pair/tv`. Every other door reads: the panel's poll
+  (`GET /api/wifi`), OFF, the DEVICES row's refresh (`tvCodeNow`), the door
+  check every TV door asks (`tvBlockHere`, which asks the listeners,
+  `wifiStatus()`, rather than building the view), and SETTINGS opened on a
+  phone over Wi-Fi, which is shown no code and so makes none. `/pair/tv`
+  makes one only when there is none at all. Until c460 the poll and the door
+  check replaced a spent code too, so with the panel open five wrong guesses
+  bought five more every 5 s. The page's data does reload (and so renew) when
+  a phone pairs or any setting on the page changes, both of which take the
+  owner or the phone's 96-bit link, never a guess.
 
 - **`/pair/tv`** (9C, 9E; `src/routes/pair/tv/`): the TV's six digits in two
   threes on the TV layout, PAIR → pressing itself on the sixth, a band for a
@@ -195,10 +213,12 @@ one at a time.
 - **STARTING… is held 4 s the first time on Windows.** Listening takes
   milliseconds, so the state that names the firewall dialog would only flash;
   held, it's up while the dialog appears.
-- **The ✓ USED code stays up** until NEW CODE, or for 2 minutes after it was
-  used; "opening the page always makes a fresh code" otherwise holds (a live
-  code is kept, counting down). A fresh code on every load replaced the code
-  the phone had just used, as the panel reloaded to list it.
+- **The ✓ USED code stays up** on the open panel until NEW CODE, and a page
+  opened within 2 minutes of the use keeps it too; "opening the page always
+  makes a fresh code" otherwise holds (a live code is kept, counting down). A
+  fresh code on every load replaced the code the phone had just used, as the
+  panel reloaded to list it. An expired or burned code also stays, drawn as
+  such, until NEW CODE or the page is opened again (c460).
 
 ## What it doesn't do yet
 
@@ -214,13 +234,23 @@ one at a time.
 
 ## Tests
 
-`tests/lan.spec.ts` (addresses, the code's life, labels), and
-`tests/friend-wifi.e2e.ts` on the friend project's install, served by
+`tests/lan.spec.ts` (addresses, the code's life, labels),
+`tests/wifi-db.spec.ts` (c460: which doors may make a code; the door check,
+the poll and OFF leave a burned, expired or used code as it is, in every
+state a TV code can be in, and only the load's renew, NEW CODE and ON make
+one), and `tests/friend-wifi.e2e.ts` on the friend project's install, served by
 serve.ts so the listeners are the real ones on this machine's home address:
-off, ON with a code and the address, a phone context scanning it to the
+off, ON with a code and the address, a TV code burned by five wrong tries
+over the Wi-Fi drawn BURNED by the panel's poll with the same burned code on
+the server two polls later, and live again only from NEW CODE (c460), a phone
+context scanning it to the
 welcome screen and the library, the panel turning ✓ USED by itself and the
 phone's row with SIGN OUT, the same code refused as used, the typed address
-with no password, the phone's own SETTINGS, a foreign Host refused over
+with no password, the phone's own SETTINGS, a paired phone reopening
+SETTINGS over Wi-Fi after five wrong tries burned the TV's code and the
+server still holding that same burned code (c460: the phone's load does not
+renew; a case of its own with no computer page open, because the panel's
+reload when a phone pairs does renew), a foreign Host refused over
 Wi-Fi, SIGN OUT, and OFF closing the door while localhost goes on. The
 handoff's measurements are pinned there. The TV's code has its own:
 `tests/pairing-tv.spec.ts` (once, 10 minutes, five tries, every answer,
@@ -233,8 +263,10 @@ tailnet `ORIGIN` and one with none: no row, no code and a refused `?/tvCode`
 without the door; a code a TV uses turning ✓ USED on focus and on the row's
 5 s tick with no NEW CODE press; a burned one drawn BURNED on the page's
 return and on the tick alone, the server's code still the same burned one
-after 15 s and a focus, and a live one back only from NEW CODE; and the poll
-asking six times in 30 s, not reset by the countdown) and
+after 15 s and a focus, and a live one back only from NEW CODE; the poll
+asking six times in 30 s, not reset by the countdown; and a refresh answered
+after NEW CODE, for the old burned code, leaving the new one live, with only
+that first ask held, c461) and
 `tests/tv-pair.e2e.ts` (the computer's `/pair/tv` on the `tv` project: a wrong
 code, the tries left, the right one landing on 9E, five wrong ones burning
 it; with no WI-FI panel, the six digits in DEVICES and NEW CODE; a request

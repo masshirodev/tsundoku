@@ -95,10 +95,14 @@
 		if (!wf?.on || data.viaLan) return;
 		const usedBefore = wf.code?.state === 'used';
 		const t = setInterval(async () => {
+			// A late answer to an earlier ask: NEW CODE, ON or OFF answered while
+			// this poll was out, and theirs is the newer view (c461's class).
+			const asked = wf;
 			try {
 				const r = await fetch('/api/wifi', { cache: 'no-store' });
-				if (!r.ok) return;
+				if (!r.ok || wf !== asked) return;
 				const next = (await r.json()) as Wifi;
+				if (wf !== asked) return;
 				wf = next;
 				// A phone just paired: its row appears in the list below.
 				if (!usedBefore && next.code?.state === 'used') void invalidateAll();
@@ -141,14 +145,22 @@
 	 * the load replaces a spent code (`tvPanel`), so reloading here would undo
 	 * the burn the five wrong tries just earned. A new code comes from NEW CODE
 	 * or from opening SETTINGS again.
+	 *
+	 * An answer is about the code the row showed when it asked. If NEW CODE (or
+	 * any reload of the page's data) replaced `tv` while it was out, the answer
+	 * is the old code's, burned or used, and drawing it would put the old code
+	 * back over the new live one (c461). `tv` is a `$derived` that the reload
+	 * recomputes to a new object and this assigns, so identity is the test:
+	 * nothing else writes it.
 	 */
 	async function refreshTv() {
 		const before = tv;
 		if (!before) return;
 		try {
 			const r = await fetch('/settings/tv', { cache: 'no-store' });
-			if (!r.ok) return;
+			if (!r.ok || tv !== before) return;
 			const { tv: next } = (await r.json()) as { tv: Tv | null };
+			if (tv !== before) return;
 			if (next?.code === before.code && next?.state === before.state) return;
 			tv = next;
 			if (next?.state === 'used' && before.state !== 'used') await invalidateAll();
@@ -1448,19 +1460,23 @@
 								<span>{w.tv.code.slice(0, 3)}</span><span>{w.tv.code.slice(3)}</span>
 							</div>
 						{:else}
-							<!-- wifiView replaces an expired or burned code before it
-							     answers, so the panel's other state is used (c265). That
-							     replacement is a known burn bypass, a follow-up in
-							     doc/handoff-notes/tv-app.md (Gaps); the DEVICES row has none. -->
-							<div class="tvcode dim">✓ USED</div>
+							<!-- The poll reads the code as it is (c460): a burned one stays
+							     BURNED until NEW CODE, as on the DEVICES row (c265). -->
+							<div class="tvcode dim">
+								{w.tv.state === 'used' ? '✓ USED' : w.tv.state === 'burned' ? 'BURNED' : 'EXPIRED'}
+							</div>
 						{/if}
 						<div class="pnote">TYPE THE ADDRESS'S LAST NUMBER ON THE TV, THEN THESE SIX</div>
 						{#if w.tv.state === 'live'}
 							<div class="tvline">
 								GOOD FOR {w.tv.minutes} MIN · ONE TV, ONCE
 							</div>
-						{:else}
+						{:else if w.tv.state === 'used'}
 							<div class="tvline">✓ USED · ONE TV, ONCE</div>
+						{:else if w.tv.state === 'burned'}
+							<div class="tvline">NO TRIES LEFT · MAKE A NEW CODE</div>
+						{:else}
+							<div class="tvline">EXPIRED · MAKE A NEW CODE</div>
 						{/if}
 					</div>
 				{/if}
@@ -1482,7 +1498,7 @@
 						<button
 							type="button"
 							class="new"
-							class:acc={c?.state !== 'live'}
+							class:acc={c?.state !== 'live' || (!!w.tv && w.tv.state !== 'live')}
 							disabled={wifiBusy}
 							onclick={() => wifiPost('code')}>NEW CODE</button
 						>

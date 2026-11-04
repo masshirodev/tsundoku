@@ -1,6 +1,7 @@
 import { expect, test } from './fixtures';
 import { makeLogin, writeLogin } from '../src/lib/server/login.ts';
 import { FRIEND_HOME, FRIEND_PORT } from './friend-world';
+import { hydrated } from './helpers/hydration';
 
 /**
  * Reading on a phone over home Wi-Fi (doc/WIFI.md; card c188), on the friend
@@ -23,6 +24,9 @@ test.beforeAll(() => {
 
 test('WI-FI is off until switched on, and says who it lets in', async ({ page }) => {
 	await page.goto('/settings#s-devices');
+	// ON, OFF and NEW CODE are clicked: a click before hydration lands on
+	// server-rendered markup with no handler (seen under load, wave 21).
+	await hydrated(page);
 	const seg = page.getByRole('group', { name: 'Other devices on this Wi-Fi' });
 	await expect(seg.getByRole('button', { name: 'OFF' })).toHaveAttribute('aria-pressed', 'true');
 	await expect(page.getByText(/ANYONE ON THE SAME WI-FI REACHES THE SIGN-IN PAGE/)).toBeVisible();
@@ -32,6 +36,7 @@ test('WI-FI is off until switched on, and says who it lets in', async ({ page })
 
 test('ON shows a code, the address in text, and what typing it does', async ({ page, request }) => {
 	await page.goto('/settings#s-devices');
+	await hydrated(page);
 	await page
 		.getByRole('group', { name: 'Other devices on this Wi-Fi' })
 		.getByRole('button', { name: 'ON' })
@@ -60,12 +65,76 @@ test('ON shows a code, the address in text, and what typing it does', async ({ p
 	await expect(page.getByText(/WITH NO PASSWORD SET, ONLY A CODE SIGNS IN/)).toBeVisible();
 });
 
+/**
+ * A TV's six digits burned by five wrong tries while the panel is open (c460).
+ * The panel polls `/api/wifi` every 5 s, and that poll once replaced a burned
+ * code, so anyone on the Wi-Fi got five more guesses every 5 s. The poll now
+ * reads the code as it is: BURNED, and the same code on the server two polls
+ * later, until NEW CODE.
+ */
+test('a TV code burned on /pair/tv stays BURNED on the open panel until NEW CODE (c460)', async ({
+	page,
+	playwright,
+	request
+}) => {
+	// Two polls after the burn shows, at 5 s each, on top of the page's load.
+	test.setTimeout(60_000);
+	const onComputer = async () =>
+		(await (await request.get(`${local}/api/pair/tv`)).json()) as { code: string; state: string };
+	await page.goto('/settings#s-devices');
+	await hydrated(page);
+	await expect(page.getByLabel('Pairing code for a TV')).toBeVisible();
+	const { code, state } = await onComputer();
+	expect(state).toBe('live');
+
+	// A TV on the Wi-Fi, not this browser: the form 9C posts, five wrong codes.
+	const { phone } = await wifi(request);
+	const tv = await playwright.request.newContext({ baseURL: phone! });
+	try {
+		const wrong = code === '000000' ? '111111' : '000000';
+		for (let i = 0; i < 5; i += 1) {
+			const r = await tv.post('/pair/tv', {
+				form: { code: wrong },
+				headers: { origin: phone!, accept: 'text/html' },
+				maxRedirects: 0
+			});
+			expect(r.status()).toBe(303);
+		}
+	} finally {
+		await tv.dispose();
+	}
+	expect(await onComputer()).toEqual(expect.objectContaining({ code, state: 'burned' }));
+
+	// The panel's own poll notices, and draws the burn rather than a new code.
+	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('BURNED', { timeout: 15_000 });
+	await expect(page.getByText('NO TRIES LEFT · MAKE A NEW CODE')).toBeVisible();
+	await expect(page.getByLabel('Pairing code for a TV')).toHaveCount(0);
+
+	// Two more polls, 10 s: each answered, and the server still holds the same
+	// burned code. Read from the server, not from the page.
+	for (let i = 0; i < 2; i += 1)
+		await page.waitForResponse((r) => new URL(r.url()).pathname === '/api/wifi', {
+			timeout: 15_000
+		});
+	expect(await onComputer()).toEqual(expect.objectContaining({ code, state: 'burned' }));
+	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('BURNED');
+
+	// NEW CODE is what brings live digits back, and they are new ones.
+	await page.locator('.pair-foot').getByRole('button', { name: 'NEW CODE' }).click();
+	await expect(page.getByLabel('Pairing code for a TV')).toBeVisible();
+	const next = await onComputer();
+	expect(next.state).toBe('live');
+	expect(next.code).not.toBe(code);
+	await expect(page.getByText('NO TRIES LEFT · MAKE A NEW CODE')).toHaveCount(0);
+});
+
 test('the phone scans it, is signed in, and the computer lists it with SIGN OUT', async ({
 	page,
 	browser,
 	request
 }) => {
 	await page.goto('/settings#s-devices');
+	await hydrated(page);
 	const { code } = await wifi(request);
 	const phone = await browser.newPage({ storageState: { cookies: [], origins: [] } });
 	await phone.goto(code!.url);
@@ -108,6 +177,67 @@ test('the phone scans it, is signed in, and the computer lists it with SIGN OUT'
 	await phone.close();
 });
 
+/**
+ * SETTINGS opened by a paired phone over Wi-Fi reads the codes and never makes
+ * one (c460, round 2): its load passes `renew` only at the computer
+ * (`settings/+page.server.ts`). Were it to renew, anyone with a paired phone
+ * could reopen SETTINGS to swap a TV code five wrong tries burned for a fresh
+ * one, and buy five more. A case of its own, with no computer page open:
+ * the panel's poll reruns the computer's load when a phone pairs, and that
+ * load does renew (doc/WIFI.md), which would replace the burn under the test.
+ */
+test('a paired phone opening SETTINGS over Wi-Fi leaves a burned TV code burned (c460)', async ({
+	browser,
+	playwright,
+	request
+}) => {
+	const onComputer = async () =>
+		(await (await request.get(`${local}/api/pair/tv`)).json()) as { code: string; state: string };
+	// NEW CODE, as the panel's button posts it: the last case's phone used the
+	// phone code, and a just-used one is kept by the computer's load.
+	const made = await request.post(`${local}/api/wifi`, {
+		data: { action: 'code' },
+		headers: { origin: local }
+	});
+	expect(made.ok()).toBe(true);
+	const { code: pairCode, phone: origin } = (await made.json()) as Wifi;
+	expect(pairCode?.state).toBe('live');
+
+	const phone = await browser.newPage({ storageState: { cookies: [], origins: [] } });
+	try {
+		await phone.goto(pairCode!.url);
+		await expect(phone).toHaveURL(/\/welcome$/);
+
+		// The TV's code is live, then burned from the Wi-Fi by five wrong tries.
+		const { code, state } = await onComputer();
+		expect(state).toBe('live');
+		const tv = await playwright.request.newContext({ baseURL: origin! });
+		try {
+			const wrong = code === '000000' ? '111111' : '000000';
+			for (let i = 0; i < 5; i += 1) {
+				const r = await tv.post('/pair/tv', {
+					form: { code: wrong },
+					headers: { origin: origin!, accept: 'text/html' },
+					maxRedirects: 0
+				});
+				expect(r.status()).toBe(303);
+			}
+		} finally {
+			await tv.dispose();
+		}
+		expect(await onComputer()).toEqual(expect.objectContaining({ code, state: 'burned' }));
+
+		// The paired phone opens SETTINGS at the Wi-Fi address: its load ran.
+		await phone.goto(`${origin}/settings#s-devices`);
+		await expect(phone.getByText('SET ON THE COMPUTER ONLY')).toBeVisible();
+
+		// The server, not the page: the same code, still burned.
+		expect(await onComputer()).toEqual(expect.objectContaining({ code, state: 'burned' }));
+	} finally {
+		await phone.close().catch(() => {});
+	}
+});
+
 test('over Wi-Fi, only its own address: another name is refused, and the computer’s switch too', async ({
 	request
 }) => {
@@ -125,6 +255,7 @@ test('over Wi-Fi, only its own address: another name is refused, and the compute
 test('OFF stops listening on the Wi-Fi; the computer goes on', async ({ page, request }) => {
 	const { phone } = await wifi(request);
 	await page.goto('/settings#s-devices');
+	await hydrated(page);
 	await page
 		.getByRole('group', { name: 'Other devices on this Wi-Fi' })
 		.getByRole('button', { name: 'OFF' })
