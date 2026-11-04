@@ -297,7 +297,8 @@ workstation during gates. What it assumes, and the rules that follow (c439):
 - **A flow's writes are a reader's race**: see "Each flow file owns its
   series" and "The readers beside the flows" above.
 - **`duplicates` and `gate` depend on every device project**, so any red in
-  those leaves them, about 40 tests, "did not run". With the known base
+  those leaves their 8 tests "did not run" (a run's larger "did not run"
+  count is the rest of each serial file after its first red). With the known base
   failures (`library`'s c311: `library-frame` and the two in `library-flow`
   and `reader-flow`) red on every run, **a gate never runs `duplicates` and
   `gate` at all**: no whole run in wave 19 before round 2 executed
