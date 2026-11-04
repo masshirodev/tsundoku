@@ -97,19 +97,40 @@ so a second tap on a closing scrim can't land. That's in the leave's own
 frames, not set on the element: a sheet opened again before it's gone is the
 same element, resumed, and it must take taps again.
 
-| Thing                                          | In                                       | Out                   |
-| ---------------------------------------------- | ---------------------------------------- | --------------------- |
-| Scrims, the readers' bars, tap zones, overlays | `.appear`: fade, `--motion-appear`       | `out:leave` (fade)    |
-| Bottom sheets (`Sheet`, PageMenu, READING, …)  | `.rise`: up from the bottom edge, drawer | `out:leave={'down'}`  |
-| The same sheets on a TV, where they're panels  | `.rise`: in from the right               | to the right          |
-| The player's side panels (PLAYBACK, KEYS)      | `.rise .rise-right`                      | `out:leave={'right'}` |
-| A centred dialog (the update dialog)           | `.pop`: fade and grow from 0.96, never 0 | `out:leave={'pop'}`   |
+| Thing                                         | In                                       | Out                   |
+| --------------------------------------------- | ---------------------------------------- | --------------------- |
+| Scrims, tap zones, overlays                   | `.appear`: fade, `--motion-appear`       | `out:leave` (fade)    |
+| The readers' top bars                         | `.appear`: fade, `--motion-appear`       | `out:leave={'up'}`    |
+| The readers' bottom bars                      | `.appear`: fade, `--motion-appear`       | `out:leave={'down'}`  |
+| Bottom sheets (`Sheet`, PageMenu, READING, …) | `.rise`: up from the bottom edge, drawer | `out:leave={'down'}`  |
+| The same sheets on a TV, where they're panels | `.rise`: in from the right               | to the right          |
+| The player's side panels (PLAYBACK, KEYS)     | `.rise .rise-right`                      | `out:leave={'right'}` |
+| A centred dialog (the update dialog)          | `.pop`: fade and grow from 0.96, never 0 | `out:leave={'pop'}`   |
 
 Sheets slide with `translate`, never `transform`, so a sheet's own transform is
 never fought. A sheet is opaque and doesn't fade while it slides. Under reduced
 motion, entrances and exits keep their fades and lose their movement: the
 same rule `.appear` has kept since c185, and a deliberate difference from
 Kumiko, which zeroes everything.
+
+**A bar hides off its own edge** (c427): the top bar up and away, the bottom
+bar down, on the drawer curve, opaque, as a sheet does. It fades in, but it is
+fixed to an edge, and a bar that only faded read as the page dimming, not as
+the controls going away. On a TV a bar still goes up or down: only a `.rise`
+sheet becomes a panel from the right there, and `leave` reads that from the
+element, so a bottom bar never slides sideways. Reduced motion fades both.
+
+**A bare `out:leave` fades, and that took a fix** (c427). Svelte hands a
+transition with no value `{}`, not `undefined`, so `leave`'s default parameter
+never applied: until c427 every bare caller slid down off the screen, and the
+image reader's top bar fell through the page as it hid. `leaveKind` reads the
+value and falls back to `fade` for anything that isn't a kind. The callers
+whose exit changed with it, from a slide down to the fade they always meant:
+`Sheet`'s and `NewShelfSheet`'s scrims, `UpdateModal`'s scrim, `ImageView`,
+`WideView`, the image reader's TO TOP button and tap zones (`ImageReader.svelte`), the
+player's two scrims (`VideoPlayer.svelte`), and the scrims of `ReadingSheet`
+and the text reader's CONTENTS (`TextReader.svelte`).
+`tests/reader-layout.e2e.ts` samples the bars' every frame as they hide.
 
 **A new overlay gets both halves:** the entrance class and `out:leave`.
 

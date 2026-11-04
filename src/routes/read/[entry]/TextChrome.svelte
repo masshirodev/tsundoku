@@ -109,7 +109,7 @@
 	});
 </script>
 
-<header class="top appear" out:leave>
+<header class="top appear" out:leave={'up'}>
 	<!-- eslint-disable svelte/no-navigation-without-resolve -- seriesHref is resolved by the caller -->
 	<a
 		class="back"
@@ -138,7 +138,7 @@
 </header>
 
 {#if bottom}
-	<footer class="bottom appear" out:leave>
+	<footer class="bottom appear" out:leave={'down'}>
 		<div class="chapter">
 			<div class="ch">{chapter}</div>
 			<div class="left">{pageText}</div>

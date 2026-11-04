@@ -1,10 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
 	cubicBezier,
 	depthOf,
 	easeDrawer,
 	easeOut,
+	leave,
 	leaveFrame,
+	leaveKind,
 	screenMove
 } from '../src/lib/motion';
 import { pressMode, SINK_MAX_W } from '../src/lib/press';
@@ -64,9 +66,54 @@ describe('leaveFrame', () => {
 		expect(leaveFrame('pop', 1, false, false)).toBe('opacity: 0; scale: 0.96;');
 	});
 
+	it("slides a top bar up and away, a TV's too (c427)", () => {
+		expect(leaveFrame('up', 0.5, false, false)).toBe('translate: 0 -50%;');
+		expect(leaveFrame('up', 1, false, true)).toBe('translate: 0 -100%;');
+	});
+
 	it('keeps only the fade under reduced motion', () => {
-		for (const kind of ['down', 'right', 'pop'] as const)
+		for (const kind of ['up', 'down', 'right', 'pop'] as const)
 			expect(leaveFrame(kind, 0.5, true, false)).toBe('opacity: 0.5;');
+	});
+});
+
+describe('leave', () => {
+	const node = (cls = '') => {
+		const names = new Set(cls.split(' '));
+		return { classList: { contains: (c: string) => names.has(c) } } as unknown as Element;
+	};
+	const frame = (n: Element, param?: unknown) =>
+		leave(n, param as never).css!(0.5, 0.5).replace(' pointer-events: none;', '');
+
+	it('fades a bare out:leave, which Svelte hands {} rather than nothing (c427)', () => {
+		expect(leaveKind({})).toBe('fade');
+		expect(leaveKind(undefined)).toBe('fade');
+		expect(leaveKind('sideways')).toBe('fade');
+		expect(frame(node(), {})).toBe('opacity: 0.5;');
+		expect(frame(node())).toBe('opacity: 0.5;');
+	});
+
+	it('takes the kind it is given', () => {
+		for (const kind of ['fade', 'up', 'down', 'right', 'pop'] as const)
+			expect(leaveKind(kind)).toBe(kind);
+		expect(frame(node('top'), 'up')).toBe('translate: 0 -50%;');
+		expect(frame(node('sheet rise'), 'down')).toBe('translate: 0 50%;');
+	});
+
+	it('on a TV sends a sheet right, and a bar still down or up', () => {
+		const tv = (q: string) => ({ matches: q.includes('pointer: none') }) as MediaQueryList;
+		vi.stubGlobal('matchMedia', tv);
+		try {
+			expect(frame(node('sheet rise'), 'down')).toBe('translate: 50% 0;');
+			expect(frame(node('bottom appear'), 'down')).toBe('translate: 0 50%;');
+			expect(frame(node('top appear'), 'up')).toBe('translate: 0 -50%;');
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	});
+
+	it('takes no taps on its way out', () => {
+		expect(leave(node(), 'fade').css!(0.5, 0.5)).toContain('pointer-events: none;');
 	});
 });
 

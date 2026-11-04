@@ -53,13 +53,28 @@ export const LEAVE_MS = 180;
 /**
  * Where a thing goes when it leaves: the way it came.
  *
- * - `fade`: scrims, the readers' bars, anything that only faded in (`.appear`).
- * - `down`: a bottom sheet (`.rise`). On a TV, where every sheet is a panel
- *   from the right, it leaves to the right instead.
+ * - `fade`: scrims, tap zones, anything that only faded in (`.appear`).
+ * - `up`: a bar on the top edge (the readers' top bars): it hides up and away
+ *   (c427). Always up, a TV's too: a bar isn't a sheet.
+ * - `down`: a bottom sheet (`.rise`), or a bar on the bottom edge. A sheet on a
+ *   TV, where every sheet is a panel from the right, leaves to the right
+ *   instead; a bar still goes down.
  * - `right`: a panel from the right (`.rise-right`).
  * - `pop`: a centred dialog (`.pop`).
  */
-export type Leave = 'fade' | 'down' | 'right' | 'pop';
+export type Leave = 'fade' | 'up' | 'down' | 'right' | 'pop';
+
+const LEAVES: readonly Leave[] = ['fade', 'up', 'down', 'right', 'pop'];
+
+/**
+ * The kind a `leave` was given. A bare `out:leave` is handed `{}`, not
+ * `undefined` (Svelte calls `transition(node, params?.() ?? {})`), so a default
+ * parameter never applied, and every bare caller slid down off the screen:
+ * the image reader's top bar fell through the page as it hid (c427).
+ */
+export function leaveKind(param: unknown): Leave {
+	return LEAVES.includes(param as Leave) ? (param as Leave) : 'fade';
+}
 
 const prefers = (query: string) => typeof matchMedia === 'function' && matchMedia(query).matches;
 
@@ -71,12 +86,13 @@ const isTvPanel = () => prefers('(pointer: none) and (min-width: 900px)');
  * (gone). Reduced motion keeps the fade and drops the movement, the same rule
  * `.appear` follows: a fade doesn't move.
  */
-export function leaveFrame(kind: Leave, u: number, reduced: boolean, tv: boolean): string {
+export function leaveFrame(kind: Leave, u: number, reduced: boolean, tvPanel: boolean): string {
 	const opacity = `opacity: ${1 - u};`;
 	if (reduced || kind === 'fade') return opacity;
 	if (kind === 'pop') return `${opacity} scale: ${1 - 0.04 * u};`;
-	const toRight = kind === 'right' || tv;
-	// A sheet is opaque and slides right off the screen; it doesn't fade.
+	// Sheets and bars are opaque and slide right off the screen; they don't fade.
+	if (kind === 'up') return `translate: 0 ${-u * 100}%;`;
+	const toRight = kind === 'right' || tvPanel;
 	return toRight ? `translate: ${u * 100}% 0;` : `translate: 0 ${u * 100}%;`;
 }
 
@@ -85,9 +101,11 @@ export function leaveFrame(kind: Leave, u: number, reduced: boolean, tv: boolean
  * way it came instead of vanishing. Use it beside the entrance class:
  * `class="sheet rise" out:leave={'down'}`.
  */
-export function leave(_node: Element, kind: Leave = 'fade'): TransitionConfig {
+export function leave(node: Element, param?: Leave): TransitionConfig {
+	const kind = leaveKind(param);
 	const reduced = prefers('(prefers-reduced-motion: reduce)');
-	const tv = isTvPanel();
+	// Only a sheet becomes a TV panel (motion.css, `.rise`); a bar stays a bar.
+	const tv = isTvPanel() && node.classList.contains('rise');
 	const slides = !reduced && kind !== 'fade' && kind !== 'pop';
 	return {
 		duration: LEAVE_MS,

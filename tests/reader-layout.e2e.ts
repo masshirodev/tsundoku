@@ -67,3 +67,71 @@ test('nothing hidden opens while reveal is off', async ({ request }) => {
 	const res = await request.get('/api/entries/999999/pages');
 	expect(res.status()).toBe(404);
 });
+
+/**
+ * Every frame of the bars' exit, read in the page (a round trip from here is
+ * slower than the exit itself): each bar's translate and opacity until it's gone.
+ */
+async function sampleExit(page: import('@playwright/test').Page) {
+	await page.evaluate(() => {
+		const w = window as unknown as { exit: { top: string[]; bottom: string[]; opacity: string[] } };
+		w.exit = { top: [], bottom: [], opacity: [] };
+		const step = () => {
+			const top = document.querySelector('header.top');
+			const bottom = document.querySelector('footer.bottom');
+			if (top) w.exit.top.push(getComputedStyle(top).translate);
+			if (bottom) w.exit.bottom.push(getComputedStyle(bottom).translate);
+			if (top) w.exit.opacity.push(getComputedStyle(top).opacity);
+			if (top || bottom) requestAnimationFrame(step);
+		};
+		requestAnimationFrame(step);
+	});
+}
+
+const ys = (frames: string[]) =>
+	frames.filter((t) => t !== 'none').map((t) => parseFloat(t.split(' ')[1] ?? '0'));
+
+test('hiding, the top bar goes up and away and the bottom one down (c427)', async ({ page }) => {
+	await open(page);
+	const vp = page.viewportSize()!;
+	await page.mouse.click(vp.width / 2, vp.height / 2, { button: 'middle' });
+	const top = page.getByRole('banner', { name: 'Reader' });
+	await expect(top).toBeVisible();
+	await top.evaluate((el) =>
+		Promise.all(el.getAnimations().map((a) => a.finished.catch(() => undefined)))
+	);
+	await sampleExit(page);
+	await page.mouse.click(vp.width / 2, vp.height / 2, { button: 'middle' });
+	await expect(top).toHaveCount(0);
+	const exit = await page.evaluate(
+		() => (window as unknown as { exit: { top: string[]; bottom: string[] } }).exit
+	);
+	const up = ys(exit.top);
+	const down = ys(exit.bottom);
+	// It moved, and only ever the way it should: never down through the page.
+	expect(up.some((y) => y < 0)).toBe(true);
+	expect(up.every((y) => y <= 0)).toBe(true);
+	expect(down.some((y) => y > 0)).toBe(true);
+	expect(down.every((y) => y >= 0)).toBe(true);
+});
+
+test('hiding under reduced motion, the bars only fade', async ({ page }) => {
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await open(page);
+	const vp = page.viewportSize()!;
+	await page.mouse.click(vp.width / 2, vp.height / 2, { button: 'middle' });
+	const top = page.getByRole('banner', { name: 'Reader' });
+	await expect(top).toBeVisible();
+	await top.evaluate((el) =>
+		Promise.all(el.getAnimations().map((a) => a.finished.catch(() => undefined)))
+	);
+	await sampleExit(page);
+	await page.mouse.click(vp.width / 2, vp.height / 2, { button: 'middle' });
+	await expect(top).toHaveCount(0);
+	const exit = await page.evaluate(
+		() =>
+			(window as unknown as { exit: { top: string[]; bottom: string[]; opacity: string[] } }).exit
+	);
+	expect([...ys(exit.top), ...ys(exit.bottom)].every((y) => y === 0)).toBe(true);
+	expect(exit.opacity.some((o) => parseFloat(o) < 1)).toBe(true);
+});
