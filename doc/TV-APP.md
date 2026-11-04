@@ -370,16 +370,22 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   the refusal, not a rewrite to the default port) (c260).
 - `tests/pairing-tv.spec.ts` — the six digits: once, 10 minutes, five wrong
   tries burn it, the state machine's every answer; the tailnet door, the rule
-  that draws the DEVICES block only where that cookie opens, and the friend
-  branch's refusal of a paired cookie off Wi-Fi (c245).
-- `tests/tv-app-pair.e2e.ts` — 14 cases, 9A and 9B from the shipped asset file:
+  that draws the DEVICES block only where that cookie opens (never with no
+  `ORIGIN` or a loopback one, c264), and the friend branch's refusal of a
+  paired cookie off Wi-Fi (c245). `tests/settings-devices.e2e.ts` is the
+  same row on two token installs of its own, with and without a tailnet
+  `ORIGIN`, and a code a TV spends while SETTINGS is open (c264, c265;
+  `WIFI.md`).
+- `tests/tv-app-pair.e2e.ts` — 15 cases, 9A and 9B from the shipped asset file:
   the mark on NEXT rather than the field (and on TYPE THE WHOLE ADDRESS one press
   down), the number keys typing into the field from there, and the whole-address
   field that stays visible; and 9A's step 01 and 9D's second reason keeping a
   friend's WI-FI remedy beside a Tailscale install's truth (c245). A `#connect=`
   given address shows neither 9A nor 9B and names what it is checking; a `#bad=`
   shows the band on 9B, above the label and inside the frame, with the screen
-  still usable (c260). Cases stand up a stub bridge for the states only the app
+  still usable (c260), and its hint and first line whole, both in this browser
+  and at a TV's 0.6 em monospace (c307). 9A's steps grid ends above START
+  (c263). Cases stand up a stub bridge for the states only the app
   reaches: a refusal handed to a TV already on 9D stops its retry, so the band
   is still there past a 5 s tick and no probe for the old address is made; a
   typed probe still in flight when a given address arrives neither stores its

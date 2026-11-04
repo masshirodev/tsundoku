@@ -90,11 +90,26 @@ one at a time.
 - **Where they show** (c245): in the WI-FI panel's pairing block on a friend's
   install, and on the owner's own tailnet instance — which has no WI-FI panel
   at all — in SETTINGS › 08 — DEVICES itself, a row of the WI-FI row's shape
-  with the same block, minus the phone's QR. The row clears and renews its
-  countdown by itself; NEW CODE is a SETTINGS action, so the code never comes
-  from `/api/pair/tv` on a tailnet host. A device signed in by a paired cookie
-  is never shown the code. **That row is the token install's alone**
-  (`tvBlockFor` in `src/lib/server/pairing.ts`): a friend's install served over
+  with the same block, minus the phone's QR. The row ticks its countdown by
+  itself, but the countdown is not the code: a TV that pairs with it, or burns
+  it, changes nothing on the computer's page. So the row asks
+  `GET /settings/tv` what the code is now, every 5 s while it shows a live
+  code and the page is in view, and once whenever the window regains focus or
+  the page becomes visible again (c265). A used code then turns ✓ USED, and a
+  burned one is replaced by a fresh live one (a spent code is replaced before
+  the server answers, so the row never has a BURNED to draw); either way the
+  page's data reloads, which is how the new TV's row appears. Focus alone was
+  not enough: the owner usually keeps SETTINGS in front while typing on the
+  TV. NEW CODE is a SETTINGS action, so the code never comes from
+  `/api/pair/tv` on a tailnet host. A device signed in by a paired cookie is
+  never shown the code. **That row is the token install's alone, on its
+  tailnet origin** (`tvBlockFor` in `src/lib/server/pairing.ts`, asked through
+  `tvBlockHere` in `src/lib/server/wifi.ts` by the load, NEW CODE's
+  `?/tvCode` and `GET /settings/tv` alike). With no `ORIGIN`, or a loopback
+  one (`yarn run dev`, `vite preview`, `scripts/serve.ts` in `local` mode),
+  the hook refuses every TV's paired cookie, so the row is not drawn and no
+  code is made there (c264): a TV paired there would land on `/login`. A
+  friend's install served over
   the tailnet has no panel, but its guard still reads a paired cookie only over
   Wi-Fi, so the digits stay wherever its panel would draw them with WI-FI ON.
   Putting them on DEVICES there would pair a TV and land it on `/login`, the
@@ -198,8 +213,14 @@ Wi-Fi, SIGN OUT, and OFF closing the door while localhost goes on. The
 handoff's measurements are pinned there. The TV's code has its own:
 `tests/pairing-tv.spec.ts` (once, 10 minutes, five tries, every answer,
 `tailnetDoor`: the public host opens, loopback and no origin never do,
-`tvBlockFor`: the DEVICES row is the token install's only, and `friendPaired`:
-a friend's cookie signs in only over Wi-Fi) and
+`tvBlockFor`: the DEVICES row is the token install's only and never without a
+door, `tvDoor` reading `ORIGIN` as the hook does, and `friendPaired`: a
+friend's cookie signs in only over Wi-Fi),
+`tests/settings-devices.e2e.ts` (two token installs of its own, one with a
+tailnet `ORIGIN` and one with none: no row, no code and a refused `?/tvCode`
+without the door; a code a TV uses turning ✓ USED on focus and on the row's
+5 s tick, and a burned one replaced when the page is shown again, each with
+no NEW CODE press) and
 `tests/tv-pair.e2e.ts` (the computer's `/pair/tv` on the `tv` project: a wrong
 code, the tries left, the right one landing on 9E, five wrong ones burning
 it; with no WI-FI panel, the six digits in DEVICES and NEW CODE; a request
