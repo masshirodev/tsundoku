@@ -1,0 +1,209 @@
+import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer, type AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { gzipSync } from 'node:zlib';
+import Database from 'better-sqlite3';
+import { expect, test } from './fixtures';
+import { E2E_TOKEN } from '../playwright.config';
+import { backup } from './helpers/mihon-fixture';
+
+/**
+ * IMPORT A BACKUP end to end (c438; doc/IMPORT.md), and START SCAN on a
+ * `Mihon/` with no backup in it (c268, c292). An import writes series, so
+ * this seeds and serves a database of its own on a free port (the
+ * works-flow arrangement), with a library folder whose `Mihon/` is empty and
+ * an import area of its own: no other spec sees what it brings in. As a
+ * `*-flow` file it runs in tablet-portrait alone.
+ */
+test.describe.configure({ mode: 'serial' });
+
+const PORT = await new Promise<number>((resolve, reject) => {
+	const probe = createServer();
+	probe.once('error', reject);
+	probe.listen(0, '127.0.0.1', () => {
+		const { port } = probe.address() as AddressInfo;
+		probe.close(() => resolve(port));
+	});
+});
+const base = `http://localhost:${PORT}`;
+const scratch = join(tmpdir(), `tsundoku-e2e-import-flow-${process.pid}`);
+const dbPath = join(scratch, 'db.sqlite');
+const library = join(scratch, 'library');
+const files = join(scratch, 'files');
+let server: ChildProcess | null = null;
+
+test.use({ baseURL: base });
+
+/** A backup on disk, as the friend's phone saved it; padded past one upload piece. */
+function backupFile(name: string, extra: number[] = [], pad = 0): string {
+	const more = Array.from({ length: pad }, (_, i) => [
+		[1, 2131019126180322627n],
+		[2, `/series/pad-${i}`],
+		[3, `Only browsed ${i} ${'x'.repeat(300)}`],
+		[100, false]
+	]);
+	const path = join(files, name);
+	writeFileSync(path, gzipSync(backup(extra, more as never), { level: 0 }));
+	return path;
+}
+
+test.beforeAll(async () => {
+	rmSync(scratch, { recursive: true, force: true });
+	// c268: the library's Mihon folder exists, with no backup in it.
+	mkdirSync(join(library, 'Mihon', 'autobackup'), { recursive: true });
+	mkdirSync(files, { recursive: true });
+	execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
+		env: { ...process.env, DATABASE_PATH: dbPath, NODE_NO_WARNINGS: '1' },
+		stdio: 'pipe'
+	});
+	server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], {
+		env: {
+			...process.env,
+			DATABASE_PATH: dbPath,
+			TSUNDOKU_TOKEN: E2E_TOKEN,
+			TSUNDOKU_ANILIST: 'off',
+			// Covers and links after an import reach the internet: not here.
+			TSUNDOKU_IMPORT_COVERS: '0',
+			LIBRARY_ROOT: library,
+			TSUNDOKU_HOME: join(scratch, 'home'),
+			IMPORT_DIR: join(scratch, 'imports')
+		},
+		stdio: 'ignore'
+	});
+	let up = false;
+	for (let i = 0; i < 120 && !up; i++) {
+		try {
+			up = (await fetch(`${base}/`, { redirect: 'manual' })).status > 0;
+		} catch {
+			await new Promise((r) => setTimeout(r, 500));
+		}
+	}
+	if (!up) throw new Error('the import flow preview never answered');
+});
+
+test.afterAll(() => {
+	server?.kill();
+	server = null;
+	rmSync(scratch, { recursive: true, force: true });
+});
+
+test('START SCAN on a Mihon folder with no backup says where it looked (c268, c292)', async ({
+	request
+}) => {
+	const res = await request.post('/?/scan', {
+		headers: { origin: base, 'x-sveltekit-action': 'true' },
+		form: {}
+	});
+	const body = await res.text();
+	expect(body).toContain('NOTHING TO IMPORT');
+	expect(body).toContain(`NO BACKUP IN ${join(library, 'Mihon', 'autobackup')}`);
+});
+
+test('a file that is not a backup is refused on the pick screen, and nothing changes', async ({
+	page
+}) => {
+	const notes = join(files, 'Notes.txt');
+	writeFileSync(notes, 'not a backup');
+	await page.goto('/import');
+	await page.getByLabel('The backup file').setInputFiles(notes);
+	const alert = page.getByRole('alert');
+	await expect(alert).toContainText('NOT A BACKUP TSUNDOKU READS');
+	await expect(alert).toContainText('NOTES.TXT · NOT A MIHON BACKUP');
+	await expect(alert).toContainText('NOTHING CHANGED');
+	await expect(page).toHaveURL(/\/import$/);
+	// The log keeps it, NOT READ.
+	await page.goto('/import/log');
+	await expect(page.getByText('A FILE · NOT READ')).toBeVisible();
+});
+
+test('a Mihon backup uploads in pieces, previews, imports, and lands in the log', async ({
+	page
+}) => {
+	// Past one 256 KB piece: the upload's own path, not one request.
+	const file = backupFile('app.mihon_2026-11-02_03-14.tachibk', [], 1200);
+	await page.goto('/import');
+	await page.getByLabel('The backup file').setInputFiles(file);
+	await page.waitForURL(/\/import\/\d+$/);
+
+	// What it holds, before anything is written.
+	await expect(page.getByRole('heading', { name: '4 series, from 2 sources.' })).toBeVisible();
+	await expect(page.getByText('NOTHING WRITTEN YET')).toBeVisible();
+	await expect(page.getByText('NONE OF IT IS HERE YET')).toBeVisible();
+	await expect(page.getByText("1,201 browsed, never added to the app's library")).toBeVisible();
+	// Every source is missing (no extension here), and says so.
+	await expect(page.getByLabel('Missing sources')).toContainText('Weeb Central');
+	await expect(page.getByLabel('Missing sources')).toContainText(
+		"NO REPOSITORY YOU'VE ADDED LISTS IT"
+	);
+	// Categories as chips; a rating name says RATES.
+	const chips = page.getByRole('group', { name: 'Categories' });
+	await expect(chips.getByRole('button', { name: /^✓ Good \d/ })).toContainText('RATES 8');
+	const toRead = chips.getByRole('button', { name: /To Read/ });
+	await expect(toRead).toHaveAttribute('aria-pressed', 'true');
+	await toRead.click();
+	await expect(toRead).toHaveAttribute('aria-pressed', 'false');
+
+	// SEE ALL opens the list in place.
+	await page.getByRole('button', { name: 'SEE ALL 4 →' }).click();
+	const list = page.getByLabel('Every series in the file');
+	await expect(list).toContainText('Drawing: Saikyou Mangaka');
+	await page.getByLabel('Search the backup').fill('bunk');
+	await expect(list).toContainText('Bunk Beds');
+	await expect(list).not.toContainText('Drawing: Saikyou Mangaka');
+
+	await page.getByRole('button', { name: 'IMPORT 4 SERIES →' }).click();
+	// The preview counts the file (4); once written every count follows reveal,
+	// and the "+" series is hidden: 3 with reveal off.
+	await expect(page.getByRole('heading', { name: '3 series came in.' })).toBeVisible({
+		timeout: 20_000
+	});
+	const result = page.getByLabel('The result', { exact: true }).first();
+	await expect(result).toContainText('NEW · ON THE NEW SHELF');
+	await expect(page.getByText("03 — DOWNLOADS AREN'T IN A BACKUP")).toBeVisible();
+	await expect(page.getByText('TO READ LEFT OUT')).toBeVisible();
+
+	// The library has them, on NEW.
+	await page.goto('/?shelf=new');
+	await expect(
+		page.locator('.grid .tile .title', { hasText: 'Drawing: Saikyou Mangaka' })
+	).toBeVisible();
+	// To Read was unticked: Myst, in it in the app, is on no To Read shelf here.
+	const db = new Database(dbPath, { readonly: true });
+	const onToRead = db
+		.prepare(
+			`SELECT COUNT(*) n FROM collection_series cs JOIN collections c ON c.id = cs.collection_id
+			JOIN series s ON s.id = cs.series_id WHERE c.name = 'To Read' AND s.title = 'Myst, Might, Mayhem'`
+		)
+		.get() as { n: number };
+	const myst = db
+		.prepare(`SELECT COUNT(*) n FROM series WHERE title = 'Myst, Might, Mayhem'`)
+		.get();
+	db.close();
+	expect(myst).toEqual({ n: 1 });
+	expect(onToRead.n).toBe(0);
+
+	// The log, with reveal off: the "+" series is not counted.
+	await page.goto('/import/log');
+	await expect(page.getByText('MIHON BACKUP · 3 SERIES')).toBeVisible();
+	await page.getByRole('button', { name: 'OPEN ↓' }).first().click();
+	await expect(page.getByText('app.mihon_2026-11-02_03-14.tachibk')).toBeVisible();
+});
+
+test('a second backup of the same library says so, and merges', async ({ page }) => {
+	const file = backupFile('app.mihon_2026-11-03_08-00.tachibk', [4]);
+	await page.goto('/import');
+	await page.getByLabel('The backup file').setInputFiles(file);
+	await page.waitForURL(/\/import\/\d+$/);
+	await expect(page.getByText(/THE SAME MIHON LIBRARY CAME IN ON \d+ [A-Z]{3}/)).toBeVisible();
+	await expect(page.getByText('THIS ONE ADDS AND UPDATES · NOTHING IS REMOVED')).toBeVisible();
+	await page.getByRole('button', { name: 'IMPORT 4 SERIES →' }).click();
+	await expect(page.getByRole('heading', { name: '3 series came in.' })).toBeVisible({
+		timeout: 20_000
+	});
+	// All three visible ones were here: merged, none new.
+	const nums = page.getByLabel('The result', { exact: true }).first();
+	await expect(nums.locator('.v').nth(0)).toHaveText('0');
+	await expect(nums.locator('.v').nth(1)).toHaveText('3');
+});

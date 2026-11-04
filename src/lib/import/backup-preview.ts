@@ -252,3 +252,46 @@ export function seeAll(
 	);
 	return { rows: matching.slice(0, opts.shown ?? SEE_ALL_PAGE), matching: matching.length };
 }
+
+/**
+ * The refused row's two lines (Import-File-States C, D): the word, then the
+ * reason. The reason is the server's sentence, which starts with the file's
+ * name; NOTHING TO BRING IN is a backup with an empty library, said as such.
+ */
+export function refusalLines(reason: string): { a: string; b: string } {
+	const NOTHING = 'NOTHING TO BRING IN · ';
+	if (reason.startsWith(NOTHING))
+		return { a: 'NOTHING TO BRING IN', b: reason.slice(NOTHING.length) };
+	if (/ OVER THE \d+ MB /.test(reason)) return { a: 'TOO LARGE TO BE A BACKUP', b: reason };
+	if (/INTERRUPTED|GONE/.test(reason)) return { a: 'THE FILE DID NOT ARRIVE', b: reason };
+	return { a: 'NOT A BACKUP TSUNDOKU READS', b: reason };
+}
+
+/** A file's size as the screens say it: 2.4 MB, 812 KB. */
+export function sizeWords(bytes: number): string {
+	if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+	return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
+/** 2 NOV, in the viewer's own time. */
+export const dayMonth = (at: number): string => {
+	const d = new Date(at);
+	return `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+};
+
+/** 18:24, in the viewer's own time. */
+export const clock = (at: number): string => {
+	const d = new Date(at);
+	return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
+/** How long a run took: 1 MIN 48 S, 12 S. */
+export function took(ms: number): string {
+	const s = Math.max(0, Math.round(ms / 1000));
+	return s >= 60 ? `${Math.floor(s / 60)} MIN ${s % 60} S` : `${s} S`;
+}
+
+/** 1,234 */
+export const n = (v: number): string => v.toLocaleString('en-US');
