@@ -30,10 +30,13 @@ const middle = async (page: Page) => {
 };
 /**
  * Turn one page, and return once the reader has turned it: the flow's
- * transform (page turns never animate), the chapter's heading or the URL has
- * moved. A click the reader hadn't handled yet was read as "no turn" under a
- * loaded suite, and the next click turned twice, past the page the test was
- * looking for (c394, c439).
+ * transform (page turns never animate) or the chapter's heading has moved,
+ * both of which the click changes at once. A click the reader hadn't handled
+ * yet was read as "no turn" under a loaded suite, and the next click turned
+ * twice, past the page the test was looking for (c394, c439). The URL is no
+ * witness: the reader rewrites `?at=` 800 ms after the *previous* turn, so it
+ * can move with no click at all (measured in round 2: `?at=0.0` became
+ * `?at=3.0` 900 ms after a turn, nothing clicked).
  */
 const forward = async (page: Page) => {
 	const where = () =>
