@@ -145,9 +145,17 @@ shelf, and one per series in no Work, paged and sorted by that unit. The
 Work's face is the picked part CONTINUE would open -- a part on the shelf
 first, unfinished before finished, then the one opened most recently
 (`unitQuery`'s `face`) -- so on MANGA a Work of a manga and its anime wears
-the manga's cover and on ALL it wears the part CONTINUE opens. `listSeries` is
-unchanged and is what finding reads; every card carries its Work as
-`work: { id, name, part, of }` for the `PART 2 · <WORK>` foot.
+the manga's cover and on ALL it wears the part CONTINUE opens. Finding reads
+series, not tiles: search (`search`), the person and tag page (`tagPage`) and
+the Work feet the page asks for in one query (`workFeetFor`), so a part found
+there keeps its own tile, wearing its Work. The one Work tile finding draws is
+a Work whose own name is what was typed: `search` returns it in
+`SearchResult.works`, before its parts. Every card the card query builds
+(`toCard`) carries its Work as `work: { id, name, part, of }` for the
+`PART 2 · <WORK>` foot. `listSeries`, the per-series shelf list from before
+W1, has no caller in `src/` any more; it returns `LibraryCard[]` and is kept
+for the twelve db specs that read a shelf series by series, `library-db` the
+most (`rg -l '\blistSeries\(' tests`).
 
 - **Counts count tiles** everywhere the sidebar, a tab or `44 OF 188` shows a
   number: `countTiles` / `countListed` / `listShelves` count units, and a Work
@@ -156,9 +164,11 @@ unchanged and is what finding reads; every card carries its Work as
   part CONTINUE opens, or `UP NEXT` at the next part's first chapter. A Work
   is a candidate when any part has ever been opened -- a part read through and
   the next one never started is exactly the row the handoff draws -- and its
-  `total` counts rows. The card query carries each series' last open; sorting
-  and slicing happen before `entryLine`/`resumeEntry`, so the section hydrates
-  only the rows it returns.
+  `total` counts rows. The card query carries each series' last open and no
+  LIMIT, and `withEditions` runs over every open series; sorting and slicing
+  to `limit` happen before `entryLine`/`resumeEntry`, so only those two
+  prepared reads per row are spent on the rows the section returns
+  (doc/LIBRARY.md, "Works").
 - **A Work sorts by its most recent part**, as aggregates over every part
   (`keys` in `unitQuery`): latest read, newest chapter, latest added. The
   order lives in SQL rather than a `sortKey` on the part facts (W1's

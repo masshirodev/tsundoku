@@ -54,12 +54,13 @@ start but was drawn for fingers.
   `window.tsundokuBack()` says nothing took it and the app leaves. The climb
   only goes somewhere out of sight (the owner's call, 2026-11-02): with the
   top of the screen in full view, BACK leaves at once.
-- **The player is the picture until a key**, then six cells on one row with
-  focus on ▶❚❚: ▶❚❚, −10, +10, ← EP. n, the cell naming the stream (the
+- **The player is the picture until a key**, then, when no offer is up, six
+  cells on one row with focus on ▶❚❚: ▶❚❚, −10, +10, ← EP. n, the cell naming the stream (the
   settings panel), EP. n+1 →. The seek bar above them keeps ← → (it seeks 10 s
   with the flash) and ↑ from any cell reaches it. SKIP INTRO and the
   next-episode card's PLAY NOW → take focus themselves the moment they appear,
-  so OK does what they say; ↓ is the bar and ↑ returns to them (c296).
+  so OK does what they say; ↓ brings the bar with focus on the seek bar, ↑
+  on the offer itself goes nowhere, and ↑ from the bar returns to them (c296).
   ▶❚❚ ⏩ ⏪ ⏭ ⏮ (`MediaPlayPause`, `MediaFastForward`, `MediaRewind`,
   `MediaTrackNext`, `MediaTrackPrevious`) work on every device, and on the
   library ▶❚❚ resumes the focused CONTINUE card there and then, without the
@@ -163,7 +164,8 @@ What it decided, in short:
   ⏪ ⏩ seek in the player and change chapter in the reader; MIC searches.
 - **The player:** the picture until a key, then all six controls on one row
   with the scrubber above; settings as a panel; SKIP INTRO shown alone and
-  focused while offered.
+  focused while offered, and the next-episode card's PLAY NOW focused the
+  same way.
 - **The reader:** a spread by default on a TV (it's off by default
   elsewhere), one page for a cover or a wide page, a 520 px strip for
   vertical.
@@ -414,8 +416,8 @@ decisions (`isBackKey`, `isOptionsKey`, `OkPress`) and `layer.ts` wires them;
   did something — closed a sheet, climbed a screen — and `false` only when
   there was nothing left to take. `tests/tv-keys.e2e.ts` and
   `tests/tv-move.e2e.ts` pin both halves.
-- **The player** (TV-Board-Player): the picture until a key; then OK, ↑ or ↓
-  brings the bar with focus on ▶❚❚, the six cells in the design's order
+- **The player** (TV-Board-Player): the picture until a key; then, when no
+  offer is up, OK, ↑ or ↓ brings the bar with focus on ▶❚❚, the six cells in the design's order
   (▶❚❚ · −10 · +10 · ← EP. n · the stream's own cell, which opens the settings
   · EP. n+1 →), 76px for the three on the left, on one row under a 60px
   scrubber, both bars' contents inside the safe margin. The bars themselves
@@ -424,11 +426,15 @@ decisions (`isBackKey`, `isOptionsKey`, `OkPress`) and `layer.ts` wires them;
   bars set 28px in, the picture showed above the top bar and under the cells
   on the first real TV (2026-11-02). The middle cluster is not
   drawn (it is the thumb's), and nothing changes off a TV. SKIP INTRO shows
-  alone while offered, takes focus itself, and OK presses it (c296). BACK hides
+  alone while offered, takes focus itself, and OK presses it; PLAY NOW → does
+  the same when the next-episode card appears, and ↓ from either brings the
+  bar on the seek bar (c296). BACK hides
   the bar at once, then leaves
   for the series. The settings cell opens the 420px panel every sheet is, the
   picture playing at the left, focus on its first row; ←/→ move along a row,
-  OK takes the value, BACK closes and gives focus back to the cell. A server
+  OK takes the value, BACK closes and gives focus back to the cell. With a
+  language row's MORE list open, BACK closes the list first and gives MORE the
+  focus back (c386). A server
   that fails over redraws the panel's rows under the focus, so the panel takes
   it back rather than dropping the mark.
 - **A remote's media keys**, on every device: ▶❚❚ plays or pauses, ⏩ ⏪ seek
@@ -555,8 +561,10 @@ card, which the owner found fighting the remote (2026-11-02).
   ([`FOCUS.md`](FOCUS.md)), so ↑ from ▶❚❚ took the top bar's ← 372 px away,
   and ← from the bar took ▶❚❚. Every cell in the row now lands on the bar.
 - **With the bar hidden, ← → seek and bring the bar with focus on the seek
-  bar**, so the next ← → keeps seeking there; OK, ↑ and ↓ still bring it on
-  ▶❚❚ (6A/6B).
+  bar**, so the next ← → keeps seeking there; when no offer is up, OK, ↑ and ↓
+  bring it on ▶❚❚ (6A/6B). When SKIP or PLAY NOW has the pad, OK presses the
+  focused button, ↑ is a no-op while the bar is down, and ↓ brings the bar
+  with focus on the seek bar (below).
 - **The next-episode card's PLAY NOW → takes focus when the card appears** (a
   TV only, never a pointer), so OK plays the next episode at once; ← reaches
   STAY, ↓ goes into the bar, and ↑ returns to PLAY NOW. The bar names it with
@@ -571,9 +579,11 @@ card, which the owner found fighting the remote (2026-11-02).
   button the owner reaches for; today `inEnding` stands down when there is a
   next, so they cannot be.
 - **The offer takes the pad when it starts, not when the bar draws it.**
-  SKIP inside its 8 s alone window is offered with the bar down, and a bar that
-  comes up renders it again; that is a reveal, not a new offer, so OK, ↑ and ↓
-  still bring the bar on ▶❚❚ (6A/6B) while a SKIP runs. ↑ from the bar reaches
+  SKIP inside its 8 s alone window is offered with the bar down and has the
+  pad. Once that window closes, SKIP is drawn only with the bar and no longer
+  has the pad, so with the bar down no offer is up: OK, ↑ and ↓ bring the bar
+  on ▶❚❚ (6A/6B) while the opening still runs, and the SKIP the bar draws again
+  is a reveal, not a new offer, so it does not take the mark. ↑ from the bar reaches
   it as before: ↓ or ↑ out of the bar is the bar's, and the bar's own ↑ names
   PLAY NOW or SKIP.
 - **The chrome's own 4 s hands the pad back to the offer.** While the card or
