@@ -204,7 +204,12 @@ anime with Ranobe's one line under them, a rule above it.
   AniList's, only when it differs (`entryStates`): signed in where AniList
   isn't or the other way round, a send of its own that failed, or another
   word or chapter on its list (`MAL AT CH. 198`). MAL alone (AniList not asked
-  yet) leads with its name and says `SHOWN · ANILIST HAS NOTHING`.
+  yet) leads with its name and says `SHOWN · ANILIST HAS NOTHING`. The line
+  speaks for the first list that is signed in, AniList before MAL
+  (`mainList`): with AniList signed out and MAL signed in, MAL's word leads
+  (`MAL · WATCHING · EP. 8`, on every season, watched or not) and AniList's
+  NOT SIGNED IN is the quiet line. A fold's word and the sheet's STATUS ask
+  the same list (`listState`).
 - **An anime's seasons**: three or fewer have a line each; more fold round the
   one being watched (its tag inverted), and the fold says the run's state
   (`COMPLETED`, `2 NOT LINKED`, `A SEND FAILED`). SHOW opens one row now, not
@@ -222,7 +227,8 @@ on the tablet in portrait. The order is TRY AGAIN, SIGN IN →, FIND or CHANGE,
 PASTE A LINK, EDIT. TRY AGAIN is per line: a season's names its season
 (`?/retryTracking` sends that season's alone), a comic's sends both its lists,
 and Ranobe's is `?/retryRanobe`. A sign-in that expired offers SIGN IN → in
-TRY AGAIN's place. A season's FIND keeps one cell (PASTE A LINK is on the
+TRY AGAIN's place, unless the other list's send failed for another reason:
+then the line offers both. A season's FIND keeps one cell (PASTE A LINK is on the
 review it opens); a hidden season's is PASTE. A settled line's FIND is plain,
 not the accent: the owner already said no.
 
