@@ -309,11 +309,75 @@ test('the seek bar keeps ← →, and ↑ from every cell of the row lands on it
 	await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.paused)).toBe(true);
 });
 
-/** Part 2: with the bar hidden, ← → seek and the bar comes with the keys on it. */
-test('← → with the bar hidden seek and put focus on the seek bar', async ({ page }) => {
+/**
+ * Part 2: with the bar hidden and nothing offered, ← → seek and the bar comes
+ * with the keys on it. This is the state the opt-out exists for: no SKIP, no
+ * card, so the root carries `data-focus-off`, the focus layer never sees the
+ * arrow, and the player's own handler seeks (doc/handoff-notes/tv-player.md,
+ * part 2). The pause is at 0.4 s because the browse world's episodes open at
+ * 1-3 s (tests/browse-setup.ts), and inside the opening SKIP INTRO is offered,
+ * which lifts the opt-out (c316).
+ */
+test('← → with the bar hidden and nothing offered seek and put focus on the seek bar', async ({
+	page
+}) => {
 	await openLastEpisode(page);
 	await play(page);
 	await streamReady(page);
+	const player = page.locator('.player');
+	const track = page.locator('.scrubrow .track');
+	const video = page.locator('video');
+	const at = () => video.evaluate((v: HTMLVideoElement) => v.currentTime);
+
+	await video.evaluate((v: HTMLVideoElement) => {
+		v.pause();
+		v.currentTime = 0.4;
+	});
+	// The player has taken the pause in (its ▶❚❚ reads Play), which shows the
+	// bar: under a loaded suite the pause event landed after Escape and drew
+	// the bar again over the hidden one (c336, c439).
+	await expect(page.locator('.cells .pause')).toHaveAttribute('aria-label', 'Play');
+	await expect(page.getByRole('button', { name: /^SKIP/ })).toHaveCount(0);
+	// Escape hides the bar; the paused picture leaves it hidden, and with
+	// nothing offered the root opts out of the focus layer.
+	await page.keyboard.press('Escape');
+	await expect(player).not.toHaveClass(/chrome/);
+	await expect(player).toHaveAttribute('data-focus-off', '');
+
+	await page.keyboard.press('ArrowRight');
+	await expect(player).toHaveClass(/chrome/);
+	await expect(page.locator('.flash .by')).toHaveText('+10 S');
+	await expect(track).toBeFocused();
+	await expect.poll(at).toBeGreaterThan(5);
+
+	// ← the same way: the bar hidden again, at 5 s (past the opening, before
+	// the ending's 6 s), so the key again reaches the player and not the layer.
+	await video.evaluate((v: HTMLVideoElement) => (v.currentTime = 5));
+	await expect.poll(at).toBe(5);
+	await page.keyboard.press('Escape');
+	await expect(player).not.toHaveClass(/chrome/);
+	await expect(player).toHaveAttribute('data-focus-off', '');
+	await page.keyboard.press('ArrowLeft');
+	await expect(player).toHaveClass(/chrome/);
+	await expect(page.locator('.flash .by')).toHaveText('−10 S');
+	await expect(track).toBeFocused();
+	await expect.poll(at).toBeLessThan(1);
+});
+
+/**
+ * The same keys inside the opening, where SKIP INTRO is offered: the bar is
+ * hidden but the root's opt-out is lifted so the pad can reach SKIP (part 5),
+ * and ← → come through the focus layer, which has no stop beside SKIP and
+ * lets the key fall through to the player. Until c316 this was the only part-2
+ * case, under the title of the one above.
+ */
+test('with SKIP INTRO offered and the bar hidden, ← → still seek and put focus on the seek bar', async ({
+	page
+}) => {
+	await openLastEpisode(page);
+	await play(page);
+	await streamReady(page);
+	const player = page.locator('.player');
 	const track = page.locator('.scrubrow .track');
 	const video = page.locator('video');
 	const at = () => video.evaluate((v: HTMLVideoElement) => v.currentTime);
@@ -322,16 +386,15 @@ test('← → with the bar hidden seek and put focus on the seek bar', async ({ 
 		v.pause();
 		v.currentTime = 1;
 	});
-	// The player has taken the pause in (its ▶❚❚ reads Play), which shows the
-	// bar: under a loaded suite the pause event landed after Escape and drew
-	// the bar again over the hidden one (c336, c439).
 	await expect(page.locator('.cells .pause')).toHaveAttribute('aria-label', 'Play');
-	// Escape hides the bar; the paused picture leaves it hidden.
 	await page.keyboard.press('Escape');
-	await expect(page.locator('.player')).not.toHaveClass(/chrome/);
+	await expect(player).not.toHaveClass(/chrome/);
+	// SKIP is up on its own (its first 8 s), so the layer has the arrows.
+	await expect(page.getByRole('button', { name: 'SKIP INTRO →' })).toBeVisible();
+	await expect(player).not.toHaveAttribute('data-focus-off');
 
 	await page.keyboard.press('ArrowRight');
-	await expect(page.locator('.player')).toHaveClass(/chrome/);
+	await expect(player).toHaveClass(/chrome/);
 	await expect(track).toBeFocused();
 	await expect.poll(at).toBeGreaterThan(5);
 
