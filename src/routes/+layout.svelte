@@ -35,6 +35,18 @@
 	// listener, arrow keys moving by geometry, sheets as scopes.
 	onMount(() => installFocusLayer());
 
+	// The TV app keeps a list of servers (c261; doc/TV-APP.md, "Servers"): a
+	// server tells it its own name, the one /pair/tv says, so a TV paired
+	// before the list existed is named too. Only the app's user agent is sent
+	// a name, and only an app whose bridge can take it is told.
+	onMount(() => {
+		const bridge = (
+			window as unknown as { TsundokuTV?: { named?: (origin: string, name: string) => void } }
+		).TsundokuTV;
+		if (data.computer && typeof bridge?.named === 'function')
+			bridge.named(location.origin, data.computer);
+	});
+
 	// The scan action's refusal is drawn by the empty library only, so the
 	// sidebar's RESCAN says it in its own place rather than nowhere.
 	let rescanNote = $state('');
@@ -323,6 +335,18 @@
 							>{m.name_get_started()}<span class="n"
 								>{data.start.done + data.start.skipped} / {data.start.steps.length}</span
 							></a
+						>
+					{/if}
+					{#if data.toLink > 0}
+						<!-- The links review's own door (c475): the library's band can be put
+						     away (c430), and nothing else opened /links. TO LINK, the review's
+						     short name, not SERIES TO LINK: links-flow finds the band by those
+						     words, first in the page (doc/NAVIGATION.md). -->
+						<a
+							class="with-n"
+							href={resolve('/links')}
+							aria-current={page.url.pathname.startsWith('/links') ? 'page' : undefined}
+							>{m.name_to_link()}<span class="n">{num(data.toLink)}</span></a
 						>
 					{/if}
 					<a

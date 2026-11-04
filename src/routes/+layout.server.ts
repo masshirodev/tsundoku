@@ -1,3 +1,4 @@
+import { hostname } from 'node:os';
 import type { LayoutServerLoad } from './$types';
 import { currentScan, listShelves } from '$lib/server/library';
 import { isIncognito, isRevealed, themeOf } from '$lib/server/prefs';
@@ -10,8 +11,11 @@ import { checkIfStale, updateView } from '$lib/server/updates';
 import { startNow } from '$lib/server/start';
 import { chosenLocale, LANG_COOKIE, type LangChoice } from '$lib/i18n/locale';
 import { m } from '$lib/paraglide/messages';
+import { linkQueueCount } from '$lib/server/catalogue';
+import { ranobeQueueCount } from '$lib/server/ranobe-review';
+import { isTvApp } from '$lib/settings/catalog';
 
-export const load: LayoutServerLoad = async ({ cookies, locals, depends }) => {
+export const load: LayoutServerLoad = async ({ cookies, locals, depends, request }) => {
 	const reveal = isRevealed(cookies);
 	const theme = themeOf(cookies);
 	// The device's choice of language, mirrored like the theme (doc/I18N.md).
@@ -29,7 +33,9 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends }) => {
 			browse: null,
 			update: null,
 			updateOffer: null,
-			start: null
+			start: null,
+			toLink: 0,
+			computer: null
 		};
 	const scan = currentScan();
 	const shelves = listShelves({ reveal, withNew: scan !== null });
@@ -63,6 +69,17 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends }) => {
 	// GET STARTED (doc/ONBOARDING.md): the sidebar's row and the way back read it.
 	depends('tsundoku:start');
 	const start = startNow(reveal);
+	// SERIES TO LINK (c475; doc/LINKS.md's review): the sidebar's and MORE's
+	// way into /links, so putting the library's band away never hides it.
+	// The library's own sum, so the row and the band never disagree; about a
+	// millisecond on the seed, both catalogues and either reveal (wave 21).
+	const toLink = linkQueueCount(reveal) + ranobeQueueCount();
+	// The TV app's name for this computer (c261): what /pair/tv calls it, said
+	// to the app's bridge by the layout so a server paired before the list
+	// existed gets its name too. Only the app is told; it is the only reader.
+	const computer = isTvApp(request.headers.get('user-agent') ?? '')
+		? (hostname() || 'computer').toUpperCase()
+		: null;
 	return {
 		reveal,
 		incognito: isIncognito(cookies),
@@ -75,6 +92,8 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends }) => {
 		browse,
 		update,
 		updateOffer,
-		start
+		start,
+		toLink,
+		computer
 	};
 };
