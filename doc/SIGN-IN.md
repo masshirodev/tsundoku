@@ -109,5 +109,14 @@ unused.
 friend's install of its own in the browser suite (`tests/friend-setup.ts`, the
 `friend` project): SET UP, NO PASSWORD's question, a password set twice, a
 second browser signing in, CHANGE and REMOVE in SETTINGS, the reset, and a
-foreign Host refused. The release smoke test sets a password through SET UP
-on every bundle ([`RELEASE.md`](RELEASE.md), "Smoke test").
+foreign Host refused. `tests/friend-tailnet.e2e.ts` (c266, also the
+`friend` project) stands up two installs of its own the way
+`scripts/serve.ts` serves one on the tailnet: `http` mode, bound to
+127.0.0.1, `ORIGIN` on a tailnet-like host. On the friend's (a password set)
+SETTINGS draws no six digits, NEW CODE's `?/tvCode` is refused and
+`GET /settings/tv` answers `null`, and a valid paired cookie on the tailnet
+host lands on `/login` while the password's session signs in; on the token
+install with the same origin the digits are drawn, typed on `/pair/tv`, and
+the cookie that sets signs `/` in on the tailnet host and not at 127.0.0.1.
+The release smoke test sets a password through SET UP on every bundle
+([`RELEASE.md`](RELEASE.md), "Smoke test").
