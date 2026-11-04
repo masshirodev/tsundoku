@@ -103,8 +103,8 @@ judged by it too (wave 17, round 2):
   `Show Season 2`, so it waits for the owner's LINK.
 - **No two seasons or parts of a show are the same entry**, AniList id or
   MAL id. `linkSeason` refuses an entry another season or part holds
-  (`seasonHolding`; a link from before rung 62 with no season row counts as
-  the first season's), whatever the door: the pass's sure match (it is then
+  (`seasonHolding`; a `series_links` row with no season row beside it counts
+  as the first season's, which since rung 68 no anime has), whatever the door: the pass's sure match (it is then
   offered), the owner's list (`linkSeasonFromList` writes nothing), LINK N
   SEASONS from the relations, the queue's LINK and a pasted link (the API
   answers 409, and the page says `NOT OFFERED FOR THIS ONE · NOTHING
@@ -199,8 +199,11 @@ again or paste a link.
   (c240): it is searched, queued for the review and offered to the list's
   auto-link while **any one** season has neither a link nor a decision, and
   its `series_links` row (the mirror of season 1) does not end that.
-  An anime with no season rows -- linked or settled before rung 62, or never
-  acted on -- is read by `series_links` and `link_decisions`, as a comic is.
+  An anime with no season rows -- settled before rung 62, or never acted on
+  -- is read by `series_links` and `link_decisions`, as a comic is. One
+  _linked_ before rung 62 was too, so its one link settled the whole series
+  and its season 2 never came to the pass or the review, until rung 68 moved
+  that link onto its season (c383; "A link from before the seasons", below).
   One rule at every door: the pass (`searchable`), the review and its count
   (`linkQueue`, `linkQueueCount`), `links --again` (`requeueSearched`), the
   list's auto-link (`linkableByTitle`) and Ranobe's review line that says an
@@ -398,10 +401,35 @@ The link is AniList's line, a line a season on an anime (c240; above).
   anime's row there is a **mirror of its first season, written only while that
   season is linked** (season 1, or a flat list). With only a later season
   linked there is no row at all. Neither tracking, AniSkip (an episode is
-  asked under its own season's entry, c349) nor `tvshow.nfo` (the show's ids
+  asked under its own season's entry, c349; the answers asked before that
+  under another season's entry or part were forgotten by rung 67, c463, and
+  are asked again on the next play) nor `tvshow.nfo` (the show's ids
   from its season rows, c381) reads it for an anime; the importer's
-  keep-test still does (c382), so it stays. A link an anime had before rung 62 is read as its
-  first season's; nothing was migrated, since no anime was linked then.
+  keep-test still does (c382), so it stays. A link an anime had before rung
+  62 is its season's row since rung 68 (below).
+- **A link from before the seasons** (c383, rung 68). Before rung 62 an
+  anime's link was its one `series_links` row. Read as the whole series'
+  link, it settled every season, so a two-season show linked then never
+  offered its season 2. Rung 68 gives each such anime (a `series_links` row
+  with an id and no `series_season_links` row) the row of the season the
+  link stood for, **decided by the series' own episodes**: the **lowest
+  numbered season** (1 and up, over the episodes not shadowed) when the
+  source numbers any, so a special filed at season 0 does not take it;
+  **season 0** for a flat list, or a series with no episodes yet, where one
+  entry is the whole run. Part 1, with the link's ids, `via`, title, cover,
+  dates, score and `filled_rating`; `episodes` and `year` were never kept and
+  stay empty. A season decision at that place goes, as a LINK takes it, and
+  what the owner's list said of the series (`tracker_state`, and a send still
+  waiting) moves to that season, where an anime's is read. From there the
+  season rule decides it: season 2 is searched by the next pass and comes to
+  the review as its own item, and the series screen draws season 1 linked as
+  before. The `series_links` row stays as it was: it is the first season's
+  mirror now (the ids `syncSeriesLink` would write), so OTHER NAMES on MOVE,
+  the importer's keep-test and the cover read what they read before. An
+  AniSkip answer of an episode outside that season (a special asked under
+  the one link) is forgotten, since the link is no longer its entry. A
+  series that already had a season row is not touched, and neither is a
+  comic's or a novel's link.
 - **A season's FIND** opens the review with `?series=N&season=S`: the search
   is that season's own title (`Sword Art Online Season 3`, the source's
   season number after the series' title), asked in the anime formats, and

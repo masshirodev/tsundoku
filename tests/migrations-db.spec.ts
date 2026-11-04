@@ -291,11 +291,51 @@ describe('rung 66: IMPORT A BACKUP and its log (c438)', () => {
 		conn.prepare(`DELETE FROM scan_jobs WHERE id = 1`).run();
 		expect(conn.prepare(`SELECT job_id FROM imports`).get()).toEqual({ job_id: null });
 	});
+});
+
+// Rung 67 (c463) has its own file, tests/aniskip-rung67-db.spec.ts, and rung
+// 68 (c383) its own through the app's doors, tests/legacy-anime-rung68-db.spec.ts.
+describe('rung 68: a link from before rung 62 becomes its season’s row (c383)', () => {
+	it('moves an anime’s one link onto its first season and leaves a manga’s alone', () => {
+		const conn = new Database(':memory:');
+		climb(conn, 67);
+		conn.exec(`
+			INSERT INTO roots (id, name, path) VALUES (1, 'Anime', '/a');
+			INSERT INTO series (id, root_id, title, kind, added_at) VALUES
+				(1, 1, 'Show', 'anime', 1), (2, 1, 'Book', 'manga', 1);
+			INSERT INTO entries (id, series_id, position, label, added_at, season, episode_number) VALUES
+				(1, 1, 1, 'S1E1', 1, 1, 1), (2, 1, 2, 'S2E1', 1, 2, 1);
+			INSERT INTO series_links (series_id, anilist_id, mal_id, via, linked_at, filled_rating, score) VALUES
+				(1, 10, 20, 'review', 5, 7, 70), (2, 11, 21, 'mihon', 5, NULL, NULL);
+		`);
+		const mirror = conn.prepare(`SELECT * FROM series_links ORDER BY series_id`).all();
+		climb(conn, 68);
+		expect(conn.pragma('user_version', { simple: true })).toBe(68);
+		expect(
+			conn
+				.prepare(
+					`SELECT series_id, season, part, anilist_id, mal_id, via, filled_rating, score FROM series_season_links`
+				)
+				.all()
+		).toEqual([
+			{
+				series_id: 1,
+				season: 1,
+				part: 1,
+				anilist_id: 10,
+				mal_id: 20,
+				via: 'review',
+				filled_rating: 7,
+				score: 70
+			}
+		]);
+		expect(conn.prepare(`SELECT * FROM series_links ORDER BY series_id`).all()).toEqual(mirror);
+	});
 
 	// The top rung's own block says it is the top; the next rung moves this line.
 	it('is the top of a fresh database', () => {
 		const conn = new Database(':memory:');
 		climb(conn);
-		expect(conn.pragma('user_version', { simple: true })).toBe(66);
+		expect(conn.pragma('user_version', { simple: true })).toBe(68);
 	});
 });

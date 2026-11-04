@@ -40,8 +40,11 @@ import type { Kind } from '../library/types.ts';
  * `series_season_links`, keyed by series, season and part.
  *
  * - **Season 0 is a flat list**, and one entry covering the whole run. A link
- *   made before rung 62 lives in `series_links` and is read as season 0's by
- *   `legacyLink` (doc/handoff-notes/tracking.md), so nothing is migrated.
+ *   made before rung 62 lived in `series_links` alone; rung 68 (c383) moved
+ *   each onto its season's row -- the lowest numbered season, or season 0 for
+ *   a flat list (doc/LINKS.md, "A link from before the seasons"). `legacyLink`
+ *   still reads such a row wherever no season row exists, for a door that
+ *   might write one; none does for an anime today.
  * - **Two parts** are one season a catalogue split in two: part 2 begins
  *   after part 1's episode count (`episodes`, stored with the link).
  * - **The other seasons** come from the linked entry's own PREQUEL/SEQUEL
@@ -125,7 +128,10 @@ export function seasonLinks(seriesId: number, db: Database.Database = getDb()): 
  * kept meaning what it always meant -- one entry for the series -- and an
  * anime nobody split has one season (or none given), which is exactly that.
  * The caller says which season it is attributed to (the first one in its
- * list), since only the list knows.
+ * list), since only the list knows. Rung 68 (c383) gave every such anime its
+ * season row, so for an anime this answers only beside no season row at all:
+ * a `series_links` row no door writes for an anime today (the import's
+ * `linkFromTracker` is Mihon's, whose series are comics).
  */
 export function legacyLink(seriesId: number, db: Database.Database = getDb()): SeasonLink | null {
 	const r = db.prepare(`SELECT * FROM series_links WHERE series_id = ?`).get(seriesId) as
