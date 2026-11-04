@@ -34,7 +34,8 @@ test('SETTINGS lists both catalogues, not signed in, and why they can’t be yet
 }) => {
 	await page.goto('/settings');
 	await expect(page.getByRole('heading', { name: '06 — CATALOGUES' })).toBeVisible();
-	const rows = page.locator('.acct');
+	// Only CATALOGUES' rows: SETTINGS > 05's IMPORT A BACKUP is drawn as an account row too (c438).
+	const rows = page.getByRole('region', { name: '06 — CATALOGUES' }).locator('.acct');
 	// Ranobe's row is there without a token too, saying so (Ranobe 3b; doc/RANOBE.md).
 	await expect(rows.locator('.label')).toHaveText(['ANILIST', 'MAL', 'RANOBE']);
 	await expect(rows.locator('.name')).toHaveText([
