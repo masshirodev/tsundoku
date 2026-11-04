@@ -46,8 +46,8 @@ JDK 21 is what this machine has, and AGP 8.13 needs 17 or newer. The SDK is
 Gradle's downloads go to `~/.gradle`; everything the build writes stays under
 `android/tv/` and is gitignored. No APK is committed.
 
-The unit tests cover the four pure pieces; there is no emulator system image on
-this machine, so nothing instrumented runs.
+The unit tests cover the pure pieces (`Tests`, below); there is no emulator
+system image on this machine, so nothing instrumented runs.
 
 ## Install it
 
@@ -72,12 +72,15 @@ The launcher shows **tsundoku** with the wordmark banner (320×180, drawn from
 - **An address given at launch** ([below](#handing-the-tv-an-address)) is
   checked first, whichever door it came through: a cold start, or a second
   `am start` on an app already open. It is not stored until it answers.
-- **A remembered address that answers** opens the library directly. The answer
-  is the web app manifest: `/manifest.webmanifest`'s name is tsundoku's, so a
-  router, a NAS or another web server does not pass.
-- **A remembered address that does not answer** shows 9D, what it tried and
-  the three likely reasons, and keeps probing every 5 s.
-- **No address at all, remembered or given,** shows 9A, the app's first screen.
+- **The last used server that answers** opens its library directly (c261:
+  the TV keeps a list, [below](#servers), and launch opens the one whose
+  library was open last; there is no default to mark). The answer is the web
+  app manifest: `/manifest.webmanifest`'s name is tsundoku's, so a router, a
+  NAS or another web server does not pass.
+- **The last used server that does not answer** shows 9D for it, what it tried
+  and the three likely reasons, keeps probing every 5 s, and offers the other
+  servers beside the reasons (S9). It never silently opens another.
+- **No server at all, remembered or given,** shows 9A, the app's first screen.
 
 ### Handing the TV an address
 
@@ -127,9 +130,11 @@ password is refused. A bare `host:port` is not enough here, although it is on
   short enough to sit beside REFUSED · NOTHING WAS SAVED there; the longer
   `http:// OR https:// WITH A HOST, NO USERNAME, PORT 1–65535` fits a desktop's
   narrower font and cut the first line off on a TV.
-- **Answered** is remembered (`KEY_ADDRESS` in the `pairing` prefs) and opens
-  the pairing at that address: the six digits on a tailnet instance (c245), or
-  a friend's 9C.
+- **Answered** and new is added to the TV's servers ([below](#servers); it
+  does not replace the one in use) and opens the pairing at that address: the
+  six digits on a tailnet instance (c245), or a friend's 9C. **Answered** and
+  already in the list opens that server's library: its pairing is already in
+  the WebView's cookie jar (c261).
 - **Not answered** shows 9D for that address and keeps trying. A previously
   remembered address is left alone, but 9D does not give up the given one by
   itself, and the launcher's icon does not bring the library back (c307): the
@@ -139,7 +144,7 @@ password is refused. A bare `host:port` is not enough here, although it is on
   the way back: the asset takes no BACK of its own, so `Back.kt` goes to the
   nearest earlier screen past the app's own pages, which is the library when
   the app was open on it, and otherwise leaves the app. The next launch, with
-  no address given, probes the remembered address and opens the library.
+  no address given, probes the last used server and opens its library.
 
 Only the attempt that is current has its answer acted on. A given address
 supersedes a probe already in flight, and that probe's answer is dropped —
@@ -176,6 +181,176 @@ CHECKING with NEXT disabled.
 The check is 9B's own: the web app manifest, through `PairingBridge`. A given
 address goes through the same `#connect=` path in the asset page, remembers
 only in its success branch, and never adds a second probe.
+
+## Servers
+
+The TV keeps a list of the servers it has paired with, and switches between
+them as Jellyfin's TV app does (c261; the handoff is
+`doc/handoffs/tv-servers/`, the brief `doc/briefs/TV-SERVERS.md`). The
+designer's calls, as built:
+
+- **One server: nothing changes.** Launch, pairing and 9D are as before. The
+  one addition is a **SERVERS** row at the end of MORE (S6), drawn only where
+  the app's bridge exists, so a phone, a computer and a browser never see it.
+  It reads `1 · ADD ANOTHER`, or with two or more `3 · LIVING ROOM IN USE`.
+- **Launch opens the last used.** A server becomes the one in use when its
+  library has loaded (`MainActivity.onPageFinished`, any page of it that is
+  not sign-in, set-up or pairing). If it does not answer, 9D for it with the
+  others offered (S9); never another.
+- **Names.** A server is named by itself: its hostname, upper case, as
+  `/pair/tv` says it. The app reads it from 9E's first line
+  (`✓ PAIRED WITH ZEN · …`, `Forget.pairedName`), and the library's layout
+  also says it to the bridge on every load (`data.computer`, sent only to the
+  app's user agent), so a TV paired before the list existed is named too.
+  **RENAME** (S5) keeps the TV's own name for it, on the TV only; emptied, the
+  server's name comes back; never named at all, the row shows its address.
+
+### Where each state lives
+
+| State                                        | Where                                                                                            | Door                                  |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------- |
+| S2 SERVERS, S3 a server's options, S4 FORGET | the web app's MORE (`MoreSheet.svelte`), over the library, in the 420 px panel every TV sheet is | MORE › SERVERS                        |
+| S6 MORE with SERVERS                         | the same sheet, its last row                                                                     | MORE                                  |
+| S5 RENAME                                    | the app's own page, `#rename=<origin>`                                                           | S3's RENAME, S8's RENAME              |
+| S7 ADD A SERVER                              | the app's own page, `#add` (9B, step `ADD A SERVER · 1 OF 2`)                                    | S2's + ADD A SERVER                   |
+| S8 added                                     | the app's own page, `#added=<origin>`, in place of the computer's 9E                             | 9E after an add                       |
+| S9 9D with the others                        | the app's own page, `#lost=<origin>`                                                             | launch, a server that stops answering |
+| S1 the bar's `ON LIVING ROOM` cell           | **not built**: the library's top bar is `src/routes/+page.svelte`'s                              | (handoff notes, wave 21, Gaps)        |
+
+SERVERS, its options and FORGET are panels over the library in the design, so
+they are the web app's, reading the bridge at runtime. RENAME and the add are
+whole screens, before or beside pairing, so they are the app's own page, as
+9A–9D are. The two halves talk only through `window.TsundokuTV`.
+
+### On the remote
+
+- **SERVERS** lists the one in use first (✓, IN USE in the accent), then the
+  rest by when each was last opened, then `+ ADD A SERVER`. The mark lands on
+  the first one not in use; with one server, on + ADD A SERVER. Each row is
+  probed as the panel opens (CHECKING, then ● ANSWERS or ○ NO ANSWER), the
+  answers landing as they come. OK opens that library at once (its pairing is
+  its own cookie); on the one in use, OK closes the panel.
+- **MENU, or OK held,** on a row opens its options: ADDRESS, ITS NAME (NOT
+  SAID YET until the server has said it), OPENED (TODAY, YESTERDAY, N DAYS AGO,
+  NEVER), NOW, then OPEN →, RENAME and FORGET.
+- **FORGET** is its own panel. The mark lands on KEEP IT; FORGET is ↓ then
+  OK; for the first 0.6 s FORGET is disabled and KEEP IT ignores OK, so the
+  tail of an OK held to open the options presses nothing. Forgetting the one
+  in use opens the next that answers (else the next by when it was opened,
+  whose 9D offers the rest); forgetting the last returns to 9A.
+- **BACK** climbs: FORGET to the options (on FORGET), the options to the list
+  (on that row), the list to MORE (on SERVERS), MORE closed.
+- **ADD A SERVER** is 9B with the new computer's address: the meta line names
+  who is already here, and BACK returns to the library in use, nothing
+  changed. An address already in the list is not paired again: the band says
+  `ALREADY IN SERVERS AS STUDIO · OPENING` and its library opens. A new one
+  that answers is added and its pairing opens; after its six digits the app
+  shows S8 in place of the computer's 9E, with OPEN → focused and RENAME.
+- **9D's CHANGE THE ADDRESS** on a server in the list opens 9B for that entry
+  (`01 — LIVING ROOM'S NEW ADDRESS`): the new address that answers takes the
+  entry's place, keeping the TV's name for it, then pairs. A server back after
+  not answering opens its library, not its pairing again.
+
+### The store
+
+`Servers.kt` is the list: one line per origin in the `pairing` prefs
+(`servers`), with the server's name, the TV's name, when its library last
+opened and when it was added. Pure apart from its key-value, so
+`ServersTest` pins it.
+
+- **Migration.** A TV paired before c261 has `address` and no `servers`. The
+  first read makes it a list of one, opened now, so the TV opens exactly as
+  before and is never asked to pair again: its cookie is the WebView's,
+  and nothing touches it. The jar keeps cookies per **host**, not per
+  origin (port and scheme are not part of a cookie's scope), so servers on
+  different computers each keep their own pairing, and two on one computer
+  share one (see "What it does not do yet"). `address` is kept in step with the last
+  used on every write, so an older APK installed over this one still opens
+  the same library.
+- **`remember()` adds**, never replaces, and never makes a server the one in
+  use: an add left at 9C does not take launch from the library the TV was in.
+- **FORGET** removes the entry and expires every cookie the WebView's jar
+  sends that origin (`Forget.expiring`: each name written back with
+  `Max-Age=0` at `/`, `Secure` on https), then flushes the jar, so adding it
+  back pairs with six digits. The computer still lists the TV in SETTINGS ›
+  08 — DEVICES until it is signed out there: the TV may be off the network
+  when it forgets.
+- **The bridge** (`PairingBridge.kt`) grew `servers()` (JSON, the one in use
+  first), `open`, `rename`, `named`, `forgetServer`, `move`, `addServer`,
+  `renameServer` and `welcome`; probes run four at a time so a panel's rows
+  answer as they land. Every page the WebView loads has the bridge, which is
+  how MORE reaches it; the list lives in the app, never in a page.
+
+### Launcher shortcuts
+
+One dynamic launcher shortcut per server, up to four, the last used first
+(c287; `Shortcuts.kt`). Each fires c260's own link,
+`tsundoku://connect?url=<the origin, encoded>`, so a shortcut opens exactly the
+door the `am start` above does: the server's library if it answers, 9D for it
+if not. They are rebuilt whenever the list changes (and at every launch, so a
+TV paired before c287 gets its shortcut on the first launch after the update),
+and labelled as the row is, cut to 25 characters.
+
+Dynamic rather than a static `res/xml/shortcuts.xml`: a static shortcut is
+fixed when the APK is built and cannot carry the address this TV paired with,
+which is the only thing it is for. `ShortcutManagerCompat` is androidx.core,
+already a dependency; nothing was added. Whether an Android TV home screen
+shows app shortcuts at all is the launcher's choice; see "What is not
+verified".
+
+### Where it departs from the handoff
+
+- **No `ON LIVING ROOM` cell in the library's top bar (S1).** The bar is
+  `src/routes/+page.svelte`'s, which wave 21's tv-app slot does not own; the
+  cell's exact markup is under Gaps in `doc/handoff-notes/tv-app.md`. MORE ›
+  SERVERS is the door meanwhile, and S8's prose says "Switch from MORE ›
+  SERVERS" rather than "from the name at the top of the library, or MORE ›
+  SERVERS", which would name a door that is not there.
+- **The rows are ruled and the actions are 17 px mono.** The mock's own reset
+  (`.tv button { font: inherit; border: 0 }`) outranks its `.srv` and
+  `.p-act` rules, so as drawn its rows have no rule under them and its
+  actions inherit 16 px sans (the extracted spec shows it: no border on
+  `.srv`, a letter-spacing of 0.32 px, 0.02 em of 16). The stylesheet's
+  declared values, and the calls page's "ruled rows", are the decision.
+- **MORE's own rows stay the house's** (`MoreSheet.svelte`, 64 px, 15 px mono),
+  not S6's 56 px panel actions: SERVERS is one more row in the sheet every
+  device shares, not a redraw of it.
+- **The server's name is read, not handed over.** The design has `/pair/tv`
+  hand it to the bridge; `/pair/tv` is another slot's (`tv-pair`), so the app
+  reads 9E's first line itself, and the library's layout says it on every
+  load. The cost: S8 replaces the computer's 9E once 9E has drawn, so 9E shows
+  for a moment first.
+- **A server that moved takes the entry's place when it answers**, not once
+  paired: the old address's cookie is no use to the new one either way, and
+  the answer is the one thing the page sees before it leaves for `/pair/tv`.
+- **Forgetting the one in use when no other answers** opens the next by when
+  it was last opened, so its 9D offers the rest. The design names only the
+  case where one answers.
+- **9D's reasons are at least 60 high**, not exactly: at 500 px wide the second
+  reason wraps on a TV's font, and all three still end above TRY AGAIN.
+
+### What it does not do yet
+
+- S1, above.
+- **A server older than this release has no SERVERS row**: the row is the web
+  app's, so a TV on a computer still running an earlier tsundoku reaches its
+  other servers only through 9D (when that computer is off) or by a launcher
+  shortcut (c287). The friend's install updates itself (`doc/UPDATES.md`).
+- 9D probes the other servers once, when it opens; its own retry every 5 s is
+  for the server in use only. A retry that fails again only counts (TRIED N
+  TIMES): the rows, their answers and the remote's mark stay where they are
+  (round 2 of wave 21; before it, every failed retry rebuilt 9D, put the mark
+  back on TRY AGAIN and probed every other server again).
+- **Two servers on one computer share a pairing.** The WebView's cookie jar
+  scopes a cookie by host, and every tsundoku sets the same
+  `tsundoku_paired` cookie at `/`, so two servers on one host (two ports, or
+  http and https) hold one cookie between them: pairing the second signs the
+  TV out of the first, and FORGET on either expires both. S8's "Each keeps
+  its own pairing" holds for servers on different computers only. The fix is
+  the computer's (a cookie name per port, `src/lib/server/pairing.ts`), not
+  the app's.
+- 9E itself (the computer's) still says nothing of other servers on a first
+  pairing, as the design asks: with one server nothing changes.
 
 ## Pairing, 9A to 9E
 
@@ -354,13 +529,64 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
 - **`onShowCustomView` over a real `<video>`**, the screen-awake flag, the
   immersive system UI, and the leanback banner's cropping on the home row.
 - **The keystore and a signed build**: no keystore exists yet.
+- **Servers (c261) on a TV.** The store, the launch choice and the migration
+  are JVM-tested; the screens are browser-tested with a stand-in bridge.
+  Nothing has run on a TV. To check, with two tsundokus to hand (the owner's
+  over Tailscale and any other):
+  1. Install this APK over the one already paired. It must open the same
+     library with no digits asked, and MORE's last row must read
+     `SERVERS → 1 · ADD ANOTHER`.
+  2. MORE › SERVERS: the mark is on + ADD A SERVER. OK, type the second
+     computer's address, NEXT, then its six digits. The app's own "ZEN is one
+     of this TV's servers" (S8) must replace the computer's 9E within a
+     second, with OPEN ZEN → marked.
+  3. RENAME there: Android's keyboard must rise under the field, its ✓ save
+     the name and come back to S8, BACK (twice: the first closes the
+     keyboard) cancel.
+  4. In the library, MORE › SERVERS: two rows, the mark on the one not in
+     use; the remote's MENU key, and OK held, must both open its options;
+     BACK must climb options → list → MORE.
+  5. FORGET on the one not in use: press OK straight after MENU opens the
+     options and again at once: nothing must be forgotten. Then ↓ OK forgets
+     it; add it back, and it must ask for six digits again (the cookie
+     expiry is the claim here: whether `CookieManager.setCookie` replaces an
+     `HttpOnly` cookie with an expired one is not testable without a
+     WebView).
+  6. Turn the server in use off and relaunch: 9D for it, the other offered
+     at the right with ● ANSWERS; ↑ from TRY AGAIN reaches it. Leave the
+     mark there for 15 s: it must stay on that row, and the row must keep
+     ANSWERS, while TRIED N TIMES counts up. OK opens it.
+  7. A server that is off, opened from SERVERS, must not become the one
+     launch opens. Turn one computer off, open it from MORE › SERVERS (9D
+     appears), then quit the app and launch it again: it must open the
+     server that was in use before, not 9D for the one that is off.
+     `FailedLoad` assumes WebView reports a failed main-frame load as
+     started, error, finished, in that order; this is the check that it does.
+- **Launcher shortcuts (c287).** Built and planned in a JVM test, never seen
+  on a launcher. Check: long-press tsundoku's icon on the TV's home screen
+  (and on a phone, where Android's launcher does show app shortcuts). One
+  shortcut per server must appear, named as its row is, each opening that
+  server's library. If the TV's launcher shows none, that is the launcher:
+  nothing in the app depends on it.
+- **The name a server gives itself, read from 9E's DOM.** `MainActivity`
+  reads `main.paired .lab` from the computer's `/pair/tv`; if that page's
+  markup changes, S8 simply does not appear (the computer's 9E stays) and
+  the name arrives from the library instead.
 - **Installation by USB** on a TV's own file manager.
 
 ## Tests
 
 - `android/tv/app/src/test/` — `AddressTest`, `AttemptsTest`, `BackTest`,
-  `IntentAddressTest`, `KeysTest`, `ProbeTest`, `ScaleTest` (37 tests), run by
-  `./gradlew test`. `AttemptsTest` plays the activity's two launch doors in
+  `IntentAddressTest`, `KeysTest`, `ProbeTest`, `ScaleTest`, `ServersTest`,
+  `ShortcutsTest` (61 tests in 9 classes), run by `./gradlew test`.
+  `ServersTest` (18) is c261's store: the migration of a TV paired with one
+  address (a list of one, opened, never asked to pair again), an add that
+  never takes launch, the last used first and 9D's others, names, encode and
+  decode as each other's inverse, forget down to 9A, a server that moved, and
+  the JSON the pages read. `ShortcutsTest` (6) is c287's plan (one per
+  server, four at most, each link read back through `givenAddress`'s decoding
+  and `Address.intentOrigin` to the same origin) and FORGET's cookie lines and
+  9E's name. `AttemptsTest` plays the activity's two launch doors in
   order: a given address during the remembered probe keeps its 9B whether the
   probe answers or not (c306). That `MainActivity` calls `Attempts` at both
   doors is read, not run: a JVM test cannot drive the Activity.
@@ -400,6 +626,21 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   address with a path pairs at its origin (remembered and opened without the
   path), and one with a query fails to 9D for the origin, not the raw string
   (c260).
+- `tests/tv-app-pair.e2e.ts`, c261's twelve (27 cases in all): with a stand-in
+  bridge holding a list, 9D offers the others (each probed, answers landing out
+  of order on their own rows, ↑ from TRY AGAIN reaching them, OK opening one;
+  the frame at 48/500 and 580/332, buttons at 416), and with one server is 9D
+  as before; ADD A SERVER names who is here and BACK opens the library in use;
+  an address already in the list opens it without pairing, a new one is added
+  and paired; a given address in the list, and 9D's server back, open its
+  library; CHANGE THE ADDRESS moves that entry; S8 and RENAME (from S8 and from
+  the library, saved, cancelled and emptied); and a bridge with no list is the
+  page as before c261.
+- `tests/tv-servers.e2e.ts` — the web half in the `tv` project with a stand-in
+  bridge: no SERVERS row without the bridge; S6 with one server; S2's order,
+  mark, probes and frame (the extracted measurements); S3 and S4 with FORGET's
+  0.6 s; forgetting the one in use and the last; the layout telling the app,
+  and only the app, the server's name; MORE's TO LINK row reached by keys (c475).
 - `tests/tv-pair.e2e.ts` — the computer's `/pair/tv` at 960×540 with no pointer:
   every band clearing the label and the six cells, a wrong code spending a
   try, the right one landing on 9E, and five wrong ones burning it.

@@ -506,3 +506,371 @@ test('a given address after a refusal that answers still pairs at its origin (c2
 	expect(navigations[0]).toBe('https://zen.tailnet.ts.net:8443/pair/tv');
 	expect(bridge.remembered).toContain('https://zen.tailnet.ts.net:8443');
 });
+
+// ---- c261: the TV's servers on the app's own screens (S5, S7, S8, S9) --------
+
+type StubServer = { origin: string; name: string; tvName: string; opened: number };
+type ServersBridge = {
+	list: StubServer[];
+	probes: string[];
+	opened: string[];
+	remembered: string[];
+	moved: [string, string][];
+};
+
+declare global {
+	interface Window {
+		__servers?: ServersBridge;
+	}
+}
+
+const HOME = 'http://192.168.1.23:42143';
+const ZEN = 'https://zen.tailnet.ts.net:8443';
+const STUDIO = 'http://192.168.1.61:42143';
+
+/**
+ * PairingBridge.kt with its c261 list, as Servers.kt answers it: the one in
+ * use first, `shown` the TV's name, else the server's, else the host. `answers`
+ * says which origins a probe finds (anything else does not answer), each
+ * after its own delay, so answers can land out of order as on a TV.
+ */
+async function stubServers(
+	page: Page,
+	list: StubServer[],
+	answers: Record<string, { ok: boolean; after?: number }> = {}
+) {
+	await page.addInitScript(
+		({ list, answers }) => {
+			const state: ServersBridge = { list, probes: [], opened: [], remembered: [], moved: [] };
+			const clean = (at: string) => {
+				try {
+					return new URL(at.startsWith('http') ? at : 'http://' + at).origin;
+				} catch {
+					return at;
+				}
+			};
+			const shown = (s: StubServer) => s.tvName || s.name || s.origin.replace(/^https?:\/\//, '');
+			const sorted = () => [...state.list].sort((a, b) => b.opened - a.opened);
+			window.__servers = state;
+			window.TsundokuTV = {
+				tvAddress: () => '192.168.1.31',
+				prefix: () => '192.168.1.',
+				defaultPort: () => 42143,
+				remembered: () => sorted()[0]?.origin ?? '',
+				servers: () =>
+					JSON.stringify(sorted().map((s, i) => ({ ...s, shown: shown(s), inUse: i === 0 }))),
+				remember: (at: string) => {
+					state.remembered.push(clean(at));
+					if (!state.list.some((s) => s.origin === clean(at)))
+						state.list.push({ origin: clean(at), name: '', tvName: '', opened: 0 });
+				},
+				open: (at: string) => state.opened.push(at),
+				rename: (at: string, name: string) => {
+					const s = state.list.find((x) => x.origin === at);
+					if (s) s.tvName = name.trim();
+				},
+				move: (from: string, to: string) => {
+					state.moved.push([from, clean(to)]);
+					// Kept outside the page too: the move is followed by a navigation.
+					void (
+						window as unknown as { __serversMoved?: (f: string, t: string) => void }
+					).__serversMoved?.(from, clean(to));
+				},
+				probe: (at: string) => {
+					const o = clean(at);
+					state.probes.push(o);
+					const a = answers[o] ?? { ok: false, after: 50 };
+					setTimeout(() => window.tsundokuProbe?.(o, a.ok), a.after ?? 50);
+				}
+			};
+		},
+		{ list, answers }
+	);
+}
+
+const three: StubServer[] = [
+	{ origin: HOME, name: 'ZEN-HOME', tvName: 'Living room', opened: 3 },
+	{ origin: ZEN, name: 'ZEN', tvName: "Masshiro's", opened: 2 },
+	{ origin: STUDIO, name: 'STUDIO-PC', tvName: 'Studio', opened: 1 }
+];
+
+test('S9: 9D for the one in use offers the others, each probed, OK opening one', async ({
+	page
+}) => {
+	// Studio answers first and Masshiro's later, the reverse of the list's
+	// order: each answer must land on its own row.
+	await stubServers(page, three, {
+		[ZEN]: { ok: true, after: 900 },
+		[STUDIO]: { ok: false, after: 100 }
+	});
+	await page.goto(`${page9}#lost=${encodeURIComponent(HOME)}`);
+	await expect(page.locator('#lost-title')).toHaveText(
+		'○ NOTHING ANSWERS AT LIVING ROOM · 192.168.1.23:42143'
+	);
+	await expect(page.locator('#others-label')).toBeVisible();
+	await expect(page.locator('#others-count')).toHaveText('2');
+	const rows = page.locator('#others .srv');
+	await expect(rows).toHaveCount(2);
+	// Never the one that did not answer, and in the list's order.
+	await expect(rows.nth(0)).toContainText("Masshiro's");
+	await expect(rows.nth(1)).toContainText('Studio');
+	await expect(rows.nth(1).locator('.st')).toHaveText('NO ANSWER');
+	await expect(rows.nth(0).locator('.st')).toHaveText('CHECKING');
+	await expect(rows.nth(0).locator('.st')).toHaveText('ANSWERS');
+	await expect(rows.nth(0).locator('.g')).toHaveText('●');
+	await expect(rows.nth(1).locator('.g')).toHaveText('○');
+	// An answer for another row is not the attempt's: 9D stays, for HOME.
+	await expect(page.locator('#retry')).toBeVisible();
+	expect(await page.evaluate(() => window.__servers!.opened)).toEqual([]);
+
+	// TRY AGAIN keeps the mark; ↑ reaches the others (they are stops, the
+	// reasons are not), and OK opens one.
+	await expect(page.locator('#retry')).toBeFocused();
+	await page.keyboard.press('ArrowUp');
+	await expect(rows.nth(1)).toBeFocused();
+	await page.keyboard.press('ArrowUp');
+	await expect(rows.nth(0)).toBeFocused();
+	await page.keyboard.press('Enter');
+	expect(await page.evaluate(() => window.__servers!.opened)).toEqual([ZEN]);
+
+	// The frame's measurements (TV-Servers.dc.html, lost): the reasons at
+	// 48 for 500, the others at 580 for 332, rows 72 high, buttons at 416.
+	const box = async (sel: string) => (await page.locator(sel).first().boundingBox())!;
+	const main = await box('main');
+	const reasons = await box('#lost .reasons');
+	const others = await box('#others');
+	expect(reasons.x - main.x).toBe(48);
+	expect(reasons.width).toBe(500);
+	expect(others.x - main.x).toBe(580);
+	expect(others.width).toBe(332);
+	expect(others.y - main.y).toBe(200);
+	expect((await box('#others .srv')).height).toBe(72);
+	// 60 is the rows' least height; a reason that wraps at 500 grows past it,
+	// and all three still end above the buttons.
+	await expect(page.locator('#lost .reason').first()).toHaveCSS('min-height', '60px');
+	const lastReason = await page.locator('#lost .reason').last().boundingBox();
+	expect(lastReason!.y + lastReason!.height).toBeLessThan((await box('#retry')).y);
+	expect((await box('#retry')).y - main.y).toBe(416);
+	expect((await box('#retry')).y + 56 - main.y).toBeLessThanOrEqual(540);
+});
+
+test("S9: 9D's 5 s retries keep the mark on another server and its answer (c261, round 2)", async ({
+	page
+}) => {
+	// HOME never answers, so the 5 s retry fails again and again. A failure
+	// for the attempt already on 9D is a count, not a new 9D: rebuilding it
+	// took the mark back to TRY AGAIN, put every row back to CHECKING and
+	// probed every other server again, on every tick.
+	// Paused, so only runFor moves time: a slow assertion must not add a tick.
+	const t0 = new Date('2026-11-04T10:00:00Z');
+	await page.clock.install({ time: t0 });
+	await page.clock.pauseAt(new Date(t0.getTime() + 1));
+	await stubServers(page, three, {
+		[ZEN]: { ok: true, after: 300 },
+		[STUDIO]: { ok: false, after: 100 }
+	});
+	await page.goto(`${page9}#lost=${encodeURIComponent(HOME)}`);
+	await page.clock.runFor(1000);
+	const rows = page.locator('#others .srv');
+	await expect(rows.nth(0).locator('.st')).toHaveText('ANSWERS');
+	await expect(rows.nth(1).locator('.st')).toHaveText('NO ANSWER');
+	await expect(page.locator('#lost-meta')).toContainText('TRIED 0 TIMES');
+	await page.keyboard.press('ArrowUp');
+	await page.keyboard.press('ArrowUp');
+	await expect(rows.nth(0)).toBeFocused();
+	// A marker on the node itself: a rebuilt row is another element.
+	await rows.nth(0).evaluate((el) => (el.dataset.kept = 'yes'));
+
+	// 5.2 s: the first tick's probe failed at 5.05 s. A rebuilt 9D would show
+	// the others CHECKING until their own probes answer again (ZEN's at 5.35).
+	await page.clock.runFor(4200);
+	await expect(page.locator('#lost-meta')).toContainText('TRIED 1 TIME ');
+	await expect.soft(rows.nth(0).locator('.st')).toHaveText('ANSWERS', { timeout: 500 });
+	await expect.soft(rows.nth(1).locator('.st')).toHaveText('NO ANSWER', { timeout: 500 });
+	await page.clock.runFor(5000);
+	await expect(page.locator('#lost-meta')).toContainText('TRIED 2 TIMES');
+	await page.clock.runFor(1000);
+
+	await expect.soft(page.locator('#others .srv[data-kept="yes"]')).toBeFocused();
+	await expect.soft(rows.nth(0)).toContainText("Masshiro's");
+	await expect.soft(rows.nth(0).locator('.st')).toHaveText('ANSWERS');
+	await expect.soft(rows.nth(1).locator('.st')).toHaveText('NO ANSWER');
+	await expect.soft(rows).toHaveCount(2);
+	// Soft, so a run against a 9D that rebuilds itself names every one it breaks.
+	const probes = await page.evaluate(() => window.__servers!.probes);
+	// Each other server once, on entering 9D; HOME on each of the two ticks.
+	expect.soft(probes.filter((p) => p === ZEN)).toHaveLength(1);
+	expect.soft(probes.filter((p) => p === STUDIO)).toHaveLength(1);
+	expect.soft(probes.filter((p) => p === HOME)).toHaveLength(2);
+	expect(test.info().errors).toEqual([]);
+	// The mark still works where it was left.
+	await page.keyboard.press('Enter');
+	expect(await page.evaluate(() => window.__servers!.opened)).toEqual([ZEN]);
+});
+
+test('9D with one server is 9D as before c261: no others, the reasons full width', async ({
+	page
+}) => {
+	await stubServers(page, [three[0]]);
+	await page.goto(`${page9}#lost=${encodeURIComponent(HOME)}`);
+	await expect(page.locator('#retry')).toBeVisible();
+	await expect(page.locator('#others')).toBeHidden();
+	await expect(page.locator('#others-label')).toBeHidden();
+	const main = (await page.locator('main').boundingBox())!;
+	const reasons = (await page.locator('#lost .reasons').boundingBox())!;
+	expect(reasons.width).toBe(960 - 96);
+	expect((await page.locator('#retry').boundingBox())!.y - main.y).toBe(392);
+});
+
+test('S7: ADD A SERVER is 9B naming who is here, and BACK returns to the library', async ({
+	page
+}) => {
+	await stubServers(page, three);
+	await page.goto(`${page9}#add`);
+	await expect(page.locator('#step')).toHaveText('ADD A SERVER · 1 OF 2');
+	await expect(page.locator('#address-label')).toHaveText(
+		"01 — THE NEW COMPUTER'S ADDRESS · ON ITS SCREEN, UNDER THE CODE"
+	);
+	await expect(page.locator('#tv-meta')).toContainText(
+		"ALREADY HERE: LIVING ROOM, MASSHIRO'S, STUDIO"
+	);
+	await expect(page.locator('#add-back')).toHaveText(
+		"BACK RETURNS TO LIVING ROOM'S LIBRARY · NOTHING THERE CHANGES"
+	);
+	await expect(page.locator('#next')).toBeFocused();
+	// BACK is the page's here: the library in use opens, nothing changes.
+	expect(await page.evaluate(() => window.tsundokuBack?.())).toBe(true);
+	expect(await page.evaluate(() => window.__servers!.opened)).toEqual([HOME]);
+	expect(await page.evaluate(() => window.__servers!.remembered)).toEqual([]);
+});
+
+test('S7: an address already in the list opens it instead of pairing', async ({ page }) => {
+	await stubServers(page, three);
+	await page.goto(`${page9}#add`);
+	await page.keyboard.press('6');
+	await page.keyboard.press('1');
+	await page.keyboard.press('Enter'); // NEXT →
+	await expect(page.locator('#already')).toHaveText('ALREADY IN SERVERS AS STUDIO · OPENING');
+	// The band moves the column down, as every band on 9B does (c246).
+	await expect(page.locator('#address')).toHaveClass(/with-band/);
+	await expect.poll(() => page.evaluate(() => window.__servers!.opened)).toEqual([STUDIO]);
+	expect(await page.evaluate(() => window.__servers!.probes)).toEqual([]);
+	expect(await page.evaluate(() => window.__servers!.remembered)).toEqual([]);
+});
+
+test('S7: a new address that answers is added and goes to its pairing', async ({ page }) => {
+	const fresh = 'http://192.168.1.77:42143';
+	await stubServers(page, three, { [fresh]: { ok: true } });
+	await page.goto(`${page9}#add`);
+	await page.keyboard.press('7');
+	await page.keyboard.press('7');
+	const nav = page.waitForRequest((r) => r.url().startsWith(fresh));
+	await page.keyboard.press('Enter');
+	expect((await nav).url()).toBe(fresh + '/pair/tv');
+});
+
+test('a given address already in the list opens its library once it answers', async ({ page }) => {
+	await stubServers(page, three, { [ZEN]: { ok: true } });
+	await page.goto(`${page9}#connect=${encodeURIComponent(ZEN)}`);
+	await expect.poll(() => page.evaluate(() => window.__servers!.opened)).toEqual([ZEN]);
+	expect(await page.evaluate(() => window.__servers!.remembered)).toEqual([]);
+});
+
+test("9D's server back opens its library, not its pairing again", async ({ page }) => {
+	await stubServers(page, three, { [HOME]: { ok: true } });
+	await page.goto(`${page9}#lost=${encodeURIComponent(HOME)}`);
+	await page.locator('#retry').click();
+	await expect.poll(() => page.evaluate(() => window.__servers!.opened)).toContain(HOME);
+});
+
+test('CHANGE THE ADDRESS on a server in the list gives that entry its new address', async ({
+	page
+}) => {
+	const moved = 'http://192.168.1.99:42143';
+	const moves: [string, string][] = [];
+	await page.exposeFunction('__serversMoved', (f: string, t: string) => moves.push([f, t]));
+	await stubServers(page, three, { [moved]: { ok: true } });
+	await page.goto(`${page9}#lost=${encodeURIComponent(HOME)}`);
+	await page.locator('#change').click();
+	await expect(page.locator('#address-label')).toHaveText(
+		"01 — LIVING ROOM'S NEW ADDRESS · ON ITS SCREEN, UNDER THE CODE"
+	);
+	await page.keyboard.press('9');
+	await page.keyboard.press('9');
+	const nav = page.waitForRequest((r) => r.url().startsWith(moved));
+	await page.keyboard.press('Enter');
+	expect((await nav).url()).toBe(moved + '/pair/tv');
+	// Replaced, not added (remember is never called): Servers.move keeps the
+	// TV's name for the entry, which ServersTest pins.
+	expect(moves).toEqual([[HOME, moved]]);
+});
+
+test('S8: after an add, the app says who is still here, OPEN focused', async ({ page }) => {
+	await stubServers(page, [three[0], { origin: ZEN, name: 'ZEN', tvName: '', opened: 0 }]);
+	await page.goto(`${page9}#added=${encodeURIComponent(ZEN)}`);
+	await expect(page.locator('#step')).toHaveText('ADDED · 2 SERVERS');
+	await expect(page.locator('#added-lab')).toHaveText(
+		'✓ PAIRED WITH ZEN · ZEN.TAILNET.TS.NET:8443'
+	);
+	await expect(page.locator('#added-title')).toHaveText("ZEN is one of this TV's servers");
+	await expect(page.locator('#added-prose')).toContainText('Living room is still here.');
+	await expect(page.locator('#added-prose')).toContainText('MORE › SERVERS');
+	await expect(page.locator('#added-meta')).toHaveText('ZEN IS WHAT THE COMPUTER CALLS ITSELF');
+	await expect(page.locator('#added-open')).toHaveText('OPEN ZEN →');
+	await expect(page.locator('#added-open')).toBeFocused();
+	const main = (await page.locator('main').boundingBox())!;
+	expect((await page.locator('.added-head').boundingBox())!.y - main.y).toBe(112);
+	expect((await page.locator('#added-open').boundingBox())!.y - main.y).toBe(330);
+	await page.keyboard.press('Enter');
+	expect(await page.evaluate(() => window.__servers!.opened)).toEqual([ZEN]);
+});
+
+test('S5: RENAME from S8 keeps the name on the TV and comes back to S8', async ({ page }) => {
+	await stubServers(page, [three[0], { origin: ZEN, name: 'ZEN', tvName: '', opened: 0 }]);
+	await page.goto(`${page9}#added=${encodeURIComponent(ZEN)}`);
+	await page.keyboard.press('ArrowRight');
+	await expect(page.locator('#added-rename')).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(page.locator('#step')).toHaveText('RENAME A SERVER');
+	await expect(page.locator('#rename-label')).toHaveText(
+		"THIS TV'S NAME FOR ZEN.TAILNET.TS.NET:8443"
+	);
+	await expect(page.locator('#rename-meta')).toHaveText(
+		'THE SERVER CALLS ITSELF ZEN · EMPTY GOES BACK TO THAT · KEPT ON THIS TV ONLY'
+	);
+	// The field has the mark at once: the keyboard rising is this screen's point.
+	await expect(page.locator('#rename-field')).toBeFocused();
+	const main = (await page.locator('main').boundingBox())!;
+	const field = (await page.locator('#rename-field').boundingBox())!;
+	expect(field.y - main.y).toBe(140);
+	expect(field.height).toBe(64);
+	expect(field.x - main.x).toBe(48);
+	expect(field.width).toBe(960 - 96);
+	await page.keyboard.type("Masshiro's");
+	await page.keyboard.press('Enter');
+	await expect(page.locator('#added-title')).toHaveText("Masshiro's is one of this TV's servers");
+	expect(await page.evaluate(() => window.__servers!.list[1].tvName)).toBe("Masshiro's");
+});
+
+test('S5: RENAME from the library goes back to the library, saved or not', async ({ page }) => {
+	await stubServers(page, three);
+	await page.goto(`${page9}#rename=${encodeURIComponent(ZEN)}`);
+	await expect(page.locator('#rename-field')).toHaveValue("Masshiro's");
+	// BACK cancels: nothing is renamed, and the library in use opens.
+	expect(await page.evaluate(() => window.tsundokuBack?.())).toBe(true);
+	expect(await page.evaluate(() => window.__servers!.opened)).toEqual([HOME]);
+	expect(await page.evaluate(() => window.__servers!.list[1].tvName)).toBe("Masshiro's");
+	// Emptied and saved, the TV's name goes; the server's own comes back.
+	await page.goto(`${page9}#rename=${encodeURIComponent(STUDIO)}`);
+	await page.locator('#rename-field').fill('');
+	await page.keyboard.press('Enter');
+	expect(await page.evaluate(() => window.__servers!.list[2].tvName)).toBe('');
+});
+
+test('a page with no list behaves as before c261: no others, no ADD mode', async ({ page }) => {
+	// An older bridge has no servers(): stubBridge is that bridge.
+	await stubBridge(page);
+	await page.goto(`${page9}#lost=${encodeURIComponent(HOME)}`);
+	await expect(page.locator('#others')).toBeHidden();
+	await expect(page.locator('#lost-title')).toHaveText('○ NOTHING ANSWERS AT 192.168.1.23:42143');
+});
