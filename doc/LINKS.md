@@ -103,8 +103,8 @@ judged by it too (wave 17, round 2):
   `Show Season 2`, so it waits for the owner's LINK.
 - **No two seasons or parts of a show are the same entry**, AniList id or
   MAL id. `linkSeason` refuses an entry another season or part holds
-  (`seasonHolding`; a link from before rung 62 with no season row counts as
-  the first season's), whatever the door: the pass's sure match (it is then
+  (`seasonHolding`; a `series_links` row with no season row beside it counts
+  as the first season's, which since rung 68 no anime has), whatever the door: the pass's sure match (it is then
   offered), the owner's list (`linkSeasonFromList` writes nothing), LINK N
   SEASONS from the relations, the queue's LINK and a pasted link (the API
   answers 409, and the page says `NOT OFFERED FOR THIS ONE · NOTHING
@@ -199,8 +199,11 @@ again or paste a link.
   (c240): it is searched, queued for the review and offered to the list's
   auto-link while **any one** season has neither a link nor a decision, and
   its `series_links` row (the mirror of season 1) does not end that.
-  An anime with no season rows -- linked or settled before rung 62, or never
-  acted on -- is read by `series_links` and `link_decisions`, as a comic is.
+  An anime with no season rows -- settled before rung 62, or never acted on
+  -- is read by `series_links` and `link_decisions`, as a comic is. One
+  _linked_ before rung 62 was too, so its one link settled the whole series
+  and its season 2 never came to the pass or the review, until rung 68 moved
+  that link onto its season (c383; "A link from before the seasons", below).
   One rule at every door: the pass (`searchable`), the review and its count
   (`linkQueue`, `linkQueueCount`), `links --again` (`requeueSearched`), the
   list's auto-link (`linkableByTitle`) and Ranobe's review line that says an
@@ -344,7 +347,10 @@ on desktop and in tablet landscape.
   own catalogue and kind. **It never links: the results replace these and wait
   for LINK**, even when there is exactly one, or one with the same title. With
   AniList out of reach, the search waits for the next pass instead, and the
-  band says so. FIND on a series never searched searches as the review opens.
+  band says so. **The SEARCH AGAIN cell only opens the form**; pressed while
+  it is open, it puts the caret back in the field. The search is the form's
+  own SEARCH (or Enter), below the field, so a double tap, or the press that
+  opens it on a slow render, never searches a title nobody typed (c329). FIND on a series never searched searches as the review opens.
 - The band, the panel's count and the rows show one search: the band counts
   what AniList returned, the count what was kept for the review, and the rows
   are exactly the kept candidates (`4 OF 6 FOUND`). A comic or a novel
@@ -398,10 +404,35 @@ The link is AniList's line, a line a season on an anime (c240; above).
   anime's row there is a **mirror of its first season, written only while that
   season is linked** (season 1, or a flat list). With only a later season
   linked there is no row at all. Neither tracking, AniSkip (an episode is
-  asked under its own season's entry, c349) nor `tvshow.nfo` (the show's ids
+  asked under its own season's entry, c349; the answers asked before that
+  under another season's entry or part were forgotten by rung 67, c463, and
+  are asked again on the next play) nor `tvshow.nfo` (the show's ids
   from its season rows, c381) reads it for an anime; the importer's
-  keep-test still does (c382), so it stays. A link an anime had before rung 62 is read as its
-  first season's; nothing was migrated, since no anime was linked then.
+  keep-test still does (c382), so it stays. A link an anime had before rung
+  62 is its season's row since rung 68 (below).
+- **A link from before the seasons** (c383, rung 68). Before rung 62 an
+  anime's link was its one `series_links` row. Read as the whole series'
+  link, it settled every season, so a two-season show linked then never
+  offered its season 2. Rung 68 gives each such anime (a `series_links` row
+  with an id and no `series_season_links` row) the row of the season the
+  link stood for, **decided by the series' own episodes**: the **lowest
+  numbered season** (1 and up, over the episodes not shadowed) when the
+  source numbers any, so a special filed at season 0 does not take it;
+  **season 0** for a flat list, or a series with no episodes yet, where one
+  entry is the whole run. Part 1, with the link's ids, `via`, title, cover,
+  dates, score and `filled_rating`; `episodes` and `year` were never kept and
+  stay empty. A season decision at that place goes, as a LINK takes it, and
+  what the owner's list said of the series (`tracker_state`, and a send still
+  waiting) moves to that season, where an anime's is read. From there the
+  season rule decides it: season 2 is searched by the next pass and comes to
+  the review as its own item, and the series screen draws season 1 linked as
+  before. The `series_links` row stays as it was: it is the first season's
+  mirror now (the ids `syncSeriesLink` would write), so OTHER NAMES on MOVE,
+  the importer's keep-test and the cover read what they read before. An
+  AniSkip answer of an episode outside that season (a special asked under
+  the one link) is forgotten, since the link is no longer its entry. A
+  series that already had a season row is not touched, and neither is a
+  comic's or a novel's link.
 - **A season's FIND** opens the review with `?series=N&season=S`: the search
   is that season's own title (`Sword Art Online Season 3`, the source's
   season number after the series' title), asked in the anime formats, and
@@ -422,14 +453,34 @@ The link is AniList's line, a line a season on an anime (c240; above).
   order along the chain and ticked where the episode counts agree -- or
   where two entries add up to the season as `PART 1` and `PART 2`, part 1
   being the one that aired first (not the longer one: SAO's War of
-  Underworld is 12 + 11). A pair is found only where both entries stand at
-  the same step of the chain (both the linked season's SEQUEL); where
-  AniList chains part 2 off part 1, the walk places part 2 a season further
-  out, and the pair is not offered as one (a gap, `doc/handoff-notes/links.md`).
+  Underworld is 12 + 11). A pair is two entries at the same step of the
+  chain: both the linked season's SEQUEL, or -- AniList's usual shape --
+  part 2 the SEQUEL of part 1 (c464). A SEQUEL is part 1's other half, not
+  the next season, when its own title names a part of 2 or more (`Part 2`,
+  `2nd Part`, `Cour 2`, `2nd Cour`, `第2クール`; `partNumber`) **and** part 1
+  holds fewer episodes than the season here, so a catalogue that numbers
+  whole seasons as parts (JoJo's `Part 3`) still offers its next season as
+  one. The season after such a pair is asked one ring further, for the part
+  alone, and so is whatever a part standing in the first ring reached (from
+  S2 P1, part 2 took no step, so season 3 is asked and season 4 offered, the
+  same reach as from a whole season 2; links round 2). Linking one part of a
+  season offers its other part on the same season, at the part the link does
+  not hold, ticked where the two add up **and** the edge agrees with that
+  part: a PREQUEL is the earlier half, so it is ticked at part 1 only when the
+  link holds part 2, and a SEQUEL at part 2 only when the link holds part 1.
+  When the edge disagrees (the `Part 2` entry linked on part 1's line, the
+  usual slip from a search or a pasted link), ticking it would write the
+  season's halves in reverse and send every episode to the wrong entry under
+  the wrong number, so it is listed as `THE EARLIER HALF` or `THE LATER HALF`,
+  never ticked, with the why
+  `THE LINK HOLDS THE LATER HALF AT PART 1 · NEVER TICKED` (or
+  `… THE EARLIER HALF AT PART 2 …`). The way out is UNDO and linking the
+  earlier half instead, whose walk then offers the `Part 2` entry at part 2,
+  ticked (links round 2).
   A pair is **one season** everywhere the page counts: `N OF M TICKED`,
   `LINK N SEASONS` and the band count distinct seasons (c418, round 2). The walk asks two rings: the linked entry, then
   its chain neighbours in one request, whose own PREQUEL and SEQUEL place
-  the second ring. AniList answers every edge an entry has, and a chain can
+  the second ring (and a part placed there is asked once more, above). AniList answers every edge an entry has, and a chain can
   branch (a movie and the next TV season both SEQUEL of one entry) or loop
   back, so each entry is placed once, where the walk first reaches it.
   **Outside the numbering**, dimmed, never ticked and never kept as a
@@ -451,7 +502,12 @@ NEVER TICKED`; c418), since `linkSeason` would refuse it, and a split
   goes back to the series; when the workstation refused any (another tab
   linked meanwhile), the page stays and its band is the answer, not the
   ticks: `LINKED 1 OF 2 SEASONS · …` and `SEASON 2 NOT LINKED · SEASON 3
-HOLDS ITS ENTRY`, or `NOTHING LINKED · …` when none was. The band's numbers
+HOLDS ITS ENTRY`, or `NOTHING LINKED · …` when none was. Under that band
+  the season the page is on is drawn as it now stands (c465): linked, its
+  LINKED row naming the entry with UNLINK beside it, the pasted entry and the
+  forms put away -- never the untouched review it opened on. The workstation
+  answers it with the counts (`seasonReview`, the same reader the page's load
+  draws it with). The band's numbers
   are seasons, from the workstation's `linked` and `of` (`seasonsLinked`): a
   pair linked whole is one, and a pair with a part refused is that season
   not linked, the refusal naming its part. **NOT NOW has two cases on one

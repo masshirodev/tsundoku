@@ -316,8 +316,9 @@ function saveState(
 	// An anime with season links has a `series_links` row only as its first
 	// season's AniSkip mirror (`syncSeriesLink`): that season's own row below
 	// carries what the list says, so the mirror is not filed as the series'
-	// too (wave 17). An anime linked before rung 62, with no season rows, keeps
-	// its one link here, as it always had.
+	// too (wave 17). An anime linked before rung 62 has had its season row since
+	// rung 68 (c383), which also moved what this had filed for it to the season;
+	// one with no season rows at all would still be filed here.
 	const links = db
 		.prepare(
 			`SELECT l.series_id, l.${col} AS media, l.format, s.kind

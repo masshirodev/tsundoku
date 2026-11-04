@@ -6,6 +6,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
+import { doubleTap } from './helpers/touch';
 
 /**
  * Catalogue links end to end (doc/LINKS.md), on the seed's links: Mount Hua
@@ -93,6 +94,39 @@ test('with nothing found: SEARCH AGAIN, AniList out of reach, waits for the pass
 	await expect(page.locator('.title')).toHaveText('Yofukashi no Uta');
 	await page.goto('/');
 	await expect(band(page)).toHaveText('02 SERIES TO LINK');
+});
+
+test('a double tap on SEARCH AGAIN opens the form and searches nothing (c329)', async ({
+	page
+}) => {
+	// Every decision the page posts, so a search nobody typed is seen even when
+	// the band would not show it.
+	const posts: string[] = [];
+	page.on('request', (r) => {
+		if (r.method() === 'POST' && new URL(r.url()).pathname === '/api/links')
+			posts.push(r.postData() ?? '');
+	});
+	await page.goto('/links');
+	// Nothing found puts SEARCH AGAIN among the actions, where the form's
+	// SEARCH once took its place under the finger.
+	if ((await page.locator('.title').textContent()) !== 'Yofukashi no Uta')
+		await page.getByRole('button', { name: 'SKIP' }).click();
+	await expect(page.locator('.title')).toHaveText('Yofukashi no Uta');
+	posts.length = 0;
+	const again = page.locator('.actions button', { hasText: 'SEARCH AGAIN' });
+	const box = (await again.boundingBox())!;
+	// A thumb's double tap, at once, on a page that has not settled anything.
+	await doubleTap(page, box.x + box.width / 2, box.y + box.height / 2);
+	await expect(page.getByLabel('Title to search on AniList')).toBeVisible();
+	// The search waits for the form's own SEARCH: give a stray one time to go out.
+	await page.waitForTimeout(1000);
+	expect(posts.filter((p) => p.includes('"search"'))).toEqual([]);
+	await expect(page.locator('.cand')).toHaveCount(0);
+	// A press while it is open only puts the caret back in the field.
+	await page.getByLabel('Title to search on AniList').blur();
+	await again.click();
+	await expect(page.getByLabel('Title to search on AniList')).toBeFocused();
+	expect(posts).toEqual([]);
 });
 
 test('a pasted link needs AniList: unreachable, it says so and links nothing', async ({ page }) => {
@@ -292,6 +326,29 @@ const ANIME_MEDIA: Media[] = [
 		seasonYear: 2022
 	}),
 	entry({ id: 9504, idMal: 9514, title: 'Split Show 3rd Season', episodes: 12, seasonYear: 2023 }),
+	// The same show in AniList's usual shape (c464): part 2 chained off part 1.
+	entry({ id: 9701, idMal: 9711, title: 'Chain Split Show', episodes: 12, seasonYear: 2020 }),
+	entry({
+		id: 9702,
+		idMal: 9712,
+		title: 'Chain Split Show 2nd Season',
+		episodes: 12,
+		seasonYear: 2021
+	}),
+	entry({
+		id: 9703,
+		idMal: 9713,
+		title: 'Chain Split Show 2nd Season Part 2',
+		episodes: 11,
+		seasonYear: 2022
+	}),
+	entry({
+		id: 9704,
+		idMal: 9714,
+		title: 'Chain Split Show 3rd Season',
+		episodes: 12,
+		seasonYear: 2023
+	}),
 	// A show whose entry has no chain edge into the show's seasons (round 2 of
 	// c423): only the manga it adapts. And one whose relations AniList fails to
 	// answer (the stand-in errors on it), as when it is out of reach.
@@ -321,9 +378,9 @@ const RELATIONS: Record<number, { id: number; type: string }[]> = {
 		{ id: 9303, type: 'SEQUEL' }
 	],
 	9303: [{ id: 9302, type: 'PREQUEL' }],
-	// Both parts listed as season 1's sequel, the shape the walker pairs (as in
-	// season-links-db's Split Show). AniList more often chains part 2 off part 1,
-	// which the walker places a season further out: a gap in the notes, not this.
+	// Both parts listed as season 1's sequel (as in season-links-db's Split
+	// Show). AniList more often chains part 2 off part 1: Chain Split Show, below
+	// (c464). The walker pairs both shapes.
 	9501: [
 		{ id: 9502, type: 'SEQUEL' },
 		{ id: 9503, type: 'SEQUEL' },
@@ -339,6 +396,19 @@ const RELATIONS: Record<number, { id: number; type: string }[]> = {
 		{ id: 9504, type: 'SEQUEL' }
 	],
 	9504: [{ id: 9503, type: 'PREQUEL' }],
+	9701: [
+		{ id: 9702, type: 'SEQUEL' },
+		{ id: 30024, type: 'ADAPTATION' }
+	],
+	9702: [
+		{ id: 9701, type: 'PREQUEL' },
+		{ id: 9703, type: 'SEQUEL' }
+	],
+	9703: [
+		{ id: 9702, type: 'PREQUEL' },
+		{ id: 9704, type: 'SEQUEL' }
+	],
+	9704: [{ id: 9703, type: 'PREQUEL' }],
 	9601: [{ id: 30024, type: 'ADAPTATION' }],
 	9602: [{ id: 9601, type: 'PREQUEL' }]
 };
@@ -986,6 +1056,35 @@ test.describe('a catalogue that answers', () => {
 		}
 	});
 
+	test('a split season chained part 1 → part 2, AniList’s usual shape, is one season too (c464)', async ({
+		page
+	}) => {
+		const id = seedSeasons('Chain Split Pair Show', [12, 23, 12]);
+		try {
+			await page.goto(`${BASE}/links?series=${id}&season=1`);
+			await page.getByRole('button', { name: 'PASTE A LINK' }).first().click();
+			await page.getByLabel('AniList or MAL link').fill('https://anilist.co/anime/9701');
+			const link = page.locator('.actions button').last();
+			await expect(link).toHaveText(/^LINK [A-Z] TO SEASON 1$/);
+			await link.click();
+			// Three paced requests: part 2 took no step, so it is asked once more.
+			const offered = page.locator('.rel:not(.outside) .relbtn');
+			await expect(offered.locator('.rno')).toHaveText(['S2', 'PART 2', 'S3'], { timeout: 30_000 });
+			await expect(page.locator('.rels .ch div').nth(1)).toHaveText('2 OF 2 TICKED');
+			await expect(page.locator('.relacts button').last()).toHaveText('LINK 2 SEASONS');
+			await page.locator('.relacts button').last().click();
+			await page.waitForURL(new RegExp(`/series/${id}$`));
+			expect(partsOf(id)).toEqual([
+				{ season: 1, part: 1, anilist_id: 9701 },
+				{ season: 2, part: 1, anilist_id: 9702 },
+				{ season: 2, part: 2, anilist_id: 9703 },
+				{ season: 3, part: 1, anilist_id: 9704 }
+			]);
+		} finally {
+			forgetFlatList(id);
+		}
+	});
+
 	test('LINK N SEASONS counts a pair as one and names the season it refused (c418, round 2)', async ({
 		page
 	}) => {
@@ -1035,6 +1134,14 @@ test.describe('a catalogue that answers', () => {
 			await expect(page.locator('.band .line').nth(1)).toHaveText(
 				'SEASON 3 NOT LINKED · SEASON 4 HOLDS ITS ENTRY'
 			);
+			// The page stays, and under the band the season it is on is drawn as it
+			// now stands: linked, with its entry and its UNLINK, not the untouched
+			// review it opened on (c465).
+			const linkedRow = page
+				.locator('.rows .r')
+				.filter({ has: page.locator('.rl', { hasText: /^LINKED$/ }) });
+			await expect(linkedRow).toHaveText(/^LINKED\s*Split Show · A NEW LINK REPLACES IT$/);
+			await expect(page.getByRole('button', { name: 'UNLINK', exact: true })).toBeVisible();
 			expect(partsOf(id)).toEqual([
 				{ season: 1, part: 1, anilist_id: 9501 },
 				{ season: 2, part: 1, anilist_id: 9502 },

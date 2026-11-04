@@ -694,10 +694,12 @@ const LINKABLE = `s.kind IN ('manga', 'manhwa', 'novel', 'anime') AND s.source !
  * the rows rather than cached on the series, so a season the source adds
  * later puts the series back by itself.
  *
- * A series with no season rows -- every comic and novel, an anime linked
- * before rung 62, and an anime nobody has acted on -- keeps the series-level
- * gate: no `series_links` row and no `link_decisions` row, so a legacy link or
- * a legacy NONE OF THESE still counts.
+ * A series with no season rows -- every comic and novel, and an anime nobody
+ * has acted on -- keeps the series-level gate: no `series_links` row and no
+ * `link_decisions` row, so a legacy NONE OF THESE still counts. An anime
+ * linked before rung 62 was one of these, its one link ending the look while
+ * season 2 was open, until rung 68 (c383) gave the link its season row; from
+ * there the season rule above decides it.
  *
  * Its TypeScript twin is `seasonToLook` (season-links.ts), which names the
  * season this lets a series in for; `IN_LINK_REVIEW` builds on it for

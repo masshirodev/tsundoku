@@ -1265,7 +1265,9 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	// Nothing is migrated: no anime was linked when this shipped (the card's
 	// 0 links, measured at 5a8ce32a). A rung that found one would keep it as
 	// season 0's link by reading `series_links` as season 0, so no copy is
-	// needed either way.
+	// needed either way. (That reading kept a legacy anime's later seasons out
+	// of the pass and the review: rung 68 moves the link onto its season after
+	// all, c383.)
 	//
 	// `season` is `entries.season` (rung 47's stamp), 0 for a source that
 	// gave none -- one flat list is one season to tsundoku. `episodes` is the
@@ -1490,6 +1492,129 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 		PRIMARY KEY (import_id, series_id)
 	);
 	CREATE INDEX import_series_series ON import_series(series_id);
+	`,
+	// v67: AniSkip answers asked under another season's entry (card c463;
+	// doc/ANIME.md, "Openings and endings"). Until c349 an episode was asked
+	// under the series' `series_links` row -- the mirror `syncSeriesLink`
+	// keeps of the lowest season linked, part 1 (of the season linked last,
+	// before 45d2a8d) -- with the season's own episode number, and only for a
+	// season of 0 or 1 (a NULL season is 0; one past the first was never
+	// asked). From c349 on it is asked under its own season's row and part,
+	// numbered within the part (`episodeEntry`). A found answer is never
+	// asked again, so the old ones stay unless a rung forgets them.
+	//
+	// The class: an `aniskip` row of an anime with season rows, on an episode
+	// of season 0 or 1, unless the mirror is that episode's own season's part
+	// 1 and the episode lies in part 1: the season has one part, or the number
+	// is within part 1's `episodes`. The mirror read here is the row the
+	// answer was asked under: every door that changes a link forgets the
+	// series' AniSkip rows, and a mirror whose MAL id moved otherwise (a
+	// resolve) no longer matches, so its answers are forgotten too. Beside a
+	// part 2, a part 1 of unknown length runs to the season's aired count,
+	// which SQL does not have here: that season's answers all go, and part
+	// 1's come back the same. The class takes a season-1 episode while season
+	// 0 is linked too (asked under season 0's id, whether or not season 1 is
+	// linked), part 2 of a split season (asked under part 1's id as EP. 13,
+	// not EP. 1), and a season-0 episode while only season 1 is (asked under
+	// season 1's id). A series with no season rows, linked before rung 62, is
+	// asked under that one link now as then, and a season past the first has
+	// only answers c349 asked: both stay. An answer c349 asked on an episode
+	// of the class goes too; it is asked again, once, and comes back the same.
+	//
+	// The found answers and the remembered misses both go, so the next play
+	// asks AniSkip at once rather than in a week. `ending_at` follows what
+	// remains, by the same frozen copy of `syncEndingAt` as v63 and v64.
+	`
+	CREATE TEMP TABLE c463_stale AS SELECT DISTINCT m.entry_id FROM episode_marks m
+		JOIN entries e ON e.id = m.entry_id
+		JOIN series s ON s.id = e.series_id
+		LEFT JOIN series_links l ON l.series_id = s.id
+		WHERE m.method = 'aniskip' AND s.kind = 'anime'
+			AND COALESCE(e.season, 0) <= 1
+			AND EXISTS (SELECT 1 FROM series_season_links x WHERE x.series_id = s.id)
+			AND NOT EXISTS (SELECT 1 FROM series_season_links x
+				WHERE x.series_id = s.id AND x.season = COALESCE(e.season, 0) AND x.part = 1
+					AND x.mal_id = l.mal_id
+					AND (NOT EXISTS (SELECT 1 FROM series_season_links y
+							WHERE y.series_id = s.id AND y.season = x.season AND y.part > 1)
+						OR (x.episodes > 0
+							AND COALESCE(e.episode_number, CASE WHEN e.season IS NULL THEN e.position END) <= x.episodes)));
+	DELETE FROM episode_marks WHERE method = 'aniskip' AND entry_id IN (SELECT entry_id FROM c463_stale);
+	UPDATE entries SET ending_at = (
+		SELECT m.ending_start FROM episode_marks m
+		WHERE m.entry_id = entries.id
+			AND m.ending_start IS NOT NULL AND m.ending_end IS NOT NULL
+			AND m.ending_start >= 0 AND m.ending_end > m.ending_start
+			AND (entries.duration_s IS NULL OR entries.duration_s <= 0 OR m.ending_end <= entries.duration_s + 1)
+		ORDER BY CASE m.method WHEN 'source' THEN 0 WHEN 'aniskip' THEN 1 ELSE 2 END
+		LIMIT 1
+	)
+	WHERE id IN (SELECT entry_id FROM c463_stale);
+	DROP TABLE c463_stale;
+	`,
+	// v68: an anime linked before rung 62 gets its season row (card c383;
+	// doc/LINKS.md, "A link from before the seasons"). Such an anime has only
+	// a `series_links` row, which `NEEDS_LOOK` reads as the whole series
+	// settled, so its later seasons never reached the pass or the review. The
+	// link becomes the row of the season it stood for, decided by the series'
+	// own episodes: the lowest numbered season (1 and up) when the source
+	// numbers any, else season 0, the flat list that is the whole run. Part 1,
+	// with the link's ids, `via` (whose values `series_season_links` allows
+	// all of), title, cover, dates, score and `filled_rating`, so UNDO and
+	// tracking read what they read before; `episodes` and `year` were never
+	// stored and stay NULL, as a pasted link's do. From here the season rule
+	// decides the series: every other season is open until linked or settled.
+	//
+	// `series_links` is not touched: it becomes the first season's mirror
+	// (`syncSeriesLink` writes the same ids, `via`, title, cover and dates),
+	// and its readers -- the importer's keep-test, OTHER NAMES on MOVE, the
+	// cover -- read what they did (c467 moves them). A season decision at the
+	// row's own place goes, as `linkSeason` takes it: the link was what every
+	// screen showed. What the owner's list said of the series (`tracker_state`)
+	// and a send still waiting (`tracker_sends`) move to that season, where an
+	// anime's are read; a season's own row, written since, wins. An AniSkip
+	// answer of an episode outside that season was asked under the old link,
+	// which is now that season's alone, so it goes too, and `ending_at`
+	// follows by the frozen copy of `syncEndingAt` (v63, v64, v67).
+	`
+	CREATE TEMP TABLE c383_moved AS SELECT l.series_id, COALESCE((SELECT MIN(e.season) FROM entries e
+			WHERE e.series_id = l.series_id AND e.shadowed = 0 AND e.season >= 1), 0) AS season
+		FROM series_links l JOIN series s ON s.id = l.series_id
+		WHERE s.kind = 'anime' AND (l.anilist_id IS NOT NULL OR l.mal_id IS NOT NULL)
+			AND NOT EXISTS (SELECT 1 FROM series_season_links x WHERE x.series_id = l.series_id);
+	INSERT INTO series_season_links (series_id, season, part, anilist_id, mal_id, via, title, cover_url,
+			linked_at, resolved_at, filled_rating, score, format)
+		SELECT l.series_id, m.season, 1, l.anilist_id, l.mal_id, l.via, l.title, l.cover_url,
+			l.linked_at, l.resolved_at, l.filled_rating, l.score, l.format
+		FROM series_links l JOIN c383_moved m ON m.series_id = l.series_id;
+	DELETE FROM season_link_decisions WHERE part = 1
+		AND EXISTS (SELECT 1 FROM c383_moved m WHERE m.series_id = season_link_decisions.series_id
+			AND m.season = season_link_decisions.season);
+	INSERT OR IGNORE INTO season_tracker_state (series_id, season, part, service, status, score, progress, read_at, sent_at)
+		SELECT t.series_id, m.season, 1, t.service, t.status, t.score, t.progress, t.read_at, t.sent_at
+		FROM tracker_state t JOIN c383_moved m ON m.series_id = t.series_id;
+	DELETE FROM tracker_state WHERE series_id IN (SELECT series_id FROM c383_moved);
+	INSERT OR IGNORE INTO season_tracker_sends (series_id, season, part, service, progress, status, score, wanted_at, failed_at, error)
+		SELECT t.series_id, m.season, 1, t.service, t.progress, t.status, t.score, t.wanted_at, t.failed_at, t.error
+		FROM tracker_sends t JOIN c383_moved m ON m.series_id = t.series_id;
+	DELETE FROM tracker_sends WHERE series_id IN (SELECT series_id FROM c383_moved);
+	CREATE TEMP TABLE c383_stale AS SELECT DISTINCT mk.entry_id FROM episode_marks mk
+		JOIN entries e ON e.id = mk.entry_id
+		JOIN c383_moved m ON m.series_id = e.series_id
+		WHERE mk.method = 'aniskip' AND COALESCE(e.season, 0) != m.season;
+	DELETE FROM episode_marks WHERE method = 'aniskip' AND entry_id IN (SELECT entry_id FROM c383_stale);
+	UPDATE entries SET ending_at = (
+		SELECT m.ending_start FROM episode_marks m
+		WHERE m.entry_id = entries.id
+			AND m.ending_start IS NOT NULL AND m.ending_end IS NOT NULL
+			AND m.ending_start >= 0 AND m.ending_end > m.ending_start
+			AND (entries.duration_s IS NULL OR entries.duration_s <= 0 OR m.ending_end <= entries.duration_s + 1)
+		ORDER BY CASE m.method WHEN 'source' THEN 0 WHEN 'aniskip' THEN 1 ELSE 2 END
+		LIMIT 1
+	)
+	WHERE id IN (SELECT entry_id FROM c383_stale);
+	DROP TABLE c383_stale;
+	DROP TABLE c383_moved;
 	`
 ];
 

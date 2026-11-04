@@ -91,9 +91,12 @@ ids, exactly as `series_links` is filled for a comic. An anime's own
 first season (`syncSeriesLink`) and is not read as the series' entry: that
 season's row already says what the list has (wave 17). Neither AniSkip nor
 Jellyfin's `tvshow.nfo` reads it any more: each reads the season rows
-(c349, c381; doc/ANIME.md). An anime linked before rung 62,
-with no season rows, keeps its one `series_links` link and its
-`tracker_state` row, as it had.
+(c349, c381; doc/ANIME.md). An anime linked before rung 62 kept its
+one `series_links` link and its series-level `tracker_state` row, which no
+anime screen read, until rung 68 (c383) moved both onto the season the link
+stood for (`season_tracker_state`, and a waiting `tracker_sends` row to
+`season_tracker_sends`; doc/LINKS.md, "A link from before the seasons"). A
+season row written since wins over the moved one.
 
 **The AniList list also links.** An entry whose title is sure for exactly
 **one** unlinked series in view links it, `via 'list'`. Sure means the same
