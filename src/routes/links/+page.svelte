@@ -45,6 +45,12 @@
 	// svelte-ignore state_referenced_locally
 	let pickedSeasons = $state<number[]>(ticked(data.relations ?? []));
 	/**
+	 * Whether the offer on screen follows a LINK made on this page, rather than
+	 * coming with the page's load (EDIT on a linked season, round 3). Only then
+	 * is the season's decision made, so only then does NOT NOW leave.
+	 */
+	let offerFromLink = $state(false);
+	/**
 	 * The seasons the relations tick, each once: a split season's two parts
 	 * are both ticked and are one season (c418, round 2), so the count, the
 	 * button and the band never say two for it.
@@ -307,6 +313,7 @@
 		// The offers came from the link just taken back: they have no start any more.
 		relations = null;
 		pickedSeasons = [];
+		offerFromLink = false;
 	}
 
 	async function linkChosen() {
@@ -342,6 +349,7 @@
 			}
 			relations = a.relations?.length ? a.relations : null;
 			pickedSeasons = ticked(relations ?? []);
+			offerFromLink = !!relations;
 			chosen = null;
 			undo = {
 				// Season 0 (a flat part of a longer list) names no season (c423).
@@ -415,6 +423,7 @@
 		}
 		const n = a.linked ?? 0;
 		relations = null;
+		offerFromLink = false;
 		if (single && !refused.length) {
 			await backToSeries(it.seriesId);
 			return;
@@ -435,16 +444,21 @@
 	}
 
 	/**
-	 * NOT NOW on the rest of the show: the season is linked, so for one series
-	 * the page goes back to it (its LINK row shows the new link), never to the
-	 * untouched review it came from (c423, round 2). In the queue, the offer
-	 * closes and the band's UNDO stays.
+	 * NOT NOW on the rest of the show. After a LINK made here the season is
+	 * linked, so for one series the page goes back to it (its LINK row shows
+	 * the new link), never to the untouched review it came from (c423, round
+	 * 2). An offer that came with the page's load (EDIT on a linked season)
+	 * follows no decision: NOT NOW closes it and stays, so the season's own
+	 * tools (PASTE A LINK, UNLINK, LINK) are reachable (round 3). In the
+	 * queue, the offer closes and the band's UNDO stays.
 	 */
 	async function notNow() {
 		const id = item?.seriesId;
+		const leave = offerFromLink;
 		relations = null;
 		pickedSeasons = [];
-		if (single && id !== undefined) await backToSeries(id);
+		offerFromLink = false;
+		if (leave && single && id !== undefined) await backToSeries(id);
 	}
 
 	/** "SEASON 1 NOT LINKED · SEASON 3 HOLDS ITS ENTRY", for each pick the workstation refused. */
@@ -719,9 +733,17 @@
 			{ label: 'PASTE A LINK', run: openPaste, dim: netDim },
 			// A linked season's own UNLINK: gone, and no pass searches it again
 			// (c240). The series screen's EDIT on the season line comes here.
-			...(season && single?.linked ? [{ label: 'UNLINK', run: unlinkSeason, dim: netDim }] : [])
+			...unlinkAct
 		];
 	});
+	/**
+	 * A linked season's own UNLINK, wherever the season's tools are drawn: in
+	 * the tool row beside its candidates, or among the actions when it has
+	 * none (a season linked by a pasted link was never searched, round 3).
+	 */
+	const unlinkAct = $derived<Act[]>(
+		season && single?.linked ? [{ label: 'UNLINK', run: unlinkSeason, dim: netDim }] : []
+	);
 
 	/** UNLINK on a season: its row goes, and the series' mirror with it. */
 	async function unlinkSeason() {
@@ -762,7 +784,12 @@
 		// SKIP too with nothing found: the owner's addition to 1c, so a series
 		// with no answer yet doesn't block the queue.
 		if (!item.candidates.length)
-			return [search, paste, ...(single ? [] : [{ label: 'SKIP', run: skipIt, dim: off }])];
+			return [
+				search,
+				paste,
+				...unlinkAct,
+				...(single ? [] : [{ label: 'SKIP', run: skipIt, dim: off }])
+			];
 		return [
 			{
 				label: 'NONE OF THESE',

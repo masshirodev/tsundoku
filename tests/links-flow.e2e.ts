@@ -1059,6 +1059,47 @@ test.describe('a catalogue that answers', () => {
 		}
 	});
 
+	test('NOT NOW on an offer EDIT opened stays, and the season can still be relinked (round 3)', async ({
+		page
+	}) => {
+		const id = seedSeasons('Edit Not Now Show', [12, 23]);
+		try {
+			// Season 1 linked through the page's own door; NOT NOW after that
+			// LINK goes back to the series, as before.
+			await page.goto(`${BASE}/links?series=${id}&season=1`);
+			await page.getByRole('button', { name: 'PASTE A LINK' }).first().click();
+			await page.getByLabel('AniList or MAL link').fill('https://anilist.co/anime/9501');
+			await expect(page.locator('.actions button').last()).toHaveText(/^LINK [A-Z] TO SEASON 1$/);
+			await page.locator('.actions button').last().click();
+			await page.getByRole('button', { name: 'NOT NOW' }).click({ timeout: 20_000 });
+			await page.waitForURL(new RegExp(`/series/${id}$`));
+			expect(partsOf(id)).toEqual([{ season: 1, part: 1, anilist_id: 9501 }]);
+
+			// EDIT on the linked season: its URL. The offer comes with the load.
+			const edit = `${BASE}/links?series=${id}&season=1`;
+			await page.goto(edit);
+			await expect(page.getByRole('button', { name: 'NOT NOW' })).toBeVisible();
+			await page.getByRole('button', { name: 'NOT NOW' }).click();
+			// It follows no decision made here: the page stays, with the season's
+			// tools. Leaving would start at once, so a few seconds without it is
+			// the answer; checked before it, the old page would still read right.
+			await expect(page.waitForURL(/\/series\/\d+$/, { timeout: 4_000 })).rejects.toThrow();
+			await expect(page.getByRole('button', { name: 'PASTE A LINK' }).first()).toBeVisible();
+			await expect(page.getByRole('button', { name: 'UNLINK' })).toBeVisible();
+			expect(page.url()).toBe(edit);
+
+			// And the season relinks from there: another entry, pasted and linked.
+			await page.getByRole('button', { name: 'PASTE A LINK' }).first().click();
+			await page.getByLabel('AniList or MAL link').fill('https://anilist.co/anime/9601');
+			const link = page.locator('.actions button').last();
+			await expect(link).toHaveText('LINK A TO SEASON 1');
+			await link.click();
+			await expect.poll(() => partsOf(id)).toEqual([{ season: 1, part: 1, anilist_id: 9601 }]);
+		} finally {
+			forgetFlatList(id);
+		}
+	});
+
 	test('the queue holds an anime a season at a time, each with its own search, and names the season (c240, c352)', async ({
 		page
 	}) => {

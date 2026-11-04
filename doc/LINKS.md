@@ -448,9 +448,16 @@ NEVER TICKED`; c418), since `linkSeason` would refuse it, and a split
 HOLDS ITS ENTRY`, or `NOTHING LINKED · …` when none was. The band's numbers
   are seasons, from the workstation's `linked` and `of` (`seasonsLinked`): a
   pair linked whole is one, and a pair with a part refused is that season
-  not linked, the refusal naming its part. NOT NOW on one series goes back
-  to it, the season just linked showing on its LINK row (c423, round 2); in
-  the queue it closes the offer, and the band's UNDO stays.
+  not linked, the refusal naming its part. **NOT NOW has two cases on one
+  series.** After a LINK made on the page, it goes back to the series, the
+  season just linked showing on its LINK row (c423, round 2). An offer that
+  came with the page's load (EDIT on a linked season, while another season
+  has no link) follows no decision made there: NOT NOW closes it and the page
+  stays on the season, with SEARCH AGAIN, PASTE A LINK, UNLINK and its LINK,
+  so a season linked to the wrong entry can still be changed or unlinked
+  from EDIT (round 3). A season linked by a pasted link has no candidates,
+  and its UNLINK stands among the actions then. In the queue NOT NOW closes
+  the offer, and the band's UNDO stays.
 - **Not linked:** what the last pass found, then FIND (accent) and PASTE A
   LINK.
 - **COVER** says where the cover comes from and why the sources before it
