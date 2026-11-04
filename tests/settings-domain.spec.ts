@@ -26,8 +26,22 @@ import {
 	writeValue
 } from '$lib/settings/stamped';
 import { audioLine, differ, inUse, overrideLine, subsLine, when } from '$lib/settings/lines';
+import { DEFAULT_SETTINGS, TEXT_FONTS } from '$lib/reader/text';
 
 const section = (id: string) => SECTIONS.find((s) => s.id === id)!;
+
+describe('TYPEFACE (c442)', () => {
+	it('allows exactly the text reader’s fonts, in its order, and defaults to its default', () => {
+		const row = section('novels').rows.find((r) => r.id === 'typeface')!;
+		const control = row.control as {
+			type: 'seg';
+			groups: { value: string; opts: { value: unknown }[] }[];
+		};
+		expect(control.groups[0].value).toBe('text.font');
+		expect(control.groups[0].opts.map((o) => o.value)).toEqual(TEXT_FONTS.map((f) => f.id));
+		expect(VALUES['text.font'].def).toBe(DEFAULT_SETTINGS.font);
+	});
+});
 
 describe('the catalogue (card c171)', () => {
 	it('has the eight sections in the handoff’s order, numbered', () => {

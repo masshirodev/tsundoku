@@ -1,0 +1,13 @@
+/*
+ * The text reader's own reading fonts beyond Plex (c442; doc/TEXT-READER.md,
+ * "FONT"). Not imported by index.css: src/lib/reader/text.ts's
+ * `loadReadingFonts` imports this sheet when such a font is chosen or the FONT
+ * row is drawn, so a reader who keeps Plex never declares them. Self-hosted
+ * from @fontsource, never a CDN, so reading works offline. OpenDyslexic is
+ * OFL-1.1; the release's THIRD-PARTY-NOTICES carries its licence with the
+ * other dependencies' (doc/DISTRIBUTION.md). Latin only: the reader's stack
+ * falls through to Plex's Japanese and Korean for the rest.
+ */
+@import '@fontsource/opendyslexic/400.css';
+@import '@fontsource/opendyslexic/400-italic.css';
+@import '@fontsource/opendyslexic/700.css';

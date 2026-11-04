@@ -497,7 +497,9 @@ export const SECTIONS: SectionDef[] = [
 							value: 'text.font',
 							opts: [
 								{ value: 'serif', label: 'PLEX SERIF' },
-								{ value: 'sans', label: 'PLEX SANS' }
+								{ value: 'sans', label: 'PLEX SANS' },
+								// The text reader's TEXT_FONTS, in its order (c442).
+								{ value: 'opendyslexic', label: 'OPENDYSLEXIC' }
 							]
 						}
 					]
