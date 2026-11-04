@@ -199,6 +199,48 @@ test('a second backup of the same library says so, and merges', async ({ page })
 	await page.waitForURL(/\/import\/\d+$/);
 	await expect(page.getByText(/THE SAME MIHON LIBRARY CAME IN ON \d+ [A-Z]{3}/)).toBeVisible();
 	await expect(page.getByText('THIS ONE ADDS AND UPDATES · NOTHING IS REMOVED')).toBeVisible();
+	// Import-Preview's measurements, extracted from the board (temp/design by
+	// design-tools/extract-spec): hand-set, so pinned rather than tidied.
+	const css = (sel: string, props: string[]) =>
+		page
+			.locator(sel)
+			.first()
+			.evaluate((el, ps) => {
+				const cs = getComputedStyle(el);
+				return Object.fromEntries(ps.map((p) => [p, cs.getPropertyValue(p)]));
+			}, props);
+	expect(await css('.imp .lab.first', ['padding-top', 'padding-bottom'])).toEqual({
+		'padding-top': '0px',
+		'padding-bottom': '12px'
+	});
+	expect(await css('.imp .h1.flush', ['margin-top', 'font-size'])).toEqual({
+		'margin-top': '0px',
+		'font-size': '34px'
+	});
+	expect(await css('.imp section.pg > .nums', ['margin-top', 'column-gap', 'row-gap'])).toEqual({
+		'margin-top': '24px',
+		'column-gap': '1px',
+		'row-gap': '1px'
+	});
+	expect(await css('.imp .nums > div', ['padding-top', 'padding-left', 'padding-bottom'])).toEqual({
+		'padding-top': '18px',
+		'padding-left': '20px',
+		'padding-bottom': '20px'
+	});
+	expect(await css('.imp .blk.under', ['border-top-width'])).toEqual({ 'border-top-width': '0px' });
+	expect(await css('.imp .blk .r', ['min-height'])).toEqual({ 'min-height': '64px' });
+	expect(await css('.imp .chips .chip', ['min-height', 'padding-left'])).toEqual({
+		'min-height': '44px',
+		'padding-left': '14px'
+	});
+	expect(await css('.imp .confirm', ['height', 'border-top-width'])).toEqual({
+		height: '72px',
+		'border-top-width': '1px'
+	});
+	expect(await css('.imp .confirm .c.go', ['padding-left', 'font-size'])).toEqual({
+		'padding-left': '28px',
+		'font-size': '15px'
+	});
 	await page.getByRole('button', { name: 'IMPORT 4 SERIES →' }).click();
 	await expect(page.getByRole('heading', { name: '3 series came in.' })).toBeVisible({
 		timeout: 20_000

@@ -271,7 +271,7 @@
 		justify-content: center;
 		gap: 18px;
 		min-height: 240px;
-		margin-top: 32px;
+		margin-top: 28px;
 		padding: 32px;
 		border: 1px dashed var(--line-2);
 	}
@@ -296,16 +296,30 @@
 	.later .tx {
 		opacity: 0.55;
 	}
+	/* Two ruled cells (Import-Pick, extracted): 1px gap on the hairline colour. */
 	.two {
 		display: grid;
 		grid-template-columns: repeat(2, minmax(0, 1fr));
-		gap: 40px;
-		margin-top: 40px;
+		gap: 1px;
+		margin-top: 28px;
+		border: var(--hairline);
+		background: var(--line-1);
 	}
 	.two > div {
 		display: flex;
 		flex-direction: column;
 		gap: 10px;
+		padding: 20px;
+		background: var(--surface-page);
+	}
+	.two .k {
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.04em;
+		color: var(--text-1);
+	}
+	.two .prose {
+		font-size: 15px;
+		line-height: 1.55;
 	}
 	.go {
 		font: 500 13px var(--font-mono);

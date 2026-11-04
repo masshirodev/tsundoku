@@ -130,7 +130,7 @@
 		<div class="lab first">
 			<span>01 — WHAT IT HOLDS</span><span class="r">NOTHING WRITTEN YET</span>
 		</div>
-		<h2 class="h1">
+		<h2 class="h1 flush">
 			{n(p.series)} series, from {n(p.sources)}
 			{p.sources === 1 ? 'source' : 'sources'}.
 		</h2>
@@ -177,7 +177,7 @@
 			</div>
 		{/if}
 
-		<div class="blk spaced">
+		<div class="blk under">
 			<div class="r">
 				<div class="tx">
 					{#if p.same}
@@ -268,14 +268,14 @@
 		{#if p.missing.length === 0}
 			<p class="prose">Every source in it comes from an extension you have.</p>
 		{:else}
-			<p class="prose">
+			<p class="prose before">
 				{p.sources - p.missing.length} sources come from extensions you have. {p.missing.length ===
 				1
 					? "This one doesn't."
 					: `These ${p.missing.length} don't.`} Install them now, or bring their series in without a source
 				and install later.
 			</p>
-			<div class="blk spaced" aria-label="Missing sources">
+			<div class="blk" aria-label="Missing sources">
 				{#if found.length > 0}
 					<div class="band">
 						<div class="bt"><div class="a">{found.length} FOUND IN YOUR REPOSITORIES</div></div>
@@ -683,6 +683,18 @@
 	}
 	.spaced {
 		margin-top: 24px;
+	}
+	/* Extracted from Import-Preview: the heading sits on 01's label, the
+	   ALREADY row hangs under the numbers with no rule of its own on top, and
+	   02's prose keeps 16px from its rows. */
+	.h1.flush {
+		margin-top: 0;
+	}
+	.blk.under {
+		border-top: 0;
+	}
+	.prose.before {
+		margin-bottom: 16px;
 	}
 	.same {
 		margin-top: 24px;
