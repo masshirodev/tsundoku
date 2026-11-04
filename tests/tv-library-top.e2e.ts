@@ -133,3 +133,31 @@ test('the pinned bars never cover the first row’s focus ring, and BACK from de
 	// under the loaded run, where 729 was the bottom).
 	await expect.poll(() => page.evaluate(() => scrollY)).toBeLessThanOrEqual(8);
 });
+
+test('the library keeps the TV’s own bottom safe margin, and the last row ends above it', async ({
+	page
+}) => {
+	await page.goto('/?shelf=all&sort=title');
+	await expect(page.locator('.grid .tile').first()).toBeVisible();
+	const { padding, safe } = await page.evaluate(() => {
+		const lib = document.querySelector('.library') as HTMLElement;
+		return {
+			padding: getComputedStyle(lib).paddingBottom,
+			safe: getComputedStyle(lib).getPropertyValue('--safe-y').trim()
+		};
+	});
+	expect(safe).toBe('28px');
+	expect(padding).toBe(safe);
+
+	// Scrolled to the end, the last tile sits clear of the TV's overscan edge.
+	await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
+	await expect
+		.poll(() =>
+			page.evaluate(() => {
+				const tiles = document.querySelectorAll('.grid .tile');
+				const last = tiles[tiles.length - 1].getBoundingClientRect().bottom;
+				return last - (innerHeight - 28);
+			})
+		)
+		.toBeLessThanOrEqual(0.5);
+});

@@ -418,7 +418,10 @@ A tap scrolls to the top, smoothly, or at once under reduced motion; focus
 moves up to the bar first, since the cell goes as the page passes a screen.
 It hides again within a screen of the top, and while selecting, where the
 bulk bar has that corner. The page keeps 53px under its last row (plus the
-phone's safe area) so the cell never sits on the last tiles.
+phone's safe area) so the cell never sits on the last tiles. A TV, which
+draws no cell, keeps its own safe margin there instead (`--safe-y`, 28px at
+960x540; the TV block's c238 rule, restated beside the 53px one because that
+one outranks it).
 
 **Not on a TV**, measured on 2026-11-03 (`tests/tv-library-top.e2e.ts`): one
 BACK from the bottom of the grid (`scrollY` 729 at 960x540) lands on the first

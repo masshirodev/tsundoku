@@ -1776,8 +1776,11 @@
 		.to-top {
 			display: none;
 		}
+		/* The room above is BACK TO TOP's, which a TV does not draw; it keeps
+		   its own safe margin instead, as the TV block below sets for every
+		   other case (c238). This rule outranks that one, so it says it again. */
 		.library:not(.selecting) {
-			padding-bottom: 0;
+			padding-bottom: var(--safe-y);
 		}
 	}
 	/* On a TV the focus layer brings a focused tile clear of the pinned bars
