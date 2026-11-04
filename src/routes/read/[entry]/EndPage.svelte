@@ -176,6 +176,12 @@
 					? `${nextVerb} ONLINE →`
 					: 'START →'
 	);
+	/** The unopenable row's name, which says why it cannot open (c345). */
+	const meanwhileLabel = $derived(
+		work?.next
+			? `NEXT IN ${work.name.toUpperCase()}, ${offlineState ? 'NOT CACHED' : 'NOT DOWNLOADED'}`
+			: ''
+	);
 	const meanwhileSub = $derived(
 		work?.next
 			? `NEXT IN ${work.name.toUpperCase()} · PART ${work.part + 1} · ${count(
@@ -200,6 +206,13 @@
 	);
 	/** DOWNLOAD FIRST 10's answer: nothing asked yet, asking, queued, or refused (c344). */
 	let queue = $state<'idle' | 'asking' | 'queued' | 'failed'>('idle');
+	const downloadCell = $derived(
+		queue === 'queued'
+			? 'QUEUED ✓'
+			: queue === 'failed'
+				? 'NOT QUEUED · TRY THE SERIES'
+				: (nextWords?.downloadFirst ?? '')
+	);
 
 	function downloadWords(p: NonNullable<WorkEnd['next']>): string {
 		if (p.entries > 0 && p.downloaded >= p.entries) return 'ALL DOWNLOADED';
@@ -337,12 +350,7 @@
 									type="button"
 									class="dl"
 									disabled={queue === 'queued' || queue === 'asking'}
-									onclick={downloadFirst}
-									>{queue === 'queued'
-										? 'QUEUED ✓'
-										: queue === 'failed'
-											? 'NOT QUEUED · TRY THE SERIES'
-											: nextWords?.downloadFirst}</button
+									onclick={downloadFirst}>{downloadCell}</button
 								>
 							{/if}
 							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved by the page -->
@@ -353,12 +361,31 @@
 			{:else if work?.mode === 'meanwhile' && work.next}
 				<!-- Caught up on an ongoing part (Work-EndStates 1): a row, not a block.
 				     A next part that cannot open says so rather than offering a cell
-				     that lands on the reader's IS NOT DOWNLOADED page. -->
+				     that lands on the reader's IS NOT DOWNLOADED page. It is a group
+				     named for why (c345), so a screen reader hears it as one thing,
+				     and its one stop is the block's own DOWNLOAD FIRST 10: offline
+				     there is nothing to queue, so offline it has none. -->
 				{#if offlineState || unreadable}
-					<div class="wrow dim" aria-disabled="true">
+					<!-- aria-disabled reaches what a group holds, so only the row with no cell says it. -->
+					<div
+						class="wrow dim"
+						role="group"
+						aria-disabled={offlineState ? 'true' : undefined}
+						aria-label={meanwhileLabel}
+					>
 						<span class="wl">MEANWHILE</span>
 						<span class="wn">{meanwhileLine}<span class="b">{meanwhileSub}</span></span>
-						<span class="wr">{meanwhileAction}</span>
+						{#if offlineState}
+							<span class="wr">{meanwhileAction}</span>
+						{:else}
+							<button
+								type="button"
+								class="wr dl"
+								data-focus-mark="in"
+								disabled={queue === 'queued' || queue === 'asking'}
+								onclick={downloadFirst}>{downloadCell}</button
+							>
+						{/if}
 					</div>
 				{:else}
 					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- readHref() resolves -->
@@ -762,6 +789,19 @@
 	}
 	.wrow.dim .wr {
 		color: var(--text-2);
+	}
+	/* The unopenable row's one cell: live ink in a dimmed row, as the block's is. */
+	.wrow.dim .wr.dl {
+		border: 0;
+		border-left: var(--hairline);
+		background: transparent;
+		color: var(--text-1);
+		font-size: 13px;
+		letter-spacing: 0.04em;
+		cursor: pointer;
+	}
+	.wrow.dim .wr.dl:disabled {
+		cursor: default;
 	}
 	.why {
 		margin: 0;

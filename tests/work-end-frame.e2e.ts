@@ -792,11 +792,25 @@ test('a meanwhile row whose next part has no file says so instead of offering a 
 	await expect(row).toContainText('MEANWHILE');
 	await expect(row).toContainText('The Greatest Estate Developer · CH. 1');
 	await expect(row).toContainText(/NEXT IN DRAWING RUN · PART 2 · \d+ CH\. · ○ NOT DOWNLOADED/);
-	await expect(row).toHaveAttribute('aria-disabled', 'true');
-	await expect(row.locator('.wr')).toHaveText('NOT DOWNLOADED');
+	// A group named for why it cannot open (c345), not a bare div read as text.
+	// Not aria-disabled: that would reach the cell it holds, below.
+	await expect(row).not.toHaveAttribute('aria-disabled');
+	await expect(row).toHaveAttribute('role', 'group');
+	await expect(
+		page.getByRole('group', { name: 'NEXT IN DRAWING RUN, NOT DOWNLOADED' })
+	).toBeVisible();
 	// No link: the row is not a cell, so it cannot open the reader's IS NOT
 	// DOWNLOADED page.
 	await expect(page.locator('.end a.wrow')).toHaveCount(0);
+	// Its one cell is the block's DOWNLOAD FIRST 10, the pad's stop on a TV. This
+	// part has no source, so the real action refuses it, and the cell says so.
+	const dl = row.getByRole('button', { name: 'DOWNLOAD FIRST 10 CHAPTERS' });
+	await expect(dl).toBeEnabled();
+	await expect(dl).toHaveAttribute('data-focus-mark', 'in');
+	const asked = page.waitForRequest((r) => /\/series\/7\?\/download$/.test(r.url()));
+	await dl.click();
+	expect((await asked).postData()).toMatch(/name="which"\r\n\r\nnext\r\n/);
+	await expect(row.locator('.dl')).toHaveText('NOT QUEUED · TRY THE SERIES');
 	await expect(page.locator(SEL.foot)).toContainText('DRAWING RUN · WORK');
 
 	// The same row with a source that can serve its first chapter: it opens, so
@@ -812,6 +826,22 @@ test('a meanwhile row whose next part has no file says so instead of offering a 
 	await expect(online).toBeVisible();
 	await expect(online).toContainText('○ NOT DOWNLOADED · READS ONLINE FROM FAKE SOURCE');
 	await expect(online.locator('.wr')).toHaveText('READ ONLINE →');
+});
+
+test('a meanwhile row offline and not cached is a group named for why, with no cell (c345)', async ({
+	page,
+	context
+}) => {
+	await openEnd(page, 3);
+	await expect(page.locator('.end a.wrow')).toBeVisible();
+	await context.setOffline(true);
+	const row = page.getByRole('group', { name: 'NEXT IN KUSURIYA RUN, NOT CACHED' });
+	await expect(row).toBeVisible();
+	await expect(row.locator('.wr')).toHaveText('NOT CACHED');
+	await expect(row).toHaveAttribute('aria-disabled', 'true');
+	// A queue with no network is a lie, here as in the block.
+	await expect(row.getByRole('button')).toHaveCount(0);
+	await context.setOffline(false);
 });
 
 test('a novel read in SCROLL reaches the end page, so the Work is offered there too', async ({
