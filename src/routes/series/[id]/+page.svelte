@@ -599,6 +599,7 @@
 					tagSource={data.tagSource}
 					noVideo={data.move.band}
 					work={data.work}
+					readMs={data.readMs}
 					takenOut={form && 'workTakenOut' in form
 						? {
 								facts: form.workTakenOut as TakeOutFacts,
