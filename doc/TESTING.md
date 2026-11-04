@@ -308,9 +308,17 @@ workstation during gates. What it assumes, and the rules that follow (c439):
   order:
 
   ```sh
-  PLAYWRIGHT_SKIP='screen: (continueList|continueRow|grid|tile) matches the handoff|START SCAN with nothing to import|the end of the series asks for a rating while unrated' \
+  PLAYWRIGHT_SKIP='screen: (continueList|continueRow|grid|tile) matches the handoff|START SCAN with nothing to import|the end of the series asks for a rating while unrated|a spread is the default on a TV, not one page' \
     npx playwright test
   ```
+
+  The last alternative, `tv-reader:24`, is nobody's red: it fails about 2 of
+  3 runs even alone (`doc/handoff-notes/e2e.md`, _Gaps_), and without it in
+  the expression the dependants are skipped about half the time. Take it out
+  once that test is fixed, as with each of the others.
+  `PLAYWRIGHT_SKIP` is safe to leave exported for the unit run and for
+  `yarn run e2e:table`: the table lists the files the config collects, and
+  ignores the variable.
 
   `PLAYWRIGHT_SKIP` is a regular expression the config gives every project
   as its `grepInvert`. **`--grep-invert` on the command line does not do
