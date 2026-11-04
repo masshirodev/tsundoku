@@ -88,9 +88,29 @@ A pointer over something pressable tints it: a gradient of 9% of its own text
 colour over its own background, so it works on any colour, and it leaves
 box-shadows alone, which are the focus mark and reveal's frame. **Only under
 `(hover: hover) and (pointer: fine)`**: a tap fires a false hover on touch, and
-a TV has no pointer. Scrims, `data-press="off"` and `"scale"`, and anything
-with an inline `background-image` (the player's thumbnails) are left out. The
-tint is a colour change, so it is instant and isn't gated by reduced motion.
+a TV has no pointer. Scrims and `data-press="off"` and `"scale"` are left out.
+The tint is a colour change, so it is instant and isn't gated by reduced motion.
+
+**The tint never lands on a picture** (c486). It is a `background-image`, so
+it _replaces_ whatever image the element draws, and hovering the series cover
+made the cover vanish. The rule leaves out:
+
+- anything with an inline `background` of any kind (`[style*='background']`),
+  the shorthand included. Until c486 it left out only `background-image`, and
+  every cover, icon and thumb here is set with the shorthand
+  (`style:background`). A placeholder's stripes (`coverPlaceholder`) are a
+  picture too;
+- anything marked `data-picture`, which is how an element whose picture comes
+  from a **stylesheet** says so: no attribute selector can see a stylesheet.
+  The fold buttons' stripes in `EntryList.svelte` and `EpisodeList.svelte` are
+  the two found so far. They need the attribute (c488).
+
+Most pictures are a child of the pressable thing, not the pressable thing
+itself, and the tint never reaches a child: an episode's thumb sits inside its
+row's button, which is tinted while the thumb keeps its image. Only the series
+cover, a link that resumes, carried its picture itself. `motion.e2e.ts` hovers
+it with its placeholder and with a picture, and checks a plain link is still
+tinted.
 
 ## Arriving and leaving
 

@@ -174,6 +174,68 @@ test('a pointer tints what it is over, on a device that has one', async ({ page,
 	await expect(select).toHaveCSS('background-image', /linear-gradient/);
 });
 
+/**
+ * The tint replaces the background-image, so it must never land on a picture
+ * (c486): hovering the series cover made it vanish, because the cover sets its
+ * picture with the `background:` shorthand and the rule only left out an
+ * inline `background-image`.
+ */
+test('a pointer never tints a picture away: the series cover keeps its image', async ({
+	page,
+	isMobile
+}) => {
+	test.skip(isMobile, 'a tap fires a false hover on touch, so touch gets none');
+	await page.goto('/?sort=title');
+	await page.locator('.grid .tile', { hasText: 'Tower of God' }).click();
+	await page.waitForURL(/\/series\/\d+/);
+	await screenSettled(page);
+	const cover = page.locator('.panel a.cover');
+	await expect(cover).toHaveAttribute('href', /\/read\//);
+	const bg = () => cover.evaluate((el) => getComputedStyle(el).backgroundImage);
+
+	// The seed has no cover files, so this is the placeholder's stripes: a picture too.
+	const stripes = await bg();
+	expect(stripes).toMatch(/gradient/);
+	await cover.hover();
+	await page.waitForTimeout(50);
+	expect(await bg()).toBe(stripes);
+
+	// A real cover, set the way SeriesPanel sets one.
+	await page.mouse.move(0, 0);
+	await cover.evaluate((el) => {
+		(el as HTMLElement).style.background =
+			'center / cover no-repeat url(data:image/gif;base64,R0lGODlhAQABAAAAACw=), linear-gradient(red, blue)';
+	});
+	const picture = await bg();
+	expect(picture).toContain('url(');
+	await cover.hover();
+	await page.waitForTimeout(50);
+	expect(await bg()).toBe(picture);
+
+	// A picture from a stylesheet says so with data-picture.
+	const back = page.locator('.main > .route-view a', { hasText: 'LIBRARY' }).first();
+	await back.evaluate((el) => {
+		el.setAttribute('data-picture', '');
+		const s = document.createElement('style');
+		s.textContent =
+			'[data-picture] { background-image: repeating-linear-gradient(red 0 2px, blue 2px 4px) !important; }';
+		document.head.append(s);
+	});
+	const sheetPicture = await back.evaluate((el) => getComputedStyle(el).backgroundImage);
+	expect(sheetPicture).toMatch(/repeating-linear-gradient/);
+	await back.hover();
+	await page.waitForTimeout(50);
+	expect(await back.evaluate((el) => getComputedStyle(el).backgroundImage)).toBe(sheetPicture);
+
+	// And a plain control on the same screen still gets its tint.
+	await page.reload();
+	await screenSettled(page);
+	const plain = page.locator('.main > .route-view a', { hasText: 'LIBRARY' }).first();
+	await expect(plain).toHaveCSS('background-image', 'none');
+	await plain.hover();
+	await expect(plain).toHaveCSS('background-image', /linear-gradient/);
+});
+
 test('a slow screen: its outline is what slides in', async ({ page }) => {
 	await page.goto('/?sort=title');
 	await page.route('**/series/*/__data.json*', async (route) => {
