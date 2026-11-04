@@ -787,7 +787,7 @@ THE SAME WAY SINCE 1 NOV` — and the cell opens MOVE ([`MOVE.md`](MOVE.md)).
   and in a Work the next part's card takes the next-episode card's place: from
   the same moment, NEXT IN THE WORK with the next part, ▶ and WORK, never a
   countdown and never an autoplay into another series; the END · LAST
-  AVAILABLE page gains the same card (doc/WORKS.md, "The end page", W6).
+  AVAILABLE page gains the same card (doc/WORKS.md, "The end of a series (W6)", the player).
 - **Portrait** (a phone or tablet held upright) puts the picture on top, the
   controls always shown beneath it, and UP NEXT below; FULL goes full screen
   and turns it where the browser allows. **The scrubber under the picture
