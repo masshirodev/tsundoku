@@ -2,7 +2,9 @@ import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
 import {
 	backupBytes,
+	backupFolder,
 	downloadBytes,
+	hasBackup,
 	mihonRoot,
 	planMihonBackup,
 	planMihonFolder,
@@ -36,8 +38,21 @@ export function libraryRoot(): string {
 	return dataPaths().library;
 }
 
-type Source = {
+export type Source = {
 	name: 'Mihon' | 'Hentoid' | 'Library' | 'Anime';
+	/** What the band and the log call the job, when not the source's name: MIHON BACKUP (c438). */
+	label?: string;
+	/** The job opened for it: IMPORT A BACKUP ties its row to the job (c438). */
+	started?(db: Database.Database, jobId: number): void;
+	/**
+	 * What the job's progress counts: bytes read (a scan), or series written (a
+	 * backup, whose bytes are read in one go before anything is written). The
+	 * job's `bytes_done`/`bytes_total` then hold series, and its label says so
+	 * (MIHON BACKUP): the band reads `162 OF 384 SERIES` (c438).
+	 */
+	counts?: 'series';
+	/** After each series is written: IMPORT A BACKUP keeps which series it brought, and counts. */
+	written?(db: Database.Database, series: PlannedSeries, created: boolean): void;
 	/**
 	 * Another device's copy (doc/SYNC.md, "Other devices"): `devices/<name>/`
 	 * under the library folder. Null for the library folder's own.
@@ -164,8 +179,12 @@ function sourcesAt(library: string, device: string | null): Source[] {
 	// c191: the mirror scan is gone (the tablet's, the phone's and Waydroid's
 	// `Mihon/` folders); what a library reads from a `Mihon/` folder now is a
 	// backup, and tsundoku's own downloads in the one device it writes
-	// (doc/IMPORT-MIHON.md, "Where it reads from").
-	if (mihon && device === null)
+	// (doc/IMPORT-MIHON.md, "Where it reads from"). A folder with no backup in
+	// it is no source (c268, c292): a scan of it would find nothing and leave
+	// no band, where refusing says where it looked. Asked here rather than in
+	// the plan, so no job is opened for it and the same answer serves the
+	// refusal's sentence.
+	if (mihon && device === null && hasBackup(mihon))
 		out.push({
 			name: 'Mihon',
 			device,
@@ -266,47 +285,101 @@ export type SourceSummary = {
 export type ImportSummary = { jobId: number; failedFiles: number; sources: SourceSummary[] };
 
 let running: Promise<ImportSummary> | null = null;
+/**
+ * Whether the running job is a scan of the library folder (runImport's) and
+ * not one backup's import (runQueued's): only a scan is joined, because a
+ * backup's job reads one file and never the folder (c438, round 2).
+ */
+let runningScan = false;
+/** A scan waiting its turn behind a backup's import: a second call joins it. */
+let queuedScan: Promise<ImportSummary> | null = null;
 
 /** The import under way, if one is: a caller whose files arrived after it began waits for it, then starts its own. */
 export const importRunning = (): Promise<ImportSummary> | null => running;
 
+/** Whether a scan asked for now waits its turn: a backup's import runs, or one is queued before it. */
+export const scanWaits = (): boolean => queuedScan !== null || (running !== null && !runningScan);
+
 /**
  * Import every device folder under `library`. One at a time: a second call
- * while one runs gets the running one.
+ * while a scan runs gets the running one. While a backup's import runs, the
+ * scan waits its turn and then reads the folder itself (one job each), and a
+ * call while it waits gets the waiting one.
  */
 export function runImport(
 	library: string,
 	opts: { now?: number; covers?: boolean } = {}
 ): Promise<ImportSummary> {
-	if (running) return running;
-	running = run(sourcesIn(library), opts.now ?? Date.now()).finally(() => {
+	if (running && runningScan) return running;
+	if (queuedScan) return queuedScan;
+	if (!running) return claimScan(library, opts);
+	const turn = (async () => {
+		while (running) await running.catch(() => {});
+		queuedScan = null;
+		return claimScan(library, opts);
+	})();
+	queuedScan = turn;
+	return turn;
+}
+
+/** Open the scan's own job; nothing runs (the caller has made sure). */
+function claimScan(library: string, opts: { now?: number; covers?: boolean }) {
+	runningScan = true;
+	const job = run(sourcesIn(library), opts.now ?? Date.now()).finally(() => {
+		running = null;
+		runningScan = false;
+	});
+	running = job;
+	if (opts.covers) afterImport(job);
+	return job;
+}
+
+/**
+ * One source run as its own job once nothing else runs (c438: IMPORT A
+ * BACKUP). One import or scan at a time, as runImport keeps it; this one
+ * waits its turn rather than joining the running one, because it reads a file
+ * the running one knows nothing of. `waiting` is called when it has to wait.
+ */
+export async function runQueued(
+	source: Source,
+	opts: { covers?: boolean; waiting?: () => void } = {}
+): Promise<ImportSummary> {
+	if (running || queuedScan) opts.waiting?.();
+	// A scan queued first goes first: it is awaiting the same promise, ahead.
+	while (running) await running.catch(() => {});
+	runningScan = false;
+	const job = run([source], Date.now()).finally(() => {
 		running = null;
 	});
+	running = job;
+	if (opts.covers) afterImport(job);
+	return job;
+}
+
+function afterImport(running: Promise<ImportSummary>): void {
 	// Covers follow the scan, in the background: the library is usable at once,
 	// and tiles gain their covers as they're made (doc/COVERS.md). Opt-in, so
 	// the specs never write to the library disk or reach the internet.
 	// Catalogue links go first (doc/LINKS.md): a series linked in this pass
 	// has its cover from the link in the same pass.
-	if (opts.covers)
-		void running
-			.then(() =>
-				refreshLinks({ log: (line) => console.log(`[import] ${line}`) }).catch((e: unknown) => {
-					console.error('tsundoku: links after the scan failed:', e);
-				})
+	void running
+		.then(() =>
+			refreshLinks({ log: (line) => console.log(`[import] ${line}`) }).catch((e: unknown) => {
+				console.error('tsundoku: links after the scan failed:', e);
+			})
+		)
+		// The owner's lists, when signed in: links and what each says (doc/TRACKING.md).
+		.then(() => import('../tracking.ts').then((t) => t.readLists()))
+		// Novels and comics to Ranobe: links by id, editions, units, reads (doc/RANOBE.md).
+		.then(() =>
+			import('../ranobe.ts').then((r) =>
+				r.syncRanobe().catch((e: unknown) => console.error('tsundoku: Ranobe pass failed:', e))
 			)
-			// The owner's lists, when signed in: links and what each says (doc/TRACKING.md).
-			.then(() => import('../tracking.ts').then((t) => t.readLists()))
-			// Novels and comics to Ranobe: links by id, editions, units, reads (doc/RANOBE.md).
-			.then(() =>
-				import('../ranobe.ts').then((r) =>
-					r.syncRanobe().catch((e: unknown) => console.error('tsundoku: Ranobe pass failed:', e))
-				)
-			)
-			.then(() => refreshCovers())
-			.catch((e: unknown) => {
-				console.error('tsundoku: covers after the scan failed:', e);
-			});
-	return running;
+		)
+		.then(() => refreshCovers())
+		.catch((e: unknown) => {
+			console.error('tsundoku: covers after the scan failed:', e);
+		});
 }
 
 /**
@@ -377,9 +450,13 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 	const jobId = Number(
 		db
 			.prepare(`INSERT INTO scan_jobs (started_at, source_label, steps, step) VALUES (?, ?, ?, 1)`)
-			.run(now, [...new Set(sources.map((s) => s.name.toUpperCase()))].join(' + '), sources.length)
-			.lastInsertRowid
+			.run(
+				now,
+				[...new Set(sources.map((s) => s.label ?? s.name.toUpperCase()))].join(' + '),
+				sources.length
+			).lastInsertRowid
 	);
+	for (const s of sources) s.started?.(db, jobId);
 	const p = { bytesDone: 0, bytesTotal: 0, seriesFound: 0, failedFiles: 0, step: 1 };
 	const update = db.prepare(
 		`UPDATE scan_jobs SET bytes_done = @bytesDone, bytes_total = @bytesTotal, series_found = @seriesFound,
@@ -404,6 +481,10 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 					flush();
 				}
 			}, now);
+			if (source.counts === 'series') {
+				p.bytesTotal += plan.series.length;
+				flush();
+			}
 			const rootId = rootOf(db, source);
 			const out: SourceSummary = {
 				name: source.device ? `${source.name} · ${source.device}` : source.name,
@@ -423,6 +504,8 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 				);
 				if (r.created) out.seriesCreated += 1;
 				else out.seriesUpdated += 1;
+				source.written?.(db, series, r.created);
+				if (source.counts === 'series') p.bytesDone += 1;
 				out.entriesAdded += r.entriesAdded;
 				out.filesAttached += r.filesAttached;
 				// The band counts arrivals ("N SERIES SO FAR") and is shown while
@@ -455,13 +538,40 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 }
 
 /**
+ * Where a scan with nothing to import looked: the library folder, and, when it
+ * has a `Mihon/` folder, the folder in it a backup is read from (c268), so an
+ * empty `Mihon/` answers with where the backup should have been.
+ */
+export type Looked = { looked: string; backups: string | null };
+
+export function whereItLooked(root: string): Looked {
+	const mihon = mihonRoot(root);
+	return { looked: root, backups: mihon ? backupFolder(mihon) : null };
+}
+
+/**
+ * The sentence a refused scan shows (START SCAN, RESCAN, `/scan`): what it
+ * found nothing in, by the folders it read.
+ */
+export function nothingToImport(l: Looked): string {
+	return l.backups
+		? `NOTHING TO IMPORT · NO BACKUP IN ${l.backups} AND NO H/.Hentoid/ FOLDER IN ${l.looked}`
+		: `NOTHING TO IMPORT · NO Mihon/ FOLDER OR H/.Hentoid/ FOLDER IN ${l.looked}`;
+}
+
+/**
  * START SCAN and `/scan`: start the import in the background and return at
- * once. `started: false` when there is nothing to import, with where it looked.
+ * once. `started: false` when there is nothing to import, with where it looked;
+ * `waiting` when a backup's import runs first and the scan starts after it.
  */
 export function startScan(
 	root = libraryRoot()
-): { started: true } | { started: false; looked: string } {
-	if (sourcesIn(root).length === 0) return { started: false, looked: root };
+): { started: true; waiting: boolean } | ({ started: false; message: string } & Looked) {
+	if (sourcesIn(root).length === 0) {
+		const looked = whereItLooked(root);
+		return { started: false, ...looked, message: nothingToImport(looked) };
+	}
+	const waiting = scanWaits();
 	runImport(root, { covers: true })
 		// New books are compared with the rest (doc/DUPLICATE-BOOKS.md). Loaded
 		// here, not above: finding also runs from a plain node script.
@@ -473,5 +583,8 @@ export function startScan(
 			// The job row is already marked finished with a failure; the log says why.
 			console.error('[import] failed:', e);
 		});
-	return { started: true };
+	return { started: true, waiting };
 }
+
+/** What START SCAN and RESCAN say when the scan waits its turn behind a backup's import. */
+export const SCAN_WAITS = 'WAITING · THE SCAN STARTS WHEN THE BACKUP’S IMPORT ENDS';

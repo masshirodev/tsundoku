@@ -225,31 +225,46 @@
 			<span class="tick-note">{m.start_ticks_ext()}</span>
 		</div>
 	{:else if id === 'library'}
+		<!-- Import-Doors A (c438): the three backups first, IMPORT A BACKUP on the
+		     one that is read today; Aniyomi and LNReader stay NOT YET until their
+		     importers land (the owner's call, 2026-11-03). The folder and START
+		     SCAN drop below them, as the way for files. -->
 		<p>
-			{m.start_library_body_a()} <b>Mihon/autobackup</b>{m.start_library_body_b()}
+			{m.start_library_body_a()} <b>{m.start_library_downloads()}</b>{m.start_library_body_b()}
 		</p>
-		<div class="holds">
+		<div class="backups">
 			<div>
-				<span>{m.start_library_mihon_backup()}</span><span
-					>{m.start_library_mihon({ path: 'Mihon/autobackup/' })}</span
+				<span class="tx"
+					><span class="a">{m.start_library_mihon_backup()}</span><span class="b"
+						>{m.start_library_mihon({ path: '.tachibk' })}</span
+					></span
 				>
-			</div>
-			<div><span>EPUB</span><span>{m.start_library_epub()}</span></div>
-			<div class="later">
-				<span>{m.start_library_aniyomi_backup()}</span><span>{m.start_not_yet_anime()}</span>
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- a fixed app path -->
+				<a class="go" href={resolve('/import')}>{m.start_import_go()}</a>
 			</div>
 			<div class="later">
-				<span>{m.start_library_lnreader_backup()}</span><span>{m.start_not_yet_novels()}</span>
+				<span class="tx"
+					><span class="a">{m.start_library_aniyomi_backup()}</span><span class="b">.tachibk</span
+					></span
+				>
+				<span class="cl">{m.start_not_yet_anime()}</span>
+			</div>
+			<div class="later">
+				<span class="tx"
+					><span class="a">{m.start_library_lnreader_backup()}</span><span class="b">.zip</span
+					></span
+				>
+				<span class="cl">{m.start_not_yet_novels()}</span>
 			</div>
 		</div>
 		<div class="folder">
-			<div class="k">{m.start_library_folder()}</div>
-			<div class="p" title={libraryRoot}>{libraryRoot}</div>
+			<div class="k">{m.start_library_files()}</div>
+			<form method="POST" action="/?/scan" use:enhance class="path-row">
+				<div class="p" title={libraryRoot}>{libraryRoot}</div>
+				<button type="submit">{m.start_scan()}</button>
+			</form>
 		</div>
-		<form method="POST" action="/?/scan" use:enhance class="go-row">
-			<button type="submit" class="btn primary lg">{m.start_scan()}</button>
-			<span class="tick-note">{m.start_ticks_scan()}</span>
-		</form>
+		<span class="tick-note">{m.start_ticks_scan()}</span>
 	{:else if id === 'find'}
 		<p class="long">
 			{m.start_find_body_a()} <b>{m.start_find_body_b()}</b>{m.start_find_body_c()}
@@ -861,6 +876,78 @@
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
+	}
+	/* Import-Doors A's rows: the backup, what it holds, and its door. */
+	.backups {
+		display: flex;
+		flex-direction: column;
+		border: var(--hairline);
+	}
+	.backups > div {
+		display: flex;
+		align-items: stretch;
+		min-height: 64px;
+	}
+	.backups > div + div {
+		border-top: var(--hairline);
+	}
+	.backups .tx {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 5px;
+		padding: 12px 20px;
+	}
+	.backups .a {
+		font: 500 16px/1.3 var(--font-sans);
+	}
+	.backups .b {
+		font: 400 13px/1.4 var(--font-mono);
+		color: var(--text-2);
+	}
+	.backups .go,
+	.backups .cl {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0 22px;
+		border-left: var(--hairline);
+		font: 500 14px var(--font-mono);
+		white-space: nowrap;
+		text-decoration: none;
+	}
+	.backups .go {
+		color: var(--accent);
+	}
+	.backups .cl {
+		color: var(--text-2);
+		font-weight: 400;
+		font-size: 13px;
+	}
+	.backups .later .tx {
+		opacity: 0.4;
+	}
+	.path-row {
+		display: flex;
+		align-items: stretch;
+		border: 1px solid var(--line-2);
+	}
+	.path-row .p {
+		flex: 1;
+		min-width: 0;
+		border: 0;
+	}
+	.path-row button {
+		padding: 0 22px;
+		border: 0;
+		border-left: 1px solid var(--line-2);
+		background: transparent;
+		color: var(--text-1);
+		font: 500 14px var(--font-mono);
+		white-space: nowrap;
+		cursor: pointer;
 	}
 	.folder .p {
 		padding: 14px 16px;

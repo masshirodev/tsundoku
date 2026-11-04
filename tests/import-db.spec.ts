@@ -7,7 +7,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 process.env.DATABASE_PATH = ':memory:';
 
 const { getDb } = await import('$lib/server/db');
-const { runImport } = await import('$lib/server/import');
+const { runImport, sourcesIn, startScan } = await import('$lib/server/import');
 const { writeMihonFolder } = await import('./helpers/mihon-fixture');
 const { writeHentoidFolder } = await import('./helpers/hentoid-fixture');
 const { groupIntoSeries } = await import('$lib/server/books');
@@ -281,6 +281,74 @@ describe('Mihon’s local manga', () => {
 				.get() as { n: number }
 		).n;
 		expect(n).toBe(0);
+	});
+});
+
+/**
+ * c268, c292: a `Mihon/` folder is a place for a backup, and one with no
+ * backup in it is no source. START SCAN on it refuses with where it looked,
+ * instead of opening a job that finds nothing and leaves no band.
+ */
+describe('a Mihon folder with no backup in it', () => {
+	const fresh = () => mkdtempSync(join(tmpdir(), 'tsundoku-empty-mihon-'));
+	const jobs = () => count(`SELECT COUNT(*) n FROM scan_jobs`);
+
+	it('is no source, and START SCAN says where the backup should have been', () => {
+		const lib = fresh();
+		mkdirSync(join(lib, 'Mihon', 'autobackup'), { recursive: true });
+		// Not a backup by name: a stray file must not make the folder count.
+		writeFileSync(join(lib, 'Mihon', 'autobackup', 'notes.txt'), 'x');
+		expect(sourcesIn(lib)).toEqual([]);
+		const before = jobs();
+		const r = startScan(lib);
+		expect(r).toMatchObject({
+			started: false,
+			looked: lib,
+			backups: join(lib, 'Mihon', 'autobackup')
+		});
+		expect(r.started ? '' : r.message).toBe(
+			`NOTHING TO IMPORT · NO BACKUP IN ${join(lib, 'Mihon', 'autobackup')} AND NO H/.Hentoid/ FOLDER IN ${lib}`
+		);
+		expect(jobs()).toBe(before);
+		rmSync(lib, { recursive: true });
+	});
+
+	it('says the same with no autobackup folder at all', () => {
+		const lib = fresh();
+		mkdirSync(join(lib, 'Mihon'));
+		const r = startScan(lib);
+		expect(r.started ? '' : r.message).toContain(
+			`NO BACKUP IN ${join(lib, 'Mihon', 'autobackup')}`
+		);
+		rmSync(lib, { recursive: true });
+	});
+
+	it('without a Mihon folder says the old sentence, naming the library folder', () => {
+		const lib = fresh();
+		const r = startScan(lib);
+		expect(r).toMatchObject({ started: false, looked: lib, backups: null });
+		expect(r.started ? '' : r.message).toBe(
+			`NOTHING TO IMPORT · NO Mihon/ FOLDER OR H/.Hentoid/ FOLDER IN ${lib}`
+		);
+		rmSync(lib, { recursive: true });
+	});
+
+	it('becomes a source once a backup is in it, under either name', () => {
+		for (const name of ['app.mihon_2026-09-22_19-06.tachibk', 'old.proto.gz']) {
+			const lib = fresh();
+			mkdirSync(join(lib, 'Mihon', 'autobackup'), { recursive: true });
+			writeFileSync(join(lib, 'Mihon', 'autobackup', name), '');
+			expect(sourcesIn(lib).map((s) => [s.name, s.device])).toEqual([['Mihon', null]]);
+			rmSync(lib, { recursive: true });
+		}
+	});
+
+	it('does not drop tsundoku’s own downloads beside it', () => {
+		const lib = fresh();
+		mkdirSync(join(lib, 'Mihon'));
+		mkdirSync(join(lib, 'devices', 'tsundoku', 'Mihon'), { recursive: true });
+		expect(sourcesIn(lib).map((s) => [s.name, s.device])).toEqual([['Mihon', 'tsundoku']]);
+		rmSync(lib, { recursive: true });
 	});
 });
 

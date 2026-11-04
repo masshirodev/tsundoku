@@ -327,16 +327,28 @@ export function malLinkOf(m: MihonManga): { id: number; score: number } | undefi
 	return t ? { id: t.mediaId, score: t.score > 0 ? t.score : 0 } : undefined;
 }
 
+/**
+ * A category's effect when the owner left it out on IMPORT A BACKUP's preview
+ * (c438): no shelf and no rating, but a "+" still hides. Unticking a chip is
+ * a choice about shelves, never a way to show what the category hides.
+ */
+function leftOutEffect(name: string): ReturnType<typeof categoryEffect> {
+	return { rating: 0, shelf: null, adult: categoryEffect(name).adult };
+}
+
 function fromBackup(
 	m: MihonManga,
 	backup: MihonBackup,
 	downloaded: DownloadedSeries | null,
-	now: number
+	now: number,
+	leaveOut: ReadonlySet<string>
 ): PlannedSeries {
 	const categoryNames = m.categories
 		.map((order) => backup.categories.find((c) => c.order === order)?.name)
 		.filter((n): n is string => !!n);
-	const effects = categoryNames.map(categoryEffect);
+	const effects = categoryNames.map((n) =>
+		leaveOut.has(n) ? leftOutEffect(n) : categoryEffect(n)
+	);
 	const sourceName = backup.sources.get(m.source);
 	const kind = kindOf(m.genres, m.viewer, sourceName);
 	const history = new Map(m.history.map((h) => [h.url, h]));
@@ -504,7 +516,9 @@ export type MihonPlan = {
 export function planMihon(
 	backup: MihonBackup | null,
 	downloads: DownloadedSeries[],
-	now = Date.now()
+	now = Date.now(),
+	/** Categories left out on IMPORT A BACKUP's preview: by name, as the file names them. */
+	leaveOut: ReadonlySet<string> = new Set()
 ): MihonPlan {
 	const series: PlannedSeries[] = [];
 	const claimed = new Set<DownloadedSeries>();
@@ -523,7 +537,7 @@ export function planMihon(
 			continue;
 		}
 		if (downloaded) claimed.add(downloaded);
-		series.push(fromBackup(m, backup!, downloaded, now));
+		series.push(fromBackup(m, backup!, downloaded, now, leaveOut));
 	}
 	for (const d of downloads) if (!claimed.has(d)) series.push(fromDownloadOnly(d, now));
 	return { series, skipped };

@@ -23,7 +23,7 @@ Portuguese ([`I18N.md`](I18N.md)).
 | --- | ---------- | -------------------------------- | ---------------------------------------------------------------- | ------------------------------------------- |
 | 01  | SET UP     | Add a repository                 | a repository of any kind is kept                                 | ASK: EXTENSIONS › REPOSITORIES, `?add=`     |
 | 02  | SET UP     | Install an extension             | an extension or a novel plugin is installed                      | AVAILABLE EXTENSIONS →                      |
-| 03  | SET UP     | Bring a library you already have | a series a scan or a backup brought in is in the library         | START SCAN, here                            |
+| 03  | SET UP     | Bring a library you already have | a series an import or a scan brought in is in the library        | IMPORT A BACKUP →, and START SCAN, here     |
 | 04  | SET UP     | Read on your phone               | a phone pairs, or any phone or tablet has checked in             | SETTINGS › 08 — DEVICES →                   |
 | 05  | FIRST READ | Find something to read           | a chapter or an episode is opened from a source (a record)       | the search, or a source's BROWSE →          |
 | 06  | FIRST READ | Add it to your library           | a series from a source is in the library (ADD, ADD AND DOWNLOAD) | the last record's preview, OPEN →           |
@@ -35,8 +35,15 @@ Portuguese ([`I18N.md`](I18N.md)).
   can't see it.
 - **03 and 06 tell a series apart by how it came.** One ADD made has the
   source's key (`origin_key`) and no scan (`scan_job_id` is NULL); anything a
-  scan or a backup brought in has the scan's id, or no key at all. So 06 never
-  ticks 03, and an imported Mihon library never ticks 06.
+  scan or a backup brought in has the scan's id, or no key at all. A backup
+  chosen on IMPORT A BACKUP runs as a scan job too ([`IMPORT.md`](IMPORT.md)),
+  so its series carry its job's id and tick 03. So 06 never ticks 03, and an
+  imported Mihon library never ticks 06.
+- **03's body** (c438; the import handoff's Import-Doors A) is the three
+  backups first: Mihon backup with IMPORT A BACKUP → to `/import`, Aniyomi
+  and LNReader dimmed, NOT YET. Under them, FILES INSTEAD · EPUBS, AND
+  DOWNLOADED CHAPTERS: the library folder with START SCAN beside it, the way
+  for files. Its tick line says an import or a scan.
 - **05 counts browsing records**, written on the first chapter or episode
   opened from a source, never by the preview alone; forgotten ones still
   count (the row stays, [`BROWSING.md`](BROWSING.md)).
@@ -168,7 +175,11 @@ up, then a first read.` (and FIRST READ's head once SET UP is through).
 
 ## What it doesn't do yet
 
-- The Aniyomi and LNReader backup rows are drawn dimmed, NOT YET: card c190.
+- The Aniyomi and LNReader backup rows are drawn dimmed, NOT YET: card c190
+  (the owner's call for c438, 2026-11-03: Mihon first).
+- 03's done row does not yet name the import that ticked it (Import-Doors B,
+  `DONE · MIHON BACKUP · 382 SERIES` with IMPORT LOG →): it says what any
+  done step says.
 - 05's search field and source rows are the first day's; a source that never
   answers still lists.
 - The phone's narrower 05 body and tick line are CSS swaps of two messages,

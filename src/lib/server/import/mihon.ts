@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { basename, dirname, join } from '../fspath.ts';
 import { gunzipSync } from 'node:zlib';
@@ -37,19 +37,42 @@ async function dirs(path: string): Promise<string[]> {
 	}
 }
 
+/** What a backup is called: Mihon's `.tachibk`, and the older `.proto.gz`. */
+const BACKUP = /\.(tachibk|proto\.gz)$/;
+
+/** Where a `Mihon/` folder's backups are looked for: what an empty one says it searched. */
+export const backupFolder = (root: string): string => join(root, 'autobackup');
+
+/** The backups in a folder, oldest first by the date in the name. */
+function byDate(names: string[]): string[] {
+	// By the date in the name: `app.mihon_…` and a debug build's
+	// `app.mihon.debug_…` would not sort together by name.
+	const stamp = (n: string) => /(\d{4}-\d{2}-\d{2}_\d{2}-\d{2})/.exec(n)?.[1] ?? n;
+	return names.filter((n) => BACKUP.test(n)).sort((a, b) => stamp(a).localeCompare(stamp(b)));
+}
+
 /** The newest backup, by name: Mihon names them `app.mihon_<date>_<time>.tachibk`. */
 export async function newestBackup(root: string): Promise<string | null> {
-	const folder = join(root, 'autobackup');
+	const folder = backupFolder(root);
 	try {
-		// By the date in the name: `app.mihon_…` and a debug build's
-		// `app.mihon.debug_…` would not sort together by name.
-		const stamp = (n: string) => /(\d{4}-\d{2}-\d{2}_\d{2}-\d{2})/.exec(n)?.[1] ?? n;
-		const names = (await readdir(folder))
-			.filter((n) => /\.(tachibk|proto\.gz)$/.test(n))
-			.sort((a, b) => stamp(a).localeCompare(stamp(b)));
+		const names = byDate(await readdir(folder));
 		return names.length ? join(folder, names[names.length - 1]) : null;
 	} catch {
 		return null;
+	}
+}
+
+/**
+ * Whether a `Mihon/` folder holds a backup to read (c268, c292): the same
+ * names newestBackup reads, asked synchronously, because the list of sources
+ * is built before a job starts and an empty folder must refuse with where it
+ * looked rather than start a scan that finds nothing.
+ */
+export function hasBackup(root: string): boolean {
+	try {
+		return byDate(readdirSync(backupFolder(root))).length > 0;
+	} catch {
+		return false;
 	}
 }
 

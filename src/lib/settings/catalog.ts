@@ -722,7 +722,18 @@ export const SECTIONS: SectionDef[] = [
 		id: 'library',
 		n: '05',
 		title: 'LIBRARY',
-		words: ['library', 'editions', 'languages', 'report', 'logs', 'log', 'bug'],
+		words: [
+			'library',
+			'editions',
+			'languages',
+			'report',
+			'logs',
+			'log',
+			'bug',
+			'import',
+			'backup',
+			'mihon'
+		],
 		rows: [
 			{
 				id: 'books-open-in',
@@ -744,6 +755,15 @@ export const SECTIONS: SectionDef[] = [
 					]
 				},
 				meta: 'A FOLDED BOOK OPENS IN THIS LANGUAGE · WITHOUT IT, IN THE ONE LAST READ'
+			},
+			// Import-Doors C and D (c438): a later import, with when the last came
+			// in; on a TV, no button (the TV never imports).
+			{
+				id: 'import',
+				label: 'IMPORT A BACKUP',
+				where: 'all',
+				control: { type: 'account', id: 'import' },
+				meta: 'A SECOND BACKUP OF THE SAME APP ADDS AND UPDATES · NOTHING IS REMOVED'
 			}
 		]
 	},

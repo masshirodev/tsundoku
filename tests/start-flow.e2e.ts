@@ -174,7 +174,7 @@ test('a step ticks itself, and the band says so with the way back', async ({ pag
 test('leaving the screen any other way ends the trip', async ({ page }) => {
 	await page.goto('/');
 	await step(page, '03').getByRole('button', { name: 'OPEN ↓' }).click();
-	await expect(step(page, '03').locator('.st-body')).toContainText('Mihon/autobackup');
+	await expect(step(page, '03').locator('.st-body')).toContainText('Mihon backup');
 	await page.goto('/');
 	await page.evaluate(() =>
 		sessionStorage.setItem('tsundoku.start.trail', JSON.stringify({ step: 'phone' }))
@@ -184,6 +184,23 @@ test('leaving the screen any other way ends the trip', async ({ page }) => {
 	await page.goto('/history');
 	await page.goto('/settings');
 	await expect(page.getByRole('navigation', { name: 'Get started' })).toHaveCount(0);
+});
+
+test('03 offers IMPORT A BACKUP for Mihon, NOT YET for the other two, and the folder below (c438)', async ({
+	page
+}) => {
+	await page.goto('/');
+	await step(page, '03').getByRole('button', { name: 'OPEN ↓' }).click();
+	const body = step(page, '03').locator('.st-body');
+	// One live door: Aniyomi and LNReader stay NOT YET until their importers land.
+	await expect(body.getByRole('link', { name: 'IMPORT A BACKUP →' })).toHaveCount(1);
+	await expect(body).toContainText('ANIME · NOT YET');
+	await expect(body).toContainText('NOVELS · NOT YET');
+	await expect(body).toContainText('FILES INSTEAD · EPUBS, AND DOWNLOADED CHAPTERS');
+	await expect(body.getByRole('button', { name: 'START SCAN' })).toBeVisible();
+	await body.getByRole('link', { name: 'IMPORT A BACKUP →' }).click();
+	await expect(page).toHaveURL(/\/import$/);
+	await expect(page.getByRole('heading', { name: 'IMPORT A BACKUP' })).toBeVisible();
 });
 
 test('SKIP and UNDO: skipping 01 takes 02 and FIRST READ with it', async ({ page }) => {

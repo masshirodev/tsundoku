@@ -153,6 +153,20 @@ test('DEVICES lists this one once it has checked in, kept on the workstation', a
 	await expect(devices.locator('.row.device .scope').first()).toHaveText('KEPT ON THE WORKSTATION');
 });
 
+test('05 — LIBRARY: IMPORT A BACKUP, for a later import (c438, Import-Doors C)', async ({
+	page
+}) => {
+	await page.goto('/settings');
+	const r = row(page, 'IMPORT A BACKUP');
+	// The shared seed has never imported a backup.
+	await expect(r).toContainText('NO IMPORT YET');
+	await expect(r).toContainText(
+		'A SECOND BACKUP OF THE SAME APP ADDS AND UPDATES · NOTHING IS REMOVED'
+	);
+	await r.getByRole('link', { name: 'CHOOSE A FILE →' }).click();
+	await expect(page).toHaveURL(/\/import$/);
+});
+
 test('/settings?section=watching lands on its section', async ({ page }) => {
 	await page.goto('/settings?section=watching');
 	await expect(section(page, '03 — WATCHING')).toBeInViewport();
@@ -275,8 +289,13 @@ test('MORE in the library’s bar: the sidebar’s foot as a sheet', async ({ pa
 		/DOWNLOADS →/,
 		/SETTINGS →/,
 		/HELP →\s*7 TOPICS/,
-		/IMPORT LOG\s*SOON/
+		// Live since c438: a link to the log, dated once a backup has come in.
+		/IMPORT LOG →/
 	]);
+	await expect(sheet.getByRole('link', { name: /IMPORT LOG →/ })).toHaveAttribute(
+		'href',
+		'/import/log'
+	);
 	await sheet.getByRole('link', { name: /SETTINGS →/ }).click();
 	await expect(page).toHaveURL(/\/settings$/);
 });

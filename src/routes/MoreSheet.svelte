@@ -14,7 +14,8 @@
 	import { deviceValues } from '$lib/settings/stamped';
 	import { readLocal } from '$lib/settings/local';
 	import { m } from '$lib/paraglide/messages';
-	import { num } from '$lib/i18n/format';
+	import { num, upper } from '$lib/i18n/format';
+	import { getLocale } from '$lib/paraglide/runtime';
 
 	/**
 	 * MORE (Reach, tabletMore and phoneMore; doc/SETTINGS.md, "Getting there";
@@ -25,14 +26,25 @@
 		open,
 		onclose,
 		queued,
-		start = null
+		start = null,
+		lastImport = null
 	}: {
 		open: boolean;
 		onclose: () => void;
 		queued: number | null;
 		/** GET STARTED's count, while it isn't finished: its row comes first (doc/ONBOARDING.md). */
 		start?: { done: number; total: number } | null;
+		/** When the last backup came in (c438): IMPORT LOG's row says LAST 2 NOV. */
+		lastImport?: number | null;
 	} = $props();
+
+	/** 2 NOV, in the device's language. */
+	const day = (at: number) => {
+		const d = new Date(at);
+		const month = d.toLocaleDateString(getLocale(), { month: 'short' }).replace(/\.$/, '');
+		// Day first, as the handoff writes it, whatever order the language prefers.
+		return upper(`${d.getDate()} ${month}`);
+	};
 
 	let changed = $state(0);
 	onMount(() => {
@@ -82,9 +94,11 @@
 			>{m.more_topics({ count: topics().length, n: num(topics().length) })}</span
 		></a
 	>
-	<!-- Not built yet; see doc/LIBRARY.md, "What it does not do yet". -->
-	<span class="row dim" aria-disabled="true"
-		><span>{m.name_import_log()}</span><span class="n">{m.more_soon()}</span></span
+	<!-- IMPORT LOG (c438; Import-Doors E, right): live, with when the last import came in. -->
+	<a class="row" data-focus-mark="in" href={resolve('/import/log')}
+		><span>{m.name_import_log()} →</span><span class="n"
+			>{lastImport ? m.more_import_last({ date: day(lastImport) }) : ''}</span
+		></a
 	>
 	<div class="foot"></div>
 </Sheet>
@@ -132,9 +146,6 @@
 	.row.start .n {
 		color: var(--accent);
 		font-weight: 500;
-	}
-	.row.dim {
-		opacity: 0.4;
 	}
 	.n {
 		font-weight: 400;

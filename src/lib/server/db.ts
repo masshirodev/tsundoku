@@ -1451,6 +1451,45 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	UPDATE reading_events SET duration_ms = (SELECT ms FROM c443_steps c WHERE c.id = reading_events.id)
 	WHERE id IN (SELECT id FROM c443_steps);
 	DROP TABLE c443_steps;
+	`,
+	// v66: IMPORT A BACKUP and its log (c438, doc/IMPORT.md). One row per file
+	// chosen on /import: what it was, where it came from, what became of it.
+	// A scan stays a `scan_jobs` row alone; an import runs as a scan job too
+	// (`job_id`), so the library's band and "one at a time" are the scan's.
+	// `state`: read (previewed, nothing written), refused (not a backup it
+	// reads), waiting (behind a running scan or import), running, done,
+	// failed. The counts the log shows are not stored: they are read from
+	// `import_series` through `series`, so they follow reveal and a series
+	// deleted since stops counting. `outcome` holds what no row can: the
+	// shelves made, the categories left out, the extensions installed or
+	// skipped, the series left out and the titles refused.
+	`
+	CREATE TABLE imports (
+		id INTEGER PRIMARY KEY,
+		created_at INTEGER NOT NULL,
+		app TEXT NOT NULL DEFAULT '',
+		file_name TEXT NOT NULL,
+		file_bytes INTEGER NOT NULL DEFAULT 0,
+		made_at INTEGER,
+		stored TEXT NOT NULL DEFAULT '',
+		origin TEXT NOT NULL DEFAULT '',
+		state TEXT NOT NULL CHECK (state IN ('read', 'refused', 'waiting', 'running', 'done', 'failed')),
+		refusal TEXT NOT NULL DEFAULT '',
+		job_id INTEGER REFERENCES scan_jobs(id) ON DELETE SET NULL,
+		series_total INTEGER NOT NULL DEFAULT 0,
+		series_done INTEGER NOT NULL DEFAULT 0,
+		started_at INTEGER,
+		finished_at INTEGER,
+		outcome TEXT NOT NULL DEFAULT '{}'
+	);
+	CREATE INDEX imports_job ON imports(job_id) WHERE job_id IS NOT NULL;
+	CREATE TABLE import_series (
+		import_id INTEGER NOT NULL REFERENCES imports(id) ON DELETE CASCADE,
+		series_id INTEGER NOT NULL REFERENCES series(id) ON DELETE CASCADE,
+		created INTEGER NOT NULL,
+		PRIMARY KEY (import_id, series_id)
+	);
+	CREATE INDEX import_series_series ON import_series(series_id);
 	`
 ];
 

@@ -32,7 +32,8 @@ import {
 	seriesOfVolumes
 } from '$lib/server/books';
 import { setPersonFavourite, tagPage } from '$lib/server/people';
-import { libraryRoot, startScan } from '$lib/server/import';
+import { libraryRoot, SCAN_WAITS, startScan } from '$lib/server/import';
+import { lastImport } from '$lib/server/import/log';
 import { firstReadExtras, readSources } from '$lib/server/start';
 import { refreshCovers } from '$lib/server/covers';
 import { refreshMany } from '$lib/server/refresh';
@@ -177,6 +178,8 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		// FOLLOWED is a filter while something the viewer can see is followed (doc/DOWNLOADING.md).
 		following: anyFollowed(reveal),
 		libraryRoot: libraryRoot(),
+		// IMPORT LOG under MORE says when the last backup came in (c438).
+		lastImportAt: lastImport(reveal)?.at ?? null,
 		cont: continueReading(reveal),
 		// A Work that ended (TAKE OUT of the second-to-last, UNGROUP) has no
 		// screen of its own any more: the library carries its band and its UNDO.
@@ -627,10 +630,10 @@ export const actions: Actions = {
 	scan: async () => {
 		const r = startScan();
 		if (!r.started) {
-			return fail(400, {
-				scanMessage: `NOTHING TO IMPORT · NO Mihon/ FOLDER OR H/.Hentoid/ FOLDER IN ${r.looked}`
-			});
+			return fail(400, { scanMessage: r.message });
 		}
+		// One import or scan at a time: behind a backup's import it says it waits.
+		if (r.waiting) return { scanMessage: SCAN_WAITS };
 		redirect(303, '/');
 	}
 };

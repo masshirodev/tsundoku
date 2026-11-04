@@ -26,6 +26,19 @@ is also the root tsundoku's ADD and online reading put a series in, which is
 why the name stays (`<library>/Mihon`, [`BROWSING.md`](BROWSING.md), "A library
 with no Mihon folder"). Nothing else in it is scanned.
 
+**A `Mihon/` with no backup in it is no source** (c268, c292). A backup is a
+file in `Mihon/autobackup/` named `.tachibk` or `.proto.gz`, the names the
+importer reads. Without one, START SCAN, RESCAN and `/scan` refuse with where
+they looked, `NOTHING TO IMPORT · NO BACKUP IN <library>/Mihon/autobackup AND
+NO H/.Hentoid/ FOLDER IN <library>`, instead of opening a job that finds
+nothing and leaves no band. With no `Mihon/` folder at all the sentence is the
+older `NO Mihon/ FOLDER OR H/.Hentoid/ FOLDER IN <library>`. The check is made
+when the list of sources is built, before any job opens
+(`src/lib/server/import/index.ts`, `sourcesAt`), so it and the sentence give
+the same answer. It does not touch `devices/tsundoku/Mihon/`, whose downloads
+are read with or without a backup. A folder that does hold sources besides
+(Hentoid, EPUBs, anime) scans as before, without the Mihon step.
+
 **`devices/tsundoku/Mihon/` is the one Mihon folder read as a device**: what
 tsundoku's own downloader wrote, read back by the same rules a device's copy
 was ([`DOWNLOADER.md`](DOWNLOADER.md), "The one decision: tsundoku is a
@@ -56,6 +69,12 @@ them. Deleting one of those series still trashes its files, as any delete does
 
 ## Running it
 
+- **IMPORT A BACKUP** (`/import`, c438; [`IMPORT.md`](IMPORT.md)) takes a
+  backup from the browser, on the computer or a phone, with no folder to find:
+  it is uploaded into the data folder's import area, previewed, and on IMPORT
+  run as a job of its own through this importer's plan (`planMihon`) and the
+  same writer, into the same `Mihon` root. A second backup merges by the
+  rescan rule below.
 - **START SCAN** on the empty library, then **RESCAN** in the desktop sidebar or
   **`/scan`** typed in search (the way on a tablet or phone), starts it on the server in the background. The library's IMPORTING band follows the
   job (`scan_jobs`), re-reading it every two seconds. The FINISHED band and the
@@ -70,7 +89,10 @@ them. Deleting one of those series still trashes its files, as any delete does
   holds a `Mihon/`, for example `/mnt/hdd2/tsundoku/samples`. It prints what it
   did.
 
-Only one import runs at a time. A second start while one runs joins it. A job
+Only one import runs at a time. A second start while a scan runs joins it;
+while a backup's import (IMPORT A BACKUP, [`IMPORT.md`](IMPORT.md)) runs, it
+waits its turn and then scans in a job of its own, and START SCAN and RESCAN
+say so. A job
 left unfinished by a process that died (a crash, or a restart for an update)
 is closed when the app next starts (`init` in `src/hooks.server.ts`), and by
 the next import too. Until it is, the library believes it is still importing:
