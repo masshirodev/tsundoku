@@ -138,6 +138,62 @@ export function decodeBackup(raw: Uint8Array): MihonBackup {
 	};
 }
 
+/**
+ * A backup chosen on IMPORT A BACKUP (c438), read as decodeBackup reads it but
+ * one series at a time: a series whose bytes don't decode is refused by its
+ * title (or as untitled when even that is unreadable) and the rest still
+ * come in. `fields` are the top-level field numbers present, which is what
+ * tells an Aniyomi backup from a Mihon one (doc/IMPORT.md, "Which app").
+ * Throws ProtobufError when the file's top level is not a message at all.
+ */
+export function readBackupLenient(raw: Uint8Array): {
+	backup: MihonBackup;
+	damaged: string[];
+	fields: Set<number>;
+} {
+	const root = new Message(raw);
+	const damaged: string[] = [];
+	const list: MihonManga[] = [];
+	for (const f of root.fields) {
+		if (f.no !== 1 || f.wire !== 2) continue;
+		let m: Message;
+		try {
+			m = new Message(f.value);
+		} catch {
+			damaged.push('');
+			continue;
+		}
+		try {
+			list.push(manga(m));
+		} catch {
+			let title = '';
+			try {
+				title = m.str(3);
+			} catch {
+				// Not even a title.
+			}
+			damaged.push(title);
+		}
+	}
+	const categories: MihonCategory[] = [];
+	const sources = new Map<string, string>();
+	for (const f of root.fields) {
+		if (f.wire !== 2 || (f.no !== 2 && f.no !== 101)) continue;
+		try {
+			const m = new Message(f.value);
+			if (f.no === 2) categories.push({ name: m.str(1), order: m.num(2) });
+			else sources.set(m.big(2).toString(), m.str(1));
+		} catch {
+			// A category or source name that doesn't read is left out; its series still come in.
+		}
+	}
+	return {
+		backup: { manga: list, categories, sources },
+		damaged,
+		fields: new Set(root.fields.map((f) => f.no))
+	};
+}
+
 // ---- writing ---------------------------------------------------------------------------
 
 function encodeChapter(c: MihonChapter): Msg {

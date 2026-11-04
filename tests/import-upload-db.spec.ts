@@ -1,0 +1,494 @@
+import { mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { gzipSync } from 'node:zlib';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+/**
+ * IMPORT A BACKUP's server half (c438, doc/IMPORT.md): the upload in pieces,
+ * the import area, reading a file before anything is written, the preview,
+ * IMPORT as a scan job, a second backup merging, and the log's counts
+ * following reveal. Reached through the functions the routes call, from a
+ * library that came in from a first backup, never from hand-seeded rows.
+ */
+
+const home = mkdtempSync(join(tmpdir(), 'tsundoku-import-upload-'));
+const library = join(home, 'library');
+const area = join(home, 'imports');
+mkdirSync(library);
+// Before anything imports db.ts or data-dirs.ts: both read these once.
+process.env.DATABASE_PATH = ':memory:';
+process.env.LIBRARY_ROOT = library;
+process.env.IMPORT_DIR = area;
+
+const { getDb } = await import('$lib/server/db');
+const b = await import('$lib/server/import/backup');
+const log = await import('$lib/server/import/log');
+const { backup, CATEGORIES } = await import('./helpers/mihon-fixture');
+const { encode } = await import('./helpers/protobuf-writer');
+const mihonBackup = await import('$lib/import/mihon-backup');
+const { encodeBackup } = mihonBackup;
+const { setRating, setFavourite, setInCollection, setHidden } = await import('$lib/server/library');
+const { setDirection } = await import('$lib/server/series');
+const { runImport, sourcesIn } = await import('$lib/server/import');
+
+const db = () => getDb();
+const NAME = 'app.mihon_2026-11-02_03-14.tachibk';
+const gz = (raw: Uint8Array) => new Uint8Array(gzipSync(raw));
+
+/** The browser's side: the file in pieces of CHUNK_BYTES, as /import/upload takes them. */
+function upload(bytes: Uint8Array, name = NAME, origin: 'desktop' | 'phone' = 'desktop') {
+	let token: string | null = null;
+	let offset = 0;
+	let pieces = 0;
+	for (;;) {
+		const piece = bytes.subarray(offset, offset + b.CHUNK_BYTES);
+		const a = b.receiveChunk({ token, name, size: bytes.length, offset, origin }, piece);
+		pieces += 1;
+		if (a.state !== 'more') return { ...a, pieces };
+		token = a.token;
+		offset = a.written;
+	}
+}
+
+const series = (title: string) =>
+	db().prepare(`SELECT * FROM series WHERE title = ?`).get(title) as
+		(Record<string, unknown> & { id: number }) | undefined;
+const shelvesOf = (id: number) =>
+	(
+		db()
+			.prepare(
+				`SELECT c.name FROM collection_series cs JOIN collections c ON c.id = cs.collection_id
+				WHERE cs.series_id = ? ORDER BY c.name`
+			)
+			.all(id) as { name: string }[]
+	).map((r) => r.name);
+
+afterAll(() => rmSync(home, { recursive: true, force: true }));
+
+describe('the upload', () => {
+	it('takes a multi-megabyte file in pieces under adapter-node’s 512 KB limit', () => {
+		// A real backup is megabytes (the board's is 2.4 MB): padding the
+		// fixture's manga list with browsed-only series makes it one.
+		const more = Array.from({ length: 6000 }, (_, i) => [
+			[1, 2131019126180322627n],
+			[2, `/series/pad-${i}`],
+			[3, `Browsed ${i} ${'x'.repeat(400)}`],
+			[100, false]
+		]);
+		const raw = backup([], more as never);
+		const bytes = new Uint8Array(raw.length);
+		bytes.set(raw);
+		// Stored, not compressed: gzip at level 0 keeps it the size it is.
+		const file = new Uint8Array(gzipSync(bytes, { level: 0 }));
+		expect(file.length).toBeGreaterThan(2 * 1024 * 1024);
+		expect(b.CHUNK_BYTES).toBeLessThan(512 * 1024);
+		const r = upload(file);
+		expect(r.state).toBe('read');
+		expect(r.pieces).toBe(Math.ceil(file.length / b.CHUNK_BYTES));
+		const row = b.importRow(r.state === 'read' ? r.id : -1)!;
+		expect(row).toMatchObject({ state: 'read', app: 'mihon', fileBytes: file.length });
+		// Kept in the import area, never the library.
+		expect(row.stored.startsWith(area)).toBe(true);
+		expect(readdirSync(library)).toEqual([]);
+	});
+
+	it('refuses a file over the limit with a sentence, keeping nothing', () => {
+		const before = readdirSync(area).length;
+		const r = b.receiveChunk(
+			{
+				token: null,
+				name: 'huge.tachibk',
+				size: b.MAX_BACKUP_BYTES + 1,
+				offset: 0,
+				origin: 'desktop'
+			},
+			new Uint8Array(10)
+		);
+		expect(r).toEqual({
+			state: 'refused',
+			id: null,
+			reason: `HUGE.TACHIBK · 100.0 MB · OVER THE 100 MB A BACKUP MAY BE · NOTHING CHANGED`
+		});
+		expect(readdirSync(area).length).toBe(before);
+	});
+
+	it('takes a file of exactly the limit’s size as far as its first piece', () => {
+		const r = b.receiveChunk(
+			{ token: null, name: 'edge.tachibk', size: b.MAX_BACKUP_BYTES, offset: 0, origin: 'desktop' },
+			new Uint8Array(10)
+		);
+		expect(r.state).toBe('more');
+		if (r.state === 'more') b.cancelUpload(r.token);
+	});
+
+	it('refuses a piece that does not start where the last ended, and drops what it had', () => {
+		const file = gz(backup());
+		const first = b.receiveChunk(
+			{ token: null, name: NAME, size: file.length, offset: 0, origin: 'desktop' },
+			file.subarray(0, 100)
+		);
+		expect(first.state).toBe('more');
+		const token = first.state === 'more' ? first.token : '';
+		const skip = b.receiveChunk(
+			{ token, name: NAME, size: file.length, offset: 200, origin: 'desktop' },
+			file.subarray(200, 300)
+		);
+		expect(skip).toMatchObject({ state: 'refused', reason: /INTERRUPTED/ });
+		expect(readdirSync(area).some((n) => n.includes(token))).toBe(false);
+	});
+
+	it('CANCEL removes the pieces kept so far', () => {
+		const first = b.receiveChunk(
+			{ token: null, name: NAME, size: 1000, offset: 0, origin: 'desktop' },
+			new Uint8Array(100)
+		);
+		const token = first.state === 'more' ? first.token : '';
+		expect(readdirSync(area).some((n) => n.includes(token))).toBe(true);
+		b.cancelUpload(token);
+		expect(readdirSync(area).some((n) => n.includes(token))).toBe(false);
+	});
+});
+
+describe('a file that is not a backup it reads', () => {
+	const refused = (bytes: Uint8Array, name: string) => {
+		const r = upload(bytes, name);
+		expect(r.state).toBe('refused');
+		return r.state === 'refused' ? r : null!;
+	};
+
+	it('is refused on the pick screen with what it was taken for, and nothing kept', () => {
+		const series0 = (db().prepare(`SELECT COUNT(*) n FROM series`).get() as { n: number }).n;
+		const cases: [Uint8Array, string, RegExp, string][] = [
+			[new TextEncoder().encode('just some notes'), 'notes.txt', /NOT A MIHON BACKUP/, ''],
+			[
+				new Uint8Array([0x50, 0x4b, 3, 4, 0, 0]),
+				'Notes.zip',
+				/LNREADER BACKUPS ARE NOT READ YET/,
+				'lnreader'
+			],
+			[
+				gz(backup()).subarray(0, 200),
+				'cut.tachibk',
+				/ISN’T WHOLE \(CUT OFF IN THE COPY\)/,
+				'mihon'
+			],
+			[gz(new Uint8Array([0xff, 0xff, 0xff])), 'odd.tachibk', /DON’T READ AS A BACKUP/, ''],
+			// Aniyomi's anime (field 3) beside its manga.
+			[
+				gz(
+					encode([
+						[3, [[3, 'An anime']]],
+						[1, [[3, 'A manga']]]
+					])
+				),
+				'ani.tachibk',
+				/AN ANIYOMI BACKUP · ANIYOMI IS NOT READ YET/,
+				'aniyomi'
+			],
+			[new Uint8Array(), 'empty.tachibk', /AN EMPTY FILE/, '']
+		];
+		for (const [bytes, name, reason, app] of cases) {
+			const r = refused(bytes, name);
+			expect(r.reason, name).toMatch(reason);
+			expect(r.reason, name).toMatch(/NOTHING CHANGED$/);
+			const row = b.importRow(r.id!)!;
+			expect(row, name).toMatchObject({ state: 'refused', app, stored: '' });
+		}
+		expect(readdirSync(area).filter((n) => !n.startsWith('1-'))).toEqual([]);
+		expect((db().prepare(`SELECT COUNT(*) n FROM series`).get() as { n: number }).n).toBe(series0);
+	});
+
+	it('a backup whose library is empty says there is nothing to bring in', () => {
+		const onlyBrowsed = encodeBackup({
+			manga: [
+				{
+					source: '1',
+					url: '/a',
+					title: 'Only Browsed',
+					artist: '',
+					author: '',
+					description: '',
+					genres: [],
+					status: 0,
+					thumbnailUrl: '',
+					dateAdded: null,
+					viewer: 0,
+					chapters: [],
+					categories: [],
+					favorite: false,
+					history: [],
+					trackers: []
+				}
+			],
+			categories: [{ name: 'Good', order: 0 }],
+			sources: new Map([['1', 'Somewhere']])
+		});
+		const r = refused(gz(onlyBrowsed), 'empty-library.tachibk');
+		expect(r.reason).toBe(
+			'NOTHING TO BRING IN · MIHON BACKUP · 0 SERIES IN ITS LIBRARY · 1 ONLY BROWSED'
+		);
+	});
+});
+
+describe('the preview, and IMPORT', () => {
+	let first: number;
+	beforeAll(() => {
+		const r = upload(gz(backup()), NAME, 'phone');
+		first = r.state === 'read' ? r.id : -1;
+	});
+
+	it('counts the file before anything is written', () => {
+		const p = b.previewImport(first)!;
+		expect(p.ok).toBe(true);
+		if (!p.ok) return;
+		// The fixture's library: four series in it, one only browsed, one local.
+		expect(p.preview).toMatchObject({
+			app: 'mihon',
+			series: 4,
+			alreadyHere: 0,
+			same: null,
+			leftOut: { browsed: 1, local: 1, damaged: [] }
+		});
+		expect(p.preview.kinds.reduce((a, k) => a + k.series, 0)).toBe(4);
+		expect(p.preview.rows.map((r) => r.title).sort()).toEqual([
+			'Academy’s Undercover Professor',
+			'Bunk Beds',
+			'Drawing: Saikyou Mangaka',
+			'Myst, Might, Mayhem'
+		]);
+		// Every source is missing: no extension is installed in this library.
+		expect(p.preview.missing.every((m) => m.found === null)).toBe(true);
+		expect(p.preview.missing.reduce((a, m) => a + m.series, 0)).toBe(4);
+		// Every category is a chip; the importer's rating names say RATES.
+		expect(p.preview.categories.map((c) => c.name)).toEqual(CATEGORIES);
+		const chip = (n: string) => p.preview.categories.find((c) => c.name === n)!;
+		expect(chip('Good')).toMatchObject({ effect: 'rates', rating: 8 });
+		expect(chip('Amazing+')).toMatchObject({ effect: 'rates', rating: 10 });
+		expect(chip('To Read')).toMatchObject({ effect: 'shelf' });
+		expect((db().prepare(`SELECT COUNT(*) n FROM series`).get() as { n: number }).n).toBe(0);
+		expect(b.importRow(first)).toMatchObject({ state: 'read', origin: 'phone', seriesTotal: 4 });
+	});
+
+	it('a category named like an existing shelf adds to it', () => {
+		db().prepare(`INSERT INTO collections (name, position) VALUES ('To Read', 0)`).run();
+		const p = b.previewImport(first)!;
+		expect(p.ok && p.preview.categories.find((c) => c.name === 'To Read')).toMatchObject({
+			effect: 'adds'
+		});
+	});
+
+	it('IMPORT brings the series in as a job, leaves an unticked category off the shelves, and keeps hiding', async () => {
+		expect(b.startBackupImport(first, { leaveOut: ['Dropped', 'Good+'] })).toEqual({
+			started: true
+		});
+		await b.settled();
+		const row = b.importRow(first)!;
+		expect(row).toMatchObject({ state: 'done', seriesTotal: 4, seriesDone: 4 });
+		expect(row.jobId).not.toBeNull();
+		const job = db().prepare(`SELECT * FROM scan_jobs WHERE id = ?`).get(row.jobId) as {
+			source_label: string;
+			finished_at: number | null;
+		};
+		expect(job).toMatchObject({ source_label: 'MIHON BACKUP' });
+		expect(job.finished_at).not.toBeNull();
+		// The fixture's "+" series is in Good+: left out, it is not rated by it,
+		// and it is still hidden.
+		const plus = db().prepare(`SELECT * FROM series WHERE hidden = 1`).all() as {
+			title: string;
+			rating: number;
+		}[];
+		expect(plus.map((s) => s.title)).toEqual(['Bunk Beds']);
+		expect(plus[0].rating).toBe(0);
+		// The root a Mihon folder's backup writes to, whether the folder exists or not.
+		const root = db()
+			.prepare(`SELECT r.path FROM series s JOIN roots r ON r.id = s.root_id LIMIT 1`)
+			.get() as { path: string };
+		expect(root.path).toBe(join(library, 'Mihon'));
+		expect(readdirSync(library)).toEqual([]);
+		expect(row.outcome).toMatchObject({ leftOut: ['Dropped', 'Good+'], browsed: 1, local: 1 });
+		expect(row.outcome.noSource!.map((s) => s.name).sort()).toEqual([
+			'Asura Scans',
+			'Weeb Central'
+		]);
+	});
+
+	it('counts what it brought, following reveal', () => {
+		expect(log.importCounts(first, true)).toEqual({ fresh: 4, merged: 0, noSource: 4 });
+		expect(log.importCounts(first, false)).toEqual({ fresh: 3, merged: 0, noSource: 3 });
+		const entry = log.importLog(false).find((e) => e.kind === 'backup' && e.id === first);
+		expect(entry).toMatchObject({ kind: 'backup', state: 'done', counts: { fresh: 3 } });
+		expect(log.lastImport(false)).toMatchObject({ id: first, counts: { fresh: 3 } });
+		expect(log.sourcesLacking(first, true).sort()).toEqual(['Asura Scans', 'Weeb Central']);
+	});
+
+	it('a refused file is in the log, a preview nobody imported is not', () => {
+		const entries = log.importLog(true);
+		expect(entries.some((e) => e.kind === 'backup' && e.state === 'refused')).toBe(true);
+		expect(entries.some((e) => e.kind === 'backup' && e.state === 'read')).toBe(false);
+	});
+});
+
+describe('a second backup of the same library', () => {
+	let firstId: number;
+	let second: number;
+	beforeAll(() => {
+		firstId = log.lastImport(true)!.id;
+	});
+
+	it('is called the same library, with what is new, here, newer and gone', () => {
+		// The owner reads on in the app: Drawing's chapter 3 read, and one more
+		// series added; Bunk Beds deleted on the phone.
+		const raw = backup([4], [
+			[
+				[1, 2131019126180322627n],
+				[2, '/series/new-one'],
+				[3, 'A New One'],
+				[
+					16,
+					[
+						[1, '/chapters/N1'],
+						[2, 'Chapter 1'],
+						[4, true]
+					]
+				]
+			]
+		] as never);
+		const r = upload(gz(raw), 'app.mihon_2026-11-03_08-00.tachibk');
+		second = r.state === 'read' ? r.id : -1;
+		const p = b.previewImport(second)!;
+		expect(p.ok).toBe(true);
+		if (!p.ok) return;
+		expect(p.preview.same).toMatchObject({ importId: firstId, fresh: 1, here: 4, gone: 0 });
+		expect(p.preview.alreadyHere).toBe(4);
+	});
+
+	it('merges: adds and updates, removes nothing, and leaves the owner’s edits alone', async () => {
+		const drawing = series('Drawing: Saikyou Mangaka')!;
+		const bunk = series('Bunk Beds')!;
+		// Through the app's doors: rating, FAV, a shelf, hidden, direction.
+		setRating([drawing.id], 3);
+		setFavourite([drawing.id], true);
+		const shelf = Number(
+			db().prepare(`INSERT INTO collections (name, position) VALUES ('Mine', 9)`).run()
+				.lastInsertRowid
+		);
+		setInCollection([drawing.id], shelf, true);
+		setDirection(drawing.id, 'ltr');
+		setHidden([bunk.id], true);
+		// No door edits a series' title or kind (doc/IMPORT.md, "Premises"):
+		// the writer must still leave both, so they stand in by hand.
+		db().prepare(`UPDATE series SET title = 'My Title', kind = 'manhwa' WHERE id = ?`).run(bunk.id);
+		const before = (db().prepare(`SELECT COUNT(*) n FROM series`).get() as { n: number }).n;
+
+		b.startBackupImport(second);
+		await b.settled();
+		expect(b.importRow(second)).toMatchObject({ state: 'done' });
+		const after = (db().prepare(`SELECT COUNT(*) n FROM series`).get() as { n: number }).n;
+		expect(after).toBe(before + 1);
+		expect(series('A New One')).toBeDefined();
+		const d = series('Drawing: Saikyou Mangaka')!;
+		expect(d).toMatchObject({ rating: 3, favourite: 1, direction: 'ltr' });
+		expect(shelvesOf(d.id)).toContain('Mine');
+		const kept = db().prepare(`SELECT * FROM series WHERE id = ?`).get(bunk.id) as {
+			title: string;
+			kind: string;
+			hidden: number;
+		};
+		expect(kept).toMatchObject({ title: 'My Title', kind: 'manhwa', hidden: 1 });
+		// The new chapter came in.
+		expect(
+			db()
+				.prepare(
+					`SELECT COUNT(*) n FROM entries WHERE series_id = ? AND source_url = '/chapters/AAA4'`
+				)
+				.get(d.id)
+		).toEqual({ n: 1 });
+		expect(log.importCounts(second, true)).toMatchObject({ fresh: 1, merged: 4 });
+	});
+
+	it('a series deleted in the app is counted as gone, and stays', () => {
+		// The app's library without Bunk Beds and the "+" series: three of the
+		// five the last import brought, enough to be the same library.
+		const { decodeBackup } = mihonBackup;
+		const full = decodeBackup(
+			backup([4], [
+				[
+					[1, 2131019126180322627n],
+					[2, '/series/new-one'],
+					[3, 'A New One']
+				]
+			] as never)
+		);
+		const lean = encodeBackup({
+			...full,
+			manga: full.manga.filter((m) => !['Bunk Beds', 'Myst, Might, Mayhem'].includes(m.title))
+		});
+		const r = upload(gz(lean), 'app.mihon_2026-11-04_08-00.tachibk');
+		const p = b.previewImport(r.state === 'read' ? r.id : -1)!;
+		expect(p.ok && p.preview.same).toMatchObject({ importId: second, gone: 2, fresh: 0 });
+		expect(series('Bunk Beds') ?? series('My Title')).toBeDefined();
+	});
+
+	it('another library is not called the same', () => {
+		const other = encodeBackup({
+			manga: [
+				{
+					source: '77',
+					url: '/x',
+					title: 'Someone Else’s',
+					artist: '',
+					author: '',
+					description: '',
+					genres: [],
+					status: 0,
+					thumbnailUrl: '',
+					dateAdded: null,
+					viewer: 0,
+					chapters: [],
+					categories: [],
+					favorite: true,
+					history: [],
+					trackers: []
+				}
+			],
+			categories: [],
+			sources: new Map([['77', 'Elsewhere']])
+		});
+		const r = upload(gz(other), 'friend.tachibk');
+		const p = b.previewImport(r.state === 'read' ? r.id : -1)!;
+		expect(p.ok && p.preview.same).toBeNull();
+	});
+});
+
+describe('one import or scan at a time', () => {
+	it('an import chosen while a scan runs waits, says so, then runs', async () => {
+		// A backup dropped in the library's Mihon folder gives the scan something to do.
+		const { writeFileSync } = await import('node:fs');
+		mkdirSync(join(library, 'Mihon', 'autobackup'), { recursive: true });
+		writeFileSync(join(library, 'Mihon', 'autobackup', NAME), gzipSync(backup()));
+		expect(sourcesIn(library).length).toBe(1);
+		const r = upload(gz(backup([5])), 'app.mihon_2026-11-05_08-00.tachibk');
+		const id = r.state === 'read' ? r.id : -1;
+		const scan = runImport(library);
+		b.startBackupImport(id);
+		expect(b.importRow(id)!.state).toBe('waiting');
+		await scan;
+		await b.settled();
+		const row = b.importRow(id)!;
+		expect(row.state).toBe('done');
+		const jobs = db().prepare(`SELECT id FROM scan_jobs ORDER BY id DESC LIMIT 2`).all() as {
+			id: number;
+		}[];
+		// Its own job, opened after the scan's.
+		expect(row.jobId).toBe(jobs[0].id);
+		rmSync(join(library, 'Mihon'), { recursive: true });
+	});
+
+	it('the log lists the scan and the imports, newest first', () => {
+		const entries = log.importLog(true);
+		expect(entries.some((e) => e.kind === 'scan')).toBe(true);
+		const ats = entries.map((e) => e.at);
+		expect(ats).toEqual([...ats].sort((x, y) => y - x));
+	});
+});

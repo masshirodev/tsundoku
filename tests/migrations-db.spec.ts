@@ -247,3 +247,48 @@ describe('rung 61: Works (c275)', () => {
 		expect(conn.prepare(`SELECT id FROM works ORDER BY id`).all()).toEqual([{ id: 2 }]);
 	});
 });
+
+describe('rung 66: IMPORT A BACKUP and its log (c438)', () => {
+	it('adds the two tables to a v65 library and moves no row of it', () => {
+		const conn = new Database(':memory:');
+		climb(conn, 65);
+		conn.exec(`
+			INSERT INTO roots (id, name, path) VALUES (1, 'Mihon', '/lib/Mihon');
+			INSERT INTO scan_jobs (id, started_at, finished_at, source_label, series_found)
+				VALUES (1, 100, 200, 'MIHON', 1);
+			INSERT INTO series (id, root_id, title, kind, added_at, scan_job_id, origin_key)
+				VALUES (1, 1, 'Drawing', 'manga', 100, 1, 'mihon:1:/a');
+		`);
+		const before = {
+			series: conn.prepare(`SELECT * FROM series`).all(),
+			jobs: conn.prepare(`SELECT * FROM scan_jobs`).all()
+		};
+		climb(conn, 66);
+		expect(conn.pragma('user_version', { simple: true })).toBe(66);
+		expect({
+			series: conn.prepare(`SELECT * FROM series`).all(),
+			jobs: conn.prepare(`SELECT * FROM scan_jobs`).all()
+		}).toEqual(before);
+		conn
+			.prepare(
+				`INSERT INTO imports (id, created_at, app, file_name, state, job_id) VALUES (1, 300, 'mihon', 'a.tachibk', 'done', 1)`
+			)
+			.run();
+		conn
+			.prepare(`INSERT INTO import_series (import_id, series_id, created) VALUES (1, 1, 1)`)
+			.run();
+		// A state the log does not know is refused.
+		expect(() =>
+			conn
+				.prepare(`INSERT INTO imports (created_at, file_name, state) VALUES (1, 'x', 'gone')`)
+				.run()
+		).toThrow(/CHECK/);
+		// A series deleted takes its import row with it; the import stays.
+		conn.prepare(`DELETE FROM series WHERE id = 1`).run();
+		expect(conn.prepare(`SELECT COUNT(*) n FROM import_series`).get()).toEqual({ n: 0 });
+		expect(conn.prepare(`SELECT COUNT(*) n FROM imports`).get()).toEqual({ n: 1 });
+		// A job forgotten leaves the import, unlinked.
+		conn.prepare(`DELETE FROM scan_jobs WHERE id = 1`).run();
+		expect(conn.prepare(`SELECT job_id FROM imports`).get()).toEqual({ job_id: null });
+	});
+});

@@ -38,8 +38,14 @@ export function libraryRoot(): string {
 	return dataPaths().library;
 }
 
-type Source = {
+export type Source = {
 	name: 'Mihon' | 'Hentoid' | 'Library' | 'Anime';
+	/** What the band and the log call the job, when not the source's name: MIHON BACKUP (c438). */
+	label?: string;
+	/** The job opened for it: IMPORT A BACKUP ties its row to the job (c438). */
+	started?(db: Database.Database, jobId: number): void;
+	/** After each series is written: IMPORT A BACKUP keeps which series it brought, and counts. */
+	written?(db: Database.Database, series: PlannedSeries, created: boolean): void;
 	/**
 	 * Another device's copy (doc/SYNC.md, "Other devices"): `devices/<name>/`
 	 * under the library folder. Null for the library folder's own.
@@ -288,31 +294,53 @@ export function runImport(
 	running = run(sourcesIn(library), opts.now ?? Date.now()).finally(() => {
 		running = null;
 	});
+	if (opts.covers) afterImport(running);
+	return running;
+}
+
+/**
+ * One source run as its own job once nothing else runs (c438: IMPORT A
+ * BACKUP). One import or scan at a time, as runImport keeps it; this one
+ * waits its turn rather than joining the running one, because it reads a file
+ * the running one knows nothing of. `waiting` is called when it has to wait.
+ */
+export async function runQueued(
+	source: Source,
+	opts: { covers?: boolean; waiting?: () => void } = {}
+): Promise<ImportSummary> {
+	if (running) opts.waiting?.();
+	while (running) await running.catch(() => {});
+	running = run([source], Date.now()).finally(() => {
+		running = null;
+	});
+	if (opts.covers) afterImport(running);
+	return running;
+}
+
+function afterImport(running: Promise<ImportSummary>): void {
 	// Covers follow the scan, in the background: the library is usable at once,
 	// and tiles gain their covers as they're made (doc/COVERS.md). Opt-in, so
 	// the specs never write to the library disk or reach the internet.
 	// Catalogue links go first (doc/LINKS.md): a series linked in this pass
 	// has its cover from the link in the same pass.
-	if (opts.covers)
-		void running
-			.then(() =>
-				refreshLinks({ log: (line) => console.log(`[import] ${line}`) }).catch((e: unknown) => {
-					console.error('tsundoku: links after the scan failed:', e);
-				})
+	void running
+		.then(() =>
+			refreshLinks({ log: (line) => console.log(`[import] ${line}`) }).catch((e: unknown) => {
+				console.error('tsundoku: links after the scan failed:', e);
+			})
+		)
+		// The owner's lists, when signed in: links and what each says (doc/TRACKING.md).
+		.then(() => import('../tracking.ts').then((t) => t.readLists()))
+		// Novels and comics to Ranobe: links by id, editions, units, reads (doc/RANOBE.md).
+		.then(() =>
+			import('../ranobe.ts').then((r) =>
+				r.syncRanobe().catch((e: unknown) => console.error('tsundoku: Ranobe pass failed:', e))
 			)
-			// The owner's lists, when signed in: links and what each says (doc/TRACKING.md).
-			.then(() => import('../tracking.ts').then((t) => t.readLists()))
-			// Novels and comics to Ranobe: links by id, editions, units, reads (doc/RANOBE.md).
-			.then(() =>
-				import('../ranobe.ts').then((r) =>
-					r.syncRanobe().catch((e: unknown) => console.error('tsundoku: Ranobe pass failed:', e))
-				)
-			)
-			.then(() => refreshCovers())
-			.catch((e: unknown) => {
-				console.error('tsundoku: covers after the scan failed:', e);
-			});
-	return running;
+		)
+		.then(() => refreshCovers())
+		.catch((e: unknown) => {
+			console.error('tsundoku: covers after the scan failed:', e);
+		});
 }
 
 /**
@@ -383,9 +411,13 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 	const jobId = Number(
 		db
 			.prepare(`INSERT INTO scan_jobs (started_at, source_label, steps, step) VALUES (?, ?, ?, 1)`)
-			.run(now, [...new Set(sources.map((s) => s.name.toUpperCase()))].join(' + '), sources.length)
-			.lastInsertRowid
+			.run(
+				now,
+				[...new Set(sources.map((s) => s.label ?? s.name.toUpperCase()))].join(' + '),
+				sources.length
+			).lastInsertRowid
 	);
+	for (const s of sources) s.started?.(db, jobId);
 	const p = { bytesDone: 0, bytesTotal: 0, seriesFound: 0, failedFiles: 0, step: 1 };
 	const update = db.prepare(
 		`UPDATE scan_jobs SET bytes_done = @bytesDone, bytes_total = @bytesTotal, series_found = @seriesFound,
@@ -429,6 +461,7 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 				);
 				if (r.created) out.seriesCreated += 1;
 				else out.seriesUpdated += 1;
+				source.written?.(db, series, r.created);
 				out.entriesAdded += r.entriesAdded;
 				out.filesAttached += r.filesAttached;
 				// The band counts arrivals ("N SERIES SO FAR") and is shown while

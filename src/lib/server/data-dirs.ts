@@ -60,3 +60,21 @@ export function dataPaths(
 				: p.join(root, 'mokuro', 'venv', 'bin', 'mokuro'))
 	};
 }
+
+/**
+ * Where IMPORT A BACKUP keeps the files it is given (c438, doc/IMPORT.md):
+ * the data folder's import area, never the library, so a backup is never
+ * scanned as a book and never moves with the library. `IMPORT_DIR` wins, as
+ * each folder's own variable does. Kept apart from dataPaths so its shape,
+ * which other code and specs read whole, does not change.
+ */
+export function importArea(
+	env: Env = process.env,
+	platform: Platform = process.platform,
+	home: string = homedir()
+): string {
+	const p = pathsFor(platform);
+	return env.IMPORT_DIR
+		? p.join(env.IMPORT_DIR)
+		: p.join(dataPaths(env, platform, home).home, 'imports');
+}
