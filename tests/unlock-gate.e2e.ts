@@ -1,5 +1,5 @@
 import type { CDPSession, Page } from '@playwright/test';
-import { expect, test } from './fixtures';
+import { expect, test } from './helpers/hydrated';
 
 /**
  * The fingerprint gate for /reveal (doc/PRIVACY.md), with Chromium's virtual

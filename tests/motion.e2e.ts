@@ -1,4 +1,4 @@
-import { expect, screenSettled, test } from './fixtures';
+import { expect, screenSettled, test } from './helpers/hydrated';
 
 /**
  * Motion in the real app (doc/MOTION.md, card c396): every tap is drawn and
@@ -85,13 +85,23 @@ test('a sheet opened again before it was gone takes taps again', async ({ page }
 	await page.goto('/?new=shelf');
 	const sheet = page.getByRole('dialog', { name: 'New shelf' });
 	await expect(sheet).toBeVisible();
-	// Closed, and opened again while it is still on its way out.
-	await page.evaluate(async () => {
+	// Closed, and opened again while it is still on its way out. The back is
+	// taken the first frame the close has left the address, not 40 ms after
+	// the tap: under load the close's navigation had not happened yet by then,
+	// so back left the library altogether (c439). It reports whether the
+	// sheet was still drawn, leaving, when back went, which is this case's
+	// premise: had it gone already, this would be an ordinary second open.
+	const leaving = await page.evaluate(async () => {
 		const close = document.querySelector<HTMLAnchorElement>('.new-shelf .x')!;
 		close.click();
-		await new Promise((r) => setTimeout(r, 40));
+		const t0 = performance.now();
+		while (location.search.includes('new=shelf') && performance.now() - t0 < 10_000)
+			await new Promise(requestAnimationFrame);
+		const drawn = !!document.querySelector('.new-shelf');
 		history.back();
+		return drawn;
 	});
+	expect(leaving).toBe(true);
 	await expect(page).toHaveURL(/new=shelf/);
 	await expect(sheet).toHaveCount(1);
 	await expect(sheet).toHaveCSS('pointer-events', 'auto');
@@ -129,8 +139,11 @@ test('a tap the moment a screen arrives lands on it', async ({ page }) => {
 	await page.locator('.grid .tile').first().click();
 	await page.waitForURL(/\/series\/\d+/);
 	const back = page.locator('.main > .route-view a', { hasText: 'LIBRARY' }).first();
-	// Still sliding in, and already listening.
-	await back.click({ timeout: 2000 });
+	// Still sliding in, and already listening. `force`, because a plain click
+	// first waits for the cell to stop moving, which is the opposite of this
+	// case: under load the slide outlasted the 2 s it was given and the click
+	// never went (c439, desktop). The URL below is what proves it landed.
+	await back.click({ force: true });
 	await page.waitForURL((url) => url.pathname === '/');
 });
 

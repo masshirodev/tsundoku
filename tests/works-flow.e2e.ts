@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type Page } from '@playwright/test';
 import Database from 'better-sqlite3';
-import { expect, test } from './fixtures';
+import { expect, test } from './helpers/hydrated';
 import { E2E_TOKEN } from '../playwright.config';
 
 /**
@@ -135,10 +135,28 @@ async function openWork(page: Page, name: string): Promise<number> {
 	return Number(/\/work\/(\d+)/.exec(page.url())![1]);
 }
 
-/** Ends the Work on its own screen, so the seed is what the other cases expect. */
+/**
+ * Ends the Work on its own screen, so the seed is what the other cases expect.
+ *
+ * UNGROUP redirects to the library's `UNGROUPED · <NAME>` band. Until wave 20
+ * (c439) this then asserted that no Work tile was left at all, which was
+ * wrong both ways: read on the Work screen, before the redirect landed, it
+ * passed with nothing ended (the screen has no grid); read on the library
+ * while a second Work was still up (three cases end two in a row), it was
+ * red, as in wave 19's loaded r2-tv1 (`a selection that touches two Works is
+ * refused`, one `.grid .tile.work` found). It waits for the band, then asks
+ * after this Work's tile alone.
+ */
 async function endWork(page: Page) {
+	await expect(page).toHaveURL(/\/work\/\d+/);
+	const name = (await page.title()).replace(/ · tsundoku$/, '');
 	await page.getByRole('button', { name: 'UNGROUP' }).click();
-	await expect(page.locator('.grid .tile.work')).toHaveCount(0);
+	await expect(
+		page.locator('.band', { hasText: `UNGROUPED · ${name.toUpperCase()}` })
+	).toBeVisible();
+	await expect(
+		page.locator('.grid .tile.work').getByRole('button', { name, exact: true })
+	).toHaveCount(0);
 }
 
 /** Reveal on for this page, as `/reveal` does: hidden series become tiles that

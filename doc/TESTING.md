@@ -216,7 +216,10 @@ mounted: the element exists exactly when every handler does.
 `tests/helpers/hydrated.ts`'s `test` extends the one above so `goto`, `reload`, `goBack` and `goForward` all wait
 for it, and `hydrated(page)` is there for a page the fixture didn't make (a
 context of a spec's own: `tv-pair`'s TV). The flake files `e2e` owned in
-wave 19 import it; moving the same wait into `tests/fixtures.ts` is the
+wave 19 import it, and in wave 20 `reader-flow`, `works-flow`, `motion`,
+`privacy-flow` and `unlock-gate` joined them (c439: `motion:80` and
+`privacy-flow:50` were the gate's flakes, and all five took a page from
+`goto` straight to a tap); moving the same wait into `tests/fixtures.ts` is the
 next step (`doc/handoff-notes/e2e.md`, Gaps). Specs that skip the fixture on
 purpose, to tap before hydration as a quick thumb does (`browse-tags`), keep
 doing so.
@@ -311,7 +314,41 @@ workstation during gates. What it assumes, and the rules that follow (c439):
 - **Timeouts are raised only where the step is measured to be slow** under
   load, and the comment says so (`tv-player`'s clip runs at a tenth of its
   speed for the same reason). The one raised in wave 19 is `offline-flow`'s
-  wait for the service worker to take control.
+  wait for the service worker to take control. Wave 20 raised `tv-player`'s
+  per-case budget to 90 s (c448): at a load average of 15-68 every case took
+  24-30 s even when it passed, and all eight reds of that run were the default
+  30 s running out, each case waiting on the right state (the bar's own 4 s,
+  SKIP's 8 s alone window, the working stream's attach).
+- **A timer the app runs is the app's state; a test that races it loses
+  under load.** `tv-player`'s bar hides itself 4 s after a key while the
+  picture plays, and BACK at a bare picture leaves the player: a case that
+  pressed BACK "to hide the bar" left the player whenever a loaded worker
+  took 4 s to get there. Pause the picture when the case doesn't need it
+  playing (a paused picture keeps the bar up), or wait for the bar to go by
+  itself (`not.toHaveClass(/chrome/)`) instead of pressing. The same goes
+  for a setting the case changes: `tv-player`'s settings case chose SPEED 1×,
+  which undid the clip's tenth-speed slowdown, ran it into the 1 s opening,
+  and SKIP INTRO took the focus by design (c448).
+- **Never act on a guess at what autoplay did** (c448, as `be2a5fc` did for
+  `browse-anime`). `tv-player`'s `play()` gave autoplay 5 s and then pressed
+  ▶❚❚ regardless; under load autoplay started in the same breath and the
+  press paused it. Press only while the control still says Play, and again
+  until the picture plays.
+- **A gesture with a time window is sent in one go.** The reader's double tap
+  is two taps within 250 ms (`src/lib/reader/zoom.ts`), and two
+  `page.touchscreen.tap` calls are four round trips to a loaded browser:
+  `reader-flow`'s strip case took two single taps (wave 19). `doubleTap(page,
+x, y)` in `tests/helpers/touch.ts` sends the four touch events together, so
+  the gap between the taps is the browser's (c439). A test that reads "these
+  two arrive together" uses it, or the same idea.
+- **"Nothing is left" is read where the thing would be.** `works-flow`'s
+  `endWork()` clicked UNGROUP and asserted no Work tile remained: on the Work
+  screen, before the redirect to the library landed, that was true with
+  nothing ended (the screen has no grid), and on the library with a second
+  Work still up it was red (wave 19, r2-tv1). It now waits for the library's
+  `UNGROUPED · <NAME>` band and asks after that Work's tile alone (c439). An
+  absence asserted before the page has changed passes vacuously, and an
+  absence of "every X" is wrong as soon as two exist.
 - **The service worker is allowed everywhere it isn't in the way.** Every
   fresh context registers it, and it precaches the whole build (about 1,400
   files) from the shared preview. Six contexts doing only that took 10-16 s
@@ -337,24 +374,42 @@ workstation during gates. What it assumes, and the rules that follow (c439):
   series" and "The readers beside the flows" above.
 - **`duplicates` and `gate` depend on every device project**, so any red in
   those leaves their 8 tests "did not run" (a run's larger "did not run"
-  count is the rest of each serial file after its first red). With the known base
-  failures (`library`'s c311: `library-frame` and the two in `library-flow`
-  and `reader-flow`) red on every run, **a gate never runs `duplicates` and
-  `gate` at all**: no whole run in wave 19 before round 2 executed
-  `duplicates-flow` or `unlock-gate` once. A gate that reports "did not run"
-  has not run them. Until the base failures are fixed, run the whole suite
-  with them left out by title, so the dependants run in their place in the
-  order:
+  count is the rest of each serial file after its first red). With a known
+  base failure red on every run, **a gate never runs `duplicates` and `gate`
+  at all**: no whole run in wave 19 before round 2 executed `duplicates-flow`
+  or `unlock-gate` once, and wave 19's gate had them in its "12 did not run"
+  behind `library-layout:156`. A gate that reports "did not run" has not run
+  them. **The run's report says so** (c439):
+  `tests/helpers/not-run-reporter.ts`, the config's second reporter, ends
+  every run that left tests out with the projects they were in, how many, and
+  the reds in the projects each depends on that kept it out, for example:
+
+  ```text
+  44 did not run, and have not passed:
+    works-flow: 23, after a red earlier in a serial file, or the run stopped
+    duplicates: 7, because 15 tests it depends on failed:
+      [desktop] tests/library-layout.e2e.ts:156 › the bar with the name, …
+  ```
+
+  Until the base failures are fixed, run the whole suite with them left out
+  by title, so the dependants run in their place in the order. Measured at
+  wave 20's base (`d5c4bf6f`, its loaded runs in `doc/handoff-notes/e2e.md`),
+  the known reds are two: `library-layout:156` on the desktop (c433 pinned
+  the bar it expects to scroll away; deterministic, filed) and `tv-reader:24`
+  (nobody's; it fails about 2 of 3 runs even alone, filed). Wave 18's base
+  reds that the expression used to name (`library-frame`'s four, START SCAN
+  and the rating at the end of a series) all pass since wave 19 and are out
+  of it:
 
   ```sh
-  PLAYWRIGHT_SKIP='screen: (continueList|continueRow|grid|tile) matches the handoff|START SCAN with nothing to import|the end of the series asks for a rating while unrated|a spread is the default on a TV, not one page' \
+  PLAYWRIGHT_SKIP='the bar with the name, search and SELECT stays on top as the grid scrolls, except on a desktop|a spread is the default on a TV, not one page' \
     npx playwright test
   ```
 
-  The last alternative, `tv-reader:24`, is nobody's red: it fails about 2 of
-  3 runs even alone (`doc/handoff-notes/e2e.md`, _Gaps_), and without it in
-  the expression the dependants are skipped about half the time. Take it out
-  once that test is fixed, as with each of the others.
+  `library-layout:156` passes on the tablets, the phone and the TV, and a
+  title is left out of every project, so those four go unrun too; the
+  reporter does not count a test left out this way, so name the expression
+  beside the run's result. Take each alternative out once its test is fixed.
   `PLAYWRIGHT_SKIP` is safe to leave exported for the unit run and for
   `yarn run e2e:table`: the table lists the files the config collects, and
   ignores the variable.

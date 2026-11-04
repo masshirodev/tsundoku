@@ -1,5 +1,5 @@
 import { type Page } from '@playwright/test';
-import { expect, test } from './fixtures';
+import { expect, test } from './helpers/hydrated';
 
 /**
  * Incognito and leaving the app end to end (doc/PRIVACY.md). Serial,
@@ -52,7 +52,16 @@ test('reading while incognito is never written', async ({ page }) => {
 	expect(Number.isInteger(entry)).toBe(true);
 	// Pages, not row counts, so a rerun against a reused preview still holds:
 	// had the incognito page 5 been written, today's row would read P. 6.
+	// The row says "P. 6 OF 31" for one chapter and "CH. 1 → 199 · P. 6" for a
+	// day across several (src/lib/library/history.ts), and another file can
+	// read this series the same day (library-flow's ← case opens the last
+	// series by title, which is this one: doc/handoff-notes/e2e.md, wave 20,
+	// Gaps), so the page is matched in either shape (c439).
 	const today = page.locator('.rows').first().locator('.row', { hasText: TITLE });
+	const atPage = (n: number) =>
+		page.locator('.row', { hasText: TITLE }).filter({
+			hasText: new RegExp(`P\\. ${n}\\b`)
+		});
 
 	await command(page, '/incognito');
 	const off = await page.request.post('/api/reading', {
@@ -60,7 +69,7 @@ test('reading while incognito is never written', async ({ page }) => {
 	});
 	expect(await off.json()).toEqual({ saved: false });
 	await page.goto('/history');
-	await expect(page.getByText(/P\. 6 OF/)).toHaveCount(0);
+	await expect(atPage(6)).toHaveCount(0);
 
 	await page.getByRole('button', { name: 'END' }).click();
 	await expect(page.getByText('INCOGNITO · NOTHING SAVED')).toHaveCount(0);
@@ -69,7 +78,7 @@ test('reading while incognito is never written', async ({ page }) => {
 	});
 	expect(await on.json()).toEqual({ saved: true });
 	await page.goto('/history');
-	await expect(today).toContainText('P. 8 OF');
+	await expect(today).toContainText(/P\. 8\b/);
 });
 
 test('the reading call refuses a hidden series while reveal is off', async ({ page }) => {

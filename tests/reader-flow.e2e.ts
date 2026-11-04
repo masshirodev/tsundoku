@@ -1,5 +1,6 @@
 import { type Page } from '@playwright/test';
-import { expect, readerReady, test } from './fixtures';
+import { expect, readerReady, test } from './helpers/hydrated';
+import { doubleTap } from './helpers/touch';
 
 /**
  * The preview's own origin, which a form action's POST must carry or
@@ -771,8 +772,7 @@ test('double tap: 200% around the tapped point and back, with no controls on the
 	const [x, y] = [vp.width * 0.45, vp.height / 3];
 	const sel = '.stage .screen:not([aria-hidden]) .page';
 	const before = await pointOn(page, sel, x, y);
-	await page.touchscreen.tap(x, y);
-	await page.touchscreen.tap(x, y);
+	await doubleTap(page, x, y);
 	await expect.poll(async () => (await pointOn(page, sel, x, y)).h).toBeCloseTo(before.h * 2, 0);
 	// What was under the finger still is.
 	const after = await pointOn(page, sel, x, y);
@@ -782,13 +782,11 @@ test('double tap: 200% around the tapped point and back, with no controls on the
 	await page.waitForTimeout(400);
 	await expect(page.locator('header[aria-label="Reader"]')).toHaveCount(0);
 	// Over 100%: back to it.
-	await page.touchscreen.tap(x, y);
-	await page.touchscreen.tap(x, y);
+	await doubleTap(page, x, y);
 	await expect.poll(async () => (await pointOn(page, sel, x, y)).h).toBeCloseTo(before.h, 0);
 	// Under 100%: up to it.
 	await page.keyboard.press('-');
-	await page.touchscreen.tap(x, y);
-	await page.touchscreen.tap(x, y);
+	await doubleTap(page, x, y);
 	await expect.poll(async () => (await pointOn(page, sel, x, y)).h).toBeCloseTo(before.h, 0);
 });
 
@@ -851,16 +849,14 @@ test('double tap on the strip: 200% around the point, the strip scrolling sidewa
 	const before = await under();
 	const width = () => page.locator('.strip').evaluate((e) => e.getBoundingClientRect().width);
 	const fitted = await width();
-	await page.touchscreen.tap(x, y);
-	await page.touchscreen.tap(x, y);
+	await doubleTap(page, x, y);
 	await expect.poll(width).toBeCloseTo(fitted * 2, 0);
 	await page.waitForTimeout(300);
 	const after = await under();
 	expect(after.key).toBe(before.key);
 	expect(after.fx).toBeCloseTo(before.fx, 1);
 	expect(after.fy).toBeCloseTo(before.fy, 1);
-	await page.touchscreen.tap(x, y);
-	await page.touchscreen.tap(x, y);
+	await doubleTap(page, x, y);
 	await expect.poll(width).toBeCloseTo(fitted, 0);
 });
 
