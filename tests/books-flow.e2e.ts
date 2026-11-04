@@ -238,7 +238,10 @@ test('grouping from a single book’s own screen, then back: where it was opened
 	// The system's back: the single book's screen is gone, so it's the circle.
 	await page.goBack();
 	await expect(page).toHaveURL(new RegExp(`${CIRCLE.replace(/[?]/g, '\\?')}$`));
-	await expect(page.locator('.grid')).toBeVisible();
+	// The real grid, not the arriving screen's outline of one, which is also a
+	// \`.grid\` (aria-hidden) while the screen slides in: strict mode saw both in a
+	// loaded run (c439).
+	await expect(page.locator('.grid:not([aria-hidden="true"])')).toBeVisible();
 
 	// Put back for the rest of the file.
 	await page.goto(created);
