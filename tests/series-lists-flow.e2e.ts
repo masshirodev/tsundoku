@@ -18,6 +18,10 @@ import { expect, test } from './fixtures';
  * hands out and a stand-in AniList behind TSUNDOKU_ANILIST_URL. Nothing here
  * can reach the real one.
  *
+ * Its last case is c390's: a refused UNDO of the series screen's TAKE OUT,
+ * THEN HIDE, answered as a band, reached with a second tab that ends the Work
+ * and makes a new one under its id between the HIDE and the UNDO.
+ *
  * Two rows are written by hand, because no door here reaches them: the
  * AniList sign-in (OAuth leaves for anilist.co) and a season linked to a
  * manga's entry (a paste refuses the other kind). Both are under the notes'
@@ -461,4 +465,102 @@ test('a season on the wrong kind is flagged, never removed, and CHANGE is its ac
 		'href',
 		`/links?series=${ids.wrong}`
 	);
+});
+
+// ---- c390: the series screen's answer to a refused UNDO -------------------------------
+
+/** A series' id by its exact title, read from this file's own database. */
+function idOf(title: string): number {
+	const db = new Database(dbPath, { readonly: true });
+	try {
+		return (db.prepare(`SELECT id FROM series WHERE title = ?`).get(title) as { id: number }).id;
+	} finally {
+		db.close();
+	}
+}
+
+/** What the database says now: P's hidden flag, and a Work's members in order. */
+function now(seriesId: number, workId: number) {
+	const db = new Database(dbPath, { readonly: true });
+	try {
+		return {
+			hidden: (
+				db.prepare(`SELECT hidden FROM series WHERE id = ?`).get(seriesId) as { hidden: number }
+			).hidden,
+			members: (
+				db
+					.prepare(`SELECT series_id FROM work_series WHERE work_id = ? ORDER BY position`)
+					.all(workId) as { series_id: number }[]
+			).map((r) => r.series_id)
+		};
+	} finally {
+		db.close();
+	}
+}
+
+/** A tile by its exact title: some of the sample's titles are prefixes of others. */
+const tileOf = (page: import('@playwright/test').Page, title: string) =>
+	page.locator('.grid .tile').filter({
+		has: page.locator('.title', {
+			hasText: new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`)
+		})
+	});
+
+/** GROUP on the library, AS A WORK, the way the owner makes one; then its screen, and its id. */
+async function makeWork(page: import('@playwright/test').Page, titles: string[], name: string) {
+	await page.goto(`${BASE}/`);
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	for (const t of titles) await tileOf(page, t).locator('.open').click();
+	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+	const sheet = page.getByRole('dialog', { name: 'Group into a series' });
+	await sheet.getByRole('radio', { name: /A WORK · SERIES/ }).click();
+	await sheet.getByRole('textbox', { name: 'Work name' }).fill(name);
+	await sheet.getByRole('button', { name: /CREATE WORK · \d+ SERIES/ }).click();
+	await expect(page.locator('.band', { hasText: `${name.toUpperCase()} IS A WORK` })).toBeVisible();
+	await page.locator('.grid .tile.work', { hasText: name }).click();
+	await page.waitForURL(/\/work\/\d+/);
+	return Number(/\/work\/(\d+)/.exec(page.url())![1]);
+}
+
+test('a refused UNDO of TAKE OUT, THEN HIDE is a band, never an error page, and changes nothing (c390)', async ({
+	page,
+	context
+}) => {
+	const [P, Q, R] = ['Isekai Yakkyoku', 'Tensei Shitara Ken Deshita', 'Mushoku Tensei'];
+	const [X, Y] = ['Villainess Level 99', 'Chainsaw Man'];
+	await context.addCookies([
+		{ name: 'tsundoku_reveal', value: '1', domain: 'localhost', path: '/' }
+	]);
+	const old = await makeWork(page, [P, Q, R], 'Undo Run');
+	const p = idOf(P);
+
+	// Page A: HIDE on part P, and TAKE OUT; the band keeps its UNDO.
+	await page.goto(`${BASE}/series/${p}`);
+	await page.locator('.file-row').getByRole('button', { name: 'HIDE', exact: true }).click();
+	const hide = page.getByRole('dialog', { name: 'Hide' });
+	await expect(hide).toContainText("IT'S PART 1 OF UNDO RUN");
+	await hide.getByRole('button', { name: 'TAKE OUT' }).click();
+	const band = page.locator('.band', { hasText: 'HIDDEN · TAKEN OUT' });
+	await expect(band).toBeVisible();
+	expect(now(p, old)).toEqual({ hidden: 1, members: [idOf(Q), idOf(R)] });
+
+	// Page B, a second tab: the Work ends on its own screen, and a new one takes its id.
+	const b = await context.newPage();
+	await b.goto(`${BASE}/work/${old}`);
+	await b.getByRole('button', { name: 'UNGROUP' }).click();
+	await expect(b.locator('.grid .tile.work')).toHaveCount(0);
+	const newer = await makeWork(b, [X, Y], 'Newer Run');
+	expect(newer).toBe(old);
+	const members = [idOf(X), idOf(Y)];
+	expect(now(p, newer).members).toEqual(members);
+
+	// Page A, at once: UNDO is refused, said on the screen, and nothing moved.
+	await band.getByRole('button', { name: 'UNDO' }).click();
+	const refused = page.locator('.band', { hasText: /HAS ENDED/ });
+	await expect(refused).toBeVisible();
+	await expect(refused).toContainText('NOTHING CHANGED');
+	await expect(page).toHaveURL(`${BASE}/series/${p}`);
+	await expect(page.getByRole('button', { name: 'UNHIDE' })).toBeVisible();
+	expect(now(p, newer)).toEqual({ hidden: 1, members });
+	await b.close();
 });
