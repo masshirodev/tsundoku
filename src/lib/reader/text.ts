@@ -43,9 +43,10 @@ export const DEFAULT_SETTINGS: TextSettings = {
  * The reading fonts (doc/TEXT-READER.md, "FONT"), in the FONT row's order.
  * `family` is the flow's whole stack: a face without a glyph falls through to
  * Plex's Japanese and Korean, so a mixed novel shows no boxes. `lazy` faces
- * are declared by src/lib/styles/fonts-reading.css, which loads only once one
- * is chosen or the FONT row is drawn (`loadReadingFonts`); Plex is the app's
- * own and always there.
+ * are declared by src/lib/styles/fonts-reading.css, which the page imports
+ * once one is chosen or the FONT row is drawn (`loadReadingFonts`); their
+ * woff2 are precached by the service worker regardless. Plex is the app's own
+ * and always there.
  */
 export const TEXT_FONTS: readonly {
 	id: TextFont;
@@ -85,10 +86,13 @@ export function textSettings(stored: Partial<TextSettings> | null | undefined): 
 
 let readingFonts: Promise<unknown> | null = null;
 /**
- * Declare the lazy faces, once. Declaring costs a stylesheet of a few
- * @font-face rules; a face's file is fetched only when text set in it is
- * drawn, so the bundle's OpenDyslexic costs nothing until it is chosen or the
- * FONT row shows its name.
+ * Declare the lazy faces, once: called when such a font is chosen or READING
+ * is open, since the FONT row draws each name in its own face, so opening
+ * READING fetches OpenDyslexic's woff2 too. Declaring costs a stylesheet of
+ * three @font-face rules. The woff2 files are in the build either way, so the
+ * service worker precaches them on every installed device (doc/OFFLINE.md),
+ * which is what lets the font work offline once chosen; this only decides
+ * when the page asks for them, and after install that is answered from cache.
  */
 export function loadReadingFonts(): Promise<unknown> {
 	readingFonts ??= import('$lib/styles/fonts-reading.css').catch(() => {

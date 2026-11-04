@@ -229,15 +229,23 @@ the reader's whatever the controls.
   values (`tests/settings-domain.spec.ts` holds the two together). Each name
   in the row is drawn in its own font; when they don't fit on one line (a
   phone, a TV's panel) they wrap into blocky cells rather than shrink.
-  - **Self-hosted, and loaded only when chosen.** Plex is the app's own type,
-    imported eagerly by `index.css`. OpenDyslexic is declared by
-    `src/lib/styles/fonts-reading.css`, which `loadReadingFonts()` imports
-    once the font is chosen or the FONT row is drawn; a face's file is then
-    fetched only for text drawn in it. A reader who keeps Plex never declares
-    it. It adds 737,204 bytes of font files to the build (400, 400 italic
-    and 700, each as woff2 and woff) and a 673-byte stylesheet; a browser
-    fetches the woff2 alone, 112-120 KB a face. Never a CDN: reading works
-    offline.
+  - **Self-hosted and precached; declared once chosen or READING is open.**
+    Plex is the app's own type, imported eagerly by `index.css`. OpenDyslexic
+    is declared by `src/lib/styles/fonts-reading.css`, which
+    `loadReadingFonts()` imports once the font is chosen or READING is open
+    (the FONT row draws its name in the face, so opening READING fetches that
+    face's woff2). The files themselves are in the build, so the service
+    worker precaches all three woff2 on every installed device whatever FONT
+    says (doc/OFFLINE.md, the shell cache); that is what lets OpenDyslexic
+    work offline once chosen, and after install the page's fetch is answered
+    from that cache. The stylesheet's `@font-face` rules are hand-written and
+    name woff2 only: @fontsource's own CSS also names a woff per face, which
+    put 389,208 bytes of woff in the build that no woff2 browser uses. What
+    the build carries (round 2, `ls -l build/client/_app/immutable/assets`):
+    `opendyslexic-latin-400-normal` 115,280 bytes, `-400-italic` 112,360 and
+    `-700-normal` 120,356, 347,996 in all, plus a 478-byte stylesheet; the
+    service worker's list names exactly those three woff2 and
+    `fonts-reading.*.css`. Never a CDN.
   - **A face without a glyph falls back cleanly.** OpenDyslexic is Latin only,
     so its stack goes on to Plex Sans JP and KR, and a mixed novel shows no
     boxes. Vertical Japanese is set in Plex Sans JP whatever FONT says.
