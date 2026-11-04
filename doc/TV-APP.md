@@ -118,12 +118,28 @@ password is refused. A bare `host:port` is not enough here, although it is on
 
 - **Refused** lands on 9B with the existing band: the field empty, the mark on
   NEXT, and the band saying the address was refused and nothing was saved.
+  Its hint, `http(s)://HOST · NO LOGIN · PORT 1–65535`, names every rule
+  `Address.intentOrigin` refuses by and no other (c307): the scheme, a host, no
+  userinfo (LOGIN is a username, a password or both, before an `@`), and a
+  port in range when one is given. A string that is not an address at all
+  fails the first two. The row does not wrap, and on a TV its monospace is
+  0.6 em a glyph (Roboto Mono and Droid Sans Mono alike), so the hint is
+  short enough to sit beside REFUSED · NOTHING WAS SAVED there; the longer
+  `http:// OR https:// WITH A HOST, NO USERNAME, PORT 1–65535` fits a desktop's
+  narrower font and cut the first line off on a TV.
 - **Answered** is remembered (`KEY_ADDRESS` in the `pairing` prefs) and opens
   the pairing at that address: the six digits on a tailnet instance (c245), or
   a friend's 9C.
 - **Not answered** shows 9D for that address and keeps trying. A previously
-  remembered address is left alone, so the next plain launch still opens the
-  library.
+  remembered address is left alone, but 9D does not give up the given one by
+  itself, and the launcher's icon does not bring the library back (c307): the
+  activity is `singleTask`, so tapping the icon while the app is open hands a
+  plain MAIN intent to `onNewIntent`, which carries no address and changes
+  nothing, and the TV stays on 9D retrying the mistyped address. **BACK** is
+  the way back: the asset takes no BACK of its own, so `Back.kt` goes to the
+  nearest earlier screen past the app's own pages, which is the library when
+  the app was open on it, and otherwise leaves the app. The next launch, with
+  no address given, probes the remembered address and opens the library.
 
 Only the attempt that is current has its answer acted on. A given address
 supersedes a probe already in flight, and that probe's answer is dropped —
@@ -178,7 +194,10 @@ On the TV:
    computer's SETTINGS › 08 — DEVICES and WI-FI ON for a friend's install
    (whose digits only render with the switch on), and says a Tailscale install
    has no switch to press: both truths, so neither install is sent to a
-   section with no digits. START →.
+   section with no digits. The step's copy is kept short enough that the
+   steps grid ends above START (c263: a longer wording ran the grid to 413.75
+   against START's 400 at 960x540; `tv-app-pair.e2e.ts` checks the two
+   boxes). START →.
 2. **9B** — the address, written for the TV: its own network's first three
    numbers and tsundoku's port (42143 unless the friend changed `PORT`), so
    only the last number is typed. The mark starts on NEXT, never on the field:
