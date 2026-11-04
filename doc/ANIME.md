@@ -528,6 +528,11 @@ screen but the video, and the subtitles, until a tap.
   PIP where the browser has picture-in-picture, ? KEYS and FULL SCREEN · F,
   and a time on hover, with the frame there above it (the seek preview,
   below).
+- **The picture never tints** (c485). The tap zone over it is a `<button>`
+  (`.tapzone`) that draws nothing, so it says `data-press="off"`: a mouse over
+  the picture laid motion.css's 9% hover gradient over the frame until it did.
+  The visible controls (the cluster, the scrubber, the bar's cells) keep their
+  hover. `tests/browse-player-hover.e2e.ts` holds both.
 - **Taps**: on a touch screen one shows or hides the controls; a double-tap
   on the left or right third seeks 10 s, and each further tap in the burst 10
   more, said in the middle of that side. On a mouse a click on the picture
