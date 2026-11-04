@@ -62,7 +62,7 @@ test('every row of the panel fits its 352px column, and nothing sits over ▶ CO
 		const cta = document.querySelector('.panel .cta')!.getBoundingClientRect();
 		const out: string[] = [];
 		for (const el of document.querySelectorAll<HTMLElement>(
-			'.panel .row, .panel .lc, .panel .label, .panel .lcs'
+			'.panel .row, .panel .lc, .panel .label, .panel .lcs, .panel [data-row="lists"], .panel [data-row="lists"] .c, .panel [data-row="lists"] .tag'
 		)) {
 			const r = el.getBoundingClientRect();
 			if (r.width === 0 || getComputedStyle(el).display === 'none') continue;
@@ -70,10 +70,46 @@ test('every row of the panel fits its 352px column, and nothing sits over ▶ CO
 			if (r.left < panel.left - 1 || r.right > panel.right + 1) out.push(`outside: ${name}`);
 			if (!el.closest('.cta') && r.bottom > cta.top + 1 && r.top < cta.bottom - 1)
 				out.push(`over CONTINUE: ${name}`);
-			if (el.scrollWidth > el.clientWidth + 1 && el.classList.contains('label'))
+			if (
+				el.scrollWidth > el.clientWidth + 1 &&
+				(el.classList.contains('label') || el.classList.contains('tag'))
+			)
 				out.push(`cut: ${name}`);
 		}
 		return out;
 	});
 	expect(report).toEqual([]);
+});
+
+test('LISTS on the TV: a strip, 56px lines with no meta, and ← → between a line’s cells (c424)', async ({
+	page
+}) => {
+	await open(page);
+	// The handoff's 1D: the label is a 36px strip, the tag 56, the line 56, the
+	// title 16 and the cells 15; a line drops its meta (one OK away, in EDIT).
+	const row = page.locator('[data-row="lists"]');
+	const line = row.locator('[data-line="anilist"]');
+	await expect(row.locator('.strip')).toBeVisible();
+	expect((await row.locator('.strip').boundingBox())!.height).toBe(36);
+	expect((await line.locator('.tag').boundingBox())!.width).toBe(56);
+	expect((await line.locator('.ln').boundingBox())!.height).toBeGreaterThanOrEqual(56);
+	await expect(line.locator('.t')).toHaveCSS('font-size', '16px');
+	await expect(line.locator('.m')).toBeHidden();
+	// Not linked here: FIND and PASTE A LINK, dropped under the line in equal columns.
+	const cells = line.locator('.drop .c');
+	await expect(cells).toHaveText(['FIND', 'PASTE A LINK']);
+	await expect(cells.first()).toHaveCSS('font-size', '15px');
+	// The house's inset focus mark, never the accent (focus.css, data-focus-mark="in").
+	await expect(cells.first()).toHaveAttribute('data-focus-mark', 'in');
+	const active = () => page.evaluate(() => document.activeElement?.textContent?.trim() ?? '');
+	await cells.first().focus();
+	await page.keyboard.press('ArrowRight');
+	await expect.poll(active).toBe('PASTE A LINK');
+	await page.keyboard.press('ArrowLeft');
+	await expect.poll(active).toBe('FIND');
+	// ↓ leaves the line for the next row, never sideways inside it.
+	await page.keyboard.press('ArrowDown');
+	await expect
+		.poll(() => page.evaluate(() => !document.activeElement?.closest('[data-line="anilist"]')))
+		.toBe(true);
 });

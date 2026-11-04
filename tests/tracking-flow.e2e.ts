@@ -6,17 +6,26 @@ import { expect, test } from './fixtures';
  * row and SETTINGS say when nothing is signed in. Signing in itself leaves
  * for the catalogue's own page, and is the db spec's to check.
  */
-test('the TRACKING row asks for a sign-in, and sends nothing', async ({ page }) => {
+test('the LISTS line asks for a sign-in, and sends nothing', async ({ page }) => {
 	await page.goto('/?sort=title');
 	await page.locator('.grid .tile', { hasText: 'The Greatest Estate Developer' }).click();
 	await page.waitForURL(/\/series\/\d+/);
-	const row = page.locator('.track-row');
-	await expect(row.locator('.label')).toHaveText('TRACKING');
-	await expect(row.locator('.tl-l')).toHaveText(['ANILIST · NOT SIGNED IN', 'MAL · NOT SIGNED IN']);
-	await expect(row.locator('.tl-r').first()).toHaveText('NOTHING SENT');
-	await expect(row.getByRole('link', { name: 'SIGN IN →' })).toHaveAttribute('href', '/settings');
-	// Nothing to edit until a catalogue is signed in.
-	await expect(row.getByRole('button', { name: 'EDIT' })).toHaveCount(0);
+	// LINK and TRACKING are one row now (c424): AniList's line, MAL folded into it.
+	const row = page.locator('[data-row="lists"]');
+	const line = row.locator('[data-line="anilist"]');
+	await expect(line.locator('.tag')).toHaveText('ANILIST');
+	await expect(line.locator('.s .l')).toHaveText(['ANILIST AND MAL · NOT SIGNED IN']);
+	await expect(line.locator('.s .r')).toHaveText(['NOTHING SENT']);
+	await expect(line.getByRole('link', { name: 'SIGN IN →' })).toHaveAttribute('href', '/settings');
+	// EDIT opens the sheet signed out too: ENTRY's CHANGE and UNLINK live there now,
+	// and STATUS says nothing is signed in rather than offering what can't be sent.
+	await line.getByRole('button', { name: 'EDIT' }).click();
+	const sheet = page.getByRole('dialog', { name: 'Tracking' });
+	await expect(sheet.locator('.sl', { hasText: 'STATUS' })).toContainText('NOTHING SIGNED IN');
+	await expect(sheet.locator('.sts')).toHaveCount(0);
+	await expect(sheet.locator('.pr .k')).toHaveText(['ANILIST', 'MAL']);
+	await sheet.getByRole('button', { name: 'DONE' }).click();
+	await expect(sheet).toBeHidden();
 });
 
 test('SETTINGS lists both catalogues, not signed in, and why they can’t be yet', async ({

@@ -585,6 +585,18 @@ export async function readLists(now = Date.now()): Promise<void> {
 // ---- sending --------------------------------------------------------------------------------
 
 /**
+ * Whether AniList and MAL take this kind's progress at all: an anime (by
+ * season) and a comic do; a novel's chapters still go to Ranobe alone
+ * (doc/TRACKING.md, "Not yet"), and a doujin is never linked. The LISTS row
+ * reads it to put the line that tracks first (c424).
+ */
+export function catalogueTracks(kind: Kind): boolean {
+	if (isAnime(kind)) return true;
+	// A comic, and only a comic.
+	return kind === 'manga' || kind === 'manhwa';
+}
+
+/**
  * Where a series' progress may go: each catalogue signed in whose entry the
  * link names. A season of an anime is its own target (c240), with the episode
  * range its part covers; a comic is one target for the whole series.
@@ -678,9 +690,7 @@ function targets(seriesId: number): Target[] {
 		}
 		return out;
 	}
-	// A comic, and only a comic: a novel's chapters still go to Ranobe alone
-	// (doc/TRACKING.md, "Not yet").
-	if (r.kind !== 'manga' && r.kind !== 'manhwa') return [];
+	if (!catalogueTracks(r.kind)) return [];
 	const l = getDb()
 		.prepare(`SELECT anilist_id, mal_id, format FROM series_links WHERE series_id = ?`)
 		.get(seriesId) as
@@ -923,7 +933,7 @@ function pruneSends(seriesId: number, live: Target[]): void {
  * its own row, so one season's failure never holds another's up (c240).
  */
 export async function sendPending(
-	opts: { seriesId?: number; now?: number } = {}
+	opts: { seriesId?: number; now?: number; season?: number } = {}
 ): Promise<{ sent: number; failed: number }> {
 	const db = getDb();
 	const now = opts.now ?? Date.now();
@@ -934,6 +944,9 @@ export async function sendPending(
 		const live = targets(seriesId);
 		pruneSends(seriesId, live);
 		for (const target of live) {
+			// TRY AGAIN on one season's line sends that season's alone (c424): its
+			// line is the one that failed, and another season's wait is its own.
+			if (opts.season !== undefined && target.season !== opts.season) continue;
 			const w = waitingRow(target);
 			if (!w) continue;
 			try {
@@ -1051,6 +1064,8 @@ export type Tracking = {
 	hidden: boolean;
 	/** Cover-only link: never tracked. */
 	coverOnly: boolean;
+	/** AniList and MAL take this kind's progress (`catalogueTracks`): false for a novel. */
+	catalogueTracks: boolean;
 	/** The sheet's starting point: the main list's word, else MAL's. */
 	status: Status | null;
 	score: number | null;
@@ -1118,6 +1133,7 @@ export function trackingOf(seriesId: number): Tracking | null {
 			facts: at?.facts ?? [],
 			hidden: !!r.hidden,
 			coverOnly: !!at?.coverOnly,
+			catalogueTracks: true,
 			status: main?.status ?? null,
 			score: main?.score ?? null,
 			links: factsLinks(at?.facts ?? [], at?.link ?? null),
@@ -1163,6 +1179,7 @@ export function trackingOf(seriesId: number): Tracking | null {
 		facts,
 		hidden: !!r.hidden,
 		coverOnly: coverOnly(r.kind, r.format ?? ''),
+		catalogueTracks: catalogueTracks(r.kind),
 		status: main?.status ?? null,
 		score: main?.score ?? null,
 		links: [

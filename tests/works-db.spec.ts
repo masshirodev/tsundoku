@@ -1298,3 +1298,92 @@ describe('a HIDE’s UNDO puts back only what the HIDE changed (c390)', () => {
 		expect(membersNow(work.id)).toEqual([q, r]);
 	});
 });
+
+// ---- the series screen's own doors (c390's remainder) -------------------------------------
+
+const seriesScreen = await import('../src/routes/series/[id]/+page.server');
+/** The series screen's actions, as it posts them with reveal on (a hidden series has no screen otherwise). */
+async function postSeries(
+	action: unknown,
+	seriesId: number,
+	fields: [string, string][] = []
+): Promise<Answer> {
+	const body = new FormData();
+	for (const [k, v] of fields) body.append(k, v);
+	return (await (action as (e: unknown) => Promise<Answer>)({
+		request: new Request('http://localhost/', { method: 'POST', body }),
+		params: { id: String(seriesId) },
+		url: new URL(`http://localhost/series/${seriesId}`),
+		cookies: { get: () => '1' }
+	})) as Answer;
+}
+
+describe('the series screen’s TAKE OUT, THEN HIDE and its UNDO, through its own actions (c390)', () => {
+	const [P, Q, R, X, Y] = [
+		'Isekai Yakkyoku',
+		'Tensei Shitara Ken Deshita',
+		'Mushoku Tensei',
+		'Villainess Level 99',
+		'Chainsaw Man'
+	];
+
+	it('takes the part out and hides it alone, in one write; UNDO puts the Work back, visible', async () => {
+		const [p, q, r] = [P, Q, R].map(idOf) as number[];
+		const { work } = works.createWork({ seriesIds: [p, q, r], name: 'Run', now: NOW });
+		const hid = await postSeries(seriesScreen.actions.hidePart, p);
+		const facts = hid.hideFacts as { hidden: number[]; out: { seriesId: number }[] };
+		expect(facts.out.map((o) => o.seriesId)).toEqual([p]);
+		expect(facts.hidden).toEqual([p]);
+		expect(works.workOfSeries(p)).toBeNull();
+		expect(membersNow(work.id)).toEqual([q, r]);
+		expect([p, q, r].map(hiddenOf)).toEqual([true, false, false]);
+
+		expect(
+			await postSeries(seriesScreen.actions.undoHide, p, [['facts', JSON.stringify(facts)]])
+		).toEqual({ ok: true });
+		expect(membersNow(work.id)).toEqual([p, q, r]);
+		expect([p, q, r].map(hiddenOf)).toEqual([false, false, false]);
+	});
+
+	it('a part of a Work hidden before the press: out, but its UNDO shows nothing (the card’s repro, here)', async () => {
+		const [p, q, r] = [P, Q, R].map(idOf) as number[];
+		const { work } = works.createWork({ seriesIds: [p, q, r], name: 'Run', now: NOW });
+		works.setHiddenWhole([p], true);
+		const hid = await postSeries(seriesScreen.actions.hidePart, p);
+		const facts = hid.hideFacts as { hidden: number[]; out: { seriesId: number }[] };
+		// Taken out, and hidden already: the facts hold the take-out and no hide.
+		expect(facts.out.map((o) => o.seriesId)).toEqual([p]);
+		expect(facts.hidden).toEqual([]);
+		await postSeries(seriesScreen.actions.undoHide, p, [['facts', JSON.stringify(facts)]]);
+		expect(membersNow(work.id)).toEqual([p, q, r]);
+		expect([p, q, r].map(hiddenOf)).toEqual([true, true, true]);
+	});
+
+	it('a series in no Work is hidden on its own, nothing taken out', async () => {
+		const x = idOf(X)!;
+		const hid = await postSeries(seriesScreen.actions.hidePart, x);
+		expect(hid.hideFacts).toEqual({ hidden: [x], out: [], whole: [], works: 0 });
+		expect(hiddenOf(x)).toBe(true);
+	});
+
+	it('answers a refused UNDO as a band on the screen, never a 500, and changes nothing', async () => {
+		const [p, q, r, x, y] = [P, Q, R, X, Y].map(idOf) as number[];
+		const w = works.createWork({ seriesIds: [p, q, r], name: 'Run', now: NOW });
+		const hid = await postSeries(seriesScreen.actions.hidePart, p);
+		// Ended since, by a press whose UNDO is not this one, and its id reused.
+		works.ungroup(w.work.id);
+		const n = works.createWork({ seriesIds: [x, y], name: 'Newer', now: NOW + 1 });
+		expect(n.work.id).toBe(w.work.id);
+
+		const answer = await postSeries(seriesScreen.actions.undoHide, p, [
+			['facts', JSON.stringify(hid.hideFacts)]
+		]);
+		expect(answer.status).toBe(400);
+		expect(String((answer.data as { message: string }).message)).toMatch(/HAS ENDED/);
+		// Rolled back whole: the show did not run either, and Newer keeps its own.
+		expect(hiddenOf(p)).toBe(true);
+		expect(membersNow(n.work.id)).toEqual([x, y]);
+		void q;
+		void r;
+	});
+});

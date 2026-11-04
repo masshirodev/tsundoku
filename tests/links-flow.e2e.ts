@@ -20,6 +20,9 @@ import { expect, test } from './fixtures';
 test.describe.configure({ mode: 'serial' });
 
 const band = (page: import('@playwright/test').Page) => page.getByText(/SERIES TO LINK/).first();
+/** One line of the series screen's LISTS row (c424): `anilist`, `ranobe`, or `s2` on an anime. */
+const listLine = (page: import('@playwright/test').Page, key: string) =>
+	page.locator(`[data-row="lists"] [data-line="${key}"]`);
 
 test('the library band counts the series to review, and opens the review', async ({ page }) => {
 	await page.goto('/');
@@ -105,30 +108,42 @@ test('a pasted link needs AniList: unreachable, it says so and links nothing', a
 	await expect(page.locator('.fnote.last')).toHaveText('NOT AN ANILIST OR MAL MANGA LINK');
 });
 
-test('the series screen: LINK and COVER rows, and FIND opens its own review', async ({ page }) => {
+test('the series screen: LISTS and COVER rows, and FIND opens its own review', async ({ page }) => {
 	await page.goto('/');
 	await page.locator('.tile', { hasText: 'The Greatest Estate Developer' }).first().click();
 	await page.waitForURL(/\/series\/\d+/);
-	const row = page.locator('.link-row');
-	await expect(row.locator('.lk-a')).toHaveText('The Greatest Estate Developer');
-	await expect(row.locator('.lk-b')).toHaveText(
-		'ANILIST 900001 · MAL 800001 · FROM MIHON’S MAL TRACKER'
+	// LINK's facts are AniList's line on LISTS now (c424): the entry, MAL's id with it.
+	const line = listLine(page, 'anilist');
+	await expect(line.locator('.t')).toHaveText('The Greatest Estate Developer');
+	await expect(line.locator('.m')).toHaveText('MAL 800001');
+	// OPEN ↗, CHANGE and UNLINK moved into EDIT's sheet, under ENTRY, with where the link came from.
+	await line.getByRole('button', { name: 'EDIT' }).click();
+	const sheet = page.getByRole('dialog', { name: 'Tracking' });
+	await expect(sheet.locator('.sl', { hasText: 'ENTRY' })).toContainText(
+		'FROM MIHON’S MAL TRACKER'
 	);
-	await expect(row.getByRole('link', { name: 'OPEN ↗' })).toHaveAttribute(
+	await expect(sheet.locator('.ent .m')).toHaveText('ANILIST 900001 · MAL 800001');
+	await expect(sheet.locator('.cells').getByRole('link', { name: 'OPEN ↗' })).toHaveAttribute(
 		'href',
 		'https://anilist.co/manga/900001'
 	);
+	await expect(sheet.getByRole('link', { name: 'CHANGE' })).toHaveAttribute(
+		'href',
+		/\/links\?series=\d+$/
+	);
+	await sheet.getByRole('button', { name: 'DONE' }).click();
 	await expect(page.locator('.cover-row .cv-a')).toHaveText('NONE');
 
 	const hua = page.url();
 	await page.goto('/');
 	await page.locator('.tile', { hasText: 'Return of the Mount Hua Sect' }).first().click();
 	await page.waitForURL(/\/series\/\d+/);
-	await expect(page.locator('.link-row .lk-a')).toHaveText('Not linked');
-	await expect(page.locator('.link-row .lk-b')).toHaveText(
-		'3 CANDIDATES FROM THE LAST COVER PASS · NONE LINKED'
+	await expect(listLine(page, 'anilist').locator('.t')).toHaveText('Not linked');
+	// What the search found, never who ran it (c337: the review band can't tell either).
+	await expect(listLine(page, 'anilist').locator('.m')).toHaveText(
+		'3 FOUND ON ANILIST · NOT FOR CERTAIN'
 	);
-	await page.locator('.lcs.inline').getByRole('link', { name: 'FIND' }).click();
+	await listLine(page, 'anilist').getByRole('link', { name: 'FIND' }).click();
 	await page.waitForURL(/\/links\?series=\d+/);
 	await expect(page.locator('.counter')).toHaveText('01 OF 01');
 	await expect(page.locator('.back')).toHaveText('← SERIES');
@@ -636,12 +651,14 @@ test.describe('a catalogue that answers', () => {
 	}) => {
 		// The source names two seasons of this show; AniList has an entry each.
 		await page.goto(`${BASE}/series/${ids.sao}`);
-		// The first season lines are the LINK row's; the TRACKING row has its own.
-		const linkRow = page.locator('.seasons').first();
-		await expect(linkRow.locator('.stag')).toHaveText(['S1', 'S2']);
-		await expect(linkRow.locator('.s-b').first()).toHaveText('NOT SEARCHED YET');
+		// A line a season on LISTS (c424), each with its own search and its own FIND.
+		const row = page.locator('[data-row="lists"]');
+		await expect(row.locator('.tag')).toHaveText(['S1', 'S2']);
+		await expect(listLine(page, 's1').locator('.m')).toHaveText(
+			'NOT SEARCHED YET · THE NEXT PASS SEARCHES IT'
+		);
 		// FIND opens the review on that season, not the series.
-		await linkRow.locator('.sline', { hasText: 'S2' }).getByRole('link', { name: 'FIND' }).click();
+		await listLine(page, 's2').getByRole('link', { name: 'FIND' }).click();
 		await page.waitForURL(new RegExp(`/links\\?series=${ids.sao}&season=2`));
 		await expect(page.locator('.heading .long')).toHaveText('LINK · SEASON 2');
 		await expect(page.locator('.seasonbar .sb-b')).toHaveText('SEASON 2 OF 2 · 11 EPISODES HERE');
@@ -714,7 +731,7 @@ test.describe('a catalogue that answers', () => {
 		await page.getByRole('button', { name: 'LINK 1 SEASON' }).click();
 		await page.waitForURL(new RegExp(`/series/${ids.sao}`));
 		// Both seasons linked, each with its own line and its own entry.
-		await expect(page.locator('.seasons').first().locator('.s-a')).toHaveText([
+		await expect(page.locator('[data-row="lists"] .t')).toHaveText([
 			'Sword Art Online',
 			'Sword Art Online II'
 		]);
@@ -724,14 +741,18 @@ test.describe('a catalogue that answers', () => {
 			{ season: 2, anilist_id: 9002, mal_id: 7002 }
 		]);
 		// A link given by the relations says where it came from, as every other
-		// one does (c240).
-		await expect(page.locator('.seasons').first().locator('.s-b').first()).toContainText(
+		// one does (c240): in EDIT's ENTRY now, which the season's EDIT opens on it.
+		await listLine(page, 's1').getByRole('button', { name: 'EDIT' }).click();
+		const sheet = page.getByRole('dialog', { name: 'Tracking' });
+		await expect(sheet.locator('.tab.on .no')).toHaveText('S1');
+		await expect(sheet.locator('.sl', { hasText: 'ENTRY' })).toContainText(
 			'FROM ANILIST’S RELATIONS'
 		);
-		// And the TRACKING row draws the same two seasons: nothing is signed in here.
-		await expect(page.locator('.track-row .stag')).toHaveText(['S1', 'S2']);
-		await expect(page.locator('.track-row .tl-l').first()).toHaveText(
-			'NOT SIGNED IN · NOTHING SENT'
+		await sheet.getByRole('button', { name: 'DONE' }).click();
+		// And each season's line carries its list's word: nothing is signed in here.
+		await expect(page.locator('[data-row="lists"] .tag')).toHaveText(['S1', 'S2']);
+		await expect(listLine(page, 's1').locator('.s .l').first()).toHaveText(
+			'ANILIST AND MAL · NOT SIGNED IN'
 		);
 		// A pasted link is a door that offers a season an entry too (c418):
 		// season 2's entry pasted on season 1 is read, said to be held, and its
@@ -761,14 +782,15 @@ test.describe('a catalogue that answers', () => {
 		const show = seedTwoParts();
 		try {
 			await page.goto(`${BASE}/series/${show}`);
-			const row = page.locator('.track-row');
-			await row.getByRole('button', { name: 'EDIT' }).click();
+			// One season: one ANILIST line (c424), and its EDIT opens the sheet on it.
+			await listLine(page, 'anilist').getByRole('button', { name: 'EDIT' }).click();
+			const sheet = page.getByRole('dialog', { name: 'Tracking' });
 			// The status rule, as the send keeps it (round 1's low): the last episode
 			// completes a season, but never over the owner's ON HOLD or DROPPED.
-			await expect(page.locator('.notes')).toContainText(
+			await expect(sheet.locator('.note').last()).toContainText(
 				'ITS LAST SENDS COMPLETED. ON HOLD AND DROPPED ARE YOURS AND STAY: ONLY THE EPISODE GOES.'
 			);
-			await page.locator('form.statuses button', { hasText: 'COMPLETED' }).click();
+			await sheet.locator('form.sts button', { hasText: 'COMPLETED' }).click();
 			// The action queues and sends before it answers: what waits or what was
 			// sent is this skill's to read, beside the server.
 			await expect.poll(() => trackerRows(show).length).toBeGreaterThan(0);
@@ -793,7 +815,10 @@ test.describe('a catalogue that answers', () => {
 				{ season: 1, part: 2 }
 			]);
 			await page.goto(`${BASE}/series/${show}`);
+			// UNLINK lives in EDIT's ENTRY now (c424); a one-season show's sheet has no tabs.
+			await listLine(page, 'anilist').getByRole('button', { name: 'EDIT' }).click();
 			const unlinkButton = page.locator('form[action="?/unlink"] button:visible');
+			await expect(page.locator('form[action="?/unlink"] input[name="season"]')).toHaveCount(0);
 			await expect(unlinkButton).toHaveText('UNLINK');
 			await unlinkButton.click();
 			await expect(unlinkButton).toHaveCount(0);
@@ -825,8 +850,7 @@ test.describe('a catalogue that answers', () => {
 			).run(ids.sao, decision, Date.UTC(2026, 10, 3));
 		};
 		try {
-			const line = () =>
-				page.locator('.seasons').first().locator('.sline', { hasText: 'S2' }).locator('.s-b');
+			const line = () => listLine(page, 's2').locator('.m');
 			// UNLINK is not NONE OF THESE: the owner never dismissed a search.
 			decide('unlinked');
 			await page.goto(`${BASE}/series/${ids.sao}`);
@@ -871,7 +895,10 @@ test.describe('a catalogue that answers', () => {
 		const id = seedFlatList();
 		try {
 			await page.goto(`${BASE}/series/${id}`);
-			await page.locator('.lcs.inline').getByRole('link', { name: 'FIND' }).click();
+			// One ANILIST line, never S0 or SEASON 0 (c423's series-screen half, c424's state 12).
+			await expect(page.locator('[data-row="lists"] .tag')).toHaveText(['ANILIST']);
+			await expect(page.locator('[data-row="lists"]')).not.toContainText(/SEASON 0|\bS0\b/);
+			await listLine(page, 'anilist').getByRole('link', { name: 'FIND' }).click();
 			await page.waitForURL(new RegExp(`/links\\?series=${id}$`));
 			// The header names no season: no `LINK · SEASON 0`, no `S0`, and the bar
 			// says what the list holds without a season number.
@@ -902,11 +929,20 @@ test.describe('a catalogue that answers', () => {
 			// The LINK worked, and the page says so by going back to the series, where
 			// the LINK row shows it: no rest of the show to stay for.
 			await page.waitForURL(new RegExp(`/series/${id}$`));
-			const linkRow = page.locator('.link-row', {
-				has: page.locator('.label', { hasText: /^LINK$/ })
-			});
-			await expect(linkRow.locator('.lk-a')).toHaveText('Flat List Show');
-			await expect(linkRow.locator('.lk-b')).toContainText('ANILIST 9301');
+			const line = listLine(page, 'anilist');
+			await expect(line.locator('.t')).toHaveText('Flat List Show');
+			await expect(line.locator('.m')).toContainText('MAL 9401');
+			// The series screen names no season 0 either, on the row or in the sheet
+			// EDIT opens (c423's series-screen half).
+			await expect(page.locator('[data-row="lists"] .tag')).toHaveText(['ANILIST']);
+			await line.getByRole('button', { name: 'EDIT' }).click();
+			const sheet = page.getByRole('dialog', { name: 'Tracking' });
+			await expect(sheet.locator('.ent .m')).toContainText('ANILIST 9301');
+			await expect(sheet.locator('.tabs')).toHaveCount(0);
+			await expect(page.getByRole('region', { name: 'About this series' })).not.toContainText(
+				/SEASON 0|\bS0\b/
+			);
+			await expect(sheet).not.toContainText(/SEASON 0|\bS0\b/);
 			// Season 0's own row, the whole show's, and its mirror.
 			expect(seasonLinksOf(id)).toEqual([{ season: 0, anilist_id: 9301, via: 'review' }]);
 			expect(mirrorOf(id)).toMatchObject({ anilist_id: 9301, mal_id: 9401 });
@@ -936,7 +972,7 @@ test.describe('a catalogue that answers', () => {
 			// Pressed at once, and back on the series with both parts written.
 			await page.locator('.relacts button').last().click();
 			await page.waitForURL(new RegExp(`/series/${id}$`));
-			await expect(page.locator('.seasons').first().locator('.s-a')).toHaveText([
+			await expect(page.locator('[data-row="lists"] .t')).toHaveText([
 				'Split Show',
 				'Split Show 2nd Season'
 			]);
@@ -1025,11 +1061,8 @@ test.describe('a catalogue that answers', () => {
 				// Pressed at once: the answer has no rest of the show to stay for.
 				await link.click();
 				await page.waitForURL(new RegExp(`/series/${id}$`));
-				const line = page
-					.locator('.seasons')
-					.first()
-					.locator('.sline', { hasText: `S${season}` });
-				await expect(line.locator('.s-a')).toHaveText(
+				const line = listLine(page, `s${season}`);
+				await expect(line.locator('.t')).toHaveText(
 					entry === 9601 ? 'Lone Show' : 'Lone Show Again'
 				);
 				expect(partsOf(id)).toEqual([{ season, part: 1, anilist_id: entry }]);
@@ -1050,9 +1083,7 @@ test.describe('a catalogue that answers', () => {
 			await page.locator('.actions button').last().click();
 			await page.getByRole('button', { name: 'NOT NOW' }).click({ timeout: 20_000 });
 			await page.waitForURL(new RegExp(`/series/${id}$`));
-			await expect(
-				page.locator('.seasons').first().locator('.sline', { hasText: 'S1' }).locator('.s-a')
-			).toHaveText('Split Show');
+			await expect(listLine(page, 's1').locator('.t')).toHaveText('Split Show');
 			expect(partsOf(id)).toEqual([{ season: 1, part: 1, anilist_id: 9501 }]);
 		} finally {
 			forgetFlatList(id);
@@ -1075,7 +1106,7 @@ test.describe('a catalogue that answers', () => {
 			await page.waitForURL(new RegExp(`/series/${id}$`));
 			expect(partsOf(id)).toEqual([{ season: 1, part: 1, anilist_id: 9501 }]);
 
-			// EDIT on the linked season: its URL. The offer comes with the load.
+			// CHANGE on the linked season (EDIT's sheet, c424): its URL. The offer comes with the load.
 			const edit = `${BASE}/links?series=${id}&season=1`;
 			await page.goto(edit);
 			await expect(page.getByRole('button', { name: 'NOT NOW' })).toBeVisible();

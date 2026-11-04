@@ -22,7 +22,8 @@ import {
 	type Candidate,
 	type Kind,
 	type Pasted,
-	type Row
+	type Row,
+	type SeasonDecision
 } from '../library/catalogue.ts';
 import {
 	legacyLink,
@@ -1341,7 +1342,17 @@ export type LinkState = {
 		 * another work (c298). Null when the format isn't known yet.
 		 */
 		kind: Kind | null;
+		/**
+		 * The entry's stored format (`MANGA`, `NOVEL`, `TV`): the LISTS line's
+		 * meta names it (c424). Null until a pass or a link has read it.
+		 */
+		format: string | null;
 	} | null;
+	/**
+	 * What settled it when no link stands: NONE OF THESE or an UNLINK (c424).
+	 * The line says so in the decision's own word, and its FIND goes plain.
+	 */
+	decision: SeasonDecision | null;
 	/** Not linked: what the last pass found. */
 	candidates: number;
 	searched: boolean;
@@ -1379,15 +1390,24 @@ export function linkState(seriesId: number, season?: number): LinkState | null {
 					resolving: l.resolved_at === null,
 					coverOnly: coverOnly(r.kind, l.format ?? ''),
 					wrongKind: wrongKind(r.kind, l.format ?? ''),
-					kind: l.format ? candidateKind({ format: l.format, country: '' }) : null
+					kind: l.format ? candidateKind({ format: l.format, country: '' }) : null,
+					format: l.format || null
 				}
 			: null,
+		decision: l ? null : decisionOf(db, seriesId),
 		candidates: item.candidates.length,
 		searched: r.searched_at !== null,
 		queued: r.query !== '' && r.searched_at === null,
 		hidden: !!r.hidden,
 		cover: item.cover
 	};
+}
+
+/** A comic's or a novel's settled decision (`link_decisions`), when no link stands. */
+function decisionOf(db: Database.Database, seriesId: number): SeasonDecision | null {
+	const d = db.prepare(`SELECT decision FROM link_decisions WHERE series_id = ?`).get(seriesId) as
+		{ decision: SeasonDecision } | undefined;
+	return d?.decision ?? null;
 }
 
 /**
@@ -1419,9 +1439,11 @@ function seasonLinkState(
 					resolving: l.resolvedAt === null,
 					coverOnly: coverOnly(r.kind, l.format ?? ''),
 					wrongKind: wrongKind(r.kind, l.format ?? ''),
-					kind: l.format ? candidateKind({ format: l.format, country: '' }) : null
+					kind: l.format ? candidateKind({ format: l.format, country: '' }) : null,
+					format: l.format || null
 				}
 			: null,
+		decision: l ? null : (sv?.decision ?? null),
 		candidates: sv?.candidates ?? 0,
 		searched: sv?.searched ?? false,
 		queued: sv?.queued ?? false,

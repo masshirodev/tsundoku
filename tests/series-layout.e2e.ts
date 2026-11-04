@@ -86,11 +86,13 @@ test('a novel shows its contents without numbers, and a typeset cover', async ({
 });
 
 /**
- * c422: on a one-season anime with Ranobe configured, Ranobe's line sits
- * under AniList's block in LINK and TRACKING, never beside it (c240's rule:
- * one line in each row, never in AniList's place). As a sibling in the row's
- * flex line it took half the width, and LINK's meta went one word a line at
- * the owner's ~460 px panel.
+ * c422, rewritten for LISTS (c424): on a one-season anime with Ranobe
+ * configured, Ranobe's line sits under AniList's, the full width of the row,
+ * never beside it. c422 fixed LINK and TRACKING crushing to one word a line at
+ * the owner's ~460 px panel; LISTS replaced both rows, so the same widths now
+ * check the 36 px label strip above the lines and the equal-column cells that
+ * drop under a line with two (the handoff's 1B and 1D), and the tablet in
+ * portrait keeping its label column and both cells inline.
  *
  * Ranobe needs a token, and turning it on for the shared server would redraw
  * every novel's series screen under the specs that pin them, so this is the
@@ -182,34 +184,53 @@ test.describe('a one-season anime with Ranobe (c422)', () => {
 		rmSync(dbPath, { force: true });
 	});
 
-	for (const width of [390, 460, 1280])
-		test(`LINK and TRACKING keep AniList's block whole, the RNB line under it, at ${width} px`, async ({
+	for (const width of [390, 460, 800, 1280])
+		test(`LISTS keeps AniList's line whole, the RNB line under it, at ${width} px`, async ({
 			page
 		}) => {
 			await page.setViewportSize({ width, height: 900 });
 			await page.goto(`${base}/series/${seriesId}`);
 			await expect(page.getByRole('heading', { name: 'Ranma ½ (2024)' })).toBeVisible();
 			await screenSettled(page);
-			for (const [row, block] of [
-				['.link-row:not(.dl-row):not(.source-row)', '.lk'],
-				['.track-row', '.tk']
-			] as const) {
-				const r = page.locator(row);
-				await r.scrollIntoViewIfNeeded();
-				const own = (await r.locator(block).boundingBox())!;
-				const line = (await r.locator('.ranobe-line').boundingBox())!;
-				// Under it, not beside it, and as wide as it.
-				expect(line.y).toBeGreaterThanOrEqual(own.y + own.height - 1);
-				expect(Math.round(line.x)).toBe(Math.round(own.x));
-				expect(Math.round(line.width)).toBe(Math.round(own.width));
-				if (width < 600) {
-					const whole = (await r.boundingBox())!;
-					const meta = (await r
-						.locator(block === '.lk' ? '.lk-b' : '.tl')
-						.first()
-						.boundingBox())!;
-					expect(meta.width / whole.width).toBeGreaterThanOrEqual(0.6);
-				}
+			const row = page.locator('[data-row="lists"]');
+			await row.scrollIntoViewIfNeeded();
+			const whole = (await row.boundingBox())!;
+			const anilist = row.locator('[data-line="anilist"]');
+			const rnb = row.locator('[data-line="ranobe"]');
+			// A one-season anime is drawn as one entry: a service tag, no S tag (1C, 12).
+			await expect(row.locator('.tag')).toHaveText(['ANILIST', 'RNB']);
+			const a = (await anilist.locator('.ln').boundingBox())!;
+			const r = (await rnb.locator('.ln').boundingBox())!;
+			// Under it, not beside it, and as wide as it.
+			expect(r.y).toBeGreaterThanOrEqual(a.y + a.height - 1);
+			expect(Math.round(r.x)).toBe(Math.round(a.x));
+			expect(Math.round(r.width)).toBe(Math.round(a.width));
+			const portrait = width >= 600 && width < 1024;
+			if (portrait) {
+				// Room for the label column: LISTS at the left, cells inline even two.
+				await expect(row.locator('.lab')).toBeVisible();
+				await expect(row.locator('.strip')).toBeHidden();
+				await expect(anilist.locator('.drop')).toBeHidden();
+				await expect(anilist.locator('.cs .c')).toHaveText(['SIGN IN →', 'EDIT']);
+				return;
+			}
+			// The label is a 36 px strip above the lines, so each line has the full width.
+			await expect(row.locator('.lab')).toBeHidden();
+			const strip = (await row.locator('.strip').boundingBox())!;
+			expect(strip.height).toBe(36);
+			expect(Math.round(a.width)).toBe(Math.round(whole.width));
+			// Two cells drop under the line in equal columns; one stays at its end.
+			const cells = anilist.locator('.drop .c');
+			await expect(cells).toHaveText(['SIGN IN →', 'EDIT']);
+			const [c1, c2] = [(await cells.nth(0).boundingBox())!, (await cells.nth(1).boundingBox())!];
+			expect(Math.abs(c1.width - c2.width)).toBeLessThanOrEqual(1);
+			expect(c2.y).toBe(c1.y);
+			expect(c1.y).toBeGreaterThanOrEqual(a.y + a.height - 1);
+			await expect(rnb.locator('.drop')).toHaveCount(0);
+			await expect(rnb.locator('.cs .c')).toHaveText(['FIND']);
+			if (width < 600) {
+				const meta = (await anilist.locator('.m').boundingBox())!;
+				expect(meta.width / whole.width).toBeGreaterThanOrEqual(0.6);
 			}
 		});
 });

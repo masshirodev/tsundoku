@@ -85,13 +85,20 @@ import {
 	hideWork,
 	reorder,
 	seriesWorkRow,
-	setHiddenWhole,
 	takeOut as takeOutPart,
+	takeOutAndHide,
+	undoHideWhole,
 	undoTakeOut,
 	workOfSeries,
 	workParts,
 	type TakeOutFacts
 } from '$lib/server/works';
+
+/** A Work's refusal (a part gone, a Work ended since), as a band on this screen, never a 500. */
+function refused(e: unknown) {
+	if (e instanceof WorkError) return fail(400, { message: e.message.toUpperCase() });
+	throw e;
+}
 
 /** Where an anime's episodes go: its folder once it has one, else where its first will. */
 function animeFolderOf(seriesId: number, title: string, hidden: boolean): string {
@@ -415,10 +422,13 @@ export const actions: Actions = {
 		return { ok: true };
 	},
 
-	// TRY AGAIN on the TRACKING row (Series Link 1n): what failed, sent now.
-	retryTracking: async ({ params, cookies }) => {
+	// TRY AGAIN on a LISTS line (Series Link 1n; c424): what failed, sent now.
+	// A season's line names its season, and only that season's sends go; a
+	// comic's names none, and both its lists go (MAL rides on AniList's line).
+	retryTracking: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
-		await sendPending({ seriesId: s.id });
+		const { season } = seasonOf(await request.formData());
+		await sendPending({ seriesId: s.id, season });
 		return { ok: true };
 	},
 
@@ -490,22 +500,27 @@ export const actions: Actions = {
 	/**
 	 * TAKE OUT on the HIDE sheet: the series leaves its Work and is hidden on
 	 * its own, so the other parts stay a Work. UNDO puts both back.
+	 *
+	 * One write (c390): `takeOutAndHide` takes it out and hides it in one
+	 * transaction, so a take-out that fails leaves nothing half done -- no part
+	 * hidden alone in its Work -- and the facts hold only what changed. A
+	 * refusal is answered as the library answers one, never as a 500.
 	 */
 	hidePart: async ({ params, cookies }) => {
 		const s = target(params, cookies);
 		const work = workOfSeries(s.id);
-		const out: TakeOutFacts[] = [];
-		if (work) {
-			try {
-				out.push(takeOutPart(work.id, s.id));
-			} catch (e) {
-				if (!(e instanceof WorkError)) throw e;
-			}
+		let done: ReturnType<typeof takeOutAndHide>;
+		try {
+			done = takeOutAndHide([s.id]);
+		} catch (e) {
+			return refused(e);
 		}
-		// Through the rule: a take-out that failed leaves the series a part, and
-		// a part is never hidden alone.
-		const hid = setHiddenWhole([s.id], true);
-		const facts = { hidden: hid.ids, out, whole: hid.whole, works: hid.works };
+		const facts = {
+			hidden: done.facts.ids,
+			out: done.out,
+			whole: done.facts.whole,
+			works: done.facts.works
+		};
 		if (!isRevealed(cookies)) {
 			// TAKE OUT is not HIDE ALL n: only this series is hidden, and the rest
 			// of the Work is still on the shelf it stands on (`taken-out` says so,
@@ -521,16 +536,22 @@ export const actions: Actions = {
 		return { hideFacts: facts };
 	},
 
-	/** UNDO after either HIDE answer, on the screen that is still there (reveal on). */
+	/**
+	 * UNDO after either HIDE answer, on the screen that is still there (reveal
+	 * on): the library's own UNDO, `undoHideWhole` -- the take-outs put back
+	 * first, then only what the HIDE hid shown, in one write. A refusal from
+	 * either half rolls back both and is answered, not thrown (c390).
+	 */
 	undoHide: async ({ request }) => {
 		const facts = JSON.parse(String((await request.formData()).get('facts') ?? 'null')) as {
 			hidden: number[];
 			out: TakeOutFacts[];
 		};
-		// The take-outs go back first, so the show sees each series in its Work
-		// again and shows that Work whole.
-		for (const f of [...facts.out].reverse()) undoTakeOut(f);
-		setHiddenWhole(facts.hidden, false);
+		try {
+			undoHideWhole(facts);
+		} catch (e) {
+			return refused(e);
+		}
 		return { ok: true };
 	},
 
