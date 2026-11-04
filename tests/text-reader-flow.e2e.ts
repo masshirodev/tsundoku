@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { sampleEpub } from '../src/lib/server/pages/sample-epub';
 import { Zip } from '../src/lib/epub/unzip';
-import { expect, test } from './fixtures';
+import { expect, test } from './helpers/hydrated';
 
 /**
  * The text reader (doc/TEXT-READER.md), against the seed's generated EPUBs.
@@ -28,9 +28,25 @@ const middle = async (page: Page) => {
 	const v = page.viewportSize()!;
 	await page.mouse.click(v.width / 2, 30);
 };
+/**
+ * Turn one page, and return once the reader has turned it: the flow's
+ * transform (page turns never animate), the chapter's heading or the URL has
+ * moved. A click the reader hadn't handled yet was read as "no turn" under a
+ * loaded suite, and the next click turned twice, past the page the test was
+ * looking for (c394, c439).
+ */
 const forward = async (page: Page) => {
+	const where = () =>
+		page.evaluate(
+			() =>
+				`${location.href} ${document.querySelector('.blocks h1')?.textContent ?? ''} ${
+					document.querySelector<HTMLElement>('.flow')?.style.transform ?? ''
+				}`
+		);
+	const before = await where();
 	const v = page.viewportSize()!;
 	await page.mouse.click(v.width - 8, v.height / 2);
+	await expect.poll(where).not.toBe(before);
 };
 
 test('a novel opens as text, turns, and carries on into the next chapter', async ({ page }) => {
@@ -123,18 +139,11 @@ test('a wide block opens whole, and an illustration full screen', async ({ page 
 	// Turn until OPEN is on this page: a block on the next one is laid out,
 	// and "visible" to Playwright, but translated off-screen.
 	const open = page.locator('.wide.code .open');
-	// Read once the turn has settled: mid-slide the block is still off-screen,
-	// and turning again then overshot it into the next chapter under the full
-	// run (2026-10-15). Settled is the same position twice, 150ms apart.
+	// `forward` returns once the turn has happened, so the box is read where
+	// the turn left it (c394).
 	const onScreen = async () => {
 		if ((await open.count()) === 0) return false;
-		let b = await open.boundingBox();
-		for (let i = 0; i < 20; i++) {
-			await page.waitForTimeout(150);
-			const again = await open.boundingBox();
-			if (again?.x === b?.x) break;
-			b = again;
-		}
+		const b = await open.boundingBox();
 		const v = page.viewportSize()!;
 		return !!b && b.x >= 0 && b.x + b.width <= v.width;
 	};

@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures';
+import { expect, test } from './helpers/hydrated';
 
 /**
  * The frame on every device the design draws, hand-written beside the

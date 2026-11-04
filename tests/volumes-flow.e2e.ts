@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures';
+import { expect, test } from './helpers/hydrated';
 
 /**
  * Volumes of a novel (doc/BOOKS.md): two novels grouped into one series from

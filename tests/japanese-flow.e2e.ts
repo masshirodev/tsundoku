@@ -1,5 +1,5 @@
 import { type Page } from '@playwright/test';
-import { expect, readerReady, test } from './fixtures';
+import { expect, readerReady, test } from './helpers/hydrated';
 
 /**
  * The Japanese layer end to end (doc/JAPANESE.md), on the seed's OCR text:

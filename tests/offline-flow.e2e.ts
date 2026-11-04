@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, readerReady, test } from './fixtures';
+import { expect, readerReady, test } from './helpers/hydrated';
 
 /**
  * The device cache and offline reading (doc/OFFLINE.md), with the service

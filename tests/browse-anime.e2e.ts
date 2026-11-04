@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures';
+import { test, expect } from './helpers/hydrated';
 import { ANIME_SOURCE } from './browse-world';
 
 /**
@@ -261,12 +261,17 @@ test.describe('the player, tablet landscape (c156)', () => {
 			const v = document.querySelector('video');
 			return !!v && v.currentTime > 0;
 		});
-		// The clip's ending starts at 6 s: reaching it is enough, no skip.
+		// The clip's ending starts at 6 s: reaching it is enough, no skip. The
+		// player says so to the server, and the series is read once it has: a
+		// fixed 1.5 s for that was too short under a loaded suite (c336, c439).
+		const finished = page.waitForResponse(
+			(r) => r.url().endsWith('/api/reading') && r.request().postDataJSON()?.kind === 'finish'
+		);
 		await page.evaluate(() => {
 			const v = document.querySelector('video');
 			if (v) v.currentTime = 6.3;
 		});
-		await page.waitForTimeout(1500);
+		await finished;
 		const href = await player.getByRole('link', { name: '← SERIES' }).first().getAttribute('href');
 		await page.goto(href!);
 		await expect(
@@ -298,8 +303,11 @@ test.describe('the player, tablet landscape (c156)', () => {
 		});
 		const skip = player.getByRole('button', { name: 'SKIP ENDING →' });
 		await expect(skip).toBeVisible({ timeout: 10_000 });
+		const finished = page.waitForResponse(
+			(r) => r.url().endsWith('/api/reading') && r.request().postDataJSON()?.kind === 'finish'
+		);
 		await skip.click();
-		await page.waitForTimeout(1000);
+		await finished;
 		const href = await player.getByRole('link', { name: '← SERIES' }).first().getAttribute('href');
 		await page.goto(href!);
 		await expect(list.locator('.entry').last().locator('.status')).toHaveText('WATCHED');

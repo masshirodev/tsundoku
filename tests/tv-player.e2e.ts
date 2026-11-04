@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures';
+import { expect, test } from './helpers/hydrated';
 
 /**
  * The player on a TV (c235; TV-Player, TV-Board-Player): the picture until a
@@ -322,6 +322,10 @@ test('← → with the bar hidden seek and put focus on the seek bar', async ({ 
 		v.pause();
 		v.currentTime = 1;
 	});
+	// The player has taken the pause in (its ▶❚❚ reads Play), which shows the
+	// bar: under a loaded suite the pause event landed after Escape and drew
+	// the bar again over the hidden one (c336, c439).
+	await expect(page.locator('.cells .pause')).toHaveAttribute('aria-label', 'Play');
 	// Escape hides the bar; the paused picture leaves it hidden.
 	await page.keyboard.press('Escape');
 	await expect(page.locator('.player')).not.toHaveClass(/chrome/);

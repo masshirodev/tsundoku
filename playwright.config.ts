@@ -1,3 +1,6 @@
+// First, for its side effect: this run's own temporary directory, which
+// every tmpdir() below and in the suite resolves to (tests/helpers/run-dir.ts).
+import './tests/helpers/run-dir';
 import { defineConfig, devices } from '@playwright/test';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
@@ -65,7 +68,8 @@ export default defineConfig({
 	// BROWSE's own server and fake engine, started after the shared server has
 	// built (tests/browse-setup.ts): the browse project below runs against it.
 	// And a friend's install (tests/friend-setup.ts), for the friend project.
-	globalSetup: ['./tests/browse-setup.ts', './tests/friend-setup.ts'],
+	// The run's directory first, so its teardown -- removing it -- runs last.
+	globalSetup: ['./tests/helpers/run-dir.ts', './tests/browse-setup.ts', './tests/friend-setup.ts'],
 	reporter: process.env.CI ? 'github' : 'list',
 	use: {
 		baseURL: `http://localhost:${previewPort}`,
@@ -91,9 +95,13 @@ export default defineConfig({
 	webServer: process.env.PLAYWRIGHT_NO_SERVER
 		? undefined
 		: {
+				// kuromoji's dictionary is `yarn prepare`'s copy, untracked, so a
+				// worktree that never ran it builds an app whose lookup has no
+				// words (c249): copied here, before the build takes static/.
 				command:
-					`rm -f ${databasePath}* && yarn run seed && yarn run build && ` +
-					`yarn run preview --port ${previewPort} --strictPort`,
+					`rm -f ${databasePath}* && yarn run seed && ` +
+					`node node_modules/kotoba/scripts/sync-dict.js static/dict > /dev/null && ` +
+					`yarn run build && yarn run preview --port ${previewPort} --strictPort`,
 				// An empty library folder: START SCAN must never import real files
 				// into the seeded database the suite asserts against.
 				env: {

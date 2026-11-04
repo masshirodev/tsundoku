@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { type Page } from '@playwright/test';
+import { expect, test } from './helpers/hydrated';
 
 /**
  * The FILTER panel and + NEW (Library Filters turn 3, card c68;

@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures';
+import { expect, hydrated, test } from './helpers/hydrated';
 
 /**
  * A TV pairing itself with six digits typed on a remote (c236; doc/TV.md,
@@ -179,6 +179,10 @@ test('a paired cookie signs in on the tailnet host, and not at localhost', async
 	const tv = await browser.newContext({ storageState: { cookies: [], origins: [] } });
 	const tvPage = await tv.newPage();
 	await tvPage.goto('/pair/tv');
+	// A context of its own is not the fixture's page, so its goto waits for
+	// nothing: six digits typed before hydration submit nothing, and the
+	// heading below never came under the loaded suite (c323, c439).
+	await hydrated(tvPage);
 	await typeCode(tvPage, fresh.code!);
 	await expect(tvPage.getByRole('heading', { name: 'The library is on this TV' })).toBeVisible();
 	// 9E names the DEVICES row by what both installs have, not by WI-FI: on the
