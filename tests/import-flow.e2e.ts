@@ -318,7 +318,7 @@ test('a multi-megabyte backup arrives through the release’s server, in pieces 
 		}
 		expect(up).toBe(true);
 		const cookie = `tsundoku_session=${createHash('sha256').update(`tsundoku/v1:${token}`).digest('hex')}`;
-		const send = (body: Uint8Array, q: Record<string, string>) =>
+		const send = (body: Uint8Array<ArrayBuffer>, q: Record<string, string>) =>
 			fetch(`${url}/import/upload?${new URLSearchParams(q)}`, {
 				method: 'POST',
 				headers: { cookie, 'content-type': 'application/octet-stream' },
