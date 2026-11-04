@@ -98,8 +98,8 @@
 	const value = $derived(shown?.ok ? shown.value : null);
 	const results = $derived(value?.results ?? null);
 	const name = $derived(data.source.name);
-	// An LNReader plugin (doc/NOVELS.md): no settings here, and its search takes
-	// no filters. The family is asked, not the kind (card c420).
+	// An LNReader plugin (doc/NOVELS.md): its search takes no filters, and its
+	// settings page has only tsundoku's own switches (c435). The family is asked, not the kind (card c420).
 	const novel = $derived(data.source.family === 'lnreader');
 	const tabTitle = $derived(
 		data.q
@@ -191,7 +191,8 @@
 				/>
 			</form>
 			<a class="cell slash" href={link({ find: '1' })} aria-label="Search {name}">/</a>
-			{#if !novel}<a class="cell settings" href={withFrom(`${base}/settings`)}>SETTINGS</a>{/if}
+			<!-- Every family's, since tsundoku's own switches are every source's (c435). -->
+			<a class="cell settings" href={withFrom(`${base}/settings`)}>SETTINGS</a>
 		{/snippet}
 	</TopBar>
 	<!-- The way back to GET STARTED, while FIRST READ's trip lasts (doc/ONBOARDING.md). -->

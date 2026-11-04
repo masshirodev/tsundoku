@@ -426,8 +426,9 @@ values show and still save, under the NOT ANSWERING band.
 
 Since card c435 the extension's own settings are `02 — <SOURCE> · <LANG>`,
 under tsundoku's own switches, and every family has the page: an LNReader
-plugin, which keeps no preferences here, has only the switches (until then
-its page answered 404).
+plugin, which keeps no preferences here, has only the switches, and its
+source page draws the SETTINGS cell like any other (until then it had no
+cell and its page answered 404).
 
 ### A source's own switches
 
@@ -564,7 +565,8 @@ was set on is no longer found. Turning it off again is done inside reveal.
 - **UNTRUSTED has no REVIEW… step and no install anyway.** The refusal shows
   both keys at once; see "An untrusted extension is never installed".
 - **No progress bar, no periodic check** (What it does not do yet).
-- **A novel source has no SETTINGS** cell, and its search box doesn't offer
+- **A novel source's SETTINGS holds only tsundoku's switches** (card c435;
+  until wave 20 it had no SETTINGS cell), and its search box doesn't offer
   "with its filters": LNReader's search takes none ([`NOVELS.md`](NOVELS.md)).
   Its section is NOVELS, numbered after the others like any section.
 - **A multi-select without script has a SAVE.** The mock draws ✓ cells only;
