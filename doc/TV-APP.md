@@ -138,6 +138,16 @@ cleared at all three doors into that screen (`probe`, `show`, `connect`), so a
 visible band always means the refusal is still the attempt in hand; hiding the
 screen alone does not hide the flag.
 
+The activity keeps the same rule for the one probe it makes itself, the
+remembered address's on a cold start (c306). That probe can take up to six
+seconds (`Probe.kt`'s 3 s connect and 3 s read, longer when a `.ts.net` name
+stalls with Tailscale down), and a second launch handed an address inside that
+window reaches `onNewIntent` and loads 9B at once. `Attempts.kt` numbers the
+two doors: the probe takes an attempt before it starts, `takeGiven` takes the
+next, and the probe's answer is acted on only if its attempt is still the
+latest. So the given address's 9B is not replaced by the library at the
+remembered address, nor by 9D naming an address nobody handed in.
+
 An address is compared by its **origin**, not its text. The field keeps what was
 typed — a path, a query, userinfo, a differently cased host — while
 `PairingBridge` answers with `Address.originOf`'s origin. Both sides of the
@@ -329,8 +339,12 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
 
 ## Tests
 
-- `android/tv/app/src/test/` — `AddressTest`, `BackTest`, `IntentAddressTest`,
-  `KeysTest`, `ProbeTest`, `ScaleTest` (31 tests), run by `./gradlew test`.
+- `android/tv/app/src/test/` — `AddressTest`, `AttemptsTest`, `BackTest`,
+  `IntentAddressTest`, `KeysTest`, `ProbeTest`, `ScaleTest` (37 tests), run by
+  `./gradlew test`. `AttemptsTest` plays the activity's two launch doors in
+  order: a given address during the remembered probe keeps its 9B whether the
+  probe answers or not (c306). That `MainActivity` calls `Attempts` at both
+  doors is read, not run: a JVM test cannot drive the Activity.
   `IntentAddressTest` is the given address's parser: a tailnet name, a LAN
   address and a domain; its port kept and its path dropped; `null` for a wrong
   scheme, a missing host, userinfo, and a port of 0 or above 65535 (`null` is
