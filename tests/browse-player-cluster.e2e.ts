@@ -14,7 +14,7 @@ import { devices, type Page } from '@playwright/test';
  * case switches to the device it is about.
  */
 
-async function openEpisode(page: Page) {
+async function openEpisode(page: Page, seek = true) {
 	await page.goto('/');
 	await page.getByRole('link', { name: /^ANIME/ }).click();
 	await page.locator('.grid .tile', { hasText: 'Tsukiakari no Ryokōsha' }).click();
@@ -32,6 +32,23 @@ async function openEpisode(page: Page) {
 		undefined,
 		{ timeout: 20_000 }
 	);
+	if (!seek) {
+		// Playing until it is under way: the fake's first server stops as the
+		// clip starts, the player moves to the second (its notice and BUFFERING
+		// set the cluster aside, by design), and only playback clears that.
+		// Then held still where it is: a paused picture keeps the chrome up.
+		await page.waitForFunction(
+			() => {
+				const v = document.querySelector('video')!;
+				return !v.paused && v.currentTime > 0.5;
+			},
+			undefined,
+			{ timeout: 20_000 }
+		);
+		await page.evaluate(() => document.querySelector('video')!.pause());
+		await expect(page.locator('.player')).toHaveClass(/chrome/);
+		return;
+	}
 	// Held still at 4 s: a paused picture keeps the chrome up, and a seek to
 	// 0:00 is then something that moved.
 	await page.evaluate(() => {
@@ -151,9 +168,8 @@ async function clusterOver(page: Page, frame: string) {
  * against it over the brightest frame and the darkest (c429).
  */
 async function clusterIsTranslucentAndLegible(page: Page) {
-	// A server that drops the clip as it starts (the fake's streams do, now
-	// and then) puts the cluster aside for its 4 s notice; it comes back after.
-	await expect(page.locator('.cluster')).toBeVisible({ timeout: 15_000 });
+	// The server's 4 s notice may still be up as playback starts.
+	await expect(page.locator('.cluster')).toBeVisible({ timeout: 10_000 });
 	// The pointer away from the cells: a hover would tint the one under it.
 	const white = await clusterOver(page, '#ffffff');
 	const black = await clusterOver(page, '#000000');
@@ -188,7 +204,7 @@ test.describe('on a desktop', () => {
 		page
 	}) => {
 		test.setTimeout(60_000);
-		await openEpisode(page);
+		await openEpisode(page, false);
 		// Parked over the top bar's names: the controls stay up (the picture is
 		// paused) and no cell of the cluster is hovered.
 		const names = (await page.locator('.top .names').boundingBox())!;
@@ -216,7 +232,7 @@ test.describe('on a touch tablet', () => {
 		page
 	}) => {
 		test.setTimeout(60_000);
-		await openEpisode(page);
+		await openEpisode(page, false);
 		await clusterIsTranslucentAndLegible(page);
 	});
 });
