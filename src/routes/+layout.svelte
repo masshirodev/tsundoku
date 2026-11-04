@@ -341,7 +341,7 @@
 						<!-- The links review's own door (c475): the library's band can be put
 						     away (c430), and nothing else opened /links. TO LINK, the review's
 						     short name, not SERIES TO LINK: links-flow finds the band by those
-						     words, first in the page (doc/NAVIGATION.md). -->
+						     words, first in the page (doc/LIBRARY.md, "The links band"). -->
 						<a
 							class="with-n"
 							href={resolve('/links')}

@@ -464,10 +464,24 @@ reload draws it for a moment until the page has hydrated and read the key
 (a client-side return to the library does not). Remembering it on the
 workstation would mean a cookie or a row read by `+page.server.ts`.
 
-**Where the review is reached once it is away**: a series' FIND
-(`/links?series=`), SETTINGS' Ranobe line while it has choices waiting, and
-the band again when one more arrives. Neither the sidebar nor MORE has a door
-to the whole review yet (c430's card assumed one; see its notes).
+**Where the review is reached once it is away**: **TO LINK** with its count,
+in the desktop sidebar's foot (after GET STARTED, before HISTORY) and in MORE
+(the same place) on the tablet, the phone and the TV, for as long as anything
+waits (c475); a series' FIND (`/links?series=`); SETTINGS' Ranobe line while
+it has choices waiting; and the band again when one more arrives. The row's
+count is the band's own sum (`linkQueueCount(reveal) + ranobeQueueCount()`,
+now also in the root layout's load, about a millisecond on the seed), so the
+two never disagree and a hidden series is not counted with reveal off.
+
+It says **TO LINK**, the review's own short heading, not SERIES TO LINK as
+c475's card wrote it: `links-flow.e2e.ts` finds the band as the first thing on
+the page reading SERIES TO LINK, and the sidebar comes before the band even
+where it is hidden. `tests/links-door.e2e.ts` puts the band away and reaches
+the review from the sidebar (desktop) and MORE (phone), on its own seeded
+database, then empties the queue through the review's own NONE OF THESE and
+SEARCH AGAIN and finds no row; `tests/tv-servers.e2e.ts` walks to MORE's row
+with the remote's keys. On a TV the sidebar is not drawn (it is the desktop's,
+a fine pointer at 1024 px or more), so MORE's row is the TV's door.
 `tests/library-top-scroll.e2e.ts` puts it away, reloads, adds a series to
 link and sees it back, on its own seeded database.
 
@@ -521,8 +535,10 @@ Specific and honest, so a deliberate gap isn't mistaken for an oversight:
 - **IMPORT LOG** in the desktop sidebar is shown, disabled, and goes nowhere.
   SETTINGS opens [`SETTINGS.md`](SETTINGS.md)'s screen.
 - **MORE** (card c171, Reach): on the tablet and phone, a cell after SELECT
-  opens the sidebar's foot as a sheet: HISTORY, DOWNLOADS with its queue,
-  SETTINGS with this device's changed count, IMPORT LOG (SOON). The desktop
+  opens the sidebar's foot as a sheet: GET STARTED while it is unfinished,
+  TO LINK while anything waits (c475), HISTORY, DOWNLOADS with its queue,
+  SETTINGS with this device's changed count, HELP, IMPORT LOG, and in the TV
+  app only, SERVERS (c261; [`TV-APP.md`](TV-APP.md), "Servers"). The desktop
   has the sidebar itself, so no MORE there (`MoreSheet.svelte`). To make room,
   a phone under 420px shows the search hint as / alone, as Reach draws it.
 - **A folded book** (one book in several languages) is one tile with its

@@ -339,10 +339,17 @@ the TV.
   opened SETTINGS gets a code made for it.
 - **Reaching the server**: on launch, an address handed to the app from
   outside (an `am start` extra or a `tsundoku://connect?url=` link, c260) is
-  probed first and opens the pairing at that address; a remembered address
-  that answers opens the library; one that stops answering shows 9D and keeps
-  probing; a first run with neither shows 9A. The address is remembered in
-  `SharedPreferences` once it answers, never before.
+  probed first and opens the pairing at that address (or its library, if it is
+  already one of the TV's servers); the last used server that answers opens
+  its library; one that stops answering shows 9D for it, with the TV's other
+  servers offered beside it, and keeps probing; a first run with neither shows
+  9A. An address is added to the TV's list of servers in `SharedPreferences`
+  once it answers, never before, and never in place of another.
+- **Servers** (c261): the TV keeps every server it has paired with, each
+  with its own cookie, and switches from MORE › SERVERS; adding one is 9B as
+  ADD A SERVER, and a launcher shortcut per server opens it (c287).
+  [`TV-APP.md`](TV-APP.md), "Servers", has the screens, the store and what is
+  not verified.
 - **Release**: `ops/release/tv-apk.sh <version>` builds the APK beside the
   bundles (release-signed from `TSUNDOKU_TV_*` when the keystore is there, a
   `-debug` APK otherwise) and adds it to the release folder's `SHA256SUMS`
