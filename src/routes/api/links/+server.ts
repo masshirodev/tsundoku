@@ -20,7 +20,7 @@ import {
 	unlink,
 	type QueuedFrom
 } from '$lib/server/catalogue';
-import { linkSeason, linkSeasons, offeredSeason, seasonRelations } from '$lib/server/season-links';
+import { linkPicks, linkSeason, seasonRelations } from '$lib/server/season-links';
 import { isAnime, parsePasted } from '$lib/library/catalogue';
 import { account } from '$lib/server/tracking';
 
@@ -127,19 +127,25 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 				);
 			return json({ candidate: asReviewCandidate(item, await readPasted(p, item.kind)) });
 		}
-		// LINK 3 SEASONS: every entry the relations page ticked, at once.
+		// LINK 3 SEASONS: every entry the relations page ticked, at once, each at
+		// its own part (a pair's part 2 is part 2's offer). The answer is what was
+		// written, and each pick refused with the season that holds its entry, so
+		// the page says the true count (c418).
 		if (Array.isArray(b.seasons) && b.seasons.length) {
 			if (!kind || !seasonal) error(400, 'only a season is linked this way');
 			const picks = b.seasons
-				.map((p) => {
-					const c = offeredSeason(seriesId, p.season, kind, p.anilistId);
-					return c ? { season: p.season, part: p.part ?? 1, candidate: c } : null;
-				})
-				.filter((p): p is NonNullable<typeof p> => p !== null);
-			if (!picks.length) error(409, 'not a candidate');
-			const linked = linkSeasons(seriesId, picks);
+				.filter((p) => Number.isInteger(p?.season) && Number.isInteger(p?.anilistId))
+				.map((p) => ({
+					season: p.season,
+					part: Number.isInteger(p.part) && (p.part ?? 0) > 0 ? Number(p.part) : 1,
+					anilistId: p.anilistId
+				}));
+			const { linked, refused } = linkPicks(seriesId, kind, picks);
+			// Nothing written is a refusal, as at every other link door; it still
+			// says which seasons, and why.
+			if (!linked.length) return json({ ok: false, linked: 0, refused }, { status: 409 });
 			recover(true);
-			return json({ ok: true, linked });
+			return json({ ok: true, linked: linked.length, refused });
 		}
 		if (typeof b.link === 'number') {
 			if (!kind) error(404, 'not found');

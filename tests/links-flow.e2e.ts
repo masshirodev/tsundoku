@@ -218,6 +218,25 @@ const ANIME_MEDIA: Media[] = [
 		season: 'FALL',
 		seasonYear: 2014
 	}),
+	// Beside SAO's chain, as AniList lists them (c351): a special that is its
+	// side story, and a TV spin-off whose 11 episodes agree with season 2's.
+	entry({
+		id: 9003,
+		idMal: 7003,
+		title: 'Sword Art Online: Extra Edition',
+		format: 'SPECIAL',
+		episodes: 1,
+		season: 'WINTER',
+		seasonYear: 2013
+	}),
+	entry({
+		id: 9004,
+		idMal: 7004,
+		title: 'Sword Art Online Alternative: Gun Gale Online',
+		episodes: 11,
+		season: 'SPRING',
+		seasonYear: 2018
+	}),
 	// A flat list's show (c423): the source gave its 12 episodes no season, so
 	// tsundoku has one season, numbered 0. AniList has the show and two sequels,
 	// and its search for the show's title lists all three, as it did for Ranma ½
@@ -248,9 +267,20 @@ const ANIME_MEDIA: Media[] = [
 	})
 ];
 // The chain the relations are walked along: S1 and S2 are each other's sequel.
-const RELATIONS: Record<number, { id: number; type: 'PREQUEL' | 'SEQUEL' }[]> = {
-	9001: [{ id: 9002, type: 'SEQUEL' }],
-	9002: [{ id: 9001, type: 'PREQUEL' }],
+// Every edge AniList lists is answered, not only the chain's: the manga S1 was
+// adapted from, its side story, S2's spin-off (and the spin-off's way back).
+const RELATIONS: Record<number, { id: number; type: string }[]> = {
+	9001: [
+		{ id: 9002, type: 'SEQUEL' },
+		{ id: 30024, type: 'ADAPTATION' },
+		{ id: 9003, type: 'SIDE_STORY' }
+	],
+	9002: [
+		{ id: 9001, type: 'PREQUEL' },
+		{ id: 9004, type: 'SPIN_OFF' }
+	],
+	9003: [{ id: 9001, type: 'PARENT' }],
+	9004: [{ id: 9002, type: 'SPIN_OFF' }],
 	9301: [{ id: 9302, type: 'SEQUEL' }],
 	9302: [
 		{ id: 9301, type: 'PREQUEL' },
@@ -317,7 +347,7 @@ function catalogue(query: string, variables: Record<string, unknown>) {
 			relations: {
 				edges: (RELATIONS[id] ?? []).map((rel) => ({
 					relationType: rel.type,
-					node: ANIME_MEDIA.find((e) => e.id === rel.id) ?? self
+					node: [...ANIME_MEDIA, ...COMIC_MEDIA].find((e) => e.id === rel.id) ?? self
 				}))
 			}
 		};
@@ -595,11 +625,43 @@ test.describe('a catalogue that answers', () => {
 		await expect(page.locator('.rels .ch div').first()).toHaveText(
 			'02 — THE REST OF THE SERIES ON ANILIST'
 		);
-		const offered = page.locator('.relbtn');
+		const offered = page.locator('.rel:not(.outside) .relbtn');
 		await expect(offered).toHaveCount(1);
 		await expect(offered.locator('.rno')).toHaveText('S1');
 		await expect(offered).toHaveAttribute('aria-pressed', 'true');
 		await expect(offered.locator('.rwhy')).toContainText('COUNT AGREES');
+		// The side story and the spin-off are listed after the seasons, dimmed and
+		// never ticked, though the spin-off is TV and its count agrees with season
+		// 2's (c351). The manga S1 was adapted from is not listed at all.
+		const outside = page.locator('.rel.outside .relbtn');
+		await expect(outside.locator('.rtitle')).toHaveText([
+			'Sword Art Online: Extra Edition',
+			'Sword Art Online Alternative: Gun Gale Online'
+		]);
+		await expect(outside.locator('.rmeta')).toHaveText([
+			'SIDE STORY · SPECIAL · 1 EP. · 2013',
+			'SPIN-OFF, NOT A SEQUEL · TV · 11 EP. · 2018'
+		]);
+		for (const b of await outside.all()) {
+			await expect(b).toBeDisabled();
+			await expect(b).toHaveAttribute('aria-pressed', 'false');
+		}
+		await expect(page.locator('.rels .ch div').nth(1)).toHaveText('1 OF 1 TICKED');
+		// Meanwhile (a second tab, say) season 1's entry is taken by season 2's
+		// part 2: LINK 1 SEASON is refused, and the page names the season and
+		// what holds its entry, from the workstation's answer (c418).
+		holdSeasonOneEntry(true);
+		try {
+			await page.getByRole('button', { name: 'LINK 1 SEASON' }).click();
+			await expect(page.locator('.band[role="alert"] .line')).toHaveText(
+				'NOTHING LINKED · SEASON 1 NOT LINKED · SEASON 2 PART 2 HOLDS ITS ENTRY'
+			);
+			expect(seasonLinks().filter((l) => l.season === 1)).toEqual([]);
+		} finally {
+			holdSeasonOneEntry(false);
+		}
+		// Nothing outside the numbering became a season's candidate.
+		expect(candidatesOf(ids.sao).filter((c) => [9003, 9004, 30024].includes(c))).toEqual([]);
 		await page.getByRole('button', { name: 'LINK 1 SEASON' }).click();
 		await page.waitForURL(new RegExp(`/series/${ids.sao}`));
 		// Both seasons linked, each with its own line and its own entry.
@@ -1173,6 +1235,38 @@ function trackerRows(
 				)
 				.all(id) as { season: number; part: number; service: string; status: string }[])
 		];
+	} finally {
+		db.close();
+	}
+}
+
+/** Season 2's part 2 holding season 1's entry, or no longer: the race c418's band is for. */
+function holdSeasonOneEntry(on: boolean): void {
+	const db = new Database(dbPath);
+	try {
+		if (on)
+			db.prepare(
+				`INSERT INTO series_season_links (series_id, season, part, anilist_id, mal_id, via, title, linked_at, resolved_at, format, episodes)
+				VALUES (?, 2, 2, 9001, 7001, 'review', 'Sword Art Online', ?, ?, 'TV', 12)`
+			).run(ids.sao, Date.UTC(2026, 10, 3), Date.UTC(2026, 10, 3));
+		else
+			db.prepare(
+				`DELETE FROM series_season_links WHERE series_id = ? AND season = 2 AND part = 2`
+			).run(ids.sao);
+	} finally {
+		db.close();
+	}
+}
+
+/** Every AniList id kept as a candidate of any season of a series. */
+function candidatesOf(id: number): number[] {
+	const db = new Database(dbPath, { readonly: true });
+	try {
+		return (
+			db.prepare(`SELECT anilist_id FROM season_link_candidates WHERE series_id = ?`).all(id) as {
+				anilist_id: number;
+			}[]
+		).map((r) => r.anilist_id);
 	} finally {
 		db.close();
 	}

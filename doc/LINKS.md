@@ -115,7 +115,9 @@ CHANGED`). A season's own entry linked again (a CHANGE to itself) is not
   and `found` counts them) and again at read time (`seasonCandidates`,
   `offeredSeason`), since season 1 may be linked after season 2 was
   searched. So season 2's item never offers season 1's entry, and LINK
-  refuses it whatever the page posts.
+  refuses it whatever the page posts. The relations page is the one place
+  such an entry is still shown, unticked and naming its holder (c418;
+  "The series screen", below), and it is never kept as a candidate there.
 
 ### Cleaning a title before it's searched
 
@@ -407,12 +409,34 @@ anime's LINK row is a line a season (c240; above).
   unchanged page and read as a refusal). Otherwise, after it, the page offers the rest of
   the show from the linked entry's AniList PREQUEL and SEQUEL relations, in
   order along the chain and ticked where the episode counts agree -- or
-  where two entries add up to the season as `PART 1` and `PART 2`. A movie
-  or a special standing on that chain is listed dimmed and never ticked; a
-  side story or a spin-off is not collected at all, because the walk follows
-  PREQUEL and SEQUEL edges only. A season already linked says `REPLACES …`
-  and is not ticked either. LINK N SEASONS writes them all
-  (`via 'relations'`), and NOT NOW leaves them.
+  where two entries add up to the season as `PART 1` and `PART 2`, part 1
+  being the one that aired first (not the longer one: SAO's War of
+  Underworld is 12 + 11). The walk asks two rings: the linked entry, then
+  its chain neighbours in one request, whose own PREQUEL and SEQUEL place
+  the second ring. AniList answers every edge an entry has, and a chain can
+  branch (a movie and the next TV season both SEQUEL of one entry) or loop
+  back, so each entry is placed once, where the walk first reaches it.
+  **Outside the numbering**, dimmed, never ticked and never kept as a
+  season's candidate (so LINK N SEASONS cannot reach one): a movie or a
+  special standing on the chain, and a `SIDE STORY` or `SPIN-OFF, NOT A
+SEQUEL` of any entry the walk asked about (c351, the design's `SPECIAL
+Sword Art Online: Extra Edition` and `SPIN-OFF Gun Gale Online`), whatever
+  its format or count: a TV spin-off of 24 episodes is still no season. A
+  side entry's own relations are not followed (Gun Gale Online's sequel is
+  its own), an entry on the chain is never listed beside it too, and the
+  other kinds (ADAPTATION, CHARACTER, SUMMARY, ALTERNATIVE and the rest) are
+  not listed. They come last, under the seasons. A season already linked
+  says `REPLACES …` and is not ticked either; its own entry offered back to
+  it says `ALREADY ITS LINK`. **An entry another season or part already
+  holds** is listed unticked, saying which (`SEASON 3 HOLDS THIS ENTRY ·
+NEVER TICKED`; c418), since `linkSeason` would refuse it, and a split
+  season with a held part is unticked whole. LINK N SEASONS writes the
+  ticked ones (`via 'relations'`, each at its own part, `linkPicks`) and
+  goes back to the series; when the workstation refused any (another tab
+  linked meanwhile), the page stays and its band is the answer, not the
+  ticks: `LINKED 1 OF 2 SEASONS · …` and `SEASON 2 NOT LINKED · SEASON 3
+HOLDS ITS ENTRY`, or `NOTHING LINKED · …` when none was. NOT NOW leaves
+  them.
 - **Not linked:** what the last pass found, then FIND (accent) and PASTE A
   LINK.
 - **COVER** says where the cover comes from and why the sources before it

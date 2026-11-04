@@ -16,7 +16,7 @@
 	import { offline } from '$lib/offline.svelte';
 	import type { QueuedFrom, ReviewCandidate } from '$lib/server/catalogue';
 	import type { RanobeReviewCandidate, Sibling } from '$lib/server/ranobe-review';
-	import type { RelationOffer } from '$lib/server/season-links';
+	import type { RefusedPick, RelationOffer } from '$lib/server/season-links';
 
 	/**
 	 * The link review (Link Review, Ranobe Review; doc/LINKS.md,
@@ -367,10 +367,16 @@
 		if (rows.length) sibs = { work: c.work, title: c.title, series: it.seriesId, rows, picked: [] };
 	}
 
-	/** LINK 3 SEASONS: the ticked entries written at once, then back to the series. */
+	/**
+	 * LINK 3 SEASONS: the ticked entries written at once, then back to the
+	 * series. The band is the workstation's answer, never the page's own ticks
+	 * (c418): a pick another season holds is refused there, and the page stays
+	 * to say which, with the true count.
+	 */
 	async function linkSeasonsNow() {
 		if (!item || busy || !relations || !pickedSeasons.length) return;
 		const it = item;
+		const before = { queue: [...queue], done };
 		const picks = relations
 			.filter((o) => o.ticked && !o.outside && pickedSeasons.includes(o.season))
 			.map((o) => ({ season: o.season, part: o.part, anilistId: o.anilistId }));
@@ -378,25 +384,40 @@
 		failed = null;
 		const r = await post(it.service, { series: it.seriesId, seasons: picks });
 		busy = false;
+		const a = (r ? await r.json().catch(() => ({})) : {}) as {
+			linked?: number;
+			refused?: RefusedPick[];
+		};
+		const refused = a.refused ?? [];
 		if (!r?.ok) {
-			failed = failText(r, it.service);
+			failed = refused.length
+				? `NOTHING LINKED · ${refusedLine(refused)}`
+				: failText(r, it.service);
 			return;
 		}
-		const n = relations.filter((o) => pickedSeasons.includes(o.season) && !o.outside).length;
+		const n = a.linked ?? 0;
 		relations = null;
-		if (single) {
+		if (single && !refused.length) {
 			await backToSeries(it.seriesId);
 			return;
 		}
-		queue = queue.slice(1);
-		done += 1;
+		if (!single) {
+			queue = queue.slice(1);
+			done += 1;
+		}
+		const of = n + refused.length;
 		undo = {
-			title: `LINKED ${n} SEASON${n === 1 ? '' : 'S'} · ${it.title.toUpperCase()}`,
-			detail: 'EACH SENDS ITS OWN EPISODES FROM THE NEXT ONE WATCHED',
+			title: `LINKED ${refused.length ? `${n} OF ${of}` : n} SEASON${of === 1 ? '' : 'S'} · ${it.title.toUpperCase()}`,
+			detail: refused.length
+				? refusedLine(refused)
+				: 'EACH SENDS ITS OWN EPISODES FROM THE NEXT ONE WATCHED',
 			undo: null,
-			before: { queue: [...queue], done: done - 1 }
+			before
 		};
 	}
+
+	/** "SEASON 1 NOT LINKED · SEASON 3 HOLDS ITS ENTRY", for each pick the workstation refused. */
+	const refusedLine = (refused: RefusedPick[]) => refused.map((p) => p.why).join(' · ');
 
 	/** A ticket on one of the seasons the relations offered. */
 	function toggleSeason(n: number) {
@@ -1178,7 +1199,9 @@
 				<div class="ch">
 					<div>02 — THE REST OF THE SERIES ON ANILIST</div>
 					<div>
-						{pickedSeasons.length} OF {relations.filter((o) => !o.outside).length} TICKED
+						{pickedSeasons.length} OF {new Set(
+							relations.filter((o) => !o.outside).map((o) => o.season)
+						).size} TICKED
 					</div>
 				</div>
 				<div class="relnotes">
@@ -1188,10 +1211,14 @@
 					<div>
 						A SEASON ALREADY LINKED TO SOMETHING ELSE SAYS “REPLACES …” AND IS NEVER TICKED.
 					</div>
+					<div>AN ENTRY ANOTHER SEASON HOLDS SAYS WHICH, AND IS NEVER TICKED.</div>
 				</div>
 				<div class="rellist">
 					{#each relations as o (`${o.season}:${o.part}:${o.anilistId}`)}
-						{@const on = pickedSeasons.includes(o.season) && !o.outside}
+						<!-- A ✓ only on an offer that can be ticked: never one outside the
+					     numbering (c351), nor one another season holds (c418), even when
+					     its season is ticked through another entry. -->
+						{@const on = pickedSeasons.includes(o.season) && o.ticked && !o.outside}
 						<div class="rel" class:on class:outside={o.outside}>
 							<button
 								type="button"
