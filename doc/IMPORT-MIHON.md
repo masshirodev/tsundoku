@@ -89,7 +89,10 @@ them. Deleting one of those series still trashes its files, as any delete does
   holds a `Mihon/`, for example `/mnt/hdd2/tsundoku/samples`. It prints what it
   did.
 
-Only one import runs at a time. A second start while one runs joins it. A job
+Only one import runs at a time. A second start while a scan runs joins it;
+while a backup's import (IMPORT A BACKUP, [`IMPORT.md`](IMPORT.md)) runs, it
+waits its turn and then scans in a job of its own, and START SCAN and RESCAN
+say so. A job
 left unfinished by a process that died (a crash, or a restart for an update)
 is closed when the app next starts (`init` in `src/hooks.server.ts`), and by
 the next import too. Until it is, the library believes it is still importing:

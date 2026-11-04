@@ -102,6 +102,7 @@ Nothing is written while a file is read. `readBackupFile`
 | a zip (`PK`)                         | NOT A BACKUP · A ZIP · LNREADER BACKUPS ARE NOT READ YET                      |
 | not gzipped                          | NOT A MIHON BACKUP: A .tachibk IS GZIPPED, THIS ISN'T                         |
 | gzip that does not end               | A .tachibk THAT ISN'T WHOLE (CUT OFF IN THE COPY)                             |
+| gzip that unpacks past 1000 MB       | IT UNPACKS TO MORE THAN THE 1000 MB A BACKUP MAY HOLD                         |
 | gzip whose contents are not protobuf | ITS CONTENTS DON'T READ AS A BACKUP                                           |
 | Aniyomi's (see below)                | AN ANIYOMI BACKUP · ANIYOMI IS NOT READ YET                                   |
 | no manga and no categories           | NO LIBRARY IN IT: NOT A MIHON BACKUP                                          |
@@ -110,6 +111,10 @@ Nothing is written while a file is read. `readBackupFile`
 
 Every refusal ends NOTHING CHANGED and is shown on the pick screen with a 3px
 ink rule, as a failed row is everywhere.
+
+The unpacked size is capped (`MAX_RAW_BYTES`, ten times the upload's 100 MB):
+the upload is foreign input, and a small gzip of zeros would otherwise inflate
+to gigabytes in the server's memory on every preview.
 
 ### Which app
 
@@ -181,7 +186,10 @@ newest earlier finished import of the same app is the same library when at
 least half of the series it brought are in this file (`sameLibraryAs`). A
 library that grew keeps all of the old one's series; a friend's other phone or
 someone else's backup shares few. A different library is never called the
-same (`tests/import-upload-db.spec.ts`).
+same (`tests/import-upload-db.spec.ts`). What is already here, and what the earlier import
+brought, are read through reveal (`libraryFacts`): with it off, a hidden
+series counts as neither ALREADY HERE nor GONE, so the preview never says one
+exists.
 
 ## IMPORT
 
@@ -193,8 +201,24 @@ writer every importer uses, into the `Mihon` root at `<library>/Mihon`
 
 - **One import or scan at a time.** An import chosen while a scan or another
   import runs waits (`waiting`), and says so on its page, on the confirm bar
-  and in the log; it starts when the running one ends. (A RESCAN pressed while
-  an import runs joins the running job, as a second RESCAN always has.)
+  and in the log; it starts when the running one ends. A scan asked for while
+  a backup's import runs or waits (START SCAN, RESCAN, `/api/scan`, the search
+  `scan` command, a download's import) **waits its turn too**, then reads the
+  library folder in a job of its own: START SCAN and RESCAN say `WAITING · THE
+SCAN STARTS WHEN THE BACKUP’S IMPORT ENDS` (`SCAN_WAITS`), and `/api/scan`
+  answers `waiting: true`. Only a running _scan_ is joined, by a second scan;
+  a second scan asked for while one waits joins the waiting one. `runImport`
+  keeps which kind of job runs (`runningScan`) for this.
+- **An import whose process died is stopped.** Only this process's promise
+  moves a row on from `running` or `waiting`, and the queue a `waiting` row
+  waits in is in memory. So `backup.ts` keeps the ids it has queued or is
+  running, and a row in either state that is not among them (left by a
+  restart or a crash) is closed as `failed` with its `finished_at` wherever
+  rows are read (`importRow`, `importLog`, `liveImport`; `closeDeadImports`):
+  its page says STOPPED with what it wrote, and the log no longer pins it.
+  Never from `run()`'s `closeDeadJobs`, where a second import is rightly
+  waiting while the first one's job opens. Its `scan_jobs` row is closed by
+  `closeDeadJobs` as any dead job's is.
 - **A second backup merges** by the importer's rescan rule
   ([`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Rescanning"): it adds and updates,
   removes nothing, read state only moves forward, and what the owner set here
