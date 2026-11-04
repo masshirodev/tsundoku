@@ -141,6 +141,8 @@
 	let pasteText = $state('');
 	let pasted = $state<Cand | null>(null);
 	let pasteNote = $state<string | null>(null);
+	/** A pasted entry another season holds (c418): said so, and LINK stays dimmed. */
+	let pastedHeld = $state<string | null>(null);
 
 	/** THE SAME WORK FOR THESE? (1b): after a Ranobe LINK, until decided. */
 	let sibs = $state<{
@@ -159,6 +161,7 @@
 		shown = k;
 		chosen = null;
 		pasted = null;
+		pastedHeld = null;
 		pasteText = '';
 		pasteNote = null;
 		searching = false;
@@ -606,6 +609,7 @@
 	let reading = 0;
 	async function readPaste(text: string) {
 		pasteText = text;
+		pastedHeld = null;
 		if (!item) return;
 		const it = item;
 		const r1 = it.service === 'ranobe';
@@ -647,18 +651,21 @@
 					: 'NO SUCH ANILIST ENTRY';
 			return;
 		}
-		const { candidate } = (await r.json()) as { candidate: Cand };
+		const { candidate, held } = (await r.json()) as { candidate: Cand; held?: string | null };
 		pasted = candidate;
 		chosen = keyOf(candidate);
 		nonet = null;
+		pastedHeld = held ?? null;
 		pasteNote =
 			'work' in candidate
 				? `READ AS RANOBE ${candidate.work.toUpperCase()} · ITS ${langName('en')} EDITION IS TAKEN, OR SUGGESTED, IN THE NEXT PASS`
-				: `READ AS ANILIST ${candidate.anilistId} · ONLY THE ID WAS SENT, NEVER THE TITLE`;
+				: (pastedHeld ??
+					`READ AS ANILIST ${candidate.anilistId} · ONLY THE ID WAS SENT, NEVER THE TITLE`);
 	}
 	function cancelPaste() {
 		pasting = false;
 		pasted = null;
+		pastedHeld = null;
 		pasteText = '';
 		pasteNote = null;
 		chosen = null;
@@ -710,7 +717,7 @@
 					label: named ? `LINK ${selectedLetter} TO SEASON ${named.no}` : `LINK ${selectedLetter}`,
 					run: linkChosen,
 					strong: true,
-					dim: off
+					dim: off || (!!pasted && !!pastedHeld)
 				}
 			: { label: 'TAP ONE TO LINK', run: () => {}, dim: true };
 		if (pasted) return [{ label: 'CANCEL', run: cancelPaste, dim: off }, link];

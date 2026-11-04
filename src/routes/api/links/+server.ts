@@ -20,7 +20,13 @@ import {
 	unlink,
 	type QueuedFrom
 } from '$lib/server/catalogue';
-import { linkPicks, linkSeason, seasonRelations } from '$lib/server/season-links';
+import {
+	holdsLine,
+	linkPicks,
+	linkSeason,
+	seasonHolding,
+	seasonRelations
+} from '$lib/server/season-links';
 import { isAnime, parsePasted } from '$lib/library/catalogue';
 import { account } from '$lib/server/tracking';
 
@@ -125,7 +131,13 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 						? 'not an AniList or MAL anime link'
 						: 'not an AniList or MAL manga link'
 				);
-			return json({ candidate: asReviewCandidate(item, await readPasted(p, item.kind)) });
+			const candidate = asReviewCandidate(item, await readPasted(p, item.kind));
+			// A pasted entry another season of the show holds is read, and said to
+			// be held, since LINK would refuse it (c418): the paste is a door that
+			// offers a season an entry too.
+			const heldBy =
+				seasonal && season !== undefined ? seasonHolding(seriesId, season, part, candidate) : null;
+			return json({ candidate, held: heldBy ? `${holdsLine(heldBy)} · LINK REFUSES IT` : null });
 		}
 		// LINK 3 SEASONS: every entry the relations page ticked, at once, each at
 		// its own part (a pair's part 2 is part 2's offer). The answer is what was

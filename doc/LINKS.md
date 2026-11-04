@@ -115,9 +115,11 @@ CHANGED`). A season's own entry linked again (a CHANGE to itself) is not
   and `found` counts them) and again at read time (`seasonCandidates`,
   `offeredSeason`), since season 1 may be linked after season 2 was
   searched. So season 2's item never offers season 1's entry, and LINK
-  refuses it whatever the page posts. The relations page is the one place
-  such an entry is still shown, unticked and naming its holder (c418;
-  "The series screen", below), and it is never kept as a candidate there.
+  refuses it whatever the page posts. Two doors still show such an entry,
+  each saying which season holds it (c418): the relations page, unticked and
+  never kept as a candidate ("The series screen", below), and PASTE A LINK,
+  which reads any entry and, for one another season holds, says
+  `SEASON 2 HOLDS THIS ENTRY · LINK REFUSES IT` and keeps LINK dimmed.
 
 ### Cleaning a title before it's searched
 

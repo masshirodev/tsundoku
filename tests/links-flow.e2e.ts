@@ -684,6 +684,24 @@ test.describe('a catalogue that answers', () => {
 		await expect(page.locator('.track-row .tl-l').first()).toHaveText(
 			'NOT SIGNED IN · NOTHING SENT'
 		);
+		// A pasted link is a door that offers a season an entry too (c418):
+		// season 2's entry pasted on season 1 is read, said to be held, and its
+		// LINK stays dimmed.
+		await page.goto(`${BASE}/links?series=${ids.sao}&season=1`);
+		await page.getByRole('button', { name: 'PASTE A LINK' }).click();
+		await page.getByLabel('AniList or MAL link').fill('https://anilist.co/anime/9002');
+		await expect(page.locator('.fnote.last')).toHaveText(
+			'SEASON 2 HOLDS THIS ENTRY · LINK REFUSES IT'
+		);
+		await expect(page.locator('.actions button').last()).toHaveText(/^LINK [A-Z] TO SEASON 1$/);
+		await expect(page.locator('.actions button').last()).toBeDisabled();
+		// Its own entry pasted back is not held: a CHANGE to itself.
+		await page.getByLabel('AniList or MAL link').fill('https://anilist.co/anime/9001');
+		await expect(page.locator('.fnote.last')).toHaveText(
+			'READ AS ANILIST 9001 · ONLY THE ID WAS SENT, NEVER THE TITLE'
+		);
+		await expect(page.locator('.actions button').last()).toBeEnabled();
+		expect(seasonLinks()).toEqual(written);
 	});
 
 	test('a sheet edit on a one-season anime in two parts goes to one part (c240)', async ({

@@ -920,6 +920,10 @@ const SIDE: Record<string, string> = {
 	SPIN_OFF: 'SPIN-OFF, NOT A SEQUEL'
 };
 
+/** "SEASON 3 HOLDS THIS ENTRY": what a door offering a held entry says of it (c418). */
+export const holdsLine = (h: { season: number; part: number }): string =>
+	`${seasonWords(h)} HOLDS THIS ENTRY`;
+
 /** Side stories before spin-offs, as the design lists them; the chain's own first. */
 const sideOrder = (how: string) => Object.values(SIDE).indexOf(how);
 
@@ -1085,7 +1089,7 @@ export async function seasonRelations(
 		if (held) {
 			o.ticked = false;
 			o.heldBy = held;
-			o.why = `${seasonWords(held)} HOLDS THIS ENTRY · NEVER TICKED`;
+			o.why = `${holdsLine(held)} · NEVER TICKED`;
 		}
 	}
 	// One season in two parts is ticked as one: a held part unticks its pair.
