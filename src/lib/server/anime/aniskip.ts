@@ -1,12 +1,13 @@
 import type Database from 'better-sqlite3';
 import { getDb } from '../db.ts';
-import { lookupRow, needsLookup, saveAttempt, saveMark } from './marks.ts';
+import { lookupRow, needsLookup, ownEntry, saveAttempt, saveMark } from './marks.ts';
 import type { Range } from '../../library/streams.ts';
 
 /**
  * AniSkip (doc/ANIME.md, "Openings and endings"; card c239): the community's
- * opening and ending times, keyed by MyAnimeList id and episode number. It is
- * asked only for a series linked to a MAL entry, never for a hidden one, and
+ * opening and ending times, keyed by MyAnimeList **anime** id and episode
+ * number. It is asked only for a series linked to an anime's MAL entry (a
+ * manga's id is another show to AniSkip, c395), never for a hidden one, and
  * only once: a 404 is an answer too, and is remembered for
  * `ANISKIP_RETRY_MS` (a new episode of a running show may be added later).
  *
@@ -61,9 +62,11 @@ export function aniSkipUrl(malId: number, episode: number, lengthS: number): str
 
 /**
  * Asks AniSkip for one episode, if there is anything to ask. Returns whether
- * it answered with a mark. A hidden series, a series with no MAL link, a
- * season beyond the first (links are per series until c240) and an episode
- * whose length or number isn't known are all quietly left alone.
+ * it answered with a mark. A hidden series, a series with no MAL link, a link
+ * whose entry is not an anime's (or whose format isn't known yet), a season
+ * beyond the first (`series_links` mirrors season 1's link, c240) and an
+ * episode whose length or number isn't known are all quietly left alone, with
+ * no row written: nothing was asked, so there is nothing to remember.
  *
  * `durationS` is the length the caller has just measured or probed, when the
  * episode hasn't stored one yet: AniSkip needs it to place an ending.
@@ -79,8 +82,11 @@ export async function lookupAniSkip(
 	// Hidden means hidden: never looked up, even while reveal is on (doc/LINKS.md).
 	if (row.hidden) return false;
 	if (row.mal_id === null || row.mal_id <= 0) return false;
-	// A link is the series', and a MAL entry is one season. Until c240 links a
-	// season, only the first (or a flat list) can be the entry it names.
+	// No anime link, no lookup (c395): a manga's MAL id is an unrelated anime's
+	// to AniSkip, and its answer would outrank the episode's own fingerprint.
+	if (!ownEntry(row.kind, row.format)) return false;
+	// A MAL entry is one season, and `series_links` mirrors the first season's
+	// link (c240, `syncSeriesLink`): AniSkip refuses a season past the first.
 	if (row.season !== null && row.season > 1) return false;
 	const episode = row.episode_number ?? (row.season === null ? row.position : null);
 	if (episode === null || !Number.isFinite(episode) || episode <= 0) return false;

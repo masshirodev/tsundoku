@@ -36,11 +36,19 @@
 		STALL_S,
 		stallStep,
 		SUB_SIZES,
+		cleanVolume,
+		verticalFraction,
+		KEY_STEP,
+		WHEEL_STEP,
+		spriteTile,
+		type Sprite,
 		subtitlePx,
 		type Cue,
 		type SubSize
 	} from '$lib/library/player';
 	import { coverSrc, readHref } from '$lib/library/links';
+	import { nearFrame, PREVIEW_DEBOUNCE_MS, previewQuality, StreamPreview } from './seek-preview';
+	import { canPip, copyStyles, documentPip, moveBack, moveInto, srclang } from './pip';
 	import Cover from '$lib/components/content/Cover.svelte';
 	import { count as grouped, kindLabel, unitLabel } from '$lib/library/labels';
 	import { kindVerb, type WorkEnd, type WorkNextPart } from '$lib/library/works';
@@ -87,6 +95,8 @@
 		src: string;
 		audio: Track[];
 		subtitles: Track[];
+		/** A downloaded file's seek preview, once the workstation has made it (c385). */
+		sprite?: Sprite | null;
 	};
 	type Server = { n: number; name: string; qualities: Quality[] };
 	type Streams = {
@@ -224,7 +234,7 @@
 			// Offline: the choice lasts this episode.
 		});
 	};
-	// Quality and dim are this device's, stamped for the workstation's copy (settings/local.ts).
+	// Quality, dim and volume are this device's, stamped for the workstation's copy (settings/local.ts).
 	const load = <T,>(k: string, fallback: T): T => readLocal(k, fallback);
 	const save = (k: string, v: Json) => writeLocal(k, v);
 	let audioLang = $state<string | null>(null);
@@ -935,7 +945,10 @@
 		// and goes with the lift (a touch's pointerleave follows its pointerup).
 		if (e.pointerType !== 'mouse') {
 			const f = scrubFraction(e);
-			if (f !== null && duration) hoverAt = f * duration;
+			if (f !== null && duration) {
+				hoverAt = f * duration;
+				wantPreview(hoverAt);
+			}
 		}
 		scrubTo(e);
 	}
@@ -943,7 +956,168 @@
 		const f = scrubFraction(e);
 		if (f === null || !duration) return;
 		hoverAt = f * duration;
+		wantPreview(hoverAt);
 		if (e.buttons & 1) scrubTo(e);
+	}
+
+	// ---- the seek preview (c385; doc/ANIME.md, "The player") ------------------------------------
+	// A downloaded episode shows its sprite's tile in the tip, once the
+	// workstation has cut it; until then, and for a downloaded episode always,
+	// the time alone. A stream shows a frame of its own lowest quality, read by
+	// a hidden second picture only while the pointer is on the bar (seek-preview.ts).
+	const sprite = $derived<Sprite | null>(quality?.sprite ?? null);
+	let preview: StreamPreview | null = null;
+	let previewOf = '';
+	let previewTimer: ReturnType<typeof setTimeout> | undefined;
+	let previewAsk = 0;
+	/** A stream's last frame, and the time it was drawn for: shown only near it (`nearFrame`). */
+	let streamPic = $state<{ src: string; at: number } | null>(null);
+	function wantPreview(at: number) {
+		// The downloaded server (0) has a file: its sprite, or nothing to fetch.
+		if (sprite || !server || server.n === 0) return;
+		const q = previewQuality(server.qualities);
+		if (!q) return;
+		clearTimeout(previewTimer);
+		previewTimer = setTimeout(async () => {
+			if (!preview || previewOf !== q.src) {
+				preview?.destroy();
+				const { default: HlsClass } = await import('hls.js');
+				preview = new StreamPreview(q, HlsClass);
+				previewOf = q.src;
+			}
+			const ask = ++previewAsk;
+			const pic = await preview.frameAt(at);
+			// A later stop, or the pointer gone: this one is nobody's now.
+			if (ask !== previewAsk || hoverAt === null) return;
+			streamPic = pic ? { src: pic, at } : null;
+		}, PREVIEW_DEBOUNCE_MS);
+	}
+	// ---- picture-in-picture (c388; doc/ANIME.md, "The player"; pip.ts) ------------------------
+	let stage = $state<HTMLElement | null>(null);
+	let pipWin: Window | null = null;
+	/** The picture layer is in a Document Picture-in-Picture window. */
+	let inDocPip = $state(false);
+	/** The <video> alone is in the browser's own picture-in-picture: the native track shows. */
+	let inNativePip = $state(false);
+	let pipable = $state(false);
+	/** The subtitles chosen, as a native track for the browser's own PiP to draw. */
+	const pipTrack = $derived(quality?.subtitles.find((t) => t.lang === subLang) ?? null);
+	let trackEl = $state<HTMLTrackElement | null>(null);
+	$effect(() => {
+		// Showing always, for whichever PiP window reads it, whether or not
+		// the browser says it opened; drawn invisibly on the page (`cueless`)
+		// except while it says its PiP has the picture (pip.ts).
+		const el = trackEl;
+		if (el?.track) el.track.mode = 'showing';
+	});
+	/**
+	 * PIP: the picture layer into a floating window of its own, where Document
+	 * Picture-in-Picture exists, else the <video> into the browser's own. A
+	 * second press brings it back.
+	 */
+	async function pip() {
+		if (pipWin) {
+			closePip();
+			return;
+		}
+		if (document.pictureInPictureElement) {
+			await document.exitPictureInPicture().catch(() => undefined);
+			return;
+		}
+		const api = documentPip();
+		if (api && stage) {
+			const box = stage.getBoundingClientRect();
+			let w: Window;
+			try {
+				w = await api.requestWindow({
+					width: Math.max(320, Math.round(box.width / 2)),
+					height: Math.max(180, Math.round(box.height / 2))
+				});
+			} catch {
+				return;
+			}
+			copyStyles(document, w.document);
+			w.document.title = document.title;
+			moveInto(w, stage);
+			pipWin = w;
+			inDocPip = true;
+			pipInputOff = pipInput(w);
+			// The window's own close button, or the browser closing it: the picture comes back.
+			w.addEventListener('pagehide', putBack, { once: true });
+			return;
+		}
+		if (video && canPip()) await video.requestPictureInPicture().catch(() => undefined);
+	}
+	/** The browser's own PiP opening and closing on the <video> (its own button, or PIP). */
+	function nativePipEvents(el: HTMLVideoElement) {
+		const on = () => (inNativePip = true);
+		const off = () => (inNativePip = false);
+		el.addEventListener('enterpictureinpicture', on);
+		el.addEventListener('leavepictureinpicture', off);
+		return () => {
+			el.removeEventListener('enterpictureinpicture', on);
+			el.removeEventListener('leavepictureinpicture', off);
+		};
+	}
+	let pipInputOff: (() => void) | null = null;
+	/**
+	 * The floating window's own input (round 2 of c388). The tapzone's
+	 * pointer handlers are Svelte's delegated ones, whose one listener is on
+	 * the page's root, and the keys are the page's window: neither hears the
+	 * floating window's document. So the window gets native listeners of its
+	 * own, removed when the picture comes back: a click on the picture plays
+	 * or pauses as it does on the page, and the player's keys work with the
+	 * window focused, except Escape, which brings the picture back rather
+	 * than leaving the page behind it.
+	 */
+	function pipInput(w: Window): () => void {
+		// Not `instanceof w.Element`: a node moved in keeps the page's prototypes.
+		const zoneOf = (e: Event) =>
+			((e.target as Element | null)?.closest?.('.tapzone') as HTMLElement | null) ?? null;
+		const down = (e: PointerEvent) => {
+			if (zoneOf(e)) pressed = { x: e.clientX, y: e.clientY };
+		};
+		const up = (e: PointerEvent) => {
+			const zone = zoneOf(e);
+			if (zone) pictureTap(e, zone);
+		};
+		const key = (e: KeyboardEvent) => {
+			if (e.key === 'Escape' && !keysOpen && !sheet) {
+				e.preventDefault();
+				closePip();
+			} else keydown(e);
+		};
+		w.document.addEventListener('pointerdown', down);
+		w.document.addEventListener('pointerup', up);
+		w.addEventListener('keydown', key);
+		return () => {
+			w.document.removeEventListener('pointerdown', down);
+			w.document.removeEventListener('pointerup', up);
+			w.removeEventListener('keydown', key);
+		};
+	}
+	/** The picture layer back in its place: the player's first child, as the markup has it. */
+	function putBack() {
+		pipInputOff?.();
+		pipInputOff = null;
+		if (stage && root) moveBack(root, stage);
+		pipWin = null;
+		inDocPip = false;
+	}
+	/** Every door out of PiP: PIP again, NEXT, leaving the page. Never a dead window. */
+	function closePip() {
+		const w = pipWin;
+		putBack();
+		w?.close();
+	}
+
+	/** The pointer left the bar (a touch's lift too): nothing more is fetched or shown. */
+	function leaveScrub() {
+		hoverAt = null;
+		clearTimeout(previewTimer);
+		previewAsk++;
+		preview?.stop();
+		streamPic = null;
 	}
 
 	// Taps on the picture: on a touch screen one shows or hides the controls,
@@ -960,7 +1134,7 @@
 	let flashTimer: ReturnType<typeof setTimeout> | undefined;
 	/** Where the press began: a pointer that wandered is a drag, not a click. */
 	let pressed: { x: number; y: number } | null = null;
-	function pictureTap(e: PointerEvent) {
+	function pictureTap(e: PointerEvent, zone = e.currentTarget as HTMLElement) {
 		const kind = e.pointerType === 'mouse' ? 'mouse' : 'touch';
 		if (kind === 'mouse') {
 			mouse = true;
@@ -970,7 +1144,7 @@
 		const tap = isTap(pressed, at);
 		pressed = null;
 		if (!tap) return;
-		const box = (e.currentTarget as HTMLElement).getBoundingClientRect();
+		const box = zone.getBoundingClientRect();
 		const x = (at.x - box.left) / box.width;
 		const side: -1 | 0 | 1 = x < 1 / 3 ? -1 : x > 2 / 3 ? 1 : 0;
 		const now = Date.now();
@@ -1085,8 +1259,8 @@
 		if (k === ' ') toggle();
 		else if (k === 'ArrowLeft') seekArrow(-10);
 		else if (k === 'ArrowRight') seekArrow(10);
-		else if (k === 'ArrowUp') setVolume(Math.min(1, volume + 0.1));
-		else if (k === 'ArrowDown') setVolume(Math.max(0, volume - 0.1));
+		else if (k === 'ArrowUp') setVolume(volume + KEY_STEP);
+		else if (k === 'ArrowDown') setVolume(volume - KEY_STEP);
 		else if (k === 'f' || k === 'F') void full();
 		else if (k === 'm' || k === 'M') setMuted(!muted);
 		else if (k === 'c' || k === 'C') setSub(subLang ? null : (quality?.subtitles[0]?.lang ?? null));
@@ -1101,9 +1275,44 @@
 		showChrome();
 	}
 
+	const VOLUME_KEY = 'tsundoku:anime:volume';
+	/**
+	 * The one door every volume change goes through (c385): the slider, the
+	 * wheel and ↑ ↓. The level is this device's and the next episode starts at
+	 * it; mute is never written, so a muted episode can't leave the next one
+	 * silent. Setting a level above 0 unmutes, as a slider moved while muted
+	 * would otherwise move nothing anyone can hear.
+	 */
 	function setVolume(v: number) {
-		volume = v;
-		if (video) video.volume = v;
+		volume = cleanVolume(v);
+		if (video) video.volume = volume;
+		save(VOLUME_KEY, volume);
+		if (muted && volume > 0) setMuted(false);
+	}
+	/** The VOL cell's slider (c385): a pointer's, so it has no key handler; ↑ ↓ are the keys. */
+	let volOpen = $state(false);
+	function volAt(e: PointerEvent) {
+		const el = e.currentTarget as HTMLElement;
+		const box = el.getBoundingClientRect();
+		setVolume(verticalFraction(e.clientY, { top: box.top, height: box.height }));
+	}
+	function volDown(e: PointerEvent) {
+		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+		volAt(e);
+	}
+	function volMove(e: PointerEvent) {
+		if (e.buttons & 1) volAt(e);
+	}
+	/** The wheel over the cell or its slider steps 5 %; not passive, so the page doesn't scroll. */
+	function volWheel(node: HTMLElement) {
+		const onWheel = (e: WheelEvent) => {
+			if (!e.deltaY) return;
+			e.preventDefault();
+			setVolume(volume + (e.deltaY < 0 ? WHEEL_STEP : -WHEEL_STEP));
+			showChrome();
+		};
+		node.addEventListener('wheel', onWheel, { passive: false });
+		return () => node.removeEventListener('wheel', onWheel);
 	}
 	function setMuted(m: boolean) {
 		muted = m;
@@ -1217,18 +1426,31 @@
 	onMount(() => {
 		subSize = startTracks({ audio: [], subs: [], ...data.player }).subsize;
 		dim = load<number>('tsundoku:anime:dim', 0);
+		// Read once, before the stream starts, so the first frame is already at it.
+		volume = cleanVolume(load<unknown>(VOLUME_KEY, 1));
+		if (video) video.volume = volume;
 		device = navigator.language;
 		mouse = matchMedia('(pointer: fine)').matches;
+		pipable = canPip();
 		void start();
 		const close = () => opened && void send('close');
 		addEventListener('pagehide', close);
-		return () => removeEventListener('pagehide', close);
+		return () => {
+			removeEventListener('pagehide', close);
+			// NEXT and leaving the page destroy the player: the picture comes back
+			// first, and the floating window goes with it rather than staying
+			// empty (c388). Here and not in onDestroy, which runs on the server too.
+			closePip();
+			if (document.pictureInPictureElement === video)
+				void document.exitPictureInPicture().catch(() => undefined);
+		};
 	});
 	onDestroy(() => {
 		if (opened) void send('close');
 		detach();
+		preview?.destroy();
 		for (const t of [waitTimer, checkTimer, stallTimer, countTimer]) clearInterval(t);
-		for (const t of [hideTimer, flashTimer]) clearTimeout(t);
+		for (const t of [hideTimer, flashTimer, previewTimer]) clearTimeout(t);
 	});
 
 	// The tracks to start with, once the source says which it has (startTracks:
@@ -1343,6 +1565,33 @@
 	{/if}
 {/snippet}
 
+<!-- The scrubber's tip (c387, c385): the time under the pointer, and above it
+     the frame there when there is one, kept inside the track. -->
+{#snippet tip(at: number)}
+	{@const tile = sprite ? spriteTile(sprite, at) : null}
+	{@const still = streamPic && nearFrame(streamPic.at, at, duration) ? streamPic.src : null}
+	{@const pic = !!tile || !!still}
+	<div
+		class="tip"
+		class:pic
+		style:left="clamp({pic ? 'var(--tip-half)' : '0px'}, {pct(at)}, calc(100% - {pic
+			? 'var(--tip-half)'
+			: '0px'}))"
+	>
+		{#if sprite && tile}
+			<div
+				class="frame"
+				style:width="{sprite.w}px"
+				style:height="{sprite.h}px"
+				style:background-image="url({sprite.src})"
+				style:background-position="{-tile.x}px {-tile.y}px"
+			></div>
+		{:else if still}
+			<div class="frame" style:background-image="url({still})"></div>
+		{/if}<span class="at">{clock(at)}</span>
+	</div>
+{/snippet}
+
 {#snippet workCard()}
 	{#if workNext && work}
 		<!-- The Work's next part, where the end card is (Work-EndStates 3): no
@@ -1386,12 +1635,18 @@
 	onfocusin={onFocusIn}
 	onpointermove={pointerMoved}
 >
-	<div class="stage">
-		<!-- No <track>: subtitles are drawn by tsundoku from the WebVTT (Anime Calls, "Subtitles"). -->
+	<div class="stage" bind:this={stage}>
+		<!-- Subtitles are drawn by tsundoku from the WebVTT (Anime Calls, "Subtitles"), in the
+		     page and in a Document Picture-in-Picture window alike. The <track> is the same
+		     WebVTT for the browser's own picture-in-picture only, which moves the <video>
+		     alone: always showing, its cues drawn invisibly on the page except while the
+		     browser says that is open (c388, pip.ts). -->
 		<video
 			bind:this={video}
 			bind:paused
 			playsinline
+			class:cueless={!inNativePip}
+			{@attach nativePipEvents}
 			ontimeupdate={onTime}
 			ondurationchange={onDuration}
 			onwaiting={onWaiting}
@@ -1400,7 +1655,19 @@
 				(buffered = video ? bufferedTo(rangesOf(video.buffered), video.currentTime) : 0)}
 			onended={onEnded}
 			onerror={() => phase === 'playing' && !hls && void fail()}
-		></video>
+		>
+			{#if pipTrack}
+				{#key pipTrack.src}
+					<track
+						bind:this={trackEl}
+						kind="subtitles"
+						src={pipTrack.src}
+						srclang={srclang(pipTrack.lang)}
+						label={langName(pipTrack.lang)}
+					/>
+				{/key}
+			{/if}
+		</video>
 		<button
 			type="button"
 			class="tapzone"
@@ -1423,6 +1690,14 @@
 			</div>
 		{/if}
 	</div>
+
+	{#if inDocPip}
+		<!-- The picture is in its own window: the page says so where it was (c388). -->
+		<div class="pipnote" role="status">
+			<div>IN PICTURE-IN-PICTURE</div>
+			<div class="mut">PIP · ON BRINGS IT BACK</div>
+		</div>
+	{/if}
 
 	{#if phase === 'playing'}
 		{#if resumedAt !== null}
@@ -1577,7 +1852,7 @@
 					aria-valuetext={clock(time)}
 					onpointerdown={scrubDown}
 					onpointermove={scrubMove}
-					onpointerleave={() => (hoverAt = null)}
+					onpointerleave={leaveScrub}
 					onclick={(e) => {
 						// OK on the pad clicks the focused thing (the layer's OK press), and
 						// the bar is an arrow stop since c296. A pointer's click on the bar is
@@ -1593,7 +1868,7 @@
 					<div class="thumb" style:left={pct(time)}></div>
 					{#if hoverAt !== null}
 						<div class="hover" style:left={pct(hoverAt)}></div>
-						<div class="tip" style:left={pct(hoverAt)}>{clock(hoverAt)}</div>
+						{@render tip(hoverAt)}
 					{/if}
 				</div>
 				<div class="l">{leftLabel(time, duration)}</div>
@@ -1624,10 +1899,54 @@
 				<button type="button" class="cell" disabled={!prev} onclick={playPrev}
 					>{prev ? `← ${epShort(prev)}` : '←'}</button
 				>
-				<button type="button" class="cell desk" onclick={() => setMuted(!muted)}
-					>{muted ? 'MUTED' : `VOL ${Math.round(volume * 100)}%`}</button
+				<!-- VOL (c385): the label mutes, as before; hovering or clicking it opens
+				     the slider above it, and the wheel over either steps 5 %. -->
+				<div
+					class="vol desk"
+					class:open={volOpen}
+					role="group"
+					aria-label="Volume"
+					onpointerleave={() => (volOpen = false)}
+					{@attach volWheel}
 				>
+					<button
+						type="button"
+						class="cell"
+						aria-label={muted ? 'Unmute' : 'Mute'}
+						onclick={() => {
+							setMuted(!muted);
+							volOpen = true;
+						}}>{muted ? 'MUTED' : `VOL ${Math.round(volume * 100)}%`}</button
+					>
+					<div class="volpop">
+						<div
+							class="vtrack"
+							role="slider"
+							tabindex="-1"
+							aria-label="Volume"
+							aria-orientation="vertical"
+							aria-valuemin={0}
+							aria-valuemax={100}
+							aria-valuenow={Math.round(volume * 100)}
+							aria-valuetext={muted ? 'Muted' : `${Math.round(volume * 100)}%`}
+							onpointerdown={volDown}
+							onpointermove={volMove}
+						>
+							<div class="vfill" style:height="{(muted ? 0 : volume) * 100}%"></div>
+							<div class="vthumb" style:bottom="{(muted ? 0 : volume) * 100}%"></div>
+						</div>
+					</div>
+				</div>
 				<button type="button" class="cell grow" onclick={() => (sheet = true)}>{playing}</button>
+				{#if pipable}
+					<button
+						type="button"
+						class="cell desk"
+						aria-label={inDocPip ? 'Bring the picture back' : 'Picture in picture'}
+						aria-pressed={inDocPip}
+						onclick={() => void pip()}>{inDocPip ? 'PIP · ON' : 'PIP'}</button
+					>
+				{/if}
 				<button type="button" class="cell desk" onclick={() => (keysOpen = true)}>? KEYS</button>
 				<button type="button" class="cell" disabled={!next || !playable(next)} onclick={playNext}
 					>{next
@@ -1715,13 +2034,13 @@
 					aria-valuetext={clock(time)}
 					onpointerdown={scrubDown}
 					onpointermove={scrubMove}
-					onpointerleave={() => (hoverAt = null)}
+					onpointerleave={leaveScrub}
 				>
 					<div class="buf" style:width={pct(buffered)}></div>
 					<div class="seen" style:width={pct(time)}></div>
 					<div class="thumb" style:left={pct(time)}></div>
 					{#if hoverAt !== null}
-						<div class="tip" style:left={pct(hoverAt)}>{clock(hoverAt)}</div>
+						{@render tip(hoverAt)}
 					{/if}
 				</div>
 				<div class="mut">{leftLabel(time, duration)}</div>
@@ -2143,6 +2462,13 @@
 		object-fit: contain;
 		background: #000;
 	}
+	/* The native track's cues (pip.ts): showing for a PiP window to read,
+	   invisible on the page, where tsundoku draws its own line. */
+	video.cueless::cue {
+		color: transparent;
+		background: transparent;
+		text-shadow: none;
+	}
 	.tapzone {
 		position: absolute;
 		inset: 0;
@@ -2157,6 +2483,22 @@
 		inset: 0;
 		background: #000;
 		pointer-events: none;
+	}
+	.pipnote {
+		position: absolute;
+		inset: 0;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		font: 500 14px var(--font-mono);
+		letter-spacing: 0.04em;
+		color: var(--text-1);
+		pointer-events: none;
+	}
+	.pipnote .mut {
+		color: var(--text-2);
 	}
 	.subs {
 		position: absolute;
@@ -2531,6 +2873,65 @@
 	}
 	.cell:last-child {
 		border-right: 0;
+	}
+	/*
+	 * VOL (c385): the cell keeps its place in the row; the slider rises above
+	 * it, a column of the bar's own surface with the hairline, its track the
+	 * scrubber's turned upright. It is open while the pointer is over either,
+	 * so the gap-free stack is what keeps it open on the way up.
+	 */
+	.vol {
+		position: relative;
+		border-right: var(--hairline);
+	}
+	.vol > .cell {
+		border-right: 0;
+	}
+	.volpop {
+		display: none;
+		position: absolute;
+		bottom: 100%;
+		left: 0;
+		right: 0;
+		height: 148px;
+		padding: 16px 0;
+		background: var(--surface-page);
+		border: var(--hairline);
+		border-bottom: 0;
+	}
+	.vol:hover .volpop,
+	.vol.open .volpop {
+		display: block;
+	}
+	.vtrack {
+		position: relative;
+		width: 4px;
+		height: 100%;
+		margin: 0 auto;
+		background: var(--line-1);
+		touch-action: none;
+		cursor: pointer;
+	}
+	.vtrack::before {
+		/* A pointer's worth of target around a 4px line: the column's width. */
+		content: '';
+		position: absolute;
+		inset: -16px -20px;
+	}
+	.vtrack .vfill {
+		position: absolute;
+		left: 0;
+		bottom: 0;
+		width: 4px;
+		background: var(--accent);
+	}
+	.vtrack .vthumb {
+		position: absolute;
+		left: -10px;
+		width: 24px;
+		height: 4px;
+		margin-bottom: -2px;
+		background: var(--text-1);
 	}
 	.cell.grow {
 		flex: 1 1 auto;
@@ -3407,6 +3808,23 @@
 		color: var(--text-inverse);
 		font: 500 13px var(--font-mono);
 		pointer-events: none;
+		/* Half the tip with a frame (160 + its hairlines + padding): how far from
+		   the track's ends its middle may come, so the frame stays inside (c385). */
+		--tip-half: 87px;
+	}
+	.track .tip.pic {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 6px;
+		padding: 6px;
+	}
+	.track .tip .frame {
+		width: 160px;
+		height: 90px;
+		border: var(--hairline);
+		background-color: var(--surface-page);
+		background-repeat: no-repeat;
 	}
 	/*
 	 * The settings panel on a TV (c235): the 420px panel every sheet is there

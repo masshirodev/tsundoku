@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { nearFrame } from '../src/routes/read/[entry]/seek-preview';
 import {
+	spriteTile,
+	cleanVolume,
+	verticalFraction,
+	KEY_STEP,
 	bufferedTo,
 	challengeScale,
 	CHROME_MOVE_PX,
@@ -210,5 +215,95 @@ describe('the tracks an anime starts on (card c171)', () => {
 			startTracks({ ...offered, series: { audio: 'ES' }, defaults: { audio: 'EN' }, last: {} })
 				.audio
 		).toBe('EN');
+	});
+});
+
+describe('the volume (c385)', () => {
+	it('keeps 0 to 1 in whole percent, and the full volume for anything not a number', () => {
+		const seen: [unknown, number][] = [
+			[0.5, 0.5],
+			[0.333, 0.33],
+			[0, 0],
+			[1, 1],
+			[1.4, 1],
+			[-0.2, 0],
+			[Number.NaN, 1],
+			[Number.POSITIVE_INFINITY, 1],
+			['0.4', 1],
+			[null, 1],
+			[undefined, 1],
+			[{}, 1]
+		];
+		for (const [v, want] of seen) {
+			expect(cleanVolume(v), String(v)).toBe(want);
+			// A normaliser holds on its own output.
+			expect(cleanVolume(cleanVolume(v))).toBe(cleanVolume(v));
+		}
+	});
+
+	it('lands ten steps up from 0 on exactly 100 %, and ten down on exactly 0', () => {
+		let v = 0;
+		for (let i = 0; i < 10; i++) v = cleanVolume(v + KEY_STEP);
+		expect(v).toBe(1);
+		for (let i = 0; i < 10; i++) v = cleanVolume(v - KEY_STEP);
+		expect(v).toBe(0);
+	});
+
+	it('reads a vertical slider from the bottom up, clamped to its box', () => {
+		const box = { top: 100, height: 120 };
+		expect(verticalFraction(220, box)).toBe(0);
+		expect(verticalFraction(100, box)).toBe(1);
+		expect(verticalFraction(160, box)).toBe(0.5);
+		expect(verticalFraction(400, box)).toBe(0);
+		expect(verticalFraction(0, box)).toBe(1);
+		expect(verticalFraction(160, { top: 0, height: 0 })).toBe(0);
+	});
+});
+
+describe('the sprite sheet (c385)', () => {
+	const sprite = { src: '', everyS: 10, w: 160, h: 90, cols: 10, count: 144 };
+	it('finds the frame nearest a time, row by row', () => {
+		expect(spriteTile(sprite, 0)).toEqual({ x: 0, y: 0 });
+		expect(spriteTile(sprite, 4.99)).toEqual({ x: 0, y: 0 });
+		expect(spriteTile(sprite, 5)).toEqual({ x: 160, y: 0 });
+		expect(spriteTile(sprite, 14.9)).toEqual({ x: 160, y: 0 });
+		expect(spriteTile(sprite, 92)).toEqual({ x: 1440, y: 0 });
+		expect(spriteTile(sprite, 100)).toEqual({ x: 0, y: 90 });
+		expect(spriteTile(sprite, 1430)).toEqual({ x: 480, y: 1260 });
+	});
+	it('holds the first frame before 0 and the last past the end', () => {
+		expect(spriteTile(sprite, -5)).toEqual({ x: 0, y: 0 });
+		expect(spriteTile(sprite, 99_999)).toEqual(spriteTile(sprite, 1430));
+		expect(spriteTile(sprite, Number.NaN)).toEqual({ x: 0, y: 0 });
+		expect(spriteTile({ ...sprite, count: 1 }, 500)).toEqual({ x: 0, y: 0 });
+	});
+});
+
+/**
+ * A stream's frame beside the time under the pointer (c385, round 2 of the
+ * review): shown only near the time it was drawn for, half a percent of the
+ * episode and at least a second, so the tip never labels one time's picture
+ * with another.
+ */
+describe('nearFrame', () => {
+	it('is near within a second on a short clip, and never with no frame', () => {
+		expect(nearFrame(null, 2, 8)).toBe(false);
+		expect(nearFrame(2.5, 2.5, 8)).toBe(true);
+		expect(nearFrame(2.5, 3.5, 8)).toBe(true);
+		expect(nearFrame(2.5, 1.5, 8)).toBe(true);
+		// The next stop, 2 s on: the old frame is not this time's.
+		expect(nearFrame(2.5, 4.5, 8)).toBe(false);
+		expect(nearFrame(2.5, 3.51, 8)).toBe(false);
+	});
+	it('widens to half a percent of a long episode', () => {
+		// 24 min: 7.2 s, a few pixels of a desktop's bar.
+		expect(nearFrame(600, 607.1, 1440)).toBe(true);
+		expect(nearFrame(600, 592.9, 1440)).toBe(true);
+		expect(nearFrame(600, 607.3, 1440)).toBe(false);
+	});
+	it('holds at a second when the duration is unknown', () => {
+		expect(nearFrame(10, 11, 0)).toBe(true);
+		expect(nearFrame(10, 11, Number.NaN)).toBe(true);
+		expect(nearFrame(10, 11.01, Number.POSITIVE_INFINITY)).toBe(false);
 	});
 });

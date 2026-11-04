@@ -435,7 +435,8 @@ describe('an episode’s streams', () => {
 				.run(root).lastInsertRowid
 		);
 		db.prepare(
-			`INSERT INTO series_links (series_id, anilist_id, mal_id, via, linked_at) VALUES (?, 1, 21, 'mihon', 0)`
+			// An anime's entry (TV): AniSkip is asked under no other link (c395).
+			`INSERT INTO series_links (series_id, anilist_id, mal_id, via, linked_at, format) VALUES (?, 1, 21, 'mihon', 0, 'TV')`
 		).run(linked);
 		const ep = Number(
 			db

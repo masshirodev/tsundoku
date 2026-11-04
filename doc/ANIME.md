@@ -282,18 +282,40 @@ library that had them keeps them.
 answers `{found, results:[{interval:{startTime,endTime}, skipType:'op'|'ed'}]}`;
 a 404 is "this episode has none". Only the MyAnimeList id, the episode number
 and the length leave the app: no title, no account, no reading. `malId` is
-the series' link (`series_links.mal_id`; doc/TRACKING.md); **no link, no
-lookup**. `episodeLength` is required by the API, so an episode whose length
+the series' link (`series_links.mal_id`; doc/TRACKING.md); **no anime link,
+no lookup** (c395). AniSkip's ids are MyAnimeList **anime** ids, and MAL
+numbers anime and manga apart, so a manga's id names an unrelated show:
+asked under it, AniSkip would answer with that show's opening and ending,
+and since AniSkip outranks a fingerprint, the episode would get a wrong SKIP
+INTRO, a wrong SKIP ENDING and a wrong watched mark. So AniSkip is asked only
+when the link's `format` is an anime's, by the kind registry
+(`ownEntry` in `src/lib/server/anime/marks.ts`:
+`sameKind(series.kind, candidateKind({ format }))`, the question c298's
+LINKED TO THE WRONG KIND asks the other way round). A format the link
+doesn't know (`NULL` until the resolve pass reads a Mihon tracker's MAL id,
+or `''` when it found nothing) is not an anime's: `wrongKind` lets an
+unknown format pass because it only flags a contradiction, and this has to
+be sure. A link that isn't asked under writes no negative row, so the next
+play after a relink asks at once. Ranma ½ (2024) was the case: linked to the
+manga (MAL 23, a link from before c298), it had AniSkip asked about anime 23,
+which answered nothing, by luck. `tvshow.nfo` follows the same rule
+(Downloading): a manga's AniList and MAL ids are not handed to Jellyfin as
+the show's. **Rung 64** forgot what the old rule stored: every `aniskip` row
+of an anime whose link is not an anime format (a manga's, an unknown one, or
+no link at all), with `entries.ending_at` recomputed; on the live library on
+2026-11-03 that was no row, since the owner had already unlinked Ranma ½.
+`episodeLength` is required by the API, so an episode whose length
 no source, file or playlist has yet is probed once (c155's `probe`) and the
 length is kept.
 
 - **A hidden series is never looked up**, even while reveal is on: the one
   rule is in the SQL (`HIDDEN_SQL`). Incognito doesn't ask either.
 - **Seasons.** AniSkip numbers episodes per MAL entry, and a MAL entry is one
-  season. Until c240 links a season rather than a series, only a flat list or
-  season 1 can be the entry the series' link names; a later season isn't
-  looked up. The episode number is the source's own within the season
-  (`episode_number`).
+  season. c240 links an anime a season at a time (`series_season_links`), and
+  `series_links` keeps a mirror of season 1's link (or a flat list's) only
+  (`syncSeriesLink`), so that is the one entry AniSkip is asked about; a
+  later season isn't looked up. The episode number is the source's own within
+  the season (`episode_number`).
 - **Remembered.** A found answer is never asked again; a 404 is remembered
   for `ANISKIP_RETRY_MS` (7 days), since a running show's new episode may
   arrive late. A server that didn't answer is not remembered: the next
@@ -316,7 +338,11 @@ length is kept.
   later resolve is a database read.
 
 `tests/anime-aniskip-db.spec.ts` (the request, the marks, hidden, no link,
-seasons, no length, the 7-day retry, a failing server not remembered) and
+seasons, no length, the 7-day retry, a failing server not remembered, and
+since c395 a link to the manga made through LINK, and every AniList format
+plus an unknown one, against a fake that answers any id with an opening),
+`tests/anime-rungs-db.spec.ts` (rung 64), `tests/anime-download-db.spec.ts`
+(the NFO's ids) and
 `tests/anime-streams-db.spec.ts` (the player's resolve asks it once, and the
 episode's `ending_at` follows).
 
@@ -392,14 +418,26 @@ hidden series, one episode, a negative remembered, the background queue,
 and since c384 a 90 s opening behind 25 s and 80 s cold opens with the
 second episode encoded at 12 kbps, which the strict rule found nothing of).
 
-**Marks found before c384 are fragments**, and stay until something clears
-them: an episode with a `fingerprint` row, found or negative, is not read
-again (a negative only after 14 days). The ladder is not this card's to
-climb this wave, so the rung that forgets them all, negatives included, is
-written down for after `tracking`'s v62 (`doc/handoff-notes/anime.md`,
-wave 17, _Gaps_): a fragment is worse than nothing, since SKIP INTRO lands
-in the middle of the song. On 2026-11-03 the live library's only
-`fingerprint` rows were Ranma ½ (2024)'s eight.
+**Marks found before c384 were fragments, and rung 63 forgot them once**
+(wave 18). An episode with a `fingerprint` row, found or negative, is not
+read again (a negative only after 14 days), so the new matcher alone changed
+nothing for an episode already marked: the owner's Ranma ½ (2024) kept
+skipping into the middle of the song after wave 17. The rung deletes every
+`fingerprint` row, negatives included, and recomputes `entries.ending_at`
+from what remains, so the next play finds them under the rule above: a
+fragment is worse than no mark, since SKIP INTRO lands in the middle of the
+song and no mark shows no button at all. On the live library (a copy taken
+2026-11-03, at v62) those were Ranma ½ (2024)'s eight rows, the library's
+only ones, and all eight episodes' `ending_at` went to `NULL` with them (a
+fingerprint was each one's only ending). On that copy, with the workstation's
+engine, the season job then found, from the streams, every opening of
+episodes 5 to 12 at **89.5 to 94.6 s** (31 to 48 s before, and episode 11's
+for the first time; it starts between 11.6 s and 73.4 s, as each cold open
+puts it) and every ending from **1294 to 1298 s** to the end of the episode
+(before, six of the eight started near 1385 s, a fragment)
+(`doc/handoff-notes/anime.md`, wave 18). The rung's spec is
+`tests/anime-rungs-db.spec.ts`, which also checks its frozen copy of
+`syncEndingAt` against the app's own rule on every entry.
 
 ### Fingerprints of streams
 
@@ -465,14 +503,16 @@ screen but the video, and the subtitles, until a tap.
   →), and the one addition, −10 / pause / +10 in the middle, pause two drawn
   bars, which steps aside while BUFFERING or a server's notice holds the
   middle (they overlapped). The scrubber ticks the opening and ending. A desktop adds play, VOL,
-  ? KEYS and FULL SCREEN · F, and a time on hover.
+  PIP where the browser has picture-in-picture, ? KEYS and FULL SCREEN · F,
+  and a time on hover, with the frame there above it (the seek preview,
+  below).
 - **Taps**: on a touch screen one shows or hides the controls; a double-tap
   on the left or right third seeks 10 s, and each further tap in the burst 10
   more, said in the middle of that side. On a mouse a click on the picture
   plays or pauses it (c218), the click in the middle acting at once and one on
   a side third waiting out the double that seeks; a press that wanders more
-  than 10px is a drag, and neither. No swipes: volume and brightness are the
-  device's.
+  than 10px is a drag, and neither. No swipes: on a touch screen volume and
+  brightness are the device's (a pointer has VOL, below).
 - **The controls come back on a move, not a jitter** (c217). A resting mouse
   sends a pixel or two of movement all the time, and the chrome flashed in on
   every one of them; it now takes 12px of travel — quickly from where the
@@ -480,6 +520,58 @@ screen but the video, and the subtitles, until a tap.
   cluster (`−10`, pause, `+10`) does not fade with the bars: it is solid from
   its first frame, where a half-faded black box over the picture read as a
   translucent patch.
+- **Volume** (c385). VOL's label mutes, as before; hovering it (or clicking
+  it) opens a slider above the cell, a column of the bar's surface with the
+  scrubber's track upright, which a press or a drag sets; the wheel over the
+  cell or the slider steps 5 %, ↑ ↓ 10 %. Every one of them goes through one
+  door (`setVolume`), and the level is **remembered for this device**
+  (`tsundoku:anime:volume`, a device setting like DIM and quality, mirrored
+  on the workstation and listed in SETTINGS as VOLUME), read once as the
+  player mounts and given to the picture before the stream starts, so the
+  next episode and the next show start where it was left, from their first
+  frame. **Mute is never kept**: a muted episode does not leave the next one
+  silent. A level set above 0 while muted unmutes, since a slider moved under
+  MUTED would otherwise change nothing anyone hears. The slider is a
+  pointer's: on a phone the VOL cell stays hidden, and on a TV the remote's
+  volume is the TV's, as before.
+- **The seek preview** (c385). Over the scrubber, while the pointer is on it
+  (and on a touch screen while the thumb is dragged), the tip with the time
+  shows the frame at that time above it: 160 x 90, the hairline round it,
+  the time in the label face under it, and kept inside the track at either
+  end (`--tip-half`). Where it comes from:
+  - **A downloaded episode**: a sprite sheet the workstation cuts from the
+    file with ffmpeg, one frame every 10 s at 160 x 90, ten to a row, from the
+    key frames only (seconds, not a full decode), once, in the background
+    after the episode's first play (the videos route asks, never a page load,
+    and incognito never does; a hidden series' episode gets one too, the file
+    being local). It sits beside the episode's picture
+    (`covers/episodes/<id>.sprite.jpg`, served by
+    `/api/anime/sprite/<id>?v=<made at>`), with a sidecar naming the file it
+    was cut from: its path, size and modification time. **A sprite is only
+    the file's it was made from**: every reader asks `currentSprite`
+    (`src/lib/server/anime/sprites.ts`), which deletes a sheet whose file
+    changed (a re-download, MOVE), went (a deleted download, a scan) or is
+    another entry's (an id SQLite reused), so no door has to remember it, and
+    no rung was needed. The tile shown is the frame nearest the time, at most
+    5 s off. Until the sheet exists the tip shows the time alone.
+  - **A stream**: no sprite, which would mean reading the whole episode.
+    The player keeps a second, hidden picture on the server's **lowest**
+    quality, through the same loopback addresses, seeks it to the time under
+    the pointer after it rests there 150 ms, and draws the frame to a canvas
+    (`src/routes/read/[entry]/seek-preview.ts`). **It fetches only while the
+    pointer is on the bar**: nothing until the first stop
+    (`autoStartLoad: false`), then the one segment the time falls in (a
+    buffer goal of 1 s, no back buffer), and `stopLoad()` once the frame is
+    drawn and when the pointer leaves. Only the latest stop stops the load:
+    a stop still waiting on a slow engine when the next begins gives up
+    without stopping the next one's segment. A server whose lowest quality is
+    above 480p, or of unknown height, and a stop that takes over 1 s show the
+    time alone. A frame is shown only near the time it was drawn for (half a
+    percent of the episode, at least a second; `nearFrame`): moved on, the
+    tip shows the new time alone until that time's frame comes, never the
+    last stop's picture over it.
+  - **A TV** has no preview: the remote's ← → seek with the bar up shows the
+    time on the bar, as before. The card left it optional; it is not built.
 - **Keys**: space, ← →, ↑ ↓ (volume), F, M, C (subtitles), S (skip), N (next),
   Esc (full screen, then the player), ? (the KEYS sheet). A remote's media
   keys work on every device (c235): ▶❚❚ plays or pauses, ⏩ ⏪ seek 10 s,
@@ -501,7 +593,7 @@ screen but the video, and the subtitles, until a tap.
   track (its original, the owner's answer to c171's question 3) and
   subtitles in the device's language (`startTracks`), worked out again for
   each server until a choice is made. Incognito keeps no choice. Speed is
-  this episode's; quality and DIM are this device's, mirrored on the
+  this episode's; quality, DIM and volume are this device's, mirrored on the
   workstation like every device setting. The sheet ends with ALL SETTINGS →.
 - **The settings sheet's languages** (c386). A language is its short code
   everywhere in a row -- `JA`, `EN`, `PT-BR`, `ES-419`, `ZH-HANT`, `NB` -- and
@@ -554,7 +646,66 @@ screen but the video, and the subtitles, until a tap.
   tracks by the language alone, as before, since AUDIO KEPT names
   languages and Matroska's tag has no variant.
 - **Subtitles** are drawn by tsundoku from the WebVTT: IBM Plex on a scrim
-  box, rising above the controls while they show.
+  box, rising above the controls while they show. The one place the browser
+  may draw them instead is its own picture-in-picture (below), from a native
+  `<track>` of the same WebVTT, which the page keeps showing but draws
+  invisibly, so the page never shows a line twice.
+- **Picture-in-picture** (c388). A video's own picture-in-picture moves only
+  the `<video>`, so tsundoku's drawn subtitles stayed on the page. Now, by
+  browser (`src/routes/read/[entry]/pip.ts`):
+  - **Chrome and Edge on a desktop** (Document Picture-in-Picture, since
+    116), **and Firefox 155** (which has it too, in a secure context, beside
+    the video Picture-in-Picture API; Playwright's Firefox 155 runs this
+    whole path in `tests/browse-player-pip-firefox.e2e.ts`): a **PIP** cell on the desktop's bar moves the picture layer -- the
+    `<video>`, the drawn subtitles, the dim -- into a floating window of its
+    own, with the page's stylesheets copied in (Svelte's scoped styles live
+    there, and a node moved into another document no longer sees them), and
+    the page says IN PICTURE-IN-PICTURE where the picture was. The subtitles
+    keep tsundoku's face, scrim and S M L there; with no controls in the
+    window they sit 7 % from its bottom, where the page puts them while the
+    controls are hidden, and never rise. A subtitle change on the page (the
+    sheet, C) shows in the window at once: it is the same element. The
+    window answers on its own: a mouse's click on the picture plays or pauses
+    it, as on the page, and the player's keys (Space, ← →, ↑ ↓, M, C, N) work
+    with the window focused, except Escape, which brings the picture back
+    rather than leaving the page behind it. It needs listeners of its own,
+    added when it opens and removed when the picture comes back: the
+    picture's pointer handlers are Svelte's delegated ones, heard on the
+    page's root, and the keys are the page's window, so neither hears the
+    floating window's document. There are no controls in it. Every way
+    out puts the picture back in the page, the same `<video>` still playing:
+    PIP · ON, the window's own close (its `pagehide`), and NEXT or leaving the
+    page, which close the window too rather than leave it empty (a new
+    window needs a press, so NEXT does not carry it over to the next
+    episode). The browser's own PiP button keeps doing what it does, as
+    below.
+  - **A video's own picture-in-picture** (the browser's own PiP button or
+    toggle anywhere, and the PIP cell where Document PiP is missing, as in
+    Safari): the `<video>` alone goes. The subtitles chosen are on it as a
+    native `<track kind="subtitles">` of the same WebVTT, `showing` all the
+    time, so a PiP window has cues to read whether or not the browser tells
+    the page it opened; the page draws those cues invisibly
+    (`video.cueless::cue`, transparent), so tsundoku's line is the only one
+    on the page, and plainly while the browser says its PiP has the picture
+    (`enterpictureinpicture` to `leavepictureinpicture`). Subtitles off is
+    no track at all; a language changed in PiP is the new track, shown at
+    once. **Whether any browser's own PiP window draws that track is not
+    checked**: Playwright opens one but cannot look into it. Firefox's PiP
+    has a subtitles setting for showing tracks (its
+    `media.videocontrols.picture-in-picture.display-text-tracks.enabled`
+    pref, on by default), but nobody has watched it here; Chrome's own
+    video PiP is not known to draw text tracks at all; Safari was not run.
+    The owner's checks are in `doc/handoff-notes/anime.md`, wave 18,
+    _Gaps_. What is tested is the page's side, in Chromium and Firefox: the
+    track showing with its cue active, no native cue box on the page, and
+    the plain drawing between enter and leave.
+  - **A phone: not yet checked.** Android Chrome's picture-in-picture is the
+    system's, and whether it draws a native track is not known; no slot has
+    an Android phone, so nothing is claimed here (the check for the owner is
+    in `doc/handoff-notes/anime.md`, wave 18, _Gaps_). The PIP cell is a
+    desktop's; on a phone, the system's own PiP is the video's own path
+    above.
+  - **A TV** has no PIP cell.
 - **SKIP INTRO / SKIP ENDING** wherever an opening or an ending is known --
   the source's, AniSkip's or a fingerprint's ("Openings and endings") --
   alone for 8 s, then with the controls. SKIP ENDING marks the episode
@@ -672,7 +823,9 @@ pure parts in `src/lib/library/anime-files.ts`).
   ES-419 track is kept by ES and tagged `spa`. New downloads only. The file is each track tagged with its language, written beside its
   place and renamed. The NFOs are Jellyfin's (`tvshow`, `episodedetails`) and
   carry tsundoku's keys as `<uniqueid type="tsundoku">`, with AniList and MAL
-  ids where the series is linked; `poster.jpg` is the library's own cover.
+  ids where the series is linked to an anime's entry (a manga's ids would
+  have Jellyfin's plugins fetch another work, c395); `poster.jpg` is the
+  library's own cover.
 - **ffmpeg fetches nothing itself.** Its inputs are a loopback proxy inside
   the app that serves only the tokens `streams.ts` handed out, and only with a
   per-process secret header, so every request a download makes passes the
@@ -853,8 +1006,10 @@ the fixture clip). The scratch library was deleted afterwards.
 - **The player's portrait layout is any portrait**, a tablet's too, as Anime
   Calls says ("Portrait, on the phone or the tablet"); the handoff draws the
   phone's.
-- **VOL is a cell, not a slider**: a tap mutes, ↑ ↓ set it. The handoff draws
-  only its label.
+- **VOL is a cell with a slider above it** (c385): its label mutes, as the
+  handoff's cell did, and the slider rises from it on hover. The handoff
+  draws only the label; the slider is drawn from the player's own cells
+  and track, with no design round (the card's call: one control in place).
 - **The last episode's end is END · LAST AVAILABLE**, not the reader's
   end-of-series page with RATING: the series screen has the rating, and the
   player has no rating anywhere else.
@@ -876,7 +1031,7 @@ spans a restart fails and is tried again. **No lengths or FILLER/RECAP from
 the source yet**: the engine's episode list carries neither (`JEpisode` is
 url, name, date, number, scanlator, and its picture since c225). A length
 comes from the stream (c155) or the file (c157); a picture, where the source
-gives none, from a frame ("Episode pictures"). **A link is the whole
-series'**: an anime links to its own AniList/MAL entry like any other series
-(c298), which is what AniSkip needs, but a season of a multi-season series
-is still not linked on its own (c240).
+gives none, from a frame ("Episode pictures"). **AniSkip knows one
+season of a show**: an anime links each season to its own AniList/MAL entry
+(c240, doc/TRACKING.md), but AniSkip is asked about season 1's (or a flat
+list's) only ("AniSkip", Seasons).

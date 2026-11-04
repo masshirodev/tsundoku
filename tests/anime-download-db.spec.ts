@@ -228,6 +228,33 @@ describe('downloading an episode', () => {
 			db.prepare(`SELECT state, tries, error FROM download_queue WHERE entry_id = ?`).get(ep4)
 		).toEqual({ state: 'queued', tries: 1, error: 'No server answered' });
 	});
+
+	it('names its catalogue entry to Jellyfin only when the link is an anime’s (c395)', async () => {
+		// A link to the manga (a wrong-kind link from before c298): its ids are
+		// another work's, so tvshow.nfo carries only tsundoku's own key.
+		db.prepare(`DELETE FROM download_queue`).run();
+		db.prepare(
+			`INSERT INTO series_links (series_id, anilist_id, mal_id, via, linked_at, format)
+			VALUES (?, 30023, 23, 'exact', 0, 'MANGA')`
+		).run(shown);
+		const tv = () => readFileSync(join(show, 'tvshow.nfo'), 'utf8');
+		const ep5 = episode(shown, 5, 'The Manga’s');
+		await downloads.enqueue(shown, [ep5], 720);
+		expect(await anime.runAnimeOnce(deps)).toBe(1);
+		expect(tv()).toContain('<uniqueid type="tsundoku" default="true">');
+		expect(tv()).not.toContain('type="anilist"');
+		expect(tv()).not.toContain('type="mal"');
+		// Relinked to the anime, the next download names it.
+		db.prepare(
+			`UPDATE series_links SET anilist_id = 178533, mal_id = 58616, format = 'TV' WHERE series_id = ?`
+		).run(shown);
+		const ep6 = episode(shown, 6, 'The Anime’s');
+		await downloads.enqueue(shown, [ep6], 720);
+		expect(await anime.runAnimeOnce(deps)).toBe(1);
+		expect(tv()).toContain('<uniqueid type="anilist">178533</uniqueid>');
+		expect(tv()).toContain('<uniqueid type="mal">58616</uniqueid>');
+		db.prepare(`DELETE FROM series_links WHERE series_id = ?`).run(shown);
+	});
 });
 
 /** A series and its entries as rows, for a scan to leave alone. */

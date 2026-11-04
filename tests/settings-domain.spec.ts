@@ -45,7 +45,17 @@ describe('the catalogue (card c171)', () => {
 
 	it('names every value a row sets, and every value is some row’s', () => {
 		const used = new Set(SECTIONS.flatMap((s) => s.rows.flatMap(rowValues)));
-		const shown = new Set<string>(['reader.dim', 'anime.dim']);
+		// Shown with no control: each is some info row's value, not a hand-kept list.
+		const shown = new Set<string>(
+			SECTIONS.flatMap((s) =>
+				s.rows.flatMap((r) => (r.control.type === 'info' ? [r.control.value] : []))
+			)
+		);
+		expect([...shown].filter((id) => id in VALUES).sort()).toEqual([
+			'anime.dim',
+			'anime.volume',
+			'reader.dim'
+		]);
 		for (const id of Object.keys(VALUES))
 			expect(used.has(id as ValueId) || shown.has(id)).toBe(true);
 	});
