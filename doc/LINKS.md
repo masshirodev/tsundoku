@@ -231,8 +231,11 @@ Show Season 2`), in one pass if the limit allows: a row of `searchable`
     candidates and SKIP. The item's heading, its LINK button and the band
     after it name the season (`LINK · SEASON 2`, `LINK A TO SEASON 2`,
     `LINKED · SEASON 2 · …`), and LINK, NONE OF THESE, SKIP, SEARCH AGAIN
-    and their UNDO post it. A season 0 item (a flat list, the whole run)
-    names none. LINK accepts only a candidate of that season's own search
+    and their UNDO post it. Season 0 (a flat list, the whole run) is named
+    nowhere, as a queue item or as `/links?series=N`'s own season (c423):
+    its LINK reads `LINK A`, the header `SERIES TO LINK`, the season bar
+    only `12 EPISODES HERE`, and its bands no `SEASON 0 ·`. It still posts
+    season 0, whose row is the whole show's. LINK accepts only a candidate of that season's own search
     (`offered`), never another season's and never the series', and never
     an entry another season or part of the show holds.
   - **A door that names no season** (`/links?series=N` with no `&season=`,
@@ -353,7 +356,9 @@ on desktop and in tablet landscape.
   and the candidates it replaced; it never made a link, so it takes none back.
   SKIP has no UNDO, as in the mock.
 - `?series=N` is one series only: FIND or CHANGE on its screen. It has no
-  SKIP, and deciding goes back to the series. For a hidden series it's
+  SKIP, and deciding goes back to the series, but for a season's LINK on an
+  anime with more seasons, which first offers the rest of the show ("The
+  series screen", below). For a hidden series it's
   PASTE A LINK only.
 
 ### The series screen (Series Link 1k–1t)
@@ -395,7 +400,11 @@ anime's LINK row is a line a season (c240; above).
   wants a look (above), then on the season being watched once every season
   is settled, never season 0 by default, which is a flat list's and real (`seasonNamed`, the same
   reader the series screen's forms use: there, no season named on UNLINK is
-  every season). LINK A TO SEASON 3 writes that season's row. After it, the page offers the rest of
+  every season). LINK A TO SEASON 3 writes that season's row. **A show with
+  one season** (a flat list, or a single numbered season) has no rest to
+  offer, so its LINK goes back to the series screen, as a comic's does, and
+  the new link is on its LINK row (c423: Ranma ½ (2024)'s LINK stayed on an
+  unchanged page and read as a refusal). Otherwise, after it, the page offers the rest of
   the show from the linked entry's AniList PREQUEL and SEQUEL relations, in
   order along the chain and ticked where the episode counts agree -- or
   where two entries add up to the season as `PART 1` and `PART 2`. A movie

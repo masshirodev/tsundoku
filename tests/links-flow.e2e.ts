@@ -217,12 +217,46 @@ const ANIME_MEDIA: Media[] = [
 		episodes: 11,
 		season: 'FALL',
 		seasonYear: 2014
+	}),
+	// A flat list's show (c423): the source gave its 12 episodes no season, so
+	// tsundoku has one season, numbered 0. AniList has the show and two sequels,
+	// and its search for the show's title lists all three, as it did for Ranma ½
+	// (2024): the sequels are what the old page offered after a LINK.
+	entry({
+		id: 9301,
+		idMal: 9401,
+		title: 'Flat List Show',
+		episodes: 12,
+		season: 'FALL',
+		seasonYear: 2024
+	}),
+	entry({
+		id: 9302,
+		idMal: 9402,
+		title: 'Flat List Show Season 2',
+		episodes: 12,
+		season: 'FALL',
+		seasonYear: 2025
+	}),
+	entry({
+		id: 9303,
+		idMal: 9403,
+		title: 'Flat List Show Season 3',
+		episodes: 12,
+		season: 'FALL',
+		seasonYear: 2026
 	})
 ];
 // The chain the relations are walked along: S1 and S2 are each other's sequel.
 const RELATIONS: Record<number, { id: number; type: 'PREQUEL' | 'SEQUEL' }[]> = {
 	9001: [{ id: 9002, type: 'SEQUEL' }],
-	9002: [{ id: 9001, type: 'PREQUEL' }]
+	9002: [{ id: 9001, type: 'PREQUEL' }],
+	9301: [{ id: 9302, type: 'SEQUEL' }],
+	9302: [
+		{ id: 9301, type: 'PREQUEL' },
+		{ id: 9303, type: 'SEQUEL' }
+	],
+	9303: [{ id: 9302, type: 'PREQUEL' }]
 };
 const COMIC_MEDIA: Media[] = [
 	entry({ id: 30024, idMal: 24, title: 'Ranma ½', format: 'MANGA', chapters: 38 })
@@ -699,6 +733,59 @@ test.describe('a catalogue that answers', () => {
 		await expect(page.locator('.seasonbar .sb-b')).toContainText('2 EPISODES HERE');
 	});
 
+	test('LINK on a flat-list anime names no season 0, writes season 0’s row and goes back to the series (c423)', async ({
+		page
+	}) => {
+		// The owner's Ranma ½ (2024): twelve episodes the source gave no season,
+		// relinked from the series screen's CHANGE, which opens the review with
+		// no `&season=`. Its one season is numbered 0, and is real.
+		const id = seedFlatList();
+		try {
+			await page.goto(`${BASE}/series/${id}`);
+			await page.locator('.lcs.inline').getByRole('link', { name: 'FIND' }).click();
+			await page.waitForURL(new RegExp(`/links\\?series=${id}$`));
+			// The header names no season: no `LINK · SEASON 0`, no `S0`, and the bar
+			// says what the list holds without a season number.
+			await expect(page.locator('.heading .long')).toHaveText('SERIES TO LINK');
+			await expect(page.locator('.heading .short')).toHaveText('TO LINK');
+			await expect(page.locator('.seasonbar .sb-b')).toHaveText('12 EPISODES HERE');
+			await expect(page.locator('.seasonbar .sb-c')).toHaveText('ASKED AS FLAT LIST SHOW');
+			// FIND's own search, as AniList answers it: the show and both sequels.
+			await expect(page.locator('.cand')).toHaveCount(3);
+			const show = page.locator('.cand', {
+				has: page.locator('.ctitle', { hasText: /^Flat List Show$/ })
+			});
+			await show.click();
+			const link = page.locator('.actions button').last();
+			await expect(link).toHaveText(/^LINK [A-D]$/);
+			await expect(page.getByText(/SEASON 0|\bS0\b/)).toHaveCount(0);
+			const posted = page.waitForRequest(
+				(r) => r.url().endsWith('/api/links') && r.method() === 'POST' && !!r.postDataJSON()?.link
+			);
+			// Pressed at once: nothing on the page is waited for first.
+			await link.click();
+			expect((await posted).postDataJSON()).toMatchObject({
+				series: id,
+				link: 9301,
+				season: 0,
+				part: 1
+			});
+			// The LINK worked, and the page says so by going back to the series, where
+			// the LINK row shows it: no rest of the show to stay for.
+			await page.waitForURL(new RegExp(`/series/${id}$`));
+			const linkRow = page.locator('.link-row', {
+				has: page.locator('.label', { hasText: /^LINK$/ })
+			});
+			await expect(linkRow.locator('.lk-a')).toHaveText('Flat List Show');
+			await expect(linkRow.locator('.lk-b')).toContainText('ANILIST 9301');
+			// Season 0's own row, the whole show's, and its mirror.
+			expect(seasonLinksOf(id)).toEqual([{ season: 0, anilist_id: 9301, via: 'review' }]);
+			expect(mirrorOf(id)).toMatchObject({ anilist_id: 9301, mal_id: 9401 });
+		} finally {
+			forgetFlatList(id);
+		}
+	});
+
 	test('the queue holds an anime a season at a time, each with its own search, and names the season (c240, c352)', async ({
 		page
 	}) => {
@@ -884,6 +971,63 @@ function seasonLinksOf(id: number): { season: number; anilist_id: number; via: s
 				`SELECT season, anilist_id, via FROM series_season_links WHERE series_id = ? ORDER BY season`
 			)
 			.all(id) as { season: number; anilist_id: number; via: string }[];
+	} finally {
+		db.close();
+	}
+}
+
+/** A flat list: twelve episodes with no season, one season to tsundoku, numbered 0 (c423). */
+let flatList: number | null = null;
+function seedFlatList(): number {
+	if (flatList !== null) return flatList;
+	const db = new Database(dbPath);
+	try {
+		const now = Date.UTC(2026, 10, 2, 12, 0);
+		const root = (db.prepare(`SELECT id FROM roots WHERE name = 'Library'`).get() as { id: number })
+			.id;
+		const id = Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, source, hue, added_at, indexed_at, origin_key, in_library, cover_key)
+					VALUES (?, 'Flat List Show', 'anime', 'aniyomi', 210, ?, ?, 'aniyomi:1:/flat-list-show', 1, '')`
+				)
+				.run(root, now, now).lastInsertRowid
+		);
+		const put = db.prepare(
+			`INSERT INTO entries (series_id, position, label, season, episode_number, added_at, file, bytes, page_count, available, source_url)
+			VALUES (?, ?, ?, NULL, ?, ?, '', 0, 0, 0, ?)`
+		);
+		for (let i = 1; i <= 12; i++) put.run(id, i, `Episode ${i}`, i, now, `/flat-list/${i}`);
+		return (flatList = id);
+	} finally {
+		db.close();
+	}
+}
+
+/** Put the flat list back as seeded: never searched, never linked, out of the queue. */
+function forgetFlatList(id: number): void {
+	const db = new Database(dbPath);
+	try {
+		for (const table of [
+			'series_season_links',
+			'season_link_decisions',
+			'season_link_searches',
+			'season_link_candidates',
+			'series_links'
+		])
+			db.prepare(`DELETE FROM ${table} WHERE series_id = ?`).run(id);
+	} finally {
+		db.close();
+	}
+}
+
+/** A series' `series_links` row: an anime's mirror of its first season. */
+function mirrorOf(id: number): Record<string, unknown> | undefined {
+	const db = new Database(dbPath, { readonly: true });
+	try {
+		return db
+			.prepare(`SELECT anilist_id, mal_id, via FROM series_links WHERE series_id = ?`)
+			.get(id) as Record<string, unknown> | undefined;
 	} finally {
 		db.close();
 	}

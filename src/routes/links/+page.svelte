@@ -11,6 +11,7 @@
 		parsePasted
 	} from '$lib/library/catalogue';
 	import { langName, parseRanobeUrl } from '$lib/library/ranobe';
+	import { seasonTag } from '$lib/library/anime';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { offline } from '$lib/offline.svelte';
 	import type { QueuedFrom, ReviewCandidate } from '$lib/server/catalogue';
@@ -115,12 +116,22 @@
 	);
 	/**
 	 * The season the screen names (c240): the page's own on `?series=`, or a
-	 * queue item's from season 1 up. A queue item for season 0 is a flat list,
-	 * the whole run, so it names none; it still posts its season (`at`).
+	 * queue item's, from season 1 up. Season 0 is a flat list, the whole run,
+	 * so it names none, on the page's own season as on a queue item's (c423:
+	 * Ranma ½ (2024)'s LINK read `LINK A TO SEASON 0`); it still posts its
+	 * season (`at`), which is the whole show's row.
 	 */
 	const named = $derived<{ no: number } | null>(
-		season ? { no: season.no } : at && at.no > 0 ? at : null
+		season && season.no > 0 ? { no: season.no } : !season && at && at.no > 0 ? at : null
 	);
+	/**
+	 * Whether a season's LINK stays on the page for the rest of the show: only
+	 * when there is a rest. A show with one season (a flat list, or one
+	 * numbered season) has none to offer, so its LINK goes back to the series
+	 * as a comic's does, and the new link shows on the LINK row (c423: a LINK
+	 * that worked looked like it hadn't, the item still on screen).
+	 */
+	const staysForTheRest = $derived(!!season && season.of > 1);
 	const ranobe = $derived(item?.service === 'ranobe');
 	const name = $derived(item ? SERVICE_NAME[item.service] : '');
 	let chosen = $state<string | null>(null);
@@ -293,9 +304,10 @@
 		if (!item || !selected) return;
 		const c = selected;
 		const it = item;
-		if (!('work' in c) && season) {
+		if (!('work' in c) && season && staysForTheRest) {
 			// A season linked: the page turns to the rest of the show (c240), so it
-			// stays rather than going back to the series.
+			// stays rather than going back to the series. A one-season show has no
+			// rest, and takes the plain LINK below, back to its screen (c423).
 			busy = true;
 			failed = null;
 			const before = { queue: [...queue], done };
@@ -316,7 +328,10 @@
 			pickedSeasons = (relations ?? []).filter((o) => o.ticked).map((o) => o.season);
 			chosen = null;
 			undo = {
-				title: `LINKED · SEASON ${season.no} TO ${c.title.toUpperCase()}`,
+				// Season 0 (a flat part of a longer list) names no season (c423).
+				title: named
+					? `LINKED · SEASON ${named.no} TO ${c.title.toUpperCase()}`
+					: `LINKED · ${c.title.toUpperCase()}`,
 				detail: `${c.ids} · ITS SEND STARTS WITH THE NEXT EPISODE WATCHED`,
 				undo: {
 					kind: 'link',
@@ -811,7 +826,8 @@
 		<div class="seasonbar">
 			<div class="sb-a">{item.title.toUpperCase()}</div>
 			<div class="sb-b">
-				SEASON {season.no} OF {season.of} · {season.aired} EPISODES HERE{season.count > season.aired
+				{named ? `SEASON ${named.no} OF ${season.of} · ` : ''}{season.aired} EPISODES HERE{season.count >
+				season.aired
 					? ` AND ${season.count - season.aired} RECAP`
 					: ''}{season.parts.length > 1 ? ` · ${season.parts.length} PARTS` : ''}
 			</div>
@@ -1187,7 +1203,7 @@
 							>
 								<span class="tickcell"><span class="tick">{on ? '✓' : ''}</span></span>
 								<span class="rno"
-									>{o.outside ? '–' : o.part > 1 ? `PART ${o.part}` : `S${o.season}`}</span
+									>{o.outside ? '–' : o.part > 1 ? `PART ${o.part}` : seasonTag(o.season)}</span
 								>
 								<span class="rtext">
 									<span class="rtitle">{o.title}</span>
