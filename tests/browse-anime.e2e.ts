@@ -389,12 +389,27 @@ test.describe('the player, tablet landscape (c156)', () => {
 		await expect(player.locator('.flash .by')).toHaveText('−10 S');
 		await expect(pp).toHaveAttribute('aria-label', 'Pause');
 
-		// Two on the right third seek 10 s ahead, which on this clip is its end:
-		// the episode ends, and the end screen says so. (The flash is drawn only
-		// while playing, so it can't be the witness here.)
+		// Two on the right third seek 10 s ahead. The clip is 8.008 s and a seek
+		// stops at the end, so from anywhere in it +10 s is its end: the flash is
+		// drawn while playing and the end screen replaces it within a frame or so,
+		// too briefly for a poll to be sure of. Record every flash the player
+		// draws from here on, then seek, then read what it drew and where it ended.
+		// The −10 S one goes first, on its own 900 ms timer.
+		await expect(player.locator('.flash')).toHaveCount(0);
+		await page.evaluate(() => {
+			const seen: string[] = [];
+			(window as unknown as { flashes: string[] }).flashes = seen;
+			new MutationObserver(() => {
+				for (const by of document.querySelectorAll('.player .flash .by'))
+					if (!seen.includes(by.textContent ?? '')) seen.push(by.textContent ?? '');
+			}).observe(document.body, { childList: true, subtree: true, characterData: true });
+		});
 		const right = { x: box.x + box.width * 0.85, y: mid.y };
 		await page.mouse.dblclick(right.x, right.y);
 		await expect(player.getByText(/^END · EP\. 9/)).toBeVisible();
+		expect(await page.evaluate(() => (window as unknown as { flashes: string[] }).flashes)).toEqual(
+			['+10 S']
+		);
 	});
 });
 
