@@ -78,6 +78,7 @@ export function novelSources(reveal: boolean): BrowseSource[] {
 			name: p.name,
 			lang: p.lang,
 			kind: 'novel',
+			family: 'lnreader',
 			series: reveal ? u.series : u.series - u.hidden,
 			hidden: reveal ? u.hidden : 0,
 			mostlyHidden: hiddenMostly,

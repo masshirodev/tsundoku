@@ -15,7 +15,10 @@ MOVE's two modules ask `movable`, `medium` and `unit.long` (ratchet 152 →
 the MOVED band do too (ratchet 93 → 89). **K3 done, 2026-11-03** (card c303, the same branch): downloads,
 BROWSE, the extensions' tabs, the source preview, covers and books ask
 `KEY_PREFIX`/`keyFamily`, `SOURCE_KINDS`, `medium` and the new `grouping`
-(ratchet 121 → 93). K2 and K5 below are not built. The rule at the end ("No
+(ratchet 121 → 93). In wave 20 the ratchet learnt to see
+`kind === SOURCE_KINDS.x` (card c420, which found six such lines) and GROUP's
+answers ask `grouping` (card c375): 95 by the widened command → 87. K2 and K5
+below are not built. The rule at the end ("No
 new kind checks") applies from here on.
 
 ## Why
@@ -358,15 +361,33 @@ one of `KINDS`' own names, either way round:
 s.kind === 'anime'      kind !== 'novel'      'manga' === row.kind
 ```
 
+Since wave 20 (card c420) it also counts the same comparison spelled through
+a family's kind, either way round, dotted or bracketed:
+
+```
+s.kind === SOURCE_KINDS.lnreader      SOURCE_KINDS[f] === r.kind
+```
+
+K3 had replaced six quoted names with that spelling, which the old pattern no
+longer saw. A source's family is now asked as a family: `BrowseSource.family`
+(`engine/browse.ts`, LNReader's in `novels/source.ts`) and `familyOfKind`
+(`engine/repo-index.ts`), the one decoder from a stored kind
+(`engine_extensions.kind`, an APK listing's) back to its family. A question
+asked through it (`familyOfKind(l.kind) === 'mihon'`) names a family, and is
+not counted.
+
 It is a textual scan, and the same one this command prints, so a mention in a
 comment counts and a line holding two comparisons counts once:
 
 ```sh
-rg -n --glob 'src/**/*.{ts,svelte}' --glob '!src/lib/library/kinds.ts' \
-  -e "kind\s*[!=]==?\s*['\"](manga|manhwa|doujin|novel|anime)['\"]" \
-  -e "['\"](manga|manhwa|doujin|novel|anime)['\"]\s*[!=]==?\s*[A-Za-z_$][\w$.]*kind\b" \
+rg -n --glob '*.ts' --glob '*.svelte' --glob '!src/lib/library/kinds.ts' \
+  -e "\bkind\s*[!=]==?\s*(['\"](manga|manhwa|doujin|novel|anime)['\"]|SOURCE_KINDS\b)" \
+  -e "(['\"](manga|manhwa|doujin|novel|anime)['\"]|SOURCE_KINDS(\.\w+|\[[^\]]*\]))\s*[!=]==?\s*[A-Za-z_\$][\w\$.]*kind\b" \
   src | wc -l
 ```
+
+Until wave 20 the command had only the quoted names (the first half of each
+pattern); the counts below up to 89 are by that command.
 
 At `c14a5d4e`, before K1, that prints **158**. After K1 it prints **152**: the
 six lines it removed are `mediaTypeOf`'s type choice, `unitLabel`'s and
@@ -381,7 +402,13 @@ BROWSE's source page and its settings (1 + 1). After K4's last part (wave 18) it
 SEARCH's source word, the comparison's kind and PASTE A LINK's source) and
 the series screen's MOVED band, now `moveKindOf`, `movesVideo`,
 `sourceMedium` and `kindFacts(moveKindOf(kind)).unit.long`
-(`series/[id]/move-words.ts`, `move/paste.server.ts`). `BASELINE` follows
+(`series/[id]/move-words.ts`, `move/paste.server.ts`). In wave 20 (cards
+c420 and c375, `agent/k20-browse` from `d5c4bf6f`) the widened command
+prints **95** at `d5c4bf6f` (89 and the six `SOURCE_KINDS` lines: BROWSE's
+source page and its settings, the extensions page's two APK counts,
+`engine/browse.ts`'s family lists and `engine/backend.ts`'s `sourceFamily`),
+and **87** after them: those six ask the family, and GROUP's two answers in
+`library/books.ts` (`groupAnswers`) ask `grouping`. `BASELINE` follows
 the latest slice; the handoff notes (`doc/handoff-notes/kinds.md`) record each one's number.
 The number is smaller than the audit's rough ~340 because this counts only a
 `kind` compared against a kind name: not the `isAnime…`-style helpers, not a

@@ -1,7 +1,8 @@
 import { getDb } from '../db.ts';
 import { sourceUse } from '../library-sources.ts';
 import { mostlyHidden } from '../../library/downloads.ts';
-import { SOURCE_KINDS, type SourceFamily, type SourceKind } from '../../library/kinds.ts';
+import type { SourceFamily, SourceKind } from '../../library/kinds.ts';
+import { familyOfKind } from './repo-index.ts';
 import { cleanSchema, toEngine, type FilterField } from '../../library/browse-filters.ts';
 import type { SearchHit } from '../download-types.ts';
 import { asHits, callSource, type EngineManga } from './backend.ts';
@@ -38,6 +39,11 @@ export type BrowseSource = {
 	lang: string;
 	/** The kind its family names a row by (`SOURCE_KINDS`): Mihon's manga, Aniyomi's anime, LNReader's novel. */
 	kind: SourceKind;
+	/**
+	 * The extension family it is (card c420): what a screen asks instead of
+	 * comparing `kind` with a family's kind (doc/KINDS.md, "No new kind checks").
+	 */
+	family: SourceFamily;
 	/** Series the library has from it that the viewer may see, and of those how many are hidden (0 with reveal off). */
 	series: number;
 	hidden: number;
@@ -75,12 +81,16 @@ function engineSources(reveal: boolean): BrowseSource[] {
 	const use = sourceUse();
 	const out: BrowseSource[] = [];
 	for (const r of rows) {
+		// The column's CHECK allows only a family's kind; a word none names is skipped.
+		const family = familyOfKind(r.kind);
+		if (!family) continue;
 		const u = use.get(r.id) ?? { series: 0, hidden: 0 };
 		const hiddenMostly = mostlyHidden(u);
 		if (hiddenMostly && !reveal) continue;
 		// Counts are what reveal lets the viewer see.
 		out.push({
 			...r,
+			family,
 			series: reveal ? u.series : u.series - u.hidden,
 			hidden: reveal ? u.hidden : 0,
 			mostlyHidden: hiddenMostly
@@ -254,14 +264,14 @@ export function browseList(reveal: boolean): BrowseList {
 		check: checked.some((h) => sameSite(h, bases.get(s.id) ?? ''))
 	}));
 	const visiblePkgs = new Set(shown.map((s) => s.pkg));
-	const ofFamily = (family: SourceFamily) => rows.filter((r) => r.kind === SOURCE_KINDS[family]);
+	const ofFamily = (family: SourceFamily) => rows.filter((r) => r.family === family);
 	return {
 		recent: rows
 			.filter((r) => r.browsedAt !== null)
 			.sort((a, b) => b.browsedAt! - a.browsedAt!)
 			.slice(0, RECENT),
-		// One list per source family, by the kind each family names its rows
-		// (`SOURCE_KINDS`; card c303): Mihon's, Aniyomi's, LNReader's.
+		// One list per source family, by the source's own family (cards c303,
+		// c420): Mihon's, Aniyomi's, LNReader's.
 		manga: ofFamily('mihon'),
 		anime: ofFamily('aniyomi'),
 		novels: ofFamily('lnreader'),

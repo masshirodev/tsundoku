@@ -51,6 +51,8 @@ import { planAnime } from '$lib/import/anime-plan';
 import { planEpub } from '$lib/import/epub-plan';
 import { planHentoidBook } from '$lib/import/hentoid-plan';
 import { defaultDirection } from '$lib/library/series';
+import { familyOfKind } from '$lib/server/engine/repo-index';
+import { groupAnswers } from '$lib/library/books';
 
 /**
  * The kind registry's own invariants, and the behaviour its first users read
@@ -234,6 +236,24 @@ describe('the source families', () => {
 		for (const [family, kind] of Object.entries(SOURCE_KINDS)) {
 			expect(KIND_FACTS[kind].sources).toContain(family);
 		}
+	});
+
+	it('decode a stored kind back to its family, for every kind and no other word', () => {
+		// card c420: `familyOfKind` replaces each `kind === SOURCE_KINDS.x`.
+		// The oracle is written out, not derived from SOURCE_KINDS.
+		const expected: Record<Kind, SourceFamily | null> = {
+			manga: 'mihon',
+			manhwa: null,
+			doujin: null,
+			novel: 'lnreader',
+			anime: 'aniyomi'
+		};
+		for (const kind of KINDS) expect(familyOfKind(kind), kind).toBe(expected[kind]);
+		for (const word of ['', 'MANGA', 'novels', 'mihon', 'none'])
+			expect(familyOfKind(word), word).toBeNull();
+		// The decoder holds on its own output: a family's kind gives that family back.
+		for (const family of SOURCE_FAMILIES)
+			expect(familyOfKind(SOURCE_KINDS[family]), family).toBe(family);
 	});
 
 	it('include Mihon for a doujin, because a gallery source keeps its mihon: key', () => {
@@ -481,6 +501,32 @@ describe('what GROUP binds, and which covers a kind has', () => {
 		expect(kindsGrouped('volumes')).toEqual(['novel']);
 	});
 
+	it('offers GROUP\u2019s answers by the registry, for every kind (card c375)', () => {
+		// The old expressions of books.ts:140-142 at d5c4bf6f, written out: one
+		// series of books is doujin singletons, one of volumes is novels.
+		const oldAnswers = (items: { kind: Kind; entryCount: number }[]) => [
+			...(items.length > 0 && items.every((i) => i.kind === 'doujin' && i.entryCount === 1)
+				? ['books']
+				: []),
+			...(items.length > 0 && items.every((i) => i.kind === 'novel') ? ['volumes'] : []),
+			'work'
+		];
+		const selections: { kind: Kind; entryCount: number }[][] = [[]];
+		for (const a of KINDS)
+			for (const n of [1, 2]) {
+				selections.push([{ kind: a, entryCount: n }]);
+				for (const b of KINDS)
+					selections.push([
+						{ kind: a, entryCount: n },
+						{ kind: b, entryCount: 1 }
+					]);
+			}
+		// Every kind alone, both ways of one book or more, and every pair.
+		expect(selections).toHaveLength(1 + 5 * 2 * 6);
+		for (const items of selections)
+			expect(groupAnswers(items), JSON.stringify(items)).toEqual(oldAnswers(items));
+	});
+
 	it('reads an EPUB cover for text and a first page only for pages, as covers.ts did', () => {
 		for (const k of KINDS) {
 			// covers.ts:87 and :121 at fb2bd3a7.
@@ -635,10 +681,16 @@ describe('the unit and READ/WATCHED words (labels.ts)', () => {
  *
  *   s.kind === 'anime'      kind !== 'novel'      'manga' === row.kind
  *
+ * and, since card c420, the same comparison spelled through the families'
+ * kinds, either way round and dotted or bracketed:
+ *
+ *   s.kind === SOURCE_KINDS.lnreader      SOURCE_KINDS[f] === r.kind
+ *
  * It is the same textual scan the command in doc/KINDS.md prints, so a line
  * holding two comparisons counts once and a mention in a comment counts too.
  * It does not count a comparison against another word (`kind === 'none'`, a
- * download's state), nor a helper (`movableKind`).
+ * download's state), nor a helper (`movableKind`), nor a question asked
+ * through one (`familyOfKind(l.kind) === 'mihon'` names a family, not a kind).
  *
  * What is allow-listed: `src/lib/library/kinds.ts` alone, because that file
  * is where a kind may be named -- its `matches` and `MOVE_MAP` are the rules.
@@ -650,12 +702,43 @@ describe('the unit and READ/WATCHED words (labels.ts)', () => {
  * How to lower it: delete or replace a check, then lower BASELINE by exactly
  * the count removed. Never raise it without a card saying which check and why.
  */
-const BASELINE = 89;
+const BASELINE = 87;
 /** One of `KINDS`' own names, as a bare alternation. */
 const NAME = String.raw`(?:manga|manhwa|doujin|novel|anime)`;
+/** A kind written down: a name in quotes, or a family's kind (`SOURCE_KINDS.x`, `SOURCE_KINDS[f]`). */
+const FIXED = String.raw`(?:['"]${NAME}['"]|SOURCE_KINDS(?:\.\w+|\[[^\]]*\]))`;
 const COMPARED = new RegExp(
-	String.raw`\bkind\s*[!=]==?\s*['"]${NAME}['"]|['"]${NAME}['"]\s*[!=]==?\s*[A-Za-z_$][\w$.]*kind\b`
+	String.raw`\bkind\s*[!=]==?\s*(?:['"]${NAME}['"]|SOURCE_KINDS\b)|${FIXED}\s*[!=]==?\s*[A-Za-z_$][\w$.]*kind\b`
 );
+
+describe('what the ratchet sees (card c420)', () => {
+	// Every spelling of a kind check the scan must count, and the questions it
+	// must not: a family asked through its decoder, or a download's own kind.
+	const counted = [
+		`s.kind === 'anime'`,
+		`kind !== "novel"`,
+		`'manga' === row.kind`,
+		`data.source.kind === SOURCE_KINDS.lnreader`,
+		`l.kind !== SOURCE_KINDS.mihon`,
+		`r.kind === SOURCE_KINDS[family]`,
+		`SOURCE_KINDS[f] === r.kind`,
+		`SOURCE_KINDS.aniyomi !== x.kind`
+	];
+	const notCounted = [
+		`familyOfKind(l.kind) === 'mihon'`,
+		`s.family === 'lnreader'`,
+		`kind === 'none'`,
+		`const kind = SOURCE_KINDS[family]`,
+		`kind: family === 'lnreader' ? SOURCE_KINDS.mihon : SOURCE_KINDS[family]`,
+		`movableKind(k)`
+	];
+	it('counts a kind compared with a name or a family\u2019s kind, either way round', () => {
+		for (const line of counted) expect(COMPARED.test(line), line).toBe(true);
+	});
+	it('does not count a family, an assignment or another word', () => {
+		for (const line of notCounted) expect(COMPARED.test(line), line).toBe(false);
+	});
+});
 
 function sourceFiles(dir: string): string[] {
 	return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {

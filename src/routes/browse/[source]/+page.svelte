@@ -8,7 +8,6 @@
 	import Band from '$lib/components/chrome/Band.svelte';
 	import GridOutline from '$lib/components/waiting/GridOutline.svelte';
 	import { count } from '$lib/library/downloads';
-	import { SOURCE_KINDS } from '$lib/library/kinds';
 	import { writeFilters } from '$lib/library/browse-filters';
 	import { backOriginLabel } from '$lib/library/tag-search';
 	import { isSettled } from '$lib/library/settled';
@@ -91,8 +90,8 @@
 	const results = $derived(value?.results ?? null);
 	const name = $derived(data.source.name);
 	// An LNReader plugin (doc/NOVELS.md): no settings here, and its search takes
-	// no filters. Its family names its rows by its kind (`SOURCE_KINDS`).
-	const novel = $derived(data.source.kind === SOURCE_KINDS.lnreader);
+	// no filters. The family is asked, not the kind (card c420).
+	const novel = $derived(data.source.family === 'lnreader');
 	const tabTitle = $derived(
 		data.q
 			? `“${data.q.toUpperCase()}”`
