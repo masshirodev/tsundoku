@@ -170,11 +170,11 @@ for the reader's own stylesheet instead (its ground turns true black).
 **Network quiet is a guess at hydration; the page's own mark is not**
 (c439). `networkidle` is 500 ms without a request, and on a loaded box the
 last module arrives and then waits longer than that for the CPU, so the guess
-comes true before hydration does. `tests/helpers/hydrated.ts` waits for
+comes true before hydration does. `hydrated(page)` (`tests/helpers/hydration.ts`) waits for
 SvelteKit's route announcer (`#svelte-announcer`), which the framework's root
 component draws from its own `onMount`, after every component under it has
-mounted: the element exists exactly when every handler does. Its `test`
-extends the one above so `goto`, `reload`, `goBack` and `goForward` all wait
+mounted: the element exists exactly when every handler does.
+`tests/helpers/hydrated.ts`'s `test` extends the one above so `goto`, `reload`, `goBack` and `goForward` all wait
 for it, and `hydrated(page)` is there for a page the fixture didn't make (a
 context of a spec's own: `tv-pair`'s TV). The flake files `e2e` owned in
 wave 19 import it; moving the same wait into `tests/fixtures.ts` is the
@@ -233,6 +233,57 @@ tile or changes what is read:
 `tv-series.e2e.ts` and `tv-series-frame.e2e.ts` say `series-flow` hides
 Tower of God; it hides Ame no Hi no Toshokan. Their move off Tower of God is
 right either way, since `series-flow` opens its reader.
+
+### Load
+
+The suite runs while the box is busy: a wave's gate runs beside six slots'
+builds and specs, and the load average has been 30 to 59 on the 12-thread
+workstation during gates. What it assumes, and the rules that follow (c439):
+
+- **Workers are half the logical cores, fixed** (`workers: '50%'` in
+  `playwright.config.ts`, 6 here), not capped by load. Measured on
+  2026-11-03, the box loaded by the other slots plus six `node` CPU burners:
+  six workers took 14.7 minutes at a load average of 13 to 45, three took
+  17.7 at 29 to 33, and three workers failed no fewer tests. Load stretches
+  every step, so a fixed wait that held at rest stops holding; fewer workers
+  stretch the run instead and leave the wait as wrong as it was.
+- **Wait on the page's own state, never on time.** Hydration
+  (`hydrated(page)`, above), a response the app sends
+  (`page.waitForResponse` on the report, as `browse-anime` waits for
+  `/api/reading`'s `finish`), a mark the app draws when it is done (a
+  setting's row is `.saved` once its action answered, which `browse-flow`
+  waits for), or the thing that changed (`text-reader-flow`'s turn waits for
+  the flow's transform to move). `waitForTimeout` is for asserting that
+  nothing happens in a while, and nothing else.
+- **Don't wait for the answer you expect before acting** (wave 18): wait on
+  the app's state, then act as the user would, then assert.
+- **Timeouts are raised only where the step is measured to be slow** under
+  load, and the comment says so (`tv-player`'s clip runs at a tenth of its
+  speed for the same reason).
+- **A flow's writes are a reader's race**: see "Each flow file owns its
+  series" and "The readers beside the flows" above.
+- **`duplicates` and `gate` depend on every device project**, so any red in
+  those (the base failures included) leaves them, about 40 tests, "did not
+  run". A gate that reports "did not run" has not run them.
+
+**One folder per run.** `tests/helpers/run-dir.ts`, imported first by the
+config, makes `<TMPDIR>/tsundoku-e2e-run-<runner pid>` and points `TMPDIR` at
+it; every worker and server inherits it, so the shared preview's database and
+data folders, each own-server spec's database and the browse and friend
+worlds all land there, and two runs never share a folder (the shared
+preview's `tsundoku-e2e-home`, `-empty-library` and `-backups` used to be one
+folder for every run on the box). The run removes it at its end and once more
+as the runner exits (the web servers write as they stop), and a run removes
+any folder whose runner is no longer alive. Before wave 19 every run left its
+databases in `/tmp`, which is RAM here. Keep `TMPDIR` on the worktree's
+`temp/playwright` anyway: a run that is killed leaves its folder until the
+next.
+
+**Ports.** The gate and each slot assign the eight `PLAYWRIGHT_*_PORT`
+variables. The fake extension repositories' port is never assigned: the
+runner takes a free one from the OS once and every process reads the same
+(`tests/browse-world.ts`, c340), and the browse world's servers name the port
+they could not take instead of waiting forever.
 
 ### Regenerating the frame spec
 

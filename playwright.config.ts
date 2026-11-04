@@ -65,6 +65,12 @@ export default defineConfig({
 	testMatch: '**/*.e2e.{ts,js}',
 	testIgnore: ['**/build/**'],
 	fullyParallel: true,
+	// Half the logical cores, whatever else the box is doing (doc/TESTING.md,
+	// "Load"). Measured in wave 19 with the box loaded: three workers instead of
+	// six took 17.7 minutes instead of 14.7 and failed no fewer tests. A test
+	// that fails under load waits on time instead of the page's own state, and
+	// fewer workers only hides that. `--workers` still overrides it.
+	workers: '50%',
 	// BROWSE's own server and fake engine, started after the shared server has
 	// built (tests/browse-setup.ts): the browse project below runs against it.
 	// And a friend's install (tests/friend-setup.ts), for the friend project.

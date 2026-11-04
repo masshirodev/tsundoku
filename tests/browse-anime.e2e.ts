@@ -297,15 +297,18 @@ test.describe('the player, tablet landscape (c156)', () => {
 			const v = document.querySelector('video');
 			return !!v && v.currentTime > 0;
 		});
+		// 6.2 s is inside the ending, so the seek itself may already report the
+		// episode finished (c239) before SKIP is pressed: whichever sends it,
+		// the series is read once the server has it, not after a fixed second.
+		const finished = page.waitForResponse(
+			(r) => r.url().endsWith('/api/reading') && r.request().postDataJSON()?.kind === 'finish'
+		);
 		await page.evaluate(() => {
 			const v = document.querySelector('video');
 			if (v) v.currentTime = 6.2;
 		});
 		const skip = player.getByRole('button', { name: 'SKIP ENDING →' });
 		await expect(skip).toBeVisible({ timeout: 10_000 });
-		const finished = page.waitForResponse(
-			(r) => r.url().endsWith('/api/reading') && r.request().postDataJSON()?.kind === 'finish'
-		);
 		await skip.click();
 		await finished;
 		const href = await player.getByRole('link', { name: '← SERIES' }).first().getAttribute('href');
