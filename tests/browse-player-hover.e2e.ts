@@ -96,6 +96,10 @@ test('hovering the picture leaves it untinted, and a visible control still tints
 	expect(await tint(page, '.tapzone')).toBe('none');
 
 	// A click on the picture is a tap, not a press of a button: nothing flashes.
+	// A guard only, which passes with or without data-press="off": press.ts
+	// (SURFACE_SHARE) already refuses a press on anything larger than 25 % of
+	// the viewport, and the tap zone is the whole picture. The hover assertion
+	// above is the one that falsifies c485's fix.
 	await page.mouse.down();
 	expect(await page.locator('.tapzone').getAttribute('data-pressed')).toBeNull();
 	await page.mouse.up();
