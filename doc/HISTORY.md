@@ -79,6 +79,17 @@ series. That's rare, harmless, and cheaper than re-homing removals.
   [`BROWSING.md`](BROWSING.md)) has rows like any series, said `NOT IN
 LIBRARY` after its kind. Its row opens its source's preview, where ADD is.
 - **Hidden means hidden.** While reveal is off, a hidden series has no rows.
+- **OFF HISTORY** (a source's own switch, [`BROWSE.md`](BROWSE.md), "A
+  source's own switches"; card c435): a series from a source with the switch
+  on has no rows, inside reveal or not, and its time is not in the total
+  (`historyTotals`, which sums `readingTime('series')` over every other
+  series, so what counts as reading stays one rule). The switch filters in
+  SQL (`sourceFlagSql`). It hides, it does not stop: the reading is still
+  logged, so progress, CONTINUE and the series screen's own time are
+  unchanged, and **tracking sends as before** (`afterReading` and
+  `queueProgress` read the entries' progress, which the switch never
+  touches; `tests/source-flags-db.spec.ts` measures the log and the
+  progress). Turned off, the rows come back.
 - **Incognito reading isn't there** because it was never written
   ([`PRIVACY.md`](PRIVACY.md)). Nothing is filtered out.
 - The seed data writes a few days of past reading, including one same-day
