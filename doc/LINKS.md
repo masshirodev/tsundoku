@@ -450,14 +450,20 @@ The link is AniList's line, a line a season on an anime (c240; above).
   order along the chain and ticked where the episode counts agree -- or
   where two entries add up to the season as `PART 1` and `PART 2`, part 1
   being the one that aired first (not the longer one: SAO's War of
-  Underworld is 12 + 11). A pair is found only where both entries stand at
-  the same step of the chain (both the linked season's SEQUEL); where
-  AniList chains part 2 off part 1, the walk places part 2 a season further
-  out, and the pair is not offered as one (a gap, `doc/handoff-notes/links.md`).
+  Underworld is 12 + 11). A pair is two entries at the same step of the
+  chain: both the linked season's SEQUEL, or -- AniList's usual shape --
+  part 2 the SEQUEL of part 1 (c464). A SEQUEL is part 1's other half, not
+  the next season, when its own title names a part of 2 or more (`Part 2`,
+  `2nd Part`, `Cour 2`, `2nd Cour`, `第2クール`; `partNumber`) **and** part 1
+  holds fewer episodes than the season here, so a catalogue that numbers
+  whole seasons as parts (JoJo's `Part 3`) still offers its next season as
+  one. The season after such a pair is asked one ring further, for the part
+  alone. Linking part 1 of a season offers part 2 on the same season, at the
+  part the link does not hold, ticked where the two add up.
   A pair is **one season** everywhere the page counts: `N OF M TICKED`,
   `LINK N SEASONS` and the band count distinct seasons (c418, round 2). The walk asks two rings: the linked entry, then
   its chain neighbours in one request, whose own PREQUEL and SEQUEL place
-  the second ring. AniList answers every edge an entry has, and a chain can
+  the second ring (and a part placed there is asked once more, above). AniList answers every edge an entry has, and a chain can
   branch (a movie and the next TV season both SEQUEL of one entry) or loop
   back, so each entry is placed once, where the walk first reaches it.
   **Outside the numbering**, dimmed, never ticked and never kept as a

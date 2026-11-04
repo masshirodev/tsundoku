@@ -113,6 +113,28 @@ add(node(203, 'Split Show Season 2 Part 2', 'TV', 11, 2022), [
 	['PREQUEL', 201]
 ]);
 
+// AniList's usual shape for a split season (c464): part 2 is the SEQUEL of
+// part 1, not of the season before, and the next season the SEQUEL of part 2.
+// Part 2 also lists part 1 as its PREQUEL and (a loop) as its SEQUEL, and
+// part 1 has a movie for a second SEQUEL (a branch).
+add(node(401, 'Chain Show', 'TV', 12, 2019), [['SEQUEL', 402]]);
+add(node(402, 'Chain Show Season 2', 'TV', 12, 2020), [
+	['PREQUEL', 401],
+	['SEQUEL', 403],
+	['SEQUEL', 405]
+]);
+add(node(403, 'Chain Show Season 2 Part 2', 'TV', 11, 2021), [
+	['PREQUEL', 402],
+	['SEQUEL', 402],
+	['SEQUEL', 404]
+]);
+add(node(404, 'Chain Show Season 3', 'TV', 12, 2022), [['PREQUEL', 403]]);
+add(node(405, 'Chain Show the Movie', 'MOVIE', 1, 2021), [['PREQUEL', 402]]);
+// A catalogue that numbers its seasons as parts (JoJo's): `Part 2` is the
+// SEQUEL of a whole season here, so it is the next season, not half of one.
+add(node(411, 'Parts Show', 'TV', 12, 2012), [['SEQUEL', 412]]);
+add(node(412, 'Parts Show Part 2', 'TV', 12, 2014), [['PREQUEL', 411]]);
+
 /** Every kind of edge AniList has (its MediaRelation), each to a TV entry of 24 episodes. */
 const RELATION_TYPES = [
 	'ADAPTATION',
@@ -360,7 +382,10 @@ describe('the relation walk (c351)', () => {
 			// doesn't agree, 24 does.
 			{ season: 2, part: 1, id: 101, how: 'PREQUEL', ticked: false, outside: false, heldBy: null },
 			{ season: 2, part: 1, id: 102, how: 'PREQUEL', ticked: true, outside: false, heldBy: null },
-			{ season: 4, part: 1, id: 105, how: 'SEQUEL', ticked: false, outside: false, heldBy: null }
+			// War of Underworld and its Part 2, AniList's usual shape (part 2 the
+			// SEQUEL of part 1): one season here, 12 + 11 = 23 (c464).
+			{ season: 4, part: 1, id: 105, how: 'SEQUEL', ticked: true, outside: false, heldBy: null },
+			{ season: 4, part: 2, id: 106, how: 'SEQUEL', ticked: true, outside: false, heldBy: null }
 		]);
 		expect(offers.filter((o) => o.outside).map((o) => o.id)).toEqual([103, 150, 151, 160]);
 	});
@@ -394,6 +419,139 @@ describe('the relation walk (c351)', () => {
 			[2, 1, 202],
 			[2, 2, 203]
 		]);
+	});
+});
+
+describe('a split season chained part 1 → part 2, AniList’s usual shape (c464)', () => {
+	it('offers both parts as one season, and the season after them', async () => {
+		const id = show([12, 23, 12]);
+		link(id, 1, 401);
+		const offers = shape(await seasons.seasonRelations(id, 1));
+		expect(offers.filter((o) => !o.outside)).toEqual([
+			{ season: 2, part: 1, id: 402, how: 'SEQUEL', ticked: true, outside: false, heldBy: null },
+			{ season: 2, part: 2, id: 403, how: 'SEQUEL', ticked: true, outside: false, heldBy: null },
+			{
+				season: 3,
+				part: 1,
+				id: 404,
+				how: 'SEQUEL’S SEQUEL',
+				ticked: true,
+				outside: false,
+				heldBy: null
+			}
+		]);
+		expect(offers.filter((o) => o.outside).map((o) => o.id)).toEqual([405]);
+		// Part 2 took no step, so the season after it is asked one ring further,
+		// for that part alone.
+		expect(requests).toEqual([[401], [402], [403]]);
+		const r = seasons.linkPicks(
+			id,
+			'anime',
+			offers
+				.filter((o) => o.ticked)
+				.map((o) => ({ season: o.season!, part: o.part!, anilistId: o.id })),
+			NOW
+		);
+		expect(seasons.seasonsLinked(r.linked, r.refused)).toEqual({ linked: 2, of: 2 });
+		expect(linked(id)).toEqual([
+			[1, 1, 401],
+			[2, 1, 402],
+			[2, 2, 403],
+			[3, 1, 404]
+		]);
+	});
+
+	it('offers part 2 for the season part 1 was linked to, and the seasons either side', async () => {
+		const id = show([12, 23, 12]);
+		link(id, 2, 402);
+		const offers = shape(await seasons.seasonRelations(id, 2));
+		expect(offers.filter((o) => !o.outside)).toEqual([
+			{ season: 1, part: 1, id: 401, how: 'PREQUEL', ticked: true, outside: false, heldBy: null },
+			{ season: 2, part: 2, id: 403, how: 'SEQUEL', ticked: true, outside: false, heldBy: null },
+			{ season: 3, part: 1, id: 404, how: 'SEQUEL', ticked: true, outside: false, heldBy: null }
+		]);
+		// Two rings, as before: part 2 stood in the first.
+		expect(requests).toEqual([[402], [401, 403, 405]]);
+	});
+
+	it('keeps a part apart when the counts say the season here is part 1 alone', async () => {
+		// Season 2 here holds 12: part 1 is all of it, so its `Part 2` sequel is
+		// a season of its own, one step out.
+		const id = show([12, 12, 11]);
+		link(id, 1, 401);
+		const offers = shape(await seasons.seasonRelations(id, 1));
+		expect(offers.filter((o) => !o.outside).map((o) => [o.season, o.part, o.id, o.ticked])).toEqual(
+			[
+				[2, 1, 402, true],
+				[3, 1, 403, true]
+			]
+		);
+	});
+
+	it('never swallows a sequel that is a whole season here, whatever its title', async () => {
+		const id = show([12, 12]);
+		link(id, 1, 411);
+		const offers = shape(await seasons.seasonRelations(id, 1));
+		expect(offers.filter((o) => !o.outside).map((o) => [o.season, o.part, o.id, o.ticked])).toEqual(
+			[[2, 1, 412, true]]
+		);
+	});
+
+	it('reads a part from the title alone, and from no title the specs use but the parts', () => {
+		const t = (title: string) => seasons.partNumber({ english: title, romaji: null, native: null });
+		// Every title the walk's two fakes hold (this file's WORLD, and
+		// links-flow.e2e.ts's stand-in catalogue), as listed there.
+		const e2e = [
+			'Ranma ½',
+			'Ranma ½ (2024)',
+			'Frieren',
+			'Sword Art Online',
+			'Sword Art Online II',
+			'Sword Art Online: Extra Edition',
+			'Sword Art Online Alternative: Gun Gale Online',
+			'Flat List Show',
+			'Flat List Show Season 2',
+			'Flat List Show Season 3',
+			'Split Show',
+			'Split Show 2nd Season',
+			'Split Show 2nd Season Part 2',
+			'Split Show 3rd Season',
+			'Chain Split Show',
+			'Chain Split Show 2nd Season',
+			'Chain Split Show 2nd Season Part 2',
+			'Chain Split Show 3rd Season',
+			'Lone Show',
+			'Lone Show Again'
+		];
+		const parts = Object.fromEntries(
+			[...[...WORLD.values()].map((n) => n.title.english!), ...e2e]
+				.map((title) => [title, t(title)])
+				.filter(([, n]) => n !== null)
+		);
+		expect(parts).toEqual({
+			'Sword Art Online: Alicization - War of Underworld Part 2': 2,
+			'Split Show Season 2 Part 2': 2,
+			'Chain Show Season 2 Part 2': 2,
+			'Parts Show Part 2': 2,
+			'Split Show 2nd Season Part 2': 2,
+			'Chain Split Show 2nd Season Part 2': 2
+		});
+		// The other ways a catalogue writes a part, and what is no part.
+		expect(
+			[
+				'Show 2nd Cour',
+				'Show Cour 2',
+				'Show Part II',
+				'Show Second Part',
+				'Show 第2クール',
+				'Show 第２クール',
+				'Show Part 1',
+				'Show 2nd Season',
+				'Show II',
+				'Party Show 2',
+				'Show: Departure 2'
+			].map(t)
+		).toEqual([2, 2, 2, 2, 2, 2, null, null, null, null, null]);
 	});
 });
 

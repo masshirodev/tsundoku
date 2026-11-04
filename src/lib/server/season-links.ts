@@ -956,6 +956,37 @@ const SIDE: Record<string, string> = {
 	SPIN_OFF: 'SPIN-OFF, NOT A SEQUEL'
 };
 
+/**
+ * The part of a season an entry's own title says it is: 2 for `… Part 2`,
+ * `… 2nd Part`, `… Cour 2`, `… 2nd Cour` or `…第2クール`, and so on; null when
+ * no title says (c464). AniList's usual shape for one season split in two is
+ * part 2 as part 1's SEQUEL, which a walk that counts every SEQUEL as the next
+ * season places a season too far. Only a title that names a part of 2 or more
+ * says so: `Season 2`, `2nd Season`, `II`, `Part 1`, a subtitle or a year say
+ * nothing about parts, and a SEQUEL titled so is the next season.
+ */
+export function partNumber(title: {
+	english: string | null;
+	romaji: string | null;
+	native: string | null;
+}): number | null {
+	const WORDS: Record<string, number> = { ii: 2, iii: 3, two: 2, three: 3, second: 2, third: 3 };
+	const num = (x: string) =>
+		WORDS[x.toLowerCase()] ??
+		Number(x.replace(/[０-９]/g, (d) => String(d.charCodeAt(0) - 0xff10)));
+	for (const t of [title.english, title.romaji, title.native]) {
+		if (!t) continue;
+		const m =
+			/\b(?:part|cour)\s*(\d+|ii|iii|two|three)\b/i.exec(t) ??
+			/\b(\d+)(?:st|nd|rd|th)\s+(?:part|cour)\b/i.exec(t) ??
+			/\b(second|third)\s+(?:part|cour)\b/i.exec(t) ??
+			/第\s*([0-9０-９]+)\s*クール/.exec(t);
+		const n = m ? num(m[1]) : NaN;
+		if (Number.isFinite(n) && n >= 2) return n;
+	}
+	return null;
+}
+
 /** "SEASON 3 HOLDS THIS ENTRY": what a door offering a held entry says of it (c418). */
 export const holdsLine = (h: { season: number; part: number }): string =>
 	`${seasonWords(h)} HOLDS THIS ENTRY`;
@@ -979,11 +1010,19 @@ const seasonWords = (h: { season: number; part: number }): string =>
  * the season that holds it (c418). Null when the linked entry is unknown or
  * AniList can't be reached.
  *
+ * A season AniList splits in two is usually chained part 1 → part 2 (c464):
+ * a SEQUEL whose title says it is a part (`partNumber`) of an entry shorter
+ * than the season here is placed beside that entry, as its season's other
+ * part, not a season further out. The linked season's own other part is
+ * offered at the part its link does not hold.
+ *
  * The walk asks two rings: the linked entry, then its chain neighbours, in
- * one request; their own chain neighbours are placed from that answer. AniList
- * answers every edge an entry has, of every kind and in both directions, and
- * a chain can loop back or branch, so each entry is placed once, at the first
- * place the walk reaches it, and a chain place always outranks a side one.
+ * one request; their own chain neighbours are placed from that answer. A part
+ * placed in that second ring took no step, so it is asked once more, alone,
+ * for the season after it. AniList answers every edge an entry has, of every
+ * kind and in both directions, and a chain can loop back or branch, so each
+ * entry is placed once, at the first place the walk reaches it, and a chain
+ * place always outranks a side one.
  */
 export async function seasonRelations(
 	seriesId: number,
@@ -1000,31 +1039,64 @@ export async function seasonRelations(
 	const first = await mediaMany(token, [linked.anilistId]);
 	const start = first.get(linked.anilistId);
 	if (!start) return null;
-	// Level 0 is the entry just linked; a PREQUEL is -1, a SEQUEL +1.
-	const level = new Map<number, { node: RelNode; at: number }>([
-		[start.id, { node: start, at: 0 }]
+	// Level 0 is the entry just linked; a PREQUEL is -1, a SEQUEL +1. `part`
+	// marks an entry placed beside its neighbour as the other part of its
+	// season (c464), rather than a step from it.
+	const level = new Map<number, { node: RelNode; at: number; part: boolean; dir: 1 | -1 }>([
+		[start.id, { node: start, at: 0, part: false, dir: 1 }]
 	]);
 	const side = new Map<number, { node: RelNode; how: string }>();
+	// A season the local list holds, `at` steps from the linked one: what a
+	// catalogue's entry is checked against.
+	const airedAt = (n: number) => view.seasons[at + n]?.aired ?? 0;
+	/**
+	 * Whether `next`, the SEQUEL of `from` (standing `fromAt` from the linked
+	 * season), is the second half of `from`'s season rather than the next
+	 * season: its title says it is a part (`partNumber`), and the season here
+	 * holds more episodes than `from` alone, so `from` is not all of it. Both,
+	 * so a sequel a catalogue numbers by parts as seasons (JoJo's `Part 3`) is
+	 * still the next season where `from` already is a whole season here.
+	 */
+	const continues = (from: RelNode, fromAt: number, next: RelNode) =>
+		partNumber(next.title) !== null &&
+		from.episodes !== null &&
+		from.episodes > 0 &&
+		from.episodes < airedAt(fromAt);
 	/** One entry's edges: the chain's placed a step from it, the side kinds kept aside. */
-	const collect = (fromAt: number, edges: { relationType: string; node: RelNode }[]) => {
+	const collect = (
+		from: RelNode,
+		fromAt: number,
+		edges: { relationType: string; node: RelNode }[]
+	) => {
 		const placed: number[] = [];
 		for (const e of edges) {
 			const dir = CHAIN[e.relationType];
 			if (dir) {
 				if (level.has(e.node.id)) continue;
-				level.set(e.node.id, { node: e.node, at: fromAt + dir });
+				// A part 2 SEQUEL of part 1, or part 1 the PREQUEL of a part 2: one season.
+				const part = dir === 1 ? continues(from, fromAt, e.node) : continues(e.node, fromAt, from);
+				level.set(e.node.id, { node: e.node, at: part ? fromAt : fromAt + dir, part, dir });
 				placed.push(e.node.id);
 			} else if (SIDE[e.relationType] && !side.has(e.node.id))
 				side.set(e.node.id, { node: e.node, how: SIDE[e.relationType] });
 		}
 		return placed;
 	};
-	const inner = collect(0, start.relations?.edges ?? []);
+	const inner = collect(start, 0, start.relations?.edges ?? []);
 	// One more step out, asked in one request: the second season either way.
 	const second = inner.length ? await mediaMany(token, inner) : new Map();
+	const outer: number[] = [];
 	for (const id of inner) {
 		const answer = second.get(id);
-		if (answer) collect(level.get(id)!.at, answer.relations?.edges ?? []);
+		if (answer) outer.push(...collect(answer, level.get(id)!.at, answer.relations?.edges ?? []));
+	}
+	// A part placed beside its neighbour took no step, so the season after it
+	// is one ring further: asked once more, for those parts alone (c464).
+	const parts = outer.filter((id) => level.get(id)!.part);
+	const third = parts.length ? await mediaMany(token, parts) : new Map();
+	for (const id of parts) {
+		const answer = third.get(id);
+		if (answer) collect(answer, level.get(id)!.at, answer.relations?.edges ?? []);
 	}
 	const bySeason = new Map<
 		number,
@@ -1035,15 +1107,18 @@ export async function seasonRelations(
 	for (const [id, v] of level) {
 		if (id === start.id) continue;
 		const kind = candidateKind({ format: v.node.format ?? '', country: '' });
+		// The linked season's own other part stands at step 0 (c464), and is
+		// named by the edge that reached it.
+		const how = ABOVE[v.at] ?? (v.part && v.at === 0 ? ABOVE[v.dir] : undefined);
 		const outside =
-			!isAnime(kind) || v.node.format === 'MOVIE' || v.node.format === 'SPECIAL' || !ABOVE[v.at];
+			!isAnime(kind) || v.node.format === 'MOVIE' || v.node.format === 'SPECIAL' || !how;
 		const seasonAt = at + v.at;
 		if (!outside && (seasonAt < 0 || seasonAt >= view.seasons.length)) continue;
 		put(outside ? -1 : seasonAt, {
 			node: v.node,
 			at: v.at,
 			outside,
-			how: ABOVE[v.at] ?? 'OUTSIDE THE SEASONS’ NUMBERING'
+			how: how ?? 'OUTSIDE THE SEASONS’ NUMBERING'
 		});
 	}
 	// Beside the chain, whatever its format: a TV side story is no season either.
@@ -1078,6 +1153,31 @@ export async function seasonRelations(
 			.sort((a, b) => (a.node.seasonYear ?? 0) - (b.node.seasonYear ?? 0) || a.node.id - b.node.id);
 		const have = aired(key);
 		const already = target.link;
+		if (key === at) {
+			// The linked season's other part (c464): the entry just linked is one
+			// half, and this the other, at the part the link does not hold.
+			const mine = own.parts.find((p) => p.link?.anilistId === linked.anilistId)?.part ?? 1;
+			const other = mine === 1 ? 2 : 1;
+			const free = !own.parts.find((p) => p.part === other)?.link;
+			for (const x of parts) {
+				const adds = (start.episodes ?? 0) + (x.node.episodes ?? 0) === have;
+				const why = adds
+					? `${start.episodes} + ${x.node.episodes} = ${have}: ONE SEASON HERE, TWO ENTRIES THERE`
+					: `${have} EP. HERE · ANILIST LISTS ${start.episodes ?? '—'} + ${x.node.episodes ?? '—'}`;
+				offers.push(
+					offerOf(
+						view,
+						key,
+						other,
+						x,
+						why,
+						adds && free,
+						adds ? why : `${why} · A COUNT THAT DOESN’T IS LEFT UNTICKED`
+					)
+				);
+			}
+			continue;
+		}
 		if (
 			parts.length >= 2 &&
 			(parts[0].node.episodes ?? 0) + (parts[1].node.episodes ?? 0) === have
@@ -1117,8 +1217,11 @@ export async function seasonRelations(
 			o.why = 'ALREADY ITS LINK';
 			continue;
 		}
-		// A season linked already says what its ticks would replace.
-		if (target?.link) o.replaces = target.link.title || 'LINKED';
+		// A season linked already says what its ticks would replace. On the
+		// linked season itself only its other part is offered (c464), and only
+		// that part's own link would be replaced.
+		const replaced = o.season === season ? mine : target?.link;
+		if (replaced) o.replaces = replaced.title || 'LINKED';
 		// Held by another season or part (c418): `linkSeason` refuses it, so the
 		// offer says by which, and is never ticked.
 		const held = seasonHolding(seriesId, o.season, o.part, o.candidate);
