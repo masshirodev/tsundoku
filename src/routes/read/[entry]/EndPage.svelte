@@ -8,6 +8,7 @@
 	import type { Kind } from '$lib/library/types';
 	import { offline } from '$lib/offline.svelte';
 	import type { Mode } from '$lib/reader/reader';
+	import { deserialize } from '$app/forms';
 	import { resolve } from '$app/paths';
 
 	/**
@@ -197,7 +198,8 @@
 	const namesSeries = $derived(
 		variant === 'series' && (work?.mode === 'next' || work?.mode === 'read')
 	);
-	let queued = $state(false);
+	/** DOWNLOAD FIRST 10's answer: nothing asked yet, asking, queued, or refused (c344). */
+	let queue = $state<'idle' | 'asking' | 'queued' | 'failed'>('idle');
 
 	function downloadWords(p: NonNullable<WorkEnd['next']>): string {
 		if (p.entries > 0 && p.downloaded >= p.entries) return 'ALL DOWNLOADED';
@@ -205,10 +207,19 @@
 		return '0 DOWNLOADED';
 	}
 
-	/** DOWNLOAD FIRST 10 of the next part, through its own series screen's action. */
+	/**
+	 * DOWNLOAD FIRST 10 of the next part, through its own series screen's
+	 * action. An action called this way answers 200 even when it fails: the
+	 * outcome is the body's `type`, so `r.ok` alone said QUEUED ✓ over an
+	 * engine that was down (c344). And a success can queue nothing (no chapter
+	 * the source lists is left to fetch), which is no more a queue. Anything
+	 * but a success that queued something says NOT QUEUED and leaves the cell
+	 * pressable, so a retry is a second press.
+	 */
 	async function downloadFirst() {
 		const p = work?.next;
-		if (!p || queued) return;
+		if (!p || queue === 'asking' || queue === 'queued') return;
+		queue = 'asking';
 		const body = new FormData();
 		body.set('which', 'next');
 		const r = await fetch(`${resolve('/series/[id]', { id: String(p.seriesId) })}?/download`, {
@@ -216,7 +227,18 @@
 			body,
 			headers: { 'x-sveltekit-action': 'true' }
 		}).catch(() => null);
-		if (r?.ok) queued = true;
+		let ok = false;
+		try {
+			const result = r?.ok ? deserialize(await r.text()) : null;
+			const done =
+				result?.type === 'success'
+					? (result.data?.downloaded as { queued?: number } | undefined)
+					: undefined;
+			ok = Number(done?.queued) > 0;
+		} catch {
+			// A body that isn't an action's answer (a proxy's page, a cut connection) is no queue.
+		}
+		queue = ok ? 'queued' : 'failed';
 	}
 </script>
 
@@ -311,8 +333,16 @@
 								>
 							{/if}
 							{#if unreadable || onlineOnly}
-								<button type="button" class="dl" disabled={queued} onclick={downloadFirst}
-									>{queued ? 'QUEUED ✓' : nextWords?.downloadFirst}</button
+								<button
+									type="button"
+									class="dl"
+									disabled={queue === 'queued' || queue === 'asking'}
+									onclick={downloadFirst}
+									>{queue === 'queued'
+										? 'QUEUED ✓'
+										: queue === 'failed'
+											? 'NOT QUEUED · TRY THE SERIES'
+											: nextWords?.downloadFirst}</button
 								>
 							{/if}
 							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- resolved by the page -->

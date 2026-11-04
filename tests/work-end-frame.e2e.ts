@@ -689,6 +689,65 @@ test('a next part with no file reads online from its source, and offers DOWNLOAD
 	await expect(page.locator('.end .nextw .go .dl')).toHaveText('DOWNLOAD FIRST 10 CHAPTERS');
 });
 
+test('DOWNLOAD FIRST 10 that queues nothing says so, and can be pressed again (c344)', async ({
+	page
+}) => {
+	// The real action, on this file's own server: its engine is
+	// http://127.0.0.1:9, where nothing listens, so the source lists no chapter
+	// to fetch and ?/download answers a success that queued nothing.
+	await openEnd(page, 8);
+	const dl = page.locator('.end .nextw .go .dl');
+	await expect(dl).toHaveText('DOWNLOAD FIRST 10 CHAPTERS');
+	const asked = page.waitForRequest((r) => /\?\/download$/.test(r.url()) && r.method() === 'POST');
+	await dl.click();
+	const request = await asked;
+	expect(request.url()).toContain('/series/14?/download');
+	expect(request.postData()).toMatch(/name="which"\r\n\r\nnext\r\n/);
+	// The answer as the page reads it: a success, and devalue's table says 0 queued.
+	const answer = JSON.parse(await (await request.response())!.text());
+	expect(answer.type).toBe('success');
+	const table = JSON.parse(answer.data);
+	expect(table[table[table[0].downloaded].queued]).toBe(0);
+	await expect(dl).toHaveText('NOT QUEUED · TRY THE SERIES');
+	// Not a dead end: still a cell, and a second press asks again.
+	await expect(dl).toBeEnabled();
+
+	// The engine down, as the action says it: HTTP 200 and a failure inside,
+	// which is how SvelteKit answers an action called with x-sveltekit-action.
+	await page.route(/\?\/download$/, (route) =>
+		route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify({
+				type: 'failure',
+				status: 503,
+				data: '[{"message":1},"Downloading is not answering"]'
+			})
+		})
+	);
+	await dl.click();
+	await expect(dl).toHaveText('NOT QUEUED · TRY THE SERIES');
+	await expect(dl).toBeEnabled();
+
+	// And a queue that took: QUEUED ✓, and the cell is done.
+	await page.unroute(/\?\/download$/);
+	await page.route(/\?\/download$/, (route) =>
+		route.fulfill({
+			status: 200,
+			contentType: 'application/json',
+			body: JSON.stringify({
+				type: 'success',
+				status: 200,
+				data: '[{"downloaded":1},{"queued":2,"missing":3},10,0]'
+			})
+		})
+	);
+	await dl.click();
+	await expect(dl).toHaveText('QUEUED ✓');
+	await expect(dl).toBeDisabled();
+	await page.unroute(/\?\/download$/);
+});
+
 test('an anime next part with no file speaks in episodes, and offers its first 10 episodes (c343)', async ({
 	page
 }) => {
