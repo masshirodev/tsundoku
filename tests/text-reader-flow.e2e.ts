@@ -10,6 +10,13 @@ import { expect, test } from './helpers/hydrated';
  */
 const TITLE = 'Honzuki no Gekokujou';
 test.describe.configure({ mode: 'serial' });
+// `serveBook` stubs the whole book, `/api/series/<id>/epub`, which the service
+// worker answers once it controls the page, and `page.route` never sees a
+// request the worker sends: a trace of the Japanese case's failure shows the
+// worker fetching the seed's English book while the files came from the stub,
+// and the reader setting the English one (round 2, 1 in 34 at two workers).
+// Nothing in this file reads offline; offline-flow owns that.
+test.use({ serviceWorkers: 'block' });
 
 async function openBook(page: Page) {
 	await page.goto('/');
@@ -42,7 +49,7 @@ const forward = async (page: Page) => {
 	const where = () =>
 		page.evaluate(
 			() =>
-				`${location.href} ${document.querySelector('.blocks h1')?.textContent ?? ''} ${
+				`${document.querySelector('.blocks h1')?.textContent ?? ''} ${
 					document.querySelector<HTMLElement>('.flow')?.style.transform ?? ''
 				}`
 		);
