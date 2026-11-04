@@ -136,7 +136,9 @@ class Servers(private val kv: KeyValue, private val clock: () -> Long = System::
 	 * The first read after c261 finds no list and the old single address:
 	 * that address becomes a list of one, opened now, so a TV paired before
 	 * the update opens exactly as it did and is never asked to pair again
-	 * (its cookie is the WebView's, per origin, and nothing here touches it).
+	 * (its cookie is the WebView's, and nothing here touches it). The jar
+	 * scopes cookies by host, not origin: two servers on one host share the
+	 * one paired cookie (doc/TV-APP.md, "What it does not do yet").
 	 */
 	@Synchronized
 	fun all(): List<Server> {

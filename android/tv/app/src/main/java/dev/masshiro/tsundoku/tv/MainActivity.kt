@@ -207,6 +207,8 @@ class MainActivity : ComponentActivity() {
 		WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
 	}
 
+	private val failedLoad = FailedLoad()
+
 	private fun client() =
 		object : WebViewClient() {
 			override fun onReceivedError(
@@ -217,7 +219,13 @@ class MainActivity : ComponentActivity() {
 				// A remembered address that stopped answering: 9D, not the
 				// WebView's own grey page. Subresources are the page's business.
 				if (!request.isForMainFrame || request.url.scheme == "file") return
+				failedLoad.failed(originOf(request.url))
 				showLost(originOf(request.url))
+			}
+
+			override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
+				val uri = Uri.parse(url)
+				if (uri.scheme == "http" || uri.scheme == "https") failedLoad.started(originOf(uri))
 			}
 
 			/**
@@ -234,6 +242,8 @@ class MainActivity : ComponentActivity() {
 					view.evaluateJavascript(PAIRED_JS) { value -> pairedPage(known, value) }
 					return
 				}
+				// A failed load finishes too: it must not become the last used.
+				if (!failedLoad.finished(origin)) return
 				if (!Back.passedOver(url) && servers.opened(origin)) serversChanged()
 			}
 		}

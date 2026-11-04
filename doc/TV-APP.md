@@ -260,8 +260,11 @@ opened and when it was added. Pure apart from its key-value, so
 
 - **Migration.** A TV paired before c261 has `address` and no `servers`. The
   first read makes it a list of one, opened now, so the TV opens exactly as
-  before and is never asked to pair again: its cookie is the WebView's, per
-  origin, and nothing touches it. `address` is kept in step with the last
+  before and is never asked to pair again: its cookie is the WebView's,
+  and nothing touches it. The jar keeps cookies per **host**, not per
+  origin (port and scheme are not part of a cookie's scope), so servers on
+  different computers each keep their own pairing, and two on one computer
+  share one (see "What it does not do yet"). `address` is kept in step with the last
   used on every write, so an older APK installed over this one still opens
   the same library.
 - **`remember()` adds**, never replaces, and never makes a server the one in
@@ -334,7 +337,18 @@ verified".
   other servers only through 9D (when that computer is off) or by a launcher
   shortcut (c287). The friend's install updates itself (`doc/UPDATES.md`).
 - 9D probes the other servers once, when it opens; its own retry every 5 s is
-  for the server in use only.
+  for the server in use only. A retry that fails again only counts (TRIED N
+  TIMES): the rows, their answers and the remote's mark stay where they are
+  (round 2 of wave 21; before it, every failed retry rebuilt 9D, put the mark
+  back on TRY AGAIN and probed every other server again).
+- **Two servers on one computer share a pairing.** The WebView's cookie jar
+  scopes a cookie by host, and every tsundoku sets the same
+  `tsundoku_paired` cookie at `/`, so two servers on one host (two ports, or
+  http and https) hold one cookie between them: pairing the second signs the
+  TV out of the first, and FORGET on either expires both. S8's "Each keeps
+  its own pairing" holds for servers on different computers only. The fix is
+  the computer's (a cookie name per port, `src/lib/server/pairing.ts`), not
+  the app's.
 - 9E itself (the computer's) still says nothing of other servers on a first
   pairing, as the design asks: with one server nothing changes.
 
@@ -539,7 +553,15 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
      `HttpOnly` cookie with an expired one is not testable without a
      WebView).
   6. Turn the server in use off and relaunch: 9D for it, the other offered
-     at the right with ● ANSWERS; ↑ from TRY AGAIN reaches it; OK opens it.
+     at the right with ● ANSWERS; ↑ from TRY AGAIN reaches it. Leave the
+     mark there for 15 s: it must stay on that row, and the row must keep
+     ANSWERS, while TRIED N TIMES counts up. OK opens it.
+  7. A server that is off, opened from SERVERS, must not become the one
+     launch opens. Turn one computer off, open it from MORE › SERVERS (9D
+     appears), then quit the app and launch it again: it must open the
+     server that was in use before, not 9D for the one that is off.
+     `FailedLoad` assumes WebView reports a failed main-frame load as
+     started, error, finished, in that order; this is the check that it does.
 - **Launcher shortcuts (c287).** Built and planned in a JVM test, never seen
   on a launcher. Check: long-press tsundoku's icon on the TV's home screen
   (and on a phone, where Android's launcher does show app shortcuts). One
