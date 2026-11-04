@@ -568,6 +568,14 @@ export function installFocusLayer(): () => void {
  * inside an opted-out screen (a reader's READING panel) does nothing: that
  * screen owns its keys, unless the sheet says `force` -- a dialog the pad has
  * to reach even over a page that reads its own arrows.
+ *
+ * It closes when it starts to leave, not when it is gone (c445). A sheet with
+ * `out:leave` stays in the page for its exit, and Svelte makes it `inert` the
+ * moment it starts: from then on it takes nothing, so it must not keep the
+ * keys, and the screen under it may already have placed focus (the text
+ * reader puts the pad on its scrubber). So focus goes back only if it was lost,
+ * never over a place the screen chose. A sheet opened again before it was gone
+ * is the same element, its exit called off: it becomes the scope again.
  */
 export function focusScope(
 	node: HTMLElement,
@@ -581,29 +589,49 @@ export function focusScope(
 		!node.contains(document.activeElement)
 			? document.activeElement
 			: null;
-	scopes.push({ node, restoreTo: opener, force: !!options.force });
+	const entry: Scope = { node, restoreTo: opener, force: !!options.force };
+	let frame = 0;
 
-	// The rows exist by the time the action runs, but the browser has not laid
-	// them out in the same task: focus on the next frame so a rect is real.
-	const frame = requestAnimationFrame(() => {
-		if (!scopes.some((s) => s.node === node)) return;
-		const first = startOf(node);
-		if (first) take(first);
+	const open = () => {
+		scopes.push(entry);
+		// The rows exist by the time this runs, but the browser has not laid
+		// them out in the same task: focus on the next frame so a rect is real.
+		frame = requestAnimationFrame(() => {
+			if (!scopes.includes(entry)) return;
+			const first = startOf(node);
+			if (first) take(first);
+		});
+	};
+
+	const close = () => {
+		cancelAnimationFrame(frame);
+		const at = scopes.indexOf(entry);
+		if (at === -1) return;
+		scopes.splice(at, 1);
+		const now = document.activeElement;
+		const lost = !(now instanceof HTMLElement) || now === document.body || node.contains(now);
+		if (!lost) return;
+		const back = entry.restoreTo;
+		if (back && back.isConnected && isVisible(back)) take(back);
+		else if (isManagedScope(activeScope())) {
+			const first = startOf(activeScope());
+			if (first) take(first);
+		}
+	};
+
+	// `inert` is set and cleared by Svelte's transitions as the property, which
+	// the browser reflects as the attribute.
+	const leaving = new MutationObserver(() => {
+		if (node.inert) close();
+		else if (node.isConnected && !scopes.includes(entry)) open();
 	});
+	leaving.observe(node, { attributes: true, attributeFilter: ['inert'] });
+	open();
 
 	return {
 		destroy() {
-			cancelAnimationFrame(frame);
-			const at = scopes.findIndex((s) => s.node === node);
-			if (at === -1) return;
-			const entry = scopes[at];
-			scopes.splice(at, 1);
-			const back = entry.restoreTo;
-			if (back && back.isConnected && isVisible(back)) take(back);
-			else if (isManagedScope(activeScope())) {
-				const first = startOf(activeScope());
-				if (first) take(first);
-			}
+			leaving.disconnect();
+			close();
 		}
 	};
 }

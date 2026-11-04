@@ -102,6 +102,39 @@ test('OK brings the chrome as a focus row, and READING changes LAYOUT by keys', 
 	await expect(reading).toContainText(started === paged ? 'PAGED' : 'SCROLL');
 });
 
+test('a sheet on its way out keeps no keys: ↓ at once after BACK reaches the cells (c445)', async ({
+	page
+}) => {
+	await open(page);
+	await page.keyboard.press('Enter');
+	const scrub = page.locator('.text-reader footer .track');
+	await expect(scrub).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	const reading = page.locator('.text-reader footer .cell.grow');
+	await expect(reading).toBeFocused();
+	await page.keyboard.press('Enter');
+	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+	await expect(sheet).toBeVisible();
+	await sheet.evaluate((el) =>
+		Promise.all(el.getAnimations().map((a) => a.finished.catch(() => undefined)))
+	);
+	// BACK and ↓ in one go, inside the sheet's 180 ms exit: while it leaves it
+	// is inert, and an inert sheet that kept the scope swallowed the arrow.
+	await page.evaluate(() => {
+		const key = (k: string) => {
+			const init = { key: k, bubbles: true, cancelable: true };
+			document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', init));
+			document.activeElement?.dispatchEvent(new KeyboardEvent('keyup', init));
+		};
+		key('Escape');
+		return new Promise<void>((r) =>
+			requestAnimationFrame(() => requestAnimationFrame(() => (key('ArrowDown'), r())))
+		);
+	});
+	await expect(sheet).toHaveCount(0);
+	await expect(reading).toBeFocused();
+});
+
 test('the end of the book takes the pad: its cells are reachable, as the image reader’s are', async ({
 	page
 }) => {

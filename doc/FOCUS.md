@@ -81,6 +81,19 @@ into the sheet instead.
 
 A scope is a stack, so a sheet opened from a sheet restores to the lower one.
 
+**A scope closes when its sheet starts to leave, not when it is gone** (c445).
+A sheet with `out:leave` ([`MOTION.md`](MOTION.md)) stays in the page for its
+180 ms exit, and Svelte makes it `inert` the moment the exit starts, so
+`focusScope` watches the attribute. Inert, the sheet stops being a scope at
+once: a ↓ pressed in those 180 ms reaches the screen, not a sheet that takes
+nothing. Focus then goes back to the opener **only if it was lost** (on the
+body, or inside the leaving sheet), never over a place the screen has already
+chosen: the text reader puts the pad on its scrubber when READING closes, and
+the READING cell that opened it can still be there, since a footer brought back
+before its own exit ended is the same element. A sheet opened again before it
+was gone loses `inert` and becomes the scope again. `tv-text-reader.e2e.ts`
+checks both.
+
 **Opting out.** A screen that already reads the arrows puts `data-focus-off` on
 its root and keeps every one of them:
 
