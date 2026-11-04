@@ -30,12 +30,12 @@ const HEAD = '| Spec | Runs on | Why |';
 const DEVICES = ['tablet-portrait', 'tablet-landscape', 'phone', 'desktop'];
 
 type Suite = {
-	specs?: { file: string; tests: { projectName: string }[] }[];
+	specs?: { file: string; title: string; tests: { projectName: string }[] }[];
 	suites?: Suite[];
 };
 
-/** Every spec file and the projects that collect it, as Playwright itself resolves them. */
-export function projectsByFile(): Map<string, Set<string>> {
+/** Playwright's own list of every test, as JSON, with no run's skips applied. */
+function listing(): { suites: Suite[] } {
 	const out = execFileSync('npx', ['playwright', 'test', '--list', '--reporter=json'], {
 		cwd: ROOT,
 		encoding: 'utf8',
@@ -47,19 +47,64 @@ export function projectsByFile(): Map<string, Set<string>> {
 		// become every project's grepInvert here: empty is falsy, so none is set.
 		env: { ...process.env, PLAYWRIGHT_NO_SERVER: '1', PLAYWRIGHT_SKIP: '' }
 	});
-	const json = JSON.parse(out.slice(out.indexOf('{'))) as { suites: Suite[] };
-	const files = new Map<string, Set<string>>();
+	return JSON.parse(out.slice(out.indexOf('{'))) as { suites: Suite[] };
+}
+
+function eachSpec(suites: Suite[], visit: (spec: NonNullable<Suite['specs']>[number]) => void) {
 	const walk = (s: Suite) => {
-		for (const spec of s.specs ?? [])
-			for (const t of spec.tests) {
-				const name = spec.file.replace(/^.*\//, '');
-				if (!files.has(name)) files.set(name, new Set());
-				files.get(name)!.add(t.projectName);
-			}
+		for (const spec of s.specs ?? []) visit(spec);
 		for (const c of s.suites ?? []) walk(c);
 	};
-	for (const s of json.suites) walk(s);
+	for (const s of suites) walk(s);
+}
+
+/** Every spec file and the projects that collect it, as Playwright itself resolves them. */
+export function projectsByFile(): Map<string, Set<string>> {
+	const files = new Map<string, Set<string>>();
+	eachSpec(listing().suites, (spec) => {
+		const name = spec.file.replace(/^.*\//, '');
+		if (!files.has(name)) files.set(name, new Set());
+		for (const t of spec.tests) files.get(name)!.add(t.projectName);
+	});
 	return files;
+}
+
+/** Every test's own title, once, whichever files and projects hold it. */
+export function testTitles(): Set<string> {
+	const titles = new Set<string>();
+	eachSpec(listing().suites, (spec) => titles.add(spec.title));
+	return titles;
+}
+
+/**
+ * The `PLAYWRIGHT_SKIP` expression doc/TESTING.md's "Load" tells a whole run
+ * to export, or null when it gives none. The doc is its one copy (c478):
+ * `tests/e2e-table.spec.ts` reads it from there rather than keeping its own.
+ */
+export function documentedSkip(doc: string): string | null {
+	return /^\s*PLAYWRIGHT_SKIP='([^']+)'/m.exec(doc)?.[1] ?? null;
+}
+
+/** A regular expression's top-level alternatives: `a|(b|c)|d` is `a`, `(b|c)`, `d`. */
+export function alternatives(expression: string): string[] {
+	const out: string[] = [];
+	let depth = 0;
+	let inClass = false;
+	let from = 0;
+	for (let i = 0; i < expression.length; i++) {
+		const c = expression[i];
+		if (c === '\\') i++;
+		else if (inClass) inClass = c !== ']';
+		else if (c === '[') inClass = true;
+		else if (c === '(') depth++;
+		else if (c === ')') depth--;
+		else if (c === '|' && depth === 0) {
+			out.push(expression.slice(from, i));
+			from = i + 1;
+		}
+	}
+	out.push(expression.slice(from));
+	return out;
 }
 
 /** "devices", "devices, tv", or the projects by name, in the config's own words. */

@@ -1,12 +1,15 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
+	alternatives,
+	documentedSkip,
 	problems,
 	projectsByFile,
 	readRows,
 	rebuild,
 	render,
-	runsOn
+	runsOn,
+	testTitles
 } from '../scripts/e2e-table.ts';
 
 /**
@@ -81,20 +84,41 @@ describe('the e2e table', () => {
 		]);
 	});
 
+	it('finds the skip expression in a doc, and splits it at its top level only', () => {
+		const load = (line: string) => ['### Load', '', '```sh', line, '  npx playwright test', '```'];
+		expect(documentedSkip(load("  PLAYWRIGHT_SKIP='a (b|c) d|e \\| f' \\").join('\n'))).toBe(
+			'a (b|c) d|e \\| f'
+		);
+		expect(documentedSkip(load('  npx playwright test').join('\n'))).toBeNull();
+		expect(alternatives('a (b|c) d|e \\| f|[|]x')).toEqual(['a (b|c) d', 'e \\| f', '[|]x']);
+		expect(alternatives('one title')).toEqual(['one title']);
+	});
+
 	it('lists every file the config collects, whatever one run skips', { timeout: 120_000 }, () => {
-		// doc/TESTING.md's "Load" tells a gate to export this expression; every
-		// library-frame test matches it, and the table must keep that file anyway.
+		// A gate exports doc/TESTING.md's expression for the whole unit run too.
+		// Here every test is left out, so a table that obeyed it would be empty.
+		const all = projectsByFile();
 		const before = process.env.PLAYWRIGHT_SKIP;
-		process.env.PLAYWRIGHT_SKIP =
-			'screen: (continueList|continueRow|grid|tile) matches the handoff|START SCAN with nothing to import|the end of the series asks for a rating while unrated|a spread is the default on a TV, not one page';
+		process.env.PLAYWRIGHT_SKIP = '.';
 		try {
-			expect([...(projectsByFile().get('library-frame.e2e.ts') ?? [])]).toContain(
-				'tablet-portrait'
-			);
+			expect(projectsByFile()).toEqual(all);
 		} finally {
 			if (before === undefined) delete process.env.PLAYWRIGHT_SKIP;
 			else process.env.PLAYWRIGHT_SKIP = before;
 		}
+	});
+
+	it('the doc’s skip expression names only tests that exist', { timeout: 120_000 }, () => {
+		// The doc is the one copy (c478): this spec kept an older one of its own,
+		// which went on skipping tests wave 19 had already fixed.
+		const expression = documentedSkip(readFileSync('doc/TESTING.md', 'utf8'));
+		if (expression === null) return;
+		const titles = [...testTitles()];
+		const stale = alternatives(expression).filter((alt) => {
+			const re = new RegExp(alt);
+			return !titles.some((t) => re.test(t));
+		});
+		expect(stale, 'an alternative that matches no title: take it out of "Load"').toEqual([]);
 	});
 
 	it('lists every spec file, on the projects the config gives it', { timeout: 120_000 }, () => {
