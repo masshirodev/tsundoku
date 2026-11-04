@@ -1,5 +1,6 @@
 import type { Direction } from '$lib/library/series';
 import type { Kind } from '$lib/library/types';
+import type { Medium } from '$lib/library/kinds';
 
 /**
  * The image reader's rules (doc/READER.md), pure so they can be tested
@@ -227,23 +228,96 @@ export function scrubPage(fraction: number, total: number, mode: Mode): number {
  * Reading time, as the reading log wants it (doc/READING-LOG.md): the gap
  * since the last event in the same sitting, capped, so a tablet left open on
  * a page overnight is not eight hours of reading.
+ *
+ * The cap is the longest a page can plausibly hold someone, so it is the
+ * medium's (card c443), asked of the registry (`kindFacts(kind).medium`):
+ *
+ * - **pages**: 2 minutes, as since the log began. A manga page or a strip's
+ *   screen is read in seconds.
+ * - **text**: 5 minutes. A page of prose at the default size holds 352 words
+ *   on a tablet held upright and 391 on one held sideways (two columns),
+ *   counted on screen in the text reader (doc/READING-LOG.md, "The caps").
+ *   At 80 words a minute, a slow and careful pace well under the ~260 of
+ *   adult fiction reading, 391 words is 4.9 minutes.
+ *
+ * Video has no idle cap: its time is what played, counted by `WatchClock`.
  */
-export const IDLE_CAP_MS = 2 * 60_000;
+export const IDLE_CAPS = { pages: 2 * 60_000, text: 5 * 60_000 } as const satisfies Partial<
+	Record<Medium, number>
+>;
+/** The image reader's cap, the one the log started with. */
+export const IDLE_CAP_MS = IDLE_CAPS.pages;
 
 export class ProgressClock {
 	private last: number;
-	constructor(now: number) {
+	private readonly cap: number;
+	constructor(now: number, cap: number = IDLE_CAP_MS) {
 		this.last = now;
+		this.cap = cap;
 	}
 	/** Time read since the last event, capped, and restart the clock. */
 	lap(now: number): number {
-		const d = Math.max(0, Math.min(IDLE_CAP_MS, now - this.last));
+		const d = Math.max(0, Math.min(this.cap, now - this.last));
 		this.last = now;
 		return d;
 	}
 	/** Coming back from the background: time away is not reading. */
 	resume(now: number): void {
 		this.last = now;
+	}
+}
+
+/**
+ * Watching time (card c443): only what actually played. The player reports
+ * each `timeupdate` -- the wall clock and the position -- and a step counts
+ * only when the position moved forward about as far as the clock did:
+ *
+ * - **paused, buffering** (`waiting`, `stalled`): the position stands still,
+ *   so the step adds nothing however long it was;
+ * - **a seek** jumps the position further than the clock moved, or back:
+ *   nothing, and the next step counts from where it landed;
+ * - **a hidden document** is not watching, unless the picture is in a
+ *   floating window: the player says so with `watching: false`;
+ * - **faster or slower playback** counts the wall time, which is the time
+ *   spent: a step is the smaller of the two, the position read at the rate.
+ *
+ * A step is believed up to `STEP_SLACK_MS` past the clock (timeupdate's own
+ * jitter); `lap` hands what built up since the last event to the log, capped
+ * at `WATCH_LAP_CAP_MS`. The player sends a `page` event every 15 s while
+ * playing, so a lap past the cap means the heartbeat stopped while time kept
+ * running, which is not watching anyone can vouch for.
+ */
+export const STEP_SLACK_MS = 1_000;
+export const WATCH_LAP_CAP_MS = 60_000;
+
+export class WatchClock {
+	private at: number | null = null;
+	private position = 0;
+	private banked = 0;
+
+	/** One `timeupdate`: `now` in ms, `position` in seconds into the episode. */
+	tick(now: number, position: number, opts: { rate?: number; watching?: boolean } = {}): void {
+		const rate = opts.rate && opts.rate > 0 ? opts.rate : 1;
+		if (this.at !== null && opts.watching !== false) {
+			const wall = now - this.at;
+			const played = ((position - this.position) * 1000) / rate;
+			if (wall > 0 && played > 0 && played <= wall + STEP_SLACK_MS)
+				this.banked += Math.min(wall, played);
+		}
+		this.at = now;
+		this.position = position;
+	}
+
+	/** Paused, ended or left: the next tick starts a new step rather than spanning the gap. */
+	stop(): void {
+		this.at = null;
+	}
+
+	/** What played since the last lap, capped, and start counting again. */
+	lap(): number {
+		const d = Math.min(WATCH_LAP_CAP_MS, Math.round(this.banked));
+		this.banked = 0;
+		return d;
 	}
 }
 

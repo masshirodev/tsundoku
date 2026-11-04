@@ -18,6 +18,7 @@
 	import { flushLookups } from '$lib/japanese/lookups';
 	import LookupPanel from '$lib/components/japanese/LookupPanel.svelte';
 	import {
+		IDLE_CAPS,
 		ProgressClock,
 		TEXT_EDGE,
 		WheelTurn,
@@ -573,7 +574,7 @@
 	}
 
 	// ---- progress ----------------------------------------------------------------------------------
-	const clock = new ProgressClock(Date.now());
+	const clock = new ProgressClock(Date.now(), IDLE_CAPS.text);
 	let saved = $state(true);
 	let finished = false;
 

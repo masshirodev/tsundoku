@@ -9,6 +9,7 @@
 	import { enhance } from '$app/forms';
 	import type Hls from 'hls.js';
 	import { clock, isWatchedAt } from '$lib/library/anime';
+	import { WatchClock } from '$lib/reader/reader';
 	import {
 		challengeScale,
 		bufferedTo,
@@ -742,14 +743,22 @@
 	let opened = false;
 	let finished = ep.readAt !== null;
 	let lastSent = 0;
+	/**
+	 * What played, for the log's `duration_ms` (card c443; doc/READING-LOG.md).
+	 * Only time actually playing counts: paused, buffering, a seek and a hidden
+	 * page are not watching (WatchClock). A picture in a floating window is.
+	 */
+	const watch = new WatchClock();
 	async function send(kind: 'open' | 'page' | 'finish' | 'close') {
 		if (data.incognito) return;
+		const durationMs = kind === 'open' ? 0 : watch.lap();
 		const body = JSON.stringify({
 			seriesId: data.series.id,
 			entryId: ep.id,
 			kind,
 			page: Math.max(0, Math.floor(time)),
 			...(duration > 0 ? { length: Math.round(duration) } : {}),
+			durationMs,
 			at: Date.now()
 		});
 		if (kind === 'close') {
@@ -793,6 +802,13 @@
 			reloadingTo = null;
 		}
 		time = video.currentTime;
+		watch.tick(Date.now(), time, {
+			rate: video.playbackRate,
+			watching:
+				!video.paused &&
+				!video.seeking &&
+				(document.visibilityState === 'visible' || inDocPip || inNativePip)
+		});
 		if (Number.isFinite(video.duration) && video.duration > 0) duration = video.duration;
 		buffered = bufferedTo(rangesOf(video.buffered), time);
 		if (!opened && time > 0) {
@@ -1650,6 +1666,7 @@
 			ontimeupdate={onTime}
 			ondurationchange={onDuration}
 			onwaiting={onWaiting}
+			onpause={() => watch.stop()}
 			onplaying={onProgressing}
 			onprogress={() =>
 				(buffered = video ? bufferedTo(rangesOf(video.buffered), video.currentTime) : 0)}
