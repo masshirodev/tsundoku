@@ -450,6 +450,11 @@ brings it back, the same ones again do not. When the queue shrinks meanwhile
 so the next new one is news again: put away at 46, reviewed down to 36, back
 at 37.
 
+The ✕'s name is "Put away the series to link until the count grows". Not
+"until there are more": a name that holds the word MORE is a second answer to
+the bar's MORE, for a screen reader's or voice control's "MORE" as much as
+for a test's `getByRole('button', { name: 'MORE' })`.
+
 **Per device, not on the workstation.** The count is kept in this device's
 `localStorage` (`tsundoku.library.links-put-away`), as the update band's
 "seen" is, because the band is a reminder about this screen, not a fact about

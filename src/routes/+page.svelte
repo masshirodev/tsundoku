@@ -1293,10 +1293,12 @@
 					{:else}
 						<a href={resolve('/links')} aria-label="Review the series to link">REVIEW →</a>
 					{/if}
+					<!-- The name says "grows", never "more": a name holding MORE is a
+					     second button for anyone asking for the bar's MORE by name. -->
 					<button
 						type="button"
 						class="put-away"
-						aria-label="Put away the series to link until there are more"
+						aria-label="Put away the series to link until the count grows"
 						data-focus-mark="in"
 						onclick={() => rememberLinksAt(data.toLink)}>✕</button
 					>

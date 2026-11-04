@@ -245,7 +245,7 @@ test('no BACK TO TOP while SORT’s list or FILTER’s panel is open over the gr
 
 const band = (page: Page) => page.locator('.band', { hasText: 'SERIES TO LINK' });
 const putAway = (page: Page) =>
-	page.getByRole('button', { name: 'Put away the series to link until there are more' });
+	page.getByRole('button', { name: 'Put away the series to link until the count grows' });
 
 test('✕ puts the band away; it stays away on reload, and a new series to link brings it back', async ({
 	page
