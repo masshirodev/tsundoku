@@ -61,7 +61,11 @@ answers the same question: what after this ([`WORKS.md`](WORKS.md), W5;
 ETERNAL FORCE`, and two 52px ← → cells (44px on a phone) that open the
 neighbouring parts, dimmed at the ends. A tap on the name opens `/work/N`; a
 long press, MENU or a held OK opens the row's sheet -- OPEN, MOVE ↑ ↓, and TAKE
-OUT with a band and UNDO. A series in no Work has no row.
+OUT with a band and UNDO. That UNDO refuses rather than overwrite when the
+library has moved on (the series is in another Work now, the Work has ended,
+or a newer one has its id), and the refusal is the screen's band with NOTHING
+CHANGED, never an error page (c468, as c390 did for TAKE OUT, THEN HIDE). A
+series in no Work has no row.
 
 - **Where the run is.** The line says `NEXT · <part>` while the run is here, and
   `YOU'RE IN <part>` once the owner is already in another part it has begun (the

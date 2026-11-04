@@ -606,9 +606,19 @@ export const actions: Actions = {
 		return { workTakenOut: facts, workFrom: work.name };
 	},
 
+	/**
+	 * UNDO after the WORK row's TAKE OUT. The put-back refuses, never
+	 * overwrites, when the library has moved on (the series is in another
+	 * Work now, the Work has ended or another has its id: `putBack`, c308),
+	 * and the refusal is this screen's band, not a 500 (c468).
+	 */
 	undoTakeOutWork: async ({ request }) => {
 		const facts = JSON.parse(String((await request.formData()).get('facts') ?? 'null'));
-		undoTakeOut(facts as TakeOutFacts);
+		try {
+			undoTakeOut(facts as TakeOutFacts);
+		} catch (e) {
+			return refused(e);
+		}
 		return { ok: true };
 	},
 

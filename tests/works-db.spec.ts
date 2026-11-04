@@ -1387,3 +1387,37 @@ describe('the series screen’s TAKE OUT, THEN HIDE and its UNDO, through its ow
 		void r;
 	});
 });
+
+describe('the series screen’s WORK row TAKE OUT and its UNDO, through its own actions (c468)', () => {
+	const [P, Q, R, X] = ['Lookism', 'Tower of God', 'Dungeon Meshi', 'Yofukashi no Uta'];
+
+	it('puts the series back where it was', async () => {
+		const [p, q, r] = [P, Q, R].map(idOf) as number[];
+		const { work } = works.createWork({ seriesIds: [p, q, r], name: 'Take Run', now: NOW });
+		const out = await postSeries(seriesScreen.actions.takeOutWork, p);
+		expect(membersNow(work.id)).toEqual([q, r]);
+		expect(
+			await postSeries(seriesScreen.actions.undoTakeOutWork, p, [
+				['facts', JSON.stringify(out.workTakenOut)]
+			])
+		).toEqual({ ok: true });
+		expect(membersNow(work.id)).toEqual([p, q, r]);
+		works.ungroup(work.id);
+	});
+
+	it('answers a refused UNDO as a band on the screen, never a 500, and changes nothing', async () => {
+		const [p, q, r, x] = [P, Q, R, X].map(idOf) as number[];
+		const { work } = works.createWork({ seriesIds: [p, q, r], name: 'Take Run', now: NOW });
+		const out = await postSeries(seriesScreen.actions.takeOutWork, p);
+		// Since: the series joined another Work, in another tab.
+		const other = works.createWork({ seriesIds: [p, x], name: 'Other Run', now: NOW + 1 });
+
+		const answer = await postSeries(seriesScreen.actions.undoTakeOutWork, p, [
+			['facts', JSON.stringify(out.workTakenOut)]
+		]);
+		expect(answer.status).toBe(400);
+		expect(String((answer.data as { message: string }).message)).toMatch(/IS IN OTHER RUN NOW/);
+		expect(membersNow(work.id)).toEqual([q, r]);
+		expect(membersNow(other.work.id)).toEqual([p, x]);
+	});
+});

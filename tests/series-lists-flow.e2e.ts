@@ -18,9 +18,11 @@ import { expect, test } from './fixtures';
  * hands out and a stand-in AniList behind TSUNDOKU_ANILIST_URL. Nothing here
  * can reach the real one.
  *
- * Its last case is c390's: a refused UNDO of the series screen's TAKE OUT,
- * THEN HIDE, answered as a band, reached with a second tab that ends the Work
- * and makes a new one under its id between the HIDE and the UNDO.
+ * Its last two cases are refused UNDOs on the series screen, each answered
+ * as a band and reached with a second tab: c390's TAKE OUT, THEN HIDE (the
+ * Work ends and a new one takes its id between the HIDE and the UNDO), and
+ * c468's TAKE OUT on the WORK row's sheet (the series joins another Work
+ * between the TAKE OUT and the UNDO).
  *
  * Two rows are written by hand, because no door here reaches them: the
  * AniList sign-in (OAuth leaves for anilist.co) and a season linked to a
@@ -562,5 +564,41 @@ test('a refused UNDO of TAKE OUT, THEN HIDE is a band, never an error page, and 
 	await expect(page).toHaveURL(`${BASE}/series/${p}`);
 	await expect(page.getByRole('button', { name: 'UNHIDE' })).toBeVisible();
 	expect(now(p, newer)).toEqual({ hidden: 1, members });
+	await b.close();
+});
+
+test('a refused UNDO of the WORK row’s TAKE OUT is a band, never an error page, and changes nothing (c468)', async ({
+	page,
+	context
+}) => {
+	const [P, Q, R] = ['Lookism', 'Tower of God', 'Dungeon Meshi'];
+	const X = 'Yofukashi no Uta';
+	const run = await makeWork(page, [P, Q, R], 'Take Run');
+	const p = idOf(P);
+
+	// Page A: TAKE OUT on the WORK row's own sheet; the band keeps its UNDO.
+	await page.goto(`${BASE}/series/${p}`);
+	await page
+		.locator('.prow.work-row a.lk')
+		.dispatchEvent('contextmenu', { bubbles: true, cancelable: true });
+	const sheet = page.getByRole('dialog', { name: 'Take Run · WORK' });
+	await sheet.getByRole('button', { name: 'TAKE OUT' }).click();
+	const band = page.locator('.band', { hasText: 'TAKEN OUT OF TAKE RUN' });
+	await expect(band).toBeVisible();
+	expect(now(p, run).members).toEqual([idOf(Q), idOf(R)]);
+
+	// Page B, a second tab: the series joins another Work.
+	const b = await context.newPage();
+	const other = await makeWork(b, [P, X], 'Other Run');
+	expect(now(p, other).members.sort()).toEqual([p, idOf(X)].sort());
+
+	// Page A, at once: UNDO is refused, said on the screen, and nothing moved.
+	await band.getByRole('button', { name: 'UNDO' }).click();
+	const refused = page.locator('.band', { hasText: /IS IN OTHER RUN NOW/ });
+	await expect(refused).toBeVisible();
+	await expect(refused).toContainText('NOTHING CHANGED');
+	await expect(page).toHaveURL(`${BASE}/series/${p}`);
+	expect(now(p, run).members).toEqual([idOf(Q), idOf(R)]);
+	expect(now(p, other).members.sort()).toEqual([p, idOf(X)].sort());
 	await b.close();
 });
