@@ -97,6 +97,18 @@ value. BACK closes READING and puts the pad back on the cell that opened it,
 then hides the controls, then leaves. Off a TV nothing changes: the arrows are
 the reader's whatever the controls, as the desktop keys above say.
 
+**Over a vertical strip the controls stay where they are** (c253). An arrow
+that finds no cell past the row's end does nothing: the reader stands down and
+takes the browser's own scroll away too, which had moved the strip 40px under
+the controls. And the strip's own cells (its end page, the stops between
+chapters) are arrow stops only while they're on screen
+(`src/lib/reader/offscreen.ts`): the focus layer weighs every focusable in the
+page, so ↓ from the bottom row found the end page's LIBRARY at the chapter's
+foot and scrolled thousands of pixels to it. Read the strip to its end with
+the controls hidden, and OK, ↓ reach the end page as before.
+`tests/tv-reader.e2e.ts` reaches the strip from READING (its mode is session
+state) and checks both.
+
 ## Turning pages
 
 Paged turns slide, as in Mihon; they don't pop (the owner asked on
