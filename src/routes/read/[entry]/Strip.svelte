@@ -2,6 +2,7 @@
 	import { keepPlaceBy } from '$lib/reader/smooth-scroll';
 	import { onMount, tick } from 'svelte';
 	import PageImage from './PageImage.svelte';
+	import { skipOffscreen } from '$lib/reader/offscreen';
 	import type { Page, StripChapter } from '$lib/reader/reader';
 	import type { Ring } from '$lib/japanese/blocks';
 
@@ -31,6 +32,7 @@
 		rings = () => [],
 		stopNext = null,
 		stopPrev = null,
+		padGuard = false,
 		ongo
 	}: {
 		chapters: StripChapter[];
@@ -58,6 +60,8 @@
 		stopNext?: { id: number; name: string; title: string; pageCount: number } | null;
 		stopPrev?: { id: number; name: string; title: string } | null;
 		/** A stop band's button: open that chapter. */
+		/** A TV's chrome is up: the stops are arrow stops only while on screen (c253). */
+		padGuard?: boolean;
 		ongo?: (id: number) => void;
 	} = $props();
 
@@ -217,7 +221,7 @@
 	>
 		{#if stopPrev}
 			<!-- Stopped at the chapter's ends (c206): the one before, by choice. -->
-			<section class="band stop top" aria-label="Previous chapter">
+			<section class="band stop top" aria-label="Previous chapter" use:skipOffscreen={padGuard}>
 				<button
 					type="button"
 					class="go-btn"
@@ -265,7 +269,12 @@
 		{#if stopNext && chapters.length}
 			{@const ended = chapters[chapters.length - 1]}
 			<!-- Stopped at the end (c206; a friend, 2026-10-30): the next chapter waits for a tap. -->
-			<section class="band stop" aria-label="Chapter end" data-stop={ended.id}>
+			<section
+				class="band stop"
+				aria-label="Chapter end"
+				data-stop={ended.id}
+				use:skipOffscreen={padGuard}
+			>
 				<div class="kicker"><span>END · {ended.name}</span><span>{ended.position}</span></div>
 				<div class="rule"></div>
 				<div class="next">

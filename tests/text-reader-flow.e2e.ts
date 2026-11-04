@@ -42,9 +42,11 @@ const middle = async (page: Page) => {
 	await page.mouse.click(v.width / 2, 30);
 };
 /**
- * Turn one page, and return once the reader has turned it: the flow's
- * transform (page turns never animate) or the chapter's heading has moved,
- * both of which the click changes at once. A click the reader hadn't handled
+ * Turn one page, and return once the reader has turned it and the page has
+ * landed: the flow's transform (set to where the slide lands as it starts,
+ * c441) or the chapter's heading has moved, both of which the click changes
+ * at once, and the flow has stopped sliding, so what is measured next is not
+ * moving. A click the reader hadn't handled
  * yet was read as "no turn" under a loaded suite, and the next click turned
  * twice, past the page the test was looking for (c394, c439). The URL is no
  * witness: the reader rewrites `?at=` 800 ms after the *previous* turn, so it
@@ -63,6 +65,7 @@ const forward = async (page: Page) => {
 	const v = page.viewportSize()!;
 	await page.mouse.click(v.width - 8, v.height / 2);
 	await expect.poll(where).not.toBe(before);
+	await expect(page.locator('.flow')).not.toHaveClass(/sliding/);
 };
 
 test('a novel opens as text, turns, and carries on into the next chapter', async ({ page }) => {
@@ -203,8 +206,27 @@ test('a Japanese book is set vertically, with furigana and upright numbers', asy
 	await expect(page.locator('.blocks rt').first()).toHaveText('ぼうし');
 	await expect(page.locator('.blocks .tcy', { hasText: /^12$/ }).first()).toBeAttached();
 	// Right to left: the left strip turns forward, onto the chapter's first page of text.
+	const shift = () =>
+		page
+			.locator('.flow')
+			.evaluate((el: HTMLElement) => /translate([XY])\((-?[\d.]+)px\)/.exec(el.style.transform));
 	await page.mouse.click(8, page.viewportSize()!.height / 2);
 	await expect(page.locator('.bottom')).toHaveCount(0);
+	// It slid on the vertical text's own axis: the page went up (c441).
+	await expect.poll(async () => (await shift())?.[1]).toBe('Y');
+	await expect(page.locator('.flow')).not.toHaveClass(/sliding/);
+	const turned = Number((await shift())![2]);
+	expect(turned).toBeLessThan(0);
+	// A drag to the right pulls the next page in, so the page follows it up,
+	// and lifted short of the swipe it comes back down.
+	const v = page.viewportSize()!;
+	await page.mouse.move(v.width / 2, v.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(v.width / 2 + 24, v.height / 2, { steps: 4 });
+	expect(Number((await shift())![2])).toBeLessThan(turned);
+	await page.mouse.up();
+	await expect.poll(async () => Number((await shift())![2])).toBe(turned);
+	await expect(page.locator('.flow')).not.toHaveClass(/sliding/);
 	await middle(page);
 	await expect(page.locator('.bottom .left')).toHaveText(/^P\. 2 OF /);
 	await expect(page.getByRole('button', { name: /^VERTICAL · SANS JP/ })).toBeVisible();

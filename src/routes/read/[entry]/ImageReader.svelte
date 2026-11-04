@@ -52,6 +52,10 @@
 		spreadOf,
 		spreads,
 		swipeAction,
+		dragStarts,
+		EDGE_GIVE,
+		TURN_EASE,
+		TURN_MS,
 		mouseAction,
 		hoverAction,
 		EDGE,
@@ -68,6 +72,7 @@
 		shapeOf,
 		type StripChapter
 	} from '$lib/reader/reader';
+	import { skipOffscreen } from '$lib/reader/offscreen';
 	import PageImage from './PageImage.svelte';
 	import Chrome from './Chrome.svelte';
 	import ReadingSheet from './ReadingSheet.svelte';
@@ -594,8 +599,9 @@
 	// finger, and a turn -- swipe, tap, key or click -- carries it the rest of
 	// the way with the neighbouring screen sliding in beside it. The track
 	// holds the screen being read and, while one is showing, that neighbour.
+	// How long, how it eases, when a press becomes a drag and how much an edge
+	// gives are the text reader's too (src/lib/reader/reader.ts, c441).
 	type Screen = { key: string; pos: -1 | 0 | 1; pages: number[]; split: boolean; half: 0 | 1 };
-	const TURN_MS = 220;
 	const reduceMotion = new MediaQuery('(prefers-reduced-motion: reduce)', false);
 	/** How far the track is dragged, in px; or while sliding, where it's going. */
 	let drag = $state(0);
@@ -1372,12 +1378,12 @@
 		if (!down || animating || fit === 'height' || zoom > 1 || reduceMotion.current) return;
 		const dx = e.clientX - down.x;
 		const dy = e.clientY - down.y;
-		if (!dragging && (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy))) return;
+		if (!dragging && !dragStarts(dx, dy)) return;
 		dragging = true;
 		const side: -1 | 1 = dx < 0 ? 1 : -1;
 		peek = side;
 		// Nothing more that way in this chapter: it gives, but only a little.
-		drag = after(dirAt(side)) ? dx : dx / 4;
+		drag = after(dirAt(side)) ? dx : dx * EDGE_GIVE;
 	}
 	function pointercancel() {
 		cancelPress();
@@ -1591,7 +1597,13 @@
 		// On a TV with the chrome up the pad owns the arrows and the page-turn
 		// keys (c241): an arrow moves among the chrome's cells, and BACK hides
 		// it before any of them is the reader's again.
-		if (tvScreen.current && chrome && TURNS.has(e.key)) return;
+		// An arrow that found no cell is not the browser's either: on a strip
+		// its own scroll moved the chapter 40px under the chrome (c253). Space
+		// is left alone: on a focused cell it presses it.
+		if (tvScreen.current && chrome && TURNS.has(e.key)) {
+			if (e.key !== ' ') e.preventDefault();
+			return;
+		}
 		if (mode === 'vertical') {
 			// A screen at a time, not the browser's few lines (the owner, 2026-10-30), at any zoom:
 			// the strip scrolls the window, so a screen is the window's height.
@@ -1753,38 +1765,42 @@
 					rings={ringsOn}
 					stopNext={stopAtEnd && data.next ? data.next : null}
 					stopPrev={stopAtEnd && data.prev ? data.prev : null}
+					padGuard={tvScreen.current && chrome}
 					ongo={(id) => goto(resolve('/read/[entry]', { entry: String(id) }))}
 				/>
 			</div>
 		{/key}
 		{#if !data.next?.available}
-			<EndPage
-				variant={endVariant}
-				entryName={data.entry.name}
-				{position}
-				kind={data.series.kind}
-				seriesTitle={data.series.title}
-				next={data.next}
-				{nextCached}
-				{rating}
-				{favourite}
-				incognito={data.incognito}
-				mode="ltr"
-				lastPage={pageLabel([pages.length - 1], pages.length)}
-				{seriesHref}
-				{moveHref}
-				stale={data.series.stale}
-				{libraryHref}
-				onrate={rate}
-				onfav={toggleFav}
-				onback={() => undefined}
-				words={text?.entry === data.entry.id ? text.lookedUp : 0}
-				{wordsHref}
-				nextOcr={data.next?.ocr ?? false}
-				work={data.work}
-				{workHref}
-				unit={unitOf(data.series.kind)}
-			/>
+			<!-- Out of the pad's reach while a TV's chrome is up and it is off screen (c253). -->
+			<div use:skipOffscreen={tvScreen.current && chrome}>
+				<EndPage
+					variant={endVariant}
+					entryName={data.entry.name}
+					{position}
+					kind={data.series.kind}
+					seriesTitle={data.series.title}
+					next={data.next}
+					{nextCached}
+					{rating}
+					{favourite}
+					incognito={data.incognito}
+					mode="ltr"
+					lastPage={pageLabel([pages.length - 1], pages.length)}
+					{seriesHref}
+					{moveHref}
+					stale={data.series.stale}
+					{libraryHref}
+					onrate={rate}
+					onfav={toggleFav}
+					onback={() => undefined}
+					words={text?.entry === data.entry.id ? text.lookedUp : 0}
+					{wordsHref}
+					nextOcr={data.next?.ocr ?? false}
+					work={data.work}
+					{workHref}
+					unit={unitOf(data.series.kind)}
+				/>
+			</div>
 		{/if}
 	{:else if atEnd}
 		<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -1841,6 +1857,7 @@
 				class:animating
 				style:transform="translateX({slideTo ?? `${drag}px`})"
 				style:--turn-ms="{TURN_MS}ms"
+				style:--turn-ease={TURN_EASE}
 			>
 				{#each screens as sc (sc.key)}
 					<div
@@ -2134,7 +2151,7 @@
 		will-change: transform;
 	}
 	.track.animating {
-		transition: transform var(--turn-ms) cubic-bezier(0.2, 0.8, 0.2, 1);
+		transition: transform var(--turn-ms) var(--turn-ease);
 	}
 	.screen {
 		position: absolute;

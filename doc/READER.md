@@ -120,7 +120,10 @@ Paged turns slide, as in Mihon; they don't pop (the owner asked on
   slide.
 
 The track is in `ImageReader.svelte` (`turn`, `after`, `screens`); tested in
-`tests/reader-flow.e2e.ts`.
+`tests/reader-flow.e2e.ts`. Its numbers (the 220ms slide and its curve, the 8px
+before a drag is followed, the quarter an edge gives, the 40px release) are in
+`src/lib/reader/reader.ts`, shared with the text reader, whose paged turns
+slide the same way since c441 ([`TEXT-READER.md`](TEXT-READER.md), "Turning").
 
 ## Preloading
 

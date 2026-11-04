@@ -34,7 +34,9 @@ In `src/lib/styles/spacing.css`, beside the design's own `--ease` and
 
 **Don't invent a sixth duration or a fourth curve.** A value the table can't
 express is a question for this document. Constant motion (the waiting line's
-fill, spinners) is `linear` or stepped, as `WAITING.md` says.
+fill, spinners) is `linear` or stepped, as `WAITING.md` says. The one value
+outside the table is the readers' page turn, which is older than it and isn't
+a thing coming or going ("Page turns", below).
 
 ## Should it animate at all
 
@@ -43,7 +45,8 @@ Ask in this order, and stop at the first "no".
 1. **How often is it seen?** A reader turns pages hundreds of times a sitting:
    **page turns, scrolling and zoom never animate for style**, and the readers'
    next chapter or episode is the same screen, so no screen transition plays
-   for it either. Things seen tens of times a day (a press, a hover) get a fast,
+   for it either. A paged turn that follows the finger isn't style: the page
+   is where the hand put it ("Page turns", below). Things seen tens of times a day (a press, a hover) get a fast,
    small change. Occasional surfaces (sheets, dialogs, a new screen) get the
    standard motion.
 2. **What is it for?** Name it: a tap was heard, where something came from or
@@ -176,6 +179,34 @@ screen is in the page, before it's painted, puts it on `.main` as
 - **Not on a TV** (`pointer: none`): the remote moves a key at a time, and the
   ten-foot layout answers a key at once.
 - Reduced motion fades only.
+
+## Page turns
+
+**The page follows the hand, and that is not style** (c441). In both readers
+a paged page moves with a sideways drag and slides the rest of the way when a
+turn is taken, the neighbouring page beside it: a manga's since 2026-09-23
+(`READER.md`, "Turning pages"), a novel's since 2026-11-04
+(`TEXT-READER.md`, "Turning"). The owner asked for both. What the rule above
+rules out is a turn that plays an effect (a curl, a fade, a bounce) between a
+tap and the page; a slide that starts under the finger and lands where the
+next page already lies is the page being moved, and taps, keys and the wheel
+slide the same way so a turn looks like one thing however it's asked for.
+
+- **One set of numbers for both readers**, in `src/lib/reader/reader.ts`:
+  `TURN_MS` (220ms), `TURN_EASE` (`cubic-bezier(0.2, 0.8, 0.2, 1)`, fast off
+  the finger and slow into place), `DRAG_PX` (8px, mostly sideways, before the
+  page follows), `EDGE_GIVE` (a quarter of the finger where no page lies that
+  way) and the release, `swipeAction`'s 40px. They're not in the token table:
+  they're for one gesture in two places, and the table is for things that
+  come and go.
+- **`transform` only**, on an element the browser has already laid out: the
+  image reader's track of screens, the text reader's columns. Nothing is laid
+  out or painted again for a turn.
+- **A turn asked for mid-slide is taken when it lands**, so quick taps all
+  count; one waits at a time, as a held key would otherwise run on.
+- **Reduced motion turns at once** and the page doesn't follow a drag; the
+  swipe still turns.
+- **Scroll layouts don't slide**: there is no page to turn.
 
 ## Checking feel
 

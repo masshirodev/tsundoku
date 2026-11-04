@@ -139,7 +139,7 @@ const isReader = (routeId: string) => routeId.startsWith('/read/');
  *
  * - The same screen with other parameters (a shelf tab, a filter, the reader's
  *   next chapter, the player's next episode) doesn't move: it is the same
- *   place, and the readers' turns stay instant.
+ *   place, and a reader's turn is its own (doc/MOTION.md, "Page turns").
  * - Back and forward through history move the way history went.
  * - When the next screen's outline was already showing, the outline was the
  *   screen arriving, so the screen only fades over it; sliding would arrive twice.

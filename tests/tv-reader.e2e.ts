@@ -181,3 +181,94 @@ test('a sheet on its way out keeps no keys: OK at once after BACK opens READING 
 	await expect(sheet).toHaveCount(0);
 	await expect(reading).toBeFocused();
 });
+
+/**
+ * On a vertical strip, the reader's own turn keys stand down while the chrome
+ * is up (c253; `ImageReader.svelte`, the `TURNS` guard in `keydown`), so an
+ * arrow that finds no cell at the chrome's edge does not scroll the strip
+ * underneath. The strip is reached from READING, whose mode is session state
+ * that only REMEMBER stores, never pressed here: nothing is written, as the
+ * seeded library has no vertical series and none may be made one for this.
+ */
+test("on a vertical strip, an arrow past the chrome's last cell does not move the strip (c253)", async ({
+	page
+}) => {
+	await open(page);
+	const reader = page.locator('.reader');
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('ArrowDown');
+	const reading = page.locator('footer[aria-label="Reader controls"] .cell.grow');
+	await expect(reading).toBeFocused();
+	await page.keyboard.press('Enter');
+	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+	await expect(sheet.getByRole('radio', { name: 'R→L' })).toBeFocused();
+	await page.keyboard.press('ArrowRight');
+	await page.keyboard.press('ArrowRight');
+	const vertical = sheet.getByRole('radio', { name: 'VERTICAL' });
+	await expect(vertical).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(vertical).toHaveAttribute('aria-checked', 'true');
+	await page.keyboard.press('Escape');
+	await expect(sheet).toHaveCount(0);
+	await expect(reader).toHaveClass(/vertical/);
+	await expect(reading).toBeFocused();
+	// The chrome is up over the strip: the layer has the pad.
+	expect(await reader.evaluate((n) => n.hasAttribute('data-focus-off'))).toBe(false);
+
+	// Along the row to its last cell, where → finds nothing more.
+	const focused = () =>
+		page.evaluate(() => document.activeElement?.textContent?.replace(/\s+/g, ' ').trim() ?? '');
+	let at = await focused();
+	for (let i = 0; i < 6; i++) {
+		await page.keyboard.press('ArrowRight');
+		const now = await focused();
+		if (now === at) break;
+		at = now;
+	}
+	// The strip's place, and the page it reads: neither may move now.
+	const place = () =>
+		page.evaluate(() => ({
+			y: Math.round(window.scrollY),
+			page:
+				document
+					.querySelector('footer[aria-label="Reader controls"] .track')
+					?.getAttribute('aria-valuenow') ?? ''
+		}));
+	// The strip is still finding its place after the switch (pages above
+	// arrive and the place is kept, for a few seconds under load): wait until
+	// it has held still for 3 s.
+	let before = await place();
+	await expect
+		.poll(
+			async () => {
+				const now = await place();
+				const still = now.y === before.y && now.page === before.page;
+				before = now;
+				return still;
+			},
+			{ intervals: [3000], timeout: 30_000 }
+		)
+		.toBe(true);
+	await page.keyboard.press('ArrowRight');
+	await page.keyboard.press('ArrowDown');
+	// Nothing to wait on: the assertion is that nothing happens.
+	await page.waitForTimeout(600);
+	expect(await place()).toEqual(before);
+	expect(await focused()).toBe(at);
+	await expect(page.getByRole('banner', { name: 'Reader' })).toBeVisible();
+
+	// The end page is still the pad's once it is on screen: BACK hides the
+	// chrome, the strip is read to its foot, and ↓ from the chrome lands in it.
+	await page.keyboard.press('Escape');
+	await expect(page.getByRole('banner', { name: 'Reader' })).toHaveCount(0);
+	await page.locator('[data-end-page]').evaluate((n) => n.scrollIntoView({ block: 'end' }));
+	await expect(page.locator('[data-end-page]')).toBeInViewport();
+	await page.keyboard.press('Enter');
+	await expect(page.getByRole('banner', { name: 'Reader' })).toBeVisible();
+	let inEnd = false;
+	for (let i = 0; i < 4 && !inEnd; i++) {
+		await page.keyboard.press('ArrowDown');
+		inEnd = await page.evaluate(() => !!document.activeElement?.closest('[data-end-page]'));
+	}
+	expect(inEnd).toBe(true);
+});

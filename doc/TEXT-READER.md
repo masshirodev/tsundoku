@@ -81,7 +81,8 @@ made of.
 ## Pages
 
 - **Paged** (the default, including web novels) lays the chapter out in CSS
-  columns the size of the page and turns by translating one page. Landscape
+  columns the size of the page and turns by translating one page, sliding
+  ("Turning", below). Landscape
   shows two columns 96px apart, like a spread; COLUMNS turns that off.
 - **Vertical Japanese** uses columns too. A `vertical-rl` multi-column
   container fragments along its width and stacks the overflow downward, so
@@ -116,6 +117,38 @@ Each event's `durationMs` is capped at **five minutes** a page, not the image
 reader's two: a page of prose at the default size is 352–391 words, which a
 slow, careful reader takes up to five minutes over (card c443;
 [`READING-LOG.md`](READING-LOG.md), "The caps").
+
+## Turning
+
+Paged turns slide and follow the finger, as a manga's do ([`READER.md`](READER.md),
+"Turning pages"; the owner asked on 2026-11-03, c441), on the same numbers
+(`TURN_MS`, `TURN_EASE`, `DRAG_PX`, `EDGE_GIVE` and `swipeAction` in
+`src/lib/reader/reader.ts`; [`MOTION.md`](MOTION.md), "Page turns"):
+
+- **The page follows a sideways drag.** Let go past the swipe threshold
+  (40px, mostly sideways) and it slides the rest of the way; short of it, it
+  goes back. Where no page lies that way in this chapter (its last page going
+  on, its first going back) the drag gives a quarter as much.
+- **Taps, arrows, Space and the wheel slide too**, in 220ms, and so does a
+  TV's key turn. A turn asked for mid-slide is taken when it lands, so quick
+  taps all count.
+- **Across a chapter's end** the next chapter's first page slides in from
+  where the next page lies, and back across it the previous chapter's last
+  page slides in from the other side. Into another volume it slides in once
+  OPENING is done. The end page arrives, and leaves, at once, as it always has.
+- **Vertical Japanese slides on its own axis**: its pages lie one below the
+  next, so its turn translates up, while the finger pulls the next page in by
+  dragging right, as in every right-to-left book.
+- **Reduced motion** turns at once and the page doesn't follow the finger.
+  Scroll layout is untouched.
+
+The chapter is one CSS-columns flow, so the page either side is already laid
+out beside this one: a turn is a transition on the flow's transform, which is
+on a layer of its own, and the columns are never laid out again for it. The
+axis and its sign are one pair in `TextReader.svelte` (`pageAxis`,
+`pageSign`), so a right-to-left horizontal book (the direction card, c440)
+changes the sign and nothing else. Tested in `tests/text-reader-turn.e2e.ts`
+on every device, and vertical Japanese in `tests/text-reader-flow.e2e.ts`.
 
 ## Touch
 
