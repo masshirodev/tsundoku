@@ -1772,6 +1772,14 @@
 	.library:not(.selecting) {
 		padding-bottom: calc(53px + env(safe-area-inset-bottom));
 	}
+	/* Not while FILTER's panel or SORT's list is open: their scrims sit in the
+	   sticky bar's stacking context, so the cell, at the bar's z-index later in
+	   the page, was drawn lit above the dimmed screen. Read off the two
+	   components' own open states, the <details> and the cell's aria-expanded. */
+	.library:has(:global(details.filter[open]), :global(.menu > .cell[aria-expanded='true']))
+		.to-top {
+		display: none;
+	}
 	@media (pointer: none) and (min-width: 900px) {
 		.to-top {
 			display: none;

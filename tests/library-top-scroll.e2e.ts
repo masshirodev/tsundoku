@@ -206,6 +206,41 @@ test('no BACK TO TOP while selecting: the bulk bar has that corner', async ({ pa
 	await expect(toTop(page)).toBeVisible();
 });
 
+test('no BACK TO TOP while SORT’s list or FILTER’s panel is open over the grid', async ({
+	page
+}) => {
+	await page.goto(`${BASE}/?shelf=all&sort=title`);
+	await scrollScreens(page, 1.5);
+	await expect(toTop(page)).toBeVisible();
+
+	// SORT's list: opening it brings its cell into view, so the page goes on
+	// down with the list still open, and the cell stays off the dimmed screen.
+	const menu = page.getByRole('menu', { name: 'Sort' });
+	await page.getByRole('button', { name: 'Sort, TITLE' }).click();
+	await expect(menu).toBeVisible();
+	await scrollScreens(page, 1.5);
+	await expect(menu).toBeVisible();
+	await expect(toTop(page)).toBeHidden();
+	await page.keyboard.press('Escape');
+	await expect(menu).toBeHidden();
+	// BACK gives focus back to the cell, which brings it into view again.
+	await scrollScreens(page, 1.5);
+	await expect(toTop(page)).toBeVisible();
+
+	// FILTER's panel, whichever of the two this device draws (the desktop's
+	// is in the pinned bar, where the reviewer saw the cell lit over it).
+	const filter = page.locator('details.filter:visible').first();
+	await filter.locator('summary').click();
+	await expect(filter).toHaveAttribute('open', '');
+	await scrollScreens(page, 1.5);
+	await expect(filter).toHaveAttribute('open', '');
+	await expect(toTop(page)).toBeHidden();
+	await filter.locator('summary').click();
+	await expect(filter).not.toHaveAttribute('open', '');
+	await scrollScreens(page, 1.5);
+	await expect(toTop(page)).toBeVisible();
+});
+
 // ---- c430: the SERIES TO LINK band put away -------------------------------------------
 
 const band = (page: Page) => page.locator('.band', { hasText: 'SERIES TO LINK' });

@@ -416,8 +416,11 @@ cell appears in the bottom-right corner (c433): 52px, ruled on its two inner
 sides, opaque, over the tiles at the bar's z-index, never a floating circle.
 A tap scrolls to the top, smoothly, or at once under reduced motion; focus
 moves up to the bar first, since the cell goes as the page passes a screen.
-It hides again within a screen of the top, and while selecting, where the
-bulk bar has that corner. The page keeps 53px under its last row (plus the
+It hides again within a screen of the top, while selecting, where the
+bulk bar has that corner, and while FILTER's panel or SORT's list is open,
+whose scrim it would otherwise be drawn lit above (both live in the pinned
+bar's stacking context; the page reads their `<details open>` and
+`aria-expanded`). The page keeps 53px under its last row (plus the
 phone's safe area) so the cell never sits on the last tiles. A TV, which
 draws no cell, keeps its own safe margin there instead (`--safe-y`, 28px at
 960x540; the TV block's c238 rule, restated beside the 53px one because that
