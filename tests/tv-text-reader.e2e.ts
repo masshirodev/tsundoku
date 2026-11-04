@@ -12,8 +12,9 @@ import { expect, test } from './fixtures';
  * the pad reaches READING, and LAYOUT changes by keys alone -- and its end page,
  * which takes the pad as the image reader's does (c280: a novel's last volume
  * is EndPage, so its cells are the Work's block, the rating and the foot).
- * Read-only: it reads in incognito, so no progress is written (the LAYOUT it
- * changes is put back).
+ * Read-only: it reads in incognito, so no progress is written, and the LAYOUT
+ * it changes is session state that only REMEMBER stores (TextReader.svelte),
+ * which it never presses: there is nothing stored to put back.
  *
  * It reads Mushoku Tensei, which no flow file removes from the library:
  * history-flow removes one of its history rows and undoes it, and series-layout
@@ -95,7 +96,8 @@ test('OK brings the chrome as a focus row, and READING changes LAYOUT by keys', 
 	await expect(page.locator('.text-reader header.top')).toHaveCount(0);
 	expect(await chromeUp()).toBe(false);
 
-	// Put it back the way it was found, by keys alone.
+	// And back again by keys alone, which shows the row works both ways; LAYOUT is
+	// this session's, so this restores nothing stored.
 	await page.keyboard.press('Enter');
 	await page.keyboard.press('ArrowDown');
 	await expect(reading).toBeFocused();

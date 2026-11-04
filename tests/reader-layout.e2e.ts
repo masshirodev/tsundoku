@@ -51,11 +51,12 @@ test('the controls: a 64px bar on top, a 56px scrubber and 64px cells below', as
 
 test('off a TV the chrome declares no focus start of its own', async ({ page }) => {
 	await open(page);
-	// At the end page the reader lifts its opt-out everywhere (c235), so the
-	// layer is live: if the scrubber declared a start, the first arrow there
-	// would land on the footer instead of the end page. The start belongs to
-	// the TV's chrome (c241), where OK focuses it anyway, so it is off a TV
-	// that the attribute is absent.
+	// The start belongs to the TV's chrome (c241), where OK focuses it anyway.
+	// Off a TV it would matter where the reader lifts its opt-out, at the end
+	// page (c235): a declared start there would take the first arrow to the
+	// footer instead of the end page's cells. This case does not reach the end
+	// page (`open` resumes inside a chapter, never past it); it reads the attribute
+	// on the footer itself, with the chrome up.
 	const vp = page.viewportSize()!;
 	await page.mouse.click(vp.width / 2, vp.height / 2, { button: 'middle' });
 	const scrub = page.locator('footer[aria-label="Reader controls"] .track');
