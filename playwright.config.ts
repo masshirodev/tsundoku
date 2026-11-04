@@ -71,6 +71,13 @@ export default defineConfig({
 	// that fails under load waits on time instead of the page's own state, and
 	// fewer workers only hides that. `--workers` still overrides it.
 	workers: '50%',
+	// Tests left out of every project by title, as a regular expression
+	// (doc/TESTING.md, "Load"). The CLI's `--grep-invert` cannot do this:
+	// Playwright never applies a command-line filter to a dependency project, so
+	// a known red in a device project still runs and still keeps `duplicates`
+	// and `gate`, which depend on all of them, from running at all. A filter in
+	// the config is the projects' own, dependencies included.
+	grepInvert: process.env.PLAYWRIGHT_SKIP ? new RegExp(process.env.PLAYWRIGHT_SKIP) : undefined,
 	// BROWSE's own server and fake engine, started after the shared server has
 	// built (tests/browse-setup.ts): the browse project below runs against it.
 	// And a friend's install (tests/friend-setup.ts), for the friend project.
