@@ -203,6 +203,16 @@
 	let chapter = $state<Chapter | null>(null);
 	let nextChapter = $state<Chapter | null>(null);
 	let pos = $state<TextPosition>({ block: 0, offset: 0 });
+	/**
+	 * Scroll: `pos` is read 250 ms after the reader stops (`onscroll`), so
+	 * while they scroll it is where they were, not where they are. A relayout
+	 * then (a face arriving, an illustration loading) must not take them back
+	 * there: `ownTop` is the scrollTop the reader last put itself at, and a
+	 * scroll away from it is the reader's, which `readerMoved` holds until
+	 * `pos` is read again.
+	 */
+	let ownTop = 0;
+	let readerMoved = false;
 	let page = $state(0);
 	let pages = $state(1);
 	let atEnd = $state(false);
@@ -349,8 +359,11 @@
 		if (blocksEl) labelWide(blocksEl);
 		measure();
 		if (layout === 'scroll') {
+			// Mid-scroll, the reader's own scroll is the place: `pos` is stale.
+			if (readerMoved || !pageEl) return;
 			const r = rectOf(flowEl, pos);
-			if (r && pageEl) pageEl.scrollTop += r.top - pageEl.getBoundingClientRect().top - f.y;
+			if (r) pageEl.scrollTop += r.top - pageEl.getBoundingClientRect().top - f.y;
+			ownTop = pageEl.scrollTop;
 		} else {
 			page = pageOf(pos);
 		}
@@ -411,6 +424,8 @@
 		finished = false;
 		page = 0;
 		if (pageEl) pageEl.scrollTop = 0;
+		ownTop = 0;
+		readerMoved = false;
 		pos = at === 'start' || at === 'end' ? { block: 0, offset: 0 } : at;
 		await relayout();
 		if (at === 'end') {
@@ -705,13 +720,19 @@
 			void openChapter(index + 1, 'start').then(async () => {
 				await tick();
 				const top = blocksEl?.firstElementChild as HTMLElement | null;
-				if (top && pageEl) pageEl.scrollTop += top.getBoundingClientRect().top - y;
+				if (top && pageEl) {
+					pageEl.scrollTop += top.getBoundingClientRect().top - y;
+					ownTop = pageEl.scrollTop;
+				}
 			});
 			return;
 		}
+		if (Math.abs(pageEl.scrollTop - ownTop) > 1) readerMoved = true;
 		clearTimeout(scrolling);
 		scrolling = setTimeout(() => {
 			pos = positionOnPage() ?? pos;
+			readerMoved = false;
+			if (pageEl) ownTop = pageEl.scrollTop;
 			noteSpeed();
 			if (scrollFraction >= 0.999) markFinished();
 			reachScrollEnd();

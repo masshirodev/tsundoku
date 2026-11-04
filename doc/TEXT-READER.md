@@ -106,6 +106,15 @@ change of size, font, margins, layout or orientation, the chapter is laid out
 again and opens on the page holding that character. Page numbers, percentages
 and time left are worked out from the position and never stored.
 
+In SCROLL the position is read a quarter of a second after the reader stops
+scrolling, so a relayout that lands while they are still moving (a face
+arriving, which `loadingdone` reports since c441, or an illustration loading)
+leaves the scroll where the reader put it rather than taking them back to the
+character they scrolled away from. Only the reader's own scrolls count: the
+scrolls the reader makes itself (opening a chapter, keeping the character,
+crossing into the next chapter) are remembered as its own, so a face arriving
+just after a chapter opens on a saved place still keeps that place.
+
 It travels through `POST /api/reading` as before: `page` is the paragraph, and
 two new optional fields carry `offset` (the character) and `total` (paragraphs
 in the entry). The server stores them in `last_position`, `last_offset` (rung 11) and `page_count`, so the series screen's percentages work without the

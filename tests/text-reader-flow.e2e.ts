@@ -247,6 +247,31 @@ test('a file that is not an EPUB says so, and offers the way back', async ({ pag
 	await expect(page.getByRole('link', { name: '← SERIES' })).toBeVisible();
 });
 
+test('in SCROLL, a face arriving mid-scroll leaves the reader where they scrolled to', async ({
+	page
+}) => {
+	await openBook(page);
+	await middle(page);
+	await page.getByRole('button', { name: /^PAGED · / }).click();
+	await page.getByRole('radio', { name: 'SCROLL' }).click();
+	await page.getByRole('button', { name: 'Close', exact: true }).click();
+	await expect(page.locator('.text-reader')).toHaveClass(/scroll/);
+	const top = () => page.locator('.page').evaluate((n) => n.scrollTop);
+	// The reader's place is read 250 ms after a scroll stops; a relayout before
+	// then (here `loadingdone`, which a late face fires, c441) once took the
+	// reader back to the place they had scrolled away from (work-end-frame's
+	// SCROLL end page never opened). Halfway down: far from where it opened.
+	const at = await page.locator('.page').evaluate((n) => {
+		n.scrollTop = Math.round((n.scrollHeight - n.clientHeight) / 2);
+		n.dispatchEvent(new Event('scroll'));
+		document.fonts.dispatchEvent(new Event('loadingdone'));
+		return n.scrollTop;
+	});
+	expect(at).toBeGreaterThan(0);
+	await page.waitForTimeout(400);
+	expect(Math.abs((await top()) - at)).toBeLessThanOrEqual(1);
+});
+
 // ---- SCROLL across a volume's end (c347) ------------------------------------------------
 //
 // A novel grouped from two books is one download per volume (doc/TEXT-READER.md,
