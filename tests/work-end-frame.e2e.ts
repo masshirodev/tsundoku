@@ -213,6 +213,12 @@ async function openEnd(page: Page, seriesId = 22) {
 }
 
 test.beforeAll(async ({ browser }, info) => {
+	// The hook builds nothing but waits up to 60 s for its own preview, then
+	// makes eight Works: past the default 30 s under a loaded box, where it was
+	// red in every run of wave 20's gate (c477). In a hook, test.setTimeout sets
+	// the hook's own budget (Playwright's test.d.ts, "Changing timeout for a
+	// beforeAll").
+	test.setTimeout(120_000);
 	seed();
 	prepare();
 	server = spawn('npx', ['vite', 'preview', '--port', String(PORT), '--strictPort'], {
