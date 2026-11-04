@@ -80,6 +80,18 @@ many are on as a green badge, opens a panel with one row per filter:
   that filter changed (`withFilters`); the panel is a `<details>`; DATE ADDED
   is a GET form whose SET button only shows without script. Other shelves'
   tabs carry the filters along (`shelfHref`).
+- **A tap before the page hydrates keeps the panel open** (c105). The
+  `<details>` is the truth and the component only follows it: it reads
+  `open` from the element on mount, keeps it by `toggle`, and closes through
+  the element (DONE, the scrim). It used `bind:open` until 2026-11-03, which
+  wrote its own `false` onto the element at hydration and shut a panel the
+  finger had just opened, so on a slow tablet a fast first tap came to
+  nothing. `tests/library-top-bar.e2e.ts` taps FILTER with the app's scripts
+  held back and checks it is still open once they run.
+- **In the desktop's top bar FILTER draws the rule on its right**, against
+  SELECT, and not its own left one: the cell before it draws that (c431;
+  [`LIBRARY.md`](LIBRARY.md), "The top bar"). On the tabs and a person's
+  page FILTER still draws its left rule, the divider from the tabs.
 - **Hidden means hidden** ([`PRIVACY.md`](PRIVACY.md)). The HIDDEN row exists
   only while reveal is on: `parseFilters` drops `?hidden=1` otherwise, and the
   SQL checks again. It's the panel's one magenta row, and ending reveal drops

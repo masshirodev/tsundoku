@@ -39,6 +39,8 @@
 	import { postAction, saves } from '$lib/saves.svelte';
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
 	import FilterPanel from '$lib/components/controls/FilterPanel.svelte';
+	import ChoiceMenu from '$lib/components/controls/ChoiceMenu.svelte';
+	import { leave } from '$lib/motion';
 	import NewShelfSheet from './NewShelfSheet.svelte';
 	import MoreSheet from './MoreSheet.svelte';
 	import {
@@ -156,6 +158,63 @@
 	}
 
 	const scanning = $derived(data.scan !== null && data.scan.finishedAt === null);
+
+	/**
+	 * The SERIES TO LINK band's ✕ (c430): put away on this device, remembered
+	 * with the count it was put away at, as the update band's "seen" is. It
+	 * comes back only when the count grows past that: a new series to link,
+	 * not the same ones again. The count it is measured against follows the
+	 * queue down (one reviewed elsewhere), so the next new one is always
+	 * news. Per device, so no server is asked (doc/LIBRARY.md, "The band").
+	 */
+	const LINKS_PUT_AWAY = 'tsundoku.library.links-put-away';
+	let linksPutAwayAt = $state<number | null>(null);
+	$effect(() => {
+		try {
+			const raw = localStorage.getItem(LINKS_PUT_AWAY);
+			const n = raw === null ? NaN : Number.parseInt(raw, 10);
+			linksPutAwayAt = Number.isInteger(n) && n >= 0 ? n : null;
+		} catch {
+			// Storage refused (a private window): the band shows, as it always did.
+		}
+	});
+	function rememberLinksAt(n: number | null) {
+		linksPutAwayAt = n;
+		try {
+			if (n === null) localStorage.removeItem(LINKS_PUT_AWAY);
+			else localStorage.setItem(LINKS_PUT_AWAY, String(n));
+		} catch {
+			// Storage refused: put away for this visit only.
+		}
+	}
+	// Fewer to link than when it was put away: measure the next growth from here.
+	$effect(() => {
+		const at = linksPutAwayAt;
+		if (at !== null && data.toLink < at) untrack(() => rememberLinksAt(data.toLink));
+	});
+	const linksBand = $derived(
+		data.toLink > 0 && !data.empty && (linksPutAwayAt === null || data.toLink > linksPutAwayAt)
+	);
+
+	/**
+	 * BACK TO TOP (c433): a corner cell once the grid is about a screen down,
+	 * gone again near the top. Not on a TV, where the focus layer moves the
+	 * page and BACK climbs to the top (doc/LIBRARY.md, "The top bar").
+	 */
+	let winY = $state(0);
+	let winH = $state(0);
+	const farDown = $derived(winH > 0 && winY > winH);
+	function toTop() {
+		const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+		// The cell goes as the page passes a screen: focus moves to the bar
+		// first, or a keyboard's would drop to the page with it.
+		const bar = document.querySelector<HTMLElement>('.library > header.bar');
+		const first = [...(bar?.querySelectorAll<HTMLElement>('a[href], button') ?? [])].find(
+			(el) => el.getClientRects().length > 0
+		);
+		first?.focus({ preventScroll: true });
+		scrollTo({ top: 0, behavior: reduced ? 'instant' : 'smooth' });
+	}
 
 	// While an import runs on the workstation, follow it: the band's bytes and
 	// the arriving grid come from the job row, re-read every two seconds.
@@ -880,6 +939,9 @@
 
 	const gb = (bytes: number) => (bytes / 1e9).toFixed(1).replace(/\.0$/, '');
 
+	/** The SORT menu's choices, in `SORTS`' order (c432). */
+	const SORT_CHOICES = SORTS.map((s) => ({ value: s, label: SORT_NAME[s] }));
+
 	/** A sort from the SORT menu, in its own direction. */
 	function sortTo(raw: string) {
 		const next = parseSort(raw);
@@ -907,6 +969,8 @@
 </script>
 
 <svelte:head><title>tsundoku</title></svelte:head>
+
+<svelte:window bind:scrollY={winY} bind:innerHeight={winH} />
 
 <div class="library" class:selecting class:has-band={!!batch}>
 	{#if modalOpen && offer}<UpdateModal {offer} onlater={snooze} />{/if}
@@ -1214,7 +1278,7 @@
 		</Banner>
 	{/if}
 
-	{#if data.toLink > 0 && !data.empty}
+	{#if linksBand}
 		<!-- Below duplicates, which are older and fewer (Catalogue Links 1a; doc/LINKS.md). -->
 		<Banner
 			kind="action"
@@ -1222,11 +1286,21 @@
 			detail={isOffline ? 'THE REVIEW NEEDS THE WORKSTATION' : 'FOUND ON ANILIST, NOT FOR CERTAIN'}
 		>
 			{#snippet action()}
-				{#if isOffline}
-					<span class="dimmed" aria-disabled="true">REVIEW →</span>
-				{:else}
-					<a href={resolve('/links')} aria-label="Review the series to link">REVIEW →</a>
-				{/if}
+				<!-- One block at the band's end: the band spreads its children apart. -->
+				<span class="link-acts">
+					{#if isOffline}
+						<span class="dimmed" aria-disabled="true">REVIEW →</span>
+					{:else}
+						<a href={resolve('/links')} aria-label="Review the series to link">REVIEW →</a>
+					{/if}
+					<button
+						type="button"
+						class="put-away"
+						aria-label="Put away the series to link until there are more"
+						data-focus-mark="in"
+						onclick={() => rememberLinksAt(data.toLink)}>✕</button
+					>
+				</span>
 			{/snippet}
 		</Banner>
 	{/if}
@@ -1316,16 +1390,7 @@
 					NEWEST FIRST
 				{:else}
 					<span class="sort">
-						<span class="menu">
-							<select
-								aria-label="Sort"
-								value={data.sort}
-								onchange={(e) => sortTo(e.currentTarget.value)}
-							>
-								{#each SORTS as s (s)}<option value={s}>{SORT_NAME[s]}</option>{/each}
-							</select>
-							<span class="caret" aria-hidden="true">▾</span>
-						</span>
+						<ChoiceMenu label="Sort" choices={SORT_CHOICES} value={data.sort} onpick={sortTo} />
 						{#if data.sort !== 'random'}
 							<button type="button" class="dir" onclick={flipDir} aria-label="Reverse order"
 								>{dirLabel(data.sort, data.dir)}</button
@@ -1473,6 +1538,11 @@
 		{:else if shown.length === 0}
 			<p class="none">NOTHING ON THIS SHELF</p>
 		{/if}
+	{/if}
+	{#if farDown && !selecting}
+		<button type="button" class="to-top appear" data-focus-mark="in" onclick={toTop} out:leave
+			>BACK TO TOP ↑</button
+		>
 	{/if}
 </div>
 
@@ -1668,6 +1738,86 @@
 		flex-direction: column;
 		flex: 1;
 	}
+	/* The top bar stays on a desktop too (c433): the sidebar stays, and so
+	   does the search beside it. TopBar pins it on a phone, the tablet and a
+	   TV already, and lets it go on a desktop. */
+	@media (min-width: 1024px) and (pointer: fine) {
+		.library > :global(header.bar.sticky) {
+			position: sticky;
+			z-index: 8;
+		}
+	}
+	/* BACK TO TOP (c433): a corner cell, ruled on its two inner sides, over
+	   the tiles and under the bulk bar and sheets, as the top bar is. The
+	   page keeps room under the last row for it. Not on a TV. */
+	.to-top {
+		position: fixed;
+		right: 0;
+		bottom: 0;
+		z-index: 8;
+		display: flex;
+		align-items: center;
+		height: 52px;
+		padding: 0 var(--pad) env(safe-area-inset-bottom);
+		border: 0;
+		border-top: var(--hairline);
+		border-left: var(--hairline);
+		border-radius: 0;
+		background: var(--surface-page);
+		color: var(--text-1);
+		font: var(--type-control);
+		white-space: nowrap;
+		cursor: pointer;
+	}
+	.library:not(.selecting) {
+		padding-bottom: calc(53px + env(safe-area-inset-bottom));
+	}
+	/* Not while FILTER's panel or SORT's list is open: their scrims sit in the
+	   sticky bar's stacking context, so the cell, at the bar's z-index later in
+	   the page, was drawn lit above the dimmed screen. Read off the two
+	   components' own open states, the <details> and the cell's aria-expanded. */
+	.library:has(:global(details.filter[open]), :global(.menu > .cell[aria-expanded='true']))
+		.to-top {
+		display: none;
+	}
+	@media (pointer: none) and (min-width: 900px) {
+		.to-top {
+			display: none;
+		}
+		/* The room above is BACK TO TOP's, which a TV does not draw; it keeps
+		   its own safe margin instead, as the TV block below sets for every
+		   other case (c238). This rule outranks that one, so it says it again. */
+		.library:not(.selecting) {
+			padding-bottom: var(--safe-y);
+		}
+	}
+	/* On a TV the focus layer brings a focused tile clear of the pinned bars
+	   (the tabs and the focus line) by its button's own edge, and the cover's
+	   ring is drawn 7px outside the cover, which is that edge: coming back up
+	   the grid, the focus line covered the ring by 7px. So the button reaches
+	   7px up into the tile's 10px padding, and the ring comes clear with it
+	   (c433). Nothing drawn moves; a TV has no pointer for the larger box. */
+	@media (pointer: none) and (min-width: 900px) {
+		.grid :global(.tile > .open) {
+			margin-top: -7px;
+			padding-top: 7px;
+		}
+	}
+	/* The SERIES TO LINK band's ✕ (c430): a plain cell after REVIEW, not a
+	   second accent action. */
+	.link-acts {
+		align-self: stretch;
+		display: flex;
+	}
+	.library .put-away {
+		min-width: 60px;
+		justify-content: center;
+		padding: 0 18px;
+		border-left: var(--hairline);
+		background: transparent;
+		color: var(--text-1);
+		font: 500 18px var(--font-mono);
+	}
 	/* Room for the pinned bulk bar: two 60px rows and the rule above them. */
 	.library.selecting {
 		padding-bottom: 122px;
@@ -1733,42 +1883,15 @@
 	}
 	/* SORT: one closed block of square cells, the menu (▾ says it opens) and
 	   the direction beside it, as the panel rows draw a sort ("cells plus
-	   ↓ / ↑"). The native box is dropped for the block's own. */
+	   ↓ / ↑"). The menu is the house's own (ChoiceMenu, c432); its list hangs
+	   from the whole block, so the block is what is positioned. */
 	.sort {
+		position: relative;
 		display: inline-flex;
 		align-items: stretch;
 		height: 32px;
 		border: 1px solid var(--line-2);
 		color: var(--text-1);
-	}
-	.menu {
-		position: relative;
-		display: flex;
-	}
-	.sort select {
-		appearance: none;
-		border: 0;
-		border-radius: 0;
-		margin: 0;
-		padding: 0 30px 0 12px;
-		background: none;
-		font: inherit;
-		letter-spacing: inherit;
-		color: inherit;
-		cursor: pointer;
-	}
-	.sort select option {
-		background: var(--surface-panel);
-		color: var(--text-1);
-	}
-	.caret {
-		position: absolute;
-		top: 0;
-		bottom: 0;
-		right: 12px;
-		display: flex;
-		align-items: center;
-		pointer-events: none;
 	}
 	.sort .dir {
 		display: flex;
@@ -1780,12 +1903,10 @@
 		padding: 0 10px;
 		border-left: 1px solid var(--line-2);
 	}
-	.sort select:focus-visible,
 	.sort .dir:focus-visible {
 		outline: 2px solid var(--accent);
 		outline-offset: -2px;
 	}
-	.sort select:active,
 	.sort .dir:active {
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
@@ -1794,9 +1915,15 @@
 	.desk-count {
 		display: none;
 	}
-	/* Not positioned: its panel hangs from the top bar's right edge, 640 wide (3j). */
+	/* Not positioned: its panel hangs from the top bar's right edge, 640 wide (3j).
+	   FILTER's own left rule is the tabs' divider; here the cell before it
+	   draws that one, and FILTER draws the rule against SELECT (c431). */
 	.filter-desk {
 		align-self: stretch;
+		border-right: var(--hairline);
+	}
+	.filter-desk :global(summary) {
+		border-left: 0;
 	}
 	/* Desktop: the wordmark and the shelves move into the sidebar, FILTER into
 	   the top bar beside SELECT, and the count into the section label (3j). */
@@ -1889,7 +2016,7 @@
 		justify-content: center;
 		gap: 4px;
 		padding: 0 var(--pad);
-		border-left: var(--hairline);
+		border-right: var(--hairline);
 		color: var(--text-1);
 		text-decoration: none;
 		white-space: nowrap;
@@ -1899,7 +2026,11 @@
 			padding: 0 12px;
 		}
 	}
-	/* The right-hand cell's own rule is on BROWSE's left; BROWSE draws the next one. */
+	/* The top bar's rules (c431). The right-hand cell draws the first one, on
+	   its left; every cell before SELECT draws the one after it, on its right
+	   (BROWSE, QUEUE, the desktop's FILTER); MORE draws its own on its left,
+	   so the rule goes with it where MORE is hidden. One rule per pair, never
+	   two: a cell that also drew a left rule doubled the right-hand cell's. */
 	.browse-cell {
 		display: flex;
 		align-items: center;
@@ -1913,9 +2044,6 @@
 		.browse-cell {
 			display: none;
 		}
-	}
-	.browse-cell + .queue-cell {
-		border-left: 0;
 	}
 	.queue-cell.stale {
 		opacity: 0.35;

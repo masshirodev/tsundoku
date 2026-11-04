@@ -2,6 +2,14 @@ import { type Page } from '@playwright/test';
 import { expect, readerReady, test } from './fixtures';
 
 /**
+ * The preview's own origin, which a form action's POST must carry or
+ * SvelteKit refuses it as cross-site: the project's `baseURL`, which follows
+ * PLAYWRIGHT_PORT. It was a fixed 'http://localhost:4183', so on any other
+ * port the POST was refused and the case failed (c311).
+ */
+const sameOrigin = () => new URL(test.info().project.use.baseURL!).origin;
+
+/**
  * The reader end to end (doc/READER.md), on the seed library's generated
  * sample pages. Serial, tablet-portrait only. This file owns Hikaru ga
  * Shinda Natsu (paged), The Greatest Estate Developer (vertical) and
@@ -280,7 +288,7 @@ test('the end of the series asks for a rating while unrated, and it saves', asyn
 	const id = await seriesId(page, 'Chainsaw Man');
 	const rate = (n: number) =>
 		page.request.post(`/series/${id}?/rate`, {
-			headers: { origin: 'http://localhost:4183', 'x-sveltekit-action': 'true' },
+			headers: { origin: sameOrigin(), 'x-sveltekit-action': 'true' },
 			form: { rating: String(n) }
 		});
 	await rate(0);

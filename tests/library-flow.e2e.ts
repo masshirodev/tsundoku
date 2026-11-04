@@ -2,6 +2,14 @@ import { type Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 
 /**
+ * The preview's own origin, which a form action's POST must carry or
+ * SvelteKit refuses it as cross-site: the project's `baseURL`, which follows
+ * PLAYWRIGHT_PORT. It was a fixed 'http://localhost:4183', so on any other
+ * port the POST was refused and the case failed (c311).
+ */
+const sameOrigin = () => new URL(test.info().project.use.baseURL!).origin;
+
+/**
  * One complete flow with real data, end to end: rate, favourite, shelve and
  * hide from the long-press sheet, then reveal and unhide. This is the walk
  * doc/design's HANDOFF asks for early, because it is what surfaces an
@@ -17,6 +25,16 @@ const TITLE = 'Kusuriya no Hitorigoto';
 // in order, and only on the tablet project (the others ignore `*-flow.e2e.ts`
 // in playwright.config.ts). The frame specs are read-only and run everywhere.
 test.describe.configure({ mode: 'serial' });
+
+/** SORT's cell (c432): named for what it sorts by, "Sort, TITLE". */
+const sortCell = (page: Page) => page.getByRole('button', { name: /^Sort, / });
+
+/** Choose a sort the way a finger does: open the menu, tap the choice. */
+async function sortBy(page: Page, name: string) {
+	await sortCell(page).click();
+	await page.getByRole('menu', { name: 'Sort' }).getByRole('menuitemradio', { name }).click();
+	await expect(page.getByRole('menu', { name: 'Sort' })).toBeHidden();
+}
 
 async function longPress(page: Page, title: string) {
 	const tile = page.locator('.grid .tile', { hasText: title });
@@ -204,7 +222,7 @@ test('START SCAN with nothing to import says where it looked', async ({ request 
 	// playwright.config.ts points LIBRARY_ROOT at an empty folder, so a scan
 	// here can never import into the shared seeded database.
 	const res = await request.post('/?/scan', {
-		headers: { origin: 'http://localhost:4183', 'x-sveltekit-action': 'true' },
+		headers: { origin: sameOrigin(), 'x-sveltekit-action': 'true' },
 		form: {}
 	});
 	expect(await res.text()).toContain('NOTHING TO IMPORT');
@@ -350,11 +368,9 @@ test('RANDOM shuffles anew each time it’s chosen, and keeps its shuffle across
 	page
 }) => {
 	await page.goto('/?shelf=all&sort=added');
-	await page.waitForLoadState('networkidle');
-	const menu = page.getByRole('combobox', { name: 'Sort' });
-	await menu.selectOption('random');
+	await sortBy(page, 'RANDOM');
 	await expect(page).toHaveURL(/sort=random&seed=\d+|seed=\d+&sort=random|sort=random.*seed=\d+/);
-	await expect(menu).toHaveValue('random');
+	await expect(sortCell(page)).toHaveAccessibleName('Sort, RANDOM');
 	const seed = new URL(page.url()).searchParams.get('seed');
 	const order = await page.locator('.grid .tile .title').allTextContents();
 	await page.reload();
@@ -365,17 +381,17 @@ test('RANDOM shuffles anew each time it’s chosen, and keeps its shuffle across
 		.first()
 		.click();
 	await expect(page).toHaveURL(new RegExp(`seed=${seed}`));
-	await menu.selectOption('recent');
+	await sortBy(page, 'RECENTLY READ');
 	await expect(page).not.toHaveURL(/seed=/);
 });
 
 test('SORT is a menu, and the toggle beside it turns the order round', async ({ page }) => {
 	await page.goto('/');
-	await page.waitForLoadState('networkidle');
-	const menu = page.getByRole('combobox', { name: 'Sort' });
-	await expect(menu).toHaveValue('recent');
-	// Last read, then newest, then the rest.
-	await expect(menu.locator('option')).toHaveText([
+	await expect(sortCell(page)).toHaveAccessibleName('Sort, RECENTLY READ');
+	// Last read, then newest, then the rest; the one in use is the one checked.
+	await sortCell(page).click();
+	const choices = page.getByRole('menu', { name: 'Sort' }).getByRole('menuitemradio');
+	await expect(choices).toHaveText([
 		'RECENTLY READ',
 		'RECENTLY ADDED',
 		'PROGRESS',
@@ -383,8 +399,11 @@ test('SORT is a menu, and the toggle beside it turns the order round', async ({ 
 		'RATING',
 		'RANDOM'
 	]);
+	await expect(page.getByRole('menuitemradio', { checked: true })).toHaveText('RECENTLY READ');
+	await sortCell(page).click();
+	await expect(page.getByRole('menu', { name: 'Sort' })).toBeHidden();
 
-	await menu.selectOption('title');
+	await sortBy(page, 'TITLE');
 	await page.waitForURL(/sort=title/);
 	const tiles = page.locator('.grid .tile');
 	const firstAz = await tiles.first().textContent();
@@ -401,7 +420,7 @@ test('SORT is a menu, and the toggle beside it turns the order round', async ({ 
 	await expect(page).not.toHaveURL(/dir=/);
 
 	// A new sort starts in its own direction; RANDOM has none to turn.
-	await menu.selectOption('random');
+	await sortBy(page, 'RANDOM');
 	await page.waitForURL(/sort=random/);
 	await expect(page.getByRole('button', { name: /reverse/i })).toHaveCount(0);
 });
