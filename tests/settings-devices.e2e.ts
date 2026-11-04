@@ -157,15 +157,17 @@ async function typeOnTv(at: Install, codes: string[]) {
 /**
  * Open the row with the page's timers stopped, so only the event under test
  * can refresh it. `install` alone lets the fake time flow, and the row's own
- * 5 s tick would then rescue a case whose event handler was missing.
+ * 5 s tick would then rescue a case whose event handler was missing; pausing
+ * after the page is up races that flowing time under load ("cannot
+ * fast-forward to the past"). So the clock is paused at the moment it is
+ * installed, before the page loads, and only `runFor` moves it.
  */
 async function openFrozen(page: Page) {
-	await page.clock.install();
+	const at = new Date();
+	await page.clock.install({ time: at });
+	await page.clock.pauseAt(at);
 	await page.goto('/settings#s-devices');
 	await expect(page.getByText('FOR A TV · SIX DIGITS')).toBeVisible();
-	// A quarter second ahead of the page's own now: past the round trip this
-	// call takes, and nowhere near the row's first 5 s tick.
-	await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 250);
 }
 
 test('with no ORIGIN, DEVICES draws no six digits and no door makes them (c264)', async ({
