@@ -2756,8 +2756,9 @@
 	/* The bars fade both ways here, on the app's own timing (base.css, .appear):
 	   they're kept in the page and hidden by class, so they can fade out too.
 	   The cluster does not fade (c217): it sits in the middle of the picture, and
-	   a half-faded black box over the video read as a translucent patch. It is
-	   solid from its first frame and gone on the next. */
+	   a box fading over the video read as a patch coming and going. It is all
+	   there from its first frame and gone on the next; its ground is translucent
+	   throughout (c429, below), which is a different thing from a fade. */
 	.top,
 	.bottom {
 		transition: opacity var(--motion-appear) var(--ease);
@@ -2777,7 +2778,13 @@
 		top: 50%;
 		transform: translate(-50%, -50%);
 		display: flex;
-		background: var(--surface-page);
+		/*
+		 * Translucent, so the frame shows through while the controls are up (the
+		 * owner, 2026-11-03, c429), and the glyphs at full strength. 70% of the
+		 * page's ground keeps the labels at AA over a white frame (5.9:1) as
+		 * well as a black one; browse-player-cluster measures both.
+		 */
+		background: color-mix(in oklab, var(--surface-page) 70%, transparent);
 		border: var(--hairline);
 	}
 	.cluster button {

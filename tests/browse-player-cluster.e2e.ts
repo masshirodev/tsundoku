@@ -7,7 +7,8 @@ import { devices, type Page } from '@playwright/test';
  * a desktop, a touch tablet and a phone's portrait scrubber, as it was before
  * c296's TV-only border reached every bar. c429: the −10 / pause / +10 cluster
  * over the picture is translucent, and its labels keep AA contrast over a
- * white and a black frame. On the browse server's "Tsukiakari no Ryokōsha",
+ * white and a black frame, on a desktop and a touch tablet in landscape (in
+ * portrait and on a TV there is no cluster over the picture). On the browse server's "Tsukiakari no Ryokōsha",
  * whose episodes are the fixture's 8 s clip (tests/browse-setup.ts); it runs
  * in the `browse` project because that is where the clip is served, and each
  * case switches to the device it is about.
@@ -87,6 +88,86 @@ async function stripIsInert(
 	await expect.poll(() => at(page)).toBeGreaterThan(5.5);
 }
 
+/** WCAG's contrast ratio between two opaque sRGB colours. */
+function contrast(a: number[], b: number[]): number {
+	const lum = ([r, g, b]: number[]) => {
+		const f = (v: number) => {
+			const c = v / 255;
+			return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+		};
+		return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+	};
+	const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+	return (hi + 0.05) / (lo + 0.05);
+}
+
+/**
+ * The cluster over a frame of one colour: the picture is hidden and the stage
+ * behind it painted `frame`, so what shows through the cluster is that frame.
+ * Returns the ground as drawn (a pixel of the screenshot, inside the first
+ * cell's corner, away from its glyph) and the glyphs' computed colours as
+ * the screen draws them (opaque, so each is its own colour).
+ */
+async function clusterOver(page: Page, frame: string) {
+	await page.evaluate((colour) => {
+		const v = document.querySelector('video')!;
+		v.style.visibility = 'hidden';
+		(document.querySelector('.stage') as HTMLElement).style.background = colour;
+	}, frame);
+	const cell = page.locator('.cluster button').first();
+	const box = (await cell.boundingBox())!;
+	const shot = await page.screenshot({
+		clip: { x: Math.round(box.x) + 4, y: Math.round(box.y) + 4, width: 1, height: 1 },
+		animations: 'disabled'
+	});
+	const ground = await page.evaluate(async (png) => {
+		const img = new Image();
+		img.src = `data:image/png;base64,${png}`;
+		await img.decode();
+		const c = document.createElement('canvas');
+		c.width = c.height = 1;
+		const ctx = c.getContext('2d')!;
+		ctx.drawImage(img, 0, 0);
+		return Array.from(ctx.getImageData(0, 0, 1, 1).data.slice(0, 3));
+	}, shot.toString('base64'));
+	const ink = await page.locator('.cluster').evaluate((el) => {
+		const c = document.createElement('canvas');
+		c.width = c.height = 1;
+		const ctx = c.getContext('2d')!;
+		const rgb = (css: string) => {
+			ctx.clearRect(0, 0, 1, 1);
+			ctx.fillStyle = css;
+			ctx.fillRect(0, 0, 1, 1);
+			return Array.from(ctx.getImageData(0, 0, 1, 1).data);
+		};
+		const glyphs = [...el.querySelectorAll('button')].map((b) => getComputedStyle(b));
+		return glyphs.map((g) => ({ rgba: rgb(g.color), opacity: g.opacity }));
+	});
+	return { ground, ink };
+}
+
+/**
+ * The cluster's ground lets the frame through, and every glyph keeps AA
+ * against it over the brightest frame and the darkest (c429).
+ */
+async function clusterIsTranslucentAndLegible(page: Page) {
+	// A server that drops the clip as it starts (the fake's streams do, now
+	// and then) puts the cluster aside for its 4 s notice; it comes back after.
+	await expect(page.locator('.cluster')).toBeVisible({ timeout: 15_000 });
+	// The pointer away from the cells: a hover would tint the one under it.
+	const white = await clusterOver(page, '#ffffff');
+	const black = await clusterOver(page, '#000000');
+	// The frame shows through: the same ground over white and over black differs.
+	expect(contrast(white.ground, black.ground)).toBeGreaterThan(1.5);
+	for (const over of [white, black])
+		for (const g of over.ink) {
+			// Full strength: opaque, and not dimmed.
+			expect(g.rgba[3]).toBe(255);
+			expect(g.opacity).toBe('1');
+			expect(contrast(g.rgba.slice(0, 3), over.ground)).toBeGreaterThanOrEqual(4.5);
+		}
+}
+
 test.describe('on a desktop', () => {
 	test.use({
 		viewport: { width: 1280, height: 800 },
@@ -101,6 +182,18 @@ test.describe('on a desktop', () => {
 		test.setTimeout(60_000);
 		await openEpisode(page);
 		await stripIsInert(page, '.scrubrow', (x, y) => page.mouse.click(x, y));
+	});
+
+	test('the −10 / pause / +10 cluster lets the picture through and keeps AA (c429)', async ({
+		page
+	}) => {
+		test.setTimeout(60_000);
+		await openEpisode(page);
+		// Parked over the top bar's names: the controls stay up (the picture is
+		// paused) and no cell of the cluster is hovered.
+		const names = (await page.locator('.top .names').boundingBox())!;
+		await page.mouse.move(names.x + 10, names.y + names.height / 2);
+		await clusterIsTranslucentAndLegible(page);
 	});
 });
 
@@ -117,6 +210,14 @@ test.describe('on a touch tablet', () => {
 		test.setTimeout(60_000);
 		await openEpisode(page);
 		await stripIsInert(page, '.scrubrow', (x, y) => page.touchscreen.tap(x, y));
+	});
+
+	test('the −10 / pause / +10 cluster lets the picture through and keeps AA (c429)', async ({
+		page
+	}) => {
+		test.setTimeout(60_000);
+		await openEpisode(page);
+		await clusterIsTranslucentAndLegible(page);
 	});
 });
 
