@@ -12,6 +12,7 @@
 	import { untrack } from 'svelte';
 	import { isSettled, type Settled } from '$lib/library/settled';
 	import { SiteCheck } from '$lib/site-check.svelte';
+	import { answerCounts, arrangeAnswers, sourceTitle } from '$lib/library/source-answers';
 
 	/**
 	 * Searching the sources (Download States 1e, state 6). Results fill in
@@ -31,20 +32,45 @@
 	const href = (source?: string) =>
 		`${base}?q=${encodeURIComponent(data.q)}${source ? `&source=${source}` : ''}`;
 
-	/** What each source answered, as it does: a count, or 'x' for no answer. */
-	const settled = new SvelteMap<string, number | 'x'>();
-	const countOf = (s: Settled<unknown[]>) => (s.ok ? s.value.length : 'x');
-	// Without script the answers arrive as values (c146): counted at once, on the server too.
-	for (const g of untrack(() => data.groups))
-		if (isSettled(g.hits)) settled.set(g.id, countOf(g.hits));
+	/**
+	 * What each source answered, keyed by source, in the order the answers
+	 * arrived: the matches are drawn in that order, so a late one joins below
+	 * (card c490, the order MOVE's candidates share: `source-answers.ts`).
+	 */
+	const answers = new SvelteMap<string, Settled<SearchHit[]>>();
+	// Without script the answers arrive as values (c146): set at once, on the server too.
+	for (const g of untrack(() => data.groups)) if (isSettled(g.hits)) answers.set(g.id, g.hits);
+	/** Bumped by every fresh load, so an answer for an earlier search is dropped. */
+	let generation = 0;
 	$effect(() => {
-		settled.clear();
+		const gen = ++generation;
+		answers.clear();
 		for (const g of data.groups) {
 			const h = g.hits;
-			if (isSettled(h)) settled.set(g.id, countOf(h));
-			else void h.then((s) => settled.set(g.id, countOf(s)));
+			if (isSettled(h)) answers.set(g.id, h);
+			else void h.then((s) => gen === generation && answers.set(g.id, s));
 		}
 	});
+	/** TRY AGAIN and TRY ALL AGAIN: only the named sources are asked again (`./ask`). */
+	function askAgain(ids: string[]) {
+		const gen = generation;
+		for (const id of ids) {
+			answers.delete(id);
+			const u = new URLSearchParams({ q: data.q, source: id });
+			void fetch(`${base}/ask?${u}`, { cache: 'no-store' })
+				.then(async (r): Promise<Settled<SearchHit[]>> =>
+					r.ok
+						? ((await r.json()) as Settled<SearchHit[]>)
+						: { ok: false, error: `the workstation answered ${r.status}` }
+				)
+				.catch((): Settled<SearchHit[]> => ({ ok: false, error: 'the workstation did not answer' }))
+				.then((s) => gen === generation && answers.set(id, s));
+		}
+	}
+	const again = (ids: string[]) => (e: MouseEvent) => {
+		e.preventDefault();
+		askAgain(ids);
+	};
 	// A source still asking: is its site's check being passed? (c143) The engine
 	// says for an extension, the app itself for a novel (c152); asked only with
 	// the engine set up, which BROWSE needs anyway.
@@ -52,7 +78,7 @@
 	$effect(() => {
 		if (!data.engine) return;
 		for (const g of data.groups) {
-			if (settled.get(g.id) !== undefined) {
+			if (answers.has(g.id)) {
 				checks.get(g.id)?.stop();
 				checks.delete(g.id);
 			} else if (!checks.has(g.id)) {
@@ -66,13 +92,18 @@
 		for (const c of checks.values()) c.stop();
 	});
 
-	const answered = $derived([...settled.values()].filter((v) => v !== 'x').length);
-	const found = $derived(
-		[...settled.values()].reduce<number>((a, v) => a + (v === 'x' ? 0 : v), 0)
-	);
+	const counts = $derived(answerCounts(answers));
+	/**
+	 * Whether each fold is open, kept here: a fold whose sources are all being
+	 * asked again leaves the list, and comes back as the owner left it.
+	 */
+	const foldOpen = $state({ nothing: false, failed: false });
+	/** The sources this search asked, as the list names them. */
+	const asked = $derived(data.groups.map((g) => ({ id: g.id, name: g.name, lang: g.lang })));
+	const arranged = $derived(arrangeAnswers(asked, answers));
 	const tabCount = (id: string) => {
-		const v = settled.get(id);
-		return v === undefined ? '…' : v === 'x' ? '✕' : String(v);
+		const v = answers.get(id);
+		return v === undefined ? '…' : !v.ok ? '✕' : String(v.value.length);
 	};
 	/** In the ALL tab, a source shows three and links the rest. */
 	const SHOWN = 3;
@@ -109,90 +140,109 @@
 {:else if data.q && data.all}
 	<nav class="tabs" aria-label="Sources">
 		<a class="tab" class:on={!data.only} href={href()}
-			><span>ALL</span><span class="n">{count(found)}</span></a
+			><span>ALL</span><span class="n">{count(counts.found)}</span></a
 		>
 		{#each data.all as s (s.id)}
 			<a class="tab" class:on={data.only === s.id} href={href(s.id)}
-				><span>{s.name.toUpperCase()}</span><span class="n">{tabCount(s.id)}</span></a
+				><span>{sourceTitle(s)}</span><span class="n">{tabCount(s.id)}</span></a
 			>
 		{/each}
 	</nav>
 
 	<div class="label">
 		<div>
-			01 — {answered} OF {data.groups.length} SOURCE{data.groups.length === 1 ? '' : 'S'} ANSWERED
+			01 — {counts.answered} OF {data.groups.length} SOURCE{data.groups.length === 1 ? '' : 'S'} ANSWERED
 		</div>
-		<div>{count(found)} FOUND</div>
+		<div>{count(counts.found)} FOUND</div>
 	</div>
 
-	{#each data.groups as g (g.id)}
+	<!-- The order MOVE's candidates share (card c490; doc/BROWSING.md, the search
+	     page): the sources with results first, in the order they answered;
+	     the ones still asking as one line; then, folded at the end, the ones
+	     that found nothing and the ones that did not answer. -->
+	{#each arranged.matches as m (m.source.id)}
 		<div class="g-head">
-			<span>{g.name.toUpperCase()}</span>
-			<span class="dim">
-				{#if settled.get(g.id) === undefined && checks.get(g.id)?.since != null}BROWSER CHECK ·
-					ASKED {Math.floor((checks.get(g.id)?.elapsed ?? 0) / 1000)} S AGO{:else if settled.get(g.id) === undefined}ASKING{:else if settled.get(g.id) === 'x'}DID
-					NOT ANSWER{:else}{settled.get(g.id)}{/if}
-			</span>
+			<span>{sourceTitle(m.source)}</span>
+			<span class="dim">{m.hits.length}</span>
 		</div>
-		{#snippet answer(hits: SearchHit[] | null)}
-			{#if hits}
-				{#each data.only ? hits : hits.slice(0, SHOWN) as h (h.mangaId)}
-					<!-- A preview asks the source: loaded on tap, not hover (see ResultTile).
-					     An in-library hit is the series, not its preview, and keeps the
-					     search it was found by as its origin, so its ← says SOURCES (c262,
-					     c152): the same rule BROWSE's tile follows. -->
-					<a
-						class="hit"
-						data-sveltekit-preload-data="tap"
-						href={h.match.kind === 'in-library'
-							? seriesHref(h.match.seriesId, page.url.pathname + page.url.search)
-							: `${resolve('/downloads/source/[id]', { id: String(h.mangaId) })}?q=${encodeURIComponent(data.q)}`}
-					>
-						<Cover src={h.cover} width={44} height={62} />
-						<span class="text">
-							<span class="t">{h.parts.pre}<mark>{h.parts.mid}</mark>{h.parts.post}</span>
-							<span class="m">
-								{#if h.match.kind === 'in-library'}<span class="lead">IN LIBRARY</span> · {h.match
-										.meta}
-								{:else if h.match.kind === 'same-title'}<span class="lead"
-										>SAME TITLE IN LIBRARY</span
-									>{#if h.match.source}
-										· FROM {h.match.source}{/if}
-								{:else}{h.meta}{/if}
-							</span>
-						</span>
-						{#if h.match.kind === 'in-library'}<span class="open">OPEN →</span>{/if}
-					</a>
-				{/each}
-				{#if hits.length === 0}
-					<div class="none">NOTHING FOUND</div>
-				{:else if !data.only && hits.length > SHOWN}
-					<a class="more" href={href(g.id)}
-						>+ {hits.length - SHOWN} MORE FROM {g.name.toUpperCase()}</a
-					>
-				{/if}
-			{:else}
-				<div class="failed">
-					<span>DID NOT ANSWER IN 20 S · NOTHING FROM IT</span>
-					<a href={href(g.id)}>TRY AGAIN</a>
-				</div>
-			{/if}
-		{/snippet}
-		{#if isSettled(g.hits)}
-			{@render answer(g.hits.ok ? g.hits.value : null)}
-		{:else}
-			{#await g.hits}
-				{#each [62, 48] as w (w)}
-					<div class="hit ghost" aria-hidden="true">
-						<span class="cov-ghost"></span>
-						<span class="text"><i style:width="{w}%"></i><i style:width="34%"></i></span>
-					</div>
-				{/each}
-			{:then s}
-				{@render answer(s.ok ? s.value : null)}
-			{/await}
+		{#each data.only ? m.hits : m.hits.slice(0, SHOWN) as h (h.mangaId)}
+			<!-- A preview asks the source: loaded on tap, not hover (see ResultTile).
+			     An in-library hit is the series, not its preview, and keeps the
+			     search it was found by as its origin, so its ← says SOURCES (c262,
+			     c152): the same rule BROWSE's tile follows. -->
+			<a
+				class="hit"
+				data-sveltekit-preload-data="tap"
+				href={h.match.kind === 'in-library'
+					? seriesHref(h.match.seriesId, page.url.pathname + page.url.search)
+					: `${resolve('/downloads/source/[id]', { id: String(h.mangaId) })}?q=${encodeURIComponent(data.q)}`}
+			>
+				<Cover src={h.cover} width={44} height={62} />
+				<span class="text">
+					<span class="t">{h.parts.pre}<mark>{h.parts.mid}</mark>{h.parts.post}</span>
+					<span class="m">
+						{#if h.match.kind === 'in-library'}<span class="lead">IN LIBRARY</span> · {h.match.meta}
+						{:else if h.match.kind === 'same-title'}<span class="lead">SAME TITLE IN LIBRARY</span
+							>{#if h.match.source}
+								· FROM {h.match.source}{/if}
+						{:else}{h.meta}{/if}
+					</span>
+				</span>
+				{#if h.match.kind === 'in-library'}<span class="open">OPEN →</span>{/if}
+			</a>
+		{/each}
+		{#if !data.only && m.hits.length > SHOWN}
+			<a class="more" href={href(m.source.id)}
+				>+ {m.hits.length - SHOWN} MORE FROM {m.source.name.toUpperCase()}</a
+			>
 		{/if}
 	{/each}
+	{#if arranged.asking.length}
+		{@const checking = arranged.asking.find((s) => checks.get(s.id)?.since != null)}
+		<div class="asking" role="status">
+			<span>{arranged.asking.length} STILL ASKING</span>
+			<span class="dim">
+				{#if checking}{sourceTitle(checking)} · BROWSER CHECK · ASKED {Math.floor(
+						(checks.get(checking.id)?.elapsed ?? 0) / 1000
+					)} S AGO{/if}
+			</span>
+		</div>
+		{#if !arranged.matches.length}
+			{#each [62, 48] as w (w)}
+				<div class="hit ghost" aria-hidden="true">
+					<span class="cov-ghost"></span>
+					<span class="text"><i style:width="{w}%"></i><i style:width="34%"></i></span>
+				</div>
+			{/each}
+		{/if}
+	{/if}
+	{#if arranged.nothing.length}
+		<details class="fold nothing" bind:open={foldOpen.nothing}>
+			<summary
+				><span>{arranged.nothing.length} FOUND NOTHING</span><span class="ink">↓</span></summary
+			>
+			{#each arranged.nothing as s (s.id)}
+				<div class="g-head quiet"><span>{sourceTitle(s)}</span><span class="dim">0</span></div>
+			{/each}
+		</details>
+	{/if}
+	{#if arranged.failed.length}
+		<details class="fold unanswered" bind:open={foldOpen.failed}>
+			<summary
+				><span>{arranged.failed.length} DID NOT ANSWER</span><span class="ink">↓</span></summary
+			>
+			<div class="failed all">
+				<span>NOTHING FROM THESE · ASKED ALONE, NOT THE REST</span>
+				<a href={href()} onclick={again(arranged.failed.map((f) => f.source.id))}>TRY ALL AGAIN</a>
+			</div>
+			{#each arranged.failed as f (f.source.id)}
+				<div class="failed">
+					<span>{sourceTitle(f.source)} · DID NOT ANSWER IN 20 S</span>
+					<a href={href(f.source.id)} onclick={again([f.source.id])}>TRY AGAIN</a>
+				</div>
+			{/each}
+		</details>
+	{/if}
 {:else if !data.q}
 	<div class="note">TYPE A TITLE · {data.all?.length ?? 0} SOURCES ARE ASKED</div>
 {/if}
@@ -337,8 +387,7 @@
 		font: 500 14px var(--font-mono);
 		text-decoration: none;
 	}
-	.more,
-	.none {
+	.more {
 		display: flex;
 		align-items: center;
 		min-height: 44px;
@@ -348,6 +397,48 @@
 		letter-spacing: 0.04em;
 		color: var(--text-2);
 		text-decoration: none;
+	}
+	.g-head.quiet {
+		color: var(--text-2);
+	}
+	.asking {
+		display: flex;
+		justify-content: space-between;
+		gap: 12px;
+		align-items: center;
+		min-height: 44px;
+		padding: 0 var(--pad);
+		border-top: var(--hairline);
+		font: 500 12px var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+	}
+	/* The empty and the failed sources, folded at the end: a closed one is a
+	   single stop on a remote (doc/FOCUS.md). */
+	.fold {
+		display: block;
+		border-top: var(--hairline);
+	}
+	.fold summary {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		min-height: 48px;
+		padding: 0 var(--pad);
+		font: 500 12px var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+		cursor: pointer;
+		list-style: none;
+	}
+	.fold summary::-webkit-details-marker {
+		display: none;
+	}
+	.fold summary .ink {
+		color: var(--text-1);
+	}
+	.fold[open] summary .ink {
+		transform: rotate(180deg);
 	}
 	.note {
 		padding: 24px var(--pad);

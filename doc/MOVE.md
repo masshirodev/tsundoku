@@ -198,6 +198,86 @@ WHAT THE MOVE DOES` is a closed block whose cells say MOVES, KEPT, UNCHANGED;
   `03 — BY NUMBER` folds matching runs and draws every odd row. On a phone the
   map shows only the odd rows and the reading row until SHOW ALL.
 
+### The candidates, and picking one
+
+Cards c490 and c491 (2026-11-04: the owner's screen had 13 of 20 sources
+answered and 39 found, under a wall of DID NOT ANSWER and NOTHING FOUND, and a
+pick that looked dead for half a minute).
+
+**The order** is `src/lib/library/source-answers.ts` (`arrangeAnswers`), which
+DOWNLOADS' search shares ([`DOWNLOADING.md`](DOWNLOADING.md)):
+
+1. **Sources with matches first**, their hits under them, **in the order they
+   answered**. A source that answers late joins below the hits already drawn,
+   so the row under the pointer never moves. A source whose only hit is THIS
+   SERIES NOW still counts as a match.
+2. The chosen candidate's source, if it answered with nothing or failed this
+   time (a reload): open, never folded away.
+3. **`7 STILL ASKING`**, one quiet line for the sources not answered yet, naming
+   one that is passing its site's check (`BROWSER CHECK · ASKED 12 S AGO`). Two
+   dashed rows under it until the first match arrives.
+4. **`9 FOUND NOTHING`**, then **`5 DID NOT ANSWER`**, each a closed fold (a
+   `<details>`, so one stop on a remote) at the end. The failed fold keeps each
+   source's TRY AGAIN and has **TRY ALL AGAIN**. Each fold stays as the owner
+   left it while its sources are asked again.
+
+Every source is named with its language (`MANGADEX · EN`, `MANGADEX · PT-BR`):
+one extension installs a source per language under one name, and which one a
+series moves to is a real choice. The language is the engine's
+`engine_sources.lang` (a novel plugin's `novel_plugins.lang`), read by
+`withLanguages` in `server/move.ts`; a source neither knows is named alone.
+
+**TRY AGAIN and TRY ALL AGAIN ask only the sources that failed**, one call each
+to `series/[id]/move/ask` (which answers only for a source MOVE asks for this
+series), and each answer joins the list as it would have. Without script they
+are links to the page, which asks every source again.
+
+**Beside the comparison only the list scrolls** (1024px and up): the page
+under the top bar is the viewport's height (`.frame`), so the search, OTHER
+NAMES and `13 OF 20` stay put, the list scrolls under them, and the comparison
+and its MOVE bar stay on screen. The app's frame is only `min-height: 100dvh`,
+which is what let the page grow with the list and scroll the comparison away.
+One pane (below 1024px, a TV included) keeps the page's own scroll and its
+pinned MOVE bar.
+
+**Picking a candidate asks no source again.** The search depends on `q`, the
+comparison on `to`: the load reads `to` and `offset` untracked (SvelteKit's
+`untrack`), so a pick, SET on the offset, or CANCEL is a navigation that does
+not run the load, and the page asks `series/[id]/move/compare` for that one
+candidate. So:
+
+- **The wait shows at once.** The tapped row is marked before the navigation
+  lands, and the right side says it is asking that source in the player's
+  words (`02 — ASKING THE SOURCE · MANGADEX`, `4 S · USUALLY A FEW SECONDS`;
+  `THE SOURCE IS CHECKING THE WORKSTATION` while its site's check is passed),
+  with MOVE off.
+- **A later pick wins.** Each ask has a number; an answer for an earlier pick
+  that arrives late is dropped. The right side draws an answer only when it
+  is the pick's own, so an earlier comparison is never beside a new
+  selection, not even for a frame.
+- **A failed comparison says so**, `That source wouldn't say.` with its reason
+  and TRY AGAIN, and the MOVE button off. A MOVE confirmed against the wrong
+  candidate is the worst outcome here, so the form's `to` is the comparison's
+  own candidate, never the URL's, and the action asks the candidate again
+  anyway.
+- **`to` stays in the URL**: BACK goes to the previous pick, and a reload or a
+  page without script runs the load once with `to`, which answers the
+  comparison itself (streamed with script, waited for without).
+- **PLAYS follows the comparison on screen**, not the load's.
+
+A link that picks keeps every other parameter as it is (a URL with no `q`
+keeps none), because changing one the load tracks would run it again.
+
+**The `file:///` in the owner's console** (seen with c491) was looked for and
+not found: every cover MOVE draws is made on the server as one of tsundoku's
+own routes (`imageRoute`, which only takes the engine's `/image/` addresses,
+or `coverRoute`, which only takes `http(s)`), and nothing under `src/` writes a
+`file:` URL. The candidates' and the comparison's covers can't carry one,
+and the series' own `cover` is a timestamp (`cover_at`), not an address (it
+is no longer sent to this page, which never drew it). So the door is not on
+this page as far as the code shows; it is under the notes' Gaps
+(`doc/handoff-notes/series.md`, wave 21) with the check that would find it.
+
 ### Hidden series
 
 With reveal off the move page answers 404, as the series does. Inside reveal it
@@ -259,9 +339,10 @@ LATEST CH. 121 · 2 D AGO`, which costs a details call per candidate. The
    mock doesn't draw (TAGS, ABOUT, EDITIONS), and the design's "under LINK and
    COVER" is the closer of its two descriptions.
 4. **The source list is the existing search's**: installed sources the library
-   reads from, plus those BROWSE lists, never every importable source. Sources
-   are drawn in a fixed order, not the order they answered; their answers still
-   stream in one by one.
+   reads from, plus those BROWSE lists, never every importable source. The
+   design draws them as they answer; here the matches are in the order they
+   answered and everything else is folded at the end ("The candidates, and
+   picking one", c490).
 5. **The badge on a kept chapter is the source's name even for a move within
    one site.** The design's example crosses sources; a second entry on the same
    site is allowed, and the chapter is still one the new entry lacks.
@@ -282,8 +363,7 @@ LATEST CH. 121 · 2 D AGO`, which costs a details call per candidate. The
 - **Merging two library series.** That is MIGHT BE ONE SERIES and grouping.
 - **A novel between plugins**, and a gallery book between gallery sources, for
   the model reason above.
-- **A per-candidate chapter count on the list** (departure 1), and **the order
-  sources answered in** (departure 4).
+- **A per-candidate chapter count on the list** (departure 1).
 - **An undo stack beyond one step.** MOVE BACK remembers the source just left,
   so a move can be undone; a third step is another MOVE. Every key is kept for
   the backup's lookup (`series_former_keys`), but MOVE BACK offers only the last
@@ -307,3 +387,15 @@ LATEST CH. 121 · 2 D AGO`, which costs a details call per candidate. The
 - `tests/browse-move.e2e.ts` — the flow end to end, against the fake engine:
   the SOURCE row, the candidates, the comparison, MOVE, the moved band, the
   kept chapter's badge, and MOVE BACK.
+- `tests/browse-move-pick.e2e.ts` — the list and the pick (c490, c491), in a
+  world of its own with seven sources: the order and both folds, the language,
+  TRY ALL AGAIN asking only the failed (engine calls counted), a late answer
+  leaving the hovered hit where it was, only the list scrolling at 1280 × 800,
+  a pick with no search and no `__data.json`, a later pick over an earlier
+  one's late answer, BACK and a reload, a failed comparison with MOVE off, and
+  a pick without script. A late answer on the _first paint_ is not watched
+  there: `vite preview` gzips every response whole, so a streamed page arrives
+  at once in the e2e (the served app, `scripts/serve.ts`, does not).
+- `tests/source-answers.spec.ts` — the order itself, every arrival order of
+  the same answers, the kept source, the counts, the language label and
+  `withLanguages`.

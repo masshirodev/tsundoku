@@ -229,7 +229,12 @@ HISTORY's long press there. What c168 adds is the proof, by machine, as
 - **The player has no rating or FAV to trade** (that's the image reader's
   top bar); + ADD sits before FULL SCREEN instead.
 - **FIND → is SEARCH THE SOURCES** for the title (`/downloads/search`), the
-  one place that asks every source at once.
+  one place that asks every source at once. Its list is in MOVE's order (c490;
+  [`MOVE.md`](MOVE.md), "The candidates, and picking one"): the sources with
+  results first, in the order they answered, the ones still asking as one
+  line, and `FOUND NOTHING` and `DID NOT ANSWER` folded at the end, with TRY
+  AGAIN and TRY ALL AGAIN asking only the failed sources again
+  (`downloads/search/ask`). Each source is named with its language.
 - **No byte line on a page still arriving**: the engine's image proxy says
   nothing of progress, so the dashed cell waits without one.
 - **A rate limit is the whole chapter's, not a page's**: the design counts

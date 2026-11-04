@@ -414,6 +414,27 @@ export async function moveSources(
 	return name ? [{ id: formerSourceId, name }, ...sources] : sources;
 }
 
+/**
+ * The sources a search asks, each with its language (card c490): one
+ * extension installs a source per language under one name (MANGADEX twice,
+ * one English and one Portuguese), so the list says which. An extension's
+ * source carries `engine_sources.lang`, a novel plugin (`ln:<id>`) its
+ * `novel_plugins.lang`; one neither knows has none. DOWNLOADS' search asks
+ * the same.
+ */
+export function withLanguages<S extends { id: string; name: string }>(
+	sources: S[],
+	db: Database.Database = getDb()
+): (S & { lang: string })[] {
+	const engine = db.prepare(`SELECT lang FROM engine_sources WHERE id = ?`);
+	const novel = db.prepare(`SELECT lang FROM novel_plugins WHERE id = ?`);
+	return sources.map((s) => {
+		const row = (s.id.startsWith('ln:') ? novel.get(s.id.slice(3)) : engine.get(s.id)) as
+			{ lang: string | null } | undefined;
+		return { ...s, lang: row?.lang ?? '' };
+	});
+}
+
 /** A candidate's chapters or episodes, numbered as tsundoku would write them. */
 export async function candidateOf(kind: MoveKind, mangaId: string): Promise<MoveCandidate> {
 	const ref = parseSourceMangaId(mangaId);
