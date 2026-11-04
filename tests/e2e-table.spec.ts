@@ -90,6 +90,10 @@ describe('the e2e table', () => {
 			'a (b|c) d|e \\| f'
 		);
 		expect(documentedSkip(load('  npx playwright test').join('\n'))).toBeNull();
+		// The doc's own example of the form is a `text` block, not a live one.
+		expect(
+			documentedSkip("```text\nPLAYWRIGHT_SKIP='<a title>' npx playwright test\n```")
+		).toBeNull();
 		expect(alternatives('a (b|c) d|e \\| f|[|]x')).toEqual(['a (b|c) d', 'e \\| f', '[|]x']);
 		expect(alternatives('one title')).toEqual(['one title']);
 	});

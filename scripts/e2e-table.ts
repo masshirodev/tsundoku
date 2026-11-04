@@ -78,11 +78,16 @@ export function testTitles(): Set<string> {
 
 /**
  * The `PLAYWRIGHT_SKIP` expression doc/TESTING.md's "Load" tells a whole run
- * to export, or null when it gives none. The doc is its one copy (c478):
+ * to export, from a `sh` block, or null when it gives none. The doc is its one copy (c478):
  * `tests/e2e-table.spec.ts` reads it from there rather than keeping its own.
  */
 export function documentedSkip(doc: string): string | null {
-	return /^\s*PLAYWRIGHT_SKIP='([^']+)'/m.exec(doc)?.[1] ?? null;
+	// Only a `sh` block counts: the doc's own example of the form is `text`.
+	for (const [, block] of doc.matchAll(/^\s*```sh\n([\s\S]*?)^\s*```/gm)) {
+		const found = /^\s*PLAYWRIGHT_SKIP='([^']+)'/m.exec(block);
+		if (found) return found[1];
+	}
+	return null;
 }
 
 /** A regular expression's top-level alternatives: `a|(b|c)|d` is `a`, `(b|c)`, `d`. */
