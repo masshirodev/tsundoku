@@ -461,8 +461,22 @@ The link is AniList's line, a line a season on an anime (c240; above).
   holds fewer episodes than the season here, so a catalogue that numbers
   whole seasons as parts (JoJo's `Part 3`) still offers its next season as
   one. The season after such a pair is asked one ring further, for the part
-  alone. Linking part 1 of a season offers part 2 on the same season, at the
-  part the link does not hold, ticked where the two add up.
+  alone, and so is whatever a part standing in the first ring reached (from
+  S2 P1, part 2 took no step, so season 3 is asked and season 4 offered, the
+  same reach as from a whole season 2; links round 2). Linking one part of a
+  season offers its other part on the same season, at the part the link does
+  not hold, ticked where the two add up **and** the edge agrees with that
+  part: a PREQUEL is the earlier half, so it is ticked at part 1 only when the
+  link holds part 2, and a SEQUEL at part 2 only when the link holds part 1.
+  When the edge disagrees (the `Part 2` entry linked on part 1's line, the
+  usual slip from a search or a pasted link), ticking it would write the
+  season's halves in reverse and send every episode to the wrong entry under
+  the wrong number, so it is listed as `THE EARLIER HALF` or `THE LATER HALF`,
+  never ticked, with the why
+  `THE LINK HOLDS THE LATER HALF AT PART 1 · NEVER TICKED` (or
+  `… THE EARLIER HALF AT PART 2 …`). The way out is UNDO and linking the
+  earlier half instead, whose walk then offers the `Part 2` entry at part 2,
+  ticked (links round 2).
   A pair is **one season** everywhere the page counts: `N OF M TICKED`,
   `LINK N SEASONS` and the band count distinct seasons (c418, round 2). The walk asks two rings: the linked entry, then
   its chain neighbours in one request, whose own PREQUEL and SEQUEL place

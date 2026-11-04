@@ -128,7 +128,11 @@ add(node(403, 'Chain Show Season 2 Part 2', 'TV', 11, 2021), [
 	['SEQUEL', 402],
 	['SEQUEL', 404]
 ]);
-add(node(404, 'Chain Show Season 3', 'TV', 12, 2022), [['PREQUEL', 403]]);
+add(node(404, 'Chain Show Season 3', 'TV', 12, 2022), [
+	['PREQUEL', 403],
+	['SEQUEL', 406]
+]);
+add(node(406, 'Chain Show Season 4', 'TV', 12, 2023), [['PREQUEL', 404]]);
 add(node(405, 'Chain Show the Movie', 'MOVIE', 1, 2021), [['PREQUEL', 402]]);
 // A catalogue that numbers its seasons as parts (JoJo's): `Part 2` is the
 // SEQUEL of a whole season here, so it is the next season, not half of one.
@@ -470,8 +474,92 @@ describe('a split season chained part 1 → part 2, AniList’s usual shape (c46
 			{ season: 2, part: 2, id: 403, how: 'SEQUEL', ticked: true, outside: false, heldBy: null },
 			{ season: 3, part: 1, id: 404, how: 'SEQUEL', ticked: true, outside: false, heldBy: null }
 		]);
-		// Two rings, as before: part 2 stood in the first.
-		expect(requests).toEqual([[402], [401, 403, 405]]);
+		// Part 2 stood in the first ring and took no step, so what it reached
+		// (season 3) is asked one ring further, as from a whole season 2.
+		expect(requests).toEqual([[402], [401, 403, 405], [404]]);
+	});
+
+	it('reaches two seasons out from a part, as from a whole season', async () => {
+		const id = show([12, 23, 12, 12]);
+		link(id, 2, 402);
+		const offers = shape(await seasons.seasonRelations(id, 2));
+		expect(offers.filter((o) => !o.outside).map((o) => [o.season, o.part, o.id, o.how])).toEqual([
+			[1, 1, 401, 'PREQUEL'],
+			[2, 2, 403, 'SEQUEL'],
+			[3, 1, 404, 'SEQUEL'],
+			[4, 1, 406, 'SEQUEL’S SEQUEL']
+		]);
+	});
+
+	// Round 2: the other part follows the edge that reached it. A PREQUEL part
+	// is the earlier half, a SEQUEL part the later; offered at the slot the link
+	// leaves free when that slot is the wrong one, it is never ticked, so LINK
+	// never writes the season's halves in reverse.
+	const ticks = (id: number, offers: ReturnType<typeof shape>) => {
+		seasons.linkPicks(
+			id,
+			'anime',
+			offers
+				.filter((o) => o.ticked)
+				.map((o) => ({ season: o.season!, part: o.part!, anilistId: o.id })),
+			NOW
+		);
+		return linked(id).filter(([season]) => season === 2);
+	};
+
+	it('never ticks part 1 at part 2 when Part 2 was linked on part 1’s line', async () => {
+		const id = show([12, 23, 12]);
+		link(id, 2, 403);
+		const offers = shape(await seasons.seasonRelations(id, 2));
+		expect(offers.find((o) => o.id === 402)).toEqual({
+			season: 2,
+			part: 2,
+			id: 402,
+			how: 'THE EARLIER HALF',
+			ticked: false,
+			outside: false,
+			heldBy: null
+		});
+		const why = (await seasons.seasonRelations(id, 2))!.find((o) => o.anilistId === 402)!.why;
+		expect(why).toBe('THE LINK HOLDS THE LATER HALF AT PART 1 · NEVER TICKED');
+		expect(ticks(id, offers)).toEqual([[2, 1, 403]]);
+	});
+
+	it('never ticks part 2 at part 1 when part 1 was linked on part 2’s line', async () => {
+		const id = show([12, 23, 12]);
+		link(id, 2, 402, 2);
+		const offers = shape(await seasons.seasonRelations(id, 2));
+		expect(offers.find((o) => o.id === 403)).toEqual({
+			season: 2,
+			part: 1,
+			id: 403,
+			how: 'THE LATER HALF',
+			ticked: false,
+			outside: false,
+			heldBy: null
+		});
+		const why = (await seasons.seasonRelations(id, 2))!.find((o) => o.anilistId === 403)!.why;
+		expect(why).toBe('THE LINK HOLDS THE EARLIER HALF AT PART 2 · NEVER TICKED');
+		expect(ticks(id, offers)).toEqual([[2, 2, 402]]);
+	});
+
+	it('still ticks part 1 at part 1 when Part 2 was linked at part 2', async () => {
+		const id = show([12, 23, 12]);
+		link(id, 2, 403, 2);
+		const offers = shape(await seasons.seasonRelations(id, 2));
+		expect(offers.find((o) => o.id === 402)).toEqual({
+			season: 2,
+			part: 1,
+			id: 402,
+			how: 'PREQUEL',
+			ticked: true,
+			outside: false,
+			heldBy: null
+		});
+		expect(ticks(id, offers)).toEqual([
+			[2, 1, 402],
+			[2, 2, 403]
+		]);
 	});
 
 	it('keeps a part apart when the counts say the season here is part 1 alone', async () => {

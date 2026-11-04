@@ -1086,24 +1086,31 @@ export async function seasonRelations(
 	// One more step out, asked in one request: the second season either way.
 	const second = inner.length ? await mediaMany(token, inner) : new Map();
 	const outer: number[] = [];
+	// What a first-ring part reached: that part took no step, so these stand
+	// one season out, not two (linking S2 P1 reaches season 3 through part 2).
+	const short: number[] = [];
 	for (const id of inner) {
 		const answer = second.get(id);
-		if (answer) outer.push(...collect(answer, level.get(id)!.at, answer.relations?.edges ?? []));
+		if (!answer) continue;
+		const placed = collect(answer, level.get(id)!.at, answer.relations?.edges ?? []);
+		outer.push(...placed);
+		if (level.get(id)!.part) short.push(...placed);
 	}
 	// A part placed beside its neighbour took no step, so the season after it
-	// is one ring further: asked once more, for those parts alone (c464).
-	const parts = outer.filter((id) => level.get(id)!.part);
+	// is one ring further: asked once more, for those parts alone (c464), and
+	// for what a first-ring part reached, so a walk from a part reaches two
+	// seasons either way, as a walk from a whole season does.
+	const parts = outer.filter((id) => level.get(id)!.part || short.includes(id));
 	const third = parts.length ? await mediaMany(token, parts) : new Map();
 	for (const id of parts) {
 		const answer = third.get(id);
 		if (answer) collect(answer, level.get(id)!.at, answer.relations?.edges ?? []);
 	}
-	const bySeason = new Map<
-		number,
-		{ node: RelNode; at: number; outside: boolean; how: string }[]
-	>();
-	const put = (key: number, x: { node: RelNode; at: number; outside: boolean; how: string }) =>
-		bySeason.set(key, [...(bySeason.get(key) ?? []), x]);
+	// `dir` is the edge that reached a chain entry, which the linked season's
+	// other part is checked against (c464 round 2).
+	type Placed = { node: RelNode; at: number; outside: boolean; how: string; dir?: 1 | -1 };
+	const bySeason = new Map<number, Placed[]>();
+	const put = (key: number, x: Placed) => bySeason.set(key, [...(bySeason.get(key) ?? []), x]);
 	for (const [id, v] of level) {
 		if (id === start.id) continue;
 		const kind = candidateKind({ format: v.node.format ?? '', country: '' });
@@ -1118,7 +1125,8 @@ export async function seasonRelations(
 			node: v.node,
 			at: v.at,
 			outside,
-			how: how ?? 'OUTSIDE THE SEASONS’ NUMBERING'
+			how: how ?? 'OUTSIDE THE SEASONS’ NUMBERING',
+			dir: v.dir
 		});
 	}
 	// Beside the chain, whatever its format: a TV side story is no season either.
@@ -1160,10 +1168,33 @@ export async function seasonRelations(
 			const other = mine === 1 ? 2 : 1;
 			const free = !own.parts.find((p) => p.part === other)?.link;
 			for (const x of parts) {
+				// The edge says which half it is: a PREQUEL is the earlier, a SEQUEL
+				// the later. It agrees with the slot only when the link holds the
+				// other half; when it doesn't (Part 2 linked on part 1's line), ticking
+				// it would write the season's halves in reverse, and every episode of
+				// it would be sent to the wrong entry under the wrong number.
+				const earlier = x.dir === -1;
+				const agrees = earlier ? mine === 2 : mine === 1;
 				const adds = (start.episodes ?? 0) + (x.node.episodes ?? 0) === have;
 				const why = adds
 					? `${start.episodes} + ${x.node.episodes} = ${have}: ONE SEASON HERE, TWO ENTRIES THERE`
 					: `${have} EP. HERE · ANILIST LISTS ${start.episodes ?? '—'} + ${x.node.episodes ?? '—'}`;
+				if (!agrees) {
+					offers.push(
+						offerOf(
+							view,
+							key,
+							other,
+							{ ...x, how: earlier ? 'THE EARLIER HALF' : 'THE LATER HALF' },
+							why,
+							false,
+							earlier
+								? 'THE LINK HOLDS THE LATER HALF AT PART 1 · NEVER TICKED'
+								: 'THE LINK HOLDS THE EARLIER HALF AT PART 2 · NEVER TICKED'
+						)
+					);
+					continue;
+				}
 				offers.push(
 					offerOf(
 						view,
