@@ -81,3 +81,52 @@ test('the remote reaches SORT, OK opens it on the choice in use, and the pad wal
 	await expect(menu).toBeHidden();
 	await expect.poll(() => focused(page)).toBe('Sort, RATING');
 });
+
+/**
+ * How far the focused cover's ring (7px outside it, `--focus-ring`) is clear
+ * of every bar pinned over that column: the top bar, the shelf tabs and the
+ * focus line. Negative is covered.
+ */
+const ringClear = (page: Page) =>
+	page.evaluate(() => {
+		const cover = document.activeElement?.querySelector('.cover');
+		if (!cover) return null;
+		const c = cover.getBoundingClientRect();
+		const pinned = [...document.querySelectorAll<HTMLElement>('header.bar, .tabs, .focus-line')]
+			.filter((el) => ['sticky', 'fixed'].includes(getComputedStyle(el).position))
+			.map((el) => el.getBoundingClientRect())
+			.filter((r) => r.width > 0 && r.left < c.right && r.right > c.left && r.top < c.top);
+		const under = Math.max(0, ...pinned.map((r) => r.bottom));
+		return c.top - 7 - under;
+	});
+
+test('the pinned bars never cover the first row’s focus ring, and BACK from deep in the grid is back at the top', async ({
+	page
+}) => {
+	await page.goto('/?sort=title');
+	await page.keyboard.press('ArrowDown'); // the screen's start
+	await page.keyboard.press('ArrowDown'); // the shelf tabs
+	await page.keyboard.press('ArrowDown'); // the first row
+	const firstRow = await page.evaluate(
+		() => document.activeElement?.closest('.tile')?.getBoundingClientRect().top
+	);
+	expect(await ringClear(page)).toBeGreaterThanOrEqual(0);
+
+	// Down three rows and back up to the first: still clear of the bars.
+	for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowDown');
+	expect(await page.evaluate(() => scrollY)).toBeGreaterThan(0);
+	for (let i = 0; i < 3; i++) {
+		await page.keyboard.press('ArrowUp');
+		expect(await ringClear(page)).toBeGreaterThanOrEqual(0);
+	}
+	expect(firstRow).toBeDefined();
+
+	// A TV needs no BACK TO TOP (c433): one BACK from the bottom of the grid
+	// is at the top of the screen, on its first CONTINUE card.
+	for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowDown');
+	expect(await page.evaluate(() => scrollY)).toBeGreaterThan(300);
+	await expect(page.getByRole('button', { name: 'BACK TO TOP ↑' })).toHaveCount(0);
+	await page.keyboard.press('Escape');
+	await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
+	await expect.poll(() => focused(page)).toMatch(/^Resume /);
+});

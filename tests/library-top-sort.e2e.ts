@@ -111,9 +111,6 @@ test('Escape and a tap outside close it without choosing', async ({ page }, info
 	const at = (await other.boundingBox())!;
 	await page.mouse.click(at.x + at.width / 2, at.y + at.height / 2);
 	await expect(menu(page)).toBeHidden();
-	// The desktop's bar scrolls with the page and sits under the scrim, which
-	// takes the tap; it is pinned above it from c433.
-	if (desktop) return;
 	await expect(
 		desktop
 			? page.getByRole('group', { name: 'Filters' }).filter({ visible: true })

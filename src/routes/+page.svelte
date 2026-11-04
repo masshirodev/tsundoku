@@ -40,6 +40,7 @@
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
 	import FilterPanel from '$lib/components/controls/FilterPanel.svelte';
 	import ChoiceMenu from '$lib/components/controls/ChoiceMenu.svelte';
+	import { leave } from '$lib/motion';
 	import NewShelfSheet from './NewShelfSheet.svelte';
 	import MoreSheet from './MoreSheet.svelte';
 	import {
@@ -157,6 +158,63 @@
 	}
 
 	const scanning = $derived(data.scan !== null && data.scan.finishedAt === null);
+
+	/**
+	 * The SERIES TO LINK band's ✕ (c430): put away on this device, remembered
+	 * with the count it was put away at, as the update band's "seen" is. It
+	 * comes back only when the count grows past that: a new series to link,
+	 * not the same ones again. The count it is measured against follows the
+	 * queue down (one reviewed elsewhere), so the next new one is always
+	 * news. Per device, so no server is asked (doc/LIBRARY.md, "The band").
+	 */
+	const LINKS_PUT_AWAY = 'tsundoku.library.links-put-away';
+	let linksPutAwayAt = $state<number | null>(null);
+	$effect(() => {
+		try {
+			const raw = localStorage.getItem(LINKS_PUT_AWAY);
+			const n = raw === null ? NaN : Number.parseInt(raw, 10);
+			linksPutAwayAt = Number.isInteger(n) && n >= 0 ? n : null;
+		} catch {
+			// Storage refused (a private window): the band shows, as it always did.
+		}
+	});
+	function rememberLinksAt(n: number | null) {
+		linksPutAwayAt = n;
+		try {
+			if (n === null) localStorage.removeItem(LINKS_PUT_AWAY);
+			else localStorage.setItem(LINKS_PUT_AWAY, String(n));
+		} catch {
+			// Storage refused: put away for this visit only.
+		}
+	}
+	// Fewer to link than when it was put away: measure the next growth from here.
+	$effect(() => {
+		const at = linksPutAwayAt;
+		if (at !== null && data.toLink < at) untrack(() => rememberLinksAt(data.toLink));
+	});
+	const linksBand = $derived(
+		data.toLink > 0 && !data.empty && (linksPutAwayAt === null || data.toLink > linksPutAwayAt)
+	);
+
+	/**
+	 * BACK TO TOP (c433): a corner cell once the grid is about a screen down,
+	 * gone again near the top. Not on a TV, where the focus layer moves the
+	 * page and BACK climbs to the top (doc/LIBRARY.md, "The top bar").
+	 */
+	let winY = $state(0);
+	let winH = $state(0);
+	const farDown = $derived(winH > 0 && winY > winH);
+	function toTop() {
+		const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+		// The cell goes as the page passes a screen: focus moves to the bar
+		// first, or a keyboard's would drop to the page with it.
+		const bar = document.querySelector<HTMLElement>('.library > header.bar');
+		const first = [...(bar?.querySelectorAll<HTMLElement>('a[href], button') ?? [])].find(
+			(el) => el.getClientRects().length > 0
+		);
+		first?.focus({ preventScroll: true });
+		scrollTo({ top: 0, behavior: reduced ? 'instant' : 'smooth' });
+	}
 
 	// While an import runs on the workstation, follow it: the band's bytes and
 	// the arriving grid come from the job row, re-read every two seconds.
@@ -912,6 +970,8 @@
 
 <svelte:head><title>tsundoku</title></svelte:head>
 
+<svelte:window bind:scrollY={winY} bind:innerHeight={winH} />
+
 <div class="library" class:selecting class:has-band={!!batch}>
 	{#if modalOpen && offer}<UpdateModal {offer} onlater={snooze} />{/if}
 
@@ -1218,7 +1278,7 @@
 		</Banner>
 	{/if}
 
-	{#if data.toLink > 0 && !data.empty}
+	{#if linksBand}
 		<!-- Below duplicates, which are older and fewer (Catalogue Links 1a; doc/LINKS.md). -->
 		<Banner
 			kind="action"
@@ -1231,6 +1291,13 @@
 				{:else}
 					<a href={resolve('/links')} aria-label="Review the series to link">REVIEW →</a>
 				{/if}
+				<button
+					type="button"
+					class="put-away"
+					aria-label="Put away the series to link until there are more"
+					data-focus-mark="in"
+					onclick={() => rememberLinksAt(data.toLink)}>✕</button
+				>
 			{/snippet}
 		</Banner>
 	{/if}
@@ -1469,6 +1536,11 @@
 			<p class="none">NOTHING ON THIS SHELF</p>
 		{/if}
 	{/if}
+	{#if farDown && !selecting}
+		<button type="button" class="to-top appear" data-focus-mark="in" onclick={toTop} out:leave
+			>BACK TO TOP ↑</button
+		>
+	{/if}
 </div>
 
 {#if selecting}
@@ -1662,6 +1734,71 @@
 		display: flex;
 		flex-direction: column;
 		flex: 1;
+	}
+	/* The top bar stays on a desktop too (c433): the sidebar stays, and so
+	   does the search beside it. TopBar pins it on a phone, the tablet and a
+	   TV already, and lets it go on a desktop. */
+	@media (min-width: 1024px) and (pointer: fine) {
+		.library > :global(header.bar.sticky) {
+			position: sticky;
+			z-index: 8;
+		}
+	}
+	/* BACK TO TOP (c433): a corner cell, ruled on its two inner sides, over
+	   the tiles and under the bulk bar and sheets, as the top bar is. The
+	   page keeps room under the last row for it. Not on a TV. */
+	.to-top {
+		position: fixed;
+		right: 0;
+		bottom: 0;
+		z-index: 8;
+		display: flex;
+		align-items: center;
+		height: 52px;
+		padding: 0 var(--pad) env(safe-area-inset-bottom);
+		border: 0;
+		border-top: var(--hairline);
+		border-left: var(--hairline);
+		border-radius: 0;
+		background: var(--surface-page);
+		color: var(--text-1);
+		font: var(--type-control);
+		white-space: nowrap;
+		cursor: pointer;
+	}
+	.library:not(.selecting) {
+		padding-bottom: calc(53px + env(safe-area-inset-bottom));
+	}
+	@media (pointer: none) and (min-width: 900px) {
+		.to-top {
+			display: none;
+		}
+		.library:not(.selecting) {
+			padding-bottom: 0;
+		}
+	}
+	/* On a TV the focus layer brings a focused tile clear of the pinned bars
+	   (the tabs and the focus line) by its button's own edge, and the cover's
+	   ring is drawn 7px outside the cover, which is that edge: coming back up
+	   the grid, the focus line covered the ring by 7px. So the button reaches
+	   7px up into the tile's 10px padding, and the ring comes clear with it
+	   (c433). Nothing drawn moves; a TV has no pointer for the larger box. */
+	@media (pointer: none) and (min-width: 900px) {
+		.grid :global(.tile > .open) {
+			margin-top: -7px;
+			padding-top: 7px;
+		}
+	}
+	/* The SERIES TO LINK band's ✕ (c430): a plain cell after REVIEW, not a
+	   second accent action. */
+	.library .put-away {
+		min-width: 60px;
+		justify-content: center;
+		padding: 0 18px;
+		border-left: var(--hairline);
+		background: transparent;
+		color: var(--text-1);
+		font: 500 18px var(--font-mono);
 	}
 	/* Room for the pinned bulk bar: two 60px rows and the rule above them. */
 	.library.selecting {

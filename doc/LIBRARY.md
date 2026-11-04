@@ -26,7 +26,7 @@ state is the result of real data or real input.
 | Duplicates band  | Pairs of books with alike covers to review, only those the viewer can see: **N POSSIBLE DUPLICATES · REVIEW →** ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md)).                                                                                                                                                                                                                         |
 | Queue cell       | QUEUE over its count, a cell before SELECT, while chapters are queued; DOWNLOADS in the desktop sidebar's foot. Dimmed at its last count offline or when the engine isn't answering ([`DOWNLOADING.md`](DOWNLOADING.md)).                                                                                                                                                             |
 | Failures band    | Downloads that failed, as the duplicates band is drawn: **N DOWNLOADS FAILED**, the series, **REVIEW →** to the queue. Hidden series are never counted with reveal off.                                                                                                                                                                                                               |
-| Links band       | Series AniList found, not for certain, to review, only those the viewer can see: **N SERIES TO LINK · REVIEW →**, below duplicates. Offline, its REVIEW cell dims ([`LINKS.md`](LINKS.md)).                                                                                                                                                                                           |
+| Links band       | Series AniList found, not for certain, to review, only those the viewer can see: **N SERIES TO LINK · REVIEW → · ✕**, below duplicates. Offline, its REVIEW cell dims ([`LINKS.md`](LINKS.md)). ✕ puts it away on this device until the count grows (see "The links band").                                                                                                           |
 | PEOPLE shelf     | `?shelf=people`. Exists while a favourite person has a visible book, and lists them as chips instead of a grid.                                                                                                                                                                                                                                                                       |
 | SERIES, ONE-OFF  | `?shelf=series`, `?shelf=oneoff`: the library split by what a thing is. A one-off is a single doujin book; everything else is a series ([`FILTERS.md`](FILTERS.md)).                                                                                                                                                                                                                  |
 | FILTER           | The FILTER cell at the end of the tabs (the top bar on the desktop) narrows whichever shelf is showing: rating, FAV, language, date added, downloaded, and hidden while reveal is on. Favourites, rated and downloaded were shelves until c68 ([`FILTERS.md`](FILTERS.md)).                                                                                                           |
@@ -395,12 +395,70 @@ wants exactly 1px at each boundary, FILTER open and closed.
 
 ### It stays
 
-On a phone and the tablet, the bar with the name, `/ search` and SELECT
-(and the selection bar that replaces it) is sticky: it stays at the top while
-the grid scrolls under it (`TopBar`'s `sticky`, opaque, z-index 8: over the
-tiles, under the bulk bar and sheets). On a desktop it scrolls away as
-before, since the sidebar already stays. The owner asked for it on 2026-09-23;
-the handoff draws a still screen and doesn't say.
+The bar with the name, `/ search` and SELECT (and the selection bar that
+replaces it) is sticky on every device: it stays at the top while the grid
+scrolls under it, opaque, at z-index 8 (over the tiles, under the bulk bar and
+sheets). The owner asked for it on a phone and the tablet on 2026-09-23
+(`TopBar`'s `sticky`), and on the desktop too on 2026-11-03 (c433: "the
+searchbar navbar should be sticky"). `TopBar` itself still lets a desktop's
+bar go, since its sidebar stays; the library pins its own there
+(`.library > header.bar.sticky`, a desktop-only rule in `+page.svelte`), so
+the other screens that use `TopBar` are as they were. The window is what
+scrolls on every device (the sidebar is pinned beside it, not a scrolling
+container around it), so nothing above the bar defeats `position: sticky`.
+On a TV the bar is pinned too, and the shelf tabs pin over it once the grid
+has scrolled up to them (c238): the TV's search is the bar at the top.
+
+### BACK TO TOP
+
+A screen down the grid (`scrollY` past one `innerHeight`), a **BACK TO TOP ↑**
+cell appears in the bottom-right corner (c433): 52px, ruled on its two inner
+sides, opaque, over the tiles at the bar's z-index, never a floating circle.
+A tap scrolls to the top, smoothly, or at once under reduced motion; focus
+moves up to the bar first, since the cell goes as the page passes a screen.
+It hides again within a screen of the top, and while selecting, where the
+bulk bar has that corner. The page keeps 53px under its last row (plus the
+phone's safe area) so the cell never sits on the last tiles.
+
+**Not on a TV**, measured on 2026-11-03 (`tests/tv-library-top.e2e.ts`): one
+BACK from the bottom of the grid (`scrollY` 729 at 960x540) lands on the first
+CONTINUE card at `scrollY` 0, because the climb goes to the screen's start
+when the pinned shelf tab is already in sight ([`TV.md`](TV.md)). A corner
+cell would only be one more stop for the pad.
+
+**The first row's mark on a TV.** The focus layer brings a focused tile clear
+of the pinned bars by its button's edge, and the cover's ring is drawn 7px
+outside the cover, which is that edge: coming back up the grid, the focus
+line covered the ring by 6.9px. On a TV the tile's button reaches 7px up into
+the tile's own 10px padding, so the ring comes clear with it; nothing drawn
+moves.
+
+## The links band
+
+**N SERIES TO LINK** has a ✕ after REVIEW → (c430, asked for on 2026-11-03:
+"we need a dismiss button for the 'x series to link' band too"). A plain cell,
+ruled on its left, not a second accent action. Put away, it stays away until
+the count **grows** past the count it was put away at: a new series to link
+brings it back, the same ones again do not. When the queue shrinks meanwhile
+(series reviewed, linked, or settled), the count it waits on follows it down,
+so the next new one is news again: put away at 46, reviewed down to 36, back
+at 37.
+
+**Per device, not on the workstation.** The count is kept in this device's
+`localStorage` (`tsundoku.library.links-put-away`), as the update band's
+"seen" is, because the band is a reminder about this screen, not a fact about
+the library, and a per-device choice needs no server and no rung. The cost:
+another device still shows the band until put away there too, and a full
+reload draws it for a moment until the page has hydrated and read the key
+(a client-side return to the library does not). Remembering it on the
+workstation would mean a cookie or a row read by `+page.server.ts`.
+
+**Where the review is reached once it is away**: a series' FIND
+(`/links?series=`), SETTINGS' Ranobe line while it has choices waiting, and
+the band again when one more arrives. Neither the sidebar nor MORE has a door
+to the whole review yet (c430's card assumed one; see its notes).
+`tests/library-top-scroll.e2e.ts` puts it away, reloads, adds a series to
+link and sees it back, on its own seeded database.
 
 ## Where it departs from the handoff
 
