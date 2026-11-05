@@ -1,5 +1,6 @@
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
 import { rmSync } from 'node:fs';
+import { createServer as httpServer, type Server as HttpServer } from 'node:http';
 import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -234,8 +235,8 @@ async function makeWork(page: Page, first: string, second: string): Promise<numb
 }
 
 /** The end page of the chapter that ended: its last page, then one turn past it. */
-async function openEnd(page: Page, seriesId = 22) {
-	await page.goto(`${base}/read/${lastEntry[seriesId]}?p=last`);
+async function openEnd(page: Page, seriesId = 22, at = base) {
+	await page.goto(`${at}/read/${lastEntry[seriesId]}?p=last`);
 	await readerReady(page);
 	await page.waitForLoadState('networkidle');
 	// R→L: ← is forward, and at the last page it is the end page.
@@ -748,22 +749,236 @@ test('DOWNLOAD FIRST 10 that queues nothing says so, and can be pressed again (c
 	await page.unroute(/\?\/download$/);
 });
 
-test('an anime next part with no file speaks in episodes, and offers its first 10 episodes (c343)', async ({
+test.describe('DOWNLOAD FIRST 10 pressed again (c534)', () => {
+	/** Tower of God's seven unread chapters: what NEXT 10 asks for on its end page. */
+	let unread: number[] = [];
+	/**
+	 * A live stand-in engine, and a second preview of the build on this file's
+	 * database that talks to it. The file's own preview has its engine at
+	 * 127.0.0.1:9 on purpose (c344's refusals), and once anything has asked it
+	 * that engine is down, so a press there answers DOWNLOADING IS NOT
+	 * ANSWERING. The stand-in answers like an engine with nothing to download
+	 * from: the queue is paused below, so nothing here asks it for pages.
+	 */
+	let engine: HttpServer | null = null;
+	let live: ChildProcess | null = null;
+	let liveBase = '';
+	const freePort = () =>
+		new Promise<number>((resolve, reject) => {
+			const probe = createServer();
+			probe.once('error', reject);
+			probe.listen(0, '127.0.0.1', () => {
+				const { port } = probe.address() as AddressInfo;
+				probe.close(() => resolve(port));
+			});
+		});
+	test.beforeAll(async () => {
+		test.setTimeout(120_000);
+		engine = httpServer((req, res) => {
+			let raw = '';
+			req.on('data', (c) => (raw += c));
+			req.on('end', () => {
+				const json = (v: unknown) =>
+					res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(v));
+				if (req.url === '/challenges') return json({ solving: {}, solved: {} });
+				const b = JSON.parse(raw || '{}') as { method?: string };
+				if (b.method === 'getChapterList')
+					return json(unread.map((id) => ({ url: `/tower/c/${id}`, name: `Chapter ${id}` })));
+				if (b.method === 'getPageList') return res.writeHead(500).end('{"error":"no pages"}');
+				return json({});
+			});
+		});
+		const enginePort = await freePort();
+		await new Promise<void>((ok) => engine!.listen(enginePort, '127.0.0.1', ok));
+		const port = await freePort();
+		liveBase = `http://localhost:${port}`;
+		live = spawn('npx', ['vite', 'preview', '--port', String(port), '--strictPort'], {
+			env: {
+				...process.env,
+				DATABASE_PATH: dbPath,
+				TSUNDOKU_TOKEN: E2E_TOKEN,
+				TSUNDOKU_ANILIST: 'off',
+				ENGINE_URL: `http://127.0.0.1:${enginePort}`,
+				ENGINE_TOKEN: 'e2e',
+				LIBRARY_ROOT: join(tmpdir(), `tsundoku-e2e-work-end-empty-${process.pid}`),
+				TSUNDOKU_HOME: join(tmpdir(), `tsundoku-e2e-work-end-live-home-${process.pid}`)
+			},
+			stdio: 'ignore'
+		});
+		for (let i = 0; i < 120; i++) {
+			try {
+				if ((await fetch(`${liveBase}/`, { redirect: 'manual' })).status > 0) return;
+			} catch {
+				await new Promise((r) => setTimeout(r, 500));
+			}
+		}
+		throw new Error('the live-engine preview never answered');
+	});
+	test.afterAll(() => {
+		live?.kill();
+		live = null;
+		engine?.close();
+		engine = null;
+	});
+	test.beforeEach(() => {
+		const db = new Database(dbPath);
+		const now = Date.now();
+		unread = (
+			db
+				.prepare(
+					`SELECT id FROM entries WHERE series_id = 14 AND read_at IS NULL AND matter = '' ORDER BY position`
+				)
+				.all() as { id: number }[]
+		).map((r) => r.id);
+		// The source lists them, as the engine's resolve of the series leaves it:
+		// each chapter's address, and the engine's memory of which it listed. The
+		// press itself asks no engine (`seriesDownloads` reads tsundoku's queue).
+		const url = db.prepare(`UPDATE entries SET source_url = ? WHERE id = ?`);
+		const listed = db.prepare(
+			`INSERT OR REPLACE INTO engine_chapters (entry_id, engine_url, name) VALUES (?, ?, ?)`
+		);
+		for (const id of unread) {
+			url.run(`/tower/c/${id}`, id);
+			listed.run(id, `/tower/c/${id}`, `Chapter ${id}`);
+		}
+		db.prepare(
+			`INSERT OR REPLACE INTO engine_series (series_id, source_id, engine_url, title, resolved_at)
+			VALUES (14, '1', 'https://example.test/tower', 'Tower of God', ?)`
+		).run(now);
+		// The queue paused, so what it takes stays queued: nothing here downloads.
+		db.prepare(
+			`INSERT OR REPLACE INTO settings (key, value) VALUES ('downloads_paused_at', ?)`
+		).run(String(now));
+		db.close();
+	});
+	// Put back in a hook, not a finally: a timeout skips a finally's requests.
+	test.afterEach(() => {
+		const db = new Database(dbPath);
+		const ids = unread.join(',');
+		db.prepare(`DELETE FROM download_queue WHERE entry_id IN (${ids})`).run();
+		db.prepare(`DELETE FROM engine_chapters WHERE entry_id IN (${ids})`).run();
+		db.prepare(`DELETE FROM engine_series WHERE series_id = 14`).run();
+		db.prepare(`UPDATE entries SET source_url = '' WHERE id IN (${ids})`).run();
+		db.prepare(`DELETE FROM settings WHERE key = 'downloads_paused_at'`).run();
+		db.close();
+	});
+
+	test('the second press, after a reload, says ALREADY QUEUED, never NOT QUEUED', async ({
+		page
+	}) => {
+		expect(unread.length).toBeGreaterThan(0);
+		expect(unread.length).toBeLessThanOrEqual(10);
+		const answer = async () => {
+			const asked = page.waitForResponse(
+				(r) => /\/series\/14\?\/download$/.test(r.url()) && r.request().method() === 'POST'
+			);
+			await page.locator('.end .nextw .go .dl').click();
+			const body = JSON.parse(await (await asked).text());
+			expect(body.type).toBe('success');
+			const table = JSON.parse(body.data);
+			const d = table[table[0].downloaded];
+			return { queued: table[d.queued], already: table[d.already] };
+		};
+		await openEnd(page, 8, liveBase);
+		const dl = page.locator('.end .nextw .go .dl');
+		await expect(dl).toHaveText('DOWNLOAD FIRST 10 CHAPTERS');
+		// The first press queues every chapter it asks for.
+		expect(await answer()).toEqual({ queued: unread.length, already: 0 });
+		await expect(dl).toHaveText('QUEUED ✓');
+		await expect(dl).toBeDisabled();
+		const queued = () => {
+			const db = new Database(dbPath, { readonly: true });
+			try {
+				return (
+					db
+						.prepare(
+							`SELECT COUNT(*) AS n FROM download_queue WHERE entry_id IN (${unread.join(',')})`
+						)
+						.get() as { n: number }
+				).n;
+			} finally {
+				db.close();
+			}
+		};
+		expect(queued()).toBe(unread.length);
+
+		// A reload while they wait: the cell is pressable again, and its press
+		// finds everything already in the queue. That is not a failure.
+		await openEnd(page, 8, liveBase);
+		await expect(dl).toHaveText('DOWNLOAD FIRST 10 CHAPTERS');
+		expect(await answer()).toEqual({ queued: 0, already: unread.length });
+		await expect(dl).toHaveText('ALREADY QUEUED');
+		await expect(dl).toBeDisabled();
+		// Nothing was queued twice.
+		expect(queued()).toBe(unread.length);
+	});
+});
+
+test('an anime next part a source streams is WATCH ONLINE, in episodes, and offers its first 10 (c343, c536)', async ({
 	page
 }) => {
-	// Reached through the app's own doors: an aniyomi series with no file is not
-	// "online" to the end page (readsOnline knows Mihon keys only), so the block
-	// is in its NOT DOWNLOADED state. The online words for every kind are
-	// tests/works.spec.ts's, over the whole registry.
+	// Reached through the app's own doors: Hoshizora Lantern's episodes have
+	// their addresses at Fake Source, which an installed extension serves (the
+	// stand-in `prepare` installs), so the player would stream EP. 1 and the
+	// end page says so (`streamsOnline`, c536). The online words for every kind
+	// are tests/works.spec.ts's, over the whole registry.
 	await openEnd(page, 19);
 	await expect(page.locator(SEL.kickerLine)).toHaveText('NEXT IN LOOKISM RUN · PART 2 OF 2');
 	await expect(page.locator(SEL.nextTitle)).toHaveText(ANIME_NEXT);
-	await expect(page.locator(SEL.nextSub)).toHaveText('○ NOT DOWNLOADED');
+	await expect(page.locator(SEL.nextSub)).toHaveText('○ NOT DOWNLOADED · STREAMS FROM FAKE SOURCE');
 	const go = page.locator('.end .nextw .go');
-	await expect(go.locator('> .dim')).toContainText('▶ WATCH · EP. 1');
+	await expect(page.locator(SEL.start)).toContainText('▶ WATCH ONLINE · EP. 1');
+	await expect(page.locator(SEL.start)).toContainText('STREAMED VIDEO');
+	// It opens the player on EP. 1, which streams it.
+	const db = new Database(dbPath, { readonly: true });
+	const ep1 = (
+		db
+			.prepare(
+				`SELECT e.id FROM entries e JOIN series s ON s.id = e.series_id
+				WHERE s.title = ? AND e.episode_number = 1`
+			)
+			.get(ANIME_NEXT) as { id: number }
+	).id;
+	db.close();
+	await expect(page.locator(SEL.start)).toHaveAttribute('href', new RegExp(`/read/${ep1}(\\?|$)`));
 	await expect(go).not.toContainText('PAGES');
 	await expect(go).not.toContainText('CHAPTERS');
 	await expect(go.locator('.dl')).toHaveText('DOWNLOAD FIRST 10 EPISODES');
+});
+
+test.describe('an anime next part no source streams (c536)', () => {
+	// The same part with its source's extension gone: nothing installed serves
+	// it, so the player could not stream EP. 1, and neither does the block.
+	let was = '';
+	test.beforeEach(() => {
+		const db = new Database(dbPath);
+		was = (
+			db.prepare(`SELECT origin_key FROM series WHERE title = ?`).get(ANIME_NEXT) as {
+				origin_key: string;
+			}
+		).origin_key;
+		db.prepare(`UPDATE series SET origin_key = ? WHERE title = ?`).run(
+			'aniyomi:404:https://example.test/lantern',
+			ANIME_NEXT
+		);
+		db.close();
+	});
+	test.afterEach(() => {
+		const db = new Database(dbPath);
+		db.prepare(`UPDATE series SET origin_key = ? WHERE title = ?`).run(was, ANIME_NEXT);
+		db.close();
+	});
+
+	test('is NOT DOWNLOADED, its WATCH dimmed, and still offers its first 10 episodes', async ({
+		page
+	}) => {
+		await openEnd(page, 19);
+		await expect(page.locator(SEL.nextSub)).toHaveText('○ NOT DOWNLOADED');
+		const go = page.locator('.end .nextw .go');
+		await expect(go.locator('> .dim')).toContainText('▶ WATCH · EP. 1');
+		await expect(go.locator('a.acc')).toHaveCount(0);
+		await expect(go.locator('.dl')).toHaveText('DOWNLOAD FIRST 10 EPISODES');
+	});
 });
 
 test('offline and not cached: OFFLINE · NOT CACHED, START dimmed, no download cell', async ({
@@ -971,8 +1186,8 @@ test('a novel’s last volume is the same end page, so it offers the Work too', 
  * about 270 px, and the frames above measure only the board's 1280. This file
  * runs in `works-frame` alone (playwright.config.ts), so the phone project's
  * own device (Pixel 7, 412 wide) is set here for these cases, on this file's
- * own seeded world: the online-only block, the unreadable anime block, each
- * with its refused cell, and the meanwhile row's cell.
+ * own seeded world: the online-only block, the anime block (WATCH ONLINE since
+ * c536), each with its refused cell, and the meanwhile row's cell.
  */
 test.describe('on a phone', () => {
 	// The device less `defaultBrowserType`, which a describe may not set (it is Chromium anyway).
@@ -1019,7 +1234,7 @@ test.describe('on a phone', () => {
 		await expect(page.locator(SEL.workCell)).toHaveText('WORK →');
 	});
 
-	test('the unreadable anime block and its refused cell fit the column (c535)', async ({
+	test('the anime block, streaming since c536, and its refused cell fit the column (c535)', async ({
 		page
 	}) => {
 		await openEnd(page, 19);

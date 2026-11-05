@@ -130,7 +130,7 @@ export async function queueSeries(
 	entries: Parameters<typeof nextToDownload>[0],
 	which: 'next' | 'all' | number[],
 	quality: number | null = null
-): Promise<{ queued: number; missing: number } | null> {
+): Promise<{ queued: number; missing: number; already: number } | null> {
 	const d = await seriesDownloads(seriesId, entries);
 	if (d.kind === 'down') throw new EngineError('Downloading is not answering', 'down');
 	if (d.kind !== 'ok') return null;
@@ -147,8 +147,21 @@ export async function queueSeries(
 		.flatMap((st) => (st?.kind === 'failed' ? [st.chapterId] : []));
 	const result = fresh.length ? await enqueue(seriesId, fresh, quality) : { queued: 0, missing: 0 };
 	await retry(failed);
-	return { queued: result.queued + failed.length, missing: result.missing };
+	// What was asked for and is already under way (c534): a second press, or one
+	// after a reload while the first chapter downloads, queues nothing new, and
+	// that is not a failure. NEXT and ALL ask for every unread chapter; chosen
+	// ones for themselves. A downloaded chapter is not counted: it is no queue.
+	const asked =
+		which === 'next' || which === 'all'
+			? entries.filter((e) => e.readAt === null && !e.matter).map((e) => e.id)
+			: which;
+	const already = asked.filter((id) => underWay(states.get(id))).length;
+	return { queued: result.queued + failed.length, missing: result.missing, already };
 }
+
+/** Queued, downloading, or downloaded and waiting to be imported: in hand, not to ask for again. */
+const underWay = (s: DownloadState | undefined) =>
+	s?.kind === 'queued' || s?.kind === 'downloading' || s?.kind === 'importing';
 export const retry = async (ids: number[]) => engine.retry(ids);
 export const dequeue = async (ids: number[]) => engine.dequeue(ids);
 export const toTheTop = async (ids: number[]) => engine.toTheTop(ids);

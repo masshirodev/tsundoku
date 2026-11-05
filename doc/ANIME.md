@@ -176,6 +176,15 @@ An episode streams **through tsundoku** (`src/lib/server/anime/streams.ts`,
 pure parts in `src/lib/library/streams.ts`): the browser has no route to the
 engine, mustn't hold its token, and never asks a site ([`PRIVACY.md`](PRIVACY.md)).
 
+**Whether an episode streams, without asking** (c536): `streamsOnline`
+(`src/lib/server/pages/online.ts`) answers what `episodeStreams` checks before
+it calls the source: no file, an Aniyomi key, the episode's own address at the
+source, and an installed extension serving its source (its `origin_source`
+when it was kept from a source the series left). The end page asks it for a
+Work's next part, so `▶ WATCH ONLINE · EP. 1` and `STREAMS FROM <SOURCE>` say
+what the player would do ([`WORKS.md`](WORKS.md)). It is not `readsOnline`,
+which is the image reader's question for a chapter's pages.
+
 **NO SERVER is remembered.** A source that lists servers and sends no video,
 or fails as a source, is recorded against that episode (`episode_failures`,
 rung 57; never incognito). The series screen's NO VIDEO band and the player's

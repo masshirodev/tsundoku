@@ -424,15 +424,30 @@ ONLINE FROM <SOURCE>` with `▶ READ ONLINE · CH. 1` (c161) and DOWNLOAD FIRST
   is `STREAMED VIDEO`, and DOWNLOAD FIRST 10 names its unit (`CHAPTERS`,
   `VOLUMES`, `EPISODES`). The design's cell said `DOWNLOAD FIRST 10` alone;
   with an anime next part that offered ten episodes as ten of nothing. An
-  anime next part with no file is never "online" here today (`readsOnline`
-  knows Mihon keys only), so it shows `○ NOT DOWNLOADED`, a dimmed `▶ WATCH ·
-EP. 1` and DOWNLOAD FIRST 10 EPISODES.
+  anime next part with no file is online when its first episode streams
+  (c536): `○ NOT DOWNLOADED · STREAMS FROM <SOURCE>`, `▶ WATCH ONLINE · EP. 1`
+  over `STREAMED VIDEO`, which opens the player, and DOWNLOAD FIRST 10
+  EPISODES. `workEndOf` asks `readsOnline` for a chapter and `streamsOnline`
+  for an episode (`src/lib/server/pages/online.ts`), two questions on
+  purpose: the image reader's online manifests ask `readsOnline`, and an
+  episode is never a page list it can read. `streamsOnline` asks what the
+  player's `episodeStreams` asks before it calls the source: no file, an
+  Aniyomi key, the episode's own address at the source, and an installed
+  extension serving its source (the episode's own `origin_source` when it was
+  kept from a source the series left). With none of that it shows `○ NOT
+DOWNLOADED`, a dimmed `▶ WATCH · EP. 1` and DOWNLOAD FIRST 10 EPISODES.
 - **DOWNLOAD FIRST 10 says when nothing was queued** (c344): `NOT QUEUED ·
 TRY THE SERIES`, and stays pressable, so a retry is a second press. A
   SvelteKit action called with `x-sveltekit-action` answers HTTP 200 even
   when it fails, so the cell reads the answer's `type`, and a success that
-  queued nothing (no chapter the source lists is left to fetch) is no queue
-  either. Only a success that queued something says `QUEUED ✓`.
+  queued nothing and found nothing under way (no chapter the source lists is
+  left to fetch) is no queue either. A success that queued something says
+  `QUEUED ✓`; one that queued nothing because everything it would ask for is
+  already in the queue (a second press after a reload, or while the first
+  chapter downloads) says `ALREADY QUEUED` (c534), from the action's
+  `already`, the count of the chapters asked for that are queued,
+  downloading or waiting to be imported (`queueSeries`). Both are done: the
+  cell is no longer pressable.
 - **The last part** says `THE WORK IS READ · n OF m`, the Work's name, what it
   held, and WORK → in place of START -- never an empty block. An earlier part of
   a run that is read through is the series' own end page, with the foot still

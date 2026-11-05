@@ -204,14 +204,21 @@
 	const namesSeries = $derived(
 		variant === 'series' && (work?.mode === 'next' || work?.mode === 'read')
 	);
-	/** DOWNLOAD FIRST 10's answer: nothing asked yet, asking, queued, or refused (c344). */
-	let queue = $state<'idle' | 'asking' | 'queued' | 'failed'>('idle');
+	/**
+	 * DOWNLOAD FIRST 10's answer: nothing asked yet, asking, queued, already
+	 * queued (everything it would ask for is under way, c534), or refused (c344).
+	 */
+	let queue = $state<'idle' | 'asking' | 'queued' | 'already' | 'failed'>('idle');
+	/** Done: a queue that took, or one already there; neither is pressed again. */
+	const queueDone = $derived(queue === 'queued' || queue === 'already');
 	const downloadCell = $derived(
 		queue === 'queued'
 			? 'QUEUED ✓'
-			: queue === 'failed'
-				? 'NOT QUEUED · TRY THE SERIES'
-				: (nextWords?.downloadFirst ?? '')
+			: queue === 'already'
+				? 'ALREADY QUEUED'
+				: queue === 'failed'
+					? 'NOT QUEUED · TRY THE SERIES'
+					: (nextWords?.downloadFirst ?? '')
 	);
 
 	function downloadWords(p: NonNullable<WorkEnd['next']>): string {
@@ -224,14 +231,17 @@
 	 * DOWNLOAD FIRST 10 of the next part, through its own series screen's
 	 * action. An action called this way answers 200 even when it fails: the
 	 * outcome is the body's `type`, so `r.ok` alone said QUEUED ✓ over an
-	 * engine that was down (c344). And a success can queue nothing (no chapter
-	 * the source lists is left to fetch), which is no more a queue. Anything
-	 * but a success that queued something says NOT QUEUED and leaves the cell
-	 * pressable, so a retry is a second press.
+	 * engine that was down (c344). A success that queued nothing because
+	 * everything it would ask for is already under way (a second press, or a
+	 * press after a reload while the first chapter downloads) says ALREADY
+	 * QUEUED, from the action's `already` (c534). A success that queued nothing
+	 * and found nothing under way (no chapter the source lists is left to
+	 * fetch) is no queue: it and any failure say NOT QUEUED and leave the cell
+	 * pressable, so a retry is a second press, and the series screen says why.
 	 */
 	async function downloadFirst() {
 		const p = work?.next;
-		if (!p || queue === 'asking' || queue === 'queued') return;
+		if (!p || queue === 'asking' || queueDone) return;
 		queue = 'asking';
 		const body = new FormData();
 		body.set('which', 'next');
@@ -240,18 +250,19 @@
 			body,
 			headers: { 'x-sveltekit-action': 'true' }
 		}).catch(() => null);
-		let ok = false;
+		let answer: 'queued' | 'already' | 'failed' = 'failed';
 		try {
 			const result = r?.ok ? deserialize(await r.text()) : null;
 			const done =
 				result?.type === 'success'
-					? (result.data?.downloaded as { queued?: number } | undefined)
+					? (result.data?.downloaded as { queued?: number; already?: number } | undefined)
 					: undefined;
-			ok = Number(done?.queued) > 0;
+			if (Number(done?.queued) > 0) answer = 'queued';
+			else if (Number(done?.already) > 0) answer = 'already';
 		} catch {
 			// A body that isn't an action's answer (a proxy's page, a cut connection) is no queue.
 		}
-		queue = ok ? 'queued' : 'failed';
+		queue = answer;
 	}
 </script>
 
@@ -349,7 +360,7 @@
 								<button
 									type="button"
 									class="dl"
-									disabled={queue === 'queued' || queue === 'asking'}
+									disabled={queueDone || queue === 'asking'}
 									onclick={downloadFirst}>{downloadCell}</button
 								>
 							{/if}
@@ -382,7 +393,7 @@
 								type="button"
 								class="wr dl"
 								data-focus-mark="in"
-								disabled={queue === 'queued' || queue === 'asking'}
+								disabled={queueDone || queue === 'asking'}
 								onclick={downloadFirst}>{downloadCell}</button
 							>
 						{/if}
