@@ -90,14 +90,18 @@ many are on as a green badge, opens a panel with one row per filter:
   the new results' first row under it. The choices keep the scroll
   (`noscroll`), so mid-grid the new results opened partway down their list
   until then. FilterPanel's `onchoose` says a choice is being made (a row's
-  cell, CLEAR ALL, the date, a press or a key on the rating blocks); the
-  library notes the page it was made on and lands once the next screen has
+  cell, CLEAR ALL, the date, a main-button press on the rating blocks, Enter
+  on one, or ← → on a TV, where they move); the library notes the page it was made on and lands once the next screen has
   drawn, only when that page is the one left, by a link or a goto, and the
   filters really changed. So a choice already on, a choice made at the top
   with the band where it lies, and BACK move nothing. The desktop's FILTER,
   in the pinned top bar, lands the same way when the band is pinned under
   it. The rating blocks' own links scroll to the top first, and land from
-  there. A person's page and BROWSE's filter pass no `onchoose`.
+  there. The note lives only as long as the press or key that made it: any
+  later press or key drops it before its own handlers run, and a kind cell
+  replaces it, so a press on the blocks that chooses nothing (a right-click,
+  ← off a TV, a cancelled drag) cannot land a later kind chosen at the top
+  (c557's round 2). A person's page and BROWSE's filter pass no `onchoose`.
   `tests/library-top-scroll.e2e.ts`, on all four devices.
 - **Where it sits:** pinned at the right end of the KIND band on the phone,
   tablet and TV (c436; until then, of the tabs), the band's cells scrolling
