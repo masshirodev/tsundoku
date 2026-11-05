@@ -148,6 +148,27 @@ describe('the rules', () => {
 		expect(directionOf(0, 'manga')).toBeNull();
 	});
 
+	// c508: the same strings, and the same answers, as tests/tag-search.spec.ts'
+	// preview (`splitPeople`) and tests/{mihon,anime}-plan.spec.ts' importers.
+	const PEOPLE: [string, string[]][] = [
+		['Aoi Hanamura, Ren Kisaragi', ['Aoi Hanamura', 'Ren Kisaragi']],
+		['A / B; C & D', ['A', 'B', 'C', 'D']],
+		['Unknown, _, Aoi', ['Aoi']],
+		['Tanaka, Jr.', ['Tanaka, Jr.']],
+		['Tanaka, Jr., Sato', ['Tanaka, Jr.', 'Sato']],
+		['John Smith, III, Jane Doe, sr', ['John Smith, III', 'Jane Doe, sr']],
+		['Kim / Lee II', ['Kim', 'Lee II']],
+		['Ito & Sr', ['Ito, Sr']],
+		['Jr., Sato', ['Jr.', 'Sato']],
+		['Oda, Eiichiro', ['Oda', 'Eiichiro']]
+	];
+	it('splits people as the preview does, a generational suffix kept with its name (c508)', () => {
+		for (const [raw, want] of PEOPLE) {
+			expect(people(raw), raw).toEqual(want);
+			expect(people(people(raw).join(', ')), raw).toEqual(want);
+		}
+	});
+
 	it('names statuses, people and chapter titles the way the screens want', () => {
 		expect([1, 2, 4, 5, 6, 0].map(statusOf)).toEqual([
 			'ongoing',

@@ -14,6 +14,7 @@ import {
 	moveKindOf,
 	SOURCE_FAMILIES,
 	SOURCE_KINDS,
+	sourceFamilyOf,
 	type Kind,
 	type KindFacts,
 	type Medium,
@@ -239,7 +240,9 @@ describe('the source families', () => {
 	});
 
 	it('decode a stored kind back to its family, for every kind and no other word', () => {
-		// card c420: `familyOfKind` replaces each `kind === SOURCE_KINDS.x`.
+		// card c420: `familyOfKind` replaces each `kind === SOURCE_KINDS.x`; c508
+		// moved it into the registry as `sourceFamilyOf`, and repo-index.ts's
+		// `familyOfKind` is the same function, re-exported.
 		// The oracle is written out, not derived from SOURCE_KINDS.
 		const expected: Record<Kind, SourceFamily | null> = {
 			manga: 'mihon',
@@ -248,12 +251,13 @@ describe('the source families', () => {
 			novel: 'lnreader',
 			anime: 'aniyomi'
 		};
-		for (const kind of KINDS) expect(familyOfKind(kind), kind).toBe(expected[kind]);
+		expect(familyOfKind).toBe(sourceFamilyOf);
+		for (const kind of KINDS) expect(sourceFamilyOf(kind), kind).toBe(expected[kind]);
 		for (const word of ['', 'MANGA', 'novels', 'mihon', 'none'])
-			expect(familyOfKind(word), word).toBeNull();
+			expect(sourceFamilyOf(word), word).toBeNull();
 		// The decoder holds on its own output: a family's kind gives that family back.
 		for (const family of SOURCE_FAMILIES)
-			expect(familyOfKind(SOURCE_KINDS[family]), family).toBe(family);
+			expect(sourceFamilyOf(SOURCE_KINDS[family]), family).toBe(family);
 	});
 
 	it('include Mihon for a doujin, because a gallery source keeps its mihon: key', () => {

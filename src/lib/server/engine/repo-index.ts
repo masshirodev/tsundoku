@@ -11,22 +11,14 @@
  * has a v2 one.
  */
 
-import { SOURCE_FAMILIES, SOURCE_KINDS, type SourceFamily } from '../../library/kinds.ts';
-
 export type Kind = 'manga' | 'anime';
 
 /**
- * The source family a stored kind names (doc/KINDS.md; card c420): the
- * inverse of `SOURCE_KINDS`, which gives each family one kind of its own. An
- * extension's row stores `manga` or `anime` (`engine_extensions.kind`, an
- * APK's listing the same), and that word is decoded here, once, instead of
- * being compared with a family's kind wherever a family is asked. Null for a
- * word no family names.
+ * The source family a stored kind names: the registry's `sourceFamilyOf`
+ * (src/lib/library/kinds.ts; c420, moved there by c508), kept under its old
+ * name here so `browse.ts` and `backend.ts` read it as before.
  */
-const FAMILY_OF_KIND = new Map<string, SourceFamily>(
-	SOURCE_FAMILIES.map((family) => [SOURCE_KINDS[family], family])
-);
-export const familyOfKind = (kind: string): SourceFamily | null => FAMILY_OF_KIND.get(kind) ?? null;
+export { sourceFamilyOf as familyOfKind } from '../../library/kinds.ts';
 
 export type Listing = {
 	pkg: string;

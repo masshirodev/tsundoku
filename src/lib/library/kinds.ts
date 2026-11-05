@@ -300,6 +300,21 @@ export const KEY_PREFIX = {
 export const SOURCE_FAMILIES = Object.keys(SOURCE_KINDS) as readonly SourceFamily[];
 
 /**
+ * The source family a stored kind names (card c420, moved here by c508): the
+ * inverse of `SOURCE_KINDS`, which gives each family one kind of its own. An
+ * extension's row stores `manga` or `anime` (`engine_extensions.kind`, an
+ * APK's listing the same), and that word is decoded here, once, instead of
+ * being compared with a family's kind wherever a family is asked. Null for a
+ * word no family names (`manhwa` and `doujin` included: no family stores
+ * them). `engine/repo-index.ts` re-exports it as `familyOfKind`.
+ */
+const FAMILY_OF_KIND = new Map<string, SourceFamily>(
+	SOURCE_FAMILIES.map((family) => [SOURCE_KINDS[family], family])
+);
+export const sourceFamilyOf = (kind: string): SourceFamily | null =>
+	FAMILY_OF_KIND.get(kind) ?? null;
+
+/**
  * The kinds GROUP binds the given way (`grouping`): `['doujin']` for books,
  * `['novel']` for volumes today. The BOOKS screen's SQL lists them.
  */

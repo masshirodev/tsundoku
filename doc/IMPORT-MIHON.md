@@ -113,11 +113,35 @@ the served app: the start closes its job too, and its band ends early.
 | `read`, `lastPageRead`                  | `read_at`, `last_position`                                                                                         |
 | history (`lastRead`, `readDuration`)    | `last_opened_at`, and one `reading_events` row (`finish` or `page`) with that duration                             |
 | genres                                  | `genre:` tags, lowercased (`tag:` from a gallery source). Manga/Manhwa/Manhua/Webtoon set the kind and aren't tags |
-| author, artist                          | `author:` and `artist:` tags, one per person (split on `,` `/` `;` `&`)                                            |
+| author, artist                          | `author:` and `artist:` tags, one per person (split on `,` `/` `;` `&`; "Tanaka, Jr." is one: see below)           |
 | source                                  | a `source:` tag                                                                                                    |
 | status                                  | `ongoing`, `completed` (also "publishing finished"), `cancelled`, `hiatus`, `licensed`                             |
 | reading mode                            | direction: L→R, R→L, or ↓ SCROLL for vertical/webtoon, kept only when it isn't the kind's default                  |
 | categories                              | see below                                                                                                          |
+
+**One split for people, everywhere** (c508). `people()`
+(`src/lib/import/mihon-plan.ts`) is the only author and artist split: Mihon's
+plan, LNReader's (`novel-plan.ts`), Aniyomi's (`anime-plan.ts`, which split on
+commas alone before) and browse's preview (`splitPeople`,
+`src/lib/library/tag-search.ts`, which adds only "a name met twice is kept
+once") all call it, so a name the preview links is a tag the added series
+carries. It splits on `,`, `/`, `;` and `&`, drops `_` and "unknown", and
+keeps a part that is only a generational suffix (`Jr.`, `Sr.`, `II`, `III`,
+`IV`, any case, the dot optional) with the name before it, written back as
+`Tanaka, Jr.`. The strings whose tags change from c508 on: any with such a
+suffix after a separator (`Tanaka, Jr.` was `Tanaka` and `Jr.`; `Ito & Sr`
+was `Ito` and `Sr`), and on an Aniyomi anime any with `/`, `;`, `&`, `_`
+or "unknown" (`Kim / Lee` was one tag, `Kim / Lee`; `Unknown` was a tag). A
+suffix with no name before it (`Jr., Sato`) and a name written surname-first
+(`Oda, Eiichiro`) are as before.
+
+**Tags already stored are not rewritten**: the importer writes a series'
+tags only when it adds the series (`src/lib/server/import/write.ts`), so one
+imported before c508 keeps its `author:Tanaka` and `author:Jr.`, and its
+person pages stay where they were. No rung does it, and none is wanted
+(c508's own judgment, not this wave's to write): a tag row keeps no order,
+so a rung could not tell which name a stored `Jr.` followed, and the tag is
+the owner's to fix on the series screen.
 
 **Categories are the owner's rating scale** (settled 2026-09-23). Each has a
 "+" twin for adult series:

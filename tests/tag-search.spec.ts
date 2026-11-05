@@ -316,6 +316,29 @@ describe('a preview’s people (card c456)', () => {
 		expect(splitPeople('Jr., Sato')).toEqual(['Jr.', 'Sato']);
 	});
 
+	// c508: the same strings, and the same answers, as tests/tag-search.spec.ts'
+	// preview (`splitPeople`) and tests/{mihon,anime}-plan.spec.ts' importers.
+	const PEOPLE: [string, string[]][] = [
+		['Aoi Hanamura, Ren Kisaragi', ['Aoi Hanamura', 'Ren Kisaragi']],
+		['A / B; C & D', ['A', 'B', 'C', 'D']],
+		['Unknown, _, Aoi', ['Aoi']],
+		['Tanaka, Jr.', ['Tanaka, Jr.']],
+		['Tanaka, Jr., Sato', ['Tanaka, Jr.', 'Sato']],
+		['John Smith, III, Jane Doe, sr', ['John Smith, III', 'Jane Doe, sr']],
+		['Kim / Lee II', ['Kim', 'Lee II']],
+		['Ito & Sr', ['Ito, Sr']],
+		['Jr., Sato', ['Jr.', 'Sato']],
+		['Oda, Eiichiro', ['Oda', 'Eiichiro']]
+	];
+	it('splits as every importer does, for the same strings (c508)', () => {
+		for (const [raw, want] of PEOPLE) {
+			expect(splitPeople(raw), raw).toEqual(want);
+			expect(people(raw), raw).toEqual(want);
+			// A normaliser holds on its own output.
+			expect(splitPeople(splitPeople(raw).join(', ')), raw).toEqual(want);
+		}
+	});
+
 	it('names a person once, case and spacing aside, in the source’s order', () => {
 		expect(splitPeople('B, A, b,  a ')).toEqual(['B', 'A']);
 		expect(personKey('Aoi  Hanamura')).toBe(personKey('aoi hanamura'));

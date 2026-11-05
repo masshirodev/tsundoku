@@ -129,6 +129,44 @@ describe('an anime’s plan', () => {
 	});
 });
 
+// One split for people (c508): Aniyomi's author and artist are tagged as
+// Mihon's are, and as the preview links them. It split on commas alone.
+describe('an anime’s people', () => {
+	// c508: the same strings, and the same answers, as tests/tag-search.spec.ts'
+	// preview (`splitPeople`) and tests/{mihon,anime}-plan.spec.ts' importers.
+	const PEOPLE: [string, string[]][] = [
+		['Aoi Hanamura, Ren Kisaragi', ['Aoi Hanamura', 'Ren Kisaragi']],
+		['A / B; C & D', ['A', 'B', 'C', 'D']],
+		['Unknown, _, Aoi', ['Aoi']],
+		['Tanaka, Jr.', ['Tanaka, Jr.']],
+		['Tanaka, Jr., Sato', ['Tanaka, Jr.', 'Sato']],
+		['John Smith, III, Jane Doe, sr', ['John Smith, III', 'Jane Doe, sr']],
+		['Kim / Lee II', ['Kim', 'Lee II']],
+		['Ito & Sr', ['Ito, Sr']],
+		['Jr., Sato', ['Jr.', 'Sato']],
+		['Oda, Eiichiro', ['Oda', 'Eiichiro']]
+	];
+	it('are tagged as every importer and the preview split them', () => {
+		for (const [raw, want] of PEOPLE) {
+			const p = planAnime(
+				{
+					sourceId: '7000',
+					sourceName: 'KickAssAnime',
+					url: '/p',
+					title: 'P',
+					author: raw,
+					artist: raw
+				},
+				[],
+				5
+			);
+			const tagged = (ns: string) => p.tags.filter((t) => t.namespace === ns).map((t) => t.value);
+			expect(tagged('author'), raw).toEqual(want);
+			expect(tagged('artist'), raw).toEqual(want);
+		}
+	});
+});
+
 // Episode pictures (doc/ANIME.md, "Episode pictures"; card c225).
 describe('an episode’s picture at the source', () => {
 	it('is kept where the extension gives one, through the engine, and is nothing otherwise', () => {

@@ -383,11 +383,13 @@ s.kind === SOURCE_KINDS.lnreader      SOURCE_KINDS[f] === r.kind
 
 K3 had replaced six quoted names with that spelling, which the old pattern no
 longer saw. A source's family is now asked as a family: `BrowseSource.family`
-(`engine/browse.ts`, LNReader's in `novels/source.ts`) and `familyOfKind`
-(`engine/repo-index.ts`), the one decoder from a stored kind
-(`engine_extensions.kind`, an APK listing's) back to its family. A question
-asked through it (`familyOfKind(l.kind) === 'mihon'`) names a family, and is
-not counted.
+(`engine/browse.ts`, LNReader's in `novels/source.ts`) and `sourceFamilyOf`
+(the registry's own, `src/lib/library/kinds.ts`, since c508; c420 wrote it in
+`engine/repo-index.ts`, which still re-exports it as `familyOfKind` for
+`browse.ts`, `backend.ts` and the extensions page), the one decoder from a
+stored kind (`engine_extensions.kind`, an APK listing's) back to its family.
+A question asked through it (`familyOfKind(l.kind) === 'mihon'`) names a
+family, and is not counted.
 
 It is a textual scan, and the same one this command prints, so a mention in a
 comment counts and a line holding two comparisons counts once:
