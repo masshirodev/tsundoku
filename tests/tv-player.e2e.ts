@@ -1,3 +1,10 @@
+import Database from 'better-sqlite3';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
+import { rmSync } from 'node:fs';
+import { createServer, type AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './helpers/hydrated';
 
 /**
@@ -789,5 +796,162 @@ test.describe('many languages (c386)', () => {
 		await expect(ar).toHaveClass(/on/);
 		await expect(ar).toBeFocused();
 		await expect(subs).toHaveText(['OFF', 'EN', 'AR', 'MORE · 28']);
+	});
+});
+
+// ---- the Work card (c517) ------------------------------------------------------------
+//
+// The player's last episode of a series in a Work offers the Work's next part
+// (`.upn`, `data-player-work`), and on a TV that card takes the pad as PLAY NOW
+// does. The browse world has no Work, and a Work takes its parts' grid tiles
+// away, so this block seeds a database of its own (work-end-frame's
+// arrangement): the seed, one anime whose episodes are the fixture clip as
+// files, and a Work of it and a seed manga, in SQL. It serves the build on a
+// port the OS gives and reads in incognito, so nothing it does reaches another
+// spec.
+test.describe('the Work card on a TV (c517)', () => {
+	let server: ChildProcess | null = null;
+	let port = 0;
+	let episode = 0;
+	const dbPath = join(tmpdir(), `tsundoku-e2e-tv-work-${process.pid}.sqlite`);
+	const wipe = () => {
+		for (const suffix of ['', '-wal', '-shm']) rmSync(dbPath + suffix, { force: true });
+	};
+	const at = () => `http://localhost:${port}`;
+
+	test.beforeAll(async () => {
+		test.setTimeout(120_000);
+		port = await new Promise<number>((resolve, reject) => {
+			const probe = createServer();
+			probe.once('error', reject);
+			probe.listen(0, '127.0.0.1', () => {
+				const { port } = probe.address() as AddressInfo;
+				probe.close(() => resolve(port));
+			});
+		});
+		wipe();
+		execFileSync(process.execPath, ['--experimental-strip-types', 'scripts/seed.ts'], {
+			env: { ...process.env, DATABASE_PATH: dbPath, NODE_NO_WARNINGS: '1' },
+			stdio: 'pipe'
+		});
+		const db = new Database(dbPath);
+		const now = Date.now();
+		const anime = Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, status, source, path, origin_key,
+						source_url, added_at, indexed_at, in_library, hue)
+					VALUES (1, 'Hoshi no Michi', 'anime', 'completed', 'Kakkoi', ?, ?, ?, ?, ?, 1, 200)`
+				)
+				.run(
+					join(process.cwd(), 'tests/fixtures/video'),
+					'aniyomi:1:https://example.test/michi',
+					'https://example.test/michi',
+					now,
+					now
+				).lastInsertRowid
+		);
+		const insert = db.prepare(
+			`INSERT INTO entries (series_id, position, label, title, added_at, page_count, file,
+				available, duration_s, season, episode_number, source_url, origin_source)
+			VALUES (?, ?, ?, ?, ?, 0, 'clip.webm', 1, 8, 1, ?, ?, '')`
+		);
+		insert.run(anime, 1, 'Ep. 1', 'The Road Out', now, 1, 'https://example.test/michi/1');
+		episode = Number(
+			insert.run(anime, 2, 'Ep. 2', 'The Road Home', now, 2, 'https://example.test/michi/2')
+				.lastInsertRowid
+		);
+		const manga = (
+			db.prepare(`SELECT id FROM series WHERE title = 'Boku no Kokoro no Yabai Yatsu'`).get() as {
+				id: number;
+			}
+		).id;
+		const work = Number(
+			db
+				.prepare(`INSERT INTO works (name, created_at, order_mode) VALUES ('Michi Run', ?, 'hand')`)
+				.run(now).lastInsertRowid
+		);
+		const part = db.prepare(
+			`INSERT INTO work_series (work_id, series_id, position) VALUES (?, ?, ?)`
+		);
+		part.run(work, anime, 1);
+		part.run(work, manga, 2);
+		db.close();
+		server = spawn('npx', ['vite', 'preview', '--port', String(port), '--strictPort'], {
+			env: {
+				...process.env,
+				DATABASE_PATH: dbPath,
+				TSUNDOKU_TOKEN: E2E_TOKEN,
+				TSUNDOKU_ANILIST: 'off',
+				ENGINE_URL: 'http://127.0.0.1:9',
+				ENGINE_TOKEN: 'e2e',
+				LIBRARY_ROOT: join(tmpdir(), `tsundoku-e2e-tv-work-empty-${process.pid}`),
+				TSUNDOKU_HOME: join(tmpdir(), `tsundoku-e2e-tv-work-home-${process.pid}`)
+			},
+			stdio: 'ignore'
+		});
+		let up = false;
+		for (let i = 0; i < 120 && !up; i++) {
+			try {
+				up = (await fetch(`${at()}/`, { redirect: 'manual' })).status > 0;
+			} catch {
+				await new Promise((r) => setTimeout(r, 500));
+			}
+		}
+		if (!up) throw new Error('the Work preview never answered');
+	});
+
+	test.afterAll(() => {
+		server?.kill();
+		server = null;
+		wipe();
+	});
+
+	test('↓ from the Work card is the seek bar, ↑ goes nowhere, and ← → stay on the card', async ({
+		context,
+		page
+	}) => {
+		await context.addCookies([{ name: 'tsundoku_incognito', value: '1', url: at() }]);
+		await page.goto(`${at()}/read/${episode}`);
+		await expect(page.locator('.player')).toBeVisible();
+		await play(page);
+		const video = page.locator('video');
+		const card = page.locator('.upn');
+		const offer = card.locator('[data-player-work]');
+		const track = page.locator('.scrubrow .track');
+
+		// The bar down by its own 4 s, then the ending: the card over the picture,
+		// with the pad on its ▶ READ.
+		await expect(page.locator('.player')).not.toHaveClass(/chrome/, { timeout: 15_000 });
+		await video.evaluate((v: HTMLVideoElement) => (v.currentTime = 6.2));
+		await expect(card).toBeVisible();
+		await expect(card).toContainText('NEXT IN THE WORK');
+		await expect(offer).toBeFocused();
+
+		// ↑ has nothing above the card: it keeps the pad and the bar stays down.
+		// One snapshot, as for PLAY NOW: a poll would pass later by the bar's own
+		// auto-hide handing the pad back.
+		await page.keyboard.press('ArrowUp');
+		expect(
+			await page.evaluate(() => ({
+				chrome: document.querySelector('.player')?.classList.contains('chrome') ?? false,
+				onCard: document.activeElement?.hasAttribute('data-player-work') ?? false
+			}))
+		).toEqual({ chrome: false, onCard: true });
+
+		// → and ← walk the card's own row (▶ READ, WORK, ✕) and seek nothing.
+		// Measured so at the base too (c517 named ↓ and ↑ only): kept as a guard.
+		const t0 = await video.evaluate((v: HTMLVideoElement) => v.currentTime);
+		await page.keyboard.press('ArrowRight');
+		await expect(card.getByRole('link', { name: 'WORK' })).toBeFocused();
+		await page.keyboard.press('ArrowLeft');
+		await expect(offer).toBeFocused();
+		expect(await video.evaluate((v: HTMLVideoElement) => v.currentTime)).toBeLessThan(t0 + 5);
+		expect(await page.locator('.player').getAttribute('class')).not.toMatch(/\bchrome\b/);
+
+		// ↓ brings the bar with the pad on the seek bar, as from PLAY NOW and SKIP.
+		await page.keyboard.press('ArrowDown');
+		await expect(page.locator('.player')).toHaveClass(/chrome/);
+		await expect(track).toBeFocused();
 	});
 });

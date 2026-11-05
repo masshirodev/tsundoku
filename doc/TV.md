@@ -57,10 +57,15 @@ start but was drawn for fingers.
 - **The player is the picture until a key**, then, when no offer is up, six
   cells on one row with focus on ▶❚❚: ▶❚❚, −10, +10, ← EP. n, the cell naming the stream (the
   settings panel), EP. n+1 →. The seek bar above them keeps ← → (it seeks 10 s
-  with the flash) and ↑ from any cell reaches it. SKIP INTRO and the
-  next-episode card's PLAY NOW → take focus themselves the moment they appear,
-  so OK does what they say; ↓ brings the bar with focus on the seek bar, ↑
-  on the offer itself goes nowhere, and ↑ from the bar returns to them (c296).
+  with the flash) and ↑ from any cell reaches it. SKIP INTRO, the
+  next-episode card's PLAY NOW → and, on a Work's last episode, the Work
+  card's ▶ READ (or WATCH) take focus themselves the moment they appear, so
+  OK does what they say; ↓ brings the bar with focus on the seek bar, ↑ on
+  the offer itself goes nowhere, and ↑ from the bar returns to them (c296;
+  the Work card since c517, which measured ↓ and ↑ from it bringing the bar
+  on ▶❚❚ instead: the keys' offer check named `.endcard, .skip` and not
+  `.upn`). ← → on the Work card walk its own row (▶, WORK, ✕) and seek
+  nothing, as measured before c517 too.
   ▶❚❚ ⏩ ⏪ ⏭ ⏮ (`MediaPlayPause`, `MediaFastForward`, `MediaRewind`,
   `MediaTrackNext`, `MediaTrackPrevious`) work on every device, and on the
   library ▶❚❚ resumes the focused CONTINUE card there and then, without the
@@ -602,7 +607,8 @@ card, which the owner found fighting the remote (2026-11-02).
   SKIP is up, `.top` and `.bottom` are `data-focus-skip`, so a cell focused
   there stops being a stop the moment the bar hides. A TV-only effect puts
   focus back on PLAY NOW (or SKIP) instead of leaving OK on the dead track and
-  ↑/↓ on STAY. PLAY NOW and SKIP also carry `data-focus-start` while offered,
+  ↑/↓ on STAY. PLAY NOW, the Work card's ▶ and SKIP also carry
+  `data-focus-start` while offered,
   so the layer's "nothing focused" fallback and BACK's climb start on the
   offer rather than on STAY. ↑ on the card itself has nothing above it and
   stays there; it does not open the bar underneath the button.
@@ -615,8 +621,9 @@ card, which the owner found fighting the remote (2026-11-02).
   (`data-focus-skip`), so a key reaches the card rather than an invisible cell.
 - **Tests.** `tests/tv-player.e2e.ts` covers the bar's ← → and ↑ from its
   cells, a hidden bar's seek, PLAY NOW and STAY, SKIP's focus and its going,
-  the chrome's auto-hide handing the pad back to the card, and a revealed bar
-  keeping ▶❚❚ while SKIP is offered. `tests/focus-geometry.spec.ts` pins why the
+  the chrome's auto-hide handing the pad back to the card, a revealed bar
+  keeping ▶❚❚ while SKIP is offered, and (c517) the Work card's ↓, ↑ and
+  ← →, on a database and preview of its own with a Work made in SQL. `tests/focus-geometry.spec.ts` pins why the
   1 px mattered.
 
 ## What it does not do yet

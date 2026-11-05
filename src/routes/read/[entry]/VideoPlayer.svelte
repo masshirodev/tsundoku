@@ -1248,16 +1248,18 @@
 				k === 'ArrowRight')
 		) {
 			e.preventDefault();
+			// The Work card (`.upn`) is an offer too (c517): measured on a Work's
+			// last episode, ↓ and ↑ from it brought the bar on ▶❚❚ instead.
 			const onOverlay =
 				document.activeElement instanceof HTMLElement &&
-				!!document.activeElement.closest('.endcard, .skip');
+				!!document.activeElement.closest('.endcard, .skip, .upn');
 			if (k === 'Enter' && skip && skipAlone && !onOverlay) skipNow();
 			else if (k === 'ArrowLeft' || k === 'ArrowRight') {
 				// Part 2: the seek comes with the bar, and the bar keeps the keys.
 				seekWithFlash(k === 'ArrowLeft' ? -10 : 10);
 				scrub?.focus({ preventScroll: true });
 			} else if ((k === 'ArrowDown' || k === 'ArrowUp') && onOverlay) {
-				// ↓ out of the card (or SKIP) is into the bar; the owner is on the
+				// ↓ out of the card (PLAY NOW's or the Work's, or SKIP) is into the bar; the owner is on the
 				// controls now, so the bar comes with it (c296). ↑ has nothing
 				// above it, so the offer keeps the pad rather than opening the bar
 				// underneath it and taking the focus back off the button.
