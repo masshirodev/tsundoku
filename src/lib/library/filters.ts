@@ -308,6 +308,8 @@ export function progressOf(item: {
  * A single book, ONE-OFF's rule (`ONE_OFF_SQL`, server/library.ts) on the
  * device: a kind GROUP binds into a series of books (doc/KINDS.md,
  * `grouping`), holding one entry or none. Undefined where the card can't say.
+ * `entryCount` leaves out extras, which `ONE_OFF_SQL` counts: a book plus an
+ * extra is ONE-OFF here and SERIES on the server (doc/FILTERS.md, "Shelves are where").
  */
 export function isOneOff(item: { kind?: string; entryCount?: number }): boolean | undefined {
 	const kind = FILTER_KINDS.find((k) => k === item.kind);

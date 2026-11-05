@@ -257,7 +257,12 @@ describe('the FILTER panel (c68, doc/FILTERS.md)', () => {
 
 	it('KIND: one kind inside any shelf, offering only the kinds the shelf holds', () => {
 		const all = list(only({}), true);
-		const kinds = lib.kindsOn({ reveal: true, shelf: 'all' });
+		// What the band offers: the kinds counted on the shelf (kindCounts, since c436).
+		const kindsOn = (shelf: string) =>
+			filtersMod.FILTER_KINDS.filter(
+				(k) => (lib.kindCounts({ reveal: true, shelf }).kinds[k] ?? 0) > 0
+			);
+		const kinds = kindsOn('all');
 		expect(kinds).toEqual(filtersMod.FILTER_KINDS.filter((k) => all.some((c) => c.kind === k)));
 		expect(kinds.length).toBeGreaterThan(1);
 		for (const kind of kinds) {
@@ -266,7 +271,7 @@ describe('the FILTER panel (c68, doc/FILTERS.md)', () => {
 			expect(got.every((c) => c.kind === kind)).toBe(true);
 		}
 		// A kind shelf holds one kind: nothing to tell apart.
-		expect(lib.kindsOn({ reveal: true, shelf: 'k:manhwa' }).length).toBeLessThanOrEqual(1);
+		expect(kindsOn('k:manhwa').length).toBeLessThanOrEqual(1);
 	});
 
 	it('READING: UNREAD and READ, in SQL as the device decides them, hidden included', () => {

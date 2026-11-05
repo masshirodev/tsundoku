@@ -447,21 +447,6 @@ function listWhere(opts: ListOpts): { sql: string; params: unknown[] } {
 	};
 }
 
-/** The kinds on a shelf as it stands without filters, in KIND's order: what KIND offers. */
-export function kindsOn(opts: Omit<ListOpts, 'filters'>): FilterKind[] {
-	const where = listWhere({ ...opts, filters: undefined });
-	const have = new Set(
-		(
-			getDb()
-				.prepare(
-					`SELECT DISTINCT s.kind FROM series s JOIN roots r ON r.id = s.root_id WHERE ${where.sql}`
-				)
-				.all(...where.params) as { kind: string }[]
-		).map((r) => r.kind)
-	);
-	return FILTER_KINDS.filter((k) => have.has(k));
-}
-
 /**
  * The KIND band's counts (c436; doc/LIBRARY.md, "The KIND band"): the tiles
  * on this shelf, every filter but KIND applied, in all and by kind, in one

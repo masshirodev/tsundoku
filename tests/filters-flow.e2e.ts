@@ -241,6 +241,16 @@ test('+ NEW makes a shelf by name and lands on it, empty, with how to fill it', 
 	await expect(page.getByText(`Nothing on ${name} yet.`)).toBeVisible();
 	// An empty shelf has nothing to filter.
 	await expect(filterCell(page)).toHaveCount(0);
+
+	// A kind carried here (the band keeps it across shelves): still the empty
+	// shelf and how to fill it, not "no manga on it" with SHOW 0.
+	const url = new URL(page.url());
+	url.searchParams.set('kind', 'manga');
+	await page.goto(url.pathname + url.search);
+	await expect(page.getByText(`Nothing on ${name} yet.`)).toBeVisible();
+	await expect(page.locator('.empty-shelf').getByRole('button', { name: 'SELECT' })).toBeVisible();
+	await expect(page.getByText(/^No manga on/)).toHaveCount(0);
+	await expect(page.getByText(/ALL KINDS · SHOW 0/)).toHaveCount(0);
 });
 
 test('without script, the panel still opens and every choice is a link', async ({ browser }) => {

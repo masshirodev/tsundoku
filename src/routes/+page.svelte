@@ -1772,6 +1772,18 @@
 			{#if data.people.length === 0}
 				<p class="none">NO FAVOURITE PEOPLE · FAV ONE FROM THEIR PAGE</p>
 			{/if}
+		{:else if shown.length === 0 && data.shelf.startsWith('c:') && (shelfSize === 0 || nFilters === 0) && !outlined}
+			<!-- A new shelf (3h): empty until something is added, and says how. First,
+			     since a kind is carried across shelves (c436): an empty shelf with a
+			     kind or a filter on is still empty, not "no manga here". -->
+			<div class="empty-shelf">
+				<p class="empty-title">Nothing on {shelfName} yet.</p>
+				<p class="empty-sub">
+					Long-press a cover and tick it under SHELVES, or SELECT several and + SHELF.
+				</p>
+				<button type="button" class="empty-select" onclick={() => (selecting = true)}>SELECT</button
+				>
+			</div>
 		{:else if shown.length === 0 && kindAtZero && !outlined}
 			<!-- The kind chosen elsewhere, none of it here (Kinds Calls 4): the band
 			     keeps it at 0, and this says so with the way back to every kind. -->
@@ -1792,16 +1804,6 @@
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- filterHref resolves -->
 				<a class="empty-clear" href={filterHref(NO_FILTERS)} data-sveltekit-noscroll
 					>✕ CLEAR · SHOW {shelfSize.toLocaleString('en-US')}</a
-				>
-			</div>
-		{:else if shown.length === 0 && data.shelf.startsWith('c:') && !outlined}
-			<!-- A new shelf (3h): empty until something is added, and says how. -->
-			<div class="empty-shelf">
-				<p class="empty-title">Nothing on {shelfName} yet.</p>
-				<p class="empty-sub">
-					Long-press a cover and tick it under SHELVES, or SELECT several and + SHELF.
-				</p>
-				<button type="button" class="empty-select" onclick={() => (selecting = true)}>SELECT</button
 				>
 			</div>
 		{:else if shown.length === 0}
