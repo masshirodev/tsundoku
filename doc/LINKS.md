@@ -320,10 +320,32 @@ that series in the background.
 POSSIBLE DUPLICATES, which are older and fewer.
 
 - The count is the review's queue (`linkQueueCount`), only what can be seen.
-  Hidden series are never searched, so reveal doesn't change it.
+  Hidden series are never searched, but a series hidden after its search
+  stays in the queue, so with reveal on the count can be higher: reveal does
+  change it (c430's second half was that).
 - It's gone at zero.
 - Offline, it keeps the last count, says **THE REVIEW NEEDS THE WORKSTATION**,
   and dims its REVIEW cell.
+
+#### Putting the band away
+
+A ✕ after REVIEW → (c430) puts the band away until the queue grows: a new
+series to link brings it back, the same ones again do not
+([`LIBRARY.md`](LIBRARY.md), "The links band", has the rule, its two counts
+and what reveal does to them).
+
+**Per device, not on the workstation.** What it was put away at is kept in
+this device's `localStorage` (`tsundoku.library.links-put-away`), as the update
+band's "seen" is. Chosen because the band is a reminder about this screen, not
+a fact about the library: putting it away on the tablet says nothing about the
+phone, and a per-device choice needs no server, no cookie and no rung. What it
+costs: another device still shows the band until it is put away there too,
+and a full reload draws it for a moment until the page has hydrated and read
+the key (a client-side return to the library does not). Remembering it on the
+workstation would mean a row, or a cookie read by `+page.server.ts`, and one
+choice for every screen the owner has. The queue itself is never hidden: TO
+LINK, in the sidebar's foot and in MORE (c475), counts it while anything
+waits, put away or not.
 
 ### The review, `/links` (Link Review 1b–1j)
 

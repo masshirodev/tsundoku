@@ -109,11 +109,14 @@ both: `RANOBE_KINDS` in `src/lib/library/ranobe.ts:14` (`['novel', 'manga',
 `DOUJINS` and `NOVELS` where `kindLabel` says `DOUJIN` and `NOVEL`.
 
 **The audit is still not exhaustive, and the ratchet cannot make it so.**
-Three more kind lists are array or SQL literals rather than comparisons, so
+Three more kind lists were array or SQL literals rather than comparisons, so
 `tests/kinds.spec.ts` does not count them: `KIND_SHELVES`
-(`src/lib/server/library.ts:942`) gives manga, manhwa, novel and anime a shelf
-and deliberately gives a doujin none (its books group by other means);
-`overrideCounts`'s `['manga', 'manhwa', 'doujin', 'novel'] as Kind[]`
+(`src/lib/server/library.ts:942`) gave manga, manhwa, novel and anime a shelf
+and deliberately gave a doujin none (its books group by other means) -- gone
+with c436 (wave 22): the kinds are the library's KIND band now, which reads
+the registry (`FILTER_KINDS`, its `nav_shelf_*` words keyed by `Kind` in
+`KIND_WORD` in `src/routes/+page.svelte`, so a new kind's missing word is a
+compile error), and a doujin has a cell like any kind; `overrideCounts`'s `['manga', 'manhwa', 'doujin', 'novel'] as Kind[]`
 (`src/lib/server/settings-page.ts:92`) is every kind but an anime, whose
 reading direction has no per-series override; and `LINKABLE`
 (`src/lib/server/catalogue.ts:547`) is every kind but a doujin, which is never
@@ -312,10 +315,11 @@ none of these was "fixed" here.
   (also two, for another reason). The DB spec asserts it against
   `SOURCE_KINDS.mihon` and `SOURCE_KINDS.aniyomi`, and the card's "move table"
   does not exist: MOVE has no table.
-- **Three kind lists are not comparisons.** `KIND_SHELVES`, `overrideCounts`'
-  four-kind list and `LINKABLE` (the audit names the files) each decide by kind
-  in an array or SQL literal, so the ratchet cannot count them; K1 left them
-  as they were. A new kind must grep them by hand until K5 folds them in.
+- **Two kind lists are not comparisons.** `overrideCounts`' four-kind list
+  and `LINKABLE` (the audit names the files) each decide by kind in an array
+  or SQL literal, so the ratchet cannot count them; K1 left them as they
+  were. A new kind must grep them by hand until K5 folds them in. The third,
+  `KIND_SHELVES`, went with c436: the KIND band asks the registry.
 - **A doujin carries a family's key and does not move.** A gallery doujin's
   key is `mihon:` (its Sources are `mihon`), yet `movableKind`
   (`src/lib/server/move.ts:56-57` at `c14a5d4e`) left every doujin out, and a

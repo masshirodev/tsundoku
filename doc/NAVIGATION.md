@@ -1,16 +1,18 @@
 # Going back
 
 Going back comes back to the screen as it was left: the same shelf or tag,
-the same order, the pages the grid had loaded, and the place in them. The
-owner's example: MANGA, A–Z, scrolled a few pages down; open a book, read
-it or not, go back, and be exactly there.
+the same kind on the KIND band, the same order, the pages the grid had
+loaded, and the place in them. The owner's example: MANGA, A–Z, scrolled a
+few pages down; open a book, read it or not, go back, and be exactly there.
+MANGA was a shelf then (`?shelf=k:manga`); since c436 it is the band's
+`?kind=manga` on a shelf, which comes back the same way, being in the URL.
 
 ## Two ways back, one result
 
 - **The system's back** (Android's gesture, the browser's button) walks the
   browser's history. The library's snapshot keeps its loaded pages and scroll
   for each history entry ([`LIBRARY.md`](LIBRARY.md), "Pages"), and the shelf,
-  tag, sort and RANDOM's seed are all in its URL.
+  tag, kind, filters, sort and RANDOM's seed are all in its URL.
 - **The app's own ← buttons** are links, and a link opens a fresh copy of the
   screen: first page, default place. So a back link goes back in history
   instead, when the reader came from the screen it points to
@@ -31,7 +33,9 @@ showing the screen it opens (the same path), and goes back that many steps:
 When there's no such entry (a link opened in a new tab, a bookmark, the app
 opened on a series), the link opens its screen as it always did.
 
-Back links: the series screen's ← (to the library, a shelf, a person, history,
+Back links: the series screen's ← (to the library, a shelf -- named by the
+shelf alone, a kind being a filter on it, so a back link built afresh lands on
+the shelf without its kind; walking history keeps it -- a person, history,
 the source it was added from, or the Work whose run opened it), the readers' ←
 and ← SERIES, the player's ← and ← SERIES, the end page's ← SERIES and LIBRARY,
 a person page's ←, and the Work screen's ← LIBRARY (`/work/N`). Code that leaves a screen

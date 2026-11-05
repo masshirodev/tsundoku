@@ -471,9 +471,12 @@ test('the band scrolls sideways and never wraps, keeping the chosen kind in view
 	);
 	expect(new Set(tops).size).toBe(1);
 	expect(await strip.evaluate((s) => s.scrollWidth > s.clientWidth)).toBe(true);
-	// The last kind is chosen: the strip scrolls so it is in view, ALL off the left.
+	// The last kind chosen, on a fresh load (a click would have Playwright
+	// scroll it into view itself): the strip scrolls so it is in view, ALL off
+	// the left.
 	const last = cells.last();
-	await last.click();
+	const kind = new URL((await last.getAttribute('href'))!, BASE).searchParams.get('kind');
+	await page.goto(`${BASE}/?shelf=all&sort=title&kind=${kind}`);
 	await expect(last).toHaveAttribute('aria-current', 'true');
 	const s = (await strip.boundingBox())!;
 	await expect
