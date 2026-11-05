@@ -1,10 +1,10 @@
-import { getDb } from './db';
-import { visibleWhere } from './visibility';
+import { getDb } from './db.ts';
+import { visibleWhere } from './visibility.ts';
 import { KEEP_MS } from './browsing.ts';
 import { FIRST_PLAUSIBLE_DAY, readingTime, type TimeRow } from './reading-time.ts';
 import { sourceFlagSql } from './engine/source-flags.ts';
-import type { HistoryDay } from '$lib/library/history';
-import type { Kind } from '$lib/library/types';
+import type { HistoryDay } from '../library/history.ts';
+import type { Kind } from '../library/types.ts';
 
 /**
  * History from the reading log (doc/HISTORY.md). Only reading counts -- open,

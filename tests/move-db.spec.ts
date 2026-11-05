@@ -518,6 +518,42 @@ describe('the sources MOVE asks (K4, c304)', () => {
 				else expect(now, `${kind} ${id}`).toBe(old);
 			}
 	});
+
+	/**
+	 * The test above checks the rule written out; this one asks `moveSources`
+	 * itself (c421), so a wrong medium or an inverted filter in move.ts goes
+	 * red. One source of each family: a Mihon extension's (100, from
+	 * beforeAll), an Aniyomi one's and an LNReader plugin's, all installed and
+	 * asked inside reveal so no listing rule hides one.
+	 */
+	it('asks a video kind’s Aniyomi sources and a pages kind’s Mihon ones, never a plugin', async () => {
+		const db = getDb();
+		db.prepare(
+			`INSERT INTO engine_extensions (pkg, name, kind, version_code, version_name, lib, handle, installed_at, updated_at, failed)
+			VALUES ('e2e.kai', 'AnimeKai', 'anime', 1, '1', '1', ?, 0, 0, '')`
+		).run('e2e.kai'.padEnd(64, '0'));
+		db.prepare(
+			`INSERT INTO engine_sources (id, pkg, name, lang, base_url) VALUES ('310', 'e2e.kai', 'AnimeKai', 'en', '')`
+		).run();
+		db.prepare(
+			`INSERT INTO novel_plugins (id, name, site, lang, version, hash, installed_at, updated_at, failed)
+			VALUES ('novelmove', 'Novel Move', 'https://novel.example/', 'en', '1.0.0', 'h', 0, 0, '')`
+		).run();
+
+		// Every one of them is a source a search asks, so the filter is what drops it.
+		const { searchSources } = await import('$lib/server/downloads');
+		const asked = (await searchSources(true)).map((s) => s.id);
+		for (const id of ['100', '310', 'ln:novelmove']) expect(asked, id).toContain(id);
+
+		const ids = async (kind: 'manga' | 'anime') =>
+			(await move.moveSources(kind, true)).map((s) => s.id);
+		const anime = await ids('anime');
+		const manga = await ids('manga');
+		expect(anime).toContain('310');
+		expect(manga).toContain('100');
+		for (const id of ['100', '200', 'ln:novelmove']) expect(anime, id).not.toContain(id);
+		for (const id of ['310', 'ln:novelmove']) expect(manga, id).not.toContain(id);
+	});
 });
 
 describe('PASTE A LINK asks the medium too (K4, c304)', () => {

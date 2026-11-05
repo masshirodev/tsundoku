@@ -1,6 +1,6 @@
-import { clock as playClock } from './anime';
-import { clock, dayKey, dayName } from './history';
-import { formatNumber } from './series';
+import { clock as playClock } from './anime.ts';
+import { clock, dayKey, dayName } from './history.ts';
+import { formatNumber } from './series.ts';
 
 /**
  * A browsing record on its source's preview, the pure part (doc/BROWSING.md;
@@ -8,7 +8,7 @@ import { formatNumber } from './series';
  * bar's ▶ CONTINUE, and what each row says it is.
  */
 
-export { KEEP_DAYS } from './keep';
+export { KEEP_DAYS } from './keep.ts';
 
 export type RowState = {
 	read: boolean;

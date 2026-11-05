@@ -1,6 +1,6 @@
-import { getDb } from './db';
-import { visibleWhere } from './visibility';
-import type { Kind } from '$lib/library/types';
+import { getDb } from './db.ts';
+import { visibleWhere } from './visibility.ts';
+import type { Kind } from '../library/types.ts';
 
 /**
  * Reading time, summarised from the reading log (card c443; doc/READING-LOG.md,

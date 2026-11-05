@@ -8,8 +8,8 @@ import {
 	type AuthenticationResponseJSON,
 	type RegistrationResponseJSON
 } from '@simplewebauthn/server';
-import { getDb } from './db';
-import { isRevealed, setRevealed } from './prefs';
+import { getDb } from './db.ts';
+import { isRevealed, setRevealed } from './prefs.ts';
 
 /**
  * The fingerprint gate for /reveal (doc/PRIVACY.md). Once a device is

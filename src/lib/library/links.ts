@@ -1,5 +1,5 @@
-import { FILTER_PARAMS } from './filters';
-import { bookCoverVersion } from './cover';
+import { FILTER_PARAMS } from './filters.ts';
+import { bookCoverVersion } from './cover.ts';
 import { resolve } from '$app/paths';
 
 /**
