@@ -253,10 +253,15 @@ isn't SvelteKit's (an API's JSON, a page with script off) is not waited for.
 Until wave 21 only the specs importing `tests/helpers/hydrated.ts` had this
 wait; the fixtures have it since c477, and `hydrated.ts` is now a
 pass-through of `tests/fixtures.ts` under its old name, kept for the files
-that still import it. Count them when you need the number,
-`rg -l "helpers/hydrated'" tests/ | wc -l`, rather than reading one here: a
-typed count goes stale with the next slot's file (it said eighteen until
-c562, when there were 19). `hydrated(page)` is
+that still import it. Count them when you need the number, by the import's
+closing `from` so a wrapped import counts too and a file that only mentions
+the path does not (`tests/e2e-table.spec.ts`'s fixture cases do):
+
+```sh
+rg -l "from '\./helpers/hydrated'" tests/*.e2e.ts | wc -l
+```
+
+A typed count goes stale with the next slot's file. `hydrated(page)` is
 exported from both for a page the fixture didn't make (a context of a spec's
 own: `tv-pair`'s TV). The files that do **not** take the fixture's `test`
 are the ones this prints (`-U` because Prettier wraps a long import over

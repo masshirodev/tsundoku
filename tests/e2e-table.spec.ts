@@ -242,6 +242,24 @@ describe('the e2e table', () => {
 		expect(readFileSync('doc/TESTING.md', 'utf8').split('\n')).toContain(line);
 	});
 
+	it('the doc’s count of hydrated.ts’s importers counts importers, not mentions', () => {
+		// c562 r2: `rg -l "helpers/hydrated'" tests/` also counted this spec's
+		// fixture strings and hydrated.ts's own comment (20 for 18 importers).
+		const command = String.raw`rg -l "from '\./helpers/hydrated'" tests/*.e2e.ts | wc -l`;
+		expect(readFileSync('doc/TESTING.md', 'utf8').split('\n')).toContain(command);
+		expect(readFileSync('tests/helpers/hydrated.ts', 'utf8')).toContain(command);
+		// What the command's pattern selects is exactly the files with an import
+		// statement from it, wrapped or not.
+		const counted = new RegExp(String.raw`from '\./helpers/hydrated'`);
+		const imports = /^import\s[^;]*?from\s*'\.\/helpers\/hydrated'/m;
+		const files = fixtureUse();
+		for (const name of [...files.using, ...files.not]) {
+			const text = readFileSync(`tests/${name}.e2e.ts`, 'utf8');
+			expect(counted.test(text), name).toBe(imports.test(text));
+		}
+		expect(counted.test(readFileSync('tests/e2e-table.spec.ts', 'utf8'))).toBe(true);
+	});
+
 	it('the fixtures’ count in the doc is what the generator writes from the files', () => {
 		// It was a hand-typed "77 of the 94" (wave 21), which the sibling slots'
 		// new files falsified before it could merge (e2e r2): now it is written.

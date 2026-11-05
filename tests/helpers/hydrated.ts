@@ -1,7 +1,8 @@
 /**
  * `tests/fixtures.ts` under the old name some spec files still import it by
- * (count them with `rg -l "helpers/hydrated'" tests/`; a typed count goes
- * stale with the next slot's file, c562).
+ * (count them with `rg -l "from '\./helpers/hydrated'" tests/*.e2e.ts | wc -l`,
+ * doc/TESTING.md's command; a typed count goes stale with the next slot's
+ * file, c562).
  *
  * This file added the hydration wait to `goto`, `reload`, `goBack` and
  * `goForward` for the specs that imported it (c439, wave 19), while the
