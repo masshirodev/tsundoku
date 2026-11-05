@@ -74,6 +74,7 @@
 	} from '$lib/reader/reader';
 	import { skipOffscreen } from '$lib/reader/offscreen';
 	import { stripSlotAtMiddle } from '$lib/reader/strip-slot';
+	import { leavingReader } from '$lib/reader/leaving';
 	import { OnePointer } from '$lib/reader/pointer';
 	import PageImage from './PageImage.svelte';
 	import Chrome from './Chrome.svelte';
@@ -731,8 +732,14 @@
 		// newer ask, and the turn gives way to it (c515). Turning from where that
 		// left off went one past it.
 		const from = { entry: data.entry.id, at, half, atEnd };
+		// Leaving the reader is newer too (c565): a turn landing after BACK began
+		// would go on into the next chapter, or the one before, in its place.
 		const still = () =>
-			data.entry.id === from.entry && at === from.at && half === from.half && atEnd === from.atEnd;
+			data.entry.id === from.entry &&
+			at === from.at &&
+			half === from.half &&
+			atEnd === from.atEnd &&
+			!leavingReader();
 		turning = true;
 		peek = sideOf(dir);
 		await tick();
@@ -754,7 +761,7 @@
 		turning = false;
 		const then = queued;
 		queued = null;
-		if (then) void turn(then);
+		if (then && !leavingReader()) void turn(then);
 	}
 
 	/** A drag that didn't turn: back into place. */
@@ -865,6 +872,8 @@
 		if (data.entry.id !== shown || atEnd) return;
 		clearTimeout(settle);
 		settle = setTimeout(() => {
+			// On the way out the window's entry may be the next screen's (c565).
+			if (leavingReader()) return;
 			void send('page', page);
 			// Keep the URL on the page, so a reload resumes here.
 			const url = new URL(appPage.url);
@@ -878,7 +887,11 @@
 
 	beforeNavigate(({ to }) => {
 		// Moving between chapters is not leaving: the next one sends its own open.
-		if (to?.route.id !== '/read/[entry]') void send('close', group[0]);
+		if (to?.route.id === '/read/[entry]') return;
+		// The close carries the page; a settle still to come would write the
+		// reader's URL onto the screen being opened (c565).
+		clearTimeout(settle);
+		void send('close', group[0]);
 	});
 
 	// ---- the vertical strip -------------------------------------------------------------
@@ -1021,6 +1034,9 @@
 			return;
 		}
 		if (crossing !== null) return;
+		// A strip still gliding as BACK begins: a crossing now would replace the
+		// navigation away with one back into the reader (c565).
+		if (leavingReader()) return;
 		// Onward past the band: the chapter just left is read.
 		if (chapter === data.next?.id) markFinished();
 		crossing = chapter;

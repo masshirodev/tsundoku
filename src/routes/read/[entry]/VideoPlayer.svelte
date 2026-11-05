@@ -4,6 +4,7 @@
 	import type { Json } from '$lib/settings/catalog';
 	import { onDestroy, onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { leavingReader } from '$lib/reader/leaving';
 	import { backLink, goBackTo } from '$lib/back';
 	import { resolve } from '$app/paths';
 	import { enhance } from '$app/forms';
@@ -864,7 +865,9 @@
 			count -= 1;
 			if (count <= 0) {
 				clearInterval(countTimer);
-				playNext();
+				// Not if the player is on its way out: the next episode would
+				// replace the navigation away with one back in (c565).
+				if (!leavingReader()) playNext();
 			}
 		}, 1000);
 	}

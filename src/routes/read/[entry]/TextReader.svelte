@@ -5,6 +5,7 @@
 	import { onMount, tick, untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { beforeNavigate, replaceState } from '$app/navigation';
+	import { leavingReader } from '$lib/reader/leaving';
 	import { resolve } from '$app/paths';
 	import { page as appPage } from '$app/state';
 	import type { PageData } from './$types';
@@ -891,6 +892,8 @@
 		if (!chapter || id === undefined) return;
 		clearTimeout(settle);
 		settle = setTimeout(() => {
+			// On the way out the window's entry may be the next screen's (c565).
+			if (leavingReader()) return;
 			void send('page');
 			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a one-off copy, never read reactively
 			const url = new URL(appPage.url);
@@ -904,7 +907,11 @@
 	});
 
 	beforeNavigate(({ to }) => {
-		if (to?.route.id !== '/read/[entry]') void send('close');
+		if (to?.route.id === '/read/[entry]') return;
+		// The close carries the place; a settle still to come would write the
+		// reader's URL onto the screen being opened (c565).
+		clearTimeout(settle);
+		void send('close');
 	});
 
 	/**

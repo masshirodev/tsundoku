@@ -90,6 +90,31 @@ test('a novel opens as text, turns, and carries on into the next chapter', async
 	expect(Number.isInteger(body.offset) && body.total > 1).toBe(true);
 });
 
+test('left at once, the text reader never writes its ?at= onto the series it went back to (c565)', async ({
+	page
+}) => {
+	await openBook(page);
+	// The series slower to answer than the reader's 800 ms settle (see the
+	// image reader's case in reader-flow): the timer used to fire while BACK's
+	// load was out and write /read/<id>?at= onto the series' entry.
+	await page.route('**/series/*/__data.json*', async (route) => {
+		await new Promise((r) => setTimeout(r, 1500));
+		await route.continue();
+	});
+	// A page turned just before leaving: its settle is still to come as BACK
+	// starts, whenever the book's first one fired.
+	await forward(page);
+	await middle(page);
+	await page.getByRole('link', { name: 'Back to the series' }).click();
+	await expect(page.getByRole('link', { name: /READ AGAIN|CONTINUE|START/ }).first()).toBeVisible();
+	await expect(page).toHaveURL(/\/series\/\d+(\?|$)/);
+	await page.unroute('**/series/*/__data.json*');
+	await page.reload();
+	await expect(page).toHaveURL(/\/series\/\d+(\?|$)/);
+	await page.goBack();
+	await expect(page).not.toHaveURL(/\/read\//);
+});
+
 test('the controls say where you are, and READING keeps your place as type changes', async ({
 	page
 }) => {

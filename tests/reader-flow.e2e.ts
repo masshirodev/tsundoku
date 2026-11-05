@@ -182,6 +182,41 @@ test('progress is saved: a reload resumes on the same page', async ({ page }) =>
 	await expect(meta(page)).toContainText('P. 5 OF');
 });
 
+test('left at once, the reader never writes its URL onto the series it went back to (c565)', async ({
+	page
+}) => {
+	// Incognito: nothing this case reads is stored, so CONTINUE's cases keep their page.
+	await page
+		.context()
+		.addCookies([{ name: 'tsundoku_incognito', value: '1', url: 'http://localhost' }]);
+	const id = await seriesId(page, 'Hikaru ga Shinda Natsu');
+	await page
+		.getByRole('link', { name: /▶ CONTINUE/ })
+		.first()
+		.click();
+	await readerReady(page);
+	// The series is slow to answer on the way back, as on a loaded box: longer
+	// than the 800 ms the reader waits before it keeps its page in the URL. The
+	// reader stays mounted while it loads, and its timer used to fire then and
+	// write /read/<id>?p=1 onto the series' entry, the one BACK had already
+	// moved the window to (2 in 5 at a load of 45, library-flow, wave 23).
+	await page.route(`**/series/${id}/__data.json*`, async (route) => {
+		await new Promise((r) => setTimeout(r, 1500));
+		await route.continue();
+	});
+	await tap(page, 0.5);
+	await page.getByRole('link', { name: 'Back to the series' }).click();
+	await expect(page.getByRole('link', { name: /▶ CONTINUE/ }).first()).toBeVisible();
+	await expect(page).toHaveURL(new RegExp(`/series/${id}(\\?|$)`));
+	await page.unroute(`**/series/${id}/__data.json*`);
+	// Its reload is the series, and BACK from it is the library it was opened from.
+	await page.reload();
+	await expect(page).toHaveURL(new RegExp(`/series/${id}(\\?|$)`));
+	await expect(page.getByRole('link', { name: /▶ CONTINUE/ }).first()).toBeVisible();
+	await page.goBack();
+	await expect(page).toHaveURL(/\/\?sort=title/);
+});
+
 test('the READING sheet switches mode for the session and offers REMEMBER', async ({ page }) => {
 	await seriesId(page, 'Hikaru ga Shinda Natsu');
 	await page
