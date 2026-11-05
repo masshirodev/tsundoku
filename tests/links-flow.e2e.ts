@@ -1105,6 +1105,9 @@ test.describe('a catalogue that answers', () => {
 	test('LINK N SEASONS counts a pair as one and names the season it refused (c418, round 2)', async ({
 		page
 	}) => {
+		// A walk, a second tab and a LINK: past 30 s on a box loaded past 70
+		// with four workers, at the base too (wave 24's notes), so three times it.
+		test.slow();
 		// Four seasons: 12, 23 (AniList's 12 + 11), 12, and a fourth of 10 the
 		// chain does not reach. Season 1 linked offers the pair and season 3.
 		const id = seedSeasons('Split Four Show', [12, 23, 12, 10]);
@@ -1173,6 +1176,9 @@ test.describe('a catalogue that answers', () => {
 	test('a split season with a part held elsewhere is refused whole, and says so once (c466)', async ({
 		page
 	}) => {
+		// A walk, a second tab and a LINK: past 30 s on a box loaded past 70
+		// with four workers, at the base too (wave 24's notes), so three times it.
+		test.slow();
 		// 12, 23 (AniList's 12 + 11), 12 and 11: season 1 linked offers the pair
 		// and season 3. Season 4's 11 episodes take part 2's entry meanwhile.
 		const id = seedSeasons('Split Held Show', [12, 23, 12, 11]);
@@ -1221,6 +1227,9 @@ test.describe('a catalogue that answers', () => {
 	});
 
 	test('+ A SECOND PART links a season’s part 2 by hand, FROM EP. 13 (c350)', async ({ page }) => {
+		// A walk, a second tab and a LINK: past 30 s on a box loaded past 70
+		// with four workers, at the base too (wave 24's notes), so three times it.
+		test.slow();
 		const id = seedSeasons('Hand Split Show', [12, 23]);
 		try {
 			// Season 2's part 1, by a pasted link: no relation offers anything, so
