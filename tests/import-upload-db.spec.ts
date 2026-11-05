@@ -647,11 +647,19 @@ describe('a scan asked for during a backup’s import (round 2)', () => {
 		mkdirSync(join(library, 'Mihon', 'autobackup'), { recursive: true });
 		writeFileSync(join(library, 'Mihon', 'autobackup', NAME), gzipSync(backup()));
 		const { actions } = await import('../src/routes/+page.server');
-		// What the layout's load hands the sidebar on every page (`scanWaits`).
+		// What the layout's load hands the sidebar on every page (`scanWaits`, from `scanQueued`).
 		const { scanWaitsLine } = await import('$lib/server/import');
 		const sidebar = async () => scanWaitsLine();
 		expect(await sidebar()).toBeNull();
 		const held = heldBackup();
+		// A backup's import runs and nobody has asked for a scan: no line. A
+		// scan asked for now would wait (`scanWaits`), but none is waiting, so
+		// the sidebar must not say one is (round 2's high).
+		const { scanWaits } = await import('$lib/server/import');
+		expect(scanWaits()).toBe(true);
+		expect(await sidebar()).toBeNull();
+		await new Promise((r) => setTimeout(r, 20));
+		expect(await sidebar()).toBeNull();
 		// The library page's own `?/scan` action, the one RESCAN posts.
 		const answer = await (actions.scan as () => Promise<unknown>)();
 		expect(answer).toEqual({ scanMessage: SCAN_WAITS });

@@ -309,6 +309,15 @@ export const importRunning = (): Promise<ImportSummary> | null => running;
 export const scanWaits = (): boolean => queuedScan !== null || (running !== null && !runningScan);
 
 /**
+ * Whether a scan really is queued behind a backup's import (c512, round 2):
+ * someone asked for one and it has not started. Unlike `scanWaits`, false for
+ * the whole of an IMPORT A BACKUP nobody asked a scan of. runImport sets the
+ * queue synchronously when it queues and clears it just before the scan claims
+ * its job, so this is true for exactly the wait.
+ */
+export const scanQueued = (): boolean => queuedScan !== null;
+
+/**
  * Import every device folder under `library`. One at a time: a second call
  * while a scan runs gets the running one. While a backup's import runs, the
  * scan waits its turn and then reads the folder itself (one job each), and a
@@ -623,7 +632,10 @@ export const SCAN_WAITS = 'WAITING · THE SCAN STARTS WHEN THE BACKUP’S IMPORT
 
 /**
  * RESCAN's WAITING line as the sidebar draws it (c512): the sentence while a
- * scan really waits behind a backup's import, from the queue itself, and null
- * once it has started. The layout's load hands it over on every page.
+ * scan someone asked for is queued behind a backup's import (`scanQueued`, the
+ * queue itself), and null before anyone asks and once it has started. Not
+ * `scanWaits`: that answers whether a scan asked for now would wait, which is
+ * true for a backup's whole import even when nobody pressed RESCAN (round 2).
+ * The layout's load hands it over on every page.
  */
-export const scanWaitsLine = (): string | null => (scanWaits() ? SCAN_WAITS : null);
+export const scanWaitsLine = (): string | null => (scanQueued() ? SCAN_WAITS : null);

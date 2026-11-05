@@ -208,10 +208,14 @@ writer every importer uses, into the `Mihon` root at `<library>/Mihon`
 SCAN STARTS WHEN THE BACKUP’S IMPORT ENDS` (`SCAN_WAITS`), and `/api/scan`
   answers `waiting: true`. **RESCAN's line in the sidebar is the queue's own
   state** (c512): the layout's load hands it over (`scanWaitsLine`, so
-  `scanWaits` on the layout's data) while a scan really waits, the sidebar
-  asks that load again every two seconds while it does
-  (`invalidate('tsundoku:scan')`), and the line goes once the scan has
-  started. Until wave 23 it was the action's answer, kept until the next
+  `scanWaits` on the layout's data) while a scan someone asked for is queued
+  behind a backup's import (`scanQueued`: the queue is set when the scan
+  queues and cleared just before it starts), the sidebar asks that load again
+  every two seconds while it is (`invalidate('tsundoku:scan')`), and the line
+  goes once the scan has started. A backup's import that nobody asked a scan
+  of draws no line: `scanWaits()`, true for that import's whole run, answers
+  only whether a scan asked for _now_ would wait (`startScan`'s `waiting`),
+  and the sidebar does not read it (wave 23, round 2). Until wave 23 it was the action's answer, kept until the next
   press, so it stayed as a `role=status` line on every page after the scan
   had run. A refusal (nothing to import) is still the action's answer. Only a running _scan_ is joined, by a second scan;
   a second scan asked for while one waits joins the waiting one. `runImport`

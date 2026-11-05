@@ -101,10 +101,11 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends, request
 		// RESCAN's question says roughly how long the last scan took (c525).
 		lastScanMs: lastScanTook(),
 		computer,
-		// RESCAN's WAITING note (c512): drawn while a scan really waits behind a
-		// backup's import, from the server's own queue, so it goes once the scan
-		// starts instead of staying until the next press. The sidebar re-asks
-		// this load alone ('tsundoku:scan') while it is set.
+		// RESCAN's WAITING note (c512): drawn while a scan someone asked for is
+		// queued behind a backup's import (`scanQueued`, the server's own queue),
+		// never for a backup's import alone, and gone once the scan starts
+		// instead of staying until the next press. The sidebar re-asks this
+		// load alone ('tsundoku:scan') while it is set.
 		scanWaits: scanWaitsLine()
 	};
 };

@@ -52,12 +52,13 @@
 	// The scan action's refusal is drawn by the empty library only, so the
 	// sidebar's RESCAN says it in its own place rather than nowhere. A scan
 	// that waits behind a backup's import is not a refusal: its WAITING line
-	// is the server's state (`data.scanWaits`, c512), drawn while it holds and
-	// gone once the scan starts, where the action's answer stayed until the
-	// next press, on every page.
+	// is the server's state (`data.scanWaits`, c512): set only while a scan
+	// someone asked for is queued behind a backup's import (not for the
+	// import alone), and gone once the scan starts, where the action's answer
+	// stayed until the next press, on every page.
 	let rescanNote = $state('');
 	const rescanShown = $derived(data.scanWaits ?? rescanNote);
-	// Only this load is asked again, every two seconds, while the scan waits:
+	// Only this load is asked again, every two seconds, while a scan is queued:
 	// no other page follows the queue, and the line must not outlive the wait.
 	$effect(() => {
 		if (!data.scanWaits) return;
