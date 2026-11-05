@@ -61,7 +61,7 @@ address.
 - **A code** (`src/lib/server/pairing.ts`): one at a time, in memory, 10
   minutes, one phone, once. Its link is `/pair/<code>` (96 random bits). It
   makes the phone a **paired device**: a random token in its cookie
-  (`tsundoku_paired`), its SHA-256 in `paired_devices` (v54), the address it
+  (`tsundoku_paired_<port>`, named for the origin: below), its SHA-256 in `paired_devices` (v54), the address it
   was paired at, and, once its browser checks in, its DEVICES row. SIGN OUT on
   that row deletes the pairing: at once, no confirm; a new code brings it back.
 - **The typed address** opens the sign-in page. With a password set, the
@@ -72,6 +72,18 @@ address.
 - **SET UP** answers only on the computer, and Wi-Fi can't be on before it.
 - **Off** stops the listening; paired phones stay paired, and are back when
   it's on again at the same address.
+- **One paired cookie per origin** (c530). A browser's jar scopes a cookie
+  by host, not port or scheme, so the cookie is named for the origin it
+  pairs: `tsundoku_paired_<port>`, with an `s` before the port for https
+  (`pairedCookie` in `src/lib/server/pairing.ts`). Two tsundoku on one
+  computer then keep their own pairing on a device that has both. Every
+  reader goes through `readPaired` (the hook's two doors and `/pair/tv`) or
+  `pairedToken` (`/api/devices/sync`), and both writers (`/pair/<code>` and
+  `/pair/tv`) set the per-origin name. A device paired before c530 carries
+  the one name every server used, `tsundoku_paired`: the server that set it
+  signs it in by it and moves it to its own name on that first request
+  (expiring the old one with the options it was set with), and any other
+  server leaves it alone. `report-scrub.ts` scrubs every paired name.
 - **A new address** (the router's choice): the phone's cookie belongs to the
   old one, so it has to scan again. The panel's band says old → new while a
   phone is still paired at the old one, and those rows say PAIRED AT … · SCAN
@@ -104,9 +116,9 @@ one at a time.
   one, or reloaded the page's data to get one, would undo the burn within a
   tick, and with SETTINGS in front five wrong tries would lock no one out.
   A new code comes from NEW CODE or from opening SETTINGS again (or any
-  change made on the page, which reloads its data the way opening it does);
-  that is `/pair/tv`'s rule too, whose `ensureCode` never replaces a spent
-  code. Focus alone was not enough: the owner usually keeps SETTINGS in front
+  change made on the page, which reloads its data the way opening it does),
+  and from the TV itself when the code has merely run out (`/pair/tv`,
+  "Never a dead end" below); a burned code only from the computer. Focus alone was not enough: the owner usually keeps SETTINGS in front
   while typing on the TV. An answer is about the code the row showed when it
   asked: one that lands after NEW CODE (or any reload of the page's data) is
   the old code's, burned or used, and is dropped rather than drawn over the
@@ -147,8 +159,24 @@ one at a time.
   here; the rule stays shut.
 - **The app's own screens** before that — 9A, 9B and 9D — are in the APK,
   which finds the computer by probing its web app manifest and remembers the
-  address that answered. A TV that opens `/pair/tv` before anyone opened
-  SETTINGS gets a code made for it, so it is never a dead end.
+  address that answered.
+- **Never a dead end** (c246; the owner's (b), 2026-11-04). A TV that is not
+  paired and opens `/pair/tv` with nothing it can type gets a code made for it
+  (`TvPairing.renewForTv`): when there is none yet, when the only one has
+  merely expired (the first real TV found one 25 minutes old), and when it was
+  used more than the 2 minutes the computer keeps ✓ USED up (by another
+  device, or by this TV before it was signed out). A **burned** code is kept,
+  even once its 10 minutes have run out (when `state` says `expired`): five
+  wrong tries need the computer, and the page says NO TRIES LEFT · MAKE A NEW
+  CODE ON THE COMPUTER. A code made this way **keeps the old one's wrong
+  tries**: only the owner's doors (NEW CODE, ON, opening SETTINGS) give five
+  again, so opening `/pair/tv` every 10 minutes buys no more guesses than
+  before. Digits typed after their code ran out get THAT CODE EXPIRED · THE
+  NEW ONE IS ON THE COMPUTER: the page has just made it. The computer's
+  WI-FI panel shows it on its next 5 s poll; the DEVICES row shows it on its
+  next refresh (focus, or the page shown again), since its 5 s poll stops
+  once the code it shows is no longer live (`doc/handoff-notes/tv-app.md`,
+  wave 22, Gaps).
 - **The TV in DEVICES** is named by its user agent: the app appends
   `TsundokuTV/<version>`, and `pairedLabel` reads that as "Android TV ·
   Chrome"; `/api/devices/sync` also keeps its kind as `tv` (rung 59, c244).
@@ -185,7 +213,9 @@ one at a time.
   check every TV door asks (`tvBlockHere`, which asks the listeners,
   `wifiStatus()`, rather than building the view), and SETTINGS opened on a
   phone over Wi-Fi, which is shown no code and so makes none. `/pair/tv`
-  makes one only when there is none at all. Until c460 the poll and the door
+  makes one when there is none, or the only one has merely expired or was
+  used over 2 minutes ago, never over a burned one, and with the old one's
+  wrong tries (c246, above). Until c460 the poll and the door
   check replaced a spent code too, so with the panel open five wrong guesses
   bought five more every 5 s. The page's data does reload (and so renew) when
   a phone pairs or any setting on the page changes, both of which take the
@@ -254,6 +284,7 @@ reload when a phone pairs does renew), a foreign Host refused over
 Wi-Fi, SIGN OUT, and OFF closing the door while localhost goes on. The
 handoff's measurements are pinned there. The TV's code has its own:
 `tests/pairing-tv.spec.ts` (once, 10 minutes, five tries, every answer,
+`renewForTv` over every state and the tries it carries,
 `tailnetDoor`: the public host opens, loopback and no origin never do,
 `tvBlockFor`: the DEVICES row is the token install's only and never without a
 door, `tvDoor` reading `ORIGIN` as the hook does, and `friendPaired`: a
@@ -270,6 +301,12 @@ that first ask held, c461) and
 `tests/tv-pair.e2e.ts` (the computer's `/pair/tv` on the `tv` project: a wrong
 code, the tries left, the right one landing on 9E, five wrong ones burning
 it; with no WI-FI panel, the six digits in DEVICES and NEW CODE; a request
-carrying only `tsundoku_paired` reaching `/` and `/settings` on the tailnet
-host and landing on `/login` at localhost); `friend-wifi.e2e.ts` also pins
+carrying only the paired cookie reaching `/` and `/settings` on the tailnet
+host and landing on `/login` at localhost),
+`tests/tv-pair-origins.e2e.ts` (servers of its own with their clocks moved:
+an expired code made new by `/pair/tv` and paired, a used one kept for ✓
+USED's 2 minutes, a burned one kept past its 10 minutes, c246; two servers
+on one host each keeping its own pairing, and the old name moved, c530),
+`tests/pairing-origins.spec.ts` (the per-origin names, the move from the old
+one, the scrub); `friend-wifi.e2e.ts` also pins
 the panel's FOR A TV digits.
