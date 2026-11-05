@@ -54,7 +54,9 @@ database (rung 0) has nothing to lose, so it's never copied.
 
 `ops/systemd/` holds a user service and timer: 04:00 every night, `Persistent`
 so a night the workstation was off is made up at the next boot, at idle I/O
-priority. The service calls mise's `node` shim directly, so it doesn't need a
+priority. After a snapshot it sweeps `$COVER_DIR/episodes/` of
+the pictures and seek-preview sprites of entries that are gone (doc/ANIME.md,
+"Episode pictures": the nightly sweep, c454). The service calls mise's `node` shim directly, so it doesn't need a
 login shell. To install:
 
 ```sh
