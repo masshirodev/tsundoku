@@ -52,6 +52,7 @@
 		kindCells,
 		matches,
 		NO_FILTERS,
+		parseFilters,
 		withFilters,
 		type FilterKind,
 		type Filters
@@ -420,7 +421,16 @@
 	export const snapshot: Snapshot<{ key: string; more: LibraryCard[]; y: number }> = {
 		capture: () => ({ key: listKey, more: more.slice(0, 4000), y: leftAt ?? scrollY }),
 		restore: async (v) => {
-			if (!v || v.key !== listKey || v.more.length === 0) return;
+			if (!v || v.key !== listKey) return;
+			// Only the first page was loaded: no pages to put back, but the place
+			// all the same. SvelteKit's own is read once the next screen's data
+			// is in, and a load slow enough to outline the grid has moved the
+			// page by then (a shelf left from under the bar came back at the
+			// top, c589).
+			if (v.more.length === 0) {
+				settleScroll(v.y);
+				return;
+			}
 			generation += 1;
 			shownKey = v.key;
 			const have = new Set(data.series.map((c) => c.id));
@@ -852,35 +862,6 @@
 		(waiting.phase === 'outline' || waiting.phase === 'stalled') && waiting.to.kind === 'library'
 	);
 
-	/*
-	 * The outline says LOADING where SORT and ↓ / ↑ were, so a sort picked by
-	 * the remote that takes past 1 s unmounted the cell holding focus, and the
-	 * mark was on nothing when SORT came back (tv-library-top's "the remote
-	 * reaches SORT…", red 4 in 10 loaded; wave 24's probe saw focus go to the
-	 * body at the outline's first frame and stay there). Which of the two had
-	 * it is noted before the outline is drawn (`pre`), and focus goes back to
-	 * it once SORT is, unless something else has taken focus meanwhile.
-	 */
-	let sortFocus = -1;
-	$effect.pre(() => {
-		if (!outlined) return;
-		untrack(() => {
-			const sort = document.querySelector('.sort');
-			const at = document.activeElement;
-			sortFocus =
-				sort && at ? [...sort.querySelectorAll('button')].indexOf(at as HTMLButtonElement) : -1;
-		});
-	});
-	$effect(() => {
-		if (outlined || sortFocus === -1) return;
-		const at = sortFocus;
-		sortFocus = -1;
-		const now = document.activeElement;
-		if (now && now !== document.body) return;
-		const buttons = document.querySelectorAll<HTMLElement>('.sort button');
-		(buttons[at] ?? buttons[0])?.focus({ preventScroll: true });
-	});
-
 	// ---- on the tile ------------------------------------------------------
 	// FAV and the rating are edited on the cover itself (see CoverTile). The
 	// tile shows the change at once and saves behind it. A write that fails
@@ -1147,13 +1128,56 @@
 		// A click that opens a new tab or window navigates nothing here.
 		const elsewhere = e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey;
 		landKind = bandPinned && !elsewhere;
+		// The kind's own landing replaces any FILTER note (c557's round 2).
+		landFilterFrom = null;
 	}
 	afterNavigate(() => {
 		if (!landKind) return;
 		landKind = false;
+		landAtBand();
+	});
+	/** The band's own place: the band under the bar, the grid's first row under the band. */
+	function landAtBand() {
 		// A slow load draws the outline first, and a scroll then lands short:
 		// settled each frame until the grid is drawn and the page is there.
 		settleScroll(() => Math.max(0, placeUnderBar(bandMark)), true);
+	}
+
+	/**
+	 * A choice made in FILTER while the band is pinned (c557; FILTER at the
+	 * band's end, or the desktop's in the top bar): its links keep the scroll
+	 * as the band's cells do, so mid-grid the new results opened partway down
+	 * their list. It lands as a kind does. Noted with the page it was made on,
+	 * and kept to one navigation: it lands only when that page is the one
+	 * left, by a link or a goto (not BACK), and the filters really changed,
+	 * so a choice already on leaves the page where it is. Unpinned, nothing
+	 * moves. The rating blocks' own links scroll to the top, and land the
+	 * same way.
+	 *
+	 * The note lives only as long as the press or key that made it (round 2):
+	 * a press on the blocks that navigates nothing (a right-click, a key the
+	 * slider ignores, a cancelled drag) left it waiting for the next
+	 * navigation, and a kind cell clicked later from the unpinned band then
+	 * jumped to the band. So every new press or key anywhere drops it first
+	 * (the window's capture runs before the panel's, which notes it again
+	 * when that press is itself a choice), and a kind cell replaces it.
+	 */
+	let landFilterFrom: string | null = null;
+	function chooseFilter(e?: MouseEvent) {
+		const elsewhere = !!e && (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey);
+		landFilterFrom = bandPinned && !elsewhere ? location.href : null;
+	}
+	function dropFilterNote() {
+		landFilterFrom = null;
+	}
+	afterNavigate((nav) => {
+		const from = landFilterFrom;
+		landFilterFrom = null;
+		if (!from || !nav.from || !nav.to || nav.from.url.href !== from) return;
+		if (nav.type !== 'link' && nav.type !== 'goto') return;
+		const filtersOf = (u: URL) => JSON.stringify(filterParams(parseFilters(u.searchParams, true)));
+		if (filtersOf(nav.from.url) === filtersOf(nav.to.url)) return;
+		landAtBand();
 	});
 
 	const newOpen = $derived(page.url.searchParams.get('new') === 'shelf');
@@ -1262,7 +1286,12 @@
 
 <svelte:head><title>tsundoku</title></svelte:head>
 
-<svelte:window bind:scrollY={winY} bind:innerHeight={winH} />
+<svelte:window
+	bind:scrollY={winY}
+	bind:innerHeight={winH}
+	onpointerdowncapture={dropFilterNote}
+	onkeydowncapture={dropFilterNote}
+/>
 
 <div class="library" class:selecting class:has-band={!!batch}>
 	{#if modalOpen && offer}<UpdateModal {offer} onlater={snooze} />{/if}
@@ -1374,6 +1403,7 @@
 							href={filterHref}
 							formAction={resolve('/')}
 							keep={keepParams}
+							onchoose={chooseFilter}
 						/>
 					</div>
 				{/if}
@@ -1714,12 +1744,15 @@
 				{#if nFilters > 0}<span class="desk-count">{outOf} ·&nbsp;</span>{/if}
 				{#if selecting}
 					TAP TO ADD
-				{:else if outlined}
-					LOADING
 				{:else if scanning}
-					NEWEST FIRST
+					{outlined ? 'LOADING' : 'NEWEST FIRST'}
 				{:else}
-					<span class="sort">
+					<!-- A sort past 1 s outlines the grid: SORT stays drawn, dimmed, with
+					     LOADING beside it, so the cell holding focus never leaves the page
+					     (c560; until then LOADING took its place and the mark fell to the
+					     body for as long as the outline lasted). -->
+					{#if outlined}<span class="loading">LOADING</span>{/if}
+					<span class="sort" class:busy={outlined} aria-busy={outlined}>
 						<ChoiceMenu label="Sort" choices={SORT_CHOICES} value={data.sort} onpick={sortTo} />
 						{#if data.sort !== 'random'}
 							<button type="button" class="dir" onclick={flipDir} aria-label="Reverse order"
@@ -1805,6 +1838,7 @@
 							href={filterHref}
 							formAction={resolve('/')}
 							keep={keepParams}
+							onchoose={chooseFilter}
 						/>
 					</div>
 				{/if}
@@ -2385,6 +2419,19 @@
 		display: flex;
 		flex-shrink: 0;
 	}
+	/* An open menu is over everything in the page's flow (c590), and still
+	   under the top bar (8) and its sheets (20). SORT's list is 7 in the same
+	   stacking context as the band (no ancestor between them makes one: the
+	   section label and the SORT block are not stacked), so the band, at 7
+	   later in the page (9 on a TV), drew over the list. Raising the list
+	   would lift it over the top bar too, so while it is open the band steps
+	   down to 6: still over the grid, whose highest layer is 3. FILTER's
+	   panel needs nothing: on a phone, tablet and TV it is inside the band's
+	   own context, on the desktop inside the top bar's (8). A TV's focus line
+	   (9) is not drawn while either menu has focus (no data-focus-line). */
+	.library:has(.sort :global(.menu > .cell[aria-expanded='true'])) .kinds {
+		z-index: 6;
+	}
 	/* The phone drops the KIND label for room, and has the shelf's cell only pinned. */
 	@media (max-width: 599px) {
 		.klabel:not(.shelf) {
@@ -2416,6 +2463,13 @@
 		height: 32px;
 		border: 1px solid var(--line-2);
 		color: var(--text-1);
+	}
+	/* Loading (c560): still there and still the cell focus is on, dimmed. */
+	.sort.busy {
+		opacity: 0.5;
+	}
+	.loading {
+		margin-right: 12px;
 	}
 	.sort .dir {
 		display: flex;

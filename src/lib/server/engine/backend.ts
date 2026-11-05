@@ -35,7 +35,7 @@ import { familyOfKind } from './repo-index.ts';
 import { hideIfAddedHidden, sourcesWith } from './source-flags.ts';
 import { extensionFor, preferences } from './extensions.ts';
 import { splitMemo } from './protocol.ts';
-import { chapterName } from './device.ts';
+import { chapterName, namesOf, numbersUnderNames } from './device.ts';
 import * as queue from './queue.ts';
 import { resolveSeries } from './worker.ts';
 import { keepOrPromote } from '../browsing.ts';
@@ -708,15 +708,18 @@ export async function addNewChapters(
 	d: Database.Database = db()
 ): Promise<{ arrived: Arrived[]; read: Set<string> } | null> {
 	const s = d
-		.prepare(`SELECT id, root_id, title, origin_key FROM series WHERE id = ?`)
+		.prepare(`SELECT id, root_id, title, alt_titles, origin_key FROM series WHERE id = ?`)
 		.get(seriesId) as
-		{ id: number; root_id: number; title: string; origin_key: string | null } | undefined;
+		| { id: number; root_id: number; title: string; alt_titles: string; origin_key: string | null }
+		| undefined;
 	const key = parseKey(s?.origin_key ?? null);
 	if (!s || !key || !extensionFor(key.sourceId)) return null;
 	const fresh: EngineChapter[] = await resolveSeries(seriesId, { db: d, now: () => now }, true);
 	if (fresh.length === 0) return null;
-	const numbers = chapterNumbers(
-		s.title,
+	// Read under every name the series has had (c555): one new chapter named
+	// "Squad 100 4" by a series renamed from Squad 100 was chapter 100.
+	const numbers = numbersUnderNames(
+		namesOf(s.title, s.alt_titles),
 		fresh.map((c) => ({ name: c.name, number: c.chapter_number }))
 	);
 	const manga: MihonManga = {

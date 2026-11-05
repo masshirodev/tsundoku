@@ -31,7 +31,11 @@ const { renameSeries, undoRenameSeries, RenameError, seriesPage } =
 const { groupIntoSeries } = await import('$lib/server/books');
 const { refreshCovers } = await import('$lib/server/covers');
 const { sampleEpub } = await import('$lib/server/pages/sample-epub');
-const { WEEB, backup, cbz, comicInfo, writeMihonFolder } = await import('./helpers/mihon-fixture');
+const { ASURA, WEEB, backup, cbz, comicInfo, writeMihonFolder } =
+	await import('./helpers/mihon-fixture');
+const { search } = await import('$lib/server/library');
+const { libraryIndex } = await import('$lib/server/library-sources');
+const { resolveSeries } = await import('$lib/server/engine/worker');
 
 const library = join(scratch, 'library');
 const mihon = writeMihonFolder(join(library, 'devices', 'tsundoku'));
@@ -53,6 +57,15 @@ const row = (id: number) =>
 		`SELECT title, alt_titles, hue, origin_key FROM series WHERE id = ?`,
 		id
 	);
+/** A title with a number in it, which a source's chapter names repeat (c555). */
+const SQUAD = 'Squad 100';
+/** Another source's series, called what Drawing is called now (c555). */
+const TWIN_KEY = `mihon:${ASURA}:/series/TW/Twin`;
+/** A key of no source in the library, of the manga family: what browse asks `sameTitle` with. */
+const ELSEWHERE = 'mihon:999:/series/elsewhere';
+/** What the readers of a title answered before the rename (c555). */
+let before: { search: { id: number; why: string }[]; sameTitle: string | undefined };
+const found = (q: string) => search(q, false).titles.map((t) => ({ id: t.id, why: t.why }));
 const titled = (title: string) =>
 	one<{ n: number }>(`SELECT COUNT(*) AS n FROM series WHERE title = ?`, title).n;
 
@@ -73,6 +86,22 @@ beforeAll(async () => {
 			asked.push(b.method);
 			const json = (v: unknown) =>
 				res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(v));
+			// c555: Squad 100's source names its chapters after the title it
+			// gave the series, gives no numbers (as a 1.6 source gives -1) and
+			// has moved their URLs, so only the names can say which is which.
+			if (b.mangaData?.url?.includes('/series/SQ/')) {
+				if (b.method === 'getDetailsManga')
+					return json({ url: b.mangaData.url, title: SQUAD, author: 'A', status: 1 });
+				if (b.method === 'getChapterList')
+					return json(
+						[2, 1].map((n) => ({
+							url: `/moved/SQ${n}`,
+							name: `${SQUAD} ${n}`,
+							scanlator: null,
+							chapter_number: -1
+						}))
+					);
+			}
 			if (b.method === 'getDetailsManga')
 				return json({ url: b.mangaData?.url ?? '', title: DRAWING, author: 'A', status: 1 });
 			if (b.method === 'getChapterList')
@@ -105,6 +134,10 @@ beforeAll(async () => {
 	);
 	lantern = groupIntoSeries({ seriesIds: vols, name: 'Lantern', now: 1_800_000_001_000 }).seriesId;
 	hues = { drawing: row(drawing).hue, lantern: row(lantern).hue };
+	before = {
+		search: found('Saikyou'),
+		sameTitle: libraryIndex(false).sameTitle(ELSEWHERE, DRAWING)
+	};
 	renameSeries(drawing, 'Drawing (my name)');
 	renameSeries(lantern, '  The   Lantern Books ');
 });
@@ -264,5 +297,142 @@ describe('UNDO', () => {
 		const again = renameSeries(lantern, 'Posted Twice');
 		undoRenameSeries({ ...again, altTitles: JSON.stringify(['Kept', 7, null]) });
 		expect(JSON.parse(row(lantern).alt_titles)).toEqual(['Kept']);
+	});
+});
+
+describe('a renamed series is still found by the name it had (c555)', () => {
+	it('the library’s search finds it by its old name, and says that is why', () => {
+		// Before: found by its title. After: the same series, by the old name.
+		expect(before.search).toEqual([{ id: drawing, why: 'TITLE' }]);
+		expect(found('Saikyou')).toEqual([{ id: drawing, why: `ALSO ${DRAWING}` }]);
+		// The new name finds it as its title, and a query spanning two names
+		// or the list's own JSON finds nothing: each name is matched alone.
+		expect(found('my name')).toEqual([{ id: drawing, why: 'TITLE' }]);
+		expect(found('Mangaka","')).toEqual([]);
+		expect(found('["')).toEqual([]);
+	});
+
+	it('browse’s IN LIBRARY hint still knows the old name as this source’s', () => {
+		expect(before.sameTitle).toBe(String(WEEB));
+		expect(libraryIndex(false).sameTitle(ELSEWHERE, DRAWING)).toBe(String(WEEB));
+		// And the new one.
+		expect(libraryIndex(false).sameTitle(ELSEWHERE, 'Drawing (my name)')).toBe(String(WEEB));
+	});
+
+	it('a source whose chapter names carry the old title matches and numbers them as before', async () => {
+		// Squad 100 from Weeb Central, with its first chapter, and a twin from
+		// Asura Scans that an import calls by Drawing's new name.
+		const squad: Msg = [
+			[1, WEEB],
+			[2, '/series/SQ/Squad'],
+			[3, SQUAD],
+			[
+				16,
+				[
+					[1, '/chapters/SQ1'],
+					[2, `${SQUAD} 1`],
+					[9, { f32: 1 }]
+				]
+			],
+			[17, 1]
+		];
+		const twin: Msg = [
+			[1, ASURA],
+			[2, '/series/TW/Twin'],
+			[3, 'Drawing (my name)'],
+			[17, 1]
+		];
+		writeFileSync(
+			join(mihon, 'autobackup', 'app.mihon_2026-11-05_08-00.tachibk'),
+			gzipSync(backup([], [squad, twin]))
+		);
+		await runImport(library, { now: 1_800_000_400_000, covers: false });
+		const sq = one<{ id: number }>(
+			`SELECT id FROM series WHERE origin_key = ?`,
+			`mihon:${WEEB}:/series/SQ/Squad`
+		).id;
+		const deps = { db, now: () => 1_800_000_500_000 };
+		const links = () =>
+			db
+				.prepare(
+					`SELECT e.position, c.engine_url FROM engine_chapters c JOIN entries e ON e.id = c.entry_id
+					WHERE e.series_id = ? ORDER BY e.position`
+				)
+				.all(sq);
+
+		// Before the rename: chapter 1 is the entry; chapter 2 is new.
+		const was = (await resolveSeries(sq, deps, true)).map((c) => c.url);
+		const wasLinks = links();
+		expect(wasLinks).toEqual([{ position: 1, engine_url: '/moved/SQ1' }]);
+		expect(was).toEqual(['/moved/SQ2']);
+
+		db.prepare(
+			`DELETE FROM engine_chapters WHERE entry_id IN (SELECT id FROM entries WHERE series_id = ?)`
+		).run(sq);
+		renameSeries(sq, 'My Squad');
+		// The source still says "Squad 100 2": the 100 is not the chapter.
+		expect((await resolveSeries(sq, deps, true)).map((c) => c.url)).toEqual(was);
+		expect(links()).toEqual(wasLinks);
+
+		// REFRESH adds the new one as chapter 2, not chapter 100.
+		const { refreshSeries } = await import('$lib/server/refresh');
+		expect(await refreshSeries(sq, 1_800_000_600_000)).toEqual({ kind: 'manga', added: 1 });
+		const positions = db
+			.prepare(`SELECT position FROM entries WHERE series_id = ? ORDER BY position`)
+			.all(sq);
+		expect(positions).toEqual([{ position: 1 }, { position: 2 }]);
+		expect(row(sq).title).toBe('My Squad');
+	});
+
+	it('a title that is another series’ old name: the hint names the titled one’s source', () => {
+		const tw = one<{ id: number }>(`SELECT id FROM series WHERE origin_key = ?`, TWIN_KEY).id;
+		// Asura's twin is renamed after Drawing was: its old name, Drawing's
+		// title, now sits in its alternatives, later in the library than
+		// Drawing's own title.
+		renameSeries(tw, 'Twin Renamed');
+		expect(tw).toBeGreaterThan(drawing);
+		expect(libraryIndex(false).sameTitle(ELSEWHERE, 'Drawing (my name)')).toBe(String(WEEB));
+		// Search: the one titled so first, then the one that was.
+		expect(found('Drawing (my name)')).toEqual([
+			{ id: drawing, why: 'TITLE' },
+			{ id: tw, why: 'ALSO Drawing (my name)' }
+		]);
+	});
+
+	it('renamed twice it answers to both old names; UNDO makes the old name a title again, not also an alternative', () => {
+		const sq = one<{ id: number }>(
+			`SELECT id FROM series WHERE origin_key = ?`,
+			`mihon:${WEEB}:/series/SQ/Squad`
+		).id;
+		const facts = renameSeries(sq, 'Squad Again');
+		expect(JSON.parse(row(sq).alt_titles)).toEqual([SQUAD, 'My Squad']);
+		expect(found(SQUAD)).toEqual([{ id: sq, why: `ALSO ${SQUAD}` }]);
+		expect(found('My Squad')).toEqual([{ id: sq, why: 'ALSO My Squad' }]);
+		expect(libraryIndex(false).sameTitle(ELSEWHERE, 'My Squad')).toBe(String(WEEB));
+		undoRenameSeries(facts);
+		expect(row(sq).title).toBe('My Squad');
+		expect(JSON.parse(row(sq).alt_titles)).toEqual([SQUAD]);
+		expect(found('My Squad')).toEqual([{ id: sq, why: 'TITLE' }]);
+		expect(found('Squad Again')).toEqual([]);
+	});
+
+	it('a column that is not a list of names is no names, and never breaks the search', () => {
+		const before = row(lantern).alt_titles;
+		for (const bad of ['not json', '{"old":"Zephyr Lantern"}', '"Zephyr Lantern"', '[7, null]']) {
+			db.prepare(`UPDATE series SET alt_titles = ? WHERE id = ?`).run(bad, lantern);
+			expect(found('Zephyr')).toEqual([]);
+			expect(libraryIndex(false).sameTitle(ELSEWHERE, 'Zephyr Lantern')).toBeUndefined();
+		}
+		db.prepare(`UPDATE series SET alt_titles = ? WHERE id = ?`).run(before, lantern);
+	});
+
+	it('UNDO puts the old name back exactly as it was stored, spaces included', () => {
+		db.prepare(`UPDATE series SET title = ? WHERE id = ?`).run('  Spaced  Name ', lantern);
+		const facts = renameSeries(lantern, 'Tidy');
+		undoRenameSeries(facts);
+		expect(row(lantern).title).toBe('  Spaced  Name ');
+		expect(() => undoRenameSeries({ ...renameSeries(lantern, 'X'), title: ' \t ' })).toThrow(
+			'A SERIES NEEDS A NAME'
+		);
 	});
 });

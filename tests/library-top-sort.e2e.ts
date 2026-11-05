@@ -146,3 +146,71 @@ test('on a keyboard: Enter opens it on the choice in use, the arrows walk, Enter
 	await expect(cell(page)).toBeFocused();
 	await expect(page).toHaveURL(/sort=title/);
 });
+
+test.describe('a sort that takes past 1 s (c560)', () => {
+	// The service worker answers `__data.json` itself once it controls the
+	// page, past page.route (doc/TESTING.md, "Load").
+	test.use({ serviceWorkers: 'block' });
+
+	test('SORT stays drawn, dimmed, beside LOADING, and focus stays on the cell all through the outline', async ({
+		page
+	}) => {
+		await page.goto('/?shelf=all&sort=added');
+		// The data for the pick held 2.5 s: the outline goes up at 1 s.
+		await page.route('**/__data.json?*sort=title*', async (route) => {
+			await new Promise((r) => setTimeout(r, 2500));
+			await route.continue().catch(() => undefined);
+		});
+		await cell(page).focus();
+		await page.keyboard.press('Enter');
+		await expect(menu(page)).toBeVisible();
+		await page.keyboard.press('ArrowDown');
+		await page.keyboard.press('ArrowDown');
+		// Every frame from the pick on: is LOADING drawn, and where is focus.
+		await page.evaluate(() => {
+			const w = window as unknown as { seen: { loading: boolean; on: string }[] };
+			w.seen = [];
+			const frame = () => {
+				const loading = [...document.querySelectorAll('.right')].some((r) =>
+					r.textContent?.includes('LOADING')
+				);
+				const a = document.activeElement;
+				w.seen.push({ loading, on: a?.closest('.sort') ? 'sort' : (a?.tagName ?? 'none') });
+				if (w.seen.length < 100_000) requestAnimationFrame(frame);
+			};
+			requestAnimationFrame(frame);
+		});
+		await page.keyboard.press('Enter');
+		await expect(page.getByText('LOADING', { exact: true })).toBeVisible();
+		await expect(page.locator('.sort')).toHaveAttribute('aria-busy', 'true');
+		await expect(page.locator('.sort')).toHaveCSS('opacity', '0.5');
+		await expect(cell(page)).toBeFocused();
+		// Both fit the label's line on every device, the phone's 390px
+		// included: nothing off the screen's edge, nothing over the label's text.
+		const fit = await page.locator('.sort').evaluate((sort) => {
+			const label = sort.closest('.right')!.parentElement!;
+			const text = label.firstElementChild!.getBoundingClientRect();
+			const right = sort.closest('.right')!.getBoundingClientRect();
+			return {
+				edge: innerWidth - sort.getBoundingClientRect().right,
+				gap: right.left - text.right
+			};
+		});
+		expect(fit.edge).toBeGreaterThanOrEqual(0);
+		expect(fit.gap).toBeGreaterThanOrEqual(0);
+		await expect(page).toHaveURL(/sort=title/);
+		await expect(page.locator('.sort')).not.toHaveAttribute('aria-busy', 'true');
+		await expect(cell(page)).toHaveAccessibleName('Sort, TITLE');
+		await expect(cell(page)).toBeFocused();
+		const seen = await page.evaluate(
+			() => (window as unknown as { seen: { loading: boolean; on: string }[] }).seen
+		);
+		expect(seen.filter((f) => f.loading).length, 'frames under LOADING').toBeGreaterThan(0);
+		expect(seen.filter((f) => f.on !== 'sort').map((f) => f.on)).toEqual([]);
+		// And the keys still answer at once: Enter opens the menu on the new sort.
+		await page.keyboard.press('Enter');
+		await expect(menu(page)).toBeVisible();
+		await expect(menu(page).getByRole('menuitemradio', { checked: true })).toHaveText('TITLE');
+		await page.keyboard.press('Escape');
+	});
+});

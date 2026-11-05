@@ -1,6 +1,7 @@
 import { getDb } from './db.ts';
 import { IN_LIBRARY_SQL, libraryWhere, VISIBLE_SQL } from './visibility.ts';
 import { sourcesWith } from './engine/source-flags.ts';
+import { namesOf } from './engine/device.ts';
 import {
 	mostlyHidden,
 	normTitle,
@@ -52,7 +53,7 @@ const familyOf = (key: string) => key.slice(0, key.indexOf(':'));
 export function libraryIndex(reveal: boolean) {
 	const rows = getDb()
 		.prepare(
-			`SELECT s.id, s.title, s.origin_key AS k, NOT ${VISIBLE_SQL} AS hidden,
+			`SELECT s.id, s.title, s.alt_titles AS alts, s.origin_key AS k, NOT ${VISIBLE_SQL} AS hidden,
 				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0) AS total,
 				(SELECT COUNT(*) FROM entries e WHERE e.series_id = s.id AND e.shadowed = 0 AND e.available = 1) AS have
 			FROM series s JOIN roots r ON r.id = s.root_id WHERE ${IN_LIBRARY_SQL} AND (s.origin_key LIKE 'mihon:%' OR s.origin_key LIKE 'lnreader:%' OR s.origin_key LIKE 'aniyomi:%')`
@@ -60,6 +61,7 @@ export function libraryIndex(reveal: boolean) {
 		.all() as {
 		id: number;
 		title: string;
+		alts: string;
 		k: string;
 		hidden: number;
 		total: number;
@@ -69,9 +71,18 @@ export function libraryIndex(reveal: boolean) {
 	// SAME TITLE only within a kind of source: an anime named as a manga is an
 	// adaptation, not a copy of it from elsewhere ("Oshi no Ko" on KickAssAnime
 	// isn't Weeb Central's), and a light novel isn't its manga either.
+	// By the names a series had or goes by too (c555): a source still calls
+	// a renamed series by its old name, which a rename keeps in `alt_titles`.
+	// Titles are set last, so a result named as one series is titled and
+	// another was once called is the titled one's.
 	const byTitle = new Map<string, string>();
-	for (const r of rows) {
-		if (r.hidden && !reveal) continue;
+	const shown = rows.filter((r) => reveal || !r.hidden);
+	for (const r of shown) {
+		const sourceId = sourceOfKey(r.k);
+		for (const alt of namesOf('', r.alts))
+			if (sourceId) byTitle.set(`${familyOf(r.k)}\u0000${normTitle(alt)}`, sourceId);
+	}
+	for (const r of shown) {
 		const sourceId = sourceOfKey(r.k);
 		if (sourceId) byTitle.set(`${familyOf(r.k)}\u0000${normTitle(r.title)}`, sourceId);
 	}

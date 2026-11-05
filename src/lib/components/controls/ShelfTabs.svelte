@@ -6,6 +6,13 @@
 	 * Shelves as a row of cells (tablet, phone) or a column (the desktop
 	 * sidebar). The active one is inverted. They are links, so a shelf has a
 	 * URL and the back button works.
+	 *
+	 * A shelf opens at its top (c589, the owner, 2026-11-05: "clicking a shelf
+	 * should set take me to the top"), the one already showing included: the
+	 * links let SvelteKit scroll, which jumps, and BACK puts the last shelf's
+	 * place back (the library's snapshot). Focus stays on the tab
+	 * (keepfocus), so a TV's mark stays on the row. + NEW keeps the scroll: it
+	 * opens a field where it is.
 	 */
 	let {
 		shelves,
@@ -45,7 +52,6 @@
 			class:on={shelf.key === active}
 			href={href(shelf.key)}
 			aria-current={shelf.key === active ? 'page' : undefined}
-			data-sveltekit-noscroll
 			data-sveltekit-keepfocus
 			data-focus-mark="in"
 			data-focus-id={`shelf-${shelf.key}`}

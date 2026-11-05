@@ -16,7 +16,7 @@ state is the result of real data or real input.
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Home             | Default.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | Long-press sheet | Pressing and holding a series tile for 450ms, or a right-click. A plain tap opens the series screen ([`SERIES.md`](SERIES.md)). Esc or the scrim closes it. A Work's tile has no long press and no sheet: a tap opens `/work/N` ([`WORKS.md`](WORKS.md), "`/work/N`"), and while selecting it toggles its parts.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| Search           | `/search`. Results follow the typing, 180ms behind it, by replacing the URL.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Search           | `/search`. Results follow the typing, 180ms behind it, by replacing the URL. A series is found by its title, then by another name it goes by (each member of `alt_titles` alone: a rename's old name, c555), then by a tag; its reason reads TITLE, `ALSO <that name>` or `TAG …`. The name after ALSO is shown as stored, not upper-cased (`.why` sets no `text-transform`): it is a proper name, the line already shows a tag's value as stored, and the stored case is what tells it apart from the current title above it.                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | Multi-select     | SELECT in the header. Taps then toggle tiles (a Work tile selects its parts, [`WORKS.md`](WORKS.md)), and the bulk bar applies FAV, + SHELF, GROUP, REFRESH, HIDE or DELETE to the selection; TAG is drawn but disabled, since no tag editor is designed yet. GROUP opens the AS sheet for any selection ([`BOOKS.md`](BOOKS.md), [`WORKS.md`](WORKS.md)), except that two or three single books each in a language of its own get FOLD AS LANGUAGES in its place ([`EDITIONS.md`](EDITIONS.md)). HIDE and UNHIDE apply to the selection, except that a Work's part takes its Work whole: HIDE asks first, and HIDE ALL n hides the Work whole while TAKE OUT takes the part out of its Work and hides only it; UNHIDE shows the whole Work ([`WORKS.md`](WORKS.md), "The one rule"). UNHIDE takes HIDE's cell only when every selected tile is hidden, which needs reveal on. REFRESH asks every selected series' source once ([below](#refresh-a-selection)). |
 | Person / tag     | `/?tag=namespace:value`, from a tag on the series screen or a chip. The person header replaces CONTINUE ([`BOOKS.md`](BOOKS.md)). A tag with nothing visible is a 404.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | History          | **N OPEN · HISTORY →** on CONTINUE, and a HISTORY row in the desktop sidebar, open [`HISTORY.md`](HISTORY.md)'s screen.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -320,7 +320,11 @@ Work's parts sit across the boundary (`doc/WORKS.md`).
   (`beforeNavigate`). By the time SvelteKit takes the snapshot, the waiting
   outline may already cover the library, with its scroll at 0. Coming back,
   the scroll is set each frame until it lands, for up to two seconds, or
-  until the reader touches or scrolls.
+  until the reader touches or scrolls. That holds with only the first page
+  loaded too (c589): there are no pages to put back, but the place is set
+  all the same, since SvelteKit's own was read after the next screen's data
+  came in (until c589 that case was left to it, and a shelf picked from the
+  tabs under a slow load came back at the top).
 - **CACHED** isn't paged. Only the tablet knows which series it holds, so the
   server sends the whole shelf for it to narrow down.
 - **Sorts page cleanly** because every order ends in the series id, so no card
@@ -353,13 +357,17 @@ meant tapping through the others, and nothing ran the other way round.
   the cell from the shelf tabs with ↑. Until c432 it was a native `<select>`,
   whose open list was the system's own and whose ←/→ changed the sort in
   place on a TV. A sort that takes past 1 s puts the grid in outline, and
-  the label says LOADING where SORT and ↓ / ↑ were, taking the focused cell
-  with it: the page notes which of the two had the mark and gives it back
-  when SORT is drawn again, unless the mark has gone somewhere else in
-  between (wave 24; before it the mark was left on nothing, red 4 in 10 in
-  loaded runs). `tests/library-top-sort.e2e.ts` and
-  `tests/tv-library-top.e2e.ts`, which holds a sort's data 2.5 s to put the
-  outline up on purpose.
+  the label says LOADING beside SORT and ↓ / ↑, which stay drawn, dimmed to
+  0.5 and `aria-busy` (c560): the cell holding the mark never leaves the
+  page, so OK, ↓ or Enter pressed while it loads still lands, and a second
+  pick simply takes over the first. Until c560 LOADING took their place, the
+  focused cell left the page and the mark was on the body for as long as the
+  outline lasted (red 4 in 10 in loaded runs); wave 24 gave it back once SORT
+  was drawn again, which c560 made unnecessary and removed. The cell keeps
+  naming the sort it is leaving until the new one has loaded.
+  `tests/library-top-sort.e2e.ts` and `tests/tv-library-top.e2e.ts` hold a
+  sort's data 2.5 s to put the outline up on purpose, and read where focus
+  is at every frame of it.
 - **PROGRESS** (`sort=progress`) is three tiers, as `progressOf` decides
   them: begun and not finished (one page opened is begun), by last read;
   then never opened, newest added first; then the rest, the finished, by
@@ -613,6 +621,19 @@ a band to select kinds on the library itself?" Designed in
   puts the mark on the shelf showing (on the desktop, back to the band's own
   place). Pinned is measured, not guessed: a marker just above the band, and
   the band held apart from it. So the pinned chrome is 60 + 40px on a phone.
+- **An open SORT list is drawn over it** (c590, the owner's screenshot of
+  2026-11-05: the band cut a strip out of the list under RECENTLY READ). The
+  list is 7 and the band 7 (9 on a TV) in one stacking context, and the band
+  comes later in the page, so it won the tie. While the list is open the
+  band steps down to 6, still over the grid (whose highest layer is 3) and
+  under the list; the list stays under the top bar (8), so scrolled up under
+  it the list goes under the bar, and a sheet from the bar (20) is over both.
+  Closed, the band is at 7 again. FILTER's panel needed nothing: it hangs
+  inside the band's own layer on a phone, tablet and TV, and inside the top
+  bar's on the desktop. `tests/library-top-scroll.e2e.ts` asks
+  `elementFromPoint` at the centre of every choice and every FILTER cell, at
+  the top and pinned, on all four devices; `tests/tv-library-top.e2e.ts` at
+  each choice the remote walks.
 - **A kind chosen while it is pinned opens at its start.** The cells keep the
   scroll (`data-sveltekit-noscroll`), so choosing from the band at its own
   place never jumps the page. Pinned, that would open the new kind partway
@@ -627,6 +648,26 @@ a band to select kinds on the library itself?" Designed in
   (`data-focus-down` on the strip), not the one under the cell. **Without
   script** the cells are plain links and a full load starts at the top, which
   shows the tabs, the band and the first row.
+- **A FILTER choice made while it is pinned opens at its start too** (c557):
+  the same landing, from FILTER at the band's end or the desktop's in the top
+  bar, once the filters have really changed ([`FILTERS.md`](FILTERS.md), "The
+  FILTER panel"). `landedAtBand` in `tests/library-top-scroll.e2e.ts`, which
+  both cases use, wants the band's top on the held bar's bottom (±1px) and
+  the band unpinned, as well as the first tile under the band.
+- **A shelf opens at its top** (c589, the owner, 2026-11-05: "clicking a
+  shelf should set take me to the top"), unlike a kind. Until then every
+  shelf link (`ShelfTabs`: the tabs, the desktop's sidebar, the waiting
+  outline's tabs) kept the scroll, so a shelf picked from the sidebar
+  mid-grid opened partway down another shelf's list. Now SvelteKit scrolls
+  as for any link, which jumps (reduced motion or not), and the shelf
+  already showing goes to its top too. Focus stays on the tab picked
+  (`data-sveltekit-keepfocus`), so a TV's mark stays on the tab row; BACK
+  puts the last shelf back where it was left (the library's snapshot, see
+  [`NAVIGATION.md`](NAVIGATION.md)). On a phone or tablet the tabs don't pin,
+  so mid-grid they are reached by the pinned band's `TO READ ▴`, a button
+  that scrolls to them, not a shelf link. + NEW keeps the scroll: it opens a
+  field where it is. `tests/library-top-scroll.e2e.ts` (all four devices)
+  and `tests/tv-library-top.e2e.ts`.
 - **On a TV** it is a 56px focus row of its own under the tabs, inside the
   safe margin. **← → move focus only**: each cell is a link, so the grid
   doesn't change until **OK**, which chooses (and keeps focus on the cell).

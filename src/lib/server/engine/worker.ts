@@ -18,6 +18,7 @@ import {
 	chapterFile,
 	chapterName,
 	matchSourceChapters,
+	namesOf,
 	sourceDir,
 	TSUNDOKU_DEVICE,
 	type SourceChapter
@@ -84,8 +85,9 @@ export async function resolveSeries(
 	d: Pick<Deps, 'db' | 'now'>,
 	force = false
 ): Promise<SourceChapter[]> {
-	const s = d.db.prepare(`SELECT id, title, origin_key FROM series WHERE id = ?`).get(seriesId) as
-		SeriesRow | undefined;
+	const s = d.db
+		.prepare(`SELECT id, title, alt_titles, origin_key FROM series WHERE id = ?`)
+		.get(seriesId) as (SeriesRow & { alt_titles: string }) | undefined;
 	const key = parseKey(s?.origin_key ?? null);
 	if (!s || !key) throw new EngineError('Not a series from a source', 'not-found');
 	const ext = extensionFor(key.sourceId, d.db);
@@ -117,7 +119,13 @@ export async function resolveSeries(
 			`SELECT id, source_url AS url, position, scanlator FROM entries WHERE series_id = ? AND source_url != ''`
 		)
 		.all(seriesId) as { id: number; url: string; position: number; scanlator: string }[];
-	const { matched, unmatched } = matchSourceChapters(s.title, local, chapters);
+	// By every name it has had: the source may still name chapters after the
+	// title it gave the series, which the owner has since renamed (c555).
+	const { matched, unmatched } = matchSourceChapters(
+		namesOf(s.title, s.alt_titles),
+		local,
+		chapters
+	);
 	d.db.transaction(() => {
 		d.db
 			.prepare(

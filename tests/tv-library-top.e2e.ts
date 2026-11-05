@@ -5,8 +5,10 @@ import { expect, test } from './fixtures';
  * The library's top on a TV (doc/LIBRARY.md, "Sort and direction" and "The
  * top bar"): SORT's menu walked by the remote alone (c432). The `tv` project
  * has no pointer, so every press is a key. BACK from deep in the grid lands
- * at the top and stays there, sampled every frame for 2 s (c543). Sorting
- * only changes the URL:
+ * at the top and stays there, sampled every frame for 2 s (c543). OK on a
+ * shelf tab keeps the mark on the tab row (c589; a remote meets the tabs at
+ * the top, so the case guards the mark, not the scroll). Sorting and shelves
+ * only change the URL:
  * nothing here writes to the database the flow files share.
  */
 
@@ -46,6 +48,16 @@ async function toSort(page: Page) {
 	await expect.poll(() => focused(page)).toMatch(/^Sort, /);
 }
 
+/** Whether the focused element is what the page draws at its own centre, nothing over it. */
+const drawnAtCentre = (page: Page) =>
+	page.evaluate(() => {
+		const a = document.activeElement;
+		if (!a) return false;
+		const r = a.getBoundingClientRect();
+		const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+		return !!hit && a.contains(hit);
+	});
+
 test('the remote reaches SORT, OK opens it on the choice in use, and the pad walks every choice', async ({
 	page
 }) => {
@@ -60,10 +72,15 @@ test('the remote reaches SORT, OK opens it on the choice in use, and the pad wal
 	for (let i = 0; i < 6; i++) await page.keyboard.press('ArrowUp');
 	await expect.poll(() => focused(page)).toBe('RECENTLY READ');
 	const walked = [await focused(page)];
+	const drawn = [await drawnAtCentre(page)];
 	for (let i = 0; i < 5; i++) {
 		await page.keyboard.press('ArrowDown');
 		walked.push(await focused(page));
+		drawn.push(await drawnAtCentre(page));
 	}
+	// Each choice the mark is on is what the screen draws there: the KIND
+	// band (9 on a TV) steps under the open list (c590).
+	expect(drawn).toEqual(walked.map(() => true));
 	expect(walked).toEqual([
 		'RECENTLY READ',
 		'RECENTLY ADDED',
@@ -95,6 +112,29 @@ test('the remote reaches SORT, OK opens it on the choice in use, and the pad wal
 	await expect.poll(() => focused(page)).toBe('Sort, RATING');
 });
 
+test('OK on another shelf tab keeps the mark on the tab row (c589)', async ({ page }) => {
+	// A remote meets the tabs at the screen's start (BACK from the grid climbs
+	// past the pinned band to the first CONTINUE card), so what a TV needs of
+	// c589 is that the shelf's links scrolling to the top keep the mark. The
+	// page is at 0 before OK as well as after, so the scrollY read below
+	// cannot fail on c589's own change (it passes with noscroll put back,
+	// measured): this case guards keepfocus. The scroll is the device
+	// projects' (library-top-scroll.e2e.ts, c589).
+	await page.goto('/?sort=title');
+	const onTab = () =>
+		page.evaluate(() => document.activeElement?.getAttribute('data-focus-id') ?? '');
+	await page.keyboard.press('ArrowDown'); // the screen's start
+	await page.keyboard.press('ArrowDown'); // the shelf tabs
+	await expect.poll(onTab).toMatch(/^shelf-/);
+	await page.keyboard.press('ArrowRight');
+	await expect.poll(onTab).toMatch(/^shelf-(?!all$)/);
+	const picked = await onTab();
+	await page.keyboard.press('Enter');
+	await expect(page).toHaveURL(/shelf=/);
+	await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
+	await expect.poll(onTab).toBe(picked);
+});
+
 test.describe('a sort that takes past 1 s', () => {
 	// The service worker answers `__data.json` itself once it controls the
 	// page, past page.route (doc/TESTING.md, "Load").
@@ -107,34 +147,70 @@ test.describe('a sort that takes past 1 s', () => {
 			await route.continue().catch(() => undefined);
 		});
 
-	test('the mark comes back to SORT, and to ↓ / ↑, after the outline said LOADING (wave 24)', async ({
+	/** From now on, every frame: whether the label says LOADING, and whether the mark is in SORT. */
+	const watchFocus = (page: Page) =>
+		page.evaluate(() => {
+			const w = window as unknown as { seen: { loading: boolean; inSort: boolean }[] };
+			w.seen = [];
+			const frame = () => {
+				const loading = [...document.querySelectorAll('.right')].some((r) =>
+					r.textContent?.includes('LOADING')
+				);
+				w.seen.push({ loading, inSort: !!document.activeElement?.closest('.sort') });
+				if (w.seen.length < 100_000) requestAnimationFrame(frame);
+			};
+			requestAnimationFrame(frame);
+		});
+	const framesSeen = (page: Page) =>
+		page.evaluate(
+			() => (window as unknown as { seen: { loading: boolean; inSort: boolean }[] }).seen
+		);
+
+	test('SORT stays drawn under the outline’s LOADING, and the mark never leaves it (c560)', async ({
 		page
 	}) => {
-		// What loaded runs did to `:49` 4 times in 10, forced: the outline
-		// replaces SORT with LOADING at 1 s, with the cell focused.
+		// What loaded runs did to `:49` 4 times in 10, forced: the outline goes
+		// up at 1 s with the cell focused. Until c560 it put LOADING in SORT's
+		// place, the focused cell left the page and the mark was on the body
+		// until SORT came back (wave 24 gave it back afterwards).
 		await page.goto('/?sort=title');
 		await toSort(page);
 		await slow(page, 'sort=rating', 2500);
 		await page.keyboard.press('Enter');
 		await expect.poll(() => focused(page)).toBe('TITLE');
 		await page.keyboard.press('ArrowDown');
+		await watchFocus(page);
 		await page.keyboard.press('Enter');
-		// The outline is up and SORT is not drawn: the case is the one on record.
 		await expect(page.getByText('LOADING', { exact: true })).toBeVisible();
-		await expect(page.locator('.sort')).toHaveCount(0);
-		await expect(page).toHaveURL(/sort=rating/);
+		// Drawn, dimmed, and the cell with the mark: OK or ↓ now still lands.
 		await expect(page.locator('.sort')).toHaveCount(1);
+		await expect(page.locator('.sort')).toHaveAttribute('aria-busy', 'true');
+		await expect(page).toHaveURL(/sort=rating/);
+		await expect(page.locator('.sort')).not.toHaveAttribute('aria-busy', 'true');
 		await expect.poll(() => focused(page)).toBe('Sort, RATING');
+		const sorting = await framesSeen(page);
+		expect(sorting.filter((f) => f.loading).length, 'frames under LOADING').toBeGreaterThan(0);
+		expect(
+			sorting.filter((f) => !f.inSort),
+			'frames with the mark off SORT'
+		).toEqual([]);
 
 		// ↓ / ↑ beside it, the same way.
 		await page.keyboard.press('ArrowRight');
 		await expect.poll(() => focused(page)).toBe('Reverse order');
 		await slow(page, 'dir=', 2500);
+		await watchFocus(page);
 		await page.keyboard.press('Enter');
 		await expect(page.getByText('LOADING', { exact: true })).toBeVisible();
 		await expect(page).toHaveURL(/dir=/);
-		await expect(page.locator('.sort')).toHaveCount(1);
+		await expect(page.locator('.sort')).not.toHaveAttribute('aria-busy', 'true');
 		await expect.poll(() => focused(page)).toBe('Reverse order');
+		const turning = await framesSeen(page);
+		expect(turning.filter((f) => f.loading).length, 'frames under LOADING').toBeGreaterThan(0);
+		expect(
+			turning.filter((f) => !f.inSort),
+			'frames with the mark off SORT'
+		).toEqual([]);
 	});
 });
 

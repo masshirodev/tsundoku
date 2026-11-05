@@ -1086,11 +1086,22 @@ export function search(query: string, reveal: boolean, limit = 30): SearchResult
 		(s) => s.kind !== 'smart' && s.name.toLowerCase().includes(query.trim().toLowerCase())
 	);
 
-	// A title match ranks above a tag match, and each series appears once with
-	// the reason it matched.
+	// A title match ranks above another name's (c555), and that above a tag
+	// match, and each series appears once with the reason it matched. Another
+	// name is a member of `alt_titles` (a rename's old name, a seed's
+	// alternative), matched one by one, never the list's JSON text, so a
+	// query can't match across two names or a quote; a column that isn't a
+	// list (never written so, but its readers parse it bare) is no names.
+	// Nested, since CASE evaluates only the branch it takes and `json_type`
+	// throws on malformed JSON, where an AND may evaluate both sides.
+	const altNames = (alias: string) => `json_each(CASE WHEN json_valid(${alias}.alt_titles)
+		THEN CASE WHEN json_type(${alias}.alt_titles) = 'array' THEN ${alias}.alt_titles ELSE '[]' END
+		ELSE '[]' END) a`;
+	const altLike = `EXISTS (SELECT 1 FROM ${altNames('s')}
+		WHERE a.type = 'text' AND a.value LIKE @like ESCAPE '\\')`;
 	const matched = `
 		FROM series s JOIN roots r ON r.id = s.root_id
-		WHERE ${where} AND (s.title LIKE @like ESCAPE '\\' OR s.id IN (
+		WHERE ${where} AND (s.title LIKE @like ESCAPE '\\' OR ${altLike} OR s.id IN (
 			SELECT st.series_id FROM series_tags st JOIN tags t ON t.id = st.tag_id
 			WHERE t.value LIKE @like ESCAPE '\\'))`;
 	const titleTotal = (db.prepare(`SELECT COUNT(*) AS n ${matched}`).get({ like }) as { n: number })
@@ -1099,7 +1110,7 @@ export function search(query: string, reveal: boolean, limit = 30): SearchResult
 		.prepare(
 			cardQuery(
 				`s.id IN (SELECT s.id ${matched})`,
-				`(s.title LIKE @like ESCAPE '\\') DESC, s.title COLLATE NOCASE`,
+				`(s.title LIKE @like ESCAPE '\\') DESC, ${altLike} DESC, s.title COLLATE NOCASE`,
 				'LIMIT @limit'
 			)
 		)
@@ -1109,8 +1120,19 @@ export function search(query: string, reveal: boolean, limit = 30): SearchResult
 		WHERE st.series_id = ? AND t.value LIKE ? ESCAPE '\\' ORDER BY t.namespace, t.value LIMIT 1`
 	);
 	const q = query.trim().toLowerCase();
+	// Which other name it was found by, by the same LIKE that found it, so
+	// the tile under its new name doesn't look like a wrong answer.
+	const altFound = db
+		.prepare(
+			`SELECT a.value FROM series s, ${altNames('s')}
+			WHERE s.id = @id AND a.type = 'text' AND a.value LIKE @like ESCAPE '\\'
+			ORDER BY a.key LIMIT 1`
+		)
+		.pluck();
 	const titles = rows.map((row) => {
 		if (row.title.toLowerCase().includes(q)) return { ...toCard(row), why: 'TITLE' };
+		const alt = altFound.get({ id: row.id, like }) as string | undefined;
+		if (alt) return { ...toCard(row), why: `ALSO ${alt}` };
 		const t = firstTag.get(row.id, like) as { namespace: string; value: string } | undefined;
 		const why = t ? `TAG ${t.namespace ? `${t.namespace} · ` : ''}${t.value}` : 'TAG';
 		return { ...toCard(row), why };

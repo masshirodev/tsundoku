@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { MediaQuery } from 'svelte/reactivity';
+	import { TV } from '$lib/device.svelte';
 	import RatingSlider from './RatingSlider.svelte';
 	import {
 		activeCount,
@@ -45,7 +47,8 @@
 		band = false,
 		kindRow = true,
 		formRow = false,
-		countKind = true
+		countKind = true,
+		onchoose
 	}: {
 		filters: Filters;
 		/** Codes present on the shelf: LANGUAGE offers these, and doesn't exist without any. */
@@ -77,6 +80,16 @@
 		formRow?: boolean;
 		/** Whether the badge counts a kind: not where the band shows it (c436). */
 		countKind?: boolean;
+		/**
+		 * A choice is being made here (c557): a row's cell, CLEAR ALL, the date,
+		 * or the rating blocks, with the click when there is one. Called before
+		 * the navigation it starts, so the caller can say where the page should
+		 * land once it has drawn (the library's pinned band); it navigates
+		 * nothing itself. A press on the rating blocks passes its PointerEvent,
+		 * so a right-click or a modified one can be told apart. A person's page
+		 * and BROWSE's filter pass none.
+		 */
+		onchoose?: (e?: MouseEvent) => void;
 	} = $props();
 
 	/**
@@ -86,6 +99,8 @@
 	 * a fast first tap came to nothing. Read once on mount, kept by `toggle`,
 	 * and closed through the element.
 	 */
+	const tvScreen = new MediaQuery(TV, false);
+
 	let details = $state<HTMLDetailsElement | null>(null);
 	let open = $state(false);
 	let hydrated = $state(false);
@@ -114,6 +129,7 @@
 	const cleared = $derived(kindRow ? NO_FILTERS : { ...NO_FILTERS, kind: filters.kind });
 
 	function choose(f: Filters) {
+		onchoose?.();
 		if (onchange) onchange(f);
 		// eslint-disable-next-line svelte/no-navigation-without-resolve -- the caller's href resolves
 		else if (href) void goto(href(f), { noScroll: true, keepFocus: true });
@@ -155,7 +171,8 @@
 								href={href(c.to)}
 								aria-current={c.on ? 'true' : undefined}
 								data-sveltekit-noscroll
-								data-sveltekit-keepfocus>{c.label}</a
+								data-sveltekit-keepfocus
+								onclick={(e) => onchoose?.(e)}>{c.label}</a
 							>
 							<!-- eslint-enable svelte/no-navigation-without-resolve -->
 						{:else}
@@ -169,7 +186,23 @@
 						{/if}
 					{/each}
 					{#if row.key === 'rating'}
-						<div class="blocks">
+						<!-- The blocks are RatingSlider's own links and drag, which call
+						     nothing back: a press on them, or a key that moves them, is a
+						     choice being made (c557). Only what RatingSlider acts on: the
+						     press goes with its button (a right-click drags nothing), Enter
+						     follows the focused block's link, and ← → move it on a TV only;
+						     Home, End and Space move nothing anywhere. -->
+						<div
+							class="blocks"
+							role="presentation"
+							onpointerdowncapture={(e) => onchoose?.(e)}
+							onkeydowncapture={(e) => {
+								const moves =
+									e.key === 'Enter' ||
+									(tvScreen.current && (e.key === 'ArrowLeft' || e.key === 'ArrowRight'));
+								if (moves && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) onchoose?.();
+							}}
+						>
 							<RatingSlider
 								mode="min"
 								label={null}
@@ -205,10 +238,15 @@
 		{/each}
 		<div class="foot">
 			{#if href && !onchange}
-				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- the caller's href resolves -->
-				<a class="clear" class:none={n === 0} href={href(cleared)} data-sveltekit-noscroll
-					>✕ CLEAR ALL</a
+				<!-- eslint-disable svelte/no-navigation-without-resolve -- the caller's href resolves -->
+				<a
+					class="clear"
+					class:none={n === 0}
+					href={href(cleared)}
+					data-sveltekit-noscroll
+					onclick={(e) => onchoose?.(e)}>✕ CLEAR ALL</a
 				>
+				<!-- eslint-enable svelte/no-navigation-without-resolve -->
 			{:else}
 				<button type="button" class="clear" class:none={n === 0} onclick={() => choose(cleared)}
 					>✕ CLEAR ALL</button

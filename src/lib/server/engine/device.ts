@@ -54,8 +54,48 @@ export type SourceChapter = {
 };
 
 /**
+ * Every name a series goes by: its title, then its alternative titles
+ * (`alt_titles`, a JSON list of strings; a rename keeps the old name there,
+ * c526). Anything that is not such a list is no names.
+ */
+export function namesOf(title: string, altTitles: string | null | undefined): string[] {
+	let alts: unknown;
+	try {
+		alts = JSON.parse(altTitles || '[]');
+	} catch {
+		alts = [];
+	}
+	const rest = Array.isArray(alts) ? alts.filter((t): t is string => typeof t === 'string') : [];
+	return [...new Set([title, ...rest].filter((t) => t.trim() !== ''))];
+}
+
+/**
+ * `chapterNumbers` over a series known by several names (c555). It takes the
+ * series' title out of each chapter's name before reading a number, so a
+ * number in the title is not read as the chapter's. A source still names
+ * its chapters by the title it gave the series ("Squad 100 2") after the
+ * owner has renamed it, and with fewer than three chapters to compare
+ * (one new chapter, as FOLLOW usually finds) the 100 was read: measured, so
+ * every name is taken out, the longest first, so a name inside another
+ * ("Mob" in "Mob Psycho 100") cannot break the longer one up.
+ */
+export function numbersUnderNames(
+	names: readonly string[],
+	chapters: { name: string; number: number }[]
+) {
+	const longest = [...names].sort((a, b) => b.length - a.length).map((n) => n.toLowerCase());
+	const strip = (name: string) =>
+		longest.reduce((n, t) => (t ? n.split(t).join('') : n), name.toLowerCase());
+	return chapterNumbers(
+		names[0] ?? '',
+		chapters.map((c) => ({ name: strip(c.name), number: c.number }))
+	);
+}
+
+/**
  * Which of a source's chapters each entry is, and which of the source's
- * chapters no entry is (new ones, for FOLLOW). In passes, each taking only
+ * chapters no entry is (new ones, for FOLLOW). `names` are the series' (its
+ * title first, then the names it had: `namesOf`). In passes, each taking only
  * an unambiguous match, as the importer's `matchChapters` does:
  *
  * 1. the URL, memo split off: every source the spike checked but Toonily;
@@ -67,12 +107,12 @@ export type SourceChapter = {
  * An entry matched to nothing is left out: the source no longer lists it.
  */
 export function matchSourceChapters(
-	title: string,
+	names: string | readonly string[],
 	local: LocalChapter[],
 	source: SourceChapter[]
 ): { matched: Map<number, SourceChapter>; unmatched: SourceChapter[] } {
-	const numbers = chapterNumbers(
-		title,
+	const numbers = numbersUnderNames(
+		typeof names === 'string' ? [names] : names,
 		source.map((c) => ({ name: c.name, number: c.chapter_number }))
 	).map((n) => (n.chapter === null ? null : toNumber(n.chapter)));
 	const keyed = source.map((c, i) => ({ c, url: splitMemo(c.url).url, number: numbers[i] }));
