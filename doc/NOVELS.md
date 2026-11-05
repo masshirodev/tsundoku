@@ -307,7 +307,9 @@ base64url>`, as a Mihon source's manga is `<source>~<url>`
   `showLatestNovels`: every plugin is asked, one without a latest list answers
   its popular one), and the filter panel. LNReader has no last page: a page
   with anything on it means there may be more, so the list ends at the first
-  empty one. No SETTINGS cell, since a plugin keeps none here.
+  empty one. Its SETTINGS cell opens a page with only tsundoku's own
+  switches for the source ([`BROWSE.md`](BROWSE.md), "A source's own
+  switches"; card c435): a plugin keeps no preferences here.
 - **Its filters** are drawn by the same panel as an extension's
   (`src/lib/library/lnreader-filters.ts`): Picker a select, Switch a checkbox,
   Checkbox a group of checkboxes, XCheckbox a group of tri-states, Text a

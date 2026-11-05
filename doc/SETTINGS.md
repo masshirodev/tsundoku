@@ -142,6 +142,15 @@ each language the repositories list, most extensions first, twelve at most,
 and English and Japanese always (`browse_languages`). The last one can't go
 ([`BROWSE.md`](BROWSE.md)).
 
+A source's own switches are not here but on its settings page in BROWSE
+(`/browse/<source>/settings`, `01 — IN TSUNDOKU`): **HIDDEN SOURCE** (listed,
+searched and named only inside reveal), **ADDED HIDDEN** (a series added
+from it starts hidden, whether by ADD or by an import: a backup can only add
+hiding) and **OFF HISTORY** (its reading never shows in HISTORY, and is
+still logged). They are kept per source in the `settings` table
+(`source.<switch>:<source id>`); [`BROWSE.md`](BROWSE.md), "A source's own
+switches".
+
 ## 08 — Devices
 
 **THEME** (also `/dark` and `/light`), **APP LANGUAGE** (AUTO, ENGLISH,

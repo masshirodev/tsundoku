@@ -457,7 +457,7 @@ the owner's request of 2026-11-03.
 | Switch            | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Hidden source** | The source is listed, opened, searched and named only inside reveal, as a mostly-hidden one is: BROWSE and RECENT, EXTENSIONS (an extension whose every source is hidden, and an LNReader plugin: INSTALLED, its count, UPDATE ALL and AVAILABLE's NOVELS, filtered by the route through `pluginsShown` and `novelsAvailable`), its icon, its page, its settings and its previews, SEARCH THE SOURCES (`searchSources`, `novelSearchSources`), and SAME TITLE's "FROM <SOURCE>" (`nameable`). Its series keep their own hidden state. |
-| **Added hidden**  | A series added to the library from it starts hidden. Every ADD door of a source: `addToLibrary` (Mihon's), `addAnime`, `addNovel` and `keepOrPromote` (a browsing record promoted by ADD). With reveal off, ADD then lands on the source's page with "ADDED TO THE LIBRARY, AND HIDDEN", since the hidden series isn't found. A browsing record is not an add.                                                                                                                                                                        |
+| **Added hidden**  | A series added to the library from it starts hidden. Every ADD door of a source: `addToLibrary` (Mihon's), `addAnime`, `addNovel` and `keepOrPromote` (a browsing record promoted by ADD), and every import (a backup, a scan, IMPORT A BACKUP; below). With reveal off, ADD then lands on the source's page with "ADDED TO THE LIBRARY, AND HIDDEN", since the hidden series isn't found. A browsing record is not an add.                                                                                                           |
 | **Off history**   | Its reads and watches never show in HISTORY, inside reveal or not, and its time is not in HISTORY's total ([`HISTORY.md`](HISTORY.md)). They are still logged: progress, CONTINUE, the series' own time and tracking are unchanged.                                                                                                                                                                                                                                                                                                   |
 
 **Kept** in the `settings` key/value table, one row per switch that is on
@@ -469,11 +469,27 @@ which is how HISTORY filters in SQL. A series' source in SQL is
 `sourceIdSql(origin_key)`, held to `sourceOfKey` over every key a writer
 stores (`tests/source-flags-db.spec.ts`).
 
-**What ADDED HIDDEN does not reach** (wave 20): a series imported from a
-Mihon backup (`src/lib/server/import/`, whose writer every importer shares).
-That door is the importer's, so a backup's series from such a source arrive
-as the backup says. A follow's or a refresh's new chapters are not an add,
-and a download of a series already in the library neither.
+**ADDED HIDDEN at the importer** (card c503, the owner's (a), wave 23): a
+series an import creates in the library from a source with the switch on
+arrives hidden too, so **a backup can only add hiding**. A series the backup
+hides stays hidden, one it shows arrives hidden, and a series already in the
+library that the import only updates is not newly hidden: the switch is
+about what arrives, not a rule over what is there, so a series shown again
+inside reveal stays shown at the next scan. The writer applies it in the
+same transaction that creates the series (`writeSeries`'s `addedHidden`,
+`src/lib/server/import/write.ts`), and both of the importer's callers pass
+it: a scan or IMPORT A BACKUP (`run`) and what tsundoku's downloaders attach
+(`attachWritten`). Of what an import plans, only keys that name a source can
+be switched: a Mihon backup's series (`mihon:<n>:<url>`), and tsundoku's own
+anime and novel downloads read back (`aniyomi:`, `lnreader:`). A Mihon
+download folder's own series (`mihon-dir:`), Hentoid's books, an EPUB and a
+gallery name no source (`sourceIdSql` answers NULL), so the switch never
+reaches them. `tests/import-db.spec.ts` holds every combination.
+
+**What ADDED HIDDEN does not reach:** a follow's or a refresh's new chapters
+are not an add, and a download of a series already in the library neither.
+Grouping books (`src/lib/server/books.ts`) makes a series from the owner's
+own books, with no source.
 
 With reveal off, turning HIDDEN SOURCE on lands on BROWSE, since the page it
 was set on is no longer found. Turning it off again is done inside reveal.

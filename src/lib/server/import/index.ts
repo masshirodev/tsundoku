@@ -19,6 +19,7 @@ import { animeBytes, animeSeriesDirs, planAnimeFolders, planAnimeSeries } from '
 import { ANIME_FOLDER } from '../../library/anime-files.ts';
 import { closeDeadJobs, ensureRoot, ensureNamedRoot, finishJob, writeSeries } from './write.ts';
 import { reconcileDuplicates } from '../duplicates.ts';
+import { forgetSourceUse } from '../library-sources.ts';
 import { refreshCovers } from '../covers.ts';
 import { refreshLinks } from '../catalogue.ts';
 import type { PlannedSeries } from '../../import/plan.ts';
@@ -431,7 +432,14 @@ export async function attachWritten(
 			planned.add(s.path);
 			writeSeries(
 				s,
-				{ rootId, jobId: null, now, markMissing: source.markMissing, deviceRoot: source.root },
+				{
+					rootId,
+					jobId: null,
+					now,
+					markMissing: source.markMissing,
+					deviceRoot: source.root,
+					addedHidden: true
+				},
 				db
 			);
 			const id = db.prepare(`SELECT id FROM series WHERE origin_key = ?`).get(s.originKey) as
@@ -499,7 +507,14 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 			for (const series of plan.series) {
 				const r = writeSeries(
 					series,
-					{ rootId, jobId, now, markMissing: source.markMissing, deviceRoot: source.root },
+					{
+						rootId,
+						jobId,
+						now,
+						markMissing: source.markMissing,
+						deviceRoot: source.root,
+						addedHidden: true
+					},
 					db
 				);
 				if (r.created) out.seriesCreated += 1;
@@ -510,7 +525,8 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 				out.filesAttached += r.filesAttached;
 				// The band counts arrivals ("N SERIES SO FAR") and is shown while
 				// reveal may be off: nothing hidden, by series or by root, counts.
-				if (r.created && !series.hidden && !source.hidden) p.seriesFound += 1;
+				// A series its source's ADDED HIDDEN hid (c503) is hidden too.
+				if (r.created && !series.hidden && !r.addedHidden && !source.hidden) p.seriesFound += 1;
 				if (++written % 20 === 0) {
 					flush();
 					// Let requests in between batches: the library polls this job.
@@ -527,6 +543,9 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 		p.bytesDone = p.bytesTotal;
 		flush();
 		finishJob(db, jobId, created);
+		// BROWSE's per-source counts (and so `mostlyHidden`) are asked again:
+		// the run added series, and ADDED HIDDEN may have hidden some (c503).
+		forgetSourceUse();
 		return summary;
 	} catch (e) {
 		flush();

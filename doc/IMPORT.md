@@ -227,6 +227,10 @@ SCAN STARTS WHEN THE BACKUP’S IMPORT ENDS` (`SCAN_WAITS`), and `/api/scan`
   set through the app's own functions, and title and kind by hand (no door
   edits those, see "Premises" below), all survive a second import; a series
   gone from the app stays.
+- **A source's ADDED HIDDEN applies** to the series it creates, as at a
+  scan: a new series from a source with the switch on arrives hidden, and
+  one already here is left as it is (card c503; [`BROWSE.md`](BROWSE.md),
+  "ADDED HIDDEN at the importer").
 - **The library's band** follows it: `IMPORTING · MIHON BACKUP`,
   `162 OF 384 SERIES`, the count of arrivals on NEW. A backup's job counts
   **series written** in `scan_jobs.bytes_done`/`bytes_total` (its label,

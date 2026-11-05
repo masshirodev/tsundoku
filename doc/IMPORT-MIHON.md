@@ -135,6 +135,11 @@ The category is also kept as a `mihon:` tag (`mihon:Good+`), so nothing Mihon
 said is lost. With several categories, the highest rating wins and every shelf
 applies.
 
+**A source with ADDED HIDDEN on** (its settings page in BROWSE) hides a new
+series from it whatever its category says, so a backup can only add hiding: a
+"+" series is hidden either way, a series already in the library is left as
+it is (card c503; [`BROWSE.md`](BROWSE.md), "ADDED HIDDEN at the importer").
+
 **Kind** is doujin for a gallery source (below). Otherwise it comes from the
 series' own genres (Manhwa, Manhua, Webtoon → manhwa; Manga → manga), then
 from a webtoon reading mode, then from a short list of webtoon-only sources
