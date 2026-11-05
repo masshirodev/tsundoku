@@ -3,7 +3,8 @@ import { GENRE, SOURCE, startTagWorld, type TagWorld } from './helpers/tag-world
 
 /**
  * A tag on the series screen with the remote (card c313; doc/FOCUS.md): at
- * 960×540 with no pointer, the D-pad reaches a tag value, OK opens its sheet
+ * 960×540 with no pointer, the D-pad reaches a tag value (through DETAILS,
+ * which folds TAGS on a TV since c425), OK opens its sheet
  * with the first row focused, and BACK closes it and gives focus back to the
  * tag. On its own world (tests/helpers/tag-world.ts), so it opens no series
  * the shared database's specs touch, and writes nothing.
@@ -81,10 +82,18 @@ const mark = (page: Page, value: string) =>
 		};
 	}, value);
 
+/** Whether the focus is on DETAILS while it is folded (c425). */
+const onFoldedDetails = (page: Page) =>
+	page.evaluate(
+		() => document.activeElement?.matches('[data-row="details"][aria-expanded="false"]') ?? false
+	);
+
 /**
- * The way a remote reaches a tag: ↓ down the panel to the TAGS row (the pad
- * meets it at its EDIT cell, on the right), ← into its values, then the arrow
- * toward the value, one press at a time. At most `n` presses; the path is the error.
+ * The way a remote reaches a tag: ↓ down the panel, OK on DETAILS where it is
+ * folded (on a TV TAGS is one of the rows it folds, c425), ↓ on to the TAGS row
+ * (the pad meets it at its EDIT cell, on the right), ← into its values, then
+ * the arrow toward the value, one press at a time. At most `n` presses; the
+ * path is the error.
  */
 async function padTo(page: Page, value: string, n = 40) {
 	const path: string[] = [];
@@ -92,7 +101,13 @@ async function padTo(page: Page, value: string, n = 40) {
 		const m = await mark(page, value);
 		path.push(`${m.row}:${m.text.slice(0, 16)}`);
 		if (m.inTags && m.text === value) return;
-		const key = m.row === 'TAGS' && !m.inTags ? 'ArrowLeft' : m.inTags ? m.toward! : 'ArrowDown';
+		const key = (await onFoldedDetails(page))
+			? 'Enter'
+			: m.row === 'TAGS' && !m.inTags
+				? 'ArrowLeft'
+				: m.inTags
+					? m.toward!
+					: 'ArrowDown';
 		await page.keyboard.press(key);
 	}
 	throw new Error(`the pad never reached ${value}; path ${path.join(' > ')}`);
