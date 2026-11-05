@@ -151,7 +151,9 @@ included, one segment after `/read/`), or another reader entry than this one's.
 reader moves between chapters in place, writing `/read/<next id>` with
 `replaceState`. So a reader that moves the window itself says so
 (`readerMovedTo(path)`, right after the write), and the guard takes that path
-as its own until the next real navigation. Comparing against `page.url` alone
+as its own until the next real navigation, which `afterNavigate` reports
+(`forgetReaderMove`); an invalidation gives `page.url` a new object for the same
+entry and isn't one. Comparing against `page.url` alone
 froze the text reader's `?at=` and its progress after the first settle in the
 second chapter it read into (round 2 of wave 25). Each reader's
 `beforeNavigate` also drops its settle timer when it leaves the reader route

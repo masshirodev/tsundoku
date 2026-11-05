@@ -4,8 +4,8 @@
 	import type { Json } from '$lib/settings/catalog';
 	import { onMount, tick, untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
-	import { beforeNavigate, replaceState } from '$app/navigation';
-	import { leavingReader, readerMovedTo } from '$lib/reader/leaving';
+	import { afterNavigate, beforeNavigate, replaceState } from '$app/navigation';
+	import { forgetReaderMove, leavingReader, readerMovedTo } from '$lib/reader/leaving';
 	import { resolve } from '$app/paths';
 	import { page as appPage } from '$app/state';
 	import type { PageData } from './$types';
@@ -955,6 +955,7 @@
 		return () => clearTimeout(settle);
 	});
 
+	afterNavigate(forgetReaderMove);
 	beforeNavigate(({ to }) => {
 		if (to?.route.id === '/read/[entry]') return;
 		// The close carries the place; a settle still to come would write the

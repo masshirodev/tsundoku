@@ -1130,6 +1130,7 @@
 		landKind = bandPinned && !elsewhere;
 		// The kind's own landing replaces any FILTER note (c557's round 2).
 		landFilterFrom = null;
+		filterLeaving = false;
 	}
 	afterNavigate(() => {
 		if (!landKind) return;
@@ -1163,16 +1164,24 @@
 	 * when that press is itself a choice), and a kind cell replaces it.
 	 */
 	let landFilterFrom: string | null = null;
+	// Its navigation has begun: a press now (DONE, the scrim, Escape) can't undo
+	// the choice, so it mustn't lose the landing.
+	let filterLeaving = false;
 	function chooseFilter(e?: MouseEvent) {
 		const elsewhere = !!e && (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey);
 		landFilterFrom = bandPinned && !elsewhere ? location.href : null;
+		filterLeaving = false;
 	}
 	function dropFilterNote() {
-		landFilterFrom = null;
+		if (!filterLeaving) landFilterFrom = null;
 	}
+	beforeNavigate((nav) => {
+		if (landFilterFrom && nav.from?.url.href === landFilterFrom) filterLeaving = true;
+	});
 	afterNavigate((nav) => {
 		const from = landFilterFrom;
 		landFilterFrom = null;
+		filterLeaving = false;
 		if (!from || !nav.from || !nav.to || nav.from.url.href !== from) return;
 		if (nav.type !== 'link' && nav.type !== 'goto') return;
 		const filtersOf = (u: URL) => JSON.stringify(filterParams(parseFilters(u.searchParams, true)));

@@ -867,6 +867,40 @@ test.describe('a novel of two volumes, read in SCROLL (c347)', () => {
 		else await expect(opened).not.toHaveText(`Vol. ${n + 1}`);
 	});
 
+	// An invalidation gives `page.url` a new object for the entry the reader was
+	// opened at, which isn't a navigation: the place must go on following the
+	// chapters (wave 25's r2). The app does it for real, here by a newer theme.
+	test('an invalidation partway through leaves the URL and progress following the chapters', async ({
+		page
+	}) => {
+		test.setTimeout(120_000);
+		const sent = watchReading(page);
+		await openOwnBook(page);
+		await middle(page);
+		await page.getByRole('button', { name: /^SCROLL · / }).click();
+		const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+		await sheet.getByRole('radio', { name: 'PAGED' }).click();
+		await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect(page.locator('.text-reader')).not.toHaveClass(/scroll/);
+		const heading = page.locator('.blocks h1');
+		const n = Number(((await heading.textContent()) ?? '').replace(/\D/g, ''));
+		const step = () => forward(page);
+		await readInto(page, sent, heading, `Vol. ${n + 1}`, step, placeOf(page));
+
+		await page.route('**/api/devices/sync', (r) =>
+			r.fulfill({ json: { newer: { 'tsundoku.theme': { v: 'light', at: Date.now() } } } })
+		);
+		const reloaded = page.waitForResponse((r) => r.url().includes('__data.json'));
+		await page.evaluate(() => window.dispatchEvent(new Event('online')));
+		await reloaded;
+		await page.unroute('**/api/devices/sync');
+
+		const second = await readInto(page, sent, heading, `Vol. ${n + 2}`, step, placeOf(page));
+		await page.reload();
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+		expect(new URL(page.url()).pathname).toBe(`/read/${second}`);
+	});
+
 	// After c554's case, which REMEMBERed SCROLL for this book, so a reload opens in SCROLL.
 	test('in SCROLL, read on into a third chapter: the URL and progress follow every chapter, and a reload opens the last (c565, round 2)', async ({
 		page

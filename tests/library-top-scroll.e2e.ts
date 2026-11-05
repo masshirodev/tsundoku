@@ -626,6 +626,32 @@ test('a FILTER choice from the pinned band opens the new results at their start;
 	expect(await windowY(page)).toBe(top);
 });
 
+test('DONE tapped while a FILTER choice from the pinned band loads still lands at the new results', async ({
+	page
+}, info) => {
+	const filter = page.locator(isDesktop(info.project.name) ? '.filter-desk' : '.kfilter');
+	const panel = filter.getByRole('group', { name: 'Filters' });
+	await page.goto(`${BASE}/?shelf=all&sort=title`);
+	await expect(page.locator('.grid .tile').first()).toBeVisible();
+	await scrollScreens(page, 1.5);
+	await expect(kinds(page)).toHaveClass(/pinned/);
+	await filter.locator('summary').click();
+	await expect(panel).toBeVisible();
+	// A slow load: the press lands after the choice and before the new page.
+	await page.route('**/__data.json*', async (r) => {
+		await new Promise((done) => setTimeout(done, 1500));
+		await r.continue();
+	});
+	await panel
+		.locator('.row', { hasText: 'FORM' })
+		.getByRole('link', { name: 'SERIES', exact: true })
+		.click();
+	await panel.getByRole('button', { name: 'DONE' }).click();
+	await page.waitForURL(/form=series/);
+	await page.unroute('**/__data.json*');
+	await landedAtBand(page, 'FORM: SERIES');
+});
+
 test('a press on the rating blocks that chooses nothing leaves no note: a kind chosen later at the top moves nothing (c557, round 2)', async ({
 	page
 }, info) => {

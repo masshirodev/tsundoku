@@ -3,12 +3,12 @@ import { navigating, page } from '$app/state';
 import { isReaderPath } from './reader';
 
 /**
- * The path a reader moved the window to in place, with the `page.url` it was
- * written under. SvelteKit's `replaceState` keeps `page.url` (the same object)
- * and a real navigation makes a new one, so a write made under an older
- * `page.url` is forgotten by the next navigation, whichever way it goes.
+ * The path a reader moved the window to in place. It lasts until a real
+ * navigation, which the reader reports with `forgetReaderMove`. Not keyed on
+ * `page.url`: an invalidation gives that a new object for the same entry, so
+ * the record would be lost while the reader was still reading (wave 25, r2).
  */
-let moved: { under: URL; path: string } | null = null;
+let moved: string | null = null;
 
 /**
  * Say that a reader moved the window to `path` itself with `replaceState`: the
@@ -16,12 +16,17 @@ let moved: { under: URL; path: string } | null = null;
  * (c565, round 2). Call it right after the write.
  */
 export function readerMovedTo(path: string): void {
-	moved = { under: page.url, path };
+	moved = path;
+}
+
+/** A real navigation happened: `afterNavigate` runs for those alone. */
+export function forgetReaderMove(): void {
+	moved = null;
 }
 
 /** The path the window shows while this reader is still the screen. */
 function ownPath(): string {
-	return moved && moved.under === page.url ? moved.path : page.url.pathname;
+	return moved ?? page.url.pathname;
 }
 
 /**
