@@ -584,7 +584,18 @@ SECOND PART` under a linked entry, the same search, then `FROM EP. 13`).
   whose line then names both parts. NOT NOW stands where NONE OF THESE
   would (a second part settles nothing of the season), and the page's
   UNLINK, once part 2 is linked, takes part 2's row alone and writes no
-  decision (part 1 is still linked, so the season is). A season never takes
+  decision (part 1 is still linked, so the season is). That UNLINK sits in
+  the tool row beside the candidates (SEARCH AGAIN, PASTE A LINK, UNLINK),
+  where every linked season's is, since part 2's own entry is always one of
+  its candidates; but once part 2 is linked `+ A SECOND PART` steps aside,
+  so the page is reached only at its `&part=2` address (no door on the
+  season's page leads back to it yet). A season whose only row is part 2
+  (part 1 unlinked, e.g. a CHANGE of part 1 then its UNDO) has no second
+  part to add: the page stands on part 2 and posts `part: 2`, and its
+  search and paste are drawn against the season's own item, as before c350.
+  The series screen's season line reads the season's own search, part 1's
+  (`season_link_searches` at part 1), so part 2's never counts as the
+  season's candidates or queue. A season never takes
   a third part: the API answers 400 for any part past 2
   (`CHECK (part IN (1, 2))`). **`FROM EP. n` is bound to part 1's count.**
   `series_season_links` keeps no start for a part: part 2 begins after part

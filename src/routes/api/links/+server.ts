@@ -92,10 +92,13 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 	// A season holds two parts at most (`CHECK (part IN (1, 2))`; c350).
 	if (part > 2) error(400, 'a season has two parts at most');
 	// The item a season's search and paste are drawn against: part 2's own
-	// (c350), or the season's.
+	// (c350), or the season's. A season whose only row is part 2 (part 1
+	// unlinked, e.g. a CHANGE of part 1 then its UNDO) has no second part to
+	// add, so `partItem` is null there; its page still posts `part: 2`, and
+	// its search and paste are the season's, as they were before c350.
 	const itemFor = () =>
 		seasonal && season !== undefined && part === 2
-			? partItem(seriesId, reveal, season)
+			? (partItem(seriesId, reveal, season) ?? reviewItem(seriesId, reveal, season))
 			: reviewItem(seriesId, reveal, seasonal ? season : undefined);
 	const recover = (remote: boolean) =>
 		void refreshCovers({ ids: [seriesId], remote }).catch(() => undefined);

@@ -359,8 +359,12 @@ export function seriesSeasons(
 				watched: 0
 			});
 	}
+	// The season's own search is part 1's: a `+ A SECOND PART` visit writes
+	// part 2's row, which never stands for the season's (c350).
 	const searched = db
-		.prepare(`SELECT season, searched_at, found FROM season_link_searches WHERE series_id = ?`)
+		.prepare(
+			`SELECT season, searched_at, found FROM season_link_searches WHERE series_id = ? AND part = 1`
+		)
 		.all(seriesId) as { season: number; searched_at: number | null; found: number }[];
 	return {
 		kind: s.kind,
@@ -418,7 +422,9 @@ export function seriesSeasons(
 				queued:
 					!!search?.searched_at === false &&
 					!!db
-						.prepare(`SELECT 1 FROM season_link_searches WHERE series_id = ? AND season = ?`)
+						.prepare(
+							`SELECT 1 FROM season_link_searches WHERE series_id = ? AND season = ? AND part = 1`
+						)
 						.get(seriesId, span.season),
 				decision: seasonDecision(seriesId, span.season, db),
 				searchTitle: seasonSearchTitle(s.title, span.season)

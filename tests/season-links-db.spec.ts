@@ -1199,9 +1199,20 @@ describe('a season’s second part by hand: + A SECOND PART, FROM EP. n (c350)',
 		});
 		const flat = await page(id, 1, 2);
 		expect([flat.season.part, flat.season.second]).toEqual([1, null]);
-		expect(await api({ series: id, link: 502, season: 1, part: 2, from: 13 })).toMatchObject({
-			status: 409
+		// Pasted, so "not a candidate" cannot answer for it: the refusal is the
+		// second part's own.
+		expect(
+			await api({ series: id, link: 502, pasted: true, season: 1, part: 2, from: 13 })
+		).toEqual({
+			status: 409,
+			body: {
+				message: 'PART 1 LISTS 12 EPISODES, ALL 12 HERE · NO EPISODE IS LEFT FOR A SECOND PART'
+			}
 		});
+		expect(linked(id)).toEqual([
+			[1, 1, 401],
+			[2, 1, 501]
+		]);
 		// Part 1's entry lists no count: part 2 has nowhere to start.
 		const unknown = show([12, 23]);
 		expect(
@@ -1216,6 +1227,49 @@ describe('a season’s second part by hand: + A SECOND PART, FROM EP. n (c350)',
 		});
 	});
 
+	it('a season whose only row is part 2 still searches and pastes against the season’s item', async () => {
+		// The app's own doors reach it: both parts linked, CHANGE part 1 on the
+		// season's page, then the band's UNDO, which takes part 1's row alone.
+		const id = show([12, 23]);
+		link(id, 2, 501);
+		link(id, 2, 502, 2);
+		seasons.undoSeasonLink(id, 2, 1);
+		expect(linked(id)).toEqual([[2, 2, 502]]);
+		// The page stands on part 2 (its one row), with no second part to offer.
+		const at = await page(id, 2);
+		expect(at.season.part).toBe(2);
+		expect(at.season.second).toBe(null);
+		// So it posts part: 2, and part 2 has no item of its own (part 1 is not
+		// linked): the search and the paste are the season's, as before c350.
+		const found = await api({ series: id, search: 'Hand Show Season 2', season: 2, part: 2 });
+		expect(found.status).toBe(200);
+		expect(found.body.item).not.toBe(null);
+		const pasted = await api({
+			series: id,
+			paste: 'https://anilist.co/anime/502',
+			season: 2,
+			part: 2
+		});
+		expect(pasted.status).toBe(200);
+		expect((pasted.body.candidate as { anilistId: number }).anilistId).toBe(502);
+	});
+
+	it('a part 2 search never stands for the season’s own search on the series screen', async () => {
+		// Every + A SECOND PART visit writes part 2's search row; once the season
+		// is unlinked, that row must not read as the season's candidates.
+		const id = show([12, 23]);
+		link(id, 2, 501);
+		await api({ series: id, search: 'Hand Show Season 2', season: 2, part: 2 });
+		expect((await api({ series: id, unlink: true, season: 2 })).status).toBe(200);
+		expect(linked(id)).toEqual([]);
+		const two = seasons.seriesSeasons(id)!.seasons[1];
+		expect([two.searched, two.candidates, two.queued]).toEqual([false, 0, false]);
+		// The season's own search is what it counts.
+		await api({ series: id, search: 'Hand Show Season 2', season: 2 });
+		const after = seasons.seriesSeasons(id)!.seasons[1];
+		expect([after.searched, after.candidates]).toEqual([true, 2]);
+	});
+
 	it('UNLINK on part 2 takes part 2 alone, settles nothing, and the door opens again', async () => {
 		const id = show([12, 23]);
 		link(id, 2, 501);
@@ -1223,6 +1277,13 @@ describe('a season’s second part by hand: + A SECOND PART, FROM EP. n (c350)',
 		expect((await api({ series: id, link: 502, season: 2, part: 2, from: 13 })).status).toBe(200);
 		// Again, the same LINK: part 2's own entry, written over itself.
 		expect((await api({ series: id, link: 502, season: 2, part: 2, from: 13 })).status).toBe(200);
+		// Linked, `&part=2` is part 2's page: its own entry among its candidates,
+		// so the page's tool row (SEARCH AGAIN, PASTE A LINK, UNLINK) is drawn,
+		// UNLINK there because part 2 is linked.
+		const two = await page(id, 2, 2);
+		expect([two.season.part, two.season.second?.linked]).toEqual([2, true]);
+		expect(two.single.linked).not.toBe(null);
+		expect(two.items[0].candidates.map((c) => c.anilistId)).toContain(502);
 		expect((await api({ series: id, unlink: true, season: 2, part: 2 })).status).toBe(200);
 		expect(linked(id)).toEqual([[2, 1, 501]]);
 		expect(seasons.seasonDecision(id, 2)).toBe(null);
