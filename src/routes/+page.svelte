@@ -420,7 +420,16 @@
 	export const snapshot: Snapshot<{ key: string; more: LibraryCard[]; y: number }> = {
 		capture: () => ({ key: listKey, more: more.slice(0, 4000), y: leftAt ?? scrollY }),
 		restore: async (v) => {
-			if (!v || v.key !== listKey || v.more.length === 0) return;
+			if (!v || v.key !== listKey) return;
+			// Only the first page was loaded: no pages to put back, but the place
+			// all the same. SvelteKit's own is read once the next screen's data
+			// is in, and a load slow enough to outline the grid has moved the
+			// page by then (a shelf left from under the bar came back at the
+			// top, c589).
+			if (v.more.length === 0) {
+				settleScroll(v.y);
+				return;
+			}
 			generation += 1;
 			shownKey = v.key;
 			const have = new Set(data.series.map((c) => c.id));

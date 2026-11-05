@@ -320,7 +320,11 @@ Work's parts sit across the boundary (`doc/WORKS.md`).
   (`beforeNavigate`). By the time SvelteKit takes the snapshot, the waiting
   outline may already cover the library, with its scroll at 0. Coming back,
   the scroll is set each frame until it lands, for up to two seconds, or
-  until the reader touches or scrolls.
+  until the reader touches or scrolls. That holds with only the first page
+  loaded too (c589): there are no pages to put back, but the place is set
+  all the same, since SvelteKit's own was read after the next screen's data
+  came in (until c589 that case was left to it, and a shelf picked from the
+  tabs under a slow load came back at the top).
 - **CACHED** isn't paged. Only the tablet knows which series it holds, so the
   server sends the whole shelf for it to narrow down.
 - **Sorts page cleanly** because every order ends in the series id, so no card
@@ -644,6 +648,20 @@ a band to select kinds on the library itself?" Designed in
   (`data-focus-down` on the strip), not the one under the cell. **Without
   script** the cells are plain links and a full load starts at the top, which
   shows the tabs, the band and the first row.
+- **A shelf opens at its top** (c589, the owner, 2026-11-05: "clicking a
+  shelf should set take me to the top"), unlike a kind. Until then every
+  shelf link (`ShelfTabs`: the tabs, the desktop's sidebar, the waiting
+  outline's tabs) kept the scroll, so a shelf picked from the sidebar
+  mid-grid opened partway down another shelf's list. Now SvelteKit scrolls
+  as for any link, which jumps (reduced motion or not), and the shelf
+  already showing goes to its top too. Focus stays on the tab picked
+  (`data-sveltekit-keepfocus`), so a TV's mark stays on the tab row; BACK
+  puts the last shelf back where it was left (the library's snapshot, see
+  [`NAVIGATION.md`](NAVIGATION.md)). On a phone or tablet the tabs don't pin,
+  so mid-grid they are reached by the pinned band's `TO READ ▴`, a button
+  that scrolls to them, not a shelf link. + NEW keeps the scroll: it opens a
+  field where it is. `tests/library-top-scroll.e2e.ts` (all four devices)
+  and `tests/tv-library-top.e2e.ts`.
 - **On a TV** it is a 56px focus row of its own under the tabs, inside the
   safe margin. **← → move focus only**: each cell is a link, so the grid
   doesn't change until **OK**, which chooses (and keeps focus on the cell).

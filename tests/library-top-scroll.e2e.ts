@@ -22,6 +22,7 @@ import { expect, test } from './fixtures';
 test.describe.configure({ mode: 'serial' });
 
 const FILLERS = 80;
+const TALL_SHELF = 'Filler Pile';
 let work = '';
 let dbPath = '';
 let preview: ChildProcess | null = null;
@@ -59,6 +60,15 @@ function seed(): void {
 		);
 		for (let i = 1; i <= FILLERS; i++)
 			add.run(`Scroll Filler ${String(i).padStart(2, '0')}`, `filler:${i}`, like.id);
+		// A shelf as tall as the fillers (c589): picking it mid-grid from ALL
+		// would land partway down it if a shelf kept the scroll.
+		const shelf = db
+			.prepare(`INSERT INTO collections (name, position) VALUES (?, 99)`)
+			.run(TALL_SHELF).lastInsertRowid;
+		db.prepare(
+			`INSERT INTO collection_series (collection_id, series_id)
+			SELECT ?, id FROM series WHERE origin_key LIKE 'filler:%'`
+		).run(shelf);
 	} finally {
 		db.close();
 	}
@@ -620,6 +630,83 @@ test('FILTER’s open panel is over the KIND band and the grid, at the top and p
 		await panel.getByRole('button', { name: 'DONE' }).click();
 		await expect(panel).toBeHidden();
 	}
+});
+
+// ---- c589: a shelf opens at its top -------------------------------------------------
+
+test.describe('a shelf from the tabs or the sidebar (c589)', () => {
+	// The service worker answers `__data.json` itself once it controls the
+	// page, past page.route (doc/TESTING.md, "Load").
+	test.use({ serviceWorkers: 'block' });
+
+	test('a shelf picked mid-grid opens at its top, the one showing too, and BACK finds the old place (c589)', async ({
+		page
+	}, info) => {
+		const desktop = isDesktop(info.project.name);
+		// The desktop's shelves are the sidebar, in sight all the way down; the
+		// others' are the tabs over the band, which don't pin: mid-grid they are
+		// reached by the pinned band's first cell, which brings them under the bar.
+		const shelves = desktop
+			? page.locator('aside.sidebar').getByRole('navigation', { name: 'Shelves' })
+			: page.locator('.library .tabs').getByRole('navigation', { name: 'Shelves' });
+		const tab = (name: RegExp) => shelves.getByRole('link', { name });
+		const tall = tab(new RegExp(`^${TALL_SHELF.toUpperCase()}`));
+		/** 1.5 screens down, then (where the shelves are tabs) up to them by `ALL ▴`. */
+		async function downTheGrid() {
+			await scrollScreens(page, 1.5);
+			if (desktop) return;
+			await kinds(page).getByRole('button', { name: /^ALL/ }).click();
+			await expect(tab(/^ALL/)).toBeFocused();
+			// The tabs under the bar, the page still well off its top.
+			await expect
+				.poll(async () => {
+					const under = await bar(page).evaluate((h) => h.getBoundingClientRect().bottom);
+					const t = await shelves.evaluate((n) => n.getBoundingClientRect().top);
+					return Math.abs(t - under);
+				})
+				.toBeLessThanOrEqual(2);
+		}
+		// The jumps are instant this way; SvelteKit's own scroll is a jump either way.
+		await page.emulateMedia({ reducedMotion: 'reduce' });
+		await page.goto(`${BASE}/?shelf=all&sort=title`);
+		await expect(page.locator('.grid .tile').first()).toBeVisible();
+
+		// Another shelf, from down the grid, its data held 2.5 s: the grid is in
+		// outline from 1 s, as a loaded box drew it, and SvelteKit reads the place
+		// to come back to only after the data is in.
+		await downTheGrid();
+		const leftAt = await windowY(page);
+		expect(leftAt).toBeGreaterThan(50);
+		await page.route('**/__data.json?*shelf=c*', async (route) => {
+			await new Promise((r) => setTimeout(r, 2500));
+			await route.continue().catch(() => undefined);
+		});
+		await tall.click();
+		await expect(page.getByText('LOADING', { exact: true })).toBeVisible();
+		await expect(page).toHaveURL(/shelf=c%3A|shelf=c:/);
+		await expect(page.locator('.grid .tile').first()).toContainText('Scroll Filler');
+		await expect.poll(() => windowY(page)).toBe(0);
+		// Tall enough that a kept scroll would have shown: the case is reached.
+		expect(
+			await page.evaluate(() => document.documentElement.scrollHeight - innerHeight)
+		).toBeGreaterThan(leftAt);
+		// Focus stays on the shelf picked (keepfocus).
+		await expect(tall).toBeFocused();
+
+		// BACK: ALL, where it was left.
+		await page.goBack();
+		await expect(page).not.toHaveURL(/shelf=c/);
+		await expect.poll(async () => Math.abs((await windowY(page)) - leftAt)).toBeLessThanOrEqual(2);
+
+		// The shelf already showing goes to the top too, and stays on its URL.
+		const url = page.url();
+		await downTheGrid();
+		expect(await windowY(page)).toBeGreaterThan(50);
+		await tab(/^ALL/).click();
+		await expect.poll(() => windowY(page)).toBe(0);
+		expect(page.url()).toBe(url);
+		await expect(tab(/^ALL/)).toBeFocused();
+	});
 });
 
 test('the band scrolls sideways and never wraps, keeping the chosen kind in view', async ({

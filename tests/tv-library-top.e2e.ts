@@ -110,6 +110,27 @@ test('the remote reaches SORT, OK opens it on the choice in use, and the pad wal
 	await expect.poll(() => focused(page)).toBe('Sort, RATING');
 });
 
+test('OK on another shelf tab opens it at its top with the mark still on the tab row (c589)', async ({
+	page
+}) => {
+	// A remote meets the tabs at the screen's start (BACK from the grid climbs
+	// past the pinned band to the first CONTINUE card), so what a TV needs of
+	// c589 is that the shelf's links scrolling to the top keep the mark.
+	await page.goto('/?sort=title');
+	const onTab = () =>
+		page.evaluate(() => document.activeElement?.getAttribute('data-focus-id') ?? '');
+	await page.keyboard.press('ArrowDown'); // the screen's start
+	await page.keyboard.press('ArrowDown'); // the shelf tabs
+	await expect.poll(onTab).toMatch(/^shelf-/);
+	await page.keyboard.press('ArrowRight');
+	await expect.poll(onTab).toMatch(/^shelf-(?!all$)/);
+	const picked = await onTab();
+	await page.keyboard.press('Enter');
+	await expect(page).toHaveURL(/shelf=/);
+	await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
+	await expect.poll(onTab).toBe(picked);
+});
+
 test.describe('a sort that takes past 1 s', () => {
 	// The service worker answers `__data.json` itself once it controls the
 	// page, past page.route (doc/TESTING.md, "Load").
