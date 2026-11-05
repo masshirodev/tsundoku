@@ -840,6 +840,35 @@
 		(waiting.phase === 'outline' || waiting.phase === 'stalled') && waiting.to.kind === 'library'
 	);
 
+	/*
+	 * The outline says LOADING where SORT and ↓ / ↑ were, so a sort picked by
+	 * the remote that takes past 1 s unmounted the cell holding focus, and the
+	 * mark was on nothing when SORT came back (tv-library-top's "the remote
+	 * reaches SORT…", red 4 in 10 loaded; wave 24's probe saw focus go to the
+	 * body at the outline's first frame and stay there). Which of the two had
+	 * it is noted before the outline is drawn (`pre`), and focus goes back to
+	 * it once SORT is, unless something else has taken focus meanwhile.
+	 */
+	let sortFocus = -1;
+	$effect.pre(() => {
+		if (!outlined) return;
+		untrack(() => {
+			const sort = document.querySelector('.sort');
+			const at = document.activeElement;
+			sortFocus =
+				sort && at ? [...sort.querySelectorAll('button')].indexOf(at as HTMLButtonElement) : -1;
+		});
+	});
+	$effect(() => {
+		if (outlined || sortFocus === -1) return;
+		const at = sortFocus;
+		sortFocus = -1;
+		const now = document.activeElement;
+		if (now && now !== document.body) return;
+		const buttons = document.querySelectorAll<HTMLElement>('.sort button');
+		(buttons[at] ?? buttons[0])?.focus({ preventScroll: true });
+	});
+
 	// ---- on the tile ------------------------------------------------------
 	// FAV and the rating are edited on the cover itself (see CoverTile). The
 	// tile shows the change at once and saves behind it. A write that fails

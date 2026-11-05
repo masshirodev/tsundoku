@@ -95,6 +95,49 @@ test('the remote reaches SORT, OK opens it on the choice in use, and the pad wal
 	await expect.poll(() => focused(page)).toBe('Sort, RATING');
 });
 
+test.describe('a sort that takes past 1 s', () => {
+	// The service worker answers `__data.json` itself once it controls the
+	// page, past page.route (doc/TESTING.md, "Load").
+	test.use({ serviceWorkers: 'block' });
+
+	/** Hold the library's data for `ms` when the URL asks for `query`. */
+	const slow = (page: Page, query: string, ms: number) =>
+		page.route(`**/__data.json?*${query}*`, async (route) => {
+			await new Promise((r) => setTimeout(r, ms));
+			await route.continue().catch(() => undefined);
+		});
+
+	test('the mark comes back to SORT, and to ↓ / ↑, after the outline said LOADING (wave 24)', async ({
+		page
+	}) => {
+		// What loaded runs did to `:49` 4 times in 10, forced: the outline
+		// replaces SORT with LOADING at 1 s, with the cell focused.
+		await page.goto('/?sort=title');
+		await toSort(page);
+		await slow(page, 'sort=rating', 2500);
+		await page.keyboard.press('Enter');
+		await expect.poll(() => focused(page)).toBe('TITLE');
+		await page.keyboard.press('ArrowDown');
+		await page.keyboard.press('Enter');
+		// The outline is up and SORT is not drawn: the case is the one on record.
+		await expect(page.getByText('LOADING', { exact: true })).toBeVisible();
+		await expect(page.locator('.sort')).toHaveCount(0);
+		await expect(page).toHaveURL(/sort=rating/);
+		await expect(page.locator('.sort')).toHaveCount(1);
+		await expect.poll(() => focused(page)).toBe('Sort, RATING');
+
+		// ↓ / ↑ beside it, the same way.
+		await page.keyboard.press('ArrowRight');
+		await expect.poll(() => focused(page)).toBe('Reverse order');
+		await slow(page, 'dir=', 2500);
+		await page.keyboard.press('Enter');
+		await expect(page.getByText('LOADING', { exact: true })).toBeVisible();
+		await expect(page).toHaveURL(/dir=/);
+		await expect(page.locator('.sort')).toHaveCount(1);
+		await expect.poll(() => focused(page)).toBe('Reverse order');
+	});
+});
+
 /**
  * How far the focused cover's ring (7px outside it, `--focus-ring`) is clear
  * of every bar pinned over that column: the top bar, the shelf tabs (pinned
