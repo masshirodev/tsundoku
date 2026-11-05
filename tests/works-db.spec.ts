@@ -127,7 +127,7 @@ describe('creating a Work', () => {
 			now: NOW
 		});
 		expect(second.movedFrom).toEqual([
-			{ seriesId: b, workId: first.work.id, createdAt: NOW, position: 2 }
+			{ seriesId: b, workId: first.work.id, createdAt: NOW, name: 'First', position: 2 }
 		]);
 		expect(partsOf(first.work.id)).toEqual([a, c]);
 		expect(partsOf(second.work.id)).toContain(b);
@@ -904,7 +904,12 @@ describe('an UNDO never takes a series from the Work it joined since (c308)', ()
 		const from = works.createWork({ seriesIds: [a, b, c], name: 'From', now: NOW });
 		const into = works.createWork({ seriesIds: [d, e], name: 'Into', now: NOW });
 		const added = works.addSeries(into.work.id, c);
-		expect(added.former).toEqual({ workId: from.work.id, createdAt: NOW, position: 3 });
+		expect(added.former).toEqual({
+			workId: from.work.id,
+			createdAt: NOW,
+			name: 'From',
+			position: 3
+		});
 		// The sheet moves it on again: Into keeps two, so nothing ends.
 		const f = idOf('Honzuki no Gekokujou')!;
 		const third = works.createWork({ seriesIds: [c, f], name: 'Third', now: NOW });
@@ -968,8 +973,9 @@ describe('an UNDO never takes a series from the Work it joined since (c308)', ()
 		expect(membersNow(back.id)).toEqual([a, b]);
 		expect(works.workOfSeries(c)).toEqual(next.work);
 		expect(membersNow(next.work.id)).toEqual([c, d]);
-		// A second press of the same UNDO finds its members taken: by itself.
-		expect(() => works.undoTakeOut(out)).toThrow(/is in Two now/i);
+		// A second press of the same UNDO finds the Work back, under its new id
+		// (c470: before, it named the members as taken, by itself).
+		expect(() => works.undoTakeOut(out)).toThrow(/Two is already back/i);
 		// Nor may a create's UNDO delete the newer Work in its place.
 		works.ungroup(back.id);
 		const made = works.createWork({ seriesIds: [a, b], name: 'Made', now: NOW + 2 });
@@ -1046,9 +1052,11 @@ describe('an UNDO never takes a series from the Work it joined since (c308)', ()
 		const again = await post(workScreen.actions.undoAdd, [['facts', JSON.stringify(added)]], {
 			id: String(three.work.id)
 		});
-		// e came from no Work, so its UNDO only takes it out of Three: nothing to
-		// refuse, and Away keeps it.
-		expect(again).toEqual({ ok: true });
+		// e is in Three no more, so the UNDO has nothing left to take out and
+		// says where it is, rather than answer OK for a press that changed
+		// nothing (c470); Away keeps it either way.
+		expect(again.status).toBe(400);
+		expect(again.data?.message).toMatch(/CHAINSAW MAN IS IN AWAY NOW/);
 		expect(works.workOfSeries(e)?.name).toBe('Away');
 	});
 });
@@ -1419,5 +1427,116 @@ describe('the series screen’s WORK row TAKE OUT and its UNDO, through its own 
 		expect(String((answer.data as { message: string }).message)).toMatch(/IS IN OTHER RUN NOW/);
 		expect(membersNow(work.id)).toEqual([q, r]);
 		expect(membersNow(other.work.id)).toEqual([p, x]);
+	});
+});
+
+describe('an add’s UNDO never leaves a Work of one, and a later UNDO finds a restored Work (c470)', () => {
+	const five = () =>
+		[
+			'Isekai Yakkyoku',
+			'Tensei Shitara Ken Deshita',
+			'Mushoku Tensei',
+			'Villainess Level 99',
+			'Chainsaw Man'
+		].map(idOf) as number[];
+
+	it('refuses the add’s UNDO when a take-out since would leave the Work with one series', () => {
+		const [p, q, a] = five();
+		const into = works.createWork({ seriesIds: [p, q], name: 'Into', now: NOW });
+		const added = works.addSeries(into.work.id, a);
+		works.takeOut(into.work.id, p);
+		expect(membersNow(into.work.id)).toEqual([q, a]);
+
+		// Before, the DELETE left Into holding q alone: the state question 5 forbids.
+		expect(() => works.undoAdds([added])).toThrow(/Into would be left with one series/);
+		expect(membersNow(into.work.id)).toEqual([q, a]);
+		expect(works.workOfSeries(a)?.id).toBe(into.work.id);
+		// The press is refused, not consumed: the same state, the same answer.
+		expect(() => works.undoAdd(added)).toThrow(works.WorkError);
+		expect(membersNow(into.work.id)).toEqual([q, a]);
+	});
+
+	it('refuses two adds’ UNDO, whole, when the second would leave one', () => {
+		const [p, q, a, b] = five();
+		const into = works.createWork({ seriesIds: [p, q], name: 'Into', now: NOW });
+		const f1 = works.addSeries(into.work.id, a);
+		const f2 = works.addSeries(into.work.id, b);
+		works.takeOut(into.work.id, p);
+		works.takeOut(into.work.id, q);
+		expect(membersNow(into.work.id)).toEqual([a, b]);
+
+		expect(() => works.undoAdds([f1, f2])).toThrow(/one series/);
+		// b is still in: a refusal undoes none of them.
+		expect(membersNow(into.work.id)).toEqual([a, b]);
+	});
+
+	it('still takes the series out when two or more stay', () => {
+		const [p, q, a, b] = five();
+		const into = works.createWork({ seriesIds: [p, q, b], name: 'Into', now: NOW });
+		const added = works.addSeries(into.work.id, a);
+		works.takeOut(into.work.id, p);
+		works.undoAdd(added);
+		expect(membersNow(into.work.id)).toEqual([q, b]);
+	});
+
+	it('lets a later, separate UNDO name a Work an earlier UNDO brought back under a new id', () => {
+		const [a, b, c, x, y] = five();
+		const into = works.createWork({ seriesIds: [a, b], name: 'Into', now: NOW });
+		const added = works.addSeries(into.work.id, c);
+		// Take out two: the second ends the Work (ended facts carry all three).
+		const t1 = works.takeOut(into.work.id, a);
+		const t2 = works.takeOut(into.work.id, b);
+		expect(t2.ended).not.toBeNull();
+		const newer = works.createWork({ seriesIds: [x, y], name: 'Newer', now: NOW + 1 });
+		expect(newer.work.id).toBe(into.work.id);
+
+		// One press: the Work comes back under a new id.
+		works.undoTakeOuts([t1, t2]);
+		const back = works.workOfSeries(a)!;
+		expect(back).toMatchObject({ name: 'Into', createdAt: NOW });
+		expect(back.id).not.toBe(newer.work.id);
+		expect(membersNow(back.id)).toEqual([a, b, c]);
+
+		// A second, separate press naming the old id: before, `…HAS ENDED`,
+		// although the Work is right there.
+		works.undoAdd(added);
+		expect(membersNow(back.id)).toEqual([a, b]);
+		expect(works.workOfSeries(c)).toBeNull();
+		// And never out of the newer Work that holds the old id.
+		expect(membersNow(newer.work.id)).toEqual([x, y]);
+		// The same press again is honest about why it has nothing to do.
+		expect(() => works.undoAdd(added)).toThrow(works.WorkError);
+		expect(membersNow(back.id)).toEqual([a, b]);
+	});
+
+	it('finds the restored Work for a take-out’s UNDO too, and a second press says it is back', () => {
+		const [a, b, c, x, y] = five();
+		const w = works.createWork({ seriesIds: [a, b, c], name: 'Three', now: NOW });
+		const t0 = works.takeOut(w.work.id, c);
+		const t1 = works.takeOut(w.work.id, a);
+		expect(t1.ended).not.toBeNull();
+		const newer = works.createWork({ seriesIds: [x, y], name: 'Newer', now: NOW + 1 });
+		expect(newer.work.id).toBe(w.work.id);
+
+		works.undoTakeOut(t1);
+		const back = works.workOfSeries(a)!;
+		expect(back.id).not.toBe(newer.work.id);
+		expect(membersNow(back.id)).toEqual([a, b]);
+		// The earlier band's UNDO, pressed later: c goes back at its place.
+		works.undoTakeOut(t0);
+		expect(membersNow(back.id)).toEqual([a, b, c]);
+		expect(membersNow(newer.work.id)).toEqual([x, y]);
+		expect(() => works.undoTakeOut(t1)).toThrow(/Three is already back/);
+	});
+
+	it('refuses, rather than guess, when the ended Work was not brought back', () => {
+		const [a, b, c, x, y] = five();
+		const into = works.createWork({ seriesIds: [a, b], name: 'Into', now: NOW });
+		const added = works.addSeries(into.work.id, c);
+		works.ungroup(into.work.id);
+		const newer = works.createWork({ seriesIds: [x, y], name: 'Newer', now: NOW + 1 });
+		expect(newer.work.id).toBe(into.work.id);
+		expect(() => works.undoAdd(added)).toThrow(/has ended/);
+		expect(membersNow(newer.work.id)).toEqual([x, y]);
 	});
 });

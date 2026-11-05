@@ -75,7 +75,14 @@ export type CreateFacts = {
 	members: SeriesPlace[];
 	/** Series that came out of a Work that survived, where they sat, and that
 	 * Work's making (`createdAt`), so UNDO knows it from a newer one given its id. */
-	movedFrom: { seriesId: number; workId: number; createdAt: number; position: number }[];
+	movedFrom: {
+		seriesId: number;
+		workId: number;
+		createdAt: number;
+		/** That Work's name then, which a later UNDO finds it by (`locate`, c470). */
+		name?: string;
+		position: number;
+	}[];
 	/** Works the create left with fewer than two series. */
 	ended: EndedWork[];
 };
@@ -85,13 +92,17 @@ export type AddFacts = {
 	/** When that Work was made: `works.id` is reused, so the id alone does not
 	 * say it is the same Work an UNDO finds there later. */
 	workCreatedAt: number;
+	/** That Work's name at the add: with `workCreatedAt`, how a later UNDO finds
+	 * it once an earlier UNDO brought it back under a new id (`locate`, c470).
+	 * Optional only for facts a page rendered before it was carried. */
+	workName?: string;
 	seriesId: number;
 	/** The series' own name, carried so the band can say what was added: the
 	 * page's lists have already changed by the time it renders. */
 	title: string;
 	position: number;
-	/** The Work it came from, when that Work survived, and when it was made. */
-	former: { workId: number; createdAt: number; position: number } | null;
+	/** The Work it came from, when that Work survived, when it was made, and its name. */
+	former: { workId: number; createdAt: number; name?: string; position: number } | null;
 	ended: EndedWork[];
 };
 
@@ -99,6 +110,8 @@ export type TakeOutFacts = {
 	workId: number;
 	/** When that Work was made (as in `AddFacts`). */
 	workCreatedAt: number;
+	/** Its name at the take-out (as in `AddFacts`). */
+	workName?: string;
 	seriesId: number;
 	/** The series' own name, for the band (as in `AddFacts`). */
 	title: string;
@@ -256,31 +269,56 @@ function putBack(
 	seriesId: number,
 	position: number
 ): number {
-	const workId = resolved(restored, ref);
 	// The id alone is not the Work: `works.id` is reused once the newest Work
 	// ends, so a Work made since may hold it. That Work is not the one the
 	// series left, and putting the series into it would be the c308 class
-	// again, silently (round 2). The moment it was made tells them apart.
-	if (workRow(db, workId)?.createdAt !== ref.createdAt)
-		throw new WorkError('the Work this UNDO puts it back into has ended');
+	// again, silently (round 2). `locate` finds the Work itself, wherever an
+	// UNDO has brought it back to (c470).
+	const workId = locate(db, restored, ref);
+	if (workId === null) throw new WorkError('the Work this UNDO puts it back into has ended');
 	mustBeFree(db, workId, seriesId);
 	insertMember(db).run(workId, seriesId, position);
 	return workId;
 }
 
-/** A Work as an UNDO's facts name it: its id at the time, and when it was made. */
-type WorkRef = { id: number; createdAt: number };
+/**
+ * A Work as an UNDO's facts name it: its id at the time, when it was made,
+ * and its name then (absent only in facts rendered before c470 carried it).
+ */
+type WorkRef = { id: number; createdAt: number; name?: string };
 
 /**
  * The ids the Works one UNDO has brought back came back under, keyed by the
  * id and moment their facts name them. `restore` may give an ended Work a new
  * id, and the other facts of the same UNDO still name the old one, so every
- * later write into a Work resolves its id here first (round 2).
+ * later write into a Work resolves its id here first (round 2). It lives for
+ * one press; a later press finds the Work through `locate`'s own lookup.
  */
 type Restored = Map<string, number>;
 
 const refKey = (ref: WorkRef) => `${ref.id}@${ref.createdAt}`;
-const resolved = (restored: Restored, ref: WorkRef) => restored.get(refKey(ref)) ?? ref.id;
+
+/**
+ * Where the Work a ref names is now, or null when it has ended (c470). An id
+ * is not an identity across an UNDO: `restore` brings an ended Work back with
+ * its own name, order and `created_at`, but under a new id when a newer Work
+ * was given the old one. So, in order: the id this press's own `restore`
+ * gave it; the id itself, while the Work there was made at the same moment;
+ * then the one Work made at that moment under the same name -- the Work an
+ * earlier, separate UNDO brought back. Two Works share a moment only when
+ * made in one millisecond (a test's fixed clock), and a ref with no name then
+ * resolves only when one Work has it, so the lookup never guesses between two.
+ */
+function locate(db: Database.Database, restored: Restored, ref: WorkRef): number | null {
+	const mapped = restored.get(refKey(ref));
+	if (mapped !== undefined) return workRow(db, mapped) ? mapped : null;
+	if (workRow(db, ref.id)?.createdAt === ref.createdAt) return ref.id;
+	const rows = db
+		.prepare(`SELECT id, name FROM works WHERE created_at = ? AND id <> ?`)
+		.all(ref.createdAt, ref.id) as { id: number; name: string }[];
+	const same = ref.name === undefined ? rows : rows.filter((r) => r.name === ref.name);
+	return same.length === 1 ? same[0].id : null;
+}
 
 /** A series an UNDO may put back: still in the library, and in no Work. */
 function mustBeFree(db: Database.Database, workId: number, seriesId: number): void {
@@ -315,10 +353,13 @@ function restore(
 	restored: Restored,
 	facts: { work: WorkRecord; members: SeriesPlace[] }
 ): number {
-	if (isSameWork(db, facts.work)) throw new WorkError(`${facts.work.name} is already back`);
+	// Back already, under its own id or, after an earlier UNDO, under a new one.
+	const back = locate(db, restored, facts.work);
+	if (back !== null && workRow(db, back)?.name === facts.work.name)
+		throw new WorkError(`${facts.work.name} is already back`);
 	// Every member first, so the refusal names the series that moved on. No
-	// Work is this one yet (`isSameWork` above), so any Work a member is in now
-	// is another, whatever its id.
+	// Work is this one yet (`locate` above), so any Work a member is in now is
+	// another, whatever its id.
 	for (const m of facts.members) mustBeFree(db, 0, m.seriesId);
 	const taken = workRow(db, facts.work.id) !== undefined;
 	const id = Number(
@@ -335,18 +376,6 @@ function restore(
 	const insert = insertMember(db);
 	for (const m of facts.members) insert.run(id, m.seriesId, m.position);
 	return id;
-}
-
-/**
- * Whether the Work in the database is the one these facts describe: by id,
- * by the moment it was made and by name, since a Work made later can be
- * given an ended one's id (and two made in one millisecond, in a test, share
- * the moment). A rename since makes a second UNDO miss it here; its members
- * then refuse it by name instead.
- */
-function isSameWork(db: Database.Database, work: WorkRecord): boolean {
-	const row = workRow(db, work.id);
-	return row !== undefined && row.createdAt === work.createdAt && row.name === work.name;
 }
 
 /**
@@ -848,14 +877,15 @@ export function createWork(opts: {
 					.run(name, now, order).lastInsertRowid
 			);
 			const ordered = orderedIds(found, order);
-			const former = new Map<number, { workId: number; createdAt: number; position: number }>();
+			type Former = { workId: number; createdAt: number; name: string; position: number };
+			const former = new Map<number, Former>();
 			for (const id of ordered) {
 				const f = db
 					.prepare(
-						`SELECT ws.work_id AS workId, w.created_at AS createdAt, ws.position
+						`SELECT ws.work_id AS workId, w.created_at AS createdAt, w.name, ws.position
 							FROM work_series ws JOIN works w ON w.id = ws.work_id WHERE ws.series_id = ?`
 					)
-					.get(id) as { workId: number; createdAt: number; position: number } | undefined;
+					.get(id) as Former | undefined;
 				if (f) former.set(id, f);
 			}
 			const snapshots = new Map<number, SeriesPlace[]>();
@@ -877,6 +907,7 @@ export function createWork(opts: {
 					seriesId,
 					workId: f.workId,
 					createdAt: f.createdAt,
+					name: f.name,
 					position: f.position
 				}));
 			return {
@@ -914,7 +945,13 @@ export function undoCreate(facts: CreateFacts): void {
 		const touched = facts.ended.map((e) => restore(db, restored, e));
 		for (const m of facts.movedFrom)
 			touched.push(
-				putBack(db, restored, { id: m.workId, createdAt: m.createdAt }, m.seriesId, m.position)
+				putBack(
+					db,
+					restored,
+					{ id: m.workId, createdAt: m.createdAt, name: m.name },
+					m.seriesId,
+					m.position
+				)
 			);
 		refuseMixed(db, touched);
 	}).immediate();
@@ -941,10 +978,11 @@ export function addSeries(workId: number, seriesId: number): AddFacts {
 				throw new WorkError("hidden and visible series can't share a Work");
 			const formerRow = db
 				.prepare(
-					`SELECT ws.work_id AS workId, w.created_at AS createdAt, ws.position
+					`SELECT ws.work_id AS workId, w.created_at AS createdAt, w.name, ws.position
 						FROM work_series ws JOIN works w ON w.id = ws.work_id WHERE ws.series_id = ?`
 				)
-				.get(seriesId) as { workId: number; createdAt: number; position: number } | undefined;
+				.get(seriesId) as
+				{ workId: number; createdAt: number; name: string; position: number } | undefined;
 			if (formerRow?.workId === workId) throw new WorkError('that series is already in this Work');
 			const before = formerRow ? membersOf(db, formerRow.workId) : null;
 			db.prepare(`DELETE FROM work_series WHERE series_id = ?`).run(seriesId);
@@ -961,12 +999,14 @@ export function addSeries(workId: number, seriesId: number): AddFacts {
 					? {
 							workId: formerRow.workId,
 							createdAt: formerRow.createdAt,
+							name: formerRow.name,
 							position: formerRow.position
 						}
 					: null;
 			return {
 				workId,
 				workCreatedAt: work.createdAt,
+				workName: work.name,
 				seriesId,
 				title: facts.title,
 				position,
@@ -995,21 +1035,54 @@ export function undoAdds(list: AddFacts[]): void {
 		for (const facts of [...list].reverse()) {
 			// Only out of the Work it was added to: one made since under the same
 			// id is another Work, and taking a series out of that one would skip
-			// its `endIfOne` and leave it a Work of one (round 2).
-			const into = resolved(restored, { id: facts.workId, createdAt: facts.workCreatedAt });
-			if (workRow(db, into)?.createdAt !== facts.workCreatedAt)
-				throw new WorkError('the Work this UNDO takes it out of has ended');
-			db.prepare(`DELETE FROM work_series WHERE work_id = ? AND series_id = ?`).run(
-				into,
-				facts.seriesId
-			);
+			// its `endIfOne` and leave it a Work of one (round 2). The Work itself
+			// may be back under a new id since an earlier UNDO (c470).
+			const into = locate(db, restored, {
+				id: facts.workId,
+				createdAt: facts.workCreatedAt,
+				name: facts.workName
+			});
+			if (into === null) throw new WorkError('the Work this UNDO takes it out of has ended');
+			const name = workRow(db, into)!.name;
+			const out = db
+				.prepare(`DELETE FROM work_series WHERE work_id = ? AND series_id = ?`)
+				.run(into, facts.seriesId);
+			// Taken out since, by hand or by this same UNDO pressed before: there
+			// is nothing left for it to undo, and putting the series back where it
+			// came from would act on a library that has moved on.
+			if (out.changes === 0) {
+				const now = db
+					.prepare(
+						`SELECT w.name FROM work_series ws JOIN works w ON w.id = ws.work_id
+							WHERE ws.series_id = ?`
+					)
+					.get(facts.seriesId) as { name: string } | undefined;
+				throw new WorkError(
+					now
+						? `${facts.title} is in ${now.name} now · take it out there first`
+						: `${facts.title} is no longer in ${name}`
+				);
+			}
+			// A take-out since may have left only one other part (c470): the add's
+			// UNDO would then leave a Work of one, the state question 5 forbids.
+			// Ending the Work here would undo the owner's grouping as a side
+			// effect with no band of its own, so the UNDO refuses, and TAKE OUT on
+			// the Work's screen, which ends it with its own UNDO, is the way.
+			if (memberCount(db, into) < 2)
+				throw new WorkError(
+					`${name} would be left with one series · take ${facts.title} out on its screen instead`
+				);
 			for (const e of facts.ended) touched.push(restore(db, restored, e));
 			if (facts.former)
 				touched.push(
 					putBack(
 						db,
 						restored,
-						{ id: facts.former.workId, createdAt: facts.former.createdAt },
+						{
+							id: facts.former.workId,
+							createdAt: facts.former.createdAt,
+							name: facts.former.name
+						},
 						facts.seriesId,
 						facts.former.position
 					)
@@ -1041,6 +1114,7 @@ export function takeOut(workId: number, seriesId: number): TakeOutFacts {
 			return {
 				workId,
 				workCreatedAt: work.createdAt,
+				workName: work.name,
 				seriesId,
 				title: factsOf(db, seriesId)?.title ?? '',
 				position: member.position,
@@ -1056,7 +1130,7 @@ function putTakeOutBack(db: Database.Database, restored: Restored, facts: TakeOu
 	return putBack(
 		db,
 		restored,
-		{ id: facts.workId, createdAt: facts.workCreatedAt },
+		{ id: facts.workId, createdAt: facts.workCreatedAt, name: facts.workName },
 		facts.seriesId,
 		facts.position
 	);
