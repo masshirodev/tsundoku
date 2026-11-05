@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3';
 import { posix } from './fspath.ts';
 
 /**
- * Where a series' files are (doc/SYNC.md, "Two devices"). Every entry names
+ * Where a series' files are (doc/SYNC.md, "Other devices"). Every entry names
  * its file relative to its series' path, and everything that reads a file
  * joins the two. A series whose files are in more than one folder -- a
  * manga downloaded on the tablet and the phone, books grouped from two

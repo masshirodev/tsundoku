@@ -10,8 +10,9 @@
  *
  * The library folder is one device's (the tablet's). Folders another device
  * offers go under `devices/<name>/` with --device-dir, and the importer reads
- * each device and merges them (doc/SYNC.md, "Two devices"). --device can be
- * given more than once.
+ * each device's Hentoid and Library and merges them; of the `Mihon/` folders
+ * under `devices/` it reads only tsundoku's own (doc/SYNC.md, "Other devices").
+ * --device can be given more than once.
  *
  * Each offered folder is placed by its label (Mihon, Hentoid, Library; see
  * targetOf) or by --as, at LIBRARY_ROOT/<target>, receive-only, ignoring

@@ -519,11 +519,13 @@ Specific and honest, so a deliberate gap isn't mistaken for an oversight:
 
 - **Mihon, Hentoid and EPUB import.** START SCAN (and RESCAN or `/scan`
   later) reads a Mihon backup from `$LIBRARY_ROOT/Mihon/autobackup/`, tsundoku's
-  own downloads under `$LIBRARY_ROOT/devices/tsundoku/Mihon/`, and
-  `$LIBRARY_ROOT/H/.Hentoid/` ([`IMPORT-MIHON.md`](IMPORT-MIHON.md),
-  [`IMPORT-HENTOID.md`](IMPORT-HENTOID.md)). With none of them present, it says
-  where it looked. Development still runs on `yarn run seed`'s sample titles
-  unless you import.
+  own downloads under `$LIBRARY_ROOT/devices/tsundoku/Mihon/`,
+  `$LIBRARY_ROOT/H/.Hentoid/`, and the EPUBs under `$LIBRARY_ROOT/Library/`
+  ([`IMPORT-MIHON.md`](IMPORT-MIHON.md),
+  [`IMPORT-HENTOID.md`](IMPORT-HENTOID.md),
+  [`IMPORT-EPUB.md`](IMPORT-EPUB.md)). With none of them present, it says where
+  it looked. Development still runs on `yarn run seed`'s sample titles unless
+  you import.
 - **The resume buttons open the reader** ([`READER.md`](READER.md)): a
   CONTINUE row's ▶ and the sheet's `▶ CH. N` resume where the series was left
   (`resumeEntry`). SERIES and TAGS in the sheet open the series screen, TAGS
