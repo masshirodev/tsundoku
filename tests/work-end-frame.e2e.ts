@@ -703,7 +703,8 @@ test('DOWNLOAD FIRST 10 that queues nothing says so, and can be pressed again (c
 	await dl.click();
 	const request = await asked;
 	expect(request.url()).toContain('/series/14?/download');
-	expect(request.postData()).toMatch(/name="which"\r\n\r\nnext\r\n/);
+	// The part's first ten, the same ten on every press (c534, round 2).
+	expect(request.postData()).toMatch(/name="which"\r\n\r\nfirst\r\n/);
 	// The answer as the page reads it: a success, and devalue's table says 0 queued.
 	const answer = JSON.parse(await (await request.response())!.text());
 	expect(answer.type).toBe('success');
@@ -1098,7 +1099,7 @@ test('a meanwhile row whose next part has no file says so instead of offering a 
 	await expect(dl).toHaveAttribute('data-focus-mark', 'in');
 	const asked = page.waitForRequest((r) => /\/series\/7\?\/download$/.test(r.url()));
 	await dl.click();
-	expect((await asked).postData()).toMatch(/name="which"\r\n\r\nnext\r\n/);
+	expect((await asked).postData()).toMatch(/name="which"\r\n\r\nfirst\r\n/);
 	await expect(row.locator('.dl')).toHaveText('NOT QUEUED · TRY THE SERIES');
 	await expect(page.locator(SEL.foot)).toContainText('DRAWING RUN · WORK');
 
