@@ -9,7 +9,7 @@
 	import { enhance } from '$app/forms';
 	import type Hls from 'hls.js';
 	import { clock, isWatchedAt } from '$lib/library/anime';
-	import { WatchClock } from '$lib/reader/reader';
+	import { isWatching, WatchClock } from '$lib/reader/reader';
 	import {
 		challengeScale,
 		bufferedTo,
@@ -804,10 +804,12 @@
 		time = video.currentTime;
 		watch.tick(Date.now(), time, {
 			rate: video.playbackRate,
-			watching:
-				!video.paused &&
-				!video.seeking &&
-				(document.visibilityState === 'visible' || inDocPip || inNativePip)
+			watching: isWatching({
+				paused: video.paused,
+				seeking: video.seeking,
+				visibility: document.visibilityState,
+				pip: inDocPip || inNativePip
+			})
 		});
 		if (Number.isFinite(video.duration) && video.duration > 0) duration = video.duration;
 		buffered = bufferedTo(rangesOf(video.buffered), time);

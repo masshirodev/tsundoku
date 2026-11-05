@@ -944,6 +944,25 @@ WebP (the list draws it at 96×54, the player's NEXT card at 128×72), kept as
 episode is a 404 with reveal off. The stamp, not the file, says there is one,
 so a file left by a deleted entry is never shown for a new one with its id.
 
+**The nightly sweep** (c454). No door that removes a series or an entry
+deletes its episodes' files in `$COVER_DIR/episodes/`: the picture and the
+seek-preview sprite with its sidecar (`<entry>.sprite.jpg`,
+`<entry>.sprite.json`, "The player"). So the backup timer
+(`scripts/backup.ts`, `doc/BACKUPS.md`) sweeps them after its snapshot
+(`src/lib/server/anime/episode-files.ts`). It deletes every `<entry>.*` whose
+id is no longer an episode, meaning no entry has the id, or the entry with it
+belongs to a series that is not video (`kindFacts(kind).medium`). It opens
+the database read-only. Files under an id SQLite gave to a new episode stay:
+the sprite is judged by its sidecar on every read (`currentSprite`), and the
+picture by the new entry's own `thumb_at`. A file younger than an hour is
+left for the next night, since its entry may have been written after the
+sweep's query. A failed sweep is logged and does not fail the backup.
+**Unmeasured**: the size of one real episode's sprite, which needs the
+workstation's library. The card asked for it, and it is still to be
+measured. `tests/anime-episode-files-db.spec.ts` covers a removed episode, a
+removed series, a reused id (a new episode's and a chapter's), a young file,
+a name with no id, and no folder.
+
 **When**: one at a time, in the background, 1.5 s apart, for episodes without
 one: on opening an anime's series screen (they show on the next visit), when
 the player resolves an episode (not incognito), and when a download lands.
