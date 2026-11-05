@@ -260,10 +260,17 @@ test('OFF stops listening on the Wi-Fi; the computer goes on', async ({
 	const { phone } = await wifi(request);
 	await page.goto('/settings#s-devices');
 	await hydrated(page);
+	// OFF's answer is the page's own state: the panel goes when /api/wifi has
+	// answered, after the Wi-Fi listeners have closed, which on a loaded box
+	// took longer than expect's 5 s (wave 23's loaded whole run; c439).
+	const answered = page.waitForResponse(
+		(r) => r.url().endsWith('/api/wifi') && r.request().method() === 'POST'
+	);
 	await page
 		.getByRole('group', { name: 'Other devices on this Wi-Fi' })
 		.getByRole('button', { name: 'OFF' })
 		.click();
+	expect((await answered).ok()).toBe(true);
 	await expect(page.getByLabel('Pairing', { exact: true })).toHaveCount(0);
 	await expect(request.get(`${phone}/`, { timeout: 3000 })).rejects.toThrow();
 	// Asked on a connection of its own. The `request` fixture's pool still
