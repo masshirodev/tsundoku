@@ -987,6 +987,17 @@
 	let previewOf = '';
 	let previewTimer: ReturnType<typeof setTimeout> | undefined;
 	let previewAsk = 0;
+	/**
+	 * On a TV there is no pointer: ← → (and ⏩ ⏪) move the time, and while the
+	 * move's flash is up the bar's tip shows the sprite's tile for where it
+	 * landed, above the time, kept inside the track as the pointer's is
+	 * (c457). A downloaded episode's sprite only: a stream's hidden second
+	 * picture is a pointer's (it fetches a segment a stop), so a stream's bar
+	 * shows the time alone, as before.
+	 */
+	const tvTipAt = $derived(
+		tv.current && sprite && seekFlash && hoverAt === null ? seekFlash.to : null
+	);
 	/** A stream's last frame, and the time it was drawn for: shown only near it (`nearFrame`). */
 	let streamPic = $state<{ src: string; at: number } | null>(null);
 	function wantPreview(at: number) {
@@ -1133,7 +1144,7 @@
 		hoverAt = null;
 		clearTimeout(previewTimer);
 		previewAsk++;
-		preview?.stop();
+		preview?.leave();
 		streamPic = null;
 	}
 
@@ -1891,6 +1902,8 @@
 					{#if hoverAt !== null}
 						<div class="hover" style:left={pct(hoverAt)}></div>
 						{@render tip(hoverAt)}
+					{:else if tvTipAt !== null}
+						{@render tip(tvTipAt)}
 					{/if}
 				</div>
 				<div class="l">{leftLabel(time, duration)}</div>
@@ -2485,11 +2498,14 @@
 		background: #000;
 	}
 	/* The native track's cues (pip.ts): showing for a PiP window to read,
-	   invisible on the page, where tsundoku draws its own line. */
+	   invisible on the page, where tsundoku draws its own line. !important
+	   because Chromium writes a user's OS caption style (Accessibility >
+	   Captions) as inline style on the cue box, and inline style beats a normal
+	   author rule; an author !important beats it (c449). */
 	video.cueless::cue {
-		color: transparent;
-		background: transparent;
-		text-shadow: none;
+		color: transparent !important;
+		background: transparent !important;
+		text-shadow: none !important;
 	}
 	.tapzone {
 		position: absolute;

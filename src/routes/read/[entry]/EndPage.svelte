@@ -935,21 +935,61 @@
 			padding: 14px 16px;
 			gap: 8px;
 		}
+		/* The block's row on a phone (c535): beside a 64px cover the column is
+		   about 270px, and its one-line cells (START, DOWNLOAD FIRST 10 EPISODES
+		   or NOT QUEUED · TRY THE SERIES, WORK →) are over twice that. So the
+		   row leaves the column and spans the block under the cover, as
+		   Work-Phone draws the phone's START under it, and wraps: START on a
+		   line of its own (its note under it where the line is short), the
+		   other cells sharing the next. Every cell stays a 64px stop. */
+		.nextw {
+			flex-wrap: wrap;
+		}
+		.nextw .col {
+			display: contents;
+		}
+		.nextw .info {
+			flex: 1;
+			min-width: 0;
+		}
 		.nextw .go {
-			height: 64px;
+			flex-basis: 100%;
+			flex-wrap: wrap;
+			height: auto;
 		}
 		.nextw .go > * {
+			min-height: 64px;
 			padding: 0 16px;
 			font-size: 14px;
+			flex: 1;
+			justify-content: center;
+			border-top: var(--hairline);
 		}
+		.nextw .go > .acc {
+			flex-basis: 100%;
+			flex-wrap: wrap;
+			justify-content: space-between;
+			align-content: center;
+			column-gap: 12px;
+			border-top: 0;
+		}
+		.nextw .go > .acc + * {
+			border-left: 0;
+		}
+		/* MEANWHILE, the row's one word, whole: 72px cut it by 12 (c535). */
 		.wrow .wl {
-			width: 72px;
-			padding-left: 14px;
+			width: 84px;
+			padding-left: 12px;
 			font-size: 12px;
+			letter-spacing: 0.02em;
 		}
+		/* The row's one cell can say NOT QUEUED · TRY THE SERIES: on a phone it
+		   wraps to two lines rather than squeezing the row's words to nothing. */
 		.wrow .wr {
 			padding: 0 16px;
 			font-size: 13px;
+			white-space: normal;
+			max-width: 132px;
 		}
 		.fcell {
 			padding: 0 16px;

@@ -59,8 +59,12 @@ const GROUP: Record<By, { cols: string; order: string }> = {
 
 /**
  * Time read, grouped `by` series, kind, day, or series and day (a HISTORY row).
- * `since` is the first day of the group's log: where a total could be read as
- * everything, the screen says SINCE it.
+ * `since` is the group's first **timed** day, the first with `duration_ms > 0`
+ * (card c483, the owner's (b)): where a total could be read as everything, the
+ * screen says SINCE it, and a day logged with no time on it (an anime episode
+ * before c443's rung, a novel's untimed rows) would date hours that only start
+ * later. So a group is a row only where it holds some time: one with none has
+ * no total to date, and is no row (every reader takes a missing group as 0).
  */
 export function readingTime<B extends By>(by: B, scope: TimeScope): TimeRow<B>[] {
 	const where = [
@@ -74,11 +78,13 @@ export function readingTime<B extends By>(by: B, scope: TimeScope): TimeRow<B>[]
 	const g = GROUP[by];
 	return getDb()
 		.prepare(
-			`SELECT ${g.cols}, SUM(re.duration_ms) AS ms, MIN(re.day) AS since
+			`SELECT ${g.cols}, SUM(re.duration_ms) AS ms,
+				MIN(CASE WHEN re.duration_ms > 0 THEN re.day END) AS since
 			FROM reading_events re
 			JOIN series s ON s.id = re.series_id JOIN roots r ON r.id = s.root_id
 			WHERE ${where}
 			GROUP BY ${g.order.replace(/ DESC/g, '')}
+			HAVING since IS NOT NULL
 			ORDER BY ${g.order}`
 		)
 		.all({
@@ -94,7 +100,10 @@ export function seriesReadingTime(seriesId: number, reveal: boolean): number {
 	return readingTime('series', { reveal, seriesId })[0]?.ms ?? 0;
 }
 
-/** Everything the viewer may see: the kinds' totals and their sum, each with its first day. */
+/**
+ * Everything the viewer may see: the kinds' totals and their sum, each with its
+ * first timed day; the sum's is the earliest of the kinds' (c483).
+ */
 export function readingTotals(reveal: boolean): {
 	ms: number;
 	since: string | null;

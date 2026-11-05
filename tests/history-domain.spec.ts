@@ -7,6 +7,7 @@ import {
 	sinceDay,
 	type HistoryDay
 } from '$lib/library/history';
+import { historyTotal } from '../src/routes/history/total';
 
 const day = (
 	over: Partial<Omit<HistoryDay, 'last'>> & { last?: Partial<HistoryDay['last']> } = {}
@@ -168,5 +169,44 @@ describe('reading time (c443)', () => {
 	it('names the first day a total counts from', () => {
 		expect(sinceDay('2023-05-12')).toBe('SINCE 12 MAY 2023');
 		expect(sinceDay('2026-09-03')).toBe('SINCE 3 SEP 2026');
+	});
+});
+
+describe('the total’s SINCE, each kind’s own first timed day (c483)', () => {
+	const h = 3_600_000;
+	it('says the total’s first timed day, and a later kind’s own after its time', () => {
+		expect(
+			historyTotal({
+				ms: 6 * h,
+				since: '2024-03-02',
+				kinds: [
+					{ kind: 'manga', ms: 2 * h, since: '2024-03-02' },
+					{ kind: 'anime', ms: 3 * h, since: '2026-10-30' },
+					{ kind: 'novel', ms: 1 * h, since: '2026-08-17' }
+				]
+			})
+		).toEqual({
+			time: '6 H 00',
+			since: 'SINCE 2 MAR 2024',
+			kinds: [
+				{ kind: 'anime', label: 'ANIME 3 H 00 · SINCE 30 OCT 2026' },
+				{ kind: 'manga', label: 'MANGA 2 H 00' },
+				{ kind: 'novel', label: 'NOVEL 1 H 00 · SINCE 17 AUG 2026' }
+			]
+		});
+	});
+
+	it('a kind with no time is no line, and no time at all is no total', () => {
+		const t = historyTotal({
+			ms: h,
+			since: '2025-01-05',
+			kinds: [
+				{ kind: 'manhwa', ms: h, since: '2025-01-05' },
+				{ kind: 'anime', ms: 0, since: null }
+			]
+		});
+		expect(t?.kinds).toEqual([{ kind: 'manhwa', label: 'MANHWA 1 H 00' }]);
+		expect(historyTotal({ ms: 0, since: null, kinds: [] })).toBeNull();
+		expect(historyTotal({ ms: 0, since: '2025-01-05', kinds: [] })).toBeNull();
 	});
 });

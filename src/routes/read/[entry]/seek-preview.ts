@@ -74,6 +74,19 @@ export class StreamPreview {
 	private dead = false;
 	/** The latest stop: an earlier one, answered or given up, must not stop its load. */
 	private seq = 0;
+	/**
+	 * How many times loading was stopped (a frame drawn, a stop given up, the
+	 * pointer gone). A stop whose source opened after one of those is over:
+	 * it must not start a load nothing would stop (c450).
+	 */
+	private stopped = 0;
+	/**
+	 * The playlist is in. Before it, nothing loads but the playlist itself
+	 * (`autoStartLoad: false`), and hls.js's `stopLoad()` would destroy that
+	 * request in flight: MANIFEST_PARSED would never come and every later stop
+	 * would wait on it for good (c450).
+	 */
+	private parsed = false;
 
 	constructor(
 		private quality: PreviewQuality,
@@ -95,11 +108,30 @@ export class StreamPreview {
 		if (this.quality.kind === 'hls' && H?.isSupported()) {
 			const h = new H({ ...PREVIEW_HLS_CONFIG });
 			this.hls = h;
-			this.manifest = new Promise<void>((ok) => h.once(H.Events.MANIFEST_PARSED, () => ok()));
+			this.manifest = new Promise<void>((ok, fail) => {
+				h.once(H.Events.MANIFEST_PARSED, () => {
+					this.parsed = true;
+					ok();
+				});
+				// A playlist that never comes (an error, a hoster's 5xx): this stop
+				// gives up, and the next one asks again on a fresh player.
+				h.on(H.Events.ERROR, (_e, d) => {
+					if (!d.fatal || this.parsed || this.hls !== h) return;
+					this.hls = null;
+					this.manifest = null;
+					h.destroy();
+					fail(new Error('preview playlist failed'));
+				});
+			});
 			h.loadSource(this.quality.src);
 			h.attachMedia(this.video);
 		} else {
+			// A plain file: `preload = 'none'` would hold even the seek's own
+			// read, so the file is let read its header, and a seek then reads the
+			// bytes at the time asked (c450).
+			this.video.preload = 'metadata';
 			this.video.src = this.quality.src;
+			this.parsed = true;
 			this.manifest = Promise.resolve();
 		}
 		return this.manifest;
@@ -109,9 +141,12 @@ export class StreamPreview {
 	async frameAt(t: number): Promise<string | null> {
 		if (this.dead) return null;
 		const mine = ++this.seq;
+		const stops = this.stopped;
 		const work = (async () => {
 			await this.open();
-			if (this.dead) return null;
+			// A manifest later than the stop's second: the stop gave up, or the
+			// pointer left, or a later stop began, while it was on its way.
+			if (this.dead || mine !== this.seq || stops !== this.stopped) return null;
 			this.hls?.startLoad(t);
 			const seeked = once(this.video, 'seeked');
 			this.video.currentTime = t;
@@ -148,7 +183,25 @@ export class StreamPreview {
 
 	/** The pointer left the bar, or a frame is drawn: no more fetching. */
 	stop(): void {
-		this.hls?.stopLoad();
+		this.stopped++;
+		if (this.parsed) this.hls?.stopLoad();
+	}
+
+	/**
+	 * The pointer left the bar. A playlist's player is held by `stop()`; a
+	 * plain file's picture has no such switch, and after a seek the browser
+	 * reads on past the frame, so its source is let go: nothing is read off
+	 * the bar, and the next stop opens the file again (its header, then the
+	 * time asked).
+	 */
+	leave(): void {
+		this.stop();
+		if (this.quality.kind === 'hls' && this.hls) return;
+		if (!this.manifest) return;
+		this.manifest = null;
+		this.parsed = false;
+		this.video.removeAttribute('src');
+		this.video.load();
 	}
 
 	/** The episode or its server changed: everything goes. */

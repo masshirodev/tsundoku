@@ -94,16 +94,21 @@ function oracle(reveal: boolean): Raw[] {
 	);
 }
 
+/**
+ * The groups the summary must give: one wherever some time was read, with its
+ * time and its first **timed** day (c483); a group holding no time is none.
+ */
 function sum(rows: Raw[], key: (r: Raw) => string) {
-	const out = new Map<string, { ms: number; since: string }>();
+	const out = new Map<string, { ms: number; since: string | null }>();
 	for (const r of rows) {
 		const k = key(r);
-		const o = out.get(k) ?? { ms: 0, since: r.day };
+		const o = out.get(k) ?? { ms: 0, since: null };
 		o.ms += r.ms;
-		if (r.day < o.since) o.since = r.day;
+		if (r.ms > 0 && (o.since === null || r.day < o.since)) o.since = r.day;
 		out.set(k, o);
 	}
-	return out;
+	for (const [k, o] of out) if (o.since === null) out.delete(k);
+	return out as Map<string, { ms: number; since: string }>;
 }
 
 describe('the summary', () => {
@@ -194,6 +199,86 @@ describe('hidden means hidden, at every door to the number', () => {
 			['2030-01-11', 20 * minute],
 			['2030-01-10', 25 * minute]
 		]);
+	});
+});
+
+describe('SINCE is each kind’s own first timed day (c483, the owner’s (b))', () => {
+	// Untimed reading, as an anime episode before c443's rung or a novel's
+	// untimed rows are logged: an open with no time on it.
+	const untimed = (seriesId: number, d: Date) => {
+		const entryId = series.seriesPage(seriesId, true)!.entries[0].id;
+		series.recordReading({ seriesId, entryId, kind: 'open', page: 1, durationMs: 0, now: +d });
+	};
+	const kindsOf = () => {
+		const out = new Map<string, number>();
+		for (const s of lib.listSeries({ reveal: true })) if (!out.has(s.kind)) out.set(s.kind, s.id);
+		return out;
+	};
+
+	it('a kind whose first row is untimed starts at its first timed one, every kind', () => {
+		const before = new Map(time.readingTime('kind', { reveal: true }).map((k) => [k.kind, k]));
+		const seriesBefore = new Map(
+			time.readingTime('series', { reveal: true }).map((t) => [t.seriesId, t.since])
+		);
+		const totalBefore = time.readingTotals(true).since;
+		// Every kind with reading gets an untimed open years before any of its time.
+		const kinds = kindsOf();
+		expect(before.size).toBeGreaterThan(1);
+		for (const kind of before.keys()) untimed(kinds.get(kind)!, new Date(2016, 2, 1, 12));
+		for (const reveal of [false, true]) {
+			for (const k of time.readingTime('kind', { reveal })) {
+				expect(k.since, k.kind).not.toBe('2016-03-01');
+				if (reveal) expect(k, k.kind).toEqual(before.get(k.kind));
+			}
+			// Its series too, and the day holding nothing but those opens is no day of time.
+			for (const t of time.readingTime('series', { reveal }))
+				if (reveal) expect(t.since, String(t.seriesId)).toBe(seriesBefore.get(t.seriesId));
+			expect(time.readingTime('day', { reveal }).map((d) => d.day)).not.toContain('2016-03-01');
+			// And the total's SINCE, HISTORY's included, is still the first timed day.
+			expect(time.readingTotals(reveal).since).not.toBe('2016-03-01');
+			expect(history.historyTotals(reveal).since).not.toBe('2016-03-01');
+		}
+		expect(time.readingTotals(true).since).toBe(totalBefore);
+		expect(history.historyTotals(true)).toEqual(time.readingTotals(true));
+	});
+
+	it('a kind with only untimed rows has no SINCE, and no line, while the others keep theirs', () => {
+		const db = getDb();
+		const before = time.readingTime('kind', { reveal: true });
+		// The kind with the least time is made one whose reading carried none.
+		const k = [...before].sort((a, b) => a.ms - b.ms)[0];
+		const ids = (
+			db.prepare(`SELECT id FROM series WHERE kind = ?`).all(k.kind) as { id: number }[]
+		).map((r) => r.id);
+		const saved = db
+			.prepare(
+				`SELECT id, duration_ms AS ms FROM reading_events WHERE series_id IN (${ids.join(',')})`
+			)
+			.all() as { id: number; ms: number }[];
+		expect(saved.some((r) => r.ms > 0)).toBe(true);
+		const put = db.prepare(`UPDATE reading_events SET duration_ms = ? WHERE id = ?`);
+		try {
+			for (const r of saved) put.run(0, r.id);
+			for (const reveal of [false, true]) {
+				const after = time.readingTime('kind', { reveal });
+				expect(after.map((x) => x.kind)).not.toContain(k.kind);
+				expect(time.readingTotals(reveal).kinds.map((x) => x.kind)).not.toContain(k.kind);
+				expect(history.historyTotals(reveal).kinds.map((x) => x.kind)).not.toContain(k.kind);
+				// None of its series is a row of time either: no null SINCE for HISTORY's sum to meet.
+				const rows = time.readingTime('series', { reveal });
+				expect(rows.filter((t) => ids.includes(t.seriesId))).toEqual([]);
+				expect(rows.every((t) => typeof t.since === 'string')).toBe(true);
+				for (const id of ids) expect(time.seriesReadingTime(id, reveal)).toBe(0);
+			}
+			const rest = before.filter((x) => x.kind !== k.kind);
+			expect(time.readingTime('kind', { reveal: true })).toEqual(rest);
+			expect(time.readingTotals(true).since).toBe(
+				rest.reduce((d, x) => (x.since < d ? x.since : d), rest[0].since)
+			);
+		} finally {
+			for (const r of saved) put.run(r.ms, r.id);
+		}
+		expect(time.readingTime('kind', { reveal: true })).toEqual(before);
 	});
 });
 

@@ -236,13 +236,22 @@ test.describe('a stream', () => {
 	 * Serves the cut HLS as the engine's loopback would, counting each segment
 	 * asked for; [delayMs] holds every segment back, as a slow engine does.
 	 */
-	async function serveHls(page: Page, segments: string[], delayMs = 0) {
+	async function serveHls(
+		page: Page,
+		segments: string[],
+		delayMs = 0,
+		manifest: { delayMs: number; servedAt?: number } = { delayMs: 0 }
+	) {
 		await page.route('**/__preview/hls/**', async (route) => {
 			const name = new URL(route.request().url()).pathname.split('/').pop()!;
 			if (!readdirSync(hlsDir).includes(name)) return route.fulfill({ status: 404 });
 			if (name.endsWith('.m4s')) {
 				segments.push(name);
 				if (delayMs) await new Promise((ok) => setTimeout(ok, delayMs));
+			}
+			if (name.endsWith('.m3u8') && manifest.delayMs) {
+				await new Promise((ok) => setTimeout(ok, manifest.delayMs));
+				manifest.servedAt = Date.now();
 			}
 			return route
 				.fulfill({
@@ -344,5 +353,280 @@ test.describe('a stream', () => {
 		await expect(page.locator('.scrubrow .track .tip')).toHaveCount(0);
 		await page.waitForTimeout(2000);
 		expect(segments).toEqual(['seg1.m4s', 'seg2.m4s']);
+	});
+
+	test('a manifest later than the stop’s second, the pointer gone before it came: no segment after the leave, and the next hover still previews (c450)', async ({
+		page
+	}) => {
+		test.setTimeout(90_000);
+		const segments: string[] = [];
+		// The playlist answers 2.5 s after it is asked: past the stop's second
+		// (PREVIEW_TIMEOUT_MS) and past the leave below.
+		const manifest: { delayMs: number; servedAt?: number } = { delayMs: 2500 };
+		await serveHls(page, segments, 0, manifest);
+		await lowHls(page);
+		await openEpisode(page);
+		const tip = page.locator('.scrubrow .track .tip');
+
+		await hover(page, 2.5 / 8);
+		await expect(tip.locator('.at')).toHaveText('0:02');
+		// The stop asks for the playlist (after the debounce), then the pointer
+		// leaves while it is still on its way.
+		await page.waitForTimeout(600);
+		await page.mouse.move(640, 300);
+		await expect(tip).toHaveCount(0);
+		await expect.poll(() => manifest.servedAt, { timeout: 10_000 }).toBeDefined();
+		// The playlist is in; give hls.js every chance to start a load nothing stops.
+		await page.waitForTimeout(2500);
+		expect(segments).toEqual([]);
+
+		// Past the first tick: the playlist is parsed now, so the next hover
+		// fetches its one segment and shows its frame.
+		await hover(page, 4.5 / 8);
+		const frame = tip.locator('.frame');
+		await expect(frame).toBeVisible({ timeout: 5000 });
+		expect(segments).toEqual(['seg2.m4s']);
+		await page.mouse.move(640, 300);
+		await expect(tip).toHaveCount(0);
+		await page.waitForTimeout(1500);
+		expect(segments).toEqual(['seg2.m4s']);
+	});
+
+	test('a manifest later than the stop’s second, the pointer still on the bar: the stop gives up and fetches nothing, and the next stop has its frame (c450)', async ({
+		page
+	}) => {
+		test.setTimeout(90_000);
+		const segments: string[] = [];
+		const manifest: { delayMs: number; servedAt?: number } = { delayMs: 2000 };
+		await serveHls(page, segments, 0, manifest);
+		await lowHls(page);
+		await openEpisode(page);
+		const tip = page.locator('.scrubrow .track .tip');
+
+		await hover(page, 2.5 / 8);
+		await expect.poll(() => manifest.servedAt, { timeout: 10_000 }).toBeDefined();
+		await page.waitForTimeout(2000);
+		// The stop gave up at its second: the time alone, and no load started
+		// when the playlist came.
+		await expect(tip.locator('.at')).toHaveText('0:02');
+		await expect(tip.locator('.frame')).toHaveCount(0);
+		expect(segments).toEqual([]);
+
+		const p = await lineAt(page, 6.5 / 8);
+		await page.mouse.move(p.x, p.y);
+		await expect(tip.locator('.frame')).toBeVisible({ timeout: 5000 });
+		expect(segments).toEqual(['seg3.m4s']);
+	});
+
+	test('a playlist that fails past hls.js’s own retry: that stop shows the time alone, and the next asks again and has its frame (c450)', async ({
+		page
+	}) => {
+		test.setTimeout(90_000);
+		const segments: string[] = [];
+		let playlists = 0;
+		let healthy = false;
+		await serveHls(page, segments);
+		// A hoster's 503 on every playlist until the test says otherwise, so
+		// hls.js's own retry fails too and the error is fatal. (Routed after
+		// serveHls: the last route added is asked first.)
+		await page.route('**/__preview/hls/low.m3u8', async (route) => {
+			playlists++;
+			if (!healthy) return route.fulfill({ status: 503, body: 'busy' });
+			return route.fallback();
+		});
+		await lowHls(page);
+		await openEpisode(page);
+		const tip = page.locator('.scrubrow .track .tip');
+
+		await hover(page, 2.5 / 8);
+		// The first ask and hls.js's one retry, both refused.
+		await expect.poll(() => playlists, { timeout: 10_000 }).toBeGreaterThan(1);
+		await page.waitForTimeout(1500);
+		await expect(tip.locator('.at')).toHaveText('0:02');
+		await expect(tip.locator('.frame')).toHaveCount(0);
+		expect(segments).toEqual([]);
+		const refused = playlists;
+
+		healthy = true;
+		const p = await lineAt(page, 4.5 / 8);
+		await page.mouse.move(p.x, p.y);
+		await expect(tip.locator('.frame')).toBeVisible({ timeout: 5000 });
+		expect(playlists).toBeGreaterThan(refused);
+		expect(segments).toEqual(['seg2.m4s']);
+	});
+});
+
+test.describe('a stream whose lowest quality is a plain file', () => {
+	let dir = '';
+	let file: Buffer;
+	test.afterAll(() => rmSync(dir, { recursive: true, force: true }));
+	test.beforeAll(() => {
+		dir = mkdtempSync(join(tmpdir(), 'tsundoku-preview-file-'));
+		// A hoster's file is megabytes, not the fixture's 108 KB that one answer
+		// would carry whole: the clip re-cut at a high rate, a key frame a second.
+		execFileSync('ffmpeg', [
+			'-loglevel',
+			'error',
+			'-y',
+			'-i',
+			CLIP,
+			'-an',
+			'-c:v',
+			'libvpx-vp9',
+			'-b:v',
+			'4M',
+			'-minrate',
+			'4M',
+			'-maxrate',
+			'4M',
+			'-g',
+			'12',
+			'-deadline',
+			'realtime',
+			'-cpu-used',
+			'8',
+			join(dir, 'low.webm')
+		]);
+		file = readFileSync(join(dir, 'low.webm'));
+	});
+
+	/**
+	 * A hoster's plain file: it answers a Range with 206 and at most [chunk]
+	 * bytes, as many hosters cap an open-ended range, so the browser asks again
+	 * as it reads further. Each Range asked is counted.
+	 */
+	async function serveFile(page: Page, ranges: string[], delayMs = 0, chunk = 256 * 1024) {
+		await page.route('**/__preview/file/low.webm', async (route) => {
+			const range = route.request().headers()['range'];
+			if (!range) {
+				return route
+					.fulfill({
+						status: 200,
+						body: file,
+						contentType: 'video/webm',
+						headers: { 'accept-ranges': 'bytes' }
+					})
+					.catch(() => undefined);
+			}
+			ranges.push(range);
+			if (delayMs) await new Promise((ok) => setTimeout(ok, delayMs));
+			const m = /bytes=(\d+)-(\d*)/.exec(range)!;
+			const start = Number(m[1]);
+			const end = Math.min(
+				m[2] ? Number(m[2]) : file.length - 1,
+				start + chunk - 1,
+				file.length - 1
+			);
+			return route
+				.fulfill({
+					status: 206,
+					body: file.subarray(start, end + 1),
+					contentType: 'video/webm',
+					headers: {
+						'accept-ranges': 'bytes',
+						'content-range': `bytes ${start}-${end}/${file.length}`
+					}
+				})
+				.catch(() => undefined); // the picture let go of the request meanwhile
+		});
+	}
+
+	/** The picture plays the 720p file; the preview reads the hoster's 360p file. */
+	async function lowFile(page: Page) {
+		await widen(page, (a) => ({
+			...a,
+			servers: [
+				{
+					n: 2,
+					name: 'Hoster',
+					qualities: [
+						{ ...clipSrc(a), label: '720p', height: 720 },
+						{
+							...clipSrc(a),
+							label: '360p',
+							height: 360,
+							kind: 'file',
+							src: '/__preview/file/low.webm',
+							subtitles: []
+						}
+					]
+				}
+			]
+		}));
+	}
+
+	test('reads a few Ranges a stop, near the time asked, and none off the bar (c450)', async ({
+		page
+	}) => {
+		test.setTimeout(90_000);
+		const ranges: string[] = [];
+		await serveFile(page, ranges);
+		await lowFile(page);
+		await openEpisode(page);
+		await page.waitForTimeout(1500);
+		expect(ranges).toEqual([]);
+		expect(file.length).toBeGreaterThan(2 * 256 * 1024);
+
+		const frame = page.locator('.scrubrow .track .tip .frame');
+		await hover(page, 6.5 / 8);
+		await expect(frame).toBeVisible({ timeout: 5000 });
+		const first = ranges.length;
+		expect(first).toBeGreaterThan(0);
+		// A stop near the end reads where that time is, not the file from the top.
+		const starts = ranges.map((r) => Number(/bytes=(\d+)/.exec(r)![1]));
+		expect(Math.max(...starts)).toBeGreaterThan(file.length / 2);
+		// Resting on the bar, the browser may read on past the frame; then it is still.
+		await page.waitForTimeout(1500);
+		const stopRanges = ranges.length;
+
+		await page.mouse.move(640, 300);
+		await expect(page.locator('.scrubrow .track .tip')).toHaveCount(0);
+		await page.waitForTimeout(2500);
+		// Off the bar: no Range asked after the leave.
+		expect(ranges.length).toBe(stopRanges);
+
+		// Past the first tick: the file was let go at the leave, so the next
+		// stop opens it again from its header and has its own frame.
+		await hover(page, 1.5 / 8);
+		await expect(frame).toBeVisible({ timeout: 5000 });
+		expect(ranges.length).toBeGreaterThan(stopRanges);
+		expect(ranges[stopRanges]).toBe('bytes=0-');
+		await page.mouse.move(640, 300);
+		await expect(page.locator('.scrubrow .track .tip')).toHaveCount(0);
+		// And the whole file was never read for one stop.
+		const total = ranges.slice(0, stopRanges).reduce((n, r) => {
+			const m = /bytes=(\d+)-(\d*)/.exec(r)!;
+			const s0 = Number(m[1]);
+			const e = Math.min(
+				m[2] ? Number(m[2]) : file.length - 1,
+				s0 + 256 * 1024 - 1,
+				file.length - 1
+			);
+			return n + (e - s0 + 1);
+		}, 0);
+		test.info().annotations.push({
+			type: 'ranges',
+			description: `${ranges.length} Range(s), ${total} of ${file.length} bytes: ${ranges.join(', ')}`
+		});
+		expect(total).toBeLessThan(file.length);
+	});
+
+	test('on a slow hoster, the pointer leaving mid-read stops the reading: no Range after the leave (c450)', async ({
+		page
+	}) => {
+		test.setTimeout(90_000);
+		const ranges: string[] = [];
+		// Each Range answered 600 ms late: the stop's header, index and frame
+		// are three answers in a row, so the leave lands between them.
+		await serveFile(page, ranges, 600);
+		await lowFile(page);
+		await openEpisode(page);
+		await hover(page, 6.5 / 8);
+		await expect.poll(() => ranges.length, { timeout: 5000 }).toBeGreaterThan(0);
+		await page.mouse.move(640, 300);
+		const atLeave = ranges.length;
+		await expect(page.locator('.scrubrow .track .tip')).toHaveCount(0);
+		await page.waitForTimeout(3000);
+		expect(ranges.length).toBe(atLeave);
 	});
 });

@@ -591,14 +591,42 @@ screen but the video, and the subtitles, until a tap.
     buffer goal of 1 s, no back buffer), and `stopLoad()` once the frame is
     drawn and when the pointer leaves. Only the latest stop stops the load:
     a stop still waiting on a slow engine when the next begins gives up
-    without stopping the next one's segment. A server whose lowest quality is
+    without stopping the next one's segment. **A playlist later than the
+    stop's second** (c450): the stop gives up at its second, and when the
+    playlist comes it starts nothing, since a stop has happened since (a
+    `stopped` counter that `stop()` bumps) or a later stop began; the pointer
+    gone meanwhile, nothing is fetched off the bar. Before the playlist is
+    in, `stop()` leaves hls.js alone: nothing loads then but the playlist,
+    and hls.js's `stopLoad()` destroys that request in flight, after which
+    MANIFEST_PARSED never came and the preview showed the time alone for
+    the rest of the episode. A playlist that fails past hls.js's own retry
+    (a fatal error) gives that stop up, and the next stop opens a fresh
+    player and asks again. **A plain file as the lowest quality** (a
+    hoster's MP4 or WebM): the hidden picture reads its header
+    (`preload = 'metadata'`; `none` held even the seek's own read, so such a
+    stream never had a frame) and then the bytes at the time asked, a few
+    Range requests a stop. A file has no `stopLoad()`, and after a seek the
+    browser reads on past the frame, so when the pointer leaves the file is
+    let go (`leave()`) and the next stop opens it again from its header:
+    no Range off the bar. `tests/browse-player-preview.e2e.ts` counts both,
+    against a fake hoster that caps each Range answer and can be slow.
+    A server whose lowest quality is
     above 480p, or of unknown height, and a stop that takes over 1 s show the
     time alone. A frame is shown only near the time it was drawn for (half a
     percent of the episode, at least a second; `nearFrame`): moved on, the
     tip shows the new time alone until that time's frame comes, never the
     last stop's picture over it.
-  - **A TV** has no preview: the remote's ← → seek with the bar up shows the
-    time on the bar, as before. The card left it optional; it is not built.
+  - **A TV** (c457): no pointer, so ← → (and ⏩ ⏪) with the bar up show,
+    for as long as the move's flash is up (900 ms after the last press), the
+    tip over the bar at the time they landed on, with a downloaded episode's
+    sprite tile above it, kept inside the track at either end as the
+    pointer's is (the same `tip` snippet, at `seekFlash.to`). A run of
+    presses moves the tile with each. A stream's bar keeps the time alone
+    and no tip: its hidden second picture fetches a segment a stop, which is
+    a pointer's resting on the bar, not a remote's run of presses, and
+    nothing was measured to say a TV should pay for it. A downloaded
+    episode with no sprite yet has no tip either. `tests/tv-player.e2e.ts`,
+    "the seek preview on a TV (c457)".
 - **Keys**: space, ← →, ↑ ↓ (volume), F, M, C (subtitles), S (skip), N (next),
   Esc (full screen, then the player), ? (the KEYS sheet). A remote's media
   keys work on every device (c235): ▶❚❚ plays or pauses, ⏩ ⏪ seek 10 s,
@@ -728,6 +756,15 @@ screen but the video, and the subtitles, until a tap.
     _Gaps_. What is tested is the page's side, in Chromium and Firefox: the
     track showing with its cue active, no native cue box on the page, and
     the plain drawing between enter and leave.
+  - **A system caption style** (Windows, macOS or Android's accessibility
+    captions; c449): Chromium writes it as inline style on the native cue
+    box, and inline style beats a normal author rule, so the three
+    declarations of `video.cueless::cue` are `!important`, which beats
+    inline normal style. Nobody could set an OS caption style here
+    (`--force-caption-style` was ignored by this Chromium build), so this is
+    built and **not checked**. The owner's check: on the Android TV, turn on
+    Accessibility > Captions with a yellow text style, open an episode with
+    subtitles, and confirm only one line shows.
   - **A phone: not yet checked.** Android Chrome's picture-in-picture is the
     system's, and whether it draws a native track is not known; no slot has
     an Android phone, so nothing is claimed here (the check for the owner is
