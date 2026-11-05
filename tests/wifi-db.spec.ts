@@ -353,7 +353,8 @@ describe('a burned code past its 10 minutes (c581)', () => {
 				const at = `${now - T0} ms after it was made`;
 				const data = (await pairTvPage.load({
 					cookies: { get: () => undefined },
-					url: new URL('http://localhost/pair/tv')
+					url: new URL('http://localhost/pair/tv'),
+					request: new Request('http://localhost/pair/tv')
 				} as never)) as { state: string };
 				// /pair/tv's load: NO TRIES LEFT, and no code made in its place.
 				expect(data.state, at).toBe('burned');
