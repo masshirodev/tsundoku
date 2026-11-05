@@ -407,11 +407,15 @@ test('two servers on one host keep their own pairing, after the other pairs and 
 
 test('a TV paired before c530, with only the old name, stays paired and is moved to the new one (c530)', async () => {
 	// A pairing made the way it is now, then put back under the old shared
-	// name: a jar exactly as a TV paired before this release keeps it.
+	// name in a TV of its own: a jar exactly as a TV paired before this
+	// release keeps it. A new context, not the one that paired: 9E's page on A
+	// keeps asking A for a moment, and A rightly moves the old name the first
+	// time it sees it, before B could be asked (a red under load, wave 22).
+	const pairing = await tv();
+	await pair(pairing.page, A);
+	const token = (await pairing.context.cookies()).find((c) => c.name === paired(A.port))!.value;
+	await pairing.context.close();
 	const { context, page } = await tv();
-	await pair(page, A);
-	const token = (await context.cookies()).find((c) => c.name === paired(A.port))!.value;
-	await context.clearCookies();
 	await context.addCookies([
 		{ name: 'tsundoku_paired', value: token, domain: 'tsundoku.test', path: '/', httpOnly: true }
 	]);
