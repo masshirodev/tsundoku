@@ -9,6 +9,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
 	<uses-permission android:name="android.permission.INTERNET" />
+	<!-- The app installs its own updates (c614; Updater.kt): Android asks
+	     the person once to allow it, and shows its own confirmation. -->
+	<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
 	<!-- A TV has no touchscreen, and the phone's needs none declared. -->
 	<uses-feature
@@ -47,6 +50,10 @@
 					android:scheme="tsundoku" />
 			</intent-filter>
 		</activity>
+		<!-- Where Android's installer answers an update (Updater.Answer). -->
+		<receiver
+			android:name=".Updater$Answer"
+			android:exported="false" />
 	</application>
 
 </manifest>

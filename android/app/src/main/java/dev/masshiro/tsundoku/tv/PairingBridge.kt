@@ -48,6 +48,10 @@ import java.util.concurrent.Executors
  * | `surface`        | paints the camera band (c521)          | no      |
  * | `keyboard`       | raises the phone's keyboard (c521)     | no      |
  * | `edge`           | draws the page under the camera (c521) | no      |
+ * | `appUpdate`      | reads the app's update state (c614)    | no      |
+ * | `appCheck`       | asks the release host (c614)           | no      |
+ * | `appDownload`    | downloads and installs a release (c614)| yes     |
+ * | `appInstall`     | installs the downloaded release (c614) | yes     |
  *
  * `open` and `welcome` stay open on purpose: FORGET of the server in use calls
  * one of them from the page of the server it has just forgotten (MoreSheet's
@@ -100,6 +104,9 @@ class PairingBridge(
 
 		/** The page drawn edge to edge, under the camera, or padded again (c521). */
 		fun setEdge(on: Boolean) {}
+
+		/** The app's own updater (c614); none in a test, or before the activity made one. */
+		fun updater(): Updater? = null
 	}
 
 	companion object {
@@ -169,6 +176,38 @@ class PairingBridge(
 	fun edge(on: Boolean) {
 		if (!form.padsInsets) return
 		host.onUi { host.setEdge(on) }
+	}
+
+	/**
+	 * The app's update, as the page draws it (c614; Updater.State.toJson):
+	 * the version running, the phase, and the release on offer. "" with no
+	 * updater. Changes after this arrive as `window.tsundokuAppUpdate(state)`.
+	 */
+	@JavascriptInterface
+	fun appUpdate(): String = host.updater()?.state?.toJson().orEmpty()
+
+	/** CHECK: ask the release host now. Reads a signed file; writes nothing. */
+	@JavascriptInterface
+	fun appCheck() {
+		host.updater()?.check()
+	}
+
+	/**
+	 * UPDATE: download the release on offer, checked against its signed size
+	 * and SHA-256, then install it. Guarded as every write is: only the app's
+	 * own pages and known servers may start an install.
+	 */
+	@JavascriptInterface
+	fun appDownload() {
+		if (!trusted()) return
+		host.updater()?.download()
+	}
+
+	/** Install the release already downloaded (after Android's permission, or a cancelled prompt). */
+	@JavascriptInterface
+	fun appInstall() {
+		if (!trusted()) return
+		host.onUi { host.updater()?.install() }
 	}
 
 	/** The TV's own IPv4 on its network, or "" when it has none. */

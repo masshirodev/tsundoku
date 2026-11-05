@@ -54,6 +54,9 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	private var customView: View? = null
 	private var customCallback: WebChromeClient.CustomViewCallback? = null
 	private val io = Executors.newSingleThreadExecutor()
+
+	/** The updater's own thread: a download never holds up the launch's probe. */
+	private val updateIo = Executors.newSingleThreadExecutor()
 	private val ui = Handler(Looper.getMainLooper())
 
 	/** Which app this build is (c521): every TV-or-phone difference asks it. */
@@ -64,6 +67,9 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 
 	/** What the page was last told of the edges, so a page that loads later is told too. */
 	private var told = Insets.Sides()
+
+	/** The app updating itself (c614); the page draws it through the bridge. */
+	private lateinit var updates: Updater
 
 	/** Which launch owns the WebView: a later door wins over an earlier answer (c306). */
 	private val attempts = Attempts()
@@ -111,6 +117,18 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		configure(webView)
 		servers = Servers(PrefsKeyValue(this))
 		bridge = PairingBridge(this, servers, form = form)
+		updates =
+			Updater(this, form, BuildConfig.VERSION_NAME, BuildConfig.UPDATES_URL, updateIo) { state ->
+				runOnUiThread {
+					webView.evaluateJavascript(
+						"window.tsundokuAppUpdate && window.tsundokuAppUpdate(${state.toJson()})",
+						null
+					)
+				}
+			}
+		Updater.current = updates
+		// At most once a day, and never for a build that is no release (Updater.launched).
+		updates.launched()
 		webView.addJavascriptInterface(bridge, PairingBridge.NAME)
 		webView.webViewClient = client()
 		webView.webChromeClient = chrome()
@@ -160,6 +178,8 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		// Over plain http the page cannot ask for a wake lock (doc/WIFI.md), so
 		// the activity holds the screen while it is in front.
 		window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+		// Back from Android's "allow installs from tsundoku" switch: install now.
+		if (::updates.isInitialized) updates.resumed()
 	}
 
 	override fun onPause() {
@@ -171,8 +191,10 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	}
 
 	override fun onDestroy() {
+		if (Updater.current === updates) Updater.current = null
 		bridge.shutdown()
 		io.shutdownNow()
+		updateIo.shutdownNow()
 		webView.destroy()
 		super.onDestroy()
 	}
@@ -251,6 +273,8 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 			imm.showSoftInput(webView, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
 		}
 	}
+
+	override fun updater(): Updater? = if (::updates.isInitialized) updates else null
 
 	/** The bridge's `edge`: padding off or on again, asked of the insets anew. */
 	override fun setEdge(on: Boolean) {
