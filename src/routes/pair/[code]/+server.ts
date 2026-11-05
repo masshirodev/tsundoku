@@ -1,9 +1,9 @@
 import { redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import {
-	PAIRED_COOKIE,
 	PAIRED_COOKIE_OPTIONS,
 	addPaired,
+	pairedCookie,
 	pairedLabel,
 	pairing
 } from '$lib/server/pairing';
@@ -24,6 +24,7 @@ export const GET: RequestHandler = ({ params, request, cookies, locals, url }) =
 		// A code replaced by a newer one reads as expired: it's the same remedy.
 		redirect(303, `/login?pair=${result === 'used' ? 'used' : 'expired'}`);
 	const token = addPaired({ label: pairedLabel(ua), address: url.host });
-	cookies.set(PAIRED_COOKIE, token, PAIRED_COOKIE_OPTIONS);
+	// This origin's name (c530): another tsundoku on the computer keeps its own.
+	cookies.set(pairedCookie(url), token, PAIRED_COOKIE_OPTIONS);
 	redirect(303, '/welcome');
 };

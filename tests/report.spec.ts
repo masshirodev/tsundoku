@@ -16,12 +16,17 @@ describe('a report’s scrubbing (c193): hidden means hidden, in a file that lea
 			[
 				'signed in with tok-AbCdEf123456',
 				'cookie: tsundoku_session=abc123def; tsundoku_paired=zzz',
+				// Named for its origin since c530 (pairing.ts, pairedCookie).
+				'cookie: tsundoku_paired_42143=yyy; tsundoku_paired_s443=xxx',
 				'GET /pair/PoJ8cBL1qtir9cPx 303',
 				'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9xyz'
 			].join('\n'),
 			s
 		);
-		expect(out).not.toMatch(/tok-AbCdEf123456|abc123def|zzz|PoJ8cBL1qtir9cPx|eyJhbGciOiJIUzI1NiJ9/);
+		expect(out).not.toMatch(
+			/tok-AbCdEf123456|abc123def|zzz|yyy|xxx|PoJ8cBL1qtir9cPx|eyJhbGciOiJIUzI1NiJ9/
+		);
+		expect(out).toContain('tsundoku_paired_42143=[secret]; tsundoku_paired_s443=[secret]');
 		expect(out).toContain('/pair/[code]');
 		expect(out).toContain('tsundoku_session=[secret]');
 	});

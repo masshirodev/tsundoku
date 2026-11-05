@@ -219,9 +219,12 @@ test('a TV’s paired cookie signs nothing in on a friend’s tailnet origin (c2
 	} finally {
 		db.close();
 	}
-	const r = await signsIn(friend, `tsundoku_paired=${cookie}`);
-	expect(r.status).toBe(303);
-	expect(r.location).toMatch(/^\/login/);
+	// Under this origin's name (c530) and under the name used before it: neither opens.
+	for (const name of [`tsundoku_paired_${friend.port}`, 'tsundoku_paired']) {
+		const r = await signsIn(friend, `${name}=${cookie}`);
+		expect(r.status, name).toBe(303);
+		expect(r.location, name).toMatch(/^\/login/);
+	}
 	// While the friend's own password session does sign in on the same host.
 	expect(await signsIn(friend, `tsundoku_session=${sessionFor(login)}`)).toMatchObject({
 		status: 200
@@ -255,15 +258,18 @@ test('the token install on the same origin draws the digits, and the TV they pai
 		expect(r.status()).toBe(303);
 		expect(r.headers()['location']).toBe('/pair/tv');
 		const set = r.headersArray().find((h) => h.name.toLowerCase() === 'set-cookie')?.value ?? '';
-		cookie = set.match(/tsundoku_paired=([^;]+)/)?.[1] ?? '';
+		// Named for this origin (c530): the port ORIGIN names, plain http.
+		expect(set).toMatch(new RegExp(`^tsundoku_paired_${token.port}=`));
+		cookie = set.match(/^tsundoku_paired_\d+=([^;]+)/)?.[1] ?? '';
 		expect(cookie).not.toBe('');
 	} finally {
 		await tv.dispose();
 	}
 
 	// Only that cookie: signed in on the tailnet host, sent to /login at 127.0.0.1.
-	expect(await signsIn(token, `tsundoku_paired=${cookie}`)).toMatchObject({ status: 200 });
-	const local = await signsIn(token, `tsundoku_paired=${cookie}`, `127.0.0.1:${token.port}`);
+	const named = `tsundoku_paired_${token.port}`;
+	expect(await signsIn(token, `${named}=${cookie}`)).toMatchObject({ status: 200 });
+	const local = await signsIn(token, `${named}=${cookie}`, `127.0.0.1:${token.port}`);
 	expect(local.status).toBe(303);
 	expect(local.location).toMatch(/^\/login/);
 });

@@ -15,15 +15,63 @@ import java.util.concurrent.Executors
  *
  * The same object is on every page the WebView loads, the computer's library
  * included: that is how MORE › SERVERS, drawn by the web app, reads the list
- * and switches. A page that is not the app's own asks nothing it could not
- * already do by navigating, and the list lives here, never in the page.
+ * and switches. So every call that writes, probes, or opens one of the app's
+ * screens that writes first asks [BridgeGuard] whether the page in the
+ * WebView is the app's own or a known server's, and does nothing otherwise
+ * (c529). Every method, and whether it is guarded:
+ *
+ * | Method           | Does                                   | Guarded |
+ * | ---------------- | -------------------------------------- | ------- |
+ * | `tvAddress`      | reads the TV's IPv4                    | no      |
+ * | `prefix`         | reads it, as 9B's prefix               | no      |
+ * | `defaultPort`    | reads a constant                       | no      |
+ * | `remembered`     | reads the server in use                | no      |
+ * | `servers`        | reads the list                         | no      |
+ * | `remember`       | writes: adds a server                  | yes     |
+ * | `forget`         | writes: forgets every server, cookies  | yes     |
+ * | `forgetServer`   | writes: forgets one, and its cookies   | yes     |
+ * | `move`           | writes: an entry takes a new origin    | yes     |
+ * | `rename`         | writes: the TV's name for a server     | yes     |
+ * | `named`          | writes: the server's own name          | yes     |
+ * | `probe`          | asks any address on the network        | yes     |
+ * | `addServer`      | opens S7, which writes                 | yes     |
+ * | `renameServer`   | opens S5, which writes                 | yes     |
+ * | `open`           | opens a known server's library         | no      |
+ * | `welcome`        | opens 9A                               | no      |
+ *
+ * `open` and `welcome` stay open on purpose: FORGET of the server in use calls
+ * one of them from the page of the server it has just forgotten (MoreSheet's
+ * `forget`), which is no longer known. Neither writes, and neither goes
+ * anywhere but a server the TV knows or the app's own first screen.
  *
  * @JavascriptInterface methods are called from the page's JavaScript thread,
  * so probes run on their own threads and come back through the activity's
  * `window.tsundokuProbe(origin, ok)`, and whatever loads a page is posted to
  * the activity's UI thread.
  */
-class PairingBridge(private val activity: MainActivity, private val servers: Servers) {
+class PairingBridge(
+	private val host: Host,
+	private val servers: Servers,
+	private val io: ExecutorService = Executors.newFixedThreadPool(PROBES)
+) {
+	/** What the bridge needs of the activity: an interface, so PairingBridgeTest can stand in. */
+	interface Host {
+		/** The WebView's top-level URL, read on the UI thread; null when it cannot be read. */
+		fun topUrl(): String?
+
+		fun onUi(block: () -> Unit)
+
+		fun serversChanged()
+
+		fun clearCookies(origin: String)
+
+		fun openServer(origin: String)
+
+		fun showAsset(hash: String)
+
+		fun postProbe(origin: String, ok: Boolean)
+	}
+
 	companion object {
 		const val NAME = "TsundokuTV"
 
@@ -42,7 +90,8 @@ class PairingBridge(private val activity: MainActivity, private val servers: Ser
 		private const val PROBES = 4
 	}
 
-	private val io: ExecutorService = Executors.newFixedThreadPool(PROBES)
+	/** Whether the page asking is the app's own or a known server's (c529). */
+	private fun trusted(): Boolean = BridgeGuard.allows(host.topUrl()) { servers.find(it) != null }
 
 	/** The TV's own IPv4 on its network, or "" when it has none. */
 	@JavascriptInterface
@@ -66,13 +115,15 @@ class PairingBridge(private val activity: MainActivity, private val servers: Ser
 	 */
 	@JavascriptInterface
 	fun remember(origin: String) {
+		if (!trusted()) return
 		val clean = Address.originOf(origin) ?: return
-		if (servers.add(clean)) activity.serversChanged()
+		if (servers.add(clean)) host.serversChanged()
 	}
 
 	/** Forgets every server: what this bridge's `forget()` has always meant. */
 	@JavascriptInterface
 	fun forget() {
+		if (!trusted()) return
 		for (s in servers.all()) forgetServer(s.origin)
 	}
 
@@ -88,21 +139,23 @@ class PairingBridge(private val activity: MainActivity, private val servers: Ser
 	@JavascriptInterface
 	fun open(origin: String) {
 		val clean = servers.find(origin)?.origin ?: return
-		activity.runOnUiThread { activity.openServer(clean) }
+		host.onUi { host.openServer(clean) }
 	}
 
 	/** The TV's own name for it; empty gives back the server's name (S5). */
 	@JavascriptInterface
 	fun rename(origin: String, name: String) {
-		if (servers.rename(origin, name)) activity.serversChanged()
+		if (!trusted()) return
+		if (servers.rename(origin, name)) host.serversChanged()
 	}
 
 	/** What the server calls itself, said by its own page (the library's layout). */
 	@JavascriptInterface
 	fun named(origin: String, name: String) {
+		if (!trusted()) return
 		val s = servers.find(origin) ?: return
 		if (name.isBlank() || s.name == name.trim().uppercase()) return
-		if (servers.named(origin, name)) activity.serversChanged()
+		if (servers.named(origin, name)) host.serversChanged()
 	}
 
 	/**
@@ -112,10 +165,11 @@ class PairingBridge(private val activity: MainActivity, private val servers: Ser
 	 */
 	@JavascriptInterface
 	fun forgetServer(origin: String): String {
+		if (!trusted()) return servers.toJson()
 		val clean = Address.originOf(origin) ?: return servers.toJson()
 		if (servers.forget(clean)) {
-			activity.runOnUiThread { activity.clearCookies(clean) }
-			activity.serversChanged()
+			host.onUi { host.clearCookies(clean) }
+			host.serversChanged()
 		}
 		return servers.toJson()
 	}
@@ -123,33 +177,37 @@ class PairingBridge(private val activity: MainActivity, private val servers: Ser
 	/** A server that moved: the new address takes that entry's place (9D's CHANGE THE ADDRESS). */
 	@JavascriptInterface
 	fun move(from: String, to: String) {
-		if (servers.move(from, to)) activity.serversChanged()
+		if (!trusted()) return
+		if (servers.move(from, to)) host.serversChanged()
 	}
 
 	/** + ADD A SERVER: 9B as ADD A SERVER · 1 OF 2 (S7), the app's own page. */
 	@JavascriptInterface
 	fun addServer() {
-		activity.runOnUiThread { activity.showAsset("#add") }
+		if (!trusted()) return
+		host.onUi { host.showAsset("#add") }
 	}
 
 	/** RENAME (S5), the app's own page: the field above Android's keyboard. */
 	@JavascriptInterface
 	fun renameServer(origin: String) {
+		if (!trusted()) return
 		val clean = servers.find(origin)?.origin ?: return
-		activity.runOnUiThread { activity.showAsset("#rename=" + android.net.Uri.encode(clean)) }
+		host.onUi { host.showAsset("#rename=" + android.net.Uri.encode(clean)) }
 	}
 
 	/** 9A again: the last server was forgotten. */
 	@JavascriptInterface
 	fun welcome() {
-		activity.runOnUiThread { activity.showAsset("") }
+		host.onUi { host.showAsset("") }
 	}
 
 	/** Probe `origin` off the page's thread; the answer comes to `window.tsundokuProbe`. */
 	@JavascriptInterface
 	fun probe(origin: String) {
+		if (!trusted()) return
 		val clean = Address.originOf(origin) ?: return
-		io.execute { activity.postProbe(clean, Probe.check(clean)) }
+		io.execute { host.postProbe(clean, Probe.check(clean)) }
 	}
 
 	fun shutdown() = io.shutdownNow()

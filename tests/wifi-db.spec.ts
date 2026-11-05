@@ -18,7 +18,8 @@ process.env.TSUNDOKU_LOGIN = 'password';
 process.env.TSUNDOKU_SERVE = 'local';
 vi.mock('$env/dynamic/private', () => ({ env: process.env }));
 
-const { CODE_MS, TV_TRIES, pairing, tvPairing } = await import('$lib/server/pairing');
+const { CODE_MS, TV_TRIES, TV_USED_SHOWN_MS, pairing, tvPairing } =
+	await import('$lib/server/pairing');
 const { tvBlockHere, wifiView } = await import('$lib/server/wifi');
 const api = await import('../src/routes/api/wifi/+server');
 
@@ -150,6 +151,33 @@ describe('the doors that may make a code', () => {
 				expect(v.tv!.code, state).not.toBe(code);
 				expect(v.tv, state).toMatchObject({ state: 'live', left: TV_TRIES });
 			}
+		}
+	});
+
+	it('/pair/tv (renewForTv) waits out ✓ USED exactly as long as opening SETTINGS does (c246)', () => {
+		// pairing.ts's TV_USED_SHOWN_MS is a copy of this file's USED_SHOWN_MS:
+		// held here by behaviour, either side of the boundary, so the two can't drift.
+		for (const age of [1, TV_USED_SHOWN_MS - 1, TV_USED_SHOWN_MS, TV_USED_SHOWN_MS + 1, CODE_MS]) {
+			const usedAt = T0 + 1000;
+			const replaced = (door: () => void) => {
+				tvPairing.fresh(T0);
+				const code = TV_STATES.used(usedAt);
+				door();
+				return tvPairing.current()!.code !== code;
+			};
+			const settings = replaced(() => wifiView({ renew: true, now: usedAt + age }));
+			const tv = replaced(() => tvPairing.renewForTv(usedAt + age));
+			expect(tv, `used ${age} ms ago`).toBe(settings);
+		}
+	});
+
+	it('/pair/tv never replaces a burned code, where opening SETTINGS does (c246)', () => {
+		for (const now of [T0 + 2000, T0 + CODE_MS + 1]) {
+			tvPairing.fresh(T0);
+			const code = burnTv(T0 + 1000);
+			expect(tvPairing.renewForTv(now)).toBe(false);
+			expect(tvPairing.current()!.code).toBe(code);
+			expect(wifiView({ renew: true, now })!.tv!.code).not.toBe(code);
 		}
 	});
 

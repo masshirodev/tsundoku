@@ -3,6 +3,7 @@ import { deviceLabel, isTvApp } from '../src/lib/settings/catalog.ts';
 import {
 	CODE_MS,
 	TV_TRIES,
+	TV_USED_SHOWN_MS,
 	TvPairing,
 	addPaired,
 	friendPaired,
@@ -72,6 +73,107 @@ describe('a TV code (doc/TV.md)', () => {
 		const next = p.fresh(CODE_MS + 1001);
 		expect(p.redeem(old.code, CODE_MS + 1002, 'tv')).toBe('wrong');
 		expect(p.redeem(next.code, CODE_MS + 1002, 'tv')).toBe('ok');
+	});
+
+	/**
+	 * /pair/tv's own door (c246; the owner's (b), 2026-11-04): a TV that is not
+	 * paired and has nothing it can type gets a code, except where only the
+	 * computer may make one. Every state a code can be in, as the doors reach it.
+	 */
+	describe('renewForTv (c246)', () => {
+		const burn = (p: TvPairing, at: number) => {
+			for (let i = 0; i < TV_TRIES; i += 1) p.redeem('999999', at, 'tv');
+			expect(p.state(at)).toBe('burned');
+		};
+
+		it('makes one where there is none', () => {
+			const p = make();
+			expect(p.renewForTv(0)).toBe(true);
+			expect(p.state(0)).toBe('live');
+			expect(p.triesLeft()).toBe(TV_TRIES);
+		});
+
+		it('keeps a live code, to its last millisecond', () => {
+			const p = make();
+			const c = p.fresh(0);
+			expect(p.renewForTv(CODE_MS - 1)).toBe(false);
+			expect(p.current()).toBe(c);
+		});
+
+		it('replaces a code that has merely expired, and the new one pairs', () => {
+			const p = make();
+			const old = p.fresh(0);
+			expect(p.state(CODE_MS)).toBe('expired');
+			expect(p.renewForTv(CODE_MS)).toBe(true);
+			const next = p.current()!;
+			expect(next.code).not.toBe(old.code);
+			expect(p.state(CODE_MS)).toBe('live');
+			expect(p.redeem(next.code, CODE_MS + 1, 'tv')).toBe('ok');
+		});
+
+		it('keeps a burned code burned, and keeps it once its 10 minutes have run out too', () => {
+			const p = make();
+			const c = p.fresh(0);
+			burn(p, 1);
+			expect(p.renewForTv(2)).toBe(false);
+			// `state` says expired here: burned first, then the clock ran out.
+			expect(p.state(CODE_MS)).toBe('expired');
+			expect(p.renewForTv(CODE_MS)).toBe(false);
+			expect(p.renewForTv(CODE_MS * 50)).toBe(false);
+			expect(p.current()).toBe(c);
+			expect(p.triesLeft()).toBe(0);
+		});
+
+		it('keeps a used code while the computer shows ✓ USED, then replaces it', () => {
+			const p = make();
+			const c = p.fresh(0);
+			expect(p.redeem(c.code, 1000, 'tv')).toBe('ok');
+			expect(p.renewForTv(1000 + TV_USED_SHOWN_MS)).toBe(false);
+			expect(p.current()).toBe(c);
+			expect(p.renewForTv(1001 + TV_USED_SHOWN_MS)).toBe(true);
+			expect(p.state(1001 + TV_USED_SHOWN_MS)).toBe('live');
+		});
+
+		it('carries the wrong tries over, so only the computer gives five again', () => {
+			const p = make();
+			p.fresh(0);
+			for (let i = 0; i < TV_TRIES - 1; i += 1) expect(p.redeem('999999', 1, 'tv')).toBe('wrong');
+			// Expired with one try left: the new code has that one try, not five.
+			expect(p.renewForTv(CODE_MS)).toBe(true);
+			expect(p.triesLeft()).toBe(1);
+			expect(p.redeem('999999', CODE_MS + 1, 'tv')).toBe('burned');
+			// And a burned chain stays burned however often the page is opened.
+			expect(p.renewForTv(CODE_MS * 3)).toBe(false);
+			// The owner's NEW CODE is what gives five again.
+			p.fresh(CODE_MS * 3);
+			expect(p.triesLeft()).toBe(TV_TRIES);
+		});
+
+		it('gives a guesser at most five wrong tries per code the computer makes', () => {
+			// Opening /pair/tv every 10 minutes for a day, guessing until told no.
+			const p = make();
+			p.fresh(0);
+			let wrong = 0;
+			for (let t = 0; t < 24 * 60 * 60_000; t += CODE_MS) {
+				p.renewForTv(t);
+				while (p.state(t) === 'live') {
+					p.redeem('999999', t, 'tv');
+					wrong += 1;
+				}
+			}
+			expect(wrong).toBe(TV_TRIES);
+		});
+
+		it('holds on its own output: a second call right after makes nothing', () => {
+			for (const at of [0, CODE_MS, CODE_MS * 2]) {
+				const p = make();
+				if (at > 0) p.fresh(0);
+				p.renewForTv(at);
+				const c = p.current();
+				expect(p.renewForTv(at)).toBe(false);
+				expect(p.current()).toBe(c);
+			}
+		});
 	});
 
 	it('is six digits, leading zeros kept', () => {

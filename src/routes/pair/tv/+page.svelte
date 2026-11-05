@@ -25,21 +25,28 @@
 	 * What the last try said, or what the code's state says on arrival: the
 	 * design draws no band for these, so they keep the panel's own idiom.
 	 */
-	const band = $derived(
-		data.step !== 'code'
-			? null
-			: data.result === 'wrong'
-				? { h: 'NOT THAT CODE', m: `${data.left} ${data.left === 1 ? 'TRY' : 'TRIES'} LEFT` }
-				: data.result === 'short'
-					? { h: 'SIX DIGITS', m: 'TYPE ALL SIX' }
-					: data.result === 'expired' || data.state === 'expired'
-						? { h: 'THIS CODE EXPIRED', m: 'MAKE A NEW ONE ON THE COMPUTER' }
-						: data.result === 'used' || data.state === 'used'
-							? { h: 'THIS CODE IS USED', m: 'ONE TV, ONCE · MAKE A NEW ONE ON THE COMPUTER' }
-							: data.result === 'burned' || data.state === 'burned'
-								? { h: 'NO TRIES LEFT', m: 'MAKE A NEW CODE ON THE COMPUTER' }
-								: null
-	);
+	function bandFor(d: typeof data): { h: string; m: string } | null {
+		if (d.step !== 'code') return null;
+		if (d.result === 'wrong')
+			return { h: 'NOT THAT CODE', m: `${d.left} ${d.left === 1 ? 'TRY' : 'TRIES'} LEFT` };
+		if (d.result === 'short') return { h: 'SIX DIGITS', m: 'TYPE ALL SIX' };
+		// Burned is for good, whatever the last try said (the load's `shown`).
+		if (d.state === 'burned' || d.result === 'burned')
+			return { h: 'NO TRIES LEFT', m: 'MAKE A NEW CODE ON THE COMPUTER' };
+		// The typed code had run out, or been used, and the load made a new one
+		// (c246): it is on the computer's screen already, nothing to walk for.
+		if ((d.result === 'expired' || d.result === 'used') && d.state === 'live')
+			return {
+				h: d.result === 'expired' ? 'THAT CODE EXPIRED' : 'THAT CODE IS USED',
+				m: 'THE NEW ONE IS ON THE COMPUTER'
+			};
+		if (d.result === 'expired' || d.state === 'expired')
+			return { h: 'THIS CODE EXPIRED', m: 'MAKE A NEW ONE ON THE COMPUTER' };
+		if (d.result === 'used' || d.state === 'used')
+			return { h: 'THIS CODE IS USED', m: 'ONE TV, ONCE · MAKE A NEW ONE ON THE COMPUTER' };
+		return null;
+	}
+	const band = $derived(bandFor(data));
 
 	/** Back to the app's own address page: the one screen before this one. */
 	const back = () => history.back();
@@ -55,7 +62,9 @@
 	a TV's, so it is laid out at the TV's size rather than a responsive stack.
 -->
 {#if data.step === 'paired'}
-	<main class="pair paired">
+	<!-- The TV app reads the server's name from data-paired-name (c545;
+	     MainActivity's PAIRED_JS), so the label's words can change freely. -->
+	<main class="pair paired" data-paired-name={data.name}>
 		<div class="bar">
 			<Wordmark size={20} />
 			<div class="grow"></div>
