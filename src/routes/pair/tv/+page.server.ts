@@ -2,11 +2,12 @@ import { hostname } from 'node:os';
 import { redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
 import {
-	PAIRED_COOKIE,
 	PAIRED_COOKIE_OPTIONS,
 	addPaired,
 	pairedBy,
+	pairedCookie,
 	pairedLabel,
+	readPaired,
 	tvPairing
 } from '$lib/server/pairing';
 
@@ -27,18 +28,28 @@ const SIX = /^\d{6}$/;
 const computerName = () => (hostname() || 'computer').toUpperCase();
 
 /**
- * A TV that opened this page before anyone opened SETTINGS has nothing to
- * type, so one is made here. An expired or burned code is not silently
- * replaced: the computer's SETTINGS is where a new one comes from (9D's
- * reason, and the card's rule), and the band says so.
+ * A TV that opened this page with nothing it can type gets a code made here:
+ * none yet, or one that has merely run out (c246; the owner's (b),
+ * 2026-11-04). A burned code is not replaced -- five wrong tries need the
+ * computer, 9D's reason -- and neither is a used one while the computer still
+ * shows it ✓ USED (`TvPairing.renewForTv` has every state). The computer's
+ * WI-FI panel and DEVICES row read the new digits on their next refresh.
  */
-function ensureCode(now: number) {
-	if (tvPairing.state(now) === 'none') tvPairing.fresh(now);
-}
+const ensureCode = (now: number) => tvPairing.renewForTv(now);
+
+/**
+ * The state the page draws. A burned code is burned for good, so one past its
+ * 10 minutes still says NO TRIES LEFT rather than THIS CODE EXPIRED, whose
+ * remedy (a new code) this page would otherwise seem to owe it.
+ */
+const shown = (now: number) =>
+	tvPairing.triesLeft() === 0 && tvPairing.state(now) === 'expired'
+		? ('burned' as const)
+		: tvPairing.state(now);
 
 export const load: PageServerLoad = ({ cookies, url }) => {
 	const now = Date.now();
-	const paired = pairedBy(cookies.get(PAIRED_COOKIE));
+	const paired = readPaired(cookies, url, (t) => pairedBy(t));
 	if (paired)
 		return { step: 'paired' as const, host: url.host, name: computerName(), state: null, left: 0 };
 
@@ -52,7 +63,7 @@ export const load: PageServerLoad = ({ cookies, url }) => {
 		step: 'code' as const,
 		host: url.host,
 		name: computerName(),
-		state: tvPairing.state(now),
+		state: shown(now),
 		left,
 		result
 	};
@@ -68,7 +79,8 @@ export const actions: Actions = {
 		const result = tvPairing.redeem(typed, Date.now(), pairedLabel(ua));
 		if (result === 'ok') {
 			const token = addPaired({ label: pairedLabel(ua), address: url.host });
-			cookies.set(PAIRED_COOKIE, token, PAIRED_COOKIE_OPTIONS);
+			// This origin's name (c530): another tsundoku on the computer keeps its own.
+			cookies.set(pairedCookie(url), token, PAIRED_COOKIE_OPTIONS);
 			redirect(303, '/pair/tv');
 		}
 		if (result === 'wrong') redirect(303, `/pair/tv?r=wrong&left=${tvPairing.triesLeft()}`);

@@ -12,6 +12,8 @@ import { expect, hydrated, test } from './helpers/hydrated';
 test.describe.configure({ mode: 'serial' });
 
 const PORT = process.env.PLAYWRIGHT_PORT ?? '4183';
+/** The paired cookie on this origin (c530): `vite preview` builds the URL from the Host. */
+const PAIRED = `tsundoku_paired_${PORT}`;
 /**
  * The host the e2e server's `ORIGIN` names (playwright.config.ts), as a
  * tailnet install's own public origin would: the door a paired TV's cookie
@@ -39,8 +41,10 @@ const wrong = (code: string) => (code === '000000' ? '111111' : '000000');
 const BANDS = [
 	['wrong&left=4', 'NOT THAT CODE', '4 TRIES LEFT'],
 	['short', 'SIX DIGITS', 'TYPE ALL SIX'],
-	['expired', 'THIS CODE EXPIRED', 'MAKE A NEW ONE ON THE COMPUTER'],
-	['used', 'THIS CODE IS USED', 'ONE TV, ONCE'],
+	// With a live code on the server, as every `r=expired` and `r=used` the
+	// action sends now arrives: the load has made the computer a new one (c246).
+	['expired', 'THAT CODE EXPIRED', 'THE NEW ONE IS ON THE COMPUTER'],
+	['used', 'THAT CODE IS USED', 'THE NEW ONE IS ON THE COMPUTER'],
 	['burned', 'NO TRIES LEFT', 'MAKE A NEW CODE ON THE COMPUTER']
 ] as const;
 
@@ -103,7 +107,7 @@ test('five wrong tries burn the code, and a new one is made on the computer', as
 	request
 }) => {
 	// A TV that paired in the test above opens 9E; this one has nothing yet.
-	await page.context().clearCookies({ name: 'tsundoku_paired' });
+	await page.context().clearCookies({ name: PAIRED });
 	const fresh = (await (
 		await request.post('/api/pair/tv', { data: { action: 'code' } })
 	).json()) as TvCode;
@@ -188,11 +192,11 @@ test('a paired cookie signs in on the tailnet host, and not at localhost', async
 	// 9E names the DEVICES row by what both installs have, not by WI-FI: on the
 	// tailnet that row says OVER TAILSCALE (c245).
 	await expect(tvPage.getByText('TV · WITH SIGN OUT')).toBeVisible();
-	const paired = (await tv.cookies()).find((c) => c.name === 'tsundoku_paired');
+	const paired = (await tv.cookies()).find((c) => c.name === PAIRED);
 	expect(paired).toBeTruthy();
 	await tv.close();
 
-	// Only `tsundoku_paired`: no session cookie at all. The Host is the one
+	// Only the paired cookie: no session cookie at all. The Host is the one
 	// playwright.config.ts gives the server as its public origin.
 	const tailnet = await playwright.request.newContext({
 		baseURL: `http://localhost:${PORT}`,

@@ -29,6 +29,8 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import org.json.JSONObject
 import java.util.concurrent.Executors
+import java.util.concurrent.FutureTask
+import java.util.concurrent.TimeUnit
 
 /**
  * tsundoku on an Android TV (c236; doc/TV-APP.md). A WebView that holds the
@@ -40,7 +42,7 @@ import java.util.concurrent.Executors
  * computer's `/pair/tv`, so the code is posted same-origin and the paired
  * cookie is the one `/pair/<code>` sets for a phone.
  */
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), PairingBridge.Host {
 	private lateinit var webView: WebView
 	private lateinit var root: FrameLayout
 	private lateinit var bridge: PairingBridge
@@ -171,8 +173,27 @@ class MainActivity : ComponentActivity() {
 		return super.dispatchKeyEvent(event)
 	}
 
+	/**
+	 * The page in the WebView, for the bridge's guard (c529, BridgeGuard). A
+	 * bridge call arrives on the JavaBridge thread, and `WebView.url` must be
+	 * read on the UI thread, so the read is posted there and waited for; one
+	 * that does not come back in 2 s is no page at all, and the call is refused.
+	 */
+	override fun topUrl(): String? {
+		if (Looper.myLooper() == Looper.getMainLooper()) return webView.url
+		val read = FutureTask { webView.url }
+		ui.post(read)
+		return try {
+			read.get(2, TimeUnit.SECONDS)
+		} catch (_: Exception) {
+			null
+		}
+	}
+
+	override fun onUi(block: () -> Unit) = runOnUiThread(block)
+
 	/** A probe the page asked for has answered. */
-	fun postProbe(origin: String, ok: Boolean) {
+	override fun postProbe(origin: String, ok: Boolean) {
 		runOnUiThread {
 			webView.evaluateJavascript(
 				"window.tsundokuProbe && window.tsundokuProbe(${JSONObject.quote(origin)}, $ok)",
@@ -237,14 +258,16 @@ class MainActivity : ComponentActivity() {
 				val uri = Uri.parse(url)
 				if (uri.scheme != "http" && uri.scheme != "https") return
 				val origin = originOf(uri)
-				val known = servers.find(origin) ?: return
-				if (uri.path == "/pair/tv") {
-					view.evaluateJavascript(PAIRED_JS) { value -> pairedPage(known, value) }
-					return
+				val known = servers.find(origin)
+				// A failed load finishes too: it must not become the last used,
+				// and a failed /pair/tv is no 9E to read (FailedLoad.finish).
+				when (failedLoad.finish(origin, uri.path, known != null)) {
+					FailedLoad.Finish.SKIP -> return
+					FailedLoad.Finish.PAIRED_PAGE ->
+						known?.let { k -> view.evaluateJavascript(PAIRED_JS) { value -> pairedPage(k, value) } }
+					FailedLoad.Finish.VISIT ->
+						if (!Back.passedOver(url) && servers.opened(origin)) serversChanged()
 				}
-				// A failed load finishes too: it must not become the last used.
-				if (!failedLoad.finished(origin)) return
-				if (!Back.passedOver(url) && servers.opened(origin)) serversChanged()
 			}
 		}
 
@@ -254,8 +277,8 @@ class MainActivity : ComponentActivity() {
 	 * has never been opened, this was an add, so S8 replaces it.
 	 */
 	private fun pairedPage(known: Servers.Server, value: String?) {
-		val line = runCatching { org.json.JSONArray("[" + (value ?: "null") + "]").optString(0, "") }.getOrDefault("")
-		val name = Forget.pairedName(line) ?: return
+		val said = runCatching { org.json.JSONArray("[" + (value ?: "null") + "]").optString(0, "") }.getOrDefault("")
+		val name = Forget.pairedNameFrom(said) ?: return
 		if (servers.named(known.origin, name)) serversChanged()
 		val wasAdd = known.opened == 0L && servers.all().size > 1
 		if (wasAdd) showAsset("#added=" + Uri.encode(known.origin))
@@ -308,17 +331,20 @@ class MainActivity : ComponentActivity() {
 	}
 
 	private fun open(origin: String) {
+		// This load is the app's own attempt: a mark left by an earlier failed
+		// load of this server, finished or not, must not swallow its visit.
+		failedLoad.attempt(originOf(Uri.parse(origin)))
 		webView.loadUrl(origin)
 	}
 
 	/** The bridge's open (SERVERS, 9D's others, S8's OPEN →): that server's library. */
-	fun openServer(origin: String) {
+	override fun openServer(origin: String) {
 		attempts.begin()
 		open(origin)
 	}
 
 	/** One of the app's own screens, from the bridge (S5, S7, 9A). */
-	fun showAsset(hash: String) {
+	override fun showAsset(hash: String) {
 		attempts.begin()
 		loadAsset(hash)
 	}
@@ -328,7 +354,7 @@ class MainActivity : ComponentActivity() {
 	 * origin, expired, and the jar written out, so the pairing is gone even if
 	 * the app is killed next.
 	 */
-	fun clearCookies(origin: String) {
+	override fun clearCookies(origin: String) {
 		val jar = CookieManager.getInstance()
 		for (line in Forget.expiring(jar.getCookie(origin), origin)) jar.setCookie(origin, line)
 		jar.flush()
@@ -340,7 +366,7 @@ class MainActivity : ComponentActivity() {
 	 * launcher that shows no app shortcuts (an Android TV home screen may not)
 	 * simply never draws them; nothing else depends on it.
 	 */
-	fun serversChanged() {
+	override fun serversChanged() {
 		runOnUiThread {
 			try {
 				val plan = Shortcuts.plan(servers.all(), minOf(Shortcuts.MAX, ShortcutManagerCompat.getMaxShortcutCountPerActivity(this).takeIf { it > 0 } ?: Shortcuts.MAX))
@@ -400,8 +426,7 @@ class MainActivity : ComponentActivity() {
 	}
 
 	private fun originOf(url: Uri): String {
-		val port = if (url.port > 0) ":${url.port}" else ""
-		return "${url.scheme}://${url.host}$port"
+		return "${url.scheme}://${url.host}${Address.portSuffix(url.scheme, url.port)}"
 	}
 
 	private fun hideSystemUi() {
@@ -415,9 +440,16 @@ class MainActivity : ComponentActivity() {
 		/** The launch extra, and the deep link's query parameter (c260). */
 		private const val EXTRA_URL = "url"
 
-		/** 9E's first line, if the computer's /pair/tv is on 9E (Forget.pairedName reads it). */
+		/**
+		 * What 9E says of the server, if the computer's /pair/tv is on 9E:
+		 * `data-paired-name`, a newline, then the first line's text, which
+		 * is all a server older than c545 says (Forget.pairedNameFrom reads
+		 * both). "" on any other page. No double quote, backslash or dollar
+		 * sign inside: tests/tv-pair-origins.e2e.ts reads this literal out of
+		 * this file and runs it on the real 9E.
+		 */
 		private const val PAIRED_JS =
-			"(function(){var l=document.querySelector('main.paired .lab');return l?l.textContent:''})()"
+			"(function(){var m=document.querySelector('main.paired');if(!m)return '';var l=m.querySelector('.lab');return (m.getAttribute('data-paired-name')||'')+String.fromCharCode(10)+(l?l.textContent:'')})()"
 
 		/** c236's contract: true means the page took BACK. */
 		private const val BACK_JS =

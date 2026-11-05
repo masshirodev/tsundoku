@@ -19,9 +19,11 @@ export function scrub(text: string, s: Scrub): string {
 	let out = text;
 	for (const v of s.secrets.filter((x) => x.length >= 6))
 		out = out.replace(new RegExp(escape(v), 'g'), '[secret]');
-	// Cookies and pairing links, whatever their values: a log line can carry a request.
+	// Cookies and pairing links, whatever their values: a log line can carry a
+	// request. A paired cookie is named for its origin since c530
+	// (`tsundoku_paired_42143`, `tsundoku_paired_s443`), and the old name stays.
 	out = out
-		.replace(/\b(tsundoku_session|tsundoku_paired)=[^;\s]+/g, '$1=[secret]')
+		.replace(/\b(tsundoku_session|tsundoku_paired(?:_s?\d+)?)=[^;\s]+/g, '$1=[secret]')
 		.replace(/\/pair\/[\w-]+/g, '/pair/[code]')
 		.replace(/\b(Bearer|token=)\s*[\w.-]{12,}/gi, '$1 [secret]');
 	// Longest first, so a folder is replaced whole before a title inside it.

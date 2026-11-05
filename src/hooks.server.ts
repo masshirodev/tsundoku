@@ -14,7 +14,7 @@ import {
 	isValidSession
 } from '$lib/server/auth';
 import { foreignHost, loopbackRedirect } from '$lib/server/bind';
-import { PAIRED_COOKIE, friendPaired, pairedBy, tailnetDoor } from '$lib/server/pairing';
+import { friendPaired, pairedBy, readPaired, tailnetDoor } from '$lib/server/pairing';
 import { lanHosts, viaLan } from '$lib/server/wifi';
 import { isRevealed, themeOf } from '$lib/server/prefs';
 
@@ -55,8 +55,9 @@ const guard: Handle = async ({ event, resolve }) => {
 	if (friendLogin()) {
 		// A friend's install (doc/SIGN-IN.md): SET UP until a password, or none, is chosen.
 		const login = currentLogin();
-		// A phone paired over Wi-Fi signs in with its own cookie (doc/WIFI.md).
-		const paired = friendPaired(lan, event.cookies.get(PAIRED_COOKIE));
+		// A phone paired over Wi-Fi signs in with its own cookie (doc/WIFI.md),
+		// named for this origin (c530; readPaired moves one paired before it).
+		const paired = readPaired(event.cookies, event.url, (t) => friendPaired(lan, t));
 		event.locals.paired = paired;
 		authed = !!paired || friendAuthed(login, event.cookies.get(SESSION_COOKIE), lan);
 		if (!login) {
@@ -77,9 +78,10 @@ const guard: Handle = async ({ event, resolve }) => {
 		// host gets that door: in https mode the app is on 127.0.0.1 behind
 		// tailscale serve, so every request -- tailnet ones included -- comes
 		// from loopback and the address cannot tell them apart. No origin
-		// known, no door: the cookie signs nothing in (tailnetDoor).
+		// known, no door: the cookie signs nothing in (tailnetDoor). The cookie
+		// is this origin's (c530), and readPaired moves one paired before it.
 		const paired = tailnetDoor(process.env.ORIGIN, event.request.headers.get('host'))
-			? pairedBy(event.cookies.get(PAIRED_COOKIE))
+			? readPaired(event.cookies, event.url, (t) => pairedBy(t))
 			: null;
 		event.locals.paired = paired;
 		authed =

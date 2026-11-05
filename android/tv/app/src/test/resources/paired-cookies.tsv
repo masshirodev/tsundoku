@@ -1,0 +1,22 @@
+# The paired cookie's name for each origin (c530): one pairing per origin,
+# because a cookie jar scopes by host, not port or scheme. Read by both sides,
+# so the server's `pairedCookie` (src/lib/server/pairing.ts, held by
+# tests/pairing-origins.spec.ts) and the app's `Forget.pairedCookie`
+# (ForgetTest) cannot drift apart. Tab-separated: origin, then name.
+http://localhost:42143	tsundoku_paired_42143
+http://localhost	tsundoku_paired_80
+http://localhost:80	tsundoku_paired_80
+https://localhost	tsundoku_paired_s443
+http://127.0.0.1:42143	tsundoku_paired_42143
+http://127.0.0.1:42144	tsundoku_paired_42144
+https://127.0.0.1:42143	tsundoku_paired_s42143
+http://192.168.1.23:42143	tsundoku_paired_42143
+http://[::1]:42143	tsundoku_paired_42143
+http://[fe80::1]:8080	tsundoku_paired_8080
+https://[2001:db8::1]	tsundoku_paired_s443
+https://zen.tailnet.ts.net	tsundoku_paired_s443
+https://zen.tailnet.ts.net:443	tsundoku_paired_s443
+https://zen.tailnet.ts.net:8443	tsundoku_paired_s8443
+http://zen.tailnet.ts.net:8443	tsundoku_paired_8443
+http://100.101.102.103:42143	tsundoku_paired_42143
+HTTP://ZEN.TAILNET.TS.NET:42143	tsundoku_paired_42143

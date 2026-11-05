@@ -60,9 +60,93 @@ export class Pairing {
 /** The process's one pairing, shared by SETTINGS and /pair. */
 export const pairing = new Pairing();
 
+// ---- One paired cookie per origin (c530) -------------------------------------------
+
+/**
+ * The paired cookie's name on this origin. A browser's jar -- the TV's
+ * WebView's included -- scopes a cookie by host, not by port or scheme, so
+ * every tsundoku on one computer used to share `tsundoku_paired`: pairing a
+ * second one signed the TV out of the first, and FORGET on either forgot both.
+ *
+ * A name may not hold `:`, so the origin is not written into it whole: the
+ * port, the scheme's default when the URL has none, and `s` before it for
+ * https (`tsundoku_paired_42143`, `tsundoku_paired_s443`). The host is not
+ * needed, since the jar keeps one set per host already. The TV app derives the
+ * same name for FORGET (`Forget.pairedCookie`); both read
+ * `android/tv/app/src/test/resources/paired-cookies.tsv`.
+ *
+ * The URL is the request's own (`event.url`): built from `ORIGIN` on a served
+ * instance and from the Host header under `vite` and on the Wi-Fi listeners,
+ * which is in each case the origin the TV typed.
+ */
+export function pairedCookie(url: URL | string): string {
+	const u = typeof url === 'string' ? new URL(url) : url;
+	const https = u.protocol === 'https:';
+	return `${PAIRED_COOKIE}_${https ? 's' : ''}${u.port || (https ? '443' : '80')}`;
+}
+
+/** Any paired cookie's name: the per-origin ones and the shared one used before c530. */
+export const PAIRED_COOKIE_NAME = /^tsundoku_paired(?:_s?\d+)?$/;
+
+/**
+ * How the shared name is expired: with the options it was set with. SvelteKit's
+ * `delete` otherwise defaults to `Secure` on any host but localhost, and a
+ * browser ignores a Secure write over plain http, so the old cookie stayed
+ * (found by tests/tv-pair-origins.e2e.ts, not by a fake jar).
+ */
+type PairedDelete = Omit<typeof PAIRED_COOKIE_OPTIONS, 'maxAge'>;
+const PAIRED_DELETE: PairedDelete = { path: '/', httpOnly: true, sameSite: 'lax', secure: false };
+
+/** What the guard and the routes need of SvelteKit's `cookies`. */
+type Jar = {
+	get(name: string): string | undefined;
+	set(name: string, value: string, opts: typeof PAIRED_COOKIE_OPTIONS): void;
+	delete(name: string, opts: PairedDelete): void;
+};
+
+/**
+ * The paired token a request carries for this origin: its own name first,
+ * then the shared one, for a device paired before c530. What `/api/devices/sync`
+ * reads to join the row; by then `readPaired` has moved an old one over.
+ */
+export function pairedToken(url: URL, get: (name: string) => string | undefined) {
+	return get(pairedCookie(url)) ?? get(PAIRED_COOKIE);
+}
+
+/**
+ * The paired device this request's cookie names, if `check` takes its token
+ * (`pairedBy`, or `friendPaired` for a friend's Wi-Fi door).
+ *
+ * A device paired before c530 carries only the shared name. If that token is
+ * one of this server's own pairings, this request writes it again under this
+ * origin's name and expires the shared one, so the device stays paired and is
+ * never asked for digits again. A shared token this server does not know is
+ * another server's on the same host: it is left exactly as it is, for that
+ * server to move when the device next opens it.
+ */
+export function readPaired(
+	jar: Jar,
+	url: URL,
+	check: (token: string | undefined) => Paired | null
+): Paired | null {
+	const name = pairedCookie(url);
+	const own = jar.get(name);
+	const found = own === undefined ? null : check(own);
+	if (found) return found;
+	const old = jar.get(PAIRED_COOKIE);
+	if (old === undefined || old === own) return null;
+	const moved = check(old);
+	if (moved) {
+		jar.set(name, old, PAIRED_COOKIE_OPTIONS);
+		jar.delete(PAIRED_COOKIE, PAIRED_DELETE);
+	}
+	return moved;
+}
+
 /**
  * The cookie a paired device carries, both for the phone's scanned link and
- * for the TV's typed code: one shape, so the two signs don't drift.
+ * for the TV's typed code: one shape, so the two signs don't drift. Its name
+ * is this origin's (`pairedCookie`).
  */
 export const PAIRED_COOKIE_OPTIONS = {
 	path: '/',
@@ -86,6 +170,13 @@ export const PAIRED_COOKIE_OPTIONS = {
  * the right one.
  */
 export const TV_TRIES = 5;
+
+/**
+ * How long a used TV code stays ✓ USED before `/pair/tv` may replace it
+ * (`renewForTv`): the same 2 minutes `wifi.ts`'s `USED_SHOWN_MS` keeps it up
+ * on the computer, which `tests/wifi-db.spec.ts` holds the two to.
+ */
+export const TV_USED_SHOWN_MS = 2 * 60_000;
 
 export type TvCode = {
 	code: string;
@@ -130,6 +221,42 @@ export class TvPairing {
 		if (c.used) return 'used';
 		if (now - c.madeAt >= CODE_MS) return 'expired';
 		return c.tries >= TV_TRIES ? 'burned' : 'live';
+	}
+
+	/**
+	 * `/pair/tv`'s own door (c246; the owner's (b), 2026-11-04): a TV that is
+	 * not paired and arrives with no code to type, or with one that has merely
+	 * run out, gets a new one, so the page is never THIS CODE EXPIRED with
+	 * nothing to do but walk to the computer. True when it made one.
+	 *
+	 * - **None**: made.
+	 * - **Expired**, with tries left: replaced.
+	 * - **Burned** (five wrong tries): kept, expired or not -- `state` says
+	 *   `expired` for a burned code past its 10 minutes, so this reads the
+	 *   tries, not the state. Only the computer makes another (9D's reason).
+	 * - **Used**: replaced once it is older than the 2 minutes the computer
+	 *   keeps ✓ USED up (`TV_USED_SHOWN_MS`). A TV that is not paired and
+	 *   finds a used code is another device than the one that spent it, or the
+	 *   same one signed out since; before then, the computer's row is still
+	 *   turning ✓ USED and listing the TV that used it.
+	 * - **Live**: kept.
+	 *
+	 * The new code keeps the old one's wrong tries. `fresh` -- the owner, on
+	 * the computer -- is the only thing that gives five again, so a guesser
+	 * who opens this page every 10 minutes still has five wrong guesses per
+	 * code the owner makes, as before c246, not five per 10 minutes.
+	 */
+	renewForTv(now: number): boolean {
+		const c = this.code;
+		if (!c) {
+			this.fresh(now);
+			return true;
+		}
+		if (c.tries >= TV_TRIES) return false;
+		const spent = c.used ? now - c.used.at > TV_USED_SHOWN_MS : now - c.madeAt >= CODE_MS;
+		if (!spent) return false;
+		this.code = { code: this.make(), madeAt: now, used: null, tries: c.tries };
+		return true;
 	}
 
 	/**

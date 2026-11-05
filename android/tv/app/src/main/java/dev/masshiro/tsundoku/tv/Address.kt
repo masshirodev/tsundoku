@@ -33,9 +33,25 @@ object Address {
 		val withScheme = if (raw.startsWith("http://") || raw.startsWith("https://")) raw else "http://$raw"
 		val url = runCatching { java.net.URI(withScheme) }.getOrNull() ?: return null
 		if (url.host.isNullOrEmpty()) return null
-		val port = if (url.port > 0) ":${url.port}" else ""
 		val scheme = url.scheme ?: "http"
-		return "$scheme://${url.host}$port"
+		return "$scheme://${url.host}${portSuffix(scheme, url.port)}"
+	}
+
+	/**
+	 * ":port", or "" for no port and for the scheme's own (80, 443): WebView's
+	 * URL drops a default port, so an origin that kept it would never equal
+	 * the page's (BridgeGuard, FailedLoad, Servers.find). Entries stored with
+	 * one before this are read through [originOf] (Servers.decode), so they
+	 * come back without it.
+	 */
+	fun portSuffix(scheme: String?, port: Int): String {
+		if (port <= 0) return ""
+		val default = when (scheme?.lowercase()) {
+			"http" -> 80
+			"https" -> 443
+			else -> -1
+		}
+		return if (port == default) "" else ":$port"
 	}
 
 	/**
@@ -61,7 +77,7 @@ object Address {
 		// so a nonsense address is never quietly probed and remembered.
 		val port = when (url.port) {
 			-1 -> ""
-			in 1..65535 -> ":${url.port}"
+			in 1..65535 -> portSuffix(scheme, url.port)
 			else -> return null
 		}
 		return "$scheme://$host$port"

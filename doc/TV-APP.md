@@ -198,8 +198,9 @@ designer's calls, as built:
   not sign-in, set-up or pairing). If it does not answer, 9D for it with the
   others offered (S9); never another.
 - **Names.** A server is named by itself: its hostname, upper case, as
-  `/pair/tv` says it. The app reads it from 9E's first line
-  (`✓ PAIRED WITH ZEN · …`, `Forget.pairedName`), and the library's layout
+  `/pair/tv` says it. The app reads it from 9E's `data-paired-name`
+  attribute (c545), falling back to 9E's first line (`✓ PAIRED WITH ZEN · …`)
+  for a server older than that (`Forget.pairedNameFrom`), and the library's layout
   also says it to the bridge on every load (`data.computer`, sent only to the
   app's user agent), so a TV paired before the list existed is named too.
   **RENAME** (S5) keeps the TV's own name for it, on the TV only; emptied, the
@@ -262,17 +263,26 @@ opened and when it was added. Pure apart from its key-value, so
   first read makes it a list of one, opened now, so the TV opens exactly as
   before and is never asked to pair again: its cookie is the WebView's,
   and nothing touches it. The jar keeps cookies per **host**, not per
-  origin (port and scheme are not part of a cookie's scope), so servers on
-  different computers each keep their own pairing, and two on one computer
-  share one (see "What it does not do yet"). `address` is kept in step with the last
+  origin (port and scheme are not part of a cookie's scope), so since c530
+  each server names its paired cookie for its own port and scheme
+  (`tsundoku_paired_42143`, `tsundoku_paired_s443`; `pairedCookie` in
+  `src/lib/server/pairing.ts`), and two servers on one computer keep their own
+  pairing. A TV paired before c530 carries the one name every server used,
+  `tsundoku_paired`; the first request to the server that set it signs in by
+  it and moves it to that server's own name (`readPaired`), and a server it is
+  not paired with leaves it alone. `address` is kept in step with the last
   used on every write, so an older APK installed over this one still opens
   the same library.
 - **`remember()` adds**, never replaces, and never makes a server the one in
   use: an add left at 9C does not take launch from the library the TV was in.
-- **FORGET** removes the entry and expires every cookie the WebView's jar
+- **FORGET** removes the entry and expires the cookies the WebView's jar
   sends that origin (`Forget.expiring`: each name written back with
   `Max-Age=0` at `/`, `Secure` on https), then flushes the jar, so adding it
-  back pairs with six digits. The computer still lists the TV in SETTINGS ›
+  back pairs with six digits. The jar hands back every server's cookies on
+  that host, so FORGET expires this origin's paired name, the old shared
+  `tsundoku_paired`, and every cookie that is not a pairing, and never another
+  origin's `tsundoku_paired_*` (c530; `Forget.pairedCookie` names it as the
+  server does, both read `android/tv/app/src/test/resources/paired-cookies.tsv`). The computer still lists the TV in SETTINGS ›
   08 — DEVICES until it is signed out there: the TV may be off the network
   when it forgets.
 - **The bridge** (`PairingBridge.kt`) grew `servers()` (JSON, the one in use
@@ -280,6 +290,19 @@ opened and when it was added. Pure apart from its key-value, so
   `renameServer` and `welcome`; probes run four at a time so a panel's rows
   answer as they land. Every page the WebView loads has the bridge, which is
   how MORE reaches it; the list lives in the app, never in a page.
+- **Only the app's pages make the bridge write** (c529; `BridgeGuard.kt`).
+  Before every call that writes (`remember`, `forget`, `forgetServer`, `move`,
+  `rename`, `named`), probes (`probe`) or opens a screen that writes
+  (`addServer`, `renameServer`), the bridge reads the WebView's top-level URL
+  on the UI thread and does nothing unless it is the app's own asset page
+  (`file:///android_asset/pair/index.html`) or a page of a server in the list
+  (its exact origin: another port, or the http/https twin, is not it). An
+  external link followed from a server's page can no longer forget the list
+  or move an entry to itself. The reads (`tvAddress`, `prefix`, `defaultPort`,
+  `remembered`, `servers`) and `open` and `welcome` are not guarded: FORGET of
+  the server in use calls `open` or `welcome` from the page of the server it
+  has just forgotten, and neither goes anywhere but a known server or 9A.
+  `PairingBridge.kt`'s KDoc has every method in a table.
 
 ### Launcher shortcuts
 
@@ -316,10 +339,10 @@ verified".
   not S6's 56 px panel actions: SERVERS is one more row in the sheet every
   device shares, not a redraw of it.
 - **The server's name is read, not handed over.** The design has `/pair/tv`
-  hand it to the bridge; `/pair/tv` is another slot's (`tv-pair`), so the app
-  reads 9E's first line itself, and the library's layout says it on every
-  load. The cost: S8 replaces the computer's 9E once 9E has drawn, so 9E shows
-  for a moment first.
+  hand it to the bridge; instead 9E carries it in `data-paired-name` (c545),
+  which the app reads once 9E has loaded, and the library's layout says it on
+  every load. The cost: S8 replaces the computer's 9E once 9E has drawn, so 9E
+  shows for a moment first.
 - **A server that moved takes the entry's place when it answers**, not once
   paired: the old address's cookie is no use to the new one either way, and
   the answer is the one thing the page sees before it leaves for `/pair/tv`.
@@ -341,14 +364,21 @@ verified".
   TIMES): the rows, their answers and the remote's mark stay where they are
   (round 2 of wave 21; before it, every failed retry rebuilt 9D, put the mark
   back on TRY AGAIN and probed every other server again).
-- **Two servers on one computer share a pairing.** The WebView's cookie jar
-  scopes a cookie by host, and every tsundoku sets the same
-  `tsundoku_paired` cookie at `/`, so two servers on one host (two ports, or
-  http and https) hold one cookie between them: pairing the second signs the
-  TV out of the first, and FORGET on either expires both. S8's "Each keeps
-  its own pairing" holds for servers on different computers only. The fix is
-  the computer's (a cookie name per port, `src/lib/server/pairing.ts`), not
-  the app's.
+- **FORGET expires the old shared `tsundoku_paired` too** (c530), which on a
+  TV paired before c530 may still be another server's on the same computer,
+  until that server has been opened once since its update (which moves it to
+  its own name). Forgetting must forget, so the old name goes; the cost is a
+  second pairing for that other server in that one case. Two servers on one
+  computer each paired since c530 keep their own pairing through FORGET on
+  the other, as S8 says.
+- **A frame inside a known server's page reaches the bridge** (c529). A
+  JavaScript interface does not say which frame called it, and the guard
+  reads the top-level URL, which a frame cannot change. tsundoku draws no
+  third-party frames; the way to close this too is
+  `WebViewCompat.addWebMessageListener` with origin rules (androidx.webkit,
+  not a dependency yet). External links still open inside the WebView, where
+  the guard refuses them every write; opening them outside it would be a
+  behaviour change on a TV, not made.
 - 9E itself (the computer's) still says nothing of other servers on a first
   pairing, as the design asks: with one server nothing changes.
 
@@ -414,9 +444,10 @@ host, so the TV opens the library instead of `/login` (c245;
 The bridge (`PairingBridge.kt`) is what a `file://` page cannot do: the TV's own
 IPv4 (for the prefix and 9D's third reason), a probe of a candidate, and
 `SharedPreferences` for the address that answered. It is registered for the
-whole WebView, so the paired web app could reach it too; the only caller in
-this repository is the app's own pages, and the probe only fetches a URL it is
-given (`/manifest.webmanifest`).
+whole WebView, so the paired web app reaches it too (MORE › SERVERS, c261),
+and every call that writes or probes asks first whether the page is the
+app's own or a known server's (c529, "The store" above); the probe only
+fetches `/manifest.webmanifest` at the address it is given.
 
 ## The remote's keys
 
@@ -560,8 +591,37 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
      launch opens. Turn one computer off, open it from MORE › SERVERS (9D
      appears), then quit the app and launch it again: it must open the
      server that was in use before, not 9D for the one that is off.
-     `FailedLoad` assumes WebView reports a failed main-frame load as
-     started, error, finished, in that order; this is the check that it does.
+     `FailedLoad` no longer depends on the order WebView reports a failed
+     main-frame load in (c532: the failed load's own finish consumes the
+     mark, whatever came between, and the app's next `open` of that server
+     ends it if that finish never came); this is the check that it holds on
+     a TV.
+  8. A server that comes back is counted once it opens. With two servers,
+     A in use: stop B, open B from MORE › SERVERS (9D appears), start B
+     again and press TRY AGAIN. B's library must open, MORE › SERVERS on
+     B's page must mark B IN USE (not A), and quitting and launching the
+     app again must open B. Round 1 of wave 22 left A in use here when
+     WebView sent no finish for B's failed load.
+- **Two servers on one computer (c530).** The server half is e2e-tested in a
+  browser's jar (`tests/tv-pair-origins.e2e.ts`); the WebView's is the claim.
+  Check, with two tsundokus on one computer (two ports):
+  1. A TV paired before this release, with the app and the server updated:
+     launch. It must open the library with no digits asked. In Chrome's
+     remote inspector (`chrome://inspect`, a debug build), Application ›
+     Cookies must then show `tsundoku_paired_<port>` and no
+     `tsundoku_paired`.
+  2. Pair the second server (MORE › SERVERS › + ADD A SERVER). Both must open
+     their libraries from SERVERS with no digits asked, and the inspector
+     must show both `tsundoku_paired_<port>` names.
+  3. FORGET the second: the first must still open with no digits asked;
+     adding the second back must ask for six.
+- **The bridge's guard (c529).** JVM-tested (`BridgeGuardTest`,
+  `PairingBridgeTest`); that `WebView.url` on the UI thread is the top-level
+  page's, and comes back within the guard's 2 s, is the claim. Check, with a
+  debug build and `chrome://inspect` on a server's library: in the console,
+  `TsundokuTV.rename(location.origin, 'X')` must rename the row in MORE ›
+  SERVERS; then `location.href = 'https://example.com'`, and on that page
+  `TsundokuTV.forget()` must leave SERVERS as it was after BACK.
 - **Launcher shortcuts (c287).** Built and planned in a JVM test, never seen
   on a launcher. Check: long-press tsundoku's icon on the TV's home screen
   (and on a phone, where Android's launcher does show app shortcuts). One
@@ -569,24 +629,43 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   server's library. If the TV's launcher shows none, that is the launcher:
   nothing in the app depends on it.
 - **The name a server gives itself, read from 9E's DOM.** `MainActivity`
-  reads `main.paired .lab` from the computer's `/pair/tv`; if that page's
-  markup changes, S8 simply does not appear (the computer's 9E stays) and
-  the name arrives from the library instead.
+  reads `main.paired`'s `data-paired-name` from the computer's `/pair/tv`
+  (c545), and `.lab`'s text for a server older than that. The script itself
+  is run on the real 9E by `tests/tv-pair-origins.e2e.ts`; that
+  `evaluateJavascript` hands it back on a TV is the claim. If neither is
+  there, S8 simply does not appear (the computer's 9E stays) and the name
+  arrives from the library instead.
 - **Installation by USB** on a TV's own file manager.
 
 ## Tests
 
 - `android/tv/app/src/test/` — `AddressTest`, `AttemptsTest`, `BackTest`,
-  `IntentAddressTest`, `KeysTest`, `ProbeTest`, `ScaleTest`, `ServersTest`,
-  `ShortcutsTest` (61 tests in 9 classes), run by `./gradlew test`.
-  `ServersTest` (18) is c261's store: the migration of a TV paired with one
+  `BridgeGuardTest`, `FailedLoadTest`, `ForgetTest`, `IntentAddressTest`,
+  `KeysTest`, `PairingBridgeTest`, `ProbeTest`, `ScaleTest`, `ServersTest`,
+  `ShortcutsTest` (90 tests in 13 classes at wave 22's round 2), run by `./gradlew test`.
+  `ServersTest` (19) is c261's store: the migration of a TV paired with one
   address (a list of one, opened, never asked to pair again), an add that
   never takes launch, the last used first and 9D's others, names, encode and
-  decode as each other's inverse, forget down to 9A, a server that moved, and
-  the JSON the pages read. `ShortcutsTest` (6) is c287's plan (one per
+  decode as each other's inverse, an entry stored with its scheme's own port
+  (`:443`, `:80`) read back without it, as WebView's URL has it, forget down to 9A, a server that moved, and
+  the JSON the pages read. `ShortcutsTest` (4) is c287's plan (one per
   server, four at most, each link read back through `givenAddress`'s decoding
-  and `Address.intentOrigin` to the same origin) and FORGET's cookie lines and
-  9E's name. `AttemptsTest` plays the activity's two launch doors in
+  and `Address.intentOrigin` to the same origin). `ForgetTest` (5) is FORGET's
+  cookie lines, one paired name per origin read from the table the server's
+  spec reads too, another origin's pairing kept (c530), and 9E's name from its
+  attribute or, for an older server, its first line (c545). `FailedLoadTest`
+  (14) is every order WebView may report a failed load in (c532), the app's
+  next attempt ending a mark whose finish never came, and `onPageFinished`'s
+  decision (`FailedLoad.finish`: a failed `/pair/tv` consumes its mark, a
+  loaded one is read for 9E's name, an unknown server is never a visit).
+  `BridgeGuardTest` (5) is c529's rule (the asset page, a known origin, one
+  stored with its scheme's own port, and the refused: unknown origins,
+  another port, the http/https twin, other `file://` pages);
+  `PairingBridgeTest` (5) calls each guarded method from an
+  unknown page and finds nothing changed, from the asset page and a known
+  server's and finds it acted, and FORGET's `open` and `welcome` still
+  answering the page it has just made unknown, and `forget()` from a known
+  server's page forgetting every server, its own included. `AttemptsTest` plays the activity's two launch doors in
   order: a given address during the remembered probe keeps its 9B whether the
   probe answers or not (c306). That `MainActivity` calls `Attempts` at both
   doors is read, not run: a JVM test cannot drive the Activity.
@@ -644,6 +723,20 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
 - `tests/tv-pair.e2e.ts` — the computer's `/pair/tv` at 960×540 with no pointer:
   every band clearing the label and the six cells, a wrong code spending a
   try, the right one landing on 9E, and five wrong ones burning it.
+- `tests/tv-pair-origins.e2e.ts` — two servers of its own, `ORIGIN` on
+  `tsundoku.test:<port>` and a browser resolving that name to 127.0.0.1, so
+  one jar holds both (the WebView's shape), each server's `Date.now` moved by
+  a file the spec writes: an expired code made new on `/pair/tv` and paired,
+  a used one kept for ✓ USED's 2 minutes then made new, a code that runs out
+  while 9C is up, a burned one kept burned past its 10 minutes (c246); 9E's
+  `data-paired-name` read by `PAIRED_JS` taken out of `MainActivity.kt`
+  (c545); and two servers on one host each staying paired after the other
+  pairs and after FORGET on the other, and a jar holding only the old name
+  staying paired and moved (c530).
+- `tests/pairing-origins.spec.ts` — `pairedCookie` over the shared table
+  (localhost, IPv4, IPv6, a tailnet name; legal cookie names; on its own
+  output), `readPaired`'s move from the old name and what it leaves alone,
+  and the report scrub of every paired name (c530).
 - `tests/friend-wifi.e2e.ts` — the Wi-Fi panel's FOR A TV digits, beside the
   phone's QR.
 
@@ -679,7 +772,8 @@ the computer's, decided without the device:
   and the cells.
 
 What the card also asked for — an expired code replaced on arrival, so the TV
-is not stuck — is `/pair/tv`'s `ensureCode`, which says on purpose that an
-expired or burned code is not silently replaced (the computer's SETTINGS is
-where a new one comes from). That is the owner's call and the server file is
-unchanged.
+is not stuck — waited on the owner, who chose (b) on 2026-11-04: `/pair/tv`
+makes a fresh code when the only one has merely expired, and a burned one
+still needs the computer (`TvPairing.renewForTv`; [`WIFI.md`](WIFI.md), "A
+TV's code"). `tests/tv-pair-origins.e2e.ts` opens `/pair/tv` with the
+server's clock past the code's life.
