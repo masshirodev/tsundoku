@@ -194,12 +194,12 @@ file, and commits the table with the merge.
 | `work-screen-frame.e2e.ts`                                                                          | works-frame     | The Work screen, in a real browser.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `works-flow.e2e.ts`                                                                                 | works-flow      | The Works flow end to end (c276, c277, c278; doc/WORKS.md): browsing shows the run as one tile and one CONTINUE row, finding shows the parts, /work/N is the run's own screen, and W4's AS sheet is how a Work is made.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `works-library-frame.e2e.ts`                                                                        | works-frame     | The library with Works, in a real browser.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `library-top-bar.e2e.ts`                                                                            | devices         | The library's top bar (c431, c105; doc/LIBRARY.md, "The top bar").                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `library-top-scroll.e2e.ts`                                                                         | devices         | The library as it scrolls, and the SERIES TO LINK band put away (doc/LIBRARY.md, "The top bar" and "The band"; c433, c430).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `library-top-sort.e2e.ts`                                                                           | devices         | SORT is the house's own menu, not a native <select> (c432; doc/LIBRARY.md, "Sort and direction").                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `reading-time-flow.e2e.ts`                                                                          | tablet-portrait | Reading time end to end (card c443; doc/READING-LOG.md): read through the app's own readers on a fake clock, and the time is on the series screen and in HISTORY, its row and its total; a hidden series' time is in neither while reveal is off.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `settings-devices.e2e.ts`                                                                           | devices         | SETTINGS › 08 — DEVICES' TV row, end to end, on two token installs of this file's own (c264, c265; doc/WIFI.md, "Where they show").                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `tv-library-top.e2e.ts`                                                                             | tv              | The library's top on a TV (doc/LIBRARY.md, "Sort and direction" and "The top bar"): SORT's menu walked by the remote alone (c432).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `library-top-bar.e2e.ts`                                                                            | devices         | Read-only, on the shared seed: each device project checks its own arrangement of the bar's cells and the one hairline between each pair (c431). Its FILTER case (c105) taps before hydration with the app's scripts held back, so it uses `@playwright/test`'s own `test`, whose `goto` waits for nothing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `library-top-scroll.e2e.ts`                                                                         | devices         | Its **own** preview and seeded database per device project, on a port the OS gives: the seed plus eighty filler series, because the seed is too short to scroll a desktop a screen, and the band's ✕ case adds a series to link, which the shared server's `links-flow` counts (c433, c430).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `library-top-sort.e2e.ts`                                                                           | devices         | Read-only: sorting changes only the URL. SORT's menu on every device, by tap, Escape and keys (c432). Two reads of a shelf are compared over the titles both hold, since the flows hide and restore their own series on the same database meanwhile.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `reading-time-flow.e2e.ts`                                                                          | tablet-portrait | Its **own** preview and seeded database, on a port the OS gives (the `links-flow` arrangement), because it logs reading, on a fake clock, through both readers (c443): Dungeon Meshi, Honzuki no Gekokujou and, hidden, Kaori Mama Illustrations 2024, which the seed never logs. Once, in tablet-portrait, as a `-flow` file.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `settings-devices.e2e.ts`                                                                           | devices         | Two token installs of its own, on ports the OS gives (c264, c265): `door`, with a tailnet-like `ORIGIN`, where a TV's cookie is a door and the row draws six digits, and `bare`, with none. Not the shared preview, whose one code at a time `tv-pair` spends. Desktop only: the row is the same markup at every width, and each project would stand up two more servers.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `tv-library-top.e2e.ts`                                                                             | tv              | Read-only (sorting changes only the URL), by the remote alone: SORT reached and walked (c432), the pinned bars clear of the first row's focus ring, one BACK from deep in the grid back at the top (c433), and the TV's bottom safe margin.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `browse-player-cluster.e2e.ts`                                                                      | browse          | The player's seek bar and middle cluster off a TV (doc/ANIME.md, "The player").                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `browse-source-flags.e2e.ts`                                                                        | browse          | A source's own switches (card c435; doc/BROWSE.md, "A source's own switches"): HIDDEN SOURCE, ADDED HIDDEN and OFF HISTORY, set on the source's settings page and followed to the screens each one changes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `import-flow.e2e.ts`                                                                                | tablet-portrait | IMPORT A BACKUP end to end (c438; doc/IMPORT.md), and START SCAN on a `Mihon/` with no backup in it (c268, c292).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
@@ -216,12 +216,15 @@ file, and commits the table with the merge.
 
 <!-- e2e-table:end -->
 
-**Every e2e spec imports `test` from `tests/fixtures.ts`,** whose
-`page.goto` also waits for the network to settle: SvelteKit hydrates after
-`load`, and a click that lands before hydration opens nothing. That was the
-suite's recurring flake. A client-side navigation into the reader doesn't
-change the document, so no load state covers it; `readerReady(page)` waits
-for the reader's own stylesheet instead (its ground turns true black).
+**77 of the 94 e2e files take `test` from `tests/fixtures.ts`** (or from
+`tests/helpers/hydrated.ts`, the same `test` under its old name), whose
+`page.goto`, `page.reload`, `page.goBack` and `page.goForward` wait for the
+page to have hydrated, and `goto` for the network to settle first:
+SvelteKit hydrates after `load`, and a click, a tap or an arrow key that
+lands before hydration does nothing. That was the suite's recurring flake.
+A client-side navigation into the reader doesn't change the document, so no
+load state covers it; `readerReady(page)` waits for the reader's own
+stylesheet instead (its ground turns true black).
 
 **Network quiet is a guess at hydration; the page's own mark is not**
 (c439). `networkidle` is 500 ms without a request, and on a loaded box the
@@ -229,17 +232,57 @@ last module arrives and then waits longer than that for the CPU, so the guess
 comes true before hydration does. `hydrated(page)` (`tests/helpers/hydration.ts`) waits for
 SvelteKit's route announcer (`#svelte-announcer`), which the framework's root
 component draws from its own `onMount`, after every component under it has
-mounted: the element exists exactly when every handler does.
-`tests/helpers/hydrated.ts`'s `test` extends the one above so `goto`, `reload`, `goBack` and `goForward` all wait
-for it, and `hydrated(page)` is there for a page the fixture didn't make (a
-context of a spec's own: `tv-pair`'s TV). The flake files `e2e` owned in
-wave 19 import it, and in wave 20 `reader-flow`, `works-flow`, `motion`,
-`privacy-flow` and `unlock-gate` joined them (c439: `motion:80` and
-`privacy-flow:50` were the gate's flakes, and all five took a page from
-`goto` straight to a tap); moving the same wait into `tests/fixtures.ts` is the
-next step (`doc/handoff-notes/e2e.md`, Gaps). Specs that skip the fixture on
-purpose, to tap before hydration as a quick thumb does (`browse-tags`), keep
-doing so.
+mounted: the element exists exactly when every handler does. A document that
+isn't SvelteKit's (an API's JSON, a page with script off) is not waited for.
+Until wave 21 only the specs importing `tests/helpers/hydrated.ts` had this
+wait; the fixtures have it since c477, and `hydrated.ts` is now a
+pass-through of `tests/fixtures.ts` under its old name, kept for its eighteen
+importers (`rg -ln "helpers/hydrated'" tests/`). `hydrated(page)` is
+exported from both for a page the fixture didn't make (a context of a spec's
+own: `tv-pair`'s TV). The count is a claim, so it is checked
+(`tests/e2e-table.spec.ts`, "the fixtures' count"); the files that do
+**not** take the fixture's `test` are the ones this prints:
+
+```sh
+for f in tests/*.e2e.ts; do rg -q "^import .*\btest\b.* from '(\./fixtures|\./helpers/hydrated)'" "$f" || echo "$f"; done
+```
+
+Their `test` is `@playwright/test`'s, whose `goto` waits for nothing more
+than it is told: neither network quiet nor hydration. They are two kinds,
+and the spec holds these two lists to what the loop prints:
+
+- **On purpose, to act before hydration:** `browse-tags` and
+  `filters-layout`.
+- **Never moved over, with no reason to stay:** `browse-frame`,
+  `browse-list-frame`, `browse-move`, `browse-online`,
+  `browse-online-devices`, `browse-preview-frame`, `browse-source-flags`,
+  `first-read-frame`, `help-frame`, `import-frame`, `series-lists-frame`,
+  `settings-frame`, `start-frame`, `tv-app-pair` and `tv-tags`.
+
+The deliberate ones act as a quick thumb does. `browse-tags`' slow case taps
+the preview's link the moment it shows, hydrated or not (its other cases wait
+for network quiet in their own `open()`), and `filters-layout` reads and
+opens FILTER with "No wait for hydration: a native open before it now
+survives it" (c105). `library-top-bar` is a third, and the loop does not
+print it: every case takes the fixture's `test` but the FILTER one (c105),
+which is `@playwright/test`'s under the name `plain`.
+
+The unmoved ones need one line each, their `test` import from `./fixtures`
+instead of `@playwright/test`, made by the slot that owns the file (this
+slot's notes, wave 21, list who). The nine `*-frame` files among them say
+they were generated by `design-tools/gen-conformance.mjs`, which writes
+`@playwright/test`'s import, so regenerating one undoes the move unless the
+generator learns the fixture; five generated frames, `library-frame` and
+`tv-series-frame` among them, were already moved by hand. `tv-app-pair`
+opens only `file://` pages, which are not SvelteKit's, so the move would
+change nothing there but add a network-quiet wait. A red in any of the
+others is a candidate for the race this section is about before it is
+anything else. What the wider wait costs (c477), one whole run each with no load
+of this slot's own, the other slots' alone: 33.7 minutes at `1a57bb3`
+(load 26-73) and 35.4 at `04d4c8b` (load 35-82), the same 920 tests. The
+difference is inside what the box's load moves a run by, and the after run
+also passed 30 tests more, each of which takes longer than a red that
+stopped early; there was no idle box to measure a clean figure on.
 
 **Read-only specs read series no flow file owns.** They run on the other
 devices at the same time as the flows, against the same database: the phone's
@@ -297,9 +340,10 @@ tile or changes what is read:
 | `tv-keys`                         | Isekai Yakkyoku: marks read through, UNDO | `library-flow` (rating, undone)                                     | Different fields, each put back. A writer in `tv`: name it here.                                                                                                                                |
 | `tv-series`, `tv-series-frame`    | Boku no Kokoro no Yabai Yatsu             | `tv-series`' RATING case: a half-bar down and back                  | The writer is one of its readers; `tv-series-frame` reads the panel's layout, not the value.                                                                                                    |
 
-`tv-series.e2e.ts` and `tv-series-frame.e2e.ts` say `series-flow` hides
-Tower of God; it hides Ame no Hi no Toshokan. Their move off Tower of God is
-right either way, since `series-flow` opens its reader.
+`tv-series.e2e.ts` and `tv-series-frame.e2e.ts` said `series-flow` hides
+Tower of God; it hides Ame no Hi no Toshokan, and their headers say so since
+wave 21 (c477). Their move off Tower of God was right either way, since
+`series-flow` opens its reader.
 
 ### Load
 
@@ -331,13 +375,23 @@ workstation during gates. What it assumes, and the rules that follow (c439):
 - **Timeouts are raised only where the step is measured to be slow** under
   load, and the comment says so (`tv-player`'s clip runs at a tenth of its
   speed for the same reason). The one raised in wave 19 is `offline-flow`'s
-  wait for the service worker to take control. Wave 20 raised `tv-player`'s
+  wait for the service worker to take control, 90 s; `install`'s same wait
+  has the same 90 s since wave 21 (c477), after its 30 s ran out on one to
+  four device projects in every loaded whole run of waves 19 and 20 and on
+  all four in this wave's baseline. Wave 20 raised `tv-player`'s
   per-case budget to 90 s (c448): at a load average of 15-68 every case took
   24-30 s even when it passed, and all eight reds of that run were the default
   30 s running out, each case waiting on the right state (the bar's own 4 s,
   SKIP's 8 s alone window, the working stream's attach). `works-flow`'s is
   60 s (c439): two of its cases ran out the 30 s in page loads on its own
-  server in whole loaded runs, where alone its slowest took 17.7 s.
+  server in whole loaded runs, where alone its slowest took 17.7 s. `tv-library-top`'s pinned-bars case is 60 s
+  (c439, wave 21): about twenty-five key presses after a cold load took
+  34.6 s at a load of about 55 (the `goto` 11.5 s, hydration 3.3 s), every
+  step on the right state. And a client-side navigation is waited on with
+  `page.waitForURL`, which has the test's budget, not with `toHaveURL`,
+  which has expect's 5 s: the URL moves only once the next screen's data
+  has loaded, and `books-flow`'s ← ran out of the 5 s with the book still
+  open in a loaded run (c439).
 - **A passing state read from outside the page can be gone before the read.**
   `motion`'s leaving sheet carries `pointer-events: none` for its leave's
   few hundred ms; polled from the runner, a loaded phone found it already
@@ -376,6 +430,16 @@ x, y)` in `tests/helpers/touch.ts` sends the four touch events together, so
   `UNGROUPED · <NAME>` band and asks after that Work's tile alone (c439). An
   absence asserted before the page has changed passes vacuously, and an
   absence of "every X" is wrong as soon as two exist.
+- **A screen mid-slide is still the screen being read.** The image
+  reader's track keeps the outgoing screen unhidden until the slide lands
+  and only the incoming one carries `aria-hidden` (`ImageReader.svelte`), so
+  a count taken right after a turn can be the old screen's. `tv-reader`'s
+  spread case pressed on from the page CONTINUE opened (a spread already)
+  to a page that stands alone, and passed only when `toHaveCount(2)` caught
+  the old spread on its way out: 2 runs in 3 red alone at wave 19, 10 in 10
+  at a load of 40 at wave 21's base (c479). Wait for the stage to hold one
+  screen, then read it, and open the page a case is about by `?p=`, not by
+  where a seed left the series.
 - **The service worker is allowed everywhere it isn't in the way.** Every
   fresh context registers it, and it precaches the whole build (about 1,400
   files) from the shared preview. Six contexts doing only that took 10-16 s
@@ -385,8 +449,10 @@ x, y)` in `tests/helpers/touch.ts` sends the four touch events together, so
   5.5, the same failures otherwise) and not taken: it would mean projects
   split around two files for a sixth of the time. The specs that stub
   requests the worker would answer block it themselves
-  (`serviceWorkers: 'block'`, as `browse-player-*`, `tv-player` and
-  `text-reader-flow` do): once the worker controls the page, `page.route`
+  (`serviceWorkers: 'block'`, as `browse-player-*`, `tv-player`,
+  `text-reader-flow`, `reader-flow`, `motion` and `waiting-flow` do; the last
+  three since c477, for a page image, a series' `__data.json` and three
+  screens' `__data.json`): once the worker controls the page, `page.route`
   never sees a request the worker sends. The worker answers the app shell,
   page images (`/api/entries/<id>/pages/<n>`), a novel's whole EPUB
   (`/api/series/<id>/epub`), an episode's file, subtitles and videos, a
@@ -440,37 +506,53 @@ x, y)` in `tests/helpers/touch.ts` sends the four touch events together, so
   names neither project, they ran there and this step is a repeat.
 
   Leaving the base failures out by title does not get the dependants run
-  under load. Measured at wave 20's base (`d5c4bf6f`, its loaded runs in
-  `doc/handoff-notes/e2e.md`), the filed reds were two: `library-layout:156`
-  on the desktop (c433 pinned the bar it expects to scroll away;
-  deterministic) and `tv-reader:24` (nobody's; it fails about 2 of 3 runs
-  even alone, filed). The first is fixed since `ccf4689` (c489, 2026-11-04):
-  the spec now expects the bar on top on every device, so `tv-reader:24` is
-  the one filed red left. But two more were red in **every** loaded
-  wave-20 run, so the dependants ran in none of the six: `install.e2e.ts:6`
-  (the service worker's 30 s, in one to four device projects a run, at loads
-  past about 39) and `work-end-frame.e2e.ts:297` (its `beforeAll`'s 30 s,
-  which also leaves `works-frame`'s other 24 unrun). Neither is in the
-  expression, because both pass alone and a title left out is a test
-  nobody checks; their likely causes and budgets are under Gaps in
-  `doc/handoff-notes/e2e.md` (wave 20). The expression leaves out only the
-  filed red. Wave 18's base reds that it used to name
-  (`library-frame`'s four, START SCAN and the rating at the end of a series)
-  all pass since wave 19 and are out of it:
+  under load, and since wave 21 there is nothing filed to leave out. Wave
+  19 filed two reds: `library-layout:156`, fixed since `ccf4689` (c489), and
+  `tv-reader:24`, which failed 2 runs in 3 alone then, and 10 in 10 alone
+  by title at a load of about 40 in wave 21 (with the fixtures' hydration
+  wait of c477 already in, which made the race lose every time). Its cause was the test's
+  (c479; "A screen mid-slide is still the screen being read", above), and
+  since `8e42573` it passes 10 of 10 alone at a load of 45-55 and in a whole
+  run. Two more were red in **every** loaded wave-20 run, so the dependants
+  ran in none of the six: `install.e2e.ts:6` (the service worker's 30 s; 90
+  s since c477; in wave 21's first whole run after it the case took 37 s
+  to 60 s on the four devices, each past the old budget) and `work-end-frame.e2e.ts:297` (its
+  `beforeAll`'s 30 s, which also leaves `works-frame`'s other tests unrun;
+  `reader`'s file in wave 21, whose fix is `test.setTimeout(120_000)` as the
+  hook's first line). Neither was ever in the expression, because both
+  pass alone and a title left out is a test nobody checks.
 
-  ```sh
-  PLAYWRIGHT_SKIP='a spread is the default on a TV, not one page' \
-    npx playwright test
+  **The expression is for a red that is filed and still red**, named with
+  its card, and taken out in the commit that fixes it. Today there is none,
+  so a whole run is plain `npx playwright test`. When one is filed, export
+  its title (the alternatives joined with `|`, each a test's own title), as
+  this slot's whole runs did in waves 19 and 20 while `tv-reader:24` was
+  red (the gates ran without it):
+
+  ```text
+  PLAYWRIGHT_SKIP='<one test's title>|<another's>' npx playwright test
   ```
 
-  A title is left out of every project, so wherever the same test passes
-  it goes unrun too (`library-layout:156`, while it was in here, left the
-  tablets, the phone and the TV unrun with it); the
-  reporter does not count a test left out this way, so name the expression
-  beside the run's result. Take each alternative out once its test is fixed.
-  `PLAYWRIGHT_SKIP` is safe to leave exported for the unit run and for
-  `yarn run e2e:table`: the table lists the files the config collects, and
-  ignores the variable.
+  and put the live expression in this section as a `sh` block, as
+  `PLAYWRIGHT_SKIP='…'` at the start of a line. **That block is the one
+  copy** (c478): `tests/e2e-table.spec.ts` reads it from here
+  (`documentedSkip()` in `scripts/e2e-table.ts`) and fails while any of its
+  alternatives matches no test's title, and the gate copies it from here.
+  Any other form in a `sh` block (double quotes, `export`, no quotes) fails
+  the spec rather than reading as no expression. Each alternative must match
+  a test's **own** title: Playwright's `grepInvert` also matches the file and
+  `describe` names in a test's title path, but the check compares only the
+  titles, so an alternative naming a file or a `describe` fails it even
+  though it would skip tests.
+  With no such line, the spec has nothing to check, which is the state at
+  wave 21. A title is left out of every project, so wherever the same test
+  passes it goes unrun too (`library-layout:156`, while it was in here, left
+  the tablets, the phone and the TV unrun with it); the reporter does not
+  count a test left out this way, so name the expression beside the run's
+  result. `PLAYWRIGHT_SKIP` is safe to leave exported for the unit run and
+  for `yarn run e2e:table`: the table lists the files the config collects,
+  and ignores the variable (`e2e-table.spec.ts` checks it with an expression
+  that leaves out every test).
 
   `PLAYWRIGHT_SKIP` is a regular expression the config gives every project
   as its `grepInvert`. **`--grep-invert` on the command line does not do

@@ -17,7 +17,7 @@
  * missing from the table or a row names the wrong projects.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from '../src/lib/server/fspath.ts';
 
 const ROOT = join(import.meta.dirname, '..');
@@ -30,12 +30,12 @@ const HEAD = '| Spec | Runs on | Why |';
 const DEVICES = ['tablet-portrait', 'tablet-landscape', 'phone', 'desktop'];
 
 type Suite = {
-	specs?: { file: string; tests: { projectName: string }[] }[];
+	specs?: { file: string; title: string; tests: { projectName: string }[] }[];
 	suites?: Suite[];
 };
 
-/** Every spec file and the projects that collect it, as Playwright itself resolves them. */
-export function projectsByFile(): Map<string, Set<string>> {
+/** Playwright's own list of every test, as JSON, with no run's skips applied. */
+function listing(): { suites: Suite[] } {
 	const out = execFileSync('npx', ['playwright', 'test', '--list', '--reporter=json'], {
 		cwd: ROOT,
 		encoding: 'utf8',
@@ -47,19 +47,123 @@ export function projectsByFile(): Map<string, Set<string>> {
 		// become every project's grepInvert here: empty is falsy, so none is set.
 		env: { ...process.env, PLAYWRIGHT_NO_SERVER: '1', PLAYWRIGHT_SKIP: '' }
 	});
-	const json = JSON.parse(out.slice(out.indexOf('{'))) as { suites: Suite[] };
-	const files = new Map<string, Set<string>>();
+	return JSON.parse(out.slice(out.indexOf('{'))) as { suites: Suite[] };
+}
+
+function eachSpec(suites: Suite[], visit: (spec: NonNullable<Suite['specs']>[number]) => void) {
 	const walk = (s: Suite) => {
-		for (const spec of s.specs ?? [])
-			for (const t of spec.tests) {
-				const name = spec.file.replace(/^.*\//, '');
-				if (!files.has(name)) files.set(name, new Set());
-				files.get(name)!.add(t.projectName);
-			}
+		for (const spec of s.specs ?? []) visit(spec);
 		for (const c of s.suites ?? []) walk(c);
 	};
-	for (const s of json.suites) walk(s);
+	for (const s of suites) walk(s);
+}
+
+/** Every spec file and the projects that collect it, as Playwright itself resolves them. */
+export function projectsByFile(): Map<string, Set<string>> {
+	const files = new Map<string, Set<string>>();
+	eachSpec(listing().suites, (spec) => {
+		const name = spec.file.replace(/^.*\//, '');
+		if (!files.has(name)) files.set(name, new Set());
+		for (const t of spec.tests) files.get(name)!.add(t.projectName);
+	});
 	return files;
+}
+
+/** Every test's own title, once, whichever files and projects hold it. */
+export function testTitles(): Set<string> {
+	const titles = new Set<string>();
+	eachSpec(listing().suites, (spec) => titles.add(spec.title));
+	return titles;
+}
+
+/**
+ * The `PLAYWRIGHT_SKIP` expression doc/TESTING.md's "Load" tells a whole run
+ * to export, from a `sh` block, or null when it gives none. The doc is its one copy (c478):
+ * `tests/e2e-table.spec.ts` reads it from there rather than keeping its own.
+ */
+export function documentedSkip(doc: string): string | null {
+	// Only a `sh` block counts: the doc's own example of the form is `text`.
+	for (const [, block] of doc.matchAll(/^\s*```sh\n([\s\S]*?)^\s*```/gm)) {
+		const found = /^\s*PLAYWRIGHT_SKIP='([^']+)'/m.exec(block);
+		if (found) return found[1];
+		// A form this does not read (double quotes, `export`) would otherwise be
+		// "no expression", and the check on it would pass with nothing checked.
+		const other = /^.*PLAYWRIGHT_SKIP=.*$/m.exec(block);
+		if (other) {
+			throw new Error(
+				`doc/TESTING.md gives PLAYWRIGHT_SKIP as \`${other[0].trim()}\`; write it as PLAYWRIGHT_SKIP='…' at the start of a line`
+			);
+		}
+	}
+	return null;
+}
+
+/** The import that gives a spec the fixtures' `test` (doc/TESTING.md, "E2E specs"). */
+const FIXTURE_TEST = /^import .*\btest\b.* from '(\.\/fixtures|\.\/helpers\/hydrated)'/m;
+
+/**
+ * Every `tests/*.e2e.ts` by whether its `test` is the fixtures' (which waits
+ * for hydration) or `@playwright/test`'s, by base name without `.e2e.ts`: the
+ * same split as the loop doc/TESTING.md gives.
+ */
+export function fixtureUse(dir = join(ROOT, 'tests')): { using: string[]; not: string[] } {
+	const using: string[] = [];
+	const not: string[] = [];
+	for (const file of readdirSync(dir).filter((f) => f.endsWith('.e2e.ts'))) {
+		const name = file.replace(/\.e2e\.ts$/, '');
+		(FIXTURE_TEST.test(readFileSync(join(dir, file), 'utf8')) ? using : not).push(name);
+	}
+	return { using: using.sort(), not: not.sort() };
+}
+
+/**
+ * What doc/TESTING.md says of the fixtures: "**N of the M e2e files take
+ * `test` from `tests/fixtures.ts`**", and the files its two lists name as
+ * not taking it, or null where it says no such count.
+ */
+export function fixtureClaim(
+	doc: string
+): { count: number; of: number; deliberate: string[]; unmoved: string[] } | null {
+	const head = /\*\*(\d+) of the (\d+) e2e files take `test` from `tests\/fixtures\.ts`\*\*/.exec(
+		doc
+	);
+	if (!head) return null;
+	// A list is its bullet: from `- **<label>` to the next bullet or blank line.
+	const bullet = (label: string) => {
+		const at = doc.indexOf(`- **${label}`, head.index);
+		if (at < 0) return [];
+		const end = doc.slice(at).search(/\n(- |\n)/);
+		const text = end < 0 ? doc.slice(at) : doc.slice(at, at + end);
+		return [...text.matchAll(/`([a-z0-9-]+)`/g)].map((x) => x[1]);
+	};
+	return {
+		count: Number(head[1]),
+		of: Number(head[2]),
+		deliberate: bullet('On purpose, to act before hydration'),
+		unmoved: bullet('Never moved over')
+	};
+}
+
+/** A regular expression's top-level alternatives: `a|(b|c)|d` is `a`, `(b|c)`, `d`. */
+export function alternatives(expression: string): string[] {
+	const out: string[] = [];
+	let depth = 0;
+	let inClass = false;
+	let from = 0;
+	for (let i = 0; i < expression.length; i++) {
+		const c = expression[i];
+		if (c === '\\') i++;
+		else if (inClass) inClass = c !== ']';
+		else if (c === '[') inClass = true;
+		else if (c === '(') depth++;
+		else if (c === ')') depth--;
+		else if (c === '|' && depth === 0) {
+			out.push(expression.slice(from, i));
+			from = i + 1;
+		}
+	}
+	out.push(expression.slice(from));
+	return out;
 }
 
 /** "devices", "devices, tv", or the projects by name, in the config's own words. */

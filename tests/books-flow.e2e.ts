@@ -168,11 +168,14 @@ test('a tap on a book opens its pages on the series screen, and ← goes back to
 	await openBooks(page);
 	const series = page.url().replace(/\?.*$/, '');
 	const books = page.getByRole('region', { name: 'Books' });
+	// Both are client-side navigations, and the URL moves only once the
+	// series' data has loaded: waited on as navigations, not on expect's 5 s,
+	// which a loaded run's ← ran out of with the book still open (c439).
 	await books.getByRole('button', { name: /Laundry Duty/ }).click();
-	await expect(page).toHaveURL(new RegExp(`^${series}\\?(.*&)?book=\\d+`));
+	await page.waitForURL(new RegExp(`^${series}\\?(.*&)?book=\\d+`));
 	await expect(page.getByText('01 — PAGES')).toBeVisible();
 	await page.locator('a.cell.back').click();
-	await expect(page).toHaveURL(new RegExp(`^${series}(\\?(?!.*book=).*)?$`));
+	await page.waitForURL(new RegExp(`^${series}(\\?(?!.*book=).*)?$`));
 	await expect(books).toBeVisible();
 });
 
@@ -235,7 +238,10 @@ test('grouping from a single book’s own screen, then back: where it was opened
 	// The system's back: the single book's screen is gone, so it's the circle.
 	await page.goBack();
 	await expect(page).toHaveURL(new RegExp(`${CIRCLE.replace(/[?]/g, '\\?')}$`));
-	await expect(page.locator('.grid')).toBeVisible();
+	// The real grid, not the arriving screen's outline of one, which is also a
+	// \`.grid\` (aria-hidden) while the screen slides in: strict mode saw both in a
+	// loaded run (c439).
+	await expect(page.locator('.grid:not([aria-hidden="true"])')).toBeVisible();
 
 	// Put back for the rest of the file.
 	await page.goto(created);
