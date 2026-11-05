@@ -5,7 +5,7 @@
 	import { backLink } from '$lib/back';
 	import { enhance } from '$app/forms';
 	import type { SubmitFunction } from '@sveltejs/kit';
-	import { beforeNavigate, goto, invalidateAll } from '$app/navigation';
+	import { afterNavigate, beforeNavigate, goto, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { tick, untrack } from 'svelte';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
@@ -383,9 +383,12 @@
 	 * Scroll to `y` once the page is tall enough to: on a slow return the
 	 * waiting outline covers the grid for a moment, and a scroll then lands
 	 * short. Tried each frame for two seconds, and given up the moment the
-	 * reader touches or scrolls themselves.
+	 * reader touches or scrolls themselves. `y` may be a measure, taken again
+	 * each frame (what is over the grid can change height as the outline goes);
+	 * with `whenDrawn`, it keeps trying while the grid is still the outline.
 	 */
-	function settleScroll(y: number) {
+	function settleScroll(y: number | (() => number), whenDrawn = false) {
+		const at = typeof y === 'number' ? () => y : y;
 		const until = performance.now() + 2000;
 		let stop = false;
 		const halt = () => (stop = true);
@@ -395,8 +398,10 @@
 		addEventListener('keydown', halt, opts);
 		const place = () => {
 			if (stop) return;
-			scrollTo(0, y);
-			if (Math.abs(scrollY - y) > 2 && performance.now() < until) requestAnimationFrame(place);
+			const to = at();
+			scrollTo({ top: to, behavior: 'instant' });
+			const there = Math.abs(scrollY - to) <= 2 && !(whenDrawn && outlined);
+			if (!there && performance.now() < until) requestAnimationFrame(place);
 		};
 		place();
 	}
@@ -980,21 +985,29 @@
 			}
 		};
 	}
+	/** How much of the window the top bar holds over the page: its height where it is held, else 0. */
+	function heldBar(): number {
+		const bar = document.querySelector<HTMLElement>('.library > header.bar');
+		return bar && ['sticky', 'fixed'].includes(getComputedStyle(bar).position)
+			? bar.getBoundingClientRect().height
+			: 0;
+	}
+	/** The scroll that puts `el` just under the held top bar (unclamped: the browser clamps). */
+	function placeUnderBar(el: Element | null | undefined): number {
+		return el ? scrollY + el.getBoundingClientRect().top - heldBar() : 0;
+	}
+
 	/** `TO READ ▴`: back to the tabs, the mark on the shelf showing (the TV's ↑ does the same). */
 	function toTabs() {
 		const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 		const shown = (el: Element | null | undefined) => !!el && el.getClientRects().length > 0;
 		const tab = document.querySelector<HTMLElement>('.library .tabs .tab.on');
-		const bar = document.querySelector<HTMLElement>('.library > header.bar');
-		const held =
-			bar && ['sticky', 'fixed'].includes(getComputedStyle(bar).position)
-				? bar.getBoundingClientRect().height
-				: 0;
+		const held = heldBar();
 		// The tabs where there are tabs; the desktop's are the sidebar, so there
 		// the band's own place, just under the bar.
 		const to = shown(tab) ? tab!.closest('.library > .tabs') : bandMark;
 		if (shown(tab)) tab!.focus({ preventScroll: true });
-		const top = to ? scrollY + to.getBoundingClientRect().top - held : 0;
+		const top = placeUnderBar(to);
 		scrollTo({ top: Math.max(0, top), behavior: reduced ? 'instant' : 'smooth' });
 		// Unpinning redraws the band's first cell, and the page can land a pixel
 		// or two off what was measured (1.4px on a tablet, the tabs' rule under
@@ -1011,6 +1024,28 @@
 			setTimeout(() => removeEventListener('scrollend', settle), 2000);
 		}
 	}
+
+	/**
+	 * A kind chosen from the pinned band (c436, round 2): the cells keep the
+	 * scroll (noscroll) so the unpinned band never jumps, but mid-grid that
+	 * would open the new kind partway down its list. So once the navigation
+	 * has drawn the new grid, the page goes, instantly, to the band's own
+	 * place: the band under the bar, the grid's first row directly under it.
+	 * Focus stays on the chosen cell (keepfocus), so a TV's ↓ takes the first tile.
+	 */
+	let landKind = false;
+	function chooseKind(e: MouseEvent) {
+		// A click that opens a new tab or window navigates nothing here.
+		const elsewhere = e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey;
+		landKind = bandPinned && !elsewhere;
+	}
+	afterNavigate(() => {
+		if (!landKind) return;
+		landKind = false;
+		// A slow load draws the outline first, and a scroll then lands short:
+		// settled each frame until the grid is drawn and the page is there.
+		settleScroll(() => Math.max(0, placeUnderBar(bandMark)), true);
+	});
 
 	const newOpen = $derived(page.url.searchParams.get('new') === 'shelf');
 
@@ -1598,7 +1633,9 @@
 				{:else}
 					<div class="klabel">{upper(m.nav_kind_band())}</div>
 				{/if}
-				<div class="kscroll" use:keepChosen={data.filters.kind}>
+				<!-- ↓ from any cell enters the grid at its first tile, not the one under
+				     the cell: a kind chosen opens at its start (round 2 of c436). -->
+				<div class="kscroll" use:keepChosen={data.filters.kind} data-focus-down=".grid .tile .open">
 					{#each bandCells as c (c.kind ?? 'all')}
 						<!-- eslint-disable svelte/no-navigation-without-resolve -- filterHref resolves -->
 						<a
@@ -1609,6 +1646,7 @@
 							aria-current={c.on ? 'true' : undefined}
 							data-sveltekit-noscroll
 							data-sveltekit-keepfocus
+							onclick={chooseKind}
 							data-focus-mark="in"
 							data-focus-id={`kind-${c.kind ?? 'all'}`}
 							data-focus-line

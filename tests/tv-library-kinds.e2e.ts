@@ -82,3 +82,44 @@ test('into the grid the band pins at the safe top, ALL ▴ first, and OK on it b
 	await expect(shelf).toHaveCount(0);
 	expect(page.url()).not.toMatch(/kind=/);
 });
+
+test('OK on a pinned cell opens that kind at its start, focus kept on the cell, and ↓ is its first tile', async ({
+	page
+}) => {
+	await page.goto('/?shelf=all&sort=title');
+	await expect(page.locator('.grid .tile').first()).toBeVisible();
+	for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowDown'); // start, tabs, band
+	await expect.poll(() => focused(page)).toMatch(/^ALL ?\d+$/);
+	for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowDown'); // three rows into the grid
+	await expect(kinds(page).getByRole('button', { name: /^ALL/ })).toBeVisible();
+
+	// A pinned cell other than the chosen one, taken from the band.
+	const other = kinds(page).locator('.kscroll a:not([aria-current])').first();
+	const kind = new URL((await other.getAttribute('href'))!, 'http://x').searchParams.get('kind')!;
+	// Held by its id: once chosen it is no longer the first unchosen cell.
+	const cell = kinds(page).locator(`a[data-focus-id="kind-${kind}"]`);
+	await cell.focus();
+	await page.keyboard.press('Enter');
+	await expect(page).toHaveURL(new RegExp(`kind=${kind}`));
+	await expect(cell).toHaveAttribute('aria-current', 'true');
+	await expect(cell).toBeFocused();
+
+	// The first tile directly under the band, or under the focus line pinned
+	// between them where it is drawn.
+	const tile = page.locator('.grid .tile').first();
+	await expect
+		.poll(async () => {
+			const band = await kinds(page).evaluate((b) => b.getBoundingClientRect().bottom);
+			const line = page.getByTestId('focus-line');
+			const lineH = (await line.isVisible())
+				? await line.evaluate((l) => l.getBoundingClientRect().height)
+				: 0;
+			const top = await tile.evaluate((t) => t.getBoundingClientRect().top);
+			return Math.min(Math.abs(top - band), Math.abs(top - band - lineH));
+		})
+		.toBeLessThanOrEqual(1);
+
+	// The first tile, not the one under the cell: the kind opens at its start.
+	await page.keyboard.press('ArrowDown');
+	await expect(tile.locator('button.open')).toBeFocused();
+});

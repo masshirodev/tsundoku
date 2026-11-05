@@ -594,6 +594,20 @@ a band to select kinds on the library itself?" Designed in
   puts the mark on the shelf showing (on the desktop, back to the band's own
   place). Pinned is measured, not guessed: a marker just above the band, and
   the band held apart from it. So the pinned chrome is 60 + 40px on a phone.
+- **A kind chosen while it is pinned opens at its start.** The cells keep the
+  scroll (`data-sveltekit-noscroll`), so choosing from the band at its own
+  place never jumps the page. Pinned, that would open the new kind partway
+  down its list (or clamped at the bottom of a short one), so once the
+  navigation has drawn the grid the page goes, instantly, to the band's own
+  place: the band under the top bar, the grid's first row directly under it,
+  the tabs just above the window. The measure is the one `TO READ ▴` uses on
+  the desktop (`placeUnderBar`), taken again each frame until a slow load's
+  outline has gone (`settleScroll`, two seconds at most, given up at the
+  reader's own touch, wheel or key). Focus stays on the chosen cell
+  (`data-sveltekit-keepfocus`), and ↓ from any cell goes to the first tile
+  (`data-focus-down` on the strip), not the one under the cell. **Without
+  script** the cells are plain links and a full load starts at the top, which
+  shows the tabs, the band and the first row.
 - **On a TV** it is a 56px focus row of its own under the tabs, inside the
   safe margin. **← → move focus only**: each cell is a link, so the grid
   doesn't change until **OK**, which chooses (and keeps focus on the cell).

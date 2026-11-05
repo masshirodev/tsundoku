@@ -459,6 +459,61 @@ test('the KIND band sits under the tabs, over the grid, 40px, and pins under the
 	).toHaveCount(info.project.name === 'phone' ? 0 : 1);
 });
 
+test('a kind chosen from the pinned band opens at its start: the band under the bar, its first row under the band', async ({
+	page
+}) => {
+	const firstTile = (p: Page) => p.locator('.grid .tile').first();
+	const firstTitle = (p: Page) => p.locator('.grid .tile .title').first().textContent();
+	/** The grid's first tile sits directly under the band, wherever the band is. */
+	async function landedUnderBand() {
+		await expect
+			.poll(async () => {
+				const band = await kinds(page).evaluate((b) => b.getBoundingClientRect().bottom);
+				const tile = await firstTile(page).evaluate((t) => t.getBoundingClientRect().top);
+				return Math.abs(tile - band);
+			})
+			.toBeLessThanOrEqual(1);
+	}
+	/** What a fresh load of the kind shows first. */
+	async function freshFirst(kind: string | null): Promise<string | null> {
+		const other = await page.context().newPage();
+		await other.goto(`${BASE}/?shelf=all&sort=title${kind ? `&kind=${kind}` : ''}`);
+		await expect(other.locator('.grid .tile').first()).toBeVisible();
+		const t = await firstTitle(other);
+		await other.close();
+		return t;
+	}
+
+	await page.goto(`${BASE}/?shelf=all&sort=title`);
+	await expect(firstTile(page)).toBeVisible();
+	// Another kind, taken from the band so the seed has it.
+	const other = kinds(page).locator('.kscroll a:not([aria-current])').first();
+	const kind = new URL((await other.getAttribute('href'))!, BASE).searchParams.get('kind')!;
+	// Held by its id: once chosen it is no longer the first unchosen cell.
+	const cell = kinds(page).locator(`a[data-focus-id="kind-${kind}"]`);
+	const want = await freshFirst(kind);
+
+	await scrollScreens(page, 1.5);
+	const shelf = kinds(page).getByRole('button', { name: /^ALL/ });
+	await expect(shelf).toBeVisible();
+	await cell.click();
+	await expect(page).toHaveURL(new RegExp(`kind=${kind}`));
+	await expect(cell).toHaveAttribute('aria-current', 'true');
+	await landedUnderBand();
+	expect(await firstTitle(page)).toBe(want);
+
+	// ALL, from the band pinned again: the same.
+	const wantAll = await freshFirst(null);
+	await scrollScreens(page, 1.5);
+	await expect(shelf).toBeVisible();
+	const all = kinds(page).locator('.kscroll a').first();
+	await all.click();
+	await expect(page).not.toHaveURL(/kind=/);
+	await expect(all).toHaveAttribute('aria-current', 'true');
+	await landedUnderBand();
+	expect(await firstTitle(page)).toBe(wantAll);
+});
+
 test('the band scrolls sideways and never wraps, keeping the chosen kind in view', async ({
 	page
 }) => {
