@@ -2,7 +2,7 @@ import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { isRevealed } from '$lib/server/prefs';
 import { linkQueue, reviewItem, seriesAccess } from '$lib/server/catalogue';
-import { seasonReview } from './review-state.server';
+import { partItem, seasonReview } from './review-state.server';
 import { configured, suggestConfigured } from '$lib/server/ranobe';
 import { ranobeItem, ranobeQueue, ranobeSeries } from '$lib/server/ranobe-review';
 import {
@@ -24,7 +24,9 @@ import { seasonNamed } from '$lib/library/catalogue';
  *
  * `&season=` is one season of an anime (c240): the review asked in the
  * anime catalogue with that season's own title, and, once it is linked, the
- * rest of the show from the entry's own prequels and sequels.
+ * rest of the show from the entry's own prequels and sequels. `&part=2` with
+ * it is that season's second part by hand (c350): the same search, its own
+ * candidates, and `FROM EP. n`.
  */
 export const load: PageServerLoad = async ({ cookies, url }) => {
 	const reveal = isRevealed(cookies);
@@ -67,19 +69,30 @@ export const load: PageServerLoad = async ({ cookies, url }) => {
 				view.seasons[0] ??
 				null)
 			: null;
+		// `&part=2`: the season's second part by hand (c350, `+ A SECOND PART`),
+		// when it can have one; otherwise the season's own page, as without it.
+		const second =
+			url.searchParams.get('part') === '2' && at
+				? (() => {
+						const drawn = seasonReview(id, at, view?.seasons.length ?? 0, access.hidden, 2);
+						const item = partItem(id, reveal, at.season);
+						return drawn && item ? { drawn, item } : null;
+					})()
+				: null;
 		// The season's own item: its search, its candidates checked against its
 		// own title and episode count (24 here, 24 there), never the whole show's
 		// and never the series-level search (c240, wave 17).
-		const item = reviewItem(id, reveal, at?.season);
+		const item = second?.item ?? reviewItem(id, reveal, at?.season);
 		if (!item) error(404, 'not found');
 		// The LINK row is the season's own, never the open season's or the
 		// series' mirror: a season with no row of its own is not linked (c240).
-		const drawn = seasonReview(id, at, view?.seasons.length ?? 0, access.hidden);
+		const drawn = second?.drawn ?? seasonReview(id, at, view?.seasons.length ?? 0, access.hidden);
 		if (!drawn) error(404, 'not found');
 		const { single, season } = drawn;
 		// The other seasons, from the entry just linked: only when there is a
-		// season left to offer one to, and only for the owner's own AniList.
-		const relations = await relationsFor(id, at, view);
+		// season left to offer one to, and only for the owner's own AniList. A
+		// second part's page offers none: its LINK goes back to the series.
+		const relations = second ? null : await relationsFor(id, at, view);
 		return {
 			items: [{ ...item, service: 'anilist' as const }],
 			single,

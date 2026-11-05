@@ -593,6 +593,69 @@ export function syncSeriesLink(seriesId: number, now = Date.now()): void {
 	);
 }
 
+/**
+ * A season's second part by hand (c350; the design's `+ A SECOND PART`,
+ * `FROM EP. 13`): where it starts, or why there is none to link.
+ *
+ * `series_season_links` keeps no start for a part: part 2 begins after part
+ * 1's episode count (`partsOf`), and the send counts within it from there
+ * (`targets()`, tracking.ts). So `FROM EP. n` is part 1's count + 1, filled
+ * from part 1's entry as the design says, and a different `n` has nowhere to
+ * live: the door refuses it (`secondPartRefusal`) rather than store a start
+ * that every reader would ignore. A season can hold two parts at most
+ * (`CHECK (part IN (1, 2))`).
+ */
+export type SecondPart = {
+	/** Part 1's count: part 2 starts after it. */
+	after: number;
+	/** The season's own episode part 2 starts at: `FROM EP. 13`. */
+	from: number;
+	/** Part 1's entry, as its row names it. */
+	part1: string;
+	/** Part 2's link, when there is one: a LINK here replaces it. */
+	linked: SeasonLink | null;
+};
+
+export function secondPart(
+	seriesId: number,
+	season: number
+): { ok: SecondPart } | { refused: string } {
+	const view = seriesSeasons(seriesId);
+	const at = view?.seasons.find((s) => s.season === season);
+	if (!view || !at) return { refused: 'NO SUCH SEASON' };
+	const one = seasonLink(seriesId, season, 1);
+	if (!one) return { refused: 'PART 1 IS NOT LINKED · LINK IT FIRST' };
+	const n = one.episodes ?? 0;
+	if (n <= 0)
+		return {
+			refused: 'PART 1’S ENTRY LISTS NO EPISODE COUNT · A SECOND PART HAS NOWHERE TO START'
+		};
+	if (n >= at.aired)
+		return {
+			refused: `PART 1 LISTS ${n} EPISODES, ALL ${at.aired} HERE · NO EPISODE IS LEFT FOR A SECOND PART`
+		};
+	return {
+		ok: {
+			after: n,
+			from: n + 1,
+			part1: one.title || 'LINKED',
+			linked: seasonLink(seriesId, season, 2)
+		}
+	};
+}
+
+/**
+ * Why a second part asked to start at `from` is refused, or null: it must
+ * start where part 1's count ends, the one start the schema can keep (c350).
+ */
+export function secondPartRefusal(seriesId: number, season: number, from: number): string | null {
+	const p = secondPart(seriesId, season);
+	if ('refused' in p) return p.refused;
+	return from === p.ok.from
+		? null
+		: `PART 2 STARTS WHERE PART 1’S ${p.ok.after} EPISODES END · FROM EP. ${p.ok.from}, NOT ${from}`;
+}
+
 /** A season the relations page ticked: the entry, and the season and part it goes on. */
 export type SeasonPick = { season: number; part: number; anilistId: number };
 

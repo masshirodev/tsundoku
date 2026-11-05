@@ -27,9 +27,11 @@ import {
 	linkSeason,
 	seasonHolding,
 	seasonRelations,
-	seriesSeasons
+	secondPartRefusal,
+	seriesSeasons,
+	undoSeasonLink
 } from '$lib/server/season-links';
-import { seasonReview } from '../../links/review-state.server';
+import { partItem, seasonReview } from '../../links/review-state.server';
 import { isAnime, parsePasted } from '$lib/library/catalogue';
 import { account } from '$lib/server/tracking';
 
@@ -52,6 +54,11 @@ type Body = {
 	/** One season of an anime (c240): FIND on its line, and LINK A TO SEASON n. */
 	season?: number;
 	part?: number;
+	/**
+	 * `+ A SECOND PART`'s LINK (c350): the season's episode part 2 starts at.
+	 * It must be part 1's count + 1, the one start the schema keeps.
+	 */
+	from?: number;
 	/**
 	 * LINK 3 SEASONS: the entries picked on the relations page. `season` with
 	 * it is the season the page is on, which the answer redraws (c465).
@@ -82,6 +89,14 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 	const seasonal = isAnime(kind);
 	const season = Number.isInteger(b.season) ? Number(b.season) : undefined;
 	const part = Number.isInteger(b.part) && (b.part ?? 0) > 0 ? Number(b.part) : 1;
+	// A season holds two parts at most (`CHECK (part IN (1, 2))`; c350).
+	if (part > 2) error(400, 'a season has two parts at most');
+	// The item a season's search and paste are drawn against: part 2's own
+	// (c350), or the season's.
+	const itemFor = () =>
+		seasonal && season !== undefined && part === 2
+			? partItem(seriesId, reveal, season)
+			: reviewItem(seriesId, reveal, seasonal ? season : undefined);
 	const recover = (remote: boolean) =>
 		void refreshCovers({ ids: [seriesId], remote }).catch(() => undefined);
 
@@ -98,6 +113,13 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			return json({ ok: true });
 		}
 		if (b.unlink) {
+			// A second part's own UNLINK (c350) takes part 2's row alone, and
+			// settles nothing: part 1 is still linked, so the season is too.
+			if (seasonal && season !== undefined && part === 2) {
+				undoSeasonLink(seriesId, season, 2);
+				recover(false);
+				return json({ ok: true });
+			}
 			unlink(seriesId, Date.now(), season);
 			recover(false);
 			return json({ ok: true });
@@ -121,13 +143,13 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			// The review draws the series it just searched, so the item carries the catalogue
 			// it came from: the page files items by `service:id` (c298's search shows it). An
 			// anime's is the season's own search, the one record of it (c355).
-			const item = reviewItem(seriesId, reveal, seasonal ? season : undefined);
+			const item = itemFor();
 			return json({ ...r, item: item ? { ...item, service: 'anilist' as const } : null });
 		}
 		if (typeof b.paste === 'string') {
 			// The posted season's item, as the search's: the pasted entry's rows
 			// are checked against that season's title and episodes.
-			const item = reviewItem(seriesId, reveal, seasonal ? season : undefined);
+			const item = itemFor();
 			if (!item) error(404, 'not found');
 			const p = parsePasted(b.paste, item.kind);
 			if (!p)
@@ -179,6 +201,14 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 				? await readPasted({ service: 'anilist', id: b.link }, kind)
 				: offered(seriesId, b.link, season, part);
 			if (!c) error(409, 'not a candidate');
+			// `+ A SECOND PART` (c350): part 2 starts where part 1's count ends,
+			// the one start the schema can keep; another start is refused, saying
+			// where it does start, and nothing is written.
+			const second = seasonal && season !== undefined && part === 2 && b.from !== undefined;
+			if (second) {
+				const why = secondPartRefusal(seriesId, season!, Number(b.from));
+				if (why) error(409, why);
+			}
 			// Refused when another season of the show holds the entry (a pasted
 			// link of season 1 for season 2): nothing is written.
 			const done =
@@ -190,7 +220,8 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			recover(true);
 			// And the rest of the show, from the entry just chosen (c240).
 			let relations = null;
-			if (seasonal && season !== undefined)
+			// A second part's LINK goes back to the series: nothing more to offer.
+			if (seasonal && season !== undefined && !second)
 				relations = await seasonRelations(
 					seriesId,
 					season,

@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';
@@ -16,6 +16,9 @@ process.env.DATABASE_PATH = ':memory:';
 const { getDb } = await import('$lib/server/db');
 const cat = await import('$lib/server/catalogue');
 const seasons = await import('$lib/server/season-links');
+const tr = await import('$lib/server/tracking');
+const { POST } = await import('../src/routes/api/links/+server');
+const { load } = await import('../src/routes/links/+page.server');
 
 const db = getDb();
 const NOW = Date.UTC(2026, 10, 3);
@@ -139,6 +142,15 @@ add(node(405, 'Chain Show the Movie', 'MOVIE', 1, 2021), [['PREQUEL', 402]]);
 add(node(411, 'Parts Show', 'TV', 12, 2012), [['SEQUEL', 412]]);
 add(node(412, 'Parts Show Part 2', 'TV', 12, 2014), [['PREQUEL', 411]]);
 
+// A season a catalogue splits at an episode its relations do not show (c350):
+// two entries, 12 and 11, with no edge between them, the second titled with
+// no part (so no walk could place it). Only a search finds part 2, which is
+// what `+ A SECOND PART` asks.
+add(node(501, 'Hand Show Season 2', 'TV', 12, 2020));
+add(node(502, 'Hand Show Final Chapter', 'TV', 11, 2021));
+/** What a title search answers (any title): the walk's fake answers no search. */
+let SEARCH: number[] = [];
+
 /** Every kind of edge AniList has (its MediaRelation), each to a TV entry of 24 episodes. */
 const RELATION_TYPES = [
 	'ADAPTATION',
@@ -186,7 +198,28 @@ cat.setAnilistFetch(async (_url, init) => {
 				}
 			: null;
 	}
-	requests.push(asked);
+	// A title search (`sN: Page`), and a pasted link's read by id (`id_in`).
+	const media = (id: number) => {
+		const w = WORLD.get(id)!;
+		return {
+			...w,
+			countryOfOrigin: 'JP',
+			status: 'FINISHED',
+			chapters: null,
+			volumes: null,
+			season: null,
+			synonyms: [],
+			startDate: { year: w.seasonYear },
+			coverImage: { extraLarge: null, large: null }
+		};
+	};
+	for (const m of query.matchAll(/s(\d+):\s*Page\(/g))
+		data[`s${m[1]}`] = { media: SEARCH.map(media) };
+	if (/media\(id_in:/.test(query))
+		data.Page = {
+			media: (variables.ids as unknown as number[]).filter((id) => WORLD.has(id)).map(media)
+		};
+	if (asked.length) requests.push(asked);
 	return new Response(JSON.stringify({ data }), {
 		status: 200,
 		headers: { 'content-type': 'application/json' }
@@ -1009,5 +1042,190 @@ describe('a split season is linked whole or not at all (c466, the owner’s (b))
 				}
 			]
 		});
+	});
+});
+
+describe('a season’s second part by hand: + A SECOND PART, FROM EP. n (c350)', () => {
+	const cookies = { get: () => undefined } as never;
+	/** The API as the page posts to it: its status, and what it answered. */
+	const api = async (body: object): Promise<{ status: number; body: Record<string, unknown> }> => {
+		try {
+			const r = await POST({
+				request: new Request('http://x/api/links', {
+					method: 'POST',
+					body: JSON.stringify(body)
+				}),
+				cookies
+			} as never);
+			return { status: r.status, body: (await r.json()) as Record<string, unknown> };
+		} catch (e) {
+			const x = e as { status: number; body: { message: string } };
+			if (typeof x?.status !== 'number') throw e;
+			return { status: x.status, body: { message: x.body.message } };
+		}
+	};
+	/** The page's load on a season, `&part=2` or not. */
+	const page = async (id: number, season: number, part?: number) =>
+		(await load({
+			url: new URL(`http://x/links?series=${id}&season=${season}${part ? `&part=${part}` : ''}`),
+			cookies
+		} as never)) as {
+			items: { part?: number; candidates: { anilistId: number; why: string }[] }[];
+			single: { linked: string | null };
+			season: {
+				part: number;
+				second: { from: number; after: number; part1: string; linked: boolean } | null;
+			};
+			relations: unknown;
+		};
+	const sends = (id: number) =>
+		db
+			.prepare(
+				`SELECT season, part, progress, status FROM season_tracker_sends WHERE series_id = ? ORDER BY season, part`
+			)
+			.all(id);
+	const watch = (id: number, season: number, episode: number) =>
+		db
+			.prepare(
+				`UPDATE entries SET read_at = ? WHERE series_id = ? AND season = ? AND episode_number = ?`
+			)
+			.run(NOW, id, season, episode);
+
+	beforeEach(() => {
+		SEARCH = [501, 502];
+		// The covers' refresh after a LINK runs in the background: nothing it
+		// asks the network for is part of this.
+		vi.stubGlobal('fetch', async () => new Response('', { status: 404 }));
+		db.prepare(`DELETE FROM tracker_accounts`).run();
+		db.prepare(
+			`INSERT INTO tracker_accounts (service, user_id, user_name, access_token, signed_in_at)
+			VALUES ('anilist', '7', 'masshiro', 'al-token', ?)`
+		).run(NOW);
+	});
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		db.prepare(`DELETE FROM tracker_accounts`).run();
+	});
+
+	it('links part 2 by hand from EP. 13; part 1’s last episode completes it, the season’s EP. 13 is part 2’s EP. 1', async () => {
+		// The design's SAO S4 in small: season 2 is 23 episodes here, its AniList
+		// entry 12, and no relation says where the other 11 are.
+		const id = show([12, 23]);
+		link(id, 2, 501);
+		// The season's page offers + A SECOND PART, filled from part 1's count.
+		const one = await page(id, 2);
+		expect(one.season.part).toBe(1);
+		expect(one.season.second).toEqual({
+			from: 13,
+			after: 12,
+			part1: 'Hand Show Season 2',
+			linked: false
+		});
+		// `&part=2`: the same search, part 2's own, with nothing found yet.
+		const two = await page(id, 2, 2);
+		expect(two.season.part).toBe(2);
+		expect(two.single.linked).toBe(null);
+		expect(two.items[0].part).toBe(2);
+		expect(two.relations).toBe(null);
+		const found = await api({ series: id, search: 'Hand Show Season 2', season: 2, part: 2 });
+		expect(found.status).toBe(200);
+		// Part 1's own entry is held by part 1, so it is no candidate of part 2;
+		// the other is checked against part 2's 11 episodes, not the season's 23.
+		const item = found.body.item as { part: number; candidates: { anilistId: number }[] };
+		expect(item.part).toBe(2);
+		expect(item.candidates.map((c) => c.anilistId)).toEqual([502]);
+		expect((await page(id, 2, 2)).items[0].candidates.map((c) => c.anilistId)).toEqual([502]);
+		expect(linked(id)).toEqual([[2, 1, 501]]);
+		// A start the schema cannot keep is refused, and says where it starts.
+		const wrong = await api({ series: id, link: 502, season: 2, part: 2, from: 14 });
+		expect(wrong).toEqual({
+			status: 409,
+			body: { message: 'PART 2 STARTS WHERE PART 1’S 12 EPISODES END · FROM EP. 13, NOT 14' }
+		});
+		expect(linked(id)).toEqual([[2, 1, 501]]);
+		const ok = await api({ series: id, link: 502, season: 2, part: 2, from: 13 });
+		expect(ok.status).toBe(200);
+		expect(ok.body.relations).toBe(null);
+		expect(linked(id)).toEqual([
+			[2, 1, 501],
+			[2, 2, 502]
+		]);
+		expect(seasons.seriesSeasons(id)!.seasons[1].parts).toMatchObject([
+			{ part: 1, from: 1, to: 12 },
+			{ part: 2, from: 13, to: 23 }
+		]);
+		// Linked: no second + A SECOND PART on the season's page.
+		expect((await page(id, 2)).season.second!.linked).toBe(true);
+		// Part 1's last episode completes part 1, and nothing goes to part 2.
+		watch(id, 2, 12);
+		expect(tr.queueProgress(id, NOW)).toBe(1);
+		expect(sends(id)).toEqual([{ season: 2, part: 1, progress: 12, status: 'completed' }]);
+		// The season's EP. 13 is part 2's EP. 1.
+		watch(id, 2, 13);
+		expect(tr.queueProgress(id, NOW)).toBe(1);
+		expect(sends(id)).toEqual([
+			{ season: 2, part: 1, progress: 12, status: 'completed' },
+			{ season: 2, part: 2, progress: 1, status: 'reading' }
+		]);
+	});
+
+	it('refuses a part 2 whose entry another season holds, and writes nothing', async () => {
+		const id = show([12, 23, 11]);
+		link(id, 2, 501);
+		link(id, 3, 502);
+		// Searched, it is no candidate of part 2 (held); pasted, LINK refuses it.
+		await api({ series: id, search: 'Hand Show Season 2', season: 2, part: 2 });
+		expect(await api({ series: id, link: 502, season: 2, part: 2, from: 13 })).toEqual({
+			status: 409,
+			body: { message: 'not a candidate' }
+		});
+		expect(
+			await api({ series: id, link: 502, pasted: true, season: 2, part: 2, from: 13 })
+		).toEqual({ status: 409, body: { message: 'another season holds that entry' } });
+		expect(linked(id)).toEqual([
+			[2, 1, 501],
+			[3, 1, 502]
+		]);
+	});
+
+	it('never a third part, and no second part where part 1 leaves no episode or has no count', async () => {
+		const id = show([12, 23]);
+		link(id, 2, 501);
+		expect((await api({ series: id, link: 502, season: 2, part: 3, from: 13 })).status).toBe(400);
+		// Part 1 is all of season 1 here (12 of 12): nothing left for a part 2.
+		link(id, 1, 401);
+		expect(seasons.secondPart(id, 1)).toEqual({
+			refused: 'PART 1 LISTS 12 EPISODES, ALL 12 HERE · NO EPISODE IS LEFT FOR A SECOND PART'
+		});
+		const flat = await page(id, 1, 2);
+		expect([flat.season.part, flat.season.second]).toEqual([1, null]);
+		expect(await api({ series: id, link: 502, season: 1, part: 2, from: 13 })).toMatchObject({
+			status: 409
+		});
+		// Part 1's entry lists no count: part 2 has nowhere to start.
+		const unknown = show([12, 23]);
+		expect(
+			seasons.linkSeason(unknown, 2, 1, { ...entryOf(501), episodes: null }, 'review', NOW)
+		).toBe(true);
+		expect(seasons.secondPart(unknown, 2)).toEqual({
+			refused: 'PART 1’S ENTRY LISTS NO EPISODE COUNT · A SECOND PART HAS NOWHERE TO START'
+		});
+		// No part 1 at all.
+		expect(seasons.secondPart(show([12, 23]), 2)).toEqual({
+			refused: 'PART 1 IS NOT LINKED · LINK IT FIRST'
+		});
+	});
+
+	it('UNLINK on part 2 takes part 2 alone, settles nothing, and the door opens again', async () => {
+		const id = show([12, 23]);
+		link(id, 2, 501);
+		await api({ series: id, search: 'Hand Show Season 2', season: 2, part: 2 });
+		expect((await api({ series: id, link: 502, season: 2, part: 2, from: 13 })).status).toBe(200);
+		// Again, the same LINK: part 2's own entry, written over itself.
+		expect((await api({ series: id, link: 502, season: 2, part: 2, from: 13 })).status).toBe(200);
+		expect((await api({ series: id, unlink: true, season: 2, part: 2 })).status).toBe(200);
+		expect(linked(id)).toEqual([[2, 1, 501]]);
+		expect(seasons.seasonDecision(id, 2)).toBe(null);
+		expect((await page(id, 2)).season.second).toMatchObject({ from: 13, linked: false });
 	});
 });

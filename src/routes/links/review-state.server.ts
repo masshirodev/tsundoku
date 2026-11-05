@@ -1,5 +1,12 @@
-import { linkState } from '$lib/server/catalogue';
-import type { SeasonView } from '$lib/server/season-links';
+import { asReviewCandidate, linkState, reviewItem, type ReviewItem } from '$lib/server/catalogue';
+import {
+	secondPart,
+	seasonCandidates,
+	seasonSearch,
+	seriesSeasons,
+	type SeasonView
+} from '$lib/server/season-links';
+import { idsLine, wrongKind } from '$lib/library/catalogue';
 
 /**
  * What `/links?series=N` draws of the season it is on (c240): the LINKED row
@@ -7,21 +14,40 @@ import type { SeasonView } from '$lib/server/season-links';
  * load draws it once, and LINK N SEASONS answers it again after a partial
  * link (c465), so the page redraws the season as it now stands rather than
  * the review it opened on.
+ *
+ * `part` 2 is the season's second part by hand (c350, `&part=2`, opened by
+ * `+ A SECOND PART`): the LINKED row is part 2's own link, the decisions act
+ * on part 2, and `second` says where it starts. Null when the season has no
+ * second part to link (`secondPart`'s refusal), so the caller draws part 1.
  */
 export function seasonReview(
 	seriesId: number,
 	at: SeasonView | null,
 	count: number,
-	hidden: boolean
+	hidden: boolean,
+	part: 1 | 2 = 1
 ) {
 	const state = linkState(seriesId, at?.season);
 	if (!state) return null;
+	const second = at ? secondPart(seriesId, at.season) : null;
+	const two = second && 'ok' in second ? second.ok : null;
+	if (part === 2 && !two) return null;
+	const own = part === 2 ? two!.linked : null;
+	const kind = seriesSeasons(seriesId)?.kind;
 	return {
 		single: {
 			hidden,
-			linked: state.linked?.title || state.linked?.ids || null,
-			wrongKind: state.linked?.wrongKind ?? false,
-			queued: at?.queued ?? state.queued
+			linked:
+				part === 2
+					? own
+						? own.title || idsLine(own.anilistId, own.malId)
+						: null
+					: state.linked?.title || state.linked?.ids || null,
+			wrongKind:
+				part === 2
+					? !!own && !!kind && wrongKind(kind, own.format ?? '')
+					: (state.linked?.wrongKind ?? false),
+			queued: part === 2 ? false : (at?.queued ?? state.queued)
 		},
 		season: at
 			? {
@@ -33,11 +59,45 @@ export function seasonReview(
 					aired: at.aired,
 					/** What the search sends, and what the header says it asked. */
 					title: at.searchTitle,
-					linked: at.link?.title ?? null,
-					/** The part the season's line holds: what LINK, UNLINK and UNDO act on. */
-					part: at.link?.part ?? 1,
-					parts: at.parts.map((p) => ({ part: p.part, from: p.from, to: p.to, linked: !!p.link }))
+					linked: part === 2 ? (own?.title ?? null) : (at.link?.title ?? null),
+					/** The part the page acts on: what LINK, UNLINK and UNDO post. */
+					part: part === 2 ? 2 : (at.link?.part ?? 1),
+					parts: at.parts.map((p) => ({ part: p.part, from: p.from, to: p.to, linked: !!p.link })),
+					/**
+					 * A second part by hand (c350): where it starts, part 1's entry, and
+					 * whether one is linked. Null when the season can have none.
+					 */
+					second: two
+						? { from: two.from, after: two.after, part1: two.part1, linked: !!two.linked }
+						: null
 				}
 			: null
+	};
+}
+
+/**
+ * The review item of a season's part 2 (c350): the season's own item, with
+ * part 2's last search and its candidates, checked against the episodes
+ * left after part 1 (23 here, part 1 lists 12: 11), under the season's own
+ * title. Null when the season has no second part to link.
+ */
+export function partItem(seriesId: number, reveal: boolean, season: number): ReviewItem | null {
+	const base = reviewItem(seriesId, reveal, season);
+	const p = secondPart(seriesId, season);
+	if (!base || 'refused' in p) return null;
+	const at = seriesSeasons(seriesId)?.seasons.find((s) => s.season === season);
+	const search = seasonSearch(seriesId, season, 2);
+	const title = at?.searchTitle ?? base.query;
+	const left = Math.max(0, (at?.aired ?? 0) - p.ok.after);
+	// What each candidate is checked against: part 2's own share of the season.
+	const against = { ...base, title, alts: [], chapters: left };
+	return {
+		...base,
+		part: 2,
+		query: search?.query || title,
+		found: search?.found ?? 0,
+		searched: !!search?.searchedAt,
+		searchedAt: search?.searchedAt ?? null,
+		candidates: seasonCandidates(seriesId, season, 2).map((c) => asReviewCandidate(against, c))
 	};
 }

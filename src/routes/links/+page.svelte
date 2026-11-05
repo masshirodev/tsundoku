@@ -145,6 +145,36 @@
 	 * that worked looked like it hadn't, the item still on screen).
 	 */
 	const staysForTheRest = $derived(!!season && season.of > 1);
+	/**
+	 * The season's second part by hand (c350, `&part=2`, opened by `+ A SECOND
+	 * PART`): where it starts and part 1's entry. Its LINK, UNLINK and their
+	 * UNDO act on part 2, and it goes back to the series.
+	 */
+	const second = $derived(season?.part === 2 && season.second ? season.second : null);
+	/**
+	 * `FROM EP. n`, filled from part 1's count (the design's `FROM EP. 13`). The
+	 * schema keeps no start for a part (part 2 begins after part 1's count), so
+	 * another `n` is refused here and at the workstation, saying where it starts.
+	 */
+	// svelte-ignore state_referenced_locally
+	let fromEp = $state(String(data.season?.second?.from ?? ''));
+	const fromWhy = $derived(
+		second && Number(fromEp.trim()) !== second.from
+			? `PART 2 STARTS WHERE PART 1’S ${second.after} EPISODES END · FROM EP. ${second.from}`
+			: null
+	);
+	/** `+ A SECOND PART` (c350): under a linked season whose part 1 leaves episodes over. */
+	const addSecond = $derived(
+		!!season &&
+			season.part === 1 &&
+			!!single?.linked &&
+			!!season.second &&
+			!season.second.linked &&
+			!!item
+	);
+	const secondHref = $derived(
+		item && season ? `${resolve('/links')}?series=${item.seriesId}&season=${season.no}&part=2` : ''
+	);
 	const ranobe = $derived(item?.service === 'ranobe');
 	const name = $derived(item ? SERVICE_NAME[item.service] : '');
 	let chosen = $state<string | null>(null);
@@ -321,6 +351,10 @@
 		if (!item || !selected) return;
 		const c = selected;
 		const it = item;
+		if (!('work' in c) && second && season) {
+			await linkSecond(c, it.seriesId, season.no);
+			return;
+		}
 		if (!('work' in c) && season && staysForTheRest) {
 			// A season linked: the page turns to the rest of the show (c240), so it
 			// stays rather than going back to the series. A one-season show has no
@@ -778,13 +812,53 @@
 		season && single?.linked ? [{ label: 'UNLINK', run: unlinkSeason, dim: netDim }] : []
 	);
 
+	/**
+	 * LINK on a second part (c350): part 2 written through the same door as
+	 * every season's LINK, with where it starts. A refusal (another season
+	 * holds the entry, or a start the schema cannot keep) says why, in the
+	 * workstation's words; the link goes back to the series, where its line
+	 * names the part.
+	 */
+	async function linkSecond(c: ReviewCandidate, seriesId: number, no: number) {
+		if (busy || fromWhy) return;
+		busy = true;
+		failed = null;
+		const r = await post('anilist', {
+			series: seriesId,
+			link: c.anilistId,
+			pasted: !!pasted,
+			season: no,
+			part: 2,
+			from: Number(fromEp.trim())
+		});
+		busy = false;
+		if (!r?.ok) {
+			const why =
+				r?.status === 409
+					? ((await r.json().catch(() => null)) as { message?: string } | null)?.message
+					: null;
+			failed =
+				why && why !== 'not a candidate' && why !== 'another season holds that entry'
+					? `NOT LINKED · ${why}`
+					: failText(r, 'anilist');
+			return;
+		}
+		await backToSeries(seriesId);
+	}
+
 	/** UNLINK on a season: its row goes, and the series' mirror with it. */
 	async function unlinkSeason() {
 		if (!item || !season || busy) return;
 		const it = item;
 		busy = true;
 		failed = null;
-		const r = await post(it.service, { series: it.seriesId, unlink: true, season: season.no });
+		// A second part's UNLINK is part 2's alone (c350).
+		const r = await post(it.service, {
+			series: it.seriesId,
+			unlink: true,
+			season: season.no,
+			...(second ? { part: 2 } : {})
+		});
 		busy = false;
 		if (!r?.ok) {
 			failed = failText(r, it.service);
@@ -797,10 +871,16 @@
 		const link: Act = selected
 			? {
 					// The season the LINK writes: the page's, or the queue item's own (c240).
-					label: named ? `LINK ${selectedLetter} TO SEASON ${named.no}` : `LINK ${selectedLetter}`,
+					label: second
+						? named
+							? `LINK ${selectedLetter} TO SEASON ${named.no} PART 2`
+							: `LINK ${selectedLetter} TO PART 2`
+						: named
+							? `LINK ${selectedLetter} TO SEASON ${named.no}`
+							: `LINK ${selectedLetter}`,
 					run: linkChosen,
 					strong: true,
-					dim: off || (!!pasted && !!pastedHeld)
+					dim: off || (!!pasted && !!pastedHeld) || !!fromWhy
 				}
 			: { label: 'TAP ONE TO LINK', run: () => {}, dim: true };
 		if (pasted) return [{ label: 'CANCEL', run: cancelPaste, dim: off }, link];
@@ -827,6 +907,12 @@
 				paste,
 				...unlinkAct,
 				...(single ? [] : [{ label: 'SKIP', run: skipIt, dim: off }])
+			];
+		// A second part settles nothing of the season: NOT NOW goes back to it.
+		if (second)
+			return [
+				{ label: 'NOT NOW', run: () => item && backToSeries(item.seriesId), dim: false },
+				link
 			];
 		return [
 			{
@@ -932,7 +1018,11 @@
 	<header class="head">
 		<a class="back" href={back.href}>{back.label}</a>
 		<div class="heading">
-			{#if named}
+			{#if named && second}
+				<span class="long">LINK · SEASON {named.no} · PART 2</span><span class="short"
+					>S{named.no} P2</span
+				>
+			{:else if named}
 				<span class="long">LINK · SEASON {named.no}</span><span class="short">S{named.no}</span>
 			{:else}
 				<span class="long">SERIES TO LINK</span><span class="short">TO LINK</span>
@@ -950,7 +1040,11 @@
 				{named ? `SEASON ${named.no} OF ${season.of} · ` : ''}{season.aired} EPISODES HERE{season.count >
 				season.aired
 					? ` AND ${season.count - season.aired} RECAP`
-					: ''}{season.parts.length > 1 ? ` · ${season.parts.length} PARTS` : ''}
+					: ''}{second
+					? ` · PART 2 FROM EP. ${second.from}`
+					: season.parts.length > 1
+						? ` · ${season.parts.length} PARTS`
+						: ''}
 			</div>
 			<div class="sb-c">ASKED AS {season.title.toUpperCase()}</div>
 		</div>
@@ -1085,10 +1179,48 @@
 						{#each seriesRows as row (row.label)}
 							<div class="r"><span class="rl">{row.label}</span><span>{row.value}</span></div>
 						{/each}
+						{#if second}
+							<!-- The season's second part by hand (c350): part 1 as it stands,
+							     and where part 2 starts, filled from part 1's count. -->
+							<div class="r">
+								<span class="rl">PART 1</span>
+								<span>{second.part1} · EP. 1 – {second.after}</span>
+							</div>
+							<div class="r from">
+								<span class="rl">FROM EP.</span>
+								<span class="fromcell">
+									<input
+										type="text"
+										inputmode="numeric"
+										class="fromep"
+										bind:value={fromEp}
+										aria-label="Part 2 starts at the season’s episode"
+										autocomplete="off"
+									/>
+									<span class="fromnote"
+										>{fromWhy ?? `PART 2’S EP. 1 IS THE SEASON’S EP. ${second.from}`}</span
+									>
+								</span>
+							</div>
+						{/if}
 						{#if single?.linked}
 							<div class="r">
-								<span class="rl">LINKED</span>
+								<span class="rl">{second ? 'PART 2' : 'LINKED'}</span>
 								<span>{single.linked} · A NEW LINK REPLACES IT</span>
+							</div>
+						{/if}
+						{#if addSecond}
+							<!-- The design's BY HAND (c350): a season a catalogue splits at an
+							     episode its relations do not show. A full load, so the page
+							     opens on part 2's own search. -->
+							<div class="r">
+								<span class="rl">PART 2</span>
+								<span
+									>AFTER PART 1’S {season?.second?.after} EPISODES ·
+									<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- secondHref is resolve('/links') with its query -->
+									<a class="relink" href={secondHref} data-sveltekit-reload>+ A SECOND PART</a
+									></span
+								>
 							</div>
 						{/if}
 						{#if single?.wrongKind}
@@ -1690,6 +1822,29 @@
 	}
 	.relink:disabled {
 		opacity: 0.35;
+	}
+	/* FROM EP. (c350): the season's episode part 2 starts at, in its row. */
+	.fromcell {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		min-width: 0;
+	}
+	.fromep {
+		width: 4.5em;
+		height: 28px;
+		padding: 0 6px;
+		border: 1px solid var(--text-1);
+		border-radius: 0;
+		background: transparent;
+		color: var(--text-1);
+		font: 400 13px var(--font-mono);
+		caret-color: var(--accent);
+		outline: none;
+	}
+	.fromnote {
+		color: var(--text-2);
+		text-wrap: pretty;
 	}
 	.searched {
 		font: 400 13px/1.45 var(--font-mono);

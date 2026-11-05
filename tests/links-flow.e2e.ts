@@ -326,6 +326,23 @@ const ANIME_MEDIA: Media[] = [
 		seasonYear: 2022
 	}),
 	entry({ id: 9504, idMal: 9514, title: 'Split Show 3rd Season', episodes: 12, seasonYear: 2023 }),
+	// A season AniList splits at an episode its relations do not show (c350): 12
+	// and 11 for the source's 23, with no edge between them and no part in the
+	// second's title. Only a search finds the second, by `+ A SECOND PART`.
+	entry({
+		id: 9801,
+		idMal: 9811,
+		title: 'Hand Split Show 2nd Season',
+		episodes: 12,
+		seasonYear: 2020
+	}),
+	entry({
+		id: 9802,
+		idMal: 9812,
+		title: 'Hand Split Show Final Chapter',
+		episodes: 11,
+		seasonYear: 2021
+	}),
 	// The same show in AniList's usual shape (c464): part 2 chained off part 1.
 	entry({ id: 9701, idMal: 9711, title: 'Chain Split Show', episodes: 12, seasonYear: 2020 }),
 	entry({
@@ -1198,6 +1215,74 @@ test.describe('a catalogue that answers', () => {
 				{ season: 3, part: 1, anilist_id: 9504 },
 				{ season: 4, part: 1, anilist_id: 9503 }
 			]);
+		} finally {
+			forgetFlatList(id);
+		}
+	});
+
+	test('+ A SECOND PART links a season’s part 2 by hand, FROM EP. 13 (c350)', async ({ page }) => {
+		const id = seedSeasons('Hand Split Show', [12, 23]);
+		try {
+			// Season 2's part 1, by a pasted link: no relation offers anything, so
+			// the LINK goes back to the series.
+			await page.goto(`${BASE}/links?series=${id}&season=2`);
+			await page.getByRole('button', { name: 'PASTE A LINK' }).first().click();
+			await page.getByLabel('AniList or MAL link').fill('https://anilist.co/anime/9801');
+			await expect(page.locator('.actions button').last()).toHaveText(/^LINK [A-Z] TO SEASON 2$/);
+			await page.locator('.actions button').last().click();
+			await page.waitForURL(new RegExp(`/series/${id}$`));
+			// The season's page: linked, and the second part offered under it.
+			await page.goto(`${BASE}/links?series=${id}&season=2`);
+			const row = page
+				.locator('.rows .r')
+				.filter({ has: page.locator('.rl', { hasText: /^PART 2$/ }) });
+			await expect(row).toHaveText(/^PART 2\s*AFTER PART 1’S 12 EPISODES · \+ A SECOND PART$/);
+			await row.getByRole('link', { name: '+ A SECOND PART' }).click();
+			await page.waitForURL(/&part=2$/);
+			await expect(page.locator('.heading .long')).toHaveText('LINK · SEASON 2 · PART 2');
+			await expect(page.locator('.seasonbar .sb-b')).toHaveText(
+				'SEASON 2 OF 2 · 23 EPISODES HERE · PART 2 FROM EP. 13'
+			);
+			await expect(
+				page.locator('.rows .r').filter({ has: page.locator('.rl', { hasText: /^PART 1$/ }) })
+			).toHaveText(/^PART 1\s*Hand Split Show 2nd Season · EP\. 1 – 12$/);
+			const from = page.getByLabel('Part 2 starts at the season’s episode');
+			await expect(from).toHaveValue('13');
+			// The same search, part 2's own, run as the page opens (a FIND on a
+			// part never searched) and again by hand: part 1's entry is no
+			// candidate of it, and each is checked against part 2's 11 episodes.
+			await expect(page.locator('.band .line').first()).toHaveText(
+				'SEARCHED · “Hand Split Show Season 2” · 1 FOUND'
+			);
+			await expect(page.locator('.cand').first()).toContainText('11 · THIS HAS 11');
+			await page.getByRole('button', { name: 'SEARCH AGAIN' }).click();
+			await page.getByLabel('Title to search on AniList').fill('Hand Split Show');
+			await page.locator('form.field .go').click();
+			await expect(page.locator('.cand')).toHaveCount(1);
+			await expect(page.locator('.cand').first()).toContainText('Hand Split Show Final Chapter');
+			await page.locator('.cand').first().click();
+			const link = page.locator('.actions button').last();
+			await expect(link).toHaveText('LINK A TO SEASON 2 PART 2');
+			// Another start has nowhere to be kept: said, and LINK is dimmed.
+			await from.fill('14');
+			await expect(page.locator('.fromnote')).toHaveText(
+				'PART 2 STARTS WHERE PART 1’S 12 EPISODES END · FROM EP. 13'
+			);
+			await expect(link).toHaveClass(/dim/);
+			await expect(link).toBeDisabled();
+			expect(partsOf(id)).toEqual([{ season: 2, part: 1, anilist_id: 9801 }]);
+			await from.fill('13');
+			await expect(page.locator('.fromnote')).toHaveText('PART 2’S EP. 1 IS THE SEASON’S EP. 13');
+			await link.click();
+			await page.waitForURL(new RegExp(`/series/${id}$`));
+			expect(partsOf(id)).toEqual([
+				{ season: 2, part: 1, anilist_id: 9801 },
+				{ season: 2, part: 2, anilist_id: 9802 }
+			]);
+			// Linked: the season's page no longer offers a second part.
+			await page.goto(`${BASE}/links?series=${id}&season=2`);
+			await expect(page.locator('.heading .long')).toHaveText('LINK · SEASON 2');
+			await expect(page.getByRole('link', { name: '+ A SECOND PART' })).toHaveCount(0);
 		} finally {
 			forgetFlatList(id);
 		}
