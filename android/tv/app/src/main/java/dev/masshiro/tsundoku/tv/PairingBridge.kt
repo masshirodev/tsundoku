@@ -38,11 +38,19 @@ import java.util.concurrent.Executors
  * | `renameServer`   | opens S5, which writes                 | yes     |
  * | `open`           | opens a known server's library         | no      |
  * | `welcome`        | opens 9A                               | no      |
+ * | `form`           | reads which app this is (c521)         | no      |
+ * | `network`        | reads home / data / none (c521)        | no      |
+ * | `surface`        | paints the camera band (c521)          | no      |
  *
  * `open` and `welcome` stay open on purpose: FORGET of the server in use calls
  * one of them from the page of the server it has just forgotten (MoreSheet's
  * `forget`), which is no longer known. Neither writes, and neither goes
- * anywhere but a server the TV knows or the app's own first screen.
+ * anywhere but a server the TV knows or the app's own first screen. `surface`
+ * stays open too: it writes nothing but a colour into the camera band, and
+ * a colour that is not a solid one is refused (Insets.parseColor).
+ *
+ * The bridge is `TsundokuTV` on the phone and tablet app as well (c521): the
+ * name is the contract the web app reads, not a claim about the screen.
  *
  * @JavascriptInterface methods are called from the page's JavaScript thread,
  * so probes run on their own threads and come back through the activity's
@@ -52,7 +60,8 @@ import java.util.concurrent.Executors
 class PairingBridge(
 	private val host: Host,
 	private val servers: Servers,
-	private val io: ExecutorService = Executors.newFixedThreadPool(PROBES)
+	private val io: ExecutorService = Executors.newFixedThreadPool(PROBES),
+	private val form: Form = Form.TV
 ) {
 	/** What the bridge needs of the activity: an interface, so PairingBridgeTest can stand in. */
 	interface Host {
@@ -70,6 +79,9 @@ class PairingBridge(
 		fun showAsset(hash: String)
 
 		fun postProbe(origin: String, ok: Boolean)
+
+		/** The camera band takes the page's colour (c521); a TV has none to paint. */
+		fun paintSurface(color: Int) {}
 	}
 
 	companion object {
@@ -92,6 +104,24 @@ class PairingBridge(
 
 	/** Whether the page asking is the app's own or a known server's (c529). */
 	private fun trusted(): Boolean = BridgeGuard.allows(host.topUrl()) { servers.find(it) != null }
+
+	/**
+	 * "tv" or "mobile" (c521): the pairing page lays itself out by it, since a
+	 * width alone can't tell a TV pinned at 960 from a tablet.
+	 */
+	@JavascriptInterface
+	fun form(): String = form.id
+
+	/** "home", "data" (a phone on mobile data) or "none": 9D's third reason (c521). */
+	@JavascriptInterface
+	fun network(): String = Network.state(found()).id
+
+	/** The page's own background, as rgb() or a hex (c521): the camera band's colour. */
+	@JavascriptInterface
+	fun surface(css: String) {
+		val color = Insets.parseColor(css) ?: return
+		host.onUi { host.paintSurface(color) }
+	}
 
 	/** The TV's own IPv4 on its network, or "" when it has none. */
 	@JavascriptInterface
@@ -219,22 +249,24 @@ class PairingBridge(
 
 	fun shutdown() = io.shutdownNow()
 
-	/** The Wi-Fi address before anything virtual: what 9B's prefix must be. */
-	private fun ownIpv4(): String? =
+	/**
+	 * The home address, Wi-Fi first and never a carrier's or a tunnel's: what
+	 * 9B's prefix must be (Network.homeV4 says why a phone needs the skip).
+	 */
+	private fun ownIpv4(): String? = Network.homeV4(found())
+
+	/** Every up interface's IPv4, by name. */
+	private fun found(): List<Pair<String, String>> =
 		try {
-			val found =
-				NetworkInterface.getNetworkInterfaces()
-					?.toList()
-					.orEmpty()
-					.filter { it.isUp && !it.isLoopback }
-					.flatMap { n -> n.inetAddresses.toList().map { n.name to it } }
-					.filter { (_, a) -> a is Inet4Address }
-					.map { (name, a) -> name to (a.hostAddress ?: "") }
-					.filter { (_, ip) -> Address.isPrivateV4(ip) }
-			found.firstOrNull { (name, _) -> name.startsWith("wlan") }?.second
-				?: found.firstOrNull()?.second
+			NetworkInterface.getNetworkInterfaces()
+				?.toList()
+				.orEmpty()
+				.filter { it.isUp && !it.isLoopback }
+				.flatMap { n -> n.inetAddresses.toList().map { n.name to it } }
+				.filter { (_, a) -> a is Inet4Address }
+				.map { (name, a) -> name to (a.hostAddress ?: "") }
 		} catch (_: Exception) {
-			null
+			emptyList()
 		}
 }
 

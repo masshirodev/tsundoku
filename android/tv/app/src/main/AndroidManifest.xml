@@ -1,24 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-	tsundoku on an Android TV (c236; doc/TV-APP.md). A leanback entry so it
-	sits on the TV's home row, and no touchscreen requirement: a TV has none.
-	The launcher icon is the app's own (積 typeset on graphite, doc/INSTALL.md);
-	the banner is the wordmark on the page colour, drawn from banner/tv-banner.svg.
+	What the TV app and the phone and tablet app share (c236, c521;
+	doc/TV-APP.md, doc/PHONE-APP.md). Each flavor's own manifest adds what is
+	its alone: the TV's leanback entry, banner and landscape lock (src/tv),
+	the phone's keyboard mode (src/mobile). The launcher icon is the app's own
+	(積 typeset on graphite, doc/INSTALL.md).
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
 	<uses-permission android:name="android.permission.INTERNET" />
 
-	<uses-feature
-		android:name="android.software.leanback"
-		android:required="false" />
+	<!-- A TV has no touchscreen, and the phone's needs none declared. -->
 	<uses-feature
 		android:name="android.hardware.touchscreen"
 		android:required="false" />
 
 	<application
 		android:allowBackup="false"
-		android:banner="@drawable/tv_banner"
 		android:icon="@mipmap/ic_launcher"
 		android:label="@string/app_name"
 		android:networkSecurityConfig="@xml/network_security_config"
@@ -30,13 +28,9 @@
 			android:name=".MainActivity"
 			android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize|screenLayout|smallestScreenSize|uiMode"
 			android:exported="true"
-			android:launchMode="singleTask"
-			android:screenOrientation="landscape">
-			<intent-filter>
-				<action android:name="android.intent.action.MAIN" />
-				<category android:name="android.intent.category.LEANBACK_LAUNCHER" />
-			</intent-filter>
-			<!-- Also a plain LAUNCHER entry: it installs on a phone for a look. -->
+			android:launchMode="singleTask">
+			<!-- The phone's launcher entry, and on the TV the second one beside
+			     leanback's, so a TV build still installs on a phone for a look. -->
 			<intent-filter>
 				<action android:name="android.intent.action.MAIN" />
 				<category android:name="android.intent.category.LAUNCHER" />

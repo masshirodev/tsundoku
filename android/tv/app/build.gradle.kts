@@ -29,13 +29,35 @@ android {
 	compileSdk = 36
 
 	defaultConfig {
-		applicationId = "dev.masshiro.tsundoku.tv"
 		// Old TV boxes: nothing here needs more (OnBackPressedDispatcher is in
 		// androidx.activity and works down to 21). See doc/TV-APP.md.
 		minSdk = 23
 		targetSdk = 36
 		versionCode = 1
 		versionName = tvVersion
+	}
+
+	/*
+	 * Two apps from one project (c521; doc/PHONE-APP.md): the TV's, and the
+	 * phone and tablet one. Every line of pairing is shared (src/main); what
+	 * differs is decided by Form.kt from FORM, and the little that is
+	 * manifest or theme lives in src/tv and src/mobile. The Kotlin package
+	 * and the namespace stay dev.masshiro.tsundoku.tv for both: renaming them
+	 * would move every file for no behaviour, and the application id is what
+	 * Android installs by.
+	 */
+	flavorDimensions += "form"
+	productFlavors {
+		create("tv") {
+			dimension = "form"
+			applicationId = "dev.masshiro.tsundoku.tv"
+			buildConfigField("String", "FORM", "\"tv\"")
+		}
+		create("mobile") {
+			dimension = "form"
+			applicationId = "dev.masshiro.tsundoku.app"
+			buildConfigField("String", "FORM", "\"mobile\"")
+		}
 	}
 
 	signingConfigs {

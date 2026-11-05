@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<!--
+		The phone and tablet app's theme (c521; doc/PHONE-APP.md), dark: the
+		page's graphite (#0e0f10, src/lib/styles/colors.css) behind it until the
+		WebView draws, and in the camera band until the page says its own
+		colour. The light one is values-notnight's. A dark or light theme is
+		also what the WebView's prefers-color-scheme follows, so before pairing
+		the app's own screens take the phone's setting (the design's 9C · LIGHT).
+	-->
+	<style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar">
+		<item name="android:windowBackground">@color/page</item>
+		<item name="android:colorBackground">@color/page</item>
+		<item name="android:windowFullscreen">true</item>
+		<item name="android:statusBarColor">@color/page</item>
+		<item name="android:navigationBarColor">@color/page</item>
+		<item name="android:windowActionModeOverlay">true</item>
+	</style>
+	<color name="page">#0e0f10</color>
+</resources>

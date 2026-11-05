@@ -24,6 +24,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -33,10 +34,13 @@ import java.util.concurrent.FutureTask
 import java.util.concurrent.TimeUnit
 
 /**
- * tsundoku on an Android TV (c236; doc/TV-APP.md). A WebView that holds the
- * same web app a phone or a computer opens, and the four things the page
- * cannot do over plain http: a launcher presence, the remote's keys, the
- * screen kept awake, and a way to be paired with six digits.
+ * tsundoku on an Android TV (c236; doc/TV-APP.md), and since c521 on a phone
+ * or tablet too (doc/PHONE-APP.md): one activity for both, the differences in
+ * [Form]. A WebView that holds the same web app a phone or a computer opens,
+ * and the things the page cannot do over plain http: a launcher presence, the
+ * remote's keys (a TV's), the screen kept awake, and a way to be paired with
+ * six digits. On a phone it also keeps the page out of the camera cutout and
+ * above the keyboard (Insets.kt), and out of screenshots.
  *
  * The app's own screens (9A, 9B, 9D) are in `assets/pair/`; 9C and 9E are the
  * computer's `/pair/tv`, so the code is posted same-origin and the paired
@@ -51,6 +55,9 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	private var customCallback: WebChromeClient.CustomViewCallback? = null
 	private val io = Executors.newSingleThreadExecutor()
 	private val ui = Handler(Looper.getMainLooper())
+
+	/** Which app this build is (c521): every TV-or-phone difference asks it. */
+	private val form = Form.of(BuildConfig.FORM)
 
 	/** Which launch owns the WebView: a later door wins over an earlier answer (c306). */
 	private val attempts = Attempts()
@@ -76,18 +83,22 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		CookieManager.getInstance().setAcceptCookie(true)
 
 		root = FrameLayout(this)
-		root.setBackgroundColor(Color.BLACK)
+		root.setBackgroundColor(if (form.padsInsets) themeBackground() else Color.BLACK)
 		webView = WebView(this)
 		root.addView(webView, frame())
 		setContentView(root)
 
 		window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+		// A phone's library stays out of screenshots and the recents thumbnail,
+		// which a PWA could never promise (doc/PRIVACY.md, doc/PHONE-APP.md).
+		if (form.blocksScreenshots) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
 		WindowCompat.setDecorFitsSystemWindows(window, false)
 		hideSystemUi()
+		if (form.padsInsets) padForInsets()
 
 		configure(webView)
 		servers = Servers(PrefsKeyValue(this))
-		bridge = PairingBridge(this, servers)
+		bridge = PairingBridge(this, servers, form = form)
 		webView.addJavascriptInterface(bridge, PairingBridge.NAME)
 		webView.webViewClient = client()
 		webView.webChromeClient = chrome()
@@ -165,6 +176,8 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	 * Everything else is the WebView's, including the D-pad and OK.
 	 */
 	override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+		// A phone has no remote: a headset's play key is the WebView's own.
+		if (!form.takesRemoteKeys) return super.dispatchKeyEvent(event)
 		val key = Keys.domKeyFor(event.keyCode)
 		if (key != null && (event.action == KeyEvent.ACTION_DOWN || event.action == KeyEvent.ACTION_UP)) {
 			webView.evaluateJavascript(Keys.dispatchScript(key, event.action == KeyEvent.ACTION_DOWN), null)
@@ -202,20 +215,71 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		}
 	}
 
+	/**
+	 * The page asked (the bridge's `surface`) or was read (onPageFinished) for
+	 * its background: the camera band and the strip above the keyboard take it,
+	 * so they read as the page's own edge, dark or light (Insets.kt).
+	 */
+	override fun paintSurface(color: Int) {
+		if (!form.padsInsets) return
+		root.setBackgroundColor(color)
+		webView.setBackgroundColor(color)
+	}
+
+	/** The theme's background, dark or light with the phone's setting (src/mobile/res). */
+	private fun themeBackground(): Int {
+		val a = obtainStyledAttributes(intArrayOf(android.R.attr.colorBackground))
+		return try {
+			a.getColor(0, Color.BLACK)
+		} finally {
+			a.recycle()
+		}
+	}
+
+	/**
+	 * The camera cutout, the keyboard and the home gesture, as padding on the
+	 * WebView's frame (Insets.kt says which, and why natively). Asked again
+	 * whenever any of them changes: the keyboard opening, the phone turning.
+	 */
+	private fun padForInsets() {
+		ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
+			fun sides(t: Int) = insets.getInsets(t).let { Insets.Sides(it.left, it.top, it.right, it.bottom) }
+			val p =
+				Insets.padding(
+					cutout = sides(WindowInsetsCompat.Type.displayCutout()),
+					ime = sides(WindowInsetsCompat.Type.ime()),
+					gestures = sides(WindowInsetsCompat.Type.mandatorySystemGestures())
+				)
+			view.setPadding(p.left, p.top, p.right, p.bottom)
+			WindowInsetsCompat.CONSUMED
+		}
+	}
+
 	@SuppressLint("SetJavaScriptEnabled")
 	private fun configure(w: WebView) {
-		w.setBackgroundColor(Color.BLACK)
+		w.setBackgroundColor(if (form.padsInsets) themeBackground() else Color.BLACK)
 		val s = w.settings
 		s.javaScriptEnabled = true
 		s.domStorageEnabled = true
 		s.databaseEnabled = true
-		// The page is pinned to the handoff's 960 CSS px whatever the panel
-		// reports (Scale.kt, doc/TV.md "Claims to check").
-		s.useWideViewPort = false
-		s.loadWithOverviewMode = false
-		// In physical pixels: setInitialScale is (Scale.kt says why).
-		w.setInitialScale(Scale.percentFor(resources.displayMetrics.widthPixels))
-		s.textZoom = 100
+		if (form.pinsWidth) {
+			// The page is pinned to the handoff's 960 CSS px whatever the panel
+			// reports (Scale.kt, doc/TV.md "Claims to check").
+			s.useWideViewPort = false
+			s.loadWithOverviewMode = false
+			// In physical pixels: setInitialScale is (Scale.kt says why).
+			w.setInitialScale(Scale.percentFor(resources.displayMetrics.widthPixels))
+		} else {
+			// A phone lays the page out at its own width (the page's
+			// width=device-width), so the web app's phone and tablet layouts
+			// are the ones it gets.
+			s.useWideViewPort = true
+			s.loadWithOverviewMode = false
+		}
+		// Android's font size on a phone, capped at 130; 100 on a TV (Form.kt).
+		s.textZoom = form.textZoom(resources.configuration.fontScale)
+		// Zoom is off on both: pinch and double tap do nothing (c521, the
+		// reason for the phone app at all; the page adds touch-action too).
 		s.setSupportZoom(false)
 		s.builtInZoomControls = false
 		s.displayZoomControls = false
@@ -223,8 +287,9 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		s.mediaPlaybackRequiresUserGesture = false
 		s.cacheMode = WebSettings.LOAD_DEFAULT
 		s.allowFileAccess = true
-		// What the server's device list reads: "Android TV · Chrome", not a tablet.
-		s.userAgentString = s.userAgentString + " TsundokuTV/${BuildConfig.VERSION_NAME}"
+		// What the server's device list reads (catalog.ts, isTsundokuApp): a TV
+		// as a TV, a phone or tablet as the app over its screen's kind.
+		s.userAgentString = s.userAgentString + " " + form.userAgentToken(BuildConfig.VERSION_NAME)
 		WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
 	}
 
@@ -255,6 +320,9 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 			 * and after an add, the app's own 9E (S8) takes over from it.
 			 */
 			override fun onPageFinished(view: WebView, url: String) {
+				// The camera band takes the page's colour, whichever page it is
+				// (the app's own, or a server older than c521's, which never says).
+				if (form.padsInsets) view.evaluateJavascript(SURFACE_JS) { value -> readSurface(value) }
 				val uri = Uri.parse(url)
 				if (uri.scheme != "http" && uri.scheme != "https") return
 				val origin = originOf(uri)
@@ -282,6 +350,12 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		if (servers.named(known.origin, name)) serversChanged()
 		val wasAdd = known.opened == 0L && servers.all().size > 1
 		if (wasAdd) showAsset("#added=" + Uri.encode(known.origin))
+	}
+
+	/** SURFACE_JS's answer: a JSON string, "" when the page has no solid colour. */
+	private fun readSurface(value: String?) {
+		val css = runCatching { org.json.JSONArray("[" + (value ?: "null") + "]").optString(0, "") }.getOrDefault("")
+		Insets.parseColor(css)?.let(::paintSurface)
 	}
 
 	private fun chrome() =
@@ -450,6 +524,14 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		 */
 		private const val PAIRED_JS =
 			"(function(){var m=document.querySelector('main.paired');if(!m)return '';var l=m.querySelector('.lab');return (m.getAttribute('data-paired-name')||'')+String.fromCharCode(10)+(l?l.textContent:'')})()"
+
+		/**
+		 * The page's background as rgb(), read through a 1x1 canvas: a computed
+		 * colour may be oklch() (the light theme's paper), which Insets.parseColor
+		 * does not take. The body's, else the root's when the body is clear.
+		 */
+		private const val SURFACE_JS =
+			"(function(){try{var t=function(e){return e?getComputedStyle(e).backgroundColor:''};var c=t(document.body);var x=document.createElement('canvas');x.width=x.height=1;var g=x.getContext('2d');var read=function(v){g.clearRect(0,0,1,1);g.fillStyle='rgba(0,0,0,0)';g.fillStyle=v;g.fillRect(0,0,1,1);return g.getImageData(0,0,1,1).data};var d=read(c);if(d[3]<255){d=read(t(document.documentElement))}return d[3]<255?'':'rgb('+d[0]+', '+d[1]+', '+d[2]+')'}catch(e){return ''}})()"
 
 		/** c236's contract: true means the page took BACK. */
 		private const val BACK_JS =
