@@ -440,7 +440,22 @@ review on the current link. SIGN IN → goes to SETTINGS. EDIT opens the sheet.
 **EDIT's sheet** opens on that line's entry and season tab. ENTRY is new:
 the entry's title and ids, where the link came from, and OPEN ↗, CHANGE and
 UNLINK, which left the row (UNLINK names the tab's season on a show with
-several, and none on a show of one, whose UNLINK takes every part). STATUS
+several, and none on a show of one, whose UNLINK takes every part). UNLINK
+closes the sheet on a band, `UNLINKED · <ENTRY>` / `NO PASS LINKS IT AGAIN`
+(`S3 · NO PASS LINKS IT AGAIN` on a season), with UNDO (c520): the rows that
+went come back with every column (`via`, dates, score, `filled_rating`, a
+season's `episodes` and `year`, and an anime's `series_links` mirror with
+its own score), keyed by the series and its season and part, never a row id,
+and the UNLINK's own `unlinked` decision goes with them (the one it replaced,
+if any, comes back), so the next pass treats the series as linked. The band
+carries what went in its form, as RENAME's and ADD TO A WORK's do
+(`UnlinkFacts`, read back field by field by `parseUnlinkFacts`), so it goes
+with the screen: after a reload FIND is the way back. UNDO is all or
+nothing and never writes over a newer act: a link made since (another tab's
+PASTE, a pass) or a decision since (NONE OF THESE) refuses it as `LINKED OR
+DECIDED AGAIN SINCE` · NOTHING CHANGED, and a second UNDO of the same band
+says `ALREADY UNDONE`. AniSkip's marks, which UNLINK clears, are asked
+again as for any new link. STATUS
 sends at once to the lists signed in, and says NOTHING SIGNED IN rather than
 offering what can't be sent; a cover-only, wrong-kind, hidden or novel's
 entry says why it is never tracked instead. PROGRESS is each list's. On
@@ -491,9 +506,6 @@ cells, with the house's inset focus mark.
 - **A novel's AniList line says `COVER AND DETAILS · TRACKED ON RANOBE`**, not
   1B's `… · NOVELS ARE TRACKED ON RANOBE`, so no line names a kind; without a
   Ranobe token it says `COVER AND DETAILS · NOT TRACKED HERE`.
-- **The sheet's UNLINK has no UNDO band.** 1E's table says "the band with
-  UNDO"; the series screen never had one for UNLINK, and this wave didn't add
-  it.
 - **Ranobe's line keeps FIND and PASTE A LINK on a comic or a novel** (1B, 1
   and 8) and FIND alone on an anime (1C), as the boards draw each.
 

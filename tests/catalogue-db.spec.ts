@@ -6,6 +6,7 @@ process.env.DATABASE_PATH = ':memory:';
 const { getDb } = await import('$lib/server/db');
 const { seedSample } = await import('$lib/server/fixtures');
 const cat = await import('$lib/server/catalogue');
+const seasons = await import('$lib/server/season-links');
 
 const db = getDb();
 const NOW = Date.UTC(2026, 8, 24);
@@ -690,5 +691,196 @@ describe('the season a field names (c240)', () => {
 		expect(seasonNamed('2')).toBe(2);
 		expect(seasonNamed('1.5')).toBeUndefined();
 		expect(seasonNamed('two')).toBeUndefined();
+	});
+});
+
+describe('UNDO on UNLINK’s band (c520)', () => {
+	const row = (id: number) =>
+		db.prepare(`SELECT * FROM series_links WHERE series_id = ?`).get(id) as
+			Record<string, unknown> | undefined;
+	const decisionOf = (id: number) =>
+		db.prepare(`SELECT decision, at FROM link_decisions WHERE series_id = ?`).get(id);
+	const undo = (facts: unknown, id: number) => {
+		// Through the band's own post: the facts as JSON, read back field by field.
+		const parsed = cat.parseUnlinkFacts(JSON.stringify(facts), id);
+		expect(parsed).not.toBeNull();
+		return () => cat.undoUnlink(parsed!);
+	};
+	const candidate = (
+		anilistId: number,
+		o: { mal?: number; episodes?: number; title?: string } = {}
+	) => ({
+		anilistId,
+		malId: o.mal ?? null,
+		title: o.title ?? `Entry ${anilistId}`,
+		alts: [] as string[],
+		format: 'TV',
+		country: 'JP',
+		year: 2018,
+		chapters: null,
+		volumes: null,
+		episodes: o.episodes ?? 12,
+		season: 'FALL',
+		seasonYear: 2018,
+		status: 'FINISHED',
+		coverUrl: ''
+	});
+
+	it('puts a comic’s link back with every column, and its decision goes with it', () => {
+		const id = idOf('Tower of God');
+		db.prepare(`UPDATE series SET rating = 0 WHERE id = ?`).run(id);
+		cat.linkFromTracker(db, id, { id: 122663, score: 9 }, NOW);
+		db.prepare(
+			`UPDATE series_links SET anilist_id = 85143, title = 'Tower of God', cover_url = 'https://x/1.jpg', resolved_at = ?, format = 'MANHWA' WHERE series_id = ?`
+		).run(NOW + 5, id);
+		const before = row(id);
+		const facts = cat.unlink(id, NOW + 10);
+		expect(row(id)).toBeUndefined();
+		expect(decisionOf(id)).toEqual({ decision: 'unlinked', at: NOW + 10 });
+		expect(facts).toMatchObject({ seriesId: id, title: 'Tower of God', season: null });
+		expect(undo(facts, id)()).toBe('undone');
+		expect(row(id)).toEqual(before);
+		// No 'unlinked' decision left: the series is linked again, for the pass too.
+		expect(decisionOf(id)).toBeUndefined();
+		expect(cat.linkState(id)?.linked).toMatchObject({ anilistId: 85143 });
+		// The second UNDO of the same facts finds the row back, and says so.
+		expect(undo(facts, id)).toThrow('ALREADY UNDONE');
+		expect(row(id)).toEqual(before);
+	});
+
+	it('puts back the decision the UNLINK replaced, never one of its own', () => {
+		const id = idOf('Tower of God');
+		cat.linkFromTracker(db, id, { id: 122663, score: 0 }, NOW);
+		// A stale NONE OF THESE from before the link, which a link from Mihon leaves.
+		db.prepare(`INSERT INTO link_decisions (series_id, decision, at) VALUES (?, 'none', ?)`).run(
+			id,
+			NOW - 1
+		);
+		const facts = cat.unlink(id, NOW + 10);
+		undo(facts, id)();
+		expect(decisionOf(id)).toEqual({ decision: 'none', at: NOW - 1 });
+	});
+
+	it('refuses after something else linked the series, or decided it, and changes nothing', () => {
+		const id = idOf('Tower of God');
+		cat.linkFromTracker(db, id, { id: 122663, score: 0 }, NOW);
+		const facts = cat.unlink(id, NOW + 10);
+		// Linked again meanwhile, by FIND: the newer link stays.
+		cat.link(
+			id,
+			{ ...candidate(9), format: 'MANHWA', country: 'KR', episodes: null },
+			'review',
+			NOW + 20
+		);
+		const newer = row(id);
+		expect(undo(facts, id)).toThrow('LINKED OR DECIDED AGAIN SINCE');
+		expect(row(id)).toEqual(newer);
+		// Decided meanwhile: UNLINK, then NONE OF THESE, and the UNDO of the first.
+		db.prepare(`DELETE FROM series_links WHERE series_id = ?`).run(id);
+		cat.linkFromTracker(db, id, { id: 122663, score: 0 }, NOW);
+		const again = cat.unlink(id, NOW + 30);
+		cat.noneOfThese(id, NOW + 40);
+		expect(undo(again, id)).toThrow('LINKED OR DECIDED AGAIN SINCE');
+		expect(row(id)).toBeUndefined();
+		expect(decisionOf(id)).toEqual({ decision: 'none', at: NOW + 40 });
+	});
+
+	it('reads a posted band only as this series’ UNLINK could have written it', () => {
+		const id = idOf('Tower of God');
+		cat.linkFromTracker(db, id, { id: 122663, score: 0 }, NOW);
+		const facts = cat.unlink(id, NOW + 10);
+		const raw = JSON.stringify(facts);
+		// Its own output reads back unchanged.
+		expect(cat.parseUnlinkFacts(raw, id)).toEqual(facts);
+		expect(cat.parseUnlinkFacts(JSON.stringify(cat.parseUnlinkFacts(raw, id)), id)).toEqual(facts);
+		// Another series' band, junk, a word the table refuses, a part 3.
+		expect(cat.parseUnlinkFacts(raw, idOf('Lookism'))).toBeNull();
+		expect(cat.parseUnlinkFacts('{', id)).toBeNull();
+		expect(
+			cat.parseUnlinkFacts(JSON.stringify({ ...facts, link: { ...facts.link, via: 'x' } }), id)
+		).toBeNull();
+		expect(
+			cat.parseUnlinkFacts(
+				JSON.stringify({ ...facts, parts: [{ season: 1, part: 3, link: null, decision: null }] }),
+				id
+			)
+		).toBeNull();
+		expect(row(id)).toBeUndefined();
+	});
+
+	it('an anime: a season’s two parts come back, the mirror with its own score, and the other season stays', () => {
+		const id = animeSeries('Undo Two Parts');
+		const ep = db.prepare(
+			`INSERT INTO entries (series_id, position, label, added_at, season, episode_number) VALUES (?, ?, ?, ?, ?, ?)`
+		);
+		let position = 0;
+		for (let n = 1; n <= 23; n++) ep.run(id, ++position, `Episode ${n}`, NOW, 1, n);
+		for (let n = 1; n <= 3; n++) ep.run(id, ++position, `Episode ${n}`, NOW, 2, n);
+		const parts = () =>
+			db
+				.prepare(`SELECT * FROM series_season_links WHERE series_id = ? ORDER BY season, part`)
+				.all(id);
+		try {
+			expect(
+				seasons.linkSeason(id, 1, 1, candidate(201, { mal: 601, episodes: 12 }), 'review', NOW)
+			).toBe(true);
+			expect(
+				seasons.linkSeason(id, 1, 2, candidate(202, { mal: 602, episodes: 11 }), 'relations', NOW)
+			).toBe(true);
+			expect(seasons.linkSeason(id, 2, 1, candidate(203, { episodes: 3 }), 'pasted', NOW)).toBe(
+				true
+			);
+			// The mirror's own score, which syncSeriesLink never writes.
+			db.prepare(`UPDATE series_links SET score = 8, filled_rating = 8 WHERE series_id = ?`).run(
+				id
+			);
+			db.prepare(
+				`UPDATE series_season_links SET score = 7 WHERE series_id = ? AND season = 1 AND part = 2`
+			).run(id);
+			const before = { parts: parts(), mirror: row(id) };
+			expect(before.mirror).toMatchObject({ anilist_id: 201, score: 8, filled_rating: 8 });
+			const facts = cat.unlink(id, NOW + 10, 1);
+			expect(facts.season).toBe(1);
+			expect(facts.parts.map((p) => [p.season, p.part])).toEqual([
+				[1, 1],
+				[1, 2]
+			]);
+			// Season 2 is left alone; season 1 went with both its parts, and the mirror with it.
+			expect((parts() as { season: number }[]).map((p) => p.season)).toEqual([2]);
+			expect(row(id)).toBeUndefined();
+			expect(undo(facts, id)()).toBe('undone');
+			expect({ parts: parts(), mirror: row(id) }).toEqual(before);
+			expect(
+				db.prepare(`SELECT COUNT(*) AS n FROM season_link_decisions WHERE series_id = ?`).get(id)
+			).toEqual({ n: 0 });
+			expect(undo(facts, id)).toThrow('ALREADY UNDONE');
+
+			// The sibling season: UNLINK season 2 alone, and UNDO it; season 1 never moves.
+			const two = cat.unlink(id, NOW + 20, 2);
+			expect(two.parts.map((p) => [p.season, p.part])).toEqual([[2, 1]]);
+			undo(two, id)();
+			expect({ parts: parts(), mirror: row(id) }).toEqual(before);
+
+			// A part linked again meanwhile refuses the whole UNDO: part 1 stays gone too.
+			const three = cat.unlink(id, NOW + 30, 1);
+			expect(
+				seasons.linkSeason(id, 1, 2, candidate(209, { episodes: 11 }), 'pasted', NOW + 40)
+			).toBe(true);
+			expect(undo(three, id)).toThrow('LINKED OR DECIDED AGAIN SINCE');
+			expect(
+				(parts() as { season: number; part: number; anilist_id: number }[]).map((p) => [
+					p.season,
+					p.part,
+					p.anilist_id
+				])
+			).toEqual([
+				[1, 2, 209],
+				[2, 1, 203]
+			]);
+		} finally {
+			for (const t of ['series_season_links', 'season_link_decisions', 'entries'])
+				db.prepare(`DELETE FROM ${t} WHERE series_id = ?`).run(id);
+			forgetSerie(id);
+		}
 	});
 });

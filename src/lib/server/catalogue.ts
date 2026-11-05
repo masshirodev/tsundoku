@@ -38,6 +38,7 @@ import {
 	seasonSettled,
 	seasonToLook,
 	seriesSeasons,
+	syncSeriesLink,
 	unlinkSeason,
 	undoNoneSeason,
 	undoSeasonLink
@@ -427,6 +428,51 @@ export function undoLink(seriesId: number, season?: number, part = 1): boolean {
 	})();
 }
 
+// ---- UNLINK, and its UNDO (c520) ----------------------------------------------------------
+
+/** Every column of a comic's `series_links` row, in order: what UNDO puts back. */
+const LINK_COLUMNS = [
+	'anilist_id',
+	'mal_id',
+	'via',
+	'title',
+	'cover_url',
+	'linked_at',
+	'resolved_at',
+	'filled_rating',
+	'score',
+	'format'
+] as const;
+/** Every column of an anime's `series_season_links` row past its key. */
+const SEASON_LINK_COLUMNS = [...LINK_COLUMNS, 'episodes', 'year'] as const;
+
+type TakenRow = Record<string, string | number | null>;
+type Decision = { decision: 'none' | 'unlinked'; at: number };
+
+/**
+ * What UNLINK took, exactly, so its band's UNDO can put it back (c520). The
+ * rows are keyed by the series and, for an anime, by season and part: never a
+ * row id, which a later link could reuse. `at` is the UNLINK's own time, the
+ * mark its decision rows carry; UNDO knows its own decision by it.
+ */
+export type UnlinkFacts = {
+	seriesId: number;
+	at: number;
+	/** The entry's title, for the band. */
+	title: string;
+	/** The season the UNLINK named; null when it named none. */
+	season: number | null;
+	/** A comic's link and the decision row it replaced (null: there was none). */
+	link: TakenRow | null;
+	decision: Decision | null;
+	/** An anime's parts, each as it was; and the series' mirror row (`syncSeriesLink`). */
+	parts: { season: number; part: number; link: TakenRow | null; decision: Decision | null }[];
+	mirror: TakenRow | null;
+};
+
+const pick = (r: Record<string, unknown> | undefined, cols: readonly string[]): TakenRow | null =>
+	r ? Object.fromEntries(cols.map((c) => [c, (r[c] ?? null) as string | number | null])) : null;
+
 /**
  * UNLINK, on the series screen: the link goes and stays gone. An import won't
  * bring Mihon's tracker back, and the pass won't search it again; FIND and
@@ -435,25 +481,253 @@ export function undoLink(seriesId: number, season?: number, part = 1): boolean {
  *
  * An anime unlinks a season -- every part of it, since a season's line stands
  * for the whole season -- or every season it has when nobody said, which is
- * what the review's own UNLINK means.
+ * what the review's own UNLINK means. It answers what it took, for the
+ * band's UNDO (c520).
  */
-export function unlink(seriesId: number, now = Date.now(), season?: number): void {
+export function unlink(seriesId: number, now = Date.now(), season?: number): UnlinkFacts {
+	const db = getDb();
+	const linkRow = () =>
+		pick(
+			db.prepare(`SELECT * FROM series_links WHERE series_id = ?`).get(seriesId) as
+				Record<string, unknown> | undefined,
+			LINK_COLUMNS
+		);
+	const facts: UnlinkFacts = {
+		seriesId,
+		at: now,
+		title: '',
+		season: season ?? null,
+		link: null,
+		decision: null,
+		parts: [],
+		mirror: null
+	};
 	if (isAnime(kindOf(seriesId))) {
 		const view = seriesSeasons(seriesId);
 		const list = view ? view.seasons.map((s) => s.season) : [0];
+		facts.mirror = linkRow();
 		for (const s of season === undefined ? list : [season]) {
 			const parts = view?.seasons.find((x) => x.season === s)?.parts.map((p) => p.part) ?? [1];
-			for (const p of parts) unlinkSeason(seriesId, s, p, now);
+			for (const p of parts) {
+				const link = pick(
+					db
+						.prepare(
+							`SELECT * FROM series_season_links WHERE series_id = ? AND season = ? AND part = ?`
+						)
+						.get(seriesId, s, p) as Record<string, unknown> | undefined,
+					SEASON_LINK_COLUMNS
+				);
+				const decision =
+					(db
+						.prepare(
+							`SELECT decision, at FROM season_link_decisions WHERE series_id = ? AND season = ? AND part = ?`
+						)
+						.get(seriesId, s, p) as Decision | undefined) ?? null;
+				facts.parts.push({ season: s, part: p, link, decision });
+				unlinkSeason(seriesId, s, p, now);
+			}
 		}
-		return;
+		facts.title = String(facts.parts.find((p) => p.link)?.link?.title ?? '');
+		return facts;
 	}
-	const db = getDb();
 	db.transaction(() => {
+		facts.link = linkRow();
+		facts.decision =
+			(db.prepare(`SELECT decision, at FROM link_decisions WHERE series_id = ?`).get(seriesId) as
+				Decision | undefined) ?? null;
 		db.prepare(`DELETE FROM series_links WHERE series_id = ?`).run(seriesId);
 		db.prepare(
 			`INSERT OR REPLACE INTO link_decisions (series_id, decision, at) VALUES (?, 'unlinked', ?)`
 		).run(seriesId, now);
 		clearAniSkip(seriesId, db);
+	})();
+	facts.title = String(facts.link?.title ?? '');
+	return facts;
+}
+
+/** Why an UNDO of UNLINK put nothing back: the band says it, and nothing changed. */
+export class UndoUnlinkRefused extends Error {}
+
+const sameLink = (a: TakenRow | null, b: TakenRow | null) =>
+	!!a &&
+	!!b &&
+	a.anilist_id === b.anilist_id &&
+	a.mal_id === b.mal_id &&
+	a.linked_at === b.linked_at;
+
+/** A posted row, read back as the columns it may carry and nothing else. */
+function rowFrom(r: unknown, cols: readonly string[]): TakenRow | null {
+	if (!r || typeof r !== 'object') return null;
+	const o = r as Record<string, unknown>;
+	const out: TakenRow = {};
+	for (const c of cols) {
+		const v = o[c];
+		if (v !== null && typeof v !== 'string' && typeof v !== 'number') return null;
+		out[c] = v ?? null;
+	}
+	// The tables' own CHECK on `via`: a posted word outside it is refused here,
+	// not by SQLite halfway through the UNDO.
+	const vias = cols.includes('episodes') ? SEASON_VIAS : VIAS;
+	return typeof out.linked_at === 'number' && vias.includes(out.via as string) ? out : null;
+}
+const VIAS = ['mihon', 'exact', 'review', 'pasted', 'list'];
+const SEASON_VIAS = [...VIAS, 'relations'];
+
+function decisionFrom(d: unknown): Decision | null {
+	if (!d || typeof d !== 'object') return null;
+	const o = d as Record<string, unknown>;
+	return (o.decision === 'none' || o.decision === 'unlinked') && typeof o.at === 'number'
+		? { decision: o.decision, at: o.at }
+		: null;
+}
+
+/**
+ * The band's facts, as posted: checked field by field, so UNDO writes only
+ * what an UNLINK of this series could have taken. Null when they are not.
+ */
+export function parseUnlinkFacts(raw: string, seriesId: number): UnlinkFacts | null {
+	let f: Record<string, unknown>;
+	try {
+		f = JSON.parse(raw) as Record<string, unknown>;
+	} catch {
+		return null;
+	}
+	if (!f || typeof f !== 'object' || f.seriesId !== seriesId || typeof f.at !== 'number')
+		return null;
+	const parts = Array.isArray(f.parts) ? f.parts : [];
+	const read = parts.map((p) => {
+		const o = (p ?? {}) as Record<string, unknown>;
+		return {
+			season: o.season,
+			part: o.part,
+			link: o.link == null ? null : rowFrom(o.link, SEASON_LINK_COLUMNS),
+			decision: o.decision == null ? null : decisionFrom(o.decision),
+			bad:
+				(o.link != null && !rowFrom(o.link, SEASON_LINK_COLUMNS)) ||
+				(o.decision != null && !decisionFrom(o.decision))
+		};
+	});
+	if (read.some((p) => p.bad || !Number.isInteger(p.season) || (p.part !== 1 && p.part !== 2)))
+		return null;
+	const link = f.link == null ? null : rowFrom(f.link, LINK_COLUMNS);
+	const mirror = f.mirror == null ? null : rowFrom(f.mirror, LINK_COLUMNS);
+	if ((f.link != null && !link) || (f.mirror != null && !mirror)) return null;
+	if (f.decision != null && !decisionFrom(f.decision)) return null;
+	return {
+		seriesId,
+		at: f.at,
+		title: typeof f.title === 'string' ? f.title : '',
+		season: Number.isInteger(f.season) ? (f.season as number) : null,
+		link,
+		decision: f.decision == null ? null : decisionFrom(f.decision),
+		parts: read.map((p) => ({
+			season: p.season as number,
+			part: p.part as number,
+			link: p.link,
+			decision: p.decision
+		})),
+		mirror
+	};
+}
+
+const insertRow = (
+	db: Database.Database,
+	table: string,
+	key: Record<string, number>,
+	row: TakenRow
+) => {
+	const cols = [...Object.keys(key), ...Object.keys(row)];
+	db.prepare(
+		`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`
+	).run(...Object.values(key), ...Object.values(row));
+};
+
+/**
+ * UNDO on UNLINK's band (c520): the rows the UNLINK took, back as they were,
+ * and its decision ("no pass asks again") gone with it, so the next pass
+ * treats the series as linked again. All or nothing, and never over a newer
+ * act: a link made since, or a decision since (NONE OF THESE, another UNLINK),
+ * refuses the whole UNDO. A second UNDO of the same facts finds its rows back
+ * and says so. AniSkip's marks, which UNLINK cleared, are fetched again on the
+ * next look as for any new link; they were never the owner's.
+ */
+export function undoUnlink(facts: UnlinkFacts): 'undone' {
+	const db = getDb();
+	const id = facts.seriesId;
+	return db.transaction(() => {
+		if (isAnime(kindOf(id))) {
+			const taken = facts.parts.filter((p) => p.link);
+			if (!taken.length) throw new UndoUnlinkRefused('NOTHING TO UNDO');
+			const now = taken.map((p) => ({
+				p,
+				link: pick(
+					db
+						.prepare(
+							`SELECT * FROM series_season_links WHERE series_id = ? AND season = ? AND part = ?`
+						)
+						.get(id, p.season, p.part) as Record<string, unknown> | undefined,
+					SEASON_LINK_COLUMNS
+				),
+				decision:
+					(db
+						.prepare(
+							`SELECT decision, at FROM season_link_decisions WHERE series_id = ? AND season = ? AND part = ?`
+						)
+						.get(id, p.season, p.part) as Decision | undefined) ?? null
+			}));
+			if (now.every((n) => sameLink(n.link, n.p.link)))
+				throw new UndoUnlinkRefused('ALREADY UNDONE');
+			for (const n of now)
+				if (n.link || n.decision?.decision !== 'unlinked' || n.decision.at !== facts.at)
+					throw new UndoUnlinkRefused('LINKED OR DECIDED AGAIN SINCE');
+			for (const p of facts.parts) {
+				// Only the UNLINK's own decision goes; the one it replaced comes back.
+				db.prepare(
+					`DELETE FROM season_link_decisions WHERE series_id = ? AND season = ? AND part = ?
+					AND decision = 'unlinked' AND at = ?`
+				).run(id, p.season, p.part, facts.at);
+				if (p.decision)
+					db.prepare(
+						`INSERT OR IGNORE INTO season_link_decisions (series_id, season, part, decision, at)
+						VALUES (?, ?, ?, ?, ?)`
+					).run(id, p.season, p.part, p.decision.decision, p.decision.at);
+				if (p.link)
+					insertRow(
+						db,
+						'series_season_links',
+						{ series_id: id, season: p.season, part: p.part },
+						p.link
+					);
+			}
+			// The mirror as it was (its score and filled rating are only its own),
+			// then brought in line with the seasons as they now are.
+			const mirrorNow = db.prepare(`SELECT 1 FROM series_links WHERE series_id = ?`).get(id);
+			if (facts.mirror && !mirrorNow)
+				insertRow(db, 'series_links', { series_id: id }, facts.mirror);
+			syncSeriesLink(id, facts.at);
+			return 'undone' as const;
+		}
+		if (!facts.link) throw new UndoUnlinkRefused('NOTHING TO UNDO');
+		const link = pick(
+			db.prepare(`SELECT * FROM series_links WHERE series_id = ?`).get(id) as
+				Record<string, unknown> | undefined,
+			LINK_COLUMNS
+		);
+		if (sameLink(link, facts.link)) throw new UndoUnlinkRefused('ALREADY UNDONE');
+		const decision =
+			(db.prepare(`SELECT decision, at FROM link_decisions WHERE series_id = ?`).get(id) as
+				Decision | undefined) ?? null;
+		if (link || decision?.decision !== 'unlinked' || decision.at !== facts.at)
+			throw new UndoUnlinkRefused('LINKED OR DECIDED AGAIN SINCE');
+		db.prepare(`DELETE FROM link_decisions WHERE series_id = ?`).run(id);
+		if (facts.decision)
+			db.prepare(`INSERT INTO link_decisions (series_id, decision, at) VALUES (?, ?, ?)`).run(
+				id,
+				facts.decision.decision,
+				facts.decision.at
+			);
+		insertRow(db, 'series_links', { series_id: id }, facts.link);
+		return 'undone' as const;
 	})();
 }
 

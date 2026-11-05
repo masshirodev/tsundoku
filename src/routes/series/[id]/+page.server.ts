@@ -7,7 +7,13 @@ import { getDb } from '$lib/server/db';
 import { ocrPlace, restoreNotText, setSeriesOcr } from '$lib/server/japanese/ocr';
 import { wordsOf } from '$lib/server/japanese/mining';
 import { decide, twinOf } from '$lib/server/dupes';
-import { linkState, unlink } from '$lib/server/catalogue';
+import {
+	linkState,
+	parseUnlinkFacts,
+	undoUnlink,
+	UndoUnlinkRefused,
+	unlink
+} from '$lib/server/catalogue';
 import { seriesSeasons } from '$lib/server/season-links';
 import { unlinkSeries } from '$lib/server/ranobe';
 import { ranobeSeries, retryRanobe } from '$lib/server/ranobe-review';
@@ -468,7 +474,25 @@ export const actions: Actions = {
 	// field is no season, and 0 is a real one.
 	unlink: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
-		unlink(s.id, Date.now(), seasonOf(await request.formData()).season);
+		const unlinked = unlink(s.id, Date.now(), seasonOf(await request.formData()).season);
+		recover([s.id]);
+		// The band's UNDO carries what went (c520): every column, keyed by the
+		// series and its season and part, posted back to ?/undoUnlink.
+		return { unlinked };
+	},
+
+	// UNDO on UNLINK's band (c520): the link back exactly as it was, or a
+	// refusal in the band's words when something linked or decided since.
+	undoUnlink: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		const facts = parseUnlinkFacts(String((await request.formData()).get('facts') ?? ''), s.id);
+		if (!facts) return fail(400, { message: 'NOTHING TO UNDO' });
+		try {
+			undoUnlink(facts);
+		} catch (e) {
+			if (e instanceof UndoUnlinkRefused) return fail(409, { message: e.message });
+			throw e;
+		}
 		recover([s.id]);
 		return { ok: true };
 	},
