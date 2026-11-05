@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { devices, type Browser, type Page, type TestInfo } from '@playwright/test';
-import { expect, test, readerReady } from './fixtures';
+import { expect, hydrated, test, readerReady } from './fixtures';
 import { E2E_TOKEN } from '../playwright.config';
 
 /**
@@ -219,6 +219,11 @@ async function makeWork(page: Page, first: string, second: string): Promise<numb
 	// by a shared name would match the wrong one.
 	const name = `Frame Run ${++madeWorks}`;
 	await page.goto('/');
+	// A page of this file's own context: its `goto` is Playwright's, with
+	// none of the fixtures' hydration wait, and SELECT pressed before the
+	// page hydrated did nothing, so GROUP never came (c439: the hook ran out
+	// its 120 s in wave 25's loaded run).
+	await hydrated(page);
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
 	await tile(page, first).locator('.open').click();
 	await tile(page, second).locator('.open').click();

@@ -4,7 +4,7 @@ import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Browser, TestInfo } from '@playwright/test';
-import { expect, test } from './fixtures';
+import { expect, hydrated, test } from './fixtures';
 import { E2E_TOKEN } from '../playwright.config';
 
 /**
@@ -104,6 +104,11 @@ test.beforeAll(async ({ browser }, info) => {
 	// the top of CONTINUE. They are only this file's: the database is its own.
 	const { page, close } = await signedIn(browser, info);
 	await page.goto('/');
+	// A page of this file's own context: its `goto` is Playwright's, with
+	// none of the fixtures' hydration wait, and SELECT pressed before the
+	// page hydrated did nothing, so GROUP never came (c439: the hook ran out
+	// its 120 s in wave 25's loaded run).
+	await hydrated(page);
 	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
 	const tile = (title: string) =>
 		page.locator('.grid .tile').filter({
