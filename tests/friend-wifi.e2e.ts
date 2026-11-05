@@ -42,27 +42,41 @@ test('ON shows a code, the address in text, and what typing it does', async ({ p
 		.getByRole('button', { name: 'ON' })
 		.click();
 	await expect(page.getByRole('img', { name: 'Pairing code' })).toBeVisible();
-	await expect(page.getByText("SCAN WITH THE PHONE'S CAMERA")).toBeVisible();
-	// The handoff's measurements (Wifi.dc.html, "on"), pinned so a tidy-up can't redraw them:
-	// the code's inverse cell, its column, the switch's height.
+	await expect(page.getByText("FOR A BROWSER · THE PHONE'S CAMERA")).toBeVisible();
+	// The handoff's measurements (Wifi.dc.html, "on", and since c521
+	// PhoneApp-Computer.dc.html), pinned so a tidy-up can't redraw them: the
+	// address line over both ways in, the app's digits and the browser's QR
+	// side by side, the QR's inverse cell, the switch's height.
 	const box = async (sel: string) => (await page.locator(sel).first().boundingBox())!;
-	expect(await box('.pair .qr')).toMatchObject({ width: 273, height: 273 });
-	expect((await box('.pair .pair-code')).width).toBe(321);
+	await expect(page.locator('.pair-addr .pk')).toHaveText("THIS COMPUTER'S ADDRESS");
+	expect(await box('.pair .qr')).toMatchObject({ width: 182, height: 182 });
+	const app = await box('.pair .pair-tv');
+	const browser = await box('.pair .pair-code');
+	expect(browser.y).toBe(app.y);
+	expect(browser.x).toBeGreaterThan(app.x);
+	expect((await box('.pair-addr')).y).toBeLessThan(app.y);
 	expect((await box('.wifi-seg')).height).toBe(52);
 	expect((await box('.pair-foot')).height).toBeGreaterThanOrEqual(52);
-	await expect(page.getByText(/GOOD FOR \d MIN · SIGNS IN ONE PHONE, ONCE/)).toBeVisible();
-	// A TV's six digits beside the phone's QR (c236; doc/TV.md): two threes,
-	// under a FOR A TV label, with a countdown of its own.
-	await expect(page.getByText('FOR A TV · SIX DIGITS')).toBeVisible();
+	await expect(page.getByText(/GOOD FOR \d MIN · EACH SIGNS IN ONE DEVICE, ONCE/)).toBeVisible();
+	// The app's six digits beside the browser's QR (c236, c521): two threes,
+	// under a FOR THE APP label, with a countdown of its own.
+	await expect(page.getByText('FOR THE APP · SIX DIGITS')).toBeVisible();
 	const threes = page.locator('.pair-tv .tvcode span');
 	await expect(threes).toHaveCount(2);
 	for (const three of await threes.all()) expect(await three.textContent()).toMatch(/^\d{3}$/);
-	await expect(page.getByText(/GOOD FOR \d MIN · ONE TV, ONCE/)).toBeVisible();
+	await expect(page.getByText(/GOOD FOR \d MIN · ONE DEVICE, ONCE/)).toBeVisible();
 	const w = await wifi(request);
 	expect(w.on).toBe(true);
 	expect(w.phone).toMatch(new RegExp(`^http://(10|172|192)\\.[\\d.]+:${FRIEND_PORT}$`));
-	await expect(page.getByText(w.phone!, { exact: true })).toBeVisible();
-	await expect(page.getByText(/WITH NO PASSWORD SET, ONLY A CODE SIGNS IN/)).toBeVisible();
+	// The address is written as the app types it, without the scheme (c521).
+	await expect(page.locator('.pair-addr .paddr')).toHaveText(w.phone!.replace(/^http:\/\//, ''));
+	await expect(page.locator('.pair-addr .pnote')).toHaveText(
+		'THE APP TAKES ITS LAST NUMBER · A BROWSER TAKES ALL OF IT'
+	);
+	// What typing it in a browser does, for a phone without the app.
+	await expect(
+		page.getByText(/Typing the address in its browser opens the sign-in page/)
+	).toBeVisible();
 });
 
 /**
@@ -83,7 +97,7 @@ test('a TV code burned on /pair/tv stays BURNED on the open panel until NEW CODE
 		(await (await request.get(`${local}/api/pair/tv`)).json()) as { code: string; state: string };
 	await page.goto('/settings#s-devices');
 	await hydrated(page);
-	await expect(page.getByLabel('Pairing code for a TV')).toBeVisible();
+	await expect(page.getByLabel('Pairing code for the app')).toBeVisible();
 	const { code, state } = await onComputer();
 	expect(state).toBe('live');
 
@@ -108,7 +122,7 @@ test('a TV code burned on /pair/tv stays BURNED on the open panel until NEW CODE
 	// The panel's own poll notices, and draws the burn rather than a new code.
 	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('BURNED', { timeout: 15_000 });
 	await expect(page.getByText('NO TRIES LEFT · MAKE A NEW CODE')).toBeVisible();
-	await expect(page.getByLabel('Pairing code for a TV')).toHaveCount(0);
+	await expect(page.getByLabel('Pairing code for the app')).toHaveCount(0);
 
 	// Two more polls, 10 s: each answered, and the server still holds the same
 	// burned code. Read from the server, not from the page.
@@ -121,7 +135,7 @@ test('a TV code burned on /pair/tv stays BURNED on the open panel until NEW CODE
 
 	// NEW CODE is what brings live digits back, and they are new ones.
 	await page.locator('.pair-foot').getByRole('button', { name: 'NEW CODE' }).click();
-	await expect(page.getByLabel('Pairing code for a TV')).toBeVisible();
+	await expect(page.getByLabel('Pairing code for the app')).toBeVisible();
 	const next = await onComputer();
 	expect(next.state).toBe('live');
 	expect(next.code).not.toBe(code);

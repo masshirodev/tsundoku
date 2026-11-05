@@ -26,7 +26,7 @@ process.env.DATABASE_PATH = ':memory:';
 
 /** The table the TV app's ForgetTest reads too, so the two derivations agree. */
 const TABLE = readFileSync(
-	join(process.cwd(), 'android/tv/app/src/test/resources/paired-cookies.tsv'),
+	join(process.cwd(), 'android/app/src/test/resources/paired-cookies.tsv'),
 	'utf8'
 )
 	.split('\n')

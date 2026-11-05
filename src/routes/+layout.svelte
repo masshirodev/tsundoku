@@ -30,6 +30,7 @@
 	import StalledBand from '$lib/components/waiting/StalledBand.svelte';
 	import SaveBand from '$lib/components/waiting/SaveBand.svelte';
 	import SeriesOutline from './series/[id]/SeriesOutline.svelte';
+	import { followSurface } from '$lib/app/surface';
 
 	let { data, children } = $props();
 
@@ -48,6 +49,10 @@
 		if (data.computer && typeof bridge?.named === 'function')
 			bridge.named(location.origin, data.computer);
 	});
+
+	// The phone app's camera band takes the page's colour, dark or light, and
+	// follows a theme switched in place (c521; src/lib/app/surface.ts).
+	onMount(() => followSurface());
 
 	// The scan action's refusal is drawn by the empty library only, so the
 	// sidebar's RESCAN says it in its own place rather than nowhere. A scan

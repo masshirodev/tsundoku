@@ -73,7 +73,7 @@ export const pairing = new Pairing();
  * https (`tsundoku_paired_42143`, `tsundoku_paired_s443`). The host is not
  * needed, since the jar keeps one set per host already. The TV app derives the
  * same name for FORGET (`Forget.pairedCookie`); both read
- * `android/tv/app/src/test/resources/paired-cookies.tsv`.
+ * `android/app/src/test/resources/paired-cookies.tsv`.
  *
  * The URL is the request's own (`event.url`): built from `ORIGIN` on a served
  * instance and from the Host header under `vite` and on the Wi-Fi listeners,

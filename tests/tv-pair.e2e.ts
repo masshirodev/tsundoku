@@ -138,7 +138,7 @@ test('with no WI-FI panel, DEVICES shows the TV’s six digits', async ({ page, 
 	const row = page.locator('#s-devices .row.wifi');
 	await expect(row).toBeVisible();
 	const panel = row.locator('.pair-tv');
-	await expect(panel.getByText('FOR A TV · SIX DIGITS')).toBeVisible();
+	await expect(panel.getByText('FOR THE APP · SIX DIGITS')).toBeVisible();
 	// No WI-FI row on this install: there is no Wi-Fi panel to carry the code.
 	await expect(page.getByRole('group', { name: 'Other devices on this Wi-Fi' })).toHaveCount(0);
 
@@ -146,12 +146,14 @@ test('with no WI-FI panel, DEVICES shows the TV’s six digits', async ({ page, 
 	await expect(threes).toHaveCount(2);
 	const shown = (await threes.allTextContents()).join('');
 	expect(shown).toMatch(/^\d{6}$/);
-	await expect(panel).toContainText(/GOOD FOR \d+ MIN · ONE TV, ONCE/);
+	await expect(panel).toContainText(/GOOD FOR \d+ MIN · ONE DEVICE, ONCE/);
 	// This row shows no address and a tailnet TV types the whole one (9B), so
 	// the panel's "last number" shortcut is not what this block says.
 	await expect(panel.locator('.pnote')).toHaveText(
-		'TYPE THE WHOLE ADDRESS ON THE TV, THEN THESE SIX'
+		'TYPE THE WHOLE ADDRESS IN THE APP ON A TV, PHONE OR TABLET, THEN THESE SIX'
 	);
+	// And writes that whole address out (c521): the instance's public origin.
+	await expect(panel.locator('.whole .wa')).toHaveText(/^https?:\/\/\S+$/);
 	// The page's data is the code: the computer's own route agrees with it.
 	expect((await tvCode(request)).code).toBe(shown);
 

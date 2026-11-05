@@ -13,7 +13,7 @@ import { chosenLocale, LANG_COOKIE, type LangChoice } from '$lib/i18n/locale';
 import { m } from '$lib/paraglide/messages';
 import { linkQueueCount } from '$lib/server/catalogue';
 import { ranobeQueueCount } from '$lib/server/ranobe-review';
-import { isTvApp } from '$lib/settings/catalog';
+import { isTsundokuApp } from '$lib/settings/catalog';
 import { scanWaitsLine } from '$lib/server/import';
 
 export const load: LayoutServerLoad = async ({ cookies, locals, depends, request }) => {
@@ -78,10 +78,11 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends, request
 	// The library's own sum, so the row and the band never disagree; about a
 	// millisecond on the seed, both catalogues and either reveal (wave 21).
 	const toLink = linkQueueCount(reveal) + ranobeQueueCount();
-	// The TV app's name for this computer (c261): what /pair/tv calls it, said
+	// The app's name for this computer (c261): what /pair/tv calls it, said
 	// to the app's bridge by the layout so a server paired before the list
-	// existed gets its name too. Only the app is told; it is the only reader.
-	const computer = isTvApp(request.headers.get('user-agent') ?? '')
+	// existed gets its name too. Only the app is told, on a TV or a phone
+	// (c521); it is the only reader.
+	const computer = isTsundokuApp(request.headers.get('user-agent') ?? '')
 		? (hostname() || 'computer').toUpperCase()
 		: null;
 	return {

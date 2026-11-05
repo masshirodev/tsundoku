@@ -192,7 +192,8 @@ describe('a TV code (doc/TV.md)', () => {
 	it('names a TV a TV in DEVICES, not an Android tablet', () => {
 		const ua =
 			'Mozilla/5.0 (Linux; Android 9; BRAVIA 4K GB Build/PTT1.190515.001.S52) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/94.0.4606.80 Mobile Safari/537.36 TsundokuTV/1.0.0';
-		expect(pairedLabel(ua)).toBe('Android TV · Chrome');
+		// The app says itself and its version where a browser's name was (c521).
+		expect(pairedLabel(ua)).toBe('Android TV · app 1.0.0');
 		// The phone's own label is unchanged.
 		expect(pairedLabel('Mozilla/5.0 (Linux; Android 14; Pixel 7) Mobile Safari Chrome/131')).toBe(
 			'Android phone · Chrome'
@@ -214,7 +215,7 @@ describe("the TV app's user agent (doc/TV-APP.md)", () => {
 	it('names the row a TV, whatever kind the page said of itself', () => {
 		// /api/devices/sync reads the same user agent and stores the row as a TV
 		// (c244): the page's own kind is only what its screen can say.
-		expect(deviceLabel(tv, isTvApp(tv) ? 'tv' : 'desktop')).toBe('Android TV · Chrome');
+		expect(deviceLabel(tv, isTvApp(tv) ? 'tv' : 'desktop')).toBe('Android TV · app 1.0.0');
 	});
 });
 

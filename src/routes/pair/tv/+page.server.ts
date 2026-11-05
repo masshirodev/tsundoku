@@ -1,6 +1,7 @@
 import { hostname } from 'node:os';
 import { redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
+import { appDevice } from '$lib/settings/catalog';
 import {
 	PAIRED_COOKIE_OPTIONS,
 	addPaired,
@@ -46,11 +47,21 @@ const ensureCode = (now: number) => tvPairing.renewForTv(now);
  */
 const shown = (now: number) => tvPairing.state(now);
 
-export const load: PageServerLoad = ({ cookies, url }) => {
+export const load: PageServerLoad = ({ cookies, url, request }) => {
 	const now = Date.now();
+	// The TV's, or the phone app's on a phone or a tablet (c521): the words
+	// and the layout follow it; the code, the cookie and every rule do not.
+	const device = appDevice(request.headers.get('user-agent') ?? '');
 	const paired = readPaired(cookies, url, (t) => pairedBy(t));
 	if (paired)
-		return { step: 'paired' as const, host: url.host, name: computerName(), state: null, left: 0 };
+		return {
+			step: 'paired' as const,
+			host: url.host,
+			name: computerName(),
+			state: null,
+			left: 0,
+			device
+		};
 
 	ensureCode(now);
 	// What the last try said (the redirect below): a band over the digits.
@@ -64,7 +75,8 @@ export const load: PageServerLoad = ({ cookies, url }) => {
 		name: computerName(),
 		state: shown(now),
 		left,
-		result
+		result,
+		device
 	};
 };
 

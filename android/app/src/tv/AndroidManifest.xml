@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+	The TV app's own (c236; doc/TV-APP.md): a leanback entry so it sits on the
+	TV's home row, the wordmark banner (drawn from banner/tv-banner.svg), and
+	landscape, which is all a TV is. Merged over src/main's.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+	xmlns:tools="http://schemas.android.com/tools">
+
+	<uses-feature
+		android:name="android.software.leanback"
+		android:required="false" />
+
+	<application android:banner="@drawable/tv_banner">
+		<activity
+			android:name=".MainActivity"
+			android:screenOrientation="landscape"
+			tools:node="merge">
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+			</intent-filter>
+		</activity>
+	</application>
+
+</manifest>

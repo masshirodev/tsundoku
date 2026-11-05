@@ -952,6 +952,43 @@ export function scopeLabel(row: RowDef, device: string): string {
 export const isTvApp = (ua: string) => /TsundokuTV\//i.test(ua);
 
 /**
+ * tsundoku's own Android app, on a TV (`TsundokuTV/<version>`) or on a phone or
+ * tablet (`TsundokuApp/<version>`, c521; doc/PHONE-APP.md). Being the app is a
+ * flag beside the device's kind, never a kind of its own: a phone in the app
+ * is still a phone, as its screen says.
+ */
+export const isTsundokuApp = (ua: string) => /Tsundoku(?:TV|App)\//i.test(ua);
+
+/**
+ * Which device the app's own pages are talking to, for their words and layout
+ * (c521): `/pair/tv` is the TV's and the phone app's 9C and 9E. Only the phone
+ * app's token makes a phone or a tablet, told apart as `pairedLabel` does (an
+ * Android WebView says Mobile on a phone, never on a tablet); the TV app, and
+ * anything else that opens the page, is the TV the page was drawn for.
+ */
+export function appDevice(ua: string): 'tv' | 'phone' | 'tablet' {
+	if (!/TsundokuApp\//i.test(ua)) return 'tv';
+	return /iPad|Tablet/i.test(ua) || (/Android/i.test(ua) && !/Mobile/i.test(ua))
+		? 'tablet'
+		: 'phone';
+}
+
+/** The app's version from its user agent token ("2026.11.05"), or "" for a browser. */
+export const appVersion = (ua: string) => /Tsundoku(?:TV|App)\/([^\s;)]+)/i.exec(ua)?.[1] ?? '';
+
+/**
+ * Whether a DEVICES row's stored label is the app's: what deviceLabel writes
+ * for it ("Android phone · app 2026.11.05"). The label is the server's own
+ * words, so this reads back exactly what it wrote, and an older row (a
+ * browser's, or the TV's "Android TV · Chrome" from before c521) is not.
+ */
+export const isAppLabel = (label: string) => / · app(?: |$)/.test(label);
+
+/** A DEVICES row's label cell: the kind, plus · APP for the app's (PHONE · APP, TV · APP; c521). */
+export const deviceWord = (kind: DeviceKind, label: string) =>
+	isAppLabel(label) ? `${kind.toUpperCase()} · APP` : kind.toUpperCase();
+
+/**
  * The kind of device a browser is: what its row in DEVICES is called. The
  * screen says phone, tablet or desktop; only the app's own user agent says TV
  * (doc/TV-APP.md). A wide page with no pointer is not enough — an unplugged
@@ -966,7 +1003,10 @@ export function deviceKind(o: { width: number; coarse: boolean; ua?: string }): 
 /**
  * "Android tablet · Chrome", from the browser's own words. `tv` is the TV
  * app's own user agent (doc/TV-APP.md), so a paired or synced TV reads as a TV
- * in DEVICES.
+ * in DEVICES. The app, on any screen, says the app and its version where a
+ * browser's name would be: "Android phone · app 2026.11.05" (c521; the design's
+ * DEVICES, PhoneApp-Calls.dc.html), since inside the app the browser is the
+ * WebView, which is no browser anybody chose.
  */
 export function deviceLabel(ua: string, kind: DeviceKind): string {
 	const os = /Android/i.test(ua)
@@ -991,7 +1031,9 @@ export function deviceLabel(ua: string, kind: DeviceKind): string {
 					: 'browser';
 	// A TV is an initialism, not a word: "Android TV", never "Android tv".
 	const word = kind === 'tv' ? 'TV' : kind;
-	return `${os ? `${os} ${word}` : word[0].toUpperCase() + word.slice(1)} · ${browser}`;
+	const version = appVersion(ua);
+	const by = isTsundokuApp(ua) ? (version ? `app ${version}` : 'app') : browser;
+	return `${os ? `${os} ${word}` : word[0].toUpperCase() + word.slice(1)} · ${by}`;
 }
 
 /** How many of a device's own rows are off their defaults: "4 CHANGED HERE", a DEVICES row's count. */

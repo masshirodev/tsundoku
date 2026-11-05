@@ -76,6 +76,7 @@
 	import { OnePointer } from '$lib/reader/pointer';
 	import PageImage from './PageImage.svelte';
 	import Chrome from './Chrome.svelte';
+	import { drawUnderCamera } from '$lib/app/surface';
 	import ReadingSheet from './ReadingSheet.svelte';
 	import EndPage from './EndPage.svelte';
 	import Strip from './Strip.svelte';
@@ -155,6 +156,11 @@
 		crop = stored('crop', false);
 		blocksShown = stored<BlocksShown>('blocks', 'controls');
 	});
+
+	// The phone app draws the pages under the camera while the reader is open,
+	// and pads again when it closes (c521; the top bar keeps out of the band
+	// itself, Chrome.svelte).
+	onMount(() => drawUnderCamera());
 
 	const landscape = new MediaQuery('(orientation: landscape)', false);
 

@@ -64,6 +64,13 @@ const DEVICE_IGNORE = [
 // tablet-landscape's 440px side panel.
 const DESKTOP_ONLY = ['**/import-frame.e2e.ts'];
 const TABLET_LANDSCAPE_ONLY = ['**/series-lists-frame.e2e.ts'];
+// The phone app's specs (c521; doc/PHONE-APP.md) set their own viewports, a
+// phone's and a tablet's, so they run once, in the phone project.
+const PHONE_ONLY = [
+	'**/phone-app-pair.e2e.ts',
+	'**/phone-pair-route.e2e.ts',
+	'**/phone-app-reader.e2e.ts'
+];
 
 // The projects are the devices the design system names: the tablet the library
 // is read on, in both orientations, and a phone. A frame assertion that holds
@@ -173,7 +180,8 @@ export default defineConfig({
 				// The Works flow seeds and serves its own database: `works-flow`.
 				'**/works-flow.e2e.ts',
 				...DESKTOP_ONLY,
-				...TABLET_LANDSCAPE_ONLY
+				...TABLET_LANDSCAPE_ONLY,
+				...PHONE_ONLY
 			],
 			use: { ...devices['Galaxy Tab S4'], viewport: { width: 800, height: 1280 } }
 		},
@@ -182,7 +190,7 @@ export default defineConfig({
 		// extracted at; the other devices are covered by library-layout.e2e.ts.
 		{
 			name: 'tablet-landscape',
-			testIgnore: [...DEVICE_IGNORE, ...DESKTOP_ONLY],
+			testIgnore: [...DEVICE_IGNORE, ...DESKTOP_ONLY, ...PHONE_ONLY],
 			use: { ...devices['Galaxy Tab S4 landscape'], viewport: { width: 1280, height: 800 } }
 		},
 		{
@@ -192,7 +200,7 @@ export default defineConfig({
 		},
 		{
 			name: 'desktop',
-			testIgnore: [...DEVICE_IGNORE, ...TABLET_LANDSCAPE_ONLY],
+			testIgnore: [...DEVICE_IGNORE, ...TABLET_LANDSCAPE_ONLY, ...PHONE_ONLY],
 			use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } }
 		},
 		{

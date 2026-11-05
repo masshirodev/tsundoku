@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+	<!--
+		The light theme, while the phone is set to light: the page's paper,
+		oklch(0.965 0.006 95) in src/lib/styles/colors.css, the #f5f4ef the web app's own theme-color meta says (src/routes/+layout.svelte).
+		See values/themes.xml.
+	-->
+	<style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+		<item name="android:windowBackground">@color/page</item>
+		<item name="android:colorBackground">@color/page</item>
+		<item name="android:windowFullscreen">true</item>
+		<item name="android:statusBarColor">@color/page</item>
+		<item name="android:navigationBarColor">@color/page</item>
+		<item name="android:windowActionModeOverlay">true</item>
+	</style>
+	<color name="page">#f5f4ef</color>
+</resources>

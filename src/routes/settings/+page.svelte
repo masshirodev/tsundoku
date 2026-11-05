@@ -20,6 +20,7 @@
 		VALUES,
 		deviceChanged,
 		deviceName,
+		deviceWord,
 		equal,
 		isChanged,
 		movesLine,
@@ -1338,19 +1339,22 @@
 {/snippet}
 
 {#snippet tvRow(t: Tv | null)}
-	<!-- A TV's six digits where there is no WI-FI panel to carry them (c245;
+	<!-- The app's six digits where there is no WI-FI panel to carry them (c245;
 	     doc/WIFI.md): the owner's tailnet install. The block is the pairing
-	     panel's own, without the phone's QR. With no code at all (a restart,
-	     until a visit or a TV makes one) the row is still drawn, with NEW CODE. -->
+	     panel's own, without the browser's QR; since c521 it is the app's, on a
+	     TV, a phone or a tablet, and it writes out the whole address the app
+	     types, since a tailnet install has no last-number shortcut
+	     (PhoneApp-Computer.dc.html). With no code at all (a restart, until a
+	     visit or the app makes one) the row is still drawn, with NEW CODE. -->
 	{@const live = !!t && tvLive(t)}
 	{@const mins = t ? tvMinutes(t) : 0}
 	<div class="row wifi">
-		<div class="label top">TV</div>
+		<div class="label top">THE APP</div>
 		<div class="ctl col">
 			<div class="pair-tv">
-				<div class="pk">FOR A TV · SIX DIGITS</div>
+				<div class="pk ink">FOR THE APP · SIX DIGITS</div>
 				{#if t && live}
-					<div class="tvcode" aria-label="Pairing code for a TV">
+					<div class="tvcode" aria-label="Pairing code for the app">
 						<span>{t.code.slice(0, 3)}</span><span>{t.code.slice(3)}</span>
 					</div>
 				{:else if !t}
@@ -1362,15 +1366,22 @@
 						{t.state === 'used' ? '✓ USED' : t.state === 'burned' ? 'BURNED' : 'EXPIRED'}
 					</div>
 				{/if}
-				<div class="pnote">TYPE THE WHOLE ADDRESS ON THE TV, THEN THESE SIX</div>
+				<div class="pnote">
+					TYPE THE WHOLE ADDRESS IN THE APP ON A TV, PHONE OR TABLET, THEN THESE SIX
+				</div>
+				{#if data.appOrigin}
+					<div class="whole">
+						<span class="pk">THE WHOLE ADDRESS</span><span class="wa">{data.appOrigin}</span>
+					</div>
+				{/if}
 				{#if live}
-					<div class="tvline">
+					<div class="tvline ink">
 						{mins > 0
-							? `GOOD FOR ${mins} MIN · ONE TV, ONCE`
-							: 'UNDER A MINUTE LEFT · ONE TV, ONCE'}
+							? `GOOD FOR ${mins} MIN · ONE DEVICE, ONCE`
+							: 'UNDER A MINUTE LEFT · ONE DEVICE, ONCE'}
 					</div>
 				{:else if t?.state === 'used'}
-					<div class="tvline">✓ USED · ONE TV, ONCE</div>
+					<div class="tvline">✓ USED · ONE DEVICE, ONCE</div>
 				{:else if t?.state === 'burned'}
 					<div class="tvline">NO TRIES LEFT · MAKE A NEW CODE</div>
 				{:else if !t}
@@ -1396,23 +1407,67 @@
 {/snippet}
 
 {#snippet pairingPanel(w: Wifi, starting: boolean)}
+	<!-- A friend's install with WI-FI on (c188; doc/WIFI.md), rearranged around
+	     one address for c521 (PhoneApp-Computer.dc.html): THIS COMPUTER'S
+	     ADDRESS across the top, since both ways in start from it, then the two
+	     ways side by side: FOR THE APP (the six digits, first and larger) and
+	     FOR A BROWSER (the QR, for a phone without the app). -->
 	{@const c = w.code}
 	{@const noAddr = !starting && w.reach === 'none'}
+	{@const ready = !starting && !noAddr}
 	<div class="pair" aria-label="Pairing">
 		{#if w.changed}
 			<div class="pair-band" role="status">
 				<div class="pa">THE ADDRESS CHANGED · {w.changed.from} → {w.changed.to}</div>
 				<div class="pb">
-					THE ROUTER GAVE THIS COMPUTER A NEW ONE · PHONES PAIRED AT THE OLD ONE FIND NOTHING THERE:
-					SCAN THIS CODE AGAIN
+					THE ROUTER GAVE THIS COMPUTER A NEW ONE · DEVICES PAIRED AT THE OLD ONE FIND NOTHING
+					THERE: PAIR THEM AGAIN
 				</div>
 			</div>
 		{/if}
-		<div class="pair-main">
+		{#if w.phone && ready}
+			<div class="pair-addr">
+				<div class="pk">THIS COMPUTER'S ADDRESS</div>
+				<div class="paddr">{w.phone.replace(/^https?:\/\//, '')}</div>
+				<div class="pnote">THE APP TAKES ITS LAST NUMBER · A BROWSER TAKES ALL OF IT</div>
+			</div>
+		{/if}
+		<div class="pair-main" class:one={!(w.tv && ready)}>
+			{#if w.tv && ready}
+				<!-- The digits typed in tsundoku's own app, on a TV, a phone or a
+				     tablet (c236, c521; doc/TV.md, doc/PHONE-APP.md). -->
+				<div class="pair-tv">
+					<div class="pk ink">FOR THE APP · SIX DIGITS</div>
+					{#if w.tv.state === 'live'}
+						<div class="tvcode" aria-label="Pairing code for the app">
+							<span>{w.tv.code.slice(0, 3)}</span><span>{w.tv.code.slice(3)}</span>
+						</div>
+					{:else}
+						<!-- The poll reads the code as it is (c460): a burned one stays
+						     BURNED until NEW CODES, as on the DEVICES row (c265). -->
+						<div class="tvcode dim">
+							{w.tv.state === 'used' ? '✓ USED' : w.tv.state === 'burned' ? 'BURNED' : 'EXPIRED'}
+						</div>
+					{/if}
+					<div class="ph">Typed in tsundoku's own app, on a TV, a phone or a tablet</div>
+					<div class="pnote">
+						THE ADDRESS'S LAST NUMBER, THEN THESE SIX · FIVE WRONG TRIES BURN THEM
+					</div>
+					{#if w.tv.state === 'live'}
+						<div class="tvline ink">GOOD FOR {w.tv.minutes} MIN · ONE DEVICE, ONCE</div>
+					{:else if w.tv.state === 'used'}
+						<div class="tvline ink">✓ USED · ONE DEVICE, ONCE</div>
+					{:else if w.tv.state === 'burned'}
+						<div class="tvline">NO TRIES LEFT · MAKE A NEW CODE</div>
+					{:else}
+						<div class="tvline">EXPIRED · MAKE A NEW CODE</div>
+					{/if}
+				</div>
+			{/if}
 			<div class="pair-code">
-				{#if c && c.state === 'live' && !starting && !noAddr}
+				{#if c && c.state === 'live' && ready}
 					<div class="qr">
-						<QrCode text={c.url} size={225} label="Pairing code" />
+						<QrCode text={c.url} size={150} label="Pairing code for a phone's browser" />
 					</div>
 				{:else}
 					<div class="qr-empty">
@@ -1436,8 +1491,6 @@
 						</div>
 					</div>
 				{/if}
-			</div>
-			<div class="pair-side">
 				<div class="pair-text">
 					{#if starting && w.firstTime}
 						<div class="pk">WINDOWS WILL ASK, ONCE</div>
@@ -1449,102 +1502,68 @@
 					{:else if starting}
 						<div class="pk">STARTING</div>
 						<div class="ph">tsundoku starts listening on the Wi-Fi</div>
-						<div class="pbody">The code appears here in a few seconds.</div>
+						<div class="pbody">The codes appear here in a few seconds.</div>
 					{:else if noAddr}
 						<div class="pk">NO HOME-NETWORK ADDRESS</div>
 						<div class="ph">This computer isn't on a Wi-Fi right now</div>
 						<div class="pbody">
 							Connect it to the Wi-Fi the phone uses, or by cable to the router. It keeps looking,
-							and the code appears here by itself.
+							and the codes appear here by themselves.
 						</div>
 					{:else if c?.state === 'used'}
 						<div class="pk ink">✓ SIGNED IN · {when(c.usedAt ?? Date.now())}</div>
 						<div class="ph">{c.usedBy}</div>
 						<div class="pbody">
-							It's in the list below. For another phone or a tablet, make a new code.
+							It's in the list below. For another phone's browser, make new codes.
 						</div>
 					{:else if c?.state === 'expired'}
 						<div class="pk">EXPIRED</div>
 						<div class="ph">This code went unscanned for 10 minutes</div>
-						<div class="pbody">Make a new one, then scan it with the phone within 10 minutes.</div>
+						<div class="pbody">Make new ones, then scan it with the phone within 10 minutes.</div>
 					{:else}
-						<div class="pk">SCAN WITH THE PHONE'S CAMERA</div>
-						<div class="ph">It opens tsundoku on the phone, signed in</div>
+						<div class="pk">FOR A BROWSER · THE PHONE'S CAMERA</div>
+						<div class="ph">Opens tsundoku in the phone's browser, signed in</div>
 						<div class="pbody">
-							Point the camera at the code and tap the link it shows. The phone has to be on the
-							same Wi-Fi as this computer.
+							For a phone without the app. Typing the address in its browser opens the sign-in page
+							instead{data.signIn?.kind === 'password'
+								? ', where your password signs in, as here'
+								: ''}.
 						</div>
-					{/if}
-				</div>
-				{#if w.phone && !starting && !noAddr}
-					<div class="pair-addr">
-						<div class="pk">OR TYPE THIS ON THE PHONE</div>
-						<div class="paddr">{w.phone}</div>
-						<div class="pnote">
-							{data.signIn?.kind === 'password'
-								? 'OPENS THE SIGN-IN PAGE · YOUR PASSWORD SIGNS IN, AS HERE'
-								: 'OPENS THE SIGN-IN PAGE · WITH NO PASSWORD SET, ONLY A CODE SIGNS IN'}
-						</div>
-					</div>
-				{/if}
-				{#if w.tv && !starting && !noAddr}
-					<!-- A code a TV types with its remote, beside the phone's (c236; doc/TV.md). -->
-					<div class="pair-tv">
-						<div class="pk">FOR A TV · SIX DIGITS</div>
-						{#if w.tv.state === 'live'}
-							<div class="tvcode" aria-label="Pairing code for a TV">
-								<span>{w.tv.code.slice(0, 3)}</span><span>{w.tv.code.slice(3)}</span>
-							</div>
-						{:else}
-							<!-- The poll reads the code as it is (c460): a burned one stays
-							     BURNED until NEW CODE, as on the DEVICES row (c265). -->
-							<div class="tvcode dim">
-								{w.tv.state === 'used' ? '✓ USED' : w.tv.state === 'burned' ? 'BURNED' : 'EXPIRED'}
-							</div>
-						{/if}
-						<div class="pnote">TYPE THE ADDRESS'S LAST NUMBER ON THE TV, THEN THESE SIX</div>
-						{#if w.tv.state === 'live'}
-							<div class="tvline">
-								GOOD FOR {w.tv.minutes} MIN · ONE TV, ONCE
-							</div>
-						{:else if w.tv.state === 'used'}
-							<div class="tvline">✓ USED · ONE TV, ONCE</div>
-						{:else if w.tv.state === 'burned'}
-							<div class="tvline">NO TRIES LEFT · MAKE A NEW CODE</div>
-						{:else}
-							<div class="tvline">EXPIRED · MAKE A NEW CODE</div>
-						{/if}
-					</div>
-				{/if}
-				<div class="pair-foot">
-					<div class="pf" class:ink={c?.state === 'live' && !starting && !noAddr}>
-						{starting
-							? 'A FEW SECONDS'
-							: noAddr
-								? 'LOOKING · CHECKED JUST NOW'
-								: c?.state === 'used'
-									? 'THIS CODE IS USED'
-									: c?.state === 'expired'
-										? 'CODES LAST 10 MIN'
-										: c
-											? `${c.minutes > 0 ? `GOOD FOR ${c.minutes} MIN` : 'UNDER A MINUTE LEFT'} · SIGNS IN ONE PHONE, ONCE`
-											: ''}
-					</div>
-					{#if !starting && !noAddr}
-						<button
-							type="button"
-							class="new"
-							class:acc={c?.state !== 'live' || (!!w.tv && w.tv.state !== 'live')}
-							disabled={wifiBusy}
-							onclick={() => wifiPost('code')}>NEW CODE</button
-						>
 					{/if}
 				</div>
 			</div>
 		</div>
+		<div class="pair-foot">
+			<div class="pf" class:ink={ready && c?.state === 'live' && (!w.tv || w.tv.state === 'live')}>
+				{starting
+					? 'A FEW SECONDS'
+					: noAddr
+						? 'LOOKING · CHECKED JUST NOW'
+						: w.tv && w.tv.state !== 'live'
+							? "THE APP'S DIGITS ARE " +
+								(w.tv.state === 'used' ? 'USED' : w.tv.state === 'burned' ? 'BURNED' : 'EXPIRED') +
+								' · NEW CODES MAKES BOTH AGAIN'
+							: c?.state === 'used'
+								? "THE BROWSER'S CODE IS USED · NEW CODES MAKES BOTH AGAIN"
+								: c?.state === 'expired'
+									? 'CODES LAST 10 MIN'
+									: c
+										? `${c.minutes > 0 ? `GOOD FOR ${c.minutes} MIN` : 'UNDER A MINUTE LEFT'} · EACH SIGNS IN ONE DEVICE, ONCE`
+										: ''}
+			</div>
+			{#if ready}
+				<button
+					type="button"
+					class="new"
+					class:acc={c?.state !== 'live' || (!!w.tv && w.tv.state !== 'live')}
+					disabled={wifiBusy}
+					onclick={() => wifiPost('code')}>NEW CODES</button
+				>
+			{/if}
+		</div>
 		<div class="pair-help">
-			NOTHING OPENS ON THE PHONE? IT HAS TO BE ON THIS SAME WI-FI, AND WINDOWS HAS TO HAVE BEEN TOLD
-			ALLOW ACCESS
+			NOTHING ANSWERS ON THE PHONE OR TV? IT HAS TO BE ON THIS SAME WI-FI, AND WINDOWS HAS TO HAVE
+			BEEN TOLD ALLOW ACCESS
 		</div>
 	</div>
 {/snippet}
@@ -1557,7 +1576,11 @@
 		{@const shownHere = mine ? !other : other?.id === d.id}
 		<div class="row device" class:dim={off}>
 			<div class="label">
-				{mine ? (other ? `${kindWord(d.kind)} · THIS` : 'THIS') : kindWord(d.kind)}
+				{mine
+					? other
+						? `${deviceWord(d.kind, d.label)} · THIS`
+						: 'THIS'
+					: deviceWord(d.kind, d.label)}
 			</div>
 			<div class="ctl">
 				<div class="acct-body">
@@ -2353,23 +2376,33 @@
 		font: 400 13px/1.4 var(--font-mono);
 		color: var(--text-2);
 	}
+	/*
+	 * The two ways in, side by side (c521; PhoneApp-Computer.dc.html): the
+	 * app's digits, then the browser's QR. One column when there are no digits
+	 * to show (starting, no address, a panel with no TV code yet).
+	 */
 	.pair-main {
-		display: flex;
-		align-items: stretch;
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 1px;
+		background: var(--line-1);
+	}
+	.pair-main.one {
+		grid-template-columns: minmax(0, 1fr);
 	}
 	.pair-code {
-		width: 321px;
-		flex-shrink: 0;
-		box-sizing: border-box;
-		padding: 24px;
-		border-right: 1px solid var(--line-1);
+		display: flex;
+		gap: 20px;
+		padding: 22px 24px;
+		background: var(--surface-panel);
 	}
 	/* Dark on light, so a camera reads it off a monitor. */
 	.qr {
-		width: 273px;
-		height: 273px;
+		flex-shrink: 0;
+		width: 182px;
+		height: 182px;
 		box-sizing: border-box;
-		padding: 24px;
+		padding: 16px;
 		background: var(--surface-inverse);
 		color: var(--text-inverse);
 	}
@@ -2377,8 +2410,9 @@
 		display: block;
 	}
 	.qr-empty {
-		width: 273px;
-		height: 273px;
+		flex-shrink: 0;
+		width: 182px;
+		height: 182px;
 		box-sizing: border-box;
 		border: 1px dashed var(--line-2);
 		display: flex;
@@ -2395,21 +2429,15 @@
 		font: 400 12px var(--font-mono);
 		color: var(--text-2);
 	}
-	.pair-side {
+	.pair-text {
 		flex: 1;
 		min-width: 0;
 		display: flex;
 		flex-direction: column;
-	}
-	.pair-text {
-		flex: 1;
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-		padding: 22px 24px;
+		gap: 10px;
 	}
 	.pk {
-		font: 500 12px var(--font-mono);
+		font: 500 12px/1.3 var(--font-mono);
 		letter-spacing: 0.06em;
 		color: var(--text-2);
 	}
@@ -2417,50 +2445,77 @@
 		color: var(--text-1);
 	}
 	.ph {
-		font: 500 20px/1.3 var(--font-sans);
+		font: 500 17px/1.35 var(--font-sans);
 	}
 	.pbody {
-		font: 400 15px/1.5 var(--font-sans);
+		font: 400 14px/1.5 var(--font-sans);
 		color: var(--text-2);
 		text-wrap: pretty;
 	}
+	/* THIS COMPUTER'S ADDRESS: the one line both ways in start from. */
 	.pair-addr {
 		display: flex;
-		flex-direction: column;
-		gap: 6px;
-		padding: 14px 24px;
-		border-top: 1px solid var(--line-1);
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 8px 24px;
+		padding: 16px 24px;
+		border-bottom: 1px solid var(--line-1);
+	}
+	.pair-addr .pk {
+		width: 150px;
+		flex-shrink: 0;
 	}
 	.paddr {
-		font: 500 20px var(--font-mono);
+		font: 500 22px var(--font-mono);
 		letter-spacing: 0.01em;
 	}
+	.pair-addr .pnote {
+		margin-left: auto;
+		text-align: right;
+	}
 	.pnote {
-		font: 400 12px var(--font-mono);
+		font: 400 13px/1.45 var(--font-mono);
 		color: var(--text-2);
 	}
-	/* A code for a TV (c236): the same panel idiom as the phone's address above. */
+	/* The app's six digits (c236, c521): first and larger than the QR. */
 	.pair-tv {
 		display: flex;
 		flex-direction: column;
-		gap: 6px;
-		padding: 14px 24px;
-		border-top: 1px solid var(--line-1);
+		gap: 10px;
+		padding: 22px 24px;
+		background: var(--surface-panel);
+	}
+	/* The tailnet row's block sits in the row's own column. */
+	.row .pair-tv {
+		padding: 20px 14px;
+		background: none;
 	}
 	.tvcode {
 		display: flex;
-		gap: 14px;
-		font: 500 24px/1 var(--font-mono);
-		letter-spacing: 0.14em;
+		gap: 18px;
+		font: 500 48px/1.1 var(--font-mono);
+		letter-spacing: 0.08em;
 	}
 	.tvcode.dim {
 		color: var(--text-2);
 		letter-spacing: 0.04em;
 	}
 	.tvline {
-		font: 500 12px var(--font-mono);
-		letter-spacing: 0.04em;
+		font: 400 13px/1.45 var(--font-mono);
 		color: var(--text-2);
+	}
+	.tvline.ink {
+		color: var(--text-1);
+	}
+	.whole {
+		display: flex;
+		align-items: baseline;
+		flex-wrap: wrap;
+		gap: 4px 12px;
+	}
+	.wa {
+		font: 500 16px var(--font-mono);
+		overflow-wrap: anywhere;
 	}
 	.pair-foot {
 		display: flex;
@@ -2477,6 +2532,9 @@
 		letter-spacing: 0.04em;
 		color: var(--text-2);
 	}
+	.row .pf {
+		padding: 0 14px;
+	}
 	.pf.ink {
 		color: var(--text-1);
 	}
@@ -2490,6 +2548,9 @@
 		white-space: nowrap;
 		color: var(--text-1);
 	}
+	.row .new {
+		padding: 0 20px;
+	}
 	.new.acc {
 		background: var(--accent);
 		color: var(--on-accent);
@@ -2500,13 +2561,16 @@
 		font: 400 12px/1.45 var(--font-mono);
 		color: var(--text-2);
 	}
+	/* A phone shows SETTINGS too: the two ways stack, the address line wraps. */
 	.settings.phone .pair-main {
-		flex-direction: column;
+		grid-template-columns: minmax(0, 1fr);
 	}
 	.settings.phone .pair-code {
-		width: auto;
-		border-right: 0;
-		border-bottom: 1px solid var(--line-1);
+		flex-direction: column;
+	}
+	.settings.phone .pair-addr .pnote {
+		margin-left: 0;
+		text-align: left;
 	}
 
 	/* The PASSWORD row's form, under it: the sign-in page's fields at the row's inset. */

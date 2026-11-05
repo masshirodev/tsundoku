@@ -33,36 +33,45 @@ Nothing is published by this script: `yarn run release:publish <version>`
 puts a smoke-tested version on dl.tsundoku.masshiro.pro, where friends
 download it and installs find it ([`UPDATES.md`](UPDATES.md)).
 
-## The Android TV app
+## The Android apps
 
-The TV app ([`TV-APP.md`](TV-APP.md), c236) is its own Gradle build under
-`android/tv/`, and **`yarn run release` does not build it**: nothing a bundle
-carries changes because of it. An APK is made beside the bundles, with the
-release's own version:
+The TV app ([`TV-APP.md`](TV-APP.md), c236) and the phone and tablet app
+([`PHONE-APP.md`](PHONE-APP.md), c521) are two flavors of one Gradle build
+under `android/`, and **`yarn run release` builds neither**: nothing a
+bundle carries changes because of them. The APKs are made beside the
+bundles, with the release's own version:
 
 ```sh
-ops/release/tv-apk.sh 2026.11.02
-# /mnt/hdd2/tsundoku/release/out/2026.11.02/tsundoku-tv-2026.11.02.apk
+ops/release/android-apk.sh 2026.11.05             # both
+ops/release/android-apk.sh 2026.11.05 --app phone # the phone and tablet app alone
+ops/release/tv-apk.sh 2026.11.05                  # the TV app alone (--app tv)
+# /mnt/hdd2/tsundoku/release/out/2026.11.05/tsundoku-tv-2026.11.05.apk
+# /mnt/hdd2/tsundoku/release/out/2026.11.05/tsundoku-app-2026.11.05.apk
 ```
 
 - **Signed** when `TSUNDOKU_TV_KEYSTORE`, `TSUNDOKU_TV_KEYSTORE_PASSWORD`,
   `TSUNDOKU_TV_KEY_ALIAS` and `TSUNDOKU_TV_KEY_PASSWORD` are set and the
   keystore exists; the keystore is the owner's and never in the repository
-  (the steps to make one are in [`TV-APP.md`](TV-APP.md)).
-- **`-debug`** otherwise: `tsundoku-tv-<version>-debug.apk`, debug-signed, for
-  a TV at hand.
-- Its line is appended to the release folder's `SHA256SUMS`, beside the
-  bundles', so the same list covers everything in the folder.
-- The version is also the app's user agent, `TsundokuTV/<version>`, which is
-  what names a paired TV a TV in the computer's DEVICES.
-- **Not in a bundle**: the APK is downloaded and installed on the TV
-  separately (adb over the network, or a file), since a bundle is a
-  friend's computer, not a television.
+  (the steps to make one are in [`TV-APP.md`](TV-APP.md)). **One key signs
+  both apps** (checked 2026-11-05: the two APKs carry the same certificate),
+  and the variables keep the `TSUNDOKU_TV_` names they had before there was a
+  second app. On the workstation they are set: a trial build on 2026-11-05
+  came out release-signed.
+- **`-debug`** otherwise: `tsundoku-tv-<version>-debug.apk` and
+  `tsundoku-app-<version>-debug.apk`, debug-signed, for a device at hand.
+- Each APK's line is appended to the release folder's `SHA256SUMS`, beside
+  the bundles', so the same list covers everything in the folder.
+- The version is also each app's user agent: `TsundokuTV/<version>` names a
+  paired TV a TV in the computer's DEVICES, `TsundokuApp/<version>` a phone or
+  tablet the app (`PHONE · APP`).
+- **Not in a bundle**: each APK is downloaded and installed on its device
+  separately (adb over the network, or the file), since a bundle is a
+  friend's computer.
 - **Unsigned debug builds and signed releases cannot update each other**, and
   `versionCode` stays 1 until a second APK ships.
 
-Nothing about the APK runs in the smoke test: it needs a television, which the
-smoke machines have not got.
+Nothing about the APKs runs in the smoke test: it needs a television or a
+phone, which the smoke machines have not got.
 
 ## What `release` does
 

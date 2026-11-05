@@ -3,6 +3,11 @@
 tsundoku is a PWA: installed to the home screen, it opens **fullscreen**, with
 no browser bar and no status bar. The page is the interface there too.
 
+There is also tsundoku's own Android app, `tsundoku-app-<version>.apk`
+(c521): the same library, paired with six digits instead of signed in, with
+zoom off. [`PHONE-APP.md`](PHONE-APP.md) is that one;
+this page is the PWA.
+
 ## Once, on the tablet
 
 1. Open **https://workstation.example.ts.net:8443** in Chrome. Tailscale has
