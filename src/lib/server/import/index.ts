@@ -620,3 +620,10 @@ export function startScan(
 
 /** What START SCAN and RESCAN say when the scan waits its turn behind a backup's import. */
 export const SCAN_WAITS = 'WAITING · THE SCAN STARTS WHEN THE BACKUP’S IMPORT ENDS';
+
+/**
+ * RESCAN's WAITING line as the sidebar draws it (c512): the sentence while a
+ * scan really waits behind a backup's import, from the queue itself, and null
+ * once it has started. The layout's load hands it over on every page.
+ */
+export const scanWaitsLine = (): string | null => (scanWaits() ? SCAN_WAITS : null);

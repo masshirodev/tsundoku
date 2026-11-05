@@ -505,10 +505,39 @@ export function startBackupImport(
 	const reading = readStored(row);
 	if (!reading.ok) return { started: false, reason: reading.reason };
 	const leaveOut = new Set(opts.leaveOut ?? []);
-	const backup = reading.backup;
 	const set = (sql: string, ...args: unknown[]) => db.prepare(sql).run(...args, id);
 	// Live from here until its promise settles; a row read meanwhile stays as written.
 	live.add(id);
+	// Everything up to the queue runs here, synchronously, and only the queue's
+	// then/catch below takes the row out of `live`: a throw in between (c512: a
+	// malformed `engine_listings` row read by `libraryFacts`) left the row
+	// `running` and live, so its page polled until a restart. Now it fails
+	// where it stands, with a reason the page draws.
+	try {
+		return queueBackupImport(id, row, reading, leaveOut, set, opts.covers);
+	} catch (e) {
+		live.delete(id);
+		console.error('[import] the backup could not start:', e);
+		db.prepare(
+			`UPDATE imports SET state = 'failed', finished_at = ? WHERE id = ? AND state IN ('read', 'running', 'waiting')`
+		).run(Date.now(), id);
+		return { started: false, reason: COULD_NOT_START };
+	}
+}
+
+/** Why an IMPORT that threw before its run failed (c512); the error itself is in the server's log. */
+export const COULD_NOT_START = 'THE LIBRARY’S OWN RECORDS COULD NOT BE READ · SEE THE SERVER’S LOG';
+
+function queueBackupImport(
+	id: number,
+	row: NonNullable<ReturnType<typeof importRow>>,
+	reading: Extract<Reading, { ok: true }>,
+	leaveOut: Set<string>,
+	set: (sql: string, ...args: unknown[]) => unknown,
+	covers: boolean | undefined
+): { started: true } {
+	const db = getDb();
+	const backup = reading.backup;
 	set(
 		`UPDATE imports SET state = 'running', started_at = ?, outcome = ? WHERE id = ?`,
 		Date.now(),
@@ -569,7 +598,7 @@ export function startBackupImport(
 			.map((k) => ({ id: k, name: backup.sources.get(k) ?? `Source ${k}` }))
 	});
 	void runQueued(source, {
-		covers: opts.covers,
+		covers,
 		waiting: () => set(`UPDATE imports SET state = 'waiting' WHERE id = ?`)
 	})
 		.then(() => {

@@ -18,7 +18,7 @@
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
 	import { shelfHref, withParam } from '$lib/library/links';
 	import { onMount } from 'svelte';
-	import { afterNavigate, beforeNavigate, goto, invalidateAll } from '$app/navigation';
+	import { afterNavigate, beforeNavigate, goto, invalidate, invalidateAll } from '$app/navigation';
 	import { installPress } from '$lib/press';
 	import { screenMove, type ScreenMove } from '$lib/motion';
 	import { saveFocus, restoreFocus, installFocusLayer } from '$lib/focus';
@@ -50,8 +50,20 @@
 	});
 
 	// The scan action's refusal is drawn by the empty library only, so the
-	// sidebar's RESCAN says it in its own place rather than nowhere.
+	// sidebar's RESCAN says it in its own place rather than nowhere. A scan
+	// that waits behind a backup's import is not a refusal: its WAITING line
+	// is the server's state (`data.scanWaits`, c512), drawn while it holds and
+	// gone once the scan starts, where the action's answer stayed until the
+	// next press, on every page.
 	let rescanNote = $state('');
+	const rescanShown = $derived(data.scanWaits ?? rescanNote);
+	// Only this load is asked again, every two seconds, while the scan waits:
+	// no other page follows the queue, and the line must not outlive the wait.
+	$effect(() => {
+		if (!data.scanWaits) return;
+		const timer = setInterval(() => void invalidate('tsundoku:scan'), 2000);
+		return () => clearInterval(timer);
+	});
 
 	// ---- RESCAN asks first (c525; doc/LIBRARY.md, "RESCAN") ---------------------------
 	// A stray tap on the sidebar started a scan. Now the house's own question
@@ -73,10 +85,7 @@
 	/** The scan's answer, as the sidebar's form took it before it asked: the note, then the page. */
 	async function rescanDone(result: ActionResult) {
 		rescanAsking = false;
-		rescanNote =
-			result.type === 'failure' || result.type === 'success'
-				? String(result.data?.scanMessage ?? '')
-				: '';
+		rescanNote = result.type === 'failure' ? String(result.data?.scanMessage ?? '') : '';
 		if (result.type === 'failure') return;
 		if (result.type === 'success') await invalidateAll();
 		await applyAction(result);
@@ -436,15 +445,13 @@
 							}
 							return async ({ result, update }) => {
 								rescanNote =
-									result.type === 'failure' || result.type === 'success'
-										? String(result.data?.scanMessage ?? '')
-										: '';
+									result.type === 'failure' ? String(result.data?.scanMessage ?? '') : '';
 								if (result.type !== 'failure') await update();
 							};
 						}}
 					>
 						<button type="submit">{m.nav_rescan()}</button>
-						{#if rescanNote}<div class="rescan-note" role="status">{rescanNote}</div>{/if}
+						{#if rescanShown}<div class="rescan-note" role="status">{rescanShown}</div>{/if}
 					</form>
 					<!-- IMPORT LOG (c438; Import-Doors E): live, counting a running
 					     import or scan in accent. -->

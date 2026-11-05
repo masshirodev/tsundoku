@@ -642,7 +642,102 @@ describe('a scan asked for during a backup’s import (round 2)', () => {
 		rmSync(join(library, 'Mihon'), { recursive: true });
 	});
 
-	it('START SCAN’s sentence for a scan that waits', () => {
-		expect(SCAN_WAITS).toMatch(/^WAITING · /);
+	it('RESCAN during a held import answers WAITING, and the sidebar’s line follows the queue past the scan’s end (c512)', async () => {
+		const { writeFileSync } = await import('node:fs');
+		mkdirSync(join(library, 'Mihon', 'autobackup'), { recursive: true });
+		writeFileSync(join(library, 'Mihon', 'autobackup', NAME), gzipSync(backup()));
+		const { actions } = await import('../src/routes/+page.server');
+		// What the layout's load hands the sidebar on every page (`scanWaits`).
+		const { scanWaitsLine } = await import('$lib/server/import');
+		const sidebar = async () => scanWaitsLine();
+		expect(await sidebar()).toBeNull();
+		const held = heldBackup();
+		// The library page's own `?/scan` action, the one RESCAN posts.
+		const answer = await (actions.scan as () => Promise<unknown>)();
+		expect(answer).toEqual({ scanMessage: SCAN_WAITS });
+		expect(SCAN_WAITS).toBe('WAITING · THE SCAN STARTS WHEN THE BACKUP’S IMPORT ENDS');
+		expect(await sidebar()).toBe(SCAN_WAITS);
+		// Still waiting, a while later: the line is the queue's, not a timer's.
+		await new Promise((r) => setTimeout(r, 50));
+		expect(await sidebar()).toBe(SCAN_WAITS);
+		held.release();
+		await held.job;
+		// The scan has started, and then ended: no line, where the action's
+		// answer stayed drawn until the next press.
+		const { importRunning } = await import('$lib/server/import');
+		await importRunning();
+		expect(await sidebar()).toBeNull();
+		rmSync(join(library, 'Mihon'), { recursive: true });
+	});
+});
+
+describe('an IMPORT that throws before its run (c512)', () => {
+	it('fails where it stands, with a reason, and leaves nothing live', async () => {
+		const r = upload(gz(backup([7])), 'app.mihon_2026-11-07_01-00.tachibk');
+		const id = r.state === 'read' ? r.id : -1;
+		// An added repository's listing the preview read, then spoiled: what
+		// `libraryFacts` parses between the row's `running` and the queue.
+		const repo = Number(
+			db()
+				.prepare(
+					`INSERT INTO engine_repos (base, name, fingerprint, added_at) VALUES ('https://c512.example', 'C512', 'f', 1)`
+				)
+				.run().lastInsertRowid
+		);
+		db()
+			.prepare(
+				`INSERT INTO engine_listings (repo_id, pkg, listing) VALUES (?, 'c512.pkg', '{not json')`
+			)
+			.run(repo);
+		try {
+			expect(b.startBackupImport(id)).toEqual({ started: false, reason: b.COULD_NOT_START });
+			const row = b.importRow(id)!;
+			expect(row.state).toBe('failed');
+			expect(row.finishedAt).not.toBeNull();
+			// Nothing live: the log has no running import, and a spec's wait ends.
+			expect(log.liveImport()).toBeNull();
+			await b.settled(500);
+			// The second press: refused as what it now is, not run.
+			expect(b.startBackupImport(id)).toEqual({ started: false, reason: 'NOT A PREVIEW WAITING' });
+		} finally {
+			db().prepare(`DELETE FROM engine_repos WHERE id = ?`).run(repo);
+		}
+	});
+});
+
+describe('IMPORT A BACKUP from a source with ADDED HIDDEN (c503)', () => {
+	it('brings a series new to the library in hidden, and leaves one already here as it is', async () => {
+		const { setSourceFlag } = await import('$lib/server/engine/source-flags');
+		const SWITCHED = 9_200_000_000_000_000_001n;
+		const manga = (title: string) => [
+			[1, SWITCHED],
+			[2, `/c503/${title.toLowerCase().replace(/ /g, '-')}`],
+			[3, title],
+			[
+				16,
+				[
+					[1, `/c503/${title.toLowerCase().replace(/ /g, '-')}/1`],
+					[2, 'Chapter 1']
+				]
+			],
+			[17, 1]
+		];
+		const importFile = async (name: string, titles: string[]) => {
+			const r = upload(gz(backup([], titles.map(manga) as never)), name);
+			const id = r.state === 'read' ? r.id : -1;
+			expect(b.startBackupImport(id)).toEqual({ started: true });
+			await b.settled();
+			expect(b.importRow(id)!.state).toBe('done');
+		};
+		await importFile('app.mihon_2026-11-08_01-00.tachibk', ['Upload Before']);
+		expect(series('Upload Before')).toMatchObject({ hidden: 0 });
+		setSourceFlag(String(SWITCHED), 'addedHidden', true, db());
+		try {
+			await importFile('app.mihon_2026-11-08_02-00.tachibk', ['Upload Before', 'Upload After']);
+			expect(series('Upload After')).toMatchObject({ hidden: 1 });
+			expect(series('Upload Before')).toMatchObject({ hidden: 0 });
+		} finally {
+			setSourceFlag(String(SWITCHED), 'addedHidden', false, db());
+		}
 	});
 });
