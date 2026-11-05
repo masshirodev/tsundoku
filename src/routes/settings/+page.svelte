@@ -20,6 +20,7 @@
 		VALUES,
 		deviceChanged,
 		deviceName,
+		deviceWord,
 		equal,
 		isChanged,
 		movesLine,
@@ -1553,7 +1554,11 @@
 		{@const shownHere = mine ? !other : other?.id === d.id}
 		<div class="row device" class:dim={off}>
 			<div class="label">
-				{mine ? (other ? `${kindWord(d.kind)} · THIS` : 'THIS') : kindWord(d.kind)}
+				{mine
+					? other
+						? `${deviceWord(d.kind, d.label)} · THIS`
+						: 'THIS'
+					: deviceWord(d.kind, d.label)}
 			</div>
 			<div class="ctl">
 				<div class="acct-body">

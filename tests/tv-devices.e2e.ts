@@ -31,7 +31,9 @@ test('a TV’s check-in is accepted, and DEVICES calls it a TV', async ({ page }
 	});
 	expect(res.status()).toBe(200);
 	await page.reload();
-	const row = page.locator('.row.device', { hasText: 'Android TV · Chrome' });
+	// The app says itself where a browser's name was, and its label cell says
+	// TV · APP (c521; PhoneApp-Calls.dc.html, DEVICES).
+	const row = page.locator('.row.device', { hasText: 'Android TV · app 1.0.0' });
 	await expect(row).toBeVisible();
-	await expect(row.locator('.label')).toHaveText('TV');
+	await expect(row.locator('.label')).toHaveText('TV · APP');
 });
