@@ -14,23 +14,13 @@ const rowOf = (page: Page, label: string) =>
 	panel(page).locator('.row', { has: page.locator('.label', { hasText: label }) });
 
 /**
- * Open the panel, and make sure it stayed open. It's a <details>: a click that
- * lands before hydration opens it natively, and hydration's `bind:open` then
- * shuts it again, which under the full run left LANGUAGE's links unclickable
- * for 30 s (2026-10-15). A second click, as a person would make, opens it.
+ * Open the panel. It's a <details> and the element is the truth (c105,
+ * FilterPanel.svelte), so one click opens it whether or not the page has
+ * hydrated yet: no wait, and no second click.
  */
 async function openFilters(page: Page) {
-	// The layout writes this cookie once its script has run, so it is the
-	// app's own "hydrated" mark. A click before that opens the panel natively,
-	// and hydration's `bind:open` then shuts it — under the full run that left
-	// the panel closed for the next click (2026-10-15; seen again 2026-11-01).
-	await page
-		.waitForFunction(() => document.cookie.includes('tsundoku_js=1'), null, { timeout: 2000 })
-		.catch(() => undefined);
-	await expect(async () => {
-		if (!(await panel(page).isVisible())) await filterCell(page).click();
-		await expect(panel(page)).toBeVisible({ timeout: 1000 });
-	}).toPass();
+	await filterCell(page).click();
+	await expect(panel(page)).toBeVisible();
 }
 
 async function reveal(page: Page) {
