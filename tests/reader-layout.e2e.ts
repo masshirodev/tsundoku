@@ -269,6 +269,153 @@ test('a turn asked for right after a mid-slide scrub waits for the first, and sl
 	expect(spans.at(-1)!).toBeGreaterThanOrEqual(200);
 });
 
+test('an arrow pressed while a short drag goes back is taken right after, once (c553)', async ({
+	page
+}) => {
+	await open(page);
+	const track = page.locator('footer[aria-label="Reader controls"] .track');
+	const stage = page.locator('.stage .track');
+	await page.keyboard.press('Escape');
+	await expect(track).toBeVisible();
+	const now = async () => Number(await track.getAttribute('aria-valuenow'));
+	// Where one ← (R→L: on) lands from here, a page or a spread, then back.
+	const v0 = await now();
+	await page.keyboard.press('ArrowLeft');
+	await expect.poll(now).toBeGreaterThan(v0);
+	await expect(stage).not.toHaveClass(/animating/);
+	const v1 = await now();
+	await page.keyboard.press('ArrowRight');
+	await expect.poll(now).toBe(v0);
+	await expect(stage).not.toHaveClass(/animating/);
+	// A drag too short to turn: let go, the page goes back over 220 ms, and ←
+	// is pressed while it does.
+	await page.evaluate(() => {
+		const w = window as unknown as { keyAt: number; upAt: number };
+		addEventListener('keydown', () => (w.keyAt = performance.now()), { once: true, capture: true });
+		addEventListener('pointerup', () => (w.upAt = performance.now()), {
+			once: true,
+			capture: true
+		});
+	});
+	const vp = page.viewportSize()!;
+	const [x, y] = [vp.width / 2, vp.height / 2];
+	await page.mouse.move(x, y);
+	await page.mouse.down();
+	for (const d of [10, 20, 30]) await page.mouse.move(x + d, y);
+	await expect(stage).toHaveAttribute('style', /translateX\(30px\)/);
+	await page.mouse.up();
+	await page.keyboard.press('ArrowLeft');
+	const gap = await page.evaluate(() => {
+		const w = window as unknown as { keyAt: number; upAt: number };
+		return w.keyAt - w.upAt;
+	});
+	expect(gap).toBeLessThan(220);
+	// Taken once the page is back: one turn on, not none and not two.
+	await expect.poll(now).toBe(v1);
+	await expect(stage).not.toHaveClass(/animating/);
+	await page.waitForTimeout(500);
+	expect(await now()).toBe(v1);
+});
+
+test('a drag begun right after a mid-slide scrub never snaps back to nothing (c553)', async ({
+	page
+}) => {
+	await open(page);
+	const track = page.locator('footer[aria-label="Reader controls"] .track');
+	const stage = page.locator('.stage .track');
+	await page.keyboard.press('Escape');
+	await expect(track).toBeVisible();
+	const box = (await track.boundingBox())!;
+	// Every offset the page is drawn at, from here on.
+	await page.evaluate(() => {
+		const w = window as unknown as { xs: number[] };
+		w.xs = [];
+		const el = document.querySelector<HTMLElement>('.stage .track')!;
+		new MutationObserver(() => {
+			const m = /translateX\((-?[\d.]+)px\)/.exec(el.style.transform);
+			if (m) w.xs.push(Number(m[1]));
+		}).observe(el, { attributes: true, attributeFilter: ['style'] });
+	});
+	const vp = page.viewportSize()!;
+	const [x, y] = [vp.width / 2, vp.height / 2];
+	/** The page's offset now, and how long since the ← that began the slide. */
+	const now = () =>
+		page.evaluate(() => {
+			const el = document.querySelector<HTMLElement>('.stage .track')!;
+			return {
+				x: Number(/translateX\((-?[\d.]+)px\)/.exec(el.style.transform)?.[1] ?? 0),
+				since: performance.now() - (window as unknown as { keyAt: number }).keyAt
+			};
+		});
+	// ← slides on; mid-slide the scrubber asks for page 1 (R→L: the track's
+	// right end), which cuts the slide short; and at once a finger on the page. The state is the press
+	// landing inside the first turn's 220 ms: a loaded box can take longer than
+	// that over the three inputs, and then it lets go (a drag, so not a tap
+	// that would put the controls away) and tries again from page 1.
+	for (let attempt = 0; ; attempt++) {
+		expect(attempt, 'the press never landed inside the slide').toBeLessThan(6);
+		// One screen in, so the scrub to page 1 is a change that cuts the slide.
+		await page.keyboard.press('ArrowLeft');
+		await expect
+			.poll(async () => Number(await track.getAttribute('aria-valuenow')))
+			.toBeGreaterThan(1);
+		await expect(stage).not.toHaveClass(/animating/);
+		await page.evaluate(() => {
+			const w = window as unknown as { xs: number[]; keyAt: number; downAt: number };
+			w.xs = [];
+			addEventListener('keydown', () => (w.keyAt = performance.now()), {
+				once: true,
+				capture: true
+			});
+			document
+				.querySelector('.stage .track')!
+				.addEventListener('pointerdown', () => (w.downAt = performance.now()), {
+					once: true,
+					capture: true
+				});
+		});
+		await page.keyboard.press('ArrowLeft');
+		await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
+		await page.mouse.move(x, y);
+		await page.mouse.down();
+		const gap = await page.evaluate(() => {
+			const w = window as unknown as { keyAt: number; downAt: number };
+			return w.downAt - w.keyAt;
+		});
+		if (gap < 200) break;
+		await page.mouse.move(x + 20, y);
+		await page.mouse.up();
+		await expect(stage).not.toHaveClass(/animating/);
+		await expect(track).toHaveAttribute('aria-valuenow', '1');
+	}
+	// The finger keeps going one way, past the first turn's tail, until the
+	// page follows it, and a little further.
+	// Past the long press's 10 px at once, so no page menu opens under a slow box.
+	let d = 12;
+	await page.mouse.move(x + d, y);
+	let after = 0;
+	for (let n = await now(); d < 160 && (after < 5 || n.since < 500); n = await now()) {
+		if (n.x > 0) after++;
+		d += 2;
+		await page.mouse.move(x + d, y);
+	}
+	expect((await now()).x).toBeGreaterThan(0);
+	const xs = await page.evaluate(() => (window as unknown as { xs: number[] }).xs);
+	// Once the page has followed the finger, it never went back towards 0
+	// while the finger went on: until the drag waited for the turn, the turn's
+	// tail zeroed the offset under the finger and the next move jumped it back.
+	const moved = xs.findIndex((v) => v > 0);
+	expect(moved).toBeGreaterThanOrEqual(0);
+	for (let i = moved + 1; i < xs.length; i++) expect(xs[i]).toBeGreaterThanOrEqual(xs[i - 1]);
+	// Let go short of a turn: back into place, on the page it was on.
+	const on = await track.getAttribute('aria-valuenow');
+	await page.mouse.move(x + 10, y);
+	await page.mouse.up();
+	await expect(stage).not.toHaveClass(/animating/);
+	await expect.poll(async () => (await now()).x).toBe(0);
+	await expect(track).toHaveAttribute('aria-valuenow', on!);
+});
+
 test('a second finger cancels a drag: the page goes back rather than jerking to it (c515)', async ({
 	page
 }) => {

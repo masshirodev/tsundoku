@@ -776,6 +776,12 @@
 		await new Promise((r) => setTimeout(r, TURN_MS));
 		animating = false;
 		peek = null;
+		// An arrow or a tap asked for while the page went back is taken now, as
+		// after a turn (c553; the text reader's settleBack does the same). Dropped,
+		// it was a key that did nothing.
+		const then = queued;
+		queued = null;
+		if (then && !leavingReader()) void turn(then);
 	}
 
 	/** The next chapter is on the tablet: it opens with no network. */
@@ -1436,7 +1442,12 @@
 		if (!finger.owns(e)) return;
 		if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 10) cancelPress();
 		// A zoomed page pans under a drag rather than turning (edges and keys still turn).
-		if (!down || animating || fit === 'height' || zoom > 1 || reduceMotion.current) return;
+		// Not while a turn is under way either (c553), slide or not: a scrub that
+		// cut a slide short leaves the turn's tail to come, which zeroes the
+		// offset, and a drag begun meanwhile snapped back to nothing. The text
+		// reader refuses a drag while turning for the same reason.
+		if (!down || animating || turning || fit === 'height' || zoom > 1 || reduceMotion.current)
+			return;
 		const dx = e.clientX - down.x;
 		const dy = e.clientY - down.y;
 		if (!dragging && !dragStarts(dx, dy)) return;
