@@ -658,6 +658,63 @@ test('three quick picks at the old timing: A let go once C is sent, and the drop
 	await expect(page.locator('a.cand.on')).toContainText(CAND.c.title);
 });
 
+/**
+ * The rule at its limit (c567): a waiting pick whose abort never reaches the
+ * server at all. B is asked from the test's own request context, which never
+ * gives it up, the way a socket the server has not yet heard close looks to
+ * the server; then the page picks C. Only the newer pick can drop B here, so
+ * this case is red on an `inTurn` without the rule (every copy, not 1 in 10).
+ */
+test('a waiting pick whose abort never arrives is dropped by the newer pick behind it, without asking (c567)', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await open(page);
+	await settledList(page);
+	state.calls = [];
+	let releaseA!: () => void;
+	state.held.set(CAND.a.url, new Promise<void>((r) => (releaseA = r)));
+	state.slow.set(CAND.c.url, 200);
+	const cdp = await page.context().newCDPSession(page);
+	await cdp.send('Network.enable');
+	const urls = new Map<string, string>();
+	const sent = new Set<string>();
+	const onWire = new Set<string>();
+	cdp.on('Network.requestWillBeSent', (e) => {
+		urls.set(e.requestId, e.request.url);
+		if (sent.has(e.requestId)) onWire.add(e.request.url);
+	});
+	cdp.on('Network.requestWillBeSentExtraInfo', (e) => {
+		sent.add(e.requestId);
+		const url = urls.get(e.requestId);
+		if (url) onWire.add(url);
+	});
+	const compares: string[] = [];
+	page.on('request', (r) => {
+		if (r.url().includes('/compare?')) compares.push(r.url());
+	});
+	await page.locator('a.cand', { hasText: CAND.a.title }).click();
+	await expect.poll(() => detailsFor(CAND.a.url)).toBe(1);
+	// B, from outside the page: it waits behind A, and nothing will ever abort it.
+	const bUrl = new URL(compares[0]);
+	bUrl.searchParams.set('to', candidateId('101', CAND.b.url));
+	bUrl.searchParams.delete('offset');
+	const b = page.request.get(bUrl.toString());
+	// The page's newer pick, on the wire before A is let go.
+	await page.locator('a.cand', { hasText: CAND.c.title }).click();
+	const asksC = (u: string) => new URL(u).searchParams.get('to') === candidateId('101', CAND.c.url);
+	await expect.poll(() => compares.filter(asksC).length).toBe(1);
+	// B left first (the click alone takes longer); C is let go only once
+	// Chromium has put it on the wire, as in the case above.
+	await expect.poll(() => onWire.has(compares.find(asksC) ?? '')).toBe(true);
+	releaseA();
+	const answer = (await (await b).json()) as { ok: boolean; error?: string };
+	expect(answer).toEqual({ ok: false, error: 'Asked for another candidate' });
+	await expect(page.getByRole('heading', { name: CAND.c.title })).toBeVisible({ timeout: 15_000 });
+	expect(detailsFor(CAND.b.url)).toBe(0);
+	expect(detailsFor(CAND.c.url)).toBe(1);
+});
+
 test('a tap made while the URL has an offset asks once, without it (c539)', async ({ page }) => {
 	await page.setViewportSize({ width: 1280, height: 800 });
 	const toA = candidateId('101', CAND.a.url);

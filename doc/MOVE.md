@@ -459,7 +459,9 @@ LATEST CH. 121 · 2 D AGO`, which costs a details call per candidate. The
   three quick picks on one slow source (one details call each at most, the
   dropped one that was waiting none), the same three at wave 23's timing (A
   let go as soon as C is sent, before B's abort can have reached the server:
-  c567), a tap under an `offset` asking once, a
+  c567), a waiting pick whose abort never reaches the server (B asked from
+  the test's own request context) dropped by the page's newer pick behind it
+  (red on an `inTurn` without the rule, every copy: c567), a tap under an `offset` asking once, a
   second tap on the picked candidate leaving a later `offset` in charge, a
   streamed comparison that throws becoming TRY AGAIN (c539), and a pick
   without script. A late answer on the _first paint_ is not watched
