@@ -244,7 +244,8 @@ pinned MOVE bar.
 comparison on `to`: the load reads `to` and `offset` untracked (SvelteKit's
 `untrack`), so a pick, SET on the offset, or CANCEL is a navigation that does
 not run the load, and the page asks `series/[id]/move/compare` for that one
-candidate. So:
+candidate. CANCEL after a pasted link is the exception: it drops `paste`, which
+the load reads tracked, so that one does run the load. So:
 
 - **The wait shows at once.** The tapped row is marked before the navigation
   lands, and the right side says it is asking that source in the player's

@@ -153,12 +153,17 @@ chapter the new source doesn't number at all leaves the queue.
   ([`NOVELS.md`](NOVELS.md), "Browsing and adding"). `?source=<id>` asks just
   one, and lists all it found.
 - **Results fill in source by source.** Each source is asked at once, as a
-  promise of its own that the page streams in. A source still asking shows two
-  dashed rows, or BROWSER CHECK · ASKED 18 S AGO while the engine passes its
-  site's check ([`BROWSE.md`](BROWSE.md), "A site's check"). One that doesn't
-  answer says so, with TRY AGAIN. A source lists three results under ALL, then
+  promise of its own that the page streams in, and the list is in MOVE's
+  order (c490; [`MOVE.md`](MOVE.md), "The candidates, and picking one"): the
+  sources with results first, in the order they answered, each named with
+  its language; the ones still asking as one line, `N STILL ASKING`, naming
+  one passing its site's check (BROWSER CHECK · ASKED 18 S AGO;
+  [`BROWSE.md`](BROWSE.md), "A site's check"), with two dashed rows until
+  the first result; then `N FOUND NOTHING` and `N DID NOT ANSWER`, folded at
+  the end. TRY AGAIN and TRY ALL AGAIN ask only the failed sources again
+  (`/downloads/search/ask`). A source lists three results under ALL, then
   `+ N MORE FROM …`. Without script the server waits for every source and
-  sends the answers whole (c146).
+  sends the answers whole (c146), and TRY AGAIN opens that source's tab.
 - **What a result says:** **IN LIBRARY** (the same source and URL as a
   series here, which it opens), **SAME TITLE IN LIBRARY · FROM …** (the same
   title from another source, to head off a twin; with reveal off a

@@ -329,15 +329,15 @@ length is kept.
   part 2's EP. 1 under part 2's id. A season with no link of its own is not
   looked up, whatever another season has. The first-season mirror in
   `series_links` (`syncSeriesLink`) is not read: only a series with no season
-  rows at all, linked before rung 62, is asked under its `series_links` link,
-  for season 0 or 1 alone, since that one link is its first season's.
-  Answers stored before c349 were asked under the mirror, which is the
-  lowest season linked: right for a flat list, a pre-rung-62 link and a
-  season 1 linked alone, but wrong for a season-1 episode of a show whose
-  season 0 is linked too, and for part 2 of a split season 1 (asked under
-  part 1's id with the season's number). A found answer is never asked
-  again, so those stay until a rung forgets them (doc/handoff-notes/links.md,
-  "Gaps"); a relink clears them now, as it always did.
+  rows at all is asked under its `series_links` link, for season 0 or 1
+  alone, and since rung 68 (c383) no anime is such a series: a link from
+  before rung 62 is its season's row. Answers stored before c349 were asked
+  under the mirror, the lowest season linked: wrong for a season-1 episode
+  of a show whose season 0 is linked too, for a season-0 episode while only
+  season 1 is, and for part 2 of a split season (asked under part 1's id
+  with the season's number). Rung 67 (c463) forgot those, found or not, so
+  each is asked again on its next play; a relink clears them, as it always
+  did.
 - **Remembered.** A found answer is never asked again; a 404 is remembered
   for `ANISKIP_RETRY_MS` (7 days), since a running show's new episode may
   arrive late. A server that didn't answer is not remembered: the next
@@ -363,8 +363,9 @@ length is kept.
 seasons, no length, the 7-day retry, a failing server not remembered, and
 since c395 a link to the manga made through LINK, and every AniList format
 plus an unknown one, against a fake that answers any id with an opening),
-`tests/anime-rungs-db.spec.ts` (rung 64), `tests/anime-download-db.spec.ts`
-(the NFO's ids) and
+`tests/anime-rungs-db.spec.ts` (rung 64),
+`tests/aniskip-rung67-db.spec.ts` (rung 67, c463),
+`tests/anime-download-db.spec.ts` (the NFO's ids) and
 `tests/anime-streams-db.spec.ts` (the player's resolve asks it once, and the
 episode's `ending_at` follows).
 
@@ -872,8 +873,9 @@ pure parts in `src/lib/library/anime-files.ts`).
   earliest season linked, part 1 first, read from the season rows, so a show
   with only season 2 linked names season 2's entry rather than none. A
   season linked to a manga is passed over for the next one that is an
-  anime's. `series_links` answers only for a show linked before rung 62. An
-  `.nfo` already written is rewritten at the series' next download.
+  anime's. `series_links` answers only for a show with no season rows, which
+  since rung 68 (c383) no linked anime is. An `.nfo` already written is
+  rewritten at the series' next download.
   `poster.jpg` is the library's own cover.
 - **ffmpeg fetches nothing itself.** Its inputs are a loopback proxy inside
   the app that serves only the tokens `streams.ts` handed out, and only with a

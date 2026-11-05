@@ -329,8 +329,9 @@ There's always ← SERIES and LIBRARY.
   has no Japanese serif. Whether FONT should offer a mincho is still open.
 - **More reading fonts.** Atkinson Hyperlegible and a book serif such as
   Literata were suggested beside OpenDyslexic (c442) and wait on the owner. A
-  new one is a row in `TEXT_FONTS`, its `@import` in `fonts-reading.css`, and
-  the TYPEFACE row's option.
+  new one is a row in `TEXT_FONTS`, hand-written woff2-only `@font-face` rules
+  in `fonts-reading.css` (not an `@import` of @fontsource's CSS, which would
+  put woff back in every device's precache), and the TYPEFACE row's option.
 - **Scroll doesn't carry back into the previous chapter.** Scrolling up past
   the top stops there, and `← CH.` goes back.
 - **The budget ignores books' weight after the first marker,** and letting go
