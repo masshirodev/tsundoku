@@ -11,9 +11,10 @@
 	 * The text reader's controls (Index Text Reader 1c): a 64px top bar -- back,
 	 * the series and where you are in the book, rating, FAV -- and a bottom
 	 * block with the chapter and its page, a scrubber across the chapter, and
-	 * four cells: previous chapter, CONTENTS, READING, next. Vertical Japanese
-	 * mirrors the bottom: the scrubber fills from the right and the next
-	 * chapter is on the left.
+	 * four cells: previous chapter, CONTENTS, READING, next. A book read right
+	 * to left mirrors the bottom -- vertical Japanese, and a horizontal book
+	 * whose DIRECTION is R→L in PAGED (c440): the scrubber fills from the right
+	 * and the next chapter is on the left.
 	 *
 	 * On a TV it is a focus row once it is up, as the image reader's chrome is
 	 * (c241): OK brings it with focus on the scrubber, ↓ reaches CONTENTS and
@@ -29,7 +30,7 @@
 		pageText,
 		page,
 		pages,
-		vertical,
+		rtl,
 		prevLabel,
 		nextLabel,
 		settings,
@@ -52,7 +53,8 @@
 		/** 0-based page in the chapter, and how many there are. */
 		page: number;
 		pages: number;
-		vertical: boolean;
+		/** The pages turn right to left: the bottom mirrors. */
+		rtl: boolean;
 		prevLabel: string | null;
 		nextLabel: string | null;
 		settings: string;
@@ -76,7 +78,7 @@
 		if (!track) return;
 		const r = track.getBoundingClientRect();
 		let f = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
-		if (vertical) f = 1 - f;
+		if (rtl) f = 1 - f;
 		onscrub(Math.round(f * Math.max(0, pages - 1)));
 	}
 
@@ -98,8 +100,8 @@
 			{ key: 'contents', text: 'CONTENTS', grow: false, on: oncontents },
 			{ key: 'reading', text: settings, grow: true, on: onreading }
 		];
-		// Vertical reads right to left: the next chapter is the left-hand cell.
-		return vertical
+		// Right to left: the next chapter is the left-hand cell.
+		return rtl
 			? [
 					{ ...next, text: nextLabel ? `← ${nextLabel}` : '' },
 					...middle,
@@ -144,7 +146,7 @@
 			<div class="left">{pageText}</div>
 		</div>
 		<div class="scrub">
-			<div class="end">{vertical ? pages : 1}</div>
+			<div class="end">{rtl ? pages : 1}</div>
 			<div
 				class="track"
 				bind:this={track}
@@ -164,19 +166,19 @@
 				onpointermove={(e) => dragging && scrubAt(e)}
 				onpointerup={() => (dragging = false)}
 				onkeydown={(e) => {
-					if (e.key === 'ArrowRight') onscrub(Math.min(pages - 1, page + (vertical ? -1 : 1)));
-					if (e.key === 'ArrowLeft') onscrub(Math.max(0, page + (vertical ? 1 : -1)));
+					if (e.key === 'ArrowRight') onscrub(Math.min(pages - 1, page + (rtl ? -1 : 1)));
+					if (e.key === 'ArrowLeft') onscrub(Math.max(0, page + (rtl ? 1 : -1)));
 				}}
 			>
 				<div
 					class="fill"
-					style:left={vertical ? 'auto' : '0'}
-					style:right={vertical ? '0' : 'auto'}
+					style:left={rtl ? 'auto' : '0'}
+					style:right={rtl ? '0' : 'auto'}
 					style:width="{fraction * 100}%"
 				></div>
-				<div class="thumb" style:left="{(vertical ? 1 - fraction : fraction) * 100}%"></div>
+				<div class="thumb" style:left="{(rtl ? 1 - fraction : fraction) * 100}%"></div>
 			</div>
-			<div class="end right">{vertical ? 1 : pages}</div>
+			<div class="end right">{rtl ? 1 : pages}</div>
 		</div>
 		<div class="cells">
 			{#each cells as c (c.key)}

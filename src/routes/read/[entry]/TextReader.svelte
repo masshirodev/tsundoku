@@ -33,6 +33,7 @@
 		wheelForward
 	} from '$lib/reader/reader';
 	import { BookFailure, bookUrl, openBook, type OpenBook } from '$lib/reader/book';
+	import { OnePointer } from '$lib/reader/pointer';
 	import { focusScope, registerBack } from '$lib/focus';
 	import { MediaQuery } from 'svelte/reactivity';
 	import { TV } from '$lib/device.svelte';
@@ -60,6 +61,7 @@
 		textSettings,
 		type Layout,
 		type Speed,
+		type TextDirection,
 		type TextSettings
 	} from '$lib/reader/text';
 	import EntryList from '../../series/[id]/EntryList.svelte';
@@ -100,6 +102,14 @@
 	let layout = $state<Layout>(data.layout);
 	// svelte-ignore state_referenced_locally
 	let seriesLayout = $state<Layout>(data.layout);
+	/**
+	 * Which way PAGED turns a horizontal book (c440): this session's, until
+	 * REMEMBER makes it the series', as LAYOUT is and as the image reader's MODE is.
+	 */
+	// svelte-ignore state_referenced_locally
+	let direction = $state<TextDirection>(data.textDirection);
+	// svelte-ignore state_referenced_locally
+	let seriesDirection = $state<TextDirection>(data.textDirection);
 	let sw = $state(800);
 	let sh = $state(1280);
 	onMount(() => {
@@ -178,7 +188,15 @@
 
 	const vertical = $derived(book?.vertical ?? false);
 	const f = $derived(frame(sw, sh, settings, vertical));
-	const mode = $derived(textMode(layout, vertical));
+	const mode = $derived(textMode(layout, vertical, direction));
+	/**
+	 * The page reads right to left: vertical Japanese always, a horizontal book
+	 * in PAGED when its DIRECTION is R→L (c440). The controls mirror for both
+	 * (TextChrome's `rtl`), and the band's arrow points the way on.
+	 */
+	const rtl = $derived(vertical || mode === 'rtl');
+	/** A horizontal book turning R→L: its columns run right to left (`.flow.rtl`). */
+	const flowRtl = $derived(!vertical && mode === 'rtl');
 	const landscape = $derived(sw > sh);
 	/**
 	 * One page to the next. Horizontal text is columns side by side; vertical
@@ -217,7 +235,29 @@
 	 */
 	let ownTop = 0;
 	let readerMoved = false;
+	/**
+	 * SCROLL: how far below the top of the page `pos`'s character stood when
+	 * the place was read (c516). A relayout puts it back there. Read as the
+	 * line crossing the top margin, the character stood up to a line above that
+	 * margin, and putting it on the margin moved the reader a line on every
+	 * relayout after a scroll. Null: the margin, as a place opened from the URL
+	 * or the server has no finer offset than its character.
+	 */
+	let posY: number | null = null;
+	/**
+	 * PAGED: the reader is on a chapter's last page and it is the band alone
+	 * (c516). That page has no character, so `pos` stands for the one before it,
+	 * which is on the page before; a relayout keeps the reader on the band's
+	 * page instead of taking it a page back.
+	 */
+	let onBand = false;
 	let page = $state(0);
+	/**
+	 * Counts the reader's own moves (`go`, `openChapter`), so a slide can tell
+	 * whether something newer moved it while it slid (c515). A relayout is not
+	 * a move and doesn't count.
+	 */
+	let moves = 0;
 	let pages = $state(1);
 	let atEnd = $state(false);
 	let scrollFraction = $state(0);
@@ -300,11 +340,20 @@
 		if (!pageEl) return null;
 		const box = pageEl.getBoundingClientRect();
 		if (layout === 'scroll') {
+			// The first line of text on screen (c516). Before c516 it was the
+			// first thing hit, which on an illustration is the figure's start,
+			// often a screen higher: a reload or relayout went back up to it.
+			// A screen with no text on it at all keeps the figure.
+			let figure: TextPosition | null = null;
 			for (let y = box.top + f.y; y < box.bottom; y += 12) {
 				const p = positionAt(box.left + f.x + 4, y);
-				if (p) return p;
+				if (!p) continue;
+				const r = flowEl ? rectOf(flowEl, p) : null;
+				// A character's box is a line high; a block without text answers its whole box.
+				if (r && r.height < f.fontSize * 3 && r.bottom > box.top && r.top < box.bottom) return p;
+				figure ??= p;
 			}
-			return null;
+			return figure;
 		}
 		// The caret snaps to the nearest text where a point has none, so on a
 		// page that is the band alone it named a character pages back (found
@@ -325,8 +374,10 @@
 			return null;
 		}
 		const colW = f.cols > 1 ? (f.w - f.gap) / 2 : f.w;
+		// The page's first column: the left one, or in R->L the right one (c440).
+		const first = flowRtl ? box.right - colW : box.left;
 		for (let y = box.top + 4; y < box.bottom; y += 12)
-			for (const x of [box.left + 4, box.left + colW / 2]) {
+			for (const x of [first + 4, first + colW / 2]) {
 				const p = positionAt(x, y);
 				if (here(p)) return p;
 			}
@@ -341,7 +392,9 @@
 		const box = flowEl.getBoundingClientRect();
 		const n = vertical
 			? Math.floor((r.top - box.top + 1) / step)
-			: Math.floor((r.left - box.left + 1) / step);
+			: flowRtl
+				? Math.floor((box.right - r.right + 1) / step)
+				: Math.floor((r.left - box.left + 1) / step);
 		return Math.max(0, Math.min(pages - 1, n));
 	}
 
@@ -366,10 +419,10 @@
 			// Mid-scroll, the reader's own scroll is the place: `pos` is stale.
 			if (readerMoved || !pageEl) return;
 			const r = rectOf(flowEl, pos);
-			if (r) pageEl.scrollTop += r.top - pageEl.getBoundingClientRect().top - f.y;
+			if (r) pageEl.scrollTop += r.top - pageEl.getBoundingClientRect().top - (posY ?? f.y);
 			ownTop = pageEl.scrollTop;
 		} else {
-			page = pageOf(pos);
+			page = onBand ? pages - 1 : pageOf(pos);
 		}
 	}
 
@@ -394,6 +447,7 @@
 	}
 
 	async function openChapter(i: number, at: 'start' | 'end' | TextPosition) {
+		moves++;
 		if (!book || !entries[i]) return;
 		if (entries[i].file !== bookFile) {
 			// Into another volume: its book downloads once, the OPENING screen over it.
@@ -430,6 +484,8 @@
 		if (pageEl) pageEl.scrollTop = 0;
 		ownTop = 0;
 		readerMoved = false;
+		posY = null;
+		onBand = false;
 		pos = at === 'start' || at === 'end' ? { block: 0, offset: 0 } : at;
 		await relayout();
 		if (at === 'end') {
@@ -442,8 +498,11 @@
 			// chapter's last one stands for it, so a relayout keeps the reader at
 			// the end rather than taking it back to the start (c441).
 			const last = ch.blocks.length - 1;
+			const here = positionOnPage();
+			// And the reader is on the band's page, which that character is not (c516).
+			onBand = !here && layout === 'paged';
 			pos =
-				positionOnPage() ??
+				here ??
 				(last >= 0
 					? { block: last, offset: Math.max(0, (ch.blocks[last].textContent ?? '').length - 1) }
 					: pos);
@@ -509,6 +568,7 @@
 	$effect(() => {
 		void f;
 		void layout;
+		void flowRtl;
 		void settings.justify;
 		void settings.font;
 		void settings.furigana;
@@ -546,13 +606,22 @@
 	}
 
 	async function go(to: number) {
+		moves++;
+		// A slide in flight is the old place's: the page shown is this one (c515).
+		sliding = false;
+		drag = 0;
 		atEnd = false;
 		page = Math.max(0, Math.min(pages - 1, to));
 		await tick();
 		// Wide blocks are measured again as they come into view: one measured
 		// before its column had a width would otherwise never offer OPEN.
 		if (blocksEl) labelWide(blocksEl);
-		pos = positionOnPage() ?? pos;
+		const here = positionOnPage();
+		// The band's page alone has no character: `pos` stays the one before,
+		// and a relayout keeps the reader here (c516).
+		onBand = !here && layout === 'paged' && page === pages - 1;
+		posY = null;
+		pos = here ?? pos;
 		noteSpeed();
 		if (page >= pages - 1) markFinished();
 	}
@@ -592,10 +661,11 @@
 	 * text's next page lies to the right (x, +1). Vertical Japanese's lies below
 	 * (y, +1), so its turn translates up while the finger, as everywhere in an
 	 * R->L book, pulls it in by dragging right (`forwardBy`). A horizontal R->L
-	 * book (c440) would be x with -1: this pair is the only place that knows.
+	 * book (c440) is x with -1: its columns run right to left, so the next page
+	 * lies to the left. This pair is the only place that knows.
 	 */
 	const pageAxis = $derived<'X' | 'Y'>(vertical ? 'Y' : 'X');
-	const pageSign: 1 | -1 = 1;
+	const pageSign = $derived<1 | -1>(flowRtl ? -1 : 1);
 	/** How far the flow is moved past `page`, in px towards the next page: a drag, or where a slide is going. */
 	let drag = $state(0);
 	/** The flow's transform is transitioning (the CSS class). */
@@ -637,12 +707,22 @@
 		}
 		turning = true;
 		if (pageThat(dir)) {
+			// Anything else that moves the reader while it slides (the scrubber,
+			// CONTENTS, a chapter opening) is the newer ask, and the turn gives way
+			// to it (c515): turning from where that left off went one past it. The
+			// move counter says so, not `pos`: a scrub onto the band's page alone
+			// leaves `pos` as it was. A relayout moves `page` without counting as
+			// a move, so the page after the character being read is still the one
+			// to land on.
+			const fromMoves = moves;
+			const fromIndex = index;
 			sliding = true;
 			drag = dir === 'next' ? step : -step;
 			await pause(TURN_MS);
 			sliding = false;
 			drag = 0;
-			await go(dir === 'next' ? page + 1 : page - 1);
+			if (moves === fromMoves && index === fromIndex && !atEnd)
+				await go(dir === 'next' ? page + 1 : page - 1);
 		} else {
 			drag = 0;
 			if (dir === 'next') markFinished();
@@ -741,6 +821,10 @@
 		clearTimeout(scrolling);
 		scrolling = setTimeout(() => {
 			pos = positionOnPage() ?? pos;
+			onBand = false;
+			// Where its character stands now, so a relayout leaves it there (c516).
+			const r = flowEl && pageEl ? rectOf(flowEl, pos) : null;
+			posY = r && pageEl ? r.top - pageEl.getBoundingClientRect().top : null;
 			readerMoved = false;
 			if (pageEl) ownTop = pageEl.scrollTop;
 			noteSpeed();
@@ -875,6 +959,17 @@
 		seriesLayout = layout;
 		void action('direction', { direction: layout });
 	}
+	/** REMEMBER on DIRECTION (c440): the series' from now on, on every device. */
+	function rememberDirection() {
+		seriesDirection = direction;
+		const body = new FormData();
+		body.set('direction', direction);
+		void fetch(`${resolve('/read/[entry]', { entry: String(data.entry.id) })}?/textDirection`, {
+			method: 'POST',
+			body,
+			headers: { 'x-sveltekit-action': 'true' }
+		}).catch(() => undefined);
+	}
 	// Asked at the end of the book only while unrated, so it never asks twice.
 	// svelte-ignore state_referenced_locally
 	const askRating = data.series.rating === 0;
@@ -925,7 +1020,12 @@
 	});
 
 	let down: { x: number; y: number } | null = null;
+	/** The press's own pointer: a second finger cancels it (c515, src/lib/reader/pointer.ts). */
+	const finger = new OnePointer();
 	function pointerdown(e: PointerEvent) {
+		const which = finger.down(e);
+		if (which === 'cancel') return dropPress();
+		if (which === 'ignore') return;
 		// A press on the controls, a sheet or an overlay is theirs, not the page's.
 		const t = e.target as HTMLElement;
 		down = t.closest(
@@ -948,6 +1048,7 @@
 	 * page, and not with reduced motion.
 	 */
 	function pointermove(e: PointerEvent) {
+		if (!finger.owns(e)) return;
 		if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 10) clearTimeout(press);
 		if (!down || layout === 'scroll' || turning || lookup || atEnd || reduceMotion.current) return;
 		const dx = e.clientX - down.x;
@@ -956,13 +1057,20 @@
 		dragging = true;
 		drag = dragGive(forwardBy(dx, mode), pageThat('next'), pageThat('prev'));
 	}
-	function pointercancel() {
+	function pointercancel(e: PointerEvent) {
+		if (finger.owns(e)) dropPress();
+	}
+	/** The press ends without a tap or a turn: a drag goes back into place. */
+	function dropPress() {
+		finger.end();
 		clearTimeout(press);
 		down = null;
 		if (dragging) void settleBack();
 		dragging = false;
 	}
 	function pointerup(e: PointerEvent) {
+		if (!finger.owns(e)) return;
+		finger.end();
 		clearTimeout(press);
 		if (pressed) {
 			pressed = false;
@@ -1255,7 +1363,8 @@
 			size: f.fontSize,
 			theme: settings.theme,
 			vertical,
-			furigana: settings.furigana
+			furigana: settings.furigana,
+			direction
 		})
 	);
 	const nextAbout = $derived(
@@ -1304,6 +1413,7 @@
 			class="flow"
 			class:sliding
 			class:moving={sliding || drag !== 0}
+			class:rtl={flowRtl}
 			bind:this={flowEl}
 			style:column-width={layout === 'paged'
 				? `${vertical ? f.h : f.cols > 1 ? (f.w - f.gap) / 2 : f.w}px`
@@ -1330,7 +1440,7 @@
 						{#if nextAbout}<div class="m">{nextAbout}</div>{/if}
 					</div>
 					<div class="go">
-						{vertical ? '← TAP OR SWIPE TO CONTINUE' : 'TAP OR SWIPE TO CONTINUE →'}
+						{rtl ? '← TAP OR SWIPE TO CONTINUE' : 'TAP OR SWIPE TO CONTINUE →'}
 					</div>
 				</div>
 			{/if}
@@ -1366,7 +1476,7 @@
 	{#if chapter && !chrome && !atEnd}
 		<div
 			class="progress"
-			class:rtl={vertical}
+			class:rtl
 			style:width="{(layout === 'scroll' ? scrollFraction : (page + 1) / pages) * 100}%"
 		></div>
 	{/if}
@@ -1389,7 +1499,7 @@
 			{pageText}
 			page={layout === 'scroll' ? Math.round(scrollFraction * 99) : page}
 			pages={layout === 'scroll' ? 100 : pages}
-			{vertical}
+			{rtl}
 			prevLabel={prevReadable ? short(prevReadable) : null}
 			nextLabel={nextReadable ? short(nextReadable) : null}
 			settings={readingLabel}
@@ -1417,6 +1527,8 @@
 			lineHeight={f.lineHeight}
 			{landscape}
 			{vertical}
+			{direction}
+			{seriesDirection}
 			{dim}
 			{rating}
 			onlayout={(l) => {
@@ -1424,6 +1536,8 @@
 				if (l === 'scroll') void loadNext();
 			}}
 			onremember={remember}
+			ondirection={(d) => (direction = d)}
+			onrememberdirection={rememberDirection}
 			onsettings={setSettings}
 			ondim={setDim}
 			onrate={rate}
@@ -1633,6 +1747,17 @@
 	}
 	.flow.moving {
 		will-change: transform;
+	}
+	/*
+	 * R->L (c440): the columns run right to left, so the next page lies to the
+	 * left and slides in from there. Only the column order: the text inside
+	 * runs as it always did.
+	 */
+	.flow.rtl {
+		direction: rtl;
+	}
+	.flow.rtl > :global(*) {
+		direction: ltr;
 	}
 	.flow.sliding {
 		transition: transform var(--turn-ms) var(--turn-ease);

@@ -68,7 +68,7 @@ still blanks the reader when the app goes to the background.
 ## On a TV and on a remote (c235)
 
 A TV has a D-pad, OK, BACK and often MENU ([`TV.md`](TV.md)). With the
-controls hidden the reader keeps every arrow — ← → turn pages, ↑ ↓ scroll a
+controls hidden the reader keeps every arrow — ← → turn pages (nudge a strip), ↑ ↓ scroll a
 strip — so the focus layer is opted out and the remote's keys are the reader's
 own:
 
@@ -105,7 +105,9 @@ chapters) are arrow stops only while they're on screen
 (`src/lib/reader/offscreen.ts`): the focus layer weighs every focusable in the
 page, so ↓ from the bottom row found the end page's LIBRARY at the chapter's
 foot and scrolled thousands of pixels to it. Read the strip to its end with
-the controls hidden, and OK, ↓ reach the end page as before.
+the controls hidden, and OK, ↓ reach the end page as before. With the controls hidden ← → nudge
+the strip 40 px, as a keyboard's do (c527, "Scrolling on a PC"):
+`tests/tv-strip-keys.e2e.ts`.
 `tests/tv-reader.e2e.ts` reaches the strip from READING (its mode is session
 state) and checks both.
 
@@ -124,6 +126,15 @@ Paged turns slide, as in Mihon; they don't pop (the owner asked on
   and both slide over in 220ms.
 - **Quick taps all count.** A turn asked for mid-slide is taken the moment the
   slide lands.
+- **A newer move wins** (c515). The scrubber, another chapter opening or
+  WIDE PAGES changing, moving the reader mid-slide, stops the slide where it put
+  the page, and the turn gives way; until c515 the turn chose its page when
+  the slide ended, one past wherever the scrub had left it.
+- **One finger turns.** A press follows the pointer that began it; a second
+  finger going down (a pinch beginning) ends it as a cancel would, so a drag
+  goes back rather than jerking towards the new finger, and on the strip a
+  pinch is never a long press (`src/lib/reader/pointer.ts`, shared with the
+  text reader; c515).
 - **Nothing redraws at the end.** The screens are keyed, so the neighbour's
   element becomes the page's own, with its image already decoded.
 - **Split wide pages slide half to half,** since each half is a screen.
@@ -132,7 +143,8 @@ Paged turns slide, as in Mihon; they don't pop (the owner asked on
   slide.
 
 The track is in `ImageReader.svelte` (`turn`, `after`, `screens`); tested in
-`tests/reader-flow.e2e.ts`. Its numbers (the 220ms slide and its curve, the 8px
+`tests/reader-flow.e2e.ts`, and c515's two rules in `tests/reader-layout.e2e.ts`
+on every device. Its numbers (the 220ms slide and its curve, the 8px
 before a drag is followed, the quarter an edge gives, the 40px release) are in
 `src/lib/reader/reader.ts`, shared with the text reader, whose paged turns
 slide the same way since c441 ([`TEXT-READER.md`](TEXT-READER.md), "Turning").
@@ -471,6 +483,18 @@ and "when I click down or up it pans to the next sections").
 - **Ctrl + ↑ / ↓ nudge** 40 px, about what an arrow did before: to bring a
   panel the screen cut in two into view without the mouse (the owner,
   2026-10-30).
+- **← / → nudge too**, the same 40 px (c527; the owner, 2026-11-04: "left
+  and right arrows on manhwas to have the same effect as ctrl+up and
+  ctrl+down"): **← is Ctrl + ↑ and → is Ctrl + ↓**, reading on to the right
+  as a paged L→R reader's → does, so a panel reads with one hand and no
+  modifier. They follow the mode, not the kind: a manhwa set to paged still
+  turns pages on ← →, and a manga on the strip nudges. Ctrl + ← / → do
+  nothing new. **Zoomed wider than the screen** (the lane scrolls sideways,
+  "Zoom" above) ← → pan the strip 40 px sideways instead: they are the one
+  way a keyboard has to reach its sides, which the browser's own arrows did
+  only after a click had put the keyboard in the lane. On a TV they nudge
+  with the controls hidden (a remote has no Ctrl, so this is its only
+  nudge); with the controls up they stay the focus layer's (c253, below).
 - **Anything else scrolling stops it** (the scrollbar, a drag), except the
   strip keeping its place: when a chapter or a reshaped page arrives above,
   the strip scrolls with it (`keepPlaceBy`) and says so, and an ease in flight
@@ -478,8 +502,11 @@ and "when I click down or up it pans to the next sections").
 - **Reduced motion**: the wheel stays native and a key moves at once.
 
 Tested in `tests/smooth-scroll.spec.ts` (the approach, notches at any scale,
-place-keeping) and `tests/reader-flow.e2e.ts` (a notch eased through the
-real strip to where it aimed, ↓ and ↑ by a screen).
+place-keeping), `tests/reader-flow.e2e.ts` (a notch eased through the
+real strip to where it aimed, ↓ and ↑ by a screen) and
+`tests/reader-strip-keys.e2e.ts` (c527 on all four devices: → and ← against
+Ctrl + ↓ and Ctrl + ↑, Ctrl + → / ← doing nothing, the zoomed pan, a paged
+reader still turning).
 
 ## Full screen
 

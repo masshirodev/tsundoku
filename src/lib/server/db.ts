@@ -1615,6 +1615,16 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	WHERE id IN (SELECT entry_id FROM c383_stale);
 	DROP TABLE c383_stale;
 	DROP TABLE c383_moved;
+	`,
+	// v69: which way a novel's paged pages turn (card c440; doc/TEXT-READER.md,
+	// "Direction"). Its own column, because `direction` already holds a
+	// novel's layout (PAGED or SCROLL) and a novel reads both ways in either.
+	// NULL is the default, L→R, which REMEMBER L→R writes back as NULL; only
+	// the text reader reads or writes it, and it means nothing for a series
+	// that isn't a novel. Nothing stored moves: every series starts at NULL.
+	`
+	ALTER TABLE series ADD COLUMN text_direction TEXT
+		CHECK (text_direction IS NULL OR text_direction IN ('ltr', 'rtl'));
 	`
 ];
 

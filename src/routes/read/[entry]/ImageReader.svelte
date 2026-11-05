@@ -73,6 +73,7 @@
 		type StripChapter
 	} from '$lib/reader/reader';
 	import { skipOffscreen } from '$lib/reader/offscreen';
+	import { OnePointer } from '$lib/reader/pointer';
 	import PageImage from './PageImage.svelte';
 	import Chrome from './Chrome.svelte';
 	import ReadingSheet from './ReadingSheet.svelte';
@@ -271,6 +272,15 @@
 	function move(d: number, ms: number) {
 		if (reducedMotion()) scrollBy(0, d);
 		else smooth.glide(d, ms);
+	}
+
+	/**
+	 * The strip's lane, when a zoom has made the strip wider than the screen and
+	 * it scrolls sideways inside it (Strip.svelte, `.lane.wider`); null otherwise.
+	 */
+	function wideLane() {
+		const lane = document.querySelector<HTMLElement>('.lane.wider');
+		return lane && lane.scrollWidth > lane.clientWidth + 1 ? lane : null;
 	}
 
 	// Ctrl + wheel and a two-finger pinch zoom the pages, never the browser's page.
@@ -513,6 +523,11 @@
 
 	function go(to: number) {
 		if (pages.length === 0) return;
+		// A slide in flight is the old place's: the page shown is this one (c515).
+		animating = false;
+		slideTo = null;
+		drag = 0;
+		peek = null;
 		lookup = null;
 		atEnd = false;
 		half = 0;
@@ -607,6 +622,12 @@
 	let drag = $state(0);
 	let slideTo = $state<string | null>(null);
 	let animating = $state(false);
+	/**
+	 * A turn is in flight, from its first frame to its tail. Not `animating`:
+	 * `go()` clears that mid-slide, and a second turn started then had its slide
+	 * cleared by the first one's tail (c515).
+	 */
+	let turning = false;
 	/** The side a neighbour is shown on, while dragging or sliding. */
 	let peek = $state<-1 | 1 | null>(null);
 
@@ -694,7 +715,7 @@
 	async function turn(dir: 'next' | 'prev') {
 		zones = false;
 		lookup = null;
-		if (animating) {
+		if (turning || animating) {
 			queued = dir;
 			return;
 		}
@@ -704,19 +725,32 @@
 			peek = null;
 			return dir === 'next' ? next() : prev();
 		}
+		// The place this turn starts from: anything else that moves the reader
+		// meanwhile (the scrubber, another chapter opening, WIDE PAGES changing) is the
+		// newer ask, and the turn gives way to it (c515). Turning from where that
+		// left off went one past it.
+		const from = { entry: data.entry.id, at, half, atEnd };
+		const still = () =>
+			data.entry.id === from.entry && at === from.at && half === from.half && atEnd === from.atEnd;
+		turning = true;
 		peek = sideOf(dir);
 		await tick();
 		await new Promise((r) => requestAnimationFrame(r));
-		animating = true;
-		slideTo = `${-peek * 100}%`;
-		await new Promise((r) => setTimeout(r, TURN_MS));
+		if (still()) {
+			animating = true;
+			slideTo = `${-peek * 100}%`;
+			await new Promise((r) => setTimeout(r, TURN_MS));
+		}
 		// The neighbour's element becomes the page's (same key), so nothing redraws.
 		animating = false;
 		slideTo = null;
 		drag = 0;
 		peek = null;
-		if (dir === 'next') next();
-		else prev();
+		if (still()) {
+			if (dir === 'next') next();
+			else prev();
+		}
+		turning = false;
 		const then = queued;
 		queued = null;
 		if (then) void turn(then);
@@ -1361,9 +1395,14 @@
 	// ---- touch -----------------------------------------------------------------------------
 	let down: { x: number; y: number } | null = null;
 	let dragging = false;
+	/** The press's own pointer: a second finger cancels it (c515, src/lib/reader/pointer.ts). */
+	const finger = new OnePointer();
 	function pointerdown(e: PointerEvent) {
 		// The first touch has learned the zones; it still does what it does.
 		zones = false;
+		const which = finger.down(e);
+		if (which === 'cancel') return dropPress();
+		if (which === 'ignore') return;
 		down = { x: e.clientX, y: e.clientY };
 		dragging = false;
 		startPress(e);
@@ -1373,6 +1412,7 @@
 	 * pans the page sideways itself, nor with reduced motion.
 	 */
 	function pointermove(e: PointerEvent) {
+		if (!finger.owns(e)) return;
 		if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 10) cancelPress();
 		// A zoomed page pans under a drag rather than turning (edges and keys still turn).
 		if (!down || animating || fit === 'height' || zoom > 1 || reduceMotion.current) return;
@@ -1385,7 +1425,12 @@
 		// Nothing more that way in this chapter: it gives, but only a little.
 		drag = after(dirAt(side)) ? dx : dx * EDGE_GIVE;
 	}
-	function pointercancel() {
+	function pointercancel(e: PointerEvent) {
+		if (finger.owns(e)) dropPress();
+	}
+	/** The press ends without a tap or a turn: a drag goes back into place. */
+	function dropPress() {
+		finger.end();
 		cancelPress();
 		down = null;
 		if (dragging) void settleBack();
@@ -1513,6 +1558,8 @@
 		})
 	);
 	function pointerup(e: PointerEvent) {
+		if (!finger.owns(e)) return;
+		finger.end();
 		cancelPress();
 		if (pressed) {
 			// The press opened the page menu; lifting the finger is part of it.
@@ -1612,6 +1659,22 @@
 			if (arrow && e.ctrlKey) {
 				e.preventDefault();
 				return move(NUDGE * arrow, GLIDE_NUDGE);
+			}
+			// ← / → nudge too, with one hand and no modifier (c527): reading on is
+			// to the right, as in a paged L→R reader. Ctrl + ← / → add nothing.
+			// Zoomed wider than the screen they pan the strip sideways instead,
+			// the one way a keyboard has to reach its sides; the browser did that
+			// only once a click had put its keyboard in the lane.
+			const side = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+			if (side && !e.ctrlKey && !e.altKey && !e.metaKey) {
+				e.preventDefault();
+				const lane = wideLane();
+				if (lane)
+					return lane.scrollBy({
+						left: NUDGE * side,
+						behavior: reducedMotion() ? 'instant' : 'smooth'
+					});
+				return move(NUDGE * side, GLIDE_NUDGE);
 			}
 			const down = arrow === 1 || e.key === 'PageDown' || (e.key === ' ' && !e.shiftKey);
 			const up = arrow === -1 || e.key === 'PageUp' || (e.key === ' ' && e.shiftKey);
@@ -1731,17 +1794,26 @@
 				class="lane-lift"
 				style:transform={lift ? `translateY(${-lift}px)` : undefined}
 				onpointerdown={(e) => {
+					// A pinch's second finger is no long press (c515).
+					const which = finger.down(e);
+					if (which === 'cancel') return dropPress();
+					if (which === 'ignore') return;
 					down = { x: e.clientX, y: e.clientY };
 					startPress(e);
 				}}
 				onpointermove={(e) => {
+					if (!finger.owns(e)) return;
 					if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 10) cancelPress();
 				}}
-				onpointerup={() => {
+				onpointerup={(e) => {
+					if (!finger.owns(e)) return;
+					finger.end();
 					cancelPress();
 					down = null;
 				}}
-				onpointercancel={cancelPress}
+				onpointercancel={(e) => {
+					if (finger.owns(e)) dropPress();
+				}}
 				oncontextmenu={(e) => (menu || pressed) && e.preventDefault()}
 			>
 				<Strip

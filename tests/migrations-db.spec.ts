@@ -331,11 +331,45 @@ describe('rung 68: a link from before rung 62 becomes its season’s row (c383)'
 		]);
 		expect(conn.prepare(`SELECT * FROM series_links ORDER BY series_id`).all()).toEqual(mirror);
 	});
+});
+
+describe('rung 69: a novel’s reading direction, its own column (c440)', () => {
+	it('adds text_direction as NULL for every series and keeps every direction stored', () => {
+		const conn = new Database(':memory:');
+		climb(conn, 68);
+		conn.exec(`
+			INSERT INTO roots (id, name, path) VALUES (1, 'Books', '/b');
+			INSERT INTO series (id, root_id, title, kind, added_at, direction) VALUES
+				(1, 1, 'Paged novel', 'novel', 1, 'paged'), (2, 1, 'Scrolled novel', 'novel', 1, 'scroll'),
+				(3, 1, 'Unset novel', 'novel', 1, NULL), (4, 1, 'Manga', 'manga', 1, 'rtl'),
+				(5, 1, 'Comic', 'manga', 1, 'ltr'), (6, 1, 'Manhwa', 'manhwa', 1, 'vertical');
+		`);
+		const before = conn.prepare(`SELECT id, direction FROM series ORDER BY id`).all();
+		climb(conn, 69);
+		expect(conn.pragma('user_version', { simple: true })).toBe(69);
+		expect(conn.prepare(`SELECT id, direction FROM series ORDER BY id`).all()).toEqual(before);
+		expect(
+			conn.prepare(`SELECT COUNT(*) AS n FROM series WHERE text_direction IS NOT NULL`).get()
+		).toEqual({ n: 0 });
+	});
+
+	it('takes L→R, R→L and NULL, and nothing else', () => {
+		const conn = new Database(':memory:');
+		climb(conn, 69);
+		conn.exec(`
+			INSERT INTO roots (id, name, path) VALUES (1, 'Books', '/b');
+			INSERT INTO series (id, root_id, title, kind, added_at) VALUES (1, 1, 'Novel', 'novel', 1);
+		`);
+		const set = conn.prepare(`UPDATE series SET text_direction = ? WHERE id = 1`);
+		for (const v of ['ltr', 'rtl', null]) expect(() => set.run(v)).not.toThrow();
+		for (const v of ['vertical', 'paged', 'scroll', 'RTL', ''])
+			expect(() => set.run(v)).toThrow(/CHECK constraint failed/);
+	});
 
 	// The top rung's own block says it is the top; the next rung moves this line.
 	it('is the top of a fresh database', () => {
 		const conn = new Database(':memory:');
 		climb(conn);
-		expect(conn.pragma('user_version', { simple: true })).toBe(68);
+		expect(conn.pragma('user_version', { simple: true })).toBe(69);
 	});
 });

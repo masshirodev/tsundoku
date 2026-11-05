@@ -1,6 +1,6 @@
-import { error, redirect } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import { playerStart } from '$lib/server/anime/choices';
-import type { PageServerLoad } from './$types';
+import type { Actions, PageServerLoad } from './$types';
 import { getDb } from '$lib/server/db';
 import { isIncognito, isRevealed } from '$lib/server/prefs';
 import { seriesPage } from '$lib/server/series';
@@ -19,6 +19,8 @@ import { EngineError } from '$lib/server/engine/client';
 import { previewIdOf } from '$lib/server/downloads';
 import { noVideoLine, staleSource } from '$lib/server/move';
 import { workEndOf } from '$lib/server/works';
+import { parseTextDirection } from '$lib/reader/text';
+import { setTextDirection, takesTextDirection, textDirectionOf } from './text-direction.server';
 
 /**
  * The reader (doc/READER.md). `/read/<entry>?p=<page>`, `p` 1-based. With no
@@ -158,6 +160,8 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 				effectiveDirection(series, series.kindDirection) === 'scroll'
 					? ('scroll' as const)
 					: ('paged' as const),
+			// Which way PAGED turns, the series' own or L→R (c440; doc/TEXT-READER.md).
+			textDirection: textDirectionOf(series.id),
 			version,
 			/** "1 EPUB · 3.1 MB" while it opens: the file's size, from its version. */
 			bytes: version && /^\d+-/.test(version) ? Number(version.split('-')[0]) : 0,
@@ -331,4 +335,24 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 		};
 	}
 	return build(await manifest(entryId, reveal));
+};
+
+export const actions: Actions = {
+	/**
+	 * REMEMBER on the text reader's DIRECTION row (c440): the series reads that
+	 * way from now on. The series is found as the page finds it, so a hidden
+	 * one is the same 404 with reveal off.
+	 */
+	textDirection: async ({ request, params, cookies }) => {
+		const row = getDb()
+			.prepare(`SELECT series_id FROM entries WHERE id = ?`)
+			.get(Number(params.entry)) as { series_id: number } | undefined;
+		const series = row ? seriesPage(row.series_id, isRevealed(cookies)) : null;
+		if (!series) error(404, 'not found');
+		if (!takesTextDirection(series.kind)) return fail(400, { message: 'not a book of text' });
+		const direction = parseTextDirection((await request.formData()).get('direction'));
+		if (!direction) return fail(400, { message: 'no such direction' });
+		setTextDirection(series.id, direction);
+		return { ok: true };
+	}
 };

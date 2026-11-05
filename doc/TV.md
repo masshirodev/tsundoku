@@ -57,10 +57,15 @@ start but was drawn for fingers.
 - **The player is the picture until a key**, then, when no offer is up, six
   cells on one row with focus on ▶❚❚: ▶❚❚, −10, +10, ← EP. n, the cell naming the stream (the
   settings panel), EP. n+1 →. The seek bar above them keeps ← → (it seeks 10 s
-  with the flash) and ↑ from any cell reaches it. SKIP INTRO and the
-  next-episode card's PLAY NOW → take focus themselves the moment they appear,
-  so OK does what they say; ↓ brings the bar with focus on the seek bar, ↑
-  on the offer itself goes nowhere, and ↑ from the bar returns to them (c296).
+  with the flash) and ↑ from any cell reaches it. SKIP INTRO, the
+  next-episode card's PLAY NOW → and, on a Work's last episode, the Work
+  card's ▶ READ (or WATCH) take focus themselves the moment they appear, so
+  OK does what they say; ↓ brings the bar with focus on the seek bar, ↑ on
+  the offer itself goes nowhere, and ↑ from the bar returns to them (c296;
+  the Work card since c517, which measured ↓ and ↑ from it bringing the bar
+  on ▶❚❚ instead: the keys' offer check named `.endcard, .skip` and not
+  `.upn`). ← → on the Work card walk its own row (▶, WORK, ✕) and seek
+  nothing, as measured before c517 too.
   ▶❚❚ ⏩ ⏪ ⏭ ⏮ (`MediaPlayPause`, `MediaFastForward`, `MediaRewind`,
   `MediaTrackNext`, `MediaTrackPrevious`) work on every device, and on the
   library ▶❚❚ resumes the focused CONTINUE card there and then, without the
@@ -498,6 +503,9 @@ remote.
   every page-turning spec still depends on it — and the opt-out is now
   `!atEnd && !(TV && chrome)`: with the chrome up the pad walks its cells.
   Off a TV nothing changes (the reader still owns every arrow, chrome or not).
+  On a vertical strip with the chrome hidden, ← → nudge it 40 px, as a
+  keyboard's do (c527, [`READER.md`](READER.md) "Scrolling on a PC"): a remote
+  has no Ctrl for Ctrl + ↓ / ↑, so this is its one nudge.
 - **OK brings it up with focus on the page scrubber**, as 7D draws: the
   reader focuses the scrubber once the chrome is laid out. ↓ then reaches the
   cells; the widest of them, READING, is the one that lands under the
@@ -524,16 +532,18 @@ remote.
   focus return is the scope's.
 - **The text reader is the same story** (`TextChrome`, `TextSheet`): OK brings
   its chrome up with focus on the scrubber, ↓ reaches CONTENTS and READING,
-  and LAYOUT changes by keys alone. Its footer gives way to the sheet
+  and LAYOUT changes by keys alone, as DIRECTION does (c440: ↓ from LAYOUT,
+  ← → along it; in R→L the remote's ← then reads on). Its footer gives way to the sheet
   (`bottom={!sheet}`), so the cell that opened READING is gone when it closes:
   the reader puts the pad back on the scrubber instead (`TextReader.svelte`).
   CONTENTS is a focus scope too (c250): it opens on the row being read, and
   BACK puts the pad back on the CONTENTS cell, which stays.
 - **Tests.** `tests/tv-reader.e2e.ts` opens READING, walks to L→R with the
   arrows and OK, closes it with BACK, hides the chrome, and puts the mode back;
-  `tests/tv-text-reader.e2e.ts` does the same with a novel's LAYOUT. Both read
-  in incognito and change nothing stored: the mode and the layout are this
-  session's until REMEMBER, which neither spec presses, so there is nothing to
+  `tests/tv-text-reader.e2e.ts` does the same with a novel's LAYOUT and its
+  DIRECTION. Both read
+  in incognito and change nothing stored: the mode, the layout and the
+  direction are this session's until REMEMBER, which neither spec presses, so there is nothing to
   put back.
 
 ### Departures from the handoff (c241)
@@ -597,7 +607,8 @@ card, which the owner found fighting the remote (2026-11-02).
   SKIP is up, `.top` and `.bottom` are `data-focus-skip`, so a cell focused
   there stops being a stop the moment the bar hides. A TV-only effect puts
   focus back on PLAY NOW (or SKIP) instead of leaving OK on the dead track and
-  ↑/↓ on STAY. PLAY NOW and SKIP also carry `data-focus-start` while offered,
+  ↑/↓ on STAY. PLAY NOW, the Work card's ▶ and SKIP also carry
+  `data-focus-start` while offered,
   so the layer's "nothing focused" fallback and BACK's climb start on the
   offer rather than on STAY. ↑ on the card itself has nothing above it and
   stays there; it does not open the bar underneath the button.
@@ -610,8 +621,9 @@ card, which the owner found fighting the remote (2026-11-02).
   (`data-focus-skip`), so a key reaches the card rather than an invisible cell.
 - **Tests.** `tests/tv-player.e2e.ts` covers the bar's ← → and ↑ from its
   cells, a hidden bar's seek, PLAY NOW and STAY, SKIP's focus and its going,
-  the chrome's auto-hide handing the pad back to the card, and a revealed bar
-  keeping ▶❚❚ while SKIP is offered. `tests/focus-geometry.spec.ts` pins why the
+  the chrome's auto-hide handing the pad back to the card, a revealed bar
+  keeping ▶❚❚ while SKIP is offered, and (c517) the Work card's ↓, ↑ and
+  ← →, on a database and preview of its own with a Work made in SQL. `tests/focus-geometry.spec.ts` pins why the
   1 px mattered.
 
 ## What it does not do yet
