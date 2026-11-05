@@ -49,6 +49,8 @@ Measured 2026-10-29, the things a fresh machine trips over:
 - **kotoba** is `link:../kotoba`, and exports TypeScript source. It works because
   the build happens beside a kotoba checkout; it must end up bundled into the
   build output, since Node won't strip types inside `node_modules`.
+  The same link is why `yarn add` in a wave worktree damages the lock: see
+  [Adding a dependency](#adding-a-dependency-and-in-a-wave-worktree).
 - **The engine** is an image built locally from the private `tsundoku-engine`
   repo, and its compose file mounts `/mnt/hdd2` and pins `TZ=America/Cuiaba`.
 - **External binaries**: `ffmpeg`/`ffprobe` for anime, FlareSolverr beside the
@@ -216,6 +218,97 @@ have Docker Desktop and won't install it (WSL2, a reboot, a licence prompt) to
 try a reader. Native alone would mean every friend also runs a JRE and
 FlareSolverr by hand. So the native bundle is the main path, and Docker is the
 one for people who already have it, and for Linux servers.
+
+## Adding a dependency (and in a wave worktree)
+
+**A wave slot adds no dependency unless its section of the wave's brief says
+so.** The shared rules every wave worker reads make `package.json` and
+`yarn.lock` nobody's file; a slot that is certain it needs a package writes it
+under _Gaps_ in its notes instead, with the package, the version and why. This
+section is the procedure for the slot whose section does say so, and for
+anyone adding one by hand in a worktree (c544).
+
+**Why a worktree is different.** `package.json` has `"kotoba":
+"link:../kotoba"`, which yarn resolves from the checkout's root. Beside
+`~/projects/tsundoku` that is `~/projects/kotoba`; inside
+`~/work/tsundoku/wave<N>/<slot>` it is `~/work/tsundoku/wave<N>/kotoba`, which
+does not exist. Measured 2026-11-05 (wave 24, `yarn add is-odd@3.0.1` on a
+throwaway branch at `32e737e2`):
+
+- every yarn command that installs (`yarn add`, `yarn remove`, `yarn install`,
+  `--frozen-lockfile` included) re-makes `node_modules/kotoba` as
+  `../../kotoba`, a dangling link: `yarn run check` then cannot resolve
+  `kotoba`, and `prepare`'s dictionary sync fails behind its `|| true`;
+- a command that rewrites the lock (`yarn add`, `yarn remove`) also drops
+  kotoba's own dependencies from `yarn.lock`, because it cannot read their
+  names: today that is `@patdx/kuromoji`'s four-line entry. It deletes
+  `node_modules/@patdx/kuromoji` too, which nothing here misses (kotoba is
+  resolved through its real path, so its imports come from
+  `~/projects/kotoba/node_modules`);
+- the `kotoba` line in `package.json` and its `"kotoba@link:../kotoba"` lock
+  entry are left as they are;
+- relinking `node_modules/kotoba` _before_ the add changes nothing (yarn reads
+  the path from `package.json`, not through `node_modules`), and
+  `yarn install --frozen-lockfile` does not notice the pruned entry (it passed
+  on both the pruned and the restored lock).
+
+In the main checkout none of this happens: the same `yarn add` beside a
+`kotoba` checkout changed only the new package's lines.
+
+**The steps**, from the worktree's root, in this order:
+
+```sh
+# 1. Add the package (-D for a devDependency).
+yarn add <package>@<version>
+
+# 2. Relink kotoba (untracked; every install breaks it again, so this is
+#    always the last yarn step's follow-up), and sync its dictionary.
+ln -sfn ~/projects/kotoba node_modules/kotoba
+node node_modules/kotoba/scripts/sync-dict.js static/dict
+
+# 3. Put back the lock entries of kotoba's dependencies that yarn dropped,
+#    each where it stood in HEAD's lock. Prints what it restored; a second
+#    run restores nothing.
+node - <<'JS'
+const { execFileSync } = require('node:child_process');
+const { readFileSync, writeFileSync } = require('node:fs');
+const deps = Object.keys(
+	JSON.parse(readFileSync('node_modules/kotoba/package.json', 'utf8')).dependencies ?? {}
+);
+const blocks = (s) => s.split('\n\n');
+const key = (b) => b.split('\n')[0];
+const ours = (b) => deps.some((d) => key(b).replace(/^"/, '').startsWith(`${d}@`));
+const old = blocks(execFileSync('git', ['show', 'HEAD:yarn.lock'], { encoding: 'utf8' }));
+const now = blocks(readFileSync('yarn.lock', 'utf8'));
+const have = new Set(now.map(key));
+for (const [i, b] of old.entries()) {
+	if (!ours(b) || have.has(key(b))) continue;
+	const next = old.slice(i + 1).find((n) => have.has(key(n)));
+	now.splice(next ? now.findIndex((n) => key(n) === key(next)) : now.length, 0, b);
+	have.add(key(b));
+	console.log(`restored ${key(b)}`);
+}
+writeFileSync('yarn.lock', now.join('\n\n'));
+JS
+
+# 4. Check what the commit will carry.
+git diff package.json | grep -E '^[-+][^-+]'  # one + line: the new package
+git diff yarn.lock | grep -E '^-[^-]'         # nothing
+git diff yarn.lock | grep -E '^\+[^ +]'       # the new package's entries only
+readlink node_modules/kotoba                  # /home/masshiro/projects/kotoba
+yarn run check
+```
+
+How to tell it went wrong: step 4's second command prints a line. A
+`-"@patdx/kuromoji@…"` (or another of kotoba's dependencies) means step 3 did
+not run or ran before step 2. Any other removed line is the new package
+changing an existing entry (a range it shares, now resolved to a newer
+version): read it, and say so in the commit. `yarn run check` failing to
+resolve `kotoba` means step 2 did not follow the last yarn command, a
+`yarn remove` or a `yarn install` included.
+
+The new package's licence reaches the release's `THIRD-PARTY-NOTICES` with no
+change to the release build ([Licences](#licences)).
 
 ## Licences
 
