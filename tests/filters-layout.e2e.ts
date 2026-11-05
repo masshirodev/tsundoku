@@ -5,7 +5,10 @@ import { expect, test, type Locator } from '@playwright/test';
  * (doc/FILTERS.md). They're hand-set in the mock, not a spacing scale:
  * 132px labels, 52px rows, a 640px panel on the desktop. Asserted so a later
  * tidy-up can't round them onto something else and redraw the screen.
- * Runs on every device project; each checks its own arrangement.
+ * Runs on every device project; each checks its own arrangement. Since c436
+ * the phone's and tablet's FILTER is the KIND band's last cell, in the band's
+ * 13px with 14px a side (Kinds Calls 05, "FILTER CELL"), and its panel opens
+ * the band's width under it; the desktop's stays in the top bar at 14px.
  */
 
 const px = (l: Locator, prop: string) =>
@@ -17,8 +20,18 @@ test('the panel, as the mock measures it on this device', async ({ page }, info)
 	const cell = page.locator('summary', { hasText: 'FILTER' }).filter({ visible: true });
 	await expect(cell).toHaveCount(1);
 	// No wait for hydration: a native open before it now survives it (c105).
-	expect(await px(cell, 'font-size')).toBe('14px');
-	// On the tabs FILTER draws its own divider; in the desktop's top bar the
+	expect(await px(cell, 'font-size')).toBe(device === 'desktop' ? '14px' : '13px');
+	if (device !== 'desktop') {
+		expect(await px(cell, 'padding-left')).toBe('14px');
+		expect(await px(cell, 'padding-right')).toBe('14px');
+		// Inside the band, pinned at its right end.
+		const band = page.getByRole('group', { name: 'Kind' });
+		const b = (await band.boundingBox())!;
+		const c = (await cell.boundingBox())!;
+		expect(Math.round(c.x + c.width)).toBe(Math.round(b.x + b.width));
+		expect(Math.round(c.height)).toBe(39);
+	}
+	// On the band FILTER draws its own divider; in the desktop's top bar the
 	// cell before it draws that one, and FILTER the rule against SELECT (c431).
 	if (device === 'desktop') {
 		expect(await px(cell, 'border-left-width')).toBe('0px');
@@ -63,8 +76,8 @@ test('the panel, as the mock measures it on this device', async ({ page }, info)
 		expect(box.width).toBe(640);
 		expect(Math.round(box.x + box.width)).toBe(viewport.width);
 	} else {
-		// On the tabs: the panel spans the bar.
-		const bar = page.locator('div.tabs').filter({ visible: true });
+		// On the band: the panel spans it.
+		const bar = page.getByRole('group', { name: 'Kind' });
 		const barBox = (await bar.boundingBox())!;
 		expect(Math.round(box.width)).toBe(Math.round(barBox.width));
 	}

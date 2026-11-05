@@ -14,11 +14,17 @@ const focused = (page: Page) =>
 		return (a?.getAttribute('aria-label') ?? a?.textContent ?? '').trim();
 	});
 
-/** From the screen's start to SORT's cell, the way a remote gets there. */
+/**
+ * From the screen's start to SORT's cell, the way a remote gets there. Since
+ * c436 the tabs take the width and FILTER is the KIND band's last cell, at the
+ * right edge under SORT: down to the band, along it to FILTER, then up.
+ */
 async function toSort(page: Page) {
 	await page.keyboard.press('ArrowDown'); // the screen's start, the first CONTINUE card
 	await page.keyboard.press('ArrowDown'); // the shelf tabs
-	// Along the tabs to the last, + NEW, under the sort.
+	await page.keyboard.press('ArrowDown'); // the KIND band
+	await expect.poll(() => focused(page)).toMatch(/^ALL/);
+	// Along the band to the last, FILTER, under the sort.
 	let last = '';
 	for (let i = 0; i < 12; i++) {
 		await page.keyboard.press('ArrowRight');
@@ -27,7 +33,12 @@ async function toSort(page: Page) {
 		last = now;
 	}
 	// Up lands in the SORT block: on SORT, or on ↓ / ↑ beside it, then left.
-	await page.keyboard.press('ArrowUp');
+	// The tabs run under SORT once the flow files beside this one have made
+	// shelves enough on the shared database, so up may stop on them first.
+	for (let i = 0; i < 3; i++) {
+		await page.keyboard.press('ArrowUp');
+		if (/^Sort, |^Reverse order$/.test(await focused(page))) break;
+	}
 	await expect.poll(() => focused(page)).toMatch(/^Sort, |^Reverse order$/);
 	if ((await focused(page)) === 'Reverse order') await page.keyboard.press('ArrowLeft');
 	await expect.poll(() => focused(page)).toMatch(/^Sort, /);
@@ -84,15 +95,18 @@ test('the remote reaches SORT, OK opens it on the choice in use, and the pad wal
 
 /**
  * How far the focused cover's ring (7px outside it, `--focus-ring`) is clear
- * of every bar pinned over that column: the top bar, the shelf tabs and the
- * focus line. Negative is covered.
+ * of every bar pinned over that column: the top bar, the shelf tabs (pinned
+ * until c436), the KIND band (pinned in their place since) and the focus
+ * line. Negative is covered.
  */
 const ringClear = (page: Page) =>
 	page.evaluate(() => {
 		const cover = document.activeElement?.querySelector('.cover');
 		if (!cover) return null;
 		const c = cover.getBoundingClientRect();
-		const pinned = [...document.querySelectorAll<HTMLElement>('header.bar, .tabs, .focus-line')]
+		const pinned = [
+			...document.querySelectorAll<HTMLElement>('header.bar, .tabs, .kinds, .focus-line')
+		]
 			.filter((el) => ['sticky', 'fixed'].includes(getComputedStyle(el).position))
 			.map((el) => el.getBoundingClientRect())
 			.filter((r) => r.width > 0 && r.left < c.right && r.right > c.left && r.top < c.top);
@@ -110,6 +124,7 @@ test('the pinned bars never cover the first row’s focus ring, and BACK from de
 	await page.goto('/?sort=title');
 	await page.keyboard.press('ArrowDown'); // the screen's start
 	await page.keyboard.press('ArrowDown'); // the shelf tabs
+	await page.keyboard.press('ArrowDown'); // the KIND band (c436): one stop more
 	await page.keyboard.press('ArrowDown'); // the first row
 	const firstRow = await page.evaluate(
 		() => document.activeElement?.closest('.tile')?.getBoundingClientRect().top

@@ -48,10 +48,11 @@
 		activeCount,
 		filterParams,
 		filterWords,
-		kindsAmong,
+		kindCells,
 		matches,
 		NO_FILTERS,
 		withFilters,
+		type FilterKind,
 		type Filters
 	} from '$lib/library/filters';
 	import { langCode } from '$lib/library/editions';
@@ -864,7 +865,109 @@
 			? [...new Set(cachedSeries.flatMap((s) => codesOf(s)).map((l) => l.toLowerCase()))].sort()
 			: data.languages
 	);
-	const kindsHere = $derived(data.shelf === 'cached' ? kindsAmong(cachedSeries) : data.kinds);
+	// ---- the KIND band (c436; doc/LIBRARY.md, "The KIND band") ---------------
+	/**
+	 * A kind's word on the band: the plural the kind shelves had (`nav_shelf_*`),
+	 * not `kindLabel`'s singular. Keyed by the registry's kinds, so a new kind
+	 * names its cell here or the compiler says so; the band asks no kind by name.
+	 */
+	const KIND_WORD = {
+		manga: m.nav_shelf_manga,
+		manhwa: m.nav_shelf_manhwa,
+		doujin: m.nav_shelf_doujin,
+		novel: m.nav_shelf_novel,
+		anime: m.nav_shelf_anime
+	} satisfies Record<FilterKind, () => string>;
+	const kindWord = (k: FilterKind | null) => upper(k ? KIND_WORD[k]() : m.nav_shelf_all());
+	/**
+	 * What each cell counts: the server's grouped count, or on CACHED, which
+	 * only the device can answer, the cached tiles with every filter but KIND.
+	 */
+	const bandCounts = $derived.by(() => {
+		if (data.shelf !== 'cached') return data.kindBand;
+		const loose = { ...data.filters, kind: null };
+		const here = cachedSeries.filter((s) => matches({ ...s, languages: codesOf(s) }, loose));
+		const kinds: Partial<Record<FilterKind, number>> = {};
+		for (const s of here) {
+			const k = s.kind as FilterKind;
+			kinds[k] = (kinds[k] ?? 0) + 1;
+		}
+		return { all: here.length, kinds };
+	});
+	const bandCells = $derived(
+		bandCounts ? kindCells(bandCounts.kinds, bandCounts.all, data.filters.kind) : []
+	);
+	/**
+	 * The chosen kind, kept on a shelf that has none of it (drawn at 0): the
+	 * grid says why. Only while the kind is all that narrows it: with FILTER's
+	 * own filters on too, "nothing matches these filters" is the truer line.
+	 */
+	const kindAtZero = $derived(
+		data.filters.kind !== null &&
+			activeCount(data.filters, false) === 0 &&
+			bandCells.some((c) => c.on && c.zero)
+	);
+	/** A band cell's link: the same `?kind=` FILTER's KIND row wrote, every other filter kept. */
+	const kindHref = (k: FilterKind | null) => filterHref({ ...data.filters, kind: k });
+
+	/**
+	 * Pinned (c436, with c433): the band stops under the top bar as the grid
+	 * scrolls and the tabs go up, and then gains a first cell naming the shelf,
+	 * `TO READ ▴`, which goes back to the tabs. Measured, not guessed: the
+	 * marker sits just above the band, so once the band is held while the page
+	 * moves on, the two part.
+	 */
+	let bandEl = $state<HTMLElement | null>(null);
+	let bandMark = $state<HTMLElement | null>(null);
+	let bandPinned = $state(false);
+	$effect(() => {
+		void winY;
+		void winH;
+		if (!bandEl || !bandMark) {
+			bandPinned = false;
+			return;
+		}
+		bandPinned = bandEl.getBoundingClientRect().top - bandMark.getBoundingClientRect().bottom > 1;
+	});
+	/**
+	 * The chosen cell is kept in view as the band scrolls sideways (Kinds Calls
+	 * 2), the effect ShelfTabs runs for the active tab: choosing a kind far
+	 * along scrolls ALL off the left rather than leaving the choice cut off.
+	 */
+	function keepChosen(node: HTMLElement, kind: FilterKind | null) {
+		const show = () => {
+			const on = node.querySelector<HTMLElement>('.on');
+			if (on)
+				node.scrollLeft += on.getBoundingClientRect().left - node.getBoundingClientRect().left;
+		};
+		show();
+		let last = kind;
+		return {
+			update(next: FilterKind | null) {
+				if (next === last) return;
+				last = next;
+				void tick().then(show);
+			}
+		};
+	}
+	/** `TO READ ▴`: back to the tabs, the mark on the shelf showing (the TV's ↑ does the same). */
+	function toTabs() {
+		const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+		const shown = (el: Element | null | undefined) => !!el && el.getClientRects().length > 0;
+		const tab = document.querySelector<HTMLElement>('.library .tabs .tab.on');
+		const bar = document.querySelector<HTMLElement>('.library > header.bar');
+		const held =
+			bar && ['sticky', 'fixed'].includes(getComputedStyle(bar).position)
+				? bar.getBoundingClientRect().height
+				: 0;
+		// The tabs where there are tabs; the desktop's are the sidebar, so there
+		// the band's own place, just under the bar.
+		const to = shown(tab) ? tab!.closest('.tabs') : bandMark;
+		if (shown(tab)) tab!.focus({ preventScroll: true });
+		const top = to ? scrollY + to.getBoundingClientRect().top - held : 0;
+		scrollTo({ top: Math.max(0, top), behavior: reduced ? 'instant' : 'smooth' });
+	}
+
 	const newOpen = $derived(page.url.searchParams.get('new') === 'shelf');
 
 	const shelves = $derived(
@@ -1051,7 +1154,9 @@
 							wide
 							filters={data.filters}
 							languages={languagesHere}
-							kinds={kindsHere}
+							kindRow={false}
+							formRow
+							countKind={false}
 							reveal={data.reveal}
 							following={data.following}
 							title={shelfName.toUpperCase()}
@@ -1423,21 +1528,74 @@
 				href={(k) => shelfHref(page.url, k)}
 				newHref={isOffline ? undefined : withParam(page.url, 'new', 'shelf')}
 			/>
-			{#if canFilter}
-				<FilterPanel
-					filters={data.filters}
-					languages={languagesHere}
-					kinds={kindsHere}
-					reveal={data.reveal}
-					following={data.following}
-					title={shelfName.toUpperCase()}
-					count={nFilters ? outOf : shelfSize.toLocaleString('en-US')}
-					href={filterHref}
-					formAction={resolve('/')}
-					keep={keepParams}
-				/>
-			{/if}
 		</div>
+
+		{#if bandCounts}
+			<!-- The KIND band (c436; Kinds Calls 1-4): one row under the tabs and over
+			     the grid, which kind on whichever shelf shows. FILTER sits at its end
+			     on the phone and tablet; the desktop's stays in the top bar. It pins
+			     under the top bar where the tabs don't, and pinned names the shelf. -->
+			<div class="band-mark" bind:this={bandMark} aria-hidden="true"></div>
+			<div
+				class="kinds"
+				class:pinned={bandPinned}
+				role="group"
+				aria-label={m.nav_kind_band()}
+				bind:this={bandEl}
+			>
+				{#if bandPinned}
+					<button
+						type="button"
+						class="klabel shelf"
+						data-focus-mark="in"
+						data-focus-id="kind-shelf"
+						onclick={toTabs}>{shelfName.toUpperCase()} <span aria-hidden="true">▴</span></button
+					>
+				{:else}
+					<div class="klabel">{upper(m.nav_kind_band())}</div>
+				{/if}
+				<div class="kscroll" use:keepChosen={data.filters.kind}>
+					{#each bandCells as c (c.kind ?? 'all')}
+						<!-- eslint-disable svelte/no-navigation-without-resolve -- filterHref resolves -->
+						<a
+							class="kc"
+							class:on={c.on}
+							class:zero={c.zero}
+							href={kindHref(c.kind)}
+							aria-current={c.on ? 'true' : undefined}
+							data-sveltekit-noscroll
+							data-sveltekit-keepfocus
+							data-focus-mark="in"
+							data-focus-id={`kind-${c.kind ?? 'all'}`}
+							data-focus-line
+							data-focus-title="{kindWord(c.kind)} · {count(c.n)} ON {shelfName.toUpperCase()}"
+							data-focus-meta={c.on ? 'SHOWING' : 'OK SHOWS THEM · THE GRID WAITS'}
+							><span>{kindWord(c.kind)}</span><span class="n">{count(c.n)}</span></a
+						>
+						<!-- eslint-enable svelte/no-navigation-without-resolve -->
+					{/each}
+				</div>
+				{#if canFilter}
+					<div class="kfilter">
+						<FilterPanel
+							band
+							filters={data.filters}
+							languages={languagesHere}
+							kindRow={false}
+							formRow
+							countKind={false}
+							reveal={data.reveal}
+							following={data.following}
+							title={shelfName.toUpperCase()}
+							count={nFilters ? outOf : shelfSize.toLocaleString('en-US')}
+							href={filterHref}
+							formAction={resolve('/')}
+							keep={keepParams}
+						/>
+					</div>
+				{/if}
+			</div>
+		{/if}
 
 		<!-- The TV's focus line, under the pinned tabs (c238; only a TV draws it). -->
 		<FocusLine />
@@ -1445,7 +1603,10 @@
 		{#if outlined}
 			<GridOutline />
 		{:else if data.shelf !== 'people'}
-			<div class="grid" data-back-climb="nav[aria-label=Shelves] .tab.on">
+			<!-- BACK from the grid climbs to what is pinned over it: the KIND band's
+			     chosen cell since c436 (the shelf tab's, pinned in its place, before).
+			     In full view, so BACK goes on to the screen's start (doc/FOCUS.md). -->
+			<div class="grid" data-back-climb=".kinds .kc.on">
 				{#each shown as s, i (s.id)}
 					{@const cached = cachedOn(s)}
 					{#if s.tile}
@@ -1529,6 +1690,18 @@
 			{#if data.people.length === 0}
 				<p class="none">NO FAVOURITE PEOPLE · FAV ONE FROM THEIR PAGE</p>
 			{/if}
+		{:else if shown.length === 0 && kindAtZero && !outlined}
+			<!-- The kind chosen elsewhere, none of it here (Kinds Calls 4): the band
+			     keeps it at 0, and this says so with the way back to every kind. -->
+			{@const all = bandCounts?.all ?? 0}
+			<div class="empty-result">
+				<p class="empty-title">No {kindWord(data.filters.kind).toLowerCase()} on {shelfName}.</p>
+				<p class="empty-sub">The shelf holds {all.toLocaleString('en-US')}.</p>
+				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- kindHref resolves -->
+				<a class="empty-clear" href={kindHref(null)} data-sveltekit-noscroll
+					>✕ ALL KINDS · SHOW {all.toLocaleString('en-US')}</a
+				>
+			</div>
 		{:else if shown.length === 0 && nFilters > 0 && !outlined}
 			<!-- Filters that leave nothing (3f): a narrow question about one shelf, not an empty library. -->
 			<div class="empty-result">
@@ -1786,13 +1959,27 @@
 	.library:not(.selecting) {
 		padding-bottom: calc(53px + env(safe-area-inset-bottom));
 	}
-	/* Not while FILTER's panel or SORT's list is open: their scrims sit in the
-	   sticky bar's stacking context, so the cell, at the bar's z-index later in
+	/* Not while FILTER's panel or SORT's list is open: their scrims sit in a
+	   pinned bar's stacking context, so the cell, at the bar's z-index later in
 	   the page, was drawn lit above the dimmed screen. Read off the two
-	   components' own open states, the <details> and the cell's aria-expanded. */
-	.library:has(:global(details.filter[open]), :global(.menu > .cell[aria-expanded='true']))
-		.to-top {
+	   components' own open states, the <details> and the cell's aria-expanded.
+	   Each FILTER counts only where it is drawn (c474): the top bar's on a
+	   desktop, the KIND band's elsewhere. A <details> CSS has hidden stays
+	   open, so a FILTER left open at 1200px and the window narrowed to 900px
+	   hid BACK TO TOP for good. A person's page's FILTER is drawn everywhere. */
+	.library:has(:global(.menu > .cell[aria-expanded='true'])) .to-top,
+	.library:has(:global(details.filter[open]:not(.filter-desk *):not(.kfilter *))) .to-top {
 		display: none;
+	}
+	@media (min-width: 1024px) and (pointer: fine) {
+		.library:has(.filter-desk :global(details.filter[open])) .to-top {
+			display: none;
+		}
+	}
+	@media (max-width: 1023px), (pointer: coarse), (pointer: none) {
+		.library:has(.kfilter :global(details.filter[open])) .to-top {
+			display: none;
+		}
 	}
 	@media (pointer: none) and (min-width: 900px) {
 		.to-top {
@@ -1880,8 +2067,8 @@
 			display: inline;
 		}
 	}
-	/* The tabs and, pinned at their end, FILTER (Library Filters 3a): the bar
-	   draws the rules, the tabs scroll under the pinned cell. */
+	/* The shelf tabs: the whole width since c436, FILTER having moved to the
+	   KIND band's end (Kinds Calls, "04 — THE SIDEBAR"). */
 	.tabs {
 		position: relative;
 		z-index: 5;
@@ -1889,11 +2076,118 @@
 		border-top: var(--hairline);
 		border-bottom: var(--hairline);
 	}
-	/* The tabs stay lit above FILTER's scrim, as the mock draws them. */
 	.tabs > :global(nav) {
 		position: relative;
-		z-index: 5;
 		background: var(--surface-page);
+	}
+	/* ---- the KIND band (c436; Kinds Calls 05, "SIZES": literals, not the
+	   ladder, and the tokens for colour). One 40px row, 13px mono against the
+	   tabs' 46px and 14px, so the two never read as one double row. It pins
+	   under the top bar (z 7, the bar is 8) as the grid scrolls; the tabs
+	   don't. The marker above it is what says it has pinned. */
+	.band-mark {
+		height: 0;
+	}
+	.kinds {
+		position: sticky;
+		top: var(--header-h);
+		z-index: 7;
+		display: flex;
+		flex-shrink: 0;
+		height: 40px;
+		border-bottom: var(--hairline);
+		background: var(--surface-page);
+	}
+	.klabel {
+		display: flex;
+		align-items: center;
+		flex-shrink: 0;
+		padding: 0 14px 0 var(--pad);
+		border: 0;
+		border-right: var(--hairline);
+		border-radius: 0;
+		background: var(--surface-page);
+		font: 500 12px/1 var(--font-mono);
+		letter-spacing: 0.06em;
+		color: var(--text-2);
+		white-space: nowrap;
+	}
+	/* Pinned, the label is the shelf's name and the way back to the tabs. */
+	.klabel.shelf {
+		gap: 6px;
+		font-size: 13px;
+		letter-spacing: 0.02em;
+		color: var(--text-1);
+		cursor: pointer;
+	}
+	.klabel.shelf:active {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+	}
+	/* Scrolls sideways, never wraps: a cut-off cell is the cue (Kinds Calls 2).
+	   Above FILTER's scrim, as the tabs were, so the band stays lit. */
+	.kscroll {
+		position: relative;
+		z-index: 5;
+		display: flex;
+		flex: 1;
+		min-width: 0;
+		overflow-x: auto;
+		scrollbar-width: none;
+		background: var(--surface-page);
+	}
+	.kscroll::-webkit-scrollbar {
+		display: none;
+	}
+	.kc {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		flex-shrink: 0;
+		padding: 0 10px;
+		border-right: var(--hairline);
+		color: var(--text-1);
+		font: 500 13px/1 var(--font-mono);
+		letter-spacing: 0.02em;
+		white-space: nowrap;
+		text-decoration: none;
+	}
+	.kc .n {
+		opacity: 0.6;
+	}
+	/* The chosen kind kept on a shelf with none of it: drawn at 0, dimmed. */
+	.kc.zero {
+		opacity: 0.4;
+	}
+	.kc.on,
+	.kc.on:hover,
+	.kc:active {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+	}
+	.kfilter {
+		display: flex;
+		flex-shrink: 0;
+	}
+	/* The phone drops the KIND label for room, and has the shelf's cell only pinned. */
+	@media (max-width: 599px) {
+		.klabel:not(.shelf) {
+			display: none;
+		}
+	}
+	@media (min-width: 600px) {
+		.kc {
+			padding: 0 14px;
+		}
+	}
+	/* The desktop: under the section label, ruled above too; FILTER is the top bar's. */
+	@media (min-width: 1024px) and (pointer: fine) {
+		.kinds {
+			border-top: var(--hairline);
+		}
+		.kfilter {
+			display: none;
+		}
 	}
 	/* SORT: one closed block of square cells, the menu (▾ says it opens) and
 	   the direction beside it, as the panel rows draw a sort ("cells plus
@@ -2299,12 +2593,10 @@
 		.cont > :global(:nth-child(n + 4)) {
 			display: none;
 		}
-		/* The shelf tabs pin under the safe top as the header and CONTINUE
-		   scroll away (state 3B). */
+		/* The shelf tabs, in the safe margin. They pinned under the safe top
+		   until c436 (state 3B); the KIND band does now, in their place, so the
+		   pinned rows are still 56 + 64px (Kinds Calls 3, "TV"). */
 		.tabs {
-			position: sticky;
-			top: 0;
-			z-index: 9;
 			height: var(--tv-tab-h);
 			margin: 0 var(--pad);
 			border: var(--hairline);
@@ -2312,6 +2604,30 @@
 		}
 		.tabs > :global(nav) {
 			height: 100%;
+		}
+		/* The band: a 56px focus row of its own under the tabs. Moving along it
+		   moves focus only; a cell is a link, so nothing changes until OK. */
+		.kinds {
+			top: 0;
+			z-index: 9;
+			height: var(--tv-tab-h);
+			margin: 0 var(--pad);
+			border: var(--hairline);
+			border-top: 0;
+		}
+		.kinds.pinned {
+			border-top: var(--hairline);
+		}
+		.klabel {
+			padding: 0 18px;
+			font-size: 15px;
+		}
+		.klabel.shelf {
+			font-size: 17px;
+		}
+		.kc {
+			padding: 0 18px;
+			font-size: 17px;
 		}
 		/* Six 144px cells inside the safe margin; the grid's own hairline. */
 		.grid {

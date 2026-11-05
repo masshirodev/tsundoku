@@ -25,8 +25,13 @@ test('a slow shelf: the tab is pressed, then the line, then the grid in outline'
 	page
 }) => {
 	await page.goto('/?sort=title');
-	await slow(page, '**/__data.json?*shelf=k*manga*', 2500);
-	const tab = page.getByRole('link', { name: /^MANGA/ }).filter({ visible: true });
+	// The KIND band's MANGA (c436), which asks `?kind=manga`: the sidebar's
+	// MANGA shelf, `?shelf=k:manga`, is gone, and a route on it matched nothing.
+	await slow(page, '**/__data.json?*kind=manga*', 2500);
+	const tab = page
+		.getByRole('group', { name: 'Kind' })
+		.getByRole('link', { name: /^MANGA/ })
+		.filter({ visible: true });
 	await tab.click();
 	await expect(tab).toHaveClass(/nav-pressed/);
 	await expect(page.getByRole('progressbar', { name: 'Loading' }).first()).toBeVisible();

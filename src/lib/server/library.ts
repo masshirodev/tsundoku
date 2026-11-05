@@ -5,7 +5,13 @@ import { HIDDEN_SQL, IN_LIBRARY_SQL, VISIBLE_SQL } from './visibility.ts';
 import { getSetting } from './settings.ts';
 import { langCode, openingEdition } from '../library/editions.ts';
 import { likePattern } from '../library/search.ts';
-import { dayStart, FILTER_KINDS, type FilterKind, type Filters } from '../library/filters.ts';
+import {
+	dayStart,
+	FILTER_KINDS,
+	NO_FILTERS,
+	type FilterKind,
+	type Filters
+} from '../library/filters.ts';
 import { naturalDir, type Dir, type Sort } from '../library/labels.ts';
 import {
 	continuePart,
@@ -292,7 +298,6 @@ const NEW_SQL = `(s.arrived_at > ? AND NOT EXISTS (SELECT 1 FROM entries e
 	WHERE e.series_id = s.id AND e.last_opened_at >= s.arrived_at))`;
 const newSince = (now = Date.now()) => now - NEW_DAYS * 86_400_000;
 
-/** Where a shelf key narrows the listing. Unknown keys fall back to all. */
 /**
  * A single book: a doujin series holding one (isSingleton, src/lib/server/books.ts).
  * ONE-OFF is these; SERIES is everything else (Library Filters turn 3). A
@@ -322,12 +327,19 @@ const PROGRESS_SQL = {
 /** `language:` values that describe a book rather than name a language. */
 const NOT_LANGUAGES = `('translated', 'rewrite', 'speechless', 'text cleaned')`;
 
+/**
+ * Where a shelf key narrows the listing. Unknown keys fall back to all.
+ * SERIES, ONE-OFF and the kind shelves (`k:<kind>`, any kind the registry
+ * names) are no longer shelves (c436): a URL naming one is sent on to its
+ * filter (`legacyShelf`), but a caller that still asks by the old key -- a
+ * page asked for by a tab loaded before the change -- gets the same rows.
+ */
 function shelfClause(shelf: string): { sql: string; params: unknown[] } {
 	if (shelf === 'series') return { sql: `NOT ${ONE_OFF_SQL}`, params: [] };
 	if (shelf === 'oneoff') return { sql: ONE_OFF_SQL, params: [] };
 	if (shelf === 'new') return { sql: NEW_SQL, params: [newSince()] };
-	const kind = /^k:(manga|manhwa|novel|anime)$/.exec(shelf);
-	if (kind) return { sql: 's.kind = ?', params: [kind[1]] };
+	const kind = FILTER_KINDS.find((k) => shelf === `k:${k}`);
+	if (kind) return { sql: 's.kind = ?', params: [kind] };
 	const collection = /^c:(\d+)$/.exec(shelf);
 	if (collection) {
 		return {
@@ -400,6 +412,7 @@ function filterClause(f: Filters | undefined, reveal: boolean): { sql: string; p
 		sql.push('s.kind = ?');
 		params.push(f.kind);
 	}
+	if (f.form) sql.push(f.form === 'oneoff' ? ONE_OFF_SQL : `NOT ${ONE_OFF_SQL}`);
 	if (f.lang) {
 		const names = languageNames(f.lang);
 		if (names.length === 0) sql.push('0');
@@ -449,11 +462,50 @@ export function kindsOn(opts: Omit<ListOpts, 'filters'>): FilterKind[] {
 }
 
 /**
+ * The KIND band's counts (c436; doc/LIBRARY.md, "The KIND band"): the tiles
+ * on this shelf, every filter but KIND applied, in all and by kind, in one
+ * grouped read. A Work counts once under each kind it has a picked part of
+ * (a Work of a manga and its anime is one tile on MANGA and one on ANIME),
+ * and once in all, so `all` is what ALL shows, not the sum of the kinds.
+ */
+export function kindCounts(opts: ListOpts): {
+	all: number;
+	kinds: Partial<Record<FilterKind, number>>;
+} {
+	const filters = opts.filters ? { ...opts.filters, kind: null } : undefined;
+	const where = listWhere({ ...opts, filters });
+	const free = `NOT EXISTS (SELECT 1 FROM work_series ws WHERE ws.series_id = s.id)`;
+	const rows = getDb()
+		.prepare(
+			`SELECT kind, SUM(n) AS n FROM (
+				SELECT s.kind AS kind, COUNT(*) AS n FROM series s JOIN roots r ON r.id = s.root_id
+					WHERE ${where.sql} AND ${free} GROUP BY s.kind
+				UNION ALL
+				SELECT s.kind AS kind, COUNT(DISTINCT ws.work_id) AS n FROM work_series ws
+					JOIN series s ON s.id = ws.series_id JOIN roots r ON r.id = s.root_id
+					WHERE ${where.sql} GROUP BY s.kind
+			) GROUP BY kind`
+		)
+		.all(...where.params, ...where.params) as { kind: string; n: number }[];
+	const kinds: Partial<Record<FilterKind, number>> = {};
+	for (const r of rows) {
+		const k = FILTER_KINDS.find((x) => x === r.kind);
+		if (k) kinds[k] = r.n;
+	}
+	return { all: countUnitsOf(where.sql, where.params), kinds };
+}
+
+/**
  * The languages on a shelf as it stands without filters, as lower-case codes:
  * what LANGUAGE offers. Only what the viewer can see; never `translated`.
+ * A kind chosen on the KIND band narrows it as the kind shelf it replaced did
+ * (c436): MANHWA offers none, so choosing it drops JA (Library Filters 1c).
  */
-export function languagesOn(opts: Omit<ListOpts, 'filters'>): string[] {
-	const where = listWhere({ ...opts, filters: undefined });
+export function languagesOn(
+	opts: Omit<ListOpts, 'filters'> & { kind?: FilterKind | null }
+): string[] {
+	const { kind, ...rest } = opts;
+	const where = listWhere({ ...rest, filters: kind ? { ...NO_FILTERS, kind } : undefined });
 	const rows = getDb()
 		.prepare(
 			`WITH picked AS MATERIALIZED (
@@ -948,15 +1000,6 @@ export function continueReading(
 	return { items, total };
 }
 
-/** The kinds with a shelf of their own. Doujins are books, grouped by other means. */
-// Functions, not words: a shelf's name is the reader's language, asked per request (doc/I18N.md).
-const KIND_SHELVES = [
-	['manga', m.nav_shelf_manga],
-	['manhwa', m.nav_shelf_manhwa],
-	['novel', m.nav_shelf_novel],
-	['anime', m.nav_shelf_anime]
-] as const;
-
 export function listShelves(opts: { reveal: boolean; withNew: boolean }): Shelf[] {
 	const db = getDb();
 	const where = visibility(opts.reveal);
@@ -969,21 +1012,10 @@ export function listShelves(opts: { reveal: boolean; withNew: boolean }): Shelf[
 	if (opts.withNew || fresh > 0)
 		shelves.push({ key: 'new', name: m.nav_shelf_new(), kind: 'smart', count: fresh });
 	shelves.push({ key: 'all', name: m.nav_shelf_all(), kind: 'smart', count: n('1') });
-	// DOWNLOADED, FAVOURITES and RATED became filters (Library Filters turn
-	// 3); SERIES and ONE-OFF split the library by what a thing is instead.
-	shelves.push({
-		key: 'series',
-		name: m.nav_shelf_series(),
-		kind: 'smart',
-		count: n(`NOT ${ONE_OFF_SQL}`)
-	});
-	shelves.push({ key: 'oneoff', name: m.nav_shelf_oneoff(), kind: 'smart', count: n(ONE_OFF_SQL) });
-	// One shelf per kind of reading, only while the library has some: a
-	// library of manga alone doesn't need a MANHWA shelf reading 0.
-	for (const [kind, name] of KIND_SHELVES) {
-		const count = n('s.kind = ?', kind);
-		if (count > 0) shelves.push({ key: `k:${kind}`, name: name(), kind: 'smart', count });
-	}
+	// Shelves only (c436): what a thing is -- SERIES, ONE-OFF, MANGA, NOVELS,
+	// ANIME -- is no longer a shelf. Kinds are the library's KIND band
+	// (`kindCounts`), SERIES and ONE-OFF FILTER's FORM; DOWNLOADED, FAVOURITES
+	// and RATED became filters before them (Library Filters turn 3).
 
 	const collections = db
 		.prepare(`SELECT id, name FROM collections ORDER BY position, id`)

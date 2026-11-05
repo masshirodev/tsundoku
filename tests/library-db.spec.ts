@@ -84,7 +84,16 @@ describe('shelves', () => {
 		expect(byKey.favourites).toBeUndefined();
 		expect(byKey.rated4).toBeUndefined();
 		expect(byKey.downloaded).toBeUndefined();
-		expect(byKey.series + byKey.oneoff).toBe(byKey.all);
+		// Shelves only since c436: SERIES and ONE-OFF are FILTER's FORM, and the
+		// kinds the library's KIND band. Every key left is ALL, NEW, a collection
+		// or a hidden root.
+		expect(shelves.every((s) => /^(all|new|c:\d+|r:\d+)$/.test(s.key))).toBe(true);
+		expect(byKey.series).toBeUndefined();
+		expect(byKey.oneoff).toBeUndefined();
+		const form = (x: 'series' | 'oneoff') =>
+			lib.countListed({ reveal: false, filters: only({ form: x }) });
+		expect(form('series') + form('oneoff')).toBe(byKey.all);
+		expect(form('oneoff')).toBeGreaterThan(0);
 	});
 
 	it('narrows the listing to a collection', () => {
@@ -369,44 +378,63 @@ describe('pages of a shelf', () => {
 	it('counts exactly what the shelf shows, hidden left out', () => {
 		// A tile count against a tile list: a Work is one tile, however many
 		// series it holds (tests/works-library-db.spec.ts has that fixture).
-		for (const shelf of ['all', 'series', 'oneoff', 'k:novel']) {
-			const cards = lib.listTiles({ reveal: false, shelf, limit: 1000 });
-			expect(lib.countListed({ reveal: false, shelf })).toBe(cards.length);
+		for (const filters of [
+			NO_FILTERS,
+			only({ form: 'series' }),
+			only({ form: 'oneoff' }),
+			only({ kind: 'novel' })
+		]) {
+			const cards = lib.listTiles({ reveal: false, filters, limit: 1000 });
+			expect(lib.countListed({ reveal: false, filters })).toBe(cards.length);
 		}
 		expect(lib.countListed({ reveal: true })).toBeGreaterThan(lib.countListed({ reveal: false }));
 	});
 });
 
-describe('the kind shelves', () => {
-	it('read ANIME as a kind, not as no shelf at all (which lists everything)', () => {
-		const anime = lib.listSeries({ reveal: true, shelf: 'k:anime' });
-		expect(anime.every((c) => c.kind === 'anime')).toBe(true);
-		expect(lib.countListed({ reveal: true, shelf: 'k:anime' })).toBe(
-			lib.listTiles({ reveal: true, shelf: 'k:anime', limit: 1000 }).length
+describe('the kinds, a band on the library since c436', () => {
+	it('still read an old kind shelf’s key as its kind, never as all: a page asked by a tab loaded before', () => {
+		const novels = lib.listSeries({ reveal: true, shelf: 'k:novel' });
+		expect(novels.length).toBeGreaterThan(0);
+		expect(novels.every((c) => c.kind === 'novel')).toBe(true);
+		expect(lib.listSeries({ reveal: true, shelf: 'k:novel' })).toEqual(
+			lib.listSeries({ reveal: true, filters: only({ kind: 'novel' }) })
+		);
+		// Any kind the registry names, doujin included; a key naming none is all.
+		expect(lib.listSeries({ reveal: false, shelf: 'k:doujin' })).toEqual(
+			lib.listSeries({ reveal: false, filters: only({ kind: 'doujin' }) })
+		);
+		expect(lib.listSeries({ reveal: false, shelf: 'k:comic' })).toEqual(
+			lib.listSeries({ reveal: false })
 		);
 	});
 
-	it('list one kind each, counted the same way, and only kinds the library has', () => {
-		const shelves = lib.listShelves({ reveal: false, withNew: false });
-		const all = lib.listSeries({ reveal: false });
-		for (const kind of ['manga', 'manhwa', 'novel', 'anime'] as const) {
-			const want = all.filter((c) => c.kind === kind);
-			const shelf = shelves.find((s) => s.key === `k:${kind}`);
-			if (want.length === 0) {
-				expect(shelf).toBeUndefined();
-				continue;
+	it('the band counts each kind as its tiles, every other filter applied, and ALL as the shelf', () => {
+		const { FILTER_KINDS } = filtersMod;
+		for (const reveal of [false, true])
+			for (const filters of [NO_FILTERS, only({ min: 6 }), only({ fav: 1, kind: 'manga' })]) {
+				const band = lib.kindCounts({ reveal, filters });
+				// The kind chosen is no part of what the band counts: every cell keeps its count.
+				const loose = { ...filters, kind: null };
+				expect(band.all).toBe(lib.countListed({ reveal, filters: loose }));
+				// Every kind of the registry, so a kind missing from the counts is one with none.
+				for (const kind of FILTER_KINDS) {
+					const n = lib.countListed({ reveal, filters: { ...loose, kind } });
+					expect(band.kinds[kind] ?? 0).toBe(n);
+				}
 			}
-			const listed = lib.listSeries({ reveal: false, shelf: `k:${kind}` });
-			const onShelf = lib.listTiles({ reveal: false, shelf: `k:${kind}`, limit: 1000 });
-			expect(listed.every((c) => c.kind === kind)).toBe(true);
-			expect(listed.length).toBe(want.length);
-			expect(shelf).toMatchObject({ kind: 'smart', count: onShelf.length });
-		}
-		// The sample library has manga, manhwa and novels, so none of the above was vacuous.
-		expect(shelves.filter((s) => s.key.startsWith('k:')).length).toBe(3);
-		expect(shelves.some((s) => s.key === 'k:doujin')).toBe(false);
-		// A key naming no kind shelf falls back to all, as any unknown key does.
-		expect(lib.listSeries({ reveal: false, shelf: 'k:doujin' }).length).toBe(all.length);
+		// The sample has manga, manhwa, doujin and novels, so none of that was vacuous.
+		const band = lib.kindCounts({ reveal: false });
+		expect(Object.keys(band.kinds).length).toBeGreaterThanOrEqual(3);
+	});
+
+	it('counts on a collection, which holds only some kinds', () => {
+		const toFinish = lib
+			.listShelves({ reveal: false, withNew: false })
+			.find((s) => s.name === 'To finish')!;
+		const band = lib.kindCounts({ reveal: false, shelf: toFinish.key });
+		expect(band.all).toBe(toFinish.count);
+		const sum = Object.values(band.kinds).reduce((a, b) => a + (b ?? 0), 0);
+		expect(sum).toBe(toFinish.count);
 	});
 });
 
