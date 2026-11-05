@@ -3,19 +3,14 @@
  * the lines a row derives from what's set, what stands in, and when.
  */
 
-const LANG_NAMES: Record<string, string> = {
-	JA: 'JAPANESE',
-	EN: 'ENGLISH',
-	ES: 'SPANISH',
-	PT: 'PORTUGUESE',
-	FR: 'FRENCH',
-	DE: 'GERMAN',
-	IT: 'ITALIAN',
-	AR: 'ARABIC',
-	KO: 'KOREAN',
-	ZH: 'CHINESE'
-};
-export const langName = (code: string) => LANG_NAMES[code.toUpperCase()] ?? code.toUpperCase();
+import { langName as trackLangName } from '$lib/library/streams';
+
+/**
+ * A language as the page says it: "JAPANESE", "PORTUGUESE (BRAZIL)". The
+ * player's one table names it (c419), so a variant, or any language the
+ * player knows, reads as a name here too, never as its code.
+ */
+export const langName = (code: string) => trackLangName(code).toUpperCase();
 
 const DAY = 24 * 3600_000;
 

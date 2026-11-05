@@ -638,8 +638,12 @@ screen but the video, and the subtitles, until a tap.
   no cell ever holds a whole word: its first word when that is two or three
   letters, else its first three letters (Klingon is KLI), in ASCII with the
   accents dropped. A cut that is itself an alias in the table is that
-  alias's language (Indonesia cuts to IND, which is ID; China is ZH,
-  Vietnam VI), and a label with no Latin letters left, blank or in another
+  alias's language when the name plausibly is it, its first word and the
+  English name a prefix of each other or a short list of countries
+  (Indonesia cuts to IND, which is ID; China is ZH, Vietnam VI); otherwise
+  it is the first letter and the first two later ones no language holds
+  (c417: Chichewa cuts to Chinese's CHI and is CHC, Greenlandic GRN), so
+  an unknown track never takes a known one's code. A label with no Latin letters left, blank or in another
   script ("Тагальский"), is UND, named Unknown when it is blank. So every
   code the sheet shows is one `langCode` gives back unchanged and one the
   workstation keeps as a choice (two or three capitals, then up to two
@@ -857,17 +861,20 @@ pure parts in `src/lib/library/anime-files.ts`).
   c171): every track by default, or the original (the source's first audio)
   and the languages chosen under AUDIO KEPT; subtitles all, or AS AUDIO for
   those in a kept audio's language (`keptTracks`), by language alone: an
-  ES-419 track is kept by ES and tagged `spa`. New downloads only. The file is each track tagged with its language, written beside its
-  place and renamed. The NFOs are Jellyfin's (`tvshow`, `episodedetails`) and
-  carry tsundoku's keys as `<uniqueid type="tsundoku">`, with AniList and MAL
-  ids where the series is linked to an anime's entry (a manga's ids would
-  have Jellyfin's plugins fetch another work, c395). They are the show's ids
-  (`showEntry` in `season-links.ts`, c381): season 1's link, else the
-  earliest season linked, part 1 first, read from the season rows, so a show
-  with only season 2 linked names season 2's entry rather than none. A
-  season linked to a manga is passed over for the next one that is an
-  anime's. `series_links` answers only for a show linked before rung 62. An
-  `.nfo` already written is rewritten at the series' next download.
+  ES-419 track is kept by ES and tagged `spa`. New downloads only. Each
+  track is tagged with its language's ISO 639-2 code, from the player's one
+  table (`iso3`, c419: `hun`, `nob`; `und` only for a language it lacks).
+  The file is written beside its place and renamed. The NFOs are Jellyfin's
+  (`tvshow`, `episodedetails`) and carry tsundoku's keys as
+  `<uniqueid type="tsundoku">`, with AniList and MAL ids where the series
+  is linked to an anime's entry (a manga's ids would have Jellyfin's
+  plugins fetch another work, c395). They are the show's ids (`showEntry`
+  in `season-links.ts`, c381): season 1's link, else the earliest season
+  linked, part 1 first, read from the season rows, so a show with only
+  season 2 linked names season 2's entry rather than none. A season linked
+  to a manga is passed over for the next one that is an anime's.
+  `series_links` answers only for a show linked before rung 62. An `.nfo`
+  already written is rewritten at the series' next download.
   `poster.jpg` is the library's own cover.
 - **ffmpeg fetches nothing itself.** Its inputs are a loopback proxy inside
   the app that serves only the tokens `streams.ts` handed out, and only with a

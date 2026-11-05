@@ -209,12 +209,23 @@ describe('the page’s lines', () => {
 			'STANDS IN: JA 2 H AGO'
 		);
 		expect(audioLine(undefined, null, NOW)).toBe("NONE SET · THE SOURCE'S ORIGINAL PLAYS FIRST");
+		// Named from the player's one table (c419), variants and all, not
+		// from a list of ten that left PT-BR and HU as their codes.
+		expect(audioLine('PT-BR', null, NOW)).toBe(
+			'EVERY ANIME STARTS IN PORTUGUESE (BRAZIL), UNLESS A SERIES DIFFERS'
+		);
+		expect(audioLine('HU', null, NOW)).toBe(
+			'EVERY ANIME STARTS IN HUNGARIAN, UNLESS A SERIES DIFFERS'
+		);
 	});
 
 	it('says what SUBTITLES start in, with the size', () => {
 		const last = { subs: { v: 'EN', title: null, at: 0 }, size: { v: 'M', title: null, at: 0 } };
 		expect(subsLine({ subs: 'EN' }, last)).toBe('ENGLISH, AT M, UNLESS A SERIES DIFFERS');
 		expect(subsLine({ subs: null }, last)).toBe('NO SUBTITLES, UNLESS A SERIES DIFFERS');
+		expect(subsLine({ subs: 'ZH-HANT' }, last)).toBe(
+			'CHINESE (TRADITIONAL), AT M, UNLESS A SERIES DIFFERS'
+		);
 		expect(subsLine({}, last)).toBe("NONE SET · THE PLAYER'S LAST CHOICE STANDS IN: EN, M");
 		expect(subsLine({}, { subs: null, size: null })).toBe(
 			"NONE SET · THE DEVICE'S LANGUAGE, WHERE THE SOURCE HAS IT"

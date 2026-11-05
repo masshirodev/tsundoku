@@ -212,6 +212,35 @@ describe('a track’s language: one short code, the name in full beside it', () 
 		expect(wrong).toEqual([]);
 		const codes = LANGS.map(([c]) => c);
 		expect(new Set(codes).size).toBe(codes.length);
+		// No name the table lacks takes a code it has (c417): each of these
+		// cuts to another language's ISO 639-2 alias (Chichewa to CHI, which
+		// is Chinese's), and took ZH from the Chinese track beside it.
+		const known = new Set(codes.map((c) => c.toUpperCase()));
+		const unknown = [
+			'Greenlandic',
+			'Chichewa',
+			'Maltese',
+			'Malagasy',
+			'Montenegrin',
+			'Turkmen',
+			'Sindhi',
+			'Tamazight',
+			'Mayan',
+			'Buryat'
+		];
+		expect(unknown.filter((l) => known.has(langCode(l)))).toEqual([]);
+		expect(
+			trackCodes([
+				'Chichewa',
+				'Chinese',
+				'Sindhi',
+				'Sinhala',
+				'Tamazight',
+				'Tamil',
+				'Malagasy',
+				'Malayalam'
+			])
+		).toEqual(['CHC', 'ZH', 'SID', 'SI', 'TAA', 'TA', 'MAA', 'ML']);
 	});
 
 	it('gives every label in the owner’s screenshot a code, never a whole word', () => {
@@ -248,6 +277,10 @@ describe('a track’s language: one short code, the name in full beside it', () 
 			['Latin American Spanish', 'ES-419', 'Spanish (Latin America)'],
 			['es-419', 'ES-419', 'Spanish (Latin America)'],
 			['Español (España)', 'ES', 'Spanish'],
+			// Crunchyroll's (c417): 'latina' and 'américa' were no ES-419 word,
+			// so the pair was ES and ES-2 in the order the source listed them.
+			['Español (América Latina)', 'ES-419', 'Spanish (Latin America)'],
+			['Spanish (America)', 'ES-419', 'Spanish (Latin America)'],
 			['es-ES', 'ES', 'Spanish'],
 			['zh-Hant', 'ZH-HANT', 'Chinese (Traditional)'],
 			['zh-TW', 'ZH-HANT', 'Chinese (Traditional)'],
@@ -331,6 +364,8 @@ describe('a track’s language: one short code, the name in full beside it', () 
 			'Indonesia',
 			'China',
 			'Vietnam',
+			'Chichewa',
+			'Greenlandic',
 			'Spanish (Latin America)',
 			'es-419',
 			'',

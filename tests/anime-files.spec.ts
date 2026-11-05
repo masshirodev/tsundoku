@@ -115,6 +115,18 @@ describe('the mux', () => {
 		).toContain('-map 0:v:0 -map 0:a? -c copy');
 		expect(iso3('ko')).toBe('kor');
 		expect([iso3('HI'), iso3('ta')]).toEqual(['hin', 'tam']);
+		// From the player's one table (c419), which the mux's 19 left as und.
+		expect(['HU', 'NB', 'NN', 'pt-BR', 'ES-419', 'ZH-HANT', 'YUE', 'fil'].map(iso3)).toEqual([
+			'hun',
+			'nob',
+			'nno',
+			'por',
+			'spa',
+			'chi',
+			'chi',
+			'fil'
+		]);
+		expect([iso3('Klingon'), iso3('')]).toEqual(['und', 'und']);
 		expect(progressSeconds('frame=1\nout_time_us=12500000\nprogress=continue')).toBe(12.5);
 	});
 });
