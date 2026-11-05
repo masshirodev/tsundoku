@@ -1,5 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { HOLD_MS, isBackKey, isOkKey, isOptionsKey, OkPress } from '$lib/focus/keys';
+import {
+	arrowKept,
+	HOLD_MS,
+	isBackKey,
+	isOkKey,
+	isOptionsKey,
+	OkPress,
+	sliderKeeps,
+	type SliderShape
+} from '$lib/focus/keys';
+import type { Direction } from '$lib/focus/geometry';
 
 /**
  * The remote's keys, as decisions (card c235, doc/TV.md): which key is BACK,
@@ -100,5 +110,91 @@ describe('OkPress', () => {
 		ok.up();
 		expect(hold).not.toHaveBeenCalled();
 		expect(click).not.toHaveBeenCalled();
+	});
+});
+
+/**
+ * A slider is a slider without being told (c259; doc/FOCUS.md, "Within it"):
+ * the arrows along its axis are its own, the others leave. Every shape, every
+ * direction, so a shape added later cannot fall between two cases.
+ */
+describe('the arrows a slider keeps', () => {
+	const DIRECTIONS: Direction[] = ['left', 'right', 'up', 'down'];
+	const plain: SliderShape = { adjust: null, slider: false, range: false, orientation: null };
+	const kept = (shape: Partial<SliderShape>) =>
+		DIRECTIONS.filter((d) => sliderKeeps({ ...plain, ...shape }, d));
+
+	it('a role="slider" keeps ← → and lets ↑ ↓ leave, with no attribute', () => {
+		expect(kept({ slider: true })).toEqual(['left', 'right']);
+		expect(kept({ slider: true, orientation: 'horizontal' })).toEqual(['left', 'right']);
+	});
+
+	it('a native range does the same (it kept all four before c259, a trap on a remote)', () => {
+		expect(kept({ range: true })).toEqual(['left', 'right']);
+	});
+
+	it('a vertical slider keeps ↑ ↓ and lets ← → leave: the arrows along its axis', () => {
+		expect(kept({ slider: true, orientation: 'vertical' })).toEqual(['up', 'down']);
+		expect(kept({ range: true, orientation: 'vertical' })).toEqual(['up', 'down']);
+	});
+
+	it('data-focus-adjust on a slider still says ← →, as before c259', () => {
+		expect(kept({ slider: true, adjust: '' })).toEqual(['left', 'right']);
+		// It wins over the axis: the attribute was always "← → are mine".
+		expect(kept({ slider: true, adjust: '', orientation: 'vertical' })).toEqual(['left', 'right']);
+	});
+
+	it("data-focus-adjust on a thing that is not a slider (the TV rating's buttons) keeps ← →", () => {
+		expect(kept({ adjust: '' })).toEqual(['left', 'right']);
+	});
+
+	it('data-focus-adjust="none" is the way out: a slider that must not adjust lets all four go', () => {
+		expect(kept({ slider: true, adjust: 'none' })).toEqual([]);
+		expect(kept({ range: true, adjust: 'none' })).toEqual([]);
+		expect(kept({ slider: true, adjust: 'none', orientation: 'vertical' })).toEqual([]);
+		expect(kept({ adjust: 'none' })).toEqual([]);
+	});
+
+	it('anything else keeps nothing', () => {
+		expect(kept({})).toEqual([]);
+		expect(kept({ orientation: 'vertical' })).toEqual([]);
+	});
+
+	describe('from the focused thing outward', () => {
+		const at = (chain: Partial<SliderShape>[]) =>
+			DIRECTIONS.map((d) =>
+				arrowKept(
+					chain.map((c) => ({ ...plain, ...c })),
+					d
+				)
+			);
+
+		it('a page with no slider leaves the arrows to the text-entry rules', () => {
+			expect(at([{}, {}, {}])).toEqual([null, null, null, null]);
+			expect(at([])).toEqual([null, null, null, null]);
+		});
+
+		it('a button inside an adjusting row is the row: ← → kept, ↑ ↓ leave', () => {
+			expect(at([{}, { adjust: '' }, {}])).toEqual([true, true, false, false]);
+		});
+
+		it('a slider inside an adjusting row is its own slider, the nearest deciding', () => {
+			expect(at([{ slider: true, orientation: 'vertical' }, { adjust: '' }])).toEqual([
+				false,
+				false,
+				true,
+				true
+			]);
+			expect(at([{ slider: true, adjust: 'none' }, { adjust: '' }])).toEqual([
+				false,
+				false,
+				false,
+				false
+			]);
+		});
+
+		it('the thumb inside a slider is the slider', () => {
+			expect(at([{}, { slider: true }, {}])).toEqual([true, true, false, false]);
+		});
 	});
 });

@@ -4,6 +4,7 @@
  */
 
 import type { Direction, Rect } from './geometry';
+import { arrowKept, type SliderShape } from './keys';
 
 /**
  * What a D-pad can land on. A tabindex of -1 is deliberately absent: those are
@@ -53,20 +54,33 @@ export function rectOf(el: Element): Rect {
 	return { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
 }
 
+const shapeOf = (el: Element): SliderShape => ({
+	adjust: el.getAttribute('data-focus-adjust'),
+	slider: el.getAttribute('role') === 'slider',
+	range: el instanceof HTMLInputElement && el.type === 'range',
+	orientation: el.getAttribute('aria-orientation')
+});
+
 /**
- * What an arrow key means while focus is inside a text entry (and is the
- * entry's own): ←/→ keep the caret in a single-line field, while ↑/↓ leave it;
- * a textarea or a contenteditable keeps all four.
+ * Whether the focused thing keeps this arrow for itself, so the layer leaves
+ * it alone.
  *
- * A `<select>` keeps ←/→ to change its value in place -- a remote has no other
- * key that would -- and lets ↑/↓ leave, or a D-pad would be trapped in it. No
- * screen draws one now: the library's SORT is a ChoiceMenu (c432). A range
- * input is a slider and keeps all four.
+ * A slider first (c259): the nearest `role="slider"`, native range or
+ * `[data-focus-adjust]` around the target decides (`arrowKept`, keys.ts): the
+ * arrows along its axis are its own and the others leave, on every device.
+ *
+ * Then a text entry, which is the entry's own: ←/→ keep the caret in a
+ * single-line field, while ↑/↓ leave it; a textarea or a contenteditable
+ * keeps all four. A `<select>` keeps ←/→ to change its value in place -- a
+ * remote has no other key that would -- and lets ↑/↓ leave, or a D-pad would
+ * be trapped in it. No screen draws one now: the library's SORT is a
+ * ChoiceMenu (c432).
  */
 export function keepsArrow(target: Element, direction: Direction): boolean {
-	// A ruled row that changes its value in place says so (the TV's rating:
-	// ← → one half-bar, ↑ ↓ leaves the row; c238).
-	if (target.closest('[data-focus-adjust]')) return direction === 'left' || direction === 'right';
+	const chain: SliderShape[] = [];
+	for (let el: Element | null = target; el; el = el.parentElement) chain.push(shapeOf(el));
+	const kept = arrowKept(chain, direction);
+	if (kept !== null) return kept;
 	const entry = target.closest<HTMLElement>(
 		'input, textarea, select, [contenteditable]:not([contenteditable="false"])'
 	);
@@ -74,7 +88,7 @@ export function keepsArrow(target: Element, direction: Direction): boolean {
 	const tag = entry.tagName;
 	if (tag === 'SELECT') return direction === 'left' || direction === 'right';
 	if (tag === 'TEXTAREA' || entry.isContentEditable) return true;
+	// A range never gets here: it is a slider, decided above.
 	const type = (entry as HTMLInputElement).type;
-	if (type === 'range') return true;
 	return (direction === 'left' || direction === 'right') && type !== 'checkbox' && type !== 'radio';
 }

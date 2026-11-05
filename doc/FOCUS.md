@@ -164,13 +164,50 @@ without hiding them from Tab:
 textarea or a contenteditable keeps all four. A `<select>` keeps ←/→ to change
 its value in place (a remote has no other key for it) and lets ↑/↓ leave, or it
 would trap the pad; no screen draws one now, the library's SORT being a
-`ChoiceMenu` (c432), whose open list is a focus scope. A range input is a slider
-and keeps all four.
-**A ruled row that adjusts a value** says so with `data-focus-adjust` and keeps
-←/→ only, so ↑/↓ still leave it: the series screen's rating row (c238) moves by
-half a bar, saved as it changes; the reader's page scrubber and its dim slider
-keep ←/→ the same way (c241), and the page scrubber is where the chrome's pad
-starts; the player's seek bar does too (c296).
+`ChoiceMenu` (c432), whose open list is a focus scope.
+
+**A slider is a slider without being told** (c259). An element with
+`role="slider"`, or a native `<input type="range">`, keeps the two arrows
+along its axis for its own value and lets the other two leave: ← → on a
+horizontal one (the default), ↑ ↓ on one that says
+`aria-orientation="vertical"`. A remote has no other keys for a value and no
+other way out of a row, so a new slider needs no attribute and cannot forget
+one. A key it keeps is not touched by the layer: it reaches the slider's own
+handler, or the browser's step for a native range. Before c259 a native range
+kept all four, which trapped the pad in the player's DIM on a TV.
+
+**Anything else that adjusts a value** says so with `data-focus-adjust` and
+keeps ←/→ only, so ↑/↓ still leave it: the series screen's rating row (c238),
+a `role="group"` of half-bar buttons, moves by half a bar, saved as it
+changes. On a slider the attribute means the same ← → as before, and wins
+over its axis. The reader's page scrubber and its dim slider (c241), the text
+reader's two (c241), and the player's seek bar (c296) still carry it, from
+before the rule; it now says what their role already does.
+
+**The nearest decides.** The layer looks from the focused element outward and
+the first slider, range or `[data-focus-adjust]` it meets rules: a slider
+inside an adjusting row is its own slider, and a button inside one is the
+row's (`arrowKept` in `keys.ts`, read off the DOM by `keepsArrow` in
+`dom.ts`).
+
+**The way out** is `data-focus-adjust="none"`: a slider that must not adjust
+under the pad (its value moved some other way, or a screen that wants the
+pad to walk past it) lets all four arrows go to the layer. A slider that
+reads every arrow itself (the series' scrub rail) still opts out with
+`data-focus-off`, as before.
+
+**On every device.** The rule is the layer's, and the layer runs on a
+keyboard too, where a slider that lost its arrows to the focus layer was a
+broken slider. Measured at c259 (`rg -n 'role="slider"|type="range"' src/routes`, nine): off a
+TV, every slider sits inside a `[data-focus-off]` screen (the readers'
+chrome and sheets, the whole player) or opts out itself (the series' scrub
+rail), and the layer never reads those keys, so the rule changes nothing
+there, with one exception: the readers lift the opt-out at their end page,
+where the chrome can still be up (a pointer at the edge brings it). There a
+keyboard's ← → on the page scrubber, or on READING's dim, now reach the
+slider's own handler, which steps the page or the dim, where before the
+layer moved the mark off it; ↑ ↓ leave as before. No test walks that state
+off a TV.
 
 ## The remote's other three keys (c235)
 
@@ -334,7 +371,10 @@ BACK climbs the screen before it leaves.
 - `tests/focus-geometry.spec.ts` — the pure decision.
 - `tests/focus-keys.spec.ts` — the remote's keys as decisions: which key is
   BACK, which is MENU, and a held OK that opens, clicks, or does neither when
-  repeated or cancelled (c235).
+  repeated or cancelled (c235); and the arrows a slider keeps (c259), every
+  shape in every direction: a role, a range, a vertical one, the attribute on
+  a slider and on a thing that is not one, `none`, and the nearest deciding
+  (a slider inside an adjusting row, a button inside one, a slider's thumb).
 - `tests/focus.e2e.ts` — keyboard only: an arrow starts focus and the mark is an
   ink frame (all devices); a sheet is a scope and gives focus back (tablet and
   phone bars); library → series → reader → back, focus restored (the reader leg

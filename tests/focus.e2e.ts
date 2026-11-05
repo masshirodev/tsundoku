@@ -139,6 +139,99 @@ test('a keyboard’s Escape is not a climb: focus stays where it was', async ({ 
 	expect(after.id).toBe(tile.id);
 });
 
+test('a slider keeps the arrows along its axis and lets the others leave, with no attribute (c259)', async ({
+	page
+}) => {
+	// The live layer on a real page, every device (the rule is not a TV's
+	// alone). The library goes inert, so the only stops are these: a row of
+	// sliders between a button above and one below, laid out to fit a phone.
+	await page.goto('/?shelf=all');
+	await expect(page.locator('[data-focus-id="library-more"], .sidebar').first()).toBeAttached();
+	await page.evaluate(() => {
+		for (const el of document.body.children) (el as HTMLElement).inert = true;
+		const box = document.createElement('div');
+		box.id = 'sliders';
+		box.style.cssText = 'position:fixed;inset:0;z-index:99;background:var(--surface-page)';
+		const at = (el: HTMLElement, id: string, l: number, t: number, w: number, h: number) => {
+			el.id = id;
+			el.style.cssText = `position:absolute;left:${l}px;top:${t}px;width:${w}px;height:${h}px;margin:0`;
+			box.append(el);
+			return el;
+		};
+		const button = (id: string, l: number, t: number, w: number) => {
+			const b = document.createElement('button');
+			b.textContent = id;
+			return at(b, id, l, t, w, 40);
+		};
+		const slider = (id: string, l: number, t: number, w: number, h: number) => {
+			const d = document.createElement('div');
+			d.setAttribute('role', 'slider');
+			d.tabIndex = 0;
+			return at(d, id, l, t, w, h);
+		};
+		button('above', 10, 80, 360);
+		button('left', 10, 200, 40);
+		slider('role', 60, 200, 70, 40);
+		const range = document.createElement('input');
+		range.type = 'range';
+		range.min = '0';
+		range.max = '10';
+		range.value = '5';
+		at(range, 'range', 140, 200, 70, 40);
+		slider('vertical', 220, 160, 30, 120).setAttribute('aria-orientation', 'vertical');
+		slider('none', 260, 200, 70, 40).setAttribute('data-focus-adjust', 'none');
+		button('right', 340, 200, 30);
+		button('below', 10, 320, 360);
+		document.body.append(box);
+		// What reached each slider: a key the layer let through arrives here
+		// not cancelled.
+		const seen: string[] = [];
+		(window as unknown as { seen: string[] }).seen = seen;
+		box.addEventListener('keydown', (e) => {
+			if (!e.defaultPrevented) seen.push(`${(e.target as HTMLElement).id}:${e.key}`);
+		});
+	});
+	const on = () => page.evaluate(() => document.activeElement?.id ?? '');
+	const seen = () => page.evaluate(() => (window as unknown as { seen: string[] }).seen.splice(0));
+	const from = async (id: string, key: string) => {
+		await page.locator(`#${id}`).focus();
+		await seen();
+		await page.keyboard.press(key);
+		return { on: await on(), seen: await seen() };
+	};
+
+	// role="slider": ← → are its own, ↑ ↓ leave.
+	expect(await from('role', 'ArrowLeft')).toEqual({ on: 'role', seen: ['role:ArrowLeft'] });
+	expect(await from('role', 'ArrowRight')).toEqual({ on: 'role', seen: ['role:ArrowRight'] });
+	expect(await from('role', 'ArrowUp')).toEqual({ on: 'above', seen: [] });
+	expect(await from('role', 'ArrowDown')).toEqual({ on: 'below', seen: [] });
+
+	// A native range: ← → move its value (the browser's own step), ↑ ↓ leave
+	// with the value as it was. Before c259 it kept all four, a trap on a remote.
+	expect(await from('range', 'ArrowRight')).toEqual({ on: 'range', seen: ['range:ArrowRight'] });
+	await expect(page.locator('#range')).toHaveValue('6');
+	expect(await from('range', 'ArrowDown')).toEqual({ on: 'below', seen: [] });
+	await expect(page.locator('#range')).toHaveValue('6');
+	expect(await from('range', 'ArrowUp')).toEqual({ on: 'above', seen: [] });
+
+	// A vertical slider: its axis is ↑ ↓.
+	expect(await from('vertical', 'ArrowUp')).toEqual({ on: 'vertical', seen: ['vertical:ArrowUp'] });
+	expect(await from('vertical', 'ArrowDown')).toEqual({
+		on: 'vertical',
+		seen: ['vertical:ArrowDown']
+	});
+	expect(await from('vertical', 'ArrowLeft')).toEqual({ on: 'range', seen: [] });
+	expect(await from('vertical', 'ArrowRight')).toEqual({ on: 'none', seen: [] });
+
+	// The way out: data-focus-adjust="none" lets the pad walk past.
+	expect(await from('none', 'ArrowRight')).toEqual({ on: 'right', seen: [] });
+	expect(await from('none', 'ArrowLeft')).toEqual({ on: 'vertical', seen: [] });
+	expect(await from('none', 'ArrowDown')).toEqual({ on: 'below', seen: [] });
+
+	// And a plain button between them is walked past as ever.
+	expect(await from('left', 'ArrowRight')).toEqual({ on: 'role', seen: [] });
+});
+
 test('a sheet is a scope: focus stays in and comes back', async ({ page }) => {
 	test.skip(test.info().project.name !== 'tablet-portrait', 'MORE is the tablet and phone bar');
 
