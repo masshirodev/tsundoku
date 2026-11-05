@@ -577,6 +577,12 @@ card, which the owner found fighting the remote (2026-11-02).
   cell ends at 125: an overlapping candidate beats a nearer one out of line
   ([`FOCUS.md`](FOCUS.md)), so ↑ from ▶❚❚ took the top bar's ← 372 px away,
   and ← from the bar took ▶❚❚. Every cell in the row now lands on the bar.
+- **The seek preview on a TV** (c457; [`ANIME.md`](ANIME.md), "The
+  player"): while a ← → (or ⏩ ⏪) move's flash is up, a downloaded episode
+  with a sprite shows the tile for the time it landed on above the bar, with
+  the time under it, kept inside the track at either end. It is drawn, not a
+  stop: the tip takes no focus and no pointer, so the pad stays on the bar
+  and no walk changes. A stream shows the time alone, as before.
 - **With the bar hidden, ← → seek and bring the bar with focus on the seek
   bar**, so the next ← → keeps seeking there; when no offer is up, OK, ↑ and ↓
   bring it on ▶❚❚ (6A/6B). When SKIP or PLAY NOW has the pad, OK presses the

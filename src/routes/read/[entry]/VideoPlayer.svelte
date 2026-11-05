@@ -987,6 +987,17 @@
 	let previewOf = '';
 	let previewTimer: ReturnType<typeof setTimeout> | undefined;
 	let previewAsk = 0;
+	/**
+	 * On a TV there is no pointer: ← → (and ⏩ ⏪) move the time, and while the
+	 * move's flash is up the bar's tip shows the sprite's tile for where it
+	 * landed, above the time, kept inside the track as the pointer's is
+	 * (c457). A downloaded episode's sprite only: a stream's hidden second
+	 * picture is a pointer's (it fetches a segment a stop), so a stream's bar
+	 * shows the time alone, as before.
+	 */
+	const tvTipAt = $derived(
+		tv.current && sprite && seekFlash && hoverAt === null ? seekFlash.to : null
+	);
 	/** A stream's last frame, and the time it was drawn for: shown only near it (`nearFrame`). */
 	let streamPic = $state<{ src: string; at: number } | null>(null);
 	function wantPreview(at: number) {
@@ -1891,6 +1902,8 @@
 					{#if hoverAt !== null}
 						<div class="hover" style:left={pct(hoverAt)}></div>
 						{@render tip(hoverAt)}
+					{:else if tvTipAt !== null}
+						{@render tip(tvTipAt)}
 					{/if}
 				</div>
 				<div class="l">{leftLabel(time, duration)}</div>

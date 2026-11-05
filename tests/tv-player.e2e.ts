@@ -4,6 +4,7 @@ import { rmSync } from 'node:fs';
 import { createServer, type AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import sharp from 'sharp';
 import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './helpers/hydrated';
 
@@ -953,5 +954,187 @@ test.describe('the Work card on a TV (c517)', () => {
 		await page.keyboard.press('ArrowDown');
 		await expect(page.locator('.player')).toHaveClass(/chrome/);
 		await expect(track).toBeFocused();
+	});
+});
+
+/**
+ * The seek preview on a TV (c457; doc/ANIME.md, "The player"): no pointer, so
+ * while ← → move the time with the bar up, the bar's tip shows the sprite's
+ * tile for where it landed, kept inside the track at either end. The episode's
+ * answer is widened in the browser as tests/browse-player-preview.e2e.ts
+ * widens it, with that spec's sprite fixture: a DOWNLOADED server whose file is
+ * the clip's own loopback address, and a sheet of four coloured tiles, one
+ * every 2 s of the 8 s clip. A stream keeps the time alone.
+ */
+test.describe('the seek preview on a TV (c457)', () => {
+	const SPRITE = '/__preview/tv-sprite.jpg';
+	type Answer = { servers: { n: number; name: string; qualities: Record<string, unknown>[] }[] };
+
+	async function withSprite(page: import('@playwright/test').Page) {
+		const colours = ['#d02040', '#20b040', '#2040d0', '#d0b020'];
+		const sheet = await sharp({
+			create: { width: 1600, height: 90, channels: 3, background: '#000' }
+		})
+			.composite(
+				await Promise.all(
+					colours.map(async (c, i) => ({
+						input: await sharp({
+							create: { width: 160, height: 90, channels: 3, background: c }
+						})
+							.png()
+							.toBuffer(),
+						left: i * 160,
+						top: 0
+					}))
+				)
+			)
+			.jpeg()
+			.toBuffer();
+		await page.route(`**${SPRITE}`, (route) =>
+			route.fulfill({ body: sheet, contentType: 'image/jpeg' })
+		);
+		await page.route('**/api/anime/episode/*/videos**', async (route) => {
+			const res = await route.fetch();
+			const real = (await res.json()) as Answer;
+			const clip = real.servers.find((x) => x.n === 2)!.qualities[0];
+			await route.fulfill({
+				response: res,
+				json: {
+					...real,
+					servers: [
+						{
+							n: 0,
+							name: 'DOWNLOADED',
+							qualities: [
+								{
+									...clip,
+									label: 'Downloaded',
+									kind: 'file',
+									sprite: { src: SPRITE, everyS: 2, w: 160, h: 90, cols: 10, count: 4 }
+								}
+							]
+						}
+					]
+				}
+			});
+		});
+	}
+
+	/** Paused at [t] with the bar up and the pad on the seek bar. */
+	async function onTheBar(page: import('@playwright/test').Page, t: number) {
+		await openLastEpisode(page);
+		await play(page);
+		await streamReady(page);
+		const video = page.locator('video');
+		await video.evaluate((v: HTMLVideoElement, at: number) => {
+			v.pause();
+			v.currentTime = at;
+		}, t);
+		await expect(page.locator('.cells .pause')).toHaveAttribute('aria-label', 'Play');
+		await expect(page.locator('.player')).toHaveClass(/chrome/);
+		await page.locator('.cells .pause').focus();
+		await page.keyboard.press('ArrowUp');
+		await expect(page.locator('.scrubrow .track')).toBeFocused();
+	}
+
+	/**
+	 * The tip as it is drawn, read in the page the moment it carries a frame:
+	 * the tile lives as long as the flash (900 ms), which a loaded box can
+	 * spend between two of Playwright's round trips.
+	 */
+	async function tipNow(page: import('@playwright/test').Page, at: string) {
+		const h = await page.waitForFunction(
+			(want) => {
+				const track = document.querySelector('.scrubrow .track');
+				const tip = track?.querySelector('.tip');
+				const frame = tip?.querySelector('.frame');
+				const time = tip?.querySelector('.at')?.textContent;
+				if (!track || !tip || !frame || time !== want) return null;
+				const t = track.getBoundingClientRect();
+				const b = tip.getBoundingClientRect();
+				const css = getComputedStyle(frame);
+				return {
+					position: css.backgroundPosition,
+					image: css.backgroundImage,
+					width: css.width,
+					inside: b.left >= t.left - 1 && b.right <= t.right + 1,
+					above: b.bottom <= t.top,
+					focused: document.activeElement === track
+				};
+			},
+			at,
+			{ timeout: 10_000, polling: 25 }
+		);
+		return (await h.jsonValue())!;
+	}
+
+	test('← → show the tile for where they land above the time, inside the track, and it goes with the flash', async ({
+		page
+	}) => {
+		await withSprite(page);
+		await onTheBar(page, 0.5);
+		const tip = page.locator('.scrubrow .track .tip');
+		const video = page.locator('video');
+		// Nothing over the bar before a key.
+		await expect(tip).toHaveCount(0);
+
+		// ← to the start: the first tile, above the time, kept inside the
+		// track's left end, and the pad still on the bar.
+		await page.keyboard.press('ArrowLeft');
+		await expect(page.locator('.flash .by')).toHaveText('−10 S');
+		let got = await tipNow(page, '0:00');
+		expect(got.image).toMatch(/tv-sprite\.jpg/);
+		expect(got).toMatchObject({
+			position: '0px 0px',
+			width: '160px',
+			inside: true,
+			above: true,
+			focused: true
+		});
+
+		// The flash goes, and the tile with it: nothing hangs over the bar.
+		await expect(page.locator('.flash')).toHaveCount(0);
+		await expect(tip).toHaveCount(0);
+
+		// A run of presses moves the tile with each: from 5 s, ← is 0 s, and →
+		// straight after is the end (8 s), the last tile, kept inside the
+		// track's right end. 5 s is past the opening, where SKIP INTRO would
+		// take the pad (the browse world's episodes open at 1-3 s), and before
+		// the ending's 6 s; the end last, since past it the episode is over.
+		await video.evaluate((v: HTMLVideoElement) => (v.currentTime = 5));
+		await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.currentTime)).toBe(5);
+		await expect(page.locator('.scrubrow .track')).toBeFocused();
+		await page.keyboard.press('ArrowLeft');
+		expect((await tipNow(page, '0:00')).position).toBe('0px 0px');
+		await page.keyboard.press('ArrowRight');
+		got = await tipNow(page, '0:08');
+		expect(got).toMatchObject({ position: '-480px 0px', inside: true, above: true });
+	});
+
+	test('a stream keeps the time alone: no tip over the bar', async ({ page }) => {
+		await onTheBar(page, 0.5);
+		// Watched from inside the page while the move's flash is up: a retrying
+		// toHaveCount(0) would pass the moment a tip that came had gone again.
+		const watch = page.evaluate(
+			() =>
+				new Promise<{ flash: number; tip: number }>((done) => {
+					const seen = { flash: 0, tip: 0 };
+					const end = Date.now() + 1500;
+					const tick = () => {
+						if (document.querySelector('.flash')) seen.flash++;
+						if (document.querySelector('.scrubrow .track .tip')) seen.tip++;
+						if (Date.now() > end) done(seen);
+						else setTimeout(tick, 10);
+					};
+					tick();
+				})
+		);
+		await page.keyboard.press('ArrowRight');
+		const seen = await watch;
+		expect(seen.flash).toBeGreaterThan(0);
+		expect(seen.tip).toBe(0);
+		await expect(page.locator('.scrubrow .track .tip')).toHaveCount(0);
+		// And no hidden second picture was started for it.
+		expect(await page.evaluate(() => document.querySelectorAll('video').length)).toBe(1);
 	});
 });

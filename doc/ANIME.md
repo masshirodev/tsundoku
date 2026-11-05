@@ -616,8 +616,17 @@ screen but the video, and the subtitles, until a tap.
     percent of the episode, at least a second; `nearFrame`): moved on, the
     tip shows the new time alone until that time's frame comes, never the
     last stop's picture over it.
-  - **A TV** has no preview: the remote's ← → seek with the bar up shows the
-    time on the bar, as before. The card left it optional; it is not built.
+  - **A TV** (c457): no pointer, so ← → (and ⏩ ⏪) with the bar up show,
+    for as long as the move's flash is up (900 ms after the last press), the
+    tip over the bar at the time they landed on, with a downloaded episode's
+    sprite tile above it, kept inside the track at either end as the
+    pointer's is (the same `tip` snippet, at `seekFlash.to`). A run of
+    presses moves the tile with each. A stream's bar keeps the time alone
+    and no tip: its hidden second picture fetches a segment a stop, which is
+    a pointer's resting on the bar, not a remote's run of presses, and
+    nothing was measured to say a TV should pay for it. A downloaded
+    episode with no sprite yet has no tip either. `tests/tv-player.e2e.ts`,
+    "the seek preview on a TV (c457)".
 - **Keys**: space, ← →, ↑ ↓ (volume), F, M, C (subtitles), S (skip), N (next),
   Esc (full screen, then the player), ? (the KEYS sheet). A remote's media
   keys work on every device (c235): ▶❚❚ plays or pauses, ⏩ ⏪ seek 10 s,
