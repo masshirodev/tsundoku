@@ -162,40 +162,70 @@
 	const scanning = $derived(data.scan !== null && data.scan.finishedAt === null);
 
 	/**
-	 * The SERIES TO LINK band's ✕ (c430): put away on this device, remembered
-	 * with the count it was put away at, as the update band's "seen" is. It
-	 * comes back only when the count grows past that: a new series to link,
-	 * not the same ones again. The count it is measured against follows the
-	 * queue down (one reviewed elsewhere), so the next new one is always
-	 * news. Per device, so no server is asked (doc/LIBRARY.md, "The band").
+	 * The SERIES TO LINK band's ✕ (c430; doc/LINKS.md, "Putting the band
+	 * away"): put away on this device, remembered with the counts it was put
+	 * away at, as the update band's "seen" is. It comes back only when a count
+	 * grows past that: a new series to link, not the same ones again.
+	 *
+	 * Two counts, because reveal changes the one the band shows: `pub` is the
+	 * queue without hidden series, the same number with reveal on or off, and
+	 * `all` the queue with them, known only if it was put away with reveal on.
+	 * Turning reveal off drops the shown count by the hidden series, and on
+	 * again raises it back: measured against `pub`, neither is news. A stored
+	 * count follows its own queue down (one reviewed elsewhere), so the next
+	 * new one is always news, but `all` is only ever lowered with reveal on,
+	 * the one state that counts it. Until c430's second half it was one
+	 * number, the shown one, which reveal off lowered and reveal on beat.
 	 */
 	const LINKS_PUT_AWAY = 'tsundoku.library.links-put-away';
-	let linksPutAwayAt = $state<number | null>(null);
+	type PutAway = { pub: number; all: number | null };
+	let linksPutAway = $state<PutAway | null>(null);
+	const count0 = (v: unknown) =>
+		typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : null;
 	$effect(() => {
 		try {
 			const raw = localStorage.getItem(LINKS_PUT_AWAY);
-			const n = raw === null ? NaN : Number.parseInt(raw, 10);
-			linksPutAwayAt = Number.isInteger(n) && n >= 0 ? n : null;
+			if (raw === null) return;
+			const parsed: unknown = JSON.parse(raw);
+			// Wave 19 stored the shown count alone, as a bare number.
+			if (typeof parsed === 'number') {
+				const n = count0(parsed);
+				linksPutAway = n === null ? null : { pub: n, all: null };
+			} else if (parsed && typeof parsed === 'object') {
+				const o = parsed as Record<string, unknown>;
+				const pub = count0(o.pub);
+				linksPutAway = pub === null ? null : { pub, all: count0(o.all) };
+			}
 		} catch {
-			// Storage refused (a private window): the band shows, as it always did.
+			// Storage refused (a private window) or unreadable: the band shows, as it always did.
 		}
 	});
-	function rememberLinksAt(n: number | null) {
-		linksPutAwayAt = n;
+	function rememberLinks(at: PutAway | null) {
+		linksPutAway = at;
 		try {
-			if (n === null) localStorage.removeItem(LINKS_PUT_AWAY);
-			else localStorage.setItem(LINKS_PUT_AWAY, String(n));
+			if (at === null) localStorage.removeItem(LINKS_PUT_AWAY);
+			else localStorage.setItem(LINKS_PUT_AWAY, JSON.stringify(at));
 		} catch {
 			// Storage refused: put away for this visit only.
 		}
 	}
+	function putLinksAway() {
+		rememberLinks({ pub: data.toLinkPublic, all: data.reveal ? data.toLink : null });
+	}
 	// Fewer to link than when it was put away: measure the next growth from here.
 	$effect(() => {
-		const at = linksPutAwayAt;
-		if (at !== null && data.toLink < at) untrack(() => rememberLinksAt(data.toLink));
+		const at = linksPutAway;
+		if (at === null) return;
+		const pub = Math.min(at.pub, data.toLinkPublic);
+		const all = data.reveal && at.all !== null ? Math.min(at.all, data.toLink) : at.all;
+		if (pub !== at.pub || all !== at.all) untrack(() => rememberLinks({ pub, all }));
 	});
 	const linksBand = $derived(
-		data.toLink > 0 && !data.empty && (linksPutAwayAt === null || data.toLink > linksPutAwayAt)
+		data.toLink > 0 &&
+			!data.empty &&
+			(linksPutAway === null ||
+				data.toLinkPublic > linksPutAway.pub ||
+				(data.reveal && linksPutAway.all !== null && data.toLink > linksPutAway.all))
 	);
 
 	/**
@@ -962,10 +992,24 @@
 				: 0;
 		// The tabs where there are tabs; the desktop's are the sidebar, so there
 		// the band's own place, just under the bar.
-		const to = shown(tab) ? tab!.closest('.tabs') : bandMark;
+		const to = shown(tab) ? tab!.closest('.library > .tabs') : bandMark;
 		if (shown(tab)) tab!.focus({ preventScroll: true });
 		const top = to ? scrollY + to.getBoundingClientRect().top - held : 0;
 		scrollTo({ top: Math.max(0, top), behavior: reduced ? 'instant' : 'smooth' });
+		// Unpinning redraws the band's first cell, and the page can land a pixel
+		// or two off what was measured (1.4px on a tablet, the tabs' rule under
+		// the bar): once it has settled, the rest of the way.
+		const settle = () => {
+			const off = to ? to.getBoundingClientRect().top - held : 0;
+			if (Math.abs(off) > 0.5) scrollBy({ top: off, behavior: 'instant' });
+		};
+		if (reduced || Math.abs(Math.max(0, top) - scrollY) < 1)
+			requestAnimationFrame(() => requestAnimationFrame(settle));
+		else {
+			// Only this scroll's end: a later one of the owner's must never be corrected.
+			addEventListener('scrollend', settle, { once: true });
+			setTimeout(() => removeEventListener('scrollend', settle), 2000);
+		}
 	}
 
 	const newOpen = $derived(page.url.searchParams.get('new') === 'shelf');
@@ -1417,7 +1461,7 @@
 						class="put-away"
 						aria-label="Put away the series to link until the count grows"
 						data-focus-mark="in"
-						onclick={() => rememberLinksAt(data.toLink)}>✕</button
+						onclick={putLinksAway}>✕</button
 					>
 				</span>
 			{/snippet}

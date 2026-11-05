@@ -10,7 +10,9 @@ import { expect, test } from './fixtures';
 
 /**
  * The library as it scrolls, and the SERIES TO LINK band put away
- * (doc/LIBRARY.md, "The top bar" and "The band"; c433, c430).
+ * (doc/LIBRARY.md, "The top bar" and "The band"; c433, c430), the KIND band
+ * pinned under the top bar (c436), and BACK TO TOP after a resize past the
+ * width that draws FILTER where it was opened (c474).
  *
  * Its own preview and its own seeded database, one per device project: the
  * band's cases add and take away a series to link, which the shared server's
@@ -70,6 +72,15 @@ function queueOneMore(title: string): void {
 			`INSERT INTO link_searches (series_id, query, searched_at, found)
 			SELECT id, title, ?, 0 FROM series WHERE title = ?`
 		).run(Date.now(), title);
+	} finally {
+		db.close();
+	}
+}
+
+function setHidden(title: string, hidden: boolean): void {
+	const db = new Database(dbPath);
+	try {
+		db.prepare(`UPDATE series SET hidden = ? WHERE title = ?`).run(hidden ? 1 : 0, title);
 	} finally {
 		db.close();
 	}
@@ -300,9 +311,13 @@ test('✕ puts the band away; it stays away on reload, and a new series to link 
 		await page.goto(`${BASE}/`);
 		await page.waitForFunction(() => document.cookie.includes('tsundoku_js=1'));
 		await expect(band(page)).toHaveCount(0);
-		expect(await page.evaluate(() => localStorage.getItem('tsundoku.library.links-put-away'))).toBe(
-			'2'
-		);
+		// The counts it measures by, followed down: no hidden series, and none
+		// counted with them since reveal was off (c430).
+		expect(
+			await page.evaluate(() =>
+				JSON.parse(localStorage.getItem('tsundoku.library.links-put-away') ?? 'null')
+			)
+		).toEqual({ pub: 2, all: null });
 		queueOneMore('Scroll Filler 02');
 		await page.goto(`${BASE}/`);
 		await expect(band(page)).toContainText('03 SERIES TO LINK');
@@ -310,4 +325,202 @@ test('✕ puts the band away; it stays away on reload, and a new series to link 
 		unqueue('Scroll Filler 01');
 		unqueue('Scroll Filler 02');
 	}
+});
+
+test('reveal off and on is no news: the band stays away until a series really is new (c430)', async ({
+	page
+}) => {
+	// A hidden series in the queue: two to link with reveal off, three with it on.
+	setHidden('Scroll Filler 03', true);
+	queueOneMore('Scroll Filler 03');
+	const reveal = async (on: boolean) => {
+		if (on) await page.context().addCookies([{ name: 'tsundoku_reveal', value: '1', url: BASE }]);
+		else await page.context().clearCookies({ name: 'tsundoku_reveal' });
+		await page.goto(`${BASE}/`);
+		await page.waitForFunction(() => document.cookie.includes('tsundoku_js=1'));
+	};
+	try {
+		await page.goto(`${BASE}/`);
+		await page.evaluate(() => localStorage.removeItem('tsundoku.library.links-put-away'));
+		await reveal(true);
+		await expect(band(page)).toContainText('03 SERIES TO LINK');
+		// Put away with reveal on; off and on again: still away. Before c430's
+		// second half, reveal off lowered the count to two and on brought three back.
+		await putAway(page).click();
+		await expect(band(page)).toHaveCount(0);
+		await reveal(false);
+		await expect(band(page)).toHaveCount(0);
+		await reveal(true);
+		await expect(band(page)).toHaveCount(0);
+
+		// The other way round: put away with reveal off, then on.
+		await page.evaluate(() => localStorage.removeItem('tsundoku.library.links-put-away'));
+		await reveal(false);
+		await expect(band(page)).toContainText('02 SERIES TO LINK');
+		await putAway(page).click();
+		await reveal(true);
+		await expect(band(page)).toHaveCount(0);
+		await reveal(false);
+		await expect(band(page)).toHaveCount(0);
+
+		// A series that really is new, and not hidden: back, either way.
+		queueOneMore('Scroll Filler 04');
+		await reveal(false);
+		await expect(band(page)).toContainText('03 SERIES TO LINK');
+		await reveal(true);
+		await expect(band(page)).toContainText('04 SERIES TO LINK');
+
+		// Putting the band away hides the band only: the links review's own door
+		// (c475) still counts the queue, in the sidebar or under MORE.
+		await putAway(page).click();
+		await expect(band(page)).toHaveCount(0);
+		const sidebarRow = page.locator('aside.sidebar').getByRole('link', { name: /^TO LINK/ });
+		if (await sidebarRow.isVisible()) await expect(sidebarRow).toContainText('4');
+		else {
+			await page.getByRole('button', { name: 'MORE' }).click();
+			await expect(
+				page.getByRole('dialog', { name: 'More' }).getByRole('link', { name: /TO LINK/ })
+			).toContainText('4');
+		}
+	} finally {
+		unqueue('Scroll Filler 03');
+		unqueue('Scroll Filler 04');
+		setHidden('Scroll Filler 03', false);
+		await page.context().clearCookies({ name: 'tsundoku_reveal' });
+	}
+});
+
+// ---- c436: the KIND band, pinned under the top bar ------------------------------------
+
+const kinds = (page: Page) => page.getByRole('group', { name: 'Kind' });
+const isDesktop = (name: string) => name === 'desktop';
+
+test('the KIND band sits under the tabs, over the grid, 40px, and pins under the bar where the tabs go up', async ({
+	page
+}, info) => {
+	await page.goto(`${BASE}/?shelf=all&sort=title`);
+	await expect(page.locator('.grid .tile').first()).toBeVisible();
+	const box = (await kinds(page).boundingBox())!;
+	expect(box.height).toBe(40);
+	// Directly over the grid: nothing goes between a kind chosen and its tiles.
+	const grid = (await page.locator('.grid').boundingBox())!;
+	expect(Math.abs(grid.y - (box.y + box.height))).toBeLessThanOrEqual(1);
+	const tabs = page.locator('.library div.tabs');
+	if (isDesktop(info.project.name)) {
+		// The desktop's shelves are the sidebar, and its FILTER is the top bar's.
+		await expect(tabs).toBeHidden();
+		await expect(kinds(page).locator('summary')).toBeHidden();
+		await expect(kinds(page)).toHaveCSS('border-top-width', '1px');
+	} else {
+		// Directly under the shelf tabs, FILTER at the band's own right end.
+		const t = (await tabs.boundingBox())!;
+		expect(Math.abs(box.y - (t.y + t.height))).toBeLessThanOrEqual(1);
+		const filter = (await kinds(page).locator('summary').boundingBox())!;
+		expect(Math.round(filter.x + filter.width)).toBe(Math.round(box.x + box.width));
+	}
+	// The phone drops the KIND label for room; the rest lead with it.
+	await expect(
+		kinds(page).getByText('KIND', { exact: true }).filter({ visible: true })
+	).toHaveCount(info.project.name === 'phone' ? 0 : 1);
+
+	// A screen and a half down: the band is pinned under the bar, and names
+	// the shelf in a first cell; the tabs went up with the page.
+	await scrollScreens(page, 1.5);
+	const barBottom = await bar(page).evaluate((h) => h.getBoundingClientRect().bottom);
+	await expect
+		.poll(() => kinds(page).evaluate((b) => b.getBoundingClientRect().top))
+		.toBeCloseTo(barBottom, 0);
+	const shelf = kinds(page).getByRole('button', { name: /^ALL/ });
+	await expect(shelf).toBeVisible();
+	await expect(kinds(page).getByText('KIND', { exact: true })).toHaveCount(0);
+	if (!isDesktop(info.project.name))
+		expect(await tabs.evaluate((t) => t.getBoundingClientRect().bottom)).toBeLessThan(barBottom);
+	// The pinned band is drawn over the grid: what is at its middle is the band's.
+	const atBand = await kinds(page).evaluate((b) => {
+		const r = b.getBoundingClientRect();
+		return b.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+	});
+	expect(atBand).toBe(true);
+
+	// Its first cell goes back to the tabs, the mark on the shelf showing.
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await shelf.click();
+	await expect(shelf).toHaveCount(0);
+	if (!isDesktop(info.project.name)) {
+		const t = await tabs.evaluate((n) => n.getBoundingClientRect().top);
+		expect(t).toBeGreaterThanOrEqual(barBottom - 1);
+		await expect(tabs.locator('.tab.on')).toBeFocused();
+	}
+	await expect(
+		kinds(page).getByText('KIND', { exact: true }).filter({ visible: true })
+	).toHaveCount(info.project.name === 'phone' ? 0 : 1);
+});
+
+test('the band scrolls sideways and never wraps, keeping the chosen kind in view', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 300, height: 700 });
+	await page.goto(`${BASE}/?shelf=all&sort=title`);
+	const strip = kinds(page).locator('.kscroll');
+	const cells = strip.locator('a');
+	expect(await cells.count()).toBeGreaterThan(3);
+	// One row, the band's own height, however many kinds.
+	expect((await kinds(page).boundingBox())!.height).toBe(40);
+	const tops = await cells.evaluateAll((as) =>
+		as.map((a) => Math.round(a.getBoundingClientRect().top))
+	);
+	expect(new Set(tops).size).toBe(1);
+	expect(await strip.evaluate((s) => s.scrollWidth > s.clientWidth)).toBe(true);
+	// The last kind is chosen: the strip scrolls so it is in view, ALL off the left.
+	const last = cells.last();
+	await last.click();
+	await expect(last).toHaveAttribute('aria-current', 'true');
+	const s = (await strip.boundingBox())!;
+	await expect
+		.poll(async () => {
+			const c = (await cells.last().boundingBox())!;
+			return c.x >= s.x - 1 && c.x + c.width <= s.x + s.width + 1;
+		})
+		.toBe(true);
+	expect(await strip.evaluate((n) => n.scrollLeft)).toBeGreaterThan(0);
+});
+
+// ---- c474: BACK TO TOP after a resize past FILTER's own width -----------------------
+
+test('a FILTER left open where CSS has since hidden it does not hide BACK TO TOP', async ({
+	page
+}, info) => {
+	// The desktop is the one project with a fine pointer, so the one where the
+	// top bar's FILTER is drawn at 1024px and up and the band's below it.
+	test.skip(!isDesktop(info.project.name), 'needs the desktop’s fine pointer');
+	await page.goto(`${BASE}/?shelf=all&sort=title`);
+	await expect(page.locator('.grid .tile').first()).toBeVisible();
+
+	// The top bar's FILTER, open, and the window narrowed to 900px: the panel
+	// is hidden with its cell, BACK TO TOP shows a screen and a half down.
+	const desk = page.locator('.filter-desk details.filter');
+	await desk.locator('summary').click();
+	await expect(desk).toHaveAttribute('open', '');
+	await page.setViewportSize({ width: 900, height: 900 });
+	await expect(desk).toBeHidden();
+	await scrollScreens(page, 1.5);
+	await expect(toTop(page)).toBeVisible();
+
+	// And the other way: the band's FILTER, open at 900px, then the window
+	// widened past 1024px, where the band draws none.
+	await page.evaluate(() => scrollTo({ top: 0, behavior: 'instant' }));
+	await page.reload();
+	const inBand = kinds(page).locator('details.filter');
+	await inBand.locator('summary').click();
+	await expect(inBand).toHaveAttribute('open', '');
+	await scrollScreens(page, 1.5);
+	await expect(toTop(page)).toBeHidden();
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await expect(inBand).toBeHidden();
+	await scrollScreens(page, 1.5);
+	await expect(toTop(page)).toBeVisible();
+	// The FILTER drawn here, opened, still hides it, as c433 has it.
+	await desk.locator('summary').click();
+	await expect(desk).toHaveAttribute('open', '');
+	await expect(toTop(page)).toBeHidden();
 });

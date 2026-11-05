@@ -131,7 +131,9 @@
 	bind:this={details}
 	ontoggle={(e) => (open = e.currentTarget.open)}
 >
-	<summary class="cell" aria-label={n ? `Filter, ${n} on` : 'Filter'}>
+	<!-- A cell of a ruled row (the KIND band, the top bar): the focus mark
+	     sits inside it, as on the cells beside it (doc/FOCUS.md). -->
+	<summary class="cell" aria-label={n ? `Filter, ${n} on` : 'Filter'} data-focus-mark="in">
 		<span>FILTER</span>
 		{#if n}<span class="badge">{n}</span>{/if}
 		<span aria-hidden="true">{open ? '▴' : '▾'}</span>

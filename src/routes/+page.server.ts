@@ -119,7 +119,12 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	const dupes = reviewQueue(reveal).length;
 	// Catalogue links AniList found, not for certain (doc/LINKS.md).
 	// One review for both catalogues (doc/RANOBE.md, "The review").
-	const toLink = linkQueueCount(reveal) + ranobeQueueCount();
+	const ranobe = ranobeQueueCount();
+	const toLink = linkQueueCount(reveal) + ranobe;
+	// The same queue without hidden series, whatever reveal is (c430): what the
+	// band's ✕ measures growth by, so turning reveal off and on again is never
+	// news. Never the other way round: with reveal off, nothing counts hidden.
+	const toLinkPublic = reveal ? linkQueueCount(false) + ranobe : toLink;
 	// RANDOM's shuffle: one per choice of RANDOM, kept in the URL.
 	const seed = parseSeed(url.searchParams.get('seed'));
 	const pageSize = pageSizeOf(cookies.get('tsundoku_grid_page'));
@@ -179,6 +184,7 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		firstRead: total === 0 && !scan ? firstReadExtras(reveal) : null,
 		dupes,
 		toLink,
+		toLinkPublic,
 		// FOLLOWED is a filter while something the viewer can see is followed (doc/DOWNLOADING.md).
 		following: anyFollowed(reveal),
 		libraryRoot: libraryRoot(),
