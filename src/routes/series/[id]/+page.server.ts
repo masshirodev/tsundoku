@@ -28,8 +28,12 @@ import {
 	markEntries,
 	markReadThrough,
 	removeTag,
+	RenameError,
+	renameSeries,
 	seriesPage,
-	setDirection
+	setDirection,
+	undoRenameSeries,
+	type SeriesRenameFacts
 } from '$lib/server/series';
 import { isRevealed } from '$lib/server/prefs';
 import { seriesReadingTime } from '$lib/server/reading-time';
@@ -456,6 +460,41 @@ export const actions: Actions = {
 		const s = target(params, cookies);
 		unlink(s.id, Date.now(), seasonOf(await request.formData()).season);
 		recover([s.id]);
+		return { ok: true };
+	},
+
+	/**
+	 * RENAME on the FILE row (c526; doc/SERIES.md, "RENAME"): the owner's name
+	 * for the series, kept through scans, refreshes and imports. The band
+	 * carries the facts for UNDO, as the Work screen's does.
+	 */
+	rename: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		try {
+			const renamed = renameSeries(s.id, String((await request.formData()).get('name') ?? ''));
+			return { ok: true, renamed };
+		} catch (e) {
+			if (e instanceof RenameError) return fail(400, { message: e.message });
+			throw e;
+		}
+	},
+
+	undoRename: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		let facts: SeriesRenameFacts;
+		try {
+			facts = JSON.parse(String((await request.formData()).get('facts'))) as SeriesRenameFacts;
+		} catch {
+			return fail(400, { message: 'NOTHING TO UNDO' });
+		}
+		// A band's facts are this series' own; a posted id for another is refused.
+		if (!facts || facts.seriesId !== s.id) return fail(400, { message: 'NOTHING TO UNDO' });
+		try {
+			undoRenameSeries(facts);
+		} catch (e) {
+			if (e instanceof RenameError) return fail(400, { message: e.message });
+			throw e;
+		}
 		return { ok: true };
 	},
 

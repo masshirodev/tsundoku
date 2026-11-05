@@ -6,6 +6,7 @@ import { createServer, type AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
 import { E2E_TOKEN } from '../playwright.config';
+import { hydrated } from './helpers/hydration';
 
 /**
  * MOVE's list and its pick (cards c490 and c491; doc/MOVE.md, "The
@@ -61,6 +62,12 @@ const state = {
 	slow: new Map<string, number>(),
 	/** A candidate whose details fail, by URL. */
 	failing: new Set<string>(),
+	/**
+	 * A candidate whose chapter list comes back as no list at all (c539): a
+	 * wrong answer the move code doesn't expect, so the comparison throws
+	 * rather than settling as a source that wouldn't say.
+	 */
+	broken: new Set<string>(),
 	/** The late source's search waits this long. */
 	lateMs: 0,
 	/** Sources that failed once already. */
@@ -143,6 +150,8 @@ function startEngine(port: number): Promise<Server> {
 									chapter_number: n
 								}));
 					if (state.failing.has(url)) return json(500, { error: 'the site is down' });
+					if (b.method === 'getChapterList' && state.broken.has(url))
+						return json(200, { chapters: 'not a list' });
 					const ms = b.method === 'getDetailsManga' ? (state.slow.get(url) ?? 0) : 0;
 					if (ms) {
 						setTimeout(() => json(200, answer), ms);
@@ -260,14 +269,21 @@ test.beforeEach(() => {
 	state.calls = [];
 	state.slow.clear();
 	state.failing.clear();
+	state.broken.clear();
 	state.lateMs = 0;
 	state.failedOnce.clear();
 	state.failNext.clear();
 });
 
-/** The session cookie is the suite's (localhost, any port), so this preview takes it too. */
+/**
+ * The session cookie is the suite's (localhost, any port), so this preview
+ * takes it too. A full load waits for hydration as well: a tap on the
+ * server-rendered list before it is a full page load, which asks no
+ * `/compare` and so fails the counts below on a loaded box.
+ */
 async function open(page: Page, query = '', waitUntil: 'load' | 'commit' = 'load') {
 	await page.goto(`${base}/series/${seriesId}/move${query}`, { waitUntil });
+	if (waitUntil === 'load') await hydrated(page);
 }
 
 const searches = () => state.calls.filter((c) => c.method === 'getSearchManga');
@@ -497,6 +513,143 @@ test('a comparison that fails says so with TRY AGAIN, and MOVE is off until it a
 	await page.locator('.cmp').getByRole('link', { name: 'TRY AGAIN' }).click();
 	await expect(page.getByRole('heading', { name: CAND.c.title })).toBeVisible();
 	await expect(page.getByRole('button', { name: /MOVE TO MANGADEX →/ })).toBeEnabled();
+});
+
+/** The details calls the engine was asked, by candidate URL. */
+const detailsFor = (url: string) =>
+	state.calls.filter((c) => c.method === 'getDetailsManga' && c.url === url).length;
+
+test('three quick picks on one slow source: one details call each at most, and a dropped one that was waiting never asks (c539)', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await open(page);
+	await settledList(page);
+	state.calls = [];
+	// All three are MANGADEX (EN): one call at a time into its extension.
+	// A and B are slow; C is quick, so a C asked behind both would land last.
+	state.slow.set(CAND.a.url, 2500);
+	state.slow.set(CAND.b.url, 2500);
+	state.slow.set(CAND.c.url, 200);
+	const compares: string[] = [];
+	page.on('request', (r) => {
+		if (r.url().includes('/compare?')) compares.push(r.url());
+	});
+	await page.locator('a.cand', { hasText: CAND.a.title }).click();
+	await expect.poll(() => detailsFor(CAND.a.url)).toBe(1);
+	// The owner changes their mind twice, quickly, while A is being read.
+	await page.locator('a.cand', { hasText: CAND.b.title }).click();
+	await page.locator('a.cand', { hasText: CAND.c.title }).click();
+	// C waits for the call already running (A's, 2.5 s), not for B's as well:
+	// the counts below prove that; the clock is left loose, as a loaded box
+	// stretches it.
+	await expect(page.getByRole('heading', { name: CAND.c.title })).toBeVisible({ timeout: 15_000 });
+	await expect(page.locator('.confirm input[name="to"]')).toHaveValue(
+		candidateId('101', CAND.c.url)
+	);
+	// Each pick asked the page's endpoint once, and the engine at most once.
+	expect(
+		compares.filter((u) => new URL(u).searchParams.get('to') === candidateId('101', CAND.b.url))
+	).toHaveLength(1);
+	expect(
+		compares.filter((u) => new URL(u).searchParams.get('to') === candidateId('101', CAND.c.url))
+	).toHaveLength(1);
+	expect(detailsFor(CAND.a.url)).toBe(1);
+	expect(detailsFor(CAND.c.url)).toBe(1);
+	// B was dropped while it waited for its turn: the engine never heard of it,
+	// not even once A's call had ended.
+	await page.waitForTimeout(3000);
+	expect(detailsFor(CAND.b.url)).toBe(0);
+	await expect(page.getByRole('heading', { name: CAND.c.title })).toBeVisible();
+	await expect(page.locator('a.cand.on')).toHaveCount(1);
+	await expect(page.locator('a.cand.on')).toContainText(CAND.c.title);
+});
+
+test('a tap made while the URL has an offset asks once, without it (c539)', async ({ page }) => {
+	await page.setViewportSize({ width: 1280, height: 800 });
+	const toA = candidateId('101', CAND.a.url);
+	await open(page, `?to=${encodeURIComponent(toA)}&offset=3`);
+	await expect(page.getByRole('heading', { name: CAND.a.title })).toBeVisible();
+	await settledList(page);
+	state.calls = [];
+	const compares: string[] = [];
+	page.on('request', (r) => {
+		if (r.url().includes('/compare?')) compares.push(r.url());
+	});
+	await page.locator('a.cand', { hasText: CAND.b.title }).click();
+	await expect(page.getByRole('heading', { name: CAND.b.title })).toBeVisible();
+	await expect(page).not.toHaveURL(/offset=/);
+	await page.waitForTimeout(500);
+	expect(compares).toHaveLength(1);
+	expect(new URL(compares[0]).searchParams.has('offset')).toBe(false);
+	expect(detailsFor(CAND.b.url)).toBe(1);
+});
+
+test('a second tap on the picked candidate leaves the URL’s offset in charge: a later offset is asked once (c539, round 2)', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await open(page);
+	await settledList(page);
+	const toA = candidateId('101', CAND.a.url);
+	const a = page.locator('a.cand', { hasText: CAND.a.title });
+	await a.click();
+	await expect(page.getByRole('heading', { name: CAND.a.title })).toBeVisible();
+	const compares: string[] = [];
+	page.on('request', (r) => {
+		if (r.url().includes('/compare?')) compares.push(r.url());
+	});
+	// The same row again (a second click, or OK on the TV's current row): the
+	// navigation lands on the same `to`, and nothing new is asked.
+	await a.click();
+	await page.waitForTimeout(500);
+	await expect(page.getByRole('heading', { name: CAND.a.title })).toBeVisible();
+	expect(compares).toHaveLength(0);
+
+	// A client-side navigation that changes only the offset, as SET does on a
+	// candidate with episodes (this fixture's are chapters, so it has no SET):
+	// an ordinary link SvelteKit routes without a reload.
+	state.slow.set(CAND.a.url, 800);
+	await page.evaluate(
+		(href) => {
+			const link = document.createElement('a');
+			link.href = href;
+			link.id = 'offset-three';
+			link.textContent = 'offset 3';
+			document.body.append(link);
+		},
+		`${base}/series/${seriesId}/move?to=${encodeURIComponent(toA)}&offset=3`
+	);
+	await page.locator('#offset-three').click();
+	await expect(page).toHaveURL(/offset=3/);
+	// The comparison redraws for it: the wait first, then A's answer again.
+	await expect(page.locator('.empty.wait')).toBeVisible();
+	await expect(page.getByRole('heading', { name: CAND.a.title })).toBeVisible();
+	await page.waitForTimeout(500);
+	const withThree = compares.filter((u) => new URL(u).searchParams.get('offset') === '3');
+	expect(withThree).toHaveLength(1);
+	expect(new URL(withThree[0]).searchParams.get('to')).toBe(toA);
+	expect(compares).toHaveLength(1);
+});
+
+test('a streamed comparison that throws becomes TRY AGAIN, not ASKING for good (c539)', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 800 });
+	// Once with script, so the next load streams its comparison.
+	await open(page);
+	await settledList(page);
+	state.broken.add(CAND.b.url);
+	await open(page, `?to=${encodeURIComponent(candidateId('101', CAND.b.url))}`);
+	await expect(page.getByText('The workstation did not answer')).toBeVisible({ timeout: 15_000 });
+	await expect(page.locator('.empty.wait')).toHaveCount(0);
+	const again = page.locator('.cmp').getByRole('link', { name: 'TRY AGAIN' });
+	await expect(again).toBeVisible();
+	await expect(page.getByRole('button', { name: 'MOVE', exact: true })).toBeDisabled();
+	// It answers properly now: TRY AGAIN asks afresh and draws it.
+	state.broken.clear();
+	await again.click();
+	await expect(page.getByRole('heading', { name: CAND.b.title })).toBeVisible();
 });
 
 test('without script a pick is a page of its own, with its comparison (c491)', async ({

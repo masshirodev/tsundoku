@@ -12,6 +12,16 @@ import {
 	type Line,
 	type ListsInput
 } from '../src/routes/series/[id]/lists';
+import {
+	DETAILS_KEY,
+	detailsLine,
+	detailsOpen,
+	listsMarks,
+	namesLine,
+	sentWord,
+	sourceMark,
+	TV_NAMES
+} from '../src/routes/series/[id]/details';
 import type { SeasonRow } from '$lib/library/catalogue';
 import type { TrackFacts } from '$lib/library/tracking';
 import type { LinkState } from '$lib/server/catalogue';
@@ -859,5 +869,209 @@ describe('TRY AGAIN beside an expired sign-in (round 2, low)', () => {
 			})
 		);
 		expect(labels(l.cells)).toEqual(['TRY AGAIN', 'SIGN IN →', 'EDIT']);
+	});
+});
+
+/*
+ * DETAILS' folded line (c425; doc/SERIES.md "DETAILS"; series-phone 1C): its
+ * marks come from LISTS' own lines and SOURCE's trouble, so they are read off
+ * `listsRow`'s real output here, not off hand-made lines.
+ */
+describe('DETAILS: the marks LISTS carries (1C)', () => {
+	const reading = { status: 'reading' as const, progress: 214, score: 9 };
+	const failedAt = Date.UTC(2026, 10, 4, 9, 14);
+
+	it('a quiet comic has none, and says what was sent in its own unit', () => {
+		const row = listsRow(
+			input({
+				link: linked(),
+				tracking: tracking([
+					fact('anilist', { state: reading, sentAt: NOW - 12 * MIN }),
+					fact('mal', { state: reading, sentAt: NOW - 12 * MIN })
+				])
+			})
+		);
+		expect(listsMarks(row)).toEqual([]);
+		expect(sentWord(row)).toBe('SENT CH. 214');
+	});
+
+	it('AniList’s failed send is ANILIST’s mark; MAL’s alone names MAL', () => {
+		const anilist = listsRow(
+			input({
+				link: linked(),
+				tracking: tracking([
+					fact('anilist', {
+						state: reading,
+						waiting: { progress: 215, failedAt, error: 'ANILIST DID NOT ANSWER' }
+					}),
+					fact('mal', { state: { ...reading, progress: 215 }, sentAt: failedAt })
+				])
+			})
+		);
+		expect(listsMarks(anilist)).toEqual([{ tag: 'ANILIST', text: 'ANILIST · CH. 215 NOT SENT' }]);
+		// The failed list sent nothing: no SENT word comes from its line.
+		expect(sentWord(anilist)).toBe('');
+		const mal = listsRow(
+			input({
+				link: linked(),
+				tracking: tracking([
+					fact('anilist', { state: reading, sentAt: NOW - 12 * MIN }),
+					fact('mal', {
+						state: { ...reading, progress: 213 },
+						waiting: { progress: 214, failedAt, error: 'MAL DID NOT ANSWER' }
+					})
+				])
+			})
+		);
+		expect(listsMarks(mal)).toEqual([{ tag: 'MAL', text: 'MAL · CH. 214 NOT SENT' }]);
+		expect(sentWord(mal)).toBe('SENT CH. 214');
+	});
+
+	it('not linked, with FIND, is a mark; hidden (PASTE alone) and Ranobe’s own are not', () => {
+		expect(listsMarks(listsRow(input({ link: unlinked() })))).toEqual([
+			{ tag: 'ANILIST', text: 'ANILIST NOT LINKED · NOTHING IS SENT' }
+		]);
+		expect(listsMarks(listsRow(input({ link: unlinked({ hidden: true }) })))).toEqual([]);
+		const notOnRanobe = listsRow(
+			input({
+				link: linked(),
+				tracking: tracking([fact('anilist', { state: reading, sentAt: NOW - 12 * MIN })]),
+				ranobe: ranobe({ link: null }, { linked: false })
+			})
+		);
+		expect(listsMarks(notOnRanobe)).toEqual([]);
+		const hiddenRanobe = listsRow(
+			input({
+				link: linked(),
+				tracking: tracking([fact('anilist', { state: reading, sentAt: NOW - 12 * MIN })]),
+				ranobe: ranobe({ link: null, hidden: true }, { linked: false, hidden: true })
+			})
+		);
+		expect(listsMarks(hiddenRanobe)).toEqual([]);
+	});
+
+	it('Ranobe’s failed send is RNB’s mark', () => {
+		const row = listsRow(
+			input({
+				link: linked(),
+				tracking: tracking([fact('anilist')]),
+				ranobe: ranobe(
+					{},
+					{ failed: { unit: 'w:chapter:215', error: 'RANOBE REFUSED IT', at: NOW } }
+				)
+			})
+		);
+		expect(listsMarks(row)).toEqual([{ tag: 'RNB', text: 'RNB · CH. 215 NOT SENT' }]);
+	});
+
+	it('a fold of seasons in ink is a mark, by its tag; one that is only LINKED is not', () => {
+		const numbers = [1, 2, 3, 4, 5];
+		const show = (unlinkedSeason: number | null) =>
+			listsRow(
+				input({
+					kind: 'anime',
+					link: linked({ kind: 'anime', format: 'TV' }),
+					seasons: numbers.map((n) => seasonRow(n, n === unlinkedSeason ? { link: null } : {})),
+					tracking: tracking([], {
+						openSeason: 1,
+						seasons: numbers.map((n) => seasonTrack(n, [fact('anilist')]))
+					})
+				})
+			);
+		const folds = (r: ReturnType<typeof show>) => (r?.items ?? []).filter((i) => i.type === 'fold');
+		expect(folds(show(null)).length).toBeGreaterThan(0);
+		expect(listsMarks(show(null))).toEqual([]);
+		const marks = listsMarks(show(5));
+		expect(marks).toHaveLength(1);
+		expect(marks[0].text).toMatch(/^S\d( – S\d)? · 1 NOT LINKED$/);
+	});
+
+	it('nothing to list is nothing to mark', () => {
+		expect(listsMarks(null)).toEqual([]);
+		expect(sentWord(null)).toBe('');
+	});
+});
+
+describe('DETAILS: the folded line (1C)', () => {
+	const names = ['DOWNLOAD', 'DIRECTION', 'OCR', 'LISTS', 'COVER', 'SOURCE', 'TAGS', 'FILE'];
+
+	it('quiet: the quiet words in text-2, the names under them, no bar', () => {
+		expect(
+			detailsLine({ names, marks: [], quiet: ['FOLLOWING', 'SENT CH. 186'], running: null })
+		).toEqual({ state: 'FOLLOWING · SENT CH. 186', ink: false, names, bar: null });
+		// Nothing quiet to say: the names alone.
+		expect(detailsLine({ names, marks: [], quiet: ['', ''], running: null }).state).toBe('');
+	});
+
+	it('one mark: its words in ink; two or more: a count and who, each tag once', () => {
+		const mal = { tag: 'MAL', text: 'MAL · CH. 186 NOT SENT' };
+		const src = { tag: 'MANGADEX', text: 'MANGADEX · NOT ANSWERED SINCE SUNDAY' };
+		expect(detailsLine({ names, marks: [mal], quiet: ['FOLLOWING'], running: null })).toMatchObject(
+			{ state: 'MAL · CH. 186 NOT SENT', ink: true }
+		);
+		expect(
+			detailsLine({ names, marks: [mal, src], quiet: ['FOLLOWING'], running: null })
+		).toMatchObject({ state: '2 TO LOOK AT · MAL · MANGADEX', ink: true });
+		expect(
+			detailsLine({
+				names,
+				marks: [mal, { tag: 'MAL', text: 'MAL · EP. 3 NOT SENT' }, src],
+				quiet: [],
+				running: null
+			}).state
+		).toBe('3 TO LOOK AT · MAL · MANGADEX');
+	});
+
+	it('running work takes the first quiet word and fills the bar, clamped; a mark keeps the bar', () => {
+		const running = { word: 'EP. 9 DOWNLOADING', fraction: 0.62 };
+		expect(detailsLine({ names, marks: [], quiet: ['FOLLOWING', 'SENT EP. 6'], running })).toEqual({
+			state: 'EP. 9 DOWNLOADING · SENT EP. 6',
+			ink: false,
+			names,
+			bar: 0.62
+		});
+		expect(
+			detailsLine({ names, marks: [], quiet: [], running: { word: 'X', fraction: 1.4 } }).bar
+		).toBe(1);
+		expect(
+			detailsLine({ names, marks: [], quiet: [], running: { word: 'X', fraction: -1 } }).bar
+		).toBe(0);
+		expect(
+			detailsLine({
+				names,
+				marks: [{ tag: 'MAL', text: 'MAL · CH. 1 NOT SENT' }],
+				quiet: [],
+				running
+			}).bar
+		).toBe(0.62);
+	});
+
+	it('SOURCE’s trouble is a mark named by its source; no trouble, or not eligible, none', () => {
+		expect(
+			sourceMark({ eligible: true, source: 'MangaDex', trouble: 'NOT ANSWERED SINCE SUNDAY' })
+		).toEqual([{ tag: 'MANGADEX', text: 'MANGADEX · NOT ANSWERED SINCE SUNDAY' }]);
+		expect(sourceMark({ eligible: true, source: 'MangaDex', trouble: null })).toEqual([]);
+		expect(sourceMark({ eligible: false, source: 'MangaDex', trouble: 'X' })).toEqual([]);
+		expect(sourceMark(null)).toEqual([]);
+	});
+
+	it('the names: all of them, or the TV’s first four and how many more (1D)', () => {
+		expect(namesLine(names)).toBe(names.join(' · '));
+		expect(namesLine(names, TV_NAMES)).toBe('DOWNLOAD · DIRECTION · OCR · LISTS · 4 MORE');
+		expect(namesLine(names.slice(0, 4), TV_NAMES)).toBe('DOWNLOAD · DIRECTION · OCR · LISTS');
+		expect(namesLine([], TV_NAMES)).toBe('');
+	});
+
+	it('is remembered under one key for the device; anything but "1" is closed, the default', () => {
+		expect(DETAILS_KEY).toBe('tsundoku:series-details');
+		for (const [stored, open] of [
+			[null, false],
+			[undefined, false],
+			['', false],
+			['0', false],
+			['true', false],
+			['1', true]
+		] as const)
+			expect(detailsOpen(stored)).toBe(open);
 	});
 });

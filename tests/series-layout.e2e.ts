@@ -59,6 +59,92 @@ test('the series frame matches the design for this device', async ({ page }, inf
 	expect(rail.width).toBe(frame.rail);
 });
 
+// c488: the hover tint (motion.css) is a background-image, so it replaces a
+// picture drawn by the element's own stylesheet unless the element says
+// `data-picture`. The fold's stripes are that picture. A hover needs a fine
+// pointer, which only the desktop project has.
+test('hovering the fold keeps its stripes (c488)', async ({ page }, info) => {
+	test.skip(info.project.name !== 'desktop', 'a hover needs a fine pointer');
+	await page.goto('/?sort=title');
+	await page.locator('.grid .tile', { hasText: 'Tower of God' }).click();
+	await page.waitForURL(/\/series\/\d+/);
+	const fold = page.locator('.fold button');
+	await expect(fold).toBeVisible();
+	const image = () => fold.evaluate((n) => getComputedStyle(n).backgroundImage);
+	expect(await image()).toMatch(/^repeating-linear-gradient/);
+	await fold.hover();
+	// Under the pointer, and still the stripes, not the flat 9% tint.
+	expect(await fold.evaluate((n) => n.matches(':hover'))).toBe(true);
+	expect(await image()).toMatch(/^repeating-linear-gradient/);
+});
+
+/**
+ * DETAILS (c425) folds FILE on a phone and a TV: open it the way the owner
+ * does, by its line, and wait for the answer, which comes once the page runs.
+ */
+async function openDetails(page: import('@playwright/test').Page) {
+	const line = page.locator('[data-row="details"]');
+	if (!(await line.isVisible())) return;
+	await expect(async () => {
+		if ((await line.getAttribute('aria-expanded')) !== 'true') await line.click();
+		await expect(line).toHaveAttribute('aria-expanded', 'true', { timeout: 1_000 });
+	}).toPass();
+}
+
+/*
+ * c526: FILE's row was its text at `flex: 1` beside three cells (UNGROUP,
+ * HIDE, DELETE), so at the 440 panel `13 EPUB · 6.8 MB` read a word a line.
+ * LISTS' rule (doc/handoffs/series-lists/): two or more cells drop under the
+ * line in equal columns on the phone (390), the 440 panel and the TV's 352
+ * column; the tablet in portrait has the width and keeps them inline.
+ */
+test('FILE keeps its text whole, and its cells drop under it where the panel is narrow (c526)', async ({
+	page
+}, info) => {
+	const name = info.project.name;
+	test.skip(!FRAMES[name], 'no frame drawn for this project');
+	if (name === 'phone') await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto('/?sort=title');
+	await page.locator('.grid .tile', { hasText: 'Tower of God' }).click();
+	await page.waitForURL(/\/series\/\d+/);
+	await openDetails(page);
+	const row = page.locator('.file-row');
+	await row.scrollIntoViewIfNeeded();
+	const box = (await row.boundingBox())!;
+	const label = (await row.locator('.label').boundingBox())!;
+	const text = (await row.locator('.file').boundingBox())!;
+	const cells = await row
+		.locator('.cells .edit')
+		.evaluateAll((ns) => ns.map((n) => n.getBoundingClientRect().toJSON() as DOMRect));
+	expect(cells.map((c) => c.width > 0)).toEqual([true, true, true]);
+	// The text is wider than any of its cells, wherever it is drawn.
+	expect(text.width).toBeGreaterThan(Math.max(...cells.map((c) => c.width)));
+	if (name === 'tablet-portrait') {
+		// Inline: one line, the cells at its end.
+		for (const c of cells) expect(Math.round(c.y)).toBe(Math.round(box.y));
+		expect(Math.round(cells[cells.length - 1].right)).toBe(Math.round(box.x + box.width));
+		return;
+	}
+	// The 440 panel's own right rule takes a pixel from its rows.
+	const panel = name === 'phone' ? 390 : (FRAMES[name].panel ?? 440);
+	expect(box.width).toBeGreaterThanOrEqual(panel - 1);
+	expect(box.width).toBeLessThanOrEqual(panel);
+	// The text has the whole line after the label.
+	expect(Math.round(text.width)).toBe(Math.round(box.width - label.width));
+	// The cells are a line of their own under it, in equal columns, edge to edge.
+	for (const c of cells) expect(c.y).toBeGreaterThanOrEqual(text.y + text.height - 1);
+	const w = cells[0].width;
+	for (const c of cells) expect(c.width).toBeCloseTo(w, 0);
+	expect(Math.round(cells[0].left)).toBe(Math.round(box.x));
+	expect(Math.round(cells[cells.length - 1].right)).toBe(Math.round(box.x + box.width));
+	// The meta line is one line, not a word a line.
+	// (`line-height` is `normal`, so the measure is the font size: two lines are 2.3 of it.)
+	const lines = await row
+		.locator('.file-meta')
+		.evaluate((n) => n.getBoundingClientRect().height / parseFloat(getComputedStyle(n).fontSize));
+	expect(lines).toBeLessThan(1.8);
+});
+
 test('a doujin reads as a book: pages, not a chapter list', async ({ page }) => {
 	await page.goto('/?sort=title');
 	await page.locator('.grid .tile', { hasText: 'Hoshi no Umi no Tabibito' }).click();
@@ -81,6 +167,8 @@ test('a novel shows its contents without numbers, and a typeset cover', async ({
 	await page.locator('.grid .tile', { hasText: 'Mushoku Tensei' }).click();
 	await expect(page.getByText('01 — CONTENTS')).toBeVisible();
 	await expect(page.getByText('NO COVER · EPUB')).toBeVisible();
+	// LAYOUT is a row DETAILS folds on a phone and a TV (c425).
+	await openDetails(page);
 	await expect(page.getByText('LAYOUT', { exact: true })).toBeVisible();
 	await expect(page.locator('.entry .num')).toHaveCount(0);
 });
@@ -190,6 +278,8 @@ test.describe('a one-season anime with Ranobe (c422)', () => {
 		}) => {
 			await page.setViewportSize({ width, height: 900 });
 			await page.goto(`${base}/series/${seriesId}`);
+			// At 390 the panel is a phone's, and DETAILS folds LISTS (c425).
+			await openDetails(page);
 			await expect(page.getByRole('heading', { name: 'Ranma ½ (2024)' })).toBeVisible();
 			await screenSettled(page);
 			const row = page.locator('[data-row="lists"]');

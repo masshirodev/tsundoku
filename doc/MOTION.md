@@ -107,8 +107,12 @@ made the cover vanish. The rule leaves out:
   picture too;
 - anything marked `data-picture`, which is how an element whose picture comes
   from a **stylesheet** says so: no attribute selector can see a stylesheet.
-  The fold buttons' stripes in `EntryList.svelte` and `EpisodeList.svelte` are
-  the two found so far. They need the attribute (c488).
+  The fold buttons' stripes in `EntryList.svelte` and `EpisodeList.svelte`
+  carry it (c488); `series-layout.e2e.ts` hovers the chapter fold on the
+  desktop project and `browse-move.e2e.ts` the episode fold (the one seed with
+  a season watched through), each reading its `repeating-linear-gradient`
+  back under the pointer. A new pressable element whose stylesheet draws a
+  gradient or an image gets the attribute too.
 
 Most pictures are a child of the pressable thing, not the pressable thing
 itself, and the tint never reaches a child: an episode's thumb sits inside its

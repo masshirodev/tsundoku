@@ -242,7 +242,8 @@
 					<li class="section"><span>{row.label}</span><span>{row.detail}</span></li>
 				{:else if row.type === 'fold'}
 					<li class="fold">
-						<button type="button" onclick={() => (expanded = true)}>
+						<!-- The stripes are a stylesheet picture: the hover tint must not replace them (c488, doc/MOTION.md). -->
+						<button type="button" data-picture onclick={() => (expanded = true)}>
 							<span>↑ {formatNumber(row.from)} – {formatNumber(row.to)}</span>
 							<span class="long">{row.count} READ · SHOW</span>
 							<span class="short">READ</span>

@@ -373,6 +373,78 @@ export function setDirection(seriesId: number, direction: Direction | null): voi
 	getDb().prepare(`UPDATE series SET direction = ? WHERE id = ?`).run(direction, seriesId);
 }
 
+/**
+ * RENAME (c526; doc/SERIES.md, "RENAME"): the owner's own name for a series.
+ * `title` is written once, at the series' INSERT, and nothing after it writes
+ * it back -- not a scan, a source's REFRESH, a backup import or a cover pass
+ * (`tests/series-rename-db.spec.ts` runs each) -- so a rename sticks with no
+ * column of its own. The old name joins `alt_titles`, which the catalogue's
+ * and Ranobe's title matches read, so a link search still knows the series by
+ * the name it came with. The hue stays: it was picked from the old title once.
+ */
+export type SeriesRenameFacts = {
+	seriesId: number;
+	/** The name before, which UNDO puts back. */
+	title: string;
+	/** `alt_titles` before, as stored: UNDO restores it exactly. */
+	altTitles: string;
+	/** The name the rename wrote: UNDO refuses once the series has another. */
+	name: string;
+};
+
+export class RenameError extends Error {}
+
+export function renameSeries(seriesId: number, name: string): SeriesRenameFacts {
+	const db = getDb();
+	const title = name.trim().replace(/\s+/g, ' ');
+	if (title === '') throw new RenameError('A SERIES NEEDS A NAME');
+	return db
+		.transaction((): SeriesRenameFacts => {
+			const row = db.prepare(`SELECT title, alt_titles FROM series WHERE id = ?`).get(seriesId) as
+				{ title: string; alt_titles: string } | undefined;
+			if (!row) throw new RenameError('NO SUCH SERIES');
+			const facts = { seriesId, title: row.title, altTitles: row.alt_titles, name: title };
+			if (row.title === title) return facts;
+			const alts = parseAlts(row.alt_titles);
+			if (!alts.includes(row.title)) alts.push(row.title);
+			db.prepare(`UPDATE series SET title = ?, alt_titles = ? WHERE id = ?`).run(
+				title,
+				JSON.stringify(alts),
+				seriesId
+			);
+			return facts;
+		})
+		.immediate();
+}
+
+/**
+ * UNDO of a rename: the name and the alternative titles as they were. Only
+ * while the series still carries the name this rename gave it; a later rename
+ * is the owner's newer word, and an older band's UNDO must not undo it.
+ *
+ * The facts come back from the page as posted JSON, so they are checked as
+ * RENAME checks a typed name (c539 review, round 2): a blank title is
+ * refused, and `alt_titles` is written only as a JSON list of strings, since
+ * its readers (`ranobe-review.ts` among them) parse it bare.
+ */
+export function undoRenameSeries(facts: SeriesRenameFacts): void {
+	const title = typeof facts.title === 'string' ? facts.title.trim() : '';
+	if (title === '') throw new RenameError('A SERIES NEEDS A NAME');
+	const altTitles = JSON.stringify(parseAlts(String(facts.altTitles ?? '')));
+	const db = getDb();
+	db.transaction(() => {
+		const row = db.prepare(`SELECT title FROM series WHERE id = ?`).get(facts.seriesId) as
+			{ title: string } | undefined;
+		if (!row) throw new RenameError('NO SUCH SERIES');
+		if (row.title !== facts.name) throw new RenameError('RENAMED AGAIN SINCE');
+		db.prepare(`UPDATE series SET title = ?, alt_titles = ? WHERE id = ?`).run(
+			title,
+			altTitles,
+			facts.seriesId
+		);
+	}).immediate();
+}
+
 export function addTag(seriesId: number, tag: SeriesTag): void {
 	const db = getDb();
 	db.transaction(() => {

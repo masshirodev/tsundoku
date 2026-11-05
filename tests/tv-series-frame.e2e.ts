@@ -23,8 +23,10 @@ const base = process.env.PLAYWRIGHT_BASE_URL ?? '';
 
 /*
  * The handoff draws one series; the seeded database has its own ids. Open one
- * by title, as series-layout does -- Boku no Kokoro no Yabai Yatsu, which no other e2e spec
- * touches (series-flow hides Tower of God mid-run, and this project runs beside it).
+ * by title, as series-layout does -- Boku no Kokoro no Yabai Yatsu, which no flow file
+ * writes (the flows run beside this project on the shared preview's database;
+ * series-flow reads Tower of God and hides Ame no Hi no Toshokan, and tv-series' RATING
+ * case moves this one's rating and back, which the frame does not read).
  * This is the one hand edit to this generated file: regenerating writes the
  * plain `page.goto(base + '/')` back, and it has to be re-pointed.
  */

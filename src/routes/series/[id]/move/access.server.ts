@@ -44,20 +44,68 @@ export const offsetOf = (raw: string | null | undefined): number | null =>
 /**
  * The comparison for one candidate as a Settled, never rejecting on a source
  * that wouldn't say: the page draws that as its own state, with TRY AGAIN.
+ *
+ * `signal` is the request's (c539): a pick the owner has already left. The
+ * engine answers one call per extension at a time (`inLane`,
+ * engine/client.ts), and neither it nor `moveComparison` takes a signal, so a
+ * call that has started runs to its end and its answer is dropped. What can
+ * be spared is the wait: compares take turns here, one source at a time, and
+ * an ask dropped while it waits for its turn never reaches the engine, so the
+ * last pick waits behind the one call already running, not behind every pick
+ * made before it.
  */
 export async function compared(
 	id: number,
 	to: string,
 	reveal: boolean,
-	offset: number | null
+	offset: number | null,
+	signal?: AbortSignal
 ): Promise<Settled<MoveComparison>> {
+	return inTurn(to.split('~')[0] ?? '', signal, async () => {
+		try {
+			const value = await moveComparison(id, to, reveal, offset);
+			return value ? { ok: true, value } : { ok: false, error: 'This series does not move' };
+		} catch (e) {
+			if (e instanceof MoveError || isDownloadsError(e))
+				return { ok: false, error: (e as Error).message };
+			throw e;
+		}
+	});
+}
+
+/** What a dropped ask answers: nobody reads it, the page that asked has moved on. */
+export const DROPPED: Settled<MoveComparison> = { ok: false, error: 'Asked for another candidate' };
+
+/** The compare in front, per source: each waits for the one before it. */
+const turns = new Map<string, Promise<void>>();
+
+/** Run [ask] after the source's earlier compares; skip it if [signal] aborts while it waits. */
+export async function inTurn<T>(
+	source: string,
+	signal: AbortSignal | undefined,
+	ask: () => Promise<T | Settled<MoveComparison>>
+): Promise<T | Settled<MoveComparison>> {
+	const before = turns.get(source) ?? Promise.resolve();
+	let done!: () => void;
+	const mine = new Promise<void>((ok) => (done = ok));
+	// The next one waits for this one and everything before it, so dropping
+	// this one early never lets the next overtake a call still running.
+	const queue = before.then(() => mine);
+	turns.set(source, queue);
 	try {
-		const value = await moveComparison(id, to, reveal, offset);
-		return value ? { ok: true, value } : { ok: false, error: 'This series does not move' };
-	} catch (e) {
-		if (e instanceof MoveError || isDownloadsError(e))
-			return { ok: false, error: (e as Error).message };
-		throw e;
+		if (signal && !signal.aborted) {
+			await Promise.race([
+				before,
+				new Promise<void>((ok) => signal.addEventListener('abort', () => ok(), { once: true }))
+			]);
+		} else await before;
+		if (signal?.aborted) return DROPPED;
+		return await ask();
+	} finally {
+		done();
+		void queue.then(() => {
+			if (turns.get(source) === queue) turns.delete(source);
+		});
 	}
 }
 
