@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { type Page } from '@playwright/test';
 import Database from 'better-sqlite3';
-import { expect, test } from './helpers/hydrated';
+import { expect, readerReady, test } from './helpers/hydrated';
 import { E2E_TOKEN } from '../playwright.config';
 
 /**
@@ -1357,4 +1357,256 @@ test('a Work cannot be made of a hidden series and a visible one', async ({ page
 	await sheet.getByRole('button', { name: 'CANCEL' }).click();
 	await page.getByRole('button', { name: 'Stop selecting' }).click();
 	await page.getByRole('button', { name: 'HIDE AGAIN' }).click();
+});
+
+// ---- W7 (c281; doc/WORKS.md, "The offer" and "The flow") ----------------------
+
+/** A library tile by its exact title, on a page where `.grid .tile` holds it. */
+async function openSeries(page: Page, title: string): Promise<number> {
+	await page.goto('/');
+	await tileByTitle(page, title).locator('.open').click();
+	await page.waitForURL(/\/series\/\d+/);
+	return Number(/\/series\/(\d+)/.exec(page.url())![1]);
+}
+
+/** Makes a Work of exact titles through the AS sheet, from the library's SELECT. */
+async function makeWorkExact(page: Page, titles: string[], name: string) {
+	await page.goto('/');
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	for (const t of titles) await tileByTitle(page, t).locator('.open').click();
+	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+	const sheet = groupSheet(page);
+	await sheet.getByRole('radio', { name: /A WORK · SERIES/ }).click();
+	await sheet.getByRole('textbox', { name: 'Work name' }).fill(name);
+	await sheet.getByRole('button', { name: /CREATE WORK · \d+ SERIES/ }).click();
+	await expect(page.locator('.band', { hasText: `${name.toUpperCase()} IS A WORK` })).toBeVisible();
+}
+
+test('MIGHT CONTINUE <WORK>: REVIEW opens ADD TO A WORK with it last and ticked, only that tap adds, and NOT THIS never asks again', async ({
+	page
+}) => {
+	// The circle's books are in the hidden Hentoid root: reveal on, as the
+	// owner would be to see them. The Work and the newcomer are both hidden,
+	// so the newcomer could join it (a visible series is never offered a
+	// hidden Work: tests/works-offer-db.spec.ts).
+	await revealOn(page);
+	await makeWorkExact(page, ['Kaori Mama', 'Kaori Mama on Holiday Duty'], 'Kaori Mama');
+	const id = await openSeries(page, 'Kaori Mama Illustrations 2024');
+
+	// Work-States 1: under CONTINUE, why, and the place it would take.
+	const offer = page.getByRole('region', { name: 'Might continue Kaori Mama' });
+	await expect(offer).toContainText('MIGHT CONTINUE KAORI MAMA · AS PART 3');
+	await expect(offer).toContainText(
+		"ITS TITLE STARTS WITH THE WORK'S NAME · THE WORK HOLDS 2 SERIES"
+	);
+	// Never on its own: seeing the offer, and coming back to it, joins nothing.
+	await page.reload();
+	await expect(offer).toBeVisible();
+	await expect(page.locator('.work-row')).toHaveCount(0);
+
+	// REVIEW → the sheet in ADD TO A WORK: the run numbered, it last and ticked.
+	await offer.getByRole('button', { name: 'REVIEW →' }).click();
+	const sheet = groupSheet(page);
+	await expect(sheet).toBeVisible();
+	await expect(sheet.locator('.h-title')).toHaveText('INTO KAORI MAMA · AS PART 3');
+	const rows = sheet.locator('.rows .row');
+	await expect(rows).toHaveCount(3);
+	await expect(rows.nth(0)).toContainText('01');
+	await expect(rows.nth(1)).toContainText('Kaori Mama on Holiday Duty');
+	await expect(rows.nth(2)).toContainText('03');
+	await expect(rows.nth(2)).toContainText('Kaori Mama Illustrations 2024');
+	const tick = sheet.getByRole('checkbox', { name: 'Include Kaori Mama Illustrations 2024' });
+	await expect(tick).toHaveAttribute('aria-checked', 'true');
+	// Only the newcomer is tickable; the run is not reordered here.
+	await expect(sheet.getByRole('checkbox')).toHaveCount(1);
+	await expect(sheet.getByRole('button', { name: /^Move .* (up|down)$/ })).toHaveCount(0);
+	// Unticked, there is nothing to add.
+	const add = sheet.getByRole('button', { name: 'ADD 1 TO THE WORK' });
+	await tick.click();
+	await expect(sheet.getByRole('button', { name: 'ADD 0 TO THE WORK' })).toBeDisabled();
+	// CANCEL leaves everything as it was.
+	await sheet.getByRole('button', { name: 'CANCEL' }).click();
+	await expect(sheet).toBeHidden();
+	await page.reload();
+	await expect(offer).toBeVisible();
+
+	// The tap: it joins, last, and says so with UNDO.
+	await offer.getByRole('button', { name: 'REVIEW →' }).click();
+	await add.click();
+	await expect(sheet).toBeHidden();
+	const band = page.locator('.band', { hasText: 'ADDED TO KAORI MAMA · PART 3' });
+	await expect(band).toBeVisible();
+	await expect(page.locator('.work-row')).toContainText('PART 3 OF 3');
+	await expect(offer).toHaveCount(0);
+	expect(page.url()).toContain(`/series/${id}`);
+
+	// UNDO takes it out again, and the offer is back.
+	await band.getByRole('button', { name: 'UNDO' }).click();
+	await expect(page.locator('.work-row')).toHaveCount(0);
+	await expect(offer).toBeVisible();
+
+	// NOT THIS: its band's UNDO brings the offer straight back.
+	await offer.getByRole('button', { name: 'NOT THIS' }).click();
+	const dismissed = page.locator('.band', { hasText: "NOT THIS · WON'T ASK AGAIN" });
+	await expect(dismissed).toBeVisible();
+	await expect(offer).toHaveCount(0);
+	await dismissed.getByRole('button', { name: 'UNDO' }).click();
+	await expect(offer).toBeVisible();
+
+	// The sheet's own NOT THIS is the same answer, and it holds for good:
+	// across a reload and a second visit, nothing is offered and nothing joined.
+	await offer.getByRole('button', { name: 'REVIEW →' }).click();
+	await sheet.getByRole('button', { name: 'NOT THIS' }).click();
+	await expect(sheet).toBeHidden();
+	await expect(dismissed).toBeVisible();
+	await page.reload();
+	await expect(offer).toHaveCount(0);
+	await expect(page.locator('.work-row')).toHaveCount(0);
+	await page.goto('/');
+	await expect(workTile(page, 'Kaori Mama').locator('.bdg.wb')).toHaveText('WORK · 2');
+	await page.goto(`/series/${id}`);
+	await expect(page.getByRole('heading', { name: 'Kaori Mama Illustrations 2024' })).toBeVisible();
+	await expect(offer).toHaveCount(0);
+
+	// Done: the Work ends. Its dismissal names this Work's moment of making,
+	// which no later Work shares, so nothing else is silenced by it.
+	await page.goto('/');
+	await workTile(page, 'Kaori Mama').click();
+	await endWork(page);
+});
+
+/** Adds or removes one tag on a series, through its screen's EDIT sheet. */
+async function tagSeries(page: Page, title: string, tag: string, on: boolean) {
+	await openSeries(page, title);
+	await page
+		.locator('.row', { hasText: 'SHELVES' })
+		.getByRole('button', { name: 'EDIT', exact: true })
+		.click();
+	const edit = page.getByRole('dialog', { name: 'Shelves and tags' });
+	await expect(edit).toBeVisible();
+	if (on) {
+		const field = edit.getByRole('textbox', { name: 'Add a tag, as namespace:value' });
+		await field.fill(tag);
+		await field.press('Enter');
+		await expect(field).toHaveValue('');
+		await expect(edit.getByRole('button', { name: `Remove ${tag}` })).toBeVisible();
+	} else {
+		await edit.getByRole('button', { name: `Remove ${tag}` }).click();
+		await expect(edit.getByRole('button', { name: `Remove ${tag}` })).toHaveCount(0);
+	}
+	await page.keyboard.press('Escape');
+	await expect(edit).toBeHidden();
+}
+
+test('one Work end to end: a person’s page groups three, part 1 read to its end opens part 2, the run moves on, and a TAKE OUT’s UNDO and UNGROUP end where it began (c281)', async ({
+	page
+}) => {
+	// The board's way a Work is made (Work-States 7): an author's page. The
+	// seed's artist has one series, so two more take the artist's tag first,
+	// by the series screen's own EDIT, and give it back at the end.
+	const artist = 'artist:Aoi Hanamura';
+	const [first, second, third] = [
+		'Hikaru ga Shinda Natsu',
+		'Isekai Yakkyoku',
+		'Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru'
+	];
+	await tagSeries(page, first, artist, true);
+	await tagSeries(page, second, artist, true);
+
+	// Group the three from the person's page, BY HAND in the order selected.
+	const person = '/?tag=' + encodeURIComponent(artist);
+	await page.goto(person);
+	await page.waitForLoadState('networkidle');
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	for (const t of [first, second, third])
+		await page.locator('.grid li', { hasText: t }).getByRole('button').click();
+	await page.getByRole('button', { name: 'GROUP', exact: true }).click();
+	const sheet = groupSheet(page);
+	await sheet.getByRole('radio', { name: /A WORK · SERIES/ }).click();
+	await sheet.getByRole('textbox', { name: 'Work name' }).fill('Aoi Run');
+	await sheet.getByRole('button', { name: 'CREATE WORK · 3 SERIES' }).click();
+	await expect(page.locator('.band', { hasText: 'AOI RUN IS A WORK' })).toBeVisible();
+	const said = page.locator('.work-row', { hasText: 'Aoi Run' });
+	await expect(said).toContainText('3 OF 3 HERE');
+
+	// The Work's screen: three parts in that order, and the rating line is the
+	// parts' (c309: every number is of the parts this page sees, here all).
+	await said.click();
+	await page.waitForURL(/\/work\/\d+/);
+	const workUrl = page.url();
+	const parts = page.locator('.run .part');
+	await expect(parts).toHaveCount(3);
+	await expect(parts.nth(0)).toContainText(first);
+	await expect(parts.nth(1)).toContainText(second);
+	await expect(page.locator('.mix')).not.toContainText('SEES ONLY SOME');
+
+	// Read part 1 to its end: its last chapter, the last page, one turn past.
+	const db = new Database(dbPath, { readonly: true });
+	const entryOf = (title: string, order: 'ASC' | 'DESC') =>
+		(
+			db
+				.prepare(
+					`SELECT e.id FROM entries e JOIN series s ON s.id = e.series_id
+					WHERE s.title = ? ORDER BY e.position ${order} LIMIT 1`
+				)
+				.get(title) as { id: number }
+		).id;
+	const last = entryOf(first, 'DESC');
+	const next = entryOf(second, 'ASC');
+	db.close();
+	await page.goto(`/read/${last}?p=last`);
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+	// A manga reads R→L: ← is forward, and past the last page is the end page.
+	await page.keyboard.press('ArrowLeft');
+	await expect(page.locator('[data-end-page]')).toBeVisible();
+	const block = page.locator('.end .nextw');
+	await expect(block).toContainText('NEXT IN AOI RUN · PART 2 OF 3');
+	await expect(block).toContainText(second);
+
+	// START part 2 from the end page: a tap, into its first chapter.
+	await block.locator('.go > .acc').click();
+	await page.waitForURL(new RegExp(`/read/${next}\\b`));
+	await readerReady(page);
+	await page.waitForLoadState('networkidle');
+
+	// CONTINUE and the tile move on to part 2.
+	await page.goto('/');
+	const cont = page.locator('.cont .row.work', { hasText: 'Aoi Run' });
+	await expect(cont).toContainText('WORK · PART 2');
+	const tile = workTile(page, 'Aoi Run');
+	await expect(tile.locator('.ft')).toContainText('PART 2 OF 3');
+	await expect(tile.locator('.bdg.wb')).toHaveText('WORK · 3');
+
+	// Take out one (a Work of two stays), then the second-to-last: the Work
+	// ends, and UNDO puts it back with its name and order.
+	await page.goto(workUrl);
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await page.locator('.run .part', { hasText: 'Drawing: Saikyou' }).locator('.rowlink').click();
+	await page.getByRole('button', { name: 'TAKE OUT' }).click();
+	await expect(page.locator('.band', { hasText: 'TAKEN OUT · DRAWING' })).toBeVisible();
+	await expect(parts).toHaveCount(2);
+	await page.getByRole('button', { name: 'SELECT', exact: true }).click();
+	await page.locator('.run .part', { hasText: second }).locator('.rowlink').click();
+	await page.getByRole('button', { name: 'TAKE OUT' }).click();
+	await expect(page).toHaveURL(/band=ended/);
+	const ended = page.locator('.band', { hasText: 'AOI RUN IS NO LONGER A WORK' });
+	await expect(ended).toBeVisible();
+	await expect(workTile(page, 'Aoi Run')).toHaveCount(0);
+	await ended.getByRole('button', { name: 'UNDO' }).click();
+	await expect(workTile(page, 'Aoi Run')).toBeVisible();
+	await expect(workTile(page, 'Aoi Run').locator('.bdg.wb')).toHaveText('WORK · 2');
+	await workTile(page, 'Aoi Run').click();
+	await expect(parts).toHaveCount(2);
+	await expect(parts.nth(0)).toContainText(first);
+	await expect(parts.nth(1)).toContainText(second);
+
+	// UNGROUP: three series on their own again, and the tags given back.
+	await endWork(page);
+	await expect(tileByTitle(page, first)).toBeVisible();
+	await expect(tileByTitle(page, second)).toBeVisible();
+	await tagSeries(page, first, artist, false);
+	await tagSeries(page, second, artist, false);
+	await page.goto(person);
+	await expect(page.locator('.grid li', { hasText: first })).toHaveCount(0);
 });

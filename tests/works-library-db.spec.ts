@@ -306,6 +306,75 @@ describe('CONTINUE is one row per Work', () => {
 	});
 });
 
+describe('CONTINUE’s Work arm pays for the rows it shows (c332)', () => {
+	// Every row's place is decided before any Work's parts are read, so these
+	// pin that the keys alone give the same rows, order and count.
+	const runs = () => {
+		// Three Works with a last open each, oldest first; and one read through.
+		const a = make(['Isekai Ojisan', 'Isekai Yakkyoku'], 'Up Next Run');
+		const b = make(
+			['Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru', 'Kusuriya no Hitorigoto'],
+			'Drawing Run'
+		);
+		const done = make(['Yofukashi no Uta', 'Dungeon Meshi'], 'Read Run');
+		return { a, b, done };
+	};
+
+	it('never counts a Work whose every part is read, and counts each other Work once', () => {
+		const before = lib.continueReading(true, 1000);
+		const { done } = runs();
+		const after = lib.continueReading(true, 1000);
+		expect(after.items.some((i) => i.work?.id === done.work.id)).toBe(false);
+		// The open series that became parts stop being rows; each Work with an
+		// unfinished part is one row, and the read-through Work is none.
+		const names = after.items.filter((i) => i.work).map((i) => i.work!.name);
+		expect(names.sort()).toEqual(['Drawing Run', 'Up Next Run']);
+		const parts = [
+			'Isekai Ojisan',
+			'Isekai Yakkyoku',
+			'Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru',
+			'Kusuriya no Hitorigoto',
+			'Yofukashi no Uta',
+			'Dungeon Meshi'
+		].map(idOf);
+		const wereRows = before.items.filter((i) => parts.includes(i.id)).length;
+		expect(after.total).toBe(after.items.length);
+		expect(after.total).toBe(before.total - wereRows + 2);
+	});
+
+	it('slices to the limit in recency order, Works and series alike, and still counts every row', () => {
+		runs();
+		const whole = lib.continueReading(true, 1000);
+		for (const limit of [1, 2, 3, 5]) {
+			const page = lib.continueReading(true, limit);
+			expect(page.total).toBe(whole.total);
+			expect(page.items.map((i) => [i.id, i.work?.id ?? null])).toEqual(
+				whole.items.slice(0, limit).map((i) => [i.id, i.work?.id ?? null])
+			);
+		}
+	});
+
+	it('keeps a Work with a never-opened part whose chapters are all marked read out, as continuePart does', () => {
+		const { a } = runs();
+		const yakkyoku = idOf('Isekai Yakkyoku');
+		// Marked read without opening: finished, so the run is read through.
+		getDb().prepare(`UPDATE entries SET read_at = 1 WHERE series_id = ?`).run(yakkyoku);
+		const rows = lib.continueReading(true, 1000);
+		expect(rows.items.some((i) => i.work?.id === a.work.id)).toBe(false);
+		expect(rows.total).toBe(rows.items.length);
+	});
+
+	it('leaves a Work whose only open part is hidden out with reveal off', () => {
+		const { b } = runs();
+		lib.setHidden([idOf('Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru')], true);
+		lib.setHidden([idOf('Kusuriya no Hitorigoto')], true);
+		const off = lib.continueReading(false, 1000);
+		expect(off.items.some((i) => i.work?.id === b.work.id)).toBe(false);
+		expect(off.total).toBe(off.items.length);
+		expect(lib.continueReading(true, 1000).items.some((i) => i.work?.id === b.work.id)).toBe(true);
+	});
+});
+
 describe('THE RUN counts what the library counts', () => {
 	it('ignores a shadowed duplicate and front matter, and never exceeds the chapters it lists', () => {
 		const id = idOf('Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru');

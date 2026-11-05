@@ -8,7 +8,8 @@ mirrored in [`design/handoff/`](design/handoff/) as `Works Calls.dc.html` (the
 designer's decisions, the canvas's `Main.dc.html`), the `Seasons-*` and
 `Work-*` boards, `wk.css`, and `Works canvas.json`.
 
-**Status: designed, W1 to W6 built** (the table at the end). Read
+**Status: Part B (Works, c216) built, W1 to W7; Part A (merged seasons,
+c215) designed, S1 to S4 not built** (the table at the end). Read
 `Works Calls.dc.html` whole before a slice: it answers the brief's seven
 questions, and this file only records what the build decided on top of it.
 
@@ -78,6 +79,16 @@ facts, never two link tables.
 ## Where it departs from the handoff
 
 - A Work has a derived rating and FAV (above), not "neither".
+- The offer's stem has a floor of six letters, the books' own (`stemKey`), so
+  a part called _Akira_ never offers itself to _Akira Part 2_; the handoff's
+  rule names no floor. And a title equal to the stem is never offered: that is
+  two sources of one work, the duplicates review's.
+- The offer's REVIEW sheet draws the run above the newcomer, numbered and
+  without ticks, and has no ORDER or ↑ ↓: the add always puts the newcomer
+  last, and the Work's own screen reorders. The handoff says only "placed
+  last and ticked".
+- The phone's Work bar has no `⋯` cell: RENAME and UNGROUP are in the FILE
+  row, and a menu with nothing new in it is a second door to the same two.
 - Merged seasons' links are c240's per-season links, built by c240, not
   something that already exists.
 
@@ -104,7 +115,11 @@ existing one.
 - `work_dismissals (series_ids, dismissed_at)`: W7's dismissed offers, kept
   apart from the books' `suggestion_dismissals` because that table's reader
   parses every row's key as sorted ids, a shape a Work's key would not have. A
-  Work's key is `work:<workId>:<seriesId>`.
+  Work's key is `work:<created_at>:<seriesId>` (`workDismissalKey`): the
+  Work's moment of making, not its id, because an id is reused once the newest
+  Work ends and an UNDO can bring an ended Work back under a new one (W7). W1
+  wrote `work:<workId>:<seriesId>`, but nothing stored a row before W7, so no
+  library holds the old shape and no rung is needed.
 
 ## Rules
 
@@ -128,6 +143,14 @@ existing one.
   only some of the parts (reveal off, a hidden part) is never settable, because
   it cannot know they agree. **FAV** follows the same agreement rule, and mixed
   parts say how many are.
+- **Both numbers are of the parts given** (c309): the average is of the rated
+  parts the read can see, and FAV's `N OF M` counts the favourites among those
+  parts out of those parts (`WorkFavourite.of`). On a reveal-off read of a Work
+  with a hidden part, the screen shows the visible parts' numbers beside `THIS
+PAGE SEES ONLY SOME OF THE PARTS`, never the Work's own: a Work-wide average
+  or count would move when the hidden part is rated or favourited, which tells
+  a reveal-off page what that part holds. `tests/works-db.spec.ts` rates and
+  un-favourites the hidden part and asserts the reveal-off read unchanged.
 - **The default name** is the words every title starts with (`sharedStart` in
   `src/lib/library/books.ts`), or empty when they share none, which
   `defaultWorkName` (`src/lib/library/works.ts`) checks before keeping it. The
@@ -167,8 +190,10 @@ most (`rg -l '\blistSeries\(' tests`).
   `total` counts rows. The card query carries each series' last open and no
   LIMIT, and `withEditions` runs over every open series; sorting and slicing
   to `limit` happen before `entryLine`/`resumeEntry`, so only those two
-  prepared reads per row are spent on the rows the section returns
-  (doc/LIBRARY.md, "Works").
+  prepared reads per row are spent on the rows the section returns. A Work's
+  place and whether it is a row come from one grouped query of keys, and only
+  the Works the section shows have their parts read (c332; doc/LIBRARY.md,
+  "Works").
 - **A Work sorts by its most recent part**, as aggregates over every part
   (`keys` in `unitQuery`): latest read, newest chapter, latest added. The
   order lives in SQL rather than a `sortKey` on the part facts (W1's
@@ -231,7 +256,8 @@ rating. A set writes that rating to every part through `library.setRating`, so
 a linked part still sends its tracker. FAV follows the same rule and never
 goes to a tracker; mixed parts show `PARTS DIFFER` and say how many are. A
 page that can see only some parts (reveal off, a hidden part) shows and does
-not offer: `workPage.total` is what tells it so.
+not offer: `workPage.total` is what tells it so. What it shows is the visible
+parts' average and `N OF M` over the visible parts (c309, the Rules above).
 
 ### Making one (W4)
 
@@ -297,7 +323,16 @@ is given its id, so an UNDO knows each Work by its id and the moment it was
 made (`created_at`, carried in the facts) and refuses a different Work under
 the same id. An ended Work it brings back under a new id takes the rest of the
 same UNDO with it: a second take-out, add or GROUP move in that press goes into
-the restored Work, never into the newer one holding the old id.
+the restored Work, never into the newer one holding the old id. A later,
+separate UNDO finds it too (c470): each fact carries the Work's name beside its
+id and moment, and `locate` (`src/lib/server/works.ts`) resolves a Work whose
+id now names another by the one Work made at that moment under that name, so
+an earlier band's UNDO pressed after the restore writes into the restored Work
+rather than refuse it as ended. It still refuses when no such Work exists, or
+when two could be meant. An add's UNDO also refuses when a take-out since has
+left the Work only one other part (`<WORK> WOULD BE LEFT WITH ONE SERIES ·
+TAKE <SERIES> OUT ON ITS SCREEN INSTEAD`), since taking the series out would
+leave a Work of one, and when the series is no longer in that Work at all.
 The route answers with the reason (`… IS IN <WORK> NOW · TAKE IT OUT THERE
 FIRST`), never a 500. Before, `INSERT OR REPLACE` took the series from the Work
 it had joined and left that Work with one member for good.
@@ -444,6 +479,62 @@ read.
 name the Work: `backTo` validates the id, checks the series really is that
 Work's part, and falls back to `← LIBRARY` otherwise (doc/NAVIGATION.md).
 
+### MIGHT CONTINUE <WORK> (W7)
+
+Works Calls, question 6, and Work-States 1. A series in no Work whose title
+continues a Work's name, or one of its parts' titles, shows `MIGHT CONTINUE
+<WORK> · AS PART N` under CONTINUE on its own screen, with why on the line
+below (`ITS TITLE STARTS WITH THE WORK'S NAME · THE WORK HOLDS 2 SERIES`, or
+`… WITH PART 1'S TITLE · …`), then REVIEW → and NOT THIS. The ADDED TO THE
+LIBRARY band a source search leads to is on the same screen, above it.
+
+- **The stem rule** is `continuesStem` (`src/lib/library/works.ts`): the
+  stem's words are the title's first words, whole, the title has more after
+  them, and the stem has at least six letters. _The Breaker: Eternal Force_
+  continues _The Breaker_; _Boruto: Naruto Next Generations_ never continues
+  _Naruto_. `offerMatch` takes the longest stem, then the newest Work, and
+  `tests/works.spec.ts` asserts the rule over a table of titles against
+  stems, every pair.
+- **Which Works** (`workOfferFor`, `src/lib/server/works.ts`): none for a
+  series already in a Work, a browsing record, or a hidden series with reveal
+  off; and only Works the series could join -- hidden the same way it is,
+  never mixed -- so a visible series' screen never names a hidden Work, and
+  none the owner has said NOT THIS to.
+- **REVIEW →** opens the GROUP sheet in ADD TO A WORK (`GroupSheet`'s
+  `offer`): `INTO <WORK> · AS PART N`, the run numbered, the newcomer last
+  and ticked, `ADD 1 TO THE WORK` and NOT THIS. The add is the series
+  screen's own `?/addToWork`, which takes this series and only it, and
+  checks the offer's Work by its moment of making, not its id: the sheet
+  posts the offer's key (`work:<created_at>:<series>`), and the add goes
+  through only while `workOfferFor` still offers that Work with that key.
+  `works.id` is reused once the newest Work ends, so a page loaded before an
+  ungroup would otherwise add the series to whatever Work holds the id now;
+  an offer dismissed, or a Work that stopped matching, since the load refuses
+  too, as `THAT WORK HAS CHANGED · LOOK AGAIN`, writing nothing. The band
+  says `ADDED TO <WORK> · PART N` with UNDO (`?/undoAddToWork`), which undoes
+  this series' add only and answers malformed facts with a band, not a 500.
+- **NOT THIS** stores `work_dismissals` (`?/dismissWorkOffer`), from the
+  band or the sheet, with `NOT THIS · WON'T ASK AGAIN` and UNDO. It holds for
+  good, across an UNDO that brings the Work back under a new id, and never
+  silences a newer Work given the old id (the key names the moment of making).
+- **Never on its own**: nothing groups, adds, reorders, renames or carries
+  FOLLOW, a rating or a link without the sheet's tap. `tests/works-offer-db.spec.ts`
+  snapshots every Work, membership, rating, FAV, `followed_at` and link before
+  and after a load and each action, and asserts that only the one membership
+  the tap asked for changed.
+- **On a TV** the offer is one more band under CONTINUE, its two cells
+  focusable as the books' MIGHT BE ONE SERIES are.
+
+### The phone (W7)
+
+Walked against `Work-Phone.dc.html` at Pixel 7 (412x915), measured in a real
+browser (`doc/handoff-notes/works.md`, wave 23). `/work/N`'s bar is the
+board's on a phone: the name in mono capitals at 13px, `WORK · 3 SERIES` at
+11px without the order (ORDER's row says it), the run's head and its cells at
+16px padding, and + ADD A SERIES a 104px row like the parts above it. The
+library's CONTINUE row and the end page drift from the board in files this
+slice does not own; the notes carry each as a patch.
+
 ### The frames
 
 `tests/works-library-frame.e2e.ts` and `tests/work-screen-frame.e2e.ts` are
@@ -487,7 +578,12 @@ stale `from=work:` id, MOVE and TAKE OUT with its band and UNDO.
 
 ### The flow
 
-`tests/works-flow.e2e.ts` is W2's, W3's and W4's end to end: the tile, the
+`tests/works-flow.e2e.ts` is W2's, W3's, W4's and W7's end to end. W7's two
+cases are the offer (REVIEW, the sheet, the add and its UNDO, NOT THIS from
+the band and from the sheet) and the one flow HANDOFF.md asks for: three
+series grouped from an artist's page, part 1 read to its end, START on the
+end page into part 2, CONTINUE and the tile on part 2, a take-out, the
+second-to-last's take-out and its UNDO, and UNGROUP. Before that: the tile, the
 CONTINUE row, the Work's screen, ORDER, TAKE OUT and its bands, ADD A SERIES,
 the derived RATING and FAV, the hidden 404, paging and SELECT ALL, then GROUP
 AS A WORK from the library and from a person's page, ADD TO A WORK, `IN <WORK> ·
@@ -511,8 +607,8 @@ no detection of franchises, seasons or authors beyond the title-stem offers;
 two sources of one work stay the duplicates review's; the next part is not
 kept cached on the tablet.
 
-W7 is not built: MIGHT CONTINUE's offers, the phone flow and one flow end to
-end. The Work screen
+The offer is the title-stem rule alone; MIGHT BE SEASON N (S4) and the rest of
+Part A are not built. The Work screen
 does not draw the handoff's `↓ 10` download cell: a tap on a row opens the
 series, where DOWNLOAD's NEXT 10 lives, and this slice adds no download action
 of its own. W6's block offers DOWNLOAD FIRST 10 for the next part, which is
@@ -535,7 +631,7 @@ beside). A slice's card names its boards, files, specs and docs.
 | W4    | c278 | GROUP AS A WORK, a person's page, HIDE on a part (built)               |
 | W5    | c279 | The series screen's WORK row and back cell (built)                     |
 | W6    | c280 | The end of a series: the end page and the player (built)               |
-| W7    | c281 | MIGHT CONTINUE offers, the phone, and one flow end to end              |
+| W7    | c281 | MIGHT CONTINUE offers, the phone, and one flow end to end (built)      |
 | S1    | c282 | Merged seasons: per-season source and folder (after c240)              |
 | S2    | c283 | GROUP AS SEASONS: the merge, UNDO, UNGROUP                             |
 | S3    | c284 | The merged show's series screen                                        |

@@ -283,19 +283,26 @@ export function workFoot(parts: WorkPart[]): WorkFoot {
 }
 
 /**
- * The shown rating: the average of the rated parts, rounded the way the
- * screen's number is (a whole number out of 10, 0 unrated). It is settable
- * while the parts agree -- every part unrated, or every part one rating --
- * so one tap never overwrites ratings given apart (doc/WORKS.md).
+ * The shown rating: the average of the rated parts **among the parts given**,
+ * rounded the way the screen's number is (a whole number out of 10, 0
+ * unrated). It is settable while the parts agree -- every part unrated, or
+ * every part one rating -- so one tap never overwrites ratings given apart
+ * (doc/WORKS.md).
  *
  * `total` is how many parts the Work holds, which is not always how many the
  * caller can see: a reveal-off read drops hidden parts. A page that cannot see
  * every part cannot know they agree, so it says not settable rather than
  * offering a control the server will refuse. The server passes the count it
  * acts on, so the page and the write decide on the same set.
+ *
+ * On such a partial read `shown` is the visible parts' average, not the
+ * Work's (c309): the Work's own number would move when a hidden part is
+ * rated, which tells a reveal-off page what the hidden part is rated. Hidden
+ * means hidden, so the number is of the parts given, and W3 says so beside it
+ * (`THIS PAGE SEES ONLY SOME OF THE PARTS`).
  */
 export type WorkRating = {
-	/** 0 when no part is rated. */
+	/** The average of the rated parts given; 0 when none of them is rated. */
 	shown: Rating;
 	settable: boolean;
 	/** The value a set starts from (0 when all are unrated); null while mixed. */
@@ -317,20 +324,27 @@ export function workRating(parts: WorkPart[], total: number): WorkRating {
  * none), and mixed parts show the Work as not FAV with how many are. FAV never
  * goes to a tracker either way; only ratings do. `total` is the Work's member
  * count, as for `workRating`: a partial view is never settable.
+ *
+ * `count` and `of` are both over the parts given (c309), so the control's
+ * `1 OF 2` is one fraction of one set: on a reveal-off read of a Work with a
+ * hidden part, `of` is the visible parts, and favouriting the hidden one
+ * changes neither number (a count that rose would say so).
  */
 export type WorkFavourite = {
 	/** true when every part is a favourite, false when none, null while mixed. */
 	value: boolean | null;
 	settable: boolean;
-	/** How many parts are a favourite: the control's "+N" while mixed. */
+	/** How many of the parts given are a favourite: the control's "N OF M" while mixed. */
 	count: number;
+	/** How many parts that count is out of: the parts given, never the hidden ones. */
+	of: number;
 };
 
 export function workFavourite(parts: WorkPart[], total: number): WorkFavourite {
 	const count = parts.filter((p) => p.favourite).length;
 	const same =
 		parts.length > 0 && parts.length === total && (count === parts.length || count === 0);
-	return { value: same ? count === parts.length : null, settable: same, count };
+	return { value: same ? count === parts.length : null, settable: same, count, of: parts.length };
 }
 
 /**
@@ -683,4 +697,81 @@ export function wholeBand(
 			.filter(Boolean)
 			.join(' · ')
 	};
+}
+
+// ---- MIGHT CONTINUE <WORK> (W7; Works Calls, question 6) ----------------------
+
+/**
+ * The fewest letters a stem may have before it offers anything: the books'
+ * floor (`stemKey`, src/lib/library/books.ts), so a one-word part called
+ * "Akira" or a Work called "Blue" does not offer itself to every title that
+ * happens to start with the word.
+ */
+export const OFFER_STEM_LETTERS = 6;
+
+/**
+ * Whether `title` continues `stem` by the books' stem rule: the stem's words
+ * are the title's first words, whole, and the title has more words after
+ * them. *The Breaker: Eternal Force* continues *The Breaker*; *Boruto: Naruto
+ * Next Generations* never continues *Naruto*, because its first word is not
+ * the stem's; and a title equal to the stem continues nothing, because two
+ * sources of one work are the duplicates review's, not a Work's. A stem with
+ * fewer than `OFFER_STEM_LETTERS` letters never matches.
+ */
+export function continuesStem(title: string, stem: string): boolean {
+	const s = titleWords(stem);
+	const t = titleWords(title);
+	if (s.length === 0 || s.join('').length < OFFER_STEM_LETTERS) return false;
+	return t.length > s.length && s.every((w, i) => t[i] === w);
+}
+
+/** A Work as the offer reads it: its name and its parts' titles in its order. */
+export type OfferWork = {
+	id: number;
+	name: string;
+	createdAt: number;
+	/** Its parts' titles, in the owner's order. */
+	parts: string[];
+};
+
+/**
+ * What a series' title continues, if anything: the Work, and whether the
+ * Work's own name or one of its parts' titles (`part`, 1-based) is the stem.
+ * The longest stem wins, since it says the most (*The Breaker: New Waves*
+ * beats *The Breaker* for *The Breaker: New Waves 2*), then the newest Work.
+ */
+export type OfferMatch =
+	{ work: OfferWork; by: 'name' } | { work: OfferWork; by: 'part'; part: number };
+
+export function offerMatch(title: string, works: OfferWork[]): OfferMatch | null {
+	let best: { match: OfferMatch; words: number } | null = null;
+	const better = (words: number, w: OfferWork) =>
+		!best ||
+		words > best.words ||
+		(words === best.words && w.createdAt > best.match.work.createdAt);
+	for (const w of works) {
+		if (continuesStem(title, w.name) && better(titleWords(w.name).length, w))
+			best = { match: { work: w, by: 'name' }, words: titleWords(w.name).length };
+		w.parts.forEach((p, i) => {
+			const words = titleWords(p).length;
+			// A tie never displaces: the name, read first, is the better reason
+			// when a part's title is the same stem.
+			if (continuesStem(title, p) && better(words, w))
+				best = { match: { work: w, by: 'part', part: i + 1 }, words };
+		});
+	}
+	return best?.match ?? null;
+}
+
+/**
+ * The offer's second line (Work-States 1): why it offers, then what the Work
+ * holds. `ITS TITLE STARTS WITH THE WORK'S NAME · THE WORK HOLDS 2 SERIES`, or
+ * `… WITH PART 1'S TITLE · …` when a part's title is the stem.
+ */
+export function offerReason(match: OfferMatch): string {
+	const why =
+		match.by === 'name'
+			? "ITS TITLE STARTS WITH THE WORK'S NAME"
+			: `ITS TITLE STARTS WITH PART ${match.part}'S TITLE`;
+	return `${why} · THE WORK HOLDS ${match.work.parts.length} SERIES`;
 }

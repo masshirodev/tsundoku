@@ -174,7 +174,9 @@
 			<div class="bar-title">
 				<div class="t">{work.name}</div>
 				<div class="s">
-					WORK · {parts.length} SERIES · {orderName[work.orderMode].toUpperCase()}
+					WORK · {parts.length} SERIES<span class="ord">
+						· {orderName[work.orderMode].toUpperCase()}</span
+					>
 				</div>
 			</div>
 		</header>
@@ -266,7 +268,7 @@
 							disabled={!fav.settable}
 							aria-pressed={fav.value === true}
 							>FAV{#if fav.value === null}
-								<span class="n">{fav.count} OF {data.total}</span>
+								<span class="n">{fav.count} OF {fav.of}</span>
 							{/if}</button
 						>
 					</form>
@@ -276,7 +278,7 @@
 					<p class="mix">
 						{parts.length < data.total
 							? 'THIS PAGE SEES ONLY SOME OF THE PARTS, SO IT CANNOT SET THEM'
-							: `THE PARTS DIFFER · ${fav.count} OF ${data.total} FAVOURITE`}
+							: `THE PARTS DIFFER · ${fav.count} OF ${fav.of} FAVOURITE`}
 					</p>
 				{/if}
 
@@ -847,6 +849,34 @@
 		}
 		.fav {
 			width: 72px;
+		}
+		/* The phone pass (W7, Work-Phone B2): the bar as the series screen's
+		   phone header draws it -- the name in mono capitals at 13px over an
+		   11px line that drops the order (ORDER's row says it) -- and the
+		   run's head and + ADD A SERIES at the board's phone measures. */
+		.bar-title {
+			padding: 0 14px;
+		}
+		.bar-title .t {
+			font: 500 13px var(--font-mono);
+			letter-spacing: 0.04em;
+			text-transform: uppercase;
+		}
+		.bar-title .s {
+			font-size: 11px;
+		}
+		.bar-title .ord {
+			display: none;
+		}
+		.lhead > span:first-child {
+			padding: 0 16px;
+		}
+		.hc {
+			padding: 0 16px;
+		}
+		.add {
+			min-height: 104px;
+			padding: 0 12px;
 		}
 	}
 </style>

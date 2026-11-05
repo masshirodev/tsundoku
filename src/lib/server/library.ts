@@ -894,93 +894,110 @@ export function continueReading(
 	// part is not the last finished one: a run read through to part 1 still
 	// points at part 2 (Work-Library, the Akasaka row), which the series rule --
 	// opened *and* something unread in the same series -- cannot say.
-	const workIds = (
-		db
-			.prepare(
-				`SELECT DISTINCT ws.work_id AS id FROM work_series ws
-				JOIN series s ON s.id = ws.series_id JOIN roots r ON r.id = s.root_id
-				WHERE ${visibility(reveal)} AND EXISTS (
-					SELECT 1 FROM entries e WHERE e.series_id = s.id AND e.last_opened_at IS NOT NULL)`
-			)
-			.all() as { id: number }[]
-	).map((r) => r.id);
-	const partsByWork = byWork(partsOfWorks(workIds, reveal));
-	const works = new Map(workRecords(workIds).map((w) => [w.id, w]));
-	type WorkPick = {
-		seriesId: number;
-		work: Omit<NonNullable<ContinueLine['work']>, 'partTitle'>;
-		lastReadAt: number;
-	};
-	const picks: WorkPick[] = [];
-	for (const id of workIds) {
-		const own = partsByWork.get(id) ?? [];
-		const work = works.get(id);
-		if (!work || own.length === 0) continue;
-		const current = continuePart(own);
-		if (!current) continue;
-		const part = inOrder(own).findIndex((p) => p.seriesId === current.seriesId) + 1;
-		const upNext = partState(current) === 'not-started';
-		picks.push({
-			seriesId: current.seriesId,
-			work: { id, name: work.name, part, of: own.length, upNext },
-			lastReadAt: Math.max(0, ...own.map((p) => p.lastOpenedAt ?? 0))
-		});
-	}
-	// The part CONTINUE opens may be the one it has not started, which the
-	// open-series query above does not carry (it has no last open). One read for
-	// all of them, never one per Work on the page.
-	const missing = [...new Set(picks.map((p) => p.seriesId).filter((id) => !byId.has(id)))];
-	const extra = cardsOf(missing);
+	//
+	// Whether a Work is a row at all, and where it sorts, is decided here in
+	// one grouped query, from the same facts `continuePart` decides on: it has
+	// a row while any visible part is unfinished (`isFinished`: no counted
+	// entry, or a counted entry unread -- the counts `readParts` gives the
+	// rule), and it sorts by its most recent part's last
+	// open. So the Work arm reads every part of a Work (`partsOfWorks`,
+	// `workRecords`, `cardsOf`) only for the Works the section shows, after
+	// the slice (c332), and `total` still counts every row.
+	const workKeys = db
+		.prepare(
+			`SELECT ws.work_id AS id,
+				MAX((SELECT MAX(e.last_opened_at) FROM entries e WHERE e.series_id = s.id)) AS lastReadAt,
+				MAX(CASE WHEN NOT EXISTS (SELECT 1 FROM entries e
+						WHERE e.series_id = s.id AND e.shadowed = 0 AND e.matter = '')
+					OR EXISTS (SELECT 1 FROM entries e
+						WHERE e.series_id = s.id AND e.shadowed = 0 AND e.matter = '' AND e.read_at IS NULL)
+					THEN 1 ELSE 0 END) AS unfinished
+			FROM work_series ws JOIN series s ON s.id = ws.series_id JOIN roots r ON r.id = s.root_id
+			WHERE ${visibility(reveal)}
+			GROUP BY ws.work_id
+			HAVING lastReadAt IS NOT NULL AND unfinished = 1
+			ORDER BY ws.work_id`
+		)
+		.all() as { id: number; lastReadAt: number }[];
 
-	// Sort and slice on the card query's own fields first: `entryLine` costs two
-	// prepared reads per row, and the section only ever shows `limit` of them.
-	type Candidate = {
-		card: LibraryCard;
-		lastReadAt: number;
-		work: (Omit<NonNullable<ContinueLine['work']>, 'partTitle'> & { partTitle: string }) | null;
-	};
+	type WorkLine = Omit<NonNullable<ContinueLine['work']>, 'partTitle'> & { partTitle: string };
+	type Candidate =
+		| { card: LibraryCard; lastReadAt: number; workId: null }
+		| { card: null; lastReadAt: number; workId: number };
+	// Sort and slice on keys alone: `entryLine` costs two prepared reads per
+	// row, and a Work's row costs its parts, and the section shows `limit`.
 	const candidates: Candidate[] = [];
 	for (const card of cards) {
 		// A series in a Work is not a row of its own; the Work's row is below.
 		if (card.work) continue;
-		candidates.push({ card, lastReadAt: card.lastOpenedAt ?? 0, work: null });
+		candidates.push({ card, lastReadAt: card.lastOpenedAt ?? 0, workId: null });
 	}
-	for (const pick of picks) {
-		const card = byId.get(pick.seriesId) ?? extra.get(pick.seriesId);
-		if (!card) continue;
-		candidates.push({
-			card,
-			lastReadAt: pick.lastReadAt,
-			work: { ...pick.work, partTitle: card.title }
-		});
-	}
+	for (const w of workKeys) candidates.push({ card: null, lastReadAt: w.lastReadAt, workId: w.id });
 	candidates.sort((a, b) => b.lastReadAt - a.lastReadAt);
 	const total = candidates.length;
 
-	const items: ContinueLine[] = [];
-	for (const candidate of candidates.slice(0, limit)) {
-		const line = entryLine(candidate.card);
-		if (line) {
-			items.push({
-				...candidate.card,
-				...line,
-				...(candidate.work ? { title: candidate.work.name } : {}),
-				work: candidate.work
+	/** The shown Works' rows: their parts in one grouped pass, and the cards of the parts they open. */
+	function workLines(ids: number[]): Map<number, { card: LibraryCard; work: WorkLine }> {
+		const out = new Map<number, { card: LibraryCard; work: WorkLine }>();
+		if (ids.length === 0) return out;
+		const partsByWork = byWork(partsOfWorks(ids, reveal));
+		const records = new Map(workRecords(ids).map((w) => [w.id, w]));
+		const picks: { id: number; seriesId: number; work: Omit<WorkLine, 'partTitle'> }[] = [];
+		for (const id of ids) {
+			const own = partsByWork.get(id) ?? [];
+			const work = records.get(id);
+			if (!work || own.length === 0) continue;
+			const current = continuePart(own);
+			if (!current) continue;
+			const part = inOrder(own).findIndex((p) => p.seriesId === current.seriesId) + 1;
+			const upNext = partState(current) === 'not-started';
+			picks.push({
+				id,
+				seriesId: current.seriesId,
+				work: { id, name: work.name, part, of: own.length, upNext }
 			});
-			continue;
 		}
-		if (!candidate.work) continue;
-		// Between parts: the next one has not been started, so ▶ opens its first
-		// chapter and the row says UP NEXT (Work-Library, the Akasaka row).
-		const first = resumeEntry(candidate.card.id);
-		items.push({
-			...candidate.card,
-			title: candidate.work.name,
-			entryLabel: first?.label ?? '',
-			lastReadAt: candidate.lastReadAt,
-			resumeId: first?.id ?? null,
-			work: candidate.work
-		});
+		// The part CONTINUE opens may be the one it has not started, which the
+		// open-series query above does not carry (it has no last open). One read
+		// for the shown Works' parts, never one per Work.
+		const extra = cardsOf([...new Set(picks.map((p) => p.seriesId).filter((id) => !byId.has(id)))]);
+		for (const pick of picks) {
+			const card = byId.get(pick.seriesId) ?? extra.get(pick.seriesId);
+			if (card) out.set(pick.id, { card, work: { ...pick.work, partTitle: card.title } });
+		}
+		return out;
+	}
+
+	const items: ContinueLine[] = [];
+	// In slices of `limit`: a Work the SQL counted but whose row cannot be
+	// drawn (its parts went in between, a race) gives its place to the next.
+	for (let at = 0; at < candidates.length && items.length < limit; at += limit) {
+		const slice = candidates.slice(at, at + limit);
+		const lines = workLines(slice.flatMap((c) => (c.workId === null ? [] : [c.workId])));
+		for (const candidate of slice) {
+			if (items.length >= limit) break;
+			const shown = candidate.workId === null ? null : lines.get(candidate.workId);
+			const card = candidate.workId === null ? candidate.card : shown?.card;
+			if (!card) continue;
+			const work = shown?.work ?? null;
+			const line = entryLine(card);
+			if (line) {
+				items.push({ ...card, ...line, ...(work ? { title: work.name } : {}), work });
+				continue;
+			}
+			if (!work) continue;
+			// Between parts: the next one has not been started, so ▶ opens its
+			// first chapter and the row says UP NEXT (Work-Library, the Akasaka row).
+			const first = resumeEntry(card.id);
+			items.push({
+				...card,
+				title: work.name,
+				entryLabel: first?.label ?? '',
+				lastReadAt: candidate.lastReadAt,
+				resumeId: first?.id ?? null,
+				work
+			});
+		}
 	}
 
 	return { items, total };

@@ -120,9 +120,18 @@ series**.
   -- and the rows are then sorted and sliced to `limit` before `entryLine` and
   `resumeEntry` run, the two prepared reads per row, so the series arm hydrates
   every open series but reads entry lines only for the four rows it shows (8 ms
-  at 816 open series). The Work arm reads every open Work's parts in one
-  grouped pass (`partsOfWorks`), because each Work's CONTINUE part is decided
-  from all of them, and it is one query, not one per Work.
+  at 816 open series). The Work arm is decided before it is read (c332): one
+  grouped query gives each Work with an opened visible part its sort key (its
+  most recent part's last open) and whether any visible part is unfinished
+  (no counted chapter, or one unread: `isFinished`'s own facts), which is
+  exactly when `continuePart` has a part to open. Works are sorted and sliced
+  with the series on those keys, `total` counts every row, and only the Works
+  the section shows have their parts read (`partsOfWorks`, `workRecords` and
+  the cards of the parts they open, one grouped pass each). Measured at 1,000
+  Works of two open parts each under a load average of about 50: 632 ms
+  before, 167 ms after, the rest being the open-series card query, which
+  carries a Work's parts too and drops them. `tests/works-library-db.spec.ts`
+  pins the rows, order and count.
 - **Sorts** place a Work by its most recent part: its latest read, its
   newest chapter, its latest added; TITLE by the Work's name. The unit
   query aggregates over every part, so a Work sits where the part you would
