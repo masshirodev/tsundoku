@@ -29,11 +29,15 @@ class FormTest {
 	}
 
 	@Test
-	fun `only the phone blocks screenshots and pads the cutout`() {
-		assertTrue(Form.MOBILE.blocksScreenshots)
+	fun `only the phone pads the cutout`() {
 		assertTrue(Form.MOBILE.padsInsets)
-		assertFalse(Form.TV.blocksScreenshots)
 		assertFalse(Form.TV.padsInsets)
+	}
+
+	@Test
+	fun `only the phone raises the keyboard for a page, never the TV (c247)`() {
+		assertTrue(Form.MOBILE.raisesKeyboard)
+		assertFalse(Form.TV.raisesKeyboard)
 	}
 
 	@Test

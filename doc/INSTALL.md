@@ -5,7 +5,7 @@ no browser bar and no status bar. The page is the interface there too.
 
 There is also tsundoku's own Android app, `tsundoku-app-<version>.apk`
 (c521): the same library, paired with six digits instead of signed in, with
-zoom off and screenshots blocked. [`PHONE-APP.md`](PHONE-APP.md) is that one;
+zoom off. [`PHONE-APP.md`](PHONE-APP.md) is that one;
 this page is the PWA.
 
 ## Once, on the tablet

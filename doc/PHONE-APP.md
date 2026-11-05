@@ -21,9 +21,10 @@ what a page cannot do:
 
 - **Zoom is off.** Pinch and double tap do nothing (`setSupportZoom(false)`);
   the app's own pages add `touch-action: manipulation`.
-- **No screenshots.** `FLAG_SECURE` keeps the library out of screenshots and
-  out of the recents thumbnail, which [`PRIVACY.md`](PRIVACY.md) says a PWA
-  can never promise. It also means the owner can't screenshot the app.
+- **Screenshots are allowed.** The first build set `FLAG_SECURE`, which
+  [`PRIVACY.md`](PRIVACY.md) says a PWA can never promise; the owner had it
+  taken out the same day (2026-11-05): Android's "this app doesn't allow
+  screenshots" on every try cost more than the recents thumbnail it hid.
 - **The screen stays awake**, over plain http too, where the page has no
   wake lock ([`WIFI.md`](WIFI.md)).
 - **Pairing with six digits**, the TV's, over a friend's Wi-Fi or a tailnet.
@@ -52,7 +53,6 @@ differs is decided in one place, `Form.kt`, from the flavor's
 | Text size      | 100%, whatever the TV says        | Android's font size, capped at 130% |
 | User agent     | `TsundokuTV/<version>`            | `TsundokuApp/<version>`             |
 | Remote keys    | MENU and the media keys           | none: a finger and the keyboard     |
-| Screenshots    | allowed                           | blocked (`FLAG_SECURE`)             |
 | The cutout     | none to pad                       | padded natively (`Insets.kt`)       |
 
 The few things that are manifest or theme live in each flavor's folder:
@@ -237,7 +237,7 @@ phone was at hand. Built, unit-tested and browser-tested only, specifically:
   Android 15 and on 14 and older (where `adjustResize` still resizes), and
   whether `mandatorySystemGestures` still reports the home strip with the bars
   hidden. `InsetsTest` pins the arithmetic, not what a phone hands it.
-- **`FLAG_SECURE`, `textZoom` and the day and night themes** on a phone,
+- **`textZoom` and the day and night themes** on a phone,
   including whether `prefers-color-scheme` follows a switch made while the app
   is open (the activity handles `uiMode` itself, so it is not recreated).
 - **`Network.state` on a phone on mobile data**: the interface names are the

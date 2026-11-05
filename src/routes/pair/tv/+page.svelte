@@ -20,7 +20,11 @@
 	// On a touchscreen the six cells take focus at once, so the number keyboard
 	// opens with the screen (9C); a TV's focus layer starts there by itself.
 	onMount(() => {
-		if (mobile && data.step === 'code') entry?.focus();
+		if (!mobile || data.step !== 'code') return;
+		entry?.focus();
+		// The WebView raises no keyboard for focus a script gives on arrival;
+		// the phone app's bridge does (PairingBridge.keyboard).
+		(window as unknown as { TsundokuTV?: { keyboard?: () => void } }).TsundokuTV?.keyboard?.();
 	});
 
 	/** What a remote types; the hidden entry owns the keys and the cells draw it. */
@@ -137,28 +141,31 @@
 		</div>
 
 		<form class="safe digits" method="POST" bind:this={form}>
-			<!-- The keys land here: a remote's number keys and ←, as the design says. -->
-			<input
-				class="entry"
-				name="code"
-				type="text"
-				inputmode="numeric"
-				autocomplete="off"
-				maxlength="6"
-				aria-label="The six digits on the computer"
-				value={typed}
-				{oninput}
-				bind:this={entry}
-				data-focus-start
-			/>
-			<!-- A tap on the cells is a tap on the field they draw (a phone). -->
-			<div class="cells" aria-hidden="true" onclick={() => entry?.focus()}>
-				{#each digits as d, i (i)}
-					{#if i === 3}<div class="gap"></div>{/if}
-					<div class="cell" class:ring={live && i === next}>
-						{d}{#if live && i === next}<span class="caret"></span>{/if}
-					</div>
-				{/each}
+			<!-- The keys land here: a remote's number keys and ←, as the design says.
+			     On a phone the field lies over the six cells, so a tap on any of
+			     them is a tap on the field and Android raises its keyboard (c521). -->
+			<div class="code">
+				<input
+					class="entry"
+					name="code"
+					type="text"
+					inputmode="numeric"
+					autocomplete="off"
+					maxlength="6"
+					aria-label="The six digits on the computer"
+					value={typed}
+					{oninput}
+					bind:this={entry}
+					data-focus-start
+				/>
+				<div class="cells" aria-hidden="true">
+					{#each digits as d, i (i)}
+						{#if i === 3}<div class="gap"></div>{/if}
+						<div class="cell" class:ring={live && i === next}>
+							{d}{#if live && i === next}<span class="caret"></span>{/if}
+						</div>
+					{/each}
+				</div>
 			</div>
 			<div class="hint meta">
 				GOOD FOR 10 MINUTES · ONE DEVICE, ONCE · A NEW CODE ON THE COMPUTER IF IT RAN OUT
@@ -251,6 +258,10 @@
 	}
 	.pair.with-band .digits {
 		top: 204px;
+	}
+	/* The field's box: on a TV it is a 1px corner of it, as it always was. */
+	.code {
+		position: relative;
 	}
 	.entry {
 		position: absolute;
@@ -433,6 +444,17 @@
 	}
 	.pair.mobile .cell {
 		box-sizing: border-box;
+	}
+	/* The field over the six cells: a tap on any of them is a tap on it, so
+	   Android raises the number keyboard. Drawn by the cells, never itself. */
+	.pair.mobile .entry {
+		z-index: 1;
+		width: 100%;
+		height: 100%;
+		font-size: 16px;
+		color: transparent;
+		caret-color: transparent;
+		background: transparent;
 	}
 	.pair.mobile .cell.ring {
 		border-color: var(--accent);

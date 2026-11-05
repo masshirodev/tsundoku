@@ -1219,6 +1219,15 @@
 				return parts.length === 4 ? parts.slice(0, 3).join('.') + '.' : '';
 			};
 
+			/*
+			 * The phone app raises Android's keyboard for a field this page
+			 * focused itself (c521): the WebView won't for focus a script gives.
+			 * A TV's bridge does nothing here (c247).
+			 */
+			function showKeyboard() {
+				if (bridge && typeof bridge.keyboard === 'function') bridge.keyboard();
+			}
+
 			let lastOrigin = '';
 			let attempts = 0;
 			let lastAt = 0;
@@ -1322,7 +1331,10 @@
 				// A phone's keyboard pushes the page up rather than covering the
 				// buttons, so the field takes focus at once and the number
 				// keyboard opens (9B); the TV never does, for c247's pad.
-				if (MOBILE) last.focus();
+				if (MOBILE) {
+					last.focus();
+					showKeyboard();
+				}
 			}
 
 			function origin() {
@@ -1408,6 +1420,8 @@
 				last.value = '';
 				fill();
 				last.focus();
+				// The text keyboard replaces the number one on a phone (inputmode url).
+				if (MOBILE) showKeyboard();
 			});
 
 			/* ---- c260: an address handed in from outside ----------------------- */
@@ -1733,6 +1747,7 @@
 				// The field takes focus at once: the keyboard rising is the point
 				// of this screen (S5), unlike 9B's, where it covered the buttons.
 				renameField.focus();
+				if (MOBILE) showKeyboard();
 				backStep = renameDone;
 			}
 			/** Where RENAME returns, saved or not: S8 it came from, or the library. */

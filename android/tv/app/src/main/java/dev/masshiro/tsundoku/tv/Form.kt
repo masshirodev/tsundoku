@@ -13,8 +13,8 @@ package dev.masshiro.tsundoku.tv
  * | Text size       | 100%, whatever the TV says           | Android's font size, capped at 130%      |
  * | User agent      | `TsundokuTV/<version>`               | `TsundokuApp/<version>`                  |
  * | Remote keys     | MENU and the media keys (Keys.kt)    | none: a finger and the keyboard          |
- * | Screenshots     | allowed                              | blocked (`FLAG_SECURE`)                  |
  * | The cutout      | none to pad                          | padded natively (Insets.kt)              |
+ * | The keyboard    | never raised by a page (c247)        | raised when a page focuses a field       |
  *
  * The bridge keeps the TV's name, `TsundokuTV`, on both: it is the contract
  * the web app already reads (MoreSheet's SERVERS, the layout's name), so the
@@ -32,8 +32,13 @@ enum class Form(val id: String) {
 	val takesRemoteKeys: Boolean
 		get() = this == TV
 
-	/** `FLAG_SECURE`: a phone's library is not screenshotted or shown in recents (doc/PRIVACY.md). */
-	val blocksScreenshots: Boolean
+	/**
+	 * A page that focuses a field on arrival asks the app to raise the
+	 * keyboard (the bridge's `keyboard()`): Android's WebView does not raise it
+	 * for focus a script gives without a tap. Never on a TV, whose pad covers
+	 * the buttons (c247).
+	 */
+	val raisesKeyboard: Boolean
 		get() = this == MOBILE
 
 	/** A TV has no cutout and no keyboard pushing the page; a phone has both. */

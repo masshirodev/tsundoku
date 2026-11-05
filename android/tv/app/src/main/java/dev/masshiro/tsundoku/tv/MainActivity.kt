@@ -40,7 +40,7 @@ import java.util.concurrent.TimeUnit
  * and the things the page cannot do over plain http: a launcher presence, the
  * remote's keys (a TV's), the screen kept awake, and a way to be paired with
  * six digits. On a phone it also keeps the page out of the camera cutout and
- * above the keyboard (Insets.kt), and out of screenshots.
+ * above the keyboard (Insets.kt).
  *
  * The app's own screens (9A, 9B, 9D) are in `assets/pair/`; 9C and 9E are the
  * computer's `/pair/tv`, so the code is posted same-origin and the paired
@@ -89,9 +89,6 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		setContentView(root)
 
 		window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-		// A phone's library stays out of screenshots and the recents thumbnail,
-		// which a PWA could never promise (doc/PRIVACY.md, doc/PHONE-APP.md).
-		if (form.blocksScreenshots) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
 		WindowCompat.setDecorFitsSystemWindows(window, false)
 		hideSystemUi()
 		if (form.padsInsets) padForInsets()
@@ -226,6 +223,20 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		webView.setBackgroundColor(color)
 	}
 
+	/**
+	 * The bridge's `keyboard()`: the WebView takes focus and Android shows the
+	 * keyboard for the field the page focused. Posted, so the page's own focus
+	 * has landed first.
+	 */
+	override fun showKeyboard() {
+		if (!form.raisesKeyboard) return
+		webView.requestFocus()
+		webView.post {
+			val imm = getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+			imm.showSoftInput(webView, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+		}
+	}
+
 	/** The theme's background, dark or light with the phone's setting (src/mobile/res). */
 	private fun themeBackground(): Int {
 		val a = obtainStyledAttributes(intArrayOf(android.R.attr.colorBackground))
@@ -324,6 +335,11 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 				// (the app's own, or a server older than c521's, which never says).
 				if (form.padsInsets) view.evaluateJavascript(SURFACE_JS) { value -> readSurface(value) }
 				val uri = Uri.parse(url)
+				// The code screen (9C) on a phone: once the page has hydrated, its
+				// field takes focus and the keyboard comes up. A server older than
+				// c521 never focuses it on a phone, and its 1 px field can't be
+				// tapped, so without this no digit could be typed there at all.
+				if (form.raisesKeyboard && uri.path == "/pair/tv") view.evaluateJavascript(CODE_FOCUS_JS, null)
 				if (uri.scheme != "http" && uri.scheme != "https") return
 				val origin = originOf(uri)
 				val known = servers.find(origin)
@@ -532,6 +548,15 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		 */
 		private const val SURFACE_JS =
 			"(function(){try{var t=function(e){return e?getComputedStyle(e).backgroundColor:''};var c=t(document.body);var x=document.createElement('canvas');x.width=x.height=1;var g=x.getContext('2d');var read=function(v){g.clearRect(0,0,1,1);g.fillStyle='rgba(0,0,0,0)';g.fillStyle=v;g.fillRect(0,0,1,1);return g.getImageData(0,0,1,1).data};var d=read(c);if(d[3]<255){d=read(t(document.documentElement))}return d[3]<255?'':'rgb('+d[0]+', '+d[1]+', '+d[2]+')'}catch(e){return ''}})()"
+
+		/**
+		 * 9C's field focused, then the bridge asked for the keyboard, once the
+		 * page has hydrated (SvelteKit's announcer is there, or 3 s have gone):
+		 * a digit typed before hydration is lost when Svelte takes the field.
+		 * Nothing on 9E, which has no field.
+		 */
+		private const val CODE_FOCUS_JS =
+			"(function(){var t=0;var go=function(){var e=document.querySelector('input[name=code]');if(!e)return;if(!document.getElementById('svelte-announcer')&&t<30){t++;setTimeout(go,100);return}e.focus();if(window.TsundokuTV&&window.TsundokuTV.keyboard)window.TsundokuTV.keyboard()};go()})()"
 
 		/** c236's contract: true means the page took BACK. */
 		private const val BACK_JS =

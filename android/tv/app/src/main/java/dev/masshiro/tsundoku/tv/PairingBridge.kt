@@ -41,6 +41,7 @@ import java.util.concurrent.Executors
  * | `form`           | reads which app this is (c521)         | no      |
  * | `network`        | reads home / data / none (c521)        | no      |
  * | `surface`        | paints the camera band (c521)          | no      |
+ * | `keyboard`       | raises the phone's keyboard (c521)     | no      |
  *
  * `open` and `welcome` stay open on purpose: FORGET of the server in use calls
  * one of them from the page of the server it has just forgotten (MoreSheet's
@@ -82,6 +83,9 @@ class PairingBridge(
 
 		/** The camera band takes the page's colour (c521); a TV has none to paint. */
 		fun paintSurface(color: Int) {}
+
+		/** The phone's keyboard, for the field the page has focused (c521); a TV never. */
+		fun showKeyboard() {}
 	}
 
 	companion object {
@@ -121,6 +125,18 @@ class PairingBridge(
 	fun surface(css: String) {
 		val color = Insets.parseColor(css) ?: return
 		host.onUi { host.paintSurface(color) }
+	}
+
+	/**
+	 * Raise the keyboard for the field the page has just focused (c521):
+	 * the WebView does not, for focus given by a script on arrival (9B, 9C).
+	 * Nothing on a TV (Form.raisesKeyboard). Unguarded: it shows a keyboard and
+	 * writes nothing.
+	 */
+	@JavascriptInterface
+	fun keyboard() {
+		if (!form.raisesKeyboard) return
+		host.onUi { host.showKeyboard() }
 	}
 
 	/** The TV's own IPv4 on its network, or "" when it has none. */
