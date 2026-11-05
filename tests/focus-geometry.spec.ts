@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+	SCROLL_SLACK,
+	canScroll,
 	directionOf,
 	isInDirection,
 	nextIndex,
@@ -160,5 +162,46 @@ describe('nextInDirection', () => {
 		// key to the slider itself (data-focus-adjust, or the player's seek).
 		expect(nextInDirection(short, 'left', labels([cell]))).toBe('c0');
 		expect(nextInDirection(reached, 'left', labels([cell]))).toBeNull();
+	});
+});
+
+/**
+ * c578: which scroller ↑ ↓ move when nothing is that way, on a TV. A scroller
+ * at its end in the key's direction is passed over for the next one out.
+ */
+describe('canScroll (c578)', () => {
+	const at = (scrollTop: number, clientHeight = 300, scrollHeight = 900) => ({
+		scrollTop,
+		clientHeight,
+		scrollHeight
+	});
+
+	it('moves down until its end, and up until its top', () => {
+		expect(canScroll(at(0), 'down')).toBe(true);
+		expect(canScroll(at(0), 'up')).toBe(false);
+		expect(canScroll(at(300), 'down')).toBe(true);
+		expect(canScroll(at(300), 'up')).toBe(true);
+		expect(canScroll(at(600), 'down')).toBe(false);
+		expect(canScroll(at(600), 'up')).toBe(true);
+	});
+
+	it('is at its end within a pixel, which rounding leaves (SCROLL_SLACK)', () => {
+		expect(SCROLL_SLACK).toBe(1);
+		// scrollHeight and clientHeight are rounded integers; scrollTop is not.
+		for (const short of [0.2, 0.5, 0.75, 1])
+			expect(canScroll(at(600 - short), 'down'), `${short} px short`).toBe(false);
+		expect(canScroll(at(600 - 1.5), 'down')).toBe(true);
+		for (const off of [0.25, 0.5, 1])
+			expect(canScroll(at(off), 'up'), `${off} px down`).toBe(false);
+		expect(canScroll(at(1.5), 'up')).toBe(true);
+	});
+
+	it('has no end to move toward when there is nothing to scroll', () => {
+		for (const d of ['up', 'down'] as const) {
+			expect(canScroll(at(0, 300, 300), d)).toBe(false);
+			// A pixel of overflow is rounding, not content.
+			expect(canScroll(at(0, 300, 301), d)).toBe(false);
+		}
+		expect(canScroll(at(0, 300, 302), 'down')).toBe(true);
 	});
 });

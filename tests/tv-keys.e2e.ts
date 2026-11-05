@@ -1,4 +1,5 @@
 import { expect, test } from './fixtures';
+import { hydrated } from './helpers/hydration';
 
 /**
  * The remote's keys (c235; doc/TV.md, "The remote"): OK held or MENU opens the
@@ -213,4 +214,133 @@ test('▶❚❚ on a focused CONTINUE card resumes it, without the series screen
 		window.dispatchEvent(new KeyboardEvent('keydown', { key: 'MediaPlayPause', cancelable: true }))
 	);
 	await page.waitForURL(/\/read\/\d+/);
+});
+
+// ---- c578: ↑ ↓ chain past a scroller at its end -------------------------------
+
+type Scrolls = { page: number; outer: number; inner: number; clip: number };
+
+/**
+ * A page of scrollers built for the case, on the live layer: `/history`'s
+ * own markup hidden (it reads no arrows itself), and one button, the only
+ * stop, so every ↑ ↓ has nothing that way and is the layer's step
+ * (`stepScroll`). The page is taller than the TV; `outer` (300 px, auto) holds
+ * `inner` (200 px, auto), and `clip` (overflow hidden, with more to show) can
+ * sit between `inner` and the page instead. The button sits where the key
+ * leaves it in view: at `inner`'s bottom for ↓, at its top for ↑.
+ */
+async function scrollers(
+	page: import('@playwright/test').Page,
+	o: { around: 'outer' | 'clip'; at: 'top' | 'bottom' }
+): Promise<() => Promise<Scrolls>> {
+	await page.goto('/history');
+	await hydrated(page);
+	await page.evaluate(({ around, at }) => {
+		for (const el of document.body.children) (el as HTMLElement).style.display = 'none';
+		const box = (css: string, ...kids: HTMLElement[]) => {
+			const d = document.createElement('div');
+			d.style.cssText = css;
+			d.append(...kids);
+			return d;
+		};
+		const button = document.createElement('button');
+		button.id = 'c578';
+		button.textContent = 'IN';
+		button.style.cssText = 'display:block;height:40px;margin:0';
+		const fill = () => box('height:600px');
+		const inner = box(
+			'overflow-y:auto;height:200px',
+			...(at === 'bottom' ? [fill(), button] : [button, fill()])
+		);
+		inner.id = 'inner';
+		const wrap = box(
+			around === 'outer' ? 'overflow-y:auto;height:300px' : 'overflow:hidden;height:300px',
+			inner,
+			box('height:400px')
+		);
+		wrap.id = around;
+		document.body.append(box('padding-top:100px', wrap, box('height:2000px')));
+	}, o);
+	return () =>
+		page.evaluate(() => ({
+			page: document.scrollingElement!.scrollTop,
+			outer: document.getElementById('outer')?.scrollTop ?? -1,
+			inner: document.getElementById('inner')!.scrollTop,
+			clip: document.getElementById('clip')?.scrollTop ?? -1
+		}));
+}
+
+/** Put a scroller where the case needs it, then the button in focus. */
+async function setUp(page: import('@playwright/test').Page, tops: Partial<Record<string, number>>) {
+	await page.evaluate((t) => {
+		for (const [id, top] of Object.entries(t)) {
+			const el = id === 'page' ? document.scrollingElement! : document.getElementById(id)!;
+			el.scrollTop = top === -1 ? el.scrollHeight : top!;
+		}
+		document.getElementById('c578')!.focus({ preventScroll: true });
+	}, tops);
+}
+
+/** Every listener has had the key once the next frame is drawn. */
+async function arrow(page: import('@playwright/test').Page, key: 'ArrowDown' | 'ArrowUp') {
+	await page.keyboard.press(key);
+	await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r(null))));
+}
+
+test('↓ with nothing below scrolls the nearest scroller while it can still move (c578)', async ({
+	page
+}) => {
+	const read = await scrollers(page, { around: 'outer', at: 'bottom' });
+	await setUp(page, { inner: 100 });
+	const before = await read();
+	await arrow(page, 'ArrowDown');
+	expect(await read()).toEqual({ ...before, inner: before.inner + 40 });
+});
+
+test('↓ in a scroller at its end scrolls the next one out, then the page (c578)', async ({
+	page
+}) => {
+	const read = await scrollers(page, { around: 'outer', at: 'bottom' });
+	await setUp(page, { inner: -1 });
+	const before = await read();
+	expect(before.inner).toBe(600 + 40 - 200);
+	await arrow(page, 'ArrowDown');
+	// The inner list is at its end: the outer one moves, as Chromium's own does.
+	expect(await read()).toEqual({ ...before, outer: before.outer + 40 });
+
+	// Both at their end: the page.
+	await setUp(page, { inner: -1, outer: -1 });
+	const ends = await read();
+	await arrow(page, 'ArrowDown');
+	expect(await read()).toEqual({ ...ends, page: ends.page + 40 });
+	await expect(page.locator('#c578')).toBeFocused();
+});
+
+test('↓ passes over a box that hides its overflow, and the page at its end moves nothing (c578)', async ({
+	page
+}) => {
+	const errors: Error[] = [];
+	page.on('pageerror', (e) => errors.push(e));
+	const read = await scrollers(page, { around: 'clip', at: 'bottom' });
+	await setUp(page, { inner: -1 });
+	const before = await read();
+	await arrow(page, 'ArrowDown');
+	// `overflow: hidden` has more to show, but no key scrolls it.
+	expect(await read()).toEqual({ ...before, page: before.page + 40 });
+
+	// Everything at its end: nothing moves, and nothing throws.
+	await setUp(page, { inner: -1, page: -1 });
+	const ends = await read();
+	await arrow(page, 'ArrowDown');
+	expect(await read()).toEqual(ends);
+	expect(errors).toEqual([]);
+});
+
+test('↑ in a scroller at its top scrolls the page up (c578)', async ({ page }) => {
+	const read = await scrollers(page, { around: 'outer', at: 'top' });
+	await setUp(page, { page: 400 });
+	const before = await read();
+	expect(before).toMatchObject({ inner: 0, outer: 0, page: 400 });
+	await arrow(page, 'ArrowUp');
+	expect(await read()).toEqual({ ...before, page: 360 });
 });

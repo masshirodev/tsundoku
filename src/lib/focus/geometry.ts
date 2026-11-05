@@ -145,3 +145,32 @@ export function nextInDirection<T>(
 	const index = nextIndex(from, direction, candidates);
 	return index === null ? null : candidates[index].value;
 }
+
+/** What a scroller says about itself: `Element`'s own three numbers. */
+export type ScrollMetrics = {
+	scrollTop: number;
+	clientHeight: number;
+	scrollHeight: number;
+};
+
+/**
+ * How far from an end a scroller still counts as at it. `scrollHeight` and
+ * `clientHeight` are integers each rounded from a fractional layout, while
+ * `scrollTop` is not, so at its very end a scroller's `scrollTop +
+ * clientHeight` can fall short of `scrollHeight` by up to a pixel (MDN's own
+ * test for "at the bottom" allows 1). The rects' `EPSILON` (half a pixel)
+ * would call such a scroller movable, and ↓ would go to a scroller that
+ * cannot move: the very bug c578 is.
+ */
+export const SCROLL_SLACK = 1;
+
+/**
+ * Whether a vertical scroller can still move `direction` (c578): what
+ * `stepScroll` asks of each ancestor, so ↑ ↓ chain past a scroller at its end
+ * to the next one out, and finally the page, as the browser's own arrow
+ * scroll does. One with nothing to scroll is at both ends.
+ */
+export function canScroll(m: ScrollMetrics, direction: 'up' | 'down'): boolean {
+	if (direction === 'up') return m.scrollTop > SCROLL_SLACK;
+	return m.scrollTop + m.clientHeight < m.scrollHeight - SCROLL_SLACK;
+}
