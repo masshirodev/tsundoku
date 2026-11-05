@@ -273,6 +273,15 @@
 		else smooth.glide(d, ms);
 	}
 
+	/**
+	 * The strip's lane, when a zoom has made the strip wider than the screen and
+	 * it scrolls sideways inside it (Strip.svelte, `.lane.wider`); null otherwise.
+	 */
+	function wideLane() {
+		const lane = document.querySelector<HTMLElement>('.lane.wider');
+		return lane && lane.scrollWidth > lane.clientWidth + 1 ? lane : null;
+	}
+
 	// Ctrl + wheel and a two-finger pinch zoom the pages, never the browser's page.
 	onMount(() => {
 		const wheel = (e: WheelEvent) => {
@@ -1612,6 +1621,22 @@
 			if (arrow && e.ctrlKey) {
 				e.preventDefault();
 				return move(NUDGE * arrow, GLIDE_NUDGE);
+			}
+			// ← / → nudge too, with one hand and no modifier (c527): reading on is
+			// to the right, as in a paged L→R reader. Ctrl + ← / → add nothing.
+			// Zoomed wider than the screen they pan the strip sideways instead,
+			// the one way a keyboard has to reach its sides; the browser did that
+			// only once a click had put its keyboard in the lane.
+			const side = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+			if (side && !e.ctrlKey && !e.altKey && !e.metaKey) {
+				e.preventDefault();
+				const lane = wideLane();
+				if (lane)
+					return lane.scrollBy({
+						left: NUDGE * side,
+						behavior: reducedMotion() ? 'instant' : 'smooth'
+					});
+				return move(NUDGE * side, GLIDE_NUDGE);
 			}
 			const down = arrow === 1 || e.key === 'PageDown' || (e.key === ' ' && !e.shiftKey);
 			const up = arrow === -1 || e.key === 'PageUp' || (e.key === ' ' && e.shiftKey);
