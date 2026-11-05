@@ -1153,6 +1153,56 @@ test.describe('a catalogue that answers', () => {
 		}
 	});
 
+	test('a split season with a part held elsewhere is refused whole, and says so once (c466)', async ({
+		page
+	}) => {
+		// 12, 23 (AniList's 12 + 11), 12 and 11: season 1 linked offers the pair
+		// and season 3. Season 4's 11 episodes take part 2's entry meanwhile.
+		const id = seedSeasons('Split Held Show', [12, 23, 12, 11]);
+		try {
+			await page.goto(`${BASE}/links?series=${id}&season=1`);
+			await page.getByRole('button', { name: 'PASTE A LINK' }).first().click();
+			await page.getByLabel('AniList or MAL link').fill('https://anilist.co/anime/9501');
+			await expect(page.locator('.actions button').last()).toHaveText(/^LINK [A-Z] TO SEASON 1$/);
+			await page.locator('.actions button').last().click();
+			const offered = page.locator('.rel:not(.outside) .relbtn');
+			await expect(offered.locator('.rno')).toHaveText(['S2', 'PART 2', 'S3'], { timeout: 20_000 });
+			const go = page.locator('.relacts button').last();
+			await expect(go).toHaveText('LINK 2 SEASONS');
+			// A second tab gives season 4 part 2's entry, by a pasted link.
+			const other = await page.context().newPage();
+			try {
+				await other.goto(`${BASE}/links?series=${id}&season=4`);
+				await other.getByRole('button', { name: 'PASTE A LINK' }).first().click();
+				await other.getByLabel('AniList or MAL link').fill('https://anilist.co/anime/9503');
+				await expect(other.locator('.actions button').last()).toHaveText(
+					/^LINK [A-Z] TO SEASON 4$/
+				);
+				await other.locator('.actions button').last().click();
+				await expect.poll(() => partsOf(id).map((l) => l.season)).toEqual([1, 4]);
+			} finally {
+				await other.close();
+			}
+			await go.click();
+			// Season 3 is linked; season 2 is not, either part, and its why is said
+			// once for the season, naming the part and what holds it.
+			await expect(page.locator('.band .line').first()).toHaveText(
+				'LINKED 1 OF 2 SEASONS · SPLIT HELD SHOW'
+			);
+			await expect(page.locator('.band .line').nth(1)).toHaveText(
+				'SEASON 2 NOT LINKED · SEASON 4 HOLDS PART 2’S ENTRY'
+			);
+			await expect(page.getByRole('button', { name: 'UNDO' })).toHaveCount(0);
+			expect(partsOf(id)).toEqual([
+				{ season: 1, part: 1, anilist_id: 9501 },
+				{ season: 3, part: 1, anilist_id: 9504 },
+				{ season: 4, part: 1, anilist_id: 9503 }
+			]);
+		} finally {
+			forgetFlatList(id);
+		}
+	});
+
 	for (const [what, entry, season] of [
 		['no chain edge into the show’s seasons', 9601, 1],
 		['relations AniList fails to answer', 9602, 2]

@@ -479,8 +479,13 @@
 		if (leave && single && id !== undefined) await backToSeries(id);
 	}
 
-	/** "SEASON 1 NOT LINKED · SEASON 3 HOLDS ITS ENTRY", for each pick the workstation refused. */
-	const refusedLine = (refused: RefusedPick[]) => refused.map((p) => p.why).join(' · ');
+	/**
+	 * "SEASON 1 NOT LINKED · SEASON 3 HOLDS ITS ENTRY", for each season the
+	 * workstation refused. A split season is refused whole (c466), each of its
+	 * parts carrying the season's one why, which is said once.
+	 */
+	const refusedLine = (refused: RefusedPick[]) =>
+		[...new Set(refused.map((p) => p.why))].join(' · ');
 
 	/** A ticket on one of the seasons the relations offered. */
 	function toggleSeason(n: number) {

@@ -498,7 +498,13 @@ The link is AniList's line, a line a season on an anime (c240; above).
   `THE LINK HOLDS THE LATER HALF AT PART 1 · NEVER TICKED` (or
   `… THE EARLIER HALF AT PART 2 …`). The way out is UNDO and linking the
   earlier half instead, whose walk then offers the `Part 2` entry at part 2,
-  ticked (links round 2).
+  ticked (links round 2). When both halves are already stored that way round
+  (the `Part 2` entry at part 1 and the earlier one at part 2, written by the
+  round-1 walker or by hand), the other part is its slot's own link, but the
+  page does not draw it as settled: its why is
+  `ALREADY ITS LINK · THE HALVES ARE REVERSED`, never the plain
+  `ALREADY ITS LINK` a pair stored the right way round reads (c541). The way
+  out is the same: UNLINK both halves and link the earlier one.
   A pair is **one season** everywhere the page counts: `N OF M TICKED`,
   `LINK N SEASONS` and the band count distinct seasons (c418, round 2). The walk asks two rings: the linked entry, then
   its chain neighbours in one request, whose own PREQUEL and SEQUEL place
@@ -516,7 +522,8 @@ Sword Art Online: Extra Edition` and `SPIN-OFF Gun Gale Online`), whatever
   other kinds (ADAPTATION, CHARACTER, SUMMARY, ALTERNATIVE and the rest) are
   not listed. They come last, under the seasons. A season already linked
   says `REPLACES …` and is not ticked either; its own entry offered back to
-  it says `ALREADY ITS LINK`. **An entry another season or part already
+  it says `ALREADY ITS LINK` (or, for a pair stored reversed, `ALREADY ITS
+LINK · THE HALVES ARE REVERSED`, above). **An entry another season or part already
   holds** is listed unticked, saying which (`SEASON 3 HOLDS THIS ENTRY ·
 NEVER TICKED`; c418), since `linkSeason` would refuse it, and a split
   season with a held part is unticked whole. LINK N SEASONS writes the
@@ -532,7 +539,20 @@ HOLDS ITS ENTRY`, or `NOTHING LINKED · …` when none was. Under that band
   draws it with). The band's numbers
   are seasons, from the workstation's `linked` and `of` (`seasonsLinked`): a
   pair linked whole is one, and a pair with a part refused is that season
-  not linked, the refusal naming its part. **NOT NOW has two cases on one
+  not linked, the refusal naming its part. **A split season is linked whole
+  or not at all** (c466, the owner's decision (b)): `linkPicks` writes a
+  season's picks in one transaction, and when either part is held (or no
+  longer offered) neither is written, so a season never tracks half its
+  episodes and the band never reads `LINKED 0 OF 1 SEASON` over a part
+  that was written. The season's one refusal names the part and what holds
+  it, said once: `SEASON 2 NOT LINKED · SEASON 4 HOLDS PART 2’S ENTRY`
+  (`… PART 2 IS NO LONGER OFFERED`, `… BOTH PARTS PICKED ONE ENTRY`). The
+  other seasons in the same LINK are still linked; once the holder lets go,
+  the relations tick the pair again and it links. This is LINK N SEASONS'
+  rule, the one door that writes two parts at once: every other door
+  (LINK on the review, a pasted link, the owner's list, the pass's sure
+  match, `+ A SECOND PART`) writes one part through `linkSeason`, whose own
+  refusal writes nothing. **NOT NOW has two cases on one
   series.** After a LINK made on the page, it goes back to the series, the
   season just linked showing on its line on LISTS (c423, round 2). An offer that
   came with the page's load (CHANGE in EDIT's sheet on a linked season, while another season

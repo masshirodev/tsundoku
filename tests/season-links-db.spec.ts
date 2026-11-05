@@ -543,6 +543,51 @@ describe('a split season chained part 1 → part 2, AniList’s usual shape (c46
 		expect(ticks(id, offers)).toEqual([[2, 2, 402]]);
 	});
 
+	// c541: both halves stored, reversed (by the round-1 walker or by hand).
+	// The other part is "already its link", but in the wrong half, and the
+	// closing pass keeps the disagreeing why instead of drawing it settled.
+	const whyOf = async (id: number, entry: number) =>
+		(await seasons.seasonRelations(id, 2))!.find((o) => o.anilistId === entry && !o.outside)!;
+
+	it('says a season whose halves are stored reversed is reversed, not settled (c541)', async () => {
+		const id = show([12, 23, 12]);
+		link(id, 2, 403);
+		link(id, 2, 402, 2);
+		expect(await whyOf(id, 402)).toMatchObject({
+			season: 2,
+			part: 2,
+			how: 'THE EARLIER HALF',
+			ticked: false,
+			why: 'ALREADY ITS LINK · THE HALVES ARE REVERSED'
+		});
+		// Nothing ticked, so a LINK from this page leaves the rows as they are.
+		expect(ticks(id, shape(await seasons.seasonRelations(id, 2)))).toEqual([
+			[2, 1, 403],
+			[2, 2, 402]
+		]);
+	});
+
+	it('halves stored the right way round still read ALREADY ITS LINK (c541’s mirror)', async () => {
+		const id = show([12, 23, 12]);
+		link(id, 2, 402);
+		link(id, 2, 403, 2);
+		expect(await whyOf(id, 403)).toMatchObject({
+			season: 2,
+			part: 2,
+			how: 'SEQUEL',
+			ticked: false,
+			why: 'ALREADY ITS LINK'
+		});
+	});
+
+	it('one half stored on the wrong line keeps its NEVER TICKED why (c541)', async () => {
+		const id = show([12, 23, 12]);
+		link(id, 2, 403);
+		expect((await whyOf(id, 402)).why).toBe(
+			'THE LINK HOLDS THE LATER HALF AT PART 1 · NEVER TICKED'
+		);
+	});
+
 	it('still ticks part 1 at part 1 when Part 2 was linked at part 2', async () => {
 		const id = show([12, 23, 12]);
 		link(id, 2, 403, 2);
@@ -795,6 +840,174 @@ describe('an entry another season holds (c418)', () => {
 			why: 'ALREADY ITS LINK',
 			replaces: null,
 			heldBy: null
+		});
+	});
+});
+
+describe('a split season is linked whole or not at all (c466, the owner’s (b))', () => {
+	/**
+	 * Chain Show from season 1: the relations offer season 2 as a pair (402 +
+	 * 403 = 23) and season 3 (404), all ticked. What the page would post is
+	 * read from the walk's own answer, not written here.
+	 */
+	const offered = async (counts: number[]) => {
+		const id = show(counts);
+		link(id, 1, 401);
+		const offers = (await seasons.seasonRelations(id, 1))!;
+		const picks = offers
+			.filter((o) => o.ticked)
+			.map((o) => ({ season: o.season, part: o.part, anilistId: o.anilistId }));
+		expect(picks).toEqual([
+			{ season: 2, part: 1, anilistId: 402 },
+			{ season: 2, part: 2, anilistId: 403 },
+			{ season: 3, part: 1, anilistId: 404 }
+		]);
+		return { id, picks };
+	};
+	const WHY = 'SEASON 2 NOT LINKED · SEASON 4 HOLDS PART 2’S ENTRY';
+
+	it('refuses both parts when part 2 is held, writes neither, and still links the other season', async () => {
+		const { id, picks } = await offered([12, 23, 12, 11]);
+		// Meanwhile (a second tab) season 4 is given part 2's entry.
+		link(id, 4, 403);
+		const r = seasons.linkPicks(id, 'anime', picks, NOW);
+		expect(r).toEqual({
+			linked: [{ season: 3, part: 1 }],
+			refused: [
+				{ season: 2, part: 1, heldBy: null, why: WHY },
+				{ season: 2, part: 2, heldBy: { season: 4, part: 1 }, why: WHY }
+			]
+		});
+		// Not "LINKED 0 OF 1" over a half-written season: nothing of it is written.
+		expect(linked(id)).toEqual([
+			[1, 1, 401],
+			[3, 1, 404],
+			[4, 1, 403]
+		]);
+		expect(seasons.seasonsLinked(r.linked, r.refused)).toEqual({ linked: 1, of: 2 });
+	});
+
+	it('refuses both parts when part 1 is held, naming part 1', async () => {
+		const { id, picks } = await offered([12, 23, 12, 12]);
+		link(id, 4, 402);
+		const r = seasons.linkPicks(id, 'anime', picks.slice(0, 2), NOW);
+		expect(r.linked).toEqual([]);
+		expect(r.refused.map((p) => [p.part, p.heldBy, p.why])).toEqual([
+			[1, { season: 4, part: 1 }, 'SEASON 2 NOT LINKED · SEASON 4 HOLDS PART 1’S ENTRY'],
+			[2, null, 'SEASON 2 NOT LINKED · SEASON 4 HOLDS PART 1’S ENTRY']
+		]);
+		expect(linked(id).filter(([season]) => season === 2)).toEqual([]);
+		expect(seasons.seasonsLinked(r.linked, r.refused)).toEqual({ linked: 0, of: 1 });
+	});
+
+	it('links the pair on a second try once the holder lets go', async () => {
+		const { id, picks } = await offered([12, 23, 12, 11]);
+		link(id, 4, 403);
+		expect(seasons.linkPicks(id, 'anime', picks.slice(0, 2), NOW).linked).toEqual([]);
+		seasons.unlinkSeason(id, 4, 1, NOW);
+		// The held offer was never kept as a candidate, so the page walks again
+		// (its own door: the relations), and ticks the pair once more.
+		const again = (await seasons.seasonRelations(id, 1))!
+			.filter((o) => o.ticked && o.season === 2)
+			.map((o) => ({ season: o.season, part: o.part, anilistId: o.anilistId }));
+		expect(again).toEqual(picks.slice(0, 2));
+		const r = seasons.linkPicks(id, 'anime', again, NOW);
+		expect(r).toEqual({
+			linked: [
+				{ season: 2, part: 1 },
+				{ season: 2, part: 2 }
+			],
+			refused: []
+		});
+		expect(linked(id).filter(([season]) => season === 2)).toEqual([
+			[2, 1, 402],
+			[2, 2, 403]
+		]);
+	});
+
+	it('takes the same pair picked twice in one post as one pick', async () => {
+		const { id, picks } = await offered([12, 23, 12]);
+		const r = seasons.linkPicks(id, 'anime', [...picks, ...picks], NOW);
+		expect(r).toEqual({
+			linked: [
+				{ season: 2, part: 1 },
+				{ season: 2, part: 2 },
+				{ season: 3, part: 1 }
+			],
+			refused: []
+		});
+		expect(seasons.seasonsLinked(r.linked, r.refused)).toEqual({ linked: 2, of: 2 });
+		// And a second post of the same pair, once linked: the season's own entries
+		// again, written over themselves, not refused as held by each other.
+		expect(seasons.linkPicks(id, 'anime', picks.slice(0, 2), NOW).refused).toEqual([]);
+		expect(linked(id).filter(([season]) => season === 2)).toEqual([
+			[2, 1, 402],
+			[2, 2, 403]
+		]);
+	});
+
+	it('refuses a pair given one entry for both parts, or two entries for one part', async () => {
+		const { id } = await offered([12, 23, 12]);
+		// A crafted post: part 2's own offer is 403, but 402 is asked at both.
+		db.prepare(
+			`INSERT INTO season_link_candidates (series_id, season, part, anilist_id, rank, data) VALUES (?, 2, 2, 402, 0, ?)`
+		).run(id, JSON.stringify(entryOf(402)));
+		const same = seasons.linkPicks(
+			id,
+			'anime',
+			[
+				{ season: 2, part: 1, anilistId: 402 },
+				{ season: 2, part: 2, anilistId: 402 }
+			],
+			NOW
+		);
+		expect(same.linked).toEqual([]);
+		expect(same.refused.map((p) => p.why)).toEqual([
+			'SEASON 2 NOT LINKED · BOTH PARTS PICKED ONE ENTRY',
+			'SEASON 2 NOT LINKED · BOTH PARTS PICKED ONE ENTRY'
+		]);
+		const twice = seasons.linkPicks(
+			id,
+			'anime',
+			[
+				{ season: 2, part: 1, anilistId: 402 },
+				{ season: 2, part: 2, anilistId: 403 },
+				{ season: 2, part: 2, anilistId: 402 }
+			],
+			NOW
+		);
+		expect(twice.linked).toEqual([]);
+		expect(twice.refused[0].why).toBe('SEASON 2 NOT LINKED · TWO ENTRIES PICKED FOR PART 2');
+		expect(linked(id).filter(([season]) => season === 2)).toEqual([]);
+	});
+
+	it('takes part 1 back when part 2’s write throws', async () => {
+		const { id, picks } = await offered([12, 23, 12]);
+		db.exec(`CREATE TEMP TRIGGER part2_fails BEFORE INSERT ON series_season_links
+			WHEN NEW.part = 2 BEGIN SELECT RAISE(ABORT, 'disk full'); END`);
+		try {
+			expect(() => seasons.linkPicks(id, 'anime', picks.slice(0, 2), NOW)).toThrow('disk full');
+		} finally {
+			db.exec(`DROP TRIGGER part2_fails`);
+		}
+		expect(linked(id)).toEqual([[1, 1, 401]]);
+		// No transaction is left open behind the throw: the next write is its own.
+		expect(seasons.linkPicks(id, 'anime', picks.slice(0, 2), NOW).refused).toEqual([]);
+	});
+
+	it('a season picked at one part alone keeps its own words', async () => {
+		const { id } = await offered([12, 23, 12, 11]);
+		link(id, 4, 404);
+		expect(seasons.linkPicks(id, 'anime', [{ season: 3, part: 1, anilistId: 404 }], NOW)).toEqual({
+			linked: [],
+			refused: [
+				{
+					season: 3,
+					part: 1,
+					heldBy: { season: 4, part: 1 },
+					why: 'SEASON 3 NOT LINKED · SEASON 4 HOLDS ITS ENTRY'
+				}
+			]
 		});
 	});
 });
