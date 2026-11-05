@@ -414,7 +414,8 @@ W5's series screen reads the same rule.
 - **Not downloaded vs offline.** A next part whose first chapter has no file
   but a source an installed extension serves says `○ NOT DOWNLOADED · READS
 ONLINE FROM <SOURCE>` with `▶ READ ONLINE · CH. 1` (c161) and DOWNLOAD FIRST
-  10 CHAPTERS, which posts the next series' own `?/download` (`which=next`).
+  10 CHAPTERS, which posts the next series' own `?/download` (`which=first`:
+  the part's first ten unread entries in reading order, whatever is under way).
   Offline and not cached on the device it says `○ OFFLINE · NOT CACHED` with
   START dimmed; a cached one opens as usual.
 - **The next part speaks its own kind** (c343), in every word beside its verb
@@ -447,7 +448,12 @@ TRY THE SERIES`, and stays pressable, so a retry is a second press. A
   chapter downloads) says `ALREADY QUEUED` (c534), from the action's
   `already`, the count of the chapters asked for that are queued,
   downloading or waiting to be imported (`queueSeries`). Both are done: the
-  cell is no longer pressable.
+  cell is no longer pressable. The cell asks for the part's **first ten**
+  (`which=first`), the same ten on every press, not the series screen's NEXT
+  10 (`which=next`), which skips what is under way: on a part of more than ten
+  chapters, a press after a reload would otherwise have queued chapters
+  11-20 as well (c534, round 2). Some of the ten queued now and the rest
+  already under way says `QUEUED ✓`: something was queued by the press.
 - **The last part** says `THE WORK IS READ · n OF m`, the Work's name, what it
   held, and WORK → in place of START -- never an empty block. An earlier part of
   a run that is read through is the series' own end page, with the foot still

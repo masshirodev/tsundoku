@@ -244,7 +244,9 @@
 		if (!p || queue === 'asking' || queueDone) return;
 		queue = 'asking';
 		const body = new FormData();
-		body.set('which', 'next');
+		// The part's first ten, the same ten on every press: `next` would skip
+		// the ones under way and queue ten more after a reload (c534).
+		body.set('which', 'first');
 		const r = await fetch(`${resolve('/series/[id]', { id: String(p.seriesId) })}?/download`, {
 			method: 'POST',
 			body,

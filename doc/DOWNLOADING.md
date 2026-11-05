@@ -69,7 +69,10 @@ States.dc.html` (brief: [`briefs/done/DOWNLOADS.md`](briefs/done/DOWNLOADS.md)).
   for (every unread one for NEXT and ALL) that are queued, downloading or
   waiting to be imported, so a press that queues nothing because everything
   is under way can say so; the end page's DOWNLOAD FIRST 10 says `ALREADY
-QUEUED` from it (c534). The series screen's band reads `queued` and
+QUEUED` from it (c534). That cell posts `which=first`: the first ten unread
+  chapters in reading order whatever their state (queue the file-less, retry
+  the failed, count the rest as `already`), so a second press asks for the
+  same ten, where NEXT 10 would move on to the next ten. The series screen's band reads `queued` and
   `missing` only.
 - **Since 2026-10-29, a series a source serves reads online instead**
   ([`BROWSING.md`](BROWSING.md), "Manga online"): its rows open, and

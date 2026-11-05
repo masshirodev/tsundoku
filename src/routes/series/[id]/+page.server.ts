@@ -994,7 +994,8 @@ export const actions: Actions = {
 
 	/**
 	 * DOWNLOAD (doc/DOWNLOADING.md): NEXT 10, ALL N, the bulk bar's selection,
-	 * or a tap on one row. Each chapter is decided again here, from what
+	 * a tap on one row, or the end page's DOWNLOAD FIRST 10 (`which=first`:
+	 * the first ten unread, whatever is under way, c534). Each chapter is decided again here, from what
 	 * the queue says now: one with no file is queued, a failed one retried, and
 	 * anything else is left alone.
 	 */
@@ -1010,7 +1011,7 @@ export const actions: Actions = {
 			result = await queueSeries(
 				s.id,
 				s.entries,
-				which === 'next' || which === 'all' ? which : entryIds(form),
+				which === 'next' || which === 'all' || which === 'first' ? which : entryIds(form),
 				quality
 			);
 		} catch (e) {

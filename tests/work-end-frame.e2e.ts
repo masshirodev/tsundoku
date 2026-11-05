@@ -750,8 +750,10 @@ test('DOWNLOAD FIRST 10 that queues nothing says so, and can be pressed again (c
 });
 
 test.describe('DOWNLOAD FIRST 10 pressed again (c534)', () => {
-	/** Tower of God's seven unread chapters: what NEXT 10 asks for on its end page. */
+	/** Tower of God's unread chapters (seven in the seed): what the end page's FIRST 10 asks from. */
 	let unread: number[] = [];
+	/** Chapters a case adds to Tower of God for a part longer than ten, taken out after it. */
+	let extra: number[] = [];
 	/**
 	 * A live stand-in engine, and a second preview of the build on this file's
 	 * database that talks to it. The file's own preview has its engine at
@@ -856,6 +858,8 @@ test.describe('DOWNLOAD FIRST 10 pressed again (c534)', () => {
 		const db = new Database(dbPath);
 		const ids = unread.join(',');
 		db.prepare(`DELETE FROM download_queue WHERE entry_id IN (${ids})`).run();
+		if (extra.length) db.prepare(`DELETE FROM entries WHERE id IN (${extra.join(',')})`).run();
+		extra = [];
 		db.prepare(`DELETE FROM engine_chapters WHERE entry_id IN (${ids})`).run();
 		db.prepare(`DELETE FROM engine_series WHERE series_id = 14`).run();
 		db.prepare(`UPDATE entries SET source_url = '' WHERE id IN (${ids})`).run();
@@ -911,6 +915,76 @@ test.describe('DOWNLOAD FIRST 10 pressed again (c534)', () => {
 		await expect(dl).toBeDisabled();
 		// Nothing was queued twice.
 		expect(queued()).toBe(unread.length);
+	});
+
+	test('on a part longer than ten, a press after a reload asks for the same ten, not the next ten', async ({
+		page
+	}) => {
+		// Tower of God made fifteen unread chapters long, each with no file and
+		// listed by its source like the seed's seven. NEXT 10 skips what is under way, so a
+		// second press of it would queue chapters 11-15 (c534, round 2).
+		const db = new Database(dbPath);
+		const { top } = db
+			.prepare(`SELECT MAX(position) AS top FROM entries WHERE series_id = 14`)
+			.get() as { top: number };
+		const add = db.prepare(
+			`INSERT INTO entries (series_id, position, label, added_at, source_url, available) VALUES (14, ?, ?, ?, ?, 0) RETURNING id`
+		);
+		const listed = db.prepare(
+			`INSERT OR REPLACE INTO engine_chapters (entry_id, engine_url, name) VALUES (?, ?, ?)`
+		);
+		const want = 15 - unread.length;
+		for (let i = 1; i <= want; i++) {
+			const { id } = add.get(top + i, `Chapter extra ${i}`, Date.now(), '') as { id: number };
+			db.prepare(`UPDATE entries SET source_url = ? WHERE id = ?`).run(`/tower/c/${id}`, id);
+			listed.run(id, `/tower/c/${id}`, `Chapter ${id}`);
+			extra.push(id);
+		}
+		db.close();
+		unread = [...unread, ...extra];
+		expect(unread.length).toBe(15);
+		const first10 = unread.slice(0, 10);
+		const eleventh = unread[10];
+
+		const queuedIds = () => {
+			const db = new Database(dbPath, { readonly: true });
+			try {
+				return (
+					db
+						.prepare(
+							`SELECT entry_id AS id FROM download_queue WHERE entry_id IN (${unread.join(',')})`
+						)
+						.all() as { id: number }[]
+				)
+					.map((r) => r.id)
+					.sort((a, b) => a - b);
+			} finally {
+				db.close();
+			}
+		};
+		const press = async () => {
+			const asked = page.waitForResponse(
+				(r) => /\/series\/14\?\/download$/.test(r.url()) && r.request().method() === 'POST'
+			);
+			await dl.click();
+			expect(JSON.parse(await (await asked).text()).type).toBe('success');
+		};
+		const dl = page.locator('.end .nextw .go .dl');
+
+		await openEnd(page, 8, liveBase);
+		await expect(dl).toHaveText('DOWNLOAD FIRST 10 CHAPTERS');
+		await press();
+		await expect(dl).toHaveText('QUEUED ✓');
+		expect(queuedIds()).toEqual([...first10].sort((a, b) => a - b));
+
+		// A reload while the ten wait, and the cell pressed again.
+		await openEnd(page, 8, liveBase);
+		await expect(dl).toHaveText('DOWNLOAD FIRST 10 CHAPTERS');
+		await press();
+		await expect(dl).toHaveText('ALREADY QUEUED');
+		// Nothing new in the queue, and chapter 11 is not in it.
+		expect(queuedIds()).toEqual([...first10].sort((a, b) => a - b));
+		expect(queuedIds()).not.toContain(eleventh);
 	});
 });
 
