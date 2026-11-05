@@ -171,10 +171,14 @@ address.
   budget can abort before an answer arrives at all, so the next call asks
   again. That is deliberate — a solver's
   failure says nothing about the host, and a solver started after the app would
-  otherwise be ignored for ten minutes. TRY AGAIN on the source page does
-  nothing for a refused host until the ten minutes pass; a restart of the app —
-  which takes the host process with it — is the only way to force a solve
-  sooner.
+  otherwise be ignored for ten minutes. TRY AGAIN on the source page is the
+  lever, where the band shows a check that could not be passed: it says "TRY
+  AGAIN SOLVES THE CHECK AFRESH", and the link carries `again`, on which the page forgets
+  both memos for the plugin's site (`forgetSiteCheck` in `novels/source.ts`:
+  the app's own, and the host's through its `forget` op) and redirects to its
+  own URL without it. The next call pays one solve and one retry, and is
+  remembered again if the site still refuses. A download has no such lever: a
+  fresh one inside the ten minutes still answers at once (card c294).
 - **BROWSE names it.** The app writes the host into `site_checks` when a solve
   succeeds, and `checkingSince` answers for a novel by its plugin's site
   (`novel_plugins.site`), so the live band on the source page and in SEARCH
@@ -255,8 +259,8 @@ success, a page the solver's own browser was refused treated as no clearance,
 a solve that answered without a usable clearance remembered and not asked again,
 a solver's own failure (an HTTP 500, a 200 that is not an `ok` answer, or one it
 could not reach) asked again next call, and which address the app uses. `tests/novel-host.spec.ts`'s check block is the host's half — a
-clearance the site refused remembered so the next call is one request, a secure
-clearance kept off http — and `tests/engine-browse-db.spec.ts` pins the join
+clearance the site refused remembered so the next call is one request, and
+forgotten when TRY AGAIN asks, a secure clearance kept off http — and `tests/engine-browse-db.spec.ts` pins the join
 BROWSE's live line needs: a novel's `checkingSince` answers while the app's own
 solve runs, with the engine not answering at all, and is null once it settles.
 `tests/novel-plugins-db.spec.ts` pins the wiring: the host the app builds solves

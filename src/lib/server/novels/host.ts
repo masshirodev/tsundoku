@@ -23,7 +23,8 @@ import { join, resolve } from '../fspath.ts';
  * over IPC, naming only the URL; the app checks the address and answers with
  * that host's clearance cookies and user agent, or nothing. The host keeps a
  * jar per host, sends a secure one over https only, retries once, and
- * remembers for ten minutes a host whose retry was still a check.
+ * remembers for ten minutes a host whose retry was still a check, unless
+ * `forgetRefused` is asked to forget it sooner (TRY AGAIN, c294).
  */
 
 export class NovelHostError extends Error {}
@@ -171,6 +172,17 @@ export class NovelHost {
 
 	call<T>(file: string, method: string, args: unknown[], timeoutMs?: number): Promise<T> {
 		return this.#send<T>({ op: 'call', file, method, args }, timeoutMs);
+	}
+
+	/**
+	 * Forgets the hosts of [site] whose clearance the site refused (c294):
+	 * TRY AGAIN on the source page, so the next call solves afresh instead of
+	 * waiting out the ten minutes. A host that isn't running remembers nothing,
+	 * and is not started for this. Answers how many it forgot.
+	 */
+	forgetRefused(site: string): Promise<number> {
+		if (!this.#child) return Promise.resolve(0);
+		return this.#send<number>({ op: 'forget', site });
 	}
 
 	stop(): void {

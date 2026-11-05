@@ -11,6 +11,7 @@ process.env.DATABASE_PATH = ':memory:';
 const ADDRESSES: Record<string, string[]> = {
 	'www.novel.example': ['93.184.215.14'],
 	'novel.example': ['93.184.215.14'],
+	'other.example': ['93.184.215.15'],
 	'inside.example': ['10.0.0.5'],
 	'mixed.example': ['93.184.215.14', '127.0.0.1']
 };
@@ -20,7 +21,7 @@ vi.mock('node:dns/promises', () => ({
 }));
 
 const { getDb } = await import('$lib/server/db');
-const { forgetFailedSolves, novelSolverUrl, solveChallenge, solvingSince } =
+const { forgetFailedSolve, forgetFailedSolves, novelSolverUrl, solveChallenge, solvingSince } =
 	await import('$lib/server/novels/solver');
 
 type Asked = { cmd?: string; url?: string; maxTimeout?: number };
@@ -240,6 +241,19 @@ describe('the app’s solve for a site’s check', () => {
 		expect(await solveChallenge('https://www.novel.example/one')).toBeNull();
 		expect(await solveChallenge('https://www.novel.example/two')).toBeNull();
 		expect(asked).toHaveLength(1);
+	});
+
+	it('forgets one site’s memo when TRY AGAIN asks, and no other’s (c294)', async () => {
+		reply = () => ({ status: 200, body: ok({ status: 403 }) });
+		expect(await solveChallenge('https://www.novel.example/one')).toBeNull();
+		expect(await solveChallenge('https://other.example/one')).toBeNull();
+		expect(asked).toHaveLength(2);
+		forgetFailedSolve('novel.example');
+		expect(await solveChallenge('https://other.example/two')).toBeNull();
+		expect(asked).toHaveLength(2);
+		reply = () => ({ status: 200, body: ok() });
+		expect(await solveChallenge('https://www.novel.example/two')).not.toBeNull();
+		expect(asked).toHaveLength(3);
 	});
 
 	it('answers nothing when the solver can’t be reached', async () => {

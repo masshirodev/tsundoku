@@ -15,6 +15,7 @@
 	import { SiteCheck, checkLine } from '$lib/site-check.svelte';
 	import { askedLine } from '$lib/waiting';
 	import FilterForm from './FilterForm.svelte';
+	import { m } from '$lib/paraglide/messages';
 
 	/**
 	 * A source's page in BROWSE (Index-Browse: popular, filters, phoneGrid;
@@ -263,11 +264,17 @@
 				detail="TRY AGAIN IN EXTENSIONS"
 			/>
 		{:else}
+			<!-- A check the site refused is remembered for ten minutes (doc/NOVELS.md),
+			     so TRY AGAIN forgets it first (`again`, c294) and says it will. -->
+			{@const refusedCheck = shown.error.includes('(its check could not be passed)')}
 			<Band
 				title="{name.toUpperCase()} DID NOT ANSWER"
-				detail={shown.error.toUpperCase().slice(0, 140)}
+				detail={shown.error.toUpperCase().slice(0, 140) +
+					(refusedCheck ? ` · ${m.browse_check_again()}` : '')}
 			>
-				{#snippet action()}<a class="again" href={link({})}>TRY AGAIN</a>{/snippet}
+				{#snippet action()}<a class="again" href={link(refusedCheck ? { again: '1' } : {})}
+						>TRY AGAIN</a
+					>{/snippet}
 			</Band>
 		{/if}
 	{:else}

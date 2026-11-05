@@ -93,6 +93,15 @@ export function forgetFailedSolves(): void {
 	failed.clear();
 }
 
+/**
+ * Forgets the memo for [site]'s hosts only: TRY AGAIN on a check that could
+ * not be passed (c294), where the solver may just have been fixed or the
+ * site's check changed. The host's own refused memo is forgotten beside it.
+ */
+export function forgetFailedSolve(site: string): void {
+	for (const host of [...failed.keys()]) if (sameSite(host, site)) failed.delete(host);
+}
+
 const recentlyFailed = (host: string): boolean => {
 	const at = failed.get(host);
 	return at !== undefined && Date.now() - at < FAILED_MS;
