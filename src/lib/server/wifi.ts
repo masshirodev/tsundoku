@@ -96,7 +96,8 @@ export type WifiView = {
  * opened on the computer (`wifiView({ renew })`, `tvPanel`), and nowhere else:
  * neither the WI-FI panel's poll (`GET /api/wifi`, c460) nor the DEVICES row's
  * refresh (`tvCodeNow`, c265) makes one, and the TV's own page makes one only
- * when there is none at all (`ensureCode`).
+ * when there is none, or the only one has merely expired or was used over
+ * these 2 minutes ago, never over a burned one (`TvPairing.renewForTv`, c246).
  */
 const CODES: ('none' | 'live' | 'used' | 'expired' | 'burned')[] = ['none', 'expired', 'burned'];
 

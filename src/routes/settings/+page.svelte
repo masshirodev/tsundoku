@@ -134,8 +134,8 @@
 	 * A TV that pairs with the code, or burns it, while SETTINGS stays open
 	 * changes nothing on this page by itself, and a spent code left showing as
 	 * live invites a second TV to type it (c265). So the row asks the server
-	 * what the code is now: every 5 s while it shows a live code and the page
-	 * is in view, and once whenever the window regains focus or the page
+	 * what the code is now: every 5 s while it shows a live or expired code and
+	 * the page is in view, and once whenever the window regains focus or the page
 	 * becomes visible again. The owner usually keeps SETTINGS in front while
 	 * typing on the TV, so focus alone would miss the common case.
 	 *
@@ -143,8 +143,9 @@
 	 * reloads the page's data, so the TV that paired joins the list below (the
 	 * WI-FI panel's `usedBefore`). A burned or expired code stays on the row:
 	 * the load replaces a spent code (`tvPanel`), so reloading here would undo
-	 * the burn the five wrong tries just earned. A new code comes from NEW CODE
-	 * or from opening SETTINGS again.
+	 * the burn the five wrong tries just earned. A new code comes from NEW CODE,
+	 * from opening SETTINGS again, or, in place of a merely expired one, from
+	 * the TV's own /pair/tv (c246), which the 5 s poll then draws.
 	 *
 	 * An answer is about the code the row showed when it asked. If NEW CODE (or
 	 * any reload of the page's data) replaced `tv` while it was out, the answer
@@ -170,11 +171,17 @@
 	}
 	// Keyed on the state alone, not `tvLive`: that reads the 15 s countdown, which
 	// would tear the interval down and rebuild it, losing one tick in three.
-	const tvPolls = $derived(tv?.state === 'live');
+	// An expired code is asked about too, and so is a live one whose time this
+	// page's own clock says is up: an unpaired TV opening /pair/tv makes a new
+	// code in place of a merely expired one (c246, `renewForTv`), and the row
+	// must then draw it without waiting for a focus the owner, typing on the
+	// TV, never gives. A burned or used code is not asked about: only the
+	// computer replaces those, and its own doors redraw the row.
+	const tvPolls = $derived(tv?.state === 'live' || tv?.state === 'expired');
 	$effect(() => {
 		if (!tvPolls) return;
 		const t = setInterval(() => {
-			if (tv && tvLive(tv) && document.visibilityState === 'visible') void refreshTv();
+			if (tv && document.visibilityState === 'visible') void refreshTv();
 		}, 5000);
 		return () => clearInterval(t);
 	});

@@ -23,6 +23,9 @@ import { E2E_TOKEN } from '../playwright.config';
  *
  * - **c246**: `/pair/tv` opened with an expired code, the server's clock
  *   moved past the code's 10 minutes, makes a new one; a burned one stays.
+ *   And the computer's half: SETTINGS' DEVICES row, open in a browser of its
+ *   own, keeps asking about an expired code, so it draws the one the TV made
+ *   on its own 5 s tick, with no focus change.
  * - **c545**: 9E carries the server's name in `data-paired-name`, and the TV
  *   app's own `PAIRED_JS`, read out of MainActivity.kt, reads it there.
  * - **c530**: two tsundoku on one host, two ports, paired in one cookie jar as
@@ -147,7 +150,10 @@ async function clockAt(at: Server, ms: number) {
 }
 
 let browser: Browser;
+/** The computer's own browser: a pointer, no TV flags, for SETTINGS' DEVICES row. */
+let desk: Browser;
 const computers = new Map<Server, APIRequestContext>();
+const session = createHash('sha256').update(`tsundoku/v1:${E2E_TOKEN}`).digest('hex');
 
 test.beforeAll(async () => {
 	if (!tvProject()) return;
@@ -161,7 +167,7 @@ test.beforeAll(async () => {
 			'--blink-settings=availablePointerTypes=none,availableHoverTypes=none'
 		]
 	});
-	const session = createHash('sha256').update(`tsundoku/v1:${E2E_TOKEN}`).digest('hex');
+	desk = await chromium.launch();
 	for (const at of [A, B])
 		computers.set(
 			at,
@@ -175,6 +181,7 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
 	for (const c of computers.values()) await c.dispose().catch(() => {});
 	await browser?.close().catch(() => {});
+	await desk?.close().catch(() => {});
 	for (const at of [A, B]) {
 		at.child?.kill();
 		at.child = null;
@@ -342,6 +349,83 @@ test('a burned code stays burned, even after its 10 minutes, until the computer 
 	await expect(page.locator('.band')).toHaveCount(0);
 	await typeCode(page, fresh.code!);
 	await expect(page.getByRole('heading', { name: 'The library is on this TV' })).toBeVisible();
+});
+
+// ---- c246, the computer's half ----------------------------------------------
+
+/**
+ * The owner's SETTINGS on a server, in the computer's browser, signed in with
+ * the suite's token: the DEVICES row with the TV's six digits (c245). At
+ * 127.0.0.1, as the owner's own browser on the computer would be; the row
+ * itself is drawn wherever the server's ORIGIN makes a TV's cookie a door.
+ */
+async function settingsOn(at: Server) {
+	const context = await desk.newContext({
+		viewport: { width: 1280, height: 800 },
+		locale: 'en-US'
+	});
+	opened.push(context);
+	await context.addCookies([
+		{ name: 'tsundoku_session', value: session, domain: '127.0.0.1', path: '/' }
+	]);
+	const page = await context.newPage();
+	await page.goto(`${at.computer}/settings#s-devices`);
+	await hydrated(page);
+	await expect(page.getByText('FOR A TV · SIX DIGITS')).toBeVisible();
+	return page;
+}
+
+/** The six digits the DEVICES row draws, or null when it draws none. */
+async function shownDigits(page: Page) {
+	const code = page.getByLabel('Pairing code for a TV');
+	if ((await code.count()) === 0) return null;
+	return ((await code.textContent()) ?? '').replace(/\D/g, '');
+}
+
+/**
+ * Counts every focus and visibility event the page sees from here on: the
+ * row also refreshes on those (c265), and this file's cases are about what
+ * its own tick does while the owner never leaves the window.
+ */
+async function countReturns(page: Page) {
+	await page.evaluate(() => {
+		const w = window as unknown as { returns: number };
+		w.returns = 0;
+		addEventListener('focus', () => (w.returns += 1), true);
+		document.addEventListener('visibilitychange', () => (w.returns += 1), true);
+	});
+	return () => page.evaluate(() => (window as unknown as { returns: number }).returns);
+}
+
+test('the DEVICES row draws the code the TV made in place of an expired one, on its own tick (c246)', async () => {
+	const made = await newCode(A);
+	const page = await settingsOn(A);
+	expect(await shownDigits(page)).toBe(made.code);
+	const returns = await countReturns(page);
+
+	// The code runs out while SETTINGS stays open: the row's tick says so.
+	await clockAt(A, 10 * 60_000 + 5_000);
+	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('EXPIRED', { timeout: 15_000 });
+	await expect(page.getByText('EXPIRED · MAKE A NEW CODE')).toBeVisible();
+
+	// The TV opens /pair/tv and makes a new one: THE NEW ONE IS ON THE COMPUTER.
+	const { page: onTv } = await tv();
+	await openPairing(onTv, A);
+	await expect(onTv.locator('.band')).toHaveCount(0);
+	const now = await codeOn(A);
+	expect(now.state).toBe('live');
+	expect(now.code).not.toBe(made.code);
+
+	// And the computer's row draws it by itself, within a tick or two.
+	await expect.poll(() => shownDigits(page), { timeout: 15_000 }).toBe(now.code);
+	await expect(page.getByText('EXPIRED · MAKE A NEW CODE')).toHaveCount(0);
+	expect(await returns(), 'no focus or visibility change helped').toBe(0);
+
+	// The next state: the TV types those digits, and the row turns ✓ USED.
+	await typeCode(onTv, now.code!);
+	await expect(onTv.getByRole('heading', { name: 'The library is on this TV' })).toBeVisible();
+	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('✓ USED', { timeout: 15_000 });
+	expect(await returns()).toBe(0);
 });
 
 // ---- c545 ---------------------------------------------------------------------

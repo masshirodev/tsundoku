@@ -105,13 +105,15 @@ one at a time.
   with the same block, minus the phone's QR. The row ticks its countdown by
   itself, but the countdown is not the code: a TV that pairs with it, or burns
   it, changes nothing on the computer's page. So the row asks
-  `GET /settings/tv` what the code is now, every 5 s while it shows a live
-  code and the page is in view, and once whenever the window regains focus or
-  the page becomes visible again (c265). That answer is read only
+  `GET /settings/tv` what the code is now, every 5 s while it shows a live or
+  expired code and the page is in view, and once whenever the window regains
+  focus or the page becomes visible again (c265; an expired one since c246). That answer is read only
   (`tvCodeNow`): the row draws the code as it is. A used code turns ✓ USED,
   and only then does the page's data reload, which is how the new TV's row
-  appears. A burned code shows BURNED and NO TRIES LEFT · MAKE A NEW CODE, an
-  expired one EXPIRED, and the 5 s poll stops (focus still asks). Neither is replaced by the
+  appears. A burned code shows BURNED and NO TRIES LEFT · MAKE A NEW CODE, and
+  the 5 s poll stops (focus still asks). An expired one shows EXPIRED and the
+  poll goes on: the TV may make a new one in its place (`/pair/tv`, below),
+  which the row then draws by itself, with no focus change (c246). Neither is replaced by the
   refresh: the load replaces a spent code (`tvPanel`), so a refresh that made
   one, or reloaded the page's data to get one, would undo the burn within a
   tick, and with SETTINGS in front five wrong tries would lock no one out.
@@ -173,10 +175,10 @@ one at a time.
   again, so opening `/pair/tv` every 10 minutes buys no more guesses than
   before. Digits typed after their code ran out get THAT CODE EXPIRED · THE
   NEW ONE IS ON THE COMPUTER: the page has just made it. The computer's
-  WI-FI panel shows it on its next 5 s poll; the DEVICES row shows it on its
-  next refresh (focus, or the page shown again), since its 5 s poll stops
-  once the code it shows is no longer live (`doc/handoff-notes/tv-app.md`,
-  wave 22, Gaps).
+  WI-FI panel shows it on its next 5 s poll, and so does the DEVICES row,
+  which keeps asking while the code it shows is expired (c246, wave 23;
+  `tests/tv-pair-origins.e2e.ts` holds it, with the row's page never
+  refocused).
 - **The TV in DEVICES** is named by its user agent: the app appends
   `TsundokuTV/<version>`, and `pairedLabel` reads that as "Android TV ·
   Chrome"; `/api/devices/sync` also keeps its kind as `tv` (rung 59, c244).
@@ -202,8 +204,9 @@ one at a time.
   owner's tailnet one — the same TV block is the section's first row instead:
   label TV, the digits, the countdown and NEW CODE (`tvPanel` in
   `src/lib/server/wifi.ts`; c245), refreshed read-only from `GET /settings/tv`
-  (`tvCodeNow`; c265) so it turns ✓ USED, BURNED or EXPIRED by itself, and a
-  paired TV's row says OVER TAILSCALE.
+  (`tvCodeNow`; c265) so it turns ✓ USED, BURNED or EXPIRED by itself, and
+  from EXPIRED to the code a TV made in its place (c246), and a paired TV's
+  row says OVER TAILSCALE.
 - **Which doors make a code** (c460). Only the owner's, on the computer:
   opening SETTINGS there (the load's `wifiView({ renew: true })` and
   `tvPanel()`, which replace a spent code and keep a live or just-used one),
@@ -306,7 +309,10 @@ host and landing on `/login` at localhost),
 `tests/tv-pair-origins.e2e.ts` (servers of its own with their clocks moved:
 an expired code made new by `/pair/tv` and paired, a used one kept for ✓
 USED's 2 minutes, a burned one kept past its 10 minutes, c246; two servers
-on one host each keeping its own pairing, and the old name moved, c530),
+on one host each keeping its own pairing, and the old name moved, c530;
+and the computer's DEVICES row, open in a browser of its own and never
+refocused, turning EXPIRED and then drawing the code the TV made, then ✓
+USED, c246),
 `tests/pairing-origins.spec.ts` (the per-origin names, the move from the old
 one, the scrub); `friend-wifi.e2e.ts` also pins
 the panel's FOR A TV digits.
