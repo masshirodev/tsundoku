@@ -255,10 +255,24 @@ host), upper case, clipped by an ellipsis at 180 px in a cell at most 200 px
 wide, with a hairline either side.
 
 - **When it is drawn.** `+page.svelte` reads `TsundokuTV.servers()` when the
-  library mounts, and again whenever MORE closes. No bridge, an APK with no
-  `servers` (older than c261), an answer that is not JSON, not a list, or a
-  list with anything in it that is not a server (`shown` a string, `inUse` a
-  boolean), and one server: no cell, and the bar is as it always was.
+  library mounts, again a tick later (the layout's own mount, which runs
+  after the page's, has just told the app the server's name, so a server the
+  TV had not named yet shows its name rather than its host), and again
+  whenever MORE closes. No bridge, an APK with no `servers` (older than
+  c261), an answer that is not JSON, not a list, or a list with anything in
+  it that is not a server (`origin` and `shown` strings, `inUse` a boolean),
+  one server, and two of which none is in use: no cell, and the bar is as it
+  always was.
+- **Which one is in use: the page's own server.** The bridge's `inUse` is
+  the server with the newest OPENED, and the app writes OPENED only once a
+  page has finished loading (`onPageFinished`, above), so the library that
+  mounts straight after a switch (SERVERS' OK, 9D's others, S8's OPEN →)
+  reads a list whose `inUse` is still the server just left. The page knows
+  better: `inUseOf` (`src/routes/servers-in-use.ts`) takes the entry whose
+  origin is `location.origin` (the form the app stores, since the layout
+  names it by `location.origin`), and falls back to the bridge's flag only
+  when no entry is this page's. The cell, SERVERS' ✓ and IN USE, its
+  arrival, OK on the one in use and FORGET all read it.
 - **↑ reaches it.** From the library's start, ↑ lands on the cell, "the first
   cell ↑ reaches from the library". The wordmark is a link in this bar (it
   is no control in the design's), and it stood over the shelf, so while the
@@ -616,7 +630,12 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
      BACK must climb options → list → MORE. Close MORE: the bar must now
      read `ON <NAME>` after the wordmark, with the one in use. One ↑ from
      the first CONTINUE card must put the mark on it, then OK: SERVERS opens at once, the mark on the other
-     server; BACK closes it with the mark on the cell again.
+     server; BACK closes it with the mark on the cell again. Then OK on
+     that other server, and look at the cell straight after its library
+     opens: it must name the server just opened, not the one just left,
+     and OK on it must open SERVERS with IN USE on that one and the mark
+     on the other (the app marks a server opened only when its page has
+     finished loading; the cell reads the page's own origin for this).
   5. FORGET on the one not in use: press OK straight after MENU opens the
      options and again at once: nothing must be forgotten. Then ↓ OK forgets
      it; add it back, and it must ask for six digits again (the cookie
@@ -760,9 +779,9 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   mark, probes and frame (the extracted measurements); S3 and S4 with FORGET's
   0.6 s; forgetting the one in use and the last; the layout telling the app,
   and only the app, the server's name; MORE's TO LINK row reached by keys (c475).
-  S1 (wave 24, 15 cases): no cell without the bridge, with an APK older than
-  c261, with four kinds of answer that are not a list of servers, or with one
-  server; two put the one in use after the wordmark, the TV's name first, the
+  S1 (wave 24, 20 cases): no cell without the bridge, with an APK older than
+  c261, with five kinds of answer that are not a list of servers, with two
+  servers of which none is in use, or with one server; two put the one in use after the wordmark, the TV's name first, the
   server's own without one, a long one clipped (the `bar` frame's 200 and
   180 px, the rules, `ON` in the second ink); ↑ from the library's start
   reaches it, OK opens SERVERS on the one not in use, MENU and BACK climb as
@@ -770,7 +789,12 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   OK on the one in use closes onto the cell; FORGET leaving one server takes
   the cell away and the mark to MORE; a rename shows when MORE closes and on a
   reload, not before; MORE opened again while SERVERS is still leaving gives
-  focus back to MORE; and `EM` in Portuguese.
+  focus back to MORE; and `EM` in Portuguese. Right after a switch (the
+  page's own server the older, so the stand-in's `inUse` is wrong as the
+  app's is), the cell and SERVERS name the server the page is on, the mark
+  lands on the other, OK on this one closes, and FORGET of another or of
+  this one acts on the right one; a server not named yet shows its name on
+  the first library, without MORE.
 - `tests/tv-pair.e2e.ts` — the computer's `/pair/tv` at 960×540 with no pointer:
   every band clearing the label and the six cells, a wrong code spending a
   try, the right one landing on 9E, and five wrong ones burning it.
