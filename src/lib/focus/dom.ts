@@ -59,8 +59,9 @@ export function rectOf(el: Element): Rect {
  * a textarea or a contenteditable keeps all four.
  *
  * A `<select>` keeps ←/→ to change its value in place -- a remote has no other
- * key that would -- and lets ↑/↓ leave, or a D-pad would be trapped in the
- * sort control. A range input is a slider and keeps all four.
+ * key that would -- and lets ↑/↓ leave, or a D-pad would be trapped in it. No
+ * screen draws one now: the library's SORT is a ChoiceMenu (c432). A range
+ * input is a slider and keeps all four.
  */
 export function keepsArrow(target: Element, direction: Direction): boolean {
 	// A ruled row that changes its value in place says so (the TV's rating:

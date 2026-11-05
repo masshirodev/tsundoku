@@ -58,7 +58,9 @@ Which file is the spec:
 | `components/chrome/*`                                            | `src/lib/components/chrome/`: Banner, BulkBar, SectionLabel, Sheet, SheetRow, TopBar, Wordmark |
 
 The components are Svelte 5 ports, not wrappers. Styles are scoped CSS that reads
-tokens, and none of them hardcode a colour.
+tokens, and none of them hardcode a colour. The house dropdown is
+`src/lib/components/controls/ChoiceMenu.svelte` (c432): a choice out of a few
+uses it, not a native `<select>`, whose open list is the system's.
 
 ## The published design system
 

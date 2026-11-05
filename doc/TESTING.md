@@ -511,6 +511,12 @@ T=~/.config/myconf/design-tools
 node $T/extract-spec.mjs "doc/design/handoff/Index Library.dc.html" --out temp/design/spec.json
 node $T/gen-conformance.mjs temp/design/spec.json --init --screen 0 --out temp/design/map.json
 # fill in "app" selectors: continueList .cont, continueRow .cont > .row:nth-child(1),
-# grid .grid, tile .grid > .tile:nth-child(1); baseUrl http://localhost:4183
+# grid .grid, tile .grid > .tile:nth-child(1)
 node $T/gen-conformance.mjs temp/design/spec.json --map temp/design/map.json --out tests/library-frame.e2e.ts
 ```
+
+The file names no port (c311): the generator writes
+`process.env.PLAYWRIGHT_BASE_URL ?? ''`, so `page.goto` follows the Playwright
+project's own `baseURL`. It also writes `@playwright/test`'s import, and that is
+the one line to put back by hand: `./fixtures`' import and the comment above it,
+so the shared `page.goto` waits for hydration.

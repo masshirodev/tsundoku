@@ -810,8 +810,12 @@ none`), and it sits fixed under the picture with UP NEXT scrolling below it,
 - **Watching is reading.** The player sends the reader's events
   (`/api/reading`): `page` is seconds into the episode, and `length` its
   length as the player measured it, which is how an episode learns its length
-  (`duration_s`). Finished at the ending's start or the last 3 %. Incognito
-  sends nothing. A hidden series plays inside the 4px reveal frame.
+  (`duration_s`). Since c443 each event also carries `durationMs`, what
+  actually played (paused, buffering, a seek and a hidden page don't count;
+  [`READING-LOG.md`](READING-LOG.md), "The caps"), and rung 65 estimated it for
+  the episodes watched before. Finished at the ending's start or the last
+  3 %. Incognito sends nothing. A hidden series plays inside the 4px reveal
+  frame.
 - **Separate audio** (KickAssAnime's) is named as alternate audio in a master
   playlist tsundoku writes (`serveMaster`), so the player switches it as any
   HLS stream's.

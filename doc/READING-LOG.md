@@ -40,8 +40,10 @@ Deleting a series deletes its events. Deleting an entry keeps its events with
 ## The caps (card c443)
 
 Each reader times its events with a clock (`src/lib/reader/reader.ts`), and the
-cap is the longest a page can plausibly hold someone, so it is the **medium's**
-(`kindFacts(kind).medium`, [`KINDS.md`](KINDS.md)), never a kind's name:
+cap is the longest a page can plausibly hold someone, so it is the **medium's**,
+never a kind's name. Each reader is one medium and chooses its own:
+`TextReader.svelte` passes `IDLE_CAPS.text`, `ImageReader.svelte` takes
+`ProgressClock`'s default.
 
 | Medium | Cap               | Why                                                                                                                                                                                                                                                                                                                                                                                                |
 | ------ | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
