@@ -5,7 +5,7 @@
 	import HelpSheet from '$lib/components/help/HelpSheet.svelte';
 	import { onMount } from 'svelte';
 	import { enhance, deserialize } from '$app/forms';
-	import { invalidateAll } from '$app/navigation';
+	import { afterNavigate, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { MediaQuery } from 'svelte/reactivity';
@@ -141,9 +141,9 @@
 	 *
 	 * The answer is drawn as it is. Only a code that has just become USED
 	 * reloads the page's data, so the TV that paired joins the list below (the
-	 * WI-FI panel's `usedBefore`). A burned or expired code stays on the row:
-	 * the load replaces a spent code (`tvPanel`), so reloading here would undo
-	 * the burn the five wrong tries just earned. A new code comes from NEW CODE,
+	 * WI-FI panel's `usedBefore`). A burned or expired code stays on the row,
+	 * and a reload of the page's data leaves it so: only a real visit renews
+	 * (c531, `settingsVisit`). A new code comes from NEW CODE,
 	 * from opening SETTINGS again, or, in place of a merely expired one, from
 	 * the TV's own /pair/tv (c246), which the 5 s poll then draws.
 	 *
@@ -196,6 +196,19 @@
 			tvBusy = false;
 		}
 	}
+	/**
+	 * Arriving here from another screen is a real visit, which renews a spent
+	 * code (c531): opened as a document, the load itself renews; arrived at by
+	 * a client-side navigation, the load was a data request like any reload of
+	 * this page's data, which must not renew, so the page says so itself with
+	 * `?/renew` and then reloads to draw the result (`act`). Not on a change of
+	 * this page's own URL (`?section=`), and not where no code is shown.
+	 */
+	afterNavigate((nav) => {
+		if (nav.type === 'enter' || nav.from?.route.id === nav.to?.route.id) return;
+		if (!data.wifi && !data.tv) return;
+		void act('renew', []);
+	});
 
 	const wifiMeta = (w: Wifi) => {
 		if (w.reach === 'public')

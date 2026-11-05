@@ -117,8 +117,8 @@ one at a time.
   refresh: the load replaces a spent code (`tvPanel`), so a refresh that made
   one, or reloaded the page's data to get one, would undo the burn within a
   tick, and with SETTINGS in front five wrong tries would lock no one out.
-  A new code comes from NEW CODE or from opening SETTINGS again (or any
-  change made on the page, which reloads its data the way opening it does),
+  A new code comes from NEW CODE or from opening SETTINGS again (a real
+  visit, never a reload of the page's data: "Which doors make a code", c531),
   and from the TV itself when the code has merely run out (`/pair/tv`,
   "Never a dead end" below); a burned code only from the computer. Focus alone was not enough: the owner usually keeps SETTINGS in front
   while typing on the TV. An answer is about the code the row showed when it
@@ -208,8 +208,9 @@ one at a time.
   from EXPIRED to the code a TV made in its place (c246), and a paired TV's
   row says OVER TAILSCALE.
 - **Which doors make a code** (c460). Only the owner's, on the computer:
-  opening SETTINGS there (the load's `wifiView({ renew: true })` and
-  `tvPanel()`, which replace a spent code and keep a live or just-used one),
+  opening SETTINGS there (`wifiView({ renew: true })` and
+  `tvPanel({ renew: true })`, which replace a spent code and keep a live or
+  just-used one; a real visit only, c531, below),
   NEW CODE and ON (`fresh`: both codes, whatever they are), and the computer's
   own `POST /api/pair/tv`. Every other door reads: the panel's poll
   (`GET /api/wifi`), OFF, the DEVICES row's refresh (`tvCodeNow`), the door
@@ -220,9 +221,30 @@ one at a time.
   used over 2 minutes ago, never over a burned one, and with the old one's
   wrong tries (c246, above). Until c460 the poll and the door
   check replaced a spent code too, so with the panel open five wrong guesses
-  bought five more every 5 s. The page's data does reload (and so renew) when
-  a phone pairs or any setting on the page changes, both of which take the
-  owner or the phone's 96-bit link, never a guess.
+  bought five more every 5 s.
+
+- **A real visit, not a reload** (c531, the owner's call of 2026-11-04).
+  SETTINGS' load runs for a visit and for every reload of the page's data
+  alike, and until c531 every run renewed, so a code burned while the owner
+  changed an unrelated setting silently came back live. Now only a visit
+  renews. A visit as a document (opened, typed, the browser's reload or
+  back to a page it dropped) is a GET that is not a data request
+  (`settingsVisit` in `src/lib/server/wifi.ts`), and the load renews then. A
+  visit by a client-side navigation from another screen (a link, MORE ›
+  SETTINGS, the back button) is a data request, which the server can't tell
+  from a reload, so the page says so itself: `afterNavigate` sends
+  `?/renew`, which renews exactly as the document visit does (never over
+  Wi-Fi, the TV's code only where its row is), then reloads the page's data
+  to draw it. A change of the page's own URL (`?section=`) is not a visit.
+  Every reload reads the codes as they are: the WI-FI poll's when a phone
+  pairs, the row's refresh when a TV pairs, the check-in on arriving
+  (`syncDevice`), every setting (`act()`, NEW CODE's included, whose own
+  `fresh` makes its code), the page's `use:enhance` forms (RETRY, SIGN OUT,
+  BROWSE's languages, the password, a device's SIGN OUT) and the layout's
+  RESCAN and theme change. Why a marker and not a `depends()` key: a key only
+  spares a load from `invalidate(key)`, and `invalidateAll()` reruns every
+  load whatever it depends on, which the layout and `use:enhance` call
+  outside this page's reach (the wave 23 notes, `doc/handoff-notes/tv.md`).
 
 - **`/pair/tv`** (9C, 9E; `src/routes/pair/tv/`): the TV's six digits in two
   threes on the TV layout, PAIR → pressing itself on the sixth, a band for a
@@ -268,7 +290,10 @@ one at a time.
 ## Tests
 
 `tests/lan.spec.ts` (addresses, the code's life, labels),
-`tests/wifi-db.spec.ts` (c460: which doors may make a code; the door check,
+`tests/wifi-db.spec.ts` (c531: `settingsVisit` over every request the load
+runs for, the load itself burned through reloads and renewed by a document
+visit, `tvPanel` with and without `renew` in every state, and `?/renew`
+renewing at the computer and not over Wi-Fi; c460: which doors may make a code; the door check,
 the poll and OFF leave a burned, expired or used code as it is, in every
 state a TV code can be in, and only the load's renew, NEW CODE and ON make
 one), and `tests/friend-wifi.e2e.ts` on the friend project's install, served by
@@ -283,7 +308,7 @@ with no password, the phone's own SETTINGS, a paired phone reopening
 SETTINGS over Wi-Fi after five wrong tries burned the TV's code and the
 server still holding that same burned code (c460: the phone's load does not
 renew; a case of its own with no computer page open, because the panel's
-reload when a phone pairs does renew), a foreign Host refused over
+reload when a phone pairs renewed until c531), a foreign Host refused over
 Wi-Fi, SIGN OUT, and OFF closing the door while localhost goes on. The
 handoff's measurements are pinned there. The TV's code has its own:
 `tests/pairing-tv.spec.ts` (once, 10 minutes, five tries, every answer,

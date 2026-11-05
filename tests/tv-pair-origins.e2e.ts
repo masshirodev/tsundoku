@@ -26,6 +26,9 @@ import { E2E_TOKEN } from '../playwright.config';
  *   And the computer's half: SETTINGS' DEVICES row, open in a browser of its
  *   own, keeps asking about an expired code, so it draws the one the TV made
  *   on its own 5 s tick, with no focus change.
+ * - **c531**: a burned code stays burned through a reload of SETTINGS' data
+ *   (an unrelated setting changed), and a real visit (the app's link, the
+ *   back button, the browser's reload) makes a new one.
  * - **c545**: 9E carries the server's name in `data-paired-name`, and the TV
  *   app's own `PAIRED_JS`, read out of MainActivity.kt, reads it there.
  * - **c530**: two tsundoku on one host, two ports, paired in one cookie jar as
@@ -426,6 +429,118 @@ test('the DEVICES row draws the code the TV made in place of an expired one, on 
 	await expect(onTv.getByRole('heading', { name: 'The library is on this TV' })).toBeVisible();
 	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('✓ USED', { timeout: 15_000 });
 	expect(await returns()).toBe(0);
+});
+
+// ---- c531: only a real visit renews ------------------------------------------
+
+/**
+ * Five wrong tries from a TV, as 9C posts them, at the computer's address: a
+ * request of its own, not a page, so no window's focus moves.
+ */
+async function burnOn(at: Server) {
+	const { code } = await codeOn(at);
+	const tvSide = await request.newContext({ baseURL: at.computer });
+	try {
+		for (let i = 0; i < 5; i++) {
+			const r = await tvSide.post('/pair/tv', {
+				form: { code: wrong(code!) },
+				headers: { origin: at.computer, accept: 'text/html' },
+				maxRedirects: 0
+			});
+			expect(r.status()).toBe(303);
+		}
+	} finally {
+		await tvSide.dispose();
+	}
+	expect(await codeOn(at)).toMatchObject({ code, state: 'burned', left: 0 });
+	return code!;
+}
+
+/** The row told the code is burned (a refresh on focus) and drawing it so. */
+async function rowBurned(page: Page) {
+	const asked = page.waitForResponse((r) => new URL(r.url()).pathname === '/settings/tv');
+	await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+	await asked;
+	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('BURNED');
+	await expect(page.getByText('NO TRIES LEFT · MAKE A NEW CODE')).toBeVisible();
+}
+
+/** The row drawing a live code that is the server's, and not `old`. */
+async function rowLive(page: Page, at: Server, old: string) {
+	await expect.poll(() => shownDigits(page)).toMatch(/^\d{6}$/);
+	const now = await codeOn(at);
+	expect(now).toMatchObject({ state: 'live', left: 5 });
+	expect(now.code).not.toBe(old);
+	expect(await shownDigits(page)).toBe(now.code);
+}
+
+/** SETTINGS' own ← LIBRARY: a client-side navigation away. */
+async function toLibrary(page: Page) {
+	await page.locator('a[href="/"]').filter({ visible: true }).first().click();
+	await page.waitForURL((u) => u.pathname === '/');
+	await hydrated(page);
+}
+
+const reloadOfData = (page: Page) =>
+	page.waitForResponse((r) => new URL(r.url()).pathname === '/settings/__data.json');
+
+test('a burned code stays burned through a reload of SETTINGS’ data, and a real visit makes a new one (c531)', async () => {
+	await newCode(A);
+	const page = await settingsOn(A);
+	let old = await burnOn(A);
+	await rowBurned(page);
+
+	// An unrelated setting changed on the page: `act()`, then `invalidateAll()`.
+	const mode = page
+		.locator('.row', { has: page.locator('.label', { hasText: /^MODE$/ }) })
+		.getByRole('group', { name: 'MANGA' });
+	for (const choice of ['L→R', 'R→L']) {
+		const reloaded = reloadOfData(page);
+		await mode.getByRole('button', { name: choice }).click();
+		await reloaded;
+		await expect(mode.getByRole('button', { name: choice })).toHaveAttribute(
+			'aria-pressed',
+			'true'
+		);
+		expect(await codeOn(A), `after ${choice}`).toMatchObject({ code: old, state: 'burned' });
+		await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('BURNED');
+	}
+
+	// A real visit, by the app's own doors from another screen (SETTINGS'
+	// ← LIBRARY, then the library's MORE › SETTINGS; this browser has no fine
+	// pointer, so no sidebar): a client-side navigation, whose load is a data
+	// request just like the reloads above.
+	await toLibrary(page);
+	expect(await codeOn(A), 'another screen makes no code').toMatchObject({
+		code: old,
+		state: 'burned'
+	});
+	await page.getByRole('button', { name: 'MORE', exact: true }).click();
+	await page.locator('a[href="/settings"]').filter({ visible: true }).first().click();
+	await page.waitForURL((u) => u.pathname === '/settings');
+	await rowLive(page, A, old);
+
+	// The browser's back button into SETTINGS is a visit too.
+	old = await burnOn(A);
+	await rowBurned(page);
+	await toLibrary(page);
+	await page.goBack();
+	await page.waitForURL((u) => u.pathname === '/settings');
+	await rowLive(page, A, old);
+
+	// And so is the browser's reload: a document, not the page's data.
+	old = await burnOn(A);
+	await rowBurned(page);
+	await page.reload();
+	await rowLive(page, A, old);
+
+	// A reload of the data after a visit renews nothing more: the new code is kept.
+	const kept = (await codeOn(A)).code;
+	const reloaded = reloadOfData(page);
+	await mode.getByRole('button', { name: 'L→R' }).click();
+	await reloaded;
+	expect((await codeOn(A)).code).toBe(kept);
+	await mode.getByRole('button', { name: 'R→L' }).click();
 });
 
 // ---- c545 ---------------------------------------------------------------------

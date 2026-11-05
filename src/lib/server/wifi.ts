@@ -93,7 +93,8 @@ export type WifiView = {
 /**
  * Whether a code is past showing: expired, burned, or used longer ago than the
  * 2 minutes the ✓ USED stays up. Then a fresh one is made when SETTINGS is
- * opened on the computer (`wifiView({ renew })`, `tvPanel`), and nowhere else:
+ * opened on the computer (`wifiView({ renew })`, `tvPanel({ renew })`, on a
+ * real visit only, `settingsVisit`, c531), and nowhere else:
  * neither the WI-FI panel's poll (`GET /api/wifi`, c460) nor the DEVICES row's
  * refresh (`tvCodeNow`, c265) makes one, and the TV's own page makes one only
  * when there is none, or the only one has merely expired or was used over
@@ -109,6 +110,24 @@ const spent = (state: string, used: { at: number } | null | undefined, now: numb
 	(state === 'used' && !!used && now - used.at > USED_SHOWN_MS);
 
 /**
+ * Whether a run of SETTINGS' load is a real visit to the page, the one door
+ * besides NEW CODE and ON where a spent code is replaced (c531, the owner's
+ * call of 2026-11-04): a document GET, which is the page opened, typed,
+ * reloaded or come back to by the browser. A data request is not: the load
+ * also reruns for every reload of the page's data (`invalidateAll()`, an
+ * enhanced form, the layout's RESCAN or theme), and a code five wrong tries
+ * burned while the owner changed an unrelated setting must stay burned.
+ *
+ * A client-side navigation into SETTINGS is a data request too, so it can't
+ * be told from a reload here; the page sends `?/renew` for it instead, from
+ * `afterNavigate` (`src/routes/settings/+page.svelte`). A POST is never a
+ * visit: the load that follows a form posted without script is the form's.
+ */
+export function settingsVisit(o: { isDataRequest: boolean; method: string }): boolean {
+	return !o.isDataRequest && o.method === 'GET';
+}
+
+/**
  * Every state the WI-FI panel's TV code can be in: the view reads the code as
  * it is, as the DEVICES row's refresh does (`tvCodeNow`), so a code five wrong
  * tries burned is drawn BURNED until the owner makes another (c460). Until
@@ -121,8 +140,10 @@ export type ShownTvState = Exclude<TvState, 'none'>;
  *
  * Read only unless asked. Which doors may make a code (c460):
  * - `renew`: replace a spent code (`spent`), keeping a live one and a just-used
- *   one. Only SETTINGS' load on the computer passes it: opening the page shows
- *   a code that works.
+ *   one. Only a real visit to SETTINGS on the computer passes it (the load on
+ *   a `settingsVisit`, and `?/renew` after a client-side navigation): opening
+ *   the page shows a code that works, and a reload of its data never makes
+ *   one (c531).
  * - `fresh`: replace both codes whatever they are. ON and NEW CODE only.
  * - neither: the codes as they are, burned and expired included. The panel's
  *   5 s poll, OFF, and every door check. A poll that replaced a burned TV code
@@ -233,14 +254,19 @@ export function tvCodeNow(now: number = Date.now()): TvPanel | null {
  * no phone's QR and SETTINGS › 08 — DEVICES is the only place the code can be
  * seen (c245; doc/WIFI.md).
  *
- * Freshness is `wifiView`'s rule: a live code is kept and counts down, and
- * anything spent (expired, burned, used longer ago than ✓ USED stays up) is
- * replaced when the page opens. `fresh` is NEW CODE. Only the page's load and
- * `?/tvCode` call this: it writes, so the row's refresh never does.
+ * Freshness is `wifiView`'s rule: with `renew`, a live code is kept and counts
+ * down, and anything spent (expired, burned, used longer ago than ✓ USED stays
+ * up) is replaced. Only a real visit passes it (`settingsVisit`, `?/renew`;
+ * c531); a reload of the page's data reads the code as it is, so a burn
+ * stays. `fresh` is NEW CODE. Only the page's load, `?/renew` and `?/tvCode`
+ * call this; the row's refresh never does.
  */
-export function tvPanel(o: { fresh?: boolean; now?: number } = {}): TvPanel | null {
+export function tvPanel(
+	o: { renew?: boolean; fresh?: boolean; now?: number } = {}
+): TvPanel | null {
 	const now = o.now ?? Date.now();
-	if (spent(tvPairing.state(now), tvPairing.current()?.used, now) || o.fresh) tvPairing.fresh(now);
+	if (o.fresh || (o.renew && spent(tvPairing.state(now), tvPairing.current()?.used, now)))
+		tvPairing.fresh(now);
 	return tvCodeNow(now);
 }
 
