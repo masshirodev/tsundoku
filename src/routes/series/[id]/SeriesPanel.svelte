@@ -1604,6 +1604,10 @@
 		display: flex;
 		align-items: center;
 		width: var(--label-w);
+		/* Never narrower than its word (c591): at a larger text size (130% on
+		   the phone app) SHELVES ran past the rule into its chips. A one-word
+		   label cannot wrap, so the column widens on that row instead. */
+		min-width: min-content;
 		padding-left: var(--pad);
 		flex-shrink: 0;
 		font: 500 12px var(--font-mono);

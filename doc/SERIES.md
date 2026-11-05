@@ -258,6 +258,37 @@ press changed"). Tested in `tests/works-offer-db.spec.ts` ("every UNDO on
 the series screen…"), each action with every field missing or mistyped,
 another series' facts and a library moved on, against a whole snapshot.
 
+## At a larger text size (c591)
+
+The phone and tablet app follows Android's font size up to 130% through the
+WebView's `textZoom` (`doc/PHONE-APP.md`, on the `phone-app` branch until it
+lands), which scales every computed font size and nothing else. Two things
+were fixed in px and broke at 130% on a 360 px phone (checked 2026-11-05):
+
+- **A tile's title** (`CoverTile.svelte`, the library's and every grid's) is
+  a two-line clamp whose box was `height: 32px`, so the second line was cut
+  through the middle. The box is now `calc(32em / 13)`: exactly 32 px at the
+  tile's 13 px type, so every tile measures what it did, and it grows with
+  the type, two lines at any size.
+- **The rows' label column** (`.label`, every row of this panel: SHELVES,
+  TAGS, FILE, DIRECTION, LANGUAGE and the rest) is `--label-w` wide, and a
+  one-word label cannot wrap, so SHELVES ran past the rule into its chips
+  (and DETAILS, on the phone's fold, past its own).
+  The column is now never narrower than its word (`min-width: min-content`):
+  at 100% nothing moves, and at 130% only a row whose word is too wide
+  widens its own label.
+
+**How 130% is made in a browser** (`tests/text-zoom.e2e.ts`, the `phone`
+project): a browser has no text zoom, so the spec multiplies every element's
+computed `font-size` by 1.3 in place at 360 × 780, reading all of them first
+and then writing, so nothing is scaled twice. Unitless and `em` line heights
+follow, as under `textZoom`; px ones stay, as they do there. It asserts the
+tile boxes are 32 px at 100%, that at 130% Drawing's long title still has
+both lines' room (less at most the second's half-leading) and never three,
+and that no visible label's text runs past its column at either size.
+Whether it holds on a phone, with Android's font size at its largest step
+under 130%, is the owner's check.
+
 ## DETAILS (c425)
 
 The handoff is `doc/handoffs/series-phone/` (`canvas.json`, five boards: 1A a

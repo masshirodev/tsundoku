@@ -339,7 +339,11 @@
 		line-clamp: 2;
 		-webkit-box-orient: vertical;
 		overflow: hidden;
-		height: 32px;
+		/* Two lines at any text size (c591): 32 px at the tile's 13 px, as the
+		   boards draw it, and in em so a larger text size (the phone app's
+		   textZoom, a browser's minimum font size) grows the box with the
+		   type instead of cutting the second line through the middle. */
+		height: calc(32em / 13);
 	}
 	.check {
 		position: absolute;
