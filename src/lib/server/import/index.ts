@@ -18,7 +18,9 @@ import { epubBytes, epubRoot, planEpubFile, planEpubFolder } from './epub.ts';
 import { animeBytes, animeSeriesDirs, planAnimeFolders, planAnimeSeries } from './anime.ts';
 import { ANIME_FOLDER } from '../../library/anime-files.ts';
 import { closeDeadJobs, ensureRoot, ensureNamedRoot, finishJob, writeSeries } from './write.ts';
+import { droppedLine, type Dropped } from './fold.ts';
 import { reconcileDuplicates } from '../duplicates.ts';
+import { forgetSourceUse } from '../library-sources.ts';
 import { refreshCovers } from '../covers.ts';
 import { refreshLinks } from '../catalogue.ts';
 import type { PlannedSeries } from '../../import/plan.ts';
@@ -280,6 +282,12 @@ export type SourceSummary = {
 	filesAttached: number;
 	skipped: number;
 	backup?: string | null;
+	/**
+	 * Works a fold took a series out of (card c472; doc/IMPORT-MIHON.md, "Both
+	 * exist"): the owner's grouping the import could not keep. `droppedLine`
+	 * (fold.ts) is the line the summary prints for each.
+	 */
+	dropped: Dropped[];
 };
 
 export type ImportSummary = { jobId: number; failedFiles: number; sources: SourceSummary[] };
@@ -299,6 +307,15 @@ export const importRunning = (): Promise<ImportSummary> | null => running;
 
 /** Whether a scan asked for now waits its turn: a backup's import runs, or one is queued before it. */
 export const scanWaits = (): boolean => queuedScan !== null || (running !== null && !runningScan);
+
+/**
+ * Whether a scan really is queued behind a backup's import (c512, round 2):
+ * someone asked for one and it has not started. Unlike `scanWaits`, false for
+ * the whole of an IMPORT A BACKUP nobody asked a scan of. runImport sets the
+ * queue synchronously when it queues and clears it just before the scan claims
+ * its job, so this is true for exactly the wait.
+ */
+export const scanQueued = (): boolean => queuedScan !== null;
 
 /**
  * Import every device folder under `library`. One at a time: a second call
@@ -413,6 +430,7 @@ export async function attachWritten(
 	const touched = new Set<number>();
 	// One plan per series: a batch of chapters is one folder.
 	const planned = new Set<string>();
+	let created = false;
 	for (const file of files) {
 		// The innermost root holding it: a device's own folder sits inside the
 		// library's, so the deepest match is the one that owns the file.
@@ -429,17 +447,29 @@ export async function attachWritten(
 		for (const s of series) {
 			if (planned.has(s.path)) continue;
 			planned.add(s.path);
-			writeSeries(
+			const r = writeSeries(
 				s,
-				{ rootId, jobId: null, now, markMissing: source.markMissing, deviceRoot: source.root },
+				{
+					rootId,
+					jobId: null,
+					now,
+					markMissing: source.markMissing,
+					deviceRoot: source.root,
+					addedHidden: true
+				},
 				db
 			);
+			for (const d of r.dropped ?? []) console.log(`[import] ${droppedLine(d)}`);
+			if (r.created) created = true;
 			const id = db.prepare(`SELECT id FROM series WHERE origin_key = ?`).get(s.originKey) as
 				{ id: number } | undefined;
 			if (id) touched.add(id.id);
 		}
 	}
 	if (touched.size > 0) reconcileDuplicates([...touched], db);
+	// As a run does: BROWSE's per-source counts (`mostlyHidden`) are asked
+	// again once a series is new, ADDED HIDDEN's hidden ones included (c503).
+	if (created) forgetSourceUse();
 	return left;
 }
 
@@ -493,13 +523,21 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 				entriesAdded: 0,
 				filesAttached: 0,
 				skipped: plan.skipped,
-				backup: plan.backup
+				backup: plan.backup,
+				dropped: []
 			};
 			let written = 0;
 			for (const series of plan.series) {
 				const r = writeSeries(
 					series,
-					{ rootId, jobId, now, markMissing: source.markMissing, deviceRoot: source.root },
+					{
+						rootId,
+						jobId,
+						now,
+						markMissing: source.markMissing,
+						deviceRoot: source.root,
+						addedHidden: true
+					},
 					db
 				);
 				if (r.created) out.seriesCreated += 1;
@@ -508,9 +546,14 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 				if (source.counts === 'series') p.bytesDone += 1;
 				out.entriesAdded += r.entriesAdded;
 				out.filesAttached += r.filesAttached;
+				for (const d of r.dropped ?? []) {
+					out.dropped.push(d);
+					console.log(`[import] ${droppedLine(d)}`);
+				}
 				// The band counts arrivals ("N SERIES SO FAR") and is shown while
 				// reveal may be off: nothing hidden, by series or by root, counts.
-				if (r.created && !series.hidden && !source.hidden) p.seriesFound += 1;
+				// A series its source's ADDED HIDDEN hid (c503) is hidden too.
+				if (r.created && !series.hidden && !r.addedHidden && !source.hidden) p.seriesFound += 1;
 				if (++written % 20 === 0) {
 					flush();
 					// Let requests in between batches: the library polls this job.
@@ -527,6 +570,9 @@ async function run(sources: Source[], now: number): Promise<ImportSummary> {
 		p.bytesDone = p.bytesTotal;
 		flush();
 		finishJob(db, jobId, created);
+		// BROWSE's per-source counts (and so `mostlyHidden`) are asked again:
+		// the run added series, and ADDED HIDDEN may have hidden some (c503).
+		forgetSourceUse();
 		return summary;
 	} catch (e) {
 		flush();
@@ -588,3 +634,13 @@ export function startScan(
 
 /** What START SCAN and RESCAN say when the scan waits its turn behind a backup's import. */
 export const SCAN_WAITS = 'WAITING · THE SCAN STARTS WHEN THE BACKUP’S IMPORT ENDS';
+
+/**
+ * RESCAN's WAITING line as the sidebar draws it (c512): the sentence while a
+ * scan someone asked for is queued behind a backup's import (`scanQueued`, the
+ * queue itself), and null before anyone asks and once it has started. Not
+ * `scanWaits`: that answers whether a scan asked for now would wait, which is
+ * true for a backup's whole import even when nobody pressed RESCAN (round 2).
+ * The layout's load hands it over on every page.
+ */
+export const scanWaitsLine = (): string | null => (scanQueued() ? SCAN_WAITS : null);

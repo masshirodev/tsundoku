@@ -69,7 +69,8 @@ shelves, tags) are never overwritten. Two things are Hentoid's own:
   cover and never a page, JSON or not, so neither makes a series. What an
   earlier import made of such a folder is removed after the import, while
   untouched: an entry never opened, unrated and not a favourite, and a series
-  left with no entries, unrated, not a favourite, on no shelf and not linked
+  left with no entries, unrated, not a favourite, on no shelf, not linked (a
+  series link, or a season's link or decision) and in no Work
   (`prunePageless`). That's no delete and buries nothing, so a download
   finished later imports as it would have. On the real library (2026-09-24)
   that was 8 empty series and 6 one-page "books" of a thumbnail, from 37

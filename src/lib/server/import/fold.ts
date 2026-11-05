@@ -22,7 +22,12 @@ import { setHiddenWhole } from '../works.ts';
  * as a move's old key does (doc/MOVE.md), so the device whose backup still
  * doesn't name the manga never makes it again.
  */
-export function adoptFormer(db: Database.Database, s: PlannedSeries, now: number): void {
+export function adoptFormer(
+	db: Database.Database,
+	s: PlannedSeries,
+	now: number,
+	dropped: Dropped[] = []
+): void {
 	if (!s.formerKey) return;
 	const former = seriesBy(db, s.formerKey);
 	if (!former) return;
@@ -33,7 +38,7 @@ export function adoptFormer(db: Database.Database, s: PlannedSeries, now: number
 	// the record would take a downloaded, rated, read series out of the library
 	// and let pruneRecords forget its reading. So the record's data moves into
 	// the folder's series, which keeps the library row, its id and its key.
-	if (current && current.in_library !== 1) foldSeries(db, current.id, former.id);
+	if (current && current.in_library !== 1) note(dropped, foldSeries(db, current.id, former.id));
 	// Both exist and the URL's is the library's: the folder's is folded into it,
 	// keeping whatever the owner did in either. No file is moved. A fold keeps
 	// only one side's title, kind and direction, so the folder's edit is carried
@@ -43,7 +48,7 @@ export function adoptFormer(db: Database.Database, s: PlannedSeries, now: number
 	else if (current) {
 		const parts = folderParts(s.formerKey);
 		if (parts) carryEdit(db, former.id, current.id, parts.dir);
-		foldSeries(db, former.id, current.id);
+		note(dropped, foldSeries(db, former.id, current.id));
 		rememberKey(db, current.id, s.formerKey, 'mihon', s.originKey, now);
 		return;
 	}
@@ -99,15 +104,24 @@ export function adoptFolder(
 	now: number
 ): number | null {
 	const folder = s.folder;
-	if (!folder || !s.originKey.startsWith('mihon:')) return null;
+	if (!s.originKey.startsWith('mihon:')) return null;
 	// A folder's series is the same series by the importer's own rule: the same
 	// source and the same title (doc/IMPORT-MIHON.md, "Matching downloads").
+	// A backup that names no source (c258) gives the plan no folder: the
+	// source is then confirmed by the second signal (`unnamedSourceIs`).
 	const candidates = rowsIn(db, rootId, 'mihon-dir:%').filter((row) => {
 		const parts = folderParts(row.origin_key);
+		if (!parts) return false;
+		if (folder)
+			return (
+				sourceDirMatches(parts.sourceDir, folder.source) &&
+				(folderTitleMatches(parts.dir, folder.title) || row.title === folder.title)
+			);
 		return (
-			!!parts &&
-			sourceDirMatches(parts.sourceDir, folder.source) &&
-			(folderTitleMatches(parts.dir, folder.title) || row.title === folder.title)
+			(folderTitleMatches(parts.dir, s.title) || row.title === s.title) &&
+			unnamedSourceIs(db, s.originKey, parts.sourceDir, row.title === s.title, () =>
+				addressMatches(db, row.id, s.entries)
+			)
 		);
 	});
 	const best = bestOf(db, s, candidates);
@@ -135,7 +149,8 @@ export function adoptNamed(
 	db: Database.Database,
 	s: PlannedSeries,
 	rootId: number,
-	now: number
+	now: number,
+	dropped: Dropped[] = []
 ): number | null {
 	const folder = s.folder;
 	const parts = folderParts(s.originKey);
@@ -144,11 +159,21 @@ export function adoptNamed(
 		`SELECT 1 FROM series_tags st JOIN tags t ON t.id = st.tag_id
 		WHERE st.series_id = ? AND t.namespace = 'source' AND t.value = ? COLLATE NOCASE`
 	);
+	const anySourceTag = db.prepare(
+		`SELECT 1 FROM series_tags st JOIN tags t ON t.id = st.tag_id
+		WHERE st.series_id = ? AND t.namespace = 'source'`
+	);
 	const candidates = rowsIn(db, rootId, 'mihon:%').filter(
 		(row) =>
 			// The folder is this source's, and the title's under either name.
 			(row.title === folder.title || folderTitleMatches(parts.dir, row.title)) &&
-			!!sourceTag.get(row.id, folder.source)
+			(!!sourceTag.get(row.id, folder.source) ||
+				// Untagged, from a backup that named no source (c258): a series
+				// tagged with another source is still not this folder's.
+				(!anySourceTag.get(row.id) &&
+					unnamedSourceIs(db, row.origin_key, parts.sourceDir, row.title === folder.title, () =>
+						addressMatches(db, row.id, s.entries)
+					)))
 	);
 	const best = bestOf(db, s, candidates);
 	// No entry in common: not the same manga, whatever the names say.
@@ -160,10 +185,63 @@ export function adoptNamed(
 		if (best.row.path === '' && own.path !== '')
 			db.prepare(`UPDATE series SET path = ? WHERE id = ?`).run(own.path, best.row.id);
 		carryEdit(db, own.id, best.row.id, parts.dir);
-		foldSeries(db, own.id, best.row.id);
+		note(dropped, foldSeries(db, own.id, best.row.id));
 	}
 	rememberKey(db, best.row.id, s.originKey, 'mihon', best.row.origin_key, now);
 	return best.row.id;
+}
+
+/**
+ * The second signal for a URL series whose backup named no source (card c258;
+ * doc/IMPORT-MIHON.md, "A backup that names no source"): its key holds the
+ * source's number, and nothing in the backup says that number's name, so the
+ * `source:` tag and a plan's download folder are both missing.
+ *
+ * - **The engine's own name for the number**, when tsundoku has the source
+ *   installed (`engine_sources`): the folder is this source's when its source
+ *   folder is that name, as "Matching downloads" reads a backup's. A name the
+ *   engine gives that the folder is not is a no, whatever else matches.
+ * - Otherwise **the chapter's own address under the exact title**: at least
+ *   one chapter whose ComicInfo `Web` ends with the backup's chapter path (or
+ *   the reverse), which is a source's own address for that chapter, not a
+ *   number every source shares. A title and chapter numbers alone stay apart,
+ *   as a folder whose chapters the backup does not share does.
+ *
+ * `addressed` is asked only when it decides, since it reads the entries.
+ */
+function unnamedSourceIs(
+	db: Database.Database,
+	urlKey: string,
+	sourceDir: string,
+	exactTitle: boolean,
+	addressed: () => number
+): boolean {
+	const id = /^mihon:(\d+):/.exec(urlKey)?.[1];
+	if (!id) return false;
+	const named = db.prepare(`SELECT name FROM engine_sources WHERE id = ?`).get(id) as
+		{ name: string } | undefined;
+	if (named) return sourceDirMatches(sourceDir.toLowerCase(), named.name.toLowerCase());
+	return exactTitle && addressed() > 0;
+}
+
+/**
+ * How many of a series' entries match a plan's by address alone: the URL in
+ * ComicInfo's `Web` against the backup's chapter path, either way round, the
+ * first half of `matchFolderEntries`' rule without its fall back to numbers.
+ */
+function addressMatches(db: Database.Database, seriesId: number, planned: PlannedEntry[]): number {
+	const urls = (
+		db
+			.prepare(`SELECT source_url FROM entries WHERE series_id = ? AND source_url != ''`)
+			.all(seriesId) as { source_url: string }[]
+	).map((r) => r.source_url);
+	return urls.filter((url) =>
+		planned.some(
+			(e) =>
+				e.sourceUrl !== '' &&
+				(url === e.sourceUrl || url.endsWith(e.sourceUrl) || e.sourceUrl.endsWith(url))
+		)
+	).length;
 }
 
 /**
@@ -364,6 +442,25 @@ function tablesWith(db: Database.Database, column: string): string[] {
 }
 
 /**
+ * A Work a fold took a series out of (card c472): `from` was a part of it and
+ * `into` a part of another, and a series is in one Work at most, so `from`'s
+ * membership went with its row. `series` is the survivor's title, as the
+ * library shows it after the fold; `ended` says the Work was left with one
+ * series and so ended (rung 61's trigger). Named in the import's summary as
+ * DROPPED FROM <WORK> (`droppedLine`), since the owner's grouping cannot be
+ * put back by the import.
+ */
+export type Dropped = { work: string; series: string; ended: boolean };
+
+const note = (into: Dropped[], d: Dropped | null) => {
+	if (d) into.push(d);
+};
+
+/** The summary's line for one dropped membership. */
+export const droppedLine = (d: Dropped) =>
+	`DROPPED FROM ${d.work.toUpperCase()} · ${d.series}${d.ended ? ' · THE WORK ENDED' : ''}`;
+
+/**
  * Fold series `from` into series `into`, then delete `from`. A chapter both
  * have (the same file, else the same URL, else the same label) is one: read
  * state moves forward as on a rescan, the newer place in it wins, a rating
@@ -374,9 +471,10 @@ function tablesWith(db: Database.Database, column: string): string[] {
  * and takes its Work with it (`setHiddenWhole`).
  *
  * Runs inside the writer's transaction, on `getDb()`'s connection, which is
- * the one `setHiddenWhole` writes through.
+ * the one `setHiddenWhole` writes through. Answers the Work `from` was
+ * dropped from, when `into` was a part of another one (`Dropped`), else null.
  */
-export function foldSeries(db: Database.Database, from: number, into: number): void {
+export function foldSeries(db: Database.Database, from: number, into: number): Dropped | null {
 	const pathOf = (id: number) =>
 		(db.prepare(`SELECT path FROM series WHERE id = ?`).get(id) as { path: string }).path;
 	const entriesOf = (id: number) =>
@@ -460,6 +558,13 @@ export function foldSeries(db: Database.Database, from: number, into: number): v
 
 	// Read before the row goes: hidden by its own flag, or by its root's.
 	const fromHidden = hiddenNow(db, from);
+	// And the Work each is a part of: two different ones mean `from`'s is lost.
+	const workOf = db.prepare(
+		`SELECT w.id, w.name FROM work_series ws JOIN works w ON w.id = ws.work_id WHERE ws.series_id = ?`
+	);
+	const fromWork = workOf.get(from) as { id: number; name: string } | undefined;
+	const intoWork = workOf.get(into) as { id: number; name: string } | undefined;
+	const lost = fromWork && intoWork && fromWork.id !== intoWork.id ? fromWork : null;
 	// `work_series` is one of these: `from`'s membership moves to `into` when
 	// `into` is in no Work, and is dropped when it is in one (a series is in
 	// one Work at most), the trigger ending a Work that leaves with one.
@@ -480,6 +585,11 @@ export function foldSeries(db: Database.Database, from: number, into: number): v
 	// Work `into` joined hidden -- the half-hidden Work no other door makes.
 	// Never the other way: a fold never shows anything.
 	if (fromHidden || hiddenNow(db, into)) setHiddenWhole([into], true);
+	if (!lost) return null;
+	const title = (db.prepare(`SELECT title FROM series WHERE id = ?`).get(into) as { title: string })
+		.title;
+	const ended = !db.prepare(`SELECT 1 FROM works WHERE id = ?`).get(lost.id);
+	return { work: lost.name, series: title, ended };
 }
 
 /** Whether SQL's rule reads this series as hidden: its own flag, or its root's. */

@@ -5,7 +5,8 @@ import { getDb } from '../db.ts';
 import { hueFor } from '../../library/cover.ts';
 import { linkFromTracker } from '../catalogue.ts';
 import type { PlannedEntry, PlannedSeries } from '../../import/plan.ts';
-import { adoptFolder, adoptFormer, adoptNamed } from './fold.ts';
+import { adoptFolder, adoptFormer, adoptNamed, type Dropped } from './fold.ts';
+import { hideIfAddedHidden } from '../engine/source-flags.ts';
 
 /**
  * The one writer every importer uses (doc/IMPORT-MIHON.md, doc/IMPORT-HENTOID.md):
@@ -85,7 +86,15 @@ function setPages(db: Database.Database, entryId: number, e: PlannedEntry): void
 	e.pages.forEach((file, i) => add.run(entryId, i, file));
 }
 
-export type WriteResult = { created: boolean; entriesAdded: number; filesAttached: number };
+export type WriteResult = {
+	created: boolean;
+	entriesAdded: number;
+	filesAttached: number;
+	/** Created visible and hidden by its source's ADDED HIDDEN (`opts.addedHidden`). */
+	addedHidden?: boolean;
+	/** Works a fold of this write took a series out of (c472; `Dropped`, fold.ts). */
+	dropped?: Dropped[];
+};
 
 export function writeSeries(
 	s: PlannedSeries,
@@ -106,6 +115,17 @@ export function writeSeries(
 		 * whatever it is, so opening never takes a series out of the library.
 		 */
 		browsing?: boolean;
+		/**
+		 * Apply the source's ADDED HIDDEN to a series this write creates in the
+		 * library (card c503, the owner's (a); doc/BROWSE.md, "A source's own
+		 * switches"), in this same transaction: an importer can only add hiding.
+		 * A series the plan already hides stays hidden, one it shows from a
+		 * source with the switch on arrives hidden, and one that already existed
+		 * is only updated, never newly hidden. The importers pass it
+		 * (import/index.ts); BROWSE's add doors call `hideIfAddedHidden`
+		 * themselves, after their own reads.
+		 */
+		addedHidden?: boolean;
 	},
 	db: Database.Database = getDb()
 ): WriteResult {
@@ -121,7 +141,8 @@ export function writeSeries(
 	}
 	return db
 		.transaction((): WriteResult => {
-			adoptFormer(db, s, opts.now);
+			const dropped: Dropped[] = [];
+			adoptFormer(db, s, opts.now, dropped);
 			const byKey = db.prepare(`SELECT id FROM series WHERE origin_key = ?`);
 			let seriesId: number | null =
 				(byKey.get(s.originKey) as { id: number } | undefined)?.id ?? null;
@@ -150,7 +171,7 @@ export function writeSeries(
 			// found and the two are settled before anything is written.
 			const folderPlan = s.originKey.startsWith('mihon-dir:');
 			if (folderPlan) {
-				if (!leftKey) seriesId = adoptNamed(db, s, opts.rootId, opts.now) ?? seriesId;
+				if (!leftKey) seriesId = adoptNamed(db, s, opts.rootId, opts.now, dropped) ?? seriesId;
 			} else if (seriesId === null) {
 				seriesId = adoptFolder(db, s, opts.rootId, opts.now);
 			}
@@ -462,7 +483,14 @@ export function writeSeries(
 					if (!planned.has(r.file))
 						db.prepare(`UPDATE entries SET available = 0 WHERE id = ?`).run(r.id);
 			}
-			return { created, entriesAdded, filesAttached };
+			const addedHidden = created && opts.addedHidden === true && hideIfAddedHidden(seriesId, db);
+			return {
+				created,
+				entriesAdded,
+				filesAttached,
+				...(addedHidden ? { addedHidden } : {}),
+				...(dropped.length ? { dropped } : {})
+			};
 		})
 		.immediate();
 }

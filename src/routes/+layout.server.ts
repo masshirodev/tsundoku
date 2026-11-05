@@ -14,6 +14,7 @@ import { m } from '$lib/paraglide/messages';
 import { linkQueueCount } from '$lib/server/catalogue';
 import { ranobeQueueCount } from '$lib/server/ranobe-review';
 import { isTvApp } from '$lib/settings/catalog';
+import { scanWaitsLine } from '$lib/server/import';
 
 export const load: LayoutServerLoad = async ({ cookies, locals, depends, request }) => {
 	const reveal = isRevealed(cookies);
@@ -36,8 +37,10 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends, request
 			start: null,
 			toLink: 0,
 			lastScanMs: null,
-			computer: null
+			computer: null,
+			scanWaits: null
 		};
+	depends('tsundoku:scan');
 	const scan = currentScan();
 	const shelves = listShelves({ reveal, withNew: scan !== null });
 	// Favourite people become a shelf of their own (Index Books). It only
@@ -97,6 +100,12 @@ export const load: LayoutServerLoad = async ({ cookies, locals, depends, request
 		toLink,
 		// RESCAN's question says roughly how long the last scan took (c525).
 		lastScanMs: lastScanTook(),
-		computer
+		computer,
+		// RESCAN's WAITING note (c512): drawn while a scan someone asked for is
+		// queued behind a backup's import (`scanQueued`, the server's own queue),
+		// never for a backup's import alone, and gone once the scan starts
+		// instead of staying until the next press. The sidebar re-asks this
+		// load alone ('tsundoku:scan') while it is set.
+		scanWaits: scanWaitsLine()
 	};
 };

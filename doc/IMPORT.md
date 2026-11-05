@@ -206,7 +206,18 @@ writer every importer uses, into the `Mihon` root at `<library>/Mihon`
   `scan` command, a download's import) **waits its turn too**, then reads the
   library folder in a job of its own: START SCAN and RESCAN say `WAITING · THE
 SCAN STARTS WHEN THE BACKUP’S IMPORT ENDS` (`SCAN_WAITS`), and `/api/scan`
-  answers `waiting: true`. Only a running _scan_ is joined, by a second scan;
+  answers `waiting: true`. **RESCAN's line in the sidebar is the queue's own
+  state** (c512): the layout's load hands it over (`scanWaitsLine`, so
+  `scanWaits` on the layout's data) while a scan someone asked for is queued
+  behind a backup's import (`scanQueued`: the queue is set when the scan
+  queues and cleared just before it starts), the sidebar asks that load again
+  every two seconds while it is (`invalidate('tsundoku:scan')`), and the line
+  goes once the scan has started. A backup's import that nobody asked a scan
+  of draws no line: `scanWaits()`, true for that import's whole run, answers
+  only whether a scan asked for _now_ would wait (`startScan`'s `waiting`),
+  and the sidebar does not read it (wave 23, round 2). Until wave 23 it was the action's answer, kept until the next
+  press, so it stayed as a `role=status` line on every page after the scan
+  had run. A refusal (nothing to import) is still the action's answer. Only a running _scan_ is joined, by a second scan;
   a second scan asked for while one waits joins the waiting one. `runImport`
   keeps which kind of job runs (`runningScan`) for this.
 - **An import whose process died is stopped.** Only this process's promise
@@ -219,6 +230,13 @@ SCAN STARTS WHEN THE BACKUP’S IMPORT ENDS` (`SCAN_WAITS`), and `/api/scan`
   Never from `run()`'s `closeDeadJobs`, where a second import is rightly
   waiting while the first one's job opens. Its `scan_jobs` row is closed by
   `closeDeadJobs` as any dead job's is.
+- **An IMPORT that throws before its run**
+  (c512: everything from the row's `running` to the queue is synchronous,
+  and `libraryFacts` parses every `engine_listings` row) fails where it
+  stands: out of the live set, `failed` with its `finished_at`, and the
+  action answers `COULD_NOT_START` (`THE LIBRARY’S OWN RECORDS COULD NOT BE
+READ · SEE THE SERVER’S LOG`), drawn as `IT DID NOT START · …`. It used to
+  stay `running` and live, so its page polled until a restart.
 - **A second backup merges** by the importer's rescan rule
   ([`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Rescanning"): it adds and updates,
   removes nothing, read state only moves forward, and what the owner set here
@@ -227,6 +245,10 @@ SCAN STARTS WHEN THE BACKUP’S IMPORT ENDS` (`SCAN_WAITS`), and `/api/scan`
   set through the app's own functions, and title and kind by hand (no door
   edits those, see "Premises" below), all survive a second import; a series
   gone from the app stays.
+- **A source's ADDED HIDDEN applies** to the series it creates, as at a
+  scan: a new series from a source with the switch on arrives hidden, and
+  one already here is left as it is (card c503; [`BROWSE.md`](BROWSE.md),
+  "ADDED HIDDEN at the importer").
 - **The library's band** follows it: `IMPORTING · MIHON BACKUP`,
   `162 OF 384 SERIES`, the count of arrivals on NEW. A backup's job counts
   **series written** in `scan_jobs.bytes_done`/`bytes_total` (its label,

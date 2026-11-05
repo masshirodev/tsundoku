@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { gzipSync } from 'node:zlib';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 // Before anything imports db.ts: getDb() reads this once and memoises.
@@ -8,7 +9,9 @@ process.env.DATABASE_PATH = ':memory:';
 
 const { getDb } = await import('$lib/server/db');
 const { runImport, sourcesIn, startScan } = await import('$lib/server/import');
-const { writeMihonFolder } = await import('./helpers/mihon-fixture');
+const { CATEGORIES, writeMihonFolder } = await import('./helpers/mihon-fixture');
+const { encode } = await import('./helpers/protobuf-writer');
+type Msg = import('./helpers/protobuf-writer').Msg;
 const { writeHentoidFolder } = await import('./helpers/hentoid-fixture');
 const { groupIntoSeries } = await import('$lib/server/books');
 const { markEntries } = await import('$lib/server/series');
@@ -509,5 +512,159 @@ describe('an empty series the owner touched is never pruned (c382)', () => {
 		expect(s.seasonLinks(linked)).toHaveLength(1);
 		expect(w.workOfSeries(book)?.id).toBe(work.work.id);
 		w.ungroup(work.work.id);
+	});
+});
+
+describe('a backup from a source with ADDED HIDDEN (c503, the owner’s (a))', () => {
+	// A library of its own, holding only a backup, with two sources of its own
+	// so the shared library's series are untouched: HIDING has the switch on,
+	// PLAIN has it off. Categories as the fixture's: 1 is "Good", 7 "Good+"
+	// (adult, so the backup hides it).
+	const HIDING = 9_100_000_000_000_000_001n;
+	const PLAIN = 9_100_000_000_000_000_002n;
+	const lib = mkdtempSync(join(tmpdir(), 'tsundoku-c503-'));
+	const manga = (src: bigint, title: string, category: number): Msg => [
+		[1, src],
+		[2, `/c503/${title.replace(/\s/g, '-').toLowerCase()}`],
+		[3, title],
+		[
+			16,
+			[
+				[1, `/c503/${title.replace(/\s/g, '-').toLowerCase()}/1`],
+				[2, 'Chapter 1'],
+				[9, { f32: 1 }]
+			]
+		],
+		[17, category]
+	];
+	const writeBackup = (list: Msg[]) => {
+		const dir = join(lib, 'Mihon', 'autobackup');
+		mkdirSync(dir, { recursive: true });
+		const msg: Msg = [
+			...list.map((m): [number, Msg] => [1, m]),
+			...CATEGORIES.map((name, i): [number, Msg] => [
+				2,
+				[[1, name], ...(i ? ([[2, i]] as Msg) : []), [3, i + 1]]
+			]),
+			[
+				101,
+				[
+					[1, 'Hiding Scans'],
+					[2, HIDING]
+				]
+			],
+			[
+				101,
+				[
+					[1, 'Plain Scans'],
+					[2, PLAIN]
+				]
+			]
+		];
+		writeFileSync(join(dir, 'app.mihon_2026-11-05_10-00.tachibk'), gzipSync(encode(msg)));
+	};
+	const hidden = (title: string) =>
+		(db().prepare(`SELECT hidden FROM series WHERE title = ?`).get(title) as { hidden: number })
+			.hidden;
+
+	it('can only add hiding: a new series from it arrives hidden, one the import merely updates does not', async () => {
+		const { setSourceFlag } = await import('$lib/server/engine/source-flags');
+		// Brought in before the switch was on: shown, as the backup says.
+		writeBackup([manga(HIDING, 'Before The Switch', 1)]);
+		await runImport(lib, { now: 1_800_002_000_000 });
+		expect(hidden('Before The Switch')).toBe(0);
+
+		setSourceFlag(String(HIDING), 'addedHidden', true, db());
+		writeBackup([
+			manga(HIDING, 'Before The Switch', 1),
+			manga(HIDING, 'Shown In The Backup', 1),
+			manga(HIDING, 'Hidden In The Backup', 7),
+			manga(PLAIN, 'Plain Shown', 1),
+			manga(PLAIN, 'Plain Hidden', 7)
+		]);
+		const r = await runImport(lib, { now: 1_800_002_100_000 });
+		// Every combination: the switch on or off, the backup showing or hiding,
+		// and a series that already existed.
+		expect({
+			before: hidden('Before The Switch'),
+			shown: hidden('Shown In The Backup'),
+			hiddenToo: hidden('Hidden In The Backup'),
+			plainShown: hidden('Plain Shown'),
+			plainHidden: hidden('Plain Hidden')
+		}).toEqual({ before: 0, shown: 1, hiddenToo: 1, plainShown: 0, plainHidden: 1 });
+		expect(r.sources[0]).toMatchObject({ seriesCreated: 4, seriesUpdated: 1 });
+		// The band counts what can be seen with reveal off: only Plain Shown.
+		const job = db().prepare(`SELECT series_found FROM scan_jobs WHERE id = ?`).get(r.jobId) as {
+			series_found: number;
+		};
+		expect(job.series_found).toBe(1);
+
+		// A second run changes nothing, and showing it again sticks: the switch
+		// is for what arrives, not a rule over what is there.
+		db().prepare(`UPDATE series SET hidden = 0 WHERE title = 'Shown In The Backup'`).run();
+		await runImport(lib, { now: 1_800_002_200_000 });
+		expect(hidden('Shown In The Backup')).toBe(0);
+		setSourceFlag(String(HIDING), 'addedHidden', false, db());
+	});
+
+	it('a download attached at once (attachWritten) hides its new series too, and BROWSE’s counts are asked again', async () => {
+		const { setSourceFlag } = await import('$lib/server/engine/source-flags');
+		const { attachWritten } = await import('$lib/server/import');
+		const { sourceUse } = await import('$lib/server/library-sources');
+		const { cbz, comicInfo } = await import('./helpers/mihon-fixture');
+		// tsundoku's own device: its backup names the series, and a chapter
+		// lands in its downloads, as the downloader writes them.
+		const device = join(lib, 'devices', 'tsundoku', 'Mihon');
+		const title = 'Downloaded While Hiding';
+		const dir = join(device, 'autobackup');
+		mkdirSync(dir, { recursive: true });
+		writeFileSync(
+			join(dir, 'app.mihon_2026-11-05_11-00.tachibk'),
+			gzipSync(
+				encode([
+					[1, manga(HIDING, title, 1)],
+					...CATEGORIES.map((name, i): [number, Msg] => [
+						2,
+						[[1, name], ...(i ? ([[2, i]] as Msg) : []), [3, i + 1]]
+					]),
+					[
+						101,
+						[
+							[1, 'Hiding Scans'],
+							[2, HIDING]
+						]
+					]
+				])
+			)
+		);
+		const chapters = join(device, 'downloads', 'Hiding Scans (EN)', title);
+		mkdirSync(chapters, { recursive: true });
+		const file = join(chapters, 'Chapter 1.cbz');
+		writeFileSync(
+			file,
+			cbz(
+				comicInfo({
+					series: title,
+					title: 'Chapter 1',
+					number: 1,
+					web: 'https://hiding.example/c503/downloaded-while-hiding',
+					source: 'Hiding Scans'
+				})
+			)
+		);
+		setSourceFlag(String(HIDING), 'addedHidden', true, db());
+		try {
+			// BROWSE has asked already: the counts are cached for a minute.
+			const before = sourceUse().get(String(HIDING)) ?? { series: 0, hidden: 0 };
+			expect(await attachWritten(lib, [file], 1_800_002_300_000)).toEqual([]);
+			expect(hidden(title)).toBe(1);
+			// Without `forgetSourceUse` the cached counts would stand for the minute.
+			expect(sourceUse().get(String(HIDING))).toEqual({
+				series: before.series + 1,
+				hidden: before.hidden + 1
+			});
+		} finally {
+			setSourceFlag(String(HIDING), 'addedHidden', false, db());
+		}
 	});
 });

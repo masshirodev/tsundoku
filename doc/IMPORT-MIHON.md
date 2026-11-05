@@ -135,6 +135,11 @@ The category is also kept as a `mihon:` tag (`mihon:Good+`), so nothing Mihon
 said is lost. With several categories, the highest rating wins and every shelf
 applies.
 
+**A source with ADDED HIDDEN on** (its settings page in BROWSE) hides a new
+series from it whatever its category says, so a backup can only add hiding: a
+"+" series is hidden either way, a series already in the library is left as
+it is (card c503; [`BROWSE.md`](BROWSE.md), "ADDED HIDDEN at the importer").
+
 **Kind** is doujin for a gallery source (below). Otherwise it comes from the
 series' own genres (Manhwa, Manhua, Webtoon → manhwa; Manga → manga), then
 from a webtoon reading mode, then from a short list of webtoon-only sources
@@ -278,7 +283,13 @@ plan meets the series a backup names, including a pair that already exists.
   hidden whole, never left with one part hidden (c389, doc/WORKS.md, "The one
   rule"). A fold never shows anything. A survivor already in a Work keeps
   that Work; the folder's membership is dropped with its row, and a Work left
-  with one series ends. No file moves. Its **title, kind and direction** are the one setting a fold cannot
+  with one series ends. That loss is the owner's grouping and the import
+  cannot put it back, so it is named: each source's summary lists it
+  (`dropped`, card c472), as `DROPPED FROM <WORK> · <survivor's title>`, with
+  `· THE WORK ENDED` when the Work was left with one series, and the server's
+  log carries the same line (`[import] …`, from a scan and from what a
+  download attaches). A survivor in no Work takes the folder's membership in
+  its place, and two parts of one Work stay in it: neither is a loss. No file moves. Its **title, kind and direction** are the one setting a fold cannot
   keep from both rows: a folder's series the owner renamed — its title no
   longer the name its folder builds — passes that name to the survivor, with
   the kind and direction set beside it, since the backup's row would otherwise
@@ -328,6 +339,38 @@ too; that is fixed in the delete as well ([`DELETING.md`](DELETING.md)).
 
 A device whose own backup still doesn't know the manga plans the folder key
 again, and finds the URL series by the key it left, until that device backs up.
+
+**A backup that names no source** (card c258). The backup's own source list
+is where a URL series gets its `source:` tag, and where a backup's plan learns
+the folder a download of it would sit in. A backup with no entry for a source
+leaves both out: its series carries only the source's number, in its key
+(`mihon:<number>:<url>`). Until wave 23 neither door could confirm the pair
+then, in either order (`adoptNamed` asks for the tag, `adoptFolder` for the
+folder), and the folder's series stayed beside the URL's for good. Now an
+untagged URL series is confirmed by a second signal (`unnamedSourceIs`,
+`fold.ts`), at both doors:
+
+- **the engine's own name for the number**, when tsundoku has that source
+  installed (`engine_sources`): the folder is this source's when its source
+  folder is that name, the rule "Matching downloads" uses. A name the engine
+  gives that the folder is not is a no;
+- otherwise **a chapter's own address under the exact title**: at least one
+  chapter whose ComicInfo `Web` ends with the backup's chapter path (or the
+  reverse). That is a source's own address for that chapter; tsundoku's own
+  downloads always write it.
+
+**A title and chapter numbers alone stay apart**, as a folder whose chapters
+the backup does not share does: `Ch. 1` is in every source's copy of a manga,
+so on a source nobody has named it is no evidence. Such a pair waits beside
+each other until a backup names the source, or the engine installs it. A URL
+series tagged with another source is still never the folder's. No column was
+added: the number is in the key already, and the second signal reads what the
+library holds. ComicInfo's `SourceMihon` was not the signal the card offered
+it as, because it is the folder's side's name (it is where a folder's plan
+already takes its source from), and the URL series keeps no copy of it to
+compare. `tests/devices-import-db.spec.ts`, "a backup that names no source",
+builds the untagged backup first and pins all three: by address, by the
+engine's name, and numbers alone staying apart, in both orders.
 
 ## Rescanning
 
