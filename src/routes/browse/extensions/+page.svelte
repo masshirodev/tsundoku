@@ -256,7 +256,7 @@
 							: ''}
 				sub={p.obsolete && !p.failed
 					? " · GONE FROM ITS REPOSITORY · STILL LOADS, WON'T UPDATE"
-					: `${p.failed || busy === key ? ' · ' : ''}1 SOURCE${p.series ? ` · ${count(p.series)} SERIES HERE` : ''}`}
+					: `${p.failed || busy === key ? ' · ' : ''}1 SOURCE${p.series ? ` · ${hereLine(p.series, p.hidden)}` : ''}`}
 				kind="NOVELS · {p.lang.toUpperCase() || '—'}"
 				version={p.update ? `${p.version} → ${p.update}` : p.version}
 				versionInk={!!p.update}

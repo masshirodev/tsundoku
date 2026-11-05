@@ -91,8 +91,11 @@ export function installedView(reveal: boolean, now = Date.now()): InstalledView 
  * the sources BROWSE may name, because the owner switched on its HIDDEN
  * SOURCE or because it is mostly hidden (card c435; doc/BROWSE.md, "Hidden
  * means hidden"). Plugin ids, without `ln:`. Inside reveal, none.
- * `pluginView` and `pluginsAvailable` (novels/plugins.ts) take no reveal, so
- * EXTENSIONS asks this, as `installedView` asks `browseSources` for packages.
+ * `pluginView` (novels/plugins.ts) counts each plugin's series through reveal
+ * (c506) but lists every plugin, and `pluginsAvailable` takes no hidden
+ * source into account, so EXTENSIONS asks this, as `installedView` asks
+ * `browseSources` for packages. It reads the app's database (`getDb()`), as
+ * `browseSources` and `sourceUse` do.
  */
 export function pluginsHidden(reveal: boolean): Set<string> {
 	if (reveal) return new Set();
@@ -129,8 +132,11 @@ export function pluginsShown<R extends { id: string }>(
  * AVAILABLE's NOVELS tab (`pluginsAvailable`) without an installed plugin
  * reveal hides: not a row, not in "+ N IN OTHER LANGUAGES", not in the
  * tab's count. A plugin not installed is never hidden: it has no use yet.
+ * It takes no database (c506): what is hidden is read from the app's own,
+ * by `pluginsHidden`, so a `db` passed here would have answered rows from one
+ * database with switches from another.
  */
-export function novelsAvailable(opts: Parameters<typeof pluginsAvailable>[0]) {
+export function novelsAvailable(opts: Omit<Parameters<typeof pluginsAvailable>[0], 'db'>) {
 	const view = pluginsAvailable(opts);
 	const hidden = pluginsHidden(!!opts.reveal);
 	if (hidden.size === 0) return view;
@@ -145,7 +151,7 @@ export function novelsAvailable(opts: Parameters<typeof pluginsAvailable>[0]) {
 	return {
 		...view,
 		rows,
-		total: view.total - novelListings(opts.db).filter((l) => hidden.has(l.id)).length,
+		total: view.total - novelListings().filter((l) => hidden.has(l.id)).length,
 		otherLanguages: view.otherLanguages - hiddenElsewhere
 	};
 }

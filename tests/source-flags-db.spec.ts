@@ -268,11 +268,11 @@ describe('HIDDEN SOURCE', () => {
 		try {
 			// What the route draws and counts (INSTALLED) and what UPDATE ALL reaches (`updates`).
 			const installed = (reveal: boolean) => {
-				const v = pluginsShown(pluginView(NOW), reveal);
+				const v = pluginsShown(pluginView(reveal, NOW), reveal);
 				return [...v.needsHand, ...v.updates, ...v.current].map((r) => r.id);
 			};
 			const updating = (reveal: boolean) =>
-				pluginsShown(pluginView(NOW), reveal).updates.map((r) => r.id);
+				pluginsShown(pluginView(reveal, NOW), reveal).updates.map((r) => r.id);
 			const available = (reveal: boolean, langs: string[] | null = null) =>
 				novelsAvailable({
 					languages: ['en'],
@@ -299,6 +299,60 @@ describe('HIDDEN SOURCE', () => {
 			expect(available(true).total).toBe(1);
 		} finally {
 			db.prepare(`DELETE FROM novel_repos WHERE id = ?`).run(repo);
+		}
+	});
+
+	it('counts a shown plugin’s series as reveal lets them be seen, as a Mihon package’s (c506)', () => {
+		// Beside each family's one visible series, a second one hidden for its
+		// own reasons: one of two is not "mostly hidden", so both stay shown.
+		const extra = [
+			write(keyOf(MANGA, '/manga/hidden'), 'Hidden From The Manga Source', 'manga'),
+			write(novelKeyOf(PLUGIN, '/novel/hidden'), 'Hidden From The Plugin', 'novel')
+		];
+		db.prepare(`UPDATE series SET hidden = 1 WHERE id IN (?, ?)`).run(...extra);
+		forgetSourceUse();
+		try {
+			const plugin = (reveal: boolean) => {
+				const v = pluginsShown(pluginView(reveal, NOW), reveal);
+				return [...v.needsHand, ...v.updates, ...v.current].find((r) => r.id === PLUGIN);
+			};
+			const pkg = (reveal: boolean) => {
+				const v = installedView(reveal, NOW);
+				return [...v.needsHand, ...v.updates, ...v.current].find((r) => r.pkg === 'en.manga');
+			};
+			const counts = (r: { series: number; hidden: number } | undefined) =>
+				r && { series: r.series, hidden: r.hidden };
+			expect(counts(plugin(false))).toEqual({ series: 1, hidden: 0 });
+			expect(counts(plugin(true))).toEqual({ series: 2, hidden: 1 });
+			// The oracle: EXTENSIONS' Mihon side, and BROWSE's own count of the plugin.
+			for (const reveal of [false, true]) {
+				expect(counts(plugin(reveal))).toEqual(counts(pkg(reveal)));
+				expect(counts(plugin(reveal))).toEqual(
+					counts(browse.browseSources(reveal).find((s) => s.id === NOVEL))
+				);
+			}
+
+			// A HIDDEN SOURCE plugin keeps today's answer: listed, and counted, only in reveal.
+			flags.setSourceFlag(NOVEL, 'hidden', true);
+			flags.setSourceFlag(MANGA, 'hidden', true);
+			expect(plugin(false)).toBeUndefined();
+			expect(pkg(false)).toBeUndefined();
+			expect(counts(plugin(true))).toEqual({ series: 2, hidden: 1 });
+			expect(counts(plugin(true))).toEqual(counts(pkg(true)));
+			flags.setSourceFlag(NOVEL, 'hidden', false);
+			flags.setSourceFlag(MANGA, 'hidden', false);
+
+			// Mostly hidden (both of its two): the same, without the switch.
+			db.prepare(`UPDATE series SET hidden = 1 WHERE id IN (?, ?)`).run(mangaSeries, novelSeries);
+			forgetSourceUse();
+			expect(plugin(false)).toBeUndefined();
+			expect(pkg(false)).toBeUndefined();
+			expect(counts(plugin(true))).toEqual({ series: 2, hidden: 2 });
+			expect(counts(plugin(true))).toEqual(counts(pkg(true)));
+		} finally {
+			db.prepare(`UPDATE series SET hidden = 0 WHERE id IN (?, ?)`).run(mangaSeries, novelSeries);
+			db.prepare(`DELETE FROM series WHERE id IN (?, ?)`).run(...extra);
+			forgetSourceUse();
 		}
 	});
 

@@ -275,12 +275,17 @@ of its series, its settings, and a tag's search on it. Both are one field,
 `BrowseSource.mostlyHidden` (with `hiddenSource` saying which), so every door
 that asks it (BROWSE, RECENT, EXTENSIONS, the icons, `/search`'s list, the
 check's poll) closes for both. EXTENSIONS asks it for LNReader's plugins
-too, whose own lists (`pluginView`, `pluginsAvailable`) take no reveal: the
-route filters them through `pluginsHidden`, `pluginsShown` and
+too, whose own lists (`pluginView`, `pluginsAvailable`) list every plugin:
+the route filters them through `pluginsHidden`, `pluginsShown` and
 `novelsAvailable` (`src/lib/server/engine/manage.ts`), so a hidden plugin is
 not on INSTALLED, not in its count, not in UPDATE ALL and not on AVAILABLE's
 NOVELS tab outside reveal (card c435, round 2). A result that is a hidden series isn't
-sent. Counts are what reveal lets the viewer see. A twin of a series from such
+sent. Counts are what reveal lets the viewer see: a shown plugin's "N SERIES
+HERE" on INSTALLED counts only its visible series outside reveal, and inside
+reveal says how many are hidden ("2 SERIES HERE, 1 HIDDEN"), as a Mihon
+package's does (`pluginView(reveal)`, c506; until wave 24 it counted the
+hidden ones too). These read the app's database: `novelsAvailable` takes no
+`db`, since `pluginsHidden` would have read the switches from another one. A twin of a series from such
 a source is still SAME TITLE IN LIBRARY (the series is visible), but the
 source isn't named: "FROM TOONILY" said what reveal hides. That was true of
 SEARCH THE SOURCES too, before this, and is fixed for both
@@ -363,7 +368,12 @@ next.
 **Filters** (`src/lib/library/ext-filters.ts`; the owner, 2026-10-31): FILTER
 opens the library's filter panel (Library Filters 3, `ExtFilter.svelte`), every
 choice a link in the URL, so it works without script; choosing keeps it open,
-DONE closes it, ✕ CLEAR ALL clears it.
+DONE closes it, ✕ CLEAR ALL clears it. A tap before the page hydrates keeps
+it open, as the library's does (doc/FILTERS.md, c105): the `<details>` is the
+truth, read on mount, followed by `toggle` and closed through the element. It
+used `bind:open` until wave 24 (c473), whose hydration wrote `false` back and
+shut the panel under the finger; `tests/browse-extensions.e2e.ts` taps FILTER
+with the app's scripts held back.
 
 - **LANGUAGE** (`?lang=en,fr`): several at once, starting from SETTINGS'
   languages (MINE goes back to them) and only for the visit; SETTINGS stays
