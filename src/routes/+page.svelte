@@ -852,35 +852,6 @@
 		(waiting.phase === 'outline' || waiting.phase === 'stalled') && waiting.to.kind === 'library'
 	);
 
-	/*
-	 * The outline says LOADING where SORT and ↓ / ↑ were, so a sort picked by
-	 * the remote that takes past 1 s unmounted the cell holding focus, and the
-	 * mark was on nothing when SORT came back (tv-library-top's "the remote
-	 * reaches SORT…", red 4 in 10 loaded; wave 24's probe saw focus go to the
-	 * body at the outline's first frame and stay there). Which of the two had
-	 * it is noted before the outline is drawn (`pre`), and focus goes back to
-	 * it once SORT is, unless something else has taken focus meanwhile.
-	 */
-	let sortFocus = -1;
-	$effect.pre(() => {
-		if (!outlined) return;
-		untrack(() => {
-			const sort = document.querySelector('.sort');
-			const at = document.activeElement;
-			sortFocus =
-				sort && at ? [...sort.querySelectorAll('button')].indexOf(at as HTMLButtonElement) : -1;
-		});
-	});
-	$effect(() => {
-		if (outlined || sortFocus === -1) return;
-		const at = sortFocus;
-		sortFocus = -1;
-		const now = document.activeElement;
-		if (now && now !== document.body) return;
-		const buttons = document.querySelectorAll<HTMLElement>('.sort button');
-		(buttons[at] ?? buttons[0])?.focus({ preventScroll: true });
-	});
-
 	// ---- on the tile ------------------------------------------------------
 	// FAV and the rating are edited on the cover itself (see CoverTile). The
 	// tile shows the change at once and saves behind it. A write that fails
@@ -1714,12 +1685,15 @@
 				{#if nFilters > 0}<span class="desk-count">{outOf} ·&nbsp;</span>{/if}
 				{#if selecting}
 					TAP TO ADD
-				{:else if outlined}
-					LOADING
 				{:else if scanning}
-					NEWEST FIRST
+					{outlined ? 'LOADING' : 'NEWEST FIRST'}
 				{:else}
-					<span class="sort">
+					<!-- A sort past 1 s outlines the grid: SORT stays drawn, dimmed, with
+					     LOADING beside it, so the cell holding focus never leaves the page
+					     (c560; until then LOADING took its place and the mark fell to the
+					     body for as long as the outline lasted). -->
+					{#if outlined}<span class="loading">LOADING</span>{/if}
+					<span class="sort" class:busy={outlined} aria-busy={outlined}>
 						<ChoiceMenu label="Sort" choices={SORT_CHOICES} value={data.sort} onpick={sortTo} />
 						{#if data.sort !== 'random'}
 							<button type="button" class="dir" onclick={flipDir} aria-label="Reverse order"
@@ -2429,6 +2403,13 @@
 		height: 32px;
 		border: 1px solid var(--line-2);
 		color: var(--text-1);
+	}
+	/* Loading (c560): still there and still the cell focus is on, dimmed. */
+	.sort.busy {
+		opacity: 0.5;
+	}
+	.loading {
+		margin-right: 12px;
 	}
 	.sort .dir {
 		display: flex;

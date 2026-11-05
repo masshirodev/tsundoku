@@ -353,13 +353,17 @@ meant tapping through the others, and nothing ran the other way round.
   the cell from the shelf tabs with ↑. Until c432 it was a native `<select>`,
   whose open list was the system's own and whose ←/→ changed the sort in
   place on a TV. A sort that takes past 1 s puts the grid in outline, and
-  the label says LOADING where SORT and ↓ / ↑ were, taking the focused cell
-  with it: the page notes which of the two had the mark and gives it back
-  when SORT is drawn again, unless the mark has gone somewhere else in
-  between (wave 24; before it the mark was left on nothing, red 4 in 10 in
-  loaded runs). `tests/library-top-sort.e2e.ts` and
-  `tests/tv-library-top.e2e.ts`, which holds a sort's data 2.5 s to put the
-  outline up on purpose.
+  the label says LOADING beside SORT and ↓ / ↑, which stay drawn, dimmed to
+  0.5 and `aria-busy` (c560): the cell holding the mark never leaves the
+  page, so OK, ↓ or Enter pressed while it loads still lands, and a second
+  pick simply takes over the first. Until c560 LOADING took their place, the
+  focused cell left the page and the mark was on the body for as long as the
+  outline lasted (red 4 in 10 in loaded runs); wave 24 gave it back once SORT
+  was drawn again, which c560 made unnecessary and removed. The cell keeps
+  naming the sort it is leaving until the new one has loaded.
+  `tests/library-top-sort.e2e.ts` and `tests/tv-library-top.e2e.ts` hold a
+  sort's data 2.5 s to put the outline up on purpose, and read where focus
+  is at every frame of it.
 - **PROGRESS** (`sort=progress`) is three tiers, as `progressOf` decides
   them: begun and not finished (one page opened is begun), by last read;
   then never opened, newest added first; then the rest, the finished, by

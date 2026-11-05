@@ -122,34 +122,70 @@ test.describe('a sort that takes past 1 s', () => {
 			await route.continue().catch(() => undefined);
 		});
 
-	test('the mark comes back to SORT, and to ↓ / ↑, after the outline said LOADING (wave 24)', async ({
+	/** From now on, every frame: whether the label says LOADING, and whether the mark is in SORT. */
+	const watchFocus = (page: Page) =>
+		page.evaluate(() => {
+			const w = window as unknown as { seen: { loading: boolean; inSort: boolean }[] };
+			w.seen = [];
+			const frame = () => {
+				const loading = [...document.querySelectorAll('.right')].some((r) =>
+					r.textContent?.includes('LOADING')
+				);
+				w.seen.push({ loading, inSort: !!document.activeElement?.closest('.sort') });
+				if (w.seen.length < 100_000) requestAnimationFrame(frame);
+			};
+			requestAnimationFrame(frame);
+		});
+	const framesSeen = (page: Page) =>
+		page.evaluate(
+			() => (window as unknown as { seen: { loading: boolean; inSort: boolean }[] }).seen
+		);
+
+	test('SORT stays drawn under the outline’s LOADING, and the mark never leaves it (c560)', async ({
 		page
 	}) => {
-		// What loaded runs did to `:49` 4 times in 10, forced: the outline
-		// replaces SORT with LOADING at 1 s, with the cell focused.
+		// What loaded runs did to `:49` 4 times in 10, forced: the outline goes
+		// up at 1 s with the cell focused. Until c560 it put LOADING in SORT's
+		// place, the focused cell left the page and the mark was on the body
+		// until SORT came back (wave 24 gave it back afterwards).
 		await page.goto('/?sort=title');
 		await toSort(page);
 		await slow(page, 'sort=rating', 2500);
 		await page.keyboard.press('Enter');
 		await expect.poll(() => focused(page)).toBe('TITLE');
 		await page.keyboard.press('ArrowDown');
+		await watchFocus(page);
 		await page.keyboard.press('Enter');
-		// The outline is up and SORT is not drawn: the case is the one on record.
 		await expect(page.getByText('LOADING', { exact: true })).toBeVisible();
-		await expect(page.locator('.sort')).toHaveCount(0);
-		await expect(page).toHaveURL(/sort=rating/);
+		// Drawn, dimmed, and the cell with the mark: OK or ↓ now still lands.
 		await expect(page.locator('.sort')).toHaveCount(1);
+		await expect(page.locator('.sort')).toHaveAttribute('aria-busy', 'true');
+		await expect(page).toHaveURL(/sort=rating/);
+		await expect(page.locator('.sort')).not.toHaveAttribute('aria-busy', 'true');
 		await expect.poll(() => focused(page)).toBe('Sort, RATING');
+		const sorting = await framesSeen(page);
+		expect(sorting.filter((f) => f.loading).length, 'frames under LOADING').toBeGreaterThan(0);
+		expect(
+			sorting.filter((f) => !f.inSort),
+			'frames with the mark off SORT'
+		).toEqual([]);
 
 		// ↓ / ↑ beside it, the same way.
 		await page.keyboard.press('ArrowRight');
 		await expect.poll(() => focused(page)).toBe('Reverse order');
 		await slow(page, 'dir=', 2500);
+		await watchFocus(page);
 		await page.keyboard.press('Enter');
 		await expect(page.getByText('LOADING', { exact: true })).toBeVisible();
 		await expect(page).toHaveURL(/dir=/);
-		await expect(page.locator('.sort')).toHaveCount(1);
+		await expect(page.locator('.sort')).not.toHaveAttribute('aria-busy', 'true');
 		await expect.poll(() => focused(page)).toBe('Reverse order');
+		const turning = await framesSeen(page);
+		expect(turning.filter((f) => f.loading).length, 'frames under LOADING').toBeGreaterThan(0);
+		expect(
+			turning.filter((f) => !f.inSort),
+			'frames with the mark off SORT'
+		).toEqual([]);
 	});
 });
 
