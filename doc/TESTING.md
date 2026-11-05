@@ -431,7 +431,14 @@ workstation during gates. What it assumes, and the rules that follow (c439):
   slots at work), every one green, took 3.4-8.7 s to control (the slowest:
   `tablet-landscape`). Each run puts its figure on the result
   (`controlled after`, in the JSON or HTML report), so a loaded whole run
-  reports it as well. In wave 22's loaded whole run (load average 17-54)
+  reports it as well, and since c563 a red one too: a `test.afterEach`
+  writes it, as `not within N ms` when control never came, whether the
+  wait's own 90 s ran out or the test's budget did (a case's code stops at
+  its first throw, and none of it runs after a timeout). The case's budget
+  is 150 s, the wait's 90 s plus 30 s for the `goto` before it (11.5 s at
+  worst, `tv-library-top`'s at a load of about 55) and 30 s for the two CDP
+  calls after, so the wait runs its whole 90 s and fails as itself: until
+  c563 it was 120 s for all three. In wave 22's loaded whole run (load average 17-54)
   the four took 14.2-18.9 s (`phone` and `tablet-portrait` the slowest),
   inside the old 30 s that waves 19 and 20 saw run out at loads past 40; the
   90 s stays for those, the whole run's contexts all precaching at once. Wave 20 raised `tv-player`'s
