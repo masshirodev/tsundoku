@@ -626,6 +626,63 @@ test('a FILTER choice from the pinned band opens the new results at their start;
 	expect(await windowY(page)).toBe(top);
 });
 
+test('a press on the rating blocks that chooses nothing leaves no note: a kind chosen later at the top moves nothing (c557, round 2)', async ({
+	page
+}, info) => {
+	const filter = page.locator(isDesktop(info.project.name) ? '.filter-desk' : '.kfilter');
+	const panel = filter.getByRole('group', { name: 'Filters' });
+	const blocks = panel.locator('.blocks');
+	const block = blocks.getByRole('link', { name: 'At least 3+' });
+
+	await page.goto(`${BASE}/?shelf=all&sort=title`);
+	await expect(page.locator('.grid .tile').first()).toBeVisible();
+	const url = page.url();
+	await scrollScreens(page, 1.5);
+	await expect(kinds(page)).toHaveClass(/pinned/);
+	await filter.locator('summary').click();
+	await expect(panel).toBeVisible();
+
+	// Three presses on the blocks, none of which RatingSlider acts on: a
+	// right-click (its drag takes the main button only), a key a desktop or
+	// a tablet does not move them with (← moves them on a TV only), and a
+	// drag the browser cancels, which commits nothing.
+	await block.click({ button: 'right' });
+	await page.keyboard.press('Escape');
+	// Escape may have shut the panel: open again for the next two.
+	if (!(await panel.isVisible())) await filter.locator('summary').click();
+	await expect(panel).toBeVisible();
+	await block.focus();
+	await page.keyboard.press('ArrowLeft');
+	const track = blocks.locator('.track');
+	const box = (await block.boundingBox())!;
+	await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+	await page.mouse.down();
+	await track.dispatchEvent('pointercancel');
+	await page.mouse.up();
+	// None of them went anywhere.
+	await page.waitForTimeout(600); // nothing is to happen: a while for it not to
+	expect(page.url()).toBe(url);
+
+	// Closed, and back at the top: the band lies where it is, unpinned.
+	if (await panel.isVisible()) await panel.getByRole('button', { name: 'DONE' }).click();
+	await expect(panel).toBeHidden();
+	await page.evaluate(() => scrollTo({ top: 0, behavior: 'instant' }));
+	await expect(kinds(page)).not.toHaveClass(/pinned/);
+	expect(await windowY(page)).toBe(0);
+
+	// A kind from the unpinned band: its cells keep the scroll, and no FILTER
+	// note left by the blocks may land it at the band (c436: unpinned,
+	// nothing moves).
+	const cell = kinds(page).locator('.kscroll a:not([aria-current])').first();
+	const kind = new URL((await cell.getAttribute('href'))!, BASE).searchParams.get('kind')!;
+	const chosen = kinds(page).locator(`a[data-focus-id="kind-${kind}"]`);
+	await chosen.click();
+	await page.waitForURL(new RegExp(`kind=${kind}`));
+	await expect(chosen).toHaveAttribute('aria-current', 'true');
+	await page.waitForTimeout(600); // nothing is to happen: a while for it not to
+	expect(await windowY(page)).toBe(0);
+});
+
 // ---- c590: an open menu over the KIND band ------------------------------------------
 
 const sortCell = (page: Page) => page.getByRole('button', { name: /^Sort, / });

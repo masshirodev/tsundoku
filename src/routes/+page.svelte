@@ -1128,6 +1128,8 @@
 		// A click that opens a new tab or window navigates nothing here.
 		const elsewhere = e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey;
 		landKind = bandPinned && !elsewhere;
+		// The kind's own landing replaces any FILTER note (c557's round 2).
+		landFilterFrom = null;
 	}
 	afterNavigate(() => {
 		if (!landKind) return;
@@ -1151,11 +1153,22 @@
 	 * so a choice already on leaves the page where it is. Unpinned, nothing
 	 * moves. The rating blocks' own links scroll to the top, and land the
 	 * same way.
+	 *
+	 * The note lives only as long as the press or key that made it (round 2):
+	 * a press on the blocks that navigates nothing (a right-click, a key the
+	 * slider ignores, a cancelled drag) left it waiting for the next
+	 * navigation, and a kind cell clicked later from the unpinned band then
+	 * jumped to the band. So every new press or key anywhere drops it first
+	 * (the window's capture runs before the panel's, which notes it again
+	 * when that press is itself a choice), and a kind cell replaces it.
 	 */
 	let landFilterFrom: string | null = null;
 	function chooseFilter(e?: MouseEvent) {
 		const elsewhere = !!e && (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey);
 		landFilterFrom = bandPinned && !elsewhere ? location.href : null;
+	}
+	function dropFilterNote() {
+		landFilterFrom = null;
 	}
 	afterNavigate((nav) => {
 		const from = landFilterFrom;
@@ -1273,7 +1286,12 @@
 
 <svelte:head><title>tsundoku</title></svelte:head>
 
-<svelte:window bind:scrollY={winY} bind:innerHeight={winH} />
+<svelte:window
+	bind:scrollY={winY}
+	bind:innerHeight={winH}
+	onpointerdowncapture={dropFilterNote}
+	onkeydowncapture={dropFilterNote}
+/>
 
 <div class="library" class:selecting class:has-band={!!batch}>
 	{#if modalOpen && offer}<UpdateModal {offer} onlater={snooze} />{/if}

@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { MediaQuery } from 'svelte/reactivity';
+	import { TV } from '$lib/device.svelte';
 	import RatingSlider from './RatingSlider.svelte';
 	import {
 		activeCount,
@@ -83,7 +85,9 @@
 		 * or the rating blocks, with the click when there is one. Called before
 		 * the navigation it starts, so the caller can say where the page should
 		 * land once it has drawn (the library's pinned band); it navigates
-		 * nothing itself. A person's page and BROWSE's filter pass none.
+		 * nothing itself. A press on the rating blocks passes its PointerEvent,
+		 * so a right-click or a modified one can be told apart. A person's page
+		 * and BROWSE's filter pass none.
 		 */
 		onchoose?: (e?: MouseEvent) => void;
 	} = $props();
@@ -95,6 +99,8 @@
 	 * a fast first tap came to nothing. Read once on mount, kept by `toggle`,
 	 * and closed through the element.
 	 */
+	const tvScreen = new MediaQuery(TV, false);
+
 	let details = $state<HTMLDetailsElement | null>(null);
 	let open = $state(false);
 	let hydrated = $state(false);
@@ -182,14 +188,19 @@
 					{#if row.key === 'rating'}
 						<!-- The blocks are RatingSlider's own links and drag, which call
 						     nothing back: a press on them, or a key that moves them, is a
-						     choice being made (c557). -->
+						     choice being made (c557). Only what RatingSlider acts on: the
+						     press goes with its button (a right-click drags nothing), Enter
+						     follows the focused block's link, and ← → move it on a TV only;
+						     Home, End and Space move nothing anywhere. -->
 						<div
 							class="blocks"
 							role="presentation"
-							onpointerdowncapture={() => onchoose?.()}
+							onpointerdowncapture={(e) => onchoose?.(e)}
 							onkeydowncapture={(e) => {
-								if (['ArrowLeft', 'ArrowRight', 'Home', 'End', 'Enter', ' '].includes(e.key))
-									onchoose?.();
+								const moves =
+									e.key === 'Enter' ||
+									(tvScreen.current && (e.key === 'ArrowLeft' || e.key === 'ArrowRight'));
+								if (moves && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) onchoose?.();
 							}}
 						>
 							<RatingSlider
