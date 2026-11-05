@@ -13,8 +13,15 @@ test('Chromium finds nothing stopping an install', async ({ page, browserName })
 	// contexts alone at a load average of 25, and past the old 30 s on one to
 	// four device projects in every loaded whole run of waves 19 and 20. Slow,
 	// not stuck, so it gets offline-flow's measured 90 s (c439, c477).
+	const asked = Date.now();
 	await page.waitForFunction(() => navigator.serviceWorker?.controller !== null, null, {
 		timeout: 90_000
+	});
+	// On the result, so every loaded run reports the figure the 90 s is set
+	// against (c497; doc/TESTING.md, "Load"), not only the run that measured it.
+	test.info().annotations.push({
+		type: 'controlled after',
+		description: `${Date.now() - asked} ms`
 	});
 	const cdp = await page.context().newCDPSession(page);
 	const { installabilityErrors } = await cdp.send('Page.getInstallabilityErrors');
