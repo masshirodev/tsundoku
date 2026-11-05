@@ -6,7 +6,6 @@ import type { PlannedSeries } from '$lib/import/plan';
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';
 process.env.ENGINE_TOKEN = 't';
-delete process.env.SUWAYOMI_URL;
 
 // A novel's check is solved by the app, which checks the address is on the
 // internet before the solver hears of it (novels/solver.ts, net-guard.ts).

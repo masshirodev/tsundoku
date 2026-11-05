@@ -52,7 +52,6 @@ export default async function setup() {
 				BACKUP_DIR: join(FRIEND_HOME, 'backups'),
 				// Nothing real: no engine, no AniList.
 				ENGINE_URL: 'http://127.0.0.1:1',
-				SUWAYOMI_URL: '',
 				TSUNDOKU_ANILIST: 'off'
 			},
 			stdio: 'ignore'

@@ -4,7 +4,6 @@ import type { PlannedEntry, PlannedSeries } from '$lib/import/plan';
 // Before anything imports db.ts: getDb() reads this once and memoises.
 process.env.DATABASE_PATH = ':memory:';
 process.env.ENGINE_TOKEN = 't';
-delete process.env.SUWAYOMI_URL;
 
 const { getDb } = await import('$lib/server/db');
 const { ensureRoot, writeSeries } = await import('$lib/server/import/write');
