@@ -4,6 +4,25 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<title>Pair this TV · tsundoku</title>
+		<script>
+			/*
+			 * Which app is holding this page, before anything paints (c521;
+			 * doc/PHONE-APP.md). The width alone can't say: a TV is pinned at 960
+			 * CSS px and a tablet is wider. `data-form` is the layout (the TV's
+			 * frame, or the phone's and tablet's flow, split at 600 px);
+			 * `data-device` is the word the copy uses, from the screen's short
+			 * side, so a phone turned on its side is still a phone. No bridge
+			 * (this file opened in a browser) is the TV, as it always was.
+			 */
+			(function () {
+				var b = window.TsundokuTV;
+				var form = b && typeof b.form === 'function' ? b.form() : 'tv';
+				var root = document.documentElement;
+				root.dataset.form = form === 'mobile' ? 'mobile' : 'tv';
+				var side = Math.min(screen.width || 0, screen.height || 0);
+				root.dataset.device = form !== 'mobile' ? 'tv' : side < 600 ? 'phone' : 'tablet';
+			})();
+		</script>
 		<!--
 			The TV app's own screens (c236; TV-Pair.dc.html 9A, 9B, 9D). 9C and
 			9E are the computer's `/pair/tv`, because the code is posted there and
@@ -15,6 +34,13 @@
 			and 28 top and bottom, a 56px header, type 15/17/20/28/36, targets 56,
 			the 4px+3px ink focus mark. No font is shipped: the TV's WebView uses
 			its own (Roboto), so the wordmark is the one exception to Plex.
+
+			On a phone or a tablet (c521; PhoneApp-*.dc.html) the same screens
+			reflow: under 600 px a column, its one action pinned at the bottom
+			(the keyboard's top edge when it is open: the app pads the WebView
+			by it, Insets.kt); from 600 the TV's arrangement in flow at a 24 px
+			margin. Every rule for them is under html[data-form='mobile'], so the
+			TV's frame below is exactly what it was.
 
 			The bridge (`window.TsundokuTV`) gives the page the TV's own address,
 			a probe of a candidate, and the memory of the one that answered
@@ -507,6 +533,416 @@
 			[hidden] {
 				display: none !important;
 			}
+
+			/* ---- c521 · the phone and the tablet ---------------------------------
+			   PhoneApp-Phone.dc.html and PhoneApp-Tablet.dc.html, their literal
+			   values. The camera band and the gesture strip the design draws
+			   inside its frame (24 and 16) are the app's padding here, not the
+			   page's (Insets.kt). Text sizes are the design's at 100%: Android's
+			   font size scales them through the WebView's textZoom (Form.kt),
+			   which is why every height below is a min-height. */
+			html[data-form='mobile'] {
+				touch-action: manipulation;
+			}
+			@media (prefers-color-scheme: light) {
+				/* src/lib/styles/colors.css, light (Paper / ink): before pairing
+				   the app follows the phone's own setting (9C · LIGHT). */
+				html[data-form='mobile'] {
+					--surface-page: oklch(0.965 0.006 95);
+					--surface-panel: oklch(0.93 0.008 95);
+					--surface-inverse: oklch(0.2 0.01 95);
+					--line-1: oklch(0.86 0.008 95);
+					--line-2: oklch(0.8 0.01 95);
+					--text-1: oklch(0.2 0.01 95);
+					--text-2: oklch(0.5 0.012 95);
+					--text-prose: oklch(0.35 0.01 95);
+					--text-inverse: oklch(0.965 0.006 95);
+					--accent: oklch(0.52 0.13 150);
+					--on-accent: #ffffff;
+				}
+			}
+			html[data-form='mobile'] main {
+				width: auto;
+				height: 100%;
+				display: flex;
+				flex-direction: column;
+			}
+			html[data-form='mobile'] .safe,
+			html[data-form='mobile'] .bar,
+			html[data-form='mobile'] .band,
+			html[data-form='mobile'] .others-label,
+			html[data-form='mobile'] .others {
+				position: static;
+				left: auto;
+				right: auto;
+				width: auto;
+			}
+			html[data-form='mobile'] .bar {
+				flex-shrink: 0;
+				height: auto;
+				align-items: stretch;
+				gap: 0;
+				padding: 0;
+			}
+			html[data-form='mobile'] .wm {
+				flex: 1;
+				align-items: center;
+			}
+			html[data-form='mobile'] .wm b {
+				font: 500 18px/1 var(--font-mono);
+			}
+			html[data-form='mobile'] .grow {
+				display: none;
+			}
+			html[data-form='mobile'] .step {
+				display: flex;
+				align-items: center;
+				border-left: var(--hairline);
+				font: 500 12px/1.3 var(--font-mono);
+				letter-spacing: 0.04em;
+			}
+			/* A screen is the column between the header and the bottom edge; it
+			   scrolls rather than clips when the text is at 130%. */
+			html[data-form='mobile'] .screen,
+			html[data-form='mobile'] #connect {
+				flex: 1;
+				min-height: 0;
+				overflow-y: auto;
+				display: flex;
+				flex-direction: column;
+			}
+			html[data-form='mobile'] .screen[hidden],
+			html[data-form='mobile'] #connect[hidden] {
+				display: none !important;
+			}
+			html[data-form='mobile'] .band {
+				min-height: 0;
+				flex-shrink: 0;
+			}
+			html[data-form='mobile'] .band > div {
+				white-space: normal;
+				overflow: visible;
+			}
+			html[data-form='mobile'] .btn {
+				display: flex;
+				height: auto;
+				min-height: 56px;
+				font: 500 15px/1.2 var(--font-mono);
+				letter-spacing: 0.04em;
+				text-align: center;
+			}
+			/* A finger is not a remote: the mark shows only for a keyboard. */
+			html[data-form='mobile'] [data-focus]:focus,
+			html[data-form='mobile'] [data-focus].cell:focus,
+			html[data-form='mobile'] [data-focus].srv:focus,
+			html[data-form='mobile'] .address input:focus {
+				box-shadow: none;
+			}
+			html[data-form='mobile'] [data-focus]:focus-visible {
+				box-shadow: var(--focus-ring);
+			}
+			html[data-form='mobile'] .address-label,
+			html[data-form='mobile'] .lost-label,
+			html[data-form='mobile'] .rename-label,
+			html[data-form='mobile'] .others-label {
+				height: auto;
+				padding-bottom: 0;
+			}
+			html[data-form='mobile'] .address {
+				height: auto;
+			}
+			html[data-form='mobile'] .address input {
+				border-color: var(--accent);
+				caret-color: var(--accent);
+			}
+			html[data-form='mobile'] .address input.whole {
+				margin: 0;
+				border: 0;
+			}
+			html[data-form='mobile'] .rename-field {
+				width: 100%;
+			}
+
+			/* ---- the phone: one column, the action under the thumb ---------- */
+			@media (max-width: 599.98px) {
+				html[data-form='mobile'] .bar {
+					min-height: 56px;
+				}
+				html[data-form='mobile'] .wm {
+					padding: 0 16px;
+				}
+				/* 積ん読 and the long step don't fit 360 at 130%. */
+				html[data-form='mobile'] .wm span {
+					display: none;
+				}
+				html[data-form='mobile'] .step {
+					padding: 0 16px;
+				}
+				html[data-form='mobile'] .screen,
+				html[data-form='mobile'] #connect {
+					gap: 12px;
+					padding: 20px 16px 12px;
+				}
+				/* A band runs edge to edge under the header. */
+				html[data-form='mobile'] .band {
+					flex-direction: column;
+					align-items: flex-start;
+					justify-content: flex-start;
+					gap: 4px;
+					margin: -20px -16px 0;
+					padding: 12px 16px;
+					font: 500 14px/1.35 var(--font-mono);
+				}
+				html[data-form='mobile'] .band .meta {
+					font: 400 12px/1.5 var(--font-mono);
+				}
+				html[data-form='mobile'] .lab {
+					font: 500 12px/1.3 var(--font-mono);
+				}
+				html[data-form='mobile'] .meta {
+					font: 400 12px/1.5 var(--font-mono);
+				}
+				html[data-form='mobile'] h1 {
+					font: 500 26px/1.2 var(--font-sans);
+				}
+				html[data-form='mobile'] p {
+					font: 400 15px/1.5 var(--font-sans);
+				}
+				html[data-form='mobile'] .btn {
+					width: 100%;
+					padding: 8px 20px;
+					white-space: normal;
+				}
+				html[data-form='mobile'] .btn:not(.pri) {
+					min-height: 48px;
+					font-size: 13px;
+				}
+				/* 9A */
+				html[data-form='mobile'] .welcome-head {
+					gap: 10px;
+					padding-top: 4px;
+					max-width: none;
+				}
+				html[data-form='mobile'] .steps {
+					display: flex;
+					flex-direction: column;
+					gap: 0;
+					margin-top: 8px;
+					background: none;
+				}
+				html[data-form='mobile'] .steps > div {
+					display: grid;
+					grid-template-columns: 44px minmax(0, 1fr);
+					gap: 0;
+					padding: 0;
+					min-height: 0;
+					border-bottom: var(--hairline);
+				}
+				html[data-form='mobile'] .steps > div:last-child {
+					border-bottom: 0;
+				}
+				/* The number gets a cell of its own; the label and the line sit
+				   beside it. The TV reads the same spans as "01 — ON THE COMPUTER". */
+				html[data-form='mobile'] .steps .lab {
+					display: contents;
+				}
+				html[data-form='mobile'] .steps .n {
+					grid-column: 1;
+					grid-row: 1 / span 2;
+					display: flex;
+					justify-content: center;
+					padding-top: 14px;
+					border-right: var(--hairline);
+				}
+				html[data-form='mobile'] .steps .dash {
+					display: none;
+				}
+				html[data-form='mobile'] .steps .t {
+					grid-column: 2;
+					padding: 12px 14px 0;
+				}
+				html[data-form='mobile'] .steps b {
+					grid-column: 2;
+					padding: 6px 14px 12px;
+					font: 500 15px/1.4 var(--font-sans);
+				}
+				/* The one action that moves you on is at the bottom, and what it
+				   says before it sits just above it. */
+				html[data-form='mobile'] .welcome-actions,
+				html[data-form='mobile'] .lost-actions,
+				html[data-form='mobile'] .added-actions {
+					margin-top: auto;
+					flex-direction: column-reverse;
+					align-items: stretch;
+					gap: 8px;
+					padding-top: 12px;
+				}
+				html[data-form='mobile'] .welcome-actions .meta {
+					padding-bottom: 4px;
+				}
+				/* 9B: TYPE THE WHOLE ADDRESS sits with the field it changes; NEXT
+				   is pinned to the bottom, on the keyboard's top edge. */
+				html[data-form='mobile'] .address {
+					min-height: 64px;
+					font: 500 18px/1 var(--font-mono);
+				}
+				html[data-form='mobile'] .address .fixed {
+					padding: 0 2px 0 12px;
+				}
+				html[data-form='mobile'] .address #port {
+					padding: 0 12px 0 2px;
+				}
+				html[data-form='mobile'] .address input {
+					flex: 1;
+					width: auto;
+					min-width: 0;
+					margin: 8px 0;
+					padding: 0 10px;
+				}
+				html[data-form='mobile'] .address input.whole {
+					margin: 0;
+					padding: 0 12px;
+					font: 500 16px/1.2 var(--font-mono);
+				}
+				html[data-form='mobile'] .address-actions {
+					display: contents;
+				}
+				html[data-form='mobile'] #next {
+					order: 1;
+					margin-top: auto;
+				}
+				/* 9D */
+				html[data-form='mobile'] .reason .n {
+					width: 44px;
+					font: 500 13px var(--font-mono);
+				}
+				html[data-form='mobile'] .reason .v {
+					padding: 12px 14px;
+					font: 500 15px/1.4 var(--font-sans);
+				}
+				html[data-form='mobile'] .srv {
+					min-height: 64px;
+				}
+				html[data-form='mobile'] .srv > .g {
+					width: 44px;
+				}
+				html[data-form='mobile'] .srv > .b {
+					padding: 0 14px;
+				}
+				html[data-form='mobile'] .srv .n > span:first-child {
+					font: 500 16px/1.3 var(--font-sans);
+				}
+				html[data-form='mobile'] .srv .meta {
+					font: 400 12px/1.3 var(--font-mono);
+				}
+				/* S5 */
+				html[data-form='mobile'] .rename-field {
+					height: 56px;
+					padding: 0 14px;
+					font: 500 18px var(--font-sans);
+				}
+			}
+
+			/* ---- the tablet: the TV's arrangement, in flow ------------------ */
+			@media (min-width: 600px) {
+				html[data-form='mobile'] {
+					--pad-top: 36px;
+				}
+				html[data-form='mobile'] .bar {
+					min-height: 64px;
+				}
+				html[data-form='mobile'] .wm {
+					align-items: baseline;
+					padding: 22px 24px 0;
+				}
+				html[data-form='mobile'] .wm span {
+					font: 400 13px var(--font-sans);
+				}
+				html[data-form='mobile'] .step {
+					padding: 0 24px;
+					font-size: 13px;
+				}
+				html[data-form='mobile'] .screen,
+				html[data-form='mobile'] #connect {
+					gap: 16px;
+					padding: var(--pad-top) 24px 24px;
+				}
+				html[data-form='mobile'] .screen > :not(.band) {
+					max-width: 864px;
+				}
+				html[data-form='mobile'] .band {
+					flex-wrap: wrap;
+					gap: 6px 24px;
+					min-height: 64px;
+					margin: calc(-1 * var(--pad-top)) -24px 0;
+					padding: 10px 24px;
+					font: 500 16px/1.3 var(--font-mono);
+				}
+				html[data-form='mobile'] .band .meta,
+				html[data-form='mobile'] .lab,
+				html[data-form='mobile'] .meta {
+					font-size: 13px;
+				}
+				html[data-form='mobile'] h1 {
+					font: 500 32px/1.2 var(--font-sans);
+				}
+				html[data-form='mobile'] p {
+					font: 400 17px/1.5 var(--font-sans);
+				}
+				html[data-form='mobile'] .btn {
+					padding: 8px 24px;
+				}
+				html[data-form='mobile'] .welcome-head {
+					max-width: 620px;
+				}
+				html[data-form='mobile'] .steps {
+					margin-top: 16px;
+				}
+				html[data-form='mobile'] .steps b {
+					font: 500 16px/1.4 var(--font-sans);
+				}
+				html[data-form='mobile'] .welcome-actions,
+				html[data-form='mobile'] .added-actions {
+					flex-wrap: wrap;
+					gap: 12px 20px;
+					margin-top: 16px;
+				}
+				html[data-form='mobile'] .address-actions,
+				html[data-form='mobile'] .lost-actions {
+					flex-wrap: wrap;
+					gap: 16px;
+					margin-top: 8px;
+				}
+				html[data-form='mobile'] .address {
+					min-height: 72px;
+					font: 500 26px/1 var(--font-mono);
+				}
+				html[data-form='mobile'] .address .fixed {
+					padding: 0 4px 0 20px;
+				}
+				html[data-form='mobile'] .address #port {
+					flex: 1;
+					padding: 0 20px 0 4px;
+				}
+				html[data-form='mobile'] .address input.whole {
+					padding: 0 20px;
+				}
+				html[data-form='mobile'] .reason {
+					min-height: 56px;
+				}
+				html[data-form='mobile'] .reason .v {
+					padding: 10px 18px;
+					font: 500 16px/1.4 var(--font-sans);
+				}
+				html[data-form='mobile'] .reason .n {
+					font: 500 14px var(--font-mono);
+				}
+			}
+			@media (min-width: 600px) and (orientation: portrait) {
+				html[data-form='mobile'] {
+					--pad-top: 48px;
+				}
+			}
 		</style>
 	</head>
 	<body>
@@ -520,23 +956,32 @@
 			<!-- 9A · the app's first screen -->
 			<section class="screen" id="welcome">
 				<div class="safe welcome-head">
-					<h1>Read from the couch</h1>
+					<h1 id="welcome-title">Read from the couch</h1>
 					<p>
-						This TV opens the library on your computer, over your home Wi-Fi or Tailscale. The
-						computer gives you an address and six digits; you type them here.
+						<span id="welcome-device">This TV</span> opens the library on your computer, over your
+						home Wi-Fi or Tailscale. The computer gives you an address and six digits; you type them
+						here.
 					</p>
 				</div>
 				<div class="safe steps">
 					<div>
-						<div class="lab">01 — ON THE COMPUTER</div>
+						<div class="lab">
+							<span class="n">01</span><span class="dash"> — </span
+							><span class="t">ON THE COMPUTER</span>
+						</div>
 						<b>SETTINGS › 08 — DEVICES, then WI-FI ON (a Tailscale install has no switch)</b>
 					</div>
 					<div>
-						<div class="lab">02 — PAIR A TV</div>
+						<div class="lab">
+							<span class="n">02</span><span class="dash"> — </span
+							><span class="t">FOR THE APP</span>
+						</div>
 						<b>It shows the address and six digits</b>
 					</div>
 					<div>
-						<div class="lab">03 — HERE</div>
+						<div class="lab">
+							<span class="n">03</span><span class="dash"> — </span><span class="t">HERE</span>
+						</div>
 						<b>Type the last number of the address, then the digits</b>
 					</div>
 				</div>
@@ -701,14 +1146,34 @@
 			const connectBox = document.getElementById('connect');
 			const connectLine = document.getElementById('connect-line');
 			const refusedBand = document.getElementById('refused');
+			/*
+			 * The device the copy names (c521): the TV's words are exactly what
+			 * they were; a phone or tablet says itself where the TV did, and the
+			 * phone's header is short, as the Wi-Fi phone screens' is
+			 * (PhoneApp-Calls.dc.html, THE FRAME).
+			 */
+			const DEVICE = document.documentElement.dataset.device || 'tv';
+			const MOBILE = DEVICE !== 'tv';
+			const PHONE = DEVICE === 'phone';
+			const WORD = DEVICE === 'tv' ? 'TV' : DEVICE;
+			const UPPER = WORD.toUpperCase();
+			const PAIR = PHONE ? 'PAIR' : `PAIR THIS ${UPPER}`;
 			const STEPS = {
-				welcome: 'PAIR THIS TV',
-				address: 'PAIR THIS TV · 1 OF 2',
-				lost: 'PAIR THIS TV · 1 OF 2',
-				connect: 'PAIR THIS TV · 1 OF 2',
+				welcome: PAIR,
+				address: `${PAIR} · 1 OF 2`,
+				lost: `${PAIR} · 1 OF 2`,
+				connect: `${PAIR} · 1 OF 2`,
 				added: 'ADDED',
 				rename: 'RENAME A SERVER'
 			};
+			if (MOBILE) {
+				document.title = `Pair this ${WORD} · tsundoku`;
+				document.getElementById('welcome-title').textContent = 'Read in the app';
+				document.getElementById('welcome-device').textContent = `This ${WORD}`;
+				document
+					.getElementById('rename-field')
+					.setAttribute('aria-label', `This ${WORD}'s name for the server`);
+			}
 
 			/* ---- c261: the TV's servers ------------------------------------------ */
 			/*
@@ -794,7 +1259,8 @@
 
 			function fill() {
 				const prefix = (bridge ? bridge.prefix() : '') || '192.168.1.';
-				document.getElementById('prefix').textContent = 'http://' + prefix;
+				// A phone drops http:// so the field fits 360 at 130% (9B).
+				document.getElementById('prefix').textContent = (PHONE ? '' : 'http://') + prefix;
 				// The field stays: whole or not, it is what's typed in. Only the
 				// written-out prefix and port go.
 				document.getElementById('prefix').hidden = whole;
@@ -810,11 +1276,14 @@
 					last.maxLength = 3;
 					last.setAttribute('inputmode', 'numeric');
 				}
+				// A phone or tablet has no remote, so its line stops at the address.
 				tvMeta.textContent = whole
 					? "THE WHOLE ADDRESS: https://name.ts.net:8443 OVER TAILSCALE, OR http://192.168.1.23:42143 · THE SIX DIGITS ARE IN THE COMPUTER'S SETTINGS"
 					: own
-						? `THIS TV IS AT ${own}, SO THE COMPUTER IS ${prefix}SOMETHING · THE REMOTE'S NUMBER KEYS TYPE HERE; WITHOUT THEM, MOVE THE MARK TO THE FIELD FOR THE PAD · BACK CLOSES IT`
-						: `THE TV HAS NO WI-FI ADDRESS OF ITS OWN · TYPE THE COMPUTER'S ADDRESS: THE LAST NUMBER, OR THE WHOLE ONE`;
+						? MOBILE
+							? `THIS ${UPPER} IS AT ${own}, SO THE COMPUTER IS ${prefix}SOMETHING`
+							: `THIS TV IS AT ${own}, SO THE COMPUTER IS ${prefix}SOMETHING · THE REMOTE'S NUMBER KEYS TYPE HERE; WITHOUT THEM, MOVE THE MARK TO THE FIELD FOR THE PAD · BACK CLOSES IT`
+						: `THE ${UPPER} HAS NO WI-FI ADDRESS OF ITS OWN · TYPE THE COMPUTER'S ADDRESS: THE LAST NUMBER, OR THE WHOLE ONE`;
 				// S7: it names who is already here, and what BACK does.
 				const list = serverList();
 				const label = document.getElementById('address-label');
@@ -850,6 +1319,10 @@
 				whole = false;
 				last.value = '';
 				fill();
+				// A phone's keyboard pushes the page up rather than covering the
+				// buttons, so the field takes focus at once and the number
+				// keyboard opens (9B); the TV never does, for c247's pad.
+				if (MOBILE) last.focus();
 			}
 
 			function origin() {
@@ -864,7 +1337,8 @@
 
 			last.addEventListener('keydown', (e) => {
 				// ← erases, as the design says (TV-Pair.dc.html, 9C's note).
-				if (e.key === 'ArrowLeft' && !whole) {
+				// A hardware keyboard's ← moves the caret on a phone or tablet.
+				if (e.key === 'ArrowLeft' && !whole && !MOBILE) {
 					e.preventDefault();
 					last.value = last.value.slice(0, -1);
 				}
@@ -1082,9 +1556,14 @@
 					'○ NOTHING ANSWERS AT ' + at.replace('http://', '').replace('https://', '');
 				const prefix = prefixOf(own);
 				const wanted = prefixOf(at.replace(/^https?:\/\//, '').replace(/:\d+.*$/, ''));
+				// A phone may be on mobile data, with no Wi-Fi to be "another" one
+				// (9D · ON MOBILE DATA); the bridge says which (Network.kt).
+				const network = bridge && typeof bridge.network === 'function' ? bridge.network() : '';
 				reason3.textContent = own
-					? `This TV is on another Wi-Fi: it's at ${own}, not ${wanted.replace(/\.$/, '')}.`
-					: 'This TV has no Wi-Fi address: connect it to the Wi-Fi the computer is on.';
+					? `This ${WORD} is on another Wi-Fi: it's at ${own}, not ${wanted.replace(/\.$/, '')}.`
+					: MOBILE && network === 'data'
+						? `This ${WORD} isn't on a Wi-Fi, so it's on mobile data: connect it to the computer's Wi-Fi, or type a Tailscale address`
+						: `This ${WORD} has no Wi-Fi address: connect it to the Wi-Fi the computer is on.`;
 				show('lost');
 				paintOthers(at);
 				startRetry();
@@ -1206,7 +1685,7 @@
 				document.getElementById('added-lab').textContent =
 					`✓ PAIRED WITH ${called} · ${hostOf(s.origin).toUpperCase()}`;
 				document.getElementById('added-title').textContent =
-					`${s.shown} is one of this TV's servers`;
+					`${s.shown} is one of this ${WORD}'s servers`;
 				const still =
 					others.length === 0
 						? ''
@@ -1246,11 +1725,11 @@
 				renameFrom = from;
 				show('rename');
 				document.getElementById('rename-label').textContent =
-					`THIS TV'S NAME FOR ${hostOf(s.origin).toUpperCase()}`;
+					`THIS ${UPPER}'S NAME FOR ${hostOf(s.origin).toUpperCase()}`;
 				renameField.value = s.tvName || '';
 				document.getElementById('rename-meta').textContent = s.name
-					? `THE SERVER CALLS ITSELF ${s.name} · EMPTY GOES BACK TO THAT · KEPT ON THIS TV ONLY`
-					: `THE SERVER HAS NOT SAID ITS NAME YET · EMPTY GOES BACK TO ITS ADDRESS · KEPT ON THIS TV ONLY`;
+					? `THE SERVER CALLS ITSELF ${s.name} · EMPTY GOES BACK TO THAT · KEPT ON THIS ${UPPER} ONLY`
+					: `THE SERVER HAS NOT SAID ITS NAME YET · EMPTY GOES BACK TO ITS ADDRESS · KEPT ON THIS ${UPPER} ONLY`;
 				// The field takes focus at once: the keyboard rising is the point
 				// of this screen (S5), unlike 9B's, where it covered the buttons.
 				renameField.focus();
@@ -1290,7 +1769,19 @@
 						: e.key === 'ArrowUp' || e.key === 'ArrowLeft'
 							? -1
 							: 0;
-				if (!dir) return;
+				if (!dir) {
+					// A tablet's hardware keyboard: Enter with nothing focused
+					// presses the screen's first button, as OK does on a TV.
+					if (MOBILE && e.key === 'Enter' && !(target instanceof HTMLButtonElement) && !entry) {
+						const screen = [...Object.values(screens)].find((x) => !x.hidden);
+						const first = screen && screen.querySelector('[data-start]');
+						if (first && !first.disabled) {
+							e.preventDefault();
+							first.click();
+						}
+					}
+					return;
+				}
 				// The address field keeps ← (erase) and the caret; ↑ ↓ leave it.
 				if (entry && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return;
 				const screen = [...Object.values(screens)].find((s) => !s.hidden);
@@ -1329,6 +1820,30 @@
 			window.addEventListener('hashchange', routeHash);
 			fill();
 			routeHash();
+
+			/*
+			 * The camera band and the strip above the keyboard take this page's
+			 * colour (c521; Insets.kt). The app reads it on load; a phone switched
+			 * between dark and light while this page is open changes it with no
+			 * load, so the page says it again. rgb() through a canvas, since the
+			 * light theme's paper computes as oklch().
+			 */
+			function tellSurface() {
+				if (!MOBILE || !bridge || typeof bridge.surface !== 'function') return;
+				try {
+					const c = document.createElement('canvas');
+					c.width = c.height = 1;
+					const g = c.getContext('2d');
+					g.fillStyle = getComputedStyle(document.body).backgroundColor;
+					g.fillRect(0, 0, 1, 1);
+					const [r, gr, b, a] = g.getImageData(0, 0, 1, 1).data;
+					if (a === 255) bridge.surface(`rgb(${r}, ${gr}, ${b})`);
+				} catch {
+					// A band left as it was costs nothing but its colour.
+				}
+			}
+			tellSurface();
+			matchMedia('(prefers-color-scheme: light)').addEventListener('change', tellSurface);
 		</script>
 	</body>
 </html>
