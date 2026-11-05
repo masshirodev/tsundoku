@@ -175,8 +175,10 @@ most (`rg -l '\blistSeries\(' tests`).
   `total` counts rows. The card query carries each series' last open and no
   LIMIT, and `withEditions` runs over every open series; sorting and slicing
   to `limit` happen before `entryLine`/`resumeEntry`, so only those two
-  prepared reads per row are spent on the rows the section returns
-  (doc/LIBRARY.md, "Works").
+  prepared reads per row are spent on the rows the section returns. A Work's
+  place and whether it is a row come from one grouped query of keys, and only
+  the Works the section shows have their parts read (c332; doc/LIBRARY.md,
+  "Works").
 - **A Work sorts by its most recent part**, as aggregates over every part
   (`keys` in `unitQuery`): latest read, newest chapter, latest added. The
   order lives in SQL rather than a `sortKey` on the part facts (W1's
