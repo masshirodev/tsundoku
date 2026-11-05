@@ -110,6 +110,9 @@ beforeAll(async () => {
 	hlsAudio('k2', b, '32k');
 	hlsAudio('h1', a, '32k');
 	hlsAudio('h2', b, '32k');
+	// Three servers for c338: only the last has a 360p audio to read.
+	hlsAudio('x1', a, '32k');
+	hlsAudio('x2', b, '32k');
 	server = createServer((req, res) => {
 		seen.push(req.url ?? '');
 		if (req.headers.authorization !== 'Bearer engine-secret') return res.writeHead(401).end();
@@ -154,46 +157,62 @@ beforeAll(async () => {
 					videoUrl: `${self}/video/broken.webm`,
 					audioTracks: [audio(dir)]
 				}));
+			// A 1080p-only server first, one that names no height second, and
+			// the 360p one last: the ranking, not the source's order, picks it
+			// (c338). The first two point at audio that is not there, so a read
+			// of either shows in the request log.
+			const ranked = (kind: string) =>
+				[
+					['Hd - 1080p', `${kind}/high`],
+					['Mirror - Default', `${kind}/unknown`],
+					['Low - 360p', kind]
+				].map(([quality, dir]) => ({
+					quality,
+					videoUrl: `${self}/video/broken.webm`,
+					audioTracks: [audio(dir)]
+				}));
 			const videos = kind.startsWith('k')
 				? kaaBody(kind)
-				: kind === 'n1' || kind === 'n2'
-					? [
-							{
-								quality: 'VidStreaming - Default',
-								videoUrl: `${self}/video/broken.webm`,
-								audioTracks: [audio(kind)]
-							}
-						]
-					: kind === 'h1' || kind === 'h2'
+				: kind.startsWith('x')
+					? ranked(kind)
+					: kind === 'n1' || kind === 'n2'
 						? [
 								{
-									quality: 'VidStreaming - 1080p (1920x1080) - 3.52 Mbps',
-									videoUrl: `${self}/video/broken.webm`,
-									audioTracks: [audio(kind)]
-								},
-								{
-									quality: 'VidStreaming - 720p (1280x720) - 1.31 Mbps',
+									quality: 'VidStreaming - Default',
 									videoUrl: `${self}/video/broken.webm`,
 									audioTracks: [audio(kind)]
 								}
 							]
-						: [
-								{
-									quality: 'High - 1080p',
-									videoUrl: `${self}/video/broken.webm`,
-									audioTracks: [audio('ep-a/high')]
-								},
-								{
-									quality: 'Broken - 360p',
-									videoUrl: `${self}/video/broken.webm`,
-									audioTracks: [audio('missing')]
-								},
-								{
-									quality: 'Kwik - 360p',
-									videoUrl: `${self}/video/broken.webm`,
-									audioTracks: [audio(`${pair}/low`)]
-								}
-							];
+						: kind === 'h1' || kind === 'h2'
+							? [
+									{
+										quality: 'VidStreaming - 1080p (1920x1080) - 3.52 Mbps',
+										videoUrl: `${self}/video/broken.webm`,
+										audioTracks: [audio(kind)]
+									},
+									{
+										quality: 'VidStreaming - 720p (1280x720) - 1.31 Mbps',
+										videoUrl: `${self}/video/broken.webm`,
+										audioTracks: [audio(kind)]
+									}
+								]
+							: [
+									{
+										quality: 'High - 1080p',
+										videoUrl: `${self}/video/broken.webm`,
+										audioTracks: [audio('ep-a/high')]
+									},
+									{
+										quality: 'Broken - 360p',
+										videoUrl: `${self}/video/broken.webm`,
+										audioTracks: [audio('missing')]
+									},
+									{
+										quality: 'Kwik - 360p',
+										videoUrl: `${self}/video/broken.webm`,
+										audioTracks: [audio(`${pair}/low`)]
+									}
+								];
 			res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(videos));
 		});
 	});
@@ -316,6 +335,29 @@ describe('fingerprinting streams', () => {
 		expect(seen.some((u) => u.includes('/hls/k2/index.m3u8'))).toBe(true);
 		expect(seen.some((u) => u.includes('/hls/k1/high/'))).toBe(false);
 		expect(marks.chosenMarks(a).introFrom).toBe('fingerprint');
+	}, 180_000);
+
+	it('reads a later server’s 360p before an earlier server’s 1080p or unknown height (c338)', async () => {
+		// The ranking across servers (`qualitiesToRead`): a quality at or below
+		// 480p first, then one that names no height, then one above, whatever
+		// order the source lists its servers in.
+		const show = series();
+		const a = episode(show, 'x1');
+		episode(show, 'x2');
+		seen = [];
+		const result = await fingerprintSeason(show, a, { allowStreams: true, pauseMs: 0 });
+		// The first audio asked for, per episode, is the 360p one. Checked
+		// before the result: a read that fails falls through to the next
+		// server, so this holds however the read itself went.
+		const audioAsked = (kind: string) =>
+			seen.filter((u) => u.startsWith(`/video/hls/${kind}/`) && u.endsWith('.m3u8'));
+		expect(audioAsked('x1')[0]).toBe('/video/hls/x1/index.m3u8');
+		expect(audioAsked('x2')[0]).toBe('/video/hls/x2/index.m3u8');
+		// The pair still finds its opening, and the 360p read was enough: the
+		// other two servers were never asked.
+		expect(result).toEqual({ episodes: 2, found: 2 });
+		expect(marks.chosenMarks(a).introFrom).toBe('fingerprint');
+		expect(seen.some((u) => /\/(high|unknown)\//.test(u))).toBe(false);
 	}, 180_000);
 
 	it('takes the lowest quality when the source names no height at all', async () => {
