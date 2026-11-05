@@ -2,10 +2,12 @@ import { expect, test } from './fixtures';
 
 /**
  * The series screen on a TV (c238; TV-Series). It opens Boku no Kokoro no
- * Yabai Yatsu, which no other e2e spec touches: the flow files run beside the
- * `tv` project on one database, and series-flow hides Tower of God for a
- * moment. The RATING test moves the rating one half-bar down and back, so the
- * series ends where it started (8).
+ * Yabai Yatsu, which no flow file writes: the flow files run beside the `tv`
+ * project on the shared preview's one database (doc/TESTING.md, "The readers
+ * beside the flows"). It used to open Tower of God, whose reader series-flow
+ * opens from the cover (series-flow hides Ame no Hi no Toshokan, not Tower of
+ * God, as this comment once said). The RATING test moves the rating one
+ * half-bar down and back, so the series ends where it started (8).
  */
 
 const TITLE = 'Boku no Kokoro no Yabai Yatsu';
