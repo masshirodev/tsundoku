@@ -60,6 +60,12 @@ const state = {
 	calls: [] as Call[],
 	/** A candidate's details wait this long, by URL. */
 	slow: new Map<string, number>(),
+	/**
+	 * A candidate's details wait until this settles, by URL: a call held open
+	 * for as long as a case needs, where a fixed `slow` is a race a loaded box
+	 * loses (c439).
+	 */
+	held: new Map<string, Promise<void>>(),
 	/** A candidate whose details fail, by URL. */
 	failing: new Set<string>(),
 	/**
@@ -152,6 +158,11 @@ function startEngine(port: number): Promise<Server> {
 					if (state.failing.has(url)) return json(500, { error: 'the site is down' });
 					if (b.method === 'getChapterList' && state.broken.has(url))
 						return json(200, { chapters: 'not a list' });
+					const held = b.method === 'getDetailsManga' ? state.held.get(url) : undefined;
+					if (held) {
+						void held.then(() => json(200, answer));
+						return;
+					}
 					const ms = b.method === 'getDetailsManga' ? (state.slow.get(url) ?? 0) : 0;
 					if (ms) {
 						setTimeout(() => json(200, answer), ms);
@@ -268,6 +279,7 @@ test.afterAll(async () => {
 test.beforeEach(() => {
 	state.calls = [];
 	state.slow.clear();
+	state.held.clear();
 	state.failing.clear();
 	state.broken.clear();
 	state.lateMs = 0;
@@ -527,33 +539,40 @@ test('three quick picks on one slow source: one details call each at most, and a
 	await settledList(page);
 	state.calls = [];
 	// All three are MANGADEX (EN): one call at a time into its extension.
-	// A and B are slow; C is quick, so a C asked behind both would land last.
-	state.slow.set(CAND.a.url, 2500);
+	// A is held open until both later picks are in, B is slow, and C is quick,
+	// so a C asked behind both would land last. A was a fixed 2.5 s until wave
+	// 23: under load the two clicks below took longer than that, A's call had
+	// ended, B was no longer waiting but running, and the engine heard of it
+	// (red in wave 22's gate, passing alone; c439).
+	let releaseA!: () => void;
+	state.held.set(CAND.a.url, new Promise<void>((r) => (releaseA = r)));
 	state.slow.set(CAND.b.url, 2500);
 	state.slow.set(CAND.c.url, 200);
 	const compares: string[] = [];
 	page.on('request', (r) => {
 		if (r.url().includes('/compare?')) compares.push(r.url());
 	});
+	const asked = (c: { url: string }) =>
+		compares.filter((u) => new URL(u).searchParams.get('to') === candidateId('101', c.url));
 	await page.locator('a.cand', { hasText: CAND.a.title }).click();
 	await expect.poll(() => detailsFor(CAND.a.url)).toBe(1);
-	// The owner changes their mind twice, quickly, while A is being read.
+	// The owner changes their mind twice, quickly, while A is being read: both
+	// picks reach the page's endpoint before A's call ends.
 	await page.locator('a.cand', { hasText: CAND.b.title }).click();
 	await page.locator('a.cand', { hasText: CAND.c.title }).click();
-	// C waits for the call already running (A's, 2.5 s), not for B's as well:
-	// the counts below prove that; the clock is left loose, as a loaded box
+	await expect.poll(() => asked(CAND.c).length).toBe(1);
+	expect(asked(CAND.b)).toHaveLength(1);
+	releaseA();
+	// C waits for the call already running (A's), not for B's as well: the
+	// counts below prove that; the clock is left loose, as a loaded box
 	// stretches it.
 	await expect(page.getByRole('heading', { name: CAND.c.title })).toBeVisible({ timeout: 15_000 });
 	await expect(page.locator('.confirm input[name="to"]')).toHaveValue(
 		candidateId('101', CAND.c.url)
 	);
 	// Each pick asked the page's endpoint once, and the engine at most once.
-	expect(
-		compares.filter((u) => new URL(u).searchParams.get('to') === candidateId('101', CAND.b.url))
-	).toHaveLength(1);
-	expect(
-		compares.filter((u) => new URL(u).searchParams.get('to') === candidateId('101', CAND.c.url))
-	).toHaveLength(1);
+	expect(asked(CAND.b)).toHaveLength(1);
+	expect(asked(CAND.c)).toHaveLength(1);
 	expect(detailsFor(CAND.a.url)).toBe(1);
 	expect(detailsFor(CAND.c.url)).toBe(1);
 	// B was dropped while it waited for its turn: the engine never heard of it,
