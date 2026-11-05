@@ -131,12 +131,16 @@
 	// href carries none, so a tap made while the URL had one asked twice, with
 	// the old offset and then with none once the navigation landed.
 	let tapped = $state<{ to: string; offset: number | null } | null>(null);
+	const urlOffset = $derived(offsetOf(page.url.searchParams.get('offset')));
+	// Cleared when either half of the URL's pick moves (c539, round 2): a tap
+	// on the candidate already picked lands on the same `to`, so a tap cleared
+	// on `to` alone stayed, and pinned the offset SET then changed in the URL.
 	$effect(() => {
 		void urlTo;
+		void urlOffset;
 		tapped = null;
 	});
 	const selected = $derived(tapped?.to ?? urlTo);
-	const urlOffset = $derived(offsetOf(page.url.searchParams.get('offset')));
 	/** The offset the pick's comparison is for: the tap's own, then the URL's. */
 	const pickOffset = $derived(tapped ? tapped.offset : urlOffset);
 	const sourceOf = (mangaId: string) => mangaId.split('~')[0] ?? '';

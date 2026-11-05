@@ -6,6 +6,7 @@ import { createServer, type AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { test, expect, type Page } from '@playwright/test';
 import { E2E_TOKEN } from '../playwright.config';
+import { hydrated } from './helpers/hydration';
 
 /**
  * MOVE's list and its pick (cards c490 and c491; doc/MOVE.md, "The
@@ -274,9 +275,15 @@ test.beforeEach(() => {
 	state.failNext.clear();
 });
 
-/** The session cookie is the suite's (localhost, any port), so this preview takes it too. */
+/**
+ * The session cookie is the suite's (localhost, any port), so this preview
+ * takes it too. A full load waits for hydration as well: a tap on the
+ * server-rendered list before it is a full page load, which asks no
+ * `/compare` and so fails the counts below on a loaded box.
+ */
 async function open(page: Page, query = '', waitUntil: 'load' | 'commit' = 'load') {
 	await page.goto(`${base}/series/${seriesId}/move${query}`, { waitUntil });
+	if (waitUntil === 'load') await hydrated(page);
 }
 
 const searches = () => state.calls.filter((c) => c.method === 'getSearchManga');
@@ -576,6 +583,53 @@ test('a tap made while the URL has an offset asks once, without it (c539)', asyn
 	expect(compares).toHaveLength(1);
 	expect(new URL(compares[0]).searchParams.has('offset')).toBe(false);
 	expect(detailsFor(CAND.b.url)).toBe(1);
+});
+
+test('a second tap on the picked candidate leaves the URL’s offset in charge: a later offset is asked once (c539, round 2)', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await open(page);
+	await settledList(page);
+	const toA = candidateId('101', CAND.a.url);
+	const a = page.locator('a.cand', { hasText: CAND.a.title });
+	await a.click();
+	await expect(page.getByRole('heading', { name: CAND.a.title })).toBeVisible();
+	const compares: string[] = [];
+	page.on('request', (r) => {
+		if (r.url().includes('/compare?')) compares.push(r.url());
+	});
+	// The same row again (a second click, or OK on the TV's current row): the
+	// navigation lands on the same `to`, and nothing new is asked.
+	await a.click();
+	await page.waitForTimeout(500);
+	await expect(page.getByRole('heading', { name: CAND.a.title })).toBeVisible();
+	expect(compares).toHaveLength(0);
+
+	// A client-side navigation that changes only the offset, as SET does on a
+	// candidate with episodes (this fixture's are chapters, so it has no SET):
+	// an ordinary link SvelteKit routes without a reload.
+	state.slow.set(CAND.a.url, 800);
+	await page.evaluate(
+		(href) => {
+			const link = document.createElement('a');
+			link.href = href;
+			link.id = 'offset-three';
+			link.textContent = 'offset 3';
+			document.body.append(link);
+		},
+		`${base}/series/${seriesId}/move?to=${encodeURIComponent(toA)}&offset=3`
+	);
+	await page.locator('#offset-three').click();
+	await expect(page).toHaveURL(/offset=3/);
+	// The comparison redraws for it: the wait first, then A's answer again.
+	await expect(page.locator('.empty.wait')).toBeVisible();
+	await expect(page.getByRole('heading', { name: CAND.a.title })).toBeVisible();
+	await page.waitForTimeout(500);
+	const withThree = compares.filter((u) => new URL(u).searchParams.get('offset') === '3');
+	expect(withThree).toHaveLength(1);
+	expect(new URL(withThree[0]).searchParams.get('to')).toBe(toA);
+	expect(compares).toHaveLength(1);
 });
 
 test('a streamed comparison that throws becomes TRY AGAIN, not ASKING for good (c539)', async ({

@@ -269,7 +269,12 @@ candidate. So:
   which is a GET whose page went away.
 - **A tap asks once.** The tapped row is kept with the offset it will land
   with (a candidate's link carries none), so a tap made while the URL had an
-  `offset` no longer asked twice, with the old one and then with none.
+  `offset` no longer asked twice, with the old one and then with none. The
+  tap is forgotten as soon as either half of the URL's pick moves, its `to`
+  or its `offset`. A tap on the candidate already picked lands on the same
+  `to`, so a tap cleared on `to` alone stayed, kept its offset (none), and
+  ignored a later SET, whose `?offset=` then asked nothing while MOVE posted
+  the old comparison's offset (round 2 of wave 22's review).
 - **The load's streamed comparison cannot hang.** An unexpected throw in
   `moveComparison` rejected the streamed promise, nothing caught it, and
   `ASKING THE SOURCE` stayed for good; it now becomes the failed state, `The
@@ -414,6 +419,7 @@ LATEST CH. 121 · 2 D AGO`, which costs a details call per candidate. The
   one's late answer, BACK and a reload, a failed comparison with MOVE off,
   three quick picks on one slow source (one details call each at most, the
   dropped one that was waiting none), a tap under an `offset` asking once, a
+  second tap on the picked candidate leaving a later `offset` in charge, a
   streamed comparison that throws becoming TRY AGAIN (c539), and a pick
   without script. A late answer on the _first paint_ is not watched
   there: `vite preview` gzips every response whole, so a streamed page arrives
