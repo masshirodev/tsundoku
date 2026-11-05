@@ -63,7 +63,12 @@
 		type Layout,
 		type Speed,
 		type TextDirection,
-		type TextSettings
+		type TextSettings,
+		type TextWidth,
+		DEFAULT_WIDTH,
+		WIDTH_KEY,
+		widthFor,
+		widthKeyOf
 	} from '$lib/reader/text';
 	import EntryList from '../../series/[id]/EntryList.svelte';
 	import TextChrome from './TextChrome.svelte';
@@ -135,6 +140,23 @@
 		dim = d;
 		store('tsundoku.reader.dim', d);
 	}
+	/**
+	 * WIDTH (c437): the series' own, kept in this browser beside the device's
+	 * default, which is the width last chosen here, so a new series opens at it
+	 * and a series once set keeps its own. Read in the browser, as the rest of
+	 * the device's settings are (the server's first paint is 100%, the column
+	 * before WIDTH), and again if this reader is handed another series.
+	 */
+	let width = $state<TextWidth>(DEFAULT_WIDTH);
+	$effect(() => {
+		const id = series.id;
+		untrack(() => (width = widthFor(stored(widthKeyOf(id), null), stored(WIDTH_KEY, null))));
+	});
+	function setWidth(w: TextWidth) {
+		width = w;
+		store(widthKeyOf(series.id), w);
+		store(WIDTH_KEY, w);
+	}
 
 	// ---- the book ----------------------------------------------------------------------------
 	let book = $state<OpenBook | null>(null);
@@ -188,7 +210,10 @@
 	});
 
 	const vertical = $derived(book?.vertical ?? false);
-	const f = $derived(frame(sw, sh, settings, vertical));
+	// SCROLL is one column whatever COLUMNS says: WIDTH's share is of that one (c437).
+	const f = $derived(
+		frame(sw, sh, layout === 'paged' ? settings : { ...settings, columns: false }, vertical, width)
+	);
 	const mode = $derived(textMode(layout, vertical, direction));
 	/**
 	 * The page reads right to left: vertical Japanese always, a horizontal book
@@ -1536,6 +1561,7 @@
 			{vertical}
 			{direction}
 			{seriesDirection}
+			{width}
 			{dim}
 			{rating}
 			onlayout={(l) => {
@@ -1545,6 +1571,7 @@
 			onremember={remember}
 			ondirection={(d) => (direction = d)}
 			onrememberdirection={rememberDirection}
+			onwidth={setWidth}
 			onsettings={setSettings}
 			ondim={setDim}
 			onrate={rate}

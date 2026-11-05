@@ -45,7 +45,15 @@ import {
 	textDirectionName,
 	textFont,
 	textMode,
-	textSettings
+	textSettings,
+	DEFAULT_WIDTH,
+	MIN_MEASURE_EM,
+	TEXT_WIDTHS,
+	frame as textFrame,
+	parseTextWidth,
+	textWidthName,
+	widthFor,
+	widthKeyOf
 } from '$lib/reader/text';
 import { OnePointer } from '$lib/reader/pointer';
 
@@ -616,5 +624,101 @@ describe('a novel’s reading direction (c440)', () => {
 		expect(label('paged', 'rtl')).toBe('PAGED R→L · SERIF 20 · DARK');
 		expect(label('scroll', 'rtl')).toBe('SCROLL · SERIF 20 · DARK');
 		expect(label('paged', 'rtl', true)).toBe('VERTICAL · SANS JP 20 · FURIGANA ALL');
+	});
+});
+
+describe('a novel’s WIDTH (c437)', () => {
+	const at = (w: number, h: number, width: (typeof TEXT_WIDTHS)[number][0], vertical = false) =>
+		textFrame(w, h, DEFAULT_SETTINGS, vertical, width);
+	const devices = [
+		['phone', 412, 915],
+		['tablet', 800, 1280],
+		['landscape tablet', 1280, 800],
+		['desktop', 1440, 900],
+		['PC', 1920, 1080]
+	] as const;
+
+	it('100% is the column every device drew before WIDTH, so nobody’s page moved', () => {
+		for (const [, w, h] of devices) {
+			expect(at(w, h, 100)).toEqual(textFrame(w, h, DEFAULT_SETTINGS));
+			expect(at(w, h, 100, true)).toEqual(textFrame(w, h, DEFAULT_SETTINGS, true));
+		}
+		expect(DEFAULT_WIDTH).toBe(100);
+	});
+
+	it('every step on every device, measured: centred, never wider than 100%, never under 20 em', () => {
+		// The whole domain: five devices, five steps, both directions of text.
+		const got = devices.flatMap(([name, w, h]) =>
+			TEXT_WIDTHS.map(([width]) => {
+				const f = at(w, h, width);
+				return `${name} ${textWidthName(width)}: ${f.w}${f.cols > 1 ? ' (2 cols)' : ''} at ${f.x}`;
+			})
+		);
+		expect(got).toEqual([
+			'phone 50%: 360 at 26',
+			'phone 65%: 360 at 26',
+			'phone 80%: 360 at 26',
+			'phone 100%: 364 at 24',
+			'phone PAGE: 364 at 24',
+			'tablet 50%: 400 at 200',
+			'tablet 65%: 520 at 140',
+			'tablet 80%: 640 at 80',
+			'tablet 100%: 656 at 72',
+			'tablet PAGE: 656 at 72',
+			'landscape tablet 50%: 856 (2 cols) at 212',
+			'landscape tablet 65%: 856 (2 cols) at 212',
+			'landscape tablet 80%: 1024 (2 cols) at 128',
+			'landscape tablet 100%: 1136 (2 cols) at 72',
+			'landscape tablet PAGE: 1046 (2 cols) at 117',
+			'desktop 50%: 856 (2 cols) at 292',
+			'desktop 65%: 936 (2 cols) at 252',
+			'desktop 80%: 1152 (2 cols) at 144',
+			'desktop 100%: 1296 (2 cols) at 72',
+			'desktop PAGE: 1188 (2 cols) at 126',
+			'PC 50%: 960 (2 cols) at 480',
+			'PC 65%: 1248 (2 cols) at 336',
+			'PC 80%: 1536 (2 cols) at 192',
+			'PC 100%: 1776 (2 cols) at 72',
+			'PC PAGE: 1442 (2 cols) at 239'
+		]);
+		for (const [, w, h] of devices)
+			for (const [width] of TEXT_WIDTHS)
+				for (const vertical of [false, true]) {
+					const f = at(w, h, width, vertical);
+					const full = at(w, h, 100, vertical);
+					expect(f.w).toBeLessThanOrEqual(full.w);
+					// Centred to the pixel: what the column gave back is shared by both sides.
+					expect(Math.abs(f.x - (w - f.w - f.x))).toBeLessThanOrEqual(1);
+					const col = (f.w - (f.cols - 1) * f.gap) / f.cols;
+					const fullCol = (full.w - (full.cols - 1) * full.gap) / full.cols;
+					expect(col).toBeGreaterThanOrEqual(Math.min(fullCol, MIN_MEASURE_EM * f.fontSize) - 1);
+					// Nothing else in the frame moves with WIDTH.
+					expect({ ...f, x: 0, w: 0 }).toEqual({ ...full, x: 0, w: 0 });
+				}
+	});
+
+	it('PAGE is A4’s proportion: a column as tall as the text area, √2 times as tall as wide', () => {
+		const f = at(1920, 1080, 'page');
+		const col = (f.w - f.gap) / 2;
+		expect(f.h / col).toBeCloseTo(Math.SQRT2, 2);
+		// Vertical text: one page of columns, portrait, as wide as an A4 page is.
+		const v = at(1920, 1080, 'page', true);
+		expect(v.cols).toBe(1);
+		expect(v.h / v.w).toBeCloseTo(Math.SQRT2, 2);
+	});
+
+	it('a series takes its own width, else the device’s, else 100%, and holds on its own output', () => {
+		expect(widthFor(65, 'page')).toBe(65);
+		expect(widthFor(undefined, 'page')).toBe('page');
+		expect(widthFor(null, null)).toBe(100);
+		expect(widthFor(70, 'wide')).toBe(100);
+		for (const [w] of TEXT_WIDTHS) {
+			expect(parseTextWidth(w)).toBe(w);
+			expect(parseTextWidth(parseTextWidth(w))).toBe(w);
+			expect(widthFor(w, null)).toBe(w);
+		}
+		for (const bad of ['50', '100%', 'PAGE', 0, 120, '', null, undefined, {}])
+			expect(parseTextWidth(bad)).toBeNull();
+		expect(widthKeyOf(12)).toBe('tsundoku.text.width.12');
 	});
 });

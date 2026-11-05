@@ -8,6 +8,7 @@
 		SIZE_MIN,
 		TEXT_DIRECTIONS,
 		TEXT_FONTS,
+		TEXT_WIDTHS,
 		fontOf,
 		loadReadingFonts,
 		textDirectionName,
@@ -17,6 +18,7 @@
 		type TextDirection,
 		type TextFont,
 		type TextSettings,
+		type TextWidth,
 		type Theme
 	} from '$lib/reader/text';
 	import { focusScope } from '$lib/focus';
@@ -44,12 +46,14 @@
 		vertical,
 		direction,
 		seriesDirection,
+		width,
 		dim,
 		rating,
 		onlayout,
 		onremember,
 		ondirection,
 		onrememberdirection,
+		onwidth,
 		onsettings,
 		ondim,
 		onrate,
@@ -66,12 +70,15 @@
 		/** Which way PAGED turns, this session's and the series' (c440). */
 		direction: TextDirection;
 		seriesDirection: TextDirection;
+		/** WIDTH (c437): this series' own, else the device's last choice. */
+		width: TextWidth;
 		dim: number;
 		rating: number;
 		onlayout: (l: Layout) => void;
 		onremember: () => void;
 		ondirection: (d: TextDirection) => void;
 		onrememberdirection: () => void;
+		onwidth: (w: TextWidth) => void;
 		onsettings: (s: Partial<TextSettings>) => void;
 		ondim: (d: number) => void;
 		onrate: (r: number) => void;
@@ -286,6 +293,38 @@
 	{@render seg('MARGINS', MARGINS, settings.margins, (margins) =>
 		onsettings({ margins: margins as Margins })
 	)}
+
+	<!-- WIDTH (c437): how much of the screen the text takes, or a centred page of
+	     A4's proportion. The SIDES row's look, for text: on a PC the full column
+	     was a line too long. The series keeps it, and it is where the next new
+	     series opens on this device. -->
+	<div class="row">
+		<div class="label">WIDTH</div>
+		<div class="body col">
+			<div class="seg" role="radiogroup" aria-label="Width">
+				{#each TEXT_WIDTHS as [w, name] (w)}
+					<button
+						type="button"
+						role="radio"
+						aria-checked={width === w}
+						class:on={width === w}
+						data-focus-mark="in"
+						onclick={() => onwidth(w)}>{name}</button
+					>
+				{/each}
+			</div>
+			<div class="under">
+				<!-- Vertical text: the page's width across its lines, not a line's length. -->
+				<span class="note"
+					>{vertical
+						? 'ACROSS THE LINES · '
+						: columnsApply && settings.columns
+							? 'BOTH COLUMNS · '
+							: ''}KEPT FOR THIS SERIES</span
+				>
+			</div>
+		</div>
+	</div>
 
 	<div class="row">
 		<div class="label">JUSTIFY</div>

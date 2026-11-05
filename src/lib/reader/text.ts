@@ -137,19 +137,94 @@ const SIDE: Record<Margins, number> = { narrow: 2 / 3, normal: 1, wide: 14 / 9 }
 /** The size a device reads at until SIZE is changed: what the SETTINGS stepper starts from. */
 export const baseFontSize = (device: Device) => BASE[device].fs;
 
-export function frame(screenW: number, screenH: number, s: TextSettings, vertical = false): Frame {
+/**
+ * WIDTH (card c437; doc/TEXT-READER.md, "WIDTH"): how much of the screen's
+ * width the text takes, or PAGE, a page of A4's proportion (1 : √2) as tall
+ * as the text area, centred. 100% is the column every device drew before
+ * WIDTH (the screen less MARGINS), so it is the default and nobody's page
+ * changed on upgrade. The owner, 2026-11-03: "in case you want a A4 page on
+ * center or the content area with text"; on a PC the whole screen less its
+ * margins was a line too long to read.
+ */
+export type TextWidth = 50 | 65 | 80 | 100 | 'page';
+export const TEXT_WIDTHS: readonly [TextWidth, string][] = [
+	[50, '50%'],
+	[65, '65%'],
+	[80, '80%'],
+	[100, '100%'],
+	['page', 'PAGE']
+];
+export const DEFAULT_WIDTH: TextWidth = 100;
+/** A stored width this build knows, or null for anything else (a newer build's, a hand edit). */
+export const parseTextWidth = (raw: unknown): TextWidth | null =>
+	TEXT_WIDTHS.find(([w]) => w === raw)?.[0] ?? null;
+/** The WIDTH row's name for a width: "65%", "PAGE". */
+export const textWidthName = (w: TextWidth) => TEXT_WIDTHS.find(([v]) => v === w)![1];
+/**
+ * The narrowest a column is drawn, in ems of the body text: about forty
+ * characters, the shortest line that still reads as prose. A step that would
+ * go below it stops there, so on a phone 50% is the phone's whole column
+ * (50% of 412 px is 206 px, a dozen words a line), and the narrow steps only
+ * narrow where there is room.
+ */
+export const MIN_MEASURE_EM = 20;
+
+/**
+ * Where the browser keeps WIDTH: the series' own, and the device's default,
+ * which is the last width chosen on this device, for a series with none.
+ */
+export const WIDTH_KEY = 'tsundoku.text.width';
+export const widthKeyOf = (seriesId: number) => `${WIDTH_KEY}.${seriesId}`;
+/** The width a series opens at: its own, else the device's, else 100%. */
+export const widthFor = (own: unknown, device: unknown): TextWidth =>
+	parseTextWidth(own) ?? parseTextWidth(device) ?? DEFAULT_WIDTH;
+
+/**
+ * One column's width at `width`: a share of the screen (both columns and the
+ * gap between them, in landscape's two), or a page of A4's proportion as tall
+ * as the column; never past the full column, never under MIN_MEASURE_EM.
+ */
+function columnAt(
+	width: TextWidth,
+	o: { screenW: number; full: number; cols: number; gap: number; h: number; fontSize: number }
+): number {
+	const gaps = (o.cols - 1) * o.gap;
+	const full = (o.full - gaps) / o.cols;
+	const want = width === 'page' ? o.h / Math.SQRT2 : ((o.screenW * width) / 100 - gaps) / o.cols;
+	const floor = Math.min(full, MIN_MEASURE_EM * o.fontSize);
+	return Math.min(full, Math.max(floor, want));
+}
+
+export function frame(
+	screenW: number,
+	screenH: number,
+	s: TextSettings,
+	vertical = false,
+	width: TextWidth = DEFAULT_WIDTH
+): Frame {
 	const device = deviceOf(screenW, screenH);
 	const b = BASE[device];
 	const side = Math.round(b.side * SIDE[s.margins]);
 	const fontSize = s.size ?? b.fs;
 	const cols = device === 'landscape' && s.columns && !vertical ? 2 : 1;
+	const full = Math.max(120, screenW - side * 2);
+	const h = Math.max(120, screenH - b.top * 2);
+	const gap = cols > 1 ? 96 : side * 2;
+	// Vertical text's column runs down the page, so WIDTH is how wide the page
+	// of columns is, not a line's length: fewer lines a page, the same lines.
+	const w =
+		width === 100
+			? full
+			: Math.round(columnAt(width, { screenW, full, cols, gap, h, fontSize }) * cols) +
+				(cols - 1) * gap;
 	return {
-		x: side,
+		// Centred: the margin each side takes up what the column gave back.
+		x: side + Math.floor((full - w) / 2),
 		y: b.top,
-		w: Math.max(120, screenW - side * 2),
-		h: Math.max(120, screenH - b.top * 2),
+		w,
+		h,
 		cols,
-		gap: cols > 1 ? 96 : side * 2,
+		gap,
 		fontSize,
 		lineHeight: s.line ?? b.lh,
 		// Headings keep the handoff's proportion to the body (30 to 20).
