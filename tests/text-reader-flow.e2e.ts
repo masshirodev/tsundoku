@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { E2E_TOKEN } from '../playwright.config';
 import { sampleEpub } from '../src/lib/server/pages/sample-epub';
 import { Zip } from '../src/lib/epub/unzip';
+import { drawnFonts } from './helpers/fonts';
 import { expect, test } from './helpers/hydrated';
 
 /**
@@ -348,6 +349,16 @@ test('a Japanese book is set vertically, with furigana and upright numbers', asy
 	await expect(page.locator('.flow')).toHaveCSS('writing-mode', 'vertical-rl');
 	await expect(page.locator('.blocks rt').first()).toHaveText('ぼうし');
 	await expect(page.locator('.blocks .tcy', { hasText: /^12$/ }).first()).toBeAttached();
+	// The kana and kanji are drawn in Plex Sans JP itself, from the woff2-only
+	// faces of fonts-plex.css (c537), not a system font the stack fell to.
+	await expect(page.locator('.blocks p').first()).toHaveCSS('font-family', /IBM Plex Sans JP/);
+	await expect
+		.poll(async () =>
+			(await drawnFonts(page, '.blocks p'))
+				.filter((f) => f.isCustomFont && f.glyphCount > 0)
+				.map((f) => f.familyName)
+		)
+		.toContain('IBM Plex Sans JP');
 	// Right to left: the left strip turns forward, onto the chapter's first page of text.
 	const shift = () =>
 		page
