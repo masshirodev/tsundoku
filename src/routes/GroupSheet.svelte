@@ -384,7 +384,7 @@
 			{#if offer}
 				<!-- The run it would join, as it stands: numbered, not ticked, not posted. -->
 				{#each offer.parts as p, i (p.seriesId)}
-					<li class="row gr run">
+					<li class="row gr inrun">
 						<span class="tick-gap" aria-hidden="true"></span>
 						<span class="num">{String(i + 1).padStart(2, '0')}</span>
 						<span class="cov"
@@ -688,7 +688,7 @@
 		width: 64px;
 		flex-shrink: 0;
 	}
-	.row.run {
+	.row.inrun {
 		color: var(--text-2);
 	}
 	.box {
