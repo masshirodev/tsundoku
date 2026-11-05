@@ -19,6 +19,20 @@ async function open(page: import('@playwright/test').Page) {
 	await expect(page.getByRole('heading', { name: TITLE })).toBeVisible();
 }
 
+/**
+ * DETAILS (c425; series-phone 1D): on a TV the settings-like rows fold behind
+ * one stop, and OK opens them in place. A remote reaches it, so does this.
+ */
+async function openDetails(page: import('@playwright/test').Page) {
+	const details = page.locator('[data-row="details"]');
+	await details.focus();
+	await expect(async () => {
+		if ((await details.getAttribute('aria-expanded')) !== 'true')
+			await page.keyboard.press('Enter');
+		await expect(details).toHaveAttribute('aria-expanded', 'true', { timeout: 1_000 });
+	}).toPass();
+}
+
 test('the first arrow lands on ▶ CONTINUE', async ({ page }) => {
 	await open(page);
 	await page.keyboard.press('ArrowDown');
@@ -59,34 +73,40 @@ test('every row of the panel fits its 352px column, and nothing sits over ▶ CO
 	await open(page);
 	// On the first real TV (2026-11-02) the rows took the tablet's full-width
 	// layout: cells ran past the column and over CONTINUE, labels were cut.
-	const report = await page.evaluate(() => {
-		const panel = document.querySelector('section.panel')!.getBoundingClientRect();
-		const cta = document.querySelector('.panel .cta')!.getBoundingClientRect();
-		const out: string[] = [];
-		for (const el of document.querySelectorAll<HTMLElement>(
-			'.panel .row, .panel .lc, .panel .label, .panel .lcs, .panel [data-row="lists"], .panel [data-row="lists"] .c, .panel [data-row="lists"] .tag'
-		)) {
-			const r = el.getBoundingClientRect();
-			if (r.width === 0 || getComputedStyle(el).display === 'none') continue;
-			const name = `${el.className} "${el.textContent?.trim().slice(0, 20)}"`;
-			if (r.left < panel.left - 1 || r.right > panel.right + 1) out.push(`outside: ${name}`);
-			if (!el.closest('.cta') && r.bottom > cta.top + 1 && r.top < cta.bottom - 1)
-				out.push(`over CONTINUE: ${name}`);
-			if (
-				el.scrollWidth > el.clientWidth + 1 &&
-				(el.classList.contains('label') || el.classList.contains('tag'))
-			)
-				out.push(`cut: ${name}`);
-		}
-		return out;
-	});
-	expect(report).toEqual([]);
+	// Folded, and then with DETAILS open (c425), every row it holds.
+	const report = () =>
+		page.evaluate(() => {
+			const panel = document.querySelector('section.panel')!.getBoundingClientRect();
+			const cta = document.querySelector('.panel .cta')!.getBoundingClientRect();
+			const out: string[] = [];
+			for (const el of document.querySelectorAll<HTMLElement>(
+				'.panel .row, .panel .lc, .panel .label, .panel .lcs, .panel [data-row="lists"], .panel [data-row="lists"] .c, .panel [data-row="lists"] .tag'
+			)) {
+				const r = el.getBoundingClientRect();
+				if (r.width === 0 || getComputedStyle(el).display === 'none') continue;
+				const name = `${el.className} "${el.textContent?.trim().slice(0, 20)}"`;
+				if (r.left < panel.left - 1 || r.right > panel.right + 1) out.push(`outside: ${name}`);
+				if (!el.closest('.cta') && r.bottom > cta.top + 1 && r.top < cta.bottom - 1)
+					out.push(`over CONTINUE: ${name}`);
+				if (
+					el.scrollWidth > el.clientWidth + 1 &&
+					(el.classList.contains('label') || el.classList.contains('tag'))
+				)
+					out.push(`cut: ${name}`);
+			}
+			return out;
+		});
+	expect(await report()).toEqual([]);
+	await openDetails(page);
+	await expect(page.locator('[data-row="lists"]')).toBeVisible();
+	expect(await report()).toEqual([]);
 });
 
 test('LISTS on the TV: a strip, 56px lines with no meta, and ← → between a line’s cells (c424)', async ({
 	page
 }) => {
 	await open(page);
+	await openDetails(page);
 	// The handoff's 1D: the label is a 36px strip, the tag 56, the line 56, the
 	// title 16 and the cells 15; a line drops its meta (one OK away, in EDIT).
 	const row = page.locator('[data-row="lists"]');

@@ -78,6 +78,19 @@ test('hovering the fold keeps its stripes (c488)', async ({ page }, info) => {
 	expect(await image()).toMatch(/^repeating-linear-gradient/);
 });
 
+/**
+ * DETAILS (c425) folds FILE on a phone and a TV: open it the way the owner
+ * does, by its line, and wait for the answer, which comes once the page runs.
+ */
+async function openDetails(page: import('@playwright/test').Page) {
+	const line = page.locator('[data-row="details"]');
+	if (!(await line.isVisible())) return;
+	await expect(async () => {
+		if ((await line.getAttribute('aria-expanded')) !== 'true') await line.click();
+		await expect(line).toHaveAttribute('aria-expanded', 'true', { timeout: 1_000 });
+	}).toPass();
+}
+
 /*
  * c526: FILE's row was its text at `flex: 1` beside three cells (UNGROUP,
  * HIDE, DELETE), so at the 440 panel `13 EPUB · 6.8 MB` read a word a line.
@@ -94,6 +107,7 @@ test('FILE keeps its text whole, and its cells drop under it where the panel is 
 	await page.goto('/?sort=title');
 	await page.locator('.grid .tile', { hasText: 'Tower of God' }).click();
 	await page.waitForURL(/\/series\/\d+/);
+	await openDetails(page);
 	const row = page.locator('.file-row');
 	await row.scrollIntoViewIfNeeded();
 	const box = (await row.boundingBox())!;
@@ -153,6 +167,8 @@ test('a novel shows its contents without numbers, and a typeset cover', async ({
 	await page.locator('.grid .tile', { hasText: 'Mushoku Tensei' }).click();
 	await expect(page.getByText('01 — CONTENTS')).toBeVisible();
 	await expect(page.getByText('NO COVER · EPUB')).toBeVisible();
+	// LAYOUT is a row DETAILS folds on a phone and a TV (c425).
+	await openDetails(page);
 	await expect(page.getByText('LAYOUT', { exact: true })).toBeVisible();
 	await expect(page.locator('.entry .num')).toHaveCount(0);
 });
@@ -262,6 +278,8 @@ test.describe('a one-season anime with Ranobe (c422)', () => {
 		}) => {
 			await page.setViewportSize({ width, height: 900 });
 			await page.goto(`${base}/series/${seriesId}`);
+			// At 390 the panel is a phone's, and DETAILS folds LISTS (c425).
+			await openDetails(page);
 			await expect(page.getByRole('heading', { name: 'Ranma ½ (2024)' })).toBeVisible();
 			await screenSettled(page);
 			const row = page.locator('[data-row="lists"]');

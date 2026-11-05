@@ -26,6 +26,14 @@ async function openMove(page: import('@playwright/test').Page): Promise<void> {
 	await page.goto('/?sort=title');
 	await page.locator('.grid .tile', { hasText: TITLE }).click();
 	await page.waitForURL(/\/series\/\d+/);
+	// SOURCE is folded under DETAILS on a TV (c425): one stop, OK opens it in place.
+	const details = page.locator('[data-row="details"]');
+	await details.focus();
+	await expect(async () => {
+		if ((await details.getAttribute('aria-expanded')) !== 'true')
+			await page.keyboard.press('Enter');
+		await expect(details).toHaveAttribute('aria-expanded', 'true', { timeout: 1_000 });
+	}).toPass();
 	// The SOURCE row's way out is a ruled cell of the panel, and a stop.
 	await page.getByRole('link', { name: 'MOVE →' }).focus();
 	await page.keyboard.press('Enter');

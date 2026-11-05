@@ -125,6 +125,19 @@ test.afterAll(() => {
 	rmSync(work, { recursive: true, force: true });
 });
 
+/**
+ * DETAILS (c425) folds FILE on a phone and a TV: open it the way the owner
+ * does, by its line, and wait for the answer, which comes once the page runs.
+ */
+async function openDetails(page: Page) {
+	const line = page.locator('[data-row="details"]');
+	if (!(await line.isVisible())) return;
+	await expect(async () => {
+		if ((await line.getAttribute('aria-expanded')) !== 'true') await line.click();
+		await expect(line).toHaveAttribute('aria-expanded', 'true', { timeout: 1_000 });
+	}).toPass();
+}
+
 const fileRow = (page: Page) => page.locator('.file-row');
 const heading = (page: Page) => page.locator('.panel h1');
 
@@ -145,6 +158,7 @@ for (const at of [
 	}) => {
 		await page.setViewportSize({ width: at.width, height: at.height });
 		await page.goto(`${BASE}/series/${id}`);
+		await openDetails(page);
 		const row = fileRow(page);
 		await expect(row.locator('.file-meta')).toHaveText('13 EPUB · 6.8 MB');
 		await row.scrollIntoViewIfNeeded();

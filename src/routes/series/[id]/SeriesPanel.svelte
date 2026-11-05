@@ -15,6 +15,7 @@
 		directionRowLabel,
 		effectiveDirection,
 		fileMeta,
+		formatNumber,
 		seriesMeta,
 		tagGroups,
 		type SeriesPage
@@ -42,6 +43,17 @@
 	import type { Tracking } from '$lib/server/tracking';
 	import { ago, clock } from '$lib/library/tracking';
 	import ListsRow from './ListsRow.svelte';
+	import {
+		DETAILS_KEY,
+		TV_NAMES,
+		detailsLine,
+		detailsOpen,
+		listsMarks,
+		namesLine,
+		sentWord,
+		sourceMark,
+		type DetailsRunning
+	} from './details';
 	import { listsRow, type SheetAt } from './lists';
 	import type { RanobeSeries } from '$lib/server/ranobe-review';
 	import type { SeriesDownloads } from '$lib/server/downloads';
@@ -315,6 +327,72 @@
 	// Rating and FAV show their new value at once and save behind it. A save
 	// that fails keeps the value, drawn dashed, with RETRY and PUT BACK in the
 	// layout's band (Loading States 1o).
+	// ---- DETAILS (c425): the fold on a phone and a TV ----------------------------------------
+	// Closed by default and remembered for the device, not the series
+	// (`DETAILS_KEY`): wanting the settings showing is the owner's habit. The
+	// server draws it closed, so the first paint is never a flash of it open; a
+	// device that remembers it open opens it once the page runs. Without
+	// script the <noscript> rule below shows every row, as it always did.
+	let detailsShown = $state(false);
+	$effect(() => {
+		try {
+			detailsShown = detailsOpen(localStorage.getItem(DETAILS_KEY));
+		} catch {
+			detailsShown = false;
+		}
+	});
+	function toggleDetails() {
+		detailsShown = !detailsShown;
+		try {
+			if (detailsShown) localStorage.setItem(DETAILS_KEY, '1');
+			else localStorage.removeItem(DETAILS_KEY);
+		} catch {
+			// Storage unavailable: the fold still holds for this visit.
+		}
+	}
+	/** The names of the rows inside, in their order (1C's second line). */
+	const detailsNames = $derived(
+		[
+			dlRow && 'DOWNLOAD',
+			editions && opening && 'LANGUAGE',
+			!anime && directionRowLabel(series.kind),
+			ocrRow && 'OCR',
+			series.duplicates > 0 && series.scanlators.length > 1 && 'SCANLATOR',
+			lists && 'LISTS',
+			link && 'COVER',
+			move?.eligible && 'SOURCE',
+			'TAGS',
+			editions && opening ? 'FOLDED' : 'FILE'
+		].filter((n): n is string => !!n)
+	);
+	/** Work under way inside: a chapter downloading, else OCR running (1C, D). */
+	const detailsRunning = $derived.by((): DetailsRunning | null => {
+		const unit = kindFacts(series.kind).unit.short;
+		for (const e of series.entries) {
+			const st = dlStates?.get(e.id);
+			if (st?.kind === 'downloading')
+				return { word: `${unit}. ${formatNumber(e.number)} DOWNLOADING`, fraction: st.fraction };
+		}
+		if (ocr?.running && ocrRow?.bar != null)
+			return { word: `OCR ${ocrRow.a}`, fraction: ocrRow.bar };
+		return null;
+	});
+	const detailsState = $derived(
+		detailsLine({
+			names: detailsNames,
+			marks: [...listsMarks(lists), ...sourceMark(move)],
+			quiet: [
+				downloads?.kind === 'ok' && downloads.follow.on
+					? 'FOLLOWING'
+					: anime
+						? ''
+						: (directionOptions(series.kind).find((d) => d.value === direction)?.label ?? ''),
+				sentWord(lists)
+			],
+			running: detailsRunning
+		})
+	);
+
 	// RENAME's field (c526), opened in place by its cell, as the Work screen's
 	// is. A rename that lands closes it; a refusal leaves it open with its word.
 	let renaming = $state(false);
@@ -657,471 +735,543 @@
 		{/if}
 	{/if}
 
-	{#if !outline && dlRow}
-		<!-- DOWNLOAD (Index Series Download): under CONTINUE, as LINK's shape. NEXT never asks; ALL opens its confirmation by URL. -->
-		{#snippet dlCells()}
-			{#each dlRow?.cells ?? [] as c (c.which)}
-				{#if c.dim}
-					<span class="lc dim" class:acc={c.acc} aria-disabled="true">{c.label}</span>
-				{:else if c.which === 'follow' || c.which === 'unfollow'}
-					<form method="POST" action="?/follow" use:enhance class="lc-form">
-						<input type="hidden" name="on" value={c.which === 'follow' ? '1' : '0'} />
-						<button type="submit" class="lc" class:acc={c.acc}>{c.label}</button>
-					</form>
-				{:else if c.which === 'refresh'}
-					<!-- REFRESH asks the source once and downloads nothing (c220): the band says what arrived. -->
-					<form method="POST" action="?/refresh" use:enhance={refreshAfter} class="lc-form">
-						<button type="submit" class="lc" class:acc={c.acc} disabled={c.dim}>{c.label}</button>
-					</form>
-				{:else if c.which === 'all'}
-					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam() keeps the current, resolved path -->
-					<a class="lc" href={withParam(page.url, 'download', 'all')} data-sveltekit-noscroll
-						>{c.label}</a
-					>
-				{:else}
-					<form method="POST" action="?/download" use:enhance class="lc-form">
-						<input type="hidden" name="which" value="next" />
-						<button type="submit" class="lc" class:acc={c.acc}>{c.label}</button>
-					</form>
-				{/if}
-			{/each}
-		{/snippet}
-		<div
-			class="row link-row dl-row"
-			class:solo={dlRow.cells.length === 0}
-			class:ring={ringDownload}
-		>
-			<!-- The "?" in the label (doc/HELP.md): 03 — FINDING AND DOWNLOADING, at ADD, DOWNLOAD, FOLLOW. -->
-			<button
-				type="button"
-				class="label ask"
-				aria-label="Help: downloading"
-				aria-expanded={helpOpen}
-				onclick={() => (helpOpen = true)}>DOWNLOAD<HelpMark /></button
-			>
-			<div class="lk">
-				<div class="lk-a">{dlRow.a}</div>
-				<div class="lk-b">{dlRow.b}</div>
-			</div>
-			{#if dlRow.cells.length}<div class="lcs inline">{@render dlCells()}</div>{/if}
-		</div>
-		{#if dlRow.cells.length}<div class="lcs stack">{@render dlCells()}</div>{/if}
-	{/if}
-
-	{#if !outline && noVideo}
-		<!-- NO VIDEO (doc/MOVE.md; Migrate-Start): the MIGHT BE ONE SERIES idiom,
-		     under CONTINUE. NOT NOW hides it until a new failure. -->
-		<section class="sugg" aria-label="No video from this source">
-			<div class="sugg-head">
-				<span>{noVideo.title}</span>
-				<span class="dim">{noVideo.detail}</span>
-			</div>
-			<div class="sugg-actions">
-				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
-				<a href={moveHref} data-focus-mark="in">ANOTHER SOURCE →</a>
-				<form method="POST" action="?/dismissMove" use:enhance>
-					<button type="submit" class="dim" data-focus-mark="in">NOT NOW</button>
-				</form>
-			</div>
-		</section>
-	{/if}
-
-	{#if outline}
-		{#each [directionRowLabel(series.kind), 'SHELVES', 'TAGS', 'FILE'] as label, i (label)}
-			<div class="row out-row" aria-hidden="true">
-				<div class="label">{label}</div>
-				<div class="out-lines"><i style:width={['34%', '52%', '74%', '60%'][i]}></i></div>
-			</div>
-		{/each}
-	{:else if suggestion}
-		<!-- Index Books, state 7: under CONTINUE, on this book's screen only. -->
-		<section class="sugg" aria-label="Might be one series">
-			<div class="sugg-head">
-				<span>MIGHT BE ONE SERIES</span>
-				<span class="dim"
-					>{suggestion.books.length} BOOKS · {suggestionLabel(suggestion.books)}</span
-				>
-			</div>
-			<div class="sugg-covers">
-				{#each suggestion.books as b (b.seriesId)}
-					<span
-						class="sugg-cover"
-						class:this={b.seriesId === series.id}
-						style:background={b.cover
-							? `center / cover no-repeat url(${coverSrc(b.seriesId, b.cover)}), ${coverPlaceholder(b.hue)}`
-							: coverPlaceholder(b.hue)}
-						title={b.title}
-					></span>
-				{/each}
-			</div>
-			<div class="sugg-actions">
-				<button type="button" onclick={() => onreview?.()}>REVIEW →</button>
-				<form method="POST" action="?/dismiss" use:enhance>
-					{#each suggestion.books as b (b.seriesId)}<input
-							type="hidden"
-							name="series"
-							value={b.seriesId}
-						/>{/each}
-					<button type="submit" class="dim">NOT A SERIES</button>
-				</form>
-			</div>
-		</section>
-	{:else if dismissedKey}
-		<Band title="NOT A SERIES · WON'T ASK AGAIN">
-			{#snippet action()}
-				<form method="POST" action="?/undoDismiss" use:enhance>
-					<input type="hidden" name="key" value={dismissedKey} />
-					<button type="submit">UNDO</button>
-				</form>
-			{/snippet}
-		</Band>
-	{/if}
-
-	{#if !outline && twin}
-		<!-- Duplicate Books 1d: the group suggestion's treatment, for a twin. -->
-		<div class="twin" role="status">
-			<div class="tw-text">
-				<div class="tw-title">SAME BOOK AS {twin.title.toUpperCase()}</div>
-				<div class="tw-meta">
-					{twin.conf === 'likely' ? 'LIKELY' : twin.conf === 'maybe' ? 'MAYBE' : 'OTHER LANGUAGE'} · {twin.pages}
+	<!-- DETAILS (c425; doc/SERIES.md, "DETAILS"; doc/handoffs/series-phone/): on a
+	     phone and a TV the rows a visit rarely touches fold behind one line. The
+	     markup is in the fold's order; where nothing folds (the tablet, landscape,
+	     desktop) `order` puts every row back where it always was (`.o1`–`.o7`). -->
+	<div class="o o2">
+		{#if !outline && noVideo}
+			<!-- NO VIDEO (doc/MOVE.md; Migrate-Start): the MIGHT BE ONE SERIES idiom,
+			     under CONTINUE. NOT NOW hides it until a new failure. -->
+			<section class="sugg" aria-label="No video from this source">
+				<div class="sugg-head">
+					<span>{noVideo.title}</span>
+					<span class="dim">{noVideo.detail}</span>
 				</div>
-			</div>
-			<div class="tw-acts">
-				<form method="POST" action="?/keepBoth" use:enhance>
-					<input type="hidden" name="pair" value={twin.key} />
-					<button type="submit">KEEP BOTH</button>
-				</form>
-				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
-				<a href="{resolve('/duplicates')}?pair={encodeURIComponent(twin.key)}">REVIEW →</a>
-			</div>
-		</div>
-	{/if}
-
-	{#if !outline && editions && opening}
-		<!-- LANGUAGE (Editions 1b): which edition it opens in. The default language clears the book's own choice. -->
-		<form method="POST" action="?/language" use:enhance class="row">
-			<div class="label">LANGUAGE</div>
-			<div class="seg">
-				{#each editions.editions as e (e.entryId)}
-					<button
-						type="submit"
-						name="language"
-						value={e.language === defaultLanguage ? '' : e.language}
-						class:on={e === opening}
-						aria-pressed={e === opening}
-						><span class="lg-long">{e.code} · {langName(e.language)}</span><span class="lg-short"
-							>{e.code}</span
-						></button
-					>
-				{/each}
-			</div>
-		</form>
-		{#if editions.own && editions.own !== defaultLanguage}
-			<form method="POST" action="?/language" use:enhance class="row panel-row override">
-				<div class="ov">
-					THIS BOOK OPENS IN {langName(editions.own)} · OTHERS IN {langName(editions.preferred)}
-				</div>
-				<button type="submit" name="language" value="" class="edit">RESET</button>
-			</form>
-		{/if}
-	{/if}
-
-	<!-- A video has no reading direction: an anime series has no such row (Index Anime Series). -->
-	{#if !outline && !anime}
-		<form method="POST" action="?/direction" use:enhance class="row">
-			<div class="label">{directionRowLabel(series.kind)}</div>
-			<div class="seg">
-				{#each directionOptions(series.kind) as d (d.value)}
-					<button
-						type="submit"
-						name="direction"
-						value={d.value}
-						class:on={d.value === direction}
-						aria-pressed={d.value === direction}>{d.label}</button
-					>
-				{/each}
-			</div>
-		</form>
-	{/if}
-	{#if !outline}
-		{#if ocrRow}
-			<!-- Japanese (doc/JAPANESE.md): how far OCR has read it, on the panel ground. -->
-			<form method="POST" action="?/ocr" use:enhance class="row panel-row ocr-row">
-				<div class="label">OCR</div>
-				<div class="ocr">
-					<div class="oa">{ocrRow.a}</div>
-					{#if ocrRow.bar !== null}
-						<div class="obar"><div style:width="{ocrRow.bar * 100}%"></div></div>
-					{/if}
-					{#if ocrRow.b}<div class="ob">{ocrRow.b}</div>{/if}
-					{#if ocr && ocr.notText > 0}
-						<div class="ob">{ocr.notText} MARKED NOT TEXT</div>
-					{/if}
-				</div>
-				{#if ocrRow.offer}<button type="submit" class="edit">OCR</button>{/if}
-				{#if ocr && ocr.notText > 0}
-					<!-- NOT TEXT is kept, not deleted: this puts every such block back. -->
-					<button type="submit" class="edit" formaction="?/restoreText">RESTORE</button>
-				{/if}
-			</form>
-			{#if ocr?.japanese && words && (words.toReview > 0 || words.sent > 0)}
-				<div class="row panel-row">
-					<div class="label">WORDS</div>
-					<div class="wcount">
-						<span>{words.toReview} TO REVIEW</span><span class="ws">{words.sent} SENT</span>
-					</div>
+				<div class="sugg-actions">
 					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
-					<a class="edit" href="{resolve('/words')}?series={series.id}">REVIEW →</a>
+					<a href={moveHref} data-focus-mark="in">ANOTHER SOURCE →</a>
+					<form method="POST" action="?/dismissMove" use:enhance>
+						<button type="submit" class="dim" data-focus-mark="in">NOT NOW</button>
+					</form>
 				</div>
-			{/if}
+			</section>
 		{/if}
 
-		{#if series.duplicates > 0 && series.scanlators.length > 1}
-			<!-- One chapter, several scanlators (doc/DUPLICATES.md): whose copy the list shows. -->
-			<form method="POST" action="?/scanlator" use:enhance class="row top">
-				<div class="label">SCANLATOR</div>
-				<div class="picks">
-					<button
-						type="submit"
-						name="scanlator"
-						value=""
-						class:on={series.scanlator === null}
-						aria-pressed={series.scanlator === null}>AUTO</button
+		{#if outline}
+			{#each [directionRowLabel(series.kind), 'SHELVES', 'TAGS', 'FILE'] as label, i (label)}
+				<div class="row out-row" aria-hidden="true">
+					<div class="label">{label}</div>
+					<div class="out-lines"><i style:width={['34%', '52%', '74%', '60%'][i]}></i></div>
+				</div>
+			{/each}
+		{:else if suggestion}
+			<!-- Index Books, state 7: under CONTINUE, on this book's screen only. -->
+			<section class="sugg" aria-label="Might be one series">
+				<div class="sugg-head">
+					<span>MIGHT BE ONE SERIES</span>
+					<span class="dim"
+						>{suggestion.books.length} BOOKS · {suggestionLabel(suggestion.books)}</span
 					>
-					{#each series.scanlators as s (s.name)}
-						<button
-							type="submit"
-							name="scanlator"
-							value={s.name}
-							class:on={series.scanlator === s.name}
-							aria-pressed={series.scanlator === s.name}>{s.name} · {s.count}</button
-						>
+				</div>
+				<div class="sugg-covers">
+					{#each suggestion.books as b (b.seriesId)}
+						<span
+							class="sugg-cover"
+							class:this={b.seriesId === series.id}
+							style:background={b.cover
+								? `center / cover no-repeat url(${coverSrc(b.seriesId, b.cover)}), ${coverPlaceholder(b.hue)}`
+								: coverPlaceholder(b.hue)}
+							title={b.title}
+						></span>
 					{/each}
-					<span class="none"
-						>{series.duplicates} DUPLICATE{series.duplicates === 1 ? '' : 'S'} HIDDEN</span
-					>
 				</div>
-			</form>
+				<div class="sugg-actions">
+					<button type="button" onclick={() => onreview?.()}>REVIEW →</button>
+					<form method="POST" action="?/dismiss" use:enhance>
+						{#each suggestion.books as b (b.seriesId)}<input
+								type="hidden"
+								name="series"
+								value={b.seriesId}
+							/>{/each}
+						<button type="submit" class="dim">NOT A SERIES</button>
+					</form>
+				</div>
+			</section>
+		{:else if dismissedKey}
+			<Band title="NOT A SERIES · WON'T ASK AGAIN">
+				{#snippet action()}
+					<form method="POST" action="?/undoDismiss" use:enhance>
+						<input type="hidden" name="key" value={dismissedKey} />
+						<button type="submit">UNDO</button>
+					</form>
+				{/snippet}
+			</Band>
 		{/if}
 
-		<div class="row">
-			<div class="label">SHELVES</div>
-			<div class="chips">
-				{#each onShelves as s (s.key)}<span class="chip">{s.name}</span>{/each}
-				{#if onShelves.length === 0}<span class="none">ON NO SHELF</span>{/if}
+		{#if !outline && twin}
+			<!-- Duplicate Books 1d: the group suggestion's treatment, for a twin. -->
+			<div class="twin" role="status">
+				<div class="tw-text">
+					<div class="tw-title">SAME BOOK AS {twin.title.toUpperCase()}</div>
+					<div class="tw-meta">
+						{twin.conf === 'likely' ? 'LIKELY' : twin.conf === 'maybe' ? 'MAYBE' : 'OTHER LANGUAGE'} ·
+						{twin.pages}
+					</div>
+				</div>
+				<div class="tw-acts">
+					<form method="POST" action="?/keepBoth" use:enhance>
+						<input type="hidden" name="pair" value={twin.key} />
+						<button type="submit">KEEP BOTH</button>
+					</form>
+					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
+					<a href="{resolve('/duplicates')}?pair={encodeURIComponent(twin.key)}">REVIEW →</a>
+				</div>
 			</div>
-			<button type="button" class="edit" onclick={onedit}>EDIT</button>
+		{/if}
+	</div>
+
+	{#if !outline}
+		<div class="o o4">
+			<div class="row">
+				<div class="label">SHELVES</div>
+				<div class="chips">
+					{#each onShelves as s (s.key)}<span class="chip">{s.name}</span>{/each}
+					{#if onShelves.length === 0}<span class="none">ON NO SHELF</span>{/if}
+				</div>
+				<button type="button" class="edit" onclick={onedit}>EDIT</button>
+			</div>
 		</div>
-
-		<!-- LISTS (c424; doc/SERIES.md): LINK and TRACKING as one row, a line per
-		     list, each with its entry, its list's word and its cells. EDIT opens the
-		     sheet on that line's entry and season. COVER stays its own row. -->
-		{#if lists}
-			<ListsRow
-				{lists}
-				onedit={(at) => {
-					sheetAt = at;
-					trackingOpen = true;
-				}}
-				onexpand={() => (seasonsOpen = !seasonsOpen)}
-			/>
-			<TrackingSheet
-				open={trackingOpen}
-				at={sheetAt}
-				{tracking}
-				{link}
-				{ranobe}
-				kind={link?.linked?.kind ?? series.kind}
-				{seasons}
-				seriesId={series.id}
-				linksHref={resolve('/links')}
-				offline={linkOff}
-				onclose={() => (trackingOpen = false)}
-			/>
-		{/if}
-		{#if link}
-			<div class="row cover-row">
-				<div class="label">COVER</div>
-				<div class="cv">
-					<div class="cv-a">{link.cover.a}</div>
-					{#if link.cover.b}<div>{link.cover.b}</div>{/if}
+		{#if series.description}
+			<div class="o o6">
+				<div class="row top">
+					<div class="label">ABOUT</div>
+					<div class="about">
+						<p class:open={aboutOpen}>{series.description}</p>
+						<button type="button" class="more" onclick={() => (aboutOpen = !aboutOpen)}>
+							{aboutOpen ? 'LESS ↑' : 'MORE ↓'}
+						</button>
+					</div>
 				</div>
 			</div>
 		{/if}
+		{@render detailsLineCell()}
+	{/if}
 
-		{#if !outline && move?.eligible}
-			<!-- SOURCE (doc/MOVE.md; Migrate-Start): where the series comes from, its
-			     trouble in ink, and the way to another source. Rare enough to sit
-			     away from CONTINUE, next to FILE. -->
-			{#snippet sourceCells()}
-				{#if move.former}
-					<form method="POST" action="?/moveBack" use:enhance class="lc-form">
-						<button type="submit" class="lc" data-focus-mark="in">MOVE BACK</button>
+	<div class="details" class:open={detailsShown} id="series-details" data-details>
+		<div class="o o1">
+			{#if !outline && dlRow}
+				<!-- DOWNLOAD (Index Series Download): under CONTINUE, as LINK's shape. NEXT never asks; ALL opens its confirmation by URL. -->
+				{#snippet dlCells()}
+					{#each dlRow?.cells ?? [] as c (c.which)}
+						{#if c.dim}
+							<span class="lc dim" class:acc={c.acc} aria-disabled="true">{c.label}</span>
+						{:else if c.which === 'follow' || c.which === 'unfollow'}
+							<form method="POST" action="?/follow" use:enhance class="lc-form">
+								<input type="hidden" name="on" value={c.which === 'follow' ? '1' : '0'} />
+								<button type="submit" class="lc" class:acc={c.acc}>{c.label}</button>
+							</form>
+						{:else if c.which === 'refresh'}
+							<!-- REFRESH asks the source once and downloads nothing (c220): the band says what arrived. -->
+							<form method="POST" action="?/refresh" use:enhance={refreshAfter} class="lc-form">
+								<button type="submit" class="lc" class:acc={c.acc} disabled={c.dim}
+									>{c.label}</button
+								>
+							</form>
+						{:else if c.which === 'all'}
+							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- withParam() keeps the current, resolved path -->
+							<a class="lc" href={withParam(page.url, 'download', 'all')} data-sveltekit-noscroll
+								>{c.label}</a
+							>
+						{:else}
+							<form method="POST" action="?/download" use:enhance class="lc-form">
+								<input type="hidden" name="which" value="next" />
+								<button type="submit" class="lc" class:acc={c.acc}>{c.label}</button>
+							</form>
+						{/if}
+					{/each}
+				{/snippet}
+				<div
+					class="row link-row dl-row"
+					class:solo={dlRow.cells.length === 0}
+					class:ring={ringDownload}
+				>
+					<!-- The "?" in the label (doc/HELP.md): 03 — FINDING AND DOWNLOADING, at ADD, DOWNLOAD, FOLLOW. -->
+					<button
+						type="button"
+						class="label ask"
+						aria-label="Help: downloading"
+						aria-expanded={helpOpen}
+						onclick={() => (helpOpen = true)}>DOWNLOAD<HelpMark /></button
+					>
+					<div class="lk">
+						<div class="lk-a">{dlRow.a}</div>
+						<div class="lk-b">{dlRow.b}</div>
+					</div>
+					{#if dlRow.cells.length}<div class="lcs inline">{@render dlCells()}</div>{/if}
+				</div>
+				{#if dlRow.cells.length}<div class="lcs stack">{@render dlCells()}</div>{/if}
+			{/if}
+		</div>
+		<div class="o o3">
+			{#if !outline && editions && opening}
+				<!-- LANGUAGE (Editions 1b): which edition it opens in. The default language clears the book's own choice. -->
+				<form method="POST" action="?/language" use:enhance class="row">
+					<div class="label">LANGUAGE</div>
+					<div class="seg">
+						{#each editions.editions as e (e.entryId)}
+							<button
+								type="submit"
+								name="language"
+								value={e.language === defaultLanguage ? '' : e.language}
+								class:on={e === opening}
+								aria-pressed={e === opening}
+								><span class="lg-long">{e.code} · {langName(e.language)}</span><span
+									class="lg-short">{e.code}</span
+								></button
+							>
+						{/each}
+					</div>
+				</form>
+				{#if editions.own && editions.own !== defaultLanguage}
+					<form method="POST" action="?/language" use:enhance class="row panel-row override">
+						<div class="ov">
+							THIS BOOK OPENS IN {langName(editions.own)} · OTHERS IN {langName(editions.preferred)}
+						</div>
+						<button type="submit" name="language" value="" class="edit">RESET</button>
 					</form>
 				{/if}
-				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
-				<a class="lc" href={moveHref} data-focus-mark="in">MOVE →</a>
-			{/snippet}
-			<div class="row link-row source-row">
-				<div class="label">SOURCE</div>
-				<div class="lk">
-					<div class="lk-a">{move.source}</div>
-					<div class="lk-b" class:ink={!!move.trouble}>{move.trouble ?? move.meta}</div>
-					{#if move.former}
-						<div class="lk-b">WAS {move.former.name.toUpperCase()} · UNTIL {formerUntil}</div>
-					{/if}
-				</div>
-				<div class="lcs inline">{@render sourceCells()}</div>
-			</div>
-			<div class="lcs stack">{@render sourceCells()}</div>
-		{/if}
+			{/if}
 
-		<div class="row top">
-			<div class="label">TAGS</div>
-			<div class="tags">
-				{#each groupTags as g (g.namespace)}
-					<div class="tag-line">
-						<span class="ns">{g.namespace}</span>
-						<span class="vals">
-							<!-- Every value opens the library's person or tag page (Index Books), or,
-							     with a source, asks where to look (c313). -->
-							<!-- eslint-disable svelte/no-navigation-without-resolve -- tagHref() resolves -->
-							{#each g.tags as t, i (i)}{#if i > 0}<span class="sep"> · </span>{/if}<a
-									class="person"
-									href={tagLibraryHref(t)}
-									aria-haspopup={tagSource ? 'dialog' : undefined}
-									onclick={(e) => askTag(e, t)}>{t.value}</a
-								>{/each}
-							<!-- eslint-enable svelte/no-navigation-without-resolve -->
-						</span>
+			<!-- A video has no reading direction: an anime series has no such row (Index Anime Series). -->
+			{#if !outline && !anime}
+				<form method="POST" action="?/direction" use:enhance class="row">
+					<div class="label">{directionRowLabel(series.kind)}</div>
+					<div class="seg">
+						{#each directionOptions(series.kind) as d (d.value)}
+							<button
+								type="submit"
+								name="direction"
+								value={d.value}
+								class:on={d.value === direction}
+								aria-pressed={d.value === direction}>{d.label}</button
+							>
+						{/each}
 					</div>
-				{/each}
-				{#if tags.groups.length === 0}<span class="none">NO TAGS</span>{/if}
-				{#if tags.more > 0}<div class="more">+ {tags.more} MORE</div>{/if}
-				{#if isBookSeries(series)}
-					<div class="more">FROM ITS {series.entries.length} BOOKS · EACH KEEPS ITS OWN</div>
+				</form>
+			{/if}
+			{#if !outline}
+				{#if ocrRow}
+					<!-- Japanese (doc/JAPANESE.md): how far OCR has read it, on the panel ground. -->
+					<form method="POST" action="?/ocr" use:enhance class="row panel-row ocr-row">
+						<div class="label">OCR</div>
+						<div class="ocr">
+							<div class="oa">{ocrRow.a}</div>
+							{#if ocrRow.bar !== null}
+								<div class="obar"><div style:width="{ocrRow.bar * 100}%"></div></div>
+							{/if}
+							{#if ocrRow.b}<div class="ob">{ocrRow.b}</div>{/if}
+							{#if ocr && ocr.notText > 0}
+								<div class="ob">{ocr.notText} MARKED NOT TEXT</div>
+							{/if}
+						</div>
+						{#if ocrRow.offer}<button type="submit" class="edit">OCR</button>{/if}
+						{#if ocr && ocr.notText > 0}
+							<!-- NOT TEXT is kept, not deleted: this puts every such block back. -->
+							<button type="submit" class="edit" formaction="?/restoreText">RESTORE</button>
+						{/if}
+					</form>
+					{#if ocr?.japanese && words && (words.toReview > 0 || words.sent > 0)}
+						<div class="row panel-row">
+							<div class="label">WORDS</div>
+							<div class="wcount">
+								<span>{words.toReview} TO REVIEW</span><span class="ws">{words.sent} SENT</span>
+							</div>
+							<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
+							<a class="edit" href="{resolve('/words')}?series={series.id}">REVIEW →</a>
+						</div>
+					{/if}
 				{/if}
-			</div>
-			<button type="button" class="edit" onclick={onedit}>EDIT</button>
-		</div>
 
-		{#if series.description}
-			<div class="row top">
-				<div class="label">ABOUT</div>
-				<div class="about">
-					<p class:open={aboutOpen}>{series.description}</p>
-					<button type="button" class="more" onclick={() => (aboutOpen = !aboutOpen)}>
-						{aboutOpen ? 'LESS ↑' : 'MORE ↓'}
-					</button>
+				{#if series.duplicates > 0 && series.scanlators.length > 1}
+					<!-- One chapter, several scanlators (doc/DUPLICATES.md): whose copy the list shows. -->
+					<form method="POST" action="?/scanlator" use:enhance class="row top">
+						<div class="label">SCANLATOR</div>
+						<div class="picks">
+							<button
+								type="submit"
+								name="scanlator"
+								value=""
+								class:on={series.scanlator === null}
+								aria-pressed={series.scanlator === null}>AUTO</button
+							>
+							{#each series.scanlators as s (s.name)}
+								<button
+									type="submit"
+									name="scanlator"
+									value={s.name}
+									class:on={series.scanlator === s.name}
+									aria-pressed={series.scanlator === s.name}>{s.name} · {s.count}</button
+								>
+							{/each}
+							<span class="none"
+								>{series.duplicates} DUPLICATE{series.duplicates === 1 ? '' : 'S'} HIDDEN</span
+							>
+						</div>
+					</form>
+				{/if}
+			{/if}
+		</div>
+		{#if !outline}
+			<div class="o o5">
+				<!-- LISTS (c424; doc/SERIES.md): LINK and TRACKING as one row, a line per
+			     list, each with its entry, its list's word and its cells. EDIT opens the
+			     sheet on that line's entry and season. COVER stays its own row. -->
+				{#if lists}
+					<ListsRow
+						{lists}
+						onedit={(at) => {
+							sheetAt = at;
+							trackingOpen = true;
+						}}
+						onexpand={() => (seasonsOpen = !seasonsOpen)}
+					/>
+					<TrackingSheet
+						open={trackingOpen}
+						at={sheetAt}
+						{tracking}
+						{link}
+						{ranobe}
+						kind={link?.linked?.kind ?? series.kind}
+						{seasons}
+						seriesId={series.id}
+						linksHref={resolve('/links')}
+						offline={linkOff}
+						onclose={() => (trackingOpen = false)}
+					/>
+				{/if}
+				{#if link}
+					<div class="row cover-row">
+						<div class="label">COVER</div>
+						<div class="cv">
+							<div class="cv-a">{link.cover.a}</div>
+							{#if link.cover.b}<div>{link.cover.b}</div>{/if}
+						</div>
+					</div>
+				{/if}
+
+				{#if !outline && move?.eligible}
+					<!-- SOURCE (doc/MOVE.md; Migrate-Start): where the series comes from, its
+				     trouble in ink, and the way to another source. Rare enough to sit
+				     away from CONTINUE, next to FILE. -->
+					{#snippet sourceCells()}
+						{#if move.former}
+							<form method="POST" action="?/moveBack" use:enhance class="lc-form">
+								<button type="submit" class="lc" data-focus-mark="in">MOVE BACK</button>
+							</form>
+						{/if}
+						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
+						<a class="lc" href={moveHref} data-focus-mark="in">MOVE →</a>
+					{/snippet}
+					<div class="row link-row source-row">
+						<div class="label">SOURCE</div>
+						<div class="lk">
+							<div class="lk-a">{move.source}</div>
+							<div class="lk-b" class:ink={!!move.trouble}>{move.trouble ?? move.meta}</div>
+							{#if move.former}
+								<div class="lk-b">WAS {move.former.name.toUpperCase()} · UNTIL {formerUntil}</div>
+							{/if}
+						</div>
+						<div class="lcs inline">{@render sourceCells()}</div>
+					</div>
+					<div class="lcs stack">{@render sourceCells()}</div>
+				{/if}
+
+				<div class="row top">
+					<div class="label">TAGS</div>
+					<div class="tags">
+						{#each groupTags as g (g.namespace)}
+							<div class="tag-line">
+								<span class="ns">{g.namespace}</span>
+								<span class="vals">
+									<!-- Every value opens the library's person or tag page (Index Books), or,
+								     with a source, asks where to look (c313). -->
+									<!-- eslint-disable svelte/no-navigation-without-resolve -- tagHref() resolves -->
+									{#each g.tags as t, i (i)}{#if i > 0}<span class="sep"> · </span>{/if}<a
+											class="person"
+											href={tagLibraryHref(t)}
+											aria-haspopup={tagSource ? 'dialog' : undefined}
+											onclick={(e) => askTag(e, t)}>{t.value}</a
+										>{/each}
+									<!-- eslint-enable svelte/no-navigation-without-resolve -->
+								</span>
+							</div>
+						{/each}
+						{#if tags.groups.length === 0}<span class="none">NO TAGS</span>{/if}
+						{#if tags.more > 0}<div class="more">+ {tags.more} MORE</div>{/if}
+						{#if isBookSeries(series)}
+							<div class="more">FROM ITS {series.entries.length} BOOKS · EACH KEEPS ITS OWN</div>
+						{/if}
+					</div>
+					<button type="button" class="edit" onclick={onedit}>EDIT</button>
 				</div>
 			</div>
-		{/if}
-
-		{#if editions && opening}
-			<!-- EDITIONS (Editions 1b): each language's copy, what only it has, and where it is. -->
-			<div class="row top">
-				<div class="label">EDITIONS</div>
-				<div class="eds">
-					{#each editions.editions as e (e.entryId)}
-						<div class="ed">
-							<div class="ed-cell" class:on={e === opening}>{e.code}</div>
-							<div class="ed-text">
-								<div class="ed-line">
-									{[e.site.toUpperCase(), `${e.pages} PAGES`, sameSize ? '' : e.size]
-										.filter(Boolean)
-										.join(' · ')}
+			<div class="o o7">
+				{#if editions && opening}
+					<!-- EDITIONS (Editions 1b): each language's copy, what only it has, and where it is. -->
+					<div class="row top">
+						<div class="label">EDITIONS</div>
+						<div class="eds">
+							{#each editions.editions as e (e.entryId)}
+								<div class="ed">
+									<div class="ed-cell" class:on={e === opening}>{e.code}</div>
+									<div class="ed-text">
+										<div class="ed-line">
+											{[e.site.toUpperCase(), `${e.pages} PAGES`, sameSize ? '' : e.size]
+												.filter(Boolean)
+												.join(' · ')}
+										</div>
+										<div class="ed-note" class:only={e.only.length > 0}>
+											{e.only.length
+												? `P. ${e.only.join(', ')} · ONLY IN ${e.code}`
+												: 'EVERY PAGE MATCHED'}
+										</div>
+										<div class="path">{e.file}</div>
+									</div>
 								</div>
-								<div class="ed-note" class:only={e.only.length > 0}>
-									{e.only.length
-										? `P. ${e.only.join(', ')} · ONLY IN ${e.code}`
-										: 'EVERY PAGE MATCHED'}
-								</div>
-								<div class="path">{e.file}</div>
+							{/each}
+							{#if sameSize}<div class="ed-shared">
+									EVERY EDITION · {editions.editions[0].size}
+								</div>{/if}
+						</div>
+					</div>
+					<!-- Its cells follow LISTS' rule (c526): two or more drop under the line in
+				     equal columns where the panel is narrow, so the text keeps its width. -->
+					<div class="row file-row many">
+						<div class="label">FOLDED</div>
+						<div class="file">{foldedOn ? `${foldedOn} · ` : ''}FROM THE DUPLICATES REVIEW</div>
+						<div class="cells">
+							<button
+								type="button"
+								class="edit"
+								aria-expanded={renaming}
+								onclick={() => (renaming = !renaming)}>RENAME</button
+							>
+							<button type="button" class="edit" onclick={() => (unfolding = true)}>UNFOLD</button>
+							{#if work && !series.hidden}
+								<!-- A Work is hidden or shown whole (W4; Work-States 4): on a part, HIDE asks. -->
+								<button type="button" class="edit" onclick={() => (hiding = true)}>HIDE</button>
+							{:else if work && series.hidden}
+								<!-- Showing one part would leave the Work half-hidden, so this shows it whole. -->
+								<form method="POST" action="?/showWork" use:enhance={replacing} class="hide-form">
+									<button type="submit" class="edit">UNHIDE</button>
+								</form>
+							{:else}
+								<form method="POST" action="?/hide" use:enhance={replacing} class="hide-form">
+									<input type="hidden" name="on" value={series.hidden ? '0' : '1'} />
+									<button type="submit" class="edit">{series.hidden ? 'UNHIDE' : 'HIDE'}</button>
+								</form>
+							{/if}
+						</div>
+					</div>
+					{#if renaming}{@render renameField()}{/if}
+				{:else}
+					<!-- FILE (c526): the text keeps the row's width; its cells drop under it in
+				     equal columns where the panel is narrow (LISTS' rule, doc/SERIES.md). -->
+					<div class="row file-row many">
+						<div class="label">FILE</div>
+						<div class="file">
+							{#if series.path}<div class="path">{series.path}</div>{/if}
+							<div class="file-meta">
+								{fileMeta(series.entries, dlFile)}{series.kind !== 'doujin' && cached > 0
+									? ` · ↓ ${cached} CACHED`
+									: ''}{elsewhere}
 							</div>
 						</div>
-					{/each}
-					{#if sameSize}<div class="ed-shared">
-							EVERY EDITION · {editions.editions[0].size}
-						</div>{/if}
-				</div>
-			</div>
-			<!-- Its cells follow LISTS' rule (c526): two or more drop under the line in
-			     equal columns where the panel is narrow, so the text keeps its width. -->
-			<div class="row file-row many">
-				<div class="label">FOLDED</div>
-				<div class="file">{foldedOn ? `${foldedOn} · ` : ''}FROM THE DUPLICATES REVIEW</div>
-				<div class="cells">
-					<button
-						type="button"
-						class="edit"
-						aria-expanded={renaming}
-						onclick={() => (renaming = !renaming)}>RENAME</button
-					>
-					<button type="button" class="edit" onclick={() => (unfolding = true)}>UNFOLD</button>
-					{#if work && !series.hidden}
-						<!-- A Work is hidden or shown whole (W4; Work-States 4): on a part, HIDE asks. -->
-						<button type="button" class="edit" onclick={() => (hiding = true)}>HIDE</button>
-					{:else if work && series.hidden}
-						<!-- Showing one part would leave the Work half-hidden, so this shows it whole. -->
-						<form method="POST" action="?/showWork" use:enhance={replacing} class="hide-form">
-							<button type="submit" class="edit">UNHIDE</button>
-						</form>
-					{:else}
-						<form method="POST" action="?/hide" use:enhance={replacing} class="hide-form">
-							<input type="hidden" name="on" value={series.hidden ? '0' : '1'} />
-							<button type="submit" class="edit">{series.hidden ? 'UNHIDE' : 'HIDE'}</button>
-						</form>
-					{/if}
-				</div>
-			</div>
-			{#if renaming}{@render renameField()}{/if}
-		{:else}
-			<!-- FILE (c526): the text keeps the row's width; its cells drop under it in
-			     equal columns where the panel is narrow (LISTS' rule, doc/SERIES.md). -->
-			<div class="row file-row many">
-				<div class="label">FILE</div>
-				<div class="file">
-					{#if series.path}<div class="path">{series.path}</div>{/if}
-					<div class="file-meta">
-						{fileMeta(series.entries, dlFile)}{series.kind !== 'doujin' && cached > 0
-							? ` · ↓ ${cached} CACHED`
-							: ''}{elsewhere}
+						<div class="cells">
+							<button
+								type="button"
+								class="edit"
+								aria-expanded={renaming}
+								onclick={() => (renaming = !renaming)}>RENAME</button
+							>
+							{#if isBookSeries(series) || isVolumeSeries(series)}
+								<!-- Every book (or volume) back out on its own; the series goes. -->
+								<form method="POST" action="?/ungroup" use:enhance={replacing} class="hide-form">
+									<button type="submit" class="edit">UNGROUP</button>
+								</form>
+							{/if}
+							{#if work && !series.hidden}
+								<!-- A Work is hidden or shown whole (W4; Work-States 4): on a part, HIDE asks. -->
+								<button type="button" class="edit" onclick={() => (hiding = true)}>HIDE</button>
+							{:else if work && series.hidden}
+								<!-- Showing one part would leave the Work half-hidden, so this shows it whole. -->
+								<form method="POST" action="?/showWork" use:enhance={replacing} class="hide-form">
+									<button type="submit" class="edit">UNHIDE</button>
+								</form>
+							{:else}
+								<form method="POST" action="?/hide" use:enhance={replacing} class="hide-form">
+									<input type="hidden" name="on" value={series.hidden ? '0' : '1'} />
+									<button type="submit" class="edit">{series.hidden ? 'UNHIDE' : 'HIDE'}</button>
+								</form>
+							{/if}
+							<button type="button" class="edit" onclick={ondelete}>DELETE</button>
+						</div>
 					</div>
-				</div>
-				<div class="cells">
-					<button
-						type="button"
-						class="edit"
-						aria-expanded={renaming}
-						onclick={() => (renaming = !renaming)}>RENAME</button
-					>
-					{#if isBookSeries(series) || isVolumeSeries(series)}
-						<!-- Every book (or volume) back out on its own; the series goes. -->
-						<form method="POST" action="?/ungroup" use:enhance={replacing} class="hide-form">
-							<button type="submit" class="edit">UNGROUP</button>
-						</form>
-					{/if}
-					{#if work && !series.hidden}
-						<!-- A Work is hidden or shown whole (W4; Work-States 4): on a part, HIDE asks. -->
-						<button type="button" class="edit" onclick={() => (hiding = true)}>HIDE</button>
-					{:else if work && series.hidden}
-						<!-- Showing one part would leave the Work half-hidden, so this shows it whole. -->
-						<form method="POST" action="?/showWork" use:enhance={replacing} class="hide-form">
-							<button type="submit" class="edit">UNHIDE</button>
-						</form>
-					{:else}
-						<form method="POST" action="?/hide" use:enhance={replacing} class="hide-form">
-							<input type="hidden" name="on" value={series.hidden ? '0' : '1'} />
-							<button type="submit" class="edit">{series.hidden ? 'UNHIDE' : 'HIDE'}</button>
-						</form>
-					{/if}
-					<button type="button" class="edit" onclick={ondelete}>DELETE</button>
-				</div>
+					{#if renaming}{@render renameField()}{/if}
+				{/if}
 			</div>
-			{#if renaming}{@render renameField()}{/if}
 		{/if}
-	{/if}
+	</div>
 </section>
+
+{#snippet detailsLineCell()}
+	<!-- The folded line (1C): DETAILS | what needs the owner, or the quiet state,
+	     over the names inside | SHOW ↓. A mark is told, never acted on: it does
+	     not open the fold. Its name says DETAILS and the state, never SHOW or
+	     HIDE, so no other control's locator finds it. While FIRST READ points at
+	     DOWNLOAD and the fold is closed, the ring sits here, on the way in. -->
+	<button
+		type="button"
+		class="details-line"
+		class:open={detailsShown}
+		class:ink={detailsState.ink}
+		class:ring={ringDownload && !detailsShown}
+		aria-expanded={detailsShown}
+		aria-controls="series-details"
+		aria-label={!detailsShown && detailsState.state ? `DETAILS · ${detailsState.state}` : 'DETAILS'}
+		data-row="details"
+		onclick={toggleDetails}
+	>
+		<span class="label">DETAILS</span>
+		<span class="dt">
+			{#if !detailsShown && detailsState.state}<span class="dt-state">{detailsState.state}</span
+				>{/if}
+			<span class="dt-names dt-all">{namesLine(detailsState.names)}</span>
+			<span class="dt-names dt-tv">{namesLine(detailsState.names, TV_NAMES)}</span>
+		</span>
+		<span class="dt-go"><span class="dt-ok">OK · </span>{detailsShown ? 'HIDE ↑' : 'SHOW ↓'}</span>
+		{#if !detailsShown && detailsState.bar !== null}
+			<span class="dt-bar" aria-hidden="true"
+				><span style:width="{Math.round(detailsState.bar * 100)}%"></span></span
+			>
+		{/if}
+	</button>
+{/snippet}
+
+<svelte:head>
+	<!-- Without script nothing can open the fold, so nothing is folded. -->
+	<noscript>
+		<style>
+			.details {
+				display: contents !important;
+			}
+			.details-line {
+				display: none !important;
+			}
+		</style>
+	</noscript>
+</svelte:head>
 
 {#snippet renameField()}
 	<!-- The name in place (c526): DONE writes it, CANCEL leaves it. -->
@@ -2137,6 +2287,132 @@
 	.ring {
 		box-shadow: inset 0 0 0 2px var(--accent);
 	}
+	/* ---- DETAILS (c425; doc/handoffs/series-phone/) -------------------------
+	   Where nothing folds the wrappers are no boxes at all and `order` puts each
+	   row back in today's order: DOWNLOAD under the WORK row (1), the bands (2),
+	   LANGUAGE to SCANLATOR (3), SHELVES (4), LISTS to TAGS (5), ABOUT (6),
+	   EDITIONS and FILE (7). Folded, the markup's order is the screen's. */
+	.o,
+	.details {
+		display: contents;
+	}
+	.details-line {
+		display: none;
+	}
+	@media (min-width: 600px) and (not ((pointer: none) and (min-width: 900px))) {
+		.o1 > * {
+			order: 1;
+		}
+		.o2 > * {
+			order: 2;
+		}
+		.o3 > * {
+			order: 3;
+		}
+		.o4 > * {
+			order: 4;
+		}
+		.o5 > * {
+			order: 5;
+		}
+		.o6 > * {
+			order: 6;
+		}
+		.o7 > * {
+			order: 7;
+		}
+	}
+	/* The phone and the TV (1A, 1D): SHELVES, ABOUT, then one 64px line. */
+	@media (max-width: 599px), (pointer: none) and (min-width: 900px) {
+		.details {
+			display: none;
+		}
+		.details.open {
+			display: flex;
+			flex-direction: column;
+		}
+		.details-line {
+			position: relative;
+			display: flex;
+			align-items: stretch;
+			width: 100%;
+			min-height: 64px;
+			margin: 0;
+			padding: 0;
+			border: 0;
+			border-bottom: var(--hairline);
+			border-radius: 0;
+			background: transparent;
+			color: var(--text-1);
+			text-align: left;
+			cursor: pointer;
+		}
+		/* Open, a mode surface: the rule goes full ink, the cell inverts. */
+		.details-line.open {
+			border-bottom-color: var(--text-1);
+		}
+		.dt {
+			flex: 1;
+			min-width: 0;
+			display: flex;
+			flex-direction: column;
+			justify-content: center;
+			gap: 5px;
+			padding: 12px 14px;
+		}
+		.dt-state {
+			font: 400 13px/1.35 var(--font-mono);
+			letter-spacing: 0.02em;
+			color: var(--text-2);
+		}
+		/* Something needs the owner: SOURCE's idiom for trouble, ink and 500. */
+		.details-line.ink .dt-state {
+			font-weight: 500;
+			color: var(--text-1);
+		}
+		.dt-names {
+			font: 400 11px/1.45 var(--font-mono);
+			letter-spacing: 0.02em;
+			color: var(--text-2);
+		}
+		.dt-tv,
+		.dt-ok {
+			display: none;
+		}
+		.dt-go {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			padding: 0 var(--pad);
+			border-left: var(--hairline);
+			font: 500 13px var(--font-mono);
+			letter-spacing: 0.04em;
+			white-space: nowrap;
+		}
+		.details-line.open .dt-go {
+			background: var(--text-1);
+			color: var(--surface-page);
+		}
+		/* Running work (OCR, a download): 3px of accent on the bottom rule. */
+		.dt-bar {
+			position: absolute;
+			left: 0;
+			right: 0;
+			bottom: -1px;
+			height: 3px;
+			background: var(--line-1);
+		}
+		.dt-bar > span {
+			display: block;
+			height: 3px;
+			background: var(--accent);
+		}
+		/* ABOUT clamps to three lines where it sits above the fold (1A). */
+		.about p {
+			-webkit-line-clamp: 3;
+			line-clamp: 3;
+		}
+	}
 	/* ---- the TV (c238; TV-Series) ----------------------------------------- */
 	@media (pointer: none) and (min-width: 900px) {
 		.panel {
@@ -2185,6 +2461,38 @@
 		.seg button,
 		.picks button {
 			font-size: 15px;
+		}
+		/* DETAILS on the TV (1D, B and C): one stop, its text a size up, the
+		   names cut to four and a count, and OK named on the cell. ABOUT is
+		   the board's two lines. */
+		.dt {
+			gap: 4px;
+			padding: 10px 14px;
+		}
+		.dt-state {
+			font-size: 14px;
+		}
+		.dt-names {
+			font-size: 12px;
+			line-height: 1.4;
+		}
+		.dt-all {
+			display: none;
+		}
+		.dt-tv {
+			display: block;
+		}
+		.dt-ok {
+			display: inline;
+		}
+		.dt-go {
+			padding: 0 18px;
+			font-size: 14px;
+			letter-spacing: 0;
+		}
+		.about p {
+			-webkit-line-clamp: 2;
+			line-clamp: 2;
 		}
 	}
 </style>
