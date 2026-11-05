@@ -549,19 +549,29 @@ test('three quick picks on one slow source: one details call each at most, and a
 	state.slow.set(CAND.b.url, 2500);
 	state.slow.set(CAND.c.url, 200);
 	const compares: string[] = [];
+	const dropped: string[] = [];
 	page.on('request', (r) => {
 		if (r.url().includes('/compare?')) compares.push(r.url());
 	});
-	const asked = (c: { url: string }) =>
-		compares.filter((u) => new URL(u).searchParams.get('to') === candidateId('101', c.url));
+	page.on('requestfailed', (r) => {
+		if (r.url().includes('/compare?')) dropped.push(r.url());
+	});
+	const to = (c: { url: string }) => (u: string) =>
+		new URL(u).searchParams.get('to') === candidateId('101', c.url);
+	const asked = (c: { url: string }) => compares.filter(to(c));
 	await page.locator('a.cand', { hasText: CAND.a.title }).click();
 	await expect.poll(() => detailsFor(CAND.a.url)).toBe(1);
 	// The owner changes their mind twice, quickly, while A is being read: both
-	// picks reach the page's endpoint before A's call ends.
+	// picks reach the page's endpoint, and the page has dropped B's ask (C's
+	// pick aborts it), before A's call ends. B's abort is what the endpoint
+	// drops B on (`request.signal`), so A is let go only once the page has
+	// given B's request up; let go once C's had merely been sent, the engine
+	// still heard of B, even on a quiet box.
 	await page.locator('a.cand', { hasText: CAND.b.title }).click();
 	await page.locator('a.cand', { hasText: CAND.c.title }).click();
 	await expect.poll(() => asked(CAND.c).length).toBe(1);
 	expect(asked(CAND.b)).toHaveLength(1);
+	await expect.poll(() => dropped.filter(to(CAND.b)).length).toBe(1);
 	releaseA();
 	// C waits for the call already running (A's), not for B's as well: the
 	// counts below prove that; the clock is left loose, as a loaded box
