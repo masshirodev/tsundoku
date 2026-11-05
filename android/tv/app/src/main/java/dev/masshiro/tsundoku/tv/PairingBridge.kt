@@ -42,6 +42,7 @@ import java.util.concurrent.Executors
  * | `network`        | reads home / data / none (c521)        | no      |
  * | `surface`        | paints the camera band (c521)          | no      |
  * | `keyboard`       | raises the phone's keyboard (c521)     | no      |
+ * | `edge`           | draws the page under the camera (c521) | no      |
  *
  * `open` and `welcome` stay open on purpose: FORGET of the server in use calls
  * one of them from the page of the server it has just forgotten (MoreSheet's
@@ -86,6 +87,9 @@ class PairingBridge(
 
 		/** The phone's keyboard, for the field the page has focused (c521); a TV never. */
 		fun showKeyboard() {}
+
+		/** The page drawn edge to edge, under the camera, or padded again (c521). */
+		fun setEdge(on: Boolean) {}
 	}
 
 	companion object {
@@ -137,6 +141,18 @@ class PairingBridge(
 	fun keyboard() {
 		if (!form.raisesKeyboard) return
 		host.onUi { host.showKeyboard() }
+	}
+
+	/**
+	 * The page drawn edge to edge, under the camera, or padded again (c521):
+	 * the reader's manga and manhwa pages ask for it while they are open. The
+	 * page keeps its own bars out of the band from `--app-inset-*`. Nothing on
+	 * a TV. Unguarded: it moves padding and writes nothing.
+	 */
+	@JavascriptInterface
+	fun edge(on: Boolean) {
+		if (!form.padsInsets) return
+		host.onUi { host.setEdge(on) }
 	}
 
 	/** The TV's own IPv4 on its network, or "" when it has none. */

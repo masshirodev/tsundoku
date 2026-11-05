@@ -59,6 +59,12 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	/** Which app this build is (c521): every TV-or-phone difference asks it. */
 	private val form = Form.of(BuildConfig.FORM)
 
+	/** A page asked to be drawn under the camera (the bridge's `edge`); each new document starts padded. */
+	private var edge = false
+
+	/** What the page was last told of the edges, so a page that loads later is told too. */
+	private var told = Insets.Sides()
+
 	/** Which launch owns the WebView: a later door wins over an earlier answer (c306). */
 	private val attempts = Attempts()
 
@@ -90,6 +96,15 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 
 		window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 		WindowCompat.setDecorFitsSystemWindows(window, false)
+		// Into the cutout on every Android: without it a fullscreen app on 14
+		// and older is kept out of the band whatever a page asks, and the
+		// reader could never draw under the camera. The app pads it itself.
+		if (form.padsInsets && android.os.Build.VERSION.SDK_INT >= 28) {
+			window.attributes =
+				window.attributes.apply {
+					layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+				}
+		}
 		hideSystemUi()
 		if (form.padsInsets) padForInsets()
 
@@ -237,6 +252,13 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 		}
 	}
 
+	/** The bridge's `edge`: padding off or on again, asked of the insets anew. */
+	override fun setEdge(on: Boolean) {
+		if (!form.padsInsets || edge == on) return
+		edge = on
+		ViewCompat.requestApplyInsets(root)
+	}
+
 	/** The theme's background, dark or light with the phone's setting (src/mobile/res). */
 	private fun themeBackground(): Int {
 		val a = obtainStyledAttributes(intArrayOf(android.R.attr.colorBackground))
@@ -255,13 +277,19 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	private fun padForInsets() {
 		ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
 			fun sides(t: Int) = insets.getInsets(t).let { Insets.Sides(it.left, it.top, it.right, it.bottom) }
+			val cutout = sides(WindowInsetsCompat.Type.displayCutout())
+			val gestures = sides(WindowInsetsCompat.Type.mandatorySystemGestures())
 			val p =
 				Insets.padding(
-					cutout = sides(WindowInsetsCompat.Type.displayCutout()),
+					cutout = cutout,
 					ime = sides(WindowInsetsCompat.Type.ime()),
-					gestures = sides(WindowInsetsCompat.Type.mandatorySystemGestures())
+					gestures = gestures,
+					edge = edge
 				)
 			view.setPadding(p.left, p.top, p.right, p.bottom)
+			// The page always knows where the band is, padded or not.
+			told = Insets.css(cutout, gestures, resources.displayMetrics.density)
+			webView.evaluateJavascript(Insets.cssScript(told), null)
 			WindowInsetsCompat.CONSUMED
 		}
 	}
@@ -321,6 +349,9 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 			}
 
 			override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
+				// A new document starts padded: a reader that left by a full
+				// load never got to say edge(false).
+				if (edge) setEdge(false)
 				val uri = Uri.parse(url)
 				if (uri.scheme == "http" || uri.scheme == "https") failedLoad.started(originOf(uri))
 			}
@@ -333,7 +364,10 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 			override fun onPageFinished(view: WebView, url: String) {
 				// The camera band takes the page's colour, whichever page it is
 				// (the app's own, or a server older than c521's, which never says).
-				if (form.padsInsets) view.evaluateJavascript(SURFACE_JS) { value -> readSurface(value) }
+				if (form.padsInsets) {
+					view.evaluateJavascript(SURFACE_JS) { value -> readSurface(value) }
+					view.evaluateJavascript(Insets.cssScript(told), null)
+				}
 				val uri = Uri.parse(url)
 				// The code screen (9C) on a phone: once the page has hydrated, its
 				// field takes focus and the keyboard comes up. A server older than

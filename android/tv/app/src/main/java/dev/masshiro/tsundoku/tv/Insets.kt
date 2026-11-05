@@ -37,9 +37,16 @@ object Insets {
 	 * the larger of the cutout and either the open keyboard or, closed, the
 	 * home gesture's strip. Negative input (never sent, but a broken OEM build
 	 * could) counts as 0.
+	 *
+	 * `edge` is a page that asked to be drawn edge to edge (the bridge's
+	 * `edge(true)`: the reader's manga and manhwa pages, c521): no cutout and
+	 * no gesture strip, the picture runs under the camera. The keyboard still
+	 * pads, should one open there; the page keeps its bars out of the band
+	 * itself, from the sizes `css` hands it.
 	 */
-	fun padding(cutout: Sides, ime: Sides, gestures: Sides): Sides {
+	fun padding(cutout: Sides, ime: Sides, gestures: Sides, edge: Boolean = false): Sides {
 		val keyboard = ime.bottom.coerceAtLeast(0)
+		if (edge) return Sides(bottom = keyboard)
 		val under = if (keyboard > 0) keyboard else gestures.bottom.coerceAtLeast(0)
 		return Sides(
 			left = cutout.left.coerceAtLeast(0),
@@ -48,6 +55,33 @@ object Insets {
 			bottom = maxOf(cutout.bottom.coerceAtLeast(0), under)
 		)
 	}
+
+	/**
+	 * What the page is told of the edges, in CSS px: the cutout, and at the
+	 * bottom the larger of it and the gesture strip, whether or not the app
+	 * pads them. A page drawn edge to edge keeps its own bars out of the band
+	 * with these (`--app-inset-top` and the rest), since a WebView reports
+	 * `env(safe-area-inset-*)` only on newer versions. `density` is the
+	 * display's (physical px per CSS px); 0 or less gives all zeros.
+	 */
+	fun css(cutout: Sides, gestures: Sides, density: Float): Sides {
+		if (density <= 0f || density.isNaN()) return Sides()
+		fun dp(px: Int) = Math.round(px.coerceAtLeast(0) / density)
+		return Sides(
+			left = dp(cutout.left),
+			top = dp(cutout.top),
+			right = dp(cutout.right),
+			bottom = dp(maxOf(cutout.bottom, gestures.bottom))
+		)
+	}
+
+	/** The script that sets the four variables on the page's root. */
+	fun cssScript(s: Sides): String =
+		"(function(){var r=document.documentElement.style;" +
+			"r.setProperty('--app-inset-top','${s.top}px');" +
+			"r.setProperty('--app-inset-right','${s.right}px');" +
+			"r.setProperty('--app-inset-bottom','${s.bottom}px');" +
+			"r.setProperty('--app-inset-left','${s.left}px')})()"
 
 	/**
 	 * The page's background as the bridge hands it over: `rgb(14, 15, 16)` or
