@@ -1470,3 +1470,142 @@ describe('a fold keeps a Work hidden or shown whole (c389)', () => {
 		).toBe(0);
 	});
 });
+
+/**
+ * A backup with no `sources` entry (c258; doc/IMPORT-MIHON.md, "A backup that
+ * names no source"): the URL series it makes carries no `source:` tag and no
+ * download folder, so the source cannot be read from it. Built first, as the
+ * card asks, then tsundoku's downloads of the same manga arrive. The second
+ * signal is the chapter's own address (ComicInfo's `Web` ending with the
+ * backup's chapter path) under the exact title, or the engine's own name for
+ * the key's source; a title and chapter numbers alone stay apart.
+ */
+describe('a backup that names no source (c258)', () => {
+	const at = 1_800_004_000_000;
+	const ADDRESSED = 9_300_000_000_000_000_001n;
+	const ENGINE = 9_300_000_000_000_000_002n;
+	const series = (title: string) =>
+		db().prepare(`SELECT id, origin_key FROM series WHERE title = ? ORDER BY id`).all(title) as {
+			id: number;
+			origin_key: string;
+		}[];
+	const download = (sourceDir: string, title: string, n: number, web: string) => {
+		const dir = join(tsundokuMihon, 'downloads', sourceDir, title);
+		mkdirSync(dir, { recursive: true });
+		writeFileSync(
+			join(dir, `Chapter ${n}.cbz`),
+			cbz(
+				comicInfo({
+					title: `Chapter ${n}`,
+					series: title,
+					number: n,
+					web,
+					source: sourceDir.replace(/ \(.*\)$/, '')
+				})
+			)
+		);
+	};
+	const keysOf = (title: string) => series(title).map((s) => s.origin_key);
+	let folderFirstId = 0;
+	/** The library's backup, with its manga and no source list at all; later with Folder First too. */
+	const writeUntagged = async (folderFirst: boolean) => {
+		const { encode } = await import('./helpers/protobuf-writer');
+		const list: Msg[] = [
+			manga(ADDRESSED, '/series/untagged-pair', 'Untagged Pair', [
+				{ n: 1, url: '/chapters/untagged-1' },
+				{ n: 2, url: '/chapters/untagged-2' }
+			]),
+			manga(ADDRESSED, '/series/numbers-only', 'Numbers Only', [
+				{ n: 1, url: '/chapters/numbers-1' }
+			]),
+			manga(ENGINE, '/series/engine-named', 'Engine Named', [{ n: 1, url: '/chapters/engine-1' }]),
+			...(folderFirst
+				? [
+						manga(ADDRESSED, '/series/folder-first', 'Folder First', [
+							{ n: 1, url: '/chapters/first-1' }
+						])
+					]
+				: [])
+		];
+		writeFileSync(
+			join(rootMihon, 'autobackup', 'app.mihon_2026-11-05_09-00.tachibk'),
+			gzipSync(encode(list.map((m): [number, Msg] => [1, m])))
+		);
+	};
+
+	beforeAll(async () => {
+		// A download that arrives before any backup names its manga: the other order.
+		download('Untagged Scans (EN)', 'Folder First', 1, 'https://untagged.example/chapters/first-1');
+		await writeUntagged(false);
+		await runImport(library, { now: at });
+		for (const t of ['Untagged Pair', 'Numbers Only', 'Engine Named'])
+			expect(keysOf(t)).toHaveLength(1);
+		const tagged = db()
+			.prepare(
+				`SELECT COUNT(*) AS n FROM series_tags st JOIN tags t ON t.id = st.tag_id JOIN series s ON s.id = st.series_id
+				WHERE t.namespace = 'source' AND s.title IN ('Untagged Pair', 'Numbers Only', 'Engine Named')`
+			)
+			.get() as { n: number };
+		expect(tagged.n).toBe(0);
+
+		// The engine has one of the two sources installed, under its own name.
+		db()
+			.prepare(
+				`INSERT INTO engine_extensions (pkg, name, kind, version_code, version_name, lib, handle, installed_at, updated_at)
+				VALUES ('c258.named', 'Named Scans', 'manga', 1, '1', '1.5', 'h', ?, ?)`
+			)
+			.run(at, at);
+		db()
+			.prepare(
+				`INSERT INTO engine_sources (id, pkg, name, lang) VALUES (?, 'c258.named', 'Named Scans', 'en')`
+			)
+			.run(String(ENGINE));
+
+		// Then tsundoku downloads a chapter of each. Untagged Pair's ComicInfo
+		// names the chapter's address; Numbers Only's names another site's, so
+		// only its number matches; Engine Named's names another address too.
+		download(
+			'Untagged Scans (EN)',
+			'Untagged Pair',
+			1,
+			'https://untagged.example/chapters/untagged-1'
+		);
+		download('Untagged Scans (EN)', 'Numbers Only', 1, 'https://elsewhere.example/read/77');
+		download('Named Scans (EN)', 'Engine Named', 1, 'https://elsewhere.example/read/78');
+		expect(keysOf('Folder First')).toEqual(['mihon-dir:Untagged Scans (EN)/Folder First']);
+		folderFirstId = series('Folder First')[0].id;
+		await writeUntagged(true);
+		await runImport(library, { now: at + 10_000 });
+	});
+
+	it('folds the download into the series the backup named, by the chapter’s own address', () => {
+		expect(keysOf('Untagged Pair')).toEqual([`mihon:${ADDRESSED}:/series/untagged-pair`]);
+		const [{ id }] = series('Untagged Pair');
+		expect(chapters(id)).toEqual([
+			{ label: 'Ch. 1', available: 1, file: 'Chapter 1.cbz' },
+			{ label: 'Ch. 2', available: 0, file: '' }
+		]);
+	});
+
+	it('folds it by the engine’s name for the source, when only the number matches', () => {
+		expect(keysOf('Engine Named')).toEqual([`mihon:${ENGINE}:/series/engine-named`]);
+	});
+
+	it('gives a folder’s series the backup’s key in the other order too, keeping its id', () => {
+		expect(keysOf('Folder First')).toEqual([`mihon:${ADDRESSED}:/series/folder-first`]);
+		expect(series('Folder First')[0].id).toBe(folderFirstId);
+	});
+
+	it('leaves a title and a chapter number alone apart: that is not a source', () => {
+		expect(keysOf('Numbers Only').sort()).toEqual([
+			'mihon-dir:Untagged Scans (EN)/Numbers Only',
+			`mihon:${ADDRESSED}:/series/numbers-only`
+		]);
+	});
+
+	it('settles: a rescan creates no series again', async () => {
+		const before = snapshot();
+		await runImport(library, { now: at + 20_000 });
+		expect(snapshot()).toEqual(before);
+	});
+});

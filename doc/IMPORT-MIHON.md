@@ -340,6 +340,38 @@ too; that is fixed in the delete as well ([`DELETING.md`](DELETING.md)).
 A device whose own backup still doesn't know the manga plans the folder key
 again, and finds the URL series by the key it left, until that device backs up.
 
+**A backup that names no source** (card c258). The backup's own source list
+is where a URL series gets its `source:` tag, and where a backup's plan learns
+the folder a download of it would sit in. A backup with no entry for a source
+leaves both out: its series carries only the source's number, in its key
+(`mihon:<number>:<url>`). Until wave 23 neither door could confirm the pair
+then, in either order (`adoptNamed` asks for the tag, `adoptFolder` for the
+folder), and the folder's series stayed beside the URL's for good. Now an
+untagged URL series is confirmed by a second signal (`unnamedSourceIs`,
+`fold.ts`), at both doors:
+
+- **the engine's own name for the number**, when tsundoku has that source
+  installed (`engine_sources`): the folder is this source's when its source
+  folder is that name, the rule "Matching downloads" uses. A name the engine
+  gives that the folder is not is a no;
+- otherwise **a chapter's own address under the exact title**: at least one
+  chapter whose ComicInfo `Web` ends with the backup's chapter path (or the
+  reverse). That is a source's own address for that chapter; tsundoku's own
+  downloads always write it.
+
+**A title and chapter numbers alone stay apart**, as a folder whose chapters
+the backup does not share does: `Ch. 1` is in every source's copy of a manga,
+so on a source nobody has named it is no evidence. Such a pair waits beside
+each other until a backup names the source, or the engine installs it. A URL
+series tagged with another source is still never the folder's. No column was
+added: the number is in the key already, and the second signal reads what the
+library holds. ComicInfo's `SourceMihon` was not the signal the card offered
+it as, because it is the folder's side's name (it is where a folder's plan
+already takes its source from), and the URL series keeps no copy of it to
+compare. `tests/devices-import-db.spec.ts`, "a backup that names no source",
+builds the untagged backup first and pins all three: by address, by the
+engine's name, and numbers alone staying apart, in both orders.
+
 ## Rescanning
 
 Idempotent: a second run over the same folder changes nothing

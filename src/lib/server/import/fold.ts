@@ -104,15 +104,24 @@ export function adoptFolder(
 	now: number
 ): number | null {
 	const folder = s.folder;
-	if (!folder || !s.originKey.startsWith('mihon:')) return null;
+	if (!s.originKey.startsWith('mihon:')) return null;
 	// A folder's series is the same series by the importer's own rule: the same
 	// source and the same title (doc/IMPORT-MIHON.md, "Matching downloads").
+	// A backup that names no source (c258) gives the plan no folder: the
+	// source is then confirmed by the second signal (`unnamedSourceIs`).
 	const candidates = rowsIn(db, rootId, 'mihon-dir:%').filter((row) => {
 		const parts = folderParts(row.origin_key);
+		if (!parts) return false;
+		if (folder)
+			return (
+				sourceDirMatches(parts.sourceDir, folder.source) &&
+				(folderTitleMatches(parts.dir, folder.title) || row.title === folder.title)
+			);
 		return (
-			!!parts &&
-			sourceDirMatches(parts.sourceDir, folder.source) &&
-			(folderTitleMatches(parts.dir, folder.title) || row.title === folder.title)
+			(folderTitleMatches(parts.dir, s.title) || row.title === s.title) &&
+			unnamedSourceIs(db, s.originKey, parts.sourceDir, row.title === s.title, () =>
+				addressMatches(db, row.id, s.entries)
+			)
 		);
 	});
 	const best = bestOf(db, s, candidates);
@@ -150,11 +159,21 @@ export function adoptNamed(
 		`SELECT 1 FROM series_tags st JOIN tags t ON t.id = st.tag_id
 		WHERE st.series_id = ? AND t.namespace = 'source' AND t.value = ? COLLATE NOCASE`
 	);
+	const anySourceTag = db.prepare(
+		`SELECT 1 FROM series_tags st JOIN tags t ON t.id = st.tag_id
+		WHERE st.series_id = ? AND t.namespace = 'source'`
+	);
 	const candidates = rowsIn(db, rootId, 'mihon:%').filter(
 		(row) =>
 			// The folder is this source's, and the title's under either name.
 			(row.title === folder.title || folderTitleMatches(parts.dir, row.title)) &&
-			!!sourceTag.get(row.id, folder.source)
+			(!!sourceTag.get(row.id, folder.source) ||
+				// Untagged, from a backup that named no source (c258): a series
+				// tagged with another source is still not this folder's.
+				(!anySourceTag.get(row.id) &&
+					unnamedSourceIs(db, row.origin_key, parts.sourceDir, row.title === folder.title, () =>
+						addressMatches(db, row.id, s.entries)
+					)))
 	);
 	const best = bestOf(db, s, candidates);
 	// No entry in common: not the same manga, whatever the names say.
@@ -170,6 +189,59 @@ export function adoptNamed(
 	}
 	rememberKey(db, best.row.id, s.originKey, 'mihon', best.row.origin_key, now);
 	return best.row.id;
+}
+
+/**
+ * The second signal for a URL series whose backup named no source (card c258;
+ * doc/IMPORT-MIHON.md, "A backup that names no source"): its key holds the
+ * source's number, and nothing in the backup says that number's name, so the
+ * `source:` tag and a plan's download folder are both missing.
+ *
+ * - **The engine's own name for the number**, when tsundoku has the source
+ *   installed (`engine_sources`): the folder is this source's when its source
+ *   folder is that name, as "Matching downloads" reads a backup's. A name the
+ *   engine gives that the folder is not is a no, whatever else matches.
+ * - Otherwise **the chapter's own address under the exact title**: at least
+ *   one chapter whose ComicInfo `Web` ends with the backup's chapter path (or
+ *   the reverse), which is a source's own address for that chapter, not a
+ *   number every source shares. A title and chapter numbers alone stay apart,
+ *   as a folder whose chapters the backup does not share does.
+ *
+ * `addressed` is asked only when it decides, since it reads the entries.
+ */
+function unnamedSourceIs(
+	db: Database.Database,
+	urlKey: string,
+	sourceDir: string,
+	exactTitle: boolean,
+	addressed: () => number
+): boolean {
+	const id = /^mihon:(\d+):/.exec(urlKey)?.[1];
+	if (!id) return false;
+	const named = db.prepare(`SELECT name FROM engine_sources WHERE id = ?`).get(id) as
+		{ name: string } | undefined;
+	if (named) return sourceDirMatches(sourceDir.toLowerCase(), named.name.toLowerCase());
+	return exactTitle && addressed() > 0;
+}
+
+/**
+ * How many of a series' entries match a plan's by address alone: the URL in
+ * ComicInfo's `Web` against the backup's chapter path, either way round, the
+ * first half of `matchFolderEntries`' rule without its fall back to numbers.
+ */
+function addressMatches(db: Database.Database, seriesId: number, planned: PlannedEntry[]): number {
+	const urls = (
+		db
+			.prepare(`SELECT source_url FROM entries WHERE series_id = ? AND source_url != ''`)
+			.all(seriesId) as { source_url: string }[]
+	).map((r) => r.source_url);
+	return urls.filter((url) =>
+		planned.some(
+			(e) =>
+				e.sourceUrl !== '' &&
+				(url === e.sourceUrl || url.endsWith(e.sourceUrl) || e.sourceUrl.endsWith(url))
+		)
+	).length;
 }
 
 /**
