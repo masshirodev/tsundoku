@@ -337,6 +337,18 @@ The route answers with the reason (`… IS IN <WORK> NOW · TAKE IT OUT THERE
 FIRST`), never a 500. Before, `INSERT OR REPLACE` took the series from the Work
 it had joined and left that Work with one member for good.
 
+**The facts a band posts back are read before anything is written** (c585,
+wave 25). On the series screen, every UNDO that posts facts (`?/undoTakeOutWork`,
+`?/undoAddToWork`, `?/undoHide`, `?/undoRename`) reads them through
+`src/routes/series/[id]/posted-facts.ts`: not JSON, not an object, a field
+missing or of the wrong type, or facts that are another series' (a take-out,
+add or rename of another; a HIDE that neither hid nor took out this one; an
+ended Work whose members lack it) answer 400 `NOTHING TO UNDO`, writing
+nothing. Until then `?/undoTakeOutWork` and `?/undoHide` parsed outside a
+guard, so a malformed field was a 500, and took any series' facts. Facts
+that are well formed and this series' own, but name a library that has moved
+on, are still the writers' to refuse, as above.
+
 **The rule sits at the write, not at the screen.** Every door that hides or
 shows series by id goes through `setHiddenWhole` (`src/lib/server/works.ts`),
 which takes each part's Work with it, every part, in either direction: the

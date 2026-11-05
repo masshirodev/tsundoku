@@ -232,6 +232,32 @@ save, and the newest failing after an earlier one was stored, each through a
 reload). The library tile's FAV and rating (`src/routes/+page.svelte`) still
 post each tap at once: see the wave 25 notes.
 
+## UNDO's facts (c585)
+
+A band carries what its action did as JSON in a hidden field, and its UNDO
+posts it back. What arrives is a claim (a stale page, a hand-made form, a
+truncated field), so each UNDO on this screen reads it with
+`src/routes/series/[id]/posted-facts.ts` before writing: parsed inside a
+guard, checked field by field (a missing number would reach SQLite as
+`undefined`), and checked to be this series' own. Anything else is 400
+`NOTHING TO UNDO` with nothing written. The four that post facts:
+
+| Action              | This series' own when                                                                  |
+| ------------------- | -------------------------------------------------------------------------------------- |
+| `?/undoTakeOutWork` | `seriesId` is this series, and an ended Work (`ended`) had it among its members        |
+| `?/undoAddToWork`   | `seriesId` is this series, and every Work the add ended (`ended[]`) had it as a member |
+| `?/undoHide`        | it is among what the HIDE hid, or a take-out names it; every take-out is its own       |
+| `?/undoRename`      | `seriesId` is this series                                                              |
+
+HIDE ALL n hid every part of the Work, so `?/undoHide`'s other ids are not
+checked against the Work now: one ended since by another press is still
+undone part by part, as `undoHideWhole` does for a series in no Work. Facts
+that pass, but describe a library that has moved on, are refused by the
+writers as before ([`WORKS.md`](WORKS.md), "An UNDO puts back only what its
+press changed"). Tested in `tests/works-offer-db.spec.ts` ("every UNDO on
+the series screen…"), each action with every field missing or mistyped,
+another series' facts and a library moved on, against a whole snapshot.
+
 ## DETAILS (c425)
 
 The handoff is `doc/handoffs/series-phone/` (`canvas.json`, five boards: 1A a

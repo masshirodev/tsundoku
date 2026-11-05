@@ -38,8 +38,7 @@ import {
 	renameSeries,
 	seriesPage,
 	setDirection,
-	undoRenameSeries,
-	type SeriesRenameFacts
+	undoRenameSeries
 } from '$lib/server/series';
 import { isRevealed } from '$lib/server/prefs';
 import { seriesReadingTime } from '$lib/server/reading-time';
@@ -106,10 +105,9 @@ import {
 	undoWorkOffer,
 	workOfSeries,
 	workOfferFor,
-	workParts,
-	type AddFacts,
-	type TakeOutFacts
+	workParts
 } from '$lib/server/works';
+import { addFacts, hideFacts, parsePosted, renameFacts, takeOutFacts } from './posted-facts';
 
 /** A Work's refusal (a part gone, a Work ended since), as a band on this screen, never a 500. */
 function refused(e: unknown) {
@@ -515,14 +513,9 @@ export const actions: Actions = {
 
 	undoRename: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
-		let facts: SeriesRenameFacts;
-		try {
-			facts = JSON.parse(String((await request.formData()).get('facts'))) as SeriesRenameFacts;
-		} catch {
-			return fail(400, { message: 'NOTHING TO UNDO' });
-		}
 		// A band's facts are this series' own; a posted id for another is refused.
-		if (!facts || facts.seriesId !== s.id) return fail(400, { message: 'NOTHING TO UNDO' });
+		const facts = renameFacts(parsePosted((await request.formData()).get('facts')), s.id);
+		if (!facts) return fail(400, { message: 'NOTHING TO UNDO' });
 		try {
 			undoRenameSeries(facts);
 		} catch (e) {
@@ -615,11 +608,11 @@ export const actions: Actions = {
 	 * first, then only what the HIDE hid shown, in one write. A refusal from
 	 * either half rolls back both and is answered, not thrown (c390).
 	 */
-	undoHide: async ({ request }) => {
-		const facts = JSON.parse(String((await request.formData()).get('facts') ?? 'null')) as {
-			hidden: number[];
-			out: TakeOutFacts[];
-		};
+	undoHide: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		// Malformed facts, or a HIDE that was not this series', undo nothing (c585).
+		const facts = hideFacts(parsePosted((await request.formData()).get('facts')), s.id);
+		if (!facts) return fail(400, { message: 'NOTHING TO UNDO' });
 		try {
 			undoHideWhole(facts);
 		} catch (e) {
@@ -685,10 +678,13 @@ export const actions: Actions = {
 	 * Work now, the Work has ended or another has its id: `putBack`, c308),
 	 * and the refusal is this screen's band, not a 500 (c468).
 	 */
-	undoTakeOutWork: async ({ request }) => {
-		const facts = JSON.parse(String((await request.formData()).get('facts') ?? 'null'));
+	undoTakeOutWork: async ({ request, params, cookies }) => {
+		const s = target(params, cookies);
+		// Malformed facts, or another series' take-out, undo nothing (c585).
+		const facts = takeOutFacts(parsePosted((await request.formData()).get('facts')), s.id);
+		if (!facts) return fail(400, { message: 'NOTHING TO UNDO' });
 		try {
-			undoTakeOut(facts as TakeOutFacts);
+			undoTakeOut(facts);
 		} catch (e) {
 			return refused(e);
 		}
@@ -734,16 +730,9 @@ export const actions: Actions = {
 	/** UNDO on the ADDED TO <WORK> band: the series leaves the Work again (`undoAdds`). */
 	undoAddToWork: async ({ request, params, cookies }) => {
 		const s = target(params, cookies);
-		const posted = String((await request.formData()).get('facts') ?? 'null');
-		let facts: AddFacts | null;
-		try {
-			facts = JSON.parse(posted) as AddFacts | null;
-		} catch {
-			return fail(400, { message: 'NOTHING TO UNDO' });
-		}
 		// This screen undoes its own series' add, never one the facts name elsewhere.
-		if (!facts || typeof facts !== 'object' || facts.seriesId !== s.id)
-			return fail(400, { message: 'NOTHING TO UNDO' });
+		const facts = addFacts(parsePosted((await request.formData()).get('facts')), s.id);
+		if (!facts) return fail(400, { message: 'NOTHING TO UNDO' });
 		try {
 			undoAdds([facts]);
 		} catch (e) {
