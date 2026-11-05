@@ -288,7 +288,7 @@ test('with no code at all, the library’s MORE › SETTINGS makes the code and 
 	const page = await libraryOn(A);
 	expect((await codeOn(A)).state, 'the library makes no code').toBe('none');
 	await moreSettings(page);
-	await expect(page.getByText('FOR A TV · SIX DIGITS')).toBeVisible();
+	await expect(page.getByText('FOR THE APP · SIX DIGITS')).toBeVisible();
 	await expect.poll(() => shownDigits(page)).toMatch(/^\d{6}$/);
 	const made = await codeOn(A);
 	expect(made).toMatchObject({ state: 'live', left: 5 });
@@ -321,10 +321,10 @@ test('with no code and `?/renew` unanswered, the DEVICES row is still drawn, and
 	const refused = page.waitForRequest((r) => renewPost(new URL(r.url())));
 	await moreSettings(page);
 	await refused;
-	await expect(page.getByText('FOR A TV · SIX DIGITS')).toBeVisible();
+	await expect(page.getByText('FOR THE APP · SIX DIGITS')).toBeVisible();
 	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('—');
 	await expect(page.getByText('EXPIRED · MAKE A NEW CODE')).toBeVisible();
-	await expect(page.getByLabel('Pairing code for a TV')).toHaveCount(0);
+	await expect(page.getByLabel('Pairing code for the app')).toHaveCount(0);
 	expect((await codeOn(B)).state).toBe('none');
 	await page.unroute(renewPost);
 
@@ -460,13 +460,13 @@ async function settingsOn(at: Server) {
 	const page = await context.newPage();
 	await page.goto(`${at.computer}/settings#s-devices`);
 	await hydrated(page);
-	await expect(page.getByText('FOR A TV · SIX DIGITS')).toBeVisible();
+	await expect(page.getByText('FOR THE APP · SIX DIGITS')).toBeVisible();
 	return page;
 }
 
 /** The six digits the DEVICES row draws, or null when it draws none. */
 async function shownDigits(page: Page) {
-	const code = page.getByLabel('Pairing code for a TV');
+	const code = page.getByLabel('Pairing code for the app');
 	if ((await code.count()) === 0) return null;
 	return ((await code.textContent()) ?? '').replace(/\D/g, '');
 }

@@ -149,7 +149,7 @@ async function freshCode(page: Page) {
 
 /** The six digits the row draws, or null when it draws none. */
 async function shownDigits(page: Page) {
-	const code = page.getByLabel('Pairing code for a TV');
+	const code = page.getByLabel('Pairing code for the app');
 	if ((await code.count()) === 0) return null;
 	return ((await code.textContent()) ?? '').replace(/\D/g, '');
 }
@@ -213,7 +213,7 @@ async function openFrozen(page: Page) {
 	await page.clock.pauseAt(at + 30_000);
 	await page.goto('/settings#s-devices');
 	await hydrated(page);
-	await expect(page.getByText('FOR A TV · SIX DIGITS')).toBeVisible();
+	await expect(page.getByText('FOR THE APP · SIX DIGITS')).toBeVisible();
 }
 
 test('with no ORIGIN, DEVICES draws no six digits and no door makes them (c264)', async ({
@@ -223,8 +223,8 @@ test('with no ORIGIN, DEVICES draws no six digits and no door makes them (c264)'
 	await page.goto('/settings#s-devices');
 	await expect(page.getByText('08 — DEVICES').first()).toBeVisible();
 	// The row is the token install's, and this one's TV cookie opens nothing.
-	await expect(page.getByText('FOR A TV · SIX DIGITS')).toHaveCount(0);
-	await expect(page.getByLabel('Pairing code for a TV')).toHaveCount(0);
+	await expect(page.getByText('FOR THE APP · SIX DIGITS')).toHaveCount(0);
+	await expect(page.getByLabel('Pairing code for the app')).toHaveCount(0);
 
 	// NEW CODE's action and the row's refresh are refused as the load is: the
 	// same door (tvBlockHere), asked from the page as its own button would.
@@ -246,7 +246,7 @@ test('with no ORIGIN, DEVICES draws no six digits and no door makes them (c264)'
 	// refusals above are the door's, not the test's.
 	const other = await settings(browser, info, door);
 	await other.page.goto('/settings#s-devices');
-	await expect(other.page.getByText('FOR A TV · SIX DIGITS')).toBeVisible();
+	await expect(other.page.getByText('FOR THE APP · SIX DIGITS')).toBeVisible();
 	expect(await shownDigits(other.page)).toMatch(/^\d{6}$/);
 	expect(await tvCode(other.page)).toMatchObject({ state: 'live' });
 });
@@ -269,9 +269,9 @@ test('a code a TV uses while SETTINGS is open turns USED when the window regains
 	const asked = rowAsks(page);
 	await page.evaluate(() => window.dispatchEvent(new Event('focus')));
 	await asked;
-	await expect(page.getByLabel('Pairing code for a TV')).toHaveCount(0);
+	await expect(page.getByLabel('Pairing code for the app')).toHaveCount(0);
 	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('✓ USED');
-	await expect(page.getByText('✓ USED · ONE TV, ONCE')).toBeVisible();
+	await expect(page.getByText('✓ USED · ONE DEVICE, ONCE')).toBeVisible();
 });
 
 /** Five wrong guesses from a TV, never the code itself: the last one burns it. */
@@ -287,7 +287,7 @@ async function burn(page: Page, code: string) {
 async function showsBurned(page: Page) {
 	await expect(page.getByText('NO TRIES LEFT · MAKE A NEW CODE')).toBeVisible();
 	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('BURNED');
-	await expect(page.getByLabel('Pairing code for a TV')).toHaveCount(0);
+	await expect(page.getByLabel('Pairing code for the app')).toHaveCount(0);
 }
 
 test('a code a TV burns while SETTINGS is open shows BURNED, and stays burned until NEW CODE (c265)', async ({

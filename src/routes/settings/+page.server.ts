@@ -115,6 +115,10 @@ export const load: PageServerLoad = async ({ cookies, url, locals, isDataRequest
 		// restart `tv` is null until `?/renew` answers, and the row, its NEW
 		// CODE and the page's `?/renew` must not hang on it (round 2).
 		tvHere,
+		// The whole address the app types on the owner's tailnet install, where
+		// the digits' row has no last-number shortcut (c521): the instance's
+		// public origin, which is what the request's URL is built from there.
+		appOrigin: tvHere ? url.origin : null,
 		paired: Object.fromEntries(
 			[...pairedDevices()].map(([id, p]) => [id, { address: p.address, pairedAt: p.pairedAt }])
 		),

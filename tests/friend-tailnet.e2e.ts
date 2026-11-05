@@ -149,7 +149,7 @@ async function settingsDigits(client: APIRequestContext) {
 	expect(r.status()).toBe(200);
 	const html = await r.text();
 	expect(html).toContain('08 — DEVICES');
-	const at = html.indexOf('aria-label="Pairing code for a TV"');
+	const at = html.indexOf('aria-label="Pairing code for the app"');
 	const digits =
 		at < 0
 			? null
@@ -187,7 +187,7 @@ test('a friend’s install on its tailnet origin draws no TV digits, and no door
 	try {
 		const { html, digits } = await settingsDigits(owner);
 		expect(digits).toBeNull();
-		expect(html).not.toContain('FOR A TV · SIX DIGITS');
+		expect(html).not.toContain('FOR THE APP · SIX DIGITS');
 		// No WI-FI panel off local mode either, so nothing on the page carries them.
 		expect(html).not.toContain('Other devices on this Wi-Fi');
 		const doors = await otherDoors(owner, friend);
