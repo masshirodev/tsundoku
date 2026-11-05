@@ -79,6 +79,16 @@ for (const p of ['win-x64.zip', 'linux-x64.tar.gz']) {
 	const n = `flaresolverr-${solver.flaresolverr.version}-${p}`;
 	NAMES.push([n, n]);
 }
+// The Android apps (c614): ops/release/android-apk.sh builds them beside the
+// bundles. Release-signed only: a -debug APK can't update an installed app,
+// whose certificate is the release keystore's, so one is refused below.
+NAMES.push([`tsundoku-app-${version}.apk`, 'tsundoku-app.apk']);
+NAMES.push([`tsundoku-tv-${version}.apk`, 'tsundoku-tv.apk']);
+for (const debug of [`tsundoku-app-${version}-debug.apk`, `tsundoku-tv-${version}-debug.apk`])
+	if (existsSync(join(out, debug)) && !existsSync(join(out, debug.replace('-debug', ''))))
+		fail(
+			`${debug} is debug-signed: build the APKs with the keystore (ops/release/android-apk.sh).`
+		);
 
 const sha256 = (file: string) =>
 	new Promise<string>((ok, no) => {
@@ -96,7 +106,12 @@ mkdirSync(stage);
 const files: Record<string, ReleaseFile> = {};
 for (const [from, to] of NAMES) {
 	const src = join(out, from);
-	if (!existsSync(src)) fail(`${from} is missing from ${out}.`);
+	if (!existsSync(src))
+		fail(
+			from.endsWith('.apk')
+				? `${from} is missing from ${out}: ops/release/android-apk.sh ${version} builds it.`
+				: `${from} is missing from ${out}.`
+		);
 	linkSync(src, join(stage, to));
 	files[to] = { name: to, size: statSync(src).size, sha256: await sha256(src) };
 }
@@ -118,7 +133,8 @@ const manifest: Manifest = {
 	notes,
 	files: {
 		'win-x64': { installer: files['tsundoku-win-x64.exe'], zip: files['tsundoku-win-x64.zip'] },
-		'linux-x64': { archive: files['tsundoku-linux-x64.tar.xz'] }
+		'linux-x64': { archive: files['tsundoku-linux-x64.tar.xz'] },
+		android: { app: files['tsundoku-app.apk'], tv: files['tsundoku-tv.apk'] }
 	}
 };
 const text = JSON.stringify(manifest);

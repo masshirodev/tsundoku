@@ -20,7 +20,8 @@ const manifest: Manifest = {
 	notes: 'Passwords instead of a token.\nAn updater.',
 	files: {
 		'win-x64': { installer: file('tsundoku-win-x64.exe'), zip: file('tsundoku-win-x64.zip') },
-		'linux-x64': { archive: file('tsundoku-linux-x64.tar.xz') }
+		'linux-x64': { archive: file('tsundoku-linux-x64.tar.xz') },
+		android: { app: file('tsundoku-app.apk'), tv: file('tsundoku-tv.apk') }
 	}
 };
 const signed = (m: unknown, key = privateKey) => {
@@ -64,6 +65,19 @@ describe('latest.json (doc/UPDATES.md)', () => {
 		const badHash = structuredClone(manifest);
 		badHash.files['linux-x64']!.archive = { ...file('x.tar.xz'), sha256: 'nope' };
 		expect(openManifest(signed(badHash), raw)).toMatchObject({ ok: false });
+	});
+
+	it('carries the Android apps, and refuses a malformed one as any other file (c614)', () => {
+		const r = openManifest(signed(manifest), raw);
+		expect(r.ok && r.manifest.files.android?.app?.name).toBe('tsundoku-app.apk');
+		const bad = { ...manifest, files: { ...manifest.files, android: { app: file('../x.apk') } } };
+		expect(openManifest(signed(bad), raw)).toMatchObject({
+			ok: false,
+			reason: 'a file entry is malformed'
+		});
+		// A release from before c614 has no Android entry, and still opens.
+		const old = { ...manifest, files: { 'win-x64': manifest.files['win-x64'] } };
+		expect(openManifest(signed(old), raw)).toMatchObject({ ok: true });
 	});
 
 	it('orders release versions, a suffix after its day', () => {

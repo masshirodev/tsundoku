@@ -24,6 +24,18 @@ val canSign =
 val tvVersion: String =
 	(project.findProperty("versionName") as String?) ?: env("TSUNDOKU_TV_VERSION") ?: "1.0.0"
 
+/**
+ * Android's versionCode from the date version, YYYYMMDDNN, so every release is
+ * newer to the installer than the one before and an update installs over it
+ * (c614). `Versions.code` in the app is the same rule; VersionsTest pins the
+ * two together. A name that is no date version is 1, as every build was.
+ */
+fun versionCodeOf(name: String): Int {
+	val m = Regex("^(\\d{4})\\.(\\d{2})\\.(\\d{2})(?:\\.(\\d+))?").find(name) ?: return 1
+	val (y, mo, d, n) = m.destructured
+	return y.toInt() * 1_000_000 + mo.toInt() * 10_000 + d.toInt() * 100 + n.ifEmpty { "0" }.toInt().coerceAtMost(99)
+}
+
 android {
 	namespace = "dev.masshiro.tsundoku.tv"
 	compileSdk = 36
@@ -33,8 +45,15 @@ android {
 		// androidx.activity and works down to 21). See doc/TV-APP.md.
 		minSdk = 23
 		targetSdk = 36
-		versionCode = 1
+		versionCode = versionCodeOf(tvVersion)
 		versionName = tvVersion
+		// Where releases are published (doc/UPDATES.md): the same host every
+		// installed computer checks. An environment value is for a test host.
+		buildConfigField(
+			"String",
+			"UPDATES_URL",
+			"\"" + (env("TSUNDOKU_UPDATES_URL") ?: "https://dl.tsundoku.masshiro.pro") + "\""
+		)
 	}
 
 	/*
@@ -105,5 +124,9 @@ dependencies {
 	implementation("androidx.activity:activity:1.11.0")
 	// WindowInsetsControllerCompat, for hiding the system UI around the page.
 	implementation("androidx.core:core-ktx:1.17.0")
+	// ed25519 for latest.json's signature (c614): Android 6 has none of its own.
+	implementation("net.i2p.crypto:eddsa:0.3.0")
 	testImplementation("junit:junit:4.13.2")
+	// org.json for real in the JVM tests: android.jar's stubs return nothing.
+	testImplementation("org.json:json:20240303")
 }

@@ -28,6 +28,12 @@ export type Manifest = {
 	files: {
 		'win-x64'?: { installer?: ReleaseFile; zip?: ReleaseFile };
 		'linux-x64'?: { archive?: ReleaseFile };
+		/**
+		 * The Android apps (c614; doc/UPDATES.md, "The Android apps"): the phone
+		 * and tablet app and the TV's, each checked by the app itself against
+		 * this same signature (the app's ReleaseCheck.kt).
+		 */
+		android?: { app?: ReleaseFile; tv?: ReleaseFile };
 	};
 };
 
@@ -105,7 +111,9 @@ export function openManifest(
 	const files = [
 		m.files?.['win-x64']?.installer,
 		m.files?.['win-x64']?.zip,
-		m.files?.['linux-x64']?.archive
+		m.files?.['linux-x64']?.archive,
+		m.files?.android?.app,
+		m.files?.android?.tv
 	].filter((f) => f !== undefined);
 	if (!files.every(isFile)) return { ok: false, reason: 'a file entry is malformed' };
 	return { ok: true, manifest: m };
