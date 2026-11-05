@@ -150,18 +150,24 @@ describe('a TV code (doc/TV.md)', () => {
 		});
 
 		it('gives a guesser at most five wrong tries per code the computer makes', () => {
-			// Opening /pair/tv every 10 minutes for a day, guessing until told no.
-			const p = make();
-			p.fresh(0);
-			let wrong = 0;
-			for (let t = 0; t < 24 * 60 * 60_000; t += CODE_MS) {
-				p.renewForTv(t);
-				while (p.state(t) === 'live') {
-					p.redeem('999999', t, 'tv');
-					wrong += 1;
+			// Opening /pair/tv every 10 minutes for a day. The careful guesser
+			// stops one short of burning each code and waits for the next; the
+			// greedy one guesses until told no. Neither gets past five.
+			for (const careful of [true, false]) {
+				const p = make();
+				p.fresh(0);
+				let wrong = 0;
+				for (let t = 0; t < 24 * 60 * 60_000; t += CODE_MS) {
+					p.renewForTv(t);
+					let here = 0;
+					while (p.state(t) === 'live' && (!careful || here < TV_TRIES - 1)) {
+						p.redeem('999999', t, 'tv');
+						here += 1;
+						wrong += 1;
+					}
 				}
+				expect(wrong, careful ? 'careful' : 'greedy').toBe(TV_TRIES);
 			}
-			expect(wrong).toBe(TV_TRIES);
 		});
 
 		it('holds on its own output: a second call right after makes nothing', () => {
