@@ -114,7 +114,10 @@ regenerates it**: each slot that adds an e2e file leaves this spec red over
 its own new files (it cannot edit this file, and another slot's file is not
 on its branch), so whoever merges the slots runs `yarn run e2e:table`,
 rewrites each new row's "Why" from the slot's notes, runs Prettier over this
-file, and commits the table with the merge.
+file, and commits the table with the merge. The same command rewrites the
+fixtures' count and its "Never moved over" list below the table ("E2E specs"
+then has nothing hand-typed for a new file to falsify), so the merge has one
+step for both, not two.
 
 <!-- e2e-table:start -->
 
@@ -216,10 +219,11 @@ file, and commits the table with the merge.
 
 <!-- e2e-table:end -->
 
-**77 of the 94 e2e files take `test` from `tests/fixtures.ts`** (or from
-`tests/helpers/hydrated.ts`, the same `test` under its old name), whose
-`page.goto`, `page.reload`, `page.goBack` and `page.goForward` wait for the
-page to have hydrated, and `goto` for the network to settle first:
+**An e2e file that takes `test` from `tests/fixtures.ts`** (or from
+`tests/helpers/hydrated.ts`, the same `test` under its old name; how many do
+is the generated count below) gets a `page.goto`, `page.reload`,
+`page.goBack` and `page.goForward` that wait for the page to have hydrated,
+and a `goto` that waits for the network to settle first:
 SvelteKit hydrates after `load`, and a click, a tap or an arrow key that
 lands before hydration does nothing. That was the suite's recurring flake.
 A client-side navigation into the reader doesn't change the document, so no
@@ -239,25 +243,35 @@ wait; the fixtures have it since c477, and `hydrated.ts` is now a
 pass-through of `tests/fixtures.ts` under its old name, kept for its eighteen
 importers (`rg -ln "helpers/hydrated'" tests/`). `hydrated(page)` is
 exported from both for a page the fixture didn't make (a context of a spec's
-own: `tv-pair`'s TV). The count is a claim, so it is checked
-(`tests/e2e-table.spec.ts`, "the fixtures' count"); the files that do
-**not** take the fixture's `test` are the ones this prints:
+own: `tv-pair`'s TV). The files that do **not** take the fixture's `test`
+are the ones this prints:
 
 ```sh
 for f in tests/*.e2e.ts; do rg -q "^import .*\btest\b.* from '(\./fixtures|\./helpers/hydrated)'" "$f" || echo "$f"; done
 ```
 
 Their `test` is `@playwright/test`'s, whose `goto` waits for nothing more
-than it is told: neither network quiet nor hydration. They are two kinds,
-and the spec holds these two lists to what the loop prints:
+than it is told: neither network quiet nor hydration. They are two kinds. The
+first is a person's decision, so it is written by hand, here, and nowhere else:
 
-- **On purpose, to act before hydration:** `browse-tags` and
-  `filters-layout`.
-- **Never moved over, with no reason to stay:** `browse-frame`,
-  `browse-list-frame`, `browse-move`, `browse-online`,
-  `browse-online-devices`, `browse-preview-frame`, `browse-source-flags`,
-  `first-read-frame`, `help-frame`, `import-frame`, `series-lists-frame`,
-  `settings-frame`, `start-frame`, `tv-app-pair` and `tv-tags`.
+- **On purpose, to act before hydration:** `browse-tags` and `filters-layout`.
+
+The second, and the count, are generated (wave 22, after wave 21's e2e
+review r2): `yarn run e2e:table` writes the block between the `e2e-fixtures`
+markers from the files, as it writes the table, so every e2e file off the
+fixtures that the list above does not name lands there, and a new file from any slot is counted
+by the merge's one step. `tests/e2e-table.spec.ts` fails while the block is
+not what the generator would write ("run `yarn run e2e:table`"), and while a
+name on the hand-written list takes the fixtures' `test` or is gone, which
+the generator cannot settle: take it off the list, or say why it stays.
+
+<!-- e2e-fixtures:start -->
+
+**82 of the 100 e2e files take `test` from `tests/fixtures.ts`** (or from `tests/helpers/hydrated.ts`, the same `test` under its old name); the other 18 take `@playwright/test`'s.
+
+- **Never moved over, with no reason to stay (16):** `browse-frame`, `browse-list-frame`, `browse-move`, `browse-move-pick`, `browse-online`, `browse-online-devices`, `browse-preview-frame`, `browse-source-flags`, `first-read-frame`, `help-frame`, `import-frame`, `series-lists-frame`, `settings-frame`, `start-frame`, `tv-app-pair` and `tv-tags`.
+
+<!-- e2e-fixtures:end -->
 
 The deliberate ones act as a quick thumb does. `browse-tags`' slow case taps
 the preview's link the moment it shows, hydrated or not (its other cases wait

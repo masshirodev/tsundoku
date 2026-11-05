@@ -15,6 +15,14 @@
  * that is gone, and recomputes every "Runs on". `--check` is what
  * `tests/e2e-table.spec.ts` runs, so the unit suite fails while a spec file is
  * missing from the table or a row names the wrong projects.
+ *
+ * The same write renders a second block, between `<!-- e2e-fixtures:start -->`
+ * and `<!-- e2e-fixtures:end -->`: how many e2e files take the fixtures' `test`
+ * and which of the rest never moved over (`fixtureUse()`, `renderFixtures()`).
+ * Its one hand-written input is the doc's "On purpose, to act before
+ * hydration" bullet, outside the block; `--check` fails on a stale block, and
+ * on a name in that bullet which takes the fixtures' `test` or is gone, which
+ * only a person can settle.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -116,32 +124,95 @@ export function fixtureUse(dir = join(ROOT, 'tests')): { using: string[]; not: s
 	return { using: using.sort(), not: not.sort() };
 }
 
+const FIXTURES_START = '<!-- e2e-fixtures:start -->';
+const FIXTURES_END = '<!-- e2e-fixtures:end -->';
+const DELIBERATE = '- **On purpose, to act before hydration:**';
+
 /**
- * What doc/TESTING.md says of the fixtures: "**N of the M e2e files take
- * `test` from `tests/fixtures.ts`**", and the files its two lists name as
- * not taking it, or null where it says no such count.
+ * The files doc/TESTING.md names, by hand, as taking `@playwright/test`'s
+ * `test` on purpose: its "On purpose, to act before hydration" bullet, which
+ * sits outside the generated block because a person decides it. Empty when the
+ * doc has no such bullet.
  */
-export function fixtureClaim(
-	doc: string
-): { count: number; of: number; deliberate: string[]; unmoved: string[] } | null {
-	const head = /\*\*(\d+) of the (\d+) e2e files take `test` from `tests\/fixtures\.ts`\*\*/.exec(
-		doc
-	);
-	if (!head) return null;
-	// A list is its bullet: from `- **<label>` to the next bullet or blank line.
-	const bullet = (label: string) => {
-		const at = doc.indexOf(`- **${label}`, head.index);
-		if (at < 0) return [];
-		const end = doc.slice(at).search(/\n(- |\n)/);
-		const text = end < 0 ? doc.slice(at) : doc.slice(at, at + end);
-		return [...text.matchAll(/`([a-z0-9-]+)`/g)].map((x) => x[1]);
-	};
-	return {
-		count: Number(head[1]),
-		of: Number(head[2]),
-		deliberate: bullet('On purpose, to act before hydration'),
-		unmoved: bullet('Never moved over')
-	};
+export function deliberateList(doc: string): string[] {
+	const at = doc.indexOf(DELIBERATE);
+	if (at < 0) return [];
+	// A list item runs to the next item or the next blank line.
+	const end = doc.slice(at + DELIBERATE.length).search(/\n(- |\n|<!--)/);
+	const text = end < 0 ? doc.slice(at) : doc.slice(at, at + DELIBERATE.length + end);
+	return [...text.matchAll(/`([a-z0-9-]+)`/g)].map((x) => x[1]);
+}
+
+/** `a`, `a and b`, `a, b and c`, each in backticks. */
+function names(list: string[]): string {
+	const ticked = list.map((n) => `\`${n}\``);
+	return ticked.length < 2
+		? (ticked[0] ?? 'none')
+		: `${ticked.slice(0, -1).join(', ')} and ${ticked.at(-1)}`;
+}
+
+/**
+ * The block between `<!-- e2e-fixtures:start -->` and `<!-- e2e-fixtures:end -->`
+ * as the files make it: the count, and every file off the fixtures that the
+ * deliberate list does not name. It is written, never typed, so a new e2e file
+ * from any slot is counted by the merge's one step, `yarn run e2e:table`
+ * (wave 21's park: a hand-typed "77 of the 94" that sibling slots falsified).
+ */
+export function renderFixtures(
+	use: { using: string[]; not: string[] },
+	deliberate: string[]
+): string {
+	const total = use.using.length + use.not.length;
+	const unmoved = use.not.filter((n) => !deliberate.includes(n));
+	return [
+		`**${use.using.length} of the ${total} e2e files take \`test\` from \`tests/fixtures.ts\`** (or from \`tests/helpers/hydrated.ts\`, the same \`test\` under its old name); the other ${use.not.length} take \`@playwright/test\`'s.`,
+		'',
+		`- **Never moved over, with no reason to stay (${unmoved.length}):** ${names(unmoved)}.`
+	].join('\n');
+}
+
+/** The generated block as the doc has it now, or null without its markers. */
+function fixturesBlock(doc: string): string | null {
+	const a = doc.indexOf(FIXTURES_START);
+	const b = doc.indexOf(FIXTURES_END);
+	if (a < 0 || b < a) return null;
+	return doc.slice(a + FIXTURES_START.length, b).trim();
+}
+
+/** The doc with the generated block rewritten from the files. */
+export function writeFixtures(doc: string, use: { using: string[]; not: string[] }): string {
+	if (fixturesBlock(doc) === null)
+		throw new Error(`doc/TESTING.md has no ${FIXTURES_START} … ${FIXTURES_END} block`);
+	const a = doc.indexOf(FIXTURES_START) + FIXTURES_START.length;
+	const block = renderFixtures(use, deliberateList(doc));
+	return `${doc.slice(0, a)}\n\n${block}\n\n${doc.slice(doc.indexOf(FIXTURES_END))}`;
+}
+
+/**
+ * What is wrong with the fixtures' block, one line each: `stale` is what
+ * `yarn run e2e:table` clears, `deliberate` is what only a person can (a file on
+ * the hand-written list that takes the fixtures' `test` now, or is gone).
+ */
+export function fixtureProblems(
+	doc: string,
+	use: { using: string[]; not: string[] }
+): { stale: string[]; deliberate: string[] } {
+	const have = fixturesBlock(doc);
+	const stale =
+		have === null
+			? [`no ${FIXTURES_START} … ${FIXTURES_END} block`]
+			: have === renderFixtures(use, deliberateList(doc))
+				? []
+				: [
+						`the fixtures' count says "${have.split('\n')[0].slice(0, 60)}…", the files make it ${use.using.length} of ${use.using.length + use.not.length}, or its unmoved list differs`
+					];
+	const deliberate = deliberateList(doc)
+		.filter((n) => !use.not.includes(n))
+		.map(
+			(n) =>
+				`${n}: on the "On purpose" list, but ${use.using.includes(n) ? "it takes the fixtures' test" : 'there is no such e2e file'}`
+		);
+	return { stale, deliberate };
 }
 
 /** A regular expression's top-level alternatives: `a|(b|c)|d` is `a`, `(b|c)`, `d`. */
@@ -271,20 +342,40 @@ export function problems(doc: string, files: Map<string, Set<string>>): string[]
 if (import.meta.main) {
 	const doc = readFileSync(DOC, 'utf8');
 	const files = projectsByFile();
+	const use = fixtureUse();
 	if (process.argv.includes('--check')) {
-		const wrong = problems(doc, files);
+		const fixtures = fixtureProblems(doc, use);
+		const wrong = [...problems(doc, files), ...fixtures.stale];
 		if (wrong.length) {
 			console.error(
-				`doc/TESTING.md's e2e table is stale; run \`yarn run e2e:table\`:\n  ${wrong.join('\n  ')}`
+				`doc/TESTING.md's e2e table or fixtures' count is stale; run \`yarn run e2e:table\`:\n  ${wrong.join('\n  ')}`
 			);
-			process.exit(1);
 		}
-		console.log(`doc/TESTING.md's e2e table lists all ${files.size} spec files.`);
+		if (fixtures.deliberate.length) {
+			console.error(
+				`doc/TESTING.md's "On purpose" list needs a person, not the generator:\n  ${fixtures.deliberate.join('\n  ')}`
+			);
+		}
+		if (wrong.length || fixtures.deliberate.length) process.exit(1);
+		console.log(
+			`doc/TESTING.md's e2e table lists all ${files.size} spec files; ${use.using.length} of ${use.using.length + use.not.length} e2e files take the fixtures' test.`
+		);
 	} else {
 		const table = render(rebuild(readRows(doc), files), files);
 		const a = doc.indexOf(START) + START.length;
-		writeFileSync(DOC, `${doc.slice(0, a)}\n\n${table}\n\n${doc.slice(doc.indexOf(END))}`);
+		const tabled = `${doc.slice(0, a)}\n\n${table}\n\n${doc.slice(doc.indexOf(END))}`;
+		writeFileSync(DOC, writeFixtures(tabled, use));
 		execFileSync('npx', ['prettier', '--write', DOC], { cwd: ROOT, stdio: 'ignore' });
-		console.log(`doc/TESTING.md's e2e table: ${files.size} spec files.`);
+		console.log(
+			`doc/TESTING.md's e2e table: ${files.size} spec files; fixtures' count: ${use.using.length} of ${use.using.length + use.not.length}.`
+		);
+		// Written anyway: the count is right, and only the hand-written list is wrong.
+		const { deliberate } = fixtureProblems(writeFixtures(tabled, use), use);
+		if (deliberate.length) {
+			console.error(
+				`doc/TESTING.md's "On purpose" list needs a person:\n  ${deliberate.join('\n  ')}`
+			);
+			process.exit(1);
+		}
 	}
 }

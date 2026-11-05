@@ -2,9 +2,11 @@ import { test as base, expect, type Page } from '@playwright/test';
 import { hydrated } from './helpers/hydration';
 
 /**
- * Most e2e specs import `test` from here: 77 of the 94 at wave 21, counted
- * and named in doc/TESTING.md ("E2E specs", the paragraph after the table), which
- * `tests/e2e-table.spec.ts` checks. Every full document load such a test makes
+ * Most e2e specs import `test` from here. How many, and which do not, is the
+ * block `yarn run e2e:table` writes into doc/TESTING.md ("E2E specs", between
+ * the `e2e-fixtures` markers), which `tests/e2e-table.spec.ts` checks; no
+ * count is typed here, since every new spec file would falsify it. Every full
+ * document load such a test makes
  * -- `page.goto`, `page.reload`, `page.goBack` and `page.goForward` -- waits
  * for the page to have hydrated (`hydrated()`, `tests/helpers/hydration.ts`),
  * and `goto` waits for the network to go quiet first. SvelteKit hydrates
@@ -22,8 +24,8 @@ import { hydrated } from './helpers/hydration';
  *
  * A spec that means to act before hydration, as a quick thumb does
  * (`browse-tags`, `filters-layout`, `library-top-bar`'s FILTER case), imports
- * `test` from `@playwright/test`. Fifteen more do so only because nobody
- * moved them over; the doc names them, and they get no wait at all.
+ * `test` from `@playwright/test`. The others that do so only because nobody
+ * moved them over are listed in that generated block, and get no wait at all.
  */
 export const test = base.extend({
 	page: async ({ page }, use) => {

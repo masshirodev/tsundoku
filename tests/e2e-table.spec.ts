@@ -5,15 +5,18 @@ import { describe, expect, it } from 'vitest';
 import {
 	alternatives,
 	documentedSkip,
-	fixtureClaim,
+	deliberateList,
+	fixtureProblems,
 	fixtureUse,
 	problems,
 	projectsByFile,
 	readRows,
 	rebuild,
 	render,
+	renderFixtures,
 	runsOn,
-	testTitles
+	testTitles,
+	writeFixtures
 } from '../scripts/e2e-table.ts';
 
 /**
@@ -162,14 +165,63 @@ describe('the e2e table', () => {
 		}
 	});
 
-	it('the fixtures’ count in the doc is the files’ own, and its lists name the rest', () => {
-		// doc/TESTING.md said "every e2e spec" uses the fixture while seventeen
-		// did not (e2e round 1 review): the count and both lists are claims.
-		const claim = fixtureClaim(readFileSync('doc/TESTING.md', 'utf8'));
-		expect(claim, 'doc/TESTING.md: "**N of the M e2e files take `test` from …**"').not.toBeNull();
-		const { using, not } = fixtureUse();
-		expect([claim!.count, claim!.of]).toEqual([using.length, using.length + not.length]);
-		expect([...claim!.deliberate, ...claim!.unmoved].sort()).toEqual(not);
+	const fixturesDoc = (block: string) =>
+		[
+			'- **On purpose, to act before hydration:** `c` and `e`.',
+			'',
+			'<!-- e2e-fixtures:start -->',
+			'',
+			block,
+			'',
+			'<!-- e2e-fixtures:end -->',
+			'after'
+		].join('\n');
+	const use = { using: ['a', 'b', 'd'], not: ['c', 'e', 'g', 'h'] };
+
+	it('writes the fixtures’ count, and lists as unmoved every file off them the doc does not name', () => {
+		expect(deliberateList(fixturesDoc(''))).toEqual(['c', 'e']);
+		const written = writeFixtures(fixturesDoc('**77 of the 94** typed by hand'), use);
+		expect(written).toContain('**3 of the 7 e2e files take `test` from `tests/fixtures.ts`**');
+		expect(written).toContain('the other 4 take `@playwright/test`');
+		expect(written).toContain('- **Never moved over, with no reason to stay (2):** `g` and `h`.');
+		expect(written.endsWith('<!-- e2e-fixtures:end -->\nafter')).toBe(true);
+		// Writing what is already written changes nothing: the merge's step is idempotent.
+		expect(writeFixtures(written, use)).toBe(written);
+		expect(fixtureProblems(written, use)).toEqual({ stale: [], deliberate: [] });
+		expect(renderFixtures({ using: ['a'], not: ['c'] }, ['c'])).toContain(
+			'with no reason to stay (0):** none.'
+		);
+	});
+
+	it('calls a hand-edited count, or a new file off the fixtures, stale; a moved deliberate file needs a person', () => {
+		const written = writeFixtures(fixturesDoc(''), use);
+		const edited = written.replace('**3 of the 7', '**4 of the 7');
+		expect(fixtureProblems(edited, use).stale).toHaveLength(1);
+		// A sibling slot's new file off the fixtures: the generator would list it.
+		const grown = { using: use.using, not: [...use.not, 'i'] };
+		expect(fixtureProblems(written, grown).stale).toHaveLength(1);
+		expect(fixtureProblems(writeFixtures(written, grown), grown).stale).toEqual([]);
+		// A deliberate file that took the fixtures' test, and one that is gone.
+		const moved = { using: [...use.using, 'c'], not: ['g', 'h'] };
+		expect(fixtureProblems(writeFixtures(written, moved), moved).deliberate).toEqual([
+			'c: on the "On purpose" list, but it takes the fixtures\' test',
+			'e: on the "On purpose" list, but there is no such e2e file'
+		]);
+		expect(fixtureProblems('no markers', use).stale).toHaveLength(1);
+		expect(() => writeFixtures('no markers', use)).toThrow(/e2e-fixtures:start/);
+	});
+
+	it('the fixtures’ count in the doc is what the generator writes from the files', () => {
+		// It was a hand-typed "77 of the 94" (wave 21), which the sibling slots'
+		// new files falsified before it could merge (e2e r2): now it is written.
+		const { stale } = fixtureProblems(readFileSync('doc/TESTING.md', 'utf8'), fixtureUse());
+		expect(stale, 'run `yarn run e2e:table`').toEqual([]);
+	});
+
+	it('every file the doc names as off the fixtures on purpose still is', () => {
+		const { deliberate } = fixtureProblems(readFileSync('doc/TESTING.md', 'utf8'), fixtureUse());
+		expect(deliberateList(readFileSync('doc/TESTING.md', 'utf8')).length).toBeGreaterThan(0);
+		expect(deliberate, 'doc/TESTING.md, "On purpose": take it off the list').toEqual([]);
 	});
 
 	it('lists every spec file, on the projects the config gives it', { timeout: 120_000 }, () => {
