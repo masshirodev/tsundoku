@@ -181,8 +181,19 @@ relayout leaves that line where it stood**: the reader notes how far below
 the top the character was when it read the place, and puts it back there.
 It used to put it on the top margin, and as the line crossing the margin
 starts up to a line above it, every relayout after a scroll moved the reader
-up to a line. A place opened from the URL or the server has only its
-character, so it opens on the margin, as before.
+up to a line. **A reload keeps that height too** (c554): in SCROLL the URL is
+`?at=<block>.<offset>.<y>`, `y` being how far below the top of the screen, in
+CSS px, the character's line stood, and a reload puts the line back there
+(`parseAt` / `formatAt` in `src/lib/reader/text.ts`). Before c554 the URL had
+the character alone, and a reload landed up to a line off. `y` is a height on
+the screen, so it means the same at any WIDTH or size: after a WIDTH change
+the relayout keeps the line at its height and the URL keeps the same `y`, and
+a reload at the new width lands there again. It is held on screen (no higher
+than a line above the top, no lower than a line above the bottom), and PAGED
+ignores it, keeping the page that holds the character. A two-part
+`?at=<block>.<offset>` (a bookmark, a history entry, any link made before
+c554) still opens on the top margin, as does a place from the server, which
+has only its character.
 
 **A page that is the band alone** (a chapter whose text ends exactly at a
 page's end) has no character of its own to keep, so its position is the
@@ -196,7 +207,12 @@ two new optional fields carry `offset` (the character) and `total` (paragraphs
 in the entry). The server stores them in `last_position`, `last_offset` (rung 11) and `page_count`, so the series screen's percentages work without the
 server ever reading the book. The URL keeps `?at=<block>.<offset>`, so a
 reload, or incognito, which saves nothing, still comes back to the same
-sentence.
+sentence (and in SCROLL, the same line: `?at=<block>.<offset>.<y>`, above).
+The reader is the URL's only writer and its only reader: CONTINUE, history
+and the end page link to the entry without `?at=` (`rg -n
+"searchParams.get\('at'\)|[?&]at=" src`, wave 25), and an entry opened
+without one starts at its first character (the server's `last_offset` is read
+only behind an `?at=` that names no place; the reader's notes, wave 25).
 
 Each event's `durationMs` is capped at **five minutes** a page, not the image
 reader's two: a page of prose at the default size is 352–391 words, which a
