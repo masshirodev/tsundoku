@@ -208,8 +208,21 @@ up…" red under load. Since wave 25 (`src/routes/series/[id]/serial-saves.ts`):
   for the rating, nor one series for another. The queue is the app's, not
   the panel's, so a panel mounted again (out to the library and back within
   a slow save) still waits.
+- **A latest save's reload is part of its turn** (round 2). The next save on
+  the key waits until the newest one has answered _and_ its reload has
+  landed, so a tap made during that reload posts only after it, and is
+  judged against the value the reload brought (what is stored, PUT BACK's
+  label). The reload is awaited in a `finally` that lets the queue go, so a
+  reload that throws never holds the key for the session.
+- **A save superseded before its turn is not sent.** Three quick taps send
+  the first and the third: when the second's turn comes, a newer tap is
+  already queued and only the last value matters, so N taps are never N
+  round trips.
 - **The last tap wins.** Only the newest save reloads the page; a superseded
-  one, stored or not, does nothing more. The local value stands while any
+  one, stored or not, does nothing more. "Newer" means a tap on the same key
+  made after this one, never "a save is pending": an older turn still
+  reloading is pending too, and its pending must not swallow the newest
+  tap's band. The local value stands while any
   save of its field is pending (queued, running, or answered and reloading)
   or unsaved, so neither an earlier answer's reload nor one from elsewhere
   resets it. Once nothing is pending, the stored value is the one shown.

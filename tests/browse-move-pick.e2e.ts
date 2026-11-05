@@ -623,6 +623,15 @@ test('three quick picks on one slow source: one details call each at most, and a
  * (wave 24 measured it 4-279 ms after the page gave B up), so a turn can
  * come to B before then; B must still never ask, because C was queued
  * behind it (`inTurn`, doc/MOVE.md "Picks take turns").
+ *
+ * This case pins a timing; it cannot falsify the rule. It passed 30 of 30
+ * on the base `inTurn` too: at this box's timing the server had not always
+ * queued C when B's turn came (C reached it up to 11 ms after A was let go),
+ * so it never reached the gap. "a waiting pick whose abort never arrives…" below
+ * is the case that falsifies the rule (red on the base, 3 of 3). Kept so the
+ * old timing stays green, as c567's Done-when asks; if it ever goes red,
+ * read the server's order of C's queueing against B's turn before calling
+ * it a regression.
  */
 test('three quick picks at the old timing: A let go once C is sent, and the dropped B still never asks (c567)', async ({
 	page
