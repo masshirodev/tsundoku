@@ -136,12 +136,16 @@ describe('the offer a series screen reads (c281)', () => {
 			name: 'Naruto',
 			now: NOW + 1
 		});
+		// A visible series whose title continues it: offered while the Work is
+		// visible, so the nulls below are the hiding's, not the stem rule's.
+		getDb()
+			.prepare(`UPDATE series SET title = ? WHERE title = ?`)
+			.run('Naruto Shippuden', 'Boruto: Naruto Next Generations');
+		const shippuden = idOf('Naruto Shippuden');
+		expect(works.workOfferFor(shippuden, false)?.workId).toBe(work.id);
 		works.hideWork(work.id, true);
-		const boruto = idOf('Boruto: Naruto Next Generations');
-		void boruto;
-		lib.setHidden([idOf('The Breaker'), idOf('The Breaker: New Waves')], true);
-		expect(works.workOfferFor(force, false)).toBeNull();
-		expect(works.workOfferFor(force, true)).toBeNull();
+		expect(works.workOfferFor(shippuden, false)).toBeNull();
+		expect(works.workOfferFor(shippuden, true)).toBeNull();
 	});
 
 	it('offers a hidden series a hidden Work only with reveal on, which it could join', () => {
@@ -235,7 +239,8 @@ describe('the series screen’s offer, through its own actions (c281)', () => {
 		const before = snapshot();
 		const answer = await postSeries(seriesScreen.actions.addToWork, force, [
 			['work', String(work.id)],
-			['series', String(force)]
+			['series', String(force)],
+			['key', works.workOfferFor(force, true)!.key]
 		]);
 		expect(answer.workJoined).toMatchObject({ workId: work.id, seriesId: force, position: 3 });
 		expect(works.workParts(work.id, true).map((p) => p.seriesId)).toEqual([a, b, force]);
@@ -259,6 +264,88 @@ describe('the series screen’s offer, through its own actions (c281)', () => {
 		]);
 		expect(again.status).toBe(400);
 		expect(snapshot()).toEqual(before);
+	});
+
+	it('refuses an offer whose Work ended and whose id another Work was given', async () => {
+		// The page loaded the offer; then, elsewhere, the Work was ungrouped and
+		// a newer, unrelated Work took its id. The sheet still posts the old id.
+		const { work } = breaker();
+		const force = idOf('The Breaker: Eternal Force');
+		const offer = works.workOfferFor(force, true)!;
+		works.ungroup(offer.workId);
+		const unrelated = works.createWork({
+			seriesIds: [idOf('Naruto'), idOf('Naruto Gaiden')],
+			name: 'Unrelated',
+			now: NOW + 7
+		});
+		expect(unrelated.work.id).toBe(work.id);
+		const before = snapshot();
+		const answer = await postSeries(seriesScreen.actions.addToWork, force, [
+			['work', String(offer.workId)],
+			['series', String(force)],
+			['key', offer.key]
+		]);
+		expect(answer.status).toBe(400);
+		expect(answer.data).toEqual({ workMessage: 'THAT WORK HAS CHANGED · LOOK AGAIN' });
+		expect(snapshot()).toEqual(before);
+		expect(works.workOfSeries(force)).toBeNull();
+	});
+
+	it('refuses an offer dismissed between the page’s load and the tap', async () => {
+		const { work } = breaker();
+		const force = idOf('The Breaker: Eternal Force');
+		const offer = works.workOfferFor(force, true)!;
+		// NOT THIS from another screen (the TV, another tab) after this one loaded.
+		works.dismissWorkOffer(offer.key, NOW);
+		const before = snapshot();
+		const answer = await postSeries(seriesScreen.actions.addToWork, force, [
+			['work', String(work.id)],
+			['series', String(force)],
+			['key', offer.key]
+		]);
+		expect(answer.status).toBe(400);
+		expect(answer.data).toEqual({ workMessage: 'THAT WORK HAS CHANGED · LOOK AGAIN' });
+		expect(snapshot()).toEqual(before);
+	});
+
+	it('refuses a post with no key, another series’ key, or a key the Work was not made at', async () => {
+		const { work } = breaker();
+		const force = idOf('The Breaker: Eternal Force');
+		const naruto = idOf('Naruto');
+		const before = snapshot();
+		for (const key of [
+			null,
+			'',
+			'work:1; DROP TABLE works',
+			`work:${NOW}:${naruto}`,
+			`work:${NOW + 1}:${force}`
+		]) {
+			const fields: [string, string][] = [
+				['work', String(work.id)],
+				['series', String(force)]
+			];
+			if (key !== null) fields.push(['key', key]);
+			const answer = await postSeries(seriesScreen.actions.addToWork, force, fields);
+			expect(answer.status, String(key)).toBe(400);
+		}
+		expect(snapshot()).toEqual(before);
+	});
+
+	it('UNDO of an add refuses malformed facts, or facts naming another series, as a band', async () => {
+		const { work } = breaker();
+		const force = idOf('The Breaker: Eternal Force');
+		const naruto = idOf('Naruto Gaiden');
+		// Another series' add, made elsewhere: this screen must not undo it.
+		const theirs = works.addSeries(work.id, naruto);
+		const before = snapshot();
+		for (const facts of ['{not json', JSON.stringify(theirs)]) {
+			const answer = await postSeries(seriesScreen.actions.undoAddToWork, force, [
+				['facts', facts]
+			]);
+			expect(answer.status, facts).toBe(400);
+		}
+		expect(snapshot()).toEqual(before);
+		expect(works.workOfSeries(naruto)?.id).toBe(work.id);
 	});
 
 	it('adds only this series from its screen, whatever else a form names', async () => {

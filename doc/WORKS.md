@@ -503,8 +503,16 @@ LIBRARY band a source search leads to is on the same screen, above it.
 - **REVIEW →** opens the GROUP sheet in ADD TO A WORK (`GroupSheet`'s
   `offer`): `INTO <WORK> · AS PART N`, the run numbered, the newcomer last
   and ticked, `ADD 1 TO THE WORK` and NOT THIS. The add is the series
-  screen's own `?/addToWork`, which takes this series and only it; the band
-  says `ADDED TO <WORK> · PART N` with UNDO (`?/undoAddToWork`).
+  screen's own `?/addToWork`, which takes this series and only it, and
+  checks the offer's Work by its moment of making, not its id: the sheet
+  posts the offer's key (`work:<created_at>:<series>`), and the add goes
+  through only while `workOfferFor` still offers that Work with that key.
+  `works.id` is reused once the newest Work ends, so a page loaded before an
+  ungroup would otherwise add the series to whatever Work holds the id now;
+  an offer dismissed, or a Work that stopped matching, since the load refuses
+  too, as `THAT WORK HAS CHANGED · LOOK AGAIN`, writing nothing. The band
+  says `ADDED TO <WORK> · PART N` with UNDO (`?/undoAddToWork`), which undoes
+  this series' add only and answers malformed facts with a band, not a 500.
 - **NOT THIS** stores `work_dismissals` (`?/dismissWorkOffer`), from the
   band or the sheet, with `NOT THIS · WON'T ASK AGAIN` and UNDO. It holds for
   good, across an UNDO that brings the Work back under a new id, and never

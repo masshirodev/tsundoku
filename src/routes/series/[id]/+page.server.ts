@@ -689,6 +689,15 @@ export const actions: Actions = {
 		// else is not this screen's to add.
 		if (ids.length !== 1 || ids[0] !== s.id)
 			return fail(400, { workMessage: 'ONLY THIS SERIES CAN BE ADDED FROM ITS SCREEN' });
+		// `works.id` is reused once the newest Work ends, so the posted id alone
+		// may name an unrelated Work by now. The offer's key names the Work by
+		// its moment of making and this series; the add goes through only while
+		// the offer this screen reads now is that same offer -- which also
+		// refuses one dismissed, or one whose Work stopped matching, since load.
+		const key = parseWorkDismissalKey(String(form.get('key') ?? ''));
+		const now = workOfferFor(s.id, isRevealed(cookies));
+		if (!key || !key.endsWith(`:${s.id}`) || now?.workId !== workId || now.key !== key)
+			return fail(400, { workMessage: 'THAT WORK HAS CHANGED · LOOK AGAIN' });
 		try {
 			const facts = addSeries(workId, s.id);
 			return { workJoined: facts };
@@ -700,10 +709,19 @@ export const actions: Actions = {
 
 	/** UNDO on the ADDED TO <WORK> band: the series leaves the Work again (`undoAdds`). */
 	undoAddToWork: async ({ request, params, cookies }) => {
-		target(params, cookies);
-		const facts = JSON.parse(String((await request.formData()).get('facts') ?? 'null'));
+		const s = target(params, cookies);
+		const posted = String((await request.formData()).get('facts') ?? 'null');
+		let facts: AddFacts | null;
 		try {
-			undoAdds([facts as AddFacts]);
+			facts = JSON.parse(posted) as AddFacts | null;
+		} catch {
+			return fail(400, { message: 'NOTHING TO UNDO' });
+		}
+		// This screen undoes its own series' add, never one the facts name elsewhere.
+		if (!facts || typeof facts !== 'object' || facts.seriesId !== s.id)
+			return fail(400, { message: 'NOTHING TO UNDO' });
+		try {
+			undoAdds([facts]);
 		} catch (e) {
 			return refused(e);
 		}
