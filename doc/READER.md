@@ -125,11 +125,21 @@ Paged turns slide, as in Mihon; they don't pop (the owner asked on
 - **Taps, keys and clicks slide too:** the neighbour is drawn beside the page,
   and both slide over in 220ms.
 - **Quick taps all count.** A turn asked for mid-slide is taken the moment the
-  slide lands.
+  slide lands, and one asked for while a short drag goes back into place is
+  taken when it is back (c553; until then the settle-back dropped it, and the
+  key did nothing).
 - **A newer move wins** (c515). The scrubber, another chapter opening or
   WIDE PAGES changing, moving the reader mid-slide, stops the slide where it put
   the page, and the turn gives way; until c515 the turn chose its page when
   the slide ended, one past wherever the scrub had left it.
+- **A drag waits for the turn under way** (c553). A scrub that cuts a slide
+  short leaves the turn's last step to come 220 ms after the key, which puts
+  the page back at rest; a drag begun inside that time had its offset zeroed
+  under the finger, and the page snapped back and jumped forward again. A
+  drag is not followed until the turn is done, as the text reader's isn't.
+- **Nothing lands after the reader is left** (c565): a turn landing past an
+  end, or one queued, would go on into the next chapter in place of BACK
+  ([`NAVIGATION.md`](NAVIGATION.md), "A screen being left writes nothing").
 - **One finger turns.** A press follows the pointer that began it; a second
   finger going down (a pinch beginning) ends it as a cancel would, so a drag
   goes back rather than jerking towards the new finger, and on the strip a
@@ -143,7 +153,7 @@ Paged turns slide, as in Mihon; they don't pop (the owner asked on
   slide.
 
 The track is in `ImageReader.svelte` (`turn`, `after`, `screens`); tested in
-`tests/reader-flow.e2e.ts`, and c515's two rules in `tests/reader-layout.e2e.ts`
+`tests/reader-flow.e2e.ts`, and c515's and c553's rules in `tests/reader-layout.e2e.ts`
 on every device. Its numbers (the 220ms slide and its curve, the 8px
 before a drag is followed, the quarter an edge gives, the 40px release) are in
 `src/lib/reader/reader.ts`, shared with the text reader, whose paged turns
@@ -412,6 +422,16 @@ of scrolling to it.
   first and puts it back after. It does this by hand: the browser's scroll
   anchoring is off on the strip (`overflow-anchor: none`), since it does
   nothing at the very top of a page and would otherwise do it twice.
+  **The page under the middle is the strip's, whatever covers it** (c568):
+  READING's sheet, the controls, the lookup or a banner over the middle are
+  looked through (`stripSlotAt` in `src/lib/reader/strip-slot.ts`, every
+  element under the point, the first page slot or band inside the strip).
+  Wave 24 traced the strip losing a whole chapter that way: VERTICAL picked
+  in READING opens the strip at the reader's page, the chapter above arrived
+  while the sheet still covered the middle, the top element there was the
+  sheet, and nothing was kept, so the strip showed the chapter above under a
+  URL naming the one below. The rotation's and a reshaped page's look-ups use
+  the same rule; nothing under the point (a gap) keeps nothing, as before.
 - **Nor on turning the device.** Portrait to landscape, or back, changes the
   strip's width, and every page's height scales with it while the scroll
   offset doesn't: in a manhwa that landed several pages away (2026-09-25).
@@ -436,7 +456,11 @@ of scrolling to it.
 - **Opening** puts the page the reader resumes at at the top of the screen.
   That happens after SvelteKit's own scroll on arrival (`afterNavigate`),
   which used to put it back at the top of the document. So the strip used to
-  open a chapter on its first page, whatever its progress said.
+  open a chapter on its first page, whatever its progress said. **Only for
+  the entry that navigation arrived at** (c568): a mode switch opens the strip
+  with no navigation, so its place was left set, and the next crossing's
+  arrival replayed it, scrolling the strip back a whole chapter (13,124 px in
+  wave 23's gate).
 - **CH. ← / →** in the controls go to a neighbour already on the strip by
   scrolling to it, and to anything else by starting the strip over there.
 - **The scrubber** moves within the chapter being read.
@@ -446,7 +470,10 @@ of scrolling to it.
 
 Tested in `tests/reader-flow.e2e.ts`: across the band and back, that the page
 being read stays put through a rotation both ways, and that
-nothing moves when chapters arrive above or when the reader crosses a band.
+nothing moves when chapters arrive above or when the reader crosses a band;
+and in `tests/reader-strip-keys.e2e.ts` ("a chapter arriving above while
+READING is open keeps the page being read", c568), which holds the chapter
+above until the sheet is open.
 
 ## Two choices for the strip (a friend's, 2026-10-30)
 
@@ -492,7 +519,10 @@ and "when I click down or up it pans to the next sections").
   so a notch feels instant; over a whole screen that was a lurch (the owner:
   "its attacking my anxiety"). A key's move eases in and out instead, 320 ms
   for a screen and 160 ms for a nudge. Pressed again mid-glide (a double ↓),
-  it adds the step to where it was going and glides on from where it is.
+  it adds the step to where it was going and glides on from where it is. A
+  glide never starts backwards (c568): a frame is stamped when it began, which
+  under load is before the key, and the ease once ran the wrong way first
+  (-33 px on a +40 nudge, wave 24).
 - **Ctrl + ↑ / ↓ nudge** 40 px, about what an arrow did before: to bring a
   panel the screen cut in two into view without the mouse (the owner,
   2026-10-30).
@@ -575,7 +605,9 @@ Everything goes through `POST /api/reading` ([`READING-LOG.md`](READING-LOG.md))
 
 - `open` when an entry opens;
 - `page` once the reader has settled on a page (800ms), which also keeps
-  `?p=` in the URL, so a reload resumes;
+  `?p=` in the URL, so a reload resumes; never once the reader is being left
+  (c565, [`NAVIGATION.md`](NAVIGATION.md), "A screen being left writes
+  nothing"), when `close` carries the page;
 - `finish` on reaching the last page or crossing out of the chapter;
 - `close` on leaving (a beacon).
 

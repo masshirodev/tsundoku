@@ -361,14 +361,9 @@ test('the app’s own ← buttons come back to the shelf, the order, the pages a
 	await page.locator('a.cta').click();
 	await page.waitForURL(/\/read\//);
 	await page.waitForLoadState('networkidle');
-	// The reader keeps its place in the URL 800 ms after it settles on a page
-	// (`?p=`, ImageReader.svelte's `settle`). Left before then, that timer
-	// fires during the trip back and its replaceState overwrote the series'
-	// history entry: the series screen drawn at /read/<id>?p=1, and the wait
-	// for /series/ below ran out (2 in 5 at a load of about 45, from the
-	// trace; the app's, filed in doc/handoff-notes/e2e.md, wave 23). Waiting
-	// for the reader's own mark keeps this case on the way back, its subject.
-	await page.waitForURL(/\/read\/\d+\?(.*&)?p=\d+/);
+	// Left at once, before the reader keeps its page in the URL (800 ms): the
+	// timer that used to write /read/<id>?p=1 onto the series' entry on the
+	// way back is the app's to stop (c565; reader-flow's c565 case pins it).
 	const vp = page.viewportSize()!;
 	await page.touchscreen.tap(vp.width / 2, 30);
 	await page.getByRole('link', { name: 'Back to the series' }).click();

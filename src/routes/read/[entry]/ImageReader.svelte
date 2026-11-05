@@ -73,6 +73,8 @@
 		type StripChapter
 	} from '$lib/reader/reader';
 	import { skipOffscreen } from '$lib/reader/offscreen';
+	import { stripSlotAtMiddle } from '$lib/reader/strip-slot';
+	import { leavingReader } from '$lib/reader/leaving';
 	import { OnePointer } from '$lib/reader/pointer';
 	import PageImage from './PageImage.svelte';
 	import Chrome from './Chrome.svelte';
@@ -736,8 +738,14 @@
 		// newer ask, and the turn gives way to it (c515). Turning from where that
 		// left off went one past it.
 		const from = { entry: data.entry.id, at, half, atEnd };
+		// Leaving the reader is newer too (c565): a turn landing after BACK began
+		// would go on into the next chapter, or the one before, in its place.
 		const still = () =>
-			data.entry.id === from.entry && at === from.at && half === from.half && atEnd === from.atEnd;
+			data.entry.id === from.entry &&
+			at === from.at &&
+			half === from.half &&
+			atEnd === from.atEnd &&
+			!leavingReader();
 		turning = true;
 		peek = sideOf(dir);
 		await tick();
@@ -759,7 +767,7 @@
 		turning = false;
 		const then = queued;
 		queued = null;
-		if (then) void turn(then);
+		if (then && !leavingReader()) void turn(then);
 	}
 
 	/** A drag that didn't turn: back into place. */
@@ -774,6 +782,12 @@
 		await new Promise((r) => setTimeout(r, TURN_MS));
 		animating = false;
 		peek = null;
+		// An arrow or a tap asked for while the page went back is taken now, as
+		// after a turn (c553; the text reader's settleBack does the same). Dropped,
+		// it was a key that did nothing.
+		const then = queued;
+		queued = null;
+		if (then && !leavingReader()) void turn(then);
 	}
 
 	/** The next chapter is on the tablet: it opens with no network. */
@@ -870,6 +884,8 @@
 		if (data.entry.id !== shown || atEnd) return;
 		clearTimeout(settle);
 		settle = setTimeout(() => {
+			// On the way out the window's entry may be the next screen's (c565).
+			if (leavingReader()) return;
 			void send('page', page);
 			// Keep the URL on the page, so a reload resumes here.
 			const url = new URL(appPage.url);
@@ -883,7 +899,11 @@
 
 	beforeNavigate(({ to }) => {
 		// Moving between chapters is not leaving: the next one sends its own open.
-		if (to?.route.id !== '/read/[entry]') void send('close', group[0]);
+		if (to?.route.id === '/read/[entry]') return;
+		// The close carries the page; a settle still to come would write the
+		// reader's URL onto the screen being opened (c565).
+		clearTimeout(settle);
+		void send('close', group[0]);
 	});
 
 	// ---- the vertical strip -------------------------------------------------------------
@@ -926,9 +946,9 @@
 	 * the browser's scroll anchoring does nothing at the very top of a page.
 	 */
 	async function keepPlace(change: () => void) {
-		const anchor = document
-			.elementFromPoint(innerWidth / 2, innerHeight / 2)
-			?.closest<HTMLElement>('[data-role="page"], .band');
+		// Through whatever covers the middle (c568): READING's sheet, the
+		// controls or the lookup over it are not the place; the strip under them is.
+		const anchor = stripSlotAtMiddle();
 		const before = anchor?.getBoundingClientRect().top;
 		change();
 		await tick();
@@ -1009,7 +1029,11 @@
 			?.scrollIntoView({ block: 'start' });
 	}
 	afterNavigate(() => {
-		place();
+		// Only for the entry this navigation arrived at (c568): a placeAt left by
+		// the strip's opening on a mode switch (no navigation, so nothing cleared
+		// it) is not where a later crossing goes. Replayed, it scrolled the strip
+		// back a whole chapter to the page the switch opened at.
+		if (placeAt?.id === data.entry.id) place();
 		placeAt = null;
 	});
 
@@ -1022,6 +1046,9 @@
 			return;
 		}
 		if (crossing !== null) return;
+		// A strip still gliding as BACK begins: a crossing now would replace the
+		// navigation away with one back into the reader (c565).
+		if (leavingReader()) return;
 		// Onward past the band: the chapter just left is read.
 		if (chapter === data.next?.id) markFinished();
 		crossing = chapter;
@@ -1421,7 +1448,12 @@
 		if (!finger.owns(e)) return;
 		if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 10) cancelPress();
 		// A zoomed page pans under a drag rather than turning (edges and keys still turn).
-		if (!down || animating || fit === 'height' || zoom > 1 || reduceMotion.current) return;
+		// Not while a turn is under way either (c553), slide or not: a scrub that
+		// cut a slide short leaves the turn's tail to come, which zeroes the
+		// offset, and a drag begun meanwhile snapped back to nothing. The text
+		// reader refuses a drag while turning for the same reason.
+		if (!down || animating || turning || fit === 'height' || zoom > 1 || reduceMotion.current)
+			return;
 		const dx = e.clientX - down.x;
 		const dy = e.clientY - down.y;
 		if (!dragging && !dragStarts(dx, dy)) return;

@@ -102,6 +102,43 @@ describe('smooth scrolling on a PC (c192)', () => {
 		expect(f.at()).toBe(765 * 3);
 	});
 
+	it('never glides the wrong way first, when a frame is stamped before the key (c568)', () => {
+		// A frame's timestamp is when the frame began, and under load that can be
+		// before the key's performance.now(): wave 24 measured the strip moving
+		// -33 px on a +40 nudge, then +85 on a -40, so a nudge read as lost.
+		let now = 1000;
+		let y = 500;
+		const seen: number[] = [];
+		const queue: ((t: number) => void)[] = [];
+		const host = {
+			now: () => now,
+			frame: (cb: (t: number) => void) => queue.push(cb),
+			cancel: () => void queue.splice(0),
+			get y() {
+				return y;
+			},
+			set y(v: number) {
+				y = v;
+				seen.push(v);
+			},
+			max: () => 10_000
+		};
+		const s = new SmoothScroll(host);
+		s.glide(40, 160);
+		// Stamped 12 ms before the key, then on as usual.
+		queue.shift()!(now - 12);
+		for (let i = 0; i < 100 && queue.length; i++) queue.shift()!((now += 16));
+		expect(y).toBe(540);
+		expect(Math.min(...seen)).toBeGreaterThanOrEqual(500);
+		// And back up: never below where it ends, never above where it began.
+		seen.length = 0;
+		s.glide(-40, 160);
+		queue.shift()!(now - 12);
+		for (let i = 0; i < 100 && queue.length; i++) queue.shift()!((now += 16));
+		expect(y).toBe(500);
+		expect(Math.max(...seen)).toBeLessThanOrEqual(540);
+	});
+
 	it('smooths a mouse wheel’s notches, never a trackpad’s stream or a sideways wheel', () => {
 		expect(isNotch({ deltaMode: 1, deltaX: 0, deltaY: 3 })).toBe(true);
 		expect(isNotch({ deltaMode: 0, deltaX: 0, deltaY: 100 })).toBe(true);

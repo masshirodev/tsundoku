@@ -90,6 +90,31 @@ test('a novel opens as text, turns, and carries on into the next chapter', async
 	expect(Number.isInteger(body.offset) && body.total > 1).toBe(true);
 });
 
+test('left at once, the text reader never writes its ?at= onto the series it went back to (c565)', async ({
+	page
+}) => {
+	await openBook(page);
+	// The series slower to answer than the reader's 800 ms settle (see the
+	// image reader's case in reader-flow): the timer used to fire while BACK's
+	// load was out and write /read/<id>?at= onto the series' entry.
+	await page.route('**/series/*/__data.json*', async (route) => {
+		await new Promise((r) => setTimeout(r, 1500));
+		await route.continue();
+	});
+	// A page turned just before leaving: its settle is still to come as BACK
+	// starts, whenever the book's first one fired.
+	await forward(page);
+	await middle(page);
+	await page.getByRole('link', { name: 'Back to the series' }).click();
+	await expect(page.getByRole('link', { name: /READ AGAIN|CONTINUE|START/ }).first()).toBeVisible();
+	await expect(page).toHaveURL(/\/series\/\d+(\?|$)/);
+	await page.unroute('**/series/*/__data.json*');
+	await page.reload();
+	await expect(page).toHaveURL(/\/series\/\d+(\?|$)/);
+	await page.goBack();
+	await expect(page).not.toHaveURL(/\/read\//);
+});
+
 test('the controls say where you are, and READING keeps your place as type changes', async ({
 	page
 }) => {
@@ -598,5 +623,274 @@ test.describe('a novel of two volumes, read in SCROLL (c347)', () => {
 		expect(files.length).toBeGreaterThan(0);
 		await expect(heading).toBeInViewport();
 		await expect(page.locator('.text-reader')).toHaveClass(/scroll/);
+	});
+
+	// In this block because a reload opens the series' own LAYOUT, so SCROLL
+	// must be REMEMBERed, a write the shared seed cannot take back (REMEMBER
+	// stores a layout; nothing stores the default, NULL, again).
+	test('in SCROLL, a reload keeps the line where it stood, at any WIDTH, and an older ?at= opens on the margin (c554)', async ({
+		page
+	}) => {
+		test.setTimeout(120_000);
+		await page.goto(`${base}/?sort=title`);
+		await page.locator('.grid .tile', { hasText: TITLE }).click();
+		await page.waitForURL(/\/series\//);
+		await page
+			.getByRole('link', { name: /READ AGAIN|CONTINUE|START/ })
+			.first()
+			.click();
+		await page.waitForURL(/\/read\//);
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+		const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+		await middle(page);
+		await page.getByRole('button', { name: /^PAGED · / }).click();
+		await sheet.getByRole('radio', { name: 'SCROLL' }).click();
+		const saved = page.waitForResponse(
+			(r) => r.url().includes('?/direction') && r.request().method() === 'POST'
+		);
+		await sheet.getByRole('button', { name: 'REMEMBER SCROLL' }).click();
+		expect((await saved).status()).toBe(200);
+		await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect(page.locator('.text-reader')).toHaveClass(/scroll/);
+
+		const top = () => page.locator('.page').evaluate((n) => n.scrollTop);
+		const at = () => new URL(page.url()).searchParams.get('at') ?? '';
+		/** After a reload: the book open, its faces drawn, scrollTop held still. */
+		const reloaded = async () => {
+			await page.reload();
+			await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+			await expect(page.locator('.text-reader')).toHaveClass(/scroll/);
+			await page.evaluate(() => document.fonts.ready);
+		};
+		// The URL settled on where SCROLL opened (800 ms after the place), so the
+		// change awaited below is the scroll's, not the layout switch's.
+		let opened = '';
+		await expect
+			.poll(
+				() => {
+					const now = at();
+					const same = now !== '' && now === opened;
+					opened = now;
+					return same;
+				},
+				{ intervals: [1000] }
+			)
+			.toBe(true);
+		// A line cut by the top margin, as a hand leaves it (on a line's edge the
+		// margin would have been right by luck): the second line of a paragraph
+		// mid-chapter with text above it, not an illustration. With the plate
+		// between the margin and the first line, a WIDTH change in the session
+		// itself kept the line 194 px off 1 run in 3 (reader notes, wave 25).
+		await page.locator('.page').evaluate((n) => {
+			// The first such paragraph of three lines or more: one further down can
+			// bring the next chapter's start past the middle, which opens it at its top.
+			const lh = parseFloat(getComputedStyle(n.querySelector('.flow p')!).lineHeight) || 32;
+			const p = [...n.querySelectorAll<HTMLElement>('.blocks:not(.next) > p')].find(
+				(p) => p.previousElementSibling?.tagName === 'P' && p.offsetHeight >= lh * 3 - 1
+			)!;
+			const margin = parseFloat(getComputedStyle(n.querySelector('.flow')!).paddingTop);
+			n.scrollTop += Math.round(
+				p.getBoundingClientRect().top - n.getBoundingClientRect().top - margin + lh * 1.5
+			);
+			n.dispatchEvent(new Event('scroll'));
+		});
+		// The place is read 250 ms after the scroll stops, and the URL keeps it
+		// 800 ms after that.
+		await expect.poll(at).not.toBe(opened);
+		const settled = await top();
+		// Somewhere mid-chapter, not its top: the case reads a place a reload could miss.
+		expect(settled).toBeGreaterThan(0);
+		await reloaded();
+		await expect.poll(async () => Math.abs((await top()) - settled)).toBeLessThanOrEqual(1);
+		// It could because the URL carries the line's height too (`b.o.y`).
+		const place = at();
+		expect(place).toMatch(/^\d+\.\d+\.-?\d+$/);
+
+		// WIDTH changed, then a reload: the relayout put the line back at its
+		// height, and the reload at the new width puts it there again.
+		const measure = () =>
+			page.locator('.blocks:not(.next)').evaluate((n: HTMLElement) => n.clientWidth);
+		const wide = await measure();
+		await middle(page);
+		await page.getByRole('button', { name: /^SCROLL · / }).click();
+		await sheet
+			.getByRole('radiogroup', { name: 'Width' })
+			.getByRole('radio', { name: '65%', exact: true })
+			.click();
+		await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+		// Laid out at 65%, then held still: what the relayout kept.
+		await expect.poll(measure).toBeLessThan(wide);
+		let still = -1;
+		await expect
+			.poll(
+				async () => {
+					const now = await top();
+					const same = now === still;
+					still = now;
+					return same;
+				},
+				{ intervals: [300] }
+			)
+			.toBe(true);
+		expect(at()).toBe(place);
+		await reloaded();
+		await expect.poll(async () => Math.abs((await top()) - still)).toBeLessThanOrEqual(1);
+
+		// A link from before c554, `?at=b.o`: its character on the top margin, as it did.
+		const [b, o] = place.split('.');
+		const url = new URL(page.url());
+		url.searchParams.set('at', `${b}.${o}`);
+		await page.goto(url.toString());
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+		await page.evaluate(() => document.fonts.ready);
+		const fromMargin = () =>
+			page.evaluate(
+				([b, o]) => {
+					const pageEl = document.querySelector<HTMLElement>('.page')!;
+					const margin = parseFloat(getComputedStyle(pageEl.querySelector('.flow')!).paddingTop);
+					const block = document.querySelector(`.blocks [data-b="${b}"]`)!;
+					const walk = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+					let left = Number(o);
+					for (let t = walk.nextNode(); t; t = walk.nextNode()) {
+						const n = t.textContent?.length ?? 0;
+						if (left < n) {
+							const r = document.createRange();
+							r.setStart(t, left);
+							r.setEnd(t, left + 1);
+							return r.getBoundingClientRect().top - pageEl.getBoundingClientRect().top - margin;
+						}
+						left -= n;
+					}
+					return NaN;
+				},
+				[b, o]
+			);
+		await expect.poll(async () => Math.abs(await fromMargin())).toBeLessThanOrEqual(1);
+	});
+
+	/**
+	 * Read on through the chapters (c565, round 2): the text reader moves
+	 * between chapters in place and writes `/read/<next id>` with
+	 * `replaceState`, which leaves SvelteKit's `page.url` at the entry it was
+	 * opened at. A guard that compared the two read every settle after the
+	 * first one in the second chapter as leaving, so `?at=` froze there and no
+	 * more progress was sent. Each chapter here is checked by its own entry: the
+	 * window names it, `?at=` moves, a `page` event carries it, and a reload
+	 * opens it, not the first chapter crossed into.
+	 */
+	type Sent = { entryId: number; kind: string };
+	function watchReading(page: Page) {
+		const sent: Sent[] = [];
+		page.on('request', (r) => {
+			if (r.url().endsWith('/api/reading') && r.method() === 'POST') {
+				const body = r.postDataJSON() as Sent | null;
+				if (body) sent.push(body);
+			}
+		});
+		return sent;
+	}
+	/** Open Honzuki in this block's own library, by the series screen's own door. */
+	async function openOwnBook(page: Page) {
+		await page.goto(`${base}/?sort=title`);
+		await page.locator('.grid .tile', { hasText: TITLE }).click();
+		await page.waitForURL(/\/series\//);
+		await page
+			.getByRole('link', { name: /READ AGAIN|CONTINUE|START/ })
+			.first()
+			.click();
+		await page.waitForURL(/\/read\//);
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+	}
+	/**
+	 * Move on until `heading` reads `title`, then check the window caught up:
+	 * the entry the reader opened for it (its `open` event) is the URL's, with
+	 * a place (entry and `?at=`) other than `before`, and a `page` event named it.
+	 */
+	async function readInto(
+		page: Page,
+		sent: Sent[],
+		heading: ReturnType<Page['locator']>,
+		title: string,
+		step: () => Promise<void>,
+		before: string
+	) {
+		for (let i = 0; i < 80 && (await heading.textContent()) !== title; i++) await step();
+		await expect(heading).toHaveText(title, { timeout: 15_000 });
+		await expect.poll(() => sent.filter((b) => b.kind === 'open').length).toBeGreaterThan(0);
+		const id = sent.filter((b) => b.kind === 'open').at(-1)!.entryId;
+		await expect.poll(() => new URL(page.url()).pathname).toBe(`/read/${id}`);
+		await expect.poll(() => placeOf(page)).not.toBe(before);
+		await expect.poll(() => sent.some((b) => b.kind === 'page' && b.entryId === id)).toBe(true);
+		return id;
+	}
+	/** The window's place: the entry and its `?at=` (two chapters' tops are both `0.0`). */
+	const placeOf = (page: Page) => {
+		const u = new URL(page.url());
+		return `${u.pathname}?at=${u.searchParams.get('at') ?? ''}`;
+	};
+
+	// After c554's case, which REMEMBERed SCROLL for this book: PAGED is set for
+	// the session, and the reload opens in SCROLL, which reads the same entry.
+	test('in PAGED, read on into a third chapter: the URL and progress follow every chapter, and a reload opens the last (c565, round 2)', async ({
+		page
+	}) => {
+		test.setTimeout(120_000);
+		const sent = watchReading(page);
+		await openOwnBook(page);
+		await middle(page);
+		await page.getByRole('button', { name: /^SCROLL · / }).click();
+		const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+		await sheet.getByRole('radio', { name: 'PAGED' }).click();
+		await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect(page.locator('.text-reader')).not.toHaveClass(/scroll/);
+		const heading = page.locator('.blocks h1');
+		const n = Number(((await heading.textContent()) ?? '').replace(/\D/g, ''));
+		const step = () => forward(page);
+		const first = await readInto(page, sent, heading, `Vol. ${n + 1}`, step, placeOf(page));
+		const second = await readInto(page, sent, heading, `Vol. ${n + 2}`, step, placeOf(page));
+		expect(second).not.toBe(first);
+		// A page further on: its settle is written too, wherever it landed.
+		const before = placeOf(page);
+		const count = sent.length;
+		await forward(page);
+		await expect.poll(() => placeOf(page)).not.toBe(before);
+		await expect
+			.poll(() => sent.slice(count).some((b) => b.kind === 'page' && b.entryId !== first))
+			.toBe(true);
+		const last = sent.filter((b) => b.kind === 'open').at(-1)!.entryId;
+		await expect.poll(() => new URL(page.url()).pathname).toBe(`/read/${last}`);
+		await page.reload();
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+		expect(new URL(page.url()).pathname).toBe(`/read/${last}`);
+		const opened = page.locator('.blocks:not(.next) h1').first();
+		if (last === second) await expect(opened).toHaveText(`Vol. ${n + 2}`);
+		else await expect(opened).not.toHaveText(`Vol. ${n + 1}`);
+	});
+
+	// After c554's case, which REMEMBERed SCROLL for this book, so a reload opens in SCROLL.
+	test('in SCROLL, read on into a third chapter: the URL and progress follow every chapter, and a reload opens the last (c565, round 2)', async ({
+		page
+	}) => {
+		test.setTimeout(120_000);
+		const sent = watchReading(page);
+		await openOwnBook(page);
+		await expect(page.locator('.text-reader')).toHaveClass(/scroll/);
+		const heading = page.locator('.blocks:not(.next) h1').first();
+		const start = (await heading.textContent()) ?? '';
+		const n = Number(start.replace(/\D/g, ''));
+		const v = page.viewportSize()!;
+		await page.mouse.move(v.width / 2, v.height / 2);
+		const step = async () => {
+			await page.mouse.wheel(0, 400);
+			await page.waitForTimeout(60);
+		};
+		const first = await readInto(page, sent, heading, `Vol. ${n + 1}`, step, placeOf(page));
+		const second = await readInto(page, sent, heading, `Vol. ${n + 2}`, step, placeOf(page));
+		expect(second).not.toBe(first);
+		await page.reload();
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+		await expect(page.locator('.text-reader')).toHaveClass(/scroll/);
+		expect(new URL(page.url()).pathname).toBe(`/read/${second}`);
+		await expect(heading).toHaveText(`Vol. ${n + 2}`);
 	});
 });

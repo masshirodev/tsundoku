@@ -3,6 +3,7 @@
 	import { onMount, tick } from 'svelte';
 	import PageImage from './PageImage.svelte';
 	import { skipOffscreen } from '$lib/reader/offscreen';
+	import { stripSlotAt, stripSlotAtMiddle } from '$lib/reader/strip-slot';
 	import type { Page, StripChapter } from '$lib/reader/reader';
 	import type { Ring } from '$lib/japanese/blocks';
 
@@ -89,10 +90,8 @@
 		const width = root.clientWidth;
 		// Already relaid out at a new width: what's under the middle now is the jump, not the place.
 		if (place && place.width !== width) return;
-		const el = document
-			.elementFromPoint(innerWidth / 2, innerHeight / 2)
-			?.closest<HTMLElement>('[data-role="page"], .band');
-		if (!el || !root.contains(el)) return;
+		const el = stripSlotAtMiddle(root);
+		if (!el) return;
 		const r = el.getBoundingClientRect();
 		place = { el, at: r.height ? (innerHeight / 2 - r.top) / r.height : 0, width };
 	}
@@ -130,8 +129,8 @@
 	 */
 	export function anchorAt(x: number, y: number) {
 		if (!root) return;
-		const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-role="page"], .band');
-		if (!el || !root.contains(el)) return;
+		const el = stripSlotAt(x, y, root);
+		if (!el) return;
 		const r = el.getBoundingClientRect();
 		place = {
 			el,
@@ -149,9 +148,7 @@
 	 * keepPlace does for a chapter arriving above.
 	 */
 	async function reshaped(c: StripChapter, i: number, w: number, h: number) {
-		const anchor = document
-			.elementFromPoint(innerWidth / 2, innerHeight / 2)
-			?.closest<HTMLElement>('[data-role="page"], .band');
+		const anchor = stripSlotAtMiddle(root);
 		const before = anchor?.getBoundingClientRect().top;
 		onshape?.(c, i, w, h);
 		await tick();
@@ -215,6 +212,7 @@
 <div class="lane" class:wider={zoom > 1} bind:this={lane} onclick={ontap}>
 	<div
 		class="strip"
+		data-role="strip"
 		bind:this={root}
 		style:--strip-width="{(100 - 2 * sides) * zoom}%"
 		style:--strip-zoom={zoom}

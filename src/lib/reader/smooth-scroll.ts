@@ -155,7 +155,10 @@ export class SmoothScroll {
 		const g = this.glider;
 		const y = g
 			? (() => {
-					const p = Math.min(1, (t - g.t0) / g.ms);
+					// Clamped at 0 too (c568): a frame is stamped when it began, which
+					// under load can be before the key, and a negative p eased the
+					// strip the wrong way first.
+					const p = Math.min(1, Math.max(0, (t - g.t0) / g.ms));
 					return p >= 1 ? this.target : g.from + (this.target - g.from) * easeInOut(p);
 				})()
 			: approach(this.shown, this.target, t - this.last);

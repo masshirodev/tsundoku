@@ -5,6 +5,7 @@
 	import { onMount, tick, untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { beforeNavigate, replaceState } from '$app/navigation';
+	import { leavingReader, readerMovedTo } from '$lib/reader/leaving';
 	import { resolve } from '$app/paths';
 	import { page as appPage } from '$app/state';
 	import type { PageData } from './$types';
@@ -62,7 +63,14 @@
 		type Layout,
 		type Speed,
 		type TextDirection,
-		type TextSettings
+		type TextSettings,
+		type TextWidth,
+		DEFAULT_WIDTH,
+		WIDTH_KEY,
+		formatAt,
+		parseAt,
+		widthFor,
+		widthKeyOf
 	} from '$lib/reader/text';
 	import EntryList from '../../series/[id]/EntryList.svelte';
 	import TextChrome from './TextChrome.svelte';
@@ -134,6 +142,23 @@
 		dim = d;
 		store('tsundoku.reader.dim', d);
 	}
+	/**
+	 * WIDTH (c437): the series' own, kept in this browser beside the device's
+	 * default, which is the width last chosen here, so a new series opens at it
+	 * and a series once set keeps its own. Read in the browser, as the rest of
+	 * the device's settings are (the server's first paint is 100%, the column
+	 * before WIDTH), and again if this reader is handed another series.
+	 */
+	let width = $state<TextWidth>(DEFAULT_WIDTH);
+	$effect(() => {
+		const id = series.id;
+		untrack(() => (width = widthFor(stored(widthKeyOf(id), null), stored(WIDTH_KEY, null))));
+	});
+	function setWidth(w: TextWidth) {
+		width = w;
+		store(widthKeyOf(series.id), w);
+		store(WIDTH_KEY, w);
+	}
 
 	// ---- the book ----------------------------------------------------------------------------
 	let book = $state<OpenBook | null>(null);
@@ -187,7 +212,10 @@
 	});
 
 	const vertical = $derived(book?.vertical ?? false);
-	const f = $derived(frame(sw, sh, settings, vertical));
+	// SCROLL is one column whatever COLUMNS says: WIDTH's share is of that one (c437).
+	const f = $derived(
+		frame(sw, sh, layout === 'paged' ? settings : { ...settings, columns: false }, vertical, width)
+	);
 	const mode = $derived(textMode(layout, vertical, direction));
 	/**
 	 * The page reads right to left: vertical Japanese always, a horizontal book
@@ -446,7 +474,16 @@
 		else void load();
 	}
 
-	async function openChapter(i: number, at: 'start' | 'end' | TextPosition) {
+	/**
+	 * `y`: in SCROLL, how far below the top the character's line stood when its
+	 * place was kept in the URL (c554, `?at=b.o.y`). Null opens it on the top
+	 * margin, as a place from the server or an older link does.
+	 */
+	async function openChapter(
+		i: number,
+		at: 'start' | 'end' | TextPosition,
+		y: number | null = null
+	) {
 		moves++;
 		if (!book || !entries[i]) return;
 		if (entries[i].file !== bookFile) {
@@ -484,7 +521,13 @@
 		if (pageEl) pageEl.scrollTop = 0;
 		ownTop = 0;
 		readerMoved = false;
-		posY = null;
+		// Kept on screen whatever the URL says: no higher than a line above the
+		// top, no lower than a line above the bottom.
+		const line = f.fontSize * f.lineHeight;
+		posY =
+			y !== null && layout === 'scroll' && typeof at === 'object'
+				? Math.max(-line, Math.min(sh - line, y))
+				: null;
 		onBand = false;
 		pos = at === 'start' || at === 'end' ? { block: 0, offset: 0 } : at;
 		await relayout();
@@ -545,16 +588,19 @@
 		untrack(() => {
 			const at = appPage.url.searchParams.get('at');
 			const p = appPage.url.searchParams.get('p');
-			const [b, o] = (at ?? '').split('.').map(Number);
+			// No `?at=` reads as the chapter's first character, as it always has:
+			// the old split read '' as paragraph 0, so the server's place below is
+			// reached only by an `?at=` that isn't a place (reader notes, wave 25).
+			const place = at === null ? { block: 0, offset: 0, y: null } : parseAt(at);
 			const start: 'start' | 'end' | TextPosition =
 				p === 'last'
 					? 'end'
-					: Number.isInteger(b) && b >= 0
-						? { block: b, offset: Number.isInteger(o) ? o : 0 }
+					: place
+						? { block: place.block, offset: place.offset }
 						: data.entry.readAt === null && data.entry.lastPosition !== null
 							? { block: data.entry.lastPosition, offset: data.entry.lastOffset ?? 0 }
 							: 'start';
-			void openChapter(data.entry.index, start);
+			void openChapter(data.entry.index, start, p === 'last' ? null : (place?.y ?? null));
 		});
 	});
 
@@ -891,20 +937,30 @@
 		if (!chapter || id === undefined) return;
 		clearTimeout(settle);
 		settle = setTimeout(() => {
+			// On the way out the window's entry may be the next screen's (c565).
+			if (leavingReader()) return;
 			void send('page');
 			// eslint-disable-next-line svelte/prefer-svelte-reactivity -- a one-off copy, never read reactively
 			const url = new URL(appPage.url);
 			url.pathname = resolve('/read/[entry]', { entry: String(id) });
 			url.search = '';
-			url.searchParams.set('at', `${p.block}.${p.offset}`);
+			// SCROLL keeps the line's height too (c554), so a reload lands on it.
+			url.searchParams.set('at', formatAt(p, layout === 'scroll' ? posY : null));
 			// eslint-disable-next-line svelte/no-navigation-without-resolve -- the path is resolve()d above
 			replaceState(url, {});
+			// The chapter may be another than the page was opened at: the guard
+			// above must take this path as the reader's own (c565, round 2).
+			readerMovedTo(url.pathname);
 		}, 800);
 		return () => clearTimeout(settle);
 	});
 
 	beforeNavigate(({ to }) => {
-		if (to?.route.id !== '/read/[entry]') void send('close');
+		if (to?.route.id === '/read/[entry]') return;
+		// The close carries the place; a settle still to come would write the
+		// reader's URL onto the screen being opened (c565).
+		clearTimeout(settle);
+		void send('close');
 	});
 
 	/**
@@ -1529,6 +1585,7 @@
 			{vertical}
 			{direction}
 			{seriesDirection}
+			{width}
 			{dim}
 			{rating}
 			onlayout={(l) => {
@@ -1538,6 +1595,7 @@
 			onremember={remember}
 			ondirection={(d) => (direction = d)}
 			onrememberdirection={rememberDirection}
+			onwidth={setWidth}
 			onsettings={setSettings}
 			ondim={setDim}
 			onrate={rate}

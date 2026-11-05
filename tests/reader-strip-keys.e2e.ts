@@ -122,6 +122,59 @@ async function toStrip(page: import('@playwright/test').Page) {
 	});
 }
 
+/** What the middle of the screen shows: the page slot under it, whatever covers it. */
+const middle = (page: import('@playwright/test').Page) =>
+	page.evaluate(() => {
+		const s = document
+			.elementsFromPoint(innerWidth / 2, innerHeight / 2)
+			.find((e) => e.closest('[data-role="page"]'))
+			?.closest('[data-role="page"]');
+		return `${s?.getAttribute('data-entry')}/${s?.getAttribute('data-index')}`;
+	});
+
+// c568 (wave 24's trace, c439): VERTICAL picked in READING's sheet opens the
+// strip at the reader's page, and the chapter above arriving while the sheet
+// still covers the middle used to find the sheet there, keep nothing, and
+// leave the strip a chapter up under a URL naming the chapter below. The
+// chapter above is held until the sheet is open, so the state is reached
+// every time rather than under load only.
+test.describe('the strip under READING', () => {
+	test.use({ serviceWorkers: 'block' });
+	test('a chapter arriving above while READING is open keeps the page being read', async ({
+		page
+	}) => {
+		await open(page);
+		const entry = Number(new URL(page.url()).pathname.split('/').pop());
+		// Hold every other chapter's pages until the sheet is open over the strip.
+		let release!: () => void;
+		const gate = new Promise<void>((r) => (release = r));
+		const held: string[] = [];
+		await page.route('**/api/entries/*/pages', async (route) => {
+			const id = Number(new URL(route.request().url()).pathname.split('/')[3]);
+			if (id !== entry) {
+				held.push(String(id));
+				await gate;
+			}
+			await route.continue();
+		});
+		await page.keyboard.press('Escape');
+		await page.locator('footer[aria-label="Reader controls"] .cell.grow').click();
+		const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+		const vertical = sheet.getByRole('radio', { name: 'VERTICAL' });
+		await vertical.click();
+		await expect(page.locator('.reader')).toHaveClass(/vertical/);
+		await expect.poll(() => held.length).toBeGreaterThan(0);
+		const at = await middle(page);
+		expect(at.startsWith(`${entry}/`)).toBe(true);
+		const slots = await page.locator('[data-role="page"]').count();
+		release();
+		await expect.poll(() => page.locator('[data-role="page"]').count()).toBeGreaterThan(slots);
+		await page.keyboard.press('Escape');
+		await expect(sheet).toHaveCount(0);
+		expect(await middle(page)).toBe(at);
+	});
+});
+
 test('a paged reader still turns on ← and →', async ({ page }) => {
 	await open(page);
 	await expect(page.locator('.reader')).not.toHaveClass(/vertical/);

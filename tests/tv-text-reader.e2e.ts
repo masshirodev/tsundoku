@@ -156,6 +156,44 @@ test('DIRECTION is reachable by the pad, and R→L turns the remote’s ← forw
 	await expect.poll(at).toBe(before);
 });
 
+test('WIDTH is reachable by the pad: ↓ to its row, → along it, OK takes it, BACK closes (c437)', async ({
+	page
+}) => {
+	await open(page);
+	const pageWidth = () =>
+		page.locator('.text-reader .page').evaluate((el: HTMLElement) => el.offsetWidth);
+	const before = await pageWidth();
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('ArrowDown');
+	const reading = page.locator('.text-reader footer .cell.grow');
+	await expect(reading).toBeFocused();
+	await page.keyboard.press('Enter');
+	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+	await expect(sheet.getByRole('radio', { name: 'PAGED' })).toBeFocused();
+	// ↓ row by row, from LAYOUT, until the pad is in WIDTH's row (the focus
+	// layer lands on the step under the one it left, not the one in use);
+	// the walk is bounded by the sheet's rows.
+	const widths = sheet.getByRole('radiogroup', { name: 'Width' });
+	const full = widths.getByRole('radio', { name: '100%', exact: true });
+	await expect(full).toHaveAttribute('aria-checked', 'true');
+	const inRow = () => widths.evaluate((n) => n.contains(document.activeElement));
+	for (let i = 0; i < 12 && !(await inRow()); i++) await page.keyboard.press('ArrowDown');
+	expect(await inRow()).toBe(true);
+	// → along the row to PAGE, its last step (→ at a row's end stops there).
+	const a4 = widths.getByRole('radio', { name: 'PAGE', exact: true });
+	for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowRight');
+	await expect(a4).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(a4).toHaveAttribute('aria-checked', 'true');
+	await expect.poll(pageWidth).toBeLessThanOrEqual(before);
+	// BACK closes READING with the pad back on its cell, then hides the chrome.
+	await page.keyboard.press('Escape');
+	await expect(sheet).toHaveCount(0);
+	await page.keyboard.press('Escape');
+	await expect(page.locator('.text-reader header.top')).toHaveCount(0);
+	// WIDTH lives in this context's own storage: nothing to put back.
+});
+
 test('a sheet on its way out keeps no keys: ↓ at once after BACK reaches the cells (c445)', async ({
 	page
 }) => {
