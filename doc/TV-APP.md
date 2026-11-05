@@ -185,8 +185,14 @@ typed, so `http://Zen.local:42143` in TYPE THE WHOLE ADDRESS was stored with
 its capitals: `BridgeGuard` then refused the server's own pages (they load at
 `http://zen.local:42143`), FORGET, RENAME, the probe and `named` did nothing
 from them, and `Servers.find` missed it, so it never became the server in use.
-A scheme typed in capitals (`HTTP://…`) is read as a scheme too, not given a
-second `http://`. Every place the APK compares an origin goes through
+A scheme typed in capitals (`HTTP://…`, or `Http://…` from a TV keyboard
+that capitalises the first letter) is read as a scheme twice over, not given a
+second `http://`: 9B's `origin()` tests it without case
+(`/^https?:\/\//i`, the test `connect()` uses) before the probe and
+`remember` see it, and `originOf` reads it without case after (before
+round 2, `origin()`'s case-sensitive `startsWith('http')` turned
+`HTTP://Zen.local:42143` into `http://HTTP://Zen.local:42143`, a host named
+`HTTP`, and 9B said NOTHING ANSWERS). Every place the APK compares an origin goes through
 `originOf` or agrees with it: `BridgeGuard.allows` (the top-level URL through
 `originOf`), `Servers.find`, `others`, `add`, `forget`, `move` and every
 update (each cleans its argument through `originOf`), `FailedLoad` (fed by
@@ -635,9 +641,13 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   `http://<Host>:42143` with a capital in the host (the computer's name as
   `hostname` prints it, with its first letter upper case), pair, then on the
   library open MORE › SERVERS: the row is there and IN USE, RENAME saves, and
-  after closing and relaunching the app it opens that library, not 9A. A TV
-  that stored such an entry before this APK reads it back lower case on the
-  first launch.
+  after closing and relaunching the app it opens that library, not 9A. Then
+  the same with the scheme typed in capitals, `HTTP://<Host>:42143` (and
+  `Http://…` if the TV's keyboard capitalises the first letter by itself):
+  9B checks and pairs it, not NOTHING ANSWERS (`tv-app-pair.e2e.ts` pins the
+  probe's address in a browser; the TV's keyboard is not). A TV that stored
+  such an entry before this APK reads it back lower case on the first
+  launch.
 - **A launch intent and a `tsundoku://` link on a device.** The parser and the
   page's `#connect=`/`#bad=` states are unit- and browser-tested, but nothing
   here has delivered an intent to a TV: no emulator image exists on this

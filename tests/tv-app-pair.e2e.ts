@@ -55,7 +55,7 @@ async function stubBridge(page: Page, options: { hold?: boolean; answer?: boolea
 			// The origin a typed whole address becomes once the bridge parses it.
 			const clean = (at: string) => {
 				try {
-					const u = new URL(at.startsWith('http') ? at : 'http://' + at);
+					const u = new URL(/^https?:\/\//i.test(at) ? at : 'http://' + at);
 					return u.origin;
 				} catch {
 					return at;
@@ -394,6 +394,28 @@ test('a typed whole address with a path pairs at its origin (c260)', async ({ pa
 	expect(bridge.remembered).not.toContain('https://zen.tailnet.ts.net:8443/library');
 	await expect.poll(() => navigations.length).toBeGreaterThan(0);
 	expect(navigations[0]).toBe('https://zen.tailnet.ts.net:8443/pair/tv');
+});
+
+test('a whole address typed with its scheme in capitals is probed with one scheme (c548)', async ({
+	page
+}) => {
+	// A TV keyboard that capitalises the first letter types Http://. 9B used to
+	// test the scheme with a case-sensitive startsWith and put its own http://
+	// in front, so the bridge was asked about http://HTTP://…, a host named
+	// HTTP, and 9B said NOTHING ANSWERS about a server that was there.
+	await stubBridge(page, { hold: true });
+	for (const typed of ['HTTP://Zen.local:42143', 'Http://zen.local:42143']) {
+		await page.goto(page9);
+		await page.keyboard.press('Enter'); // START → 9B
+		await page.locator('#whole-toggle').focus();
+		await page.keyboard.press('Enter'); // TYPE THE WHOLE ADDRESS
+		await page.locator('#last').fill(typed);
+		await page.locator('#next').click();
+		await expect.poll(() => page.evaluate(() => window.__bridge!.probes.length)).toBe(1);
+		const probed = await page.evaluate(() => window.__bridge!.probes[0]);
+		expect(probed).not.toMatch(/:\/\/https?:\/\//i);
+		expect(probed).toBe(typed);
+	}
 });
 
 test('a typed whole address with a query fails at its origin (c260)', async ({ page }) => {
