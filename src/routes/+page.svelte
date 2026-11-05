@@ -43,6 +43,7 @@
 	import { leave } from '$lib/motion';
 	import NewShelfSheet from './NewShelfSheet.svelte';
 	import MoreSheet from './MoreSheet.svelte';
+	import { inUseOf, pageOrigin } from './servers-in-use';
 	import { BACKUP_LABEL } from '$lib/import/backup-preview';
 	import {
 		activeCount,
@@ -469,7 +470,7 @@
 	 * a list of servers, and one server, which changes nothing (the designer's
 	 * first call).
 	 */
-	type TvServer = { shown: string; inUse: boolean };
+	type TvServer = { origin: string; shown: string; inUse: boolean };
 	let tvServers = $state<TvServer[] | null>(null);
 
 	function readTvServers(): TvServer[] | null {
@@ -482,23 +483,34 @@
 			const ok = (s: unknown): s is TvServer =>
 				!!s &&
 				typeof s === 'object' &&
+				typeof (s as TvServer).origin === 'string' &&
 				typeof (s as TvServer).shown === 'string' &&
 				typeof (s as TvServer).inUse === 'boolean';
-			return list.every(ok) ? list.map((s) => ({ shown: s.shown, inUse: s.inUse })) : null;
+			return list.every(ok)
+				? list.map((s) => ({ origin: s.origin, shown: s.shown, inUse: s.inUse }))
+				: null;
 		} catch {
 			return null;
 		}
 	}
 
-	/** The cell's name, or null for no cell: two or more servers, one of them in use. */
+	/**
+	 * The cell's name, or null for no cell: two or more servers, one of them in
+	 * use. In use is this page's own server (`inUseOf`), not the bridge's flag,
+	 * which right after a switch still names the server just left.
+	 */
 	const onServer = $derived.by(() => {
 		if (!tvServers || tvServers.length < 2) return null;
-		const shown = tvServers.find((s) => s.inUse)?.shown.trim();
+		const shown = inUseOf(tvServers, pageOrigin())?.shown.trim();
 		return shown ? upper(shown) : null;
 	});
 
 	onMount(() => {
 		tvServers = readTvServers();
+		// Again a tick later: the layout's onMount, which runs after this one,
+		// tells the app the server's own name (`named`), and a server the TV
+		// had not named yet would otherwise show its bare host until MORE closes.
+		void tick().then(() => (tvServers = readTvServers()));
 	});
 
 	function openMore(at: 'more' | 'servers') {

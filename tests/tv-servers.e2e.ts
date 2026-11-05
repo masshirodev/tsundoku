@@ -100,7 +100,12 @@ async function bridge(
 				addServer: () => (calls.added += 1),
 				renameServer: (o: string) => calls.renamed.push(o),
 				welcome: () => (calls.welcome += 1),
-				named: (o: string, n: string) => calls.named.push([o, n])
+				// As Servers.named: the entry for that origin takes the name, upper-cased.
+				named: (o: string, n: string) => {
+					calls.named.push([o, n]);
+					state = state.map((s) => (s.origin === o ? { ...s, name: n.trim().toUpperCase() } : s));
+					keep();
+				}
 			};
 		},
 		{ list, answers }
@@ -455,14 +460,27 @@ test('S1: no cell without the bridge, with an older app, with an answer that is 
 
 for (const [what, answer] of [
 	['not JSON', 'nope'],
-	['not a list', '{"shown":"A","inUse":true}'],
-	['a list of things that are not servers', '[{"shown":"A","inUse":true},{"name":"B"}]'],
-	['a list with no name', '[{"inUse":true},{"inUse":false}]'],
+	['not a list', '{"origin":"http://a","shown":"A","inUse":true}'],
+	[
+		'a list of things that are not servers',
+		'[{"origin":"http://a","shown":"A","inUse":true},{"name":"B"}]'
+	],
+	[
+		'a list with no name',
+		'[{"origin":"http://a","inUse":true},{"origin":"http://b","inUse":false}]'
+	],
+	// The origin is how the page knows which one it is on (servers-in-use.ts).
+	['a list with no origin', '[{"shown":"A","inUse":true},{"shown":"B","inUse":false}]'],
 	// Two good and one not: a filter would keep two and draw a cell; the
 	// answer as a whole is not one the page can trust.
 	[
 		'two servers and something else',
-		'[{"shown":"A","inUse":true},{"shown":"B","inUse":false},{"shown":3,"inUse":"no"}]'
+		'[{"origin":"http://a","shown":"A","inUse":true},{"origin":"http://b","shown":"B","inUse":false},{"shown":3,"inUse":"no"}]'
+	],
+	// Well formed, but neither is this page's server and the app marks none.
+	[
+		'two servers, neither in use',
+		'[{"origin":"http://a","shown":"A","inUse":false},{"origin":"http://b","shown":"B","inUse":false}]'
 	]
 ] as const) {
 	test(`S1: an answer that is ${what} draws no cell`, async ({ page }) => {
@@ -737,6 +755,111 @@ test('S1: a rename made in the app shows when MORE closes and on the next load, 
 	await page.evaluate((o) => window.__tvRename!(o, ''), HOME);
 	await page.reload();
 	await expect(cell(page)).toHaveText(/^ON\s*ZEN-HOME$/);
+});
+
+// The real app marks a server opened only once its page has finished loading
+// (MainActivity's onPageFinished), so the library that mounts right after a
+// switch reads a list whose newest, the bridge's `inUse`, is the server just
+// left. These stubs say so: the page's own server is the older one.
+test('S1: the first library after a switch names the server it is on, not the one just left', async ({
+	page,
+	baseURL
+}) => {
+	const here = new URL(baseURL!).origin;
+	const now = Date.now();
+	await bridge(page, [
+		{ origin: here, name: 'ZEN-HOME', tvName: 'Den', opened: now - DAY },
+		{ origin: ZEN, name: 'ZEN', tvName: 'Living room', opened: now }
+	]);
+	await page.goto('/');
+	await expect(cell(page)).toHaveText(/^ON\s*DEN$/);
+	expect((await calls(page)).named).toEqual([]);
+
+	// OK on the cell: S2 says this one is in use, and the mark is on the other.
+	await cell(page).focus();
+	await page.keyboard.press('Enter');
+	const sheet = page.getByRole('dialog', { name: 'More' });
+	const row = (o: string) => sheet.locator(`[data-server="${o}"]`);
+	await expect(row(here).locator('.st')).toHaveText('IN USE');
+	await expect(row(here).locator('.g')).toHaveText('✓');
+	await expect(row(ZEN).locator('.st')).not.toHaveText('IN USE');
+	await expect(row(ZEN)).toBeFocused();
+
+	// OK on the one it is on closes onto the cell; it does not reload it.
+	await row(here).focus();
+	await page.keyboard.press('Enter');
+	await expect(sheet).toBeHidden();
+	await expect(cell(page)).toBeFocused();
+	expect((await calls(page)).opened).toEqual([]);
+	// Still this one, after MORE has read the list again.
+	await expect(cell(page)).toHaveText(/^ON\s*DEN$/);
+
+	// And MORE's own SERVERS row names it.
+	await page.locator('[data-focus-id="library-more"]').focus();
+	await page.keyboard.press('Enter');
+	await expect(sheet.locator('[data-more-servers]')).toHaveText(/2 · DEN IN USE/);
+});
+
+test('S1: right after a switch, FORGET knows which one the TV is on', async ({ page, baseURL }) => {
+	const here = new URL(baseURL!).origin;
+	const now = Date.now();
+	await bridge(page, [
+		{ origin: here, name: 'ZEN-HOME', tvName: 'Den', opened: now - 2 * DAY },
+		{ origin: ZEN, name: 'ZEN', tvName: '', opened: now },
+		{ origin: STUDIO, name: 'STUDIO', tvName: '', opened: now - DAY }
+	]);
+	await page.goto('/');
+	await cell(page).focus();
+	await page.keyboard.press('Enter');
+	const sheet = page.getByRole('dialog', { name: 'More' });
+	const row = (o: string) => sheet.locator(`[data-server="${o}"]`);
+	const forget = async (o: string) => {
+		await row(o).focus();
+		await page.keyboard.press('ContextMenu');
+		await sheet.locator('[data-act="forget"]').focus();
+		await page.keyboard.press('Enter');
+		await expect(sheet.locator('[data-act="confirm"]')).toBeEnabled();
+		await sheet.locator('[data-act="confirm"]').focus();
+		await page.keyboard.press('Enter');
+	};
+
+	// One not in use: the list stays, and the mark goes to the other one not
+	// in use, not to the one the TV is on.
+	await forget(STUDIO);
+	await expect(row(STUDIO)).toHaveCount(0);
+	await expect(row(ZEN)).toBeFocused();
+	await expect(row(here).locator('.st')).toHaveText('IN USE');
+	expect((await calls(page)).opened).toEqual([]);
+
+	// The one it is on: the TV moves to the one left (S4's rule for the one in use).
+	await forget(here);
+	expect((await calls(page)).forgot).toEqual([STUDIO, here]);
+	await expect.poll(async () => (await calls(page)).opened).toEqual([ZEN]);
+});
+
+test.describe('the TV app, on a server it has not named yet', () => {
+	test.use({
+		userAgent:
+			'Mozilla/5.0 (Linux; Android 11; BRAVIA 4K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36 TsundokuTV/2026.11.04'
+	});
+
+	test("S1: the first library shows the server's own name, not its host", async ({
+		page,
+		baseURL
+	}) => {
+		const here = new URL(baseURL!).origin;
+		const now = Date.now();
+		// Paired by address and never loaded: no name yet, so `shown` is the host.
+		await bridge(page, [
+			{ origin: here, name: '', tvName: '', opened: now },
+			{ origin: ZEN, name: 'ZEN', tvName: '', opened: now - DAY }
+		]);
+		await page.goto('/');
+		const name = (hostname() || 'computer').toUpperCase();
+		// The layout's onMount names it after the page has read the list once.
+		await expect(cell(page).locator('.srv-name')).toHaveText(name);
+		await expect(page.getByRole('dialog', { name: 'More' })).toHaveCount(0);
+	});
 });
 
 test.describe('a TV that speaks Portuguese', () => {

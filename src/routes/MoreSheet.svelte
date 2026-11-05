@@ -18,6 +18,7 @@
 	import { m } from '$lib/paraglide/messages';
 	import { num, upper } from '$lib/i18n/format';
 	import { getLocale } from '$lib/paraglide/runtime';
+	import { pageOrigin, withInUse } from './servers-in-use';
 
 	/**
 	 * MORE (Reach, tabletMore and phoneMore; doc/SETTINGS.md, "Getting there";
@@ -107,7 +108,9 @@
 		if (!b || typeof b.servers !== 'function') return null;
 		try {
 			const list = JSON.parse(b.servers()) as unknown;
-			return Array.isArray(list) ? (list as Server[]) : [];
+			// In use is this page's own server, not the bridge's newest opened,
+			// which right after a switch is the one just left (servers-in-use.ts).
+			return Array.isArray(list) ? withInUse(list as Server[], pageOrigin()) : [];
 		} catch {
 			return [];
 		}
@@ -120,6 +123,7 @@
 	/** SERIES TO LINK's count, from the layout (c475): its row shows while there are any. */
 	const toLink = $derived(Number(page.data.toLink ?? 0));
 
+	// `read` has already set `inUse` on the page's own server (withInUse).
 	const inUse = $derived(servers?.find((s) => s.inUse) ?? null);
 	/**
 	 * Where S2's mark lands: the first one not in use, the one most likely
@@ -205,7 +209,7 @@
 		if (!armed || !s || !b || typeof b.forgetServer !== 'function') return;
 		let left: Server[];
 		try {
-			left = JSON.parse(b.forgetServer(s.origin)) as Server[];
+			left = withInUse(JSON.parse(b.forgetServer(s.origin)) as Server[], pageOrigin());
 		} catch {
 			left = [];
 		}
