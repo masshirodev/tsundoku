@@ -728,6 +728,15 @@ screen but the video, and the subtitles, until a tap.
     _Gaps_. What is tested is the page's side, in Chromium and Firefox: the
     track showing with its cue active, no native cue box on the page, and
     the plain drawing between enter and leave.
+  - **A system caption style** (Windows, macOS or Android's accessibility
+    captions; c449): Chromium writes it as inline style on the native cue
+    box, and inline style beats a normal author rule, so the three
+    declarations of `video.cueless::cue` are `!important`, which beats
+    inline normal style. Nobody could set an OS caption style here
+    (`--force-caption-style` was ignored by this Chromium build), so this is
+    built and **not checked**. The owner's check: on the Android TV, turn on
+    Accessibility > Captions with a yellow text style, open an episode with
+    subtitles, and confirm only one line shows.
   - **A phone: not yet checked.** Android Chrome's picture-in-picture is the
     system's, and whether it draws a native track is not known; no slot has
     an Android phone, so nothing is claimed here (the check for the owner is

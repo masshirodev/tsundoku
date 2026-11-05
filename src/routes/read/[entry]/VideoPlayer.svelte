@@ -2485,11 +2485,14 @@
 		background: #000;
 	}
 	/* The native track's cues (pip.ts): showing for a PiP window to read,
-	   invisible on the page, where tsundoku draws its own line. */
+	   invisible on the page, where tsundoku draws its own line. !important
+	   because Chromium writes a user's OS caption style (Accessibility >
+	   Captions) as inline style on the cue box, and inline style beats a normal
+	   author rule; an author !important beats it (c449). */
 	video.cueless::cue {
-		color: transparent;
-		background: transparent;
-		text-shadow: none;
+		color: transparent !important;
+		background: transparent !important;
+		text-shadow: none !important;
 	}
 	.tapzone {
 		position: absolute;
