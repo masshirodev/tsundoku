@@ -115,8 +115,11 @@ body, or inside the leaving sheet), never over a place the screen has already
 chosen: the text reader puts the pad on its scrubber when READING closes, and
 the READING cell that opened it can still be there, since a footer brought back
 before its own exit ended is the same element. A sheet opened again before it
-was gone loses `inert` and becomes the scope again. `tv-text-reader.e2e.ts`
-checks both.
+was gone loses `inert` and becomes the scope again, and its opener is the one
+that opened it this time (wave 24: the library's MORE, pressed while SERVERS
+opened from the server cell was still leaving, gave focus back to the cell
+when MORE closed). `tv-text-reader.e2e.ts` checks the first two;
+`tv-servers.e2e.ts` the opener, in one task so the exit cannot end first.
 
 **Opting out.** A screen that already reads the arrows puts `data-focus-off` on
 its root and keeps every one of them:
@@ -271,11 +274,11 @@ any older id for that URL instead.
 
 The ids the app sets:
 
-| Screen  | ids                                                                                        |
-| ------- | ------------------------------------------------------------------------------------------ |
-| Library | `series-<id>` (the tile), `continue-<id>` (the resume cell), `shelf-<key>`, `library-more` |
-| Series  | `series-back`, `series-continue` (the bar's ▶ and the panel's), `entry-<id>`, `book-<id>`  |
-| Sheets  | none: the opener is remembered in memory, not by id                                        |
+| Screen  | ids                                                                                                                                         |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Library | `series-<id>` (the tile), `continue-<id>` (the resume cell), `shelf-<key>`, `library-more`, `library-server` (S1, the TV app's server cell) |
+| Series  | `series-back`, `series-continue` (the bar's ▶ and the panel's), `entry-<id>`, `book-<id>`                                                   |
+| Sheets  | none: the opener is remembered in memory, not by id                                                                                         |
 
 ## What the audit changed
 

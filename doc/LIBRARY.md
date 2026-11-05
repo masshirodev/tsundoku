@@ -55,7 +55,11 @@ was. The rule is written once, in `src/lib/server/visibility.ts`, and every
 query uses it.
 
 The app's name (the wordmark, in the library header and the desktop sidebar)
-is a link to the library.
+is a link to the library. Inside the TV app with two or more servers, the
+cell after it says whose library this is, `ON LIVING ROOM`, and OK on it
+opens SERVERS (S1, c261; [`TV-APP.md`](TV-APP.md), "The bar's server cell");
+the wordmark is then not an arrow stop, so ↑ from the library lands on that
+cell.
 
 ## Rating
 

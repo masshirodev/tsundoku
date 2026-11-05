@@ -300,6 +300,7 @@
 			}
 		}
 	],
+	"tv_servers_on": "ON",
 	"tv_servers_title": "SERVERS",
 	"tv_servers_add_another": "{n} · ADD ANOTHER",
 	"tv_servers_in_use_line": "{n} · {name} IN USE",

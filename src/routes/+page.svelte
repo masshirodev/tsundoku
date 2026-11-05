@@ -7,7 +7,7 @@
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { afterNavigate, beforeNavigate, goto, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { tick, untrack } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import { page } from '$app/state';
 	import Banner from '$lib/components/chrome/Banner.svelte';
@@ -455,7 +455,75 @@
 	// ---- selection -------------------------------------------------------
 	let selecting = $state(false);
 	let moreOpen = $state(false);
+	/** What MORE opens on: its rows, or SERVERS straight from the bar's server cell (S1). */
+	let moreAt = $state<'more' | 'servers'>('more');
 	const selected = new SvelteSet<number>();
+
+	// ---- the server in use (c261, S1; doc/TV-APP.md, "Servers") -------------
+	/*
+	 * Inside the TV app with two or more servers, the bar says whose library this
+	 * is: ON LIVING ROOM beside the wordmark, OK opening SERVERS. The list is the
+	 * app's bridge's (PairingBridge.servers(), Servers.kt's toJson). Anything
+	 * else draws no cell: a page with no bridge (a phone, a computer, a browser
+	 * on the TV), an APK older than c261 (no `servers`), an answer that is not
+	 * a list of servers, and one server, which changes nothing (the designer's
+	 * first call).
+	 */
+	type TvServer = { shown: string; inUse: boolean };
+	let tvServers = $state<TvServer[] | null>(null);
+
+	function readTvServers(): TvServer[] | null {
+		if (typeof window === 'undefined') return null;
+		const bridge = (window as unknown as { TsundokuTV?: { servers?: unknown } }).TsundokuTV;
+		if (!bridge || typeof bridge.servers !== 'function') return null;
+		try {
+			const list: unknown = JSON.parse(String((bridge.servers as () => unknown)()));
+			if (!Array.isArray(list)) return null;
+			const ok = (s: unknown): s is TvServer =>
+				!!s &&
+				typeof s === 'object' &&
+				typeof (s as TvServer).shown === 'string' &&
+				typeof (s as TvServer).inUse === 'boolean';
+			return list.every(ok) ? list.map((s) => ({ shown: s.shown, inUse: s.inUse })) : null;
+		} catch {
+			return null;
+		}
+	}
+
+	/** The cell's name, or null for no cell: two or more servers, one of them in use. */
+	const onServer = $derived.by(() => {
+		if (!tvServers || tvServers.length < 2) return null;
+		const shown = tvServers.find((s) => s.inUse)?.shown.trim();
+		return shown ? upper(shown) : null;
+	});
+
+	onMount(() => {
+		tvServers = readTvServers();
+	});
+
+	function openMore(at: 'more' | 'servers') {
+		moreAt = at;
+		moreOpen = true;
+	}
+
+	/**
+	 * MORE closing: the list is read again, since FORGET inside it can leave
+	 * one server, and then the cell goes. Focus was going back to the cell
+	 * that opened SERVERS; with the cell gone it goes to MORE, the door that
+	 * still leads there, rather than to nothing.
+	 */
+	function closeMore() {
+		moreOpen = false;
+		const had = onServer !== null;
+		tvServers = readTvServers();
+		if (had && onServer === null && moreAt === 'servers') {
+			void tick().then(() => {
+				const now = document.activeElement;
+				if (now && now !== document.body && !now.closest('[role="dialog"]')) return;
+				document.querySelector<HTMLElement>('[data-focus-id="library-more"]')?.focus();
+			});
+		}
+	}
 
 	function toggle(id: number) {
 		if (selected.has(id)) selected.delete(id);
@@ -1198,7 +1266,29 @@
 		<TopBar sticky label="Library">
 			{#snippet left()}
 				<!-- The app's name goes home: the library as it opens. -->
-				<a class="brand" href={resolve('/')} aria-label="Library"><Wordmark /></a>
+				<!-- With the server cell, the wordmark is not an arrow stop: in the
+				     design's bar it is no control, and the cell is "the first cell ↑
+				     reaches from the library" (TV-Servers' calls). Tab still reaches it. -->
+				<a
+					class="brand"
+					href={resolve('/')}
+					aria-label="Library"
+					data-focus-skip={onServer ? '' : undefined}><Wordmark /></a
+				>
+				{#if onServer}
+					<!-- S1 (TV-Servers.dc.html, `bar`): the server in use, with two or more. -->
+					<button
+						type="button"
+						class="cell-btn server-cell"
+						class:on={moreOpen && moreAt === 'servers'}
+						aria-expanded={moreOpen && moreAt === 'servers'}
+						data-focus-mark="in"
+						data-focus-id="library-server"
+						onclick={() => openMore('servers')}
+						><span class="srv-on">{m.tv_servers_on()}</span><span class="srv-name">{onServer}</span
+						></button
+					>
+				{/if}
 			{/snippet}
 			{#snippet middle()}
 				<a class="search-hint" href={resolve('/search')} aria-label="Search" data-focus-mark="in"
@@ -1257,11 +1347,11 @@
 				<button
 					type="button"
 					class="cell-btn more-cell"
-					class:on={moreOpen}
-					aria-expanded={moreOpen}
+					class:on={moreOpen && moreAt === 'more'}
+					aria-expanded={moreOpen && moreAt === 'more'}
 					data-focus-mark="in"
 					data-focus-id="library-more"
-					onclick={() => (moreOpen = true)}>MORE</button
+					onclick={() => openMore('more')}>MORE</button
 				>
 			{/snippet}
 		</TopBar>
@@ -1366,7 +1456,8 @@
 	{/if}
 	<MoreSheet
 		open={moreOpen}
-		onclose={() => (moreOpen = false)}
+		initial={moreAt}
+		onclose={closeMore}
 		queued={data.queue?.queued ?? null}
 		lastImport={data.lastImportAt}
 		start={data.start && !data.start.finished
@@ -2450,6 +2541,34 @@
 	}
 	.more-cell {
 		border-left: var(--hairline);
+	}
+	/* S1: the wordmark's cell, then ON <NAME> (TV-Servers.dc.html, `bar`). The
+	   left cell draws the rule after it; this draws the one between it and the
+	   wordmark. The name clips at 180 px, the cell at 200. Only the TV app
+	   draws it, so it carries the TV's control type at every size. */
+	.server-cell {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		max-width: 200px;
+		border-left: var(--hairline);
+		letter-spacing: 0.02em;
+	}
+	.srv-on {
+		color: var(--text-2);
+	}
+	.srv-name {
+		max-width: 180px;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.server-cell.on {
+		background: var(--surface-inverse);
+		color: var(--text-inverse);
+	}
+	.server-cell.on .srv-on {
+		color: inherit;
 	}
 	/* The phone's bar cells are 14px a side (Reach, phoneMore). */
 	@media (max-width: 599px) {

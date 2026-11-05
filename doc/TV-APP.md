@@ -210,13 +210,13 @@ designer's calls, as built:
 
 | State                                        | Where                                                                                            | Door                                  |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------- |
-| S2 SERVERS, S3 a server's options, S4 FORGET | the web app's MORE (`MoreSheet.svelte`), over the library, in the 420 px panel every TV sheet is | MORE › SERVERS                        |
+| S2 SERVERS, S3 a server's options, S4 FORGET | the web app's MORE (`MoreSheet.svelte`), over the library, in the 420 px panel every TV sheet is | S1's cell, MORE › SERVERS             |
 | S6 MORE with SERVERS                         | the same sheet, its last row                                                                     | MORE                                  |
 | S5 RENAME                                    | the app's own page, `#rename=<origin>`                                                           | S3's RENAME, S8's RENAME              |
 | S7 ADD A SERVER                              | the app's own page, `#add` (9B, step `ADD A SERVER · 1 OF 2`)                                    | S2's + ADD A SERVER                   |
 | S8 added                                     | the app's own page, `#added=<origin>`, in place of the computer's 9E                             | 9E after an add                       |
 | S9 9D with the others                        | the app's own page, `#lost=<origin>`                                                             | launch, a server that stops answering |
-| S1 the bar's `ON LIVING ROOM` cell           | **not built**: the library's top bar is `src/routes/+page.svelte`'s                              | (handoff notes, wave 21, Gaps)        |
+| S1 the bar's `ON LIVING ROOM` cell           | the library's top bar (`src/routes/+page.svelte`), after the wordmark, with two or more servers  | the library, ↑ from its start         |
 
 SERVERS, its options and FORGET are panels over the library in the design, so
 they are the web app's, reading the bridge at runtime. RENAME and the add are
@@ -240,7 +240,40 @@ whole screens, before or beside pairing, so they are the app's own page, as
   in use opens the next that answers (else the next by when it was opened,
   whose 9D offers the rest); forgetting the last returns to 9A.
 - **BACK** climbs: FORGET to the options (on FORGET), the options to the list
-  (on that row), the list to MORE (on SERVERS), MORE closed.
+  (on that row), the list to MORE (on SERVERS), MORE closed. Opened from the
+  bar's cell, the list has no MORE under it: BACK closes the panel and the
+  mark is back on the cell (the design's "focus goes back to what opened
+  it").
+
+### The bar's server cell (S1, wave 24)
+
+With two or more servers, the library's top bar says whose library this is:
+`ON LIVING ROOM` after the wordmark (TV-Servers.dc.html, `bar`). `ON` is in
+the second ink (`tv_servers_on`: `ON`, `EM` in Portuguese), the name is the
+one the rows show (`shown`: the TV's RENAME, else the server's own, else its
+host), upper case, clipped by an ellipsis at 180 px in a cell at most 200 px
+wide, with a hairline either side.
+
+- **When it is drawn.** `+page.svelte` reads `TsundokuTV.servers()` when the
+  library mounts, and again whenever MORE closes. No bridge, an APK with no
+  `servers` (older than c261), an answer that is not JSON, not a list, or a
+  list with anything in it that is not a server (`shown` a string, `inUse` a
+  boolean), and one server: no cell, and the bar is as it always was.
+- **↑ reaches it.** From the library's start, ↑ lands on the cell, "the first
+  cell ↑ reaches from the library". The wordmark is a link in this bar (it
+  is no control in the design's), and it stood over the shelf, so while the
+  cell is drawn the wordmark carries `data-focus-skip`: it is not an arrow
+  stop, and Tab still reaches it. With one server it is a stop as before.
+- **OK** opens MORE straight on SERVERS (`MoreSheet`'s `initial`), probing
+  every row, the mark on the first one not in use (S2's own arrival, the
+  same as from MORE's row), and the cell drawn pressed while the panel is
+  up. BACK closes the panel onto the cell.
+- **The list is read, not watched.** The bridge has no event, so a RENAME or
+  FORGET made in the app shows in the cell the next time the library loads
+  (RENAME is the app's own screen, S5, so returning from it is such a load),
+  or when MORE closes. FORGET from inside the panel that leaves one server
+  takes the cell away as the panel closes, and the mark goes to MORE, the
+  door that still leads to SERVERS.
 - **ADD A SERVER** is 9B with the new computer's address: the meta line names
   who is already here, and BACK returns to the library in use, nothing
   changed. An address already in the list is not paired again: the band says
@@ -323,12 +356,17 @@ verified".
 
 ### Where it departs from the handoff
 
-- **No `ON LIVING ROOM` cell in the library's top bar (S1).** The bar is
-  `src/routes/+page.svelte`'s, which wave 21's tv-app slot does not own; the
-  cell's exact markup is under Gaps in `doc/handoff-notes/tv-app.md`. MORE ›
-  SERVERS is the door meanwhile, and S8's prose says "Switch from MORE ›
-  SERVERS" rather than "from the name at the top of the library, or MORE ›
-  SERVERS", which would name a door that is not there.
+- **S8's prose names MORE › SERVERS alone.** It was written in wave 21, when
+  S1 was not built, as "Switch from MORE › SERVERS" rather than the design's
+  "Switch from the name at the top of the library, or MORE › SERVERS". S1 is
+  built since wave 24 (with two or more servers, which is every TV that sees
+  S8), but the sentence is the app's own page
+  (`android/tv/app/src/main/assets/pair/index.html`), outside wave 24's tv
+  slot: the patch is under Gaps in `doc/handoff-notes/tv.md`, wave 24. Until it
+  lands, S8 names one of the two doors.
+- **The wordmark is not an arrow stop while S1's cell is drawn** (above, "The
+  bar's server cell"). In the design it is no control at all; in the app it
+  is the link home, kept for Tab and the pointer.
 - **The rows are ruled and the actions are 17 px mono.** The mock's own reset
   (`.tv button { font: inherit; border: 0 }`) outranks its `.srv` and
   `.p-act` rules, so as drawn its rows have no rule under them and its
@@ -354,7 +392,6 @@ verified".
 
 ### What it does not do yet
 
-- S1, above.
 - **A server older than this release has no SERVERS row**: the row is the web
   app's, so a TV on a computer still running an earlier tsundoku reaches its
   other servers only through 9D (when that computer is off) or by a launcher
@@ -576,7 +613,10 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
      keyboard) cancel.
   4. In the library, MORE › SERVERS: two rows, the mark on the one not in
      use; the remote's MENU key, and OK held, must both open its options;
-     BACK must climb options → list → MORE.
+     BACK must climb options → list → MORE. Close MORE: the bar must now
+     read `ON <NAME>` after the wordmark, with the one in use. One ↑ from
+     the first CONTINUE card must put the mark on it, then OK: SERVERS opens at once, the mark on the other
+     server; BACK closes it with the mark on the cell again.
   5. FORGET on the one not in use: press OK straight after MENU opens the
      options and again at once: nothing must be forgotten. Then ↓ OK forgets
      it; add it back, and it must ask for six digits again (the cookie
@@ -720,6 +760,17 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   mark, probes and frame (the extracted measurements); S3 and S4 with FORGET's
   0.6 s; forgetting the one in use and the last; the layout telling the app,
   and only the app, the server's name; MORE's TO LINK row reached by keys (c475).
+  S1 (wave 24, 12 cases): no cell without the bridge, with an APK older than
+  c261, with four kinds of answer that are not a list of servers, or with one
+  server; two put the one in use after the wordmark, the TV's name first, the
+  server's own without one, a long one clipped (the `bar` frame's 200 and
+  180 px, the rules, `ON` in the second ink); ↑ from the library's start
+  reaches it, OK opens SERVERS on the one not in use, MENU and BACK climb as
+  from MORE, BACK closes onto the cell, and MORE still opens on its rows;
+  OK on the one in use closes onto the cell; FORGET leaving one server takes
+  the cell away and the mark to MORE; a rename shows when MORE closes and on a
+  reload, not before; MORE opened again while SERVERS is still leaving gives
+  focus back to MORE; and `EM` in Portuguese.
 - `tests/tv-pair.e2e.ts` — the computer's `/pair/tv` at 960×540 with no pointer:
   every band clearing the label and the six cells, a wrong code spending a
   try, the right one landing on 9E, and five wrong ones burning it.

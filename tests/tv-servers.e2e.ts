@@ -33,6 +33,8 @@ type Calls = {
 declare global {
 	interface Window {
 		__tv?: Calls;
+		/** The app's RENAME, done behind the page's back (S5 is the APK's own screen). */
+		__tvRename?: (origin: string, tvName: string) => void;
 	}
 }
 
@@ -58,7 +60,14 @@ async function bridge(
 				welcome: 0
 			};
 			window.__tv = calls;
-			let state = [...list];
+			// The app keeps its list in its prefs: a reload reads what was written.
+			const KEPT = '__tvState';
+			let state: Stub[] = JSON.parse(sessionStorage.getItem(KEPT) ?? 'null') ?? [...list];
+			const keep = () => sessionStorage.setItem(KEPT, JSON.stringify(state));
+			window.__tvRename = (o: string, tvName: string) => {
+				state = state.map((s) => (s.origin === o ? { ...s, tvName } : s));
+				keep();
+			};
 			const shown = (s: Stub) => s.tvName || s.name || s.origin.replace(/^https?:\/\//, '');
 			const json = () =>
 				JSON.stringify(
@@ -85,6 +94,7 @@ async function bridge(
 				forgetServer: (o: string) => {
 					calls.forgot.push(o);
 					state = state.filter((s) => s.origin !== o);
+					keep();
 					return json();
 				},
 				addServer: () => (calls.added += 1),
@@ -420,4 +430,326 @@ test('TO LINK is a stop the remote reaches in MORE (c475)', async ({ page }) => 
 	expect(found).toBe(true);
 	await page.keyboard.press('Enter');
 	await page.waitForURL(/\/links$/);
+});
+
+// ---- S1: the server in use, in the library's bar (c261, wave 24) ---------------
+
+const cell = (page: Page) => page.locator('[data-focus-id="library-server"]');
+
+test('S1: no cell without the bridge, with an older app, with an answer that is not a list, or with one server', async ({
+	page
+}) => {
+	// No bridge: a browser, a phone, a computer.
+	await page.goto('/');
+	await expect(page.locator('[data-focus-id="library-more"]')).toBeVisible();
+	await expect(cell(page)).toHaveCount(0);
+
+	// An APK from before c261: a bridge with no `servers`.
+	await page.addInitScript(() => {
+		(window as unknown as { TsundokuTV: object }).TsundokuTV = { forget: () => undefined };
+	});
+	await page.reload();
+	await expect(page.locator('[data-focus-id="library-more"]')).toBeVisible();
+	await expect(cell(page)).toHaveCount(0);
+});
+
+for (const [what, answer] of [
+	['not JSON', 'nope'],
+	['not a list', '{"shown":"A","inUse":true}'],
+	['a list of things that are not servers', '[{"shown":"A","inUse":true},{"name":"B"}]'],
+	['a list with no name', '[{"inUse":true},{"inUse":false}]'],
+	// Two good and one not: a filter would keep two and draw a cell; the
+	// answer as a whole is not one the page can trust.
+	[
+		'two servers and something else',
+		'[{"shown":"A","inUse":true},{"shown":"B","inUse":false},{"shown":3,"inUse":"no"}]'
+	]
+] as const) {
+	test(`S1: an answer that is ${what} draws no cell`, async ({ page }) => {
+		await page.addInitScript((answer) => {
+			(window as unknown as { TsundokuTV: object }).TsundokuTV = { servers: () => answer };
+		}, answer);
+		await page.goto('/');
+		await expect(page.locator('[data-focus-id="library-more"]')).toBeVisible();
+		// The page has read the bridge by the time MORE draws: the row is MORE's own reading.
+		await expect(cell(page)).toHaveCount(0);
+	});
+}
+
+test('S1: one server draws no cell, as today', async ({ page }) => {
+	await bridge(page, [
+		{ origin: HOME, name: 'ZEN-HOME', tvName: 'Living room', opened: Date.now() }
+	]);
+	const sheet = await openMore(page);
+	// MORE has read the bridge (its SERVERS row is there), and the bar has no cell.
+	await expect(sheet.locator('[data-more-servers]')).toHaveText(/1 · ADD ANOTHER/);
+	await expect(cell(page)).toHaveCount(0);
+	await expect(page.getByText('ON LIVING ROOM')).toHaveCount(0);
+});
+
+test("S1: two servers put the one in use beside the wordmark, the TV's own name first", async ({
+	page
+}) => {
+	const now = Date.now();
+	await bridge(page, [
+		{ origin: ZEN, name: 'ZEN', tvName: '', opened: now - DAY },
+		{ origin: HOME, name: 'ZEN-HOME', tvName: 'Living room', opened: now }
+	]);
+	await page.goto('/');
+	await expect(cell(page)).toHaveText(/^ON\s*LIVING ROOM$/);
+	await expect(page.getByRole('button', { name: 'ON LIVING ROOM', exact: true })).toBeVisible();
+
+	// The frame: TV-Servers.dc.html's `bar`. After the wordmark, before the search.
+	const brand = (await page.locator('header .brand').boundingBox())!;
+	const box = (await cell(page).boundingBox())!;
+	const search = (await page.locator('header .search-hint').boundingBox())!;
+	expect(box.x).toBeCloseTo(brand.x + brand.width, 0);
+	expect(search.x).toBeGreaterThanOrEqual(box.x + box.width);
+	expect(box.y).toBeCloseTo(brand.y, 0);
+	expect(box.height).toBeCloseTo(brand.height, 0);
+	await expect(cell(page)).toHaveCSS('max-width', '200px');
+	await expect(cell(page)).toHaveCSS('border-left-width', '1px');
+	// ON in the second ink, the name in the first (`.t2` in the mock).
+	const ink = (sel: string) => page.locator(sel).evaluate((el) => getComputedStyle(el).color);
+	expect(await ink('[data-focus-id="library-server"] .srv-on')).toBe(
+		await ink('header .search-hint')
+	);
+	expect(await ink('[data-focus-id="library-server"] .srv-name')).not.toBe(
+		await ink('[data-focus-id="library-server"] .srv-on')
+	);
+	await expect(cell(page)).toHaveCSS('column-gap', '10px');
+});
+
+test("S1: the server's own name when the TV has none, and a long one clipped at 180 px", async ({
+	page
+}) => {
+	const now = Date.now();
+	await bridge(page, [
+		{ origin: HOME, name: 'ZEN-HOME', tvName: '', opened: now - DAY },
+		{
+			origin: ZEN,
+			name: 'THE-COMPUTER-UNDER-THE-STAIRS-IN-THE-OLD-HOUSE',
+			tvName: '',
+			opened: now
+		}
+	]);
+	await page.goto('/');
+	const name = cell(page).locator('.srv-name');
+	await expect(name).toHaveText('THE-COMPUTER-UNDER-THE-STAIRS-IN-THE-OLD-HOUSE');
+	await expect(name).toHaveCSS('text-overflow', 'ellipsis');
+	expect((await name.boundingBox())!.width).toBeLessThanOrEqual(180);
+	expect((await cell(page).boundingBox())!.width).toBeLessThanOrEqual(200);
+	// Clipped, not wrapped: the name is wider than its box.
+	expect(await name.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+});
+
+test('S1: ↑ from the library reaches the cell; OK opens SERVERS; BACK closes it onto the cell', async ({
+	page
+}) => {
+	const now = Date.now();
+	await bridge(
+		page,
+		[
+			{ origin: HOME, name: 'ZEN-HOME', tvName: 'Living room', opened: now },
+			{ origin: ZEN, name: 'ZEN', tvName: "Masshiro's", opened: now - DAY }
+		],
+		{ [ZEN]: { ok: true, after: 20 } }
+	);
+	await page.goto('/');
+	await expect(cell(page)).toBeVisible();
+	// The remote's way up: from the screen's start, ↑ until the bar.
+	await page.keyboard.press('ArrowDown');
+	let reached = false;
+	for (let i = 0; i < 8 && !reached; i++) {
+		await page.keyboard.press('ArrowUp');
+		reached = await cell(page).evaluate((el) => el === document.activeElement);
+	}
+	expect(reached).toBe(true);
+
+	await page.keyboard.press('Enter');
+	const sheet = page.getByRole('dialog', { name: 'More' });
+	// SERVERS at once, not MORE's rows: S1 → S2.
+	await expect(sheet.locator('.p-head')).toHaveText(/SERVERS\s*2/);
+	await expect(sheet.locator('[data-more-servers]')).toHaveCount(0);
+	const rows = sheet.locator('[data-server]');
+	// S2's arrival: the first one not in use.
+	await expect(rows.nth(1)).toBeFocused();
+	await expect(rows.nth(1).locator('.st')).toHaveText('ANSWERS');
+	expect((await calls(page)).probes.sort()).toEqual([HOME, ZEN].sort());
+	await expect(cell(page)).toHaveClass(/\bon\b/);
+	await expect(page.locator('[data-focus-id="library-more"]')).not.toHaveClass(/\bon\b/);
+
+	// MENU, then BACK: the options climb back to the list as from MORE.
+	await page.keyboard.press('ContextMenu');
+	await expect(sheet.locator('[data-act="open"]')).toBeFocused();
+	await page.keyboard.press('Escape');
+	await expect(rows.nth(1)).toBeFocused();
+
+	// BACK from the list: the panel closes, focus on the cell that opened it.
+	await page.keyboard.press('Escape');
+	await expect(sheet).toBeHidden();
+	await expect(cell(page)).toBeFocused();
+	await expect(cell(page)).not.toHaveClass(/\bon\b/);
+
+	// And again: the sheet opens on SERVERS every time the cell opens it,
+	// and on MORE's rows when MORE does.
+	await page.keyboard.press('Enter');
+	await expect(sheet.locator('.p-head')).toHaveText(/SERVERS\s*2/);
+	await expect(rows.nth(1)).toBeFocused();
+	await page.keyboard.press('Escape');
+	await expect(cell(page)).toBeFocused();
+	await page.locator('[data-focus-id="library-more"]').focus();
+	await page.keyboard.press('Enter');
+	await expect(sheet.locator('[data-more-servers]')).toBeVisible();
+	await expect(sheet.locator('.p-head')).toHaveCount(0);
+	await page.keyboard.press('Escape');
+	await expect(sheet).toBeHidden();
+	await expect(page.locator('[data-focus-id="library-more"]')).toBeFocused();
+});
+
+test('S1: MORE opened again while SERVERS is still leaving gives focus back to MORE, not the cell', async ({
+	page
+}) => {
+	const now = Date.now();
+	await bridge(page, [
+		{ origin: HOME, name: 'ZEN-HOME', tvName: 'Living room', opened: now },
+		{ origin: ZEN, name: 'ZEN', tvName: '', opened: now - DAY }
+	]);
+	await page.goto('/');
+	await cell(page).focus();
+	await page.keyboard.press('Enter');
+	const sheet = page.locator('.sheet');
+	await expect(sheet.locator('[data-server]').nth(1)).toBeFocused();
+	// BACK, then MORE and OK, inside the panel's 180 ms exit: one task, so a
+	// slow machine cannot let the exit end first. The sheet is the same
+	// element, opened again before it was gone (doc/FOCUS.md, "Scopes").
+	const reopened = await page.evaluate(async () => {
+		const key = (k: string, type: string) =>
+			document.activeElement!.dispatchEvent(
+				new KeyboardEvent(type, { key: k, bubbles: true, cancelable: true })
+			);
+		const before = document.querySelector('.sheet');
+		key('Escape', 'keydown');
+		key('Escape', 'keyup');
+		// Svelte starts the exit in its next flush, and the scope closes when it
+		// sees the sheet go inert, giving focus back to the cell: microtasks
+		// both, so no frame passes and the 180 ms exit cannot end first.
+		const cellEl = document.querySelector('[data-focus-id="library-server"]');
+		for (let i = 0; i < 50 && document.activeElement !== cellEl; i++) await Promise.resolve();
+		const leaving = !!(before as HTMLElement | null)?.inert;
+		const backOnCell = document.activeElement === cellEl;
+		const more = document.querySelector<HTMLElement>('[data-focus-id="library-more"]')!;
+		more.focus();
+		more.click();
+		for (let i = 0; i < 50 && (before as HTMLElement).inert; i++) await Promise.resolve();
+		return { leaving, backOnCell, same: document.querySelector('.sheet') === before };
+	});
+	expect(reopened).toEqual({ leaving: true, backOnCell: true, same: true });
+	await expect(sheet.locator('[data-more-servers]')).toBeVisible();
+	await expect(sheet.locator('.p-head')).toHaveCount(0);
+	await page.keyboard.press('Escape');
+	await expect(page.locator('[data-focus-id="library-more"]')).toBeFocused();
+	await expect(cell(page)).not.toBeFocused();
+});
+
+test('S1: OK on the other server opens it; on the one in use, closes onto the cell', async ({
+	page
+}) => {
+	const now = Date.now();
+	await bridge(page, [
+		{ origin: HOME, name: 'ZEN-HOME', tvName: 'Living room', opened: now },
+		{ origin: ZEN, name: 'ZEN', tvName: '', opened: now - DAY }
+	]);
+	await page.goto('/');
+	await cell(page).focus();
+	await page.keyboard.press('Enter');
+	const sheet = page.getByRole('dialog', { name: 'More' });
+	const rows = sheet.locator('[data-server]');
+	await expect(rows.nth(1)).toBeFocused();
+	await page.keyboard.press('ArrowUp');
+	await expect(rows.nth(0)).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(sheet).toBeHidden();
+	await expect(cell(page)).toBeFocused();
+	expect((await calls(page)).opened).toEqual([]);
+
+	await page.keyboard.press('Enter');
+	await expect(rows.nth(1)).toBeFocused();
+	await page.keyboard.press('Enter');
+	expect((await calls(page)).opened).toEqual([ZEN]);
+});
+
+test('S1: forgetting the other of two from the cell takes the cell away, and focus goes to MORE', async ({
+	page
+}) => {
+	const now = Date.now();
+	await bridge(page, [
+		{ origin: HOME, name: 'ZEN-HOME', tvName: 'Living room', opened: now },
+		{ origin: ZEN, name: 'ZEN', tvName: '', opened: now - DAY }
+	]);
+	await page.goto('/');
+	await cell(page).focus();
+	await page.keyboard.press('Enter');
+	const sheet = page.getByRole('dialog', { name: 'More' });
+	const rows = sheet.locator('[data-server]');
+	await expect(rows.nth(1)).toBeFocused();
+	await page.keyboard.press('ContextMenu');
+	await sheet.locator('[data-act="forget"]').focus();
+	await page.keyboard.press('Enter');
+	await expect(sheet.locator('[data-act="confirm"]')).toBeEnabled();
+	await sheet.locator('[data-act="confirm"]').focus();
+	await page.keyboard.press('Enter');
+	expect((await calls(page)).forgot).toEqual([ZEN]);
+	// One left: the list says so, with + ADD A SERVER marked.
+	await expect(rows).toHaveCount(1);
+	await expect(sheet.locator('[data-server-add]')).toBeFocused();
+	// The bar keeps its cell while the panel is up, the panel's own opener.
+	await expect(cell(page)).toBeVisible();
+
+	await page.keyboard.press('Escape');
+	await expect(sheet).toBeHidden();
+	await expect(cell(page)).toHaveCount(0);
+	await expect(page.locator('[data-focus-id="library-more"]')).toBeFocused();
+});
+
+test('S1: a rename made in the app shows when MORE closes and on the next load, not before', async ({
+	page
+}) => {
+	const now = Date.now();
+	await bridge(page, [
+		{ origin: HOME, name: 'ZEN-HOME', tvName: 'Living room', opened: now },
+		{ origin: ZEN, name: 'ZEN', tvName: '', opened: now - DAY }
+	]);
+	await page.goto('/');
+	await expect(cell(page)).toHaveText(/^ON\s*LIVING ROOM$/);
+	// The list is read when the library loads, not watched: the bridge has no event.
+	await page.evaluate((o) => window.__tvRename!(o, 'Den'), HOME);
+	await expect(cell(page)).toHaveText(/^ON\s*LIVING ROOM$/);
+	// MORE reads it again, and the bar with it when it closes.
+	await page.locator('[data-focus-id="library-more"]').focus();
+	await page.keyboard.press('Enter');
+	const sheet = page.getByRole('dialog', { name: 'More' });
+	await expect(sheet.locator('[data-more-servers]')).toHaveText(/2 · DEN IN USE/);
+	await page.keyboard.press('Escape');
+	await expect(sheet).toBeHidden();
+	await expect(cell(page)).toHaveText(/^ON\s*DEN$/);
+	// Emptied, the server's own name comes back; a reload reads it.
+	await page.evaluate((o) => window.__tvRename!(o, ''), HOME);
+	await page.reload();
+	await expect(cell(page)).toHaveText(/^ON\s*ZEN-HOME$/);
+});
+
+test.describe('a TV that speaks Portuguese', () => {
+	test.use({ locale: 'pt-BR' });
+
+	test('S1 in Portuguese: EM, and the name as the TV has it', async ({ page }) => {
+		const now = Date.now();
+		await bridge(page, [
+			{ origin: HOME, name: 'ZEN-HOME', tvName: 'Sala', opened: now },
+			{ origin: ZEN, name: 'ZEN', tvName: '', opened: now - DAY }
+		]);
+		await page.goto('/');
+		await expect(page.locator('html')).toHaveAttribute('lang', 'pt-BR');
+		await expect(cell(page)).toHaveText(/^EM\s*SALA$/);
+	});
 });
