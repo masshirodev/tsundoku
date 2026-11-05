@@ -372,7 +372,11 @@ const VARIANTS: { base: string; code: string; name: string; words: string[] }[] 
 			'419',
 			'latin',
 			'latino',
+			'latina',
 			'latam',
+			// Crunchyroll's 'Español (América Latina)', the word apart from 'latina'.
+			'américa',
+			'america',
 			'latinoamérica',
 			'latinoamerica',
 			'mx',
@@ -445,9 +449,11 @@ function parseLang(label: string): { base: string; variant: string | null } | nu
  * whole word; the name itself goes in the cell's `title` (langName). The
  * cut code is its first word when that is two or three letters, else its
  * first three letters ("Klingon" is KLI), in ASCII with the accents
- * dropped. A cut that is itself an alias is that alias's language
- * ("Indonesia" cuts to IND, which is ID), and a label with no letters left
- * (blank, or in a script without them, "Тагальский") is UND. So every code
+ * dropped. A cut that is itself an alias is that alias's language when the
+ * name plausibly is it ("Indonesia" cuts to IND, which is ID), and a code no
+ * language holds when it isn't (isPlausibly: "Chichewa" is CHC, not ZH), and
+ * a label with no letters left (blank, or in a script without them,
+ * "Тагальский") is UND. So every code
  * is one langCode gives back unchanged, and one the workstation keeps as a
  * choice (choices.ts, isLang).
  */
@@ -459,7 +465,51 @@ export function langCode(lang: string): string {
 		.filter(Boolean);
 	const cut = /^[a-z]{2,3}$/.test(ascii[0] ?? '') ? ascii[0] : ascii.join('').slice(0, 3);
 	if (cut.length < 2) return 'UND';
-	return (BY_ALIAS.get(cut) ?? cut).toUpperCase();
+	const alias = BY_ALIAS.get(cut);
+	if (!alias) return cut.toUpperCase();
+	if (isPlausibly(ascii[0], alias)) return alias.toUpperCase();
+	// An impostor (c417): Chichewa cuts to CHI, Chinese's alias, and would
+	// take ZH from the Chinese track beside it. It takes the first letter
+	// and two later ones that no language holds instead (CHC), and only a
+	// name with none such left is UND.
+	const letters = ascii.join('');
+	for (let i = 1; i < letters.length; i++)
+		for (let j = i + 1; j < letters.length; j++) {
+			const c = letters[0] + letters[i] + letters[j];
+			if (!BY_ALIAS.has(c)) return c.toUpperCase();
+		}
+	return 'UND';
+}
+
+/**
+ * Countries whose name cuts to their language's alias, but whose name and
+ * the language's are no prefix of each other (China, CHI, Chinese).
+ */
+const COUNTRY: Record<string, string> = {
+	china: 'zh',
+	france: 'fr',
+	spain: 'es',
+	italy: 'it',
+	poland: 'pl',
+	sweden: 'sv',
+	finland: 'fi',
+	hungary: 'hu',
+	greece: 'el',
+	turkey: 'tr',
+	thailand: 'th',
+	ukraine: 'uk'
+};
+
+/**
+ * Whether a name nobody knows, cut to a language's alias, plausibly is that
+ * language (c417): its first word and the English name are a prefix of one
+ * another (Indonesia, Indonesian), or it is the language's country.
+ */
+function isPlausibly(first: string, code: string): boolean {
+	const name = (NAME_OF.get(code) ?? '').toLowerCase();
+	// A shorter first word is no name: the cut ran on into the next word.
+	if (first.length < 3) return false;
+	return name.startsWith(first) || first.startsWith(name) || COUNTRY[first] === code;
 }
 
 /**

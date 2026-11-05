@@ -638,8 +638,12 @@ screen but the video, and the subtitles, until a tap.
   no cell ever holds a whole word: its first word when that is two or three
   letters, else its first three letters (Klingon is KLI), in ASCII with the
   accents dropped. A cut that is itself an alias in the table is that
-  alias's language (Indonesia cuts to IND, which is ID; China is ZH,
-  Vietnam VI), and a label with no Latin letters left, blank or in another
+  alias's language when the name plausibly is it, its first word and the
+  English name a prefix of each other or a short list of countries
+  (Indonesia cuts to IND, which is ID; China is ZH, Vietnam VI); otherwise
+  it is the first letter and the first two later ones no language holds
+  (c417: Chichewa cuts to Chinese's CHI and is CHC, Greenlandic GRN), so
+  an unknown track never takes a known one's code. A label with no Latin letters left, blank or in another
   script ("Тагальский"), is UND, named Unknown when it is blank. So every
   code the sheet shows is one `langCode` gives back unchanged and one the
   workstation keeps as a choice (two or three capitals, then up to two
