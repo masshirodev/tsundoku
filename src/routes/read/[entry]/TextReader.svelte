@@ -61,6 +61,7 @@
 		textSettings,
 		type Layout,
 		type Speed,
+		type TextDirection,
 		type TextSettings
 	} from '$lib/reader/text';
 	import EntryList from '../../series/[id]/EntryList.svelte';
@@ -101,6 +102,14 @@
 	let layout = $state<Layout>(data.layout);
 	// svelte-ignore state_referenced_locally
 	let seriesLayout = $state<Layout>(data.layout);
+	/**
+	 * Which way PAGED turns a horizontal book (c440): this session's, until
+	 * REMEMBER makes it the series', as LAYOUT is and as the image reader's MODE is.
+	 */
+	// svelte-ignore state_referenced_locally
+	let direction = $state<TextDirection>(data.textDirection);
+	// svelte-ignore state_referenced_locally
+	let seriesDirection = $state<TextDirection>(data.textDirection);
 	let sw = $state(800);
 	let sh = $state(1280);
 	onMount(() => {
@@ -179,7 +188,15 @@
 
 	const vertical = $derived(book?.vertical ?? false);
 	const f = $derived(frame(sw, sh, settings, vertical));
-	const mode = $derived(textMode(layout, vertical));
+	const mode = $derived(textMode(layout, vertical, direction));
+	/**
+	 * The page reads right to left: vertical Japanese always, a horizontal book
+	 * in PAGED when its DIRECTION is R→L (c440). The controls mirror for both
+	 * (TextChrome's `rtl`), and the band's arrow points the way on.
+	 */
+	const rtl = $derived(vertical || mode === 'rtl');
+	/** A horizontal book turning R→L: its columns run right to left (`.flow.rtl`). */
+	const flowRtl = $derived(!vertical && mode === 'rtl');
 	const landscape = $derived(sw > sh);
 	/**
 	 * One page to the next. Horizontal text is columns side by side; vertical
@@ -326,8 +343,10 @@
 			return null;
 		}
 		const colW = f.cols > 1 ? (f.w - f.gap) / 2 : f.w;
+		// The page's first column: the left one, or in R->L the right one (c440).
+		const first = flowRtl ? box.right - colW : box.left;
 		for (let y = box.top + 4; y < box.bottom; y += 12)
-			for (const x of [box.left + 4, box.left + colW / 2]) {
+			for (const x of [first + 4, first + colW / 2]) {
 				const p = positionAt(x, y);
 				if (here(p)) return p;
 			}
@@ -342,7 +361,9 @@
 		const box = flowEl.getBoundingClientRect();
 		const n = vertical
 			? Math.floor((r.top - box.top + 1) / step)
-			: Math.floor((r.left - box.left + 1) / step);
+			: flowRtl
+				? Math.floor((box.right - r.right + 1) / step)
+				: Math.floor((r.left - box.left + 1) / step);
 		return Math.max(0, Math.min(pages - 1, n));
 	}
 
@@ -510,6 +531,7 @@
 	$effect(() => {
 		void f;
 		void layout;
+		void flowRtl;
 		void settings.justify;
 		void settings.font;
 		void settings.furigana;
@@ -596,10 +618,11 @@
 	 * text's next page lies to the right (x, +1). Vertical Japanese's lies below
 	 * (y, +1), so its turn translates up while the finger, as everywhere in an
 	 * R->L book, pulls it in by dragging right (`forwardBy`). A horizontal R->L
-	 * book (c440) would be x with -1: this pair is the only place that knows.
+	 * book (c440) is x with -1: its columns run right to left, so the next page
+	 * lies to the left. This pair is the only place that knows.
 	 */
 	const pageAxis = $derived<'X' | 'Y'>(vertical ? 'Y' : 'X');
-	const pageSign: 1 | -1 = 1;
+	const pageSign = $derived<1 | -1>(flowRtl ? -1 : 1);
 	/** How far the flow is moved past `page`, in px towards the next page: a drag, or where a slide is going. */
 	let drag = $state(0);
 	/** The flow's transform is transitioning (the CSS class). */
@@ -886,6 +909,17 @@
 	function remember() {
 		seriesLayout = layout;
 		void action('direction', { direction: layout });
+	}
+	/** REMEMBER on DIRECTION (c440): the series' from now on, on every device. */
+	function rememberDirection() {
+		seriesDirection = direction;
+		const body = new FormData();
+		body.set('direction', direction);
+		void fetch(`${resolve('/read/[entry]', { entry: String(data.entry.id) })}?/textDirection`, {
+			method: 'POST',
+			body,
+			headers: { 'x-sveltekit-action': 'true' }
+		}).catch(() => undefined);
 	}
 	// Asked at the end of the book only while unrated, so it never asks twice.
 	// svelte-ignore state_referenced_locally
@@ -1280,7 +1314,8 @@
 			size: f.fontSize,
 			theme: settings.theme,
 			vertical,
-			furigana: settings.furigana
+			furigana: settings.furigana,
+			direction
 		})
 	);
 	const nextAbout = $derived(
@@ -1329,6 +1364,7 @@
 			class="flow"
 			class:sliding
 			class:moving={sliding || drag !== 0}
+			class:rtl={flowRtl}
 			bind:this={flowEl}
 			style:column-width={layout === 'paged'
 				? `${vertical ? f.h : f.cols > 1 ? (f.w - f.gap) / 2 : f.w}px`
@@ -1355,7 +1391,7 @@
 						{#if nextAbout}<div class="m">{nextAbout}</div>{/if}
 					</div>
 					<div class="go">
-						{vertical ? '← TAP OR SWIPE TO CONTINUE' : 'TAP OR SWIPE TO CONTINUE →'}
+						{rtl ? '← TAP OR SWIPE TO CONTINUE' : 'TAP OR SWIPE TO CONTINUE →'}
 					</div>
 				</div>
 			{/if}
@@ -1391,7 +1427,7 @@
 	{#if chapter && !chrome && !atEnd}
 		<div
 			class="progress"
-			class:rtl={vertical}
+			class:rtl
 			style:width="{(layout === 'scroll' ? scrollFraction : (page + 1) / pages) * 100}%"
 		></div>
 	{/if}
@@ -1414,7 +1450,7 @@
 			{pageText}
 			page={layout === 'scroll' ? Math.round(scrollFraction * 99) : page}
 			pages={layout === 'scroll' ? 100 : pages}
-			{vertical}
+			{rtl}
 			prevLabel={prevReadable ? short(prevReadable) : null}
 			nextLabel={nextReadable ? short(nextReadable) : null}
 			settings={readingLabel}
@@ -1442,6 +1478,8 @@
 			lineHeight={f.lineHeight}
 			{landscape}
 			{vertical}
+			{direction}
+			{seriesDirection}
 			{dim}
 			{rating}
 			onlayout={(l) => {
@@ -1449,6 +1487,8 @@
 				if (l === 'scroll') void loadNext();
 			}}
 			onremember={remember}
+			ondirection={(d) => (direction = d)}
+			onrememberdirection={rememberDirection}
 			onsettings={setSettings}
 			ondim={setDim}
 			onrate={rate}
@@ -1658,6 +1698,17 @@
 	}
 	.flow.moving {
 		will-change: transform;
+	}
+	/*
+	 * R->L (c440): the columns run right to left, so the next page lies to the
+	 * left and slides in from there. Only the column order: the text inside
+	 * runs as it always did.
+	 */
+	.flow.rtl {
+		direction: rtl;
+	}
+	.flow.rtl > :global(*) {
+		direction: ltr;
 	}
 	.flow.sliding {
 		transition: transform var(--turn-ms) var(--turn-ease);

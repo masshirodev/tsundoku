@@ -83,7 +83,9 @@ made of.
 - **Paged** (the default, including web novels) lays the chapter out in CSS
   columns the size of the page and turns by translating one page, sliding
   ("Turning", below). Landscape
-  shows two columns 96px apart, like a spread; COLUMNS turns that off.
+  shows two columns 96px apart, like a spread; COLUMNS turns that off. In
+  R→L ("Direction", below) the right-hand column is read first, as a
+  right-to-left book's right-hand page is.
 - **Vertical Japanese** uses columns too. A `vertical-rl` multi-column
   container fragments along its width and stacks the overflow downward, so
   each page is one column and a turn translates it up. Lines are never cut at
@@ -167,8 +169,9 @@ The chapter is one CSS-columns flow, so the page either side is already laid
 out beside this one: a turn is a transition on the flow's transform, which is
 on a layer of its own, and the columns are never laid out again for it. The
 axis and its sign are one pair in `TextReader.svelte` (`pageAxis`,
-`pageSign`), so a right-to-left horizontal book (the direction card, c440)
-changes the sign and nothing else. Tested in `tests/text-reader-turn.e2e.ts`
+`pageSign`): a horizontal book read R→L (c440, "Direction" below) is the x
+axis with the sign -1, its columns run right to left, and its turns slide the
+other way on the same code. Tested in `tests/text-reader-turn.e2e.ts`
 on every device, and vertical Japanese in `tests/text-reader-flow.e2e.ts`.
 
 ## Touch
@@ -180,7 +183,8 @@ wider strips:
   only the middle 40% shows the controls. The owner found 16% too small to hit
   on 2026-10-22;
 - a swipe turns anywhere;
-- in vertical Japanese the left strip turns forward;
+- in vertical Japanese, and in a horizontal book read R→L ("Direction"),
+  the left strip turns forward and a swipe to the right reads on;
 - in scroll a tap never turns.
 
 Everywhere else a tap shows the controls, the text included. In a Japanese
@@ -194,8 +198,8 @@ OPEN opens a wide block on its own, to pan across.
 ## Mouse
 
 On a PC, in paged layout, **the wheel turns the page**: down reads on, up goes
-back, and a sideways scroll is spatial like the arrows (in vertical Japanese a
-scroll to the left reads on). One gesture turns one page: the deltas add up to
+back, and a sideways scroll is spatial like the arrows (in vertical Japanese,
+and in R→L, a scroll to the left reads on). One gesture turns one page: the deltas add up to
 40px before it turns, and the rest of the gesture, a touchpad's inertia
 included, is spent until the wheel has been quiet for 200ms (`WheelTurn`,
 `wheelForward` in `src/lib/reader/reader.ts`, covered by
@@ -219,6 +223,51 @@ rating, FAV, ← SERIES and LIBRARY, marked inside (c251); the last volume's end
 is the end page, which takes the pad the same way. Off a TV the arrows stay
 the reader's whatever the controls.
 
+## Direction
+
+The owner, 2026-11-03 (c440): "option to L->R, R->L on novels". READING's
+DIRECTION row, under LAYOUT, says which way a horizontal book's pages turn in
+PAGED: **L→R** (the default) reads on to the right, **R→L** reads on to the
+left. It decides which way the pages turn, never how the text runs.
+
+- **Everything that turns follows it**: the 30 % edge strips (the left one
+  reads on in R→L), a swipe (to the right reads on), ← and → (spatial, as in
+  the image reader), a sideways wheel, and the slide, whose next page lies to
+  the left and comes in from there (the flow's columns run right to left,
+  `.flow.rtl`; the text inside keeps its own direction).
+- **The controls mirror** as they do for vertical Japanese, by the same path:
+  the scrubber fills from the right with page 1 at its right end, and the
+  next chapter is the left-hand cell. The end band says ← TAP OR SWIPE TO
+  CONTINUE, and READING's cell says `PAGED R→L · SERIF 20 · DARK`.
+- **Landscape's two columns** read right column first, as a right-to-left
+  book's spread does (decided alone, wave 22: the other order would have the
+  eye cross the page against the way the pages turn).
+- **SCROLL never turns**, so the row is dimmed there with PAGED ONLY, as the
+  image sheet's PAGED ONLY rows are, and nothing mirrors.
+- **Vertical Japanese keeps its own direction**: the row shows R→L, dimmed,
+  with VERTICAL TEXT READS R→L.
+- **Kept like the image reader's MODE**: this session's when picked, the
+  series' once REMEMBER R→L (or L→R) is pressed, on every device. SERIES
+  DEFAULT says what the series reads as. It is stored in
+  `series.text_direction` (rung 69), its own column because `series.direction`
+  already holds a novel's LAYOUT; NULL is L→R, so REMEMBER L→R stores NULL.
+  REMEMBER posts to the reader's own action
+  (`/read/<entry>?/textDirection`), which only a book of text takes
+  (`kindFacts(kind).medium`) and which, like the page, answers 404 for a
+  hidden series with reveal off. There is no SETTINGS default per kind for it
+  yet: L→R is the default everywhere.
+- **On a TV** the row is a stop in READING's panel: ↓ from LAYOUT lands on it,
+  ← → move along it, OK takes a value; with the panel and the controls gone,
+  the remote's ← reads on in R→L.
+
+Tested in `tests/text-reader-turn.e2e.ts` (every device: ←, →, a drag, the
+edge strips by finger, the mirrored scrubber, the slide's sign, and the
+landscape columns' order), `tests/text-reader-flow.e2e.ts` (REMEMBER, a
+reload, SCROLL untouched, vertical Japanese's row),
+`tests/tv-text-reader.e2e.ts` (the pad), `tests/reader-domain.spec.ts`
+(`textMode` over all twelve cases), `tests/text-direction-db.spec.ts` and
+`tests/migrations-db.spec.ts` (rung 69).
+
 ## Controls
 
 - **Top (64px):** ←, the series, and a meta line ("WEB NOVEL · CH. 812 OF
@@ -226,11 +275,13 @@ the reader's whatever the controls.
   numbered), the rating bars and FAV.
 - **Bottom:** the chapter with "P. 5 OF 13 · 7 MIN LEFT", a scrubber across the
   chapter's pages, then `← CH. 211`, CONTENTS, READING and `CH. 213 →`. In
-  vertical the cells and the scrubber mirror.
+  vertical, and in R→L, the cells and the scrubber mirror (one path,
+  `TextChrome`'s `rtl`).
 - **READING** is the image reader's sheet with rows for text: LAYOUT (the
-  series', with REMEMBER), COLUMNS, THEME, FONT, SIZE, LINE, MARGINS, JUSTIFY,
+  series', with REMEMBER), DIRECTION (the series', with REMEMBER; c440),
+  COLUMNS, THEME, FONT, SIZE, LINE, MARGINS, JUSTIFY,
   FURIGANA, DIM and the rating. It has no scrim, so changes show as they're
-  made. Everything below LAYOUT belongs to the device (`localStorage`,
+  made. Everything below DIRECTION belongs to the device (`localStorage`,
   `tsundoku.text.settings`, stamped through `settings/local.ts` and mirrored
   on the workstation, [`SETTINGS.md`](SETTINGS.md), "Devices"), and DIM is
   shared with the image reader. A novel's default LAYOUT is SETTINGS'. The

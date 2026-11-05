@@ -111,6 +111,51 @@ test('OK brings the chrome as a focus row, and READING changes LAYOUT by keys', 
 	await expect(reading).toContainText(started === paged ? 'PAGED' : 'SCROLL');
 });
 
+test('DIRECTION is reachable by the pad, and R→L turns the remote’s ← forward (c440)', async ({
+	page
+}) => {
+	await open(page);
+	await page.keyboard.press('Enter');
+	await page.keyboard.press('ArrowDown');
+	const reading = page.locator('.text-reader footer .cell.grow');
+	await expect(reading).toBeFocused();
+	await page.keyboard.press('Enter');
+	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+	const paged = sheet.getByRole('radio', { name: 'PAGED' });
+	await expect(paged).toHaveAttribute('aria-checked', 'true');
+	await expect(paged).toBeFocused();
+	// ↓ from LAYOUT is DIRECTION, on the one in use; → moves along it, OK takes it.
+	await page.keyboard.press('ArrowDown');
+	const ltr = sheet.getByRole('radio', { name: 'L→R' });
+	const rtl = sheet.getByRole('radio', { name: 'R→L' });
+	await expect(ltr).toBeFocused();
+	await page.keyboard.press('ArrowRight');
+	await expect(rtl).toBeFocused();
+	await page.keyboard.press('Enter');
+	await expect(rtl).toHaveAttribute('aria-checked', 'true');
+	// BACK, BACK: the sheet, then the chrome. DIRECTION is this session's
+	// until REMEMBER, never pressed here: nothing stored to put back.
+	await page.keyboard.press('Escape');
+	await expect(sheet).toHaveCount(0);
+	await expect(reading).toContainText('PAGED R→L');
+	await page.keyboard.press('Escape');
+	await expect(page.locator('.text-reader header.top')).toHaveCount(0);
+
+	const at = () =>
+		page
+			.locator('.flow')
+			.evaluate((el: HTMLElement) =>
+				Number(/translateX\((-?[\d.]+)px\)/.exec(el.style.transform)?.[1] ?? 0)
+			);
+	const before = await at();
+	// ← reads on in R→L: the page slides right, bringing in the one on its left.
+	await page.keyboard.press('ArrowLeft');
+	await expect.poll(at).toBeGreaterThan(before);
+	await expect(page.locator('.flow')).not.toHaveClass(/sliding/);
+	await page.keyboard.press('ArrowRight');
+	await expect.poll(at).toBe(before);
+});
+
 test('a sheet on its way out keeps no keys: ↓ at once after BACK reaches the cells (c445)', async ({
 	page
 }) => {

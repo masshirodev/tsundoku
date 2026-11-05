@@ -289,6 +289,107 @@ test('a second finger cancels a drag: the page goes back rather than jerking to 
 	expect((await flow(page)).at).toBe(-step);
 });
 
+/**
+ * R→L for this session, from READING (c440): DIRECTION is session state until
+ * REMEMBER, which this read-only file never presses (text-reader-flow does).
+ */
+async function readRtl(page: Page) {
+	await page.keyboard.press('Escape');
+	await page.locator('footer .cell.grow').click();
+	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+	const rtl = sheet.getByRole('radio', { name: 'R→L' });
+	await rtl.click();
+	await expect(rtl).toHaveAttribute('aria-checked', 'true');
+	await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+	await expect(sheet).toHaveCount(0);
+	await page.keyboard.press('Escape');
+	await expect(page.locator('footer')).toHaveCount(0);
+	await expect(page.locator('.flow')).toHaveClass(/\brtl\b/);
+}
+
+test('R→L: the next page lies to the left, and arrows, swipes and the edges all read on that way (c440)', async ({
+	page
+}) => {
+	const id = await firstChapter(page);
+	await openAt(page, id);
+	await readRtl(page);
+	const { step, pages } = await flow(page);
+	// Three pages reach 2 * step, which the edges' case goes to.
+	expect(pages).toBeGreaterThanOrEqual(3);
+	expect((await flow(page)).at).toBe(0);
+	const slides = await countSlides(page);
+
+	// ← reads on: the flow slides right, bringing in the page on the left.
+	await page.keyboard.press('ArrowLeft');
+	await expect.poll(async () => (await flow(page)).at).toBe(step);
+	await landed(page);
+	expect(await slides()).toBe(1);
+	// → goes back.
+	await page.keyboard.press('ArrowRight');
+	await expect.poll(async () => (await flow(page)).at).toBe(0);
+	await landed(page);
+	expect(await slides()).toBe(2);
+
+	// A drag to the right pulls the next page in: the page follows the finger
+	// right, and past the swipe it turns forward.
+	const { x, y } = middleOf(page);
+	await page.mouse.move(x, y);
+	await page.mouse.down();
+	await page.mouse.move(x + 24, y, { steps: 4 });
+	expect((await flow(page)).at).toBe(24);
+	await page.mouse.move(x + 140, y, { steps: 4 });
+	await page.mouse.up();
+	await expect.poll(async () => (await flow(page)).at).toBe(step);
+	await landed(page);
+
+	// The edges, by finger: the left strip reads on, the right one goes back.
+	// (A mouse's click turns forward wherever it lands, whatever the direction.)
+	if (test.info().project.use.hasTouch) {
+		const v = page.viewportSize()!;
+		await page.touchscreen.tap(8, v.height / 2);
+		await expect.poll(async () => (await flow(page)).at).toBe(2 * step);
+		await landed(page);
+		await page.touchscreen.tap(v.width - 8, v.height / 2);
+		await expect.poll(async () => (await flow(page)).at).toBe(step);
+		await landed(page);
+	}
+
+	// The controls mirror, as vertical Japanese's do: the scrubber's first page
+	// is at its right, and it fills from there.
+	await page.keyboard.press('Escape');
+	const ends = page.locator('footer .scrub .end');
+	await expect(ends.first()).toHaveText(String(pages));
+	await expect(ends.last()).toHaveText('1');
+	await expect(page.locator('footer .track')).toHaveAttribute('aria-valuenow', '2');
+	await expect(page.locator('footer .cell.grow .sum')).toHaveText(/^PAGED R→L · /);
+});
+
+test('R→L in landscape: the right column is read first (c440)', async ({ page }) => {
+	const v = page.viewportSize()!;
+	test.skip(v.width <= v.height, 'two columns are a landscape screen’s');
+	await page.addInitScript(() => {
+		localStorage.setItem(
+			'tsundoku.text.settings',
+			JSON.stringify({ size: 30, line: 1.8, margins: 'wide', columns: true })
+		);
+	});
+	const id = await firstChapter(page);
+	await openAt(page, id);
+	const heading = page.locator('.blocks h1').first();
+	const box = () => page.locator('.page').boundingBox();
+	const centre = async () => {
+		const h = (await heading.boundingBox())!;
+		return h.x + h.width / 2;
+	};
+	// L→R: the chapter's heading starts the left column.
+	const p0 = (await box())!;
+	expect(await centre()).toBeLessThan(p0.x + p0.width / 2);
+	await readRtl(page);
+	// R→L: it starts the right one, and the page is still the first.
+	await expect.poll(centre).toBeGreaterThan(p0.x + p0.width / 2);
+	expect((await flow(page)).at).toBe(0);
+});
+
 test('with reduced motion a turn is instant and a drag does not move the page (c441)', async ({
 	page
 }) => {

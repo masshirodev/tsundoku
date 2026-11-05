@@ -262,6 +262,80 @@ async function serveBook(page: Page, epub: Buffer) {
 	});
 }
 
+/**
+ * DIRECTION (c440): R→L, remembered for the series, read again after a reload,
+ * and doing nothing in SCROLL. It writes `series.text_direction` for this
+ * file's own series, and puts it back (REMEMBER L→R stores NULL, the default)
+ * however the case ends, through the same action the sheet posts to.
+ */
+test('DIRECTION R→L is remembered for the series, survives a reload, and leaves SCROLL alone (c440)', async ({
+	page
+}) => {
+	await openBook(page);
+	const entry = /\/read\/(\d+)/.exec(page.url())![1];
+	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+	try {
+		await middle(page);
+		await page.getByRole('button', { name: /^PAGED · / }).click();
+		await expect(sheet.getByText('SERIES DEFAULT L→R')).toBeVisible();
+		await sheet.getByRole('radio', { name: 'R→L' }).click();
+		const saved = page.waitForResponse(
+			(r) => r.url().includes('?/textDirection') && r.request().method() === 'POST'
+		);
+		await sheet.getByRole('button', { name: 'REMEMBER R→L' }).click();
+		expect((await saved).status()).toBe(200);
+		await expect(sheet.getByText('SERIES DEFAULT R→L')).toBeVisible();
+		await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+
+		// Again after a reload: the series reads R→L, and a tap on the left
+		// strip reads on, sliding the page right.
+		await page.reload();
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+		await expect(page.locator('.flow')).toHaveClass(/\brtl\b/);
+		const at = () =>
+			page
+				.locator('.flow')
+				.evaluate((el: HTMLElement) =>
+					Number(/translateX\((-?[\d.]+)px\)/.exec(el.style.transform)?.[1] ?? 0)
+				);
+		const before = await at();
+		const v = page.viewportSize()!;
+		await page.touchscreen.tap(8, v.height / 2);
+		await expect.poll(at).toBeGreaterThan(before);
+		await expect(page.locator('.flow')).not.toHaveClass(/sliding/);
+
+		// SCROLL: the row is dimmed and says why, the columns run as always, and
+		// a tap at the left edge is no turn.
+		await middle(page);
+		await page.getByRole('button', { name: /^PAGED R→L · / }).click();
+		await sheet.getByRole('radio', { name: 'SCROLL' }).click();
+		await expect(sheet.getByRole('radio', { name: 'R→L' })).toBeDisabled();
+		await expect(sheet.getByText('PAGED ONLY')).toBeVisible();
+		await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect(page.locator('.text-reader')).toHaveClass(/scroll/);
+		await expect(page.locator('.flow')).not.toHaveClass(/\brtl\b/);
+		await page.locator('.page').evaluate((n) => (n.scrollTop = 0));
+		await page.touchscreen.tap(8, v.height / 2);
+		await page.waitForTimeout(300);
+		expect(await page.locator('.page').evaluate((n) => n.scrollTop)).toBe(0);
+		await expect(page.locator('.text-reader')).toHaveClass(/scroll/);
+	} finally {
+		// Put the series back: NULL, the default.
+		await page.evaluate(async (entry) => {
+			const body = new FormData();
+			body.set('direction', 'ltr');
+			await fetch(`/read/${entry}?/textDirection`, {
+				method: 'POST',
+				body,
+				headers: { 'x-sveltekit-action': 'true' }
+			});
+		}, entry);
+	}
+	await page.reload();
+	await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+	await expect(page.locator('.flow')).not.toHaveClass(/\brtl\b/);
+});
+
 test('a Japanese book is set vertically, with furigana and upright numbers', async ({ page }) => {
 	const ja = sampleEpub({
 		title: TITLE,
@@ -299,6 +373,14 @@ test('a Japanese book is set vertically, with furigana and upright numbers', asy
 	await middle(page);
 	await expect(page.locator('.bottom .left')).toHaveText(/^P\. 2 OF /);
 	await expect(page.getByRole('button', { name: /^VERTICAL · SANS JP/ })).toBeVisible();
+	// DIRECTION is a horizontal book's (c440): vertical text reads R→L, and the row says so.
+	await page.getByRole('button', { name: /^VERTICAL · SANS JP/ }).click();
+	const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+	await expect(sheet.getByRole('radio', { name: 'R→L' })).toHaveAttribute('aria-checked', 'true');
+	await expect(sheet.getByRole('radio', { name: 'R→L' })).toBeDisabled();
+	await expect(sheet.getByRole('radio', { name: 'L→R' })).toBeDisabled();
+	await expect(sheet.getByText('VERTICAL TEXT READS R→L')).toBeVisible();
+	await expect(page.locator('.flow')).not.toHaveClass(/\brtl\b/);
 });
 
 test('a file that is not an EPUB says so, and offers the way back', async ({ page }) => {

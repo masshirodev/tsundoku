@@ -39,7 +39,11 @@ import {
 	TEXT_FONTS,
 	fontOf,
 	settingsLabel as textSettingsLabel,
+	TEXT_DIRECTIONS,
+	parseTextDirection,
+	textDirectionName,
 	textFont,
+	textMode,
 	textSettings
 } from '$lib/reader/text';
 import { OnePointer } from '$lib/reader/pointer';
@@ -530,5 +534,59 @@ describe('one finger turns a page (c515)', () => {
 		expect(one.down(next)).toBe('start');
 		expect(one.owns(next)).toBe(true);
 		expect(one.owns(first)).toBe(false);
+	});
+});
+
+describe('a novel’s reading direction (c440)', () => {
+	const layouts = ['paged', 'scroll'] as const;
+	const directions = ['ltr', 'rtl'] as const;
+
+	it('turns the way DIRECTION says in PAGED, and only for horizontal text', () => {
+		// Every combination: the domain is twelve cases, all of them asserted.
+		const got = layouts.flatMap((layout) =>
+			[false, true].flatMap((vertical) =>
+				[undefined, ...directions].map(
+					(d) => `${layout} ${vertical} ${d}: ${textMode(layout, vertical, d)}`
+				)
+			)
+		);
+		expect(got).toEqual([
+			'paged false undefined: ltr',
+			'paged false ltr: ltr',
+			'paged false rtl: rtl',
+			'paged true undefined: rtl',
+			'paged true ltr: rtl',
+			'paged true rtl: rtl',
+			'scroll false undefined: vertical',
+			'scroll false ltr: vertical',
+			'scroll false rtl: vertical',
+			'scroll true undefined: vertical',
+			'scroll true ltr: vertical',
+			'scroll true rtl: vertical'
+		]);
+	});
+
+	it('reads only L→R and R→L, and holds on its own output', () => {
+		for (const [d] of TEXT_DIRECTIONS) expect(parseTextDirection(parseTextDirection(d))).toBe(d);
+		for (const bad of ['vertical', 'paged', 'scroll', 'RTL', '', null, undefined, 1])
+			expect(parseTextDirection(bad)).toBeNull();
+		expect(TEXT_DIRECTIONS.map(([d]) => textDirectionName(d))).toEqual(['L→R', 'R→L']);
+	});
+
+	it('says R→L in READING’s cell only when PAGED turns that way', () => {
+		const label = (layout: 'paged' | 'scroll', direction: 'ltr' | 'rtl', vertical = false) =>
+			textSettingsLabel({
+				layout,
+				font: 'serif',
+				size: 20,
+				theme: 'dark',
+				vertical,
+				furigana: 'all',
+				direction
+			});
+		expect(label('paged', 'ltr')).toBe('PAGED · SERIF 20 · DARK');
+		expect(label('paged', 'rtl')).toBe('PAGED R→L · SERIF 20 · DARK');
+		expect(label('scroll', 'rtl')).toBe('SCROLL · SERIF 20 · DARK');
+		expect(label('paged', 'rtl', true)).toBe('VERTICAL · SANS JP 20 · FURIGANA ALL');
 	});
 });

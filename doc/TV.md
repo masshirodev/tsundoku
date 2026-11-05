@@ -527,16 +527,18 @@ remote.
   focus return is the scope's.
 - **The text reader is the same story** (`TextChrome`, `TextSheet`): OK brings
   its chrome up with focus on the scrubber, ↓ reaches CONTENTS and READING,
-  and LAYOUT changes by keys alone. Its footer gives way to the sheet
+  and LAYOUT changes by keys alone, as DIRECTION does (c440: ↓ from LAYOUT,
+  ← → along it; in R→L the remote's ← then reads on). Its footer gives way to the sheet
   (`bottom={!sheet}`), so the cell that opened READING is gone when it closes:
   the reader puts the pad back on the scrubber instead (`TextReader.svelte`).
   CONTENTS is a focus scope too (c250): it opens on the row being read, and
   BACK puts the pad back on the CONTENTS cell, which stays.
 - **Tests.** `tests/tv-reader.e2e.ts` opens READING, walks to L→R with the
   arrows and OK, closes it with BACK, hides the chrome, and puts the mode back;
-  `tests/tv-text-reader.e2e.ts` does the same with a novel's LAYOUT. Both read
-  in incognito and change nothing stored: the mode and the layout are this
-  session's until REMEMBER, which neither spec presses, so there is nothing to
+  `tests/tv-text-reader.e2e.ts` does the same with a novel's LAYOUT and its
+  DIRECTION. Both read
+  in incognito and change nothing stored: the mode, the layout and the
+  direction are this session's until REMEMBER, which neither spec presses, so there is nothing to
   put back.
 
 ### Departures from the handoff (c241)

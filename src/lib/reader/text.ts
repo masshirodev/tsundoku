@@ -157,7 +157,10 @@ export function frame(screenW: number, screenH: number, s: TextSettings, vertica
 	};
 }
 
-/** The READING cell in the controls: "PAGED · SERIF 20 · DARK". */
+/**
+ * The READING cell in the controls: "PAGED · SERIF 20 · DARK", and "PAGED R→L ·
+ * …" when a horizontal book's pages turn right to left (c440).
+ */
 export function settingsLabel(o: {
 	layout: Layout;
 	font: TextFont;
@@ -165,15 +168,41 @@ export function settingsLabel(o: {
 	theme: Theme;
 	vertical: boolean;
 	furigana: Furigana;
+	direction?: TextDirection;
 }): string {
 	if (o.vertical) return `VERTICAL · SANS JP ${o.size} · FURIGANA ${o.furigana.toUpperCase()}`;
-	return `${o.layout.toUpperCase()} · ${fontOf(o.font).word} ${o.size} · ${o.theme.toUpperCase()}`;
+	const way = o.layout === 'paged' && o.direction === 'rtl' ? ' R→L' : '';
+	return `${o.layout.toUpperCase()}${way} · ${fontOf(o.font).word} ${o.size} · ${o.theme.toUpperCase()}`;
 }
 
-/** The reader's touch mode: turning left-to-right, right-to-left (vertical Japanese), or none. */
-export function textMode(layout: Layout, vertical: boolean): Mode {
+/**
+ * Which way a horizontal book's paged pages turn (card c440): L→R, reading on
+ * to the right, or R→L, reading on to the left. Never how the text runs. The
+ * series' own, else L→R; vertical Japanese and SCROLL don't use it.
+ */
+export type TextDirection = 'ltr' | 'rtl';
+export const TEXT_DIRECTIONS: readonly [TextDirection, string][] = [
+	['ltr', 'L→R'],
+	['rtl', 'R→L']
+];
+/** A stored or posted direction, or null for anything else. */
+export const parseTextDirection = (raw: unknown): TextDirection | null =>
+	raw === 'ltr' || raw === 'rtl' ? raw : null;
+/** The direction's name on the sheet: "L→R", "R→L". */
+export const textDirectionName = (d: TextDirection) => TEXT_DIRECTIONS.find(([v]) => v === d)![1];
+
+/**
+ * The reader's touch mode: turning left-to-right, right-to-left, or none.
+ * SCROLL never turns; vertical Japanese always turns right to left; a
+ * horizontal book in PAGED turns the way its DIRECTION says (c440).
+ */
+export function textMode(
+	layout: Layout,
+	vertical: boolean,
+	direction: TextDirection = 'ltr'
+): Mode {
 	if (layout === 'scroll') return 'vertical';
-	return vertical ? 'rtl' : 'ltr';
+	return vertical ? 'rtl' : direction;
 }
 
 /**

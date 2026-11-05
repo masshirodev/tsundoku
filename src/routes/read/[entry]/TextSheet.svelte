@@ -6,12 +6,15 @@
 		LINES,
 		SIZE_MAX,
 		SIZE_MIN,
+		TEXT_DIRECTIONS,
 		TEXT_FONTS,
 		fontOf,
 		loadReadingFonts,
+		textDirectionName,
 		type Furigana,
 		type Layout,
 		type Margins,
+		type TextDirection,
 		type TextFont,
 		type TextSettings,
 		type Theme
@@ -23,8 +26,8 @@
 	/**
 	 * READING for text (Index Text Reader 1c, "sheet"): the image reader's sheet
 	 * with rows for type. No scrim, so size and spacing change in view as
-	 * they're set. LAYOUT is the series' (REMEMBER keeps it); everything below
-	 * it belongs to the device. A row that doesn't apply is dimmed with the
+	 * they're set. LAYOUT and DIRECTION are the series' (REMEMBER keeps each);
+	 * everything below them belongs to the device. A row that doesn't apply is dimmed with the
 	 * reason, not removed, so the sheet never jumps.
 	 *
 	 * On a TV it is a focus scope and a panel from the right, as the image
@@ -39,10 +42,14 @@
 		lineHeight,
 		landscape,
 		vertical,
+		direction,
+		seriesDirection,
 		dim,
 		rating,
 		onlayout,
 		onremember,
+		ondirection,
+		onrememberdirection,
 		onsettings,
 		ondim,
 		onrate,
@@ -56,10 +63,15 @@
 		lineHeight: number;
 		landscape: boolean;
 		vertical: boolean;
+		/** Which way PAGED turns, this session's and the series' (c440). */
+		direction: TextDirection;
+		seriesDirection: TextDirection;
 		dim: number;
 		rating: number;
 		onlayout: (l: Layout) => void;
 		onremember: () => void;
+		ondirection: (d: TextDirection) => void;
+		onrememberdirection: () => void;
 		onsettings: (s: Partial<TextSettings>) => void;
 		ondim: (d: number) => void;
 		onrate: (r: number) => void;
@@ -89,6 +101,14 @@
 		['none', 'NONE']
 	];
 	const columnsApply = $derived(landscape && layout === 'paged' && !vertical);
+	/**
+	 * DIRECTION turns a horizontal book's pages (c440): not in SCROLL, which
+	 * never turns, nor in vertical Japanese, which always reads R→L. Dimmed
+	 * with the reason there, as the image sheet's PAGED ONLY rows are.
+	 */
+	const directionApplies = $derived(layout === 'paged' && !vertical);
+	/** What the row shows: vertical Japanese is R→L whatever the series says. */
+	const directionShown = $derived<TextDirection>(vertical ? 'rtl' : direction);
 	const tvScreen = new MediaQuery(TV, false);
 
 	let dimTrack = $state<HTMLElement | null>(null);
@@ -136,6 +156,37 @@
 					<button type="button" class="remember" onclick={onremember}
 						>REMEMBER {layout.toUpperCase()}</button
 					>
+				{/if}
+			</div>
+		</div>
+	</div>
+
+	<div class="row">
+		<div class="label">DIRECTION</div>
+		<div class="body col" class:off={!directionApplies}>
+			<div class="seg" role="radiogroup" aria-label="Direction">
+				{#each TEXT_DIRECTIONS as [d, name] (d)}
+					<button
+						type="button"
+						role="radio"
+						aria-checked={directionShown === d}
+						class:on={directionShown === d}
+						disabled={!directionApplies}
+						data-focus-mark="in"
+						onclick={() => ondirection(d)}>{name}</button
+					>
+				{/each}
+			</div>
+			<div class="under">
+				{#if !directionApplies}
+					<span class="note">{vertical ? 'VERTICAL TEXT READS R→L' : 'PAGED ONLY'}</span>
+				{:else}
+					<span class="note">SERIES DEFAULT {textDirectionName(seriesDirection)}</span>
+					{#if direction !== seriesDirection}
+						<button type="button" class="remember" onclick={onrememberdirection}
+							>REMEMBER {textDirectionName(direction)}</button
+						>
+					{/if}
 				{/if}
 			</div>
 		</div>
