@@ -430,6 +430,7 @@ export async function attachWritten(
 	const touched = new Set<number>();
 	// One plan per series: a batch of chapters is one folder.
 	const planned = new Set<string>();
+	let created = false;
 	for (const file of files) {
 		// The innermost root holding it: a device's own folder sits inside the
 		// library's, so the deepest match is the one that owns the file.
@@ -459,12 +460,16 @@ export async function attachWritten(
 				db
 			);
 			for (const d of r.dropped ?? []) console.log(`[import] ${droppedLine(d)}`);
+			if (r.created) created = true;
 			const id = db.prepare(`SELECT id FROM series WHERE origin_key = ?`).get(s.originKey) as
 				{ id: number } | undefined;
 			if (id) touched.add(id.id);
 		}
 	}
 	if (touched.size > 0) reconcileDuplicates([...touched], db);
+	// As a run does: BROWSE's per-source counts (`mostlyHidden`) are asked
+	// again once a series is new, ADDED HIDDEN's hidden ones included (c503).
+	if (created) forgetSourceUse();
 	return left;
 }
 

@@ -606,4 +606,65 @@ describe('a backup from a source with ADDED HIDDEN (c503, the owner’s (a))', (
 		expect(hidden('Shown In The Backup')).toBe(0);
 		setSourceFlag(String(HIDING), 'addedHidden', false, db());
 	});
+
+	it('a download attached at once (attachWritten) hides its new series too, and BROWSE’s counts are asked again', async () => {
+		const { setSourceFlag } = await import('$lib/server/engine/source-flags');
+		const { attachWritten } = await import('$lib/server/import');
+		const { sourceUse } = await import('$lib/server/library-sources');
+		const { cbz, comicInfo } = await import('./helpers/mihon-fixture');
+		// tsundoku's own device: its backup names the series, and a chapter
+		// lands in its downloads, as the downloader writes them.
+		const device = join(lib, 'devices', 'tsundoku', 'Mihon');
+		const title = 'Downloaded While Hiding';
+		const dir = join(device, 'autobackup');
+		mkdirSync(dir, { recursive: true });
+		writeFileSync(
+			join(dir, 'app.mihon_2026-11-05_11-00.tachibk'),
+			gzipSync(
+				encode([
+					[1, manga(HIDING, title, 1)],
+					...CATEGORIES.map((name, i): [number, Msg] => [
+						2,
+						[[1, name], ...(i ? ([[2, i]] as Msg) : []), [3, i + 1]]
+					]),
+					[
+						101,
+						[
+							[1, 'Hiding Scans'],
+							[2, HIDING]
+						]
+					]
+				])
+			)
+		);
+		const chapters = join(device, 'downloads', 'Hiding Scans (EN)', title);
+		mkdirSync(chapters, { recursive: true });
+		const file = join(chapters, 'Chapter 1.cbz');
+		writeFileSync(
+			file,
+			cbz(
+				comicInfo({
+					series: title,
+					title: 'Chapter 1',
+					number: 1,
+					web: 'https://hiding.example/c503/downloaded-while-hiding',
+					source: 'Hiding Scans'
+				})
+			)
+		);
+		setSourceFlag(String(HIDING), 'addedHidden', true, db());
+		try {
+			// BROWSE has asked already: the counts are cached for a minute.
+			const before = sourceUse().get(String(HIDING)) ?? { series: 0, hidden: 0 };
+			expect(await attachWritten(lib, [file], 1_800_002_300_000)).toEqual([]);
+			expect(hidden(title)).toBe(1);
+			// Without `forgetSourceUse` the cached counts would stand for the minute.
+			expect(sourceUse().get(String(HIDING))).toEqual({
+				series: before.series + 1,
+				hidden: before.hidden + 1
+			});
+		} finally {
+			setSourceFlag(String(HIDING), 'addedHidden', false, db());
+		}
+	});
 });

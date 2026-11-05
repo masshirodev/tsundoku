@@ -484,7 +484,16 @@ be switched: a Mihon backup's series (`mihon:<n>:<url>`), and tsundoku's own
 anime and novel downloads read back (`aniyomi:`, `lnreader:`). A Mihon
 download folder's own series (`mihon-dir:`), Hentoid's books, an EPUB and a
 gallery name no source (`sourceIdSql` answers NULL), so the switch never
-reaches them. `tests/import-db.spec.ts` holds every combination.
+reaches them. **So the order of arrival matters for a Mihon download
+folder:** one imported before any backup named its series is created as a
+`mihon-dir:` series and stays visible; when a backup later names it,
+`adoptFolder` (`fold.ts`) re-keys that series to `mihon:<n>:<url>` rather
+than creating one, so the switch does not hide it then either. The same
+series arriving first through a backup that names it arrives hidden. Either
+way, the owner can hide it inside reveal. What an attach creates also makes
+BROWSE ask its per-source counts again (`forgetSourceUse`, as a run does), so
+`mostlyHidden` does not wait out the cache's minute. `tests/import-db.spec.ts`
+holds every combination, the attach included.
 
 **What ADDED HIDDEN does not reach:** a follow's or a refresh's new chapters
 are not an add, and a download of a series already in the library neither.
