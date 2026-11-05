@@ -105,22 +105,31 @@ one at a time.
   with the same block, minus the phone's QR. The row ticks its countdown by
   itself, but the countdown is not the code: a TV that pairs with it, or burns
   it, changes nothing on the computer's page. So the row asks
-  `GET /settings/tv` what the code is now, every 5 s while it shows a live or
-  expired code and the page is in view, and once whenever the window regains
-  focus or the page becomes visible again (c265; an expired one since c246). That answer is read only
+  `GET /settings/tv` what the code is now, every 5 s while it shows anything
+  but a burned code and the page is in view, and once whenever the window
+  regains focus or the page becomes visible again (c265; expired since c246,
+  used and none since its round 2). That answer is read only
   (`tvCodeNow`): the row draws the code as it is. A used code turns ✓ USED,
   and only then does the page's data reload, which is how the new TV's row
   appears. A burned code shows BURNED and NO TRIES LEFT · MAKE A NEW CODE, and
-  the 5 s poll stops (focus still asks). An expired one shows EXPIRED and the
-  poll goes on: the TV may make a new one in its place (`/pair/tv`, below),
-  which the row then draws by itself, with no focus change (c246). Neither is replaced by the
+  the 5 s poll stops (focus still asks). An expired one shows EXPIRED, a used
+  one ✓ USED, and the poll goes on: a TV opening `/pair/tv` makes a new code in
+  place of an expired one, or of one used over 2 minutes ago (below), and says
+  THE NEW ONE IS ON THE COMPUTER, which the row then draws by itself, with no
+  focus change (c246; a second TV paired with SETTINGS left on ✓ USED was its
+  round 2). With no code at all (the server's memory after a restart, until a
+  visit or a TV makes one) the row is still drawn wherever its block is
+  (`tvHere`, the load's own `tvBlockHere`): a dim — over EXPIRED · MAKE A NEW
+  CODE, and NEW CODE, and it is asked about too, since a TV makes a code
+  where there is none. Neither burned nor expired is replaced by the
   refresh: the load replaces a spent code (`tvPanel`), so a refresh that made
   one, or reloaded the page's data to get one, would undo the burn within a
   tick, and with SETTINGS in front five wrong tries would lock no one out.
   A new code comes from NEW CODE or from opening SETTINGS again (a real
   visit, never a reload of the page's data: "Which doors make a code", c531),
-  and from the TV itself when the code has merely run out (`/pair/tv`,
-  "Never a dead end" below); a burned code only from the computer. Focus alone was not enough: the owner usually keeps SETTINGS in front
+  and from the TV itself when there is none, or the code has merely run out
+  or was used over 2 minutes ago (`/pair/tv`, "Never a dead end" below); a
+  burned code only from the computer. Focus alone was not enough: the owner usually keeps SETTINGS in front
   while typing on the TV. An answer is about the code the row showed when it
   asked: one that lands after NEW CODE (or any reload of the page's data) is
   the old code's, burned or used, and is dropped rather than drawn over the
@@ -176,7 +185,8 @@ one at a time.
   before. Digits typed after their code ran out get THAT CODE EXPIRED · THE
   NEW ONE IS ON THE COMPUTER: the page has just made it. The computer's
   WI-FI panel shows it on its next 5 s poll, and so does the DEVICES row,
-  which keeps asking while the code it shows is expired (c246, wave 23;
+  which keeps asking while the code it shows is expired or used, or there is
+  none (c246, wave 23 and its round 2;
   `tests/tv-pair-origins.e2e.ts` holds it, with the row's page never
   refocused).
 - **The TV in DEVICES** is named by its user agent: the app appends
@@ -235,7 +245,13 @@ one at a time.
   from a reload, so the page says so itself: `afterNavigate` sends
   `?/renew`, which renews exactly as the document visit does (never over
   Wi-Fi, the TV's code only where its row is), then reloads the page's data
-  to draw it. A change of the page's own URL (`?section=`) is not a visit.
+  to draw it. The page sends it where the WI-FI panel or the TV's row is
+  drawn, asked of the server (`data.wifi`, `data.tvHere`), never of the code
+  the load returned: after a restart there is no code, `data.tv` is null on
+  exactly the visit that must make one, and guarding on it left the owner's
+  tailnet install with no code and no row after every restart (wave 23's
+  round 2). Not from a phone over Wi-Fi (`data.viaLan`), where `?/renew`
+  renews nothing and the reload after it would be wasted. A change of the page's own URL (`?section=`) is not a visit.
   Every reload reads the codes as they are: the WI-FI poll's when a phone
   pairs, the row's refresh when a TV pairs, the check-in on arriving
   (`syncDevice`), every setting (`act()`, NEW CODE's included, whose own

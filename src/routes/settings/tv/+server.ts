@@ -4,11 +4,12 @@ import { tvBlockHere, tvCodeNow } from '$lib/server/wifi';
 
 /**
  * The DEVICES row's TV code as it is now (c265; doc/WIFI.md, "Where they
- * show"). The row asks while it shows a live or expired code (an expired one
- * since c246: the TV may make a new one in its place) and once more whenever
- * the window comes back, so a code a TV used or burned while SETTINGS stayed open
- * stops showing as live without a NEW CODE press: the whole page load is too
- * heavy to repeat every few seconds.
+ * show"). The row asks every 5 s while it shows anything but a burned code
+ * (expired since c246, used and no code at all since its round 2: the TV's
+ * /pair/tv makes a new one in place of those) and once more whenever the
+ * window comes back, so a code a TV used or burned while SETTINGS stayed open
+ * stops showing as live without a NEW CODE press, and one a TV made shows
+ * up: the whole page load is too heavy to repeat every few seconds.
  *
  * Read only (`tvCodeNow`): it answers live, used, expired or burned and never
  * makes a code. A refresh that replaced a burned code would undo the burn

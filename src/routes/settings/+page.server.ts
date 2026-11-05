@@ -80,7 +80,8 @@ export const load: PageServerLoad = async ({ cookies, url, locals, isDataRequest
 	// panel and no door either: its TV signs in with the password. Nor has a
 	// token install with no ORIGIN (dev, preview, serve.ts's local mode):
 	// the hook refuses every TV's cookie there (c264).
-	const tv = tvBlockHere(locals) ? tvPanel({ renew: visit }) : null;
+	const tvHere = tvBlockHere(locals);
+	const tv = tvHere ? tvPanel({ renew: visit }) : null;
 	return {
 		values: libraryValues(),
 		counts: overrideCounts(reveal),
@@ -109,6 +110,11 @@ export const load: PageServerLoad = async ({ cookies, url, locals, isDataRequest
 		viaLan: locals.via === 'lan',
 		// The TV's six digits where there is no WI-FI row to show them (c245).
 		tv,
+		// Whether that row is drawn here at all, code or none: a client-side
+		// visit's load is a data request that makes no code (c531), so after a
+		// restart `tv` is null until `?/renew` answers, and the row, its NEW
+		// CODE and the page's `?/renew` must not hang on it (round 2).
+		tvHere,
 		paired: Object.fromEntries(
 			[...pairedDevices()].map(([id, p]) => [id, { address: p.address, pairedAt: p.pairedAt }])
 		),

@@ -249,6 +249,92 @@ async function signedIn(page: Page, at: Server) {
 
 const paired = (port: number) => `tsundoku_paired_${port}`;
 
+// ---- c531 round 2: a client-side visit with no code at all ---------------------
+
+/**
+ * The library in the computer's browser, opened as a document: SETTINGS is
+ * then reached only by the app's own links, a client-side navigation whose
+ * load is a data request and makes no code (c531).
+ */
+async function libraryOn(at: Server) {
+	const context = await desk.newContext({
+		viewport: { width: 1280, height: 800 },
+		locale: 'en-US'
+	});
+	opened.push(context);
+	await context.addCookies([
+		{ name: 'tsundoku_session', value: session, domain: '127.0.0.1', path: '/' }
+	]);
+	const page = await context.newPage();
+	await page.goto(`${at.computer}/`);
+	await hydrated(page);
+	return page;
+}
+
+/** The library's MORE › SETTINGS, by click. */
+async function moreSettings(page: Page) {
+	await page.getByRole('button', { name: 'MORE', exact: true }).click();
+	await page.locator('a[href="/settings"]').filter({ visible: true }).first().click();
+	await page.waitForURL((u) => u.pathname === '/settings');
+	await hydrated(page);
+}
+
+const renewPost = (u: URL) => u.pathname === '/settings' && u.search === '?/renew';
+
+// First in the file, on purpose: server A has made no code yet, the state a
+// restart leaves the owner's tailnet install in.
+test('with no code at all, the library’s MORE › SETTINGS makes the code and draws it, and a reload of the data keeps it (c531 round 2)', async () => {
+	expect((await codeOn(A)).state, 'a fresh server has no code').toBe('none');
+	const page = await libraryOn(A);
+	expect((await codeOn(A)).state, 'the library makes no code').toBe('none');
+	await moreSettings(page);
+	await expect(page.getByText('FOR A TV · SIX DIGITS')).toBeVisible();
+	await expect.poll(() => shownDigits(page)).toMatch(/^\d{6}$/);
+	const made = await codeOn(A);
+	expect(made).toMatchObject({ state: 'live', left: 5 });
+	expect(await shownDigits(page)).toBe(made.code);
+
+	// A reload of the page's data (an unrelated setting): the same code.
+	const mode = page
+		.locator('.row', { has: page.locator('.label', { hasText: /^MODE$/ }) })
+		.getByRole('group', { name: 'MANGA' });
+	for (const choice of ['L→R', 'R→L']) {
+		const reloaded = reloadOfData(page);
+		await mode.getByRole('button', { name: choice }).click();
+		await reloaded;
+		await expect(mode.getByRole('button', { name: choice })).toHaveAttribute(
+			'aria-pressed',
+			'true'
+		);
+		expect((await codeOn(A)).code, `after ${choice}`).toBe(made.code);
+		expect(await shownDigits(page)).toBe(made.code);
+	}
+});
+
+// On server B, which no case before c530's makes a code on.
+test('with no code and `?/renew` unanswered, the DEVICES row is still drawn, and its NEW CODE makes one (c531 round 2)', async () => {
+	expect((await codeOn(B)).state, 'B has made no code yet').toBe('none');
+	const page = await libraryOn(B);
+	// The page's own `?/renew` refused: what the row draws from the load
+	// alone, which made no code.
+	await page.route(renewPost, (r) => r.abort());
+	const refused = page.waitForRequest((r) => renewPost(new URL(r.url())));
+	await moreSettings(page);
+	await refused;
+	await expect(page.getByText('FOR A TV · SIX DIGITS')).toBeVisible();
+	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('—');
+	await expect(page.getByText('EXPIRED · MAKE A NEW CODE')).toBeVisible();
+	await expect(page.getByLabel('Pairing code for a TV')).toHaveCount(0);
+	expect((await codeOn(B)).state).toBe('none');
+	await page.unroute(renewPost);
+
+	await page.locator('.pair-foot').getByRole('button', { name: 'NEW CODE' }).click();
+	await expect.poll(() => shownDigits(page)).toMatch(/^\d{6}$/);
+	const made = await codeOn(B);
+	expect(made.state).toBe('live');
+	expect(await shownDigits(page)).toBe(made.code);
+});
+
 // ---- c246 ---------------------------------------------------------------------
 
 test('an expired code is made new when the TV opens /pair/tv, and it pairs (c246)', async () => {
@@ -429,6 +515,19 @@ test('the DEVICES row draws the code the TV made in place of an expired one, on 
 	await expect(onTv.getByRole('heading', { name: 'The library is on this TV' })).toBeVisible();
 	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('✓ USED', { timeout: 15_000 });
 	expect(await returns()).toBe(0);
+
+	// Round 2: SETTINGS left on ✓ USED, and a second TV past the 2 minutes it
+	// stays up. /pair/tv replaces the used code and says THE NEW ONE IS ON THE
+	// COMPUTER, so the row must draw it on its own tick too.
+	await clockAt(A, 10 * 60_000 + 5_000 + 2 * 60_000 + 5_000);
+	const { page: second } = await tv();
+	await openPairing(second, A);
+	await expect(second.locator('.band')).toHaveCount(0);
+	const again = await codeOn(A);
+	expect(again.state).toBe('live');
+	expect(again.code).not.toBe(now.code);
+	await expect.poll(() => shownDigits(page), { timeout: 15_000 }).toBe(again.code);
+	expect(await returns(), 'no focus or visibility change helped').toBe(0);
 });
 
 // ---- c531: only a real visit renews ------------------------------------------

@@ -213,10 +213,11 @@ const portOf = (origin: string | null) => (origin ? `:${new URL(origin).port}` :
 export type TvPanel = {
 	code: string;
 	/**
-	 * Every state a code can be in. The load (`tvPanel`) only ever gives live or
-	 * used, since it replaces a spent code; the row's refresh (`tvCodeNow`)
-	 * gives the code as it is, burned and expired included, and the row draws
-	 * them (c265).
+	 * Every state a code can be in. The load (`tvPanel`) gives live or used on
+	 * a real visit, since it replaces a spent code then (`renew`), and on a
+	 * reload of the page's data the code as it is, any state (c531); the row's
+	 * refresh (`tvCodeNow`) gives the code as it is too, burned and expired
+	 * included, and the row draws them (c265).
 	 */
 	state: Exclude<TvState, 'none'>;
 	minutes: number;

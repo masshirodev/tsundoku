@@ -134,8 +134,8 @@
 	 * A TV that pairs with the code, or burns it, while SETTINGS stays open
 	 * changes nothing on this page by itself, and a spent code left showing as
 	 * live invites a second TV to type it (c265). So the row asks the server
-	 * what the code is now: every 5 s while it shows a live or expired code and
-	 * the page is in view, and once whenever the window regains focus or the page
+	 * what the code is now: every 5 s while it shows anything but a burned code
+	 * and the page is in view, and once whenever the window regains focus or the page
 	 * becomes visible again. The owner usually keeps SETTINGS in front while
 	 * typing on the TV, so focus alone would miss the common case.
 	 *
@@ -143,9 +143,12 @@
 	 * reloads the page's data, so the TV that paired joins the list below (the
 	 * WI-FI panel's `usedBefore`). A burned or expired code stays on the row,
 	 * and a reload of the page's data leaves it so: only a real visit renews
-	 * (c531, `settingsVisit`). A new code comes from NEW CODE,
-	 * from opening SETTINGS again, or, in place of a merely expired one, from
-	 * the TV's own /pair/tv (c246), which the 5 s poll then draws.
+	 * (c531, `settingsVisit`). A new code comes from NEW CODE, from opening
+	 * SETTINGS again, or from the TV's own /pair/tv (c246, `renewForTv`), in
+	 * place of none, a merely expired one, or one used over 2 minutes ago,
+	 * which the 5 s poll then draws. The row is asked about with no code at
+	 * all too (`data.tvHere`, round 2): after a restart the server has none
+	 * until a visit or a TV makes one.
 	 *
 	 * An answer is about the code the row showed when it asked. If NEW CODE (or
 	 * any reload of the page's data) replaced `tv` while it was out, the answer
@@ -156,32 +159,34 @@
 	 */
 	async function refreshTv() {
 		const before = tv;
-		if (!before) return;
+		if (!data.tvHere) return;
 		try {
 			const r = await fetch('/settings/tv', { cache: 'no-store' });
 			if (!r.ok || tv !== before) return;
 			const { tv: next } = (await r.json()) as { tv: Tv | null };
 			if (tv !== before) return;
-			if (next?.code === before.code && next?.state === before.state) return;
+			if (next?.code === before?.code && next?.state === before?.state) return;
 			tv = next;
-			if (next?.state === 'used' && before.state !== 'used') await invalidateAll();
+			if (next?.state === 'used' && before?.state !== 'used') await invalidateAll();
 		} catch {
 			// Not answering for a moment: the next tick, or the next focus, asks again.
 		}
 	}
 	// Keyed on the state alone, not `tvLive`: that reads the 15 s countdown, which
 	// would tear the interval down and rebuild it, losing one tick in three.
-	// An expired code is asked about too, and so is a live one whose time this
-	// page's own clock says is up: an unpaired TV opening /pair/tv makes a new
-	// code in place of a merely expired one (c246, `renewForTv`), and the row
-	// must then draw it without waiting for a focus the owner, typing on the
-	// TV, never gives. A burned or used code is not asked about: only the
-	// computer replaces those, and its own doors redraw the row.
-	const tvPolls = $derived(tv?.state === 'live' || tv?.state === 'expired');
+	// Every state but burned is asked about, and so is no code at all: an
+	// unpaired TV opening /pair/tv makes a new code in place of none, a merely
+	// expired one, or one used over 2 minutes ago (c246, `renewForTv`), and
+	// says THE NEW ONE IS ON THE COMPUTER, so the row must draw it without
+	// waiting for a focus the owner, typing on the TV, never gives (round 2:
+	// a second TV paired with SETTINGS left on ✓ USED). A burned code is not
+	// asked about: only the computer replaces it, and its own doors (NEW CODE,
+	// a real visit) redraw the row.
+	const tvPolls = $derived(data.tvHere && tv?.state !== 'burned');
 	$effect(() => {
 		if (!tvPolls) return;
 		const t = setInterval(() => {
-			if (tv && document.visibilityState === 'visible') void refreshTv();
+			if (document.visibilityState === 'visible') void refreshTv();
 		}, 5000);
 		return () => clearInterval(t);
 	});
@@ -202,11 +207,15 @@
 	 * a client-side navigation, the load was a data request like any reload of
 	 * this page's data, which must not renew, so the page says so itself with
 	 * `?/renew` and then reloads to draw the result (`act`). Not on a change of
-	 * this page's own URL (`?section=`), and not where no code is shown.
+	 * this page's own URL (`?section=`), not where neither row is drawn, and
+	 * not over Wi-Fi, where `?/renew` renews nothing (c460). Whether the TV's
+	 * row is here is the server's `tvHere`, never `data.tv`: after a restart
+	 * there is no code, so `data.tv` is null on exactly the visit that must
+	 * make one (round 2).
 	 */
 	afterNavigate((nav) => {
 		if (nav.type === 'enter' || nav.from?.route.id === nav.to?.route.id) return;
-		if (!data.wifi && !data.tv) return;
+		if (data.viaLan || (!data.wifi && !data.tvHere)) return;
 		void act('renew', []);
 	});
 
@@ -766,7 +775,7 @@
 						{#if s.id === 'devices'}
 							{#if wf}
 								{@render wifiRow(wf)}
-							{:else if tv}
+							{:else if data.tvHere}
 								{@render tvRow(tv)}
 							{/if}
 							{@render devices()}
@@ -1328,21 +1337,24 @@
 	{/if}
 {/snippet}
 
-{#snippet tvRow(t: Tv)}
+{#snippet tvRow(t: Tv | null)}
 	<!-- A TV's six digits where there is no WI-FI panel to carry them (c245;
 	     doc/WIFI.md): the owner's tailnet install. The block is the pairing
-	     panel's own, without the phone's QR. -->
-	{@const live = tvLive(t)}
-	{@const mins = tvMinutes(t)}
+	     panel's own, without the phone's QR. With no code at all (a restart,
+	     until a visit or a TV makes one) the row is still drawn, with NEW CODE. -->
+	{@const live = !!t && tvLive(t)}
+	{@const mins = t ? tvMinutes(t) : 0}
 	<div class="row wifi">
 		<div class="label top">TV</div>
 		<div class="ctl col">
 			<div class="pair-tv">
 				<div class="pk">FOR A TV · SIX DIGITS</div>
-				{#if live}
+				{#if t && live}
 					<div class="tvcode" aria-label="Pairing code for a TV">
 						<span>{t.code.slice(0, 3)}</span><span>{t.code.slice(3)}</span>
 					</div>
+				{:else if !t}
+					<div class="tvcode dim">—</div>
 				{:else}
 					<!-- Used, burned (the refresh reads the code as it is, c265), or
 					     past its time by the server or by this page's own clock. -->
@@ -1357,9 +1369,9 @@
 							? `GOOD FOR ${mins} MIN · ONE TV, ONCE`
 							: 'UNDER A MINUTE LEFT · ONE TV, ONCE'}
 					</div>
-				{:else if t.state === 'used'}
+				{:else if t?.state === 'used'}
 					<div class="tvline">✓ USED · ONE TV, ONCE</div>
-				{:else if t.state === 'burned'}
+				{:else if t?.state === 'burned'}
 					<div class="tvline">NO TRIES LEFT · MAKE A NEW CODE</div>
 				{:else}
 					<div class="tvline">EXPIRED · MAKE A NEW CODE</div>
