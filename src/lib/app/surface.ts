@@ -54,3 +54,17 @@ export function followSurface(): () => void {
 	watch.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
 	return () => watch.disconnect();
 }
+
+/**
+ * Draw this page under the camera while it is open (c521; doc/PHONE-APP.md,
+ * "Drawn under the camera"): the phone app drops its cutout and gesture
+ * padding, and the page keeps its own bars out of the band from
+ * `--app-inset-*`. Returns the undo, which pads the page again. A browser, or
+ * an app older than this, has no `edge` and nothing happens.
+ */
+export function drawUnderCamera(): () => void {
+	const b = (window as unknown as { TsundokuTV?: { edge?: (on: boolean) => void } }).TsundokuTV;
+	if (!b || typeof b.edge !== 'function') return () => {};
+	b.edge(true);
+	return () => b.edge?.(false);
+}

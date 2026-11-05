@@ -247,11 +247,20 @@
 		background: var(--surface-page);
 		color: var(--text-1);
 	}
+	/*
+	 * In the phone app the reader's pages run under the camera (c521;
+	 * doc/PHONE-APP.md, "Drawn under the camera"), and the app says how tall
+	 * the band is. The top bar stays where it is, below the band, and its
+	 * background reaches up through it, so no page shows above the bar. The
+	 * bottom bar hugs the display's edge, as the owner asked. Anywhere else
+	 * the variable is unset and both are as they were.
+	 */
 	.top {
 		top: 0;
 		display: flex;
 		align-items: stretch;
-		height: 64px;
+		height: calc(64px + var(--app-inset-top, 0px));
+		padding-top: var(--app-inset-top, 0px);
 		border-bottom: var(--hairline);
 	}
 	.back {
