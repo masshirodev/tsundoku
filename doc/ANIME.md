@@ -591,7 +591,26 @@ screen but the video, and the subtitles, until a tap.
     buffer goal of 1 s, no back buffer), and `stopLoad()` once the frame is
     drawn and when the pointer leaves. Only the latest stop stops the load:
     a stop still waiting on a slow engine when the next begins gives up
-    without stopping the next one's segment. A server whose lowest quality is
+    without stopping the next one's segment. **A playlist later than the
+    stop's second** (c450): the stop gives up at its second, and when the
+    playlist comes it starts nothing, since a stop has happened since (a
+    `stopped` counter that `stop()` bumps) or a later stop began; the pointer
+    gone meanwhile, nothing is fetched off the bar. Before the playlist is
+    in, `stop()` leaves hls.js alone: nothing loads then but the playlist,
+    and hls.js's `stopLoad()` destroys that request in flight, after which
+    MANIFEST_PARSED never came and the preview showed the time alone for
+    the rest of the episode. A playlist that fails past hls.js's own retry
+    (a fatal error) gives that stop up, and the next stop opens a fresh
+    player and asks again. **A plain file as the lowest quality** (a
+    hoster's MP4 or WebM): the hidden picture reads its header
+    (`preload = 'metadata'`; `none` held even the seek's own read, so such a
+    stream never had a frame) and then the bytes at the time asked, a few
+    Range requests a stop. A file has no `stopLoad()`, and after a seek the
+    browser reads on past the frame, so when the pointer leaves the file is
+    let go (`leave()`) and the next stop opens it again from its header:
+    no Range off the bar. `tests/browse-player-preview.e2e.ts` counts both,
+    against a fake hoster that caps each Range answer and can be slow.
+    A server whose lowest quality is
     above 480p, or of unknown height, and a stop that takes over 1 s show the
     time alone. A frame is shown only near the time it was drawn for (half a
     percent of the episode, at least a second; `nearFrame`): moved on, the

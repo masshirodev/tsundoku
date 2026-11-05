@@ -1133,7 +1133,7 @@
 		hoverAt = null;
 		clearTimeout(previewTimer);
 		previewAsk++;
-		preview?.stop();
+		preview?.leave();
 		streamPic = null;
 	}
 
