@@ -73,6 +73,7 @@
 		type StripChapter
 	} from '$lib/reader/reader';
 	import { skipOffscreen } from '$lib/reader/offscreen';
+	import { stripSlotAtMiddle } from '$lib/reader/strip-slot';
 	import { OnePointer } from '$lib/reader/pointer';
 	import PageImage from './PageImage.svelte';
 	import Chrome from './Chrome.svelte';
@@ -920,9 +921,9 @@
 	 * the browser's scroll anchoring does nothing at the very top of a page.
 	 */
 	async function keepPlace(change: () => void) {
-		const anchor = document
-			.elementFromPoint(innerWidth / 2, innerHeight / 2)
-			?.closest<HTMLElement>('[data-role="page"], .band');
+		// Through whatever covers the middle (c568): READING's sheet, the
+		// controls or the lookup over it are not the place; the strip under them is.
+		const anchor = stripSlotAtMiddle();
 		const before = anchor?.getBoundingClientRect().top;
 		change();
 		await tick();
@@ -1003,7 +1004,11 @@
 			?.scrollIntoView({ block: 'start' });
 	}
 	afterNavigate(() => {
-		place();
+		// Only for the entry this navigation arrived at (c568): a placeAt left by
+		// the strip's opening on a mode switch (no navigation, so nothing cleared
+		// it) is not where a later crossing goes. Replayed, it scrolled the strip
+		// back a whole chapter to the page the switch opened at.
+		if (placeAt?.id === data.entry.id) place();
 		placeAt = null;
 	});
 
