@@ -675,9 +675,11 @@ export function undoUnlink(facts: UnlinkFacts): 'undone' {
 	const id = facts.seriesId;
 	return db.transaction(() => {
 		if (isAnime(kindOf(id))) {
-			const taken = facts.parts.filter((p) => p.link);
-			if (!taken.length) throw new UndoUnlinkRefused('NOTHING TO UNDO');
-			const now = taken.map((p) => ({
+			if (!facts.parts.some((p) => p.link)) throw new UndoUnlinkRefused('NOTHING TO UNDO');
+			// Every part the UNLINK named, not only the ones it took a link from:
+			// it wrote its own decision over each, and a part it found with no
+			// link (NONE OF THESE, or never looked at) may be linked since too.
+			const now = facts.parts.map((p) => ({
 				p,
 				link: pick(
 					db
@@ -694,7 +696,8 @@ export function undoUnlink(facts: UnlinkFacts): 'undone' {
 						)
 						.get(id, p.season, p.part) as Decision | undefined) ?? null
 			}));
-			if (now.every((n) => sameLink(n.link, n.p.link)))
+			const taken = now.filter((n) => n.p.link);
+			if (taken.every((n) => sameLink(n.link, n.p.link)))
 				throw new UndoUnlinkRefused('ALREADY UNDONE');
 			for (const n of now)
 				if (n.link || n.decision?.decision !== 'unlinked' || n.decision.at !== facts.at)

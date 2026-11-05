@@ -883,6 +883,61 @@ describe('UNDO on UNLINK’s band (c520)', () => {
 			forgetSerie(id);
 		}
 	});
+
+	it('an anime: a part the UNLINK found with no link, linked since, refuses the whole UNDO', () => {
+		// The review's own UNLINK names no season: every season goes, a part
+		// with only NONE OF THESE included. Linking that part afterwards is a
+		// newer act the UNDO must not lay a stale decision over.
+		const id = animeSeries('Undo Unlinked Part');
+		const ep = db.prepare(
+			`INSERT INTO entries (series_id, position, label, added_at, season, episode_number) VALUES (?, ?, ?, ?, ?, ?)`
+		);
+		let position = 0;
+		for (let n = 1; n <= 12; n++) ep.run(id, ++position, `Episode ${n}`, NOW, 1, n);
+		for (let n = 1; n <= 3; n++) ep.run(id, ++position, `Episode ${n}`, NOW, 2, n);
+		const partsOf = () =>
+			db
+				.prepare(
+					`SELECT season, part, anilist_id FROM series_season_links WHERE series_id = ? ORDER BY season, part`
+				)
+				.all(id);
+		const decisionsOf = () =>
+			db
+				.prepare(
+					`SELECT season, part, decision, at FROM season_link_decisions WHERE series_id = ? ORDER BY season, part`
+				)
+				.all(id);
+		try {
+			expect(seasons.linkSeason(id, 1, 1, candidate(301, { episodes: 12 }), 'review', NOW)).toBe(
+				true
+			);
+			seasons.noneOfSeason(id, 2, 1, NOW + 1);
+			const facts = cat.unlink(id, NOW + 10);
+			expect(facts.parts.map((p) => [p.season, p.part, !!p.link])).toEqual([
+				[1, 1, true],
+				[2, 1, false]
+			]);
+			expect(
+				seasons.linkSeason(id, 2, 1, candidate(302, { episodes: 3 }), 'pasted', NOW + 20)
+			).toBe(true);
+			const linked = partsOf();
+			const decided = decisionsOf();
+			expect(linked).toEqual([{ season: 2, part: 1, anilist_id: 302 }]);
+			expect(undo(facts, id)).toThrow('LINKED OR DECIDED AGAIN SINCE');
+			// Nothing changed: S2 keeps its new link and no NONE OF THESE beside
+			// it, and S1 stays unlinked.
+			expect(partsOf()).toEqual(linked);
+			expect(decisionsOf()).toEqual(decided);
+			expect(decisionsOf()).not.toContainEqual(
+				expect.objectContaining({ season: 2, decision: 'none' })
+			);
+		} finally {
+			for (const t of ['series_season_links', 'season_link_decisions', 'entries'])
+				db.prepare(`DELETE FROM ${t} WHERE series_id = ?`).run(id);
+			db.prepare(`DELETE FROM series_links WHERE series_id = ?`).run(id);
+			forgetSerie(id);
+		}
+	});
 });
 
 describe('a comic’s link keeps its country and start year (c520, rung 70)', () => {

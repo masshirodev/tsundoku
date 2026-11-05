@@ -452,7 +452,8 @@ carries what went in its form, as RENAME's and ADD TO A WORK's do
 (`UnlinkFacts`, read back field by field by `parseUnlinkFacts`), so it goes
 with the screen: after a reload FIND is the way back. UNDO is all or
 nothing and never writes over a newer act: a link made since (another tab's
-PASTE, a pass) or a decision since (NONE OF THESE) refuses it as `LINKED OR
+PASTE, a pass) or a decision since (NONE OF THESE), on any part the UNLINK
+named, the parts it found with no link included, refuses it as `LINKED OR
 DECIDED AGAIN SINCE` · NOTHING CHANGED, and a second UNDO of the same band
 says `ALREADY UNDONE`. AniSkip's marks, which UNLINK clears, are asked
 again as for any new link. STATUS
