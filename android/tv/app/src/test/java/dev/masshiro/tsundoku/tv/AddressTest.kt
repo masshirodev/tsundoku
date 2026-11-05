@@ -69,4 +69,24 @@ class AddressTest {
 		assertEquals("http://lib.example.com:443", Address.originOf("http://lib.example.com:443"))
 		assertEquals("https://zen.local:80", Address.intentOrigin("https://zen.local:80"))
 	}
+
+	@Test
+	fun `a host and a scheme typed in capitals come back lower case (c548)`() {
+		assertEquals("http://zen.local:42143", Address.originOf("http://Zen.local:42143"))
+		assertEquals("http://zen.local:42143", Address.originOf("Zen.LOCAL:42143/series/1"))
+		assertEquals("https://zen.tailnet.ts.net:8443", Address.originOf("HTTPS://ZEN.tailnet.ts.net:8443/"))
+		// A scheme in capitals is a scheme: not a host to put http:// before.
+		assertEquals("http://zen.local:42143", Address.originOf("HTTP://Zen.local:42143"))
+		assertEquals("http://zen.local", Address.originOf("Http://Zen.local:80"))
+		// The same answer intentOrigin gives for the same address.
+		assertEquals(Address.intentOrigin("http://Zen.local:42143"), Address.originOf("http://Zen.local:42143"))
+	}
+
+	@Test
+	fun `originOf holds on its own output (c548)`() {
+		for (typed in listOf("HTTP://Zen.local:42143", "Zen.local:42143", "https://Lib.Example.com:443/x", "192.168.1.23:42143")) {
+			val once = Address.originOf(typed)
+			assertEquals(once, Address.originOf(once))
+		}
+	}
 }

@@ -178,6 +178,23 @@ comparison go through `new URL(…).origin` (the page's `atOrigin`), so a typed
 failure lands; comparing the raw strings dropped the answer and left 9B on
 CHECKING with NEXT disabled.
 
+What the app **stores** is `Address.originOf`'s origin, and that is lower case
+in its scheme and its host (c548), as `intentOrigin`, Chromium's URL and the
+page's `location.origin` all are. Before c548 `originOf` kept the host as
+typed, so `http://Zen.local:42143` in TYPE THE WHOLE ADDRESS was stored with
+its capitals: `BridgeGuard` then refused the server's own pages (they load at
+`http://zen.local:42143`), FORGET, RENAME, the probe and `named` did nothing
+from them, and `Servers.find` missed it, so it never became the server in use.
+A scheme typed in capitals (`HTTP://…`) is read as a scheme too, not given a
+second `http://`. Every place the APK compares an origin goes through
+`originOf` or agrees with it: `BridgeGuard.allows` (the top-level URL through
+`originOf`), `Servers.find`, `others`, `add`, `forget`, `move` and every
+update (each cleans its argument through `originOf`), `FailedLoad` (fed by
+`MainActivity.originOf(Uri)`, which lower-cases too, though Chromium's URL
+already is), `PairingBridge.remember`, `probe` and `forgetOne`, and the
+cookie's (`Forget.pairedCookie` reads only the scheme, lower-cased, and the
+port; `CookieManager` matches hosts without case).
+
 The check is 9B's own: the web app manifest, through `PairingBridge`. A given
 address goes through the same `#connect=` path in the asset page, remembers
 only in its success branch, and never adds a second probe.
@@ -320,6 +337,14 @@ opened and when it was added. Pure apart from its key-value, so
   not paired with leaves it alone. `address` is kept in step with the last
   used on every write, so an older APK installed over this one still opens
   the same library.
+- **Every stored line is read through `Address.originOf`** (`Servers.decode`),
+  so an entry written before a normalisation comes back normalised: one with
+  its scheme's own port (c261's round 2) or one typed with capitals (c548).
+  Two lines that then name one origin are one server, folded on read: the
+  one opened last wins (then the one added last), as the list is ordered,
+  and a server's name or the TV's name that the winner lacks is taken from
+  its twin, the way `move` carries the TV's name across only onto an entry
+  with none. The next write saves the folded list.
 - **`remember()` adds**, never replaces, and never makes a server the one in
   use: an add left at 9C does not take launch from the library the TV was in.
 - **FORGET** removes the entry and expires the cookies the WebView's jar
@@ -604,6 +629,15 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   and the page no longer focuses the field on arrival; that BACK closes the pad
   is the owner's observation on that TV, not something testable here, and no
   second TV has been tried. The app never calls `showSoftInput`.
+- **A server typed with capitals (c548).** `Address.originOf` lower-cases the
+  scheme and the host and `ServersTest`/`BridgeGuardTest` pin it, but no TV
+  has run it. The owner's check: on 9B, TYPE THE WHOLE ADDRESS as
+  `http://<Host>:42143` with a capital in the host (the computer's name as
+  `hostname` prints it, with its first letter upper case), pair, then on the
+  library open MORE › SERVERS: the row is there and IN USE, RENAME saves, and
+  after closing and relaunching the app it opens that library, not 9A. A TV
+  that stored such an entry before this APK reads it back lower case on the
+  first launch.
 - **A launch intent and a `tsundoku://` link on a device.** The parser and the
   page's `#connect=`/`#bad=` states are unit- and browser-tested, but nothing
   here has delivered an intent to a TV: no emulator image exists on this
@@ -701,12 +735,18 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
 - `android/tv/app/src/test/` — `AddressTest`, `AttemptsTest`, `BackTest`,
   `BridgeGuardTest`, `FailedLoadTest`, `ForgetTest`, `IntentAddressTest`,
   `KeysTest`, `PairingBridgeTest`, `ProbeTest`, `ScaleTest`, `ServersTest`,
-  `ShortcutsTest` (90 tests in 13 classes at wave 22's round 2), run by `./gradlew test`.
-  `ServersTest` (19) is c261's store: the migration of a TV paired with one
+  `ShortcutsTest` (97 tests in 13 classes at wave 25), run by `./gradlew test`.
+  `AddressTest` (8) includes c548's case: a host and a scheme typed in
+  capitals come back lower case, the same origin `intentOrigin` gives, and
+  `originOf` holds on its own output.
+  `ServersTest` (23) is c261's store: the migration of a TV paired with one
   address (a list of one, opened, never asked to pair again), an add that
   never takes launch, the last used first and 9D's others, names, encode and
   decode as each other's inverse, an entry stored with its scheme's own port
-  (`:443`, `:80`) read back without it, as WebView's URL has it, forget down to 9A, a server that moved, and
+  (`:443`, `:80`) read back without it, as WebView's URL has it, a mixed-case
+  entry read back lower case and found by its page's origin, an add typed in
+  capitals stored lower case, and two entries differing only in case folded
+  to the one opened last with the names it lacked (c548), forget down to 9A, a server that moved, and
   the JSON the pages read. `ShortcutsTest` (4) is c287's plan (one per
   server, four at most, each link read back through `givenAddress`'s decoding
   and `Address.intentOrigin` to the same origin). `ForgetTest` (5) is FORGET's
@@ -717,8 +757,9 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   next attempt ending a mark whose finish never came, and `onPageFinished`'s
   decision (`FailedLoad.finish`: a failed `/pair/tv` consumes its mark, a
   loaded one is read for 9E's name, an unknown server is never a visit).
-  `BridgeGuardTest` (5) is c529's rule (the asset page, a known origin, one
-  stored with its scheme's own port, and the refused: unknown origins,
+  `BridgeGuardTest` (6) is c529's rule (the asset page, a known origin, one
+  stored with its scheme's own port, one stored with capitals trusted on its
+  lower-case pages (c548), and the refused: unknown origins,
   another port, the http/https twin, other `file://` pages);
   `PairingBridgeTest` (5) calls each guarded method from an
   unknown page and finds nothing changed, from the asset page and a known

@@ -27,14 +27,22 @@ object Address {
 	 * A typed address as the origin the pages load: `192.168.1.23:42143` gets
 	 * `http://`, and a trailing slash or path is dropped. The whole-address
 	 * field is for Tailscale and another port, so https and a name are kept.
+	 *
+	 * The scheme and the host come back lower case (c548), as [intentOrigin]
+	 * has them, and as WebView's URL and the page's own `location.origin`
+	 * do: `http://Zen.local:42143` typed in 9B is the server whose pages load
+	 * at `http://zen.local:42143`, so BridgeGuard, FailedLoad and
+	 * Servers.find must see one origin, not two. A scheme typed in capitals
+	 * (`HTTP://`) is a scheme, not a host to put `http://` before.
 	 */
 	fun originOf(input: String?): String? {
 		val raw = input?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-		val withScheme = if (raw.startsWith("http://") || raw.startsWith("https://")) raw else "http://$raw"
+		val typed = raw.startsWith("http://", ignoreCase = true) || raw.startsWith("https://", ignoreCase = true)
+		val withScheme = if (typed) raw else "http://$raw"
 		val url = runCatching { java.net.URI(withScheme) }.getOrNull() ?: return null
-		if (url.host.isNullOrEmpty()) return null
-		val scheme = url.scheme ?: "http"
-		return "$scheme://${url.host}${portSuffix(scheme, url.port)}"
+		val host = url.host?.lowercase()?.takeIf { it.isNotEmpty() } ?: return null
+		val scheme = url.scheme?.lowercase() ?: "http"
+		return "$scheme://$host${portSuffix(scheme, url.port)}"
 	}
 
 	/**
