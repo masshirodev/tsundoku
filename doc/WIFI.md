@@ -119,8 +119,9 @@ one at a time.
   focus change (c246; a second TV paired with SETTINGS left on ✓ USED was its
   round 2). With no code at all (the server's memory after a restart, until a
   visit or a TV makes one) the row is still drawn wherever its block is
-  (`tvHere`, the load's own `tvBlockHere`): a dim — over EXPIRED · MAKE A NEW
-  CODE, and NEW CODE, and it is asked about too, since a TV makes a code
+  (`tvHere`, the load's own `tvBlockHere`): a dim — over NO CODE YET · MAKE A
+  NEW CODE (its own line since c580; until then it said EXPIRED · MAKE A NEW
+  CODE, about a code that never existed), and NEW CODE, and it is asked about too, since a TV makes a code
   where there is none. Neither burned nor expired is replaced by the
   refresh: the load replaces a spent code (`tvPanel`), so a refresh that made
   one, or reloaded the page's data to get one, would undo the burn within a
@@ -213,7 +214,10 @@ one at a time.
   countdown. It polls `/api/wifi` every 5 s, so the code turns ✓ USED by
   itself and the new phone's row appears, and a TV code five wrong tries
   burned turns BURNED with NO TRIES LEFT · MAKE A NEW CODE (an expired one
-  EXPIRED · MAKE A NEW CODE), NEW CODE lit. That poll reads both codes as they
+  EXPIRED · MAKE A NEW CODE), NEW CODE lit. With no TV code at all the
+  panel draws no TV block (`wifiView`'s `tv` is null for `none`), so its
+  EXPIRED line is only ever an expired code's; DEVICES' row is the one drawn
+  with no code, and says NO CODE YET (c580). That poll reads both codes as they
   are and never makes one (c460). On a phone the row is shown with no
   control (3E). Paired devices' rows carry OVER WI-FI and SIGN OUT. Search
   words: wifi, wi-fi, phone, pair. **On an install with no WI-FI panel** — the

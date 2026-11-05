@@ -323,7 +323,9 @@ test('with no code and `?/renew` unanswered, the DEVICES row is still drawn, and
 	await refused;
 	await expect(page.getByText('FOR A TV · SIX DIGITS')).toBeVisible();
 	await expect(page.locator('.pair-tv .tvcode.dim')).toHaveText('—');
-	await expect(page.getByText('EXPIRED · MAKE A NEW CODE')).toBeVisible();
+	// No code at all, not an expired one: its own line (c580).
+	await expect(page.locator('.pair-tv .tvline')).toHaveText('NO CODE YET · MAKE A NEW CODE');
+	await expect(page.getByText('EXPIRED · MAKE A NEW CODE')).toHaveCount(0);
 	await expect(page.getByLabel('Pairing code for a TV')).toHaveCount(0);
 	expect((await codeOn(B)).state).toBe('none');
 	await page.unroute(renewPost);
