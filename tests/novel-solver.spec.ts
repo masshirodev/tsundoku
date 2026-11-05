@@ -162,19 +162,27 @@ describe('the app’s solve for a site’s check', () => {
 		expect(solvingSince('novel.example')).toBeNull();
 	});
 
-	it('answers nothing when the solver fails, and writes no check', async () => {
+	it('answers nothing when the solver fails, does not remember it, and writes no check (c334)', async () => {
 		// A 200 carrying `status: 'error'` is a shape FlareSolverr does not send
-		// (it sends that body as an HTTP 500, below); it is tolerated, and is not
-		// the shape the memo exists for.
+		// (it sends that body as an HTTP 500, below), but Byparr speaks the same
+		// protocol, and a proxy or a wrong NOVEL_SOLVER_URL answers 200 with HTML.
+		// None of them is the shape the memo exists for: each next call asks
+		// again, with no `forgetFailedSolves()` between them.
 		reply = () => ({ status: 200, body: JSON.stringify({ status: 'error', message: 'nope' }) });
 		expect(await solveChallenge('https://www.novel.example/')).toBeNull();
-		// Each shape is its own solve, so each forgets the memo the one before it set.
-		forgetFailedSolves();
+		expect(asked).toHaveLength(1);
+		expect(await solveChallenge('https://www.novel.example/')).toBeNull();
+		expect(asked).toHaveLength(2);
 		reply = () => ({ status: 500, body: '{}' });
 		expect(await solveChallenge('https://www.novel.example/')).toBeNull();
-		forgetFailedSolves();
+		expect(asked).toHaveLength(3);
 		reply = () => ({ status: 200, body: 'not json' });
 		expect(await solveChallenge('https://www.novel.example/')).toBeNull();
+		expect(asked).toHaveLength(4);
+		reply = () => ({ status: 200, body: JSON.stringify({ status: 'ok' }) });
+		expect(await solveChallenge('https://www.novel.example/')).toBeNull();
+		expect(await solveChallenge('https://www.novel.example/')).toBeNull();
+		expect(asked).toHaveLength(6);
 		expect(checked()).toEqual([]);
 	});
 

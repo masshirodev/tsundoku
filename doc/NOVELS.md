@@ -166,8 +166,10 @@ address.
   refused (a `solution.status` of 400 or more) or an answer with no cookies and
   no user agent — is not asked again for ten minutes. A solve that **failed** is
   not remembered: FlareSolverr reports its own `status: 'error'` as an HTTP 500
-  (measured 2026-11-02), and the app's 60 s budget can abort before that answer
-  arrives at all, so the next call asks again. That is deliberate — a solver's
+  (measured 2026-11-02), a 200 that is not an `ok` answer at all (Byparr's
+  error, a proxy's HTML page) is the solver's trouble too, and the app's 60 s
+  budget can abort before an answer arrives at all, so the next call asks
+  again. That is deliberate — a solver's
   failure says nothing about the host, and a solver started after the app would
   otherwise be ignored for ten minutes. TRY AGAIN on the source page does
   nothing for a refused host until the ten minutes pass; a restart of the app —
@@ -251,8 +253,8 @@ user agent in the answer, a secure cookie making the clearance https-only, one
 solve per host at a time, the live line while it runs, `site_checks` on
 success, a page the solver's own browser was refused treated as no clearance,
 a solve that answered without a usable clearance remembered and not asked again,
-a solver's own failure (an HTTP 500, or one it could not reach) asked again next
-call, and which address the app uses. `tests/novel-host.spec.ts`'s check block is the host's half — a
+a solver's own failure (an HTTP 500, a 200 that is not an `ok` answer, or one it
+could not reach) asked again next call, and which address the app uses. `tests/novel-host.spec.ts`'s check block is the host's half — a
 clearance the site refused remembered so the next call is one request, a secure
 clearance kept off http — and `tests/engine-browse-db.spec.ts` pins the join
 BROWSE's live line needs: a novel's `checkingSince` answers while the app's own
