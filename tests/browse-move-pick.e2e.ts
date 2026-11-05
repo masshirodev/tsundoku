@@ -547,6 +547,22 @@ test('three quick picks on one slow source: one details call each at most, and a
 	state.held.set(CAND.a.url, new Promise<void>((r) => (releaseA = r)));
 	state.slow.set(CAND.b.url, 2500);
 	state.slow.set(CAND.c.url, 200);
+	// Which compare requests Chromium's network stack has put on the wire, by URL.
+	const cdp = await page.context().newCDPSession(page);
+	await cdp.send('Network.enable');
+	// The two events can come in either order, so each records its half.
+	const urls = new Map<string, string>();
+	const sent = new Set<string>();
+	const onWire = new Set<string>();
+	cdp.on('Network.requestWillBeSent', (e) => {
+		urls.set(e.requestId, e.request.url);
+		if (sent.has(e.requestId)) onWire.add(e.request.url);
+	});
+	cdp.on('Network.requestWillBeSentExtraInfo', (e) => {
+		sent.add(e.requestId);
+		const url = urls.get(e.requestId);
+		if (url) onWire.add(url);
+	});
 	const compares: string[] = [];
 	const dropped: string[] = [];
 	page.on('request', (r) => {
@@ -571,6 +587,13 @@ test('three quick picks on one slow source: one details call each at most, and a
 	await expect.poll(() => asked(CAND.c).length).toBe(1);
 	expect(asked(CAND.b)).toHaveLength(1);
 	await expect.poll(() => dropped.filter(to(CAND.b)).length).toBe(1);
+	// The page's `request` event is the page asking, not the request on the
+	// wire: measured in wave 25, C reached the server up to 11 ms after A was
+	// let go on a loaded box, and a turn could reach B before either sign
+	// (c567). Chromium's network stack says when it sent a request's own
+	// headers (`requestWillBeSentExtraInfo`), the nearest outward mark of C
+	// leaving for the server.
+	await expect.poll(() => onWire.has(compares.find(to(CAND.c)) ?? '')).toBe(true);
 	releaseA();
 	// C waits for the call already running (A's), not for B's as well: the
 	// counts below prove that; the clock is left loose, as a loaded box
