@@ -183,7 +183,10 @@ so the link tapped on the preview is `aria-busy` and underlined, with
 `FINDING <SOURCE>'S FILTERS… · A FIRST CALL TAKES UP TO 20 S` under the TAGS
 row, and the sheet's IN <SOURCE> row is `aria-busy` with `FINDING <SOURCE>'S
 FILTERS…` as its second line. `pageshow` clears both, for BACK from the
-bfcache. `filterSchema` keeps the answer per
+bfcache. A BACK that is not from the bfcache draws the page again, so BACK
+alone passed with the clear removed; `tests/browse-tags.e2e.ts` pins each
+clear with a `pageshow` sent with `persisted: true` to the page that set the
+mark, its navigation held (c538). `filterSchema` keeps the answer per
 source (`keep`), so after the first tap the wait is nothing, and the source's
 page answers from the same cache.
 
