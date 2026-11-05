@@ -5,8 +5,10 @@ import { expect, test } from './fixtures';
  * The library's top on a TV (doc/LIBRARY.md, "Sort and direction" and "The
  * top bar"): SORT's menu walked by the remote alone (c432). The `tv` project
  * has no pointer, so every press is a key. BACK from deep in the grid lands
- * at the top and stays there, sampled every frame for 2 s (c543). Sorting
- * only changes the URL:
+ * at the top and stays there, sampled every frame for 2 s (c543). OK on a
+ * shelf tab keeps the mark on the tab row (c589; a remote meets the tabs at
+ * the top, so the case guards the mark, not the scroll). Sorting and shelves
+ * only change the URL:
  * nothing here writes to the database the flow files share.
  */
 
@@ -110,12 +112,14 @@ test('the remote reaches SORT, OK opens it on the choice in use, and the pad wal
 	await expect.poll(() => focused(page)).toBe('Sort, RATING');
 });
 
-test('OK on another shelf tab opens it at its top with the mark still on the tab row (c589)', async ({
-	page
-}) => {
+test('OK on another shelf tab keeps the mark on the tab row (c589)', async ({ page }) => {
 	// A remote meets the tabs at the screen's start (BACK from the grid climbs
 	// past the pinned band to the first CONTINUE card), so what a TV needs of
-	// c589 is that the shelf's links scrolling to the top keep the mark.
+	// c589 is that the shelf's links scrolling to the top keep the mark. The
+	// page is at 0 before OK as well as after, so the scrollY read below
+	// cannot fail on c589's own change (it passes with noscroll put back,
+	// measured): this case guards keepfocus. The scroll is the device
+	// projects' (library-top-scroll.e2e.ts, c589).
 	await page.goto('/?sort=title');
 	const onTab = () =>
 		page.evaluate(() => document.activeElement?.getAttribute('data-focus-id') ?? '');
