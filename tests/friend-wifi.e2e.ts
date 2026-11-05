@@ -252,15 +252,38 @@ test('over Wi-Fi, only its own address: another name is refused, and the compute
 	expect([401, 403]).toContain(off.status());
 });
 
-test('OFF stops listening on the Wi-Fi; the computer goes on', async ({ page, request }) => {
+test('OFF stops listening on the Wi-Fi; the computer goes on', async ({
+	page,
+	request,
+	playwright
+}) => {
 	const { phone } = await wifi(request);
 	await page.goto('/settings#s-devices');
 	await hydrated(page);
+	// OFF's answer is the page's own state: the panel goes when /api/wifi has
+	// answered, after the Wi-Fi listeners have closed, which on a loaded box
+	// took longer than expect's 5 s (wave 23's loaded whole run; c439).
+	const answered = page.waitForResponse(
+		(r) => r.url().endsWith('/api/wifi') && r.request().method() === 'POST'
+	);
 	await page
 		.getByRole('group', { name: 'Other devices on this Wi-Fi' })
 		.getByRole('button', { name: 'OFF' })
 		.click();
+	expect((await answered).ok()).toBe(true);
 	await expect(page.getByLabel('Pairing', { exact: true })).toHaveCount(0);
 	await expect(request.get(`${phone}/`, { timeout: 3000 })).rejects.toThrow();
-	expect((await request.get(`${local}/manifest.webmanifest`)).ok()).toBe(true);
+	// Asked on a connection of its own. The `request` fixture's pool still
+	// holds the socket of its first call above, idle since then, and Node's
+	// server ends an idle keep-alive socket after 5 s: on a loaded box the steps
+	// between took about that long, and the GET went out on the socket as the
+	// server closed it (`read ECONNRESET`, wave 22's loaded whole run, passing
+	// alone; c439). The computer's listener is a server apart from the Wi-Fi's
+	// (src/lib/server/lan-listen.ts), which OFF alone closes.
+	const fresh = await playwright.request.newContext();
+	try {
+		expect((await fresh.get(`${local}/manifest.webmanifest`)).ok()).toBe(true);
+	} finally {
+		await fresh.dispose();
+	}
 });

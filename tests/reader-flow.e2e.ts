@@ -259,16 +259,23 @@ test('vertical: nothing moves when chapters arrive above, or when the reader cro
 	await expect(
 		page.locator(`[data-role="page"]:not([data-entry="${first}"])`).first()
 	).toBeAttached();
-	const atTop = await page.evaluate(() => {
-		const el = document.elementFromPoint(innerWidth / 2, 2)?.closest<HTMLElement>('[data-role]');
-		return (
-			el && {
-				entry: el.dataset.entry,
-				index: el.dataset.index,
-				top: Math.round(el.getBoundingClientRect().top)
-			}
-		);
-	});
+	const readTop = () =>
+		page.evaluate(() => {
+			const el = document.elementFromPoint(innerWidth / 2, 2)?.closest<HTMLElement>('[data-role]');
+			return (
+				el && {
+					entry: el.dataset.entry,
+					index: el.dataset.index,
+					top: Math.round(el.getBoundingClientRect().top)
+				}
+			);
+		});
+	// Polled, not read once: the previous chapter arrives above in its own
+	// time, and read in the moment before the reader has kept its place, the
+	// top of the screen held no page slot at all (`null`, wave 23's fifth
+	// loaded run, passing alone; c439). What is asserted is where it rests.
+	await expect.poll(readTop).toMatchObject({ entry: first });
+	const atTop = await readTop();
 	expect(atTop).toMatchObject({ entry: first });
 	expect(Math.abs(atTop!.top)).toBeLessThan(4);
 

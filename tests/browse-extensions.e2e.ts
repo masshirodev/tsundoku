@@ -13,6 +13,44 @@ test.beforeEach(async () => {
 	await resetEngine();
 });
 
+const revealCookie = (origin: string) => ({
+	name: 'tsundoku_reveal',
+	value: '1',
+	url: origin,
+	httpOnly: true
+});
+
+/** Set by the LNReader case once it is about to INSTALL; the afterEach puts back what it left. */
+let lnPluginInstalled = false;
+
+// Teardown has its own budget, so this runs and reaches the server even when
+// the case timed out (c507; a finally in the body does not: its requests throw
+// "Test timeout exceeded" before they are sent). Both requests are harmless
+// when there is nothing to undo: off deletes the switch's row, and REMOVE of a
+// plugin that isn't there does nothing. A failed put-back is soft, so the
+// body's own error stays the one reported.
+test.afterEach(async ({ page }, testInfo) => {
+	if (!lnPluginInstalled) return;
+	lnPluginInstalled = false;
+	const origin = new URL(testInfo.project.use.baseURL!).origin;
+	// Reveal on, so the hidden source's settings page is found at all.
+	await page.context().addCookies([revealCookie(origin)]);
+	const off = await page.request.post(`${origin}/browse/ln:goodnovels/settings?/flag`, {
+		form: { flag: 'hidden', value: 'false' },
+		headers: { origin }
+	});
+	const removed = await page.request.post(`${origin}/browse/extensions?/remove`, {
+		form: { pkg: 'ln:goodnovels' },
+		headers: { origin }
+	});
+	await page.context().clearCookies({ name: 'tsundoku_reveal' });
+	// 404 once REMOVE has run: no such source, and so no switch to put back.
+	expect
+		.soft(off.ok() || off.status() === 404, `HIDDEN SOURCE put back off: ${off.status()}`)
+		.toBe(true);
+	expect.soft(removed.ok(), `Good Novels removed: ${removed.status()}`).toBe(true);
+});
+
 test('a repository is added, an extension installed, updated, taken back and removed', async ({
 	page
 }) => {
@@ -132,6 +170,17 @@ test('an LNReader repository is asked, added, a novel plugin installed in the ho
 	await page.locator('.found button').click();
 	await expect(row('127.0.0.1').filter({ hasText: 'NOVELS' })).toContainText('1 PLUGIN');
 
+	// The plugin, and its HIDDEN SOURCE switch below, live in the browse
+	// world's one database, which every browse-* file shares, and the case puts
+	// both back only at its end. A red before then left Good Novels installed
+	// and hidden: this case's REMOVE, a rerun's INSTALL and every later reader
+	// of BROWSE's sources went red behind it, one red becoming several (c507).
+	// So the afterEach below puts both back whatever happened, timeouts
+	// included: a finally in the body shares the test's budget, and after a
+	// timeout its requests throw before they are sent (review, wave 23).
+	lnPluginInstalled = true;
+	const origin = new URL(test.info().project.use.baseURL!).origin;
+	const reveal = () => page.context().addCookies([revealCookie(origin)]);
 	await page.goto('/browse/extensions?tab=available&kind=novels');
 	await row('Good Novels').getByRole('button', { name: 'INSTALL' }).click();
 	await expect(row('Good Novels')).toContainText('INSTALLED ✓');
@@ -185,10 +234,7 @@ test('an LNReader repository is asked, added, a novel plugin installed in the ho
 		await page.goto(path);
 		await expect(page.locator('body'), path).not.toContainText(/good novels/i);
 	}
-	const origin = new URL(page.url()).origin;
-	await page
-		.context()
-		.addCookies([{ name: 'tsundoku_reveal', value: '1', url: origin, httpOnly: true }]);
+	await reveal();
 	for (const path of ['/browse/extensions', '/browse/extensions?tab=available&kind=novels']) {
 		await page.goto(path);
 		await expect(row('Good Novels'), path).toBeVisible();

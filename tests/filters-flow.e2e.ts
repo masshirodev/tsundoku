@@ -44,7 +44,6 @@ test('a filter narrows the shelf: the URL, the label, the tab’s count and the 
 }) => {
 	await page.goto('/?shelf=all&sort=title');
 	const tab = page.locator('nav[aria-label="Shelves"] .tab.on').filter({ visible: true });
-	const total = Number((await tab.locator('.n').textContent())!.trim());
 	// A kind from the KIND band (c436): the active tab says what it narrows, and
 	// the label names it, but FILTER's badge leaves it to the band.
 	const band = page.getByRole('group', { name: 'Kind' });
@@ -57,8 +56,18 @@ test('a filter narrows the shelf: the URL, the label, the tab’s count and the 
 	await expect(page).toHaveURL(/fav=0/);
 	await expect(page.getByText('02 — ALL · MANGA · NOT FAV')).toBeVisible();
 	await expect(filterCell(page)).toContainText('1');
+	// The tab's "N OF M" is read from the same render as the grid, never against
+	// a total read before the filter: ALL counts the shared database, and the
+	// flows beside this one hide, delete and group series meanwhile
+	// (library-flow, series-flow, delete-flow, volumes-flow), so the total read
+	// at the first load was another library's by the filtered one. Red in both
+	// of wave 22's gates, passing alone (c439).
+	// M is only bounded from below: the render states no total of ALL's to
+	// compare it with, and a total read on another load is another library's.
 	const shown = await page.locator('.grid .tile').count();
-	await expect(tab).toContainText(`${shown} OF ${total}`);
+	await expect(tab).toContainText(new RegExp(`\\b${shown} OF \\d+`));
+	const of = Number((await tab.textContent())!.match(/\d+ OF (\d+)/)![1]);
+	expect(of, 'the filter narrows ALL').toBeGreaterThan(shown);
 	// The band's MANGA counts what the grid shows: every filter but KIND.
 	await expect(band.getByRole('link', { name: /^MANGA/ }).locator('.n')).toHaveText(String(shown));
 	// No favourite is left on the grid.

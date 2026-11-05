@@ -25,11 +25,12 @@ import { expect, test } from '@playwright/test';
 
 const base = process.env.PLAYWRIGHT_BASE_URL ?? '';
 
-// Drawn at one viewport: the board's 440px panel is tablet-landscape's (the
-// one hand edit, so DEVICE_IGNORE, e2e's, needn't learn this file).
-test.beforeEach(() =>
-	test.skip(test.info().project.name !== 'tablet-landscape', 'the board is the 440px panel')
-);
+// Drawn at one viewport: the board's 440px panel is tablet-landscape's, and
+// every other project ignores this file (playwright.config.ts's
+// TABLET_LANDSCAPE_ONLY, c510). That replaced the one hand edit this file had,
+// a beforeEach that skipped it outside tablet-landscape. This comment is a
+// hand edit too: regenerating the file (gen-conformance) drops it, and needs
+// no skip back, since the config is what keeps it to its project.
 
 const SEL = {
 	region7: '[data-row="lists"] [data-line="anilist"] .drop'

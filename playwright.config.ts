@@ -57,6 +57,14 @@ const DEVICE_IGNORE = [
 	'**/works-flow.e2e.ts'
 ];
 
+// Two frames are drawn at one device's viewport, so they run in that project
+// alone and every other one ignores them (c510), rather than each listing and
+// skipping itself everywhere else: IMPORT A BACKUP's pick board is the
+// desktop's (beside the sidebar), and the series screen's LISTS board is
+// tablet-landscape's 440px side panel.
+const DESKTOP_ONLY = ['**/import-frame.e2e.ts'];
+const TABLET_LANDSCAPE_ONLY = ['**/series-lists-frame.e2e.ts'];
+
 // The projects are the devices the design system names: the tablet the library
 // is read on, in both orientations, and a phone. A frame assertion that holds
 // on one and not another is exactly what these exist to catch.
@@ -163,7 +171,9 @@ export default defineConfig({
 				'**/work-group-frame.e2e.ts',
 				'**/work-row-frame.e2e.ts',
 				// The Works flow seeds and serves its own database: `works-flow`.
-				'**/works-flow.e2e.ts'
+				'**/works-flow.e2e.ts',
+				...DESKTOP_ONLY,
+				...TABLET_LANDSCAPE_ONLY
 			],
 			use: { ...devices['Galaxy Tab S4'], viewport: { width: 800, height: 1280 } }
 		},
@@ -172,13 +182,17 @@ export default defineConfig({
 		// extracted at; the other devices are covered by library-layout.e2e.ts.
 		{
 			name: 'tablet-landscape',
-			testIgnore: DEVICE_IGNORE,
+			testIgnore: [...DEVICE_IGNORE, ...DESKTOP_ONLY],
 			use: { ...devices['Galaxy Tab S4 landscape'], viewport: { width: 1280, height: 800 } }
 		},
-		{ name: 'phone', testIgnore: DEVICE_IGNORE, use: { ...devices['Pixel 7'] } },
+		{
+			name: 'phone',
+			testIgnore: [...DEVICE_IGNORE, ...DESKTOP_ONLY, ...TABLET_LANDSCAPE_ONLY],
+			use: { ...devices['Pixel 7'] }
+		},
 		{
 			name: 'desktop',
-			testIgnore: DEVICE_IGNORE,
+			testIgnore: [...DEVICE_IGNORE, ...TABLET_LANDSCAPE_ONLY],
 			use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } }
 		},
 		{

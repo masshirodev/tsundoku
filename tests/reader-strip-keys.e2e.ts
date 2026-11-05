@@ -28,9 +28,27 @@ async function open(page: import('@playwright/test').Page) {
 	await page.waitForLoadState('networkidle');
 }
 
-/** The strip's scroll, less what keeping its place added since `toStrip` began. */
+/**
+ * The strip's scroll, less what keeping its place added since `toStrip` began.
+ * Once `toStrip` has settled it is read off one page slot instead (`ref`, the
+ * one under the middle then): how far that slot's top has gone up the screen.
+ * `kept` counts only the app's own place-keeping, and under load the browser's
+ * scroll anchoring moved `scrollY` by thousands of pixels as images above came
+ * in, with no event (4864 px on tablet-portrait, 10504 on the phone, wave 23's
+ * loaded whole run; c439). A nudge moves the slot by its 40 px whatever
+ * arrives above it. If that slot leaves the strip, `place()` throws rather
+ * than switch measures mid-case.
+ */
 const place = (page: import('@playwright/test').Page) =>
-	page.evaluate(() => Math.round(scrollY - ((window as unknown as { kept?: number }).kept ?? 0)));
+	page.evaluate(() => {
+		const w = window as unknown as { kept?: number; ref?: Element };
+		if (!w.ref) return Math.round(scrollY - (w.kept ?? 0));
+		// Never fall back to the scroll once the slot is the measure: a start read
+		// off the slot against a scroll read now differs by thousands of pixels,
+		// which reads as a wrong nudge rather than as what it is.
+		if (!w.ref.isConnected) throw new Error('place(): the reference page slot left the strip');
+		return Math.round(-w.ref.getBoundingClientRect().top);
+	});
 
 const pageParam = (page: import('@playwright/test').Page) =>
 	Number(new URL(page.url()).searchParams.get('p') ?? '0');
@@ -71,8 +89,15 @@ async function toStrip(page: import('@playwright/test').Page) {
 			{ intervals: [1000], timeout: 30_000 }
 		)
 		.toBe(true);
-	// Measured from here: what was kept while settling is the start.
-	await page.evaluate(() => ((window as unknown as { kept: number }).kept = 0));
+	// Measured from here: what was kept while settling is the start, and the
+	// slot under the middle is what `place()` reads from now on.
+	await page.evaluate(() => {
+		const w = window as unknown as { kept: number; ref?: Element };
+		w.kept = 0;
+		w.ref =
+			document.elementFromPoint(innerWidth / 2, innerHeight / 2)?.closest('[data-role="page"]') ??
+			undefined;
+	});
 }
 
 test('a paged reader still turns on ← and →', async ({ page }) => {
@@ -96,7 +121,8 @@ test('on the strip, → and ← nudge as Ctrl + ↓ and Ctrl + ↑ do; Ctrl + �
 	await toStrip(page);
 	const y = () => place(page);
 	const y0 = await y();
-	expect(y0).toBeGreaterThan(40);
+	// Room above for ← to nudge back up.
+	expect(await page.evaluate(() => scrollY)).toBeGreaterThan(40);
 
 	await page.keyboard.press('ArrowRight');
 	await expect.poll(async () => Math.abs((await y()) - y0 - 40)).toBeLessThanOrEqual(1);
