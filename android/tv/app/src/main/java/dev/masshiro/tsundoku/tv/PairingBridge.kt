@@ -123,8 +123,10 @@ class PairingBridge(
 	/** Forgets every server: what this bridge's `forget()` has always meant. */
 	@JavascriptInterface
 	fun forget() {
+		// Asked once: the page's own server is forgotten along the way, and a
+		// second ask from its page would refuse every server after it.
 		if (!trusted()) return
-		for (s in servers.all()) forgetServer(s.origin)
+		for (s in servers.all()) forgetOne(s.origin)
 	}
 
 	/** The list, the one in use first (Servers.toJson). */
@@ -166,12 +168,17 @@ class PairingBridge(
 	@JavascriptInterface
 	fun forgetServer(origin: String): String {
 		if (!trusted()) return servers.toJson()
-		val clean = Address.originOf(origin) ?: return servers.toJson()
+		forgetOne(origin)
+		return servers.toJson()
+	}
+
+	/** One server and its cookies, with the guard already asked by the caller. */
+	private fun forgetOne(origin: String) {
+		val clean = Address.originOf(origin) ?: return
 		if (servers.forget(clean)) {
 			host.onUi { host.clearCookies(clean) }
 			host.serversChanged()
 		}
-		return servers.toJson()
 	}
 
 	/** A server that moved: the new address takes that entry's place (9D's CHANGE THE ADDRESS). */

@@ -642,7 +642,7 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
 - `android/tv/app/src/test/` — `AddressTest`, `AttemptsTest`, `BackTest`,
   `BridgeGuardTest`, `FailedLoadTest`, `ForgetTest`, `IntentAddressTest`,
   `KeysTest`, `PairingBridgeTest`, `ProbeTest`, `ScaleTest`, `ServersTest`,
-  `ShortcutsTest` (86 tests in 13 classes at wave 22's round 2), run by `./gradlew test`.
+  `ShortcutsTest` (87 tests in 13 classes at wave 22's round 2), run by `./gradlew test`.
   `ServersTest` (18) is c261's store: the migration of a TV paired with one
   address (a list of one, opened, never asked to pair again), an add that
   never takes launch, the last used first and 9D's others, names, encode and
@@ -659,10 +659,11 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   loaded one is read for 9E's name, an unknown server is never a visit).
   `BridgeGuardTest` (4) is c529's rule (the asset page, a known origin, and
   the refused: unknown origins, another port, the http/https twin, other
-  `file://` pages); `PairingBridgeTest` (4) calls each guarded method from an
+  `file://` pages); `PairingBridgeTest` (5) calls each guarded method from an
   unknown page and finds nothing changed, from the asset page and a known
   server's and finds it acted, and FORGET's `open` and `welcome` still
-  answering the page it has just made unknown. `AttemptsTest` plays the activity's two launch doors in
+  answering the page it has just made unknown, and `forget()` from a known
+  server's page forgetting every server, its own included. `AttemptsTest` plays the activity's two launch doors in
   order: a given address during the remembered probe keeps its 9B whether the
   probe answers or not (c306). That `MainActivity` calls `Attempts` at both
   doors is read, not run: a JVM test cannot drive the Activity.

@@ -165,4 +165,14 @@ class PairingBridgeTest {
 		w.bridge.open("https://example.com")
 		assertEquals(emptyList<String>(), w.host.calls)
 	}
+
+	@Test
+	fun `forget from a known server's page forgets every server, its own first or not (round 2)`() {
+		// The guard is asked once: once home is gone its page is unknown, and
+		// asking again for each server stopped the loop after home.
+		val w = world("$home/")
+		w.bridge.forget()
+		assertEquals(emptyList<Servers.Server>(), w.servers.all())
+		assertTrue(w.host.calls.contains("clearCookies $zen"))
+	}
 }
