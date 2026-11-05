@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { type Page } from '@playwright/test';
+import { type Locator, type Page } from '@playwright/test';
 import { E2E_TOKEN } from '../playwright.config';
 import { expect, test } from './fixtures';
 
@@ -512,6 +512,114 @@ test('a kind chosen from the pinned band opens at its start: the band under the 
 	await expect(all).toHaveAttribute('aria-current', 'true');
 	await landedUnderBand();
 	expect(await firstTitle(page)).toBe(wantAll);
+});
+
+// ---- c590: an open menu over the KIND band ------------------------------------------
+
+const sortCell = (page: Page) => page.getByRole('button', { name: /^Sort, / });
+const sortMenu = (page: Page) => page.getByRole('menu', { name: 'Sort' });
+
+/**
+ * Each element's centre, and what the page draws there: `top` when the
+ * element itself (or something inside it) is, else what covers it. Read in
+ * the page, so all of them are read in one frame.
+ */
+const whatIsAt = (els: Locator) =>
+	els.evaluateAll((all) =>
+		all.map((el) => {
+			const r = el.getBoundingClientRect();
+			const x = r.left + r.width / 2;
+			const y = r.top + r.height / 2;
+			const hit = document.elementFromPoint(x, y);
+			const bar = document.querySelector('.library > header.bar')!.getBoundingClientRect();
+			const band = document.querySelector('.kinds')!.getBoundingClientRect();
+			return {
+				label: el.textContent?.trim() ?? '',
+				y,
+				onScreen: y > 0 && y < innerHeight && x > 0 && x < innerWidth,
+				underBar: y < bar.bottom,
+				overBand: y > band.top && y < band.bottom,
+				top: !!hit && el.contains(hit),
+				inBar: !!hit && !!hit.closest('.library > header.bar'),
+				hit: hit ? `${hit.tagName}.${hit.className}` : 'nothing'
+			};
+		})
+	);
+
+test('an open SORT list is over the KIND band, at the top and pinned, under the top bar, and the band is back over the grid once it closes (c590)', async ({
+	page
+}) => {
+	await page.goto(`${BASE}/?shelf=all&sort=title`);
+	await expect(page.locator('.grid .tile').first()).toBeVisible();
+	const zClosed = await kinds(page).evaluate((b) => getComputedStyle(b).zIndex);
+
+	// At the top: the list hangs from SORT over the tabs and the band, and
+	// every choice is what is drawn at its centre (the owner's screenshot:
+	// the band's strip cut the list under RECENTLY READ).
+	await sortCell(page).click();
+	await expect(sortMenu(page)).toBeVisible();
+	const choices = sortMenu(page).getByRole('menuitemradio');
+	await expect(choices).toHaveCount(6);
+	const atTop = await whatIsAt(choices);
+	// The state reached: some choice lies over the band.
+	expect(atTop.some((c) => c.overBand)).toBe(true);
+	for (const c of atTop) expect(c, `${c.label} at the top`).toMatchObject({ top: true });
+
+	// Scrolled with it open until the band pins under the bar, and a
+	// choice's height (52px) on, so the list's head is under the bar on every
+	// device (the desktop has no tabs between SORT and the band): what is
+	// still under the bar's foot is the list's, and what went up is under
+	// the bar (a sheet from the bar, at 20, is over both).
+	const pinAt = await page.evaluate(() => {
+		const mark = document.querySelector('.band-mark')!.getBoundingClientRect().top;
+		const bar = document.querySelector('.library > header.bar')!.getBoundingClientRect();
+		return scrollY + mark - bar.bottom + 52;
+	});
+	await page.evaluate((y) => scrollTo({ top: y, behavior: 'instant' }), pinAt);
+	await expect(kinds(page)).toHaveClass(/pinned/);
+	await expect(sortMenu(page)).toBeVisible();
+	const pinned = (await whatIsAt(choices)).filter((c) => c.onScreen);
+	expect(pinned.some((c) => c.overBand)).toBe(true);
+	expect(pinned.some((c) => c.underBar)).toBe(true);
+	for (const c of pinned)
+		expect(c, `${c.label} pinned`).toMatchObject(c.underBar ? { inBar: true } : { top: true });
+	// BACK TO TOP stays out of the way while it is open (c433).
+	await expect(toTop(page)).toHaveCount(0);
+
+	// Closed: the band is at its own layer again, over the grid it is pinned on.
+	await page.keyboard.press('Escape');
+	await expect(sortMenu(page)).toBeHidden();
+	expect(await kinds(page).evaluate((b) => getComputedStyle(b).zIndex)).toBe(zClosed);
+	const atBand = await kinds(page).evaluate((b) => {
+		const r = b.getBoundingClientRect();
+		return b.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+	});
+	expect(atBand).toBe(true);
+});
+
+test('FILTER’s open panel is over the KIND band and the grid, at the top and pinned (c590)', async ({
+	page
+}, info) => {
+	await page.goto(`${BASE}/?shelf=all&sort=title`);
+	await expect(page.locator('.grid .tile').first()).toBeVisible();
+	// The desktop's FILTER is the top bar's; the others' is the band's last cell.
+	const filter = page.locator(isDesktop(info.project.name) ? '.filter-desk' : '.kfilter');
+	const panel = filter.getByRole('group', { name: 'Filters' });
+	const parts = panel.locator('.head, .opt, .done');
+
+	for (const where of ['top', 'pinned'] as const) {
+		if (where === 'pinned') {
+			await scrollScreens(page, 1.5);
+			await expect(kinds(page)).toHaveClass(/pinned/);
+		}
+		await filter.locator('summary').click();
+		await expect(panel).toBeVisible();
+		const seen = (await whatIsAt(parts)).filter((c) => c.onScreen && !c.underBar);
+		expect(seen.length).toBeGreaterThan(3);
+		for (const c of seen) expect(c, `${c.label} (${where})`).toMatchObject({ top: true });
+		await panel.getByRole('button', { name: 'DONE' }).click();
+		await expect(panel).toBeHidden();
+	}
 });
 
 test('the band scrolls sideways and never wraps, keeping the chosen kind in view', async ({

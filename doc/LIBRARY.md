@@ -613,6 +613,19 @@ a band to select kinds on the library itself?" Designed in
   puts the mark on the shelf showing (on the desktop, back to the band's own
   place). Pinned is measured, not guessed: a marker just above the band, and
   the band held apart from it. So the pinned chrome is 60 + 40px on a phone.
+- **An open SORT list is drawn over it** (c590, the owner's screenshot of
+  2026-11-05: the band cut a strip out of the list under RECENTLY READ). The
+  list is 7 and the band 7 (9 on a TV) in one stacking context, and the band
+  comes later in the page, so it won the tie. While the list is open the
+  band steps down to 6, still over the grid (whose highest layer is 3) and
+  under the list; the list stays under the top bar (8), so scrolled up under
+  it the list goes under the bar, and a sheet from the bar (20) is over both.
+  Closed, the band is at 7 again. FILTER's panel needed nothing: it hangs
+  inside the band's own layer on a phone, tablet and TV, and inside the top
+  bar's on the desktop. `tests/library-top-scroll.e2e.ts` asks
+  `elementFromPoint` at the centre of every choice and every FILTER cell, at
+  the top and pinned, on all four devices; `tests/tv-library-top.e2e.ts` at
+  each choice the remote walks.
 - **A kind chosen while it is pinned opens at its start.** The cells keep the
   scroll (`data-sveltekit-noscroll`), so choosing from the band at its own
   place never jumps the page. Pinned, that would open the new kind partway

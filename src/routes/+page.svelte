@@ -2385,6 +2385,19 @@
 		display: flex;
 		flex-shrink: 0;
 	}
+	/* An open menu is over everything in the page's flow (c590), and still
+	   under the top bar (8) and its sheets (20). SORT's list is 7 in the same
+	   stacking context as the band (no ancestor between them makes one: the
+	   section label and the SORT block are not stacked), so the band, at 7
+	   later in the page (9 on a TV), drew over the list. Raising the list
+	   would lift it over the top bar too, so while it is open the band steps
+	   down to 6: still over the grid, whose highest layer is 3. FILTER's
+	   panel needs nothing: on a phone, tablet and TV it is inside the band's
+	   own context, on the desktop inside the top bar's (8). A TV's focus line
+	   (9) is not drawn while either menu has focus (no data-focus-line). */
+	.library:has(.sort :global(.menu > .cell[aria-expanded='true'])) .kinds {
+		z-index: 6;
+	}
 	/* The phone drops the KIND label for room, and has the shelf's cell only pinned. */
 	@media (max-width: 599px) {
 		.klabel:not(.shelf) {

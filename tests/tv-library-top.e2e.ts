@@ -46,6 +46,16 @@ async function toSort(page: Page) {
 	await expect.poll(() => focused(page)).toMatch(/^Sort, /);
 }
 
+/** Whether the focused element is what the page draws at its own centre, nothing over it. */
+const drawnAtCentre = (page: Page) =>
+	page.evaluate(() => {
+		const a = document.activeElement;
+		if (!a) return false;
+		const r = a.getBoundingClientRect();
+		const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+		return !!hit && a.contains(hit);
+	});
+
 test('the remote reaches SORT, OK opens it on the choice in use, and the pad walks every choice', async ({
 	page
 }) => {
@@ -60,10 +70,15 @@ test('the remote reaches SORT, OK opens it on the choice in use, and the pad wal
 	for (let i = 0; i < 6; i++) await page.keyboard.press('ArrowUp');
 	await expect.poll(() => focused(page)).toBe('RECENTLY READ');
 	const walked = [await focused(page)];
+	const drawn = [await drawnAtCentre(page)];
 	for (let i = 0; i < 5; i++) {
 		await page.keyboard.press('ArrowDown');
 		walked.push(await focused(page));
+		drawn.push(await drawnAtCentre(page));
 	}
+	// Each choice the mark is on is what the screen draws there: the KIND
+	// band (9 on a TV) steps under the open list (c590).
+	expect(drawn).toEqual(walked.map(() => true));
 	expect(walked).toEqual([
 		'RECENTLY READ',
 		'RECENTLY ADDED',

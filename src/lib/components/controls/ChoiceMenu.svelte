@@ -144,7 +144,10 @@
 		background: transparent;
 		cursor: default;
 	}
-	/* FILTER's panel, as a column: the full-ink rule on top, hairlines between. */
+	/* FILTER's panel, as a column: the full-ink rule on top, hairlines between.
+	   7, under a top bar (8): a caller that draws something at 7 or above
+	   between the cell and the list's foot steps it down while the list is
+	   open, as the library does its KIND band (c590). */
 	.menu > .list {
 		position: absolute;
 		top: 100%;
