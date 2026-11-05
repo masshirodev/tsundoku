@@ -148,8 +148,16 @@ test('a deeper screen slides in, and history slides it back out', async ({ page 
 	// The URL changes at once; the screen moves once its data is here. Under a
 	// loaded run either screen can take long enough that its outline showed and
 	// slid in first, and then the screen only fades over it.
+	// The back move lands once the library's data is in: measured in wave 25
+	// (c439), 40 copies at a load of 40-44, 0.2-4.1 s after the popstate
+	// (median 0.8 s), every one `back`, and the attribute always cleared at
+	// the popstate first, so the observer sees each move. The poll's default
+	// 5 s ran out at loads of 53-76 in wave 24 with only the forward move
+	// recorded; 15 s is the measured worst with room for a gate's load.
 	await expect
-		.poll(() => page.evaluate(() => (window as unknown as { moves: string[] }).moves))
+		.poll(() => page.evaluate(() => (window as unknown as { moves: string[] }).moves), {
+			timeout: 15_000
+		})
 		.toEqual([expect.stringMatching(/^(forward|fade)$/), expect.stringMatching(/^(back|fade)$/)]);
 });
 

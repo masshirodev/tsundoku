@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { hydrated } from './helpers/hydration';
 
 /**
  * Design conformance, in a real browser.
@@ -21,8 +22,9 @@ import { expect, test, type Page } from '@playwright/test';
  * Extracted at 2026-11-04T11:48:46.574Z at 1440x2400.
  *
  * Regenerating overwrites this file. Hand edits belong in a sibling spec.
- * Two hand edits must survive a regeneration: the series is opened by its
- * title (`openByTitle`, c519), not `/series/7`, and region7's widths below.
+ * Three hand edits must survive a regeneration: the series is opened by its
+ * title (`openByTitle`, c519), not `/series/7`, once the library has
+ * hydrated (c439), and region7's widths below.
  */
 
 const base = process.env.PLAYWRIGHT_BASE_URL ?? '';
@@ -40,8 +42,15 @@ const base = process.env.PLAYWRIGHT_BASE_URL ?? '';
 // writes a fixed `/series/<id>` back: keep this lookup when you regenerate.
 const TITLE = 'The Greatest Estate Developer';
 
+//
+// Hand edit (c439): the tile is clicked once the library has hydrated. This
+// file's `test` is `@playwright/test`'s (generated so; c542 moves it), whose
+// `goto` waits for neither network quiet nor hydration, and a click on the
+// server's markup before then does nothing: the second gate of wave 24 timed
+// out here waiting for the series' URL.
 async function openByTitle(page: Page, title: string): Promise<void> {
 	await page.goto(`${base}/?sort=title`);
+	await hydrated(page);
 	await page.locator('.grid .tile', { hasText: title }).first().click();
 	await page.waitForURL(/\/series\/\d+/);
 }
