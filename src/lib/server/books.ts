@@ -5,7 +5,7 @@ import { libraryWhere } from './visibility.ts';
 import { getDb } from './db.ts';
 import { hueFor } from '../library/cover.ts';
 import { setKey, suggestionSets, type Candidate, type Suggestion } from '../library/books.ts';
-import type { Rating } from '$lib/library/types';
+import type { Rating } from '../library/types.ts';
 import { kindFacts, kindsGrouped, type Kind } from '../library/kinds.ts';
 
 const { dirname, join, relative, basename } = posix;

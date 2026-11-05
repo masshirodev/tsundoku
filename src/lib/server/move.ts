@@ -12,7 +12,7 @@ import { engineDownSince } from './engine/client.ts';
 import { coverRoute } from './novels/source.ts';
 import { searchSources } from './downloads.ts';
 import { forgetSourceUse } from './library-sources.ts';
-import { ago } from '$lib/library/tracking';
+import { ago } from '../library/tracking.ts';
 import {
 	animeKeyOf,
 	keyOf,
@@ -20,8 +20,8 @@ import {
 	parseKey,
 	sourceOfKey,
 	type ResultMatch
-} from '$lib/library/downloads';
-import { formatNumber } from '$lib/library/series';
+} from '../library/downloads.ts';
+import { formatNumber } from '../library/series.ts';
 import {
 	buildMoveMap,
 	guessOffset,
@@ -34,9 +34,9 @@ import {
 	type MoveKind,
 	type MovePlan,
 	type MoveSummaryRow
-} from '$lib/library/move';
-import type { Kind } from '$lib/library/types';
-import { isMovable, kindFacts, moveKindOf, type MovableKind } from '$lib/library/kinds';
+} from '../library/move.ts';
+import type { Kind } from '../library/types.ts';
+import { isMovable, kindFacts, moveKindOf, type MovableKind } from '../library/kinds.ts';
 
 /**
  * MOVE (doc/MOVE.md; card c139): moving a series to another source, as one
