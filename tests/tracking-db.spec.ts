@@ -11,6 +11,7 @@ const { getDb } = await import('$lib/server/db');
 const { seedSample } = await import('$lib/server/fixtures');
 const cat = await import('$lib/server/catalogue');
 const tr = await import('$lib/server/tracking');
+const seasonLinks = await import('$lib/server/season-links');
 
 const db = getDb();
 const NOW = Date.UTC(2026, 8, 25);
@@ -513,5 +514,98 @@ describe('sending', () => {
 			userName: null,
 			linked: 1
 		});
+	});
+});
+
+describe('a season’s other part speaks for the list signed in (c518)', () => {
+	/** A season entry as a search answers it: part 1 and part 2 are AniList's two entries. */
+	const part = (id: number, mal: number, episodes: number) => ({
+		anilistId: id,
+		malId: mal,
+		title: `Entry ${id}`,
+		alts: [] as string[],
+		format: 'TV',
+		country: 'JP',
+		year: 2024,
+		chapters: null,
+		volumes: null,
+		episodes,
+		season: 'FALL',
+		seasonYear: 2024,
+		status: 'FINISHED',
+		coverUrl: ''
+	});
+
+	it('shows MAL’s word for the other part with AniList signed out, and AniList’s once it is back', async () => {
+		const root = (
+			db.prepare(`SELECT id FROM roots WHERE hidden = 0 LIMIT 1`).get() as { id: number }
+		).id;
+		const show = Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, added_at, origin_key, in_library)
+					VALUES (?, 'Two Part Lantern', 'anime', ?, 'aniyomi:9003:/two-part', 1)`
+				)
+				.run(root, NOW).lastInsertRowid
+		);
+		const ep = db.prepare(
+			`INSERT INTO entries (series_id, position, label, added_at, season, episode_number, duration_s)
+			VALUES (?, ?, ?, ?, 1, ?, 1440)`
+		);
+		for (let n = 1; n <= 23; n++) ep.run(show, n, `Episode ${n}`, NOW, n);
+		try {
+			// One season of 23 at the source, 12 + 11 on the catalogues.
+			expect(seasonLinks.linkSeason(show, 1, 1, part(301, 701, 12), 'review', NOW)).toBe(true);
+			expect(seasonLinks.linkSeason(show, 1, 2, part(302, 702, 11), 'review', NOW)).toBe(true);
+			// Both lists read through their own doors: AniList says part 2 is
+			// planned, MAL that it is watched to EP. 4.
+			alAnime = [
+				{ mediaId: 301, status: 'CURRENT', progress: 3, score: 0, media: animeMedia(301, 'P1') },
+				{ mediaId: 302, status: 'PLANNING', progress: 0, score: 0, media: animeMedia(302, 'P2') }
+			];
+			malAnime = [
+				{
+					node: { id: 701 },
+					list_status: { status: 'watching', score: 0, num_episodes_watched: 3 }
+				},
+				{
+					node: { id: 702 },
+					list_status: { status: 'watching', score: 0, num_episodes_watched: 4 }
+				}
+			];
+			await signIn('anilist');
+			await signIn('mal');
+			db.prepare(`UPDATE entries SET read_at = ? WHERE series_id = ? AND episode_number <= 3`).run(
+				NOW,
+				show
+			);
+			const other = () => tr.trackingOf(show)!.seasons![0].other;
+			const main = () => tr.trackingOf(show)!.seasons![0];
+			// Both signed in: AniList is the main list, for both parts.
+			expect(main().part).toBe(1);
+			expect(other()).toMatchObject({ part: 2, state: 'planning', progress: 0 });
+			// AniList signed out keeps what it said (signOut), and MAL now leads.
+			tr.signOut('anilist');
+			expect(
+				db
+					.prepare(
+						`SELECT status FROM season_tracker_state WHERE series_id = ? AND part = 2 AND service = 'anilist'`
+					)
+					.get(show)
+			).toEqual({ status: 'planning' });
+			expect(other()).toMatchObject({ part: 2, state: 'reading', progress: 4 });
+			// Signed back in: AniList's word again, and no stale MAL word on the right.
+			await signIn('anilist');
+			expect(other()).toMatchObject({ part: 2, state: 'planning', progress: 0 });
+			// Neither signed in: the rule falls back to AniList, as the line does.
+			tr.signOut('anilist');
+			tr.signOut('mal');
+			expect(other()).toMatchObject({ part: 2, state: 'planning', progress: 0 });
+		} finally {
+			for (const t of ['season_tracker_state', 'season_tracker_sends', 'series_season_links'])
+				db.prepare(`DELETE FROM ${t} WHERE series_id = ?`).run(show);
+			db.prepare(`DELETE FROM entries WHERE series_id = ?`).run(show);
+			db.prepare(`DELETE FROM series WHERE id = ?`).run(show);
+		}
 	});
 });

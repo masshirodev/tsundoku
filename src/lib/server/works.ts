@@ -50,7 +50,7 @@ import {
 } from '../library/works.ts';
 import { effectiveDirection, type Direction } from '../library/series.ts';
 import { kindDirection } from './series.ts';
-import { readsOnline } from './pages/online.ts';
+import { readsOnline, streamsOnline } from './pages/online.ts';
 import type { Kind, Rating } from '../library/types.ts';
 
 export class WorkError extends Error {}
@@ -832,7 +832,9 @@ function nextFacts(p: WorkPartRow): WorkNextPart {
 					number: first.number,
 					label: first.label,
 					available: first.available !== 0,
-					online: first.available === 0 && readsOnline(first.id)
+					// A chapter reads online, an episode streams (c536): two questions,
+					// since the image reader's manifests ask `readsOnline` alone.
+					online: first.available === 0 && (readsOnline(first.id) || streamsOnline(first.id))
 				}
 			: null
 	};

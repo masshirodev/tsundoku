@@ -64,7 +64,16 @@ States.dc.html` (brief: [`briefs/done/DOWNLOADS.md`](briefs/done/DOWNLOADS.md)).
   first: the span, the size at this series' own average chapter, the queue it
   joins, and that read chapters are left out. The confirmation is a URL
   (`?download=all`), so it opens without script too. Read chapters with no
-  file are never in either.
+  file are never in either. The action (`?/download`, `queueSeries`) answers
+  `{ queued, missing, already }`: `already` counts the chapters it was asked
+  for (every unread one for NEXT and ALL) that are queued, downloading or
+  waiting to be imported, so a press that queues nothing because everything
+  is under way can say so; the end page's DOWNLOAD FIRST 10 says `ALREADY
+QUEUED` from it (c534). That cell posts `which=first`: the first ten unread
+  chapters in reading order whatever their state (queue the file-less, retry
+  the failed, count the rest as `already`), so a second press asks for the
+  same ten, where NEXT 10 would move on to the next ten. The series screen's band reads `queued` and
+  `missing` only.
 - **Since 2026-10-29, a series a source serves reads online instead**
   ([`BROWSING.md`](BROWSING.md), "Manga online"): its rows open, and
   downloading is the ↓ cell at the end of each row (RETRY on a failed one).

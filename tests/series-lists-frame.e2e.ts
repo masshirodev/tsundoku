@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 /**
  * Design conformance, in a real browser.
@@ -21,6 +21,8 @@ import { expect, test } from '@playwright/test';
  * Extracted at 2026-11-04T11:48:46.574Z at 1440x2400.
  *
  * Regenerating overwrites this file. Hand edits belong in a sibling spec.
+ * Two hand edits must survive a regeneration: the series is opened by its
+ * title (`openByTitle`, c519), not `/series/7`, and region7's widths below.
  */
 
 const base = process.env.PLAYWRIGHT_BASE_URL ?? '';
@@ -31,13 +33,25 @@ const base = process.env.PLAYWRIGHT_BASE_URL ?? '';
 // a beforeEach that skipped it outside tablet-landscape. This comment is a
 // hand edit too: regenerating the file (gen-conformance) drops it, and needs
 // no skip back, since the config is what keeps it to its project.
+//
+// Hand edit (c519): the series is found by its title, through the library as
+// a person would open it, not by the seed's id (`/series/7` moved whenever the
+// seed reordered its series). gen-conformance takes one URL, so regenerating
+// writes a fixed `/series/<id>` back: keep this lookup when you regenerate.
+const TITLE = 'The Greatest Estate Developer';
+
+async function openByTitle(page: Page, title: string): Promise<void> {
+	await page.goto(`${base}/?sort=title`);
+	await page.locator('.grid .tile', { hasText: title }).first().click();
+	await page.waitForURL(/\/series\/\d+/);
+}
 
 const SEL = {
 	region7: '[data-row="lists"] [data-line="anilist"] .drop'
 };
 
 test('screen: region7 matches the handoff', async ({ page }) => {
-	await page.goto(`${base}/series/7`);
+	await openByTitle(page, TITLE);
 	await expect(page.locator(SEL.region7)).toBeVisible();
 
 	// authored as: 219px 219px

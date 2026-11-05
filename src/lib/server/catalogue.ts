@@ -38,6 +38,7 @@ import {
 	seasonSettled,
 	seasonToLook,
 	seriesSeasons,
+	syncSeriesLink,
 	unlinkSeason,
 	undoNoneSeason,
 	undoSeasonLink
@@ -268,6 +269,9 @@ type LinkRow = {
 	filled_rating: number | null;
 	score: number | null;
 	format: string | null;
+	/** AniList's countryOfOrigin and start year (rung 70, c520); NULL until asked, '' when unknown. */
+	country: string | null;
+	year: number | null;
 };
 
 function linkOf(db: Database.Database, seriesId: number): LinkRow | null {
@@ -327,7 +331,8 @@ export function linkFromTracker(
 	if (had) {
 		db.prepare(
 			`UPDATE series_links SET mal_id = ?, anilist_id = NULL, title = '', cover_url = '',
-				resolved_at = NULL, format = NULL, score = ?, linked_at = ? WHERE series_id = ?`
+				resolved_at = NULL, format = NULL, country = NULL, year = NULL, score = ?, linked_at = ?
+				WHERE series_id = ?`
 		).run(mal.id, mal.score || null, now, seriesId);
 		clearAniSkip(seriesId, db);
 		return;
@@ -365,13 +370,26 @@ export function link(seriesId: number, c: Candidate, via: Via, now = Date.now())
 	const db = getDb();
 	db.transaction(() => {
 		db.prepare(
-			`INSERT INTO series_links (series_id, anilist_id, mal_id, via, title, cover_url, linked_at, resolved_at, format)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`INSERT INTO series_links (series_id, anilist_id, mal_id, via, title, cover_url, linked_at, resolved_at, format, country, year)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT (series_id) DO UPDATE SET anilist_id = excluded.anilist_id, mal_id = excluded.mal_id,
 				via = excluded.via, title = excluded.title, cover_url = excluded.cover_url,
 				linked_at = excluded.linked_at, resolved_at = excluded.resolved_at,
-				filled_rating = NULL, score = NULL, format = excluded.format`
-		).run(seriesId, c.anilistId, c.malId, via, c.title, c.coverUrl, now, now, c.format);
+				filled_rating = NULL, score = NULL, format = excluded.format,
+				country = excluded.country, year = excluded.year`
+		).run(
+			seriesId,
+			c.anilistId,
+			c.malId,
+			via,
+			c.title,
+			c.coverUrl,
+			now,
+			now,
+			c.format,
+			c.country,
+			c.year
+		);
 		db.prepare(`DELETE FROM link_decisions WHERE series_id = ?`).run(seriesId);
 		clearAniSkip(seriesId, db);
 	})();
@@ -427,6 +445,53 @@ export function undoLink(seriesId: number, season?: number, part = 1): boolean {
 	})();
 }
 
+// ---- UNLINK, and its UNDO (c520) ----------------------------------------------------------
+
+/** The columns a comic's link and a season's share past their keys. */
+const SHARED_COLUMNS = [
+	'anilist_id',
+	'mal_id',
+	'via',
+	'title',
+	'cover_url',
+	'linked_at',
+	'resolved_at',
+	'filled_rating',
+	'score',
+	'format'
+] as const;
+/** Every column of a comic's `series_links` row past its key: what UNDO puts back. */
+const LINK_COLUMNS = [...SHARED_COLUMNS, 'country', 'year'] as const;
+/** Every column of an anime's `series_season_links` row past its key. */
+const SEASON_LINK_COLUMNS = [...SHARED_COLUMNS, 'episodes', 'year'] as const;
+
+type TakenRow = Record<string, string | number | null>;
+type Decision = { decision: 'none' | 'unlinked'; at: number };
+
+/**
+ * What UNLINK took, exactly, so its band's UNDO can put it back (c520). The
+ * rows are keyed by the series and, for an anime, by season and part: never a
+ * row id, which a later link could reuse. `at` is the UNLINK's own time, the
+ * mark its decision rows carry; UNDO knows its own decision by it.
+ */
+export type UnlinkFacts = {
+	seriesId: number;
+	at: number;
+	/** The entry's title, for the band. */
+	title: string;
+	/** The season the UNLINK named; null when it named none. */
+	season: number | null;
+	/** A comic's link and the decision row it replaced (null: there was none). */
+	link: TakenRow | null;
+	decision: Decision | null;
+	/** An anime's parts, each as it was; and the series' mirror row (`syncSeriesLink`). */
+	parts: { season: number; part: number; link: TakenRow | null; decision: Decision | null }[];
+	mirror: TakenRow | null;
+};
+
+const pick = (r: Record<string, unknown> | undefined, cols: readonly string[]): TakenRow | null =>
+	r ? Object.fromEntries(cols.map((c) => [c, (r[c] ?? null) as string | number | null])) : null;
+
 /**
  * UNLINK, on the series screen: the link goes and stays gone. An import won't
  * bring Mihon's tracker back, and the pass won't search it again; FIND and
@@ -435,25 +500,256 @@ export function undoLink(seriesId: number, season?: number, part = 1): boolean {
  *
  * An anime unlinks a season -- every part of it, since a season's line stands
  * for the whole season -- or every season it has when nobody said, which is
- * what the review's own UNLINK means.
+ * what the review's own UNLINK means. It answers what it took, for the
+ * band's UNDO (c520).
  */
-export function unlink(seriesId: number, now = Date.now(), season?: number): void {
+export function unlink(seriesId: number, now = Date.now(), season?: number): UnlinkFacts {
+	const db = getDb();
+	const linkRow = () =>
+		pick(
+			db.prepare(`SELECT * FROM series_links WHERE series_id = ?`).get(seriesId) as
+				Record<string, unknown> | undefined,
+			LINK_COLUMNS
+		);
+	const facts: UnlinkFacts = {
+		seriesId,
+		at: now,
+		title: '',
+		season: season ?? null,
+		link: null,
+		decision: null,
+		parts: [],
+		mirror: null
+	};
 	if (isAnime(kindOf(seriesId))) {
 		const view = seriesSeasons(seriesId);
 		const list = view ? view.seasons.map((s) => s.season) : [0];
+		facts.mirror = linkRow();
 		for (const s of season === undefined ? list : [season]) {
 			const parts = view?.seasons.find((x) => x.season === s)?.parts.map((p) => p.part) ?? [1];
-			for (const p of parts) unlinkSeason(seriesId, s, p, now);
+			for (const p of parts) {
+				const link = pick(
+					db
+						.prepare(
+							`SELECT * FROM series_season_links WHERE series_id = ? AND season = ? AND part = ?`
+						)
+						.get(seriesId, s, p) as Record<string, unknown> | undefined,
+					SEASON_LINK_COLUMNS
+				);
+				const decision =
+					(db
+						.prepare(
+							`SELECT decision, at FROM season_link_decisions WHERE series_id = ? AND season = ? AND part = ?`
+						)
+						.get(seriesId, s, p) as Decision | undefined) ?? null;
+				facts.parts.push({ season: s, part: p, link, decision });
+				unlinkSeason(seriesId, s, p, now);
+			}
 		}
-		return;
+		facts.title = String(facts.parts.find((p) => p.link)?.link?.title ?? '');
+		return facts;
 	}
-	const db = getDb();
 	db.transaction(() => {
+		facts.link = linkRow();
+		facts.decision =
+			(db.prepare(`SELECT decision, at FROM link_decisions WHERE series_id = ?`).get(seriesId) as
+				Decision | undefined) ?? null;
 		db.prepare(`DELETE FROM series_links WHERE series_id = ?`).run(seriesId);
 		db.prepare(
 			`INSERT OR REPLACE INTO link_decisions (series_id, decision, at) VALUES (?, 'unlinked', ?)`
 		).run(seriesId, now);
 		clearAniSkip(seriesId, db);
+	})();
+	facts.title = String(facts.link?.title ?? '');
+	return facts;
+}
+
+/** Why an UNDO of UNLINK put nothing back: the band says it, and nothing changed. */
+export class UndoUnlinkRefused extends Error {}
+
+const sameLink = (a: TakenRow | null, b: TakenRow | null) =>
+	!!a &&
+	!!b &&
+	a.anilist_id === b.anilist_id &&
+	a.mal_id === b.mal_id &&
+	a.linked_at === b.linked_at;
+
+/** A posted row, read back as the columns it may carry and nothing else. */
+function rowFrom(r: unknown, cols: readonly string[]): TakenRow | null {
+	if (!r || typeof r !== 'object') return null;
+	const o = r as Record<string, unknown>;
+	const out: TakenRow = {};
+	for (const c of cols) {
+		const v = o[c];
+		if (v !== null && typeof v !== 'string' && typeof v !== 'number') return null;
+		out[c] = v ?? null;
+	}
+	// The tables' own CHECK on `via`: a posted word outside it is refused here,
+	// not by SQLite halfway through the UNDO.
+	const vias = cols.includes('episodes') ? SEASON_VIAS : VIAS;
+	return typeof out.linked_at === 'number' && vias.includes(out.via as string) ? out : null;
+}
+const VIAS = ['mihon', 'exact', 'review', 'pasted', 'list'];
+const SEASON_VIAS = [...VIAS, 'relations'];
+
+function decisionFrom(d: unknown): Decision | null {
+	if (!d || typeof d !== 'object') return null;
+	const o = d as Record<string, unknown>;
+	return (o.decision === 'none' || o.decision === 'unlinked') && typeof o.at === 'number'
+		? { decision: o.decision, at: o.at }
+		: null;
+}
+
+/**
+ * The band's facts, as posted: checked field by field, so UNDO writes only
+ * what an UNLINK of this series could have taken. Null when they are not.
+ */
+export function parseUnlinkFacts(raw: string, seriesId: number): UnlinkFacts | null {
+	let f: Record<string, unknown>;
+	try {
+		f = JSON.parse(raw) as Record<string, unknown>;
+	} catch {
+		return null;
+	}
+	if (!f || typeof f !== 'object' || f.seriesId !== seriesId || typeof f.at !== 'number')
+		return null;
+	const parts = Array.isArray(f.parts) ? f.parts : [];
+	const read = parts.map((p) => {
+		const o = (p ?? {}) as Record<string, unknown>;
+		return {
+			season: o.season,
+			part: o.part,
+			link: o.link == null ? null : rowFrom(o.link, SEASON_LINK_COLUMNS),
+			decision: o.decision == null ? null : decisionFrom(o.decision),
+			bad:
+				(o.link != null && !rowFrom(o.link, SEASON_LINK_COLUMNS)) ||
+				(o.decision != null && !decisionFrom(o.decision))
+		};
+	});
+	if (read.some((p) => p.bad || !Number.isInteger(p.season) || (p.part !== 1 && p.part !== 2)))
+		return null;
+	const link = f.link == null ? null : rowFrom(f.link, LINK_COLUMNS);
+	const mirror = f.mirror == null ? null : rowFrom(f.mirror, LINK_COLUMNS);
+	if ((f.link != null && !link) || (f.mirror != null && !mirror)) return null;
+	if (f.decision != null && !decisionFrom(f.decision)) return null;
+	return {
+		seriesId,
+		at: f.at,
+		title: typeof f.title === 'string' ? f.title : '',
+		season: Number.isInteger(f.season) ? (f.season as number) : null,
+		link,
+		decision: f.decision == null ? null : decisionFrom(f.decision),
+		parts: read.map((p) => ({
+			season: p.season as number,
+			part: p.part as number,
+			link: p.link,
+			decision: p.decision
+		})),
+		mirror
+	};
+}
+
+const insertRow = (
+	db: Database.Database,
+	table: string,
+	key: Record<string, number>,
+	row: TakenRow
+) => {
+	const cols = [...Object.keys(key), ...Object.keys(row)];
+	db.prepare(
+		`INSERT INTO ${table} (${cols.join(', ')}) VALUES (${cols.map(() => '?').join(', ')})`
+	).run(...Object.values(key), ...Object.values(row));
+};
+
+/**
+ * UNDO on UNLINK's band (c520): the rows the UNLINK took, back as they were,
+ * and its decision ("no pass asks again") gone with it, so the next pass
+ * treats the series as linked again. All or nothing, and never over a newer
+ * act: a link made since, or a decision since (NONE OF THESE, another UNLINK),
+ * refuses the whole UNDO. A second UNDO of the same facts finds its rows back
+ * and says so. AniSkip's marks, which UNLINK cleared, are fetched again on the
+ * next look as for any new link; they were never the owner's.
+ */
+export function undoUnlink(facts: UnlinkFacts): 'undone' {
+	const db = getDb();
+	const id = facts.seriesId;
+	return db.transaction(() => {
+		if (isAnime(kindOf(id))) {
+			if (!facts.parts.some((p) => p.link)) throw new UndoUnlinkRefused('NOTHING TO UNDO');
+			// Every part the UNLINK named, not only the ones it took a link from:
+			// it wrote its own decision over each, and a part it found with no
+			// link (NONE OF THESE, or never looked at) may be linked since too.
+			const now = facts.parts.map((p) => ({
+				p,
+				link: pick(
+					db
+						.prepare(
+							`SELECT * FROM series_season_links WHERE series_id = ? AND season = ? AND part = ?`
+						)
+						.get(id, p.season, p.part) as Record<string, unknown> | undefined,
+					SEASON_LINK_COLUMNS
+				),
+				decision:
+					(db
+						.prepare(
+							`SELECT decision, at FROM season_link_decisions WHERE series_id = ? AND season = ? AND part = ?`
+						)
+						.get(id, p.season, p.part) as Decision | undefined) ?? null
+			}));
+			const taken = now.filter((n) => n.p.link);
+			if (taken.every((n) => sameLink(n.link, n.p.link)))
+				throw new UndoUnlinkRefused('ALREADY UNDONE');
+			for (const n of now)
+				if (n.link || n.decision?.decision !== 'unlinked' || n.decision.at !== facts.at)
+					throw new UndoUnlinkRefused('LINKED OR DECIDED AGAIN SINCE');
+			for (const p of facts.parts) {
+				// Only the UNLINK's own decision goes; the one it replaced comes back.
+				db.prepare(
+					`DELETE FROM season_link_decisions WHERE series_id = ? AND season = ? AND part = ?
+					AND decision = 'unlinked' AND at = ?`
+				).run(id, p.season, p.part, facts.at);
+				if (p.decision)
+					db.prepare(
+						`INSERT OR IGNORE INTO season_link_decisions (series_id, season, part, decision, at)
+						VALUES (?, ?, ?, ?, ?)`
+					).run(id, p.season, p.part, p.decision.decision, p.decision.at);
+				if (p.link)
+					insertRow(
+						db,
+						'series_season_links',
+						{ series_id: id, season: p.season, part: p.part },
+						p.link
+					);
+			}
+			// The mirror as it was (its score and filled rating are only its own),
+			// then brought in line with the seasons as they now are.
+			const mirrorNow = db.prepare(`SELECT 1 FROM series_links WHERE series_id = ?`).get(id);
+			if (facts.mirror && !mirrorNow)
+				insertRow(db, 'series_links', { series_id: id }, facts.mirror);
+			syncSeriesLink(id, facts.at);
+			return 'undone' as const;
+		}
+		if (!facts.link) throw new UndoUnlinkRefused('NOTHING TO UNDO');
+		const link = pick(
+			db.prepare(`SELECT * FROM series_links WHERE series_id = ?`).get(id) as
+				Record<string, unknown> | undefined,
+			LINK_COLUMNS
+		);
+		if (sameLink(link, facts.link)) throw new UndoUnlinkRefused('ALREADY UNDONE');
+		const decision =
+			(db.prepare(`SELECT decision, at FROM link_decisions WHERE series_id = ?`).get(id) as
+				Decision | undefined) ?? null;
+		if (link || decision?.decision !== 'unlinked' || decision.at !== facts.at)
+			throw new UndoUnlinkRefused('LINKED OR DECIDED AGAIN SINCE');
+		db.prepare(`DELETE FROM link_decisions WHERE series_id = ?`).run(id);
+		if (facts.decision)
+			db.prepare(`INSERT INTO link_decisions (series_id, decision, at) VALUES (?, ?, ?)`).run(
+				id,
+				facts.decision.decision,
+				facts.decision.at
+			);
+		insertRow(db, 'series_links', { series_id: id }, facts.link);
+		return 'undone' as const;
 	})();
 }
 
@@ -618,17 +914,25 @@ export function kindOf(seriesId: number): Kind | null {
 export async function resolveLinks(now = Date.now()): Promise<number> {
 	const db = getDb();
 	const waiting = db
-		// Also a link from before rung 26, which doesn't know its entry's format yet.
+		// Also a link from before rung 26, which doesn't know its entry's format
+		// yet, and one from before rung 70, which doesn't know its country or year
+		// (c520). Not an anime's mirror of its first season (`syncSeriesLink`):
+		// its season rows are its links, and the season keeps its own year.
 		.prepare(
-			`SELECT l.series_id, l.anilist_id, l.mal_id, s.kind FROM series_links l
+			`SELECT l.series_id, l.anilist_id, l.mal_id, s.kind,
+				l.resolved_at IS NOT NULL AND l.format IS NOT NULL AS known FROM series_links l
 			JOIN series s ON s.id = l.series_id
-			WHERE l.resolved_at IS NULL OR (l.format IS NULL AND l.anilist_id IS NOT NULL)`
+			WHERE l.resolved_at IS NULL OR (l.format IS NULL AND l.anilist_id IS NOT NULL)
+				OR (l.country IS NULL AND l.anilist_id IS NOT NULL
+					AND NOT EXISTS (SELECT 1 FROM series_season_links x WHERE x.series_id = l.series_id))`
 		)
 		.all() as {
 		series_id: number;
 		anilist_id: number | null;
 		mal_id: number | null;
 		kind: Kind;
+		/** Resolved and its format known: only its country and year are asked (rung 70). */
+		known: number;
 	}[];
 	if (!waiting.length) return 0;
 	const kinds: Kind[] = [...new Set(waiting.map((w) => w.kind))];
@@ -652,10 +956,15 @@ export async function resolveLinks(now = Date.now()): Promise<number> {
 	const alById = new Map((await lookup('id_in')).map((c) => [c.anilistId, c]));
 	const set = db.prepare(
 		`UPDATE series_links SET anilist_id = ?, mal_id = COALESCE(?, mal_id), title = ?, cover_url = ?, resolved_at = ?,
-			format = ? WHERE series_id = ?`
+			format = ?, country = ?, year = ? WHERE series_id = ?`
 	);
+	// A link resolved before rung 70 learns only what it lacks: its title,
+	// cover and format were settled then, and the owner may have chosen them.
+	const backfill = db.prepare(`UPDATE series_links SET country = ?, year = ? WHERE series_id = ?`);
+	// Asked and not found: '' marks it asked, so the next pass doesn't ask again.
 	const none = db.prepare(
-		`UPDATE series_links SET resolved_at = ?, format = COALESCE(format, '') WHERE series_id = ?`
+		`UPDATE series_links SET resolved_at = ?, format = COALESCE(format, ''),
+			country = COALESCE(country, '') WHERE series_id = ?`
 	);
 	let n = 0;
 	db.transaction(() => {
@@ -664,8 +973,21 @@ export async function resolveLinks(now = Date.now()): Promise<number> {
 				w.anilist_id !== null
 					? alById.get(w.anilist_id)
 					: malById.get(`${family(w.kind)}:${w.mal_id ?? -1}`);
-			if (c) {
-				set.run(c.anilistId, c.malId, c.title, c.coverUrl, now, c.format, w.series_id);
+			if (c && w.known) {
+				backfill.run(c.country, c.year, w.series_id);
+				n += 1;
+			} else if (c) {
+				set.run(
+					c.anilistId,
+					c.malId,
+					c.title,
+					c.coverUrl,
+					now,
+					c.format,
+					c.country,
+					c.year,
+					w.series_id
+				);
 				n += 1;
 			} else none.run(now, w.series_id);
 		}
@@ -1353,6 +1675,13 @@ export type LinkState = {
 		 * meta names it (c424). Null until a pass or a link has read it.
 		 */
 		format: string | null;
+		/**
+		 * Where the entry comes from (AniList's countryOfOrigin) and the year it
+		 * began (rung 70, c520): a comic's line says `MANHWA · 2020`. Null for a
+		 * link not asked yet, and for an anime, whose season keeps its own year.
+		 */
+		country: string | null;
+		year: number | null;
 	} | null;
 	/**
 	 * What settled it when no link stands: NONE OF THESE or an UNLINK (c424).
@@ -1399,7 +1728,9 @@ export function linkState(seriesId: number, season?: number): LinkState | null {
 					coverOnly: coverOnly(r.kind, l.format ?? ''),
 					wrongKind: wrongKind(r.kind, l.format ?? ''),
 					kind: l.format ? candidateKind({ format: l.format, country: '' }) : null,
-					format: l.format || null
+					format: l.format || null,
+					country: l.country || null,
+					year: l.year
 				}
 			: null,
 		decision: l ? null : decisionOf(db, seriesId),
@@ -1448,7 +1779,9 @@ function seasonLinkState(
 					coverOnly: coverOnly(r.kind, l.format ?? ''),
 					wrongKind: wrongKind(r.kind, l.format ?? ''),
 					kind: l.format ? candidateKind({ format: l.format, country: '' }) : null,
-					format: l.format || null
+					format: l.format || null,
+					country: null,
+					year: l.year ?? null
 				}
 			: null,
 		decision: l ? null : (sv?.decision ?? null),

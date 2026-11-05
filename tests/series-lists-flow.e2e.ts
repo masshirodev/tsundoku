@@ -281,7 +281,7 @@ test('a pasted link lands on AniList’s line, its list’s word beside it (1B, 
 	await expect(a.getByRole('link', { name: 'FIND' })).toHaveClass(/acc/);
 	await paste(page, `/links?series=${ids.comic}`, 'https://anilist.co/manga/7701');
 	await expect(a.locator('.t')).toHaveText('Lists Comic Entry');
-	await expect(a.locator('.m')).toHaveText('MANGA · ANILIST 7701');
+	await expect(a.locator('.m')).toHaveText('MANHWA · 2024 · ANILIST 7701');
 	// Signed in, never read: not on the list yet, and when it will be.
 	await expect(a.locator('.s .l')).toHaveText(['NOT ON YOUR LIST']);
 	await expect(a.locator('.s .r')).toHaveText(['ADDED ON THE NEXT CHAPTER READ']);
@@ -326,7 +326,7 @@ test('EDIT opens the sheet on the entry, and its STATUS sends at once', async ({
 	const sheet = sheetOf(page);
 	await expect(sheet.locator('.ti')).toHaveText('ANILIST');
 	await expect(sheet.locator('.ent .t')).toHaveText('Lists Comic Entry');
-	await expect(sheet.locator('.ent .m')).toHaveText('ANILIST 7701 · MANGA');
+	await expect(sheet.locator('.ent .m')).toHaveText('ANILIST 7701 · MANHWA · 2024');
 	await expect(sheet.locator('.sl', { hasText: 'ENTRY' })).toContainText('PASTED');
 	await expect(sheet.locator('.sl', { hasText: 'STATUS' })).toContainText(
 		'GOES TO ANILIST · A TAP SENDS IT'
@@ -366,20 +366,82 @@ test('offline: EDIT turns into OPEN ↗, every other cell dims, and the strip sa
 	await expect(line(page, 'anilist').getByRole('button', { name: 'EDIT' })).toBeVisible();
 });
 
-test('UNLINK in EDIT’s ENTRY: the line goes back to FIND, settled, and no pass asks again', async ({
+/** A series' link and its decision, as this file's own database holds them. */
+function linkOf(seriesId: number) {
+	const db = new Database(dbPath, { readonly: true });
+	try {
+		return {
+			link: db.prepare(`SELECT * FROM series_links WHERE series_id = ?`).get(seriesId) ?? null,
+			decision:
+				db.prepare(`SELECT decision FROM link_decisions WHERE series_id = ?`).get(seriesId) ?? null
+		};
+	} finally {
+		db.close();
+	}
+}
+
+test('UNLINK in EDIT’s ENTRY: the sheet closes on a band with UNDO, and UNDO puts the link back as it was (c520)', async ({
 	page
 }) => {
+	const before = linkOf(ids.comic);
+	expect(before.link).toMatchObject({ anilist_id: 7701, via: 'pasted' });
 	await page.goto(`${BASE}/series/${ids.comic}`);
 	await line(page, 'anilist').getByRole('button', { name: 'EDIT' }).click();
 	const sheet = sheetOf(page);
 	await sheet.getByRole('button', { name: 'UNLINK' }).click();
-	await expect(sheet.locator('.ent .t')).toHaveText('Not linked');
-	await sheet.getByRole('button', { name: 'DONE' }).click();
+	// The sheet closes so the band is in sight (the handoff's 1E: "the band with UNDO").
+	await expect(sheet).toHaveCount(0);
+	const band = page.locator('.band', { hasText: 'UNLINKED · LISTS COMIC ENTRY' });
+	await expect(band).toContainText('NO PASS LINKS IT AGAIN');
 	const a = line(page, 'anilist');
 	await expect(a.locator('.t')).toHaveText('Not linked');
 	await expect(a.locator('.m')).toHaveText('UNLINKED · NO PASS ASKS AGAIN');
 	// You already said no: FIND is plain, not the accent (1C).
 	await expect(a.getByRole('link', { name: 'FIND' })).not.toHaveClass(/acc/);
+	expect(linkOf(ids.comic)).toEqual({ link: null, decision: { decision: 'unlinked' } });
+
+	// UNDO: the same row, every column, and no decision left for the pass to skip it by.
+	await band.getByRole('button', { name: 'UNDO' }).click();
+	await expect(a.locator('.t')).toHaveText('Lists Comic Entry');
+	await expect(a.locator('.m')).toHaveText('MANHWA · 2024 · ANILIST 7701');
+	await expect(band).toHaveCount(0);
+	expect(linkOf(ids.comic)).toEqual(before);
+
+	// A band goes when the screen does: after a reload, UNLINK's way back is FIND.
+	await a.getByRole('button', { name: 'EDIT' }).click();
+	await sheet.getByRole('button', { name: 'UNLINK' }).click();
+	await expect(band).toBeVisible();
+	await page.reload();
+	await expect(a.locator('.m')).toHaveText('UNLINKED · NO PASS ASKS AGAIN');
+	await expect(page.locator('.band', { hasText: 'UNLINKED' })).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'UNDO' })).toHaveCount(0);
+});
+
+test('a refused UNDO of UNLINK: linked again in another tab, the newer link stays, and the band says so (c520)', async ({
+	page,
+	context
+}) => {
+	// Linked again (the last case left it unlinked), then UNLINKed on page A.
+	await paste(page, `/links?series=${ids.comic}`, 'https://anilist.co/manga/7701');
+	await line(page, 'anilist').getByRole('button', { name: 'EDIT' }).click();
+	await sheetOf(page).getByRole('button', { name: 'UNLINK' }).click();
+	const band = page.locator('.band', { hasText: 'UNLINKED · LISTS COMIC ENTRY' });
+	await expect(band).toBeVisible();
+
+	// Page B, a second tab: the owner pastes the link again.
+	const b = await context.newPage();
+	await paste(b, `/links?series=${ids.comic}`, 'https://anilist.co/manga/7701');
+	const newer = linkOf(ids.comic);
+	expect(newer.link).toMatchObject({ anilist_id: 7701 });
+	await b.close();
+
+	// Page A, at once: UNDO never writes over the newer link, and says why.
+	await band.getByRole('button', { name: 'UNDO' }).click();
+	const refused = page.locator('.band', { hasText: 'LINKED OR DECIDED AGAIN SINCE' });
+	await expect(refused).toBeVisible();
+	await expect(refused).toContainText('NOTHING CHANGED');
+	await expect(page).toHaveURL(`${BASE}/series/${ids.comic}`);
+	expect(linkOf(ids.comic)).toEqual(newer);
 });
 
 test('a novel on its comic’s entry is linked for the cover, never tracked (1B, 5)', async ({
@@ -387,7 +449,7 @@ test('a novel on its comic’s entry is linked for the cover, never tracked (1B,
 }) => {
 	await paste(page, `/links?series=${ids.novel}`, 'https://anilist.co/manga/7901');
 	const a = line(page, 'anilist');
-	await expect(a.locator('.m')).toHaveText('THE COMIC’S ENTRY · MANGA · ANILIST 7901');
+	await expect(a.locator('.m')).toHaveText('THE COMIC’S ENTRY · MANHWA · 2024 · ANILIST 7901');
 	await expect(a.locator('.s .l')).toHaveText(['COVER AND DETAILS ONLY · NEVER TRACKED']);
 	await a.getByRole('button', { name: 'EDIT' }).click();
 	const sheet = sheetOf(page);
@@ -450,6 +512,43 @@ test('four seasons, each linked on its own review, fold round the one being watc
 	);
 	await expect(sheet.locator('form[action="?/unlink"] input[name="season"]')).toHaveValue('3');
 	await expect(sheet).not.toContainText(/SEASON 0|\bS0\b/);
+});
+
+test('UNLINK on one season and its UNDO: S3 comes back, and the seasons beside it never moved (c520)', async ({
+	page
+}) => {
+	const seasonsOf = () => {
+		const db = new Database(dbPath, { readonly: true });
+		try {
+			return {
+				links: db
+					.prepare(`SELECT * FROM series_season_links WHERE series_id = ? ORDER BY season, part`)
+					.all(ids.four),
+				mirror: db.prepare(`SELECT * FROM series_links WHERE series_id = ?`).get(ids.four),
+				decisions: db
+					.prepare(`SELECT season, decision FROM season_link_decisions WHERE series_id = ?`)
+					.all(ids.four)
+			};
+		} finally {
+			db.close();
+		}
+	};
+	const before = seasonsOf();
+	expect((before.links as { season: number }[]).map((l) => l.season)).toEqual([1, 2, 3, 4]);
+	await page.goto(`${BASE}/series/${ids.four}`);
+	const row = lists(page);
+	await row.locator('button.fold').click();
+	await line(page, 's3').getByRole('button', { name: 'EDIT' }).click();
+	await sheetOf(page).getByRole('button', { name: 'UNLINK' }).click();
+	const band = page.locator('.band', { hasText: 'UNLINKED · FOUR SEASONS 3' });
+	await expect(band).toContainText('S3 · NO PASS LINKS IT AGAIN');
+	const gone = seasonsOf();
+	expect((gone.links as { season: number }[]).map((l) => l.season)).toEqual([1, 2, 4]);
+	expect(gone.decisions).toEqual([{ season: 3, decision: 'unlinked' }]);
+	expect(gone.mirror).toEqual(before.mirror);
+	await band.getByRole('button', { name: 'UNDO' }).click();
+	await expect(band).toHaveCount(0);
+	await expect.poll(() => seasonsOf()).toEqual(before);
 });
 
 test('a season on the wrong kind is flagged, never removed, and CHANGE is its accent (1B, 6)', async ({

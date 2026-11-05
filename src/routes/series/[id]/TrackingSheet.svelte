@@ -10,7 +10,7 @@
 	import type { SeasonTrack, Tracking } from '$lib/server/tracking';
 	import type { RanobeSeries } from '$lib/server/ranobe-review';
 	import {
-		formatWords,
+		entryWords,
 		listState,
 		mainList,
 		seasonCellTag,
@@ -98,6 +98,7 @@
 						malId: l.malId,
 						via: l.via,
 						format: l.format,
+						country: null,
 						episodes: l.episodes,
 						year: l.year,
 						entryKind: kind
@@ -112,8 +113,9 @@
 					malId: l.malId,
 					via: l.via as string,
 					format: l.format,
+					country: l.country,
 					episodes: null,
-					year: null,
+					year: l.year,
 					entryKind: l.kind ?? kind
 				}
 			: null;
@@ -123,7 +125,7 @@
 			? [
 					entry.anilistId ? `ANILIST ${entry.anilistId}` : '',
 					entry.malId ? `MAL ${entry.malId}` : '',
-					formatWords(entry.format),
+					entryWords(entry.format, entry.country),
 					entry.episodes ? `${entry.episodes} EP.` : '',
 					entry.year ? String(entry.year) : ''
 				]
@@ -353,7 +355,17 @@
 					{:else}
 						<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- built from resolve() -->
 						<a class="c" href={findHref}>CHANGE</a>
-						<form method="POST" action="?/unlink" use:enhance class="cf">
+						<!-- The sheet closes on UNLINK, so the band's UNDO is in sight (c520). -->
+						<form
+							method="POST"
+							action="?/unlink"
+							use:enhance={() =>
+								async ({ result, update }) => {
+									await update();
+									if (result.type === 'success') onclose();
+								}}
+							class="cf"
+						>
 							{#if tabbed && seasonNo !== null}
 								<!-- The season the tab is on; a show of one season names none, and its UNLINK takes every part. -->
 								<input type="hidden" name="season" value={seasonNo} />

@@ -1,5 +1,5 @@
 import { getDb } from '../db.ts';
-import { parseKey } from '../../library/downloads.ts';
+import { parseAnimeKey, parseKey } from '../../library/downloads.ts';
 import { engineConfigured, fetchProxied } from '../engine/client.ts';
 import { extensionFor } from '../engine/extensions.ts';
 import { imageType } from '../engine/protocol.ts';
@@ -30,6 +30,31 @@ export function readsOnline(entryId: number, db = getDb()): boolean {
 	if (!r || r.available) return false;
 	const key = parseKey(r.origin_key);
 	return !!key && extensionFor(key.sourceId, db) !== null;
+}
+
+/**
+ * Whether an episode streams (doc/ANIME.md, "Streams"; c536): no file, an
+ * Aniyomi series' episode with its own address at the source, from a source
+ * an installed extension serves -- the episode's own source when it was kept
+ * from one the series left (doc/MOVE.md). The player's `episodeStreams` asks
+ * exactly these before it calls the source, so the end page's WATCH ONLINE and
+ * the player agree without a network call. A separate question from
+ * `readsOnline` on purpose: the image reader's online manifests ask that one
+ * (pages/index.ts), and an episode is never a page list it can read.
+ */
+export function streamsOnline(entryId: number, db = getDb()): boolean {
+	if (!engineConfigured()) return false;
+	const r = db
+		.prepare(
+			`SELECT e.available, e.source_url, e.origin_source, s.origin_key FROM entries e
+			JOIN series s ON s.id = e.series_id WHERE e.id = ?`
+		)
+		.get(entryId) as
+		| { available: number; source_url: string; origin_source: string; origin_key: string | null }
+		| undefined;
+	if (!r || r.available || !r.source_url) return false;
+	const key = parseAnimeKey(r.origin_key);
+	return !!key && extensionFor(r.origin_source || key.sourceId, db) !== null;
 }
 
 async function listOf(entryId: number, fresh = false): Promise<{ at: number; targets: string[] }> {

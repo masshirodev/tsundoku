@@ -10,6 +10,7 @@ const { getDb } = await import('$lib/server/db');
 const { seedSample } = await import('$lib/server/fixtures');
 const lib = await import('$lib/server/library');
 const works = await import('$lib/server/works');
+const online = await import('$lib/server/pages/online');
 const { continuePart, runStatus, workFavourite, workFoot, workRating } =
 	await import('$lib/library/works');
 type Rating = import('$lib/library/types').Rating;
@@ -1580,5 +1581,85 @@ describe('an add’s UNDO never leaves a Work of one, and a later UNDO finds a r
 		expect(newer.work.id).toBe(into.work.id);
 		expect(() => works.undoAdd(added)).toThrow(/has ended/);
 		expect(membersNow(newer.work.id)).toEqual([x, y]);
+	});
+});
+
+describe('an episode that streams is online at the end page (c536)', () => {
+	const now = Date.UTC(2026, 10, 5);
+	const db = getDb();
+
+	it('asks what the player asks before it calls the source, and never the image reader’s question', () => {
+		const root = (
+			db.prepare(`SELECT id FROM roots WHERE hidden = 0 LIMIT 1`).get() as { id: number }
+		).id;
+		db.prepare(
+			`INSERT OR IGNORE INTO engine_extensions (pkg, repo_id, name, kind, version_code, version_name, lib,
+				handle, installed_at, updated_at) VALUES ('stand.in', NULL, 'Stand-in', 'anime', 1, '1.0', '1.0',
+				'stand.apk', ?, ?)`
+		).run(now, now);
+		db.prepare(
+			`INSERT OR IGNORE INTO engine_sources (id, pkg, name, lang, base_url)
+			VALUES ('771', 'stand.in', 'Stand-in Source', 'en', 'https://example.test')`
+		).run();
+		const show = Number(
+			db
+				.prepare(
+					`INSERT INTO series (root_id, title, kind, source, origin_key, added_at, in_library)
+					VALUES (?, 'Streams Here', 'anime', 'Stand-in Source', 'aniyomi:771:/streams-here', ?, 1)`
+				)
+				.run(root, now).lastInsertRowid
+		);
+		const ep = (o: { url?: string; available?: number; from?: string }) =>
+			Number(
+				db
+					.prepare(
+						`INSERT INTO entries (series_id, position, label, added_at, season, episode_number, available, file, source_url, origin_source)
+						VALUES (?, 1, 'Ep. 1', ?, 1, 1, ?, ?, ?, ?)`
+					)
+					.run(
+						show,
+						now,
+						o.available ?? 0,
+						o.available ? 'e.mkv' : '',
+						o.url ?? '/ep/1',
+						o.from ?? ''
+					).lastInsertRowid
+			);
+		const was = { url: process.env.ENGINE_URL, token: process.env.ENGINE_TOKEN };
+		try {
+			process.env.ENGINE_URL = 'http://127.0.0.1:9';
+			process.env.ENGINE_TOKEN = 'e2e';
+			const streams = ep({});
+			expect(online.streamsOnline(streams)).toBe(true);
+			// The image reader's question stays no: an episode is no page list.
+			expect(online.readsOnline(streams)).toBe(false);
+			// A file plays; no address at the source; an episode kept from a source
+			// nothing installed serves; no extension for the series' own source.
+			expect(online.streamsOnline(ep({ available: 1 }))).toBe(false);
+			expect(online.streamsOnline(ep({ url: '' }))).toBe(false);
+			expect(online.streamsOnline(ep({ from: '404' }))).toBe(false);
+			db.prepare(`UPDATE series SET origin_key = 'aniyomi:404:/streams-here' WHERE id = ?`).run(
+				show
+			);
+			expect(online.streamsOnline(streams)).toBe(false);
+			// ...but an episode kept from an installed source still streams from there.
+			expect(online.streamsOnline(ep({ from: '771' }))).toBe(true);
+			// A Mihon key is a chapter's, never an episode's.
+			db.prepare(`UPDATE series SET origin_key = 'mihon:771:/streams-here' WHERE id = ?`).run(show);
+			expect(online.streamsOnline(streams)).toBe(false);
+			db.prepare(`UPDATE series SET origin_key = 'aniyomi:771:/streams-here' WHERE id = ?`).run(
+				show
+			);
+			// No engine configured: nothing streams.
+			delete process.env.ENGINE_URL;
+			expect(online.streamsOnline(streams)).toBe(false);
+		} finally {
+			if (was.url === undefined) delete process.env.ENGINE_URL;
+			else process.env.ENGINE_URL = was.url;
+			if (was.token === undefined) delete process.env.ENGINE_TOKEN;
+			else process.env.ENGINE_TOKEN = was.token;
+			db.prepare(`DELETE FROM entries WHERE series_id = ?`).run(show);
+			db.prepare(`DELETE FROM series WHERE id = ?`).run(show);
+		}
 	});
 });

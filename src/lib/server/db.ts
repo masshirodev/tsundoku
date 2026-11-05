@@ -1625,6 +1625,18 @@ const MIGRATIONS: (string | ((conn: Database.Database) => void))[] = [
 	`
 	ALTER TABLE series ADD COLUMN text_direction TEXT
 		CHECK (text_direction IS NULL OR text_direction IN ('ltr', 'rtl'));
+	`,
+	// v70: where a comic's entry comes from and the year it began (card c520;
+	// doc/LINKS.md, doc/SERIES.md "LISTS"), so its LISTS line can say
+	// `MANHWA · 2020` as the handoff's 1B draws it. AniList's countryOfOrigin
+	// (JP, KR, CN, TW) and startDate's year, kept where a link is written.
+	// Both NULL on every link made before the rung: the next cover pass asks
+	// AniList for them (`resolveLinks`), and until then the line says what it
+	// said (MANGA). '' is asked and not known, so the pass doesn't ask again. A
+	// season's link already keeps its year (`series_season_links.year`).
+	`
+	ALTER TABLE series_links ADD COLUMN country TEXT;
+	ALTER TABLE series_links ADD COLUMN year INTEGER;
 	`
 ];
 

@@ -404,8 +404,12 @@ anime with Ranobe's one line under them, a rule above it.
   speaks for the first list that is signed in, AniList before MAL
   (`mainList`): with AniList signed out and MAL signed in, MAL's word leads
   (`MAL · WATCHING · EP. 8`, on every season, watched or not) and AniList's
-  NOT SIGNED IN is the quiet line. A fold's word and the sheet's STATUS ask
-  the same list (`listState`).
+  NOT SIGNED IN is the quiet line. A fold's word, the sheet's STATUS and a
+  two-part season's other part (`PART 2 PLANNING` on the right, and the
+  sheet's PART row) ask the same list (`listState`, which lives with
+  `mainList` in `src/lib/library/tracking.ts` so the server's
+  `seasonsTracking` asks it too, c518). A signed-out list keeps what it last
+  said, so a chooser that read AniList first showed its stale word there.
 - **An anime's seasons**: three or fewer have a line each; more fold round the
   one being watched (its tag inverted), and the fold says the run's state
   (`COMPLETED`, `2 NOT LINKED`, `A SEND FAILED`). SHOW opens one row now, not
@@ -436,7 +440,23 @@ review on the current link. SIGN IN → goes to SETTINGS. EDIT opens the sheet.
 **EDIT's sheet** opens on that line's entry and season tab. ENTRY is new:
 the entry's title and ids, where the link came from, and OPEN ↗, CHANGE and
 UNLINK, which left the row (UNLINK names the tab's season on a show with
-several, and none on a show of one, whose UNLINK takes every part). STATUS
+several, and none on a show of one, whose UNLINK takes every part). UNLINK
+closes the sheet on a band, `UNLINKED · <ENTRY>` / `NO PASS LINKS IT AGAIN`
+(`S3 · NO PASS LINKS IT AGAIN` on a season), with UNDO (c520): the rows that
+went come back with every column (`via`, dates, score, `filled_rating`, a
+season's `episodes` and `year`, and an anime's `series_links` mirror with
+its own score), keyed by the series and its season and part, never a row id,
+and the UNLINK's own `unlinked` decision goes with them (the one it replaced,
+if any, comes back), so the next pass treats the series as linked. The band
+carries what went in its form, as RENAME's and ADD TO A WORK's do
+(`UnlinkFacts`, read back field by field by `parseUnlinkFacts`), so it goes
+with the screen: after a reload FIND is the way back. UNDO is all or
+nothing and never writes over a newer act: a link made since (another tab's
+PASTE, a pass) or a decision since (NONE OF THESE), on any part the UNLINK
+named, the parts it found with no link included, refuses it as `LINKED OR
+DECIDED AGAIN SINCE` · NOTHING CHANGED, and a second UNDO of the same band
+says `ALREADY UNDONE`. AniSkip's marks, which UNLINK clears, are asked
+again as for any new link. STATUS
 sends at once to the lists signed in, and says NOTHING SIGNED IN rather than
 offering what can't be sent; a cover-only, wrong-kind, hidden or novel's
 entry says why it is never tracked instead. PROGRESS is each list's. On
@@ -477,19 +497,27 @@ cells, with the house's inset focus mark.
   SIGNED IN where STATUS would be.
 - **The phone's tag is 60px, not 1D's 56.** 1D only ever puts S3 or RNB in
   it; ANILIST, which 1A draws on a phone at 60, does not fit 56.
-- **A line's meta names no year or country**: `series_links` stores neither,
-  so a comic reads `MANGA · MAL 132214`, not 1B's `MANHWA · 2020 · …`. The
-  ANILIST id stands in for MAL's where there is no MAL entry (1B, 5 and 9 do
-  the same).
+- **A comic's meta says where it comes from only once AniList has said so**
+  (c520, rung 70): `series_links` keeps the entry's `country` (AniList's
+  `countryOfOrigin`) and start `year` wherever a link is made (FIND, the
+  review, a paste, the list, the cover pass's resolve), so a KR comic reads
+  1B's `MANHWA · 2020 · MAL 132214`, a CN or TW one `MANHUA`, a JP one
+  `MANGA` (`entryWords` in `lists.ts`, a map from the country applied to
+  AniList's one comic format, MANGA; every other format is its own word). A
+  link made before the rung has neither until the next cover pass asks
+  AniList for them (`resolveLinks`, which then writes only those two, never
+  the title, cover or format the link already settled), and until then it
+  reads `MANGA · MAL 132214`, never `MANGA · null`. An entry AniList no
+  longer has is asked once (`country = ''`). An anime's mirror row is never
+  asked: its season keeps its own year. EDIT's ENTRY says the same
+  (`ANILIST 7701 · MANHWA · 2024`). The ANILIST id stands in for MAL's where
+  there is no MAL entry (1B, 5 and 9 do the same).
 - **1B's `SEARCH WAITS · ANILIST OUT OF REACH · NEXT PASS` is not drawn**: a
   queued search doesn't know whether AniList was out of reach, so it keeps
   `A SEARCH WAITS FOR THE NEXT COVER PASS`, which is true of every queued one.
 - **A novel's AniList line says `COVER AND DETAILS · TRACKED ON RANOBE`**, not
   1B's `… · NOVELS ARE TRACKED ON RANOBE`, so no line names a kind; without a
   Ranobe token it says `COVER AND DETAILS · NOT TRACKED HERE`.
-- **The sheet's UNLINK has no UNDO band.** 1E's table says "the band with
-  UNDO"; the series screen never had one for UNLINK, and this wave didn't add
-  it.
 - **Ranobe's line keeps FIND and PASTE A LINK on a comic or a novel** (1B, 1
   and 8) and FIND alone on an anime (1C), as the boards draw each.
 

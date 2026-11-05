@@ -34,6 +34,7 @@
 	import { partDone } from '$lib/library/works';
 	import type { AddFacts, TakeOutFacts } from '$lib/server/works';
 	import type { SeriesRenameFacts } from '$lib/server/series';
+	import type { UnlinkFacts } from '$lib/server/catalogue';
 	import { withParam, readHref } from '$lib/library/links';
 	import {
 		addedDetail,
@@ -126,6 +127,8 @@
 	/** REVIEW → on MIGHT CONTINUE <WORK>: the sheet, in ADD TO A WORK. */
 	let reviewingWork = $state(false);
 	const markedThrough = $derived(form && 'markedThrough' in form ? form.markedThrough : null);
+	// UNLINK's band (c520): what went, every column of it, so UNDO puts it back.
+	const unlinked = $derived(form && 'unlinked' in form ? (form.unlinked as UnlinkFacts) : null);
 	// RENAME's band (c526): the facts the action returned, so UNDO puts back exactly them.
 	const renamed = $derived(form && 'renamed' in form ? (form.renamed as SeriesRenameFacts) : null);
 	/**
@@ -561,6 +564,19 @@
 			{#snippet action()}
 				<form method="POST" action="?/undoAddToWork" use:enhance>
 					<input type="hidden" name="facts" value={JSON.stringify(workJoined)} />
+					<button type="submit">UNDO</button>
+				</form>
+			{/snippet}
+		</Band>
+	{:else if unlinked}
+		<!-- UNLINK in EDIT's ENTRY (c520; the handoff's 1E: "the band with UNDO"). -->
+		<Band
+			title="UNLINKED · {(unlinked.title || 'THE ENTRY').toUpperCase()}"
+			detail="{unlinked.season !== null ? `S${unlinked.season} · ` : ''}NO PASS LINKS IT AGAIN"
+		>
+			{#snippet action()}
+				<form method="POST" action="?/undoUnlink" use:enhance>
+					<input type="hidden" name="facts" value={JSON.stringify(unlinked)} />
 					<button type="submit">UNDO</button>
 				</form>
 			{/snippet}
