@@ -13,6 +13,44 @@ test.beforeEach(async () => {
 	await resetEngine();
 });
 
+const revealCookie = (origin: string) => ({
+	name: 'tsundoku_reveal',
+	value: '1',
+	url: origin,
+	httpOnly: true
+});
+
+/** Set by the LNReader case once it is about to INSTALL; the afterEach puts back what it left. */
+let lnPluginInstalled = false;
+
+// Teardown has its own budget, so this runs and reaches the server even when
+// the case timed out (c507; a finally in the body does not: its requests throw
+// "Test timeout exceeded" before they are sent). Both requests are harmless
+// when there is nothing to undo: off deletes the switch's row, and REMOVE of a
+// plugin that isn't there does nothing. A failed put-back is soft, so the
+// body's own error stays the one reported.
+test.afterEach(async ({ page }, testInfo) => {
+	if (!lnPluginInstalled) return;
+	lnPluginInstalled = false;
+	const origin = new URL(testInfo.project.use.baseURL!).origin;
+	// Reveal on, so the hidden source's settings page is found at all.
+	await page.context().addCookies([revealCookie(origin)]);
+	const off = await page.request.post(`${origin}/browse/ln:goodnovels/settings?/flag`, {
+		form: { flag: 'hidden', value: 'false' },
+		headers: { origin }
+	});
+	const removed = await page.request.post(`${origin}/browse/extensions?/remove`, {
+		form: { pkg: 'ln:goodnovels' },
+		headers: { origin }
+	});
+	await page.context().clearCookies({ name: 'tsundoku_reveal' });
+	// 404 once REMOVE has run: no such source, and so no switch to put back.
+	expect
+		.soft(off.ok() || off.status() === 404, `HIDDEN SOURCE put back off: ${off.status()}`)
+		.toBe(true);
+	expect.soft(removed.ok(), `Good Novels removed: ${removed.status()}`).toBe(true);
+});
+
 test('a repository is added, an extension installed, updated, taken back and removed', async ({
 	page
 }) => {
@@ -137,102 +175,81 @@ test('an LNReader repository is asked, added, a novel plugin installed in the ho
 	// both back only at its end. A red before then left Good Novels installed
 	// and hidden: this case's REMOVE, a rerun's INSTALL and every later reader
 	// of BROWSE's sources went red behind it, one red becoming several (c507).
-	// So the finally puts both back whatever happened, through the pages' own
-	// actions, each harmless when there is nothing to undo (off deletes the
-	// switch's row; REMOVE of a plugin that isn't there does nothing).
+	// So the afterEach below puts both back whatever happened, timeouts
+	// included: a finally in the body shares the test's budget, and after a
+	// timeout its requests throw before they are sent (review, wave 23).
+	lnPluginInstalled = true;
 	const origin = new URL(test.info().project.use.baseURL!).origin;
-	const reveal = () =>
-		page
-			.context()
-			.addCookies([{ name: 'tsundoku_reveal', value: '1', url: origin, httpOnly: true }]);
-	try {
-		await page.goto('/browse/extensions?tab=available&kind=novels');
-		await row('Good Novels').getByRole('button', { name: 'INSTALL' }).click();
-		await expect(row('Good Novels')).toContainText('INSTALLED ✓');
+	const reveal = () => page.context().addCookies([revealCookie(origin)]);
+	await page.goto('/browse/extensions?tab=available&kind=novels');
+	await row('Good Novels').getByRole('button', { name: 'INSTALL' }).click();
+	await expect(row('Good Novels')).toContainText('INSTALLED ✓');
 
-		// It loaded in the plugin host: its own name and version, not just the index's.
-		await page.goto('/browse/extensions');
-		await expect(row('Good Novels')).toContainText('NOVELS · EN');
-		await expect(row('Good Novels')).toContainText('1.0.0');
-		await expect(row('Good Novels')).not.toContainText('FAILED');
+	// It loaded in the plugin host: its own name and version, not just the index's.
+	await page.goto('/browse/extensions');
+	await expect(row('Good Novels')).toContainText('NOVELS · EN');
+	await expect(row('Good Novels')).toContainText('1.0.0');
+	await expect(row('Good Novels')).not.toContainText('FAILED');
 
-		// BROWSE lists it under NOVELS, and its page is a novel source's. Its SETTINGS
-		// holds only tsundoku's own switches (c435): the plugin keeps none of its own.
-		await page.goto('/browse');
-		const novels = page.locator('.label', { hasText: 'NOVELS' });
-		await expect(novels).toBeVisible();
-		await page
-			.getByRole('link', { name: /Good Novels/ })
-			.first()
-			.click();
-		await expect(page).toHaveURL(/\/browse\/ln:goodnovels$/);
-		await expect(page.locator('.title .sub')).toHaveText('NOVEL · EN');
-		await expect(page.getByRole('link', { name: 'SETTINGS', exact: true })).toHaveAttribute(
-			'href',
-			'/browse/ln:goodnovels/settings'
-		);
-		await expect(page.getByRole('searchbox', { name: 'Search Good Novels' })).toHaveAttribute(
-			'placeholder',
-			'/ search Good Novels'
-		);
-		// Its site is this test's loopback server, which the host never fetches
-		// (doc/NOVELS.md, "The plugin host"): the source says so, and nothing else breaks.
-		await expect(page.locator('.band')).toContainText('GOOD NOVELS DID NOT ANSWER');
-		await expect(page.locator('.band')).toContainText('IS NOT ON THE INTERNET');
-		await expect(page.locator('.band')).toContainText('TRY AGAIN');
-		await page.goto('/browse/ln:goodnovels/settings');
-		await expect(page.locator('form.own .t')).toHaveText([
-			'Hidden source',
-			'Added hidden',
-			'Off history'
-		]);
-		await expect(page.locator('form.set')).toHaveCount(0);
-		await expect(page.getByText(/only tsundoku's switches above/)).toBeVisible();
+	// BROWSE lists it under NOVELS, and its page is a novel source's. Its SETTINGS
+	// holds only tsundoku's own switches (c435): the plugin keeps none of its own.
+	await page.goto('/browse');
+	const novels = page.locator('.label', { hasText: 'NOVELS' });
+	await expect(novels).toBeVisible();
+	await page
+		.getByRole('link', { name: /Good Novels/ })
+		.first()
+		.click();
+	await expect(page).toHaveURL(/\/browse\/ln:goodnovels$/);
+	await expect(page.locator('.title .sub')).toHaveText('NOVEL · EN');
+	await expect(page.getByRole('link', { name: 'SETTINGS', exact: true })).toHaveAttribute(
+		'href',
+		'/browse/ln:goodnovels/settings'
+	);
+	await expect(page.getByRole('searchbox', { name: 'Search Good Novels' })).toHaveAttribute(
+		'placeholder',
+		'/ search Good Novels'
+	);
+	// Its site is this test's loopback server, which the host never fetches
+	// (doc/NOVELS.md, "The plugin host"): the source says so, and nothing else breaks.
+	await expect(page.locator('.band')).toContainText('GOOD NOVELS DID NOT ANSWER');
+	await expect(page.locator('.band')).toContainText('IS NOT ON THE INTERNET');
+	await expect(page.locator('.band')).toContainText('TRY AGAIN');
+	await page.goto('/browse/ln:goodnovels/settings');
+	await expect(page.locator('form.own .t')).toHaveText([
+		'Hidden source',
+		'Added hidden',
+		'Off history'
+	]);
+	await expect(page.locator('form.set')).toHaveCount(0);
+	await expect(page.getByText(/only tsundoku's switches above/)).toBeVisible();
 
-		// HIDDEN SOURCE hides the plugin in EXTENSIONS too (c435, round 2): neither
-		// INSTALLED nor AVAILABLE's NOVELS names it outside reveal; inside reveal both do.
-		const hiddenSource = page.locator('form.own', { hasText: 'Hidden source' }).getByRole('switch');
-		await page.waitForLoadState('networkidle');
-		await hiddenSource.click();
-		await expect(page).toHaveURL(/\/browse$/);
-		for (const path of ['/browse/extensions', '/browse/extensions?tab=available&kind=novels']) {
-			await page.goto(path);
-			await expect(page.locator('body'), path).not.toContainText(/good novels/i);
-		}
-		await reveal();
-		for (const path of ['/browse/extensions', '/browse/extensions?tab=available&kind=novels']) {
-			await page.goto(path);
-			await expect(row('Good Novels'), path).toBeVisible();
-		}
-		await page.goto('/browse/ln:goodnovels/settings');
-		await page.waitForLoadState('networkidle');
-		await expect(hiddenSource).toHaveAttribute('aria-checked', 'true');
-		await hiddenSource.click();
-		await expect(hiddenSource).toHaveAttribute('aria-checked', 'false');
-		await page.context().clearCookies({ name: 'tsundoku_reveal' });
-
-		await page.goto('/browse/extensions');
-		await row('Good Novels').getByRole('link', { name: 'REMOVE…' }).click();
-		const sheet = page.getByRole('dialog');
-		await expect(sheet).toContainText('REMOVE GOOD NOVELS?');
-		await sheet.getByRole('button', { name: 'REMOVE GOOD NOVELS' }).click();
-		await expect(row('Good Novels')).toHaveCount(0);
-	} finally {
-		// Reveal on, so the hidden source's settings page is found at all.
-		await reveal();
-		const off = await page.request.post(`${origin}/browse/ln:goodnovels/settings?/flag`, {
-			form: { flag: 'hidden', value: 'false' },
-			headers: { origin }
-		});
-		const removed = await page.request.post(`${origin}/browse/extensions?/remove`, {
-			form: { pkg: 'ln:goodnovels' },
-			headers: { origin }
-		});
-		await page.context().clearCookies({ name: 'tsundoku_reveal' });
-		// 404 once REMOVE has run: no such source, and so no switch to put back.
-		expect(off.ok() || off.status() === 404, `HIDDEN SOURCE put back off: ${off.status()}`).toBe(
-			true
-		);
-		expect(removed.ok(), `Good Novels removed: ${removed.status()}`).toBe(true);
+	// HIDDEN SOURCE hides the plugin in EXTENSIONS too (c435, round 2): neither
+	// INSTALLED nor AVAILABLE's NOVELS names it outside reveal; inside reveal both do.
+	const hiddenSource = page.locator('form.own', { hasText: 'Hidden source' }).getByRole('switch');
+	await page.waitForLoadState('networkidle');
+	await hiddenSource.click();
+	await expect(page).toHaveURL(/\/browse$/);
+	for (const path of ['/browse/extensions', '/browse/extensions?tab=available&kind=novels']) {
+		await page.goto(path);
+		await expect(page.locator('body'), path).not.toContainText(/good novels/i);
 	}
+	await reveal();
+	for (const path of ['/browse/extensions', '/browse/extensions?tab=available&kind=novels']) {
+		await page.goto(path);
+		await expect(row('Good Novels'), path).toBeVisible();
+	}
+	await page.goto('/browse/ln:goodnovels/settings');
+	await page.waitForLoadState('networkidle');
+	await expect(hiddenSource).toHaveAttribute('aria-checked', 'true');
+	await hiddenSource.click();
+	await expect(hiddenSource).toHaveAttribute('aria-checked', 'false');
+	await page.context().clearCookies({ name: 'tsundoku_reveal' });
+
+	await page.goto('/browse/extensions');
+	await row('Good Novels').getByRole('link', { name: 'REMOVE…' }).click();
+	const sheet = page.getByRole('dialog');
+	await expect(sheet).toContainText('REMOVE GOOD NOVELS?');
+	await sheet.getByRole('button', { name: 'REMOVE GOOD NOVELS' }).click();
+	await expect(row('Good Novels')).toHaveCount(0);
 });
