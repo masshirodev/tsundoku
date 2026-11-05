@@ -42,6 +42,9 @@
 				href={(k) => (k === 'all' ? resolve('/') : `${resolve('/')}?shelf=${k}`)}
 			/>
 		</div>
+		<!-- The KIND band's row (c436), in outline: its counts are the next
+		     screen's to say, so only the row's place is drawn. -->
+		<div class="kinds" aria-hidden="true"><i></i><i></i><i></i></div>
 		<GridOutline />
 	{:else if person}
 		<TopBar label="Library">
@@ -132,6 +135,19 @@
 	}
 	.tabs {
 		padding: 0 var(--pad) 12px;
+	}
+	/* The library's KIND band (c436), as an empty 40px row of grey cells. */
+	.kinds {
+		display: flex;
+		align-items: center;
+		gap: 24px;
+		height: 40px;
+		padding: 0 var(--pad);
+		border-top: var(--hairline);
+		border-bottom: var(--hairline);
+	}
+	.kinds i {
+		width: 56px;
 	}
 	.name {
 		margin: 0;

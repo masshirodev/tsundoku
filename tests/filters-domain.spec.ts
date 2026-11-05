@@ -4,6 +4,8 @@ import {
 	filterParams,
 	filterRows,
 	filterWords,
+	isOneOff,
+	kindCells,
 	kindsAmong,
 	languagesAmong,
 	legacyShelf,
@@ -12,6 +14,7 @@ import {
 	parseDay,
 	parseFilters,
 	withFilters,
+	FILTER_KINDS,
 	type Filters
 } from '$lib/library/filters';
 
@@ -103,7 +106,160 @@ describe('the shelves turn 3 retired', () => {
 		expect(legacyShelf('rated4', q('shelf=rated4&min=7'))?.toString()).toBe('shelf=all&min=7');
 		expect(legacyShelf('rated4', q('shelf=rated4'))?.toString()).toBe('shelf=all&min=8');
 		expect(legacyShelf('downloaded', q('shelf=downloaded'))?.toString()).toBe('shelf=all&dl=1');
-		expect(legacyShelf('k:manga', q('shelf=k:manga'))).toBeNull();
+	});
+
+	it('keep a filter the old link already carried (the rated4 one alone replaces min)', () => {
+		expect(legacyShelf('favourites', q('shelf=favourites&min=6'))?.toString()).toBe(
+			'shelf=all&min=6&fav=1'
+		);
+	});
+});
+
+describe('the shelves c436 retired: SERIES, ONE-OFF and each kind', () => {
+	it('SERIES and ONE-OFF become FORM, keeping the rest of the link', () => {
+		expect(legacyShelf('series', q('shelf=series&sort=title'))?.toString()).toBe(
+			'shelf=all&sort=title&form=series'
+		);
+		expect(legacyShelf('oneoff', q('shelf=oneoff&fav=1'))?.toString()).toBe(
+			'shelf=all&fav=1&form=oneoff'
+		);
+	});
+
+	it('every kind of the registry’s shelf becomes its ?kind=, and nothing else does', () => {
+		for (const kind of FILTER_KINDS)
+			expect(legacyShelf(`k:${kind}`, q(`shelf=k:${kind}&sort=title`))?.toString()).toBe(
+				`shelf=all&sort=title&kind=${kind}`
+			);
+		// The shelf's kind wins over a kind the link also named.
+		expect(legacyShelf('k:manga', q('shelf=k:manga&kind=novel'))?.get('kind')).toBe('manga');
+		for (const shelf of ['k:', 'k:comic', 'k:MANGA', 'all', 'new', 'c:3', 'r:1', 'people'])
+			expect(legacyShelf(shelf, q(`shelf=${shelf}`))).toBeNull();
+	});
+
+	it('lands somewhere legacyShelf leaves alone: one redirect, never a loop', () => {
+		for (const shelf of ['series', 'oneoff', 'favourites', ...FILTER_KINDS.map((k) => `k:${k}`)]) {
+			const once = legacyShelf(shelf, q(`shelf=${shelf}`))!;
+			expect(legacyShelf(once.get('shelf')!, once)).toBeNull();
+		}
+	});
+});
+
+describe('FORM (c436: SERIES and ONE-OFF, as a filter)', () => {
+	it('is a filter in the URL, in words and in the count, and nothing else is a form', () => {
+		expect(parseFilters(q('form=series'), false).form).toBe('series');
+		expect(parseFilters(q('form=oneoff'), false).form).toBe('oneoff');
+		for (const raw of ['one-off', 'SERIES', 'book', ''])
+			expect(parseFilters(q(`form=${raw}`), false).form).toBeNull();
+		expect(filterParams(f({ form: 'oneoff' }))).toEqual([['form', 'oneoff']]);
+		expect(filterWords(f({ form: 'series' }))).toEqual(['SERIES']);
+		expect(filterWords(f({ form: 'oneoff' }))).toEqual(['ONE-OFF']);
+		expect(activeCount(f({ form: 'series' }))).toBe(1);
+		// Read back from what it writes, unchanged.
+		for (const form of ['series', 'oneoff'] as const)
+			expect(parseFilters(withFilters(q(''), f({ form })), false)).toEqual(f({ form }));
+	});
+
+	it('tells a single book from a series on the device, as ONE_OFF_SQL does', () => {
+		// Every kind of the registry: only the one GROUP binds into books is ever a one-off.
+		for (const kind of FILTER_KINDS)
+			for (const entryCount of [0, 1, 2])
+				expect(isOneOff({ kind, entryCount })).toBe(kind === 'doujin' && entryCount <= 1);
+		expect(isOneOff({ kind: 'doujin' })).toBeUndefined();
+		expect(isOneOff({ entryCount: 1 })).toBeUndefined();
+		const book = {
+			rating: 0,
+			favourite: false,
+			hidden: false,
+			addedAt: 0,
+			kind: 'doujin',
+			entryCount: 1
+		};
+		expect(matches(book, f({ form: 'oneoff' }))).toBe(true);
+		expect(matches(book, f({ form: 'series' }))).toBe(false);
+		expect(matches({ ...book, entryCount: 3 }, f({ form: 'series' }))).toBe(true);
+		// A card that can't say isn't asked.
+		expect(matches({ ...book, entryCount: undefined }, f({ form: 'series' }))).toBe(true);
+	});
+
+	it('is a row on the library’s panel, and KIND is not; a person’s page has KIND and no FORM', () => {
+		const kinds = ['manga', 'doujin'] as const;
+		const library = filterRows(NO_FILTERS, [], false, false, true, kinds, {
+			kind: false,
+			form: true
+		});
+		expect(library.map((r) => r.key)).toContain('form');
+		expect(library.map((r) => r.key)).not.toContain('kind');
+		// Even with a kind chosen: the band shows it, the panel does not.
+		expect(
+			filterRows(f({ kind: 'manga' }), [], false, false, true, kinds, {
+				kind: false,
+				form: true
+			}).map((r) => r.key)
+		).not.toContain('kind');
+		const person = filterRows(NO_FILTERS, [], false, false, true, kinds);
+		expect(person.map((r) => r.key)).toContain('kind');
+		expect(person.map((r) => r.key)).not.toContain('form');
+		const form = library.find((r) => r.key === 'form')!;
+		expect(form.choices.map((c) => [c.label, c.on])).toEqual([
+			['ANY', true],
+			['SERIES', false],
+			['ONE-OFF', false]
+		]);
+		expect(form.choices.map((c) => c.to.form)).toEqual([null, 'series', 'oneoff']);
+	});
+});
+
+describe('the KIND band (c436)', () => {
+	it('the library’s FILTER badge leaves the kind out: the band says it', () => {
+		const both = f({ kind: 'anime', min: 8 });
+		expect(activeCount(both)).toBe(2);
+		expect(activeCount(both, false)).toBe(1);
+		expect(activeCount(f({ kind: 'anime' }), false)).toBe(0);
+	});
+
+	it('ALL first, then the kinds on the shelf in the registry’s order, with their counts', () => {
+		const cells = kindCells({ anime: 23, manga: 22, manhwa: 19 }, 64, null);
+		expect(cells.map((c) => [c.kind, c.n, c.on, c.zero])).toEqual([
+			[null, 64, true, false],
+			...FILTER_KINDS.filter((k) => ['manga', 'manhwa', 'anime'].includes(k)).map((k) => [
+				k,
+				{ manga: 22, manhwa: 19, anime: 23 }[k as 'manga'],
+				false,
+				false
+			])
+		]);
+	});
+
+	it('a kind with none here is gone; the chosen one stays at 0, dimmed and chosen', () => {
+		const counts = { manga: 18, manhwa: 13 };
+		const gone = kindCells(counts, 31, null).map((c) => c.kind);
+		expect(gone).toEqual([null, 'manga', 'manhwa']);
+		const kept = kindCells(counts, 31, 'anime');
+		expect(kept.find((c) => c.kind === 'anime')).toEqual({
+			kind: 'anime',
+			n: 0,
+			on: true,
+			zero: true
+		});
+		expect(kept[0]).toMatchObject({ kind: null, on: false });
+	});
+
+	it('with one kind or none to tell apart, ALL alone, unless one is chosen', () => {
+		expect(kindCells({ manhwa: 22 }, 22, null).map((c) => c.kind)).toEqual([null]);
+		expect(kindCells({}, 0, null).map((c) => c.kind)).toEqual([null]);
+		expect(kindCells({ manhwa: 22 }, 22, 'manhwa').map((c) => [c.kind, c.on])).toEqual([
+			[null, false],
+			['manhwa', true]
+		]);
+	});
+
+	it('over every kind chosen or none: exactly one cell is on, and only the chosen can be 0', () => {
+		const counts = { manga: 3, novel: 2 };
+		for (const chosen of [null, ...FILTER_KINDS]) {
+			const cells = kindCells(counts, 5, chosen);
+			expect(cells.filter((c) => c.on).map((c) => c.kind)).toEqual([chosen]);
+			expect(cells.filter((c) => c.zero).every((c) => c.kind === chosen)).toBe(true);
+		}
 	});
 });
 

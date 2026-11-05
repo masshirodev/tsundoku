@@ -9,6 +9,9 @@ const { getDb } = await import('$lib/server/db');
 const { seedSample } = await import('$lib/server/fixtures');
 const lib = await import('$lib/server/library');
 const works = await import('$lib/server/works');
+const { NO_FILTERS } = await import('$lib/library/filters');
+/** One kind, as the KIND band asks it (c436): `?kind=` on whichever shelf, here ALL. */
+const kind = (k: 'manga' | 'manhwa') => ({ ...NO_FILTERS, kind: k });
 
 /** A fresh library per test: a Work changes every count and every list. */
 beforeEach(() => {
@@ -58,7 +61,7 @@ describe('browsing shows the run as one tile', () => {
 		expect(own[0].face.favourite).toBe(true);
 	});
 
-	it('counts tiles everywhere: the shelf, the sidebar and a kind shelf', () => {
+	it('counts tiles everywhere: the shelf, the sidebar and the KIND band', () => {
 		const before = lib.countListed({ reveal: true, shelf: 'all' });
 		make(
 			['Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru', 'Hikaru ga Shinda Natsu'],
@@ -69,8 +72,9 @@ describe('browsing shows the run as one tile', () => {
 		expect(lib.countTiles(true)).toBe(before - 1);
 		const shelves = lib.listShelves({ reveal: true, withNew: false });
 		expect(shelves.find((s) => s.key === 'all')?.count).toBe(before - 1);
-		expect(shelves.find((s) => s.key === 'k:manga')?.count).toBe(
-			lib.listSeries({ reveal: true, shelf: 'k:manga' }).length - 1
+		// The KIND band's MANGA cell counts the Work once too (c436).
+		expect(lib.kindCounts({ reveal: true, shelf: 'all' }).kinds.manga).toBe(
+			lib.listSeries({ reveal: true, filters: kind('manga') }).length - 1
 		);
 	});
 
@@ -86,13 +90,20 @@ describe('browsing shows the run as one tile', () => {
 		);
 		// The same Work on both shelves -- and each count is what it was, since
 		// one series swapped itself for the tile.
-		const onManga = workTiles({ reveal: true, shelf: 'k:manga' })[0];
-		const onManhwa = workTiles({ reveal: true, shelf: 'k:manhwa' })[0];
+		const onManga = workTiles({ reveal: true, filters: kind('manga') })[0];
+		const onManhwa = workTiles({ reveal: true, filters: kind('manhwa') })[0];
 		expect([onManga.face.id, onManhwa.face.id]).toEqual([manga, manhwa]);
 		expect(onManga.name).toBe('Two Kinds');
 		// One Work on each, not one per part.
-		expect(workTiles({ reveal: true, shelf: 'k:manga' })).toHaveLength(1);
-		expect(workTiles({ reveal: true, shelf: 'k:manhwa' })).toHaveLength(1);
+		expect(workTiles({ reveal: true, filters: kind('manga') })).toHaveLength(1);
+		expect(workTiles({ reveal: true, filters: kind('manhwa') })).toHaveLength(1);
+		// And the band counts it once under each kind, and once in ALL (c436).
+		const band = lib.kindCounts({ reveal: true, shelf: 'all' });
+		expect([band.kinds.manga, band.kinds.manhwa]).toEqual([
+			tiles({ reveal: true, filters: kind('manga'), limit: 1000 }).length,
+			tiles({ reveal: true, filters: kind('manhwa'), limit: 1000 }).length
+		]);
+		expect(band.all).toBe(lib.countListed({ reveal: true, shelf: 'all' }));
 	});
 
 	it('pages the same tiles the whole shelf is: a Work once, in order, no part as its own card', () => {
@@ -153,16 +164,16 @@ describe('browsing shows the run as one tile', () => {
 			],
 			'Two Kinds'
 		);
-		const picked = lib.tileIds({ reveal: false, shelf: 'k:manga' });
+		const picked = lib.tileIds({ reveal: false, filters: kind('manga') });
 		expect(picked).toContain(manga);
 		expect(picked).toContain(manhwa);
 		const hidden = works.hideWork(facts.work.id, true);
 		expect(hidden.ids.sort()).toEqual([manga, manhwa].sort());
 		// With reveal off the Work is gone from the shelf and its screen is the
 		// 404 a missing id gets; with reveal on it is one tile again.
-		expect(lib.tileIds({ reveal: false, shelf: 'k:manga' })).not.toContain(manga);
+		expect(lib.tileIds({ reveal: false, filters: kind('manga') })).not.toContain(manga);
 		expect(works.workPage(facts.work.id, { reveal: false })).toBeNull();
-		expect(lib.tileIds({ reveal: true, shelf: 'k:manga' })).toContain(manga);
+		expect(lib.tileIds({ reveal: true, filters: kind('manga') })).toContain(manga);
 	});
 
 	it('marks a Work hidden when any part is, whatever part the tile wears', () => {

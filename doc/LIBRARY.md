@@ -20,17 +20,17 @@ state is the result of real data or real input.
 | Multi-select     | SELECT in the header. Taps then toggle tiles (a Work tile selects its parts, [`WORKS.md`](WORKS.md)), and the bulk bar applies FAV, + SHELF, GROUP, REFRESH, HIDE or DELETE to the selection; TAG is drawn but disabled, since no tag editor is designed yet. GROUP opens the AS sheet for any selection ([`BOOKS.md`](BOOKS.md), [`WORKS.md`](WORKS.md)), except that two or three single books each in a language of its own get FOLD AS LANGUAGES in its place ([`EDITIONS.md`](EDITIONS.md)). HIDE and UNHIDE apply to the selection, except that a Work's part takes its Work whole: HIDE asks first, and HIDE ALL n hides the Work whole while TAKE OUT takes the part out of its Work and hides only it; UNHIDE shows the whole Work ([`WORKS.md`](WORKS.md), "The one rule"). UNHIDE takes HIDE's cell only when every selected tile is hidden, which needs reveal on. REFRESH asks every selected series' source once ([below](#refresh-a-selection)). |
 | Person / tag     | `/?tag=namespace:value`, from a tag on the series screen or a chip. The person header replaces CONTINUE ([`BOOKS.md`](BOOKS.md)). A tag with nothing visible is a 404.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | History          | **N OPEN · HISTORY →** on CONTINUE, and a HISTORY row in the desktop sidebar, open [`HISTORY.md`](HISTORY.md)'s screen.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| Rescan           | **RESCAN** in the desktop sidebar, or typing `/scan`. Starts the same import as START SCAN; a press while one runs joins it. With nothing to import, the sidebar says where it looked, under the row ([`IMPORT-MIHON.md`](IMPORT-MIHON.md)).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Rescan           | **RESCAN** in the desktop sidebar asks first (c525; see "RESCAN asks first"), or typing `/scan`. Starts the same import as START SCAN; a press while one runs joins it, without asking. With nothing to import, the sidebar says where it looked, under the row ([`IMPORT-MIHON.md`](IMPORT-MIHON.md)).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | Incognito        | Typing `/incognito`. A dashed INCOGNITO · NOTHING SAVED band with END, on every screen ([`PRIVACY.md`](PRIVACY.md)).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Words            | Typing `/words`. The words looked up while reading Japanese, waiting for review ([`JAPANESE.md`](JAPANESE.md)).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | Duplicates band  | Pairs of books with alike covers to review, only those the viewer can see: **N POSSIBLE DUPLICATES · REVIEW →** ([`DUPLICATE-BOOKS.md`](DUPLICATE-BOOKS.md)).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | Queue cell       | QUEUE over its count, a cell before SELECT, while chapters are queued; DOWNLOADS in the desktop sidebar's foot. Dimmed at its last count offline or when the engine isn't answering ([`DOWNLOADING.md`](DOWNLOADING.md)).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Failures band    | Downloads that failed, as the duplicates band is drawn: **N DOWNLOADS FAILED**, the series, **REVIEW →** to the queue. Hidden series are never counted with reveal off.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| Links band       | Series AniList found, not for certain, to review, only those the viewer can see: **N SERIES TO LINK · REVIEW → · ✕**, below duplicates. Offline, its REVIEW cell dims ([`LINKS.md`](LINKS.md)). ✕ puts it away on this device until the count grows (see "The links band").                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Links band       | Series AniList found, not for certain, to review, only those the viewer can see: **N SERIES TO LINK · REVIEW → · ✕**, below duplicates. Offline, its REVIEW cell dims ([`LINKS.md`](LINKS.md)). ✕ puts it away on this device until the queue really grows; reveal off and on is not growth (see "The links band").                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | PEOPLE shelf     | `?shelf=people`. Exists while a favourite person has a visible book, and lists them as chips instead of a grid.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| SERIES, ONE-OFF  | `?shelf=series`, `?shelf=oneoff`: the library split by what a thing is. A one-off is a single doujin book; everything else is a series ([`FILTERS.md`](FILTERS.md)).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| FILTER           | The FILTER cell at the end of the tabs (the top bar on the desktop) narrows whichever shelf is showing: rating, FAV, language, date added, downloaded, and hidden while reveal is on. Favourites, rated and downloaded were shelves until c68 ([`FILTERS.md`](FILTERS.md)).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| Kind shelves     | `?shelf=k:manga`, `k:manhwa`, `k:novel`, `k:anime`: MANGA, MANHWA, NOVELS and ANIME ([`ANIME.md`](ANIME.md)), after ONE-OFF. Each lists one kind and shows only while the library has some. Doujins have no kind shelf; they're books, grouped and found by person and tag.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| FORM             | `?form=series`, `?form=oneoff`: FILTER's FORM row, SERIES · ONE-OFF, what a thing is shaped as. A one-off is a single doujin book; everything else is a series. They were shelves until c436, and `?shelf=series` and `?shelf=oneoff` answer 308 with the filter in their place ([`FILTERS.md`](FILTERS.md)).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| FILTER           | The FILTER cell at the end of the KIND band on the phone, tablet and TV (the top bar on the desktop) narrows whichever shelf is showing: rating, FAV, FORM, language, date added, downloaded, and hidden while reveal is on. Favourites, rated and downloaded were shelves until c68; its KIND row went with c436, the band being that choice ([`FILTERS.md`](FILTERS.md)).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| KIND band        | `?kind=manga` and the rest of the registry's kinds: one row under the shelf tabs, over the grid, **KIND · ALL n · MANGA n · …**, narrowing whichever shelf shows (see "The KIND band"). The kind shelves, `?shelf=k:<kind>`, were in the sidebar until c436, and answer 308 to `?kind=<kind>` ([`KINDS.md`](KINDS.md)).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | Reveal on        | Typing exactly `/reveal` in search and pressing Enter. A **session** cookie, so closing the app also ends it. HIDE AGAIN, or `/hide`, ends it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | Empty            | No visible series and no scan job.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Importing        | A `scan_jobs` row with no `finished_at`. Series the scanner found but hasn't indexed (`indexed_at IS NULL`) draw as dashed "indexing" tiles.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
@@ -100,9 +100,10 @@ series**.
   `WORK · N` badge, its name, and a foot of one segment per part with
   `PART 2 OF 3` or `UP NEXT · PART 2` where a series draws rating bars. `+N`
   sums the parts' new chapters and `↓` the parts' cached chapters; FAV shows
-  when any part is. A Work is on a shelf, or a kind shelf, when any of its series is,
-  and its cover is the part that is there -- a Work of a manga and its anime
-  is one tile on MANGA and on ANIME.
+  when any part is. A Work is on a shelf, or under a kind of the KIND band,
+  when any of its series is, and its cover is the part that is there -- a
+  Work of a manga and its anime is one tile under MANGA and under ANIME, and
+  the band counts it once in each, and once in ALL (`kindCounts`).
 - **Search, a tag filter and a person's page** find series, so a Work opens:
   each matching series is its own tile with `PART 2 · <WORK>` in its foot. A
   search that matches the Work's own name shows the Work first, then its
@@ -354,13 +355,34 @@ meant tapping through the others, and nothing ran the other way round.
   ascending, the rest descending), and `?dir=` is in the URL only while it's
   turned from that, so old links mean what they did. Choosing another sort
   drops it. RANDOM has no direction and no toggle.
-- **Turned round, RECENTLY READ still keeps the never-read last**: ascending
-  is the longest-untouched first, not a wall of things never opened.
-  RATING's ties stay A–Z either way. Every order still ends in the id, so
+- **RECENTLY READ counts a series never opened as read when it was added**
+  (c524, asked for on 2026-11-04: "when a new entry gets added to the
+  library it gets last_read = now()?"). The key is
+  `COALESCE(last read, added_at)`, PROGRESS's own, so a series a scan or ADD
+  just brought sits at the top of the default sort, above everything read
+  before it came and below anything read since. **The sort only, never the
+  data**: no reading is written, so CONTINUE, HISTORY, the reading time, the
+  reading log and tracking never see a read that didn't happen. Turned round
+  it's the exact mirror, the longest untouched first, adding being the
+  touch: a new add sits near the end, and a series added long ago and never
+  opened sits among the oldest reads, no longer in a block of its own at the
+  end (until c524 the never-read were kept last both ways). What `added_at`
+  holds decides where a big import lands (the scan case asserted in
+  `tests/library-sort-db.spec.ts`): a scan stamps a series it finds with no
+  backup behind it (a Mihon download folder alone, an anime folder, a
+  novel's backup) with the scan's time, so a first scan of a big folder puts
+  all of it on top, the last found first, until something is read; an
+  EPUB keeps its file's modified time; a Mihon backup's series keep the
+  backup's `dateAdded` (or their first chapter's fetch, or the scan's time
+  when the backup has neither) and land where they were added in Mihon; ADD
+  from BROWSE stamps the moment of the add. A
+  Work's key is the most recent of its parts' keys, so a part just added
+  lifts its Work too. RATING's ties stay A–Z either way. Every order still ends in the id, so
   pages stay clean in both directions (`ORDER`, `src/lib/server/library.ts`).
 - **On NEW**, RECENTLY ADDED is newest arrival, and turned round, oldest.
 - **A Work** sorts by its most recent part under every order (see "Works"):
-  RECENTLY READ by the part read last, RECENTLY ADDED by the part added last,
+  RECENTLY READ by the part read last (or, never opened, added), RECENTLY
+  ADDED by the part added last,
   TITLE by the Work's name, RATING by the rated parts' average, PROGRESS over
   the parts' totals.
 
@@ -406,8 +428,9 @@ bar go, since its sidebar stays; the library pins its own there
 the other screens that use `TopBar` are as they were. The window is what
 scrolls on every device (the sidebar is pinned beside it, not a scrolling
 container around it), so nothing above the bar defeats `position: sticky`.
-On a TV the bar is pinned too, and the shelf tabs pin over it once the grid
-has scrolled up to them (c238): the TV's search is the bar at the top.
+On a TV the bar is pinned too, and the KIND band pins over it once the grid
+has scrolled up to it (c436; the shelf tabs did from c238 until then): the
+TV's search is the bar at the top.
 
 ### BACK TO TOP
 
@@ -418,9 +441,16 @@ A tap scrolls to the top, smoothly, or at once under reduced motion; focus
 moves up to the bar first, since the cell goes as the page passes a screen.
 It hides again within a screen of the top, while selecting, where the
 bulk bar has that corner, and while FILTER's panel or SORT's list is open,
-whose scrim it would otherwise be drawn lit above (both live in the pinned
+whose scrim it would otherwise be drawn lit above (both live in a pinned
 bar's stacking context; the page reads their `<details open>` and
-`aria-expanded`). The page keeps 53px under its last row (plus the
+`aria-expanded`). **Each FILTER counts only where it is drawn** (c474): the
+top bar's inside the desktop's media query (`min-width: 1024px` and a fine
+pointer), the KIND band's inside its opposite (`max-width: 1023px`, or a
+coarse pointer, or none), a person's page's everywhere. A `<details>` that
+CSS has hidden stays open, so until then a FILTER left open at 1200px and
+the window narrowed to 900px hid the cell for good;
+`tests/library-top-scroll.e2e.ts` opens each, resizes past it, and sees the
+cell. The page keeps 53px under its last row (plus the
 phone's safe area) so the cell never sits on the last tiles. A TV, which
 draws no cell, keeps its own safe margin there instead (`--safe-y`, 28px at
 960x540; the TV block's c238 rule, restated beside the 53px one because that
@@ -429,7 +459,10 @@ one outranks it).
 **Not on a TV**, measured on 2026-11-03 (`tests/tv-library-top.e2e.ts`): one
 BACK from the bottom of the grid (`scrollY` 729 at 960x540) lands on the first
 CONTINUE card at `scrollY` 0, because the climb goes to the screen's start
-when the pinned shelf tab is already in sight ([`TV.md`](TV.md)). A corner
+when what it climbs to is already in sight ([`TV.md`](TV.md)). That is the
+pinned KIND band's chosen cell since c436 (`data-back-climb=".kinds .kc.on"`
+on the grid); it was the pinned shelf tab before, and pointing at the tab,
+no longer pinned, would cost a BACK to land on it far up the page. A corner
 cell would only be one more stop for the pad.
 
 **The first row's mark on a TV.** The focus layer brings a focused tile clear
@@ -450,19 +483,28 @@ brings it back, the same ones again do not. When the queue shrinks meanwhile
 so the next new one is news again: put away at 46, reviewed down to 36, back
 at 37.
 
+**Reveal is not news** (c430's second half). With reveal on the band counts
+hidden series too, so the count it shows moves when reveal does: off drops
+it by the hidden ones, on raises it back. Until then one number was kept, the
+shown one, and it followed the queue down, so reveal off lowered it and
+reveal on was "growth" and brought the band back with nothing new. Two counts
+are kept now: `pub`, the queue without hidden series, which is the same with
+reveal on or off (the page's `toLinkPublic`; with reveal off it is simply
+`toLink`, so nothing hidden is ever counted then), and `all`, the queue with
+them, known only if it was put away with reveal on and lowered only with
+reveal on. The band comes back when `pub` grows, or, with reveal on, when
+`all` does. A wave 19 value (a bare number) reads as `pub`. Put away with
+reveal off, a new **hidden** series to link does not bring it back with
+reveal on: `all` was never known; the TO LINK row counts it.
+
 The ✕'s name is "Put away the series to link until the count grows". Not
 "until there are more": a name that holds the word MORE is a second answer to
 the bar's MORE, for a screen reader's or voice control's "MORE" as much as
 for a test's `getByRole('button', { name: 'MORE' })`.
 
-**Per device, not on the workstation.** The count is kept in this device's
-`localStorage` (`tsundoku.library.links-put-away`), as the update band's
-"seen" is, because the band is a reminder about this screen, not a fact about
-the library, and a per-device choice needs no server and no rung. The cost:
-another device still shows the band until put away there too, and a full
-reload draws it for a moment until the page has hydrated and read the key
-(a client-side return to the library does not). Remembering it on the
-workstation would mean a cookie or a row read by `+page.server.ts`.
+**Per device, not on the workstation**: kept in this device's `localStorage`
+(`tsundoku.library.links-put-away`, `{ pub, all }`). Why, and what it costs,
+is [`LINKS.md`](LINKS.md)'s, "Putting the band away".
 
 **Where the review is reached once it is away**: **TO LINK** with its count,
 in the desktop sidebar's foot (after GET STARTED, before HISTORY) and in MORE
@@ -484,6 +526,165 @@ with the remote's keys. On a TV the sidebar is not drawn (it is the desktop's,
 a fine pointer at 1024 px or more), so MORE's row is the TV's door.
 `tests/library-top-scroll.e2e.ts` puts it away, reloads, adds a series to
 link and sees it back, on its own seeded database.
+
+## The KIND band
+
+Asked for on 2026-11-03 (c436): "the shelves menu could be split too, like,
+it has kinds and shelves below, that sidebar could have shelves only and then
+a band to select kinds on the library itself?" Designed in
+`doc/handoffs/kinds-band/` (brief: `doc/briefs/LIBRARY-KINDS.md`), built
+2026-11-04, with the design tools (extract, reconcile, pin).
+
+- **The sidebar and the tabs hold shelves only**: NEW (while anything is),
+  ALL, the owner's collections in their order, + NEW SHELF, PEOPLE, then a
+  hidden root while reveal is on. SERIES, ONE-OFF, MANGA, MANHWA, NOVELS and
+  ANIME are gone from both (`listShelves`). IDR, TO READ, DROPPED and any
+  collection stay shelves, whatever they hold: they are the owner's.
+- **One row under the shelf tabs, directly over the grid**: `KIND`, then
+  **ALL n**, then each kind on this shelf in the registry's order (`KINDS`):
+  MANGA, MANHWA, DOUJINS, NOVELS, ANIME, and a new kind by being in
+  `KIND_FACTS` (its word is the `nav_shelf_*` plural, in `KIND_WORD`, which the
+  compiler makes a new kind fill). It narrows whichever shelf shows: TO READ,
+  ANIME is two taps. The chosen cell is inverted, so a shelf and a kind show
+  as two inverted cells, one above the other. 40px, cells `0 10px` on a phone
+  and `0 14px` above 600px, 13px mono, the count at 0.6; the `KIND` label in
+  12px `text-2`, which the phone drops for room. On the desktop it sits under
+  `02 — <SHELF>`, ruled above too, and has no FILTER: that stays in the top
+  bar. `tests/library-kinds-frame.e2e.ts` pins Board 3A's measurements
+  (generated by `gen-conformance` from `Tablet.dc.html`).
+- **Each cell counts this shelf with every other filter applied**, in one
+  grouped read (`kindCounts`, `src/lib/server/library.ts`): a Work counts once
+  under each kind it has a part of, and once in ALL, so ALL is what the grid
+  shows and not the sum. The active tab says `23 OF 64` while a kind narrows
+  it, and the section label names it first: `02 — TO READ · ANIME · RATED 4+`.
+- **It writes `?kind=`**, the parameter FILTER's KIND row wrote, so old links
+  still land; FILTER's KIND row is gone from the library (a person's page,
+  which has no band, keeps it), and FILTER's badge no longer counts a kind,
+  nor does its CLEAR ALL clear one: the band holds it. **The kind is
+  remembered across shelves** because `shelfHref` carries every filter
+  parameter; ALL clears it; it is in the URL, never a setting, so the
+  wordmark and a fresh launch start at ALL. **One kind at a time**: a tap
+  chooses, as a tab does.
+- **A kind not on this shelf is gone**, except the one chosen: moved to a
+  shelf with none of it, it stays, drawn at 0, dimmed (0.4) and still
+  inverted, and the grid says `No anime on Dropped.` / `The shelf holds 31.`
+  with **✕ ALL KINDS · SHOW 31**. Unlike a language, a kind the shelf doesn't
+  hold is no longer dropped from the URL. With other filters on as well, the
+  grid's line is FILTER's own, "Nothing on X matches these filters". With one
+  kind or none to tell apart the band is ALL n alone (and FILTER), the same
+  height, so the grid doesn't jump between shelves. LANGUAGE offers what the
+  shelf holds of the chosen kind, as it did of a kind shelf: MANHWA offers
+  none, so choosing it drops JA.
+- **SERIES and ONE-OFF are FILTER's FORM row**: ANY · SERIES · ONE-OFF
+  (`?form=`), about shape, not kind (see [`FILTERS.md`](FILTERS.md)).
+- **Old links answer 308** with the filter in the shelf's place, beside
+  FAVOURITES and the rest (`legacyShelf`): `?shelf=k:anime` is
+  `?shelf=all&kind=anime`, `?shelf=series` is `?shelf=all&form=series`, any
+  other parameter kept. A kind is any the registry names, so `k:doujin`,
+  never a shelf (it fell back to ALL), now lands on doujins. `listSeries`
+  still reads an old key as its filter, for a page asked for by a tab loaded
+  before the change.
+- **On the phone it scrolls sideways**, never wraps or collapses; FILTER is
+  pinned at its right end, the cells scrolling under it, and a cell cut off at
+  the edge is the cue. The chosen cell is kept in view, as the tabs keep
+  theirs. The grid moves down 40px against the old phone.
+- **It pins; the tabs don't.** As the grid scrolls the band stops under the
+  top bar (`top: var(--header-h)`, z 7, the bar is 8) and gains a first cell,
+  the shelf's name with ▴ (`TO READ ▴`), which scrolls back to the tabs and
+  puts the mark on the shelf showing (on the desktop, back to the band's own
+  place). Pinned is measured, not guessed: a marker just above the band, and
+  the band held apart from it. So the pinned chrome is 60 + 40px on a phone.
+- **A kind chosen while it is pinned opens at its start.** The cells keep the
+  scroll (`data-sveltekit-noscroll`), so choosing from the band at its own
+  place never jumps the page. Pinned, that would open the new kind partway
+  down its list (or clamped at the bottom of a short one), so once the
+  navigation has drawn the grid the page goes, instantly, to the band's own
+  place: the band under the top bar, the grid's first row directly under it,
+  the tabs just above the window. The measure is the one `TO READ ▴` uses on
+  the desktop (`placeUnderBar`), taken again each frame until a slow load's
+  outline has gone (`settleScroll`, two seconds at most, given up at the
+  reader's own touch, wheel or key). Focus stays on the chosen cell
+  (`data-sveltekit-keepfocus`), and ↓ from any cell goes to the first tile
+  (`data-focus-down` on the strip), not the one under the cell. **Without
+  script** the cells are plain links and a full load starts at the top, which
+  shows the tabs, the band and the first row.
+- **On a TV** it is a 56px focus row of its own under the tabs, inside the
+  safe margin. **← → move focus only**: each cell is a link, so the grid
+  doesn't change until **OK**, which chooses (and keeps focus on the cell).
+  The focus line under it says what OK will do: `ANIME · 23 ON TO READ` and
+  `OK SHOWS THEM · THE GRID WAITS` (its key hints still read OK OPEN). ↓ goes
+  into the grid; the band then pins at the top in the tabs' place (until
+  c436 the tabs pinned), `TO READ ▴` first, so the pinned rows are still 56 +
+  64px; OK on that cell brings the tabs back with the mark on the shelf.
+  BACK from the grid climbs to the band's chosen cell, which is in view, so it
+  goes on to the screen's start, as it did with the pinned tab.
+  `tests/tv-library-kinds.e2e.ts`.
+- **What stacks above the grid** is unchanged in order: the status bands
+  (SCANNING, failed downloads, duplicates, SERIES TO LINK), CONTINUE, the
+  section label, the tabs, then the band, and nothing between the band and
+  the grid. The waiting outline draws the band's row too (`WaitingScreen`),
+  and a band tap outlines the grid from 1 s as a tab does.
+
+### Where it departs from the handoff
+
+- **FILTER's cell keeps its own vertical rhythm and focus mark** (a
+  `<details>` summary, 39px under the band's hairline, marked inside on a TV),
+  rather than the mock's `<button>`.
+- **The pinned shelf cell is a button**, not the mock's link: it scrolls, it
+  goes nowhere.
+- **The TV's ↑ from the grid's first row** goes where the focus layer's
+  geometry sends it (the top bar, under the pinned band), not to the band;
+  the pinned band is reached by BACK's climb or the keys along it. This was
+  so with the pinned tabs too (wave 19's suggestion), and the layer is not the
+  library's.
+- **The focus line's key hints** read OK OPEN on a band cell, as on a tile:
+  `FocusLine` draws its hints for every stop, and is not the library's.
+
+### What it does not do yet
+
+- **Several kinds at once** (MANGA and MANHWA, the comic family): one at a
+  time, as the design answers; `?kind=` reads a single kind.
+- **MOVIES and SHOWS**: not kinds yet; each gets a cell by joining the
+  registry.
+
+## RESCAN asks first
+
+Asked for on 2026-11-04 (c525): "rescan needs a confirmation modal, blocky
+like the app". **RESCAN** in the desktop sidebar opens the house's
+ConfirmSheet, `RESCAN THE LIBRARY FOLDER?`, saying what will happen: it reads
+the library folder on the workstation again, new series appear on NEW as they
+are found, nothing is removed, and roughly how long the last scan took when
+one has finished (`lastScanTook`: the newest finished job that isn't a
+backup's import). **CANCEL** and **RESCAN**, CANCEL where the sheet opens, so
+OK or Enter at once is the safe answer; Esc and the scrim cancel too. The
+sheet posts the same `?/scan` the sidebar's form did, and its answer is taken
+as before: the note under the row (`rescanNote`, the same lifetime, SCAN_WAITS
+included), then the library. **A scan already running is joined at once**,
+without the question: there is nothing new to agree to. **Without script** the
+sidebar's form is the plain form it was, and posts. `tests/rescan-confirm.e2e.ts`
+(its own seeded database, since one case stages a running scan) and
+`tests/library-layout.e2e.ts`.
+
+**Every door that starts a scan**, listed with
+`rg -n 'action="/?\?/scan"|startScan\(|runQueued\(' src` (11 lines: 9 sites
+past the two definitions, the scan action itself one of them, the sheet's
+own form another):
+
+- **Asks:** the sidebar's RESCAN (`+layout.svelte`), the only door one stray
+  tap reaches.
+- **Doesn't ask, as the card says:** START SCAN on the empty library
+  (`StartFirstDay`) and GET STARTED's scan step (`StartList`): there, scanning
+  is what the screen is for.
+- **Doesn't ask, and why:** typing `/scan` in search (a typed command is its
+  own question), `POST /api/scan` (the sync timer's, a script's door, no
+  screen), and the scans that follow on their own (`engine/run.ts` after a
+  download, a backup's import through `runQueued`).
+
+**There is no RESCAN on a phone or tablet.** MORE never had one (c525's card
+and the help text both said it did): the sidebar is the desktop's, so the
+other devices reach a scan by `/scan`. The help's backups topic now says so.
+Not built here, because a door that never existed is a feature of its own.
+The TV likewise: its "focus on CANCEL" has no door to open the sheet from.
 
 ## Where it departs from the handoff
 
@@ -538,7 +739,7 @@ Specific and honest, so a deliberate gap isn't mistaken for an oversight:
   opens the sidebar's foot as a sheet: GET STARTED while it is unfinished,
   TO LINK while anything waits (c475), HISTORY, DOWNLOADS with its queue,
   SETTINGS with this device's changed count, HELP, IMPORT LOG, and in the TV
-  app only, SERVERS (c261; [`TV-APP.md`](TV-APP.md), "Servers"). The desktop
+  app only, SERVERS (no RESCAN: see "RESCAN asks first") (c261; [`TV-APP.md`](TV-APP.md), "Servers"). The desktop
   has the sidebar itself, so no MORE there (`MoreSheet.svelte`). To make room,
   a phone under 420px shows the search hint as / alone, as Reach draws it.
 - **A folded book** (one book in several languages) is one tile with its

@@ -6,11 +6,13 @@
 	import '$lib/styles/index.css';
 	import { m } from '$lib/paraglide/messages';
 	import { num } from '$lib/i18n/format';
-	import { enhance } from '$app/forms';
+	import { applyAction, enhance } from '$app/forms';
+	import type { ActionResult } from '@sveltejs/kit';
 	import { page, updated } from '$app/state';
 	import { resolve } from '$app/paths';
 	import Banner from '$lib/components/chrome/Banner.svelte';
 	import Band from '$lib/components/chrome/Band.svelte';
+	import ConfirmSheet from '$lib/components/chrome/ConfirmSheet.svelte';
 	import PrivacyShield from '$lib/components/chrome/PrivacyShield.svelte';
 	import Wordmark from '$lib/components/chrome/Wordmark.svelte';
 	import ShelfTabs from '$lib/components/controls/ShelfTabs.svelte';
@@ -50,6 +52,49 @@
 	// The scan action's refusal is drawn by the empty library only, so the
 	// sidebar's RESCAN says it in its own place rather than nowhere.
 	let rescanNote = $state('');
+
+	// ---- RESCAN asks first (c525; doc/LIBRARY.md, "RESCAN") ---------------------------
+	// A stray tap on the sidebar started a scan. Now the house's own question
+	// comes first, CANCEL the default; the form is the same, so without script
+	// it still posts and scans. A scan already running is joined at once, as
+	// before: there is nothing new to agree to.
+	let rescanAsking = $state(false);
+	const scanRunning = $derived(data.scan !== null && data.scan.finishedAt === null);
+	const rescanLines = $derived.by(() => {
+		const ms = data.lastScanMs;
+		const took =
+			ms === null
+				? []
+				: ms < 60_000
+					? [m.nav_rescan_took_short()]
+					: [m.nav_rescan_took({ n: num(Math.round(ms / 60_000)) })];
+		return [m.nav_rescan_reads(), m.nav_rescan_new(), m.nav_rescan_keeps(), ...took];
+	});
+	/** The scan's answer, as the sidebar's form took it before it asked: the note, then the page. */
+	async function rescanDone(result: ActionResult) {
+		rescanAsking = false;
+		rescanNote =
+			result.type === 'failure' || result.type === 'success'
+				? String(result.data?.scanMessage ?? '')
+				: '';
+		if (result.type === 'failure') return;
+		if (result.type === 'success') await invalidateAll();
+		await applyAction(result);
+	}
+	// CANCEL is where the sheet opens, on a TV's remote and a keyboard alike:
+	// OK or Enter straight away is the safe answer.
+	$effect(() => {
+		if (!rescanAsking) return;
+		const id = requestAnimationFrame(() =>
+			requestAnimationFrame(() => {
+				const sheet = [...document.querySelectorAll<HTMLElement>('[role="dialog"]')].find(
+					(d) => d.getAttribute('aria-label') === m.nav_rescan_title()
+				);
+				sheet?.querySelector<HTMLElement>('.actions button[type="button"]')?.focus();
+			})
+		);
+		return () => cancelAnimationFrame(id);
+	});
 
 	// ---- waiting (doc/WAITING.md) -------------------------------------------------
 	// The element a tap landed on, so it can hold its pressed look until the
@@ -382,14 +427,21 @@
 					<form
 						method="POST"
 						action="/?/scan"
-						use:enhance={() =>
-							async ({ result, update }) => {
+						use:enhance={({ cancel }) => {
+							// Asks first, unless one is running already (c525).
+							if (!scanRunning) {
+								cancel();
+								rescanAsking = true;
+								return;
+							}
+							return async ({ result, update }) => {
 								rescanNote =
 									result.type === 'failure' || result.type === 'success'
 										? String(result.data?.scanMessage ?? '')
 										: '';
 								if (result.type !== 'failure') await update();
-							}}
+							};
+						}}
 					>
 						<button type="submit">{m.nav_rescan()}</button>
 						{#if rescanNote}<div class="rescan-note" role="status">{rescanNote}</div>{/if}
@@ -455,6 +507,17 @@
 		</div>
 
 		<SaveBand />
+		<!-- RESCAN's question (c525): the house's ConfirmSheet, posting the same action. -->
+		<ConfirmSheet
+			open={rescanAsking}
+			title={m.nav_rescan_title()}
+			lines={rescanLines}
+			confirm={m.nav_rescan()}
+			action="/?/scan"
+			fields={{}}
+			onclose={() => (rescanAsking = false)}
+			ondone={rescanDone}
+		/>
 		<PrivacyShield armed={data.reveal || data.incognito} />
 
 		{#if data.reveal}

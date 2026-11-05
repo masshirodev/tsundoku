@@ -57,9 +57,13 @@ is or count a hidden series.
 
 Per destination:
 
-- **Library shelf → library shelf:** CONTINUE and the tabs stay as they are.
-  The grid goes to outline, and the label's right side reads LOADING.
-- **Elsewhere → library:** header, tabs and the grid in outline
+- **Library shelf → library shelf:** CONTINUE, the tabs and the KIND band
+  stay as they are. The grid goes to outline, and the label's right side
+  reads LOADING. A band tap (`?kind=`) is the same wait as a tab's (c436;
+  `tests/waiting-flow.e2e.ts` slows the band's MANGA, the sidebar's MANGA
+  shelf having gone).
+- **Elsewhere → library:** header, tabs, the KIND band's row (empty grey
+  cells: its counts are the next screen's to say) and the grid in outline
   (`WaitingScreen`).
 - **Series:** opens with what the tapped tile knew (`SeriesOutline`). That's
   the real `SeriesPanel` in its `outline` mode:

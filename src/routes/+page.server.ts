@@ -12,7 +12,7 @@ import {
 	countTiles,
 	createCollection,
 	dismissScan,
-	kindsOn,
+	kindCounts,
 	languagesOn,
 	listTiles,
 	setFavourite,
@@ -68,8 +68,9 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	// While a scan is running or just finished, the grid defaults to what it
 	// brought in: "02 — ARRIVING" / "02 — JUST IMPORTED".
 	const shelf = url.searchParams.get('shelf') ?? (scan ? 'new' : 'all');
-	// FAVOURITES, RATED and DOWNLOADED are filters now (doc/FILTERS.md): an
-	// old link lands on the same books.
+	// FAVOURITES, RATED and DOWNLOADED are filters now (doc/FILTERS.md), and
+	// SERIES, ONE-OFF and the kind shelves since c436 (FORM and the KIND
+	// band's ?kind=): an old link lands on the same books, permanently.
 	const legacy = legacyShelf(shelf, url.searchParams);
 	if (legacy) redirect(308, `/?${legacy}`);
 	const tag = url.searchParams.get('tag');
@@ -77,15 +78,18 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	// LANGUAGE offers what the shelf holds; the shelf's own size is what
 	// "44 OF 188" is out of, counted only while a filter narrows it.
 	const languages =
-		shelf === 'people' || shelf === 'cached' ? [] : languagesOn({ reveal, shelf, tag });
-	// KIND offers the kinds the shelf holds (TO READ's manga); a kind it doesn't
-	// hold drops, as a language does.
-	const kinds = shelf === 'people' || shelf === 'cached' ? [] : kindsOn({ reveal, shelf, tag });
-	if (filters.kind && shelf !== 'cached' && shelf !== 'people' && !kinds.includes(filters.kind)) {
-		const next = new URLSearchParams(url.searchParams);
-		next.delete('kind');
-		redirect(307, `/?${next}`);
-	}
+		shelf === 'people' || shelf === 'cached'
+			? []
+			: languagesOn({ reveal, shelf, tag, kind: tag ? null : filters.kind });
+	// The KIND band (c436; doc/LIBRARY.md, "The KIND band"): this shelf's
+	// tiles by kind, every other filter applied. A kind the shelf doesn't hold
+	// is kept, unlike a language: the band draws it at 0 and the grid says so,
+	// so the kind chosen on TO READ is still chosen on DROPPED. A person's page
+	// filters on the device and draws no band.
+	const kindBand =
+		shelf === 'people' || shelf === 'cached' || tag
+			? null
+			: kindCounts({ reveal, shelf, tag, filters });
 	// A language this shelf doesn't hold drops, rather than emptying the grid
 	// (Library Filters 1c: MANHWA offers none, so switching to it drops JA).
 	if (filters.lang && shelf !== 'cached' && !languages.includes(filters.lang)) {
@@ -115,7 +119,12 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 	const dupes = reviewQueue(reveal).length;
 	// Catalogue links AniList found, not for certain (doc/LINKS.md).
 	// One review for both catalogues (doc/RANOBE.md, "The review").
-	const toLink = linkQueueCount(reveal) + ranobeQueueCount();
+	const ranobe = ranobeQueueCount();
+	const toLink = linkQueueCount(reveal) + ranobe;
+	// The same queue without hidden series, whatever reveal is (c430): what the
+	// band's ✕ measures growth by, so turning reveal off and on again is never
+	// news. Never the other way round: with reveal off, nothing counts hidden.
+	const toLinkPublic = reveal ? linkQueueCount(false) + ranobe : toLink;
 	// RANDOM's shuffle: one per choice of RANDOM, kept in the URL.
 	const seed = parseSeed(url.searchParams.get('seed'));
 	const pageSize = pageSizeOf(cookies.get('tsundoku_grid_page'));
@@ -155,7 +164,7 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		tag,
 		filters,
 		languages,
-		kinds,
+		kindBand,
 		shelfTotal:
 			activeCount(filters) > 0 && shelf !== 'people' && shelf !== 'cached'
 				? countListed({ reveal, shelf, tag })
@@ -175,6 +184,7 @@ export const load: PageServerLoad = async ({ url, cookies, parent }) => {
 		firstRead: total === 0 && !scan ? firstReadExtras(reveal) : null,
 		dupes,
 		toLink,
+		toLinkPublic,
 		// FOLLOWED is a filter while something the viewer can see is followed (doc/DOWNLOADING.md).
 		following: anyFollowed(reveal),
 		libraryRoot: libraryRoot(),

@@ -42,16 +42,25 @@ async function reveal(page: Page) {
 test('a filter narrows the shelf: the URL, the label, the tab’s count and the cell all say so', async ({
 	page
 }) => {
-	await page.goto('/?shelf=k:manga&sort=title');
-	const tab = page.getByRole('link', { name: /^MANGA/ }).filter({ visible: true });
+	await page.goto('/?shelf=all&sort=title');
+	const tab = page.locator('nav[aria-label="Shelves"] .tab.on').filter({ visible: true });
 	const total = Number((await tab.locator('.n').textContent())!.trim());
+	// A kind from the KIND band (c436): the active tab says what it narrows, and
+	// the label names it, but FILTER's badge leaves it to the band.
+	const band = page.getByRole('group', { name: 'Kind' });
+	await band.getByRole('link', { name: /^MANGA/ }).click();
+	await expect(page).toHaveURL(/kind=manga/);
+	await expect(page.getByText('02 — ALL · MANGA')).toBeVisible();
+	await expect(filterCell(page).locator('.badge')).toHaveCount(0);
 	await openFilters(page);
 	await rowOf(page, 'FAV').getByRole('link', { name: 'NOT FAV' }).click();
 	await expect(page).toHaveURL(/fav=0/);
-	await expect(page.getByText('02 — MANGA · NOT FAV')).toBeVisible();
+	await expect(page.getByText('02 — ALL · MANGA · NOT FAV')).toBeVisible();
 	await expect(filterCell(page)).toContainText('1');
 	const shown = await page.locator('.grid .tile').count();
 	await expect(tab).toContainText(`${shown} OF ${total}`);
+	// The band's MANGA counts what the grid shows: every filter but KIND.
+	await expect(band.getByRole('link', { name: /^MANGA/ }).locator('.n')).toHaveText(String(shown));
 	// No favourite is left on the grid.
 	await expect(page.locator('.grid .tile', { hasText: 'FAV' })).toHaveCount(0);
 
@@ -62,10 +71,11 @@ test('a filter narrows the shelf: the URL, the label, the tab’s count and the 
 	await panel(page).getByRole('button', { name: 'DONE' }).click();
 	await expect(panel(page)).toBeHidden();
 
+	// CLEAR ALL clears what FILTER holds; the kind is the band's, and stays.
 	await openFilters(page);
 	await panel(page).getByRole('link', { name: '✕ CLEAR ALL' }).click();
 	await expect(page).not.toHaveURL(/fav=|dl=/);
-	await expect(page).toHaveURL(/shelf=k%3Amanga|shelf=k:manga/);
+	await expect(page).toHaveURL(/kind=manga/);
 });
 
 test('RATING is one line: the blocks pick AT LEAST, UNRATED replaces it, ANY clears', async ({
@@ -96,13 +106,38 @@ test('the retired shelves’ old links land on the same books, as filters', asyn
 	await expect(page).not.toHaveURL(/rated4/);
 	await page.goto('/?shelf=downloaded');
 	await expect(page).toHaveURL(/dl=1/);
+	// And c436's: SERIES and ONE-OFF are FORM, each kind's shelf the band's ?kind=.
+	await page.goto('/?shelf=series&sort=title');
+	await expect(page).toHaveURL(/shelf=all.*form=series/);
+	await expect(page.getByText('02 — ALL · SERIES')).toBeVisible();
+	await page.goto('/?shelf=oneoff');
+	await expect(page).toHaveURL(/form=oneoff/);
+	await page.goto('/?shelf=k:novel&sort=title');
+	await expect(page).toHaveURL(/shelf=all.*kind=novel/);
+	await expect(
+		page.getByRole('group', { name: 'Kind' }).getByRole('link', { name: /^NOVELS/ })
+	).toHaveAttribute('aria-current', 'true');
+});
+
+test('the old shelf links answer 308, a permanent move, with the filter in its place', async ({
+	request
+}) => {
+	for (const [from, to] of [
+		['/?shelf=k:manga', '/?shelf=all&kind=manga'],
+		['/?shelf=series&sort=title', '/?shelf=all&sort=title&form=series'],
+		['/?shelf=oneoff', '/?shelf=all&form=oneoff']
+	]) {
+		const res = await request.get(from, { maxRedirects: 0 });
+		expect(res.status()).toBe(308);
+		expect(res.headers().location).toBe(to);
+	}
 });
 
 test('filters that leave nothing say so about the shelf, and one move clears them', async ({
 	page
 }) => {
-	await page.goto('/?shelf=k:novel&min=10&fav=0');
-	await expect(page.getByText('Nothing on Novels matches these filters.')).toBeVisible();
+	await page.goto('/?shelf=all&kind=novel&min=10&fav=0');
+	await expect(page.getByText('Nothing on All matches these filters.')).toBeVisible();
 	await page.getByRole('link', { name: /^✕ CLEAR · SHOW \d+$/ }).click();
 	await expect(page).not.toHaveURL(/min=|fav=/);
 	await expect(page.locator('.grid .tile').first()).toBeVisible();
@@ -136,21 +171,60 @@ test('with reveal on, LANGUAGE offers what the shelf holds and HIDDEN narrows to
 	await expect(page).not.toHaveURL(/lang=/);
 });
 
-test('KIND narrows a mixed shelf to one kind, and isn’t offered on a kind shelf', async ({
+test('the KIND band narrows any shelf to one kind, and FILTER has FORM instead of KIND', async ({
 	page
 }) => {
-	await page.goto('/?shelf=all');
-	await openFilters(page);
-	await rowOf(page, 'KIND').getByRole('link', { name: 'MANHWA' }).click();
+	await page.goto('/?shelf=all&sort=title');
+	const band = page.getByRole('group', { name: 'Kind' });
+	await expect(band.getByRole('link', { name: /^ALL/ })).toHaveAttribute('aria-current', 'true');
+	await band.getByRole('link', { name: /^MANHWA/ }).click();
 	await expect(page).toHaveURL(/kind=manhwa/);
 	await expect(page.getByText(/· MANHWA/)).toBeVisible();
+	await expect(band.getByRole('link', { name: /^MANHWA/ })).toHaveAttribute('aria-current', 'true');
 	await expect(page.locator('.grid .tile').first()).toBeVisible();
-	await page.goto('/?shelf=k:manga');
+	const manhwa = await page.locator('.grid .tile').count();
+	await expect(band.getByRole('link', { name: /^MANHWA/ }).locator('.n')).toHaveText(
+		String(manhwa)
+	);
+	// FILTER no longer has KIND here: the band is that choice. It has FORM.
 	await openFilters(page);
 	await expect(rowOf(page, 'KIND')).toHaveCount(0);
-	// A kind the shelf doesn't hold drops rather than showing nothing.
-	await page.goto('/?shelf=k:manga&kind=novel');
+	await rowOf(page, 'FORM').getByRole('link', { name: 'SERIES' }).click();
+	await expect(page).toHaveURL(/form=series/);
+	await expect(page).toHaveURL(/kind=manhwa/);
+	await expect(page.getByText(/· MANHWA · SERIES/)).toBeVisible();
+	await rowOf(page, 'FORM').getByRole('link', { name: 'ANY' }).click();
+	await expect(page).not.toHaveURL(/form=/);
+	await panel(page).getByRole('button', { name: 'DONE' }).click();
+	// ALL clears the kind.
+	await band.getByRole('link', { name: /^ALL/ }).click();
 	await expect(page).not.toHaveURL(/kind=/);
+});
+
+test('the kind is remembered across shelves, kept at 0 where a shelf has none, and ALL KINDS shows the shelf', async ({
+	page
+}) => {
+	await page.goto('/?shelf=all&kind=novel&sort=title');
+	const band = page.getByRole('group', { name: 'Kind' });
+	await expect(band.getByRole('link', { name: /^NOVELS/ })).toHaveAttribute('aria-current', 'true');
+	// TO FINISH holds manga and manhwa: the tab carries the kind there.
+	const toFinish = page
+		.locator('nav[aria-label="Shelves"]')
+		.filter({ visible: true })
+		.getByRole('link', { name: /^TO FINISH/ });
+	const held = Number((await toFinish.locator('.n').textContent())!.trim());
+	await toFinish.click();
+	await expect(page).toHaveURL(/shelf=c(%3A|:)\d+.*kind=novel/);
+	const novels = band.getByRole('link', { name: /^NOVELS/ });
+	await expect(novels).toHaveAttribute('aria-current', 'true');
+	await expect(novels).toHaveClass(/zero/);
+	await expect(novels.locator('.n')).toHaveText('0');
+	await expect(page.getByText('No novels on To finish.')).toBeVisible();
+	await page.getByRole('link', { name: `✕ ALL KINDS · SHOW ${held}` }).click();
+	await expect(page).not.toHaveURL(/kind=/);
+	await expect(page.locator('.grid .tile')).toHaveCount(held);
+	// Gone where the shelf has none of it, now nothing chose it.
+	await expect(band.getByRole('link', { name: /^NOVELS/ })).toHaveCount(0);
 });
 
 test('+ NEW makes a shelf by name and lands on it, empty, with how to fill it', async ({
@@ -167,6 +241,16 @@ test('+ NEW makes a shelf by name and lands on it, empty, with how to fill it', 
 	await expect(page.getByText(`Nothing on ${name} yet.`)).toBeVisible();
 	// An empty shelf has nothing to filter.
 	await expect(filterCell(page)).toHaveCount(0);
+
+	// A kind carried here (the band keeps it across shelves): still the empty
+	// shelf and how to fill it, not "no manga on it" with SHOW 0.
+	const url = new URL(page.url());
+	url.searchParams.set('kind', 'manga');
+	await page.goto(url.pathname + url.search);
+	await expect(page.getByText(`Nothing on ${name} yet.`)).toBeVisible();
+	await expect(page.locator('.empty-shelf').getByRole('button', { name: 'SELECT' })).toBeVisible();
+	await expect(page.getByText(/^No manga on/)).toHaveCount(0);
+	await expect(page.getByText(/ALL KINDS · SHOW 0/)).toHaveCount(0);
 });
 
 test('without script, the panel still opens and every choice is a link', async ({ browser }) => {
@@ -176,7 +260,14 @@ test('without script, the panel still opens and every choice is a link', async (
 	await openFilters(page);
 	await rowOf(page, 'FAV').getByRole('link', { name: 'NOT FAV' }).click();
 	await expect(page).toHaveURL(/fav=0/);
-	await expect(page.getByText('02 — MANGA · NOT FAV')).toBeVisible();
+	await expect(page.getByText('02 — ALL · MANGA · NOT FAV')).toBeVisible();
+	// The KIND band is links too: a kind without script.
+	await page
+		.getByRole('group', { name: 'Kind' })
+		.getByRole('link', { name: /^MANHWA/ })
+		.click();
+	await expect(page).toHaveURL(/kind=manhwa.*fav=0|fav=0.*kind=manhwa/);
+	await expect(page.getByText('02 — ALL · MANHWA · NOT FAV')).toBeVisible();
 	await context.close();
 });
 

@@ -10,10 +10,11 @@ beside an AT LEAST band, were superseded by it). The brief is
 
 ## Shelves are where, filters are which
 
-A shelf picks a part of the library: ALL, SERIES, ONE-OFF, a kind, a
-collection. A filter narrows **whichever shelf is showing**, and filters
-combine with each other and with the shelf: unrated manhwa, not-favourited
-novels rated 3+, Japanese one-offs.
+A shelf picks a part of the library: ALL, NEW, a collection. A filter
+narrows **whichever shelf is showing**, and filters combine with each other
+and with the shelf: unrated manhwa, not-favourited novels rated 3+, Japanese
+one-offs. The kind is a filter too, chosen on the library's KIND band rather
+than in the panel (c436; [`LIBRARY.md`](LIBRARY.md), "The KIND band").
 
 So turn 3 took three shelves off the tabs and made them filters:
 
@@ -27,10 +28,34 @@ An old link lands on the same books: `?shelf=favourites`, `rated4` and
 `downloaded` redirect (308) to ALL with the filter that replaced them
 (`legacyShelf`, `src/lib/library/filters.ts`).
 
-Two shelves joined, splitting the library by what a thing is:
+And c436 took the rest of the shelves that were about what a thing is:
 
-- **ONE-OFF**: single books, a doujin series that holds one book (exactly
-  `isSingleton` in `src/lib/server/books.ts`).
+| Was the shelf                       | Is now                                  |
+| ----------------------------------- | --------------------------------------- |
+| SERIES, ONE-OFF                     | FORM → SERIES, ONE-OFF (`?form=series`) |
+| MANGA, MANHWA, NOVELS, ANIME (`k:`) | the KIND band's cell (`?kind=manga`)    |
+
+`?shelf=series`, `oneoff` and `k:<kind>` (any kind the registry names)
+redirect (308) the same way, keeping every other parameter.
+
+FORM splits the library by shape, which a kind band cannot say:
+
+- **ONE-OFF**: single books, a doujin series that holds one book or none.
+  "One book" is counted three slightly different ways, and they part only
+  on a series with front matter or an edition beside its book:
+  - the server (`ONE_OFF_SQL`, `src/lib/server/library.ts`): entries not
+    shadowed, extras included, so one book plus an extra is SERIES;
+  - the device (`isOneOff`, `src/lib/library/filters.ts`, on CACHED and a
+    person's page): the card's `entryCount`, which leaves out shadowed
+    entries and extras (`matter != ''`), so the same series is ONE-OFF there;
+  - the binder (`isSingleton`, `src/lib/server/books.ts`, which binds a
+    singleton into a series): entries that are not an edition of another,
+    shadowed or not.
+    They were left apart on purpose in wave 22 (c436 round 2): the server's
+    rule is the ONE-OFF shelf's since before c436, and the device's card has
+    no count of extras to match it with. Making them one is a change to the
+    card (an `extraCount`) and to `ONE_OFF_SQL` together, with a db spec over
+    a doujin holding one book and one extra.
 - **SERIES**: everything else. A Mihon series with one chapter so far is
   still a series, except from a gallery source, whose galleries are books
   ([`IMPORT-MIHON.md`](IMPORT-MIHON.md), "Gallery sources").
@@ -40,39 +65,44 @@ Two shelves joined, splitting the library by what a thing is:
 `src/lib/components/controls/FilterPanel.svelte`. A **FILTER** cell, with how
 many are on as a green badge, opens a panel with one row per filter:
 
-| Row        | Choices                                                                              | In the URL                           |
-| ---------- | ------------------------------------------------------------------------------------ | ------------------------------------ |
-| RATING     | ANY · UNRATED · AT LEAST, then the blocks                                            | `?min=1..10`, `?rated=0`             |
-| FAV        | ANY · FAV · NOT FAV                                                                  | `?fav=1`, `?fav=0`                   |
-| KIND       | ANY, then each kind on the shelf (MANGA, MANHWA, DOUJINS, NOVELS, ANIME)             | `?kind=manga`                        |
-| LANGUAGE   | ANY, then each language on the shelf (EN, JA)                                        | `?lang=ja`                           |
-| DATE ADDED | ANY · SINCE and a date                                                               | `?added=2026-08-01`                  |
-| DOWNLOADED | ANY · YES · NO                                                                       | `?dl=1`, `?dl=0`                     |
-| FOLLOWED   | ANY · ONLY, while something visible is followed ([`DOWNLOADING.md`](DOWNLOADING.md)) | `?followed=1`                        |
-| READING    | ANY · UNREAD · READ                                                                  | `?progress=unread`, `?progress=read` |
-| ● HIDDEN   | ANY · ONLY                                                                           | `?hidden=1`                          |
+| Row        | Choices                                                                               | In the URL                           |
+| ---------- | ------------------------------------------------------------------------------------- | ------------------------------------ |
+| RATING     | ANY · UNRATED · AT LEAST, then the blocks                                             | `?min=1..10`, `?rated=0`             |
+| FAV        | ANY · FAV · NOT FAV                                                                   | `?fav=1`, `?fav=0`                   |
+| FORM       | ANY · SERIES · ONE-OFF, on the library (c436)                                         | `?form=series`, `?form=oneoff`       |
+| KIND       | ANY, then each kind on the shelf, on a person's page only (the library's is its band) | `?kind=manga`                        |
+| LANGUAGE   | ANY, then each language on the shelf (EN, JA)                                         | `?lang=ja`                           |
+| DATE ADDED | ANY · SINCE and a date                                                                | `?added=2026-08-01`                  |
+| DOWNLOADED | ANY · YES · NO                                                                        | `?dl=1`, `?dl=0`                     |
+| FOLLOWED   | ANY · ONLY, while something visible is followed ([`DOWNLOADING.md`](DOWNLOADING.md))  | `?followed=1`                        |
+| READING    | ANY · UNREAD · READ                                                                   | `?progress=unread`, `?progress=read` |
+| ● HIDDEN   | ANY · ONLY                                                                            | `?hidden=1`                          |
 
 - **RATING is one line.** Dragging the blocks (the ratings slider in mode
   `min`) picks AT LEAST by itself; AT LEAST alone starts at 4+; UNRATED and a
   threshold replace each other. Written in five steps: RATED 3.5+ is `?min=7`.
 - **A choice applies at once**, and the panel stays open until DONE, a tap
   outside it, or FILTER again. ✕ CLEAR ALL drops every filter and keeps the
-  shelf, the sort and the shuffle.
-- **Where it sits:** pinned at the right end of the tabs on the phone and
-  tablet, the tabs scrolling under it; in the top bar beside SELECT on the
-  desktop, where the panel is 640 wide from the bar's right edge. Full width
-  under the tabs otherwise, and on the phone each label sits above its
+  shelf, the sort and the shuffle, and on the library the kind, which is the
+  band's (c436).
+- **Where it sits:** pinned at the right end of the KIND band on the phone,
+  tablet and TV (c436; until then, of the tabs), the band's cells scrolling
+  under it, in the band's 13px with 14px a side; in the top bar beside SELECT
+  on the desktop, where the panel is 640 wide from the bar's right edge. Full
+  width under the band otherwise, and on the phone each label sits above its
   choices so RATING keeps a whole line for the blocks.
 - **At a glance:** the active tab counts what's showing, `44 OF 188`, and the
-  section label names the shelf and its filters:
-  `02 — MANHWA · RATED 4+ · NOT FAV`. The desktop's count moves into the
+  section label names the shelf, the kind first, then the filters:
+  `02 — ALL · MANHWA · RATED 4+ · NOT FAV`. FILTER's badge counts what the
+  panel holds, so on the library not the kind (`activeCount(f, false)`). The desktop's count moves into the
   section label, since its sidebar keeps plain totals.
 - **Counts:** only the shelf being shown is counted, once with its filters
   (the grid's total) and once without (`shelfTotal`, only while a filter is
   on). The choices carry no numbers.
 - **Filters that leave nothing** say so about the shelf, not the library:
-  "Nothing on Novels matches these filters. The shelf holds 4." and
-  ✕ CLEAR · SHOW 4.
+  "Nothing on All matches these filters. The shelf holds 23." and
+  ✕ CLEAR · SHOW 23. A kind alone that leaves nothing is the band's to say:
+  "No anime on Dropped." and ✕ ALL KINDS · SHOW 31.
 
 ## Rules worth knowing
 
@@ -90,20 +120,23 @@ many are on as a green badge, opens a panel with one row per filter:
   held back and checks it is still open once they run.
 - **In the desktop's top bar FILTER draws the rule on its right**, against
   SELECT, and not its own left one: the cell before it draws that (c431;
-  [`LIBRARY.md`](LIBRARY.md), "The top bar"). On the tabs and a person's
-  page FILTER still draws its left rule, the divider from the tabs.
+  [`LIBRARY.md`](LIBRARY.md), "The top bar"). On the KIND band and a person's
+  page FILTER still draws its left rule, the divider from the cells before
+  it. Its cell is marked inside on a TV, as the cells beside it are.
 - **Hidden means hidden** ([`PRIVACY.md`](PRIVACY.md)). The HIDDEN row exists
   only while reveal is on: `parseFilters` drops `?hidden=1` otherwise, and the
   SQL checks again. It's the panel's one magenta row, and ending reveal drops
   it with everything hidden.
 - **KIND is one kind inside any shelf** (asked for on 2026-10-29: the
-  manga in TO READ). The kind shelves stay where they were; KIND is for the
-  shelves that mix kinds, so it's offered only where the shelf holds two or
-  more (never on a kind shelf), and a kind the shelf doesn't hold drops from
-  the URL as a language does. On CACHED and a person's page it filters on
-  the device.
-- **LANGUAGE offers only what the shelf holds**, as it stands without filters,
-  visible only (`languagesOn`). With nothing to offer there's no row at all.
+  manga in TO READ). On the library it is the KIND band since c436, which
+  writes the same `?kind=`; the panel's KIND row is a person's page's alone,
+  offered only where the page holds two kinds or more. A kind the shelf
+  doesn't hold no longer drops from the URL: the band keeps it at 0, so it
+  is still chosen on the next shelf. On CACHED and a person's page it filters
+  on the device.
+- **LANGUAGE offers only what the shelf holds**, as it stands without filters
+  but with the KIND band's kind (as the kind shelves narrowed it), visible
+  only (`languagesOn`). With nothing to offer there's no row at all.
   The real library's languages are almost all on Hentoid books, behind
   reveal: with reveal off today the row doesn't exist. `translated`,
   `rewrite`, `speechless` and `text cleaned` describe a book, not a language,

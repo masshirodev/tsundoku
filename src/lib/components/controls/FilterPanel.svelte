@@ -23,8 +23,9 @@
 	 * - `onchange`: buttons, for a page that filters on the device (a
 	 *   person's page).
 	 *
-	 * The caller places it: pinned at the end of the tabs on phone and tablet,
-	 * in the top bar beside SELECT on the desktop (`wide`, 640px from the right).
+	 * The caller places it: at the end of the library's KIND band on phone,
+	 * tablet and TV (`band`, c436), in the top bar beside SELECT on the desktop
+	 * (`wide`, 640px from the right), and beside a person's page's tabs.
 	 */
 	let {
 		filters,
@@ -40,7 +41,11 @@
 		downloaded = true,
 		following = false,
 		reading = true,
-		kinds = []
+		kinds = [],
+		band = false,
+		kindRow = true,
+		formRow = false,
+		countKind = true
 	}: {
 		filters: Filters;
 		/** Codes present on the shelf: LANGUAGE offers these, and doesn't exist without any. */
@@ -64,6 +69,14 @@
 		reading?: boolean;
 		/** The kinds on the shelf: KIND is offered where there are two to tell apart. */
 		kinds?: readonly FilterKind[];
+		/** At the KIND band's end (c436): the band's 40px row and 13px type. */
+		band?: boolean;
+		/** FILTER's KIND row: off on the library, where the KIND band is that choice (c436). */
+		kindRow?: boolean;
+		/** FORM (SERIES · ONE-OFF, c436): the library's; a person's page has none. */
+		formRow?: boolean;
+		/** Whether the badge counts a kind: not where the band shows it (c436). */
+		countKind?: boolean;
 	} = $props();
 
 	/**
@@ -90,13 +103,15 @@
 		if (open && panel) panel.scrollIntoView({ block: 'nearest' });
 	});
 
-	const n = $derived(activeCount(filters));
+	const n = $derived(activeCount(filters, countKind));
 	const rows = $derived(
-		filterRows(filters, languages, reveal, following, reading, kinds).filter(
-			(r) => downloaded || r.key !== 'dl'
-		)
+		filterRows(filters, languages, reveal, following, reading, kinds, {
+			kind: kindRow,
+			form: formRow
+		}).filter((r) => downloaded || r.key !== 'dl')
 	);
-	const cleared = NO_FILTERS;
+	// CLEAR ALL clears what FILTER holds: on the library the kind is the band's, so it stays.
+	const cleared = $derived(kindRow ? NO_FILTERS : { ...NO_FILTERS, kind: filters.kind });
 
 	function choose(f: Filters) {
 		if (onchange) onchange(f);
@@ -112,10 +127,13 @@
 <details
 	class="filter"
 	class:wide
+	class:band
 	bind:this={details}
 	ontoggle={(e) => (open = e.currentTarget.open)}
 >
-	<summary class="cell" aria-label={n ? `Filter, ${n} on` : 'Filter'}>
+	<!-- A cell of a ruled row (the KIND band, the top bar): the focus mark
+	     sits inside it, as on the cells beside it (doc/FOCUS.md). -->
+	<summary class="cell" aria-label={n ? `Filter, ${n} on` : 'Filter'} data-focus-mark="in">
 		<span>FILTER</span>
 		{#if n}<span class="badge">{n}</span>{/if}
 		<span aria-hidden="true">{open ? '▴' : '▾'}</span>
@@ -237,6 +255,23 @@
 	.wide .scrim {
 		top: var(--header-h);
 		left: var(--sidebar-w);
+	}
+	/* At the KIND band's end (Kinds Calls 05, "FILTER CELL"): the band's own
+	   type, 13px, and its padding, 0 14px; the TV's 17px and 0 18px. */
+	.band .cell {
+		gap: 6px;
+		padding: 0 14px;
+		font: 500 13px/1 var(--font-mono);
+	}
+	.band .badge {
+		padding: 3px 5px;
+		font: 500 12px/1 var(--font-mono);
+	}
+	@media (pointer: none) and (min-width: 900px) {
+		.band .cell {
+			padding: 0 18px;
+			font-size: 17px;
+		}
 	}
 	.filter[open] .cell {
 		background: var(--surface-inverse);

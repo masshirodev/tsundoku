@@ -149,11 +149,16 @@ test('the rating bars open the slider on the tile, and a half saves', async ({ p
 	await expect(bars).toHaveAttribute('aria-label', 'Unrated');
 });
 
-test('the app’s name goes home, and SERIES is a shelf', async ({ page }) => {
-	await page.goto('/?shelf=k:manga&sort=title');
-	const series = page.getByRole('link', { name: /^SERIES/ }).filter({ visible: true });
-	await series.click();
-	await expect(page).toHaveURL(/shelf=series/);
+test('the app’s name goes home, and SERIES, once a shelf, is FILTER’s FORM (c436)', async ({
+	page
+}) => {
+	await page.goto('/?shelf=all&kind=manga&sort=title');
+	// The shelves hold shelves only: no SERIES, ONE-OFF or kind among them.
+	const shelves = page.locator('nav[aria-label="Shelves"]').filter({ visible: true });
+	for (const gone of [/^SERIES/, /^ONE-OFF/, /^MANGA/, /^MANHWA/, /^NOVELS/])
+		await expect(shelves.getByRole('link', { name: gone })).toHaveCount(0);
+	await page.goto('/?shelf=series&sort=title');
+	await expect(page).toHaveURL(/form=series/);
 	await expect(page.locator('.grid .tile').first()).toBeVisible();
 	await page.getByRole('link', { name: 'Library' }).filter({ visible: true }).first().click();
 	await expect(page).toHaveURL(/\/$/);
@@ -332,7 +337,7 @@ test('the app’s own ← buttons come back to the shelf, the order, the pages a
 		.context()
 		.addCookies([{ name: 'tsundoku_grid_page', value: '6', url: 'http://localhost' }]);
 	await page.setViewportSize({ width: 360, height: 640 });
-	await page.goto('/?shelf=series&sort=title');
+	await page.goto('/?shelf=all&form=series&sort=title');
 	const tiles = page.locator('.grid .tile');
 	const more = page.locator('.more');
 	for (let i = 0; i < 20 && (await more.count()) > 0; i++) {
@@ -358,7 +363,7 @@ test('the app’s own ← buttons come back to the shelf, the order, the pages a
 	await page.locator('a.cell.back').click();
 
 	await page.waitForURL(/\/\?/);
-	expect(page.url()).toMatch(/shelf=series/);
+	expect(page.url()).toMatch(/form=series/);
 	expect(page.url()).toMatch(/sort=title/);
 	await expect(page.locator('.grid .tile', { hasText: title })).toBeAttached();
 	await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(y - 300);
@@ -377,8 +382,9 @@ test('RANDOM shuffles anew each time it’s chosen, and keeps its shuffle across
 	expect(await page.locator('.grid .tile .title').allTextContents()).toEqual(order);
 	// Another tab keeps the shuffle; leaving RANDOM drops it.
 	await page
-		.getByRole('link', { name: /^SERIES/ })
-		.first()
+		.locator('nav[aria-label="Shelves"]')
+		.filter({ visible: true })
+		.getByRole('link', { name: /^TO FINISH/ })
 		.click();
 	await expect(page).toHaveURL(new RegExp(`seed=${seed}`));
 	await sortBy(page, 'RECENTLY READ');

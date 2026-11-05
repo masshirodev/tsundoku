@@ -5,8 +5,15 @@ import { HIDDEN_SQL, IN_LIBRARY_SQL, VISIBLE_SQL } from './visibility.ts';
 import { getSetting } from './settings.ts';
 import { langCode, openingEdition } from '../library/editions.ts';
 import { likePattern } from '../library/search.ts';
-import { dayStart, FILTER_KINDS, type FilterKind, type Filters } from '../library/filters.ts';
+import {
+	dayStart,
+	FILTER_KINDS,
+	NO_FILTERS,
+	type FilterKind,
+	type Filters
+} from '../library/filters.ts';
 import { naturalDir, type Dir, type Sort } from '../library/labels.ts';
+import { BACKUP_LABEL } from '../import/backup-preview.ts';
 import {
 	continuePart,
 	facePart,
@@ -254,13 +261,16 @@ function progressTier(d: 'ASC' | 'DESC'): string {
 }
 
 /**
- * Each sort in either direction (`?dir=`). Never-read series stay last under
- * RECENTLY READ both ways: turned round it's the longest-untouched first, not
- * the never-opened. RATING's ties stay A–Z whichever way it runs.
+ * Each sort in either direction (`?dir=`). RECENTLY READ counts a series
+ * never opened as read when it was added (c524), so a new add is found at the
+ * top of the default sort; turned round it's the exact mirror, the
+ * longest-untouched first, where adding is the touch. The sort only: no
+ * reading is written, so CONTINUE, HISTORY and tracking never see it. RATING's
+ * ties stay A–Z whichever way it runs.
  */
 const ORDER: Record<Exclude<Sort, 'random'>, (d: 'ASC' | 'DESC') => string> = {
 	progress: (d) => `${progressTier(d)}, COALESCE(t.last_opened, s.added_at) DESC, s.id DESC`,
-	recent: (d) => `t.last_opened ${d} NULLS LAST, s.added_at ${d}, s.id ${d}`,
+	recent: (d) => `COALESCE(t.last_opened, s.added_at) ${d}, s.id ${d}`,
 	title: (d) => `s.title COLLATE NOCASE ${d}, s.id ${d}`,
 	rating: (d) => `s.rating ${d}, s.title COLLATE NOCASE ASC, s.id ASC`,
 	added: (d) => `s.added_at ${d}, s.id ${d}`
@@ -289,7 +299,6 @@ const NEW_SQL = `(s.arrived_at > ? AND NOT EXISTS (SELECT 1 FROM entries e
 	WHERE e.series_id = s.id AND e.last_opened_at >= s.arrived_at))`;
 const newSince = (now = Date.now()) => now - NEW_DAYS * 86_400_000;
 
-/** Where a shelf key narrows the listing. Unknown keys fall back to all. */
 /**
  * A single book: a doujin series holding one (isSingleton, src/lib/server/books.ts).
  * ONE-OFF is these; SERIES is everything else (Library Filters turn 3). A
@@ -319,12 +328,19 @@ const PROGRESS_SQL = {
 /** `language:` values that describe a book rather than name a language. */
 const NOT_LANGUAGES = `('translated', 'rewrite', 'speechless', 'text cleaned')`;
 
+/**
+ * Where a shelf key narrows the listing. Unknown keys fall back to all.
+ * SERIES, ONE-OFF and the kind shelves (`k:<kind>`, any kind the registry
+ * names) are no longer shelves (c436): a URL naming one is sent on to its
+ * filter (`legacyShelf`), but a caller that still asks by the old key -- a
+ * page asked for by a tab loaded before the change -- gets the same rows.
+ */
 function shelfClause(shelf: string): { sql: string; params: unknown[] } {
 	if (shelf === 'series') return { sql: `NOT ${ONE_OFF_SQL}`, params: [] };
 	if (shelf === 'oneoff') return { sql: ONE_OFF_SQL, params: [] };
 	if (shelf === 'new') return { sql: NEW_SQL, params: [newSince()] };
-	const kind = /^k:(manga|manhwa|novel|anime)$/.exec(shelf);
-	if (kind) return { sql: 's.kind = ?', params: [kind[1]] };
+	const kind = FILTER_KINDS.find((k) => shelf === `k:${k}`);
+	if (kind) return { sql: 's.kind = ?', params: [kind] };
 	const collection = /^c:(\d+)$/.exec(shelf);
 	if (collection) {
 		return {
@@ -397,6 +413,7 @@ function filterClause(f: Filters | undefined, reveal: boolean): { sql: string; p
 		sql.push('s.kind = ?');
 		params.push(f.kind);
 	}
+	if (f.form) sql.push(f.form === 'oneoff' ? ONE_OFF_SQL : `NOT ${ONE_OFF_SQL}`);
 	if (f.lang) {
 		const names = languageNames(f.lang);
 		if (names.length === 0) sql.push('0');
@@ -430,27 +447,51 @@ function listWhere(opts: ListOpts): { sql: string; params: unknown[] } {
 	};
 }
 
-/** The kinds on a shelf as it stands without filters, in KIND's order: what KIND offers. */
-export function kindsOn(opts: Omit<ListOpts, 'filters'>): FilterKind[] {
-	const where = listWhere({ ...opts, filters: undefined });
-	const have = new Set(
-		(
-			getDb()
-				.prepare(
-					`SELECT DISTINCT s.kind FROM series s JOIN roots r ON r.id = s.root_id WHERE ${where.sql}`
-				)
-				.all(...where.params) as { kind: string }[]
-		).map((r) => r.kind)
-	);
-	return FILTER_KINDS.filter((k) => have.has(k));
+/**
+ * The KIND band's counts (c436; doc/LIBRARY.md, "The KIND band"): the tiles
+ * on this shelf, every filter but KIND applied, in all and by kind, in one
+ * grouped read. A Work counts once under each kind it has a picked part of
+ * (a Work of a manga and its anime is one tile on MANGA and one on ANIME),
+ * and once in all, so `all` is what ALL shows, not the sum of the kinds.
+ */
+export function kindCounts(opts: ListOpts): {
+	all: number;
+	kinds: Partial<Record<FilterKind, number>>;
+} {
+	const filters = opts.filters ? { ...opts.filters, kind: null } : undefined;
+	const where = listWhere({ ...opts, filters });
+	const free = `NOT EXISTS (SELECT 1 FROM work_series ws WHERE ws.series_id = s.id)`;
+	const rows = getDb()
+		.prepare(
+			`SELECT kind, SUM(n) AS n FROM (
+				SELECT s.kind AS kind, COUNT(*) AS n FROM series s JOIN roots r ON r.id = s.root_id
+					WHERE ${where.sql} AND ${free} GROUP BY s.kind
+				UNION ALL
+				SELECT s.kind AS kind, COUNT(DISTINCT ws.work_id) AS n FROM work_series ws
+					JOIN series s ON s.id = ws.series_id JOIN roots r ON r.id = s.root_id
+					WHERE ${where.sql} GROUP BY s.kind
+			) GROUP BY kind`
+		)
+		.all(...where.params, ...where.params) as { kind: string; n: number }[];
+	const kinds: Partial<Record<FilterKind, number>> = {};
+	for (const r of rows) {
+		const k = FILTER_KINDS.find((x) => x === r.kind);
+		if (k) kinds[k] = r.n;
+	}
+	return { all: countUnitsOf(where.sql, where.params), kinds };
 }
 
 /**
  * The languages on a shelf as it stands without filters, as lower-case codes:
  * what LANGUAGE offers. Only what the viewer can see; never `translated`.
+ * A kind chosen on the KIND band narrows it as the kind shelf it replaced did
+ * (c436): MANHWA offers none, so choosing it drops JA (Library Filters 1c).
  */
-export function languagesOn(opts: Omit<ListOpts, 'filters'>): string[] {
-	const where = listWhere({ ...opts, filters: undefined });
+export function languagesOn(
+	opts: Omit<ListOpts, 'filters'> & { kind?: FilterKind | null }
+): string[] {
+	const { kind, ...rest } = opts;
+	const where = listWhere({ ...rest, filters: kind ? { ...NO_FILTERS, kind } : undefined });
 	const rows = getDb()
 		.prepare(
 			`WITH picked AS MATERIALIZED (
@@ -599,7 +640,9 @@ type UnitRow = {
  * A Work's place in an order is its most recent part's (doc/WORKS.md, "The one
  * rule"): its latest read, its newest chapter, its latest added. The keys are
  * aggregates over every part, so a Work sits where the part the owner would
- * open sits, not where its first part was added.
+ * open sits, not where its first part was added. RECENTLY READ's key,
+ * `touched`, is each part's last read or, never opened, its add (c524, as
+ * ORDER.recent), so a part just added lifts its Work as it would a series.
  */
 function unitOrder(sort: Sort, dir: Dir, shelf: string | undefined, seed = 1): string {
 	const d = dir.toUpperCase() as 'ASC' | 'DESC';
@@ -622,7 +665,7 @@ function unitOrder(sort: Sort, dir: Dir, shelf: string | undefined, seed = 1): s
 		const h = `(((COALESCE(u.work, 0) * 7919 + u.series) * 1103515245 + ${k} * 40503 + 12345) % 2147483647)`;
 		return `((${h} * ${h}) % 2147483647), u.series`;
 	}
-	return `k.last_opened ${d} NULLS LAST, k.added_at ${d}, u.series ${d}`;
+	return `k.touched ${d}, u.series ${d}`;
 }
 
 /**
@@ -661,6 +704,7 @@ function unitQuery(where: string, vis: string, order: string, limit = ''): strin
 		SELECT COALESCE(CAST(m.work AS TEXT), 's' || m.series) AS unit,
 			MAX(st.last_opened) AS last_opened, MAX(s.arrived_at) AS arrived_at,
 			MAX(s.added_at) AS added_at, AVG(NULLIF(s.rating, 0)) AS rating,
+			MAX(COALESCE(st.last_opened, s.added_at)) AS touched,
 			SUM(COALESCE(st.entry_count, 0)) AS entry_count,
 			SUM(COALESCE(st.read_count, 0)) AS read_count,
 			COUNT(st.last_opened) AS opened
@@ -942,15 +986,6 @@ export function continueReading(
 	return { items, total };
 }
 
-/** The kinds with a shelf of their own. Doujins are books, grouped by other means. */
-// Functions, not words: a shelf's name is the reader's language, asked per request (doc/I18N.md).
-const KIND_SHELVES = [
-	['manga', m.nav_shelf_manga],
-	['manhwa', m.nav_shelf_manhwa],
-	['novel', m.nav_shelf_novel],
-	['anime', m.nav_shelf_anime]
-] as const;
-
 export function listShelves(opts: { reveal: boolean; withNew: boolean }): Shelf[] {
 	const db = getDb();
 	const where = visibility(opts.reveal);
@@ -963,21 +998,10 @@ export function listShelves(opts: { reveal: boolean; withNew: boolean }): Shelf[
 	if (opts.withNew || fresh > 0)
 		shelves.push({ key: 'new', name: m.nav_shelf_new(), kind: 'smart', count: fresh });
 	shelves.push({ key: 'all', name: m.nav_shelf_all(), kind: 'smart', count: n('1') });
-	// DOWNLOADED, FAVOURITES and RATED became filters (Library Filters turn
-	// 3); SERIES and ONE-OFF split the library by what a thing is instead.
-	shelves.push({
-		key: 'series',
-		name: m.nav_shelf_series(),
-		kind: 'smart',
-		count: n(`NOT ${ONE_OFF_SQL}`)
-	});
-	shelves.push({ key: 'oneoff', name: m.nav_shelf_oneoff(), kind: 'smart', count: n(ONE_OFF_SQL) });
-	// One shelf per kind of reading, only while the library has some: a
-	// library of manga alone doesn't need a MANHWA shelf reading 0.
-	for (const [kind, name] of KIND_SHELVES) {
-		const count = n('s.kind = ?', kind);
-		if (count > 0) shelves.push({ key: `k:${kind}`, name: name(), kind: 'smart', count });
-	}
+	// Shelves only (c436): what a thing is -- SERIES, ONE-OFF, MANGA, NOVELS,
+	// ANIME -- is no longer a shelf. Kinds are the library's KIND band
+	// (`kindCounts`), SERIES and ONE-OFF FILTER's FORM; DOWNLOADED, FAVOURITES
+	// and RATED became filters before them (Library Filters turn 3).
 
 	const collections = db
 		.prepare(`SELECT id, name FROM collections ORDER BY position, id`)
@@ -1248,6 +1272,22 @@ export function currentScan(): ScanJob | null {
 		failedFiles: row.failed_files as number,
 		dismissedAt: row.dismissed_at as number | null
 	};
+}
+
+/**
+ * How long the last finished scan took, in ms, for RESCAN's question (c525):
+ * a library scan's job, not a backup's import, which runs as a job too and
+ * says so in its label. Null when none has finished.
+ */
+export function lastScanTook(): number | null {
+	const row = getDb()
+		.prepare(
+			`SELECT finished_at - started_at AS ms FROM scan_jobs
+			WHERE finished_at IS NOT NULL AND finished_at >= started_at AND source_label != ?
+			ORDER BY id DESC LIMIT 1`
+		)
+		.get(BACKUP_LABEL) as { ms: number } | undefined;
+	return row ? row.ms : null;
 }
 
 export function dismissScan(id: number, now = Date.now()): void {

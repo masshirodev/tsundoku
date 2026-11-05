@@ -239,8 +239,14 @@ describe('shelf links', () => {
 
 	it('carry the filters to another shelf, since they narrow any shelf (c68)', async () => {
 		const { shelfHref } = await import('$lib/library/links');
-		const on = new URL('https://x/?shelf=k:manhwa&min=7&fav=0&sort=title&new=shelf');
+		const on = new URL('https://x/?shelf=c:3&min=7&fav=0&sort=title&new=shelf');
 		expect(shelfHref(on, 'all')).toBe('/?shelf=all&sort=title&min=7&fav=0');
+	});
+
+	it('carry the KIND band’s kind and FORM to another shelf: the kind is remembered (c436)', async () => {
+		const { shelfHref } = await import('$lib/library/links');
+		const on = new URL('https://x/?shelf=c:3&kind=anime&form=series&sort=title');
+		expect(shelfHref(on, 'c:4')).toBe('/?shelf=c%3A4&sort=title&kind=anime&form=series');
 	});
 });
 
