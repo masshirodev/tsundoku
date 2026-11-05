@@ -140,8 +140,20 @@ drawn under the reader's URL, and its reload, share or BACK went to the reader
 A late `goto` is worse: it replaces the navigation away with one back in.
 
 So nothing late writes the URL or navigates once a reader is on its way out
-(`leavingReader()` in `src/lib/reader/leaving.ts`: a navigation to another
-screen has begun, or the window's path is no longer the page's). Each reader's
+(`leavingReader()` in `src/lib/reader/leaving.ts`): a navigation to another
+screen has begun (`navigating.to`), or the window no longer shows this reader.
+The window is read for the moment after a popstate BACK has moved the browser
+and before SvelteKit's `navigating` says so. It is another screen when its path
+is not a reader route at all (`resolve('/read/[entry]', …)`'s shape, the base
+included, one segment after `/read/`), or another reader entry than this one's.
+"This one's" is not simply `page.url`: SvelteKit's `replaceState` sets only
+`page.state` and leaves `page.url` at the last real navigation, and the text
+reader moves between chapters in place, writing `/read/<next id>` with
+`replaceState`. So a reader that moves the window itself says so
+(`readerMovedTo(path)`, right after the write), and the guard takes that path
+as its own until the next real navigation. Comparing against `page.url` alone
+froze the text reader's `?at=` and its progress after the first settle in the
+second chapter it read into (round 2 of wave 25). Each reader's
 `beforeNavigate` also drops its settle timer when it leaves the reader route
 (its `close` event carries the place). Moving between chapters, `/read` to
 `/read`, is not leaving. The writers it covers, every one in
@@ -160,3 +172,7 @@ screen has begun, or the window's path is no longer the page's). Each reader's
 Tested in `tests/reader-flow.e2e.ts` and `tests/text-reader-flow.e2e.ts`
 ("left at once, … never writes …onto the series it went back to (c565)"),
 which hold the series' data past the 800 ms and fail without it.
+`tests/text-reader-flow.e2e.ts` also reads on into a third chapter, in PAGED
+and in SCROLL ("…read on into a third chapter: the URL and progress follow
+every chapter…"): the window names each chapter's entry, a `page` event carries
+it, and a reload opens the last one. Both fail with the `page.url` comparison.
