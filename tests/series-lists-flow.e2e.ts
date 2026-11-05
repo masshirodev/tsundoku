@@ -281,7 +281,7 @@ test('a pasted link lands on AniList’s line, its list’s word beside it (1B, 
 	await expect(a.getByRole('link', { name: 'FIND' })).toHaveClass(/acc/);
 	await paste(page, `/links?series=${ids.comic}`, 'https://anilist.co/manga/7701');
 	await expect(a.locator('.t')).toHaveText('Lists Comic Entry');
-	await expect(a.locator('.m')).toHaveText('MANGA · ANILIST 7701');
+	await expect(a.locator('.m')).toHaveText('MANHWA · 2024 · ANILIST 7701');
 	// Signed in, never read: not on the list yet, and when it will be.
 	await expect(a.locator('.s .l')).toHaveText(['NOT ON YOUR LIST']);
 	await expect(a.locator('.s .r')).toHaveText(['ADDED ON THE NEXT CHAPTER READ']);
@@ -326,7 +326,7 @@ test('EDIT opens the sheet on the entry, and its STATUS sends at once', async ({
 	const sheet = sheetOf(page);
 	await expect(sheet.locator('.ti')).toHaveText('ANILIST');
 	await expect(sheet.locator('.ent .t')).toHaveText('Lists Comic Entry');
-	await expect(sheet.locator('.ent .m')).toHaveText('ANILIST 7701 · MANGA');
+	await expect(sheet.locator('.ent .m')).toHaveText('ANILIST 7701 · MANHWA · 2024');
 	await expect(sheet.locator('.sl', { hasText: 'ENTRY' })).toContainText('PASTED');
 	await expect(sheet.locator('.sl', { hasText: 'STATUS' })).toContainText(
 		'GOES TO ANILIST · A TAP SENDS IT'
@@ -403,7 +403,7 @@ test('UNLINK in EDIT’s ENTRY: the sheet closes on a band with UNDO, and UNDO p
 	// UNDO: the same row, every column, and no decision left for the pass to skip it by.
 	await band.getByRole('button', { name: 'UNDO' }).click();
 	await expect(a.locator('.t')).toHaveText('Lists Comic Entry');
-	await expect(a.locator('.m')).toHaveText('MANGA · ANILIST 7701');
+	await expect(a.locator('.m')).toHaveText('MANHWA · 2024 · ANILIST 7701');
 	await expect(band).toHaveCount(0);
 	expect(linkOf(ids.comic)).toEqual(before);
 
@@ -449,7 +449,7 @@ test('a novel on its comic’s entry is linked for the cover, never tracked (1B,
 }) => {
 	await paste(page, `/links?series=${ids.novel}`, 'https://anilist.co/manga/7901');
 	const a = line(page, 'anilist');
-	await expect(a.locator('.m')).toHaveText('THE COMIC’S ENTRY · MANGA · ANILIST 7901');
+	await expect(a.locator('.m')).toHaveText('THE COMIC’S ENTRY · MANHWA · 2024 · ANILIST 7901');
 	await expect(a.locator('.s .l')).toHaveText(['COVER AND DETAILS ONLY · NEVER TRACKED']);
 	await a.getByRole('button', { name: 'EDIT' }).click();
 	const sheet = sheetOf(page);

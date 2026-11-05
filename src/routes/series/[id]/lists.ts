@@ -121,6 +121,32 @@ export const formatWords = (format: string | null | undefined) =>
 	format ? format.replace(/_/g, ' ') : '';
 
 /**
+ * A comic's word by where it comes from (c520; the handoff's 1B, `MANHWA ·
+ * 2020`). AniList files every comic under one format, MANGA, and keeps the
+ * country apart (`countryOfOrigin`, rung 70). A map from the country, not a
+ * kind's name: the series' own kind is the library's word, this is the entry's.
+ */
+const COMIC_BY_COUNTRY: Record<string, string> = {
+	JP: 'MANGA',
+	KR: 'MANHWA',
+	CN: 'MANHUA',
+	TW: 'MANHUA'
+};
+
+/**
+ * An entry's format as a line says it, a comic's by its country: a link not
+ * asked yet (no country) or from a country the map doesn't name says its
+ * format, as before rung 70. Every other format is its own word.
+ */
+export const entryWords = (
+	format: string | null | undefined,
+	country: string | null | undefined
+) =>
+	format === 'MANGA' && country && COMIC_BY_COUNTRY[country]
+		? COMIC_BY_COUNTRY[country]
+		: formatWords(format);
+
+/**
  * The tag in front of a season's line. A flat list is never here (it draws as
  * one ANILIST line); season 0 beside numbered seasons is the episodes the
  * source gave none, and is named so, never S0 (c423).
@@ -476,9 +502,10 @@ function anilistLine(i: ListsInput, season: SeasonTrack | null, oneSeason: Seaso
 		meta = [
 			// The comparison moved here from the LINK row with its logic (the kind ratchet).
 			l.coverOnly ? (i.kind === 'novel' ? 'THE COMIC’S ENTRY' : 'THE NOVEL’S ENTRY') : '',
-			formatWords(l.format),
+			entryWords(l.format, l.country),
 			sl?.episodes ? `${sl.episodes} EP.` : '',
-			sl?.year ? String(sl.year) : '',
+			// A season's own year, else the comic's (rung 70); never `null`.
+			(sl?.year ?? l.year) ? String(sl?.year ?? l.year) : '',
 			l.malId ? `MAL ${l.malId}` : l.anilistId ? `ANILIST ${l.anilistId}` : '',
 			l.resolving ? 'ANILIST ASKED IN THE NEXT COVER PASS' : ''
 		]

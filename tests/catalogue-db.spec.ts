@@ -884,3 +884,106 @@ describe('UNDO on UNLINK’s band (c520)', () => {
 		}
 	});
 });
+
+describe('a comic’s link keeps its country and start year (c520, rung 70)', () => {
+	const cols = (id: number) =>
+		db.prepare(`SELECT country, year FROM series_links WHERE series_id = ?`).get(id);
+
+	it('is written where a link is made: FIND, the review, a paste', () => {
+		const id = idOf('Tower of God');
+		cat.link(
+			id,
+			cat.toCandidate(media({ id: 85143, idMal: 122663, english: 'Tower of God', year: 2010 })),
+			'review',
+			NOW
+		);
+		expect(cols(id)).toEqual({ country: 'KR', year: 2010 });
+		expect(cat.linkState(id)?.linked).toMatchObject({ country: 'KR', year: 2010 });
+		// CHANGE to another entry takes the other entry's.
+		cat.link(
+			id,
+			cat.toCandidate(media({ id: 9, english: 'Other', country: 'CN', year: 2019 })),
+			'pasted',
+			NOW
+		);
+		expect(cols(id)).toEqual({ country: 'CN', year: 2019 });
+	});
+
+	it('is asked on the next pass for a link made before the rung, once, and never for an anime’s mirror', async () => {
+		const id = idOf('Tower of God');
+		const lost = idOf('Lookism');
+		// Two links as rung 70 found them: resolved, their format known, no country.
+		const before = db.prepare(
+			`INSERT INTO series_links (series_id, anilist_id, mal_id, via, title, linked_at, resolved_at, format)
+			VALUES (?, ?, NULL, 'review', ?, ?, ?, 'MANGA')`
+		);
+		before.run(id, 85143, 'Tower of God', NOW, NOW);
+		before.run(lost, 404404, 'Gone from AniList', NOW, NOW);
+		expect(cat.linkState(id)?.linked).toMatchObject({ country: null, year: null });
+		asked.length = 0;
+		// AniList's title and cover have moved on since: a backfill takes neither.
+		entries = [media({ id: 85143, english: 'Tower of God (Renamed)', year: 2010 })];
+		expect(await cat.resolveLinks(NOW + 1)).toBe(1);
+		expect(cols(id)).toEqual({ country: 'KR', year: 2010 });
+		expect(linkRow(id)).toMatchObject({
+			title: 'Tower of God',
+			cover_url: '',
+			resolved_at: NOW,
+			format: 'MANGA'
+		});
+		// An entry AniList no longer has is asked once: '' says it was.
+		expect(cols(lost)).toEqual({ country: '', year: null });
+		expect(asked.length).toBeGreaterThan(0);
+		asked.length = 0;
+		expect(await cat.resolveLinks(NOW + 2)).toBe(0);
+		expect(asked).toEqual([]);
+
+		// An anime's mirror of its first season is not a comic's link: never asked.
+		const show = animeSeries('Mirror Only');
+		try {
+			expect(
+				seasons.linkSeason(
+					show,
+					1,
+					1,
+					cat.toCandidate(anime({ id: 5114, english: 'Mirror Only' })),
+					'review',
+					NOW
+				)
+			).toBe(true);
+			expect(cols(show)).toEqual({ country: null, year: null });
+			asked.length = 0;
+			expect(await cat.resolveLinks(NOW + 3)).toBe(0);
+			expect(asked).toEqual([]);
+		} finally {
+			db.prepare(`DELETE FROM series_season_links WHERE series_id = ?`).run(show);
+			forgetSerie(show);
+		}
+	});
+
+	it('goes when Mihon’s tracker moves to another entry, and the resolve asks the new one', async () => {
+		const id = idOf('Tower of God');
+		db.prepare(
+			`INSERT INTO series_links (series_id, mal_id, via, linked_at, resolved_at, format, country, year)
+			VALUES (?, 1000, 'mihon', ?, ?, 'MANGA', 'JP', 1999)`
+		).run(id, NOW, NOW);
+		cat.linkFromTracker(db, id, { id: 122663, score: 0 }, NOW);
+		expect(cols(id)).toEqual({ country: null, year: null });
+		entries = [media({ id: 85143, idMal: 122663, english: 'Tower of God', year: 2010 })];
+		expect(await cat.resolveLinks(NOW)).toBe(1);
+		expect(cols(id)).toEqual({ country: 'KR', year: 2010 });
+	});
+
+	it('comes back with UNLINK’s UNDO', () => {
+		const id = idOf('Tower of God');
+		cat.link(
+			id,
+			cat.toCandidate(media({ id: 85143, english: 'Tower of God', year: 2010 })),
+			'review',
+			NOW
+		);
+		const facts = cat.unlink(id, NOW + 1);
+		cat.undoUnlink(cat.parseUnlinkFacts(JSON.stringify(facts), id)!);
+		expect(cols(id)).toEqual({ country: 'KR', year: 2010 });
+	});
+});

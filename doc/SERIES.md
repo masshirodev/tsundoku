@@ -496,10 +496,21 @@ cells, with the house's inset focus mark.
   SIGNED IN where STATUS would be.
 - **The phone's tag is 60px, not 1D's 56.** 1D only ever puts S3 or RNB in
   it; ANILIST, which 1A draws on a phone at 60, does not fit 56.
-- **A line's meta names no year or country**: `series_links` stores neither,
-  so a comic reads `MANGA · MAL 132214`, not 1B's `MANHWA · 2020 · …`. The
-  ANILIST id stands in for MAL's where there is no MAL entry (1B, 5 and 9 do
-  the same).
+- **A comic's meta says where it comes from only once AniList has said so**
+  (c520, rung 70): `series_links` keeps the entry's `country` (AniList's
+  `countryOfOrigin`) and start `year` wherever a link is made (FIND, the
+  review, a paste, the list, the cover pass's resolve), so a KR comic reads
+  1B's `MANHWA · 2020 · MAL 132214`, a CN or TW one `MANHUA`, a JP one
+  `MANGA` (`entryWords` in `lists.ts`, a map from the country applied to
+  AniList's one comic format, MANGA; every other format is its own word). A
+  link made before the rung has neither until the next cover pass asks
+  AniList for them (`resolveLinks`, which then writes only those two, never
+  the title, cover or format the link already settled), and until then it
+  reads `MANGA · MAL 132214`, never `MANGA · null`. An entry AniList no
+  longer has is asked once (`country = ''`). An anime's mirror row is never
+  asked: its season keeps its own year. EDIT's ENTRY says the same
+  (`ANILIST 7701 · MANHWA · 2024`). The ANILIST id stands in for MAL's where
+  there is no MAL entry (1B, 5 and 9 do the same).
 - **1B's `SEARCH WAITS · ANILIST OUT OF REACH · NEXT PASS` is not drawn**: a
   queued search doesn't know whether AniList was out of reach, so it keeps
   `A SEARCH WAITS FOR THE NEXT COVER PASS`, which is true of every queued one.

@@ -269,6 +269,9 @@ type LinkRow = {
 	filled_rating: number | null;
 	score: number | null;
 	format: string | null;
+	/** AniList's countryOfOrigin and start year (rung 70, c520); NULL until asked, '' when unknown. */
+	country: string | null;
+	year: number | null;
 };
 
 function linkOf(db: Database.Database, seriesId: number): LinkRow | null {
@@ -328,7 +331,8 @@ export function linkFromTracker(
 	if (had) {
 		db.prepare(
 			`UPDATE series_links SET mal_id = ?, anilist_id = NULL, title = '', cover_url = '',
-				resolved_at = NULL, format = NULL, score = ?, linked_at = ? WHERE series_id = ?`
+				resolved_at = NULL, format = NULL, country = NULL, year = NULL, score = ?, linked_at = ?
+				WHERE series_id = ?`
 		).run(mal.id, mal.score || null, now, seriesId);
 		clearAniSkip(seriesId, db);
 		return;
@@ -366,13 +370,26 @@ export function link(seriesId: number, c: Candidate, via: Via, now = Date.now())
 	const db = getDb();
 	db.transaction(() => {
 		db.prepare(
-			`INSERT INTO series_links (series_id, anilist_id, mal_id, via, title, cover_url, linked_at, resolved_at, format)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`INSERT INTO series_links (series_id, anilist_id, mal_id, via, title, cover_url, linked_at, resolved_at, format, country, year)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT (series_id) DO UPDATE SET anilist_id = excluded.anilist_id, mal_id = excluded.mal_id,
 				via = excluded.via, title = excluded.title, cover_url = excluded.cover_url,
 				linked_at = excluded.linked_at, resolved_at = excluded.resolved_at,
-				filled_rating = NULL, score = NULL, format = excluded.format`
-		).run(seriesId, c.anilistId, c.malId, via, c.title, c.coverUrl, now, now, c.format);
+				filled_rating = NULL, score = NULL, format = excluded.format,
+				country = excluded.country, year = excluded.year`
+		).run(
+			seriesId,
+			c.anilistId,
+			c.malId,
+			via,
+			c.title,
+			c.coverUrl,
+			now,
+			now,
+			c.format,
+			c.country,
+			c.year
+		);
 		db.prepare(`DELETE FROM link_decisions WHERE series_id = ?`).run(seriesId);
 		clearAniSkip(seriesId, db);
 	})();
@@ -430,8 +447,8 @@ export function undoLink(seriesId: number, season?: number, part = 1): boolean {
 
 // ---- UNLINK, and its UNDO (c520) ----------------------------------------------------------
 
-/** Every column of a comic's `series_links` row, in order: what UNDO puts back. */
-const LINK_COLUMNS = [
+/** The columns a comic's link and a season's share past their keys. */
+const SHARED_COLUMNS = [
 	'anilist_id',
 	'mal_id',
 	'via',
@@ -443,8 +460,10 @@ const LINK_COLUMNS = [
 	'score',
 	'format'
 ] as const;
+/** Every column of a comic's `series_links` row past its key: what UNDO puts back. */
+const LINK_COLUMNS = [...SHARED_COLUMNS, 'country', 'year'] as const;
 /** Every column of an anime's `series_season_links` row past its key. */
-const SEASON_LINK_COLUMNS = [...LINK_COLUMNS, 'episodes', 'year'] as const;
+const SEASON_LINK_COLUMNS = [...SHARED_COLUMNS, 'episodes', 'year'] as const;
 
 type TakenRow = Record<string, string | number | null>;
 type Decision = { decision: 'none' | 'unlinked'; at: number };
@@ -892,17 +911,25 @@ export function kindOf(seriesId: number): Kind | null {
 export async function resolveLinks(now = Date.now()): Promise<number> {
 	const db = getDb();
 	const waiting = db
-		// Also a link from before rung 26, which doesn't know its entry's format yet.
+		// Also a link from before rung 26, which doesn't know its entry's format
+		// yet, and one from before rung 70, which doesn't know its country or year
+		// (c520). Not an anime's mirror of its first season (`syncSeriesLink`):
+		// its season rows are its links, and the season keeps its own year.
 		.prepare(
-			`SELECT l.series_id, l.anilist_id, l.mal_id, s.kind FROM series_links l
+			`SELECT l.series_id, l.anilist_id, l.mal_id, s.kind,
+				l.resolved_at IS NOT NULL AND l.format IS NOT NULL AS known FROM series_links l
 			JOIN series s ON s.id = l.series_id
-			WHERE l.resolved_at IS NULL OR (l.format IS NULL AND l.anilist_id IS NOT NULL)`
+			WHERE l.resolved_at IS NULL OR (l.format IS NULL AND l.anilist_id IS NOT NULL)
+				OR (l.country IS NULL AND l.anilist_id IS NOT NULL
+					AND NOT EXISTS (SELECT 1 FROM series_season_links x WHERE x.series_id = l.series_id))`
 		)
 		.all() as {
 		series_id: number;
 		anilist_id: number | null;
 		mal_id: number | null;
 		kind: Kind;
+		/** Resolved and its format known: only its country and year are asked (rung 70). */
+		known: number;
 	}[];
 	if (!waiting.length) return 0;
 	const kinds: Kind[] = [...new Set(waiting.map((w) => w.kind))];
@@ -926,10 +953,15 @@ export async function resolveLinks(now = Date.now()): Promise<number> {
 	const alById = new Map((await lookup('id_in')).map((c) => [c.anilistId, c]));
 	const set = db.prepare(
 		`UPDATE series_links SET anilist_id = ?, mal_id = COALESCE(?, mal_id), title = ?, cover_url = ?, resolved_at = ?,
-			format = ? WHERE series_id = ?`
+			format = ?, country = ?, year = ? WHERE series_id = ?`
 	);
+	// A link resolved before rung 70 learns only what it lacks: its title,
+	// cover and format were settled then, and the owner may have chosen them.
+	const backfill = db.prepare(`UPDATE series_links SET country = ?, year = ? WHERE series_id = ?`);
+	// Asked and not found: '' marks it asked, so the next pass doesn't ask again.
 	const none = db.prepare(
-		`UPDATE series_links SET resolved_at = ?, format = COALESCE(format, '') WHERE series_id = ?`
+		`UPDATE series_links SET resolved_at = ?, format = COALESCE(format, ''),
+			country = COALESCE(country, '') WHERE series_id = ?`
 	);
 	let n = 0;
 	db.transaction(() => {
@@ -938,8 +970,21 @@ export async function resolveLinks(now = Date.now()): Promise<number> {
 				w.anilist_id !== null
 					? alById.get(w.anilist_id)
 					: malById.get(`${family(w.kind)}:${w.mal_id ?? -1}`);
-			if (c) {
-				set.run(c.anilistId, c.malId, c.title, c.coverUrl, now, c.format, w.series_id);
+			if (c && w.known) {
+				backfill.run(c.country, c.year, w.series_id);
+				n += 1;
+			} else if (c) {
+				set.run(
+					c.anilistId,
+					c.malId,
+					c.title,
+					c.coverUrl,
+					now,
+					c.format,
+					c.country,
+					c.year,
+					w.series_id
+				);
 				n += 1;
 			} else none.run(now, w.series_id);
 		}
@@ -1627,6 +1672,13 @@ export type LinkState = {
 		 * meta names it (c424). Null until a pass or a link has read it.
 		 */
 		format: string | null;
+		/**
+		 * Where the entry comes from (AniList's countryOfOrigin) and the year it
+		 * began (rung 70, c520): a comic's line says `MANHWA · 2020`. Null for a
+		 * link not asked yet, and for an anime, whose season keeps its own year.
+		 */
+		country: string | null;
+		year: number | null;
 	} | null;
 	/**
 	 * What settled it when no link stands: NONE OF THESE or an UNLINK (c424).
@@ -1673,7 +1725,9 @@ export function linkState(seriesId: number, season?: number): LinkState | null {
 					coverOnly: coverOnly(r.kind, l.format ?? ''),
 					wrongKind: wrongKind(r.kind, l.format ?? ''),
 					kind: l.format ? candidateKind({ format: l.format, country: '' }) : null,
-					format: l.format || null
+					format: l.format || null,
+					country: l.country || null,
+					year: l.year
 				}
 			: null,
 		decision: l ? null : decisionOf(db, seriesId),
@@ -1722,7 +1776,9 @@ function seasonLinkState(
 					coverOnly: coverOnly(r.kind, l.format ?? ''),
 					wrongKind: wrongKind(r.kind, l.format ?? ''),
 					kind: l.format ? candidateKind({ format: l.format, country: '' }) : null,
-					format: l.format || null
+					format: l.format || null,
+					country: null,
+					year: l.year ?? null
 				}
 			: null,
 		decision: l ? null : (sv?.decision ?? null),

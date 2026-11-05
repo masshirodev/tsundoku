@@ -365,11 +365,38 @@ describe('rung 69: a novel’s reading direction, its own column (c440)', () => 
 		for (const v of ['vertical', 'paged', 'scroll', 'RTL', ''])
 			expect(() => set.run(v)).toThrow(/CHECK constraint failed/);
 	});
+});
+
+describe('rung 70: a comic’s link keeps its country and start year (c520)', () => {
+	it('adds both as NULL to every link and moves nothing stored', () => {
+		const conn = new Database(':memory:');
+		climb(conn, 69);
+		conn.exec(`
+			INSERT INTO roots (id, name, path) VALUES (1, 'Lib', '/l');
+			INSERT INTO series (id, root_id, title, kind, added_at) VALUES
+				(1, 1, 'Manhwa', 'manhwa', 1), (2, 1, 'Manga', 'manga', 1), (3, 1, 'Mihon only', 'manga', 1);
+			INSERT INTO series_links (series_id, anilist_id, mal_id, via, title, cover_url, linked_at, resolved_at, filled_rating, score, format) VALUES
+				(1, 85143, 122663, 'review', 'Tower of God', 'https://x/1.jpg', 10, 11, 8, 8.5, 'MANGA'),
+				(2, 30013, NULL, 'pasted', 'One Piece', '', 20, 21, NULL, NULL, 'MANGA'),
+				(3, NULL, 2, 'mihon', '', '', 30, NULL, NULL, NULL, NULL);
+		`);
+		const before = conn.prepare(`SELECT * FROM series_links ORDER BY series_id`).all();
+		climb(conn, 70);
+		expect(conn.pragma('user_version', { simple: true })).toBe(70);
+		const after = conn.prepare(`SELECT * FROM series_links ORDER BY series_id`).all() as Record<
+			string,
+			unknown
+		>[];
+		// Every row as it was, with the two new columns NULL.
+		expect(after).toEqual(
+			(before as Record<string, unknown>[]).map((r) => ({ ...r, country: null, year: null }))
+		);
+	});
 
 	// The top rung's own block says it is the top; the next rung moves this line.
 	it('is the top of a fresh database', () => {
 		const conn = new Database(':memory:');
 		climb(conn);
-		expect(conn.pragma('user_version', { simple: true })).toBe(69);
+		expect(conn.pragma('user_version', { simple: true })).toBe(70);
 	});
 });

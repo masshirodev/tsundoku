@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	entryStates,
+	entryWords,
 	foldTag,
 	listsRow,
 	listState,
@@ -63,6 +64,8 @@ function linked(o: Partial<NonNullable<LinkState['linked']>> = {}): LinkState {
 			wrongKind: false,
 			kind: 'manhwa',
 			format: 'MANGA',
+			country: null,
+			year: null,
 			...o
 		},
 		decision: null,
@@ -1071,5 +1074,30 @@ describe('DETAILS: the folded line (1C)', () => {
 			['1', true]
 		] as const)
 			expect(detailsOpen(stored)).toBe(open);
+	});
+});
+
+describe('a comic’s line says where its entry comes from, and its year (c520, 1B)', () => {
+	it('names every country AniList gives a comic, and nothing else', () => {
+		// The whole domain: AniList's countryOfOrigin for MANGA is JP, KR, CN or TW.
+		expect(
+			[null, '', 'JP', 'KR', 'CN', 'TW', 'HK', 'kr'].map((c) => entryWords('MANGA', c))
+		).toEqual(['MANGA', 'MANGA', 'MANGA', 'MANHWA', 'MANHUA', 'MANHUA', 'MANGA', 'MANGA']);
+		// Only the comic's format takes a country: a one-shot, a novel, a TV entry keep their own word.
+		expect(entryWords('ONE_SHOT', 'KR')).toBe('ONE SHOT');
+		expect(entryWords('NOVEL', 'KR')).toBe('NOVEL');
+		expect(entryWords('TV', 'JP')).toBe('TV');
+		expect(entryWords(null, 'KR')).toBe('');
+	});
+
+	it('draws MANHWA · 2020 for a KR comic with its year, and today’s MANGA before the pass asks', () => {
+		const meta = (o: Partial<NonNullable<LinkState['linked']>>) =>
+			lines(input({ link: linked(o), tracking: tracking([fact('anilist'), fact('mal')]) }))[0].meta;
+		expect(meta({ country: 'KR', year: 2020 })).toBe('MANHWA · 2020 · MAL 132214');
+		expect(meta({ country: 'CN', year: 2019 })).toBe('MANHUA · 2019 · MAL 132214');
+		expect(meta({ country: 'JP', year: null })).toBe('MANGA · MAL 132214');
+		// A link from before rung 70: neither column, and never `MANGA · null`.
+		expect(meta({ country: null, year: null })).toBe('MANGA · MAL 132214');
+		expect(meta({ country: '', year: null })).toBe('MANGA · MAL 132214');
 	});
 });

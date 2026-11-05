@@ -10,7 +10,7 @@
 	import type { SeasonTrack, Tracking } from '$lib/server/tracking';
 	import type { RanobeSeries } from '$lib/server/ranobe-review';
 	import {
-		formatWords,
+		entryWords,
 		listState,
 		mainList,
 		seasonCellTag,
@@ -98,6 +98,7 @@
 						malId: l.malId,
 						via: l.via,
 						format: l.format,
+						country: null,
 						episodes: l.episodes,
 						year: l.year,
 						entryKind: kind
@@ -112,8 +113,9 @@
 					malId: l.malId,
 					via: l.via as string,
 					format: l.format,
+					country: l.country,
 					episodes: null,
-					year: null,
+					year: l.year,
 					entryKind: l.kind ?? kind
 				}
 			: null;
@@ -123,7 +125,7 @@
 			? [
 					entry.anilistId ? `ANILIST ${entry.anilistId}` : '',
 					entry.malId ? `MAL ${entry.malId}` : '',
-					formatWords(entry.format),
+					entryWords(entry.format, entry.country),
 					entry.episodes ? `${entry.episodes} EP.` : '',
 					entry.year ? String(entry.year) : ''
 				]
