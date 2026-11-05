@@ -9,18 +9,26 @@ package dev.masshiro.tsundoku.tv
  * does not answer would become the last used, and the next launch would try
  * the dead one first.
  *
- * The mark is ended by the failed load's own finish, which it consumes, and by
- * nothing else (c532). Wave 21 ended it at the next `onPageStarted` for that
- * origin, which held only if WebView reports started, error, finished in that
- * order: a committed error page reported as error, started, finished lost the
- * mark before the finish read it. Keyed on the finish, every order a failed
- * load can take skips exactly one finish, and a retry's own finish counts.
+ * The mark is ended two ways (c532, wave 22's round 2). The failed load's
+ * own finish consumes it, so every order WebView can report a failed load in
+ * (started, error, finished; or a committed error page's error, started,
+ * finished) skips exactly one finish. And the app's next attempt at that
+ * origin ends it ([attempt], called by `MainActivity.open` before `loadUrl`:
+ * launch, SERVERS and 9D's TRY AGAIN all go through it), because a failed
+ * load need not finish at all: `onReceivedError` shows 9D at once, and WebView
+ * may move straight on to the asset without a finish for the failed URL.
+ * Wave 21 ended the mark at the next `onPageStarted`, which a committed error
+ * page's start reaches before its finish; round 1 of wave 22 ended it only at
+ * the finish, which let a mark with no finish swallow the retry's own visit.
+ * An attempt is ordered after the failure by the app itself, so neither
+ * happens.
  *
- * The cost of the other choice: a failed load that never finishes (WebView
- * moved straight on to 9D's asset) leaves its mark, and the next load of that
- * server that does finish is not counted as a visit; the one after it is.
- * Missing one visit is harmless (launch opens the last used one, and that is
- * still the server last counted); counting a dead one sends launch to it.
+ * What is left: a navigation the app did not start (a link inside a server's
+ * page, its own `location` change) is not an attempt. If such a load fails
+ * without a finish and the next load of that origin is again one the app did
+ * not start, that load's visit is not counted; the next `open` of it is.
+ * Missing that one visit leaves the server in use as it was; counting a dead
+ * one would send launch to it.
  *
  * Pure, so FailedLoadTest pins it; which orders WebView takes on a TV is a
  * device claim (doc/TV-APP.md, "What is not verified").
@@ -36,6 +44,14 @@ class FailedLoad {
 	@Suppress("UNUSED_PARAMETER")
 	fun started(origin: String) {}
 
+	/**
+	 * The app is about to load [origin] itself (`MainActivity.open`). Any mark
+	 * for it belongs to an earlier load, finished or not, so it ends here.
+	 */
+	fun attempt(origin: String) {
+		if (origin == failed) failed = null
+	}
+
 	fun failed(origin: String) {
 		failed = origin
 	}
@@ -48,5 +64,28 @@ class FailedLoad {
 		if (origin != failed) return true
 		failed = null
 		return false
+	}
+
+	/** What a finished http(s) page of [origin] is to the app. */
+	enum class Finish {
+		/** Not counted: a failed load's finish, or a server this TV does not know. */
+		SKIP,
+
+		/** The computer's /pair/tv, loaded: read what 9E says (`PAIRED_JS`). */
+		PAIRED_PAGE,
+
+		/** A server's page that loaded: it may become the one in use. */
+		VISIT,
+	}
+
+	/**
+	 * `onPageFinished`'s decision, pure so FailedLoadTest drives it. The mark
+	 * is read before the path is, so a failed `/pair/tv` load consumes its own
+	 * mark like any other page's and the library load after it counts.
+	 */
+	fun finish(origin: String, path: String?, known: Boolean): Finish {
+		val loaded = finished(origin)
+		if (!known || !loaded) return Finish.SKIP
+		return if (path == "/pair/tv") Finish.PAIRED_PAGE else Finish.VISIT
 	}
 }

@@ -258,14 +258,16 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 				val uri = Uri.parse(url)
 				if (uri.scheme != "http" && uri.scheme != "https") return
 				val origin = originOf(uri)
-				val known = servers.find(origin) ?: return
-				if (uri.path == "/pair/tv") {
-					view.evaluateJavascript(PAIRED_JS) { value -> pairedPage(known, value) }
-					return
+				val known = servers.find(origin)
+				// A failed load finishes too: it must not become the last used,
+				// and a failed /pair/tv is no 9E to read (FailedLoad.finish).
+				when (failedLoad.finish(origin, uri.path, known != null)) {
+					FailedLoad.Finish.SKIP -> return
+					FailedLoad.Finish.PAIRED_PAGE ->
+						known?.let { k -> view.evaluateJavascript(PAIRED_JS) { value -> pairedPage(k, value) } }
+					FailedLoad.Finish.VISIT ->
+						if (!Back.passedOver(url) && servers.opened(origin)) serversChanged()
 				}
-				// A failed load finishes too: it must not become the last used.
-				if (!failedLoad.finished(origin)) return
-				if (!Back.passedOver(url) && servers.opened(origin)) serversChanged()
 			}
 		}
 
@@ -329,6 +331,9 @@ class MainActivity : ComponentActivity(), PairingBridge.Host {
 	}
 
 	private fun open(origin: String) {
+		// This load is the app's own attempt: a mark left by an earlier failed
+		// load of this server, finished or not, must not swallow its visit.
+		failedLoad.attempt(originOf(Uri.parse(origin)))
 		webView.loadUrl(origin)
 	}
 

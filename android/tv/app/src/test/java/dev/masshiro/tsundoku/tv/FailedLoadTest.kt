@@ -1,5 +1,6 @@
 package dev.masshiro.tsundoku.tv
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -79,5 +80,74 @@ class FailedLoadTest {
 		f.started(home)
 		assertTrue(f.finished(home))
 		assertTrue(f.finished(home))
+	}
+
+	private val b = "http://192.168.1.40:42143"
+
+	@Test
+	fun `a failed load with no finish does not swallow the retry's visit (round 2)`() {
+		// SERVERS -> B, B is down: onReceivedError shows 9D at once and the
+		// failed URL never finishes. B comes back, 9D's probe opens it again.
+		val f = FailedLoad()
+		f.attempt(b)
+		f.failed(b)
+		f.attempt(b)
+		f.started(b)
+		assertTrue(f.finished(b))
+	}
+
+	@Test
+	fun `attempt, error, started, finished - the card's order still skips once`() {
+		val f = FailedLoad()
+		f.attempt(b)
+		f.failed(b)
+		f.started(b)
+		assertFalse(f.finished(b))
+		assertTrue(f.finished(b))
+	}
+
+	@Test
+	fun `attempt, error, finished skips, and the next attempt's finish counts`() {
+		val f = FailedLoad()
+		f.attempt(b)
+		f.failed(b)
+		assertFalse(f.finished(b))
+		f.attempt(b)
+		f.started(b)
+		assertTrue(f.finished(b))
+	}
+
+	@Test
+	fun `an attempt at another server leaves the mark alone`() {
+		val f = FailedLoad()
+		f.failed(b)
+		f.attempt(home)
+		assertFalse(f.finished(b))
+	}
+
+	@Test
+	fun `a failed pair-tv load consumes its mark, so the library load after it is a visit`() {
+		// No attempt between: 9E's own navigation to /pair/tv is not the
+		// app's open, and its committed error page does finish.
+		val f = FailedLoad()
+		f.failed(b)
+		f.started(b)
+		assertEquals(FailedLoad.Finish.SKIP, f.finish(b, "/pair/tv", known = true))
+		f.started(b)
+		assertEquals(FailedLoad.Finish.VISIT, f.finish(b, "/", known = true))
+	}
+
+	@Test
+	fun `a pair-tv page that loaded is read for 9E's name, not counted`() {
+		val f = FailedLoad()
+		f.started(b)
+		assertEquals(FailedLoad.Finish.PAIRED_PAGE, f.finish(b, "/pair/tv", known = true))
+	}
+
+	@Test
+	fun `a server this TV does not know is never a visit`() {
+		val f = FailedLoad()
+		assertEquals(FailedLoad.Finish.SKIP, f.finish(b, "/", known = false))
+		assertEquals(FailedLoad.Finish.SKIP, f.finish(b, "/pair/tv", known = false))
 	}
 }

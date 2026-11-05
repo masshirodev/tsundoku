@@ -593,7 +593,15 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
      server that was in use before, not 9D for the one that is off.
      `FailedLoad` no longer depends on the order WebView reports a failed
      main-frame load in (c532: the failed load's own finish consumes the
-     mark, whatever came between); this is the check that it holds on a TV.
+     mark, whatever came between, and the app's next `open` of that server
+     ends it if that finish never came); this is the check that it holds on
+     a TV.
+  8. A server that comes back is counted once it opens. With two servers,
+     A in use: stop B, open B from MORE › SERVERS (9D appears), start B
+     again and press TRY AGAIN. B's library must open, MORE › SERVERS on
+     B's page must mark B IN USE (not A), and quitting and launching the
+     app again must open B. Round 1 of wave 22 left A in use here when
+     WebView sent no finish for B's failed load.
 - **Two servers on one computer (c530).** The server half is e2e-tested in a
   browser's jar (`tests/tv-pair-origins.e2e.ts`); the WebView's is the claim.
   Check, with two tsundokus on one computer (two ports):
@@ -634,7 +642,7 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
 - `android/tv/app/src/test/` — `AddressTest`, `AttemptsTest`, `BackTest`,
   `BridgeGuardTest`, `FailedLoadTest`, `ForgetTest`, `IntentAddressTest`,
   `KeysTest`, `PairingBridgeTest`, `ProbeTest`, `ScaleTest`, `ServersTest`,
-  `ShortcutsTest` (79 tests in 13 classes at wave 22), run by `./gradlew test`.
+  `ShortcutsTest` (86 tests in 13 classes at wave 22's round 2), run by `./gradlew test`.
   `ServersTest` (18) is c261's store: the migration of a TV paired with one
   address (a list of one, opened, never asked to pair again), an add that
   never takes launch, the last used first and 9D's others, names, encode and
@@ -645,7 +653,10 @@ no device was at hand. Built, unit-tested and installed nowhere, specifically:
   cookie lines, one paired name per origin read from the table the server's
   spec reads too, another origin's pairing kept (c530), and 9E's name from its
   attribute or, for an older server, its first line (c545). `FailedLoadTest`
-  (7) is every order WebView may report a failed load in (c532).
+  (14) is every order WebView may report a failed load in (c532), the app's
+  next attempt ending a mark whose finish never came, and `onPageFinished`'s
+  decision (`FailedLoad.finish`: a failed `/pair/tv` consumes its mark, a
+  loaded one is read for 9E's name, an unknown server is never a visit).
   `BridgeGuardTest` (4) is c529's rule (the asset page, a known origin, and
   the refused: unknown origins, another port, the http/https twin, other
   `file://` pages); `PairingBridgeTest` (4) calls each guarded method from an
