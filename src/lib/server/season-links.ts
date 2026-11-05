@@ -1019,7 +1019,9 @@ const seasonWords = (h: { season: number; part: number }): string =>
  * The walk asks two rings: the linked entry, then its chain neighbours, in
  * one request; their own chain neighbours are placed from that answer. A part
  * placed in that second ring took no step, so it is asked once more, alone,
- * for the season after it. AniList answers every edge an entry has, of every
+ * for the season after it, and so is what a first-ring part reached: that
+ * part took no step either, so a walk from a part reaches two seasons either
+ * way, as a walk from a whole season does. AniList answers every edge an entry has, of every
  * kind and in both directions, and a chain can loop back or branch, so each
  * entry is placed once, at the first place the walk reaches it, and a chain
  * place always outranks a side one.

@@ -44,7 +44,8 @@ handoff (part 2).
 - **Novels only, for now** (2026-09-25), **and comics too** since 2026-10-14
   (card c98). Comics stayed on AniList until Ranobe's works could count their
   own chapters (Ranobe's card c226); now manga and manhwa go to both, AniList
-  as before and Ranobe beside it. Doujinshi never: they're Hentoid's.
+  as before and Ranobe beside it. Doujinshi never, whichever importer made
+  them: Hentoid's books, or a Mihon gallery source's series.
 - **A missing edition is suggested** (2026-09-27). Ranobe mostly has a work's
   Japanese original, and the EPUBs here are English. A series waits for an
   edition in its own language, and when there's none, the pass suggests one

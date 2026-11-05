@@ -90,7 +90,6 @@ async function serve(at: Install, env: NodeJS.ProcessEnv, prepare = () => {}) {
 		LIBRARY_ROOT: join(at.home, 'library'),
 		BACKUP_DIR: join(at.home, 'backups'),
 		ENGINE_URL: 'http://127.0.0.1:1',
-		SUWAYOMI_URL: '',
 		TSUNDOKU_ANILIST: 'off',
 		...env
 	};

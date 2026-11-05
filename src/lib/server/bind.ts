@@ -298,8 +298,7 @@ export const SERVER_ENV = [
 	// e2e's stand-in sets it, and it must never be inherited (c298).
 	'TSUNDOKU_ANILIST_URL',
 	'FFMPEG',
-	'FFPROBE',
-	'FPCALC'
+	'FFPROBE'
 ] as const;
 
 /** The variables that change how serve.ts serves: what a launcher drops if it finds them inherited. */

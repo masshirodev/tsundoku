@@ -706,8 +706,7 @@ export default async function setup() {
 				COVER_DIR: join(tmpdir(), `tsundoku-e2e-browse-covers-${process.pid}`),
 				ENGINE_STORE: store,
 				NODE_EXTRA_CA_CERTS: join(store, 'cert.pem'),
-				BACKUP_DIR: join(tmpdir(), 'tsundoku-e2e-backups'),
-				SUWAYOMI_URL: ''
+				BACKUP_DIR: join(tmpdir(), 'tsundoku-e2e-backups')
 			},
 			stdio: 'ignore'
 		}

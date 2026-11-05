@@ -12,6 +12,8 @@
  * importer folds the files back onto their series and episodes.
  */
 
+import { LANGS, langCode } from './streams.ts';
+
 export const ANIME_FOLDER = 'Anime';
 export const HIDDEN_ANIME_FOLDER = 'Anime (hidden)';
 
@@ -187,30 +189,26 @@ export function readEpisodeNfo(text: string): {
 	};
 }
 
-/** ISO 639-2, as Matroska and Jellyfin name a track's language. */
-export function iso3(code: string): string {
-	const MAP: Record<string, string> = {
-		EN: 'eng',
-		JA: 'jpn',
-		ES: 'spa',
-		PT: 'por',
-		FR: 'fre',
-		DE: 'ger',
-		IT: 'ita',
-		AR: 'ara',
-		RU: 'rus',
-		ID: 'ind',
-		ZH: 'chi',
-		KO: 'kor',
-		HI: 'hin',
-		TA: 'tam',
-		TE: 'tel',
-		TH: 'tha',
-		VI: 'vie',
-		TR: 'tur',
-		PL: 'pol'
-	};
-	return MAP[code.toUpperCase()] ?? 'und';
+const ISO3 = new Map(
+	LANGS.map(([code, , ...aliases]): [string, string] => {
+		// Cantonese has no ISO 639-2 code of its own: it is filed under Chinese.
+		if (code === 'yue') return [code, 'chi'];
+		// fil and und are ISO 639-2 codes themselves.
+		if (code.length === 3) return [code, code];
+		return [code, aliases.find((a) => /^[a-z]{3}$/.test(a)) ?? 'und'];
+	})
+);
+
+/**
+ * ISO 639-2, as Matroska and Jellyfin name a track's language, from the
+ * player's one table (streams.ts' LANGS; c419), so a Hungarian or Bokmål
+ * track is tagged hun or nob, not und. A variant is its language (PT-BR is
+ * por: ISO 639-2 has no regions), and the B form comes first where a
+ * language has two (fre, ger, chi), as Matroska asks.
+ */
+export function iso3(lang: string): string {
+	const code = langCode(lang).split('-')[0].toLowerCase();
+	return ISO3.get(code) ?? 'und';
 }
 
 /**

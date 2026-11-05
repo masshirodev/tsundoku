@@ -1,8 +1,8 @@
-import { getDb } from './db';
-import { HIDDEN_SQL, libraryWhere } from './visibility';
-import { isPersonNamespace, type TagItem, type TagPage } from '$lib/library/books';
-import type { Kind, Rating } from '$lib/library/types';
-import { langCode } from '$lib/library/editions';
+import { getDb } from './db.ts';
+import { HIDDEN_SQL, libraryWhere } from './visibility.ts';
+import { isPersonNamespace, type TagItem, type TagPage } from '../library/books.ts';
+import type { Kind, Rating } from '../library/types.ts';
+import { langCode } from '../library/editions.ts';
 
 /**
  * Person and tag pages (doc/BOOKS.md): every book or series carrying a tag,

@@ -930,9 +930,12 @@ async function flushNow(o: { backfill?: boolean; now?: number }) {
 				...(w.rating !== null ? { rating: ratingOut(w.rating) } : {}),
 				...(w.favourite !== null ? { favourite: !!w.favourite } : {})
 			});
+			// Sent only if it still wants what went: a rating or FAV set while
+			// the PUT was out cleared sent_at (wantWork) and goes next flush.
 			db.prepare(
-				`UPDATE ranobe_works SET sent_at = ?, failed_at = NULL, error = NULL WHERE work = ?`
-			).run(now, w.work);
+				`UPDATE ranobe_works SET sent_at = ?, failed_at = NULL, error = NULL
+				WHERE work = ? AND rating IS ? AND favourite IS ?`
+			).run(now, w.work, w.rating, w.favourite);
 			out.works += 1;
 		} catch (e) {
 			db.prepare(`UPDATE ranobe_works SET failed_at = ?, error = ? WHERE work = ?`).run(
@@ -984,6 +987,11 @@ function worksOf(seriesIds: number[]): string[] {
 	).map((r) => r.work);
 }
 
+/**
+ * A rating or FAV to send. It clears sent_at rather than trusting
+ * `sent_at < wanted_at`: both are milliseconds, and a FAV set in the same one
+ * as the last send of the work was never sent (c95).
+ */
 function wantWork(
 	works: string[],
 	w: { rating?: number; favourite?: boolean },
@@ -994,7 +1002,7 @@ function wantWork(
 		`INSERT INTO ranobe_works (work, rating, favourite, wanted_at) VALUES (@work, @rating, @favourite, @now)
 		ON CONFLICT (work) DO UPDATE SET
 			rating = COALESCE(@rating, rating), favourite = COALESCE(@favourite, favourite),
-			wanted_at = @now, failed_at = NULL, error = NULL`
+			wanted_at = @now, sent_at = NULL, failed_at = NULL, error = NULL`
 	);
 	for (const work of works)
 		put.run({

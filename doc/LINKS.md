@@ -302,7 +302,7 @@ A link's cover is a new source in the chain ([`COVERS.md`](COVERS.md)):
 1. a page chosen by hand;
 2. a folded book's edition, or a series of books' first book;
 3. a cover the files carry;
-4. Mihon's cover URL;
+4. the source site's cover URL;
 5. **the link's** (`link:anilist:<id>`);
 6. the first page.
 

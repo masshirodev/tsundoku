@@ -16,6 +16,8 @@
  * parent opens on purpose, for tests. Nothing else can open one. When a site
  * answers with a browser check the host sends { op: 'challenge', id, url } and
  * the parent answers { op: 'challenge-result', id, ok, value } (card c152).
+ * { id, op: 'forget', site } clears the refused memo below for that site's
+ * hosts, and answers how many it cleared: TRY AGAIN on the source page (c294).
  */
 const vm = require('node:vm');
 const fs = require('node:fs');
@@ -175,6 +177,32 @@ const asked = new Map();
 const solving = new Map();
 
 const hostOf = (url) => new URL(url).hostname.toLowerCase();
+
+/**
+ * Forgets the refusals of [site]'s hosts: one host is the other or under it,
+ * as the app's `sameSite` (novels/solver.ts). Ten minutes is right for a
+ * download's next chapter, but not for someone who just fixed the solver's
+ * address or whose site changed its check and pressed TRY AGAIN (c294); the
+ * next call then pays one solve and one retry, and is remembered again if the
+ * site still refuses.
+ */
+function forgetRefused(site) {
+	let name;
+	try {
+		name = new URL(site).hostname.toLowerCase();
+	} catch {
+		name = String(site || '').toLowerCase();
+	}
+	const bare = name.replace(/^www\./, '');
+	if (!bare) return 0;
+	let n = 0;
+	for (const host of [...refused.keys()])
+		if (host === bare || host.endsWith(`.${bare}`) || bare.endsWith(`.${host}`)) {
+			refused.delete(host);
+			n++;
+		}
+	return n;
+}
 
 /** The app's own timeout is shorter; this only stops a plugin waiting on nobody. */
 const CHALLENGE_MS = 70_000;
@@ -467,6 +495,7 @@ async function handle(m) {
 		allowed = new Set(m.allow || []);
 		return null;
 	}
+	if (m.op === 'forget') return forgetRefused(m.site);
 	const p = load(m.file);
 	if (m.op === 'info')
 		return {

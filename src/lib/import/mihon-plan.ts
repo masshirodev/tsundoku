@@ -122,7 +122,8 @@ export function signalledKind(genres: string[], viewer: number): Kind | null {
  * when the series doesn't say, a webtoon-only source means manhwa, and
  * anything else is manga. A source's majority was tried and misled -- mixed
  * sources tag only their Korean titles, so the Japanese ones were outvoted.
- * The owner can change a kind.
+ * No door writes an owner-picked kind: the only write to a kind already stored
+ * is `carryEdit`'s (server/import/fold.ts), which carries a folder's row's own.
  */
 export function kindOf(genres: string[], viewer: number, source = ''): Kind {
 	if (isGallerySource(source)) return 'doujin';

@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
-import { deviceLabel, isTvApp } from '$lib/settings/catalog';
-import { getDb } from './db';
+import { deviceLabel, isTvApp } from '../settings/catalog.ts';
+import { getDb } from './db.ts';
 
 /**
  * Pairing a phone over Wi-Fi (doc/WIFI.md; card c188). The computer shows a

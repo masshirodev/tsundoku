@@ -397,8 +397,8 @@ let loop: ReturnType<typeof setTimeout> | null = null;
 let running = false;
 
 /**
- * Starts the downloader in the app, once, when the engine backend is on
- * (`DOWNLOADS_BACKEND=engine`). [onArrived] gets the files that landed:
+ * Starts the downloader in the app, once, when downloading is on (the
+ * engine is configured: engine/run.ts). [onArrived] gets the files that landed:
  * attached at once (engine/run.ts).
  */
 export function startWorker(

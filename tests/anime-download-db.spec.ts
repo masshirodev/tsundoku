@@ -48,7 +48,12 @@ beforeAll(async () => {
 					{
 						quality: 'Kwik - 360p',
 						videoUrl: `${SELF}/video/clip.webm`,
-						subtitleTracks: [{ url: `${SELF}/video/en.vtt`, lang: 'English' }]
+						// Two the mux's own 19 languages left untagged (c419).
+						subtitleTracks: [
+							{ url: `${SELF}/video/en.vtt`, lang: 'English' },
+							{ url: `${SELF}/video/en.vtt`, lang: 'Hungarian' },
+							{ url: `${SELF}/video/en.vtt`, lang: 'Norwegian Bokmål' }
+						]
 					}
 				])
 			);
@@ -132,9 +137,11 @@ describe('downloading an episode', () => {
 		expect(probe.streams.map((s) => [s.codec_type, s.codec_name])).toEqual([
 			['video', 'vp9'],
 			['audio', 'opus'],
+			['subtitle', 'subrip'],
+			['subtitle', 'subrip'],
 			['subtitle', 'subrip']
 		]);
-		expect(probe.streams[2].tags?.language).toBe('eng');
+		expect(probe.streams.slice(2).map((s) => s.tags?.language)).toEqual(['eng', 'hun', 'nob']);
 		const nfo = readFileSync(file1.replace(/\.mkv$/, '.nfo'), 'utf8');
 		expect(nfo).toContain(`<uniqueid type="tsundoku" default="true">/ep/${shown}/1</uniqueid>`);
 		expect(nfo).toContain('<episode>1</episode>');
@@ -173,7 +180,9 @@ describe('downloading an episode', () => {
 			qualities: [{ kind: 'file', src: `/api/anime/file/${ep1}` }]
 		});
 		expect(s.servers[0].qualities[0].subtitles).toEqual([
-			{ lang: 'EN', src: `/api/anime/file/${ep1}/subtitle/0` }
+			{ lang: 'EN', src: `/api/anime/file/${ep1}/subtitle/0` },
+			{ lang: 'HU', src: `/api/anime/file/${ep1}/subtitle/1` },
+			{ lang: 'NB', src: `/api/anime/file/${ep1}/subtitle/2` }
 		]);
 	});
 

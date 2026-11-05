@@ -40,14 +40,23 @@ Deleting a series deletes its events. Deleting an entry keeps its events with
 ## The caps (card c443)
 
 Each reader times its events with a clock (`src/lib/reader/reader.ts`), and the
-cap is the longest a page can plausibly hold someone, so it is the **medium's**
-(`kindFacts(kind).medium`, [`KINDS.md`](KINDS.md)), never a kind's name:
+cap is the longest a page can plausibly hold someone, so it is the **medium's**,
+never a kind's name. Each reader is one medium and chooses its own:
+`TextReader.svelte` passes `IDLE_CAPS.text`, `ImageReader.svelte` takes
+`ProgressClock`'s default.
 
 | Medium | Cap               | Why                                                                                                                                                                                                                                                                                                                                                                                                |
 | ------ | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | pages  | 2 minutes         | Since the log began (`IDLE_CAP_MS`). A manga page or a strip's screen is read in seconds.                                                                                                                                                                                                                                                                                                          |
 | text   | 5 minutes         | A page of prose at the default size holds **352 words** on a tablet held upright (size 20) and **391** held sideways (size 19, two columns), counted on screen in the text reader at 800x1280 and 1280x800 (176 on a phone). At **80 words a minute**, a slow and careful pace well under the ~260 of adult fiction reading, 391 words is 4.9 minutes. Two minutes cut a slow reader's page short. |
 | video  | none: what played | `WatchClock` counts a `timeupdate` step only when the position moved forward about as far as the wall clock did. Paused, buffering (`waiting`, `stalled`), a seek either way, and a hidden page (unless the picture is in a floating window) add nothing. Faster playback counts the time spent. A lap is capped at 60 s, four of the player's 15 s heartbeats.                                    |
+
+What counts as watching is one pure question, `isWatching` beside the clock
+(c481): playing, not seeking, and the page visible or the picture in a floating
+window. Its unit cases are in `tests/reader-domain.spec.ts`. The player's own
+wiring is covered by `tests/browse-player-watching.e2e.ts`, which plays the
+browse world's 8 s clip on a database of its own. It checks that a pause posts
+nothing, and that a page told it is hidden posts 0 although the picture plays.
 
 Rows written before c443 stay as they are: a novel page that took four minutes
 then says two.

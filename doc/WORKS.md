@@ -172,7 +172,7 @@ the manga's cover and on ALL it wears the part CONTINUE opens. Finding reads
 series, not tiles: search (`search`), the person and tag page (`tagPage`) and
 the Work feet the page asks for in one query (`workFeetFor`), so a part found
 there keeps its own tile, wearing its Work. The one Work tile finding draws is
-a Work whose own name is what was typed: `search` returns it in
+a Work whose own name contains what was typed: `search` returns it in
 `SearchResult.works`, before its parts. Every card the card query builds
 (`toCard`) carries its Work as `work: { id, name, part, of }` for the
 `PART 2 · <WORK>` foot. `listSeries`, the per-series shelf list from before
@@ -550,9 +550,16 @@ variable unset each file takes a free port from the OS (`node:net`'s
 concurrent runs do not collide. It
 writes nothing to the shared library, so it runs in parallel with the flow
 specs. The generated tests compare the first match where a region repeats per
-row. That preamble and a couple of width/shadow assertions the generator
-cannot see are hand-written, and **regenerating the files drops them** --
-`temp/design/assemble.py` is the script that puts them back. They run in the
+row. What the generator cannot see is hand-written, and **regenerating the
+files drops it**: that preamble, the width and shadow assertions (the 440px
+panel, the two hairline frames behind a Work's cover), and per-row layout cases
+such as c357's height and top case at the end of `work-screen-frame.e2e.ts`
+(`RENAME and UNGROUP fill the FILE row`). No tracked script puts them back. Wave
+10's `temp/design/assemble.py` did, but `temp/` is gitignored, so a clean clone
+has none; the last copy was in that wave's worktree
+(`~/work/tsundoku/wave10/works-ui/temp/design/`, with its specs and maps), and
+it predates c357 and the free port. So regenerate to a scratch file and carry
+over only the assertions that changed, by hand. The files run in the
 `works-frame` project (1280x800, one worker).
 
 `work-end-frame.e2e.ts` also seeds an anime series of its own, whose episodes

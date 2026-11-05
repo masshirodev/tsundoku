@@ -159,8 +159,10 @@ without hiding them from Tab:
 
 **Text entries.** ←/→ keep the caret in a single-line input; ↑/↓ leave it. A
 textarea or a contenteditable keeps all four. A `<select>` keeps ←/→ to change
-its value in place (a remote has no other key for it) and lets ↑/↓ leave, or the
-sort control would trap the pad. A range input is a slider and keeps all four.
+its value in place (a remote has no other key for it) and lets ↑/↓ leave, or it
+would trap the pad; no screen draws one now, the library's SORT being a
+`ChoiceMenu` (c432), whose open list is a focus scope. A range input is a slider
+and keeps all four.
 **A ruled row that adjusts a value** says so with `data-focus-adjust` and keeps
 ←/→ only, so ↑/↓ still leave it: the series screen's rating row (c238) moves by
 half a bar, saved as it changes; the reader's page scrubber and its dim slider
@@ -314,7 +316,9 @@ BACK climbs the screen before it leaves.
   hidden — and off a TV, always — the arrows are the reader's own, because
   that is what turns pages and scrolls a strip.
 - **←/→ on a `<select>` change its value**, rather than moving focus: a remote
-  has no other key for it. ↑/↓ leave, so the control is not a trap.
+  has no other key for it. ↑/↓ leave, so the control is not a trap. The rule
+  stays for any `<select>` a screen adds; the library's SORT stopped being one
+  in c432.
 - **A tile's rating and FAV are not arrow stops.** The design's focus board
   draws the mark on the cover, and c235 puts the tile's options behind a held
   OK; stopping on three controls per cell would make a 6-wide grid unwalkable.

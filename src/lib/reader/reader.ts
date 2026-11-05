@@ -275,7 +275,8 @@ export function scrubPage(fraction: number, total: number, mode: Mode): number {
  * a page overnight is not eight hours of reading.
  *
  * The cap is the longest a page can plausibly hold someone, so it is the
- * medium's (card c443), asked of the registry (`kindFacts(kind).medium`):
+ * medium's (card c443). Each reader is one medium and chooses its own: the
+ * text reader passes `IDLE_CAPS.text`, the image reader takes the default.
  *
  * - **pages**: 2 minutes, as since the log began. A manga page or a strip's
  *   screen is read in seconds.
@@ -334,6 +335,21 @@ export class ProgressClock {
  */
 export const STEP_SLACK_MS = 1_000;
 export const WATCH_LAP_CAP_MS = 60_000;
+
+/**
+ * Whether a `timeupdate` counts as watching, for `WatchClock.tick` (c443,
+ * c481): playing, not in a seek, and on a page someone can see, unless the
+ * picture is in a floating window (Document or the video's own
+ * picture-in-picture), which is seen while the page is hidden.
+ */
+export function isWatching(s: {
+	paused: boolean;
+	seeking: boolean;
+	visibility: DocumentVisibilityState;
+	pip: boolean;
+}): boolean {
+	return !s.paused && !s.seeking && (s.visibility === 'visible' || s.pip);
+}
 
 export class WatchClock {
 	private at: number | null = null;

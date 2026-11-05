@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3';
 import { hueFor } from '../library/cover.ts';
 import { SAMPLE_PREFIX } from './pages/sample.ts';
 import { foldEditions, groupIntoSeries } from './books.ts';
-import type { Kind, Rating } from '$lib/library/types';
+import type { Kind, Rating } from '../library/types.ts';
 
 /**
  * A development library, built from the sample rows the design handoff drew

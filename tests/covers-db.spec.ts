@@ -43,13 +43,14 @@ function series(o: {
 	coverFile?: string | null;
 	coverUrl?: string;
 	available?: boolean;
+	kind?: string;
 }): number {
 	const id = Number(
 		db
 			.prepare(
-				`INSERT INTO series (root_id, title, kind, added_at, path, cover_url) VALUES (?, ?, 'manga', 0, ?, ?)`
+				`INSERT INTO series (root_id, title, kind, added_at, path, cover_url) VALUES (?, ?, ?, 0, ?, ?)`
 			)
-			.run(o.root ?? 1, o.title, o.path ?? '', o.coverUrl ?? '').lastInsertRowid
+			.run(o.root ?? 1, o.title, o.kind ?? 'manga', o.path ?? '', o.coverUrl ?? '').lastInsertRowid
 	);
 	db.prepare(
 		`INSERT INTO entries (series_id, position, label, added_at, file, available, cover_file) VALUES (?, 1, 'Ch. 1', 0, ?, ?, ?)`
@@ -207,6 +208,37 @@ describe('covers', () => {
 		expect(await readCover(hidden, false)).toBeNull();
 		expect((await readCover(hidden, true))?.at).toBe(5000);
 		expect(await readCover(local, false)).not.toBeNull();
+	});
+});
+
+describe('a first page is only a pages kind’s cover (c421)', () => {
+	// covers.ts's pageSource asks the kind's medium (card c303). The same
+	// downloaded CBZ that gives a manga its first-page cover gives a novel or
+	// an anime none: a text's cover is its EPUB's, a video has no pages.
+	it('gives a novel whose first entry is not an EPUB no page cover', async () => {
+		const novel = series({
+			title: 'Paged Novel',
+			kind: 'novel',
+			path: join(work, 'Downloaded'),
+			file: 'Chapter 1.cbz'
+		});
+		expect(automaticCover(novel)).toBe('none');
+		await refreshSeriesCover(novel);
+		expect(row(novel).cover_key).not.toMatch(/^page:/);
+		expect(existsSync(join(work, 'covers', `${novel}.webp`))).toBe(false);
+	});
+
+	it('gives an anime no page cover', async () => {
+		const anime = series({
+			title: 'Paged Anime',
+			kind: 'anime',
+			path: join(work, 'Downloaded'),
+			file: 'Chapter 1.cbz'
+		});
+		expect(automaticCover(anime)).toBe('none');
+		await refreshSeriesCover(anime);
+		expect(row(anime).cover_key).not.toMatch(/^page:/);
+		expect(existsSync(join(work, 'covers', `${anime}.webp`))).toBe(false);
 	});
 });
 

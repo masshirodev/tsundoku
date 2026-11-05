@@ -31,8 +31,9 @@ Host is the instance's public origin — the tailnet name `tailscale serve`
 answers on, or the tailnet address in plain-http mode (`ORIGIN`, as
 `scripts/serve.ts` sets it). On `localhost`, `127.0.0.1` or `[::1]` it is
 ignored, and when no origin is known no paired cookie is accepted at all:
-fail closed (`tailnetDoor` in `src/lib/server/pairing.ts`). The TV's DEVICES
-row carries SIGN OUT, like a phone's. The token still opens every browser;
+fail closed (`tailnetDoor` in `src/lib/server/pairing.ts`). So the digits are
+drawn only where `ORIGIN` names a tailnet host (`tvDoor`, c264): anywhere else
+a TV would pair and land on `/login`. The TV's DEVICES row carries SIGN OUT, like a phone's. The token still opens every browser;
 this only saves typing 24 characters with a remote.
 
 That DEVICES block is the token install's alone (`tvBlockFor` in

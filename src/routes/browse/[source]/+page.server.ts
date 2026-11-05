@@ -1,4 +1,4 @@
-import { error } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { hasScript, isIncognito, isRevealed } from '$lib/server/prefs';
 import { downloadsBackend } from '$lib/server/engine/run';
@@ -14,6 +14,7 @@ import {
 } from '$lib/server/engine/browse';
 import { changedCount, readFilters, type FilterField } from '$lib/library/browse-filters';
 import { backOrigin } from '$lib/library/tag-search';
+import { forgetSiteCheck } from '$lib/server/novels/source';
 import type { Settled } from '$lib/library/settled';
 
 /**
@@ -26,7 +27,8 @@ import type { Settled } from '$lib/library/settled';
  * are loaded, what MORE and back return to), `q` (a search in this source,
  * answered as a filtered list), the panel's `f*` choices, `panel` /
  * `find` for the two things script would otherwise toggle, and `from`, the
- * preview or series a tag was tapped on, for the back cell (c313).
+ * preview or series a tag was tapped on, for the back cell (c313). `again`
+ * is TRY AGAIN on a site's check (c294), and is never kept.
  */
 
 type Answer = {
@@ -50,6 +52,16 @@ export const load: PageServerLoad = async ({ params, url, cookies }) => {
 	// Hidden means hidden: a mostly-hidden source isn't found with reveal off.
 	const source = browseSource(params.source, reveal);
 	if (!source) error(404, 'not found');
+
+	// TRY AGAIN on a site's check that could not be passed (c294): the
+	// ten-minute memos forget this site, then the page is its own URL again,
+	// so a reload or a later link doesn't forget them a second time.
+	if (url.searchParams.has('again')) {
+		await forgetSiteCheck(source.id);
+		const clean = new URL(url);
+		clean.searchParams.delete('again');
+		redirect(303, `${clean.pathname}${clean.search}`);
+	}
 
 	// Incognito leaves nothing behind, RECENT included (doc/PRIVACY.md).
 	if (!isIncognito(cookies)) noteBrowsed(source.id);

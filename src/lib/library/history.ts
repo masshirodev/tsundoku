@@ -1,7 +1,7 @@
-import { KEEP_DAYS } from './keep';
+import { KEEP_DAYS } from './keep.ts';
 import { clock as timeAt } from './anime.ts';
-import { kindLabel } from './labels';
-import type { Kind } from './types';
+import { kindLabel } from './labels.ts';
+import type { Kind } from './types.ts';
 
 /**
  * History (Index Addendum): one row per series per day, newest first, built

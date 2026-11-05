@@ -20,7 +20,8 @@ import { lnSchema, lnValues, type LnFilters } from '../../library/lnreader-filte
 import type { FilterField } from '../../library/browse-filters.ts';
 import { novelNumbers, planNovel, releasedAt, type LnNovel } from '../../import/novel-plan.ts';
 import type { SearchHit, SourceManga } from '../download-types.ts';
-import { browsedIds } from '../engine/browse.ts';
+import { browsedIds, siteOf } from '../engine/browse.ts';
+import { forgetFailedSolve } from './solver.ts';
 import type { BrowseSource } from '../engine/browse.ts';
 import { installedPlugins, novelHost, type InstalledPlugin } from './plugins.ts';
 
@@ -60,6 +61,23 @@ export class NovelSourceError extends Error {}
  */
 const call = <T>(p: InstalledPlugin, method: string, args: unknown[], timeoutMs = 120_000) =>
 	novelHost().call<T>(p.file, method, args, timeoutMs);
+
+/**
+ * TRY AGAIN on a site's check that could not be passed (doc/NOVELS.md; card
+ * c294): both memos that would answer it at once for ten minutes — the host's
+ * refused clearance and the app's solve that left nothing usable — forget the
+ * plugin's site, so the next call asks the solver afresh. A memo is what keeps
+ * a download from paying a solve per chapter; this is the person asking.
+ */
+export async function forgetSiteCheck(sourceId: string): Promise<void> {
+	const p = loaded(sourceId);
+	const site = p ? siteOf(p.site) : '';
+	if (!site) return;
+	forgetFailedSolve(site);
+	await novelHost()
+		.forgetRefused(site)
+		.catch(() => 0);
+}
 
 /**
  * Every installed plugin, as BROWSE lists a source. Hidden means hidden: a
@@ -254,6 +272,8 @@ type Parsed = LnNovel & { totalPages?: number };
 // is a hundred calls. Kept briefly, then asked again.
 const KEEP_NOVEL_MS = 10 * 60 * 1000;
 const novels = new Map<string, { at: number; novel: Parsed }>();
+/** For tests: forget the novels kept. */
+export const forgetNovels = () => novels.clear();
 
 /**
  * A novel and every chapter it lists, every page of a paged plugin's, a

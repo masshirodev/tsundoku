@@ -151,12 +151,7 @@ function inViewport(el: HTMLElement): boolean {
 }
 
 /**
- * Where the first arrow lands on a screen, or where a sheet puts focus when it
- * opens: the screen's declared start (`data-focus-start`), else the first stop
- * in the scope, else the top-left one on the page.
- */
-/**
- * A scope's own start, where its markup cannot say \`data-focus-start\`: a
+ * A scope's own start, where its markup cannot say `data-focus-start`: a
  * panel that hosts another screen's list (the text reader's CONTENTS hosts the
  * series' EntryList, c250) names the row to land on. Selectors are tried in
  * order; the first that finds a stop wins, and none falls through to the
@@ -164,6 +159,11 @@ function inViewport(el: HTMLElement): boolean {
  */
 const declaredStarts = new WeakMap<HTMLElement, () => readonly string[]>();
 
+/**
+ * Where the first arrow lands on a screen, or where a sheet puts focus when it
+ * opens: the screen's declared start (`data-focus-start`), else the first stop
+ * in the scope, else the top-left one on the page.
+ */
 function startOf(scope: HTMLElement): HTMLElement | null {
 	for (const selector of declaredStarts.get(scope)?.() ?? []) {
 		const named = [...scope.querySelectorAll<HTMLElement>(selector)].find(isFocusable);

@@ -274,6 +274,42 @@ describe('a site’s browser check', () => {
 		expect(siteRequests()).toBe(3); // one request: it was already a check, so no retry
 	});
 
+	it('forgets a refused clearance when TRY AGAIN asks, and only that site’s (c294)', async () => {
+		// The memo's ten minutes are for a download's next chapter, not for
+		// someone who just fixed the solver and pressed TRY AGAIN: forgetting
+		// the site makes the next call pay one solve and one retry again.
+		await expect(host.call(checked, 'parseChapter', ['/always'])).rejects.toThrow(
+			/answered 403 \(its check could not be passed\)/
+		);
+		expect(solved).toHaveLength(1);
+		expect(siteRequests()).toBe(2);
+		// Another site's name forgets nothing.
+		expect(await host.forgetRefused('elsewhere.example')).toBe(0);
+		await expect(host.call(checked, 'parseChapter', ['/always'])).rejects.toThrow(
+			/answered 403 \(its check could not be passed\)/
+		);
+		expect(solved).toHaveLength(1);
+		expect(siteRequests()).toBe(3);
+		expect(await host.forgetRefused('127.0.0.1')).toBe(1);
+		await expect(host.call(checked, 'parseChapter', ['/always'])).rejects.toThrow(
+			/answered 403 \(its check could not be passed\)/
+		);
+		expect(solved).toHaveLength(2); // solved afresh
+		expect(siteRequests()).toBe(5); // the request and the retry, as the first time
+		// And the site refusing again is remembered again.
+		await expect(host.call(checked, 'parseChapter', ['/always'])).rejects.toThrow(
+			/answered 403 \(its check could not be passed\)/
+		);
+		expect(solved).toHaveLength(2);
+		expect(siteRequests()).toBe(6);
+	});
+
+	it('does not start a host only to forget what it never remembered (c294)', async () => {
+		expect(await host.forgetRefused('127.0.0.1')).toBe(0);
+		expect(solved).toEqual([]);
+		expect(siteRequests()).toBe(0);
+	});
+
 	it('keeps a secure clearance off http, where it was never meant to go', async () => {
 		// This site is http; FlareSolverr's clearance cookies are secure, so the
 		// jar must not be sent in clear text. http stays reachable: it just gets

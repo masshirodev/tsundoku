@@ -481,6 +481,66 @@ describe('AniSkip', () => {
 		});
 	});
 
+	it('a Mihon tracker that moves to another MAL entry clears the old one’s answers (c338)', async () => {
+		// The import's door: one call per tracked series, inside its transaction.
+		// A moved tracker must not keep the old entry's week-long negative, nor
+		// the ending the old entry gave.
+		const show = series({ mal: null });
+		const found = episode(show, { position: 1, number: 1 });
+		const negative = episode(show, { position: 2, number: 2 });
+		cat.linkFromTracker(db, show, { id: 41, score: 0 }, 9_200);
+		// A tracker's link learns its format in the resolve pass; until then
+		// AniSkip is not asked (c395).
+		const resolved = () =>
+			db.prepare(`UPDATE series_links SET format = 'TV' WHERE series_id = ?`).run(show);
+		resolved();
+		expect(await lookupAniSkip(found)).toBe(true);
+		answer = { found: false, results: [], statusCode: 404 };
+		expect(await lookupAniSkip(negative)).toBe(false);
+		marks.saveMark(found, 'fingerprint', { intro: null, ending: { start: 1000, end: 1100 } });
+		expect(asked()).toEqual([
+			[41, 1],
+			[41, 2]
+		]);
+		expect(marks.markTriedAt(negative, 'aniskip')).not.toBeNull();
+		expect(db.prepare(`SELECT ending_at FROM entries WHERE id = ?`).get(found)).toEqual({
+			ending_at: 1300
+		});
+
+		cat.linkFromTracker(db, show, { id: 42, score: 0 }, 9_201);
+		expect(db.prepare(`SELECT mal_id FROM series_links WHERE series_id = ?`).get(show)).toEqual({
+			mal_id: 42
+		});
+		expect(marks.markTriedAt(found, 'aniskip')).toBeNull();
+		expect(marks.markTriedAt(negative, 'aniskip')).toBeNull();
+		// AniSkip's ending went with its row; the fingerprint's is what remains.
+		expect(db.prepare(`SELECT ending_at FROM entries WHERE id = ?`).get(found)).toEqual({
+			ending_at: 1000
+		});
+		// The next resolve asks the new entry at once, not a week later.
+		resolved();
+		answer = {
+			found: true,
+			results: [{ interval: { startTime: 60, endTime: 150 }, skipType: 'op' }]
+		};
+		expect(await lookupAniSkip(negative)).toBe(true);
+		expect(asked().at(-1)).toEqual([42, 2]);
+	});
+
+	it('a Mihon tracker’s first link clears an answer kept from before it (c338)', () => {
+		// A row with no series link above it: a season linked alone (c349) can
+		// leave one, and the tracker's entry is a different question.
+		const show = series({ mal: null });
+		const id = episode(show);
+		marks.saveAttempt(id, 'aniskip', db, 9_300);
+		expect(marks.markTriedAt(id, 'aniskip')).toBe(9_300);
+		cat.linkFromTracker(db, show, { id: 43, score: 0 }, 9_301);
+		expect(db.prepare(`SELECT mal_id FROM series_links WHERE series_id = ?`).get(show)).toEqual({
+			mal_id: 43
+		});
+		expect(marks.markTriedAt(id, 'aniskip')).toBeNull();
+	});
+
 	it('writes nothing for a series with no AniSkip row, and nothing at all for a manga (c299)', () => {
 		const changes = () => (db.prepare(`SELECT total_changes() AS n`).get() as { n: number }).n;
 		// An anime no finder has reached yet: the DELETE matches nothing, so no

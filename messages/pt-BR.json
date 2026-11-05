@@ -819,5 +819,6 @@
 			}
 		}
 	],
-	"library_refresh_more": "PERGUNTAR MAIS {n}"
+	"library_refresh_more": "PERGUNTAR MAIS {n}",
+	"browse_check_again": "TENTAR DE NOVO RESOLVE A VERIFICAÇÃO DO ZERO"
 }

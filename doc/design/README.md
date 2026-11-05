@@ -58,7 +58,9 @@ Which file is the spec:
 | `components/chrome/*`                                            | `src/lib/components/chrome/`: Banner, BulkBar, SectionLabel, Sheet, SheetRow, TopBar, Wordmark |
 
 The components are Svelte 5 ports, not wrappers. Styles are scoped CSS that reads
-tokens, and none of them hardcode a colour.
+tokens, and none of them hardcode a colour. The house dropdown is
+`src/lib/components/controls/ChoiceMenu.svelte` (c432): a choice out of a few
+uses it, not a native `<select>`, whose open list is the system's.
 
 ## The published design system
 
@@ -219,5 +221,7 @@ are in [`../LIBRARY.md`](../LIBRARY.md).
     also sink to 0.97. A real pointer tints what it's over. Sheets rise on the
     drawer curve and leave the way they came; the update dialog grows in; the
     next screen slides 40px in from the side it lies on (a reader fades; not on a TV).
-    Departure 18's fade-in stays and now fades out too. The readers' page
-    turns stay instant. The rules and tokens are [`../MOTION.md`](../MOTION.md).
+    Departure 18's fade-in stays and now fades out too. The readers' paged turns
+    follow the finger and slide, as the image reader's always have (c441;
+    MOTION.md, "Page turns"). The rules and tokens are
+    [`../MOTION.md`](../MOTION.md).

@@ -205,7 +205,8 @@ describe('finding shows the series', () => {
 			['Drawing: Saikyou Mangaka wa Oekaki Skill de Isekai Musou Suru', 'Hikaru ga Shinda Natsu'],
 			'The Breaker'
 		);
-		// A tag page is finding: listSeries is what it reads.
+		// listSeries lists every series as its own card, the way a tag page
+		// (tagPage) draws a part: its own tile, wearing its Work.
 		const founder = lib.listSeries({ reveal: true }).filter((c) => c.work);
 		expect(founder.map((c) => c.id).sort()).toEqual([a, b].sort());
 		expect(founder.find((c) => c.id === b)?.work).toEqual({

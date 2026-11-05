@@ -12,7 +12,6 @@ process.env.ENGINE_TOKEN = 't';
 // ADD fetches the new series' cover: never into the library's own covers folder.
 const covers = mkdtempSync(join(tmpdir(), 'tsundoku-backend-covers-'));
 process.env.COVER_DIR = covers;
-delete process.env.SUWAYOMI_URL;
 
 const { getDb } = await import('$lib/server/db');
 const { ensureRoot, writeSeries } = await import('$lib/server/import/write');

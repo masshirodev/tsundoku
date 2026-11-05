@@ -729,11 +729,15 @@ Specific and honest, so a deliberate gap isn't mistaken for an oversight:
 
 - **Mihon, Hentoid and EPUB import.** START SCAN (and RESCAN or `/scan`
   later) reads a Mihon backup from `$LIBRARY_ROOT/Mihon/autobackup/`, tsundoku's
-  own downloads under `$LIBRARY_ROOT/devices/tsundoku/Mihon/`, and
-  `$LIBRARY_ROOT/H/.Hentoid/` ([`IMPORT-MIHON.md`](IMPORT-MIHON.md),
-  [`IMPORT-HENTOID.md`](IMPORT-HENTOID.md)). With none of them present, it says
-  where it looked. Development still runs on `yarn run seed`'s sample titles
-  unless you import.
+  own downloads under `$LIBRARY_ROOT/devices/tsundoku/Mihon/`,
+  `$LIBRARY_ROOT/H/.Hentoid/`, and the EPUBs under `$LIBRARY_ROOT/Library/`
+  ([`IMPORT-MIHON.md`](IMPORT-MIHON.md),
+  [`IMPORT-HENTOID.md`](IMPORT-HENTOID.md),
+  [`IMPORT-EPUB.md`](IMPORT-EPUB.md)). A backup can also be uploaded from the
+  browser on IMPORT A BACKUP ([`IMPORT.md`](IMPORT.md)). A `Mihon/` with no
+  backup in it is no source (c268). With none of them present, it says where it
+  looked. Development still runs on `yarn run seed`'s sample titles unless
+  you import.
 - **The resume buttons open the reader** ([`READER.md`](READER.md)): a
   CONTINUE row's ▶ and the sheet's `▶ CH. N` resume where the series was left
   (`resumeEntry`). SERIES and TAGS in the sheet open the series screen, TAGS
@@ -742,12 +746,14 @@ Specific and honest, so a deliberate gap isn't mistaken for an oversight:
   the series screen. Neither handoff draws a bulk tag editor.
 - **No list view.** Direction 1b offered GRID ▦ / LIST ☰, and Turn 3 dropped it.
   It isn't built.
-- **IMPORT LOG** in the desktop sidebar is shown, disabled, and goes nowhere.
+- **IMPORT LOG** in the desktop sidebar opens the log of every import and scan
+  ([`IMPORT.md`](IMPORT.md)), counting a running one in accent.
   SETTINGS opens [`SETTINGS.md`](SETTINGS.md)'s screen.
 - **MORE** (card c171, Reach): on the tablet and phone, a cell after SELECT
   opens the sidebar's foot as a sheet: GET STARTED while it is unfinished,
   TO LINK while anything waits (c475), HISTORY, DOWNLOADS with its queue,
-  SETTINGS with this device's changed count, HELP, IMPORT LOG, and in the TV
+  SETTINGS with this device's changed count, HELP, IMPORT LOG with when the
+  last import came in, and in the TV
   app only, SERVERS (no RESCAN: see "RESCAN asks first") (c261; [`TV-APP.md`](TV-APP.md), "Servers"). The desktop
   has the sidebar itself, so no MORE there (`MoreSheet.svelte`). To make room,
   a phone under 420px shows the search hint as / alone, as Reach draws it.

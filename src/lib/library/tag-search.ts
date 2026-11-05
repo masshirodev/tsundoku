@@ -1,6 +1,6 @@
-import { INCLUDE, writeFilters, type FilterField } from './browse-filters';
-import { isPersonNamespace } from './books';
-import { people } from '../import/mihon-plan';
+import { INCLUDE, writeFilters, type FilterField } from './browse-filters.ts';
+import { isPersonNamespace } from './books.ts';
+import { people } from '../import/mihon-plan.ts';
 
 /**
  * A tag, searched for in a source (doc/BROWSE.md, "Arriving from a tag"; card

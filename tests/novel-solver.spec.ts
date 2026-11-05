@@ -11,6 +11,7 @@ process.env.DATABASE_PATH = ':memory:';
 const ADDRESSES: Record<string, string[]> = {
 	'www.novel.example': ['93.184.215.14'],
 	'novel.example': ['93.184.215.14'],
+	'other.example': ['93.184.215.15'],
 	'inside.example': ['10.0.0.5'],
 	'mixed.example': ['93.184.215.14', '127.0.0.1']
 };
@@ -20,7 +21,7 @@ vi.mock('node:dns/promises', () => ({
 }));
 
 const { getDb } = await import('$lib/server/db');
-const { forgetFailedSolves, novelSolverUrl, solveChallenge, solvingSince } =
+const { forgetFailedSolve, forgetFailedSolves, novelSolverUrl, solveChallenge, solvingSince } =
 	await import('$lib/server/novels/solver');
 
 type Asked = { cmd?: string; url?: string; maxTimeout?: number };
@@ -162,19 +163,27 @@ describe('the app’s solve for a site’s check', () => {
 		expect(solvingSince('novel.example')).toBeNull();
 	});
 
-	it('answers nothing when the solver fails, and writes no check', async () => {
+	it('answers nothing when the solver fails, does not remember it, and writes no check (c334)', async () => {
 		// A 200 carrying `status: 'error'` is a shape FlareSolverr does not send
-		// (it sends that body as an HTTP 500, below); it is tolerated, and is not
-		// the shape the memo exists for.
+		// (it sends that body as an HTTP 500, below), but Byparr speaks the same
+		// protocol, and a proxy or a wrong NOVEL_SOLVER_URL answers 200 with HTML.
+		// None of them is the shape the memo exists for: each next call asks
+		// again, with no `forgetFailedSolves()` between them.
 		reply = () => ({ status: 200, body: JSON.stringify({ status: 'error', message: 'nope' }) });
 		expect(await solveChallenge('https://www.novel.example/')).toBeNull();
-		// Each shape is its own solve, so each forgets the memo the one before it set.
-		forgetFailedSolves();
+		expect(asked).toHaveLength(1);
+		expect(await solveChallenge('https://www.novel.example/')).toBeNull();
+		expect(asked).toHaveLength(2);
 		reply = () => ({ status: 500, body: '{}' });
 		expect(await solveChallenge('https://www.novel.example/')).toBeNull();
-		forgetFailedSolves();
+		expect(asked).toHaveLength(3);
 		reply = () => ({ status: 200, body: 'not json' });
 		expect(await solveChallenge('https://www.novel.example/')).toBeNull();
+		expect(asked).toHaveLength(4);
+		reply = () => ({ status: 200, body: JSON.stringify({ status: 'ok' }) });
+		expect(await solveChallenge('https://www.novel.example/')).toBeNull();
+		expect(await solveChallenge('https://www.novel.example/')).toBeNull();
+		expect(asked).toHaveLength(6);
 		expect(checked()).toEqual([]);
 	});
 
@@ -232,6 +241,19 @@ describe('the app’s solve for a site’s check', () => {
 		expect(await solveChallenge('https://www.novel.example/one')).toBeNull();
 		expect(await solveChallenge('https://www.novel.example/two')).toBeNull();
 		expect(asked).toHaveLength(1);
+	});
+
+	it('forgets one site’s memo when TRY AGAIN asks, and no other’s (c294)', async () => {
+		reply = () => ({ status: 200, body: ok({ status: 403 }) });
+		expect(await solveChallenge('https://www.novel.example/one')).toBeNull();
+		expect(await solveChallenge('https://other.example/one')).toBeNull();
+		expect(asked).toHaveLength(2);
+		forgetFailedSolve('novel.example');
+		expect(await solveChallenge('https://other.example/two')).toBeNull();
+		expect(asked).toHaveLength(2);
+		reply = () => ({ status: 200, body: ok() });
+		expect(await solveChallenge('https://www.novel.example/two')).not.toBeNull();
+		expect(asked).toHaveLength(3);
 	});
 
 	it('answers nothing when the solver can’t be reached', async () => {

@@ -309,8 +309,7 @@ export async function startTagWorld(name: string): Promise<TagWorld> {
 				LIBRARY_ROOT: join(work, 'library'),
 				COVER_DIR: join(work, 'covers'),
 				ENGINE_STORE: join(work, 'store'),
-				BACKUP_DIR: join(work, 'backups'),
-				SUWAYOMI_URL: ''
+				BACKUP_DIR: join(work, 'backups')
 			},
 			stdio: 'ignore'
 		}
