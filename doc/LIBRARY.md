@@ -354,13 +354,34 @@ meant tapping through the others, and nothing ran the other way round.
   ascending, the rest descending), and `?dir=` is in the URL only while it's
   turned from that, so old links mean what they did. Choosing another sort
   drops it. RANDOM has no direction and no toggle.
-- **Turned round, RECENTLY READ still keeps the never-read last**: ascending
-  is the longest-untouched first, not a wall of things never opened.
-  RATING's ties stay A–Z either way. Every order still ends in the id, so
+- **RECENTLY READ counts a series never opened as read when it was added**
+  (c524, asked for on 2026-11-04: "when a new entry gets added to the
+  library it gets last_read = now()?"). The key is
+  `COALESCE(last read, added_at)`, PROGRESS's own, so a series a scan or ADD
+  just brought sits at the top of the default sort, above everything read
+  before it came and below anything read since. **The sort only, never the
+  data**: no reading is written, so CONTINUE, HISTORY, the reading time, the
+  reading log and tracking never see a read that didn't happen. Turned round
+  it's the exact mirror, the longest untouched first, adding being the
+  touch: a new add sits near the end, and a series added long ago and never
+  opened sits among the oldest reads, no longer in a block of its own at the
+  end (until c524 the never-read were kept last both ways). What `added_at`
+  holds decides where a big import lands (the scan case asserted in
+  `tests/library-sort-db.spec.ts`): a scan stamps a series it finds with no
+  backup behind it (a Mihon download folder alone, an anime folder, a
+  novel's backup) with the scan's time, so a first scan of a big folder puts
+  all of it on top, the last found first, until something is read; an
+  EPUB keeps its file's modified time; a Mihon backup's series keep the
+  backup's `dateAdded` (or their first chapter's fetch, or the scan's time
+  when the backup has neither) and land where they were added in Mihon; ADD
+  from BROWSE stamps the moment of the add. A
+  Work's key is the most recent of its parts' keys, so a part just added
+  lifts its Work too. RATING's ties stay A–Z either way. Every order still ends in the id, so
   pages stay clean in both directions (`ORDER`, `src/lib/server/library.ts`).
 - **On NEW**, RECENTLY ADDED is newest arrival, and turned round, oldest.
 - **A Work** sorts by its most recent part under every order (see "Works"):
-  RECENTLY READ by the part read last, RECENTLY ADDED by the part added last,
+  RECENTLY READ by the part read last (or, never opened, added), RECENTLY
+  ADDED by the part added last,
   TITLE by the Work's name, RATING by the rated parts' average, PROGRESS over
   the parts' totals.
 

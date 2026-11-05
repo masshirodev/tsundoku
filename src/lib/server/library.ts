@@ -254,13 +254,16 @@ function progressTier(d: 'ASC' | 'DESC'): string {
 }
 
 /**
- * Each sort in either direction (`?dir=`). Never-read series stay last under
- * RECENTLY READ both ways: turned round it's the longest-untouched first, not
- * the never-opened. RATING's ties stay A–Z whichever way it runs.
+ * Each sort in either direction (`?dir=`). RECENTLY READ counts a series
+ * never opened as read when it was added (c524), so a new add is found at the
+ * top of the default sort; turned round it's the exact mirror, the
+ * longest-untouched first, where adding is the touch. The sort only: no
+ * reading is written, so CONTINUE, HISTORY and tracking never see it. RATING's
+ * ties stay A–Z whichever way it runs.
  */
 const ORDER: Record<Exclude<Sort, 'random'>, (d: 'ASC' | 'DESC') => string> = {
 	progress: (d) => `${progressTier(d)}, COALESCE(t.last_opened, s.added_at) DESC, s.id DESC`,
-	recent: (d) => `t.last_opened ${d} NULLS LAST, s.added_at ${d}, s.id ${d}`,
+	recent: (d) => `COALESCE(t.last_opened, s.added_at) ${d}, s.id ${d}`,
 	title: (d) => `s.title COLLATE NOCASE ${d}, s.id ${d}`,
 	rating: (d) => `s.rating ${d}, s.title COLLATE NOCASE ASC, s.id ASC`,
 	added: (d) => `s.added_at ${d}, s.id ${d}`
@@ -599,7 +602,9 @@ type UnitRow = {
  * A Work's place in an order is its most recent part's (doc/WORKS.md, "The one
  * rule"): its latest read, its newest chapter, its latest added. The keys are
  * aggregates over every part, so a Work sits where the part the owner would
- * open sits, not where its first part was added.
+ * open sits, not where its first part was added. RECENTLY READ's key,
+ * `touched`, is each part's last read or, never opened, its add (c524, as
+ * ORDER.recent), so a part just added lifts its Work as it would a series.
  */
 function unitOrder(sort: Sort, dir: Dir, shelf: string | undefined, seed = 1): string {
 	const d = dir.toUpperCase() as 'ASC' | 'DESC';
@@ -622,7 +627,7 @@ function unitOrder(sort: Sort, dir: Dir, shelf: string | undefined, seed = 1): s
 		const h = `(((COALESCE(u.work, 0) * 7919 + u.series) * 1103515245 + ${k} * 40503 + 12345) % 2147483647)`;
 		return `((${h} * ${h}) % 2147483647), u.series`;
 	}
-	return `k.last_opened ${d} NULLS LAST, k.added_at ${d}, u.series ${d}`;
+	return `k.touched ${d}, u.series ${d}`;
 }
 
 /**
@@ -661,6 +666,7 @@ function unitQuery(where: string, vis: string, order: string, limit = ''): strin
 		SELECT COALESCE(CAST(m.work AS TEXT), 's' || m.series) AS unit,
 			MAX(st.last_opened) AS last_opened, MAX(s.arrived_at) AS arrived_at,
 			MAX(s.added_at) AS added_at, AVG(NULLIF(s.rating, 0)) AS rating,
+			MAX(COALESCE(st.last_opened, s.added_at)) AS touched,
 			SUM(COALESCE(st.entry_count, 0)) AS entry_count,
 			SUM(COALESCE(st.read_count, 0)) AS read_count,
 			COUNT(st.last_opened) AS opened

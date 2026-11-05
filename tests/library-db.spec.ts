@@ -331,8 +331,8 @@ describe('pages of a shelf', () => {
 		expect(begun('asc')).toEqual(begun('desc'));
 	});
 
-	it('turn each sort round with ?dir=, never-read still last under RECENTLY READ', () => {
-		for (const sort of ['title', 'added'] as const) {
+	it('turn each sort round with ?dir=, RECENTLY READ included (c524: an add counts as a read)', () => {
+		for (const sort of ['title', 'added', 'recent'] as const) {
 			const down = lib.listSeries({ reveal: true, sort, dir: 'desc' }).map((c) => c.id);
 			const up = lib.listSeries({ reveal: true, sort, dir: 'asc' }).map((c) => c.id);
 			expect(up).toEqual([...down].reverse());
@@ -340,10 +340,11 @@ describe('pages of a shelf', () => {
 		expect(lib.listSeries({ reveal: true, sort: 'title' })).toEqual(
 			lib.listSeries({ reveal: true, sort: 'title', dir: 'asc' })
 		);
+		// Never opened is no longer a block at one end: the sample's unread
+		// series sit among the read, by when they were added.
 		const up = lib.listSeries({ reveal: true, sort: 'recent', dir: 'asc' });
 		const firstNever = up.findIndex((c) => !c.opened);
-		expect(firstNever).toBeGreaterThan(0);
-		expect(up.slice(firstNever).every((c) => !c.opened)).toBe(true);
+		expect(up.slice(firstNever).some((c) => c.opened)).toBe(true);
 		const ratings = lib
 			.listSeries({ reveal: true, sort: 'rating', dir: 'asc' })
 			.map((c) => c.rating);
