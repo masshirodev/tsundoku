@@ -404,8 +404,12 @@ anime with Ranobe's one line under them, a rule above it.
   speaks for the first list that is signed in, AniList before MAL
   (`mainList`): with AniList signed out and MAL signed in, MAL's word leads
   (`MAL · WATCHING · EP. 8`, on every season, watched or not) and AniList's
-  NOT SIGNED IN is the quiet line. A fold's word and the sheet's STATUS ask
-  the same list (`listState`).
+  NOT SIGNED IN is the quiet line. A fold's word, the sheet's STATUS and a
+  two-part season's other part (`PART 2 PLANNING` on the right, and the
+  sheet's PART row) ask the same list (`listState`, which lives with
+  `mainList` in `src/lib/library/tracking.ts` so the server's
+  `seasonsTracking` asks it too, c518). A signed-out list keeps what it last
+  said, so a chooser that read AniList first showed its stale word there.
 - **An anime's seasons**: three or fewer have a line each; more fold round the
   one being watched (its tag inverted), and the fold says the run's state
   (`COMPLETED`, `2 NOT LINKED`, `A SEND FAILED`). SHOW opens one row now, not

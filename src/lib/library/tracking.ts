@@ -1,7 +1,8 @@
 /**
  * Tracking, the pure part (doc/TRACKING.md): status in tsundoku's words and
- * each catalogue's, the forward-only rule, and the lines the series screen's
- * TRACKING row shows. No database, no network.
+ * each catalogue's, the forward-only rule, and which list an entry's line
+ * speaks for (`mainList`). The lines themselves are the series screen's
+ * (`src/routes/series/[id]/lists.ts`). No database, no network.
  */
 
 import { isAnime } from './catalogue.ts';
@@ -162,75 +163,33 @@ export type TrackFacts = {
 export const statusLabel = (status: Status, live = false): string =>
 	live && status === 'reading' ? 'WATCHING' : STATUS_LABEL[status];
 
-/** "ANILIST · READING · CH. 187 · 9": status, chapter, score, as far as known. */
-export function stateLine(service: Service, s: NonNullable<TrackFacts['state']>): string {
-	return [
-		SERVICE_NAME[service],
-		s.status ? STATUS_LABEL[s.status] : '',
-		s.progress > 0 ? `CH. ${s.progress}` : '',
-		s.score ? String(Math.round(s.score * 10) / 10) : ''
-	]
-		.filter(Boolean)
-		.join(' · ');
-}
-
 /**
- * One catalogue's line (Series Link 1k–1q): left, what it says; right, what
- * tsundoku did about it. `strong` draws the line in ink rather than grey: the
- * main list (AniList), and a send that failed.
+ * The list an entry's line speaks for: the first linked list that is signed
+ * in, AniList before MAL, and AniList when neither is (c518). A MAL-only
+ * owner with AniList linked but signed out sees MAL's word; the signed-out
+ * list is then the quiet line that differs. The series screen's line, a
+ * fold's word, the sheet's STATUS and the server's word for a season's other
+ * part all ask this, so they agree.
  */
-export function trackLine(
-	f: TrackFacts,
-	o: { now: number; offline: boolean; mainIsEmpty: boolean }
-): { left: string; right: string; strong: boolean; alert: boolean } {
-	const name = SERVICE_NAME[f.service];
-	if (!f.linked) return { left: `${name} · NO ENTRY`, right: '', strong: false, alert: false };
-	if (!f.signedIn)
-		return {
-			left: f.state ? stateLine(f.service, f.state) : `${name} · NOT SIGNED IN`,
-			right: f.state ? 'NOT SIGNED IN · NOTHING SENT' : 'NOTHING SENT',
-			strong: false,
-			alert: false
-		};
-	if (f.waiting?.failedAt)
-		return {
-			left: `${name} · CH. ${f.waiting.progress ?? f.state?.progress ?? 0} NOT SENT`,
-			right: `${f.waiting.error ?? `${name} DID NOT ANSWER`} · ${clock(f.waiting.failedAt)}`,
-			strong: true,
-			alert: true
-		};
-	if (!f.state)
-		return {
-			left: `${name} · NOT ON YOUR LIST`,
-			right: f.waiting ? 'SENDING' : 'ADDED ON THE NEXT CHAPTER READ',
-			strong: false,
-			alert: false
-		};
-	const right = o.offline
-		? f.sentAt
-			? `AS OF ${clock(f.sentAt)}`
-			: ''
-		: f.waiting
-			? 'SENDING'
-			: f.sentAt
-				? `SENT ${ago(f.sentAt, o.now)}`
-				: f.service === 'mal' && o.mainIsEmpty
-					? 'SHOWN · ANILIST HAS NOTHING'
-					: 'ON YOUR LIST';
-	return {
-		left: stateLine(f.service, f.state),
-		right,
-		strong: f.service === 'anilist' || o.mainIsEmpty,
-		alert: false
-	};
+export function mainList<F extends TrackFacts>(facts: F[]): F | null {
+	const linked = facts.filter((f) => f.linked);
+	const a = linked.find((f) => f.service === 'anilist') ?? null;
+	const m = linked.find((f) => f.service === 'mal') ?? null;
+	return [a, m].find((f) => f?.signedIn) ?? a ?? m;
 }
 
-// ---- a season's line (c240; doc/TRACKING.md, "The screens") ---------------------------------
+/** The word an entry's lists say: the main list's, else the other linked list's. */
+export function listState<F extends TrackFacts>(facts: F[]): F['state'] {
+	const main = mainList(facts);
+	return main?.state ?? facts.find((f) => f.linked && f !== main && f.state)?.state ?? null;
+}
+
+// ---- a season's facts (c240; doc/TRACKING.md, "The screens") --------------------------------
 
 /** One catalogue's facts for a season's part, with the entry's own episode count. */
 export type SeasonFact = TrackFacts & { part: number; of: number | null };
 
-/** What one season's TRACKING line needs, its parts already folded in. */
+/** What the server knows of one season's parts: the other part's word and an episode that waits. */
 export type SeasonTrackFacts = {
 	season: number;
 	/** The part being watched: part 2 when that is where the watched mark is. */
@@ -245,101 +204,3 @@ export type SeasonTrackFacts = {
 	/** An episode watched past the entry's count, with no part 2 to take it. */
 	waits: { episode: number; of: number; service: Service } | null;
 };
-
-/** "EP. 3 OF 11", "EP. 8 OF 24", "COMPLETED · 25 OF 25". */
-function seasonState(
-	s: { status: Status | null; progress: number; score: number | null },
-	of: number | null
-): string {
-	const where = s.progress > 0 ? `EP. ${s.progress}${of ? ` OF ${of}` : ''}` : '';
-	return [
-		s.status ? statusLabel(s.status, true) : '',
-		where,
-		s.score ? String(Math.round(s.score * 10) / 10) : ''
-	]
-		.filter(Boolean)
-		.join(' · ');
-}
-
-/**
- * The season's line on the TRACKING row (Track Calls, "The words"): one line
- * a season, both catalogues folded into it -- AniList is the main list, so
- * MAL is named only where it differs. `PART 2 · ` leads the one being
- * watched, and the other part is named on the right.
- */
-export function seasonLine(
-	f: SeasonTrackFacts,
-	o: { now: number; offline: boolean }
-): { left: string; right: string; strong: boolean; alert: boolean } {
-	if (!f.linked)
-		return { left: 'NOT LINKED · NOTHING SENT', right: '', strong: false, alert: false };
-	const signed = f.facts.filter((x) => x.linked && x.signedIn);
-	if (!signed.length) {
-		const any = f.facts.find((x) => x.linked);
-		return {
-			left: any?.state ? seasonState(any.state, any.of) : 'NOT SIGNED IN · NOTHING SENT',
-			right: '',
-			strong: false,
-			alert: false
-		};
-	}
-	const failed = signed.find((x) => x.waiting?.failedAt);
-	if (failed && !o.offline) {
-		const ep = failed.waiting?.progress ?? failed.state?.progress ?? 0;
-		return {
-			left: `EP. ${ep} NOT SENT`,
-			right: `${failed.waiting?.error ?? `${SERVICE_NAME[failed.service]} DID NOT ANSWER`} · ${clock(failed.waiting!.failedAt!)}`,
-			strong: true,
-			alert: true
-		};
-	}
-	const main = signed.find((x) => x.service === 'anilist') ?? signed[0];
-	const lead = f.part > 1 ? `PART ${f.part} · ` : '';
-	const right: string[] = [];
-	// What the other catalogue says, where it differs (MAL AT EP. 6).
-	for (const x of signed) {
-		if (x === main) continue;
-		if (!x.state) right.push(`${SERVICE_NAME[x.service]} NOT ON YOUR LIST`);
-		else if ((x.state.progress ?? 0) !== (main.state?.progress ?? 0))
-			right.push(`${SERVICE_NAME[x.service]} AT EP. ${x.state.progress}`);
-	}
-	if (!main.state) {
-		const waited = f.waits;
-		if (waited)
-			return {
-				left: `EP. ${waited.episode} WAITS`,
-				right: `${SERVICE_NAME[waited.service]} LISTS ${waited.of}`,
-				strong: true,
-				alert: false
-			};
-		if (!o.offline) right.unshift('ADDED ON ITS FIRST EPISODE');
-		return {
-			left: `${lead}NOT ON YOUR LIST`,
-			right: right.join(' · '),
-			strong: false,
-			alert: false
-		};
-	}
-	if (f.other) {
-		const o2 = f.other;
-		const said = o2.state ? statusLabel(o2.state, true) : '';
-		right.push(
-			[`PART ${o2.part}`, said, o2.progress > 0 ? `${o2.progress} OF ${o2.of ?? '—'}` : '']
-				.filter(Boolean)
-				.join(' ')
-		);
-	}
-	const sentAt = Math.max(...signed.map((x) => x.sentAt ?? 0)) || null;
-	const names = signed.map((x) => SERVICE_NAME[x.service]).join(' AND ');
-	if (o.offline) {
-		if (sentAt) right.unshift(`AS OF ${clock(sentAt)}`);
-	} else if (signed.some((x) => x.waiting)) right.unshift('SENDING');
-	else if (sentAt) right.push(`${names} · SENT ${ago(sentAt, o.now)}`);
-	else right.push(names);
-	return {
-		left: `${lead}${seasonState(main.state, main.of)}`,
-		right: right.join(' · '),
-		strong: true,
-		alert: false
-	};
-}

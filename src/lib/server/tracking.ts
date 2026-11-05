@@ -40,6 +40,7 @@ import {
 	SERVICES,
 	SERVICE_NAME,
 	chapterReached,
+	listState,
 	progressToSend,
 	statusFrom,
 	statusTo,
@@ -1067,9 +1068,6 @@ export type Tracking = {
 	coverOnly: boolean;
 	/** AniList and MAL take this kind's progress (`catalogueTracks`): false for a novel. */
 	catalogueTracks: boolean;
-	/** The sheet's starting point: the main list's word, else MAL's. */
-	status: Status | null;
-	score: number | null;
 	links: { service: Service; mediaId: number }[];
 	/** An anime: one entry per season (c240), the open one first in `openSeason`. */
 	seasons?: SeasonTrack[];
@@ -1126,17 +1124,11 @@ export function trackingOf(seriesId: number): Tracking | null {
 		const seasons = seasonsTracking(seriesId, !!r.hidden);
 		const open = seriesSeasons(seriesId)?.open ?? 0;
 		const at = seasons.find((s) => s.season === open) ?? seasons[0] ?? null;
-		const main =
-			at?.facts.find((f) => f.service === 'anilist')?.state ??
-			at?.facts.find((f) => f.service === 'mal')?.state ??
-			null;
 		return {
 			facts: at?.facts ?? [],
 			hidden: !!r.hidden,
 			coverOnly: !!at?.coverOnly,
 			catalogueTracks: true,
-			status: main?.status ?? null,
-			score: main?.score ?? null,
 			links: factsLinks(at?.facts ?? [], at?.link ?? null),
 			seasons,
 			openSeason: open
@@ -1172,17 +1164,11 @@ export function trackingOf(seriesId: number): Tracking | null {
 			sentAt: st?.sent_at ?? null
 		};
 	});
-	const main =
-		facts.find((f) => f.service === 'anilist')?.state ??
-		facts.find((f) => f.service === 'mal')?.state ??
-		null;
 	return {
 		facts,
 		hidden: !!r.hidden,
 		coverOnly: coverOnly(r.kind, r.format ?? ''),
 		catalogueTracks: catalogueTracks(r.kind),
-		status: main?.status ?? null,
-		score: main?.score ?? null,
 		links: [
 			...(r.anilist_id ? [{ service: 'anilist' as const, mediaId: r.anilist_id }] : []),
 			...(r.mal_id ? [{ service: 'mal' as const, mediaId: r.mal_id }] : [])
@@ -1258,22 +1244,29 @@ function seasonsTracking(seriesId: number, hidden: boolean): SeasonTrack[] {
 		});
 		const otherPart = parts.find((p) => p.part !== at.part) ?? null;
 		const otherLink = otherPart?.link ?? null;
+		// The other part's word, by the line's own rule (c518): the first of its
+		// linked lists that is signed in. A signed-out list keeps what it last
+		// said (`signOut`), so AniList first would show a stale word beside MAL's.
 		const otherSt = otherPart
-			? ((db
-					.prepare(
-						`SELECT status, progress, score FROM season_tracker_state
-						WHERE series_id = ? AND season = ? AND part = ? AND service = 'anilist'`
-					)
-					.get(seriesId, sv.season, otherPart.part) as
-					{ status: Status | null; progress: number; score: number | null } | undefined) ??
-				(db
-					.prepare(
-						`SELECT status, progress, score FROM season_tracker_state
-						WHERE series_id = ? AND season = ? AND part = ? AND service = 'mal'`
-					)
-					.get(seriesId, sv.season, otherPart.part) as
-					{ status: Status | null; progress: number; score: number | null } | undefined))
-			: undefined;
+			? listState(
+					SERVICES.map((service) => ({
+						service,
+						signedIn: !!account(service),
+						linked: !!(service === 'anilist' ? otherLink?.anilistId : otherLink?.malId),
+						state:
+							(db
+								.prepare(
+									`SELECT status, progress, score FROM season_tracker_state
+									WHERE series_id = ? AND season = ? AND part = ? AND service = ?`
+								)
+								.get(seriesId, sv.season, otherPart.part, service) as
+								{ status: Status | null; progress: number; score: number | null } | undefined) ??
+							null,
+						waiting: null,
+						sentAt: null
+					}))
+				)
+			: null;
 		const last = parts[parts.length - 1];
 		const service = facts.find((f) => f.service === 'anilist')?.linked ? 'anilist' : 'mal';
 		return {

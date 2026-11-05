@@ -93,8 +93,6 @@ function tracking(facts: TrackFacts[], o: Partial<Tracking> = {}): Tracking {
 		hidden: false,
 		coverOnly: false,
 		catalogueTracks: true,
-		status: null,
-		score: null,
 		links: [],
 		...o
 	};

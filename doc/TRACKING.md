@@ -194,7 +194,8 @@ SENT 12 MIN AGO`) and given a quiet line of its own only where it differs
   (signed in or out where AniList isn't, a failed send, another word or
   chapter: `MAL AT CH. 198` / `NOT SIGNED IN · NOTHING SENT`; when AniList
   is the one signed out, MAL's word leads and AniList's is the quiet line,
-  `mainList` in `lists.ts`), and Ranobe's
+  `mainList` in `src/lib/library/tracking.ts`; a season's other part, on the
+  right, asks the same rule, c518), and Ranobe's
   ([`RANOBE.md`](RANOBE.md)). What was done about it is on the right: SENT
   12 MIN AGO, SENDING, NOT SENT with why in ink, NOT SIGNED IN, NOT ON YOUR
   LIST with when it will be (ADDED ON THE NEXT CHAPTER READ, or EPISODE

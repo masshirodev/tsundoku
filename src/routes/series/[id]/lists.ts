@@ -13,12 +13,24 @@
 import { kindFacts } from '$lib/library/kinds';
 import { anilistUrl, isAnime, malUrl, viaLabel, type SeasonRow } from '$lib/library/catalogue';
 import { partsLabel, seasonPlan } from '$lib/library/anime';
-import { ago, clock, SERVICE_NAME, statusLabel, type TrackFacts } from '$lib/library/tracking';
+import {
+	ago,
+	clock,
+	listState,
+	mainList,
+	SERVICE_NAME,
+	statusLabel,
+	type TrackFacts
+} from '$lib/library/tracking';
 import { ranobeLines } from '$lib/library/ranobe';
 import type { Kind } from '$lib/library/types';
 import type { LinkState } from '$lib/server/catalogue';
 import type { SeasonTrack, Tracking } from '$lib/server/tracking';
 import type { RanobeSeries } from '$lib/server/ranobe-review';
+
+// The signed-in-first rule lives with the library's tracking (c518): the
+// server's word for a season's other part asks it too.
+export { listState, mainList };
 
 /** Which list EDIT opens the sheet on: AniList's (a season's, on an anime), or Ranobe's. */
 export type SheetAt = { list: 'anilist'; season: number | null } | { list: 'ranobe' };
@@ -176,26 +188,6 @@ function sentWords(f: TrackFacts, o: { offline: boolean; now: number }): string 
 /** A send that failed: its own reason, and when. */
 const failedWhy = (f: TrackFacts) =>
 	`${f.waiting?.error ?? `${SERVICE_NAME[f.service]} DID NOT ANSWER`} · ${clock(f.waiting!.failedAt!)}`;
-
-/**
- * The list an entry's line speaks for: the first linked list that is signed
- * in, AniList before MAL, and AniList when neither is. A MAL-only owner with
- * AniList linked but signed out sees MAL's word, as the base's `seasonLine`
- * did; the signed-out list is then the quiet line that differs. The line, a
- * fold's word and the sheet's STATUS all ask this, so they agree.
- */
-export function mainList<F extends TrackFacts>(facts: F[]): F | null {
-	const linked = facts.filter((f) => f.linked);
-	const a = linked.find((f) => f.service === 'anilist') ?? null;
-	const m = linked.find((f) => f.service === 'mal') ?? null;
-	return [a, m].find((f) => f?.signedIn) ?? a ?? m;
-}
-
-/** The word an entry's lists say: the main list's, else the other linked list's. */
-export function listState<F extends TrackFacts>(facts: F[]): F['state'] {
-	const main = mainList(facts);
-	return main?.state ?? facts.find((f) => f.linked && f !== main && f.state)?.state ?? null;
-}
 
 /**
  * The state lines of one entry on AniList (and MAL, through it): a comic's,

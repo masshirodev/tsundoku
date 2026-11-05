@@ -1,16 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-	ago,
-	chapterReached,
-	progressToSend,
-	seasonLine,
-	statusFrom,
-	statusTo,
-	trackLine,
-	type SeasonFact,
-	type SeasonTrackFacts,
-	type TrackFacts
-} from '$lib/library/tracking';
+import { ago, chapterReached, progressToSend, statusFrom, statusTo } from '$lib/library/tracking';
 import {
 	partOf,
 	partsLabel,
@@ -243,143 +232,10 @@ describe('a season (c240)', () => {
 		).toBe('PART 1 · EP. 1 – 12 · PART 2 · EP. 13 – 23');
 		expect(partsLabel(partsOf([{ part: 1, episodes: 24 }], 24))).toBe('');
 	});
-
-	it('says a season’s line in the row’s own words', () => {
-		const facts = (
-			o: Partial<SeasonFact> = {},
-			service: 'anilist' | 'mal' = 'anilist'
-		): SeasonFact => ({
-			service,
-			part: 1,
-			of: 24,
-			signedIn: true,
-			linked: true,
-			state: { status: 'reading', progress: 8, score: 7 },
-			waiting: null,
-			sentAt: 1_000,
-			...o
-		});
-		const now = 1_000 + 12 * 60_000;
-		const base: SeasonTrackFacts = {
-			season: 3,
-			part: 1,
-			parts: [{ part: 1, from: 1, to: 24 }],
-			facts: [facts(), facts({}, 'mal')],
-			other: null,
-			linked: true,
-			waits: null
-		};
-		expect(seasonLine(base, { now, offline: false })).toMatchObject({
-			left: 'WATCHING · EP. 8 OF 24 · 7',
-			right: 'ANILIST AND MAL · SENT 12 MIN AGO'
-		});
-		// MAL said only where it differs.
-		expect(
-			seasonLine(
-				{
-					...base,
-					facts: [facts(), facts({ state: { status: 'reading', progress: 6, score: 7 } }, 'mal')]
-				},
-				{ now, offline: false }
-			).right
-		).toContain('MAL AT EP. 6');
-		// A season with no link says so, and nothing is sent.
-		expect(
-			seasonLine({ ...base, linked: false, facts: [] }, { now, offline: false })
-		).toMatchObject({
-			left: 'NOT LINKED · NOTHING SENT'
-		});
-		// Not on the list yet.
-		expect(
-			seasonLine({ ...base, facts: [facts({ state: null })] }, { now, offline: false })
-		).toMatchObject({ left: 'NOT ON YOUR LIST', right: 'ADDED ON ITS FIRST EPISODE' });
-		// A failed send is its season's, in ink.
-		expect(
-			seasonLine(
-				{
-					...base,
-					facts: [
-						facts({
-							state: null,
-							waiting: { progress: 9, failedAt: now, error: 'ANILIST DID NOT ANSWER' }
-						})
-					]
-				},
-				{ now, offline: false }
-			)
-		).toMatchObject({ left: 'EP. 9 NOT SENT', alert: true });
-		// Past the entry's count, with no part 2.
-		expect(
-			seasonLine(
-				{
-					...base,
-					facts: [facts({ state: null })],
-					waits: { episode: 13, of: 12, service: 'anilist' }
-				},
-				{ now, offline: false }
-			)
-		).toMatchObject({ left: 'EP. 13 WAITS', right: 'ANILIST LISTS 12' });
-	});
 });
 
-describe('the TRACKING row', () => {
+describe('the TRACKING row’s clock', () => {
 	const now = Date.UTC(2026, 8, 25, 14, 20);
-	const f = (o: Partial<TrackFacts>): TrackFacts => ({
-		service: 'anilist',
-		signedIn: true,
-		linked: true,
-		state: { status: 'reading', progress: 187, score: 9 },
-		waiting: null,
-		sentAt: now - 12 * 60_000,
-		...o
-	});
-	const opts = { now, offline: false, mainIsEmpty: false };
-
-	it('says what the list has, and when it was sent (1k)', () => {
-		expect(trackLine(f({}), opts)).toMatchObject({
-			left: 'ANILIST · READING · CH. 187 · 9',
-			right: 'SENT 12 MIN AGO',
-			strong: true
-		});
-		expect(trackLine(f({ service: 'mal' }), opts)).toMatchObject({ strong: false });
-	});
-
-	it('says what didn’t go, and why (1n)', () => {
-		const l = trackLine(
-			f({ service: 'mal', waiting: { progress: 187, failedAt: now, error: 'MAL DID NOT ANSWER' } }),
-			opts
-		);
-		expect(l.left).toBe('MAL · CH. 187 NOT SENT');
-		expect(l.right).toMatch(/^MAL DID NOT ANSWER · \d\d:\d\d$/);
-		expect(l.alert).toBe(true);
-	});
-
-	it('says when a catalogue isn’t signed in, or the series isn’t on its list (1o, 1p)', () => {
-		expect(trackLine(f({ service: 'mal', signedIn: false, state: null }), opts).left).toBe(
-			'MAL · NOT SIGNED IN'
-		);
-		expect(trackLine(f({ state: null, sentAt: null }), opts)).toMatchObject({
-			left: 'ANILIST · NOT ON YOUR LIST',
-			right: 'ADDED ON THE NEXT CHAPTER READ'
-		});
-		expect(
-			trackLine(
-				f({ service: 'mal', sentAt: null, state: { status: 'on_hold', progress: 52, score: 7 } }),
-				{
-					...opts,
-					mainIsEmpty: true
-				}
-			)
-		).toMatchObject({
-			left: 'MAL · ON HOLD · CH. 52 · 7',
-			right: 'SHOWN · ANILIST HAS NOTHING',
-			strong: true
-		});
-	});
-
-	it('offline, says as of when (1q)', () => {
-		expect(trackLine(f({}), { ...opts, offline: true }).right).toMatch(/^AS OF \d\d:\d\d$/);
-	});
 
 	it('counts time the way the row says it', () => {
 		expect(ago(now - 30_000, now)).toBe('JUST NOW');
