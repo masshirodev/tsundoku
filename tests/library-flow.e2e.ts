@@ -333,9 +333,14 @@ test('the sync timer’s scan: behind the session, and says where it looked', as
 test('the app’s own ← buttons come back to the shelf, the order, the pages and the place', async ({
 	page
 }) => {
-	await page
-		.context()
-		.addCookies([{ name: 'tsundoku_grid_page', value: '6', url: 'http://localhost' }]);
+	// Incognito, because the last series by title is Yofukashi no Uta, which
+	// privacy-flow owns, and READ AGAIN would log its Ch. 1 on the shared
+	// database (c499; "Each flow file owns its series", doc/TESTING.md). The
+	// case is about the way back, which incognito does not change.
+	await page.context().addCookies([
+		{ name: 'tsundoku_grid_page', value: '6', url: 'http://localhost' },
+		{ name: 'tsundoku_incognito', value: '1', url: 'http://localhost' }
+	]);
 	await page.setViewportSize({ width: 360, height: 640 });
 	await page.goto('/?shelf=all&form=series&sort=title');
 	const tiles = page.locator('.grid .tile');
@@ -356,6 +361,14 @@ test('the app’s own ← buttons come back to the shelf, the order, the pages a
 	await page.locator('a.cta').click();
 	await page.waitForURL(/\/read\//);
 	await page.waitForLoadState('networkidle');
+	// The reader keeps its place in the URL 800 ms after it settles on a page
+	// (`?p=`, ImageReader.svelte's `settle`). Left before then, that timer
+	// fires during the trip back and its replaceState overwrote the series'
+	// history entry: the series screen drawn at /read/<id>?p=1, and the wait
+	// for /series/ below ran out (2 in 5 at a load of about 45, from the
+	// trace; the app's, filed in doc/handoff-notes/e2e.md, wave 23). Waiting
+	// for the reader's own mark keeps this case on the way back, its subject.
+	await page.waitForURL(/\/read\/\d+\?(.*&)?p=\d+/);
 	const vp = page.viewportSize()!;
 	await page.touchscreen.tap(vp.width / 2, 30);
 	await page.getByRole('link', { name: 'Back to the series' }).click();
