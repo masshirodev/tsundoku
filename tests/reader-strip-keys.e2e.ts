@@ -11,6 +11,13 @@ import { expect, readerReady, test } from './fixtures';
  * READING, whose mode is session state that only REMEMBER stores.
  */
 
+// 60 s, measured (c439, wave 24): each case opens the reader cold and switches
+// to the strip before its first key, and at a load of 35-50 (four burners
+// beside the slots, phone, `--repeat-each=10 --workers=4`) the passing copies
+// took 11-27 s of the 30 s; at 41-58, 6 of 80 copies ran the 30 s out in
+// `open()` or `toStrip()`'s menu steps, each waiting on the right state.
+test.describe.configure({ timeout: 60_000 });
+
 test.beforeEach(async ({ page }) => {
 	await page
 		.context()
