@@ -147,7 +147,8 @@ test('three quick rating taps with the first slow store the third, and a lost fi
 	await panel.getByRole('button', { name: 'Rate 3 of 10' }).click();
 	await pressed(3);
 	h.release();
-	await expect.poll(h.answered).toBe(3);
+	// 8 was superseded before its turn: never sent (round 2), so two answers, not three.
+	await expect.poll(h.answered).toBe(2);
 	await pressed(3);
 	await page.reload();
 	await pressed(3);
@@ -194,6 +195,66 @@ test('the last of two taps failing names what is stored now, and PUT BACK shows 
 	await expect(panel.getByText('UNRATED', { exact: true })).toBeVisible();
 	await page.reload();
 	await expect(panel.getByText('UNRATED', { exact: true })).toBeVisible();
+});
+
+test.describe('a tap during the earlier tap’s reload (c566, round 2)', () => {
+	// The service worker answers `__data.json` past `page.route` (c477), and
+	// this case holds the page's reload by its `__data.json`.
+	test.use({ serviceWorkers: 'block' });
+
+	test('a tap whose save fails while the earlier tap reloads keeps its band, and PUT BACK shows what is stored (c566)', async ({
+		page
+	}) => {
+		await open(page, 'Return of the Mount Hua Sect');
+		const panel = page.getByRole('region', { name: 'About this series' });
+		const fav = panel.getByRole('button', { name: 'FAV', exact: true });
+		const faved = panel.getByRole('button', { name: 'FAV ✓' });
+		await expect(fav).toBeVisible();
+
+		// The first FAV POST goes through; every later one is lost on the wire.
+		const isFav = (u: URL) => /^\/series\/\d+$/.test(u.pathname) && u.search === '?/favourite';
+		let posts = 0;
+		let firstAnswered = false;
+		await page.route(isFav, (route) => (++posts === 1 ? route.continue() : route.abort()));
+		page.on('requestfinished', (r) => {
+			if (isFav(new URL(r.url()))) firstAnswered = true;
+		});
+		// The reload after it is held until released, once.
+		let releaseReload!: () => void;
+		const reloadHeld = new Promise<void>((r) => (releaseReload = r));
+		let reloadAsked = false;
+		const isData = (u: URL) => /^\/series\/\d+\/__data\.json$/.test(u.pathname);
+		await page.route(isData, async (route) => {
+			if (reloadAsked) return route.continue();
+			reloadAsked = true;
+			await reloadHeld;
+			return route.continue();
+		});
+
+		await fav.click();
+		await expect.poll(() => firstAnswered && reloadAsked).toBe(true);
+		// UNFAV, while FAV's reload is still out.
+		await faved.click();
+		await expect(fav).toBeVisible();
+		releaseReload();
+
+		// FAV is what is stored: the band says UNFAV was not, and PUT BACK goes to FAV.
+		await expect(page.getByText('UNFAV NOT SAVED')).toBeVisible();
+		await page.getByRole('button', { name: 'PUT BACK · FAV' }).click();
+		await expect(page.getByText('UNFAV NOT SAVED')).toHaveCount(0);
+		await expect(faved).toBeVisible();
+		expect(posts).toBe(2);
+		await page.unroute(isFav);
+		await page.unroute(isData);
+		await page.reload();
+		await expect(faved).toBeVisible();
+
+		// Put it back as the seed has it.
+		await faved.click();
+		await expect(fav).toBeVisible();
+		await page.reload();
+		await expect(fav).toBeVisible();
+	});
 });
 
 test('direction is stored per series', async ({ page }) => {

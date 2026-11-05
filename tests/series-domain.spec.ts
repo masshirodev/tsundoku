@@ -331,12 +331,12 @@ describe('SerialSaves: one save in flight per field, the last tap winning (c566)
 		await tick();
 		expect(h.sent('0')).toBe(false);
 		h.answer('1');
-		expect(await one).toEqual({ ok: true, latest: false, earlierStored: false });
+		expect(await one).toMatchObject({ ok: true, latest: false, earlierStored: false });
 		await tick();
 		expect(h.sent('0')).toBe(true);
 		expect(q.pending('fav:1')).toBe(true);
 		h.answer('0');
-		expect(await two).toEqual({ ok: true, latest: true, earlierStored: true });
+		expect(await two).toMatchObject({ ok: true, latest: true, earlierStored: true });
 		expect(h.order).toEqual(['sent 1', 'answered 1', 'sent 0', 'answered 0']);
 		// Pending until the latest says its reload is done.
 		expect(q.pending('fav:1')).toBe(true);
@@ -344,24 +344,41 @@ describe('SerialSaves: one save in flight per field, the last tap winning (c566)
 		expect(q.pending('fav:1')).toBe(false);
 	});
 
-	it('three taps send in their order, and only the third is the latest', async () => {
+	it('three taps: the first and the third are sent, in order; the second, superseded before its turn, never is', async () => {
 		const q = new SerialSaves();
 		const h = held();
 		const turns = ['5', '7', '2'].map((n) => q.run('rating:1', h.save(n)));
-		for (const n of ['5', '7', '2']) {
-			await tick();
-			h.answer(n);
-		}
+		await tick();
+		h.answer('5');
+		await tick();
+		expect(h.sent('7')).toBe(false);
+		h.answer('2');
 		const got = await Promise.all(turns);
-		expect(got.map((t) => t.latest)).toEqual([false, false, true]);
-		expect(h.order).toEqual([
-			'sent 5',
-			'answered 5',
-			'sent 7',
-			'answered 7',
-			'sent 2',
-			'answered 2'
+		expect(got.map((t) => ({ ok: t.ok, latest: t.latest }))).toEqual([
+			{ ok: true, latest: false },
+			{ ok: false, latest: false },
+			{ ok: true, latest: true }
 		]);
+		expect(h.order).toEqual(['sent 5', 'answered 5', 'sent 2', 'answered 2']);
+		// 5 went through before 2's turn: a failing 2 would reload before naming it.
+		expect(got[2].earlierStored).toBe(true);
+	});
+
+	it('a queued save superseded before its turn is not sent, and a skipped one is no earlier store', async () => {
+		const q = new SerialSaves();
+		const h = held();
+		const a = q.run('fav:1', h.save('a'));
+		const b = q.run('fav:1', h.save('b'));
+		const c = q.run('fav:1', h.save('c'));
+		await tick();
+		h.answer('a', false);
+		expect((await b).ok).toBe(false);
+		expect(h.sent('b')).toBe(false);
+		await tick();
+		h.answer('c', false);
+		expect(await a).toMatchObject({ ok: false, latest: false });
+		expect(await c).toMatchObject({ ok: false, latest: true, earlierStored: false });
+		expect(h.order).toEqual(['sent a', 'answered a', 'sent c', 'answered c']);
 	});
 
 	it('a first save that fails does not stop the second, and the second does not hear of an earlier store', async () => {
@@ -374,7 +391,7 @@ describe('SerialSaves: one save in flight per field, the last tap winning (c566)
 		expect((await one).ok).toBe(false);
 		await tick();
 		h.answer('0', false);
-		expect(await two).toEqual({ ok: false, latest: true, earlierStored: false });
+		expect(await two).toMatchObject({ ok: false, latest: true, earlierStored: false });
 	});
 
 	it('a save that throws is not stored and still lets the next one run', async () => {
@@ -382,7 +399,7 @@ describe('SerialSaves: one save in flight per field, the last tap winning (c566)
 		const h = held();
 		const one = q.run('fav:1', () => Promise.reject(new Error('offline')));
 		const two = q.run('fav:1', h.save('0'));
-		expect(await one).toEqual({ ok: false, latest: false, earlierStored: false });
+		expect(await one).toMatchObject({ ok: false, latest: false, earlierStored: false });
 		await tick();
 		h.answer('0');
 		expect((await two).ok).toBe(true);
@@ -413,24 +430,75 @@ describe('SerialSaves: one save in flight per field, the last tap winning (c566)
 		const c = q.run('fav:1', h.save('c'));
 		await tick();
 		h.answer('c', false);
-		expect(await c).toEqual({ ok: false, latest: true, earlierStored: false });
+		expect(await c).toMatchObject({ ok: false, latest: true, earlierStored: false });
 	});
 
-	it('a turn that was latest when it answered stays pending while a newer tap runs', async () => {
+	it('a tap during the latest turn’s reload is not sent until that turn settles, and its failure is the newest’s (round 2)', async () => {
 		const q = new SerialSaves();
 		const h = held();
 		const one = q.run('fav:1', h.save('1'));
 		await tick();
 		h.answer('1');
-		expect((await one).latest).toBe(true);
-		// A tap during the first's reload.
-		void q.run('fav:1', h.save('0'));
+		const first = await one;
+		expect(first).toMatchObject({ ok: true, latest: true });
+		expect(first.newer()).toBe(false);
+		// A tap during the first's reload: queued, not sent.
+		const two = q.run('fav:1', h.save('0'));
+		await tick();
+		await tick();
+		expect(h.sent('0')).toBe(false);
+		// The first's caller asks after its reload: a newer tap came, so the band and the clear are not its.
+		expect(first.newer()).toBe(true);
 		q.settle('fav:1');
 		expect(q.pending('fav:1')).toBe(true);
 		await tick();
-		h.answer('0');
-		await tick();
+		expect(h.sent('0')).toBe(true);
+		h.answer('0', false);
+		const second = await two;
+		// The newest, failing, with no tap after it: its band must show.
+		expect(second).toMatchObject({ ok: false, latest: true, earlierStored: false });
+		expect(second.newer()).toBe(false);
+		expect(q.pending('fav:1')).toBe(true);
 		q.settle('fav:1');
 		expect(q.pending('fav:1')).toBe(false);
+		expect(second.newer()).toBe(false);
+		expect(h.order).toEqual(['sent 1', 'answered 1', 'sent 0', 'answered 0']);
+	});
+
+	it('a turn whose caller settles it from a finally lets the next save go even when its reload throws', async () => {
+		const q = new SerialSaves();
+		const h = held();
+		const one = q.run('fav:1', h.save('1'));
+		await tick();
+		h.answer('1');
+		await one;
+		const two = q.run('fav:1', h.save('0'));
+		const reload = async () => {
+			try {
+				await Promise.reject(new Error('reload failed'));
+			} finally {
+				q.settle('fav:1');
+			}
+		};
+		await expect(reload()).rejects.toThrow('reload failed');
+		await tick();
+		expect(h.sent('0')).toBe(true);
+		h.answer('0');
+		expect((await two).latest).toBe(true);
+		q.settle('fav:1');
+		expect(q.pending('fav:1')).toBe(false);
+	});
+
+	it('a tap after the whole burst settled is newer than every turn of it', async () => {
+		const q = new SerialSaves();
+		const h = held();
+		const one = q.run('fav:1', h.save('1'));
+		await tick();
+		h.answer('1');
+		const first = await one;
+		q.settle('fav:1');
+		expect(first.newer()).toBe(false);
+		void q.run('fav:1', h.save('0'));
+		expect(first.newer()).toBe(true);
 	});
 });

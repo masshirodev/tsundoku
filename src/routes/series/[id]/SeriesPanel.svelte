@@ -468,10 +468,17 @@
 		saves.clear(key);
 		const turn = await turns.run(key, save);
 		if (!turn.latest) return;
-		if (turn.ok || turn.earlierStored) await invalidateAll();
-		turns.settle(key);
+		// The reload is this turn's: the next tap's save waits for it to land.
+		// `finally`, because the queue is the app's: a turn never settled
+		// would hold the key for the whole session.
+		try {
+			if (turn.ok || turn.earlierStored) await invalidateAll();
+		} finally {
+			turns.settle(key);
+		}
 		// A newer tap came during the reload, or the screen is another series': theirs now.
-		if (turns.pending(key) || series.id !== id) return;
+		// Not `pending()`: that is true of an older turn still reloading too.
+		if (turn.newer() || series.id !== id) return;
 		// A failed save of the value already stored (FAV, then FAV again,
 		// both lost) leaves nothing unsaved and no band to show.
 		if (turn.ok || stored()) return clear();
@@ -482,9 +489,12 @@
 			retry: async () => {
 				const again = await turns.run(key, save);
 				if (!again.latest) return again.ok;
-				if (again.ok) await invalidateAll();
-				turns.settle(key);
-				if (again.ok && !turns.pending(key) && series.id === id) clear();
+				try {
+					if (again.ok) await invalidateAll();
+				} finally {
+					turns.settle(key);
+				}
+				if (again.ok && !again.newer() && series.id === id) clear();
 				return again.ok;
 			}
 		});
