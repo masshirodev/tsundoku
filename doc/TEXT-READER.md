@@ -95,6 +95,60 @@ made of.
   of the screen, the reader moves to it, keeping everything where it was on
   screen.
 
+### WIDTH
+
+**WIDTH** (card c437; the owner, 2026-11-03: "novels should let you pick the
+content area %, in case you want a A4 page on center or the content area with
+text"; 2026-11-05: "so i can read on a pc") sets how much of the screen the
+text takes: **50%, 65%, 80%, 100%** of the screen's width, or **PAGE**, a
+page of A4's proportion (1 : √2) as tall as the text area. The text is
+centred: the side margins take up what the column gives back. The rule is
+`frame()` in `src/lib/reader/text.ts`; `tests/reader-domain.spec.ts` pins every
+step on five screens and `tests/text-reader-width.e2e.ts` measures the drawn
+column on the four device projects.
+
+- **100% is the column every device drew before WIDTH** (the screen less
+  MARGINS on each side), so it is the default and nobody's page moved on
+  upgrade. Measured at the default size: 364 px on a phone (412 wide), 656 on
+  a portrait tablet (800), two columns of 520 on a landscape tablet (1280),
+  two of 600 on a 1440 desktop and two of 840 on a 1920 PC. That last is a
+  line of about 90 characters at the PC's 19 px, well past the length prose
+  reads best at, and one column (COLUMNS OFF) is 1776 px.
+- **Never narrower than 20 ems of the body text** (`MIN_MEASURE_EM`), about
+  forty characters, the shortest line that still reads as prose; never wider
+  than 100%. A step that would go below the floor stops there. So **on a
+  phone the steps change almost nothing** (50% of 412 px is 206 px, a dozen
+  words a line: the floor holds it at 360, against 100%'s 364), and PAGE is
+  100% there and on a portrait tablet, whose text area is already narrower
+  than an A4 page as tall. The steps are for a tablet in landscape and a PC.
+- **Landscape's two columns: the share is of the spread.** 65% of the screen
+  holds both columns and the 96 px between them, so each column is a little
+  under a third of the screen; PAGE is **two A4 pages side by side**, each as
+  tall as the text area, like an open book (1442 px on a 1920 × 1080 PC,
+  1188 on a 1440 × 900 desktop). The floor is per column, so on a 1280 px
+  tablet in landscape 50% and 65% both stop at two columns of 20 ems (856 px
+  in all, at its 19 px).
+  COLUMNS OFF makes it one column of the share.
+- **SCROLL is one column whatever COLUMNS says**, so its share is of that one:
+  the flow's side padding is the margin, and a line is never longer than the
+  paged single column would be.
+- **R→L** (c440) mirrors the columns inside the same centred box.
+- **Vertical Japanese** runs its lines down the page, so a line's length is the
+  text area's height, which WIDTH leaves alone. There WIDTH is how wide the
+  page of lines is: fewer lines a page at 50%, the same lines. PAGE is a
+  portrait page of A4's proportion, as tall as the text area.
+- **A change of width lays the chapter out again and keeps the place**, as a
+  change of size does ("Position", below): the page holding the character
+  being read in PAGED, the line where it stood in SCROLL.
+- **Kept per series, with the device's last choice as the default.** The
+  series' own is `tsundoku.text.width.<series id>` and the device's is
+  `tsundoku.text.width`, both in this browser's `localStorage`; a choice
+  writes both, so a series never set opens at the width last chosen on this
+  device, and a series once set keeps its own. Unlike
+  `tsundoku.text.settings` these keys are not in the settings catalogue, so
+  SETTINGS' DEVICES list does not show or mirror them (a catalogue entry is
+  a _Suggestion_ in `doc/handoff-notes/reader.md`, wave 25).
+
 The chapter ends where it ends: the rest of its last page is the band that
 names the next chapter ("END · CH. 212 / 212 OF 591 / NEXT … / ABOUT 12 MIN /
 TAP OR SWIPE TO CONTINUE →"). It only gets a page of its own when the last page
@@ -104,7 +158,7 @@ is full.
 
 A position is **the entry, the paragraph (block) and the character offset** of
 the first character on screen, found with `caretPositionFromPoint`. After a
-change of size, font, margins, layout or orientation, the chapter is laid out
+change of size, font, margins, WIDTH, layout or orientation, the chapter is laid out
 again and opens on the page holding that character. Page numbers, percentages
 and time left are worked out from the position and never stored.
 
@@ -303,12 +357,14 @@ reload, SCROLL untouched, vertical Japanese's row),
   `TextChrome`'s `rtl`).
 - **READING** is the image reader's sheet with rows for text: LAYOUT (the
   series', with REMEMBER), DIRECTION (the series', with REMEMBER; c440),
-  COLUMNS, THEME, FONT, SIZE, LINE, MARGINS, JUSTIFY,
-  FURIGANA, DIM and the rating. It has no scrim, so changes show as they're
-  made. Everything below DIRECTION belongs to the device (`localStorage`,
-  `tsundoku.text.settings`, stamped through `settings/local.ts` and mirrored
-  on the workstation, [`SETTINGS.md`](SETTINGS.md), "Devices"), and DIM is
-  shared with the image reader. A novel's default LAYOUT is SETTINGS'. The
+  COLUMNS, THEME, FONT, SIZE, LINE, MARGINS, WIDTH (c437, "Pages" above),
+  JUSTIFY, FURIGANA, DIM and the rating. It has no scrim, so changes show as
+  they're made. Everything below DIRECTION belongs to the device
+  (`localStorage`, `tsundoku.text.settings`, stamped through
+  `settings/local.ts` and mirrored on the workstation,
+  [`SETTINGS.md`](SETTINGS.md), "Devices"), except WIDTH, which is the
+  series' with the device's last choice as its default and is not mirrored,
+  and DIM is shared with the image reader. A novel's default LAYOUT is SETTINGS'. The
   sheet ends with ALL SETTINGS →.
 - **FONT** (c442) offers three, in this order: **Plex Serif** (the default),
   **Plex Sans** and **OpenDyslexic**. The list is `TEXT_FONTS` in

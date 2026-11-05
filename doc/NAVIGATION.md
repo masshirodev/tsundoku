@@ -126,3 +126,37 @@ back gesture walks that far.
 
 Tested in `tests/books-flow.e2e.ts` ("grouping from a single book's own
 screen, then back…"), which fails without it.
+
+## A screen being left writes nothing
+
+A screen keeps its own place in its URL with `replaceState`: the image reader
+writes `?p=` and the text reader `?at=` 800 ms after they settle, so a reload
+comes back to the page. Such a write lands on whatever history entry is current
+when it fires, and a reader stays mounted while the screen it is going to
+loads. BACK to the series moved the browser's entry first, and the reader's
+timer then wrote `/read/<id>?p=1` onto the series' entry: the series screen was
+drawn under the reader's URL, and its reload, share or BACK went to the reader
+(c565; `library-flow`'s ← case reproduced it 2 in 5 at a load of 45, wave 23).
+A late `goto` is worse: it replaces the navigation away with one back in.
+
+So nothing late writes the URL or navigates once a reader is on its way out
+(`leavingReader()` in `src/lib/reader/leaving.ts`: a navigation to another
+screen has begun, or the window's path is no longer the page's). Each reader's
+`beforeNavigate` also drops its settle timer when it leaves the reader route
+(its `close` event carries the place). Moving between chapters, `/read` to
+`/read`, is not leaving. The writers it covers, every one in
+`src/routes/read/`:
+
+| Writer                                                 | Late?                         | Guarded |
+| ------------------------------------------------------ | ----------------------------- | ------- |
+| Image reader's settle (`?p=`)                          | a timer, 800 ms               | yes     |
+| Text reader's settle (`?at=`)                          | a timer, 800 ms               | yes     |
+| The strip's crossing (`goto` into the next chapter)    | a scroll still gliding        | yes     |
+| A paged turn landing (`next()` / `prev()` past an end) | the slide's 220 ms            | yes     |
+| A turn queued during a slide or a settle-back          | taken after the 220 ms        | yes     |
+| The player's countdown into the next episode           | a 1 s interval                | yes     |
+| An edition switch, CH. ←/→, CONTINUE ON, ▶ NEXT        | the user's own press, at once | no      |
+
+Tested in `tests/reader-flow.e2e.ts` and `tests/text-reader-flow.e2e.ts`
+("left at once, … never writes …onto the series it went back to (c565)"),
+which hold the series' data past the 800 ms and fail without it.
