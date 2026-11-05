@@ -330,6 +330,9 @@ test('✕ puts the band away; it stays away on reload, and a new series to link 
 test('reveal off and on is no news: the band stays away until a series really is new (c430)', async ({
 	page
 }) => {
+	// Eight loads, each waited to hydration: past the default 30 s on the phone
+	// in a loaded run (the final run of wave 22, beside 40 other files).
+	test.setTimeout(90_000);
 	// A hidden series in the queue: two to link with reveal off, three with it on.
 	setHidden('Scroll Filler 03', true);
 	queueOneMore('Scroll Filler 03');
