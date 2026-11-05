@@ -289,6 +289,32 @@ export const isVerticalBook = (language: string, rtl: boolean) =>
 
 // ---- where you are --------------------------------------------------------------
 
+/**
+ * The place a text reader's URL keeps (`?at=`; doc/TEXT-READER.md,
+ * "Position"): the paragraph and the character, and in SCROLL how far below
+ * the top of the screen that character's line stood (c554), so a reload puts
+ * the line back where it was rather than on the top margin, up to a line off.
+ * `?at=12.340` (paragraph 12, character 340) is the form every link and
+ * history entry made before c554 has, and still opens as it did: on the
+ * margin. The offset is CSS px on the screen, which means the same at any
+ * WIDTH or size: the line holding the character goes back to that height.
+ */
+export type TextPlace = { block: number; offset: number; y: number | null };
+export function parseAt(raw: string | null | undefined): TextPlace | null {
+	const [b, o, y] = (raw ?? '').split('.').map((v) => (/^-?\d+$/.test(v) ? Number(v) : NaN));
+	if (!Number.isInteger(b) || b < 0) return null;
+	return {
+		block: b,
+		offset: Number.isInteger(o) && o >= 0 ? o : 0,
+		y: Number.isInteger(y) ? y : null
+	};
+}
+export function formatAt(p: { block: number; offset: number }, y: number | null = null): string {
+	return y === null || !Number.isFinite(y)
+		? `${p.block}.${p.offset}`
+		: `${p.block}.${p.offset}.${Math.round(y)}`;
+}
+
 export type BookEntry = { bytes: number; matter: '' | 'front' | 'back' };
 
 /**

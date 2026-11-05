@@ -53,7 +53,9 @@ import {
 	parseTextWidth,
 	textWidthName,
 	widthFor,
-	widthKeyOf
+	widthKeyOf,
+	formatAt,
+	parseAt
 } from '$lib/reader/text';
 import { OnePointer } from '$lib/reader/pointer';
 
@@ -720,5 +722,32 @@ describe('a novel’s WIDTH (c437)', () => {
 		for (const bad of ['50', '100%', 'PAGE', 0, 120, '', null, undefined, {}])
 			expect(parseTextWidth(bad)).toBeNull();
 		expect(widthKeyOf(12)).toBe('tsundoku.text.width.12');
+	});
+});
+
+describe('the text reader’s place in the URL (c554)', () => {
+	it('reads ?at=b.o as every link before c554 wrote it, and b.o.y with SCROLL’s line height', () => {
+		expect(parseAt('12.340')).toEqual({ block: 12, offset: 340, y: null });
+		expect(parseAt('12.340.57')).toEqual({ block: 12, offset: 340, y: 57 });
+		// A line partly above the top of the screen stands at a negative height.
+		expect(parseAt('12.340.-14')).toEqual({ block: 12, offset: 340, y: -14 });
+		// What the old split read as a place still is one: a paragraph alone.
+		expect(parseAt('12')).toEqual({ block: 12, offset: 0, y: null });
+		expect(parseAt('12.x')).toEqual({ block: 12, offset: 0, y: null });
+		expect(parseAt('12.340.x')).toEqual({ block: 12, offset: 340, y: null });
+		for (const bad of [null, undefined, '', 'abc', '-1.2', 'x.3']) expect(parseAt(bad)).toBeNull();
+	});
+
+	it('writes y only when there is one, rounded, and holds on its own output', () => {
+		expect(formatAt({ block: 3, offset: 9 })).toBe('3.9');
+		expect(formatAt({ block: 3, offset: 9 }, null)).toBe('3.9');
+		expect(formatAt({ block: 3, offset: 9 }, 41.6)).toBe('3.9.42');
+		expect(formatAt({ block: 3, offset: 9 }, -7.2)).toBe('3.9.-7');
+		expect(formatAt({ block: 3, offset: 9 }, NaN)).toBe('3.9');
+		for (const raw of ['0.0', '3.9', '3.9.42', '3.9.-7', '120.4410.0']) {
+			const p = parseAt(raw)!;
+			expect(formatAt(p, p.y)).toBe(raw);
+			expect(parseAt(formatAt(p, p.y))).toEqual(p);
+		}
 	});
 });

@@ -624,4 +624,147 @@ test.describe('a novel of two volumes, read in SCROLL (c347)', () => {
 		await expect(heading).toBeInViewport();
 		await expect(page.locator('.text-reader')).toHaveClass(/scroll/);
 	});
+
+	// In this block because a reload opens the series' own LAYOUT, so SCROLL
+	// must be REMEMBERed, a write the shared seed cannot take back (REMEMBER
+	// stores a layout; nothing stores the default, NULL, again).
+	test('in SCROLL, a reload keeps the line where it stood, at any WIDTH, and an older ?at= opens on the margin (c554)', async ({
+		page
+	}) => {
+		test.setTimeout(120_000);
+		await page.goto(`${base}/?sort=title`);
+		await page.locator('.grid .tile', { hasText: TITLE }).click();
+		await page.waitForURL(/\/series\//);
+		await page
+			.getByRole('link', { name: /READ AGAIN|CONTINUE|START/ })
+			.first()
+			.click();
+		await page.waitForURL(/\/read\//);
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+		const sheet = page.getByRole('dialog', { name: 'Reading settings' });
+		await middle(page);
+		await page.getByRole('button', { name: /^PAGED · / }).click();
+		await sheet.getByRole('radio', { name: 'SCROLL' }).click();
+		const saved = page.waitForResponse(
+			(r) => r.url().includes('?/direction') && r.request().method() === 'POST'
+		);
+		await sheet.getByRole('button', { name: 'REMEMBER SCROLL' }).click();
+		expect((await saved).status()).toBe(200);
+		await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+		await expect(page.locator('.text-reader')).toHaveClass(/scroll/);
+
+		const top = () => page.locator('.page').evaluate((n) => n.scrollTop);
+		const at = () => new URL(page.url()).searchParams.get('at') ?? '';
+		/** After a reload: the book open, its faces drawn, scrollTop held still. */
+		const reloaded = async () => {
+			await page.reload();
+			await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+			await expect(page.locator('.text-reader')).toHaveClass(/scroll/);
+			await page.evaluate(() => document.fonts.ready);
+		};
+		// The URL settled on where SCROLL opened (800 ms after the place), so the
+		// change awaited below is the scroll's, not the layout switch's.
+		let opened = '';
+		await expect
+			.poll(
+				() => {
+					const now = at();
+					const same = now !== '' && now === opened;
+					opened = now;
+					return same;
+				},
+				{ intervals: [1000] }
+			)
+			.toBe(true);
+		// A line cut by the top margin, as a hand leaves it (on a line's edge the
+		// margin would have been right by luck): the second line of a paragraph
+		// mid-chapter with text above it, not an illustration. With the plate
+		// between the margin and the first line, a WIDTH change in the session
+		// itself kept the line 194 px off 1 run in 3 (reader notes, wave 25).
+		await page.locator('.page').evaluate((n) => {
+			// The first such paragraph of three lines or more: one further down can
+			// bring the next chapter's start past the middle, which opens it at its top.
+			const lh = parseFloat(getComputedStyle(n.querySelector('.flow p')!).lineHeight) || 32;
+			const p = [...n.querySelectorAll<HTMLElement>('.blocks:not(.next) > p')].find(
+				(p) => p.previousElementSibling?.tagName === 'P' && p.offsetHeight >= lh * 3 - 1
+			)!;
+			const margin = parseFloat(getComputedStyle(n.querySelector('.flow')!).paddingTop);
+			n.scrollTop += Math.round(
+				p.getBoundingClientRect().top - n.getBoundingClientRect().top - margin + lh * 1.5
+			);
+			n.dispatchEvent(new Event('scroll'));
+		});
+		// The place is read 250 ms after the scroll stops, and the URL keeps it
+		// 800 ms after that.
+		await expect.poll(at).not.toBe(opened);
+		const settled = await top();
+		// Somewhere mid-chapter, not its top: the case reads a place a reload could miss.
+		expect(settled).toBeGreaterThan(0);
+		await reloaded();
+		await expect.poll(async () => Math.abs((await top()) - settled)).toBeLessThanOrEqual(1);
+		// It could because the URL carries the line's height too (`b.o.y`).
+		const place = at();
+		expect(place).toMatch(/^\d+\.\d+\.-?\d+$/);
+
+		// WIDTH changed, then a reload: the relayout put the line back at its
+		// height, and the reload at the new width puts it there again.
+		const measure = () =>
+			page.locator('.blocks:not(.next)').evaluate((n: HTMLElement) => n.clientWidth);
+		const wide = await measure();
+		await middle(page);
+		await page.getByRole('button', { name: /^SCROLL · / }).click();
+		await sheet
+			.getByRole('radiogroup', { name: 'Width' })
+			.getByRole('radio', { name: '65%', exact: true })
+			.click();
+		await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+		// Laid out at 65%, then held still: what the relayout kept.
+		await expect.poll(measure).toBeLessThan(wide);
+		let still = -1;
+		await expect
+			.poll(
+				async () => {
+					const now = await top();
+					const same = now === still;
+					still = now;
+					return same;
+				},
+				{ intervals: [300] }
+			)
+			.toBe(true);
+		expect(at()).toBe(place);
+		await reloaded();
+		await expect.poll(async () => Math.abs((await top()) - still)).toBeLessThanOrEqual(1);
+
+		// A link from before c554, `?at=b.o`: its character on the top margin, as it did.
+		const [b, o] = place.split('.');
+		const url = new URL(page.url());
+		url.searchParams.set('at', `${b}.${o}`);
+		await page.goto(url.toString());
+		await expect(page.locator('.blocks p').first()).toBeVisible({ timeout: 15000 });
+		await page.evaluate(() => document.fonts.ready);
+		const fromMargin = () =>
+			page.evaluate(
+				([b, o]) => {
+					const pageEl = document.querySelector<HTMLElement>('.page')!;
+					const margin = parseFloat(getComputedStyle(pageEl.querySelector('.flow')!).paddingTop);
+					const block = document.querySelector(`.blocks [data-b="${b}"]`)!;
+					const walk = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+					let left = Number(o);
+					for (let t = walk.nextNode(); t; t = walk.nextNode()) {
+						const n = t.textContent?.length ?? 0;
+						if (left < n) {
+							const r = document.createRange();
+							r.setStart(t, left);
+							r.setEnd(t, left + 1);
+							return r.getBoundingClientRect().top - pageEl.getBoundingClientRect().top - margin;
+						}
+						left -= n;
+					}
+					return NaN;
+				},
+				[b, o]
+			);
+		await expect.poll(async () => Math.abs(await fromMargin())).toBeLessThanOrEqual(1);
+	});
 });
